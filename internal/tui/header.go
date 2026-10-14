@@ -159,8 +159,8 @@ func (m *model) rawHeaderItems() []headerItem {
 	case "settings":
 		editable := idle && m.audio() != nil && m.audio().Configure != nil
 		rows := []headerItem{{"Model…", "edit:model", editable}, {"Generation…", "edit:generation", editable}, {"Speech…", "edit:speech", editable && m.hasSettingsSpeech()}, {"Profiles…", "edit:profiles", editable}, {"Application…", "application", idle && m.application != nil}}
-		if m.chat != nil {
-			rows = append(rows, headerItem{"Character…", "edit:character", editable}, headerItem{"Prompts…", "edit:prompts", editable})
+		if m.audio() != nil {
+			rows = append(rows, headerItem{"Character…", "edit:character", editable}, headerItem{"You…", "edit:you", editable}, headerItem{"Prompts…", "edit:prompts", editable}, headerItem{"Prompt preview…", "prompt-info", true})
 		}
 		return rows
 	case "conversation-mode":
@@ -465,7 +465,7 @@ func (m *model) overlayHeader(background string) string {
 		if shortcut != "" {
 			label += strings.Repeat(" ", max(1, width-2-lipgloss.Width(label)-lipgloss.Width(shortcut))) + shortcut
 		}
-		rows = append(rows, border.Render("│")+style.Render(cellLine(label, width-2))+border.Render("│"))
+		rows = append(rows, border.Render("│")+popupRow(style, label, width-2)+border.Render("│"))
 	}
 	rows = append(rows, border.Render("╰"+strings.Repeat("─", width-2)+"╯"))
 	lines := strings.Split(background, "\n")

@@ -39,7 +39,7 @@ func (m *model) searchView() string {
 	query := strings.TrimSpace(s.filter.Value())
 	rows := []string{border.Render("╭─ Search " + strings.Repeat("─", max(g.width-11, 0)) + "╮")}
 	line := func(text string, style lipgloss.Style) string {
-		return border.Render("│") + style.Render(cellLine(text, inner)) + border.Render("│")
+		return border.Render("│") + popupRow(style, text, inner) + border.Render("│")
 	}
 	rows = append(rows, line(s.filter.View(), normal), line("", normal))
 	if len(s.entries) == 0 {

@@ -19,7 +19,7 @@ func (m *model) screenContent() string {
 		if m.actionBarVisible() {
 			content += "\n" + m.actionBar()
 		}
-		return paintScreen(cellFrame(content, m.termW, m.termH))
+		return cellFrame(content, m.termW, m.termH)
 	}
 	paneHeader := cellLine(m.identityLine(), m.vp.Width())
 	if m.sidebarVisible() {
@@ -122,11 +122,12 @@ func (m *model) screenContent() string {
 	if m.header.menu != "" {
 		content = m.overlayHeader(content)
 	}
-	return paintScreen(content)
+	return content
 }
 
 func (m *model) View() tea.View {
 	v := tea.NewView(m.screenContent())
+	// Renderer defaults color unstyled cells without overwriting popup surfaces.
 	v.BackgroundColor = lipgloss.Color(currentPalette().background)
 	v.ForegroundColor = lipgloss.Color(themeColor(colorPopupText))
 	v.AltScreen = true

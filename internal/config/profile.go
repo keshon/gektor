@@ -4,6 +4,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/keshon/tars/internal/prompts"
 	"github.com/keshon/tars/internal/speech"
 	"io"
 	"math"
@@ -40,6 +41,10 @@ type Generation struct {
 }
 
 type Conversation struct {
+	PromptPreset               string `json:"prompt_preset,omitempty"`
+	Name                       string `json:"name,omitempty"`
+	UserPersona                string `json:"user_persona,omitempty"`
+	GreetingIndex              int    `json:"greeting_index,omitempty"`
 	Character                  string `json:"character,omitempty"`
 	UserName                   string `json:"user_name,omitempty"`
 	SystemPrompt               string `json:"system_prompt,omitempty"`
@@ -104,6 +109,11 @@ func Load(path string) (Profile, error) {
 	return p, p.Validate()
 }
 func (p Profile) Validate() error {
+	if p.Conversation != nil {
+		if _, err := prompts.ResponsePreset(p.Conversation.PromptPreset); err != nil {
+			return err
+		}
+	}
 	if p.Speech != nil {
 		if err := p.Speech.Validate(); err != nil {
 			return err
@@ -137,6 +147,9 @@ func (p Profile) Validate() error {
 	}
 	if p.Provider.Ownership == "managed" && (u.Scheme != "http" || (u.Hostname() != "localhost" && u.Hostname() != "127.0.0.1") || u.Port() == "" || (u.Path != "" && u.Path != "/")) {
 		return fmt.Errorf("profile: managed llama needs a loopback HTTP origin with an explicit port")
+	}
+	if p.Conversation != nil && (p.Conversation.GreetingIndex < 0 || len(p.Conversation.Name) > 100) {
+		return fmt.Errorf("profile: invalid assistant name or greeting index")
 	}
 	if p.Provider.Model == "" {
 		return fmt.Errorf("profile: model is required")

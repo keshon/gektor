@@ -54,12 +54,12 @@ func TestSettingsDirectEditorCancelAndFocus(t *testing.T) {
 	m.header.global = true
 	m.header.focused = true
 	m.header.menu = "settings"
-	m.header.row = 5
+	m.header.row = 6
 	m.headerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.dialog == nil || m.dialog.form == nil || m.header.focused || m.dialog.title != "Settings" {
 		t.Fatal("settings redirected instead of opening editor")
 	}
-	m.focusForm(1)
+	m.focusForm(0)
 	if m.dialog.form.editor.Value() != "User" {
 		t.Fatal("initial field lost")
 	}
@@ -174,8 +174,11 @@ func TestSettingsFormMouseAndFrame(t *testing.T) {
 		}
 		cancel := hits[len(hits)-1]
 		if cancel.x1 > 0 {
-			x = 2 + cancel.x0
-			if w >= 76 {
+			x = m.conversationOffset() + max((w-bw-4)/2, 0) + 2 + cancel.x0
+			if m.dialog.form.workspace != nil {
+				x = 2 + cancel.x0
+			}
+			if m.dialog.form.workspace != nil && w >= 76 {
 				x += 17
 			}
 		}
@@ -266,7 +269,7 @@ func TestFormFooterMatchesActionsAndViewIsPure(t *testing.T) {
 func TestPromptSwitchCanToggleWithoutTypingBoolean(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("prompts")
-	m.focusForm(2)
+	focusSetting(m, "prefer-main")
 	if m.dialog.form.editor.Value() != "true" {
 		t.Fatal("wrong initial switch")
 	}

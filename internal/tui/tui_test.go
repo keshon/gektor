@@ -1373,11 +1373,11 @@ func TestRenderBlockWrapsToWidth(t *testing.T) {
 	// tag bracket — aligned, not new.
 	out = renderBlock(userBlock("aaa bbb ccc ddd eee fff"), st, false, 20)
 	lines := strings.Split(ansi.Strip(out), "\n")
-	if len(lines) < 2 || !strings.HasPrefix(lines[0], "YOU") {
+	if len(lines) < 2 || !strings.HasPrefix(lines[0], "You:") {
 		t.Fatalf("speaker header missing: %q", out)
 	}
 	for _, ln := range lines[1:] {
-		if strings.TrimSpace(ln) != "" && !strings.HasPrefix(ln, "      ") {
+		if strings.TrimSpace(ln) != "" && strings.HasPrefix(ln, " ") {
 			t.Fatalf("continuation off rail: %q", out)
 		}
 	}
@@ -1707,7 +1707,7 @@ func TestTurnSeparators(t *testing.T) {
 	m.appendBlock(answerBlock("first"))
 	m.appendBlock(userBlock("❯ second"))
 	view := ansi.Strip(m.vp.View())
-	if strings.Contains(view, "─") || !regexp.MustCompile(`\n *\n *\nYOU`).MatchString(view) {
+	if strings.Contains(view, "─") || !regexp.MustCompile(`\n *\n *\nYou:`).MatchString(view) {
 		t.Fatalf("turn should use two blank rows instead of a pane rule: %q", view)
 	}
 	// Marker-then-echo shares one turn: no extra turn spacing.

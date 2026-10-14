@@ -228,10 +228,10 @@ func (m *model) suggestionView(body string) string {
 			mark, style = "› ", selected
 		}
 		label := mark + cellLine(item.value, valueWidth) + "  " + item.description
-		rows = append(rows, border.Render("│")+style.Render(cellLine(label, width-2))+border.Render("│"))
+		rows = append(rows, border.Render("│")+popupRow(style, label, width-2)+border.Render("│"))
 	}
 	hint := "↑↓ select  " + action + "  Esc dismiss"
-	rows = append(rows, border.Render("│")+normal.Render(cellLine("  "+hint, width-2))+border.Render("│"))
+	rows = append(rows, border.Render("│")+popupRow(normal, "  "+hint, width-2)+border.Render("│"))
 	rows = append(rows, border.Render("╰"+strings.Repeat("─", width-2)+"╯"))
 
 	lines := strings.Split(cellFrame(body, m.vp.Width(), height), "\n")

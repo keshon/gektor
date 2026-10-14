@@ -139,3 +139,6 @@ func (m *Manager) ensureRecognition(ctx context.Context) error {
 }
 
 func (m *Manager) Diagnostics() string { return m.log.Name() }
+
+func (m *Manager) DeliveryCues() []string       { return m.tts.DeliveryCues() }
+func (m *Manager) DeliveryInstructions() string { return m.tts.DeliveryInstructions() }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/keshon/tars/internal/character"
 	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/tars/internal/prompts"
 	"github.com/keshon/tars/internal/speech"
 	"os"
 	"path/filepath"
@@ -111,6 +112,16 @@ func (m *model) saveSettingsCopy() {
 	m.dialog.form.error = "Saved copy: " + path
 }
 func catalogDetail(key, path string) string {
+	if key == "prompt-preset" {
+		preset, err := prompts.ResponsePreset(path)
+		if err != nil {
+			return err.Error()
+		}
+		if preset.ID == "custom" {
+			return "Custom · Uses your base prompt and card overrides without adding a response-style preset."
+		}
+		return preset.Name + " · " + preset.Instruction
+	}
 	if key == "character" {
 		card, err := character.Load(path)
 		if err != nil {
@@ -263,4 +274,36 @@ func (m *model) acceptSettingsDetail(msg settingsDetailMsg) {
 	if p.id == msg.id && p.detailPath == msg.path {
 		p.detail = msg.text
 	}
+}
+
+func (m *model) saveCustomSettings(profile config.Profile) error {
+	if m.application == nil || m.application.PreferencePath == "" || m.dialog == nil || m.dialog.form == nil || m.dialog.form.workspace == nil {
+		return nil
+	}
+	ws := m.dialog.form.workspace
+	changed := false
+	for section, fields := range ws.cache {
+		if section != "profiles" && section != "application" && !reflect.DeepEqual(fields, ws.original[section]) {
+			changed = true
+			break
+		}
+	}
+	if !changed {
+		return nil
+	}
+	root := filepath.Dir(m.application.PreferencePath)
+	if filepath.Base(root) == "var" {
+		root = filepath.Dir(root)
+	}
+	source := m.application.Preferences.ProfilePath
+	if ws.loadedPath != "" {
+		source = ws.loadedPath
+	}
+	path, err := config.SaveCustom(profile, filepath.Join(root, "profiles", "custom"), source)
+	if err != nil {
+		return fmt.Errorf("save custom profile: %w", err)
+	}
+	ws.loadedPath = path
+	ws.autoSaved = true
+	return nil
 }

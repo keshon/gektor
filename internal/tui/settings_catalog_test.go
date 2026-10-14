@@ -48,6 +48,7 @@ func TestCharacterPickerRejectsPortraitAndStagesCard(t *testing.T) {
 }
 func TestLoadedProfileAppliesWithoutResettingHistory(t *testing.T) {
 	m := settingsModel(t)
+	m.application = &Application{Preferences: config.Preferences{Version: 1, Mode: "chat", Voice: "off", ProfilePath: "old.json"}}
 	root := t.TempDir()
 	p := cloneSettingsProfile(m.chat.config.Profile)
 	p.Conversation.UserName = "Alex"
@@ -74,6 +75,9 @@ func TestLoadedProfileAppliesWithoutResettingHistory(t *testing.T) {
 	m.applyForm()
 	if m.dialog != nil || m.stateFile != id || m.chat.config.Profile.Conversation.UserName != "Alex" || !reflect.DeepEqual(history, m.chat.current.History()) {
 		t.Fatal("profile load lost session")
+	}
+	if m.profileSource() != "custom.json" {
+		t.Fatal("loaded setup source was not updated", m.profileSource())
 	}
 }
 func TestSampleCompletionCannotAffectClosedWorkspace(t *testing.T) {
@@ -128,4 +132,60 @@ func TestSettingsLibrariesPreview(t *testing.T) {
 	p = m.dialog.form.picker
 	m.acceptSettingsScan(settingsScanMsg{p.id, []string{"D:/Cards/Veyra.json", "E:/SillyTavern/characters/Ada.png"}, nil})
 	write("character-picker")
+}
+
+func TestApplyAutomaticallySavesReusableCustomProfile(t *testing.T) {
+	m := settingsModel(t)
+	root := t.TempDir()
+	original := cloneSettingsProfile(m.chat.config.Profile)
+	builtin := filepath.Join(root, "profiles", "builtin.json")
+	if err := config.SaveCopy(original, builtin); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(builtin)
+	m.application = &Application{PreferencePath: filepath.Join(root, "var", "application.json"), Preferences: config.Preferences{Version: 1, Mode: "chat", Voice: "off", ProfilePath: builtin, Profile: &original}}
+	m.editSettings("you")
+	m.dialog.form.editor.SetValue("Alex")
+	m.applyForm()
+	if m.dialog != nil {
+		t.Fatal("apply did not finish", m.dialog.form.error)
+	}
+	custom := m.application.Preferences.ProfilePath
+	if filepath.Dir(custom) != filepath.Join(root, "profiles", "custom") || custom == builtin {
+		t.Fatal(custom)
+	}
+	saved, err := config.Load(custom)
+	if err != nil || saved.Conversation.UserName != "Alex" {
+		t.Fatal(saved, err)
+	}
+	m.editSettings("generation")
+	m.dialog.form.editor.SetValue("0.8")
+	m.applyForm()
+	if m.dialog != nil || m.application.Preferences.ProfilePath != custom {
+		t.Fatal("custom profile not reused")
+	}
+	saved, err = config.Load(custom)
+	if err != nil || saved.Generation.Temperature != .8 {
+		t.Fatal(saved, err)
+	}
+	preferences, err := config.LoadPreferences(m.application.PreferencePath)
+	if err != nil || preferences.ProfilePath != custom || preferences.Profile == nil || preferences.Profile.Generation.Temperature != .8 {
+		t.Fatal("custom selection was not persisted", preferences, err)
+	}
+	m.editSettings("prompts")
+	focusSetting(m, "prompt-preset")
+	m.dialog.form.editor.SetValue("coding")
+	m.applyForm()
+	saved, err = config.Load(custom)
+	if m.dialog != nil || err != nil || saved.Conversation.PromptPreset != "coding" {
+		t.Fatal("preset was not saved in custom setup", saved, err)
+	}
+	after, _ := os.ReadFile(builtin)
+	if string(before) != string(after) {
+		t.Fatal("bundled profile overwritten")
+	}
+	entries, _ := os.ReadDir(filepath.Dir(custom))
+	if len(entries) != 1 {
+		t.Fatal("autosave left extra copies", entries)
+	}
 }

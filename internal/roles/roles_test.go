@@ -287,3 +287,36 @@ func TestInteractive_HonorsEnvMaxSteps(t *testing.T) {
 		t.Fatalf("Report().MaxSteps = %d, want default %d", got, agent.DefaultMaxSteps)
 	}
 }
+
+type identityClient struct {
+	t     *testing.T
+	calls int
+}
+
+func (c *identityClient) Chat(_ context.Context, r llm.ChatRequest) (llm.ChatResponse, error) {
+	c.calls++
+	if len(r.Messages) == 0 || !strings.Contains(r.Messages[0].Content, "Character name: Ada") || strings.Contains(r.Messages[0].Content, "You are TARS") {
+		c.t.Fatal(r.Messages)
+	}
+	return llm.ChatResponse{Message: llm.Message{Content: "Hello"}}, nil
+}
+func TestPlanAndActUseProfileIdentity(t *testing.T) {
+	for _, plan := range []bool{true, false} {
+		e := testEnv(t)
+		client := &identityClient{t: t}
+		e.Client = client
+		e.Identity = "Character name: Ada"
+		e.IdentityName = "Ada"
+		e.SkipVerify = true
+		a := Interactive(e, "", "", nil, nil)
+		if plan {
+			a = Planner(e, "", "")
+		}
+		if _, err := a.Run(context.Background(), "Hello"); err != nil {
+			t.Fatal(err)
+		}
+		if client.calls == 0 {
+			t.Fatal("no backend request")
+		}
+	}
+}

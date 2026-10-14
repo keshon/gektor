@@ -28,3 +28,6 @@ run-serve.cmd
 /assets/characters/private/
 
 /assets/manifest.json
+
+# Per-user setup snapshots created by Settings Apply.
+/profiles/custom/

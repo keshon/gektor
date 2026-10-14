@@ -95,7 +95,7 @@ func formatElapsed(d time.Duration) string {
 }
 
 // The application name stays static; activity belongs beside the run status.
-func (m *model) brand() string { return m.styles.gate.Render("TARS") + " " }
+func (m *model) brand() string { return m.styles.gate.Render(m.speakerName()) + " " }
 
 var activityFrames = []rune("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
 

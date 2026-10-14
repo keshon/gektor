@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"charm.land/lipgloss/v2"
 	"fmt"
 	"github.com/keshon/tars/internal/config"
 )
@@ -32,8 +31,4 @@ func (m *model) openTheme() {
 		return nil
 	})
 	m.dialog.form.choices = map[string][]string{"theme": {"dark", "light"}}
-}
-func paintScreen(content string) string {
-	p := currentPalette()
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorPopupText))).Background(lipgloss.Color(p.background)).Render(content)
 }

@@ -133,7 +133,7 @@ func renderBox(rows []string, availW, availH int) string {
 	normal, border, _ := popupStyles()
 	framed := []string{border.Render("╭" + strings.Repeat("─", bw+2) + "╮")}
 	for _, row := range rows {
-		framed = append(framed, border.Render("│ ")+normal.Render(cellLine(row, bw))+border.Render(" │"))
+		framed = append(framed, border.Render("│ ")+popupRow(normal, row, bw)+border.Render(" │"))
 	}
 	framed = append(framed, border.Render("╰"+strings.Repeat("─", bw+2)+"╯"))
 	box := strings.Join(framed, "\n")
@@ -247,7 +247,7 @@ func renderHelp() []string {
 // Env, so nothing here can disagree with the run.
 func (m *model) statusLines() []string {
 	if m.chat != nil {
-		return kvRows([]string{"mode: Chat (text only)", "character: " + nonEmpty(m.chat.config.Settings.CharacterName), "backend: " + nonEmpty(m.backendKind), "model: " + nonEmpty(m.modelName), "session: " + nonEmpty(m.stateFile), "tools: none", "context: " + m.meter(), fmt.Sprintf("response budget: %d tokens", m.responseCap)})
+		return kvRows([]string{"mode: Chat", "voice: " + m.currentVoiceMode(), "character: " + m.speakerName(), "user: " + m.userName(), "profile file: " + m.profileSource(), "backend: " + nonEmpty(m.backendKind), "model: " + nonEmpty(m.modelName), "session: " + nonEmpty(m.stateFile), "tools: none", "context: " + m.meter(), fmt.Sprintf("response budget: %d tokens", m.responseCap)})
 	}
 	taskDir := "—"
 	if m.stateFile != "" {
@@ -274,6 +274,11 @@ func (m *model) statusLines() []string {
 		allowed = strconv.Itoa(n) + " (this run only)"
 	}
 	return kvRows([]string{
+		"mode: Agent",
+		"voice: " + m.currentVoiceMode(),
+		"character: " + m.speakerName(),
+		"user: " + m.userName(),
+		"profile file: " + m.profileSource(),
 		"backend: " + nonEmpty(m.backendKind),
 		"model: " + nonEmpty(m.modelName),
 		"workspace: " + nonEmpty(m.wsRoot),
@@ -339,4 +344,11 @@ func (m *model) helpSections() []helpSection {
 		sections[i].rows = rows
 	}
 	return sections
+}
+
+func (m *model) profileSource() string {
+	if m.application != nil && m.application.Preferences.ProfilePath != "" {
+		return filepath.Base(m.application.Preferences.ProfilePath)
+	}
+	return "Not saved"
 }

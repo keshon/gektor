@@ -1,0 +1,1 @@
+Prefer concrete, maintainable solutions. Explain relevant tradeoffs and validation. Distinguish proposed changes from work actually performed; do not claim tools ran or checks passed without evidence.

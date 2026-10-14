@@ -209,3 +209,53 @@ func TestRuntimeSpeechNoteIsBudgetedAndNotSaved(t *testing.T) {
 		t.Fatal("runtime capability note ignored in budget")
 	}
 }
+
+func TestExampleMessagesReachBackendAndConsumeContext(t *testing.T) {
+	calls := 0
+	client := clientFunc(func(_ context.Context, r llm.ChatRequest) (llm.ChatResponse, error) {
+		calls++
+		if calls == 1 && (len(r.Messages) != 5 || r.Messages[1].Role != llm.RoleUser || r.Messages[2].Role != llm.RoleAssistant || r.Messages[3].Content != "Greeting" || r.Messages[4].Content != "Actual") {
+			t.Fatal(r.Messages)
+		}
+		return llm.ChatResponse{Message: llm.Message{Content: "Reply"}}, nil
+	})
+	cfg := Config{System: "Identity", Greeting: "Greeting", Examples: []llm.Message{{Role: llm.RoleUser, Content: "Example question"}, {Role: llm.RoleAssistant, Content: "Example reply"}}, MaxTokens: 100, ContextLimit: 1000}
+	c, err := New(client, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = c.Ask(context.Background(), "Actual"); err != nil || calls != 1 {
+		t.Fatal(err, calls)
+	}
+	cfg.Examples[0].Content = strings.Repeat("long", 300)
+	c, _ = New(client, cfg)
+	result, err := c.Ask(context.Background(), "Actual")
+	if err != nil || calls != 2 || result.OmittedExamples != 2 {
+		t.Fatal("oversized examples were not omitted", result, err, calls)
+	}
+}
+
+func TestHistoryPriorityAndWireOrder(t *testing.T) {
+	calls := 0
+	client := clientFunc(func(_ context.Context, r llm.ChatRequest) (llm.ChatResponse, error) {
+		calls++
+		if calls == 2 {
+			if len(r.Messages) != 6 || r.Messages[0].Role != llm.RoleSystem || r.Messages[1].Content != "Greeting" || r.Messages[2].Content != "First *raw* question" || r.Messages[3].Content != "First reply" || r.Messages[4].Content != "Second question" || r.Messages[5].Role != llm.RoleSystem || r.Messages[5].Content != "Post" {
+				t.Fatal(r.Messages)
+			}
+		}
+		return llm.ChatResponse{Message: llm.Message{Content: "First reply"}}, nil
+	})
+	cfg := Config{System: "Persona", Greeting: "Greeting", PostHistory: "Post", MaxTokens: 100, ContextLimit: 700, Examples: []llm.Message{{Role: llm.RoleUser, Content: strings.Repeat("x", 250)}, {Role: llm.RoleAssistant, Content: "Example reply"}}}
+	c, err := New(client, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = c.Ask(context.Background(), "First *raw* question"); err != nil {
+		t.Fatal(err)
+	}
+	result, err := c.Ask(context.Background(), "Second question")
+	if err != nil || result.OmittedTurns != 0 || result.OmittedExamples != 2 || len(c.History()) != 4 {
+		t.Fatal(result, err, c.History())
+	}
+}

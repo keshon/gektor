@@ -21,8 +21,8 @@ func TestSettingsAcrossCategoriesApplyToCurrentSession(t *testing.T) {
 	draft := m.input.Value()
 	m.editSettings("generation")
 	m.dialog.form.editor.SetValue("0.8")
-	m.editSettings("character")
-	m.focusForm(1)
+	m.editSettings("you")
+	m.focusForm(0)
 	m.dialog.form.editor.SetValue("Alex")
 	m.editSettings("generation")
 	if m.dialog.form.editor.Value() != "0.8" {
@@ -49,8 +49,8 @@ func TestSettingsCancelAllCategories(t *testing.T) {
 	profile := m.chat.config.Profile
 	m.editSettings("generation")
 	m.dialog.form.editor.SetValue("0.9")
-	m.editSettings("character")
-	m.focusForm(1)
+	m.editSettings("you")
+	m.focusForm(0)
 	m.dialog.form.editor.SetValue("Changed")
 	m.closeDialog()
 	if m.chat.current != original || m.chat.config.Profile.Conversation.UserName != profile.Conversation.UserName || m.chat.config.Settings.Temperature != 0 {
@@ -247,5 +247,61 @@ func TestSettingsApplyBeforeFirstTurnKeepsLazyConversation(t *testing.T) {
 				t.Fatal("first turn was not persisted")
 			}
 		})
+	}
+}
+
+func TestCharacterAndUserSettingsRemainIndependent(t *testing.T) {
+	m := settingsModel(t)
+	p := cloneSettingsProfile(m.chat.config.Profile)
+	p.Conversation.Character = "character.json"
+	p.Conversation.Name = "Fallback"
+	p.Conversation.GreetingIndex = 1
+	if err := applySettingsValues(&p, "you", map[string]string{"user": "Alex", "persona": "A developer"}); err != nil {
+		t.Fatal(err)
+	}
+	if p.Conversation.Character != "character.json" || p.Conversation.Name != "Fallback" || p.Conversation.GreetingIndex != 1 {
+		t.Fatal("user settings changed character")
+	}
+	if err := applySettingsValues(&p, "character", map[string]string{"character": "", "name": "Ada", "greeting": "0"}); err != nil {
+		t.Fatal(err)
+	}
+	if p.Conversation.UserName != "Alex" || p.Conversation.UserPersona != "A developer" {
+		t.Fatal("character settings changed user")
+	}
+	m.editSettings("character")
+	for _, field := range m.dialog.form.fields {
+		if field.key == "user" || field.key == "persona" {
+			t.Fatal("user fields still mixed with character")
+		}
+	}
+	m.editSettings("you")
+	if len(m.dialog.form.fields) != 2 {
+		t.Fatal(m.dialog.form.fields)
+	}
+}
+
+func TestPromptPresetIsSharedAndStaged(t *testing.T) {
+	for _, agentMode := range []bool{false, true} {
+		m := settingsModel(t)
+		if agentMode {
+			audio := m.chat.config
+			m.audioConfig = &audio
+			m.chat = nil
+		}
+		m.editSettings("prompts")
+		focusSetting(m, "prompt-preset")
+		if m.dialog.form.editor.Value() != "custom" {
+			t.Fatal("existing behavior not preserved")
+		}
+		options := m.formOptions("prompt-preset")
+		if len(options) < 5 || choiceLabel("prompt-preset", "coding") != "Coding" || !strings.Contains(catalogDetail("prompt-preset", "coding"), "maintainable") {
+			t.Fatal(options)
+		}
+		m.dialog.form.editor.SetValue("coding")
+		staged, err := m.stagedSettings()
+		if err != nil || staged.Conversation.PromptPreset != "coding" || m.audio().Profile.Conversation.PromptPreset != "" {
+			t.Fatal("preset not staged independently", staged, err)
+		}
+		m.closeDialog()
 	}
 }

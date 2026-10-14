@@ -120,7 +120,7 @@ func runConfigured(launch launchRequest) error {
 	profilePath := flags.String("profile", "", "path to a versioned JSON provider and generation profile; explicit flags override it")
 	checkProfile := flags.Bool("check-profile", false, "validate and print a profile without contacting or starting its backend")
 	chatFlag := flags.Bool("chat", false, "tool-free text conversation; no workspace or coding instructions are loaded")
-	systemPrompt := flags.String("system-prompt", "You are a helpful conversational assistant.", "system instruction for -chat")
+	systemPrompt := flags.String("system-prompt", "You are a helpful conversational assistant.", "character identity instruction for Chat or Agent")
 	chatDir := flags.String("chat-dir", "", "directory for -chat -tui conversation archives; defaults to var/chats beside the executable")
 	characterPath := flags.String("character", "", "PNG or JSON character card for tool-free chat")
 	flags.StringVar(characterPath, "character-png", "", "alias for -character; reads PNG metadata or JSON without changing the card")
@@ -195,11 +195,8 @@ func runConfigured(launch launchRequest) error {
 		if !explicit["temperature"] {
 			*temperature = p.Generation.Temperature
 		}
-		if p.Conversation != nil && (*chatFlag || *checkProfile) {
+		if p.Conversation != nil {
 			c := p.Conversation
-			if !*chatFlag && !*checkProfile {
-				return fmt.Errorf("conversation profile requires -chat")
-			}
 			if !explicit["character"] && !explicit["character-png"] {
 				*characterPath = c.Character
 			}
@@ -220,9 +217,10 @@ func runConfigured(launch launchRequest) error {
 			}
 		}
 		p.Generation.Temperature = *temperature
-		if (*chatFlag || *checkProfile) && (p.Conversation != nil || *characterPath != "" || *postHistory != "") {
-			p.Conversation = &config.Conversation{Character: *characterPath, UserName: *userName, SystemPrompt: *systemPrompt, PostHistory: *postHistory, PreferCharacterPrompt: preferCharacterPrompt, PreferCharacterPostHistory: preferCharacterPost}
+		if p.Conversation != nil || *characterPath != "" || *postHistory != "" {
+			p.Conversation = &config.Conversation{PromptPreset: selectedProfilePreset(selectedProfile), Name: selectedProfileName(selectedProfile), UserPersona: selectedProfilePersona(selectedProfile), GreetingIndex: selectedGreetingIndex(selectedProfile), Character: *characterPath, UserName: *userName, SystemPrompt: *systemPrompt, PostHistory: *postHistory, PreferCharacterPrompt: preferCharacterPrompt, PreferCharacterPostHistory: preferCharacterPost}
 		}
+		selectedProfile.Conversation = p.Conversation
 		p.Provider.Kind, p.Provider.URL, p.Provider.Model, p.Provider.APIKeyEnv = *backendKind, *backend, *model, *apiKeyEnv
 		p.Generation.MaxTokens, p.Generation.ContextLimit = *maxTokens, *contextLimitFlag
 		if err := p.Validate(); err != nil {
@@ -230,7 +228,7 @@ func runConfigured(launch launchRequest) error {
 		}
 		if *checkProfile {
 			if p.Conversation != nil {
-				if _, _, err := compileChatSettings(chatOptions{Character: *characterPath, User: *userName, System: *systemPrompt, Post: *postHistory, PreferMain: *preferCharacterPrompt, PreferPost: *preferCharacterPost, MaxTokens: *maxTokens, ContextLimit: *contextLimitFlag, Temperature: *temperature}); err != nil {
+				if _, _, err := compileChatSettings(chatOptions{Preset: selectedProfilePreset(selectedProfile), Name: selectedProfileName(selectedProfile), Persona: selectedProfilePersona(selectedProfile), GreetingIndex: selectedGreetingIndex(selectedProfile), Character: *characterPath, User: *userName, System: *systemPrompt, Post: *postHistory, PreferMain: *preferCharacterPrompt, PreferPost: *preferCharacterPost, MaxTokens: *maxTokens, ContextLimit: *contextLimitFlag, Temperature: *temperature}); err != nil {
 					return err
 				}
 			}
@@ -271,7 +269,7 @@ func runConfigured(launch launchRequest) error {
 		client.ExtraHeaders = extraHeadersFromEnv()
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		settings, warnings, err := compileChatSettings(chatOptions{Character: *characterPath, User: *userName, System: *systemPrompt, Post: *postHistory, PreferMain: *preferCharacterPrompt, PreferPost: *preferCharacterPost, MaxTokens: *maxTokens, ContextLimit: *contextLimitFlag, Temperature: *temperature})
+		settings, warnings, err := compileChatSettings(chatOptions{Preset: selectedProfilePreset(selectedProfile), Name: selectedProfileName(selectedProfile), Persona: selectedProfilePersona(selectedProfile), GreetingIndex: selectedGreetingIndex(selectedProfile), Character: *characterPath, User: *userName, System: *systemPrompt, Post: *postHistory, PreferMain: *preferCharacterPrompt, PreferPost: *preferCharacterPost, MaxTokens: *maxTokens, ContextLimit: *contextLimitFlag, Temperature: *temperature})
 		if err != nil {
 			return err
 		}
@@ -294,7 +292,7 @@ func runConfigured(launch launchRequest) error {
 			if err != nil {
 				return err
 			}
-			profile := config.Profile{Speech: speechSettings, Version: 1, Provider: config.Provider{Kind: *backendKind, URL: *backend, Model: *model, Ownership: "external", APIKeyEnv: *apiKeyEnv}, Generation: config.Generation{MaxTokens: *maxTokens, ContextLimit: *contextLimitFlag, Temperature: *temperature}, Conversation: &config.Conversation{Character: *characterPath, UserName: *userName, SystemPrompt: *systemPrompt, PostHistory: *postHistory, PreferCharacterPrompt: preferCharacterPrompt, PreferCharacterPostHistory: preferCharacterPost}}
+			profile := config.Profile{Speech: speechSettings, Version: 1, Provider: config.Provider{Kind: *backendKind, URL: *backend, Model: *model, Ownership: "external", APIKeyEnv: *apiKeyEnv}, Generation: config.Generation{MaxTokens: *maxTokens, ContextLimit: *contextLimitFlag, Temperature: *temperature}, Conversation: &config.Conversation{PromptPreset: selectedProfilePreset(selectedProfile), Name: selectedProfileName(selectedProfile), UserPersona: selectedProfilePersona(selectedProfile), GreetingIndex: selectedGreetingIndex(selectedProfile), Character: *characterPath, UserName: *userName, SystemPrompt: *systemPrompt, PostHistory: *postHistory, PreferCharacterPrompt: preferCharacterPrompt, PreferCharacterPostHistory: preferCharacterPost}}
 			profile.Provider.Ownership = thinkingSettings.Ownership
 			if profile.Provider.Ownership == "" {
 				profile.Provider.Ownership = "external"
@@ -314,7 +312,7 @@ func runConfigured(launch launchRequest) error {
 		}
 		return runChat(ctx, client, settings, task, os.Stdin, os.Stdout)
 	}
-	for _, name := range []string{"voice", "character", "character-png", "user-name", "post-history", "character-main-prompt", "character-post-history"} {
+	for _, name := range []string{"voice"} {
 		if explicitFlags[name] && !(name == "voice" && *tuiFlag && speechSettings != nil) {
 			return fmt.Errorf("-%s requires -chat", name)
 		}
@@ -322,9 +320,6 @@ func runConfigured(launch launchRequest) error {
 
 	if *chatDir != "" {
 		return fmt.Errorf("-chat-dir requires -chat -tui")
-	}
-	if *systemPrompt != "You are a helpful conversational assistant." {
-		return fmt.Errorf("-system-prompt requires -chat")
 	}
 	if task == "" && *resume == "" && *forkFlag == "" && !*serveFlag && !*tuiFlag && !*revertFlag && !*revertPreview {
 		return fmt.Errorf(`usage: agent [flags] "task description"  (or  agent -resume <state.json> [-answer "..."])`)
@@ -619,7 +614,17 @@ func runConfigured(launch launchRequest) error {
 		defer managed.Close()
 		thinkingClient = managed
 	}
+	identity, warnings, err := compileChatSettings(chatOptions{Preset: selectedProfilePreset(selectedProfile), Name: selectedProfileName(selectedProfile), Persona: selectedProfilePersona(selectedProfile), GreetingIndex: selectedGreetingIndex(selectedProfile), Character: *characterPath, User: *userName, System: *systemPrompt, Post: *postHistory, PreferMain: *preferCharacterPrompt, PreferPost: *preferCharacterPost, MaxTokens: *maxTokens, ContextLimit: contextLimit, Temperature: *temperature})
+	if err != nil {
+		return err
+	}
+	for _, warning := range warnings {
+		note("Character warning: " + warning)
+	}
 	env := roles.Env{
+		Identity:        agentIdentity(identity),
+		IdentityName:    identity.CharacterName,
+		UserName:        *userName,
 		Client:          thinkingClient,
 		WS:              ws,
 		Procs:           bgProcs,
@@ -722,7 +727,10 @@ func runConfigured(launch launchRequest) error {
 
 		var audio *tui.ChatConfig
 		if selectedProfile.Version != 0 {
-			prepared := configureAgentServices(selectedProfile, filepath.Join(filepath.Dir(launch.preferencePath), "chats"))
+			prepared, err := configureAgentServices(selectedProfile, filepath.Join(filepath.Dir(launch.preferencePath), "chats"))
+			if err != nil {
+				return err
+			}
 			audio = &prepared
 		}
 		app := applicationControl(launch, selectedProfile, *profilePath, *chatFlag, *root)

@@ -5,6 +5,7 @@ import (
 	"github.com/keshon/tars/internal/llm"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -78,7 +79,7 @@ func TestArchivePreservesCharacterPromptSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if a.Config != cfg {
+	if !reflect.DeepEqual(a.Config, cfg) {
 		t.Fatal("lost compiled character settings")
 	}
 	cfg.PostHistory = "changed"

@@ -72,6 +72,8 @@ type doneMsg struct {
 }
 type tickMsg time.Time
 type model struct {
+	identityUser             string
+	identityName             string
 	application              *Application
 	audioConfig              *ChatConfig
 	modeChange               *ModeChange
@@ -296,22 +298,24 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		setTheme(cfg.Application.Preferences.Theme)
 	}
 	m := &model{
-		events:    eventsCh,
-		hub:       hub,
-		cancel:    cancel,
-		ctx:       runCtx,
-		base:      uiCtx,
-		started:   time.Now(),
-		styles:    defaultStyles(),
-		limit:     cfg.Env.ContextLimit,
-		maxSteps:  envMaxSteps(cfg.Env),
-		follow:    true,
-		compact:   true,
-		plan:      cfg.Plan,
-		mission:   cfg.Mission != nil,
-		stateFile: cfg.StateFile,
-		note:      newNote(),
-		always:    map[[2]string]bool{},
+		identityName: cfg.Env.IdentityName,
+		identityUser: cfg.Env.UserName,
+		events:       eventsCh,
+		hub:          hub,
+		cancel:       cancel,
+		ctx:          runCtx,
+		base:         uiCtx,
+		started:      time.Now(),
+		styles:       defaultStyles(),
+		limit:        cfg.Env.ContextLimit,
+		maxSteps:     envMaxSteps(cfg.Env),
+		follow:       true,
+		compact:      true,
+		plan:         cfg.Plan,
+		mission:      cfg.Mission != nil,
+		stateFile:    cfg.StateFile,
+		note:         newNote(),
+		always:       map[[2]string]bool{},
 		// Status facts come from cfg once: the TUI never re-reads Env.
 		backendKind: cfg.Env.BackendKind,
 		backendURL:  safeEndpoint(cfg.BackendURL),

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strings"
 )
 
 type Voice struct {
@@ -30,6 +31,21 @@ type Player interface {
 	Finish() error
 	Cancel()
 }
+
+// DeliveryProvider advertises optional provider-specific bracketed vocal cues.
+type DeliveryProvider interface {
+	DeliveryCues() []string
+	DeliveryInstructions() string
+}
+
+func DeliveryPrompt(service Service) string {
+	p, ok := service.(DeliveryProvider)
+	if !ok || len(p.DeliveryCues()) == 0 {
+		return ""
+	}
+	return "Optional speech delivery: use only these exact bracketed tags: [" + strings.Join(p.DeliveryCues(), "], [") + "]. They are audio controls, not spoken words. Do not invent stage directions or other tags. You may demonstrate these supported performances when requested.\n" + p.DeliveryInstructions()
+}
+
 type Service interface {
 	Record(context.Context) (Capture, error)
 	Recognize(context.Context, []byte) (Transcript, error)

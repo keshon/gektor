@@ -12,16 +12,22 @@ import (
 )
 
 type Card struct {
-	Warnings      []string        `json:"-"`
-	Name          string          `json:"name"`
-	Description   string          `json:"description"`
-	Personality   string          `json:"personality"`
-	Scenario      string          `json:"scenario"`
-	FirstMessage  string          `json:"first_mes"`
-	Examples      string          `json:"mes_example"`
-	SystemPrompt  string          `json:"system_prompt"`
-	PostHistory   string          `json:"post_history_instructions"`
-	CharacterBook json.RawMessage `json:"character_book"`
+	GreetingIndex      int             `json:"-"`
+	ExamplesAsMessages bool            `json:"-"`
+	UserPersona        string          `json:"-"`
+	AlternateGreetings []string        `json:"alternate_greetings"`
+	CreatorNotes       string          `json:"creator_notes"`
+	CharacterVersion   string          `json:"character_version"`
+	Warnings           []string        `json:"-"`
+	Name               string          `json:"name"`
+	Description        string          `json:"description"`
+	Personality        string          `json:"personality"`
+	Scenario           string          `json:"scenario"`
+	FirstMessage       string          `json:"first_mes"`
+	Examples           string          `json:"mes_example"`
+	SystemPrompt       string          `json:"system_prompt"`
+	PostHistory        string          `json:"post_history_instructions"`
+	CharacterBook      json.RawMessage `json:"character_book"`
 }
 
 func Load(path string) (Card, error) {
@@ -86,16 +92,17 @@ func decodeCard(data []byte) (Card, error) {
 	}
 	return c, nil
 }
-func (c Card) Render(text, user, original string) string {
-	return strings.NewReplacer("{{char}}", c.Name, "{{user}}", user, "{{original}}", original).Replace(text)
-}
 func (c Card) Instruction(user, original string) string {
 	system := c.SystemPrompt
 	if strings.TrimSpace(system) == "" {
 		system = original
 	}
 	parts := []string{c.Render(system, user, original), "Character name: " + c.Name}
-	for _, field := range []struct{ name, value string }{{"Description", c.Description}, {"Personality", c.Personality}, {"Scenario", c.Scenario}, {"Dialogue examples", c.Examples}, {"Opening greeting", c.FirstMessage}} {
+	greeting, _ := c.Greeting(c.GreetingIndex)
+	for _, field := range []struct{ name, value string }{{"Description", c.Description}, {"Personality", c.Personality}, {"Scenario", c.Scenario}, {"Dialogue examples", c.Examples}, {"Opening greeting", greeting}} {
+		if field.name == "Dialogue examples" && c.ExamplesAsMessages {
+			continue
+		}
 		if strings.TrimSpace(field.value) != "" {
 			parts = append(parts, field.name+": "+c.Render(field.value, user, original))
 		}

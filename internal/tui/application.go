@@ -4,6 +4,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"fmt"
 	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/tars/internal/character"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
 	"os"
@@ -154,6 +155,16 @@ func (m *model) requestProfileChange(profile config.Profile) error {
 	if err := profile.Validate(); err != nil {
 		return err
 	}
+
+	if profile.Conversation != nil && profile.Conversation.Character != "" {
+		card, err := character.Load(profile.Conversation.Character)
+		if err != nil {
+			return err
+		}
+		if _, err := card.Greeting(profile.Conversation.GreetingIndex); err != nil {
+			return err
+		}
+	}
 	if profile.Provider.Ownership == "managed" {
 		for _, path := range []string{profile.Provider.Runtime, profile.Provider.ModelFile} {
 			info, err := os.Stat(path)
@@ -168,6 +179,9 @@ func (m *model) requestProfileChange(profile config.Profile) error {
 	p := m.application.Preferences
 	p.Profile = &profile
 	p.Voice = m.currentVoiceMode()
+	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.workspace != nil && m.dialog.form.workspace.loadedPath != "" {
+		p.ProfilePath = m.dialog.form.workspace.loadedPath
+	}
 	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.workspace != nil {
 		for _, field := range m.dialog.form.workspace.cache["application"] {
 			switch field.key {
@@ -199,6 +213,12 @@ func (m *model) requestProfileChange(profile config.Profile) error {
 	}
 	if p.Voice != "off" && profile.Speech == nil {
 		return fmt.Errorf("this profile has no speech configuration")
+	}
+	if err := m.saveCustomSettings(profile); err != nil {
+		return err
+	}
+	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.workspace != nil && m.dialog.form.workspace.loadedPath != "" {
+		p.ProfilePath = m.dialog.form.workspace.loadedPath
 	}
 	history := append([]llm.Message(nil), m.seedHistory...)
 	if m.chat != nil && m.chat.current != nil {

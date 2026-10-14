@@ -3,12 +3,12 @@ package tui
 import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/keshon/tars/internal/character"
 	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/tars/internal/prompts"
 	"io"
 	"net/http"
 	"os"
@@ -24,6 +24,8 @@ type settingsWorkspace struct {
 	sampleID      uint64
 	sampleCancel  context.CancelFunc
 	section       string
+	loadedPath    string
+	autoSaved     bool
 	nav, advanced bool
 	cache         map[string][]formField
 	original      map[string][]formField
@@ -49,7 +51,7 @@ type settingsScanMsg struct {
 }
 
 var settingsScanID atomic.Uint64
-var settingsCategories = []struct{ id, label string }{{"model", "Model"}, {"generation", "Generation"}, {"speech", "Speech"}, {"profiles", "Profiles"}, {"application", "Application"}, {"character", "Character"}, {"prompts", "Prompts"}}
+var settingsCategories = []struct{ id, label string }{{"model", "Model"}, {"generation", "Generation"}, {"speech", "Speech"}, {"profiles", "Profiles"}, {"application", "Application"}, {"character", "Character"}, {"you", "You"}, {"prompts", "Prompts"}}
 
 func (m *model) storeSettingsPage() {
 	f := m.dialog.form
@@ -101,6 +103,13 @@ func (m *model) settingsNavKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 func (m *model) settingsFieldVisible(index int) bool {
 	f := m.dialog.form
+	if index < len(f.fields) && f.workspace != nil && f.workspace.section == "character" && f.fields[index].key == "name" {
+		for _, field := range f.fields {
+			if field.key == "character" && strings.TrimSpace(field.value) != "" {
+				return false
+			}
+		}
+	}
 	if f.workspace != nil && f.workspace.section == "speech" && index < len(f.fields) {
 		switch f.fields[index].key {
 		case "vad", "mic-start", "mic-end", "mic-threshold":
@@ -174,10 +183,7 @@ func (m *model) formRows() ([]string, []formHit, int, int) {
 			category = c.label
 		}
 	}
-	hint := "Changes apply to this session · history stays intact"
-	if f.workspace.section == "application" {
-		hint = "Session retained · mode/service changes restart owned services"
-	}
+	hint := settingsHint(f.workspace.section)
 	rows := []string{m.styles.gate.Render("Settings / " + category), m.styles.dim.Render(cellLine(hint, inner)), ""}
 	hits := []formHit{}
 	visible := []int{}
@@ -251,7 +257,7 @@ func (m *model) formRows() ([]string, []formHit, int, int) {
 	if note == "" {
 		note = "No changes · F4 Advanced · F6 Categories"
 		if m.settingsDirty() {
-			note = "Unsaved changes · session retained · F4 Advanced · F6 Categories"
+			note = "Apply saves a custom profile · F4 Advanced · F6 Categories"
 		}
 		if f.workspace.section == "profiles" {
 			note = "Ctrl+D saves a copy · Apply uses the loaded profile in this session"
@@ -261,21 +267,9 @@ func (m *model) formRows() ([]string, []formHit, int, int) {
 		}
 	}
 	rows = append(rows, m.styles.dim.Render(cellLine(note, inner)))
-	buttonRow := ""
-	y := len(rows)
-	for i, label := range []string{"Apply", "Cancel"} {
-		if i > 0 {
-			buttonRow += "   "
-		}
-		start := lipgloss.Width(buttonRow)
-		style := m.styles.dim
-		if f.index == len(f.fields)+i && (i != 0 || m.settingsDirty()) {
-			style = m.styles.gate
-		}
-		buttonRow += style.Render("[ " + label + " ]")
-		hits = append(hits, formHit{len(f.fields) + i, y, y + 1, start, lipgloss.Width(buttonRow)})
-	}
-	rows = append(rows, cellLine(buttonRow, inner))
+	buttonRow, actionHits := m.formActions(inner, len(rows), "Apply", m.settingsDirty())
+	hits = append(hits, actionHits...)
+	rows = append(rows, buttonRow, m.styles.dim.Render(strings.Repeat("─", inner)))
 	rows = append(rows, m.styles.dim.Render(cellLine("Tab controls · Ctrl+S apply · Esc cancel", inner)))
 	if rail > 0 {
 		for i := range rows {
@@ -449,10 +443,11 @@ func (m *model) pickerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 					p.err = "Choose a chat profile with conversation settings"
 					return m, nil
 				}
+				f.workspace.loadedPath = value
 				f.workspace.loaded = &loaded
 				f.workspace.cache = map[string][]formField{}
 				f.workspace.original = map[string][]formField{}
-				f.error = "Profile loaded as a draft; Apply to use it"
+				f.error = "Setup loaded; Apply uses its model, voice and character selection"
 			}
 			f.editor.SetValue(value)
 			f.fields[f.index].value = value
@@ -538,7 +533,7 @@ func (m *model) pickerRows() ([]string, []formHit, int, int) {
 	case "model-file":
 		title = "Thinking model"
 	case "load-profile", "app-profile":
-		title = "Profile"
+		title = "Profile / saved setup"
 	case "app-workspace":
 		title = "Agent workspace"
 	case "microphone":
@@ -673,6 +668,16 @@ func (m *model) settingsDimensions() (int, int) {
 
 func choiceLabel(key, value string) string {
 	switch key {
+	case "prompt-preset":
+		preset, err := prompts.ResponsePreset(value)
+		if err == nil {
+			return preset.Name
+		}
+	case "greeting":
+		if value == "0" {
+			return "Main greeting"
+		}
+		return "Alternate greeting " + value
 	case "theme":
 		if value == "light" {
 			return "Light"
@@ -725,9 +730,6 @@ func (m *model) availableSettingsCategories() []struct{ id, label string } {
 		if c.id == "application" && m.application == nil {
 			continue
 		}
-		if m.chat == nil && (c.id == "character" || c.id == "prompts") {
-			continue
-		}
 		if c.id == "speech" && !m.hasSettingsSpeech() {
 			continue
 		}
@@ -756,4 +758,24 @@ func (m *model) settingsDirty() bool {
 		fields[f.index].value = f.editor.Value()
 	}
 	return !reflect.DeepEqual(fields, ws.original[ws.section])
+}
+
+func settingsHint(section string) string {
+	switch section {
+	case "profiles":
+		return "Profiles save your setup, including the selected character."
+	case "character":
+		return "Character sets identity and dialogue in both Chat and Agent."
+	case "you":
+		return "Your name and persona are used by the character's prompts."
+	case "application":
+		return "Mode sets capabilities; switching keeps the selected character."
+	case "model":
+		return "Choose the thinking model; the character stays selected."
+	case "speech":
+		return "Choose voice services; the character stays selected."
+	case "prompts":
+		return "Preset adds response style; card overrides affect base instructions."
+	}
+	return "Changes apply to this session; history stays intact."
 }

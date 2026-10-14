@@ -12,6 +12,7 @@ import (
 type Projection struct {
 	buffer string
 	hidden string
+	cues   map[string]bool
 }
 
 func (p *Projection) Feed(text string, final bool) string {
@@ -28,6 +29,23 @@ func (p *Projection) Feed(text string, final bool) string {
 			}
 			p.buffer = p.buffer[at+len(p.hidden):]
 			p.hidden = ""
+			continue
+		}
+		if strings.HasPrefix(p.buffer, "[") {
+			at := strings.Index(p.buffer, "]")
+			if at < 0 {
+				if !final && len(p.buffer) < 128 {
+					break
+				}
+				p.buffer = p.buffer[1:]
+				p.hidden = "]"
+				continue
+			}
+			tag := p.buffer[1:at]
+			if p.cues[tag] {
+				out.WriteString(p.buffer[:at+1])
+			}
+			p.buffer = p.buffer[at+1:]
 			continue
 		}
 		partial := false
@@ -84,6 +102,12 @@ type Output struct {
 func NewOutput(ctx context.Context, service Service, notify func(string)) *Output {
 	ctx, cancel := context.WithCancel(ctx)
 	o := &Output{ctx: ctx, cancel: cancel, queue: make(chan string, 2), done: make(chan struct{}), notify: notify}
+	if provider, ok := service.(DeliveryProvider); ok {
+		o.projection.cues = map[string]bool{}
+		for _, cue := range provider.DeliveryCues() {
+			o.projection.cues[cue] = true
+		}
+	}
 	go func() {
 		defer close(o.done)
 		player := service.Player(ctx)

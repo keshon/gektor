@@ -12,8 +12,12 @@ import (
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/tars/internal/character"
 	"github.com/keshon/tars/internal/chat"
 	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/tars/internal/prompts"
+	"github.com/keshon/tars/internal/speech"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -30,6 +34,7 @@ type settingsForm struct {
 	destructive             bool
 	choices                 map[string][]string
 	scannedRoot             string
+	greetingPath            string
 	workspace               *settingsWorkspace
 	picker                  *settingsPicker
 }
@@ -129,6 +134,15 @@ func (m *model) formKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if f.index < len(f.fields) && (len(m.formOptions(f.fields[f.index].key)) > 0 || pickerControl(f.fields[f.index].key)) {
 			return m, m.openSettingsPicker()
 		}
+	case "left", "right":
+		if f.index >= len(f.fields) {
+			step := 1
+			if msg.String() == "left" {
+				step = -1
+			}
+			m.focusForm(len(f.fields) + (f.index-len(f.fields)+step+2)%2)
+			return m, nil
+		}
 	case "up", "down":
 		if f.index >= len(f.fields) || !f.fields[f.index].multiline {
 			step := 1
@@ -210,15 +224,9 @@ func (m *model) plainFormRows() ([]string, []formHit, int, int) {
 	} else {
 		rows = append(rows, cellLine("", inner))
 	}
-	for i, label := range []string{f.applyLabel, "Cancel"} {
-		style := m.styles.dim
-		if f.index == len(f.fields)+i {
-			style = m.styles.gate
-		}
-		y := len(rows)
-		rows = append(rows, style.Render(cellLine("[ "+label+" ]", inner)))
-		hits = append(hits, formHit{len(f.fields) + i, y, y + 1, 0, 0})
-	}
+	action, actionHits := m.formActions(inner, len(rows), f.applyLabel, true)
+	rows = append(rows, action, m.styles.dim.Render(strings.Repeat("─", inner)))
+	hits = append(hits, actionHits...)
 	hint := "↑↓/Tab fields · Ctrl+↑↓ multiline fields · Ctrl+S apply · Esc cancel"
 	if f.destructive {
 		hint = "Tab selects · Enter confirms selection · Esc cancel"
@@ -310,7 +318,7 @@ func (m *model) formMouse(msg tea.MouseMsg) tea.Cmd {
 	for _, hit := range hits {
 		if mouse.Y >= y+hit.y0 && mouse.Y < y+hit.y1 {
 			if hit.x1 > 0 {
-				contentX := 2
+				contentX := x + 2
 				if m.dialog.form.workspace != nil && w >= 76 {
 					contentX += 17
 				}
@@ -358,13 +366,11 @@ func (m *model) editSettings(section string) {
 	if ws.loaded != nil {
 		profile = *ws.loaded
 	}
-	conversation := config.Conversation{}
+	conversation := config.Conversation{UserName: "User"}
 	if profile.Conversation != nil {
 		conversation = *profile.Conversation
 	}
-	if profile.Conversation != nil {
-		profile.Conversation = &conversation
-	}
+	profile.Conversation = &conversation
 	if profile.Speech != nil {
 		copy := *profile.Speech
 		profile.Speech = &copy
@@ -383,12 +389,17 @@ func (m *model) editSettings(section string) {
 		add("app-voice", "Voice", m.currentVoiceMode(), false)
 	case "profiles":
 		title = "Profiles"
-		add("load-profile", "Load a saved profile", "", false)
-		add("profile-name", "Save copy as (Ctrl+D)", "custom", false)
+		add("load-profile", "Load setup from profile", "", false)
+		add("profile-name", "Save current setup as (Ctrl+D)", "custom", false)
 	case "character":
-		title = "Character and user"
-		add("character", "Card path (PNG/JSON; blank removes card)", conversation.Character, false)
+		title = "Character"
+		add("character", "Character card (PNG/JSON; blank removes card)", conversation.Character, false)
+		add("name", "Assistant name (without a card)", conversation.Name, false)
+		add("greeting", "Opening greeting", strconv.Itoa(conversation.GreetingIndex), false)
+	case "you":
+		title = "You"
 		add("user", "Your name", conversation.UserName, false)
+		add("persona", "Your persona description", conversation.UserPersona, true)
 	case "generation":
 		title = "Generation"
 		add("temperature", "Temperature (0 = default 0.4)", strconv.FormatFloat(profile.Generation.Temperature, 'f', -1, 64), false)
@@ -396,6 +407,8 @@ func (m *model) editSettings(section string) {
 		add("context", "Context window (tokens)", strconv.Itoa(profile.Generation.ContextLimit), false)
 	case "prompts":
 		title = "Conversation prompts"
+		preset, _ := prompts.ResponsePreset(conversation.PromptPreset)
+		add("prompt-preset", "Prompt preset", preset.ID, false)
 		add("system", "Base system prompt", conversation.SystemPrompt, true)
 		add("post", "Base post-history directive", conversation.PostHistory, true)
 		main, post := true, true
@@ -487,6 +500,12 @@ func (m *model) editSettings(section string) {
 				return err
 			}
 		}
+		if err := m.saveCustomSettings(profile); err != nil {
+			if c, ok := next.Client.(interface{ Close() }); ok {
+				c.Close()
+			}
+			return err
+		}
 		if _, err := os.Stat(m.stateFile); err == nil && updated != nil {
 			if err := updated.Save(m.stateFile); err != nil {
 				if c, ok := next.Client.(interface{ Close() }); ok {
@@ -519,10 +538,26 @@ func (m *model) editSettings(section string) {
 		m.limit = next.Settings.ContextLimit
 		m.responseCap = next.Settings.MaxTokens
 		m.streaming = next.Stream
-		if err := m.saveSessionSettings(); err != nil {
+		previousSource := ""
+		if m.application != nil && ws.loadedPath != "" {
+			previousSource = m.application.Preferences.ProfilePath
+			m.application.Preferences.ProfilePath = ws.loadedPath
+		}
+		save := m.saveSessionSettings
+		if ws.autoSaved && m.application != nil && !m.application.Temporary {
+			save = m.saveApplication
+		}
+		if err := save(); err != nil {
+			if m.application != nil && ws.loadedPath != "" {
+				m.application.Preferences.ProfilePath = previousSource
+			}
 			return err
 		}
-		m.appendBlock(markerBlock("Settings applied to this session"))
+		message := "Settings applied to this session"
+		if ws.autoSaved {
+			message += " · saved " + filepath.Base(ws.loadedPath)
+		}
+		m.appendBlock(markerBlock(message))
 
 		for _, warning := range next.Warnings {
 			m.appendBlock(markerBlock("Character warning: " + warning))
@@ -543,10 +578,21 @@ func (m *model) editSettings(section string) {
 
 func applySettingsValues(profile *config.Profile, section string, values map[string]string) error {
 	conversation := profile.Conversation
+	if conversation == nil {
+		conversation = &config.Conversation{UserName: "User"}
+		profile.Conversation = conversation
+	}
 	switch section {
 	case "character":
 		conversation.Character = strings.TrimSpace(values["character"])
-		conversation.UserName = strings.TrimSpace(values["user"])
+		conversation.Name = strings.TrimSpace(values["name"])
+		if value, ok := values["greeting"]; ok {
+			index, err := strconv.Atoi(value)
+			if err != nil || index < 0 {
+				return fmt.Errorf("greeting index must be a nonnegative integer")
+			}
+			conversation.GreetingIndex = index
+		}
 		if conversation.Character != "" {
 			path, err := filepath.Abs(conversation.Character)
 			if err != nil {
@@ -554,6 +600,9 @@ func applySettingsValues(profile *config.Profile, section string, values map[str
 			}
 			conversation.Character = path
 		}
+	case "you":
+		conversation.UserName = strings.TrimSpace(values["user"])
+		conversation.UserPersona = values["persona"]
 	case "generation":
 		var err error
 		profile.Generation.Temperature, err = strconv.ParseFloat(values["temperature"], 64)
@@ -569,6 +618,12 @@ func applySettingsValues(profile *config.Profile, section string, values map[str
 			return fmt.Errorf("context window must be an integer")
 		}
 	case "prompts":
+		if value, ok := values["prompt-preset"]; ok {
+			if _, err := prompts.ResponsePreset(value); err != nil {
+				return err
+			}
+			conversation.PromptPreset = value
+		}
 		conversation.SystemPrompt = values["system"]
 		conversation.PostHistory = values["post"]
 		main, err := strconv.ParseBool(values["prefer-main"])
@@ -663,7 +718,7 @@ func (m *model) deleteActive() {
 		m.openDialog("Cannot delete", []string{"Session is outside the configured session store."})
 		return
 	}
-	m.openForm("Delete conversation", "Permanently removes this saved conversation.", "Delete conversation", nil, func(map[string]string) error {
+	m.openForm("Delete conversation", "Permanently removes this saved conversation.", "Delete", nil, func(map[string]string) error {
 		if err := os.RemoveAll(target); err != nil {
 			return err
 		}
@@ -695,8 +750,27 @@ func (m *model) saveChatProfile() {
 }
 
 func (m *model) inspectChatPrompt() {
-	s := m.chat.config.Settings
-	m.openDialog("Effective conversation prompt", []string{"Leading system instruction", s.System, "Opening assistant greeting", s.Greeting, "Post-history system directive", s.PostHistory, "This is the compiled prompt; saved conversation turns are inserted between greeting and post-history."})
+	if m.audio() == nil {
+		return
+	}
+	s := m.audio().Settings
+	selected := ""
+	if m.audio().Profile.Conversation != nil {
+		selected = m.audio().Profile.Conversation.PromptPreset
+	}
+	preset, _ := prompts.ResponsePreset(selected)
+	lines := []string{"Prompt preset: " + preset.Name, "Preset adds response style; the card supplies identity. Agent keeps its operational instructions.", "Leading system instruction", s.System, "Opening assistant greeting", s.Greeting, "Post-history system directive", s.PostHistory, "This is the compiled prompt; saved conversation turns are inserted between greeting and post-history."}
+	if m.chat == nil {
+		lines = append([]string{"Agent keeps its Plan/Act operational instructions and adds this character identity."}, lines...)
+	}
+	for _, example := range s.Examples {
+		lines = append(lines, string(example.Role)+": "+example.Content)
+	}
+	if m.voiceEnabled {
+		lines = append(lines, speech.DeliveryPrompt(m.voice))
+	}
+	lines = append(lines, m.audio().Warnings...)
+	m.openDialog("Effective conversation prompt", lines)
 }
 
 func (m *model) resizeFormEditor() {
@@ -713,6 +787,28 @@ func (m *model) resizeFormEditor() {
 }
 
 func (m *model) formOptions(key string) []string {
+	if key == "greeting" && m.dialog != nil && m.dialog.form != nil {
+		f := m.dialog.form
+		path := ""
+		for _, field := range f.fields {
+			if field.key == "character" {
+				path = field.value
+			}
+		}
+		if f.choices == nil {
+			f.choices = map[string][]string{}
+		}
+		if path != f.greetingPath || len(f.choices[key]) == 0 {
+			f.greetingPath = path
+			f.choices[key] = []string{"0"}
+			if card, err := character.Load(path); err == nil {
+				for i := range card.AlternateGreetings {
+					f.choices[key] = append(f.choices[key], strconv.Itoa(i+1))
+				}
+			}
+		}
+	}
+
 	if m.dialog != nil && m.dialog.form != nil {
 		if choices := m.dialog.form.choices[key]; len(choices) > 0 {
 			return choices
@@ -723,6 +819,12 @@ func (m *model) formOptions(key string) []string {
 
 func formChoices(key string) []string {
 	switch key {
+	case "prompt-preset":
+		ids := []string{}
+		for _, preset := range prompts.Presets() {
+			ids = append(ids, preset.ID)
+		}
+		return ids
 	case "prefer-main", "prefer-post":
 		return []string{"true", "false"}
 	case "app-mode":
@@ -790,4 +892,38 @@ func (m *model) cycleFormChoice() {
 		}
 	}
 	f.editor.SetValue(next)
+}
+
+// formActions shares button geometry between compact dialogs and settings.
+func (m *model) formActions(width, y int, primary string, enabled bool) (string, []formHit) {
+	f := m.dialog.form
+	cancel := "[ Cancel ]"
+	if width < 20 {
+		cancel = "[Esc]"
+	}
+	budget := max(width-lipgloss.Width(cancel)-2, 3)
+	button := "[ " + primary + " ]"
+	if lipgloss.Width(button) > budget {
+		if budget >= 5 {
+			button = "[" + ansi.Truncate(primary, budget-2, "…") + "]"
+		} else {
+			button = ansi.Truncate(primary, budget, "…")
+		}
+	}
+	padding := max(width-lipgloss.Width(button)-lipgloss.Width(cancel)-2, 0)
+	row := strings.Repeat(" ", padding)
+	hits := []formHit{}
+	for i, text := range []string{button, cancel} {
+		if i > 0 {
+			row += "  "
+		}
+		start := lipgloss.Width(row)
+		style := m.styles.dim
+		if f.index == len(f.fields)+i && (i != 0 || enabled) {
+			style = m.styles.gate
+		}
+		row += style.Render(text)
+		hits = append(hits, formHit{len(f.fields) + i, y, y + 1, start, lipgloss.Width(row)})
+	}
+	return cellLine(row, width), hits
 }

@@ -130,3 +130,39 @@ func TestLongSpeechChunksPreserveEveryWord(t *testing.T) {
 		}
 	}
 }
+
+func TestProviderCuesSurviveEveryStreamBoundary(t *testing.T) {
+	input := "<think>[happy] secret</think>[whispering] Hello. [leans in] [laugh] Bye."
+	for split := 0; split <= len(input); split++ {
+		p := Projection{cues: map[string]bool{"whispering": true, "laugh": true}}
+		got := p.Feed(input[:split], false) + p.Feed(input[split:], false) + p.Feed("", true)
+		if got != "[whispering] Hello.  [laugh] Bye." {
+			t.Fatalf("split %d: %q", split, got)
+		}
+	}
+}
+
+type expressiveService struct{ *outputService }
+
+func (*expressiveService) DeliveryCues() []string       { return []string{"happy", "laugh"} }
+func (*expressiveService) DeliveryInstructions() string { return "Use laugh for amusement." }
+func TestDeliveryPromptAndOutput(t *testing.T) {
+	s := &expressiveService{&outputService{player: &outputPlayer{}}}
+	prompt := DeliveryPrompt(s)
+	if !strings.Contains(prompt, "[happy], [laugh]") || !strings.Contains(prompt, "Use laugh") {
+		t.Fatal(prompt)
+	}
+	if DeliveryPrompt(s.outputService) != "" {
+		t.Fatal("plain provider received cues")
+	}
+	o := NewOutput(context.Background(), s, nil)
+	if err := o.Delta("[happy] Hello. [made up] Bye."); err != nil {
+		t.Fatal(err)
+	}
+	if err := o.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(s.text, " "); got != "[happy] Hello. Bye." {
+		t.Fatal(got)
+	}
+}

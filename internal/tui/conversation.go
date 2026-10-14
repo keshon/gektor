@@ -97,6 +97,7 @@ func (m *model) runConversation(text string) {
 		note := ""
 		if output != nil {
 			note = "Speech capability: input recognition is configured for English. Output uses Chatterbox English speech. Other-language replies remain text-only. Only dialogue is voiced; do not claim an unsupported vocal effect has actually been performed."
+			note += "\n" + speech.DeliveryPrompt(m.voice)
 		}
 		var r chat.Result
 		var err error
@@ -122,9 +123,9 @@ func (m *model) runConversation(text string) {
 		if err != nil {
 			return "", err
 		}
-		if r.OmittedTurns > 0 {
+		if r.OmittedTurns > 0 || r.OmittedExamples > 0 {
 			select {
-			case m.events <- api.Event{Name: "nudge", Fields: map[string]any{"text": fmt.Sprintf("Context window omits %d earlier turns", r.OmittedTurns)}}:
+			case m.events <- api.Event{Name: "nudge", Fields: map[string]any{"text": fmt.Sprintf("Context window omits %d earlier turns and %d example messages", r.OmittedTurns, r.OmittedExamples)}}:
 			case <-ctx.Done():
 			}
 		}

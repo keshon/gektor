@@ -38,8 +38,9 @@ const (
 // happens at render time, so toggles (think expand) re-render without
 // touching history.
 type block struct {
-	role role
-	text string
+	speaker string
+	role    role
+	text    string
 	// at stamps when the block entered the transcript. Stamped roles
 	// render it right-aligned (opencode's metadata-right pattern);
 	// zero means "unstamped". See stamps().
@@ -232,23 +233,27 @@ func renderBlock(b block, st styles, expandThink bool, width int, chatMode ...bo
 	stamped := !b.at.IsZero() && stamps(b.role)
 	var out []string
 	spoke := false
+	name := "Assistant"
+	if b.speaker != "" {
+		name = b.speaker
+	}
 	switch {
 	case b.role == roleTool:
 		out = renderToolCard(b, st, expandThink, stamped, width)
 	case b.role == roleUser:
 		spoke = true
-		out = renderSpeaker(b, st, st.user.Render("YOU  > "), true, raw, stamped, width)
+		user := b.speaker
+		if user == "" {
+			user = "You"
+		}
+		out = renderSpeaker(b, st, st.user.Render(user+":"), false, raw, stamped, width, "")
 	case b.role == roleAnswer:
 		spoke = true
-		header := st.gate.Render("TARS")
+		header := st.gate.Render(name + ":")
 		if len(chatMode) == 0 || !chatMode[0] {
 			header += st.dim.Render("  [RESPONSE]")
 		}
-		if len(chatMode) > 0 && chatMode[0] {
-			out = renderSpeaker(b, st, header+"  ", true, raw, stamped, width)
-		} else {
-			out = renderSpeaker(b, st, header, false, raw, stamped, width)
-		}
+		out = renderSpeaker(b, st, header, false, raw, stamped, width, "")
 	case b.role == roleThink:
 		spoke = true
 		// Collapsed keeps the summary-only rule (size here, never in
@@ -257,7 +262,7 @@ func renderBlock(b block, st styles, expandThink bool, width int, chatMode ...bo
 		if !expandThink {
 			raw = thinkSummary(b.text)
 		}
-		out = renderSpeaker(b, st, st.gate.Render("TARS")+st.dim.Render("  [THINKING]"), false, raw, stamped, width)
+		out = renderSpeaker(b, st, st.gate.Render(name)+st.dim.Render("  [THINKING]"), false, raw, stamped, width)
 	case !b.bare && (b.role == roleMarker || b.role == roleGate || b.role == roleMission || b.role == roleError || b.role == roleWarning):
 		out = renderNotice(b, st, raw, stamped, width)
 		spoke = true
@@ -329,17 +334,19 @@ func renderNotice(b block, st styles, raw string, stamped bool, width int) []str
 	return out
 }
 
-// speakerRail indents conversation bodies under the speaker tag:
-// "TARS  [RESPONSE]" opens its bracket at column 6, so the body
-// starts exactly beneath it. Fixed, never derived — the header shape
-// is a constant, so the rail is too. Blank lines stay bare so no line
-// ends in whitespace.
+// speakerRail indents non-inline conversation bodies. Inline replies align
+// continuation lines with the actual character label width.
 const speakerRail = "      "
 
 // renderSpeaker draws a conversation turn: a speaker header, then the
 // markdown body on the rail (user text rides the header line).
 func renderSpeaker(b block, st styles, header string, inline bool, raw string, stamped bool, width int, rails ...string) []string {
+	header = ansi.Truncate(header, max(width, 1), "…")
 	rail := speakerRail
+	if inline {
+		header = ansi.Truncate(header, max(width-minWrapWidth-gutterWidth, 1), "…")
+		rail = strings.Repeat(" ", ansi.StringWidth(header))
+	}
 	if len(rails) > 0 {
 		rail = rails[0]
 	}
@@ -397,7 +404,7 @@ func cleanText(s string) string {
 // compacted output never silently loses lines.
 const resultPreviewLines = 10
 
-// renderToolCard draws the tool call under a TARS [TOOL] header, the
+// renderToolCard draws the tool call under the active character [TOOL] header, the
 // call and its results railed at the speaker column: cards align with
 // conversation bodies instead of hanging off the left edge. The "│ "
 // rail groups call with result without full-border width math;
@@ -412,7 +419,7 @@ func renderToolCard(b block, st styles, expand, stamped bool, width int) []strin
 		glyph = st.err.Render("✕")
 	}
 	var out []string
-	out = append(out, st.gate.Render("TARS")+st.dim.Render("  [TOOL]"))
+	out = append(out, ansi.Truncate(st.gate.Render(nonEmptySpeaker(b.speaker))+st.dim.Render("  [TOOL]"), max(width, 1), "…"))
 	out = append(out, speakerRail+glyph+" "+st.dim.Render(b.text))
 	if b.open {
 		out = append(out, speakerRail+st.dim.Render("│ …"))
@@ -576,10 +583,15 @@ func (m *model) refreshContent() {
 		m.render.dirty = true
 		return
 	}
+	speaker := m.speakerName()
 	parts := make([]string, 0, len(m.blocks))
 	cache := make([]renderedBlock, len(m.blocks))
 	prevBreak := false
 	for i, b := range m.blocks {
+		b.speaker = speaker
+		if b.role == roleUser {
+			b.speaker = m.userName()
+		}
 		var rendered renderedBlock
 		if i < len(m.render.cache) && m.render.cache[i].block == b && m.render.cache[i].width == m.vp.Width() && m.render.cache[i].expanded == !m.compact {
 			rendered = m.render.cache[i]
@@ -601,7 +613,13 @@ func (m *model) refreshContent() {
 		if content != "" {
 			content += "\n\n"
 		}
-		content += strings.Join(renderLive(m.live, m.styles, m.vp.Width(), m.chat != nil), "\n")
+		live := []string{}
+		for _, b := range assistantBlocks(m.live, "") {
+			b.at = time.Time{}
+			b.speaker = speaker
+			live = append(live, renderBlock(b, m.styles, false, m.vp.Width(), m.chat != nil))
+		}
+		content += strings.Join(live, "\n\n")
 	}
 	heights := make([]int, len(parts))
 	for i, p := range parts {
@@ -711,4 +729,30 @@ func (m *model) endTranscriptUpdate() {
 		m.render.dirty = false
 		m.refreshContent()
 	}
+}
+
+func nonEmptySpeaker(name string) string {
+	if name == "" {
+		return "Assistant"
+	}
+	return name
+}
+func (m *model) speakerName() string {
+	name := m.identityName
+	if m.audio() != nil && m.audio().Settings.CharacterName != "" {
+		name = m.audio().Settings.CharacterName
+	}
+	return nonEmptySpeaker(strings.Join(strings.Fields(cleanText(name)), " "))
+}
+
+func (m *model) userName() string {
+	name := m.identityUser
+	if m.audio() != nil && m.audio().Profile.Conversation != nil {
+		name = m.audio().Profile.Conversation.UserName
+	}
+	name = strings.Join(strings.Fields(cleanText(name)), " ")
+	if name == "" {
+		return "You"
+	}
+	return name
 }

@@ -190,20 +190,22 @@ agent.exe -profile profiles\llama-external.json -chat -tui
 
 ## Character cards and conversation prompts
 
-`-character <PNG-or-JSON>` imports a card for `-chat`, including its intro.
+`-character <PNG-or-JSON>` imports a card identity for Chat or Agent.
+Chat uses its selected opening greeting; Agent retains its tool-oriented instructions.
 `-character-png` is a compatibility alias for the same path.
 `-user-name` fills `{{user}}` (default User). `-system-prompt` and `-post-history`
 set base instructions; `-character-main-prompt` and
 `-character-post-history` accept false to retain those bases instead of card overrides.
-The final post-history directive is a system message after the latest user
-message, not an invented user turn. `-temperature` controls chat sampling;
+In Chat, the final post-history directive is a system message after the latest user
+message, not an invented user turn. `-temperature` controls sampling;
 0 retains transport default 0.4, positive values up to 2 are explicit. Literal
 greedy zero is not supported by the existing model transport.
 
-Profiles can contain `conversation` prompt/card settings and
+Profiles can contain `conversation.prompt_preset` (for example `coding` or
+`conversation`), other `conversation` prompt/card settings and
 `generation.temperature`. Card paths in profiles resolve relative to the
 profile file; CLI paths resolve from the working directory. A conversation
-profile requires `-chat`. The compiled prompt, intro and settings are retained
+profile can be used in either Chat or Agent. The compiled prompt, intro and settings are retained
 in chat archives; reopening with different settings requires a new conversation.
 
 Flat JSON, character-card V2 2.0 and basic V3 3.0 are supported. PNG metadata

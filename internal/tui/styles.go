@@ -2,6 +2,8 @@ package tui
 
 import (
 	"charm.land/lipgloss/v2"
+	"fmt"
+	"strings"
 	"sync/atomic"
 )
 
@@ -110,4 +112,13 @@ func themeColor(token string) string {
 		return c
 	}
 	return token
+}
+
+// popupRow restores the surface color after nested text styles reset SGR.
+// A final reset keeps that color inside the popup's own cells.
+func popupRow(style lipgloss.Style, text string, width int) string {
+	r, g, b, _ := style.GetBackground().RGBA()
+	restore := fmt.Sprintf("\x1b[48;2;%d;%d;%dm", r>>8, g>>8, b>>8)
+	styled := style.Render(cellLine(text, width))
+	return strings.NewReplacer("\x1b[m", "\x1b[m"+restore, "\x1b[0m", "\x1b[0m"+restore, "\x1b[49m", "\x1b[49m"+restore).Replace(styled) + "\x1b[m"
 }

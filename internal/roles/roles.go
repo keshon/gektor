@@ -36,6 +36,9 @@ const (
 // Env is what every role needs regardless of what it does. Build one per
 // run and pass it to each constructor.
 type Env struct {
+	Identity     string
+	IdentityName string
+	UserName     string
 	Client       llm.Client
 	WS           *workspace.Workspace
 	Procs        *tools.BackgroundProcesses
@@ -162,7 +165,7 @@ func Planner(e Env, label, stateFile string) *agent.Agent {
 		BeginChanges:    e.WS.ChangeObserver,
 		Client:          e.Client,
 		Tools:           tools.ReadOnly(e.WS, e.Procs),
-		System:          prompts.PlanMode + e.WS.Instructions(),
+		System:          prompts.PlanMode + e.WS.Instructions() + "\n\n" + e.Identity,
 		MaxTokens:       e.MaxTokens,
 		Temperature:     e.Temperature,
 		ContextLimit:    e.ContextLimit,
@@ -199,7 +202,7 @@ func Inspector(e Env, label, system, stateFile string) *agent.Agent {
 		BeginChanges:    e.WS.ChangeObserver,
 		Client:          e.Client,
 		Tools:           tools.ReadOnly(e.WS, e.Procs),
-		System:          system + e.WS.Instructions(),
+		System:          system + e.WS.Instructions() + "\n\n" + e.Identity,
 		MaxSteps:        inspectorSteps,
 		MaxTokens:       e.MaxTokens,
 		Temperature:     e.Temperature,
@@ -235,7 +238,7 @@ func Subagent(e Env, role string) *agent.Agent {
 		BeginChanges:    e.WS.ChangeObserver,
 		Client:          e.Client,
 		Tools:           tools.Base(e.WS, e.Procs, e.OnFinding, e.MCPTools...),
-		System:          prompts.WithRole(role) + "\n\n" + prompts.SubagentScope + "\n\n" + prompts.PlatformLine() + e.WS.Instructions(),
+		System:          prompts.WithRole(role) + "\n\n" + prompts.SubagentScope + "\n\n" + prompts.PlatformLine() + e.WS.Instructions() + "\n\n" + e.Identity,
 		MaxSteps:        subagentSteps,
 		MaxTokens:       e.MaxTokens,
 		Temperature:     e.Temperature,
@@ -259,7 +262,7 @@ func Worker(e Env, label, system, stateFile string, maxSteps int, expectsWrites 
 		BeginChanges:       e.WS.ChangeObserver,
 		Client:             e.Client,
 		Tools:              tools.Base(e.WS, e.Procs, e.OnFinding, e.MCPTools...),
-		System:             system + "\n\n" + prompts.PlatformLine() + e.WS.Instructions(),
+		System:             system + "\n\n" + prompts.PlatformLine() + e.WS.Instructions() + "\n\n" + e.Identity,
 		MaxSteps:           maxSteps,
 		MaxTokens:          e.MaxTokens,
 		Temperature:        e.Temperature,
@@ -306,7 +309,7 @@ func Interactive(e Env, label, stateFile string,
 		BeginChanges:    e.WS.ChangeObserver,
 		Client:          e.Client,
 		Tools:           tools.Base(e.WS, e.Procs, e.OnFinding, extra...),
-		System:          interactiveSystem(e.BackendKind) + "\n\n" + prompts.PlatformLine() + e.WS.Instructions(),
+		System:          interactiveSystem(e.BackendKind) + "\n\n" + prompts.PlatformLine() + e.WS.Instructions() + "\n\n" + e.Identity,
 		MaxTokens:       e.MaxTokens,
 		Temperature:     e.Temperature,
 		ContextLimit:    e.ContextLimit,

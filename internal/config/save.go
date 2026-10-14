@@ -1,6 +1,7 @@
 package config
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -88,4 +89,32 @@ func SaveCopy(profile Profile, path string) error {
 	}
 	ok = true
 	return nil
+}
+
+// SaveCustom creates or updates an application-managed custom setup atomically.
+// Bundled profiles and files outside the custom directory are never overwritten.
+func SaveCustom(profile Profile, directory, source string) (string, error) {
+	root, err := filepath.Abs(directory)
+	if err != nil {
+		return "", err
+	}
+	target := filepath.Join(root, "custom-"+strings.ToLower(rand.Text())+".json")
+	if source != "" {
+		absolute, err := filepath.Abs(source)
+		if err != nil {
+			return "", err
+		}
+		if strings.EqualFold(filepath.Dir(absolute), root) && strings.HasPrefix(filepath.Base(absolute), "custom-") && strings.EqualFold(filepath.Ext(absolute), ".json") {
+			target = absolute
+		}
+	}
+	temporary := filepath.Join(root, ".custom-"+strings.ToLower(rand.Text())+".json")
+	if err := SaveCopy(profile, temporary); err != nil {
+		return "", err
+	}
+	defer os.Remove(temporary)
+	if err := os.Rename(temporary, target); err != nil {
+		return "", err
+	}
+	return target, nil
 }

@@ -11,6 +11,7 @@ import (
 )
 
 type Config struct {
+	Examples      []llm.Message
 	System        string
 	PostHistory   string
 	Greeting      string
@@ -28,8 +29,9 @@ type Conversation struct {
 	history []llm.Message
 }
 type Result struct {
-	Response     llm.ChatResponse
-	OmittedTurns int
+	Response        llm.ChatResponse
+	OmittedTurns    int
+	OmittedExamples int
 }
 
 func New(client llm.Client, config Config) (*Conversation, error) {
@@ -42,6 +44,12 @@ func New(client llm.Client, config Config) (*Conversation, error) {
 	if config.MaxTokens <= 0 || config.ContextLimit <= config.MaxTokens {
 		return nil, fmt.Errorf("chat: context limit must exceed positive response budget")
 	}
+	for _, example := range config.Examples {
+		if (example.Role != llm.RoleUser && example.Role != llm.RoleAssistant) || strings.TrimSpace(example.Content) == "" || len(example.ToolCalls) > 0 || example.ToolCallID != "" || len(example.Images) > 0 || example.Reasoning != "" {
+			return nil, fmt.Errorf("chat: examples must be plain user/assistant messages")
+		}
+	}
+	config.Examples = append([]llm.Message(nil), config.Examples...)
 	return &Conversation{client: client, config: config}, nil
 }
 func (c *Conversation) Reset() { c.history = nil }
@@ -71,7 +79,6 @@ func (c *Conversation) ask(ctx context.Context, text string, onDelta func(string
 	}
 	if c.config.Greeting != "" {
 		greeting := llm.Message{Role: llm.RoleAssistant, Content: c.config.Greeting}
-		messages = append(messages, greeting)
 		used += cost(greeting)
 	}
 	if c.config.PostHistory != "" {
@@ -90,6 +97,28 @@ func (c *Conversation) ask(ctx context.Context, text string, onDelta func(string
 		start -= 2
 	}
 	result.OmittedTurns = start / 2
+	exampleEnd := 0
+	for i := 0; i < len(c.config.Examples); {
+		end := i + 1
+		for end < len(c.config.Examples) && c.config.Examples[end].Role != llm.RoleUser {
+			end++
+		}
+		size := 0
+		for _, example := range c.config.Examples[i:end] {
+			size += cost(example)
+		}
+		if used+size > budget {
+			break
+		}
+		used += size
+		exampleEnd = end
+		i = end
+	}
+	result.OmittedExamples = len(c.config.Examples) - exampleEnd
+	messages = append(messages, c.config.Examples[:exampleEnd]...)
+	if c.config.Greeting != "" {
+		messages = append(messages, llm.Message{Role: llm.RoleAssistant, Content: c.config.Greeting})
+	}
 	messages = append(messages, c.history[start:]...)
 	messages = append(messages, user)
 	if c.config.PostHistory != "" {

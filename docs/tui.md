@@ -456,3 +456,90 @@ is saved as an application preference and does not change the session, model or
 permissions. Session rows use one full-row selection highlight, including the age.
 There are no activity prefixes or competing current-session bars; the lower detail
 line names the selected session's status.
+
+### Vocal delivery cues
+
+With voice enabled, Chat includes the active speech provider's optional delivery
+instructions in the LLM system prompt. Chatterbox Nano and Turbo accept the
+installed checkpoint's 19 bracketed style/action tags, including `[happy]`,
+`[laugh]`, `[sigh]` and `[whispering]`. Supported tags survive speech projection;
+unknown stage directions, reasoning and code are excluded from synthesis.
+Text-only Chat receives no delivery instructions. Tags guide the model's
+performance; their audible strength varies with the checkpoint and phrase.
+
+## Character identity and card macros
+
+Both Chat and Agent use the active card name. Without a card, the profile's
+conversation.name is used, falling back to Assistant. TARS names the project.
+Agent keeps its operational prompts and permission policy while adopting this
+conversational identity. Settings > Character and Settings > Prompts work in
+both modes; Settings > Prompt preview shows the expanded character instructions,
+example messages and current speech delivery instructions when enabled.
+
+Settings > Character selects a card, a fallback assistant name and an opening
+greeting. Settings > You contains your name and persona description. Profiles
+are saved setups that include model, speech and the selected character. Mode
+selects Chat or Agent capabilities and retains the character selection.
+The greeting selector uses 0 for the main greeting and 1+ for alternate_greetings.
+Selecting a greeting updates the opening context; existing user and assistant
+turns remain intact.
+Save a profile copy to retain these settings across launches.
+
+Card templates support case-insensitive {{user}}, {{char}}, {{original}},
+{{persona}}, {{description}} / {{charDescription}}, {{personality}} /
+{{charPersonality}}, {{scenario}} / {{charScenario}}, {{mesExamples}} /
+{{mesExamplesRaw}}, {{charPrompt}}, {{charInstruction}}, {{creatorNotes}} /
+{{charCreatorNotes}}, {{charVersion}}, {{greeting}} / {{charFirstMessage}} and
+indexed greetings such as {{greeting::1}}. Legacy <USER>, <BOT> and <CHAR> are
+accepted; {user} and {char} are compatibility aliases. Source cards remain intact.
+
+Unknown macros remain literal and produce warnings. Recursive field references
+are bounded and reported. Stateful SillyTavern scripting, group macros and
+extension hooks are not implemented. Participant names are literal values; persona descriptions can contain macros.
+
+Recognized Name: lines in mes_example become ordered example messages before
+Chat's opening greeting and saved history. Multiline bodies and <START> separators
+are supported. Unparseable examples remain in the system prompt with a warning.
+Examples count toward the context budget and never enter saved user history.
+
+Dialog and settings actions share a single right-aligned row. Left/Right selects
+between actions; Tab and Up/Down still move through fields and actions. A divider
+separates the actions from the keyboard hint below. Destructive confirmations
+open with Cancel selected. Popup surfaces retain their background beneath nested
+text styles in both themes.
+
+## Message layout and custom setups
+
+Messages show the participant name on its own row, followed by the body at the
+left edge. The user label follows Settings > You > Your name. Asterisk emphasis
+uses the theme's secondary grey in both Dark and Light; code spans retain code
+styling. Display labels and colors are never added to model message content.
+
+Applying model, character, user, prompt, generation or speech changes automatically
+saves a setup under profiles/custom and selects it as the profile source. Further
+changes update that custom profile atomically. Bundled and external source
+profiles remain intact. Profiles can load these setups or save a named copy.
+Mode/workspace switches alone do not create a custom profile.
+
+Chat sends system instructions, fitting example exchanges, the opening greeting,
+recent complete user/assistant turns, the current user message, then post-history
+instructions. Recent conversation takes priority over examples. The full saved
+history is retained; omitted turns/examples are reported. Context accounting uses
+an estimate rather than SillyTavern's tokenizer-aware prompt budget. SillyTavern's
+provider-specific named-system example formatting and optional prompt-order
+controls are not reproduced.
+
+## Prompt presets
+
+Settings > Prompts > Prompt preset selects a reusable response style in both
+Chat and Agent. Custom (the default) keeps the base prompts and card overrides
+without adding preset instructions. Conversation, Roleplay, Storytelling, Concise,
+Coding, Investigation and Explanation add a style section to the compiled system
+instruction. The card still supplies identity; Agent's operational instructions,
+Plan/Act tools and permission policy remain separate.
+
+The picker describes each preset. Settings > Prompt preview shows the applied
+preset and its compiled instructions. Apply preserves the conversation and saves
+the selection in the custom profile as conversation.prompt_preset. Mode changes
+retain the selected preset. Presets use normal chat messages; they do not insert
+Alpaca/ChatML markers or override the backend's model chat template.

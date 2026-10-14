@@ -279,3 +279,14 @@ func PlatformLine() string {
 	}
 	return "You run on " + runtime.GOOS + " with a POSIX shell and standard coreutils available."
 }
+
+var responsePresets = []Preset{
+	{"custom", "Custom", ""},
+	{"conversation", "Conversation", read("preset-conversation.txt")},
+	{"roleplay", "Roleplay", read("preset-roleplay.txt")},
+	{"storytelling", "Storytelling", read("preset-storytelling.txt")},
+	{"concise", "Concise", read("preset-concise.txt")},
+	{"coding", "Coding", read("preset-coding.txt")},
+	{"investigation", "Investigation", read("preset-investigation.txt")},
+	{"explanation", "Explanation", read("preset-explanation.txt")},
+}
