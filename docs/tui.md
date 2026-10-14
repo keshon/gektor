@@ -1,6 +1,6 @@
 # Terminal guide
 
-Start TARS with `go run ./cmd/agent -tui`, or use `run-tui.cmd` on Windows.
+Start TARS with `agent.exe -tui`, or use `run-tui.cmd` on Windows.
 The UI uses Bubble Tea v2. [CLI flags](cli.md) configure the backend,
 workspace, permissions, verification, and response budgets.
 
@@ -293,13 +293,12 @@ field or activates a button; Shift+Enter inserts a newline. Ctrl+S applies a
 non-destructive form. Mouse clicks focus fields or activate buttons. Esc closes
 the form or dropdown in one step. Keyboard menu navigation skips disabled
 actions. Read-only inspectors support arrows, PageUp/PageDown and wheel scrolling.
-Coding model/context panels are explicitly inspectors; changing the coding
-backend still requires a restart. There are no redirects between common menus
-and status-badge menus.
+Model and generation settings are shared by Chat and Agent. Applying changes
+preserves the current session; owned services restart when needed.
 
 Prompt override switches and protocol choices cycle with Space or a mouse click.
 Forms expose their own Next/Apply/Cancel footer actions instead of unrelated
-chat hotkeys. The rendered frame can be inspected in [menu-flows.html](reports/menu-flows.html).
+chat hotkeys.
 
 ## Voice conversation MVP
 

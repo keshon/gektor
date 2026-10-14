@@ -1,7 +1,29 @@
 # Bootstrap and runtime ownership
 
-Status: migration contract. Profile loading and offline validation exist;
-managed runtime installation and speech migration do not yet exist.
+Status: profiles, owned llama.cpp processes and portable speech services are
+implemented. Automatic fresh-machine downloading/installation is still pending.
+The source repository intentionally excludes model weights and runtime bundles.
+
+## Current setup
+
+For text, start an external backend and configure Settings > Model. No speech
+assets or Python installation are required. For managed thinking, supply a compatible
+llama-server executable and a GGUF model; Settings > Model supports nested model
+folders and files outside the installation directory.
+
+Existing Veyra assets can be imported locally on Windows:
+
+    .\import-voice-assets.cmd -SourceAssets "D:\path\to\veyra\assets"
+
+The importer verifies checksums and installs assets under role-specific model
+folders and assets/runtimes. It uses same-volume hard links when possible, with
+copy fallback. For a new machine without an existing asset bundle, install the
+selected runtimes/models manually; the importer is not an online downloader.
+Voice also needs ffmpeg and ffplay in PATH, and a compatible NVIDIA driver for
+the current CUDA speech bundle. No CUDA toolkit compilation is required to run
+an already built bundle. Other GPU/platform configurations remain unverified.
+
+The sections below describe the remaining release installation contract.
 
 ## Two installation paths
 
@@ -45,8 +67,9 @@ The resolved runtime must work after moving the installation directory;
 Python virtual environments with absolute base paths are not portable bundles.
 Package a standalone runtime or recreate its environment on the destination.
 
-For Chatterbox, first remove the current lab/Kitten Python dependency, pin the
-Nano/Turbo worker dependencies and model revisions, and validate a clean
+Chatterbox now runs from assets/runtimes/chatterbox rather than a lab path.
+For release packaging, pin the Nano/Turbo worker dependencies and model revisions
+and validate a clean
 installation with Git, uv and Python absent from PATH. Bundle required audio
 utilities or expose them as an explicit external dependency. Sharing resident
 GPU memory with the thinking service must be checked before starting voice.

@@ -1,21 +1,39 @@
 # TARS
 
-A coding agent for small local models, in Go. It runs against koboldcpp,
-llama.cpp, LM Studio, or any OpenAI-compatible API, and measures its own
-work through observed file changes and optional command checks. Mission
-subtasks have explicit checks; direct runs use `-verify-cmd` for mechanical
-verification. Repeat guards and step budgets bound every run.
+A local assistant for coding and voice conversations, written in Go.
+Use **Chat** for conversation and character cards, or **Agent** for workspace
+tools with Plan/Act modes and permission prompts. Both share model selection,
+sessions, generation settings and optional voice input/output.
 
-The runtime is pure Go, without cgo. The terminal UI uses Bubble Tea v2,
-Bubbles v2, Lipgloss v2, and the Charm input/ANSI helpers; Windows process
-cleanup uses `golang.org/x/sys`. The agent loop and model transports do not
-depend on the terminal stack. Exact versions live in [go.mod](go.mod).
+The Go application builds without cgo. Optional voice services run as owned
+external processes: Whisper for recognition, Chatterbox Nano/Turbo for speech,
+and Silero VAD for hands-free capture. The current voice path targets English
+on Windows. Interruption is application-controlled, not native full duplex.
 
-## Requirements
+## Quick start
 
-- Go 1.26.6+ (see `go.mod`; CI uses this minimum)
-- A model backend with an OpenAI-compatible `/v1/chat/completions`
-  endpoint. Local default is `http://localhost:5001`.
+Requirements: Go 1.26.6+ and a local or remote model backend. Model weights and
+optional speech runtimes are not included in Git.
+
+```powershell
+go build -o agent.exe ./cmd/agent
+.\agent.exe -tui
+```
+
+On a fresh clone, the common launcher uses the external Chat profile at
+`http://127.0.0.1:8080`. Start your backend, then use **Settings → Model** to
+configure it. If the starter local model and runtime have been installed, the
+launcher selects the managed local profile instead. Models load on demand.
+
+- **Mode → Chat / Agent** switches the current session; Agent requires a workspace and starts in Plan.
+- **Settings** selects models, generation parameters, character cards and service profiles.
+- **Voice** controls recording, hands-free capture and playback; speech assets must be installed first.
+- **View → Theme** selects Dark or Light.
+- **Session → Compact conversation** compacts the current history. Chat keeps its opening exchange and eight recent turns, with an archive backup.
+
+See [bootstrap and runtime ownership](docs/bootstrap.md) for service setup and
+[the terminal guide](docs/tui.md) for interaction details. The CLI backend default
+for launches without a profile remains `http://localhost:5001`.
 
 ## Usage
 
@@ -33,19 +51,17 @@ the same run fullscreen with live transcript and inline gate prompts.
 ## Terminal UI
 
 ```bash
-go run ./cmd/agent -tui
+.\agent.exe -tui
 ```
 
-Start without a task to open an empty chat. Enter sends a message;
-Shift+Enter adds a line, with Ctrl+O as a fallback. Type `/` for command
-suggestions or `@` for workspace files. Enter runs the highlighted command
-or inserts a file path; Tab only inserts. Text references include bounded
-file snapshots; images require a vision-capable backend.
+The common entry opens Chat with voice off on first use, then remembers the
+application configuration. Enter sends text, Shift+Enter adds a line, and Tab
+switches panel focus. The menu, session panel, status labels and contextual footer
+share one theme. Type `/` for commands or `@` for workspace files in Agent mode.
+F1 opens help, F2 searches sessions, F8 records, and Ctrl+L toggles hands-free voice
+when speech services are configured. Mode changes retain the session and draft.
 
-F1 opens categorized help. F2 opens centered session search by title and saved conversation text; wide
-terminals also show a compact Sessions pane. The function-key footer exposes
-Help, Search, Details, New, Mode, Sidebar, Latest, and Quit. During a run,
-you can queue one follow-up, edit it, or stop the run without losing the chat.
+External-server launchers remain available as an alternative to managed services.
 
 On Windows, keep KoboldCPP in its own terminal:
 

@@ -7,9 +7,12 @@ are verified against the implementation.
 
 ## Invocation
 
+Build the terminal application with `go build -o agent.exe ./cmd/agent`.
+Run the built executable so bundled profiles resolve from the project directory.
+
 ```bash
 go run ./cmd/agent [flags] "task description"
-go run ./cmd/agent -tui
+./agent.exe -tui
 go run ./cmd/agent -resume .tars/tasks/<id>
 ```
 
@@ -21,14 +24,14 @@ Direct execution is the default. An empty task is allowed for `-tui`,
 Local llama-server example:
 
 ```bash
-go run ./cmd/agent -tui -backend-kind llama -backend http://127.0.0.1:8080 -stream
+./agent.exe -tui -backend-kind llama -backend http://127.0.0.1:8080 -stream
 ```
 
 For LM Studio or a hosted OpenAI-compatible service, use the `openai` dialect
 and the provider's API root, including `/v1` when required:
 
 ```bash
-go run ./cmd/agent -tui -backend-kind openai -backend http://127.0.0.1:1234/v1 -model your-model -context-limit 16384
+./agent.exe -tui -backend-kind openai -backend http://127.0.0.1:1234/v1 -model your-model -context-limit 16384
 ```
 
 For a hosted service, set a key in the environment or select its variable
