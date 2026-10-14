@@ -127,6 +127,8 @@ func (m *model) screenContent() string {
 
 func (m *model) View() tea.View {
 	v := tea.NewView(m.screenContent())
+	v.BackgroundColor = lipgloss.Color(currentPalette().background)
+	v.ForegroundColor = lipgloss.Color(themeColor(colorPopupText))
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
 	owner := m.activeInputOwner()
