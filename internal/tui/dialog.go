@@ -1,11 +1,13 @@
 package tui
 
 import (
+	"fmt"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -23,6 +25,7 @@ func wsRootOf(ws *workspace.Workspace) string {
 // the transcript body, so no ANSI splicing is needed and scroll state
 // underneath survives untouched.
 type dialog struct {
+	form         *settingsForm
 	title        string
 	lines        []string
 	help         bool
@@ -33,6 +36,7 @@ type dialog struct {
 // it. Balanced by construction: every open path pairs with esc/enter
 // or run start.
 func (m *model) openDialog(title string, lines []string) {
+	m.stopListening()
 	m.dialog = &dialog{title: title, lines: lines}
 	m.pushOverlay(ovDialog)
 	m.input.Blur()
@@ -40,6 +44,14 @@ func (m *model) openDialog(title string, lines []string) {
 }
 
 func (m *model) closeDialog() {
+	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.workspace != nil {
+		ws := m.dialog.form.workspace
+		if ws.sampleCancel != nil {
+			ws.sampleCancel()
+			ws.sampleCancel = nil
+			ws.sampleID++
+		}
+	}
 	m.dialog = nil
 	m.popOverlay()
 	m.fitBottom()
@@ -49,6 +61,9 @@ func (m *model) closeDialog() {
 // title, body, close hint. Widths are clamped to the viewport; heights
 // are top-padded to center, the viewport clips the rest.
 func (m *model) dialogView() string {
+	if m.dialog.form != nil {
+		return m.formView()
+	}
 	state := *m.dialog
 	d := &state
 	availW, availH := m.termW, m.termH-3
@@ -60,10 +75,22 @@ func (m *model) dialogView() string {
 		inner = 10
 	}
 	rows := []string{m.styles.gate.Render(truncate(d.title, inner))}
-	lines := d.lines
+	lines := []string{}
+	for _, line := range d.lines {
+		lines = append(lines, strings.Split(ansi.Wrap(line, max(inner, 1), ""), "\n")...)
+	}
 	hint := "Esc / Enter close"
 	if d.help {
-		sections := helpSections()
+		sections := m.helpSections()
+		if d.title == "Keyboard shortcuts" || d.title == "Commands" {
+			filtered := []helpSection{}
+			for _, section := range sections {
+				if (section.title == "Commands") == (d.title == "Commands") {
+					filtered = append(filtered, section)
+				}
+			}
+			sections = filtered
+		}
 		tabs := make([]string, len(sections))
 		for i, section := range sections {
 			label := section.title
@@ -103,10 +130,10 @@ func renderBox(rows []string, availW, availH int) string {
 			bw = n
 		}
 	}
-	border := lipgloss.NewStyle().Foreground(lipgloss.Color(colorDim))
+	normal, border, _ := popupStyles()
 	framed := []string{border.Render("╭" + strings.Repeat("─", bw+2) + "╮")}
 	for _, row := range rows {
-		framed = append(framed, border.Render("│ ")+cellLine(row, bw)+border.Render(" │"))
+		framed = append(framed, border.Render("│ ")+normal.Render(cellLine(row, bw))+border.Render(" │"))
 	}
 	framed = append(framed, border.Render("╰"+strings.Repeat("─", bw+2)+"╯"))
 	box := strings.Join(framed, "\n")
@@ -219,6 +246,9 @@ func renderHelp() []string {
 // shown is model state or construction facts; the TUI never re-reads
 // Env, so nothing here can disagree with the run.
 func (m *model) statusLines() []string {
+	if m.chat != nil {
+		return kvRows([]string{"mode: Chat (text only)", "character: " + nonEmpty(m.chat.config.Settings.CharacterName), "backend: " + nonEmpty(m.backendKind), "model: " + nonEmpty(m.modelName), "session: " + nonEmpty(m.stateFile), "tools: none", "context: " + m.meter(), fmt.Sprintf("response budget: %d tokens", m.responseCap)})
+	}
 	taskDir := "—"
 	if m.stateFile != "" {
 		taskDir = filepath.Dir(m.stateFile)
@@ -284,4 +314,29 @@ func kvRows(rows []string) []string {
 		}
 	}
 	return out
+}
+
+func (m *model) helpSections() []helpSection {
+	sections := helpSections()
+	if m.chat == nil {
+		return sections
+	}
+	for i := range sections {
+		if sections[i].title == "Commands" {
+			sections[i].rows = m.commandReference()
+			continue
+		}
+		rows := sections[i].rows[:0]
+		for _, row := range sections[i].rows {
+			if row[0] == "F5" || row[0] == "Y" || row[0] == "A" || row[0] == "N" || strings.HasPrefix(row[0], "@") {
+				continue
+			}
+			if row[0] == "/ or @" {
+				row = [2]string{"/", "Suggest chat commands"}
+			}
+			rows = append(rows, row)
+		}
+		sections[i].rows = rows
+	}
+	return sections
 }

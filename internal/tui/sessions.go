@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/tars/internal/chat"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/session"
 	"github.com/keshon/tars/internal/workspace"
@@ -149,6 +150,7 @@ func ageString(t time.Time) string {
 // tears it down with focus restored. Balanced by construction: every
 // open pairs with esc/enter or run start.
 func (m *model) openSessions() {
+	m.stopListening()
 	filter := newSearchInput(max(m.termW-14, 1))
 	filter.Focus()
 	m.sessions = &sessionsState{entries: m.nav.entries, all: m.nav.entries, root: m.sessionRoot(), filter: filter}
@@ -300,6 +302,14 @@ func (m *model) openSelected() tea.Cmd {
 		return nil
 	}
 	cur := s.entries[s.cursor]
+	if m.application != nil {
+		if cmd, handled := m.openApplicationSession(cur); handled {
+			return cmd
+		}
+	}
+	if m.chat != nil {
+		return m.openConversation(cur)
+	}
 	if cur.mode == "Mission" {
 		s.flash = "Mission: run agent -tui -resume " + cur.dir
 		return nil
@@ -437,7 +447,14 @@ func (m *model) commitRename() {
 		// Clearing removes the stored title: the row falls back to
 		// the derived text live, tracking history instead of a stale
 		// copy of it.
-		if history, err := agent.LoadState(filepath.Join(cur.dir, "state.json")); err == nil {
+		load := func() ([]llm.Message, error) {
+			if m.chat != nil {
+				a, err := chat.ReadArchive(filepath.Join(cur.dir, "conversation.json"))
+				return a.History, err
+			}
+			return agent.LoadState(filepath.Join(cur.dir, "state.json"))
+		}
+		if history, err := load(); err == nil {
 			name = session.TitleFor(history)
 		}
 		if name == "" {
@@ -494,6 +511,7 @@ func (m *model) deleteSelected() {
 		return
 	}
 	delete(m.drafts, filepath.Join(cur.dir, "state.json"))
+	delete(m.drafts, filepath.Join(cur.dir, "conversation.json"))
 	m.nav.entries = withoutSession(m.nav.entries, cur.dir)
 	s.all = withoutSession(s.all, cur.dir)
 	s.entries = withoutSession(s.entries, cur.dir)
@@ -547,6 +565,12 @@ func (m *model) activeSessionTitle() string {
 
 // sessionRoot follows the chosen workspace, independently of the process cwd.
 func (m *model) sessionRoot() string {
+	if m.application != nil && m.audio() != nil {
+		return m.audio().Directory
+	}
+	if m.chat != nil {
+		return m.chat.config.Directory
+	}
 	root := m.wsRoot
 	if m.ws != nil {
 		root = m.ws.Root()
@@ -665,6 +689,7 @@ func (m *model) updateSearchInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func newSearchInput(width int) textinput.Model {
 	filter := textinput.New()
+	filter.SetStyles(textInputStyles(filter.Styles()))
 	filter.Prompt = "> "
 	filter.SetVirtualCursor(false)
 	style := filter.Styles()

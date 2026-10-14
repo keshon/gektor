@@ -4,8 +4,9 @@
 > what the build enforces live in [docs/conventions.md](docs/conventions.md).
 > This document covers how the system works.
 
-TARS runs one agent loop. Everything else decides how that loop is configured,
-what it is allowed to touch, and whether its output is real.
+TARS has separate coding and conversation runners. Coding uses the agent loop;
+tool-free chat uses the same model transport without constructing a workspace
+or tool registry. Interfaces and profile resolution live outside those runners.
 
 The organising idea: a small local model is unreliable at knowing whether it did
 the work. The harness observes file effects and records command results.
@@ -18,6 +19,11 @@ checks are explicit but still only as strong as their acceptance criteria.
 cmd/agent          CLI: flags, the approval gate, console output
 cmd/eval           probe runner and scorer
 
+internal/config    versioned provider, generation and conversation profiles.
+internal/character bounded PNG/JSON card reader and prompt compilation; no tools
+                   or behavior simulation.
+internal/chat      tool-free conversations, transactional turns and recent-window
+                   projection; no workspace or tool dependencies.
 internal/agent     the loop. Tool interface, Registry, repeat detection,
                    budgets, history compaction. Knows nothing about
                    koboldcpp or the filesystem.
@@ -293,3 +299,43 @@ real call costs nothing. Only the unparseable remainder earns the nudge.
 - Windows-first, but CI runs both Windows and Ubuntu, and OS-bound probes
   declare `oses` and report SKIP elsewhere. The shell tools pick `cmd.exe`
   or `sh` by OS.
+
+## Conversation migration boundary
+
+`-chat` branches before workspace initialization in `cmd/agent`. It uses
+`internal/chat` with a plain `llm.Client` and no tools. The runner owns completed
+turns and builds a recent prompt projection separately. Errors, cancellation,
+tool requests and token-limit truncation never commit a turn. Its byte-based
+context estimate is deliberately conservative; backend tokenization and summary
+compaction are still future work for this runner.
+
+The Commander TUI supports either runner. Chat has separate versioned
+conversation archives, atomically replaced after complete turns, and its own
+session directory. Persistence failure rolls back the in-memory turn. Coding
+RPC and task checkpoints retain their existing formats. Character cards enter through the conversation boundary. Voice adapters use that same boundary; they must not
+grant tool access or load workspace instructions.
+
+Character prompts are compiled once at startup into leading system instruction,
+opening assistant greeting and trailing system directive. Cards can override
+base main/post prompts only when the corresponding preference permits it.
+The runner budgets all pinned components separately from completed turns and
+retains the compiled settings in its archive. Card files do not need to stay
+open and are never rewritten. Nonempty lorebooks are explicitly unsupported.
+
+Speech is a capability outside the runner. `internal/speech` defines capture,
+recognition, synthesis and playback contracts; model adapters live in
+`internal/speech/chatterbox` and `internal/speech/whisper`.
+`internal/speech/service` owns their managed process lifetimes. The TUI owns
+capture state and cancellation revisions. The chat runner accepts streamed
+text callbacks and budgeted ephemeral system notes without persisting speech
+capabilities as character instructions. Audio failure never rolls back a
+completed text turn. Provider-specific delivery metadata and hands-free
+turn detection remain later steps.
+
+The common terminal launcher owns persistent application preferences and runner
+transitions. Chat and Agent retain separate runner/checkpoint formats. Mode
+changes carry dialogue context and preserve the source archive, then wait for
+new input. Chat projects historical tool output as text and exposes no tools;
+Agent resumes with its own system instructions and permission policy. Audio
+configuration belongs to the terminal presentation independently of the runner.
+Agent speech voices final answers; chat speech streams sentence chunks.

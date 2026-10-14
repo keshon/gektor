@@ -83,7 +83,7 @@ func (m *model) syncSuggestions() {
 		return
 	}
 	if prefix[0] == '/' {
-		for _, row := range commandReference() {
+		for _, row := range m.commandReference() {
 			name, _, _ := strings.Cut(row[0], " ")
 			names := []string{name}
 			if name == "/mode" && strings.Contains(prefix, " ") {

@@ -57,6 +57,9 @@ func readChatMode(dir string) string {
 }
 
 func (m *model) modeName() string {
+	if m.chat != nil {
+		return "Chat"
+	}
 	if m.mission {
 		return "Mission"
 	}
@@ -70,7 +73,10 @@ func (m *model) saveMode() error {
 	if m.stateFile == "" || m.mission {
 		return nil
 	}
-	return writeChatMode(m.stateFile, m.plan)
+	if err := writeChatMode(m.stateFile, m.plan); err != nil {
+		return err
+	}
+	return m.saveSessionSettings()
 }
 
 func writeChatMode(stateFile string, plan bool) error {

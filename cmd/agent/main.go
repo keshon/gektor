@@ -26,6 +26,8 @@ import (
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/api"
 	"github.com/keshon/tars/internal/audit"
+	thinkingservice "github.com/keshon/tars/internal/backend"
+	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/events"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/mission"
@@ -34,6 +36,7 @@ import (
 	"github.com/keshon/tars/internal/roles"
 	"github.com/keshon/tars/internal/session"
 	"github.com/keshon/tars/internal/snapshot"
+	"github.com/keshon/tars/internal/speech"
 	"github.com/keshon/tars/internal/tools"
 	"github.com/keshon/tars/internal/tui"
 	"github.com/keshon/tars/internal/workspace"
@@ -49,71 +52,280 @@ func main() {
 	}
 }
 
-func runMain() error {
-	backend := flag.String("backend", "http://localhost:5001", "backend base URL: bare origin for a local server ("+
+func runMain() error { return runApplication(os.Args[1:]) }
+
+func runConfigured(launch launchRequest) error {
+	flags := flag.NewFlagSet("agent", flag.ContinueOnError)
+	backend := flags.String("backend", "http://localhost:5001", "backend base URL: bare origin for a local server ("+
 		"http://localhost:5001) or API root for a hosted OpenAI-compatible provider "+
 		"(https://api.openai.com/v1, https://openrouter.ai/api/v1)")
-	model := flag.String("model", "local", "model name: ignored by most local servers (they serve "+
+	model := flags.String("model", "local", "model name: ignored by most local servers (they serve "+
 		"whatever weights they started with), required for remote providers")
-	root := flag.String("workspace", ".", "workspace root the agent may read/write")
-	debug := flag.Bool("debug", false, "log raw request/response JSON to agent-debug.log")
-	grammar := flag.Bool("grammar", true, "apply the backend's own content grammar. On koboldcpp "+
+	root := flags.String("workspace", ".", "workspace root the agent may read/write")
+	debug := flags.Bool("debug", false, "log raw request/response JSON to agent-debug.log")
+	grammar := flags.Bool("grammar", true, "apply the backend's own content grammar. On koboldcpp "+
 		"that blocks a model writing its native tool-call tags as plain text; on llama-server there "+
 		"is none, because those tags are the protocol there and constraining them fights the "+
 		"grammar the server builds from the tool schemas")
-	maxTokens := flag.Int("max-tokens", 8192, "generation budget per response — too low truncates "+
+	maxTokens := flags.Int("max-tokens", 8192, "generation budget per response — too low truncates "+
 		"large outputs (e.g. a full HTML+CSS+JS file) mid-JSON")
-	maxSteps := flag.Int("max-steps", 0, "step budget per run — 0 takes the agent default (25). "+
+	maxSteps := flags.Int("max-steps", 0, "step budget per run — 0 takes the agent default (25). "+
 		"Applies to direct runs; mission workers and subagents keep fixed budgets")
-	thinkBudget := flag.Int("reasoning-budget", 0, "characters of <think> deliberation allowed per response "+
+	thinkBudget := flags.Int("reasoning-budget", 0, "characters of <think> deliberation allowed per response "+
 		"before a wrap-up round demands commitment; 0 takes the agent default (6000), negative disables wrapping")
-	resume := flag.String("resume", "", "path to a .tars/tasks/.../state.json snapshot to resume "+
+	resume := flags.String("resume", "", "path to a .tars/tasks/.../state.json snapshot to resume "+
 		"an interrupted run from, instead of starting a new task")
-	answer := flag.String("answer", "", "answer to supply when resuming a run paused on ask_user "+
+	answer := flags.String("answer", "", "answer to supply when resuming a run paused on ask_user "+
 		"(use with -resume when the agent stopped to ask a clarifying question)")
-	verifyCmd := flag.String("verify-cmd", "", "command to run at the self-check checkpoint "+
+	verifyCmd := flags.String("verify-cmd", "", "command to run at the self-check checkpoint "+
 		"(e.g. \"go build ./... && go vet ./... && go test ./...\") — real output gets fed back "+
 		"as fact instead of trusting the model's own claim that the code works. Empty disables this.")
-	logMax := flag.Int("log-max", 300, "max characters per line in step console output; "+
+	logMax := flags.Int("log-max", 300, "max characters per line in step console output; "+
 		"long text is truncated in the middle (head ... tail). 0 = no limit")
-	missionMode := flag.Bool("mission", false, "run the task as a mission: an upfront model-generated "+
+	missionMode := flags.Bool("mission", false, "run the task as a mission: an upfront model-generated "+
 		"plan (approved by you), then one fresh-context worker per subtask, each verified mechanically. "+
 		"For complex multi-file tasks a weak model can't hold in its head; simple tasks are better off "+
 		"without it. Multi-file tasks receive a recommendation; mission mode is explicit")
-	direct := flag.Bool("direct", false, "suppress the multi-file mission recommendation (direct mode is the default)")
-	yes := flag.Bool("yes", false, "skip the mission plan approval gate and run the plan as generated")
-	auditPath := flag.String("audit", "", "append gate decisions as JSONL to this file (off when empty)")
-	backendKind := flag.String("backend-kind", "kobold", "which server: "+
+	direct := flags.Bool("direct", false, "suppress the multi-file mission recommendation (direct mode is the default)")
+	yes := flags.Bool("yes", false, "skip the mission plan approval gate and run the plan as generated")
+	auditPath := flags.String("audit", "", "append gate decisions as JSONL to this file (off when empty)")
+	backendKind := flags.String("backend-kind", "kobold", "which server: "+
 		strings.Join(llm.Kinds(), ", ")+". kobold/llama are local; openai is any hosted "+
 		"OpenAI-compatible API (OpenAI, OpenRouter, DeepSeek, Groq, Together, Mistral, xAI). "+
 		"A wrong value is caught at startup rather "+
 		"than run: the dialects disagree about grammar, sampler fields and structured "+
 		"output, so a mismatched run completes and measures nothing")
-	apiKey := flag.String("api-key", "", "bearer token for a remote provider; prefer the "+
+	apiKey := flags.String("api-key", "", "bearer token for a remote provider; prefer the "+
 		"TARS_API_KEY / OPENAI_API_KEY / OPENROUTER_API_KEY env vars so the secret never lands in shell history")
-	apiKeyEnv := flag.String("api-key-env", "", "name of the env var holding the bearer token, "+
+	apiKeyEnv := flags.String("api-key-env", "", "name of the env var holding the bearer token, "+
 		"e.g. OPENROUTER_API_KEY — overrides the built-in lookup order")
-	contextLimitFlag := flag.Int("context-limit", 0, "context window in tokens, overriding the backend probe. "+
+	contextLimitFlag := flags.Int("context-limit", 0, "context window in tokens, overriding the backend probe. "+
 		"Required knowledge for -backend-kind openai, which has no probe endpoint: defaults to a "+
 		"per-model estimate when 0")
-	allowFlag := flag.String("allow", "", "comma-separated tool=pattern rules to allow, e.g. \"run_shell=go *,read_file=*.go\" (wins over defaults)")
-	denyFlag := flag.String("deny", "", "comma-separated tool=pattern rules to deny, e.g. \"run_shell=rm *,read_file=.env\" (wins over -allow)")
-	pureFlag := flag.Bool("pure", false, "ignore project config for permissions; use built-in defaults plus -allow/-deny only")
-	streamFlag := flag.Bool("stream", false, "stream response tokens live (openai/llama backends only; koboldcpp falls back to unary)")
-	mcpFlag := flag.String("mcp", "", "MCP servers: \"name=cmd args...;name2=https://host/mcp\" (stdio JSON-RPC or Streamable HTTP, tools appear as mcp__name__tool)")
-	forkFlag := flag.String("fork", "", "history file to branch from: loads its transcript but writes to a fresh task id")
-	revertFlag := flag.Bool("revert", false, "restore the pre-run workspace checkpoint and Git index, then exit")
-	revertPreview := flag.Bool("revert-preview", false, "list checkpoint restore actions without changing files")
-	revertFrom := flag.String("revert-from", "", "select a checkpoint archive for -revert or -revert-preview; default is the latest")
-	planFlag := flag.Bool("plan", false, "plan mode: read-only tools, propose a plan and change nothing")
-	modeFlag := flag.String("mode", "print", "output mode: print (human-readable) or json (one JSON object per line)")
-	serveFlag := flag.Bool("serve", false, "serve JSON-RPC over stdio instead of running one task: methods run/respond/cancel, events on stdout. See docs/rpc.md")
-	tuiFlag := flag.Bool("tui", false, "fullscreen terminal UI instead of print mode: live transcript, status, and gate prompts")
-	noVerifyFlag := flag.Bool("no-verify", false, "skip the self-check verify round (finish accepted without the extra verification turn). Saves 1-2 model calls; strong models only")
-	imageFlag := flag.String("image", "", "attach pictures to the task (comma-separated paths): the model sees them alongside the text. Needs a vision-capable backend (llama-server with --mmproj); koboldcpp refuses loudly")
-	flag.Parse()
+	allowFlag := flags.String("allow", "", "comma-separated tool=pattern rules to allow, e.g. \"run_shell=go *,read_file=*.go\" (wins over defaults)")
+	denyFlag := flags.String("deny", "", "comma-separated tool=pattern rules to deny, e.g. \"run_shell=rm *,read_file=.env\" (wins over -allow)")
+	pureFlag := flags.Bool("pure", false, "ignore project config for permissions; use built-in defaults plus -allow/-deny only")
+	streamFlag := flags.Bool("stream", false, "stream response tokens live (openai/llama backends only; koboldcpp falls back to unary)")
+	mcpFlag := flags.String("mcp", "", "MCP servers: \"name=cmd args...;name2=https://host/mcp\" (stdio JSON-RPC or Streamable HTTP, tools appear as mcp__name__tool)")
+	forkFlag := flags.String("fork", "", "history file to branch from: loads its transcript but writes to a fresh task id")
+	revertFlag := flags.Bool("revert", false, "restore the pre-run workspace checkpoint and Git index, then exit")
+	revertPreview := flags.Bool("revert-preview", false, "list checkpoint restore actions without changing files")
+	revertFrom := flags.String("revert-from", "", "select a checkpoint archive for -revert or -revert-preview; default is the latest")
+	planFlag := flags.Bool("plan", false, "plan mode: read-only tools, propose a plan and change nothing")
+	modeFlag := flags.String("mode", "print", "output mode: print (human-readable) or json (one JSON object per line)")
+	serveFlag := flags.Bool("serve", false, "serve JSON-RPC over stdio instead of running one task: methods run/respond/cancel, events on stdout. See docs/rpc.md")
+	tuiFlag := flags.Bool("tui", false, "fullscreen terminal UI instead of print mode: live transcript, status, and gate prompts")
+	noVerifyFlag := flags.Bool("no-verify", false, "skip the self-check verify round (finish accepted without the extra verification turn). Saves 1-2 model calls; strong models only")
+	imageFlag := flags.String("image", "", "attach pictures to the task (comma-separated paths): the model sees them alongside the text. Needs a vision-capable backend (llama-server with --mmproj); koboldcpp refuses loudly")
+	profilePath := flags.String("profile", "", "path to a versioned JSON provider and generation profile; explicit flags override it")
+	checkProfile := flags.Bool("check-profile", false, "validate and print a profile without contacting or starting its backend")
+	chatFlag := flags.Bool("chat", false, "tool-free text conversation; no workspace or coding instructions are loaded")
+	systemPrompt := flags.String("system-prompt", "You are a helpful conversational assistant.", "system instruction for -chat")
+	chatDir := flags.String("chat-dir", "", "directory for -chat -tui conversation archives; defaults to var/chats beside the executable")
+	characterPath := flags.String("character", "", "PNG or JSON character card for tool-free chat")
+	flags.StringVar(characterPath, "character-png", "", "alias for -character; reads PNG metadata or JSON without changing the card")
+	userName := flags.String("user-name", "User", "name replacing {{user}} in chat character cards")
+	postHistory := flags.String("post-history", "", "chat system instruction placed after the latest user turn")
+	preferCharacterPrompt := flags.Bool("character-main-prompt", true, "allow the card to override the base chat system prompt")
+	preferCharacterPost := flags.Bool("character-post-history", true, "allow the card to override the base post-history instruction")
+	temperature := flags.Float64("temperature", 0, "chat sampling temperature, 0 uses transport default 0.4; literal greedy zero is unsupported")
+	voiceFlag := flags.Bool("voice", false, "enable the profile speech service for -chat -tui; requires speech assets")
+	conversationMode := flags.String("conversation", "", "conversation runner: chat or agent")
+	var selectedProfile config.Profile
+	var speechSettings *speech.Config
+	var thinkingSettings config.Provider
+	if err := flags.Parse(launch.args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
+	}
+	if *conversationMode != "" {
+		if *conversationMode != "chat" && *conversationMode != "agent" {
+			return fmt.Errorf("conversation must be chat or agent")
+		}
+		*chatFlag = *conversationMode == "chat"
+	}
+	explicitFlags := map[string]bool{}
+	flags.Visit(func(f *flag.Flag) { explicitFlags[f.Name] = true })
+	if *checkProfile && *profilePath == "" {
+		return fmt.Errorf("-check-profile requires -profile")
+	}
+	if *profilePath != "" {
+		p, err := config.Load(*profilePath)
+		if launch.profile != nil {
+			p = cloneLaunchProfile(*launch.profile)
+			err = p.Validate()
+		}
+		if err != nil {
+			return err
+		}
+		if p.Provider.Ownership == "managed" && !*chatFlag && !*tuiFlag && !*checkProfile {
+			return fmt.Errorf("managed thinking requires -tui or -chat")
+		}
+		speechSettings = p.Speech
+		selectedProfile = p
+		thinkingSettings = p.Provider
+		if speechSettings != nil && (explicitFlags["voice"] || launch.common) {
+			speechSettings.Enabled = *voiceFlag
+		}
+		if speechSettings != nil && !*chatFlag && !*tuiFlag && !*checkProfile {
+			return fmt.Errorf("speech profile requires -chat")
+		}
+		explicit := map[string]bool{}
+		flags.Visit(func(f *flag.Flag) { explicit[f.Name] = true })
+		if !explicit["backend-kind"] {
+			*backendKind = p.Provider.Kind
+		}
+		if !explicit["backend"] {
+			*backend = p.Provider.URL
+		}
+		if !explicit["model"] {
+			*model = p.Provider.Model
+		}
+		if !explicit["api-key-env"] {
+			*apiKeyEnv = p.Provider.APIKeyEnv
+		}
+		if !explicit["max-tokens"] {
+			*maxTokens = p.Generation.MaxTokens
+		}
+		if !explicit["context-limit"] {
+			*contextLimitFlag = p.Generation.ContextLimit
+		}
+		if !explicit["temperature"] {
+			*temperature = p.Generation.Temperature
+		}
+		if p.Conversation != nil && (*chatFlag || *checkProfile) {
+			c := p.Conversation
+			if !*chatFlag && !*checkProfile {
+				return fmt.Errorf("conversation profile requires -chat")
+			}
+			if !explicit["character"] && !explicit["character-png"] {
+				*characterPath = c.Character
+			}
+			if !explicit["user-name"] && c.UserName != "" {
+				*userName = c.UserName
+			}
+			if !explicit["system-prompt"] && c.SystemPrompt != "" {
+				*systemPrompt = c.SystemPrompt
+			}
+			if !explicit["post-history"] {
+				*postHistory = c.PostHistory
+			}
+			if !explicit["character-main-prompt"] && c.PreferCharacterPrompt != nil {
+				*preferCharacterPrompt = *c.PreferCharacterPrompt
+			}
+			if !explicit["character-post-history"] && c.PreferCharacterPostHistory != nil {
+				*preferCharacterPost = *c.PreferCharacterPostHistory
+			}
+		}
+		p.Generation.Temperature = *temperature
+		if (*chatFlag || *checkProfile) && (p.Conversation != nil || *characterPath != "" || *postHistory != "") {
+			p.Conversation = &config.Conversation{Character: *characterPath, UserName: *userName, SystemPrompt: *systemPrompt, PostHistory: *postHistory, PreferCharacterPrompt: preferCharacterPrompt, PreferCharacterPostHistory: preferCharacterPost}
+		}
+		p.Provider.Kind, p.Provider.URL, p.Provider.Model, p.Provider.APIKeyEnv = *backendKind, *backend, *model, *apiKeyEnv
+		p.Generation.MaxTokens, p.Generation.ContextLimit = *maxTokens, *contextLimitFlag
+		if err := p.Validate(); err != nil {
+			return err
+		}
+		if *checkProfile {
+			if p.Conversation != nil {
+				if _, _, err := compileChatSettings(chatOptions{Character: *characterPath, User: *userName, System: *systemPrompt, Post: *postHistory, PreferMain: *preferCharacterPrompt, PreferPost: *preferCharacterPost, MaxTokens: *maxTokens, ContextLimit: *contextLimitFlag, Temperature: *temperature}); err != nil {
+					return err
+				}
+			}
+			return json.NewEncoder(os.Stdout).Encode(p)
+		}
+	}
 
-	task := strings.Join(flag.Args(), " ")
+	thinkingSettings.Kind, thinkingSettings.URL, thinkingSettings.Model = *backendKind, *backend, *model
+	thinkingSettings.APIKeyEnv = *apiKeyEnv
+	if selectedProfile.Version != 0 {
+		selectedProfile.Provider = thinkingSettings
+		selectedProfile.Generation = config.Generation{MaxTokens: *maxTokens, ContextLimit: *contextLimitFlag, Temperature: *temperature}
+	}
+	task := strings.Join(flags.Args(), " ")
+	if *chatFlag {
+		if *voiceFlag && speechSettings == nil {
+			return fmt.Errorf("-voice requires a profile with speech configuration")
+		}
+		if speechSettings != nil && speechSettings.Enabled && !*tuiFlag {
+			return fmt.Errorf("speech currently requires -chat -tui")
+		}
+		allowed := map[string]bool{"conversation": true, "voice": true, "character": true, "character-png": true, "user-name": true, "post-history": true, "character-main-prompt": true, "character-post-history": true, "temperature": true, "chat": true, "tui": true, "chat-dir": true, "system-prompt": true, "profile": true, "check-profile": true, "backend": true, "backend-kind": true, "model": true, "api-key": true, "api-key-env": true, "max-tokens": true, "context-limit": true}
+		var incompatible string
+		flags.Visit(func(f *flag.Flag) {
+			if !allowed[f.Name] && incompatible == "" {
+				incompatible = f.Name
+			}
+		})
+		if incompatible != "" {
+			return fmt.Errorf("-chat does not support -%s in this migration stage", incompatible)
+		}
+		client, err := llm.ClientFor(*backendKind, *backend, *model)
+		if err != nil {
+			return err
+		}
+		client.NoGrammar = true
+		resolveAPIKey(*apiKey, *apiKeyEnv, client)
+		client.ExtraHeaders = extraHeadersFromEnv()
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		settings, warnings, err := compileChatSettings(chatOptions{Character: *characterPath, User: *userName, System: *systemPrompt, Post: *postHistory, PreferMain: *preferCharacterPrompt, PreferPost: *preferCharacterPost, MaxTokens: *maxTokens, ContextLimit: *contextLimitFlag, Temperature: *temperature})
+		if err != nil {
+			return err
+		}
+		for _, warning := range warnings {
+			fmt.Fprintln(os.Stderr, "Character warning: "+warning)
+		}
+		if *chatDir != "" && !*tuiFlag {
+			return fmt.Errorf("-chat-dir requires -chat -tui")
+		}
+		if *tuiFlag {
+			directory := *chatDir
+			if directory == "" {
+				exe, err := os.Executable()
+				if err != nil {
+					return err
+				}
+				directory = filepath.Join(filepath.Dir(exe), "var", "chats")
+			}
+			directory, err = filepath.Abs(directory)
+			if err != nil {
+				return err
+			}
+			profile := config.Profile{Speech: speechSettings, Version: 1, Provider: config.Provider{Kind: *backendKind, URL: *backend, Model: *model, Ownership: "external", APIKeyEnv: *apiKeyEnv}, Generation: config.Generation{MaxTokens: *maxTokens, ContextLimit: *contextLimitFlag, Temperature: *temperature}, Conversation: &config.Conversation{Character: *characterPath, UserName: *userName, SystemPrompt: *systemPrompt, PostHistory: *postHistory, PreferCharacterPrompt: preferCharacterPrompt, PreferCharacterPostHistory: preferCharacterPost}}
+			profile.Provider.Ownership = thinkingSettings.Ownership
+			if profile.Provider.Ownership == "" {
+				profile.Provider.Ownership = "external"
+			}
+			profile.Provider.Runtime, profile.Provider.ModelFile, profile.Provider.GPULayers = thinkingSettings.Runtime, thinkingSettings.ModelFile, thinkingSettings.GPULayers
+			profile.Provider.ModelRoot = thinkingSettings.ModelRoot
+			configured, err := configureChat(profile, *apiKey, directory)
+			if err != nil {
+				return err
+			}
+			app := applicationControl(launch, profile, *profilePath, *chatFlag, *root)
+			_, err = tui.Run(ctx, tui.Config{Application: app, SeedHistory: launch.history, InitialDraft: launch.draft, SessionDirectory: launch.directory, Chat: &configured, BackendURL: *backend, Task: task, Env: roles.Env{BackendKind: *backendKind, Model: *model}})
+			return err
+		}
+		if thinkingSettings.Ownership == "managed" {
+			return fmt.Errorf("managed thinking currently requires -chat -tui")
+		}
+		return runChat(ctx, client, settings, task, os.Stdin, os.Stdout)
+	}
+	for _, name := range []string{"voice", "character", "character-png", "user-name", "post-history", "character-main-prompt", "character-post-history"} {
+		if explicitFlags[name] && !(name == "voice" && *tuiFlag && speechSettings != nil) {
+			return fmt.Errorf("-%s requires -chat", name)
+		}
+	}
+
+	if *chatDir != "" {
+		return fmt.Errorf("-chat-dir requires -chat -tui")
+	}
+	if *systemPrompt != "You are a helpful conversational assistant." {
+		return fmt.Errorf("-system-prompt requires -chat")
+	}
 	if task == "" && *resume == "" && *forkFlag == "" && !*serveFlag && !*tuiFlag && !*revertFlag && !*revertPreview {
 		return fmt.Errorf(`usage: agent [flags] "task description"  (or  agent -resume <state.json> [-answer "..."])`)
 	}
@@ -398,11 +610,21 @@ func runMain() error {
 		return ctx.Err()
 	}
 
+	var thinkingClient llm.Client = client
+	if thinkingSettings.Ownership == "managed" {
+		managed, err := thinkingservice.NewLlama(thinkingSettings, *contextLimitFlag, client, filepath.Join(filepath.Dir(launch.preferencePath), "thinking"))
+		if err != nil {
+			return err
+		}
+		defer managed.Close()
+		thinkingClient = managed
+	}
 	env := roles.Env{
-		Client:          client,
+		Client:          thinkingClient,
 		WS:              ws,
 		Procs:           bgProcs,
 		MaxTokens:       *maxTokens,
+		Temperature:     *temperature,
 		ContextLimit:    contextLimit,
 		MaxSteps:        *maxSteps,
 		Policy:          buildPolicy(*pureFlag, *allowFlag, *denyFlag),
@@ -498,7 +720,13 @@ func runMain() error {
 			}
 		}
 
-		answer, err := tui.Run(ctx, tui.Config{
+		var audio *tui.ChatConfig
+		if selectedProfile.Version != 0 {
+			prepared := configureAgentServices(selectedProfile, filepath.Join(filepath.Dir(launch.preferencePath), "chats"))
+			audio = &prepared
+		}
+		app := applicationControl(launch, selectedProfile, *profilePath, *chatFlag, *root)
+		answer, err := tui.Run(ctx, tui.Config{Application: app, Audio: audio, SeedHistory: launch.history, InitialDraft: launch.draft, SessionDirectory: launch.directory,
 			BackendURL:   *backend,
 			Plan:         *planFlag,
 			History:      history,

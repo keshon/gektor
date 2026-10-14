@@ -33,7 +33,8 @@ type Config struct {
 	// HTML+CSS+JS file in one write_file call) silently truncate mid-JSON
 	// without enough budget, which looks like a model failure but is
 	// actually a missing request parameter.
-	MaxTokens int
+	MaxTokens   int
+	Temperature float64
 
 	// ContextLimit is the backend's real context window size, e.g. from
 	// KoboldClient.MaxContextLength. Zero disables budget tracking

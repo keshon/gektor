@@ -1,0 +1,86 @@
+<!doctype html><meta charset="utf-8"><title>Local thinking and closed frames</title><style>body{background:#11151a;color:#d5dde8;font:16px/1.5 system-ui;padding:24px}pre{font:12px/1.4 Consolas,monospace;overflow:auto;background:#080b0f;padding:18px;border:1px solid #38424e}a{color:#a9c7ff}</style><h1>Closed frames and managed llama.cpp</h1><p>The Commander content area has connected top, bottom and side borders. Menu and hotkey bars remain one row.</p><h2>Start locally</h2><pre>agent.exe -profile profiles\chat-veyra-local.json -chat -tui -voice</pre><p>Imported runtime and Qwen starter model live in Tars assets. Settings → Model connection changes ownership, executable, model directory/file, GPU layers and URL. External mode keeps existing servers independent. Managed mode starts llama.cpp on the first request, loads the selected GGUF and closes the owned process tree on exit. Its port must be free.</p><p>Model directory scans subfolders, including LM Studio layouts. Focus GGUF model file and press Space to cycle discovered files, or leave Model directory blank and enter a full GGUF path. Files remain in their original location. Save configuration as profile persists settings.</p><h2>Verification</h2><p>Native CPU acceptance loaded the imported Qwen model, received “Hello.” and verified that shutdown released the port. Runtime version: 74 (4d28373). UI/config/backend tests cover outlines, cursor geometry, nested discovery and occupied-port refusal. GPU execution with your chosen model still needs live acceptance. CUDA DLLs are bundled; no CUDA toolkit is needed.</p><h2>Closed frame</h2><pre> Session   Run   View   Settings   Help&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;
+┌───────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────────┐
+│  SESSIONS                         │ ▸ CHAT  ACT   READY   QWEN3.5-9B   CTX 4.1k / 16.4k                              │
+│No saved sessions yet              │ YOU  &gt; Inspect the startup sequence and explain the process ownership.    [14:37]│
+│                                   │                                                                                  │
+│                                   │ TARS  [RESPONSE]                                                                 │
+│                                   │       The application owns the processes it starts. External backends     [14:37]│
+│                                   │       remain independently managed. I can inspect the launcher next.             │
+│                                   │                                                                                  │
+│                                   │                                                                                  │
+│                                   │                                                                                  │
+│                                   │                                                                                  │
+│                                   │                                                                                  │
+│                                   │                                                                                  │
+│                                   │                                                                                  │
+│                                   │                                                                                  │
+│                                   │                                                                                  │
+│                                   │                                                                                  │
+│                                   │                                                                                  │
+│                                   │                                                                                  │
+│                                   │                                                                                  │
+│                                   │                                                                                  │
+│                                   │                                                                                  │
+│                                   │                                                                                  │
+│                                   │                                                                                  │
+│                                   ├──────────────────────────────────────────────────────────────────────────────────│
+│                                   │ Enter send  Shift+Enter newline  Tab switch pane                                 │
+│No session selected                │ &gt; Show me the launcher                                                           │
+└───────────────────────────────────┴──────────────────────────────────────────────────────────────────────────────────┘
+F1 Help        Ctrl+P Search  Ctrl+N New     Enter Send     Ctrl+O Newline Ctrl+G Details Ctrl+B Pane    Ctrl+Q Quit    </pre><h2>Narrow terminal</h2><pre> Session   Run   View   Settings   Help&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;
+┌──────────────────────────────────────────────────────────────────────────────┐
+│▸ CHAT  ACT   READY   QWEN3.5-9B   CTX 4.1k / 16.4k                           │
+│YOU  &gt; Inspect the startup sequence and explain the process            [14:37]│
+│      ownership.                                                              │
+│                                                                              │
+│TARS  [RESPONSE]                                                              │
+│      The application owns the processes it starts. External           [14:37]│
+│      backends remain independently managed. I can inspect the                │
+│      launcher next.                                                          │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│──────────────────────────────────────────────────────────────────────────────│
+│Enter send  Shift+Enter newline                                               │
+│&gt; Show me the launcher                                                        │
+└──────────────────────────────────────────────────────────────────────────────┘
+F1 Help   ^P Search ^N New    Enter Go  ^O Line   ^G View   ^B Pane   ^Q Quit   </pre><h2>Speech form</h2><pre> Session   Chat   View   Settings   Help&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│▸  CHAT   READY   —   CTX —                                                                                           │
+│                                                                                                                      │
+│                     ╭──────────────────────────────────────────────────────────────────────────╮                     │
+│                     │ Speech services                                                          │                     │
+│                     │                                                                          │                     │
+│                     │ Speech settings apply to the next voice service.                         │                     │
+│                     │                                                                          │                     │
+│                     │ › Microphone                                                             │                     │
+│                     │ Microphone (Storm Pro)                                                   │                     │
+│                     │                                                                          │                     │
+│                     │ Chatterbox variant                                                       │                     │
+│                     │ nano                                                                     │                     │
+│                     │                                                                          │                     │
+│                     │ Speech model directory                                                   │                     │
+│                     │ assets/models/speaking/chatterbox/nano                                            │                     │
+│                     │                                                                          │                     │
+│                     │ Maximum recording seconds                                                │                     │
+│                     │ 120                                                                      │                     │
+│                     │                                                                          │                     │
+│                     │                                                                          │                     │
+│                     │ [ Apply ]                                                                │                     │
+│                     │ [ Cancel ]                                                               │                     │
+│                     │ ↑↓/Tab fields · Ctrl+↑↓ multiline fields · Ctrl+S apply · Esc cancel     │                     │
+│                     ╰──────────────────────────────────────────────────────────────────────────╯                     │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────│
+│Tab fields/buttons · Shift+Enter newline · Esc cancel                                                                 │
+│Draft preserved                                                                                                       │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+Tab Next                      Ctrl+S Apply                  Esc Cancel                    Ctrl+Q Quit                   </pre>

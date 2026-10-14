@@ -194,6 +194,7 @@ func (a *Agent) recoverLeakedCalls(resp llm.ChatResponse, step int) (llm.ChatRes
 // otherwise ChatWithRetry. Streaming gets a single attempt (a partial
 // stream cannot resume mid-turn); the unary path retries.
 func (a *Agent) chat(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
+	req.Temperature = a.cfg.Temperature
 	if a.cfg.Stream {
 		if s, ok := a.cfg.Client.(interface {
 			Stream(context.Context, llm.ChatRequest, func(string)) (llm.ChatResponse, error)

@@ -210,7 +210,7 @@ func TestTranscriptCacheInvalidatesChangedBlocksAndGeometry(t *testing.T) {
 		t.Fatal("changed block kept cached text")
 	}
 	m.width(tea.WindowSizeMsg{Width: 40, Height: 24})
-	if m.render.cache[0].width != 40 {
+	if m.render.cache[0].width != 38 {
 		t.Fatal("resize did not invalidate cache")
 	}
 	m.compact = !m.compact

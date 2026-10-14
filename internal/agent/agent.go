@@ -161,6 +161,12 @@ func LoadState(path string) ([]llm.Message, error) {
 	return history, nil
 }
 
+// SaveState writes a checkpoint atomically without running an agent.
+func SaveState(path string, history []llm.Message) error {
+	a := &Agent{cfg: Config{StateFile: path}}
+	return a.persistState(history)
+}
+
 // saveState is best-effort: a failed snapshot write should never abort a
 // run that's otherwise working fine. Writes are atomic (tmp+rename) so a
 // crash mid-write never leaves corrupt JSON behind.

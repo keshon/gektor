@@ -126,3 +126,15 @@ func TestMarkdownPipesLiteral(t *testing.T) {
 		t.Fatalf("pipe line altered: %q", out)
 	}
 }
+
+func TestLiveUsesCompletedBlockFormatting(t *testing.T) {
+	st := defaultStyles()
+	text := "<think>private deliberation</think>Say **hello**."
+	got := strings.Join(renderLive(text, st, 80), "\n")
+	if strings.Contains(got, "<think>") || strings.Contains(got, "**hello**") {
+		t.Fatal("live response leaked raw formatting")
+	}
+	if !strings.Contains(got, "hello") {
+		t.Fatal("live answer missing")
+	}
+}

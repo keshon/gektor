@@ -10,6 +10,7 @@ import (
 )
 
 type headerState struct {
+	global  bool
 	focused bool
 	index   int
 	menu    string
@@ -27,6 +28,9 @@ type headerItem struct {
 
 func (m *model) headerBadges() []headerBadge {
 	mode, activity := "ACT", "READY"
+	if m.chat != nil {
+		mode = "CHAT"
+	}
 	if m.plan {
 		mode = "PLAN"
 	}
@@ -35,6 +39,10 @@ func (m *model) headerBadges() []headerBadge {
 		activity = string(activityFrames[m.spinnerFrame%len(activityFrames)]) + " WORK"
 	case stPermission, stAsk:
 		activity = "WAIT"
+	case stRecording:
+		activity = "REC"
+	case stRecognizing:
+		activity = "ASR"
 	case stStopping:
 		activity = "STOP"
 	default:
@@ -53,47 +61,50 @@ func (m *model) headerBadges() []headerBadge {
 		ctx += " / " + kTokens(m.limit)
 	}
 	modelWidth := 32
-	if m.termW < 110 {
+	if m.vp.Width() < 110 {
 		modelWidth = 18
 	}
 	candidates := []headerBadge{{id: "mode", label: mode}, {id: "activity", label: activity}, {id: "model", label: strings.TrimSpace(cellLine(strings.ToUpper(nonEmpty(m.modelName)), modelWidth))}, {id: "context", label: ctx}}
 	if m.steps > 0 || m.state != stDone {
-		candidates = append(candidates, headerBadge{id: "run", label: fmt.Sprintf("step %d/%d  %s", m.steps, m.maxSteps, formatElapsed(m.elapsed))})
+		label := fmt.Sprintf("step %d/%d  %s", m.steps, m.maxSteps, formatElapsed(m.elapsed))
+		if m.chat != nil {
+			label = "turn  " + formatElapsed(m.elapsed)
+		}
+		candidates = append(candidates, headerBadge{id: "run", label: label})
 	}
 	// Context and state stay visible before the optional model and run details.
 	total := 0
 	for _, b := range candidates {
 		total += lipgloss.Width(b.label) + 3
 	}
-	if total > m.termW && len(candidates) > 4 {
-		candidates = candidates[:4]
-		total = 0
-		for _, b := range candidates {
-			total += lipgloss.Width(b.label) + 3
+	total += lipgloss.Width(m.badgePaneLabel())
+	if total > m.vp.Width() {
+		available := lipgloss.Width(candidates[2].label) - (total - m.vp.Width())
+		if available >= 6 {
+			candidates[2].label = strings.TrimSpace(cellLine(candidates[2].label, available))
+		} else {
+			candidates = append(candidates[:2], candidates[3:]...)
 		}
 	}
-	if total > m.termW {
-		candidates = append(candidates[:2], candidates[3:]...)
-	}
-	x := 0
+	x := lipgloss.Width(m.badgePaneLabel())
 	for i := range candidates {
 		candidates[i].start = x
-		candidates[i].end = min(x+lipgloss.Width(candidates[i].label)+2, m.termW)
+		candidates[i].end = min(x+lipgloss.Width(candidates[i].label)+2, m.vp.Width())
 		x = candidates[i].end + 1
 	}
 	return candidates
 }
 
 func (m *model) badgeLine() string {
-	normal, _, selected := popupStyles()
+	normal := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorPopupText)))
+	_, _, selected := popupStyles()
 	badges := m.headerBadges()
-	index := min(max(m.header.index, 0), len(badges)-1)
 	var out []string
-	for i, b := range badges {
+	for _, b := range badges {
 		style := normal
 		switch b.id {
 		case "mode":
-			style = style.Foreground(lipgloss.Color(colorMode))
+			style = style.Foreground(lipgloss.Color(themeColor(colorMode)))
 		case "activity":
 			color := colorReady
 			if m.state != stDone {
@@ -102,24 +113,89 @@ func (m *model) badgeLine() string {
 			if m.runErr != nil {
 				color = colorFailed
 			}
-			style = style.Foreground(lipgloss.Color(color))
-		}
-		if m.header.focused && i == index {
-			style = selected
+			style = style.Foreground(lipgloss.Color(themeColor(color)))
 		}
 		out = append(out, style.Render(" "+b.label+" "))
 	}
-	return cellLine(strings.Join(out, " "), m.termW)
+	label := m.badgePaneLabel()
+	titleStyle := m.styles.dim
+	if !m.navFocused {
+		titleStyle = selected
+	}
+	return cellLine(titleStyle.Render(label)+strings.Join(out, " "), m.vp.Width())
+}
+
+func (m *model) badgePaneLabel() string {
+	if m.chat != nil {
+		return " CHAT "
+	}
+	if m.application != nil {
+		return " AGENT "
+	}
+	return " CHAT "
 }
 
 func (m *model) rawHeaderItems() []headerItem {
 	info := func(s string) headerItem { return headerItem{text: s} }
 	idle := m.state == stDone
 	switch m.header.menu {
+	case "session":
+		rows := []headerItem{{"New", "/new", idle}, {"Open…", "/sessions", m.state != stRecording && m.state != stRecognizing}, {"Compact conversation", "/compact", idle && !m.mission && m.stateFile != ""}, {"Rename…", "rename-current", idle && m.stateFile != ""}, {"Delete…", "delete-current", idle && m.stateFile != ""}}
+
+		return append(rows, headerItem{"", "", false}, headerItem{"Quit", "quit", true})
+	case "workflow":
+		if m.chat != nil {
+			return []headerItem{{"Stop response", "stop", m.state == stRunning}, {"Retry", "/retry", idle && m.runErr != nil && m.retryRun != nil}, {"Details", "/status", true}}
+		}
+		planLabel, actLabel := "Plan", "Act"
+		if m.plan {
+			planLabel = "✓ Plan"
+		} else {
+			actLabel = "✓ Act"
+		}
+		return []headerItem{{planLabel, "/mode plan", idle && !m.mission}, {actLabel, "/mode act", idle && !m.mission}, {"Stop run", "stop", m.state == stRunning}, {"Retry", "/retry", idle && m.runErr != nil && m.retryRun != nil}, {"Permissions…", "permissions-info", true}}
+	case "view":
+		return []headerItem{{"Sessions", "toggle-sidebar", m.termW >= navigatorMinWidth}, {"Details", "toggle-details", true}, {"Jump to latest", "latest", true}, {"Theme…", "theme", true}}
+	case "settings":
+		editable := idle && m.audio() != nil && m.audio().Configure != nil
+		rows := []headerItem{{"Model…", "edit:model", editable}, {"Generation…", "edit:generation", editable}, {"Speech…", "edit:speech", editable && m.hasSettingsSpeech()}, {"Profiles…", "edit:profiles", editable}, {"Application…", "application", idle && m.application != nil}}
+		if m.chat != nil {
+			rows = append(rows, headerItem{"Character…", "edit:character", editable}, headerItem{"Prompts…", "edit:prompts", editable})
+		}
+		return rows
+	case "conversation-mode":
+		chatLabel, agentLabel := "Chat", "Agent"
+		if m.chat != nil {
+			chatLabel = "✓ Chat"
+		} else {
+			agentLabel = "✓ Agent"
+		}
+		return []headerItem{{chatLabel, "mode-chat", idle && m.application != nil && m.chat == nil}, {agentLabel, "mode-agent", idle && m.application != nil && m.chat != nil}}
+	case "voice":
+		available := m.audio() != nil && m.audio().NewVoice != nil && m.audio().Profile.Speech != nil
+		label := "Enable voice"
+		if m.voiceEnabled {
+			label = "Disable voice"
+		}
+		record := "Record"
+		if m.state == stRecording {
+			record = "Finish recording"
+		}
+		return []headerItem{{label, "voice-toggle", available && idle}, {"Hands-free", "voice-live", available && (idle || m.listening != nil)}, {record, "voice-record", available && (idle || m.state == stRecording)}, {"Stop playback", "stop-speech", m.hasPlayback()}}
+
+	case "help":
+		return []headerItem{{"Keyboard shortcuts", "help-keys", true}, {"Commands", "help-commands", true}, {"About", "about", true}}
+
 	case "mode":
-		return []headerItem{{"ACT   Execute changes with tools", "/mode act", idle && !m.mission}, {"PLAN  Read-only exploration and planning", "/mode plan", idle && !m.mission}}
+		if m.chat != nil {
+			return []headerItem{info("Chat: conversation without coding tools"), {"Conversation prompts…", "edit:prompts", idle && m.chat != nil && m.chat.config.Configure != nil}}
+		}
+		return []headerItem{{"ACT   Execute changes with tools", "/mode act", idle && !m.mission && m.chat == nil}, {"PLAN  Read-only exploration and planning", "/mode plan", idle && !m.mission && m.chat == nil}}
 	case "activity":
-		rows := []headerItem{info("State: " + m.statusWord()), info(fmt.Sprintf("Steps: %d / %d", m.steps, m.maxSteps)), info("Elapsed: " + formatElapsed(m.elapsed))}
+		rows := []headerItem{info("State: " + m.statusWord()), info("Elapsed: " + formatElapsed(m.elapsed))}
+		if m.chat == nil {
+			rows = append(rows, info(fmt.Sprintf("Steps: %d / %d", m.steps, m.maxSteps)))
+		}
 		if m.runErr != nil {
 			rows = append(rows, info("Error: "+m.runErr.Error()), headerItem{"Retry failed turn", "/retry", idle && m.retryRun != nil})
 		}
@@ -148,8 +224,11 @@ func (m *model) rawHeaderItems() []headerItem {
 		if m.usage.source == "Saved history estimate" {
 			rows = append(rows, info("Estimate excludes tool schemas and images."))
 		}
-		return append(rows, headerItem{"Compact saved history", "/compact", idle && !m.mission && m.stateFile != ""})
+		return append(rows, headerItem{"Compact saved history", "/compact", idle && !m.mission && m.chat == nil && m.stateFile != ""})
 	case "run":
+		if m.chat != nil {
+			return []headerItem{info("Elapsed: " + formatElapsed(m.elapsed)), info(fmt.Sprintf("Response budget: %d tokens", m.responseCap))}
+		}
 		rows := []headerItem{info(fmt.Sprintf("Steps: %d / %d", m.steps, m.maxSteps)), info("Elapsed: " + formatElapsed(m.elapsed)), info(fmt.Sprintf("Tools: %d   Files: %d", m.toolsUsed, len(m.filesTouched)))}
 		if !m.firstToken.IsZero() {
 			rows = append(rows, info("First token: "+formatElapsed(m.firstToken.Sub(m.started))))
@@ -184,7 +263,7 @@ func (m *model) headerItems() []headerItem {
 	return rows
 }
 
-func (m *model) closeHeader() { m.header.focused = false; m.header.menu = "" }
+func (m *model) closeHeader() { m.header.focused = false; m.header.menu = ""; m.header.global = false }
 func (m *model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	m.normalizeHeader()
 	switch msg.String() {
@@ -195,11 +274,7 @@ func (m *model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.cancel()
 		return m, tea.Quit
 	case "esc":
-		if m.header.menu != "" {
-			m.header.menu = ""
-		} else {
-			m.closeHeader()
-		}
+		m.closeHeader()
 		return m, nil
 	case "f9":
 		m.closeHeader()
@@ -209,22 +284,26 @@ func (m *model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if msg.String() == "left" {
 			delta = -1
 		}
-		badges := m.headerBadges()
+		badges := m.headerNavigation()
 		m.header.index = (m.header.index + delta + len(badges)) % len(badges)
 		if m.header.menu != "" {
 			m.header.menu = badges[m.header.index].id
-			m.header.row = 0
+			m.header.row = m.headerActionRow(0, 1)
 		}
 	case "up", "down":
 		delta := 1
 		if msg.String() == "up" {
 			delta = -1
 		}
-		m.header.row = min(max(m.header.row+delta, 0), max(len(m.headerItems())-1, 0))
+		if m.header.global {
+			m.header.row = m.headerActionRow(m.header.row+delta, delta)
+		} else {
+			m.header.row = min(max(m.header.row+delta, 0), max(len(m.headerItems())-1, 0))
+		}
 	case "enter":
 		if m.header.menu == "" {
-			m.header.menu = m.headerBadges()[min(m.header.index, len(m.headerBadges())-1)].id
-			m.header.row = 0
+			m.header.menu = m.headerNavigation()[min(m.header.index, len(m.headerNavigation())-1)].id
+			m.header.row = m.headerActionRow(0, 1)
 			return m, nil
 		}
 		items := m.headerItems()
@@ -233,7 +312,95 @@ func (m *model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		item := items[m.header.row]
 		if item.enabled && item.command != "" {
+
 			m.closeHeader()
+			switch item.command {
+			case "mode-chat", "mode-agent":
+				m.openApplication()
+				if m.dialog != nil && m.dialog.form != nil {
+					mode := strings.TrimPrefix(item.command, "mode-")
+					m.dialog.form.fields[0].value = mode
+					m.dialog.form.editor.SetValue(mode)
+				}
+				return m, nil
+			case "permissions-info":
+				lines := []string{"Plan exposes read-only tools. Act uses the configured policy and approval prompts.", "Voice input and settings changes do not approve tool execution.", "", "Policy rules (later rules take precedence)"}
+				lines = append(lines, m.policyDetails...)
+				m.openDialog("Permissions", lines)
+				return m, nil
+			case "help-keys", "help-commands":
+				m.openHelp()
+				m.dialog.title = "Keyboard shortcuts"
+				if item.command == "help-commands" {
+					m.dialog.title = "Commands"
+				}
+				return m, nil
+			case "theme":
+				m.openTheme()
+				return m, nil
+			case "about":
+				m.openDialog("About", []string{"Local conversation and coding assistant", "Go · Bubble Tea", "Speech: Whisper recognition · Chatterbox synthesis"})
+				return m, nil
+			case "application":
+				m.openApplication()
+				return m, nil
+			case "voice-live":
+				m.toggleListening()
+				return m, nil
+			case "voice-toggle":
+				m.toggleVoice()
+				return m, nil
+			case "voice-greeting":
+				m.playGreeting()
+				return m, nil
+			case "voice-record":
+				m.recordVoice()
+				return m, nil
+			case "stop-speech":
+				m.stopPlayback()
+				return m, nil
+			case "voice-cancel":
+				m.cancelRecording()
+				return m, nil
+			case "voice-details":
+				cfg := m.audio().Profile.Speech
+				lines := []string{"Input: Whisper · English · push-to-talk / hands-free", "Output: Chatterbox " + cfg.Speaking.Variant + " · resident worker", "Microphone: " + cfg.Microphone, "Recognition: " + cfg.Listening.Ownership + " " + cfg.Listening.URL, "Speech model: " + cfg.Speaking.Model, "F8/Ctrl+R starts or finishes recording; wait for microphone readiness.", "Esc stops the current request and playback.", "Ctrl+L: hands-free with Silero VAD CPU and application-controlled interruption. Speech cue negotiation remains separate."}
+				if logs, ok := m.voice.(interface{ Diagnostics() string }); ok {
+					lines = append(lines, "Logs: "+logs.Diagnostics())
+				}
+				m.openDialog("Speech services", lines)
+				return m, nil
+			case "save-profile":
+				m.saveChatProfile()
+				return m, nil
+			case "prompt-info":
+				m.inspectChatPrompt()
+				return m, nil
+			case "rename-current":
+				m.renameActive()
+				return m, nil
+			case "delete-current":
+				m.deleteActive()
+				return m, nil
+			case "connection-info":
+				m.inspectConnection()
+				return m, nil
+			case "context-info":
+				m.openDialog("Context usage", []string{m.meter(), "Measurement source: " + nonEmpty(m.usage.source), "/compact is available for coding task history."})
+				return m, nil
+			case "quit":
+				return m.requestQuit()
+			case "toggle-sidebar":
+				return m.handleKey(tea.KeyPressMsg{Code: 'b', Mod: tea.ModCtrl})
+			case "toggle-details":
+				return m.handleKey(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
+			case "latest":
+				return m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnd, Mod: tea.ModCtrl})
+			}
+			if strings.HasPrefix(item.command, "edit:") {
+				m.editSettings(strings.TrimPrefix(item.command, "edit:"))
+				return m, nil
+			}
 			if item.command == "stop" {
 				m.interrupted = true
 				m.cancel()
@@ -248,11 +415,18 @@ func (m *model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) headerGeometry() (x, width, capacity, offset int) {
-	width = min(58, m.termW)
+	width = 24
+	for _, item := range m.rawHeaderItems() {
+		width = max(width, lipgloss.Width(item.text)+lipgloss.Width(menuShortcut(item.command))+7)
+	}
+	width = min(width, min(58, m.termW))
 	x = 0
-	for _, b := range m.headerBadges() {
+	for _, b := range m.headerNavigation() {
 		if b.id == m.header.menu {
 			x = b.start
+			if !m.header.global {
+				x += m.conversationOffset()
+			}
 			break
 		}
 	}
@@ -268,13 +442,13 @@ func (m *model) overlayHeader(background string) string {
 		return background
 	}
 	normal, border, selected := popupStyles()
-	rows := []string{border.Render("┌" + cellLine(" "+strings.ToUpper(m.header.menu)+" ", width-2) + "┐")}
+	rows := []string{border.Render("╭" + strings.Repeat("─", width-2) + "╮")}
 	items := m.headerItems()
 	for i := offset; i < min(offset+capacity, len(items)); i++ {
 		style := normal
 		prefix := "  "
 		if items[i].command != "" {
-			prefix = "› "
+			prefix = "  "
 			if !items[i].enabled {
 				style = border
 			}
@@ -282,12 +456,21 @@ func (m *model) overlayHeader(background string) string {
 		if i == m.header.row {
 			style = selected
 		}
-		rows = append(rows, border.Render("│")+style.Render(cellLine(prefix+items[i].text, width-2))+border.Render("│"))
+		if items[i].text == "" && items[i].command == "" {
+			rows = append(rows, border.Render("├"+strings.Repeat("─", width-2)+"┤"))
+			continue
+		}
+		label := prefix + items[i].text
+		shortcut := menuShortcut(items[i].command)
+		if shortcut != "" {
+			label += strings.Repeat(" ", max(1, width-2-lipgloss.Width(label)-lipgloss.Width(shortcut))) + shortcut
+		}
+		rows = append(rows, border.Render("│")+style.Render(cellLine(label, width-2))+border.Render("│"))
 	}
-	rows = append(rows, border.Render("└"+cellLine(" ↑↓ browse  Enter choose  Esc back", width-2)+"┘"))
+	rows = append(rows, border.Render("╰"+strings.Repeat("─", width-2)+"╯"))
 	lines := strings.Split(background, "\n")
 	for i, row := range rows {
-		y := 2 + i
+		y := m.headerTop() + i
 		if y >= len(lines) {
 			break
 		}
@@ -296,29 +479,31 @@ func (m *model) overlayHeader(background string) string {
 	return strings.Join(lines, "\n")
 }
 func (m *model) headerMouse(msg tea.MouseMsg) (bool, tea.Cmd) {
-	if m.dialog != nil || m.sessions != nil || m.state == stAsk || m.state == stPermission {
-		return false, nil
-	}
 	mouse := msg.Mouse()
-	if m.actionBarVisible() && mouse.Y >= m.termH-m.actionBarRows() {
-		return false, nil
-	}
-	if mouse.Button == tea.MouseLeft && isMouseClick(msg) && mouse.Y == 1 {
-		for i, b := range m.headerBadges() {
-			if mouse.X >= b.start && mouse.X < b.end {
-				m.header.focused = true
-				m.header.index = i
-				m.header.menu = b.id
-				m.header.row = 0
+	if mouse.Button == tea.MouseLeft && isMouseClick(msg) && mouse.Y == 0 {
+		for i, cell := range m.menuCells() {
+			if mouse.X >= cell.start && mouse.X < cell.end {
+				if !cell.action.enabled {
+					return true, nil
+				}
+				m.header = headerState{focused: true, global: true, index: i, menu: cell.action.name}
 				return true, nil
 			}
 		}
 	}
+
+	if m.dialog != nil || m.sessions != nil || m.state == stAsk || m.state == stPermission {
+		return false, nil
+	}
+	if m.actionBarVisible() && mouse.Y >= m.termH-m.actionBarRows() {
+		return false, nil
+	}
+
 	if m.header.menu != "" {
 		x, w, capacity, offset := m.headerGeometry()
 		if mouse.Button == tea.MouseLeft && isMouseClick(msg) {
-			if mouse.X >= x && mouse.X < x+w && mouse.Y >= 3 && mouse.Y < 3+capacity {
-				m.header.row = offset + mouse.Y - 3
+			if mouse.X >= x && mouse.X < x+w && mouse.Y >= m.headerTop()+1 && mouse.Y < m.headerTop()+1+capacity {
+				m.header.row = offset + mouse.Y - m.headerTop() - 1
 				_, cmd := m.headerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 				return true, cmd
 			} else {
@@ -341,6 +526,106 @@ func (m *model) headerMouse(msg tea.MouseMsg) (bool, tea.Cmd) {
 }
 
 func (m *model) normalizeHeader() {
-	m.header.index = min(max(m.header.index, 0), len(m.headerBadges())-1)
+	m.header.index = min(max(m.header.index, 0), len(m.headerNavigation())-1)
 	m.header.row = min(max(m.header.row, 0), max(len(m.headerItems())-1, 0))
+}
+
+func (m *model) menuCells() []footerCell {
+	enabled := m.dialog == nil && m.sessions == nil && m.state != stPermission && m.state != stAsk
+	x := 1
+	var cells []footerCell
+	menus := []struct{ id, label string }{{"session", "Session"}, {"conversation-mode", "Mode"}, {"workflow", "Run"}, {"view", "View"}, {"settings", "Settings"}}
+	menus = append(menus, struct{ id, label string }{"voice", "Voice"})
+	menus = append(menus, struct{ id, label string }{"help", "Help"})
+	for _, menu := range menus {
+		if x >= m.termW-1 {
+			break
+		}
+		if menu.id == "workflow" {
+			if m.chat != nil {
+				menu.label = "Chat"
+			} else if m.application != nil {
+				menu.label = "Agent"
+			}
+		}
+		end := min(x+len(menu.label)+2, m.termW-1)
+		cells = append(cells, footerCell{action: footerAction{name: menu.id, label: menu.label, enabled: enabled}, start: x, end: end})
+		x = end + 1
+	}
+	return cells
+}
+func (m *model) headerNavigation() []headerBadge {
+	if !m.header.global {
+		return m.headerBadges()
+	}
+	var badges []headerBadge
+	for _, cell := range m.menuCells() {
+		badges = append(badges, headerBadge{id: cell.action.name, label: cell.action.label, start: cell.start, end: cell.end})
+	}
+	return badges
+}
+func (m *model) menuLine() string {
+	normal, _, selected := popupStyles()
+	line := ""
+	for i, cell := range m.menuCells() {
+		line += normal.Render(strings.Repeat(" ", max(cell.start-lipgloss.Width(line), 0)))
+		label := cellLine(" "+cell.action.label, cell.end-cell.start)
+		if !cell.action.enabled {
+			label = normal.Foreground(lipgloss.Color(themeColor(colorDisabledText))).Render(label)
+		} else if m.header.focused && m.header.global && m.header.index == i {
+			label = selected.Render(label)
+		} else {
+			label = normal.Render(label)
+		}
+		line += label
+	}
+	return line + normal.Render(strings.Repeat(" ", max(m.termW-lipgloss.Width(line), 0)))
+}
+
+func (m *model) headerTop() int {
+	if m.header.global {
+		return 1
+	}
+	return 3
+}
+
+func (m *model) headerActionRow(start, delta int) int {
+	items := m.headerItems()
+	if len(items) == 0 {
+		return 0
+	}
+	if !m.header.global {
+		return min(max(start, 0), len(items)-1)
+	}
+	for i := 0; i < len(items); i++ {
+		row := ((start+i*delta)%len(items) + len(items)) % len(items)
+		if items[row].enabled && items[row].command != "" {
+			return row
+		}
+	}
+	return 0
+}
+
+func menuShortcut(command string) string {
+	switch command {
+	case "/new":
+		return "Ctrl+N"
+	case "quit":
+		return "Ctrl+Q"
+	case "toggle-sidebar":
+		return "Ctrl+B"
+	case "toggle-details":
+		return "Ctrl+G"
+	case "latest":
+		return "Ctrl+End"
+	case "voice-record":
+		return "F8"
+	case "voice-live":
+		return "Ctrl+L"
+	case "stop":
+		return "Esc"
+	case "/help", "help-keys":
+		return "F1"
+	}
+	return ""
 }

@@ -60,6 +60,10 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		m.appendBlock(sb)
 		return m, nil
 	case "mode":
+		if m.chat != nil {
+			m.appendBlock(markerBlock("Mode: Chat · no tools or coding workflow"))
+			return m, nil
+		}
 		mode := strings.ToLower(strings.TrimSpace(arg))
 		if mode == "" {
 			m.appendBlock(markerBlock("Mode: " + m.modeName() + " · /mode plan previews changes · /mode act executes them"))
@@ -104,4 +108,11 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		m.appendBlock(errorBlock("unknown command " + text + " (try /help)"))
 		return m, nil
 	}
+}
+
+func (m *model) commandReference() [][2]string {
+	if m.chat == nil {
+		return commandReference()
+	}
+	return [][2]string{{"/help", "Open help"}, {"/sessions", "Browse saved conversations"}, {"/new [message]", "Start a fresh conversation"}, {"/compact", "Keep the opening and recent turns; back up the previous archive"}, {"/status", "Show model and conversation facts"}, {"/retry", "Retry the last failed turn"}, {"/quit", "Quit"}}
 }

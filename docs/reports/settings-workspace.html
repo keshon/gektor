@@ -1,0 +1,123 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Coherent settings workspace</title><style>body{margin:0;padding:28px;background:#11151a;color:#d5dde8;font:16px/1.5 system-ui}main{max-width:1250px;margin:auto}h1{font-size:26px}h2{font-size:18px}p{max-width:900px;color:#b0bfce}pre{overflow:auto;font:12px/1.4 Consolas,monospace;padding:18px;background:#080b0f;border:1px solid #38424e}</style><main><h1>Settings belong to the conversation</h1><p>Actual TUI renderer fixtures, with illustrative model names. Shared square borders, category rail, focus colors and fixed actions replace the giant configuration form. Apply preserves the current session, committed turns and draft.</p><p>F6 focuses categories; arrows navigate. Tab moves through controls. Enter opens searchable choices. F4 reveals Advanced fields. Ctrl+S applies staged changes across categories; Esc cancels them. Esc inside a picker returns to its parent.</p><p>Model discovery runs asynchronously; canceled and stale scans cannot change the active form. Ctrl+B opens a folder browser; Ctrl+R scans/refreshes; Ctrl+L exposes an optional folder path. External servers can provide model names; manual entry remains available if discovery is unsupported.</p><p>Local tests cover category staging, cancellation, history/archive preservation, save-failure rollback, model search and browsing, late results and authenticated server discovery. Character, microphone and profile pickers plus applied-voice sample playback are now connected. <a href="settings-libraries.html">See the next iteration</a>.</p><section><h2>Thinking: focused controls</h2><pre>  Session   Chat   View   Settings   Help&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;
+╭────────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ › Thinking     │ Settings / Thinking                                                                                 │
+│   Generation   │ Changes apply to this session · history stays intact                                                │
+│   Character    │                                                                                                     │
+│   Prompts      │ › Connection                                                                                        │
+│                │ [ Local runtime · llama.cpp ▾ ]                                                                     │
+│   Profiles     │                                                                                                     │
+│                │ Model                                                                                               │
+│                │ Qwen3-1.7B-Q8_0.gguf  [ Choose… ]                                                                   │
+│                │                                                                                                     │
+│                │ GPU layers                                                                                          │
+│                │ 99                                                                                                  │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │ F4 Advanced · F6 Categories · Enter opens choices                                                   │
+│                │ [ Apply ]   [ Cancel ]                                                                              │
+│                │ Tab controls · Ctrl+S apply · Esc cancel                                                            │
+│                │                                                                                                     │
+│                │                                                                                                     │
+╰────────────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ F6 Categories                Tab Next                      Ctrl+S Apply                  Esc Cancel                    </pre></section><section><h2>Searchable model picker</h2><pre>  Session   Chat   View   Settings   Help&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Choose / Thinking model                                                                                              │
+│ Search:                                                                                                        …     │
+│ ────────────────────────────────────────────────────────────────────────────────────────────────────────────────     │
+│ › Qwen3-1.7B-Q8_0.gguf                                                                                               │
+│ Chronos-8B-Q4_K_M.gguf                                                                                               │
+│ Gemma-9B-Q5_K_M.gguf                                                                                                 │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│ D:/Models/Qwen3-1.7B-Q8_0.gguf                                                                                       │
+│ ↑↓ choose · Enter select · Esc back · Ctrl+B browse · Ctrl+L location · Ctrl+D drives · Ctrl+R scan                  │
+│                                                                                                                      │
+│                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ Enter Choose           Esc Back                Ctrl+B Browse           Ctrl+R Refresh          Ctrl+Q Quit             </pre></section><section><h2>Shared generation settings</h2><pre>  Session   Chat   View   Settings   Help&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;
+╭────────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   Thinking     │ Settings / Generation                                                                               │
+│ › Generation   │ Changes apply to this session · history stays intact                                                │
+│   Character    │                                                                                                     │
+│   Prompts      │ › Temperature (0 = default 0.4)                                                                     │
+│                │ 0                                                                                                   │
+│   Profiles     │                                                                                                     │
+│                │ Response budget (tokens)                                                                            │
+│                │ 100                                                                                                 │
+│                │                                                                                                     │
+│                │ Context window (tokens)                                                                             │
+│                │ 1000                                                                                                │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │                                                                                                     │
+│                │ F4 Advanced · F6 Categories · Enter opens choices                                                   │
+│                │ [ Apply ]   [ Cancel ]                                                                              │
+│                │ Tab controls · Ctrl+S apply · Esc cancel                                                            │
+│                │                                                                                                     │
+│                │                                                                                                     │
+╰────────────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ F6 Categories                Tab Next                      Ctrl+S Apply                  Esc Cancel                    </pre></section><section><h2>Smaller terminal</h2><pre>  Session   Chat   View   Settings   Help&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;
+╭────────────────┬─────────────────────────────────────────────────────────────╮
+│   Thinking     │ Settings / Generation                                       │
+│ › Generation   │ Changes apply to this session · history stays intact        │
+│   Character    │                                                             │
+│   Prompts      │ › Temperature (0 = default 0.4)                             │
+│                │ 0                                                     …     │
+│   Profiles     │                                                             │
+│                │ Response budget (tokens)                                    │
+│                │ 100                                                         │
+│                │                                                             │
+│                │ Context window (tokens)                                     │
+│                │ 1000                                                        │
+│                │                                                             │
+│                │                                                             │
+│                │                                                             │
+│                │                                                             │
+│                │ F4 Advanced · F6 Categories · Enter opens choices           │
+│                │ [ Apply ]   [ Cancel ]                                      │
+│                │ Tab controls · Ctrl+S apply · Esc cancel                    │
+│                │                                                             │
+│                │                                                             │
+╰────────────────┴─────────────────────────────────────────────────────────────╯
+ F6 Categories      Tab Next            Ctrl+S Apply        Esc Cancel          </pre></section></main></html>

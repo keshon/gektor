@@ -1,0 +1,91 @@
+package config
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+// SaveCopy writes a new portable profile; existing profiles are never overwritten.
+func SaveCopy(profile Profile, path string) error {
+	if err := profile.Validate(); err != nil {
+		return err
+	}
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	path = absolute
+	relative := func(value string) string {
+		if value == "" {
+			return value
+		}
+
+		a, err := filepath.Abs(value)
+		if err != nil {
+			return value
+		}
+		v, err := filepath.Rel(filepath.Dir(path), a)
+		if err != nil {
+			return value
+		}
+		return v
+	}
+	profile.Provider.Runtime = relative(profile.Provider.Runtime)
+	profile.Provider.ModelFile = relative(profile.Provider.ModelFile)
+	profile.Provider.ModelRoot = relative(profile.Provider.ModelRoot)
+	if profile.Conversation != nil {
+		copy := *profile.Conversation
+		profile.Conversation = &copy
+		if copy.Character != "" {
+			a, err := filepath.Abs(copy.Character)
+			if err != nil {
+				return err
+			}
+			copy.Character = relative(a)
+		}
+	}
+	if profile.Speech != nil {
+		copy := *profile.Speech
+		profile.Speech = &copy
+		for _, v := range []*string{&copy.Listening.Binary, &copy.Listening.Model, &copy.Speaking.Binary, &copy.Speaking.Model} {
+			*v = relative(*v)
+		}
+		for _, v := range []*string{&copy.Recorder, &copy.PlayerBinary} {
+			if filepath.IsAbs(*v) || strings.ContainsAny(*v, "/\\") {
+				*v = relative(*v)
+			}
+		}
+	}
+	data, err := json.MarshalIndent(profile, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err = os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return fmt.Errorf("choose a new profile filename: %w", err)
+	}
+	ok := false
+	defer func() {
+		f.Close()
+		if !ok {
+			os.Remove(path)
+		}
+	}()
+	if _, err = f.Write(append(data, '\n')); err != nil {
+		return err
+	}
+	if err = f.Sync(); err != nil {
+		return err
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+	ok = true
+	return nil
+}

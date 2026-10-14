@@ -7,7 +7,7 @@ import (
 )
 
 // markdown-lite: headers, bold, inline code, lists, fences for
-// answer-grade text, including simple pipe tables. Links, quotes, nested
+// answer-grade text, including simple pipe tables. Links, nested
 // formatting, and escaped table pipes remain literal or unsupported.
 //
 // Applied to answer, user, and think roles only. Tool args/results,
@@ -49,6 +49,10 @@ func mdBlockLines(raw string) []mdLine {
 			}
 			out = append(out, renderTable(lines[i:j])...)
 			i = j - 1
+			continue
+		}
+		if strings.HasPrefix(trimmed, "> ") {
+			out = append(out, mdLine{text: "│ " + strings.TrimPrefix(trimmed, "> ")})
 			continue
 		}
 		if text, ok := cutHeader(line); ok {
@@ -232,7 +236,7 @@ func cutBullet(line string) (string, bool) {
 // spanState tracks open **bold** / `code` spans. Fresh per logical
 // line (see renderSpans): a wrap-split span survives fragments, while
 // a stray marker can only stain one line, never the block.
-type spanState struct{ bold, code bool }
+type spanState struct{ bold, code, italic bool }
 
 // baseStyle returns the role's plain style; span styles derive from it
 // so every segment carries its full style and ANSI never nests.
@@ -262,17 +266,30 @@ func renderSpans(frag string, base, bold, code lipgloss.Style, s *spanState) str
 		case s.code:
 			style = code
 		case s.bold:
-			style = bold
+			style = bold.Italic(s.italic)
+		case s.italic:
+			style = base.Italic(true)
 		}
 		sb.WriteString(style.Render(seg.String()))
 		seg.Reset()
 	}
 	i := 0
 	for i < len(frag) {
-		if strings.HasPrefix(frag[i:], "**") {
+		if frag[i] == '\\' && i+1 < len(frag) && strings.ContainsRune("*`\\", rune(frag[i+1])) {
+			seg.WriteByte(frag[i+1])
+			i += 2
+			continue
+		}
+		if !s.code && strings.HasPrefix(frag[i:], "**") {
 			flush()
 			s.bold = !s.bold
 			i += 2
+			continue
+		}
+		if !s.code && frag[i] == '*' {
+			flush()
+			s.italic = !s.italic
+			i++
 			continue
 		}
 		if frag[i] == '`' {

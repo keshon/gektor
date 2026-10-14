@@ -21,7 +21,7 @@ func (m *model) searchGeometry() searchGeometry {
 	width := max(8, min(78, m.termW-4))
 	count := min(m.sessVisible(), max(len(m.sessions.entries), 1))
 	height := m.sessChrome() + 2*count
-	top := 3 + max((m.paneHeight()-height)/2, 0)
+	top := paneTop + max((m.paneHeight()-height)/2, 0)
 	noteRow := top + 3 + 2*count + 1
 	if m.sessions.flash != "" {
 		noteRow++
@@ -64,7 +64,7 @@ func (m *model) searchView() string {
 		}
 		ageWidth := min(lipgloss.Width(age), max(inner/3, 1))
 		title := cellLine(mark+e.title, max(inner-ageWidth-1, 1))
-		ageStyle := style.Foreground(lipgloss.Color(colorSecondaryText))
+		ageStyle := style.Foreground(lipgloss.Color(themeColor(colorSecondaryText)))
 		rows = append(rows, border.Render("│")+highlightSearch(title, query, style)+style.Render(" ")+ageStyle.Render(cellLine(age, ageWidth))+border.Render("│"))
 		text := e.preview
 		if e.matchText != "" {
@@ -74,10 +74,10 @@ func (m *model) searchView() string {
 			text = e.mode
 		}
 		snippet := searchExcerpt(text, query, max(inner-2, 1))
-		rows = append(rows, border.Render("│")+highlightSearch(cellLine("  "+snippet, inner), query, style.Foreground(lipgloss.Color(colorSecondaryText)))+border.Render("│"))
+		rows = append(rows, border.Render("│")+highlightSearch(cellLine("  "+snippet, inner), query, style.Foreground(lipgloss.Color(themeColor(colorSecondaryText))))+border.Render("│"))
 	}
 	if s.flash != "" {
-		rows = append(rows, line(s.flash, normal.Foreground(lipgloss.Color(colorPopupError))))
+		rows = append(rows, line(s.flash, normal.Foreground(lipgloss.Color(themeColor(colorPopupError)))))
 	}
 	switch s.mode {
 	case sessRename:
@@ -121,7 +121,7 @@ func highlightSearch(text, query string, style lipgloss.Style) string {
 	pos := 0
 	for _, loc := range matches {
 		out.WriteString(style.Render(text[pos:loc[0]]))
-		out.WriteString(style.Foreground(lipgloss.Color(colorSearchMatch)).Bold(true).Render(text[loc[0]:loc[1]]))
+		out.WriteString(style.Foreground(lipgloss.Color(themeColor(colorSearchMatch))).Bold(true).Render(text[loc[0]:loc[1]]))
 		pos = loc[1]
 	}
 	out.WriteString(style.Render(text[pos:]))

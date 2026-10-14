@@ -222,7 +222,7 @@ func TestPromptTransitionsFitWideAndNarrowTerminals(t *testing.T) {
 			t.Fatalf("note hidden at width %d", width)
 		}
 		m.handleEvent(api.Event{Name: "input_answered"})
-		if m.sidebarVisible() && m.vp.Width() != width-navigatorWidth-3 {
+		if m.sidebarVisible() && m.vp.Width() != width-navigatorWidth-5 {
 			t.Fatalf("chat did not refit: %d", m.vp.Width())
 		}
 	}

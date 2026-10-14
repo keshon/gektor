@@ -14,10 +14,20 @@ func (m *model) screenContent() string {
 	if !m.ready {
 		return "starting..."
 	}
-	topRule := m.dividerLine()
+	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.workspace != nil {
+		content := m.menuLine() + "\n" + m.formView()
+		if m.actionBarVisible() {
+			content += "\n" + m.actionBar()
+		}
+		return paintScreen(cellFrame(content, m.termW, m.termH))
+	}
+	paneHeader := cellLine(m.identityLine(), m.vp.Width())
 	if m.sidebarVisible() {
-		column := navigatorWidth + 1
-		topRule = m.paneRule(column, "SESSIONS", m.navFocused) + m.styles.dim.Render("┬") + m.paneRule(m.termW-column-1, "CHAT", !m.navFocused)
+		titleStyle := m.styles.dim
+		if m.navFocused {
+			_, _, titleStyle = popupStyles()
+		}
+		paneHeader = cellLine(titleStyle.Render(" SESSIONS "), navigatorWidth) + m.styles.dim.Render(" │ ") + paneHeader
 	}
 	popup := len(m.suggestions.items) > 0 && m.vp.Height() >= 4 && m.vp.Width() >= 24
 	body := m.vp.View()
@@ -68,14 +78,42 @@ func (m *model) screenContent() string {
 		divider = strings.Join(rows, "\n")
 		conversation = lipgloss.JoinHorizontal(lipgloss.Top, m.sidebarView(), divider, conversation)
 	}
-	content := m.headerLine() + "\n" + m.identityLine() + "\n" + topRule + "\n" + conversation
+	innerWidth := max(m.termW-2, 0)
+	topRule := strings.Repeat("─", innerWidth)
+	if m.sidebarVisible() {
+		column := navigatorWidth + 1
+		topRule = strings.Repeat("─", column) + "┬" + strings.Repeat("─", innerWidth-column-1)
+	}
+	headerRule := strings.Repeat("─", innerWidth)
+	if m.sidebarVisible() {
+		column := navigatorWidth + 1
+		headerRule = strings.Repeat("─", column) + "┼" + strings.Repeat("─", innerWidth-column-1)
+	}
+	content := m.menuLine() + "\n" + m.styles.dim.Render(topRule) + "\n" + paneHeader + "\n" + m.styles.dim.Render(headerRule) + "\n" + conversation
 	if m.actionBarVisible() {
 		rule := m.dividerLine()
 		if m.sidebarVisible() {
 			column := navigatorWidth + 1
-			rule = m.styles.dim.Render(strings.Repeat("─", column) + "┴" + strings.Repeat("─", m.termW-column-1))
+			rule = m.styles.dim.Render(strings.Repeat("─", column) + "┴" + strings.Repeat("─", innerWidth-column-1))
 		}
 		content += "\n" + rule + "\n" + m.actionBar()
+	}
+	if m.termW >= 2 && m.actionBarVisible() {
+		rows := strings.Split(content, "\n")
+		for i := 1; i < len(rows)-1; i++ {
+			left, right := "│", "│"
+			if i == 1 {
+				left, right = "┌", "┐"
+			}
+			if i == 3 {
+				left, right = "├", "┤"
+			}
+			if i == len(rows)-2 {
+				left, right = "└", "┘"
+			}
+			rows[i] = m.styles.dim.Render(left) + cellLine(rows[i], innerWidth) + m.styles.dim.Render(right)
+		}
+		content = strings.Join(rows, "\n")
 	}
 	content = cellFrame(content, max(m.termW, 0), max(m.termH, 0))
 	if m.sessions != nil {
@@ -84,7 +122,7 @@ func (m *model) screenContent() string {
 	if m.header.menu != "" {
 		content = m.overlayHeader(content)
 	}
-	return content
+	return paintScreen(content)
 }
 
 func (m *model) View() tea.View {

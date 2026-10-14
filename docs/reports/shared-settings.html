@@ -1,0 +1,116 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Shared menu and settings</title><style>body{background:#11161c;color:#dce4ec;font:16px/1.6 system-ui;margin:36px auto;max-width:1200px;padding:0 24px}h1,h2{color:#66d7dc}section{margin:32px 0}pre{font:13px/1.3 Consolas,monospace;background:#181d23;border:1px solid #425260;border-radius:10px;padding:18px;overflow:auto}li{margin:8px 0}code{color:#f4ce75}small{color:#a9b6c3}</style><h1>Shared menu and settings</h1><small>14 October 2026 · actual TUI renderer fixtures · implementation ready for live acceptance</small><p><strong>Session · Mode · Chat / Agent · View · Settings · Voice · Help</strong></p><ul><li>Model, Generation, Speech, Profiles and Application share one workspace. Character and Prompts are Chat-specific.</li><li>Mode switches retain the session directory, title and draft. Agent starts in Plan when entering Agent or opening a saved session.</li><li>Common-launch sessions use var/chats. settings.json stores their mode and profile; conversation.json and state.json retain the two native history formats. Agent checkpoint journals retain prior revisions.</li><li>Opening a saved session restores its mode and profile. Older Chat archives without settings use the current service profile.</li><li>Apply with no changes does nothing. Model/service changes may restart owned processes, while retaining the conversation. No turn starts from Apply.</li><li>Voice → Stop playback cancels speech while text generation continues. Esc stops the whole turn.</li><li>Agent sampling now respects temperature. Explicit CLI permission and MCP options remain in effect across handoffs within the running application.</li><li>Unsupported-runtime startup failures explain the recovery path through Settings → Model.</li></ul><h2>Live acceptance</h2><ol><li>Run agent.exe -tui. Choose a supported installed model in Settings → Model; type one message.</li><li>Stage a model change, visit another category, then return and Apply. Verify history, title and draft remain.</li><li>Choose Mode → Agent, select an existing workspace, Apply. Verify Plan, then explicitly select Act when needed.</li><li>Switch back to Chat, then use Session → Open. Verify one session entry and its saved mode/configuration.</li><li>Enable voice and test recording, response playback and interruption. Check that voice input cannot approve a tool permission.</li></ol><p><small>Unit and race checks cover local transitions and persistence. These fixtures do not establish microphone, GPU, acoustic or live model quality.</small></p><section><h2>Chat menu</h2><pre>  Session   Mode   Chat   View   Settings   Voice   Help&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;
+┌─────────────────────┌ SETTINGS                                               ┐
+│▸  CHAT   READY   —  │› Model…                                                │
+│                     │› Generation…                                           │
+│                     │› Speech…                                               │
+│                     │› Profiles…                                             │
+│                     │› Application…                                          │
+│                     │› Character…                                            │
+│                     │› Prompts…                                              │
+│                     └ ↑↓ browse  Enter choose  Esc back                      ┘
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│──────────────────────────────────────────────────────────────────────────────│
+│Enter send  Shift+Enter newline                                               │
+│&gt; unfinished draft                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+ F1 Help  ^P Search ^N New    Esc Back  Enter OK  ^G View   ^B Pane   ^Q Quit</pre></section><section><h2>Agent menu</h2><pre>  Session   Mode   Agent   View   Settings   Voice   Help&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;
+┌─────────────────────┌ SETTINGS                                               ┐
+│▸ AGENT ACT   READY  │› Model…                                                │
+│                     │› Generation…                                           │
+│                     │› Speech…                                               │
+│                     │› Profiles…                                             │
+│                     │› Application…                                          │
+│                     └ ↑↓ browse  Enter choose  Esc back                      ┘
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│──────────────────────────────────────────────────────────────────────────────│
+│Enter send  Shift+Enter newline                                               │
+│&gt; unfinished draft                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+ F1 Help  ^P Search ^N New    Esc Back  Enter OK  ^G View   ^B Pane   ^Q Quit</pre></section><section><h2>Model settings</h2><pre>  Session   Mode   Chat   View   Settings   Voice   Help&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;
+╭────────────────┬─────────────────────────────────────────────────────────────╮
+│ › Model        │ Settings / Model                                            │
+│   Generation   │ Changes apply to this session · history stays intact        │
+│   Profiles     │                                                             │
+│   Application  │ › Connection                                                │
+│   Character    │ [ Connect to a running server ▾ ]                           │
+│   Prompts      │                                                             │
+│                │ Protocol                                                    │
+│                │ [ llama ▾ ]                                                 │
+│                │                                                             │
+│                │ Server address                                              │
+│                │ http://127.0.0.1:8080                                       │
+│                │                                                             │
+│                │ Model identifier                                            │
+│                │ local  [ Discover… ]                                        │
+│                │                                                             │
+│                │ No changes · F4 Advanced · F6 Categories                    │
+│                │ [ Apply ]   [ Cancel ]                                      │
+│                │ Tab controls · Ctrl+S apply · Esc cancel                    │
+│                │                                                             │
+│                │                                                             │
+╰────────────────┴─────────────────────────────────────────────────────────────╯
+ F6 Categories      Tab Next            Ctrl+S Apply        Esc Cancel</pre></section><section><h2>Application settings</h2><pre>  Session   Mode   Chat   View   Settings   Voice   Help&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;
+╭────────────────┬─────────────────────────────────────────────────────────────╮
+│   Model        │ Settings / Application                                      │
+│   Generation   │ Session retained · mode/service changes restart owned …     │
+│   Profiles     │                                                             │
+│ › Application  │ › Mode                                                      │
+│   Character    │ [ Chat · no tools ▾ ]                                       │
+│   Prompts      │                                                             │
+│                │ Workspace                                                   │
+│                │ workspace  [ Choose… ]                                      │
+│                │                                                             │
+│                │ Voice                                                       │
+│                │ [ Off · text only ▾ ]                                       │
+│                │                                                             │
+│                │                                                             │
+│                │                                                             │
+│                │                                                             │
+│                │ No changes · F4 Advanced · F6 Categories                    │
+│                │ [ Apply ]   [ Cancel ]                                      │
+│                │ Tab controls · Ctrl+S apply · Esc cancel                    │
+│                │                                                             │
+│                │                                                             │
+╰────────────────┴─────────────────────────────────────────────────────────────╯
+ F6 Categories      Tab Next            Ctrl+S Apply        Esc Cancel</pre></section><section><h2>Profiles</h2><pre>  Session   Mode   Chat   View   Settings   Voice   Help&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;&#32;
+╭────────────────┬─────────────────────────────────────────────────────────────╮
+│   Model        │ Settings / Profiles                                         │
+│   Generation   │ Changes apply to this session · history stays intact        │
+│ › Profiles     │                                                             │
+│   Application  │ › Load a saved profile                                      │
+│   Character    │ Not selected  [ Choose… ]                                   │
+│   Prompts      │                                                             │
+│                │ Save copy as (Ctrl+D)                                       │
+│                │ custom                                                      │
+│                │                                                             │
+│                │                                                             │
+│                │                                                             │
+│                │                                                             │
+│                │                                                             │
+│                │                                                             │
+│                │                                                             │
+│                │ Ctrl+D saves a copy · Apply uses the loaded profile in…     │
+│                │ [ Apply ]   [ Cancel ]                                      │
+│                │ Tab controls · Ctrl+S apply · Esc cancel                    │
+│                │                                                             │
+│                │                                                             │
+╰────────────────┴─────────────────────────────────────────────────────────────╯
+ F6 Categories  Tab Next        Ctrl+S Apply    Esc Cancel      Ctrl+D Save</pre></section></html>

@@ -23,8 +23,8 @@ func TestHeaderMenusPreserveDraftAndFrame(t *testing.T) {
 		m.fitBottom()
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyF9})
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-		if m.header.menu != "mode" {
-			t.Fatal("mode menu not opened")
+		if m.header.menu != "session" {
+			t.Fatal("session menu not opened")
 		}
 		for _, row := range strings.Split(m.View().Content, "\n") {
 			if lipgloss.Width(row) != width {
@@ -43,16 +43,12 @@ func TestHeaderMenusPreserveDraftAndFrame(t *testing.T) {
 func TestHeaderMouseActionsAndGateIsolation(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	m.Update(tea.MouseClickMsg{X: 1, Y: 1, Button: tea.MouseLeft})
-	if m.header.menu != "mode" {
-		t.Fatal("badge click missed")
-	}
-	m.Update(tea.MouseClickMsg{X: 2, Y: 4, Button: tea.MouseLeft})
-	if !m.plan || m.header.focused {
-		t.Fatal("Plan action did not execute")
+	m.Update(tea.MouseClickMsg{X: m.conversationOffset() + m.headerBadges()[0].start + 1, Y: 2, Button: tea.MouseLeft})
+	if m.header.menu != "" || m.header.focused {
+		t.Fatal("status labels opened a dropdown")
 	}
 	m.state = stPermission
-	m.Update(tea.MouseClickMsg{X: 1, Y: 1, Button: tea.MouseLeft})
+	m.Update(tea.MouseClickMsg{X: m.conversationOffset() + m.headerBadges()[0].start + 1, Y: 2, Button: tea.MouseLeft})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF9})
 	if m.header.focused {
 		t.Fatal("header hid permission prompt")

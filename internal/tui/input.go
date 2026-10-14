@@ -2,7 +2,9 @@ package tui
 
 import (
 	"charm.land/bubbles/v2/textarea"
+	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // truncate shortens display strings with a marker. Rune-based:
@@ -28,7 +30,7 @@ func newInput() textarea.Model {
 	ta.SetVirtualCursor(false)
 	style := ta.Styles()
 	style.Cursor.Shape = tea.CursorUnderline
-	ta.SetStyles(style)
+	ta.SetStyles(inputStyles(style))
 	ta.MaxHeight = 6
 	ta.DynamicHeight = true
 	ta.MaxContentHeight = 4096
@@ -37,4 +39,21 @@ func newInput() textarea.Model {
 	ta.ShowLineNumbers = false
 	ta.KeyMap.InsertNewline.SetKeys("shift+enter", "ctrl+o")
 	return ta
+}
+
+func inputStyles(styles textarea.Styles) textarea.Styles {
+	base := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorPopupText))).Background(lipgloss.Color(currentPalette().background))
+	state := textarea.StyleState{Base: base, Text: base, CursorLine: base, Prompt: lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorAccent))), Placeholder: lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorDim))), EndOfBuffer: base}
+	_, _, selected := popupStyles()
+	state.Selection = selected
+	styles.Focused = state
+	styles.Blurred = state
+	return styles
+}
+
+func textInputStyles(styles textinput.Styles) textinput.Styles {
+	state := textinput.StyleState{Text: lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorPopupText))), Prompt: lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorAccent))), Placeholder: lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorDim))), Suggestion: lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorDim)))}
+	styles.Focused = state
+	styles.Blurred = state
+	return styles
 }

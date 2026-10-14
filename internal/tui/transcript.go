@@ -222,7 +222,7 @@ func thinkSummary(s string) string {
 // to width columns: the viewport never wraps, so unbroken long
 // lines would vanish past the right edge. Continuation fragments take
 // a blank gutter, marking them as wrapped rather than new.
-func renderBlock(b block, st styles, expandThink bool, width int) string {
+func renderBlock(b block, st styles, expandThink bool, width int, chatMode ...bool) string {
 	// Blocks are passed by value: normalizing here covers every path
 	// to the terminal (compact/full, cards, tests) without touching
 	// stored history.
@@ -240,7 +240,15 @@ func renderBlock(b block, st styles, expandThink bool, width int) string {
 		out = renderSpeaker(b, st, st.user.Render("YOU  > "), true, raw, stamped, width)
 	case b.role == roleAnswer:
 		spoke = true
-		out = renderSpeaker(b, st, st.gate.Render("TARS")+st.dim.Render("  [RESPONSE]"), false, raw, stamped, width)
+		header := st.gate.Render("TARS")
+		if len(chatMode) == 0 || !chatMode[0] {
+			header += st.dim.Render("  [RESPONSE]")
+		}
+		if len(chatMode) > 0 && chatMode[0] {
+			out = renderSpeaker(b, st, header+"  ", true, raw, stamped, width)
+		} else {
+			out = renderSpeaker(b, st, header, false, raw, stamped, width)
+		}
 	case b.role == roleThink:
 		spoke = true
 		// Collapsed keeps the summary-only rule (size here, never in
@@ -330,10 +338,14 @@ const speakerRail = "      "
 
 // renderSpeaker draws a conversation turn: a speaker header, then the
 // markdown body on the rail (user text rides the header line).
-func renderSpeaker(b block, st styles, header string, inline bool, raw string, stamped bool, width int) []string {
+func renderSpeaker(b block, st styles, header string, inline bool, raw string, stamped bool, width int, rails ...string) []string {
+	rail := speakerRail
+	if len(rails) > 0 {
+		rail = rails[0]
+	}
 	body := b
 	body.bare = true
-	bodyW := width - len(speakerRail)
+	bodyW := width - len(rail)
 	if stamped && bodyW-gutterWidth-stampWidth < minWrapWidth {
 		// Narrow terminal + wide rail: the stamp reservation would
 		// eat the whole wrap budget and reflow would give up,
@@ -351,7 +363,7 @@ func renderSpeaker(b block, st styles, header string, inline bool, raw string, s
 		} else if strings.TrimSpace(ln) == "" {
 			out = append(out, "")
 		} else {
-			out = append(out, speakerRail+ln)
+			out = append(out, rail+ln)
 		}
 	}
 	// The stamp sits on the first body line, never the header: the
@@ -456,7 +468,7 @@ func renderMdBlock(b block, raw string, st styles, stamped bool, width int) []st
 				if ml.header {
 					bb = base.Bold(true)
 				}
-				body = renderSpans(f, bb, bb.Bold(true), bb.Foreground(lipgloss.Color(colorAccent)), span)
+				body = renderSpans(f, bb, bb.Bold(true), bb.Foreground(lipgloss.Color(themeColor(colorAccent))), span)
 			}
 			g := ""
 			if !b.bare {
@@ -542,22 +554,14 @@ func stamps(r role) bool {
 	return false
 }
 
-// renderLive draws the in-flight streamed answer: answer-role gutter
-// and reflow, but no markdown (partial spans would break across
-// chunks) and no timestamp (incomplete blocks aren't stamped).
-func renderLive(text string, st styles, width int) []string {
-	text = cleanText(text)
-	var out []string
-	for _, line := range strings.Split(text, "\n") {
-		for i, f := range reflow(line, width-gutterWidth) {
-			g := st.gutter(roleAnswer)
-			if i > 0 {
-				g = "  "
-			}
-			out = append(out, g+f)
-		}
+// renderLive uses the same reasoning and Markdown blocks as completed replies.
+func renderLive(text string, st styles, width int, chatMode ...bool) []string {
+	parts := []string{}
+	for _, b := range assistantBlocks(text, "") {
+		b.at = time.Time{}
+		parts = append(parts, renderBlock(b, st, false, width, chatMode...))
 	}
-	return out
+	return strings.Split(strings.Join(parts, "\n\n"), "\n")
 }
 
 // refreshContent re-renders every block into the viewport. Called on
@@ -580,7 +584,7 @@ func (m *model) refreshContent() {
 		if i < len(m.render.cache) && m.render.cache[i].block == b && m.render.cache[i].width == m.vp.Width() && m.render.cache[i].expanded == !m.compact {
 			rendered = m.render.cache[i]
 		} else {
-			rendered = renderedBlock{block: b, width: m.vp.Width(), expanded: !m.compact, text: renderBlock(b, m.styles, !m.compact, m.vp.Width())}
+			rendered = renderedBlock{block: b, width: m.vp.Width(), expanded: !m.compact, text: renderBlock(b, m.styles, !m.compact, m.vp.Width(), m.chat != nil)}
 		}
 		cache[i] = rendered
 		part := rendered.text
@@ -597,7 +601,7 @@ func (m *model) refreshContent() {
 		if content != "" {
 			content += "\n\n"
 		}
-		content += strings.Join(renderLive(m.live, m.styles, m.vp.Width()), "\n")
+		content += strings.Join(renderLive(m.live, m.styles, m.vp.Width(), m.chat != nil), "\n")
 	}
 	heights := make([]int, len(parts))
 	for i, p := range parts {

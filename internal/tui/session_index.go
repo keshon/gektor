@@ -8,6 +8,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/tars/internal/chat"
+	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/session"
 	"github.com/keshon/tars/internal/workspace"
@@ -84,6 +86,24 @@ func scanSessions(root string, previous map[string]cachedSession, search bool) (
 		dir := filepath.Join(root, d.Name())
 		title, mode := workspace.ReadSessionTitle(dir), readChatMode(dir)
 		state := filepath.Join(dir, "state.json")
+		isChat := false
+		if _, err := os.Stat(filepath.Join(dir, "conversation.json")); err == nil {
+			state = filepath.Join(dir, "conversation.json")
+			mode = "Chat"
+			isChat = true
+		}
+		if _, err := os.Stat(filepath.Join(dir, "settings.json")); err == nil {
+			if prefs, err := config.LoadPreferences(filepath.Join(dir, "settings.json")); err == nil {
+				isChat = prefs.Mode == "chat"
+				if isChat {
+					state = filepath.Join(dir, "conversation.json")
+					mode = "Chat"
+				} else {
+					state = filepath.Join(dir, "state.json")
+					mode = readChatMode(dir)
+				}
+			}
+		}
 		fi, stateErr := os.Stat(state)
 		old, ok := previous[dir]
 		current := cachedSession{storedTitle: title, entry: sessionEntry{id: d.Name(), dir: dir, title: title, mode: mode, status: "Saved"}}
@@ -99,7 +119,14 @@ func scanSessions(root string, previous map[string]cachedSession, search bool) (
 				current.entry.status = "Unreadable"
 				current.entry.updated = fi.ModTime()
 				if fi.Size() < 64<<20 {
-					if history, err := agent.LoadState(state); err == nil {
+					loadHistory := func() ([]llm.Message, error) {
+						if isChat {
+							a, err := chat.ReadArchive(state)
+							return a.History, err
+						}
+						return agent.LoadState(state)
+					}
+					if history, err := loadHistory(); err == nil {
 						e := &current.entry
 						e.status, e.msgs = "Saved", len(history)
 						if search {

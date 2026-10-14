@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	navigatorWidth    = 34
+	navigatorWidth    = 28
 	navigatorMinWidth = 110
 )
 
@@ -37,7 +37,7 @@ func (m *model) sidebarVisible() bool {
 		m.dialog == nil
 }
 func (m *model) fitColumns() {
-	width := m.termW
+	width := m.termW - 2
 	if m.sidebarVisible() {
 		width -= navigatorWidth + 3
 	} else {
@@ -51,11 +51,11 @@ func (m *model) fitColumns() {
 func (m *model) identityLine() string { return m.badgeLine() }
 func (m *model) conversationOffset() int {
 	if m.sidebarVisible() {
-		return navigatorWidth + 3
+		return navigatorWidth + 4
 	}
-	return 0
+	return 1
 }
-func (m *model) paneHeight() int    { return max(m.termH-3-m.footerRows(), 1) }
+func (m *model) paneHeight() int    { return max(m.termH-4-m.footerRows(), 1) }
 func (m *model) navigatorRows() int { return max(m.paneHeight()-1, 1) }
 
 func (m *model) sidebarView() string {
@@ -66,30 +66,19 @@ func (m *model) sidebarView() string {
 	end := min(nav.offset+visible, len(nav.entries))
 	for i := nav.offset; i < end; i++ {
 		e := m.nav.entries[i]
-		mark := " "
-		switch m.entryState(e) {
-		case "Working", "Stopping":
-			mark = "*"
-		case "Needs input":
-			mark = "?"
-		case "Failed", "Unreadable":
-			mark = "!"
-		}
-		if m.navFocused && i == m.nav.cursor {
-			mark = "›"
-		} else if sameSession(e.dir, m.stateFile) && mark == " " {
-			mark = m.styles.hunk.Render("▌")
-		}
 		age := strings.TrimSuffix(ageString(e.updated), " ago")
 		if age == "just now" {
 			age = "now"
 		}
 		age = cellLine(age, 4)
-		line := cellLine(mark+e.title, navigatorWidth-5)
-		if m.navFocused && i == m.nav.cursor {
-			line = m.styles.hunk.Bold(true).Reverse(true).Render(line)
+		line := cellLine(" "+e.title, navigatorWidth-5)
+		selected := (m.navFocused && i == m.nav.cursor) || (!m.navFocused && sameSession(e.dir, m.stateFile))
+		if selected {
+			_, _, style := popupStyles()
+			rows = append(rows, style.Render(line+" "+age))
+		} else {
+			rows = append(rows, line+" "+m.styles.dim.Render(age))
 		}
-		rows = append(rows, line+" "+m.styles.dim.Render(age))
 	}
 	if len(m.nav.entries) == 0 {
 		label := "No saved sessions yet"
@@ -112,6 +101,14 @@ func (m *model) sidebarDetails() string {
 	nav := m.nav
 	nav.clamp(m.navigatorRows())
 	e := nav.entries[nav.cursor]
+	if !m.navFocused {
+		for _, entry := range nav.entries {
+			if sameSession(entry.dir, m.stateFile) {
+				e = entry
+				break
+			}
+		}
+	}
 	noun := "messages"
 	if e.msgs == 1 {
 		noun = "message"
@@ -187,3 +184,6 @@ func (m *model) navigatorKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
+
+// Body starts below the single global menu and per-pane status row.
+const paneTop = 4

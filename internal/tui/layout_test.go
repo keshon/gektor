@@ -39,22 +39,21 @@ func TestCompactSessionRowsSharePagingAndMouseGeometry(t *testing.T) {
 		}
 	}
 	frame := strings.Split(ansi.Strip(m.View().Content), "\n")
-	footer := 3 + m.paneHeight() - 1
+	footer := paneTop + m.paneHeight() - 1
 	if strings.Contains(frame[footer-1][:navigatorWidth], "─") {
 		t.Fatal("Sessions status still has its own divider")
 	}
 	if !strings.Contains(frame[footer], "Act  1 message") || !strings.Contains(frame[footer], "│") {
 		t.Fatal("session details are not at the bottom of the pane")
 	}
-	rule := frame[footer+1]
-	if lipgloss.Width(rule) != m.termW || strings.ReplaceAll(rule, "─", "") != "┴" {
-		t.Fatal("global footer separator does not span both panes")
+	if m.footerRows() != 2 || len(strings.Split(m.actionBar(), "\n")) != 1 {
+		t.Fatal("footer must occupy one row")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyPgDown})
 	if m.nav.cursor != m.navigatorRows() || m.nav.offset != 1 {
 		t.Fatal("paging did not use compact row capacity")
 	}
-	m.Update(tea.MouseClickMsg{X: 5, Y: 3, Button: tea.MouseLeft})
+	m.Update(tea.MouseClickMsg{X: 5, Y: paneTop, Button: tea.MouseLeft})
 	if m.nav.cursor != m.nav.offset {
 		t.Fatal("click missed the first visible compact row")
 	}
@@ -65,7 +64,7 @@ func TestResponsiveNavigator(t *testing.T) {
 	m.state = stDone
 	m.input.SetValue("unfinished draft")
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
-	if !m.sidebarVisible() || m.vp.Width() != 120-navigatorWidth-3 {
+	if !m.sidebarVisible() || m.vp.Width() != 120-navigatorWidth-5 {
 		t.Fatalf("wide viewport: %d", m.vp.Width())
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyTab})
@@ -77,12 +76,12 @@ func TestResponsiveNavigator(t *testing.T) {
 		t.Fatal("sidebar keys edited draft")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: 'b', Mod: tea.ModCtrl})
-	if m.sidebarVisible() || m.vp.Width() != 120 || !m.input.Focused() {
+	if m.sidebarVisible() || m.vp.Width() != 118 || !m.input.Focused() {
 		t.Fatal("hidden sidebar failed to restore input")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: 'b', Mod: tea.ModCtrl})
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	if m.sidebarVisible() || m.vp.Width() != 80 || m.input.Value() != "unfinished draft" {
+	if m.sidebarVisible() || m.vp.Width() != 78 || m.input.Value() != "unfinished draft" {
 		t.Fatal("narrow resize lost draft or space")
 	}
 }
@@ -199,8 +198,8 @@ func TestConversationOwnsComposerAndSessionsKeepTheirHeight(t *testing.T) {
 	view := m.View()
 	lines := strings.Split(ansi.Strip(view.Content), "\n")
 	inputTop := m.termH - m.footerRows() - m.input.Height()
-	for y := 3; y < m.termH-m.footerRows(); y++ {
-		if []rune(lines[y])[navigatorWidth+1] != '│' && []rune(lines[y])[navigatorWidth+1] != '┤' && []rune(lines[y])[navigatorWidth+1] != '├' {
+	for y := paneTop; y < m.termH-m.footerRows(); y++ {
+		if []rune(lines[y])[navigatorWidth+2] != '│' && []rune(lines[y])[navigatorWidth+2] != '┤' && []rune(lines[y])[navigatorWidth+2] != '├' {
 			t.Fatalf("session divider interrupted at row %d: %q", y, lines[y])
 		}
 	}
@@ -222,7 +221,7 @@ func TestConversationOwnsComposerAndSessionsKeepTheirHeight(t *testing.T) {
 		t.Fatal("composer navigation changed the multiline draft")
 	}
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	if m.conversationOffset() != 0 || m.View().Cursor.X >= 80 || m.input.Value() != "first line\nsecond line" {
+	if m.conversationOffset() != 1 || m.View().Cursor.X >= 80 || m.input.Value() != "first line\nsecond line" {
 		t.Fatal("narrow layout lost the composer or its draft")
 	}
 }

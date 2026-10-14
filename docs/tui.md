@@ -33,7 +33,7 @@ helpers; they are not required or distributed as part of the setup.
 
 ## Screen and focus
 
-The header shows session identity, Plan/Act mode, model, and run status.
+The unbranded one-row global menu exposes Session, Run, View, Settings and Help dropdowns. A separate one-row status header inside the chat pane shows Plan/Act mode, model, context, and run status.
 During a run, a Braille spinner and step/context/elapsed metrics appear
 at the top; the Run menu includes tool and file counts. Estimated context
 usage has a `~` prefix.
@@ -55,7 +55,7 @@ following; F7 or Ctrl+End returns to the latest content.
 
 The session title and clock sit above a badge strip: Act/Plan, Ready/Work/Wait/
 Stop/Error, model, context, and run progress. Work includes the braille spinner.
-Click a badge or use F9 to open its menu without moving the conversation. Pane
+Click a chat-status badge to inspect it, or use F9 to open the global menu without moving the conversation. Pane
 rules remain gray. Narrow terminals omit run and model badges before context.
 
 Mode offers Act/Plan while idle; Activity offers Stop or Retry when applicable.
@@ -83,7 +83,7 @@ The ownership rules and their regression tests are documented in
 
 The composer sits below the transcript inside the conversation pane; its
 suggestions and prompts share that pane's width. The Sessions divider extends
-to a full-width separator above the global action toolbar. Session
+to the single-row global action toolbar. Session
 details sit at the bottom of the pane without a separate divider. Hiding Sessions gives the composer the full
 terminal width.
 
@@ -155,7 +155,7 @@ The middle actions follow focus: Send/Newline in the composer, Stop/Latest
 during a run, Rename/Delete in Sessions, and Back/Choose in overlays.
 Details/Less (Ctrl+G), Sessions (Ctrl+B), and Quit (Ctrl+Q) remain at the end. Ctrl shortcuts use
 compact caret notation (for example, `^P`) in narrow cells. Below 120
-columns the toolbar uses two rows. Mouse clicks invoke the same key routing.
+columns the toolbar stays on one row, shortening labels and reducing visible actions when needed. Mouse clicks invoke the same key routing.
 
 Existing function keys remain aliases:
 
@@ -167,13 +167,13 @@ Existing function keys remain aliases:
 - F6 Sidebar: show/hide the pane when the terminal is wide enough.
 - F7 Latest: jump to the latest message.
 - F8: unused.
-- F9: focus the header menu. Left/Right selects a badge; Enter opens it.
+- F9: focus the global menu. Left/Right selects a category; Enter opens its dropdown.
   Up/Down browses details and actions; Enter chooses an action. Esc goes back
   or returns to the composer. You can also click badges and actions.
 - F10 Quit: exit when idle; stop an active run first.
 
 The footer can be clicked. Disabled actions are dimmed. Below 120 columns,
-it uses two rows; very small terminals omit it.
+it remains one row with abbreviated labels; very small terminals omit it.
 
 ## Sessions
 
@@ -248,3 +248,212 @@ local UI commands; they are not tools or RPC methods.
 - Large reference rejected: use a smaller file or ask the agent to inspect
   it with bounded file tools. Raising the generation budget does not raise
   attachment limits.
+
+### Commander-style frame
+
+The global menu and shortcut footer each occupy one row. Sessions remain in the left pane; the chat status, transcript, and growing multiline composer stay in the right pane. Tab switches pane focus, F6/Ctrl+B toggles the sidebar, and F2/Ctrl+P opens session search. Top-menu clicks use the same function-key routing, including disabled actions during approval. Narrow terminals hide the sidebar and reduce visible footer controls; full bindings remain available through Help.
+
+The top row is an unbranded dropdown menu: Session, Run, View, Settings, Help. Click a category or press F9, then use Left/Right to switch categories, Up/Down to select, Enter to apply and Esc to back out. Session exposes new/search/compact/quit, Run exposes Act/Plan/status/stop, View exposes sidebar/details/latest, and Settings opens direct inspectors for coding runs and editable forms for tool-free chat. The function-key and Ctrl shortcuts remain in the footer and Help. Chat configuration now includes character/user, prompts, generation/context, model connection, save-as-profile and effective-prompt inspection. Voice-capable chat profiles expose a Voice menu for enable/disable, recording, greeting playback, settings and service details.
+
+## Tool-free conversation mode
+
+`agent.exe -profile profiles/llama-external.json -chat -tui` uses the same
+Commander layout with CHAT shown in the status strip. It creates no coding
+workspace or tool registry. `@file` stays literal text; chat does not read it.
+The session pane browses `var/chats` beside the executable, or `-chat-dir`.
+These archives contain successful complete turns and are independent of task
+checkpoints under `.tars`. Search, reopen, rename, delete, new conversation,
+retry and stop use the existing UI flow. Reopen requires matching system
+prompt and generation settings. Act/Plan and coding compaction are disabled.
+The line-based chat CLI uses unary requests. The chat TUI streams text for llama/OpenAI dialects; kobold uses a complete-response fallback.
+
+Chat character cards render their opening message at the start of a new
+conversation and on reopen. The greeting is a pinned assistant message in
+the model prompt, separate from complete user/assistant turns. `/status`
+shows the character name. Character controls are currently CLI/profile
+settings, also editable through the Settings menu.
+
+## Common menu flows
+
+Session opens New, Browse/search, Rename current and Delete current directly.
+Rename edits only the title. Delete requires confirmation and starts focused
+on Cancel; the delete action is unavailable while generating.
+
+Chat replaces coding Act/Plan with Stop response, Retry failed response and
+conversation details. Settings forms edit character/user, prompt preferences,
+sampling/context budgets and the model connection. They are unavailable during
+a response. Apply validates first and updates the current session and archive;
+history and draft are preserved. Cancel discards the form without changing the session.
+Changes are in-memory until saved as a new profile. Save-as refuses to overwrite
+an existing file and stores only API-key environment references.
+
+Up/Down or Tab/Shift+Tab moves between single-line fields and Apply/Cancel.
+Multiline fields keep arrows for editing; Ctrl+Up/Down moves between fields. Enter moves to the next
+field or activates a button; Shift+Enter inserts a newline. Ctrl+S applies a
+non-destructive form. Mouse clicks focus fields or activate buttons. Esc closes
+the form or dropdown in one step. Keyboard menu navigation skips disabled
+actions. Read-only inspectors support arrows, PageUp/PageDown and wheel scrolling.
+Coding model/context panels are explicitly inspectors; changing the coding
+backend still requires a restart. There are no redirects between common menus
+and status-badge menus.
+
+Prompt override switches and protocol choices cycle with Space or a mouse click.
+Forms expose their own Next/Apply/Cancel footer actions instead of unrelated
+chat hotkeys. The rendered frame can be inspected in [menu-flows.html](reports/menu-flows.html).
+
+## Voice conversation MVP
+
+Run `agent.exe -profile profiles/chat-veyra-voice.json -chat -tui -voice`.
+The thinking endpoint still belongs to its external server. `-voice=false`
+opens the same profile in text mode. Voice enable validates installed assets
+and audio utilities; it does not load the model until synthesis is requested.
+
+Voice > Play character greeting checks output without a microphone or thinking
+request and warms the resident speech model. F8 or Ctrl+R starts recording;
+wait for the Recording indication before speaking. Press it again to finish.
+Whisper transcribes the complete WAV, then the visible user turn is submitted.
+Esc cancels capture/recognition or stops generation and playback. A late result
+from a canceled recording cannot submit a turn. Finish/cancel actions appear
+in the recorder footer. An unsent text draft is preserved while recording and after submitting the voice turn.
+
+Replies use ordered sentence chunks while llama/OpenAI text generation
+continues. Long sentences split at clause/word boundaries; there are no
+mid-word cuts. One PCM player stays open across chunks and drains the final
+samples. Completed text remains saved if audio fails or is stopped.
+Whisper and Chatterbox stay resident across turns and prompt edits, and owned
+processes close on disabling voice or quitting. External thinking/recognition
+services are never stopped by the application.
+
+Voice > Speech settings edits microphone, Nano/Turbo selection, model directory
+and recording cap (5–120 seconds). Applying speech settings disables the old
+service; enable Voice again to use the new settings. Ordinary character and
+generation edits keep the current speech worker warm.
+
+Push-to-talk remains available; Ctrl+L enables hands-free listening and application-controlled interruption. This is not native model full duplex. Recognition and speech are
+configured for English. Non-Latin replies fall back to text with an explicit
+speech error. Reasoning blocks, fenced code and bracketed stage directions
+are excluded from speech. Provider-specific vocal-cue negotiation is not yet
+connected. Physical microphone/speaker acceptance remains a separate check.
+
+## Managed thinking
+
+`agent.exe -profile profiles/chat-veyra-local.json -chat -tui -voice`
+uses the imported llama.cpp runtime and local Qwen starter model. Speech is optional.
+Settings > Model connection selects external/managed ownership, the executable,
+GGUF file, GPU layers, protocol and URL. Managed mode currently supports llama only.
+Set Model directory to any model folder, including an LM Studio root; focus the
+GGUF field and use Space/click to cycle recursively discovered files. A direct
+GGUF path works without a directory scan. Models are used in place, never moved.
+
+Loading starts on the first thinking request, with a five-minute readiness limit.
+Logs are in var/thinking. Changing provider/model/context stops the owned server;
+prompt and sampling edits retain it. Exiting closes the owned process tree.
+Occupied ports are refused; external servers are never terminated. Model loading
+may take time before the first reply; the normal generation indicator remains visible.
+
+## Shared settings workspace
+
+Thinking, Generation, Character, Prompts and Speech share the Commander palette
+and connected square frame. F6 focuses the category rail; arrows change category,
+Enter returns to controls. Edits survive category switches. Ctrl+S applies all
+staged pages to the current conversation. Esc cancels all staged edits; it never
+clears history or the text draft. Archive persistence succeeds before runtime
+ownership changes. Changing the model/context restarts its owned thinking service;
+ordinary prompts and sampling edits retain it.
+
+Thinking shows connection, model and GPU layers in local mode. External mode shows
+protocol, endpoint and model. F4 reveals technical paths and authentication settings.
+Enter on a selection opens a searchable list; arrows/Enter choose, Esc returns.
+Local GGUF discovery runs asynchronously. Ctrl+B browses folders and model files;
+Ctrl+L opens the folder-path control; Ctrl+R scans/refreshes. Full locations and file
+size are shown below the list. Server model names are discovered through the
+configured protocol; unsupported discovery falls back to manual entry.
+
+Explicit-profile launches keep runtime edits in memory until saved as a profile.\nThe common launcher also remembers its effective configuration in var/application.json;\nsource profile files are not overwritten. Character and microphone controls use the shared picker. Profiles can be loaded
+as staged settings and saved as new portable copies. Speech provides a sample of
+the applied built-in Chatterbox voice; custom voice references are not connected.
+
+### Settings libraries and speech checks
+
+Character > Card opens searchable PNG/JSON choices. Ctrl+B browses folders;
+Ctrl+L edits the location, Ctrl+D lists drives and Ctrl+R scans the current root.
+The selected card's name/description is loaded asynchronously below the list.
+Plain portrait PNGs and unsupported cards cannot be selected.
+
+Speech > Microphone discovers DirectShow audio devices through FFmpeg without
+opening capture. Enter selects a name. Nano/Turbo remains a model selection, not
+an invented list of voice identities: each adapter currently uses its built-in
+English reference voice. Ctrl+P plays/stops a sample of the applied settings;
+apply staged speech changes first. Closing settings or quitting cancels playback.
+
+Profiles > Load opens saved JSON profiles beside agent.exe. Choosing a chat
+profile stages its configuration; Apply updates the current session and history.
+Changing categories displays its staged values. Ctrl+D in Profiles saves a new
+portable copy using the entered name. Existing files are never overwritten.
+The picker has separate Ctrl+D drive browsing, distinguished by its footer.
+
+## Hands-free voice
+
+Ctrl+L or Voice > Hands-free toggles continuous capture. Wait for Listening before
+speaking. Silero VAD runs on CPU; 1.2 seconds of pre-roll protects quiet first words.
+Default confirmation is 200 ms and end silence is 1100 ms. Speech > F4 Advanced
+changes the detector/onset/end timing; energy detection is an explicit fallback.
+
+Confirmed onset cancels active generation/playback. The new audio waits until
+that request has finished canceling, then Whisper produces a visible user turn.
+A continuation while recognition is in progress retains the earlier audio rather
+than submitting an outdated partial question. Unsent text drafts are preserved.
+
+Opening settings pauses live capture; Ctrl+L re-enables it afterward. F8 switches
+to push-to-talk. A stalled microphone is reported and Ctrl+L off/on reconnects it.
+Capture, VAD and recognition stop on disabling live mode or quitting. Use headphones
+for interruption testing: this DirectShow path does not provide acoustic echo
+cancellation, so speaker output can be picked up by the microphone.
+
+## Application modes and shared settings
+
+    .\agent.exe -tui
+
+The menu is Session, Mode, Chat/Agent, View, Settings, Voice, Help. Mode selects
+Chat or Agent; the current choice is marked. Settings opens the same workspace
+in either mode: Model, Generation, Speech, Profiles, Application. Character and
+Prompts are available only in Chat. Application selects the mode, workspace and
+voice input style. Enter opens choices or file/directory pickers. F6 moves to the
+category list; unsaved values remain staged across categories. Apply without
+changes does nothing. Cancel discards the staged values.
+
+Mode switches preserve the session directory, title and composer draft. Entering
+Agent requires a workspace and starts in Plan. Agent > Act enables tool execution
+under the existing permission gates. Applying service/model settings in an existing
+Agent session preserves Plan/Act; it never starts a run. Switching modes while a
+turn is active is disabled until that turn stops.
+
+Common-launch sessions live under var/chats for compatibility with existing Chat
+archives. settings.json records the saved mode and service profile. conversation.json
+stores Chat history; state.json stores the Agent checkpoint. Opening a session restores
+its mode and profile; Agent opens in Plan. Existing archives without settings use the
+current service profile. Old standalone coding sessions stay in their workspace task
+store. Full structured Agent history remains in its checkpoint journal; Chat receives
+text dialogue projections and never exposes coding tools.
+
+Voice input works in both modes. Chat speaks streamed sentences; Agent speaks its
+completed answer and keeps intermediate code/tool output in the transcript. Opening
+settings pauses hands-free capture; Ctrl+L enables it again after closing settings.
+
+## Panel status and manual compaction
+
+A connected horizontal rule separates the panel titles from their contents.
+The status row contains plain labels; clicking it does not open menus.
+Session > Compact conversation (or /compact) works while idle in both modes.
+Agent uses its existing extractive checkpoint compaction. Chat retains the opening
+exchange plus eight recent complete turns and writes a before-compact-*.json backup
+beside the active archive. Chat compaction does not generate a semantic summary.
+
+## Themes and session rows
+
+View > Theme selects Dark or Light. Themes use shared semantic colors for primary
+text, secondary text, accent, selection, disabled controls and status. The choice
+is saved as an application preference and does not change the session, model or
+permissions. Session rows use one full-row selection highlight, including the age.
+There are no activity prefixes or competing current-session bars; the lower detail
+line names the selected session's status.

@@ -400,7 +400,7 @@ func TestSessions_CommandOpensAndEscCloses(t *testing.T) {
 	}
 	// The overlay owns the bottom bar (slim line, no input): the list
 	// gains the freed rows, and closing hands them back.
-	if mm.vp.Height() != 24-7-mm.footerRows() {
+	if mm.vp.Height() != 24-8-mm.footerRows() {
 		t.Fatalf("sessions viewport height = %d, want 14", mm.vp.Height())
 	}
 	updated, _ = mm.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
@@ -408,7 +408,7 @@ func TestSessions_CommandOpensAndEscCloses(t *testing.T) {
 	if mm.sessions != nil {
 		t.Fatal("esc did not close the screen")
 	}
-	if mm.vp.Height() != 24-7-mm.footerRows() {
+	if mm.vp.Height() != 24-8-mm.footerRows() {
 		t.Fatalf("closed viewport height = %d, want 14", mm.vp.Height())
 	}
 }
@@ -420,7 +420,7 @@ func TestViewportRefitsOnResize(t *testing.T) {
 	m.state = stDone
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
 	mm := updated.(*model)
-	if mm.vp.Height() != 30-7-mm.footerRows() {
+	if mm.vp.Height() != 30-8-mm.footerRows() {
 		t.Fatalf("resized viewport height = %d, want 20", mm.vp.Height())
 	}
 }

@@ -6,7 +6,28 @@ import (
 )
 
 func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "ctrl+l" && m.dialog == nil && m.sessions == nil && m.audio() != nil {
+		m.toggleListening()
+		return m, nil
+	}
 	defer m.syncFocus()
+	if m.dialog != nil && m.dialog.form != nil && msg.String() != "ctrl+c" && msg.String() != "ctrl+q" {
+		return m.formKey(msg)
+	}
+	if msg.String() == "esc" && (m.state == stRecording || m.state == stRecognizing) {
+		m.cancelRecording()
+		return m, nil
+	}
+	if m.dialog == nil && m.sessions == nil && (!m.navFocused || m.state == stRecording) {
+		if (msg.String() == "ctrl+r" || msg.String() == "f8") && m.chat != nil && m.chat.config.NewVoice != nil {
+			m.recordVoice()
+			return m, nil
+		}
+		if msg.String() == "esc" && (m.state == stRecording || m.state == stRecognizing) {
+			m.cancelRecording()
+			return m, nil
+		}
+	}
 	if msg.String() == "ctrl+q" {
 		return m.requestQuit()
 	}
@@ -140,6 +161,18 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.quit = true
 			m.cancel()
 			return m, tea.Quit
+		}
+		if !m.dialog.help {
+			switch msg.String() {
+			case "down":
+				m.dialog.offset++
+			case "up":
+				m.dialog.offset = max(m.dialog.offset-1, 0)
+			case "pgdown":
+				m.dialog.offset += max(m.vp.Height()/2, 1)
+			case "pgup":
+				m.dialog.offset = max(m.dialog.offset-max(m.vp.Height()/2, 1), 0)
+			}
 		}
 		if m.dialog.help {
 			switch msg.String() {

@@ -17,6 +17,7 @@ import (
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/snapshot"
+	"github.com/keshon/tars/internal/speech"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -24,6 +25,9 @@ import (
 // the saved transcript carries the conversation, so every follow-up is
 // a continuation, not a fresh run. A /command runs locally instead.
 func (m *model) followUp() (tea.Model, tea.Cmd) {
+	if m.chat != nil {
+		return m.submitConversation(m.input.Value())
+	}
 	original := m.input.Value()
 	text := strings.TrimSpace(original)
 	if strings.HasPrefix(text, "/") {
@@ -308,6 +312,17 @@ func (m *model) startRun(run func(ctx context.Context) (string, error)) {
 	m.header.focused, m.header.menu = false, ""
 	go func() {
 		answer, err := run(runCtx)
+		if m.chat == nil && m.voiceEnabled && m.voice != nil && err == nil && answer != "" {
+			audioCtx, cancelAudio := context.WithCancel(runCtx)
+			defer m.registerSpeech(cancelAudio)()
+			out := speech.NewOutput(audioCtx, m.voice, func(phase string) { m.emitVoice(runCtx, phase) })
+			if e := out.Delta(answer); e != nil {
+				out.Cancel()
+			}
+			if e := out.Finish(); e != nil && runCtx.Err() == nil && audioCtx.Err() == nil {
+				m.emitVoice(runCtx, "Speech failed; text remains available")
+			}
+		}
 		m.send(doneMsg{answer: answer, err: err})
 	}()
 }
@@ -336,6 +351,22 @@ func (m *model) startInitial(task string, images []string) error {
 // and last-turn state go, the next submitted line starts a fresh run
 // through the sess==nil path in followUp. Bare /new.
 func (m *model) newChat() {
+	m.seedHistory = nil
+	if m.chat != nil {
+		m.saveDraft()
+		m.cancel()
+		m.chat.current = nil
+		m.stateFile = ""
+		m.sessionTitle = ""
+		m.blocks = nil
+		m.resetRunFacts()
+		m.state = stDone
+		m.navFocused = false
+		m.restoreDraft()
+		m.appendBlock(markerBlock("New conversation · Chat · no tools"))
+		m.showGreeting()
+		return
+	}
 	if m.stateFile == "" && m.sess == nil {
 		return
 	}
@@ -359,6 +390,33 @@ func (m *model) newChat() {
 // context agree on what was dropped. Follow-ups continue on the
 // compacted history through the normal Resume path.
 func (m *model) compactNow() (tea.Model, tea.Cmd) {
+	if m.state != stDone {
+		m.appendBlock(markerBlock("Stop the current turn before compacting"))
+		return m, nil
+	}
+	if m.chat != nil {
+		if m.chat.current == nil || m.stateFile == "" {
+			m.appendBlock(errorBlock("no active session to compact"))
+			return m, nil
+		}
+		before, after, err := m.chat.current.CompactAndSave(m.stateFile, agent.DefaultCompactKeepSteps)
+		if err != nil {
+			m.appendBlock(errorBlock("cannot compact: " + err.Error()))
+			return m, nil
+		}
+		if after == before {
+			m.appendBlock(markerBlock(fmt.Sprintf("nothing to compact: %d messages", before)))
+			return m, nil
+		}
+		m.blocks = renderHistory(m.chat.current.History())
+		m.appendBlock(markerBlock(fmt.Sprintf("— compacted: %d → %d messages; original archive backed up —", before, after)))
+		m.restoreContext(m.chat.current.History())
+		m.refreshContent()
+		m.refreshNavigator()
+		m.follow = true
+		m.vp.GotoBottom()
+		return m, nil
+	}
 	if m.stateFile == "" {
 		m.appendBlock(errorBlock("no active session to compact"))
 		return m, nil
@@ -378,6 +436,9 @@ func (m *model) compactNow() (tea.Model, tea.Cmd) {
 	if err != nil {
 		m.appendBlock(errorBlock("cannot reload compacted history: " + err.Error()))
 		return m, nil
+	}
+	if m.sess == nil {
+		m.seedHistory = append([]llm.Message(nil), history...)
 	}
 	mb := markerBlock(fmt.Sprintf("— compacted: %d → %d messages —", before, after))
 	mb.breakBefore = true
@@ -402,11 +463,20 @@ func (m *model) startFresh(task string, images []string) error {
 }
 
 func (m *model) startFreshPrompt(task, display string, images []string) error {
+	if m.chat != nil {
+		return m.startConversation(task)
+	}
 	sum := sha1.Sum([]byte(task + time.Now().String()))
 	taskID := hex.EncodeToString(sum[:])[:8]
 	taskDir := workspace.TaskDir(taskID)
 	if m.ws != nil {
 		taskDir = filepath.Join(m.ws.Root(), taskDir)
+	}
+	if m.application != nil {
+		taskDir = filepath.Join(m.sessionRoot(), taskID)
+		if m.stateFile != "" && m.sess == nil {
+			taskDir = filepath.Dir(m.stateFile)
+		}
 	}
 	stateFile := filepath.Join(taskDir, "state.json")
 	sess, err := m.newSession(task, stateFile, images)
@@ -416,7 +486,11 @@ func (m *model) startFreshPrompt(task, display string, images []string) error {
 	if err := writeChatMode(stateFile, m.plan); err != nil {
 		return err
 	}
-	if err := workspace.WriteSessionTitle(taskDir, workspace.TitleLine(display)); err != nil {
+	title := workspace.TitleLine(display)
+	if len(m.seedHistory) > 0 && m.sessionTitle != "" {
+		title = m.sessionTitle
+	}
+	if err := workspace.WriteSessionTitle(taskDir, title); err != nil {
 		return err
 	}
 	m.saveDraft()
@@ -424,7 +498,7 @@ func (m *model) startFreshPrompt(task, display string, images []string) error {
 		delete(m.drafts, "")
 	}
 	m.sess, m.stateFile = sess, stateFile
-	m.sessionTitle = workspace.TitleLine(display)
+	m.sessionTitle = title
 	m.clearContext()
 	m.hist, m.histIdx, m.draft = []string{display}, 1, ""
 	m.queued = ""
@@ -438,7 +512,19 @@ func (m *model) startFreshPrompt(task, display string, images []string) error {
 			m.appendBlock(markerBlock("Pre-run checkpoint unavailable; this run cannot be undone with -revert."))
 		}
 	}
+	seed := append([]llm.Message(nil), m.seedHistory...)
+	m.seedHistory = nil
+	if err := m.saveSessionSettings(); err != nil {
+		return err
+	}
+	if len(seed) > 0 {
+		m.blocks = append(renderHistory(seed), m.blocks...)
+		seed = agentSeed(seed)
+	}
 	m.startRun(func(runCtx context.Context) (string, error) {
+		if len(seed) > 0 {
+			return sess.Resume(runCtx, seed, task, images...)
+		}
 		return sess.Run(runCtx)
 	})
 	return nil

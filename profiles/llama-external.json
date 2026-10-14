@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "provider": {"kind": "llama", "url": "http://127.0.0.1:8080", "model": "local", "ownership": "external"},
+  "generation": {"max_tokens": 2048, "context_limit": 8192}
+}

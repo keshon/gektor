@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "provider": {
+    "kind": "llama",
+    "url": "http://127.0.0.1:19080",
+    "model": "local",
+    "ownership": "managed",
+    "runtime": "../assets/runtimes/llamacpp/llama-server.exe",
+    "model_file": "../assets/models/thinking/qwen/Qwen3-1.7B-Q8_0.gguf",
+    "model_root": "../assets/models/thinking",
+    "gpu_layers": 99
+  },
+  "generation": {
+    "max_tokens": 2048,
+    "context_limit": 8192,
+    "temperature": 0.7
+  },
+  "conversation": {
+    "character": "../assets/characters/veyra.json",
+    "user_name": "User",
+    "system_prompt": "You are a helpful conversational assistant."
+  },
+  "speech": {
+    "enabled": false,
+    "microphone": "Microphone (Storm Pro)",
+    "recorder": "ffmpeg",
+    "player": "ffplay",
+    "max_seconds": 120,
+    "listening": {
+      "ownership": "managed",
+      "url": "http://127.0.0.1:19082",
+      "binary": "../assets/runtimes/whisper-cuda/Release/whisper-server.exe",
+      "model": "../assets/models/listening/whisper/ggml-small-q5_1.bin"
+    },
+    "speaking": {
+      "provider": "chatterbox",
+      "variant": "nano",
+      "binary": "../assets/runtimes/chatterbox/python.exe",
+      "model": "../assets/models/speaking/chatterbox/nano"
+    }
+  }
+}

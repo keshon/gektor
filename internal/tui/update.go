@@ -43,7 +43,45 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	defer func() { cmd = tea.Batch(cmd, m.takeCommands()) }()
 	defer m.syncSuggestions()
 	defer m.syncFocus()
+	defer m.queueSettingsDetail()
 	switch msg := msg.(type) {
+	case liveFrameMsg:
+		m.acceptLiveFrame(msg)
+		return m, nil
+	case liveRecognizedMsg:
+		m.acceptLiveRecognized(msg)
+		return m, nil
+	case liveEndedMsg:
+		if msg.capture == m.listening {
+			m.stopListening()
+			if msg.err != nil {
+				m.appendBlock(errorBlock(msg.err.Error()))
+			}
+		}
+		return m, nil
+	case settingsDetailMsg:
+		m.acceptSettingsDetail(msg)
+		return m, nil
+	case settingsSampleMsg:
+		m.acceptSettingsSample(msg)
+		return m, nil
+	case settingsScanMsg:
+		m.acceptSettingsScan(msg)
+		return m, nil
+	case microphoneReadyMsg:
+		if msg.revision == m.captureRevision && m.state == stRecording {
+			m.voicePhase = "Recording · F8/Ctrl+R finishes"
+		}
+		return m, nil
+	case captureFinishedMsg:
+		if msg.revision == m.captureRevision && m.state == stRecording {
+			m.state = stRecognizing
+			m.voicePhase = "Recognizing your speech"
+			m.fitBottom()
+		}
+		return m, nil
+	case recordedMsg:
+		return m.finishRecording(msg)
 	case sessionsLoadedMsg:
 		m.acceptSessions(msg)
 		return m, nil
@@ -77,16 +115,27 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		m.gate = ""
 		m.persistUsage()
 		wasInterrupted := m.interrupted
+		if m.chat != nil && msg.err == nil && msg.answer != "" {
+			m.blocks = append(m.blocks, assistantBlocks(msg.answer, "")...)
+		}
 		m.answer = msg.answer
 		m.runErr = msg.err
 		m.state = stDone
+		m.voicePhase = ""
+		if err := m.saveSessionSettings(); err != nil {
+			m.appendBlock(errorBlock("Cannot save session settings: " + err.Error()))
+		}
 		m.refreshNavigator()
 		// Partial live text is not an answer: discard it either way.
 		m.live, m.liveCut, m.livePainted = "", false, 0
 		if m.interrupted {
 			m.interrupted = false
 			m.runErr = nil
-			m.appendBlock(markerBlock("— interrupted —"))
+			marker := "— interrupted —"
+			if m.chat != nil && msg.answer != "" {
+				marker = "— speech stopped; completed text retained —"
+			}
+			m.appendBlock(markerBlock(marker))
 		} else {
 			m.appendBlock(markerBlock("— run finished —"))
 			if msg.err != nil {
@@ -114,12 +163,18 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 				return m, tea.Batch(cmd, waitEvents(m))
 			}
 		}
+		m.submitLiveAudio()
 		return m, waitEvents(m)
 	case tea.MouseMsg:
 		return m.handleMouse(msg)
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 	default:
+		if m.dialog != nil && m.dialog.form != nil && m.dialog.form.index < len(m.dialog.form.fields) {
+			var cmd tea.Cmd
+			m.dialog.form.editor, cmd = m.dialog.form.editor.Update(msg)
+			return m, cmd
+		}
 		switch m.activeInputOwner() {
 		case focusNote:
 			var cmd tea.Cmd
@@ -165,6 +220,7 @@ func (m *model) width(msg tea.WindowSizeMsg) {
 	// Height follows the terminal too: without a refit here a resize
 	// leaves a stale viewport height, clipping content by the delta.
 	m.fitBottom()
+	m.resizeFormEditor()
 	// Render (or re-render): blocks appended before the first resize
 	// never reached the viewport, and reflow follows later resizes.
 	m.refreshContent()
@@ -201,8 +257,8 @@ func (m *model) fitBottom() {
 	if m.state == stAsk || m.state == stDone || m.state == stRunning || m.state == stStopping {
 		lines += m.input.Height() - 1
 	}
-	// The -7 counts header, identity, header rule, status, divider,
-	// bottom base, and the breathing blank line above the divider
+	// The fixed rows count the menu, pane header, status and divider,
+	// plus the bottom base and breathing blank line above the divider
 	// (layout, not content: a content trailing newline breaks scroll
 	// math — phantom blank rows mid-scroll).
 	// `lines` adds per-state extras (done hint, reject label, input growth).
@@ -220,7 +276,7 @@ func (m *model) fitBottom() {
 	if oldWidth != m.vp.Width() {
 		m.refreshContent()
 	}
-	h := m.termH - 6 - lines
+	h := m.termH - 7 - lines
 	if m.actionBarVisible() {
 		h -= m.footerRows()
 	}
@@ -320,6 +376,10 @@ func (m *model) handleEvent(ev api.Event) {
 		// saw (provenance mark included), no decisions attached.
 		if text, _ := ev.Fields["text"].(string); text != "" {
 			m.appendBlock(markerBlock(text))
+		}
+	case "voice_phase":
+		if m.state == stRunning {
+			m.voicePhase, _ = ev.Fields["text"].(string)
 		}
 	case "usage":
 		if p, ok := ev.Fields["prompt"].(float64); ok && int(p) > 0 {

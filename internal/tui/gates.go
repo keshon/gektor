@@ -34,6 +34,7 @@ const (
 // history. Esc is handled by the stager (back), never the widget.
 func newNote() textinput.Model {
 	ti := textinput.New()
+	ti.SetStyles(textInputStyles(ti.Styles()))
 	ti.SetVirtualCursor(false)
 	style := ti.Styles()
 	style.Cursor.Shape = tea.CursorUnderline

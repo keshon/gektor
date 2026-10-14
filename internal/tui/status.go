@@ -8,11 +8,20 @@ import (
 
 // statusLine describes the current input; run metrics belong in the header.
 func (m *model) statusLine() string {
+	if text := m.listeningStatus(); text != "" {
+		return m.styles.dim.Render(text)
+	}
 	if m.sessions != nil {
 		return m.styles.status.Render("Search names and saved conversation text")
 	}
 	if m.dialog != nil {
-		return m.styles.status.Render("Esc close  F1 close help")
+		if m.dialog.form != nil {
+			return m.styles.status.Render("Tab fields/buttons · Shift+Enter newline · Esc cancel")
+		}
+		return m.styles.status.Render("Esc close  ↑↓ scroll")
+	}
+	if m.voicePhase != "" {
+		return m.styles.status.Render(m.voicePhase + " · Esc stop")
 	}
 	hint := m.actionHint()
 	if !m.follow && m.state == stDone {
@@ -26,6 +35,9 @@ func (m *model) runFacts() string {
 		return ""
 	}
 	facts := fmt.Sprintf("step %d/%d  %s  elapsed %s%s", m.steps, m.maxSteps, m.meter(), formatElapsed(m.elapsed), m.ttft())
+	if m.chat != nil {
+		facts = fmt.Sprintf("Chat  %s  elapsed %s", m.meter(), formatElapsed(m.elapsed))
+	}
 	if m.toolsUsed > 0 {
 		facts += fmt.Sprintf("  tools %d", m.toolsUsed)
 	}
@@ -51,6 +63,10 @@ func (m *model) statusWord() string {
 		return "awaiting permission"
 	case stAsk:
 		return "waiting"
+	case stRecording:
+		return "recording"
+	case stRecognizing:
+		return "recognizing"
 	case stStopping:
 		return "stopping"
 	case stDone:
@@ -117,7 +133,7 @@ func kTokens(n int) string {
 
 // dividerLine splits history from the bottom zone with a dim rule.
 func (m *model) dividerLine() string {
-	w := max(m.termW, 0)
+	w := max(m.vp.Width(), 0)
 	if w < minWrapWidth {
 		w = minWrapWidth
 	}

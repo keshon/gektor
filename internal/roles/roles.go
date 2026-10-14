@@ -40,6 +40,7 @@ type Env struct {
 	WS           *workspace.Workspace
 	Procs        *tools.BackgroundProcesses
 	MaxTokens    int
+	Temperature  float64
 	ContextLimit int
 	Policy       permission.Policy
 	BackendKind  string
@@ -163,6 +164,7 @@ func Planner(e Env, label, stateFile string) *agent.Agent {
 		Tools:           tools.ReadOnly(e.WS, e.Procs),
 		System:          prompts.PlanMode + e.WS.Instructions(),
 		MaxTokens:       e.MaxTokens,
+		Temperature:     e.Temperature,
 		ContextLimit:    e.ContextLimit,
 		ReasoningBudget: e.ReasoningBudget,
 		StateFile:       e.statePath(stateFile),
@@ -200,6 +202,7 @@ func Inspector(e Env, label, system, stateFile string) *agent.Agent {
 		System:          system + e.WS.Instructions(),
 		MaxSteps:        inspectorSteps,
 		MaxTokens:       e.MaxTokens,
+		Temperature:     e.Temperature,
 		ContextLimit:    e.ContextLimit,
 		ReasoningBudget: e.ReasoningBudget,
 		SkipVerify:      true,
@@ -235,6 +238,7 @@ func Subagent(e Env, role string) *agent.Agent {
 		System:          prompts.WithRole(role) + "\n\n" + prompts.SubagentScope + "\n\n" + prompts.PlatformLine() + e.WS.Instructions(),
 		MaxSteps:        subagentSteps,
 		MaxTokens:       e.MaxTokens,
+		Temperature:     e.Temperature,
 		ContextLimit:    e.ContextLimit,
 		ReasoningBudget: e.ReasoningBudget,
 		SkipVerify:      true,
@@ -258,6 +262,7 @@ func Worker(e Env, label, system, stateFile string, maxSteps int, expectsWrites 
 		System:             system + "\n\n" + prompts.PlatformLine() + e.WS.Instructions(),
 		MaxSteps:           maxSteps,
 		MaxTokens:          e.MaxTokens,
+		Temperature:        e.Temperature,
 		ContextLimit:       e.ContextLimit,
 		ReasoningBudget:    e.ReasoningBudget,
 		SkipVerify:         true,
@@ -303,6 +308,7 @@ func Interactive(e Env, label, stateFile string,
 		Tools:           tools.Base(e.WS, e.Procs, e.OnFinding, extra...),
 		System:          interactiveSystem(e.BackendKind) + "\n\n" + prompts.PlatformLine() + e.WS.Instructions(),
 		MaxTokens:       e.MaxTokens,
+		Temperature:     e.Temperature,
 		ContextLimit:    e.ContextLimit,
 		ReasoningBudget: e.ReasoningBudget,
 		TodoFunding:     e.TodoFunding,

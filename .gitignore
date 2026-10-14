@@ -19,3 +19,12 @@ tmp/
 run-remote.cmd
 # Local serve launcher (ports and backends are machine-specific).
 run-serve.cmd
+
+# Local conversation state and managed service assets.
+/var/
+/bin/
+/assets/models/
+/assets/runtimes/
+/assets/characters/private/
+
+/assets/manifest.json

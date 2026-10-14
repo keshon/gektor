@@ -93,14 +93,15 @@ func TestFocusAndMetricsHaveDedicatedPlaces(t *testing.T) {
 		t.Fatal("metrics mixed with key hints")
 	}
 	rows := strings.Split(ansi.Strip(m.View().Content), "\n")
-	if !strings.Contains(rows[1], "step 7/25") || strings.Count(strings.Join(rows, "\n"), "step 7/25") != 1 {
+	if !strings.Contains(rows[2], "step 7/25") || strings.Count(strings.Join(rows, "\n"), "step 7/25") != 1 {
 		t.Fatal("run metrics must appear once in the top status row")
 	}
-	if !strings.Contains(ansi.Strip(m.View().Content), "▸ CHAT") {
+	_, _, activeTitle := popupStyles()
+	if !strings.Contains(m.View().Content, activeTitle.Render(" CHAT ")) {
 		t.Fatal("input focus not identified")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyTab})
-	if !strings.Contains(ansi.Strip(m.View().Content), "▸ SESSIONS") || !m.navFocused {
+	if !strings.Contains(m.View().Content, activeTitle.Render(" SESSIONS ")) || !m.navFocused {
 		t.Fatal("chat pane focus not identified")
 	}
 	m.Update(tea.MouseClickMsg{X: 60, Y: 5, Button: tea.MouseLeft})
@@ -139,7 +140,7 @@ func TestHelpKeepsFooterOnLastRowAndHidesComposer(t *testing.T) {
 	m.fitBottom()
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF1})
 	rows := strings.Split(ansi.Strip(m.View().Content), "\n")
-	if !strings.Contains(rows[len(rows)-1], "Ctrl+Q Quit") || strings.Contains(ansi.Strip(m.View().Content), "first") || !strings.Contains(m.View().Content, "Draft preserved") {
+	if !strings.Contains(rows[len(rows)-1], "^Q Quit") || strings.Contains(ansi.Strip(m.View().Content), "first") || !strings.Contains(m.View().Content, "Draft preserved") {
 		t.Fatal("help moved footer or exposed active composer")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF1})

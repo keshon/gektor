@@ -1,0 +1,351 @@
+package tui
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/tars/internal/chat"
+	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/tars/internal/llm"
+)
+
+func settingsModel(t *testing.T) *model {
+	t.Helper()
+	m := sizeModel(t, testModel())
+	m.state = stDone
+	m.input.SetValue("unfinished draft")
+	profile := config.Profile{Version: 1, Provider: config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local", Ownership: "external"}, Generation: config.Generation{MaxTokens: 100, ContextLimit: 1000}, Conversation: &config.Conversation{UserName: "User", SystemPrompt: "Base rules"}}
+	client := conversationClient(func(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
+		return llm.ChatResponse{Message: llm.Message{Content: "reply"}}, nil
+	})
+	var configure func(config.Profile) (ChatConfig, error)
+	configure = func(p config.Profile) (ChatConfig, error) {
+		if err := p.Validate(); err != nil {
+			return ChatConfig{}, err
+		}
+		if p.Conversation.UserName == "" {
+			return ChatConfig{}, fmt.Errorf("user name required")
+		}
+		return ChatConfig{Client: client, Settings: chat.Config{System: p.Conversation.SystemPrompt, Temperature: p.Generation.Temperature, MaxTokens: p.Generation.MaxTokens, ContextLimit: p.Generation.ContextLimit}, Directory: m.chat.config.Directory, Profile: p, Configure: configure}, nil
+	}
+	m.chat = &chatUI{config: ChatConfig{Client: client, Settings: chat.Config{System: "Base rules", MaxTokens: 100, ContextLimit: 1000}, Directory: t.TempDir(), Profile: profile, Configure: configure}}
+	c, err := chat.New(client, m.chat.config.Settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.chat.current = c
+	m.stateFile = filepath.Join(m.chat.config.Directory, "original", "conversation.json")
+	m.sessionTitle = "Original"
+	if _, err = c.AskAndSave(context.Background(), "hello", m.stateFile); err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+func TestSettingsDirectEditorCancelAndFocus(t *testing.T) {
+	m := settingsModel(t)
+	current := m.chat.current
+	m.header.global = true
+	m.header.focused = true
+	m.header.menu = "settings"
+	m.header.row = 5
+	m.headerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if m.dialog == nil || m.dialog.form == nil || m.header.focused || m.dialog.title != "Settings" {
+		t.Fatal("settings redirected instead of opening editor")
+	}
+	m.focusForm(1)
+	if m.dialog.form.editor.Value() != "User" {
+		t.Fatal("initial field lost")
+	}
+	m.Update(tea.PasteMsg{Content: "Alex"})
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF4})
+	m.handleKey(tea.KeyPressMsg{Code: 'n', Mod: tea.ModCtrl})
+	if m.chat.current != current || m.input.Value() != "unfinished draft" {
+		t.Fatal("form input leaked into conversation actions")
+	}
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if m.dialog != nil || m.chat.current != current || m.input.Value() != "unfinished draft" || m.chat.config.Profile.Conversation.UserName != "User" {
+		t.Fatal("cancel mutated configuration or draft")
+	}
+}
+func TestSettingsValidateThenApplyPreservesHistoryAndUpdatesArchive(t *testing.T) {
+	m := settingsModel(t)
+	path := m.stateFile
+	before, _ := os.ReadFile(path)
+	m.editSettings("generation")
+	if m.dialog.form.editor.Value() != "0" {
+		t.Fatal("initial temperature lost")
+	}
+	m.dialog.form.editor.SetValue("bad")
+	m.handleKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	if m.dialog == nil || m.dialog.form.error == "" || m.chat.current == nil || m.chat.config.Settings.Temperature != 0 {
+		t.Fatal("invalid settings applied")
+	}
+	m.dialog.form.editor.SetValue("0.8")
+	m.handleKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	after, _ := os.ReadFile(path)
+	if m.dialog != nil || m.chat.current == nil || m.stateFile != path || m.chat.config.Settings.Temperature != .8 || string(before) == string(after) || m.input.Value() != "unfinished draft" {
+		t.Fatalf("apply did not preserve session: dialog=%+v current=%v path=%s temp=%v before=%s after=%s draft=%s", m.dialog, m.chat.current != nil, m.stateFile, m.chat.config.Settings.Temperature, before, after, m.input.Value())
+	}
+}
+func TestDirectRenameAndDeleteDefaultCancel(t *testing.T) {
+	m := settingsModel(t)
+	path := m.stateFile
+	m.renameActive()
+	m.dialog.form.editor.SetValue("New title")
+	m.handleKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	if m.dialog != nil || m.sessionTitle != "New title" {
+		t.Fatal("rename failed")
+	}
+	m.deleteActive()
+	m.handleKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	if m.dialog == nil {
+		t.Fatal("delete bypassed default cancel")
+	}
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal("default action deleted conversation")
+	}
+	m.deleteActive()
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyTab})
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if _, err := os.Stat(path); !os.IsNotExist(err) || m.chat.current != nil {
+		t.Fatal("explicit delete failed")
+	}
+}
+func TestSaveProfileRefusesOverwriteAndKeepsCardPath(t *testing.T) {
+	m := settingsModel(t)
+	root := t.TempDir()
+	card := filepath.Join(root, "card.json")
+	os.WriteFile(card, []byte(`{"name":"Ada"}`), 0600)
+	m.chat.config.Profile.Conversation.Character = card
+	first := filepath.Join(root, "existing.json")
+	os.WriteFile(first, []byte("original"), 0600)
+	m.saveChatProfile()
+	m.dialog.form.editor.SetValue(first)
+	m.applyForm()
+	if m.dialog == nil || m.dialog.form.error == "" {
+		t.Fatal("existing profile overwritten")
+	}
+	next := filepath.Join(root, "other folder", "profile.json")
+	m.dialog.form.editor.SetValue(next)
+	m.applyForm()
+	if m.dialog != nil {
+		t.Fatal("save failed")
+	}
+	p, err := config.Load(next)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Conversation.Character != card {
+		t.Fatal("retry resolved card against wrong directory")
+	}
+	data, _ := os.ReadFile(first)
+	if string(data) != "original" {
+		t.Fatal("original file altered")
+	}
+}
+func TestSettingsFormMouseAndFrame(t *testing.T) {
+	for _, width := range []int{40, 80, 120} {
+		m := settingsModel(t)
+		m.width(tea.WindowSizeMsg{Width: width, Height: 24})
+		m.editSettings("prompts")
+		for _, row := range strings.Split(m.View().Content, "\n") {
+			if lipgloss.Width(row) != width {
+				t.Fatalf("width=%d row=%s", width, ansi.Strip(row))
+			}
+		}
+		rows, hits, w, h := m.formRows()
+		bw := 0
+		for _, row := range rows {
+			bw = max(bw, lipgloss.Width(row))
+		}
+		x := m.conversationOffset() + max((w-bw-4)/2, 0) + 1
+		y := paneTop + max((h-len(rows)-2)/2, 0) + 1
+		if m.dialog.form.workspace != nil {
+			x = 2
+			y = 2
+		}
+		cancel := hits[len(hits)-1]
+		if cancel.x1 > 0 {
+			x = 2 + cancel.x0
+			if w >= 76 {
+				x += 17
+			}
+		}
+		m.Update(tea.MouseClickMsg{X: x, Y: y + cancel.y0, Button: tea.MouseLeft})
+		if m.dialog != nil || m.input.Value() != "unfinished draft" {
+			t.Fatal("mouse cancel missed or lost draft")
+		}
+	}
+}
+func TestCommonMenusHaveNoRedirects(t *testing.T) {
+	m := settingsModel(t)
+	for _, category := range []string{"session", "workflow", "view", "settings", "help"} {
+		m.header.menu = category
+		for _, item := range m.rawHeaderItems() {
+			if strings.HasPrefix(item.command, "open:") {
+				t.Fatal("menu redirects")
+			}
+		}
+	}
+	m.state = stRunning
+	m.header.menu = "settings"
+	for _, item := range m.rawHeaderItems() {
+		if strings.HasPrefix(item.command, "edit:") && item.enabled {
+			t.Fatal("settings editable during response")
+		}
+	}
+	m.header.global = true
+	m.header.focused = true
+	m.header.menu = "workflow"
+	m.header.row = 0
+	m.state = stDone
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyDown})
+	if m.header.row != 2 {
+		t.Fatal("keyboard did not skip disabled actions")
+	}
+}
+func TestMenuSettingsPreview(t *testing.T) {
+	dir := os.Getenv("TARS_SETTINGS_PREVIEW_DIR")
+	if dir == "" {
+		t.Skip("renderer export opt-in")
+	}
+	os.MkdirAll(dir, 0700)
+	for _, name := range []string{"menu", "generation", "prompts", "delete"} {
+		m := settingsModel(t)
+		m.width(tea.WindowSizeMsg{Width: 100, Height: 28})
+		switch name {
+		case "menu":
+			m.header.global = true
+			m.header.focused = true
+			m.header.menu = "settings"
+		case "delete":
+			m.deleteActive()
+		default:
+			m.editSettings(name)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name+".txt"), []byte(ansi.Strip(m.View().Content)), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestFormFooterMatchesActionsAndViewIsPure(t *testing.T) {
+	m := settingsModel(t)
+	m.editSettings("generation")
+	before := m.dialog.form.editor.Value()
+	cursor := m.dialog.form.editor.Column()
+	first := m.View().Content
+	second := m.View().Content
+	if first != second || m.dialog.form.editor.Value() != before || m.dialog.form.editor.Column() != cursor {
+		t.Fatal("render mutated form")
+	}
+	for _, action := range m.footerActions() {
+		if action.name == "F1" {
+			t.Fatal("footer advertises unrelated help action")
+		}
+	}
+	for _, cell := range m.footerCells() {
+		if cell.action.name == "Esc" {
+			m.Update(tea.MouseClickMsg{X: cell.start, Y: m.termH - 1, Button: tea.MouseLeft})
+			break
+		}
+	}
+	if m.dialog != nil {
+		t.Fatal("footer cancel click failed")
+	}
+}
+
+func TestPromptSwitchCanToggleWithoutTypingBoolean(t *testing.T) {
+	m := settingsModel(t)
+	m.editSettings("prompts")
+	m.focusForm(2)
+	if m.dialog.form.editor.Value() != "true" {
+		t.Fatal("wrong initial switch")
+	}
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyDown})
+	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if m.dialog.form.editor.Value() != "false" {
+		t.Fatal("space did not toggle prompt switch")
+	}
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if m.chat.config.Profile.Conversation.PreferCharacterPrompt != nil {
+		t.Fatal("cancel persisted switch")
+	}
+}
+
+func TestFormArrowNavigationPreservesValues(t *testing.T) {
+	m := settingsModel(t)
+	m.openForm("Settings", "", "Apply", []formField{{"one", "First", "one", false}, {"two", "Second", "two", false}}, func(map[string]string) error { return nil })
+	m.dialog.form.editor.SetValue("edited")
+	m.formKey(tea.KeyPressMsg{Code: tea.KeyDown})
+	if m.dialog.form.index != 1 || m.dialog.form.fields[0].value != "edited" {
+		t.Fatal("down lost value or focus")
+	}
+	m.formKey(tea.KeyPressMsg{Code: tea.KeyUp})
+	if m.dialog.form.index != 0 || m.dialog.form.editor.Value() != "edited" {
+		t.Fatal("up lost value or focus")
+	}
+}
+
+func TestProtocolSwitchSuggestsOnlyLocalDefaults(t *testing.T) {
+	for _, tc := range []struct{ endpoint, previous, next, want string }{
+		{"http://127.0.0.1:8080", "llama", "kobold", "http://127.0.0.1:5001"},
+		{"http://localhost:5001/", "kobold", "openai", "http://localhost:8080/v1"},
+		{"http://localhost:8080/v1", "openai", "llama", "http://localhost:8080"},
+		{"http://localhost:9000", "llama", "kobold", "http://localhost:9000"},
+		{"https://api.openai.com/v1", "openai", "llama", "https://api.openai.com/v1"},
+		{"http://localhost:8080/custom", "llama", "kobold", "http://localhost:8080/custom"},
+	} {
+		if got := suggestedBackendURL(tc.endpoint, tc.previous, tc.next); got != tc.want {
+			t.Fatalf("%s: got %s want %s", tc.endpoint, got, tc.want)
+		}
+	}
+	m := settingsModel(t)
+	m.openForm("Connection", "", "Apply", []formField{{"kind", "Protocol", "llama", false}, {"endpoint", "URL", "http://127.0.0.1:8080", false}}, func(map[string]string) error { return nil })
+	m.cycleFormChoice()
+	m.focusForm(1)
+	if m.dialog.form.editor.Value() != "http://127.0.0.1:5001" {
+		t.Fatal("suggested URL not visible in editor")
+	}
+	m.dialog.form.editor.SetValue("http://localhost:9000")
+	m.focusForm(0)
+	m.cycleFormChoice()
+	m.focusForm(1)
+	if m.dialog.form.editor.Value() != "http://localhost:9000" {
+		t.Fatal("custom URL overwritten")
+	}
+}
+
+func TestModelFormDiscoversNestedModelChoices(t *testing.T) {
+	m := settingsModel(t)
+	root := t.TempDir()
+	nested := filepath.Join(root, "vendor", "model")
+	os.MkdirAll(nested, 0700)
+	file := filepath.Join(nested, "weights.gguf")
+	os.WriteFile(file, nil, 0600)
+	m.chat.config.Profile.Provider.ModelRoot = root
+	m.chat.config.Profile.Provider.Ownership = "managed"
+	m.editSettings("model")
+	for i, field := range m.dialog.form.fields {
+		if field.key == "model-file" {
+			m.focusForm(i)
+			cmd := m.openSettingsPicker()
+			m.acceptSettingsScan(cmd().(settingsScanMsg))
+			m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+			if m.dialog.form.editor.Value() != file {
+				t.Fatal("nested model not selectable")
+			}
+			return
+		}
+	}
+	t.Fatal("missing model-file field")
+}
