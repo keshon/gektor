@@ -185,6 +185,14 @@ questions through GateHub. A gate belongs to the active run context; cancelling
 or closing the transport releases it. Policy Deny never becomes a question,
 and Ask without a live approval handler fails closed.
 
+Agent transcript recovery belongs to `session.ReadHistory`: a valid JSON
+snapshot is authoritative; a missing or corrupt snapshot falls back to the
+current JSONL log's last valid checkpoint. CLI resume/fork, TUI open/continue,
+manual compaction, mode handoff and session search share this reader. Search caches watch both
+snapshot and log revisions, including sessions with no snapshot. Recovery does
+not rewrite files. `agent.LoadState` remains an explicitly snapshot-only API;
+Chat archives keep their separate validation rules in `internal/chat`.
+
 The TUI owns presentation and input routing. A responsive Sessions pane and
 centered title/history search open saved conversations without generating; drafts and a single
 queued follow-up remain per-chat in memory. Help, session search, and permission

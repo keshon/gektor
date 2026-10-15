@@ -2,16 +2,16 @@ package tui
 
 import (
 	"fmt"
-	"github.com/keshon/tars/internal/tui/components/selection"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/keshon/tars/internal/tui/components/selection"
+
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/chat"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/session"
@@ -315,7 +315,7 @@ func (m *model) openSelected() tea.Cmd {
 		return nil
 	}
 	stateFile := filepath.Join(cur.dir, "state.json")
-	history, err := agent.LoadState(stateFile)
+	history, err := session.ReadHistory(stateFile)
 	if err != nil {
 		s.flash = "Cannot read saved history: " + err.Error()
 		return nil
@@ -449,7 +449,7 @@ func (m *model) commitRename() {
 				a, err := chat.ReadArchive(filepath.Join(cur.dir, "conversation.json"))
 				return a.History, err
 			}
-			return agent.LoadState(filepath.Join(cur.dir, "state.json"))
+			return session.ReadHistory(filepath.Join(cur.dir, "state.json"))
 		}
 		if history, err := load(); err == nil {
 			name = session.TitleFor(history)

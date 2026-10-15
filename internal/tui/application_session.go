@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/chat"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/tars/internal/session"
 )
 
 func (m *model) sessionDirectory() string {
@@ -78,7 +78,7 @@ func (m *model) openApplicationSession(entry sessionEntry) (tea.Cmd, bool) {
 		err = e
 		history = archive.History
 	} else {
-		history, err = agent.LoadState(filepath.Join(entry.dir, "state.json"))
+		history, err = session.ReadHistory(filepath.Join(entry.dir, "state.json"))
 	}
 	if err != nil {
 		m.sessions.flash = fmt.Sprintf("Cannot open session: %v", err)

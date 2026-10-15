@@ -37,6 +37,10 @@ type CachedSession struct {
 	modified    time.Time
 	searchable  bool
 	storedTitle string
+	state       string
+	logSize     int64
+	logModified time.Time
+	hasSnapshot bool
 }
 
 func Scan(root string, previous map[string]CachedSession, search bool) ([]Entry, map[string]CachedSession) {
@@ -72,11 +76,26 @@ func Scan(root string, previous map[string]CachedSession, search bool) ([]Entry,
 			}
 		}
 		fi, stateErr := os.Stat(state)
+		hasSnapshot := stateErr == nil
+		var logInfo os.FileInfo
+		if !isChat {
+			logInfo, _ = os.Stat(session.LogPath(state))
+			if stateErr != nil && logInfo != nil {
+				fi, stateErr = logInfo, nil
+			}
+		}
 		old, ok := previous[dir]
-		current := CachedSession{storedTitle: title, Entry: Entry{ID: d.Name(), Dir: dir, Title: title, Mode: mode, Status: "Saved"}}
+		current := CachedSession{state: state, hasSnapshot: hasSnapshot, storedTitle: title, Entry: Entry{ID: d.Name(), Dir: dir, Title: title, Mode: mode, Status: "Saved"}}
+		if logInfo != nil {
+			current.logSize, current.logModified = logInfo.Size(), logInfo.ModTime()
+		}
 		if stateErr == nil {
 			current.size, current.modified = fi.Size(), fi.ModTime()
-			if ok && old.storedTitle == title && old.size == current.size && old.modified.Equal(current.modified) && (!search || old.searchable) {
+			unchanged := ok && old.state == state && old.storedTitle == title &&
+				old.hasSnapshot == current.hasSnapshot &&
+				old.size == current.size && old.modified.Equal(current.modified) &&
+				old.logSize == current.logSize && old.logModified.Equal(current.logModified)
+			if unchanged && (!search || old.searchable) {
 				current = old
 				current.Entry.Mode = mode
 				if title != "" {
@@ -85,13 +104,16 @@ func Scan(root string, previous map[string]CachedSession, search bool) ([]Entry,
 			} else {
 				current.Entry.Status = "Unreadable"
 				current.Entry.Updated = fi.ModTime()
+				if logInfo != nil && logInfo.ModTime().After(current.Entry.Updated) {
+					current.Entry.Updated = logInfo.ModTime()
+				}
 				if fi.Size() < 64<<20 {
 					loadHistory := func() ([]llm.Message, error) {
 						if isChat {
 							a, err := chat.ReadArchive(state)
 							return a.History, err
 						}
-						return agent.LoadState(state)
+						return session.ReadHistory(state)
 					}
 					if history, err := loadHistory(); err == nil {
 						e := &current.Entry

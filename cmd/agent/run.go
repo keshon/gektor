@@ -7,13 +7,11 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/session"
 	"github.com/keshon/tars/internal/tools"
 )
 
@@ -69,25 +67,6 @@ func discoverMCP(ctx context.Context, spec string) ([]agent.Tool, []MCPCloser) {
 // its session. Both are best-effort by design.
 type MCPCloser interface {
 	Close()
-}
-
-// loadHistory reads a transcript from state.json, a .jsonl session log,
-// or a directory holding either. The log is the fallback when the snapshot
-// is missing or corrupt.
-func loadHistory(path string) ([]llm.Message, error) {
-	if info, err := os.Stat(path); err == nil && info.IsDir() {
-		if h, err := agent.LoadState(filepath.Join(path, "state.json")); err == nil {
-			return h, nil
-		}
-		return session.Load(session.LogPath(filepath.Join(path, "state.json")))
-	}
-	if strings.HasSuffix(path, ".jsonl") {
-		return session.Load(path)
-	}
-	if h, err := agent.LoadState(path); err == nil {
-		return h, nil
-	}
-	return session.Load(session.LogPath(path))
 }
 
 // resolveAPIKey attaches the bearer token to a remote client. Precedence

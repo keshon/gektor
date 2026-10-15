@@ -5,8 +5,6 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
-	"github.com/keshon/tars/internal/session"
-	"github.com/keshon/tars/internal/tui/components/composer"
 	"io"
 	"os"
 	"path/filepath"
@@ -14,6 +12,9 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/keshon/tars/internal/session"
+	"github.com/keshon/tars/internal/tui/components/composer"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/agent"
@@ -64,7 +65,7 @@ func (m *model) followUp() (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	history, err := agent.LoadState(m.stateFile)
+	history, err := session.ReadHistory(m.stateFile)
 	if err != nil {
 		m.input.SetValue(original)
 		m.fitInput()
@@ -427,7 +428,7 @@ func (m *model) compactNow() (tea.Model, tea.Cmd) {
 		m.transcript.Viewport.GotoBottom()
 		return m, nil
 	}
-	history, err := agent.LoadState(m.stateFile)
+	history, err := session.ReadHistory(m.stateFile)
 	if err != nil {
 		m.appendBlock(errorBlock("cannot reload compacted history: " + err.Error()))
 		return m, nil

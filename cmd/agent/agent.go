@@ -23,6 +23,7 @@ import (
 	"github.com/keshon/tars/internal/permission"
 	"github.com/keshon/tars/internal/prompts"
 	"github.com/keshon/tars/internal/roles"
+	"github.com/keshon/tars/internal/session"
 	"github.com/keshon/tars/internal/snapshot"
 	"github.com/keshon/tars/internal/tools"
 	"github.com/keshon/tars/internal/tui"
@@ -119,7 +120,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		_ = workspace.WriteSessionTitle(taskDir, workspace.TitleLine(task))
 		if o.fork != "" {
 			var err error
-			forkHistory, err = loadHistory(o.fork)
+			forkHistory, err = session.ReadHistory(o.fork)
 			if err != nil {
 				return fmt.Errorf("fork: %w", err)
 			}
@@ -439,7 +440,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		history := forkHistory
 		if o.resume != "" {
 			var err error
-			history, err = loadHistory(o.resume)
+			history, err = session.ReadHistory(o.resume)
 			if err != nil {
 				return fmt.Errorf("resume: %w", err)
 			}
@@ -500,7 +501,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 
 	var result string
 	if o.resume != "" {
-		history, err := loadHistory(o.resume)
+		history, err := session.ReadHistory(o.resume)
 		if err != nil {
 			return fmt.Errorf("resume: %w", err)
 		}

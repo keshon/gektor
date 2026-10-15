@@ -9,6 +9,7 @@ import (
 
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/prompts"
+	"github.com/keshon/tars/internal/session"
 )
 
 func assistantStep(id string) []llm.Message {
@@ -65,6 +66,34 @@ func TestCompactFile_ShrinksSnapshot(t *testing.T) {
 func TestCompactFile_MissingSnapshotErrors(t *testing.T) {
 	if _, _, err := CompactFile(filepath.Join(t.TempDir(), "missing.json"), 8); err == nil {
 		t.Fatal("want error for missing snapshot")
+	}
+}
+
+func TestCompactFile_RecoversMissingOrCorruptSnapshot(t *testing.T) {
+	for _, snapshot := range []string{"missing", "corrupt"} {
+		t.Run(snapshot, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "state.json")
+			history := []llm.Message{{Role: llm.RoleSystem, Content: "sys"}, {Role: llm.RoleUser, Content: "task"}}
+			for i := 0; i < 15; i++ {
+				history = append(history, assistantStep("c")...)
+			}
+			if err := session.Append(path, 1, history); err != nil {
+				t.Fatal(err)
+			}
+			if snapshot == "corrupt" {
+				if err := os.WriteFile(path, []byte("broken"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before, after, err := CompactFile(path, 8)
+			if err != nil || before != len(history) || after >= before {
+				t.Fatalf("compaction: %d -> %d, %v", before, after, err)
+			}
+			loaded, err := LoadState(path)
+			if err != nil || len(loaded) != after {
+				t.Fatalf("compacted snapshot: %d messages, %v", len(loaded), err)
+			}
+		})
 	}
 }
 

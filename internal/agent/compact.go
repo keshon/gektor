@@ -9,6 +9,7 @@ import (
 
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/prompts"
+	"github.com/keshon/tars/internal/session"
 )
 
 // compactHistory drops older assistant-led step groups from history while
@@ -176,7 +177,7 @@ func dropRepeatCaches(st *runState) {
 // and after; writes only when something actually dropped, atomically
 // like saveState. An error leaves the snapshot untouched.
 func CompactFile(stateFile string, keepSteps int) (before, after int, err error) {
-	history, err := LoadState(stateFile)
+	history, err := session.ReadHistory(stateFile)
 	if err != nil {
 		return 0, 0, err
 	}

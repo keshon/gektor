@@ -12,6 +12,7 @@ import (
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/api"
 	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/tars/internal/session"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -297,6 +298,40 @@ func TestSessions_EnterResumesWithHistory(t *testing.T) {
 		if strings.Contains(joined, banned) {
 			t.Fatalf("transcript leaked %q", banned)
 		}
+	}
+}
+
+func TestSessions_OpenRecoversHistoryFromLog(t *testing.T) {
+	for _, snapshot := range []string{"corrupt", "missing"} {
+		t.Run(snapshot, func(t *testing.T) {
+			tmp := t.TempDir()
+			chdirSessions(t, tmp)
+			history := userHistory("recover this conversation")
+			dir := writeSessionState(t, filepath.Join(".tars", "tasks"), "recoverable", history)
+			path := filepath.Join(dir, "state.json")
+			if err := session.Append(path, 1, history); err != nil {
+				t.Fatal(err)
+			}
+			if snapshot == "missing" {
+				if err := os.Remove(path); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := os.WriteFile(path, []byte("broken"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			entries := listSessions()
+			if len(entries) != 1 {
+				t.Fatalf("recoverable session missing from list: %+v", entries)
+			}
+			m := sessionsTestModel(t, entries)
+			m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+			if m.sessions != nil || m.sess == nil || m.stateFile != path {
+				t.Fatal("recoverable session did not open")
+			}
+			if !strings.Contains(m.View().Content, "recover this conversation") {
+				t.Fatal("recovered history is absent from transcript")
+			}
+		})
 	}
 }
 

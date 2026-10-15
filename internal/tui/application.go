@@ -1,16 +1,17 @@
 package tui
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"fmt"
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/character"
-	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/llm"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/keshon/tars/internal/character"
+	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/tars/internal/session"
 )
 
 type Application struct {
@@ -225,7 +226,7 @@ func (m *model) requestProfileChange(profile config.Profile) error {
 		history = m.chat.current.History()
 	} else if m.stateFile != "" {
 		var err error
-		history, err = agent.LoadState(m.stateFile)
+		history, err = session.ReadHistory(m.stateFile)
 		if err != nil {
 			return err
 		}

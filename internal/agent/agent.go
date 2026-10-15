@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -150,15 +149,7 @@ func (a *Agent) ResumeWithAnswer(ctx context.Context, history []llm.Message, cal
 
 // LoadState reads a history previously written via Config.StateFile.
 func LoadState(path string) ([]llm.Message, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read state file: %w", err)
-	}
-	var history []llm.Message
-	if err := json.Unmarshal(data, &history); err != nil {
-		return nil, fmt.Errorf("decode state file: %w", err)
-	}
-	return history, nil
+	return session.ReadSnapshot(path)
 }
 
 // SaveState writes a checkpoint atomically without running an agent.
