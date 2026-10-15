@@ -1,10 +1,6 @@
 package tui
 
 import (
-	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/chat"
-	"github.com/keshon/tars/internal/config"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +9,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/tars/internal/chat"
+	"github.com/keshon/tars/internal/config"
 )
 
 func TestSettingsAcrossCategoriesApplyToCurrentSession(t *testing.T) {
@@ -300,7 +301,7 @@ func TestSettingsApplyBeforeFirstTurnKeepsLazyConversation(t *testing.T) {
 
 func TestCharacterAndUserSettingsRemainIndependent(t *testing.T) {
 	m := settingsModel(t)
-	p := cloneSettingsProfile(m.chat.config.Profile)
+	p := m.chat.config.Profile.Clone()
 	p.Conversation.Character = "character.json"
 	p.Conversation.Name = "Fallback"
 	p.Conversation.GreetingIndex = 1

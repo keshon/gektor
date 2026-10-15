@@ -1,33 +1,32 @@
 package tui
 
 import (
-	"charm.land/bubbles/v2/textinput"
-	tea "charm.land/bubbletea/v2"
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync/atomic"
+	"time"
+
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/character"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/prompts"
 	"github.com/keshon/tars/internal/tui/components/selection"
-	"os"
-	"path/filepath"
-	"reflect"
-	"strings"
-	"sync/atomic"
-	"time"
+	"github.com/keshon/tars/internal/tui/settings"
 )
 
 type settingsWorkspace struct {
-	loaded        *config.Profile
+	draft         *settings.Draft
 	sampleID      uint64
 	sampleCancel  context.CancelFunc
 	section       string
 	loadedPath    string
 	autoSaved     bool
 	nav, advanced bool
-	cache         map[string][]formField
-	original      map[string][]formField
 }
 type settingsPicker struct {
 	detailPath, detail string
@@ -57,7 +56,7 @@ func (m *model) storeSettingsPage() {
 	if f.Index < len(f.Fields) {
 		f.Fields[f.Index].Value = f.Editor.Value()
 	}
-	f.workspace.cache[f.workspace.section] = append([]formField(nil), f.Fields...)
+	f.workspace.draft.Store(f.workspace.section, f.Fields)
 }
 func (m *model) settingsNavKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	categories := m.availableSettingsCategories()
@@ -444,9 +443,7 @@ func (m *model) pickerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				f.workspace.loadedPath = value
-				f.workspace.loaded = &loaded
-				f.workspace.cache = map[string][]formField{}
-				f.workspace.original = map[string][]formField{}
+				f.workspace.draft.Load(loaded)
 				f.error = "Setup loaded; Apply uses its model, voice and character selection"
 			}
 			f.Editor.SetValue(value)
@@ -712,19 +709,11 @@ func (m *model) settingsDirty() bool {
 	}
 	f := m.dialog.form
 	ws := f.workspace
-	if ws.loaded != nil {
-		return true
-	}
-	for category, fields := range ws.cache {
-		if category != ws.section && !reflect.DeepEqual(fields, ws.original[category]) {
-			return true
-		}
-	}
 	fields := append([]formField(nil), f.Fields...)
 	if f.Index < len(fields) {
 		fields[f.Index].Value = f.Editor.Value()
 	}
-	return !reflect.DeepEqual(fields, ws.original[ws.section])
+	return ws.draft.Dirty(ws.section, fields)
 }
 
 func settingsHint(section string) string {

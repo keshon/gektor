@@ -3,14 +3,15 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/speech"
 	speechservice "github.com/keshon/tars/internal/speech/service"
 	"github.com/keshon/tars/internal/tui"
-	"os"
-	"path/filepath"
-	"strings"
 )
 
 type launchRequest struct {
@@ -95,17 +96,6 @@ func applicationArgs(p config.Preferences) []string {
 		args = append(args, "-workspace", p.Workspace, "-plan")
 	}
 	return args
-}
-func cloneLaunchProfile(p config.Profile) config.Profile {
-	if p.Speech != nil {
-		v := *p.Speech
-		p.Speech = &v
-	}
-	if p.Conversation != nil {
-		v := *p.Conversation
-		p.Conversation = &v
-	}
-	return p
 }
 func applicationControl(launch launchRequest, p config.Profile, path string, isChat bool, workspace string) *tui.Application {
 	if p.Version == 0 {

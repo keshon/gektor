@@ -1,15 +1,16 @@
 package tui
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"context"
-	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/speech"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/tars/internal/speech"
 )
 
 func focusSetting(m *model, key string) {
@@ -50,7 +51,7 @@ func TestLoadedProfileAppliesWithoutResettingHistory(t *testing.T) {
 	m := settingsModel(t)
 	m.application = &Application{Preferences: config.Preferences{Version: 1, Mode: "chat", Voice: "off", ProfilePath: "old.json"}}
 	root := t.TempDir()
-	p := cloneSettingsProfile(m.chat.config.Profile)
+	p := m.chat.config.Profile.Clone()
 	p.Conversation.UserName = "Alex"
 	p.Generation.Temperature = .8
 	path := filepath.Join(root, "custom.json")
@@ -137,7 +138,7 @@ func TestSettingsLibrariesPreview(t *testing.T) {
 func TestApplyAutomaticallySavesReusableCustomProfile(t *testing.T) {
 	m := settingsModel(t)
 	root := t.TempDir()
-	original := cloneSettingsProfile(m.chat.config.Profile)
+	original := m.chat.config.Profile.Clone()
 	builtin := filepath.Join(root, "profiles", "builtin.json")
 	if err := config.SaveCopy(original, builtin); err != nil {
 		t.Fatal(err)

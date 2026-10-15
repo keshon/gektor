@@ -34,7 +34,7 @@ func (m *model) saveSessionSettingsAt(directory string) error {
 	p := m.application.Preferences
 	p.Voice = m.currentVoiceMode()
 	if m.audio() != nil {
-		profile := cloneSettingsProfile(m.audio().Profile)
+		profile := m.audio().Profile.Clone()
 		p.Profile = &profile
 	}
 	return config.SavePreferences(filepath.Join(directory, "settings.json"), p)
@@ -50,7 +50,7 @@ func (m *model) openApplicationSession(entry sessionEntry) (tea.Cmd, bool) {
 			return nil, false
 		}
 		p = m.application.Preferences
-		profile := cloneSettingsProfile(m.audio().Profile)
+		profile := m.audio().Profile.Clone()
 		p.Profile = &profile
 		p.Mode = "agent"
 		if entry.mode == "Chat" {

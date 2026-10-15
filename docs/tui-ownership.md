@@ -44,6 +44,15 @@ indexes archives without terminal dependencies. Search positions refer to source
 messages. The TUI resolves them into rendered blocks on open, including reasoning
 and greeting offsets (`TestHistoryMatchTranslationSkipsReasoningAndToolCards`).
 
+`internal/tui/settings.Draft` owns the staged profile and visited page snapshots.
+It restores edits across category switches, detects changes without mutating state
+during rendering, and resolves changed sections in stable order against a fresh
+`config.Profile.Clone()`. Failed validation preserves the draft and the active
+profile. The root adapter retains focus, pickers, rendering, persistence and
+service lifetimes; the draft package performs no I/O and creates no services.
+These boundaries are covered by the draft ownership and failed-resolution tests,
+the profile clone test, and the Settings workspace integration suite.
+
 ## 1. The update loop owns UI state
 
 The model, widgets, transcript, selections, render cache, and session index are

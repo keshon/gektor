@@ -1,18 +1,18 @@
 package tui
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/character"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/prompts"
 	"github.com/keshon/tars/internal/speech"
-	"os"
-	"path/filepath"
-	"reflect"
-	"strings"
-	"time"
 )
 
 func pickerFiles(key string) bool {
@@ -44,44 +44,12 @@ func catalogFiles(root, key string) ([]string, error) {
 	})
 	return files, err
 }
-func cloneSettingsProfile(p config.Profile) config.Profile {
-	if p.Conversation != nil {
-		v := *p.Conversation
-		p.Conversation = &v
-	}
-	if p.Speech != nil {
-		v := *p.Speech
-		p.Speech = &v
-	}
-	return p
-}
 func (m *model) settingsBase() config.Profile {
-	ws := m.dialog.form.workspace
-	if ws.loaded != nil {
-		return cloneSettingsProfile(*ws.loaded)
-	}
-	return cloneSettingsProfile(m.audio().Profile)
+	return m.dialog.form.workspace.draft.Base()
 }
 func (m *model) stagedSettings() (config.Profile, error) {
 	m.storeSettingsPage()
-	ws := m.dialog.form.workspace
-	p := m.settingsBase()
-	for category, fields := range ws.cache {
-		if reflect.DeepEqual(fields, ws.original[category]) {
-			continue
-		}
-		values := map[string]string{}
-		for _, field := range fields {
-			values[field.Key] = field.Value
-		}
-		if category == "application" {
-			continue
-		}
-		if err := config.ApplySection(&p, category, values); err != nil {
-			return p, err
-		}
-	}
-	return p, p.Validate()
+	return m.dialog.form.workspace.draft.Resolve()
 }
 func (m *model) saveSettingsCopy() {
 	p, err := m.stagedSettings()
@@ -230,8 +198,8 @@ func (m *model) acceptSettingsSample(msg settingsSampleMsg) {
 }
 
 func (m *model) hasSettingsSpeech() bool {
-	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.workspace != nil && m.dialog.form.workspace.loaded != nil {
-		return m.dialog.form.workspace.loaded.Speech != nil
+	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.workspace != nil && m.dialog.form.workspace.draft != nil {
+		return m.dialog.form.workspace.draft.Base().Speech != nil
 	}
 	return m.audio() != nil && m.audio().Profile.Speech != nil
 }
@@ -282,8 +250,8 @@ func (m *model) saveCustomSettings(profile config.Profile) error {
 	}
 	ws := m.dialog.form.workspace
 	changed := false
-	for section, fields := range ws.cache {
-		if section != "profiles" && section != "application" && !reflect.DeepEqual(fields, ws.original[section]) {
+	for _, section := range ws.draft.ChangedSections() {
+		if section != "profiles" && section != "application" {
 			changed = true
 			break
 		}

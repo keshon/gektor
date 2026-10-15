@@ -17,6 +17,7 @@ import (
 	"github.com/keshon/tars/internal/prompts"
 	"github.com/keshon/tars/internal/speech"
 	"github.com/keshon/tars/internal/tui/components/form"
+	"github.com/keshon/tars/internal/tui/settings"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -293,8 +294,8 @@ func (m *model) editSettings(section string) {
 		return
 	}
 
-	settings := m.audio()
-	if settings == nil || settings.Configure == nil {
+	currentSettings := m.audio()
+	if currentSettings == nil || currentSettings.Configure == nil {
 		return
 	}
 	var ws *settingsWorkspace
@@ -305,13 +306,10 @@ func (m *model) editSettings(section string) {
 		}
 	}
 	if ws == nil {
-		ws = &settingsWorkspace{cache: map[string][]formField{}, original: map[string][]formField{}}
+		ws = &settingsWorkspace{draft: settings.New(currentSettings.Profile)}
 	}
 	ws.section = section
-	profile := settings.Profile
-	if ws.loaded != nil {
-		profile = *ws.loaded
-	}
+	profile := ws.draft.Base()
 	conversation := config.Conversation{UserName: "User"}
 	if profile.Conversation != nil {
 		conversation = *profile.Conversation
@@ -401,32 +399,10 @@ func (m *model) editSettings(section string) {
 	if m.dialog != nil {
 		m.closeDialog()
 	}
-	m.openForm(title, "Updates this session; history and draft are preserved.", "Apply", fields, func(values map[string]string) error {
-		if m.dialog.form.workspace != nil {
-			ws := m.dialog.form.workspace
-			if ws.loaded != nil {
-				profile = cloneSettingsProfile(*ws.loaded)
-			}
-			ws.cache[section] = append([]formField(nil), m.dialog.form.Fields...)
-			for category, fields := range ws.cache {
-				if reflect.DeepEqual(fields, ws.original[category]) {
-					continue
-				}
-				v := map[string]string{}
-				for _, field := range fields {
-					v[field.Key] = field.Value
-				}
-				if category == section {
-					v = values
-				}
-				if category == "application" {
-					continue
-				}
-				if err := config.ApplySection(&profile, category, v); err != nil {
-					return fmt.Errorf("%s: %w", category, err)
-				}
-			}
-		} else if err := config.ApplySection(&profile, section, values); err != nil {
+	m.openForm(title, "Updates this session; history and draft are preserved.", "Apply", fields, func(_ map[string]string) error {
+		m.storeSettingsPage()
+		profile, err := ws.draft.Resolve()
+		if err != nil {
 			return err
 		}
 
@@ -511,14 +487,10 @@ func (m *model) editSettings(section string) {
 		return nil
 	})
 	m.dialog.form.workspace = ws
-	if _, ok := ws.original[section]; !ok {
-		ws.original[section] = append([]formField(nil), fields...)
-	}
-	if saved, ok := ws.cache[section]; ok {
-		m.dialog.form.Fields = append([]formField(nil), saved...)
-		m.dialog.form.Index = len(saved)
-		m.focusForm(0)
-	}
+	saved := ws.draft.Visit(section, fields)
+	m.dialog.form.Fields = saved
+	m.dialog.form.Index = len(saved)
+	m.focusForm(0)
 	m.dialog.title = "Settings"
 }
 
@@ -561,7 +533,7 @@ func (m *model) inspectConnection() {
 }
 
 func (m *model) saveChatProfile() {
-	profile := cloneSettingsProfile(m.chat.config.Profile)
+	profile := m.chat.config.Profile.Clone()
 	m.openForm("Save configuration as profile", "Creates a new file; existing profiles are never overwritten.", "Save profile", []formField{{Key: "path", Label: "New profile file", Value: "profiles/chat-custom.json", Multiline: false}}, func(values map[string]string) error {
 		path := strings.TrimSpace(values["path"])
 		if path == "" {

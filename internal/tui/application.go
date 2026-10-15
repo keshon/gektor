@@ -12,6 +12,7 @@ import (
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/session"
+	"github.com/keshon/tars/internal/tui/settings"
 )
 
 type Application struct {
@@ -41,7 +42,7 @@ func (m *model) openApplication() {
 }
 func (m *model) settingsApplicationChanged() bool {
 	f := m.dialog.form
-	fields, ok := f.workspace.cache["application"]
+	fields, ok := f.workspace.draft.Fields("application")
 	if !ok {
 		return false
 	}
@@ -80,7 +81,7 @@ func (m *model) saveApplication() error {
 	p := m.application.Preferences
 	p.Voice = m.currentVoiceMode()
 	if m.audio() != nil {
-		profile := cloneSettingsProfile(m.audio().Profile)
+		profile := m.audio().Profile.Clone()
 		p.Profile = &profile
 	}
 	if err := m.saveSessionSettings(); err != nil {
@@ -126,7 +127,7 @@ func (m *model) editAgentSpeech() {
 	if audio == nil || audio.Profile.Speech == nil || audio.Configure == nil {
 		return
 	}
-	profile := cloneSettingsProfile(audio.Profile)
+	profile := audio.Profile.Clone()
 	cfg := profile.Speech
 	m.openForm("Speech services", "Updates speech only; Agent history and permissions stay intact.", "Apply", []formField{{Key: "microphone", Label: "Microphone", Value: cfg.Microphone, Multiline: false}, {Key: "variant", Label: "Chatterbox model", Value: cfg.Speaking.Variant, Multiline: false}, {Key: "speech-model", Label: "Speech model directory", Value: cfg.Speaking.Model, Multiline: false}, {Key: "seconds", Label: "Maximum recording seconds", Value: strconv.Itoa(cfg.MaxSeconds), Multiline: false}}, func(values map[string]string) error {
 		if err := config.ApplySection(&profile, "speech", values); err != nil {
@@ -145,7 +146,8 @@ func (m *model) editAgentSpeech() {
 		m.appendBlock(markerBlock("Speech settings applied; enable voice again"))
 		return nil
 	})
-	m.dialog.form.workspace = &settingsWorkspace{section: "speech", cache: map[string][]formField{}, original: map[string][]formField{}}
+	m.dialog.form.workspace = &settingsWorkspace{section: "speech", draft: settings.New(audio.Profile)}
+	m.dialog.form.workspace.draft.Visit("speech", m.dialog.form.Fields)
 }
 
 // requestProfileChange replaces owned services without starting an Agent run.
@@ -184,7 +186,8 @@ func (m *model) requestProfileChange(profile config.Profile) error {
 		p.ProfilePath = m.dialog.form.workspace.loadedPath
 	}
 	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.workspace != nil {
-		for _, field := range m.dialog.form.workspace.cache["application"] {
+		fields, _ := m.dialog.form.workspace.draft.Fields("application")
+		for _, field := range fields {
 			switch field.Key {
 			case "app-mode":
 				p.Mode = field.Value

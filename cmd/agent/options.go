@@ -183,7 +183,7 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 	if o.profilePath != "" {
 		p, err := config.Load(o.profilePath)
 		if launch.profile != nil {
-			p = cloneLaunchProfile(*launch.profile)
+			p = launch.profile.Clone()
 			err = p.Validate()
 		}
 		if err != nil {

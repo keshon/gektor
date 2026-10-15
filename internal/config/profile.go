@@ -4,14 +4,15 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/keshon/tars/internal/prompts"
-	"github.com/keshon/tars/internal/speech"
 	"io"
 	"math"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/keshon/tars/internal/prompts"
+	"github.com/keshon/tars/internal/speech"
 )
 
 // Profile describes thinking, conversation and optional speech services.
@@ -23,6 +24,28 @@ type Profile struct {
 	Conversation *Conversation  `json:"conversation,omitempty"`
 	Speech       *speech.Config `json:"speech,omitempty"`
 }
+
+// Clone returns an independently editable profile, including optional settings.
+func (p Profile) Clone() Profile {
+	if p.Conversation != nil {
+		c := *p.Conversation
+		if c.PreferCharacterPrompt != nil {
+			v := *c.PreferCharacterPrompt
+			c.PreferCharacterPrompt = &v
+		}
+		if c.PreferCharacterPostHistory != nil {
+			v := *c.PreferCharacterPostHistory
+			c.PreferCharacterPostHistory = &v
+		}
+		p.Conversation = &c
+	}
+	if p.Speech != nil {
+		s := *p.Speech
+		p.Speech = &s
+	}
+	return p
+}
+
 type Provider struct {
 	Kind      string `json:"kind"`
 	URL       string `json:"url"`
