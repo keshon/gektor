@@ -1,8 +1,11 @@
-package main
+package app
 
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"strings"
+
 	"github.com/keshon/tars/internal/backend"
 	"github.com/keshon/tars/internal/character"
 	"github.com/keshon/tars/internal/chat"
@@ -11,12 +14,9 @@ import (
 	"github.com/keshon/tars/internal/prompts"
 	"github.com/keshon/tars/internal/speech"
 	speechservice "github.com/keshon/tars/internal/speech/service"
-	"github.com/keshon/tars/internal/tui"
-	"path/filepath"
-	"strings"
 )
 
-type chatOptions struct {
+type ChatOptions struct {
 	Preset                        string
 	Name, Persona                 string
 	GreetingIndex                 int
@@ -26,7 +26,7 @@ type chatOptions struct {
 	Temperature                   float64
 }
 
-func compileChatSettings(o chatOptions) (chat.Config, []string, error) {
+func CompileChatSettings(o ChatOptions) (chat.Config, []string, error) {
 	preset, err := prompts.ResponsePreset(o.Preset)
 	if err != nil {
 		return chat.Config{}, nil, err
@@ -86,8 +86,9 @@ func compileChatSettings(o chatOptions) (chat.Config, []string, error) {
 	return cfg, unique, nil
 }
 
-func configureChat(profile config.Profile, key, directory string) (tui.ChatConfig, error) {
-	var out tui.ChatConfig
+func ConfigureChat(profile config.Profile, key, directory string) (Services, error) {
+	profile = profile.Clone()
+	var out Services
 	if err := profile.Validate(); err != nil {
 		return out, err
 	}
@@ -102,7 +103,7 @@ func configureChat(profile config.Profile, key, directory string) (tui.ChatConfi
 	if c.PreferCharacterPostHistory != nil {
 		preferPost = *c.PreferCharacterPostHistory
 	}
-	settings, warnings, err := compileChatSettings(chatOptions{Preset: c.PromptPreset, Name: c.Name, Persona: c.UserPersona, GreetingIndex: c.GreetingIndex, Character: c.Character, User: c.UserName, System: c.SystemPrompt, Post: c.PostHistory, PreferMain: preferMain, PreferPost: preferPost, MaxTokens: profile.Generation.MaxTokens, ContextLimit: profile.Generation.ContextLimit, Temperature: profile.Generation.Temperature})
+	settings, warnings, err := CompileChatSettings(ChatOptions{Preset: c.PromptPreset, Name: c.Name, Persona: c.UserPersona, GreetingIndex: c.GreetingIndex, Character: c.Character, User: c.UserName, System: c.SystemPrompt, Post: c.PostHistory, PreferMain: preferMain, PreferPost: preferPost, MaxTokens: profile.Generation.MaxTokens, ContextLimit: profile.Generation.ContextLimit, Temperature: profile.Generation.Temperature})
 	if err != nil {
 		return out, err
 	}
@@ -111,9 +112,9 @@ func configureChat(profile config.Profile, key, directory string) (tui.ChatConfi
 		return out, err
 	}
 	client.NoGrammar = true
-	resolveAPIKey(key, profile.Provider.APIKeyEnv, client)
-	client.ExtraHeaders = extraHeadersFromEnv()
-	out = tui.ChatConfig{Warnings: warnings, Client: client, Settings: settings, Directory: directory, Profile: profile}
+	ResolveAPIKey(key, profile.Provider.APIKeyEnv, client)
+	client.ExtraHeaders = ExtraHeadersFromEnv()
+	out = Services{Warnings: warnings, Client: client, Settings: settings, Directory: directory, Profile: profile}
 	if profile.Provider.Ownership == "managed" {
 		managed, err := backend.NewLlama(profile.Provider, profile.Generation.ContextLimit, client, filepath.Join(directory, "..", "thinking"))
 		if err != nil {
@@ -128,12 +129,12 @@ func configureChat(profile config.Profile, key, directory string) (tui.ChatConfi
 			return speechservice.New(ctx, cfg, directory)
 		}
 	}
-	out.Configure = func(next config.Profile) (tui.ChatConfig, error) { return configureChat(next, key, directory) }
+	out.Configure = func(next config.Profile) (Services, error) { return ConfigureChat(next, key, directory) }
 	return out, nil
 }
 
 // Agent retains its operational system prompt and adds the compiled identity.
-func agentIdentity(settings chat.Config) string {
+func AgentIdentity(settings chat.Config) string {
 	text := settings.System + "\n" + settings.PostHistory
 	for _, example := range settings.Examples {
 		text += "\n\nDialogue example (" + string(example.Role) + "): " + example.Content

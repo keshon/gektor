@@ -11,6 +11,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/keshon/tars/internal/app"
 	"github.com/keshon/tars/internal/chat"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
@@ -121,11 +122,11 @@ func runChatLaunch(launch launchRequest, o resolvedLaunch) error {
 		return err
 	}
 	client.NoGrammar = true
-	resolveAPIKey(o.apiKey, o.apiKeyEnv, client)
-	client.ExtraHeaders = extraHeadersFromEnv()
+	app.ResolveAPIKey(o.apiKey, o.apiKeyEnv, client)
+	client.ExtraHeaders = app.ExtraHeadersFromEnv()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	settings, warnings, err := compileChatSettings(chatOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), GreetingIndex: selectedGreetingIndex(o.selectedProfile), Character: o.characterPath, User: o.userName, System: o.systemPrompt, Post: o.postHistory, PreferMain: o.preferCharacterPrompt, PreferPost: o.preferCharacterPost, MaxTokens: o.maxTokens, ContextLimit: o.contextLimit, Temperature: o.temperature})
+	settings, warnings, err := app.CompileChatSettings(app.ChatOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), GreetingIndex: selectedGreetingIndex(o.selectedProfile), Character: o.characterPath, User: o.userName, System: o.systemPrompt, Post: o.postHistory, PreferMain: o.preferCharacterPrompt, PreferPost: o.preferCharacterPost, MaxTokens: o.maxTokens, ContextLimit: o.contextLimit, Temperature: o.temperature})
 	if err != nil {
 		return err
 	}
@@ -155,7 +156,7 @@ func runChatLaunch(launch launchRequest, o resolvedLaunch) error {
 		}
 		profile.Provider.Runtime, profile.Provider.ModelFile, profile.Provider.GPULayers = o.thinkingSettings.Runtime, o.thinkingSettings.ModelFile, o.thinkingSettings.GPULayers
 		profile.Provider.ModelRoot = o.thinkingSettings.ModelRoot
-		configured, err := configureChat(profile, o.apiKey, directory)
+		configured, err := app.ConfigureChat(profile, o.apiKey, directory)
 		if err != nil {
 			return err
 		}

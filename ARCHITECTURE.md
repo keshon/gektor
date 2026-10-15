@@ -19,6 +19,7 @@ checks are explicit but still only as strong as their acceptance criteria.
 cmd/agent          CLI: flags, the approval gate, console output
 cmd/eval           probe runner and scorer
 
+internal/app       frontend-independent profile service and identity composition
 internal/config    versioned provider, generation and conversation profiles.
 internal/character bounded PNG/JSON card reader and prompt compilation; no tools
                    or behavior simulation.
@@ -36,6 +37,8 @@ internal/tools     concrete tools: file, shell, search, process, delegation,
 internal/roles     the five kinds of agent this project builds
 internal/api       Session events, GateHub, cancellation-aware gate transport
 internal/tui       Bubble Tea v2 model, transcript, sessions, composer and popups
+                   components owns reusable models; settings owns staged edits
+internal/filetxn   staged related file replacements with ordinary-error rollback
 internal/audit     JSONL approval-decision records
 internal/checks    deterministic file checks (formatting and secret findings)
 internal/permission allow/ask/deny policy for tool calls (leaf package)
@@ -67,6 +70,13 @@ false and empty values, take precedence over profile settings.
 retains responsibility for closing its resources before a mode handoff.
 `console.go` contains terminal output and approval transport helpers;
 `serve.go` owns the JSON-RPC frontend. These remain one command package.
+
+`internal/app` compiles shared conversation identity, resolves transport
+credentials, and composes profile-driven Chat and Agent speech services. It
+imports no frontend. Both the command and TUI consume `app.Services`;
+`tui.ChatConfig` is a compatibility alias. The frontend accepting a configuration
+owns its client and any speech service it starts. Staged profile copies do not
+share mutable conversation or speech options with their callers.
 
 Managed thinking and recognition owners check whether their child has exited
 before reusing it. A later request may start a replacement; a failed request is

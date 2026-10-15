@@ -9,30 +9,18 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/keshon/tars/internal/tui/components/composer"
-
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/api"
+	"github.com/keshon/tars/internal/app"
 	"github.com/keshon/tars/internal/chat"
-	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/speech"
+	"github.com/keshon/tars/internal/tui/components/composer"
 	"github.com/keshon/tars/internal/workspace"
 )
 
-// ChatConfig selects a tool-free runner and its own session store.
-type ChatConfig struct {
-	NewVoice  func(context.Context, string) (speech.Service, error)
-	Stream    bool
-	Warnings  []string
-	Profile   config.Profile
-	// Configure returns a candidate with its own client. The caller must close
-	// that client if validation fails or the existing transport can be reused.
-	Configure func(config.Profile) (ChatConfig, error)
-	Client    llm.Client
-	Settings  chat.Config
-	Directory string
-}
+// ChatConfig is shared application service configuration.
+type ChatConfig = app.Services
+
 type chatUI struct {
 	config  ChatConfig
 	current *chat.Conversation

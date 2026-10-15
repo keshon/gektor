@@ -2,14 +2,16 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/llm"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/keshon/tars/internal/app"
+	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/tars/internal/llm"
 )
 
 func TestApplicationDefaultsDoNotEnableSpeechOrTools(t *testing.T) {
@@ -37,7 +39,7 @@ func TestAgentLaunchKeepsPermissionPlanBoundary(t *testing.T) {
 }
 func TestAgentServiceConfigurationSupportsTextOnlyProfile(t *testing.T) {
 	p := config.Profile{Version: 1, Provider: config.Provider{Kind: "llama", Ownership: "external", URL: "http://127.0.0.1:8080", Model: "local"}, Generation: config.Generation{MaxTokens: 100, ContextLimit: 1000}}
-	cfg, err := configureAgentServices(p, t.TempDir())
+	cfg, err := app.ConfigureAgent(p, t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +70,7 @@ func TestSavedProfileIdentityAndAlternateGreetingInAgent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := configureAgentServices(loaded, root)
+	cfg, err := app.ConfigureAgent(loaded, root)
 	if err != nil || cfg.Settings.CharacterName != "Ada" || cfg.Settings.Greeting != "Hi Alex" || (!strings.Contains(cfg.Settings.System, "Friend of Ada") || !strings.Contains(cfg.Settings.System, "Response style (Coding)")) {
 		t.Fatal(cfg.Settings, err)
 	}

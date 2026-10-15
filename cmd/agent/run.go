@@ -7,11 +7,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/tars/internal/app"
 	"github.com/keshon/tars/internal/tools"
 )
 
@@ -25,7 +24,7 @@ func runConfigured(launch launchRequest) error {
 	}
 	if o.checkProfile {
 		if o.selectedProfile.Conversation != nil {
-			if _, _, err := compileChatSettings(chatOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), GreetingIndex: selectedGreetingIndex(o.selectedProfile), Character: o.characterPath, User: o.userName, System: o.systemPrompt, Post: o.postHistory, PreferMain: o.preferCharacterPrompt, PreferPost: o.preferCharacterPost, MaxTokens: o.maxTokens, ContextLimit: o.contextLimit, Temperature: o.temperature}); err != nil {
+			if _, _, err := app.CompileChatSettings(app.ChatOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), GreetingIndex: selectedGreetingIndex(o.selectedProfile), Character: o.characterPath, User: o.userName, System: o.systemPrompt, Post: o.postHistory, PreferMain: o.preferCharacterPrompt, PreferPost: o.preferCharacterPost, MaxTokens: o.maxTokens, ContextLimit: o.contextLimit, Temperature: o.temperature}); err != nil {
 				return err
 			}
 		}
@@ -67,38 +66,4 @@ func discoverMCP(ctx context.Context, spec string) ([]agent.Tool, []MCPCloser) {
 // its session. Both are best-effort by design.
 type MCPCloser interface {
 	Close()
-}
-
-// resolveAPIKey attaches the bearer token to a remote client. Precedence
-// is the flag, then the named env var, then the built-in lookup order.
-// Local backends need no key and are left alone.
-func resolveAPIKey(flagVal, envName string, client *llm.Server) {
-	if strings.TrimSpace(flagVal) != "" {
-		client.WithAPIKey(strings.TrimSpace(flagVal))
-		return
-	}
-	if strings.TrimSpace(envName) != "" {
-		if v := strings.TrimSpace(os.Getenv(strings.TrimSpace(envName))); v != "" {
-			client.WithAPIKey(v)
-			return
-		}
-	}
-	if v := llm.APIKeyFromEnv(); v != "" {
-		client.WithAPIKey(v)
-	}
-}
-
-// extraHeadersFromEnv supplies gateway-specific headers without new flags:
-// OpenRouter recommends identifying the app on every request.
-func extraHeadersFromEnv() map[string]string {
-	out := map[string]string{}
-	if v := strings.TrimSpace(os.Getenv("OPENROUTER_REFERER")); v != "" {
-		out["HTTP-Referer"] = v
-	} else if v := strings.TrimSpace(os.Getenv("TARS_SITE_URL")); v != "" {
-		out["HTTP-Referer"] = v
-	}
-	if v := strings.TrimSpace(os.Getenv("TARS_SITE_TITLE")); v != "" {
-		out["X-Title"] = v
-	}
-	return out
 }

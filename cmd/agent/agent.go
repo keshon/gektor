@@ -15,6 +15,7 @@ import (
 
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/api"
+	"github.com/keshon/tars/internal/app"
 	"github.com/keshon/tars/internal/audit"
 	thinkingservice "github.com/keshon/tars/internal/backend"
 	"github.com/keshon/tars/internal/events"
@@ -161,8 +162,8 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	if err != nil {
 		return fmt.Errorf("%w", err)
 	}
-	resolveAPIKey(o.apiKey, o.apiKeyEnv, client)
-	if hdrs := extraHeadersFromEnv(); len(hdrs) > 0 {
+	app.ResolveAPIKey(o.apiKey, o.apiKeyEnv, client)
+	if hdrs := app.ExtraHeadersFromEnv(); len(hdrs) > 0 {
 		if client.ExtraHeaders == nil {
 			client.ExtraHeaders = hdrs
 		} else {
@@ -335,7 +336,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		defer managed.Close()
 		thinkingClient = managed
 	}
-	identity, warnings, err := compileChatSettings(chatOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), GreetingIndex: selectedGreetingIndex(o.selectedProfile), Character: o.characterPath, User: o.userName, System: o.systemPrompt, Post: o.postHistory, PreferMain: o.preferCharacterPrompt, PreferPost: o.preferCharacterPost, MaxTokens: o.maxTokens, ContextLimit: contextLimit, Temperature: o.temperature})
+	identity, warnings, err := app.CompileChatSettings(app.ChatOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), GreetingIndex: selectedGreetingIndex(o.selectedProfile), Character: o.characterPath, User: o.userName, System: o.systemPrompt, Post: o.postHistory, PreferMain: o.preferCharacterPrompt, PreferPost: o.preferCharacterPost, MaxTokens: o.maxTokens, ContextLimit: contextLimit, Temperature: o.temperature})
 	if err != nil {
 		return err
 	}
@@ -343,7 +344,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		note("Character warning: " + warning)
 	}
 	env := roles.Env{
-		Identity:        agentIdentity(identity),
+		Identity:        app.AgentIdentity(identity),
 		IdentityName:    identity.CharacterName,
 		UserName:        o.userName,
 		Client:          thinkingClient,
@@ -446,9 +447,9 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			}
 		}
 
-		var audio *tui.ChatConfig
+		var audio *app.Services
 		if o.selectedProfile.Version != 0 {
-			prepared, err := configureAgentServices(o.selectedProfile, filepath.Join(filepath.Dir(launch.preferencePath), "chats"))
+			prepared, err := app.ConfigureAgent(o.selectedProfile, filepath.Join(filepath.Dir(launch.preferencePath), "chats"))
 			if err != nil {
 				return err
 			}
