@@ -5,10 +5,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"github.com/keshon/tars/internal/tui/components/composer"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/keshon/tars/internal/tui/components/composer"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/api"
@@ -52,13 +53,13 @@ func (m *model) startConversation(text string) error {
 	if err = workspace.WriteSessionTitle(dir, title); err != nil {
 		return err
 	}
+	if err := m.saveSessionSettingsAt(dir); err != nil {
+		return err
+	}
 	m.saveDraft()
 	m.chat.current = c
 	m.stateFile = filepath.Join(dir, "conversation.json")
 	m.sessionTitle = title
-	if err := m.saveSessionSettings(); err != nil {
-		return err
-	}
 	m.transcript.blocks = nil
 	m.resetRunFacts()
 	m.queued = ""

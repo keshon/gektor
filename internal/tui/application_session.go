@@ -1,14 +1,15 @@
 package tui
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"fmt"
+	"os"
+	"path/filepath"
+
+	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/chat"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
-	"os"
-	"path/filepath"
 )
 
 func (m *model) sessionDirectory() string {
@@ -18,7 +19,16 @@ func (m *model) sessionDirectory() string {
 	return filepath.Dir(m.stateFile)
 }
 func (m *model) saveSessionSettings() error {
-	if m.application == nil || m.stateFile == "" {
+	if m.stateFile == "" {
+		return nil
+	}
+	return m.saveSessionSettingsAt(m.sessionDirectory())
+}
+
+// saveSessionSettingsAt permits a candidate session to persist its settings
+// before the update loop installs it as the current session.
+func (m *model) saveSessionSettingsAt(directory string) error {
+	if m.application == nil {
 		return nil
 	}
 	p := m.application.Preferences
@@ -27,7 +37,7 @@ func (m *model) saveSessionSettings() error {
 		profile := cloneSettingsProfile(m.audio().Profile)
 		p.Profile = &profile
 	}
-	return config.SavePreferences(filepath.Join(m.sessionDirectory(), "settings.json"), p)
+	return config.SavePreferences(filepath.Join(directory, "settings.json"), p)
 }
 func (m *model) openApplicationSession(entry sessionEntry) (tea.Cmd, bool) {
 	path := filepath.Join(entry.dir, "settings.json")

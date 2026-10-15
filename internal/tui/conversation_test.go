@@ -1,21 +1,61 @@
 package tui
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"context"
-	"github.com/keshon/tars/internal/chat"
-	"github.com/keshon/tars/internal/llm"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/keshon/tars/internal/chat"
+	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/tars/internal/llm"
 )
 
 type conversationClient func(context.Context, llm.ChatRequest) (llm.ChatResponse, error)
 
 func (f conversationClient) Chat(ctx context.Context, r llm.ChatRequest) (llm.ChatResponse, error) {
 	return f(ctx, r)
+}
+
+func TestFirstConversationSettingsFailureLeavesSessionUninstalled(t *testing.T) {
+	m := settingsModel(t)
+	m.chat.current = nil
+	m.stateFile = ""
+	m.sessionTitle = ""
+	m.application = &Application{Preferences: config.Preferences{Mode: "chat", Voice: "off"}}
+	before := m.input.Value()
+	blocks := len(m.transcript.blocks)
+	if err := m.startConversation("first turn"); err == nil {
+		t.Fatal("expected preferences validation failure")
+	}
+	if m.chat.current != nil || m.stateFile != "" || m.sessionTitle != "" || m.input.Value() != before || len(m.transcript.blocks) != blocks {
+		t.Fatal("failed setup installed a partial conversation")
+	}
+	m.application.Preferences.Version = 1
+	done := make(chan doneMsg, 1)
+	m.send = func(msg tea.Msg) { done <- msg.(doneMsg) }
+	if err := m.startConversation("retry first turn"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case result := <-done:
+		if result.err != nil {
+			t.Fatal(result.err)
+		}
+		m.Update(result)
+	case <-time.After(time.Second):
+		t.Fatal("retry did not complete")
+	}
+	archive, err := chat.ReadArchive(m.stateFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.sessionTitle != "retry first turn" || len(archive.History) != 2 || archive.History[0].Content != "retry first turn" {
+		t.Fatal("retry did not follow normal first-turn setup")
+	}
 }
 func TestChatTUIArchiveOpenAndToolBoundary(t *testing.T) {
 	calls := 0
