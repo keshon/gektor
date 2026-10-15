@@ -21,7 +21,7 @@ func (m *model) screenContent() string {
 		}
 		return cellFrame(content, m.termW, m.termH)
 	}
-	paneHeader := cellLine(m.identityLine(), m.vp.Width())
+	paneHeader := cellLine(m.identityLine(), m.transcript.Viewport.Width())
 	if m.sidebarVisible() {
 		titleStyle := m.styles.dim
 		if m.navFocused {
@@ -29,8 +29,8 @@ func (m *model) screenContent() string {
 		}
 		paneHeader = cellLine(titleStyle.Render(" SESSIONS "), navigatorWidth) + m.styles.dim.Render(" │ ") + paneHeader
 	}
-	popup := len(m.suggestions.items) > 0 && m.vp.Height() >= 4 && m.vp.Width() >= 24
-	body := m.vp.View()
+	popup := len(m.suggestions.items) > 0 && m.transcript.Viewport.Height() >= 4 && m.transcript.Viewport.Width() >= 24
+	body := m.transcript.Viewport.View()
 	gap := "\n"
 	if popup {
 		body += "\n"
@@ -43,11 +43,11 @@ func (m *model) screenContent() string {
 	if m.dialog != nil {
 		body = m.dialogView()
 	}
-	bodyHeight := m.vp.Height()
+	bodyHeight := m.transcript.Viewport.Height()
 	if popup {
 		bodyHeight++
 	}
-	body = cellFrame(body, m.vp.Width(), bodyHeight)
+	body = cellFrame(body, m.transcript.Viewport.Width(), bodyHeight)
 	var bottom string
 	switch {
 	case m.dialog != nil:
@@ -61,11 +61,11 @@ func (m *model) screenContent() string {
 		}
 	}
 	if m.queued != "" && m.dialog == nil && m.state != stPermission && m.state != stAsk {
-		bottom = cellLine("Queued  Ctrl+E edit  Ctrl+X cancel: "+m.queued, m.vp.Width()) + "\n" + bottom
+		bottom = cellLine("Queued  Ctrl+E edit  Ctrl+X cancel: "+m.queued, m.transcript.Viewport.Width()) + "\n" + bottom
 	}
-	bottom = cellFrame(bottom, m.vp.Width(), lipgloss.Height(bottom))
-	conversation := body + gap + "\n" + m.styles.dim.Render(strings.Repeat("─", m.vp.Width())) + "\n" + cellLine(m.statusLine(), m.vp.Width()) + "\n" + bottom
-	conversation = cellFrame(conversation, m.vp.Width(), m.paneHeight())
+	bottom = cellFrame(bottom, m.transcript.Viewport.Width(), lipgloss.Height(bottom))
+	conversation := body + gap + "\n" + m.styles.dim.Render(strings.Repeat("─", m.transcript.Viewport.Width())) + "\n" + cellLine(m.statusLine(), m.transcript.Viewport.Width()) + "\n" + bottom
+	conversation = cellFrame(conversation, m.transcript.Viewport.Width(), m.paneHeight())
 	if m.sidebarVisible() {
 		divider := strings.Repeat(m.styles.dim.Render(" │ ")+"\n", m.paneHeight()-1) + m.styles.dim.Render(" │ ")
 		// Connect only the conversation composer rule to the vertical divider.

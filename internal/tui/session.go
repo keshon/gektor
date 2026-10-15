@@ -5,6 +5,8 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+	"github.com/keshon/tars/internal/session"
+	"github.com/keshon/tars/internal/tui/components/composer"
 	"io"
 	"os"
 	"path/filepath"
@@ -39,7 +41,7 @@ func (m *model) followUp() (tea.Model, tea.Cmd) {
 	if text == "" {
 		return m, nil
 	}
-	m.pushHistory(text)
+	m.input.Push(text)
 	// Resolve explicit file references before starting a turn.
 	text, images, err := splitAttachments(m.ws, text)
 	if err != nil {
@@ -84,8 +86,8 @@ func (m *model) followUp() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-const referenceStart = "\n\n<attached_workspace_files>\n"
-const referenceEnd = "\n</attached_workspace_files>"
+const referenceStart = session.ReferenceStart
+const referenceEnd = session.ReferenceEnd
 
 const maxReferenceBytes = 32 * 1024
 const maxTurnReferenceBytes = 64 * 1024
@@ -180,14 +182,7 @@ func splitAttachments(ws *workspace.Workspace, text string) (string, []string, e
 }
 
 // Keep snapshots in model history without dumping their contents into the UI.
-func displayInputContent(text string) string {
-	if strings.HasSuffix(text, referenceEnd) {
-		if original, _, ok := strings.Cut(text, referenceStart); ok {
-			return original
-		}
-	}
-	return text
-}
+func displayInputContent(text string) string { return session.DisplayInput(text) }
 
 // Resolve symlinks as well as textual paths before exposing file contents.
 func referencePath(ws *workspace.Workspace, path string) (string, error) {
@@ -358,7 +353,7 @@ func (m *model) newChat() {
 		m.chat.current = nil
 		m.stateFile = ""
 		m.sessionTitle = ""
-		m.blocks = nil
+		m.transcript.blocks = nil
 		m.resetRunFacts()
 		m.state = stDone
 		m.navFocused = false
@@ -372,15 +367,15 @@ func (m *model) newChat() {
 	}
 	m.saveDraft()
 	m.cancel()
-	m.sess, m.stateFile, m.blocks = nil, "", nil
+	m.sess, m.stateFile, m.transcript.blocks = nil, "", nil
 	m.sessionTitle = ""
 	m.mission = false
 	m.resetRunFacts()
 	m.state, m.navFocused = stDone, false
 	m.restoreDraft()
 	m.appendBlock(markerBlock("New chat · type a task to begin"))
-	m.follow = true
-	m.vp.GotoBottom()
+	m.transcript.Follow = true
+	m.transcript.Viewport.GotoBottom()
 }
 
 // compactNow mechanically compacts the active session's saved history
@@ -408,13 +403,13 @@ func (m *model) compactNow() (tea.Model, tea.Cmd) {
 			m.appendBlock(markerBlock(fmt.Sprintf("nothing to compact: %d messages", before)))
 			return m, nil
 		}
-		m.blocks = renderHistory(m.chat.current.History())
+		m.transcript.blocks = renderHistory(m.chat.current.History())
 		m.appendBlock(markerBlock(fmt.Sprintf("— compacted: %d → %d messages; original archive backed up —", before, after)))
 		m.restoreContext(m.chat.current.History())
 		m.refreshContent()
 		m.refreshNavigator()
-		m.follow = true
-		m.vp.GotoBottom()
+		m.transcript.Follow = true
+		m.transcript.Viewport.GotoBottom()
 		return m, nil
 	}
 	if m.stateFile == "" {
@@ -428,8 +423,8 @@ func (m *model) compactNow() (tea.Model, tea.Cmd) {
 	}
 	if after >= before {
 		m.appendBlock(markerBlock(fmt.Sprintf("nothing to compact: %d messages", before)))
-		m.follow = true
-		m.vp.GotoBottom()
+		m.transcript.Follow = true
+		m.transcript.Viewport.GotoBottom()
 		return m, nil
 	}
 	history, err := agent.LoadState(m.stateFile)
@@ -445,14 +440,14 @@ func (m *model) compactNow() (tea.Model, tea.Cmd) {
 	// Marker last, not first: the viewport lands at the bottom showing
 	// the kept tail, which reads identical to before — the marker is
 	// the only visible signal that anything happened.
-	m.blocks = append(renderHistory(history), mb)
+	m.transcript.blocks = append(renderHistory(history), mb)
 	m.restoreContext(history)
 	m.refreshContent()
 	// The point of manual compaction is seeing the shrunken transcript:
 	// re-arm follow and jump to bottom even if the reader scrolled up,
 	// or the marker lands below the fold and nothing visibly changed.
-	m.follow = true
-	m.vp.GotoBottom()
+	m.transcript.Follow = true
+	m.transcript.Viewport.GotoBottom()
 	return m, nil
 }
 
@@ -500,9 +495,9 @@ func (m *model) startFreshPrompt(task, display string, images []string) error {
 	m.sess, m.stateFile = sess, stateFile
 	m.sessionTitle = title
 	m.clearContext()
-	m.hist, m.histIdx, m.draft = []string{display}, 1, ""
+	m.input.Restore(composer.Snapshot{History: []string{display}, Index: 1})
 	m.queued = ""
-	m.blocks = nil
+	m.transcript.blocks = nil
 	nb := markerBlock("— new task —")
 	nb.breakBefore = true
 	m.appendBlock(nb)
@@ -518,7 +513,7 @@ func (m *model) startFreshPrompt(task, display string, images []string) error {
 		return err
 	}
 	if len(seed) > 0 {
-		m.blocks = append(renderHistory(seed), m.blocks...)
+		m.transcript.blocks = append(renderHistory(seed), m.transcript.blocks...)
 		seed = agentSeed(seed)
 	}
 	m.startRun(func(runCtx context.Context) (string, error) {

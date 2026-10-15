@@ -190,7 +190,7 @@ func TestSessions_DeleteRemovesDir(t *testing.T) {
 	// Select the second row, whichever session sorted there.
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	mm := updated.(*model)
-	victim := mm.sessions.entries[mm.sessions.cursor]
+	victim := mm.sessions.entries[mm.sessions.Cursor]
 	updated, _ = mm.Update(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
 	mm = updated.(*model)
 	if mm.sessions.mode != sessConfirm {
@@ -216,7 +216,7 @@ func TestSessions_DeleteActiveUnloadsFirst(t *testing.T) {
 	m := sessionsTestModel(t, listSessions())
 	m.stateFile = filepath.Join(dir, "state.json")
 	m.sess = &api.Session{}
-	m.blocks = []block{answerBlock("old transcript")}
+	m.transcript.blocks = []block{answerBlock("old transcript")}
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
 	mm := updated.(*model)
@@ -284,7 +284,7 @@ func TestSessions_EnterResumesWithHistory(t *testing.T) {
 		t.Fatal("no session built for follow-ups")
 	}
 	var texts []string
-	for _, b := range mm.blocks {
+	for _, b := range mm.transcript.blocks {
 		texts = append(texts, b.text, b.result)
 	}
 	joined := strings.Join(texts, "\n")
@@ -338,11 +338,11 @@ func TestSessions_ListScrollsToCursor(t *testing.T) {
 		updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 		m = updated.(*model)
 	}
-	if m.sessions.cursor != 15 {
-		t.Fatalf("cursor = %d, want 14", m.sessions.cursor)
+	if m.sessions.Cursor != 15 {
+		t.Fatalf("cursor = %d, want 14", m.sessions.Cursor)
 	}
-	if m.sessions.offset != 15-visible+1 {
-		t.Fatalf("offset = %d, want %d", m.sessions.offset, 15-visible+1)
+	if m.sessions.Offset != 15-visible+1 {
+		t.Fatalf("offset = %d, want %d", m.sessions.Offset, 15-visible+1)
 	}
 	// Order-agnostic: the window holds exactly the visible slice
 	// around the cursor, whatever mtime order put there.
@@ -373,13 +373,13 @@ func TestSessions_PageKeysMoveByViewport(t *testing.T) {
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
 	m = updated.(*model)
-	if m.sessions.cursor != visible {
-		t.Fatalf("cursor = %d, want one page (%d)", m.sessions.cursor, visible)
+	if m.sessions.Cursor != visible {
+		t.Fatalf("cursor = %d, want one page (%d)", m.sessions.Cursor, visible)
 	}
 	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
 	m = updated.(*model)
-	if m.sessions.cursor != 0 || m.sessions.offset != 0 {
-		t.Fatalf("cursor/offset = %d/%d, want 0/0", m.sessions.cursor, m.sessions.offset)
+	if m.sessions.Cursor != 0 || m.sessions.Offset != 0 {
+		t.Fatalf("cursor/offset = %d/%d, want 0/0", m.sessions.Cursor, m.sessions.Offset)
 	}
 }
 
@@ -400,16 +400,16 @@ func TestSessions_CommandOpensAndEscCloses(t *testing.T) {
 	}
 	// The overlay owns the bottom bar (slim line, no input): the list
 	// gains the freed rows, and closing hands them back.
-	if mm.vp.Height() != 24-8-mm.footerRows() {
-		t.Fatalf("sessions viewport height = %d, want 14", mm.vp.Height())
+	if mm.transcript.Viewport.Height() != 24-8-mm.footerRows() {
+		t.Fatalf("sessions viewport height = %d, want 14", mm.transcript.Viewport.Height())
 	}
 	updated, _ = mm.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	mm = updated.(*model)
 	if mm.sessions != nil {
 		t.Fatal("esc did not close the screen")
 	}
-	if mm.vp.Height() != 24-8-mm.footerRows() {
-		t.Fatalf("closed viewport height = %d, want 14", mm.vp.Height())
+	if mm.transcript.Viewport.Height() != 24-8-mm.footerRows() {
+		t.Fatalf("closed viewport height = %d, want 14", mm.transcript.Viewport.Height())
 	}
 }
 
@@ -420,8 +420,8 @@ func TestViewportRefitsOnResize(t *testing.T) {
 	m.state = stDone
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
 	mm := updated.(*model)
-	if mm.vp.Height() != 30-8-mm.footerRows() {
-		t.Fatalf("resized viewport height = %d, want 20", mm.vp.Height())
+	if mm.transcript.Viewport.Height() != 30-8-mm.footerRows() {
+		t.Fatalf("resized viewport height = %d, want 20", mm.transcript.Viewport.Height())
 	}
 }
 
@@ -437,7 +437,7 @@ func TestSessions_ResumeShowsTop(t *testing.T) {
 	if mm.sessions != nil {
 		t.Fatal("screen did not close after resume")
 	}
-	if !mm.follow || mm.vp.YOffset() != 0 {
+	if !mm.transcript.Follow || mm.transcript.Viewport.YOffset() != 0 {
 		t.Fatal("resume must land at the top with follow on")
 	}
 }
@@ -483,8 +483,8 @@ func TestCommand_CompactShrinksAndRerenders(t *testing.T) {
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*model)
-	if len(mm.blocks) == 0 || !strings.Contains(mm.blocks[len(mm.blocks)-1].text, "compacted:") {
-		t.Fatalf("blocks = %+v, want a compaction marker last", mm.blocks)
+	if len(mm.transcript.blocks) == 0 || !strings.Contains(mm.transcript.blocks[len(mm.transcript.blocks)-1].text, "compacted:") {
+		t.Fatalf("blocks = %+v, want a compaction marker last", mm.transcript.blocks)
 	}
 	loaded, err := agent.LoadState(mm.stateFile)
 	if err != nil {
@@ -505,8 +505,8 @@ func TestCommand_CompactNeedsSession(t *testing.T) {
 	m.input.SetValue("/compact")
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*model)
-	if len(mm.blocks) == 0 || !strings.Contains(mm.blocks[0].text, "no active session") {
-		t.Fatalf("blocks = %+v, want the no-session error", mm.blocks)
+	if len(mm.transcript.blocks) == 0 || !strings.Contains(mm.transcript.blocks[0].text, "no active session") {
+		t.Fatalf("blocks = %+v, want the no-session error", mm.transcript.blocks)
 	}
 }
 
@@ -520,8 +520,8 @@ func TestCommand_CompactNothingToDrop(t *testing.T) {
 	m.input.SetValue("/compact")
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*model)
-	if len(mm.blocks) != 1 || !strings.Contains(mm.blocks[0].text, "nothing to compact") {
-		t.Fatalf("blocks = %+v, want the no-op marker", mm.blocks)
+	if len(mm.transcript.blocks) != 1 || !strings.Contains(mm.transcript.blocks[0].text, "nothing to compact") {
+		t.Fatalf("blocks = %+v, want the no-op marker", mm.transcript.blocks)
 	}
 }
 
@@ -534,12 +534,12 @@ func TestCommand_CompactForcesBottom(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.stateFile = filepath.Join(dir, "state.json")
-	m.vp.GotoTop()
-	m.follow = false
+	m.transcript.Viewport.GotoTop()
+	m.transcript.Follow = false
 	m.input.SetValue("/compact")
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*model)
-	if !mm.follow || !mm.vp.AtBottom() {
+	if !mm.transcript.Follow || !mm.transcript.Viewport.AtBottom() {
 		t.Fatal("compact must re-arm follow and jump to bottom")
 	}
 }

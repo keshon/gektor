@@ -29,9 +29,9 @@ func TestFooterActionsKeepDraftAndToggleScreens(t *testing.T) {
 	if m.sessions != nil || m.input.Value() != "draft\nsecond line" {
 		t.Fatal("chats lost draft")
 	}
-	before := m.compact
+	before := m.transcript.compact
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF3})
-	if m.compact == before {
+	if m.transcript.compact == before {
 		t.Fatal("details did not toggle")
 	}
 }
@@ -40,11 +40,11 @@ func TestFooterActionsCannotHidePendingPrompts(t *testing.T) {
 	for _, state := range []runState{stPermission, stAsk} {
 		m := sizeModel(t, testModel())
 		m.state = state
-		before := m.compact
+		before := m.transcript.compact
 		for _, key := range []rune{tea.KeyF1, tea.KeyF2, tea.KeyF3, tea.KeyF4, tea.KeyF5, tea.KeyF6, tea.KeyF7} {
 			m.handleKey(tea.KeyPressMsg{Code: key})
 		}
-		if m.dialog != nil || m.sessions != nil || m.state != state || m.compact != before {
+		if m.dialog != nil || m.sessions != nil || m.state != state || m.transcript.compact != before {
 			t.Fatal("function key hid prompt")
 		}
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyF10})
@@ -180,7 +180,7 @@ func TestSidebarHasOneHeadingAndNoShortcutCluster(t *testing.T) {
 func TestToolbarContextAndQuitProtection(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	m.follow = true
+	m.transcript.Follow = true
 	actions := m.footerActions()
 	if actions[0].label != "Help" || actions[1].label != "Search" || actions[2].label != "New" || actions[3].label != "Send" || actions[4].label != "Newline" {
 		t.Fatal("composer actions")
@@ -233,7 +233,7 @@ func TestDetailsToolbarRemainsVisibleAndClickable(t *testing.T) {
 	m.state = stDone
 	m.width(tea.WindowSizeMsg{Width: 160, Height: 30})
 	for _, compact := range []bool{true, false} {
-		m.compact = compact
+		m.transcript.compact = compact
 		label := "Details"
 		if !compact {
 			label = "Less"
@@ -248,7 +248,7 @@ func TestDetailsToolbarRemainsVisibleAndClickable(t *testing.T) {
 				t.Fatal("incorrect details action")
 			}
 			m.Update(tea.MouseClickMsg{X: cell.start, Y: m.termH - m.actionBarRows() + cell.row, Button: tea.MouseLeft})
-			if m.compact == compact {
+			if m.transcript.compact == compact {
 				t.Fatal("details click did not toggle")
 			}
 		}

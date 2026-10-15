@@ -21,8 +21,8 @@ func TestPermissionDecisionAlwaysHasVisibleContext(t *testing.T) {
 	for i := 0; i < 30; i++ {
 		m.appendBlock(userBlock(fmt.Sprintf("History %d", i)))
 	}
-	m.vp.GotoTop()
-	m.follow = false
+	m.transcript.Viewport.GotoTop()
+	m.transcript.Follow = false
 	m.handleEvent(api.Event{Name: "awaiting_input", Fields: map[string]any{"kind": "permission", "prompt": "TARGET_SCOPE\n" + strings.Repeat("preview line\n", 40)}})
 	if !strings.Contains(m.View().Content, "TARGET_SCOPE") {
 		t.Fatal("permission context offscreen")
@@ -54,7 +54,7 @@ func TestChatSwitchPreservesDraftAndResetsRunFacts(t *testing.T) {
 	m.toolsUsed = 7
 	for i, e := range m.sessions.entries {
 		if e.dir == b {
-			m.sessions.cursor = i
+			m.sessions.Cursor = i
 		}
 	}
 	m.openSelected()
@@ -65,7 +65,7 @@ func TestChatSwitchPreservesDraftAndResetsRunFacts(t *testing.T) {
 	m.sessions = &sessionsState{filter: newSearchInput(80), entries: listSessionsIn(root)}
 	for i, e := range m.sessions.entries {
 		if e.dir == a {
-			m.sessions.cursor = i
+			m.sessions.Cursor = i
 		}
 	}
 	m.openSelected()
@@ -119,7 +119,7 @@ func TestSessionBrowserMouseSelects(t *testing.T) {
 	m.sessions = &sessionsState{filter: newSearchInput(80), entries: []sessionEntry{{id: "a"}, {id: "b"}}}
 	g := m.searchGeometry()
 	m.Update(tea.MouseClickMsg{X: g.x + 2, Y: g.y + 5, Button: tea.MouseLeft})
-	if m.sessions.cursor != 1 {
+	if m.sessions.Cursor != 1 {
 		t.Fatal("click ignored")
 	}
 }
@@ -141,10 +141,10 @@ func TestJumpToLatestWorksWhenIdle(t *testing.T) {
 	for i := 0; i < 30; i++ {
 		m.appendBlock(userBlock(fmt.Sprintf("Message %d", i)))
 	}
-	m.vp.GotoTop()
-	m.follow = false
+	m.transcript.Viewport.GotoTop()
+	m.transcript.Follow = false
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnd, Mod: tea.ModCtrl})
-	if !m.follow || !m.vp.AtBottom() {
+	if !m.transcript.Follow || !m.transcript.Viewport.AtBottom() {
 		t.Fatal("jump ignored")
 	}
 }
@@ -222,8 +222,8 @@ func TestPromptTransitionsFitWideAndNarrowTerminals(t *testing.T) {
 			t.Fatalf("note hidden at width %d", width)
 		}
 		m.handleEvent(api.Event{Name: "input_answered"})
-		if m.sidebarVisible() && m.vp.Width() != width-navigatorWidth-5 {
-			t.Fatalf("chat did not refit: %d", m.vp.Width())
+		if m.sidebarVisible() && m.transcript.Viewport.Width() != width-navigatorWidth-5 {
+			t.Fatalf("chat did not refit: %d", m.transcript.Viewport.Width())
 		}
 	}
 }
@@ -243,7 +243,7 @@ func TestInlineThinkingUsesThinkingBlockLiveAndOnReopen(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.handleEvent(api.Event{Name: "step", Fields: map[string]any{"text": content}})
 	history := renderHistory([]llm.Message{{Role: llm.RoleAssistant, Content: content}})
-	for _, blocks := range [][]block{m.blocks, history} {
+	for _, blocks := range [][]block{m.transcript.blocks, history} {
 		if len(blocks) != 2 || blocks[0].role != roleThink || blocks[1].role != roleAnswer {
 			t.Fatalf("incorrect reasoning split: %+v", blocks)
 		}
@@ -315,10 +315,10 @@ func TestHarnessNoticeMatchesLiveAndRebuiltHistory(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.handleEvent(api.Event{Name: "nudge", Fields: map[string]any{"kind": "verify", "text": text}})
 	rebuilt := renderHistory([]llm.Message{{Role: llm.RoleUser, Content: text}})
-	if len(m.blocks) != 1 || len(rebuilt) != 1 || rebuilt[0].role != roleMarker {
+	if len(m.transcript.blocks) != 1 || len(rebuilt) != 1 || rebuilt[0].role != roleMarker {
 		t.Fatalf("harness omitted: %+v", rebuilt)
 	}
-	live := ansi.Strip(renderBlock(m.blocks[0], defaultStyles(), false, 80))
+	live := ansi.Strip(renderBlock(m.transcript.blocks[0], defaultStyles(), false, 80))
 	restored := ansi.Strip(renderBlock(rebuilt[0], defaultStyles(), false, 80))
 	if live != restored || !strings.HasPrefix(restored, "SYS   [harness]") || !strings.Contains(restored, "\n"+speakerRail+"(step 2/25, 23 left)") {
 		t.Fatalf("harness rendering differs: %q / %q", live, restored)

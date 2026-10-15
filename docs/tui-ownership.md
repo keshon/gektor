@@ -15,6 +15,35 @@ Run `go test -race ./...` and `go vet ./...`. Performance probes live in
 `internal/tui/performance_test.go`; run them with
 `go test ./internal/tui -run '^$' -bench . -benchmem`.
 
+## Component boundaries
+
+`internal/tui/components` contains concrete reusable models, not a widget framework:
+
+- `form`: field/editor state, keyboard navigation, Apply/Cancel/Pick intents,
+  compact form rows and action hit geometry. The caller supplies styles, labels,
+  dimensions, visibility and choice display; it performs persistence.
+- `composer`: textarea, bounded input history, draft recall and rune-based
+  completion token/replacement operations. Command and file discovery stay in TARS.
+- `selection`: selection and scrolling geometry, used by Sessions and Settings pickers.
+- `transcript`: viewport, follow behavior and part anchoring across reflows.
+  TARS retains role styling and the rendered-block cache.
+
+The root model routes input to the active owner and translates component intents
+into application actions. Components never receive a root model pointer or own
+service lifetimes. They are updated on the same event loop; this split adds no
+component goroutines. Exported Bubble Tea state is mutable by its owning adapter;
+these are composition boundaries, not an ownership type system.
+
+**Enforced by:** checked, `TestComponentsDoNotImportApplicationPackages`; tested
+by the component packages and the existing overlay, focus, multiline, completion,
+settings and layout integration suites.
+
+Non-UI boundaries: `config.ApplySection` edits staged configuration;
+`llm.DiscoverModels` owns HTTP model discovery; `sessionindex.Scan` reads and
+indexes archives without terminal dependencies. Search positions refer to source
+messages. The TUI resolves them into rendered blocks on open, including reasoning
+and greeting offsets (`TestHistoryMatchTranslationSkipsReasoningAndToolCards`).
+
 ## 1. The update loop owns UI state
 
 The model, widgets, transcript, selections, render cache, and session index are

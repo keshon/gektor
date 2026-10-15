@@ -24,10 +24,10 @@ func TestFormsShareRightAlignedActionRowAndDivider(t *testing.T) {
 			}
 			rows, hits, _, _ := m.formRows()
 			buttons := hits[len(hits)-2:]
-			if buttons[0].y0 != buttons[1].y0 || buttons[0].x1 >= buttons[1].x0 {
+			if buttons[0].Y0 != buttons[1].Y0 || buttons[0].X1 >= buttons[1].X0 {
 				t.Fatal("buttons not on one row", buttons)
 			}
-			y := buttons[0].y0
+			y := buttons[0].Y0
 			line := ansi.Strip(rows[y])
 			// Settings include the category rail; action coordinates exclude it.
 			if !strings.HasSuffix(line, "[ Cancel ]") {
@@ -47,11 +47,11 @@ func TestCompactDialogMouseAndHorizontalKeys(t *testing.T) {
 	m.dialog.form.destructive = true
 	m.focusForm(1)
 	m.formKey(tea.KeyPressMsg{Code: tea.KeyLeft})
-	if m.dialog.form.index != 0 {
+	if m.dialog.form.Index != 0 {
 		t.Fatal("left did not select primary")
 	}
 	m.formKey(tea.KeyPressMsg{Code: tea.KeyRight})
-	if m.dialog.form.index != 1 {
+	if m.dialog.form.Index != 1 {
 		t.Fatal("right did not select cancel")
 	}
 	rows, hits, w, h := m.formRows()
@@ -62,7 +62,7 @@ func TestCompactDialogMouseAndHorizontalKeys(t *testing.T) {
 	x := m.conversationOffset() + max((w-bw-4)/2, 0) + 2
 	y := paneTop + max((h-len(rows)-2)/2, 0) + 1
 	cancel := hits[len(hits)-1]
-	m.Update(tea.MouseClickMsg{X: x + cancel.x0, Y: y + cancel.y0, Button: tea.MouseLeft})
+	m.Update(tea.MouseClickMsg{X: x + cancel.X0, Y: y + cancel.Y0, Button: tea.MouseLeft})
 	if m.dialog != nil || calls != 0 {
 		t.Fatal("cancel mouse hit missed")
 	}
@@ -137,7 +137,7 @@ func TestActionRowsFitNarrowWidths(t *testing.T) {
 	m.openForm("Confirm", "", "A very long primary action", nil, func(map[string]string) error { return nil })
 	for _, width := range []int{12, 18, 24, 72} {
 		row, hits := m.formActions(width, 0, m.dialog.form.applyLabel, true)
-		if ansi.StringWidth(row) != width || hits[1].x1 != width {
+		if ansi.StringWidth(row) != width || hits[1].X1 != width {
 			t.Fatal(width, ansi.Strip(row), hits)
 		}
 	}

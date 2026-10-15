@@ -46,17 +46,17 @@ func (m *model) settingsApplicationChanged() bool {
 	}
 	p := m.application.Preferences
 	for _, field := range fields {
-		switch field.key {
+		switch field.Key {
 		case "app-mode":
-			if field.value != p.Mode {
+			if field.Value != p.Mode {
 				return true
 			}
 		case "app-workspace":
-			if field.value != p.Workspace {
+			if field.Value != p.Workspace {
 				return true
 			}
 		case "app-voice":
-			if field.value != m.currentVoiceMode() {
+			if field.Value != m.currentVoiceMode() {
 				return true
 			}
 		}
@@ -127,8 +127,8 @@ func (m *model) editAgentSpeech() {
 	}
 	profile := cloneSettingsProfile(audio.Profile)
 	cfg := profile.Speech
-	m.openForm("Speech services", "Updates speech only; Agent history and permissions stay intact.", "Apply", []formField{{"microphone", "Microphone", cfg.Microphone, false}, {"variant", "Chatterbox model", cfg.Speaking.Variant, false}, {"speech-model", "Speech model directory", cfg.Speaking.Model, false}, {"seconds", "Maximum recording seconds", strconv.Itoa(cfg.MaxSeconds), false}}, func(values map[string]string) error {
-		if err := applySettingsValues(&profile, "speech", values); err != nil {
+	m.openForm("Speech services", "Updates speech only; Agent history and permissions stay intact.", "Apply", []formField{{Key: "microphone", Label: "Microphone", Value: cfg.Microphone, Multiline: false}, {Key: "variant", Label: "Chatterbox model", Value: cfg.Speaking.Variant, Multiline: false}, {Key: "speech-model", Label: "Speech model directory", Value: cfg.Speaking.Model, Multiline: false}, {Key: "seconds", Label: "Maximum recording seconds", Value: strconv.Itoa(cfg.MaxSeconds), Multiline: false}}, func(values map[string]string) error {
+		if err := config.ApplySection(&profile, "speech", values); err != nil {
 			return err
 		}
 		next, err := audio.Configure(profile)
@@ -184,13 +184,13 @@ func (m *model) requestProfileChange(profile config.Profile) error {
 	}
 	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.workspace != nil {
 		for _, field := range m.dialog.form.workspace.cache["application"] {
-			switch field.key {
+			switch field.Key {
 			case "app-mode":
-				p.Mode = field.value
+				p.Mode = field.Value
 			case "app-workspace":
-				p.Workspace = strings.TrimSpace(field.value)
+				p.Workspace = strings.TrimSpace(field.Value)
 			case "app-voice":
-				p.Voice = field.value
+				p.Voice = field.Value
 			}
 		}
 	}

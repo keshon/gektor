@@ -50,11 +50,11 @@ func TestCompactSessionRowsSharePagingAndMouseGeometry(t *testing.T) {
 		t.Fatal("footer must occupy one row")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyPgDown})
-	if m.nav.cursor != m.navigatorRows() || m.nav.offset != 1 {
+	if m.nav.Cursor != m.navigatorRows() || m.nav.Offset != 1 {
 		t.Fatal("paging did not use compact row capacity")
 	}
 	m.Update(tea.MouseClickMsg{X: 5, Y: paneTop, Button: tea.MouseLeft})
-	if m.nav.cursor != m.nav.offset {
+	if m.nav.Cursor != m.nav.Offset {
 		t.Fatal("click missed the first visible compact row")
 	}
 }
@@ -64,8 +64,8 @@ func TestResponsiveNavigator(t *testing.T) {
 	m.state = stDone
 	m.input.SetValue("unfinished draft")
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
-	if !m.sidebarVisible() || m.vp.Width() != 120-navigatorWidth-5 {
-		t.Fatalf("wide viewport: %d", m.vp.Width())
+	if !m.sidebarVisible() || m.transcript.Viewport.Width() != 120-navigatorWidth-5 {
+		t.Fatalf("wide viewport: %d", m.transcript.Viewport.Width())
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyTab})
 	if !m.navFocused || m.input.Focused() {
@@ -76,12 +76,12 @@ func TestResponsiveNavigator(t *testing.T) {
 		t.Fatal("sidebar keys edited draft")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: 'b', Mod: tea.ModCtrl})
-	if m.sidebarVisible() || m.vp.Width() != 118 || !m.input.Focused() {
+	if m.sidebarVisible() || m.transcript.Viewport.Width() != 118 || !m.input.Focused() {
 		t.Fatal("hidden sidebar failed to restore input")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: 'b', Mod: tea.ModCtrl})
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	if m.sidebarVisible() || m.vp.Width() != 78 || m.input.Value() != "unfinished draft" {
+	if m.sidebarVisible() || m.transcript.Viewport.Width() != 78 || m.input.Value() != "unfinished draft" {
 		t.Fatal("narrow resize lost draft or space")
 	}
 }
@@ -138,7 +138,7 @@ func TestSidebarWheelSelectsWithoutScrollingChat(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	m.nav.entries = []sessionEntry{{id: "a"}, {id: "b"}}
 	m.Update(tea.MouseWheelMsg{X: 5, Y: 6, Button: tea.MouseWheelDown})
-	if m.nav.cursor != 1 || !m.navFocused || m.input.Focused() || m.vp.YOffset() != 0 {
+	if m.nav.Cursor != 1 || !m.navFocused || m.input.Focused() || m.transcript.Viewport.YOffset() != 0 {
 		t.Fatal("sidebar wheel reached the chat or failed to select")
 	}
 }

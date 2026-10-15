@@ -60,7 +60,7 @@ func TestSettingsDirectEditorCancelAndFocus(t *testing.T) {
 		t.Fatal("settings redirected instead of opening editor")
 	}
 	m.focusForm(0)
-	if m.dialog.form.editor.Value() != "User" {
+	if m.dialog.form.Editor.Value() != "User" {
 		t.Fatal("initial field lost")
 	}
 	m.Update(tea.PasteMsg{Content: "Alex"})
@@ -79,15 +79,15 @@ func TestSettingsValidateThenApplyPreservesHistoryAndUpdatesArchive(t *testing.T
 	path := m.stateFile
 	before, _ := os.ReadFile(path)
 	m.editSettings("generation")
-	if m.dialog.form.editor.Value() != "0" {
+	if m.dialog.form.Editor.Value() != "0" {
 		t.Fatal("initial temperature lost")
 	}
-	m.dialog.form.editor.SetValue("bad")
+	m.dialog.form.Editor.SetValue("bad")
 	m.handleKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 	if m.dialog == nil || m.dialog.form.error == "" || m.chat.current == nil || m.chat.config.Settings.Temperature != 0 {
 		t.Fatal("invalid settings applied")
 	}
-	m.dialog.form.editor.SetValue("0.8")
+	m.dialog.form.Editor.SetValue("0.8")
 	m.handleKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 	after, _ := os.ReadFile(path)
 	if m.dialog != nil || m.chat.current == nil || m.stateFile != path || m.chat.config.Settings.Temperature != .8 || string(before) == string(after) || m.input.Value() != "unfinished draft" {
@@ -98,7 +98,7 @@ func TestDirectRenameAndDeleteDefaultCancel(t *testing.T) {
 	m := settingsModel(t)
 	path := m.stateFile
 	m.renameActive()
-	m.dialog.form.editor.SetValue("New title")
+	m.dialog.form.Editor.SetValue("New title")
 	m.handleKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 	if m.dialog != nil || m.sessionTitle != "New title" {
 		t.Fatal("rename failed")
@@ -128,13 +128,13 @@ func TestSaveProfileRefusesOverwriteAndKeepsCardPath(t *testing.T) {
 	first := filepath.Join(root, "existing.json")
 	os.WriteFile(first, []byte("original"), 0600)
 	m.saveChatProfile()
-	m.dialog.form.editor.SetValue(first)
+	m.dialog.form.Editor.SetValue(first)
 	m.applyForm()
 	if m.dialog == nil || m.dialog.form.error == "" {
 		t.Fatal("existing profile overwritten")
 	}
 	next := filepath.Join(root, "other folder", "profile.json")
-	m.dialog.form.editor.SetValue(next)
+	m.dialog.form.Editor.SetValue(next)
 	m.applyForm()
 	if m.dialog != nil {
 		t.Fatal("save failed")
@@ -173,16 +173,16 @@ func TestSettingsFormMouseAndFrame(t *testing.T) {
 			y = 2
 		}
 		cancel := hits[len(hits)-1]
-		if cancel.x1 > 0 {
-			x = m.conversationOffset() + max((w-bw-4)/2, 0) + 2 + cancel.x0
+		if cancel.X1 > 0 {
+			x = m.conversationOffset() + max((w-bw-4)/2, 0) + 2 + cancel.X0
 			if m.dialog.form.workspace != nil {
-				x = 2 + cancel.x0
+				x = 2 + cancel.X0
 			}
 			if m.dialog.form.workspace != nil && w >= 76 {
 				x += 17
 			}
 		}
-		m.Update(tea.MouseClickMsg{X: x, Y: y + cancel.y0, Button: tea.MouseLeft})
+		m.Update(tea.MouseClickMsg{X: x, Y: y + cancel.Y0, Button: tea.MouseLeft})
 		if m.dialog != nil || m.input.Value() != "unfinished draft" {
 			t.Fatal("mouse cancel missed or lost draft")
 		}
@@ -243,11 +243,11 @@ func TestMenuSettingsPreview(t *testing.T) {
 func TestFormFooterMatchesActionsAndViewIsPure(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("generation")
-	before := m.dialog.form.editor.Value()
-	cursor := m.dialog.form.editor.Column()
+	before := m.dialog.form.Editor.Value()
+	cursor := m.dialog.form.Editor.Column()
 	first := m.View().Content
 	second := m.View().Content
-	if first != second || m.dialog.form.editor.Value() != before || m.dialog.form.editor.Column() != cursor {
+	if first != second || m.dialog.form.Editor.Value() != before || m.dialog.form.Editor.Column() != cursor {
 		t.Fatal("render mutated form")
 	}
 	for _, action := range m.footerActions() {
@@ -270,13 +270,13 @@ func TestPromptSwitchCanToggleWithoutTypingBoolean(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("prompts")
 	focusSetting(m, "prefer-main")
-	if m.dialog.form.editor.Value() != "true" {
+	if m.dialog.form.Editor.Value() != "true" {
 		t.Fatal("wrong initial switch")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyDown})
 	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.dialog.form.editor.Value() != "false" {
+	if m.dialog.form.Editor.Value() != "false" {
 		t.Fatal("space did not toggle prompt switch")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
@@ -287,14 +287,14 @@ func TestPromptSwitchCanToggleWithoutTypingBoolean(t *testing.T) {
 
 func TestFormArrowNavigationPreservesValues(t *testing.T) {
 	m := settingsModel(t)
-	m.openForm("Settings", "", "Apply", []formField{{"one", "First", "one", false}, {"two", "Second", "two", false}}, func(map[string]string) error { return nil })
-	m.dialog.form.editor.SetValue("edited")
+	m.openForm("Settings", "", "Apply", []formField{{Key: "one", Label: "First", Value: "one", Multiline: false}, {Key: "two", Label: "Second", Value: "two", Multiline: false}}, func(map[string]string) error { return nil })
+	m.dialog.form.Editor.SetValue("edited")
 	m.formKey(tea.KeyPressMsg{Code: tea.KeyDown})
-	if m.dialog.form.index != 1 || m.dialog.form.fields[0].value != "edited" {
+	if m.dialog.form.Index != 1 || m.dialog.form.Fields[0].Value != "edited" {
 		t.Fatal("down lost value or focus")
 	}
 	m.formKey(tea.KeyPressMsg{Code: tea.KeyUp})
-	if m.dialog.form.index != 0 || m.dialog.form.editor.Value() != "edited" {
+	if m.dialog.form.Index != 0 || m.dialog.form.Editor.Value() != "edited" {
 		t.Fatal("up lost value or focus")
 	}
 }
@@ -313,17 +313,17 @@ func TestProtocolSwitchSuggestsOnlyLocalDefaults(t *testing.T) {
 		}
 	}
 	m := settingsModel(t)
-	m.openForm("Connection", "", "Apply", []formField{{"kind", "Protocol", "llama", false}, {"endpoint", "URL", "http://127.0.0.1:8080", false}}, func(map[string]string) error { return nil })
+	m.openForm("Connection", "", "Apply", []formField{{Key: "kind", Label: "Protocol", Value: "llama", Multiline: false}, {Key: "endpoint", Label: "URL", Value: "http://127.0.0.1:8080", Multiline: false}}, func(map[string]string) error { return nil })
 	m.cycleFormChoice()
 	m.focusForm(1)
-	if m.dialog.form.editor.Value() != "http://127.0.0.1:5001" {
+	if m.dialog.form.Editor.Value() != "http://127.0.0.1:5001" {
 		t.Fatal("suggested URL not visible in editor")
 	}
-	m.dialog.form.editor.SetValue("http://localhost:9000")
+	m.dialog.form.Editor.SetValue("http://localhost:9000")
 	m.focusForm(0)
 	m.cycleFormChoice()
 	m.focusForm(1)
-	if m.dialog.form.editor.Value() != "http://localhost:9000" {
+	if m.dialog.form.Editor.Value() != "http://localhost:9000" {
 		t.Fatal("custom URL overwritten")
 	}
 }
@@ -338,13 +338,13 @@ func TestModelFormDiscoversNestedModelChoices(t *testing.T) {
 	m.chat.config.Profile.Provider.ModelRoot = root
 	m.chat.config.Profile.Provider.Ownership = "managed"
 	m.editSettings("model")
-	for i, field := range m.dialog.form.fields {
-		if field.key == "model-file" {
+	for i, field := range m.dialog.form.Fields {
+		if field.Key == "model-file" {
 			m.focusForm(i)
 			cmd := m.openSettingsPicker()
 			m.acceptSettingsScan(cmd().(settingsScanMsg))
 			m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-			if m.dialog.form.editor.Value() != file {
+			if m.dialog.form.Editor.Value() != file {
 				t.Fatal("nested model not selectable")
 			}
 			return

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"github.com/keshon/tars/internal/tui/components/selection"
 	"os"
 	"path/filepath"
 	"strings"
@@ -50,7 +51,7 @@ type sessionEntry struct {
 	preview      string
 	search       []sessionText
 	matchText    string
-	matchBlock   int
+	matchMessage int
 	historyMatch bool
 }
 
@@ -59,12 +60,11 @@ type sessionsState struct {
 	entries []sessionEntry
 	all     []sessionEntry
 	filter  textinput.Model
-	cursor  int
+	selection.Model
 	// offset is the first visible row: the list scrolls under a
 	// stationary viewport instead of clipping past it.
-	offset int
-	mode   sessionsMode
-	flash  string
+	mode  sessionsMode
+	flash string
 	// root is the tasks dir scanned at open; mutations re-scan it so
 	// the list always reflects disk, never a stale copy.
 	root          string
@@ -167,8 +167,8 @@ func (m *model) closeSessions() {
 	m.popOverlay()
 	m.fitBottom()
 	m.refreshContent()
-	if m.follow {
-		m.vp.GotoBottom()
+	if m.transcript.Follow {
+		m.transcript.Viewport.GotoBottom()
 	}
 }
 
@@ -236,11 +236,11 @@ func (m *model) sessionsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if len(s.entries) == 0 {
 			return m, nil
 		}
-		if msg.String() == "up" && s.cursor > 0 {
-			s.cursor--
+		if msg.String() == "up" && s.Cursor > 0 {
+			s.Cursor--
 		}
-		if msg.String() == "down" && s.cursor < len(s.entries)-1 {
-			s.cursor++
+		if msg.String() == "down" && s.Cursor < len(s.entries)-1 {
+			s.Cursor++
 		}
 		m.clampOffset()
 		return m, nil
@@ -251,14 +251,14 @@ func (m *model) sessionsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		step := m.sessVisible()
 		if msg.String() == "pgup" {
-			s.cursor -= step
-			if s.cursor < 0 {
-				s.cursor = 0
+			s.Cursor -= step
+			if s.Cursor < 0 {
+				s.Cursor = 0
 			}
 		} else {
-			s.cursor += step
-			if s.cursor > len(s.entries)-1 {
-				s.cursor = len(s.entries) - 1
+			s.Cursor += step
+			if s.Cursor > len(s.entries)-1 {
+				s.Cursor = len(s.entries) - 1
 			}
 		}
 		m.clampOffset()
@@ -301,7 +301,7 @@ func (m *model) openSelected() tea.Cmd {
 		s.flash = "stop the run first"
 		return nil
 	}
-	cur := s.entries[s.cursor]
+	cur := s.entries[s.Cursor]
 	if m.application != nil {
 		if cmd, handled := m.openApplicationSession(cur); handled {
 			return cmd
@@ -349,7 +349,7 @@ func (m *model) openSelected() tea.Cmd {
 	m.restoreDraft()
 	mb := markerBlock("— opened " + cur.title + " —")
 	mb.breakBefore = true
-	m.blocks = append([]block{mb}, renderHistory(history)...)
+	m.transcript.blocks = append([]block{mb}, renderHistory(history)...)
 	m.restoreContext(history)
 	m.retryRun = nil
 	m.runErr = nil
@@ -362,17 +362,14 @@ func (m *model) openSelected() tea.Cmd {
 	m.refreshContent()
 	// Land at the top: a stale offset into replaced blocks shows
 	// mid-history or blank. follow stays on so live turns behave.
-	m.follow = true
-	m.vp.GotoTop()
+	m.transcript.Follow = true
+	m.transcript.Viewport.GotoTop()
 	if cur.historyMatch {
 		// Match indices refer to renderHistory; the opened marker adds one block.
-		target := cur.matchBlock + 1
-		row := 0
-		for i := 0; i < target && i < len(m.partLines); i++ {
-			row += m.partLines[i] + 1 // rendered part plus the blank row between parts
-		}
-		m.follow = false
-		m.vp.SetYOffset(row)
+		target := historyMatchBlock(history, cur.matchMessage) + 1
+		row := m.transcript.PartOffset(target)
+		m.transcript.Follow = false
+		m.transcript.Viewport.SetYOffset(row)
 	}
 	m.restoreDraft()
 	return m.input.Focus()
@@ -442,7 +439,7 @@ func (m *model) commitRename() {
 	name := workspace.TitleLine(m.note.Value())
 	m.resetNote()
 	s.mode = sessList
-	cur := &s.entries[s.cursor]
+	cur := &s.entries[s.Cursor]
 	if name == "" {
 		// Clearing removes the stored title: the row falls back to
 		// the derived text live, tracking history instead of a stale
@@ -490,7 +487,7 @@ func (m *model) deleteSelected() {
 		s.mode = sessList
 		return
 	}
-	cur := s.entries[s.cursor]
+	cur := s.entries[s.Cursor]
 	if m.stateFile != "" && sameSession(cur.dir, m.stateFile) {
 		if m.state != stDone {
 			s.mode = sessList
@@ -517,8 +514,8 @@ func (m *model) deleteSelected() {
 	s.entries = withoutSession(s.entries, cur.dir)
 	m.refreshNavigator()
 
-	if s.cursor >= len(s.entries) && s.cursor > 0 {
-		s.cursor--
+	if s.Cursor >= len(s.entries) && s.Cursor > 0 {
+		s.Cursor--
 	}
 	m.clampOffset()
 	s.mode = sessList
@@ -590,14 +587,7 @@ func sameSession(dir, stateFile string) bool {
 }
 
 func (s *sessionsState) clamp(visible int) {
-	s.cursor = max(0, min(s.cursor, len(s.entries)-1))
-	if s.offset > s.cursor {
-		s.offset = s.cursor
-	}
-	if s.cursor >= s.offset+visible {
-		s.offset = s.cursor - visible + 1
-	}
-	s.offset = max(0, min(s.offset, max(len(s.entries)-visible, 0)))
+	s.Clamp(len(s.entries), visible)
 }
 func (s *sessionsState) applyFilter() {
 	query := strings.ToLower(strings.TrimSpace(s.filter.Value()))
@@ -619,27 +609,27 @@ func (s *sessionsState) applyFilter() {
 		}
 		for _, message := range e.search {
 			if strings.Contains(strings.ToLower(message.text), query) {
-				e.matchText, e.matchBlock, e.historyMatch = message.text, message.block, true
+				e.matchText, e.matchMessage, e.historyMatch = message.text, message.message, true
 				history = append(history, e)
 				break
 			}
 		}
 	}
 	s.entries = append(titles, history...)
-	s.cursor, s.offset = 0, 0
+	s.Cursor, s.Offset = 0, 0
 }
 
 func (s *sessionsState) replaceEntries(entries []sessionEntry) {
-	index, selected := s.cursor, ""
+	index, selected := s.Cursor, ""
 	if len(s.entries) > 0 {
-		selected = s.entries[s.cursor].dir
+		selected = s.entries[s.Cursor].dir
 	}
 	s.all = entries
 	s.applyFilter()
-	s.cursor = min(index, max(len(s.entries)-1, 0))
+	s.Cursor = min(index, max(len(s.entries)-1, 0))
 	for i, e := range s.entries {
 		if e.dir == selected {
-			s.cursor = i
+			s.Cursor = i
 			break
 		}
 	}
@@ -657,18 +647,18 @@ func (m *model) browserMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	}
 	switch mouse.Button {
 	case tea.MouseWheelUp:
-		s.cursor--
+		s.Cursor--
 	case tea.MouseWheelDown:
-		s.cursor++
+		s.Cursor++
 	case tea.MouseLeft:
 		if !isMouseClick(msg) {
 			return m, nil
 		}
 		row := (mouse.Y - g.y - 3) / 2
-		if mouse.Y < g.y+3 || row >= m.sessVisible() || s.offset+row >= len(s.entries) {
+		if mouse.Y < g.y+3 || row >= m.sessVisible() || s.Offset+row >= len(s.entries) {
 			return m, nil
 		}
-		s.cursor = s.offset + row
+		s.Cursor = s.Offset + row
 	default:
 		return m, nil
 	}
@@ -726,4 +716,20 @@ func (m *model) updateSessionTitle(dir, title string) {
 	if sameSession(dir, m.stateFile) {
 		m.sessionTitle = title
 	}
+}
+
+// Translate a source-message match only when opening its transcript. Indexing
+// remains independent of reasoning blocks, tool cards, and display layout.
+func historyMatchBlock(history []llm.Message, message int) int {
+	message = min(max(message, 0), len(history))
+	prefix := len(renderHistory(history[:message]))
+	if message == len(history) {
+		return prefix
+	}
+	for i, b := range renderHistory(history[message : message+1]) {
+		if b.role == roleUser || b.role == roleAnswer {
+			return prefix + i
+		}
+	}
+	return prefix
 }

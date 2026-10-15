@@ -22,11 +22,11 @@ func TestHelpPagesFitAndRemainReachable(t *testing.T) {
 				for _, offset := range []int{0, 1000} {
 					m.dialog.offset = offset
 					view := m.dialogView()
-					if lipgloss.Height(view) > m.vp.Height() {
+					if lipgloss.Height(view) > m.transcript.Viewport.Height() {
 						t.Fatalf("%dx%d: help exceeds viewport height", width, height)
 					}
 					for _, line := range strings.Split(view, "\n") {
-						if lipgloss.Width(line) > m.vp.Width() {
+						if lipgloss.Width(line) > m.transcript.Viewport.Width() {
 							t.Fatalf("%dx%d: help exceeds viewport width: %q", width, height, line)
 						}
 					}

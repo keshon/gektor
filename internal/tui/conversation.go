@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"github.com/keshon/tars/internal/tui/components/composer"
 	"os"
 	"path/filepath"
 	"strings"
@@ -58,13 +59,11 @@ func (m *model) startConversation(text string) error {
 	if err := m.saveSessionSettings(); err != nil {
 		return err
 	}
-	m.blocks = nil
+	m.transcript.blocks = nil
 	m.resetRunFacts()
 	m.queued = ""
-	m.hist = []string{text}
-	m.histIdx = 1
-	m.draft = ""
-	m.follow = true
+	m.input.Restore(composer.Snapshot{History: []string{text}, Index: 1})
+	m.transcript.Follow = true
 	m.clearContext()
 	m.input.SetValue("")
 	m.showGreeting()
@@ -146,7 +145,7 @@ func (m *model) submitConversation(text string) (tea.Model, tea.Cmd) {
 	if text == "" {
 		return m, nil
 	}
-	m.pushHistory(text)
+	m.input.Push(text)
 	m.input.SetValue("")
 	m.fitInput()
 	m.fitBottom()
@@ -172,10 +171,10 @@ func (m *model) openConversation(cur sessionEntry) tea.Cmd {
 	m.stateFile = filepath.Join(cur.dir, "conversation.json")
 	m.sessionTitle = cur.title
 	m.resetRunFacts()
-	m.blocks = nil
+	m.transcript.blocks = nil
 	m.showGreeting()
-	greetingBlocks := len(m.blocks)
-	m.blocks = append(m.blocks, renderHistory(c.History())...)
+	greetingBlocks := len(m.transcript.blocks)
+	m.transcript.blocks = append(m.transcript.blocks, renderHistory(c.History())...)
 	m.restoreContext(c.History())
 	m.state = stDone
 	m.navFocused = false
@@ -183,15 +182,12 @@ func (m *model) openConversation(cur sessionEntry) tea.Cmd {
 	m.restoreDraft()
 	m.fitBottom()
 	m.refreshContent()
-	m.vp.GotoTop()
+	m.transcript.Viewport.GotoTop()
 	if cur.historyMatch {
-		target := cur.matchBlock + greetingBlocks
-		row := 0
-		for i := 0; i < target && i < len(m.partLines); i++ {
-			row += m.partLines[i] + 1
-		}
-		m.follow = false
-		m.vp.SetYOffset(row)
+		target := historyMatchBlock(c.History(), cur.matchMessage) + greetingBlocks
+		row := m.transcript.PartOffset(target)
+		m.transcript.Follow = false
+		m.transcript.Viewport.SetYOffset(row)
 	}
 	return m.input.Focus()
 }

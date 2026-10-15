@@ -5,6 +5,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/keshon/tars/internal/tui/components/composer"
 )
 
 // truncate shortens display strings with a marker. Rune-based:
@@ -24,7 +25,7 @@ func truncate(s string, n int) string {
 // newInput builds the answer box: multiline, capped at a few rows.
 // Enter submits (handled by the model, never reaching the widget);
 // Shift+Enter inserts a newline; Ctrl+O remains a terminal fallback.
-func newInput() textarea.Model {
+func newInput() composer.Model {
 	ta := textarea.New()
 	ta.Prompt = "> "
 	ta.SetVirtualCursor(false)
@@ -37,8 +38,7 @@ func newInput() textarea.Model {
 	// Line numbers default on in bubbles and render as a phantom "1"
 	// in the empty box — it looks like content but submits nothing.
 	ta.ShowLineNumbers = false
-	ta.KeyMap.InsertNewline.SetKeys("shift+enter", "ctrl+o")
-	return ta
+	return composer.New(ta)
 }
 
 func inputStyles(styles textarea.Styles) textarea.Styles {

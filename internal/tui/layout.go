@@ -46,7 +46,7 @@ func (m *model) fitColumns() {
 		}
 		m.navFocused = false
 	}
-	m.vp.SetWidth(max(width, 1))
+	m.transcript.Viewport.SetWidth(max(width, 1))
 }
 func (m *model) identityLine() string { return m.badgeLine() }
 func (m *model) conversationOffset() int {
@@ -63,8 +63,8 @@ func (m *model) sidebarView() string {
 	visible := m.navigatorRows()
 	nav := m.nav
 	nav.clamp(visible)
-	end := min(nav.offset+visible, len(nav.entries))
-	for i := nav.offset; i < end; i++ {
+	end := min(nav.Offset+visible, len(nav.entries))
+	for i := nav.Offset; i < end; i++ {
 		e := m.nav.entries[i]
 		age := strings.TrimSuffix(ageString(e.updated), " ago")
 		if age == "just now" {
@@ -72,7 +72,7 @@ func (m *model) sidebarView() string {
 		}
 		age = cellLine(age, 4)
 		line := cellLine(" "+e.title, navigatorWidth-5)
-		selected := (m.navFocused && i == m.nav.cursor) || (!m.navFocused && sameSession(e.dir, m.stateFile))
+		selected := (m.navFocused && i == m.nav.Cursor) || (!m.navFocused && sameSession(e.dir, m.stateFile))
 		if selected {
 			_, _, style := popupStyles()
 			rows = append(rows, style.Render(line+" "+age))
@@ -100,7 +100,7 @@ func (m *model) sidebarDetails() string {
 	}
 	nav := m.nav
 	nav.clamp(m.navigatorRows())
-	e := nav.entries[nav.cursor]
+	e := nav.entries[nav.Cursor]
 	if !m.navFocused {
 		for _, entry := range nav.entries {
 			if sameSession(entry.dir, m.stateFile) {
@@ -151,15 +151,7 @@ func (m *model) navigatorKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.navFocused = false
 		return m, m.input.Focus()
 	case "up", "down", "pgup", "pgdown":
-		step := 1
-		if msg.String() == "pgup" || msg.String() == "pgdown" {
-			step = m.navigatorRows()
-		}
-		if msg.String() == "up" || msg.String() == "pgup" {
-			step = -step
-		}
-		m.nav.cursor += step
-		m.nav.clamp(m.navigatorRows())
+		m.nav.Update(msg, len(m.nav.entries), m.navigatorRows())
 	case "enter", "ctrl+r", "ctrl+d":
 		if m.state != stDone {
 			m.appendBlock(markerBlock("Stop the run before switching sessions."))
@@ -168,11 +160,11 @@ func (m *model) navigatorKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if len(m.nav.entries) == 0 {
 			return m, nil
 		}
-		dir := m.nav.entries[m.nav.cursor].dir
+		dir := m.nav.entries[m.nav.Cursor].dir
 		m.openSessions()
 		for i, e := range m.sessions.entries {
 			if e.dir == dir {
-				m.sessions.cursor = i
+				m.sessions.Cursor = i
 				break
 			}
 		}

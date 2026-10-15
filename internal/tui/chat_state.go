@@ -1,31 +1,30 @@
 package tui
 
 import (
+	"github.com/keshon/tars/internal/sessionindex"
+	"github.com/keshon/tars/internal/tui/components/composer"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
 // Drafts are local UI state, separate from submitted model history.
 type chatDraft struct {
-	text, queued, recall string
-	history              []string
-	index                int
+	text, queued string
+	recall       composer.Snapshot
 }
 
 func (m *model) saveDraft() {
 	if m.drafts == nil {
 		m.drafts = make(map[string]chatDraft)
 	}
-	m.drafts[m.stateFile] = chatDraft{m.input.Value(), m.queued, m.draft, append([]string(nil), m.hist...), m.histIdx}
+	m.drafts[m.stateFile] = chatDraft{m.input.Value(), m.queued, m.input.Snapshot()}
 }
-
 func (m *model) restoreDraft() {
 	d := m.drafts[m.stateFile]
 	m.input.SetValue(d.text)
-	m.queued, m.draft, m.histIdx = d.queued, d.recall, d.index
-	m.hist = append([]string(nil), d.history...)
+	m.queued = d.queued
+	m.input.Restore(d.recall)
 	m.fitInput()
 	m.fitBottom()
 }
@@ -41,20 +40,7 @@ func (m *model) resetRunFacts() {
 	m.firstToken = time.Time{}
 }
 
-func readChatMode(dir string) string {
-	b, err := os.ReadFile(filepath.Join(dir, "mode"))
-	if err != nil {
-		return "Unknown mode"
-	}
-	switch strings.TrimSpace(string(b)) {
-	case "plan":
-		return "Plan"
-	case "act":
-		return "Act"
-	default:
-		return "Unknown mode"
-	}
-}
+func readChatMode(dir string) string { return sessionindex.ReadMode(dir) }
 
 func (m *model) modeName() string {
 	if m.chat != nil {

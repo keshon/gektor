@@ -61,7 +61,7 @@ func (m *model) headerBadges() []headerBadge {
 		ctx += " / " + kTokens(m.limit)
 	}
 	modelWidth := 32
-	if m.vp.Width() < 110 {
+	if m.transcript.Viewport.Width() < 110 {
 		modelWidth = 18
 	}
 	candidates := []headerBadge{{id: "mode", label: mode}, {id: "activity", label: activity}, {id: "model", label: strings.TrimSpace(cellLine(strings.ToUpper(nonEmpty(m.modelName)), modelWidth))}, {id: "context", label: ctx}}
@@ -78,8 +78,8 @@ func (m *model) headerBadges() []headerBadge {
 		total += lipgloss.Width(b.label) + 3
 	}
 	total += lipgloss.Width(m.badgePaneLabel())
-	if total > m.vp.Width() {
-		available := lipgloss.Width(candidates[2].label) - (total - m.vp.Width())
+	if total > m.transcript.Viewport.Width() {
+		available := lipgloss.Width(candidates[2].label) - (total - m.transcript.Viewport.Width())
 		if available >= 6 {
 			candidates[2].label = strings.TrimSpace(cellLine(candidates[2].label, available))
 		} else {
@@ -89,7 +89,7 @@ func (m *model) headerBadges() []headerBadge {
 	x := lipgloss.Width(m.badgePaneLabel())
 	for i := range candidates {
 		candidates[i].start = x
-		candidates[i].end = min(x+lipgloss.Width(candidates[i].label)+2, m.vp.Width())
+		candidates[i].end = min(x+lipgloss.Width(candidates[i].label)+2, m.transcript.Viewport.Width())
 		x = candidates[i].end + 1
 	}
 	return candidates
@@ -122,7 +122,7 @@ func (m *model) badgeLine() string {
 	if !m.navFocused {
 		titleStyle = selected
 	}
-	return cellLine(titleStyle.Render(label)+strings.Join(out, " "), m.vp.Width())
+	return cellLine(titleStyle.Render(label)+strings.Join(out, " "), m.transcript.Viewport.Width())
 }
 
 func (m *model) badgePaneLabel() string {
@@ -319,8 +319,8 @@ func (m *model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				m.openApplication()
 				if m.dialog != nil && m.dialog.form != nil {
 					mode := strings.TrimPrefix(item.command, "mode-")
-					m.dialog.form.fields[0].value = mode
-					m.dialog.form.editor.SetValue(mode)
+					m.dialog.form.Fields[0].Value = mode
+					m.dialog.form.Editor.SetValue(mode)
 				}
 				return m, nil
 			case "permissions-info":

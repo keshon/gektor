@@ -24,7 +24,7 @@ func (m *model) statusLine() string {
 		return m.styles.status.Render(m.voicePhase + " · Esc stop")
 	}
 	hint := m.actionHint()
-	if !m.follow && m.state == stDone {
+	if !m.transcript.Follow && m.state == stDone {
 		hint += "  Scrolled up"
 	}
 	return m.styles.status.Render(hint)
@@ -133,7 +133,7 @@ func kTokens(n int) string {
 
 // dividerLine splits history from the bottom zone with a dim rule.
 func (m *model) dividerLine() string {
-	w := max(m.vp.Width(), 0)
+	w := max(m.transcript.Viewport.Width(), 0)
 	if w < minWrapWidth {
 		w = minWrapWidth
 	}

@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -25,6 +24,7 @@ import (
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/roles"
 	"github.com/keshon/tars/internal/speech"
+	"github.com/keshon/tars/internal/tui/components/composer"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -92,29 +92,22 @@ type model struct {
 	captureRevision uint64
 
 	chat        *chatUI
-	vp          viewport.Model
-	input       textarea.Model
+	transcript  transcriptState
+	input       composer.Model
 	suggestions suggestionState
-	// hist is the submitted-line history (cap 50, consecutive dedup);
-	// histIdx points past the end when typing fresh input. draft holds
-	// the unsent line parked while browsing history.
-	hist      []string
-	histIdx   int
-	queued    string
-	gateDraft string
-	draft     string
-	events    chan api.Event
-	hub       *api.GateHub
-	cancel    context.CancelFunc
-	ctx       context.Context
+	queued      string
+	gateDraft   string
+	events      chan api.Event
+	hub         *api.GateHub
+	cancel      context.CancelFunc
+	ctx         context.Context
 	// base spawns one context per run: an interrupted run's cancelled
 	// context must never leak into the next turn.
-	base   context.Context
-	sess   *api.Session
-	blocks []block
-	state  runState
-	gate   string
-	steps  int
+	base  context.Context
+	sess  *api.Session
+	state runState
+	gate  string
+	steps int
 	// maxSteps is the run's step budget for the meter: the loop default,
 	// since the Interactive role never overrides it. Display only — the
 	// loop enforces its own copy.
@@ -160,15 +153,6 @@ type model struct {
 	usage     usageState
 	header    headerState
 
-	// follow tracks viewport stickiness: new blocks auto-scroll only
-	// while the user hasn't scrolled away. Any manual scroll re-arms
-	// on reaching the bottom; End always re-arms.
-	follow bool
-	// compact collapses verbose blocks: thinking summaries and long
-	// tool results (10-line preview). Toggled by the think key (see
-	// thinkToggleHint); render-only, history keeps everything either
-	// way. On by default: details on demand, never a flood.
-	compact bool
 	// live accumulates streamed content chunks for the live answer
 	// block; liveCut marks the 64KB truncation tail; lastLive gates
 	// repaints (see livePaintInterval).
@@ -186,11 +170,6 @@ type model struct {
 	// observed changed paths. They reset with the step counter in startRun.
 	toolsUsed    int
 	filesTouched map[string]bool
-	// partLines holds rendered line counts per transcript part, kept so
-	// pure re-renders (toggles, resizes) can hold the reader's content
-	// position instead of its offset. See refreshContent.
-	partLines []int
-	render    transcriptRenderState
 	// overlays is the overlay stack (overlay.go); gates are its first
 	// client. gstage/gateTool/gateResource describe the open permission
 	// gate; note is the reject-note input; always remembers run-local
@@ -309,8 +288,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		styles:       defaultStyles(),
 		limit:        cfg.Env.ContextLimit,
 		maxSteps:     envMaxSteps(cfg.Env),
-		follow:       true,
-		compact:      true,
+		transcript:   newTranscript(),
 		plan:         cfg.Plan,
 		mission:      cfg.Mission != nil,
 		stateFile:    cfg.StateFile,
@@ -465,7 +443,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 			return "", err
 		}
 		m.sess = sess
-		m.blocks = append(m.blocks, renderHistory(cfg.History)...)
+		m.transcript.blocks = append(m.transcript.blocks, renderHistory(cfg.History)...)
 		m.restoreContext(cfg.History)
 		m.startRun(func(runCtx context.Context) (string, error) {
 			return sess.Resume(runCtx, cfg.History, task, cfg.Images...)
@@ -481,7 +459,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		m.input.Focus()
 	}
 	if len(cfg.SeedHistory) > 0 || cfg.SessionDirectory != "" {
-		m.blocks = renderHistory(cfg.SeedHistory)
+		m.transcript.blocks = renderHistory(cfg.SeedHistory)
 		if m.chat != nil {
 			c, err := chat.Restore(m.chat.config.Client, m.chat.config.Settings, DialogueProjection(cfg.SeedHistory))
 			if err != nil {

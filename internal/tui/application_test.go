@@ -20,9 +20,9 @@ func TestModeSwitchCarriesContextAndDraftWithoutRunning(t *testing.T) {
 	m.application = &Application{Preferences: config.Preferences{Version: 1, Mode: "chat", Voice: "off", Profile: &profile}}
 	before := m.chat.current.History()
 	m.openApplication()
-	m.dialog.form.editor.SetValue("agent")
+	m.dialog.form.Editor.SetValue("agent")
 	focusSetting(m, "app-workspace")
-	m.dialog.form.editor.SetValue(t.TempDir())
+	m.dialog.form.Editor.SetValue(t.TempDir())
 	m.applyForm()
 	if m.modeChange == nil || m.modeChange.Preferences.Mode != "agent" || m.modeChange.Draft != "unfinished draft" || len(m.modeChange.History) != len(before) || m.state != stDone {
 		t.Fatal("mode transition changed history, draft or ran a task")
@@ -93,7 +93,7 @@ func TestAgentSpeechSettingsDoNotCreateChatOrChangeTools(t *testing.T) {
 	profile := config.Profile{Version: 1, Provider: config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local", Ownership: "external"}, Generation: config.Generation{MaxTokens: 100, ContextLimit: 1000}, Speech: &speech.Config{Microphone: "old", Recorder: "ffmpeg", PlayerBinary: "ffplay", MaxSeconds: 120, Listening: speech.Listening{Ownership: "external", URL: "http://127.0.0.1:19082"}, Speaking: speech.Speaking{Provider: "chatterbox", Variant: "nano", Binary: "python", Model: "models/nano"}}}
 	m.audioConfig = &ChatConfig{Profile: profile, Configure: func(p config.Profile) (ChatConfig, error) { return ChatConfig{Profile: p}, nil }}
 	m.editSettings("speech")
-	m.dialog.form.editor.SetValue("new microphone")
+	m.dialog.form.Editor.SetValue("new microphone")
 	m.applyForm()
 	if m.dialog != nil || m.chat != nil || m.audioConfig.Profile.Speech.Microphone != "new microphone" {
 		t.Fatal("agent speech settings used chat runner")
@@ -114,7 +114,7 @@ func TestAgentSharedModelSettingsCarryHistoryAndDraft(t *testing.T) {
 		t.Fatal("Agent model editor unavailable")
 	}
 	focusSetting(m, "model")
-	m.dialog.form.editor.SetValue("another-model")
+	m.dialog.form.Editor.SetValue("another-model")
 	m.applyForm()
 	if m.modeChange == nil || m.modeChange.Preferences.Profile.Provider.Model != "another-model" || m.modeChange.Draft != "unfinished draft" || len(m.modeChange.History) != len(history) || m.state != stDone {
 		t.Fatal("settings lost context or started a run")
@@ -130,9 +130,9 @@ func TestSharedApplicationPageRetainsStagedModel(t *testing.T) {
 	original := m.sessionDirectory()
 	m.editSettings("model")
 	focusSetting(m, "model")
-	m.dialog.form.editor.SetValue("selected-model")
+	m.dialog.form.Editor.SetValue("selected-model")
 	m.editSettings("application")
-	m.dialog.form.editor.SetValue("agent")
+	m.dialog.form.Editor.SetValue("agent")
 	m.applyForm()
 	if m.modeChange == nil || m.modeChange.Preferences.Profile.Provider.Model != "selected-model" || m.modeChange.Directory != original || m.modeChange.Preferences.Mode != "agent" {
 		t.Fatal("shared settings lost staged values or session identity")
@@ -238,7 +238,7 @@ func TestCommanderColorPreview(t *testing.T) {
 	profile := m.chat.config.Profile
 	m.application = &Application{Preferences: config.Preferences{Version: 1, Mode: "chat", Voice: "off", Profile: &profile}}
 	m.Update(tea.WindowSizeMsg{Width: 110, Height: 28})
-	m.blocks = []block{userBlock("Hello there"), answerBlock("Hello. What would you like to work on?")}
+	m.transcript.blocks = []block{userBlock("Hello there"), answerBlock("Hello. What would you like to work on?")}
 	m.refreshContent()
 	for _, name := range []string{"conversation", "sessions", "menu"} {
 		m.navFocused = name == "sessions"

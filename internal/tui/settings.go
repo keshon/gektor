@@ -9,26 +9,22 @@ import (
 	"strconv"
 	"strings"
 
-	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/tars/internal/character"
 	"github.com/keshon/tars/internal/chat"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/prompts"
 	"github.com/keshon/tars/internal/speech"
+	"github.com/keshon/tars/internal/tui/components/form"
 	"github.com/keshon/tars/internal/workspace"
 )
 
-type formField struct {
-	key, label, value string
-	multiline         bool
-}
+type formField = form.Field
+
 type settingsForm struct {
-	fields                  []formField
-	index                   int
-	editor                  textarea.Model
+	form.Model
+
 	error, hint, applyLabel string
 	apply                   func(map[string]string) error
 	destructive             bool
@@ -38,36 +34,21 @@ type settingsForm struct {
 	workspace               *settingsWorkspace
 	picker                  *settingsPicker
 }
-type formHit struct{ index, y0, y1, x0, x1 int }
+type formHit = form.Hit
 
 func (m *model) openForm(title, hint, applyLabel string, fields []formField, apply func(map[string]string) error) {
 	m.openDialog(title, nil)
-	f := &settingsForm{fields: fields, index: len(fields), hint: hint, applyLabel: applyLabel, apply: apply, editor: newInput()}
-	f.editor.SetVirtualCursor(true)
-	f.editor.DynamicHeight = false
-	f.editor.Prompt = ""
-	f.editor.CharLimit = 65536
+	f := &settingsForm{Model: form.New(fields, newInput().Model), hint: hint, applyLabel: applyLabel, apply: apply}
+	f.Editor.SetVirtualCursor(true)
+	f.Editor.DynamicHeight = false
+	f.Editor.Prompt = ""
+	f.Editor.CharLimit = 65536
 	m.dialog.form = f
 	m.focusForm(0)
 }
 func (m *model) focusForm(index int) {
 	f := m.dialog.form
-	if f.index < len(f.fields) {
-		f.fields[f.index].value = f.editor.Value()
-	}
-	step := 1
-	if index < f.index {
-		step = -1
-	}
-	f.index = (index + len(f.fields) + 2) % (len(f.fields) + 2)
-	for !m.settingsFieldVisible(f.index) {
-		f.index = (f.index + step + len(f.fields) + 2) % (len(f.fields) + 2)
-	}
-	f.editor.Blur()
-	if f.index < len(f.fields) {
-		f.editor.SetValue(f.fields[f.index].value)
-		f.editor.Focus()
-	}
+	f.Focus(index, m.settingsFieldVisible)
 
 	m.resizeFormEditor()
 }
@@ -80,13 +61,7 @@ func (m *model) applyForm() {
 		f.error = "Stop the voice sample before applying settings"
 		return
 	}
-	if f.index < len(f.fields) {
-		f.fields[f.index].value = f.editor.Value()
-	}
-	values := map[string]string{}
-	for _, field := range f.fields {
-		values[field.key] = field.value
-	}
+	values := f.Values()
 	if err := f.apply(values); err != nil {
 		f.error = err.Error()
 		return
@@ -120,118 +95,31 @@ func (m *model) formKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	switch msg.String() {
-	case "esc":
-		m.closeDialog()
-		return m, nil
-	case "ctrl+s":
-		if f.destructive && f.index != len(f.fields) {
-			return m, nil
-		}
+	choice := f.Index < len(f.Fields) && (len(m.formOptions(f.Fields[f.Index].Key)) > 0 || pickerControl(f.Fields[f.Index].Key))
+	intent, cmd := f.Update(msg, m.settingsFieldVisible, choice, f.destructive)
+	m.resizeFormEditor()
+	switch intent {
+	case form.Apply:
 		m.applyForm()
-		return m, nil
-	case "space":
-		if f.index < len(f.fields) && (len(m.formOptions(f.fields[f.index].key)) > 0 || pickerControl(f.fields[f.index].key)) {
-			return m, m.openSettingsPicker()
-		}
-	case "left", "right":
-		if f.index >= len(f.fields) {
-			step := 1
-			if msg.String() == "left" {
-				step = -1
-			}
-			m.focusForm(len(f.fields) + (f.index-len(f.fields)+step+2)%2)
-			return m, nil
-		}
-	case "up", "down":
-		if f.index >= len(f.fields) || !f.fields[f.index].multiline {
-			step := 1
-			if msg.String() == "up" {
-				step = -1
-			}
-			m.focusForm(f.index + step)
-			return m, nil
-		}
-	case "ctrl+up":
-		m.focusForm(f.index - 1)
-		return m, nil
-	case "ctrl+down":
-		m.focusForm(f.index + 1)
-		return m, nil
-	case "tab":
-		m.focusForm(f.index + 1)
-		return m, nil
-	case "shift+tab":
-		m.focusForm(f.index - 1)
-		return m, nil
-	case "enter":
-		if f.index < len(f.fields) && (len(m.formOptions(f.fields[f.index].key)) > 0 || pickerControl(f.fields[f.index].key)) {
-			return m, m.openSettingsPicker()
-		}
-		if f.index == len(f.fields) {
-			m.applyForm()
-		} else if f.index == len(f.fields)+1 {
-			m.closeDialog()
-		} else {
-			m.focusForm(f.index + 1)
-		}
-		return m, nil
+	case form.Cancel:
+		m.closeDialog()
+	case form.Pick:
+		return m, m.openSettingsPicker()
 	}
-	if f.index < len(f.fields) {
-		var cmd tea.Cmd
-		f.editor, cmd = f.editor.Update(msg)
-		return m, cmd
-	}
-	return m, nil
+	return m, cmd
+}
+
+func (m *model) formStyles() form.Styles {
+	return form.Styles{Muted: m.styles.dim, Focus: m.styles.gate, Error: m.styles.err}
 }
 func (m *model) plainFormRows() ([]string, []formHit, int, int) {
 	f := m.dialog.form
-	w, h := m.vp.Width(), m.vp.Height()
-	inner := max(min(w-6, 72), 12)
-	height := f.editor.Height()
-	rows := []string{m.styles.gate.Render(m.dialog.title), "", m.styles.dim.Render(cellLine(f.hint, inner)), ""}
-	capacity := max((h-9-height)/3, 1)
-	start := max(min(f.index, len(f.fields)-1)-capacity/2, 0)
-	end := min(start+capacity, len(f.fields))
-	if end == len(f.fields) {
-		start = max(end-capacity, 0)
+	w, h := m.transcript.Viewport.Width(), m.transcript.Viewport.Height()
+	choice := ""
+	if f.Index < len(f.Fields) && len(m.formOptions(f.Fields[f.Index].Key)) > 0 {
+		choice = choiceLabel(f.Fields[f.Index].Key, f.Editor.Value())
 	}
-	hits := []formHit{}
-	for i := start; i < end; i++ {
-		label := f.fields[i].label
-		style := m.styles.dim
-		if i == f.index {
-			label = "› " + label
-			style = m.styles.gate
-		}
-		y := len(rows)
-		rows = append(rows, style.Render(cellLine(label, inner)))
-		if i == f.index && len(m.formOptions(f.fields[i].key)) > 0 {
-			rows = append(rows, cellLine("[ "+choiceLabel(f.fields[i].key, f.editor.Value())+" ]  Enter to choose", inner))
-		} else if i == f.index {
-			rows = append(rows, strings.Split(f.editor.View(), "\n")...)
-		} else {
-			rows = append(rows, cellLine(strings.ReplaceAll(f.fields[i].value, "\n", " ↵ "), inner))
-		}
-		hits = append(hits, formHit{i, y, len(rows), 0, 0})
-		rows = append(rows, "")
-	}
-	if len(f.fields) > capacity {
-		rows = append(rows, m.styles.dim.Render(fmt.Sprintf("Fields %d–%d / %d · Tab moves through all fields", start+1, end, len(f.fields))))
-	}
-	if f.error != "" {
-		rows = append(rows, m.styles.err.Render(cellLine(f.error, inner)))
-	} else {
-		rows = append(rows, cellLine("", inner))
-	}
-	action, actionHits := m.formActions(inner, len(rows), f.applyLabel, true)
-	rows = append(rows, action, m.styles.dim.Render(strings.Repeat("─", inner)))
-	hits = append(hits, actionHits...)
-	hint := "↑↓/Tab fields · Ctrl+↑↓ multiline fields · Ctrl+S apply · Esc cancel"
-	if f.destructive {
-		hint = "Tab selects · Enter confirms selection · Esc cancel"
-	}
-	rows = append(rows, m.styles.dim.Render(cellLine(hint, inner)))
+	rows, hits := f.Rows(form.Props{Title: m.dialog.title, Hint: f.hint, Error: f.error, PrimaryLabel: f.applyLabel, Width: w, Height: h, Destructive: f.destructive, Choice: choice, Styles: m.formStyles()})
 	return rows, hits, w, h
 }
 func (m *model) formView() string {
@@ -268,7 +156,7 @@ func (m *model) formMouse(msg tea.MouseMsg) tea.Cmd {
 		if msg.Mouse().Button == tea.MouseWheelUp {
 			step = -1
 		}
-		p.cursor = min(max(p.cursor+step, 0), max(len(p.filtered)-1, 0))
+		p.Move(step, len(p.filtered), 1)
 		return nil
 	}
 	if msg.Mouse().Button != tea.MouseLeft || !isMouseClick(msg) {
@@ -290,9 +178,9 @@ func (m *model) formMouse(msg tea.MouseMsg) tea.Cmd {
 		p := m.dialog.form.picker
 		row := mouse.Y - y - 3
 		capacity := max(h-10, 1)
-		start := max(min(p.cursor-capacity/2, len(p.filtered)-capacity), 0)
+		start := max(min(p.Cursor-capacity/2, len(p.filtered)-capacity), 0)
 		if mouse.X >= x && mouse.X < x+bw+4 && row >= 0 && row < capacity && start+row < len(p.filtered) {
-			p.cursor = start + row
+			p.Cursor = start + row
 			_, cmd := m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 			return cmd
 		}
@@ -316,23 +204,23 @@ func (m *model) formMouse(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 	for _, hit := range hits {
-		if mouse.Y >= y+hit.y0 && mouse.Y < y+hit.y1 {
-			if hit.x1 > 0 {
+		if mouse.Y >= y+hit.Y0 && mouse.Y < y+hit.Y1 {
+			if hit.X1 > 0 {
 				contentX := x + 2
 				if m.dialog.form.workspace != nil && w >= 76 {
 					contentX += 17
 				}
-				if mouse.X < contentX+hit.x0 || mouse.X >= contentX+hit.x1 {
+				if mouse.X < contentX+hit.X0 || mouse.X >= contentX+hit.X1 {
 					continue
 				}
 			}
-			m.focusForm(hit.index)
-			if hit.index < len(m.dialog.form.fields) && mouse.Y > y+hit.y0 && (len(m.formOptions(m.dialog.form.fields[hit.index].key)) > 0 || pickerControl(m.dialog.form.fields[hit.index].key)) {
+			m.focusForm(hit.Index)
+			if hit.Index < len(m.dialog.form.Fields) && mouse.Y > y+hit.Y0 && (len(m.formOptions(m.dialog.form.Fields[hit.Index].Key)) > 0 || pickerControl(m.dialog.form.Fields[hit.Index].Key)) {
 				return m.openSettingsPicker()
 			}
-			if hit.index == len(m.dialog.form.fields) {
+			if hit.Index == len(m.dialog.form.Fields) {
 				m.applyForm()
-			} else if hit.index == len(m.dialog.form.fields)+1 {
+			} else if hit.Index == len(m.dialog.form.Fields)+1 {
 				m.closeDialog()
 			}
 			break
@@ -377,7 +265,7 @@ func (m *model) editSettings(section string) {
 	}
 	fields := []formField{}
 	add := func(key, label, value string, multi bool) {
-		fields = append(fields, formField{key, label, value, multi})
+		fields = append(fields, formField{Key: key, Label: label, Value: value, Multiline: multi})
 	}
 	title := ""
 	switch section {
@@ -461,14 +349,14 @@ func (m *model) editSettings(section string) {
 			if ws.loaded != nil {
 				profile = cloneSettingsProfile(*ws.loaded)
 			}
-			ws.cache[section] = append([]formField(nil), m.dialog.form.fields...)
+			ws.cache[section] = append([]formField(nil), m.dialog.form.Fields...)
 			for category, fields := range ws.cache {
 				if reflect.DeepEqual(fields, ws.original[category]) {
 					continue
 				}
 				v := map[string]string{}
 				for _, field := range fields {
-					v[field.key] = field.value
+					v[field.Key] = field.Value
 				}
 				if category == section {
 					v = values
@@ -476,11 +364,11 @@ func (m *model) editSettings(section string) {
 				if category == "application" {
 					continue
 				}
-				if err := applySettingsValues(&profile, category, v); err != nil {
+				if err := config.ApplySection(&profile, category, v); err != nil {
 					return fmt.Errorf("%s: %w", category, err)
 				}
 			}
-		} else if err := applySettingsValues(&profile, section, values); err != nil {
+		} else if err := config.ApplySection(&profile, section, values); err != nil {
 			return err
 		}
 
@@ -569,136 +457,16 @@ func (m *model) editSettings(section string) {
 		ws.original[section] = append([]formField(nil), fields...)
 	}
 	if saved, ok := ws.cache[section]; ok {
-		m.dialog.form.fields = append([]formField(nil), saved...)
-		m.dialog.form.index = len(saved)
+		m.dialog.form.Fields = append([]formField(nil), saved...)
+		m.dialog.form.Index = len(saved)
 		m.focusForm(0)
 	}
 	m.dialog.title = "Settings"
 }
 
-func applySettingsValues(profile *config.Profile, section string, values map[string]string) error {
-	conversation := profile.Conversation
-	if conversation == nil {
-		conversation = &config.Conversation{UserName: "User"}
-		profile.Conversation = conversation
-	}
-	switch section {
-	case "character":
-		conversation.Character = strings.TrimSpace(values["character"])
-		conversation.Name = strings.TrimSpace(values["name"])
-		if value, ok := values["greeting"]; ok {
-			index, err := strconv.Atoi(value)
-			if err != nil || index < 0 {
-				return fmt.Errorf("greeting index must be a nonnegative integer")
-			}
-			conversation.GreetingIndex = index
-		}
-		if conversation.Character != "" {
-			path, err := filepath.Abs(conversation.Character)
-			if err != nil {
-				return err
-			}
-			conversation.Character = path
-		}
-	case "you":
-		conversation.UserName = strings.TrimSpace(values["user"])
-		conversation.UserPersona = values["persona"]
-	case "generation":
-		var err error
-		profile.Generation.Temperature, err = strconv.ParseFloat(values["temperature"], 64)
-		if err != nil {
-			return fmt.Errorf("temperature must be a number")
-		}
-		profile.Generation.MaxTokens, err = strconv.Atoi(values["max"])
-		if err != nil {
-			return fmt.Errorf("response budget must be an integer")
-		}
-		profile.Generation.ContextLimit, err = strconv.Atoi(values["context"])
-		if err != nil {
-			return fmt.Errorf("context window must be an integer")
-		}
-	case "prompts":
-		if value, ok := values["prompt-preset"]; ok {
-			if _, err := prompts.ResponsePreset(value); err != nil {
-				return err
-			}
-			conversation.PromptPreset = value
-		}
-		conversation.SystemPrompt = values["system"]
-		conversation.PostHistory = values["post"]
-		main, err := strconv.ParseBool(values["prefer-main"])
-		if err != nil {
-			return fmt.Errorf("main prompt preference must be true/false")
-		}
-		post, err := strconv.ParseBool(values["prefer-post"])
-		if err != nil {
-			return fmt.Errorf("post-history preference must be true/false")
-		}
-		conversation.PreferCharacterPrompt = &main
-		conversation.PreferCharacterPostHistory = &post
-	case "speech":
-		profile.Speech.Microphone = strings.TrimSpace(values["microphone"])
-		variant := strings.TrimSpace(values["variant"])
-		model := strings.TrimSpace(values["speech-model"])
-		if variant != profile.Speech.Speaking.Variant && filepath.Base(model) == profile.Speech.Speaking.Variant {
-			model = filepath.Join(filepath.Dir(model), variant)
-		}
-		profile.Speech.Speaking.Variant = variant
-		path, err := filepath.Abs(model)
-		if err != nil {
-			return err
-		}
-		profile.Speech.Speaking.Model = path
-		seconds, err := strconv.Atoi(values["seconds"])
-		if err != nil {
-			return fmt.Errorf("recording seconds must be an integer")
-		}
-		profile.Speech.MaxSeconds = seconds
-		if value, ok := values["vad"]; ok {
-			profile.Speech.VAD = value
-		}
-		if value, ok := values["mic-start"]; ok {
-			n, err := strconv.Atoi(value)
-			if err != nil {
-				return fmt.Errorf("speech onset must be milliseconds")
-			}
-			profile.Speech.MicStartMS = n
-		}
-		if value, ok := values["mic-end"]; ok {
-			n, err := strconv.Atoi(value)
-			if err != nil {
-				return fmt.Errorf("end silence must be milliseconds")
-			}
-			profile.Speech.MicEndMS = n
-		}
-		if value, ok := values["mic-threshold"]; ok {
-			n, err := strconv.ParseFloat(value, 64)
-			if err != nil {
-				return fmt.Errorf("threshold must be numeric")
-			}
-			profile.Speech.MicThreshold = n
-		}
-		profile.Speech.Enabled = false
-	case "model":
-		profile.Provider.Ownership = strings.TrimSpace(values["ownership"])
-		profile.Provider.Runtime = strings.TrimSpace(values["runtime"])
-		profile.Provider.ModelFile = strings.TrimSpace(values["model-file"])
-		profile.Provider.ModelRoot = strings.TrimSpace(values["model-root"])
-		layers, err := strconv.Atoi(values["gpu-layers"])
-		if err != nil {
-			return fmt.Errorf("GPU layers must be an integer")
-		}
-		profile.Provider.GPULayers = layers
-		profile.Provider.Kind = strings.TrimSpace(values["kind"])
-		profile.Provider.URL = strings.TrimSpace(values["endpoint"])
-		profile.Provider.Model = strings.TrimSpace(values["model"])
-		profile.Provider.APIKeyEnv = strings.TrimSpace(values["key-env"])
-	}
-	return nil
-}
 func (m *model) renameActive() {
 	dir, title := filepath.Dir(m.stateFile), m.activeSessionTitle()
-	m.openForm("Rename conversation", "Changes the title only; history stays intact.", "Rename", []formField{{"title", "Conversation title", title, false}}, func(values map[string]string) error {
+	m.openForm("Rename conversation", "Changes the title only; history stays intact.", "Rename", []formField{{Key: "title", Label: "Conversation title", Value: title, Multiline: false}}, func(values map[string]string) error {
 		title := workspace.TitleLine(values["title"])
 		if title == "" {
 			return fmt.Errorf("title cannot be blank")
@@ -736,7 +504,7 @@ func (m *model) inspectConnection() {
 
 func (m *model) saveChatProfile() {
 	profile := cloneSettingsProfile(m.chat.config.Profile)
-	m.openForm("Save configuration as profile", "Creates a new file; existing profiles are never overwritten.", "Save profile", []formField{{"path", "New profile file", "profiles/chat-custom.json", false}}, func(values map[string]string) error {
+	m.openForm("Save configuration as profile", "Creates a new file; existing profiles are never overwritten.", "Save profile", []formField{{Key: "path", Label: "New profile file", Value: "profiles/chat-custom.json", Multiline: false}}, func(values map[string]string) error {
 		path := strings.TrimSpace(values["path"])
 		if path == "" {
 			return fmt.Errorf("profile path is required")
@@ -778,21 +546,21 @@ func (m *model) resizeFormEditor() {
 		return
 	}
 	f := m.dialog.form
-	f.editor.SetWidth(max(min(m.vp.Width()-6, 72), 12))
+	f.Editor.SetWidth(max(min(m.transcript.Viewport.Width()-6, 72), 12))
 	height := 1
-	if f.index < len(f.fields) && f.fields[f.index].multiline {
-		height = min(3, max(m.vp.Height()-10, 1))
+	if f.Index < len(f.Fields) && f.Fields[f.Index].Multiline {
+		height = min(3, max(m.transcript.Viewport.Height()-10, 1))
 	}
-	f.editor.SetHeight(height)
+	f.Editor.SetHeight(height)
 }
 
 func (m *model) formOptions(key string) []string {
 	if key == "greeting" && m.dialog != nil && m.dialog.form != nil {
 		f := m.dialog.form
 		path := ""
-		for _, field := range f.fields {
-			if field.key == "character" {
-				path = field.value
+		for _, field := range f.Fields {
+			if field.Key == "character" {
+				path = field.Value
 			}
 		}
 		if f.choices == nil {
@@ -872,11 +640,11 @@ func suggestedBackendURL(endpoint, previous, next string) string {
 
 func (m *model) cycleFormChoice() {
 	f := m.dialog.form
-	options := m.formOptions(f.fields[f.index].key)
+	options := m.formOptions(f.Fields[f.Index].Key)
 	if len(options) == 0 {
 		return
 	}
-	previous := f.editor.Value()
+	previous := f.Editor.Value()
 	next := options[0]
 	for i, value := range options {
 		if value == previous {
@@ -884,46 +652,17 @@ func (m *model) cycleFormChoice() {
 			break
 		}
 	}
-	if f.fields[f.index].key == "kind" {
-		for i := range f.fields {
-			if f.fields[i].key == "endpoint" {
-				f.fields[i].value = suggestedBackendURL(f.fields[i].value, previous, next)
+	if f.Fields[f.Index].Key == "kind" {
+		for i := range f.Fields {
+			if f.Fields[i].Key == "endpoint" {
+				f.Fields[i].Value = suggestedBackendURL(f.Fields[i].Value, previous, next)
 			}
 		}
 	}
-	f.editor.SetValue(next)
+	f.Editor.SetValue(next)
 }
 
 // formActions shares button geometry between compact dialogs and settings.
 func (m *model) formActions(width, y int, primary string, enabled bool) (string, []formHit) {
-	f := m.dialog.form
-	cancel := "[ Cancel ]"
-	if width < 20 {
-		cancel = "[Esc]"
-	}
-	budget := max(width-lipgloss.Width(cancel)-2, 3)
-	button := "[ " + primary + " ]"
-	if lipgloss.Width(button) > budget {
-		if budget >= 5 {
-			button = "[" + ansi.Truncate(primary, budget-2, "…") + "]"
-		} else {
-			button = ansi.Truncate(primary, budget, "…")
-		}
-	}
-	padding := max(width-lipgloss.Width(button)-lipgloss.Width(cancel)-2, 0)
-	row := strings.Repeat(" ", padding)
-	hits := []formHit{}
-	for i, text := range []string{button, cancel} {
-		if i > 0 {
-			row += "  "
-		}
-		start := lipgloss.Width(row)
-		style := m.styles.dim
-		if f.index == len(f.fields)+i && (i != 0 || enabled) {
-			style = m.styles.gate
-		}
-		row += style.Render(text)
-		hits = append(hits, formHit{len(f.fields) + i, y, y + 1, start, lipgloss.Width(row)})
-	}
-	return cellLine(row, width), hits
+	return m.dialog.form.Actions(width, y, primary, enabled, m.formStyles())
 }

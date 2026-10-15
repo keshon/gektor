@@ -73,7 +73,7 @@ func (m *model) footerActions() []footerAction {
 		editable := m.state == stDone && (m.sessions == nil || m.sessions.mode == sessList)
 		actions = append(actions, footerAction{'r', tea.ModCtrl, "Ctrl+R", "Rename", "Name", editable}, footerAction{'d', tea.ModCtrl, "Ctrl+D", "Delete", "Del", editable})
 	case focusInput:
-		if m.state == stRunning || !m.follow {
+		if m.state == stRunning || !m.transcript.Follow {
 			actions = append(actions, footerAction{tea.KeyEscape, 0, "Esc", "Stop", "Stop", m.state == stRunning}, footerAction{tea.KeyEnd, tea.ModCtrl, "Ctrl+End", "Latest", "End", true})
 		} else {
 			actions = append(actions, footerAction{tea.KeyEnter, 0, "Enter", "Send", "Go", m.state == stDone || m.state == stAsk}, footerAction{'o', tea.ModCtrl, "Ctrl+O", "Newline", "Line", true})
@@ -81,11 +81,11 @@ func (m *model) footerActions() []footerAction {
 	default:
 		actions = append(actions, footerAction{tea.KeyEscape, 0, "Esc", "Back", "Back", m.state != stPermission}, footerAction{tea.KeyEnter, 0, "Enter", "Choose", "OK", m.activeInputOwner() == focusHeader || m.activeInputOwner() == focusNote})
 	}
-	if m.activeInputOwner() == focusInput && m.state == stDone && !m.follow {
+	if m.activeInputOwner() == focusInput && m.state == stDone && !m.transcript.Follow {
 		actions[3] = footerAction{tea.KeyEnter, 0, "Enter", "Send", "Go", true}
 	}
 	details := "Details"
-	if !m.compact {
+	if !m.transcript.compact {
 		details = "Less"
 	}
 	actions = append(actions,
@@ -155,7 +155,7 @@ func (m *model) actionBar() string {
 		if cell.end-cell.start < len(number)+1+len(label) {
 			label = cell.action.short
 		}
-		if cell.action.key == tea.KeyF3 && !m.compact {
+		if cell.action.key == tea.KeyF3 && !m.transcript.compact {
 			label = "Less"
 		}
 		numberStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorDisabledText))).Background(lipgloss.Color(themeColor(colorDisabledNumber)))
@@ -191,7 +191,7 @@ func (m *model) footerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.openSessions()
 		}
 	case tea.KeyF3:
-		m.compact = !m.compact
+		m.transcript.compact = !m.transcript.compact
 		m.refreshContent()
 	case tea.KeyF4:
 		m.navFocused = false
@@ -208,8 +208,8 @@ func (m *model) footerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.fitBottom()
 		m.refreshContent()
 	case tea.KeyF7:
-		m.vp.GotoBottom()
-		m.follow = true
+		m.transcript.Viewport.GotoBottom()
+		m.transcript.Follow = true
 	case tea.KeyF9:
 		m.header.focused = !m.header.focused
 		m.header.global = m.header.focused

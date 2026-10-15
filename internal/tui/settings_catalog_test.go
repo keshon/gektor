@@ -13,8 +13,8 @@ import (
 )
 
 func focusSetting(m *model, key string) {
-	for i, f := range m.dialog.form.fields {
-		if f.key == key {
+	for i, f := range m.dialog.form.Fields {
+		if f.Key == key {
 			m.focusForm(i)
 			return
 		}
@@ -36,9 +36,9 @@ func TestCharacterPickerRejectsPortraitAndStagesCard(t *testing.T) {
 	if p.err == "" || m.dialog.form.picker == nil {
 		t.Fatal("invalid card selected")
 	}
-	p.cursor = 1
+	p.Cursor = 1
 	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.dialog.form.editor.Value() != good || m.chat.config.Profile.Conversation.Character != "" {
+	if m.dialog.form.Editor.Value() != good || m.chat.config.Profile.Conversation.Character != "" {
 		t.Fatal("card not staged separately")
 	}
 	m.closeDialog()
@@ -69,7 +69,7 @@ func TestLoadedProfileAppliesWithoutResettingHistory(t *testing.T) {
 		t.Fatal("load applied without Apply")
 	}
 	m.editSettings("generation")
-	if m.dialog.form.editor.Value() != "0.8" {
+	if m.dialog.form.Editor.Value() != "0.8" {
 		t.Fatal("loaded settings not shown")
 	}
 	m.applyForm()
@@ -145,7 +145,7 @@ func TestApplyAutomaticallySavesReusableCustomProfile(t *testing.T) {
 	before, _ := os.ReadFile(builtin)
 	m.application = &Application{PreferencePath: filepath.Join(root, "var", "application.json"), Preferences: config.Preferences{Version: 1, Mode: "chat", Voice: "off", ProfilePath: builtin, Profile: &original}}
 	m.editSettings("you")
-	m.dialog.form.editor.SetValue("Alex")
+	m.dialog.form.Editor.SetValue("Alex")
 	m.applyForm()
 	if m.dialog != nil {
 		t.Fatal("apply did not finish", m.dialog.form.error)
@@ -159,7 +159,7 @@ func TestApplyAutomaticallySavesReusableCustomProfile(t *testing.T) {
 		t.Fatal(saved, err)
 	}
 	m.editSettings("generation")
-	m.dialog.form.editor.SetValue("0.8")
+	m.dialog.form.Editor.SetValue("0.8")
 	m.applyForm()
 	if m.dialog != nil || m.application.Preferences.ProfilePath != custom {
 		t.Fatal("custom profile not reused")
@@ -174,7 +174,7 @@ func TestApplyAutomaticallySavesReusableCustomProfile(t *testing.T) {
 	}
 	m.editSettings("prompts")
 	focusSetting(m, "prompt-preset")
-	m.dialog.form.editor.SetValue("coding")
+	m.dialog.form.Editor.SetValue("coding")
 	m.applyForm()
 	saved, err = config.Load(custom)
 	if m.dialog != nil || err != nil || saved.Conversation.PromptPreset != "coding" {

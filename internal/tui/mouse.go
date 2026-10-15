@@ -28,7 +28,7 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.state == stPermission || m.state == stAsk {
-		if msg.Mouse().X < m.conversationOffset() || msg.Mouse().Y < paneTop || msg.Mouse().Y >= paneTop+m.vp.Height() {
+		if msg.Mouse().X < m.conversationOffset() || msg.Mouse().Y < paneTop || msg.Mouse().Y >= paneTop+m.transcript.Viewport.Height() {
 			return m, nil
 		}
 		var cmd tea.Cmd
@@ -44,18 +44,18 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		switch msg.Mouse().Button {
 		case tea.MouseWheelUp:
-			m.nav.cursor--
+			m.nav.Cursor--
 		case tea.MouseWheelDown:
-			m.nav.cursor++
+			m.nav.Cursor++
 		case tea.MouseLeft:
 			if !isMouseClick(msg) {
 				return m, nil
 			}
 			row := msg.Mouse().Y - paneTop
-			if msg.Mouse().Y < paneTop || row >= m.navigatorRows() || m.nav.offset+row >= len(m.nav.entries) {
+			if msg.Mouse().Y < paneTop || row >= m.navigatorRows() || m.nav.Offset+row >= len(m.nav.entries) {
 				return m, nil
 			}
-			m.nav.cursor = m.nav.offset + row
+			m.nav.Cursor = m.nav.Offset + row
 		default:
 			return m, nil
 		}

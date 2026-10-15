@@ -43,16 +43,16 @@ func TestChatCharacterSpeaker(t *testing.T) {
 func TestCharacterLabelForCompletedAndStreamingChat(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.chat = &chatUI{config: ChatConfig{Settings: chat.Config{CharacterName: "Veyra"}}}
-	m.blocks = []block{answerBlock("Completed hello.")}
+	m.transcript.blocks = []block{answerBlock("Completed hello.")}
 	m.live = "Streaming hello."
 	m.refreshContent()
-	got := ansi.Strip(m.vp.View())
+	got := ansi.Strip(m.transcript.Viewport.View())
 	if strings.Count(got, "Veyra") != 2 || strings.Contains(got, "TARS") {
 		t.Fatal(got)
 	}
 	m.chat.config.Settings.CharacterName = "Another"
 	m.refreshContent()
-	got = ansi.Strip(m.vp.View())
+	got = ansi.Strip(m.transcript.Viewport.View())
 	if strings.Count(got, "Another") != 2 || strings.Contains(got, "Veyra") {
 		t.Fatal(got)
 	}
@@ -61,9 +61,9 @@ func TestCharacterLabelForCompletedAndStreamingChat(t *testing.T) {
 func TestAgentIdentityAndLongChatLabel(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.identityName = "Ada"
-	m.blocks = []block{answerBlock("Reply"), {role: roleThink, text: "Thinking"}, {role: roleTool, text: "read_file"}}
+	m.transcript.blocks = []block{answerBlock("Reply"), {role: roleThink, text: "Thinking"}, {role: roleTool, text: "read_file"}}
 	m.refreshContent()
-	got := ansi.Strip(m.vp.View())
+	got := ansi.Strip(m.transcript.Viewport.View())
 	if strings.Contains(got, "TARS") || strings.Count(got, "Ada") != 3 {
 		t.Fatal(got)
 	}
@@ -79,9 +79,9 @@ func TestAgentIdentityAndLongChatLabel(t *testing.T) {
 func TestNamedUserAndAssistantHaveSeparateRows(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.chat = &chatUI{config: ChatConfig{Settings: chat.Config{CharacterName: "An unusually long character name"}, Profile: config.Profile{Conversation: &config.Conversation{UserName: "Alex"}}}}
-	m.blocks = []block{userBlock("My words"), answerBlock("Her words")}
+	m.transcript.blocks = []block{userBlock("My words"), answerBlock("Her words")}
 	m.refreshContent()
-	plain := ansi.Strip(m.vp.View())
+	plain := ansi.Strip(m.transcript.Viewport.View())
 	if !strings.Contains(plain, "Alex:") || strings.Contains(plain, "You:") || !strings.Contains(plain, "An unusually long character name:") {
 		t.Fatal(plain)
 	}
@@ -92,7 +92,7 @@ func TestNamedUserAndAssistantHaveSeparateRows(t *testing.T) {
 	}
 	m.chat.config.Profile.Conversation.UserName = "User"
 	m.refreshContent()
-	if !strings.Contains(ansi.Strip(m.vp.View()), "User:") {
+	if !strings.Contains(ansi.Strip(m.transcript.Viewport.View()), "User:") {
 		t.Fatal("configured default user ignored")
 	}
 }

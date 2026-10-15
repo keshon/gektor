@@ -1,27 +1,12 @@
 package tui
 
 import (
-	"os"
-	"path/filepath"
-	"sort"
-	"time"
-
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/chat"
-	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/session"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/tars/internal/sessionindex"
 )
 
-type cachedSession struct {
-	entry       sessionEntry
-	size        int64
-	modified    time.Time
-	searchable  bool
-	storedTitle string
-}
+type cachedSession = sessionindex.CachedSession
+
 type sessionsLoadedMsg struct {
 	revision uint64
 	root     string
@@ -53,13 +38,13 @@ func (m *model) acceptSessions(msg sessionsLoadedMsg) {
 	}
 	selected := ""
 	if len(m.nav.entries) > 0 {
-		selected = m.nav.entries[min(m.nav.cursor, len(m.nav.entries)-1)].dir
+		selected = m.nav.entries[min(m.nav.Cursor, len(m.nav.entries)-1)].dir
 	}
 	m.nav.entries, m.sessionIndex = msg.entries, msg.cache
 	m.nav.loading = false
 	for i, e := range m.nav.entries {
 		if e.dir == selected {
-			m.nav.cursor = i
+			m.nav.Cursor = i
 			break
 		}
 	}
@@ -70,106 +55,15 @@ func (m *model) acceptSessions(msg sessionsLoadedMsg) {
 	}
 }
 
-// Histories are decoded only when changed. Search text is prepared on demand;
-// the ordinary navigator retains metadata, not a second copy of every transcript.
 func scanSessions(root string, previous map[string]cachedSession, search bool) ([]sessionEntry, map[string]cachedSession) {
-	dirs, err := os.ReadDir(root)
-	if err != nil {
-		return nil, nil
+	summaries, cache := sessionindex.Scan(root, previous, search)
+	entries := make([]sessionEntry, 0, len(summaries))
+	for _, summary := range summaries {
+		e := sessionEntry{id: summary.ID, dir: summary.Dir, title: summary.Title, msgs: summary.Msgs, updated: summary.Updated, status: summary.Status, mode: summary.Mode, preview: summary.Preview}
+		for _, text := range summary.Search {
+			e.search = append(e.search, sessionText{text: text.Text, message: text.Message})
+		}
+		entries = append(entries, e)
 	}
-	cache := make(map[string]cachedSession, len(dirs))
-	var entries []sessionEntry
-	for _, d := range dirs {
-		if !d.IsDir() {
-			continue
-		}
-		dir := filepath.Join(root, d.Name())
-		title, mode := workspace.ReadSessionTitle(dir), readChatMode(dir)
-		state := filepath.Join(dir, "state.json")
-		isChat := false
-		if _, err := os.Stat(filepath.Join(dir, "conversation.json")); err == nil {
-			state = filepath.Join(dir, "conversation.json")
-			mode = "Chat"
-			isChat = true
-		}
-		if _, err := os.Stat(filepath.Join(dir, "settings.json")); err == nil {
-			if prefs, err := config.LoadPreferences(filepath.Join(dir, "settings.json")); err == nil {
-				isChat = prefs.Mode == "chat"
-				if isChat {
-					state = filepath.Join(dir, "conversation.json")
-					mode = "Chat"
-				} else {
-					state = filepath.Join(dir, "state.json")
-					mode = readChatMode(dir)
-				}
-			}
-		}
-		fi, stateErr := os.Stat(state)
-		old, ok := previous[dir]
-		current := cachedSession{storedTitle: title, entry: sessionEntry{id: d.Name(), dir: dir, title: title, mode: mode, status: "Saved"}}
-		if stateErr == nil {
-			current.size, current.modified = fi.Size(), fi.ModTime()
-			if ok && old.storedTitle == title && old.size == current.size && old.modified.Equal(current.modified) && (!search || old.searchable) {
-				current = old
-				current.entry.mode = mode
-				if title != "" {
-					current.entry.title = title
-				}
-			} else {
-				current.entry.status = "Unreadable"
-				current.entry.updated = fi.ModTime()
-				if fi.Size() < 64<<20 {
-					loadHistory := func() ([]llm.Message, error) {
-						if isChat {
-							a, err := chat.ReadArchive(state)
-							return a.History, err
-						}
-						return agent.LoadState(state)
-					}
-					if history, err := loadHistory(); err == nil {
-						e := &current.entry
-						e.status, e.msgs = "Saved", len(history)
-						if search {
-							for i, b := range renderHistory(history) {
-								if b.role == roleUser || b.role == roleAnswer {
-									e.search = append(e.search, sessionText{text: b.text, block: i})
-								}
-							}
-							current.searchable = true
-						}
-						if _, question, paused := agent.PausedOnQuestion(history); paused {
-							e.status, e.preview = "Needs input", question
-						} else {
-							for i := len(history) - 1; i >= 0; i-- {
-								if history[i].Role == llm.RoleAssistant && history[i].Content != "" {
-									e.preview = truncate(history[i].Content, 500)
-									break
-								}
-							}
-						}
-						if e.title == "" {
-							e.title = session.TitleFor(history)
-						}
-					}
-				}
-			}
-		}
-		if fi, err := os.Stat(filepath.Join(dir, "mission.json")); err == nil {
-			current.entry.mode = "Mission"
-			if current.entry.updated.IsZero() {
-				current.entry.updated = fi.ModTime()
-			}
-			current.entry.preview = "Mission snapshot. Resume with agent -tui -resume " + dir
-		}
-		if current.entry.updated.IsZero() {
-			continue
-		}
-		if current.entry.title == "" {
-			current.entry.title = current.entry.id
-		}
-		cache[dir] = current
-		entries = append(entries, current.entry)
-	}
-	sort.SliceStable(entries, func(i, j int) bool { return entries[i].updated.After(entries[j].updated) })
 	return entries, cache
 }

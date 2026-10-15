@@ -11,8 +11,8 @@ import (
 )
 
 type sessionText struct {
-	text  string
-	block int
+	text    string
+	message int
 }
 type searchGeometry struct{ x, y, width, height, noteRow int }
 
@@ -52,10 +52,10 @@ func (m *model) searchView() string {
 		}
 		rows = append(rows, line(label, normal), line("", normal))
 	}
-	for i := s.offset; i < min(s.offset+m.sessVisible(), len(s.entries)); i++ {
+	for i := s.Offset; i < min(s.Offset+m.sessVisible(), len(s.entries)); i++ {
 		e := s.entries[i]
 		mark, style := "  ", normal
-		if i == s.cursor {
+		if i == s.Cursor {
 			mark, style = "› ", selected
 		}
 		age := strings.TrimSuffix(ageString(e.updated), " ago")
@@ -85,13 +85,13 @@ func (m *model) searchView() string {
 	case sessConfirm:
 		title := "session"
 		if len(s.entries) > 0 {
-			title = s.entries[s.cursor].title
+			title = s.entries[s.Cursor].title
 		}
 		rows = append(rows, line("Delete "+title+"? Y delete · N cancel", normal))
 	}
 	hint := "↑↓ select · Enter open · Esc close"
 	if len(s.entries) > 0 {
-		hint += " · " + strconv.Itoa(s.cursor+1) + "/" + strconv.Itoa(len(s.entries))
+		hint += " · " + strconv.Itoa(s.Cursor+1) + "/" + strconv.Itoa(len(s.entries))
 	}
 	rows = append(rows, line(hint, normal), border.Render("╰"+strings.Repeat("─", inner)+"╯"))
 	return strings.Join(rows, "\n")

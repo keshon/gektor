@@ -29,13 +29,12 @@ import (
 
 func testModel() *model {
 	m := &model{
-		events:  make(chan api.Event, 16),
-		hub:     api.NewGateHub(nil),
-		cancel:  func() {},
-		started: time.Now(),
-		styles:  defaultStyles(),
-		follow:  true,
-		compact: true, maxSteps: agent.DefaultMaxSteps,
+		events:     make(chan api.Event, 16),
+		hub:        api.NewGateHub(nil),
+		cancel:     func() {},
+		started:    time.Now(),
+		styles:     defaultStyles(),
+		transcript: newTranscript(), maxSteps: agent.DefaultMaxSteps,
 		note:   newNote(),
 		always: map[[2]string]bool{},
 	}
@@ -62,8 +61,8 @@ func TestStepAppendsTranscript(t *testing.T) {
 		Fields: map[string]any{"text": "hello", "step": 0},
 	}))
 	mm := updated.(*model)
-	if len(mm.blocks) != 1 || mm.blocks[0].text != "hello" || mm.blocks[0].role != roleAnswer {
-		t.Fatalf("blocks = %+v", mm.blocks)
+	if len(mm.transcript.blocks) != 1 || mm.transcript.blocks[0].text != "hello" || mm.transcript.blocks[0].role != roleAnswer {
+		t.Fatalf("blocks = %+v", mm.transcript.blocks)
 	}
 	if mm.steps != 1 {
 		t.Fatalf("steps = %d", mm.steps)
@@ -77,17 +76,17 @@ func TestStepReasoningRendersDim(t *testing.T) {
 		Fields: map[string]any{"text": "done", "reasoning": "hmm, tricky"},
 	}))
 	mm := updated.(*model)
-	if len(mm.blocks) != 2 {
-		t.Fatalf("blocks = %v", mm.blocks)
+	if len(mm.transcript.blocks) != 2 {
+		t.Fatalf("blocks = %v", mm.transcript.blocks)
 	}
-	if mm.blocks[0].role != roleThink {
-		t.Fatalf("reasoning must be a think block: %+v", mm.blocks[0])
+	if mm.transcript.blocks[0].role != roleThink {
+		t.Fatalf("reasoning must be a think block: %+v", mm.transcript.blocks[0])
 	}
-	if !strings.Contains(mm.blocks[0].text, "hmm, tricky") {
-		t.Fatalf("reasoning not kept: %v", mm.blocks)
+	if !strings.Contains(mm.transcript.blocks[0].text, "hmm, tricky") {
+		t.Fatalf("reasoning not kept: %v", mm.transcript.blocks)
 	}
-	if mm.blocks[1].role != roleAnswer {
-		t.Fatalf("answer must follow its thinking: %+v", mm.blocks[1])
+	if mm.transcript.blocks[1].role != roleAnswer {
+		t.Fatalf("answer must follow its thinking: %+v", mm.transcript.blocks[1])
 	}
 }
 
@@ -100,16 +99,16 @@ func TestToolCallAndResultRender(t *testing.T) {
 		},
 	}))
 	mm := updated.(*model)
-	if len(mm.blocks) != 1 || !strings.Contains(mm.blocks[0].text, "read_file") || mm.blocks[0].role != roleTool {
-		t.Fatalf("blocks = %+v", mm.blocks)
+	if len(mm.transcript.blocks) != 1 || !strings.Contains(mm.transcript.blocks[0].text, "read_file") || mm.transcript.blocks[0].role != roleTool {
+		t.Fatalf("blocks = %+v", mm.transcript.blocks)
 	}
 	updated, _ = mm.Update(eventMsg(api.Event{
 		Name:   "tool_result",
 		Fields: map[string]any{"call_id": "c1", "text": "-old\n+new"},
 	}))
 	mm = updated.(*model)
-	if len(mm.blocks) != 2 {
-		t.Fatalf("blocks = %v", mm.blocks)
+	if len(mm.transcript.blocks) != 2 {
+		t.Fatalf("blocks = %v", mm.transcript.blocks)
 	}
 }
 
@@ -242,7 +241,7 @@ func TestFollowUpResumes(t *testing.T) {
 		t.Fatalf("state = %v, want running", mm.state)
 	}
 	echoed := false
-	for _, b := range mm.blocks {
+	for _, b := range mm.transcript.blocks {
 		if strings.Contains(b.text, "and then?") {
 			echoed = true
 			if b.role != roleUser {
@@ -251,7 +250,7 @@ func TestFollowUpResumes(t *testing.T) {
 		}
 	}
 	if !echoed {
-		t.Fatalf("follow-up not echoed: %v", mm.blocks)
+		t.Fatalf("follow-up not echoed: %v", mm.transcript.blocks)
 	}
 	select {
 	case d := <-doneCh:
@@ -342,7 +341,7 @@ func TestCommand_Quit(t *testing.T) {
 func TestCommand_BareNewResetsToChat(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	m.blocks = []block{answerBlock("old transcript")}
+	m.transcript.blocks = []block{answerBlock("old transcript")}
 	m.stateFile = "some/state.json"
 	m.input.SetValue("/new")
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -353,8 +352,8 @@ func TestCommand_BareNewResetsToChat(t *testing.T) {
 	if mm.sess != nil || mm.stateFile != "" {
 		t.Fatal("bare /new must drop the session")
 	}
-	if len(mm.blocks) != 1 || !strings.Contains(mm.blocks[0].text, "New chat") {
-		t.Fatalf("blocks = %+v, want a clean transcript with one marker", mm.blocks)
+	if len(mm.transcript.blocks) != 1 || !strings.Contains(mm.transcript.blocks[0].text, "New chat") {
+		t.Fatalf("blocks = %+v, want a clean transcript with one marker", mm.transcript.blocks)
 	}
 	// The next line starts a fresh run, not a follow-up to nothing:
 	// with no session, followUp must take the startFresh path.
@@ -365,13 +364,13 @@ func TestCommand_BareNewResetsToChat(t *testing.T) {
 	updated, _ = mm.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm2 := updated.(*model)
 	found := false
-	for _, b := range mm2.blocks {
+	for _, b := range mm2.transcript.blocks {
 		if strings.Contains(b.text, "cannot start: fresh path taken") {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("blocks = %+v, want the startFresh error path", mm2.blocks)
+		t.Fatalf("blocks = %+v, want the startFresh error path", mm2.transcript.blocks)
 	}
 }
 
@@ -411,13 +410,13 @@ func TestFollowUp_AttachesImages(t *testing.T) {
 		t.Fatalf("task=%q images=%v", gotTask, gotImages)
 	}
 	found := false
-	for _, b := range mm.blocks {
+	for _, b := range mm.transcript.blocks {
 		if strings.Contains(b.text, "[image: shot.png]") {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("echo missing image marker: %+v", mm.blocks)
+		t.Fatalf("echo missing image marker: %+v", mm.transcript.blocks)
 	}
 }
 
@@ -453,11 +452,11 @@ func TestCommand_NewStartsFresh(t *testing.T) {
 	if mm.state != stRunning {
 		t.Fatalf("state = %v, want running", mm.state)
 	}
-	if len(mm.blocks) != 2 || mm.blocks[0].role != roleMarker || mm.blocks[1].role != roleUser {
-		t.Fatalf("transcript must open marker + task echo: %+v", mm.blocks)
+	if len(mm.transcript.blocks) != 2 || mm.transcript.blocks[0].role != roleMarker || mm.transcript.blocks[1].role != roleUser {
+		t.Fatalf("transcript must open marker + task echo: %+v", mm.transcript.blocks)
 	}
-	if mm.blocks[1].text != "second" {
-		t.Fatalf("echo = %q, want verbatim task", mm.blocks[1].text)
+	if mm.transcript.blocks[1].text != "second" {
+		t.Fatalf("echo = %q, want verbatim task", mm.transcript.blocks[1].text)
 	}
 	deadline := time.Now().Add(10 * time.Second)
 	for atomic.LoadInt32(&sent) == 0 && time.Now().Before(deadline) {
@@ -538,16 +537,16 @@ func consecutiveBlanks(s string) int {
 
 func TestViewportSizedWithoutTTY(t *testing.T) {
 	m := sizeModel(t, testModel())
-	if !m.ready || m.vp.Width() != 78 {
-		t.Fatalf("viewport not sized: %+v", m.vp)
+	if !m.ready || m.transcript.Viewport.Width() != 78 {
+		t.Fatalf("viewport not sized: %+v", m.transcript.Viewport)
 	}
 }
 
 func TestHistory_ExplicitRecallRestoresDraft(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	m.pushHistory("first")
-	m.pushHistory("second")
+	m.input.Push("first")
+	m.input.Push("second")
 	m.input.SetValue("draft\nsecond line")
 	for _, want := range []string{"second", "first"} {
 		m.Update(tea.KeyPressMsg{Code: tea.KeyUp, Mod: tea.ModAlt})
@@ -567,7 +566,7 @@ func TestHistory_ArrowsNeverRecallAtEditorEdges(t *testing.T) {
 	for _, state := range []runState{stDone, stAsk, stRunning} {
 		m := sizeModel(t, testModel())
 		m.state = state
-		m.pushHistory("old")
+		m.input.Push("old")
 		m.input.SetValue("first line")
 		m.Update(tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
 		m.Update(keyRunes('x'))
@@ -586,7 +585,7 @@ func TestHistory_ArrowsNeverRecallAtEditorEdges(t *testing.T) {
 	}
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	m.pushHistory("old")
+	m.input.Push("old")
 	m.input.SetValue("single line")
 	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	if m.input.Value() != "single line" {
@@ -596,11 +595,11 @@ func TestHistory_ArrowsNeverRecallAtEditorEdges(t *testing.T) {
 
 func TestHistory_DedupesConsecutive(t *testing.T) {
 	m := sizeModel(t, testModel())
-	m.pushHistory("x")
-	m.pushHistory("x")
-	m.pushHistory("y")
-	if len(m.hist) != 2 {
-		t.Fatalf("hist = %v", m.hist)
+	m.input.Push("x")
+	m.input.Push("x")
+	m.input.Push("y")
+	if len(m.input.Snapshot().History) != 2 {
+		t.Fatalf("hist = %v", m.input.Snapshot().History)
 	}
 }
 
@@ -645,10 +644,10 @@ func TestTranscriptBreathesBeforeDivider(t *testing.T) {
 	for _, b := range renderHistory(compactTestHistory(15)) {
 		m.appendBlock(b)
 	}
-	m.vp.GotoBottom()
+	m.transcript.Viewport.GotoBottom()
 	lines := strings.Split(m.View().Content, "\n")
 	// The composer rule sits below the transcript breathing row.
-	div := paneTop + m.vp.Height() + 1
+	div := paneTop + m.transcript.Viewport.Height() + 1
 	if div < 1 {
 		t.Fatalf("no divider in view:\n%s", m.View().Content)
 	}
@@ -685,13 +684,13 @@ func TestInterruptStaysInChat(t *testing.T) {
 		t.Fatalf("runErr = %v, want nil after interrupt", mm.runErr)
 	}
 	found := false
-	for _, b := range mm.blocks {
+	for _, b := range mm.transcript.blocks {
 		if strings.Contains(b.text, "interrupted") {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("no interrupt marker: %v", mm.blocks)
+		t.Fatalf("no interrupt marker: %v", mm.transcript.blocks)
 	}
 }
 
@@ -700,12 +699,12 @@ func TestFollowUnfollowsOnScroll(t *testing.T) {
 	for i := 0; i < 40; i++ {
 		m.appendBlock(markerBlock(strings.Repeat("line ", 20) + string(rune('a'+i%26))))
 	}
-	if !m.follow {
+	if !m.transcript.Follow {
 		t.Fatal("follow expected while at bottom")
 	}
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
 	mm := updated.(*model)
-	if mm.follow {
+	if mm.transcript.Follow {
 		t.Fatal("pgup must unfollow")
 	}
 	if !strings.Contains(ansi.Strip(mm.View().Content), "^End End") {
@@ -713,7 +712,7 @@ func TestFollowUnfollowsOnScroll(t *testing.T) {
 	}
 	updated, _ = mm.Update(tea.KeyPressMsg{Code: tea.KeyEnd, Mod: tea.ModCtrl})
 	mm = updated.(*model)
-	if !mm.follow {
+	if !mm.transcript.Follow {
 		t.Fatal("end must re-arm follow")
 	}
 }
@@ -723,10 +722,10 @@ func TestNewBlocksRespectUnfollow(t *testing.T) {
 	for i := 0; i < 40; i++ {
 		m.appendBlock(markerBlock("block"))
 	}
-	m.follow = false
-	y0 := m.vp.YOffset()
+	m.transcript.Follow = false
+	y0 := m.transcript.Viewport.YOffset()
 	m.appendBlock(markerBlock("new block while reading"))
-	if m.vp.YOffset() != y0 {
+	if m.transcript.Viewport.YOffset() != y0 {
 		t.Fatal("new block yanked a scrolled-up viewport")
 	}
 }
@@ -794,12 +793,12 @@ func TestScrollRoutedInEveryState(t *testing.T) {
 		for i := 0; i < 40; i++ {
 			m.appendBlock(markerBlock("block"))
 		}
-		if !m.follow {
+		if !m.transcript.Follow {
 			t.Fatalf("state %v: follow expected while at bottom", state)
 		}
 		m.state = state
 		updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
-		if mm := updated.(*model); mm.follow {
+		if mm := updated.(*model); mm.transcript.Follow {
 			t.Fatalf("state %v: pgup must unfollow", state)
 		}
 	}
@@ -811,7 +810,7 @@ func TestScrollRoutedInEveryState(t *testing.T) {
 	m.state = stDone
 	wheel := tea.MouseWheelMsg{Button: tea.MouseWheelUp}
 	updated, _ := m.Update(wheel)
-	if mm := updated.(*model); mm.follow {
+	if mm := updated.(*model); mm.transcript.Follow {
 		t.Fatal("wheel-up in done state must unfollow")
 	}
 }
@@ -885,11 +884,11 @@ func TestEmptyStart_SubmitBegins(t *testing.T) {
 	}
 	// The typed task echoes as the opening user block, after the
 	// new-task marker (startFresh resets the transcript first).
-	if len(mm.blocks) != 2 || mm.blocks[1].role != roleUser {
-		t.Fatalf("opening task must echo as user block: %+v", mm.blocks)
+	if len(mm.transcript.blocks) != 2 || mm.transcript.blocks[1].role != roleUser {
+		t.Fatalf("opening task must echo as user block: %+v", mm.transcript.blocks)
 	}
-	if mm.blocks[1].text != "hello?" {
-		t.Fatalf("echo text = %q, want verbatim task", mm.blocks[1].text)
+	if mm.transcript.blocks[1].text != "hello?" {
+		t.Fatalf("echo text = %q, want verbatim task", mm.transcript.blocks[1].text)
 	}
 	select {
 	case d := <-sent:
@@ -915,12 +914,12 @@ func TestRolesAssignedAcrossEvent(t *testing.T) {
 	}))
 	mm := updated.(*model)
 	want := []role{roleThink, roleAnswer, roleTool}
-	if len(mm.blocks) != len(want) {
-		t.Fatalf("blocks = %+v", mm.blocks)
+	if len(mm.transcript.blocks) != len(want) {
+		t.Fatalf("blocks = %+v", mm.transcript.blocks)
 	}
 	for i, r := range want {
-		if mm.blocks[i].role != r {
-			t.Fatalf("block %d role = %v, want %v", i, mm.blocks[i].role, r)
+		if mm.transcript.blocks[i].role != r {
+			t.Fatalf("block %d role = %v, want %v", i, mm.transcript.blocks[i].role, r)
 		}
 	}
 }
@@ -962,15 +961,15 @@ func TestGutterFixedWidth(t *testing.T) {
 func TestThinkToggleKey(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	if !m.compact {
+	if !m.transcript.compact {
 		t.Fatal("history starts compact")
 	}
 	updated, _ := m.Update(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
-	if mm := updated.(*model); mm.compact {
+	if mm := updated.(*model); mm.transcript.compact {
 		t.Fatal("ctrl+g must open full view")
 	} else {
 		updated, _ = mm.Update(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
-		if mm := updated.(*model); !mm.compact {
+		if mm := updated.(*model); !mm.transcript.compact {
 			t.Fatal("ctrl+g again must compact")
 		}
 	}
@@ -979,8 +978,8 @@ func TestThinkToggleKey(t *testing.T) {
 	mm.state = stDone
 	mm.input.SetValue("ed")
 	updated, _ = mm.Update(tea.KeyPressMsg{Text: string([]rune{'t'})})
-	if mm := updated.(*model); !mm.compact || mm.input.Value() != "edt" {
-		t.Fatalf("t must type, not toggle: compact=%v value=%q", mm.compact, mm.input.Value())
+	if mm := updated.(*model); !mm.transcript.compact || mm.input.Value() != "edt" {
+		t.Fatalf("t must type, not toggle: compact=%v value=%q", mm.transcript.compact, mm.input.Value())
 	}
 }
 
@@ -1121,13 +1120,13 @@ func TestGateStages_RejectNote(t *testing.T) {
 		t.Fatalf("state = %v overlays = %d, want teardown", mm.state, len(mm.overlays))
 	}
 	found := false
-	for _, b := range mm.blocks {
+	for _, b := range mm.transcript.blocks {
 		if b.role == roleUser && strings.Contains(b.text, "use cat") {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("note must echo as user block: %+v", mm.blocks)
+		t.Fatalf("note must echo as user block: %+v", mm.transcript.blocks)
 	}
 }
 
@@ -1295,11 +1294,11 @@ func TestInitialTaskEchoedAsUser(t *testing.T) {
 	if m.state != stRunning {
 		t.Fatalf("state = %v, want running", m.state)
 	}
-	if len(m.blocks) != 1 || m.blocks[0].role != roleUser {
-		t.Fatalf("opening task must echo as user block: %+v", m.blocks)
+	if len(m.transcript.blocks) != 1 || m.transcript.blocks[0].role != roleUser {
+		t.Fatalf("opening task must echo as user block: %+v", m.transcript.blocks)
 	}
-	if m.blocks[0].text != "hi" {
-		t.Fatalf("echo must trim the task: %q", m.blocks[0].text)
+	if m.transcript.blocks[0].text != "hi" {
+		t.Fatalf("echo must trim the task: %q", m.transcript.blocks[0].text)
 	}
 }
 
@@ -1324,13 +1323,13 @@ func TestLongStepFlowsUncut(t *testing.T) {
 	m := sizeModel(t, testModel())
 	updated, _ := m.Update(eventMsg(api.Event{Name: "step", Fields: fields}))
 	mm := updated.(*model)
-	if len(mm.blocks) != 2 {
-		t.Fatalf("blocks = %d", len(mm.blocks))
+	if len(mm.transcript.blocks) != 2 {
+		t.Fatalf("blocks = %d", len(mm.transcript.blocks))
 	}
-	if mm.blocks[0].role != roleThink || mm.blocks[0].text != reason {
+	if mm.transcript.blocks[0].role != roleThink || mm.transcript.blocks[0].text != reason {
 		t.Fatal("reasoning cut or misroled by the funnel")
 	}
-	if mm.blocks[1].role != roleAnswer || mm.blocks[1].text != text {
+	if mm.transcript.blocks[1].role != roleAnswer || mm.transcript.blocks[1].text != text {
 		t.Fatal("answer cut or misroled by the funnel")
 	}
 }
@@ -1403,7 +1402,7 @@ func TestStatusPostsToHistory(t *testing.T) {
 	if mm.dialog != nil {
 		t.Fatal("status must post to history, not a modal")
 	}
-	view := m.vp.View()
+	view := m.transcript.Viewport.View()
 	for _, want := range []string{"backend", "workspace", "context", "ctx 12.4k / 131.1k (9%)", "permissions"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("status missing %q", want)
@@ -1452,8 +1451,8 @@ func TestWithoutPrintHooks_Silent(t *testing.T) {
 func TestDialogFitsViewport(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.openDialog("status", m.statusLines())
-	m.vp.SetWidth(26)
-	m.vp.SetHeight(8)
+	m.transcript.Viewport.SetWidth(26)
+	m.transcript.Viewport.SetHeight(8)
 	out := m.dialogView()
 	lines := strings.Split(out, "\n")
 	if len(lines) > 8 {
@@ -1494,8 +1493,8 @@ func TestDividerExactWidth(t *testing.T) {
 	m.appendBlock(userBlock("hi"))
 	m.appendBlock(answerBlock("there"))
 	line := m.dividerLine()
-	if n := lipgloss.Width(line); n != m.vp.Width() {
-		t.Fatalf("divider %d cols, want viewport %d", n, m.vp.Width())
+	if n := lipgloss.Width(line); n != m.transcript.Viewport.Width() {
+		t.Fatalf("divider %d cols, want viewport %d", n, m.transcript.Viewport.Width())
 	}
 }
 
@@ -1503,22 +1502,22 @@ func TestBottomZoneHeights(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	if mm := updated.(*model); mm.vp.Height() != 14 {
-		t.Fatalf("done viewport height = %d, want 14 (24 - header - identity - rule - status - rule - breathing row - input - footer separator - actions)", mm.vp.Height())
+	if mm := updated.(*model); mm.transcript.Viewport.Height() != 14 {
+		t.Fatalf("done viewport height = %d, want 14 (24 - header - identity - rule - status - rule - breathing row - input - footer separator - actions)", mm.transcript.Viewport.Height())
 	}
 	mm := updated.(*model)
 	mm.state = stRunning
 	updated, _ = mm.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	if mm := updated.(*model); mm.vp.Height() != 14 {
-		t.Fatalf("running viewport height = %d, want 14", mm.vp.Height())
+	if mm := updated.(*model); mm.transcript.Viewport.Height() != 14 {
+		t.Fatalf("running viewport height = %d, want 14", mm.transcript.Viewport.Height())
 	}
 	// Composing keeps the same budget: the hint stays put, so the
 	// layout never shifts while typing (user call: always visible).
 	mm.input.SetValue("typing")
 	mm.state = stDone
 	updated, _ = mm.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	if mm = updated.(*model); mm.vp.Height() != 14 {
-		t.Fatalf("composing viewport height = %d, want 14", mm.vp.Height())
+	if mm = updated.(*model); mm.transcript.Viewport.Height() != 14 {
+		t.Fatalf("composing viewport height = %d, want 14", mm.transcript.Viewport.Height())
 	}
 	// The frame uses every row, including the footer at the bottom edge.
 	if n := len(strings.Split(mm.View().Content, "\n")); n != 24 {
@@ -1652,13 +1651,13 @@ func TestFailedRunKeepsErrorBlock(t *testing.T) {
 		t.Fatal("runErr must survive a failed run")
 	}
 	found := false
-	for _, b := range mm.blocks {
+	for _, b := range mm.transcript.blocks {
 		if b.role == roleError && strings.Contains(b.text, "boom") {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("error missing from transcript: %+v", mm.blocks)
+		t.Fatalf("error missing from transcript: %+v", mm.transcript.blocks)
 	}
 }
 
@@ -1692,13 +1691,13 @@ func TestRetryRefusesWhenOk(t *testing.T) {
 		t.Fatalf("state = %v, want done", mm.state)
 	}
 	found := false
-	for _, b := range mm.blocks {
+	for _, b := range mm.transcript.blocks {
 		if strings.Contains(b.text, "nothing to retry") {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("refusal missing: %+v", mm.blocks)
+		t.Fatalf("refusal missing: %+v", mm.transcript.blocks)
 	}
 }
 
@@ -1706,7 +1705,7 @@ func TestTurnSeparators(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.appendBlock(answerBlock("first"))
 	m.appendBlock(userBlock("❯ second"))
-	view := ansi.Strip(m.vp.View())
+	view := ansi.Strip(m.transcript.Viewport.View())
 	if strings.Contains(view, "─") || !regexp.MustCompile(`\n *\n *\nYou:`).MatchString(view) {
 		t.Fatalf("turn should use two blank rows instead of a pane rule: %q", view)
 	}
@@ -1716,7 +1715,7 @@ func TestTurnSeparators(t *testing.T) {
 	nb.breakBefore = true
 	m2.appendBlock(nb)
 	m2.appendBlock(userBlock("❯ go"))
-	if n := strings.Count(m2.vp.View(), "─"); n != 0 {
+	if n := strings.Count(m2.transcript.Viewport.View(), "─"); n != 0 {
 		t.Fatalf("opener pair must not add rules, got %d", n)
 	}
 }
@@ -1730,10 +1729,10 @@ func TestToolCardAttachesResult(t *testing.T) {
 		},
 	}))
 	mm := updated.(*model)
-	if len(mm.blocks) != 1 || !mm.blocks[0].open {
-		t.Fatalf("call must open a card: %+v", mm.blocks)
+	if len(mm.transcript.blocks) != 1 || !mm.transcript.blocks[0].open {
+		t.Fatalf("call must open a card: %+v", mm.transcript.blocks)
 	}
-	if view := mm.vp.View(); !strings.Contains(view, "read_file") || !strings.Contains(view, "…") {
+	if view := mm.transcript.Viewport.View(); !strings.Contains(view, "read_file") || !strings.Contains(view, "…") {
 		t.Fatalf("open card missing call/pending: %q", view)
 	}
 	updated, _ = mm.Update(eventMsg(api.Event{
@@ -1741,10 +1740,10 @@ func TestToolCardAttachesResult(t *testing.T) {
 		Fields: map[string]any{"call_id": "c1", "text": "ok"},
 	}))
 	mm = updated.(*model)
-	if len(mm.blocks) != 1 || mm.blocks[0].open {
-		t.Fatalf("result must land on the card: %+v", mm.blocks)
+	if len(mm.transcript.blocks) != 1 || mm.transcript.blocks[0].open {
+		t.Fatalf("result must land on the card: %+v", mm.transcript.blocks)
 	}
-	if view := mm.vp.View(); !strings.Contains(view, "ok") || !strings.Contains(view, "✓") {
+	if view := mm.transcript.Viewport.View(); !strings.Contains(view, "ok") || !strings.Contains(view, "✓") {
 		t.Fatalf("closed card missing result/check: %q", view)
 	}
 	// Unknown IDs never corrupt a card: standalone block instead.
@@ -1752,8 +1751,8 @@ func TestToolCardAttachesResult(t *testing.T) {
 		Name:   "tool_result",
 		Fields: map[string]any{"call_id": "zz", "text": "stray"},
 	}))
-	if mm := updated.(*model); len(mm.blocks) != 2 || mm.blocks[1].role != roleResult {
-		t.Fatalf("stray result must stand alone: %+v", mm.blocks)
+	if mm := updated.(*model); len(mm.transcript.blocks) != 2 || mm.transcript.blocks[1].role != roleResult {
+		t.Fatalf("stray result must stand alone: %+v", mm.transcript.blocks)
 	}
 }
 
@@ -1793,10 +1792,10 @@ func TestToolCardFailedGlyph(t *testing.T) {
 		Fields: map[string]any{"call_id": "c2", "text": "error: boom"},
 	}))
 	mm = updated.(*model)
-	if !mm.blocks[0].failed {
+	if !mm.transcript.blocks[0].failed {
 		t.Fatal("error-prefixed result must flag the card")
 	}
-	if view := mm.vp.View(); !strings.Contains(view, "✕") {
+	if view := mm.transcript.Viewport.View(); !strings.Contains(view, "✕") {
 		t.Fatalf("failed card missing cross: %q", view)
 	}
 }
@@ -1811,15 +1810,15 @@ func TestFindingRendersWarning(t *testing.T) {
 		},
 	}))
 	mm := updated.(*model)
-	if len(mm.blocks) != 1 || mm.blocks[0].role != roleWarning {
-		t.Fatalf("finding must be a warning block: %+v", mm.blocks)
+	if len(mm.transcript.blocks) != 1 || mm.transcript.blocks[0].role != roleWarning {
+		t.Fatalf("finding must be a warning block: %+v", mm.transcript.blocks)
 	}
-	if view := mm.vp.View(); !strings.Contains(view, "WARN") || !strings.Contains(view, "a.go:3") {
+	if view := mm.transcript.Viewport.View(); !strings.Contains(view, "WARN") || !strings.Contains(view, "a.go:3") {
 		t.Fatalf("warning missing rail/content: %q", view)
 	}
 	// Rule-less events append nothing, never a blank warning.
 	updated, _ = mm.Update(eventMsg(api.Event{Name: "finding", Fields: map[string]any{}}))
-	if mm := updated.(*model); len(mm.blocks) != 1 {
+	if mm := updated.(*model); len(mm.transcript.blocks) != 1 {
 		t.Fatal("malformed finding must not append")
 	}
 }
@@ -1831,15 +1830,15 @@ func TestNudgeRendersMarker(t *testing.T) {
 		Fields: map[string]any{"kind": "verify", "text": "[harness] check your work"},
 	}))
 	mm := updated.(*model)
-	if len(mm.blocks) != 1 || mm.blocks[0].role != roleMarker {
-		t.Fatalf("nudge must be a marker block: %+v", mm.blocks)
+	if len(mm.transcript.blocks) != 1 || mm.transcript.blocks[0].role != roleMarker {
+		t.Fatalf("nudge must be a marker block: %+v", mm.transcript.blocks)
 	}
-	if view := mm.vp.View(); !strings.Contains(view, "[harness]") {
+	if view := mm.transcript.Viewport.View(); !strings.Contains(view, "[harness]") {
 		t.Fatalf("provenance mark missing: %q", view)
 	}
 	// Empty nudges append nothing.
 	updated, _ = mm.Update(eventMsg(api.Event{Name: "nudge", Fields: map[string]any{}}))
-	if mm := updated.(*model); len(mm.blocks) != 1 {
+	if mm := updated.(*model); len(mm.transcript.blocks) != 1 {
 		t.Fatal("empty nudge must not append")
 	}
 }
@@ -1849,7 +1848,7 @@ func TestLiveAccumulatesAndStepReplaces(t *testing.T) {
 	m.state = stRunning
 	updated, _ := m.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": "hel"}}))
 	mm := updated.(*model)
-	if view := mm.vp.View(); !strings.Contains(view, "hel") {
+	if view := mm.transcript.Viewport.View(); !strings.Contains(view, "hel") {
 		t.Fatalf("first delta must paint: %q", view)
 	}
 	updated, _ = mm.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": "lo"}}))
@@ -1863,7 +1862,7 @@ func TestLiveAccumulatesAndStepReplaces(t *testing.T) {
 	if mm.live != "" {
 		t.Fatal("step must clear the live buffer")
 	}
-	if n := strings.Count(mm.vp.View(), "hello"); n != 1 {
+	if n := strings.Count(mm.transcript.Viewport.View(), "hello"); n != 1 {
 		t.Fatalf("hello appears %d times, want exactly 1", n)
 	}
 }
@@ -1875,13 +1874,13 @@ func TestLiveAdoptedWhenStepOmits(t *testing.T) {
 	updated, _ = mm.Update(eventMsg(api.Event{Name: "step", Fields: map[string]any{}}))
 	mm = updated.(*model)
 	found := false
-	for _, b := range mm.blocks {
+	for _, b := range mm.transcript.blocks {
 		if b.role == roleAnswer && strings.Contains(b.text, "visible") {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("omitted step must adopt the buffer: %+v", mm.blocks)
+		t.Fatalf("omitted step must adopt the buffer: %+v", mm.transcript.blocks)
 	}
 }
 
@@ -1902,16 +1901,16 @@ func TestLiveUnfollowedStability(t *testing.T) {
 	}
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
 	mm := updated.(*model)
-	if mm.follow {
+	if mm.transcript.Follow {
 		t.Fatal("setup: pgup must unfollow")
 	}
-	y0 := mm.vp.YOffset()
+	y0 := mm.transcript.Viewport.YOffset()
 	for _, chunk := range []string{"a", "b", "c", "d", "e"} {
 		updated, _ = mm.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": chunk}}))
 		mm = updated.(*model)
 	}
-	if mm.vp.YOffset() != y0 {
-		t.Fatalf("live growth below moved offset %d -> %d", y0, mm.vp.YOffset())
+	if mm.transcript.Viewport.YOffset() != y0 {
+		t.Fatalf("live growth below moved offset %d -> %d", y0, mm.transcript.Viewport.YOffset())
 	}
 	if mm.live != "abcde" {
 		t.Fatalf("live = %q", mm.live)
@@ -1951,12 +1950,12 @@ func TestHarnessReplyRendersNormally(t *testing.T) {
 		Name: "step", Fields: map[string]any{"text": "noted", "harness_reply": true},
 	}))
 	mm = updated.(*model)
-	if len(mm.blocks) != 3 {
-		t.Fatalf("blocks = %d", len(mm.blocks))
+	if len(mm.transcript.blocks) != 3 {
+		t.Fatalf("blocks = %d", len(mm.transcript.blocks))
 	}
 	// No hiding anymore: nudges and harness replies render like
 	// everything else (hiding model-visible content misleads).
-	view := mm.vp.View()
+	view := mm.transcript.Viewport.View()
 	for _, want := range []string{"real answer", "[harness]", "noted"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("missing %q: %q", want, view)
@@ -1968,9 +1967,9 @@ func TestThinkExpandsGlobally(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.appendBlock(thinkBlock("old deliberation " + strings.Repeat("x", 200)))
 	m.appendBlock(thinkBlock("new deliberation"))
-	m.compact = false
+	m.transcript.compact = false
 	m.refreshContent()
-	view := m.vp.View()
+	view := m.transcript.Viewport.View()
 	// Reflow wraps long runs: count runes, not substrings.
 	if n := strings.Count(view, "x"); n < 200 {
 		t.Fatalf("global expand opened %d x-runes, want 200", n)
@@ -1989,17 +1988,17 @@ func TestToggleHoldsPosition(t *testing.T) {
 	m.appendBlock(thinkBlock("reasoning " + strings.Repeat("y", 300)))
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
 	mm := updated.(*model)
-	if mm.follow {
+	if mm.transcript.Follow {
 		t.Fatal("setup: pgup must unfollow")
 	}
-	y0 := mm.vp.YOffset()
-	first := strings.Split(mm.vp.View(), "\n")[0]
+	y0 := mm.transcript.Viewport.YOffset()
+	first := strings.Split(mm.transcript.Viewport.View(), "\n")[0]
 	updated, _ = mm.Update(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
 	mm = updated.(*model)
-	if mm.vp.YOffset() != y0 {
-		t.Fatalf("growth below moved offset %d -> %d", y0, mm.vp.YOffset())
+	if mm.transcript.Viewport.YOffset() != y0 {
+		t.Fatalf("growth below moved offset %d -> %d", y0, mm.transcript.Viewport.YOffset())
 	}
-	if got := strings.Split(mm.vp.View(), "\n")[0]; got != first {
+	if got := strings.Split(mm.transcript.Viewport.View(), "\n")[0]; got != first {
 		t.Fatal("growth below changed the first line")
 	}
 	// Growth above: first visible line stays first.
@@ -2012,19 +2011,19 @@ func TestToggleHoldsPosition(t *testing.T) {
 	mm2 := updated.(*model)
 	updated, _ = mm2.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
 	mm2 = updated.(*model)
-	if mm2.follow {
+	if mm2.transcript.Follow {
 		t.Fatal("setup: pgup must unfollow")
 	}
-	before := mm2.vp.View()
+	before := mm2.transcript.Viewport.View()
 	first2 := strings.Split(before, "\n")[0]
 	updated, _ = mm2.Update(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
 	mm2 = updated.(*model)
-	if got := strings.Split(mm2.vp.View(), "\n")[0]; got != first2 {
+	if got := strings.Split(mm2.transcript.Viewport.View(), "\n")[0]; got != first2 {
 		t.Fatalf("growth above moved first line:\nwas  %q\nnow  %q", first2, got)
 	}
 	// Collapse back: byte-identical view returns.
 	updated, _ = mm2.Update(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
-	if got := updated.(*model).vp.View(); got != before {
+	if got := updated.(*model).transcript.Viewport.View(); got != before {
 		t.Fatal("collapse must restore the exact view")
 	}
 }
@@ -2249,12 +2248,12 @@ func TestToolCardUsesTypedStatus(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.appendBlock(toolCardBlock("test", "run_shell"))
 	m.handleEvent(api.Event{Name: "tool_result", Fields: map[string]any{"call_id": "test", "text": "ordinary compiler output", "failed": true}})
-	if !m.blocks[len(m.blocks)-1].failed {
+	if !m.transcript.blocks[len(m.transcript.blocks)-1].failed {
 		t.Fatal("typed failure lost")
 	}
 	m.appendBlock(toolCardBlock("read", "read_file"))
 	m.handleEvent(api.Event{Name: "tool_result", Fields: map[string]any{"call_id": "read", "text": "error: is valid file content", "failed": false}})
-	if m.blocks[len(m.blocks)-1].failed {
+	if m.transcript.blocks[len(m.transcript.blocks)-1].failed {
 		t.Fatal("file prose overrode successful status")
 	}
 }

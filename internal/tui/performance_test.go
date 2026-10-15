@@ -41,7 +41,7 @@ func BenchmarkTranscriptRefresh(b *testing.B) {
 	m.width(tea.WindowSizeMsg{Width: 120, Height: 30})
 	m.state = stRunning
 	for i := 0; i < 500; i++ {
-		m.blocks = append(m.blocks, answerBlock(strings.Repeat("A line of transcript text. ", 40)))
+		m.transcript.blocks = append(m.transcript.blocks, answerBlock(strings.Repeat("A line of transcript text. ", 40)))
 	}
 	m.refreshContent()
 	b.ResetTimer()

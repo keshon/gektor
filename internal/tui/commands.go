@@ -24,7 +24,7 @@ func commandReference() [][2]string {
 // reported, never sent to the model — a typo must not become a task.
 func (m *model) command(text string) (tea.Model, tea.Cmd) {
 	name, arg, _ := strings.Cut(strings.TrimPrefix(text, "/"), " ")
-	m.pushHistory(text)
+	m.input.Push(text)
 	switch strings.ToLower(name) {
 	case "q", "quit":
 		m.quit = true

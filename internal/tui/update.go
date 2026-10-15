@@ -116,7 +116,7 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		m.persistUsage()
 		wasInterrupted := m.interrupted
 		if m.chat != nil && msg.err == nil && msg.answer != "" {
-			m.blocks = append(m.blocks, assistantBlocks(msg.answer, "")...)
+			m.transcript.blocks = append(m.transcript.blocks, assistantBlocks(msg.answer, "")...)
 		}
 		m.answer = msg.answer
 		m.runErr = msg.err
@@ -170,9 +170,9 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 	default:
-		if m.dialog != nil && m.dialog.form != nil && m.dialog.form.index < len(m.dialog.form.fields) {
+		if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Index < len(m.dialog.form.Fields) {
 			var cmd tea.Cmd
-			m.dialog.form.editor, cmd = m.dialog.form.editor.Update(msg)
+			m.dialog.form.Editor, cmd = m.dialog.form.Editor.Update(msg)
 			return m, cmd
 		}
 		switch m.activeInputOwner() {
@@ -196,10 +196,10 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 func (m *model) width(msg tea.WindowSizeMsg) {
 	m.termW, m.termH = msg.Width, msg.Height
 	if !m.ready {
-		m.vp = viewport.New(viewport.WithWidth(msg.Width), viewport.WithHeight(msg.Height))
+		m.transcript.Viewport = viewport.New(viewport.WithWidth(msg.Width), viewport.WithHeight(msg.Height))
 		m.ready = true
 	} else {
-		m.vp.SetWidth(msg.Width)
+		m.transcript.Viewport.SetWidth(msg.Width)
 	}
 	// Cap the answer box like a chat input, not a fullscreen editor.
 	maxRows := msg.Height / 4
@@ -212,8 +212,8 @@ func (m *model) width(msg tea.WindowSizeMsg) {
 	m.input.MaxHeight = maxRows
 	m.fitInput()
 	m.fitBottom()
-	m.input.SetWidth(max(m.vp.Width()-5, 1))
-	m.note.SetWidth(max(m.vp.Width()-10, 1))
+	m.input.SetWidth(max(m.transcript.Viewport.Width()-5, 1))
+	m.note.SetWidth(max(m.transcript.Viewport.Width()-10, 1))
 	if m.sessions != nil {
 		m.sessions.filter.SetWidth(max(msg.Width-14, 1))
 	}
@@ -270,10 +270,10 @@ func (m *model) fitBottom() {
 	if m.dialog != nil {
 		lines = 1
 	}
-	oldWidth := m.vp.Width()
+	oldWidth := m.transcript.Viewport.Width()
 	m.fitColumns()
-	m.note.SetWidth(max(m.vp.Width()-10, 1))
-	if oldWidth != m.vp.Width() {
+	m.note.SetWidth(max(m.transcript.Viewport.Width()-10, 1))
+	if oldWidth != m.transcript.Viewport.Width() {
 		m.refreshContent()
 	}
 	h := m.termH - 7 - lines
@@ -283,8 +283,8 @@ func (m *model) fitBottom() {
 	if h < 1 {
 		h = 1
 	}
-	m.vp.SetHeight(h)
-	m.gateVP.SetWidth(m.vp.Width())
+	m.transcript.Viewport.SetHeight(h)
+	m.gateVP.SetWidth(m.transcript.Viewport.Width())
 	m.gateVP.SetHeight(h)
 	if m.state == stPermission || m.state == stAsk {
 		m.refreshGate()
@@ -305,10 +305,7 @@ func (m *model) scrollViewport(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !m.ready {
 		return m, nil
 	}
-	var cmd tea.Cmd
-	m.vp, cmd = m.vp.Update(msg)
-	m.follow = m.vp.AtBottom()
-	return m, cmd
+	return m, m.transcript.Update(msg)
 }
 func (m *model) handleEvent(ev api.Event) {
 	m.beginTranscriptUpdate()
@@ -398,7 +395,7 @@ func (m *model) handleEvent(ev api.Event) {
 		kind, _ := ev.Fields["kind"].(string)
 		prompt, _ := ev.Fields["prompt"].(string)
 		m.gate = prompt
-		m.gateVP = viewport.New(viewport.WithWidth(max(m.termW, 1)), viewport.WithHeight(max(m.vp.Height(), 1)))
+		m.gateVP = viewport.New(viewport.WithWidth(max(m.termW, 1)), viewport.WithHeight(max(m.transcript.Viewport.Height(), 1)))
 		if m.sessions != nil {
 			m.closeSessions()
 		}

@@ -108,7 +108,7 @@ func TestSearchHistoryMatchOpensAtMessage(t *testing.T) {
 	m.sessions.filter.SetValue("unique phrase")
 	m.sessions.applyFilter()
 	m.openSelected()
-	if m.sessions != nil || m.stateFile != filepath.Join(dir, "state.json") || m.follow || m.vp.YOffset() == 0 || !strings.Contains(ansi.Strip(m.vp.View()), "Find this unique phrase") {
+	if m.sessions != nil || m.stateFile != filepath.Join(dir, "state.json") || m.transcript.Follow || m.transcript.Viewport.YOffset() == 0 || !strings.Contains(ansi.Strip(m.transcript.Viewport.View()), "Find this unique phrase") {
 		t.Fatal("opening history result did not reveal matching message")
 	}
 }

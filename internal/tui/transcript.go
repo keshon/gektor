@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"github.com/keshon/tars/internal/tui/components/transcript"
 	"strings"
 	"time"
 
@@ -136,8 +137,8 @@ func (m *model) attachResult(callID, text string, failed ...bool) bool {
 	if callID == "" {
 		return false
 	}
-	for i := len(m.blocks) - 1; i >= 0; i-- {
-		b := &m.blocks[i]
+	for i := len(m.transcript.blocks) - 1; i >= 0; i-- {
+		b := &m.transcript.blocks[i]
 		if b.role == roleTool && b.open && b.callID == callID {
 			b.result = text
 			b.open = false
@@ -545,7 +546,7 @@ func resultLineStyle(origLine, frag string, st styles) string {
 
 // appendBlock records a block and re-renders the transcript.
 func (m *model) appendBlock(b block) {
-	m.blocks = append(m.blocks, b)
+	m.transcript.blocks = append(m.transcript.blocks, b)
 	m.refreshContent()
 }
 
@@ -579,88 +580,11 @@ func (m *model) refreshContent() {
 	if !m.ready {
 		return
 	}
-	if m.render.batch > 0 {
-		m.render.dirty = true
+	if m.transcript.render.batch > 0 {
+		m.transcript.render.dirty = true
 		return
 	}
-	speaker := m.speakerName()
-	parts := make([]string, 0, len(m.blocks))
-	cache := make([]renderedBlock, len(m.blocks))
-	prevBreak := false
-	for i, b := range m.blocks {
-		b.speaker = speaker
-		if b.role == roleUser {
-			b.speaker = m.userName()
-		}
-		var rendered renderedBlock
-		if i < len(m.render.cache) && m.render.cache[i].block == b && m.render.cache[i].width == m.vp.Width() && m.render.cache[i].expanded == !m.compact {
-			rendered = m.render.cache[i]
-		} else {
-			rendered = renderedBlock{block: b, width: m.vp.Width(), expanded: !m.compact, text: renderBlock(b, m.styles, !m.compact, m.vp.Width(), m.chat != nil)}
-		}
-		cache[i] = rendered
-		part := rendered.text
-		if b.breakBefore && len(parts) > 0 && !prevBreak {
-			part = "\n" + part
-		}
-		parts = append(parts, part)
-		prevBreak = b.breakBefore
-	}
-	m.render.cache = cache
-
-	content := strings.Join(parts, "\n\n")
-	if m.live != "" {
-		if content != "" {
-			content += "\n\n"
-		}
-		live := []string{}
-		for _, b := range assistantBlocks(m.live, "") {
-			b.at = time.Time{}
-			b.speaker = speaker
-			live = append(live, renderBlock(b, m.styles, false, m.vp.Width(), m.chat != nil))
-		}
-		content += strings.Join(live, "\n\n")
-	}
-	heights := make([]int, len(parts))
-	for i, p := range parts {
-		heights[i] = strings.Count(p, "\n") + 1
-	}
-	// Position hold: same part count means a pure re-render (toggle,
-	// resize), so growth above the old viewport top shifts the offset
-	// down by exactly that growth; growth below leaves it alone. New
-	// parts (appends, hide toggles) keep the offset: appends land
-	// below by construction.
-	if !m.follow && len(heights) > 0 && len(heights) == len(m.partLines) {
-		oldTop := m.vp.YOffset()
-		acc, idx := 0, 0
-		// Parts join with one blank line between them: the viewport
-		// offset of part i is its content plus i separators.
-		for idx < len(m.partLines) && acc+m.partLines[idx] <= oldTop {
-			acc += m.partLines[idx] + 1
-			idx++
-		}
-		shift := 0
-		for j := 0; j < idx && j < len(heights); j++ {
-			shift += heights[j] - m.partLines[j]
-		}
-		m.vp.SetContent(content)
-		off := oldTop + shift
-		if maxOff := strings.Count(content, "\n") + 1 - m.vp.Height(); maxOff > 0 && off > maxOff {
-			off = maxOff
-		}
-		if off < 0 {
-			off = 0
-		}
-		m.vp.SetYOffset(off)
-	} else {
-		m.vp.SetContent(content)
-		if m.follow {
-			m.vp.GotoBottom()
-		} else if len(heights) == 0 {
-			m.vp.SetYOffset(0)
-		}
-	}
-	m.partLines = heights
+	m.transcript.refresh(transcriptProps{speaker: m.speakerName(), user: m.userName(), styles: m.styles, live: m.live, chat: m.chat != nil})
 }
 
 // minWrapWidth guards absurdly narrow viewports: below it, lines pass
@@ -722,11 +646,11 @@ type renderedBlock struct {
 	text     string
 }
 
-func (m *model) beginTranscriptUpdate() { m.render.batch++ }
+func (m *model) beginTranscriptUpdate() { m.transcript.render.batch++ }
 func (m *model) endTranscriptUpdate() {
-	m.render.batch--
-	if m.render.batch == 0 && m.render.dirty {
-		m.render.dirty = false
+	m.transcript.render.batch--
+	if m.transcript.render.batch == 0 && m.transcript.render.dirty {
+		m.transcript.render.dirty = false
 		m.refreshContent()
 	}
 }
@@ -755,4 +679,59 @@ func (m *model) userName() string {
 		return "You"
 	}
 	return name
+}
+
+type transcriptState struct {
+	transcript.Model
+	blocks  []block
+	compact bool
+	render  transcriptRenderState
+}
+
+func newTranscript() transcriptState { return transcriptState{Model: transcript.New(), compact: true} }
+
+// The TARS renderer receives presentation values, never the application model.
+type transcriptProps struct {
+	speaker, user, live string
+	styles              styles
+	chat                bool
+}
+
+func (t *transcriptState) refresh(props transcriptProps) {
+	speaker := props.speaker
+	parts := make([]string, 0, len(t.blocks))
+	cache := make([]renderedBlock, len(t.blocks))
+	prevBreak := false
+	for i, b := range t.blocks {
+		b.speaker = speaker
+		if b.role == roleUser {
+			b.speaker = props.user
+		}
+		var rendered renderedBlock
+		if i < len(t.render.cache) && t.render.cache[i].block == b && t.render.cache[i].width == t.Viewport.Width() && t.render.cache[i].expanded == !t.compact {
+			rendered = t.render.cache[i]
+		} else {
+			rendered = renderedBlock{block: b, width: t.Viewport.Width(), expanded: !t.compact, text: renderBlock(b, props.styles, !t.compact, t.Viewport.Width(), props.chat)}
+		}
+		cache[i] = rendered
+		part := rendered.text
+		if b.breakBefore && len(parts) > 0 && !prevBreak {
+			part = "\n" + part
+		}
+		parts = append(parts, part)
+		prevBreak = b.breakBefore
+	}
+	t.render.cache = cache
+
+	tail := ""
+	if props.live != "" {
+		var live []string
+		for _, b := range assistantBlocks(props.live, "") {
+			b.at = time.Time{}
+			b.speaker = speaker
+			live = append(live, renderBlock(b, props.styles, false, t.Viewport.Width(), props.chat))
+		}
+		tail = strings.Join(live, "\n\n")
+	}
+	t.SetParts(parts, tail)
 }

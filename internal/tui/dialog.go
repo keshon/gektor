@@ -68,7 +68,7 @@ func (m *model) dialogView() string {
 	d := &state
 	availW, availH := m.termW, m.termH-3
 	if m.ready {
-		availW, availH = m.vp.Width(), m.vp.Height()
+		availW, availH = m.transcript.Viewport.Width(), m.transcript.Viewport.Height()
 	}
 	inner := min(availW-6, 72)
 	if inner < 10 {
@@ -257,7 +257,7 @@ func (m *model) statusLines() []string {
 	// details"), not the history internals: compact here describes the
 	// transcript view, never context compaction.
 	details := "collapsed (Ctrl+G)"
-	if !m.compact {
+	if !m.transcript.compact {
 		details = "full (Ctrl+G)"
 	}
 	// Zero means the loop's default; the TUI must not print "0".

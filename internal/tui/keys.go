@@ -65,8 +65,8 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.activeInputOwner() == focusInput {
 		switch msg.String() {
 		case "ctrl+end":
-			m.vp.GotoBottom()
-			m.follow = true
+			m.transcript.Viewport.GotoBottom()
+			m.transcript.Follow = true
 			return m, nil
 		case "ctrl+u":
 			m.input.SetValue("")
@@ -105,7 +105,7 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		// During a run, queue the completed command through the normal Enter path.
 	}
 	if m.activeInputOwner() == focusInput && (m.state == stDone || m.state == stAsk || m.state == stRunning) && msg.Mod.Contains(tea.ModAlt) && (msg.Code == tea.KeyUp || msg.Code == tea.KeyDown) {
-		m.historyWalk(msg.Code == tea.KeyUp)
+		m.input.Recall(msg.Code == tea.KeyUp)
 		m.fitInput()
 		m.fitBottom()
 		return m, nil
@@ -169,9 +169,9 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			case "up":
 				m.dialog.offset = max(m.dialog.offset-1, 0)
 			case "pgdown":
-				m.dialog.offset += max(m.vp.Height()/2, 1)
+				m.dialog.offset += max(m.transcript.Viewport.Height()/2, 1)
 			case "pgup":
-				m.dialog.offset = max(m.dialog.offset-max(m.vp.Height()/2, 1), 0)
+				m.dialog.offset = max(m.dialog.offset-max(m.transcript.Viewport.Height()/2, 1), 0)
 			}
 		}
 		if m.dialog.help {
@@ -187,9 +187,9 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			case "up":
 				m.dialog.offset = max(m.dialog.offset-1, 0)
 			case "pgdown":
-				m.dialog.offset += max(m.vp.Height()/2, 1)
+				m.dialog.offset += max(m.transcript.Viewport.Height()/2, 1)
 			case "pgup":
-				m.dialog.offset = max(m.dialog.offset-max(m.vp.Height()/2, 1), 0)
+				m.dialog.offset = max(m.dialog.offset-max(m.transcript.Viewport.Height()/2, 1), 0)
 			}
 		}
 		return m, nil
@@ -222,7 +222,7 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			// input keeps arrows and typing only.
 			return m.scrollViewport(msg)
 		case "enter":
-			m.pushHistory(strings.TrimSpace(m.input.Value()))
+			m.input.Push(strings.TrimSpace(m.input.Value()))
 			_ = m.hub.Respond(m.input.Value())
 			m.state = stRunning
 			return m, nil

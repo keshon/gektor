@@ -20,7 +20,7 @@ func TestThemeChangesOnlyAppearanceAndPersists(t *testing.T) {
 	history := m.chat.current.History()
 	draft := m.input.Value()
 	m.openTheme()
-	m.dialog.form.editor.SetValue("light")
+	m.dialog.form.Editor.SetValue("light")
 	m.applyForm()
 	p, err := config.LoadPreferences(path)
 	if err != nil || p.Theme != "light" || currentPalette().name != "light" || m.modeChange != nil || m.input.Value() != draft || len(m.chat.current.History()) != len(history) {

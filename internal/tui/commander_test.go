@@ -28,8 +28,8 @@ func TestCommanderFrameAtSupportedSizes(t *testing.T) {
 			if width >= navigatorMinWidth && !strings.Contains(ansi.Strip(rows[2]), "SESSIONS") {
 				t.Fatal("missing session pane header")
 			}
-			if m.vp.Height() != 20 {
-				t.Fatalf("lost transcript rows: %d", m.vp.Height())
+			if m.transcript.Viewport.Height() != 20 {
+				t.Fatalf("lost transcript rows: %d", m.transcript.Viewport.Height())
 			}
 		}
 	}
@@ -64,7 +64,7 @@ func TestCommanderPreview(t *testing.T) {
 	}
 	preview := settingsModel(t)
 	preview.width(tea.WindowSizeMsg{Width: 120, Height: 34})
-	preview.openForm("Speech services", "Speech settings apply to the next voice service.", "Apply", []formField{{"microphone", "Microphone", "Microphone (Storm Pro)", false}, {"variant", "Chatterbox variant", "nano", false}, {"model", "Speech model directory", "assets/models/speaking/chatterbox/nano", false}, {"max_seconds", "Maximum recording seconds", "120", false}}, func(map[string]string) error { return nil })
+	preview.openForm("Speech services", "Speech settings apply to the next voice service.", "Apply", []formField{{Key: "microphone", Label: "Microphone", Value: "Microphone (Storm Pro)", Multiline: false}, {Key: "variant", Label: "Chatterbox variant", Value: "nano", Multiline: false}, {Key: "model", Label: "Speech model directory", Value: "assets/models/speaking/chatterbox/nano", Multiline: false}, {Key: "max_seconds", Label: "Maximum recording seconds", Value: "120", Multiline: false}}, func(map[string]string) error { return nil })
 	if err := os.WriteFile(filepath.Join(dir, "speech-form.txt"), []byte(ansi.Strip(preview.View().Content)), 0600); err != nil {
 		t.Fatal(err)
 	}

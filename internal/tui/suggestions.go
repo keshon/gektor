@@ -26,44 +26,23 @@ type suggestionState struct {
 
 // Positions are rune offsets, matching textarea's logical row and column.
 func (m *model) completionToken() (start, end int, prefix string) {
+	start, end, prefix = m.input.Token()
 	runes := []rune(m.input.Value())
-	pos := m.input.Column()
-	for _, line := range strings.Split(m.input.Value(), "\n")[:m.input.Line()] {
-		pos += len([]rune(line)) + 1
-	}
-	pos = min(pos, len(runes))
-	quoted := false
-	for i, r := range runes[:pos] {
-		if r == '"' {
-			quoted = !quoted
-		} else if unicode.IsSpace(r) && !quoted {
-			start = i + 1
-		}
-	}
+	pos := start + len([]rune(prefix))
 	before := string(runes[:pos])
 	if strings.HasPrefix(strings.ToLower(strings.TrimLeftFunc(before, unicode.IsSpace)), "/mode ") {
 		start = len([]rune(before)) - len([]rune(strings.TrimLeftFunc(before, unicode.IsSpace)))
+		prefix = string(runes[start:pos])
 	}
-	prefix = string(runes[start:pos])
 	if prefix == "" || (prefix[0] != '@' && (prefix[0] != '/' || strings.TrimSpace(string(runes[:start])) != "")) {
 		return 0, 0, ""
 	}
-	end = pos
-	for end < len(runes) {
-		if unicode.IsSpace(runes[end]) && !quoted {
-			break
-		}
-		if runes[end] == '"' {
-			quoted = !quoted
-		}
-		end++
-	}
-	return start, end, prefix
+	return
 }
 
 func (m *model) syncSuggestions() {
 	s := &m.suggestions
-	if m.activeInputOwner() != focusInput || (m.ready && (m.vp.Height() < 4 || m.vp.Width() < 24)) || (m.state != stDone && m.state != stRunning) {
+	if m.activeInputOwner() != focusInput || (m.ready && (m.transcript.Viewport.Height() < 4 || m.transcript.Viewport.Width() < 24)) || (m.state != stDone && m.state != stRunning) {
 		s.items = nil
 		s.key = ""
 		return
@@ -172,22 +151,15 @@ func (m *model) suggestionKey(msg tea.KeyPressMsg) bool {
 		if !item.directory {
 			value += " "
 		}
-		before := string(runes[:s.start]) + value
-		after := string(runes[s.end:])
-		if !item.directory {
-			after = strings.TrimPrefix(after, " ")
+		end := s.end
+		if !item.directory && end < len(runes) && runes[end] == ' ' {
+			end++
 		}
-		m.input.SetValue(before + after)
-		m.input.MoveToBegin()
-		line := strings.Count(before, "\n")
-		for m.input.Line() < line {
-			m.input.CursorDown()
-		}
-		column := len([]rune(before[strings.LastIndex(before, "\n")+1:]))
+		back := 0
 		if item.directory && strings.HasSuffix(value, "\"") {
-			column-- // Keep typing inside the quoted directory path.
+			back = 1
 		}
-		m.input.SetCursorColumn(column)
+		m.input.Replace(s.start, end, value, back)
 		s.key = ""
 		m.fitInput()
 		m.fitBottom()
@@ -200,14 +172,14 @@ func (m *model) suggestionKey(msg tea.KeyPressMsg) bool {
 // Replace the bottom of the transcript; the composer and its caret stay put.
 func (m *model) suggestionView(body string) string {
 	s := &m.suggestions
-	if len(s.items) == 0 || m.vp.Height() < 4 {
+	if len(s.items) == 0 || m.transcript.Viewport.Height() < 4 {
 		return body
 	}
-	width := min(m.vp.Width(), 78)
+	width := min(m.transcript.Viewport.Width(), 78)
 	if width < 24 {
 		return body
 	}
-	height := max(m.vp.Height(), lipgloss.Height(body))
+	height := max(m.transcript.Viewport.Height(), lipgloss.Height(body))
 	count := min(6, height-3, len(s.items))
 	start := min(max(s.selected-count+1, 0), len(s.items)-count)
 	normal, border, selected := popupStyles()
@@ -234,6 +206,6 @@ func (m *model) suggestionView(body string) string {
 	rows = append(rows, border.Render("│")+popupRow(normal, "  "+hint, width-2)+border.Render("│"))
 	rows = append(rows, border.Render("╰"+strings.Repeat("─", width-2)+"╯"))
 
-	lines := strings.Split(cellFrame(body, m.vp.Width(), height), "\n")
+	lines := strings.Split(cellFrame(body, m.transcript.Viewport.Width(), height), "\n")
 	return strings.Join(append(lines[:len(lines)-len(rows)], rows...), "\n")
 }

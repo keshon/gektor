@@ -4,13 +4,12 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/keshon/tars/internal/character"
 	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/prompts"
-	"io"
-	"net/http"
+	"github.com/keshon/tars/internal/tui/components/selection"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -40,9 +39,9 @@ type settingsPicker struct {
 	items              []string
 	filtered           []string
 	search             textinput.Model
-	cursor             int
-	loading            bool
-	err                string
+	selection.Model
+	loading bool
+	err     string
 }
 type settingsScanMsg struct {
 	id    uint64
@@ -55,10 +54,10 @@ var settingsCategories = []struct{ id, label string }{{"model", "Model"}, {"gene
 
 func (m *model) storeSettingsPage() {
 	f := m.dialog.form
-	if f.index < len(f.fields) {
-		f.fields[f.index].value = f.editor.Value()
+	if f.Index < len(f.Fields) {
+		f.Fields[f.Index].Value = f.Editor.Value()
 	}
-	f.workspace.cache[f.workspace.section] = append([]formField(nil), f.fields...)
+	f.workspace.cache[f.workspace.section] = append([]formField(nil), f.Fields...)
 }
 func (m *model) settingsNavKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	categories := m.availableSettingsCategories()
@@ -103,29 +102,29 @@ func (m *model) settingsNavKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 func (m *model) settingsFieldVisible(index int) bool {
 	f := m.dialog.form
-	if index < len(f.fields) && f.workspace != nil && f.workspace.section == "character" && f.fields[index].key == "name" {
-		for _, field := range f.fields {
-			if field.key == "character" && strings.TrimSpace(field.value) != "" {
+	if index < len(f.Fields) && f.workspace != nil && f.workspace.section == "character" && f.Fields[index].Key == "name" {
+		for _, field := range f.Fields {
+			if field.Key == "character" && strings.TrimSpace(field.Value) != "" {
 				return false
 			}
 		}
 	}
-	if f.workspace != nil && f.workspace.section == "speech" && index < len(f.fields) {
-		switch f.fields[index].key {
+	if f.workspace != nil && f.workspace.section == "speech" && index < len(f.Fields) {
+		switch f.Fields[index].Key {
 		case "vad", "mic-start", "mic-end", "mic-threshold":
 			return f.workspace.advanced
 		}
 	}
-	if index >= len(f.fields) || f.workspace == nil || f.workspace.section != "model" {
+	if index >= len(f.Fields) || f.workspace == nil || f.workspace.section != "model" {
 		return true
 	}
-	key := f.fields[index].key
+	key := f.Fields[index].Key
 	managed := false
-	for _, field := range f.fields {
-		if field.key == "ownership" {
-			v := field.value
-			if f.index < len(f.fields) && f.fields[f.index].key == "ownership" {
-				v = f.editor.Value()
+	for _, field := range f.Fields {
+		if field.Key == "ownership" {
+			v := field.Value
+			if f.Index < len(f.Fields) && f.Fields[f.Index].Key == "ownership" {
+				v = f.Editor.Value()
 			}
 			managed = v == "managed"
 		}
@@ -153,12 +152,12 @@ func (m *model) settingsFieldVisible(index int) bool {
 	}
 }
 func (m *model) firstVisibleField() int {
-	for i := range m.dialog.form.fields {
+	for i := range m.dialog.form.Fields {
 		if m.settingsFieldVisible(i) {
 			return i
 		}
 	}
-	return len(m.dialog.form.fields)
+	return len(m.dialog.form.Fields)
 }
 func (m *model) formRows() ([]string, []formHit, int, int) {
 	f := m.dialog.form
@@ -187,7 +186,7 @@ func (m *model) formRows() ([]string, []formHit, int, int) {
 	rows := []string{m.styles.gate.Render("Settings / " + category), m.styles.dim.Render(cellLine(hint, inner)), ""}
 	hits := []formHit{}
 	visible := []int{}
-	for i := range f.fields {
+	for i := range f.Fields {
 		if m.settingsFieldVisible(i) {
 			visible = append(visible, i)
 		}
@@ -195,16 +194,16 @@ func (m *model) formRows() ([]string, []formHit, int, int) {
 	capacity := max((h-10)/3, 1)
 	position := 0
 	for i, v := range visible {
-		if v == f.index {
+		if v == f.Index {
 			position = i
 		}
 	}
 	start := max(min(position-capacity/2, len(visible)-capacity), 0)
 	end := min(start+capacity, len(visible))
 	for _, i := range visible[start:end] {
-		field := f.fields[i]
-		label := field.label
-		switch field.key {
+		field := f.Fields[i]
+		label := field.Label
+		switch field.Key {
 		case "ownership":
 			label = "Connection"
 		case "model-file":
@@ -217,17 +216,17 @@ func (m *model) formRows() ([]string, []formHit, int, int) {
 			label = "Protocol"
 		}
 		style := m.styles.dim
-		if i == f.index && !f.workspace.nav {
+		if i == f.Index && !f.workspace.nav {
 			style = m.styles.gate
 			label = "› " + label
 		}
 		y := len(rows)
 		rows = append(rows, style.Render(cellLine(label, inner)))
-		value := field.value
-		if i == f.index {
-			value = f.editor.Value()
+		value := field.Value
+		if i == f.Index {
+			value = f.Editor.Value()
 		}
-		if pickerFiles(field.key) {
+		if pickerFiles(field.Key) {
 			if value == "" {
 				value = "Not selected"
 			} else {
@@ -235,18 +234,18 @@ func (m *model) formRows() ([]string, []formHit, int, int) {
 			}
 			value += "  [ Choose… ]"
 		}
-		if field.key == "model" || field.key == "microphone" {
+		if field.Key == "model" || field.Key == "microphone" {
 			value = value + "  [ Discover… ]"
 		}
-		if len(m.formOptions(field.key)) > 0 {
-			value = "[ " + choiceLabel(field.key, value) + " ▾ ]"
+		if len(m.formOptions(field.Key)) > 0 {
+			value = "[ " + choiceLabel(field.Key, value) + " ▾ ]"
 		}
-		if i == f.index && !pickerControl(field.key) && len(m.formOptions(field.key)) == 0 {
-			rows = append(rows, strings.Split(f.editor.View(), "\n")...)
+		if i == f.Index && !pickerControl(field.Key) && len(m.formOptions(field.Key)) == 0 {
+			rows = append(rows, strings.Split(f.Editor.View(), "\n")...)
 		} else {
 			rows = append(rows, cellLine(strings.ReplaceAll(value, "\n", " ↵ "), inner))
 		}
-		hits = append(hits, formHit{i, y, len(rows), 0, 0})
+		hits = append(hits, formHit{Index: i, Y0: y, Y1: len(rows), X0: 0, X1: 0})
 		rows = append(rows, "")
 	}
 	// Actions stay at the bottom; a small terminal shows fewer controls.
@@ -295,22 +294,22 @@ func (m *model) formRows() ([]string, []formHit, int, int) {
 }
 func (m *model) openSettingsPicker() tea.Cmd {
 	f := m.dialog.form
-	if f.index >= len(f.fields) {
+	if f.Index >= len(f.Fields) {
 		return nil
 	}
-	key := f.fields[f.index].key
+	key := f.Fields[f.Index].Key
 	search := textinput.New()
 	search.SetStyles(textInputStyles(search.Styles()))
 	search.Prompt = "Search: "
 	search.SetVirtualCursor(true)
 	search.Focus()
-	search.SetWidth(max(m.vp.Width()-14, 12))
+	search.SetWidth(max(m.transcript.Viewport.Width()-14, 12))
 	p := &settingsPicker{id: settingsScanID.Add(1), field: key, search: search}
 	f.picker = p
 	if key == "model" {
 		values := map[string]string{}
-		for _, field := range f.fields {
-			values[field.key] = field.value
+		for _, field := range f.Fields {
+			values[field.Key] = field.Value
 		}
 		p.loading = true
 		id := p.id
@@ -328,10 +327,10 @@ func (m *model) openSettingsPicker() tea.Cmd {
 		return nil
 	}
 	root := ""
-	selected := f.editor.Value()
-	for _, field := range f.fields {
-		if field.key == "model-root" {
-			root = field.value
+	selected := f.Editor.Value()
+	for _, field := range f.Fields {
+		if field.Key == "model-root" {
+			root = field.Value
 		}
 	}
 	if root == "" {
@@ -374,7 +373,7 @@ func (p *settingsPicker) filter() {
 			p.filtered = append(p.filtered, item)
 		}
 	}
-	p.cursor = min(max(p.cursor, 0), max(len(p.filtered)-1, 0))
+	p.Cursor = min(max(p.Cursor, 0), max(len(p.filtered)-1, 0))
 }
 func (m *model) acceptSettingsScan(msg settingsScanMsg) {
 	if m.dialog == nil || m.dialog.form == nil || m.dialog.form.picker == nil {
@@ -407,10 +406,10 @@ func (m *model) pickerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		f.picker = nil
 		return m, nil
 	case "up":
-		p.cursor = max(p.cursor-1, 0)
+		p.Move(-1, len(p.filtered), 1)
 		return m, nil
 	case "down":
-		p.cursor = min(p.cursor+1, max(len(p.filtered)-1, 0))
+		p.Move(1, len(p.filtered), 1)
 		return m, nil
 	case "enter":
 		if p.location {
@@ -418,12 +417,12 @@ func (m *model) pickerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			p.browser = true
 			return m, m.scanPickerDirectory(filepath.Clean(p.search.Value()))
 		}
-		if p.field != "app-workspace" && p.browser && len(p.filtered) > 0 && strings.HasSuffix(p.filtered[p.cursor], string(os.PathSeparator)) {
-			return m, m.scanPickerDirectory(filepath.Clean(p.filtered[p.cursor]))
+		if p.field != "app-workspace" && p.browser && len(p.filtered) > 0 && strings.HasSuffix(p.filtered[p.Cursor], string(os.PathSeparator)) {
+			return m, m.scanPickerDirectory(filepath.Clean(p.filtered[p.Cursor]))
 		}
 		if len(p.filtered) > 0 {
-			previous := f.editor.Value()
-			value := p.filtered[p.cursor]
+			previous := f.Editor.Value()
+			value := p.filtered[p.Cursor]
 			if p.field == "app-workspace" {
 				value = filepath.Clean(value)
 			}
@@ -449,12 +448,12 @@ func (m *model) pickerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				f.workspace.original = map[string][]formField{}
 				f.error = "Setup loaded; Apply uses its model, voice and character selection"
 			}
-			f.editor.SetValue(value)
-			f.fields[f.index].value = value
+			f.Editor.SetValue(value)
+			f.Fields[f.Index].Value = value
 			if p.field == "kind" {
-				for i := range f.fields {
-					if f.fields[i].key == "endpoint" {
-						f.fields[i].value = suggestedBackendURL(f.fields[i].value, previous, value)
+				for i := range f.Fields {
+					if f.Fields[i].Key == "endpoint" {
+						f.Fields[i].Value = suggestedBackendURL(f.Fields[i].Value, previous, value)
 					}
 				}
 			}
@@ -475,9 +474,9 @@ func (m *model) pickerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, func() tea.Msg { items, err := catalogFiles(root, key); return settingsScanMsg{id, items, err} }
 		}
 		if p.browser {
-			for i := range f.fields {
-				if f.fields[i].key == "model-root" {
-					f.fields[i].value = p.directory
+			for i := range f.Fields {
+				if f.Fields[i].Key == "model-root" {
+					f.Fields[i].Value = p.directory
 				}
 			}
 		}
@@ -518,7 +517,7 @@ func (m *model) pickerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	var cmd tea.Cmd
 	p.search, cmd = p.search.Update(msg)
-	p.cursor = 0
+	p.Cursor = 0
 	p.filter()
 	return m, cmd
 }
@@ -544,8 +543,7 @@ func (m *model) pickerRows() ([]string, []formHit, int, int) {
 	}
 	rows := []string{m.styles.gate.Render("Choose / " + title), cellLine(p.search.View(), inner), m.styles.dim.Render(strings.Repeat("─", inner))}
 	capacity := max(h-10, 1)
-	start := max(min(p.cursor-capacity/2, len(p.filtered)-capacity), 0)
-	end := min(start+capacity, len(p.filtered))
+	start, end := p.Centered(len(p.filtered), capacity)
 	for i := start; i < end; i++ {
 		label := choiceLabel(p.field, p.filtered[i])
 		if pickerFiles(p.field) {
@@ -556,7 +554,7 @@ func (m *model) pickerRows() ([]string, []formHit, int, int) {
 			}
 		}
 		style := m.styles.dim
-		if i == p.cursor {
+		if i == p.Cursor {
 			label = "› " + label
 			style = m.styles.gate
 		}
@@ -571,7 +569,7 @@ func (m *model) pickerRows() ([]string, []formHit, int, int) {
 	} else if p.err != "" {
 		detail = p.err
 	} else if len(p.filtered) > 0 && pickerFiles(p.field) {
-		detail = p.filtered[p.cursor]
+		detail = p.filtered[p.Cursor]
 		if p.detailPath == detail && p.detail != "" {
 			detail = p.detail
 		}
@@ -611,50 +609,11 @@ func (m *model) scanPickerDirectory(root string) tea.Cmd {
 }
 
 func remoteModelChoices(kind, endpoint, keyEnv string) ([]string, error) {
-	endpoint = strings.TrimSuffix(endpoint, "/")
-	path := "/v1/models"
-	if kind == "kobold" {
-		path = "/api/v1/model"
-	} else if strings.HasSuffix(endpoint, "/v1") {
-		path = "/models"
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	request, err := http.NewRequestWithContext(ctx, "GET", endpoint+path, nil)
+	items, err := llm.DiscoverModels(ctx, kind, endpoint, os.Getenv(keyEnv))
 	if err != nil {
-		return nil, err
-	}
-	if key := os.Getenv(keyEnv); key != "" {
-		request.Header.Set("Authorization", "Bearer "+key)
-	}
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		return nil, fmt.Errorf("model discovery failed; Esc returns to manual entry")
-	}
-	defer response.Body.Close()
-	if response.StatusCode != 200 {
-		return nil, fmt.Errorf("model discovery HTTP %d; Esc returns to manual entry", response.StatusCode)
-	}
-	var payload struct {
-		Data []struct {
-			ID string `json:"id"`
-		} `json:"data"`
-		Result string `json:"result"`
-	}
-	if err := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&payload); err != nil {
-		return nil, fmt.Errorf("unsupported model list; Esc returns to manual entry")
-	}
-	items := []string{}
-	if kind == "kobold" && payload.Result != "" {
-		items = append(items, payload.Result)
-	}
-	for _, item := range payload.Data {
-		if item.ID != "" {
-			items = append(items, item.ID)
-		}
-	}
-	if len(items) == 0 {
-		return nil, fmt.Errorf("no models reported; Esc returns to manual entry")
+		return nil, fmt.Errorf("%w; Esc returns to manual entry", err)
 	}
 	return items, nil
 }
@@ -663,7 +622,7 @@ func (m *model) settingsDimensions() (int, int) {
 	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.workspace != nil {
 		return max(m.termW-2, 1), max(m.termH-m.actionBarRows()-1, 3)
 	}
-	return m.vp.Width(), m.vp.Height()
+	return m.transcript.Viewport.Width(), m.transcript.Viewport.Height()
 }
 
 func choiceLabel(key, value string) string {
@@ -753,9 +712,9 @@ func (m *model) settingsDirty() bool {
 			return true
 		}
 	}
-	fields := append([]formField(nil), f.fields...)
-	if f.index < len(fields) {
-		fields[f.index].value = f.editor.Value()
+	fields := append([]formField(nil), f.Fields...)
+	if f.Index < len(fields) {
+		fields[f.Index].Value = f.Editor.Value()
 	}
 	return !reflect.DeepEqual(fields, ws.original[ws.section])
 }

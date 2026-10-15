@@ -543,3 +543,11 @@ preset and its compiled instructions. Apply preserves the conversation and saves
 the selection in the custom profile as conversation.prompt_preset. Mode changes
 retain the selected preset. Presets use normal chat messages; they do not insert
 Alpaca/ChatML markers or override the backend's model chat template.
+
+## Implementation boundaries
+
+Reusable form, composer, list-selection and transcript viewport models live under
+`internal/tui/components`. TARS supplies styles and application data, routes focus,
+and handles effects; components own their local editing/selection/scroll state.
+Archive indexing lives in `internal/sessionindex`, independently of terminal
+rendering. See [TUI ownership](tui-ownership.md) for enforced boundaries and limits.

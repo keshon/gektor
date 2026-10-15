@@ -156,7 +156,7 @@ func TestStoppingSpeechRetainsCompletedAssistantText(t *testing.T) {
 	m.interrupted = true
 	m.Update(doneMsg{answer: "Completed text that was not entirely spoken"})
 	found := false
-	for _, b := range m.blocks {
+	for _, b := range m.transcript.blocks {
 		if b.text == "Completed text that was not entirely spoken" {
 			found = true
 		}

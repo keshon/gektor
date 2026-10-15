@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -89,13 +90,13 @@ func TestViewDoesNotChangeSelectionOrFocus(t *testing.T) {
 	m.state = stDone
 	m.width(tea.WindowSizeMsg{Width: 120, Height: 30})
 	m.nav.entries = []sessionEntry{{title: "session", updated: time.Now()}}
-	m.nav.cursor, m.nav.offset = 99, 99
+	m.nav.Cursor, m.nav.Offset = 99, 99
 	m.header = headerState{focused: true, index: 99, menu: "model", row: 99}
 	beforeHeader := m.header
 	beforeFocused := m.input.Focused()
 	m.View()
 	m.View()
-	if !reflect.DeepEqual(m.header, beforeHeader) || m.nav.cursor != 99 || m.nav.offset != 99 || m.input.Focused() != beforeFocused {
+	if !reflect.DeepEqual(m.header, beforeHeader) || m.nav.Cursor != 99 || m.nav.Offset != 99 || m.input.Focused() != beforeFocused {
 		t.Fatal("render changed UI state")
 	}
 	m.header = headerState{}
@@ -155,7 +156,7 @@ func TestSessionIndexCachesUnchangedHistoryAndLoadsSearchOnDemand(t *testing.T) 
 	}
 	// Equal metadata must reuse cached text; a deliberately marked value makes this observable.
 	saved := cache[dir]
-	saved.entry.preview = "cached marker"
+	saved.Entry.Preview = "cached marker"
 	cache[dir] = saved
 	entries, cache = scanSessions(root, cache, true)
 	if entries[0].preview != "cached marker" {
@@ -198,24 +199,24 @@ func TestTranscriptCacheInvalidatesChangedBlocksAndGeometry(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.appendBlock(answerBlock("original"))
-	original := m.render.cache[0].text
+	original := m.transcript.render.cache[0].text
 	m.live = "streamed"
 	m.refreshContent()
-	if m.render.cache[0].text != original {
+	if m.transcript.render.cache[0].text != original {
 		t.Fatal("unchanged block rerendered differently")
 	}
-	m.blocks[0].text = "changed"
+	m.transcript.blocks[0].text = "changed"
 	m.refreshContent()
-	if !strings.Contains(m.vp.View(), "changed") || m.render.cache[0].text == original {
+	if !strings.Contains(m.transcript.Viewport.View(), "changed") || m.transcript.render.cache[0].text == original {
 		t.Fatal("changed block kept cached text")
 	}
 	m.width(tea.WindowSizeMsg{Width: 40, Height: 24})
-	if m.render.cache[0].width != 38 {
+	if m.transcript.render.cache[0].width != 38 {
 		t.Fatal("resize did not invalidate cache")
 	}
-	m.compact = !m.compact
+	m.transcript.compact = !m.transcript.compact
 	m.refreshContent()
-	if m.render.cache[0].expanded != !m.compact {
+	if m.transcript.render.cache[0].expanded != !m.transcript.compact {
 		t.Fatal("details toggle did not invalidate cache")
 	}
 }
@@ -245,5 +246,20 @@ func TestHelpRestoresNavigatorOwner(t *testing.T) {
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if m.activeInputOwner() != focusInput || !m.input.Focused() {
 		t.Fatal("hidden sidebar retained ownership after resize")
+	}
+}
+
+func TestHistoryMatchTranslationSkipsReasoningAndToolCards(t *testing.T) {
+	history := []llm.Message{
+		{Role: llm.RoleSystem, Content: "system"},
+		{Role: llm.RoleUser, Content: "question"},
+		{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "lookup", Name: "read_file"}}},
+		{Role: llm.RoleTool, ToolCallID: "lookup", Content: "result"},
+		{Role: llm.RoleAssistant, Content: "<think>private</think> answer"},
+	}
+	index := historyMatchBlock(history, 4)
+	blocks := renderHistory(history)
+	if index >= len(blocks) || blocks[index].role != roleAnswer || blocks[index].text != "answer" {
+		t.Fatalf("search landed on wrong block: %d %+v", index, blocks)
 	}
 }

@@ -72,7 +72,7 @@ func TestEnterRunsSelectedCommand(t *testing.T) {
 		if m.dialog == nil || !m.dialog.help || m.input.Value() != "" {
 			t.Fatalf("Enter on %q must execute selected help", prefix)
 		}
-		for _, block := range m.blocks {
+		for _, block := range m.transcript.blocks {
 			if strings.Contains(block.text, "unknown command") {
 				t.Fatalf("literal prefix submitted: %q", block.text)
 			}
@@ -119,15 +119,15 @@ func TestSuggestionPopupHasBackgroundAndFits(t *testing.T) {
 		m.Update(tea.WindowSizeMsg{Width: width, Height: 18})
 		m.input.SetValue("/")
 		m.syncSuggestions()
-		body := m.suggestionView(m.vp.View())
+		body := m.suggestionView(m.transcript.Viewport.View())
 		if !strings.Contains(body, "╭─ Commands") || !strings.Contains(body, "Enter run") || !strings.Contains(body, "48;") {
 			t.Fatalf("missing popup chrome or background: %q", body)
 		}
-		if lipgloss.Height(body) != m.vp.Height() {
+		if lipgloss.Height(body) != m.transcript.Viewport.Height() {
 			t.Fatal("popup changed transcript height")
 		}
 		for _, line := range strings.Split(body, "\n") {
-			if lipgloss.Width(line) > m.vp.Width() {
+			if lipgloss.Width(line) > m.transcript.Viewport.Width() {
 				t.Fatal("popup exceeds transcript width")
 			}
 		}

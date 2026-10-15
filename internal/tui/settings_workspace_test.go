@@ -4,6 +4,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/tars/internal/chat"
+	"github.com/keshon/tars/internal/config"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -20,12 +21,12 @@ func TestSettingsAcrossCategoriesApplyToCurrentSession(t *testing.T) {
 	history := m.chat.current.History()
 	draft := m.input.Value()
 	m.editSettings("generation")
-	m.dialog.form.editor.SetValue("0.8")
+	m.dialog.form.Editor.SetValue("0.8")
 	m.editSettings("you")
 	m.focusForm(0)
-	m.dialog.form.editor.SetValue("Alex")
+	m.dialog.form.Editor.SetValue("Alex")
 	m.editSettings("generation")
-	if m.dialog.form.editor.Value() != "0.8" {
+	if m.dialog.form.Editor.Value() != "0.8" {
 		t.Fatal("category switch lost staged edit")
 	}
 	m.applyForm()
@@ -48,10 +49,10 @@ func TestSettingsCancelAllCategories(t *testing.T) {
 	original := m.chat.current
 	profile := m.chat.config.Profile
 	m.editSettings("generation")
-	m.dialog.form.editor.SetValue("0.9")
+	m.dialog.form.Editor.SetValue("0.9")
 	m.editSettings("you")
 	m.focusForm(0)
-	m.dialog.form.editor.SetValue("Changed")
+	m.dialog.form.Editor.SetValue("Changed")
 	m.closeDialog()
 	if m.chat.current != original || m.chat.config.Profile.Conversation.UserName != profile.Conversation.UserName || m.chat.config.Settings.Temperature != 0 {
 		t.Fatal("cancel applied staged values")
@@ -60,10 +61,10 @@ func TestSettingsCancelAllCategories(t *testing.T) {
 func TestPickerSearchBackAndStaleScan(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("model")
-	m.dialog.form.fields[0].value = "managed"
-	m.dialog.form.editor.SetValue("managed")
-	for i, f := range m.dialog.form.fields {
-		if f.key == "model-file" {
+	m.dialog.form.Fields[0].Value = "managed"
+	m.dialog.form.Editor.SetValue("managed")
+	for i, f := range m.dialog.form.Fields {
+		if f.Key == "model-file" {
 			m.focusForm(i)
 			break
 		}
@@ -76,9 +77,9 @@ func TestPickerSearchBackAndStaleScan(t *testing.T) {
 	if len(p.filtered) != 1 || !strings.Contains(p.filtered[0], "Chronos") {
 		t.Fatal("search did not narrow models")
 	}
-	previous := m.dialog.form.editor.Value()
+	previous := m.dialog.form.Editor.Value()
 	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEscape})
-	if m.dialog.form.editor.Value() != previous || m.dialog.form.picker != nil {
+	if m.dialog.form.Editor.Value() != previous || m.dialog.form.picker != nil {
 		t.Fatal("picker cancel changed model")
 	}
 	m.acceptSettingsScan(settingsScanMsg{p.id, []string{"late.gguf"}, nil})
@@ -96,8 +97,8 @@ func TestPickerBrowsesNestedFolders(t *testing.T) {
 	m.chat.config.Profile.Provider.Ownership = "managed"
 	m.chat.config.Profile.Provider.ModelRoot = root
 	m.editSettings("model")
-	for i, f := range m.dialog.form.fields {
-		if f.key == "model-file" {
+	for i, f := range m.dialog.form.Fields {
+		if f.Key == "model-file" {
 			m.focusForm(i)
 			break
 		}
@@ -108,11 +109,11 @@ func TestPickerBrowsesNestedFolders(t *testing.T) {
 	m.acceptSettingsScan(m.scanPickerDirectory(nested)().(settingsScanMsg))
 	for i, f := range p.filtered {
 		if f == file {
-			p.cursor = i
+			p.Cursor = i
 		}
 	}
 	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.dialog.form.editor.Value() != file {
+	if m.dialog.form.Editor.Value() != file {
 		t.Fatal("browser did not select file")
 	}
 }
@@ -136,8 +137,8 @@ func TestSettingsWorkspacePreview(t *testing.T) {
 		}
 	}
 	write("thinking-workspace")
-	for i, f := range m.dialog.form.fields {
-		if f.key == "model-file" {
+	for i, f := range m.dialog.form.Fields {
+		if f.Key == "model-file" {
 			m.focusForm(i)
 			break
 		}
@@ -184,7 +185,7 @@ func TestSettingsArchiveFailureKeepsActiveConfiguration(t *testing.T) {
 	os.Remove(path)
 	os.Mkdir(path, 0700)
 	m.editSettings("generation")
-	m.dialog.form.editor.SetValue("0.9")
+	m.dialog.form.Editor.SetValue("0.9")
 	m.applyForm()
 	if m.dialog == nil || m.dialog.form.error == "" || m.chat.current != original || m.chat.config.Settings.Temperature != 0 {
 		t.Fatal("failed persistence changed the active session")
@@ -213,13 +214,13 @@ func TestSettingsApplyBeforeFirstTurnKeepsLazyConversation(t *testing.T) {
 			m := settingsModel(t)
 			m.chat.current = nil
 			m.stateFile = ""
-			m.blocks = nil
+			m.transcript.blocks = nil
 			m.editSettings(category)
 			if category == "model" {
 				focusSetting(m, "model")
-				m.dialog.form.editor.SetValue("different-model")
+				m.dialog.form.Editor.SetValue("different-model")
 			} else {
-				m.dialog.form.editor.SetValue("0.8")
+				m.dialog.form.Editor.SetValue("0.8")
 			}
 			m.applyForm()
 			if m.dialog != nil || m.chat.current != nil || m.stateFile != "" || m.input.Value() != "unfinished draft" {
@@ -256,27 +257,27 @@ func TestCharacterAndUserSettingsRemainIndependent(t *testing.T) {
 	p.Conversation.Character = "character.json"
 	p.Conversation.Name = "Fallback"
 	p.Conversation.GreetingIndex = 1
-	if err := applySettingsValues(&p, "you", map[string]string{"user": "Alex", "persona": "A developer"}); err != nil {
+	if err := config.ApplySection(&p, "you", map[string]string{"user": "Alex", "persona": "A developer"}); err != nil {
 		t.Fatal(err)
 	}
 	if p.Conversation.Character != "character.json" || p.Conversation.Name != "Fallback" || p.Conversation.GreetingIndex != 1 {
 		t.Fatal("user settings changed character")
 	}
-	if err := applySettingsValues(&p, "character", map[string]string{"character": "", "name": "Ada", "greeting": "0"}); err != nil {
+	if err := config.ApplySection(&p, "character", map[string]string{"character": "", "name": "Ada", "greeting": "0"}); err != nil {
 		t.Fatal(err)
 	}
 	if p.Conversation.UserName != "Alex" || p.Conversation.UserPersona != "A developer" {
 		t.Fatal("character settings changed user")
 	}
 	m.editSettings("character")
-	for _, field := range m.dialog.form.fields {
-		if field.key == "user" || field.key == "persona" {
+	for _, field := range m.dialog.form.Fields {
+		if field.Key == "user" || field.Key == "persona" {
 			t.Fatal("user fields still mixed with character")
 		}
 	}
 	m.editSettings("you")
-	if len(m.dialog.form.fields) != 2 {
-		t.Fatal(m.dialog.form.fields)
+	if len(m.dialog.form.Fields) != 2 {
+		t.Fatal(m.dialog.form.Fields)
 	}
 }
 
@@ -290,14 +291,14 @@ func TestPromptPresetIsSharedAndStaged(t *testing.T) {
 		}
 		m.editSettings("prompts")
 		focusSetting(m, "prompt-preset")
-		if m.dialog.form.editor.Value() != "custom" {
+		if m.dialog.form.Editor.Value() != "custom" {
 			t.Fatal("existing behavior not preserved")
 		}
 		options := m.formOptions("prompt-preset")
 		if len(options) < 5 || choiceLabel("prompt-preset", "coding") != "Coding" || !strings.Contains(catalogDetail("prompt-preset", "coding"), "maintainable") {
 			t.Fatal(options)
 		}
-		m.dialog.form.editor.SetValue("coding")
+		m.dialog.form.Editor.SetValue("coding")
 		staged, err := m.stagedSettings()
 		if err != nil || staged.Conversation.PromptPreset != "coding" || m.audio().Profile.Conversation.PromptPreset != "" {
 			t.Fatal("preset not staged independently", staged, err)

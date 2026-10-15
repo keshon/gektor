@@ -72,12 +72,12 @@ func (m *model) stagedSettings() (config.Profile, error) {
 		}
 		values := map[string]string{}
 		for _, field := range fields {
-			values[field.key] = field.value
+			values[field.Key] = field.Value
 		}
 		if category == "application" {
 			continue
 		}
-		if err := applySettingsValues(&p, category, values); err != nil {
+		if err := config.ApplySection(&p, category, values); err != nil {
 			return p, err
 		}
 	}
@@ -90,9 +90,9 @@ func (m *model) saveSettingsCopy() {
 		return
 	}
 	name := "chat-custom"
-	for _, field := range m.dialog.form.fields {
-		if field.key == "profile-name" {
-			name = strings.TrimSpace(field.value)
+	for _, field := range m.dialog.form.Fields {
+		if field.Key == "profile-name" {
+			name = strings.TrimSpace(field.Value)
 		}
 	}
 	if name == "" || strings.ContainsAny(name, "/\\:") || name == "." || name == ".." {
@@ -249,7 +249,7 @@ func (m *model) queueSettingsDetail() {
 	if !pickerFiles(p.field) || len(p.filtered) == 0 || p.loading {
 		return
 	}
-	path := p.filtered[p.cursor]
+	path := p.filtered[p.Cursor]
 	if path == p.detailPath {
 		return
 	}
