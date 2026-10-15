@@ -26,6 +26,8 @@ type ChatConfig struct {
 	Stream    bool
 	Warnings  []string
 	Profile   config.Profile
+	// Configure returns a candidate with its own client. The caller must close
+	// that client if validation fails or the existing transport can be reused.
 	Configure func(config.Profile) (ChatConfig, error)
 	Client    llm.Client
 	Settings  chat.Config

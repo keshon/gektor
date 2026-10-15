@@ -1,0 +1,125 @@
+package tui
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/keshon/tars/internal/chat"
+	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/tars/internal/llm"
+)
+
+type settingsClient struct {
+	llm.Client
+	closed int
+}
+
+func (c *settingsClient) Close() { c.closed++ }
+
+func TestSettingsSaveFailurePreservesRuntimeAndAllFiles(t *testing.T) {
+	for _, reuse := range []bool{false, true} {
+		t.Run(map[bool]string{false: "new-client", true: "reuse-client"}[reuse], func(t *testing.T) {
+			m := settingsModel(t)
+			root := t.TempDir()
+			profile := m.chat.config.Profile.Clone()
+			profile.Provider.ModelFile = filepath.Join(root, "assets", "model.gguf")
+			m.chat.config.Profile = profile.Clone()
+			custom := filepath.Join(root, "profiles", "custom", "custom-test.json")
+			if err := config.SaveCopy(profile, custom); err != nil {
+				t.Fatal(err)
+			}
+			m.application = &Application{PreferencePath: filepath.Join(root, "var", "application.json"), Preferences: config.Preferences{Version: 1, Mode: "chat", Voice: "off", ProfilePath: custom, Profile: &profile}}
+			if err := m.saveSessionSettings(); err != nil {
+				t.Fatal(err)
+			}
+			// A directory at the global file path forces a late preparation failure.
+			if err := os.MkdirAll(m.application.PreferencePath, 0700); err != nil {
+				t.Fatal(err)
+			}
+			paths := []string{custom, m.stateFile, filepath.Join(m.sessionDirectory(), "settings.json")}
+			before := make(map[string]string)
+			for _, path := range paths {
+				b, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				before[path] = string(b)
+			}
+			old := &settingsClient{Client: m.chat.config.Client}
+			candidate := &settingsClient{Client: m.chat.config.Client}
+			m.chat.config.Client = old
+			current := m.chat.current
+			configure := m.chat.config.Configure
+			m.chat.config.Configure = func(p config.Profile) (ChatConfig, error) {
+				next, err := configure(p)
+				next.Client = candidate
+				return next, err
+			}
+			m.editSettings("generation")
+			if !reuse {
+				focusSetting(m, "context")
+				m.dialog.form.Editor.SetValue("2000")
+			} else {
+				m.dialog.form.Editor.SetValue("0.8")
+			}
+			m.applyForm()
+			if m.dialog == nil || m.dialog.form.error == "" {
+				t.Fatal("save failure accepted")
+			}
+			if m.chat.config.Client != old || m.chat.current != current || old.closed != 0 || candidate.closed != 1 {
+				t.Fatal("failed apply changed runtime ownership", old.closed, candidate.closed)
+			}
+			if m.application.Preferences.ProfilePath != custom || m.dialog.form.workspace.autoSaved {
+				t.Fatal("failed apply changed profile selection")
+			}
+			for _, path := range paths {
+				b, err := os.ReadFile(path)
+				if err != nil || string(b) != before[path] {
+					t.Fatal("failed apply changed persisted file", path, err)
+				}
+			}
+			// Correct the storage failure and retry the same draft.
+			if err := os.Remove(m.application.PreferencePath); err != nil {
+				t.Fatal(err)
+			}
+			candidate = &settingsClient{Client: candidate.Client}
+			m.applyForm()
+			if m.dialog != nil {
+				t.Fatal("retry failed", m.dialog.form.error)
+			}
+			if reuse {
+				if m.chat.config.Client != old || old.closed != 0 || candidate.closed != 1 {
+					t.Fatal("unchanged provider not reused")
+				}
+			} else if m.chat.config.Client != candidate || old.closed != 1 || candidate.closed != 0 {
+				t.Fatal("successful apply lost client ownership")
+			}
+			loaded, err := config.Load(custom)
+			if err != nil || loaded.Generation != m.chat.config.Profile.Generation || loaded.Provider.ModelFile != profile.Provider.ModelFile {
+				t.Fatal("retry did not persist staged generation", err)
+			}
+		})
+	}
+}
+
+func TestSettingsInvalidCandidateClosesOnlyCandidate(t *testing.T) {
+	m := settingsModel(t)
+	old := &settingsClient{Client: m.chat.config.Client}
+	candidate := &settingsClient{Client: old.Client}
+	m.chat.config.Client = old
+	configure := m.chat.config.Configure
+	m.chat.config.Configure = func(p config.Profile) (ChatConfig, error) {
+		next, err := configure(p)
+		next.Client = candidate
+		next.Settings = chat.Config{} // Configure succeeded, conversation validation fails.
+		return next, err
+	}
+	m.editSettings("model")
+	focusSetting(m, "model")
+	m.dialog.form.Editor.SetValue("changed-model")
+	m.applyForm()
+	if m.dialog == nil || old.closed != 0 || candidate.closed != 1 || m.chat.config.Client != old {
+		t.Fatal("invalid candidate leaked or replaced active client")
+	}
+}

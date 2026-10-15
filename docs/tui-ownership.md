@@ -53,6 +53,17 @@ service lifetimes; the draft package performs no I/O and creates no services.
 These boundaries are covered by the draft ownership and failed-resolution tests,
 the profile clone test, and the Settings workspace integration suite.
 
+Chat Settings Apply prepares a candidate client and conversation, then stages the
+custom profile, session preferences, application preferences and archive through
+`filetxn.Replace`. Only a successful save transfers runtime ownership. Failed
+preparation closes unused candidates; a commit failure restores already replaced
+files. If restoration itself fails, the error names the retained original backup.
+This is recovery for ordinary I/O errors, not a crash-atomic multi-file database;
+writers must be serialized. The update loop owns the operation.
+
+**Enforced by:** tested, `TestSettingsSaveFailurePreservesRuntimeAndAllFiles`,
+`TestSettingsInvalidCandidateClosesOnlyCandidate`, and the file transaction suite.
+
 ## 1. The update loop owns UI state
 
 The model, widgets, transcript, selections, render cache, and session index are

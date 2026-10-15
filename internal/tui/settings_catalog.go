@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/character"
 	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/tars/internal/filetxn"
 	"github.com/keshon/tars/internal/prompts"
 	"github.com/keshon/tars/internal/speech"
 )
@@ -245,8 +246,21 @@ func (m *model) acceptSettingsDetail(msg settingsDetailMsg) {
 }
 
 func (m *model) saveCustomSettings(profile config.Profile) error {
+	path, err := m.customSettingsPath()
+	if err != nil || path == "" {
+		return err
+	}
+	if err := filetxn.Replace([]filetxn.Write{{Path: path, Save: func(staged string) error { return config.SaveCopy(profile, staged) }}}); err != nil {
+		return fmt.Errorf("save custom profile: %w", err)
+	}
+	ws := m.dialog.form.workspace
+	ws.loadedPath, ws.autoSaved = path, true
+	return nil
+}
+
+func (m *model) customSettingsPath() (string, error) {
 	if m.application == nil || m.application.PreferencePath == "" || m.dialog == nil || m.dialog.form == nil || m.dialog.form.workspace == nil {
-		return nil
+		return "", nil
 	}
 	ws := m.dialog.form.workspace
 	changed := false
@@ -257,7 +271,7 @@ func (m *model) saveCustomSettings(profile config.Profile) error {
 		}
 	}
 	if !changed {
-		return nil
+		return "", nil
 	}
 	root := filepath.Dir(m.application.PreferencePath)
 	if filepath.Base(root) == "var" {
@@ -267,11 +281,5 @@ func (m *model) saveCustomSettings(profile config.Profile) error {
 	if ws.loadedPath != "" {
 		source = ws.loadedPath
 	}
-	path, err := config.SaveCustom(profile, filepath.Join(root, "profiles", "custom"), source)
-	if err != nil {
-		return fmt.Errorf("save custom profile: %w", err)
-	}
-	ws.loadedPath = path
-	ws.autoSaved = true
-	return nil
+	return config.CustomProfilePath(filepath.Join(root, "profiles", "custom"), source)
 }

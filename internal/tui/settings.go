@@ -5,14 +5,12 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/keshon/tars/internal/character"
-	"github.com/keshon/tars/internal/chat"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/prompts"
 	"github.com/keshon/tars/internal/speech"
@@ -409,82 +407,7 @@ func (m *model) editSettings(section string) {
 		if m.chat == nil || m.settingsApplicationChanged() {
 			return m.requestProfileChange(profile)
 		}
-		next, err := m.chat.config.Configure(profile)
-		if err != nil {
-			return err
-		}
-		// No conversation exists until the first user turn. Keep that lazy state:
-		// constructing one here would leave it without an archive path.
-		var updated *chat.Conversation
-		if m.chat.current != nil {
-			updated, err = m.chat.current.Reconfigured(next.Client, next.Settings)
-			if err != nil {
-				return err
-			}
-		}
-		if err := m.saveCustomSettings(profile); err != nil {
-			if c, ok := next.Client.(interface{ Close() }); ok {
-				c.Close()
-			}
-			return err
-		}
-		if _, err := os.Stat(m.stateFile); err == nil && updated != nil {
-			if err := updated.Save(m.stateFile); err != nil {
-				if c, ok := next.Client.(interface{ Close() }); ok {
-					c.Close()
-				}
-				return err
-			}
-		}
-		if !reflect.DeepEqual(profile.Speech, m.chat.config.Profile.Speech) && m.voice != nil {
-			m.voice.Close()
-			m.voice = nil
-			m.voiceEnabled = false
-		}
-		if profile.Provider == m.chat.config.Profile.Provider && profile.Generation.ContextLimit == m.chat.config.Profile.Generation.ContextLimit {
-			if c, ok := next.Client.(interface{ Close() }); ok {
-				c.Close()
-			}
-			next.Client = m.chat.config.Client
-			if m.chat.current != nil {
-				updated, _ = m.chat.current.Reconfigured(next.Client, next.Settings)
-			}
-		} else if c, ok := m.chat.config.Client.(interface{ Close() }); ok {
-			c.Close()
-		}
-		m.chat.current = updated
-		m.chat.config = next
-		m.backendKind = profile.Provider.Kind
-		m.backendURL = safeEndpoint(profile.Provider.URL)
-		m.modelName = profile.Provider.Model
-		m.limit = next.Settings.ContextLimit
-		m.responseCap = next.Settings.MaxTokens
-		m.streaming = next.Stream
-		previousSource := ""
-		if m.application != nil && ws.loadedPath != "" {
-			previousSource = m.application.Preferences.ProfilePath
-			m.application.Preferences.ProfilePath = ws.loadedPath
-		}
-		save := m.saveSessionSettings
-		if ws.autoSaved && m.application != nil && !m.application.Temporary {
-			save = m.saveApplication
-		}
-		if err := save(); err != nil {
-			if m.application != nil && ws.loadedPath != "" {
-				m.application.Preferences.ProfilePath = previousSource
-			}
-			return err
-		}
-		message := "Settings applied to this session"
-		if ws.autoSaved {
-			message += " · saved " + filepath.Base(ws.loadedPath)
-		}
-		m.appendBlock(markerBlock(message))
-
-		for _, warning := range next.Warnings {
-			m.appendBlock(markerBlock("Character warning: " + warning))
-		}
-		return nil
+		return m.applyChatSettings(profile, ws)
 	})
 	m.dialog.form.workspace = ws
 	saved := ws.draft.Visit(section, fields)
