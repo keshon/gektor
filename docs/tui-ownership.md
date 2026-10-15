@@ -83,6 +83,11 @@ and pane selection. Widget focus flags are synchronized from that answer;
 they are not the authority. Clipboard messages and the native caret use the
 same owner as keyboard routing.
 
+Within Settings, the form resolves a second, local owner: field editor,
+picker search, or no text input for categories and action buttons. Opening a
+picker blurs the underlying editor. Paste updates picker filtering through
+the same input path as typing.
+
 **Because:** finishing a run while Help was open used to focus the hidden
 composer, allowing paste to modify the draft behind the modal. Search also had
 separate key and paste paths, and only keys recomputed results.
@@ -90,7 +95,7 @@ separate key and paste paths, and only keys recomputed results.
 **Enforced by:** tested, `TestCompletionAndPasteRespectHelpOwner`,
 `TestPastedSearchRecomputesResults`, and
 `TestCompletionClosesCancelledPermissionOverlay`, and
-`TestHelpRestoresNavigatorOwner`.
+`TestHelpRestoresNavigatorOwner`, and `TestSettingsPasteRespectsNestedFocus`.
 
 ## 4. Rendering observes state
 

@@ -306,6 +306,7 @@ func (m *model) openSettingsPicker() tea.Cmd {
 	search.SetWidth(max(m.transcript.Viewport.Width()-14, 12))
 	p := &settingsPicker{id: settingsScanID.Add(1), field: key, search: search}
 	f.picker = p
+	f.Editor.Blur()
 	if key == "model" {
 		values := map[string]string{}
 		for _, field := range f.Fields {
@@ -515,11 +516,15 @@ func (m *model) pickerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 
 	}
+	return m, p.updateInput(msg)
+}
+
+func (p *settingsPicker) updateInput(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	p.search, cmd = p.search.Update(msg)
 	p.Cursor = 0
 	p.filter()
-	return m, cmd
+	return cmd
 }
 func (m *model) pickerRows() ([]string, []formHit, int, int) {
 	p := m.dialog.form.picker

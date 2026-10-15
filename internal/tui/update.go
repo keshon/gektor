@@ -170,12 +170,9 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 	default:
-		if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Index < len(m.dialog.form.Fields) {
-			var cmd tea.Cmd
-			m.dialog.form.Editor, cmd = m.dialog.form.Editor.Update(msg)
-			return m, cmd
-		}
 		switch m.activeInputOwner() {
+		case focusDialog:
+			return m, m.updateFormInput(msg)
 		case focusNote:
 			var cmd tea.Cmd
 			m.note, cmd = m.note.Update(msg)

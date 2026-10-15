@@ -106,6 +106,9 @@ func (m *model) activeInputOwner() focusOwner {
 
 func (m *model) syncFocus() {
 	owner := m.activeInputOwner()
+	if m.dialog != nil && m.dialog.form != nil {
+		m.dialog.form.syncInputFocus(owner == focusDialog)
+	}
 	if owner != focusInput {
 		m.input.Blur()
 	} else if !m.input.Focused() {

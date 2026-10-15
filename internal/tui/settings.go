@@ -36,6 +36,64 @@ type settingsForm struct {
 }
 type formHit = form.Hit
 
+type formInputOwner int
+
+const (
+	formNoInput formInputOwner = iota
+	formFieldInput
+	formPickerInput
+)
+
+// inputOwner resolves the nested form focus for both clipboard and keyboard input.
+// Categories and action buttons do not accept text.
+func (f *settingsForm) inputOwner() formInputOwner {
+	if f.picker != nil {
+		return formPickerInput
+	}
+	if f.workspace != nil && f.workspace.nav {
+		return formNoInput
+	}
+	if f.Index >= 0 && f.Index < len(f.Fields) {
+		return formFieldInput
+	}
+	return formNoInput
+}
+
+func (f *settingsForm) syncInputFocus(active bool) {
+	if active && f.inputOwner() == formFieldInput {
+		if !f.Editor.Focused() {
+			f.Editor.Focus()
+		}
+	} else {
+		f.Editor.Blur()
+	}
+	if f.picker != nil {
+		if active && f.inputOwner() == formPickerInput {
+			if !f.picker.search.Focused() {
+				f.picker.search.Focus()
+			}
+		} else {
+			f.picker.search.Blur()
+		}
+	}
+}
+
+func (m *model) updateFormInput(msg tea.Msg) tea.Cmd {
+	if m.dialog == nil || m.dialog.form == nil {
+		return nil
+	}
+	f := m.dialog.form
+	switch f.inputOwner() {
+	case formPickerInput:
+		return f.picker.updateInput(msg)
+	case formFieldInput:
+		var cmd tea.Cmd
+		f.Editor, cmd = f.Editor.Update(msg)
+		return cmd
+	}
+	return nil
+}
+
 func (m *model) openForm(title, hint, applyLabel string, fields []formField, apply func(map[string]string) error) {
 	m.openDialog(title, nil)
 	f := &settingsForm{Model: form.New(fields, newInput().Model), hint: hint, applyLabel: applyLabel, apply: apply}

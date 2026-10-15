@@ -87,6 +87,43 @@ func TestPickerSearchBackAndStaleScan(t *testing.T) {
 		t.Fatal("late scan reopened picker")
 	}
 }
+
+func TestSettingsPasteRespectsNestedFocus(t *testing.T) {
+	m := settingsModel(t)
+	m.editSettings("model")
+	for i, field := range m.dialog.form.Fields {
+		if field.Key == "kind" {
+			m.focusForm(i)
+			break
+		}
+	}
+	f := m.dialog.form
+	before := f.Editor.Value()
+	m.openSettingsPicker()
+	p := f.picker
+	p.items = []string{"llama", "openai", "kobold"}
+	p.filter()
+	m.Update(tea.PasteMsg{Content: "open"})
+	if p.search.Value() != "open" || !reflect.DeepEqual(p.filtered, []string{"openai"}) {
+		t.Fatal("picker paste did not update search and filtered options")
+	}
+	if f.Editor.Value() != before || f.Editor.Focused() || m.input.Focused() {
+		t.Fatal("picker paste reached an inactive editor")
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if f.picker != nil || !f.Editor.Focused() {
+		t.Fatal("closing picker did not return focus to the field")
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyF6})
+	m.Update(tea.PasteMsg{Content: "hidden edit"})
+	if f.Editor.Value() != before || f.Editor.Focused() {
+		t.Fatal("category navigation edited a hidden field")
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if !f.Editor.Focused() {
+		t.Fatal("leaving category navigation did not restore field focus")
+	}
+}
 func TestPickerBrowsesNestedFolders(t *testing.T) {
 	m := settingsModel(t)
 	root := t.TempDir()
