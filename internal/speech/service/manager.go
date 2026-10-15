@@ -110,13 +110,22 @@ func (m *Manager) Recognize(ctx context.Context, wav []byte) (speech.Transcript,
 	return whisper.NewEnglish(m.config.Listening.URL).Recognize(ctx, wav)
 }
 func (m *Manager) ensureRecognition(ctx context.Context) error {
+	if err := m.ctx.Err(); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if m.config.Listening.Ownership == "external" {
 		return nil
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.asr != nil {
-		return nil
+		if !m.asr.Exited() {
+			return nil
+		}
+		m.asr = nil
 	}
 	u, _ := url.Parse(m.config.Listening.URL)
 	listener, err := net.Listen("tcp", u.Host)

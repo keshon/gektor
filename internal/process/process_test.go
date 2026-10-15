@@ -27,6 +27,9 @@ func TestOwnedChildCancellationIsJoined(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if c.Exited() {
+		t.Fatal("live child reported as exited")
+	}
 	cancel()
 	done := make(chan error, 1)
 	go func() { done <- c.Wait() }()
@@ -37,6 +40,9 @@ func TestOwnedChildCancellationIsJoined(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("child not joined")
+	}
+	if !c.Exited() {
+		t.Fatal("joined child reported as live")
 	}
 	c.Stop()
 }

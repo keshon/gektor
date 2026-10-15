@@ -54,6 +54,17 @@ func startCommand(cmd *exec.Cmd) (*Child, error) {
 	return c, nil
 }
 func (c *Child) Wait() error { <-c.done; return c.err }
+
+// Exited reports whether the child has been reaped, without waiting for it.
+func (c *Child) Exited() bool {
+	select {
+	case <-c.done:
+		return true
+	default:
+		return false
+	}
+}
+
 func (c *Child) Stop() {
 	select {
 	case <-c.done:

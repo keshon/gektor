@@ -50,8 +50,18 @@ func (l *Llama) start(ctx context.Context) error {
 	if l.closed {
 		return fmt.Errorf("thinking service is closed")
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if l.child != nil {
-		return nil
+		if !l.child.Exited() {
+			return nil
+		}
+		l.child = nil
+		if l.log != nil {
+			l.log.Close()
+			l.log = nil
+		}
 	}
 	u, _ := url.Parse(l.cfg.URL)
 	listener, err := net.Listen("tcp", u.Host)

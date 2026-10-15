@@ -68,6 +68,12 @@ retains responsibility for closing its resources before a mode handoff.
 `console.go` contains terminal output and approval transport helpers;
 `serve.go` owns the JSON-RPC frontend. These remain one command package.
 
+Managed thinking and recognition owners check whether their child has exited
+before reusing it. A later request may start a replacement; a failed request is
+never replayed automatically. Thinking restarts release the previous log handle.
+Closing the owner prevents further starts. Subprocess lifecycle tests cover reuse,
+exit, replacement and shutdown without loading real model weights.
+
 ## The loop
 
 One model call per step. The response either requests tools or does not, and
