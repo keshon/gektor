@@ -68,7 +68,7 @@ func TestChatTUIArchiveOpenAndToolBoundary(t *testing.T) {
 	})
 	cfg := ChatConfig{Client: client, Settings: chat.Config{System: "persona", MaxTokens: 100, ContextLimit: 1000}, Directory: t.TempDir()}
 	m := sizeModel(t, testModel())
-	m.chat = &chatUI{config: cfg}
+	m.chat = &chatUI{config: &cfg}
 	m.state = stDone
 	done := make(chan doneMsg, 1)
 	m.send = func(msg tea.Msg) { done <- msg.(doneMsg) }
@@ -143,7 +143,7 @@ func TestChatTUIArchiveOpenAndToolBoundary(t *testing.T) {
 
 func TestCharacterGreetingIsVisibleInNewChat(t *testing.T) {
 	m := sizeModel(t, testModel())
-	m.chat = &chatUI{config: ChatConfig{Settings: chat.Config{Greeting: "Hello Alex", CharacterName: "Ada"}}}
+	m.chat = &chatUI{config: &ChatConfig{Settings: chat.Config{Greeting: "Hello Alex", CharacterName: "Ada"}}}
 	m.state = stDone
 	m.newChat()
 	if !strings.Contains(m.View().Content, "Hello Alex") {

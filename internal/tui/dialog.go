@@ -44,12 +44,12 @@ func (m *model) openDialog(title string, lines []string) {
 }
 
 func (m *model) closeDialog() {
-	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.workspace != nil {
-		ws := m.dialog.form.workspace
-		if ws.sampleCancel != nil {
-			ws.sampleCancel()
-			ws.sampleCancel = nil
-			ws.sampleID++
+	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Workspace != nil {
+		ws := m.dialog.form.Workspace
+		if ws.SampleCancel != nil {
+			ws.SampleCancel()
+			ws.SampleCancel = nil
+			ws.SampleID++
 		}
 	}
 	m.dialog = nil

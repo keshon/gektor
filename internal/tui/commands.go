@@ -97,7 +97,7 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.appendBlock(markerBlock("— retrying —"))
-		m.startRun(m.retryRun)
+		m.retryRun()
 		return m, nil
 	case "sessions":
 		m.openSessions()

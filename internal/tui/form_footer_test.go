@@ -1,15 +1,17 @@
 package tui
 
 import (
-	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"fmt"
-	"github.com/charmbracelet/x/ansi"
 	"regexp"
 	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/tars/internal/tui/components/form"
 )
 
 func TestFormsShareRightAlignedActionRowAndDivider(t *testing.T) {
@@ -44,7 +46,7 @@ func TestCompactDialogMouseAndHorizontalKeys(t *testing.T) {
 	m := settingsModel(t)
 	calls := 0
 	m.openForm("Confirm", "", "Delete", nil, func(map[string]string) error { calls++; return nil })
-	m.dialog.form.destructive = true
+	m.dialog.form.Destructive = true
 	m.focusForm(1)
 	m.formKey(tea.KeyPressMsg{Code: tea.KeyLeft})
 	if m.dialog.form.Index != 0 {
@@ -136,7 +138,7 @@ func TestActionRowsFitNarrowWidths(t *testing.T) {
 	m := settingsModel(t)
 	m.openForm("Confirm", "", "A very long primary action", nil, func(map[string]string) error { return nil })
 	for _, width := range []int{12, 18, 24, 72} {
-		row, hits := m.formActions(width, 0, m.dialog.form.applyLabel, true)
+		row, hits := m.dialog.form.Actions(width, 0, m.dialog.form.ApplyLabel, true, form.Styles{})
 		if ansi.StringWidth(row) != width || hits[1].X1 != width {
 			t.Fatal(width, ansi.Strip(row), hits)
 		}

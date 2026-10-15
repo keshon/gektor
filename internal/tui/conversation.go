@@ -22,7 +22,7 @@ import (
 type ChatConfig = app.Services
 
 type chatUI struct {
-	config  ChatConfig
+	config  *ChatConfig
 	current *chat.Conversation
 }
 
@@ -64,14 +64,15 @@ func (m *model) startConversation(text string) error {
 }
 func (m *model) runConversation(text string) {
 	c, path := m.chat.current, m.stateFile
+	voice, voiced, stream := m.runtime().Voice, m.voiceEnabled, m.chat.config.Stream
 	m.startRun(func(ctx context.Context) (string, error) {
 		var output *speech.Output
 		var audioContext context.Context
-		if m.voice != nil && m.voiceEnabled {
+		if voice != nil && voiced {
 			var cancel context.CancelFunc
 			audioContext, cancel = context.WithCancel(ctx)
 			defer m.registerSpeech(cancel)()
-			output = speech.NewOutput(audioContext, m.voice, func(phase string) { m.emitVoice(ctx, phase) })
+			output = speech.NewOutput(audioContext, voice, func(phase string) { m.emitVoice(ctx, phase) })
 		}
 		onDelta := func(delta string) {
 			select {
@@ -87,11 +88,11 @@ func (m *model) runConversation(text string) {
 		note := ""
 		if output != nil {
 			note = "Speech capability: input recognition is configured for English. Output uses Chatterbox English speech. Other-language replies remain text-only. Only dialogue is voiced; do not claim an unsupported vocal effect has actually been performed."
-			note += "\n" + speech.DeliveryPrompt(m.voice)
+			note += "\n" + speech.DeliveryPrompt(voice)
 		}
 		var r chat.Result
 		var err error
-		if m.chat.config.Stream {
+		if stream {
 			r, err = c.AskAndSaveStreaming(ctx, text, path, onDelta, note)
 		} else {
 			r, err = c.AskAndSaveStreaming(ctx, text, path, nil, note)
@@ -125,6 +126,9 @@ func (m *model) runConversation(text string) {
 		}
 		return r.Response.Message.Content, nil
 	})
+	// Retry is invoked on the update loop, so it takes a fresh service snapshot
+	// after any intervening settings or voice changes.
+	m.retryRun = func() { m.runConversation(text) }
 }
 func (m *model) submitConversation(text string) (tea.Model, tea.Cmd) {
 	original := text

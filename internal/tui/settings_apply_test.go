@@ -1,14 +1,44 @@
 package tui
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/keshon/tars/internal/app"
 
 	"github.com/keshon/tars/internal/chat"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
 )
+
+func TestTUIRuntimeOwnershipOnStartupFailure(t *testing.T) {
+	for _, borrowed := range []bool{false, true} {
+		client := &settingsClient{}
+		services := &ChatConfig{Client: client, Directory: t.TempDir()}
+		cfg := Config{Chat: services}
+		if borrowed {
+			cfg.Runtime = app.NewRuntime(services)
+		}
+		if _, err := Run(context.Background(), cfg); err == nil {
+			t.Fatal("invalid conversation settings accepted")
+		}
+		want := 1
+		if borrowed {
+			want = 0
+		}
+		if client.closed != want {
+			t.Fatal("TUI closed a borrowed runtime or leaked its fallback", client.closed, borrowed)
+		}
+		if borrowed {
+			cfg.Runtime.Close()
+			if client.closed != 1 {
+				t.Fatal("owner failed to close borrowed runtime")
+			}
+		}
+	}
+}
 
 type settingsClient struct {
 	llm.Client
@@ -64,13 +94,13 @@ func TestSettingsSaveFailurePreservesRuntimeAndAllFiles(t *testing.T) {
 				m.dialog.form.Editor.SetValue("0.8")
 			}
 			m.applyForm()
-			if m.dialog == nil || m.dialog.form.error == "" {
+			if m.dialog == nil || m.dialog.form.Error == "" {
 				t.Fatal("save failure accepted")
 			}
 			if m.chat.config.Client != old || m.chat.current != current || old.closed != 0 || candidate.closed != 1 {
 				t.Fatal("failed apply changed runtime ownership", old.closed, candidate.closed)
 			}
-			if m.application.Preferences.ProfilePath != custom || m.dialog.form.workspace.autoSaved {
+			if m.application.Preferences.ProfilePath != custom || m.dialog.form.Workspace.AutoSaved {
 				t.Fatal("failed apply changed profile selection")
 			}
 			for _, path := range paths {
@@ -86,7 +116,7 @@ func TestSettingsSaveFailurePreservesRuntimeAndAllFiles(t *testing.T) {
 			candidate = &settingsClient{Client: candidate.Client}
 			m.applyForm()
 			if m.dialog != nil {
-				t.Fatal("retry failed", m.dialog.form.error)
+				t.Fatal("retry failed", m.dialog.form.Error)
 			}
 			if reuse {
 				if m.chat.config.Client != old || old.closed != 0 || candidate.closed != 1 {

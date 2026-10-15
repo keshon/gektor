@@ -1,5 +1,5 @@
-// Package app composes profile-driven services independently of any frontend.
-// Frontends own the lifetime of the clients and speech services they accept.
+// Package app composes and owns profile-driven services independently of any
+// frontend. Runtime manages accepted services; frontends borrow them.
 package app
 
 import (
@@ -17,8 +17,8 @@ type Services struct {
 	Stream   bool
 	Warnings []string
 	Profile  config.Profile
-	// Configure returns a candidate with its own client. The caller must close
-	// that client if validation fails or the existing transport can be reused.
+	// Chat configurations return a candidate with its own client; speech-only
+	// Agent configurations leave Client nil. Runtime handles cleanup and reuse.
 	Configure func(config.Profile) (Services, error)
 	Client    llm.Client
 	Settings  chat.Config

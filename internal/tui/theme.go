@@ -30,5 +30,5 @@ func (m *model) openTheme() {
 		m.refreshContent()
 		return nil
 	})
-	m.dialog.form.choices = map[string][]string{"theme": {"dark", "light"}}
+	m.dialog.form.Choices = map[string][]string{"theme": {"dark", "light"}}
 }

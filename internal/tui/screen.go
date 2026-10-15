@@ -14,7 +14,7 @@ func (m *model) screenContent() string {
 	if !m.ready {
 		return "starting..."
 	}
-	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.workspace != nil {
+	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Workspace != nil {
 		content := m.menuLine() + "\n" + m.formView()
 		if m.actionBarVisible() {
 			content += "\n" + m.actionBar()

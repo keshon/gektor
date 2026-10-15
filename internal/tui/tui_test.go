@@ -1665,7 +1665,7 @@ func TestRetryRerunsLastTurn(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.send = func(tea.Msg) {}
 	m.ctx = context.Background()
-	m.retryRun = func(ctx context.Context) (string, error) { return "recovered", nil }
+	m.retryRun = func() { m.startRun(func(context.Context) (string, error) { return "recovered", nil }) }
 	m.runErr = errors.New("boom")
 	m.state = stDone
 	m.input.SetValue("/retry")

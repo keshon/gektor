@@ -31,10 +31,10 @@ func TestCharacterPickerRejectsPortraitAndStagesCard(t *testing.T) {
 	m.editSettings("character")
 	focusSetting(m, "character")
 	m.openSettingsPicker()
-	p := m.dialog.form.picker
-	m.acceptSettingsScan(settingsScanMsg{p.id, []string{bad, good}, nil})
+	p := m.dialog.form.Picker
+	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{bad, good}})
 	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if p.err == "" || m.dialog.form.picker == nil {
+	if p.Err == "" || m.dialog.form.Picker == nil {
 		t.Fatal("invalid card selected")
 	}
 	p.Cursor = 1
@@ -63,8 +63,8 @@ func TestLoadedProfileAppliesWithoutResettingHistory(t *testing.T) {
 	m.editSettings("profiles")
 	focusSetting(m, "load-profile")
 	m.openSettingsPicker()
-	picker := m.dialog.form.picker
-	m.acceptSettingsScan(settingsScanMsg{picker.id, []string{path}, nil})
+	picker := m.dialog.form.Picker
+	m.acceptSettingsScan(settingsScanMsg{ID: picker.ID, Items: []string{path}})
 	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.chat.config.Profile.Conversation.UserName != "User" {
 		t.Fatal("load applied without Apply")
@@ -89,11 +89,11 @@ func TestSampleCompletionCannotAffectClosedWorkspace(t *testing.T) {
 	m.editSettings("speech")
 	cmd := m.previewSettingsSpeech()
 	if cmd == nil {
-		t.Fatal(m.dialog.form.error)
+		t.Fatal(m.dialog.form.Error)
 	}
-	ws := m.dialog.form.workspace
+	ws := m.dialog.form.Workspace
 	m.closeDialog()
-	if ws.sampleCancel != nil {
+	if ws.SampleCancel != nil {
 		t.Fatal("close did not cancel sample")
 	}
 	m.acceptSettingsSample(cmd().(settingsSampleMsg))
@@ -121,8 +121,8 @@ func TestSettingsLibrariesPreview(t *testing.T) {
 	write("speech-library")
 	focusSetting(m, "microphone")
 	m.openSettingsPicker()
-	p := m.dialog.form.picker
-	m.acceptSettingsScan(settingsScanMsg{p.id, []string{"Microphone (Storm Pro)", "Microphone (ARDOR GAMING Rune)"}, nil})
+	p := m.dialog.form.Picker
+	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{"Microphone (Storm Pro)", "Microphone (ARDOR GAMING Rune)"}})
 	write("microphone-picker")
 	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 	m.editSettings("profiles")
@@ -130,8 +130,8 @@ func TestSettingsLibrariesPreview(t *testing.T) {
 	m.editSettings("character")
 	focusSetting(m, "character")
 	m.openSettingsPicker()
-	p = m.dialog.form.picker
-	m.acceptSettingsScan(settingsScanMsg{p.id, []string{"D:/Cards/Veyra.json", "E:/SillyTavern/characters/Ada.png"}, nil})
+	p = m.dialog.form.Picker
+	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{"D:/Cards/Veyra.json", "E:/SillyTavern/characters/Ada.png"}})
 	write("character-picker")
 }
 
@@ -149,7 +149,7 @@ func TestApplyAutomaticallySavesReusableCustomProfile(t *testing.T) {
 	m.dialog.form.Editor.SetValue("Alex")
 	m.applyForm()
 	if m.dialog != nil {
-		t.Fatal("apply did not finish", m.dialog.form.error)
+		t.Fatal("apply did not finish", m.dialog.form.Error)
 	}
 	custom := m.application.Preferences.ProfilePath
 	if filepath.Dir(custom) != filepath.Join(root, "profiles", "custom") || custom == builtin {

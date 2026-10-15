@@ -31,7 +31,7 @@ type ModeChange struct {
 func (m *ModeChange) Error() string { return "conversation mode changed" }
 func (m *model) audio() *ChatConfig {
 	if m.chat != nil {
-		return &m.chat.config
+		return m.chat.config
 	}
 	return m.audioConfig
 }
@@ -42,7 +42,7 @@ func (m *model) openApplication() {
 }
 func (m *model) settingsApplicationChanged() bool {
 	f := m.dialog.form
-	fields, ok := f.workspace.draft.Fields("application")
+	fields, ok := f.Workspace.Draft.Fields("application")
 	if !ok {
 		return false
 	}
@@ -133,21 +133,16 @@ func (m *model) editAgentSpeech() {
 		if err := config.ApplySection(&profile, "speech", values); err != nil {
 			return err
 		}
-		next, err := audio.Configure(profile)
-		if err != nil {
+		if _, err := m.runtime().Apply(profile, nil, nil); err != nil {
 			return err
 		}
-		if m.voice != nil {
-			m.voice.Close()
-			m.voice = nil
-		}
 		m.voiceEnabled = false
-		m.audioConfig = &next
+
 		m.appendBlock(markerBlock("Speech settings applied; enable voice again"))
 		return nil
 	})
-	m.dialog.form.workspace = &settingsWorkspace{section: "speech", draft: settings.New(audio.Profile)}
-	m.dialog.form.workspace.draft.Visit("speech", m.dialog.form.Fields)
+	m.dialog.form.Workspace = &settingsWorkspace{Section: "speech", Draft: settings.New(audio.Profile)}
+	m.dialog.form.Workspace.Draft.Visit("speech", m.dialog.form.Fields)
 }
 
 // requestProfileChange replaces owned services without starting an Agent run.
@@ -182,11 +177,11 @@ func (m *model) requestProfileChange(profile config.Profile) error {
 	p := m.application.Preferences
 	p.Profile = &profile
 	p.Voice = m.currentVoiceMode()
-	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.workspace != nil && m.dialog.form.workspace.loadedPath != "" {
-		p.ProfilePath = m.dialog.form.workspace.loadedPath
+	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Workspace != nil && m.dialog.form.Workspace.LoadedPath != "" {
+		p.ProfilePath = m.dialog.form.Workspace.LoadedPath
 	}
-	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.workspace != nil {
-		fields, _ := m.dialog.form.workspace.draft.Fields("application")
+	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Workspace != nil {
+		fields, _ := m.dialog.form.Workspace.Draft.Fields("application")
 		for _, field := range fields {
 			switch field.Key {
 			case "app-mode":
@@ -221,8 +216,8 @@ func (m *model) requestProfileChange(profile config.Profile) error {
 	if err := m.saveCustomSettings(profile); err != nil {
 		return err
 	}
-	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.workspace != nil && m.dialog.form.workspace.loadedPath != "" {
-		p.ProfilePath = m.dialog.form.workspace.loadedPath
+	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Workspace != nil && m.dialog.form.Workspace.LoadedPath != "" {
+		p.ProfilePath = m.dialog.form.Workspace.LoadedPath
 	}
 	history := append([]llm.Message(nil), m.seedHistory...)
 	if m.chat != nil && m.chat.current != nil {

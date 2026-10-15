@@ -43,19 +43,19 @@ func (m *model) footerActions() []footerAction {
 		return []footerAction{{tea.KeyF8, 0, "F8", "Finish", "Finish", m.state == stRecording}, {tea.KeyEscape, 0, "Esc", "Cancel", "Cancel", true}, {'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true}}
 	}
 	if m.dialog != nil && m.dialog.form != nil {
-		if m.dialog.form.picker != nil {
-			return []footerAction{{tea.KeyEnter, 0, "Enter", "Choose", "Choose", true}, {tea.KeyEscape, 0, "Esc", "Back", "Back", true}, {'b', tea.ModCtrl, "Ctrl+B", "Browse", "Browse", pickerFiles(m.dialog.form.picker.field)}, {'r', tea.ModCtrl, "Ctrl+R", "Refresh", "Refresh", true}, {'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true}}
+		if m.dialog.form.Picker != nil {
+			return []footerAction{{tea.KeyEnter, 0, "Enter", "Choose", "Choose", true}, {tea.KeyEscape, 0, "Esc", "Back", "Back", true}, {'b', tea.ModCtrl, "Ctrl+B", "Browse", "Browse", pickerFiles(m.dialog.form.Picker.Field)}, {'r', tea.ModCtrl, "Ctrl+R", "Refresh", "Refresh", true}, {'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true}}
 		}
 		apply := footerAction{'s', tea.ModCtrl, "Ctrl+S", "Apply", "Apply", true}
-		if m.dialog.form.destructive {
+		if m.dialog.form.Destructive {
 			apply = footerAction{tea.KeyEnter, 0, "Enter", "Choose", "Choose", true}
 		}
-		if ws := m.dialog.form.workspace; ws != nil {
+		if ws := m.dialog.form.Workspace; ws != nil {
 			actions := []footerAction{{tea.KeyF6, 0, "F6", "Categories", "Pages", true}, {tea.KeyTab, 0, "Tab", "Next", "Next", true}, apply, {tea.KeyEscape, 0, "Esc", "Cancel", "Cancel", true}}
-			if ws.section == "profiles" {
+			if ws.Section == "profiles" {
 				actions = append(actions, footerAction{'d', tea.ModCtrl, "Ctrl+D", "Save copy", "Save", true})
 			}
-			if ws.section == "speech" {
+			if ws.Section == "speech" {
 				actions = append(actions, footerAction{'p', tea.ModCtrl, "Ctrl+P", "Voice sample", "Sample", true})
 			}
 			return actions

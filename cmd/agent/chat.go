@@ -160,8 +160,10 @@ func runChatLaunch(launch launchRequest, o resolvedLaunch) error {
 		if err != nil {
 			return err
 		}
+		owned := app.NewRuntime(&configured)
+		defer owned.Close()
 		app := applicationControl(launch, profile, o.profilePath, o.chat, o.workspace)
-		_, err = tui.Run(ctx, tui.Config{Application: app, SeedHistory: launch.history, InitialDraft: launch.draft, SessionDirectory: launch.directory, Chat: &configured, BackendURL: o.backendURL, Task: task, Env: roles.Env{BackendKind: o.backendKind, Model: o.model}})
+		_, err = tui.Run(ctx, tui.Config{Runtime: owned, Application: app, SeedHistory: launch.history, InitialDraft: launch.draft, SessionDirectory: launch.directory, Chat: &configured, BackendURL: o.backendURL, Task: task, Env: roles.Env{BackendKind: o.backendKind, Model: o.model}})
 		return err
 	}
 	if o.thinkingSettings.Ownership == "managed" {

@@ -333,9 +333,10 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		if err != nil {
 			return err
 		}
-		defer managed.Close()
 		thinkingClient = managed
 	}
+	owned := app.NewRuntime(&app.Services{Client: thinkingClient})
+	defer owned.Close()
 	identity, warnings, err := app.CompileChatSettings(app.ChatOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), GreetingIndex: selectedGreetingIndex(o.selectedProfile), Character: o.characterPath, User: o.userName, System: o.systemPrompt, Post: o.postHistory, PreferMain: o.preferCharacterPrompt, PreferPost: o.preferCharacterPost, MaxTokens: o.maxTokens, ContextLimit: contextLimit, Temperature: o.temperature})
 	if err != nil {
 		return err
@@ -395,7 +396,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			suspend:      suspend,
 		}
 		if o.tui {
-			_, err := tui.Run(ctx, tui.Config{BackendURL: o.backendURL, Env: env, Task: task, StateFile: filepath.Join(missionDir, "mission.json"), AuditPath: o.auditPath, Mission: func(runCtx context.Context, runEnv roles.Env, answer agent.Suspender, emitter *events.Emitter) error {
+			_, err := tui.Run(ctx, tui.Config{Runtime: owned, BackendURL: o.backendURL, Env: env, Task: task, StateFile: filepath.Join(missionDir, "mission.json"), AuditPath: o.auditPath, Mission: func(runCtx context.Context, runEnv roles.Env, answer agent.Suspender, emitter *events.Emitter) error {
 				p := params
 				p.env = runEnv
 				p.suspend = answer
@@ -453,10 +454,12 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			if err != nil {
 				return err
 			}
-			audio = &prepared
+			prepared.Client = thinkingClient
+			*owned.Services = prepared
+			audio = owned.Services
 		}
 		app := applicationControl(launch, o.selectedProfile, o.profilePath, o.chat, o.workspace)
-		answer, err := tui.Run(ctx, tui.Config{Application: app, Audio: audio, SeedHistory: launch.history, InitialDraft: launch.draft, SessionDirectory: launch.directory,
+		answer, err := tui.Run(ctx, tui.Config{Runtime: owned, Application: app, Audio: audio, SeedHistory: launch.history, InitialDraft: launch.draft, SessionDirectory: launch.directory,
 			BackendURL:   o.backendURL,
 			Plan:         o.plan,
 			History:      history,

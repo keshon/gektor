@@ -37,7 +37,7 @@ internal/tools     concrete tools: file, shell, search, process, delegation,
 internal/roles     the five kinds of agent this project builds
 internal/api       Session events, GateHub, cancellation-aware gate transport
 internal/tui       Bubble Tea v2 model, transcript, sessions, composer and popups
-                   components owns reusable models; settings owns staged edits
+                   components owns reusable models; settings owns its screen
 internal/filetxn   staged related file replacements with ordinary-error rollback
 internal/audit     JSONL approval-decision records
 internal/checks    deterministic file checks (formatting and secret findings)
@@ -74,8 +74,10 @@ retains responsibility for closing its resources before a mode handoff.
 `internal/app` compiles shared conversation identity, resolves transport
 credentials, and composes profile-driven Chat and Agent speech services. It
 imports no frontend. Both the command and TUI consume `app.Services`;
-`tui.ChatConfig` is a compatibility alias. The frontend accepting a configuration
-owns its client and any speech service it starts. Staged profile copies do not
+`tui.ChatConfig` is a compatibility alias. Each launch owns an `app.Runtime`;
+frontends borrow it. Runtime prepares, persists and installs service changes and
+closes accepted thinking and speech services. Tool processes and MCP retain
+their separate per-launch owners. Staged profile copies do not
 share mutable conversation or speech options with their callers.
 
 Managed thinking and recognition owners check whether their child has exited

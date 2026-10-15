@@ -6,56 +6,23 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
+	"sync/atomic"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/character"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/filetxn"
-	"github.com/keshon/tars/internal/prompts"
 	"github.com/keshon/tars/internal/speech"
+	"github.com/keshon/tars/internal/tui/settings"
 )
 
-func pickerFiles(key string) bool {
-	return key == "model-file" || key == "character" || key == "load-profile" || key == "app-profile" || key == "app-workspace"
-}
-func pickerControl(key string) bool { return pickerFiles(key) || key == "model" || key == "microphone" }
-func pickerAccepts(key, path string) bool {
-	switch key {
-	case "model-file":
-		return strings.EqualFold(filepath.Ext(path), ".gguf")
-	case "character":
-		ext := strings.ToLower(filepath.Ext(path))
-		return ext == ".png" || ext == ".json"
-	case "app-profile", "load-profile":
-		return strings.EqualFold(filepath.Ext(path), ".json")
-	}
-	return false
-}
-func catalogFiles(root, key string) ([]string, error) {
-	files := []string{}
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !d.IsDir() && pickerAccepts(key, path) {
-			files = append(files, path)
-		}
-		return nil
-	})
-	return files, err
-}
-func (m *model) settingsBase() config.Profile {
-	return m.dialog.form.workspace.draft.Base()
-}
 func (m *model) stagedSettings() (config.Profile, error) {
 	m.storeSettingsPage()
-	return m.dialog.form.workspace.draft.Resolve()
+	return m.dialog.form.Workspace.Draft.Resolve()
 }
 func (m *model) saveSettingsCopy() {
 	p, err := m.stagedSettings()
 	if err != nil {
-		m.dialog.form.error = err.Error()
+		m.dialog.form.Error = err.Error()
 		return
 	}
 	name := "chat-custom"
@@ -65,7 +32,7 @@ func (m *model) saveSettingsCopy() {
 		}
 	}
 	if name == "" || strings.ContainsAny(name, "/\\:") || name == "." || name == ".." {
-		m.dialog.form.error = "Use a profile name without directory separators"
+		m.dialog.form.Error = "Use a profile name without directory separators"
 		return
 	}
 	if !strings.HasSuffix(strings.ToLower(name), ".json") {
@@ -75,51 +42,13 @@ func (m *model) saveSettingsCopy() {
 	root := filepath.Join(filepath.Dir(exe), "profiles")
 	path := filepath.Join(root, name)
 	if err := config.SaveCopy(p, path); err != nil {
-		m.dialog.form.error = err.Error()
+		m.dialog.form.Error = err.Error()
 		return
 	}
-	m.dialog.form.error = "Saved copy: " + path
-}
-func catalogDetail(key, path string) string {
-	if key == "prompt-preset" {
-		preset, err := prompts.ResponsePreset(path)
-		if err != nil {
-			return err.Error()
-		}
-		if preset.ID == "custom" {
-			return "Custom · Uses your base prompt and card overrides without adding a response-style preset."
-		}
-		return preset.Name + " · " + preset.Instruction
-	}
-	if key == "character" {
-		card, err := character.Load(path)
-		if err != nil {
-			return "Unavailable card: " + err.Error()
-		}
-		return card.Name + " · " + strings.ReplaceAll(card.Description, "\n", " ") + " · " + path
-	}
-	if key == "load-profile" || key == "app-profile" {
-		p, err := config.Load(path)
-		if err != nil {
-			return "Unavailable profile: " + err.Error()
-		}
-		return p.Provider.Kind + " · " + p.Provider.Ownership + " · " + p.Provider.Model + " · " + path
-	}
-	return path
+	m.dialog.form.Error = "Saved copy: " + path
 }
 
-// Async discovery captures the configured recorder but never captures audio.
-func (m *model) microphonePicker(p *settingsPicker) tea.Cmd {
-	cfg := m.settingsBase()
-	id := p.id
-	p.loading = true
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-		defer cancel()
-		items, err := speech.Microphones(ctx, cfg.Speech.Recorder)
-		return settingsScanMsg{id, items, err}
-	}
-}
+var settingsSampleID atomic.Uint64
 
 type settingsSampleMsg struct {
 	id  uint64
@@ -128,32 +57,32 @@ type settingsSampleMsg struct {
 
 func (m *model) previewSettingsSpeech() tea.Cmd {
 	f := m.dialog.form
-	ws := f.workspace
-	if ws.sampleCancel != nil {
-		ws.sampleCancel()
-		ws.sampleCancel = nil
-		ws.sampleID++
-		f.error = "Sample stopped"
+	ws := f.Workspace
+	if ws.SampleCancel != nil {
+		ws.SampleCancel()
+		ws.SampleCancel = nil
+		ws.SampleID++
+		f.Error = "Sample stopped"
 		return nil
 	}
 	staged, err := m.stagedSettings()
 	if err != nil {
-		f.error = err.Error()
+		f.Error = err.Error()
 		return nil
 	}
 	current := m.audio().Profile.Speech
 	if current == nil || staged.Speech == nil {
-		f.error = "This profile has no speech service"
+		f.Error = "This profile has no speech service"
 		return nil
 	}
 	a, b := *staged.Speech, *current
 	a.Enabled = b.Enabled
 	if a != b {
-		f.error = "Apply changed speech settings before playing its voice sample"
+		f.Error = "Apply changed speech settings before playing its voice sample"
 		return nil
 	}
 	if err := m.enableVoice(); err != nil {
-		f.error = err.Error()
+		f.Error = err.Error()
 		return nil
 	}
 	base := m.base
@@ -161,11 +90,11 @@ func (m *model) previewSettingsSpeech() tea.Cmd {
 		base = context.Background()
 	}
 	ctx, cancel := context.WithCancel(base)
-	ws.sampleCancel = cancel
-	ws.sampleID = settingsScanID.Add(1)
-	id := ws.sampleID
-	service := m.voice
-	f.error = "Playing current Chatterbox voice · Ctrl+P stops"
+	ws.SampleCancel = cancel
+	ws.SampleID = settingsSampleID.Add(1)
+	id := ws.SampleID
+	service := m.runtime().Voice
+	f.Error = "Playing current Chatterbox voice · Ctrl+P stops"
 	return func() tea.Msg {
 		out := speech.NewOutput(ctx, service, nil)
 		err := out.Delta("Hello. This is my current voice. How does it sound to you?")
@@ -180,71 +109,45 @@ func (m *model) previewSettingsSpeech() tea.Cmd {
 	}
 }
 func (m *model) acceptSettingsSample(msg settingsSampleMsg) {
-	if m.dialog == nil || m.dialog.form == nil || m.dialog.form.workspace == nil {
+	if m.dialog == nil || m.dialog.form == nil || m.dialog.form.Workspace == nil {
 		return
 	}
-	ws := m.dialog.form.workspace
-	if ws.sampleID != msg.id {
+	ws := m.dialog.form.Workspace
+	if ws.SampleID != msg.id {
 		return
 	}
-	if ws.sampleCancel != nil {
-		ws.sampleCancel()
+	if ws.SampleCancel != nil {
+		ws.SampleCancel()
 	}
-	ws.sampleCancel = nil
+	ws.SampleCancel = nil
 	if msg.err != nil {
-		m.dialog.form.error = fmt.Sprintf("Voice sample: %v", msg.err)
+		m.dialog.form.Error = fmt.Sprintf("Voice sample: %v", msg.err)
 	} else {
-		m.dialog.form.error = "Voice sample finished"
+		m.dialog.form.Error = "Voice sample finished"
 	}
 }
 
 func (m *model) hasSettingsSpeech() bool {
-	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.workspace != nil && m.dialog.form.workspace.draft != nil {
-		return m.dialog.form.workspace.draft.Base().Speech != nil
+	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Workspace != nil && m.dialog.form.Workspace.Draft != nil {
+		return m.dialog.form.Workspace.Draft.Base().Speech != nil
 	}
 	return m.audio() != nil && m.audio().Profile.Speech != nil
 }
 
-type settingsDetailMsg struct {
-	id         uint64
-	path, text string
-}
+type settingsDetailMsg = settings.DetailMsg
 
 func (m *model) queueSettingsDetail() {
-	if m.dialog == nil || m.dialog.form == nil || m.dialog.form.picker == nil {
-		return
-	}
-	p := m.dialog.form.picker
-	if !pickerFiles(p.field) || len(p.filtered) == 0 || p.loading {
-		return
-	}
-	path := p.filtered[p.Cursor]
-	if path == p.detailPath {
-		return
-	}
-	p.detailPath = path
-	p.detail = ""
-	id, key := p.id, p.field
-	m.pendingCommands = append(m.pendingCommands, func() tea.Msg {
-		text := catalogDetail(key, path)
-		if key == "model-file" {
-			if info, err := os.Stat(path); err == nil && !info.IsDir() {
-				text = fmt.Sprintf("%.2f GiB · %s", float64(info.Size())/(1<<30), text)
-			}
+	if m.dialog != nil && m.dialog.form != nil {
+		if cmd := m.dialog.form.DetailCommand(); cmd != nil {
+			m.pendingCommands = append(m.pendingCommands, cmd)
 		}
-		return settingsDetailMsg{id, path, text}
-	})
+	}
 }
 func (m *model) acceptSettingsDetail(msg settingsDetailMsg) {
-	if m.dialog == nil || m.dialog.form == nil || m.dialog.form.picker == nil {
-		return
-	}
-	p := m.dialog.form.picker
-	if p.id == msg.id && p.detailPath == msg.path {
-		p.detail = msg.text
+	if m.dialog != nil && m.dialog.form != nil {
+		m.dialog.form.AcceptDetail(msg)
 	}
 }
-
 func (m *model) saveCustomSettings(profile config.Profile) error {
 	path, err := m.customSettingsPath()
 	if err != nil || path == "" {
@@ -253,18 +156,18 @@ func (m *model) saveCustomSettings(profile config.Profile) error {
 	if err := filetxn.Replace([]filetxn.Write{{Path: path, Save: func(staged string) error { return config.SaveCopy(profile, staged) }}}); err != nil {
 		return fmt.Errorf("save custom profile: %w", err)
 	}
-	ws := m.dialog.form.workspace
-	ws.loadedPath, ws.autoSaved = path, true
+	ws := m.dialog.form.Workspace
+	ws.LoadedPath, ws.AutoSaved = path, true
 	return nil
 }
 
 func (m *model) customSettingsPath() (string, error) {
-	if m.application == nil || m.application.PreferencePath == "" || m.dialog == nil || m.dialog.form == nil || m.dialog.form.workspace == nil {
+	if m.application == nil || m.application.PreferencePath == "" || m.dialog == nil || m.dialog.form == nil || m.dialog.form.Workspace == nil {
 		return "", nil
 	}
-	ws := m.dialog.form.workspace
+	ws := m.dialog.form.Workspace
 	changed := false
-	for _, section := range ws.draft.ChangedSections() {
+	for _, section := range ws.Draft.ChangedSections() {
 		if section != "profiles" && section != "application" {
 			changed = true
 			break
@@ -278,8 +181,18 @@ func (m *model) customSettingsPath() (string, error) {
 		root = filepath.Dir(root)
 	}
 	source := m.application.Preferences.ProfilePath
-	if ws.loadedPath != "" {
-		source = ws.loadedPath
+	if ws.LoadedPath != "" {
+		source = ws.LoadedPath
 	}
 	return config.CustomProfilePath(filepath.Join(root, "profiles", "custom"), source)
 }
+
+var pickerFiles = settings.PickerFiles
+
+var pickerControl = settings.PickerControl
+
+var pickerAccepts = settings.PickerAccepts
+
+var catalogFiles = settings.CatalogFiles
+
+var catalogDetail = settings.CatalogDetail

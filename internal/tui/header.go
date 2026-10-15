@@ -365,7 +365,7 @@ func (m *model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			case "voice-details":
 				cfg := m.audio().Profile.Speech
 				lines := []string{"Input: Whisper · English · push-to-talk / hands-free", "Output: Chatterbox " + cfg.Speaking.Variant + " · resident worker", "Microphone: " + cfg.Microphone, "Recognition: " + cfg.Listening.Ownership + " " + cfg.Listening.URL, "Speech model: " + cfg.Speaking.Model, "F8/Ctrl+R starts or finishes recording; wait for microphone readiness.", "Esc stops the current request and playback.", "Ctrl+L: hands-free with Silero VAD CPU and application-controlled interruption. Speech cue negotiation remains separate."}
-				if logs, ok := m.voice.(interface{ Diagnostics() string }); ok {
+				if logs, ok := m.runtime().Voice.(interface{ Diagnostics() string }); ok {
 					lines = append(lines, "Logs: "+logs.Diagnostics())
 				}
 				m.openDialog("Speech services", lines)

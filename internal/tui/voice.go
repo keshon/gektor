@@ -3,7 +3,6 @@ package tui
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -29,17 +28,14 @@ func (m *model) enableVoice() error {
 	if m.audio() == nil || m.audio().NewVoice == nil {
 		return fmt.Errorf("this profile has no speech configuration")
 	}
-	if m.voice == nil {
-		base := m.base
-		if base == nil {
-			base = context.Background()
-		}
-		voice, err := m.audio().NewVoice(base, filepath.Join(m.audio().Directory, "..", "voice"))
-		if err != nil {
-			return err
-		}
-		m.voice = voice
+	base := m.base
+	if base == nil {
+		base = context.Background()
 	}
+	if err := m.runtime().EnableVoice(base); err != nil {
+		return err
+	}
+
 	m.voiceEnabled = true
 	if m.audio().Profile.Speech != nil {
 		m.audio().Profile.Speech.Enabled = true
@@ -56,8 +52,7 @@ func (m *model) toggleVoice() {
 		if m.audio().Profile.Speech != nil {
 			m.audio().Profile.Speech.Enabled = false
 		}
-		m.voice.Close()
-		m.voice = nil
+		m.runtime().DisableVoice()
 		m.appendBlock(markerBlock("Voice disabled; text remains available."))
 		return
 	}
@@ -96,7 +91,7 @@ func (m *model) recordVoice() {
 	m.cancel()
 	m.ctx = ctx
 	m.cancel = cancel
-	capture, err := m.voice.Record(ctx)
+	capture, err := m.runtime().Voice.Record(ctx)
 	if err != nil {
 		cancel()
 		m.appendBlock(errorBlock(err.Error()))
@@ -105,7 +100,7 @@ func (m *model) recordVoice() {
 	m.recording = capture
 	m.captureRevision++
 	revision := m.captureRevision
-	service := m.voice
+	service := m.runtime().Voice
 	m.started = time.Now()
 	m.elapsed = 0
 	m.state = stRecording
@@ -177,7 +172,7 @@ func (m *model) playGreeting() {
 			return
 		}
 	}
-	service, text := m.voice, m.chat.config.Settings.Greeting
+	service, text := m.runtime().Voice, m.chat.config.Settings.Greeting
 	m.startRun(func(ctx context.Context) (string, error) {
 		output := speech.NewOutput(ctx, service, func(phase string) { m.emitVoice(ctx, phase) })
 		if err := output.Delta(text); err != nil {

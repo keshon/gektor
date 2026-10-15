@@ -280,7 +280,7 @@ func (m *model) startRun(run func(ctx context.Context) (string, error)) {
 	m.alwaysMu.Lock()
 	m.always = map[[2]string]bool{}
 	m.alwaysMu.Unlock()
-	m.retryRun = run
+	m.retryRun = func() { m.startRun(run) }
 	m.runErr = nil
 	m.live, m.liveCut, m.livePainted = "", false, 0
 	m.firstToken = time.Time{}
@@ -306,12 +306,17 @@ func (m *model) startRun(run func(ctx context.Context) (string, error)) {
 	m.steps = 0
 	m.usage.thisRun = false
 	m.header.focused, m.header.menu = false, ""
+	var voice speech.Service
+	if m.services != nil {
+		voice = m.services.Voice
+	}
+	voiced := m.chat == nil && m.voiceEnabled && voice != nil
 	go func() {
 		answer, err := run(runCtx)
-		if m.chat == nil && m.voiceEnabled && m.voice != nil && err == nil && answer != "" {
+		if voiced && err == nil && answer != "" && runCtx.Err() == nil {
 			audioCtx, cancelAudio := context.WithCancel(runCtx)
 			defer m.registerSpeech(cancelAudio)()
-			out := speech.NewOutput(audioCtx, m.voice, func(phase string) { m.emitVoice(runCtx, phase) })
+			out := speech.NewOutput(audioCtx, voice, func(phase string) { m.emitVoice(runCtx, phase) })
 			if e := out.Delta(answer); e != nil {
 				out.Cancel()
 			}

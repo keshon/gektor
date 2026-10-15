@@ -18,6 +18,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/api"
+	"github.com/keshon/tars/internal/app"
 	"github.com/keshon/tars/internal/audit"
 	"github.com/keshon/tars/internal/chat"
 	"github.com/keshon/tars/internal/events"
@@ -32,6 +33,9 @@ import (
 // workspace, tools, policy, budgets); gate behavior comes from the TUI,
 // so Env.Gate is overridden, never read.
 type Config struct {
+	// Runtime is borrowed when supplied; Chat and Audio must reference its
+	// Services. Without it, Run owns a fallback runtime and closes it on exit.
+	Runtime          *app.Runtime
 	SessionDirectory string
 	Application      *Application
 	Audio            *ChatConfig
@@ -85,7 +89,7 @@ type model struct {
 	liveEpoch                uint64
 	liveLastFrame            time.Time
 
-	voice           speech.Service
+	services        *app.Runtime
 	voiceEnabled    bool
 	recording       speech.Capture
 	voicePhase      string
@@ -132,9 +136,9 @@ type model struct {
 	// newSession builds a session for a fresh task (first run and
 	// /new). Follow-ups reuse the running session via Resume.
 	newSession func(task, stateFile string, images []string) (*api.Session, error)
-	// retryRun is the last turn's closure, kept so /retry can
-	// re-attempt it exactly. Set by startRun, gated by runErr.
-	retryRun func(ctx context.Context) (string, error)
+	// retryRun restarts the last turn on the update loop, taking fresh service
+	// snapshots before starting workers. Set by startRun, gated by runErr.
+	retryRun func()
 	// send delivers out-of-band messages (run completion) to the
 	// program from worker goroutines. Set by Run once tea exists.
 	send func(tea.Msg)
@@ -306,6 +310,25 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		mcpCount:    len(cfg.Env.MCPTools),
 		policyRules: len(cfg.Env.Policy.Rules),
 	}
+	m.services = cfg.Runtime
+	if m.services == nil {
+		services := cfg.Chat
+		if services == nil {
+			services = cfg.Audio
+		}
+		m.services = app.NewRuntime(services)
+	}
+	defer func() {
+		m.stopListening()
+		m.cancel()
+		if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Workspace != nil && m.dialog.form.Workspace.SampleCancel != nil {
+			m.dialog.form.Workspace.SampleCancel()
+		}
+		if cfg.Runtime == nil && m.services != nil {
+			m.services.Close()
+		}
+
+	}()
 	if len(cfg.History) > 0 && !cfg.Plan && readChatMode(filepath.Dir(cfg.StateFile)) == "Plan" {
 		m.plan = true
 	}
@@ -316,7 +339,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		if _, err := chat.New(cfg.Chat.Client, cfg.Chat.Settings); err != nil {
 			return "", err
 		}
-		m.chat = &chatUI{config: *cfg.Chat}
+		m.chat = &chatUI{config: cfg.Chat}
 		m.streaming = cfg.Chat.Stream
 		m.ws = nil
 		m.wsRoot = ""
@@ -363,22 +386,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		}
 		m.sessionTitle = workspace.ReadSessionTitle(cfg.SessionDirectory)
 	}
-	defer func() {
-		m.stopListening()
-		m.cancel()
-		if m.dialog != nil && m.dialog.form != nil && m.dialog.form.workspace != nil && m.dialog.form.workspace.sampleCancel != nil {
-			m.dialog.form.workspace.sampleCancel()
-		}
-		if m.chat != nil {
-			if c, ok := m.chat.config.Client.(interface{ Close() }); ok {
-				c.Close()
-			}
-		}
-		if m.voice != nil {
-			m.cancel()
-			m.voice.Close()
-		}
-	}()
+
 	if m.audio() != nil && m.audio().Profile.Speech != nil && m.audio().Profile.Speech.Enabled {
 		if err := m.enableVoice(); err != nil {
 			return "", err
@@ -460,6 +468,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	}
 	if len(cfg.SeedHistory) > 0 || cfg.SessionDirectory != "" {
 		m.transcript.blocks = renderHistory(cfg.SeedHistory)
+		m.restoreContext(cfg.SeedHistory)
 		if m.chat != nil {
 			c, err := chat.Restore(m.chat.config.Client, m.chat.config.Settings, DialogueProjection(cfg.SeedHistory))
 			if err != nil {

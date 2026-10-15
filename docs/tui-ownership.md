@@ -44,18 +44,20 @@ indexes archives without terminal dependencies. Search positions refer to source
 messages. The TUI resolves them into rendered blocks on open, including reasoning
 and greeting offsets (`TestHistoryMatchTranslationSkipsReasoningAndToolCards`).
 
-`internal/tui/settings.Draft` owns the staged profile and visited page snapshots.
-It restores edits across category switches, detects changes without mutating state
-during rendering, and resolves changed sections in stable order against a fresh
-`config.Profile.Clone()`. Failed validation preserves the draft and the active
-profile. The root adapter retains focus, pickers, rendering, persistence and
-service lifetimes; the draft package performs no I/O and creates no services.
-These boundaries are covered by the draft ownership and failed-resolution tests,
-the profile clone test, and the Settings workspace integration suite.
+`internal/tui/settings.Model` owns fields, editor and picker focus, categories,
+keyboard and mouse navigation, rendering, and revision-checked catalog commands.
+It receives dimensions and styles as props, and emits Apply, Cancel, SaveCopy,
+Preview and SwitchCategory intents. It imports neither the root model nor app
+services. Rendering performs no discovery and does not mutate choice caches.
+`settings.Draft` restores edits across page switches and resolves changed sections
+in stable order against a fresh `config.Profile.Clone()`. Failed validation
+preserves both the draft and active profile. The parent handles application
+actions, speech previews, overlay placement and the active input owner.
 
-Chat Settings Apply prepares a candidate client and conversation, then stages the
-custom profile, session preferences, application preferences and archive through
-`filetxn.Replace`. Only a successful save transfers runtime ownership. Failed
+`app.Runtime.Apply` prepares a candidate client and conversation;
+`app.SettingsFiles` stages the selected custom profile, session preferences,
+application preferences and archive through `filetxn.Replace`.
+Only a successful save transfers runtime ownership. Failed
 preparation closes unused candidates; a commit failure restores already replaced
 files. If restoration itself fails, the error names the retained original backup.
 This is recovery for ordinary I/O errors, not a crash-atomic multi-file database;
@@ -63,6 +65,22 @@ writers must be serialized. The update loop owns the operation.
 
 **Enforced by:** tested, `TestSettingsSaveFailurePreservesRuntimeAndAllFiles`,
 `TestSettingsInvalidCandidateClosesOnlyCandidate`, and the file transaction suite.
+
+Command launches construct one `app.Runtime` and defer its Close across frontend
+handoffs. The TUI borrows the runtime, and delegates Apply and voice enable/disable
+to it. Direct TUI callers without a supplied runtime receive an owned fallback.
+Close is idempotent; speech-only Agent reconfiguration retains its thinking
+client. Worker closures capture borrowed services before starting, rather than
+reading the mutable runtime from another goroutine. Runtime lifecycle tests and
+the TUI race suite cover these boundaries.
+
+The architecture refactor was smoke-tested through a Windows pseudoterminal
+using an isolated profile, session directory and deterministic local HTTP backend.
+The checks exercised slash completion into Help, Ctrl+O and Shift+Enter multiline
+submission, arrow navigation at draft boundaries, Settings category navigation
+and Apply, persisted generation settings, session search/reopen, Details/Less,
+workspace file completion, Agent-to-Chat handoff and clean quit. This verifies the
+assembled console path without claiming real-model inference or ASR/TTS quality.
 
 ## 1. The update loop owns UI state
 

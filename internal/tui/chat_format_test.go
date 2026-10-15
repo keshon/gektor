@@ -42,7 +42,7 @@ func TestChatCharacterSpeaker(t *testing.T) {
 
 func TestCharacterLabelForCompletedAndStreamingChat(t *testing.T) {
 	m := sizeModel(t, testModel())
-	m.chat = &chatUI{config: ChatConfig{Settings: chat.Config{CharacterName: "Veyra"}}}
+	m.chat = &chatUI{config: &ChatConfig{Settings: chat.Config{CharacterName: "Veyra"}}}
 	m.transcript.blocks = []block{answerBlock("Completed hello.")}
 	m.live = "Streaming hello."
 	m.refreshContent()
@@ -78,7 +78,7 @@ func TestAgentIdentityAndLongChatLabel(t *testing.T) {
 
 func TestNamedUserAndAssistantHaveSeparateRows(t *testing.T) {
 	m := sizeModel(t, testModel())
-	m.chat = &chatUI{config: ChatConfig{Settings: chat.Config{CharacterName: "An unusually long character name"}, Profile: config.Profile{Conversation: &config.Conversation{UserName: "Alex"}}}}
+	m.chat = &chatUI{config: &ChatConfig{Settings: chat.Config{CharacterName: "An unusually long character name"}, Profile: config.Profile{Conversation: &config.Conversation{UserName: "Alex"}}}}
 	m.transcript.blocks = []block{userBlock("My words"), answerBlock("Her words")}
 	m.refreshContent()
 	plain := ansi.Strip(m.transcript.Viewport.View())

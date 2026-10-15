@@ -35,7 +35,7 @@ func settingsModel(t *testing.T) *model {
 		}
 		return ChatConfig{Client: client, Settings: chat.Config{System: p.Conversation.SystemPrompt, Temperature: p.Generation.Temperature, MaxTokens: p.Generation.MaxTokens, ContextLimit: p.Generation.ContextLimit}, Directory: m.chat.config.Directory, Profile: p, Configure: configure}, nil
 	}
-	m.chat = &chatUI{config: ChatConfig{Client: client, Settings: chat.Config{System: "Base rules", MaxTokens: 100, ContextLimit: 1000}, Directory: t.TempDir(), Profile: profile, Configure: configure}}
+	m.chat = &chatUI{config: &ChatConfig{Client: client, Settings: chat.Config{System: "Base rules", MaxTokens: 100, ContextLimit: 1000}, Directory: t.TempDir(), Profile: profile, Configure: configure}}
 	c, err := chat.New(client, m.chat.config.Settings)
 	if err != nil {
 		t.Fatal(err)
@@ -84,7 +84,7 @@ func TestSettingsValidateThenApplyPreservesHistoryAndUpdatesArchive(t *testing.T
 	}
 	m.dialog.form.Editor.SetValue("bad")
 	m.handleKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
-	if m.dialog == nil || m.dialog.form.error == "" || m.chat.current == nil || m.chat.config.Settings.Temperature != 0 {
+	if m.dialog == nil || m.dialog.form.Error == "" || m.chat.current == nil || m.chat.config.Settings.Temperature != 0 {
 		t.Fatal("invalid settings applied")
 	}
 	m.dialog.form.Editor.SetValue("0.8")
@@ -130,7 +130,7 @@ func TestSaveProfileRefusesOverwriteAndKeepsCardPath(t *testing.T) {
 	m.saveChatProfile()
 	m.dialog.form.Editor.SetValue(first)
 	m.applyForm()
-	if m.dialog == nil || m.dialog.form.error == "" {
+	if m.dialog == nil || m.dialog.form.Error == "" {
 		t.Fatal("existing profile overwritten")
 	}
 	next := filepath.Join(root, "other folder", "profile.json")
@@ -168,23 +168,45 @@ func TestSettingsFormMouseAndFrame(t *testing.T) {
 		}
 		x := m.conversationOffset() + max((w-bw-4)/2, 0) + 1
 		y := paneTop + max((h-len(rows)-2)/2, 0) + 1
-		if m.dialog.form.workspace != nil {
+		if m.dialog.form.Workspace != nil {
 			x = 2
 			y = 2
 		}
 		cancel := hits[len(hits)-1]
 		if cancel.X1 > 0 {
 			x = m.conversationOffset() + max((w-bw-4)/2, 0) + 2 + cancel.X0
-			if m.dialog.form.workspace != nil {
+			if m.dialog.form.Workspace != nil {
 				x = 2 + cancel.X0
 			}
-			if m.dialog.form.workspace != nil && w >= 76 {
+			if m.dialog.form.Workspace != nil && w >= 76 {
 				x += 17
 			}
 		}
 		m.Update(tea.MouseClickMsg{X: x, Y: y + cancel.Y0, Button: tea.MouseLeft})
 		if m.dialog != nil || m.input.Value() != "unfinished draft" {
 			t.Fatal("mouse cancel missed or lost draft")
+		}
+	}
+}
+
+func TestSettingsMouseResizesMultilineEditor(t *testing.T) {
+	m := settingsModel(t)
+	m.editSettings("you")
+	for _, index := range []int{1, 0} {
+		_, hits, _, _ := m.formRows()
+		for _, hit := range hits {
+			if hit.Index != index {
+				continue
+			}
+			m.formMouse(tea.MouseClickMsg{X: 25, Y: 2 + hit.Y0, Button: tea.MouseLeft})
+			break
+		}
+		want := 1
+		if index == 1 {
+			want = 3
+		}
+		if m.dialog.form.Index != index || m.dialog.form.Editor.Height() != want {
+			t.Fatalf("mouse focus %d left editor at height %d", index, m.dialog.form.Editor.Height())
 		}
 	}
 }

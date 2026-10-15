@@ -71,20 +71,20 @@ func TestPickerSearchBackAndStaleScan(t *testing.T) {
 		}
 	}
 	m.openSettingsPicker()
-	p := m.dialog.form.picker
-	m.acceptSettingsScan(settingsScanMsg{p.id, []string{"C:/models/Qwen.gguf", "C:/models/Chronos.gguf"}, nil})
+	p := m.dialog.form.Picker
+	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{"C:/models/Qwen.gguf", "C:/models/Chronos.gguf"}})
 	m.pickerKey(tea.KeyPressMsg{Code: 'c', Text: "c"})
 	m.pickerKey(tea.KeyPressMsg{Code: 'h', Text: "h"})
-	if len(p.filtered) != 1 || !strings.Contains(p.filtered[0], "Chronos") {
+	if len(p.Filtered) != 1 || !strings.Contains(p.Filtered[0], "Chronos") {
 		t.Fatal("search did not narrow models")
 	}
 	previous := m.dialog.form.Editor.Value()
 	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEscape})
-	if m.dialog.form.Editor.Value() != previous || m.dialog.form.picker != nil {
+	if m.dialog.form.Editor.Value() != previous || m.dialog.form.Picker != nil {
 		t.Fatal("picker cancel changed model")
 	}
-	m.acceptSettingsScan(settingsScanMsg{p.id, []string{"late.gguf"}, nil})
-	if m.dialog.form.picker != nil {
+	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{"late.gguf"}})
+	if m.dialog.form.Picker != nil {
 		t.Fatal("late scan reopened picker")
 	}
 }
@@ -101,18 +101,18 @@ func TestSettingsPasteRespectsNestedFocus(t *testing.T) {
 	f := m.dialog.form
 	before := f.Editor.Value()
 	m.openSettingsPicker()
-	p := f.picker
-	p.items = []string{"llama", "openai", "kobold"}
-	p.filter()
+	p := f.Picker
+	p.Items = []string{"llama", "openai", "kobold"}
+	p.Filter()
 	m.Update(tea.PasteMsg{Content: "open"})
-	if p.search.Value() != "open" || !reflect.DeepEqual(p.filtered, []string{"openai"}) {
+	if p.Search.Value() != "open" || !reflect.DeepEqual(p.Filtered, []string{"openai"}) {
 		t.Fatal("picker paste did not update search and filtered options")
 	}
 	if f.Editor.Value() != before || f.Editor.Focused() || m.input.Focused() {
 		t.Fatal("picker paste reached an inactive editor")
 	}
-	p.search.SetValue("")
-	p.filter()
+	p.Search.SetValue("")
+	p.Filter()
 	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	if p.Cursor != 1 {
 		t.Fatal("picker navigation did not select the second option")
@@ -122,7 +122,7 @@ func TestSettingsPasteRespectsNestedFocus(t *testing.T) {
 		t.Fatal("key release reset picker selection without changing its query")
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	if f.picker != nil || !f.Editor.Focused() {
+	if f.Picker != nil || !f.Editor.Focused() {
 		t.Fatal("closing picker did not return focus to the field")
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyF6})
@@ -152,10 +152,10 @@ func TestPickerBrowsesNestedFolders(t *testing.T) {
 		}
 	}
 	m.openSettingsPicker()
-	p := m.dialog.form.picker
-	p.browser = true
+	p := m.dialog.form.Picker
+	p.Browser = true
 	m.acceptSettingsScan(m.scanPickerDirectory(nested)().(settingsScanMsg))
-	for i, f := range p.filtered {
+	for i, f := range p.Filtered {
 		if f == file {
 			p.Cursor = i
 		}
@@ -192,8 +192,8 @@ func TestSettingsWorkspacePreview(t *testing.T) {
 		}
 	}
 	m.openSettingsPicker()
-	p := m.dialog.form.picker
-	m.acceptSettingsScan(settingsScanMsg{p.id, []string{"D:/Models/Qwen3-1.7B-Q8_0.gguf", "E:/LM Studio/models/vendor/Chronos-8B-Q4_K_M.gguf", "E:/LM Studio/models/vendor/Gemma-9B-Q5_K_M.gguf"}, nil})
+	p := m.dialog.form.Picker
+	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{"D:/Models/Qwen3-1.7B-Q8_0.gguf", "E:/LM Studio/models/vendor/Chronos-8B-Q4_K_M.gguf", "E:/LM Studio/models/vendor/Gemma-9B-Q5_K_M.gguf"}})
 	write("model-picker")
 	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 	m.editSettings("generation")
@@ -235,7 +235,7 @@ func TestSettingsArchiveFailureKeepsActiveConfiguration(t *testing.T) {
 	m.editSettings("generation")
 	m.dialog.form.Editor.SetValue("0.9")
 	m.applyForm()
-	if m.dialog == nil || m.dialog.form.error == "" || m.chat.current != original || m.chat.config.Settings.Temperature != 0 {
+	if m.dialog == nil || m.dialog.form.Error == "" || m.chat.current != original || m.chat.config.Settings.Temperature != 0 {
 		t.Fatal("failed persistence changed the active session")
 	}
 }
@@ -334,7 +334,7 @@ func TestPromptPresetIsSharedAndStaged(t *testing.T) {
 		m := settingsModel(t)
 		if agentMode {
 			audio := m.chat.config
-			m.audioConfig = &audio
+			m.audioConfig = audio
 			m.chat = nil
 		}
 		m.editSettings("prompts")

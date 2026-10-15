@@ -39,7 +39,7 @@ func TestAgentVoiceCanEnableWithoutChatRunner(t *testing.T) {
 	if m.chat != nil || !m.voiceEnabled {
 		t.Fatal("agent speech required chat runner")
 	}
-	m.voice.Close()
+	m.runtime().Voice.Close()
 }
 func TestDialogueProjectionDoesNotOfferHistoricalTools(t *testing.T) {
 	history := []llm.Message{{Role: llm.RoleSystem, Content: "old instructions"}, {Role: llm.RoleUser, Content: "inspect files"}, {Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "x", Name: "read_file"}}}, {Role: llm.RoleTool, Content: "file content", ToolCallID: "x"}, {Role: llm.RoleAssistant, Content: "done"}}
@@ -57,7 +57,7 @@ func TestAgentSpokenAnswerUsesIndependentAudio(t *testing.T) {
 	if err := m.enableVoice(); err != nil {
 		t.Fatal(err)
 	}
-	defer m.voice.Close()
+	defer m.runtime().Voice.Close()
 	done := make(chan doneMsg, 1)
 	m.send = func(msg tea.Msg) { done <- msg.(doneMsg) }
 	m.startRun(func(context.Context) (string, error) { return "Hello. I checked the files.", nil })
@@ -105,12 +105,12 @@ func TestAgentSharedModelSettingsCarryHistoryAndDraft(t *testing.T) {
 	audio := m.chat.config
 	history := m.chat.current.History()
 	m.chat = nil
-	m.audioConfig = &audio
+	m.audioConfig = audio
 	m.seedHistory = history
 	m.stateFile = ""
 	m.application = &Application{Preferences: config.Preferences{Version: 1, Mode: "agent", Voice: "off", Workspace: t.TempDir(), Profile: &profile}}
 	m.editSettings("model")
-	if m.dialog == nil || m.dialog.form.workspace.section != "model" {
+	if m.dialog == nil || m.dialog.form.Workspace.Section != "model" {
 		t.Fatal("Agent model editor unavailable")
 	}
 	focusSetting(m, "model")
@@ -188,7 +188,7 @@ func TestSharedSettingsPreview(t *testing.T) {
 	}
 	cfg := m.chat.config
 	m.chat = nil
-	m.audioConfig = &cfg
+	m.audioConfig = cfg
 	m.application.Preferences.Mode = "agent"
 	if err := os.WriteFile(filepath.Join(dir, "shared-agent-menu.txt"), []byte(ansi.Strip(m.View().Content)), 0600); err != nil {
 		t.Fatal(err)

@@ -4,12 +4,74 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/keshon/tars/internal/chat"
+	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/speech"
 )
+
+type retryVoice struct {
+	voiceService
+	uses atomic.Int32
+}
+
+func (v *retryVoice) Player(ctx context.Context) speech.Player {
+	v.uses.Add(1)
+	return v.voiceService.Player(ctx)
+}
+
+func TestChatRetryRefreshesVoiceAfterDisabling(t *testing.T) {
+	m := settingsModel(t)
+	voice := &retryVoice{}
+	m.chat.config.NewVoice = func(context.Context, string) (speech.Service, error) { return voice, nil }
+	if err := m.enableVoice(); err != nil {
+		t.Fatal(err)
+	}
+	attempt := 0
+	client := conversationClient(func(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
+		attempt++
+		if attempt == 1 {
+			return llm.ChatResponse{}, errors.New("temporary backend failure")
+		}
+		return llm.ChatResponse{Message: llm.Message{Content: "Recovered reply."}}, nil
+	})
+	var err error
+	m.chat.current, err = chat.Restore(client, m.chat.config.Settings, m.chat.current.History())
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan doneMsg, 2)
+	m.send = func(msg tea.Msg) { done <- msg.(doneMsg) }
+	wait := func() doneMsg {
+		select {
+		case result := <-done:
+			return result
+		case <-time.After(3 * time.Second):
+			t.Fatal("turn did not finish")
+			return doneMsg{}
+		}
+	}
+	m.runConversation("Retry this message")
+	first := wait()
+	if first.err == nil {
+		t.Fatal("first turn did not fail")
+	}
+	m.Update(first)
+	m.toggleVoice()
+	uses := voice.uses.Load()
+	m.command("/retry")
+	second := wait()
+	if second.err != nil || second.answer != "Recovered reply." {
+		t.Fatal("retry did not recover", second.err)
+	}
+	if voice.uses.Load() != uses {
+		t.Fatal("retry reused the disabled voice service")
+	}
+}
 
 type voiceCapture struct {
 	ctx         context.Context
@@ -123,7 +185,7 @@ func TestCanceledRecordingCannotSubmitLateTranscript(t *testing.T) {
 func TestSpeechFailureKeepsCompletedTextAndCanRecordAgain(t *testing.T) {
 	m := settingsModel(t)
 	voice := &voiceService{failSpeech: true}
-	m.voice = voice
+	m.runtime().Voice = voice
 	m.voiceEnabled = true
 	m.input.SetValue("")
 	messages := make(chan tea.Msg, 8)
@@ -169,7 +231,7 @@ func TestStoppingSpeechRetainsCompletedAssistantText(t *testing.T) {
 func TestGreetingPlaybackDoesNotCreateConversationTurns(t *testing.T) {
 	m := settingsModel(t)
 	voice := &voiceService{}
-	m.voice = voice
+	m.runtime().Voice = voice
 	m.voiceEnabled = true
 	m.chat.config.Settings.Greeting = "Hello Alex"
 	messages := make(chan tea.Msg, 2)

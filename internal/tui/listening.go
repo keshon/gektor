@@ -107,7 +107,7 @@ func (m *model) submitLiveAudio() {
 	m.livePending = nil
 	m.liveASRWave = wav
 	m.liveRecognizing = true
-	capture, epoch, service := m.listening, m.liveEpoch, m.voice
+	capture, epoch, service := m.listening, m.liveEpoch, m.runtime().Voice
 	go func() {
 		tx, err := service.Recognize(capture.Context(), wav)
 		m.send(liveRecognizedMsg{capture, epoch, tx.Text, err})
