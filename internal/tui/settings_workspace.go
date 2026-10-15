@@ -521,9 +521,12 @@ func (m *model) pickerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 func (p *settingsPicker) updateInput(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
+	previous := p.search.Value()
 	p.search, cmd = p.search.Update(msg)
-	p.Cursor = 0
-	p.filter()
+	if p.search.Value() != previous {
+		p.Cursor = 0
+		p.filter()
+	}
 	return cmd
 }
 func (m *model) pickerRows() ([]string, []formHit, int, int) {

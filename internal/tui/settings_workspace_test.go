@@ -110,6 +110,16 @@ func TestSettingsPasteRespectsNestedFocus(t *testing.T) {
 	if f.Editor.Value() != before || f.Editor.Focused() || m.input.Focused() {
 		t.Fatal("picker paste reached an inactive editor")
 	}
+	p.search.SetValue("")
+	p.filter()
+	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	if p.Cursor != 1 {
+		t.Fatal("picker navigation did not select the second option")
+	}
+	m.Update(tea.KeyReleaseMsg{Code: tea.KeyDown})
+	if p.Cursor != 1 {
+		t.Fatal("key release reset picker selection without changing its query")
+	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if f.picker != nil || !f.Editor.Focused() {
 		t.Fatal("closing picker did not return focus to the field")
