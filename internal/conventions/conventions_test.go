@@ -410,15 +410,23 @@ func checkCgoFree(t *testing.T, r *repo) {
 }
 
 // flagDecl matches a flag registration and captures its name:
-// flag.String("backend", ...) or flag.Bool("yes", ...).
-var flagDecl = regexp.MustCompile(`flag\.(?:String|Bool|Int|Float64|Duration)\("([a-z0-9-]+)"`)
+// flag.String("backend", ...) or flags.StringVar(&value, "backend", ...).
+var flagDecl = regexp.MustCompile(`\bflags?\.(?:String|Bool|Int|Float64|Duration)(?:Var\([^,]+,\s*|\()"([a-z0-9-]+)"`)
 
 // checkCliFlags keeps docs/cli.md complete: every flag cmd/agent
 // registers must be named there (as `-name`), or the reference rots one
 // flag at a time — which is how five flags went undocumented unnoticed.
 // The check reads names, not help text: wording stays a human judgment.
 func checkCliFlags(t *testing.T, r *repo) {
-	src := r.readPath(t, "cmd/agent/main.go")
+	var src string
+	for _, file := range r.goFiles {
+		if strings.HasPrefix(r.rel(file), "cmd/agent/") && !strings.HasSuffix(file, "_test.go") {
+			src += r.read(t, file) + "\n"
+		}
+	}
+	if len(flagDecl.FindAllStringSubmatch(src, -1)) == 0 {
+		t.Fatal("no CLI flag declarations found")
+	}
 	cli := r.readPath(t, "docs/cli.md")
 	for _, m := range flagDecl.FindAllStringSubmatch(src, -1) {
 		if !strings.Contains(cli, "`-"+m[1]+"`") && !strings.Contains(cli, "`-"+m[1]+" ") {

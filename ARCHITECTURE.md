@@ -55,6 +55,19 @@ because it needs each. The full rule with its enforcement lives in
 [docs/conventions.md](docs/conventions.md) under `package-layers` —
 this paragraph is a copy, and the test is the original.
 
+## Command startup
+
+`cmd/agent/main.go` handles process exit. `application.go` owns the frontend
+handoff loop and saved application preferences. `options.go` parses flags and
+resolves profile overrides without starting services; explicit flags, including
+false and empty values, take precedence over profile settings.
+
+`run.go` dispatches a resolved launch. `chat.go` owns the Chat frontend;
+`agent.go` composes workspace tools and runs direct or mission tasks. Each launch
+retains responsibility for closing its resources before a mode handoff.
+`console.go` contains terminal output and approval transport helpers;
+`serve.go` owns the JSON-RPC frontend. These remain one command package.
+
 ## The loop
 
 One model call per step. The response either requests tools or does not, and

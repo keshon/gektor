@@ -245,8 +245,8 @@ Agent session retains its Plan/Act choice. Temperature applies to both modes.
 
 Choices and effective profile settings are saved under var/application.json.
 Explicit command-line combinations remain supported as temporary launches;
-mode changes through the GUI become the saved defaults. The conversation flag
-selects chat or agent. Direct API-key flags remain in memory across a mode change
+mode changes through the GUI become the saved defaults. `-conversation chat|agent`
+selects the runner and takes precedence over `-chat` when both are supplied. Direct API-key flags remain in memory across a mode change
 and are never written to preferences.
 
 Voice input works with both runners. Chat speaks streamed sentences; Agent
