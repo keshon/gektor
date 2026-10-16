@@ -20,9 +20,15 @@ if exist .env (
 REM --- defaults ---
 if "%LLAMA_PORT%"=="" set LLAMA_PORT=8080
 if "%LLAMA_HOST%"=="" set LLAMA_HOST=127.0.0.1
-if "%LLAMA_CTX_SIZE%"=="" set LLAMA_CTX_SIZE=16384
+if "%LLAMA_CTX_SIZE%"=="" set LLAMA_CTX_SIZE=65536
 if "%LLAMA_GPU_LAYERS%"=="" set LLAMA_GPU_LAYERS=999
 if "%LLAMA_BATCH_SIZE%"=="" set LLAMA_BATCH_SIZE=512
+REM Optional (empty = flag not passed):
+REM   LLAMA_CPU_MOE     MoE only: number of layers whose experts stay in system RAM (--n-cpu-moe)
+REM   LLAMA_UBATCH_SIZE physical batch size (--ubatch-size)
+REM   LLAMA_THREADS     CPU threads, use physical core count (--threads)
+REM   LLAMA_FLASH_ATTN  on/off/auto (-fa)
+REM   LLAMA_CACHE_TYPE  KV cache type for K and V, e.g. q8_0 (--cache-type-k/-v)
 if "%LLAMA_ARGS%"=="" set LLAMA_ARGS=
 
 REM --- required ---
@@ -52,8 +58,17 @@ if not errorlevel 1 (
     exit /b 0
 )
 
+REM --- optional args ---
+set "LLAMA_OPT="
+if not "%LLAMA_CPU_MOE%"=="" set "LLAMA_OPT=%LLAMA_OPT% --n-cpu-moe %LLAMA_CPU_MOE%"
+if not "%LLAMA_UBATCH_SIZE%"=="" set "LLAMA_OPT=%LLAMA_OPT% --ubatch-size %LLAMA_UBATCH_SIZE%"
+if not "%LLAMA_THREADS%"=="" set "LLAMA_OPT=%LLAMA_OPT% --threads %LLAMA_THREADS%"
+if not "%LLAMA_FLASH_ATTN%"=="" set "LLAMA_OPT=%LLAMA_OPT% -fa %LLAMA_FLASH_ATTN%"
+if not "%LLAMA_CACHE_TYPE%"=="" set "LLAMA_OPT=%LLAMA_OPT% --cache-type-k %LLAMA_CACHE_TYPE% --cache-type-v %LLAMA_CACHE_TYPE%"
+
 REM --- launch ---
 echo Starting llama.cpp server on %LLAMA_HOST%:%LLAMA_PORT%...
+echo   ctx=%LLAMA_CTX_SIZE% gpu-layers=%LLAMA_GPU_LAYERS% cpu-moe=%LLAMA_CPU_MOE% opts:%LLAMA_OPT% %LLAMA_ARGS%
 "%LLAMA_SERVER_EXE%" -m "%LLAMA_MODEL%" ^
     --ctx-size %LLAMA_CTX_SIZE% ^
     --gpu-layers %LLAMA_GPU_LAYERS% ^
@@ -61,6 +76,7 @@ echo Starting llama.cpp server on %LLAMA_HOST%:%LLAMA_PORT%...
     --host %LLAMA_HOST% ^
     --port %LLAMA_PORT% ^
     --jinja ^
+    %LLAMA_OPT% ^
     %LLAMA_ARGS%
 if errorlevel 1 (
     echo ERROR: llama-server exited with code %errorlevel%.
