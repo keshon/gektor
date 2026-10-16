@@ -12,8 +12,8 @@ import (
 func TestChatConversationFormatting(t *testing.T) {
 	st := defaultStyles()
 	text := "\"Hello\" *she smiles*\n> **quoted words**"
-	live := renderLive(transcriptProps{live: text, styles: st, speaker: "Assistant"}, 80)
-	for _, out := range []string{renderBlock(answerBlock(text), st, false, 80), strings.Join(live, "\n")} {
+	live := renderLive(transcriptProps{live: text, styles: st, speaker: "Assistant", labels: true}, 80)
+	for _, out := range []string{renderBlock(answerBlock(text), st, tagged(), 80), strings.Join(live, "\n")} {
 		plain := ansi.Strip(out)
 		if !strings.Contains(plain, "[RESPONSE]") || strings.Contains(plain, "*she smiles*") || !strings.Contains(plain, "\"Hello\" she smiles") || !strings.Contains(plain, "│ quoted words") {
 			t.Fatalf("chat formatting: %q", plain)
@@ -27,7 +27,7 @@ func TestChatConversationFormatting(t *testing.T) {
 // it left the reader guessing which row was the reply.
 func TestChatAndAgentShareResponseLabel(t *testing.T) {
 	st := defaultStyles()
-	if got := ansi.Strip(renderBlock(answerBlock("hello"), st, false, 80)); !strings.Contains(got, "[RESPONSE]") {
+	if got := ansi.Strip(renderBlock(answerBlock("hello"), st, tagged(), 80)); !strings.Contains(got, "[RESPONSE]") {
 		t.Fatalf("agent response label lost: %q", got)
 	}
 	m := sizeModel(t, testModel())
@@ -174,7 +174,7 @@ func TestEmphasisUsesThemeSecondaryGrey(t *testing.T) {
 	defer setTheme("dark")
 	for _, theme := range []string{"dark", "light"} {
 		setTheme(theme)
-		got := renderBlock(answerBlock("Normal *gesture* normal"), defaultStyles(), false, 80)
+		got := renderBlock(answerBlock("Normal *gesture* normal"), defaultStyles(), tagged(), 80)
 		expected := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorSecondaryText))).Italic(true).Render("gesture")
 		if !strings.Contains(got, expected) {
 			t.Fatal(theme, got)

@@ -196,6 +196,13 @@ type model struct {
 	nav             sessionsState
 	navFocused      bool
 	sidebarHidden   bool
+	// View-menu display filters. They hide transcript rows, never model
+	// history: a hidden block is still sent, stored and re-rendered the
+	// moment the filter is turned off. Session-only, so a restart always
+	// shows the full transcript.
+	hideSYS    bool
+	hideLabels bool
+
 	sessionIndex    map[string]cachedSession
 	sessionRevision uint64
 	pendingCommands []tea.Cmd

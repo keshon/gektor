@@ -7,7 +7,7 @@ import (
 
 func TestMarkdownSpans(t *testing.T) {
 	st := defaultStyles()
-	out := renderBlock(answerBlock("Say **hi** and `code`."), st, false, 80)
+	out := renderBlock(answerBlock("Say **hi** and `code`."), st, tagged(), 80)
 	if strings.Contains(out, "**") || strings.Contains(out, "`") {
 		t.Fatalf("markers survived: %q", out)
 	}
@@ -20,7 +20,7 @@ func TestMarkdownSpans(t *testing.T) {
 
 func TestMarkdownHeaders(t *testing.T) {
 	st := defaultStyles()
-	out := renderBlock(answerBlock("# Title\n#tag stays"), st, false, 80)
+	out := renderBlock(answerBlock("# Title\n#tag stays"), st, tagged(), 80)
 	if !strings.Contains(out, "Title") || !strings.Contains(out, "#tag stays") {
 		t.Fatalf("header handling wrong: %q", out)
 	}
@@ -35,7 +35,7 @@ func TestMarkdownHeaders(t *testing.T) {
 
 func TestMarkdownFence(t *testing.T) {
 	st := defaultStyles()
-	out := renderBlock(answerBlock("```go\n# not header\n```"), st, false, 80)
+	out := renderBlock(answerBlock("```go\n# not header\n```"), st, tagged(), 80)
 	if !strings.Contains(out, "# not header") {
 		t.Fatalf("fence content altered: %q", out)
 	}
@@ -43,7 +43,7 @@ func TestMarkdownFence(t *testing.T) {
 
 func TestMarkdownBullets(t *testing.T) {
 	st := defaultStyles()
-	out := renderBlock(answerBlock("- item\n  * sub"), st, false, 80)
+	out := renderBlock(answerBlock("- item\n  * sub"), st, tagged(), 80)
 	if !strings.Contains(out, "• item") || !strings.Contains(out, "• sub") {
 		t.Fatalf("bullets not prettified: %q", out)
 	}
@@ -52,7 +52,7 @@ func TestMarkdownBullets(t *testing.T) {
 func TestMarkdownWrapSplitSpan(t *testing.T) {
 	st := defaultStyles()
 	// Unstamped to isolate wrapping from the timestamp reserve.
-	out := renderBlock(block{role: roleAnswer, text: "say **bold words here** today"}, st, false, 14)
+	out := renderBlock(block{role: roleAnswer, text: "say **bold words here** today"}, st, tagged(), 14)
 	if strings.Contains(out, "**") {
 		t.Fatalf("wrap split the span: %q", out)
 	}
@@ -65,7 +65,7 @@ func TestMarkdownWrapSplitSpan(t *testing.T) {
 
 func TestMarkdownGlobSafe(t *testing.T) {
 	st := defaultStyles()
-	out := renderBlock(toolCardBlock("", "run rm **/*.go"), st, false, 80)
+	out := renderBlock(toolCardBlock("", "run rm **/*.go"), st, tagged(), 80)
 	if !strings.Contains(out, "**/*.go") {
 		t.Fatalf("tool args must stay raw: %q", out)
 	}
@@ -108,7 +108,7 @@ func TestMarkdownTableAlignRight(t *testing.T) {
 func TestMarkdownTableEndToEnd(t *testing.T) {
 	st := defaultStyles()
 	in := "4. Risks\n| Risk | Level |\n| --- | --- |\n| Sandbox | High |"
-	out := renderBlock(answerBlock(in), st, false, 80)
+	out := renderBlock(answerBlock(in), st, tagged(), 80)
 	if strings.Contains(out, ":---") || strings.Contains(out, "| ---") {
 		t.Fatalf("separator row leaked: %q", out)
 	}
@@ -121,7 +121,7 @@ func TestMarkdownTableEndToEnd(t *testing.T) {
 
 func TestMarkdownPipesLiteral(t *testing.T) {
 	st := defaultStyles()
-	out := renderBlock(answerBlock("echo a | grep b"), st, false, 80)
+	out := renderBlock(answerBlock("echo a | grep b"), st, tagged(), 80)
 	if !strings.Contains(out, "echo a | grep b") {
 		t.Fatalf("pipe line altered: %q", out)
 	}

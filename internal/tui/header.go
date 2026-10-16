@@ -147,15 +147,21 @@ func (m *model) rawHeaderItems() []headerItem {
 		if m.chat != nil {
 			return []headerItem{{"Stop response", "stop", m.state == stRunning}, {"Retry", "/retry", idle && m.runErr != nil && m.retryRun != nil}, {"Details", "/status", true}}
 		}
-		planLabel, actLabel := "Plan", "Act"
-		if m.plan {
-			planLabel = "✓ Plan"
-		} else {
-			actLabel = "✓ Act"
-		}
-		return []headerItem{{planLabel, "/mode plan", idle && !m.mission}, {actLabel, "/mode act", idle && !m.mission}, {"Stop run", "stop", m.state == stRunning}, {"Retry", "/retry", idle && m.runErr != nil && m.retryRun != nil}, {"Permissions…", "permissions-info", true}}
+		return []headerItem{{"Plan", "/mode plan", idle && !m.mission}, {"Act", "/mode act", idle && !m.mission}, {"Stop run", "stop", m.state == stRunning}, {"Retry", "/retry", idle && m.runErr != nil && m.retryRun != nil}, {"Permissions…", "permissions-info", true}}
 	case "view":
-		return []headerItem{{"Sessions", "toggle-sidebar", m.termW >= navigatorMinWidth}, {"Details", "toggle-details", true}, {"Jump to latest", "latest", true}, {"Theme…", "theme", true}}
+		// Two zones: what the reader has chosen to hide, then what they
+		// can do. The separator exists because a filtered transcript and
+		// a scroll action are not the same kind of thing, and listing
+		// them as one flat list hid that.
+		return []headerItem{
+			{"Hide Sessions", "toggle-sidebar", m.termW >= navigatorMinWidth},
+			{"Truncate AI reply", "toggle-details", true},
+			{"Hide SYS messages", "toggle-sys", true},
+			{"Hide labels", "toggle-labels", true},
+			{"", "", false},
+			{"Jump to latest", "latest", true},
+			{"Select Theme…", "theme", true},
+		}
 	case "settings":
 		editable := idle && m.audio() != nil && m.audio().Configure != nil
 		rows := []headerItem{{"Model…", "edit:model", editable}, {"Generation…", "edit:generation", editable}, {"Speech…", "edit:speech", editable && m.hasSettingsSpeech()}, {"Profiles…", "edit:profiles", editable}, {"Application…", "application", idle && m.application != nil}}
@@ -164,13 +170,7 @@ func (m *model) rawHeaderItems() []headerItem {
 		}
 		return rows
 	case "conversation-mode":
-		chatLabel, agentLabel := "Chat", "Agent"
-		if m.chat != nil {
-			chatLabel = "✓ Chat"
-		} else {
-			agentLabel = "✓ Agent"
-		}
-		return []headerItem{{chatLabel, "mode-chat", idle && m.application != nil && m.chat == nil}, {agentLabel, "mode-agent", idle && m.application != nil && m.chat != nil}}
+		return []headerItem{{"Chat", "mode-chat", idle && m.application != nil && m.chat == nil}, {"Agent", "mode-agent", idle && m.application != nil && m.chat != nil}}
 	case "voice":
 		available := m.audio() != nil && m.audio().NewVoice != nil && m.audio().Profile.Speech != nil
 		label := "Enable voice"
@@ -394,6 +394,14 @@ func (m *model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				return m.handleKey(tea.KeyPressMsg{Code: 'b', Mod: tea.ModCtrl})
 			case "toggle-details":
 				return m.handleKey(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
+			case "toggle-sys":
+				m.hideSYS = !m.hideSYS
+				m.refreshContent()
+				return m, nil
+			case "toggle-labels":
+				m.hideLabels = !m.hideLabels
+				m.refreshContent()
+				return m, nil
 			case "latest":
 				return m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnd, Mod: tea.ModCtrl})
 			}
@@ -459,6 +467,13 @@ func (m *model) overlayHeader(background string) string {
 		if items[i].text == "" && items[i].command == "" {
 			rows = append(rows, border.Render("├"+strings.Repeat("─", width-2)+"┤"))
 			continue
+		}
+		// The tick lives in the label indent every row already carries,
+		// not in a column of its own. "✓ " and "  " are both two cells, so
+		// a toggle marks itself in space that was already reserved and no
+		// row grows by two cells for it.
+		if _, on := m.headerToggle(items[i].command); on {
+			prefix = "✓ "
 		}
 		label := prefix + items[i].text
 		shortcut := menuShortcut(items[i].command)
@@ -606,6 +621,42 @@ func (m *model) headerActionRow(start, delta int) int {
 	return 0
 }
 
+// headerToggle reports whether a menu row is a checkable toggle, and
+// whether the state its label names is currently on.
+//
+// The checkmark sits in the label indent every menu row already carries,
+// so it replaces an idle cell rather than adding one. A separate column
+// cost two cells of the popup's width on every row to hold a mark that
+// is blank on most of them.
+//
+// on is the state the label names, not the state a toggle flips to: the
+// mark on "Hide Sessions" means the sidebar is hidden.
+func (m *model) headerToggle(command string) (toggle, on bool) {
+	switch command {
+	case "toggle-sidebar":
+		return true, m.sidebarHidden
+	case "toggle-details":
+		return true, m.transcript.compact
+	case "toggle-sys":
+		return true, m.hideSYS
+	case "toggle-labels":
+		return true, m.hideLabels
+	case "/mode plan":
+		return true, m.plan
+	case "/mode act":
+		return true, !m.plan
+	case "mode-chat":
+		return true, m.chat != nil
+	case "mode-agent":
+		return true, m.chat == nil
+	case "voice-live":
+		return true, m.listening != nil
+	}
+	return false, false
+}
+
+// menuShortcut names the key that reaches a menu row without opening
+// the menu. A row with no shortcut still works by click.
 func menuShortcut(command string) string {
 	switch command {
 	case "/new":

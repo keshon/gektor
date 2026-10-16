@@ -296,7 +296,7 @@ func TestSystemNoticesShareConversationLayout(t *testing.T) {
 		{missionBlock("[mission] do the thing"), "MISSION"},
 	} {
 		for _, width := range []int{30, 80, 120} {
-			rendered := ansi.Strip(renderBlock(tc.b, defaultStyles(), false, width))
+			rendered := ansi.Strip(renderBlock(tc.b, defaultStyles(), tagged(), width))
 			rows := strings.Split(rendered, "\n")
 			if !strings.HasPrefix(rows[0], "["+tc.label+"]") {
 				t.Fatalf("label offset: %q", rows[0])
@@ -329,9 +329,156 @@ func TestHarnessNoticeMatchesLiveAndRebuiltHistory(t *testing.T) {
 	}
 	liveBlock, restoredBlock := m.transcript.blocks[0], rebuilt[0]
 	liveBlock.at, restoredBlock.at = time.Time{}, time.Time{}
-	live := ansi.Strip(renderBlock(liveBlock, defaultStyles(), false, 80))
-	restored := ansi.Strip(renderBlock(restoredBlock, defaultStyles(), false, 80))
+	live := ansi.Strip(renderBlock(liveBlock, defaultStyles(), tagged(), 80))
+	restored := ansi.Strip(renderBlock(restoredBlock, defaultStyles(), tagged(), 80))
 	if live != restored || !strings.HasPrefix(restored, "[HARNESS]") || !strings.Contains(restored, "\n(step 2/25, 23 left)") {
 		t.Fatalf("harness rendering differs: %q / %q", live, restored)
+	}
+}
+
+// The SYS filter hides harness notices and nothing else. Errors,
+// warnings, permission questions and tool results are the reader''s
+// record of what happened; hiding them would let a failed run scroll
+// away with no trace.
+func TestHideSYSKeepsFailuresAndQuestions(t *testing.T) {
+	m := sizeModelTo(t, testModel(), 80, 30)
+	m.transcript.blocks = []block{
+		answerBlock("answer"),
+		markerBlock("harness nudge"),
+		missionBlock("[mission] phase two"),
+		errorBlock("run failed"),
+		findingBlock("gofmt", "a.go", 3, "not formatted"),
+		gateBlock("Allow this tool?"),
+	}
+	m.refreshContent()
+	full := ansi.Strip(m.transcript.Viewport.View())
+	for _, want := range []string{"harness nudge", "[mission] phase two", "run failed", "not formatted", "Allow this tool?"} {
+		if !strings.Contains(full, want) {
+			t.Fatalf("unfiltered transcript missing %q: %q", want, full)
+		}
+	}
+	m.hideSYS = true
+	m.refreshContent()
+	hidden := ansi.Strip(m.transcript.Viewport.View())
+	if strings.Contains(hidden, "harness nudge") {
+		t.Fatalf("harness notice survived the SYS filter: %q", hidden)
+	}
+	for _, want := range []string{"run failed", "not formatted", "Allow this tool?", "[MISSION]", "[ERROR]", "[WARNING]", "[QUESTION]"} {
+		if !strings.Contains(hidden, want) {
+			t.Fatalf("SYS filter took %q with it: %q", want, hidden)
+		}
+	}
+	// Hiding is display-only: lifting it restores the block verbatim.
+	if !strings.HasPrefix(m.transcript.blocks[1].text, "harness nudge") {
+		t.Fatal("filter mutated stored text")
+	}
+	m.hideSYS = false
+	m.refreshContent()
+	if got := ansi.Strip(m.transcript.Viewport.View()); !strings.Contains(got, "harness nudge") {
+		t.Fatalf("lifting the filter lost the block: %q", got)
+	}
+}
+
+// Hiding labels drops the tag row and keeps the name row. Dropping both
+// would leave unattributed prose with no way to tell a refusal from a
+// plan.
+func TestHideLabelsKeepsSpeakerRows(t *testing.T) {
+	m := sizeModelTo(t, testModel(), 80, 30)
+	m.identityName = "Ada"
+	m.transcript.blocks = []block{userBlock("question"), answerBlock("answer"), markerBlock("harness nudge")}
+	m.refreshContent()
+	full := ansi.Strip(m.transcript.Viewport.View())
+	for _, want := range []string{"YOU", "ADA", "SYSTEM", "[INPUT]", "[RESPONSE]", "[HARNESS]"} {
+		if !strings.Contains(full, want) {
+			t.Fatalf("default transcript missing %q: %q", want, full)
+		}
+	}
+	m.hideLabels = true
+	m.refreshContent()
+	bare := ansi.Strip(m.transcript.Viewport.View())
+	for _, want := range []string{"YOU", "ADA", "SYSTEM", "question", "answer", "harness nudge"} {
+		if !strings.Contains(bare, want) {
+			t.Fatalf("label-free transcript missing %q: %q", want, bare)
+		}
+	}
+	for _, unwanted := range []string{"[INPUT]", "[RESPONSE]", "[HARNESS]"} {
+		if strings.Contains(bare, unwanted) {
+			t.Fatalf("tag row survived: %q in %q", unwanted, bare)
+		}
+	}
+	m.hideLabels = false
+	m.refreshContent()
+	if got := ansi.Strip(m.transcript.Viewport.View()); !strings.Contains(got, "[RESPONSE]") {
+		t.Fatalf("lifting the filter lost the tag row: %q", got)
+	}
+}
+
+// The render cache is keyed on the view choices. A stale entry would
+// leave one block tagged and the next not, after a single toggle.
+func TestViewTogglesInvalidateRenderCache(t *testing.T) {
+	m := sizeModelTo(t, testModel(), 80, 30)
+	m.transcript.blocks = []block{answerBlock("one"), answerBlock("two")}
+	m.refreshContent()
+	tagged := ansi.Strip(m.transcript.Viewport.View())
+	m.hideLabels = true
+	m.refreshContent()
+	bare := ansi.Strip(m.transcript.Viewport.View())
+	if tagged == bare || strings.Contains(bare, "[RESPONSE]") {
+		t.Fatalf("cache served stale tagged text: %q", bare)
+	}
+	m.hideLabels = false
+	m.refreshContent()
+	if got := ansi.Strip(m.transcript.Viewport.View()); strings.Count(got, "[RESPONSE]") != 2 {
+		t.Fatalf("restoring labels must re-tag every block: %q", got)
+	}
+}
+
+// A filtered block must not poison the cache: its placeholder must never
+// satisfy a lookup once the filter lifts, or the block comes back blank.
+func TestHiddenBlockDoesNotPoisonCache(t *testing.T) {
+	m := sizeModelTo(t, testModel(), 80, 30)
+	m.transcript.blocks = []block{answerBlock("kept"), markerBlock("filtered")}
+	m.hideSYS = true
+	m.refreshContent()
+	m.hideSYS = false
+	m.refreshContent()
+	got := ansi.Strip(m.transcript.Viewport.View())
+	if !strings.Contains(got, "filtered") || !strings.Contains(got, "kept") {
+		t.Fatalf("lifting the filter lost or blanked a block: %q", got)
+	}
+}
+
+// The menu rows and the transcript read the same two flags.
+func TestViewMenuCommandsDriveTheTranscript(t *testing.T) {
+	m := sizeModelTo(t, testModel(), 80, 30)
+	m.transcript.blocks = []block{answerBlock("answer"), markerBlock("harness nudge")}
+	m.refreshContent()
+	m.header.focused = true
+	m.header.global = true
+	m.header.menu = "view"
+	for _, command := range []string{"toggle-labels", "toggle-sys"} {
+		// Enter closes the menu, so each action reopens it.
+		m.header.menu, m.header.focused = "view", true
+		row := -1
+		for i, item := range m.headerItems() {
+			if item.command == command {
+				row = i
+			}
+		}
+		if row < 0 {
+			t.Fatalf("%s missing from View menu", command)
+		}
+		m.header.row = row
+		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	}
+	if !m.hideLabels || !m.hideSYS {
+		t.Fatalf("menu did not set the filters: labels=%v sys=%v", m.hideLabels, m.hideSYS)
+	}
+	got := ansi.Strip(m.transcript.Viewport.View())
+	if strings.Contains(got, "harness nudge") || strings.Contains(got, "[RESPONSE]") {
+		t.Fatalf("menu action did not reach the renderer: %q", got)
+	}
+	if !strings.Contains(got, "answer") {
+		t.Fatalf("filter removed conversation text: %q", got)
 	}
 }

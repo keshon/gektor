@@ -293,7 +293,7 @@ local UI commands; they are not tools or RPC methods.
 
 The global menu and shortcut footer each occupy one row. Sessions remain in the left pane; the chat status, transcript, and growing multiline composer stay in the right pane. Tab switches pane focus, F6/Ctrl+B toggles the sidebar, and F2/Ctrl+P opens session search. Top-menu clicks use the same function-key routing, including disabled actions during approval. Narrow terminals hide the sidebar and reduce visible footer controls; full bindings remain available through Help.
 
-The top row is an unbranded dropdown menu: Session, Run, View, Settings, Help. Click a category or press F9, then use Left/Right to switch categories, Up/Down to select, Enter to apply and Esc to back out. Session exposes new/search/compact/quit, Run exposes Act/Plan/status/stop, View exposes sidebar/details/latest, and Settings opens direct inspectors for coding runs and editable forms for tool-free chat. The function-key and Ctrl shortcuts remain in the footer and Help. Chat configuration now includes character/user, prompts, generation/context, model connection, save-as-profile and effective-prompt inspection. Voice-capable chat profiles expose a Voice menu for enable/disable, recording, greeting playback, settings and service details.
+The top row is an unbranded dropdown menu: Session, Mode, Run, View, Settings, Voice, Help. Click a category or press F9, then use Left/Right to switch categories, Up/Down to select, Enter to apply and Esc to back out. Session exposes new/search/compact/quit, Run exposes Act/Plan/status/stop, View exposes the display toggles and jump/theme actions, and Settings opens direct inspectors for coding runs and editable forms for tool-free chat. The function-key and Ctrl shortcuts remain in the footer and Help. Chat configuration now includes character/user, prompts, generation/context, model connection, save-as-profile and effective-prompt inspection. Voice-capable chat profiles expose a Voice menu for enable/disable, recording, greeting playback, settings and service details.
 
 ## Tool-free conversation mode
 
@@ -488,9 +488,44 @@ Agent uses its existing extractive checkpoint compaction. Chat retains the openi
 exchange plus eight recent complete turns and writes a before-compact-*.json backup
 beside the active archive. Chat compaction does not generate a semantic summary.
 
+## View menu
+
+The View menu splits into what the reader hides and what they can do,
+with a rule between the two zones:
+
+```text
+✓ Hide Sessions            Ctrl+B
+✓ Truncate AI reply        Ctrl+G
+✓ Hide SYS messages
+  Hide labels
+──────────────────────────────
+  Jump to latest        Ctrl+End
+  Select Theme…
+```
+
+A checkmark states the condition the row's own label names, so it
+appears on "Hide Sessions" only while the sidebar is hidden. It fills the
+label indent every menu row already carries, so a tick costs no width and
+never moves the labels. Mode, Chat/Agent and Voice share the same indent;
+a menu with nothing to toggle simply leaves it blank.
+
+**Hide Sessions** (`Ctrl+B`, `F6`) hides the Sessions pane. **Truncate AI
+reply** (`Ctrl+G`, `F3`) collapses thinking and long tool output. **Hide
+SYS messages** drops harness notices, and nothing else: errors,
+warnings, permission questions, mission notes and tool results stay,
+because they are the record of what happened. **Hide labels** drops the
+`[TAG]` rows and keeps the name rows, so every block still says who
+spoke.
+
+All four are display-only and session-only. Hidden blocks stay in the
+model history and return unchanged when a filter is lifted; nothing is
+persisted, so a restart always shows the full transcript. **Jump to
+latest** (`Ctrl+End`, `F7`) scrolls to the newest content, and **Select
+Theme…** opens the Dark/Light picker.
+
 ## Themes and session rows
 
-View > Theme selects Dark or Light. Themes use shared semantic colors for primary
+View > Select Theme picks Dark or Light. Themes use shared semantic colors for primary
 text, secondary text, accent, selection, disabled controls and status. The choice
 is saved as an application preference and does not change the session, model or
 permissions. Session rows use one full-row selection highlight, including the age.

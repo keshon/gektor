@@ -228,6 +228,19 @@ func thinkSummary(s string) string {
 	return fmt.Sprintf("%s [%d chars]", line, len([]rune(s)))
 }
 
+// renderOpts are the view choices that change how one block renders.
+// They belong to the transcript rather than the block: the same block
+// reads differently depending on what the reader has chosen to hide,
+// and nothing about the stored message changed.
+type renderOpts struct {
+	// expand opens verbose content: full thinking, full tool output. It
+	// is the inverse of the transcript's compact flag.
+	expand bool
+	// labels false drops the [TAG] row. The name row stays: it is what
+	// says who spoke, and dropping it would leave unattributed prose.
+	labels bool
+}
+
 // renderBlock draws one transcript block: a label row carrying the
 // role's tag and (when known) its time, then the body at the left edge.
 //
@@ -235,14 +248,12 @@ func thinkSummary(s string) string {
 // the block is. A per-line gutter repeating that answer cost two cells
 // of every row to say nothing the label did not.
 //
-// The expand flag (inverse of compact view) opens verbose content:
-// latest thinking in full, long tool results in full. Thinking renders
-// collapsed unless expanded. Answer, user and think roles run the
-// markdown-lite path (fences/headers/spans); tool args, diffs, gates and
-// markers stay raw so a glob `*.go` can never toggle bold and diff
-// prefixes survive styling. Lines reflow to width columns: the viewport
-// never wraps, so unbroken long lines would vanish past the right edge.
-func renderBlock(b block, st styles, expandThink bool, width int) string {
+// Answer, user and think roles run the markdown-lite path
+// (fences/headers/spans); tool args, diffs, gates and markers stay raw
+// so a glob `*.go` can never toggle bold and diff prefixes survive
+// styling. Lines reflow to width columns: the viewport never wraps, so
+// unbroken long lines would vanish past the right edge.
+func renderBlock(b block, st styles, opts renderOpts, width int) string {
 	// Blocks are passed by value: normalizing here covers every path
 	// to the terminal (compact/full, cards, tests) without touching
 	// stored history.
@@ -250,22 +261,25 @@ func renderBlock(b block, st styles, expandThink bool, width int) string {
 	b.result = strings.TrimRight(cleanText(b.result), "\n")
 	b = normalizeHarnessMarker(b)
 	raw := b.text
-	if b.role == roleThink && !expandThink {
+	if b.role == roleThink && !opts.expand {
 		// Collapsed keeps the summary-only rule (size here, never in
 		// full view); the label row carries the tag either way, so the
 		// body never repeats it.
 		raw = thinkSummary(b.text)
 	}
-	out := []string{labelRow(roleLabel(b.role), b.at, st, width)}
+	var body []string
 	switch {
 	case b.role == roleTool:
-		out = append(out, renderToolCard(b, st, expandThink, width)...)
+		body = renderToolCard(b, st, opts.expand, width)
 	case isMdRole(b.role):
-		out = append(out, renderMdBlock(b, raw, st, width)...)
+		body = renderMdBlock(b, raw, st, width)
 	default:
-		out = append(out, renderRaw(b, raw, st, width)...)
+		body = renderRaw(b, raw, st, width)
 	}
-	return strings.Join(out, "\n")
+	if !opts.labels {
+		return strings.Join(body, "\n")
+	}
+	return strings.Join(append([]string{labelRow(roleLabel(b.role), b.at, st, width)}, body...), "\n")
 }
 
 // labelRow draws a block's tag line: [LABEL] at the left edge, the
@@ -505,11 +519,12 @@ func (m *model) appendBlock(b block) {
 // replies. The live buffer is one assistant turn, so the name row opens
 // it exactly once.
 func renderLive(props transcriptProps, width int) []string {
+	opts := renderOpts{labels: props.labels}
 	var parts []string
 	for _, b := range assistantBlocks(props.live, "") {
 		b.at = time.Time{}
 		b.speaker = props.speaker
-		part := renderBlock(b, props.styles, false, width)
+		part := renderBlock(b, props.styles, opts, width)
 		if len(parts) == 0 {
 			part = speakerRow(speakerLabel(b, props), b.role, props.styles, width) + "\n" + part
 		}
@@ -533,7 +548,14 @@ func (m *model) refreshContent() {
 		m.transcript.render.dirty = true
 		return
 	}
-	m.transcript.refresh(transcriptProps{speaker: m.speakerName(), user: m.userName(), styles: m.styles, live: m.live})
+	m.transcript.refresh(transcriptProps{
+		speaker: m.speakerName(),
+		user:    m.userName(),
+		styles:  m.styles,
+		live:    m.live,
+		hideSYS: m.hideSYS,
+		labels:  !m.hideLabels,
+	})
 }
 
 // minWrapWidth guards absurdly narrow viewports: below it, lines pass
@@ -592,6 +614,7 @@ type renderedBlock struct {
 	block    block
 	width    int
 	expanded bool
+	labels   bool
 	text     string
 }
 
@@ -643,6 +666,10 @@ func newTranscript() transcriptState { return transcriptState{Model: transcript.
 type transcriptProps struct {
 	speaker, user, live string
 	styles              styles
+	// hideSYS drops harness notices from the rendered transcript, and
+	// labels drops the [TAG] rows. Both are display-only: the blocks stay
+	// in m.transcript.blocks and come back unchanged when a filter lifts.
+	hideSYS, labels bool
 }
 
 // refresh renders every block and assembles the parts. The name row
@@ -652,6 +679,7 @@ type transcriptProps struct {
 // cache keyed on the block value cannot know who spoke before it.
 func (t *transcriptState) refresh(props transcriptProps) {
 	width := t.Viewport.Width()
+	opts := renderOpts{expand: !t.compact, labels: props.labels}
 	parts := make([]string, 0, len(t.blocks))
 	cache := make([]renderedBlock, len(t.blocks))
 	prevSpeaker := ""
@@ -660,11 +688,18 @@ func (t *transcriptState) refresh(props transcriptProps) {
 		if b.role == roleUser {
 			b.speaker = props.user
 		}
+		if props.hideSYS && b.role == roleMarker {
+			// A filtered block must not satisfy a later lookup: the zero
+			// renderedBlock equals an empty roleAnswer, so a filter that
+			// was lifted would reuse it and render nothing.
+			cache[i] = renderedBlock{block: b, width: -1}
+			continue
+		}
 		var rendered renderedBlock
-		if i < len(t.render.cache) && t.render.cache[i].block == b && t.render.cache[i].width == width && t.render.cache[i].expanded == !t.compact {
+		if i < len(t.render.cache) && t.render.cache[i].block == b && t.render.cache[i].width == width && t.render.cache[i].expanded == opts.expand && t.render.cache[i].labels == opts.labels {
 			rendered = t.render.cache[i]
 		} else {
-			rendered = renderedBlock{block: b, width: width, expanded: !t.compact, text: renderBlock(b, props.styles, !t.compact, width)}
+			rendered = renderedBlock{block: b, width: width, expanded: opts.expand, labels: opts.labels, text: renderBlock(b, props.styles, opts, width)}
 		}
 		cache[i] = rendered
 		part := rendered.text

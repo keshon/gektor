@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/tars/internal/api"
 	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/tars/internal/speech"
 )
 
 func TestHeaderMenusPreserveDraftAndFrame(t *testing.T) {
@@ -149,5 +150,197 @@ func TestHeaderDetailColumns(t *testing.T) {
 	m.tokens, m.limit, m.tokensEst = 100, 1000, true
 	if got := m.headerItems()[0].text; !strings.HasPrefix(got, "Context:") || strings.Contains(got, "ctx") {
 		t.Fatalf("context label: %q", got)
+	}
+}
+
+// The View menu divides what the reader hides from what they can do.
+// Listing a scroll action among display filters hid that they are
+// different kinds of thing.
+func TestViewMenuZonesAndItems(t *testing.T) {
+	m := sizeModelTo(t, testModel(), 80, 30)
+	m.header.menu = "view"
+	items := m.headerItems()
+	want := []string{"Hide Sessions", "Truncate AI reply", "Hide SYS messages", "Hide labels", "", "Jump to latest", "Select Theme…"}
+	if len(items) != len(want) {
+		t.Fatalf("view menu has %d rows, want %d: %+v", len(items), len(want), items)
+	}
+	for i, w := range want {
+		if items[i].text != w {
+			t.Fatalf("row %d = %q, want %q", i, items[i].text, w)
+		}
+	}
+	// Exactly one separator, between the toggles and the commands.
+	sep := -1
+	for i, item := range items {
+		if item.text == "" && item.command == "" {
+			sep = i
+		}
+	}
+	if sep != 4 {
+		t.Fatalf("separator at row %d, want 4", sep)
+	}
+	cmds := []string{"toggle-sidebar", "toggle-details", "toggle-sys", "toggle-labels", "", "latest", "theme"}
+	for i, c := range cmds {
+		if items[i].command != c {
+			t.Fatalf("row %d command = %q, want %q", i, items[i].command, c)
+		}
+	}
+}
+
+// A checkmark states the condition its own label names. Marking
+// "Hide Sessions" on when the sidebar is visible would tell the reader
+// the opposite of the truth.
+func TestViewMenuCheckmarksFollowState(t *testing.T) {
+	m := sizeModelTo(t, testModel(), 80, 30)
+	m.header.menu = "view"
+	if m.transcript.compact != true {
+		t.Fatal("precondition: transcript starts truncated")
+	}
+	for _, tc := range []struct {
+		name                     string
+		sidebar, hideSYS, labels bool
+		want                     string
+	}{
+		{"default", false, false, false, "│✓ Truncate AI reply   Ctrl+G│"},
+		{"sessions hidden", true, false, false, "│✓ Hide Sessions       Ctrl+B│"},
+		{"sys hidden", false, true, false, "│✓ Hide SYS messages         │"},
+		{"labels hidden", false, false, true, "│✓ Hide labels               │"},
+	} {
+		m.sidebarHidden, m.hideSYS, m.hideLabels = tc.sidebar, tc.hideSYS, tc.labels
+		rows := strings.Join(popupRows(t, m), "\n")
+		if !strings.Contains(rows, tc.want) {
+			t.Fatalf("%s: missing %q in:\n%s", tc.name, tc.want, rows)
+		}
+	}
+}
+
+// popupRows returns the rendered popup's own rows, cut out of the
+// full-screen frame the overlay draws them over.
+func popupRows(t *testing.T, m *model) []string {
+	t.Helper()
+	x, width, _, _ := m.headerGeometry()
+	var out []string
+	for _, row := range strings.Split(ansi.Strip(m.overlayHeader(m.View().Content)), "\n") {
+		runes := []rune(row)
+		if x+width > len(runes) {
+			continue
+		}
+		out = append(out, string(runes[x:x+width]))
+	}
+	return out
+}
+
+// A checkmark fills the label indent every menu row already carries. It
+// must sit one cell in from the border, and every label must start in
+// the same column whether its row is ticked or not.
+func TestCheckmarkUsesTheLabelIndent(t *testing.T) {
+	// Each menu is put in a state where at least one row is ticked;
+	// otherwise there is nothing to measure.
+	for _, tc := range []struct {
+		menu string
+		set  func(*model)
+	}{
+		{"view", func(m *model) { m.transcript.compact = true }},
+		{"conversation-mode", func(m *model) { m.chat = &chatUI{} }},
+		{"workflow", func(m *model) { m.plan = false }},
+		{"voice", func(m *model) { m.listening = &speech.LiveCapture{} }},
+	} {
+		m := sizeModelTo(t, testModel(), 80, 30)
+		tc.set(m)
+		m.header.menu = tc.menu
+		rows := popupRows(t, m)
+		marks, labels := 0, 0
+		for _, row := range rows {
+			if !strings.HasPrefix(row, "│") || !strings.HasSuffix(row, "│") {
+				continue // frame and separator rows
+			}
+			body := strings.TrimSuffix(strings.TrimPrefix(row, "│"), "│")
+			if strings.TrimSpace(body) == "" {
+				continue
+			}
+			labels++
+			if strings.Contains(body, "✓") {
+				marks++
+				if !strings.HasPrefix(body, "✓ ") {
+					t.Fatalf("%s: tick is not in the indent: %q", tc.menu, row)
+				}
+			}
+			// "✓ " and "  " are both two cells, so the label never moves:
+			// the offset of the first real character is the same either way.
+			label := strings.TrimLeft(body, " ✓")
+			if at := len([]rune(body)) - len([]rune(label)); at != 2 {
+				t.Fatalf("%s: label starts at %d, want 2: %q", tc.menu, at, row)
+			}
+		}
+		if marks == 0 || labels == 0 {
+			t.Fatalf("%s: measured %d rows, %d ticked:\n%s", tc.menu, labels, marks, strings.Join(rows, "\n"))
+		}
+	}
+}
+
+// The mark never reserves a column. Ticking rows must not widen the
+// popup, and the popup must stay at its natural width: the longest
+// label-plus-shortcut pair ("Truncate AI reply" + "Ctrl+G") plus the
+// frame. A reserved mark column would make it 32 instead of 30.
+func TestMarkCostsNoWidth(t *testing.T) {
+	m := sizeModelTo(t, testModel(), 80, 30)
+	m.header.menu = "view"
+	m.sidebarHidden, m.hideSYS = false, false
+	_, plain, _, _ := m.headerGeometry()
+	m.sidebarHidden, m.hideSYS = true, true
+	_, ticked, _, _ := m.headerGeometry()
+	if plain != ticked {
+		t.Fatalf("ticking rows changed menu width: %d -> %d", plain, ticked)
+	}
+	const want = 30
+	if ticked != want {
+		t.Fatalf("menu width %d, want %d — a mark column is being reserved", ticked, want)
+	}
+}
+
+// A menu with nothing to toggle draws no mark and loses nothing.
+func TestMenusWithoutTogglesDrawNoMark(t *testing.T) {
+	for _, menu := range []string{"help", "session", "model"} {
+		m := sizeModelTo(t, testModel(), 80, 30)
+		m.header.menu = menu
+		for _, row := range popupRows(t, m) {
+			if strings.Contains(row, "✓") {
+				t.Fatalf("%s drew a mark it has no toggle for: %q", menu, row)
+			}
+		}
+	}
+}
+
+// Plan/Act moved from an inline tick to the shared indent.
+func TestModeMenuUsesSharedCheckmarkIndent(t *testing.T) {
+	m := sizeModelTo(t, testModel(), 80, 30)
+	m.header.menu = "conversation-mode"
+	m.chat = nil
+	rows := strings.Join(popupRows(t, m), "\n")
+	if !strings.Contains(rows, "✓ Agent") || strings.Contains(rows, "✓ Chat") || strings.Contains(rows, "✓  Agent") {
+		t.Fatalf("agent mode tick: %s", rows)
+	}
+	m.chat = &chatUI{}
+	rows = strings.Join(popupRows(t, m), "\n")
+	if !strings.Contains(rows, "✓ Chat") || strings.Contains(rows, "✓ Agent") {
+		t.Fatalf("chat mode tick: %s", rows)
+	}
+}
+
+// A separator is structure, not a target: keyboard navigation must skip
+// it or Down would stop on a row that does nothing.
+func TestKeyboardNavigationSkipsViewSeparator(t *testing.T) {
+	// 110 columns is where the Sessions pane exists, so the sidebar
+	// toggle is enabled and reachable by keyboard.
+	m := sizeModelTo(t, testModel(), 120, 30)
+	m.header.focused = true
+	m.header.global = true
+	m.header.menu = "view"
+	m.header.row = m.headerActionRow(0, 1)
+	for _, want := range []string{"toggle-sidebar", "toggle-details", "toggle-sys", "toggle-labels"} {
+		if got := m.headerItems()[m.header.row].command; got != want {
+			t.Fatalf("row = %q, want %q", got, want)
+		}
+		m.header.row = m.headerActionRow(m.header.row+1, 1)
 	}
 }

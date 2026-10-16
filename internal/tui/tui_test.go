@@ -44,6 +44,12 @@ func testModel() *model {
 	return m
 }
 
+// tagged is the default display state: label rows on, content
+// truncated. Hiding labels is a View-menu choice, so tests that exercise
+// it ask for renderOpts{labels: false} by name rather than inheriting a
+// zero value that silently means "off".
+func tagged() renderOpts { return renderOpts{labels: true} }
+
 func sizeModel(t *testing.T, m *model) *model {
 	t.Helper()
 	return sizeModelTo(t, m, 80, 24)
@@ -495,7 +501,7 @@ func (stubDone) Chat(_ context.Context, _ llm.ChatRequest) (llm.ChatResponse, er
 }
 
 func TestResultBlockDiffColors(t *testing.T) {
-	out := renderBlock(resultBlock("-old\n+new\n@@ h @@\nctx"), defaultStyles(), false, 80)
+	out := renderBlock(resultBlock("-old\n+new\n@@ h @@\nctx"), defaultStyles(), tagged(), 80)
 	for _, want := range []string{"-old", "+new", "@@ h @@", "ctx"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q in %q", want, out)
@@ -511,8 +517,8 @@ func TestAnswerTrailingNewlineNoDoubleGap(t *testing.T) {
 	tool := toolCardBlock("c1", "read_file")
 	tool.result = "ok"
 	tool.open = false
-	joined := renderBlock(ans, st, false, 80) + "\n\n" +
-		renderBlock(tool, st, false, 80)
+	joined := renderBlock(ans, st, tagged(), 80) + "\n\n" +
+		renderBlock(tool, st, tagged(), 80)
 	if gap := consecutiveBlanks(joined); gap > 1 {
 		t.Fatalf("double gap after reply with trailing newline:\n%q", joined)
 	}
@@ -933,7 +939,7 @@ func TestThinkCollapsedByDefault(t *testing.T) {
 	st := defaultStyles()
 	long := "...The user is asking something, and here is a long chain of internal deliberation that must not read as the answer. " +
 		"Second line of musing that only the expanded view may show."
-	collapsed := renderBlock(thinkBlock(long), st, false, 80)
+	collapsed := renderBlock(thinkBlock(long), st, tagged(), 80)
 	if !strings.Contains(collapsed, "[THINKING]") {
 		t.Fatalf("collapsed thinking needs its header: %q", collapsed)
 	}
@@ -943,7 +949,7 @@ func TestThinkCollapsedByDefault(t *testing.T) {
 	if strings.Contains(collapsed, "Second line of musing") {
 		t.Fatalf("collapsed thinking leaks body: %q", collapsed)
 	}
-	expanded := renderBlock(thinkBlock(long), st, true, 80)
+	expanded := renderBlock(thinkBlock(long), st, renderOpts{expand: true, labels: true}, 80)
 	// Wrapping splits phrases across rail-indented lines: normalize
 	// all whitespace before matching.
 	flat := strings.Join(strings.Fields(ansi.Strip(expanded)), " ")
@@ -965,7 +971,7 @@ func TestBodyStartsAtLeftEdge(t *testing.T) {
 		resultBlock("result body"),
 	} {
 		for _, width := range []int{30, 80, 120} {
-			rows := strings.Split(ansi.Strip(renderBlock(b, st, false, width)), "\n")
+			rows := strings.Split(ansi.Strip(renderBlock(b, st, tagged(), width)), "\n")
 			if rows[0] != "["+roleLabel(b.role)+"]" && !strings.HasPrefix(rows[0], "["+roleLabel(b.role)+"] ") {
 				t.Fatalf("role %v label row = %q", b.role, rows[0])
 			}
@@ -1013,7 +1019,7 @@ func TestThinkToggleKey(t *testing.T) {
 // (the open card's pending row is structure, not args).
 func TestToolCardHeader_SingleLine(t *testing.T) {
 	st := defaultStyles()
-	out := renderBlock(toolCardBlock("c1", "write_file {\n  \"path\": \"a.go\"\n}"), st, true, 80)
+	out := renderBlock(toolCardBlock("c1", "write_file {\n  \"path\": \"a.go\"\n}"), st, renderOpts{expand: true, labels: true}, 80)
 	lines := strings.Split(out, "\n")
 	if len(lines) != 3 || !strings.Contains(lines[1], `{ "path": "a.go" }`) {
 		t.Fatalf("card call must hold collapsed args: %q", out)
@@ -1281,13 +1287,13 @@ func TestOverlayPushPopRestore(t *testing.T) {
 func TestTimestampRendered(t *testing.T) {
 	st := defaultStyles()
 	at := time.Date(2026, 10, 3, 14, 22, 0, 0, time.Local)
-	out := renderBlock(block{role: roleUser, text: "❯ hi", at: at}, st, false, 80)
+	out := renderBlock(block{role: roleUser, text: "❯ hi", at: at}, st, tagged(), 80)
 	if !strings.Contains(out, "[14:22]") {
 		t.Fatalf("user block missing timestamp: %q", out)
 	}
 	// Unstamped blocks (zero time) still carry speaker identity, just
 	// no timestamp: headers are structure, not chrome.
-	plain := renderBlock(block{role: roleAnswer, text: "hi"}, st, false, 80)
+	plain := renderBlock(block{role: roleAnswer, text: "hi"}, st, tagged(), 80)
 	if !strings.Contains(plain, "[RESPONSE]") {
 		t.Fatalf("answer missing speaker header: %q", plain)
 	}
@@ -1388,7 +1394,7 @@ func TestReflow(t *testing.T) {
 func TestRenderBlockWrapsToWidth(t *testing.T) {
 	st := defaultStyles()
 	text := "lorem ipsum dolor sit amet consectetur adipiscing elit sed do"
-	out := renderBlock(answerBlock(text), st, false, 20)
+	out := renderBlock(answerBlock(text), st, tagged(), 20)
 	for _, line := range strings.Split(out, "\n") {
 		if n := lipgloss.Width(line); n > 20 {
 			t.Fatalf("line %d cols past 20: %q", n, line)
@@ -1399,7 +1405,7 @@ func TestRenderBlockWrapsToWidth(t *testing.T) {
 	if len(lines) < 2 || !strings.HasPrefix(lines[0], "[RESPONSE]") || lines[1] != "lorem ipsum dolor" {
 		t.Fatalf("label row then left-edge body expected: %q", out)
 	}
-	out = renderBlock(userBlock("aaa bbb ccc ddd eee fff"), st, false, 20)
+	out = renderBlock(userBlock("aaa bbb ccc ddd eee fff"), st, tagged(), 20)
 	lines = strings.Split(ansi.Strip(out), "\n")
 	if len(lines) < 2 || !strings.HasPrefix(lines[0], "[INPUT]") || lines[1] != "aaa bbb ccc ddd eee" {
 		t.Fatalf("label row then left-edge body expected: %q", out)
@@ -1569,7 +1575,7 @@ func TestHintAlwaysShown(t *testing.T) {
 
 func TestHelpSections(t *testing.T) {
 	st := defaultStyles()
-	out := renderBlock(markerBlock(strings.Join(renderHelp(), "\n")), st, false, 80)
+	out := renderBlock(markerBlock(strings.Join(renderHelp(), "\n")), st, tagged(), 80)
 	for _, want := range []string{"Input", "Navigate", "Run", "Commands"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("help missing %q", want)
@@ -1609,7 +1615,7 @@ func TestStampsRightAligned(t *testing.T) {
 	st := defaultStyles()
 	b := answerBlock("short")
 	b.at = time.Date(2026, 10, 3, 14, 22, 0, 0, time.Local)
-	out := renderBlock(b, st, false, 40)
+	out := renderBlock(b, st, tagged(), 40)
 	lines := strings.Split(out, "\n")
 	if len(lines) != 2 {
 		t.Fatalf("block is label row + body: %q", out)
@@ -1634,7 +1640,7 @@ func TestNarrowLabelRowDropsStamp(t *testing.T) {
 	b := toolCardBlock("c1", "run x")
 	b.result = "ok"
 	b.open = false
-	out := renderBlock(b, st, false, 12)
+	out := renderBlock(b, st, tagged(), 12)
 	if strings.Contains(out, ":") && strings.Count(out, "]") != 1 {
 		t.Fatalf("narrow label row must not stamp: %q", out)
 	}
@@ -1659,7 +1665,7 @@ func TestCRLFContentStaysInWidth(t *testing.T) {
 	b := toolCardBlock("c1", "read_file a.md")
 	b.result = "FILE\npath: a.md\n----\n# Title\r\n\r\nbody line\r\n"
 	b.open = false
-	for _, line := range strings.Split(renderBlock(b, st, true, 80), "\n") {
+	for _, line := range strings.Split(renderBlock(b, st, renderOpts{expand: true, labels: true}, 80), "\n") {
 		if strings.Contains(line, "\r") {
 			t.Fatalf("CR survived render: %q", line)
 		}
@@ -1667,7 +1673,7 @@ func TestCRLFContentStaysInWidth(t *testing.T) {
 			t.Fatalf("line %d cols past 80: %q", n, line)
 		}
 	}
-	out := renderBlock(answerBlock("integrity.\r\nsecond line"), st, false, 40)
+	out := renderBlock(answerBlock("integrity.\r\nsecond line"), st, tagged(), 40)
 	if strings.Contains(out, "\r") {
 		t.Fatalf("CR survived stamped render: %q", out)
 	}
@@ -1682,11 +1688,11 @@ func TestToolOutputBranchesAndCloses(t *testing.T) {
 	b := toolCardBlock("c1", `read_file {"path":"internal/chat/config.go"}`)
 	b.result = "file content ....\nfile content ....\nfile content ...."
 	b.open = false
-	rows := strings.Split(ansi.Strip(renderBlock(b, st, false, 80)), "\n")
+	rows := strings.Split(ansi.Strip(renderBlock(b, st, tagged(), 80)), "\n")
 	if !strings.HasPrefix(rows[0], "[TOOL CALL]") || !strings.HasPrefix(rows[1], "✓ read_file ") {
-		t.Fatalf("label row then call row expected: %q", renderBlock(b, st, false, 80))
+		t.Fatalf("label row then call row expected: %q", renderBlock(b, st, tagged(), 80))
 	}
-	for i, want := range []string{"| file content ....", "| file content ....", "└─ file content ...."} {
+	for i, want := range []string{"│ file content ....", "│ file content ....", "└─ file content ...."} {
 		if rows[i+2] != want {
 			t.Fatalf("row %d = %q, want %q", i+2, rows[i+2], want)
 		}
@@ -1696,9 +1702,9 @@ func TestToolOutputBranchesAndCloses(t *testing.T) {
 	}
 	// An open card keeps the same shape, pending rather than empty.
 	open := toolCardBlock("c2", "read_file {}")
-	openRows := strings.Split(ansi.Strip(renderBlock(open, st, false, 80)), "\n")
+	openRows := strings.Split(ansi.Strip(renderBlock(open, st, tagged(), 80)), "\n")
 	if len(openRows) != 3 || !strings.HasPrefix(openRows[1], "… ") || openRows[2] != "└─ …" {
-		t.Fatalf("open card must show one pending row: %q", renderBlock(open, st, false, 80))
+		t.Fatalf("open card must show one pending row: %q", renderBlock(open, st, tagged(), 80))
 	}
 }
 
@@ -1709,7 +1715,7 @@ func TestToolBranchClosesOnFinalFragment(t *testing.T) {
 	b := toolCardBlock("c1", "run x")
 	b.result = strings.Repeat("word ", 40)
 	b.open = false
-	rows := strings.Split(ansi.Strip(renderBlock(b, st, true, 40)), "\n")
+	rows := strings.Split(ansi.Strip(renderBlock(b, st, renderOpts{expand: true, labels: true}, 40)), "\n")
 	for _, row := range rows {
 		if n := lipgloss.Width(row); n > 40 {
 			t.Fatalf("row %d cols past 40: %q", n, row)
@@ -1720,7 +1726,7 @@ func TestToolBranchClosesOnFinalFragment(t *testing.T) {
 		t.Fatalf("last row must close the branch: %q", rows[last])
 	}
 	for i, row := range rows[2:last] {
-		if !strings.HasPrefix(row, "| ") {
+		if !strings.HasPrefix(row, "│ ") {
 			t.Fatalf("row %d must stay railed: %q", i+2, row)
 		}
 	}
@@ -1850,14 +1856,14 @@ func TestToolResultCollapsesLongOutput(t *testing.T) {
 	mk := func() block {
 		return block{role: roleTool, text: "run x", callID: "c1", result: text}
 	}
-	compact := renderBlock(mk(), st, false, 80)
+	compact := renderBlock(mk(), st, tagged(), 80)
 	if n := strings.Count(compact, "abcdef"); n != resultPreviewLines {
 		t.Fatalf("compact shows %d lines, want %d", n, resultPreviewLines)
 	}
 	if !strings.Contains(compact, "(15 more lines)") {
 		t.Fatalf("compact must count the rest: %q", compact)
 	}
-	full := renderBlock(mk(), st, true, 80)
+	full := renderBlock(mk(), st, renderOpts{expand: true, labels: true}, 80)
 	if n := strings.Count(full, "abcdef"); n != 25 {
 		t.Fatalf("full view shows %d lines, want 25", n)
 	}
@@ -2140,13 +2146,13 @@ func TestStampsPolicy(t *testing.T) {
 		if r == roleTool {
 			b.open = true
 		}
-		if out := renderBlock(b, st, false, 80); !stampPattern.MatchString(out) {
+		if out := renderBlock(b, st, tagged(), 80); !stampPattern.MatchString(out) {
 			t.Fatalf("role %v must stamp: %q", r, out)
 		}
 	}
 	// Reopened history records no display times, so nothing is invented.
 	for _, r := range allRoles {
-		if out := renderBlock(block{role: r, text: "body"}, st, false, 80); stampPattern.MatchString(out) {
+		if out := renderBlock(block{role: r, text: "body"}, st, tagged(), 80); stampPattern.MatchString(out) {
 			t.Fatalf("zero-time role %v must not stamp: %q", r, out)
 		}
 	}
