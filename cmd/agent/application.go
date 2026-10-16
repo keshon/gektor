@@ -94,6 +94,47 @@ func applicationArgs(p config.Preferences) []string {
 	}
 	return args
 }
+// launchProfile builds the profile a launch without -profile would have
+// carried, so the plain `-tui` launch that docs/tui.md documents still
+// has working Settings, Mode and Voice menus.
+//
+// It exists because those menus read the profile rather than the flags.
+// With no profile the services handle and the Application both came back
+// nil, and every row that depends on them was disabled with nothing on
+// screen saying why — a launch that started fine and could not be
+// configured at all.
+//
+// Values come from flags the launch already resolved, plus the context
+// window the backend just reported, which is the same number the run
+// itself uses. Conversation is left nil and substituted downstream, so
+// Character/You/Prompts start from ConfigureAgent's default rather than
+// an invented one.
+func launchProfile(o resolvedLaunch, contextLimit int) config.Profile {
+	generation := config.Generation{
+		MaxTokens:   o.maxTokens,
+		ContextLimit: contextLimit,
+		Temperature: o.temperature,
+	}
+	if generation.ContextLimit <= generation.MaxTokens {
+		// The probe reported no window. Profile validation requires a limit
+		// above the response budget, and erring small is the safe side of
+		// that: history is compacted sooner instead of overrunning a
+		// backend whose real window is unknown.
+		generation.ContextLimit = max(4*generation.MaxTokens, 8192)
+	}
+	return config.Profile{
+		Version: 1,
+		Provider: config.Provider{
+			Kind:       o.backendKind,
+			URL:        o.backendURL,
+			Model:      o.model,
+			Ownership:  "external",
+			APIKeyEnv:  o.apiKeyEnv,
+		},
+		Generation: generation,
+	}
+}
+
 func applicationControl(launch launchRequest, p config.Profile, path string, isChat bool, workspace string) *tui.Application {
 	if p.Version == 0 {
 		return nil

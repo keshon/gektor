@@ -14,6 +14,7 @@ import (
 	"github.com/keshon/tars/internal/chat"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/tars/internal/speech"
 )
 
 func settingsModel(t *testing.T) *model {
@@ -210,6 +211,64 @@ func TestSettingsMouseResizesMultilineEditor(t *testing.T) {
 		}
 	}
 }
+// agentSettingsModel puts the session in the bare `-tui` shape: Agent
+// mode with a services handle and an Application, which is what the
+// launch builds when no -profile was given.
+func agentSettingsModel(t *testing.T) *model {
+	t.Helper()
+	m := settingsModel(t)
+	audio := m.chat.config
+	audio.Profile.Speech = &speech.Config{Microphone: "mic", Speaking: speech.Speaking{Provider: "chatterbox"}}
+	m.chat = nil
+	m.audioConfig = audio
+	m.application = &Application{Preferences: config.Preferences{Version: 1, Mode: "agent"}}
+	m.header.menu = "settings"
+	return m
+}
+
+// An idle session with a live services handle must offer every Settings
+// row. The launch without -profile built neither, which disabled the
+// whole menu at once and left no hint of which part was missing.
+func TestIdleSettingsMenuIsFullyEnabled(t *testing.T) {
+	m := agentSettingsModel(t)
+	rows := m.rawHeaderItems()
+	if len(rows) == 0 {
+		t.Fatal("settings menu is empty")
+	}
+	for _, item := range rows {
+		if item.text == "" && item.command == "" {
+			continue
+		}
+		if !item.enabled {
+			t.Fatalf("idle Settings row disabled: %q (%s)", item.text, item.command)
+		}
+	}
+}
+
+// Each Settings section must actually open. A row that is enabled but
+// Enter-closes-without-an-effect is the same bug wearing a different hat:
+// editSettings guards on the same services handle the menu did.
+func TestEveryIdleSettingsRowOpens(t *testing.T) {
+	m := agentSettingsModel(t)
+	for _, item := range m.rawHeaderItems() {
+		if item.text == "" || !item.enabled {
+			continue
+		}
+		m.closeDialog()
+		m.header.focused, m.header.global, m.header.menu = true, true, "settings"
+		m.header.row = 0
+		for i, candidate := range m.headerItems() {
+			if candidate.command == item.command {
+				m.header.row = i
+			}
+		}
+		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+		if m.dialog == nil {
+			t.Fatalf("Settings row %q (%s) opened nothing", item.text, item.command)
+		}
+	}
+}
+
 func TestCommonMenusHaveNoRedirects(t *testing.T) {
 	m := settingsModel(t)
 	for _, category := range []string{"session", "workflow", "view", "settings", "help"} {

@@ -72,3 +72,51 @@ func TestResolveLaunchClonesHandoffProfile(t *testing.T) {
 		t.Fatal("check-profile accepted without profile")
 	}
 }
+
+// The launch docs/tui.md shows has no -profile, and it still has to be
+// configurable: without a profile the services handle and the Application
+// both came back nil, which disabled every Settings, Mode and Voice row
+// with nothing on screen saying why.
+func TestLaunchWithoutProfileStillValid(t *testing.T) {
+	o, err := resolveLaunch(launchRequest{args: []string{"-tui", "-backend-kind", "llama", "-backend", "http://127.0.0.1:8080", "-workspace", "."}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The flag defaults alone must pass validation, or the fix would turn
+	// a greyed menu into a startup failure.
+	p := launchProfile(o, 32768)
+	if err := p.Validate(); err != nil {
+		t.Fatalf("generated profile rejected: %v", err)
+	}
+	if p.Version != 1 || p.Provider.Kind != "llama" || p.Provider.URL != "http://127.0.0.1:8080" || p.Provider.Model != o.model {
+		t.Fatalf("generated profile lost the launch flags: %+v", p)
+	}
+	if p.Generation.MaxTokens != o.maxTokens || p.Generation.ContextLimit != 32768 {
+		t.Fatalf("generated generation: %+v", p.Generation)
+	}
+	if p.Conversation != nil {
+		t.Fatal("generated profile must not invent conversation settings")
+	}
+	if applicationControl(launchRequest{}, p, "", false, ".") == nil {
+		t.Fatal("generated profile must still yield an Application")
+	}
+}
+
+// Validate rejects a context limit that does not exceed the response
+// budget. The probe returns 0 when a backend will not report its window,
+// and the launch still has to produce a usable profile.
+func TestLaunchProfileContextFloor(t *testing.T) {
+	o, err := parseLaunchOptions([]string{"-tui", "-backend-kind", "llama", "-backend", "http://127.0.0.1:8080"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, probed := range []int{0, 1000, 65536} {
+		p := launchProfile(resolvedLaunch{launchOptions: o}, probed)
+		if err := p.Validate(); err != nil {
+			t.Fatalf("probed %d: generated profile rejected: %v", probed, err)
+		}
+		if probed > o.maxTokens && p.Generation.ContextLimit != probed {
+			t.Fatalf("probed %d: reported window replaced by %d", probed, p.Generation.ContextLimit)
+		}
+	}
+}

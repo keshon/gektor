@@ -412,6 +412,13 @@ Explicit-profile launches keep runtime edits in memory until saved as a profile.
 as staged settings and saved as new portable copies. Speech provides a sample of
 the applied built-in Chatterbox voice; custom voice references are not connected.
 
+A launch without `-profile` generates one from the flags it resolved, plus the
+context window the backend reported, and says so at startup. Settings, Mode and
+Voice all read the profile rather than the flags, so without one those menus
+were disabled outright and could not be entered at all. Generated settings land
+in `profiles/custom` like any other unsourced edit; the generated profile is
+never written back to a file that did not exist.
+
 ### Settings libraries and speech checks
 
 Character > Card opens searchable PNG/JSON choices. Ctrl+B browses folders;

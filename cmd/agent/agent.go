@@ -448,18 +448,24 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			}
 		}
 
-		var audio *app.Services
-		if o.selectedProfile.Version != 0 {
-			prepared, err := app.ConfigureAgent(o.selectedProfile, filepath.Join(filepath.Dir(launch.preferencePath), "chats"))
-			if err != nil {
-				return err
-			}
-			prepared.Client = thinkingClient
-			*owned.Services = prepared
-			audio = owned.Services
+		// A launch without -profile still needs a services handle and an
+		// Application: Settings, Mode and Voice read both, and with neither
+		// every row that needs them is disabled and the menus cannot be
+		// entered at all. Build the profile this launch would have loaded.
+		profile := o.selectedProfile
+		if profile.Version == 0 {
+			profile = launchProfile(o, contextLimit)
+			note("no -profile: using a generated one so Settings, Mode and Voice are reachable")
 		}
-		app := applicationControl(launch, o.selectedProfile, o.profilePath, o.chat, o.workspace)
-		answer, err := tui.Run(ctx, tui.Config{Runtime: owned, Application: app, Audio: audio, SeedHistory: launch.history, InitialDraft: launch.draft, SessionDirectory: launch.directory,
+
+		prepared, err := app.ConfigureAgent(profile, filepath.Join(filepath.Dir(launch.preferencePath), "chats"))
+		if err != nil {
+			return err
+		}
+		prepared.Client = thinkingClient
+		*owned.Services = prepared
+		app := applicationControl(launch, profile, o.profilePath, o.chat, o.workspace)
+		answer, err := tui.Run(ctx, tui.Config{Runtime: owned, Application: app, Audio: owned.Services, SeedHistory: launch.history, InitialDraft: launch.draft, SessionDirectory: launch.directory,
 			BackendURL:   o.backendURL,
 			Plan:         o.plan,
 			History:      history,
