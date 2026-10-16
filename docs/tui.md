@@ -26,6 +26,11 @@ Extra arguments are forwarded to the binary:
 run-tui.cmd -workspace D:\Projects\my-app -verify-cmd "go test ./..."
 ```
 
+The sibling launchers build and run the same binary for print-mode work:
+`run-task.cmd "task"`, `run-plan.cmd "task"`, `run-mission.cmd "task"`,
+`run-resume.cmd [id]`, and `run-revert.cmd [apply]`. Each prints its usage
+when called without arguments.
+
 Keep flags before any task text. Closing TARS leaves the independently
 started KoboldCPP server running. Closing the server terminal stops that server.
 The optional `run-remote.cmd` and `run-serve.cmd` files are local, gitignored

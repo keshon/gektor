@@ -70,6 +70,14 @@ On Windows, keep KoboldCPP in its own terminal:
 3. In another terminal, run `run-tui.cmd`. It checks the server and rebuilds
    `agent.exe` before opening the UI.
 
+The other root launchers follow the same build-then-run shape:
+`run-task.cmd "task"` for a one-shot print-mode run, `run-plan.cmd` and
+`run-mission.cmd` for those modes, `run-resume.cmd` to list or resume saved
+tasks, and `run-revert.cmd` to preview or restore a workspace checkpoint.
+Maintenance lives under `build.cmd` (`build test`, `build check`, `build fmt`,
+`build vuln`, `build clean`; `build help` lists everything), and the eval
+helpers are `eval-dry.cmd`, `eval-run.cmd` and `eval-reset.cmd`.
+
 The supplied launcher uses Qwen3.5-9B-Q4_K_M, a 16,384-token server context,
 and a 4,096-token response budget. These are launcher settings; the CLI's
 response default is 8,192. Server output stays in the server terminal.
