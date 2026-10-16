@@ -441,8 +441,7 @@ func (m *model) compactNow() (tea.Model, tea.Cmd) {
 	if m.sess == nil {
 		m.seedHistory = append([]llm.Message(nil), history...)
 	}
-	mb := markerBlock(fmt.Sprintf("— compacted: %d → %d messages —", before, after))
-	mb.breakBefore = true
+	mb := markerBlock(fmt.Sprintf("- compacted: %d → %d messages -", before, after))
 	// Marker last, not first: the viewport lands at the bottom showing
 	// the kept tail, which reads identical to before — the marker is
 	// the only visible signal that anything happened.
@@ -504,9 +503,7 @@ func (m *model) startFreshPrompt(task, display string, images []string) error {
 	m.input.Restore(composer.Snapshot{History: []string{display}, Index: 1})
 	m.queued = ""
 	m.transcript.blocks = nil
-	nb := markerBlock("— new task —")
-	nb.breakBefore = true
-	m.appendBlock(nb)
+	m.appendBlock(markerBlock("- new task -"))
 	m.appendBlock(userBlock(display + imageSuffix(images)))
 	if m.ws != nil {
 		if snap := snapshot.Track(m.ws.Root(), filepath.Join(taskDir, "snapshots")); snap.Path == "" {

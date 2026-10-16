@@ -55,9 +55,7 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case "status":
-		sb := markerBlock(strings.Join(m.statusLines(), "\n"))
-		sb.bare = true
-		m.appendBlock(sb)
+		m.appendBlock(markerBlock(strings.Join(m.statusLines(), "\n")))
 		return m, nil
 	case "mode":
 		if m.chat != nil {

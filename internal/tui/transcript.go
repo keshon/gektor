@@ -2,9 +2,10 @@ package tui
 
 import (
 	"fmt"
-	"github.com/keshon/tars/internal/tui/components/transcript"
 	"strings"
 	"time"
+
+	"github.com/keshon/tars/internal/tui/components/transcript"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -15,8 +16,8 @@ import (
 // The binding lives in handleKey; both stay in sync through this.
 const thinkToggleHint = "Ctrl+G"
 
-// role names the kind of a transcript block. The renderer maps every
-// role to a style + gutter, so each role has a stable display identity.
+// role names the kind of a transcript block. Every role maps to one
+// label tag and one speaker, so each has a stable display identity.
 type role int
 
 const (
@@ -30,8 +31,8 @@ const (
 	roleMarker
 	roleError
 	// roleWarning is a deterministic-check finding (gofmt, secrets):
-	// report-only signal, never an error. Yellow, unbold (gate yellow
-	// is bold) with a "» " rail.
+	// report-only signal, never an error, so it takes the warning's
+	// unbold yellow rather than the error's bold red.
 	roleWarning
 )
 
@@ -42,17 +43,10 @@ type block struct {
 	speaker string
 	role    role
 	text    string
-	// at stamps when the block entered the transcript. Stamped roles
-	// render it right-aligned (opencode's metadata-right pattern);
-	// zero means "unstamped". See stamps().
+	// at stamps when the block entered the transcript. A zero time means
+	// "unstamped": reopened history records no display times, so inventing
+	// one would claim a moment the transcript never observed.
 	at time.Time
-	// bare skips the per-line role gutter: section titles carry a
-	// reference block's identity, so gutters would only restripe it
-	// into fake bullets.
-	bare bool
-	// breakBefore opens a turn with extra breathing room above the block
-	// (user echoes, new-task markers). Pane rules stay outside the transcript.
-	breakBefore bool
 	// Tool card fields (roleTool only): callID pairs the result event,
 	// result/output text lands on attach, open until it does, failed
 	// when the result reports an error.
@@ -95,12 +89,8 @@ func assistantBlocks(content, reasoning string) []block {
 	return blocks
 }
 
-func answerBlock(s string) block { return block{role: roleAnswer, text: s, at: time.Now()} }
-func userBlock(s string) block {
-	// Every user echo opens a turn. The one exception (reject-note
-	// echo, mid-turn) clears the flag at its call site.
-	return block{role: roleUser, text: s, at: time.Now(), breakBefore: true}
-}
+func answerBlock(s string) block  { return block{role: roleAnswer, text: s, at: time.Now()} }
+func userBlock(s string) block    { return block{role: roleUser, text: s, at: time.Now()} }
 func thinkBlock(s string) block   { return block{role: roleThink, text: s, at: time.Now()} }
 func resultBlock(s string) block  { return block{role: roleResult, text: s, at: time.Now()} }
 func gateBlock(s string) block    { return block{role: roleGate, text: s, at: time.Now()} }
@@ -153,51 +143,75 @@ func (m *model) attachResult(callID, text string, failed ...bool) bool {
 	return false
 }
 
-// gutterWidth is fixed for wrap geometry.
-const gutterWidth = 2
-
-// gutterGlyph is the role's unstyled 2-cell left marker. Kept separate
-// from gutter so tests can assert the width without ANSI involved.
-func gutterGlyph(r role) string {
+// roleLabel is the bracketed tag printed on a block's label row. One
+// tag per role keeps the transcript systematic: the reader learns the
+// whole vocabulary from a few lines and never has to parse speaker
+// prose to tell a refusal from a plan.
+func roleLabel(r role) string {
 	switch r {
 	case roleUser:
-		return "> "
+		return "INPUT"
+	case roleAnswer:
+		return "RESPONSE"
 	case roleThink:
-		return "  "
+		return "THINKING"
 	case roleTool:
-		return "→ "
+		return "TOOL CALL"
+	case roleResult:
+		return "TOOL RESULT"
 	case roleGate:
-		return "? "
+		return "QUESTION"
 	case roleMission:
-		return "# "
+		return "MISSION"
 	case roleMarker:
-		return "  "
+		return "HARNESS"
 	case roleError:
-		return "! "
+		return "ERROR"
 	case roleWarning:
-		return "» "
+		return "WARNING"
+	}
+	return "OUTPUT"
+}
+
+// systemSpeaker names every participant that is not a conversational
+// voice: the harness, permission gates, mission notes and failures. They
+// share one name because they share one source, and a reader asking
+// "who said that" should never have to distinguish four shades of app.
+const systemSpeaker = "SYSTEM"
+
+// speakerLabel names the participant a block belongs to, uppercased.
+// User and assistant roles carry the configured character/user names;
+// everything else is machine chrome.
+func speakerLabel(b block, props transcriptProps) string {
+	switch b.role {
+	case roleUser:
+		return strings.ToUpper(props.user)
+	case roleAnswer, roleThink, roleTool, roleResult:
+		return strings.ToUpper(props.speaker)
 	default:
-		return "  "
+		return systemSpeaker
 	}
 }
 
-// gutter colors the role's marker: color carries the meaning, the
-// fixed-width glyph keeps every block aligned.
-func (st styles) gutter(r role) string {
-	color := st.dim
+// speakerStyle colors the group name row, reusing the colors the body
+// already carries: user blue, assistant gold, machine grey. A second
+// palette here would drift from the one the roles already use.
+func speakerStyle(r role, st styles) lipgloss.Style {
 	switch r {
 	case roleUser:
-		color = st.user
-	case roleThink:
-		color = st.think
-	case roleGate:
-		color = st.gate
-	case roleError:
-		color = st.err
-	case roleWarning:
-		color = st.warn
+		return st.user
+	case roleAnswer, roleThink, roleTool, roleResult:
+		return st.gate
+	default:
+		return st.dim
 	}
-	return color.Render(gutterGlyph(r))
+}
+
+// speakerRow draws the name row that opens a run of blocks by one
+// participant. Only the first block of a run carries it; the rest of
+// the run is identified by its label rows alone.
+func speakerRow(name string, r role, st styles, width int) string {
+	return ansi.Truncate(speakerStyle(r, st).Render(name), max(width, 1), "…")
 }
 
 // thinkPreviewLen caps the collapsed thinking summary (runes, not bytes).
@@ -214,174 +228,106 @@ func thinkSummary(s string) string {
 	return fmt.Sprintf("%s [%d chars]", line, len([]rune(s)))
 }
 
-// renderBlock styles one block and prefixes its role gutter on every
-// line. The expand flag (inverse of compact view) opens verbose
-// content: latest thinking in full, long tool results in full.
-// Thinking renders collapsed unless expanded. Answer, user, and
-// think roles run the markdown-lite path (fences/headers/spans);
-// tool args, diffs, gates, and markers stay raw so a glob `*.go` can
-// never toggle bold and diff prefixes survive styling. Lines reflow
-// to width columns: the viewport never wraps, so unbroken long
-// lines would vanish past the right edge. Continuation fragments take
-// a blank gutter, marking them as wrapped rather than new.
-func renderBlock(b block, st styles, expandThink bool, width int, chatMode ...bool) string {
+// renderBlock draws one transcript block: a label row carrying the
+// role's tag and (when known) its time, then the body at the left edge.
+//
+// Body text starts in column 0 because the label row already said what
+// the block is. A per-line gutter repeating that answer cost two cells
+// of every row to say nothing the label did not.
+//
+// The expand flag (inverse of compact view) opens verbose content:
+// latest thinking in full, long tool results in full. Thinking renders
+// collapsed unless expanded. Answer, user and think roles run the
+// markdown-lite path (fences/headers/spans); tool args, diffs, gates and
+// markers stay raw so a glob `*.go` can never toggle bold and diff
+// prefixes survive styling. Lines reflow to width columns: the viewport
+// never wraps, so unbroken long lines would vanish past the right edge.
+func renderBlock(b block, st styles, expandThink bool, width int) string {
 	// Blocks are passed by value: normalizing here covers every path
 	// to the terminal (compact/full, cards, tests) without touching
 	// stored history.
 	b.text = strings.TrimRight(cleanText(b.text), "\n")
 	b.result = strings.TrimRight(cleanText(b.result), "\n")
+	b = normalizeHarnessMarker(b)
 	raw := b.text
-	stamped := !b.at.IsZero() && stamps(b.role)
-	var out []string
-	spoke := false
-	name := "Assistant"
-	if b.speaker != "" {
-		name = b.speaker
+	if b.role == roleThink && !expandThink {
+		// Collapsed keeps the summary-only rule (size here, never in
+		// full view); the label row carries the tag either way, so the
+		// body never repeats it.
+		raw = thinkSummary(b.text)
 	}
+	out := []string{labelRow(roleLabel(b.role), b.at, st, width)}
 	switch {
 	case b.role == roleTool:
-		out = renderToolCard(b, st, expandThink, stamped, width)
-	case b.role == roleUser:
-		spoke = true
-		user := b.speaker
-		if user == "" {
-			user = "You"
-		}
-		out = renderSpeaker(b, st, st.user.Render(user+":"), false, raw, stamped, width, "")
-	case b.role == roleAnswer:
-		spoke = true
-		header := st.gate.Render(name + ":")
-		if len(chatMode) == 0 || !chatMode[0] {
-			header += st.dim.Render("  [RESPONSE]")
-		}
-		out = renderSpeaker(b, st, header, false, raw, stamped, width, "")
-	case b.role == roleThink:
-		spoke = true
-		// Collapsed keeps the summary-only rule (size here, never in
-		// full view); the header carries the label either way, so the
-		// body never repeats it.
-		if !expandThink {
-			raw = thinkSummary(b.text)
-		}
-		out = renderSpeaker(b, st, st.gate.Render(name)+st.dim.Render("  [THINKING]"), false, raw, stamped, width)
-	case !b.bare && (b.role == roleMarker || b.role == roleGate || b.role == roleMission || b.role == roleError || b.role == roleWarning):
-		out = renderNotice(b, st, raw, stamped, width)
-		spoke = true
+		out = append(out, renderToolCard(b, st, expandThink, width)...)
 	case isMdRole(b.role):
-		out = renderMdBlock(b, raw, st, stamped, width)
+		out = append(out, renderMdBlock(b, raw, st, width)...)
 	default:
-		logical := strings.Split(raw, "\n")
-		for li, line := range logical {
-			for i, f := range reflow(line, fragWidth(width, stamped, li == 0)) {
-				g := ""
-				if !b.bare {
-					g = st.gutter(b.role)
-					if i > 0 {
-						g = "  "
-					}
-				}
-				out = append(out, g+applyRoleStyle(b.role, line, f, st))
-			}
-		}
-	}
-	if stamped && len(out) > 0 && !spoke {
-		out[0] = alignStamp(out[0], st, b.at, width)
+		out = append(out, renderRaw(b, raw, st, width)...)
 	}
 	return strings.Join(out, "\n")
 }
 
-// renderNotice uses the same label and body columns as conversation turns.
-// It stays raw: harness prompts, paths, and diagnostics are literal text.
-func renderNotice(b block, st styles, raw string, stamped bool, width int) []string {
-	label := "SYS"
-	switch b.role {
-	case roleGate:
-		label = "ASK"
-	case roleError:
-		label = "ERR"
-	case roleWarning:
-		label = "WARN"
+// labelRow draws a block's tag line: [LABEL] at the left edge, the
+// timestamp flush right. The body owns no label column, so this row is
+// the block's only chrome and has the full width to work with.
+func labelRow(label string, at time.Time, st styles, width int) string {
+	line := st.dim.Render("[" + label + "]")
+	// A narrow terminal cannot hold both. The tag is structure and the
+	// time is decoration, so chrome yields rather than pushing past the
+	// edge or shredding the label into two wrapped rows.
+	if at.IsZero() || !stampFits(line, width) {
+		return line
 	}
-	bodyW := max(width-len(speakerRail), 1)
-	if stamped && bodyW-stampWidth-1 < minWrapWidth {
-		stamped = false
-	}
-	var out []string
-	for _, line := range strings.Split(raw, "\n") {
-		// Step tags carry a leading space for inline use in harness prompts.
-		// On their own display row, the shared body rail provides the indent.
-		if b.role == roleMarker && strings.HasPrefix(raw, "[harness] ") && strings.HasPrefix(strings.TrimLeft(line, " \t"), "(step ") {
-			line = strings.TrimLeft(line, " \t")
-		}
-		wrapW := bodyW
-		if stamped && len(out) == 0 {
-			wrapW -= stampWidth + 1
-		}
-		for _, fragment := range reflow(line, max(wrapW, 1)) {
-			prefix := speakerRail
-			if len(out) == 0 {
-				prefix = fmt.Sprintf("%-6s", label)
-			}
-			if fragment == "" && len(out) > 0 {
-				out = append(out, "")
-				continue
-			}
-			out = append(out, applyRoleStyle(b.role, line, prefix+fragment, st))
-		}
-	}
-	if stamped && len(out) > 0 {
-		out[0] = alignStamp(out[0], st, b.at, width)
-	}
-	return out
+	return alignStamp(line, st, at, width)
 }
 
-// speakerRail indents non-inline conversation bodies. Inline replies align
-// continuation lines with the actual character label width.
-const speakerRail = "      "
+// stampFits reports whether a line can carry a right-aligned stamp: the
+// suffix is stampWidth cells and needs at least one cell of padding
+// between itself and the content.
+func stampFits(line string, width int) bool {
+	return lipgloss.Width(line)+stampWidth+1 <= width
+}
 
-// renderSpeaker draws a conversation turn: a speaker header, then the
-// markdown body on the rail (user text rides the header line).
-func renderSpeaker(b block, st styles, header string, inline bool, raw string, stamped bool, width int, rails ...string) []string {
-	header = ansi.Truncate(header, max(width, 1), "…")
-	rail := speakerRail
-	if inline {
-		header = ansi.Truncate(header, max(width-minWrapWidth-gutterWidth, 1), "…")
-		rail = strings.Repeat(" ", ansi.StringWidth(header))
+// harnessPrefix is the marker text the agent writes into nudge content.
+// It names the same thing as the role's label row, so it is stripped at
+// the display boundary rather than in the agent's prompt: stored
+// messages keep the text they were written with, and the transcript
+// shows what the label row plus the body together actually say.
+const harnessPrefix = "[harness] "
+
+// normalizeHarnessMarker strips the redundant [harness] prefix and drops
+// the leading space a step tag carries for inline use inside harness
+// prompts. On its own display row the body column is already the indent
+// that space stood in for, and keeping both pushed the line one cell
+// right of every other row.
+//
+// It runs here rather than in the renderer because a marker is literal
+// text that takes a different path than an answer, and both fixes have
+// to hold on every path.
+func normalizeHarnessMarker(b block) block {
+	if b.role != roleMarker || !strings.HasPrefix(b.text, harnessPrefix) {
+		return b
 	}
-	if len(rails) > 0 {
-		rail = rails[0]
-	}
-	body := b
-	body.bare = true
-	bodyW := width - len(rail)
-	if stamped && bodyW-gutterWidth-stampWidth < minWrapWidth {
-		// Narrow terminal + wide rail: the stamp reservation would
-		// eat the whole wrap budget and reflow would give up,
-		// emitting one over-wide line. Chrome yields — no stamp.
-		stamped = false
-	}
-	lines := renderMdBlock(body, raw, st, stamped, bodyW)
-	var out []string
-	if !inline {
-		out = append(out, header)
-	}
-	for i, ln := range lines {
-		if inline && i == 0 {
-			out = append(out, header+ln)
-		} else if strings.TrimSpace(ln) == "" {
-			out = append(out, "")
-		} else {
-			out = append(out, rail+ln)
+	lines := strings.Split(strings.TrimPrefix(b.text, harnessPrefix), "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(strings.TrimLeft(line, " \t"), "(step ") {
+			lines[i] = strings.TrimLeft(line, " \t")
 		}
 	}
-	// The stamp sits on the first body line, never the header: the
-	// header is already wide, and padding it would breach narrow
-	// widths the body reserved room for.
-	if stamped && len(out) > 0 {
-		if !inline && len(out) > 1 {
-			out[1] = alignStamp(out[1], st, b.at, width)
-		} else {
-			out[0] = alignStamp(out[0], st, b.at, width)
+	b.text = strings.Join(lines, "\n")
+	return b
+}
+
+// renderRaw draws literal text at the left edge, one role-colored
+// fragment per line. Harness prompts, paths, diagnostics, tool args and
+// diffs stay raw so a glob cannot toggle bold and a `+` prefix survives
+// as a diff rather than becoming prose.
+func renderRaw(b block, raw string, st styles, width int) []string {
+	var out []string
+	for _, line := range strings.Split(raw, "\n") {
+		for _, fragment := range reflow(line, max(width, 1)) {
+			out = append(out, applyRoleStyle(b.role, line, fragment, st))
 		}
 	}
 	return out
@@ -405,69 +351,82 @@ func cleanText(s string) string {
 // compacted output never silently loses lines.
 const resultPreviewLines = 10
 
-// renderToolCard draws the tool call under the active character [TOOL] header, the
-// call and its results railed at the speaker column: cards align with
-// conversation bodies instead of hanging off the left edge. The "│ "
-// rail groups call with result without full-border width math;
-// continuations keep the rail so the card edge never breaks
-// (overriding the blank-gutter rule inside cards). Compact view
-// previews long results; full view shows all.
-func renderToolCard(b block, st styles, expand, stamped bool, width int) []string {
+// Tool output hangs off the call as a tree branch: every row keeps the
+// rail so the card's edge never breaks, and the final row closes the
+// branch so a reader can see where a call's output stopped without
+// counting rows.
+const (
+	toolRail  = "│ "
+	toolClose = "└─"
+)
+
+// toolRailWidth is what the rail costs on every output row.
+var toolRailWidth = lipgloss.Width(toolRail)
+
+// renderToolCard draws the call and its output. The call is one line
+// with collapsed arguments: models emit pretty-printed JSON, and a
+// header sprawling down the transcript reads stale next to the label
+// rows. Compact view previews long results; full view shows all.
+func renderToolCard(b block, st styles, expand bool, width int) []string {
 	glyph := st.add.Render("✓")
 	if b.open {
 		glyph = st.dim.Render("…")
 	} else if b.failed {
 		glyph = st.err.Render("✕")
 	}
-	var out []string
-	out = append(out, ansi.Truncate(st.gate.Render(nonEmptySpeaker(b.speaker))+st.dim.Render("  [TOOL]"), max(width, 1), "…"))
-	out = append(out, speakerRail+glyph+" "+st.dim.Render(b.text))
+	call := ansi.Truncate(b.text, max(width-2, 1), "…")
+	out := []string{glyph + " " + st.dim.Render(call)}
+	// An open card has produced nothing yet. One pending row keeps the
+	// branch shape identical whether the call is still running or done,
+	// so the layout does not jump when the result lands.
+	result := b.result
 	if b.open {
-		out = append(out, speakerRail+st.dim.Render("│ …"))
-		return out
+		result = "…"
 	}
-	lines := strings.Split(b.result, "\n")
+	lines := strings.Split(result, "\n")
 	if !expand && len(lines) > resultPreviewLines {
 		kept := lines[:resultPreviewLines]
 		kept = append(kept, fmt.Sprintf("… (%d more lines)", len(lines)-resultPreviewLines))
 		lines = kept
 	}
+	// Fragments are flattened first: a wrapped line contributes several
+	// rows, and only the very last one may close the branch.
+	wrapW := max(width-toolRailWidth, 1)
+	orig := make([]string, 0, len(lines))
+	frags := make([]string, 0, len(lines))
 	for _, line := range lines {
-		w := width - len(speakerRail) - gutterWidth
-		for _, f := range reflow(line, w) {
-			out = append(out, speakerRail+st.dim.Render("│ ")+resultLineStyle(line, f, st))
+		for _, f := range reflow(line, wrapW) {
+			orig = append(orig, line)
+			frags = append(frags, f)
 		}
+	}
+	for i, f := range frags {
+		rail := toolRail
+		if i == len(frags)-1 {
+			rail = toolClose + " "
+		}
+		out = append(out, st.dim.Render(rail)+resultLineStyle(orig[i], f, st))
 	}
 	return out
 }
 
-// fragWidth reserves the gutter on every line and the timestamp on the
-// block's last line, so neither pushes past the edge.
-func fragWidth(width int, stamped, last bool) int {
-	w := width - gutterWidth
-	if stamped && last {
-		w -= stampWidth
-	}
-	return w
-}
-
 // isMdRole reports whether the role renders markdown-lite. Tool args
-// (`*.go` globs), diffs, and gate prompts are deliberately excluded;
-// markers (help, status) render so their structure shows.
+// (`*.go` globs), diffs and notices stay raw: a harness prompt, a path
+// or a diagnostic is literal text, and reformatting it would invent
+// structure its author never wrote.
 func isMdRole(r role) bool {
-	return r == roleAnswer || r == roleUser || r == roleThink || r == roleMarker
+	return r == roleAnswer || r == roleUser || r == roleThink
 }
 
 // renderMdBlock interprets fences/headers/spans, then reflows and
 // styles. Span state is fresh per logical line: a wrap-split span
 // survives fragments, a stray marker stains one line at most.
-func renderMdBlock(b block, raw string, st styles, stamped bool, width int) []string {
+func renderMdBlock(b block, raw string, st styles, width int) []string {
 	base := baseStyle(b.role, st)
 	var out []string
-	mls := mdBlockLines(raw)
-	for li, ml := range mls {
+	for _, ml := range mdBlockLines(raw) {
 		span := &spanState{}
-		for i, f := range reflow(ml.text, fragWidth(width, stamped, li == 0)) {
+		for _, f := range reflow(ml.text, max(width, 1)) {
 			var body string
 			if ml.fence {
 				body = st.dim.Render(f)
@@ -478,21 +437,13 @@ func renderMdBlock(b block, raw string, st styles, stamped bool, width int) []st
 				}
 				body = renderSpans(f, bb, bb.Bold(true), bb.Foreground(lipgloss.Color(themeColor(colorAccent))), span)
 			}
-			g := ""
-			if !b.bare {
-				g = st.gutter(b.role)
-				if i > 0 {
-					g = "  "
-				}
-			}
-			out = append(out, g+body)
+			out = append(out, body)
 		}
 	}
 	return out
 }
 
-// stampWidth reserves room for the " [15:04]" suffix when wrapping the
-// block's last line, so the stamp never pushes it past the edge.
+// stampWidth is the " [15:04]" suffix reserved on the label row.
 const stampWidth = 8
 
 // alignStamp appends the timestamp right-aligned to width: content
@@ -550,24 +501,22 @@ func (m *model) appendBlock(b block) {
 	m.refreshContent()
 }
 
-// stamps reports whether the role carries a timestamp. Conversation
-// content, decisions, and failures do; machine chrome (tool/result
-// calls, markers, mission notes) stays clean — their timing never
-// answers a reader's question.
-func stamps(r role) bool {
-	switch r {
-	case roleUser, roleAnswer, roleThink, roleGate, roleError:
-		return true
-	}
-	return false
-}
-
-// renderLive uses the same reasoning and Markdown blocks as completed replies.
-func renderLive(text string, st styles, width int, chatMode ...bool) []string {
-	parts := []string{}
-	for _, b := range assistantBlocks(text, "") {
+// renderLive uses the same label rows and Markdown blocks as completed
+// replies. The live buffer is one assistant turn, so the name row opens
+// it exactly once.
+func renderLive(props transcriptProps, width int) []string {
+	var parts []string
+	for _, b := range assistantBlocks(props.live, "") {
 		b.at = time.Time{}
-		parts = append(parts, renderBlock(b, st, false, width, chatMode...))
+		b.speaker = props.speaker
+		part := renderBlock(b, props.styles, false, width)
+		if len(parts) == 0 {
+			part = speakerRow(speakerLabel(b, props), b.role, props.styles, width) + "\n" + part
+		}
+		parts = append(parts, part)
+	}
+	if len(parts) == 0 {
+		return nil
 	}
 	return strings.Split(strings.Join(parts, "\n\n"), "\n")
 }
@@ -584,7 +533,7 @@ func (m *model) refreshContent() {
 		m.transcript.render.dirty = true
 		return
 	}
-	m.transcript.refresh(transcriptProps{speaker: m.speakerName(), user: m.userName(), styles: m.styles, live: m.live, chat: m.chat != nil})
+	m.transcript.refresh(transcriptProps{speaker: m.speakerName(), user: m.userName(), styles: m.styles, live: m.live})
 }
 
 // minWrapWidth guards absurdly narrow viewports: below it, lines pass
@@ -694,44 +643,44 @@ func newTranscript() transcriptState { return transcriptState{Model: transcript.
 type transcriptProps struct {
 	speaker, user, live string
 	styles              styles
-	chat                bool
 }
 
+// refresh renders every block and assembles the parts. The name row
+// opens a run of blocks by one participant and only its first block
+// carries it. It is emitted here rather than inside renderBlock because
+// it depends on the previous block, not on this one: a per-block render
+// cache keyed on the block value cannot know who spoke before it.
 func (t *transcriptState) refresh(props transcriptProps) {
-	speaker := props.speaker
+	width := t.Viewport.Width()
 	parts := make([]string, 0, len(t.blocks))
 	cache := make([]renderedBlock, len(t.blocks))
-	prevBreak := false
+	prevSpeaker := ""
 	for i, b := range t.blocks {
-		b.speaker = speaker
+		b.speaker = props.speaker
 		if b.role == roleUser {
 			b.speaker = props.user
 		}
 		var rendered renderedBlock
-		if i < len(t.render.cache) && t.render.cache[i].block == b && t.render.cache[i].width == t.Viewport.Width() && t.render.cache[i].expanded == !t.compact {
+		if i < len(t.render.cache) && t.render.cache[i].block == b && t.render.cache[i].width == width && t.render.cache[i].expanded == !t.compact {
 			rendered = t.render.cache[i]
 		} else {
-			rendered = renderedBlock{block: b, width: t.Viewport.Width(), expanded: !t.compact, text: renderBlock(b, props.styles, !t.compact, t.Viewport.Width(), props.chat)}
+			rendered = renderedBlock{block: b, width: width, expanded: !t.compact, text: renderBlock(b, props.styles, !t.compact, width)}
 		}
 		cache[i] = rendered
 		part := rendered.text
-		if b.breakBefore && len(parts) > 0 && !prevBreak {
-			part = "\n" + part
+		if name := speakerLabel(b, props); name != prevSpeaker {
+			part = speakerRow(name, b.role, props.styles, width) + "\n" + part
+			prevSpeaker = name
 		}
 		parts = append(parts, part)
-		prevBreak = b.breakBefore
 	}
 	t.render.cache = cache
 
 	tail := ""
 	if props.live != "" {
-		var live []string
-		for _, b := range assistantBlocks(props.live, "") {
-			b.at = time.Time{}
-			b.speaker = speaker
-			live = append(live, renderBlock(b, props.styles, false, t.Viewport.Width(), props.chat))
+		if live := renderLive(props, width); len(live) > 0 {
+			tail = strings.Join(live, "\n")
 		}
-		tail = strings.Join(live, "\n\n")
 	}
 	t.SetParts(parts, tail)
 }

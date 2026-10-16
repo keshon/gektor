@@ -46,7 +46,12 @@ func testModel() *model {
 
 func sizeModel(t *testing.T, m *model) *model {
 	t.Helper()
-	updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	return sizeModelTo(t, m, 80, 24)
+}
+
+func sizeModelTo(t *testing.T, m *model, width, height int) *model {
+	t.Helper()
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: width, Height: height})
 	mm, ok := updated.(*model)
 	if !ok {
 		t.Fatal("Update did not return *model")
@@ -950,10 +955,31 @@ func TestThinkCollapsedByDefault(t *testing.T) {
 	}
 }
 
-func TestGutterFixedWidth(t *testing.T) {
-	for _, r := range allRoles {
-		if got := lipgloss.Width(gutterGlyph(r)); got != gutterWidth {
-			t.Fatalf("role %v gutter width = %d, want %d", r, got, gutterWidth)
+// Body text starts at the left edge. The label row already named the
+// block, so a per-line gutter repeated that answer at two cells a line.
+func TestBodyStartsAtLeftEdge(t *testing.T) {
+	st := defaultStyles()
+	for _, b := range []block{
+		answerBlock("answer body"), userBlock("user body"), thinkBlock("thought"),
+		markerBlock("harness note"), errorBlock("boom"), gateBlock("allow?"),
+		resultBlock("result body"),
+	} {
+		for _, width := range []int{30, 80, 120} {
+			rows := strings.Split(ansi.Strip(renderBlock(b, st, false, width)), "\n")
+			if rows[0] != "["+roleLabel(b.role)+"]" && !strings.HasPrefix(rows[0], "["+roleLabel(b.role)+"] ") {
+				t.Fatalf("role %v label row = %q", b.role, rows[0])
+			}
+			for _, row := range rows[1:] {
+				if row == "" {
+					continue
+				}
+				if strings.HasPrefix(row, " ") || strings.HasPrefix(row, "│ ") || strings.HasPrefix(row, "> ") {
+					t.Fatalf("role %v body is indented at %d cols: %q", b.role, width, row)
+				}
+				if n := lipgloss.Width(row); n > width {
+					t.Fatalf("role %v body %d cols past %d: %q", b.role, n, width, row)
+				}
+			}
 		}
 	}
 }
@@ -984,7 +1010,7 @@ func TestThinkToggleKey(t *testing.T) {
 }
 
 // Tool card headers collapse multi-line model args to one line
-// (the open card's pending rail below is structure, not args).
+// (the open card's pending row is structure, not args).
 func TestToolCardHeader_SingleLine(t *testing.T) {
 	st := defaultStyles()
 	out := renderBlock(toolCardBlock("c1", "write_file {\n  \"path\": \"a.go\"\n}"), st, true, 80)
@@ -1368,17 +1394,15 @@ func TestRenderBlockWrapsToWidth(t *testing.T) {
 			t.Fatalf("line %d cols past 20: %q", n, line)
 		}
 	}
-	// Wrapped continuations sit on the 6-wide speaker rail, under the
-	// tag bracket — aligned, not new.
-	out = renderBlock(userBlock("aaa bbb ccc ddd eee fff"), st, false, 20)
+	// The label row names the block; the body below wraps in column 0.
 	lines := strings.Split(ansi.Strip(out), "\n")
-	if len(lines) < 2 || !strings.HasPrefix(lines[0], "You:") {
-		t.Fatalf("speaker header missing: %q", out)
+	if len(lines) < 2 || !strings.HasPrefix(lines[0], "[RESPONSE]") || lines[1] != "lorem ipsum dolor" {
+		t.Fatalf("label row then left-edge body expected: %q", out)
 	}
-	for _, ln := range lines[1:] {
-		if strings.TrimSpace(ln) != "" && strings.HasPrefix(ln, " ") {
-			t.Fatalf("continuation off rail: %q", out)
-		}
+	out = renderBlock(userBlock("aaa bbb ccc ddd eee fff"), st, false, 20)
+	lines = strings.Split(ansi.Strip(out), "\n")
+	if len(lines) < 2 || !strings.HasPrefix(lines[0], "[INPUT]") || lines[1] != "aaa bbb ccc ddd eee" {
+		t.Fatalf("label row then left-edge body expected: %q", out)
 	}
 }
 
@@ -1588,13 +1612,36 @@ func TestStampsRightAligned(t *testing.T) {
 	out := renderBlock(b, st, false, 40)
 	lines := strings.Split(out, "\n")
 	if len(lines) != 2 {
-		t.Fatalf("speaker block is header + body: %q", out)
+		t.Fatalf("block is label row + body: %q", out)
 	}
-	if n := lipgloss.Width(lines[1]); n != 40 {
+	// The stamp rides the label row, so the body keeps its full width.
+	if n := lipgloss.Width(lines[0]); n != 40 {
 		t.Fatalf("stamp line %d cols, want full 40", n)
 	}
-	if !strings.Contains(lines[1], "[14:22]") {
-		t.Fatalf("stamp missing: %q", lines[1])
+	if !strings.Contains(lines[0], "[14:22]") || !strings.HasPrefix(ansi.Strip(lines[0]), "[RESPONSE]") {
+		t.Fatalf("stamp missing or label not flush left: %q", lines[0])
+	}
+	if n := lipgloss.Width(lines[1]); n != 5 {
+		t.Fatalf("body must keep full width, got %d cols", n)
+	}
+}
+
+// A narrow terminal cannot hold a long tag and a stamp. The tag is
+// structure, so it wins and the time is dropped rather than pushed past
+// the edge.
+func TestNarrowLabelRowDropsStamp(t *testing.T) {
+	st := defaultStyles()
+	b := toolCardBlock("c1", "run x")
+	b.result = "ok"
+	b.open = false
+	out := renderBlock(b, st, false, 12)
+	if strings.Contains(out, ":") && strings.Count(out, "]") != 1 {
+		t.Fatalf("narrow label row must not stamp: %q", out)
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if n := lipgloss.Width(line); n > 12 {
+			t.Fatalf("line %d cols past 12: %q", n, line)
+		}
 	}
 }
 
@@ -1604,12 +1651,11 @@ func TestCleanTextStripsCR(t *testing.T) {
 	}
 }
 
+// CR belongs nowhere near the frame. A \r mid-line returns the cursor to
+// column 0, so the stamp padding overwrites the line head and the
+// alt-screen repaint desyncs into ghost text over stale rows.
 func TestCRLFContentStaysInWidth(t *testing.T) {
 	st := defaultStyles()
-	// CRLF tool output (read_file on a Windows file) must render with
-	// no stray CR and no line past the width: a \r mid-line returns
-	// the cursor to column 0, so stamp padding overwrites the head
-	// and the alt-screen frame desyncs (ghost text over stale rows).
 	b := toolCardBlock("c1", "read_file a.md")
 	b.result = "FILE\npath: a.md\n----\n# Title\r\n\r\nbody line\r\n"
 	b.open = false
@@ -1621,25 +1667,62 @@ func TestCRLFContentStaysInWidth(t *testing.T) {
 			t.Fatalf("line %d cols past 80: %q", n, line)
 		}
 	}
-	// Stamped CRLF answer: the stamp line must keep its head text.
 	out := renderBlock(answerBlock("integrity.\r\nsecond line"), st, false, 40)
 	if strings.Contains(out, "\r") {
 		t.Fatalf("CR survived stamped render: %q", out)
 	}
-	lines := strings.Split(out, "\n")
-	if len(lines) < 2 || !strings.Contains(lines[1], "integrity.") || !strings.Contains(lines[1], "[") {
-		t.Fatalf("stamp line lost its head: %q", out)
+	lines := strings.Split(ansi.Strip(out), "\n")
+	if len(lines) < 2 || !strings.HasPrefix(lines[0], "[RESPONSE]") || !strings.Contains(lines[1], "integrity.") {
+		t.Fatalf("stamped CRLF answer lost its label or body: %q", out)
 	}
 }
 
-func TestBareSkipsGutter(t *testing.T) {
+func TestToolOutputBranchesAndCloses(t *testing.T) {
 	st := defaultStyles()
-	b := markerBlock("note")
-	w0 := lipgloss.Width(renderBlock(b, st, false, 80))
-	b.bare = true
-	w1 := lipgloss.Width(renderBlock(b, st, false, 80))
-	if w0-w1 != len(speakerRail) {
-		t.Fatalf("bare must drop the system label column: %d vs %d", w0, w1)
+	b := toolCardBlock("c1", `read_file {"path":"internal/chat/config.go"}`)
+	b.result = "file content ....\nfile content ....\nfile content ...."
+	b.open = false
+	rows := strings.Split(ansi.Strip(renderBlock(b, st, false, 80)), "\n")
+	if !strings.HasPrefix(rows[0], "[TOOL CALL]") || !strings.HasPrefix(rows[1], "✓ read_file ") {
+		t.Fatalf("label row then call row expected: %q", renderBlock(b, st, false, 80))
+	}
+	for i, want := range []string{"| file content ....", "| file content ....", "└─ file content ...."} {
+		if rows[i+2] != want {
+			t.Fatalf("row %d = %q, want %q", i+2, rows[i+2], want)
+		}
+	}
+	if n := strings.Count(strings.Join(rows, "\n"), "└─"); n != 1 {
+		t.Fatalf("branch must close exactly once, got %d:\n%s", n, strings.Join(rows, "\n"))
+	}
+	// An open card keeps the same shape, pending rather than empty.
+	open := toolCardBlock("c2", "read_file {}")
+	openRows := strings.Split(ansi.Strip(renderBlock(open, st, false, 80)), "\n")
+	if len(openRows) != 3 || !strings.HasPrefix(openRows[1], "… ") || openRows[2] != "└─ …" {
+		t.Fatalf("open card must show one pending row: %q", renderBlock(open, st, false, 80))
+	}
+}
+
+// A wrapped output line contributes several rows, and only the very last
+// one may close the branch.
+func TestToolBranchClosesOnFinalFragment(t *testing.T) {
+	st := defaultStyles()
+	b := toolCardBlock("c1", "run x")
+	b.result = strings.Repeat("word ", 40)
+	b.open = false
+	rows := strings.Split(ansi.Strip(renderBlock(b, st, true, 40)), "\n")
+	for _, row := range rows {
+		if n := lipgloss.Width(row); n > 40 {
+			t.Fatalf("row %d cols past 40: %q", n, row)
+		}
+	}
+	last := len(rows) - 1
+	if !strings.HasPrefix(rows[last], "└─ ") {
+		t.Fatalf("last row must close the branch: %q", rows[last])
+	}
+	for i, row := range rows[2:last] {
+		if !strings.HasPrefix(row, "| ") {
+			t.Fatalf("row %d must stay railed: %q", i+2, row)
+		}
 	}
 }
 
@@ -1701,22 +1784,27 @@ func TestRetryRefusesWhenOk(t *testing.T) {
 	}
 }
 
-func TestTurnSeparators(t *testing.T) {
+// Blocks are separated by one blank row and by nothing else. Horizontal
+// rules belong to pane boundaries, and turn-specific extra spacing made
+// the gap between blocks depend on which role happened to open a turn.
+func TestBlocksSeparateWithOneBlankRow(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.appendBlock(answerBlock("first"))
-	m.appendBlock(userBlock("❯ second"))
+	m.appendBlock(userBlock("second"))
 	view := ansi.Strip(m.transcript.Viewport.View())
-	if strings.Contains(view, "─") || !regexp.MustCompile(`\n *\n *\nYou:`).MatchString(view) {
-		t.Fatalf("turn should use two blank rows instead of a pane rule: %q", view)
+	if strings.Contains(view, "─") {
+		t.Fatalf("transcript must use no rules: %q", view)
 	}
-	// Marker-then-echo shares one turn: no extra turn spacing.
+	// The viewport pads every row to the pane width, so the gap is measured
+// with the padding tolerated rather than against a bare line ending.
+if !regexp.MustCompile(`\n *\nYOU *\n\[INPUT\]`).MatchString(view) {
+		t.Fatalf("expected one blank row before the next block: %q", view)
+	}
 	m2 := sizeModel(t, testModel())
-	nb := markerBlock("— new task —")
-	nb.breakBefore = true
-	m2.appendBlock(nb)
-	m2.appendBlock(userBlock("❯ go"))
+	m2.appendBlock(markerBlock("new task"))
+	m2.appendBlock(userBlock("go"))
 	if n := strings.Count(m2.transcript.Viewport.View(), "─"); n != 0 {
-		t.Fatalf("opener pair must not add rules, got %d", n)
+		t.Fatalf("marker/echo pair must not add rules, got %d", n)
 	}
 }
 
@@ -1813,8 +1901,8 @@ func TestFindingRendersWarning(t *testing.T) {
 	if len(mm.transcript.blocks) != 1 || mm.transcript.blocks[0].role != roleWarning {
 		t.Fatalf("finding must be a warning block: %+v", mm.transcript.blocks)
 	}
-	if view := mm.transcript.Viewport.View(); !strings.Contains(view, "WARN") || !strings.Contains(view, "a.go:3") {
-		t.Fatalf("warning missing rail/content: %q", view)
+	if view := mm.transcript.Viewport.View(); !strings.Contains(view, "[WARNING]") || !strings.Contains(view, "a.go:3") {
+		t.Fatalf("warning missing label/content: %q", view)
 	}
 	// Rule-less events append nothing, never a blank warning.
 	updated, _ = mm.Update(eventMsg(api.Event{Name: "finding", Fields: map[string]any{}}))
@@ -1833,8 +1921,18 @@ func TestNudgeRendersMarker(t *testing.T) {
 	if len(mm.transcript.blocks) != 1 || mm.transcript.blocks[0].role != roleMarker {
 		t.Fatalf("nudge must be a marker block: %+v", mm.transcript.blocks)
 	}
-	if view := mm.transcript.Viewport.View(); !strings.Contains(view, "[harness]") {
+	// Provenance is carried by the SYSTEM name row and the [HARNESS]
+	// label, not by a second "[harness]" tag inside the body.
+	view := ansi.Strip(mm.transcript.Viewport.View())
+	if !strings.Contains(view, "SYSTEM") || !strings.Contains(view, "[HARNESS]") || !strings.Contains(view, "check your work") {
 		t.Fatalf("provenance mark missing: %q", view)
+	}
+	if strings.Contains(view, "[harness]") {
+		t.Fatalf("label row already says HARNESS: %q", view)
+	}
+	// The stored text keeps the prefix: only the display drops it.
+	if !strings.HasPrefix(mm.transcript.blocks[0].text, "[harness] ") {
+		t.Fatalf("stored marker text mutated: %q", mm.transcript.blocks[0].text)
 	}
 	// Empty nudges append nothing.
 	updated, _ = mm.Update(eventMsg(api.Event{Name: "nudge", Fields: map[string]any{}}))
@@ -1954,9 +2052,10 @@ func TestHarnessReplyRendersNormally(t *testing.T) {
 		t.Fatalf("blocks = %d", len(mm.transcript.blocks))
 	}
 	// No hiding anymore: nudges and harness replies render like
-	// everything else (hiding model-visible content misleads).
+	// everything else (hiding model-visible content misleads). The nudge
+	// opens its own SYSTEM run, so the reply after it reopens ASSISTANT.
 	view := mm.transcript.Viewport.View()
-	for _, want := range []string{"real answer", "[harness]", "noted"} {
+	for _, want := range []string{"real answer", "[HARNESS]", "check", "noted"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("missing %q: %q", want, view)
 		}
@@ -2028,24 +2127,28 @@ func TestToggleHoldsPosition(t *testing.T) {
 	}
 }
 
+// Every block carries a time when the transcript knows one. A reader
+// correlating a slow tool call with a reply needs all of them, not just
+// the conversational ones.
 func TestStampsPolicy(t *testing.T) {
 	st := defaultStyles()
 	stampPattern := regexp.MustCompile(`\[[0-2][0-9]:[0-5][0-9]\]`)
-	for _, b := range []block{
-		toolCardBlock("c1", "run x"),
-		resultBlock("out"),
-		markerBlock("— done —"),
-		missionBlock("m"),
-	} {
-		// Speaker/tool headers carry structural [BRACKETS] by design;
-		// the policy is about timestamps: chrome never shows one.
-		if out := renderBlock(b, st, false, 80); stampPattern.MatchString(out) {
-			t.Fatalf("chrome must not stamp: %q", out)
+	at := time.Date(2026, 10, 3, 14, 22, 0, 0, time.Local)
+	for _, r := range allRoles {
+		b := block{role: r, text: "body", at: at}
+		b.callID = "c1"
+		if r == roleTool {
+			b.open = true
+		}
+		if out := renderBlock(b, st, false, 80); !stampPattern.MatchString(out) {
+			t.Fatalf("role %v must stamp: %q", r, out)
 		}
 	}
-	out := renderBlock(userBlock("hi"), st, false, 80)
-	if !stampPattern.MatchString(out) {
-		t.Fatalf("user blocks must stamp: %q", out)
+	// Reopened history records no display times, so nothing is invented.
+	for _, r := range allRoles {
+		if out := renderBlock(block{role: r, text: "body"}, st, false, 80); stampPattern.MatchString(out) {
+			t.Fatalf("zero-time role %v must not stamp: %q", r, out)
+		}
 	}
 }
 

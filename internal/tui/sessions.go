@@ -347,9 +347,7 @@ func (m *model) openSelected() tea.Cmd {
 	m.mission = false
 	m.resetRunFacts()
 	m.restoreDraft()
-	mb := markerBlock("— opened " + cur.title + " —")
-	mb.breakBefore = true
-	m.transcript.blocks = append([]block{mb}, renderHistory(history)...)
+	m.transcript.blocks = append([]block{markerBlock("- opened " + cur.title + " -")}, renderHistory(history)...)
 	m.restoreContext(history)
 	m.retryRun = nil
 	m.runErr = nil

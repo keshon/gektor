@@ -130,7 +130,7 @@ func TestMarkdownPipesLiteral(t *testing.T) {
 func TestLiveUsesCompletedBlockFormatting(t *testing.T) {
 	st := defaultStyles()
 	text := "<think>private deliberation</think>Say **hello**."
-	got := strings.Join(renderLive(text, st, 80), "\n")
+	got := strings.Join(renderLive(transcriptProps{live: text, styles: st, speaker: "Assistant"}, 80), "\n")
 	if strings.Contains(got, "<think>") || strings.Contains(got, "**hello**") {
 		t.Fatal("live response leaked raw formatting")
 	}

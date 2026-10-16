@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -279,21 +280,25 @@ func TestThinkingSplitSupportsIncompleteAndMultipleRegions(t *testing.T) {
 	}
 }
 
-func TestSystemNoticesShareConversationColumns(t *testing.T) {
+// Notices share the conversation's three-row shape: a tag row, then the
+// body at the left edge. A fixed 6-cell label column used to indent every
+// notice body and re-shrink the wrap budget for no readable gain.
+func TestSystemNoticesShareConversationLayout(t *testing.T) {
 	for _, tc := range []struct {
 		b     block
 		label string
 	}{
-		{markerBlock("— new task —"), "SYS"},
-		{markerBlock("[harness] " + strings.Repeat("review this carefully ", 20)), "SYS"},
-		{errorBlock("Cannot resume\nTry again"), "ERR"},
-		{findingBlock("gofmt", "a.go", 3, "format required"), "WARN"},
-		{gateBlock("Allow this tool?"), "ASK"},
+		{markerBlock("— new task —"), "HARNESS"},
+		{markerBlock("[harness] " + strings.Repeat("review this carefully ", 20)), "HARNESS"},
+		{errorBlock("Cannot resume\nTry again"), "ERROR"},
+		{findingBlock("gofmt", "a.go", 3, "format required"), "WARNING"},
+		{gateBlock("Allow this tool?"), "QUESTION"},
+		{missionBlock("[mission] do the thing"), "MISSION"},
 	} {
 		for _, width := range []int{30, 80, 120} {
 			rendered := ansi.Strip(renderBlock(tc.b, defaultStyles(), false, width))
 			rows := strings.Split(rendered, "\n")
-			if !strings.HasPrefix(rows[0], fmt.Sprintf("%-6s", tc.label)) {
+			if !strings.HasPrefix(rows[0], "["+tc.label+"]") {
 				t.Fatalf("label offset: %q", rows[0])
 			}
 			for _, row := range rows {
@@ -302,14 +307,18 @@ func TestSystemNoticesShareConversationColumns(t *testing.T) {
 				}
 			}
 			for _, row := range rows[1:] {
-				if row != "" && !strings.HasPrefix(row, speakerRail) {
-					t.Fatalf("body misaligned: %q", row)
+				if row != "" && strings.HasPrefix(row, " ") {
+					t.Fatalf("notice body indented: %q", row)
 				}
 			}
 		}
 	}
 }
 
+// The harness step line keeps its trim in both paths: renderHistory
+// rebuilds markers from stored messages, and a rebuilt block would drop
+// the indent the live path applies. Timestamps are normalized away —
+// reopened history records none, which is a separate rule.
 func TestHarnessNoticeMatchesLiveAndRebuiltHistory(t *testing.T) {
 	text := "[harness] Verify your work.\n (step 2/25, 23 left)"
 	m := sizeModel(t, testModel())
@@ -318,9 +327,11 @@ func TestHarnessNoticeMatchesLiveAndRebuiltHistory(t *testing.T) {
 	if len(m.transcript.blocks) != 1 || len(rebuilt) != 1 || rebuilt[0].role != roleMarker {
 		t.Fatalf("harness omitted: %+v", rebuilt)
 	}
-	live := ansi.Strip(renderBlock(m.transcript.blocks[0], defaultStyles(), false, 80))
-	restored := ansi.Strip(renderBlock(rebuilt[0], defaultStyles(), false, 80))
-	if live != restored || !strings.HasPrefix(restored, "SYS   [harness]") || !strings.Contains(restored, "\n"+speakerRail+"(step 2/25, 23 left)") {
+	liveBlock, restoredBlock := m.transcript.blocks[0], rebuilt[0]
+	liveBlock.at, restoredBlock.at = time.Time{}, time.Time{}
+	live := ansi.Strip(renderBlock(liveBlock, defaultStyles(), false, 80))
+	restored := ansi.Strip(renderBlock(restoredBlock, defaultStyles(), false, 80))
+	if live != restored || !strings.HasPrefix(restored, "[HARNESS]") || !strings.Contains(restored, "\n(step 2/25, 23 left)") {
 		t.Fatalf("harness rendering differs: %q / %q", live, restored)
 	}
 }
