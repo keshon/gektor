@@ -32,5 +32,4 @@ run-serve.cmd
 # Per-user setup snapshots created by Settings Apply.
 /profiles/custom/
 
-# Personal character card; keep it local.
-/assets/characters/The universe.png
+*.png
