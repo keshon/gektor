@@ -6,25 +6,24 @@ workspace, permissions, verification, and response budgets.
 
 ## Windows launchers
 
-`run-kobold.cmd` starts KoboldCPP in the current terminal and keeps its output
-separate from TARS. The shipped paths are specific to the original machine:
+Start a model server in its own terminal before using TARS. Machine-specific
+paths and keys live in `.env` (copy from `.env.example`; gitignored).
 
-- Executable: `E:\Projects\ai-text\koboldcpp-extracted\koboldcpp-launcher.exe`
-- Model: `E:\Projects\ai-text\models\unsloth\Qwen3.5-9B-GGUF\Qwen3.5-9B-Q4_K_M.gguf`
-
-Edit both variables and the server working directory when installing elsewhere.
-The script binds `127.0.0.1:5001`, uses CUDA GPU 0, requests GPU offload for
-all layers, and sets a 16,384-token context. It detects an existing KoboldCPP
-server on that port rather than starting another one.
-
-Once the model is ready, run `run-tui.cmd` in another terminal. It checks
-`/api/v1/model`, builds `agent.exe`, and connects with the `kobold` dialect.
-Its workspace is this checkout and its response budget is 4,096 tokens.
-Extra arguments are forwarded to the binary:
+**llama.cpp (default backend):**
+1. Fill in `LLAMA_SERVER_EXE` and `LLAMA_MODEL` in `.env`.
+2. Run `run-server-llama.cmd` and wait for the model to finish loading.
+3. In another terminal, run `run-tui.cmd`. It checks `127.0.0.1:8080`,
+   builds `agent.exe`, and connects with the `llama` dialect.
+   Extra arguments are forwarded to the binary:
 
 ```bat
 run-tui.cmd -workspace D:\Projects\my-app -verify-cmd "go test ./..."
 ```
+
+**KoboldCPP (secondary):**
+1. Fill in `KOBOLD_EXE` and `KOBOLD_MODEL` in `.env`.
+2. Run `run-server-kobold.cmd` and wait for the model to finish loading.
+3. In another terminal, run `run-tui.cmd -backend-kind kobold -backend http://127.0.0.1:5001`.
 
 The sibling launchers build and run the same binary for print-mode work:
 `run-task.cmd "task"`, `run-plan.cmd "task"`, `run-mission.cmd "task"`,
@@ -32,9 +31,9 @@ The sibling launchers build and run the same binary for print-mode work:
 when called without arguments.
 
 Keep flags before any task text. Closing TARS leaves the independently
-started KoboldCPP server running. Closing the server terminal stops that server.
-The optional `run-remote.cmd` and `run-serve.cmd` files are local, gitignored
-helpers; they are not required or distributed as part of the setup.
+started model server running. Closing the server terminal stops that server.
+The optional `run-remote.cmd` is a local, gitignored helper; it is not
+required or distributed as part of the setup.
 
 ## Screen and focus
 

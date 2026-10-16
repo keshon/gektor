@@ -2,17 +2,13 @@
 setlocal
 cd /d "%~dp0"
 
-REM Local TUI launcher for the KoboldCPP backend on 127.0.0.1:5001.
-REM Checks the server, builds agent.exe, then opens the fullscreen UI.
-REM Needs a real terminal (TTY). Keep flags before any task text.
+REM TUI launcher (default backend: llama.cpp on 127.0.0.1:8080).
+set BACKEND=http://127.0.0.1:8080
 
-set BACKEND=http://127.0.0.1:5001
-
-curl.exe --silent --fail --max-time 2 %BACKEND%/api/v1/model >nul 2>&1
+curl.exe --silent --max-time 2 %BACKEND%/ >nul 2>&1
 if errorlevel 1 (
     echo ERROR: no model server at %BACKEND%.
-    echo Start run-kobold.cmd in another terminal and wait for the model
-    echo to finish loading, then run this launcher again.
+    echo Start run-server-llama.cmd in another terminal and wait for the model to finish loading.
     exit /b 1
 )
 
@@ -22,5 +18,5 @@ if errorlevel 1 (
     exit /b 1
 )
 
-.\agent.exe -tui -backend-kind kobold -backend %BACKEND% -workspace . -yes -no-verify %*
+.\agent.exe -tui -backend-kind llama -backend %BACKEND% -workspace . -yes -no-verify %*
 exit /b %errorlevel%

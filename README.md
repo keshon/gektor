@@ -63,26 +63,34 @@ when speech services are configured. Mode changes retain the session and draft.
 
 External-server launchers remain available as an alternative to managed services.
 
-On Windows, keep KoboldCPP in its own terminal:
+## Model servers
 
-1. Edit the executable/model paths in [run-kobold.cmd](run-kobold.cmd) if needed.
-2. Run `run-kobold.cmd` and wait for the model to finish loading.
-3. In another terminal, run `run-tui.cmd`. It checks the server and rebuilds
-   `agent.exe` before opening the UI.
+Start a model server in its own terminal before using TARS. Machine-specific
+paths and keys live in `.env` (copy from `.env.example`; gitignored).
 
-The other root launchers follow the same build-then-run shape:
+**llama.cpp (default backend):**
+1. Fill in `LLAMA_SERVER_EXE` and `LLAMA_MODEL` in `.env`.
+2. Run `run-server-llama.cmd` and wait for the model to finish loading.
+3. In another terminal, run `run-tui.cmd`. It checks `127.0.0.1:8080`,
+   builds `agent.exe`, and opens the UI.
+
+**KoboldCPP (secondary):**
+1. Fill in `KOBOLD_EXE` and `KOBOLD_MODEL` in `.env`.
+2. Run `run-server-kobold.cmd` and wait for the model to finish loading.
+3. In another terminal, run `run-tui.cmd -backend-kind kobold -backend http://127.0.0.1:5001`.
+
+**OpenAI-compatible / remote:**
+1. Fill in `TARS_API_KEY` in `.env`.
+2. Run `run-server-openai.cmd` for a stdio JSON-RPC server, or
+   `run-remote.cmd "task"` for a one-shot task run.
+
+The sibling launchers follow the same build-then-run shape:
 `run-task.cmd "task"` for a one-shot print-mode run, `run-plan.cmd` and
 `run-mission.cmd` for those modes, `run-resume.cmd` to list or resume saved
 tasks, and `run-revert.cmd` to preview or restore a workspace checkpoint.
 Maintenance lives under `build.cmd` (`build test`, `build check`, `build fmt`,
 `build vuln`, `build clean`; `build help` lists everything), and the eval
 helpers are `eval-dry.cmd`, `eval-run.cmd` and `eval-reset.cmd`.
-
-The supplied launcher uses Qwen3.5-9B-Q4_K_M, a 16,384-token server context,
-and a 4,096-token response budget. These are launcher settings; the CLI's
-response default is 8,192. Server output stays in the server terminal.
-See [the terminal guide](docs/tui.md) for keys, commands, file references,
-permissions, sessions, and terminal troubleshooting.
 
 ## Backend and saved runs
 
