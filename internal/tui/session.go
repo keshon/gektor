@@ -282,7 +282,7 @@ func (m *model) startRun(run func(ctx context.Context) (string, error)) {
 	m.alwaysMu.Unlock()
 	m.retryRun = func() { m.startRun(run) }
 	m.runErr = nil
-	m.live, m.liveCut, m.livePainted = "", false, 0
+	m.live, m.liveQueue, m.liveCut, m.liveRunes = "", "", false, 0
 	m.firstToken = time.Time{}
 	m.toolsUsed = 0
 	m.filesTouched = map[string]bool{}

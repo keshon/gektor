@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -14,7 +15,7 @@ import (
 
 func (m *model) Init() tea.Cmd {
 	// The terminal owns the native caret's blink and shape.
-	return tea.Batch(waitEvents(m), tick(m.busy()), m.takeCommands())
+	return tea.Batch(waitEvents(m), tick(false, m.busy()), m.takeCommands())
 }
 func waitEvents(m *model) tea.Cmd {
 	return func() tea.Msg {
@@ -30,12 +31,28 @@ func waitEvents(m *model) tea.Cmd {
 		return eventMsg(ev)
 	}
 }
-func tick(active bool) tea.Cmd {
-	interval := time.Second
-	if active {
-		interval = 100 * time.Millisecond
+// Frame pacing. Revealing a reply needs frames; a running spinner needs
+// a tenth of a second; an idle session needs one tick to keep the clock
+// honest. They are separate because the spinner must not spin up when
+// the tick drops to a frame.
+const (
+	spinInterval = 100 * time.Millisecond
+	idleTick     = time.Second
+)
+
+func tickInterval(revealing, busy bool) time.Duration {
+	switch {
+	case revealing:
+		return revealFrame
+	case busy:
+		return spinInterval
+	default:
+		return idleTick
 	}
-	return tea.Tick(interval, func(t time.Time) tea.Msg {
+}
+
+func tick(revealing, busy bool) tea.Cmd {
+	return tea.Tick(tickInterval(revealing, busy), func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
@@ -96,11 +113,17 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 			m.elapsed = time.Since(m.started).Round(time.Second)
 		}
 		if m.busy() {
-			m.spinnerFrame = (m.spinnerFrame + 1) % len(activityFrames)
+			// Gated separately from the tick: revealing drops the tick to
+			// a frame, and a spinner advancing 60 times a second reads as
+			// a glitch rather than activity.
+			if m.lastSpin.IsZero() || time.Since(m.lastSpin) >= spinInterval {
+				m.spinnerFrame = (m.spinnerFrame + 1) % len(activityFrames)
+				m.lastSpin = time.Now()
+			}
 		} else {
 			m.spinnerFrame = 0
 		}
-		return m, tick(m.busy())
+		return m, tick(m.revealLive(), m.busy())
 	case eventMsg:
 		if m.state != stStopping {
 			m.handleEvent(api.Event(msg))
@@ -127,7 +150,7 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		}
 		m.refreshNavigator()
 		// Partial live text is not an answer: discard it either way.
-		m.live, m.liveCut, m.livePainted = "", false, 0
+		m.live, m.liveQueue, m.liveCut, m.liveRunes = "", "", false, 0
 		if m.interrupted {
 			m.interrupted = false
 			m.runErr = nil
@@ -317,12 +340,13 @@ func (m *model) handleEvent(ev api.Event) {
 			m.maxSteps = int(ms)
 		}
 		// The live buffer belongs to this response: clear it first so
-		// the authoritative blocks below never duplicate it. A step
-		// with empty text but a non-empty buffer adopts the buffer
-		// (backend streamed text it then omitted); tool steps never
-		// adopt, calls are work.
-		live := m.live
-		m.live, m.liveCut, m.livePainted = "", false, 0
+		// the authoritative blocks below never duplicate it. Queued text
+		// counts as part of it — a step that omits the reply adopts
+		// whatever arrived, revealed or not. A step with empty text but
+		// a non-empty buffer adopts the buffer (backend streamed text it
+		// then omitted); tool steps never adopt, calls are work.
+		live := m.live + m.liveQueue
+		m.live, m.liveQueue, m.liveCut, m.liveRunes = "", "", false, 0
 		// Reasoning above its reply: the collapsed
 		// think line introduces the answer it produced, causal order.
 		// Tool calls render as cards below, whatever prompted them.
@@ -462,23 +486,27 @@ func (m *model) handleEvent(ev api.Event) {
 			m.appendBlock(missionBlock("[mission] " + text))
 		}
 	case "delta":
-		// Streamed chunk: accumulate into the live buffer, repaint on
-		// completed lines or heartbeat. No markdown yet
-		// (partial spans would break); the step event brings the
-		// full render.
+		// Streamed chunk: queue it for the reveal, which draws it a few
+		// characters per frame. Deltas used to be appended straight into
+		// the buffer and painted on a completed line or a one-second
+		// heartbeat, so a reply in prose — which has no newlines — arrived
+		// in one-second jumps.
 		if text, _ := ev.Fields["text"].(string); text != "" && !m.liveCut {
 			if m.firstToken.IsZero() {
 				m.firstToken = time.Now()
 			}
-			combined := m.live + text
-			if r := []rune(combined); len(r) > liveMaxRunes {
-				combined = string(r[:liveMaxRunes]) + "\n…(live truncated)"
+			m.liveQueue += text
+			m.liveRunes += utf8.RuneCountInString(text)
+			if m.liveRunes > liveMaxRunes {
+				// Past the cap the buffer stops growing, so show the mark
+				// now rather than leaving the reader with text that
+				// silently stopped moving.
 				m.liveCut = true
-			}
-			m.live = combined
-			if livePaintDue(m) {
-				m.livePainted = len(m.live)
-				m.lastLive = time.Now()
+				m.live += m.liveQueue
+				m.liveQueue = ""
+				if r := []rune(m.live); len(r) > liveMaxRunes {
+					m.live = string(r[:liveMaxRunes]) + "\n…(live truncated)"
+				}
 				m.refreshContent()
 			}
 		}

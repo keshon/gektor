@@ -157,15 +157,18 @@ type model struct {
 	usage     usageState
 	header    headerState
 
-	// live accumulates streamed content chunks for the live answer
-	// block; liveCut marks the 64KB truncation tail; lastLive gates
-	// repaints (see livePaintInterval).
-	live     string
-	liveCut  bool
-	lastLive time.Time
-	// livePainted is the byte length painted at the last live repaint;
-	// deltas before it are settled, after it pending. Cleared with live.
-	livePainted int
+	// live is the streamed reply already revealed to the transcript;
+	// liveQueue holds deltas received but not yet revealed, so a reply
+	// appears a few characters at a time instead of landing in whatever
+	// chunks the backend happened to send. liveRunes counts live plus
+	// liveQueue so the cap is checked in constant time per delta.
+	live      string
+	liveQueue string
+	liveCut   bool
+	liveRunes int
+	// lastSpin gates the braille spinner. The tick drops to a frame
+	// while a reply reveals, and the spinner must not spin up with it.
+	lastSpin time.Time
 	// firstToken stamps the first streamed chunk of the run: time to
 	// first word beside elapsed time. Zero until streaming starts;
 	// cleared with live at every turn boundary.

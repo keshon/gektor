@@ -1947,27 +1947,70 @@ func TestNudgeRendersMarker(t *testing.T) {
 	}
 }
 
+// advanceFrames runs the reveal the way the tick loop does, until the
+// queue is empty. Deltas are received but not shown until a frame
+// moves them into the transcript.
+func advanceFrames(t *testing.T, m tea.Model) *model {
+	t.Helper()
+	mm, ok := m.(*model)
+	if !ok {
+		t.Fatal("Update did not return *model")
+	}
+	for i := 0; i < 8192 && mm.liveQueue != ""; i++ {
+		mm.Update(tickMsg(time.Now()))
+	}
+	return mm
+}
+
 func TestLiveAccumulatesAndStepReplaces(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stRunning
 	updated, _ := m.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": "hel"}}))
 	mm := updated.(*model)
-	if view := mm.transcript.Viewport.View(); !strings.Contains(view, "hel") {
-		t.Fatalf("first delta must paint: %q", view)
+	if mm.live != "" || mm.liveQueue != "hel" {
+		t.Fatalf("a delta must queue, not paint: live=%q queue=%q", mm.live, mm.liveQueue)
 	}
 	updated, _ = mm.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": "lo"}}))
-	mm = updated.(*model)
-	if mm.live != "hello" {
-		t.Fatalf("live = %q", mm.live)
+	mm = advanceFrames(t, updated)
+	if mm.live != "hello" || mm.liveQueue != "" {
+		t.Fatalf("live = %q queue = %q", mm.live, mm.liveQueue)
 	}
 	// Step replaces without duplication.
 	updated, _ = mm.Update(eventMsg(api.Event{Name: "step", Fields: map[string]any{"text": "hello"}}))
 	mm = updated.(*model)
-	if mm.live != "" {
+	if mm.live != "" || mm.liveQueue != "" {
 		t.Fatal("step must clear the live buffer")
 	}
 	if n := strings.Count(mm.transcript.Viewport.View(), "hello"); n != 1 {
 		t.Fatalf("hello appears %d times, want exactly 1", n)
+	}
+}
+
+// A step that omits the reply adopts everything that arrived, including
+// text still queued for reveal. Otherwise the tail of a streamed reply
+// would be lost when the backend sends the step before the reader has
+// seen it.
+func TestLiveQueuedTextIsAdoptedByStep(t *testing.T) {
+	m := sizeModel(t, testModel())
+	m.state = stRunning
+	updated, _ := m.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": "unseen tail"}}))
+	mm := updated.(*model)
+	if mm.liveQueue == "" {
+		t.Fatal("precondition: text should still be queued")
+	}
+	updated, _ = mm.Update(eventMsg(api.Event{Name: "step", Fields: map[string]any{}}))
+	mm = updated.(*model)
+	if mm.live != "" || mm.liveQueue != "" {
+		t.Fatal("step must clear both buffers")
+	}
+	found := false
+	for _, b := range mm.transcript.blocks {
+		if b.role == roleAnswer && strings.Contains(b.text, "unseen tail") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("queued text was dropped by the step: %+v", mm.transcript.blocks)
 	}
 }
 
@@ -2013,11 +2056,128 @@ func TestLiveUnfollowedStability(t *testing.T) {
 		updated, _ = mm.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": chunk}}))
 		mm = updated.(*model)
 	}
+	mm = advanceFrames(t, mm)
 	if mm.transcript.Viewport.YOffset() != y0 {
 		t.Fatalf("live growth below moved offset %d -> %d", y0, mm.transcript.Viewport.YOffset())
 	}
 	if mm.live != "abcde" {
 		t.Fatalf("live = %q", mm.live)
+	}
+}
+
+// A reader who scrolled away is not watching the tail, so the reveal
+// empties the queue in one frame instead of animating text nobody can
+// see. The frames are the scarce resource.
+func TestUnfollowedRevealSkipsTheAnimation(t *testing.T) {
+	m := sizeModel(t, testModel())
+	for i := 0; i < 40; i++ {
+		m.appendBlock(markerBlock("filler"))
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
+	m.state = stRunning
+	updated, _ := m.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": strings.Repeat("z", 400)}}))
+	mm := updated.(*model)
+	if mm.transcript.Follow {
+		t.Fatal("setup: must stay unfollowed")
+	}
+	if mm.revealLive() || mm.liveQueue != "" {
+		t.Fatalf("one frame must empty the queue while unfollowed: %q left", mm.liveQueue)
+	}
+	if n := len([]rune(mm.live)); n != 400 {
+		t.Fatalf("revealed %d runes, want 400", n)
+	}
+}
+
+// A trickle reveals one character at a time so it reads as typing; a
+// burst drains in a bounded number of frames instead of trailing the
+// model. The old cadence repainted on a completed line or a one-second
+// heartbeat, so prose arrived in one-second jumps.
+func TestRevealRateIsAdaptive(t *testing.T) {
+	m := sizeModel(t, testModel())
+	m.state = stRunning
+
+	// A slow backend: one character queued reveals one character.
+	m.liveQueue = "a"
+	m.revealLive()
+	if m.live != "a" {
+		t.Fatalf("slow stream revealed %q, want one character", m.live)
+	}
+
+	// A fast backend: a 4000-character backlog must not take 4000 frames.
+	m.live, m.liveQueue = "", strings.Repeat("x", 4000)
+	frames := 0
+	for m.revealLive() {
+		frames++
+		if frames > 100 {
+			t.Fatal("burst did not catch up: still queued after 100 frames")
+		}
+	}
+	if frames == 0 || frames > 32 {
+		t.Fatalf("4000 characters took %d frames, want a handful", frames)
+	}
+	if n := len([]rune(m.live)); n != 4000 {
+		t.Fatalf("revealed %d runes, want 4000", n)
+	}
+}
+
+// Revealing must not split a multi-byte rune into a replacement box.
+func TestRevealKeepsRunesIntact(t *testing.T) {
+	m := sizeModel(t, testModel())
+	m.state = stRunning
+	m.liveQueue = strings.Repeat("é", 40)
+	for m.revealLive() {
+	}
+	if m.liveQueue != "" || !strings.HasPrefix(m.live, "éé") {
+		t.Fatalf("rune boundary broken: %q", m.live)
+	}
+}
+
+// The tick drops to a frame only while a reply is revealing, and the
+// spinner must not spin up with it.
+func TestTickIntervalFollowsTheReveal(t *testing.T) {
+	if got := tickInterval(true, true); got != revealFrame {
+		t.Fatalf("revealing tick = %v, want %v", got, revealFrame)
+	}
+	if got := tickInterval(false, true); got != spinInterval {
+		t.Fatalf("busy tick = %v, want %v", got, spinInterval)
+	}
+	if got := tickInterval(false, false); got != idleTick {
+		t.Fatalf("idle tick = %v, want %v", got, idleTick)
+	}
+
+	m := sizeModel(t, testModel())
+	m.state = stRunning
+	m.lastSpin = time.Now()
+	before := m.spinnerFrame
+	m.liveQueue = "text to reveal"
+	m.Update(tickMsg(time.Now()))
+	if m.spinnerFrame != before {
+		t.Fatalf("spinner advanced on a reveal frame: %d -> %d", before, m.spinnerFrame)
+	}
+	if m.lastSpin.IsZero() {
+		t.Fatal("precondition: spinner should have a reference time")
+	}
+}
+
+// The reveal is only worth anything if each frame paints. Advancing the
+// buffer without repainting would leave the reader watching the old
+// cadence with extra state attached.
+func TestRevealPaintsEveryFrame(t *testing.T) {
+	m := sizeModel(t, testModel())
+	m.state = stRunning
+	previous := 0
+	for _, chunk := range []string{"al", "pha", "be", "ta"} {
+		m.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": chunk}}))
+		next, _ := m.Update(tickMsg(time.Now()))
+		mm := next.(*model)
+		view := strings.TrimSpace(ansi.Strip(mm.transcript.Viewport.View()))
+		if !strings.HasSuffix(view, strings.TrimSpace(mm.live)) {
+			t.Fatalf("frame did not paint the revealed text: live=%q view=%q", mm.live, view)
+		}
+		if len(mm.live) <= previous {
+			t.Fatalf("frame revealed nothing: %d then %d", previous, len(mm.live))
+		}
+		previous = len(mm.live)
 	}
 }
 

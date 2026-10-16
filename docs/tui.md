@@ -91,6 +91,16 @@ and belong to pane boundaries. Chat and Agent share the same tags, so a
 chat reply is `YOU`/`[INPUT]` followed by `ASSISTANT`/`[RESPONSE]`.
 Reopened history shows no times, because the saved format records none.
 
+A reply in flight is revealed a few characters per frame rather than
+landing in whatever chunks the backend sent. The rate adapts: a slow
+model queues one or two characters between frames and appears to type,
+while a fast one drains a quarter of its backlog per frame and catches up
+in well under a second instead of trailing. Scrolling up empties the
+queue at once, because nobody is watching the tail. The streamed body is
+shown as literal text — a bold span would show its own asterisks for
+several frames before closing — and the finished block renders with full
+markup when the step arrives.
+
 ## Header badges
 
 The session title and clock sit above a badge strip: Act/Plan, Ready/Work/Wait/

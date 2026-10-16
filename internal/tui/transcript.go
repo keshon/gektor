@@ -239,6 +239,10 @@ type renderOpts struct {
 	// labels false drops the [TAG] row. The name row stays: it is what
 	// says who spoke, and dropping it would leave unattributed prose.
 	labels bool
+	// raw draws the body as literal text instead of markdown. Only the
+	// live stream uses it: a span revealed one character at a time would
+	// show its own delimiters for several frames before closing.
+	raw bool
 }
 
 // renderBlock draws one transcript block: a label row carrying the
@@ -271,7 +275,7 @@ func renderBlock(b block, st styles, opts renderOpts, width int) string {
 	switch {
 	case b.role == roleTool:
 		body = renderToolCard(b, st, opts.expand, width)
-	case isMdRole(b.role):
+	case isMdRole(b.role) && !opts.raw:
 		body = renderMdBlock(b, raw, st, width)
 	default:
 		body = renderRaw(b, raw, st, width)
@@ -519,7 +523,7 @@ func (m *model) appendBlock(b block) {
 // replies. The live buffer is one assistant turn, so the name row opens
 // it exactly once.
 func renderLive(props transcriptProps, width int) []string {
-	opts := renderOpts{labels: props.labels}
+	opts := renderOpts{labels: props.labels, raw: true}
 	var parts []string
 	for _, b := range assistantBlocks(props.live, "") {
 		b.at = time.Time{}
@@ -562,27 +566,39 @@ func (m *model) refreshContent() {
 // through rather than shredding into slivers.
 const minWrapWidth = 8
 
-// liveMaxRunes bounds the live streamed buffer; livePaintInterval
-// throttles live repaints (string ops, no I/O — cheap, but token-rate
-// full re-renders add up over long transcripts).
+// liveMaxRunes bounds the live streamed buffer. revealFrame paces the
+// reveal: 16ms is about sixty frames a second, and a repaint costs
+// 0.3-1.3ms for a large transcript, so the frame budget is never the
+// limiting factor.
 const (
-	liveMaxRunes      = 64 * 1024
-	livePaintInterval = 1 * time.Second
+	liveMaxRunes = 64 * 1024
+	revealFrame  = 16 * time.Millisecond
 )
 
-// livePaintDue reports whether a fresh delta deserves a repaint: a
-// completed line since the last paint (steady, readable rhythm), or
-// the heartbeat elapsed (slow streams still move). First paint always
-// fires (zero lastLive is ancient history).
-func livePaintDue(m *model) bool {
-	if time.Since(m.lastLive) >= livePaintInterval {
-		return true
+// revealLive moves queued text into the transcript and reports whether
+// more is waiting.
+//
+// The rate is adaptive on purpose. A slow backend queues one or two
+// characters between frames and reveals them one at a time, which reads
+// as the model typing. A fast one queues thousands, and a fixed rate
+// would leave the display trailing the model by seconds, so each frame
+// drains a quarter of the backlog and catches up within a few frames.
+//
+// A reader who has scrolled away is not watching the tail, so the queue
+// is emptied whole: animating text nobody can see spends frames on it.
+func (m *model) revealLive() bool {
+	if m.liveQueue == "" {
+		return false
 	}
-	painted := m.livePainted
-	if painted > len(m.live) {
-		painted = 0
+	queued := []rune(m.liveQueue)
+	take := len(queued)
+	if m.transcript.Follow {
+		take = max(1, len(queued)/4)
 	}
-	return strings.Contains(m.live[painted:], "\n")
+	m.live += string(queued[:take])
+	m.liveQueue = string(queued[take:])
+	m.refreshContent()
+	return m.liveQueue != ""
 }
 
 // reflow word-wraps one logical line to width columns. Leading

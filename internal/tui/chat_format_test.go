@@ -12,12 +12,19 @@ import (
 func TestChatConversationFormatting(t *testing.T) {
 	st := defaultStyles()
 	text := "\"Hello\" *she smiles*\n> **quoted words**"
-	live := renderLive(transcriptProps{live: text, styles: st, speaker: "Assistant", labels: true}, 80)
-	for _, out := range []string{renderBlock(answerBlock(text), st, tagged(), 80), strings.Join(live, "\n")} {
-		plain := ansi.Strip(out)
-		if !strings.Contains(plain, "[RESPONSE]") || strings.Contains(plain, "*she smiles*") || !strings.Contains(plain, "\"Hello\" she smiles") || !strings.Contains(plain, "│ quoted words") {
-			t.Fatalf("chat formatting: %q", plain)
-		}
+	// A completed block renders markdown.
+	plain := ansi.Strip(renderBlock(answerBlock(text), st, tagged(), 80))
+	if !strings.Contains(plain, "[RESPONSE]") || strings.Contains(plain, "*she smiles*") || !strings.Contains(plain, "\"Hello\" she smiles") || !strings.Contains(plain, "│ quoted words") {
+		t.Fatalf("chat formatting: %q", plain)
+	}
+	// The live stream stays literal on purpose — see
+	// TestLiveStaysRawUntilTheStepRendersIt.
+	streamed := ansi.Strip(strings.Join(renderLive(transcriptProps{live: text, styles: st, speaker: "Assistant", labels: true}, 80), "\n"))
+	if !strings.Contains(streamed, "\"Hello\"") || !strings.Contains(streamed, "*she smiles*") {
+		t.Fatalf("live stream must keep markup literal: %q", streamed)
+	}
+	if strings.Contains(streamed, "│ quoted words") {
+		t.Fatalf("live stream must not reformat a quote mid-reveal: %q", streamed)
 	}
 }
 

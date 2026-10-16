@@ -3,6 +3,8 @@ package tui
 import (
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestMarkdownSpans(t *testing.T) {
@@ -127,14 +129,22 @@ func TestMarkdownPipesLiteral(t *testing.T) {
 	}
 }
 
-func TestLiveUsesCompletedBlockFormatting(t *testing.T) {
+// The live stream deliberately does not render markdown. A span
+// revealed one character at a time would show its own delimiters for
+// several frames before closing, and a code fence would show raw lines
+// until it closed. The step event renders the finished blocks with full
+// markup, which is what the reader ends up looking at.
+func TestLiveStaysRawUntilTheStepRendersIt(t *testing.T) {
 	st := defaultStyles()
-	text := "<think>private deliberation</think>Say **hello**."
-	got := strings.Join(renderLive(transcriptProps{live: text, styles: st, speaker: "Assistant"}, 80), "\n")
-	if strings.Contains(got, "<think>") || strings.Contains(got, "**hello**") {
-		t.Fatal("live response leaked raw formatting")
+	streamed := ansi.Strip(strings.Join(renderLive(transcriptProps{live: "<think>private</think>Say **hello**.", styles: st, speaker: "Assistant", labels: true}, 80), "\n"))
+	if strings.Contains(streamed, "<think>") {
+		t.Fatalf("live response leaked reasoning: %q", streamed)
 	}
-	if !strings.Contains(got, "hello") {
-		t.Fatal("live answer missing")
+	if !strings.Contains(streamed, "**hello**") {
+		t.Fatalf("live stream must keep markup literal: %q", streamed)
+	}
+	final := ansi.Strip(renderBlock(answerBlock("Say **hello**."), st, tagged(), 80))
+	if strings.Contains(final, "**hello**") || !strings.Contains(final, "hello") {
+		t.Fatalf("completed block must render the markup: %q", final)
 	}
 }
