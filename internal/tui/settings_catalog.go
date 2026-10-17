@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/filetxn"
 	"github.com/keshon/tars/internal/tui/settings"
 )
 
@@ -59,21 +58,24 @@ func (m *model) acceptSettingsDetail(msg settingsDetailMsg) {
 	}
 }
 func (m *model) saveCustomSettings(profile config.Profile) error {
-	path, err := m.customSettingsPath()
-	if err != nil || path == "" {
-		return err
+	dir, source, ok := m.customProfileTarget()
+	if !ok {
+		return nil
 	}
-	if err := filetxn.Replace([]filetxn.Write{{Path: path, Save: func(staged string) error { return config.SaveCopy(profile, staged) }}}); err != nil {
+	path, err := config.SaveCustom(profile, dir, source)
+	if err != nil {
 		return fmt.Errorf("save custom profile: %w", err)
 	}
 	ws := m.dialog.form.Workspace
-	ws.LoadedPath, ws.AutoSaved = path, true
+	ws.LoadedPath = path
 	return nil
 }
 
-func (m *model) customSettingsPath() (string, error) {
+// customProfileTarget reports where a changed form should be saved: the
+// custom directory, and the currently loaded profile to reuse its name.
+func (m *model) customProfileTarget() (dir, source string, ok bool) {
 	if m.application == nil || m.application.PreferencePath == "" || m.dialog == nil || m.dialog.form == nil || m.dialog.form.Workspace == nil {
-		return "", nil
+		return "", "", false
 	}
 	ws := m.dialog.form.Workspace
 	changed := false
@@ -84,17 +86,17 @@ func (m *model) customSettingsPath() (string, error) {
 		}
 	}
 	if !changed {
-		return "", nil
+		return "", "", false
 	}
 	root := filepath.Dir(m.application.PreferencePath)
 	if filepath.Base(root) == "var" {
 		root = filepath.Dir(root)
 	}
-	source := m.application.Preferences.ProfilePath
+	source = m.application.Preferences.ProfilePath
 	if ws.LoadedPath != "" {
 		source = ws.LoadedPath
 	}
-	return config.CustomProfilePath(filepath.Join(root, "profiles", "custom"), source)
+	return filepath.Join(root, "profiles", "custom"), source, true
 }
 
 var pickerFiles = settings.PickerFiles

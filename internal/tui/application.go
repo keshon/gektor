@@ -31,30 +31,7 @@ func (m *model) openApplication() {
 		m.editSettings("application")
 	}
 }
-func (m *model) settingsApplicationChanged() bool {
-	f := m.dialog.form
-	fields, ok := f.Workspace.Draft.Fields("application")
-	if !ok {
-		return false
-	}
-	p := m.application.Preferences
-	for _, field := range fields {
-		switch field.Key {
-		case "app-workspace":
-			if field.Value != p.Workspace {
-				return true
-			}
-		}
-	}
-	return false
-}
 
-func (m *model) settingsWorkspace() *settingsWorkspace {
-	if m.dialog == nil || m.dialog.form == nil {
-		return nil
-	}
-	return m.dialog.form.Workspace
-}
 func (m *model) saveApplication() error {
 	if m.application == nil || m.application.Temporary {
 		return nil

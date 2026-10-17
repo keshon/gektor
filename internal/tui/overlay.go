@@ -16,17 +16,7 @@ const (
 	focusDialog
 )
 
-type overlayKind int
-
-const (
-	ovNone overlayKind = iota
-	ovGate
-	ovDialog
-	ovSessions
-)
-
 type overlayFrame struct {
-	kind  overlayKind
 	focus focusOwner
 }
 
@@ -34,7 +24,7 @@ type overlayFrame struct {
 // popOverlay closes the top overlay and restores its focus. An
 // unbalanced pop is a no-op, so event-driven teardown (resolve,
 // quit, cancel) can never underflow the stack.
-func (m *model) pushOverlay(kind overlayKind) {
+func (m *model) pushOverlay() {
 	focus := focusViewport
 	switch {
 	case m.navFocused:
@@ -44,7 +34,7 @@ func (m *model) pushOverlay(kind overlayKind) {
 	case m.input.Focused():
 		focus = focusInput
 	}
-	m.overlays = append(m.overlays, overlayFrame{kind: kind, focus: focus})
+	m.overlays = append(m.overlays, overlayFrame{focus: focus})
 }
 
 func (m *model) popOverlay() {

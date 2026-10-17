@@ -208,8 +208,8 @@ func referencePath(ws *workspace.Workspace, path string) (string, error) {
 	return full, nil
 }
 
-// splitTokens splits on whitespace but keeps @"..." quoted spans
-// whole: screenshot filenames love spaces.
+// tokenSpans splits on whitespace but keeps @"..." quoted spans whole:
+// screenshot filenames love spaces.
 type tokenSpan struct{ start, end int }
 
 func tokenSpans(text string) []tokenSpan {
@@ -234,14 +234,6 @@ func tokenSpans(text string) []tokenSpan {
 		spans = append(spans, tokenSpan{start, len(text)})
 	}
 	return spans
-}
-
-func splitTokens(text string) []string {
-	var tokens []string
-	for _, span := range tokenSpans(text) {
-		tokens = append(tokens, text[span.start:span.end])
-	}
-	return tokens
 }
 
 // imageSuffix marks attached pictures on the echoed user block, so the

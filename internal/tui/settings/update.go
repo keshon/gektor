@@ -22,7 +22,6 @@ type Intent struct {
 }
 
 func (f *Model) UpdateKey(msg tea.KeyPressMsg, props Props) (Intent, tea.Cmd) {
-	defer f.RefreshChoices()
 	if f.Picker != nil {
 		return Intent{}, f.PickerKey(msg, props)
 	}

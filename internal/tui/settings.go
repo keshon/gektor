@@ -212,6 +212,3 @@ func (m *model) resizeFormEditor() {
 
 func (m *model) formOptions(key string) []string { return m.dialog.form.Options(key) }
 func (m *model) cycleFormChoice()                { m.dialog.form.CycleChoice() }
-
-var formChoices = settings.Choices
-var suggestedBackendURL = settings.SuggestedBackendURL

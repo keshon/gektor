@@ -1205,7 +1205,7 @@ func TestOverlayPushPopRestore(t *testing.T) {
 	if !m.input.Focused() {
 		t.Fatal("test setup: input must start focused")
 	}
-	m.pushOverlay(ovGate)
+	m.pushOverlay()
 	m.applyFocus(focusNote)
 	if m.input.Focused() || !m.note.Focused() {
 		t.Fatal("applyFocus(note) must move focus")

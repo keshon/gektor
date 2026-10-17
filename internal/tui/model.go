@@ -31,9 +31,6 @@ import (
 // workspace, tools, policy, budgets); gate behavior comes from the TUI,
 // so Env.Gate is overridden, never read.
 type Config struct {
-	// Runtime is borrowed when supplied; Services must reference its
-	// Services. Without it, Run owns a fallback runtime and closes it on exit.
-	Runtime          *app.Runtime
 	SessionDirectory string
 	Application      *Application
 	Services         *app.Services
@@ -78,7 +75,6 @@ type model struct {
 	// only route to the profile, so a nil value means "not configurable"
 	// rather than "defaulted".
 	config       *app.Services
-	services     *app.Runtime
 	modeChange   *ModeChange
 	seedHistory  []llm.Message
 
@@ -300,16 +296,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		mcpCount:    len(cfg.Env.MCPTools),
 		policyRules: len(cfg.Env.Policy.Rules),
 	}
-	m.services = cfg.Runtime
-	if m.services == nil {
-		m.services = app.NewRuntime(cfg.Services)
-	}
-	defer func() {
-		m.cancel()
-		if cfg.Runtime == nil && m.services != nil {
-			m.services.Close()
-		}
-	}()
+	defer m.cancel()
 	if len(cfg.History) > 0 && !cfg.Plan && readSavedMode(filepath.Dir(cfg.StateFile)) == "Plan" {
 		m.plan = true
 	}

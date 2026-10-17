@@ -12,50 +12,24 @@ import (
 	"github.com/keshon/tars/internal/llm"
 )
 
-// Run owns a fallback runtime only when the caller did not borrow one, and
-// a startup failure must close the fallback without ever closing a
-// borrowed runtime.
-//
-// The failure is forced with a SessionDirectory that is a file rather than
-// a directory: Run writes the task state before it starts the program, so
+// A startup failure must surface rather than starting a program. The
+// failure is forced with a SessionDirectory that is a file rather than a
+// directory: Run writes the task state before it starts the program, so
 // this returns an error without ever reaching the terminal.
-func TestTUIRuntimeOwnershipOnStartupFailure(t *testing.T) {
-	for _, borrowed := range []bool{false, true} {
-		blocker := filepath.Join(t.TempDir(), "not-a-directory")
-		if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		client := &settingsClient{}
-		services := &app.Services{Client: client, Directory: t.TempDir()}
-		cfg := Config{Services: services, SessionDirectory: blocker}
-		if borrowed {
-			cfg.Runtime = app.NewRuntime(services)
-		}
-		if _, err := Run(context.Background(), cfg); err == nil {
-			t.Fatal("unwritable session directory accepted")
-		}
-		want := 1
-		if borrowed {
-			want = 0
-		}
-		if client.closed != want {
-			t.Fatal("TUI closed a borrowed runtime or leaked its fallback", client.closed, borrowed)
-		}
-		if borrowed {
-			cfg.Runtime.Close()
-			if client.closed != 1 {
-				t.Fatal("owner failed to close borrowed runtime")
-			}
-		}
+func TestRunFailsOnUnwritableSessionDirectory(t *testing.T) {
+	blocker := filepath.Join(t.TempDir(), "not-a-directory")
+	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := Config{Services: &app.Services{Client: &settingsClient{}, Directory: t.TempDir()}, SessionDirectory: blocker}
+	if _, err := Run(context.Background(), cfg); err == nil {
+		t.Fatal("unwritable session directory accepted")
 	}
 }
 
 type settingsClient struct {
 	llm.Client
-	closed int
 }
-
-func (c *settingsClient) Close() { c.closed++ }
 
 // A profile loaded from disk has nothing to diff but must still be
 // committed, or loading a setup would silently do nothing.

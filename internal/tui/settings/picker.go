@@ -134,7 +134,6 @@ func (f *Model) AcceptScan(msg ScanMsg) {
 }
 
 func (f *Model) PickerKey(msg tea.KeyPressMsg, props Props) tea.Cmd {
-	defer f.RefreshChoices()
 	p := f.Picker
 	switch msg.String() {
 	case "esc":

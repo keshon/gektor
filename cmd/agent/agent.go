@@ -317,8 +317,6 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	}
 
 	thinkingClient := client
-	owned := app.NewRuntime(&app.Services{Client: thinkingClient})
-	defer owned.Close()
 	// Identity and response style come from the profile; the agent's own
 	// Plan/Act instructions are added on top and do not compete with it.
 	identity, warnings, err := app.Compile(app.IdentityOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), User: o.userName, System: o.systemPrompt, Post: o.postHistory, MaxTokens: o.maxTokens, ContextLimit: contextLimit, Temperature: o.temperature})
@@ -380,7 +378,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			suspend:      suspend,
 		}
 		if o.tui {
-			_, err := tui.Run(ctx, tui.Config{Runtime: owned, BackendURL: o.backendURL, Env: env, Task: task, StateFile: filepath.Join(missionDir, "mission.json"), AuditPath: o.auditPath, Mission: func(runCtx context.Context, runEnv roles.Env, answer agent.Suspender, emitter *events.Emitter) error {
+			_, err := tui.Run(ctx, tui.Config{BackendURL: o.backendURL, Env: env, Task: task, StateFile: filepath.Join(missionDir, "mission.json"), AuditPath: o.auditPath, Mission: func(runCtx context.Context, runEnv roles.Env, answer agent.Suspender, emitter *events.Emitter) error {
 				p := params
 				p.env = runEnv
 				p.suspend = answer
@@ -447,9 +445,9 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			return err
 		}
 		prepared.Client = thinkingClient
-		*owned.Services = prepared
+		services := prepared
 		app := applicationControl(launch, profile, o.profilePath, o.workspace)
-		answer, err := tui.Run(ctx, tui.Config{Runtime: owned, Application: app, Services: owned.Services, SeedHistory: launch.history, InitialDraft: launch.draft, SessionDirectory: launch.directory,
+		answer, err := tui.Run(ctx, tui.Config{Application: app, Services: &services, SeedHistory: launch.history, InitialDraft: launch.draft, SessionDirectory: launch.directory,
 			BackendURL:   o.backendURL,
 			Plan:         o.plan,
 			History:      history,

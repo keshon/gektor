@@ -9,16 +9,15 @@ import (
 )
 
 type Workspace struct {
-	Draft                    *Draft
-	Section, LoadedPath      string
-	AutoSaved, Nav, Advanced bool
+	Draft               *Draft
+	Section, LoadedPath string
+	Nav, Advanced       bool
 }
 type Model struct {
 	form.Model
 	Error, Hint, ApplyLabel string
 	Destructive             bool
 	Choices                 map[string][]string
-	ScannedRoot             string
 	Workspace               *Workspace
 	Picker                  *Picker
 	HasApplication          bool
@@ -37,7 +36,6 @@ const (
 
 func NewModel(fields []form.Field, editor textarea.Model) Model {
 	m := Model{Model: form.New(fields, editor)}
-	m.RefreshChoices()
 	return m
 }
 
@@ -92,8 +90,6 @@ func (f *Model) FirstVisibleField() int {
 	return len(f.Fields)
 }
 
-// RefreshChoices runs during updates, never while rendering.
-func (f *Model) RefreshChoices() {}
 func (f *Model) Options(key string) []string {
 	if choices := f.Choices[key]; len(choices) > 0 {
 		return choices
@@ -102,7 +98,6 @@ func (f *Model) Options(key string) []string {
 }
 func (f *Model) Focus(index int, visible func(int) bool) {
 	f.Model.Focus(index, visible)
-	f.RefreshChoices()
 }
 func (f *Model) CycleChoice() {
 	options := f.Options(f.Fields[f.Index].Key)

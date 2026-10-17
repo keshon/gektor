@@ -224,7 +224,7 @@ func TestTranscriptCacheInvalidatesChangedBlocksAndGeometry(t *testing.T) {
 func TestCompletionClosesCancelledPermissionOverlay(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stPermission
-	m.pushOverlay(ovGate)
+	m.pushOverlay()
 	m.Update(doneMsg{})
 	if len(m.overlays) != 0 || m.activeInputOwner() != focusInput {
 		t.Fatal("finished gate retained overlay ownership")

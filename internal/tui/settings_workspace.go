@@ -38,7 +38,6 @@ func (m *model) acceptSettingsScan(msg settingsScanMsg) {
 func (m *model) pickerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, m.dialog.form.PickerKey(msg, m.settingsProps())
 }
-func (m *model) scanPickerDirectory(root string) tea.Cmd { return m.dialog.form.ScanDirectory(root) }
 func (m *model) settingsProps() settings.Props {
 	w, h := m.settingsDimensions()
 	return settings.Props{Width: w, Height: h, Title: m.dialog.title, Left: m.promptOffset(), Top: paneTop, Styles: settings.Styles{Muted: m.styles.dim, Focus: m.styles.gate, Error: m.styles.err, Selected: m.styles.hunk}, SearchStyles: textInputStyles(textinput.New().Styles())}

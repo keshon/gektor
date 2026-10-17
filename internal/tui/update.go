@@ -395,7 +395,7 @@ func (m *model) handleEvent(ev api.Event) {
 			m.gateResource, _ = ev.Fields["resource"].(string)
 			m.note.Blur()
 			m.note.SetValue("")
-			m.pushOverlay(ovGate)
+			m.pushOverlay()
 		} else {
 			m.state = stAsk
 			m.gateDraft = m.input.Value()

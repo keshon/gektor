@@ -153,7 +153,7 @@ func (m *model) openSessions() {
 	filter.Focus()
 	m.sessions = &sessionsState{entries: m.nav.entries, all: m.nav.entries, root: m.sessionRoot(), filter: filter}
 	m.refreshNavigator()
-	m.pushOverlay(ovSessions)
+	m.pushOverlay()
 	// Search overlays the existing panes without changing composer geometry.
 	m.fitBottom()
 	m.refreshContent()

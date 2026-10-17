@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/keshon/tars/internal/tui/settings"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/app"
@@ -394,7 +395,7 @@ func TestProtocolSwitchSuggestsOnlyLocalDefaults(t *testing.T) {
 		{"https://api.openai.com/v1", "openai", "llama", "https://api.openai.com/v1"},
 		{"http://localhost:8080/custom", "llama", "kobold", "http://localhost:8080/custom"},
 	} {
-		if got := suggestedBackendURL(tc.endpoint, tc.previous, tc.next); got != tc.want {
+		if got := settings.SuggestedBackendURL(tc.endpoint, tc.previous, tc.next); got != tc.want {
 			t.Fatalf("%s: got %s want %s", tc.endpoint, got, tc.want)
 		}
 	}

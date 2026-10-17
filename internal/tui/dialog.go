@@ -36,7 +36,7 @@ type dialog struct {
 // or run start.
 func (m *model) openDialog(title string, lines []string) {
 	m.dialog = &dialog{title: title, lines: lines}
-	m.pushOverlay(ovDialog)
+	m.pushOverlay()
 	m.input.Blur()
 	m.fitBottom()
 }

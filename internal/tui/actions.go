@@ -211,20 +211,6 @@ func (m *model) footerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// paneRule labels the pane in its border without spending a content row.
-func (m *model) paneRule(width int, label string, focused bool) string {
-	label = " " + label + " "
-	if focused {
-		label = " ▸" + label
-	}
-	labelStyle := m.styles.dim
-	if focused {
-		labelStyle = m.styles.hunk.Bold(true)
-	}
-	label = cellLine(label, min(max(width-1, 0), lipgloss.Width(label)))
-	return m.styles.dim.Render("─") + labelStyle.Render(label) + m.styles.dim.Render(strings.Repeat("─", max(width-1-lipgloss.Width(label), 0)))
-}
-
 // A normal quit first stops an active run. Ctrl+C remains the immediate exit.
 func (m *model) requestQuit() (tea.Model, tea.Cmd) {
 	if m.state != stDone {
