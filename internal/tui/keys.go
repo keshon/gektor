@@ -76,15 +76,11 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	m.syncSuggestions()
-	commandSelected := len(m.suggestions.items) > 0 && strings.HasPrefix(m.suggestions.items[m.suggestions.selected].value, "/")
 	if m.suggestionKey(msg) {
-		if msg.String() != "enter" || !commandSelected {
-			return m, nil
-		}
-		if m.state == stDone {
-			return m.followUp()
-		}
-		// During a run, queue the completed command through the normal Enter path.
+		// Insert the suggestion into the input, never execute it
+		// directly: a command like /max-steps needs its argument, and
+		// even a complete one should let the user confirm with Enter.
+		return m, nil
 	}
 	if m.activeInputOwner() == focusInput && (m.state == stDone || m.state == stAsk || m.state == stRunning) && msg.Mod.Contains(tea.ModAlt) && (msg.Code == tea.KeyUp || msg.Code == tea.KeyDown) {
 		m.input.Recall(msg.Code == tea.KeyUp)

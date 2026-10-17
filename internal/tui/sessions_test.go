@@ -532,7 +532,8 @@ func TestCommand_CompactShrinksAndRerenders(t *testing.T) {
 	m.stateFile = filepath.Join(dir, "state.json")
 	m.input.SetValue("/compact")
 
-	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*model)
 	if len(mm.transcript.blocks) == 0 || !strings.Contains(mm.transcript.blocks[len(mm.transcript.blocks)-1].text, "compacted:") {
 		t.Fatalf("blocks = %+v, want a compaction marker last", mm.transcript.blocks)
@@ -554,7 +555,8 @@ func TestCommand_CompactNeedsSession(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.input.SetValue("/compact")
-	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*model)
 	if len(mm.transcript.blocks) == 0 || !strings.Contains(mm.transcript.blocks[0].text, "no active session") {
 		t.Fatalf("blocks = %+v, want the no-session error", mm.transcript.blocks)
@@ -569,7 +571,8 @@ func TestCommand_CompactNothingToDrop(t *testing.T) {
 	m.state = stDone
 	m.stateFile = filepath.Join(dir, "state.json")
 	m.input.SetValue("/compact")
-	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*model)
 	if len(mm.transcript.blocks) != 1 || !strings.Contains(mm.transcript.blocks[0].text, "nothing to compact") {
 		t.Fatalf("blocks = %+v, want the no-op marker", mm.transcript.blocks)
@@ -588,7 +591,8 @@ func TestCommand_CompactForcesBottom(t *testing.T) {
 	m.transcript.Viewport.GotoTop()
 	m.transcript.Follow = false
 	m.input.SetValue("/compact")
-	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*model)
 	if !mm.transcript.Follow || !mm.transcript.Viewport.AtBottom() {
 		t.Fatal("compact must re-arm follow and jump to bottom")

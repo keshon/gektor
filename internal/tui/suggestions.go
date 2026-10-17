@@ -180,7 +180,7 @@ func (m *model) suggestionView(body string) string {
 		return body
 	}
 	height := max(m.transcript.Viewport.Height(), lipgloss.Height(body))
-	count := min(6, height-3, len(s.items))
+	count := min(12, height-3, len(s.items))
 	start := min(max(s.selected-count+1, 0), len(s.items)-count)
 	normal, border, selected := popupStyles()
 	title, action := "Files", "Enter / Tab insert"

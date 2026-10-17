@@ -68,6 +68,7 @@ func TestEnterRunsSelectedCommand(t *testing.T) {
 	for _, prefix := range []string{"/", "/he", "/help"} {
 		m := completionModel(t)
 		m.input.SetValue(prefix)
+		m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 		m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 		if m.dialog == nil || !m.dialog.help || m.input.Value() != "" {
 			t.Fatalf("Enter on %q must execute selected help", prefix)
@@ -81,6 +82,7 @@ func TestEnterRunsSelectedCommand(t *testing.T) {
 	m := completionModel(t)
 	m.input.SetValue("/")
 	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.sessions == nil || m.dialog != nil {
 		t.Fatal("Enter must execute the highlighted Sessions command")
@@ -107,6 +109,7 @@ func TestEnterCompletesFileWithoutSubmittingAndQueuesCommandDuringRun(t *testing
 	}
 	m.state = stRunning
 	m.input.SetValue("/he")
+	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.queued != "/help" || m.dialog != nil {
 		t.Fatalf("completed command must queue during a run: %q", m.queued)
@@ -153,7 +156,7 @@ func TestPopupShowsSixSuggestionsAndUsesBreathingRow(t *testing.T) {
 				bottom = i
 			}
 		}
-		if count != 6 || bottom < 0 {
+		if count != 12 || bottom < 0 {
 			t.Fatalf("%d columns: got %d suggestions", width, count)
 		}
 		if !strings.Contains(lines[bottom+1], "────") {

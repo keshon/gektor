@@ -88,6 +88,20 @@ func (m *model) dialogView() string {
 	}
 	// Structured modal: head, title, subtitle, --, body, --, action, tips.
 	if d.head != "" || d.action != "" || d.tips != "" || len(d.body) > 0 {
+		bw := 0
+		for _, r := range []string{d.head, d.title, d.subtitle, d.action, d.tips} {
+			if n := lipgloss.Width(r); n > bw {
+				bw = n
+			}
+		}
+		for _, line := range d.body {
+			if n := lipgloss.Width(line); n > bw {
+				bw = n
+			}
+		}
+		if bw < inner {
+			bw = inner
+		}
 		var rows []string
 		if d.head != "" {
 			rows = append(rows, m.styles.gate.Render(d.head))
@@ -101,20 +115,23 @@ func (m *model) dialogView() string {
 			}
 		}
 		if len(d.body) > 0 {
-			rows = append(rows, m.styles.dim.Render(strings.Repeat("\u2500", inner)))
+			rows = append(rows, "")
+			rows = append(rows, m.styles.dim.Render(strings.Repeat("─", bw)))
 			for _, line := range d.body {
 				rows = append(rows, line)
 			}
 		}
 		if d.action != "" || d.tips != "" {
-			rows = append(rows, m.styles.dim.Render(strings.Repeat("\u2500", inner)))
+			rows = append(rows, m.styles.dim.Render(strings.Repeat("─", bw)))
 		}
 		if d.action != "" {
-			rows = append(rows, m.styles.gate.Render(d.action))
+			rows = append(rows, "")
+			rows = append(rows, lipgloss.PlaceHorizontal(bw, lipgloss.Right, m.styles.gate.Render(d.action)))
 		}
 		if d.tips != "" {
 			rows = append(rows, m.styles.dim.Render(d.tips))
 		}
+		rows = append(rows, "")
 		return renderBox(rows, availW, availH)
 	}
 	// Legacy flat dialog: title, lines, close hint.

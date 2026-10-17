@@ -262,6 +262,7 @@ func TestNestedComposerCompletesFilesAndCommands(t *testing.T) {
 	}
 	m.Update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	m.Update(tea.PasteMsg{Content: "/hel"})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.dialog == nil || !m.dialog.help || m.input.Value() != "" {
 		t.Fatal("command completion did not open help")
