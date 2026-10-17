@@ -92,11 +92,9 @@ func (a *Agent) handleFinish(ctx context.Context, st *runState, step int, resp l
 		return finishOutcome{history: history}
 	}
 
-	// A text reply with unchecked todos is a progress report, not
-	// a finish: quote the open items back and continue the run.
-	// No todo tool (or an empty list) means nothing pending, so
-	// chit-chat is untouched. The latch keeps narration-only
-	// loops terminal; intervening tool work resets it below.
+	// A text reply with unchecked todos is a progress report, not a finish.
+	// The latch keeps narration-only loops terminal; intervening tool work
+	// resets it below.
 	if _, open := a.cfg.Tools.TodoProgress(); len(open) > 0 && st.todoBounces < maxTodoBounces {
 		st.todoBounces++
 		history = a.nudge(history, NudgeTodo, fmt.Sprintf(prompts.TodoOpen, len(open), formatTodoOpen(open)))
@@ -106,24 +104,19 @@ func (a *Agent) handleFinish(ctx context.Context, st *runState, step int, resp l
 
 	verifyWanted := !a.cfg.SkipVerify ||
 		(a.cfg.VerifyOnZeroWrites && st.mutatingSucceeded == 0)
-	// Tool-dependent: verify when the run did tool work, when
-	// writes were expected but none landed, or when the answer
-	// claims file effects. Pure chit-chat skips (falling through
-	// to finish evaluation below); the one-shot stays armed for
-	// a later working turn. The workspace verdict below remains
-	// the authority either way — this round is a recovery chance,
-	// not the score.
+	// Verify only for turns that did tool work, were told to write and wrote
+	// nothing, or that claim file effects. The one-shot stays armed for a
+	// later working turn, and the workspace verdict below stays the
+	// authority either way: this round is a recovery chance, not the score.
 	needsVerify := st.toolCalls > 0 ||
 		(a.cfg.VerifyOnZeroWrites && st.mutatingSucceeded == 0) ||
 		claimsFileEffects(resp.Message.Content)
 	if verifyWanted && !st.verifiedOnce && needsVerify {
 		st.verifiedOnce = true
 		verifyMsg := prompts.Verify + a.stepTag(st, step)
-		// The zero-writes fact is evidence of failure only where
-		// writes were expected (workers told to write) or the
-		// answer itself claims file effects (fake-save shape).
-		// On a read-only run it reads as an accusation and a weak
-		// model "fixes" it by writing an unasked file.
+		// Zero writes is evidence of failure only where writes were expected or
+		// the answer claims file effects. On a read-only run it reads as an
+		// accusation and a weak model "fixes" it by writing an unasked file.
 		if st.mutatingSucceeded == 0 &&
 			(a.cfg.VerifyOnZeroWrites || claimsFileEffects(resp.Message.Content)) {
 			verifyMsg += fmt.Sprintf(prompts.VerifyZeroWrites,
