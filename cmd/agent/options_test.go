@@ -9,22 +9,25 @@ import (
 	"github.com/keshon/tars/internal/config"
 )
 
-func TestParseLaunchOptionsPreservesTerminalAndAliasBehavior(t *testing.T) {
-	o, err := parseLaunchOptions([]string{"-chat", "-conversation", "agent", "-grammar=false", "-character-png", "card.png", "explain", "this"})
+// The chat flags this used to cover are gone, along with the only alias
+// pair left in the flag set. What still needs pinning is the machinery
+// the removals left behind: an explicit false, the name a flag was typed
+// under, and the task text.
+func TestParseLaunchOptionsKeepsExplicitNamesAndTaskText(t *testing.T) {
+	o, err := parseLaunchOptions([]string{"-grammar=false", "-system-prompt", "be terse", "explain", "this"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if o.chat || o.grammar || o.characterPath != "card.png" || o.task != "explain this" {
-		t.Fatal("conversation selection, explicit false, alias, or task changed")
+	if o.grammar || o.systemPrompt != "be terse" || o.task != "explain this" {
+		t.Fatal("explicit false, override, or task changed")
 	}
-	if !o.explicitFlags["character-png"] || o.explicitFlags["character"] {
-		t.Fatal("alias must retain its explicit name for profile precedence")
+	// Precedence is keyed on the name as written, so a profile value never
+	// overrides a flag the user actually passed.
+	if !o.explicitFlags["system-prompt"] || o.explicitFlags["post-history"] {
+		t.Fatal("explicit-name tracking is wrong")
 	}
 	if _, err := parseLaunchOptions([]string{"-help"}); !errors.Is(err, flag.ErrHelp) {
 		t.Fatalf("help: %v", err)
-	}
-	if _, err := parseLaunchOptions([]string{"-conversation", "unknown"}); err == nil {
-		t.Fatal("invalid conversation accepted")
 	}
 }
 
@@ -33,23 +36,23 @@ func TestResolveLaunchExplicitValuesOverrideProfile(t *testing.T) {
 		Version:      1,
 		Provider:     config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "profile-model", Ownership: "external"},
 		Generation:   config.Generation{MaxTokens: 256, ContextLimit: 4096, Temperature: .8},
-		Conversation: &config.Conversation{Character: "profile.json", UserName: "Alex"},
+		Conversation: &config.Conversation{UserName: "Alex", SystemPrompt: "profile rules"},
 	}
 	path := filepath.Join(t.TempDir(), "profile.json")
 	if err := config.SaveCopy(p, path); err != nil {
 		t.Fatal(err)
 	}
-	o, err := resolveLaunch(launchRequest{args: []string{"-chat", "-profile", path, "-model", "override", "-temperature=0", "-character-png", "", "-character-main-prompt=false"}})
+	o, err := resolveLaunch(launchRequest{args: []string{"-profile", path, "-model", "override", "-temperature=0", "-system-prompt", "flag rules"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if o.model != "override" || o.temperature != 0 || o.characterPath != "" || o.preferCharacterPrompt {
+	if o.model != "override" || o.temperature != 0 || o.systemPrompt != "flag rules" {
 		t.Fatal("explicit values lost to profile defaults")
 	}
 	if o.maxTokens != 256 || o.contextLimit != 4096 || o.userName != "Alex" {
 		t.Fatal("missing values did not inherit profile settings")
 	}
-	if o.selectedProfile.Provider.Model != "override" || o.selectedProfile.Generation.Temperature != 0 || *o.selectedProfile.Conversation.PreferCharacterPrompt {
+	if o.selectedProfile.Provider.Model != "override" || o.selectedProfile.Generation.Temperature != 0 || o.selectedProfile.Conversation.SystemPrompt != "flag rules" {
 		t.Fatal("effective profile disagrees with launch options")
 	}
 }
@@ -119,7 +122,7 @@ func TestLaunchWithoutProfileStillValid(t *testing.T) {
 	if p.Generation.MaxTokens != o.maxTokens || p.Generation.ContextLimit != 32768 {
 		t.Fatalf("generated generation: %+v", p.Generation)
 	}
-	if applicationControl(launchRequest{}, p, "", false, ".") == nil {
+	if applicationControl(launchRequest{}, p, "", ".") == nil {
 		t.Fatal("generated profile must still yield an Application")
 	}
 }

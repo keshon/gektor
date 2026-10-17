@@ -14,15 +14,24 @@ import (
 	"github.com/keshon/tars/internal/llm"
 )
 
-func TestApplicationDefaultsDoNotEnableSpeechOrTools(t *testing.T) {
+// There is no voice or mode flag left to emit. What the relaunch still
+// has to carry is the profile file, the workspace and plan mode, so a
+// session restarted from Settings comes back up where it left off.
+func TestApplicationArgsCarryProfileWorkspaceAndPlan(t *testing.T) {
 	p, err := config.LoadPreferences(t.TempDir() + "/missing.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	p.ProfilePath = "profiles/chat.json"
+	p.ProfilePath = "profiles/local.json"
+	p.Workspace = "D:/work"
 	args := strings.Join(applicationArgs(p), " ")
-	if strings.Contains(args, "-voice") || !strings.Contains(args, "-conversation chat") {
-		t.Fatal(args)
+	for _, want := range []string{"-tui", "-profile profiles/local.json", "-workspace D:/work", "-plan"} {
+		if !strings.Contains(args, want) {
+			t.Fatalf("missing %q in %q", want, args)
+		}
+	}
+	if strings.Contains(args, "-voice") || strings.Contains(args, "-conversation") {
+		t.Fatalf("removed flag still emitted: %q", args)
 	}
 }
 // A relaunch must come back up on the backend the session was created
@@ -71,7 +80,7 @@ func TestRelaunchProfileFallbacksUnchanged(t *testing.T) {
 	if err := config.SaveCopy(want, path); err != nil {
 		t.Fatal(err)
 	}
-	resolved, err := resolveLaunch(launchRequest{args: []string{"-tui", "-conversation", "agent", "-profile", path, "-workspace", dir}})
+	resolved, err := resolveLaunch(launchRequest{args: []string{"-tui", "-profile", path, "-workspace", dir}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,9 +93,9 @@ func TestRelaunchProfileFallbacksUnchanged(t *testing.T) {
 func TestAgentLaunchKeepsPermissionPlanBoundary(t *testing.T) {
 	p := config.Preferences{Mode: "agent", Voice: "live", ProfilePath: "profile.json", Workspace: "D:/work"}
 	args := strings.Join(applicationArgs(p), " ")
-	for _, want := range []string{"-conversation agent", "-voice", "-plan", "-workspace D:/work"} {
+	for _, want := range []string{"-profile profile.json", "-plan", "-workspace D:/work"} {
 		if !strings.Contains(args, want) {
-			t.Fatal(args)
+			t.Fatalf("missing %q in %q", want, args)
 		}
 	}
 	if strings.Contains(args, "-allow") {
@@ -189,7 +198,7 @@ func TestAgentLaunchIgnoresCharacterFromProfile(t *testing.T) {
 	if err := config.SaveCopy(p, path); err != nil {
 		t.Fatal(err)
 	}
-	if err := runConfigured(launchRequest{args: []string{"-conversation", "agent", "-profile", path, "-workspace", root, "-no-verify", "-max-steps", "1", "Hello"}}); err != nil {
+	if err := runConfigured(launchRequest{args: []string{"-profile", path, "-workspace", root, "-no-verify", "-max-steps", "1", "Hello"}}); err != nil {
 		t.Fatal(err)
 	}
 	select {

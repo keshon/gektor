@@ -50,17 +50,10 @@ type launchOptions struct {
 	images                string
 	profilePath           string
 	checkProfile          bool
-	chat                  bool
 	systemPrompt          string
-	chatDir               string
-	characterPath         string
 	userName              string
 	postHistory           string
-	preferCharacterPrompt bool
-	preferCharacterPost   bool
 	temperature           float64
-	voice                 bool
-	conversationMode      string
 	explicitFlags         map[string]bool
 	explicitNames         []string
 	task                  string
@@ -132,26 +125,12 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	flags.StringVar(&o.images, "image", "", "attach pictures to the task (comma-separated paths): the model sees them alongside the text. Needs a vision-capable backend (llama-server with --mmproj); koboldcpp refuses loudly")
 	flags.StringVar(&o.profilePath, "profile", "", "path to a versioned JSON provider and generation profile; explicit flags override it")
 	flags.BoolVar(&o.checkProfile, "check-profile", false, "validate and print a profile without contacting or starting its backend")
-	flags.BoolVar(&o.chat, "chat", false, "tool-free text conversation; no workspace or coding instructions are loaded")
-	flags.StringVar(&o.systemPrompt, "system-prompt", "You are a helpful conversational assistant.", "character identity instruction for Chat or Agent")
-	flags.StringVar(&o.chatDir, "chat-dir", "", "directory for -chat -tui conversation archives; defaults to var/chats beside the executable")
-	flags.StringVar(&o.characterPath, "character", "", "PNG or JSON character card for tool-free chat")
-	flags.StringVar(&o.characterPath, "character-png", "", "alias for -character; reads PNG metadata or JSON without changing the card")
-	flags.StringVar(&o.userName, "user-name", "User", "name replacing {{user}} in chat character cards")
-	flags.StringVar(&o.postHistory, "post-history", "", "chat system instruction placed after the latest user turn")
-	flags.BoolVar(&o.preferCharacterPrompt, "character-main-prompt", true, "allow the card to override the base chat system prompt")
-	flags.BoolVar(&o.preferCharacterPost, "character-post-history", true, "allow the card to override the base post-history instruction")
-	flags.Float64Var(&o.temperature, "temperature", 0, "chat sampling temperature, 0 uses transport default 0.4; literal greedy zero is unsupported")
-	flags.BoolVar(&o.voice, "voice", false, "enable the profile speech service for -chat -tui; requires speech assets")
-	flags.StringVar(&o.conversationMode, "conversation", "", "conversation runner: chat or agent")
+	flags.StringVar(&o.systemPrompt, "system-prompt", "You are a helpful assistant.", "identity instruction placed ahead of the agent's own operating instructions")
+	flags.StringVar(&o.userName, "user-name", "User", "name the assistant addresses you by")
+	flags.StringVar(&o.postHistory, "post-history", "", "instruction placed after the latest turn, on top of the agent's own")
+	flags.Float64Var(&o.temperature, "temperature", 0, "sampling temperature, 0 uses transport default 0.4; literal greedy zero is unsupported")
 	if err := flags.Parse(args); err != nil {
 		return launchOptions{}, err
-	}
-	if o.conversationMode != "" {
-		if o.conversationMode != "chat" && o.conversationMode != "agent" {
-			return launchOptions{}, fmt.Errorf("conversation must be chat or agent")
-		}
-		o.chat = o.conversationMode == "chat"
 	}
 	o.explicitFlags = map[string]bool{}
 	flags.Visit(func(f *flag.Flag) {
@@ -198,18 +177,11 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 		if err != nil {
 			return resolvedLaunch{}, err
 		}
-		if p.Provider.Ownership == "managed" && !o.chat && !o.tui && !o.checkProfile {
-			return resolvedLaunch{}, fmt.Errorf("managed thinking requires -tui or -chat")
+		if p.Provider.Ownership == "managed" && !o.tui && !o.checkProfile {
+			return resolvedLaunch{}, fmt.Errorf("managed thinking requires -tui")
 		}
-		o.speechSettings = p.Speech
 		o.selectedProfile = p
 		o.thinkingSettings = p.Provider
-		if o.speechSettings != nil && (o.explicitFlags["voice"] || launch.common) {
-			o.speechSettings.Enabled = o.voice
-		}
-		if o.speechSettings != nil && !o.chat && !o.tui && !o.checkProfile {
-			return resolvedLaunch{}, fmt.Errorf("speech profile requires -chat")
-		}
 		explicit := o.explicitFlags
 		if !explicit["backend-kind"] {
 			o.backendKind = p.Provider.Kind
@@ -234,9 +206,6 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 		}
 		if p.Conversation != nil {
 			c := p.Conversation
-			if !explicit["character"] && !explicit["character-png"] {
-				o.characterPath = c.Character
-			}
 			if !explicit["user-name"] && c.UserName != "" {
 				o.userName = c.UserName
 			}
@@ -246,16 +215,10 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 			if !explicit["post-history"] {
 				o.postHistory = c.PostHistory
 			}
-			if !explicit["character-main-prompt"] && c.PreferCharacterPrompt != nil {
-				o.preferCharacterPrompt = *c.PreferCharacterPrompt
-			}
-			if !explicit["character-post-history"] && c.PreferCharacterPostHistory != nil {
-				o.preferCharacterPost = *c.PreferCharacterPostHistory
-			}
 		}
 		p.Generation.Temperature = o.temperature
-		if p.Conversation != nil || o.characterPath != "" || o.postHistory != "" {
-			p.Conversation = &config.Conversation{PromptPreset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), UserPersona: selectedProfilePersona(o.selectedProfile), GreetingIndex: selectedGreetingIndex(o.selectedProfile), Character: o.characterPath, UserName: o.userName, SystemPrompt: o.systemPrompt, PostHistory: o.postHistory, PreferCharacterPrompt: &o.preferCharacterPrompt, PreferCharacterPostHistory: &o.preferCharacterPost}
+		if p.Conversation != nil || o.postHistory != "" {
+			p.Conversation = &config.Conversation{PromptPreset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), UserPersona: selectedProfilePersona(o.selectedProfile), UserName: o.userName, SystemPrompt: o.systemPrompt, PostHistory: o.postHistory}
 		}
 		p.Provider.Kind, p.Provider.URL, p.Provider.Model, p.Provider.APIKeyEnv = o.backendKind, o.backendURL, o.model, o.apiKeyEnv
 		p.Generation.MaxTokens, p.Generation.ContextLimit = o.maxTokens, o.contextLimit

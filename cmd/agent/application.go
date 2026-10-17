@@ -67,9 +67,7 @@ func runApplication(args []string) error {
 			return err
 		}
 		nextArgs := applicationArgs(prefs)
-		if prefs.Mode == "agent" {
-			nextArgs = append(nextArgs, agentOptions...)
-		}
+		nextArgs = append(nextArgs, agentOptions...)
 		if change.KeepAct {
 			for i, arg := range nextArgs {
 				if arg == "-plan" {
@@ -85,20 +83,14 @@ func runApplication(args []string) error {
 	}
 }
 func applicationArgs(p config.Preferences) []string {
-	args := []string{"-tui", "-conversation", p.Mode}
+	args := []string{"-tui"}
 	// Only when there is a file. A generated setup has none, and emitting
 	// an empty -profile produced a launch that parsed successfully and
 	// then came up on the flag defaults.
 	if p.ProfilePath != "" {
 		args = append(args, "-profile", p.ProfilePath)
 	}
-	if p.Voice != "off" {
-		args = append(args, "-voice")
-	}
-	if p.Mode == "agent" {
-		args = append(args, "-workspace", p.Workspace, "-plan")
-	}
-	return args
+	return append(args, "-workspace", p.Workspace, "-plan")
 }
 // launchProfile builds the profile a launch without -profile would have
 // carried, so the plain `-tui` launch that docs/tui.md documents still
@@ -152,7 +144,7 @@ func launchProfile(o resolvedLaunch, contextLimit int) config.Profile {
 	}
 }
 
-func applicationControl(launch launchRequest, p config.Profile, path string, isChat bool, workspace string) *tui.Application {
+func applicationControl(launch launchRequest, p config.Profile, path string, workspace string) *tui.Application {
 	if p.Version == 0 {
 		return nil
 	}
@@ -164,16 +156,10 @@ func applicationControl(launch launchRequest, p config.Profile, path string, isC
 		}
 	}
 	prefs.ProfilePath = path
-	if !isChat {
-		absolute, err := filepath.Abs(workspace)
-		if err == nil {
-			prefs.Workspace = absolute
-		}
+	if absolute, err := filepath.Abs(workspace); err == nil {
+		prefs.Workspace = absolute
 	}
 	prefs.Mode = "agent"
-	if isChat {
-		prefs.Mode = "chat"
-	}
 	return &tui.Application{Preferences: prefs, PreferencePath: launch.preferencePath, Temporary: !launch.common}
 }
 
@@ -217,12 +203,6 @@ func selectedProfilePersona(p config.Profile) string {
 		return p.Conversation.UserPersona
 	}
 	return ""
-}
-func selectedGreetingIndex(p config.Profile) int {
-	if p.Conversation != nil {
-		return p.Conversation.GreetingIndex
-	}
-	return 0
 }
 
 func selectedProfilePreset(p config.Profile) string {

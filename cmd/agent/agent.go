@@ -34,15 +34,6 @@ import (
 // runAgentLaunch composes workspace tools and owns their per-launch cleanup.
 func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	task := o.task
-	for _, name := range []string{"voice"} {
-		if o.explicitFlags[name] && !(name == "voice" && o.tui && o.speechSettings != nil) {
-			return fmt.Errorf("-%s requires -chat", name)
-		}
-	}
-
-	if o.chatDir != "" {
-		return fmt.Errorf("-chat-dir requires -chat -tui")
-	}
 	if task == "" && o.resume == "" && o.fork == "" && !o.serve && !o.tui && !o.revert && !o.revertPreview {
 		return fmt.Errorf(`usage: agent [flags] "task description"  (or  agent -resume <state.json> [-answer "..."])`)
 	}
@@ -460,7 +451,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		profile := o.selectedProfile
 		if profile.Version == 0 {
 			profile = launchProfile(o, contextLimit)
-			note("no -profile: using a generated one so Settings, Mode and Voice are reachable")
+			note("no -profile: using a generated one so Settings stays reachable")
 		}
 
 		prepared, err := app.ConfigureAgent(profile, filepath.Join(filepath.Dir(launch.preferencePath), "chats"))
@@ -469,7 +460,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		}
 		prepared.Client = thinkingClient
 		*owned.Services = prepared
-		app := applicationControl(launch, profile, o.profilePath, o.chat, o.workspace)
+		app := applicationControl(launch, profile, o.profilePath, o.workspace)
 		answer, err := tui.Run(ctx, tui.Config{Runtime: owned, Application: app, Audio: owned.Services, SeedHistory: launch.history, InitialDraft: launch.draft, SessionDirectory: launch.directory,
 			BackendURL:   o.backendURL,
 			Plan:         o.plan,

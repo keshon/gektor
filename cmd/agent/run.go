@@ -24,14 +24,11 @@ func runConfigured(launch launchRequest) error {
 	}
 	if o.checkProfile {
 		if o.selectedProfile.Conversation != nil {
-			if _, _, err := app.CompileChatSettings(app.ChatOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), GreetingIndex: selectedGreetingIndex(o.selectedProfile), Character: o.characterPath, User: o.userName, System: o.systemPrompt, Post: o.postHistory, PreferMain: o.preferCharacterPrompt, PreferPost: o.preferCharacterPost, MaxTokens: o.maxTokens, ContextLimit: o.contextLimit, Temperature: o.temperature}); err != nil {
+			if _, _, err := app.CompileChatSettings(app.ChatOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), User: o.userName, System: o.systemPrompt, Post: o.postHistory, MaxTokens: o.maxTokens, ContextLimit: o.contextLimit, Temperature: o.temperature}); err != nil {
 				return err
 			}
 		}
 		return json.NewEncoder(os.Stdout).Encode(o.selectedProfile)
-	}
-	if o.chat {
-		return runChatLaunch(launch, o)
 	}
 	return runAgentLaunch(launch, o)
 }
