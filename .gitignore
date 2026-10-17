@@ -34,3 +34,4 @@ run-serve.cmd
 
 *.png
 /bench-results
+*.csv

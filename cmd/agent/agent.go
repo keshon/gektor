@@ -260,25 +260,13 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	// the agent loop after the assistant message (with the unanswered tool
 	// call) and before tool execution — so Ctrl+C while waiting leaves a
 	// resumable state.json. Use -resume with -answer to continue.
-	const maxClarifyingQuestions = 3
-	questionCount := 0
-	askFn := func(question string) (string, error) {
-		questionCount++
-		if questionCount > maxClarifyingQuestions {
-			return "", fmt.Errorf("ask_user: clarifying question limit (%d) reached — "+
-				"make a decision and proceed with a stated assumption", maxClarifyingQuestions)
-		}
-		rep, err := suspend(ctx, agent.SuspendRequest{
-			Kind: agent.SuspendAsk,
-			Prompt: fmt.Sprintf("\n[paused — state saved at %s]\n"+
-				"[resume: agent -resume %s -answer \"your answer\"]\n"+
-				"\n[agent asks] %s", stateFile, stateFile, question),
-		})
-		if err != nil {
-			return "", err
-		}
-		return rep.Answer, nil
-	}
+	askFn := agent.NewAsker(0).Ask(func(_ context.Context, req agent.SuspendRequest) (agent.SuspendReply, error) {
+		return suspend(ctx, req)
+	}, func(question string) string {
+		return fmt.Sprintf("\n[paused — state saved at %s]\n"+
+			"[resume: agent -resume %s -answer \"your answer\"]\n"+
+			"\n[agent asks] %s", stateFile, stateFile, question)
+	})
 
 	// Git snapshot before any work, so the run is reviewable/revertible.
 	// Skipped in serve mode: each served run snapshots into its own

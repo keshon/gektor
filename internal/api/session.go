@@ -59,18 +59,15 @@ type Config struct {
 	// OnEvent receives every event in order. Nil drops them.
 	OnEvent func(Event)
 
-	// MaxQuestions bounds ask_user rounds like the CLI does. Zero takes
-	// the CLI default.
+	// MaxQuestions bounds ask_user rounds. Zero takes the agent default.
 	MaxQuestions int
 }
 
 // Session runs one task. Create per run; it holds no global state.
 type Session struct {
-	cfg       Config
-	questions int
+	cfg         Config
+	askerBudget *agent.Asker
 }
-
-const defaultMaxQuestions = 3
 
 // New validates the config without running anything.
 func New(cfg Config) (*Session, error) {
@@ -83,13 +80,10 @@ func New(cfg Config) (*Session, error) {
 	if cfg.Env.WS == nil {
 		return nil, fmt.Errorf("api: Env.WS is nil")
 	}
-	if cfg.MaxQuestions == 0 {
-		cfg.MaxQuestions = defaultMaxQuestions
-	}
 	if cfg.Answer == nil {
 		cfg.Answer = agent.ClosedSuspender("api session without operator")
 	}
-	return &Session{cfg: cfg}, nil
+	return &Session{cfg: cfg, askerBudget: agent.NewAsker(cfg.MaxQuestions)}, nil
 }
 
 // Run executes the task to completion and returns the final answer.
@@ -99,7 +93,7 @@ func New(cfg Config) (*Session, error) {
 func (s *Session) build(ctx context.Context) (*agent.Agent, *findingDrain) {
 	emitter := events.New(&callbackWriter{onEvent: s.cfg.OnEvent})
 
-	askFn := s.asker(ctx, s.cfg.MaxQuestions)
+	askFn := s.asker(ctx)
 
 	env := s.cfg.Env
 	prevOnStep := env.OnStep
@@ -229,22 +223,10 @@ func shortOpen(open []string) string {
 // sharing one question budget across Run and Resume calls. Resume runs
 // used to refuse all questions; a follow-up that needs clarification
 // should ask like any other turn.
-func (s *Session) asker(ctx context.Context, maxQ int) func(string) (string, error) {
-	return func(question string) (string, error) {
-		s.questions++
-		if s.questions > maxQ {
-			return "", fmt.Errorf("ask_user: clarifying question limit (%d) reached — "+
-				"make a decision and proceed with a stated assumption", maxQ)
-		}
-		rep, err := s.cfg.Answer(ctx, agent.SuspendRequest{
-			Kind:   agent.SuspendAsk,
-			Prompt: question,
-		})
-		if err != nil {
-			return "", err
-		}
-		return rep.Answer, nil
-	}
+func (s *Session) asker(ctx context.Context) func(string) (string, error) {
+	return s.askerBudget.Ask(func(_ context.Context, req agent.SuspendRequest) (agent.SuspendReply, error) {
+		return s.cfg.Answer(ctx, req)
+	}, nil)
 }
 
 // Resume continues from saved history with a note, mirroring Agent.Resume.
