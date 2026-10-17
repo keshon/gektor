@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -172,6 +173,85 @@ func TestCompactHistory_CarriesDroppedUserRequests(t *testing.T) {
 	}
 	if !strings.Contains(prompts.CompactNotice, "the one you are working on") {
 		t.Fatal("the notice must state which dropped request is current")
+	}
+}
+
+// The plan must survive compaction. It lives only in the last checklist
+// call's arguments -- rehydrateTodo rebuilds the tracker by replaying that
+// one call -- so dropping it does not lose steps, it loses the model's own
+// task list. The notice used to say "todo×2" and nothing else.
+func TestCompactHistory_CarriesThePlan(t *testing.T) {
+	plan := func(states ...string) []llm.Message {
+		texts := []string{"write the grid", "add sliding animation", "handle win state"}
+		items := make([]string, 0, len(states))
+		for i, st := range states {
+			items = append(items, fmt.Sprintf(`{"id":%d,"state":%q,"text":%q}`, i+1, st, texts[i]))
+		}
+		return []llm.Message{
+			{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{
+				ID: "t", Name: "todo",
+				Arguments: json.RawMessage(`{"items":[` + strings.Join(items, ",") + `]}`),
+			}}},
+			{Role: llm.RoleTool, ToolCallID: "t", Content: "ok"},
+		}
+	}
+	history := []llm.Message{
+		{Role: llm.RoleSystem, Content: "sys"},
+		{Role: llm.RoleUser, Content: "build me a sliding puzzle"},
+	}
+	history = append(history, plan("done", "pending", "pending")...)
+	for i := 0; i < 6; i++ {
+		history = append(history, assistantStep("a")...)
+	}
+	// The most recent checklist is the plan as it stood when compaction hit.
+	history = append(history, plan("done", "in_progress", "pending")...)
+	for i := 0; i < 6; i++ {
+		history = append(history, assistantStep("b")...)
+	}
+
+	notice := compactHistory(history, 4)[2].Content
+	for _, want := range []string{"[x] write the grid", "[~] add sliding animation", "[ ] handle win state"} {
+		if !strings.Contains(notice, want) {
+			t.Fatalf("plan item %q missing from the notice:\n%s", want, notice)
+		}
+	}
+	if !strings.Contains(prompts.CompactNotice, "Keep working the plan") {
+		t.Fatal("the notice must tell the model the plan is still current")
+	}
+}
+// A dropped plan is bounded: this string is carried for the rest of the
+// run, so a 40-item checklist cannot turn the notice into the largest
+// thing in the prompt.
+func TestFormatChecklist_BoundsThePlan(t *testing.T) {
+	items := make([]string, 0, planMaxItems+10)
+	for i := 0; i < planMaxItems+10; i++ {
+		items = append(items, fmt.Sprintf(`{"id":%d,"state":"pending","text":"item number %d"}`, i, i))
+	}
+	got, ok := formatChecklist(json.RawMessage(`{"items":[` + strings.Join(items, ",") + `]}`))
+	if !ok {
+		t.Fatal("a well-formed checklist must be recognised")
+	}
+	if !strings.Contains(got, "+10 more") {
+		t.Fatalf("overflow not announced: %s", got)
+	}
+	if n := strings.Count(got, ";"); n != planMaxItems {
+		t.Fatalf("%d items rendered, want %d: %s", n+1, planMaxItems, got)
+	}
+}
+
+// Arguments that merely happen to have an items array are not a checklist.
+func TestFormatChecklist_RejectsOtherTools(t *testing.T) {
+	for _, args := range []string{
+		`{}`,
+		`{"items":[]}`,
+		`{"items":[{"id":1,"state":"unknown","text":"x"}]}`,
+		`{"items":[{"id":1,"state":"pending","text":"  "}]}`,
+		`{"items":[{"id":1}]}`,
+		`not json`,
+	} {
+		if _, ok := formatChecklist(json.RawMessage(args)); ok {
+			t.Fatalf("%s must not be read as a checklist", args)
+		}
 	}
 }
 

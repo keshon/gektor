@@ -237,14 +237,14 @@ func (a *Agent) maybeCompact(history *[]llm.Message, usage llm.Usage, st *runSta
 
 // summarizeDropped extracts ground facts from dropped step groups: how many
 // steps, which tools ran, which paths were touched, what the user asked
-// for, and the last assistant text snippet. Bounded output — this string
-// itself lives in context.
+// for, what the plan was, and the last assistant text snippet. Bounded
+// output — this string itself lives in context.
 //
-// The dropped user requests are the load-bearing part. Without them a
-// compaction that keeps the first user message as the standing task and
-// drops every later turn leaves the model holding an already-answered
-// aside as its only live instruction: it finishes the work still visible
-// in the tail, runs out, and answers a question from twenty steps ago.
+// The dropped user requests and the plan are the load-bearing part. Without
+// them a compaction that keeps the first user message as the standing task
+// leaves the model holding an already-answered aside and no checklist: it
+// finishes the work still visible in the tail, runs out, and answers a
+// question from twenty steps ago.
 func summarizeDropped(dropped [][]llm.Message) string {
 	if len(dropped) == 0 {
 		return ""
@@ -307,6 +307,9 @@ func summarizeDropped(dropped [][]llm.Message) string {
 	if len(asks) > 0 {
 		fmt.Fprintf(&b, " User requests dropped: %s", quoteEach(asks))
 	}
+	if plan := droppedPlan(dropped); plan != "" {
+		fmt.Fprintf(&b, " Your plan at that point (keep working it): %s", plan)
+	}
 	if lastText != "" {
 		r := []rune(lastText)
 		if len(r) > 200 {
@@ -333,6 +336,72 @@ func droppedAsk(content string) string {
 		t = string(r[:160]) + "…"
 	}
 	return t
+}
+
+// droppedPlan returns the checklist carried by the most recent dropped
+// checklist call, as one summary line, or "" when the dropped steps held
+// none.
+//
+// The plan lives only in the last checklist call's arguments: rehydrateTodo
+// rebuilds the tracker by replaying exactly that call. So a compaction that
+// drops it does not lose steps, it loses the model's own task list, and the
+// notice was reporting only "todo×2".
+//
+// Matched by argument shape rather than tool name because the summary is a
+// pure function over messages with no registry. The shape is narrow — an
+// items array whose entries carry id, state and text, with state from a
+// closed set — and todo is the only tool that takes one.
+func droppedPlan(dropped [][]llm.Message) string {
+	for i := len(dropped) - 1; i >= 0; i-- {
+		for _, m := range dropped[i] {
+			for _, tc := range m.ToolCalls {
+				if plan, ok := formatChecklist(tc.Arguments); ok {
+					return plan
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// planBounds keep the plan readable and cheap in context: this string is
+// carried for the rest of the run, not just until the next compaction.
+const (
+	planMaxItems = 12
+	planItemMax  = 60
+)
+
+// formatChecklist renders a checklist tool call's arguments as
+// "[x] done / [~] in progress / [ ] pending". ok is false when the
+// arguments are not a checklist.
+func formatChecklist(args json.RawMessage) (string, bool) {
+	var in struct {
+		Items []struct {
+			State string `json:"state"`
+			Text  string `json:"text"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(args, &in); err != nil || len(in.Items) == 0 {
+		return "", false
+	}
+	marks := map[string]string{"done": "x", "in_progress": "~", "pending": " "}
+	parts := make([]string, 0, len(in.Items))
+	for i, it := range in.Items {
+		mark, known := marks[it.State]
+		if !known || strings.TrimSpace(it.Text) == "" {
+			return "", false // not a checklist after all
+		}
+		if i == planMaxItems {
+			parts = append(parts, fmt.Sprintf("+%d more", len(in.Items)-planMaxItems))
+			break
+		}
+		text := strings.TrimSpace(it.Text)
+		if r := []rune(text); len(r) > planItemMax {
+			text = string(r[:planItemMax]) + "…"
+		}
+		parts = append(parts, fmt.Sprintf("[%s] %s", mark, text))
+	}
+	return strings.Join(parts, "; "), true
 }
 
 func quoteEach(items []string) string {
