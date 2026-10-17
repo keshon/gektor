@@ -106,10 +106,15 @@ type Env struct {
 	OnToolResult func(callID, result string)
 	OnResult     func(agent.ToolResult)
 
-	// Checks collects deterministic findings (gofmt, secret scan) for
-	// the run: post-write scans from wrapped file tools, plus the deep
-	// session-end sweep. Nil disables both, and tools then run
-	// unwrapped, identical to uninstrumented.
+	// Rules are the deterministic checks this run applies to written
+	// files. Go's live in internal/gorules; checks.Secrets covers every
+	// language. Which set to use is the frontend's call, so a run on a
+	// non-Go project passes only what applies to it.
+	Rules []checks.Rule
+
+	// Checks collects the run's findings: post-write scans from wrapped
+	// file tools, plus the deep session-end sweep. Nil disables both, and
+	// tools then run unwrapped, identical to uninstrumented.
 	Checks *checks.Reporter
 
 	// OnUsage, if set, receives backend token counts per step.
@@ -257,7 +262,7 @@ func Subagent(e Env, role string) *agent.Agent {
 	return agent.New(agent.Config{
 		BeginChanges:    e.WS.ChangeObserver,
 		Client:          e.Client,
-		Tools:           tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.MCPTools...),
+		Tools:           tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.MCPTools...),
 		System:          prompts.WithRole(role) + "\n\n" + prompts.SubagentScope + "\n\n" + prompts.PlatformLine() + e.WS.Instructions() + "\n\n" + e.Identity,
 		MaxSteps:        subagentSteps,
 		MaxTokens:       e.MaxTokens,
@@ -278,7 +283,7 @@ func Subagent(e Env, role string) *agent.Agent {
 // written nothing on a subtask that was supposed to write, which is the
 // announce-without-write shape. See agent.Config.VerifyOnZeroWrites.
 func Worker(e Env, label, system, stateFile string, maxSteps int, expectsWrites bool) *agent.Agent {
-	reg := tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.MCPTools...)
+	reg := tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.MCPTools...)
 	return agent.New(agent.Config{
 		BeginChanges:       e.WS.ChangeObserver,
 		Client:             e.Client,
@@ -325,7 +330,7 @@ func Interactive(e Env, label, stateFile string,
 	if ask != nil {
 		extra = append(extra, tools.AskUser{AskFn: ask})
 	}
-	reg := tools.Base(e.WS, e.Procs, e.Checks.PerEdit, extra...)
+	reg := tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, extra...)
 
 	return agent.New(agent.Config{
 		BeginChanges:    e.WS.ChangeObserver,

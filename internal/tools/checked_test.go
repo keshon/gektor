@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/tars/internal/checks"
+	"github.com/keshon/tars/internal/gorules"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -35,13 +37,18 @@ func checkedWS(t *testing.T) *workspace.Workspace {
 	return ws
 }
 
+// checkedRules is a Go project's rule set. The wrapper no longer knows
+// what a .go file is, so a test that wants a gofmt finding has to supply
+// the rule that produces one.
+func checkedRules() []checks.Rule { return append(checks.Secrets(), gorules.All()...) }
+
 func TestChecked_FiresOnDirtyWrite(t *testing.T) {
 	ws := checkedWS(t)
 	var got []string
 	sink := func(rule, path string, line int, summary string) {
 		got = append(got, rule+" "+path)
 	}
-	tool := Checked(WriteFile{WS: ws}, ws, sink)
+	tool := Checked(WriteFile{WS: ws}, ws, sink, checkedRules())
 	out, err := tool.Run(context.Background(), json.RawMessage(`{"path":"a.go","content":"package a\n\nfunc A()  {}\n"}`))
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -57,7 +64,7 @@ func TestChecked_FiresOnDirtyWrite(t *testing.T) {
 func TestChecked_CleanIsSilent(t *testing.T) {
 	ws := checkedWS(t)
 	fired := false
-	tool := Checked(WriteFile{WS: ws}, ws, func(string, string, int, string) { fired = true })
+	tool := Checked(WriteFile{WS: ws}, ws, func(string, string, int, string) { fired = true }, checkedRules())
 	if _, err := tool.Run(context.Background(), json.RawMessage(`{"path":"a.go","content":"package a\n"}`)); err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -71,12 +78,12 @@ func TestChecked_FailOpen(t *testing.T) {
 	fired := false
 	sink := func(string, string, int, string) { fired = true }
 	// Tool error: result passes through, no scan.
-	broken := Checked(stubWrite{err: errCheckedBoom}, ws, sink)
+	broken := Checked(stubWrite{err: errCheckedBoom}, ws, sink, checkedRules())
 	if _, err := broken.Run(context.Background(), json.RawMessage(`{"path":"a.go"}`)); err == nil {
 		t.Fatal("inner error must pass through")
 	}
 	// Unparseable args: passthrough.
-	ok := Checked(stubWrite{out: "ok"}, ws, sink)
+	ok := Checked(stubWrite{out: "ok"}, ws, sink, checkedRules())
 	if _, err := ok.Run(context.Background(), json.RawMessage(`{oops`)); err != nil {
 		t.Fatalf("bad args must pass through: %v", err)
 	}
@@ -85,7 +92,7 @@ func TestChecked_FailOpen(t *testing.T) {
 		t.Fatalf("missing file must pass through: %v", err)
 	}
 	// Nil sink or workspace: unwrapped behavior, no scan possible.
-	plain := Checked(stubWrite{out: "ok"}, ws, nil)
+	plain := Checked(stubWrite{out: "ok"}, ws, nil, checkedRules())
 	if out, err := plain.Run(context.Background(), json.RawMessage(`{}`)); out != "ok" || err != nil {
 		t.Fatalf("nil sink changed behavior: %q %v", out, err)
 	}
@@ -97,7 +104,7 @@ func TestChecked_FailOpen(t *testing.T) {
 func TestChecked_IdempotentForwards(t *testing.T) {
 	ws := checkedWS(t)
 	sink := func(string, string, int, string) {}
-	if got := Checked(WriteFile{WS: ws}, ws, sink); got.(interface{ Idempotent() bool }).Idempotent() {
+	if got := Checked(WriteFile{WS: ws}, ws, sink, checkedRules()); got.(interface{ Idempotent() bool }).Idempotent() {
 		t.Fatal("mutating tool must not report idempotent")
 	}
 }

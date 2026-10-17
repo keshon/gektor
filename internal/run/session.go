@@ -144,8 +144,10 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter) {
 	}
 	// Findings go to the wire. The caller's own reporter is replaced
 	// rather than chained: the TUI, the only caller, stubs hooks and
-	// reads the event stream instead.
-	env.Checks = checks.NewReporter(func(scope checks.Scope, f checks.Finding) {
+	// reads the event stream instead. The rule set is the caller's, so a
+	// session over a non-Go project still reports secrets and nothing
+	// that cannot parse.
+	env.Checks = checks.NewReporter(env.Rules, func(scope checks.Scope, f checks.Finding) {
 		events.EmitFinding(emitter, string(scope), f.Rule, f.Path, f.Line, f.Summary)
 	})
 	if s.cfg.Plan {

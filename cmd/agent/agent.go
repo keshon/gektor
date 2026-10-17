@@ -19,6 +19,7 @@ import (
 	"github.com/keshon/tars/internal/audit"
 	"github.com/keshon/tars/internal/checks"
 	"github.com/keshon/tars/internal/events"
+	"github.com/keshon/tars/internal/gorules"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/mission"
 	"github.com/keshon/tars/internal/permission"
@@ -281,6 +282,10 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	for _, warning := range warnings {
 		note("Identity warning: " + warning)
 	}
+	// What TARS checks written files for. Secrets apply to every text
+	// file whatever the language; gofmt is one rule among them and lives
+	// outside internal/checks so that package stays language-neutral.
+	rules := append(checks.Secrets(), gorules.All()...)
 	env := roles.Env{
 		Identity:        app.IdentityPrompt(identity),
 		IdentityName:    identity.Name,
@@ -311,7 +316,8 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			}
 		},
 		OnUsage: usagePrinter(o.outputMode, emitter),
-		Checks:  checks.NewReporter(findingSink(emitter, o.outputMode)),
+		Rules:   rules,
+		Checks:  checks.NewReporter(rules, findingSink(emitter, o.outputMode)),
 		OnNudge: nudgePrinter(o.outputMode),
 	}
 	if missionDir != "" {

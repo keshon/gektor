@@ -1,20 +1,21 @@
-// Package checks runs deterministic post-write checks: gofmt and a
-// curated secret scan over file content the agent just wrote. No LLM,
-// no network, stdlib only. Findings are report-only data; the loop
-// decides what to do with them (report, never repair as a side
-// effect). The two-tier shape (cheap per-edit here, deep session-end
-// pass later) plus dedupe cache and display clamp come straight from
-// the impeccable hook playbook.
 package checks
 
 import (
-	"bytes"
-	"go/format"
-	"go/scanner"
 	"regexp"
-	"strconv"
 	"strings"
 )
+
+// Package checks runs deterministic checks over files an agent just
+// wrote, and reports each finding once. No LLM, no network, stdlib only.
+// Findings are report-only data; the loop decides what to do with them
+// (report, never repair as a side effect).
+//
+// Nothing here knows a language. Rules are supplied by whoever builds
+// the run -- Go lives in internal/gorules, which registers itself like
+// any other -- so adding a formatter for another language is a new file
+// and no change to this package. It used to switch on a ".go" suffix and
+// import go/format, which put one language inside a generically named
+// package and made every other language someone else's problem.
 
 // Finding is one deterministic check result.
 type Finding struct {
@@ -24,106 +25,65 @@ type Finding struct {
 	Summary string
 }
 
-// Gofmt reports when Go source is not gofmt-clean (or does not parse).
-// Line points at the first differing line, or the syntax error.
-func Gofmt(path string, src []byte) []Finding {
-	formatted, err := format.Source(src)
-	if err != nil {
-		line := 0
-		msg := "does not parse"
-		if list, ok := err.(scanner.ErrorList); ok && len(list) > 0 {
-			line = list[0].Pos.Line
-			msg = "does not parse: " + list[0].Msg
-		}
-		return []Finding{{Rule: "gofmt-syntax", Path: path, Line: line, Summary: msg}}
-	}
-	if bytes.Equal(formatted, src) {
-		return nil
-	}
-	return []Finding{{Rule: "gofmt", Path: path, Line: firstDiffLine(src, formatted), Summary: "not gofmt-clean"}}
+// Rule is one check over a file's bytes. Name appears in findings so a
+// reader can tell which rule fired; Check returns nothing when the file
+// is clean. A rule decides for itself whether it applies -- by extension,
+// by content, by anything -- so this package never has to know.
+type Rule interface {
+	Name() string
+	Check(path string, src []byte) []Finding
 }
 
-// firstDiffLine returns the 1-based first differing line of a and b.
-func firstDiffLine(a, b []byte) int {
-	as := bytes.Split(a, []byte{'\n'})
-	bs := bytes.Split(b, []byte{'\n'})
-	for i := 0; i < len(as) && i < len(bs); i++ {
-		if !bytes.Equal(as[i], bs[i]) {
-			return i + 1
+// Scan runs every rule over path. A rule that does not apply returns
+// nothing, so the caller passes all of them for every file.
+func Scan(rules []Rule, path string, src []byte) []Finding {
+	var out []Finding
+	for _, r := range rules {
+		if r != nil {
+			out = append(out, r.Check(path, src)...)
 		}
 	}
-	return min(len(as), len(bs)) + 1
+	return out
 }
 
-// secretPatterns is a deliberately short, low-false-positive list:
-// well-known prefixes, not generic key=value shapes (those flag prose).
-// Curated, not exhaustive — a tripwire, not a vault audit.
-var secretPatterns = []struct {
-	rule string
-	re   *regexp.Regexp
-}{
-	{"secret-aws", regexp.MustCompile(`AKIA[0-9A-Z]{16}`)},
-	{"secret-github", regexp.MustCompile(`(?:github_pat_|ghp_)[A-Za-z0-9_]{10,}`)},
-	{"secret-private-key", regexp.MustCompile(`-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY(?: BLOCK)?-----`)},
-	{"secret-slack", regexp.MustCompile(`xox[bpas]-[A-Za-z0-9-]+`)},
+// secretRule scans for known credential prefixes. Deliberately short and
+// low-false-positive: well-known prefixes, not generic key=value shapes
+// (those flag prose). Curated, not exhaustive -- a tripwire, not a vault
+// audit.
+type secretRule struct{}
+
+func (secretRule) Name() string { return "secrets" }
+
+var secretPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`AKIA[0-9A-Z]{16}`),
+	regexp.MustCompile(`(?:github_pat_|ghp_)[A-Za-z0-9_]{10,}`),
+	regexp.MustCompile(`-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY(?: BLOCK)?-----`),
+	regexp.MustCompile(`xox[bpas]-[A-Za-z0-9-]+`),
 }
 
-// Secrets scans text lines for known secret prefixes, with line numbers.
-func Secrets(path string, src []byte) []Finding {
+func (secretRule) Check(path string, src []byte) []Finding {
 	var out []Finding
 	for i, line := range strings.Split(string(src), "\n") {
-		for _, p := range secretPatterns {
-			if p.re.MatchString(line) {
-				out = append(out, Finding{Rule: p.rule, Path: path, Line: i + 1, Summary: "possible secret (" + p.rule + ")"})
+		for j, re := range secretPatterns {
+			if re.MatchString(line) {
+				out = append(out, Finding{
+					Rule:    secretRuleNames[j],
+					Path:    path,
+					Line:    i + 1,
+					Summary: "possible secret (" + secretRuleNames[j] + ")",
+				})
 			}
 		}
 	}
 	return out
 }
 
-// ScanFile runs the checks that apply to a path: gofmt for Go source,
-// secrets for everything.
-func ScanFile(path string, src []byte) []Finding {
-	var out []Finding
-	if strings.HasSuffix(path, ".go") {
-		out = append(out, Gofmt(path, src)...)
-	}
-	return append(out, Secrets(path, src)...)
+// secretRuleNames parallels secretPatterns; the pattern text itself is
+// not a useful thing to print.
+var secretRuleNames = []string{
+	"secret-aws", "secret-github", "secret-private-key", "secret-slack",
 }
 
-// cache dedupes findings across repeated scans: key is rule + path +
-// line, so the same finding reported twice surfaces once. Owned by one
-// Reporter, which is what makes the deep pass quiet on findings the
-// per-edit scans already reported.
-type cache struct {
-	seen map[string]struct{}
-}
-
-// filter drops already-seen findings, remembering the new ones.
-func (c *cache) filter(in []Finding) []Finding {
-	if c.seen == nil {
-		c.seen = map[string]struct{}{}
-	}
-	var out []Finding
-	for _, f := range in {
-		k := f.Rule + "\x00" + f.Path + "\x00" + strconv.Itoa(f.Line)
-		if _, ok := c.seen[k]; ok {
-			continue
-		}
-		c.seen[k] = struct{}{}
-		out = append(out, f)
-	}
-	return out
-}
-
-// Clamp caps findings for display: at most max, plus the dropped count
-// so the footer can say "and N more" instead of silently losing them.
-func Clamp(in []Finding, max int) (out []Finding, dropped int) {
-	if max < 0 {
-		max = 0
-	}
-	if len(in) <= max {
-		return in, 0
-	}
-	return in[:max], len(in) - max
-}
+// Secrets is the built-in rule set: checks that apply to every text file
+// in any language.
+func Secrets() []Rule { return []Rule{secretRule{}} }

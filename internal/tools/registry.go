@@ -2,15 +2,16 @@ package tools
 
 import (
 	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/tars/internal/checks"
 	"github.com/keshon/tars/internal/workspace"
 )
 
 // Base returns the standard tool set shared by the main agent and
 // subagents. Pass extra tools (ask_user, delegate_task, todo) for the main
 // agent only. File-mutating tools run post-write deterministic checks
-// (gofmt, secret scan) reporting to sink; nil sink builds unwrapped.
-func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSink, extra ...agent.Tool) *agent.Registry {
-	scan := func(t agent.Tool) agent.Tool { return Checked(t, ws, report) }
+// from rules, reporting to sink; a nil sink or no rules builds unwrapped.
+func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSink, rules []checks.Rule, extra ...agent.Tool) *agent.Registry {
+	scan := func(t agent.Tool) agent.Tool { return Checked(t, ws, report, rules) }
 	tools := []agent.Tool{
 		ReadFile{WS: ws},
 		scan(WriteFile{WS: ws}),

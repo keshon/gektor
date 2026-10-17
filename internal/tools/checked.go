@@ -23,17 +23,19 @@ type FindingSink func(rule, path string, line int, summary string)
 type checked struct {
 	inner  agent.Tool
 	ws     *workspace.Workspace
+	rules  []checks.Rule
 	report FindingSink
 }
 
 // Checked wraps inner with post-write scans, or returns it unchanged
-// when there is nowhere to report to (nil sink) or nothing to resolve
-// against (nil workspace). Zero behavior change unless configured.
-func Checked(inner agent.Tool, ws *workspace.Workspace, report FindingSink) agent.Tool {
-	if report == nil || ws == nil {
+// when there is nowhere to report to (nil sink), nothing to scan with
+// (no rules), or nothing to resolve against (nil workspace). Zero
+// behavior change unless configured.
+func Checked(inner agent.Tool, ws *workspace.Workspace, report FindingSink, rules []checks.Rule) agent.Tool {
+	if report == nil || ws == nil || len(rules) == 0 {
 		return inner
 	}
-	return &checked{inner: inner, ws: ws, report: report}
+	return &checked{inner: inner, ws: ws, report: report, rules: rules}
 }
 
 func (c *checked) Name() string        { return c.inner.Name() }
@@ -74,7 +76,7 @@ func (c *checked) Run(ctx context.Context, args json.RawMessage) (string, error)
 	// Shell redirections, MCP writes, and background jobs bypass this:
 	// only tool-written content addressed by "path" is scanned. The
 	// session-end sweep covers side-effect files by path instead.
-	for _, f := range checks.ScanFile(in.Path, data) {
+	for _, f := range checks.Scan(c.rules, in.Path, data) {
 		c.report(f.Rule, f.Path, f.Line, f.Summary)
 	}
 	return out, err

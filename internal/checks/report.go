@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 
 	"github.com/keshon/tars/internal/workspace"
 )
@@ -37,13 +38,25 @@ const (
 // needs no special case: it simply never scans.
 type Reporter struct {
 	cache cache
+	rules []Rule
 	sink  func(Scope, Finding)
 }
 
-// NewReporter returns a Reporter delivering to sink. A nil sink keeps
-// the dedupe cache but emits nowhere.
-func NewReporter(sink func(Scope, Finding)) *Reporter {
-	return &Reporter{sink: sink}
+// NewReporter returns a Reporter running rules and delivering to sink. A
+// nil sink keeps the dedupe cache but emits nowhere; nil rules scan
+// nothing, which is the honest state for a frontend with no checks
+// configured.
+func NewReporter(rules []Rule, sink func(Scope, Finding)) *Reporter {
+	return &Reporter{rules: rules, sink: sink}
+}
+
+// Rules returns the rules this reporter scans with, so a frontend that
+// also scans post-write has one source for the set.
+func (r *Reporter) Rules() []Rule {
+	if r == nil {
+		return nil
+	}
+	return r.rules
 }
 
 // PerEdit receives one post-write finding. It doubles as the sink the
@@ -78,7 +91,7 @@ func (r *Reporter) Sweep(ws *workspace.Workspace, paths []string) {
 		if err != nil {
 			continue
 		}
-		all = append(all, ScanFile(p, data)...)
+		all = append(all, Scan(r.rules, p, data)...)
 	}
 	kept, dropped := Clamp(r.cache.filter(all), sweepMaxFindings)
 	r.emit(SessionEnd, kept...)
@@ -99,6 +112,43 @@ func (r *Reporter) emit(scope Scope, kept ...Finding) {
 			r.sink(scope, f)
 		}
 	}
+}
+
+// cache dedupes findings across repeated scans: key is rule + path +
+// line, so the same finding reported twice surfaces once. Owned by one
+// Reporter, which is what makes the deep pass quiet on findings the
+// per-edit scans already reported.
+type cache struct {
+	seen map[string]struct{}
+}
+
+// filter drops already-seen findings, remembering the new ones.
+func (c *cache) filter(in []Finding) []Finding {
+	if c.seen == nil {
+		c.seen = map[string]struct{}{}
+	}
+	var out []Finding
+	for _, f := range in {
+		k := f.Rule + "\x00" + f.Path + "\x00" + strconv.Itoa(f.Line)
+		if _, ok := c.seen[k]; ok {
+			continue
+		}
+		c.seen[k] = struct{}{}
+		out = append(out, f)
+	}
+	return out
+}
+
+// Clamp caps findings for display: at most max, plus the dropped count
+// so the caller can say "and N more" instead of silently losing them.
+func Clamp(in []Finding, max int) (out []Finding, dropped int) {
+	if max < 0 {
+		max = 0
+	}
+	if len(in) <= max {
+		return in, 0
+	}
+	return in[:max], len(in) - max
 }
 
 func readCapped(path string) ([]byte, error) {

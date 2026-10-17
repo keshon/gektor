@@ -27,7 +27,7 @@ func dirty(t *testing.T, dir, name string) *workspace.Workspace {
 // noticed it.
 func TestReporter_DedupesAcrossTiers(t *testing.T) {
 	var got []Finding
-	r := NewReporter(func(_ Scope, f Finding) { got = append(got, f) })
+	r := NewReporter(testRules(), func(_ Scope, f Finding) { got = append(got, f) })
 	ws := dirty(t, t.TempDir(), "a.go")
 
 	r.PerEdit("gofmt", "a.go", 3, "not gofmt-clean")
@@ -47,7 +47,7 @@ func TestReporter_DedupesAcrossTiers(t *testing.T) {
 // all already seen and emitted nothing.
 func TestReporter_SweepEmitsWhenItIsTheFirstReporter(t *testing.T) {
 	var got []Finding
-	r := NewReporter(func(_ Scope, f Finding) { got = append(got, f) })
+	r := NewReporter(testRules(), func(_ Scope, f Finding) { got = append(got, f) })
 	ws := dirty(t, t.TempDir(), "stray.go")
 
 	r.Sweep(ws, []string{"stray.go"})
@@ -70,7 +70,7 @@ func TestReporter_ScopesItsFindings(t *testing.T) {
 		f     Finding
 	}
 	var got []pair
-	r := NewReporter(func(s Scope, f Finding) { got = append(got, pair{s, f}) })
+	r := NewReporter(testRules(), func(s Scope, f Finding) { got = append(got, pair{s, f}) })
 	ws := dirty(t, t.TempDir(), "a.go")
 	if err := os.WriteFile(filepath.Join(ws.Root(), "b.go"), []byte("package a\n\nfunc B()  {}\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -94,7 +94,7 @@ func TestReporter_ScopesItsFindings(t *testing.T) {
 // concludes the file is clean.
 func TestReporter_BoundsAnnounceThemselves(t *testing.T) {
 	var got []Finding
-	r := NewReporter(func(_ Scope, f Finding) { got = append(got, f) })
+	r := NewReporter(testRules(), func(_ Scope, f Finding) { got = append(got, f) })
 	ws, err := workspace.New(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -113,7 +113,7 @@ func TestReporter_BoundsAnnounceThemselves(t *testing.T) {
 
 func TestReporter_BoundsFindings(t *testing.T) {
 	var got []Finding
-	r := NewReporter(func(_ Scope, f Finding) { got = append(got, f) })
+	r := NewReporter(testRules(), func(_ Scope, f Finding) { got = append(got, f) })
 	dir := t.TempDir()
 	ws, err := workspace.New(dir)
 	if err != nil {
@@ -142,7 +142,7 @@ func TestReporter_BoundsFindings(t *testing.T) {
 // fatal: the sweep reports on what is still there.
 func TestReporter_SweepSkipsUnreadablePaths(t *testing.T) {
 	var got []Finding
-	r := NewReporter(func(_ Scope, f Finding) { got = append(got, f) })
+	r := NewReporter(testRules(), func(_ Scope, f Finding) { got = append(got, f) })
 	ws := dirty(t, t.TempDir(), "a.go")
 
 	r.Sweep(ws, []string{"a.go", "gone.go", "../escape.go"})
@@ -160,10 +160,21 @@ func TestReporter_NilIsInert(t *testing.T) {
 	nilReporter.PerEdit("gofmt", "a.go", 1, "x")
 	nilReporter.Sweep(nil, nil)
 
-	r := NewReporter(nil)
+	r := NewReporter(testRules(), nil)
 	r.PerEdit("gofmt", "a.go", 1, "x")
 	ws := dirty(t, t.TempDir(), "a.go")
 	r.Sweep(ws, []string{"a.go"})
 
 	// Nothing to assert but survival; a panic here fails the test.
+}
+// testRules is what a Go project runs: the universal secret scan plus
+// gofmt. checks.Secrets alone would find nothing in a .go file.
+func testRules() []Rule { return append(Secrets(), stubGofmt()) }
+
+// stubGofmt stands in for the real rule. It reports line 3, because the
+// dedupe cache keys on rule + path + line: a stub reporting a different
+// line would look like a second, distinct finding and the cross-tier
+// test would pass for the wrong reason.
+func stubGofmt() Rule {
+	return stubRule{name: "gofmt", find: true, onlyFor: ".go", line: 3}
 }

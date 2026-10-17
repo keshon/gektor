@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/keshon/tars/internal/checks"
+	"github.com/keshon/tars/internal/gorules"
 	"github.com/keshon/tars/internal/roles"
 	"github.com/keshon/tars/internal/tools"
 )
@@ -30,7 +31,8 @@ func TestRunner_SweepsWhatTheMissionMutated(t *testing.T) {
 		Procs: tools.NewBackgroundProcesses(),
 		Env: roles.Env{
 			WS:     ws,
-			Checks: checks.NewReporter(func(_ checks.Scope, f checks.Finding) { got = append(got, f) }),
+			Rules:  sweepRules(),
+			Checks: checks.NewReporter(sweepRules(), func(_ checks.Scope, f checks.Finding) { got = append(got, f) }),
 		},
 	}
 	m := &Mission{Phase: PhaseDone}
@@ -61,7 +63,8 @@ func TestRunner_SweepsWhenTheMissionFails(t *testing.T) {
 		Procs: tools.NewBackgroundProcesses(),
 		Env: roles.Env{
 			WS:     ws,
-			Checks: checks.NewReporter(func(_ checks.Scope, f checks.Finding) { got = append(got, f) }),
+			Rules:  sweepRules(),
+			Checks: checks.NewReporter(sweepRules(), func(_ checks.Scope, f checks.Finding) { got = append(got, f) }),
 		},
 	}
 	m := &Mission{Phase: PhaseFailed}
@@ -75,3 +78,6 @@ func TestRunner_SweepsWhenTheMissionFails(t *testing.T) {
 		t.Fatalf("failed mission swept %+v, want the sweep to have run", got)
 	}
 }
+// sweepRules is a Go project's rule set: the mission writes a .go file
+// and expects the sweep to notice it is not gofmt-clean.
+func sweepRules() []checks.Rule { return append(checks.Secrets(), gorules.All()...) }
