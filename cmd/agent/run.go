@@ -33,6 +33,11 @@ func runConfigured(launch launchRequest) error {
 	return runAgentLaunch(launch, o)
 }
 
+// discoverMCP starts each -mcp server and returns its tools and clients.
+// A spec entry is either name=command args... (stdio) or name=https://...
+// (Streamable HTTP). A server that fails to answer risks nothing: it is
+// reported and skipped, and the run continues with the rest. Close every
+// client when the run ends so no server process outlives it.
 func discoverMCP(ctx context.Context, spec string) ([]agent.Tool, []MCPCloser) {
 	names, commands, argss := tools.ParseMCPFlag(spec)
 	var out []agent.Tool

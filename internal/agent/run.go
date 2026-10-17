@@ -111,8 +111,8 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 		a.saveState(history)
 	}
 
-	a.LastRunMutations = st.mutatingSucceeded
-	a.report.MutatedPaths = st.mutatedPaths
+	// LastRunMutations and report.MutatedPaths are set by the defer above,
+	// which owns them for every exit path.
 	if _, open := a.cfg.Tools.TodoProgress(); len(open) > 0 {
 		a.report.OpenTodos = open
 	}

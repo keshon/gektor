@@ -212,26 +212,6 @@ func (m *model) helpRows(section helpSection, width int) []string {
 	return rows[:max(len(rows)-1, 0)]
 }
 
-// renderHelp lays sections out: bold title, key column padded to the
-// section max, descriptions after. Single copy shared by the command
-// and tests, so help can never rot in two copies.
-func renderHelp() []string {
-	var out []string
-	for _, s := range helpSections() {
-		out = append(out, "# "+s.title)
-		w := 0
-		for _, r := range s.rows {
-			if n := len([]rune(r[0])); n > w {
-				w = n
-			}
-		}
-		for _, r := range s.rows {
-			out = append(out, "  "+r[0]+strings.Repeat(" ", w-len([]rune(r[0]))+2)+r[1])
-		}
-	}
-	return out
-}
-
 // statusLines snapshots run facts for the /status dialog. Everything
 // shown is model state or construction facts; the TUI never re-reads
 // Env, so nothing here can disagree with the run.

@@ -20,19 +20,12 @@ import (
 	"github.com/keshon/tars/internal/workspace"
 )
 
-// permissionGate answers Ask-gated calls through the shared suspender.
-// -yes auto-denies without suspending (fail-closed for unattended runs).
-// The y/a/n mapping lives here, not in the transport: a channel-backed
-// run answers the same question from its own UI. Mutating calls carry a
-// preview of what they would do, rendered from the call's own arguments
-// against the workspace as it is right now.
-func permissionGate(autoDeny bool, suspend agent.Suspender, ws *workspace.Workspace) func(tool, resource string, args json.RawMessage) (permission.Effect, error) {
-	gate := permissionGateContext(autoDeny, suspend, ws)
-	return func(tool, resource string, args json.RawMessage) (permission.Effect, error) {
-		return gate(context.Background(), tool, resource, args)
-	}
-}
-
+// permissionGateContext answers Ask-gated calls through the shared
+// suspender. -yes auto-denies without suspending (fail-closed for
+// unattended runs). The y/a/n mapping lives here, not in the transport: a
+// channel-backed run answers the same question from its own UI. Mutating
+// calls carry a preview of what they would do, rendered from the call's own
+// arguments against the workspace as it is right now.
 func permissionGateContext(autoDeny bool, suspend agent.Suspender, ws *workspace.Workspace) func(context.Context, string, string, json.RawMessage) (permission.Effect, error) {
 	var mu sync.Mutex
 	always := map[[2]string]bool{}
@@ -137,15 +130,6 @@ func stepPrinter(mode string, emitter *events.Emitter, logMax int) func(string, 
 	return func(label string, step int, msg llm.Message) { printStep(label, step, msg, logMax) }
 }
 
-// toolResultPrinter mirrors stepPrinter for completed tool calls: JSON
-// events in json mode, historical silence in print mode.
-func toolResultPrinter(mode string, emitter *events.Emitter) func(string, string) {
-	if mode == "json" && emitter != nil {
-		return func(callID, result string) { events.EmitToolResult(emitter, callID, result) }
-	}
-	return nil
-}
-
 // usagePrinter mirrors stepPrinter for token counts: JSON events in
 // json mode, nothing in print mode (the debug log already records them).
 func usagePrinter(mode string, emitter *events.Emitter) func(int, llm.Usage) {
@@ -181,11 +165,6 @@ func nudgePrinter(mode string) func(kind, text string) {
 	}
 }
 
-// discoverMCP starts each -mcp server and returns its tools and clients.
-// A spec entry is either name=command args... (stdio) or name=https://...
-// (Streamable HTTP). A server that fails to answer risks nothing: it is
-// reported and skipped, and the run continues with the rest. Close every
-// client when the run ends so no server process outlives it.
 // printStep renders one model step to the console. label is a subtask id
 // or worker name in mission mode and empty for the top-level agent, which
 // is the only difference between what the two modes used to print from

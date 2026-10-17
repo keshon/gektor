@@ -100,11 +100,3 @@ func (m *model) customProfileTarget() (dir, source string, ok bool) {
 }
 
 var pickerFiles = settings.PickerFiles
-
-var pickerControl = settings.PickerControl
-
-var pickerAccepts = settings.PickerAccepts
-
-var catalogFiles = settings.CatalogFiles
-
-var catalogDetail = settings.CatalogDetail

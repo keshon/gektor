@@ -273,7 +273,6 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		return ctx.Err()
 	}
 
-	thinkingClient := client
 	// Identity and response style come from the profile; the agent's own
 	// Plan/Act instructions are added on top and do not compete with it.
 	identity, warnings, err := app.Compile(app.IdentityOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), User: o.userName, System: o.systemPrompt, Post: o.postHistory, MaxTokens: o.maxTokens, ContextLimit: contextLimit, Temperature: o.temperature})
@@ -291,7 +290,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		Identity:        app.IdentityPrompt(identity),
 		IdentityName:    identity.Name,
 		UserName:        o.userName,
-		Client:          thinkingClient,
+		Client:          client,
 		WS:              ws,
 		Procs:           bgProcs,
 		MaxTokens:       o.maxTokens,
@@ -407,7 +406,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		if err != nil {
 			return err
 		}
-		prepared.Client = thinkingClient
+		prepared.Client = client
 		services := prepared
 		app := applicationControl(launch, profile, o.profilePath, o.workspace)
 		answer, err := tui.Run(ctx, tui.Config{Application: app, Services: &services, SeedHistory: launch.history, InitialDraft: launch.draft, SessionDirectory: launch.directory,

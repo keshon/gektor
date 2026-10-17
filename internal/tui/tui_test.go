@@ -238,7 +238,6 @@ func TestFollowUpResumes(t *testing.T) {
 			doneCh <- d
 		}
 	}
-	m.ctx = context.Background()
 	stateFile := filepath.Join(t.TempDir(), "state.json")
 	seedHistory(t, stateFile)
 	m.stateFile = stateFile
@@ -376,7 +375,6 @@ func TestFollowUp_AttachesImages(t *testing.T) {
 	}
 	var sent int32
 	m.send = func(tea.Msg) { atomic.AddInt32(&sent, 1) }
-	m.ctx = context.Background()
 	m.state = stDone
 	m.input.SetValue("what is this @shot.png")
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -419,7 +417,6 @@ func TestCommand_NewStartsFresh(t *testing.T) {
 	}
 	var sent int32
 	m.send = func(tea.Msg) { atomic.AddInt32(&sent, 1) }
-	m.ctx = context.Background()
 	m.state = stDone
 	m.input.SetValue("/new second")
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -708,7 +705,7 @@ func TestQuitNeedsCtrlQ(t *testing.T) {
 func TestDialogQDoesNotClose(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	m.openDialog("help", renderHelp())
+	m.openDialog("help", helpText())
 	updated, _ := m.Update(keyRunes('q'))
 	if mm := updated.(*model); mm.dialog == nil {
 		t.Fatal("q must not close the dialog")
@@ -823,7 +820,6 @@ func TestEmptyStart_SubmitBegins(t *testing.T) {
 			sent <- d
 		}
 	}
-	m.ctx = context.Background()
 	// No session, no state: first line starts fresh, like /new.
 	m.state = stDone
 	m.input.SetValue("hello?")
@@ -1121,7 +1117,12 @@ func TestGateHook_AuditsDecisions(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(t.TempDir(), "audit.jsonl")
-	hook := audit.Hook(path, "tui", m.gateHook(m.hub, context.Background(), ws))
+	// audit.Hook takes the contextless signature; contextGate is the only
+	// production gate and it is context-aware.
+	gate := m.contextGate(m.hub, ws)
+	hook := audit.Hook(path, "tui", func(tool, resource string, args json.RawMessage) (permission.Effect, error) {
+		return gate(context.Background(), tool, resource, args)
+	})
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -1141,13 +1142,16 @@ func TestGateHook_AuditsDecisions(t *testing.T) {
 	}
 }
 
-func TestGateHook_AlwaysMemory(t *testing.T) {
+func TestContextGate_AlwaysMemory(t *testing.T) {
 	m := sizeModel(t, testModel())
 	ws, err := workspace.New(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	hook := m.gateHook(m.hub, context.Background(), ws)
+	gate := m.contextGate(m.hub, ws)
+	hook := func(tool, resource string, args json.RawMessage) (permission.Effect, error) {
+		return gate(context.Background(), tool, resource, args)
+	}
 	type result struct {
 		eff permission.Effect
 		err error
@@ -1261,7 +1265,6 @@ func TestInitialTaskEchoedAsUser(t *testing.T) {
 		})
 	}
 	m.send = func(tea.Msg) {}
-	m.ctx = context.Background()
 	if err := m.startInitial("  hi  ", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -1440,8 +1443,7 @@ func TestDialogFitsViewport(t *testing.T) {
 func TestStartRunClosesDialog(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.send = func(tea.Msg) {}
-	m.ctx = context.Background()
-	m.openDialog("help", renderHelp())
+	m.openDialog("help", helpText())
 	if len(m.overlays) != 1 {
 		t.Fatal("setup: dialog must push")
 	}
@@ -1515,9 +1517,29 @@ func TestHintAlwaysShown(t *testing.T) {
 	}
 }
 
+// ansiRE matches the SGR escapes lipgloss emits, so tests can assert on
+// rendered text without depending on whether the run has a colour profile.
+var ansiRE = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+func plain(s string) string { return ansiRE.ReplaceAllString(s, "") }
+
+// helpText flattens the help data as plain lines for assertions. Tests
+// need plain text; the only renderer the app ships is helpRows, which
+// emits styled, per-section lines, so there is nothing to reuse here.
+func helpText() []string {
+	var out []string
+	for _, s := range helpSections() {
+		out = append(out, "# "+s.title)
+		for _, r := range s.rows {
+			out = append(out, "  "+r[0]+"  "+r[1])
+		}
+	}
+	return out
+}
+
 func TestHelpSections(t *testing.T) {
 	st := defaultStyles()
-	out := renderBlock(markerBlock(strings.Join(renderHelp(), "\n")), st, tagged(), 80)
+	out := renderBlock(markerBlock(strings.Join(helpText(), "\n")), st, tagged(), 80)
 	for _, want := range []string{"Input", "Navigate", "Run", "Commands"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("help missing %q", want)
@@ -1526,22 +1548,30 @@ func TestHelpSections(t *testing.T) {
 	if strings.Contains(out, "thread") {
 		t.Fatalf("thread strip removed everywhere: %q", out)
 	}
-	// Two columns: every command description starts at the same
-	// absolute column (keys padded to the section max).
+	// Two columns: every command description starts at the same column.
+	// Asserted on helpRows, which is the renderer the help dialog uses --
+	// the padding lives there, in keyWidth.
 	cmds := map[string]string{
 		"/quit": "Quit", "/help": "Open this help", "/new [task]": "Start a fresh task; omit task for an empty session",
 		"/status": "Show current run facts", "/retry": "Retry the last failed turn", "/sessions": "Browse saved sessions",
 		"/compact": "Shrink this session's history",
 	}
+	m := sizeModel(t, testModel())
+	var rendered []string
+	for _, s := range helpSections() {
+		if s.title == "Commands" {
+			rendered = m.helpRows(s, 80)
+		}
+	}
 	col, found := -1, 0
-	for _, ln := range renderHelp() {
-		rest := strings.TrimPrefix(ln, "  ")
+	for _, ln := range rendered {
+		text := plain(ln)
 		for k, d := range cmds {
-			if !strings.HasPrefix(rest, k+" ") {
+			if !strings.Contains(text, k+" ") {
 				continue
 			}
 			found++
-			if i := strings.Index(ln, d); col < 0 {
+			if i := strings.Index(text, d); col < 0 {
 				col = i
 			} else if i != col {
 				t.Fatalf("command columns drift: %q", ln)
@@ -1695,7 +1725,6 @@ func TestFailedRunKeepsErrorBlock(t *testing.T) {
 func TestRetryRerunsLastTurn(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.send = func(tea.Msg) {}
-	m.ctx = context.Background()
 	m.retryRun = func() { m.startRun(func(context.Context) (string, error) { return "recovered", nil }) }
 	m.runErr = errors.New("boom")
 	m.state = stDone
@@ -2441,7 +2470,6 @@ func TestElapsedRunsInFlightFreezesWhenDone(t *testing.T) {
 func TestStartRunResetsClock(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.send = func(tea.Msg) {}
-	m.ctx = context.Background()
 	m.started = time.Now().Add(-time.Hour)
 	m.steps = 7
 	m.tokens = 42

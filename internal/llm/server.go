@@ -65,7 +65,6 @@ type Server struct {
 	totalGen     int
 	totalCalls   int
 	totalCached  int
-	totalRetries int
 }
 
 // UsageTotals returns cumulative tokens across all Chat/Stream calls.

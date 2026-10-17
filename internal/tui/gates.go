@@ -153,12 +153,6 @@ func (m *model) gateBar() string {
 	}
 }
 
-// gateHook is the legacy adapter; production gates receive the active run context.
-func (m *model) gateHook(hub *run.GateHub, runCtx context.Context, ws *workspace.Workspace) func(tool, resource string, args json.RawMessage) (permission.Effect, error) {
-	return func(tool, resource string, args json.RawMessage) (permission.Effect, error) {
-		return m.contextGate(hub, ws)(runCtx, tool, resource, args)
-	}
-}
 func (m *model) contextGate(hub *run.GateHub, ws *workspace.Workspace) func(context.Context, string, string, json.RawMessage) (permission.Effect, error) {
 	return func(runCtx context.Context, tool, resource string, args json.RawMessage) (permission.Effect, error) {
 		key := [2]string{tool, resource}

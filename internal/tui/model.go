@@ -86,7 +86,6 @@ type model struct {
 	events      chan run.Event
 	hub         *run.GateHub
 	cancel      context.CancelFunc
-	ctx         context.Context
 	// base spawns one context per run: an interrupted run's cancelled
 	// context must never leak into the next turn.
 	base  context.Context
@@ -273,7 +272,10 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		case <-uiCtx.Done():
 		}
 	})
-	runCtx, cancel := context.WithCancel(uiCtx)
+	// startRun replaces this with the cancel for the run it derives from
+	// base. It exists so m.cancel is never nil: the gate and quit paths
+	// call it, and a TUI sitting idle has not started a run yet.
+	_, cancel := context.WithCancel(uiCtx)
 	if cfg.Application != nil {
 		setTheme(cfg.Application.Preferences.Theme)
 	}
@@ -283,7 +285,6 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		events:       eventsCh,
 		hub:          hub,
 		cancel:       cancel,
-		ctx:          runCtx,
 		base:         uiCtx,
 		started:      time.Now(),
 		styles:       defaultStyles(),

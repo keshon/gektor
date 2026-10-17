@@ -176,8 +176,6 @@ func (a *Agent) handleFinish(ctx context.Context, st *runState, step int, resp l
 		}
 		return finishOutcome{done: true, err: fmt.Errorf("%w: empty finish after retry", ErrMaxSteps)}
 	}
-	a.LastRunMutations = st.mutatingSucceeded
-	a.report.MutatedPaths = st.mutatedPaths
 	a.report.Final = resp.Message.Content
 	return finishOutcome{done: true, answer: resp.Message.Content, history: history}
 }

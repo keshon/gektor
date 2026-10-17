@@ -284,7 +284,6 @@ func (m *model) startRun(run func(ctx context.Context) (string, error)) {
 	}
 	runCtx, cancel := context.WithCancel(base)
 	m.cancel = cancel
-	m.ctx = runCtx
 	m.state = stRunning
 	m.spinnerFrame = 0
 	m.navFocused = false
@@ -390,12 +389,6 @@ func (m *model) compactNow() (tea.Model, tea.Cmd) {
 	m.transcript.Follow = true
 	m.transcript.Viewport.GotoBottom()
 	return m, nil
-}
-
-// startFresh begins a new task in a fresh transcript and state dir,
-// mirroring how the CLI namespaces one task per .tars/tasks/<id>.
-func (m *model) startFresh(task string, images []string) error {
-	return m.startFreshPrompt(task, task, images)
 }
 
 // taskDirectory decides where an Agent task's files live. A task keeps the

@@ -593,10 +593,6 @@ func (r *Runner) newWorker(sub *Subtask) *agent.Agent {
 		workerStateName(sub), r.maxWorkerSteps(), sub.ExpectsWrites())
 }
 
-func (r *Runner) workerStateFile(sub *Subtask) string {
-	return filepath.Join(r.Dir, "workers", workerStateName(sub))
-}
-
 // workerStateName is the transcript filename for one attempt, relative to
 // the workers directory — which is what roles.Env resolves against.
 func workerStateName(sub *Subtask) string {

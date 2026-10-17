@@ -11,6 +11,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/tars/internal/tui/settings"
 )
 
 // Staged edits survive a category switch inside one dialog and land
@@ -186,7 +187,7 @@ func TestRemoteModelsDiscovery(t *testing.T) {
 	}))
 	defer server.Close()
 	for _, kind := range []string{"llama", "openai", "kobold"} {
-		models, err := remoteModelChoices(kind, server.URL, "TARS_TEST_MODEL_KEY")
+		models, err := settings.RemoteModelChoices(kind, server.URL, "TARS_TEST_MODEL_KEY")
 		if err != nil || len(models) != 1 {
 			t.Fatalf("%s: %v %v", kind, models, err)
 		}
@@ -245,7 +246,7 @@ func TestPromptPresetIsStagedNotApplied(t *testing.T) {
 		t.Fatal("existing behavior not preserved")
 	}
 	options := m.formOptions("prompt-preset")
-	if len(options) < 5 || choiceLabel("prompt-preset", "coding") != "Coding" || !strings.Contains(catalogDetail("prompt-preset", "coding"), "maintainable") {
+	if len(options) < 5 || settings.ChoiceLabel("prompt-preset", "coding") != "Coding" || !strings.Contains(settings.CatalogDetail("prompt-preset", "coding"), "maintainable") {
 		t.Fatal(options)
 	}
 	m.dialog.form.Editor.SetValue("coding")
