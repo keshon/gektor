@@ -24,8 +24,8 @@ func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSin
 		CheckBackground{Procs: procs},
 		StopBackground{Procs: procs},
 		CheckURL{},
-		Webfetch{WS: ws},
-		FetchRaw{WS: ws},
+		Webfetch{},
+		FetchRaw{},
 		SearchWeb{WS: ws},
 		&Todo{},
 	}
@@ -45,8 +45,8 @@ func ReadOnly(ws *workspace.Workspace, procs *BackgroundProcesses) *agent.Regist
 		GrepFiles{WS: ws},
 		CheckBackground{Procs: procs},
 		CheckURL{},
-		Webfetch{WS: ws},
-		FetchRaw{WS: ws},
+		Webfetch{},
+		FetchRaw{},
 		SearchWeb{WS: ws},
 	)
 }

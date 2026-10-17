@@ -64,7 +64,7 @@ func (t SearchWeb) Run(ctx context.Context, args json.RawMessage) (string, error
 	}
 
 	// Use FetchRaw to get the HTML content.
-	fetcher := FetchRaw{WS: t.WS}
+	fetcher := FetchRaw{}
 	fetchArgs, _ := json.Marshal(map[string]string{"url": searchURL})
 	rawContent, err := fetcher.Run(ctx, fetchArgs)
 	if err != nil {

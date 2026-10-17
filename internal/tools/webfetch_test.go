@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/tars/internal/workspace"
 )
 
 func TestStripHTML_Basic(t *testing.T) {
@@ -33,8 +32,7 @@ func TestWebfetch_HTML(t *testing.T) {
 			`<html><body><h1>Hello</h1><script>evil()</script><p>World</p></body></html>`)
 	})
 	defer func() { webfetchTransport = nil }()
-	ws, _ := workspace.New(t.TempDir())
-	out, err := wfRun(ws, `https://example.com/page`)
+	out, err := wfRun(`https://example.com/page`)
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -51,8 +49,7 @@ func TestWebfetch_404IsError(t *testing.T) {
 		return cannedResponseCode(r, http.StatusNotFound, "text/plain", "nope")
 	})
 	defer func() { webfetchTransport = nil }()
-	ws, _ := workspace.New(t.TempDir())
-	wf := Webfetch{WS: ws}
+	wf := Webfetch{}
 	if _, err := wf.Run(context.Background(), json.RawMessage(`{"url":"https://example.com/missing"}`)); err == nil {
 		t.Fatal("expected error for 404")
 	}
@@ -60,8 +57,7 @@ func TestWebfetch_404IsError(t *testing.T) {
 
 func TestWebfetch_LoopbackRefused(t *testing.T) {
 	// No transport override: validation must reject before any dial.
-	ws, _ := workspace.New(t.TempDir())
-	wf := Webfetch{WS: ws}
+	wf := Webfetch{}
 	if _, err := wf.Run(context.Background(), json.RawMessage(`{"url":"http://127.0.0.1:3000/"}`)); err == nil {
 		t.Fatal("expected SSRF refusal for loopback")
 	}
@@ -73,9 +69,7 @@ func TestWebfetch_TruncatesWithSpill(t *testing.T) {
 		return cannedResponse(r, "text/html", big)
 	})
 	defer func() { webfetchTransport = nil }()
-	dir := t.TempDir()
-	ws, _ := workspace.New(dir)
-	out, err := Webfetch{WS: ws}.Run(context.Background(), json.RawMessage(`{"url":"https://example.com/big"}`))
+	out, err := Webfetch{}.Run(context.Background(), json.RawMessage(`{"url":"https://example.com/big"}`))
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -105,8 +99,8 @@ func cannedResponseCode(r *http.Request, code int, contentType, body string) (*h
 	}, nil
 }
 
-func wfRun(ws *workspace.Workspace, url string) (string, error) {
-	return Webfetch{WS: ws}.Run(context.Background(), json.RawMessage(`{"url":`+quote(url)+`}`))
+func wfRun(url string) (string, error) {
+	return Webfetch{}.Run(context.Background(), json.RawMessage(`{"url":`+quote(url)+`}`))
 }
 
 func quote(s string) string {

@@ -24,14 +24,14 @@ func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}, nil
 }
 
-// Helper to create a workspace
+// newTestWS is the empty workspace SearchWeb needs; it resolves no paths
+// and is only here to satisfy the field.
 func newTestWS() *workspace.Workspace {
 	return &workspace.Workspace{}
 }
 
 func TestFetchRaw(t *testing.T) {
-	ws := newTestWS()
-	fetcher := FetchRaw{WS: ws}
+	fetcher := FetchRaw{}
 	ctx := context.Background()
 
 	cannedHTML := "<html><body>Hello World</body></html>"
@@ -53,8 +53,7 @@ func TestFetchRaw(t *testing.T) {
 }
 
 func TestSearchWeb_DuckDuckGo(t *testing.T) {
-	ws := newTestWS()
-	searcher := SearchWeb{WS: ws}
+	searcher := SearchWeb{WS: newTestWS()}
 	ctx := context.Background()
 
 	// Real duckduckgo.com/html/ structure: result links carry
@@ -109,8 +108,7 @@ func TestSearchWeb_DuckDuckGo(t *testing.T) {
 // Reddit becomes scrapable again, add the engine with a canned test in
 // the real response shape, not an invented one.
 func TestSearchWeb_UnsupportedEngineRejected(t *testing.T) {
-	ws := newTestWS()
-	searcher := SearchWeb{WS: ws}
+	searcher := SearchWeb{WS: newTestWS()}
 
 	args, _ := json.Marshal(map[string]string{
 		"query":  "reddit search",

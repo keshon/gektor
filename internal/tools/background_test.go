@@ -171,8 +171,7 @@ func TestHealthProbes_SendNoCredentials(t *testing.T) {
 		return cannedResponse(r, "text/html", "<p>hi</p>")
 	})
 	defer func() { webfetchTransport = nil }()
-	ws, _ := workspace.New(t.TempDir())
-	if _, err := wfRun(ws, "https://example.com/"); err != nil {
+	if _, err := wfRun("https://example.com/"); err != nil {
 		t.Fatalf("webfetch: %v", err)
 	}
 	mu.Lock()
