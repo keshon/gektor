@@ -154,10 +154,7 @@ func (c *Server) WithAPIKey(key string) *Server {
 // hosted APIs hand out a root that already ends in /v1, so accept both
 // plus a fully qualified path for gateways with deeper prefixes.
 func (c *Server) chatURL() string {
-	base := c.baseURL
-	for len(base) > 0 && base[len(base)-1] == '/' {
-		base = base[:len(base)-1]
-	}
+	base := endpoint(c.baseURL, "")
 	if len(base) >= len("/chat/completions") && base[len(base)-len("/chat/completions"):] == "/chat/completions" {
 		return base
 	}

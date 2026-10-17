@@ -68,12 +68,12 @@ type llamaProps struct {
 
 func (llamaDialect) contextLimit(ctx context.Context, hc *http.Client, baseURL string) (int, error) {
 	var p llamaProps
-	err := getJSON(ctx, hc, baseURL+"/props", &p)
+	err := getJSON(ctx, hc, endpoint(baseURL, "/props"), &p)
 	return p.Default.NCtx, err
 }
 
 func (llamaDialect) modelName(ctx context.Context, hc *http.Client, baseURL string) (string, error) {
 	var p llamaProps
-	err := getJSON(ctx, hc, baseURL+"/props", &p)
+	err := getJSON(ctx, hc, endpoint(baseURL, "/props"), &p)
 	return p.ModelPath, err
 }

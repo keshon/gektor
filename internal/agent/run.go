@@ -3,7 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
-	"strings"
+	"errors"
 
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/prompts"
@@ -191,30 +191,42 @@ func (a *Agent) recoverLeakedCalls(resp llm.ChatResponse, step int) (llm.ChatRes
 }
 
 // chat runs one model turn: streaming when configured and supported,
-// otherwise ChatWithRetry. Streaming gets a single attempt (a partial
-// stream cannot resume mid-turn); the unary path retries.
+// otherwise ChatWithRetry. The stream is retried unary only while nothing
+// has been shown yet, since a partial stream cannot be resumed.
 func (a *Agent) chat(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
 	req.Temperature = a.cfg.Temperature
 	if a.cfg.Stream {
 		if s, ok := a.cfg.Client.(interface {
 			Stream(context.Context, llm.ChatRequest, func(string)) (llm.ChatResponse, error)
 		}); ok {
-			resp, err := s.Stream(ctx, req, a.cfg.OnDelta)
-			if err == nil {
-				return resp, err
-			}
-			if apiErr, ok := llm.AsAPIError(err); ok && apiErr.Retryable() {
-				// Fall through to unary retry: an HTTP error status
-				// arrives before any SSE data (the stream reader returns
-				// before scanning the body on non-200), so nothing
-				// streamed and there is no partial content to resume or
-				// duplicate.
-			} else if !strings.Contains(strings.ToLower(err.Error()), "streaming unsupported") {
+			shown := false
+			resp, err := s.Stream(ctx, req, func(d string) {
+				shown = true
+				if a.cfg.OnDelta != nil {
+					a.cfg.OnDelta(d)
+				}
+			})
+			switch {
+			case err == nil:
+				return resp, nil
+			case errors.Is(err, llm.ErrStreamUnsupported):
+				// Fall through to the unary path.
+			case !shown && (errors.Is(err, llm.ErrIncompleteStream) || llm.IsRetryableTransport(err)):
+				// Nothing reached the screen, so a unary retry is safe.
+			case !shown && isRetryableAPI(err):
+				// An HTTP error status arrives before any SSE data, so
+				// nothing streamed and there is nothing to duplicate.
+			default:
 				return resp, err
 			}
 		}
 	}
 	return llm.ChatWithRetry(ctx, a.cfg.Client, req, llm.DefaultRetryPolicy())
+}
+
+func isRetryableAPI(err error) bool {
+	apiErr, ok := llm.AsAPIError(err)
+	return ok && apiErr.Retryable()
 }
 
 // stepWarning renders a pacing notice at 75%/90% of the enforced step

@@ -671,7 +671,7 @@ func (r *Runner) runReview(ctx context.Context, m *Mission) (gaps string, ok boo
 		return "", true
 	}
 
-	resp, err := r.Client.Chat(ctx, llm.ChatRequest{
+	resp, err := llm.ChatWithRetry(ctx, r.Client, llm.ChatRequest{
 		Messages: []llm.Message{{
 			Role:    llm.RoleUser,
 			Content: fmt.Sprintf(prompts.MissionVerdict, agent.TruncateMiddle(strings.TrimSpace(report), 3000)),
@@ -680,7 +680,7 @@ func (r *Runner) runReview(ctx context.Context, m *Mission) (gaps string, ok boo
 		JSONSchema:  DecisionSchema,
 		Temperature: planTemperature,
 		MaxTokens:   r.MaxTokens,
-	})
+	}, llm.DefaultRetryPolicy())
 	if err != nil {
 		r.event("review verdict call failed (%v) — skipping review", err)
 		return "", true

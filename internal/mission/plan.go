@@ -105,13 +105,15 @@ func generateSubtasks(ctx context.Context, client llm.Client, messages []llm.Mes
 	}
 
 	ask := func(msgs []llm.Message) (string, error) {
-		resp, cerr := client.Chat(ctx, llm.ChatRequest{
+		// ChatWithRetry, not Chat: a dropped connection mid-plan used to
+		// end the mission, while every ordinary agent turn got five tries.
+		resp, cerr := llm.ChatWithRetry(ctx, client, llm.ChatRequest{
 			Messages:    msgs,
 			Grammar:     PlanGrammar,
 			JSONSchema:  PlanSchema,
 			Temperature: planTemperature,
 			MaxTokens:   req.MaxTokens,
-		})
+		}, llm.DefaultRetryPolicy())
 		if cerr != nil {
 			// A chat failure here is the backend, not the plan — mark it
 			// infra so the Runner stops resumably instead of failing the

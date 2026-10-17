@@ -49,6 +49,14 @@ type dialect interface {
 	applyStructured(req *wireRequest, gbnf, schema string)
 }
 
+// endpoint joins a base URL and a path. A trailing slash on the base is
+// ordinary in hand-written config, and only chatURL used to strip it, so
+// every probe against such a backend requested "//props" and failed —
+// which then silently disabled context tracking and compaction.
+func endpoint(base, path string) string {
+	return strings.TrimRight(base, "/") + path
+}
+
 func getJSON(ctx context.Context, hc *http.Client, url string, out any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

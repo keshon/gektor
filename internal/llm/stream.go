@@ -5,12 +5,22 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 )
+
+// ErrIncompleteStream reports a stream the backend ended early. A caller
+// that has not shown any of the text yet can retry the turn unary; the
+// same failure mid-request is retryable transport on that path.
+var ErrIncompleteStream = errors.New("incomplete stream")
+
+// ErrStreamUnsupported reports a backend with no streaming endpoint, so a
+// caller can fall back to a unary call instead of failing the turn.
+var ErrStreamUnsupported = errors.New("streaming unsupported")
 
 // Stream sends req with stream:true and calls onDelta for each content
 // chunk, returning the assembled ChatResponse. Only dialects with SSE
@@ -19,7 +29,7 @@ import (
 // back to ChatWithRetry.
 func (c *Server) Stream(ctx context.Context, req ChatRequest, onDelta func(string)) (ChatResponse, error) {
 	if _, ok := c.dialect.(koboldDialect); ok {
-		return ChatResponse{}, fmt.Errorf("streaming unsupported on koboldcpp — use Chat")
+		return ChatResponse{}, fmt.Errorf("%w on koboldcpp — use Chat", ErrStreamUnsupported)
 	}
 	temperature := req.Temperature
 	if temperature <= 0 {
@@ -180,7 +190,7 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onDelta func(strin
 		return ChatResponse{}, fmt.Errorf("read stream: %w", err)
 	}
 	if !complete {
-		return ChatResponse{}, fmt.Errorf("incomplete stream: EOF before completion")
+		return ChatResponse{}, fmt.Errorf("%w: EOF before completion", ErrIncompleteStream)
 	}
 
 	msg := Message{Role: RoleAssistant, Content: content.String(), Reasoning: reasoning.String()}

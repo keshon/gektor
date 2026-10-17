@@ -74,7 +74,7 @@ func (koboldDialect) contextLimit(ctx context.Context, hc *http.Client, baseURL 
 	var out struct {
 		Value int `json:"value"`
 	}
-	err := getJSON(ctx, hc, baseURL+"/api/extra/true_max_context_length", &out)
+	err := getJSON(ctx, hc, endpoint(baseURL, "/api/extra/true_max_context_length"), &out)
 	return out.Value, err
 }
 
@@ -82,6 +82,6 @@ func (koboldDialect) modelName(ctx context.Context, hc *http.Client, baseURL str
 	var out struct {
 		Result string `json:"result"`
 	}
-	err := getJSON(ctx, hc, baseURL+"/api/v1/model", &out)
+	err := getJSON(ctx, hc, endpoint(baseURL, "/api/v1/model"), &out)
 	return out.Result, err
 }

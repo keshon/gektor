@@ -2,7 +2,7 @@ package agent
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/keshon/tars/internal/llm"
@@ -72,7 +72,7 @@ func TestAgent_StreamNonRetryableErrorReturns(t *testing.T) {
 
 // The pre-existing "streaming unsupported" fallback keeps working.
 func TestAgent_StreamUnsupportedFallsBackToUnary(t *testing.T) {
-	client := &failStreamClient{streamErr: errors.New("streaming unsupported on koboldcpp")}
+	client := &failStreamClient{streamErr: fmt.Errorf("%w on koboldcpp", llm.ErrStreamUnsupported)}
 	a := New(Config{
 		Client: client, Tools: NewRegistry(), System: "sys",
 		Stream: true, SkipVerify: true,

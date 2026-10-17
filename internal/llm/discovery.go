@@ -7,25 +7,33 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
+// discoveryTimeout bounds a model-list probe, matching what DetectKind
+// allows. http.DefaultClient has none, so a black-holed endpoint hung the
+// settings picker instead of failing.
+const discoveryTimeout = 5 * time.Second
+
 // DiscoverModels queries a compatible backend using the caller's cancellation and credentials.
-func DiscoverModels(ctx context.Context, kind, endpoint, apiKey string) ([]string, error) {
-	endpoint = strings.TrimSuffix(endpoint, "/")
+func DiscoverModels(ctx context.Context, kind, base, apiKey string) ([]string, error) {
 	path := "/v1/models"
 	if kind == "kobold" {
 		path = "/api/v1/model"
-	} else if strings.HasSuffix(endpoint, "/v1") {
+	} else if strings.HasSuffix(base, "/v1") {
 		path = "/models"
 	}
-	request, err := http.NewRequestWithContext(ctx, "GET", endpoint+path, nil)
+	request, err := http.NewRequestWithContext(ctx, "GET", endpoint(base, path), nil)
 	if err != nil {
 		return nil, err
 	}
 	if apiKey != "" {
 		request.Header.Set("Authorization", "Bearer "+apiKey)
 	}
-	response, err := http.DefaultClient.Do(request)
+	// http.DefaultClient has no timeout, so a black-holed endpoint would
+	// hang the settings picker instead of failing.
+	client := &http.Client{Timeout: discoveryTimeout}
+	response, err := client.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("model discovery failed")
 	}
