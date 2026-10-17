@@ -1,17 +1,13 @@
 package tui
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 
-	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/filetxn"
-	"github.com/keshon/tars/internal/speech"
 	"github.com/keshon/tars/internal/tui/settings"
 )
 
@@ -46,90 +42,6 @@ func (m *model) saveSettingsCopy() {
 		return
 	}
 	m.dialog.form.Error = "Saved copy: " + path
-}
-
-var settingsSampleID atomic.Uint64
-
-type settingsSampleMsg struct {
-	id  uint64
-	err error
-}
-
-func (m *model) previewSettingsSpeech() tea.Cmd {
-	f := m.dialog.form
-	ws := f.Workspace
-	if ws.SampleCancel != nil {
-		ws.SampleCancel()
-		ws.SampleCancel = nil
-		ws.SampleID++
-		f.Error = "Sample stopped"
-		return nil
-	}
-	staged, err := m.stagedSettings()
-	if err != nil {
-		f.Error = err.Error()
-		return nil
-	}
-	current := m.audio().Profile.Speech
-	if current == nil || staged.Speech == nil {
-		f.Error = "This profile has no speech service"
-		return nil
-	}
-	if speechSettingsChanged(staged.Speech, current) {
-		f.Error = "Apply changed speech settings before playing its voice sample"
-		return nil
-	}
-	if err := m.enableVoice(); err != nil {
-		f.Error = err.Error()
-		return nil
-	}
-	base := m.base
-	if base == nil {
-		base = context.Background()
-	}
-	ctx, cancel := context.WithCancel(base)
-	ws.SampleCancel = cancel
-	ws.SampleID = settingsSampleID.Add(1)
-	id := ws.SampleID
-	service := m.runtime().Voice
-	f.Error = "Playing current Chatterbox voice · Ctrl+P stops"
-	return func() tea.Msg {
-		out := speech.NewOutput(ctx, service, nil)
-		err := out.Delta("Hello. This is my current voice. How does it sound to you?")
-		if err != nil {
-			out.Cancel()
-		}
-		finish := out.Finish()
-		if err == nil {
-			err = finish
-		}
-		return settingsSampleMsg{id, err}
-	}
-}
-func (m *model) acceptSettingsSample(msg settingsSampleMsg) {
-	if m.dialog == nil || m.dialog.form == nil || m.dialog.form.Workspace == nil {
-		return
-	}
-	ws := m.dialog.form.Workspace
-	if ws.SampleID != msg.id {
-		return
-	}
-	if ws.SampleCancel != nil {
-		ws.SampleCancel()
-	}
-	ws.SampleCancel = nil
-	if msg.err != nil {
-		m.dialog.form.Error = fmt.Sprintf("Voice sample: %v", msg.err)
-	} else {
-		m.dialog.form.Error = "Voice sample finished"
-	}
-}
-
-func (m *model) hasSettingsSpeech() bool {
-	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Workspace != nil && m.dialog.form.Workspace.Draft != nil {
-		return m.dialog.form.Workspace.Draft.Base().Speech != nil
-	}
-	return m.audio() != nil && m.audio().Profile.Speech != nil
 }
 
 type settingsDetailMsg = settings.DetailMsg

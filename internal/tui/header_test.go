@@ -11,7 +11,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/tars/internal/api"
 	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/speech"
 )
 
 func TestHeaderMenusPreserveDraftAndFrame(t *testing.T) {
@@ -241,9 +240,7 @@ func TestCheckmarkUsesTheLabelIndent(t *testing.T) {
 		set  func(*model)
 	}{
 		{"view", func(m *model) { m.transcript.compact = true }},
-		{"conversation-mode", func(m *model) { m.chat = &chatUI{} }},
 		{"workflow", func(m *model) { m.plan = false }},
-		{"voice", func(m *model) { m.listening = &speech.LiveCapture{} }},
 	} {
 		m := sizeModelTo(t, testModel(), 80, 30)
 		tc.set(m)
@@ -314,16 +311,16 @@ func TestMenusWithoutTogglesDrawNoMark(t *testing.T) {
 // Plan/Act moved from an inline tick to the shared indent.
 func TestModeMenuUsesSharedCheckmarkIndent(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 80, 30)
-	m.header.menu = "conversation-mode"
-	m.chat = nil
+	m.header.menu = "mode"
+	m.plan = false
 	rows := strings.Join(popupRows(t, m), "\n")
-	if !strings.Contains(rows, "✓ Agent") || strings.Contains(rows, "✓ Chat") || strings.Contains(rows, "✓  Agent") {
-		t.Fatalf("agent mode tick: %s", rows)
+	if !strings.Contains(rows, "✓ ACT") || strings.Contains(rows, "✓  ACT") {
+		t.Fatalf("act mode tick: %s", rows)
 	}
-	m.chat = &chatUI{}
+	m.plan = true
 	rows = strings.Join(popupRows(t, m), "\n")
-	if !strings.Contains(rows, "✓ Chat") || strings.Contains(rows, "✓ Agent") {
-		t.Fatalf("chat mode tick: %s", rows)
+	if !strings.Contains(rows, "✓ PLAN") || strings.Contains(rows, "✓ ACT") {
+		t.Fatalf("plan mode tick: %s", rows)
 	}
 }
 

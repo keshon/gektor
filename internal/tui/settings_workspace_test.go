@@ -11,13 +11,17 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/chat"
 )
 
-func TestSettingsAcrossCategoriesApplyToCurrentSession(t *testing.T) {
+// Staged edits survive a category switch inside one dialog and land
+// together on Apply, and the saved task is left for the restart to replace.
+func TestSettingsAcrossCategoriesApplyTogether(t *testing.T) {
 	m := settingsModel(t)
 	path := m.stateFile
-	history := m.chat.current.History()
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
 	draft := m.input.Value()
 	m.editSettings("generation")
 	m.dialog.form.Editor.SetValue("0.8")
@@ -29,32 +33,43 @@ func TestSettingsAcrossCategoriesApplyToCurrentSession(t *testing.T) {
 		t.Fatal("category switch lost staged edit")
 	}
 	m.applyForm()
-	if m.dialog != nil || m.stateFile != path || m.input.Value() != draft || m.chat.config.Profile.Conversation.UserName != "Alex" || m.chat.config.Settings.Temperature != .8 {
-		t.Fatal("apply reset session or lost staged values")
+	if m.dialog != nil {
+		t.Fatalf("apply refused: %q", m.dialog.form.Error)
 	}
-	if !reflect.DeepEqual(history, m.chat.current.History()) {
-		t.Fatal("history changed")
+	if m.modeChange == nil {
+		t.Fatal("apply queued no restart")
 	}
-	archive, err := chat.ReadArchive(path)
-	if err != nil {
-		t.Fatal(err)
+	profile := m.modeChange.Preferences.Profile
+	if profile.Generation.Temperature != .8 || profile.Conversation.UserName != "Alex" {
+		t.Fatalf("apply lost staged values: %+v", profile.Generation)
 	}
-	if archive.Config.Temperature != .8 || !reflect.DeepEqual(archive.History, history) {
-		t.Fatal("archive did not preserve history and new settings")
+	if m.input.Value() != draft {
+		t.Fatal("apply lost the draft")
+	}
+	if m.stateFile != path {
+		t.Fatal("apply moved the session")
+	}
+	after, err := os.ReadFile(path)
+	if err != nil || string(after) != string(before) {
+		t.Fatal("apply rewrote the saved task before the restart landed")
 	}
 }
+
 func TestSettingsCancelAllCategories(t *testing.T) {
 	m := settingsModel(t)
-	original := m.chat.current
-	profile := m.chat.config.Profile
+	configured := m.config
+	profile := m.config.Profile
 	m.editSettings("generation")
 	m.dialog.form.Editor.SetValue("0.9")
 	m.editSettings("you")
 	m.focusForm(0)
 	m.dialog.form.Editor.SetValue("Changed")
 	m.closeDialog()
-	if m.chat.current != original || m.chat.config.Profile.Conversation.UserName != profile.Conversation.UserName || m.chat.config.Settings.Temperature != 0 {
+	if m.config != configured || m.config.Profile.Conversation.UserName != profile.Conversation.UserName || m.config.Settings.Temperature != 0 {
 		t.Fatal("cancel applied staged values")
+	}
+	if m.modeChange != nil {
+		t.Fatal("cancel queued a restart")
 	}
 }
 func TestPickerSearchBackAndStaleScan(t *testing.T) {
@@ -140,8 +155,8 @@ func TestPickerBrowsesNestedFolders(t *testing.T) {
 	os.MkdirAll(nested, 0700)
 	file := filepath.Join(nested, "model.gguf")
 	os.WriteFile(file, nil, 0600)
-	m.chat.config.Profile.Provider.Ownership = "managed"
-	m.chat.config.Profile.Provider.ModelRoot = root
+	m.config.Profile.Provider.Ownership = "managed"
+	m.config.Profile.Provider.ModelRoot = root
 	m.editSettings("model")
 	for i, f := range m.dialog.form.Fields {
 		if f.Key == "model-file" {
@@ -171,9 +186,9 @@ func TestSettingsWorkspacePreview(t *testing.T) {
 	}
 	os.MkdirAll(dir, 0700)
 	m := settingsModel(t)
-	m.chat.config.Profile.Provider.Ownership = "managed"
-	m.chat.config.Profile.Provider.ModelFile = "D:/Models/Qwen3-1.7B-Q8_0.gguf"
-	m.chat.config.Profile.Provider.GPULayers = 99
+	m.config.Profile.Provider.Ownership = "managed"
+	m.config.Profile.Provider.ModelFile = "D:/Models/Qwen3-1.7B-Q8_0.gguf"
+	m.config.Profile.Provider.GPULayers = 99
 	m.width(tea.WindowSizeMsg{Width: 120, Height: 34})
 	m.editSettings("model")
 	write := func(name string) {
@@ -223,18 +238,31 @@ func TestRemoteModelsDiscovery(t *testing.T) {
 		}
 	}
 }
-func TestSettingsArchiveFailureKeepsActiveConfiguration(t *testing.T) {
+// Apply reads the saved task before it writes anything. A read failure
+// must stop the apply outright rather than queue a restart that would
+// seed the new session from nothing.
+func TestUnreadableTaskStopsApplyBeforeWriting(t *testing.T) {
 	m := settingsModel(t)
-	original := m.chat.current
+	configured := m.config
 	path := m.stateFile
-	// Replace the archive target with a directory to force atomic save failure.
-	os.Remove(path)
-	os.Mkdir(path, 0700)
+	// Replace the task file with a directory to force the read to fail.
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	m.editSettings("generation")
 	m.dialog.form.Editor.SetValue("0.9")
 	m.applyForm()
-	if m.dialog == nil || m.dialog.form.Error == "" || m.chat.current != original || m.chat.config.Settings.Temperature != 0 {
-		t.Fatal("failed persistence changed the active session")
+	if m.dialog == nil || m.dialog.form.Error == "" {
+		t.Fatal("an unreadable task did not stop the apply")
+	}
+	if m.modeChange != nil {
+		t.Fatal("a failed read still queued a restart")
+	}
+	if m.config != configured || m.config.Settings.Temperature != 0 {
+		t.Fatal("failed persistence changed the active configuration")
 	}
 }
 
@@ -259,9 +287,7 @@ func TestSettingsTakesOverContentWithRoundedCorners(t *testing.T) {
 // a reason to reconfigure services mid-form.
 func TestPromptPresetIsStagedNotApplied(t *testing.T) {
 	m := settingsModel(t)
-	m.audioConfig = m.chat.config
-	m.chat = nil
-	m.editSettings("prompts")
+		m.editSettings("prompts")
 	focusSetting(m, "prompt-preset")
 	if m.dialog.form.Editor.Value() != "custom" {
 		t.Fatal("existing behavior not preserved")
@@ -272,7 +298,7 @@ func TestPromptPresetIsStagedNotApplied(t *testing.T) {
 	}
 	m.dialog.form.Editor.SetValue("coding")
 	staged, err := m.stagedSettings()
-	if err != nil || staged.Conversation.PromptPreset != "coding" || m.audio().Profile.Conversation.PromptPreset != "" {
+	if err != nil || staged.Conversation.PromptPreset != "coding" || m.config.Profile.Conversation.PromptPreset != "" {
 		t.Fatal("preset not staged independently", staged, err)
 	}
 	m.closeDialog()

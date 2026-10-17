@@ -3,13 +3,11 @@ package tui
 import (
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/speech"
 )
 
 func focusSetting(m *model, key string) {
@@ -20,18 +18,20 @@ func focusSetting(m *model, key string) {
 		}
 	}
 }
-func TestLoadedProfileAppliesWithoutResettingHistory(t *testing.T) {
+// Loading a profile stages it; it does not apply. The running session
+// keeps its own profile until Apply, and then the restart carries the
+// loaded values and the same session directory.
+func TestLoadedProfileStagedUntilApply(t *testing.T) {
 	m := settingsModel(t)
-	m.application = &Application{Preferences: config.Preferences{Version: 1, Mode: "chat", Voice: "off", ProfilePath: "old.json"}}
+	m.application.Preferences.ProfilePath = "old.json"
 	root := t.TempDir()
-	p := m.chat.config.Profile.Clone()
+	p := m.config.Profile.Clone()
 	p.Conversation.UserName = "Alex"
 	p.Generation.Temperature = .8
 	path := filepath.Join(root, "custom.json")
 	if err := config.SaveCopy(p, path); err != nil {
 		t.Fatal(err)
 	}
-	history := m.chat.current.History()
 	id := m.stateFile
 	m.editSettings("profiles")
 	focusSetting(m, "load-profile")
@@ -39,7 +39,7 @@ func TestLoadedProfileAppliesWithoutResettingHistory(t *testing.T) {
 	picker := m.dialog.form.Picker
 	m.acceptSettingsScan(settingsScanMsg{ID: picker.ID, Items: []string{path}})
 	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.chat.config.Profile.Conversation.UserName != "User" {
+	if m.config.Profile.Conversation.UserName != "User" {
 		t.Fatal("load applied without Apply")
 	}
 	m.editSettings("generation")
@@ -47,11 +47,17 @@ func TestLoadedProfileAppliesWithoutResettingHistory(t *testing.T) {
 		t.Fatal("loaded settings not shown")
 	}
 	m.applyForm()
-	if m.dialog != nil || m.stateFile != id || m.chat.config.Profile.Conversation.UserName != "Alex" || !reflect.DeepEqual(history, m.chat.current.History()) {
-		t.Fatal("profile load lost session")
+	if m.dialog != nil {
+		t.Fatalf("apply refused: %q", m.dialog.form.Error)
 	}
-	if m.profileSource() != "custom.json" {
-		t.Fatal("loaded setup source was not updated", m.profileSource())
+	if m.modeChange == nil || m.stateFile != id {
+		t.Fatal("profile load lost the session")
+	}
+	if got := m.modeChange.Preferences.Profile.Conversation.UserName; got != "Alex" {
+		t.Fatalf("loaded profile was not applied: %q", got)
+	}
+	if m.modeChange.Preferences.ProfilePath != path {
+		t.Fatalf("loaded source was not carried: %q", m.modeChange.Preferences.ProfilePath)
 	}
 }
 func TestSettingsLibrariesPreview(t *testing.T) {
@@ -62,48 +68,46 @@ func TestSettingsLibrariesPreview(t *testing.T) {
 	os.MkdirAll(dir, 0700)
 	m := settingsModel(t)
 	m.width(tea.WindowSizeMsg{Width: 120, Height: 34})
-	m.chat.config.Profile.Speech = &speech.Config{Recorder: "ffmpeg", PlayerBinary: "ffplay", Microphone: "Microphone (Storm Pro)", MaxSeconds: 120, Speaking: speech.Speaking{Provider: "chatterbox", Variant: "nano", Binary: "python", Model: "assets/models/speaking/chatterbox/nano"}, Listening: speech.Listening{Ownership: "external", URL: "http://127.0.0.1:19082"}}
 	write := func(name string) {
 		t.Helper()
 		if err := os.WriteFile(filepath.Join(dir, name+".txt"), []byte(ansi.Strip(m.View().Content)), 0600); err != nil {
 			t.Fatal(err)
 		}
 	}
-	m.editSettings("speech")
-	write("speech-library")
-	focusSetting(m, "microphone")
+	m.editSettings("profiles")
+	focusSetting(m, "load-profile")
 	m.openSettingsPicker()
 	p := m.dialog.form.Picker
-	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{"Microphone (Storm Pro)", "Microphone (ARDOR GAMING Rune)"}})
-	write("microphone-picker")
+	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{filepath.Join(dir, "custom.json")}})
+	write("profile-picker")
 	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEscape})
-	m.editSettings("profiles")
-	write("profiles-library")
-	m.editSettings("character")
-	focusSetting(m, "character")
-	m.openSettingsPicker()
-	p = m.dialog.form.Picker
-	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{"D:/Cards/Veyra.json", "E:/SillyTavern/characters/Ada.png"}})
-	write("character-picker")
+	m.editSettings("prompts")
+	write("prompts-page")
 }
 
+// A built-in profile must never be written to. Apply saves a copy under
+// profiles/custom and hands that path to the restart, then reuses it for
+// every later apply instead of deriving a new one.
 func TestApplyAutomaticallySavesReusableCustomProfile(t *testing.T) {
 	m := settingsModel(t)
 	root := t.TempDir()
-	original := m.chat.config.Profile.Clone()
+	original := m.config.Profile.Clone()
 	builtin := filepath.Join(root, "profiles", "builtin.json")
 	if err := config.SaveCopy(original, builtin); err != nil {
 		t.Fatal(err)
 	}
 	before, _ := os.ReadFile(builtin)
-	m.application = &Application{PreferencePath: filepath.Join(root, "var", "application.json"), Preferences: config.Preferences{Version: 1, Mode: "chat", Voice: "off", ProfilePath: builtin, Profile: &original}}
+	m.application = &Application{PreferencePath: filepath.Join(root, "var", "application.json"), Preferences: config.Preferences{Version: 1, Mode: "agent", Voice: "off", ProfilePath: builtin, Profile: &original}}
 	m.editSettings("you")
 	m.dialog.form.Editor.SetValue("Alex")
 	m.applyForm()
 	if m.dialog != nil {
 		t.Fatal("apply did not finish", m.dialog.form.Error)
 	}
-	custom := m.application.Preferences.ProfilePath
+	if m.modeChange == nil {
+		t.Fatal("apply queued no restart")
+	}
+	custom := m.modeChange.Preferences.ProfilePath
 	if filepath.Dir(custom) != filepath.Join(root, "profiles", "custom") || custom == builtin {
 		t.Fatal(custom)
 	}
@@ -111,20 +115,30 @@ func TestApplyAutomaticallySavesReusableCustomProfile(t *testing.T) {
 	if err != nil || saved.Conversation.UserName != "Alex" {
 		t.Fatal(saved, err)
 	}
+	// The built-in file is never touched.
+	if after, _ := os.ReadFile(builtin); string(after) != string(before) {
+		t.Fatal("apply wrote to the built-in profile")
+	}
+
+	// The restart adopts the custom path, so the next apply reuses it.
+	m.modeChange = nil
+	m.application.Preferences.ProfilePath = custom
 	m.editSettings("generation")
 	m.dialog.form.Editor.SetValue("0.8")
 	m.applyForm()
-	if m.dialog != nil || m.application.Preferences.ProfilePath != custom {
-		t.Fatal("custom profile not reused")
+	if m.dialog != nil {
+		t.Fatalf("apply did not finish: %q", m.dialog.form.Error)
+	}
+	if m.modeChange == nil || m.modeChange.Preferences.ProfilePath != custom {
+		t.Fatalf("custom profile not reused: %+v", m.modeChange)
 	}
 	saved, err = config.Load(custom)
 	if err != nil || saved.Generation.Temperature != .8 {
 		t.Fatal(saved, err)
 	}
-	preferences, err := config.LoadPreferences(m.application.PreferencePath)
-	if err != nil || preferences.ProfilePath != custom || preferences.Profile == nil || preferences.Profile.Generation.Temperature != .8 {
-		t.Fatal("custom selection was not persisted", preferences, err)
-	}
+
+	m.modeChange = nil
+	m.application.Preferences.ProfilePath = custom
 	m.editSettings("prompts")
 	focusSetting(m, "prompt-preset")
 	m.dialog.form.Editor.SetValue("coding")

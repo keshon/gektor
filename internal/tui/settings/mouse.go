@@ -46,10 +46,8 @@ func (f *Model) Mouse(msg tea.MouseMsg, props Props) (Intent, tea.Cmd) {
 		row := mouse.Y - y
 		if row >= 0 && row < len(f.AvailableCategories()) {
 			category := f.AvailableCategories()[row].ID
-			if category != "speech" || f.HasSpeech() {
-				if category != f.Workspace.Section {
-					return Intent{Action: SwitchCategory, Section: category}, nil
-				}
+			if category != f.Workspace.Section {
+				return Intent{Action: SwitchCategory, Section: category}, nil
 			}
 		}
 		if row >= 0 && row < len(f.AvailableCategories()) {

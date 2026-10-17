@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/chat"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/session"
@@ -32,9 +31,8 @@ func (m *model) saveSessionSettingsAt(directory string) error {
 		return nil
 	}
 	p := m.application.Preferences
-	p.Voice = m.currentVoiceMode()
-	if m.audio() != nil {
-		profile := m.audio().Profile.Clone()
+	if m.config != nil {
+		profile := m.config.Profile.Clone()
 		p.Profile = &profile
 	}
 	return config.SavePreferences(filepath.Join(directory, "settings.json"), p)
@@ -45,18 +43,12 @@ func (m *model) openApplicationSession(entry sessionEntry) (tea.Cmd, bool) {
 	var err error
 	if _, statErr := os.Stat(path); os.IsNotExist(statErr) {
 		// Existing archives predate per-session settings. Keep the current
-		// service profile, but restore their conversation mode.
-		if (entry.mode == "Chat") == (m.chat != nil) {
-			return nil, false
-		}
+		// service profile; there is no mode left to restore.
 		p = m.application.Preferences
-		profile := m.audio().Profile.Clone()
+		profile := m.config.Profile.Clone()
 		p.Profile = &profile
 		p.Mode = "agent"
-		if entry.mode == "Chat" {
-			p.Mode = "chat"
-		}
-		if p.Mode == "agent" && p.Workspace == "" {
+		if p.Workspace == "" {
 			m.sessions.flash = "Choose an Agent workspace in Settings → Application first"
 			return nil, true
 		}
@@ -72,23 +64,13 @@ func (m *model) openApplicationSession(entry sessionEntry) (tea.Cmd, bool) {
 		m.sessions.flash = "Session settings have no profile"
 		return nil, true
 	}
-	var history []llm.Message
-	if p.Mode == "chat" {
-		archive, e := chat.ReadArchive(filepath.Join(entry.dir, "conversation.json"))
-		err = e
-		history = archive.History
-	} else {
-		history, err = session.ReadHistory(filepath.Join(entry.dir, "state.json"))
-	}
+	history, err := session.ReadHistory(filepath.Join(entry.dir, "state.json"))
 	if err != nil {
 		m.sessions.flash = fmt.Sprintf("Cannot open session: %v", err)
 		return nil, true
 	}
 	m.saveDraft()
 	draft := m.drafts[filepath.Join(entry.dir, "state.json")].text
-	if p.Mode == "chat" {
-		draft = m.drafts[filepath.Join(entry.dir, "conversation.json")].text
-	}
 	m.modeChange = &ModeChange{Preferences: p, History: history, Draft: draft, Directory: entry.dir}
 	return tea.Quit, true
 }

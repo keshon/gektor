@@ -41,7 +41,7 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 			// transcript, the next submitted line starts a fresh
 			// run. The task text is the session title, so there is
 			// nothing sensible to derive one from yet.
-			m.newChat()
+			m.newTask()
 			return m, m.input.Focus()
 		}
 		clean, images, err := splitAttachments(m.ws, task)
@@ -58,17 +58,13 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		m.appendBlock(markerBlock(strings.Join(m.statusLines(), "\n")))
 		return m, nil
 	case "mode":
-		if m.chat != nil {
-			m.appendBlock(markerBlock("Mode: Chat · no tools or coding workflow"))
-			return m, nil
-		}
 		mode := strings.ToLower(strings.TrimSpace(arg))
 		if mode == "" {
 			m.appendBlock(markerBlock("Mode: " + m.modeName() + " · /mode plan previews changes · /mode act executes them"))
 			return m, nil
 		}
 		if m.mission || (mode != "plan" && mode != "act") {
-			m.appendBlock(errorBlock("Choose /mode plan or /mode act for a chat."))
+			m.appendBlock(errorBlock("Choose /mode plan or /mode act."))
 			return m, nil
 		}
 		previous := m.plan
@@ -109,8 +105,5 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) commandReference() [][2]string {
-	if m.chat == nil {
-		return commandReference()
-	}
-	return [][2]string{{"/help", "Open help"}, {"/sessions", "Browse saved conversations"}, {"/new [message]", "Start a fresh conversation"}, {"/compact", "Keep the opening and recent turns; back up the previous archive"}, {"/status", "Show model and conversation facts"}, {"/retry", "Retry the last failed turn"}, {"/quit", "Quit"}}
+	return commandReference()
 }

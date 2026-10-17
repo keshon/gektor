@@ -9,7 +9,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/prompts"
-	"github.com/keshon/tars/internal/speech"
 	"github.com/keshon/tars/internal/tui/components/form"
 	"github.com/keshon/tars/internal/tui/settings"
 	"github.com/keshon/tars/internal/workspace"
@@ -34,7 +33,7 @@ func (m *model) openForm(title, hint, applyLabel string, fields []formField, app
 	m.openDialog(title, nil)
 	f := &settingsForm{Model: settings.NewModel(fields, newInput().Model), apply: apply}
 	f.Hint, f.ApplyLabel = hint, applyLabel
-	f.HasApplication, f.Chat = m.application != nil, m.chat != nil
+	f.HasApplication = m.application != nil
 	f.Editor.SetVirtualCursor(true)
 	f.Editor.DynamicHeight = false
 	f.Editor.Prompt = ""
@@ -77,8 +76,6 @@ func (m *model) handleSettingsIntent(intent settings.Intent) tea.Cmd {
 		m.closeDialog()
 	case settings.SaveCopy:
 		m.saveSettingsCopy()
-	case settings.Preview:
-		return m.previewSettingsSpeech()
 	case settings.SwitchCategory:
 		m.editSettings(intent.Section)
 	}
@@ -98,19 +95,7 @@ func (m *model) formMouse(msg tea.MouseMsg) tea.Cmd {
 	return tea.Batch(cmd, m.handleSettingsIntent(intent))
 }
 func (m *model) editSettings(section string) {
-	// Read before the teardown below. stopListening nils m.listening, so
-	// anything that asks for the voice mode afterwards always gets
-	// push-to-talk: a hands-free reader was downgraded by merely opening
-	// this form, and the Application page reported itself as changed
-	// because its Voice field no longer matched what it compared against.
-	voice := m.liveVoiceMode()
-	m.stopListening()
-	if m.chat == nil && m.application == nil && section == "speech" {
-		m.editAgentSpeech(voice)
-		return
-	}
-
-	currentSettings := m.audio()
+	currentSettings := m.config
 	if currentSettings == nil || currentSettings.Configure == nil {
 		return
 	}
@@ -122,7 +107,7 @@ func (m *model) editSettings(section string) {
 		}
 	}
 	if ws == nil {
-		ws = &settingsWorkspace{Draft: settings.New(currentSettings.Profile), VoiceMode: voice}
+		ws = &settingsWorkspace{Draft: settings.New(currentSettings.Profile)}
 	}
 	ws.Section = section
 	profile := ws.Draft.Base()
@@ -130,11 +115,7 @@ func (m *model) editSettings(section string) {
 	if m.application != nil {
 		preferences = m.application.Preferences
 	}
-	// Built from the recorded mode, not currentVoiceMode(): at this point
-	// the new workspace is not attached yet, so the fallback would answer
-	// with the post-teardown mode and the field would disagree with the
-	// preference it is compared against.
-	title, fields := settings.PageFields(profile, section, preferences, voice)
+	title, fields := settings.PageFields(profile, section, preferences)
 
 	if m.dialog != nil {
 		m.closeDialog()
@@ -146,10 +127,10 @@ func (m *model) editSettings(section string) {
 			return err
 		}
 
-		if m.chat == nil || m.settingsApplicationChanged() {
-			return m.requestProfileChange(profile)
-		}
-		return m.applyChatSettings(profile, ws)
+		// Applying settings restarts the launch so the new profile is composed
+		// into fresh services. Nothing is applied in place: the session that
+		// reads the old one must not keep running against the new.
+		return m.requestProfileChange(profile)
 	})
 	m.dialog.form.Workspace = ws
 	saved := ws.Draft.Visit(section, fields)
@@ -185,7 +166,7 @@ func (m *model) deleteActive() {
 		if err := os.RemoveAll(target); err != nil {
 			return err
 		}
-		m.newChat()
+		m.newTask()
 		m.refreshNavigator()
 		return nil
 	})
@@ -197,35 +178,27 @@ func (m *model) inspectConnection() {
 	m.openDialog("Model connection", []string{"Model: " + nonEmpty(m.modelName), "Protocol: " + nonEmpty(m.backendKind), "Endpoint: " + nonEmpty(m.backendURL), fmt.Sprintf("Context: %d tokens · response: %d tokens", m.limit, m.responseCap), "Coding connection changes currently require restarting the application."})
 }
 
-func (m *model) inspectChatPrompt() {
-	if m.audio() == nil {
+func (m *model) inspectPrompt() {
+	if m.config == nil {
 		return
 	}
-	s := m.audio().Settings
+	s := m.config.Settings
 	selected := ""
-	if m.audio().Profile.Conversation != nil {
-		selected = m.audio().Profile.Conversation.PromptPreset
+	if m.config.Profile.Conversation != nil {
+		selected = m.config.Profile.Conversation.PromptPreset
 	}
 	preset, _ := prompts.ResponsePreset(selected)
-	// The greeting and the dialogue examples come from a character card,
-	// and a card is Chat-only. Offering an Agent a preview of two
-	// headings it can never have described the wrong prompt.
-	greeting, greetingLabel := s.Greeting, "Opening assistant greeting"
-	if m.chat == nil {
-		greeting, greetingLabel = "", "Opening assistant greeting (Chat only: this session takes no character)"
+	lines := []string{
+		"Prompt preset: " + preset.Name,
+		"Preset adds response style to the profile's own identity.",
+		"Leading identity instruction",
+		s.System,
+		"Post-history system directive",
+		s.PostHistory,
+		"This is the identity the profile contributes; the agent's Plan/Act operational instructions are added on top and are not shown here.",
 	}
-	lines := []string{"Prompt preset: " + preset.Name, "Preset adds response style; a character card supplies identity in Chat.", "Leading system instruction", s.System, greetingLabel, greeting, "Post-history system directive", s.PostHistory, "This is the compiled prompt; saved conversation turns are inserted between greeting and post-history."}
-	if m.chat == nil {
-		lines = append([]string{"Agent keeps its Plan/Act operational instructions and adds this profile identity and response style."}, lines...)
-	}
-	for _, example := range s.Examples {
-		lines = append(lines, string(example.Role)+": "+example.Content)
-	}
-	if m.voiceEnabled {
-		lines = append(lines, speech.DeliveryPrompt(m.runtime().Voice))
-	}
-	lines = append(lines, m.audio().Warnings...)
-	m.openDialog("Effective conversation prompt", lines)
+	lines = append(lines, m.config.Warnings...)
+	m.openDialog("Effective identity prompt", lines)
 }
 
 func (m *model) resizeFormEditor() {

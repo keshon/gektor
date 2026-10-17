@@ -651,16 +651,16 @@ func nonEmptySpeaker(name string) string {
 }
 func (m *model) speakerName() string {
 	name := m.identityName
-	if m.audio() != nil && m.audio().Settings.CharacterName != "" {
-		name = m.audio().Settings.CharacterName
+	if m.config != nil && m.config.Settings.CharacterName != "" {
+		name = m.config.Settings.CharacterName
 	}
 	return nonEmptySpeaker(strings.Join(strings.Fields(cleanText(name)), " "))
 }
 
 func (m *model) userName() string {
 	name := m.identityUser
-	if m.audio() != nil && m.audio().Profile.Conversation != nil {
-		name = m.audio().Profile.Conversation.UserName
+	if m.config != nil && m.config.Profile.Conversation != nil {
+		name = m.config.Profile.Conversation.UserName
 	}
 	name = strings.Join(strings.Fields(cleanText(name)), " ")
 	if name == "" {

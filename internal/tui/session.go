@@ -20,7 +20,6 @@ import (
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/snapshot"
-	"github.com/keshon/tars/internal/speech"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -28,9 +27,6 @@ import (
 // the saved transcript carries the conversation, so every follow-up is
 // a continuation, not a fresh run. A /command runs locally instead.
 func (m *model) followUp() (tea.Model, tea.Cmd) {
-	if m.chat != nil {
-		return m.submitConversation(m.input.Value())
-	}
 	original := m.input.Value()
 	text := strings.TrimSpace(original)
 	if strings.HasPrefix(text, "/") {
@@ -306,24 +302,8 @@ func (m *model) startRun(run func(ctx context.Context) (string, error)) {
 	m.steps = 0
 	m.usage.thisRun = false
 	m.header.focused, m.header.menu = false, ""
-	var voice speech.Service
-	if m.services != nil {
-		voice = m.services.Voice
-	}
-	voiced := m.chat == nil && m.voiceEnabled && voice != nil
 	go func() {
 		answer, err := run(runCtx)
-		if voiced && err == nil && answer != "" && runCtx.Err() == nil {
-			audioCtx, cancelAudio := context.WithCancel(runCtx)
-			defer m.registerSpeech(cancelAudio)()
-			out := speech.NewOutput(audioCtx, voice, func(phase string) { m.emitVoice(runCtx, phase) })
-			if e := out.Delta(answer); e != nil {
-				out.Cancel()
-			}
-			if e := out.Finish(); e != nil && runCtx.Err() == nil && audioCtx.Err() == nil {
-				m.emitVoice(runCtx, "Speech failed; text remains available")
-			}
-		}
 		m.send(doneMsg{answer: answer, err: err})
 	}()
 }
@@ -348,26 +328,11 @@ func (m *model) startInitial(task string, images []string) error {
 	return nil
 }
 
-// newChat resets to the empty-chat state: the session, transcript,
-// and last-turn state go, the next submitted line starts a fresh run
+// newTask resets to the empty state: the session, transcript, and
+// last-turn state go, the next submitted line starts a fresh run
 // through the sess==nil path in followUp. Bare /new.
-func (m *model) newChat() {
+func (m *model) newTask() {
 	m.seedHistory = nil
-	if m.chat != nil {
-		m.saveDraft()
-		m.cancel()
-		m.chat.current = nil
-		m.stateFile = ""
-		m.sessionTitle = ""
-		m.transcript.blocks = nil
-		m.resetRunFacts()
-		m.state = stDone
-		m.navFocused = false
-		m.restoreDraft()
-		m.appendBlock(markerBlock("New conversation · Chat · no tools"))
-		m.showGreeting()
-		return
-	}
 	if m.stateFile == "" && m.sess == nil {
 		return
 	}
@@ -379,7 +344,7 @@ func (m *model) newChat() {
 	m.resetRunFacts()
 	m.state, m.navFocused = stDone, false
 	m.restoreDraft()
-	m.appendBlock(markerBlock("New chat · type a task to begin"))
+	m.appendBlock(markerBlock("New task · type a task to begin"))
 	m.transcript.Follow = true
 	m.transcript.Viewport.GotoBottom()
 }
@@ -393,29 +358,6 @@ func (m *model) newChat() {
 func (m *model) compactNow() (tea.Model, tea.Cmd) {
 	if m.state != stDone {
 		m.appendBlock(markerBlock("Stop the current turn before compacting"))
-		return m, nil
-	}
-	if m.chat != nil {
-		if m.chat.current == nil || m.stateFile == "" {
-			m.appendBlock(errorBlock("no active session to compact"))
-			return m, nil
-		}
-		before, after, err := m.chat.current.CompactAndSave(m.stateFile, agent.DefaultCompactKeepSteps)
-		if err != nil {
-			m.appendBlock(errorBlock("cannot compact: " + err.Error()))
-			return m, nil
-		}
-		if after == before {
-			m.appendBlock(markerBlock(fmt.Sprintf("nothing to compact: %d messages", before)))
-			return m, nil
-		}
-		m.transcript.blocks = renderHistory(m.chat.current.History())
-		m.appendBlock(markerBlock(fmt.Sprintf("— compacted: %d → %d messages; original archive backed up —", before, after)))
-		m.restoreContext(m.chat.current.History())
-		m.refreshContent()
-		m.refreshNavigator()
-		m.transcript.Follow = true
-		m.transcript.Viewport.GotoBottom()
 		return m, nil
 	}
 	if m.stateFile == "" {
@@ -497,9 +439,6 @@ func (m *model) taskDirectory(taskID string) string {
 }
 
 func (m *model) startFreshPrompt(task, display string, images []string) error {
-	if m.chat != nil {
-		return m.startConversation(task)
-	}
 	sum := sha1.Sum([]byte(task + time.Now().String()))
 	taskDir := m.taskDirectory(hex.EncodeToString(sum[:])[:8])
 	stateFile := filepath.Join(taskDir, "state.json")

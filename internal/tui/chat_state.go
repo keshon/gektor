@@ -44,9 +44,6 @@ func (m *model) resetRunFacts() {
 func readChatMode(dir string) string { return sessionindex.ReadMode(dir) }
 
 func (m *model) modeName() string {
-	if m.chat != nil {
-		return "Chat"
-	}
 	if m.mission {
 		return "Mission"
 	}

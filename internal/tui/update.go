@@ -62,43 +62,12 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	defer m.syncFocus()
 	defer m.queueSettingsDetail()
 	switch msg := msg.(type) {
-	case liveFrameMsg:
-		m.acceptLiveFrame(msg)
-		return m, nil
-	case liveRecognizedMsg:
-		m.acceptLiveRecognized(msg)
-		return m, nil
-	case liveEndedMsg:
-		if msg.capture == m.listening {
-			m.stopListening()
-			if msg.err != nil {
-				m.appendBlock(errorBlock(msg.err.Error()))
-			}
-		}
-		return m, nil
 	case settingsDetailMsg:
 		m.acceptSettingsDetail(msg)
-		return m, nil
-	case settingsSampleMsg:
-		m.acceptSettingsSample(msg)
 		return m, nil
 	case settingsScanMsg:
 		m.acceptSettingsScan(msg)
 		return m, nil
-	case microphoneReadyMsg:
-		if msg.revision == m.captureRevision && m.state == stRecording {
-			m.voicePhase = "Recording · F8/Ctrl+R finishes"
-		}
-		return m, nil
-	case captureFinishedMsg:
-		if msg.revision == m.captureRevision && m.state == stRecording {
-			m.state = stRecognizing
-			m.voicePhase = "Recognizing your speech"
-			m.fitBottom()
-		}
-		return m, nil
-	case recordedMsg:
-		return m.finishRecording(msg)
 	case sessionsLoadedMsg:
 		m.acceptSessions(msg)
 		return m, nil
@@ -138,13 +107,9 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		m.gate = ""
 		m.persistUsage()
 		wasInterrupted := m.interrupted
-		if m.chat != nil && msg.err == nil && msg.answer != "" {
-			m.transcript.blocks = append(m.transcript.blocks, assistantBlocks(msg.answer, "")...)
-		}
 		m.answer = msg.answer
 		m.runErr = msg.err
 		m.state = stDone
-		m.voicePhase = ""
 		if err := m.saveSessionSettings(); err != nil {
 			m.appendBlock(errorBlock("Cannot save session settings: " + err.Error()))
 		}
@@ -155,9 +120,6 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 			m.interrupted = false
 			m.runErr = nil
 			marker := "— interrupted —"
-			if m.chat != nil && msg.answer != "" {
-				marker = "— speech stopped; completed text retained —"
-			}
 			m.appendBlock(markerBlock(marker))
 		} else {
 			m.appendBlock(markerBlock("— run finished —"))
@@ -186,7 +148,6 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 				return m, tea.Batch(cmd, waitEvents(m))
 			}
 		}
-		m.submitLiveAudio()
 		return m, waitEvents(m)
 	case tea.MouseMsg:
 		return m.handleMouse(msg)
@@ -394,10 +355,6 @@ func (m *model) handleEvent(ev api.Event) {
 		// saw (provenance mark included), no decisions attached.
 		if text, _ := ev.Fields["text"].(string); text != "" {
 			m.appendBlock(markerBlock(text))
-		}
-	case "voice_phase":
-		if m.state == stRunning {
-			m.voicePhase, _ = ev.Fields["text"].(string)
 		}
 	case "usage":
 		if p, ok := ev.Fields["prompt"].(float64); ok && int(p) > 0 {

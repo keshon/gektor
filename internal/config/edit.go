@@ -70,16 +70,6 @@ func ApplySection(profile *Profile, section string, values map[string]string) er
 		}
 		conversation.SystemPrompt = values["system"]
 		conversation.PostHistory = values["post"]
-		main, err := strconv.ParseBool(values["prefer-main"])
-		if err != nil {
-			return fmt.Errorf("main prompt preference must be true/false")
-		}
-		post, err := strconv.ParseBool(values["prefer-post"])
-		if err != nil {
-			return fmt.Errorf("post-history preference must be true/false")
-		}
-		conversation.PreferCharacterPrompt = &main
-		conversation.PreferCharacterPostHistory = &post
 	case "speech":
 		profile.Speech.Microphone = strings.TrimSpace(values["microphone"])
 		variant := strings.TrimSpace(values["variant"])

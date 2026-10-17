@@ -11,61 +11,92 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/tars/internal/app"
 	"github.com/keshon/tars/internal/chat"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/speech"
 	"github.com/keshon/tars/internal/tui/settings"
 )
 
-// conversationClient was defined in conversation_test.go alongside the Chat
-// tests that are being removed. It stays because the settings fixture, and
-// the agent fixture that replaces it, both need a scripted llm.Client.
-type conversationClient func(context.Context, llm.ChatRequest) (llm.ChatResponse, error)
+// headerRowFor finds a menu row by its command, so a test can select one
+// without depending on how many rows sit above it.
+func headerRowFor(m *model, command string) int {
+	for i, item := range m.headerItems() {
+		if item.command == command {
+			return i
+		}
+	}
+	return -1
+}
 
-func (f conversationClient) Chat(ctx context.Context, r llm.ChatRequest) (llm.ChatResponse, error) {
+// scriptClient was conversationClient, renamed when the Chat tests went. The
+// settings fixture still needs a scripted llm.Client so Configure can hand
+// back services without contacting a backend.
+type scriptClient func(context.Context, llm.ChatRequest) (llm.ChatResponse, error)
+
+func (f scriptClient) Chat(ctx context.Context, r llm.ChatRequest) (llm.ChatResponse, error) {
 	return f(ctx, r)
 }
 
+// settingsModel builds an Agent-shaped session: a configured service set,
+// an Application, and a saved task on disk with history.
+//
+// It used to build a Chat conversation instead, because that was the only
+// settings path with an in-place apply. Settings now restart the launch, so
+// the fixture has to carry an Application and a real workspace directory or
+// requestProfileChange refuses before it reaches anything worth asserting.
 func settingsModel(t *testing.T) *model {
 	t.Helper()
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.input.SetValue("unfinished draft")
 	profile := config.Profile{Version: 1, Provider: config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local", Ownership: "external"}, Generation: config.Generation{MaxTokens: 100, ContextLimit: 1000}, Conversation: &config.Conversation{UserName: "User", SystemPrompt: "Base rules"}}
-	client := conversationClient(func(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
+	client := scriptClient(func(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
 		return llm.ChatResponse{Message: llm.Message{Content: "reply"}}, nil
 	})
-	var configure func(config.Profile) (ChatConfig, error)
-	configure = func(p config.Profile) (ChatConfig, error) {
+	sessions := t.TempDir()
+	workspace := t.TempDir()
+	var configure func(config.Profile) (app.Services, error)
+	configure = func(p config.Profile) (app.Services, error) {
 		if err := p.Validate(); err != nil {
-			return ChatConfig{}, err
+			return app.Services{}, err
 		}
-		if p.Conversation.UserName == "" {
-			return ChatConfig{}, fmt.Errorf("user name required")
+		if p.Conversation == nil || p.Conversation.UserName == "" {
+			return app.Services{}, fmt.Errorf("user name required")
 		}
-		return ChatConfig{Client: client, Settings: chat.Config{System: p.Conversation.SystemPrompt, Temperature: p.Generation.Temperature, MaxTokens: p.Generation.MaxTokens, ContextLimit: p.Generation.ContextLimit}, Directory: m.chat.config.Directory, Profile: p, Configure: configure}, nil
+		return app.Services{Client: client, Settings: chat.Config{System: p.Conversation.SystemPrompt, Temperature: p.Generation.Temperature, MaxTokens: p.Generation.MaxTokens, ContextLimit: p.Generation.ContextLimit}, Directory: sessions, Profile: p, Configure: configure}, nil
 	}
-	m.chat = &chatUI{config: &ChatConfig{Client: client, Settings: chat.Config{System: "Base rules", MaxTokens: 100, ContextLimit: 1000}, Directory: t.TempDir(), Profile: profile, Configure: configure}}
-	c, err := chat.New(client, m.chat.config.Settings)
-	if err != nil {
+	m.config = &app.Services{Client: client, Settings: chat.Config{System: "Base rules", MaxTokens: 100, ContextLimit: 1000}, Directory: sessions, Profile: profile, Configure: configure}
+	m.application = &Application{
+		Preferences:    config.Preferences{Version: 1, Mode: "agent", Voice: "off", Workspace: workspace},
+		PreferencePath: filepath.Join(t.TempDir(), "application.json"),
+	}
+	m.stateFile = filepath.Join(sessions, "original", "state.json")
+	m.sessionTitle = "Original"
+	if err := os.MkdirAll(filepath.Dir(m.stateFile), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	m.chat.current = c
-	m.stateFile = filepath.Join(m.chat.config.Directory, "original", "conversation.json")
-	m.sessionTitle = "Original"
-	if _, err = c.AskAndSave(context.Background(), "hello", m.stateFile); err != nil {
+	saved := []llm.Message{
+		{Role: llm.RoleSystem, Content: "Base rules"},
+		{Role: llm.RoleUser, Content: "hello"},
+		{Role: llm.RoleAssistant, Content: "reply"},
+	}
+	if err := agent.SaveState(m.stateFile, saved); err != nil {
 		t.Fatal(err)
 	}
 	return m
 }
 func TestSettingsDirectEditorCancelAndFocus(t *testing.T) {
 	m := settingsModel(t)
-	current := m.chat.current
+	configured := m.config
 	m.header.global = true
 	m.header.focused = true
 	m.header.menu = "settings"
-	m.header.row = 6
+	// Resolve the row by command: the menu loses and gains rows whenever a
+	// category is added or removed, and a hardcoded index silently selects
+	// the wrong one.
+	m.header.row = headerRowFor(m, "edit:you")
 	m.headerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.dialog == nil || m.dialog.form == nil || m.header.focused || m.dialog.title != "Settings" {
 		t.Fatal("settings redirected instead of opening editor")
@@ -77,15 +108,19 @@ func TestSettingsDirectEditorCancelAndFocus(t *testing.T) {
 	m.Update(tea.PasteMsg{Content: "Alex"})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF4})
 	m.handleKey(tea.KeyPressMsg{Code: 'n', Mod: tea.ModCtrl})
-	if m.chat.current != current || m.input.Value() != "unfinished draft" {
-		t.Fatal("form input leaked into conversation actions")
+	if m.config != configured || m.input.Value() != "unfinished draft" {
+		t.Fatal("form input leaked into session actions")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
-	if m.dialog != nil || m.chat.current != current || m.input.Value() != "unfinished draft" || m.chat.config.Profile.Conversation.UserName != "User" {
+	if m.dialog != nil || m.config != configured || m.input.Value() != "unfinished draft" || m.config.Profile.Conversation.UserName != "User" {
 		t.Fatal("cancel mutated configuration or draft")
 	}
 }
-func TestSettingsValidateThenApplyPreservesHistoryAndUpdatesArchive(t *testing.T) {
+
+// Apply queues a restart rather than reconfiguring in place, so the saved
+// task must be untouched until the new launch replaces it, and the draft
+// must survive the handoff.
+func TestSettingsValidateThenApplyLeavesTheSavedTaskAlone(t *testing.T) {
 	m := settingsModel(t)
 	path := m.stateFile
 	before, _ := os.ReadFile(path)
@@ -95,14 +130,26 @@ func TestSettingsValidateThenApplyPreservesHistoryAndUpdatesArchive(t *testing.T
 	}
 	m.dialog.form.Editor.SetValue("bad")
 	m.handleKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
-	if m.dialog == nil || m.dialog.form.Error == "" || m.chat.current == nil || m.chat.config.Settings.Temperature != 0 {
+	if m.dialog == nil || m.dialog.form.Error == "" || m.modeChange != nil {
 		t.Fatal("invalid settings applied")
 	}
 	m.dialog.form.Editor.SetValue("0.8")
 	m.handleKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 	after, _ := os.ReadFile(path)
-	if m.dialog != nil || m.chat.current == nil || m.stateFile != path || m.chat.config.Settings.Temperature != .8 || string(before) == string(after) || m.input.Value() != "unfinished draft" {
-		t.Fatalf("apply did not preserve session: dialog=%+v current=%v path=%s temp=%v before=%s after=%s draft=%s", m.dialog, m.chat.current != nil, m.stateFile, m.chat.config.Settings.Temperature, before, after, m.input.Value())
+	if m.dialog != nil {
+		t.Fatalf("apply refused: %q", m.dialog.form.Error)
+	}
+	if m.modeChange == nil {
+		t.Fatal("apply queued no restart")
+	}
+	if got := m.modeChange.Preferences.Profile.Generation.Temperature; got != .8 {
+		t.Fatalf("temperature = %v", got)
+	}
+	if m.stateFile != path || string(before) != string(after) {
+		t.Fatal("apply rewrote or moved the saved task before the restart landed")
+	}
+	if m.input.Value() != "unfinished draft" {
+		t.Fatal("apply lost the draft")
 	}
 }
 func TestDirectRenameAndDeleteDefaultCancel(t *testing.T) {
@@ -126,7 +173,7 @@ func TestDirectRenameAndDeleteDefaultCancel(t *testing.T) {
 	m.deleteActive()
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyTab})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if _, err := os.Stat(path); !os.IsNotExist(err) || m.chat.current != nil {
+	if _, err := os.Stat(path); !os.IsNotExist(err) || m.sess != nil {
 		t.Fatal("explicit delete failed")
 	}
 }
@@ -140,7 +187,7 @@ func TestSaveCopyRefusesOverwriteAndKeepsCardPath(t *testing.T) {
 	root := t.TempDir()
 	card := filepath.Join(root, "card.json")
 	os.WriteFile(card, []byte(`{"name":"Ada"}`), 0600)
-	m.chat.config.Profile.Conversation.Character = card
+	m.config.Profile.Conversation.Character = card
 	first := filepath.Join(root, "existing.json")
 	os.WriteFile(first, []byte("original"), 0600)
 
@@ -247,30 +294,12 @@ func TestSettingsMouseResizesMultilineEditor(t *testing.T) {
 	}
 }
 
-// agentSettingsModel puts the session in the bare `-tui` shape: Agent
-// mode with a services handle and an Application, which is what the
-// launch builds when no -profile was given.
-func agentSettingsModel(t *testing.T) *model {
-	t.Helper()
-	m := settingsModel(t)
-	audio := m.chat.config
-	audio.Profile.Speech = &speech.Config{
-		Microphone: "mic", Recorder: "ffmpeg", PlayerBinary: "ffplay", MaxSeconds: 120,
-		Speaking:  speech.Speaking{Provider: "chatterbox", Variant: "nano", Binary: "python", Model: "assets/models/speaking/chatterbox/nano"},
-		Listening: speech.Listening{Ownership: "external", URL: "http://127.0.0.1:19082"},
-	}
-	m.chat = nil
-	m.audioConfig = audio
-	m.application = &Application{Preferences: config.Preferences{Version: 1, Mode: "agent"}}
-	m.header.menu = "settings"
-	return m
-}
-
 // An idle session with a live services handle must offer every Settings
 // row. The launch without -profile built neither, which disabled the
 // whole menu at once and left no hint of which part was missing.
 func TestIdleSettingsMenuIsFullyEnabled(t *testing.T) {
-	m := agentSettingsModel(t)
+	m := settingsModel(t)
+	m.header.menu = "settings"
 	rows := m.rawHeaderItems()
 	if len(rows) == 0 {
 		t.Fatal("settings menu is empty")
@@ -289,7 +318,8 @@ func TestIdleSettingsMenuIsFullyEnabled(t *testing.T) {
 // Enter-closes-without-an-effect is the same bug wearing a different hat:
 // editSettings guards on the same services handle the menu did.
 func TestEveryIdleSettingsRowOpens(t *testing.T) {
-	m := agentSettingsModel(t)
+	m := settingsModel(t)
+	m.header.menu = "settings"
 	for _, item := range m.rawHeaderItems() {
 		if item.text == "" || !item.enabled {
 			continue
@@ -329,7 +359,9 @@ func TestCommonMenusHaveNoRedirects(t *testing.T) {
 	m.header.focused = true
 	m.header.menu = "workflow"
 	m.header.row = 0
-	m.state = stDone
+	// While a run is in flight, Plan and Act are disabled, so the first
+	// row the arrow key can land on is "Stop run" at index 2.
+	m.state = stRunning
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyDown})
 	if m.header.row != 2 {
 		t.Fatal("keyboard did not skip disabled actions")
@@ -386,21 +418,23 @@ func TestFormFooterMatchesActionsAndViewIsPure(t *testing.T) {
 	}
 }
 
+// A choice field toggles with space and the arrow keys rather than
+// requiring the reader to type the underlying value.
 func TestPromptSwitchCanToggleWithoutTypingBoolean(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("prompts")
-	focusSetting(m, "prefer-main")
-	if m.dialog.form.Editor.Value() != "true" {
+	focusSetting(m, "prompt-preset")
+	if m.dialog.form.Editor.Value() != "custom" {
 		t.Fatal("wrong initial switch")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyDown})
 	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.dialog.form.Editor.Value() != "false" {
+	if m.dialog.form.Editor.Value() == "custom" {
 		t.Fatal("space did not toggle prompt switch")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
-	if m.chat.config.Profile.Conversation.PreferCharacterPrompt != nil {
+	if m.config.Profile.Conversation.PromptPreset != "" {
 		t.Fatal("cancel persisted switch")
 	}
 }
@@ -455,8 +489,8 @@ func TestModelFormDiscoversNestedModelChoices(t *testing.T) {
 	os.MkdirAll(nested, 0700)
 	file := filepath.Join(nested, "weights.gguf")
 	os.WriteFile(file, nil, 0600)
-	m.chat.config.Profile.Provider.ModelRoot = root
-	m.chat.config.Profile.Provider.Ownership = "managed"
+	m.config.Profile.Provider.ModelRoot = root
+	m.config.Profile.Provider.Ownership = "managed"
 	m.editSettings("model")
 	for i, field := range m.dialog.form.Fields {
 		if field.Key == "model-file" {

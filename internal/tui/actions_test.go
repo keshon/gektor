@@ -97,12 +97,12 @@ func TestFocusAndMetricsHaveDedicatedPlaces(t *testing.T) {
 		t.Fatal("run metrics must appear once in the top status row")
 	}
 	_, _, activeTitle := popupStyles()
-	if !strings.Contains(m.View().Content, activeTitle.Render(" CHAT ")) {
+	if !strings.Contains(m.View().Content, activeTitle.Render(" AGENT ")) {
 		t.Fatal("input focus not identified")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyTab})
 	if !strings.Contains(m.View().Content, activeTitle.Render(" SESSIONS ")) || !m.navFocused {
-		t.Fatal("chat pane focus not identified")
+		t.Fatal("transcript pane focus not identified")
 	}
 	m.Update(tea.MouseClickMsg{X: 60, Y: 5, Button: tea.MouseLeft})
 	if m.navFocused || !m.input.Focused() {

@@ -6,7 +6,7 @@ import "github.com/keshon/tars/internal/app"
 // validation; unit-built models create one lazily.
 func (m *model) runtime() *app.Runtime {
 	if m.services == nil {
-		m.services = app.NewRuntime(m.audio())
+		m.services = app.NewRuntime(m.config)
 	}
 	return m.services
 }

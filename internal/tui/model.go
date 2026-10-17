@@ -20,11 +20,9 @@ import (
 	"github.com/keshon/tars/internal/api"
 	"github.com/keshon/tars/internal/app"
 	"github.com/keshon/tars/internal/audit"
-	"github.com/keshon/tars/internal/chat"
 	"github.com/keshon/tars/internal/events"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/roles"
-	"github.com/keshon/tars/internal/speech"
 	"github.com/keshon/tars/internal/tui/components/composer"
 	"github.com/keshon/tars/internal/workspace"
 )
@@ -38,10 +36,9 @@ type Config struct {
 	Runtime          *app.Runtime
 	SessionDirectory string
 	Application      *Application
-	Audio            *ChatConfig
+	Services         *app.Services
 	SeedHistory      []llm.Message
 	InitialDraft     string
-	Chat             *ChatConfig
 	BackendURL       string
 	Plan             bool
 	History          []llm.Message
@@ -65,8 +62,6 @@ const (
 	stAsk
 	stDone
 	stStopping
-	stRecording
-	stRecognizing
 )
 
 type eventMsg api.Event
@@ -76,26 +71,17 @@ type doneMsg struct {
 }
 type tickMsg time.Time
 type model struct {
-	identityUser             string
-	identityName             string
-	application              *Application
-	audioConfig              *ChatConfig
-	modeChange               *ModeChange
-	seedHistory              []llm.Message
-	listening                *speech.LiveCapture
-	liveDetector             *speech.Detector
-	livePending, liveASRWave []byte
-	liveRecognizing          bool
-	liveEpoch                uint64
-	liveLastFrame            time.Time
+	identityUser string
+	identityName string
+	application  *Application
+	// config is the service set this launch was composed with. It is the
+	// only route to the profile, so a nil value means "not configurable"
+	// rather than "defaulted".
+	config       *app.Services
+	services     *app.Runtime
+	modeChange   *ModeChange
+	seedHistory  []llm.Message
 
-	services        *app.Runtime
-	voiceEnabled    bool
-	recording       speech.Capture
-	voicePhase      string
-	captureRevision uint64
-
-	chat        *chatUI
 	transcript  transcriptState
 	input       composer.Model
 	suggestions suggestionState
@@ -274,9 +260,6 @@ func envMaxSteps(env roles.Env) int {
 // Run executes the task under the TUI and returns the final answer.
 // The terminal is restored on return, however the run ends.
 func Run(ctx context.Context, cfg Config) (string, error) {
-	if cfg.Chat != nil && (cfg.Env.WS != nil || cfg.Mission != nil || cfg.Plan || len(cfg.History) > 0 || cfg.StateFile != "") {
-		return "", fmt.Errorf("tui: chat cannot use coding workspace, task history or workflow")
-	}
 	uiCtx, cancelUI := context.WithCancel(ctx)
 	defer cancelUI()
 	eventsCh := make(chan api.Event, 256)
@@ -322,86 +305,51 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	}
 	m.services = cfg.Runtime
 	if m.services == nil {
-		services := cfg.Chat
-		if services == nil {
-			services = cfg.Audio
-		}
-		m.services = app.NewRuntime(services)
+		m.services = app.NewRuntime(cfg.Services)
 	}
 	defer func() {
-		m.stopListening()
 		m.cancel()
-		if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Workspace != nil && m.dialog.form.Workspace.SampleCancel != nil {
-			m.dialog.form.Workspace.SampleCancel()
-		}
 		if cfg.Runtime == nil && m.services != nil {
 			m.services.Close()
 		}
-
 	}()
 	if len(cfg.History) > 0 && !cfg.Plan && readChatMode(filepath.Dir(cfg.StateFile)) == "Plan" {
 		m.plan = true
 	}
-	if cfg.Chat != nil {
-		if cfg.Chat.Directory == "" {
-			return "", fmt.Errorf("tui: chat session directory required")
-		}
-		if _, err := chat.New(cfg.Chat.Client, cfg.Chat.Settings); err != nil {
-			return "", err
-		}
-		m.chat = &chatUI{config: cfg.Chat}
-		m.streaming = cfg.Chat.Stream
-		m.ws = nil
-		m.wsRoot = ""
-		m.limit = cfg.Chat.Settings.ContextLimit
-		m.responseCap = cfg.Chat.Settings.MaxTokens
-	}
 	m.application = cfg.Application
-	m.audioConfig = cfg.Audio
+	m.config = cfg.Services
 	m.refreshNavigator()
 	m.input = newInput()
 	env := withoutPrintHooks(cfg.Env)
 	env.Gate = nil
 	env.GateContext = audit.ContextHook(cfg.AuditPath, "tui", m.contextGate(hub, cfg.Env.WS))
-	if cfg.Chat == nil {
-		m.newSession = func(task, stateFile string, images []string) (*api.Session, error) {
-			return api.New(api.Config{
-				Env:          env,
-				Task:         task,
-				Plan:         m.plan,
-				StateFile:    stateFile,
-				Verify:       cfg.Verify,
-				Images:       images,
-				Answer:       hub.Suspender(),
-				ResumeAnswer: cfg.ResumeAnswer,
-				OnEvent: func(ev api.Event) {
-					select {
-					case eventsCh <- ev:
-					case <-uiCtx.Done():
-					}
-				},
-			})
-		}
+	m.newSession = func(task, stateFile string, images []string) (*api.Session, error) {
+		return api.New(api.Config{
+			Env:          env,
+			Task:         task,
+			Plan:         m.plan,
+			StateFile:    stateFile,
+			Verify:       cfg.Verify,
+			Images:       images,
+			Answer:       hub.Suspender(),
+			ResumeAnswer: cfg.ResumeAnswer,
+			OnEvent: func(ev api.Event) {
+				select {
+				case eventsCh <- ev:
+				case <-uiCtx.Done():
+				}
+			},
+		})
 	}
 	for _, rule := range cfg.Env.Policy.Rules {
 		m.policyDetails = append(m.policyDetails, fmt.Sprintf("%s · %s · %s", rule.Effect, rule.Tool, rule.Pattern))
 	}
-	m.application = cfg.Application
-	m.audioConfig = cfg.Audio
 	m.seedHistory = cfg.SeedHistory
 	if cfg.SessionDirectory != "" {
 		m.stateFile = filepath.Join(cfg.SessionDirectory, "state.json")
-		if m.chat != nil {
-			m.stateFile = filepath.Join(cfg.SessionDirectory, "conversation.json")
-		}
 		m.sessionTitle = workspace.ReadSessionTitle(cfg.SessionDirectory)
 	}
 
-	if m.audio() != nil && m.audio().Profile.Speech != nil && m.audio().Profile.Speech.Enabled {
-		if err := m.enableVoice(); err != nil {
-			return "", err
-		}
-	}
 	inputOptions, restoreInput, err := consoleInput(uiCtx)
 	if err != nil {
 		return "", err
@@ -425,17 +373,6 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		}
 	}
 	switch {
-	case cfg.Chat != nil:
-		m.state = stDone
-		if strings.TrimSpace(cfg.Task) != "" {
-			if err := m.startConversation(cfg.Task); err != nil {
-				return "", err
-			}
-		} else {
-			m.appendBlock(markerBlock("New conversation · Chat · no tools"))
-			m.showGreeting()
-			m.input.Focus()
-		}
 	case cfg.Mission != nil:
 		m.appendBlock(userBlock(cfg.Task))
 		m.startRun(func(runCtx context.Context) (string, error) {
@@ -473,46 +410,23 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	default:
 		m.state = stDone
 		m.stateFile = ""
-		m.appendBlock(markerBlock("New chat · type a task to begin\n/mode plan previews changes · /mode act executes them\n@path attaches workspace files or images"))
+		m.appendBlock(markerBlock("New task · type a task to begin\n/mode plan previews changes · /mode act executes them\n@path attaches workspace files or images"))
 		m.input.Focus()
 	}
 	if len(cfg.SeedHistory) > 0 || cfg.SessionDirectory != "" {
 		m.transcript.blocks = renderHistory(cfg.SeedHistory)
 		m.restoreContext(cfg.SeedHistory)
-		if m.chat != nil {
-			c, err := chat.Restore(m.chat.config.Client, m.chat.config.Settings, DialogueProjection(cfg.SeedHistory))
-			if err != nil {
-				return "", err
-			}
-			m.chat.current = c
-			if cfg.SessionDirectory != "" {
-				m.stateFile = filepath.Join(cfg.SessionDirectory, "conversation.json")
-				if err := m.chat.current.Save(m.stateFile); err != nil {
-					return "", err
-				}
-			} else if err := m.createCarriedArchive(); err != nil {
-				return "", err
-			}
-		}
 		m.refreshContent()
 	}
 	if cfg.SessionDirectory != "" {
 		m.stateFile = filepath.Join(cfg.SessionDirectory, "state.json")
-		if m.chat != nil {
-			m.stateFile = filepath.Join(cfg.SessionDirectory, "conversation.json")
-		}
-		if m.chat == nil {
-			if err := agent.SaveState(m.stateFile, agentSeed(cfg.SeedHistory)); err != nil {
-				return "", err
-			}
+		if err := agent.SaveState(m.stateFile, agentSeed(cfg.SeedHistory)); err != nil {
+			return "", err
 		}
 	}
 	m.input.SetValue(cfg.InitialDraft)
 	m.fitInput()
 	m.fitBottom()
-	if cfg.Application != nil && cfg.Application.Preferences.Voice == "live" {
-		m.toggleListening()
-	}
 	if err := m.saveSessionSettings(); err != nil {
 		return "", err
 	}

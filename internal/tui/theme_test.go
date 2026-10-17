@@ -1,30 +1,36 @@
 package tui
 
 import (
-	"charm.land/lipgloss/v2"
-	"github.com/keshon/tars/internal/config"
+	"os"
 	"path/filepath"
 	"testing"
+
+	"charm.land/lipgloss/v2"
+	"github.com/keshon/tars/internal/config"
 )
 
 func TestThemeChangesOnlyAppearanceAndPersists(t *testing.T) {
 	defer setTheme("dark")
 	m := settingsModel(t)
-	profile := m.chat.config.Profile
+	profile := m.config.Profile
 	path := filepath.Join(t.TempDir(), "application.json")
 	original := config.Preferences{Version: 1, Mode: "chat", Voice: "off", Profile: &profile}
 	if err := config.SavePreferences(path, original); err != nil {
 		t.Fatal(err)
 	}
 	m.application = &Application{Preferences: original, PreferencePath: path}
-	history := m.chat.current.History()
+	before, err := os.ReadFile(m.stateFile)
+	if err != nil {
+		t.Fatal(err)
+	}
 	draft := m.input.Value()
 	m.openTheme()
 	m.dialog.form.Editor.SetValue("light")
 	m.applyForm()
 	p, err := config.LoadPreferences(path)
-	if err != nil || p.Theme != "light" || currentPalette().name != "light" || m.modeChange != nil || m.input.Value() != draft || len(m.chat.current.History()) != len(history) {
-		t.Fatal("theme changed conversation or did not persist")
+	after, err2 := os.ReadFile(m.stateFile)
+	if err != nil || err2 != nil || p.Theme != "light" || currentPalette().name != "light" || m.modeChange != nil || m.input.Value() != draft || string(before) != string(after) {
+		t.Fatal("theme changed the session or did not persist")
 	}
 	if themeColor(colorAccent) != themeColor(colorUser) || themeColor(colorDim) != themeColor(colorSecondaryText) {
 		t.Fatal("semantic roles disagree")

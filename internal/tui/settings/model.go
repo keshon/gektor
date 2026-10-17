@@ -3,12 +3,10 @@ package settings
 import (
 	"context"
 	"slices"
-	"strconv"
 	"strings"
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/character"
 	"github.com/keshon/tars/internal/tui/components/form"
 )
 
@@ -17,26 +15,21 @@ type Workspace struct {
 	SampleID                 uint64
 	SampleCancel             context.CancelFunc
 	Section, LoadedPath      string
-	// VoiceMode is the voice input mode as it was when the form opened.
-	// Opening a settings page stops microphone capture, so the live mode
-	// afterwards no longer describes what the reader had; persisting that
-	// silently downgraded hands-free to push-to-talk on every Apply.
-	VoiceMode                string
 	AutoSaved, Nav, Advanced bool
 }
 type Model struct {
 	form.Model
-	Error, Hint, ApplyLabel   string
-	Destructive               bool
-	Choices                   map[string][]string
-	ScannedRoot, GreetingPath string
-	Workspace                 *Workspace
-	Picker                    *Picker
-	HasApplication, Chat      bool
+	Error, Hint, ApplyLabel string
+	Destructive             bool
+	Choices                 map[string][]string
+	ScannedRoot             string
+	Workspace               *Workspace
+	Picker                  *Picker
+	HasApplication          bool
 }
 type Category struct{ ID, Label string }
 
-var categories = []Category{{"model", "Model"}, {"generation", "Generation"}, {"speech", "Speech"}, {"profiles", "Profiles"}, {"application", "Application"}, {"character", "Character"}, {"you", "You"}, {"prompts", "Prompts"}}
+var categories = []Category{{"model", "Model"}, {"generation", "Generation"}, {"profiles", "Profiles"}, {"application", "Application"}, {"you", "You"}, {"prompts", "Prompts"}}
 
 type InputOwner int
 
@@ -145,37 +138,7 @@ func (f *Model) FirstVisibleField() int {
 }
 
 // RefreshChoices runs during updates, never while rendering.
-func (f *Model) RefreshChoices() {
-	hasGreeting := false
-	for _, field := range f.Fields {
-		if field.Key == "greeting" {
-			hasGreeting = true
-			break
-		}
-	}
-	if !hasGreeting {
-		return
-	}
-	path := ""
-	for _, field := range f.Fields {
-		if field.Key == "character" {
-			path = field.Value
-		}
-	}
-	if f.Choices == nil {
-		f.Choices = map[string][]string{}
-	}
-	if path != f.GreetingPath || len(f.Choices["greeting"]) == 0 {
-		f.GreetingPath = path
-		f.Choices["greeting"] = []string{"0"}
-		if card, err := character.Load(path); err == nil {
-			for i := range card.AlternateGreetings {
-				f.Choices["greeting"] = append(f.Choices["greeting"], strconv.Itoa(i+1))
-			}
-		}
-	}
-
-}
+func (f *Model) RefreshChoices() {}
 func (f *Model) Options(key string) []string {
 	if choices := f.Choices[key]; len(choices) > 0 {
 		return choices
@@ -209,19 +172,10 @@ func (f *Model) CycleChoice() {
 	f.Editor.SetValue(next)
 }
 
-func (f *Model) HasSpeech() bool { return f.Workspace != nil && f.Workspace.Draft.Base().Speech != nil }
 func (f *Model) AvailableCategories() []Category {
 	var out []Category
 	for _, c := range categories {
 		if c.ID == "application" && !f.HasApplication {
-			continue
-		}
-		if c.ID == "speech" && !f.HasSpeech() {
-			continue
-		}
-		// Cards belong to Chat. An Agent never reads one, so the page
-		// would be a setting that saves a value nothing consumes.
-		if c.ID == "character" && !f.Chat {
 			continue
 		}
 		out = append(out, c)

@@ -15,7 +15,7 @@ import (
 
 func TestScreenEmitsApplicationIntentsWithoutChangingProfile(t *testing.T) {
 	p := profile()
-	_, fields := PageFields(p, "generation", config.Preferences{}, "off")
+	_, fields := PageFields(p, "generation", config.Preferences{})
 	m := NewModel(fields, textarea.New())
 	m.Workspace = &Workspace{Draft: New(p), Section: "generation"}
 	m.Workspace.Draft.Visit("generation", fields)
@@ -39,7 +39,7 @@ func TestScreenViewDoesNotDiscoverChoicesOrMutateEditor(t *testing.T) {
 	}
 	p := profile()
 	p.Conversation.Character = path
-	_, fields := PageFields(p, "character", config.Preferences{}, "off")
+	_, fields := PageFields(p, "character", config.Preferences{})
 	m := NewModel(fields, textarea.New())
 	m.Workspace = &Workspace{Draft: New(p), Section: "character"}
 	m.Workspace.Draft.Visit("character", fields)

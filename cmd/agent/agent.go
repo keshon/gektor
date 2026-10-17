@@ -461,7 +461,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		prepared.Client = thinkingClient
 		*owned.Services = prepared
 		app := applicationControl(launch, profile, o.profilePath, o.workspace)
-		answer, err := tui.Run(ctx, tui.Config{Runtime: owned, Application: app, Audio: owned.Services, SeedHistory: launch.history, InitialDraft: launch.draft, SessionDirectory: launch.directory,
+		answer, err := tui.Run(ctx, tui.Config{Runtime: owned, Application: app, Services: owned.Services, SeedHistory: launch.history, InitialDraft: launch.draft, SessionDirectory: launch.directory,
 			BackendURL:   o.backendURL,
 			Plan:         o.plan,
 			History:      history,

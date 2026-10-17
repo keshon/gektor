@@ -25,10 +25,10 @@ func (m *model) legacyFooterActions() []footerAction {
 	idle := chat && m.state == stDone
 	return []footerAction{
 		{tea.KeyF1, 0, "F1", "Help", "Help", !gated && m.sessions == nil && !m.header.focused},
-		{tea.KeyF2, 0, "F2", "Search", "Search", m.state != stRecording && m.state != stRecognizing && !gated && m.dialog == nil && !m.header.focused},
+		{tea.KeyF2, 0, "F2", "Search", "Search", !gated && m.dialog == nil && !m.header.focused},
 		{tea.KeyF3, 0, "F3", "Details", "View", chat},
 		{tea.KeyF4, 0, "F4", "New", "New", idle},
-		{tea.KeyF5, 0, "F5", "Mode", "Mode", idle && !m.mission && m.chat == nil},
+		{tea.KeyF5, 0, "F5", "Mode", "Mode", idle && !m.mission},
 		{tea.KeyF6, 0, "F6", "Sidebar", "Pane", chat && m.termW >= navigatorMinWidth},
 		{tea.KeyF7, 0, "F7", "Latest", "End", chat},
 		{tea.KeyF8, 0, "F8", "", "", false},
@@ -39,9 +39,6 @@ func (m *model) legacyFooterActions() []footerAction {
 
 // The first three actions stay in place; the middle pair follows input ownership.
 func (m *model) footerActions() []footerAction {
-	if m.state == stRecording || m.state == stRecognizing {
-		return []footerAction{{tea.KeyF8, 0, "F8", "Finish", "Finish", m.state == stRecording}, {tea.KeyEscape, 0, "Esc", "Cancel", "Cancel", true}, {'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true}}
-	}
 	if m.dialog != nil && m.dialog.form != nil {
 		if m.dialog.form.Picker != nil {
 			return []footerAction{{tea.KeyEnter, 0, "Enter", "Choose", "Choose", true}, {tea.KeyEscape, 0, "Esc", "Back", "Back", true}, {'b', tea.ModCtrl, "Ctrl+B", "Browse", "Browse", pickerFiles(m.dialog.form.Picker.Field)}, {'r', tea.ModCtrl, "Ctrl+R", "Refresh", "Refresh", true}, {'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true}}
@@ -54,9 +51,6 @@ func (m *model) footerActions() []footerAction {
 			actions := []footerAction{{tea.KeyF6, 0, "F6", "Categories", "Pages", true}, {tea.KeyTab, 0, "Tab", "Next", "Next", true}, apply, {tea.KeyEscape, 0, "Esc", "Cancel", "Cancel", true}}
 			if ws.Section == "profiles" {
 				actions = append(actions, footerAction{'d', tea.ModCtrl, "Ctrl+D", "Save copy", "Save", true})
-			}
-			if ws.Section == "speech" {
-				actions = append(actions, footerAction{'p', tea.ModCtrl, "Ctrl+P", "Voice sample", "Sample", true})
 			}
 			return actions
 		}
@@ -92,10 +86,6 @@ func (m *model) footerActions() []footerAction {
 		footerAction{'g', tea.ModCtrl, "Ctrl+G", details, "View", legacy[2].enabled},
 		footerAction{'b', tea.ModCtrl, "Ctrl+B", "Sessions", "Pane", legacy[5].enabled},
 		footerAction{'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true})
-	if m.audio() != nil && m.audio().NewVoice != nil && m.dialog == nil && m.sessions == nil {
-		actions = append(actions, footerAction{'l', tea.ModCtrl, "Ctrl+L", "Hands-free", "Live", true})
-		actions = append(actions, footerAction{tea.KeyF8, 0, "F8", "Record", "Rec", m.state == stDone})
-	}
 	if m.termW < 64 {
 		return []footerAction{actions[0], actions[1], actions[3], actions[4], actions[7]}
 	}
@@ -195,7 +185,7 @@ func (m *model) footerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.refreshContent()
 	case tea.KeyF4:
 		m.navFocused = false
-		m.newChat()
+		m.newTask()
 		return m, m.input.Focus()
 	case tea.KeyF5:
 		mode := "plan"

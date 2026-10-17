@@ -65,20 +65,19 @@ handoff loop and saved application preferences. `options.go` parses flags and
 resolves profile overrides without starting services; explicit flags, including
 false and empty values, take precedence over profile settings.
 
-`run.go` dispatches a resolved launch. `chat.go` owns the Chat frontend;
-`agent.go` composes workspace tools and runs direct or mission tasks. Each launch
-retains responsibility for closing its resources before a mode handoff.
+`run.go` dispatches a resolved launch. `agent.go` composes workspace tools and
+runs direct or mission tasks. Each launch retains responsibility for closing
+its resources before handing settings back for a relaunch.
 `console.go` contains terminal output and approval transport helpers;
 `serve.go` owns the JSON-RPC frontend. These remain one command package.
 
-`internal/app` compiles shared conversation identity, resolves transport
-credentials, and composes profile-driven Chat and Agent speech services. It
-imports no frontend. Both the command and TUI consume `app.Services`;
-`tui.ChatConfig` is a compatibility alias. Each launch owns an `app.Runtime`;
-frontends borrow it. Runtime prepares, persists and installs service changes and
-closes accepted thinking and speech services. Tool processes and MCP retain
-their separate per-launch owners. Staged profile copies do not
-share mutable conversation or speech options with their callers.
+`internal/app` compiles the profile's identity, resolves transport
+credentials, and composes profile-driven services. It imports no frontend.
+Both the command and TUI consume `app.Services`. Each launch owns an
+`app.Runtime`; frontends borrow it. Runtime prepares, persists and installs
+service changes and closes accepted thinking services. Tool processes and MCP
+retain their separate per-launch owners. Staged profile copies do not
+share mutable options with their callers.
 
 Managed thinking and recognition owners check whether their child has exited
 before reusing it. A later request may start a replacement; a failed request is

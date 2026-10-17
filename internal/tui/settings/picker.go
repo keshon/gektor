@@ -11,7 +11,6 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/character"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/speech"
 	"github.com/keshon/tars/internal/tui/components/form"
@@ -177,20 +176,10 @@ func (f *Model) PickerKey(msg tea.KeyPressMsg, props Props) tea.Cmd {
 			if p.Field == "app-workspace" {
 				value = filepath.Clean(value)
 			}
-			if p.Field == "character" {
-				if _, err := character.Load(value); err != nil {
-					p.Err = err.Error()
-					return nil
-				}
-			}
 			if p.Field == "load-profile" {
 				loaded, err := config.Load(value)
 				if err != nil {
 					p.Err = err.Error()
-					return nil
-				}
-				if f.Chat && loaded.Conversation == nil {
-					p.Err = "Choose a chat profile with conversation settings"
 					return nil
 				}
 				f.Workspace.LoadedPath = value

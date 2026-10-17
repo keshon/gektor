@@ -6,27 +6,26 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/chat"
 )
 
-// Chat and agent share one label vocabulary. [RESPONSE] used to be
-// suppressed in chat, where there is no thinking or tool output to tell
-// it apart from; with the label row carrying the structure, suppressing
-// it left the reader guessing which row was the reply.
-func TestChatAndAgentShareResponseLabel(t *testing.T) {
+// [RESPONSE] labels the assistant's own row. It used to be suppressed in
+// chat, where there was no thinking or tool output to tell it apart from;
+// with the label row carrying the structure, suppressing it left the reader
+// guessing which row was the reply.
+func TestResponseBlockCarriesItsLabel(t *testing.T) {
 	st := defaultStyles()
 	if got := ansi.Strip(renderBlock(answerBlock("hello"), st, tagged(), 80)); !strings.Contains(got, "[RESPONSE]") {
 		t.Fatalf("agent response label lost: %q", got)
 	}
 	m := sizeModel(t, testModel())
-	m.chat = &chatUI{config: &ChatConfig{Settings: chat.Config{CharacterName: "Veyra"}}}
 	m.transcript.blocks = []block{answerBlock("hi")}
 	m.refreshContent()
 	if got := ansi.Strip(m.transcript.Viewport.View()); !strings.Contains(got, "[RESPONSE]") {
-		t.Fatalf("chat must show the same label: %q", got)
+		t.Fatalf("rendered block lost its label: %q", got)
 	}
 }
-func TestAgentIdentityAndLongChatLabel(t *testing.T) {
+
+func TestAgentIdentityAndLongNameLabel(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.identityName = "Ada"
 	m.transcript.blocks = []block{answerBlock("Reply"), {role: roleThink, text: "Thinking"}, {role: roleTool, text: "read_file"}}
@@ -36,7 +35,7 @@ func TestAgentIdentityAndLongChatLabel(t *testing.T) {
 	if got := ansi.Strip(m.transcript.Viewport.View()); strings.Contains(got, "TARS") || strings.Count(got, "ADA") != 1 {
 		t.Fatal(got)
 	}
-	row := speakerRow("AN EXTREMELY LONG CHARACTER NAME", roleAnswer, defaultStyles(), 24)
+	row := speakerRow("AN EXTREMELY LONG ASSISTANT NAME", roleAnswer, defaultStyles(), 24)
 	if n := ansi.StringWidth(row); n > 24 {
 		t.Fatalf("overflow: %q (%d cols)", row, n)
 	}

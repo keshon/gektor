@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -36,7 +35,6 @@ type dialog struct {
 // it. Balanced by construction: every open path pairs with esc/enter
 // or run start.
 func (m *model) openDialog(title string, lines []string) {
-	m.stopListening()
 	m.dialog = &dialog{title: title, lines: lines}
 	m.pushOverlay(ovDialog)
 	m.input.Blur()
@@ -246,9 +244,6 @@ func renderHelp() []string {
 // shown is model state or construction facts; the TUI never re-reads
 // Env, so nothing here can disagree with the run.
 func (m *model) statusLines() []string {
-	if m.chat != nil {
-		return kvRows([]string{"mode: Chat", "voice: " + m.currentVoiceMode(), "character: " + m.speakerName(), "user: " + m.userName(), "profile file: " + m.profileSource(), "backend: " + nonEmpty(m.backendKind), "model: " + nonEmpty(m.modelName), "session: " + nonEmpty(m.stateFile), "tools: none", "context: " + m.meter(), fmt.Sprintf("response budget: %d tokens", m.responseCap)})
-	}
 	taskDir := "—"
 	if m.stateFile != "" {
 		taskDir = filepath.Dir(m.stateFile)
@@ -274,9 +269,8 @@ func (m *model) statusLines() []string {
 		allowed = strconv.Itoa(n) + " (this run only)"
 	}
 	return kvRows([]string{
-		"mode: Agent",
-		"voice: " + m.currentVoiceMode(),
-		"character: " + m.speakerName(),
+		"mode: " + m.modeName(),
+		"identity: " + m.speakerName(),
 		"user: " + m.userName(),
 		"profile file: " + m.profileSource(),
 		"backend: " + nonEmpty(m.backendKind),
@@ -322,28 +316,7 @@ func kvRows(rows []string) []string {
 }
 
 func (m *model) helpSections() []helpSection {
-	sections := helpSections()
-	if m.chat == nil {
-		return sections
-	}
-	for i := range sections {
-		if sections[i].title == "Commands" {
-			sections[i].rows = m.commandReference()
-			continue
-		}
-		rows := sections[i].rows[:0]
-		for _, row := range sections[i].rows {
-			if row[0] == "F5" || row[0] == "Y" || row[0] == "A" || row[0] == "N" || strings.HasPrefix(row[0], "@") {
-				continue
-			}
-			if row[0] == "/ or @" {
-				row = [2]string{"/", "Suggest chat commands"}
-			}
-			rows = append(rows, row)
-		}
-		sections[i].rows = rows
-	}
-	return sections
+	return helpSections()
 }
 
 func (m *model) profileSource() string {

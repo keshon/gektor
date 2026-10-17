@@ -6,27 +6,9 @@ import (
 )
 
 func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if msg.String() == "ctrl+l" && m.dialog == nil && m.sessions == nil && m.audio() != nil {
-		m.toggleListening()
-		return m, nil
-	}
 	defer m.syncFocus()
 	if m.dialog != nil && m.dialog.form != nil && msg.String() != "ctrl+c" && msg.String() != "ctrl+q" {
 		return m.formKey(msg)
-	}
-	if msg.String() == "esc" && (m.state == stRecording || m.state == stRecognizing) {
-		m.cancelRecording()
-		return m, nil
-	}
-	if m.dialog == nil && m.sessions == nil && (!m.navFocused || m.state == stRecording) {
-		if (msg.String() == "ctrl+r" || msg.String() == "f8") && m.chat != nil && m.chat.config.NewVoice != nil {
-			m.recordVoice()
-			return m, nil
-		}
-		if msg.String() == "esc" && (m.state == stRecording || m.state == stRecognizing) {
-			m.cancelRecording()
-			return m, nil
-		}
 	}
 	if msg.String() == "ctrl+q" {
 		return m.requestQuit()
@@ -133,7 +115,7 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case "ctrl+n":
 			if m.state == stDone {
 				m.navFocused = false
-				m.newChat()
+				m.newTask()
 				return m, m.input.Focus()
 			}
 			return m, nil

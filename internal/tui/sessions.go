@@ -12,7 +12,6 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/keshon/tars/internal/chat"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/session"
 	"github.com/keshon/tars/internal/workspace"
@@ -150,7 +149,6 @@ func ageString(t time.Time) string {
 // tears it down with focus restored. Balanced by construction: every
 // open pairs with esc/enter or run start.
 func (m *model) openSessions() {
-	m.stopListening()
 	filter := newSearchInput(max(m.termW-14, 1))
 	filter.Focus()
 	m.sessions = &sessionsState{entries: m.nav.entries, all: m.nav.entries, root: m.sessionRoot(), filter: filter}
@@ -307,9 +305,6 @@ func (m *model) openSelected() tea.Cmd {
 			return cmd
 		}
 	}
-	if m.chat != nil {
-		return m.openConversation(cur)
-	}
 	if cur.mode == "Mission" {
 		s.flash = "Mission: run agent -tui -resume " + cur.dir
 		return nil
@@ -443,10 +438,6 @@ func (m *model) commitRename() {
 		// the derived text live, tracking history instead of a stale
 		// copy of it.
 		load := func() ([]llm.Message, error) {
-			if m.chat != nil {
-				a, err := chat.ReadArchive(filepath.Join(cur.dir, "conversation.json"))
-				return a.History, err
-			}
 			return session.ReadHistory(filepath.Join(cur.dir, "state.json"))
 		}
 		if history, err := load(); err == nil {
@@ -492,7 +483,7 @@ func (m *model) deleteSelected() {
 			s.flash = "stop the run first"
 			return
 		}
-		m.newChat()
+		m.newTask()
 	}
 	target, err := filepath.Abs(cur.dir)
 	root, rootErr := filepath.Abs(s.root)
@@ -560,11 +551,8 @@ func (m *model) activeSessionTitle() string {
 
 // sessionRoot follows the chosen workspace, independently of the process cwd.
 func (m *model) sessionRoot() string {
-	if m.application != nil && m.audio() != nil {
-		return m.audio().Directory
-	}
-	if m.chat != nil {
-		return m.chat.config.Directory
+	if m.application != nil && m.config != nil {
+		return m.config.Directory
 	}
 	root := m.wsRoot
 	if m.ws != nil {

@@ -28,9 +28,6 @@ type headerItem struct {
 
 func (m *model) headerBadges() []headerBadge {
 	mode, activity := "ACT", "READY"
-	if m.chat != nil {
-		mode = "CHAT"
-	}
 	if m.plan {
 		mode = "PLAN"
 	}
@@ -39,10 +36,6 @@ func (m *model) headerBadges() []headerBadge {
 		activity = string(activityFrames[m.spinnerFrame%len(activityFrames)]) + " WORK"
 	case stPermission, stAsk:
 		activity = "WAIT"
-	case stRecording:
-		activity = "REC"
-	case stRecognizing:
-		activity = "ASR"
 	case stStopping:
 		activity = "STOP"
 	default:
@@ -67,9 +60,6 @@ func (m *model) headerBadges() []headerBadge {
 	candidates := []headerBadge{{id: "mode", label: mode}, {id: "activity", label: activity}, {id: "model", label: strings.TrimSpace(cellLine(strings.ToUpper(nonEmpty(m.modelName)), modelWidth))}, {id: "context", label: ctx}}
 	if m.steps > 0 || m.state != stDone {
 		label := fmt.Sprintf("step %d/%d  %s", m.steps, m.maxSteps, formatElapsed(m.elapsed))
-		if m.chat != nil {
-			label = "turn  " + formatElapsed(m.elapsed)
-		}
 		candidates = append(candidates, headerBadge{id: "run", label: label})
 	}
 	// Context and state stay visible before the optional model and run details.
@@ -126,13 +116,7 @@ func (m *model) badgeLine() string {
 }
 
 func (m *model) badgePaneLabel() string {
-	if m.chat != nil {
-		return " CHAT "
-	}
-	if m.application != nil {
-		return " AGENT "
-	}
-	return " CHAT "
+	return " AGENT "
 }
 
 func (m *model) rawHeaderItems() []headerItem {
@@ -140,13 +124,10 @@ func (m *model) rawHeaderItems() []headerItem {
 	idle := m.state == stDone
 	switch m.header.menu {
 	case "session":
-		rows := []headerItem{{"New", "/new", idle}, {"Open…", "/sessions", m.state != stRecording && m.state != stRecognizing}, {"Compact conversation", "/compact", idle && !m.mission && m.stateFile != ""}, {"Rename…", "rename-current", idle && m.stateFile != ""}, {"Delete…", "delete-current", idle && m.stateFile != ""}}
+		rows := []headerItem{{"New", "/new", idle}, {"Open…", "/sessions", true}, {"Compact conversation", "/compact", idle && !m.mission && m.stateFile != ""}, {"Rename…", "rename-current", idle && m.stateFile != ""}, {"Delete…", "delete-current", idle && m.stateFile != ""}}
 
 		return append(rows, headerItem{"", "", false}, headerItem{"Quit", "quit", true})
 	case "workflow":
-		if m.chat != nil {
-			return []headerItem{{"Stop response", "stop", m.state == stRunning}, {"Retry", "/retry", idle && m.runErr != nil && m.retryRun != nil}, {"Details", "/status", true}}
-		}
 		return []headerItem{{"Plan", "/mode plan", idle && !m.mission}, {"Act", "/mode act", idle && !m.mission}, {"Stop run", "stop", m.state == stRunning}, {"Retry", "/retry", idle && m.runErr != nil && m.retryRun != nil}, {"Permissions…", "permissions-info", true}}
 	case "view":
 		// Two zones: what the reader has chosen to hide, then what they
@@ -163,44 +144,19 @@ func (m *model) rawHeaderItems() []headerItem {
 			{"Select Theme…", "theme", true},
 		}
 	case "settings":
-		editable := idle && m.audio() != nil && m.audio().Configure != nil
-		rows := []headerItem{{"Model…", "edit:model", editable}, {"Generation…", "edit:generation", editable}, {"Speech…", "edit:speech", editable && m.hasSettingsSpeech()}, {"Profiles…", "edit:profiles", editable}, {"Application…", "application", idle && m.application != nil}}
-		if m.audio() != nil {
-			// Character is Chat-only: an Agent takes no card, so offering
-			// the page there would save a value nothing reads.
+		editable := idle && m.config != nil && m.config.Configure != nil
+		rows := []headerItem{{"Model…", "edit:model", editable}, {"Generation…", "edit:generation", editable}, {"Profiles…", "edit:profiles", editable}, {"Application…", "application", idle && m.application != nil}}
+		if m.config != nil {
 			rows = append(rows, headerItem{"You…", "edit:you", editable}, headerItem{"Prompts…", "edit:prompts", editable}, headerItem{"Prompt preview…", "prompt-info", true})
-			if m.chat != nil {
-				rows = append([]headerItem{{"Character…", "edit:character", editable}}, rows...)
-			}
 		}
 		return rows
-	case "conversation-mode":
-		return []headerItem{{"Chat", "mode-chat", idle && m.application != nil && m.chat == nil}, {"Agent", "mode-agent", idle && m.application != nil && m.chat != nil}}
-	case "voice":
-		available := m.audio() != nil && m.audio().NewVoice != nil && m.audio().Profile.Speech != nil
-		label := "Enable voice"
-		if m.voiceEnabled {
-			label = "Disable voice"
-		}
-		record := "Record"
-		if m.state == stRecording {
-			record = "Finish recording"
-		}
-		return []headerItem{{label, "voice-toggle", available && idle}, {"Hands-free", "voice-live", available && (idle || m.listening != nil)}, {record, "voice-record", available && (idle || m.state == stRecording)}, {"Stop playback", "stop-speech", m.hasPlayback()}}
-
 	case "help":
 		return []headerItem{{"Keyboard shortcuts", "help-keys", true}, {"Commands", "help-commands", true}, {"About", "about", true}}
 
 	case "mode":
-		if m.chat != nil {
-			return []headerItem{info("Chat: conversation without coding tools"), {"Conversation prompts…", "edit:prompts", idle && m.chat != nil && m.chat.config.Configure != nil}}
-		}
-		return []headerItem{{"ACT   Execute changes with tools", "/mode act", idle && !m.mission && m.chat == nil}, {"PLAN  Read-only exploration and planning", "/mode plan", idle && !m.mission && m.chat == nil}}
+		return []headerItem{{"ACT   Execute changes with tools", "/mode act", idle && !m.mission}, {"PLAN  Read-only exploration and planning", "/mode plan", idle && !m.mission}}
 	case "activity":
-		rows := []headerItem{info("State: " + m.statusWord()), info("Elapsed: " + formatElapsed(m.elapsed))}
-		if m.chat == nil {
-			rows = append(rows, info(fmt.Sprintf("Steps: %d / %d", m.steps, m.maxSteps)))
-		}
+		rows := []headerItem{info("State: " + m.statusWord()), info("Elapsed: " + formatElapsed(m.elapsed)), info(fmt.Sprintf("Steps: %d / %d", m.steps, m.maxSteps))}
 		if m.runErr != nil {
 			rows = append(rows, info("Error: "+m.runErr.Error()), headerItem{"Retry failed turn", "/retry", idle && m.retryRun != nil})
 		}
@@ -229,11 +185,8 @@ func (m *model) rawHeaderItems() []headerItem {
 		if m.usage.source == "Saved history estimate" {
 			rows = append(rows, info("Estimate excludes tool schemas and images."))
 		}
-		return append(rows, headerItem{"Compact saved history", "/compact", idle && !m.mission && m.chat == nil && m.stateFile != ""})
+		return append(rows, headerItem{"Compact saved history", "/compact", idle && !m.mission && m.stateFile != ""})
 	case "run":
-		if m.chat != nil {
-			return []headerItem{info("Elapsed: " + formatElapsed(m.elapsed)), info(fmt.Sprintf("Response budget: %d tokens", m.responseCap))}
-		}
 		rows := []headerItem{info(fmt.Sprintf("Steps: %d / %d", m.steps, m.maxSteps)), info("Elapsed: " + formatElapsed(m.elapsed)), info(fmt.Sprintf("Tools: %d   Files: %d", m.toolsUsed, len(m.filesTouched)))}
 		if !m.firstToken.IsZero() {
 			rows = append(rows, info("First token: "+formatElapsed(m.firstToken.Sub(m.started))))
@@ -344,31 +297,13 @@ func (m *model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				m.openTheme()
 				return m, nil
 			case "about":
-				m.openDialog("About", []string{"Local conversation and coding assistant", "Go · Bubble Tea", "Speech: Whisper recognition · Chatterbox synthesis"})
+				m.openDialog("About", []string{"Local coding assistant", "Go · Bubble Tea"})
 				return m, nil
 			case "application":
 				m.openApplication()
 				return m, nil
-			case "voice-live":
-				m.toggleListening()
-				return m, nil
-			case "voice-toggle":
-				m.toggleVoice()
-				return m, nil
-			case "voice-greeting":
-				m.playGreeting()
-				return m, nil
-			case "voice-record":
-				m.recordVoice()
-				return m, nil
-			case "stop-speech":
-				m.stopPlayback()
-				return m, nil
-			case "voice-cancel":
-				m.cancelRecording()
-				return m, nil
 			case "prompt-info":
-				m.inspectChatPrompt()
+				m.inspectPrompt()
 				return m, nil
 			case "rename-current":
 				m.renameActive()
@@ -551,9 +486,7 @@ func (m *model) menuCells() []footerCell {
 			break
 		}
 		if menu.id == "workflow" {
-			if m.chat != nil {
-				menu.label = "Chat"
-			} else if m.application != nil {
+			if m.application != nil {
 				menu.label = "Agent"
 			}
 		}
@@ -639,12 +572,6 @@ func (m *model) headerToggle(command string) (toggle, on bool) {
 		return true, m.plan
 	case "/mode act":
 		return true, !m.plan
-	case "mode-chat":
-		return true, m.chat != nil
-	case "mode-agent":
-		return true, m.chat == nil
-	case "voice-live":
-		return true, m.listening != nil
 	}
 	return false, false
 }

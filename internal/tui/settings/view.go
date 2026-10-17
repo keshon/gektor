@@ -124,9 +124,6 @@ func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 		if f.Workspace.Section == "profiles" {
 			note = "Ctrl+D saves a copy · Apply uses the loaded profile in this session"
 		}
-		if f.Workspace.Section == "speech" {
-			note = "Built-in English voice · Ctrl+P plays/stops the applied voice"
-		}
 	}
 	rows = append(rows, props.Styles.Muted.Render(cellLine(note, inner)))
 	buttonRow, actionHits := f.Actions(inner, len(rows), "Apply", f.Dirty(), props.formStyles())
@@ -138,16 +135,14 @@ func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 			label := ""
 			if categories := f.AvailableCategories(); i < len(categories) {
 				c := categories[i]
-				if c.ID != "speech" || f.HasSpeech() {
-					label = "  " + c.Label
-					if c.ID == f.Workspace.Section {
-						label = "› " + c.Label
-						style := props.Styles.Selected
-						if f.Workspace.Nav {
-							style = props.Styles.Focus
-						}
-						label = style.Render(label)
+				label = "  " + c.Label
+				if c.ID == f.Workspace.Section {
+					label = "› " + c.Label
+					style := props.Styles.Selected
+					if f.Workspace.Nav {
+						style = props.Styles.Focus
 					}
+					label = style.Render(label)
 				}
 			}
 			rows[i] = cellLine(label, rail-2) + props.Styles.Muted.Render("│ ") + cellLine(rows[i], inner)
