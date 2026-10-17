@@ -298,9 +298,16 @@ func hintResolver(reg *Registry) func(string) string {
 }
 
 // writesFiles reads Config.MutatingTools rather than hardcoding a name,
-// so the rewrite guard covers whichever writer a registry offers.
+// so anything that counts as a change for the self-check covers whichever
+// writer a registry offers.
 func (a *Agent) writesFiles(name string) bool {
 	return slices.Contains(a.cfg.MutatingTools, name)
+}
+
+// rewritesFile reports whether a tool replaces a whole file rather than
+// editing part of one. Only these arm the rewrite guard.
+func (a *Agent) rewritesFile(name string) bool {
+	return a.writesFiles(name) && !slices.Contains(a.cfg.PatchingTools, name)
 }
 
 // hint asks the run's owner which registered tool suits this situation.

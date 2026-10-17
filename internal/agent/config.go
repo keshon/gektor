@@ -79,6 +79,10 @@ type Config struct {
 	// that it saved something. Zero: this project's file tools.
 	MutatingTools []string
 
+	// PatchingTools is the subset of MutatingTools that edits part of a
+	// file, exempt from the rewrite guard. Zero: the patch tools.
+	PatchingTools []string
+
 	// Verify runs once at the self-check checkpoint — a real build or
 	// test — and folds its output in as ground truth.
 	Verify func(ctx context.Context) (output string, ok bool)
@@ -160,6 +164,9 @@ func New(cfg Config) *Agent {
 	}
 	if len(cfg.MutatingTools) == 0 {
 		cfg.MutatingTools = []string{"write_file", "patch_file", "patch_lines", "move_file"}
+	}
+	if len(cfg.PatchingTools) == 0 {
+		cfg.PatchingTools = []string{"patch_file", "patch_lines"}
 	}
 	if cfg.CompactKeepSteps == 0 {
 		cfg.CompactKeepSteps = DefaultCompactKeepSteps

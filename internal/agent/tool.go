@@ -290,14 +290,18 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 					"reissue smaller: split the call into smaller pieces")}
 			continue
 		}
-		if a.writesFiles(call.Name) {
+		// Whole-file writes only: the guard used to fire on patches too, telling
+		// the model to patch with the patch tool it had just been blocked
+		// from. It spent nine steps obeying that.
+		if a.rewritesFile(call.Name) {
 			if path := writePathFromArgs(call.Arguments); path != "" {
 				if prev, seen := st.wrotePaths[path]; seen {
 					skipped[i] = true
 					results[i] = callResult{err: fmt.Errorf(
-						"already wrote %s in step %d — it is on disk. Do NOT rewrite it. "+
-							"Patch it for edits, or write the NEXT missing file from your "+
-							"files_hint / acceptance list, then finish when done",
+						"already wrote %s in step %d — it is on disk. To change it, use "+
+							"patch_file or patch_lines. To add something else, write the "+
+							"NEXT missing file from your files_hint / acceptance list, "+
+							"then finish when done",
 						path, prev)}
 					continue
 				}
@@ -429,7 +433,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 						}
 					}
 				}
-				if a.writesFiles(call.Name) {
+				if a.rewritesFile(call.Name) {
 					if path := writePathFromArgs(call.Arguments); path != "" {
 						if st.wrotePaths == nil {
 							st.wrotePaths = make(map[string]int)

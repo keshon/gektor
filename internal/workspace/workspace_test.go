@@ -70,17 +70,29 @@ func TestResolve_RejectsSiblingWithRootAsNamePrefix(t *testing.T) {
 	}
 }
 
-// Absolute paths are joined onto the root rather than replacing it, so
-// they land inside. Documented here because it is the behaviour a caller
-// depends on, not an accident.
-func TestResolve_AbsolutePathIsContained(t *testing.T) {
+// An absolute path used to be joined onto the root, so "/etc/passwd"
+// resolved to "<root>/etc/passwd" and a model got an unreadable
+// "open ...\etc\passwd" error instead of being told the rule.
+func TestResolve_RejectsAbsolutePathByName(t *testing.T) {
 	ws, root := testWS(t)
-	got, err := ws.Resolve(filepath.Join(string(filepath.Separator), "etc", "passwd"))
-	if err != nil {
-		t.Fatalf("Resolve: %v", err)
+	abs := []string{root, root + string(filepath.Separator) + "inside"}
+	if vol := filepath.VolumeName(root); vol != "" {
+		// On Windows a bare "\etc\passwd" is rooted but drive-less, and
+		// filepath.IsAbs correctly says no; only a drive makes it absolute.
+		abs = append(abs, vol+string(filepath.Separator)+"etc", vol+string(filepath.Separator)+"etc"+string(filepath.Separator)+"passwd")
 	}
-	if !strings.HasPrefix(got, root+string(filepath.Separator)) {
-		t.Errorf("Resolve(absolute) = %q, want contained under %q", got, root)
+	for _, p := range abs {
+		_, err := ws.Resolve(p)
+		if err == nil {
+			t.Fatalf("Resolve(%q) succeeded, want rejected", p)
+		}
+		msg := err.Error()
+		if !strings.Contains(msg, "is absolute") {
+			t.Errorf("error for %q = %v, want it to say the path is absolute", p, err)
+		}
+		if !strings.Contains(msg, "relative to the workspace root") {
+			t.Errorf("error for %q = %v, want it to name the rule", p, err)
+		}
 	}
 }
 

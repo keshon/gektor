@@ -76,11 +76,18 @@ func (w *Workspace) Instructions() string {
 }
 
 // Resolve turns a path relative to the workspace into an absolute path,
-// refusing anything that would escape the workspace root.
+// refusing anything that escapes the root.
+//
+// Absolute paths are refused by name: filepath.Join(root, "D:\x") yields
+// "<root>\D:\x", which is neither the requested path nor a recognised
+// escape, so the caller got an unreadable "open ..." error instead.
 func (w *Workspace) Resolve(rel string) (string, error) {
+	if filepath.IsAbs(rel) {
+		return "", fmt.Errorf("path %q is absolute; use a path relative to the workspace root %q", rel, w.root)
+	}
 	full := filepath.Clean(filepath.Join(w.root, rel))
 	if full != w.root && !strings.HasPrefix(full, w.root+string(filepath.Separator)) {
-		return "", fmt.Errorf("path %q escapes workspace root", rel)
+		return "", fmt.Errorf("path %q escapes workspace root %q", rel, w.root)
 	}
 	return full, nil
 }
