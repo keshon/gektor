@@ -178,6 +178,10 @@ type model struct {
 	note         textinput.Model
 	alwaysMu     sync.Mutex
 	always       map[[2]string]bool
+	// planGate marks an stAsk that is a plan approval rather than a
+	// question. Same interaction, so same state, but Y/N answer it and
+	// any other text is a revision note.
+	planGate bool
 	// dialog is the open modal, if any (dialog.go). While open it
 	// replaces the transcript body and eats all keys but close/quit.
 	dialog *dialog

@@ -398,6 +398,7 @@ func (m *model) handleEvent(ev run.Event) {
 			m.pushOverlay()
 		} else {
 			m.state = stAsk
+			m.planGate = kind == string(agent.SuspendPlan)
 			m.gateDraft = m.input.Value()
 			m.input.SetValue("")
 			m.input.Focus()
@@ -407,6 +408,7 @@ func (m *model) handleEvent(ev run.Event) {
 	case "input_answered":
 		m.state = stRunning
 		m.gate = ""
+		m.planGate = false
 		m.input.SetValue(m.gateDraft)
 		m.gateDraft = ""
 		m.input.Focus()

@@ -127,6 +127,15 @@ func (m *model) resolveGate(answer string) {
 	m.input.Focus()
 }
 
+// answerAsk sends an stAsk reply and resumes. One place so the Enter
+// path and the plan Y/N shortcuts cannot diverge.
+func (m *model) answerAsk(answer string) {
+	m.input.Push(strings.TrimSpace(answer))
+	_ = m.hub.Respond(answer)
+	m.planGate = false
+	m.state = stRunning
+}
+
 // gateBar renders the bottom bar for the permission overlay by stage.
 // The reject stage costs two lines (label + input); fitBottom budgets
 // it, the transcript keeps scrolling above.
@@ -197,12 +206,21 @@ func isAlwaysAnswer(answer string) bool {
 }
 func (m *model) refreshGate() {
 	title := "Permission required"
-	if m.state == stAsk {
+	switch {
+	case m.planGate:
+		title = "Plan approval required"
+	case m.state == stAsk:
 		title = "Answer required"
 	}
 	rows := []string{m.styles.gate.Render(title), ""}
 	for _, line := range strings.Split(m.gate, "\n") {
 		rows = append(rows, reflow(line, max(m.gateVP.Width()-1, 1))...)
+	}
+	if m.planGate {
+		// The hint rides the plan text rather than the bottom bar, whose
+		// 1-line budget the layout math depends on.
+		rows = append(rows, "", m.styles.gate.Render(
+			"Y approve  N reject  or type a revision note and press Enter"))
 	}
 	m.gateVP.SetContent(strings.Join(rows, "\n"))
 }

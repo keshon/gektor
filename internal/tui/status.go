@@ -31,6 +31,9 @@ func (m *model) statusWord() string {
 	case stPermission:
 		return "awaiting permission"
 	case stAsk:
+		if m.planGate {
+			return "awaiting plan approval"
+		}
 		return "waiting"
 	case stStopping:
 		return "stopping"

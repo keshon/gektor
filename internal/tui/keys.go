@@ -185,6 +185,16 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.gateKey(msg)
 	case stAsk:
 		switch msg.String() {
+		case "y", "Y":
+			if m.planGate {
+				m.answerAsk("y")
+				return m, nil
+			}
+		case "n", "N":
+			if m.planGate {
+				m.answerAsk("n")
+				return m, nil
+			}
 		case "esc":
 			if answer := m.input.Value(); answer != "" {
 				if m.gateDraft != "" {
@@ -204,9 +214,7 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			// input keeps arrows and typing only.
 			return m.scrollViewport(msg)
 		case "enter":
-			m.input.Push(strings.TrimSpace(m.input.Value()))
-			_ = m.hub.Respond(m.input.Value())
-			m.state = stRunning
+			m.answerAsk(m.input.Value())
 			return m, nil
 		case "ctrl+c", "ctrl+q":
 			m.quit = true
