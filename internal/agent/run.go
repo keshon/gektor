@@ -196,11 +196,18 @@ func (a *Agent) recoverLeakedCalls(resp llm.ChatResponse, step int) (llm.ChatRes
 func (a *Agent) chat(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
 	req.Temperature = a.cfg.Temperature
 	if a.cfg.Stream {
-		if s, ok := a.cfg.Client.(interface {
-			Stream(context.Context, llm.ChatRequest, func(string)) (llm.ChatResponse, error)
-		}); ok {
+		if s, ok := a.cfg.Client.(llm.Streamer); ok {
 			shown := false
-			resp, err := s.Stream(ctx, req, func(d string) {
+			resp, err := s.Stream(ctx, req, func(r string) {
+				// Reasoning counts as shown. It reaches the screen too,
+				// so a stream that dies after thinking but before
+				// answering would otherwise be retried into a duplicate
+				// THINK block.
+				shown = true
+				if a.cfg.OnReasoning != nil {
+					a.cfg.OnReasoning(r)
+				}
+			}, func(d string) {
 				shown = true
 				if a.cfg.OnDelta != nil {
 					a.cfg.OnDelta(d)

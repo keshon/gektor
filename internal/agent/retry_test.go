@@ -21,7 +21,7 @@ func (c *failStreamClient) Chat(_ context.Context, _ llm.ChatRequest) (llm.ChatR
 	return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: "recovered"}}, nil
 }
 
-func (c *failStreamClient) Stream(_ context.Context, _ llm.ChatRequest, _ func(string)) (llm.ChatResponse, error) {
+func (c *failStreamClient) Stream(_ context.Context, _ llm.ChatRequest, _, onContent func(string)) (llm.ChatResponse, error) {
 	c.streamCalls++
 	return llm.ChatResponse{}, c.streamErr
 }
@@ -67,6 +67,47 @@ func TestAgent_StreamNonRetryableErrorReturns(t *testing.T) {
 	}
 	if client.chatCalls != 0 {
 		t.Fatalf("chatCalls = %d, unary must not run after a non-retryable stream error", client.chatCalls)
+	}
+}
+
+// thinkThenFailClient streams deliberation, then dies the way a dropped
+// connection does: mid-flight, before any answer text.
+type thinkThenFailClient struct {
+	streamCalls int
+	chatCalls   int
+}
+
+func (c *thinkThenFailClient) Chat(_ context.Context, _ llm.ChatRequest) (llm.ChatResponse, error) {
+	c.chatCalls++
+	return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: "recovered"}}, nil
+}
+
+func (c *thinkThenFailClient) Stream(_ context.Context, _ llm.ChatRequest, onReasoning, _ func(string)) (llm.ChatResponse, error) {
+	c.streamCalls++
+	onReasoning("thinking out loud")
+	return llm.ChatResponse{}, llm.ErrIncompleteStream
+}
+
+// A stream that shows deliberation and then fails must NOT be retried.
+// Reasoning reaches the screen like content does, so a retry would print
+// the same THINK twice.
+func TestAgent_StreamShownReasoningBlocksRetry(t *testing.T) {
+	client := &thinkThenFailClient{}
+	a := New(Config{
+		Client: client, Tools: NewRegistry(), System: "sys",
+		Stream: true, SkipVerify: true, ReasoningBudget: 1 << 20,
+	})
+	var shown []string
+	a.cfg.OnReasoning = func(chunk string) { shown = append(shown, chunk) }
+
+	if _, err := a.Run(context.Background(), "task"); err == nil {
+		t.Fatal("expected the incomplete stream to surface")
+	}
+	if client.chatCalls != 0 {
+		t.Fatalf("chatCalls = %d, a stream that already showed reasoning must not retry", client.chatCalls)
+	}
+	if len(shown) == 0 {
+		t.Fatal("the test proves nothing if reasoning never reached the observer")
 	}
 }
 

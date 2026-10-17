@@ -115,7 +115,7 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		}
 		m.refreshNavigator()
 		// Partial live text is not an answer: discard it either way.
-		m.live, m.liveQueue, m.liveCut, m.liveRunes = "", "", false, 0
+		m.resetLive()
 		if m.interrupted {
 			m.interrupted = false
 			m.runErr = nil
@@ -307,7 +307,7 @@ func (m *model) handleEvent(ev api.Event) {
 		// a non-empty buffer adopts the buffer (backend streamed text it
 		// then omitted); tool steps never adopt, calls are work.
 		live := m.live + m.liveQueue
-		m.live, m.liveQueue, m.liveCut, m.liveRunes = "", "", false, 0
+		m.resetLive()
 		// Reasoning above its reply: the collapsed
 		// think line introduces the answer it produced, causal order.
 		// Tool calls render as cards below, whatever prompted them.
@@ -441,6 +441,13 @@ func (m *model) handleEvent(ev api.Event) {
 	case "mission":
 		if text, _ := ev.Fields["text"].(string); text != "" {
 			m.appendBlock(missionBlock("[mission] " + text))
+		}
+	case "reasoning":
+		// Streamed deliberation. Queued separately from the answer so the
+		// THINK block fills while the model is still thinking, and is still
+		// on screen when RESPONSE starts.
+		if text, _ := ev.Fields["text"].(string); text != "" {
+			m.liveThinkQueue += text
 		}
 	case "delta":
 		// Streamed chunk: queue it for the reveal, which draws it a few

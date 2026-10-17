@@ -27,11 +27,11 @@ func (c *streamingClient) Chat(context.Context, llm.ChatRequest) (llm.ChatRespon
 	}, nil
 }
 
-func (c *streamingClient) Stream(_ context.Context, _ llm.ChatRequest, onDelta func(string)) (llm.ChatResponse, error) {
+func (c *streamingClient) Stream(_ context.Context, _ llm.ChatRequest, _, onContent func(string)) (llm.ChatResponse, error) {
 	c.calls++
 	for _, chunk := range []string{"one ", "two ", "three"} {
 		c.deltas++
-		onDelta(chunk)
+		onContent(chunk)
 	}
 	return llm.ChatResponse{
 		Message:      llm.Message{Role: llm.RoleAssistant, Content: "one two three"},

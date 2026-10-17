@@ -101,6 +101,12 @@ shown as literal text — a bold span would show its own asterisks for
 several frames before closing — and the finished block renders with full
 markup when the step arrives.
 
+Deliberation streams the same way, on a buffer of its own: a thinking
+model fills the THINK block while it is still thinking, and the block
+stays on screen as the answer streams underneath it. One merged buffer
+would interleave the two instead of chaining them, and reasoning that
+arrives at the end would blank the answer to make room.
+
 ## Header badges
 
 The session title and clock sit above a badge strip: Act/Plan, Ready/Work/Wait/

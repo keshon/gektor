@@ -123,3 +123,15 @@ type ChatResponse struct {
 type Client interface {
 	Chat(ctx context.Context, req ChatRequest) (ChatResponse, error)
 }
+
+// Streamer is implemented by backends that can deliver a turn
+// incrementally. Reasoning and content arrive as separate callbacks rather
+// than one merged stream, because a thinking model reports deliberation
+// first and a reader wants to watch it happen before the answer starts.
+//
+// It used to be an anonymous interface asserted at the call site, with
+// capability negotiated by matching an error string; naming it means a
+// backend either streams or it does not, visibly.
+type Streamer interface {
+	Stream(ctx context.Context, req ChatRequest, onReasoning, onContent func(string)) (ChatResponse, error)
+}

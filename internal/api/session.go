@@ -144,6 +144,13 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *findingDrain) {
 			prevOnDelta(chunk)
 		}
 	}
+	prevOnReasoning := env.OnReasoning
+	env.OnReasoning = func(chunk string) {
+		EmitReasoning(emitter, chunk)
+		if prevOnReasoning != nil {
+			prevOnReasoning(chunk)
+		}
+	}
 	drain := newFindingDrain(emitter, env.OnFinding)
 	env.OnFinding = drain.reportPerEdit
 	if s.cfg.Plan {
@@ -308,6 +315,17 @@ func EmitNudge(emitter *events.Emitter, kind, text string) {
 		return
 	}
 	emitter.Emit("nudge", map[string]any{"kind": kind, "text": text})
+}
+
+// EmitReasoning writes one streamed deliberation chunk as a JSONL event.
+// It is a separate event kind from delta so a reader can render THINK
+// finishing before RESPONSE begins, rather than one buffer that only
+// reveals everything once the turn is over.
+func EmitReasoning(emitter *events.Emitter, text string) {
+	if emitter == nil {
+		return
+	}
+	emitter.Emit("reasoning", map[string]any{"text": text})
 }
 
 // EmitDelta writes one streamed content chunk as a JSONL event. Deltas

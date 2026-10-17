@@ -55,6 +55,7 @@ The same vocabulary as `-mode json`, so one parser serves both:
 {"seq": 9, "event": "finding", "scope": "per-edit", "rule": "gofmt", "path": "a.go", "line": 3, "summary": "not gofmt-clean"}
 {"seq": 10, "event": "nudge", "kind": "verify", "text": "[harness] ..."}
 {"seq": 11, "event": "delta", "text": "partial answer..."}
+{"seq": 12, "event": "reasoning", "text": "partial deliberation..."}
 ```
 
 Direct runs also emit `outcome` with `completed`, `failed` or `cancelled`,
@@ -73,8 +74,11 @@ report-only, never gates. Loop-generated harness notices surface as
 `nudge` events (`kind` verify/refusal/leak/think-wrap/truncated/
 overflow/budget/stuck/todo/closing): the same `[harness]`-marked text the model
 saw, so observers can audit every intervention. Streamed content
-chunks surface as `delta` events (display-only; the step event
-carries the authoritative text and replaces whatever was live). Serve mode shares backend/authentication/context configuration, workspace,
+chunks surface as `delta` events, and streamed deliberation as
+`reasoning` events (display-only; the step event carries the
+authoritative text and replaces whatever was live). A thinking model
+emits `reasoning` before `delta`, so a client can render deliberation
+finishing before the answer starts. Serve mode shares backend/authentication/context configuration, workspace,
 permissions, MCP discovery, response/reasoning budgets, streaming, audit logging,
 and verification settings with the CLI. `-yes` skips mission plan approval and
 auto-denies permission Ask requests. CLI/TUI `-max-steps` and checklist funding

@@ -525,6 +525,20 @@ func (m *model) appendBlock(b block) {
 func renderLive(props transcriptProps, width int) []string {
 	opts := renderOpts{labels: props.labels, raw: true}
 	var parts []string
+	// Streamed deliberation renders first and stays put, so the turn reads
+	// as THINK then RESPONSE. Wrapping in <think> lets assistantBlocks
+	// build the same block a completed turn uses.
+	if strings.TrimSpace(props.liveThink) != "" {
+		for _, b := range assistantBlocks("<think>"+props.liveThink+"</think>", "") {
+			b.at = time.Time{}
+			b.speaker = props.speaker
+			part := renderBlock(b, props.styles, opts, width)
+			if len(parts) == 0 {
+				part = speakerRow(speakerLabel(b, props), b.role, props.styles, width) + "\n" + part
+			}
+			parts = append(parts, part)
+		}
+	}
 	for _, b := range assistantBlocks(props.live, "") {
 		b.at = time.Time{}
 		b.speaker = props.speaker
@@ -553,12 +567,13 @@ func (m *model) refreshContent() {
 		return
 	}
 	m.transcript.refresh(transcriptProps{
-		speaker: m.speakerName(),
-		user:    m.userName(),
-		styles:  m.styles,
-		live:    m.live,
-		hideSYS: m.hideSYS,
-		labels:  !m.hideLabels,
+		speaker:   m.speakerName(),
+		user:      m.userName(),
+		styles:    m.styles,
+		live:      m.live,
+		liveThink: m.liveThink,
+		hideSYS:   m.hideSYS,
+		labels:    !m.hideLabels,
 	})
 }
 
@@ -575,6 +590,14 @@ const (
 	revealFrame  = 16 * time.Millisecond
 )
 
+// resetLive clears both live buffers at a turn boundary. One method rather
+// than the field list repeated at each site: forgetting a field strands the
+// previous turn's text inside the next reply.
+func (m *model) resetLive() {
+	m.live, m.liveQueue, m.liveCut, m.liveRunes = "", "", false, 0
+	m.liveThink, m.liveThinkQueue = "", ""
+}
+
 // revealLive moves queued text into the transcript and reports whether
 // more is waiting.
 //
@@ -587,8 +610,22 @@ const (
 // A reader who has scrolled away is not watching the tail, so the queue
 // is emptied whole: animating text nobody can see spends frames on it.
 func (m *model) revealLive() bool {
+	pending := false
+	if m.liveThinkQueue != "" {
+		think := []rune(m.liveThinkQueue)
+		take := len(think)
+		if m.transcript.Follow {
+			take = max(1, len(think)/4)
+		}
+		m.liveThink += string(think[:take])
+		m.liveThinkQueue = string(think[take:])
+		pending = true
+	}
 	if m.liveQueue == "" {
-		return false
+		if pending {
+			m.refreshContent()
+		}
+		return pending
 	}
 	queued := []rune(m.liveQueue)
 	take := len(queued)
@@ -598,7 +635,7 @@ func (m *model) revealLive() bool {
 	m.live += string(queued[:take])
 	m.liveQueue = string(queued[take:])
 	m.refreshContent()
-	return m.liveQueue != ""
+	return pending || m.liveQueue != "" || m.liveThinkQueue != ""
 }
 
 // reflow word-wraps one logical line to width columns. Leading
@@ -677,6 +714,10 @@ func newTranscript() transcriptState { return transcriptState{Model: transcript.
 // The TARS renderer receives presentation values, never the application model.
 type transcriptProps struct {
 	speaker, user, live string
+	// liveThink is streamed deliberation, rendered above live so the turn
+	// reads THINK then RESPONSE instead of one buffer that blanks the
+	// answer to make room.
+	liveThink string
 	styles              styles
 	// hideSYS drops harness notices from the rendered transcript, and
 	// labels drops the [TAG] rows. Both are display-only: the blocks stay

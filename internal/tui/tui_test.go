@@ -1898,7 +1898,9 @@ func advanceFrames(t *testing.T, m tea.Model) *model {
 	if !ok {
 		t.Fatal("Update did not return *model")
 	}
-	for i := 0; i < 8192 && mm.liveQueue != ""; i++ {
+	// Both live buffers: a turn can be revealing deliberation when no
+	// answer text has arrived yet.
+	for i := 0; i < 8192 && (mm.liveQueue != "" || mm.liveThinkQueue != ""); i++ {
 		mm.Update(tickMsg(time.Now()))
 	}
 	return mm

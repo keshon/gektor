@@ -83,8 +83,10 @@ type Env struct {
 	// (Interactive, Subagent, Worker — never the read-only Inspector).
 	MCPTools []agent.Tool
 
-	// OnDelta receives streamed content chunks for live display.
-	OnDelta func(chunk string)
+	// OnDelta receives streamed answer text for live display. OnReasoning
+	// receives streamed deliberation, which arrives first.
+	OnDelta     func(chunk string)
+	OnReasoning func(chunk string)
 
 	// Gate, if set, prompts the operator for Ask-gated calls. Nil means
 	// Ask degrades to Deny.
@@ -337,5 +339,6 @@ func Interactive(e Env, label, stateFile string,
 		BeforeToolCall:  e.ResolveGate(),
 		Stream:          e.Stream,
 		OnDelta:         e.OnDelta,
+		OnReasoning:     e.OnReasoning,
 	})
 }

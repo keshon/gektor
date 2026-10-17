@@ -32,7 +32,7 @@ func (m *model) restoreDraft() {
 func (m *model) resetRunFacts() {
 	m.retryRun, m.runErr = nil, nil
 	m.answer, m.live, m.gateDraft = "", "", ""
-	m.liveQueue, m.liveRunes, m.liveCut = "", 0, false
+	m.resetLive()
 	m.steps, m.toolsUsed = 0, 0
 	m.clearContext()
 	m.tokensEst, m.interrupted = false, false

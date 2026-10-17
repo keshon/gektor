@@ -63,6 +63,9 @@ type Config struct {
 	OnToolResult func(callID, result string)
 	OnResult     func(ToolResult)
 	OnDelta      func(chunk string)
+	// OnReasoning receives streamed deliberation, which arrives before the
+	// answer and is reported separately so a reader can watch it first.
+	OnReasoning func(chunk string)
 	// OnNudge receives harness text (verify rounds, refusals, wrap-ups)
 	// with a kind tag.
 	OnNudge func(kind, text string)

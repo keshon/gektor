@@ -22,12 +22,12 @@ var ErrIncompleteStream = errors.New("incomplete stream")
 // caller can fall back to a unary call instead of failing the turn.
 var ErrStreamUnsupported = errors.New("streaming unsupported")
 
-// Stream sends req with stream:true and calls onDelta for each content
-// chunk, returning the assembled ChatResponse. Only dialects with SSE
-// support work: koboldcpp decides tool calls in its own server-side pass
-// and has no stable stream contract, so it refuses and the caller falls
-// back to ChatWithRetry.
-func (c *Server) Stream(ctx context.Context, req ChatRequest, onDelta func(string)) (ChatResponse, error) {
+// Stream sends req with stream:true and reports each chunk as it arrives,
+// reasoning on onReasoning and answer text on onContent, then returns the
+// assembled ChatResponse. Only dialects with SSE support work: koboldcpp
+// decides tool calls in its own server-side pass and has no stable stream
+// contract, so it refuses and the caller falls back to ChatWithRetry.
+func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onContent func(string)) (ChatResponse, error) {
 	if _, ok := c.dialect.(koboldDialect); ok {
 		return ChatResponse{}, fmt.Errorf("%w on koboldcpp — use Chat", ErrStreamUnsupported)
 	}
@@ -159,14 +159,19 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onDelta func(strin
 			}
 			if ch.Delta.Content != "" {
 				content.WriteString(ch.Delta.Content)
-				if onDelta != nil {
-					onDelta(ch.Delta.Content)
+				if onContent != nil {
+					onContent(ch.Delta.Content)
 				}
 			}
-			// Reasoning deltas accumulate silently: deliberation is
-			// measured by the budget, not displayed live.
+			// Reasoning is reported as it arrives, separately from content, so a
+			// reader watches deliberation finish before the answer begins.
+			// It used to accumulate silently and appear only once the whole
+			// reply was done.
 			if ch.Delta.Reasoning != "" {
 				reasoning.WriteString(ch.Delta.Reasoning)
+				if onReasoning != nil {
+					onReasoning(ch.Delta.Reasoning)
+				}
 			}
 			for _, dc := range ch.Delta.ToolCalls {
 				a := acc[dc.Index]

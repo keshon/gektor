@@ -148,6 +148,14 @@ type model struct {
 	liveQueue string
 	liveCut   bool
 	liveRunes int
+	// liveThink and liveThinkQueue mirror the pair above for streamed
+	// deliberation. Keeping them apart is what makes the turn read as
+	// THINK then RESPONSE: the reasoning block fills first and stays
+	// visible while the answer streams underneath it. One merged buffer
+	// would interleave them, and reasoning arriving at the end would blank
+	// the answer to make room.
+	liveThink      string
+	liveThinkQueue string
 	// lastSpin gates the braille spinner. The tick drops to a frame
 	// while a reply reveals, and the spinner must not spin up with it.
 	lastSpin time.Time
