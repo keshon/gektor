@@ -4,10 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/llm"
@@ -82,48 +79,14 @@ func TestDelegate_EmptyRoleIsFine(t *testing.T) {
 	}
 }
 
-func TestDelegate_LimitsConcurrentSubagents(t *testing.T) {
-	var active int32
-	var maxActive int32
-
-	d := &Delegate{
-		MaxConcurrent: 2,
-		Spawn: func(role string) *agent.Agent {
-			cur := atomic.AddInt32(&active, 1)
-			defer atomic.AddInt32(&active, -1)
-
-			for {
-				old := atomic.LoadInt32(&maxActive)
-				if cur <= old || atomic.CompareAndSwapInt32(&maxActive, old, cur) {
-					break
-				}
-			}
-
-			time.Sleep(50 * time.Millisecond)
-			return agent.New(agent.Config{
-				Client:     stubSubClient{answer: "done"},
-				Tools:      agent.NewRegistry(),
-				System:     "base",
-				SkipVerify: true,
-			})
-		},
-	}
-
-	var wg sync.WaitGroup
-	for i := 0; i < 4; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			args, _ := json.Marshal(map[string]string{"task": "work"})
-			if _, err := d.Run(context.Background(), args); err != nil {
-				t.Errorf("Run: %v", err)
-			}
-		}()
-	}
-	wg.Wait()
-
-	if atomic.LoadInt32(&maxActive) > 2 {
-		t.Fatalf("max concurrent subagents = %d, want <= 2", maxActive)
+// Delegates write to the same workspace as the parent, so the loop must
+// run them one at a time. That is what makes a semaphore inside Delegate
+// unnecessary, and it is why a step making several delegate calls spawns
+// sequential subagents rather than parallel ones.
+func TestDelegate_IsExclusiveSoTheLoopSerialisesIt(t *testing.T) {
+	var d Delegate
+	if got := d.Mode(); got != agent.Exclusive {
+		t.Fatalf("Mode = %v, want Exclusive", got)
 	}
 }
 

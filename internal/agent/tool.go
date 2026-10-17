@@ -213,10 +213,12 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 	st.todoBounces = 0
 
 	// Tool calls within one step are scheduled by Tool.Mode(), not run
-	// uniformly. Concurrent calls (reads, independent delegate_task
-	// calls, read-only checks) run together via goroutines — this is
-	// what makes multiple delegate_task calls in one step actually
-	// run in parallel. Exclusive calls (anything that mutates the
+	// uniformly. Concurrent calls (reads, read-only checks) run together
+	// via goroutines. Exclusive calls — anything that mutates the
+	// workspace, and delegate_task, whose subagent writes to the same one —
+	// run one at a time and never overlap the Concurrent batch or
+	// each other, so a step making three delegate calls spawns three
+	// sequential subagents.
 	// workspace, or run_shell's unanalyzable arbitrary command) run
 	// one at a time and never overlap with the Concurrent batch or
 	// each other — a model issuing write_file then patch_file on the

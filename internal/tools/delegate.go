@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/keshon/tars/internal/agent"
 )
@@ -15,8 +14,6 @@ import (
 // "orchestrator" from agent-v3, replaced by one tool: delegation doesn't
 // need its own architecture, just a tool that recursively builds and runs
 // another *agent.Agent.
-const defaultMaxConcurrentDelegates = 3
-
 type Delegate struct {
 	// Spawn builds a fresh subagent for one subtask. role, if non-empty,
 	// is layered onto the subagent's base system prompt rather than
@@ -27,19 +24,13 @@ type Delegate struct {
 	// task-specific tool set — in particular, without Delegate itself, so
 	// a task can't recurse into subagents forever.
 	Spawn func(role string) *agent.Agent
-
-	// MaxConcurrent caps parallel delegate_task calls. Zero means 3.
-	MaxConcurrent int
-
-	sem     chan struct{}
-	semOnce sync.Once
 }
 
-// All methods are pointer receivers: Delegate embeds a sync.Once, and a
-// value receiver would copy it (go vet: "passes lock by value").
 func (*Delegate) Name() string { return "delegate_task" }
 
-// Delegates share a workspace, so each one runs without overlapping parent tools.
+// Delegates share a workspace, so each one runs without overlapping parent
+// tools. That also means the scheduler never runs two at once, so a
+// semaphore here would only ever admit one.
 func (*Delegate) Mode() agent.ToolMode { return agent.Exclusive }
 func (*Delegate) Description() string {
 	return "Delegate a self-contained subtask to a fresh subagent and return its final result. " +
@@ -61,18 +52,6 @@ func (*Delegate) Schema() json.RawMessage {
 	}`)
 }
 
-// semaphore also bounds concurrent callers using Delegate outside the scheduler.
-func (d *Delegate) semaphore() chan struct{} {
-	d.semOnce.Do(func() {
-		capacity := d.MaxConcurrent
-		if capacity <= 0 {
-			capacity = defaultMaxConcurrentDelegates
-		}
-		d.sem = make(chan struct{}, capacity)
-	})
-	return d.sem
-}
-
 func (d *Delegate) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	var in struct {
 		Task string `json:"task"`
@@ -81,13 +60,6 @@ func (d *Delegate) Run(ctx context.Context, args json.RawMessage) (string, error
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", fmt.Errorf("bad arguments: %w", err)
 	}
-	sem := d.semaphore()
-	select {
-	case sem <- struct{}{}:
-	case <-ctx.Done():
-		return "", ctx.Err()
-	}
-	defer func() { <-sem }()
 
 	sub := d.Spawn(in.Role)
 	result, err := sub.Run(ctx, in.Task)
