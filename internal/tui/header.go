@@ -124,7 +124,7 @@ func (m *model) rawHeaderItems() []headerItem {
 	idle := m.state == stDone
 	switch m.header.menu {
 	case "session":
-		rows := []headerItem{{"New", "/new", idle}, {"Open…", "/sessions", true}, {"Compact conversation", "/compact", idle && !m.mission && m.stateFile != ""}, {"Rename…", "rename-current", idle && m.stateFile != ""}, {"Delete…", "delete-current", idle && m.stateFile != ""}}
+		rows := []headerItem{{"New", "/new", idle}, {"Open…", "/sessions", true}, {"Compact history", "/compact", idle && !m.mission && m.stateFile != ""}, {"Rename…", "rename-current", idle && m.stateFile != ""}, {"Delete…", "delete-current", idle && m.stateFile != ""}}
 
 		return append(rows, headerItem{"", "", false}, headerItem{"Quit", "quit", true})
 	case "workflow":

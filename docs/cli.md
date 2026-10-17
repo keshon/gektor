@@ -111,9 +111,9 @@ fails closed. Rules are pattern tripwires, not process isolation. See
 ## State and checkpoints
 
 Task state belongs to the selected workspace, under `.tars/tasks/<id>/`.
-Direct conversations use `state.json` and the rotating `state.jsonl` log;
-missions also use `mission.json` and worker transcripts. Session display title
-and Plan/Act metadata are saved alongside the history. Resume accepts a task
+Every run uses `state.json` and the rotating `state.jsonl` log; missions also use
+`mission.json` and worker transcripts. Session display title and Plan/Act metadata
+are saved alongside the history. Resume accepts a task
 directory or state file; a directory containing `mission.json` resumes a mission.
 Fork loads a transcript into a fresh task; it does not create a Git branch or
 an isolated checkout. Ancestor/workspace AGENTS.md instructions are refreshed.
@@ -137,12 +137,13 @@ slash commands. `-max-steps` is not wired into serve mode, which uses the defaul
 budget without CLI/TUI checklist funding. See [rpc.md](rpc.md) for the supported
 run configuration and event contract.
 
-## Migration profiles
+## Profiles
 
-`-profile <path>` loads a versioned JSON provider and generation profile. Explicit
-CLI flags override profile values. Existing commands without a profile retain
-their defaults. `-check-profile` validates and prints the effective configuration
-without creating a workspace, contacting a backend, or starting any process.
+`-profile <path>` loads a versioned JSON provider, generation and identity
+profile. Explicit CLI flags override profile values. Existing commands without a
+profile retain their defaults. `-check-profile` validates and prints the effective
+configuration without creating a workspace, contacting a backend, or starting any
+process.
 Secrets remain environment references; the printed profile contains no API key.
 This checks configuration, not backend availability or model capacity.
 
@@ -151,103 +152,66 @@ agent.exe -profile profiles\llama-external.json -check-profile
 agent.exe -profile profiles\llama-external.json -tui
 ```
 
-The sample endpoint and context size must match your running server. This first
-stage supports external thinking services only; it does not install or start
-speech services. See [bootstrap.md](bootstrap.md) for the migration contract.
+Two profiles ship with the repository. `llama-managed.json` starts its own
+`llama-server` from assets under `assets/runtimes` and `assets/models/thinking`;
+`llama-external.json` expects a server already listening on
+`http://127.0.0.1:8080`. Adjust the endpoint and context window to your own
+server. This stage supports external thinking services only.
 
-## Tool-free chat migration
+A profile carries three blocks. `provider` selects the backend and, when
+`ownership` is `managed`, the runtime and weights to launch. `generation` sets
+the response budget, context window and temperature. `identity` sets the persona:
+`user_name`, `system_prompt`, `post_history`, `name`, `user_persona` and
+`prompt_preset`.
 
-`-chat` runs plain text conversation through the existing backend transport,
-without workspace initialization, workspace AGENTS instructions, tools, gates
-or coding verification. `-system-prompt` supplies its system instruction.
-Use a profile or explicit `-context-limit` and `-max-tokens` with a positive
-response budget smaller than the context limit.
+The identity block was called `conversation` in older profiles. Loading one still
+works: the key is renamed before the profile is decoded, so a saved setup keeps
+its persona. A profile carrying both keys is rejected rather than resolved by
+guesswork. Decoding is otherwise strict — an unrecognized key is an error, so a
+misspelled setting fails at load instead of being silently ignored.
 
-```cmd
-agent.exe -profile profiles\llama-external.json -chat
-agent.exe -profile profiles\llama-external.json -chat "Hello"
-```
+## Identity flags
 
-Without a positional message it reads one message per line; `/reset` clears
-history and `/quit` exits. A failed, canceled, empty, tool-calling or truncated
-response is not saved to the conversation. The prompt window includes recent
-whole turns using a conservative UTF-8 byte estimate and reports omissions;
-this is not summary compaction. In line-based CLI mode, completed history stays in memory only.
-Chat currently rejects coding options and `-serve`, `-stream`, and
-`-mode`; RPC and streaming still belong to the coding runner. Voice and character
-cards are subsequent migration steps.
+`-user-name` sets who the assistant addresses you by (default `User`).
+`-system-prompt` sets the base instruction, and `-post-history` a directive
+placed after the latest turn. `-temperature` controls sampling; 0 retains the
+transport default of 0.4, and positive values up to 2 are explicit. Literal
+greedy zero is not supported by the model transport.
 
-`-chat -tui` uses the Commander interface with a separate conversation store.
-`-chat-dir <directory>` selects that store; its default is `var/chats` beside
-the executable. Successful complete turns are saved atomically. The sidebar
-opens, searches, renames and deletes chat sessions independently of `.tars`
-coding tasks. Reopening requires matching prompt and generation settings.
-Act/Plan and manual coding compaction are unavailable for tool-free chat.
+The agent's own Plan/Act operational instructions are added on top of these and
+are not configurable — they are the part that makes it an agent rather than a
+chat completion.
 
-```cmd
-agent.exe -profile profiles\llama-external.json -chat -tui
-```
-
-## Character cards and conversation prompts
-
-`-character <PNG-or-JSON>` imports a card identity for Chat or Agent.
-Chat uses its selected opening greeting; Agent retains its tool-oriented instructions.
-`-character-png` is a compatibility alias for the same path.
-`-user-name` fills `{{user}}` (default User). `-system-prompt` and `-post-history`
-set base instructions; `-character-main-prompt` and
-`-character-post-history` accept false to retain those bases instead of card overrides.
-In Chat, the final post-history directive is a system message after the latest user
-message, not an invented user turn. `-temperature` controls sampling;
-0 retains transport default 0.4, positive values up to 2 are explicit. Literal
-greedy zero is not supported by the existing model transport.
-
-Profiles can contain `conversation.prompt_preset` (for example `coding` or
-`conversation`), other `conversation` prompt/card settings and
-`generation.temperature`. Card paths in profiles resolve relative to the
-profile file; CLI paths resolve from the working directory. A conversation
-profile can be used in either Chat or Agent. The compiled prompt, intro and settings are retained
-in chat archives; reopening with different settings requires a new conversation.
-
-Flat JSON, character-card V2 2.0 and basic V3 3.0 are supported. PNG metadata
-uses `ccv3`/`chara` with bounded, CRC-checked parsing. Duplicate valid metadata
-is handled with warnings; source images are never rewritten. Nonempty lorebooks
-are rejected explicitly until activation is implemented. Advanced character
-behavior and the full SillyTavern setting surface are not included.
-
-Example character profile (adjust its endpoint/context to your server):
+Prompt presets (`prompt_preset`) add response style on top. `coding`,
+`investigation`, `explanation` and `concise` suit coding work; `conversation`,
+`roleplay` and `storytelling` are for a plain assistant and will read oddly in a
+tool-using loop. Preset text may reference `{{char}}`, `{{user}}` and
+`{{persona}}`, which are substituted at compile time. A macro that is left
+unfilled is reported as a warning in the transcript rather than shipped to the
+model as literal text.
 
 ```cmd
-agent.exe -profile profiles\chat-veyra.json -chat -tui
-agent.exe -profile profiles\chat-veyra.json -check-profile
-agent.exe -profile profiles\llama-external.json -chat -tui -character "D:\Cards\my-character.png" -user-name Alex
+agent.exe -profile profiles\llama-external.json -user-name Alex -system-prompt "be terse"
 ```
-
-`-voice` enables the speech configuration in a chat TUI profile. `-voice=false`
-keeps a voice-capable profile in text mode. Speech assets are checked only when
-enabling speech. Voice profiles use `speech` with an owned Chatterbox runtime
-and either managed or external Whisper recognition. No speech process is
-started for an ordinary text-only profile.
 
 ## Common terminal entry
 
     .\\agent.exe -tui
 
-First use selects Chat and voice off, with the installed local profile (or the
-external text profile when its starter weights are absent). Models load only
-when a request needs them.
+First use selects the installed local profile (or the external one when its
+starter weights are absent) and opens in Plan. Models load only when a request
+needs them.
 
-Mode > Chat/Agent selects the conversation mode. Settings > Application chooses
-its workspace and voice input style. Settings > Profiles loads or saves presets;
-Settings > Model selects the model in either mode. Enter opens shared pickers.
-Switching preserves the session and draft. Agent opens in Plan; Agent > Act enables
-execution under the existing permission gates. A model-only change in an existing
-Agent session retains its Plan/Act choice. Temperature applies to both modes.
+Run > Plan/Act switches execution mode; Run > Act enables tool calls under the
+existing permission gates. Settings > Application chooses the workspace.
+Settings > Profiles loads or saves presets; Settings > Model selects the model.
+Enter opens shared pickers.
 
-Choices and effective profile settings are saved under var/application.json.
-Explicit command-line combinations remain supported as temporary launches;
-mode changes through the GUI become the saved defaults. `-conversation chat|agent`
-selects the runner and takes precedence over `-chat` when both are supplied. Direct API-key flags remain in memory across a mode change
-and are never written to preferences.
+Applying settings restarts the launch rather than reconfiguring in place, so the
+new profile is composed into fresh services. The composer draft and the session
+directory carry across the restart.
 
-Voice input works with both runners. Chat speaks streamed sentences; Agent
-speaks its final answer, leaving intermediate tool output in the transcript.
+Choices and effective profile settings are saved under `var/application.json`.
+Explicit command-line combinations remain supported as temporary launches; a
+change applied through the UI becomes the saved default. Direct API-key flags stay
+in memory across a restart and are never written to preferences.

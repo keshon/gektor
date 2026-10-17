@@ -4,9 +4,8 @@
 > what the build enforces live in [docs/conventions.md](docs/conventions.md).
 > This document covers how the system works.
 
-TARS has separate coding and conversation runners. Coding uses the agent loop;
-tool-free chat uses the same model transport without constructing a workspace
-or tool registry. Interfaces and profile resolution live outside those runners.
+TARS is one runner. It uses the agent loop against a workspace: every launch
+has tools and permission prompts, and the only choice is Plan or Act.
 
 The organising idea: a small local model is unreliable at knowing whether it did
 the work. The harness observes file effects and records command results.
@@ -19,12 +18,8 @@ checks are explicit but still only as strong as their acceptance criteria.
 cmd/agent          CLI: flags, the approval gate, console output
 cmd/eval           probe runner and scorer
 
-internal/app       frontend-independent profile service and identity composition
-internal/config    versioned provider, generation and conversation profiles.
-internal/character bounded PNG/JSON card reader and prompt compilation; no tools
-                   or behavior simulation.
-internal/chat      tool-free conversations, transactional turns and recent-window
-                   projection; no workspace or tool dependencies.
+internal/app       frontend-independent service composition and identity compilation
+internal/config    versioned provider, generation and identity profiles.
 internal/agent     the loop. Tool interface, Registry, repeat detection,
                    budgets, history compaction. Knows nothing about
                    koboldcpp or the filesystem.
@@ -202,17 +197,18 @@ questions through GateHub. A gate belongs to the active run context; cancelling
 or closing the transport releases it. Policy Deny never becomes a question,
 and Ask without a live approval handler fails closed.
 
-Agent transcript recovery belongs to `session.ReadHistory`: a valid JSON
+Transcript recovery belongs to `session.ReadHistory`: a valid JSON
 snapshot is authoritative; a missing or corrupt snapshot falls back to the
 current JSONL log's last valid checkpoint. CLI resume/fork, TUI open/continue,
-manual compaction, mode handoff and session search share this reader. Search caches watch both
+manual compaction, relaunch after a settings apply, and session search share
+this reader. Search caches watch both
 snapshot and log revisions, including sessions with no snapshot. Recovery does
-not rewrite files. `agent.LoadState` remains an explicitly snapshot-only API;
-Chat archives keep their separate validation rules in `internal/chat`.
+not rewrite files. `agent.LoadState` remains an explicitly snapshot-only API.
 
 The TUI owns presentation and input routing. A responsive Sessions pane and
-centered title/history search open saved conversations without generating; drafts and a single
-queued follow-up remain per-chat in memory. Help, session search, and permission
+centered title/history search open saved tasks without generating; drafts and a
+single queued follow-up stay in memory for the current launch. Help, session
+search, and permission
 prompts own their keys while open. Run metrics and the Braille spinner live in
 the header; the function-key footer owns a fixed set of action slots.
 
@@ -338,42 +334,42 @@ real call costs nothing. Only the unparseable remainder earns the nudge.
   declare `oses` and report SKIP elsewhere. The shell tools pick `cmd.exe`
   or `sh` by OS.
 
-## Conversation migration boundary
+## The settings boundary
 
-`-chat` branches before workspace initialization in `cmd/agent`. It uses
-`internal/chat` with a plain `llm.Client` and no tools. The runner owns completed
-turns and builds a recent prompt projection separately. Errors, cancellation,
-tool requests and token-limit truncation never commit a turn. Its byte-based
-context estimate is deliberately conservative; backend tokenization and summary
-compaction are still future work for this runner.
+Applying settings does not reconfigure the running session. `requestProfileChange`
+writes the staged profile to its own copy, saves the session's preferences, reads
+the current task back from disk, and returns a `ModeChange` carrying the new
+preferences, that history, the composer draft and the session directory. `Run`
+returns it as an error; `cmd/agent` catches it, persists the preferences, rebuilds
+argv and launches again. The next launch composes fresh services from the new
+profile.
 
-The Commander TUI supports either runner. Chat has separate versioned
-conversation archives, atomically replaced after complete turns, and its own
-session directory. Persistence failure rolls back the in-memory turn. Coding
-RPC and task checkpoints retain their existing formats. Character cards enter through the conversation boundary. Voice adapters use that same boundary; they must not
-grant tool access or load workspace instructions.
+That indirection used to be an in-place apply: a candidate was composed, a client
+was reused when the provider and context window matched, and ownership transferred
+in place. It had three separate implementations — one per runner, then one for the
+speech-only case — that had drifted apart enough to give the same setting three
+different effects. A launch composes once now, so `app.Runtime` owns services and
+closes them, and nothing walks a reconfigure path.
 
-Character prompts are compiled once at startup into leading system instruction,
-opening assistant greeting and trailing system directive. Cards can override
-base main/post prompts only when the corresponding preference permits it.
-The runner budgets all pinned components separately from completed turns and
-retains the compiled settings in its archive. Card files do not need to stay
-open and are never rewritten. Nonempty lorebooks are explicitly unsupported.
+The boundary exists for one reason: a session cannot be half-configured. The old
+in-place apply could leave the transcript rendered under one identity while the
+client spoke under another. Restarting costs a second; being wrong costs a run.
 
-Speech is a capability outside the runner. `internal/speech` defines capture,
-recognition, synthesis and playback contracts; model adapters live in
-`internal/speech/chatterbox` and `internal/speech/whisper`.
-`internal/speech/service` owns their managed process lifetimes. The TUI owns
-capture state and cancellation revisions. The chat runner accepts streamed
-text callbacks and budgeted ephemeral system notes without persisting speech
-capabilities as character instructions. Audio failure never rolls back a
-completed text turn. Provider-specific delivery metadata and hands-free
-turn detection remain later steps.
+Reading the task back before writing anything is part of the same contract. A read
+failure used to leave a `profiles/custom` file on disk holding settings that were
+never applied and that nothing referenced, with the workspace still pointing at it
+as though the apply had landed.
 
-The common terminal launcher owns persistent application preferences and runner
-transitions. Chat and Agent retain separate runner/checkpoint formats. Mode
-changes carry dialogue context and preserve the source archive, then wait for
-new input. Chat projects historical tool output as text and exposes no tools;
-Agent resumes with its own system instructions and permission policy. Audio
-configuration belongs to the terminal presentation independently of the runner.
-Agent speech voices final answers; chat speech streams sentence chunks.
+## Profile compatibility
+
+`config.Profile` decodes strictly: an unknown key is an error, so a misspelled
+setting fails at load rather than being silently ignored. That is the right
+default, and it means removing a field breaks every file that still carries it.
+
+The one exception is explicit. `Load` rewrites a legacy `conversation` key to
+`identity` before the strict decode, and drops a legacy `speech` key outright.
+The rename is a mapping rather than a discard because the block is the same fields
+under an older name, and discarding it would erase a reader's persona the first
+time they loaded their own saved setup. Speech has no successor, so keeping its
+values would only let a stale profile look configured. A profile carrying both
+identity blocks is an error rather than a guess.

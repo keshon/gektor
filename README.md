@@ -1,35 +1,32 @@
 # TARS
 
-A local assistant for coding and voice conversations, written in Go.
-Use **Chat** for conversation and character cards, or **Agent** for workspace
-tools with Plan/Act modes and permission prompts. Both share model selection,
-sessions, generation settings and optional voice input/output.
+A local coding agent, written in Go. It runs against a workspace with tools
+and permission prompts, in Plan or Act mode.
 
-The Go application builds without cgo. Optional voice services run as owned
-external processes: Whisper for recognition, Chatterbox Nano/Turbo for speech,
-and Silero VAD for hands-free capture. The current voice path targets English
-on Windows. Interruption is application-controlled, not native full duplex.
+The Go application builds without cgo.
 
 ## Quick start
 
-Requirements: Go 1.26.6+ and a local or remote model backend. Model weights and
-optional speech runtimes are not included in Git.
+Requirements: Go 1.26.6+ and a local or remote model backend. Model weights
+and runtimes are not included in Git.
 
 ```powershell
 go build -o agent.exe ./cmd/agent
 .\agent.exe -tui
 ```
 
-On a fresh clone, the common launcher uses the external Chat profile at
+On a fresh clone, the launcher uses the external profile at
 `http://127.0.0.1:8080`. Start your backend, then use **Settings → Model** to
 configure it. If the starter local model and runtime have been installed, the
 launcher selects the managed local profile instead. Models load on demand.
 
-- **Mode → Chat / Agent** switches the current session; Agent requires a workspace and starts in Plan.
-- **Settings** selects models, generation parameters, character cards and service profiles.
-- **Voice** controls recording, hands-free capture and playback; speech assets must be installed first.
+- **Run** selects Plan (read-only) or Act (executes), stops a run, or retries a failed one.
+- **Settings** selects models, generation parameters, identity and service profiles.
 - **View → Theme** selects Dark or Light.
-- **Session → Compact conversation** compacts the current history. Chat keeps its opening exchange and eight recent turns, with an archive backup.
+- **Session → Compact history** compacts the current history.
+
+Applying settings restarts the launch so the new profile is composed into
+fresh services. The draft and the session carry across.
 
 See [bootstrap and runtime ownership](docs/bootstrap.md) for service setup and
 [the terminal guide](docs/tui.md) for interaction details. The CLI backend default
@@ -54,12 +51,10 @@ the same run fullscreen with live transcript and inline gate prompts.
 .\agent.exe -tui
 ```
 
-The common entry opens Chat with voice off on first use, then remembers the
-application configuration. Enter sends text, Shift+Enter adds a line, and Tab
-switches panel focus. The menu, session panel, status labels and contextual footer
-share one theme. Type `/` for commands or `@` for workspace files in Agent mode.
-F1 opens help, F2 searches sessions, F8 records, and Ctrl+L toggles hands-free voice
-when speech services are configured. Mode changes retain the session and draft.
+Enter sends text, Shift+Enter adds a line, and Tab switches panel focus. The
+menu, session panel, status labels and contextual footer share one theme. Type
+`/` for commands or `@` for workspace files. F1 opens help, F2 searches
+sessions.
 
 External-server launchers remain available as an alternative to managed services.
 

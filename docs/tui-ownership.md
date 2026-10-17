@@ -40,47 +40,54 @@ settings and layout integration suites.
 
 Non-UI boundaries: `config.ApplySection` edits staged configuration;
 `llm.DiscoverModels` owns HTTP model discovery; `sessionindex.Scan` reads and
-indexes archives without terminal dependencies. Search positions refer to source
+indexes sessions without terminal dependencies. Search positions refer to source
 messages. The TUI resolves them into rendered blocks on open, including reasoning
-and greeting offsets (`TestHistoryMatchTranslationSkipsReasoningAndToolCards`).
+offsets (`TestHistoryMatchTranslationSkipsReasoningAndToolCards`).
 
 `internal/tui/settings.Model` owns fields, editor and picker focus, categories,
 keyboard and mouse navigation, rendering, and revision-checked catalog commands.
-It receives dimensions and styles as props, and emits Apply, Cancel, SaveCopy,
-Preview and SwitchCategory intents. It imports neither the root model nor app
+It receives dimensions and styles as props, and emits Apply, Cancel, SaveCopy
+and SwitchCategory intents. It imports neither the root model nor app
 services. Rendering performs no discovery and does not mutate choice caches.
 `settings.Draft` restores edits across page switches and resolves changed sections
 in stable order against a fresh `config.Profile.Clone()`. Failed validation
 preserves both the draft and active profile. The parent handles application
-actions, speech previews, overlay placement and the active input owner.
+actions, overlay placement and the active input owner.
 
-`app.Runtime.Apply` prepares a candidate client and conversation;
-`app.SettingsFiles` stages the selected custom profile, session preferences,
-application preferences and archive through `filetxn.Replace`.
-Only a successful save transfers runtime ownership. Failed
-preparation closes unused candidates; a commit failure restores already replaced
-files. If restoration itself fails, the error names the retained original backup.
-This is recovery for ordinary I/O errors, not a crash-atomic multi-file database;
-writers must be serialized. The update loop owns the operation.
+Applying settings does not reconfigure the running session. `requestProfileChange`
+stages the custom profile and the session and application preferences through
+`filetxn.Replace`, reads the current task back from disk, and returns a
+`ModeChange` carrying the new preferences, that history, the composer draft and
+the session directory. `Run` surfaces it as an error; `cmd/agent` persists the
+preferences, rebuilds argv and launches again. The next launch composes fresh
+services from the new profile. Failed preparation writes nothing and queues no
+restart; a commit failure restores already replaced files. If restoration itself
+fails, the error names the retained original backup. This is recovery for
+ordinary I/O errors, not a crash-atomic multi-file database; writers must be
+serialized. The update loop owns the operation.
 
-**Enforced by:** tested, `TestSettingsSaveFailurePreservesRuntimeAndAllFiles`,
-`TestSettingsInvalidCandidateClosesOnlyCandidate`, and the file transaction suite.
+**Enforced by:** tested, `TestRefusedApplyLeavesFilesAndRuntimeAlone`,
+`TestUnreadableTaskStopsApplyBeforeWriting`, and the file transaction suite.
 
 Command launches construct one `app.Runtime` and defer its Close across frontend
-handoffs. The TUI borrows the runtime, and delegates Apply and voice enable/disable
-to it. Direct TUI callers without a supplied runtime receive an owned fallback.
-Close is idempotent; speech-only Agent reconfiguration retains its thinking
-client. Worker closures capture borrowed services before starting, rather than
-reading the mutable runtime from another goroutine. Runtime lifecycle tests and
-the TUI race suite cover these boundaries.
+handoffs. The TUI borrows the runtime. Direct TUI callers without a supplied
+runtime receive an owned fallback. Close is idempotent. Worker closures capture
+borrowed services before starting, rather than reading the mutable runtime from
+another goroutine. Runtime lifecycle tests and the TUI race suite cover these
+boundaries.
+
+`app.Runtime` deliberately has no reconfigure method. Settings used to be applied
+in place against a live session, which needed a candidate/reuse/persist dance and
+had three separate implementations that drifted apart enough to give one setting
+three different effects. A launch composes once now.
 
 The architecture refactor was smoke-tested through a Windows pseudoterminal
 using an isolated profile, session directory and deterministic local HTTP backend.
 The checks exercised slash completion into Help, Ctrl+O and Shift+Enter multiline
 submission, arrow navigation at draft boundaries, Settings category navigation
 and Apply, persisted generation settings, session search/reopen, Details/Less,
-workspace file completion, Agent-to-Chat handoff and clean quit. This verifies the
-assembled console path without claiming real-model inference or ASR/TTS quality.
+workspace file completion, and clean quit. This verifies the
+assembled console path without claiming real-model inference quality.
 
 ## 1. The update loop owns UI state
 
@@ -105,7 +112,7 @@ lock. The input adapter owns its console buffer; it does not own UI state.
 
 `acceptSessions` requires both the current revision and workspace root to match.
 Scanning and history decoding run in commands. Unchanged histories reuse the
-previous cache; searchable conversation text is built when Search requests it.
+previous cache; searchable text is built when Search requests it.
 
 **Because:** a slow old scan must not restore deleted sessions, undo a rename,
 or replace a newer workspace's list. Scanning every history in Update used to
