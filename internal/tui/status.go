@@ -24,29 +24,7 @@ func (m *model) statusLine() string {
 	return m.styles.status.Render(hint)
 }
 
-func (m *model) runFacts() string {
-	if m.sessions != nil || m.dialog != nil || (m.state == stDone && m.steps == 0 && m.tokens == 0 && m.toolsUsed == 0 && m.elapsed == 0) {
-		return ""
-	}
-	facts := fmt.Sprintf("step %d/%d  %s  elapsed %s%s", m.steps, m.maxSteps, m.meter(), formatElapsed(m.elapsed), m.ttft())
-	if m.toolsUsed > 0 {
-		facts += fmt.Sprintf("  tools %d", m.toolsUsed)
-	}
-	if len(m.filesTouched) > 0 {
-		facts += fmt.Sprintf("  files %d", len(m.filesTouched))
-	}
-	return facts
-}
 
-// ttft renders time-to-first-token once streaming starts: the latency
-// felt, beside elapsed (the total). Empty before the first chunk and
-// outside runs, so the line never promises what it can't show.
-func (m *model) ttft() string {
-	if m.state != stRunning || m.firstToken.IsZero() {
-		return ""
-	}
-	return "  ttft " + formatElapsed(m.firstToken.Sub(m.started))
-}
 
 func (m *model) statusWord() string {
 	switch m.state {
@@ -81,19 +59,10 @@ func formatElapsed(d time.Duration) string {
 	return fmt.Sprintf("%02d:%02d", m, sec)
 }
 
-// The application name stays static; activity belongs beside the run status.
-func (m *model) brand() string { return m.styles.gate.Render(m.speakerName()) + " " }
-
+// activityFrames animate in the header badge while a run is live.
 var activityFrames = []rune("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
 
 func (m *model) busy() bool { return m.state == stRunning || m.state == stStopping }
-
-func (m *model) spinner() string {
-	if !m.busy() {
-		return ""
-	}
-	return m.styles.gate.Render(string(activityFrames[m.spinnerFrame%len(activityFrames)]))
-}
 
 // meter renders the context fill from the latest backend-reported prompt
 // size: "12.4k / 131k (9%)". Unknown window or no measurement yet shows

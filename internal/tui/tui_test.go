@@ -762,30 +762,36 @@ func TestScrollRoutedInEveryState(t *testing.T) {
 	}
 }
 
-func TestSpinnerBelongsToStatusAndBrandStaysStatic(t *testing.T) {
+// Activity animates in the header badge while a run is live and stops the
+// moment it is not. It used to be asserted through a spinner() helper and a
+// headerLine() title renderer that nothing calls any more.
+func TestActivityBadgeAnimatesOnlyWhileRunning(t *testing.T) {
 	m := sizeModel(t, testModel())
-	m.state = stRunning
-	brand := m.brand()
-	first := m.spinner()
-	if !strings.Contains(m.identityLine(), "⠋") {
-		t.Fatal("spinner missing from run status")
+	activity := func() string {
+		for _, b := range m.headerBadges() {
+			if b.id == "activity" {
+				return b.label
+			}
+		}
+		return ""
 	}
-	if strings.Contains(m.headerLine(), "⠋") {
-		t.Fatal("spinner placed in title")
+	m.state = stRunning
+	first := activity()
+	if !strings.Contains(first, string(activityFrames[0])) {
+		t.Fatalf("no activity frame in badge: %q", first)
 	}
 	m.Update(tickMsg(time.Now()))
-	if m.spinner() == first || m.brand() != brand {
-		t.Fatal("spinner did not advance or brand changed")
+	if activity() == first {
+		t.Fatal("activity frame did not advance on tick")
 	}
 	for _, state := range []runState{stAsk, stPermission, stDone} {
 		m.state = state
-		if m.spinner() != "" || m.brand() != brand {
-			t.Fatal("paused or idle state animates")
+		label := activity()
+		for _, frame := range activityFrames {
+			if strings.Contains(label, string(frame)) {
+				t.Fatalf("state %v animates: %q", state, label)
+			}
 		}
-	}
-	m.state = stStopping
-	if m.spinner() == "" {
-		t.Fatal("stopping has no activity indicator")
 	}
 	m.state = stRunning
 	width := lipgloss.Width(m.identityLine())
@@ -2264,13 +2270,41 @@ func TestGateEventForwardsFields(t *testing.T) {
 	}
 }
 
-func TestStatusLineShowsStepBudget(t *testing.T) {
+// The step budget and time to first token live in the header details,
+// which is what the operator reads. Both used to be asserted through
+// runFacts, a status-line renderer nothing called any more.
+func TestHeaderDetailsShowStepBudget(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.steps = 7
 	m.maxSteps = 40
-	if line := m.runFacts(); !strings.Contains(line, "step 7/40") {
-		t.Fatalf("status line missing step budget: %q", line)
+	m.header.menu = "run"
+	if joined := headerText(m.headerItems()); !strings.Contains(joined, "7 / 40") {
+		t.Fatalf("header details missing step budget: %q", joined)
 	}
+}
+
+// Time to first token appears once a token has actually arrived, and not
+// before. Fixed clock offsets, no tick flakes.
+func TestHeaderDetailsShowFirstToken(t *testing.T) {
+	m := sizeModel(t, testModel())
+	m.state = stRunning
+	m.started = time.Now().Add(-100 * time.Second)
+	m.header.menu = "run"
+	if got := headerText(m.headerItems()); strings.Contains(got, "First token") {
+		t.Fatalf("details show a first token before one arrived: %q", got)
+	}
+	m.firstToken = m.started.Add(7 * time.Second)
+	if got := headerText(m.headerItems()); !strings.Contains(got, "00:07") {
+		t.Fatalf("details missing first token: %q", got)
+	}
+}
+
+func headerText(items []headerItem) string {
+	var b strings.Builder
+	for _, item := range items {
+		b.WriteString(item.text + "\n")
+	}
+	return b.String()
 }
 
 func TestEnvMaxSteps_DefaultAndOverride(t *testing.T) {
@@ -2311,26 +2345,8 @@ func TestStatusShowsModel(t *testing.T) {
 	}
 }
 
-// ttft (time to first token) shows once streaming starts: the felt
-// latency beside elapsed (the total). Fixed clock offsets, no tick
-// flakes.
-func TestStatusShowsTTFT(t *testing.T) {
-	m := testModel()
-	m.state = stRunning
-	m.started = time.Now().Add(-100 * time.Second)
-	if got := m.runFacts(); strings.Contains(got, "ttft") {
-		t.Fatalf("status shows ttft before streaming: %q", got)
-	}
-	m.firstToken = m.started.Add(7 * time.Second)
-	if got := m.runFacts(); !strings.Contains(got, "ttft 00:07") {
-		t.Fatalf("status missing ttft: %q", got)
-	}
-	m.state = stDone
-	if got := m.runFacts(); strings.Contains(got, "ttft") {
-		t.Fatalf("status shows ttft when done: %q", got)
-	}
-}
-
+// Time to first token appears in the details panel, beside elapsed, once
+// a token has actually arrived. Fixed clock offsets, no tick flakes.
 // The first streamed chunk stamps firstToken; a new turn clears it.
 func TestFirstTokenStampedAndReset(t *testing.T) {
 	m := sizeModel(t, testModel())

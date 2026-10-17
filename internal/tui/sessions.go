@@ -11,7 +11,6 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/session"
 	"github.com/keshon/tars/internal/workspace"
@@ -515,19 +514,7 @@ func (m *model) deleteSelected() {
 
 // headerLine renders the static brand and session title beside the clock.
 // During a run the clock shows elapsed time; activity lives in the badge strip.
-func (m *model) headerLine() string {
-	w := max(m.termW, 0)
-	clock := time.Now().Format("15:04:05")
-	if m.state != stDone {
-		clock = "elapsed " + formatElapsed(m.elapsed)
-	}
-	title := m.activeSessionTitle()
-	left := m.brand() + "// " + title
-	if pad := w - lipgloss.Width(left) - len(clock); pad >= 2 {
-		return left + strings.Repeat(" ", pad) + m.styles.dim.Render(clock)
-	}
-	return cellLine(left, w)
-}
+
 
 // activeSessionTitle names the open session for the header and the
 // sessions bottom bar: stored title, then dir id; a dash while a session is open
