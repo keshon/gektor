@@ -58,15 +58,21 @@ for %%e in ("%KOBOLD_EXE%") do set "KOBOLD_DIR=%%~dpe"
 cd /d "%KOBOLD_DIR%"
 
 echo Starting KoboldCPP on %KOBOLD_HOST%:%KOBOLD_PORT%...
-"%KOBOLD_EXE%" --model "%KOBOLD_MODEL%" ^
+REM %KOBOLD_ARGS% comes FIRST so every named setting below wins. KoboldCPP
+REM takes the last occurrence of a repeated flag, so appending the escape
+REM hatch at the end would let it silently override a setting this script
+REM defaults, validates and reports on.
+echo   ctx=%KOBOLD_CONTEXT_SIZE% gpu-layers=%KOBOLD_GPU_LAYERS% extra:%KOBOLD_ARGS%
+"%KOBOLD_EXE%" ^
+    %KOBOLD_ARGS% ^
+    --model "%KOBOLD_MODEL%" ^
     --usecuda %KOBOLD_USE_CUDA% ^
     --gpulayers %KOBOLD_GPU_LAYERS% ^
     --contextsize %KOBOLD_CONTEXT_SIZE% ^
     --quantkv %KOBOLD_QUANT_KV% ^
     --host %KOBOLD_HOST% ^
     --port %KOBOLD_PORT% ^
-    --skiplauncher ^
-    %KOBOLD_ARGS%
+    --skiplauncher
 if errorlevel 1 (
     echo ERROR: KoboldCPP exited with code %errorlevel%.
     exit /b %errorlevel%

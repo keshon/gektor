@@ -67,17 +67,22 @@ if not "%LLAMA_FLASH_ATTN%"=="" set "LLAMA_OPT=%LLAMA_OPT% -fa %LLAMA_FLASH_ATTN
 if not "%LLAMA_CACHE_TYPE%"=="" set "LLAMA_OPT=%LLAMA_OPT% --cache-type-k %LLAMA_CACHE_TYPE% --cache-type-v %LLAMA_CACHE_TYPE%"
 
 REM --- launch ---
+REM %LLAMA_ARGS% comes FIRST so every named setting below wins. llama.cpp
+REM takes the last occurrence of a repeated flag, so appending the escape
+REM hatch at the end would let it silently override a setting this script
+REM defaults, validates and reports on.
 echo Starting llama.cpp server on %LLAMA_HOST%:%LLAMA_PORT%...
-echo   ctx=%LLAMA_CTX_SIZE% gpu-layers=%LLAMA_GPU_LAYERS% cpu-moe=%LLAMA_CPU_MOE% opts:%LLAMA_OPT% %LLAMA_ARGS%
-"%LLAMA_SERVER_EXE%" -m "%LLAMA_MODEL%" ^
+echo   ctx=%LLAMA_CTX_SIZE% gpu-layers=%LLAMA_GPU_LAYERS% cpu-moe=%LLAMA_CPU_MOE% opts:%LLAMA_OPT% extra:%LLAMA_ARGS%
+"%LLAMA_SERVER_EXE%" ^
+    %LLAMA_ARGS% ^
+    -m "%LLAMA_MODEL%" ^
     --ctx-size %LLAMA_CTX_SIZE% ^
     --gpu-layers %LLAMA_GPU_LAYERS% ^
     --batch-size %LLAMA_BATCH_SIZE% ^
     --host %LLAMA_HOST% ^
     --port %LLAMA_PORT% ^
     --jinja ^
-    %LLAMA_OPT% ^
-    %LLAMA_ARGS%
+    %LLAMA_OPT%
 if errorlevel 1 (
     echo ERROR: llama-server exited with code %errorlevel%.
     exit /b %errorlevel%
