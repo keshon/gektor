@@ -80,7 +80,7 @@ paths and keys live in `.env` (copy from `.env.example`; gitignored).
 The sibling launchers follow the same build-then-run shape:
 `run-task.cmd "task"` for a one-shot print-mode run, `run-plan.cmd` and
 `run-mission.cmd` for those modes, `run-resume.cmd` to list or resume saved
-tasks, and `run-revert.cmd` to preview or restore a workspace checkpoint.
+tasks.
 Maintenance lives under `build.cmd` (`build test`, `build check`, `build fmt`,
 `build vuln`, `build clean`; `build help` lists everything), and the eval
 helpers are `eval-dry.cmd`, `eval-run.cmd` and `eval-reset.cmd`.
@@ -94,16 +94,12 @@ from `-api-key`, `-api-key-env`, or environment (`TARS_API_KEY`,
 `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `DEEPSEEK_API_KEY`, `GROQ_API_KEY`,
 `TOGETHER_API_KEY`, `ANTHROPIC_API_KEY`).
 
-State lands in `<workspace>/.tars/tasks/<id>/` after every step; `-resume`
+State lands in the user's `.tars/tasks/<id>/` after every step; `-resume`
 accepts its directory or state file. Ancestor and workspace `AGENTS.md`
 instructions are loaded in order and refreshed on resume.
 
-Before a Git workspace run, TARS checkpoints tracked and nonignored files
-and the Git index. `-revert-preview` lists changes; `-revert` restores the
-checkpoint, including pre-existing dirty and staged work. New nonignored
-files are removed. Ignored files and `.tars` state are excluded; restore
-refuses a changed HEAD. Use `-revert-from PATH` to select an older archive.
-A workspace without a usable checkpoint receives a warning.
+TARS does not archive the workspace and cannot revert it. Commit or stash
+before a run on a tree you care about.
 
 ## Evals
 
@@ -125,8 +121,8 @@ go run ./cmd/eval -only 0 -require-model qwen
 - `internal/llm`, `internal/tools`, `internal/prompts` — backends, tools, prompts
 - `internal/api`, `internal/tui` — shared session events/gates and terminal UI
 - `internal/audit`, `internal/checks` — approval records and deterministic findings
-- `internal/permission`, `internal/session`, `internal/snapshot`,
-  `internal/events` — policy, conversation snapshots, workspace checkpoints, JSONL output
+- `internal/permission`, `internal/session`,
+  `internal/events` — policy, conversation snapshots, JSONL output
 
 How it fits together is in [ARCHITECTURE.md](ARCHITECTURE.md). House rules
 are in [docs/conventions.md](docs/conventions.md), enforced by tests.

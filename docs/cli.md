@@ -19,7 +19,7 @@ go run ./cmd/agent -resume .tars/tasks/<id>
 Put all flags before the task: Go's flag parser stops at the first positional
 argument. Run `go run ./cmd/agent -h` for the binary's registered flags.
 Direct execution is the default. An empty task is allowed for `-tui`,
-`-serve`, resume/fork, and checkpoint operations; ordinary print mode needs one.
+`-serve` and resume/fork; ordinary print mode needs one.
 
 Local llama-server example:
 
@@ -76,9 +76,6 @@ found under `TARS_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`,
 | `-resume PATH` | — | Continue an interrupted run from its saved state |
 | `-fork PATH` | — | Branch from a prior transcript file but write to a fresh task id |
 | `-answer TEXT` | — | Answer to supply with `-resume` when the run paused on `ask_user` |
-| `-revert` | `false` | Restore the latest pre-run checkpoint, including dirty files, staged changes and pre-existing untracked files, then exit |
-| `-revert-preview` | `false` | List checkpoint restore actions without changing files |
-| `-revert-from PATH` | latest checkpoint | Select an archive for `-revert` or `-revert-preview` |
 
 ## Safety and permissions
 
@@ -107,9 +104,9 @@ fails closed. Rules are pattern tripwires, not process isolation. See
 | `-debug` | `false` | Log raw request/response JSON plus per-call token usage to `agent-debug.log` |
 | `-log-max N` | `300` | Max characters per line in step console output. `0` means no limit. The final answer always prints whole |
 
-## State and checkpoints
+## State
 
-Task state belongs to the selected workspace, under `.tars/tasks/<id>/`.
+Task state belongs to the user's `.tars` directory, under `tasks/<id>/`.
 Every run writes one file, `state.json`, rewritten atomically on each step;
 missions also use
 `mission.json` and worker transcripts. Session display title and Plan/Act metadata
@@ -118,11 +115,8 @@ directory or state file; a directory containing `mission.json` resumes a mission
 Fork loads a transcript into a fresh task; it does not create a Git branch or
 an isolated checkout. Ancestor/workspace AGENTS.md instructions are refreshed.
 
-Snapshots require a usable Git workspace. Preview before reverting if needed.
-Restore retains pre-existing dirty/staged/untracked state, removes newly created
-nonignored files, and refuses a changed HEAD. Ignored files, `.tars`, and Git
-history are excluded. Missing checkpoints produce a warning rather than a
-promise that a run is reversible.
+TARS does not archive the workspace, so it does not revert it. Commit or stash
+before a run on a tree you care about.
 
 ## Mode-specific limits
 

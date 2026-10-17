@@ -37,9 +37,6 @@ type launchOptions struct {
 	stream                bool
 	mcp                   string
 	fork                  string
-	revert                bool
-	revertPreview         bool
-	revertFrom            string
 	plan                  bool
 	outputMode            string
 	serve                 bool
@@ -111,9 +108,6 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	flags.BoolVar(&o.stream, "stream", false, "stream response tokens live (openai/llama backends only; koboldcpp falls back to unary)")
 	flags.StringVar(&o.mcp, "mcp", "", "MCP servers: \"name=cmd args...;name2=https://host/mcp\" (stdio JSON-RPC or Streamable HTTP, tools appear as mcp__name__tool)")
 	flags.StringVar(&o.fork, "fork", "", "history file to branch from: loads its transcript but writes to a fresh task id")
-	flags.BoolVar(&o.revert, "revert", false, "restore the pre-run workspace checkpoint and Git index, then exit")
-	flags.BoolVar(&o.revertPreview, "revert-preview", false, "list checkpoint restore actions without changing files")
-	flags.StringVar(&o.revertFrom, "revert-from", "", "select a checkpoint archive for -revert or -revert-preview; default is the latest")
 	flags.BoolVar(&o.plan, "plan", false, "plan mode: read-only tools, propose a plan and change nothing")
 	flags.StringVar(&o.outputMode, "mode", "print", "output mode: print (human-readable) or json (one JSON object per line)")
 	flags.BoolVar(&o.serve, "serve", false, "serve JSON-RPC over stdio instead of running one task: methods run/respond/cancel, events on stdout. See docs/rpc.md")

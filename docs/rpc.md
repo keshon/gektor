@@ -18,7 +18,7 @@ field, and errors carry message rather than a standard numeric code.
 
 - `run` starts a direct run (`"mission": true` runs the planner
   pipeline instead). `"images": ["shot.png"]` attaches workspace-relative
-  pictures like CLI `-image`. Each run gets a fresh task dir and snapshot, like
+  pictures like CLI `-image`. Each run gets a fresh task dir, like
   the CLI. Answers arrive as `{"id": 1, "result": {"answer": "..."}}`
   or `{"id": 1, "error": {"message": "..."}}`. The request
   supports task/mission/images only; it does not resume an existing session.

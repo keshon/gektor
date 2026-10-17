@@ -39,7 +39,6 @@ internal/checks    deterministic file checks (formatting and secret findings)
 internal/permission allow/ask/deny policy for tool calls (leaf package)
 internal/events    JSONL run/step event output for -mode json
 internal/session   the one persisted conversation snapshot, state.json
-internal/snapshot  file and Git-index checkpoints, preview and restore
 internal/mission   plan, ledger, workers, checks, replan, review
 internal/prompts   every prompt, as .txt, embedded at build time
 internal/workspace path resolution, project instructions and change observation
@@ -152,9 +151,9 @@ Tool results carry typed failure status alongside model-facing text; the
 frontends style failures without guessing from compiler output.
 
 Outcomes distinguish completed, failed and cancelled runs, with measured
-paths, verification output and persistence warnings. Session event logs
-rotate at 16 MiB and the old one is dropped, so a corrupt snapshot has at
-most that much history behind it.
+paths, verification output and persistence warnings. A run writes one
+snapshot file and nothing else, so there is no log to rotate and no
+second copy to fall back on.
 
 ### Budgets
 
@@ -293,8 +292,8 @@ way.
 
 `eval/probes/*.json` are scenarios with frozen pass criteria, scored three
 ways: what the workspace contains, which tools were used, and what the run
-reported — plus harness-tail assertions where the probe declares them
-(overflow injection, snapshot revert). Each runs in a throwaway copy of
+reported — plus a harness-tail assertion where the probe declares one
+(overflow injection). Each runs in a throwaway copy of
 its seed, so fixtures cannot be mutated by a run. Probes that only make
 sense on one OS declare `oses` and report SKIP elsewhere rather than
 scoring the host. See [eval/README.md](eval/README.md).

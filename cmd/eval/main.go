@@ -52,7 +52,6 @@ import (
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/mission"
 	"github.com/keshon/tars/internal/roles"
-	"github.com/keshon/tars/internal/snapshot"
 	"github.com/keshon/tars/internal/tools"
 	"github.com/keshon/tars/internal/workspace"
 )
@@ -130,12 +129,6 @@ type Probe struct {
 	// no live backend produces on demand. Without recovery the run would
 	// die on step 0 with a backend failure.
 	InjectOverflowOnce bool `json:"inject_overflow_once,omitempty"`
-
-	// SnapshotRevert git-initializes the throwaway workspace, captures a
-	// snapshot before the run, and after scoring asserts Revert restores
-	// the pre-run tree exactly. The agent's own verify checks run first
-	// against the modified tree; the revert assertion runs last.
-	SnapshotRevert bool `json:"snapshot_revert,omitempty"`
 }
 
 // TraceCheck asserts that a tool was, or was not, used.
@@ -265,80 +258,6 @@ func gitInit(dir string) error {
 	return nil
 }
 
-// treeSnapshot records every file under dir (except .git) for the
-// post-revert comparison.
-func treeSnapshot(dir string) map[string]string {
-	out := map[string]string{}
-	filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return nil
-		}
-		rel, err := filepath.Rel(dir, path)
-		if err != nil {
-			return nil
-		}
-		parts := strings.Split(filepath.ToSlash(rel), "/")
-		if parts[0] == ".git" || parts[0] == ".tars" {
-			return nil
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return nil
-		}
-		out[filepath.ToSlash(rel)] = string(data)
-		return nil
-	})
-	return out
-}
-
-// checkSnapshotRevert captures the pre-run diff, reverts, and asserts the
-// tree matches preRun exactly. Untracked leftovers the agent created must
-// be gone; seed files must be byte-identical.
-func checkSnapshotRevert(dir string, preRun map[string]string, snapPath string) []string {
-	var out []string
-	diff, err := snapshot.Diff(dir)
-	if err != nil {
-		return []string{"snapshot: could not capture pre-run diff: " + err.Error()}
-	}
-	if strings.TrimSpace(diff) == "" {
-		return []string{"snapshot: pre-run diff is empty — the agent changed nothing, so revert proves nothing"}
-	}
-	if err := os.WriteFile(snapPath, []byte(diff), 0o644); err != nil {
-		return []string{"snapshot: write diff: " + err.Error()}
-	}
-	if err := snapshot.Revert(dir); err != nil {
-		return []string{"snapshot: revert failed: " + err.Error()}
-	}
-	after := treeSnapshot(dir)
-	var missing, extra, changed []string
-	for rel, before := range preRun {
-		a, ok := after[rel]
-		if !ok {
-			missing = append(missing, rel)
-		} else if a != before {
-			changed = append(changed, rel)
-		}
-	}
-	for rel := range after {
-		if _, ok := preRun[rel]; !ok {
-			extra = append(extra, rel)
-		}
-	}
-	// Deterministic order: a red probe must read the same every time.
-	sort.Strings(missing)
-	sort.Strings(extra)
-	sort.Strings(changed)
-	if len(missing) > 0 {
-		out = append(out, "snapshot: revert lost seed files: "+strings.Join(missing, ", "))
-	}
-	if len(changed) > 0 {
-		out = append(out, "snapshot: seed files differ after revert: "+strings.Join(changed, ", "))
-	}
-	if len(extra) > 0 {
-		out = append(out, "snapshot: agent files survive revert: "+strings.Join(extra, ", "))
-	}
-	return out
-}
 
 type Result struct {
 	Probe   string  `json:"probe"`
@@ -712,18 +631,11 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 	}
 
 	// Probe 19 machinery: the throwaway workspace becomes a git repo so
-	// snapshot.Track/Revert has something to work on, and the pre-run
-	// tree is recorded for the post-revert comparison.
-	var preRun map[string]string
-	var snapPath string
-	if p.SnapshotRevert || p.Git {
+	if p.Git {
 		if err := gitInit(work); err != nil {
 			res.RunError = "git init: " + err.Error()
 			return res
 		}
-		preRun = treeSnapshot(work)
-		snapshot.Track(work, filepath.Join(runDir, "snapshots"))
-		snapPath = filepath.Join(runDir, fmt.Sprintf("%s-snapshot.diff", p.Name))
 	}
 
 	timeout := time.Duration(p.TimeoutSec) * time.Second
@@ -827,15 +739,6 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 	res.Failures = append(res.Failures, checkWorkspace(runCtx, p, ws)...)
 	res.Failures = append(res.Failures, checkTrace(p, calls)...)
 	res.Failures = append(res.Failures, checkAnswer(p, answer)...)
-
-	// Probe 19 tail: the agent's checks above scored the modified tree.
-	// Now assert the harness can put it back. A snapshot that was never
-	// taken, or a revert that leaves the tree dirty, fails the probe even
-	// when the agent did everything right — this scores the harness, not
-	// the model.
-	if p.SnapshotRevert {
-		res.Failures = append(res.Failures, checkSnapshotRevert(work, preRun, snapPath)...)
-	}
 
 	res.PeakPromptTokens = int(atomic.LoadInt64(&counter.peakPrompt))
 	res.FloorPromptTokens = int(atomic.LoadInt64(&counter.floorPrompt))

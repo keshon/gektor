@@ -25,7 +25,6 @@ import (
 	"github.com/keshon/tars/internal/prompts"
 	"github.com/keshon/tars/internal/roles"
 	"github.com/keshon/tars/internal/session"
-	"github.com/keshon/tars/internal/snapshot"
 	"github.com/keshon/tars/internal/tools"
 	"github.com/keshon/tars/internal/tui"
 	"github.com/keshon/tars/internal/workspace"
@@ -34,7 +33,7 @@ import (
 // runAgentLaunch composes workspace tools and owns their per-launch cleanup.
 func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	task := o.task
-	if task == "" && o.resume == "" && o.fork == "" && !o.serve && !o.tui && !o.revert && !o.revertPreview {
+	if task == "" && o.resume == "" && o.fork == "" && !o.serve && !o.tui {
 		return fmt.Errorf(`usage: agent [flags] "task description"  (or  agent -resume <state.json> [-answer "..."])`)
 	}
 
@@ -101,7 +100,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		if info, err := os.Stat(stateFile); err == nil && info.IsDir() {
 			stateFile = filepath.Join(stateFile, "state.json")
 		}
-	} else if !o.revert && !o.revertPreview && !o.serve && (!o.tui || task != "" || o.fork != "") {
+	} else if !o.serve && (!o.tui || task != "" || o.fork != "") {
 		sum := sha1.Sum([]byte(task + time.Now().String()))
 		taskID := hex.EncodeToString(sum[:])[:8]
 		taskDir := filepath.Join(ws.Root(), workspace.TaskDir(taskID))
@@ -124,29 +123,6 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		} else {
 			note("task id: %s (resume with -resume %s)", taskID, stateFile)
 		}
-	}
-
-	if o.revert || o.revertPreview {
-		actions, err := snapshot.Preview(ws.Root(), o.revertFrom)
-		if err != nil {
-			return fmt.Errorf("checkpoint: %w", err)
-		}
-		for _, action := range actions {
-			fmt.Fprintln(noteW, action)
-		}
-		if o.revertPreview {
-			return nil
-		}
-		if o.revertFrom != "" {
-			err = snapshot.Restore(ws.Root(), o.revertFrom)
-		} else {
-			err = snapshot.Revert(ws.Root())
-		}
-		if err != nil {
-			return fmt.Errorf("revert: %w", err)
-		}
-		note("workspace restored to the pre-run checkpoint")
-		return nil
 	}
 
 	client, err := llm.ClientFor(o.backendKind, o.backendURL, o.model)
@@ -268,17 +244,6 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			"[resume: agent -resume %s -answer \"your answer\"]\n"+
 			"\n[agent asks] %s", stateFile, stateFile, question)
 	})
-
-	// Git snapshot before any work, so the run is reviewable/revertible.
-	// Skipped in serve mode: each served run snapshots into its own
-	// task dir instead, and this stateFile belongs to no run.
-	if !o.serve && stateFile != "" {
-		if snap := snapshot.Track(ws.Root(), filepath.Join(filepath.Dir(stateFile), "snapshots")); snap.Path != "" {
-			note("snapshot: %s", snap.Path)
-		} else {
-			note("pre-run checkpoint unavailable; this run cannot be undone with -revert")
-		}
-	}
 
 	if o.serve {
 		// stdout is the protocol in serve mode regardless of -mode:

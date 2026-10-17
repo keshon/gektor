@@ -30,7 +30,6 @@ import (
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/mission"
 	"github.com/keshon/tars/internal/roles"
-	"github.com/keshon/tars/internal/snapshot"
 	"github.com/keshon/tars/internal/tools"
 	"github.com/keshon/tars/internal/workspace"
 )
@@ -275,12 +274,6 @@ func serveRun(ctx context.Context, d serveDeps, hub *api.GateHub, emitter *event
 	taskDir := filepath.Join(d.ws.Root(), workspace.TaskDir(taskID))
 	stateFile := filepath.Join(taskDir, "state.json")
 	_ = workspace.WriteSessionTitle(taskDir, workspace.TitleLine(task))
-
-	if snap := snapshot.Track(d.ws.Root(), filepath.Join(taskDir, "snapshots")); snap.Path != "" {
-		fmt.Fprintf(noteW, "snapshot: %s\n", snap.Path)
-	} else {
-		fmt.Fprintln(noteW, "pre-run checkpoint unavailable; this run cannot be undone with -revert")
-	}
 
 	suspend := hub.Suspender()
 	env := roles.Env{

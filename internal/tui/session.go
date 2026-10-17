@@ -19,7 +19,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/snapshot"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -445,11 +444,6 @@ func (m *model) startFreshPrompt(task, display string, images []string) error {
 	m.transcript.blocks = nil
 	m.appendBlock(markerBlock("- new task -"))
 	m.appendBlock(userBlock(display + imageSuffix(images)))
-	if m.ws != nil {
-		if snap := snapshot.Track(m.ws.Root(), filepath.Join(taskDir, "snapshots")); snap.Path == "" {
-			m.appendBlock(markerBlock("Pre-run checkpoint unavailable; this run cannot be undone with -revert."))
-		}
-	}
 	seed := append([]llm.Message(nil), m.seedHistory...)
 	m.seedHistory = nil
 	if err := m.saveSessionSettings(); err != nil {

@@ -55,11 +55,10 @@ mission checks share environment scrubbing, bounded output, cancellation,
 and process-tree cleanup. Model-generated mission checks also pass policy
 and approval gates. MCP servers are trusted local extensions.
 
-State, debug traces and checkpoint archives can contain repository content
+State files and debug traces can contain conversation content
 and tool output. They are local plaintext artifacts; protect and remove them
-according to the sensitivity of the workspace. Session logs drop what
-exceeds 16 MiB, but checkpoints and optional debug traces have no
-automatic retention policy.
+according to the sensitivity of the workspace. Nothing else is written:
+TARS archives no workspace content, so there is no checkpoint to leak.
 
 ## Out of scope
 

@@ -43,10 +43,12 @@ reports should not be silently overridable by a string it never inspects.
 - `profiles`: small, versioned configuration examples; personal overrides stay private.
 - `scripts`: reproducible build operations.
 - `bin`: built application executables.
-- `var`: sessions, diagnostics and runtime state.
 - `lab`: experiments only; shipping code must have no dependency on it.
 
-Workspace task checkpoints live under `.tars`.
+Everything TARS persists for the user -- preferences, sessions, missions,
+task state, spilled tool output -- lives under `.tars` in the user's home
+directory. The repository is never written to except where the agent is
+working on it.
 
 ## Service contract
 

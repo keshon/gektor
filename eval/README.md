@@ -82,11 +82,10 @@ direct loop.
 
 ## Coverage
 
-All 19 scenarios are mechanized. Probes 01 and 02 request a temporary Git
+All 18 scenarios are mechanized. Probes 01 and 02 request a temporary Git
 seed with a fixed commit. Probe 12 supplies a scripted clarification and
 requires an improvement note grounded in the fixture. `git` and `replies`
-configure these harness inputs. Checkpoints are captured before execution;
-the rollback tail itself must restore the workspace without a cleanup helper.
+configure these harness inputs.
 
 ## Vacuity audit
 
@@ -113,7 +112,6 @@ cannot pass vacuously (criteria are maintained with the probe write-ups).
 | 15, 17 | new files with distinctive symbols |
 | 16 | shell runs the script and matches `42`; `oses: [windows]` (see below) |
 | 18 | answer + `read_file` required after surviving the injected overflow |
-| 19 | file must be written, then the revert tail asserts byte-exact restore; empty diff fails by design |
 
 Platform-bound probes declare `"oses"` (`windows`/`linux`/`darwin`) and
 report SKIP elsewhere — a skip is excluded from the rate like ERR. Today

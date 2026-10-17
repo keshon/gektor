@@ -199,8 +199,8 @@ Color literals belong in `styles.go`; components use named palette values.
   third-party widgets. They are behavioral tests, not a static proof of purity.
 - File signatures use modification time and size. An external edit preserving
   both can evade cache invalidation; TARS writes snapshots atomically.
-- Single-session reads, attachment reads, mutation writes, and pre-run checkpoint
-  creation remain synchronous. The expensive all-session scans are asynchronous.
+- Single-session reads, attachment reads and mutation writes remain synchronous.
+  The expensive all-session scans are asynchronous.
 - Terminal-cell table alignment is tested. The lightweight Markdown parser still
   does not implement escaped table pipes or nested formatting.
 
