@@ -515,6 +515,14 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		var err error
 		result, err = a.Run(ctx, task, images...)
 		if err != nil {
+			// A run that hit MaxSteps with work still open gets one more
+			// budget if the operator says yes. This used to exist only in
+			// the API session, so the primary CLI silently never offered it.
+			if ans, cerr, ok := agent.BudgetContinue(ctx, a, err, stateFile, suspend); ok {
+				result, err = ans, cerr
+			}
+		}
+		if err != nil {
 			return fmt.Errorf("agent failed: %w", err)
 		}
 	}
