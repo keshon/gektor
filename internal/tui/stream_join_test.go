@@ -5,9 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/tars/internal/api"
+	"github.com/keshon/tars/internal/events"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/roles"
+	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/tools"
 	"github.com/keshon/tars/internal/workspace"
 )
@@ -64,7 +65,7 @@ func TestSessionDeltasReachTheLiveBuffer(t *testing.T) {
 	// on a frame tick, so what matters is that each delta is queued as it
 	// arrives rather than that anything survives to the end of the run.
 	var queuedAfterDelta []string
-	sess, err := api.New(api.Config{
+	sess, err := run.New(run.Config{
 		Task: "task",
 		Env: roles.Env{
 			Client: client,
@@ -74,7 +75,7 @@ func TestSessionDeltasReachTheLiveBuffer(t *testing.T) {
 			// Exactly what the TUI passes: print hooks already stubbed.
 			OnDelta: stubbed.OnDelta,
 		},
-		OnEvent: func(ev api.Event) {
+		OnEvent: func(ev events.Event) {
 			seen[ev.Name]++
 			// bubbletea Update is value semantics: the returned model is
 			// the one carrying the state, exactly as the real loop keeps it.

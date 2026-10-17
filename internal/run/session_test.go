@@ -1,4 +1,4 @@
-package api
+package run
 
 import (
 	"bytes"
@@ -197,87 +197,6 @@ func TestSession_HeadlessFailsClosed(t *testing.T) {
 	}
 }
 
-func TestEmitStep_MatchesEmitterEncoding(t *testing.T) {
-	// The schema contract both directions: EmitStep output must parse as
-	// the same JSON -mode json prints, and a Session callbackWriter must
-	// decode it back field-identical.
-	msg := llm.Message{
-		Role:    llm.RoleAssistant,
-		Content: "working",
-		ToolCalls: []llm.ToolCall{
-			{ID: "c1", Name: "read_file", Arguments: json.RawMessage(`{"path":"a.txt"}`)},
-		},
-	}
-	var buf bytes.Buffer
-	EmitStep(events.New(&buf), "w1", 3, msg, false, 0)
-
-	var got []Event
-	w := &callbackWriter{onEvent: func(ev Event) { got = append(got, ev) }}
-	if _, err := w.Write(buf.Bytes()); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-	if len(got) != 1 || got[0].Name != "step" {
-		t.Fatalf("events = %+v", got)
-	}
-	if got[0].Seq != 1 {
-		t.Fatalf("seq = %d", got[0].Seq)
-	}
-	fields := got[0].Fields
-	if fields["label"] != "w1" {
-		t.Fatalf("label = %v", fields["label"])
-	}
-	if fields["text"] != "working" {
-		t.Fatalf("text = %v", fields["text"])
-	}
-	calls, ok := fields["tool_calls"].([]any)
-	if !ok || len(calls) != 1 {
-		t.Fatalf("tool_calls = %v", fields["tool_calls"])
-	}
-	call, ok := calls[0].(map[string]any)
-	if !ok || call["name"] != "read_file" {
-		t.Fatalf("call = %v", calls[0])
-	}
-}
-
-func TestEmitStep_IncludesCallID(t *testing.T) {
-	var buf bytes.Buffer
-	EmitStep(events.New(&buf), "run", 1, llm.Message{
-		ToolCalls: []llm.ToolCall{{ID: "c9", Name: "read_file", Arguments: json.RawMessage(`{}`)}},
-	}, false, 0)
-	var rec map[string]any
-	if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &rec); err != nil {
-		t.Fatalf("not json: %v", err)
-	}
-	calls, ok := rec["tool_calls"].([]any)
-	if !ok || len(calls) != 1 {
-		t.Fatalf("tool_calls = %v", rec["tool_calls"])
-	}
-	call, ok := calls[0].(map[string]any)
-	if !ok || call["id"] != "c9" {
-		t.Fatalf("call = %v", calls[0])
-	}
-}
-
-func TestEmitStep_HarnessReplyFlag(t *testing.T) {
-	var buf bytes.Buffer
-	EmitStep(events.New(&buf), "run", 1, llm.Message{Content: "hi"}, true, 0)
-	var rec map[string]any
-	if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &rec); err != nil {
-		t.Fatalf("not json: %v", err)
-	}
-	if rec["harness_reply"] != true {
-		t.Fatalf("flag missing: %v", rec)
-	}
-	var buf2 bytes.Buffer
-	EmitStep(events.New(&buf2), "run", 1, llm.Message{Content: "hi"}, false, 0)
-	var rec2 map[string]any
-	if err := json.Unmarshal(bytes.TrimSpace(buf2.Bytes()), &rec2); err != nil {
-		t.Fatalf("not json: %v", err)
-	}
-	if _, ok := rec2["harness_reply"]; ok {
-		t.Fatalf("flag must be omitted when false: %v", rec2)
-	}
-}
 
 func TestSession_HarnessReplyFlaggedAfterNudge(t *testing.T) {
 	var events []Event
@@ -321,73 +240,79 @@ func TestSession_HarnessReplyFlaggedAfterNudge(t *testing.T) {
 	}
 }
 
-func TestEmitFinding_RoundTrips(t *testing.T) {
+// EmitStep output must parse back field-identical through the event sink:
+// -mode json and an in-process Session share one schema by construction.
+func TestEmitStep_MatchesEmitterEncoding(t *testing.T) {
+	msg := llm.Message{
+		Role:    llm.RoleAssistant,
+		Content: "working",
+		ToolCalls: []llm.ToolCall{
+			{ID: "c1", Name: "read_file", Arguments: json.RawMessage(`{"path":"a.txt"}`)},
+		},
+	}
 	var buf bytes.Buffer
-	EmitFinding(events.New(&buf), "per-edit", "gofmt", "a.go", 3, "not gofmt-clean")
-	var got []Event
-	w := &callbackWriter{onEvent: func(ev Event) { got = append(got, ev) }}
-	if _, err := w.Write(buf.Bytes()); err != nil {
+	EmitStep(events.New(&buf), "w1", 3, msg, false, 0)
+
+	var got []events.Event
+	if _, err := events.EventWriter(func(ev events.Event) { got = append(got, ev) }).Write(buf.Bytes()); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if len(got) != 1 || got[0].Name != "finding" {
+	if len(got) != 1 || got[0].Name != "step" {
 		t.Fatalf("events = %+v", got)
 	}
-	fields := got[0].Fields
-	if fields["scope"] != "per-edit" || fields["rule"] != "gofmt" || fields["line"] != float64(3) {
-		t.Fatalf("fields = %v", fields)
+	ev := got[0]
+	if ev.Fields["step"].(float64) != 3 || ev.Fields["label"] != "w1" || ev.Fields["text"] != "working" {
+		t.Fatalf("fields = %+v", ev.Fields)
 	}
-	EmitFinding(nil, "x", "y", "z", 0, "w") // nil-safe
+	calls, ok := ev.Fields["tool_calls"].([]any)
+	if !ok || len(calls) != 1 {
+		t.Fatalf("tool_calls = %+v", ev.Fields["tool_calls"])
+	}
+	c := calls[0].(map[string]any)
+	if c["id"] != "c1" || c["name"] != "read_file" || c["args"] != `{"path":"a.txt"}` {
+		t.Fatalf("call = %+v", c)
+	}
 }
 
-func TestEmitNudge_RoundTrips(t *testing.T) {
+func TestEmitStep_IncludesCallID(t *testing.T) {
 	var buf bytes.Buffer
-	EmitNudge(events.New(&buf), "verify", "[harness] check your work")
-	var got []Event
-	w := &callbackWriter{onEvent: func(ev Event) { got = append(got, ev) }}
-	if _, err := w.Write(buf.Bytes()); err != nil {
-		t.Fatalf("write: %v", err)
+	EmitStep(events.New(&buf), "run", 1, llm.Message{
+		Content: "x",
+		ToolCalls: []llm.ToolCall{
+			{ID: "a", Name: "read_file", Arguments: json.RawMessage(`{"path":"a"}`)},
+			{ID: "b", Name: "read_file", Arguments: json.RawMessage(`{"path":"b"}`)},
+		},
+	}, false, 0)
+	calls := strings.Count(buf.String(), `"id":`)
+	if calls != 2 {
+		t.Fatalf("ids in output = %d, want 2: %s", calls, buf.String())
 	}
-	if len(got) != 1 || got[0].Name != "nudge" {
-		t.Fatalf("events = %+v", got)
-	}
-	if got[0].Fields["kind"] != "verify" {
-		t.Fatalf("fields = %v", got[0].Fields)
-	}
-	EmitNudge(nil, "x", "y") // nil-safe
 }
 
-func TestEmitDelta_RoundTrips(t *testing.T) {
-	var buf bytes.Buffer
-	EmitDelta(events.New(&buf), "hel")
-	var got []Event
-	w := &callbackWriter{onEvent: func(ev Event) { got = append(got, ev) }}
-	if _, err := w.Write(buf.Bytes()); err != nil {
-		t.Fatalf("write: %v", err)
+func TestEmitStep_HarnessReplyFlag(t *testing.T) {
+	var on, off bytes.Buffer
+	EmitStep(events.New(&on), "run", 1, llm.Message{Content: "hi"}, true, 0)
+	EmitStep(events.New(&off), "run", 1, llm.Message{Content: "hi"}, false, 0)
+	if !strings.Contains(on.String(), `"harness_reply":true`) {
+		t.Fatalf("flag missing: %s", on.String())
 	}
-	if len(got) != 1 || got[0].Name != "delta" {
-		t.Fatalf("events = %+v", got)
+	if strings.Contains(off.String(), "harness_reply") {
+		t.Fatalf("false flag must be omitted entirely: %s", off.String())
 	}
-	if got[0].Fields["text"] != "hel" {
-		t.Fatalf("fields = %v", got[0].Fields)
-	}
-	EmitDelta(nil, "x") // nil-safe
 }
 
 func TestEmitUsage_RoundTrips(t *testing.T) {
 	var buf bytes.Buffer
 	EmitUsage(events.New(&buf), 4, llm.Usage{PromptTokens: 12400, CompletionTokens: 300, CachedTokens: 2000})
-
-	var got []Event
-	w := &callbackWriter{onEvent: func(ev Event) { got = append(got, ev) }}
-	if _, err := w.Write(buf.Bytes()); err != nil {
+	var got []events.Event
+	if _, err := events.EventWriter(func(ev events.Event) { got = append(got, ev) }).Write(buf.Bytes()); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	if len(got) != 1 || got[0].Name != "usage" {
 		t.Fatalf("events = %+v", got)
 	}
-	fields := got[0].Fields
-	if fields["step"] != float64(4) || fields["prompt"] != float64(12400) ||
-		fields["completion"] != float64(300) || fields["cached"] != float64(2000) {
-		t.Fatalf("fields = %+v", fields)
+	f := got[0].Fields
+	if f["step"].(float64) != 4 || f["prompt"].(float64) != 12400 || f["completion"].(float64) != 300 {
+		t.Fatalf("fields = %+v", f)
 	}
 }

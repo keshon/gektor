@@ -9,7 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/api"
+	"github.com/keshon/tars/internal/events"
 	"github.com/keshon/tars/internal/llm"
 )
 
@@ -59,7 +59,7 @@ func TestHeaderContextPersistsAndRestoresEstimate(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.modelName = "test-model"
 	m.stateFile = filepath.Join(t.TempDir(), "state.json")
-	m.handleEvent(api.Event{Name: "usage", Fields: map[string]any{"prompt": float64(4100)}})
+	m.handleEvent(events.Event{Name: "usage", Fields: map[string]any{"prompt": float64(4100)}})
 	if m.tokens != 4100 || !m.usage.thisRun {
 		t.Fatal("usage not captured")
 	}
@@ -117,7 +117,7 @@ func TestHeaderStopWorksFromSessionPaneAndGateClosesMenu(t *testing.T) {
 	}
 	m.header.focused = true
 	m.header.menu = "model"
-	m.handleEvent(api.Event{Name: "awaiting_input", Fields: map[string]any{"kind": "ask", "prompt": "Confirm?"}})
+	m.handleEvent(events.Event{Name: "awaiting_input", Fields: map[string]any{"kind": "ask", "prompt": "Confirm?"}})
 	if m.header.focused || m.header.menu != "" {
 		t.Fatal("menu obscured new gate")
 	}

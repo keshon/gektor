@@ -6,14 +6,11 @@
 // Schema parity is structural, not promised: Session reuses the events
 // package to serialize, and parses the JSONL back, so -mode json output
 // and Session events cannot drift apart without a test failing.
-package api
+package run
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/keshon/tars/internal/agent"
@@ -23,13 +20,9 @@ import (
 	"github.com/keshon/tars/internal/roles"
 )
 
-// Event is one decoded JSONL event: the name plus its fields, including
-// the emitter-assigned seq.
-type Event struct {
-	Name   string
-	Seq    int
-	Fields map[string]any
-}
+// Event is a decoded JSONL event. Aliased so callers wiring a Config do
+// not have to import the wire package for one type; events owns it.
+type Event = events.Event
 
 // Config wires a direct-mode run. Everything the harness needs comes
 // from Env (client, workspace, tools, policy, budgets); Session adds
@@ -87,7 +80,7 @@ func New(cfg Config) (*Session, error) {
 // call boundaries, and wire transports add their own. Session streams
 // step events only.
 func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter) {
-	emitter := events.New(&callbackWriter{onEvent: s.cfg.OnEvent})
+	emitter := events.New(events.EventWriter(s.cfg.OnEvent))
 
 	askFn := s.asker(ctx)
 
@@ -111,7 +104,7 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter) {
 		}
 	}
 	env.OnResult = func(result agent.ToolResult) {
-		EmitToolResult(emitter, result.CallID, result.Output, result.Failed)
+		events.EmitToolResult(emitter, result.CallID, result.Output, result.Failed)
 		if prevTypedResult != nil {
 			prevTypedResult(result)
 		}
@@ -129,7 +122,7 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter) {
 	}
 	prevOnNudge := env.OnNudge
 	env.OnNudge = func(kind, text string) {
-		EmitNudge(emitter, kind, text)
+		events.EmitNudge(emitter, kind, text)
 		expectReply = true
 		if prevOnNudge != nil {
 			prevOnNudge(kind, text)
@@ -137,14 +130,14 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter) {
 	}
 	prevOnDelta := env.OnDelta
 	env.OnDelta = func(chunk string) {
-		EmitDelta(emitter, chunk)
+		events.EmitDelta(emitter, chunk)
 		if prevOnDelta != nil {
 			prevOnDelta(chunk)
 		}
 	}
 	prevOnReasoning := env.OnReasoning
 	env.OnReasoning = func(chunk string) {
-		EmitReasoning(emitter, chunk)
+		events.EmitReasoning(emitter, chunk)
 		if prevOnReasoning != nil {
 			prevOnReasoning(chunk)
 		}
@@ -153,7 +146,7 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter) {
 	// rather than chained: the TUI, the only caller, stubs hooks and
 	// reads the event stream instead.
 	env.Checks = checks.NewReporter(func(scope checks.Scope, f checks.Finding) {
-		EmitFinding(emitter, string(scope), f.Rule, f.Path, f.Line, f.Summary)
+		events.EmitFinding(emitter, string(scope), f.Rule, f.Path, f.Line, f.Summary)
 	})
 	if s.cfg.Plan {
 		a = roles.Planner(env, "plan", s.cfg.StateFile)
@@ -214,56 +207,32 @@ func (s *Session) Resume(ctx context.Context, history []llm.Message, note string
 	return ans, err
 }
 
-// callbackWriter decodes each JSONL line back into an OnEvent call,
-// preserving the emitter-assigned sequence numbers. Serializing through
-// the events encoding keeps -mode json output and Session events on one
-// schema by construction: they cannot drift apart.
-type callbackWriter struct {
-	buf     bytes.Buffer
-	onEvent func(Event)
+
+
+func (s *Session) report(a *agent.Agent, e *events.Emitter) {
+	if s.cfg.OnEvent == nil {
+		return
+	}
+	EmitOutcome(e, a.Report(), s.cfg.StateFile)
 }
 
-func (w *callbackWriter) Write(p []byte) (int, error) {
-	n, err := w.buf.Write(p)
-	if err != nil {
-		return n, err
+// EmitOutcome reports measured effects and check output in every frontend.
+func EmitOutcome(e *events.Emitter, r agent.RunReport, stateFile string) {
+	if e == nil {
+		return
 	}
-	for {
-		line, err := w.buf.ReadString('\n')
-		if err != nil {
-			break
-		}
-		var rec map[string]any
-		if jerr := json.Unmarshal([]byte(line), &rec); jerr != nil {
-			continue
-		}
-		name, _ := rec["event"].(string)
-		ev := Event{Name: name, Fields: map[string]any{}}
-		for k, v := range rec {
-			switch k {
-			case "event":
-			case "seq":
-				if f, ok := v.(float64); ok {
-					ev.Seq = int(f)
-				}
-			default:
-				ev.Fields[k] = v
-			}
-		}
-		if w.onEvent != nil {
-			w.onEvent(ev)
-		}
-	}
-	return n, nil
+	e.Emit("outcome", map[string]any{"outcome": r.Outcome, "files": r.MutatedPaths, "verification": r.Verification, "warnings": r.Warnings, "resume": stateFile, "open_todos": r.OpenTodos})
 }
 
-// EmitStep writes one step as a JSONL event on emitter. Shared by the
-// direct loop, mission workers, and Session so all three speak the same
-// schema. events.Message caps each text field. harnessReply marks a
-// text-only answer to a harness nudge (first reply is enough); the
+// EmitStep writes one step. Shared by the direct loop, mission workers and
+// the session driver so all three speak the same schema. harnessReply
+// marks a text-only answer to a harness nudge (first reply is enough); the
 // field is omitted when false so old consumers see no change. maxSteps
-// carries the run's enforced step budget (base plus todo-funded
-// extension); zero omits it, for callers with no run behind the event.
+// carries the enforced step budget; zero omits it, for callers with no run
+// behind the event.
+//
+// It lives here rather than beside its siblings in events because it
+// takes an llm.Message, and events is a leaf by an enforced invariant.
 func EmitStep(emitter *events.Emitter, label string, step int, msg llm.Message, harnessReply bool, maxSteps int) {
 	if emitter == nil {
 		return
@@ -288,7 +257,7 @@ func EmitStep(emitter *events.Emitter, label string, step int, msg llm.Message, 
 	for _, tc := range msg.ToolCalls {
 		calls = append(calls, map[string]any{
 			// The id pairs results to calls (duplicate ids across
-			// steps match the most recent open card; see attachResult).
+			// steps match the most recent open card).
 			"id": tc.ID, "name": tc.Name, "args": events.Message(string(tc.Arguments)),
 		})
 	}
@@ -298,65 +267,9 @@ func EmitStep(emitter *events.Emitter, label string, step int, msg llm.Message, 
 	emitter.Emit("step", ev)
 }
 
-// EmitFinding writes one deterministic-check finding as a JSONL event.
-// Scope is "per-edit" (post-write scan) or "session-end" (deep sweep).
-func EmitFinding(emitter *events.Emitter, scope, rule, path string, line int, summary string) {
-	if emitter == nil {
-		return
-	}
-	emitter.Emit("finding", map[string]any{
-		"scope": scope, "rule": rule, "path": path, "line": line, "summary": summary,
-	})
-}
-
-// EmitNudge writes one loop-generated harness notice as a JSONL event:
-// the same text the model saw (including its [harness] provenance
-// mark), tagged by kind for display filtering.
-func EmitNudge(emitter *events.Emitter, kind, text string) {
-	if emitter == nil {
-		return
-	}
-	emitter.Emit("nudge", map[string]any{"kind": kind, "text": text})
-}
-
-// EmitReasoning writes one streamed deliberation chunk as a JSONL event.
-// It is a separate event kind from delta so a reader can render THINK
-// finishing before RESPONSE begins, rather than one buffer that only
-// reveals everything once the turn is over.
-func EmitReasoning(emitter *events.Emitter, text string) {
-	if emitter == nil {
-		return
-	}
-	emitter.Emit("reasoning", map[string]any{"text": text})
-}
-
-// EmitDelta writes one streamed content chunk as a JSONL event. Deltas
-// are display-only: the step event carries the authoritative text and
-// replaces whatever the live buffer showed.
-func EmitDelta(emitter *events.Emitter, text string) {
-	if emitter == nil {
-		return
-	}
-	emitter.Emit("delta", map[string]any{"text": text})
-}
-
-// EmitToolResult writes one completed tool call as a JSONL event.
-// Callers pair it with the matching tool_calls entry by call ID; the
-// result text is capped like every other field.
-func EmitToolResult(emitter *events.Emitter, callID string, result string, failed ...bool) {
-	if emitter == nil {
-		return
-	}
-	fields := map[string]any{"call_id": callID, "text": events.Message(result)}
-	if len(failed) > 0 {
-		fields["failed"] = failed[0]
-	}
-	emitter.Emit("tool_result", fields)
-}
-
-// EmitUsage writes backend token counts as a JSONL event. Observers that
-// meter context (TUIs, JSON streams) accumulate the latest prompt count
-// against the known window; the loop itself budgets off the same numbers.
+// EmitUsage writes backend token counts. Observers that meter context
+// (TUIs, JSON streams) accumulate the latest prompt count against the
+// known window; the loop itself budgets off the same numbers.
 func EmitUsage(emitter *events.Emitter, step int, usage llm.Usage) {
 	if emitter == nil {
 		return
@@ -370,20 +283,3 @@ func EmitUsage(emitter *events.Emitter, step int, usage llm.Usage) {
 	})
 }
 
-// EventWriter adapts the shared JSONL emitter to an in-process event sink.
-func EventWriter(onEvent func(Event)) io.Writer { return &callbackWriter{onEvent: onEvent} }
-
-func (s *Session) report(a *agent.Agent, e *events.Emitter) {
-	if s.cfg.OnEvent == nil {
-		return
-	}
-	EmitOutcome(e, a.Report(), s.cfg.StateFile)
-}
-
-// EmitOutcome reports measured effects and check output in every frontend.
-func EmitOutcome(e *events.Emitter, r agent.RunReport, stateFile string) {
-	if e == nil {
-		return
-	}
-	e.Emit("outcome", map[string]any{"outcome": r.Outcome, "files": r.MutatedPaths, "verification": r.Verification, "warnings": r.Warnings, "resume": stateFile, "open_todos": r.OpenTodos})
-}

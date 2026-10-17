@@ -30,14 +30,13 @@ internal/tools     concrete tools: file, shell, search, process, delegation,
                    webfetch (SSRF-validated), MCP stdio + HTTP clients,
                    edit hardening, command probes, JSON reducers
 internal/roles     the five kinds of agent this project builds
-internal/api       Session events, GateHub, cancellation-aware gate transport
+internal/run       one agent run: typed events, GateHub, gate transport
 internal/tui       Bubble Tea v2 model, transcript, sessions, composer and popups
                    components owns reusable models; settings owns its screen
-internal/filetxn   staged related file replacements with ordinary-error rollback
 internal/audit     JSONL approval-decision records
 internal/checks    deterministic file checks (formatting and secret findings)
 internal/permission allow/ask/deny policy for tool calls (leaf package)
-internal/events    JSONL run/step event output for -mode json
+internal/events    the JSONL wire vocabulary and its emitter
 internal/session   the one persisted conversation snapshot, state.json
 internal/mission   plan, ledger, workers, checks, replan, review
 internal/prompts   every prompt, as .txt, embedded at build time
@@ -192,7 +191,7 @@ propose, change nothing — enforced by the same tool-set removal.
 ## Frontends and terminal state
 
 Print/JSON mode, the stdio RPC server, and the TUI share role construction and
-session events. `internal/api` delivers typed events and transports suspended
+session events. `internal/run` delivers typed events and transports suspended
 questions through GateHub. A gate belongs to the active run context; cancelling
 or closing the transport releases it. Policy Deny never becomes a question,
 and Ask without a live approval handler fails closed.

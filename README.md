@@ -119,7 +119,7 @@ go run ./cmd/eval -only 0 -require-model qwen
 - `internal/agent`, `internal/mission`, `internal/roles` — the loop, the
   plan-execute-verify pipeline, the agent kinds
 - `internal/llm`, `internal/tools`, `internal/prompts` — backends, tools, prompts
-- `internal/api`, `internal/tui` — shared session events/gates and terminal UI
+- `internal/run`, `internal/tui` — shared session events/gates and terminal UI
 - `internal/audit`, `internal/checks` — approval records and deterministic findings
 - `internal/permission`, `internal/session`,
   `internal/events` — policy, conversation snapshots, JSONL output

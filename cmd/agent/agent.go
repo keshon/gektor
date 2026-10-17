@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/api"
+	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/app"
 	"github.com/keshon/tars/internal/audit"
 	"github.com/keshon/tars/internal/checks"
@@ -307,7 +307,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		OnStep:      stepPrinter(o.outputMode, emitter, o.logMax),
 		OnResult: func(result agent.ToolResult) {
 			if o.outputMode == "json" {
-				api.EmitToolResult(emitter, result.CallID, result.Output, result.Failed)
+				events.EmitToolResult(emitter, result.CallID, result.Output, result.Failed)
 			}
 		},
 		OnUsage: usagePrinter(o.outputMode, emitter),
@@ -436,7 +436,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		// Deep pass over everything the run changed, catching writes no
 		// tool reported: shell redirections, MCP, background jobs.
 		env.Sweep(r.MutatedPaths)
-		api.EmitOutcome(emitter, r, stateFile)
+		run.EmitOutcome(emitter, r, stateFile)
 		note("outcome: %s; changed files: %s", r.Outcome, strings.Join(r.MutatedPaths, ", "))
 		if r.Verification != "" {
 			note("checks: %s", r.Verification)
@@ -587,7 +587,7 @@ func runMission(ctx context.Context, p missionParams) error {
 		ApprovePlan:  approve,
 		VerifyCmd:    p.verifyCmd,
 		OnStep: func(subID string, step int, msg llm.Message) {
-			api.EmitStep(p.emitter, subID, step, msg, false, 0)
+			run.EmitStep(p.emitter, subID, step, msg, false, 0)
 			if msg.Content != "" {
 				fmt.Fprintf(p.noteW, "[%s step %d] %s\n", subID, step, agent.TruncateMiddle(msg.Content, p.logMax))
 			}
@@ -603,10 +603,10 @@ func runMission(ctx context.Context, p missionParams) error {
 			fmt.Fprintf(p.noteW, "[mission] "+format+"\n", args...)
 		},
 		OnResult: func(result agent.ToolResult) {
-			api.EmitToolResult(p.emitter, result.CallID, result.Output, result.Failed)
+			events.EmitToolResult(p.emitter, result.CallID, result.Output, result.Failed)
 		},
 		OnUsage: func(step int, usage llm.Usage) {
-			api.EmitUsage(p.emitter, step, usage)
+			run.EmitUsage(p.emitter, step, usage)
 		},
 	}
 

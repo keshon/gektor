@@ -502,5 +502,5 @@ the transcript rather than sent to the model as literal text.
 Reusable form, composer, list-selection and transcript viewport models live under
 `internal/tui/components`. TARS supplies styles and application data, routes focus,
 and handles effects; components own their local editing/selection/scroll state.
-Session indexing lives in `internal/sessionindex`, independently of terminal
+Session indexing lives in `the TUI itself`, independently of terminal
 rendering. See [TUI ownership](tui-ownership.md) for enforced boundaries and limits.

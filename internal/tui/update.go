@@ -10,7 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/api"
+	"github.com/keshon/tars/internal/run"
 )
 
 func (m *model) Init() tea.Cmd {
@@ -95,7 +95,7 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		return m, tick(m.revealLive(), m.busy())
 	case eventMsg:
 		if m.state != stStopping {
-			m.handleEvent(api.Event(msg))
+			m.handleEvent(run.Event(msg))
 		}
 		return m, waitEvents(m)
 	case doneMsg:
@@ -288,7 +288,7 @@ func (m *model) scrollViewport(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	return m, m.transcript.Update(msg)
 }
-func (m *model) handleEvent(ev api.Event) {
+func (m *model) handleEvent(ev run.Event) {
 	m.beginTranscriptUpdate()
 	defer m.endTranscriptUpdate()
 	switch ev.Name {

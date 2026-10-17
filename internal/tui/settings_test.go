@@ -392,7 +392,7 @@ func TestProtocolSwitchSuggestsOnlyLocalDefaults(t *testing.T) {
 		{"http://localhost:5001/", "kobold", "openai", "http://localhost:8080/v1"},
 		{"http://localhost:8080/v1", "openai", "llama", "http://localhost:8080"},
 		{"http://localhost:9000", "llama", "kobold", "http://localhost:9000"},
-		{"https://api.openai.com/v1", "openai", "llama", "https://api.openai.com/v1"},
+		{"https://events.openai.com/v1", "openai", "llama", "https://events.openai.com/v1"},
 		{"http://localhost:8080/custom", "llama", "kobold", "http://localhost:8080/custom"},
 	} {
 		if got := settings.SuggestedBackendURL(tc.endpoint, tc.previous, tc.next); got != tc.want {

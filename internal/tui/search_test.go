@@ -10,7 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/api"
+	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/workspace"
 )
@@ -101,7 +101,7 @@ func TestSearchHistoryMatchOpensAtMessage(t *testing.T) {
 		history = append(history, llm.Message{Role: llm.RoleAssistant, Content: fmt.Sprintf("Later message %d", i)})
 	}
 	dir := writeSessionState(t, sessionsRootFor(t, m.wsRoot), "match", history)
-	m.newSession = func(string, string, []string) (*api.Session, error) { return &api.Session{}, nil }
+	m.newSession = func(string, string, []string) (*run.Session, error) { return &run.Session{}, nil }
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	m.openSessions()
 	finishSessionRefresh(t, m)

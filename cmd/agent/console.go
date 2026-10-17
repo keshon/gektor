@@ -11,9 +11,9 @@ import (
 	"sync"
 
 	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/api"
 	"github.com/keshon/tars/internal/checks"
 	"github.com/keshon/tars/internal/events"
+	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/permission"
 	"github.com/keshon/tars/internal/tools"
@@ -131,7 +131,7 @@ func stdioSuspender(noteW io.Writer, emitter *events.Emitter) agent.Suspender {
 func stepPrinter(mode string, emitter *events.Emitter, logMax int) func(string, int, llm.Message) {
 	if mode == "json" && emitter != nil {
 		return func(label string, step int, msg llm.Message) {
-			api.EmitStep(emitter, label, step, msg, false, 0)
+			run.EmitStep(emitter, label, step, msg, false, 0)
 		}
 	}
 	return func(label string, step int, msg llm.Message) { printStep(label, step, msg, logMax) }
@@ -141,7 +141,7 @@ func stepPrinter(mode string, emitter *events.Emitter, logMax int) func(string, 
 // events in json mode, historical silence in print mode.
 func toolResultPrinter(mode string, emitter *events.Emitter) func(string, string) {
 	if mode == "json" && emitter != nil {
-		return func(callID, result string) { api.EmitToolResult(emitter, callID, result) }
+		return func(callID, result string) { events.EmitToolResult(emitter, callID, result) }
 	}
 	return nil
 }
@@ -150,7 +150,7 @@ func toolResultPrinter(mode string, emitter *events.Emitter) func(string, string
 // json mode, nothing in print mode (the debug log already records them).
 func usagePrinter(mode string, emitter *events.Emitter) func(int, llm.Usage) {
 	if mode == "json" && emitter != nil {
-		return func(step int, usage llm.Usage) { api.EmitUsage(emitter, step, usage) }
+		return func(step int, usage llm.Usage) { run.EmitUsage(emitter, step, usage) }
 	}
 	return nil
 }
@@ -162,7 +162,7 @@ func usagePrinter(mode string, emitter *events.Emitter) func(int, llm.Usage) {
 func findingSink(emitter *events.Emitter, mode string) func(checks.Scope, checks.Finding) {
 	if mode == "json" && emitter != nil {
 		return func(scope checks.Scope, f checks.Finding) {
-			api.EmitFinding(emitter, string(scope), f.Rule, f.Path, f.Line, f.Summary)
+			events.EmitFinding(emitter, string(scope), f.Rule, f.Path, f.Line, f.Summary)
 		}
 	}
 	return func(_ checks.Scope, f checks.Finding) {

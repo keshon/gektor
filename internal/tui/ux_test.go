@@ -12,7 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/api"
+	"github.com/keshon/tars/internal/events"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/workspace"
 )
@@ -24,7 +24,7 @@ func TestPermissionDecisionAlwaysHasVisibleContext(t *testing.T) {
 	}
 	m.transcript.Viewport.GotoTop()
 	m.transcript.Follow = false
-	m.handleEvent(api.Event{Name: "awaiting_input", Fields: map[string]any{"kind": "permission", "prompt": "TARGET_SCOPE\n" + strings.Repeat("preview line\n", 40)}})
+	m.handleEvent(events.Event{Name: "awaiting_input", Fields: map[string]any{"kind": "permission", "prompt": "TARGET_SCOPE\n" + strings.Repeat("preview line\n", 40)}})
 	if !strings.Contains(m.View().Content, "TARGET_SCOPE") {
 		t.Fatal("permission context offscreen")
 	}
@@ -131,7 +131,7 @@ func TestModePersistsAcrossReopening(t *testing.T) {
 func TestQuestionHasScrollablePreviewAndPreservesDraftOnStop(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.input.SetValue("Original draft")
-	m.handleEvent(api.Event{Name: "awaiting_input", Fields: map[string]any{"kind": "question", "prompt": "QUESTION_SCOPE\n" + strings.Repeat("question detail\n", 40)}})
+	m.handleEvent(events.Event{Name: "awaiting_input", Fields: map[string]any{"kind": "question", "prompt": "QUESTION_SCOPE\n" + strings.Repeat("question detail\n", 40)}})
 	if !strings.Contains(m.View().Content, "QUESTION_SCOPE") {
 		t.Fatal("question is hidden")
 	}
@@ -181,13 +181,13 @@ func TestPromptTransitionsFitWideAndNarrowTerminals(t *testing.T) {
 	for _, width := range []int{40, 80, 120} {
 		m := sizeModel(t, testModel())
 		m.width(tea.WindowSizeMsg{Width: width, Height: 20})
-		m.handleEvent(api.Event{Name: "awaiting_input", Fields: map[string]any{"kind": "permission", "prompt": "Review target"}})
+		m.handleEvent(events.Event{Name: "awaiting_input", Fields: map[string]any{"kind": "permission", "prompt": "Review target"}})
 		m.gstage = gsReject
 		m.fitBottom()
 		if !strings.Contains(m.View().Content, "note>") {
 			t.Fatalf("note hidden at width %d", width)
 		}
-		m.handleEvent(api.Event{Name: "input_answered"})
+		m.handleEvent(events.Event{Name: "input_answered"})
 		if m.sidebarVisible() && m.transcript.Viewport.Width() != width-navigatorWidth-5 {
 			t.Fatalf("transcript did not refit: %d", m.transcript.Viewport.Width())
 		}
@@ -207,7 +207,7 @@ func TestBrowserActionsRemainInsideTerminalFrame(t *testing.T) {
 func TestInlineThinkingUsesThinkingBlockLiveAndOnReopen(t *testing.T) {
 	content := "<think>Проверяю ответ.\nSecond line.</think>\n\nI'm TARS."
 	m := sizeModel(t, testModel())
-	m.handleEvent(api.Event{Name: "step", Fields: map[string]any{"text": content}})
+	m.handleEvent(events.Event{Name: "step", Fields: map[string]any{"text": content}})
 	history := renderHistory([]llm.Message{{Role: llm.RoleAssistant, Content: content}})
 	for _, blocks := range [][]block{m.transcript.blocks, history} {
 		if len(blocks) != 2 || blocks[0].role != roleThink || blocks[1].role != roleAnswer {
@@ -287,7 +287,7 @@ func TestSystemNoticesShareConversationLayout(t *testing.T) {
 func TestHarnessNoticeMatchesLiveAndRebuiltHistory(t *testing.T) {
 	text := "[harness] Verify your work.\n (step 2/25, 23 left)"
 	m := sizeModel(t, testModel())
-	m.handleEvent(api.Event{Name: "nudge", Fields: map[string]any{"kind": "verify", "text": text}})
+	m.handleEvent(events.Event{Name: "nudge", Fields: map[string]any{"kind": "verify", "text": text}})
 	rebuilt := renderHistory([]llm.Message{{Role: llm.RoleUser, Content: text}})
 	if len(m.transcript.blocks) != 1 || len(rebuilt) != 1 || rebuilt[0].role != roleMarker {
 		t.Fatalf("harness omitted: %+v", rebuilt)

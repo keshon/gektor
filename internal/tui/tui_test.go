@@ -17,20 +17,20 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/api"
 	"github.com/keshon/tars/internal/audit"
 	"github.com/keshon/tars/internal/events"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/permission"
 	"github.com/keshon/tars/internal/roles"
+	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/tools"
 	"github.com/keshon/tars/internal/workspace"
 )
 
 func testModel() *model {
 	m := &model{
-		events:     make(chan api.Event, 16),
-		hub:        api.NewGateHub(nil),
+		events:     make(chan events.Event, 16),
+		hub:        run.NewGateHub(nil),
 		cancel:     func() {},
 		started:    time.Now(),
 		styles:     defaultStyles(),
@@ -67,7 +67,7 @@ func sizeModelTo(t *testing.T, m *model, width, height int) *model {
 
 func TestStepAppendsTranscript(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(api.Event{
+	updated, _ := m.Update(eventMsg(events.Event{
 		Name:   "step",
 		Fields: map[string]any{"text": "hello", "step": 0},
 	}))
@@ -82,7 +82,7 @@ func TestStepAppendsTranscript(t *testing.T) {
 
 func TestStepReasoningRendersDim(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(api.Event{
+	updated, _ := m.Update(eventMsg(events.Event{
 		Name:   "step",
 		Fields: map[string]any{"text": "done", "reasoning": "hmm, tricky"},
 	}))
@@ -103,7 +103,7 @@ func TestStepReasoningRendersDim(t *testing.T) {
 
 func TestToolCallAndResultRender(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(api.Event{
+	updated, _ := m.Update(eventMsg(events.Event{
 		Name: "step",
 		Fields: map[string]any{
 			"tool_calls": []any{map[string]any{"name": "read_file", "args": `{"path":"a"}`}},
@@ -113,7 +113,7 @@ func TestToolCallAndResultRender(t *testing.T) {
 	if len(mm.transcript.blocks) != 1 || !strings.Contains(mm.transcript.blocks[0].text, "read_file") || mm.transcript.blocks[0].role != roleTool {
 		t.Fatalf("blocks = %+v", mm.transcript.blocks)
 	}
-	updated, _ = mm.Update(eventMsg(api.Event{
+	updated, _ = mm.Update(eventMsg(events.Event{
 		Name:   "tool_result",
 		Fields: map[string]any{"call_id": "c1", "text": "-old\n+new"},
 	}))
@@ -125,7 +125,7 @@ func TestToolCallAndResultRender(t *testing.T) {
 
 func TestPermissionKeysAnswer(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(api.Event{
+	updated, _ := m.Update(eventMsg(events.Event{
 		Name:   "awaiting_input",
 		Fields: map[string]any{"kind": "permission", "prompt": "allow?"},
 	}))
@@ -163,7 +163,7 @@ func TestPermissionKeysAnswer(t *testing.T) {
 
 func TestAskEnterSubmits(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(api.Event{
+	updated, _ := m.Update(eventMsg(events.Event{
 		Name:   "awaiting_input",
 		Fields: map[string]any{"kind": "ask_user", "prompt": "which?"},
 	}))
@@ -220,7 +220,7 @@ func TestFollowUpResumes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sess, err := api.New(api.Config{
+	sess, err := run.New(run.Config{
 		Task: "task",
 		Env: roles.Env{
 			Client: stubDone{},
@@ -279,7 +279,7 @@ func TestMeter_UsageAndUnknown(t *testing.T) {
 	if got := m.meter(); got != "ctx —" {
 		t.Fatalf("no measurement yet: %q", got)
 	}
-	updated, _ := m.Update(eventMsg(api.Event{
+	updated, _ := m.Update(eventMsg(events.Event{
 		Name:   "usage",
 		Fields: map[string]any{"prompt": float64(12400)},
 	}))
@@ -292,7 +292,7 @@ func TestMeter_UsageAndUnknown(t *testing.T) {
 func TestMeter_Estimated(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.limit = 131072
-	updated, _ := m.Update(eventMsg(api.Event{
+	updated, _ := m.Update(eventMsg(events.Event{
 		Name:   "usage",
 		Fields: map[string]any{"prompt": float64(12400), "estimated": true},
 	}))
@@ -363,9 +363,9 @@ func TestFollowUp_AttachesImages(t *testing.T) {
 	m.ws = ws
 	var gotTask string
 	var gotImages []string
-	m.newSession = func(task, stateFile string, images []string) (*api.Session, error) {
+	m.newSession = func(task, stateFile string, images []string) (*run.Session, error) {
 		gotTask, gotImages = task, images
-		return api.New(api.Config{
+		return run.New(run.Config{
 			Task: task,
 			Env: roles.Env{
 				Client: stubDone{},
@@ -401,14 +401,14 @@ func TestCommand_NewStartsFresh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m.newSession = func(task, stateFile string, images []string) (*api.Session, error) {
+	m.newSession = func(task, stateFile string, images []string) (*run.Session, error) {
 		if task != "second" {
 			t.Errorf("task = %q", task)
 		}
 		if stateFile == "" || !strings.HasSuffix(stateFile, "state.json") {
 			t.Errorf("stateFile = %q", stateFile)
 		}
-		return api.New(api.Config{
+		return run.New(run.Config{
 			Task: task,
 			Env: roles.Env{
 				Client: stubDone{},
@@ -807,8 +807,8 @@ func TestEmptyStart_SubmitBegins(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m.newSession = func(task, stateFile string, images []string) (*api.Session, error) {
-		return api.New(api.Config{
+	m.newSession = func(task, stateFile string, images []string) (*run.Session, error) {
+		return run.New(run.Config{
 			Task: task,
 			Env: roles.Env{
 				Client: stubDone{},
@@ -855,7 +855,7 @@ func TestEmptyStart_SubmitBegins(t *testing.T) {
 
 func TestRolesAssignedAcrossEvent(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(api.Event{
+	updated, _ := m.Update(eventMsg(events.Event{
 		Name: "step",
 		Fields: map[string]any{
 			"text":      "answer",
@@ -985,7 +985,7 @@ func TestHelpMentionsThinkKey(t *testing.T) {
 func openPermissionGate(t *testing.T) (*model, chan agent.SuspendReply) {
 	t.Helper()
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(api.Event{
+	updated, _ := m.Update(eventMsg(events.Event{
 		Name: "awaiting_input",
 		Fields: map[string]any{
 			"kind": "permission", "prompt": "allow?",
@@ -1011,7 +1011,7 @@ func openPermissionGate(t *testing.T) (*model, chan agent.SuspendReply) {
 	return mm, answered
 }
 
-func waitPending(t *testing.T, hub *api.GateHub) {
+func waitPending(t *testing.T, hub *run.GateHub) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
 	for !hub.HasPending() && time.Now().Before(deadline) {
@@ -1250,8 +1250,8 @@ func TestInitialTaskEchoedAsUser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m.newSession = func(task, stateFile string, images []string) (*api.Session, error) {
-		return api.New(api.Config{
+	m.newSession = func(task, stateFile string, images []string) (*run.Session, error) {
+		return run.New(run.Config{
 			Task: task,
 			Env: roles.Env{
 				Client: stubDone{},
@@ -1283,7 +1283,7 @@ func TestLongStepFlowsUncut(t *testing.T) {
 	reason := strings.Repeat("deliberation — ", 100)
 	var buf bytes.Buffer
 	em := events.New(&buf)
-	api.EmitStep(em, "run", 1, llm.Message{Content: text, Reasoning: reason}, false, 0)
+	run.EmitStep(em, "run", 1, llm.Message{Content: text, Reasoning: reason}, false, 0)
 	var rec map[string]any
 	if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &rec); err != nil {
 		t.Fatalf("not json: %v", err)
@@ -1295,7 +1295,7 @@ func TestLongStepFlowsUncut(t *testing.T) {
 		}
 	}
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(api.Event{Name: "step", Fields: fields}))
+	updated, _ := m.Update(eventMsg(events.Event{Name: "step", Fields: fields}))
 	mm := updated.(*model)
 	if len(mm.transcript.blocks) != 2 {
 		t.Fatalf("blocks = %d", len(mm.transcript.blocks))
@@ -1758,7 +1758,7 @@ func TestBlocksSeparateWithOneBlankRow(t *testing.T) {
 
 func TestToolCardAttachesResult(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(api.Event{
+	updated, _ := m.Update(eventMsg(events.Event{
 		Name: "step",
 		Fields: map[string]any{
 			"tool_calls": []any{map[string]any{"id": "c1", "name": "read_file", "args": "{}"}},
@@ -1771,7 +1771,7 @@ func TestToolCardAttachesResult(t *testing.T) {
 	if view := mm.transcript.Viewport.View(); !strings.Contains(view, "read_file") || !strings.Contains(view, "…") {
 		t.Fatalf("open card missing call/pending: %q", view)
 	}
-	updated, _ = mm.Update(eventMsg(api.Event{
+	updated, _ = mm.Update(eventMsg(events.Event{
 		Name:   "tool_result",
 		Fields: map[string]any{"call_id": "c1", "text": "ok"},
 	}))
@@ -1783,7 +1783,7 @@ func TestToolCardAttachesResult(t *testing.T) {
 		t.Fatalf("closed card missing result/check: %q", view)
 	}
 	// Unknown IDs never corrupt a card: standalone block instead.
-	updated, _ = mm.Update(eventMsg(api.Event{
+	updated, _ = mm.Update(eventMsg(events.Event{
 		Name:   "tool_result",
 		Fields: map[string]any{"call_id": "zz", "text": "stray"},
 	}))
@@ -1816,14 +1816,14 @@ func TestToolResultCollapsesLongOutput(t *testing.T) {
 
 func TestToolCardFailedGlyph(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(api.Event{
+	updated, _ := m.Update(eventMsg(events.Event{
 		Name: "step",
 		Fields: map[string]any{
 			"tool_calls": []any{map[string]any{"id": "c2", "name": "run_shell", "args": "{}"}},
 		},
 	}))
 	mm := updated.(*model)
-	updated, _ = mm.Update(eventMsg(api.Event{
+	updated, _ = mm.Update(eventMsg(events.Event{
 		Name:   "tool_result",
 		Fields: map[string]any{"call_id": "c2", "text": "error: boom"},
 	}))
@@ -1838,7 +1838,7 @@ func TestToolCardFailedGlyph(t *testing.T) {
 
 func TestFindingRendersWarning(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(api.Event{
+	updated, _ := m.Update(eventMsg(events.Event{
 		Name: "finding",
 		Fields: map[string]any{
 			"scope": "per-edit", "rule": "gofmt", "path": "a.go",
@@ -1853,7 +1853,7 @@ func TestFindingRendersWarning(t *testing.T) {
 		t.Fatalf("warning missing label/content: %q", view)
 	}
 	// Rule-less events append nothing, never a blank warning.
-	updated, _ = mm.Update(eventMsg(api.Event{Name: "finding", Fields: map[string]any{}}))
+	updated, _ = mm.Update(eventMsg(events.Event{Name: "finding", Fields: map[string]any{}}))
 	if mm := updated.(*model); len(mm.transcript.blocks) != 1 {
 		t.Fatal("malformed finding must not append")
 	}
@@ -1861,7 +1861,7 @@ func TestFindingRendersWarning(t *testing.T) {
 
 func TestNudgeRendersMarker(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(api.Event{
+	updated, _ := m.Update(eventMsg(events.Event{
 		Name:   "nudge",
 		Fields: map[string]any{"kind": "verify", "text": "[harness] check your work"},
 	}))
@@ -1883,7 +1883,7 @@ func TestNudgeRendersMarker(t *testing.T) {
 		t.Fatalf("stored marker text mutated: %q", mm.transcript.blocks[0].text)
 	}
 	// Empty nudges append nothing.
-	updated, _ = mm.Update(eventMsg(api.Event{Name: "nudge", Fields: map[string]any{}}))
+	updated, _ = mm.Update(eventMsg(events.Event{Name: "nudge", Fields: map[string]any{}}))
 	if mm := updated.(*model); len(mm.transcript.blocks) != 1 {
 		t.Fatal("empty nudge must not append")
 	}
@@ -1909,18 +1909,18 @@ func advanceFrames(t *testing.T, m tea.Model) *model {
 func TestLiveAccumulatesAndStepReplaces(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stRunning
-	updated, _ := m.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": "hel"}}))
+	updated, _ := m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "hel"}}))
 	mm := updated.(*model)
 	if mm.live != "" || mm.liveQueue != "hel" {
 		t.Fatalf("a delta must queue, not paint: live=%q queue=%q", mm.live, mm.liveQueue)
 	}
-	updated, _ = mm.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": "lo"}}))
+	updated, _ = mm.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "lo"}}))
 	mm = advanceFrames(t, updated)
 	if mm.live != "hello" || mm.liveQueue != "" {
 		t.Fatalf("live = %q queue = %q", mm.live, mm.liveQueue)
 	}
 	// Step replaces without duplication.
-	updated, _ = mm.Update(eventMsg(api.Event{Name: "step", Fields: map[string]any{"text": "hello"}}))
+	updated, _ = mm.Update(eventMsg(events.Event{Name: "step", Fields: map[string]any{"text": "hello"}}))
 	mm = updated.(*model)
 	if mm.live != "" || mm.liveQueue != "" {
 		t.Fatal("step must clear the live buffer")
@@ -1937,12 +1937,12 @@ func TestLiveAccumulatesAndStepReplaces(t *testing.T) {
 func TestLiveQueuedTextIsAdoptedByStep(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stRunning
-	updated, _ := m.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": "unseen tail"}}))
+	updated, _ := m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "unseen tail"}}))
 	mm := updated.(*model)
 	if mm.liveQueue == "" {
 		t.Fatal("precondition: text should still be queued")
 	}
-	updated, _ = mm.Update(eventMsg(api.Event{Name: "step", Fields: map[string]any{}}))
+	updated, _ = mm.Update(eventMsg(events.Event{Name: "step", Fields: map[string]any{}}))
 	mm = updated.(*model)
 	if mm.live != "" || mm.liveQueue != "" {
 		t.Fatal("step must clear both buffers")
@@ -1960,9 +1960,9 @@ func TestLiveQueuedTextIsAdoptedByStep(t *testing.T) {
 
 func TestLiveAdoptedWhenStepOmits(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": "visible"}}))
+	updated, _ := m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "visible"}}))
 	mm := updated.(*model)
-	updated, _ = mm.Update(eventMsg(api.Event{Name: "step", Fields: map[string]any{}}))
+	updated, _ = mm.Update(eventMsg(events.Event{Name: "step", Fields: map[string]any{}}))
 	mm = updated.(*model)
 	found := false
 	for _, b := range mm.transcript.blocks {
@@ -1977,7 +1977,7 @@ func TestLiveAdoptedWhenStepOmits(t *testing.T) {
 
 func TestLiveDiscardedOnDone(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": "partial"}}))
+	updated, _ := m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "partial"}}))
 	mm := updated.(*model)
 	updated, _ = mm.Update(doneMsg{answer: "done"})
 	if mm := updated.(*model); mm.live != "" {
@@ -1997,7 +1997,7 @@ func TestLiveUnfollowedStability(t *testing.T) {
 	}
 	y0 := mm.transcript.Viewport.YOffset()
 	for _, chunk := range []string{"a", "b", "c", "d", "e"} {
-		updated, _ = mm.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": chunk}}))
+		updated, _ = mm.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": chunk}}))
 		mm = updated.(*model)
 	}
 	mm = advanceFrames(t, mm)
@@ -2019,7 +2019,7 @@ func TestUnfollowedRevealSkipsTheAnimation(t *testing.T) {
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
 	m.state = stRunning
-	updated, _ := m.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": strings.Repeat("z", 400)}}))
+	updated, _ := m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": strings.Repeat("z", 400)}}))
 	mm := updated.(*model)
 	if mm.transcript.Follow {
 		t.Fatal("setup: must stay unfollowed")
@@ -2111,7 +2111,7 @@ func TestRevealPaintsEveryFrame(t *testing.T) {
 	m.state = stRunning
 	previous := 0
 	for _, chunk := range []string{"al", "pha", "be", "ta"} {
-		m.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": chunk}}))
+		m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": chunk}}))
 		next, _ := m.Update(tickMsg(time.Now()))
 		mm := next.(*model)
 		view := strings.TrimSpace(ansi.Strip(mm.transcript.Viewport.View()))
@@ -2128,7 +2128,7 @@ func TestRevealPaintsEveryFrame(t *testing.T) {
 func TestLiveCapped(t *testing.T) {
 	m := sizeModel(t, testModel())
 	big := strings.Repeat("z", liveMaxRunes+10)
-	updated, _ := m.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": big}}))
+	updated, _ := m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": big}}))
 	mm := updated.(*model)
 	if n := len([]rune(mm.live)); n <= liveMaxRunes {
 		t.Fatalf("live = %d runes, want over cap with marker", n)
@@ -2137,7 +2137,7 @@ func TestLiveCapped(t *testing.T) {
 		t.Fatal("cap must mark once")
 	}
 	before := mm.live
-	updated, _ = mm.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": "more"}}))
+	updated, _ = mm.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "more"}}))
 	if mm := updated.(*model); mm.live != before {
 		t.Fatal("capped buffer must drop further chunks")
 	}
@@ -2146,15 +2146,15 @@ func TestLiveCapped(t *testing.T) {
 func TestHarnessReplyRendersNormally(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	updated, _ := m.Update(eventMsg(api.Event{
+	updated, _ := m.Update(eventMsg(events.Event{
 		Name: "step", Fields: map[string]any{"text": "real answer"},
 	}))
 	mm := updated.(*model)
-	updated, _ = mm.Update(eventMsg(api.Event{
+	updated, _ = mm.Update(eventMsg(events.Event{
 		Name: "nudge", Fields: map[string]any{"kind": "verify", "text": "[harness] check"},
 	}))
 	mm = updated.(*model)
-	updated, _ = mm.Update(eventMsg(api.Event{
+	updated, _ = mm.Update(eventMsg(events.Event{
 		Name: "step", Fields: map[string]any{"text": "noted", "harness_reply": true},
 	}))
 	mm = updated.(*model)
@@ -2321,7 +2321,7 @@ func TestEnvMaxSteps_DefaultAndOverride(t *testing.T) {
 func TestStepEventUpdatesStepBudget(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.maxSteps = 25
-	updated, _ := m.Update(eventMsg(api.Event{
+	updated, _ := m.Update(eventMsg(events.Event{
 		Name:   "step",
 		Fields: map[string]any{"max_steps": float64(37), "text": "hi"},
 	}))
@@ -2353,7 +2353,7 @@ func TestStatusShowsModel(t *testing.T) {
 func TestFirstTokenStampedAndReset(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stRunning
-	updated, _ := m.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": "hel"}}))
+	updated, _ := m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "hel"}}))
 	mm := updated.(*model)
 	if mm.firstToken.IsZero() {
 		t.Fatal("first delta did not stamp firstToken")
@@ -2460,8 +2460,8 @@ func TestStartRunResetsClock(t *testing.T) {
 
 func TestOutcomeUsesObservedChanges(t *testing.T) {
 	m := sizeModel(t, testModel())
-	m.handleEvent(api.Event{Name: "step", Fields: map[string]any{"tool_calls": []any{map[string]any{"id": "read", "name": "read_file", "args": `{"path":"read-only.go"}`}}}})
-	m.handleEvent(api.Event{Name: "outcome", Fields: map[string]any{"outcome": "completed", "files": []any{"changed.go"}}})
+	m.handleEvent(events.Event{Name: "step", Fields: map[string]any{"tool_calls": []any{map[string]any{"id": "read", "name": "read_file", "args": `{"path":"read-only.go"}`}}}})
+	m.handleEvent(events.Event{Name: "outcome", Fields: map[string]any{"outcome": "completed", "files": []any{"changed.go"}}})
 	if len(m.filesTouched) != 1 || !m.filesTouched["changed.go"] {
 		t.Fatalf("counter must use observed effects: %v", m.filesTouched)
 	}
@@ -2470,12 +2470,12 @@ func TestOutcomeUsesObservedChanges(t *testing.T) {
 func TestToolCardUsesTypedStatus(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.appendBlock(toolCardBlock("test", "run_shell"))
-	m.handleEvent(api.Event{Name: "tool_result", Fields: map[string]any{"call_id": "test", "text": "ordinary compiler output", "failed": true}})
+	m.handleEvent(events.Event{Name: "tool_result", Fields: map[string]any{"call_id": "test", "text": "ordinary compiler output", "failed": true}})
 	if !m.transcript.blocks[len(m.transcript.blocks)-1].failed {
 		t.Fatal("typed failure lost")
 	}
 	m.appendBlock(toolCardBlock("read", "read_file"))
-	m.handleEvent(api.Event{Name: "tool_result", Fields: map[string]any{"call_id": "read", "text": "error: is valid file content", "failed": false}})
+	m.handleEvent(events.Event{Name: "tool_result", Fields: map[string]any{"call_id": "read", "text": "error: is valid file content", "failed": false}})
 	if m.transcript.blocks[len(m.transcript.blocks)-1].failed {
 		t.Fatal("file prose overrode successful status")
 	}

@@ -9,7 +9,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/api"
+	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/permission"
 	"github.com/keshon/tars/internal/tools"
 	"github.com/keshon/tars/internal/workspace"
@@ -145,12 +145,12 @@ func (m *model) gateBar() string {
 }
 
 // gateHook is the legacy adapter; production gates receive the active run context.
-func (m *model) gateHook(hub *api.GateHub, runCtx context.Context, ws *workspace.Workspace) func(tool, resource string, args json.RawMessage) (permission.Effect, error) {
+func (m *model) gateHook(hub *run.GateHub, runCtx context.Context, ws *workspace.Workspace) func(tool, resource string, args json.RawMessage) (permission.Effect, error) {
 	return func(tool, resource string, args json.RawMessage) (permission.Effect, error) {
 		return m.contextGate(hub, ws)(runCtx, tool, resource, args)
 	}
 }
-func (m *model) contextGate(hub *api.GateHub, ws *workspace.Workspace) func(context.Context, string, string, json.RawMessage) (permission.Effect, error) {
+func (m *model) contextGate(hub *run.GateHub, ws *workspace.Workspace) func(context.Context, string, string, json.RawMessage) (permission.Effect, error) {
 	return func(runCtx context.Context, tool, resource string, args json.RawMessage) (permission.Effect, error) {
 		key := [2]string{tool, resource}
 		m.alwaysMu.Lock()

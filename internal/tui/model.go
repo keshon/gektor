@@ -1,6 +1,6 @@
 // Package tui renders a run in the terminal: transcript, status, and
 // gate prompts. It owns UI state and local session actions; agent execution
-// and permissions use api.Session events and GateHub.
+// and permissions use run.Session events and GateHub.
 //
 // Print mode remains the default; -tui renders direct, plan, and mission runs.
 package tui
@@ -17,7 +17,7 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/api"
+	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/app"
 	"github.com/keshon/tars/internal/audit"
 	"github.com/keshon/tars/internal/events"
@@ -61,7 +61,7 @@ const (
 	stStopping
 )
 
-type eventMsg api.Event
+type eventMsg run.Event
 type doneMsg struct {
 	answer string
 	err    error
@@ -83,14 +83,14 @@ type model struct {
 	suggestions suggestionState
 	queued      string
 	gateDraft   string
-	events      chan api.Event
-	hub         *api.GateHub
+	events      chan run.Event
+	hub         *run.GateHub
 	cancel      context.CancelFunc
 	ctx         context.Context
 	// base spawns one context per run: an interrupted run's cancelled
 	// context must never leak into the next turn.
 	base  context.Context
-	sess  *api.Session
+	sess  *run.Session
 	state runState
 	gate  string
 	steps int
@@ -117,7 +117,7 @@ type model struct {
 	ws *workspace.Workspace
 	// newSession builds a session for a fresh task (first run and
 	// /new). Follow-ups reuse the running session via Resume.
-	newSession func(task, stateFile string, images []string) (*api.Session, error)
+	newSession func(task, stateFile string, images []string) (*run.Session, error)
 	// retryRun restarts the last turn on the update loop, taking fresh service
 	// snapshots before starting workers. Set by startRun, gated by runErr.
 	retryRun func()
@@ -222,11 +222,11 @@ type model struct {
 // here never reaches handleEvent: the always-confirm scope went blank
 // live for exactly this reason (tests inject events directly and never
 // saw it).
-func gateEvent(name string, fields map[string]any) api.Event {
+func gateEvent(name string, fields map[string]any) run.Event {
 	prompt, _ := fields["prompt"].(string)
 	tool, _ := fields["tool"].(string)
 	resource, _ := fields["resource"].(string)
-	return api.Event{Name: name, Fields: map[string]any{
+	return run.Event{Name: name, Fields: map[string]any{
 		"kind": fields["kind"], "prompt": prompt, "tool": tool, "resource": resource,
 	}}
 }
@@ -262,8 +262,8 @@ func envMaxSteps(env roles.Env) int {
 func Run(ctx context.Context, cfg Config) (string, error) {
 	uiCtx, cancelUI := context.WithCancel(ctx)
 	defer cancelUI()
-	eventsCh := make(chan api.Event, 256)
-	hub := api.NewGateHub(func(name string, fields map[string]any) {
+	eventsCh := make(chan run.Event, 256)
+	hub := run.NewGateHub(func(name string, fields map[string]any) {
 		select {
 		case eventsCh <- gateEvent(name, fields):
 		case <-uiCtx.Done():
@@ -314,8 +314,8 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	env := withoutPrintHooks(cfg.Env)
 	env.Gate = nil
 	env.GateContext = audit.ContextHook(cfg.AuditPath, "tui", m.contextGate(hub, cfg.Env.WS))
-	m.newSession = func(task, stateFile string, images []string) (*api.Session, error) {
-		return api.New(api.Config{
+	m.newSession = func(task, stateFile string, images []string) (*run.Session, error) {
+		return run.New(run.Config{
 			Env:          env,
 			Task:         task,
 			Plan:         m.plan,
@@ -324,7 +324,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 			Images:       images,
 			Answer:       hub.Suspender(),
 			ResumeAnswer: cfg.ResumeAnswer,
-			OnEvent: func(ev api.Event) {
+			OnEvent: func(ev run.Event) {
 				select {
 				case eventsCh <- ev:
 				case <-uiCtx.Done():
@@ -350,14 +350,14 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	m.send = func(msg tea.Msg) {
 		if done, ok := msg.(doneMsg); ok {
 			select {
-			case eventsCh <- api.Event{Name: "_done", Fields: map[string]any{"answer": done.answer, "error": done.err}}:
+			case eventsCh <- run.Event{Name: "_done", Fields: map[string]any{"answer": done.answer, "error": done.err}}:
 			case <-uiCtx.Done():
 			}
 			return
 		}
 		prog.Send(msg)
 	}
-	sendEvent := func(ev api.Event) {
+	sendEvent := func(ev run.Event) {
 		select {
 		case eventsCh <- ev:
 		case <-uiCtx.Done():
@@ -368,14 +368,14 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		m.appendBlock(userBlock(cfg.Task))
 		m.startRun(func(runCtx context.Context) (string, error) {
 			report := ""
-			emitter := events.New(api.EventWriter(func(ev api.Event) {
+			emitter := events.New(events.EventWriter(func(ev run.Event) {
 				if ev.Name == "result" {
 					report, _ = ev.Fields["report"].(string)
 				}
 				sendEvent(ev)
 			}))
 			missionEnv := env
-			missionEnv.OnNudge = func(kind, text string) { api.EmitNudge(emitter, kind, text) }
+			missionEnv.OnNudge = func(kind, text string) { events.EmitNudge(emitter, kind, text) }
 			err := cfg.Mission(runCtx, missionEnv, hub.Suspender(), emitter)
 			return report, err
 		})

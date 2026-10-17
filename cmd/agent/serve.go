@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/api"
+	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/audit"
 	"github.com/keshon/tars/internal/events"
 	"github.com/keshon/tars/internal/llm"
@@ -113,7 +113,7 @@ func serveMain(ctx context.Context, d serveDeps, in io.Reader, out io.Writer, no
 	}
 
 	emitter := events.New(&lockedWriter{mu: &wmu, w: out})
-	hub := api.NewGateHub(func(name string, fields map[string]any) {
+	hub := run.NewGateHub(func(name string, fields map[string]any) {
 		emitter.Emit(name, fields)
 	})
 
@@ -185,7 +185,7 @@ readLoop:
 			go func(id json.RawMessage, params rpcRunParams) {
 				defer wg.Done()
 				defer setCancel(nil)
-				answer, err := serveRun(runCtx, d, hub, emitter, noteW, func(ev api.Event) {
+				answer, err := serveRun(runCtx, d, hub, emitter, noteW, func(ev run.Event) {
 					rec := map[string]any{"seq": ev.Seq, "event": ev.Name}
 					for k, v := range ev.Fields {
 						rec[k] = v
@@ -256,7 +256,7 @@ func (l *lockedWriter) Write(p []byte) (int, error) {
 // serveRun executes one request: fresh task dir, snapshot, then direct
 // session or mission pipeline, both gated through the hub suspender.
 // onEvent carries session step events to the client.
-func serveRun(ctx context.Context, d serveDeps, hub *api.GateHub, emitter *events.Emitter, noteW io.Writer, onEvent func(api.Event), task string, isMission bool, imagePaths []string) (string, error) {
+func serveRun(ctx context.Context, d serveDeps, hub *run.GateHub, emitter *events.Emitter, noteW io.Writer, onEvent func(run.Event), task string, isMission bool, imagePaths []string) (string, error) {
 	if task == "" {
 		return "", fmt.Errorf("run needs a task")
 	}
@@ -325,7 +325,7 @@ func serveRun(ctx context.Context, d serveDeps, hub *api.GateHub, emitter *event
 		}
 		return fmt.Sprintf("%s\n%s", status, out), true
 	}
-	sess, err := api.New(api.Config{
+	sess, err := run.New(run.Config{
 		Env:       env,
 		Task:      task,
 		StateFile: stateFile,

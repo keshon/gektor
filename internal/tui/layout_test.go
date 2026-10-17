@@ -9,7 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/api"
+	"github.com/keshon/tars/internal/events"
 )
 
 func TestCompactSessionRowsSharePagingAndMouseGeometry(t *testing.T) {
@@ -126,7 +126,7 @@ func TestNavigatorCannotSwitchDuringRun(t *testing.T) {
 	// A gate arriving during browsing takes over both rendering and keys.
 	m.openSessions()
 	finishSessionRefresh(t, m)
-	m.handleEvent(api.Event{Name: "awaiting_input", Fields: map[string]any{"kind": "permission", "prompt": "Run tests?"}})
+	m.handleEvent(events.Event{Name: "awaiting_input", Fields: map[string]any{"kind": "permission", "prompt": "Run tests?"}})
 	if m.sessions != nil || m.navFocused || m.state != stPermission {
 		t.Fatal("permission gate did not take over")
 	}

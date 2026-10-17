@@ -10,7 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/api"
+	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/workspace"
 )
@@ -144,11 +144,11 @@ func sessionsTestModel(t *testing.T, entries []sessionEntry) *model {
 	m.state = stDone
 	m.nav.entries = append([]sessionEntry(nil), entries...)
 	m.sessions = &sessionsState{filter: newSearchInput(80), entries: entries, root: tasksRoot()}
-	// Resume needs a session object for follow-ups; api.New validates
+	// Resume needs a session object for follow-ups; run.New validates
 	// a full Env, so tests stub the constructor (production always
 	// wires the real one in Run).
-	m.newSession = func(task, stateFile string, images []string) (*api.Session, error) {
-		return &api.Session{}, nil
+	m.newSession = func(task, stateFile string, images []string) (*run.Session, error) {
+		return &run.Session{}, nil
 	}
 	return m
 }
@@ -240,7 +240,7 @@ func TestSessions_DeleteActiveUnloadsFirst(t *testing.T) {
 	dir := writeSessionState(t, filepath.Join(".tars", "tasks"), "aaa", userHistory("live"))
 	m := sessionsTestModel(t, listSessions())
 	m.stateFile = filepath.Join(dir, "state.json")
-	m.sess = &api.Session{}
+	m.sess = &run.Session{}
 	m.transcript.blocks = []block{answerBlock("old transcript")}
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})

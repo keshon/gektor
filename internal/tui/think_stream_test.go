@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/api"
+	"github.com/keshon/tars/internal/events"
 )
 
 // A thinking model's turn must read as THINK then RESPONSE: deliberation
@@ -20,7 +20,7 @@ func TestThinkStreamsBeforeResponse(t *testing.T) {
 	m.state = stRunning
 
 	for _, chunk := range []string{"checking ", "the ", "parser"} {
-		updated, _ := m.Update(eventMsg(api.Event{Name: "reasoning", Fields: map[string]any{"text": chunk}}))
+		updated, _ := m.Update(eventMsg(events.Event{Name: "reasoning", Fields: map[string]any{"text": chunk}}))
 		m = updated.(*model)
 	}
 	m = advanceFrames(t, m)
@@ -37,7 +37,7 @@ func TestThinkStreamsBeforeResponse(t *testing.T) {
 
 	// The answer now starts, with the reasoning still held above it.
 	for _, chunk := range []string{"Here ", "is ", "the fix"} {
-		updated, _ := m.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": chunk}}))
+		updated, _ := m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": chunk}}))
 		m = updated.(*model)
 	}
 	m = advanceFrames(t, m)
@@ -65,8 +65,8 @@ func TestThinkStreamsBeforeResponse(t *testing.T) {
 func TestThinkAndResponseStaySeparate(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stRunning
-	m.Update(eventMsg(api.Event{Name: "reasoning", Fields: map[string]any{"text": "pondering"}}))
-	m.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": "answering"}}))
+	m.Update(eventMsg(events.Event{Name: "reasoning", Fields: map[string]any{"text": "pondering"}}))
+	m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "answering"}}))
 	m = advanceFrames(t, m)
 
 	if strings.Contains(m.live, "pondering") {
@@ -81,9 +81,9 @@ func TestThinkAndResponseStaySeparate(t *testing.T) {
 func TestResetLiveClearsThink(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stRunning
-	updated, _ := m.Update(eventMsg(api.Event{Name: "reasoning", Fields: map[string]any{"text": "old thought"}}))
+	updated, _ := m.Update(eventMsg(events.Event{Name: "reasoning", Fields: map[string]any{"text": "old thought"}}))
 	m = updated.(*model)
-	updated, _ = m.Update(eventMsg(api.Event{Name: "delta", Fields: map[string]any{"text": "old answer"}}))
+	updated, _ = m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "old answer"}}))
 	m = updated.(*model)
 	m = advanceFrames(t, m)
 
