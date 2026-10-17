@@ -35,8 +35,9 @@ func (a *Agent) handleFinish(ctx context.Context, st *runState, step int, resp l
 	// "finished" a subtask with "Let me write the plan.md file…"
 	// and zero writes. Nudge and continue; escalate via the stuck
 	// counter so a backend that truncates every response is still
-	// bounded by MaxStuckSteps → MaxSteps.
-	if resp.FinishReason == "length" {
+	// bounded by MaxStuckSteps → MaxSteps. At NudgeOff the stump is
+	// accepted as the answer instead.
+	if resp.FinishReason == "length" && a.nudges(NudgeTruncated) {
 		msg := prompts.Truncated
 		msg += a.hint("truncated")
 		history = a.nudge(history, NudgeTruncated, msg)
@@ -55,7 +56,7 @@ func (a *Agent) handleFinish(ctx context.Context, st *runState, step int, resp l
 	// finishes are wrapped; a wrap-up round that yields another
 	// ramble counts as unproductive like any other, and past
 	// MaxThinkWraps the run degrades to finishing as-is.
-	if a.cfg.ReasoningBudget > 0 && st.thinkWraps < a.cfg.MaxThinkWraps {
+	if a.cfg.ReasoningBudget > 0 && st.thinkWraps < a.cfg.MaxThinkWraps && a.nudges(NudgeThinkWrap) {
 		if thought := llm.DeliberationChars(resp.Message); thought > a.cfg.ReasoningBudget {
 			st.thinkWraps++
 			st.stuckSteps++
@@ -72,7 +73,7 @@ func (a *Agent) handleFinish(ctx context.Context, st *runState, step int, resp l
 	// executes, but the model often
 	// then believes — and later claims — that it did. Catch this
 	// before it's mistaken for a genuine finish.
-	if leakedText {
+	if leakedText && a.nudges(NudgeLeak) {
 		history = a.nudge(history, NudgeLeak, prompts.LeakDetected)
 		st.stuckSteps++
 		if st.stuckSteps >= a.cfg.MaxStuckSteps {
@@ -82,7 +83,7 @@ func (a *Agent) handleFinish(ctx context.Context, st *runState, step int, resp l
 		return finishOutcome{history: history}
 	}
 
-	if st.blockFinishDueToVerify {
+	if st.blockFinishDueToVerify && a.nudges(NudgeVerify) {
 		st.blockFinishDueToVerify = false
 		st.verifiedOnce = false
 		history = a.nudge(history, NudgeVerify, fmt.Sprintf(prompts.VerifyFailedContinue, st.verifyFailedOutput))
@@ -93,7 +94,7 @@ func (a *Agent) handleFinish(ctx context.Context, st *runState, step int, resp l
 	// A text reply with unchecked todos is a progress report, not a finish.
 	// The latch keeps narration-only loops terminal; intervening tool work
 	// resets it below.
-	if _, open := a.cfg.Tools.TodoProgress(); len(open) > 0 && st.todoBounces < maxTodoBounces {
+	if _, open := a.cfg.Tools.TodoProgress(); len(open) > 0 && st.todoBounces < maxTodoBounces && a.nudges(NudgeTodo) {
 		st.todoBounces++
 		history = a.nudge(history, NudgeTodo, fmt.Sprintf(prompts.TodoOpen, len(open), formatTodoOpen(open)))
 		a.saveState(history)
@@ -109,7 +110,7 @@ func (a *Agent) handleFinish(ctx context.Context, st *runState, step int, resp l
 	needsVerify := st.toolCalls > 0 ||
 		(a.cfg.VerifyOnZeroWrites && st.mutatingSucceeded == 0) ||
 		claimsFileEffects(resp.Message.Content)
-	if verifyWanted && !st.verifiedOnce && needsVerify {
+	if verifyWanted && !st.verifiedOnce && needsVerify && a.nudges(NudgeVerify) {
 		st.verifiedOnce = true
 		verifyMsg := prompts.Verify + a.stepTag(st, step)
 		// Zero writes is evidence of failure only where writes were expected or
@@ -153,7 +154,7 @@ func (a *Agent) handleFinish(ctx context.Context, st *runState, step int, resp l
 	// by MaxZeroWriteRefusals: a few cheap in-context retries beat a
 	// fresh fix worker that has to rediscover the whole subtask.
 	if (a.cfg.VerifyOnZeroWrites || claimsFileEffects(resp.Message.Content)) && st.mutatingSucceeded == 0 {
-		if st.zeroWriteFinishes < MaxZeroWriteRefusals {
+		if st.zeroWriteFinishes < MaxZeroWriteRefusals && a.nudges(NudgeRefusal) {
 			st.zeroWriteFinishes++
 			history = a.nudge(history, NudgeRefusal, fmt.Sprintf(prompts.AnnouncedNotWritten,
 				lastClaim(resp.Message.Content),

@@ -67,8 +67,13 @@ type Config struct {
 	// answer and is reported separately so a reader can watch it first.
 	OnReasoning func(chunk string)
 	// OnNudge receives harness text (verify rounds, refusals, wrap-ups)
-	// with a kind tag.
+	// with a kind tag. Fires for every nudge regardless of Nudges: what
+	// the model was told and what happened are different records.
 	OnNudge func(kind, text string)
+
+	// Nudges says how much of the harness the model hears. Zero is
+	// NudgeFull, which is what an unset config gets.
+	Nudges NudgeLevel
 
 	// StateFile gets the full history written after every step, so a
 	// crash or MaxSteps resume loses at most one step.

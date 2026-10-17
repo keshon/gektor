@@ -19,7 +19,7 @@ import (
 	"github.com/keshon/tars/internal/audit"
 	"github.com/keshon/tars/internal/checks"
 	"github.com/keshon/tars/internal/events"
-	"github.com/keshon/tars/internal/gorules"
+	"github.com/keshon/tars/internal/rules"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/mission"
 	"github.com/keshon/tars/internal/permission"
@@ -267,6 +267,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			stream:       o.stream,
 			thinkBudget:  o.thinkBudget,
 			skipVerify:   o.noVerify,
+			nudges:       o.nudges,
 			mcpTools:     mcpTools,
 		}, os.Stdin, os.Stdout, os.Stderr)
 		return ctx.Err()
@@ -285,7 +286,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	// What TARS checks written files for. Secrets apply to every text
 	// file whatever the language; gofmt is one rule among them and lives
 	// outside internal/checks so that package stays language-neutral.
-	rules := append(checks.Secrets(), gorules.All()...)
+	rules := append(checks.Secrets(), rules.All()...)
 	env := roles.Env{
 		Identity:        app.IdentityPrompt(identity),
 		IdentityName:    identity.Name,
@@ -308,6 +309,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		// -serve leaves this off until its budget story is decided.
 		TodoFunding: true,
 		SkipVerify:  o.noVerify,
+		Nudges:      o.nudges,
 		OnDelta:     func(chunk string) { fmt.Print(chunk) },
 		OnStep:      stepPrinter(o.outputMode, emitter, o.logMax),
 		OnResult: func(result agent.ToolResult) {

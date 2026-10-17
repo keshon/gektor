@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
 )
@@ -42,6 +43,7 @@ type launchOptions struct {
 	serve                 bool
 	tui                   bool
 	noVerify              bool
+	nudges                agent.NudgeLevel
 	images                string
 	profilePath           string
 	checkProfile          bool
@@ -56,6 +58,7 @@ type launchOptions struct {
 
 func parseLaunchOptions(args []string) (launchOptions, error) {
 	var o launchOptions
+	var nudges string
 	flags := flag.NewFlagSet("agent", flag.ContinueOnError)
 	flags.StringVar(&o.backendURL, "backend", "http://localhost:5001", "backend base URL: bare origin for a local server ("+
 		"http://localhost:5001) or API root for a hosted OpenAI-compatible provider "+
@@ -113,6 +116,7 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	flags.BoolVar(&o.serve, "serve", false, "serve JSON-RPC over stdio instead of running one task: methods run/respond/cancel, events on stdout. See docs/rpc.md")
 	flags.BoolVar(&o.tui, "tui", false, "fullscreen terminal UI instead of print mode: live transcript, status, and gate prompts")
 	flags.BoolVar(&o.noVerify, "no-verify", false, "skip the self-check verify round (finish accepted without the extra verification turn). Saves 1-2 model calls; strong models only")
+flags.StringVar(&nudges, "nudges", "full", "how much harness advice the model hears: full, recovery (only the notices that turn a bad ending into another attempt), off")
 	flags.StringVar(&o.images, "image", "", "attach pictures to the task (comma-separated paths): the model sees them alongside the text. Needs a vision-capable backend (llama-server with --mmproj); koboldcpp refuses loudly")
 	flags.StringVar(&o.profilePath, "profile", "", "path to a versioned JSON provider and generation profile; explicit flags override it")
 	flags.BoolVar(&o.checkProfile, "check-profile", false, "validate and print a profile without contacting or starting its backend")
@@ -123,6 +127,13 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	if err := flags.Parse(args); err != nil {
 		return launchOptions{}, err
 	}
+	// Parsed here rather than at the use site so a typo fails the launch
+	// instead of leaving the harness silently at full.
+	level, ok := agent.ParseNudgeLevel(nudges)
+	if !ok {
+		return launchOptions{}, fmt.Errorf("-nudges %q: want full, recovery or off", nudges)
+	}
+	o.nudges = level
 	o.explicitFlags = map[string]bool{}
 	flags.Visit(func(f *flag.Flag) {
 		o.explicitFlags[f.Name] = true

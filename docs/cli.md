@@ -90,7 +90,39 @@ fails closed. Rules are pattern tripwires, not process isolation. See
 | `-allow RULES` | — | Comma-separated `tool=pattern` rules to allow, e.g. `"run_shell=go *,read_file=*.go"`. Wins over defaults |
 | `-deny RULES` | — | Comma-separated `tool=pattern` rules to deny, e.g. `"run_shell=rm *,read_file=.env"`. Wins over `-allow` |
 | `-no-verify` | `false` | Skip the self-check verify round (finish accepted without the extra verification turn). Also disables `-verify-cmd` in direct mode. Loop guards stay on |
+| `-nudges LEVEL` | `full` | How much harness advice the model hears: `full`, `recovery`, `off`. See [Nudge levels](#nudge-levels) |
 | `-mcp SERVERS` | - | MCP servers as `"name=cmd args...;name2=https://host/mcp"` over stdio JSON-RPC or Streamable HTTP. Tools appear as `mcp__name__tool`. A server that fails to start is skipped with a warning |
+
+## Nudge levels
+
+Tars tells the model when a step went wrong. `-nudges` decides how much
+of that it hears. The levels are not a quality ladder — they split by
+what a notice costs.
+
+A nudge delivered at the end of a step that already made tool calls
+**rides a turn the loop was taking anyway**: another model call happens
+regardless, and the notice adds roughly 40 tokens. These are the stuck
+escalations and the context-budget notices.
+
+A nudge that answers a finish — truncated, think-wrap, todo still open,
+closing, context overflow, announced-but-not-written — returns no
+answer, so the loop **calls the model again**. That is a whole extra
+turn.
+
+| Level | Notices |
+|---|---|
+| `full` | Everything (default) |
+| `recovery` | Only the notices that turn a bad ending into another attempt; the free advice is dropped |
+| `off` | None. A truncated response is accepted as the answer, and a finish with nothing written is accepted too |
+
+Lower the level when the model is strong enough not to need the help —
+a large model pays those extra turns and follows none of them. The
+narrow case for `off` is a local model already tuned by a profile;
+raise it back to `full` for a small one.
+
+Every nudge still reaches `-mode json` observers and the session
+transcript whatever the level: turning the harness down changes what the
+model is told, not the record of what happened.
 
 ## Output and debugging
 

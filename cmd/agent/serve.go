@@ -54,6 +54,7 @@ type serveDeps struct {
 	stream       bool
 	thinkBudget  int
 	skipVerify   bool
+	nudges       agent.NudgeLevel
 	mcpTools     []agent.Tool
 }
 
@@ -288,6 +289,7 @@ func serveRun(ctx context.Context, d serveDeps, hub *run.GateHub, emitter *event
 		BackendKind:     d.backendKind,
 		Stream:          d.stream,
 		SkipVerify:      d.skipVerify,
+		Nudges:          d.nudges,
 		MCPTools:        d.mcpTools,
 		ReasoningBudget: d.thinkBudget,
 	}

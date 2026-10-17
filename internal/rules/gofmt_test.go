@@ -1,4 +1,4 @@
-package gorules
+package rules
 
 import (
 	"testing"

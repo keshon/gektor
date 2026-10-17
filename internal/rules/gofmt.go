@@ -1,11 +1,9 @@
-// Package gorules registers the checks that only make sense for Go.
-//
-// They live outside internal/checks so that package stays language
-// neutral: a rule decides for itself whether it applies, rather than a
-// generic one switching on a file extension and importing that
-// language's toolchain. Adding rustfmt or prettier is a new package and
-// one line where the rule set is built.
-package gorules
+// Package rules holds the language-specific checks, one language per
+// file: rustfmt, prettier and a Python formatter join gofmt here. They
+// live outside internal/checks so that package stays language neutral —
+// a rule decides for itself whether it applies, rather than a generic
+// one switching on a file extension.
+package rules
 
 import (
 	"bytes"
@@ -54,6 +52,6 @@ func firstDiffLine(a, b []byte) int {
 	return min(len(as), len(bs)) + 1
 }
 
-// All returns the Go rules. Append them to checks.Secrets() at the point
-// where a run decides what it checks.
+// All returns the language rules. Append to checks.Secrets() where a run
+// decides what it checks.
 func All() []checks.Rule { return []checks.Rule{gofmt{}} }

@@ -9,7 +9,7 @@ import (
 
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/checks"
-	"github.com/keshon/tars/internal/gorules"
+	"github.com/keshon/tars/internal/rules"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -40,7 +40,7 @@ func checkedWS(t *testing.T) *workspace.Workspace {
 // checkedRules is a Go project's rule set. The wrapper no longer knows
 // what a .go file is, so a test that wants a gofmt finding has to supply
 // the rule that produces one.
-func checkedRules() []checks.Rule { return append(checks.Secrets(), gorules.All()...) }
+func checkedRules() []checks.Rule { return append(checks.Secrets(), rules.All()...) }
 
 func TestChecked_FiresOnDirtyWrite(t *testing.T) {
 	ws := checkedWS(t)

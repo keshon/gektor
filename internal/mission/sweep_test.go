@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/keshon/tars/internal/checks"
-	"github.com/keshon/tars/internal/gorules"
+	"github.com/keshon/tars/internal/rules"
 	"github.com/keshon/tars/internal/roles"
 	"github.com/keshon/tars/internal/tools"
 )
@@ -80,4 +80,4 @@ func TestRunner_SweepsWhenTheMissionFails(t *testing.T) {
 }
 // sweepRules is a Go project's rule set: the mission writes a .go file
 // and expects the sweep to notice it is not gofmt-clean.
-func sweepRules() []checks.Rule { return append(checks.Secrets(), gorules.All()...) }
+func sweepRules() []checks.Rule { return append(checks.Secrets(), rules.All()...) }

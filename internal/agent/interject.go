@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"strings"
+
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/prompts"
 )
@@ -17,10 +19,14 @@ type stepOutcome struct {
 }
 
 // markNudge reports harness text and returns it marked, for call sites
-// (interject) that append history themselves.
+// (interject) that append history themselves. A kind the level drops
+// returns "" so the caller appends nothing.
 func (a *Agent) markNudge(kind, text string) string {
 	marked := harnessText(text)
 	a.notifyNudge(kind, marked)
+	if !a.cfg.Nudges.allows(kind) {
+		return ""
+	}
 	return marked
 }
 
@@ -105,6 +111,78 @@ const (
 	NudgeClosing   = "closing"
 )
 
+// NudgeLevel selects how much of the harness the model hears. The levels
+// are not a quality ladder; they split by cost.
+//
+// A nudge delivered by interject rides a turn the loop was taking anyway:
+// the step already had tool calls, so another model call happens whatever
+// the harness says, and the notice costs ~40 tokens. A nudge that answers
+// a finish — truncated, think-wrap, todo, closing, overflow — returns no
+// answer, so the loop calls the model again, and that is a whole extra
+// turn. Tars is tuned for weak local models, where both pay for
+// themselves; a strong model pays the turns for nothing.
+//
+//	NudgeFull     everything (default)
+//	NudgeRecovery only the notices that turn a bad ending into another
+//	              attempt; the free advice is dropped
+//	NudgeOff      none
+type NudgeLevel int
+
+const (
+	NudgeFull NudgeLevel = iota
+	NudgeRecovery
+	NudgeOff
+)
+
+// ParseNudgeLevel reads a -nudges value. Unknown names fail rather than
+// silently defaulting, so a typo cannot quietly disable the harness.
+func ParseNudgeLevel(s string) (NudgeLevel, bool) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "full", "all":
+		return NudgeFull, true
+	case "recovery", "essential":
+		return NudgeRecovery, true
+	case "off", "none":
+		return NudgeOff, true
+	}
+	return NudgeFull, false
+}
+
+// NudgeLevelName renders a level back to its flag value.
+func NudgeLevelName(l NudgeLevel) string {
+	switch l {
+	case NudgeRecovery:
+		return "recovery"
+	case NudgeOff:
+		return "off"
+	}
+	return "full"
+}
+
+// advisoryNudges ride an existing turn. Every other kind answers a finish
+// and therefore costs one.
+var advisoryNudges = map[string]bool{
+	NudgeStuck:  true,
+	NudgeBudget: true,
+}
+
+// allows reports whether a kind should reach the model at this level.
+func (l NudgeLevel) allows(kind string) bool {
+	switch l {
+	case NudgeOff:
+		return false
+	case NudgeRecovery:
+		return !advisoryNudges[kind]
+	}
+	return true
+}
+
+// nudges reports whether a finish-bounce of this kind should happen at
+// all. Callers ask before bouncing, not only before speaking: a bounce
+// costs a whole turn, so a suppressed one that still called the model
+// again would spend a turn to say nothing.
+func (a *Agent) nudges(kind string) bool { return a.cfg.Nudges.allows(kind) }
+
 // harnessText marks loop-generated text as harness provenance. The
 // model that mused "probably meta instructions from the user" was
 // reading bare instructions; "[harness] ..." names the author inline,
@@ -128,8 +206,15 @@ func (a *Agent) notifyNudge(kind, text string) {
 // nudge appends harness text to history and reports it. Every
 // loop-generated message goes through here (or markNudge below) so
 // observers see exactly what the model saw — never a paraphrase.
+//
+// A kind the level suppresses still gets reported to observers: turning
+// the harness down is a change to what the model is told, not an
+// erasure of the record that something was suppressed.
 func (a *Agent) nudge(history []llm.Message, kind, text string) []llm.Message {
 	marked := harnessText(text)
 	a.notifyNudge(kind, marked)
+	if !a.cfg.Nudges.allows(kind) {
+		return history
+	}
 	return append(history, llm.Message{Role: llm.RoleUser, Content: marked})
 }

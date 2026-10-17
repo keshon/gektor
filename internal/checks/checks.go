@@ -10,12 +10,10 @@ import (
 // Findings are report-only data; the loop decides what to do with them
 // (report, never repair as a side effect).
 //
-// Nothing here knows a language. Rules are supplied by whoever builds
-// the run -- Go lives in internal/gorules, which registers itself like
-// any other -- so adding a formatter for another language is a new file
-// and no change to this package. It used to switch on a ".go" suffix and
-// import go/format, which put one language inside a generically named
-// package and made every other language someone else's problem.
+// Nothing here knows a language. Rules come from internal/rules, one
+// language per file, each registering itself. Adding a formatter is a
+// new file and no change to this package, which used to switch on a
+// ".go" suffix and import go/format.
 
 // Finding is one deterministic check result.
 type Finding struct {

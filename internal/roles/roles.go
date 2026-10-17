@@ -80,6 +80,11 @@ type Env struct {
 	// keep their zero-writes refusal whatever this says.
 	SkipVerify bool
 
+	// Nudges is how much harness advice the model hears, from the
+	// -nudges flag. Zero is full, so mission workers that never set it
+	// are unaffected.
+	Nudges agent.NudgeLevel
+
 	// MCPTools are discovered MCP tools appended to the full tool set
 	// (Interactive, Subagent, Worker — never the read-only Inspector).
 	MCPTools []agent.Tool
@@ -107,9 +112,8 @@ type Env struct {
 	OnResult     func(agent.ToolResult)
 
 	// Rules are the deterministic checks this run applies to written
-	// files. Go's live in internal/gorules; checks.Secrets covers every
-	// language. Which set to use is the frontend's call, so a run on a
-	// non-Go project passes only what applies to it.
+	// files. Language rules live in internal/rules; checks.Secrets covers
+	// every language. Which set to use is the frontend's call.
 	Rules []checks.Rule
 
 	// Checks collects the run's findings: post-write scans from wrapped
@@ -345,6 +349,7 @@ func Interactive(e Env, label, stateFile string,
 		MaxSteps:        e.MaxSteps,
 		StateFile:       e.statePath(stateFile),
 		SkipVerify:      e.SkipVerify,
+		Nudges:          e.Nudges,
 		Verify:          verify,
 		OnStep:          e.onStep(label),
 		OnToolResult:    e.OnToolResult,
