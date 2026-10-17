@@ -11,10 +11,8 @@ import (
 // Identity is the persona a profile contributes to a run: the instruction
 // text, the response style the preset adds, and the generation budget.
 //
-// It is deliberately not a conversation. An agent run starts from a task,
-// not from a transcript, so there is no greeting and no dialogue examples
-// to carry here -- both used to come from a character card, and a card's
-// whole purpose was to make a plain exchange feel like a scene.
+// It carries instruction only. An agent run starts from a task, so there is
+// no prior exchange to summarize and no scene to set up.
 type Identity struct {
 	Name         string
 	System       string
@@ -60,8 +58,8 @@ func Compile(o IdentityOptions) (Identity, []string, error) {
 		id.System += "\n\nUser persona: " + o.Persona
 	}
 	warnings := []string{}
-	if strings.Contains(id.System, "{{char}}") {
-		warnings = append(warnings, "system prompt kept a {{char}} macro with no character to fill it")
+	if strings.Contains(id.System, "{{assistant}}") {
+		warnings = append(warnings, "system prompt kept an {{assistant}} macro; presets expand it, a raw system prompt does not")
 	}
 	if strings.Contains(id.System, "{{user}}") || strings.Contains(id.PostHistory, "{{user}}") {
 		warnings = append(warnings, "prompt kept a {{user}} macro; macros are not expanded in agent identity")
@@ -73,10 +71,10 @@ func Compile(o IdentityOptions) (Identity, []string, error) {
 // literal: a preset is not a template that gets to expand further.
 func renderPlaceholders(text, name, user, persona string) string {
 	r := strings.NewReplacer(
-		"{{char}}", name,
+		"{{assistant}}", name,
 		"{{user}}", user,
 		"{{persona}}", persona,
-		"{char}", name,
+		"{assistant}", name,
 		"{user}", user,
 	)
 	return r.Replace(text)

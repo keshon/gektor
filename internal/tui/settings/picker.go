@@ -87,9 +87,6 @@ func (f *Model) OpenPicker(props Props) tea.Cmd {
 	if root == "." || root == "" {
 		exe, _ := os.Executable()
 		root = filepath.Join(filepath.Dir(exe), "assets", "models", "thinking")
-		if key == "character" {
-			root = filepath.Join(filepath.Dir(exe), "assets", "characters")
-		}
 		if key == "load-profile" {
 			root = filepath.Join(filepath.Dir(exe), "profiles")
 		}
@@ -178,7 +175,7 @@ func (f *Model) PickerKey(msg tea.KeyPressMsg, props Props) tea.Cmd {
 				}
 				f.Workspace.LoadedPath = value
 				f.Workspace.Draft.Load(loaded)
-				f.Error = "Setup loaded; Apply uses its model, voice and character selection"
+				f.Error = "Setup loaded; Apply uses its model and identity selection"
 			}
 			f.Editor.SetValue(value)
 			f.Fields[f.Index].Value = value
@@ -267,10 +264,6 @@ func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 	inner := max(w-6, 12)
 	title := p.Field
 	switch title {
-	case "character":
-		title = "Character card"
-	case "model-file":
-		title = "Thinking model"
 	case "load-profile":
 		title = "Profile / saved setup"
 	case "app-workspace":

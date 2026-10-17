@@ -18,9 +18,9 @@ func TestEveryCategoryHasAHint(t *testing.T) {
 	}
 }
 
-// The Application page offers the workspace and nothing else: Mode went
-// with the chat runner, Voice with the speech subsystem, and a page that
-// still emitted those keys would let a draft stage values nothing reads.
+// The Application page offers the workspace and nothing else. A page that
+// emitted a key nothing reads would let a draft stage values that silently
+// vanish on apply.
 func TestApplicationPageEmitsOnlyTheWorkspace(t *testing.T) {
 	_, fields := PageFields(config.Profile{Version: 1}, "application", config.Preferences{Workspace: "D:/work"})
 	want := []string{"app-workspace"}
@@ -43,7 +43,7 @@ func TestApplicationPageEmitsOnlyTheWorkspace(t *testing.T) {
 func TestPageFieldsDoNotAliasTheProfile(t *testing.T) {
 	p := config.Profile{
 		Version:      1,
-		Provider:     config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local", Ownership: "external"},
+		Provider:     config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local"},
 		Generation:   config.Generation{MaxTokens: 100, ContextLimit: 1000},
 		Identity: &config.Identity{UserName: "User"},
 	}

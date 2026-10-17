@@ -74,11 +74,11 @@ service changes and closes accepted thinking services. Tool processes and MCP
 retain their separate per-launch owners. Staged profile copies do not
 share mutable options with their callers.
 
-Managed thinking and recognition owners check whether their child has exited
-before reusing it. A later request may start a replacement; a failed request is
-never replayed automatically. Thinking restarts release the previous log handle.
-Closing the owner prevents further starts. Subprocess lifecycle tests cover reuse,
-exit, replacement and shutdown without loading real model weights.
+TARS starts no backend process. There is no server owner, no readiness wait and
+no restart path, because there is nothing to own. A model server that exits
+mid-run surfaces as a connection error on the next request. This is a deliberate
+surrender: supervision belongs to a supervisor, and the trade is that nothing
+can be supervised badly at the cost of nothing recovering automatically.
 
 ## The loop
 
@@ -346,8 +346,8 @@ profile.
 
 That indirection used to be an in-place apply: a candidate was composed, a client
 was reused when the provider and context window matched, and ownership transferred
-in place. It had three separate implementations — one per runner, then one for the
-speech-only case — that had drifted apart enough to give the same setting three
+in place. It had three separate implementations — one per runner, then one for a
+text-only launch — that had drifted apart enough to give the same setting three
 different effects. A launch composes once now, so `app.Runtime` owns services and
 closes them, and nothing walks a reconfigure path.
 
@@ -360,16 +360,16 @@ failure used to leave a `profiles/custom` file on disk holding settings that wer
 never applied and that nothing referenced, with the workspace still pointing at it
 as though the apply had landed.
 
-## Profile compatibility
+## Profile schema changes
 
 `config.Profile` decodes strictly: an unknown key is an error, so a misspelled
 setting fails at load rather than being silently ignored. That is the right
 default, and it means removing a field breaks every file that still carries it.
 
-The one exception is explicit. `Load` rewrites a legacy `conversation` key to
-`identity` before the strict decode, and drops a legacy `speech` key outright.
-The rename is a mapping rather than a discard because the block is the same fields
-under an older name, and discarding it would erase a reader's persona the first
-time they loaded their own saved setup. Speech has no successor, so keeping its
-values would only let a stale profile look configured. A profile carrying both
-identity blocks is an error rather than a guess.
+Nothing rewrites such a file. A compatibility mapping is permanent cost for a
+one-time problem, and it keeps the removed keys documented forever, so a
+profile written against an older schema is rejected with the offending key
+named and the reader deletes the line. The bundled profiles are loaded by a
+test for exactly this reason: strictness plus no build-time coverage means a
+deleted field would otherwise surface only on someone's machine at first
+launch.

@@ -17,9 +17,9 @@ import (
 	"github.com/keshon/tars/internal/workspace"
 )
 
-// Session search: a centered popup over the chat with open,
-// rename, and delete. A session is a conversation: each task dir holds
-// the whole turn history in state.json, so one row per dir.
+// Session search: a centered popup over the transcript with open,
+// rename and delete. Each task directory holds the whole turn
+// history in state.json, so one row per directory.
 //
 // Storage follows pi, not an index: the title lives in the session dir
 // (written once at creation, rewritten on rename), the screen scans on
@@ -332,7 +332,7 @@ func (m *model) openSelected() tea.Cmd {
 	sess, err := m.newSession(task, stateFile, nil)
 	if err != nil {
 		m.plan = oldPlan
-		s.flash = "cannot open chat: " + err.Error()
+		s.flash = "cannot open session: " + err.Error()
 		return nil
 	}
 	m.saveDraft()
@@ -468,7 +468,7 @@ func (m *model) commitRename() {
 
 // deleteSelected removes the session dir — title goes with it, so no
 // orphan rows — then re-scans. Deleting the active session unloads it
-// first (empty-chat state, then the dir is just files). Only at rest:
+// first (the empty state, then the dir is just files). Only at rest:
 // unloading mid-run would orphan the in-flight turn.
 func (m *model) deleteSelected() {
 	s := m.sessions
@@ -497,7 +497,6 @@ func (m *model) deleteSelected() {
 		return
 	}
 	delete(m.drafts, filepath.Join(cur.dir, "state.json"))
-	delete(m.drafts, filepath.Join(cur.dir, "conversation.json"))
 	m.nav.entries = withoutSession(m.nav.entries, cur.dir)
 	s.all = withoutSession(s.all, cur.dir)
 	s.entries = withoutSession(s.entries, cur.dir)
@@ -531,11 +530,11 @@ func (m *model) headerLine() string {
 }
 
 // activeSessionTitle names the open session for the header and the
-// sessions bottom bar: stored title, then dir id; a dash when chatting
+// sessions bottom bar: stored title, then dir id; a dash while a session is open
 // without one yet. No history reads: the header renders every second.
 func (m *model) activeSessionTitle() string {
 	if m.stateFile == "" {
-		return "New chat"
+		return "New session"
 	}
 	dir := filepath.Dir(m.stateFile)
 	for _, e := range m.nav.entries {
@@ -671,7 +670,7 @@ func newSearchInput(width int) textinput.Model {
 	style := filter.Styles()
 	style.Cursor.Shape = tea.CursorUnderline
 	filter.SetStyles(style)
-	filter.Placeholder = "Session name or conversation text"
+	filter.Placeholder = "Session name or history text"
 	filter.CharLimit = 80
 	filter.SetWidth(width)
 	return filter

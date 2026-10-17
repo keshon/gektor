@@ -205,7 +205,7 @@ func TestClaimsFileEffects(t *testing.T) {
 	}
 }
 
-func TestAgent_ChitChatSkipsVerify(t *testing.T) {
+func TestAgent_PlainAnswerSkipsVerify(t *testing.T) {
 	client := &stubClient{responses: []llm.ChatResponse{
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: "hey there!"}},
 	}}

@@ -21,16 +21,16 @@ type footerCell struct {
 
 func (m *model) legacyFooterActions() []footerAction {
 	gated := m.state == stPermission || m.state == stAsk
-	chat := !gated && m.dialog == nil && m.sessions == nil && !m.header.focused
-	idle := chat && m.state == stDone
+	free := !gated && m.dialog == nil && m.sessions == nil && !m.header.focused
+	idle := free && m.state == stDone
 	return []footerAction{
 		{tea.KeyF1, 0, "F1", "Help", "Help", !gated && m.sessions == nil && !m.header.focused},
 		{tea.KeyF2, 0, "F2", "Search", "Search", !gated && m.dialog == nil && !m.header.focused},
-		{tea.KeyF3, 0, "F3", "Details", "View", chat},
+		{tea.KeyF3, 0, "F3", "Details", "View", free},
 		{tea.KeyF4, 0, "F4", "New", "New", idle},
 		{tea.KeyF5, 0, "F5", "Mode", "Mode", idle && !m.mission},
-		{tea.KeyF6, 0, "F6", "Sidebar", "Pane", chat && m.termW >= navigatorMinWidth},
-		{tea.KeyF7, 0, "F7", "Latest", "End", chat},
+		{tea.KeyF6, 0, "F6", "Sidebar", "Pane", free && m.termW >= navigatorMinWidth},
+		{tea.KeyF7, 0, "F7", "Latest", "End", free},
 		{tea.KeyF8, 0, "F8", "", "", false},
 		{tea.KeyF9, 0, "F9", "Menu", "Menu", !gated && m.dialog == nil && m.sessions == nil},
 		{tea.KeyF10, 0, "F10", "Quit", "Quit", true},

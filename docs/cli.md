@@ -152,23 +152,20 @@ agent.exe -profile profiles\llama-external.json -check-profile
 agent.exe -profile profiles\llama-external.json -tui
 ```
 
-Two profiles ship with the repository. `llama-managed.json` starts its own
-`llama-server` from assets under `assets/runtimes` and `assets/models/thinking`;
-`llama-external.json` expects a server already listening on
-`http://127.0.0.1:8080`. Adjust the endpoint and context window to your own
-server. This stage supports external thinking services only.
+One profile ships with the repository: `llama-external.json`, which expects a
+server already listening on `http://127.0.0.1:8080`. Adjust the endpoint and
+context window to your own server, or point `-backend` and `-model` at a
+different one without a profile at all.
 
-A profile carries three blocks. `provider` selects the backend and, when
-`ownership` is `managed`, the runtime and weights to launch. `generation` sets
-the response budget, context window and temperature. `identity` sets the persona:
+A profile carries three blocks. `provider` names the protocol, endpoint and
+model. `generation` sets the response budget, context window and
+temperature. `identity` sets the persona:
 `user_name`, `system_prompt`, `post_history`, `name`, `user_persona` and
 `prompt_preset`.
 
-The identity block was called `conversation` in older profiles. Loading one still
-works: the key is renamed before the profile is decoded, so a saved setup keeps
-its persona. A profile carrying both keys is rejected rather than resolved by
-guesswork. Decoding is otherwise strict — an unrecognized key is an error, so a
-misspelled setting fails at load instead of being silently ignored.
+Decoding is strict. An unrecognized key is an error, so a misspelled setting fails at
+load instead of being silently ignored, and a profile written for a removed schema is
+rejected with the offending key named rather than being rewritten.
 
 ## Identity flags
 

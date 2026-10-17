@@ -1,9 +1,7 @@
 package settings
 
 import (
-	"context"
 	"slices"
-	"strings"
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
@@ -12,8 +10,6 @@ import (
 
 type Workspace struct {
 	Draft                    *Draft
-	SampleID                 uint64
-	SampleCancel             context.CancelFunc
 	Section, LoadedPath      string
 	AutoSaved, Nav, Advanced bool
 }
@@ -78,54 +74,13 @@ func (f *Model) SyncInputFocus(active bool) {
 }
 
 func (f *Model) FieldVisible(index int) bool {
-	if index < len(f.Fields) && f.Workspace != nil && f.Workspace.Section == "character" && f.Fields[index].Key == "name" {
-		for _, field := range f.Fields {
-			if field.Key == "character" && strings.TrimSpace(field.Value) != "" {
-				return false
-			}
-		}
-	}
-	if f.Workspace != nil && f.Workspace.Section == "speech" && index < len(f.Fields) {
-		switch f.Fields[index].Key {
-		case "vad", "mic-start", "mic-end", "mic-threshold":
-			return f.Workspace.Advanced
-		}
-	}
 	if index >= len(f.Fields) || f.Workspace == nil || f.Workspace.Section != "model" {
 		return true
 	}
-	key := f.Fields[index].Key
-	managed := false
-	for _, field := range f.Fields {
-		if field.Key == "ownership" {
-			v := field.Value
-			if f.Index < len(f.Fields) && f.Fields[f.Index].Key == "ownership" {
-				v = f.Editor.Value()
-			}
-			managed = v == "managed"
-		}
-	}
-	if key == "ownership" {
-		return true
-	}
-	if managed {
-		switch key {
-		case "model-file", "gpu-layers":
-			return true
-		case "runtime", "model-root", "endpoint":
-			return f.Workspace.Advanced
-		default:
-			return false
-		}
-	}
-	switch key {
-	case "runtime", "model-root", "model-file", "gpu-layers":
-		return false
-	case "key-env":
+	if f.Fields[index].Key == "key-env" {
 		return f.Workspace.Advanced
-	default:
-		return true
 	}
+	return true
 }
 
 func (f *Model) FirstVisibleField() int {

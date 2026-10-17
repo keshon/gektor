@@ -43,12 +43,12 @@ func TestHeaderMenusPreserveDraftAndFrame(t *testing.T) {
 func TestHeaderMouseActionsAndGateIsolation(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	m.Update(tea.MouseClickMsg{X: m.conversationOffset() + m.headerBadges()[0].start + 1, Y: 2, Button: tea.MouseLeft})
+	m.Update(tea.MouseClickMsg{X: m.promptOffset() + m.headerBadges()[0].start + 1, Y: 2, Button: tea.MouseLeft})
 	if m.header.menu != "" || m.header.focused {
 		t.Fatal("status labels opened a dropdown")
 	}
 	m.state = stPermission
-	m.Update(tea.MouseClickMsg{X: m.conversationOffset() + m.headerBadges()[0].start + 1, Y: 2, Button: tea.MouseLeft})
+	m.Update(tea.MouseClickMsg{X: m.promptOffset() + m.headerBadges()[0].start + 1, Y: 2, Button: tea.MouseLeft})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF9})
 	if m.header.focused {
 		t.Fatal("header hid permission prompt")

@@ -9,10 +9,8 @@ import (
 	"github.com/keshon/tars/internal/config"
 )
 
-// The chat flags this used to cover are gone, along with the only alias
-// pair left in the flag set. What still needs pinning is the machinery
-// the removals left behind: an explicit false, the name a flag was typed
-// under, and the task text.
+// Flag parsing has three behaviours worth pinning: an explicit false, the
+// name a flag was typed under, and the task text.
 func TestParseLaunchOptionsKeepsExplicitNamesAndTaskText(t *testing.T) {
 	o, err := parseLaunchOptions([]string{"-grammar=false", "-system-prompt", "be terse", "explain", "this"})
 	if err != nil {
@@ -34,7 +32,7 @@ func TestParseLaunchOptionsKeepsExplicitNamesAndTaskText(t *testing.T) {
 func TestResolveLaunchExplicitValuesOverrideProfile(t *testing.T) {
 	p := config.Profile{
 		Version:      1,
-		Provider:     config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "profile-model", Ownership: "external"},
+		Provider:     config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "profile-model"},
 		Generation:   config.Generation{MaxTokens: 256, ContextLimit: 4096, Temperature: .8},
 		Identity: &config.Identity{UserName: "Alex", SystemPrompt: "profile rules"},
 	}
@@ -60,7 +58,7 @@ func TestResolveLaunchExplicitValuesOverrideProfile(t *testing.T) {
 func TestResolveLaunchClonesHandoffProfile(t *testing.T) {
 	p := config.Profile{
 		Version:      1,
-		Provider:     config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local", Ownership: "external"},
+		Provider:     config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local"},
 		Generation:   config.Generation{MaxTokens: 256, ContextLimit: 4096},
 		Identity: &config.Identity{UserName: "Alex"},
 	}
@@ -76,10 +74,9 @@ func TestResolveLaunchClonesHandoffProfile(t *testing.T) {
 	}
 }
 
-// The generated profile must be usable for both modes. ConfigureAgent
-// substitutes a Identity when one is missing but never writes it back,
-// so switching a generated session to Chat was refused with a requirement
-// nothing on that screen could satisfy.
+// The generated profile must carry an identity. ConfigureAgent
+// substitutes one when it is missing but never writes it back, so a
+// profile that omitted it reached the You page empty.
 func TestGeneratedProfileCarriesAnIdentity(t *testing.T) {
 	o, err := parseLaunchOptions([]string{"-tui", "-backend-kind", "llama", "-backend", "http://127.0.0.1:8080"})
 	if err != nil {

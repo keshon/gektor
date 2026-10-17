@@ -15,15 +15,13 @@ import (
 )
 
 func PickerFiles(key string) bool {
-	return key == "model-file" || key == "load-profile" || key == "app-workspace"
+	return key == "load-profile" || key == "app-workspace"
 }
 
-func PickerControl(key string) bool { return PickerFiles(key) || key == "model" || key == "microphone" }
+func PickerControl(key string) bool { return PickerFiles(key) || key == "model" }
 
 func PickerAccepts(key, path string) bool {
 	switch key {
-	case "model-file":
-		return strings.EqualFold(filepath.Ext(path), ".gguf")
 	case "load-profile":
 		return strings.EqualFold(filepath.Ext(path), ".json")
 	}
@@ -51,7 +49,7 @@ func CatalogDetail(key, path string) string {
 			return err.Error()
 		}
 		if preset.ID == "custom" {
-			return "Custom · Uses your base prompt and card overrides without adding a response-style preset."
+			return "Custom · Uses your base prompt without adding a response-style preset."
 		}
 		return preset.Name + " · " + preset.Instruction
 	}
@@ -60,7 +58,7 @@ func CatalogDetail(key, path string) string {
 		if err != nil {
 			return "Unavailable profile: " + err.Error()
 		}
-		return p.Provider.Kind + " · " + p.Provider.Ownership + " · " + p.Provider.Model + " · " + path
+		return p.Provider.Kind + " · " + p.Provider.Model + " · " + path
 	}
 	return path
 }
@@ -74,53 +72,11 @@ func ChoiceLabel(key, value string) string {
 		if err == nil {
 			return preset.Name
 		}
-	case "greeting":
-		if value == "0" {
-			return "Main greeting"
-		}
-		return "Alternate greeting " + value
 	case "theme":
 		if value == "light" {
 			return "Light"
 		}
 		return "Dark"
-	case "app-mode":
-		if value == "chat" {
-			return "Chat · no tools"
-		}
-		if value == "agent" {
-			return "Agent · workspace tools"
-		}
-	case "app-voice":
-		switch value {
-		case "off":
-			return "Off · text only"
-		case "ptt":
-			return "Push-to-talk"
-		case "live":
-			return "Hands-free"
-		}
-	case "ownership":
-		if value == "managed" {
-			return "Local runtime · llama.cpp"
-		}
-		if value == "external" {
-			return "Connect to a running server"
-		}
-	case "variant":
-		if value == "nano" {
-			return "Chatterbox Nano"
-		}
-		if value == "turbo" {
-			return "Chatterbox Turbo"
-		}
-	case "prefer-main", "prefer-post":
-		if value == "true" {
-			return "Enabled"
-		}
-		if value == "false" {
-			return "Disabled"
-		}
 	}
 	return value
 }
@@ -132,13 +88,11 @@ func Hint(section string) string {
 	case "you":
 		return "Your name and persona are used by the compiled prompts."
 	case "application":
-		return "Mode sets capabilities; switching modes starts a session of its own."
+		return "The workspace tasks run in."
 	case "model":
 		return "Choose the thinking model."
 	case "generation":
 		return "Response budget and context window for one turn."
-	case "speech":
-		return "Choose voice services."
 	case "prompts":
 		return "Preset adds response style to the compiled instruction."
 	}
@@ -165,18 +119,8 @@ func Choices(key string) []string {
 		return ids
 	case "prefer-main", "prefer-post":
 		return []string{"true", "false"}
-	case "app-mode":
-		return []string{"chat", "agent"}
-	case "app-voice":
-		return []string{"off", "ptt", "live"}
-	case "vad":
-		return []string{"silero", "energy"}
-	case "ownership":
-		return []string{"external", "managed"}
 	case "kind":
 		return []string{"llama", "kobold", "openai"}
-	case "variant":
-		return []string{"nano", "turbo"}
 	}
 	return nil
 }

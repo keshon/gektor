@@ -70,37 +70,6 @@ func (m *model) saveApplication() error {
 	return config.SavePreferences(m.application.PreferencePath, p)
 }
 
-// DialogueProjection carries text context without exposing historical tool calls.
-func DialogueProjection(history []llm.Message) []llm.Message {
-	out := []llm.Message{}
-	var user, answer string
-	flush := func() {
-		if user != "" && answer != "" {
-			out = append(out, llm.Message{Role: llm.RoleUser, Content: user}, llm.Message{Role: llm.RoleAssistant, Content: answer})
-		}
-		user, answer = "", ""
-	}
-	for _, m := range history {
-		switch m.Role {
-		case llm.RoleUser:
-			flush()
-			user = m.Content
-		case llm.RoleAssistant:
-			if m.Content != "" {
-				if answer != "" {
-					answer += "\n"
-				}
-				answer += m.Content
-			}
-		case llm.RoleTool:
-			if user != "" {
-				answer += "\n[Prior tool output] " + m.Content
-			}
-		}
-	}
-	flush()
-	return out
-}
 
 // requestProfileChange replaces owned services without starting an Agent run.
 func (m *model) requestProfileChange(profile config.Profile) error {
@@ -111,17 +80,7 @@ func (m *model) requestProfileChange(profile config.Profile) error {
 		return err
 	}
 
-	if profile.Provider.Ownership == "managed" {
-		for _, path := range []string{profile.Provider.Runtime, profile.Provider.ModelFile} {
-			info, err := os.Stat(path)
-			if err != nil {
-				return fmt.Errorf("model configuration: %w", err)
-			}
-			if info.IsDir() {
-				return fmt.Errorf("select a file: %s", path)
-			}
-		}
-	}
+
 	p := m.application.Preferences
 	p.Profile = &profile
 	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Workspace != nil && m.dialog.form.Workspace.LoadedPath != "" {
@@ -151,8 +110,8 @@ func (m *model) requestProfileChange(profile config.Profile) error {
 	}
 	if profile.Identity == nil {
 		// Materialize rather than refuse. Refusing left the reader on a
-		// screen with no way to create one, and the bundled Agent profile
-		// carries no conversation block at all, so this was the ordinary
+		// screen with no way to create one, and the bundled profile
+		// carries no identity block at all, so this was the ordinary
 		// path rather than an edge case.
 		profile.Identity = &config.Identity{
 			UserName:     config.DefaultUserName,

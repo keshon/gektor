@@ -96,7 +96,6 @@ func TestRefusedApplyLeavesFilesAndRuntimeAlone(t *testing.T) {
 	m := settingsModel(t)
 	root := t.TempDir()
 	profile := m.config.Profile.Clone()
-	profile.Provider.ModelFile = filepath.Join(root, "assets", "model.gguf")
 	custom := filepath.Join(root, "profiles", "custom", "custom-test.json")
 	if err := os.MkdirAll(filepath.Dir(custom), 0o755); err != nil {
 		t.Fatal(err)

@@ -1621,7 +1621,7 @@ func TestCRLFContentStaysInWidth(t *testing.T) {
 
 func TestToolOutputBranchesAndCloses(t *testing.T) {
 	st := defaultStyles()
-	b := toolCardBlock("c1", `read_file {"path":"internal/chat/config.go"}`)
+	b := toolCardBlock("c1", `read_file {"path":"internal/config/profile.go"}`)
 	b.result = "file content ....\nfile content ....\nfile content ...."
 	b.open = false
 	rows := strings.Split(ansi.Strip(renderBlock(b, st, tagged(), 80)), "\n")

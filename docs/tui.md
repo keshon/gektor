@@ -330,20 +330,19 @@ actions. Read-only inspectors support arrows, PageUp/PageDown and wheel scrollin
 Choice fields and protocol switches cycle with Space or a mouse click. Forms
 expose their own Next/Apply/Cancel footer actions instead of unrelated hotkeys.
 
-## Managed thinking
+## Thinking service
 
-`agent.exe -profile profiles/llama-managed.json -tui`
-uses the imported llama.cpp runtime and local Qwen starter model.
-Settings > Model selects external/managed ownership, the executable,
-GGUF file, GPU layers, protocol and URL. Managed mode currently supports llama only.
-Set Model directory to any model folder, including an LM Studio root; focus the
-GGUF field and use Space/click to cycle recursively discovered files. A direct
-GGUF path works without a directory scan. Models are used in place, never moved.
+TARS connects to a model server someone else started. Start one with
+`run-server-llama.cmd` or `run-server-kobold.cmd`, wait for it to report the
+model loaded, then point TARS at it.
 
-Loading starts on the first request, with a five-minute readiness limit.
-Logs are in var/thinking. Exiting closes the owned process tree.
-Occupied ports are refused; external servers are never terminated. Model loading
-may take time before the first reply; the normal generation indicator remains visible.
+Settings > Model selects the protocol, server address, model identifier and,
+in Advanced, the environment variable holding an API key. Focus the model
+field and press Space for models the server reports; typing a name that is
+not on that list works too, since a server need not enumerate what it serves.
+
+TARS does not start, stop or restart that server. If it exits mid-run the
+next request reports a connection error.
 
 ## Shared settings workspace
 
@@ -400,13 +399,11 @@ A launch requires a workspace and starts in Plan. Act enables tool execution und
 the existing permission gates. Applying settings in an existing session preserves
 the Plan/Act choice and never starts a run.
 
-Common-launch sessions live under `var/chats`, with `state.json` as the checkpoint
+Common-launch sessions live under `var/sessions`, with `state.json` as the checkpoint
 and `settings.json` recording the saved profile. Opening a session restores its
 profile and opens in Plan. Existing archives without settings use the current
 service profile. Standalone CLI sessions stay in their workspace task store under
-`.tars/tasks`. Directories left behind by the removed chat runner hold a
-`conversation.json` and are skipped by the session list rather than offered and
-failing to open.
+`.tars/tasks`.
 
 ## Panel status and manual compaction
 

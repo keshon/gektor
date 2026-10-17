@@ -17,7 +17,6 @@ import (
 	"github.com/keshon/tars/internal/api"
 	"github.com/keshon/tars/internal/app"
 	"github.com/keshon/tars/internal/audit"
-	thinkingservice "github.com/keshon/tars/internal/backend"
 	"github.com/keshon/tars/internal/events"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/mission"
@@ -318,14 +317,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		return ctx.Err()
 	}
 
-	var thinkingClient llm.Client = client
-	if o.thinkingSettings.Ownership == "managed" {
-		managed, err := thinkingservice.NewLlama(o.thinkingSettings, o.contextLimit, client, filepath.Join(filepath.Dir(launch.preferencePath), "thinking"))
-		if err != nil {
-			return err
-		}
-		thinkingClient = managed
-	}
+	thinkingClient := client
 	owned := app.NewRuntime(&app.Services{Client: thinkingClient})
 	defer owned.Close()
 	// Identity and response style come from the profile; the agent's own
@@ -442,16 +434,16 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		}
 
 		// A launch without -profile still needs a services handle and an
-		// Application: Settings, Mode and Voice read both, and with neither
-		// every row that needs them is disabled and the menus cannot be
-		// entered at all. Build the profile this launch would have loaded.
+		// Application: Settings reads both, and with neither every row
+		// that needs them is disabled and the menus cannot be entered
+		// at all. Build the profile this launch would have loaded.
 		profile := o.selectedProfile
 		if profile.Version == 0 {
 			profile = launchProfile(o, contextLimit)
 			note("no -profile: using a generated one so Settings stays reachable")
 		}
 
-		prepared, err := app.ConfigureAgent(profile, filepath.Join(filepath.Dir(launch.preferencePath), "chats"))
+		prepared, err := app.ConfigureAgent(profile, filepath.Join(filepath.Dir(launch.preferencePath), "sessions"))
 		if err != nil {
 			return err
 		}

@@ -22,12 +22,10 @@ run-remote.cmd
 # Local serve launcher (ports and backends are machine-specific) — replaced by run-server-openai.cmd.
 run-serve.cmd
 
-# Local conversation state and managed service assets.
+# Local session state and model assets. Nothing here is read by the agent.
 /var/
 /bin/
 /assets/models/
-/assets/runtimes/
-/assets/characters/private/
 
 /assets/manifest.json
 

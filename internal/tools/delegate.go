@@ -45,7 +45,7 @@ func (*Delegate) Description() string {
 	return "Delegate a self-contained subtask to a fresh subagent and return its final result. " +
 		"Use this for work that can be fully described in one instruction and doesn't need the " +
 		"current conversation's context. Optionally set role to specialize the subagent for this " +
-		"task — an expertise, a behavior pattern, a strict constraint, or a character/identity " +
+		"task — an expertise, a behavior pattern, a strict constraint, or an identity " +
 		"(e.g. 'a strict security reviewer who rejects anything unvalidated', 'a Python-only " +
 		"specialist', or 'Alice, a software engineer who loves tea'). This actually shapes how " +
 		"the subagent behaves, not just text embedded in the task description."

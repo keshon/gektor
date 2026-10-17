@@ -7,18 +7,19 @@ The Go application builds without cgo.
 
 ## Quick start
 
-Requirements: Go 1.26.6+ and a local or remote model backend. Model weights
-and runtimes are not included in Git.
+Requirements: Go 1.26.6+ and a model backend you start yourself. TARS connects
+to a server; it does not ship or launch one, and the repository contains no
+model weights.
 
 ```powershell
 go build -o agent.exe ./cmd/agent
 .\agent.exe -tui
 ```
 
-On a fresh clone, the launcher uses the external profile at
-`http://127.0.0.1:8080`. Start your backend, then use **Settings → Model** to
-configure it. If the starter local model and runtime have been installed, the
-launcher selects the managed local profile instead. Models load on demand.
+On a fresh clone the launcher expects a backend at `http://127.0.0.1:8080`.
+Start one with `run-server-llama.cmd` in its own terminal, wait for the model to
+load, then run `run-tui.cmd`. Use **Settings → Model** to point TARS somewhere
+else if you want.
 
 - **Run** selects Plan (read-only) or Act (executes), stops a run, or retries a failed one.
 - **Settings** selects models, generation parameters, identity and service profiles.
@@ -28,7 +29,7 @@ launcher selects the managed local profile instead. Models load on demand.
 Applying settings restarts the launch so the new profile is composed into
 fresh services. The draft and the session carry across.
 
-See [bootstrap and runtime ownership](docs/bootstrap.md) for service setup and
+See [bootstrap and service ownership](docs/bootstrap.md) for setup and
 [the terminal guide](docs/tui.md) for interaction details. The CLI backend default
 for launches without a profile remains `http://localhost:5001`.
 
@@ -55,9 +56,6 @@ Enter sends text, Shift+Enter adds a line, and Tab switches panel focus. The
 menu, session panel, status labels and contextual footer share one theme. Type
 `/` for commands or `@` for workspace files. F1 opens help, F2 searches
 sessions.
-
-External-server launchers remain available as an alternative to managed services.
-
 ## Model servers
 
 Start a model server in its own terminal before using TARS. Machine-specific

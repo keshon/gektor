@@ -139,7 +139,7 @@ func TestSidebarWheelSelectsWithoutScrollingChat(t *testing.T) {
 	m.nav.entries = []sessionEntry{{id: "a"}, {id: "b"}}
 	m.Update(tea.MouseWheelMsg{X: 5, Y: 6, Button: tea.MouseWheelDown})
 	if m.nav.Cursor != 1 || !m.navFocused || m.input.Focused() || m.transcript.Viewport.YOffset() != 0 {
-		t.Fatal("sidebar wheel reached the chat or failed to select")
+		t.Fatal("sidebar wheel reached the transcript or failed to select")
 	}
 }
 
@@ -203,15 +203,15 @@ func TestConversationOwnsComposerAndSessionsKeepTheirHeight(t *testing.T) {
 			t.Fatalf("session divider interrupted at row %d: %q", y, lines[y])
 		}
 	}
-	if !strings.HasPrefix(string([]rune(lines[inputTop])[m.conversationOffset():]), "> first line") {
+	if !strings.HasPrefix(string([]rune(lines[inputTop])[m.promptOffset():]), "> first line") {
 		t.Fatal("composer did not align with the Identity")
 	}
-	if view.Cursor == nil || view.Cursor.X < m.conversationOffset() || view.Cursor.Y != inputTop+1 {
+	if view.Cursor == nil || view.Cursor.X < m.promptOffset() || view.Cursor.Y != inputTop+1 {
 		t.Fatalf("caret escaped the Identity composer: %+v", view.Cursor)
 	}
 	m.navFocused = true
 	m.input.Blur()
-	m.Update(tea.MouseClickMsg{X: m.conversationOffset() + 2, Y: inputTop, Button: tea.MouseLeft})
+	m.Update(tea.MouseClickMsg{X: m.promptOffset() + 2, Y: inputTop, Button: tea.MouseLeft})
 	if m.navFocused || !m.input.Focused() {
 		t.Fatal("clicking the composer did not restore input focus")
 	}
@@ -221,7 +221,7 @@ func TestConversationOwnsComposerAndSessionsKeepTheirHeight(t *testing.T) {
 		t.Fatal("composer navigation changed the multiline draft")
 	}
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	if m.conversationOffset() != 1 || m.View().Cursor.X >= 80 || m.input.Value() != "first line\nsecond line" {
+	if m.promptOffset() != 1 || m.View().Cursor.X >= 80 || m.input.Value() != "first line\nsecond line" {
 		t.Fatal("narrow layout lost the composer or its draft")
 	}
 }
@@ -240,7 +240,7 @@ func TestConversationComposerWrapsWithinPane(t *testing.T) {
 		if lipgloss.Height(view.Content) != m.termH {
 			t.Fatalf("state %d changed frame height", state)
 		}
-		if view.Cursor != nil && view.Cursor.X < m.conversationOffset() {
+		if view.Cursor != nil && view.Cursor.X < m.promptOffset() {
 			t.Fatalf("state %d placed caret in Sessions", state)
 		}
 	}
@@ -258,7 +258,7 @@ func TestNestedComposerCompletesFilesAndCommands(t *testing.T) {
 		t.Fatal("file completion submitted or lost the multiline draft")
 	}
 	view := m.View()
-	if view.Cursor == nil || view.Cursor.X < m.conversationOffset() || view.Cursor.Y != m.termH-m.footerRows()-1 {
+	if view.Cursor == nil || view.Cursor.X < m.promptOffset() || view.Cursor.Y != m.termH-m.footerRows()-1 {
 		t.Fatalf("file completion misplaced the caret: %+v", view.Cursor)
 	}
 	m.Update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
@@ -275,7 +275,7 @@ func TestNestedComposerCompletesFilesAndCommands(t *testing.T) {
 	m.note.SetValue("use another command")
 	m.fitBottom()
 	view = m.View()
-	if view.Cursor == nil || view.Cursor.X < m.conversationOffset() || view.Cursor.Y != m.termH-m.footerRows()-1 {
+	if view.Cursor == nil || view.Cursor.X < m.promptOffset() || view.Cursor.Y != m.termH-m.footerRows()-1 {
 		t.Fatalf("permission note misplaced the caret: %+v", view.Cursor)
 	}
 }

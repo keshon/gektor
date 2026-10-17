@@ -27,28 +27,26 @@ func headerRowFor(m *model, command string) int {
 	return -1
 }
 
-// scriptClient was conversationClient, renamed when the Chat tests went. The
-// settings fixture still needs a scripted llm.Client so Configure can hand
-// back services without contacting a backend.
+// scriptClient is a scripted llm.Client, so the settings fixture can have
+// Configure hand back services without contacting a backend.
 type scriptClient func(context.Context, llm.ChatRequest) (llm.ChatResponse, error)
 
 func (f scriptClient) Chat(ctx context.Context, r llm.ChatRequest) (llm.ChatResponse, error) {
 	return f(ctx, r)
 }
 
-// settingsModel builds an Agent-shaped session: a configured service set,
+// settingsModel builds an agent-shaped session: a configured service set,
 // an Application, and a saved task on disk with history.
 //
-// It used to build a Chat Identity instead, because that was the only
-// settings path with an in-place apply. Settings now restart the launch, so
-// the fixture has to carry an Application and a real workspace directory or
-// requestProfileChange refuses before it reaches anything worth asserting.
+// The fixture has to carry an Application and a real workspace directory,
+// because settings apply by restarting the launch and requestProfileChange
+// refuses before it reaches anything worth asserting otherwise.
 func settingsModel(t *testing.T) *model {
 	t.Helper()
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.input.SetValue("unfinished draft")
-	profile := config.Profile{Version: 1, Provider: config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local", Ownership: "external"}, Generation: config.Generation{MaxTokens: 100, ContextLimit: 1000}, Identity: &config.Identity{UserName: "User", SystemPrompt: "Base rules"}}
+	profile := config.Profile{Version: 1, Provider: config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local"}, Generation: config.Generation{MaxTokens: 100, ContextLimit: 1000}, Identity: &config.Identity{UserName: "User", SystemPrompt: "Base rules"}}
 	client := scriptClient(func(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
 		return llm.ChatResponse{Message: llm.Message{Content: "reply"}}, nil
 	})
@@ -183,7 +181,7 @@ func TestSettingsFormMouseAndFrame(t *testing.T) {
 		for _, row := range rows {
 			bw = max(bw, lipgloss.Width(row))
 		}
-		x := m.conversationOffset() + max((w-bw-4)/2, 0) + 1
+		x := m.promptOffset() + max((w-bw-4)/2, 0) + 1
 		y := paneTop + max((h-len(rows)-2)/2, 0) + 1
 		if m.dialog.form.Workspace != nil {
 			x = 2
@@ -191,7 +189,7 @@ func TestSettingsFormMouseAndFrame(t *testing.T) {
 		}
 		cancel := hits[len(hits)-1]
 		if cancel.X1 > 0 {
-			x = m.conversationOffset() + max((w-bw-4)/2, 0) + 2 + cancel.X0
+			x = m.promptOffset() + max((w-bw-4)/2, 0) + 2 + cancel.X0
 			if m.dialog.form.Workspace != nil {
 				x = 2 + cancel.X0
 			}
@@ -414,29 +412,4 @@ func TestProtocolSwitchSuggestsOnlyLocalDefaults(t *testing.T) {
 	if m.dialog.form.Editor.Value() != "http://localhost:9000" {
 		t.Fatal("custom URL overwritten")
 	}
-}
-
-func TestModelFormDiscoversNestedModelChoices(t *testing.T) {
-	m := settingsModel(t)
-	root := t.TempDir()
-	nested := filepath.Join(root, "vendor", "model")
-	os.MkdirAll(nested, 0700)
-	file := filepath.Join(nested, "weights.gguf")
-	os.WriteFile(file, nil, 0600)
-	m.config.Profile.Provider.ModelRoot = root
-	m.config.Profile.Provider.Ownership = "managed"
-	m.editSettings("model")
-	for i, field := range m.dialog.form.Fields {
-		if field.Key == "model-file" {
-			m.focusForm(i)
-			cmd := m.openSettingsPicker()
-			m.acceptSettingsScan(cmd().(settingsScanMsg))
-			m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-			if m.dialog.form.Editor.Value() != file {
-				t.Fatal("nested model not selectable")
-			}
-			return
-		}
-	}
-	t.Fatal("missing model-file field")
 }

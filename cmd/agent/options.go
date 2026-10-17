@@ -175,9 +175,6 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 		if err != nil {
 			return resolvedLaunch{}, err
 		}
-		if p.Provider.Ownership == "managed" && !o.tui && !o.checkProfile {
-			return resolvedLaunch{}, fmt.Errorf("managed thinking requires -tui")
-		}
 		o.selectedProfile = p
 		o.thinkingSettings = p.Provider
 		explicit := o.explicitFlags

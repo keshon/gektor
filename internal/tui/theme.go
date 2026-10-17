@@ -6,7 +6,7 @@ import (
 )
 
 func (m *model) openTheme() {
-	m.openForm("Theme", "Applies immediately; conversation settings stay unchanged.", "Apply", []formField{{Key: "theme", Label: "Theme", Value: currentPalette().name, Multiline: false}}, func(v map[string]string) error {
+	m.openForm("Theme", "Applies immediately; session settings stay unchanged.", "Apply", []formField{{Key: "theme", Label: "Theme", Value: currentPalette().name, Multiline: false}}, func(v map[string]string) error {
 		name := v["theme"]
 		if name != "dark" && name != "light" {
 			return fmt.Errorf("choose Dark or Light")

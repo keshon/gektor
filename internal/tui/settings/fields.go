@@ -1,8 +1,6 @@
 package settings
 
 import (
-	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/keshon/tars/internal/config"
@@ -46,18 +44,7 @@ func PageFields(profile config.Profile, section string, preferences config.Prefe
 		add("system", "Base system prompt", identity.SystemPrompt, true)
 		add("post", "Base post-history directive", identity.PostHistory, true)
 	case "model":
-		if profile.Provider.Runtime == "" {
-			exe, err := os.Executable()
-			if err == nil {
-				profile.Provider.Runtime = filepath.Join(filepath.Dir(exe), "assets", "runtimes", "llamacpp", "llama-server.exe")
-			}
-		}
 		title = "Model"
-		add("ownership", "Thinking service (external/managed)", profile.Provider.Ownership, false)
-		add("runtime", "llama-server executable", profile.Provider.Runtime, false)
-		add("model-root", "Model directory (optional; scans nested folders)", profile.Provider.ModelRoot, false)
-		add("model-file", "GGUF model file (any directory)", profile.Provider.ModelFile, false)
-		add("gpu-layers", "GPU layers (0 CPU; 99 all layers)", strconv.Itoa(profile.Provider.GPULayers), false)
 		add("kind", "Protocol (llama/kobold/openai)", profile.Provider.Kind, false)
 		add("endpoint", "Backend URL", profile.Provider.URL, false)
 		add("model", "Model identifier", profile.Provider.Model, false)

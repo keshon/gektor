@@ -46,10 +46,7 @@ func runApplication(args []string) error {
 	}
 	bare := len(args) == 1 && (args[0] == "-tui" || args[0] == "-tui=true")
 	if prefs.ProfilePath == "" {
-		prefs.ProfilePath = filepath.Join(root, "profiles", "llama-managed.json")
-		if _, err := os.Stat(filepath.Join(root, "assets", "models", "thinking", "qwen", "Qwen3-1.7B-Q8_0.gguf")); err != nil {
-			prefs.ProfilePath = filepath.Join(root, "profiles", "llama-external.json")
-		}
+		prefs.ProfilePath = filepath.Join(root, "profiles", "llama-external.json")
 	}
 	request := launchRequest{args: args, preferences: prefs, preferencePath: path, common: bare}
 	if bare {
@@ -94,9 +91,9 @@ func applicationArgs(p config.Preferences) []string {
 }
 // launchProfile builds the profile a launch without -profile would have
 // carried, so the plain `-tui` launch that docs/tui.md documents still
-// has working Settings, Mode and Voice menus.
+// has a working Settings menu.
 //
-// It exists because those menus read the profile rather than the flags.
+// It exists because that menu reads the profile rather than the flags.
 // With no profile the services handle and the Application both came back
 // nil, and every row that depends on them was disabled with nothing on
 // screen saying why — a launch that started fine and could not be
@@ -126,7 +123,6 @@ func launchProfile(o resolvedLaunch, contextLimit int) config.Profile {
 			Kind:      o.backendKind,
 			URL:       o.backendURL,
 			Model:     o.model,
-			Ownership: "external",
 			APIKeyEnv: o.apiKeyEnv,
 		},
 		Generation: generation,

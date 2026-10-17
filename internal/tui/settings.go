@@ -52,10 +52,6 @@ func (m *model) applyForm() {
 	if f.Workspace != nil && !m.settingsDirty() {
 		return
 	}
-	if f.Workspace != nil && f.Workspace.SampleCancel != nil {
-		f.Error = "Stop the voice sample before applying settings"
-		return
-	}
 	values := f.Values()
 	if err := f.apply(values); err != nil {
 		f.Error = err.Error()
@@ -142,7 +138,7 @@ func (m *model) editSettings(section string) {
 
 func (m *model) renameActive() {
 	dir, title := filepath.Dir(m.stateFile), m.activeSessionTitle()
-	m.openForm("Rename conversation", "Changes the title only; history stays intact.", "Rename", []formField{{Key: "title", Label: "Conversation title", Value: title, Multiline: false}}, func(values map[string]string) error {
+	m.openForm("Rename session", "Changes the title only; history stays intact.", "Rename", []formField{{Key: "title", Label: "Session title", Value: title, Multiline: false}}, func(values map[string]string) error {
 		title := workspace.TitleLine(values["title"])
 		if title == "" {
 			return fmt.Errorf("title cannot be blank")
@@ -162,7 +158,7 @@ func (m *model) deleteActive() {
 		m.openDialog("Cannot delete", []string{"Session is outside the configured session store."})
 		return
 	}
-	m.openForm("Delete conversation", "Permanently removes this saved conversation.", "Delete", nil, func(map[string]string) error {
+	m.openForm("Delete session", "Permanently removes this saved session.", "Delete", nil, func(map[string]string) error {
 		if err := os.RemoveAll(target); err != nil {
 			return err
 		}

@@ -295,7 +295,7 @@ type identityClient struct {
 
 func (c *identityClient) Chat(_ context.Context, r llm.ChatRequest) (llm.ChatResponse, error) {
 	c.calls++
-	if len(r.Messages) == 0 || !strings.Contains(r.Messages[0].Content, "Character name: Ada") || strings.Contains(r.Messages[0].Content, "You are TARS") {
+	if len(r.Messages) == 0 || !strings.Contains(r.Messages[0].Content, "Assistant name: Ada") || strings.Contains(r.Messages[0].Content, "You are TARS") {
 		c.t.Fatal(r.Messages)
 	}
 	return llm.ChatResponse{Message: llm.Message{Content: "Hello"}}, nil
@@ -305,7 +305,7 @@ func TestPlanAndActUseProfileIdentity(t *testing.T) {
 		e := testEnv(t)
 		client := &identityClient{t: t}
 		e.Client = client
-		e.Identity = "Character name: Ada"
+		e.Identity = "Assistant name: Ada"
 		e.IdentityName = "Ada"
 		e.SkipVerify = true
 		a := Interactive(e, "", "", nil, nil)

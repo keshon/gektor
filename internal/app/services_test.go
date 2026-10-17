@@ -12,7 +12,7 @@ import (
 func TestConfigureAgentOwnsItsProfile(t *testing.T) {
 	p := config.Profile{
 		Version:    1,
-		Provider:   config.Provider{Kind: "llama", URL: "http://localhost:8080", Model: "local", Ownership: "external"},
+		Provider:   config.Provider{Kind: "llama", URL: "http://localhost:8080", Model: "local"},
 		Generation: config.Generation{MaxTokens: 100, ContextLimit: 1000},
 		Identity:   &config.Identity{UserName: "User", SystemPrompt: "base"},
 	}
@@ -42,7 +42,7 @@ func TestConfigureAgentOwnsItsProfile(t *testing.T) {
 func TestConfigureAgentDefaultsAnAbsentIdentity(t *testing.T) {
 	p := config.Profile{
 		Version:    1,
-		Provider:   config.Provider{Kind: "llama", URL: "http://localhost:8080", Model: "local", Ownership: "external"},
+		Provider:   config.Provider{Kind: "llama", URL: "http://localhost:8080", Model: "local"},
 		Generation: config.Generation{MaxTokens: 100, ContextLimit: 1000},
 	}
 	if p.Identity != nil {

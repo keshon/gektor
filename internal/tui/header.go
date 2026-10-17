@@ -273,16 +273,8 @@ func (m *model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 			m.closeHeader()
 			switch item.command {
-			case "mode-chat", "mode-agent":
-				m.openApplication()
-				if m.dialog != nil && m.dialog.form != nil {
-					mode := strings.TrimPrefix(item.command, "mode-")
-					m.dialog.form.Fields[0].Value = mode
-					m.dialog.form.Editor.SetValue(mode)
-				}
-				return m, nil
 			case "permissions-info":
-				lines := []string{"Plan exposes read-only tools. Act uses the configured policy and approval prompts.", "Voice input and settings changes do not approve tool execution.", "", "Policy rules (later rules take precedence)"}
+				lines := []string{"Plan exposes read-only tools. Act uses the configured policy and approval prompts.", "Settings changes do not approve tool execution.", "", "Policy rules (later rules take precedence)"}
 				lines = append(lines, m.policyDetails...)
 				m.openDialog("Permissions", lines)
 				return m, nil
@@ -362,7 +354,7 @@ func (m *model) headerGeometry() (x, width, capacity, offset int) {
 		if b.id == m.header.menu {
 			x = b.start
 			if !m.header.global {
-				x += m.conversationOffset()
+				x += m.promptOffset()
 			}
 			break
 		}
@@ -588,10 +580,6 @@ func menuShortcut(command string) string {
 		return "Ctrl+G"
 	case "latest":
 		return "Ctrl+End"
-	case "voice-record":
-		return "F8"
-	case "voice-live":
-		return "Ctrl+L"
 	case "stop":
 		return "Esc"
 	case "/help", "help-keys":

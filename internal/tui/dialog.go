@@ -42,14 +42,6 @@ func (m *model) openDialog(title string, lines []string) {
 }
 
 func (m *model) closeDialog() {
-	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Workspace != nil {
-		ws := m.dialog.form.Workspace
-		if ws.SampleCancel != nil {
-			ws.SampleCancel()
-			ws.SampleCancel = nil
-			ws.SampleID++
-		}
-	}
 	m.dialog = nil
 	m.popOverlay()
 	m.fitBottom()
@@ -171,12 +163,12 @@ func helpSections() []helpSection {
 		}},
 		{"Navigate", [][2]string{
 			{"F1", "Open or close help"},
-			{"F2 / Ctrl+P", "Search session names and conversation history"},
+			{"F2 / Ctrl+P", "Search session names and history"},
 			{"F3 / Ctrl+G", "Expand or collapse thinking and tool details"},
 			{"F6 / Ctrl+B", "Show or hide the session pane"},
 			{"Tab", "Switch between sessions and input"},
 			{"Ctrl+R / Ctrl+D", "Rename / delete the selected session in the Sessions pane"},
-			{"PgUp / PgDn", "Scroll the conversation; mouse wheel also works"},
+			{"PgUp / PgDn", "Scroll the transcript; mouse wheel also works"},
 			{"F7 / Ctrl+End", "Jump to the latest message"},
 			{"F9", "Focus header badges; Left / Right choose, Enter opens"},
 			{"Header menus", "Click a badge; Up / Down browse, Enter choose, Esc back"},

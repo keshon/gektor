@@ -67,12 +67,6 @@ func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 		field := f.Fields[i]
 		label := field.Label
 		switch field.Key {
-		case "ownership":
-			label = "Connection"
-		case "model-file":
-			label = "Model"
-		case "gpu-layers":
-			label = "GPU layers"
 		case "endpoint":
 			label = "Server address"
 		case "kind":
@@ -97,7 +91,7 @@ func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 			}
 			value += "  [ Choose… ]"
 		}
-		if field.Key == "model" || field.Key == "microphone" {
+		if field.Key == "model" {
 			value = value + "  [ Discover… ]"
 		}
 		if len(f.Options(field.Key)) > 0 {

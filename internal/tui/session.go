@@ -404,23 +404,8 @@ func (m *model) startFresh(task string, images []string) error {
 	return m.startFreshPrompt(task, task, images)
 }
 
-// holdsChatArchive reports whether dir is a Chat conversation's own
-// directory. Such a directory belongs to the conversation; an Agent task
-// that adopts it will overwrite the transcript's identity rather than
-// sit beside it.
-func holdsChatArchive(dir string) bool {
-	if dir == "" {
-		return false
-	}
-	_, err := os.Stat(filepath.Join(dir, "conversation.json"))
-	return err == nil
-}
-
-// taskDirectory decides where an Agent task's files live. A task keeps
-// the directory it is resuming, but never a Chat conversation's own
-// directory: the two keep different state files in the same place, so the
-// task's save rewrote the conversation's settings.json and the session
-// list stopped offering the transcript at all.
+// taskDirectory decides where an Agent task's files live. A task keeps the
+// directory it is resuming, so reopening a session does not relocate it.
 func (m *model) taskDirectory(taskID string) string {
 	taskDir := workspace.TaskDir(taskID)
 	if m.ws != nil {
@@ -430,9 +415,6 @@ func (m *model) taskDirectory(taskID string) string {
 		taskDir = filepath.Join(m.sessionRoot(), taskID)
 		if m.stateFile != "" && m.sess == nil {
 			taskDir = filepath.Dir(m.stateFile)
-		}
-		if holdsChatArchive(taskDir) {
-			taskDir = filepath.Join(m.sessionRoot(), taskID)
 		}
 	}
 	return taskDir
@@ -446,7 +428,7 @@ func (m *model) startFreshPrompt(task, display string, images []string) error {
 	if err != nil {
 		return err
 	}
-	if err := writeChatMode(stateFile, m.plan); err != nil {
+	if err := writeSavedMode(stateFile, m.plan); err != nil {
 		return err
 	}
 	title := workspace.TitleLine(display)

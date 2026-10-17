@@ -64,8 +64,8 @@ func TestCommanderPreview(t *testing.T) {
 	}
 	preview := settingsModel(t)
 	preview.width(tea.WindowSizeMsg{Width: 120, Height: 34})
-	preview.openForm("Speech services", "Speech settings apply to the next voice service.", "Apply", []formField{{Key: "microphone", Label: "Microphone", Value: "Microphone (Storm Pro)", Multiline: false}, {Key: "variant", Label: "Chatterbox variant", Value: "nano", Multiline: false}, {Key: "model", Label: "Speech model directory", Value: "assets/models/speaking/chatterbox/nano", Multiline: false}, {Key: "max_seconds", Label: "Maximum recording seconds", Value: "120", Multiline: false}}, func(map[string]string) error { return nil })
-	if err := os.WriteFile(filepath.Join(dir, "speech-form.txt"), []byte(ansi.Strip(preview.View().Content)), 0600); err != nil {
+	preview.openForm("Model", "Choose the thinking model.", "Apply", []formField{{Key: "kind", Label: "Protocol", Value: "llama", Multiline: false}, {Key: "endpoint", Label: "Backend URL", Value: "http://127.0.0.1:8080", Multiline: false}, {Key: "model", Label: "Model identifier", Value: "qwen3-1.7b", Multiline: false}}, func(map[string]string) error { return nil })
+	if err := os.WriteFile(filepath.Join(dir, "model-form.txt"), []byte(ansi.Strip(preview.View().Content)), 0600); err != nil {
 		t.Fatal(err)
 	}
 	preview.closeDialog()

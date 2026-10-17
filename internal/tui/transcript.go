@@ -173,14 +173,14 @@ func roleLabel(r role) string {
 	return "OUTPUT"
 }
 
-// systemSpeaker names every participant that is not a conversational
-// voice: the harness, permission gates, mission notes and failures. They
-// share one name because they share one source, and a reader asking
+// systemSpeaker names every participant that is not the user or the
+// assistant: the harness, permission gates, mission notes and failures.
+// They share one name because they share one source, and a reader asking
 // "who said that" should never have to distinguish four shades of app.
 const systemSpeaker = "SYSTEM"
 
 // speakerLabel names the participant a block belongs to, uppercased.
-// User and assistant roles carry the configured character/user names;
+// User and assistant roles carry the configured assistant/user names;
 // everything else is machine chrome.
 func speakerLabel(b block, props transcriptProps) string {
 	switch b.role {

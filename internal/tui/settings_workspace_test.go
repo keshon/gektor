@@ -74,29 +74,27 @@ func TestSettingsCancelAllCategories(t *testing.T) {
 }
 func TestPickerSearchBackAndStaleScan(t *testing.T) {
 	m := settingsModel(t)
-	m.editSettings("model")
-	m.dialog.form.Fields[0].Value = "managed"
-	m.dialog.form.Editor.SetValue("managed")
+	m.editSettings("profiles")
 	for i, f := range m.dialog.form.Fields {
-		if f.Key == "model-file" {
+		if f.Key == "load-profile" {
 			m.focusForm(i)
 			break
 		}
 	}
 	m.openSettingsPicker()
 	p := m.dialog.form.Picker
-	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{"C:/models/Qwen.gguf", "C:/models/Chronos.gguf"}})
+	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{"C:/profiles/qwen.json", "C:/profiles/chronos.json"}})
 	m.pickerKey(tea.KeyPressMsg{Code: 'c', Text: "c"})
 	m.pickerKey(tea.KeyPressMsg{Code: 'h', Text: "h"})
-	if len(p.Filtered) != 1 || !strings.Contains(p.Filtered[0], "Chronos") {
-		t.Fatal("search did not narrow models")
+	if len(p.Filtered) != 1 || !strings.Contains(p.Filtered[0], "chronos") {
+		t.Fatal("search did not narrow profiles")
 	}
 	previous := m.dialog.form.Editor.Value()
 	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if m.dialog.form.Editor.Value() != previous || m.dialog.form.Picker != nil {
-		t.Fatal("picker cancel changed model")
+		t.Fatal("picker cancel changed the field")
 	}
-	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{"late.gguf"}})
+	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{"late.json"}})
 	if m.dialog.form.Picker != nil {
 		t.Fatal("late scan reopened picker")
 	}
@@ -148,37 +146,6 @@ func TestSettingsPasteRespectsNestedFocus(t *testing.T) {
 		t.Fatal("leaving category navigation did not restore field focus")
 	}
 }
-func TestPickerBrowsesNestedFolders(t *testing.T) {
-	m := settingsModel(t)
-	root := t.TempDir()
-	nested := filepath.Join(root, "vendor")
-	os.MkdirAll(nested, 0700)
-	file := filepath.Join(nested, "model.gguf")
-	os.WriteFile(file, nil, 0600)
-	m.config.Profile.Provider.Ownership = "managed"
-	m.config.Profile.Provider.ModelRoot = root
-	m.editSettings("model")
-	for i, f := range m.dialog.form.Fields {
-		if f.Key == "model-file" {
-			m.focusForm(i)
-			break
-		}
-	}
-	m.openSettingsPicker()
-	p := m.dialog.form.Picker
-	p.Browser = true
-	m.acceptSettingsScan(m.scanPickerDirectory(nested)().(settingsScanMsg))
-	for i, f := range p.Filtered {
-		if f == file {
-			p.Cursor = i
-		}
-	}
-	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.dialog.form.Editor.Value() != file {
-		t.Fatal("browser did not select file")
-	}
-}
-
 func TestSettingsWorkspacePreview(t *testing.T) {
 	dir := os.Getenv("TARS_TUI_PREVIEW_DIR")
 	if dir == "" {
@@ -186,9 +153,7 @@ func TestSettingsWorkspacePreview(t *testing.T) {
 	}
 	os.MkdirAll(dir, 0700)
 	m := settingsModel(t)
-	m.config.Profile.Provider.Ownership = "managed"
-	m.config.Profile.Provider.ModelFile = "D:/Models/Qwen3-1.7B-Q8_0.gguf"
-	m.config.Profile.Provider.GPULayers = 99
+	m.config.Profile.Provider.URL = "http://127.0.0.1:8080"
 	m.width(tea.WindowSizeMsg{Width: 120, Height: 34})
 	m.editSettings("model")
 	write := func(name string) {
@@ -197,18 +162,7 @@ func TestSettingsWorkspacePreview(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	write("thinking-workspace")
-	for i, f := range m.dialog.form.Fields {
-		if f.Key == "model-file" {
-			m.focusForm(i)
-			break
-		}
-	}
-	m.openSettingsPicker()
-	p := m.dialog.form.Picker
-	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{"D:/Models/Qwen3-1.7B-Q8_0.gguf", "E:/LM Studio/models/vendor/Chronos-8B-Q4_K_M.gguf", "E:/LM Studio/models/vendor/Gemma-9B-Q5_K_M.gguf"}})
-	write("model-picker")
-	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+	write("model-page")
 	m.editSettings("generation")
 	write("generation-workspace")
 	m.width(tea.WindowSizeMsg{Width: 80, Height: 24})
@@ -281,10 +235,8 @@ func TestSettingsTakesOverContentWithRoundedCorners(t *testing.T) {
 		t.Fatal("takeover lost composer draft")
 	}
 }
-// Response presets are shared with Agent, not a Chat feature, so this
-// keeps the Agent arm of what used to loop over both modes. Staging must
-// not touch the live profile: the preset is an application decision, not
-// a reason to reconfigure services mid-form.
+// Staging a preset must not touch the live profile: the preset is an
+// application decision, not a reason to reconfigure services mid-form.
 func TestPromptPresetIsStagedNotApplied(t *testing.T) {
 	m := settingsModel(t)
 		m.editSettings("prompts")

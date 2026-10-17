@@ -36,7 +36,7 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 	case "new":
 		task := strings.TrimSpace(arg)
 		if task == "" {
-			// Bare /new resets to the empty-chat state (same as
+			// Bare /new resets to the empty state (same as
 			// opening with no initial task): no session, clean
 			// transcript, the next submitted line starts a fresh
 			// run. The task text is the session title, so there is

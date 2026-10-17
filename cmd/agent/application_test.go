@@ -9,9 +9,8 @@ import (
 	"github.com/keshon/tars/internal/config"
 )
 
-// There is no voice or mode flag left to emit. What the relaunch still
-// has to carry is the profile file, the workspace and plan mode, so a
-// session restarted from Settings comes back up where it left off.
+// The relaunch has to carry the profile file, the workspace and plan mode, so
+// a session restarted from Settings comes back up where it left off.
 func TestApplicationArgsCarryProfileWorkspaceAndPlan(t *testing.T) {
 	p, err := config.LoadPreferences(t.TempDir() + "/missing.json")
 	if err != nil {
@@ -25,7 +24,7 @@ func TestApplicationArgsCarryProfileWorkspaceAndPlan(t *testing.T) {
 			t.Fatalf("missing %q in %q", want, args)
 		}
 	}
-	if strings.Contains(args, "-voice") || strings.Contains(args, "-Identity") {
+	if strings.Contains(args, "-voice") || strings.Contains(args, "-conversation") {
 		t.Fatalf("removed flag still emitted: %q", args)
 	}
 }
@@ -43,7 +42,7 @@ func TestRelaunchKeepsTheProfileItRanWith(t *testing.T) {
 
 	want := config.Profile{
 		Version:    1,
-		Provider:   config.Provider{Kind: "llama", URL: "http://10.0.0.5:8080", Model: "my-model", Ownership: "external"},
+		Provider:   config.Provider{Kind: "llama", URL: "http://10.0.0.5:8080", Model: "my-model"},
 		Generation: config.Generation{MaxTokens: 4096, ContextLimit: 32768},
 	}
 	resolved, err := resolveLaunch(launchRequest{args: args, profile: &want})
@@ -69,7 +68,7 @@ func TestRelaunchProfileFallbacksUnchanged(t *testing.T) {
 	path := filepath.Join(dir, "p.json")
 	want := config.Profile{
 		Version:    1,
-		Provider:   config.Provider{Kind: "llama", URL: "http://127.0.0.1:9999", Model: "from-file", Ownership: "external"},
+		Provider:   config.Provider{Kind: "llama", URL: "http://127.0.0.1:9999", Model: "from-file"},
 		Generation: config.Generation{MaxTokens: 512, ContextLimit: 4096},
 	}
 	if err := config.SaveCopy(want, path); err != nil {
@@ -98,7 +97,7 @@ func TestAgentLaunchKeepsPermissionPlanBoundary(t *testing.T) {
 	}
 }
 func TestAgentServiceConfigurationSupportsTextOnlyProfile(t *testing.T) {
-	p := config.Profile{Version: 1, Provider: config.Provider{Kind: "llama", Ownership: "external", URL: "http://127.0.0.1:8080", Model: "local"}, Generation: config.Generation{MaxTokens: 100, ContextLimit: 1000}}
+	p := config.Profile{Version: 1, Provider: config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local"}, Generation: config.Generation{MaxTokens: 100, ContextLimit: 1000}}
 	cfg, err := app.ConfigureAgent(p, t.TempDir())
 	if err != nil {
 		t.Fatal(err)

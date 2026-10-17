@@ -155,14 +155,14 @@ func (m *model) View() tea.View {
 		if m.gstage == gsReject {
 			v.Cursor = m.note.Cursor()
 			if v.Cursor != nil {
-				v.Cursor.X += m.conversationOffset()
+				v.Cursor.X += m.promptOffset()
 				v.Cursor.Y += m.termH - m.footerRows() - 1
 			}
 		}
 	} else if owner == focusInput {
 		v.Cursor = m.input.Cursor()
 		if v.Cursor != nil {
-			v.Cursor.X += m.conversationOffset()
+			v.Cursor.X += m.promptOffset()
 			v.Cursor.Y += m.termH - m.footerRows() - m.input.Height()
 		}
 	}

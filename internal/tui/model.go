@@ -31,7 +31,7 @@ import (
 // workspace, tools, policy, budgets); gate behavior comes from the TUI,
 // so Env.Gate is overridden, never read.
 type Config struct {
-	// Runtime is borrowed when supplied; Chat and Audio must reference its
+	// Runtime is borrowed when supplied; Services must reference its
 	// Services. Without it, Run owns a fallback runtime and closes it on exit.
 	Runtime          *app.Runtime
 	SessionDirectory string
@@ -195,7 +195,7 @@ type model struct {
 	sessionIndex    map[string]cachedSession
 	sessionRevision uint64
 	pendingCommands []tea.Cmd
-	drafts          map[string]chatDraft
+	drafts          map[string]draft
 	plan            bool
 	mission         bool
 	gateVP          viewport.Model
@@ -211,9 +211,6 @@ type model struct {
 	mcpCount       int
 	policyRules    int
 	policyDetails  []string
-	speechMu       sync.Mutex
-	speechCancel   context.CancelFunc
-	speechRevision uint64
 }
 
 // gateEvent reshapes hub fields into the TUI's event: kind, prompt,
@@ -313,7 +310,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 			m.services.Close()
 		}
 	}()
-	if len(cfg.History) > 0 && !cfg.Plan && readChatMode(filepath.Dir(cfg.StateFile)) == "Plan" {
+	if len(cfg.History) > 0 && !cfg.Plan && readSavedMode(filepath.Dir(cfg.StateFile)) == "Plan" {
 		m.plan = true
 	}
 	m.application = cfg.Application

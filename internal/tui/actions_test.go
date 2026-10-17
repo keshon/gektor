@@ -23,11 +23,11 @@ func TestFooterActionsKeepDraftAndToggleScreens(t *testing.T) {
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF2})
 	if m.sessions == nil {
-		t.Fatal("chats did not open")
+		t.Fatal("sessions did not open")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF2})
 	if m.sessions != nil || m.input.Value() != "draft\nsecond line" {
-		t.Fatal("chats lost draft")
+		t.Fatal("sessions lost draft")
 	}
 	before := m.transcript.compact
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF3})
@@ -77,7 +77,7 @@ func TestActionBarCellsAndMouseShareGeometry(t *testing.T) {
 			if cell.action.key == 'p' {
 				m.Update(tea.MouseClickMsg{X: cell.start, Y: top + cell.row, Button: tea.MouseLeft})
 				if m.sessions == nil {
-					t.Fatalf("chat button click missed at width %d", width)
+					t.Fatalf("transcript button click missed at width %d", width)
 				}
 			}
 		}
@@ -163,7 +163,7 @@ func TestFooterModeAndNewPreserveDraft(t *testing.T) {
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF4})
 	if m.input.Value() != "unsent task" {
-		t.Fatal("new on unsaved chat lost draft")
+		t.Fatal("new on unsaved session lost draft")
 	}
 }
 

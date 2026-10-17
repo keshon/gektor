@@ -21,7 +21,7 @@ func (m *model) saveSettingsCopy() {
 		m.dialog.form.Error = err.Error()
 		return
 	}
-	name := "chat-custom"
+	name := "custom"
 	for _, field := range m.dialog.form.Fields {
 		if field.Key == "profile-name" {
 			name = strings.TrimSpace(field.Value)

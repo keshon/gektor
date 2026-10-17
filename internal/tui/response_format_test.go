@@ -8,10 +8,9 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// [RESPONSE] labels the assistant's own row. It used to be suppressed in
-// chat, where there was no thinking or tool output to tell it apart from;
-// with the label row carrying the structure, suppressing it left the reader
-// guessing which row was the reply.
+// [RESPONSE] labels the assistant's own row. Without it the reader has to
+// guess which row is the reply when a turn mixes thinking, tool output and
+// prose.
 func TestResponseBlockCarriesItsLabel(t *testing.T) {
 	st := defaultStyles()
 	if got := ansi.Strip(renderBlock(answerBlock("hello"), st, tagged(), 80)); !strings.Contains(got, "[RESPONSE]") {

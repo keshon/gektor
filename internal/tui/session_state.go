@@ -9,16 +9,16 @@ import (
 )
 
 // Drafts are local UI state, separate from submitted model history.
-type chatDraft struct {
+type draft struct {
 	text, queued string
 	recall       composer.Snapshot
 }
 
 func (m *model) saveDraft() {
 	if m.drafts == nil {
-		m.drafts = make(map[string]chatDraft)
+		m.drafts = make(map[string]draft)
 	}
-	m.drafts[m.stateFile] = chatDraft{m.input.Value(), m.queued, m.input.Snapshot()}
+	m.drafts[m.stateFile] = draft{m.input.Value(), m.queued, m.input.Snapshot()}
 }
 func (m *model) restoreDraft() {
 	d := m.drafts[m.stateFile]
@@ -41,7 +41,7 @@ func (m *model) resetRunFacts() {
 	m.firstToken = time.Time{}
 }
 
-func readChatMode(dir string) string { return sessionindex.ReadMode(dir) }
+func readSavedMode(dir string) string { return sessionindex.ReadMode(dir) }
 
 func (m *model) modeName() string {
 	if m.mission {
@@ -57,13 +57,13 @@ func (m *model) saveMode() error {
 	if m.stateFile == "" || m.mission {
 		return nil
 	}
-	if err := writeChatMode(m.stateFile, m.plan); err != nil {
+	if err := writeSavedMode(m.stateFile, m.plan); err != nil {
 		return err
 	}
 	return m.saveSessionSettings()
 }
 
-func writeChatMode(stateFile string, plan bool) error {
+func writeSavedMode(stateFile string, plan bool) error {
 	if err := os.MkdirAll(filepath.Dir(stateFile), 0755); err != nil {
 		return err
 	}

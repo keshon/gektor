@@ -61,7 +61,7 @@ func TestCompactDialogMouseAndHorizontalKeys(t *testing.T) {
 	for _, row := range rows {
 		bw = max(bw, lipgloss.Width(row))
 	}
-	x := m.conversationOffset() + max((w-bw-4)/2, 0) + 2
+	x := m.promptOffset() + max((w-bw-4)/2, 0) + 2
 	y := paneTop + max((h-len(rows)-2)/2, 0) + 1
 	cancel := hits[len(hits)-1]
 	m.Update(tea.MouseClickMsg{X: x + cancel.X0, Y: y + cancel.Y0, Button: tea.MouseLeft})

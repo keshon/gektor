@@ -49,7 +49,7 @@ func (m *model) fitColumns() {
 	m.transcript.Viewport.SetWidth(max(width, 1))
 }
 func (m *model) identityLine() string { return m.badgeLine() }
-func (m *model) conversationOffset() int {
+func (m *model) promptOffset() int {
 	if m.sidebarVisible() {
 		return navigatorWidth + 4
 	}

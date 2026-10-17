@@ -28,7 +28,7 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.state == stPermission || m.state == stAsk {
-		if msg.Mouse().X < m.conversationOffset() || msg.Mouse().Y < paneTop || msg.Mouse().Y >= paneTop+m.transcript.Viewport.Height() {
+		if msg.Mouse().X < m.promptOffset() || msg.Mouse().Y < paneTop || msg.Mouse().Y >= paneTop+m.transcript.Viewport.Height() {
 			return m, nil
 		}
 		var cmd tea.Cmd

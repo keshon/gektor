@@ -182,7 +182,7 @@ func (m *model) width(msg tea.WindowSizeMsg) {
 	} else {
 		m.transcript.Viewport.SetWidth(msg.Width)
 	}
-	// Cap the answer box like a chat input, not a fullscreen editor.
+	// Cap the answer box like an input field, not a fullscreen editor.
 	maxRows := msg.Height / 4
 	if maxRows < 2 {
 		maxRows = 2
@@ -213,7 +213,7 @@ func (m *model) fitInput() {
 	if m.ready {
 		// DynamicHeight counts wrapped rows and clamps the scroll offset when
 		// the composer grows, keeping earlier lines visible after a newline.
-		m.input.SetWidth(max(m.termW-m.conversationOffset()-5, 1))
+		m.input.SetWidth(max(m.termW-m.promptOffset()-5, 1))
 	}
 }
 
@@ -224,7 +224,7 @@ func (m *model) fitBottom() {
 	if !m.ready {
 		return
 	}
-	m.input.SetWidth(max(m.termW-m.conversationOffset()-5, 1))
+	m.input.SetWidth(max(m.termW-m.promptOffset()-5, 1))
 	// Done budgets the input box only (the hint moved right into the
 	// status row); a run error adds its own line on top.
 	lines := 1
@@ -244,7 +244,7 @@ func (m *model) fitBottom() {
 	// math — phantom blank rows mid-scroll).
 	// `lines` adds per-state extras (done hint, reject label, input growth).
 	// A takeover overlay owns the bottom bar (one slim line), so it
-	// budgets nothing extra: the chat input hides with it.
+	// budgets nothing extra: the input hides with it.
 	if m.queued != "" && m.state != stPermission && m.state != stAsk {
 		lines++
 	}

@@ -6,10 +6,10 @@ import (
 
 // ConfigureAgent composes the services one agent launch runs against.
 //
-// There is one shape now. It used to take two: a full configuration that
-// built a client, and a speech-only variant that left the client nil for a
-// session whose runner already held one. With speech gone the second has no
-// distinguishing feature, so it is this.
+// There is one shape. It used to take two: a full configuration that built a
+// client, and a variant that left the client nil for a session whose runner
+// already held one. The second had no distinguishing feature left, so it is
+// this.
 func ConfigureAgent(profile config.Profile, directory string) (Services, error) {
 	profile = profile.Clone()
 	out := Services{Profile: profile, Directory: directory}

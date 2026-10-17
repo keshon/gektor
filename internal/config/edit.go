@@ -50,15 +50,6 @@ func ApplySection(profile *Profile, section string, values map[string]string) er
 		id.SystemPrompt = values["system"]
 		id.PostHistory = values["post"]
 	case "model":
-		profile.Provider.Ownership = strings.TrimSpace(values["ownership"])
-		profile.Provider.Runtime = strings.TrimSpace(values["runtime"])
-		profile.Provider.ModelFile = strings.TrimSpace(values["model-file"])
-		profile.Provider.ModelRoot = strings.TrimSpace(values["model-root"])
-		layers, err := strconv.Atoi(values["gpu-layers"])
-		if err != nil {
-			return fmt.Errorf("GPU layers must be an integer")
-		}
-		profile.Provider.GPULayers = layers
 		profile.Provider.Kind = strings.TrimSpace(values["kind"])
 		profile.Provider.URL = strings.TrimSpace(values["endpoint"])
 		profile.Provider.Model = strings.TrimSpace(values["model"])

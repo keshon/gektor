@@ -12,7 +12,6 @@ const (
 	Apply
 	Cancel
 	SaveCopy
-	Preview
 	SwitchCategory
 )
 
@@ -32,10 +31,6 @@ func (f *Model) UpdateKey(msg tea.KeyPressMsg, props Props) (Intent, tea.Cmd) {
 		case "ctrl+d":
 			if ws.Section == "profiles" {
 				return Intent{Action: SaveCopy}, nil
-			}
-		case "ctrl+p":
-			if ws.Section == "speech" {
-				return Intent{Action: Preview}, nil
 			}
 		case "f6":
 			ws.Nav = !ws.Nav

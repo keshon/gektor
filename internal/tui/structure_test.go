@@ -155,7 +155,7 @@ func TestSettingsDoesNotOwnRuntimeServices(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			for _, owner := range []string{"app", "backend", "process", "speech/service"} {
+			for _, owner := range []string{"app"} {
 				prefix := "github.com/keshon/tars/internal/" + owner
 				if name == prefix || strings.HasPrefix(name, prefix+"/") {
 					t.Errorf("%s imports runtime owner %s", path, name)

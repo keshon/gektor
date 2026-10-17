@@ -145,7 +145,7 @@ func TestPopupShowsSixSuggestionsAndUsesBreathingRow(t *testing.T) {
 		lines := strings.Split(view.Content, "\n")
 		count, bottom := 0, -1
 		for i, line := range lines {
-			pane := string([]rune(ansi.Strip(line))[m.conversationOffset():])
+			pane := string([]rune(ansi.Strip(line))[m.promptOffset():])
 			if strings.Contains(pane, "/") && strings.HasPrefix(pane, "│") {
 				count++
 			}

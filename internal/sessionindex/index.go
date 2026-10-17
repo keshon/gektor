@@ -55,13 +55,6 @@ func Scan(root string, previous map[string]CachedSession, search bool) ([]Entry,
 		dir := filepath.Join(root, d.Name())
 		title, mode := workspace.ReadSessionTitle(dir), ReadMode(dir)
 		state := filepath.Join(dir, "state.json")
-		// A directory carrying conversation.json is a chat archive from
-		// before the chat runner was removed. There is nothing that can
-		// resume it, so it is skipped rather than offered and then failing
-		// to open.
-		if _, err := os.Stat(filepath.Join(dir, "conversation.json")); err == nil {
-			continue
-		}
 		fi, stateErr := os.Stat(state)
 		hasSnapshot := stateErr == nil
 		logInfo, _ := os.Stat(session.LogPath(state))

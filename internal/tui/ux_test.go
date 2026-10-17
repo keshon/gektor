@@ -118,7 +118,7 @@ func TestJumpToLatestWorksWhenIdle(t *testing.T) {
 func TestModePersistsAcrossReopening(t *testing.T) {
 	root := t.TempDir()
 	dir := writeSessionState(t, root, "plan", userHistory("Plan changes"))
-	if err := writeChatMode(filepath.Join(dir, "state.json"), true); err != nil {
+	if err := writeSavedMode(filepath.Join(dir, "state.json"), true); err != nil {
 		t.Fatal(err)
 	}
 	m := sessionsTestModel(t, listSessionsIn(root))
@@ -189,7 +189,7 @@ func TestPromptTransitionsFitWideAndNarrowTerminals(t *testing.T) {
 		}
 		m.handleEvent(api.Event{Name: "input_answered"})
 		if m.sidebarVisible() && m.transcript.Viewport.Width() != width-navigatorWidth-5 {
-			t.Fatalf("chat did not refit: %d", m.transcript.Viewport.Width())
+			t.Fatalf("transcript did not refit: %d", m.transcript.Viewport.Width())
 		}
 	}
 }
@@ -197,7 +197,7 @@ func TestPromptTransitionsFitWideAndNarrowTerminals(t *testing.T) {
 func TestBrowserActionsRemainInsideTerminalFrame(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	m.sessions = &sessionsState{filter: newSearchInput(80), entries: []sessionEntry{{id: "a", title: "Saved chat"}}}
+	m.sessions = &sessionsState{filter: newSearchInput(80), entries: []sessionEntry{{id: "a", title: "Saved session"}}}
 	m.fitBottom()
 	if !strings.Contains(m.View().Content, "╭─ Search") || !strings.Contains(m.View().Content, "Enter open") {
 		t.Fatal("search popup actions clipped")

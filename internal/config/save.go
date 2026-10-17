@@ -14,29 +14,9 @@ func SaveCopy(profile Profile, path string) error {
 	if err := profile.Validate(); err != nil {
 		return err
 	}
-	absolute, err := filepath.Abs(path)
-	if err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
-	path = absolute
-	relative := func(value string) string {
-		if value == "" {
-			return value
-		}
-
-		a, err := filepath.Abs(value)
-		if err != nil {
-			return value
-		}
-		v, err := filepath.Rel(filepath.Dir(path), a)
-		if err != nil {
-			return value
-		}
-		return v
-	}
-	profile.Provider.Runtime = relative(profile.Provider.Runtime)
-	profile.Provider.ModelFile = relative(profile.Provider.ModelFile)
-	profile.Provider.ModelRoot = relative(profile.Provider.ModelRoot)
 	data, err := json.MarshalIndent(profile, "", "  ")
 	if err != nil {
 		return err
