@@ -4,14 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/checks"
 	"github.com/keshon/tars/internal/events"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/roles"
@@ -321,116 +318,6 @@ func TestSession_HarnessReplyFlaggedAfterNudge(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("no step followed the nudge")
-	}
-}
-
-func TestFindingDrain_DedupesAcrossTiers(t *testing.T) {
-	var buf bytes.Buffer
-	em := events.New(&buf)
-	prev := 0
-	drain := newFindingDrain(em, func(string, string, int, string) { prev++ })
-	drain.reportPerEdit("gofmt", "a.go", 3, "not gofmt-clean")
-	dir := t.TempDir()
-	ws, err := workspace.New(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("package a\n\nfunc A()  {}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	// The session-end sweep sees the same dirty file: reported once.
-	drain.sweep(ws, []string{"a.go"})
-	n := 0
-	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
-		var rec map[string]any
-		if err := json.Unmarshal([]byte(line), &rec); err != nil {
-			t.Fatalf("not json: %v", err)
-		}
-		if rec["event"] == "finding" {
-			n++
-		}
-	}
-	if n != 1 {
-		t.Fatalf("%d finding events, want exactly 1 (cross-tier dedupe)", n)
-	}
-	if prev != 1 {
-		t.Fatalf("prev chained %d times, want 1", prev)
-	}
-}
-
-// The sweep is the only tier that sees changes the run made outside a
-// tool call, so a finding it finds first has to be emitted. It used to
-// filter its own results and then re-enter the reporting path, which found
-// them all already seen and emitted nothing.
-func TestFindingDrain_SweepEmitsWhenItIsTheFirstReporter(t *testing.T) {
-	dir := t.TempDir()
-	ws, err := workspace.New(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "stray.go"), []byte("package a\n\nfunc A()  {}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	var buf bytes.Buffer
-	prev := 0
-	drain := newFindingDrain(events.New(&buf), func(string, string, int, string) { prev++ })
-	drain.sweep(ws, []string{"stray.go"})
-
-	findings, err := decodeFindings(buf.String())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(findings) == 0 {
-		t.Fatalf("sweep emitted nothing:\n%s", buf.String())
-	}
-	for _, f := range findings {
-		if f.Rule != "gofmt" {
-			t.Fatalf("unexpected finding %+v", f)
-		}
-	}
-	if prev != len(findings) {
-		t.Fatalf("prev chained %d times for %d findings", prev, len(findings))
-	}
-}
-
-// decodeFindings pulls the finding events out of a JSONL event stream.
-func decodeFindings(stream string) ([]checks.Finding, error) {
-	var out []checks.Finding
-	for _, line := range strings.Split(strings.TrimSpace(stream), "\n") {
-		var rec struct {
-			Event   string `json:"event"`
-			Rule    string `json:"rule"`
-			Path    string `json:"path"`
-			Line    int    `json:"line"`
-			Summary string `json:"summary"`
-		}
-		if err := json.Unmarshal([]byte(line), &rec); err != nil {
-			return nil, err
-		}
-		if rec.Event == "finding" {
-			out = append(out, checks.Finding{
-				Rule: rec.Rule, Path: rec.Path, Line: rec.Line, Summary: rec.Summary,
-			})
-		}
-	}
-	return out, nil
-}
-
-func TestFindingDrain_SweepBound(t *testing.T) {
-	var buf bytes.Buffer
-	drain := newFindingDrain(events.New(&buf), nil)
-	ws, err := workspace.New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	paths := make([]string, 0, 70)
-	for i := 0; i < 70; i++ {
-		paths = append(paths, "f.go")
-	}
-	drain.sweep(ws, paths)
-	if !strings.Contains(buf.String(), "sweep-skipped") {
-		t.Fatalf("bound must announce itself: %s", buf.String())
 	}
 }
 

@@ -64,16 +64,16 @@ func TestScanFile_NonGoSkipsGofmt(t *testing.T) {
 }
 
 func TestCache_Dedupes(t *testing.T) {
-	var c Cache
+	var c cache
 	f := Finding{Rule: "gofmt", Path: "a.go", Line: 3}
-	if got := c.Filter([]Finding{f}); len(got) != 1 {
+	if got := c.filter([]Finding{f}); len(got) != 1 {
 		t.Fatal("first sighting must pass")
 	}
-	if got := c.Filter([]Finding{f}); len(got) != 0 {
+	if got := c.filter([]Finding{f}); len(got) != 0 {
 		t.Fatal("repeat must be suppressed")
 	}
 	other := Finding{Rule: "gofmt", Path: "a.go", Line: 4}
-	if got := c.Filter([]Finding{other}); len(got) != 1 {
+	if got := c.filter([]Finding{other}); len(got) != 1 {
 		t.Fatal("new line must pass")
 	}
 }

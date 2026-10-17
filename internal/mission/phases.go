@@ -152,6 +152,11 @@ func (r *Runner) Run(ctx context.Context, m *Mission) (string, error) {
 	if r.ContextLimit == 0 {
 		r.ContextLimit = r.Env.ContextLimit
 	}
+	// One deep pass over everything the mission changed, on every exit
+	// path: finished, failed, or interrupted and resumable. Catching the
+	// writes no tool reported is the whole point of it, and skipping it
+	// on failure would leave exactly the runs worth checking unchecked.
+	defer r.Env.Sweep(m.Mutated)
 	for {
 		switch m.Phase {
 		case PhaseExplore:

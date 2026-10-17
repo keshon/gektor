@@ -14,7 +14,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/keshon/tars/internal/agent"
@@ -22,7 +21,6 @@ import (
 	"github.com/keshon/tars/internal/events"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/roles"
-	"github.com/keshon/tars/internal/workspace"
 )
 
 // Event is one decoded JSONL event: the name plus its fields, including
@@ -88,7 +86,7 @@ func New(cfg Config) (*Session, error) {
 // Framing (run start/end) is the caller's job: in-process callers have
 // call boundaries, and wire transports add their own. Session streams
 // step events only.
-func (s *Session) build(ctx context.Context) (*agent.Agent, *findingDrain) {
+func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter) {
 	emitter := events.New(&callbackWriter{onEvent: s.cfg.OnEvent})
 
 	askFn := s.asker(ctx)
@@ -151,26 +149,30 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *findingDrain) {
 			prevOnReasoning(chunk)
 		}
 	}
-	drain := newFindingDrain(emitter, env.OnFinding)
-	env.OnFinding = drain.reportPerEdit
+	// Findings go to the wire. The caller's own reporter is replaced
+	// rather than chained: the TUI, the only caller, stubs hooks and
+	// reads the event stream instead.
+	env.Checks = checks.NewReporter(func(scope checks.Scope, f checks.Finding) {
+		EmitFinding(emitter, string(scope), f.Rule, f.Path, f.Line, f.Summary)
+	})
 	if s.cfg.Plan {
 		a = roles.Planner(env, "plan", s.cfg.StateFile)
 	} else {
 		a = roles.Interactive(env, "", s.cfg.StateFile, askFn, s.cfg.Verify)
 	}
-	return a, drain
+	return a, emitter
 }
 
 func (s *Session) Run(ctx context.Context) (string, error) {
-	a, drain := s.build(ctx)
+	a, emitter := s.build(ctx)
 	ans, err := a.Run(ctx, s.cfg.Task, s.cfg.Images...)
 	if err != nil {
 		if resAns, resErr, ok := agent.BudgetContinue(ctx, a, err, s.cfg.StateFile, s.cfg.Answer); ok {
 			ans, err = resAns, resErr
 		}
 	}
-	drain.sweep(s.cfg.Env.WS, a.MutatedPaths())
-	s.report(a, drain.emit)
+	s.cfg.Env.Sweep(a.MutatedPaths())
+	s.report(a, emitter)
 	return ans, err
 }
 
@@ -186,7 +188,7 @@ func (s *Session) asker(ctx context.Context) func(string) (string, error) {
 
 // Resume continues from saved history with a note, mirroring Agent.Resume.
 func (s *Session) Resume(ctx context.Context, history []llm.Message, note string, images ...string) (string, error) {
-	a, drain := s.build(ctx)
+	a, emitter := s.build(ctx)
 	var ans string
 	var err error
 	if callID, question, paused := agent.PausedOnQuestion(a.Tools(), history); paused {
@@ -207,8 +209,8 @@ func (s *Session) Resume(ctx context.Context, history []llm.Message, note string
 			ans, err = resAns, resErr
 		}
 	}
-	drain.sweep(s.cfg.Env.WS, a.MutatedPaths())
-	s.report(a, drain.emit)
+	s.cfg.Env.Sweep(a.MutatedPaths())
+	s.report(a, emitter)
 	return ans, err
 }
 
@@ -336,94 +338,6 @@ func EmitDelta(emitter *events.Emitter, text string) {
 		return
 	}
 	emitter.Emit("delta", map[string]any{"text": text})
-}
-
-// maxSweepFiles bounds the session-end deep pass; maxSweepFindings
-// bounds its noise. Both overflow as named marker findings, never
-// silent drops.
-const (
-	maxSweepFiles    = 64
-	maxSweepFindings = 20
-)
-
-// findingDrain funnels deterministic-check findings into finding events
-// with cross-tier dedupe: per-edit scans and the session-end sweep
-// share one cache, so a file dirty throughout is reported once, not
-// once per phase that noticed it.
-type findingDrain struct {
-	emit  *events.Emitter
-	cache *checks.Cache
-	prev  func(rule, path string, line int, summary string)
-}
-
-func newFindingDrain(emitter *events.Emitter, prev func(rule, path string, line int, summary string)) *findingDrain {
-	return &findingDrain{emit: emitter, cache: &checks.Cache{}, prev: prev}
-}
-
-// reportPerEdit records one post-tool finding, emitted once.
-func (d *findingDrain) reportPerEdit(rule, path string, line int, summary string) {
-	d.report("per-edit", rule, path, line, summary)
-}
-
-// emit sends findings the cache has already deduplicated, then chains the
-// previous sink so suppressed findings stay silent everywhere.
-func (d *findingDrain) emitKept(scope string, kept []checks.Finding) {
-	for _, f := range kept {
-		EmitFinding(d.emit, scope, f.Rule, f.Path, f.Line, f.Summary)
-		if d.prev != nil {
-			d.prev(f.Rule, f.Path, f.Line, f.Summary)
-		}
-	}
-}
-
-// report emits one finding unless already reported.
-func (d *findingDrain) report(scope, rule, path string, line int, summary string) {
-	d.emitKept(scope, d.cache.Filter([]checks.Finding{{Rule: rule, Path: path, Line: line, Summary: summary}}))
-}
-
-// sweep runs the session-end deep pass over mutated paths: files the
-// run changed through any tool, including shell redirections, MCP
-// writes, and background jobs, which per-edit scans never see
-// (they only scan tool-written content addressed by "path").
-func (d *findingDrain) sweep(ws *workspace.Workspace, paths []string) {
-	if ws == nil || len(paths) == 0 {
-		return
-	}
-	if len(paths) > maxSweepFiles {
-		d.report("session-end", "sweep-skipped", "", 0, fmt.Sprintf("%d files changed; sweep bound at %d", len(paths), maxSweepFiles))
-		return
-	}
-	var all []checks.Finding
-	for _, p := range paths {
-		full, err := ws.Resolve(p)
-		if err != nil {
-			continue // deleted or escaped since: nothing to scan
-		}
-		data, err := readCapped(full, sweepReadMax)
-		if err != nil {
-			continue
-		}
-		all = append(all, checks.ScanFile(p, data)...)
-	}
-	capped, dropped := checks.Clamp(d.cache.Filter(all), maxSweepFindings)
-	d.emitKept("session-end", capped)
-	if dropped > 0 {
-		d.report("session-end", "sweep-truncated", "", 0,
-			fmt.Sprintf("and %d more findings withheld", dropped))
-	}
-}
-
-// sweepReadMax bounds one swept file. The bound on count alone still let a
-// run that touched one large asset read all of it.
-const sweepReadMax = 256 * 1024
-
-func readCapped(path string, max int64) ([]byte, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	return io.ReadAll(io.LimitReader(f, max))
 }
 
 // EmitToolResult writes one completed tool call as a JSONL event.

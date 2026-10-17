@@ -17,6 +17,7 @@ import (
 	"github.com/keshon/tars/internal/api"
 	"github.com/keshon/tars/internal/app"
 	"github.com/keshon/tars/internal/audit"
+	"github.com/keshon/tars/internal/checks"
 	"github.com/keshon/tars/internal/events"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/mission"
@@ -343,9 +344,9 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 				api.EmitToolResult(emitter, result.CallID, result.Output, result.Failed)
 			}
 		},
-		OnUsage:   usagePrinter(o.outputMode, emitter),
-		OnFinding: findingPrinter(o.outputMode),
-		OnNudge:   nudgePrinter(o.outputMode),
+		OnUsage: usagePrinter(o.outputMode, emitter),
+		Checks:  checks.NewReporter(findingSink(emitter, o.outputMode)),
+		OnNudge: nudgePrinter(o.outputMode),
 	}
 	if missionDir != "" {
 		params := missionParams{
@@ -466,6 +467,9 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 
 	defer func() {
 		r := a.Report()
+		// Deep pass over everything the run changed, catching writes no
+		// tool reported: shell redirections, MCP, background jobs.
+		env.Sweep(r.MutatedPaths)
 		api.EmitOutcome(emitter, r, stateFile)
 		note("outcome: %s; changed files: %s", r.Outcome, strings.Join(r.MutatedPaths, ", "))
 		if r.Verification != "" {

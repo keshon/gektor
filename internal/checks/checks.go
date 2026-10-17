@@ -91,16 +91,16 @@ func ScanFile(path string, src []byte) []Finding {
 	return append(out, Secrets(path, src)...)
 }
 
-// Cache dedupes findings across repeated scans: key is rule + path +
-// line, so the same finding reported twice surfaces once. Per-run state;
-// the loop owns its lifetime (session-end pass shares it with per-edit
-// scans, which is what makes the deep pass quiet on known findings).
-type Cache struct {
+// cache dedupes findings across repeated scans: key is rule + path +
+// line, so the same finding reported twice surfaces once. Owned by one
+// Reporter, which is what makes the deep pass quiet on findings the
+// per-edit scans already reported.
+type cache struct {
 	seen map[string]struct{}
 }
 
-// Filter drops already-seen findings, remembering the new ones.
-func (c *Cache) Filter(in []Finding) []Finding {
+// filter drops already-seen findings, remembering the new ones.
+func (c *cache) filter(in []Finding) []Finding {
 	if c.seen == nil {
 		c.seen = map[string]struct{}{}
 	}

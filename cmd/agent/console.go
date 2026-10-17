@@ -12,6 +12,7 @@ import (
 
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/api"
+	"github.com/keshon/tars/internal/checks"
 	"github.com/keshon/tars/internal/events"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/permission"
@@ -154,14 +155,18 @@ func usagePrinter(mode string, emitter *events.Emitter) func(int, llm.Usage) {
 	return nil
 }
 
-// findingPrinter shows post-write check findings in print mode; json
-// mode carries them as finding events via the session emitter.
-func findingPrinter(mode string) func(rule, path string, line int, summary string) {
-	if mode == "json" {
-		return nil
+// findingSink shows deterministic check findings: JSON finding events in
+// json mode, one plain line otherwise. It used to return nil for json,
+// which disabled scanning outright: a nil sink means no reporter, and no
+// reporter means the file tools are never wrapped.
+func findingSink(emitter *events.Emitter, mode string) func(checks.Scope, checks.Finding) {
+	if mode == "json" && emitter != nil {
+		return func(scope checks.Scope, f checks.Finding) {
+			api.EmitFinding(emitter, string(scope), f.Rule, f.Path, f.Line, f.Summary)
+		}
 	}
-	return func(rule, path string, line int, summary string) {
-		fmt.Printf("check %s %s:%d %s\n", rule, path, line, summary)
+	return func(_ checks.Scope, f checks.Finding) {
+		fmt.Printf("check %s %s:%d %s\n", f.Rule, f.Path, f.Line, f.Summary)
 	}
 }
 

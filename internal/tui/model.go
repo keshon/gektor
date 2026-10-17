@@ -243,7 +243,6 @@ func withoutPrintHooks(env roles.Env) roles.Env {
 	env.OnToolResult = func(string, string) {}
 	env.OnResult = func(agent.ToolResult) {}
 	env.OnUsage = func(int, llm.Usage) {}
-	env.OnFinding = nil
 	env.OnNudge = nil
 	return env
 }

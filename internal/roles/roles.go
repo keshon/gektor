@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 
 	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/tars/internal/checks"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/permission"
 	"github.com/keshon/tars/internal/prompts"
@@ -105,10 +106,11 @@ type Env struct {
 	OnToolResult func(callID, result string)
 	OnResult     func(agent.ToolResult)
 
-	// OnFinding receives deterministic post-write check findings
-	// (gofmt, secret scan) from wrapped file tools. Nil disables
-	// scanning: tools run unwrapped, identical to uninstrumented.
-	OnFinding func(rule, path string, line int, summary string)
+	// Checks collects deterministic findings (gofmt, secret scan) for
+	// the run: post-write scans from wrapped file tools, plus the deep
+	// session-end sweep. Nil disables both, and tools then run
+	// unwrapped, identical to uninstrumented.
+	Checks *checks.Reporter
 
 	// OnUsage, if set, receives backend token counts per step.
 	// See agent.Config.OnUsage.
@@ -131,6 +133,15 @@ func (e Env) onStep(label string) func(int, llm.Message) {
 		return nil
 	}
 	return func(step int, msg llm.Message) { e.OnStep(label, step, msg) }
+}
+
+// Sweep runs the deep session-end pass over the paths a run changed,
+// catching writes that no tool reported as a post-write edit. Call it
+// once per run, after the last turn, with every path the run mutated.
+func (e Env) Sweep(paths []string) {
+	if e.Checks != nil {
+		e.Checks.Sweep(e.WS, paths)
+	}
 }
 
 // ResolveGate returns the gate permission.Authorize should ask for:
@@ -246,7 +257,7 @@ func Subagent(e Env, role string) *agent.Agent {
 	return agent.New(agent.Config{
 		BeginChanges:    e.WS.ChangeObserver,
 		Client:          e.Client,
-		Tools:           tools.Base(e.WS, e.Procs, e.OnFinding, e.MCPTools...),
+		Tools:           tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.MCPTools...),
 		System:          prompts.WithRole(role) + "\n\n" + prompts.SubagentScope + "\n\n" + prompts.PlatformLine() + e.WS.Instructions() + "\n\n" + e.Identity,
 		MaxSteps:        subagentSteps,
 		MaxTokens:       e.MaxTokens,
@@ -267,7 +278,7 @@ func Subagent(e Env, role string) *agent.Agent {
 // written nothing on a subtask that was supposed to write, which is the
 // announce-without-write shape. See agent.Config.VerifyOnZeroWrites.
 func Worker(e Env, label, system, stateFile string, maxSteps int, expectsWrites bool) *agent.Agent {
-	reg := tools.Base(e.WS, e.Procs, e.OnFinding, e.MCPTools...)
+	reg := tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.MCPTools...)
 	return agent.New(agent.Config{
 		BeginChanges:       e.WS.ChangeObserver,
 		Client:             e.Client,
@@ -314,7 +325,7 @@ func Interactive(e Env, label, stateFile string,
 	if ask != nil {
 		extra = append(extra, tools.AskUser{AskFn: ask})
 	}
-	reg := tools.Base(e.WS, e.Procs, e.OnFinding, extra...)
+	reg := tools.Base(e.WS, e.Procs, e.Checks.PerEdit, extra...)
 
 	return agent.New(agent.Config{
 		BeginChanges:    e.WS.ChangeObserver,

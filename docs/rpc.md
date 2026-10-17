@@ -70,7 +70,13 @@ without keeping gate state. A `respond` answer of `n: <note>` denies
 with the note attached: the refusal the model sees carries the
 operator's redirect. Deterministic post-write checks surface as
 `finding` events (`scope` per-edit or session-end); they are
-report-only, never gates. Loop-generated harness notices surface as
+report-only, never gates. Both scopes are produced by every frontend
+that reports findings — TUI, print, json and mission — and one run's
+scopes share a dedupe cache, so a file dirty throughout a run is
+reported once rather than once per pass. `per-edit` scans content a
+tool addressed by `path`; `session-end` re-reads every path the run
+changed, which is the only pass that sees shell redirections, MCP
+writes and background jobs. Loop-generated harness notices surface as
 `nudge` events (`kind` verify/refusal/leak/think-wrap/truncated/
 overflow/budget/stuck/todo/closing): the same `[harness]`-marked text the model
 saw, so observers can audit every intervention. Streamed content
