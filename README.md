@@ -126,7 +126,7 @@ go run ./cmd/eval -only 0 -require-model qwen
 - `internal/api`, `internal/tui` — shared session events/gates and terminal UI
 - `internal/audit`, `internal/checks` — approval records and deterministic findings
 - `internal/permission`, `internal/session`, `internal/snapshot`,
-  `internal/events` — policy, session log, workspace checkpoints, JSONL output
+  `internal/events` — policy, conversation snapshots, workspace checkpoints, JSONL output
 
 How it fits together is in [ARCHITECTURE.md](ARCHITECTURE.md). House rules
 are in [docs/conventions.md](docs/conventions.md), enforced by tests.

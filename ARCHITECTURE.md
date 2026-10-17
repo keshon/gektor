@@ -38,7 +38,7 @@ internal/audit     JSONL approval-decision records
 internal/checks    deterministic file checks (formatting and secret findings)
 internal/permission allow/ask/deny policy for tool calls (leaf package)
 internal/events    JSONL run/step event output for -mode json
-internal/session   bounded JSONL checkpoints next to state.json
+internal/session   the one persisted conversation snapshot, state.json
 internal/snapshot  file and Git-index checkpoints, preview and restore
 internal/mission   plan, ledger, workers, checks, replan, review
 internal/prompts   every prompt, as .txt, embedded at build time
@@ -198,13 +198,15 @@ questions through GateHub. A gate belongs to the active run context; cancelling
 or closing the transport releases it. Policy Deny never becomes a question,
 and Ask without a live approval handler fails closed.
 
-Transcript recovery belongs to `session.ReadHistory`: a valid JSON
-snapshot is authoritative; a missing or corrupt snapshot falls back to the
-current JSONL log's last valid checkpoint. CLI resume/fork, TUI open/continue,
+Transcript loading belongs to `session.ReadHistory`, which reads one
+atomically-rewritten snapshot and accepts either the file or its session
+directory. CLI resume/fork, TUI open/continue,
 manual compaction, relaunch after a settings apply, and session search share
-this reader. Search caches watch both
-snapshot and log revisions, including sessions with no snapshot. Recovery does
-not rewrite files. `agent.LoadState` remains an explicitly snapshot-only API.
+this reader. Search caches watch the
+snapshot's size and mtime. There is no second copy to fall back on: the
+snapshot is written tmp+rename, so a crash cannot leave it half-written,
+and anything that could lose it would lose a backup on the same disk too.
+`agent.LoadState` is the same read under the agent's own name.
 
 The TUI owns presentation and input routing. A responsive Sessions pane and
 centered title/history search open saved tasks without generating; drafts and a

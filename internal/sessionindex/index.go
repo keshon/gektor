@@ -36,8 +36,6 @@ type CachedSession struct {
 	searchable  bool
 	storedTitle string
 	state       string
-	logSize     int64
-	logModified time.Time
 	hasSnapshot bool
 }
 
@@ -56,22 +54,13 @@ func Scan(root string, previous map[string]CachedSession, search bool) ([]Entry,
 		title, mode := workspace.ReadSessionTitle(dir), ReadMode(dir)
 		state := filepath.Join(dir, "state.json")
 		fi, stateErr := os.Stat(state)
-		hasSnapshot := stateErr == nil
-		logInfo, _ := os.Stat(session.LogPath(state))
-		if stateErr != nil && logInfo != nil {
-			fi, stateErr = logInfo, nil
-		}
+		current := CachedSession{state: state, hasSnapshot: stateErr == nil, storedTitle: title, Entry: Entry{ID: d.Name(), Dir: dir, Title: title, Mode: mode, Status: "Saved"}}
 		old, ok := previous[dir]
-		current := CachedSession{state: state, hasSnapshot: hasSnapshot, storedTitle: title, Entry: Entry{ID: d.Name(), Dir: dir, Title: title, Mode: mode, Status: "Saved"}}
-		if logInfo != nil {
-			current.logSize, current.logModified = logInfo.Size(), logInfo.ModTime()
-		}
 		if stateErr == nil {
 			current.size, current.modified = fi.Size(), fi.ModTime()
 			unchanged := ok && old.state == state && old.storedTitle == title &&
 				old.hasSnapshot == current.hasSnapshot &&
-				old.size == current.size && old.modified.Equal(current.modified) &&
-				old.logSize == current.logSize && old.logModified.Equal(current.logModified)
+				old.size == current.size && old.modified.Equal(current.modified)
 			if unchanged && (!search || old.searchable) {
 				current = old
 				current.Entry.Mode = mode
@@ -81,9 +70,6 @@ func Scan(root string, previous map[string]CachedSession, search bool) ([]Entry,
 			} else {
 				current.Entry.Status = "Unreadable"
 				current.Entry.Updated = fi.ModTime()
-				if logInfo != nil && logInfo.ModTime().After(current.Entry.Updated) {
-					current.Entry.Updated = logInfo.ModTime()
-				}
 				if fi.Size() < 64<<20 {
 					loadHistory := func() ([]llm.Message, error) {
 						return session.ReadHistory(state)

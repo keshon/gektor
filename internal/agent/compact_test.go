@@ -69,31 +69,40 @@ func TestCompactFile_MissingSnapshotErrors(t *testing.T) {
 	}
 }
 
-func TestCompactFile_RecoversMissingOrCorruptSnapshot(t *testing.T) {
-	for _, snapshot := range []string{"missing", "corrupt"} {
-		t.Run(snapshot, func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "state.json")
-			history := []llm.Message{{Role: llm.RoleSystem, Content: "sys"}, {Role: llm.RoleUser, Content: "task"}}
-			for i := 0; i < 15; i++ {
-				history = append(history, assistantStep("c")...)
-			}
-			if err := session.Append(path, 1, history); err != nil {
-				t.Fatal(err)
-			}
-			if snapshot == "corrupt" {
-				if err := os.WriteFile(path, []byte("broken"), 0600); err != nil {
-					t.Fatal(err)
-				}
-			}
-			before, after, err := CompactFile(path, 8)
-			if err != nil || before != len(history) || after >= before {
-				t.Fatalf("compaction: %d -> %d, %v", before, after, err)
-			}
-			loaded, err := LoadState(path)
-			if err != nil || len(loaded) != after {
-				t.Fatalf("compacted snapshot: %d messages, %v", len(loaded), err)
-			}
-		})
+// /compact reads and rewrites one snapshot. A corrupt file is an error,
+// not something to reconstruct: there is no second copy to fall back to,
+// and writing a partial reconstruction would look like a recovered
+// session.
+func TestCompactFile_CorruptSnapshotErrors(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	if err := session.WriteSnapshot(path, []llm.Message{{Role: llm.RoleUser, Content: "task"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("broken"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := CompactFile(path, 8); err == nil {
+		t.Fatal("a corrupt snapshot must not compact silently")
+	}
+}
+
+func TestCompactFile_ShrinksASnapshot(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	history := []llm.Message{{Role: llm.RoleSystem, Content: "sys"}, {Role: llm.RoleUser, Content: "task"}}
+	for i := 0; i < 15; i++ {
+		history = append(history, assistantStep("c")...)
+	}
+	if err := session.WriteSnapshot(path, history); err != nil {
+		t.Fatal(err)
+	}
+
+	before, after, err := CompactFile(path, 8)
+	if err != nil || before != len(history) || after >= before {
+		t.Fatalf("compaction: %d -> %d, %v", before, after, err)
+	}
+	loaded, err := LoadState(path)
+	if err != nil || len(loaded) != after {
+		t.Fatalf("compacted snapshot: %d messages, %v", len(loaded), err)
 	}
 }
 

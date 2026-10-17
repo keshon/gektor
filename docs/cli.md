@@ -110,7 +110,8 @@ fails closed. Rules are pattern tripwires, not process isolation. See
 ## State and checkpoints
 
 Task state belongs to the selected workspace, under `.tars/tasks/<id>/`.
-Every run uses `state.json` and the rotating `state.jsonl` log; missions also use
+Every run writes one file, `state.json`, rewritten atomically on each step;
+missions also use
 `mission.json` and worker transcripts. Session display title and Plan/Act metadata
 are saved alongside the history. Resume accepts a task
 directory or state file; a directory containing `mission.json` resumes a mission.

@@ -12,7 +12,6 @@ import (
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/api"
 	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/session"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -301,37 +300,21 @@ func TestSessions_EnterResumesWithHistory(t *testing.T) {
 	}
 }
 
-func TestSessions_OpenRecoversHistoryFromLog(t *testing.T) {
-	for _, snapshot := range []string{"corrupt", "missing"} {
-		t.Run(snapshot, func(t *testing.T) {
-			tmp := t.TempDir()
-			chdirSessions(t, tmp)
-			history := userHistory("recover this Identity")
-			dir := writeSessionState(t, filepath.Join(".tars", "tasks"), "recoverable", history)
-			path := filepath.Join(dir, "state.json")
-			if err := session.Append(path, 1, history); err != nil {
-				t.Fatal(err)
-			}
-			if snapshot == "missing" {
-				if err := os.Remove(path); err != nil {
-					t.Fatal(err)
-				}
-			} else if err := os.WriteFile(path, []byte("broken"), 0600); err != nil {
-				t.Fatal(err)
-			}
-			entries := listSessions()
-			if len(entries) != 1 {
-				t.Fatalf("recoverable session missing from list: %+v", entries)
-			}
-			m := sessionsTestModel(t, entries)
-			m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-			if m.sessions != nil || m.sess == nil || m.stateFile != path {
-				t.Fatal("recoverable session did not open")
-			}
-			if !strings.Contains(m.View().Content, "recover this Identity") {
-				t.Fatal("recovered history is absent from transcript")
-			}
-		})
+// Opening a session reads its snapshot. A corrupt snapshot now leaves an
+// empty transcript instead of silently showing whatever the recovery log
+// last held, which is the honest outcome when there is no second copy.
+func TestSessions_OpenCorruptSnapshot(t *testing.T) {
+	tmp := t.TempDir()
+	chdirSessions(t, tmp)
+	dir := writeSessionState(t, filepath.Join(".tars", "tasks"), "broken", userHistory("was fine"))
+	path := filepath.Join(dir, "state.json")
+	if err := os.WriteFile(path, []byte("broken"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	entries := listSessions()
+	if len(entries) != 1 || entries[0].status != "Unreadable" {
+		t.Fatalf("a corrupt snapshot must be listed as such: %+v", entries)
 	}
 }
 

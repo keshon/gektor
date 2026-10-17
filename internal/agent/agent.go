@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -164,18 +162,16 @@ func (a *Agent) ResumeWithAnswer(ctx context.Context, history []llm.Message, cal
 
 // LoadState reads a history previously written via Config.StateFile.
 func LoadState(path string) ([]llm.Message, error) {
-	return session.ReadSnapshot(path)
+	return session.ReadHistory(path)
 }
 
 // SaveState writes a checkpoint atomically without running an agent.
 func SaveState(path string, history []llm.Message) error {
-	a := &Agent{cfg: Config{StateFile: path}}
-	return a.persistState(history)
+	return session.WriteSnapshot(path, history)
 }
 
 // saveState is best-effort: a failed snapshot write should never abort a
-// run that's otherwise working fine. Writes are atomic (tmp+rename) so a
-// crash mid-write never leaves corrupt JSON behind.
+// run that's otherwise working fine.
 func (a *Agent) saveState(history []llm.Message) {
 	if a.cfg.StateFile == "" {
 		return
@@ -192,22 +188,7 @@ func (a *Agent) saveState(history []llm.Message) {
 }
 
 func (a *Agent) persistState(history []llm.Message) error {
-	data, err := json.MarshalIndent(history, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(a.cfg.StateFile), 0755); err != nil {
-		return err
-	}
-	tmp := a.cfg.StateFile + ".tmp"
-	if err := os.WriteFile(tmp, data, 0600); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, a.cfg.StateFile); err != nil {
-		os.Remove(tmp)
-		return err
-	}
-	return session.Append(a.cfg.StateFile, len(history), history)
+	return session.WriteSnapshot(a.cfg.StateFile, history)
 }
 
 type runState struct {
