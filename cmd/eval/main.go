@@ -295,6 +295,14 @@ type Result struct {
 	// without opening the trace.
 	Tools map[string]int `json:"tools,omitempty"`
 
+	// Nudges records every harness notice the run produced, in order.
+	// A nudge rides a turn the loop was taking anyway, so it costs
+	// tokens and not latency -- except the ones that bounce a finish or
+	// force a retry, which cost a whole turn. Counting by kind is how we
+	// find out which of those earn their keep on a given model instead
+	// of arguing about it.
+	Nudges []string `json:"nudges,omitempty"`
+
 	RunError string   `json:"run_error,omitempty"`
 	Failures []string `json:"failures,omitempty"`
 	Trace    string   `json:"trace_log,omitempty"`
@@ -702,7 +710,9 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 		// and inventing an answer would make the probe score the answer.
 		// Whether ask_user was called at all stays visible in the trace,
 		// which is what probe 12 measures.
-		env := evalEnv(modelClient, ws, procs, contextLimit, maxTokens, record)
+		env := evalEnv(modelClient, ws, procs, contextLimit, maxTokens, record, func(kind string) {
+		res.Nudges = append(res.Nudges, kind)
+	})
 		replyIndex := 0
 		a := roles.Interactive(env, "", "", func(string) (string, error) {
 			if replyIndex < len(p.Replies) {
@@ -768,8 +778,13 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 // evalEnv adapts the harness's step recorder, which ignores labels
 // because a probe scores one agent at a time, to the labelled callback
 // roles.Env hands out.
+//
+// nudge receives the kind of every harness notice the run produced. It
+// is measurement, not control: the count is what tells us whether a
+// nudge earns the step it costs, per model, instead of us guessing which
+// ones to keep.
 func evalEnv(client llm.Client, ws *workspace.Workspace, procs *tools.BackgroundProcesses,
-	contextLimit, maxTokens int, record func(int, llm.Message)) roles.Env {
+	contextLimit, maxTokens int, record func(int, llm.Message), nudge func(kind string)) roles.Env {
 
 	return roles.Env{
 		Client:       client,
@@ -778,6 +793,7 @@ func evalEnv(client llm.Client, ws *workspace.Workspace, procs *tools.Background
 		MaxTokens:    maxTokens,
 		ContextLimit: contextLimit,
 		OnStep:       func(_ string, step int, msg llm.Message) { record(step, msg) },
+		OnNudge:      func(kind, _ string) { nudge(kind) },
 	}
 }
 
@@ -936,6 +952,65 @@ func summarize(all []Result) string {
 	if skipped > 0 {
 		fmt.Fprintf(&b, "\n\n  %d run(s) skipped (host OS outside the probe's oses) and are excluded.",
 			skipped)
+	}
+	if line := summarizeNudges(all); line != "" {
+		b.WriteString("\n\n")
+		b.WriteString(line)
+	}
+	return b.String()
+}
+
+// summarizeNudges reports what the harness said to the model, per kind,
+// split by whether the run that heard it passed.
+//
+// This exists to settle an argument with numbers. Nudges are not a
+// uniform cost: most ride a turn the loop was taking anyway and cost
+// only tokens, while a finish bounce, a wrap-up round or an overflow
+// retry costs a whole turn. Seeing which kinds land on passing runs and
+// which land on failing ones is the input to deciding what to keep, per
+// model, instead of shipping one default tuned for weak local LLMs and
+// paying for it on strong ones.
+//
+// Reads as "which nudges correlate with recovery". Correlation on a few
+// dozen runs is a lead, not a verdict.
+func summarizeNudges(all []Result) string {
+	type stat struct{ total, onPass, onFail int }
+	kinds := map[string]*stat{}
+	scored := 0
+	for _, r := range all {
+		if r.Errored || r.Skipped {
+			continue
+		}
+		scored++
+		for _, k := range r.Nudges {
+			s, ok := kinds[k]
+			if !ok {
+				s = &stat{}
+				kinds[k] = s
+			}
+			s.total++
+			if r.Passed {
+				s.onPass++
+			} else {
+				s.onFail++
+			}
+		}
+	}
+	if len(kinds) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(kinds))
+	for k := range kinds {
+		names = append(names, k)
+	}
+	sort.Slice(names, func(i, j int) bool { return kinds[names[i]].total > kinds[names[j]].total })
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "=== harness nudges (%d scored run(s)) ===\n", scored)
+	fmt.Fprintf(&b, "  %-18s %6s %8s %8s\n", "kind", "heard", "passed", "failed")
+	for _, k := range names {
+		s := kinds[k]
+		fmt.Fprintf(&b, "  %-18s %6d %8d %8d\n", k, s.total, s.onPass, s.onFail)
 	}
 	return b.String()
 }

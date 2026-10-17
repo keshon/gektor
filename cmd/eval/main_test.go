@@ -15,6 +15,44 @@ func writeProbe(t *testing.T, dir, name, body string) {
 	}
 }
 
+// The nudge table exists to replace an argument with numbers, so it must
+// actually appear and must separate the runs that passed from those that
+// failed. A summary that silently reported nothing would look exactly
+// like "no nudge ever fires", which is the conclusion it exists to test.
+func TestSummarize_ReportsNudgesSplitByOutcome(t *testing.T) {
+	out := summarize([]Result{
+		{Probe: "a", Passed: true, Steps: 4, Nudges: []string{"stuck", "budget"}},
+		{Probe: "a", Passed: true, Steps: 3, Nudges: []string{"stuck"}},
+		{Probe: "a", Passed: false, Steps: 9, Nudges: []string{"stuck", "todo"}},
+		// Excluded from the rate, so also from the nudge table: a run that
+		// never reached the model cannot show what a nudge did.
+		{Probe: "a", Errored: true, Nudges: []string{"verify"}},
+		{Probe: "a", Skipped: true, Nudges: []string{"verify"}},
+	})
+	for _, want := range []string{"=== harness nudges", "stuck", "budget", "todo"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("summary missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "verify") {
+		t.Fatalf("errored and skipped runs must not count:\n%s", out)
+	}
+	// stuck was heard 3 times: twice on passing runs, once on a failure.
+	if !strings.Contains(out, "  stuck") || !strings.Contains(out, "  2") {
+		t.Fatalf("stuck totals wrong:\n%s", out)
+	}
+}
+
+func TestSummarize_NoNudgeLineWhenNoneFired(t *testing.T) {
+	out := summarize([]Result{{Probe: "a", Passed: true, Steps: 2}})
+	if strings.Contains(out, "harness nudges") {
+		t.Fatalf("a run with no nudges must not print the table:\n%s", out)
+	}
+	if !strings.Contains(out, "pass rate") {
+		t.Fatalf("pass rate must still be reported:\n%s", out)
+	}
+}
+
 func TestOsSkipReason(t *testing.T) {
 	if skip, _ := osSkipReason(nil); skip {
 		t.Error("empty oses must run everywhere")
