@@ -25,9 +25,6 @@ type todoItem struct {
 	Text  string `json:"text"`
 }
 
-// NewTodo returns an empty list.
-func NewTodo() *Todo { return &Todo{} }
-
 func (t *Todo) Name() string { return "todo" }
 
 // Mode is Concurrent: the checklist is process-local state behind a mutex
@@ -105,13 +102,6 @@ func (t *Todo) Run(_ context.Context, args json.RawMessage) (string, error) {
 	snapshot := append([]todoItem(nil), t.items...)
 	t.mu.Unlock()
 	return renderTodo(snapshot), nil
-}
-
-// Items returns the current checklist.
-func (t *Todo) Items() []todoItem {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return append([]todoItem(nil), t.items...)
 }
 
 // Progress reports checklist state for the loop's finish gate: how many

@@ -35,13 +35,6 @@ func (d *Draft) Load(profile config.Profile) {
 	d.pages = make(map[string]page)
 }
 
-// Loaded reports whether a profile was staged wholesale. Such a draft has
-// nothing to diff: its base is the loaded profile and every page still
-// matches its own baseline, so Apply has to commit it even though no field
-// was edited afterwards. Without this, "no sections changed" would be read
-// as "nothing to do" and a loaded setup would never take effect.
-func (d *Draft) Loaded() bool { return d.loaded }
-
 // Visit records a page's baseline once and restores any edits on later visits.
 func (d *Draft) Visit(section string, defaults []form.Field) []form.Field {
 	p, ok := d.pages[section]

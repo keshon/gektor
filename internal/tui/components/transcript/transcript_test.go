@@ -22,8 +22,9 @@ func TestReflowAnchorsReaderAndAppendDoesNotStealPosition(t *testing.T) {
 	if m.Viewport.YOffset() != 4 {
 		t.Fatal("append stole position")
 	}
-	m.Latest()
-	if !m.Follow || !m.Viewport.AtBottom() {
+	m.Viewport.GotoBottom()
+	m.Follow = true
+	if !m.Viewport.AtBottom() {
 		t.Fatal("latest did not resume following")
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})

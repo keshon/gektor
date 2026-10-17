@@ -361,8 +361,8 @@ func TestPromptSwitchCanToggleWithoutTypingBoolean(t *testing.T) {
 		t.Fatal("wrong initial switch")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
-	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyDown})
-	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.dialog.form.PickerKey(tea.KeyPressMsg{Code: tea.KeyDown}, m.settingsProps())
+	m.dialog.form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m.settingsProps())
 	if m.dialog.form.Editor.Value() == "custom" {
 		t.Fatal("space did not toggle prompt switch")
 	}
@@ -401,14 +401,14 @@ func TestProtocolSwitchSuggestsOnlyLocalDefaults(t *testing.T) {
 	}
 	m := settingsModel(t)
 	m.openForm("Connection", "", "Apply", []formField{{Key: "kind", Label: "Protocol", Value: "llama", Multiline: false}, {Key: "endpoint", Label: "URL", Value: "http://127.0.0.1:8080", Multiline: false}}, func(map[string]string) error { return nil })
-	m.cycleFormChoice()
+	m.dialog.form.CycleChoice()
 	m.focusForm(1)
 	if m.dialog.form.Editor.Value() != "http://127.0.0.1:5001" {
 		t.Fatal("suggested URL not visible in editor")
 	}
 	m.dialog.form.Editor.SetValue("http://localhost:9000")
 	m.focusForm(0)
-	m.cycleFormChoice()
+	m.dialog.form.CycleChoice()
 	m.focusForm(1)
 	if m.dialog.form.Editor.Value() != "http://localhost:9000" {
 		t.Fatal("custom URL overwritten")

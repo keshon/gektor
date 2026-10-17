@@ -22,7 +22,6 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	m.Follow = m.Viewport.AtBottom()
 	return cmd
 }
-func (m *Model) Latest() { m.Viewport.GotoBottom(); m.Follow = true }
 func (m Model) PartOffset(index int) int {
 	row := 0
 	for i := 0; i < index && i < len(m.lines); i++ {

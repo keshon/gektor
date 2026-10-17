@@ -1,4 +1,4 @@
-// Package tars resolves the one directory TARS keeps its data in.
+﻿// Package tars resolves the one directory TARS keeps its data in.
 //
 // Everything the harness persists for the user lives under a single
 // dot-directory in their home, like .claude or .codex: preferences, the
@@ -21,21 +21,6 @@ import (
 // DirName is the directory itself. Dotted, so it is obvious in a home
 // directory listing, and unlikely to collide with anything a user makes.
 const DirName = ".tars"
-
-// Dir returns the user's TARS directory, creating it when missing.
-// Returns an error only when home is unknown or unwritable; callers that
-// merely want a path should use Sub.
-func Dir() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	dir := filepath.Join(home, DirName)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "", err
-	}
-	return dir, nil
-}
 
 // Sub returns a path inside the user's TARS directory without creating
 // anything: tars.Sub("tasks", id) is the task directory for id. Callers

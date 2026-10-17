@@ -44,10 +44,10 @@ func TestLoadedProfileIsCommittedOnApply(t *testing.T) {
 	}
 	m.editSettings("profiles")
 	focusSetting(m, "load-profile")
-	m.openSettingsPicker()
+	m.dialog.form.OpenPicker(m.settingsProps())
 	picker := m.dialog.form.Picker
 	m.acceptSettingsScan(settingsScanMsg{ID: picker.ID, Items: []string{path}})
-	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.dialog.form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m.settingsProps())
 	m.editSettings("generation")
 	m.applyForm()
 	if m.dialog != nil {

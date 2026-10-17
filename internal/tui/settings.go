@@ -209,6 +209,3 @@ func (m *model) resizeFormEditor() {
 	}
 	f.Editor.SetHeight(height)
 }
-
-func (m *model) formOptions(key string) []string { return m.dialog.form.Options(key) }
-func (m *model) cycleFormChoice()                { m.dialog.form.CycleChoice() }

@@ -62,6 +62,8 @@ func TestSpeakerRowOpensRunOnce(t *testing.T) {
 // Every role resolves to a distinct uppercase tag. A duplicate would make
 // two kinds of block indistinguishable at a glance.
 func TestEveryRoleHasItsOwnLabel(t *testing.T) {
+	allRoles := []role{roleAnswer, roleUser, roleThink, roleTool, roleResult,
+		roleGate, roleMission, roleMarker, roleError, roleWarning}
 	seen := map[string]role{}
 	for _, r := range allRoles {
 		label := roleLabel(r)

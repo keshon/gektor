@@ -28,11 +28,7 @@ func (m *model) legacyFooterActions() []footerAction {
 		{tea.KeyF2, 0, "F2", "Search", "Search", !gated && m.dialog == nil && !m.header.focused},
 		{tea.KeyF3, 0, "F3", "Details", "View", free},
 		{tea.KeyF4, 0, "F4", "New", "New", idle},
-		{tea.KeyF5, 0, "F5", "Mode", "Mode", idle && !m.mission},
 		{tea.KeyF6, 0, "F6", "Sidebar", "Pane", free && m.termW >= navigatorMinWidth},
-		{tea.KeyF7, 0, "F7", "Latest", "End", free},
-		{tea.KeyF8, 0, "F8", "", "", false},
-		{tea.KeyF9, 0, "F9", "Menu", "Menu", !gated && m.dialog == nil && m.sessions == nil},
 		{tea.KeyF10, 0, "F10", "Quit", "Quit", true},
 	}
 }
@@ -84,7 +80,7 @@ func (m *model) footerActions() []footerAction {
 	}
 	actions = append(actions,
 		footerAction{'g', tea.ModCtrl, "Ctrl+G", details, "View", legacy[2].enabled},
-		footerAction{'b', tea.ModCtrl, "Ctrl+B", "Sessions", "Pane", legacy[5].enabled},
+		footerAction{'b', tea.ModCtrl, "Ctrl+B", "Sessions", "Pane", legacy[4].enabled},
 		footerAction{'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true})
 	if m.termW < 64 {
 		return []footerAction{actions[0], actions[1], actions[3], actions[4], actions[7]}
@@ -188,6 +184,12 @@ func (m *model) footerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.newTask()
 		return m, m.input.Focus()
 	case tea.KeyF5:
+		gated := m.state == stPermission || m.state == stAsk
+		free := !gated && m.dialog == nil && m.sessions == nil && !m.header.focused
+		idle := free && m.state == stDone
+		if !(idle && !m.mission) {
+			return m, nil
+		}
 		mode := "plan"
 		if m.plan {
 			mode = "act"
@@ -198,9 +200,18 @@ func (m *model) footerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.fitBottom()
 		m.refreshContent()
 	case tea.KeyF7:
+		gated := m.state == stPermission || m.state == stAsk
+		free := !gated && m.dialog == nil && m.sessions == nil && !m.header.focused
+		if !free {
+			return m, nil
+		}
 		m.transcript.Viewport.GotoBottom()
 		m.transcript.Follow = true
 	case tea.KeyF9:
+		gated := m.state == stPermission || m.state == stAsk
+		if !(!gated && m.dialog == nil && m.sessions == nil) {
+			return m, nil
+		}
 		m.header.focused = !m.header.focused
 		m.header.global = m.header.focused
 		m.header.index = 0

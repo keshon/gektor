@@ -35,10 +35,10 @@ func TestLoadedProfileStagedUntilApply(t *testing.T) {
 	id := m.stateFile
 	m.editSettings("profiles")
 	focusSetting(m, "load-profile")
-	m.openSettingsPicker()
+	m.dialog.form.OpenPicker(m.settingsProps())
 	picker := m.dialog.form.Picker
 	m.acceptSettingsScan(settingsScanMsg{ID: picker.ID, Items: []string{path}})
-	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.dialog.form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m.settingsProps())
 	if m.config.Profile.Identity.UserName != "User" {
 		t.Fatal("load applied without Apply")
 	}
@@ -76,11 +76,11 @@ func TestSettingsLibrariesPreview(t *testing.T) {
 	}
 	m.editSettings("profiles")
 	focusSetting(m, "load-profile")
-	m.openSettingsPicker()
+	m.dialog.form.OpenPicker(m.settingsProps())
 	p := m.dialog.form.Picker
 	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{filepath.Join(dir, "custom.json")}})
 	write("profile-picker")
-	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m.dialog.form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEscape}, m.settingsProps())
 	m.editSettings("prompts")
 	write("prompts-page")
 }

@@ -82,16 +82,16 @@ func TestPickerSearchBackAndStaleScan(t *testing.T) {
 			break
 		}
 	}
-	m.openSettingsPicker()
+	m.dialog.form.OpenPicker(m.settingsProps())
 	p := m.dialog.form.Picker
 	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{"C:/profiles/qwen.json", "C:/profiles/chronos.json"}})
-	m.pickerKey(tea.KeyPressMsg{Code: 'c', Text: "c"})
-	m.pickerKey(tea.KeyPressMsg{Code: 'h', Text: "h"})
+	m.dialog.form.PickerKey(tea.KeyPressMsg{Code: 'c', Text: "c"}, m.settingsProps())
+	m.dialog.form.PickerKey(tea.KeyPressMsg{Code: 'h', Text: "h"}, m.settingsProps())
 	if len(p.Filtered) != 1 || !strings.Contains(p.Filtered[0], "chronos") {
 		t.Fatal("search did not narrow profiles")
 	}
 	previous := m.dialog.form.Editor.Value()
-	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m.dialog.form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEscape}, m.settingsProps())
 	if m.dialog.form.Editor.Value() != previous || m.dialog.form.Picker != nil {
 		t.Fatal("picker cancel changed the field")
 	}
@@ -112,7 +112,7 @@ func TestSettingsPasteRespectsNestedFocus(t *testing.T) {
 	}
 	f := m.dialog.form
 	before := f.Editor.Value()
-	m.openSettingsPicker()
+	m.dialog.form.OpenPicker(m.settingsProps())
 	p := f.Picker
 	p.Items = []string{"llama", "openai", "kobold"}
 	p.Filter()
@@ -245,7 +245,7 @@ func TestPromptPresetIsStagedNotApplied(t *testing.T) {
 	if m.dialog.form.Editor.Value() != "custom" {
 		t.Fatal("existing behavior not preserved")
 	}
-	options := m.formOptions("prompt-preset")
+	options := m.dialog.form.Options("prompt-preset")
 	if len(options) < 5 || settings.ChoiceLabel("prompt-preset", "coding") != "Coding" || !strings.Contains(settings.CatalogDetail("prompt-preset", "coding"), "maintainable") {
 		t.Fatal(options)
 	}

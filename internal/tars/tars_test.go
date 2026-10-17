@@ -1,4 +1,4 @@
-package tars
+﻿package tars
 
 import (
 	"os"
@@ -28,19 +28,6 @@ func TestSub_CreatesNothing(t *testing.T) {
 	}
 }
 
-func TestDir_CreatesTheDirectory(t *testing.T) {
-	dir, err := Dir()
-	if err != nil {
-		t.Fatalf("Dir: %v", err)
-	}
-	if !strings.HasPrefix(dir, home(t)) {
-		t.Fatalf("Dir = %q, want a path under %q", dir, home(t))
-	}
-	info, err := os.Stat(dir)
-	if err != nil || !info.IsDir() {
-		t.Fatalf("Dir did not create a directory: %v", err)
-	}
-}
 
 func home(t *testing.T) string {
 	t.Helper()

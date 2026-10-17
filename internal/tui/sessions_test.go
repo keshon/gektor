@@ -77,6 +77,14 @@ func chdirSessions(t *testing.T, tmp string) string {
 	return root
 }
 
+// listSessionsIn was deleted from production (nothing called it; scanSessions
+// is the real path via refreshNavigator). Tests still need a list call, so the
+// wrapper lives here.
+func listSessionsIn(root string) []sessionEntry {
+	entries, _ := scanSessions(root, nil, true)
+	return entries
+}
+
 func TestListSessions_TitlesAndOrder(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
@@ -89,7 +97,7 @@ func TestListSessions_TitlesAndOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	entries := listSessions()
+	entries := listSessionsIn(tasksRoot())
 	if len(entries) != 2 {
 		t.Fatalf("entries = %d, want 2", len(entries))
 	}
@@ -122,7 +130,7 @@ func TestListSessions_TitleFileOverridesCorruptSurvives(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	entries := listSessions()
+	entries := listSessionsIn(tasksRoot())
 	if len(entries) != 2 {
 		t.Fatalf("entries = %d, want 2", len(entries))
 	}
@@ -157,7 +165,7 @@ func TestSessions_RenameWritesTitleFile(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
 	dir := writeSessionState(t, filepath.Join(".tars", "tasks"), "aaa", userHistory("original text"))
-	m := sessionsTestModel(t, listSessions())
+	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
 	mm := updated.(*model)
@@ -190,7 +198,7 @@ func TestSessions_EmptyRenameClearsTitle(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "title"), []byte("old\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	m := sessionsTestModel(t, listSessions())
+	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
 	mm := updated.(*model)
@@ -211,7 +219,7 @@ func TestSessions_DeleteRemovesDir(t *testing.T) {
 	tasks := filepath.Join(".tars", "tasks")
 	writeSessionState(t, tasks, "aaa", userHistory("one"))
 	writeSessionState(t, tasks, "bbb", userHistory("two"))
-	m := sessionsTestModel(t, listSessions())
+	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
 	// Select the second row, whichever session sorted there.
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	mm := updated.(*model)
@@ -238,7 +246,7 @@ func TestSessions_DeleteActiveUnloadsFirst(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
 	dir := writeSessionState(t, filepath.Join(".tars", "tasks"), "aaa", userHistory("live"))
-	m := sessionsTestModel(t, listSessions())
+	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
 	m.stateFile = filepath.Join(dir, "state.json")
 	m.sess = &run.Session{}
 	m.transcript.blocks = []block{answerBlock("old transcript")}
@@ -262,7 +270,7 @@ func TestSessions_DeleteActiveRefusesWhileRunning(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
 	dir := writeSessionState(t, filepath.Join(".tars", "tasks"), "aaa", userHistory("live"))
-	m := sessionsTestModel(t, listSessions())
+	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
 	m.state = stRunning
 	m.stateFile = filepath.Join(dir, "state.json")
 
@@ -295,7 +303,7 @@ func TestSessions_EnterResumesWithHistory(t *testing.T) {
 		{Role: llm.RoleAssistant, Content: "widget built"},
 	}
 	dir := writeSessionState(t, filepath.Join(".tars", "tasks"), "aaa", history)
-	m := sessionsTestModel(t, listSessions())
+	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*model)
@@ -337,7 +345,7 @@ func TestSessions_OpenCorruptSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	entries := listSessions()
+	entries := listSessionsIn(tasksRoot())
 	if len(entries) != 1 || entries[0].status != "Unreadable" {
 		t.Fatalf("a corrupt snapshot must be listed as such: %+v", entries)
 	}
@@ -348,7 +356,7 @@ func TestSessions_EnterRefusesWhileRunning(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
 	writeSessionState(t, filepath.Join(".tars", "tasks"), "aaa", userHistory("task"))
-	m := sessionsTestModel(t, listSessions())
+	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
 	m.state = stRunning
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -372,7 +380,7 @@ func TestSessions_ListScrollsToCursor(t *testing.T) {
 		id := "s" + twoDigits(i)
 		writeSessionState(t, tasks, id, userHistory("task "+id))
 	}
-	m := sessionsTestModel(t, listSessions())
+	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
 	visible := m.sessVisible()
 	if visible >= 20 {
 		t.Fatalf("visible = %d, test needs overflow", visible)
@@ -411,7 +419,7 @@ func TestSessions_PageKeysMoveByViewport(t *testing.T) {
 		id := "s" + twoDigits(i)
 		writeSessionState(t, tasks, id, userHistory("task "+id))
 	}
-	m := sessionsTestModel(t, listSessions())
+	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
 	visible := m.sessVisible()
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
@@ -474,7 +482,7 @@ func TestSessions_ResumeShowsTop(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
 	writeSessionState(t, filepath.Join(".tars", "tasks"), "aaa", compactTestHistory(15))
-	m := sessionsTestModel(t, listSessions())
+	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*model)
 	if mm.sessions != nil {

@@ -8,7 +8,7 @@ import (
 )
 
 func TestTodo_UpdateAndRender(t *testing.T) {
-	todo := NewTodo()
+	todo := &Todo{}
 	out, err := todo.Run(context.Background(), json.RawMessage(
 		`{"items":[{"id":1,"state":"pending","text":"read spec"},{"id":2,"state":"in_progress","text":"write code"}]}`))
 	if err != nil {
@@ -20,13 +20,10 @@ func TestTodo_UpdateAndRender(t *testing.T) {
 	if !strings.Contains(out, "(0/2 done)") {
 		t.Fatalf("missing count: %q", out)
 	}
-	if len(todo.Items()) != 2 {
-		t.Fatalf("items=%v", todo.Items())
-	}
 }
 
 func TestTodo_RejectsBadInput(t *testing.T) {
-	todo := NewTodo()
+	todo := &Todo{}
 	cases := []string{
 		`{"items":[{"id":1,"state":"maybe","text":"x"}]}`,
 		`{"items":[{"id":1,"state":"done","text":"a"},{"id":1,"state":"done","text":"b"}]}`,
@@ -41,7 +38,7 @@ func TestTodo_RejectsBadInput(t *testing.T) {
 }
 
 func TestTodo_ConcurrentSafe(t *testing.T) {
-	todo := NewTodo()
+	todo := &Todo{}
 	done := make(chan struct{})
 	for i := 0; i < 8; i++ {
 		go func(i int) {

@@ -2,7 +2,6 @@ package tui
 
 import (
 	"charm.land/bubbles/v2/textinput"
-	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/tui/settings"
 )
 
@@ -29,14 +28,10 @@ func (m *model) settingsDirty() bool {
 	}
 	return m.dialog.form.Dirty()
 }
-func (m *model) openSettingsPicker() tea.Cmd { return m.dialog.form.OpenPicker(m.settingsProps()) }
 func (m *model) acceptSettingsScan(msg settingsScanMsg) {
 	if m.dialog != nil && m.dialog.form != nil {
 		m.dialog.form.AcceptScan(msg)
 	}
-}
-func (m *model) pickerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	return m, m.dialog.form.PickerKey(msg, m.settingsProps())
 }
 func (m *model) settingsProps() settings.Props {
 	w, h := m.settingsDimensions()

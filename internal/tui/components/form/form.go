@@ -61,8 +61,7 @@ func (m *Model) Focus(index int, visible func(int) bool) {
 		m.Editor.Focus()
 	}
 }
-func (m *Model) Resize(width, height int) { m.Editor.SetWidth(width); m.Editor.SetHeight(height) }
-func (m Model) View() string              { return m.Editor.View() }
+func (m Model) View() string { return m.Editor.View() }
 
 // Update receives input only while the parent gives this form focus.
 func (m *Model) Update(msg tea.Msg, visible func(int) bool, choice bool, destructive bool) (Intent, tea.Cmd) {

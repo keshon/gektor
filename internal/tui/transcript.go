@@ -12,10 +12,6 @@ import (
 	"github.com/keshon/tars/internal/llm"
 )
 
-// thinkToggleHint names the thinking expand/collapse key in UI text.
-// The binding lives in handleKey; both stay in sync through this.
-const thinkToggleHint = "Ctrl+G"
-
 // role names the kind of a transcript block. Every role maps to one
 // label tag and one speaker, so each has a stable display identity.
 type role int
@@ -637,12 +633,6 @@ func reflow(line string, width int) []string {
 	}
 	line = strings.ReplaceAll(line, "\t", "    ")
 	return strings.Split(ansi.Wrap(line, width, ""), "\n")
-}
-
-// allRoles lists every role for exhaustive tests (gutter width, etc.).
-var allRoles = []role{
-	roleAnswer, roleUser, roleThink, roleTool, roleResult,
-	roleGate, roleMission, roleMarker, roleError, roleWarning,
 }
 
 type transcriptRenderState struct {

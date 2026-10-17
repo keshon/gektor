@@ -75,19 +75,6 @@ type sessionsState struct {
 // somewhere temporary instead of writing to the real home directory.
 var tasksRoot = func() string { return tars.Sub("tasks") }
 
-// listSessions scans session dirs newest-first. Titles prefer the
-// stored title file, fall back to the session's first task text, then
-// the id. Unreadable dirs still appear with a dash title: a corrupt
-// snapshot is a session the user may want to delete.
-func listSessions() []sessionEntry {
-	return listSessionsIn(tasksRoot())
-}
-
-func listSessionsIn(root string) []sessionEntry {
-	entries, _ := scanSessions(root, nil, true)
-	return entries
-}
-
 // sessChrome counts border title, search, gap, hint and bottom border,
 // plus mutation prompts. Each result has a title and an excerpt.
 func (m *model) sessChrome() int {
