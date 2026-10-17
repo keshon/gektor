@@ -97,6 +97,9 @@ type model struct {
 	// since the Interactive role never overrides it. Display only — the
 	// loop enforces its own copy.
 	maxSteps     int
+	// maxStepsOverride is the user's /max-steps setting: -1 = no limit,
+	// 0 = use the configured default, N > 0 = N steps.
+	maxStepsOverride int
 	started      time.Time
 	elapsed      time.Duration
 	spinnerFrame int
@@ -131,6 +134,7 @@ type model struct {
 	// context window from Env. Together they drive the status meter.
 	tokens int
 	limit  int
+	contextLimit int
 	// tokensEst marks estimated numbers (streaming backends that report
 	// no usage block); the meter prefixes "~" so estimates never pose
 	// as measurements.
@@ -290,6 +294,8 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		styles:       defaultStyles(),
 		limit:        cfg.Env.ContextLimit,
 		maxSteps:     envMaxSteps(cfg.Env),
+		thinkBudget:  cfg.Env.ReasoningBudget,
+		contextLimit: cfg.Env.ContextLimit,
 		transcript:   newTranscript(),
 		plan:         cfg.Plan,
 		nudges:       cfg.Env.Nudges,
@@ -305,7 +311,6 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		modelName:   cfg.Env.Model,
 		ws:          cfg.Env.WS,
 		wsRoot:      wsRootOf(cfg.Env.WS),
-		thinkBudget: cfg.Env.ReasoningBudget,
 		mcpCount:    len(cfg.Env.MCPTools),
 		policyRules: len(cfg.Env.Policy.Rules),
 	}
@@ -321,6 +326,17 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	env.Gate = nil
 	env.GateContext = audit.ContextHook(cfg.AuditPath, "tui", m.contextGate(hub, cfg.Env.WS))
 	env.Nudges = m.nudges
+	if m.maxStepsOverride == -1 {
+		env.MaxSteps = 999999
+	} else if m.maxStepsOverride > 0 {
+		env.MaxSteps = m.maxStepsOverride
+	}
+	if m.thinkBudget > 0 {
+		env.ReasoningBudget = m.thinkBudget
+	}
+	if m.contextLimit > 0 {
+		env.ContextLimit = m.contextLimit
+	}
 	m.newSession = func(task, stateFile string, images []string) (*run.Session, error) {
 		return run.New(run.Config{
 			Env:          env,

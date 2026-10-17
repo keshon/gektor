@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -15,6 +16,9 @@ func commandReference() [][2]string {
 		{"/sessions", "Browse saved sessions"},
 		{"/new [task]", "Start a fresh task; omit task for an empty session"},
 		{"/mode plan|act", "Preview changes or execute them"},
+		{"/max-steps N", "Step budget (0 = no limit)"},
+		{"/budget-think N", "Reasoning budget in chars (0 = default)"},
+		{"/budget-context N", "Context window in tokens (0 = default)"},
 		{"/nudges full|recovery|off", "How much harness advice the model hears"},
 		{"/status", "Show current run facts"},
 		{"/retry", "Retry the last failed turn"},
@@ -59,6 +63,72 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "status":
 		m.appendBlock(markerBlock(strings.Join(m.statusLines(), "\n")))
+		return m, nil
+	case "max-steps":
+		n, err := strconv.Atoi(strings.TrimSpace(arg))
+		if err != nil || n < 0 {
+			m.appendBlock(errorBlock("Usage: /max-steps N (0 = no limit)"))
+			return m, nil
+		}
+		m.maxStepsOverride = n
+		if m.maxStepsOverride == 0 {
+			m.maxStepsOverride = -1
+		}
+		if m.sess != nil {
+			sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
+			if err != nil {
+				m.appendBlock(errorBlock(err.Error()))
+				return m, nil
+			}
+			m.sess = sess
+		}
+		label := "no limit"
+		if m.maxStepsOverride > 0 {
+			label = strconv.Itoa(m.maxStepsOverride)
+		}
+		m.appendBlock(markerBlock("Max steps: " + label))
+		return m, nil
+	case "budget-think":
+		n, err := strconv.Atoi(strings.TrimSpace(arg))
+		if err != nil || n < 0 {
+			m.appendBlock(errorBlock("Usage: /budget-think N (0 = default)"))
+			return m, nil
+		}
+		m.thinkBudget = n
+		if m.sess != nil {
+			sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
+			if err != nil {
+				m.appendBlock(errorBlock(err.Error()))
+				return m, nil
+			}
+			m.sess = sess
+		}
+		label := "default"
+		if m.thinkBudget > 0 {
+			label = strconv.Itoa(m.thinkBudget) + " chars"
+		}
+		m.appendBlock(markerBlock("Think budget: " + label))
+		return m, nil
+	case "budget-context":
+		n, err := strconv.Atoi(strings.TrimSpace(arg))
+		if err != nil || n < 0 {
+			m.appendBlock(errorBlock("Usage: /budget-context N (0 = default)"))
+			return m, nil
+		}
+		m.contextLimit = n
+		if m.sess != nil {
+			sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
+			if err != nil {
+				m.appendBlock(errorBlock(err.Error()))
+				return m, nil
+			}
+			m.sess = sess
+		}
+		label := "default"
+		if m.contextLimit > 0 {
+			label = strconv.Itoa(m.contextLimit) + " tokens"
+		}
+		m.appendBlock(markerBlock("Context budget: " + label))
 		return m, nil
 	case "nudges":
 		level := strings.ToLower(strings.TrimSpace(arg))
