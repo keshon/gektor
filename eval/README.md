@@ -24,6 +24,13 @@ Each invocation writes `eval/results/<timestamp>/` by default, containing `resul
 recording which model produced the numbers, and a full request/response trace
 per run.
 
+On Windows use `eval-run.cmd` instead of `go run` directly. It reads `.env` and
+prepends `-backend-kind llama -backend http://$LLAMA_HOST:$LLAMA_PORT
+-context-limit $LLAMA_CTX_SIZE`, so the suite targets the same server
+`run-server-llama.cmd` starts. A `-backend` or `-backend-kind` on the command
+line overrides those, since Go's flag package takes the last occurrence. Called
+directly, `cmd/eval` still defaults to koboldcpp on `localhost:5001`.
+
 `-only` is a substring match on the probe filename, not a numeric range:
 `-only 0` selects 01–09, while `-only 10` selects 10. `-dry` validates the
 whole directory even if `-only` is set; `-tier` filters its printed list.
