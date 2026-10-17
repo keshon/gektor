@@ -1,8 +1,8 @@
 // Package session appends an immutable JSONL event log next to state.json.
 // state.json is the resume snapshot (rewritten atomically each step);
-// state.jsonl retains full recovery checkpoints, with one 16 MiB previous log.
-// A corrupt snapshot can be rebuilt from the log; a corrupt log line is
-// skipped, never fatal.
+// state.jsonl retains recovery checkpoints until it reaches logMaxBytes and
+// rotates. A corrupt snapshot can be rebuilt from the log; a corrupt log line
+// is skipped, never fatal.
 package session
 
 import (
@@ -16,6 +16,11 @@ import (
 
 	"github.com/keshon/tars/internal/llm"
 )
+
+// logMaxBytes bounds one event log before it rotates. The log is a
+// recovery source for a corrupt snapshot, so it is kept current rather
+// than rotated in pairs.
+const logMaxBytes = 16 * 1024 * 1024
 
 // Event is one appended step.
 type Event struct {
@@ -50,11 +55,11 @@ func Append(stateFile string, seq int, history []llm.Message) error {
 	if err != nil {
 		return err
 	}
-	if info, err := os.Stat(path); err == nil && info.Size()+int64(len(data)) > 16*1024*1024 {
-		if err := os.Remove(path + ".previous"); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		if err := os.Rename(path, path+".previous"); err != nil {
+	if info, err := os.Stat(path); err == nil && info.Size()+int64(len(data)) > logMaxBytes {
+		// Rotate. The old log is dropped rather than kept alongside:
+		// nothing reads it, so a second 16 MiB file per session directory
+		// was the price of keeping one.
+		if err := os.Remove(path); err != nil {
 			return err
 		}
 	}

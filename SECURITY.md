@@ -57,8 +57,9 @@ and approval gates. MCP servers are trusted local extensions.
 
 State, debug traces and checkpoint archives can contain repository content
 and tool output. They are local plaintext artifacts; protect and remove them
-according to the sensitivity of the workspace. Session logs rotate at 16 MiB,
-but checkpoints and optional debug traces have no automatic retention policy.
+according to the sensitivity of the workspace. Session logs drop what
+exceeds 16 MiB, but checkpoints and optional debug traces have no
+automatic retention policy.
 
 ## Out of scope
 

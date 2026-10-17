@@ -21,16 +21,8 @@ func utf16le(s string) []byte {
 	return out
 }
 
-func TestDecodeText_UTF16LE(t *testing.T) {
-	text, enc, binary := decodeText(utf16le("world\r\n"))
-	if enc != "utf-16le" || binary {
-		t.Fatalf("enc=%q binary=%v", enc, binary)
-	}
-	if text != "world\n" {
-		t.Fatalf("text=%q", text)
-	}
-}
-
+// Decoding goes through the streaming reader on the read path, so this
+// exercises the real thing rather than a helper.
 func TestReadFile_UTF16ReadableWithEncodingHeader(t *testing.T) {
 	dir := t.TempDir()
 	ws, _ := workspace.New(dir)

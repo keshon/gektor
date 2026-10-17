@@ -152,8 +152,9 @@ Tool results carry typed failure status alongside model-facing text; the
 frontends style failures without guessing from compiler output.
 
 Outcomes distinguish completed, failed and cancelled runs, with measured
-paths, verification output and persistence warnings. Session checkpoints
-rotate at 16 MiB, retaining the previous log.
+paths, verification output and persistence warnings. Session event logs
+rotate at 16 MiB and the old one is dropped, so a corrupt snapshot has at
+most that much history behind it.
 
 ### Budgets
 
