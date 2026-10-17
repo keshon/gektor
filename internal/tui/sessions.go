@@ -13,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/session"
+	"github.com/keshon/tars/internal/tars"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -69,11 +70,10 @@ type sessionsState struct {
 	fromNavigator bool
 }
 
-// tasksRoot mirrors TaskDir's layout: relative, like every task path
-// the CLI prints for -resume.
-func tasksRoot() string {
-	return filepath.Join(workspace.StateDirName, "tasks")
-}
+// tasksRoot is where saved sessions live, under the user's TARS
+// directory. A var rather than a bare call so tests can point it
+// somewhere temporary instead of writing to the real home directory.
+var tasksRoot = func() string { return tars.Sub("tasks") }
 
 // listSessions scans session dirs newest-first. Titles prefer the
 // stored title file, fall back to the session's first task text, then
@@ -540,11 +540,9 @@ func (m *model) sessionRoot() string {
 	if m.application != nil && m.config != nil {
 		return m.config.Directory
 	}
-	root := m.wsRoot
-	if m.ws != nil {
-		root = m.ws.Root()
-	}
-	return filepath.Join(root, tasksRoot())
+	// Saved sessions belong to the user, not to the workspace: the same
+	// list has to appear whichever directory TARS was pointed at.
+	return tasksRoot()
 }
 func sameSession(dir, stateFile string) bool {
 	if stateFile == "" {

@@ -28,7 +28,7 @@ func TestPastedSearchRecomputesResults(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.wsRoot = t.TempDir()
-	root := filepath.Join(m.wsRoot, tasksRoot())
+	root := sessionsRootFor(t, m.wsRoot)
 	writeSessionState(t, root, "alpha", userHistory("alpha"))
 	writeSessionState(t, root, "beta", userHistory("beta"))
 	m.openSessions()
@@ -122,7 +122,7 @@ func TestSessionScanRunsOutsideUpdateAndRejectsStaleResults(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.wsRoot = t.TempDir()
-	writeSessionState(t, filepath.Join(m.wsRoot, tasksRoot()), "one", userHistory("one"))
+	writeSessionState(t, sessionsRootFor(t, m.wsRoot), "one", userHistory("one"))
 	m.refreshNavigator()
 	first := m.takeCommands()
 	if len(m.nav.entries) != 0 {
@@ -181,13 +181,13 @@ func TestSessionIndexCachesUnchangedHistoryAndLoadsSearchOnDemand(t *testing.T) 
 func TestSessionCommandDoesNotReadLiveModel(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	m.wsRoot = t.TempDir()
-	root := m.sessionRoot()
+	root := sessionsRootFor(t, t.TempDir())
 	writeSessionState(t, root, "one", userHistory("captured root"))
 	m.refreshNavigator()
 	cmd := m.takeCommands()
-	// Change the live model before executing the worker. It must use its snapshot.
-	m.wsRoot = t.TempDir()
+	// Move the session library before executing the worker. It must use
+	// the root captured with the command, not the live one.
+	tasksRoot = func() string { return filepath.Join(t.TempDir(), "moved") }
 	m.sessions = &sessionsState{filter: newSearchInput(80)}
 	result := cmd().(sessionsLoadedMsg)
 	if result.root != root || len(result.entries) != 1 || len(result.entries[0].search) != 0 {

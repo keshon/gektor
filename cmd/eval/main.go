@@ -302,6 +302,12 @@ type Result struct {
 
 const defaultTimeout = 15 * time.Minute
 
+// evalStateDir is the one place TARS still writes inside a workspace.
+// Each probe runs in a throwaway copy of its seed, so its mission state
+// belongs to that copy and dies with it. Real runs keep theirs in the
+// user's TARS directory; nothing else writes to the workspace.
+const evalStateDir = ".tars"
+
 func main() {
 	backend := flag.String("backend", "http://localhost:5001", "backend base URL: bare origin for a local "+
 		"server or API root for a hosted OpenAI-compatible provider")
@@ -666,7 +672,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 		runner := &mission.Runner{
 			Client:       modelClient,
 			WS:           ws,
-			Dir:          filepath.Join(work, workspace.StateDirName, "eval"),
+			Dir:          filepath.Join(work, evalStateDir, "eval"),
 			Procs:        procs,
 			ContextLimit: contextLimit,
 			MaxTokens:    maxTokens,

@@ -2,12 +2,12 @@ package main
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/tars/internal/tars"
 	"github.com/keshon/tars/internal/tui"
 )
 
@@ -25,12 +25,7 @@ type launchRequest struct {
 func runApplication(args []string) error {
 	transientKey := argumentValue(args, "api-key")
 	agentOptions := retainedAgentOptions(args)
-	exe, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	root := filepath.Dir(exe)
-	path := filepath.Join(root, "var", "application.json")
+	path := tars.Sub("application.json")
 	hasTUI := false
 	for _, arg := range args {
 		if arg == "-tui" || arg == "-tui=true" {
@@ -46,7 +41,7 @@ func runApplication(args []string) error {
 	}
 	bare := len(args) == 1 && (args[0] == "-tui" || args[0] == "-tui=true")
 	if prefs.ProfilePath == "" {
-		prefs.ProfilePath = filepath.Join(root, "profiles", "llama-external.json")
+		prefs.ProfilePath = tars.Sub("profiles", "llama-external.json")
 	}
 	request := launchRequest{args: args, preferences: prefs, preferencePath: path, common: bare}
 	if bare {

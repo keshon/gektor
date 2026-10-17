@@ -367,7 +367,8 @@ size are shown below the list. Server model names are discovered through the
 configured protocol; unsupported discovery falls back to manual entry.
 
 Explicit-profile launches keep runtime edits in memory until saved as a profile.
-The common launcher also remembers its effective configuration in var/application.json;
+The common launcher also remembers its effective configuration in
+`~/.tars/application.json`;
 source profile files are not overwritten. Profiles can be loaded as staged settings
 and saved as new portable copies.
 
@@ -405,11 +406,11 @@ A launch requires a workspace and starts in Plan. Act enables tool execution und
 the existing permission gates. Applying settings in an existing session preserves
 the Plan/Act choice and never starts a run.
 
-Common-launch sessions live under `var/sessions`, with `state.json` as the checkpoint
-and `settings.json` recording the saved profile. Opening a session restores its
-profile and opens in Plan. Existing archives without settings use the current
-service profile. Standalone CLI sessions stay in their workspace task store under
-`.tars/tasks`.
+Common-launch sessions live under `~/.tars/sessions`, with `state.json` as the
+checkpoint and `settings.json` recording the saved profile. Opening a session
+restores its profile and opens in Plan. Existing archives without settings use
+the current service profile. Standalone CLI sessions live beside them in
+`~/.tars/tasks`.
 
 ## Panel status and manual compaction
 

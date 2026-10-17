@@ -17,7 +17,18 @@ func TestMain(m *testing.M) {
 		serveFakeMCP(os.Stdin, os.Stdout)
 		return
 	}
-	os.Exit(m.Run())
+	// Spilled tool output lands in the user's TARS directory. A test that
+	// exercises spilling must not write into the developer's real one.
+	home, err := os.MkdirTemp("", "tars-home")
+	if err != nil {
+		panic(err)
+	}
+	// os.UserHomeDir reads USERPROFILE on Windows and HOME elsewhere.
+	os.Setenv("USERPROFILE", home)
+	os.Setenv("HOME", home)
+	code := m.Run()
+	os.RemoveAll(home)
+	os.Exit(code)
 }
 
 // StartMCP spawns a real child process, which the in-process pipe tests

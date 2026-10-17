@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -90,7 +89,7 @@ func TestBrowserSearchUsesWorkspace(t *testing.T) {
 	m := testModel()
 	m.state = stDone
 	m.wsRoot = t.TempDir()
-	root := filepath.Join(m.wsRoot, tasksRoot())
+	root := sessionsRootFor(t, m.wsRoot)
 	writeSessionState(t, root, "aaa", userHistory("repair login"))
 	writeSessionState(t, root, "bbb", userHistory("speed up search"))
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})

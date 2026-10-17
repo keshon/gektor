@@ -16,7 +16,7 @@ import (
 )
 
 func TestSearchIndexesConversationAndRanksTitles(t *testing.T) {
-	root := filepath.Join(t.TempDir(), tasksRoot())
+	root := sessionsRootFor(t, t.TempDir())
 	title := writeSessionState(t, root, "title", userHistory("ПАРСЕР implementation"))
 	history := writeSessionState(t, root, "history", []llm.Message{
 		{Role: llm.RoleUser, Content: "Unrelated title"},
@@ -53,7 +53,7 @@ func TestSearchPopupGeometryAndDraftPreservation(t *testing.T) {
 		m.state = stDone
 		m.wsRoot = t.TempDir()
 		for i := 0; i < 9; i++ {
-			writeSessionState(t, filepath.Join(m.wsRoot, tasksRoot()), fmt.Sprint(i), userHistory(fmt.Sprintf("Session %d", i)))
+			writeSessionState(t, sessionsRootFor(t, m.wsRoot), fmt.Sprint(i), userHistory(fmt.Sprintf("Session %d", i)))
 		}
 		m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 		m.input.SetValue("draft\nsecond line")
@@ -100,7 +100,7 @@ func TestSearchHistoryMatchOpensAtMessage(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		history = append(history, llm.Message{Role: llm.RoleAssistant, Content: fmt.Sprintf("Later message %d", i)})
 	}
-	dir := writeSessionState(t, filepath.Join(m.wsRoot, tasksRoot()), "match", history)
+	dir := writeSessionState(t, sessionsRootFor(t, m.wsRoot), "match", history)
 	m.newSession = func(string, string, []string) (*api.Session, error) { return &api.Session{}, nil }
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	m.openSessions()
@@ -117,7 +117,7 @@ func TestNavigatorRenameAndDeleteKeepPaneFocus(t *testing.T) {
 	m := testModel()
 	m.state = stDone
 	m.wsRoot = t.TempDir()
-	dir := writeSessionState(t, filepath.Join(m.wsRoot, tasksRoot()), "one", userHistory("Original title"))
+	dir := writeSessionState(t, sessionsRootFor(t, m.wsRoot), "one", userHistory("Original title"))
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	m.refreshNavigator()
 	finishSessionRefresh(t, m)

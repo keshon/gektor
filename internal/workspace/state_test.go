@@ -1,16 +1,9 @@
 package workspace
 
 import (
-	"path/filepath"
 	"strings"
 	"testing"
 )
-
-func TestTaskDir_NamespacesTasks(t *testing.T) {
-	if got := TaskDir("abc123"); got != filepath.Join(".tars", "tasks", "abc123") {
-		t.Fatalf("TaskDir = %q", got)
-	}
-}
 
 func TestTitleLine_ShapesText(t *testing.T) {
 	if got := TitleLine("fix the bug\nsecond line"); got != "fix the bug" {

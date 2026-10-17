@@ -6,17 +6,6 @@ import (
 	"strings"
 )
 
-// StateDirName is the harness-owned state directory inside a workspace:
-// task snapshots, mission ledgers, spilled tool output. Single copy so
-// the CLI, serve mode, TUI, and eval namespace the same layout.
-const StateDirName = ".tars"
-
-// TaskDir namespaces one task per directory: <statedir>/tasks/<id>.
-// Relative like every other task path the CLI prints for -resume.
-func TaskDir(taskID string) string {
-	return filepath.Join(StateDirName, "tasks", taskID)
-}
-
 // SessionTitleFile stores a session's display title inside its own
 // dir (pi's session_info pattern): written once at creation, rewritten
 // on rename. It travels with the session — delete removes it, so titles

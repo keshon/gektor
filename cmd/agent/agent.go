@@ -27,6 +27,7 @@ import (
 	"github.com/keshon/tars/internal/session"
 	"github.com/keshon/tars/internal/tools"
 	"github.com/keshon/tars/internal/tui"
+	"github.com/keshon/tars/internal/tars"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -103,7 +104,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	} else if !o.serve && (!o.tui || task != "" || o.fork != "") {
 		sum := sha1.Sum([]byte(task + time.Now().String()))
 		taskID := hex.EncodeToString(sum[:])[:8]
-		taskDir := filepath.Join(ws.Root(), workspace.TaskDir(taskID))
+		taskDir := tars.Sub("tasks", taskID)
 		stateFile = filepath.Join(taskDir, "state.json")
 		// The session title lives with the session (pi's session_info):
 		// written once here, rewritten on TUI rename, derived from

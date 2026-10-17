@@ -400,18 +400,16 @@ func (m *model) startFresh(task string, images []string) error {
 
 // taskDirectory decides where an Agent task's files live. A task keeps the
 // directory it is resuming, so reopening a session does not relocate it.
+// Task state belongs to the user, not the workspace: the same directory
+// has to be found whichever directory TARS was pointed at.
 func (m *model) taskDirectory(taskID string) string {
-	taskDir := workspace.TaskDir(taskID)
-	if m.ws != nil {
-		taskDir = filepath.Join(m.ws.Root(), taskDir)
-	}
 	if m.application != nil {
-		taskDir = filepath.Join(m.sessionRoot(), taskID)
 		if m.stateFile != "" && m.sess == nil {
-			taskDir = filepath.Dir(m.stateFile)
+			return filepath.Dir(m.stateFile)
 		}
+		return filepath.Join(m.sessionRoot(), taskID)
 	}
-	return taskDir
+	return filepath.Join(tasksRoot(), taskID)
 }
 
 func (m *model) startFreshPrompt(task, display string, images []string) error {

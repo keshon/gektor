@@ -31,6 +31,7 @@ import (
 	"github.com/keshon/tars/internal/mission"
 	"github.com/keshon/tars/internal/roles"
 	"github.com/keshon/tars/internal/tools"
+	"github.com/keshon/tars/internal/tars"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -271,7 +272,7 @@ func serveRun(ctx context.Context, d serveDeps, hub *api.GateHub, emitter *event
 	}
 	sum := sha1.Sum([]byte(task + time.Now().String()))
 	taskID := hex.EncodeToString(sum[:])[:8]
-	taskDir := filepath.Join(d.ws.Root(), workspace.TaskDir(taskID))
+	taskDir := tars.Sub("tasks", taskID)
 	stateFile := filepath.Join(taskDir, "state.json")
 	_ = workspace.WriteSessionTitle(taskDir, workspace.TitleLine(task))
 

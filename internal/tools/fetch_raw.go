@@ -106,7 +106,7 @@ func (t FetchRaw) Run(ctx context.Context, args json.RawMessage) (string, error)
 		b.WriteString(agent.TruncateMiddle(text, limit))
 		fmt.Fprintf(&b, "\n...(text truncated at %d bytes of %d total.", limit, len(text))
 		if t.WS != nil {
-			if p := Spill(t.WS.Root(), "fetch_raw", text); p != "" {
+			if p := Spill("fetch_raw", text); p != "" {
 				fmt.Fprintf(&b, " Full text: %s)", p)
 			} else {
 				b.WriteString(")")

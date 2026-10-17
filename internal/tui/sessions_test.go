@@ -44,12 +44,37 @@ func userHistory(tasks ...string) []llm.Message {
 
 // chdirSessions points the relative tasks root at tmp: sessions code
 // resolves like the CLI (cwd-joined), so tests relocate cwd instead.
-func chdirSessions(t *testing.T, tmp string) {
+// sessionsRootFor points the session library at a throwaway directory and
+// returns it. Sessions live in the user's TARS directory, so a test that
+// creates or opens them must redirect both the path and the scanner --
+// writing to the real one would pollute the developer's own sessions.
+func sessionsRootFor(t *testing.T, base string) string {
 	t.Helper()
-	t.Chdir(tmp)
-	if err := os.MkdirAll(filepath.Join(".tars", "tasks"), 0o755); err != nil {
+	root := filepath.Join(base, "sessions")
+	if err := os.MkdirAll(root, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	prev := tasksRoot
+	tasksRoot = func() string { return root }
+	t.Cleanup(func() { tasksRoot = prev })
+	return root
+}
+
+// chdirSessions redirects the session library into a temporary tree and
+// chdirs into it, so the relative ".tars/tasks" paths these tests use
+// resolve there. Sessions live in the user's TARS directory, which a test
+// must never write to.
+func chdirSessions(t *testing.T, tmp string) string {
+	t.Helper()
+	t.Chdir(tmp)
+	root := filepath.Join(".tars", "tasks")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	prev := tasksRoot
+	tasksRoot = func() string { return root }
+	t.Cleanup(func() { tasksRoot = prev })
+	return root
 }
 
 func TestListSessions_TitlesAndOrder(t *testing.T) {

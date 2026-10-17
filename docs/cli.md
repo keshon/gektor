@@ -202,7 +202,7 @@ Applying settings restarts the launch rather than reconfiguring in place, so the
 new profile is composed into fresh services. The composer draft and the session
 directory carry across the restart.
 
-Choices and effective profile settings are saved under `var/application.json`.
+Choices and effective profile settings are saved under `~/.tars/application.json`.
 Explicit command-line combinations remain supported as temporary launches; a
 change applied through the UI becomes the saved default. Direct API-key flags stay
 in memory across a restart and are never written to preferences.
