@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -19,32 +18,6 @@ func focusSetting(m *model, key string) {
 			m.focusForm(i)
 			return
 		}
-	}
-}
-func TestCharacterPickerRejectsPortraitAndStagesCard(t *testing.T) {
-	m := settingsModel(t)
-	root := t.TempDir()
-	bad := filepath.Join(root, "portrait.png")
-	os.WriteFile(bad, []byte("not a card"), 0600)
-	good := filepath.Join(root, "ada.json")
-	os.WriteFile(good, []byte(`{"name":"Ada","description":"A helpful friend"}`), 0600)
-	m.editSettings("character")
-	focusSetting(m, "character")
-	m.openSettingsPicker()
-	p := m.dialog.form.Picker
-	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{bad, good}})
-	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if p.Err == "" || m.dialog.form.Picker == nil {
-		t.Fatal("invalid card selected")
-	}
-	p.Cursor = 1
-	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.dialog.form.Editor.Value() != good || m.chat.config.Profile.Conversation.Character != "" {
-		t.Fatal("card not staged separately")
-	}
-	m.closeDialog()
-	if m.chat.config.Profile.Conversation.Character != "" {
-		t.Fatal("cancel applied card")
 	}
 }
 func TestLoadedProfileAppliesWithoutResettingHistory(t *testing.T) {
@@ -81,27 +54,6 @@ func TestLoadedProfileAppliesWithoutResettingHistory(t *testing.T) {
 		t.Fatal("loaded setup source was not updated", m.profileSource())
 	}
 }
-func TestSampleCompletionCannotAffectClosedWorkspace(t *testing.T) {
-	m := settingsModel(t)
-	cfg := speech.Config{Recorder: "ffmpeg", PlayerBinary: "ffplay", Microphone: "Storm", MaxSeconds: 120, Speaking: speech.Speaking{Provider: "chatterbox", Variant: "nano", Binary: "python", Model: "models/nano"}, Listening: speech.Listening{Ownership: "external", URL: "http://127.0.0.1:19082"}}
-	m.chat.config.Profile.Speech = &cfg
-	m.chat.config.NewVoice = func(context.Context, string) (speech.Service, error) { return &voiceService{}, nil }
-	m.editSettings("speech")
-	cmd := m.previewSettingsSpeech()
-	if cmd == nil {
-		t.Fatal(m.dialog.form.Error)
-	}
-	ws := m.dialog.form.Workspace
-	m.closeDialog()
-	if ws.SampleCancel != nil {
-		t.Fatal("close did not cancel sample")
-	}
-	m.acceptSettingsSample(cmd().(settingsSampleMsg))
-	if m.dialog != nil {
-		t.Fatal("late sample reopened workspace")
-	}
-}
-
 func TestSettingsLibrariesPreview(t *testing.T) {
 	dir := os.Getenv("TARS_TUI_PREVIEW_DIR")
 	if dir == "" {

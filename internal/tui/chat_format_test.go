@@ -1,32 +1,13 @@
 package tui
 
 import (
+	"strings"
+	"testing"
+
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/tars/internal/chat"
-	"github.com/keshon/tars/internal/config"
-	"strings"
-	"testing"
 )
-
-func TestChatConversationFormatting(t *testing.T) {
-	st := defaultStyles()
-	text := "\"Hello\" *she smiles*\n> **quoted words**"
-	// A completed block renders markdown.
-	plain := ansi.Strip(renderBlock(answerBlock(text), st, tagged(), 80))
-	if !strings.Contains(plain, "[RESPONSE]") || strings.Contains(plain, "*she smiles*") || !strings.Contains(plain, "\"Hello\" she smiles") || !strings.Contains(plain, "│ quoted words") {
-		t.Fatalf("chat formatting: %q", plain)
-	}
-	// The live stream stays literal on purpose — see
-	// TestLiveStaysRawUntilTheStepRendersIt.
-	streamed := ansi.Strip(strings.Join(renderLive(transcriptProps{live: text, styles: st, speaker: "Assistant", labels: true}, 80), "\n"))
-	if !strings.Contains(streamed, "\"Hello\"") || !strings.Contains(streamed, "*she smiles*") {
-		t.Fatalf("live stream must keep markup literal: %q", streamed)
-	}
-	if strings.Contains(streamed, "│ quoted words") {
-		t.Fatalf("live stream must not reformat a quote mid-reveal: %q", streamed)
-	}
-}
 
 // Chat and agent share one label vocabulary. [RESPONSE] used to be
 // suppressed in chat, where there is no thinking or tool output to tell
@@ -45,33 +26,6 @@ func TestChatAndAgentShareResponseLabel(t *testing.T) {
 		t.Fatalf("chat must show the same label: %q", got)
 	}
 }
-
-func TestChatCharacterSpeaker(t *testing.T) {
-	b := answerBlock("Hello.")
-	b.speaker = "Veyra"
-	if got := speakerLabel(b, transcriptProps{speaker: b.speaker}); got != "VEYRA" || strings.Contains(got, "TARS") {
-		t.Fatal(got)
-	}
-}
-
-func TestCharacterLabelForCompletedAndStreamingChat(t *testing.T) {
-	m := sizeModel(t, testModel())
-	m.chat = &chatUI{config: &ChatConfig{Settings: chat.Config{CharacterName: "Veyra"}}}
-	m.transcript.blocks = []block{answerBlock("Completed hello.")}
-	m.live = "Streaming hello."
-	m.refreshContent()
-	got := ansi.Strip(m.transcript.Viewport.View())
-	if strings.Count(got, "VEYRA") != 2 || strings.Contains(got, "TARS") {
-		t.Fatal(got)
-	}
-	m.chat.config.Settings.CharacterName = "Another"
-	m.refreshContent()
-	got = ansi.Strip(m.transcript.Viewport.View())
-	if strings.Count(got, "ANOTHER") != 2 || strings.Contains(got, "VEYRA") {
-		t.Fatal(got)
-	}
-}
-
 func TestAgentIdentityAndLongChatLabel(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.identityName = "Ada"
@@ -85,27 +39,6 @@ func TestAgentIdentityAndLongChatLabel(t *testing.T) {
 	row := speakerRow("AN EXTREMELY LONG CHARACTER NAME", roleAnswer, defaultStyles(), 24)
 	if n := ansi.StringWidth(row); n > 24 {
 		t.Fatalf("overflow: %q (%d cols)", row, n)
-	}
-}
-
-func TestNamedUserAndAssistantHaveSeparateRows(t *testing.T) {
-	m := sizeModel(t, testModel())
-	m.chat = &chatUI{config: &ChatConfig{Settings: chat.Config{CharacterName: "An unusually long character name"}, Profile: config.Profile{Conversation: &config.Conversation{UserName: "Alex"}}}}
-	m.transcript.blocks = []block{userBlock("My words"), answerBlock("Her words")}
-	m.refreshContent()
-	plain := ansi.Strip(m.transcript.Viewport.View())
-	if !strings.Contains(plain, "ALEX") || strings.Contains(plain, "YOU") || !strings.Contains(plain, "AN UNUSUALLY LONG CHARACTER NAME") {
-		t.Fatal(plain)
-	}
-	for _, line := range strings.Split(plain, "\n") {
-		if strings.Contains(line, "ALEX") && strings.Contains(line, "My words") {
-			t.Fatal("user name and body still share a row")
-		}
-	}
-	m.chat.config.Profile.Conversation.UserName = "User"
-	m.refreshContent()
-	if !strings.Contains(ansi.Strip(m.transcript.Viewport.View()), "USER") {
-		t.Fatal("configured default user ignored")
 	}
 }
 

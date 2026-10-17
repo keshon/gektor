@@ -1,18 +1,16 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
+	"testing"
+
 	tea "charm.land/bubbletea/v2"
-	"context"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/speech"
 	"github.com/keshon/tars/internal/workspace"
-	"os"
-	"path/filepath"
-	"testing"
-	"time"
 )
 
 func TestModeSwitchCarriesContextAndDraftWithoutRunning(t *testing.T) {
@@ -29,19 +27,6 @@ func TestModeSwitchCarriesContextAndDraftWithoutRunning(t *testing.T) {
 		t.Fatal("mode transition changed history, draft or ran a task")
 	}
 }
-func TestAgentVoiceCanEnableWithoutChatRunner(t *testing.T) {
-	m := sizeModel(t, testModel())
-	m.state = stDone
-	cfg := speech.Config{}
-	m.audioConfig = &ChatConfig{Directory: t.TempDir(), Profile: config.Profile{Speech: &cfg}, NewVoice: func(context.Context, string) (speech.Service, error) { return &voiceService{}, nil }}
-	if err := m.enableVoice(); err != nil {
-		t.Fatal(err)
-	}
-	if m.chat != nil || !m.voiceEnabled {
-		t.Fatal("agent speech required chat runner")
-	}
-	m.runtime().Voice.Close()
-}
 func TestDialogueProjectionDoesNotOfferHistoricalTools(t *testing.T) {
 	history := []llm.Message{{Role: llm.RoleSystem, Content: "old instructions"}, {Role: llm.RoleUser, Content: "inspect files"}, {Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "x", Name: "read_file"}}}, {Role: llm.RoleTool, Content: "file content", ToolCallID: "x"}, {Role: llm.RoleAssistant, Content: "done"}}
 	out := DialogueProjection(history)
@@ -49,29 +34,6 @@ func TestDialogueProjectionDoesNotOfferHistoricalTools(t *testing.T) {
 		t.Fatal("invalid chat context projection")
 	}
 }
-
-func TestAgentSpokenAnswerUsesIndependentAudio(t *testing.T) {
-	m := sizeModel(t, testModel())
-	m.state = stDone
-	service := &voiceService{}
-	m.audioConfig = &ChatConfig{Profile: config.Profile{Speech: &speech.Config{}}, NewVoice: func(context.Context, string) (speech.Service, error) { return service, nil }, Directory: t.TempDir()}
-	if err := m.enableVoice(); err != nil {
-		t.Fatal(err)
-	}
-	defer m.runtime().Voice.Close()
-	done := make(chan doneMsg, 1)
-	m.send = func(msg tea.Msg) { done <- msg.(doneMsg) }
-	m.startRun(func(context.Context) (string, error) { return "Hello. I checked the files.", nil })
-	select {
-	case result := <-done:
-		if result.err != nil || result.answer == "" {
-			t.Fatal(result)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("agent speech did not finish")
-	}
-}
-
 func TestApplicationPreview(t *testing.T) {
 	dir := os.Getenv("TARS_TUI_PREVIEW_DIR")
 	if dir == "" {
@@ -85,19 +47,6 @@ func TestApplicationPreview(t *testing.T) {
 	m.openApplication()
 	if err := os.WriteFile(filepath.Join(dir, "application-mode.txt"), []byte(ansi.Strip(m.View().Content)), 0600); err != nil {
 		t.Fatal(err)
-	}
-}
-
-func TestAgentSpeechSettingsDoNotCreateChatOrChangeTools(t *testing.T) {
-	m := sizeModel(t, testModel())
-	m.state = stDone
-	profile := config.Profile{Version: 1, Provider: config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local", Ownership: "external"}, Generation: config.Generation{MaxTokens: 100, ContextLimit: 1000}, Speech: &speech.Config{Microphone: "old", Recorder: "ffmpeg", PlayerBinary: "ffplay", MaxSeconds: 120, Listening: speech.Listening{Ownership: "external", URL: "http://127.0.0.1:19082"}, Speaking: speech.Speaking{Provider: "chatterbox", Variant: "nano", Binary: "python", Model: "models/nano"}}}
-	m.audioConfig = &ChatConfig{Profile: profile, Configure: func(p config.Profile) (ChatConfig, error) { return ChatConfig{Profile: p}, nil }}
-	m.editSettings("speech")
-	m.dialog.form.Editor.SetValue("new microphone")
-	m.applyForm()
-	if m.dialog != nil || m.chat != nil || m.audioConfig.Profile.Speech.Microphone != "new microphone" {
-		t.Fatal("agent speech settings used chat runner")
 	}
 }
 func TestAgentSharedModelSettingsCarryHistoryAndDraft(t *testing.T) {
@@ -175,42 +124,38 @@ func TestSameModeSettingsChangeKeepsTheSessionDirectory(t *testing.T) {
 
 // An Agent task must never be rooted in a directory that holds a Chat
 // archive, whatever put it there.
-func TestAgentTaskNeverOverwritesAChatArchive(t *testing.T) {
+// The Chat-archive guard disappears with the feature, so this now pins
+// the rule that survives it: a task with no state file gets a directory
+// of its own under the session root, and a task that already has one
+// keeps it, so resuming does not relocate a session.
+//
+// The guard used to interrupt that second case, because a Chat archive
+// kept a different state file in the same directory and the task's save
+// rewrote the archive's settings.json. With every session in agent
+// format there is no second file to collide with.
+func TestAgentTaskKeepsTheDirectoryItAlreadyHas(t *testing.T) {
 	m := sizeModel(t, testModel())
 	root := t.TempDir()
 	ws, err := workspace.New(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	chatDir := filepath.Join(root, "chat-session")
-	if err := os.MkdirAll(chatDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(chatDir, "conversation.json"), []byte(`[{"role":"user","content":"hi"}]`), 0o600); err != nil {
-		t.Fatal(err)
-	}
 	m.ws = ws
 	m.application = &Application{Preferences: config.Preferences{Version: 1, Mode: "agent", Workspace: root}}
 	m.audioConfig = &ChatConfig{Directory: root, Profile: config.Profile{Version: 1}}
-	m.stateFile = filepath.Join(chatDir, "state.json")
 
-	got := m.taskDirectory("abcd1234")
-	if got == chatDir {
-		t.Fatalf("Agent task rooted in the Chat archive directory: %q", got)
-	}
-	if filepath.Dir(got) != root {
-		t.Fatalf("Agent task escaped the session root: %q", got)
+	m.stateFile = ""
+	if got, want := m.taskDirectory("abcd1234"), filepath.Join(m.sessionRoot(), "abcd1234"); got != want {
+		t.Fatalf("new task directory = %q, want %q", got, want)
 	}
 
-	// Without the archive the directory is kept, so a resumed task stays
-	// where it was.
-	agentDir := filepath.Join(root, "agent-session")
-	if err := os.MkdirAll(agentDir, 0o755); err != nil {
+	taskDir := filepath.Join(m.sessionRoot(), "agent-session")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	m.stateFile = filepath.Join(agentDir, "state.json")
-	if got := m.taskDirectory("abcd1234"); got != agentDir {
-		t.Fatalf("resumed task moved: %q", got)
+	m.stateFile = filepath.Join(taskDir, "state.json")
+	if got := m.taskDirectory("abcd1234"); got != taskDir {
+		t.Fatalf("resumed task moved to %q, want %q", got, taskDir)
 	}
 }
 
@@ -284,24 +229,6 @@ func TestUnchangedSettingsDoNotRestart(t *testing.T) {
 	m.applyForm()
 	if m.modeChange != nil || m.dialog == nil {
 		t.Fatal("unchanged Apply restarted or dismissed settings")
-	}
-}
-func TestStopPlaybackPreservesGenerationAndNewSpeechOwner(t *testing.T) {
-	m := settingsModel(t)
-	generation, cancelGeneration := context.WithCancel(context.Background())
-	defer cancelGeneration()
-	audio, cancelAudio := context.WithCancel(generation)
-	clearOld := m.registerSpeech(cancelAudio)
-	m.stopPlayback()
-	if audio.Err() == nil || generation.Err() != nil {
-		t.Fatal("playback stop canceled generation or left audio running")
-	}
-	next, cancelNext := context.WithCancel(generation)
-	clearNext := m.registerSpeech(cancelNext)
-	defer clearNext()
-	clearOld()
-	if !m.hasPlayback() || next.Err() != nil {
-		t.Fatal("late old output removed current speech owner")
 	}
 }
 func TestCommanderColorPreview(t *testing.T) {

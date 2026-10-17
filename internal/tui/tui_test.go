@@ -349,42 +349,6 @@ func TestCommand_Quit(t *testing.T) {
 	}
 }
 
-func TestCommand_BareNewResetsToChat(t *testing.T) {
-	m := sizeModel(t, testModel())
-	m.state = stDone
-	m.transcript.blocks = []block{answerBlock("old transcript")}
-	m.stateFile = "some/state.json"
-	m.input.SetValue("/new")
-	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	mm := updated.(*model)
-	if mm.quit || mm.state != stDone {
-		t.Fatal("bare /new must reset and stay")
-	}
-	if mm.sess != nil || mm.stateFile != "" {
-		t.Fatal("bare /new must drop the session")
-	}
-	if len(mm.transcript.blocks) != 1 || !strings.Contains(mm.transcript.blocks[0].text, "New chat") {
-		t.Fatalf("blocks = %+v, want a clean transcript with one marker", mm.transcript.blocks)
-	}
-	// The next line starts a fresh run, not a follow-up to nothing:
-	// with no session, followUp must take the startFresh path.
-	mm.newSession = func(task, stateFile string, images []string) (*api.Session, error) {
-		return nil, errors.New("fresh path taken")
-	}
-	mm.input.SetValue("fresh task")
-	updated, _ = mm.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	mm2 := updated.(*model)
-	found := false
-	for _, b := range mm2.transcript.blocks {
-		if strings.Contains(b.text, "cannot start: fresh path taken") {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("blocks = %+v, want the startFresh error path", mm2.transcript.blocks)
-	}
-}
-
 // A fresh follow-up with @path reaches the session constructor with
 // the text cleaned, and the echo marks the attachment.
 func TestFollowUp_AttachesImages(t *testing.T) {
@@ -677,34 +641,6 @@ func TestNewlineKey(t *testing.T) {
 		t.Fatalf("ctrl+o must insert newline, got %q", mm.input.Value())
 	}
 }
-
-func TestInterruptStaysInChat(t *testing.T) {
-	m := sizeModel(t, testModel())
-	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
-	mm := updated.(*model)
-	if mm.quit {
-		t.Fatal("esc must interrupt, not quit")
-	}
-	if mm.state != stStopping {
-		t.Fatalf("state = %v, want stopping", mm.state)
-	}
-	// The cancelled run's doneMsg renders neutrally, not as an error.
-	updated, _ = mm.Update(doneMsg{err: context.Canceled})
-	mm = updated.(*model)
-	if mm.runErr != nil {
-		t.Fatalf("runErr = %v, want nil after interrupt", mm.runErr)
-	}
-	found := false
-	for _, b := range mm.transcript.blocks {
-		if strings.Contains(b.text, "interrupted") {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("no interrupt marker: %v", mm.transcript.blocks)
-	}
-}
-
 func TestFollowUnfollowsOnScroll(t *testing.T) {
 	m := sizeModel(t, testModel())
 	for i := 0; i < 40; i++ {
@@ -1802,8 +1738,8 @@ func TestBlocksSeparateWithOneBlankRow(t *testing.T) {
 		t.Fatalf("transcript must use no rules: %q", view)
 	}
 	// The viewport pads every row to the pane width, so the gap is measured
-// with the padding tolerated rather than against a bare line ending.
-if !regexp.MustCompile(`\n *\nYOU *\n\[INPUT\]`).MatchString(view) {
+	// with the padding tolerated rather than against a bare line ending.
+	if !regexp.MustCompile(`\n *\nYOU *\n\[INPUT\]`).MatchString(view) {
 		t.Fatalf("expected one blank row before the next block: %q", view)
 	}
 	m2 := sizeModel(t, testModel())

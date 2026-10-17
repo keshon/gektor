@@ -18,6 +18,15 @@ import (
 	"github.com/keshon/tars/internal/tui/settings"
 )
 
+// conversationClient was defined in conversation_test.go alongside the Chat
+// tests that are being removed. It stays because the settings fixture, and
+// the agent fixture that replaces it, both need a scripted llm.Client.
+type conversationClient func(context.Context, llm.ChatRequest) (llm.ChatResponse, error)
+
+func (f conversationClient) Chat(ctx context.Context, r llm.ChatRequest) (llm.ChatResponse, error) {
+	return f(ctx, r)
+}
+
 func settingsModel(t *testing.T) *model {
 	t.Helper()
 	m := sizeModel(t, testModel())
@@ -121,6 +130,7 @@ func TestDirectRenameAndDeleteDefaultCancel(t *testing.T) {
 		t.Fatal("explicit delete failed")
 	}
 }
+
 // Save-as-copy is reached through Settings > Profiles with Ctrl+D, and
 // refuses to overwrite. It resolves relative paths against the staged
 // profile's own directory depth, so a character card written relatively
@@ -236,6 +246,7 @@ func TestSettingsMouseResizesMultilineEditor(t *testing.T) {
 		}
 	}
 }
+
 // agentSettingsModel puts the session in the bare `-tui` shape: Agent
 // mode with a services handle and an Application, which is what the
 // launch builds when no -profile was given.
@@ -297,34 +308,6 @@ func TestEveryIdleSettingsRowOpens(t *testing.T) {
 		}
 	}
 }
-
-// Switching a profile-less session to Chat used to dead-end. The
-// generated profile carried no Conversation, ConfigureAgent's
-// substitution never reached the profile, and Apply refused with "Chat
-// requires a profile with conversation settings" — a requirement nothing
-// on that screen could satisfy.
-func TestAgentSessionCanSwitchToChat(t *testing.T) {
-	m := agentSettingsModel(t)
-	m.audioConfig.Profile.Conversation = nil // what a generated profile carried
-	m.application.Preferences.Mode = "agent"
-	// The Agent side reads its checkpoint before anything is written; a
-	// missing one would fail for a reason unrelated to this switch.
-	m.stateFile = writeSessionState(t, t.TempDir(), "agent", []llm.Message{{Role: llm.RoleUser, Content: "task"}})
-	m.editSettings("application")
-	if m.dialog == nil {
-		t.Fatal("application form did not open")
-	}
-	m.dialog.form.Editor.SetValue("chat")
-	focusSetting(m, "app-voice")
-	m.applyForm()
-	if m.dialog != nil {
-		t.Fatalf("mode switch refused: %q", m.dialog.form.Error)
-	}
-	if m.modeChange == nil || m.modeChange.Preferences.Mode != "chat" {
-		t.Fatalf("mode change not queued: %+v", m.modeChange)
-	}
-}
-
 func TestCommonMenusHaveNoRedirects(t *testing.T) {
 	m := settingsModel(t)
 	for _, category := range []string{"session", "workflow", "view", "settings", "help"} {

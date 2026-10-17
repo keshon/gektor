@@ -8,12 +8,10 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/tars/internal/chat"
-	"github.com/keshon/tars/internal/config"
 )
 
 func TestSettingsAcrossCategoriesApplyToCurrentSession(t *testing.T) {
@@ -255,102 +253,27 @@ func TestSettingsTakesOverContentWithRoundedCorners(t *testing.T) {
 		t.Fatal("takeover lost composer draft")
 	}
 }
-
-func TestSettingsApplyBeforeFirstTurnKeepsLazyConversation(t *testing.T) {
-	for _, category := range []string{"model", "generation"} {
-		t.Run(category, func(t *testing.T) {
-			m := settingsModel(t)
-			m.chat.current = nil
-			m.stateFile = ""
-			m.transcript.blocks = nil
-			m.editSettings(category)
-			if category == "model" {
-				focusSetting(m, "model")
-				m.dialog.form.Editor.SetValue("different-model")
-			} else {
-				m.dialog.form.Editor.SetValue("0.8")
-			}
-			m.applyForm()
-			if m.dialog != nil || m.chat.current != nil || m.stateFile != "" || m.input.Value() != "unfinished draft" {
-				t.Fatal("settings fabricated a session or lost draft")
-			}
-			done := make(chan doneMsg, 1)
-			m.send = func(msg tea.Msg) { done <- msg.(doneMsg) }
-			if err := m.startConversation("Hello"); err != nil {
-				t.Fatal(err)
-			}
-			select {
-			case result := <-done:
-				if result.err != nil {
-					t.Fatal(result.err)
-				}
-				m.Update(result)
-			case <-time.After(time.Second):
-				t.Fatal("first turn did not finish")
-			}
-			archive, err := chat.ReadArchive(m.stateFile)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(archive.History) != 2 {
-				t.Fatal("first turn was not persisted")
-			}
-		})
-	}
-}
-
-func TestCharacterAndUserSettingsRemainIndependent(t *testing.T) {
+// Response presets are shared with Agent, not a Chat feature, so this
+// keeps the Agent arm of what used to loop over both modes. Staging must
+// not touch the live profile: the preset is an application decision, not
+// a reason to reconfigure services mid-form.
+func TestPromptPresetIsStagedNotApplied(t *testing.T) {
 	m := settingsModel(t)
-	p := m.chat.config.Profile.Clone()
-	p.Conversation.Character = "character.json"
-	p.Conversation.Name = "Fallback"
-	p.Conversation.GreetingIndex = 1
-	if err := config.ApplySection(&p, "you", map[string]string{"user": "Alex", "persona": "A developer"}); err != nil {
-		t.Fatal(err)
+	m.audioConfig = m.chat.config
+	m.chat = nil
+	m.editSettings("prompts")
+	focusSetting(m, "prompt-preset")
+	if m.dialog.form.Editor.Value() != "custom" {
+		t.Fatal("existing behavior not preserved")
 	}
-	if p.Conversation.Character != "character.json" || p.Conversation.Name != "Fallback" || p.Conversation.GreetingIndex != 1 {
-		t.Fatal("user settings changed character")
+	options := m.formOptions("prompt-preset")
+	if len(options) < 5 || choiceLabel("prompt-preset", "coding") != "Coding" || !strings.Contains(catalogDetail("prompt-preset", "coding"), "maintainable") {
+		t.Fatal(options)
 	}
-	if err := config.ApplySection(&p, "character", map[string]string{"character": "", "name": "Ada", "greeting": "0"}); err != nil {
-		t.Fatal(err)
+	m.dialog.form.Editor.SetValue("coding")
+	staged, err := m.stagedSettings()
+	if err != nil || staged.Conversation.PromptPreset != "coding" || m.audio().Profile.Conversation.PromptPreset != "" {
+		t.Fatal("preset not staged independently", staged, err)
 	}
-	if p.Conversation.UserName != "Alex" || p.Conversation.UserPersona != "A developer" {
-		t.Fatal("character settings changed user")
-	}
-	m.editSettings("character")
-	for _, field := range m.dialog.form.Fields {
-		if field.Key == "user" || field.Key == "persona" {
-			t.Fatal("user fields still mixed with character")
-		}
-	}
-	m.editSettings("you")
-	if len(m.dialog.form.Fields) != 2 {
-		t.Fatal(m.dialog.form.Fields)
-	}
-}
-
-func TestPromptPresetIsSharedAndStaged(t *testing.T) {
-	for _, agentMode := range []bool{false, true} {
-		m := settingsModel(t)
-		if agentMode {
-			audio := m.chat.config
-			m.audioConfig = audio
-			m.chat = nil
-		}
-		m.editSettings("prompts")
-		focusSetting(m, "prompt-preset")
-		if m.dialog.form.Editor.Value() != "custom" {
-			t.Fatal("existing behavior not preserved")
-		}
-		options := m.formOptions("prompt-preset")
-		if len(options) < 5 || choiceLabel("prompt-preset", "coding") != "Coding" || !strings.Contains(catalogDetail("prompt-preset", "coding"), "maintainable") {
-			t.Fatal(options)
-		}
-		m.dialog.form.Editor.SetValue("coding")
-		staged, err := m.stagedSettings()
-		if err != nil || staged.Conversation.PromptPreset != "coding" || m.audio().Profile.Conversation.PromptPreset != "" {
-			t.Fatal("preset not staged independently", staged, err)
-		}
-		m.closeDialog()
-	}
+	m.closeDialog()
 }

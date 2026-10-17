@@ -44,41 +44,6 @@ func TestPermissionDecisionAlwaysHasVisibleContext(t *testing.T) {
 		t.Fatal("gate overflowed terminal")
 	}
 }
-
-func TestChatSwitchPreservesDraftAndResetsRunFacts(t *testing.T) {
-	root := t.TempDir()
-	a := writeSessionState(t, root, "a", userHistory("First"))
-	b := writeSessionState(t, root, "b", userHistory("Second"))
-	m := sessionsTestModel(t, listSessionsIn(root))
-	m.stateFile = filepath.Join(a, "state.json")
-	m.input.SetValue("First draft\nsecond line")
-	m.toolsUsed = 7
-	for i, e := range m.sessions.entries {
-		if e.dir == b {
-			m.sessions.Cursor = i
-		}
-	}
-	m.openSelected()
-	if m.toolsUsed != 0 || m.input.Value() != "" {
-		t.Fatal("stale state in second chat")
-	}
-	m.input.SetValue("Second draft")
-	m.sessions = &sessionsState{filter: newSearchInput(80), entries: listSessionsIn(root)}
-	for i, e := range m.sessions.entries {
-		if e.dir == a {
-			m.sessions.Cursor = i
-		}
-	}
-	m.openSelected()
-	if m.input.Value() != "First draft\nsecond line" || m.input.Height() != 2 {
-		t.Fatal("draft not restored")
-	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEsc})
-	if m.input.Value() == "" {
-		t.Fatal("Escape discarded draft")
-	}
-}
-
 func TestQueueCanBeEditedCancelledAndSurvivesFailure(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.queued = "Queued task"
@@ -337,7 +302,7 @@ func TestHarnessNoticeMatchesLiveAndRebuiltHistory(t *testing.T) {
 }
 
 // The SYS filter hides harness notices and nothing else. Errors,
-// warnings, permission questions and tool results are the reader''s
+// warnings, permission questions and tool results are the reader”s
 // record of what happened; hiding them would let a failed run scroll
 // away with no trace.
 func TestHideSYSKeepsFailuresAndQuestions(t *testing.T) {
