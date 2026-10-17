@@ -43,22 +43,18 @@ type RunReport struct {
 	// Final is the model's final answer text ("" if the run errored out).
 	Final string
 
-	// WrapUp is the text-only closing summary captured on budget death
-	// ("" when the run ended any other way, or the closing call failed).
-	// Separate from Final on purpose: Final == "" on error is pinned
-	// (report_test.go), and mission retry semantics key off the error,
-	// not the text.
+	// WrapUp is the text-only closing summary captured on budget death,
+	// separate from Final because Final == "" on error is pinned by
+	// report_test.go and mission retry keys off the error, not the text.
 	WrapUp string
 
-	// MaxSteps is the step budget enforced this run: base plus
-	// todo-funded extension, kept live so observers (step events, status
-	// meters) read the enforced line, not the configured one.
+	// MaxSteps is the budget enforced this run — base plus todo funding —
+	// so observers read the enforced line, not the configured one.
 	MaxSteps int
 
-	// OpenTodos is the checklist still unchecked when the run ended
-	// (nil when none). Snapshot on the MaxSteps path only — that is the
-	// one exit where unfinished acknowledged work needs an operator
-	// decision. Sessions read it to ask for one more budget.
+	// OpenTodos is the checklist still unchecked when the run ended.
+	// Snapshot on the MaxSteps path only: that is the one exit where
+	// unfinished acknowledged work needs an operator decision.
 	OpenTodos []string
 
 	// LastPromptTokens is the backend-reported prompt size of the last
@@ -67,9 +63,8 @@ type RunReport struct {
 }
 
 // ToolNames returns the names of the tools this agent can call, sorted.
-// What an agent is allowed to do is a property worth asserting on rather
-// than assuming: a harness that builds its agent by hand can silently end
-// up with a different tool set than the one that ships.
+// Asserted on in tests: a harness that builds its agent by hand can
+// otherwise ship a different tool set than the one it means to.
 func (a *Agent) ToolNames() []string {
 	if a.cfg.Tools == nil {
 		return nil
@@ -96,28 +91,19 @@ func (a *Agent) Run(ctx context.Context, task string, images ...string) (string,
 
 // Resume continues from a previously saved history (see LoadState) after
 // a run was interrupted — crashed, killed, or hit MaxSteps. note is
-// appended as a fresh user message before continuing; pass something like
-// "Your previous attempt was interrupted before finishing. Check the
-// current state of the workspace before assuming anything, then finish
-// the task." A plain summary-of-what-happened isn't required — the full
-// history is already there, the model can re-read it.
+// appended as a fresh user message; the full history is already there, so
+// it need not summarise what happened.
 func (a *Agent) Resume(ctx context.Context, history []llm.Message, note string, images ...string) (string, error) {
 	history = a.resumeHistory(history)
 	history = append(history, llm.Message{Role: llm.RoleUser, Content: note, Images: images})
 	return a.run(ctx, history)
 }
 
-// PausedOnQuestion reports whether the last message in history is an
-// assistant message containing an unanswered question to a human. This is
-// the correct way to distinguish "interrupted by a question" from
-// "interrupted by a crash/timeout" when deciding which resume path to
-// take.
-//
-// With a registry it asks the registered Questioner, so it finds whatever
-// tool this run actually offered. A nil registry falls back to matching a
-// "question" argument, which is what a caller reading a saved session off
-// disk has to do: the tool set that produced it is long gone. That is also
-// strictly more general than assuming the tool was called ask_user.
+// PausedOnQuestion reports whether history ends on an assistant message
+// with an unanswered question to a human — how to tell "interrupted by a
+// question" from "interrupted by a crash". A nil registry falls back to
+// matching a "question" argument, which is all a caller reading a saved
+// session off disk can do: the tool set that produced it is long gone.
 func PausedOnQuestion(reg *Registry, history []llm.Message) (callID string, question string, ok bool) {
 	if len(history) == 0 {
 		return "", "", false
@@ -145,11 +131,9 @@ func PausedOnQuestion(reg *Registry, history []llm.Message) (callID string, ques
 }
 
 // ResumeWithAnswer continues from a history that ended with an unanswered
-// ask_user tool call. answer is synthesized as the proper role:tool,
-// tool_call_id message before the loop resumes — NOT as a plain user
-// message, which would produce a wire-invalid conversation (a backend
-// expects every tool_call to get its matching tool-result before anything
-// else, not a naked user message after an unanswered call).
+// ask_user. answer becomes the matching role:tool message, not a user
+// message: a backend expects every tool_call answered before anything
+// else, and a naked user turn after one is wire-invalid.
 func (a *Agent) ResumeWithAnswer(ctx context.Context, history []llm.Message, callID, answer string) (string, error) {
 	history = a.resumeHistory(history)
 	history = append(history, llm.Message{
@@ -207,10 +191,8 @@ type runState struct {
 	lastSingleResult                                                          uint64
 	verifiedOnce, searchFatigueWarned, blockFinishDueToVerify, toolLoopWarned bool
 	emptyFinishRetried                                                        bool
-	// overflowRetried allows exactly one compact-and-retry per run
-	// (pi's discipline): a second overflow means the window cannot
-	// hold this session however it is cut — fail with directions
-	// instead of burning a call per step until MaxSteps.
+	// overflowRetried allows one compact-and-retry per run. A second
+	// overflow means the window cannot hold this session however it is cut.
 	overflowRetried                                   bool
 	lastSignature, verifyFailedOutput, lastSingleTool string
 	mutatedPaths                                      []string
@@ -225,22 +207,18 @@ type runState struct {
 	todoBounces int
 
 	// todoFunded counts step budget granted for acknowledged todo work.
-	// todoOpenMax and todoDoneMax are high-water marks (not snapshots):
-	// rewrites neither double-fund nor un-complete — deleting an item
-	// doesn't refund, re-adding it past the mark doesn't re-grant.
+	// The high-water marks keep rewrites from double-funding: deleting an
+	// item doesn't refund, re-adding it past the mark doesn't re-grant.
 	todoFunded  int
 	todoOpenMax int
 	todoDoneMax int
 	// todoClosingGranted latches the delivery handshake per all-done
-	// episode: reopening items resets it, so each genuine completion
-	// earns its own close.
+	// episode, so reopening items earns its own close.
 	todoClosingGranted bool
 
-	// toolCalls counts tool calls issued this run. Gates the first
-	// verify round together with claimsFileEffects below: a finish
-	// with no tool work and no file-effect claims behind it is
-	// chit-chat, not work to verify. The one-shot stays armed, so a
-	// later working turn still gets verified.
+	// toolCalls gates the first verify round together with
+	// claimsFileEffects: a finish with no tool work and no file-effect
+	// claims is chit-chat. The one-shot stays armed for a later turn.
 	toolCalls int
 
 	// thinkWraps counts wrap-up rounds this run: finishes attempted with
@@ -262,27 +240,22 @@ type runState struct {
 	stuckNudges int
 
 	// idempotentSeen maps signature (name+args) of successful idempotent
-	// calls to the step that ran them; cleared whenever anything mutates
-	// the workspace. Exact repeats short-circuit to an error result — a
-	// weak model that re-issues the same read five times gets told it's
-	// repeating instead of getting five copies of the same bytes.
+	// calls to the step that ran them, cleared on any mutation. Exact
+	// repeats short-circuit: a weak model re-reading the same bytes five
+	// times is told so, instead of getting five copies.
 	idempotentSeen map[string]int
 
-	// wrotePaths maps write_file path → step of the successful write.
-	// Live failure (2026-07-14): weak model rewrote package.json with
-	// identical content in a tight loop; soft ToolLoop/StuckRepeating
-	// nudges were ignored, and each "ok" reset stuckSteps because
-	// progressed==true. A second write_file to the same path is refused
-	// so the model must write the next file or finish.
+	// wrotePaths maps write_file path to the step that wrote it. A second
+	// write to the same path is refused. Added 2026-07-14: a weak model
+	// rewrote package.json with identical content in a loop, ignoring the
+	// softer loop nudges, because each "ok" reset stuckSteps.
 	wrotePaths map[string]int
 }
 
-// ErrMaxSteps marks a run that did real work but ran out of step budget —
-// as opposed to infrastructure failures (a dead backend, a network error)
-// where no work happened at all. Callers that retry on failure (the
-// mission fix loop) must distinguish the two: retrying a step-budget
-// death can converge; retrying against a dead backend just burns retry
-// budget on connection errors.
+// ErrMaxSteps marks a run that did real work but ran out of step budget,
+// as opposed to infrastructure failure where none happened. Retry loops
+// must separate them: a budget death can converge, a dead backend just
+// burns retries on connection errors.
 var ErrMaxSteps = errors.New("reached max steps")
 
 func containsStr(list []string, s string) bool {
@@ -294,17 +267,12 @@ func containsStr(list []string, s string) bool {
 	return false
 }
 
-// hasTool reports whether this run's registry offers the named tool.
-// Nudge composition consults it so role-agnostic notices never cite
-// tools the recipient was never given (delegate_task to a worker,
-// ask_user to a subagent). Nil-registry safe: unknown means absent.
-// Tools returns the run's registry, so callers holding an Agent can ask
+// Tools returns the run's registry, so a caller holding an Agent can ask
 // what it was offered — which question tool, whether a checklist exists.
 func (a *Agent) Tools() *Registry { return a.cfg.Tools }
 
 // situationHints names, per nudge situation, the tools that could help.
-// The loop consults this table instead of branching on tool names in three
-// places, and a situation whose tools are all absent yields nothing.
+	// A situation whose tools are all absent yields nothing.
 var situationHints = map[string][]string{
 	"truncated":     {"write_file", "patch_file", "patch_lines"},
 	"search-fatigue": {"ask_user"},
@@ -329,10 +297,8 @@ func hintResolver(reg *Registry) func(string) string {
 	}
 }
 
-// writesFiles reports whether a tool writes a whole file to a path. It is
-// read from Config.MutatingTools rather than hardcoded, so a registry that
-// names a different writer gets the same rewrite guard — which used to
-// apply to write_file only, leaving a patch_file repeat unguarded.
+// writesFiles reads Config.MutatingTools rather than hardcoding a name,
+// so the rewrite guard covers whichever writer a registry offers.
 func (a *Agent) writesFiles(name string) bool {
 	return slices.Contains(a.cfg.MutatingTools, name)
 }

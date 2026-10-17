@@ -24,14 +24,12 @@ type ToolResult struct {
 	Failed bool
 }
 
-// ToolMode tells the loop whether a tool is safe to run concurrently with
-// other tool calls in the same step, or must run alone. A purely
-// type-level signal can't know whether two write_file calls in one step
-// touch the same path or different ones — rather than inspect arguments
-// to find out, every Exclusive tool just runs strictly alone. Simpler,
-// and the cost (occasionally serializing two writes to different files)
-// is small next to the alternative: a write racing a read of the same
-// path, or two patches racing each other.
+// ToolMode tells the loop whether a tool may run concurrently with others
+// in the same step, or must run alone. A type-level signal cannot know
+// whether two write_file calls touch the same path, so rather than inspect
+// arguments, every Exclusive tool just runs alone — occasionally
+// serializing two writes to different files is cheaper than a write racing
+// a read of the same path.
 type ToolMode int
 
 const (
@@ -187,16 +185,12 @@ func (r *Registry) Questioner() Questioner {
 	return nil
 }
 
-// IdempotentOf reports whether a tool has declared (via an optional
-// `Idempotent() bool` method) that identical calls return identical
-// results as long as nothing has mutated the workspace in between —
-// true for pure reads (read_file, list_files, grep_files), never for
-// tools whose results vary over time (check_url, check_background) or
-// that have side effects (delegate_task). The loop uses this to
-// short-circuit exact-repeat calls: a weak model re-issuing the same
-// read five times in a row gets told it's repeating instead of
-// re-filling its context with the same bytes. Default is false — a tool
-// must opt in.
+// IdempotentOf reports whether a tool declared (via an optional
+// `Idempotent() bool`) that identical calls return identical results while
+// nothing mutates — true for pure reads, never for time-varying results
+// (check_url) or side effects (delegate_task). The loop short-circuits
+// exact repeats so a weak model re-reading the same file is told so rather
+// than served the same bytes again. Default false: a tool must opt in.
 func (r *Registry) IdempotentOf(name string) bool {
 	t, ok := r.tools[name]
 	if !ok {
@@ -264,17 +258,12 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 	st.todoBounces = 0
 
 	// Tool calls within one step are scheduled by Tool.Mode(), not run
-	// uniformly. Concurrent calls (reads, read-only checks) run together
-	// via goroutines. Exclusive calls — anything that mutates the
-	// workspace, and delegate_task, whose subagent writes to the same one —
-	// run one at a time and never overlap the Concurrent batch or
-	// each other, so a step making three delegate calls spawns three
-	// sequential subagents.
-	// workspace, or run_shell's unanalyzable arbitrary command) run
-	// one at a time and never overlap with the Concurrent batch or
-	// each other — a model issuing write_file then patch_file on the
-	// same file in one step can rely on that order; two reads can't
-	// race a write of the same path either way, in any order.
+	// uniformly. Concurrent calls (reads, read-only checks) run together.
+	// Exclusive ones — anything that mutates the workspace, run_shell's
+	// unanalyzable command, delegate_task whose subagent writes to the same
+	// workspace — run one at a time and never overlap the concurrent batch.
+	// A model issuing write_file then patch_file on one file can rely on
+	// that order, and two reads cannot race a write either way.
 	results := make([]callResult, len(calls))
 
 	// Exact repeats of idempotent (pure-read) calls don't re-execute:
@@ -315,17 +304,13 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 			}
 		}
 		// A call that already failed, repeated identically with nothing
-		// mutated since, fails identically again. Soft nudges do not
-		// stop this: run_shell already returns an error on a non-zero
-		// exit, so the stuck counter was climbing and escalating the
-		// whole time a live worker ran `go test <one _test.go file>`
-		// seven times. It ignored every nudge. A refusal is not
-		// ignorable.
+		// mutated since, fails identically again. Soft nudges do not stop
+		// this: a live worker ran `go test <one _test.go file>` seven times
+		// while the stuck counter climbed and escalated, ignoring every
+		// nudge. A refusal is not ignorable.
 		//
 		// The tolerance exists because a few tools are legitimately
-		// time-dependent — check_url against a server that is still
-		// starting is the honest case, and start_background is
-		// Concurrent so it does not clear this cache.
+		// time-dependent — check_url against a server still starting.
 		key := callKey(call.Name, call.Arguments)
 		if n := st.failedCalls[key]; n >= maxIdenticalAttempts-1 {
 			skipped[i] = true
@@ -491,21 +476,18 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 		}
 	}
 
-	// A step that changed the workspace is progress by definition, so
-	// it can never be evidence of a loop. Writing four different files
-	// in a row is the normal shape of a scaffolding subtask — it is
-	// write_file four times, which is exactly what the same-tool
-	// counter used to flag. Live failure, FPS mission: package.json, vite.config.ts and index.html were written
-	// correctly, tripped the nudge at three, and the worker was told
-	// to "switch to a genuinely different tool" mid-scaffold.
-	// src/main.ts — the third acceptance criterion — was never written.
+	// A step that changed the workspace is progress by definition, so it
+	// can never be evidence of a loop. Writing four files in a row is the
+	// normal shape of scaffolding — which is write_file four times, exactly
+	// what the same-tool counter used to flag. Live failure, FPS mission:
+	// three files were written correctly, tripped the nudge, and the worker
+	// was told to "switch to a genuinely different tool" before writing the
+	// third acceptance criterion.
 	//
-	// Exact repeats are already handled by callSignature/idempotentSeen
-	// and wrotePaths, so what's left for the same-tool counter is the
-	// narrow case that nudge was written for: grinding one read-only
-	// tool with slightly different arguments, getting the same bytes
-	// back, and never converging. Fresh results restart the chain —
-	// see trackSingleToolLoop.
+	// Exact repeats are handled by callSignature/idempotentSeen and
+	// wrotePaths, so what is left here is the narrow case that nudge was
+	// written for: grinding one read-only tool with slightly different
+	// arguments and never converging. Fresh results restart the chain.
 	mutated := st.mutatingSucceeded > mutatingBefore
 	if a.observeWorkspace(st) {
 		mutated = true
@@ -587,16 +569,14 @@ func callSignature(calls []llm.ToolCall) string {
 }
 
 // callKey identifies one tool call for repeat detection, canonicalizing
-// the arguments so that spelling differences don't read as different
-// calls. A model re-reading one file emits {"path":"x"} one step and
-// {"path": "x", "metadata_only": false} the next; on raw bytes those are
-// two distinct keys, so the repeat guard never fires and the same file
-// comes back again. Round-tripping through a map sorts the keys and
-// drops the whitespace.
+// arguments so spelling differences don't read as different calls. A model
+// re-reading one file emits {"path":"x"} then {"path": "x",
+// "metadata_only": false}; on raw bytes those are two keys and the repeat
+// guard never fires. A round-trip through a map sorts keys and drops
+// whitespace.
 //
-// Arguments that aren't a JSON object (malformed output, a bare string)
-// fall back to the raw bytes: better a key that is too specific than one
-// that collapses two genuinely different calls into one.
+// Arguments that aren't a JSON object fall back to raw bytes: better a key
+// too specific than one that collapses two different calls into one.
 func callKey(name string, args json.RawMessage) string {
 	var obj map[string]any
 	if err := json.Unmarshal(args, &obj); err != nil {

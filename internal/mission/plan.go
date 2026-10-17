@@ -73,17 +73,12 @@ func GenerateReplan(ctx context.Context, client llm.Client, req ReplanRequest) (
 
 // defaultPlanCandidates is how many plans are generated and scored.
 //
-// The plan is a single sample from the weakest link and everything
-// downstream inherits it: a bad check wastes every fix worker, and a
-// replan is another single sample from the same model that just made the
-// mistake. Live, on one task in one afternoon: the same three-file
-// scaffold was rejected by validation twice in one run and planned
-// cleanly in the next. Plan quality is a coin flip, and a bad flip costs
-// the whole mission.
-//
-// This is the cheapest place in the system to spend extra calls. A plan
-// call is a couple of thousand prompt tokens against a mission that
-// burns twenty worker calls executing whatever it says.
+// Everything downstream inherits the plan: a bad check wastes every fix
+// worker, and a replan is another sample from the model that just erred.
+// Live, in one afternoon: the same three-file scaffold failed validation
+// twice in a run and planned cleanly the next. A bad flip costs the whole
+// mission, and a plan call is a couple of thousand tokens against twenty
+// worker calls executing whatever it says.
 const defaultPlanCandidates = 3
 
 // generateSubtasks generates several candidate plans, scores them
@@ -184,16 +179,12 @@ func generateSubtasks(ctx context.Context, client llm.Client, messages []llm.Mes
 // scorePlan ranks plans that already passed validation. Higher is better.
 //
 // Purely mechanical: asking a weak model which of its own plans is best
-// would just add another coin flip. Two things are measured.
-//
-// Check strength, averaged so a plan is not rewarded for having more
-// subtasks — the validator already bounds decomposition at both ends. A
-// check that builds or tests proves the most, a symbol in a file proves
-// something specific, mere existence proves the least.
-//
-// File overlap, penalised: two subtasks naming the same file in
-// files_hint means the second rewrites what the first produced, which is
-// the shape that ends with one worker undoing another's work.
+// would just add another coin flip. Two things are measured. Check strength,
+// averaged so more subtasks is not rewarded — the validator already bounds
+// decomposition at both ends, and a check that builds or tests proves the
+// most while mere existence proves the least. And file overlap, penalised:
+// two subtasks naming the same file means the second rewrites what the first
+// produced, which ends with one worker undoing another's work.
 func scorePlan(subs []Subtask) float64 {
 	if len(subs) == 0 {
 		return 0
@@ -490,21 +481,15 @@ func isDirOf(existing map[string]bool, path string) bool {
 	return false
 }
 
-// vacuousShellCheck flags commands that succeed regardless of whether any
-// work was done — a check that can't fail verifies nothing. Matched on
-// the first word (lowercased): a real weak-model plan produced `ls -l` as
-// a "check" and it passed vacuously, so this is a live failure shape, not
-// paranoia.
 // unsatisfiableShellCheck flags commands that fail regardless of whether
-// the work was done, returning why. The opposite hazard to
-// vacuousShellCheck and the more expensive one: a check that can never
-// pass turns every fix attempt into a guessing game about the command
-// rather than the code, and the fix loop spends its whole budget there.
+// the work was done — the more expensive hazard, since a check that can
+// never pass turns every fix attempt into a guessing game about the
+// command rather than the code.
 //
 // A live plan checked `go test ./internal/tools/parseurl_test.go`. A
-// single _test.go file cannot be compiled alone when it depends on the
-// package around it, so the check failed on correct code; three fix
-// workers and a replan were spent re-running variants of the command.
+// single _test.go cannot compile alone when it depends on the package
+// around it, so the check failed on correct code; three fix workers and a
+// replan went into variants of the command.
 func unsatisfiableShellCheck(cmd string) string {
 	fields := strings.Fields(cmd)
 	if len(fields) < 2 || fields[0] != "go" {
@@ -582,6 +567,10 @@ var shellBuiltins = map[string]bool{
 	"test": true, "true": true, "false": true,
 }
 
+// vacuousShellCheck flags commands that succeed whether or not any work was
+// done — a check that cannot fail verifies nothing. Matched on the first
+// word: a real weak-model plan offered `ls -l` as its check and it passed
+// vacuously.
 func vacuousShellCheck(cmd string) bool {
 	first := cmd
 	if i := strings.IndexAny(first, " \t"); i >= 0 {
@@ -597,23 +586,20 @@ func vacuousShellCheck(cmd string) bool {
 // mutatingShellCheck flags a check that performs the subtask instead of
 // verifying it.
 //
-// Observed three runs out of three on a probe that had passed before it.
-// The subtask was "create numbers.txt" and the model gave it this check:
+// Observed 3 runs out of 3 on a passing probe. The subtask was "create
+// numbers.txt" and the model offered this check:
 //
 //	python -c "with open('numbers.txt', 'w') as f: f.write('3\n5\n34\n')"
 //
-// It writes the file. Had it run, the check would have passed for every
-// plan whether or not the worker did anything, because the check was the
-// work. It did not run: the embedded quoting does not survive cmd.exe, so
-// it exited 1, burned the three fix attempts and killed the mission.
-// Either outcome is bad, and they are the same defect — a check must
-// observe, not act.
+// It writes the file, so it would pass for any plan whether or not the
+// worker did anything. It also fails — the quoting does not survive
+// cmd.exe — burning the fix attempts and killing the mission. Same defect
+// either way: a check must observe, not act.
 //
 // Deliberately narrow. Redirection and a write-mode open are unambiguous;
-// a mutating first word is judged only in that position, so `grep -q '>'
-// f` and `python stats.py | findstr /x 42` stay legal. A check that
-// mutates in some way not listed here still gets through, and that is the
-// right trade against rejecting plans that were fine.
+// a mutating first word counts only in that position, so `grep -q '>' f`
+// stays legal. A check mutating some other way still gets through, which is
+// the right trade against rejecting plans that were fine.
 func mutatingShellCheck(cmd string) string {
 	// Redirection, ignoring fd duplication like 2>&1 and >&2.
 	for i := 0; i < len(cmd); i++ {
@@ -665,22 +651,14 @@ func mutatingShellCheck(cmd string) string {
 // repairUnrunnableCheck downgrades a shell check that cannot run on this
 // host, instead of letting it sink the plan that carries it.
 //
-// The plan and the check are separate judgements, and only one of them is
-// the work. Live: a replan correctly diagnosed a save/load bug and
-// proposed exactly the right fix - store_var and get_var instead of JSON,
-// to stop integers coming back as floats - and attached the check
-// `grep 'store_var' Save.gd`. This host has no grep. The whole plan was
-// rejected, the correct fix was discarded, and the mission failed with
-// the work never attempted.
+// The plan and the check are separate judgements and only one is the work.
+// Live: a replan correctly diagnosed a save/load bug and proposed the right
+// fix, then attached `grep 'store_var' Save.gd`. This host has no grep, so
+// the whole plan was rejected and the correct fix discarded unattempted.
 //
-// Replacing the check costs little: DerivedChecks already adds
-// file_exists for every files_hint path, so the subtask stays verified
-// against what it declared it would produce. A check that names a path
-// keeps that path; one that names nothing degrades to none and leans on
-// the derived checks and the final verify.
-//
-// Returns a warning describing the substitution, so a human reading the
-// plan sees the check they are actually getting.
+// Cheap to replace: DerivedChecks already adds file_exists for every
+// files_hint path. Returns a warning so a reader of the plan sees the check
+// they are actually getting.
 func repairUnrunnableCheck(s *Subtask) string {
 	if s.Check.Type != "shell" {
 		return ""

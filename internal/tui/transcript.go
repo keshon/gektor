@@ -108,21 +108,19 @@ func findingBlock(rule, path string, line int, summary string) block {
 	return block{role: roleWarning, text: text + " " + summary, at: time.Now()}
 }
 
-// toolCardBlock opens a tool card: the call header renders immediately,
-// the result attaches when its tool_result event lands (matched by ID
-// in attachResult). Text carries no arrow prefix: the role gutter
-// already marks tool lines.
+// toolCardBlock opens a tool card: the header renders immediately, the
+// result attaches by ID when its event lands. No arrow prefix — the role
+// gutter already marks tool lines. One line always: models emit
+// pretty-printed multi-line args, and a card header sprawling down the
+// transcript reads stale next to speaker labels. Whitespace collapsed,
+// never cut.
 func toolCardBlock(callID, text string) block {
-	// One line, always: models emit pretty-printed multi-line args,
-	// and a card header sprawling down the transcript reads stale
-	// next to the speaker labels. Whitespace collapsed, never cut.
 	return block{role: roleTool, text: strings.Join(strings.Fields(text), " "), at: time.Now(), callID: callID, open: true}
 }
 
-// attachResult lands a tool result on its card: the most recent open
-// card with a matching non-empty call ID. Unknown IDs (and empty ones)
-// fall back to a standalone result block so parallel or leaked results
-// can never corrupt the wrong card. Reports whether it attached.
+// attachResult lands a tool result on the most recent open card with a
+// matching non-empty call ID. Unknown or empty IDs become a standalone
+// block, so a parallel or leaked result can never corrupt the wrong card.
 func (m *model) attachResult(callID, text string, failed ...bool) bool {
 	if callID == "" {
 		return false
@@ -143,10 +141,10 @@ func (m *model) attachResult(callID, text string, failed ...bool) bool {
 	return false
 }
 
-// roleLabel is the bracketed tag printed on a block's label row. One
-// tag per role keeps the transcript systematic: the reader learns the
-// whole vocabulary from a few lines and never has to parse speaker
-// prose to tell a refusal from a plan.
+// roleLabel is the bracketed tag on a block's label row. One tag per role
+// keeps the transcript systematic: the reader learns the whole vocabulary
+// from a few lines and never parses speaker prose to tell a refusal from a
+// plan.
 func roleLabel(r role) string {
 	switch r {
 	case roleUser:
@@ -173,10 +171,10 @@ func roleLabel(r role) string {
 	return "OUTPUT"
 }
 
-// systemSpeaker names every participant that is not the user or the
-// assistant: the harness, permission gates, mission notes and failures.
-// They share one name because they share one source, and a reader asking
-// "who said that" should never have to distinguish four shades of app.
+// systemSpeaker names every participant that is not the user or assistant:
+// the harness, gates, mission notes and failures. They share one name
+// because they share one source, and "who said that" should never require
+// distinguishing four shades of app.
 const systemSpeaker = "SYSTEM"
 
 // speakerLabel names the participant a block belongs to, uppercased.
@@ -245,22 +243,18 @@ type renderOpts struct {
 	raw bool
 }
 
-// renderBlock draws one transcript block: a label row carrying the
-// role's tag and (when known) its time, then the body at the left edge.
+// renderBlock draws one transcript block: a label row carrying the role's
+// tag and (when known) its time, then the body at the left edge. The body
+// starts in column 0 because the label row already said what the block is —
+// a per-line gutter repeating it cost two cells of every row to say nothing.
 //
-// Body text starts in column 0 because the label row already said what
-// the block is. A per-line gutter repeating that answer cost two cells
-// of every row to say nothing the label did not.
-//
-// Answer, user and think roles run the markdown-lite path
-// (fences/headers/spans); tool args, diffs, gates and markers stay raw
-// so a glob `*.go` can never toggle bold and diff prefixes survive
-// styling. Lines reflow to width columns: the viewport never wraps, so
-// unbroken long lines would vanish past the right edge.
+// Answer, user and think roles run the markdown-lite path; tool args,
+// diffs, gates and markers stay raw so a glob `*.go` can never toggle bold.
+// Lines reflow to width, since the viewport never wraps and an unbroken
+// long line would vanish past the right edge.
 func renderBlock(b block, st styles, opts renderOpts, width int) string {
-	// Blocks are passed by value: normalizing here covers every path
-	// to the terminal (compact/full, cards, tests) without touching
-	// stored history.
+	// Normalizing on the by-value copy covers every path to the terminal
+	// without touching stored history.
 	b.text = strings.TrimRight(cleanText(b.text), "\n")
 	b.result = strings.TrimRight(cleanText(b.result), "\n")
 	b = normalizeHarnessMarker(b)
@@ -307,22 +301,24 @@ func stampFits(line string, width int) bool {
 	return lipgloss.Width(line)+stampWidth+1 <= width
 }
 
-// harnessPrefix is the marker text the agent writes into nudge content.
-// It names the same thing as the role's label row, so it is stripped at
-// the display boundary rather than in the agent's prompt: stored
-// messages keep the text they were written with, and the transcript
-// shows what the label row plus the body together actually say.
+// harnessPrefix is the marker the agent writes into nudge content. It
+// names the same thing as the role's label row, so it is stripped at the
+// display boundary rather than in the prompt: stored messages keep the text
+// they were written with, and the transcript shows what the label row plus
+// body actually say.
+//
+// Deliberately a second copy of agent's marker rather than an import: this
+// is display vocabulary, and the two only have to agree on the literal.
 const harnessPrefix = "[harness] "
 
-// normalizeHarnessMarker strips the redundant [harness] prefix and drops
-// the leading space a step tag carries for inline use inside harness
-// prompts. On its own display row the body column is already the indent
-// that space stood in for, and keeping both pushed the line one cell
-// right of every other row.
+// normalizeHarnessMarker strips the redundant [harness] prefix and the
+// leading space a step tag carries for inline use. On its own display row
+// the body column is already the indent that space stood in for, and
+// keeping both pushed the line one cell right of every other row.
 //
-// It runs here rather than in the renderer because a marker is literal
-// text that takes a different path than an answer, and both fixes have
-// to hold on every path.
+// It runs here rather than in the renderer because a marker is literal text
+// taking a different path than an answer, and both fixes must hold
+// everywhere.
 func normalizeHarnessMarker(b block) block {
 	if b.role != roleMarker || !strings.HasPrefix(b.text, harnessPrefix) {
 		return b
@@ -351,14 +347,12 @@ func renderRaw(b block, raw string, st styles, width int) []string {
 	return out
 }
 
-// cleanText normalizes line endings at the display boundary. Tool
-// results carry the file's own CRLF (a 11672-byte read brought 239
-// CRs into the renderer), and model deltas may echo them back. A
-// stray \r moves the terminal cursor to column 0 mid-line, so
-// anything written after it (alignStamp's padding) overwrites the
-// line head, and the alt-screen repaint desyncs into ghost frames.
-// Lone \r becomes a newline rather than vanishing: it was a line
-// break where it came from.
+// cleanText normalizes line endings at the display boundary. Tool results
+// carry the file's own CRLF and model deltas may echo them back. A stray
+// \r moves the cursor to column 0 mid-line, so anything written after it
+// (alignStamp's padding) overwrites the line head and the alt-screen
+// repaint desyncs into ghost frames. A lone \r becomes a newline: it was a
+// line break where it came from.
 func cleanText(s string) string {
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	return strings.ReplaceAll(s, "\r", "\n")
@@ -598,17 +592,12 @@ func (m *model) resetLive() {
 	m.liveThink, m.liveThinkQueue = "", ""
 }
 
-// revealLive moves queued text into the transcript and reports whether
-// more is waiting.
-//
-// The rate is adaptive on purpose. A slow backend queues one or two
-// characters between frames and reveals them one at a time, which reads
-// as the model typing. A fast one queues thousands, and a fixed rate
-// would leave the display trailing the model by seconds, so each frame
-// drains a quarter of the backlog and catches up within a few frames.
-//
-// A reader who has scrolled away is not watching the tail, so the queue
-// is emptied whole: animating text nobody can see spends frames on it.
+// revealLive moves queued text into the transcript and reports whether more
+// is waiting. The rate is adaptive: a slow backend queues a character or
+// two per frame, which reads as the model typing, while a fast one queues
+// thousands that a fixed rate would leave trailing by seconds — so each
+// frame drains a quarter of the backlog. A reader who has scrolled away is
+// not watching the tail, so the queue empties whole.
 func (m *model) revealLive() bool {
 	pending := false
 	if m.liveThinkQueue != "" {
@@ -725,11 +714,10 @@ type transcriptProps struct {
 	hideSYS, labels bool
 }
 
-// refresh renders every block and assembles the parts. The name row
-// opens a run of blocks by one participant and only its first block
-// carries it. It is emitted here rather than inside renderBlock because
-// it depends on the previous block, not on this one: a per-block render
-// cache keyed on the block value cannot know who spoke before it.
+// refresh renders every block and assembles the parts. The name row opens a
+// run of blocks by one participant, and only its first block carries it —
+// emitted here because it depends on the previous block, which a per-block
+// cache keyed on the block value cannot know.
 func (t *transcriptState) refresh(props transcriptProps) {
 	width := t.Viewport.Width()
 	opts := renderOpts{expand: !t.compact, labels: props.labels}
