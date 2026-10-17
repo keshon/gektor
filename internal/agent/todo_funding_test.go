@@ -30,8 +30,8 @@ func (*scriptTodo) Description() string     { return "stub" }
 func (*scriptTodo) Mode() ToolMode          { return Concurrent }
 func (*scriptTodo) Schema() json.RawMessage { return json.RawMessage(`{}`) }
 
-// Models the real Todo (idempotent since the ritual fix): identical
-// payloads short-circuit instead of re-executing.
+// Models the real Todo, which declares Idempotent: identical payloads
+// short-circuit instead of re-executing.
 func (*scriptTodo) Idempotent() bool { return true }
 func (p *scriptTodo) Run(context.Context, json.RawMessage) (string, error) {
 	p.mu.Lock()
@@ -58,7 +58,7 @@ func todoCall(id, items string) llm.ChatResponse {
 // 1 done (+4) against a 25 base. Bounces still fire on the narration
 // steps (the open item survives), proving gate and funding independent.
 // The two todo payloads differ on purpose: byte-identical re-sends
-// short-circuit (see TestTodo_DeclaresIdempotent) and never reach Run.
+// short-circuit (todo.go declares Idempotent) and never reach Run.
 func TestAgent_TodoFunding_FundsCreationAndCompletion(t *testing.T) {
 	client := &stubClient{responses: []llm.ChatResponse{
 		todoCall("1", `[{"id":1,"state":"pending","text":"a"},{"id":2,"state":"pending","text":"b"}]`),

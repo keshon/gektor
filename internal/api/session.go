@@ -417,17 +417,20 @@ func (d *findingDrain) reportPerEdit(rule, path string, line int, summary string
 	d.report("per-edit", rule, path, line, summary)
 }
 
-// report emits one finding unless already reported, then chains the
-// previous sink (CLI printer) for emitted findings only: suppressed
-// stays silent everywhere, not just in events.
-func (d *findingDrain) report(scope, rule, path string, line int, summary string) {
-	kept := d.cache.Filter([]checks.Finding{{Rule: rule, Path: path, Line: line, Summary: summary}})
+// emit sends findings the cache has already deduplicated, then chains the
+// previous sink so suppressed findings stay silent everywhere.
+func (d *findingDrain) emitKept(scope string, kept []checks.Finding) {
 	for _, f := range kept {
 		EmitFinding(d.emit, scope, f.Rule, f.Path, f.Line, f.Summary)
+		if d.prev != nil {
+			d.prev(f.Rule, f.Path, f.Line, f.Summary)
+		}
 	}
-	if len(kept) > 0 && d.prev != nil {
-		d.prev(rule, path, line, summary)
-	}
+}
+
+// report emits one finding unless already reported.
+func (d *findingDrain) report(scope, rule, path string, line int, summary string) {
+	d.emitKept(scope, d.cache.Filter([]checks.Finding{{Rule: rule, Path: path, Line: line, Summary: summary}}))
 }
 
 // sweep runs the session-end deep pass over mutated paths: files the
@@ -448,20 +451,31 @@ func (d *findingDrain) sweep(ws *workspace.Workspace, paths []string) {
 		if err != nil {
 			continue // deleted or escaped since: nothing to scan
 		}
-		data, err := os.ReadFile(full)
+		data, err := readCapped(full, sweepReadMax)
 		if err != nil {
 			continue
 		}
 		all = append(all, checks.ScanFile(p, data)...)
 	}
-	kept := d.cache.Filter(all)
-	capped, dropped := checks.Clamp(kept, maxSweepFindings)
-	for _, f := range capped {
-		d.report("session-end", f.Rule, f.Path, f.Line, f.Summary)
-	}
+	capped, dropped := checks.Clamp(d.cache.Filter(all), maxSweepFindings)
+	d.emitKept("session-end", capped)
 	if dropped > 0 {
-		d.report("session-end", "sweep-truncated", "", 0, fmt.Sprintf("and %d more findings withheld", dropped))
+		d.report("session-end", "sweep-truncated", "", 0,
+			fmt.Sprintf("and %d more findings withheld", dropped))
 	}
+}
+
+// sweepReadMax bounds one swept file. The bound on count alone still let a
+// run that touched one large asset read all of it.
+const sweepReadMax = 256 * 1024
+
+func readCapped(path string, max int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return io.ReadAll(io.LimitReader(f, max))
 }
 
 // EmitToolResult writes one completed tool call as a JSONL event.

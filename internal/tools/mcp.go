@@ -43,6 +43,10 @@ type MCPClient struct {
 	pending map[int]chan json.RawMessage
 	scanErr error
 
+	// close stops the server process, including any that replaced it.
+	// Set by StartMCP; nil for the in-process transports tests inject.
+	close func()
+
 	// restarter rebuilds a dead transport: new command, pipes and
 	// handshake, reusing this client's identity and sequence. Nil means
 	// no restart (a dead server stays dead and calls fail). Set by
@@ -67,41 +71,44 @@ type MCPToolDef struct {
 // StartMCP launches command with args and runs initialize + tools/list,
 // returning one agent.Tool per remote tool named mcp__server__tool.
 func StartMCP(ctx context.Context, server, command string, args ...string) ([]agent.Tool, *MCPClient, error) {
-	ctx, cancel := context.WithTimeout(ctx, mcpTimeout)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, command, args...)
-	stdinPipe, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, nil, fmt.Errorf("mcp %s: stdin: %w", server, err)
-	}
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, nil, fmt.Errorf("mcp %s: stdout: %w", server, err)
-	}
-	cmd.Stderr = nil
-	if err := cmd.Start(); err != nil {
-		return nil, nil, fmt.Errorf("mcp %s: start %s: %w", server, command, err)
-	}
-	tools, c, err := connectMCP(ctx, server, cmd, stdinPipe, stdoutPipe)
-	if err != nil {
-		return nil, nil, err
-	}
-	c.restarter = func(ctx context.Context) (io.Writer, io.Reader, *exec.Cmd, error) {
-		cmd := exec.CommandContext(ctx, command, args...)
+	// The server must outlive the handshake, so its process gets a context
+	// the handshake timeout cannot cancel. Close cancels it, which also
+	// reaps a process a restart replaced.
+	procCtx, killProc := context.WithCancel(context.WithoutCancel(ctx))
+	launch := func() (io.Writer, io.Reader, *exec.Cmd, error) {
+		cmd := exec.CommandContext(procCtx, command, args...)
 		stdin, err := cmd.StdinPipe()
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, fmt.Errorf("mcp %s: stdin: %w", server, err)
 		}
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, fmt.Errorf("mcp %s: stdout: %w", server, err)
 		}
 		cmd.Stderr = nil
 		if err := cmd.Start(); err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, fmt.Errorf("mcp %s: start %s: %w", server, command, err)
 		}
 		return stdin, stdout, cmd, nil
+	}
+
+	stdin, stdout, cmd, err := launch()
+	if err != nil {
+		killProc()
+		return nil, nil, err
+	}
+	handshake, cancel := context.WithTimeout(ctx, mcpTimeout)
+	defer cancel()
+	tools, c, err := connectMCP(handshake, server, cmd, stdin, stdout)
+	if err != nil {
+		killProc()
+		return nil, nil, err
+	}
+	c.close = killProc
+	// The restarter reuses procCtx rather than its argument: a per-call
+	// deadline would kill the replacement moments after it started.
+	c.restarter = func(context.Context) (io.Writer, io.Reader, *exec.Cmd, error) {
+		return launch()
 	}
 	return tools, c, nil
 }
@@ -116,7 +123,7 @@ func connectMCP(ctx context.Context, server string, cmd *exec.Cmd, stdin io.Writ
 		stdout:  bufio.NewReader(stdout),
 		pending: map[int]chan json.RawMessage{},
 	}
-	go c.readLoop()
+	go c.readLoop(c.stdout)
 
 	var initResult struct {
 		ServerInfo struct {
@@ -185,10 +192,10 @@ func assignToolNames(server string, defs []MCPToolDef) []string {
 	return out
 }
 
-// Close kills the server process.
+// Close stops the server process, including any that replaced it.
 func (c *MCPClient) Close() {
-	if c.cmd != nil && c.cmd.Process != nil {
-		_ = c.cmd.Process.Kill()
+	if c.close != nil {
+		c.close()
 	}
 }
 
@@ -230,8 +237,12 @@ func (c *MCPClient) send(req rpcRequest) error {
 	return c.stdin.Flush()
 }
 
-func (c *MCPClient) readLoop() {
-	sc := bufio.NewScanner(c.stdout)
+// readLoop dispatches responses for one transport. It tears the client
+// down only while its reader is still the live one: after a restart the
+// old reader unblocks too, and draining pending then would fail calls
+// belonging to the new transport.
+func (c *MCPClient) readLoop(r *bufio.Reader) {
+	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 1024*1024), mcpWireMax)
 	for sc.Scan() {
 		line := sc.Bytes()
@@ -261,6 +272,10 @@ func (c *MCPClient) readLoop() {
 		}
 	}
 	c.mu.Lock()
+	if c.stdout != r {
+		c.mu.Unlock()
+		return
+	}
 	err := sc.Err()
 	if err == nil {
 		err = fmt.Errorf("server stdout closed")
@@ -325,7 +340,7 @@ func (c *MCPClient) restartTransport(ctx context.Context) error {
 	c.stdin = bufio.NewWriter(stdin)
 	c.stdout = bufio.NewReader(stdout)
 	c.mu.Unlock()
-	go c.readLoop()
+	go c.readLoop(c.stdout)
 	var initResult struct {
 		ServerInfo struct {
 			Name    string `json:"name"`

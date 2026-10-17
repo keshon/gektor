@@ -178,17 +178,16 @@ func (r *Runner) Run(ctx context.Context, m *Mission) (string, error) {
 				}
 				continue
 			}
-			// Failed subtasks are skipped too: a failed subtask still at
-			// the cursor after a resume means it was already either
-			// replaced by a replan or is about to fail the mission below —
-			// never silently re-run.
-			if sub.Status == StatusDone || sub.Status == StatusSkipped || sub.Status == StatusFailed {
-				m.Cursor++
-				if err := m.Save(r.Dir); err != nil {
-					return "", err
-				}
-				continue
-			}
+			// Only completed work is skipped. A failed subtask left at the cursor is
+// re-run: it reached this state when a replan hit an infrastructure error,
+// and skipping it would let the mission finish green with a failed unit.
+if sub.Status == StatusDone {
+	m.Cursor++
+	if err := m.Save(r.Dir); err != nil {
+		return "", err
+	}
+	continue
+}
 			err := r.runSubtask(ctx, m, sub)
 			if err == nil {
 				continue

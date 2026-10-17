@@ -305,7 +305,6 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			autoApprove:  o.yes,
 			autoDeny:     o.yes,
 			auditPath:    o.auditPath,
-			pure:         o.pure,
 			allow:        o.allow,
 			deny:         o.deny,
 			backendKind:  o.backendKind,
@@ -340,7 +339,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		Temperature:     o.temperature,
 		ContextLimit:    contextLimit,
 		MaxSteps:        o.maxSteps,
-		Policy:          buildPolicy(o.pure, o.allow, o.deny),
+		Policy:          buildPolicy(o.allow, o.deny),
 		GateContext:     audit.ContextHook(o.auditPath, "cli", permissionGateContext(o.yes, suspend, ws)),
 		BackendKind:     o.backendKind,
 		Model:           o.model,
@@ -655,10 +654,8 @@ func runMission(ctx context.Context, p missionParams) error {
 }
 
 // buildPolicy combines built-in defaults with -allow/-deny overrides.
-// -pure skips project config (no .tars/permissions.json loaded yet, so
-// today it just means defaults only); extra rules always win by append order.
-func buildPolicy(pure bool, allow, deny string) permission.Policy {
-	_ = pure
+// Extra rules always win by append order.
+func buildPolicy(allow, deny string) permission.Policy {
 	p := permission.Default()
 	var extra []permission.Rule
 	for _, spec := range parseRuleSpecs(allow, permission.Allow) {

@@ -48,7 +48,6 @@ type serveDeps struct {
 	autoApprove  bool
 	autoDeny     bool
 	auditPath    string
-	pure         bool
 	allow        string
 	deny         string
 	backendKind  string
@@ -290,7 +289,7 @@ func serveRun(ctx context.Context, d serveDeps, hub *api.GateHub, emitter *event
 		Procs:           d.procs,
 		MaxTokens:       d.maxTokens,
 		ContextLimit:    d.contextLimit,
-		Policy:          buildPolicy(d.pure, d.allow, d.deny),
+		Policy:          buildPolicy(d.allow, d.deny),
 		GateContext:     audit.ContextHook(d.auditPath, "serve", permissionGateContext(d.autoDeny, suspend, d.ws)),
 		BackendKind:     d.backendKind,
 		Stream:          d.stream,

@@ -175,11 +175,6 @@ func retainedAgentOptions(args []string) []string {
 			out = append(out, "-"+name, value)
 		}
 	}
-	for _, arg := range args {
-		if arg == "-pure" || strings.HasPrefix(arg, "-pure=") {
-			out = append(out, arg)
-		}
-	}
 	return out
 }
 

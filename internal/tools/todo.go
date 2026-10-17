@@ -62,6 +62,10 @@ func (t *Todo) Schema() json.RawMessage {
 	}`)
 }
 
+// Idempotent: Run replaces the list wholesale, so a resent identical call
+// lands on the same state.
+func (*Todo) Idempotent() bool { return true }
+
 func (t *Todo) Run(_ context.Context, args json.RawMessage) (string, error) {
 	var in struct {
 		Items []struct {

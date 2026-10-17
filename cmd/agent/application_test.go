@@ -110,9 +110,10 @@ func TestAgentServiceConfigurationSupportsTextOnlyProfile(t *testing.T) {
 	}
 }
 func TestExecutionPolicyOptionsSurviveServiceHandoff(t *testing.T) {
-	args := retainedAgentOptions([]string{"-tui", "-deny", "run_shell=*", "-pure", "-mcp", "local=command", "-model", "old"})
+	args := retainedAgentOptions([]string{"-tui", "-deny", "run_shell=*", "-allow", "read_file=*.go", "-mcp", "local=command", "-model", "old"})
 	joined := strings.Join(args, " ")
-	if !strings.Contains(joined, "-deny run_shell=*") || !strings.Contains(joined, "-pure") || !strings.Contains(joined, "-mcp local=command") || strings.Contains(joined, "-model") {
+	if !strings.Contains(joined, "-deny run_shell=*") || !strings.Contains(joined, "-allow read_file=*.go") ||
+		!strings.Contains(joined, "-mcp local=command") || strings.Contains(joined, "-model") {
 		t.Fatal(joined)
 	}
 }

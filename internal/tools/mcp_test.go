@@ -15,6 +15,12 @@ import (
 // responses. Runs in-process over pipes via connectMCP.
 func fakeMCPServer(t *testing.T, r io.Reader, w io.Writer) {
 	t.Helper()
+	serveFakeMCP(r, w)
+}
+
+// serveFakeMCP is the same server without a *testing.T, so it can run in a
+// re-executed copy of this binary.
+func serveFakeMCP(r io.Reader, w io.Writer) {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 1024*1024), 4*1024*1024)
 	bw := bufio.NewWriter(w)

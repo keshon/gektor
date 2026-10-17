@@ -77,8 +77,11 @@ func (m *model) followUp() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.appendBlock(userBlock(strings.TrimSpace(original) + imageSuffix(images)))
+	// Capture the session: startRun runs on a goroutine, and the Update
+	// loop can replace m.sess before this body is entered.
+	sess := m.sess
 	m.startRun(func(runCtx context.Context) (string, error) {
-		return m.sess.Resume(runCtx, history, text, images...)
+		return sess.Resume(runCtx, history, text, images...)
 	})
 	return m, nil
 }

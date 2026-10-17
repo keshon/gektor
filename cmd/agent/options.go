@@ -34,7 +34,6 @@ type launchOptions struct {
 	contextLimit          int
 	allow                 string
 	deny                  string
-	pure                  bool
 	stream                bool
 	mcp                   string
 	fork                  string
@@ -109,7 +108,6 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 		"per-model estimate when 0")
 	flags.StringVar(&o.allow, "allow", "", "comma-separated tool=pattern rules to allow, e.g. \"run_shell=go *,read_file=*.go\" (wins over defaults)")
 	flags.StringVar(&o.deny, "deny", "", "comma-separated tool=pattern rules to deny, e.g. \"run_shell=rm *,read_file=.env\" (wins over -allow)")
-	flags.BoolVar(&o.pure, "pure", false, "ignore project config for permissions; use built-in defaults plus -allow/-deny only")
 	flags.BoolVar(&o.stream, "stream", false, "stream response tokens live (openai/llama backends only; koboldcpp falls back to unary)")
 	flags.StringVar(&o.mcp, "mcp", "", "MCP servers: \"name=cmd args...;name2=https://host/mcp\" (stdio JSON-RPC or Streamable HTTP, tools appear as mcp__name__tool)")
 	flags.StringVar(&o.fork, "fork", "", "history file to branch from: loads its transcript but writes to a fresh task id")

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/tars/internal/checks"
 	"github.com/keshon/tars/internal/events"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/roles"
@@ -355,6 +356,65 @@ func TestFindingDrain_DedupesAcrossTiers(t *testing.T) {
 	if prev != 1 {
 		t.Fatalf("prev chained %d times, want 1", prev)
 	}
+}
+
+// The sweep is the only tier that sees changes the run made outside a
+// tool call, so a finding it finds first has to be emitted. It used to
+// filter its own results and then re-enter the reporting path, which found
+// them all already seen and emitted nothing.
+func TestFindingDrain_SweepEmitsWhenItIsTheFirstReporter(t *testing.T) {
+	dir := t.TempDir()
+	ws, err := workspace.New(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "stray.go"), []byte("package a\n\nfunc A()  {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	prev := 0
+	drain := newFindingDrain(events.New(&buf), func(string, string, int, string) { prev++ })
+	drain.sweep(ws, []string{"stray.go"})
+
+	findings, err := decodeFindings(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) == 0 {
+		t.Fatalf("sweep emitted nothing:\n%s", buf.String())
+	}
+	for _, f := range findings {
+		if f.Rule != "gofmt" {
+			t.Fatalf("unexpected finding %+v", f)
+		}
+	}
+	if prev != len(findings) {
+		t.Fatalf("prev chained %d times for %d findings", prev, len(findings))
+	}
+}
+
+// decodeFindings pulls the finding events out of a JSONL event stream.
+func decodeFindings(stream string) ([]checks.Finding, error) {
+	var out []checks.Finding
+	for _, line := range strings.Split(strings.TrimSpace(stream), "\n") {
+		var rec struct {
+			Event   string `json:"event"`
+			Rule    string `json:"rule"`
+			Path    string `json:"path"`
+			Line    int    `json:"line"`
+			Summary string `json:"summary"`
+		}
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			return nil, err
+		}
+		if rec.Event == "finding" {
+			out = append(out, checks.Finding{
+				Rule: rec.Rule, Path: rec.Path, Line: rec.Line, Summary: rec.Summary,
+			})
+		}
+	}
+	return out, nil
 }
 
 func TestFindingDrain_SweepBound(t *testing.T) {

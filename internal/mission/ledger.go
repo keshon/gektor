@@ -36,7 +36,6 @@ const (
 	StatusRunning = "running"
 	StatusDone    = "done"
 	StatusFailed  = "failed"
-	StatusSkipped = "skipped"
 )
 
 // Check is how a subtask's completion gets verified — mechanically, by

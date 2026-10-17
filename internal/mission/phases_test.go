@@ -278,6 +278,40 @@ func TestRunner_FixLoop_ConvergesOnSecondAttempt(t *testing.T) {
 	}
 }
 
+// A subtask that failed when a replan hit a dead backend is still failed
+// when the mission resumes. Skipping it let the run finish green with a
+// failed unit in the ledger.
+func TestRunner_Resume_RerunsFailedSubtaskInsteadOfSkipping(t *testing.T) {
+	client := &runnerClient{responses: script(
+		one(toolCall("write_file", map[string]string{"path": "index.html", "content": "<html>hi</html>"})),
+		one(text("wrote index.html")),
+	)}
+	r, _ := newRunner(t, client)
+
+	m := &Mission{ID: "i2", Task: "make a hello page", Phase: PhaseExecute}
+	m.Subtasks = []Subtask{{
+		ID: "s1", Milestone: "build", Title: "write the page",
+		Goal: "Create index.html.", Acceptance: []string{"index.html exists"},
+		FilesHint: []string{"index.html"}, Status: StatusFailed,
+		Check: Check{Type: "file_exists", Path: "index.html"},
+	}}
+	m.Cursor = 0
+
+	if _, err := r.Run(context.Background(), m); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	sub := m.Subtasks[0]
+	if sub.Status != StatusDone {
+		t.Fatalf("Status = %s, want done — the failed subtask was skipped, not re-run", sub.Status)
+	}
+	if sub.Attempts == 0 {
+		t.Fatal("Attempts = 0: the subtask was skipped without running a worker")
+	}
+	if m.Phase != PhaseDone {
+		t.Fatalf("Phase = %s, want done", m.Phase)
+	}
+}
+
 func TestRunner_Replan_AfterFixExhaustion(t *testing.T) {
 	noFilePlan := `{"subtasks":[{"id":"x","milestone":"wrap","title":"summarize","goal":"State that the work is complete.","acceptance":["a summary was produced"],"files_hint":[],"check":{"type":"none"}}]}`
 	client := &runnerClient{responses: script(

@@ -13,17 +13,18 @@ import (
 	"github.com/keshon/tars/internal/workspace"
 )
 
+// shellTimeout bounds one command. Builds and installs outlive anything
+// shorter, so a 30s default silently killed ordinary work.
+const shellTimeout = 10 * time.Minute
+
 type RunShell struct {
-	WS      *workspace.Workspace
-	Timeout time.Duration // defaults to 30s if zero
+	WS *workspace.Workspace
 }
 
 func (RunShell) Name() string { return "run_shell" }
 
-// Mode is Exclusive: an arbitrary shell command could do anything
-// (mutate files, hold a lock, depend on ordering) — there's no way to
-// tell from the string alone, so the safe default is to never run it
-// alongside other tool calls in the same step.
+// Mode is Exclusive: a shell command can mutate files, hold a lock or
+// depend on ordering, and none of that is visible in the string.
 func (RunShell) Mode() agent.ToolMode { return agent.Exclusive }
 func (RunShell) Description() string {
 	if runtime.GOOS == "windows" {
@@ -52,11 +53,7 @@ func (t RunShell) Run(ctx context.Context, args json.RawMessage) (string, error)
 		return "", fmt.Errorf("bad arguments: %w", err)
 	}
 
-	timeout := t.Timeout
-	if timeout == 0 {
-		timeout = 30 * time.Second
-	}
-	full, err := RunCommand(ctx, in.Command, t.WS.Root(), timeout)
+	full, err := RunCommand(ctx, in.Command, t.WS.Root(), shellTimeout)
 	result := capShellOutput(full)
 
 	if err != nil {
