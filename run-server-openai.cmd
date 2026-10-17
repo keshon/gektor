@@ -6,7 +6,7 @@ REM OpenAI-compatible stdio server launcher.
 REM Credentials live in .env (gitignored); see .env.example.
 REM
 REM   run-server-openai.cmd
-REM   set TARS_MODEL=some/model && run-server-openai.cmd
+REM   set OPENAI_MODEL=some/model && run-server-openai.cmd
 
 REM --- load .env ---
 set "ENV_TMP=%TEMP%\tars-env-%RANDOM%.tmp"
@@ -19,9 +19,13 @@ if exist .env (
 )
 
 REM --- defaults ---
-if "%TARS_BACKEND%"=="" set TARS_BACKEND=https://openrouter.ai/api/v1
-if "%TARS_MODEL%"=="" set TARS_MODEL=cohere/north-mini-code:free
-if "%TARS_WORKSPACE%"=="" set TARS_WORKSPACE=.
+REM Endpoint settings are OPENAI_* because they describe this backend, the
+REM same way LLAMA_* and KOBOLD_* describe theirs. Only TARS_API_KEY keeps
+REM the Tars prefix: internal/llm.APIKeyFromEnv reads it first, ahead of the
+REM per-provider keys, as the generic name.
+if "%OPENAI_BACKEND%"=="" set OPENAI_BACKEND=https://openrouter.ai/api/v1
+if "%OPENAI_MODEL%"=="" set OPENAI_MODEL=cohere/north-mini-code:free
+if "%OPENAI_WORKSPACE%"=="" set OPENAI_WORKSPACE=.
 
 REM --- required API key ---
 if "%TARS_API_KEY%"=="" (
@@ -38,10 +42,9 @@ if errorlevel 1 (
 )
 
 REM --- export keys so the Go client's APIKeyFromEnv() can pick them up ---
-set TARS_API_KEY=%TARS_API_KEY%
 set OPENROUTER_API_KEY=%TARS_API_KEY%
 
 REM --- launch ---
-echo Starting TARS stdio server (backend: %TARS_BACKEND%, model: %TARS_MODEL%)...
-go run ./cmd/agent -serve -backend-kind openai -backend %TARS_BACKEND% -model %TARS_MODEL% -workspace %TARS_WORKSPACE% -yes
+echo Starting TARS stdio server (backend: %OPENAI_BACKEND%, model: %OPENAI_MODEL%)...
+go run ./cmd/agent -serve -backend-kind openai -backend %OPENAI_BACKEND% -model %OPENAI_MODEL% -workspace %OPENAI_WORKSPACE% -yes
 exit /b %errorlevel%
