@@ -27,14 +27,35 @@ func wsRootOf(ws *workspace.Workspace) string {
 type dialog struct {
 	form         *settingsForm
 	title        string
+	subtitle     string
 	lines        []string
 	help         bool
 	page, offset int
+	// Structured modal fields. When set, dialogView renders them
+	// instead of the flat title+lines+hint layout.
+	head   string
+	body   []string
+	action string
+	tips   string
 }
 
 // openDialog pushes the overlay and shows the dialog; closeDialog pops
 // it. Balanced by construction: every open path pairs with esc/enter
 // or run start.
+func (m *model) openModal(head, title, subtitle string, body []string, action, tips string) {
+	m.dialog = &dialog{
+		head:     head,
+		title:    title,
+		subtitle: subtitle,
+		body:     body,
+		action:   action,
+		tips:     tips,
+	}
+	m.pushOverlay()
+	m.input.Blur()
+	m.fitBottom()
+}
+
 func (m *model) openDialog(title string, lines []string) {
 	m.dialog = &dialog{title: title, lines: lines}
 	m.pushOverlay()
@@ -65,6 +86,38 @@ func (m *model) dialogView() string {
 	if inner < 10 {
 		inner = 10
 	}
+	// Structured modal: head, title, subtitle, --, body, --, action, tips.
+	if d.head != "" || d.action != "" || d.tips != "" || len(d.body) > 0 {
+		var rows []string
+		if d.head != "" {
+			rows = append(rows, m.styles.gate.Render(d.head))
+		}
+		if d.title != "" {
+			rows = append(rows, m.styles.gate.Render(d.title))
+		}
+		if d.subtitle != "" {
+			for _, line := range strings.Split(d.subtitle, "\n") {
+				rows = append(rows, m.styles.dim.Render(line))
+			}
+		}
+		if len(d.body) > 0 {
+			rows = append(rows, m.styles.dim.Render(strings.Repeat("\u2500", inner)))
+			for _, line := range d.body {
+				rows = append(rows, line)
+			}
+		}
+		if d.action != "" || d.tips != "" {
+			rows = append(rows, m.styles.dim.Render(strings.Repeat("\u2500", inner)))
+		}
+		if d.action != "" {
+			rows = append(rows, m.styles.gate.Render(d.action))
+		}
+		if d.tips != "" {
+			rows = append(rows, m.styles.dim.Render(d.tips))
+		}
+		return renderBox(rows, availW, availH)
+	}
+	// Legacy flat dialog: title, lines, close hint.
 	rows := []string{m.styles.gate.Render(truncate(d.title, inner))}
 	lines := []string{}
 	for _, line := range d.lines {

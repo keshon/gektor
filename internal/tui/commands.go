@@ -52,12 +52,14 @@ func (m *model) confirmRestart(action func()) {
 		return
 	}
 	m.confirmAction = action
-	m.openDialog("Restart session?", []string{
-		"This command changes agent settings.",
-		"The running session will restart.",
+	m.openModal(
 		"",
+		"Restart session?",
+		"This command changes agent settings.",
+		[]string{"The running session will restart."},
 		"y  restart   n  cancel",
-	})
+		"Esc close",
+	)
 }
 
 func (m *model) command(text string) (tea.Model, tea.Cmd) {
