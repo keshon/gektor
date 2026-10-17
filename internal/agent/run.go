@@ -150,6 +150,14 @@ func (a *Agent) handleChatError(st *runState, step int, err error, history []llm
 			shrunk = true
 		}
 		a.saveState(history)
+	} else {
+		// Nothing to compact: a fresh run's history is the system
+		// prompt and the task, and dropping either would lose the
+		// instructions. The overflow may be synthetic (an injected
+		// probe) or a backend that rejects the request for another
+		// reason; retry once and fail fast if it recurs, which is
+		// what st.overflowRetried guards against.
+		shrunk = true
 	}
 	if !shrunk || st.overflowRetried {
 		return nil, fmt.Errorf("step %d: context overflow persists after compaction — /compact the session, shorten the task, or use a larger-context model: %w", step, err)

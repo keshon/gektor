@@ -60,7 +60,11 @@ func TestRun_RecoversFromOverflowByCompacting(t *testing.T) {
 // compact). The old code nudged and retried the identical oversized
 // request until MaxSteps — 25 wasted calls. Now it fails fast with
 // directions instead.
-func TestRun_OverflowUnshrinkableFailsFast(t *testing.T) {
+// TestRun_OverflowUnshrinkableFailsFast verifies that when compaction
+// cannot help (history too small to shrink), the first overflow still
+// retries once - the overflow may be synthetic or transient - and fails
+// fast on the second, rather than grinding through MaxSteps.
+func TestRun_OverflowUnshrinkableRetriesOnce(t *testing.T) {
 	c := &overflowOnce{}
 	a := New(Config{
 		Client:           c,
@@ -70,12 +74,15 @@ func TestRun_OverflowUnshrinkableFailsFast(t *testing.T) {
 		CompactKeepSteps: 2,
 		SkipVerify:       true,
 	})
-	_, err := a.Run(context.Background(), "task")
-	if err == nil || !strings.Contains(err.Error(), "persists after compaction") {
-		t.Fatalf("err = %v, want fast-fail with directions", err)
+	out, err := a.Run(context.Background(), "task")
+	if err != nil {
+		t.Fatalf("err = %v, want recovery to succeed on the single retry", err)
 	}
-	if c.calls != 1 {
-		t.Fatalf("calls=%d, want 1 (no doomed retry)", c.calls)
+	if out != "recovered" {
+		t.Fatalf("out = %q, want recovered", out)
+	}
+	if c.calls != 2 {
+		t.Fatalf("calls=%d, want 2 (one overflow, one retry)", c.calls)
 	}
 }
 
