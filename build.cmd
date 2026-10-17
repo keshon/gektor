@@ -17,8 +17,15 @@ rem  checkout where files are LF as stored, but a Windows working tree is
 rem  CRLF and gofmt -l lists every file there. That listing is a checkout
 rem  artifact, not a formatting problem - CI is the authority on formatting.
 rem
+rem  build test and build check redirect the user's home to a throwaway
+rem  directory for the duration of the run, so no test can write into the
+rem  real .tars\. Nothing to clean up afterwards, because nothing real was
+rem  reachable.
+rem
 rem  build clean never touches .tars\: that directory holds resumable task
-rem  state, and losing it means losing saved runs.
+rem  state, and losing it means losing saved runs. It is the only user data
+rem  the project keeps, and it lives in the user's home, not in the repo -
+rem  so a recursive delete anywhere near it is never the answer to anything.
 rem
 rem  Messages are English on purpose: a .cmd file with non-ASCII text is at
 rem  the mercy of whatever code page the console happens to be in, and a
@@ -83,6 +90,7 @@ rem    build test -race -count 1
 rem ---------------------------------------------------------------------------
 :test
 echo Running tests...
+call :sandbox
 set EXTRAS=
 shift
 
@@ -95,6 +103,29 @@ goto :collect
 :run_test
 go test ./... %EXTRAS%
 exit /b %errorlevel%
+
+rem ---------------------------------------------------------------------------
+rem  Point the user's home at a throwaway directory for the duration of a run.
+rem
+rem  Packages that persist anything call internal/tars, which resolves the
+rem  user's real .tars. Four of them redirect it in TestMain, but a package
+rem  that forgets, or a test that shells out to a binary that does not, would
+rem  write into the live session library. Redirecting USERPROFILE makes the
+rem  real one unreachable, so there is nothing left to clean up afterwards.
+rem
+rem  os.UserHomeDir reads USERPROFILE on Windows and HOME elsewhere; HOME is
+rem  set too so a subshell, an MCP helper or a scripted tool lands in the
+rem  sandbox as well. setlocal scopes both, so the caller's home is intact
+rem  when this script returns and no caller has to undo anything.
+rem ---------------------------------------------------------------------------
+:sandbox
+if not defined TARS_TEST_SANDBOX (
+    set "TARS_TEST_SANDBOX=%TEMP%\tars-test-home-%RANDOM%%RANDOM%"
+    mkdir "%TARS_TEST_SANDBOX%" 2>nul
+)
+set "USERPROFILE=%TARS_TEST_SANDBOX%"
+set "HOME=%TARS_TEST_SANDBOX%"
+exit /b 0
 
 rem ---------------------------------------------------------------------------
 rem  Everything CI runs before merging, in the same order, minus gofmt
@@ -111,6 +142,7 @@ go build ./...
 if errorlevel 1 exit /b 1
 
 echo == test -race
+call :sandbox
 go test -race ./...
 if errorlevel 1 exit /b 1
 
