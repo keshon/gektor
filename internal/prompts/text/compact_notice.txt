@@ -1,1 +1,1 @@
-Earlier conversation was truncated because the context budget was nearly full. Re-read or list files in the workspace if you need details from steps that were dropped.
+Earlier conversation was truncated because the context budget was nearly full. Any requests of the user's listed below were dropped with it: the last one listed is the one you are working on, and requests older still may still be in this conversation only because they were never dropped. Re-read or list files in the workspace if you need details from steps that were dropped.

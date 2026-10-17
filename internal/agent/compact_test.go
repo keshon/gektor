@@ -121,6 +121,67 @@ func TestCompactHistory_KeepsPrefixAndRecentGroups(t *testing.T) {
 	}
 }
 
+// A session is not one long task. Compaction keeps the FIRST user message
+// as the standing instruction, so when an early question was an aside and
+// the real work came later, compaction drops the real request and keeps
+// the aside. The model then finishes whatever work is still visible in the
+// tail, runs out, and answers the aside.
+//
+// This is a transcript shape: user asks about currency, then asks for a
+// game, then asks for polish. Only the currency question survives as live
+// instruction; the polish request must reach the model through the notice.
+func TestCompactHistory_CarriesDroppedUserRequests(t *testing.T) {
+	history := []llm.Message{
+		{Role: llm.RoleSystem, Content: "sys"},
+		{Role: llm.RoleUser, Content: "show me today's rate for the ruble"},
+	}
+	for i := 0; i < 6; i++ {
+		history = append(history, assistantStep("a")...)
+	}
+	// The actual work, dropped by compaction.
+	history = append(history, llm.Message{Role: llm.RoleUser, Content: "now build me a sliding puzzle game"})
+	for i := 0; i < 6; i++ {
+		history = append(history, assistantStep("b")...)
+	}
+	history = append(history, llm.Message{Role: llm.RoleUser, Content: "polish it: add sliding animations to the tiles"})
+	for i := 0; i < 4; i++ {
+		history = append(history, assistantStep("c")...)
+	}
+
+	got := compactHistory(history, 4)
+	notice := got[2].Content
+
+	for _, want := range []string{"build me a sliding puzzle game", "add sliding animations to the tiles"} {
+		if !strings.Contains(notice, want) {
+			t.Fatalf("dropped request %q missing from the notice:\n%s", want, notice)
+		}
+	}
+	// Order matters: the newest request is the live one, and the notice
+	// says so. A model that reads them unordered is back to guessing.
+	if strings.Index(notice, "add sliding animations") < strings.Index(notice, "build me a sliding puzzle") {
+		t.Fatalf("dropped requests must stay in order, newest last:\n%s", notice)
+	}
+	if !strings.Contains(prompts.CompactNotice, "the one you are working on") {
+		t.Fatal("the notice must state which dropped request is current")
+	}
+}
+
+// Loop notices describe the loop, not the task. Listing them as the user's
+// requests would bury the request that matters.
+func TestSummarizeDropped_SkipsHarnessNotices(t *testing.T) {
+	summary := summarizeDropped([][]llm.Message{{
+		{Role: llm.RoleUser, Content: harnessText("budget extended by operator approval")},
+		{Role: llm.RoleAssistant, Content: "working"},
+		{Role: llm.RoleUser, Content: "actually make it two players"},
+	}})
+	if strings.Contains(summary, "budget extended") {
+		t.Fatalf("harness notice leaked into the dropped requests: %s", summary)
+	}
+	if !strings.Contains(summary, "actually make it two players") {
+		t.Fatalf("real request missing: %s", summary)
+	}
+}
+
 func TestCompactHistory_NoOrphanToolResults(t *testing.T) {
 	history := []llm.Message{
 		{Role: llm.RoleSystem, Content: "sys"},

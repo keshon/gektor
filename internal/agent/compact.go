@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/keshon/tars/internal/llm"
@@ -44,8 +45,15 @@ func compactHistory(history []llm.Message, keepSteps int) []llm.Message {
 
 // findCutPoint returns how many leading groups to drop so exactly want
 // groups are dropped, adjusted so the cut never orphans a tool result:
-// groups are assistant-led by construction, but a defensive scan backs
-// the cut off if kept[0] would start with a non-assistant message.
+// groups are assistant-led by construction, but a lone user turn forms
+// its own group, and a defensive scan backs the cut off if kept[0] would
+// start with a tool message.
+//
+// The scan tests for RoleTool, not for "not assistant". Backing off from
+// any non-assistant group means a session where the user interleaves
+// messages with the model's work can never compact at all: the cut walks
+// back to zero, dropped comes out empty, and the caller is handed a
+// "compacted" history identical to the one it passed in.
 func findCutPoint(groups [][]llm.Message, want int) int {
 	if want < 0 {
 		want = 0
@@ -54,7 +62,7 @@ func findCutPoint(groups [][]llm.Message, want int) int {
 		want = len(groups)
 	}
 	for want > 0 && want < len(groups) && len(groups[want]) > 0 &&
-		groups[want][0].Role != llm.RoleAssistant {
+		groups[want][0].Role == llm.RoleTool {
 		want--
 	}
 	return want
@@ -228,14 +236,22 @@ func (a *Agent) maybeCompact(history *[]llm.Message, usage llm.Usage, st *runSta
 }
 
 // summarizeDropped extracts ground facts from dropped step groups: how many
-// steps, which tools ran, which paths were touched, and the last assistant
-// text snippet. Bounded output — this string itself lives in context.
+// steps, which tools ran, which paths were touched, what the user asked
+// for, and the last assistant text snippet. Bounded output — this string
+// itself lives in context.
+//
+// The dropped user requests are the load-bearing part. Without them a
+// compaction that keeps the first user message as the standing task and
+// drops every later turn leaves the model holding an already-answered
+// aside as its only live instruction: it finishes the work still visible
+// in the tail, runs out, and answers a question from twenty steps ago.
 func summarizeDropped(dropped [][]llm.Message) string {
 	if len(dropped) == 0 {
 		return ""
 	}
 	toolCounts := map[string]int{}
 	var paths []string
+	var asks []string
 	lastText := ""
 	for _, g := range dropped {
 		for _, m := range g {
@@ -250,6 +266,11 @@ func summarizeDropped(dropped [][]llm.Message) string {
 				}
 				if strings.TrimSpace(m.Content) != "" {
 					lastText = strings.TrimSpace(m.Content)
+				}
+			}
+			if m.Role == llm.RoleUser {
+				if a := droppedAsk(m.Content); a != "" && !containsStr(asks, a) && len(asks) < 8 {
+					asks = append(asks, a)
 				}
 			}
 			if m.Role == llm.RoleTool {
@@ -283,6 +304,9 @@ func summarizeDropped(dropped [][]llm.Message) string {
 		fmt.Fprintf(&b, "; files: %s", strings.Join(paths, ", "))
 	}
 	b.WriteString(")")
+	if len(asks) > 0 {
+		fmt.Fprintf(&b, " User requests dropped: %s", quoteEach(asks))
+	}
 	if lastText != "" {
 		r := []rune(lastText)
 		if len(r) > 200 {
@@ -291,4 +315,30 @@ func summarizeDropped(dropped [][]llm.Message) string {
 		fmt.Fprintf(&b, " Last note: %q", lastText)
 	}
 	return b.String()
+}
+
+// droppedAsk returns a user's dropped request as one summary line, or ""
+// when the message is a loop notice rather than something they asked for.
+// Harness notices describe the loop, not the task, and a wall of them
+// would crowd out the request that matters.
+func droppedAsk(content string) string {
+	t := strings.TrimSpace(content)
+	if t == "" || strings.HasPrefix(t, harnessPrefix) {
+		return ""
+	}
+	if i := strings.IndexByte(t, '\n'); i >= 0 {
+		t = strings.TrimSpace(t[:i])
+	}
+	if r := []rune(t); len(r) > 160 {
+		t = string(r[:160]) + "…"
+	}
+	return t
+}
+
+func quoteEach(items []string) string {
+	out := make([]string, len(items))
+	for i, s := range items {
+		out[i] = strconv.Quote(s)
+	}
+	return strings.Join(out, "; ")
 }

@@ -110,8 +110,13 @@ const (
 // reading bare instructions; "[harness] ..." names the author inline,
 // in history, events, and transcripts alike.
 func harnessText(text string) string {
-	return "[harness] " + text
+	return harnessPrefix + text
 }
+
+// harnessPrefix is the author tag harnessText writes. Anything carrying
+// it is the loop talking, not the user, and readers that must tell them
+// apart match on it rather than on the full marker.
+const harnessPrefix = "[harness] "
 
 // notifyNudge reports harness text to the observer, nil-safe.
 func (a *Agent) notifyNudge(kind, text string) {

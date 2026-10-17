@@ -8,18 +8,32 @@ import (
 	"github.com/keshon/tars/internal/prompts"
 )
 
+// The guard exists so a kept group never opens with an orphaned tool
+// result. A lone user turn is not an orphan: it is the user asking for
+// something, and it is exactly what compaction must not silently refuse
+// to drop.
 func TestFindCutPoint_NeverOrphansToolResult(t *testing.T) {
-	groups := [][]llm.Message{
-		{{Role: llm.RoleAssistant, Content: "a"}},
-		{{Role: llm.RoleUser, Content: "stray"}},
+	toolLed := [][]llm.Message{
+		{{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "1"}}}},
+		{{Role: llm.RoleTool, ToolCallID: "1", Content: "ok"}},
 		{{Role: llm.RoleAssistant, Content: "b"}},
 	}
-	// Wanting 1 would keep groups[1:] starting with non-assistant; must back off to 0.
-	if got := findCutPoint(groups, 1); got != 0 {
-		t.Fatalf("cut = %d, want 0", got)
+	if got := findCutPoint(toolLed, 1); got != 0 {
+		t.Fatalf("cut = %d, want 0: kept[0] would orphan a tool result", got)
 	}
-	if got := findCutPoint(groups, 2); got != 2 {
-		t.Fatalf("orphan cut = %d, want 2", got)
+	if got := findCutPoint(toolLed, 2); got != 2 {
+		t.Fatalf("clean cut = %d, want 2", got)
+	}
+
+	userLed := [][]llm.Message{
+		{{Role: llm.RoleAssistant, Content: "a"}},
+		{{Role: llm.RoleUser, Content: "actually make it two players"}},
+		{{Role: llm.RoleAssistant, Content: "b"}},
+	}
+	// Backing off from here is what made a session with interleaved user
+	// messages uncompactable: the cut walked to 0 and nothing was dropped.
+	if got := findCutPoint(userLed, 1); got != 1 {
+		t.Fatalf("cut = %d, want 1: a user turn is not an orphan", got)
 	}
 }
 
