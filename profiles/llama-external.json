@@ -1,5 +1,19 @@
 {
   "version": 1,
-  "provider": {"kind": "llama", "url": "http://127.0.0.1:8080", "model": "local", "ownership": "external"},
-  "generation": {"max_tokens": 2048, "context_limit": 8192}
+  "provider": {
+    "kind": "llama",
+    "url": "http://127.0.0.1:8080",
+    "model": "local",
+    "ownership": "external"
+  },
+  "generation": {
+    "max_tokens": 2048,
+    "context_limit": 8192,
+    "temperature": 0.7
+  },
+  "identity": {
+    "user_name": "User",
+    "system_prompt": "You are a helpful assistant.",
+    "prompt_preset": "coding"
+  }
 }

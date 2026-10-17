@@ -36,7 +36,7 @@ func TestResolveLaunchExplicitValuesOverrideProfile(t *testing.T) {
 		Version:      1,
 		Provider:     config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "profile-model", Ownership: "external"},
 		Generation:   config.Generation{MaxTokens: 256, ContextLimit: 4096, Temperature: .8},
-		Conversation: &config.Conversation{UserName: "Alex", SystemPrompt: "profile rules"},
+		Identity: &config.Identity{UserName: "Alex", SystemPrompt: "profile rules"},
 	}
 	path := filepath.Join(t.TempDir(), "profile.json")
 	if err := config.SaveCopy(p, path); err != nil {
@@ -52,7 +52,7 @@ func TestResolveLaunchExplicitValuesOverrideProfile(t *testing.T) {
 	if o.maxTokens != 256 || o.contextLimit != 4096 || o.userName != "Alex" {
 		t.Fatal("missing values did not inherit profile settings")
 	}
-	if o.selectedProfile.Provider.Model != "override" || o.selectedProfile.Generation.Temperature != 0 || o.selectedProfile.Conversation.SystemPrompt != "flag rules" {
+	if o.selectedProfile.Provider.Model != "override" || o.selectedProfile.Generation.Temperature != 0 || o.selectedProfile.Identity.SystemPrompt != "flag rules" {
 		t.Fatal("effective profile disagrees with launch options")
 	}
 }
@@ -62,13 +62,13 @@ func TestResolveLaunchClonesHandoffProfile(t *testing.T) {
 		Version:      1,
 		Provider:     config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local", Ownership: "external"},
 		Generation:   config.Generation{MaxTokens: 256, ContextLimit: 4096},
-		Conversation: &config.Conversation{UserName: "Alex"},
+		Identity: &config.Identity{UserName: "Alex"},
 	}
 	o, err := resolveLaunch(launchRequest{args: []string{"-profile", "missing.json", "-user-name", "Taylor"}, profile: &p})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if o.userName != "Taylor" || p.Conversation.UserName != "Alex" {
+	if o.userName != "Taylor" || p.Identity.UserName != "Alex" {
 		t.Fatal("handoff profile was not resolved independently")
 	}
 	if _, err := resolveLaunch(launchRequest{args: []string{"-check-profile"}}); err == nil {
@@ -77,34 +77,30 @@ func TestResolveLaunchClonesHandoffProfile(t *testing.T) {
 }
 
 // The generated profile must be usable for both modes. ConfigureAgent
-// substitutes a Conversation when one is missing but never writes it back,
+// substitutes a Identity when one is missing but never writes it back,
 // so switching a generated session to Chat was refused with a requirement
 // nothing on that screen could satisfy.
-func TestGeneratedProfileCarriesAConversation(t *testing.T) {
+func TestGeneratedProfileCarriesAnIdentity(t *testing.T) {
 	o, err := parseLaunchOptions([]string{"-tui", "-backend-kind", "llama", "-backend", "http://127.0.0.1:8080"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	p := launchProfile(resolvedLaunch{launchOptions: o}, 32768)
-	if p.Conversation == nil {
-		t.Fatal("generated profile has no conversation settings")
+	if p.Identity == nil {
+		t.Fatal("generated profile has no identity block")
 	}
 	if err := p.Validate(); err != nil {
 		t.Fatalf("generated profile rejected: %v", err)
 	}
-	if p.Conversation.UserName != config.DefaultUserName || p.Conversation.SystemPrompt != config.DefaultSystemPrompt {
-		t.Fatalf("conversation defaults: %+v", p.Conversation)
-	}
-	// Characters belong to Chat. An Agent must not be handed one.
-	if p.Conversation.Character != "" {
-		t.Fatalf("generated Agent profile carries a character: %q", p.Conversation.Character)
+	if p.Identity.UserName != config.DefaultUserName || p.Identity.SystemPrompt != config.DefaultSystemPrompt {
+		t.Fatalf("identity defaults: %+v", p.Identity)
 	}
 }
 
 // The launch docs/tui.md shows has no -profile, and it still has to be
 // configurable: without a profile the services handle and the Application
-// both came back nil, which disabled every Settings, Mode and Voice row
-// with nothing on screen saying why.
+// both came back nil, which disabled every Settings row with nothing on
+// screen saying why.
 func TestLaunchWithoutProfileStillValid(t *testing.T) {
 	o, err := resolveLaunch(launchRequest{args: []string{"-tui", "-backend-kind", "llama", "-backend", "http://127.0.0.1:8080", "-workspace", "."}})
 	if err != nil {

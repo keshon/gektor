@@ -11,19 +11,11 @@ import (
 )
 
 func PageFields(profile config.Profile, section string, preferences config.Preferences) (string, []form.Field) {
-	conversation := config.Conversation{UserName: "User"}
-	if profile.Conversation != nil {
-		conversation = *profile.Conversation
+	identity := config.Identity{UserName: config.DefaultUserName}
+	if profile.Identity != nil {
+		identity = *profile.Identity
 	}
-	profile.Conversation = &conversation
-	// Copy rather than alias, so an editor field cannot reach back into the
-	// live profile. Also the nil guard the speech page depends on below: it
-	// anticipated an absent Speech and then dereferenced it eleven lines
-	// down, and PageFields is called with whatever the draft holds.
-	if profile.Speech != nil {
-		speechCopy := *profile.Speech
-		profile.Speech = &speechCopy
-	}
+	profile.Identity = &identity
 	fields := []form.Field{}
 	add := func(key, label, value string, multi bool) {
 		fields = append(fields, form.Field{Key: key, Label: label, Value: value, Multiline: multi})
@@ -40,8 +32,8 @@ func PageFields(profile config.Profile, section string, preferences config.Prefe
 		add("profile-name", "Save current setup as (Ctrl+D)", "custom", false)
 	case "you":
 		title = "You"
-		add("user", "Your name", conversation.UserName, false)
-		add("persona", "Your persona description", conversation.UserPersona, true)
+		add("user", "Your name", identity.UserName, false)
+		add("persona", "Your persona description", identity.UserPersona, true)
 	case "generation":
 		title = "Generation"
 		add("temperature", "Temperature (0 = default 0.4)", strconv.FormatFloat(profile.Generation.Temperature, 'f', -1, 64), false)
@@ -49,10 +41,10 @@ func PageFields(profile config.Profile, section string, preferences config.Prefe
 		add("context", "Context window (tokens)", strconv.Itoa(profile.Generation.ContextLimit), false)
 	case "prompts":
 		title = "Identity prompts"
-		preset, _ := prompts.ResponsePreset(conversation.PromptPreset)
+		preset, _ := prompts.ResponsePreset(identity.PromptPreset)
 		add("prompt-preset", "Prompt preset", preset.ID, false)
-		add("system", "Base system prompt", conversation.SystemPrompt, true)
-		add("post", "Base post-history directive", conversation.PostHistory, true)
+		add("system", "Base system prompt", identity.SystemPrompt, true)
+		add("post", "Base post-history directive", identity.PostHistory, true)
 	case "model":
 		if profile.Provider.Runtime == "" {
 			exe, err := os.Executable()

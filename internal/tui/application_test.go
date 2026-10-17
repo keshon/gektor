@@ -159,7 +159,7 @@ func TestAgentTaskKeepsTheDirectoryItAlreadyHas(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.ws = ws
-	m.application = &Application{Preferences: config.Preferences{Version: 1, Mode: "agent", Workspace: root}}
+	m.application = &Application{Preferences: config.Preferences{Version: 1, Workspace: root}}
 	m.config = &app.Services{Directory: root, Profile: config.Profile{Version: 1}}
 
 	m.stateFile = ""

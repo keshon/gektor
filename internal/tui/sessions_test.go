@@ -256,7 +256,7 @@ func TestSessions_DeleteActiveRefusesWhileRunning(t *testing.T) {
 
 // Enter switches sessions: stateFile swaps, the transcript rebuilds
 // from history, follow-ups continue via Resume. Harness notices remain
-// visible; the system prompt stays out of the conversation.
+// visible; the system prompt stays out of the Identity.
 func TestSessions_EnterResumesWithHistory(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
@@ -306,7 +306,7 @@ func TestSessions_OpenRecoversHistoryFromLog(t *testing.T) {
 		t.Run(snapshot, func(t *testing.T) {
 			tmp := t.TempDir()
 			chdirSessions(t, tmp)
-			history := userHistory("recover this conversation")
+			history := userHistory("recover this Identity")
 			dir := writeSessionState(t, filepath.Join(".tars", "tasks"), "recoverable", history)
 			path := filepath.Join(dir, "state.json")
 			if err := session.Append(path, 1, history); err != nil {
@@ -328,7 +328,7 @@ func TestSessions_OpenRecoversHistoryFromLog(t *testing.T) {
 			if m.sessions != nil || m.sess == nil || m.stateFile != path {
 				t.Fatal("recoverable session did not open")
 			}
-			if !strings.Contains(m.View().Content, "recover this conversation") {
+			if !strings.Contains(m.View().Content, "recover this Identity") {
 				t.Fatal("recovered history is absent from transcript")
 			}
 		})

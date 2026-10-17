@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/chat"
-	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/session"
 	"github.com/keshon/tars/internal/workspace"
@@ -57,32 +55,18 @@ func Scan(root string, previous map[string]CachedSession, search bool) ([]Entry,
 		dir := filepath.Join(root, d.Name())
 		title, mode := workspace.ReadSessionTitle(dir), ReadMode(dir)
 		state := filepath.Join(dir, "state.json")
-		isChat := false
+		// A directory carrying conversation.json is a chat archive from
+		// before the chat runner was removed. There is nothing that can
+		// resume it, so it is skipped rather than offered and then failing
+		// to open.
 		if _, err := os.Stat(filepath.Join(dir, "conversation.json")); err == nil {
-			state = filepath.Join(dir, "conversation.json")
-			mode = "Chat"
-			isChat = true
-		}
-		if _, err := os.Stat(filepath.Join(dir, "settings.json")); err == nil {
-			if prefs, err := config.LoadPreferences(filepath.Join(dir, "settings.json")); err == nil {
-				isChat = prefs.Mode == "chat"
-				if isChat {
-					state = filepath.Join(dir, "conversation.json")
-					mode = "Chat"
-				} else {
-					state = filepath.Join(dir, "state.json")
-					mode = ReadMode(dir)
-				}
-			}
+			continue
 		}
 		fi, stateErr := os.Stat(state)
 		hasSnapshot := stateErr == nil
-		var logInfo os.FileInfo
-		if !isChat {
-			logInfo, _ = os.Stat(session.LogPath(state))
-			if stateErr != nil && logInfo != nil {
-				fi, stateErr = logInfo, nil
-			}
+		logInfo, _ := os.Stat(session.LogPath(state))
+		if stateErr != nil && logInfo != nil {
+			fi, stateErr = logInfo, nil
 		}
 		old, ok := previous[dir]
 		current := CachedSession{state: state, hasSnapshot: hasSnapshot, storedTitle: title, Entry: Entry{ID: d.Name(), Dir: dir, Title: title, Mode: mode, Status: "Saved"}}
@@ -109,10 +93,6 @@ func Scan(root string, previous map[string]CachedSession, search bool) ([]Entry,
 				}
 				if fi.Size() < 64<<20 {
 					loadHistory := func() ([]llm.Message, error) {
-						if isChat {
-							a, err := chat.ReadArchive(state)
-							return a.History, err
-						}
 						return session.ReadHistory(state)
 					}
 					if history, err := loadHistory(); err == nil {

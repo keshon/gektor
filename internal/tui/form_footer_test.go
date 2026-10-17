@@ -22,7 +22,7 @@ func TestFormsShareRightAlignedActionRowAndDivider(t *testing.T) {
 			if workspace {
 				m.editSettings("generation")
 			} else {
-				m.openForm("Delete conversation", "Removes the saved conversation.", "Delete", nil, func(map[string]string) error { return nil })
+				m.openForm("Delete Identity", "Removes the saved Identity.", "Delete", nil, func(map[string]string) error { return nil })
 			}
 			rows, hits, _, _ := m.formRows()
 			buttons := hits[len(hits)-2:]
@@ -112,18 +112,18 @@ func TestPopupTitlePaddingKeepsPopupBackground(t *testing.T) {
 	for _, theme := range []string{"dark", "light"} {
 		setTheme(theme)
 		m := settingsModel(t)
-		m.openForm("Delete conversation", "Permanently removes this saved conversation.", "Delete", nil, func(map[string]string) error { return nil })
+		m.openForm("Delete Identity", "Permanently removes this saved Identity.", "Delete", nil, func(map[string]string) error { return nil })
 		r, g, b, _ := lipgloss.Color(themeColor(colorPopupBackground)).RGBA()
 		want := fmt.Sprintf("%d;%d;%d", r>>8, g>>8, b>>8)
 		found := false
 		for _, line := range strings.Split(m.View().Content, "\n") {
 			plain := ansi.Strip(line)
-			at := strings.Index(plain, "Delete conversation")
+			at := strings.Index(plain, "Delete Identity")
 			if at < 0 {
 				continue
 			}
 			found = true
-			column := ansi.StringWidth(plain[:at]) + len("Delete conversation") + 3
+			column := ansi.StringWidth(plain[:at]) + len("Delete Identity") + 3
 			if got := backgroundAt(line, column); got != want {
 				t.Fatalf("%s: title padding bg %s want %s", theme, got, want)
 			}

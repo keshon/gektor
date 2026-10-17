@@ -1,26 +1,23 @@
 // Package app composes and owns profile-driven services independently of any
-// frontend. Runtime manages accepted services; frontends borrow them.
+// frontend. Frontends borrow a composed set for the length of one launch.
 package app
 
 import (
-	"context"
-
-	"github.com/keshon/tars/internal/chat"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/speech"
 )
 
-// Services composes profile-driven thinking and optional speech services.
+// Services is what one launch is composed from: a thinking client, the
+// identity its runs speak with, and the profile it came from.
+//
+// There is no reconfigure callback. A launch composes once; changing settings
+// ends the launch and composes a new one, so there is nothing for a callback
+// to be called on behalf of.
 type Services struct {
-	NewVoice func(context.Context, string) (speech.Service, error)
-	Stream   bool
-	Warnings []string
-	Profile  config.Profile
-	// Chat configurations return a candidate with its own client; speech-only
-	// Agent configurations leave Client nil. Runtime handles cleanup and reuse.
-	Configure func(config.Profile) (Services, error)
+	Identity  Identity
+	Stream    bool
+	Warnings  []string
+	Profile   config.Profile
 	Client    llm.Client
-	Settings  chat.Config
 	Directory string
 }

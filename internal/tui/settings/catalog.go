@@ -9,14 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/keshon/tars/internal/character"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/prompts"
 )
 
 func PickerFiles(key string) bool {
-	return key == "model-file" || key == "character" || key == "load-profile" || key == "app-workspace"
+	return key == "model-file" || key == "load-profile" || key == "app-workspace"
 }
 
 func PickerControl(key string) bool { return PickerFiles(key) || key == "model" || key == "microphone" }
@@ -25,9 +24,6 @@ func PickerAccepts(key, path string) bool {
 	switch key {
 	case "model-file":
 		return strings.EqualFold(filepath.Ext(path), ".gguf")
-	case "character":
-		ext := strings.ToLower(filepath.Ext(path))
-		return ext == ".png" || ext == ".json"
 	case "load-profile":
 		return strings.EqualFold(filepath.Ext(path), ".json")
 	}
@@ -58,13 +54,6 @@ func CatalogDetail(key, path string) string {
 			return "Custom · Uses your base prompt and card overrides without adding a response-style preset."
 		}
 		return preset.Name + " · " + preset.Instruction
-	}
-	if key == "character" {
-		card, err := character.Load(path)
-		if err != nil {
-			return "Unavailable card: " + err.Error()
-		}
-		return card.Name + " · " + strings.ReplaceAll(card.Description, "\n", " ") + " · " + path
 	}
 	if key == "load-profile" {
 		p, err := config.Load(path)
@@ -139,9 +128,7 @@ func ChoiceLabel(key, value string) string {
 func Hint(section string) string {
 	switch section {
 	case "profiles":
-		return "Profiles save your setup, including the character chosen for Chat."
-	case "character":
-		return "Character sets identity and dialogue. Chat only."
+		return "Profiles save your setup, including the identity it speaks with."
 	case "you":
 		return "Your name and persona are used by the compiled prompts."
 	case "application":

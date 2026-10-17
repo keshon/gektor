@@ -223,7 +223,7 @@ func compactAgent(t *testing.T, atPercent int) *Agent {
 
 // Compaction drops the results the repeat caches cite: after it fires,
 // a cached repeat must re-execute (its bytes are gone from history),
-// not refuse with "re-read it from the conversation".
+// not refuse with "re-read it from the Identity".
 func TestMaybeCompact_ClearsRepeatCaches(t *testing.T) {
 	a := compactAgent(t, 60)
 	st := &runState{

@@ -40,10 +40,6 @@ func (m *model) settingsApplicationChanged() bool {
 	p := m.application.Preferences
 	for _, field := range fields {
 		switch field.Key {
-		case "app-mode":
-			if field.Value != p.Mode {
-				return true
-			}
 		case "app-workspace":
 			if field.Value != p.Workspace {
 				return true
@@ -153,12 +149,12 @@ func (m *model) requestProfileChange(profile config.Profile) error {
 		}
 		p.Workspace = absolute
 	}
-	if profile.Conversation == nil {
+	if profile.Identity == nil {
 		// Materialize rather than refuse. Refusing left the reader on a
 		// screen with no way to create one, and the bundled Agent profile
 		// carries no conversation block at all, so this was the ordinary
 		// path rather than an edge case.
-		profile.Conversation = &config.Conversation{
+		profile.Identity = &config.Identity{
 			UserName:     config.DefaultUserName,
 			SystemPrompt: config.DefaultSystemPrompt,
 		}

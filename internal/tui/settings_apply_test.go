@@ -63,7 +63,7 @@ func TestLoadedProfileIsCommittedOnApply(t *testing.T) {
 	m := settingsModel(t)
 	root := t.TempDir()
 	p := m.config.Profile.Clone()
-	p.Conversation.UserName = "Alex"
+	p.Identity.UserName = "Alex"
 	path := filepath.Join(root, "custom.json")
 	if err := config.SaveCopy(p, path); err != nil {
 		t.Fatal(err)
@@ -82,7 +82,7 @@ func TestLoadedProfileIsCommittedOnApply(t *testing.T) {
 	if m.modeChange == nil {
 		t.Fatal("apply did not queue a restart")
 	}
-	if got := m.modeChange.Preferences.Profile.Conversation.UserName; got != "Alex" {
+	if got := m.modeChange.Preferences.Profile.Identity.UserName; got != "Alex" {
 		t.Fatalf("loaded profile was not committed: %q", got)
 	}
 	if m.modeChange.Preferences.ProfilePath != path {

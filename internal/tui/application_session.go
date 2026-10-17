@@ -47,7 +47,6 @@ func (m *model) openApplicationSession(entry sessionEntry) (tea.Cmd, bool) {
 		p = m.application.Preferences
 		profile := m.config.Profile.Clone()
 		p.Profile = &profile
-		p.Mode = "agent"
 		if p.Workspace == "" {
 			m.sessions.flash = "Choose an Agent workspace in Settings → Application first"
 			return nil, true

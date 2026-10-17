@@ -328,21 +328,18 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	}
 	owned := app.NewRuntime(&app.Services{Client: thinkingClient})
 	defer owned.Close()
-	// No Character, GreetingIndex or card-prompt preference: an Agent takes
-	// no character. See app.ConfigureAgent for why, and app.ChatOptions
-	// for what survives. Identity and response style still come from the
-	// profile, so a shared chat profile configures an Agent's name and
-	// preset without its persona leaking in.
-	identity, warnings, err := app.CompileChatSettings(app.ChatOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), User: o.userName, System: o.systemPrompt, Post: o.postHistory, MaxTokens: o.maxTokens, ContextLimit: contextLimit, Temperature: o.temperature})
+	// Identity and response style come from the profile; the agent's own
+	// Plan/Act instructions are added on top and do not compete with it.
+	identity, warnings, err := app.Compile(app.IdentityOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), User: o.userName, System: o.systemPrompt, Post: o.postHistory, MaxTokens: o.maxTokens, ContextLimit: contextLimit, Temperature: o.temperature})
 	if err != nil {
 		return err
 	}
 	for _, warning := range warnings {
-		note("Character warning: " + warning)
+		note("Identity warning: " + warning)
 	}
 	env := roles.Env{
-		Identity:        app.AgentIdentity(identity),
-		IdentityName:    identity.CharacterName,
+		Identity:        app.IdentityPrompt(identity),
+		IdentityName:    identity.Name,
 		UserName:        o.userName,
 		Client:          thinkingClient,
 		WS:              ws,

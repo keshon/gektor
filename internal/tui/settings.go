@@ -96,7 +96,7 @@ func (m *model) formMouse(msg tea.MouseMsg) tea.Cmd {
 }
 func (m *model) editSettings(section string) {
 	currentSettings := m.config
-	if currentSettings == nil || currentSettings.Configure == nil {
+	if currentSettings == nil {
 		return
 	}
 	var ws *settingsWorkspace
@@ -182,10 +182,10 @@ func (m *model) inspectPrompt() {
 	if m.config == nil {
 		return
 	}
-	s := m.config.Settings
+	s := m.config.Identity
 	selected := ""
-	if m.config.Profile.Conversation != nil {
-		selected = m.config.Profile.Conversation.PromptPreset
+	if m.config.Profile.Identity != nil {
+		selected = m.config.Profile.Identity.PromptPreset
 	}
 	preset, _ := prompts.ResponsePreset(selected)
 	lines := []string{

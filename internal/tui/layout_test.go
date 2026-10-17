@@ -204,10 +204,10 @@ func TestConversationOwnsComposerAndSessionsKeepTheirHeight(t *testing.T) {
 		}
 	}
 	if !strings.HasPrefix(string([]rune(lines[inputTop])[m.conversationOffset():]), "> first line") {
-		t.Fatal("composer did not align with the conversation")
+		t.Fatal("composer did not align with the Identity")
 	}
 	if view.Cursor == nil || view.Cursor.X < m.conversationOffset() || view.Cursor.Y != inputTop+1 {
-		t.Fatalf("caret escaped the conversation composer: %+v", view.Cursor)
+		t.Fatalf("caret escaped the Identity composer: %+v", view.Cursor)
 	}
 	m.navFocused = true
 	m.input.Blur()
@@ -231,7 +231,7 @@ func TestConversationComposerWrapsWithinPane(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 110, Height: 30})
 	m.Update(tea.PasteMsg{Content: strings.Repeat("text ", 20)})
 	if m.input.Height() < 2 {
-		t.Fatal("draft wrapped against terminal width instead of conversation width")
+		t.Fatal("draft wrapped against terminal width instead of Identity width")
 	}
 	for _, state := range []runState{stDone, stRunning, stAsk, stPermission} {
 		m.state = state

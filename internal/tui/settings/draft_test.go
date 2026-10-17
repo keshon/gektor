@@ -12,7 +12,7 @@ func profile() config.Profile {
 		Version:      1,
 		Provider:     config.Provider{Kind: "llama", URL: "http://localhost:8080", Model: "local", Ownership: "external"},
 		Generation:   config.Generation{MaxTokens: 100, ContextLimit: 1000},
-		Conversation: &config.Conversation{UserName: "User"},
+		Identity: &config.Identity{UserName: "User"},
 	}
 }
 
@@ -34,7 +34,7 @@ func TestDraftOwnsPageEditsAndObservesUnstoredActiveEditor(t *testing.T) {
 		t.Fatal("page snapshots share mutable slices")
 	}
 	resolved, err := d.Resolve()
-	if err != nil || resolved.Conversation.UserName != "Alex" || d.Base().Conversation.UserName != "User" {
+	if err != nil || resolved.Identity.UserName != "Alex" || d.Base().Identity.UserName != "User" {
 		t.Fatalf("resolution changed its base or lost edits: %+v %v", resolved, err)
 	}
 }
@@ -65,10 +65,10 @@ func TestLoadingProfileDiscardsPriorPageEditsAndCopiesOwnership(t *testing.T) {
 	d.Visit("you", []form.Field{{Key: "user", Value: "User"}})
 	d.Store("you", []form.Field{{Key: "user", Value: "obsolete edit"}})
 	p := profile()
-	p.Conversation.UserName = "Loaded"
+	p.Identity.UserName = "Loaded"
 	d.Load(p)
-	p.Conversation.UserName = "external mutation"
-	if !d.Dirty("", nil) || len(d.ChangedSections()) != 0 || d.Base().Conversation.UserName != "Loaded" {
+	p.Identity.UserName = "external mutation"
+	if !d.Dirty("", nil) || len(d.ChangedSections()) != 0 || d.Base().Identity.UserName != "Loaded" {
 		t.Fatal("loaded profile was not isolated from caller or previous pages")
 	}
 }

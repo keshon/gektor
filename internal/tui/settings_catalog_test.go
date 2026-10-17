@@ -26,7 +26,7 @@ func TestLoadedProfileStagedUntilApply(t *testing.T) {
 	m.application.Preferences.ProfilePath = "old.json"
 	root := t.TempDir()
 	p := m.config.Profile.Clone()
-	p.Conversation.UserName = "Alex"
+	p.Identity.UserName = "Alex"
 	p.Generation.Temperature = .8
 	path := filepath.Join(root, "custom.json")
 	if err := config.SaveCopy(p, path); err != nil {
@@ -39,7 +39,7 @@ func TestLoadedProfileStagedUntilApply(t *testing.T) {
 	picker := m.dialog.form.Picker
 	m.acceptSettingsScan(settingsScanMsg{ID: picker.ID, Items: []string{path}})
 	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.config.Profile.Conversation.UserName != "User" {
+	if m.config.Profile.Identity.UserName != "User" {
 		t.Fatal("load applied without Apply")
 	}
 	m.editSettings("generation")
@@ -53,7 +53,7 @@ func TestLoadedProfileStagedUntilApply(t *testing.T) {
 	if m.modeChange == nil || m.stateFile != id {
 		t.Fatal("profile load lost the session")
 	}
-	if got := m.modeChange.Preferences.Profile.Conversation.UserName; got != "Alex" {
+	if got := m.modeChange.Preferences.Profile.Identity.UserName; got != "Alex" {
 		t.Fatalf("loaded profile was not applied: %q", got)
 	}
 	if m.modeChange.Preferences.ProfilePath != path {
@@ -97,7 +97,7 @@ func TestApplyAutomaticallySavesReusableCustomProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 	before, _ := os.ReadFile(builtin)
-	m.application = &Application{PreferencePath: filepath.Join(root, "var", "application.json"), Preferences: config.Preferences{Version: 1, Mode: "agent", Voice: "off", ProfilePath: builtin, Profile: &original}}
+	m.application = &Application{PreferencePath: filepath.Join(root, "var", "application.json"), Preferences: config.Preferences{Version: 1, ProfilePath: builtin, Profile: &original}}
 	m.editSettings("you")
 	m.dialog.form.Editor.SetValue("Alex")
 	m.applyForm()
@@ -112,7 +112,7 @@ func TestApplyAutomaticallySavesReusableCustomProfile(t *testing.T) {
 		t.Fatal(custom)
 	}
 	saved, err := config.Load(custom)
-	if err != nil || saved.Conversation.UserName != "Alex" {
+	if err != nil || saved.Identity.UserName != "Alex" {
 		t.Fatal(saved, err)
 	}
 	// The built-in file is never touched.
@@ -144,7 +144,7 @@ func TestApplyAutomaticallySavesReusableCustomProfile(t *testing.T) {
 	m.dialog.form.Editor.SetValue("coding")
 	m.applyForm()
 	saved, err = config.Load(custom)
-	if m.dialog != nil || err != nil || saved.Conversation.PromptPreset != "coding" {
+	if m.dialog != nil || err != nil || saved.Identity.PromptPreset != "coding" {
 		t.Fatal("preset was not saved in custom setup", saved, err)
 	}
 	after, _ := os.ReadFile(builtin)

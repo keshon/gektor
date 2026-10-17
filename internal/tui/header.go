@@ -144,7 +144,7 @@ func (m *model) rawHeaderItems() []headerItem {
 			{"Select Theme…", "theme", true},
 		}
 	case "settings":
-		editable := idle && m.config != nil && m.config.Configure != nil
+		editable := idle && m.config != nil
 		rows := []headerItem{{"Model…", "edit:model", editable}, {"Generation…", "edit:generation", editable}, {"Profiles…", "edit:profiles", editable}, {"Application…", "application", idle && m.application != nil}}
 		if m.config != nil {
 			rows = append(rows, headerItem{"You…", "edit:you", editable}, headerItem{"Prompts…", "edit:prompts", editable}, headerItem{"Prompt preview…", "prompt-info", true})
@@ -478,9 +478,7 @@ func (m *model) menuCells() []footerCell {
 	enabled := m.dialog == nil && m.sessions == nil && m.state != stPermission && m.state != stAsk
 	x := 1
 	var cells []footerCell
-	menus := []struct{ id, label string }{{"session", "Session"}, {"conversation-mode", "Mode"}, {"workflow", "Run"}, {"view", "View"}, {"settings", "Settings"}}
-	menus = append(menus, struct{ id, label string }{"voice", "Voice"})
-	menus = append(menus, struct{ id, label string }{"help", "Help"})
+	menus := []struct{ id, label string }{{"session", "Session"}, {"workflow", "Run"}, {"view", "View"}, {"settings", "Settings"}, {"help", "Help"}}
 	for _, menu := range menus {
 		if x >= m.termW-1 {
 			break

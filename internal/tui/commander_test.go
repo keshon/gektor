@@ -115,15 +115,14 @@ func TestGlobalDropdownNavigationAndSettings(t *testing.T) {
 		t.Fatal(m.header)
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyRight})
-	if m.header.menu != "conversation-mode" {
+	if m.header.menu != "workflow" {
 		t.Fatal("left/right failed to switch dropdown")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyRight})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if !m.plan || m.header.focused {
 		t.Fatal("Plan selection failed")
 	}
-	settings := m.menuCells()[4]
+	settings := m.menuCells()[3]
 	m.Update(tea.MouseClickMsg{X: settings.start, Y: 0, Button: tea.MouseLeft})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.header.menu != "settings" || m.header.row != 0 {

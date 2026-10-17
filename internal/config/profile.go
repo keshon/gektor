@@ -1,7 +1,7 @@
-// Package config loads portable application profiles without starting services.
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,39 +9,25 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/keshon/tars/internal/prompts"
-	"github.com/keshon/tars/internal/speech"
 )
 
-// Profile describes thinking, conversation and optional speech services.
+// Profile describes a thinking backend and the identity its runs speak with.
 // Asset paths resolve relative to the profile; model files may live elsewhere.
 type Profile struct {
-	Version      int            `json:"version"`
-	Provider     Provider       `json:"provider"`
-	Generation   Generation     `json:"generation"`
-	Conversation *Conversation  `json:"conversation,omitempty"`
-	Speech       *speech.Config `json:"speech,omitempty"`
+	Version    int       `json:"version"`
+	Provider   Provider  `json:"provider"`
+	Generation Generation `json:"generation"`
+	Identity   *Identity `json:"identity,omitempty"`
 }
 
-// Clone returns an independently editable profile, including optional settings.
+// Clone returns an independently editable profile, including the optional
+// identity block.
 func (p Profile) Clone() Profile {
-	if p.Conversation != nil {
-		c := *p.Conversation
-		if c.PreferCharacterPrompt != nil {
-			v := *c.PreferCharacterPrompt
-			c.PreferCharacterPrompt = &v
-		}
-		if c.PreferCharacterPostHistory != nil {
-			v := *c.PreferCharacterPostHistory
-			c.PreferCharacterPostHistory = &v
-		}
-		p.Conversation = &c
-	}
-	if p.Speech != nil {
-		s := *p.Speech
-		p.Speech = &s
+	if p.Identity != nil {
+		i := *p.Identity
+		p.Identity = &i
 	}
 	return p
 }
@@ -65,25 +51,38 @@ type Generation struct {
 
 // DefaultSystemPrompt is the base instruction a launch uses when nothing
 // configures one. It lived in three places as a literal — the -system-prompt
-// flag default, the substitution for a profile with no conversation block,
-// and the generated profile for a launch with no profile — and drifted
-// silently the first time one of them changed.
-const DefaultSystemPrompt = "You are a helpful conversational assistant."
+// flag default, the substitution for a profile with no identity block, and
+// the generated profile for a launch with no profile — and drifted silently
+// the first time one of them changed.
+const DefaultSystemPrompt = "You are a helpful assistant."
 
-// DefaultUserName is the placeholder for an unset conversation user.
+// DefaultUserName is the placeholder for an unset user name.
 const DefaultUserName = "User"
 
-type Conversation struct {
-	PromptPreset               string `json:"prompt_preset,omitempty"`
-	Name                       string `json:"name,omitempty"`
-	UserPersona                string `json:"user_persona,omitempty"`
-	GreetingIndex              int    `json:"greeting_index,omitempty"`
-	Character                  string `json:"character,omitempty"`
-	UserName                   string `json:"user_name,omitempty"`
-	SystemPrompt               string `json:"system_prompt,omitempty"`
-	PostHistory                string `json:"post_history,omitempty"`
-	PreferCharacterPrompt      *bool  `json:"prefer_character_prompt,omitempty"`
-	PreferCharacterPostHistory *bool  `json:"prefer_character_post_history,omitempty"`
+// Identity is the persona a profile speaks with: who the assistant is, who
+// it is talking to, and how it should answer.
+//
+// This block was called "conversation" while a chat mode shared it with
+// greeting text, alternate greetings and character-card preferences. Those
+// are gone; what remained was always identity.
+type Identity struct {
+	PromptPreset string `json:"prompt_preset,omitempty"`
+	Name         string `json:"name,omitempty"`
+	UserPersona  string `json:"user_persona,omitempty"`
+	UserName     string `json:"user_name,omitempty"`
+	SystemPrompt string `json:"system_prompt,omitempty"`
+	PostHistory  string `json:"post_history,omitempty"`
+}
+
+// legacyBlocks are keys older profiles may carry that Profile no longer
+// declares. Decoding is strict everywhere else, so these are handled
+// explicitly rather than by relaxing DisallowUnknownFields.
+var legacyBlocks = map[string]string{
+	"conversation": "identity",
+	// Speech is discarded, not mapped: the services it described no longer
+	// exist, and keeping the values would only let a stale profile look
+	// configured.
+	"speech": "",
 }
 
 // Load rejects misspelled settings and unsupported runtime ownership rather
@@ -95,7 +94,15 @@ func Load(path string) (Profile, error) {
 		return p, err
 	}
 	defer f.Close()
-	d := json.NewDecoder(io.LimitReader(f, 1<<20))
+	data, err := io.ReadAll(io.LimitReader(f, 1<<20))
+	if err != nil {
+		return p, err
+	}
+	data, err = migrateLegacyBlocks(data)
+	if err != nil {
+		return p, fmt.Errorf("profile: %w", err)
+	}
+	d := json.NewDecoder(bytes.NewReader(data))
 	d.DisallowUnknownFields()
 	if err := d.Decode(&p); err != nil {
 		return p, fmt.Errorf("profile: %w", err)
@@ -103,13 +110,6 @@ func Load(path string) (Profile, error) {
 	var extra any
 	if err := d.Decode(&extra); err != io.EOF {
 		return p, fmt.Errorf("profile: expected one JSON document")
-	}
-	if p.Conversation != nil && p.Conversation.Character != "" && !filepath.IsAbs(p.Conversation.Character) {
-		absolute, err := filepath.Abs(filepath.Join(filepath.Dir(path), p.Conversation.Character))
-		if err != nil {
-			return p, err
-		}
-		p.Conversation.Character = absolute
 	}
 	for _, value := range []*string{&p.Provider.Runtime, &p.Provider.ModelFile, &p.Provider.ModelRoot} {
 		if *value != "" && !filepath.IsAbs(*value) {
@@ -119,36 +119,43 @@ func Load(path string) (Profile, error) {
 			}
 		}
 	}
-	if p.Speech != nil {
-		for _, value := range []*string{&p.Speech.Listening.Binary, &p.Speech.Listening.Model, &p.Speech.Speaking.Binary, &p.Speech.Speaking.Model} {
-			if *value != "" && !filepath.IsAbs(*value) {
-				absolute, err := filepath.Abs(filepath.Join(filepath.Dir(path), *value))
-				if err != nil {
-					return p, err
-				}
-				*value = absolute
-			}
-		}
-		for _, value := range []*string{&p.Speech.Recorder, &p.Speech.PlayerBinary} {
-			if *value != "" && !filepath.IsAbs(*value) && (strings.ContainsAny(*value, "/\\")) {
-				absolute, err := filepath.Abs(filepath.Join(filepath.Dir(path), *value))
-				if err != nil {
-					return p, err
-				}
-				*value = absolute
-			}
-		}
-	}
 	return p, p.Validate()
 }
-func (p Profile) Validate() error {
-	if p.Conversation != nil {
-		if _, err := prompts.ResponsePreset(p.Conversation.PromptPreset); err != nil {
-			return err
-		}
+
+// migrateLegacyBlocks rewrites legacy top-level keys before the strict
+// decode runs. A "conversation" block is renamed rather than dropped: it is
+// the same fields under an older name, and discarding it would silently
+// erase a reader's persona the first time they loaded a saved setup.
+func migrateLegacyBlocks(data []byte) ([]byte, error) {
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(data, &top); err != nil {
+		return data, nil // let the strict decoder produce the real error
 	}
-	if p.Speech != nil {
-		if err := p.Speech.Validate(); err != nil {
+	moved := false
+	for old, replacement := range legacyBlocks {
+		value, ok := top[old]
+		if !ok {
+			continue
+		}
+		delete(top, old)
+		moved = true
+		if replacement == "" {
+			continue
+		}
+		if _, exists := top[replacement]; exists {
+			return nil, fmt.Errorf("%q and its replacement %q are both present", old, replacement)
+		}
+		top[replacement] = value
+	}
+	if !moved {
+		return data, nil
+	}
+	return json.Marshal(top)
+}
+
+func (p Profile) Validate() error {
+	if p.Identity != nil {
+		if _, err := prompts.ResponsePreset(p.Identity.PromptPreset); err != nil {
 			return err
 		}
 	}
@@ -181,8 +188,8 @@ func (p Profile) Validate() error {
 	if p.Provider.Ownership == "managed" && (u.Scheme != "http" || (u.Hostname() != "localhost" && u.Hostname() != "127.0.0.1") || u.Port() == "" || (u.Path != "" && u.Path != "/")) {
 		return fmt.Errorf("profile: managed llama needs a loopback HTTP origin with an explicit port")
 	}
-	if p.Conversation != nil && (p.Conversation.GreetingIndex < 0 || len(p.Conversation.Name) > 100) {
-		return fmt.Errorf("profile: invalid assistant name or greeting index")
+	if p.Identity != nil && len(p.Identity.Name) > 100 {
+		return fmt.Errorf("profile: assistant name must be at most 100 characters")
 	}
 	if p.Provider.Model == "" {
 		return fmt.Errorf("profile: model is required")

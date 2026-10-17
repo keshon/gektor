@@ -40,7 +40,7 @@ func TestSettingsAcrossCategoriesApplyTogether(t *testing.T) {
 		t.Fatal("apply queued no restart")
 	}
 	profile := m.modeChange.Preferences.Profile
-	if profile.Generation.Temperature != .8 || profile.Conversation.UserName != "Alex" {
+	if profile.Generation.Temperature != .8 || profile.Identity.UserName != "Alex" {
 		t.Fatalf("apply lost staged values: %+v", profile.Generation)
 	}
 	if m.input.Value() != draft {
@@ -65,7 +65,7 @@ func TestSettingsCancelAllCategories(t *testing.T) {
 	m.focusForm(0)
 	m.dialog.form.Editor.SetValue("Changed")
 	m.closeDialog()
-	if m.config != configured || m.config.Profile.Conversation.UserName != profile.Conversation.UserName || m.config.Settings.Temperature != 0 {
+	if m.config != configured || m.config.Profile.Identity.UserName != profile.Identity.UserName || m.config.Identity.Temperature != 0 {
 		t.Fatal("cancel applied staged values")
 	}
 	if m.modeChange != nil {
@@ -261,7 +261,7 @@ func TestUnreadableTaskStopsApplyBeforeWriting(t *testing.T) {
 	if m.modeChange != nil {
 		t.Fatal("a failed read still queued a restart")
 	}
-	if m.config != configured || m.config.Settings.Temperature != 0 {
+	if m.config != configured || m.config.Identity.Temperature != 0 {
 		t.Fatal("failed persistence changed the active configuration")
 	}
 }
@@ -271,7 +271,7 @@ func TestSettingsTakesOverContentWithRoundedCorners(t *testing.T) {
 	m.editSettings("generation")
 	view := m.View().Content
 	if strings.Contains(view, "Draft preserved") || strings.Contains(view, "CTX") || strings.Contains(view, "unfinished draft") || strings.Contains(view, "┌") {
-		t.Fatal("settings rendered conversation chrome behind its panel")
+		t.Fatal("settings rendered Identity chrome behind its panel")
 	}
 	if !strings.Contains(view, "╭") || !strings.Contains(view, "╯") {
 		t.Fatal("rounded settings corners missing")
@@ -298,7 +298,7 @@ func TestPromptPresetIsStagedNotApplied(t *testing.T) {
 	}
 	m.dialog.form.Editor.SetValue("coding")
 	staged, err := m.stagedSettings()
-	if err != nil || staged.Conversation.PromptPreset != "coding" || m.config.Profile.Conversation.PromptPreset != "" {
+	if err != nil || staged.Identity.PromptPreset != "coding" || m.config.Profile.Identity.PromptPreset != "" {
 		t.Fatal("preset not staged independently", staged, err)
 	}
 	m.closeDialog()

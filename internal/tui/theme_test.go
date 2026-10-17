@@ -14,7 +14,7 @@ func TestThemeChangesOnlyAppearanceAndPersists(t *testing.T) {
 	m := settingsModel(t)
 	profile := m.config.Profile
 	path := filepath.Join(t.TempDir(), "application.json")
-	original := config.Preferences{Version: 1, Mode: "chat", Voice: "off", Profile: &profile}
+	original := config.Preferences{Version: 1, Profile: &profile}
 	if err := config.SavePreferences(path, original); err != nil {
 		t.Fatal(err)
 	}

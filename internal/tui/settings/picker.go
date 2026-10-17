@@ -1,18 +1,15 @@
 package settings
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/speech"
 	"github.com/keshon/tars/internal/tui/components/form"
 	"github.com/keshon/tars/internal/tui/components/selection"
 )
@@ -64,9 +61,6 @@ func (f *Model) OpenPicker(props Props) tea.Cmd {
 			items, err := RemoteModelChoices(values["kind"], values["endpoint"], values["key-env"])
 			return ScanMsg{id, items, err}
 		}
-	}
-	if key == "microphone" {
-		return f.microphonePicker(p)
 	}
 	if !PickerFiles(key) {
 		p.Items = f.Options(key)
@@ -281,8 +275,6 @@ func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 		title = "Profile / saved setup"
 	case "app-workspace":
 		title = "Agent workspace"
-	case "microphone":
-		title = "Microphone"
 	}
 	if p.Location {
 		title += " / Location"
@@ -354,17 +346,6 @@ func (f *Model) ScanDirectory(root string) tea.Cmd {
 	}
 }
 
-func (f *Model) microphonePicker(p *Picker) tea.Cmd {
-	cfg := f.Workspace.Draft.Base()
-	id := p.ID
-	p.Loading = true
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-		defer cancel()
-		items, err := speech.Microphones(ctx, cfg.Speech.Recorder)
-		return ScanMsg{id, items, err}
-	}
-}
 
 func (f *Model) DetailCommand() tea.Cmd {
 	if f == nil || f.Picker == nil {

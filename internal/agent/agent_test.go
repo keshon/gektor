@@ -258,7 +258,7 @@ func TestAgent_RepeatedIdenticalCall_TriggersNudgeEvenWithoutErrors(t *testing.T
 	// Reproduces the real failure: list_files(".") called identically many
 	// times, every call succeeding (no error) — which "did it error or
 	// not" alone treats as fine. After MaxStuckSteps identical repeats, a
-	// repeat-specific nudge must land in the conversation.
+	// repeat-specific nudge must land in the Identity.
 	listArgs := json.RawMessage(`{"path": "."}`)
 	client := &repeatingClient{
 		toolCall:     llm.ToolCall{ID: "c", Name: "echo", Arguments: listArgs},
@@ -1494,7 +1494,7 @@ func TestPausedOnQuestion_ReturnsFalseForEmptyHistory(t *testing.T) {
 }
 
 func TestResumeWithAnswer_SuppliesWireCorrectToolResult(t *testing.T) {
-	// Reproduces the "wire-invalid conversation" problem that plain Resume
+	// Reproduces the "wire-invalid Identity" problem that plain Resume
 	// would cause: the answer must arrive as role:tool with the matching
 	// tool_call_id, not as a naked role:user message.
 	args, _ := json.Marshal(map[string]string{"question": "which database?"})

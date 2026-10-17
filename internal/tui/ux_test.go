@@ -245,7 +245,7 @@ func TestThinkingSplitSupportsIncompleteAndMultipleRegions(t *testing.T) {
 	}
 }
 
-// Notices share the conversation's three-row shape: a tag row, then the
+// Notices share the Identity's three-row shape: a tag row, then the
 // body at the left edge. A fixed 6-cell label column used to indent every
 // notice body and re-shrink the wrap budget for no readable gain.
 func TestSystemNoticesShareConversationLayout(t *testing.T) {
@@ -444,6 +444,6 @@ func TestViewMenuCommandsDriveTheTranscript(t *testing.T) {
 		t.Fatalf("menu action did not reach the renderer: %q", got)
 	}
 	if !strings.Contains(got, "answer") {
-		t.Fatalf("filter removed conversation text: %q", got)
+		t.Fatalf("filter removed Identity text: %q", got)
 	}
 }

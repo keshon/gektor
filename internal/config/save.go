@@ -37,29 +37,6 @@ func SaveCopy(profile Profile, path string) error {
 	profile.Provider.Runtime = relative(profile.Provider.Runtime)
 	profile.Provider.ModelFile = relative(profile.Provider.ModelFile)
 	profile.Provider.ModelRoot = relative(profile.Provider.ModelRoot)
-	if profile.Conversation != nil {
-		copy := *profile.Conversation
-		profile.Conversation = &copy
-		if copy.Character != "" {
-			a, err := filepath.Abs(copy.Character)
-			if err != nil {
-				return err
-			}
-			copy.Character = relative(a)
-		}
-	}
-	if profile.Speech != nil {
-		copy := *profile.Speech
-		profile.Speech = &copy
-		for _, v := range []*string{&copy.Listening.Binary, &copy.Listening.Model, &copy.Speaking.Binary, &copy.Speaking.Model} {
-			*v = relative(*v)
-		}
-		for _, v := range []*string{&copy.Recorder, &copy.PlayerBinary} {
-			if filepath.IsAbs(*v) || strings.ContainsAny(*v, "/\\") {
-				*v = relative(*v)
-			}
-		}
-	}
 	data, err := json.MarshalIndent(profile, "", "  ")
 	if err != nil {
 		return err

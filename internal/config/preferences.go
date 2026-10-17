@@ -10,8 +10,6 @@ import (
 type Preferences struct {
 	Theme       string   `json:"theme,omitempty"`
 	Version     int      `json:"version"`
-	Mode        string   `json:"mode"`
-	Voice       string   `json:"voice"`
 	Workspace   string   `json:"workspace,omitempty"`
 	ProfilePath string   `json:"profile_path,omitempty"`
 	Profile     *Profile `json:"profile,omitempty"`
@@ -21,13 +19,13 @@ func (p Preferences) Validate() error {
 	if p.Theme != "" && p.Theme != "dark" && p.Theme != "light" {
 		return fmt.Errorf("unknown theme %q", p.Theme)
 	}
-	if p.Version != 1 || (p.Mode != "chat" && p.Mode != "agent") || (p.Voice != "off" && p.Voice != "ptt" && p.Voice != "live") {
+	if p.Version != 1 {
 		return fmt.Errorf("invalid application preferences")
 	}
 	return nil
 }
 func LoadPreferences(path string) (Preferences, error) {
-	p := Preferences{Version: 1, Mode: "chat", Voice: "off"}
+	p := Preferences{Version: 1}
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return p, nil

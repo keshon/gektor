@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,10 +12,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/app"
-	"github.com/keshon/tars/internal/chat"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/tui/settings"
 )
 
 // headerRowFor finds a menu row by its command, so a test can select one
@@ -42,7 +39,7 @@ func (f scriptClient) Chat(ctx context.Context, r llm.ChatRequest) (llm.ChatResp
 // settingsModel builds an Agent-shaped session: a configured service set,
 // an Application, and a saved task on disk with history.
 //
-// It used to build a Chat conversation instead, because that was the only
+// It used to build a Chat Identity instead, because that was the only
 // settings path with an in-place apply. Settings now restart the launch, so
 // the fixture has to carry an Application and a real workspace directory or
 // requestProfileChange refuses before it reaches anything worth asserting.
@@ -51,25 +48,19 @@ func settingsModel(t *testing.T) *model {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.input.SetValue("unfinished draft")
-	profile := config.Profile{Version: 1, Provider: config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local", Ownership: "external"}, Generation: config.Generation{MaxTokens: 100, ContextLimit: 1000}, Conversation: &config.Conversation{UserName: "User", SystemPrompt: "Base rules"}}
+	profile := config.Profile{Version: 1, Provider: config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local", Ownership: "external"}, Generation: config.Generation{MaxTokens: 100, ContextLimit: 1000}, Identity: &config.Identity{UserName: "User", SystemPrompt: "Base rules"}}
 	client := scriptClient(func(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
 		return llm.ChatResponse{Message: llm.Message{Content: "reply"}}, nil
 	})
 	sessions := t.TempDir()
 	workspace := t.TempDir()
-	var configure func(config.Profile) (app.Services, error)
-	configure = func(p config.Profile) (app.Services, error) {
-		if err := p.Validate(); err != nil {
-			return app.Services{}, err
-		}
-		if p.Conversation == nil || p.Conversation.UserName == "" {
-			return app.Services{}, fmt.Errorf("user name required")
-		}
-		return app.Services{Client: client, Settings: chat.Config{System: p.Conversation.SystemPrompt, Temperature: p.Generation.Temperature, MaxTokens: p.Generation.MaxTokens, ContextLimit: p.Generation.ContextLimit}, Directory: sessions, Profile: p, Configure: configure}, nil
+	id, _, err := app.Compile(app.IdentityOptions{Preset: profile.Identity.PromptPreset, Name: profile.Identity.Name, Persona: profile.Identity.UserPersona, User: profile.Identity.UserName, System: profile.Identity.SystemPrompt, Post: profile.Identity.PostHistory, MaxTokens: profile.Generation.MaxTokens, ContextLimit: profile.Generation.ContextLimit, Temperature: profile.Generation.Temperature})
+	if err != nil {
+		t.Fatal(err)
 	}
-	m.config = &app.Services{Client: client, Settings: chat.Config{System: "Base rules", MaxTokens: 100, ContextLimit: 1000}, Directory: sessions, Profile: profile, Configure: configure}
+	m.config = &app.Services{Client: client, Identity: id, Directory: sessions, Profile: profile}
 	m.application = &Application{
-		Preferences:    config.Preferences{Version: 1, Mode: "agent", Voice: "off", Workspace: workspace},
+		Preferences:    config.Preferences{Version: 1, Workspace: workspace},
 		PreferencePath: filepath.Join(t.TempDir(), "application.json"),
 	}
 	m.stateFile = filepath.Join(sessions, "original", "state.json")
@@ -112,7 +103,7 @@ func TestSettingsDirectEditorCancelAndFocus(t *testing.T) {
 		t.Fatal("form input leaked into session actions")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
-	if m.dialog != nil || m.config != configured || m.input.Value() != "unfinished draft" || m.config.Profile.Conversation.UserName != "User" {
+	if m.dialog != nil || m.config != configured || m.input.Value() != "unfinished draft" || m.config.Profile.Identity.UserName != "User" {
 		t.Fatal("cancel mutated configuration or draft")
 	}
 }
@@ -168,70 +159,13 @@ func TestDirectRenameAndDeleteDefaultCancel(t *testing.T) {
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if _, err := os.Stat(path); err != nil {
-		t.Fatal("default action deleted conversation")
+		t.Fatal("default action deleted Identity")
 	}
 	m.deleteActive()
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyTab})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if _, err := os.Stat(path); !os.IsNotExist(err) || m.sess != nil {
 		t.Fatal("explicit delete failed")
-	}
-}
-
-// Save-as-copy is reached through Settings > Profiles with Ctrl+D, and
-// refuses to overwrite. It resolves relative paths against the staged
-// profile's own directory depth, so a character card written relatively
-// still points at the same file after a move.
-func TestSaveCopyRefusesOverwriteAndKeepsCardPath(t *testing.T) {
-	m := settingsModel(t)
-	root := t.TempDir()
-	card := filepath.Join(root, "card.json")
-	os.WriteFile(card, []byte(`{"name":"Ada"}`), 0600)
-	m.config.Profile.Conversation.Character = card
-	first := filepath.Join(root, "existing.json")
-	os.WriteFile(first, []byte("original"), 0600)
-
-	// The copy is written beside the executable, so aim the name at an
-	// existing file there and read the saved path back from the message.
-	exe, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
-	existing := filepath.Join(filepath.Dir(exe), "profiles", "existing.json")
-	if err := os.MkdirAll(filepath.Dir(existing), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(existing, []byte("original"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(existing)
-
-	m.editSettings("profiles")
-	focusSetting(m, "profile-name")
-	m.dialog.form.Editor.SetValue("existing")
-	m.handleSettingsIntent(settings.Intent{Action: settings.SaveCopy})
-	if !strings.Contains(m.dialog.form.Error, "The file exists") {
-		t.Fatalf("existing profile overwritten: %q", m.dialog.form.Error)
-	}
-	focusSetting(m, "profile-name")
-	m.dialog.form.Editor.SetValue("copied")
-	m.handleSettingsIntent(settings.Intent{Action: settings.SaveCopy})
-	if !strings.HasPrefix(m.dialog.form.Error, "Saved copy: ") {
-		t.Fatalf("save failed: %q", m.dialog.form.Error)
-	}
-	saved := strings.TrimPrefix(m.dialog.form.Error, "Saved copy: ")
-	defer os.Remove(saved)
-
-	p, err := config.Load(saved)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if p.Conversation.Character != card {
-		t.Fatalf("card path did not survive the copy: %q", p.Conversation.Character)
-	}
-	data, _ := os.ReadFile(existing)
-	if string(data) != "original" {
-		t.Fatal("original file altered")
 	}
 }
 func TestSettingsFormMouseAndFrame(t *testing.T) {
@@ -434,7 +368,7 @@ func TestPromptSwitchCanToggleWithoutTypingBoolean(t *testing.T) {
 		t.Fatal("space did not toggle prompt switch")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
-	if m.config.Profile.Conversation.PromptPreset != "" {
+	if m.config.Profile.Identity.PromptPreset != "" {
 		t.Fatal("cancel persisted switch")
 	}
 }

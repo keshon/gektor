@@ -46,9 +46,9 @@ func runApplication(args []string) error {
 	}
 	bare := len(args) == 1 && (args[0] == "-tui" || args[0] == "-tui=true")
 	if prefs.ProfilePath == "" {
-		prefs.ProfilePath = filepath.Join(root, "profiles", "chat-veyra-local.json")
+		prefs.ProfilePath = filepath.Join(root, "profiles", "llama-managed.json")
 		if _, err := os.Stat(filepath.Join(root, "assets", "models", "thinking", "qwen", "Qwen3-1.7B-Q8_0.gguf")); err != nil {
-			prefs.ProfilePath = filepath.Join(root, "profiles", "chat-veyra.json")
+			prefs.ProfilePath = filepath.Join(root, "profiles", "llama-external.json")
 		}
 	}
 	request := launchRequest{args: args, preferences: prefs, preferencePath: path, common: bare}
@@ -104,9 +104,9 @@ func applicationArgs(p config.Preferences) []string {
 //
 // Values come from flags the launch already resolved, plus the context
 // window the backend just reported, which is the same number the run
-// itself uses. Conversation is left nil and substituted downstream, so
-// Character/You/Prompts start from ConfigureAgent's default rather than
-// an invented one.
+// itself uses. Identity is written rather than left nil, because the
+// substitution ConfigureAgent does never reached the profile, and a
+// generated session would then show an empty You page.
 func launchProfile(o resolvedLaunch, contextLimit int) config.Profile {
 	generation := config.Generation{
 		MaxTokens:   o.maxTokens,
@@ -130,14 +130,10 @@ func launchProfile(o resolvedLaunch, contextLimit int) config.Profile {
 			APIKeyEnv: o.apiKeyEnv,
 		},
 		Generation: generation,
-		// Written, not left nil for ConfigureAgent to substitute: the
-		// substitution never reached the profile, so switching this session
-		// to Chat was refused with "Chat requires a profile with
-		// conversation settings" and nothing on that screen could fix it.
-		//
-		// No Character. Characters belong to Chat; an Agent takes its
-		// identity from Name and its instructions from its own prompts.
-		Conversation: &config.Conversation{
+		// Written rather than left nil for ConfigureAgent to substitute:
+		// the substitution never reached the profile, so the You page
+		// opened empty against defaults nobody had chosen.
+		Identity: &config.Identity{
 			UserName:     config.DefaultUserName,
 			SystemPrompt: config.DefaultSystemPrompt,
 		},
@@ -159,7 +155,6 @@ func applicationControl(launch launchRequest, p config.Profile, path string, wor
 	if absolute, err := filepath.Abs(workspace); err == nil {
 		prefs.Workspace = absolute
 	}
-	prefs.Mode = "agent"
 	return &tui.Application{Preferences: prefs, PreferencePath: launch.preferencePath, Temporary: !launch.common}
 }
 
@@ -193,21 +188,21 @@ func retainedAgentOptions(args []string) []string {
 }
 
 func selectedProfileName(p config.Profile) string {
-	if p.Conversation != nil {
-		return p.Conversation.Name
+	if p.Identity != nil {
+		return p.Identity.Name
 	}
 	return ""
 }
 func selectedProfilePersona(p config.Profile) string {
-	if p.Conversation != nil {
-		return p.Conversation.UserPersona
+	if p.Identity != nil {
+		return p.Identity.UserPersona
 	}
 	return ""
 }
 
 func selectedProfilePreset(p config.Profile) string {
-	if p.Conversation != nil {
-		return p.Conversation.PromptPreset
+	if p.Identity != nil {
+		return p.Identity.PromptPreset
 	}
 	return ""
 }

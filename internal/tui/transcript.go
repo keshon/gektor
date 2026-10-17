@@ -650,17 +650,13 @@ func nonEmptySpeaker(name string) string {
 	return name
 }
 func (m *model) speakerName() string {
-	name := m.identityName
-	if m.config != nil && m.config.Settings.CharacterName != "" {
-		name = m.config.Settings.CharacterName
-	}
-	return nonEmptySpeaker(strings.Join(strings.Fields(cleanText(name)), " "))
+	return nonEmptySpeaker(strings.Join(strings.Fields(cleanText(m.identityName)), " "))
 }
 
 func (m *model) userName() string {
 	name := m.identityUser
-	if m.config != nil && m.config.Profile.Conversation != nil {
-		name = m.config.Profile.Conversation.UserName
+	if m.config != nil && m.config.Profile.Identity != nil {
+		name = m.config.Profile.Identity.UserName
 	}
 	name = strings.Join(strings.Fields(cleanText(name)), " ")
 	if name == "" {

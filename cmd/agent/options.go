@@ -7,7 +7,6 @@ import (
 
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/speech"
 )
 
 // launchOptions holds command-line values and records explicit overrides.
@@ -146,7 +145,6 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 type resolvedLaunch struct {
 	launchOptions
 	selectedProfile  config.Profile
-	speechSettings   *speech.Config
 	thinkingSettings config.Provider
 }
 
@@ -204,8 +202,8 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 		if !explicit["temperature"] {
 			o.temperature = p.Generation.Temperature
 		}
-		if p.Conversation != nil {
-			c := p.Conversation
+		if p.Identity != nil {
+			c := p.Identity
 			if !explicit["user-name"] && c.UserName != "" {
 				o.userName = c.UserName
 			}
@@ -217,8 +215,8 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 			}
 		}
 		p.Generation.Temperature = o.temperature
-		if p.Conversation != nil || o.postHistory != "" {
-			p.Conversation = &config.Conversation{PromptPreset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), UserPersona: selectedProfilePersona(o.selectedProfile), UserName: o.userName, SystemPrompt: o.systemPrompt, PostHistory: o.postHistory}
+		if p.Identity != nil || o.postHistory != "" {
+			p.Identity = &config.Identity{PromptPreset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), UserPersona: selectedProfilePersona(o.selectedProfile), UserName: o.userName, SystemPrompt: o.systemPrompt, PostHistory: o.postHistory}
 		}
 		p.Provider.Kind, p.Provider.URL, p.Provider.Model, p.Provider.APIKeyEnv = o.backendKind, o.backendURL, o.model, o.apiKeyEnv
 		p.Generation.MaxTokens, p.Generation.ContextLimit = o.maxTokens, o.contextLimit
