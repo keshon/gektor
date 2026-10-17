@@ -243,7 +243,6 @@ func gateEvent(name string, fields map[string]any) run.Event {
 func withoutPrintHooks(env roles.Env) roles.Env {
 	env.OnDelta = func(string) {}
 	env.OnStep = func(string, int, llm.Message) {}
-	env.OnToolResult = func(string, string) {}
 	env.OnResult = func(agent.ToolResult) {}
 	env.OnUsage = func(int, llm.Usage) {}
 	env.OnNudge = nil

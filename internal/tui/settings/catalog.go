@@ -63,8 +63,6 @@ func CatalogDetail(key, path string) string {
 	return path
 }
 
-// Async discovery captures the configured recorder but never captures audio.
-
 func ChoiceLabel(key, value string) string {
 	switch key {
 	case "prompt-preset":
@@ -127,7 +125,6 @@ func Choices(key string) []string {
 
 // SuggestedBackendURL changes only the previous protocol's local default.
 // OpenAI denotes a compatible API, so its suggestion stays local.
-
 func SuggestedBackendURL(endpoint, previous, next string) string {
 	ports := map[string]string{"llama": "8080", "kobold": "5001", "openai": "8080"}
 	u, err := url.Parse(endpoint)

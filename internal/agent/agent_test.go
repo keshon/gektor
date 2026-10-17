@@ -751,7 +751,7 @@ func TestAgent_LeakedCallRecoversAndExecutes(t *testing.T) {
 	t.Fatal("expected the recovered call to execute and record a tool result")
 }
 
-func TestAgent_OnToolResultSeesEveryCall(t *testing.T) {
+func TestAgent_OnResultSeesEveryCall(t *testing.T) {
 	client := &stubClient{responses: []llm.ChatResponse{
 		{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{
 			{ID: "c1", Name: "echo", Arguments: json.RawMessage(`{}`)},
@@ -763,10 +763,10 @@ func TestAgent_OnToolResultSeesEveryCall(t *testing.T) {
 	var got []string
 	a := New(Config{Client: client, Tools: NewRegistry(echoToolStub{}), System: "sys",
 		SkipVerify: true,
-		OnToolResult: func(callID, result string) {
+		OnResult: func(r ToolResult) {
 			mu.Lock()
 			defer mu.Unlock()
-			got = append(got, callID+":"+result)
+			got = append(got, r.CallID+":"+r.Output)
 		},
 	})
 	if _, err := a.Run(context.Background(), "task"); err != nil {

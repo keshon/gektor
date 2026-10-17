@@ -1417,7 +1417,6 @@ func TestWithoutPrintHooks_Silent(t *testing.T) {
 	// Callable with dummy args: silence by construction, never a
 	// nil dereference whatever the loop passes.
 	env.OnStep("l", 1, llm.Message{Content: "x"})
-	env.OnToolResult("c", "r")
 	env.OnResult(agent.ToolResult{})
 	env.OnUsage(1, llm.Usage{})
 	env.OnDelta("z")

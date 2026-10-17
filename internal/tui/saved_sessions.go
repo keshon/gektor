@@ -13,12 +13,6 @@ import (
 	"github.com/keshon/tars/internal/workspace"
 )
 
-// Reading the saved-session list. This was internal/sessionindex, but
-// nothing else in the tree used it: the TUI is the only frontend with a
-// session library, and a package whose sole caller is one directory is a
-// layer that costs a change to cross. Scheduling and stale-result
-// rejection stay with the caller.
-
 // savedText is one searchable message and its index in the source history.
 // Positions refer to source messages, never UI blocks or geometry.
 type savedText struct {

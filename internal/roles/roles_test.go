@@ -126,7 +126,7 @@ func missingRead(id string) llm.ChatResponse {
 func TestSubagent_ObserverHooksStaySilent(t *testing.T) {
 	var toolResults, usages, nudges int32
 	e := testEnv(t)
-	e.OnToolResult = func(string, string) { atomic.AddInt32(&toolResults, 1) }
+	e.OnResult = func(agent.ToolResult) { atomic.AddInt32(&toolResults, 1) }
 	e.OnUsage = func(int, llm.Usage) { atomic.AddInt32(&usages, 1) }
 	e.OnNudge = func(string, string) { atomic.AddInt32(&nudges, 1) }
 	client := &seqStub{steps: []llm.ChatResponse{

@@ -106,10 +106,7 @@ type Env struct {
 	// each wrapped it slightly differently.
 	OnStep func(label string, step int, msg llm.Message)
 
-	// OnToolResult, if set, receives every completed tool call result.
-	// See agent.Config.OnToolResult. Nil keeps the historical silence.
-	OnToolResult func(callID, result string)
-	OnResult     func(agent.ToolResult)
+	OnResult func(agent.ToolResult)
 
 	// Rules are the deterministic checks this run applies to written
 	// files. Language rules live in internal/rules; checks.Secrets covers
@@ -202,7 +199,6 @@ func Planner(e Env, label, stateFile string) *agent.Agent {
 		StateFile:       e.statePath(stateFile),
 		SkipVerify:      true,
 		OnStep:          e.onStep(label),
-		OnToolResult:    e.OnToolResult,
 		OnResult:        e.OnResult,
 		OnUsage:         e.OnUsage,
 		OnNudge:         e.OnNudge,
@@ -240,7 +236,6 @@ func Inspector(e Env, label, system, stateFile string) *agent.Agent {
 		SkipVerify:      true,
 		StateFile:       e.statePath(stateFile),
 		OnStep:          e.onStep(label),
-		OnToolResult:    e.OnToolResult,
 		OnResult:        e.OnResult,
 		OnUsage:         e.OnUsage,
 		OnNudge:         e.OnNudge,
@@ -302,7 +297,6 @@ func Worker(e Env, label, system, stateFile string, maxSteps int, expectsWrites 
 		VerifyOnZeroWrites: expectsWrites,
 		StateFile:          e.statePath(stateFile),
 		OnStep:             e.onStep(label),
-		OnToolResult:       e.OnToolResult,
 		OnResult:           e.OnResult,
 		OnUsage:            e.OnUsage,
 		OnNudge:            e.OnNudge,
@@ -352,7 +346,6 @@ func Interactive(e Env, label, stateFile string,
 		Nudges:          e.Nudges,
 		Verify:          verify,
 		OnStep:          e.onStep(label),
-		OnToolResult:    e.OnToolResult,
 		OnResult:        e.OnResult,
 		OnUsage:         e.OnUsage,
 		OnNudge:         e.OnNudge,

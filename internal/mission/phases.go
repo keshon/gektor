@@ -88,10 +88,7 @@ type Runner struct {
 	OnStep  func(subID string, step int, msg llm.Message)
 	OnEvent func(format string, args ...any)
 
-	// OnToolResult mirrors agent.Config.OnToolResult for worker tool
-	// results. Optional; nil keeps workers silent as before.
-	OnToolResult func(callID, result string)
-	OnResult     func(agent.ToolResult)
+	OnResult func(agent.ToolResult)
 
 	// OnUsage mirrors agent.Config.OnUsage for worker token counts.
 	// Optional.
@@ -623,9 +620,6 @@ func (r *Runner) env() roles.Env {
 	e.StateDir = filepath.Join(r.Dir, "workers")
 	if r.OnStep != nil {
 		e.OnStep = r.OnStep
-	}
-	if r.OnToolResult != nil {
-		e.OnToolResult = r.OnToolResult
 	}
 	if r.OnResult != nil {
 		e.OnResult = r.OnResult

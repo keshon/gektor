@@ -1,7 +1,7 @@
-// Package api is the programmatic way to run the agent: a Session that
+// Package run is the programmatic way to run the agent: a Session that
 // emits the same events -mode json prints, and answers gates through a
-// Suspender instead of stdin. The TUI (P9) and the stdio JSON-RPC server
-// both build on it; neither touches the loop directly.
+// Suspender instead of stdin. The TUI and the stdio JSON-RPC server both
+// build on it; neither touches the loop directly.
 //
 // Schema parity is structural, not promised: Session reuses the events
 // package to serialize, and parses the JSONL back, so -mode json output
@@ -47,9 +47,6 @@ type Config struct {
 
 	// OnEvent receives every event in order. Nil drops them.
 	OnEvent func(Event)
-
-	// MaxQuestions bounds ask_user rounds. Zero takes the agent default.
-	MaxQuestions int
 }
 
 // Session runs one task. Create per run; it holds no global state.
@@ -61,18 +58,18 @@ type Session struct {
 // New validates the config without running anything.
 func New(cfg Config) (*Session, error) {
 	if strings.TrimSpace(cfg.Task) == "" {
-		return nil, fmt.Errorf("api: task is empty")
+		return nil, fmt.Errorf("run: task is empty")
 	}
 	if cfg.Env.Client == nil {
-		return nil, fmt.Errorf("api: Env.Client is nil")
+		return nil, fmt.Errorf("run: Env.Client is nil")
 	}
 	if cfg.Env.WS == nil {
-		return nil, fmt.Errorf("api: Env.WS is nil")
+		return nil, fmt.Errorf("run: Env.WS is nil")
 	}
 	if cfg.Answer == nil {
-		cfg.Answer = agent.ClosedSuspender("api session without operator")
+		cfg.Answer = agent.ClosedSuspender("run session without operator")
 	}
-	return &Session{cfg: cfg, askerBudget: agent.NewAsker(cfg.MaxQuestions)}, nil
+	return &Session{cfg: cfg, askerBudget: agent.NewAsker(0)}, nil
 }
 
 // Run executes the task to completion and returns the final answer.
@@ -86,7 +83,6 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter) {
 
 	env := s.cfg.Env
 	prevOnStep := env.OnStep
-	prevOnResult := env.OnToolResult
 	prevTypedResult := env.OnResult
 	prevOnUsage := env.OnUsage
 	// expectReply marks the next text-only step as harness-caused: a
@@ -107,11 +103,6 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter) {
 		events.EmitToolResult(emitter, result.CallID, result.Output, result.Failed)
 		if prevTypedResult != nil {
 			prevTypedResult(result)
-		}
-	}
-	env.OnToolResult = func(callID, result string) {
-		if prevOnResult != nil {
-			prevOnResult(callID, result)
 		}
 	}
 	env.OnUsage = func(step int, usage llm.Usage) {
@@ -208,8 +199,6 @@ func (s *Session) Resume(ctx context.Context, history []llm.Message, note string
 	s.report(a, emitter)
 	return ans, err
 }
-
-
 
 func (s *Session) report(a *agent.Agent, e *events.Emitter) {
 	if s.cfg.OnEvent == nil {

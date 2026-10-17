@@ -350,16 +350,10 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 		resource := toolResource(call.Arguments)
 		if err := permission.Authorize(ctx, a.cfg.Policy, a.cfg.BeforeToolCall, call.Name, resource, call.Arguments); err != nil {
 			results[i] = callResult{err: err}
-			if a.cfg.AfterToolCall != nil {
-				a.cfg.AfterToolCall(call.Name, resource, "", err)
-			}
 			return
 		}
 		content, err := a.cfg.Tools.Run(ctx, call.Name, call.Arguments)
 		results[i] = callResult{content: content, err: err}
-		if a.cfg.AfterToolCall != nil {
-			a.cfg.AfterToolCall(call.Name, resource, content, err)
-		}
 	}
 
 	runBatch := func(indices []int) {
@@ -459,9 +453,6 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 			ToolCallID: call.ID,
 			Content:    content,
 		})
-		if a.cfg.OnToolResult != nil {
-			a.cfg.OnToolResult(call.ID, content)
-		}
 		if a.cfg.OnResult != nil {
 			a.cfg.OnResult(ToolResult{CallID: call.ID, Output: content, Failed: results[i].err != nil})
 		}

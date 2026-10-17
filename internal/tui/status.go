@@ -24,8 +24,6 @@ func (m *model) statusLine() string {
 	return m.styles.status.Render(hint)
 }
 
-
-
 func (m *model) statusWord() string {
 	switch m.state {
 	case stPermission:

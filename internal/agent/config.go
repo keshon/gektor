@@ -60,7 +60,6 @@ type Config struct {
 	// Observers. All optional; the loop itself never prints.
 	OnStep       func(step int, msg llm.Message)
 	OnUsage      func(step int, usage llm.Usage)
-	OnToolResult func(callID, result string)
 	OnResult     func(ToolResult)
 	OnDelta      func(chunk string)
 	// OnReasoning receives streamed deliberation, which arrives before the
@@ -135,9 +134,6 @@ type Config struct {
 	// ask_user and delegate_task by name, so a registry carrying
 	// patch_file but not write_file was told to use a tool it lacked.
 	ToolHint func(situation string) string
-
-	// AfterToolCall observes every completed call.
-	AfterToolCall func(tool, resource, result string, err error)
 
 	// Stream uses SSE with OnDelta per chunk. Effective on backends with
 	// SSE support; koboldcpp falls back to a unary call.

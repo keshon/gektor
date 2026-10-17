@@ -347,8 +347,6 @@ func balancedJSON(s string, start int) (string, int) {
 // arguments key with nothing after it. Trailing whitespace allowed.
 var partialTail = regexp.MustCompile(`(?i)(<\|?tool_?[a-z_]*|<\|tool_call\|?|call_[A-Za-z0-9_]*|arguments\s*=\s*)\s*$`)
 
-
-
 // hasLeakMarkers is the old blocklist, kept only for the unparseable
 // remainder: tagged text naming an unknown tool, or JSON too broken to
 // balance, still deserves the nudge rather than a silent accept. Think
