@@ -306,26 +306,10 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 			return
 		}
 		resource := toolResource(call.Name, call.Arguments)
-		eff := a.cfg.Policy.Evaluate(call.Name, resource)
-		if eff == permission.Ask {
-			eff = permission.Deny
-			if a.cfg.BeforeToolCall != nil {
-				hookEff, hookErr := a.cfg.BeforeToolCall(ctx, call.Name, resource, call.Arguments)
-				if hookErr != nil {
-					results[i] = callResult{err: hookErr}
-					if a.cfg.AfterToolCall != nil {
-						a.cfg.AfterToolCall(call.Name, resource, "", hookErr)
-					}
-					return
-				}
-				eff = hookEff
-			}
-		}
-		if eff != permission.Allow {
-			denied := fmt.Errorf("blocked by policy (%s on %s)", call.Name, resource)
-			results[i] = callResult{err: denied}
+		if err := permission.Authorize(ctx, a.cfg.Policy, a.cfg.BeforeToolCall, call.Name, resource, call.Arguments); err != nil {
+			results[i] = callResult{err: err}
 			if a.cfg.AfterToolCall != nil {
-				a.cfg.AfterToolCall(call.Name, resource, "", denied)
+				a.cfg.AfterToolCall(call.Name, resource, "", err)
 			}
 			return
 		}

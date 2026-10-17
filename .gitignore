@@ -33,3 +33,4 @@ run-serve.cmd
 /profiles/custom/
 
 *.png
+/bench-results

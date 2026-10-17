@@ -1,9 +1,74 @@
 package permission
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 )
+
+// Authorize was written out twice, once in the agent loop and once in the
+// mission check runner. These pin the whole ladder in one place.
+func TestAuthorize(t *testing.T) {
+	ask := Default()
+	asked := 0
+	gate := func(context.Context, string, string, json.RawMessage) (Effect, error) {
+		asked++
+		return Deny, nil
+	}
+	cases := []struct {
+		name  string
+		policy Policy
+		gate  Gate
+		want  bool // allowed
+	}{
+		{"allow needs no gate", Policy{Rules: []Rule{{Tool: "*", Pattern: "*", Effect: Allow}}}, nil, true},
+		{"deny needs no gate", Policy{Rules: []Rule{{Tool: "*", Pattern: "*", Effect: Deny}}}, nil, false},
+		{"ask without a gate denies", ask, nil, false},
+		{"ask consults the gate", ask, gate, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Default() asks about .env specifically, so the ask cases
+			// have to name it or they would pass without consulting.
+			resource := "a.txt"
+			if tc.name != "allow needs no gate" && tc.name != "deny needs no gate" {
+				resource = ".env"
+			}
+			err := Authorize(context.Background(), tc.policy, tc.gate, "read_file", resource, nil)
+			if (err == nil) != tc.want {
+				t.Fatalf("Authorize = %v, want allowed=%v", err, tc.want)
+			}
+		})
+	}
+	if asked != 1 {
+		t.Fatalf("gate consulted %d times, want 1", asked)
+	}
+}
+
+// A gate that fails to reach an operator blocks. Silently allowing would
+// turn a broken prompt into a security hole.
+func TestAuthorizeGateErrorBlocks(t *testing.T) {
+	boom := errors.New("no operator")
+	gate := func(context.Context, string, string, json.RawMessage) (Effect, error) {
+		return Allow, boom
+	}
+	err := Authorize(context.Background(), Default(), gate, "read_file", ".env", nil)
+	if err == nil || !strings.Contains(err.Error(), "no operator") {
+		t.Fatalf("Authorize = %v, want the gate error", err)
+	}
+}
+
+// A gate may allow what the policy asked about.
+func TestAuthorizeGateCanAllow(t *testing.T) {
+	gate := func(context.Context, string, string, json.RawMessage) (Effect, error) {
+		return Allow, nil
+	}
+	if err := Authorize(context.Background(), Default(), gate, "read_file", ".env", nil); err != nil {
+		t.Fatalf("Authorize = %v, want allowed", err)
+	}
+}
 
 func TestDefaultAsksEnv(t *testing.T) {
 	p := Default()

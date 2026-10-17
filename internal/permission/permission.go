@@ -6,6 +6,8 @@
 package permission
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"path"
 	"strings"
@@ -136,6 +138,38 @@ func baseName(s string) string {
 		return s[i+1:]
 	}
 	return s
+}
+
+// Gate is asked when a policy says Ask. It returns the final effect; an
+// error blocks. A nil Gate means nobody to ask, so Ask degrades to Deny.
+type Gate func(ctx context.Context, tool, resource string, args json.RawMessage) (Effect, error)
+
+// Authorize makes the whole decision for a call: the policy, then Gate for
+// anything marked Ask, then a block on anything but Allow. It lived inline
+// in the agent loop and again in the mission check runner, and the two
+// copies could drift; there is one answer now.
+//
+// The zero Policy allows everything, matching Policy's own zero value.
+func Authorize(ctx context.Context, p Policy, gate Gate, tool, resource string, args json.RawMessage) error {
+	if tool == "" {
+		return nil
+	}
+	effect := p.Evaluate(tool, resource)
+	if effect == Ask {
+		if gate == nil {
+			effect = Deny
+		} else {
+			resolved, err := gate(ctx, tool, resource, args)
+			if err != nil {
+				return fmt.Errorf("%s on %s: %w", tool, resource, err)
+			}
+			effect = resolved
+		}
+	}
+	if effect != Allow {
+		return fmt.Errorf("blocked by policy (%s on %s)", tool, resource)
+	}
+	return nil
 }
 
 // Decide maps an operator answer to an effect: y(es) and a(lways) allow,

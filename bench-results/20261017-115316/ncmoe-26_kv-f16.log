@@ -1,0 +1,5 @@
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 8123 MiB):
+  Device 0: NVIDIA GeForce RTX 5060 Ti, compute capability 12.0, VMM: yes, VRAM: 8123 MiB
+load_backend: loaded CUDA backend from f:\Projects\ai\llamacpp\llama\ggml-cuda.dll
+load_backend: loaded RPC backend from f:\Projects\ai\llamacpp\llama\ggml-rpc.dll
+load_backend: loaded CPU backend from f:\Projects\ai\llamacpp\llama\ggml-cpu-alderlake.dll

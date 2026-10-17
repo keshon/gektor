@@ -131,7 +131,14 @@ func (e Env) onStep(label string) func(int, llm.Message) {
 	return func(step int, msg llm.Message) { e.OnStep(label, step, msg) }
 }
 
-func (e Env) gate() func(context.Context, string, string, json.RawMessage) (permission.Effect, error) {
+// ResolveGate returns the gate permission.Authorize should ask for:
+// GateContext when set, else Gate adapted to the context form, else nil,
+// which makes Authorize degrade Ask to Deny.
+//
+// Exported because mission asks the same question: its derived checks used
+// to re-implement the preference order inline, so the two could disagree
+// about which gate is live.
+func (e Env) ResolveGate() permission.Gate {
 	if e.GateContext != nil {
 		return e.GateContext
 	}
@@ -178,7 +185,7 @@ func Planner(e Env, label, stateFile string) *agent.Agent {
 		OnUsage:         e.OnUsage,
 		OnNudge:         e.OnNudge,
 		Policy:          e.policy(),
-		BeforeToolCall:  e.gate(),
+		BeforeToolCall:  e.ResolveGate(),
 	})
 }
 
@@ -216,7 +223,7 @@ func Inspector(e Env, label, system, stateFile string) *agent.Agent {
 		OnUsage:         e.OnUsage,
 		OnNudge:         e.OnNudge,
 		Policy:          e.policy(),
-		BeforeToolCall:  e.gate(),
+		BeforeToolCall:  e.ResolveGate(),
 	})
 }
 
@@ -246,7 +253,7 @@ func Subagent(e Env, role string) *agent.Agent {
 		ReasoningBudget: e.ReasoningBudget,
 		SkipVerify:      true,
 		Policy:          e.policy(),
-		BeforeToolCall:  e.gate(),
+		BeforeToolCall:  e.ResolveGate(),
 	})
 }
 
@@ -277,7 +284,7 @@ func Worker(e Env, label, system, stateFile string, maxSteps int, expectsWrites 
 		OnUsage:            e.OnUsage,
 		OnNudge:            e.OnNudge,
 		Policy:             e.policy(),
-		BeforeToolCall:     e.gate(),
+		BeforeToolCall:     e.ResolveGate(),
 	})
 }
 
@@ -325,7 +332,7 @@ func Interactive(e Env, label, stateFile string,
 		OnUsage:         e.OnUsage,
 		OnNudge:         e.OnNudge,
 		Policy:          e.policy(),
-		BeforeToolCall:  e.gate(),
+		BeforeToolCall:  e.ResolveGate(),
 		Stream:          e.Stream,
 		OnDelta:         e.OnDelta,
 	})

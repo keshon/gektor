@@ -236,24 +236,9 @@ func (r *Runner) runCheck(ctx context.Context, c Check) (string, bool) {
 		if len(policy.Rules) == 0 {
 			policy = permission.Default()
 		}
-		effect := policy.Evaluate(tool, resource)
-		if effect == permission.Ask {
-			data, _ := json.Marshal(args)
-			var err error
-			switch {
-			case r.Env.GateContext != nil:
-				effect, err = r.Env.GateContext(ctx, tool, resource, data)
-			case r.Env.Gate != nil:
-				effect, err = r.Env.Gate(tool, resource, data)
-			default:
-				effect = permission.Deny
-			}
-			if err != nil {
-				return fmt.Sprintf("check approval failed: %v", err), false
-			}
-		}
-		if effect != permission.Allow {
-			return fmt.Sprintf("check blocked by policy (%s on %s)", tool, resource), false
+		data, _ := json.Marshal(args)
+		if err := permission.Authorize(ctx, policy, r.Env.ResolveGate(), tool, resource, data); err != nil {
+			return "check " + err.Error(), false
 		}
 	}
 	return RunCheck(ctx, c, r.WS)
