@@ -305,7 +305,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 			results[i] = callResult{err: err}
 			return
 		}
-		resource := toolResource(call.Name, call.Arguments)
+		resource := toolResource(call.Arguments)
 		if err := permission.Authorize(ctx, a.cfg.Policy, a.cfg.BeforeToolCall, call.Name, resource, call.Arguments); err != nil {
 			results[i] = callResult{err: err}
 			if a.cfg.AfterToolCall != nil {

@@ -8,42 +8,37 @@ import (
 
 // toolResource extracts the policy-matched resource from a call's args:
 // command for shell/background, path for file tools, url for check_url.
-func toolResource(name string, args json.RawMessage) string {
+// toolResource picks the string a permission rule matches against. It
+// reads the argument shape rather than the tool name: every tool this
+// project ships carries a path, a command or a url, and a new tool is
+// covered by using one of those instead of by being registered here.
+func toolResource(args json.RawMessage) string {
 	var fields struct {
 		Command string `json:"command"`
 		Path    string `json:"path"`
 		From    string `json:"from"`
 		To      string `json:"to"`
 		URL     string `json:"url"`
-		ID      string `json:"id"`
 	}
 	if json.Unmarshal(args, &fields) != nil {
 		return ""
 	}
-	switch name {
-	case "run_shell", "start_background":
-		return fields.Command
-	case "read_file", "write_file", "patch_file", "patch_lines":
+	switch {
+	case fields.Path != "":
 		return fields.Path
-	case "move_file":
+	case fields.From != "" || fields.To != "":
 		return fields.From + "->" + fields.To
-	case "check_url", "webfetch", "fetch_raw":
+	case fields.Command != "":
+		return fields.Command
+	case fields.URL != "":
 		return fields.URL
-	default:
-		if fields.Path != "" {
-			return fields.Path
-		}
-		if fields.Command != "" {
-			return fields.Command
-		}
-		return string(args)
 	}
+	return string(args)
 }
 
 // mutatedPathsFromCall pulls workspace paths out of a mutating tool
-// call's arguments. The project's file tools name them path (write_file,
-// patch_file, patch_lines) or from/to (move_file); a mutating tool with
-// none of these contributes nothing rather than guessing.
+// call's arguments: path, or from/to for a rename. A call with none of
+// them contributes nothing rather than guessing.
 func mutatedPathsFromCall(args json.RawMessage) []string {
 	var fields struct {
 		Path string `json:"path"`
