@@ -14,6 +14,8 @@ agent-backend.log
 plan.md
 eval/results/
 eval/log/
+# Benchmark output. bench-llama.cmd stamps a fresh directory per run.
+bench-results/
 tmp/
 # Local environment (machine-specific paths and keys) — never committed.
 .env
