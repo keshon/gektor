@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/keshon/tars/internal/agent"
 )
 
 // Shared by help and command completion.
@@ -13,6 +15,7 @@ func commandReference() [][2]string {
 		{"/sessions", "Browse saved sessions"},
 		{"/new [task]", "Start a fresh task; omit task for an empty session"},
 		{"/mode plan|act", "Preview changes or execute them"},
+		{"/nudges full|recovery|off", "How much harness advice the model hears"},
 		{"/status", "Show current run facts"},
 		{"/retry", "Retry the last failed turn"},
 		{"/compact", "Shrink this session's history"},
@@ -56,6 +59,28 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "status":
 		m.appendBlock(markerBlock(strings.Join(m.statusLines(), "\n")))
+		return m, nil
+	case "nudges":
+		level := strings.ToLower(strings.TrimSpace(arg))
+		if level == "" {
+			m.appendBlock(markerBlock("Nudges: " + agent.NudgeLevelName(m.nudges) + " · /nudges full|recovery|off"))
+			return m, nil
+		}
+		parsed, ok := agent.ParseNudgeLevel(level)
+		if !ok {
+			m.appendBlock(errorBlock("Choose /nudges full, recovery or off."))
+			return m, nil
+		}
+		m.nudges = parsed
+		if m.sess != nil {
+			sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
+			if err != nil {
+				m.appendBlock(errorBlock(err.Error()))
+				return m, nil
+			}
+			m.sess = sess
+		}
+		m.appendBlock(markerBlock("Nudges: " + agent.NudgeLevelName(m.nudges)))
 		return m, nil
 	case "mode":
 		mode := strings.ToLower(strings.TrimSpace(arg))

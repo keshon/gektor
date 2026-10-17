@@ -204,6 +204,7 @@ type model struct {
 	pendingCommands []tea.Cmd
 	drafts          map[string]draft
 	plan            bool
+	nudges          agent.NudgeLevel
 	mission         bool
 	gateVP          viewport.Model
 	// Status facts snapshotted from cfg at construction for /status:
@@ -291,6 +292,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		maxSteps:     envMaxSteps(cfg.Env),
 		transcript:   newTranscript(),
 		plan:         cfg.Plan,
+		nudges:       cfg.Env.Nudges,
 		mission:      cfg.Mission != nil,
 		stateFile:    cfg.StateFile,
 		note:         newNote(),
@@ -318,6 +320,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	env := withoutPrintHooks(cfg.Env)
 	env.Gate = nil
 	env.GateContext = audit.ContextHook(cfg.AuditPath, "tui", m.contextGate(hub, cfg.Env.WS))
+	env.Nudges = m.nudges
 	m.newSession = func(task, stateFile string, images []string) (*run.Session, error) {
 		return run.New(run.Config{
 			Env:          env,

@@ -7,6 +7,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -252,6 +253,7 @@ func (m *model) statusLines() []string {
 		"context: " + m.meter(),
 		"run: " + strconv.Itoa(m.steps) + " steps  " + m.statusWord() + "  " + formatElapsed(m.elapsed),
 		"details: " + details,
+		"nudges: " + agent.NudgeLevelName(m.nudges),
 		"thinking budget: " + budget,
 		"permissions: Y allow once  A always allow  N deny with note",
 		"always allowed: " + allowed,
