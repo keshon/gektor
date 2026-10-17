@@ -136,7 +136,24 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		// Close is esc/enter only: "q" must stay typable for dialogs
 		// with inputs tomorrow.
 		switch msg.String() {
-		case "esc", "enter":
+		case "y", "Y":
+			if m.confirmAction != nil {
+				action := m.confirmAction
+				m.confirmAction = nil
+				m.closeDialog()
+				action()
+				return m, nil
+			}
+		case "n", "N", "esc":
+			if m.confirmAction != nil {
+				m.confirmAction = nil
+				m.closeDialog()
+				m.appendBlock(markerBlock("cancelled"))
+				return m, nil
+			}
+			m.closeDialog()
+			return m, nil
+		case "enter":
 			m.closeDialog()
 			return m, nil
 		case "ctrl+c":

@@ -20,7 +20,23 @@ func commandReference() [][2]string {
 		{"/max-steps N", "Step budget (0 = no limit)"},
 		{"/budget-think N", "Reasoning budget in chars (0 = default)"},
 		{"/budget-context N", "Context window in tokens (0 = default)"},
-		{"/sidebar", "Toggle sidebar"}, {"/details", "Toggle reply truncation"}, {"/sys", "Toggle SYS messages"}, {"/labels", "Toggle labels"}, {"/latest", "Jump to latest"}, {"/stop", "Stop the running task"}, {"/rename [title]", "Rename the current session"}, {"/delete", "Delete the current session"}, {"/permissions", "Show permission policy"}, {"/model", "Show model and backend"}, {"/context", "Show context usage"}, {"/run", "Show run stats"}, {"/activity", "Show run activity"}, {"/about", "About"}, {"/theme dark|light", "Switch theme"}, {"/settings", "Open settings"},
+		{"/nudges full|recovery|off", "How much harness advice the model hears"},
+		{"/sidebar", "Toggle sidebar"},
+		{"/details", "Toggle reply truncation"},
+		{"/sys", "Toggle SYS messages"},
+		{"/labels", "Toggle labels"},
+		{"/latest", "Jump to latest"},
+		{"/stop", "Stop the running task"},
+		{"/rename [title]", "Rename the current session"},
+		{"/delete", "Delete the current session"},
+		{"/permissions", "Show permission policy"},
+		{"/model", "Show model and backend"},
+		{"/context", "Show context usage"},
+		{"/run", "Show run stats"},
+		{"/activity", "Show run activity"},
+		{"/about", "About"},
+		{"/theme dark|light", "Switch theme"},
+		{"/settings", "Open settings"},
 		{"/status", "Show current run facts"},
 		{"/retry", "Retry the last failed turn"},
 		{"/compact", "Shrink this session's history"},
@@ -28,8 +44,22 @@ func commandReference() [][2]string {
 	}
 }
 
-// command handles local slash commands. Anything unrecognized is
-// reported, never sent to the model — a typo must not become a task.
+// confirmRestart asks before restarting a running session. If no session
+// is running, the action runs immediately.
+func (m *model) confirmRestart(action func()) {
+	if m.sess == nil {
+		action()
+		return
+	}
+	m.confirmAction = action
+	m.openDialog("Restart session?", []string{
+		"This command changes agent settings.",
+		"The running session will restart.",
+		"",
+		"y  restart   n  cancel",
+	})
+}
+
 func (m *model) command(text string) (tea.Model, tea.Cmd) {
 	name, arg, _ := strings.Cut(strings.TrimPrefix(text, "/"), " ")
 	m.input.Push(text)
@@ -44,11 +74,6 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 	case "new":
 		task := strings.TrimSpace(arg)
 		if task == "" {
-			// Bare /new resets to the empty state (same as
-			// opening with no initial task): no session, clean
-			// transcript, the next submitted line starts a fresh
-			// run. The task text is the session title, so there is
-			// nothing sensible to derive one from yet.
 			m.newTask()
 			return m, m.input.Focus()
 		}
@@ -71,23 +96,25 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 			m.appendBlock(errorBlock("Usage: /max-steps N (0 = no limit)"))
 			return m, nil
 		}
-		m.maxStepsOverride = n
-		if m.maxStepsOverride == 0 {
-			m.maxStepsOverride = -1
-		}
-		if m.sess != nil {
-			sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
-			if err != nil {
-				m.appendBlock(errorBlock(err.Error()))
-				return m, nil
+		m.confirmRestart(func() {
+			m.maxStepsOverride = n
+			if m.maxStepsOverride == 0 {
+				m.maxStepsOverride = -1
 			}
-			m.sess = sess
-		}
-		label := "no limit"
-		if m.maxStepsOverride > 0 {
-			label = strconv.Itoa(m.maxStepsOverride)
-		}
-		m.appendBlock(markerBlock("Max steps: " + label))
+			if m.sess != nil {
+				sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
+				if err != nil {
+					m.appendBlock(errorBlock(err.Error()))
+					return
+				}
+				m.sess = sess
+			}
+			label := "no limit"
+			if m.maxStepsOverride > 0 {
+				label = strconv.Itoa(m.maxStepsOverride)
+			}
+			m.appendBlock(markerBlock("Max steps: " + label))
+		})
 		return m, nil
 	case "budget-think":
 		n, err := strconv.Atoi(strings.TrimSpace(arg))
@@ -95,20 +122,22 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 			m.appendBlock(errorBlock("Usage: /budget-think N (0 = default)"))
 			return m, nil
 		}
-		m.thinkBudget = n
-		if m.sess != nil {
-			sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
-			if err != nil {
-				m.appendBlock(errorBlock(err.Error()))
-				return m, nil
+		m.confirmRestart(func() {
+			m.thinkBudget = n
+			if m.sess != nil {
+				sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
+				if err != nil {
+					m.appendBlock(errorBlock(err.Error()))
+					return
+				}
+				m.sess = sess
 			}
-			m.sess = sess
-		}
-		label := "default"
-		if m.thinkBudget > 0 {
-			label = strconv.Itoa(m.thinkBudget) + " chars"
-		}
-		m.appendBlock(markerBlock("Think budget: " + label))
+			label := "default"
+			if m.thinkBudget > 0 {
+				label = strconv.Itoa(m.thinkBudget) + " chars"
+			}
+			m.appendBlock(markerBlock("Think budget: " + label))
+		})
 		return m, nil
 	case "budget-context":
 		n, err := strconv.Atoi(strings.TrimSpace(arg))
@@ -116,20 +145,22 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 			m.appendBlock(errorBlock("Usage: /budget-context N (0 = default)"))
 			return m, nil
 		}
-		m.contextLimit = n
-		if m.sess != nil {
-			sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
-			if err != nil {
-				m.appendBlock(errorBlock(err.Error()))
-				return m, nil
+		m.confirmRestart(func() {
+			m.contextLimit = n
+			if m.sess != nil {
+				sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
+				if err != nil {
+					m.appendBlock(errorBlock(err.Error()))
+					return
+				}
+				m.sess = sess
 			}
-			m.sess = sess
-		}
-		label := "default"
-		if m.contextLimit > 0 {
-			label = strconv.Itoa(m.contextLimit) + " tokens"
-		}
-		m.appendBlock(markerBlock("Context budget: " + label))
+			label := "default"
+			if m.contextLimit > 0 {
+				label = strconv.Itoa(m.contextLimit) + " tokens"
+			}
+			m.appendBlock(markerBlock("Context budget: " + label))
+		})
 		return m, nil
 	case "sidebar":
 		m.sidebarHidden = !m.sidebarHidden
@@ -254,7 +285,7 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 	case "theme":
 		arg = strings.ToLower(strings.TrimSpace(arg))
 		if arg == "" {
-			m.appendBlock(markerBlock("Theme: " + "dark or light" + " · /theme dark|light"))
+			m.appendBlock(markerBlock("Theme: dark or light · /theme dark|light"))
 			return m, nil
 		}
 		if arg != "dark" && arg != "light" {
@@ -282,16 +313,18 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 			m.appendBlock(errorBlock("Choose /nudges full, recovery or off."))
 			return m, nil
 		}
-		m.nudges = parsed
-		if m.sess != nil {
-			sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
-			if err != nil {
-				m.appendBlock(errorBlock(err.Error()))
-				return m, nil
+		m.confirmRestart(func() {
+			m.nudges = parsed
+			if m.sess != nil {
+				sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
+				if err != nil {
+					m.appendBlock(errorBlock(err.Error()))
+					return
+				}
+				m.sess = sess
 			}
-			m.sess = sess
-		}
-		m.appendBlock(markerBlock("Nudges: " + agent.NudgeLevelName(m.nudges)))
+			m.appendBlock(markerBlock("Nudges: " + agent.NudgeLevelName(m.nudges)))
+		})
 		return m, nil
 	case "mode":
 		mode := strings.ToLower(strings.TrimSpace(arg))
@@ -303,23 +336,25 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 			m.appendBlock(errorBlock("Choose /mode plan or /mode act."))
 			return m, nil
 		}
-		previous := m.plan
-		m.plan = mode == "plan"
-		if m.sess != nil {
-			sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
-			if err != nil {
-				m.plan = previous
-				m.appendBlock(errorBlock(err.Error()))
-				return m, nil
+		m.confirmRestart(func() {
+			previous := m.plan
+			m.plan = mode == "plan"
+			if m.sess != nil {
+				sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
+				if err != nil {
+					m.plan = previous
+					m.appendBlock(errorBlock(err.Error()))
+					return
+				}
+				if err := m.saveMode(); err != nil {
+					m.plan = previous
+					m.appendBlock(errorBlock(err.Error()))
+					return
+				}
+				m.sess = sess
 			}
-			if err := m.saveMode(); err != nil {
-				m.plan = previous
-				m.appendBlock(errorBlock(err.Error()))
-				return m, nil
-			}
-			m.sess = sess
-		}
-		m.appendBlock(markerBlock("Mode: " + m.modeName()))
+			m.appendBlock(markerBlock("Mode: " + m.modeName()))
+		})
 		return m, nil
 	case "retry":
 		if m.runErr == nil || m.retryRun == nil {

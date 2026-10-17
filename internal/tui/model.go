@@ -113,6 +113,10 @@ type model struct {
 	interrupted bool
 	// stateFile locates the saved transcript for follow-ups.
 	stateFile    string
+	// confirmAction, when set, is a pending session-restarting command
+	// waiting for yes/no. The dialog shows the prompt; y runs it, n/esc
+	// cancels. Cleared on either path.
+	confirmAction func()
 	sessionTitle string
 	// ws resolves @file paths against the workspace, escape-checked
 	// like every file tool path. Stored, not rebuilt per turn.
