@@ -202,7 +202,7 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onDelta func(strin
 		msg.ToolCalls = append(msg.ToolCalls, ToolCall{
 			ID:        dc.ID,
 			Name:      dc.Function.Name,
-			Arguments: repairArguments(normalizeArguments(json.RawMessage(dc.Function.Arguments))),
+			Arguments: normalizeArguments(json.RawMessage(dc.Function.Arguments)),
 		})
 	}
 	// llama.cpp streams carry no usage block: estimate from the wire

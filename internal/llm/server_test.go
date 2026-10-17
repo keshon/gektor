@@ -74,9 +74,6 @@ func TestChat_StringEncodedArguments(t *testing.T) {
 	}
 }
 
-// TestNormalizeArguments_AcceptsObjectForm covers backends that send the
-// arguments object directly instead of string-encoding it — both shapes
-// must work, since not every local server follows the spec the same way.
 // TestChat_CachedTokensParsed covers the llama.cpp usage shape
 // (prompt_tokens_details.cached_tokens), which koboldcpp omits —
 // verified absent on the wire. A backend that does not report it must
@@ -109,21 +106,22 @@ func TestChat_CachedTokensParsed(t *testing.T) {
 	}
 }
 
-func TestRepairArguments_PassesThroughWithoutInputWrapper(t *testing.T) {
+// Arguments are handed to the tool exactly as the backend sent them, so
+// its own schema error reaches the model. Anything else would wrap a
+// mistyped argument in something the tool accepts, hiding the mistake.
+func TestNormalizeArguments_LeavesInvalidBytesAlone(t *testing.T) {
 	raw := json.RawMessage(`not-json-at-all`)
-	got := repairArguments(raw)
-	if string(got) != string(raw) {
-		t.Fatalf("repairArguments = %s, want passthrough %s", got, raw)
+	if got := normalizeArguments(raw); string(got) != string(raw) {
+		t.Fatalf("normalizeArguments = %s, want passthrough %s", got, raw)
 	}
-
-	// Bare JSON string should also pass through — tools fail fast on schema.
 	bare := json.RawMessage(`"abc"`)
-	got = repairArguments(bare)
-	if string(got) != `"abc"` {
-		t.Fatalf("repairArguments = %s, want bare string passthrough", got)
+	if got := normalizeArguments(bare); string(got) != "abc" {
+		t.Fatalf("normalizeArguments = %s, want unquoted abc", got)
 	}
 }
 
+// Backends differ on whether arguments arrive string-encoded or as an
+// object; both have to decode to the same tool arguments.
 func TestNormalizeArguments_AcceptsObjectForm(t *testing.T) {
 	raw := json.RawMessage(`{"command": "ls"}`)
 	got := normalizeArguments(raw)

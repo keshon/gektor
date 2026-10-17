@@ -347,15 +347,7 @@ func balancedJSON(s string, start int) (string, int) {
 // arguments key with nothing after it. Trailing whitespace allowed.
 var partialTail = regexp.MustCompile(`(?i)(<\|?tool_?[a-z_]*|<\|tool_call\|?|call_[A-Za-z0-9_]*|arguments\s*=\s*)\s*$`)
 
-// holdBackPartial strips a trailing partial fragment. Strata's hold-back
-// waits for the next chunk; with unary responses there is none, so the
-// stump is dropped instead of fed back as content to imitate.
-func holdBackPartial(content string) (bool, string) {
-	if loc := partialTail.FindStringIndex(content); loc != nil {
-		return true, strings.TrimSpace(content[:loc[0]])
-	}
-	return false, content
-}
+
 
 // hasLeakMarkers is the old blocklist, kept only for the unparseable
 // remainder: tagged text naming an unknown tool, or JSON too broken to

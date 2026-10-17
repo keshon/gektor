@@ -2,7 +2,6 @@ package llm
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"time"
 )
@@ -84,9 +83,4 @@ func ChatWithRetry(ctx context.Context, c Client, req ChatRequest, policy RetryP
 			delay = policy.MaxDelay
 		}
 	}
-}
-
-// RetryableError formats the last retry failure for logs.
-func RetryableError(attempt int, err error) string {
-	return fmt.Sprintf("backend attempt %d failed: %v", attempt+1, err)
 }

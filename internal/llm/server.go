@@ -411,7 +411,10 @@ func (c *Server) Chat(ctx context.Context, req ChatRequest) (ChatResponse, error
 		out.ToolCalls = append(out.ToolCalls, ToolCall{
 			ID:        tc.ID,
 			Name:      tc.Function.Name,
-			Arguments: repairArguments(normalizeArguments(tc.Function.Arguments)),
+			// Arguments reach tools as the backend sent them, including a
+			// bare string or invalid bytes, so the tool's own schema error
+			// is what the model sees. Wrapping them here would hide it.
+			Arguments: normalizeArguments(tc.Function.Arguments),
 		})
 	}
 
@@ -486,13 +489,4 @@ func encodeArguments(args json.RawMessage) json.RawMessage {
 		return json.RawMessage(`"{}"`)
 	}
 	return json.RawMessage(wrapped)
-}
-
-// repairArguments passes wire-format arguments through unchanged. Valid
-// JSON (including a bare string instead of an object) reaches tools as-is
-// so they can fail fast with a clear schema error. Invalid bytes also pass
-// through — tools report bad arguments rather than masking mistakes behind
-// an {"input":"..."} wrapper.
-func repairArguments(raw json.RawMessage) json.RawMessage {
-	return raw
 }
