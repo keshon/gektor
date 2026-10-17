@@ -16,17 +16,22 @@ func ConfigureAgent(profile config.Profile, directory string) (Services, error) 
 	}
 	c := profile.Conversation
 	if c == nil {
-		c = &config.Conversation{UserName: "User", SystemPrompt: "You are a helpful conversational assistant."}
+		c = &config.Conversation{UserName: config.DefaultUserName, SystemPrompt: config.DefaultSystemPrompt}
 	}
-	main, post := true, true
-	if c.PreferCharacterPrompt != nil {
-		main = *c.PreferCharacterPrompt
-	}
-	if c.PreferCharacterPostHistory != nil {
-		post = *c.PreferCharacterPostHistory
-	}
+	// No character, and no greeting index or card-prompt preference.
+	// Cards belong to Chat. A card is written for a conversation: its
+	// opening greeting has no place in a run that starts from a task, its
+	// dialogue examples crowd out tool-call examples, and its
+	// post_history_instructions ("respond directly to the latest message,
+	// do not invent actions or capabilities") states the opposite of what
+	// an agent loop is for. What survives is the profile's own identity
+	// and response style: name, user, persona, base prompt, post-history,
+	// and the preset.
+	//
+	// An Agent's instructions are otherwise its own prompts — see
+	// roles.Interactive — and nothing here competes with them.
 	var err error
-	out.Settings, out.Warnings, err = CompileChatSettings(ChatOptions{Preset: c.PromptPreset, Name: c.Name, Persona: c.UserPersona, GreetingIndex: c.GreetingIndex, Character: c.Character, User: c.UserName, System: c.SystemPrompt, Post: c.PostHistory, PreferMain: main, PreferPost: post, MaxTokens: profile.Generation.MaxTokens, ContextLimit: profile.Generation.ContextLimit, Temperature: profile.Generation.Temperature})
+	out.Settings, out.Warnings, err = CompileChatSettings(ChatOptions{Preset: c.PromptPreset, Name: c.Name, Persona: c.UserPersona, User: c.UserName, System: c.SystemPrompt, Post: c.PostHistory, MaxTokens: profile.Generation.MaxTokens, ContextLimit: profile.Generation.ContextLimit, Temperature: profile.Generation.Temperature})
 	if err != nil {
 		return out, err
 	}

@@ -8,6 +8,7 @@ import (
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/speech"
+	"github.com/keshon/tars/internal/workspace"
 	"os"
 	"path/filepath"
 	"testing"
@@ -127,15 +128,89 @@ func TestSharedApplicationPageRetainsStagedModel(t *testing.T) {
 	m := settingsModel(t)
 	profile := m.chat.config.Profile
 	m.application = &Application{Preferences: config.Preferences{Version: 1, Mode: "chat", Voice: "off", Workspace: t.TempDir(), Profile: &profile}}
-	original := m.sessionDirectory()
 	m.editSettings("model")
 	focusSetting(m, "model")
 	m.dialog.form.Editor.SetValue("selected-model")
 	m.editSettings("application")
 	m.dialog.form.Editor.SetValue("agent")
 	m.applyForm()
-	if m.modeChange == nil || m.modeChange.Preferences.Profile.Provider.Model != "selected-model" || m.modeChange.Directory != original || m.modeChange.Preferences.Mode != "agent" {
-		t.Fatal("shared settings lost staged values or session identity")
+	if m.modeChange == nil || m.modeChange.Preferences.Profile.Provider.Model != "selected-model" {
+		t.Fatal("shared settings lost staged values")
+	}
+	if m.modeChange.Preferences.Mode != "agent" {
+		t.Fatalf("mode = %q", m.modeChange.Preferences.Mode)
+	}
+	// A mode change must not adopt the Chat directory. The Agent writes
+	// state.json and its mode beside conversation.json, which flips that
+	// directory's settings.json to "agent": the transcript stops being
+	// offered by the session list and the next delete removes it.
+	if m.modeChange.Directory != "" {
+		t.Fatalf("mode change carried a Chat directory into an Agent launch: %q", m.modeChange.Directory)
+	}
+}
+
+// A change that does not switch mode stays in the session it was made in.
+func TestSameModeSettingsChangeKeepsTheSessionDirectory(t *testing.T) {
+	m := agentSettingsModel(t)
+	// The Agent side reads its checkpoint before anything is written; a
+	// missing one would fail for a reason unrelated to this check.
+	m.stateFile = writeSessionState(t, t.TempDir(), "agent", []llm.Message{{Role: llm.RoleUser, Content: "task"}})
+	original := m.sessionDirectory()
+	m.application.Preferences.Workspace = original
+	m.editSettings("application")
+	focusSetting(m, "app-workspace")
+	m.dialog.form.Editor.SetValue(t.TempDir())
+	focusSetting(m, "app-voice")
+	m.applyForm()
+	if m.dialog != nil {
+		t.Fatalf("apply refused: %q", m.dialog.form.Error)
+	}
+	if m.modeChange == nil {
+		t.Fatal("no mode change queued")
+	}
+	if m.modeChange.Directory != original {
+		t.Fatalf("same-mode change moved the session: %q -> %q", original, m.modeChange.Directory)
+	}
+}
+
+// An Agent task must never be rooted in a directory that holds a Chat
+// archive, whatever put it there.
+func TestAgentTaskNeverOverwritesAChatArchive(t *testing.T) {
+	m := sizeModel(t, testModel())
+	root := t.TempDir()
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chatDir := filepath.Join(root, "chat-session")
+	if err := os.MkdirAll(chatDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(chatDir, "conversation.json"), []byte(`[{"role":"user","content":"hi"}]`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m.ws = ws
+	m.application = &Application{Preferences: config.Preferences{Version: 1, Mode: "agent", Workspace: root}}
+	m.audioConfig = &ChatConfig{Directory: root, Profile: config.Profile{Version: 1}}
+	m.stateFile = filepath.Join(chatDir, "state.json")
+
+	got := m.taskDirectory("abcd1234")
+	if got == chatDir {
+		t.Fatalf("Agent task rooted in the Chat archive directory: %q", got)
+	}
+	if filepath.Dir(got) != root {
+		t.Fatalf("Agent task escaped the session root: %q", got)
+	}
+
+	// Without the archive the directory is kept, so a resumed task stays
+	// where it was.
+	agentDir := filepath.Join(root, "agent-session")
+	if err := os.MkdirAll(agentDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m.stateFile = filepath.Join(agentDir, "state.json")
+	if got := m.taskDirectory("abcd1234"); got != agentDir {
+		t.Fatalf("resumed task moved: %q", got)
 	}
 }
 

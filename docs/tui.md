@@ -472,13 +472,20 @@ cancellation, so speaker output can be picked up by the microphone.
 
 The menu is Session, Mode, Chat/Agent, View, Settings, Voice, Help. Mode selects
 Chat or Agent; the current choice is marked. Settings opens the same workspace
-in either mode: Model, Generation, Speech, Profiles, Application. Character and
-Prompts are available only in Chat. Application selects the mode, workspace and
+in either mode: Model, Generation, Speech, Profiles, Application, plus Prompts.
+Character is Chat-only. Application selects the mode, workspace and
 voice input style. Enter opens choices or file/directory pickers. F6 moves to the
 category list; unsaved values remain staged across categories. Apply without
 changes does nothing. Cancel discards the staged values.
 
-Mode switches preserve the session directory, title and composer draft. Entering
+Mode switches preserve the composer draft and the projected dialogue. The
+session directory carries across only when the mode is unchanged: handing a
+Chat directory to an Agent made the Agent write `state.json` and its mode
+beside `conversation.json`, which flipped that directory's `settings.json` to
+`agent` — the transcript stopped being offered by the session list, and the
+next delete removed it. A mode change therefore starts a session of its own,
+seeded with the projected dialogue, and leaves the previous one openable.
+Entering
 Agent requires a workspace and starts in Plan. Agent > Act enables tool execution
 under the existing permission gates. Applying service/model settings in an existing
 Agent session preserves Plan/Act; it never starts a run. Switching modes while a
@@ -561,17 +568,31 @@ performance; their audible strength varies with the checkpoint and phrase.
 
 ## Character identity and card macros
 
-Both Chat and Agent use the active card name. Without a card, the profile's
-conversation.name is used, falling back to Assistant. TARS names the project.
-Agent keeps its operational prompts and permission policy while adopting this
-conversational identity. Settings > Character and Settings > Prompts work in
-both modes; Settings > Prompt preview shows the expanded character instructions,
-example messages and current speech delivery instructions when enabled.
+Character cards belong to Chat. A card is written for a conversation: its
+opening greeting has no place in a run that starts from a task, its dialogue
+examples crowd out tool-call examples, and its `post_history_instructions`
+("respond directly to the latest message, do not invent actions or
+capabilities") states the opposite of what an agent loop is for. Agent
+therefore never loads a card — no card text, no greeting, no examples — and
+takes its identity from the profile's `conversation.name`, falling back to
+Assistant.
+
+What an Agent does keep from the conversation block is its own: the name, the
+user's name and persona, the base system prompt, the post-history directive,
+and the response-style preset. Settings > Prompts works in both modes;
+Settings > Character is Chat-only, and the category rail hides it outside
+Chat. Switching an Agent to Chat with an unreadable card path is not an
+error, because only Chat reads the card.
+
+TARS names the project. Agent keeps its operational prompts and permission
+policy; nothing from a card competes with them. Settings > Prompt preview
+shows the expanded instructions, example messages and current speech delivery
+instructions when enabled.
 
 Settings > Character selects a card, a fallback assistant name and an opening
 greeting. Settings > You contains your name and persona description. Profiles
 are saved setups that include model, speech and the selected character. Mode
-selects Chat or Agent capabilities and retains the character selection.
+selects Chat or Agent capabilities.
 The greeting selector uses 0 for the main greeting and 1+ for alternate_greetings.
 Selecting a greeting updates the opening context; existing user and assistant
 turns remain intact.
@@ -625,11 +646,11 @@ controls are not reproduced.
 ## Prompt presets
 
 Settings > Prompts > Prompt preset selects a reusable response style in both
-Chat and Agent. Custom (the default) keeps the base prompts and card overrides
-without adding preset instructions. Conversation, Roleplay, Storytelling, Concise,
-Coding, Investigation and Explanation add a style section to the compiled system
-instruction. The card still supplies identity; Agent's operational instructions,
-Plan/Act tools and permission policy remain separate.
+Chat and Agent. Custom (the default) keeps the base prompts and profile
+settings without adding preset instructions. Conversation, Roleplay,
+Storytelling, Concise, Coding, Investigation and Explanation add a style
+section to the compiled instruction. Roleplay and Storytelling describe
+scenes and dialogue and belong to Chat; the rest are meaningful in both.
 
 The picker describes each preset. Settings > Prompt preview shows the applied
 preset and its compiled instructions. Apply preserves the conversation and saves

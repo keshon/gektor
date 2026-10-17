@@ -166,7 +166,12 @@ func (m *model) rawHeaderItems() []headerItem {
 		editable := idle && m.audio() != nil && m.audio().Configure != nil
 		rows := []headerItem{{"Model…", "edit:model", editable}, {"Generation…", "edit:generation", editable}, {"Speech…", "edit:speech", editable && m.hasSettingsSpeech()}, {"Profiles…", "edit:profiles", editable}, {"Application…", "application", idle && m.application != nil}}
 		if m.audio() != nil {
-			rows = append(rows, headerItem{"Character…", "edit:character", editable}, headerItem{"You…", "edit:you", editable}, headerItem{"Prompts…", "edit:prompts", editable}, headerItem{"Prompt preview…", "prompt-info", true})
+			// Character is Chat-only: an Agent takes no card, so offering
+			// the page there would save a value nothing reads.
+			rows = append(rows, headerItem{"You…", "edit:you", editable}, headerItem{"Prompts…", "edit:prompts", editable}, headerItem{"Prompt preview…", "prompt-info", true})
+			if m.chat != nil {
+				rows = append([]headerItem{{"Character…", "edit:character", editable}}, rows...)
+			}
 		}
 		return rows
 	case "conversation-mode":
@@ -361,17 +366,6 @@ func (m *model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				return m, nil
 			case "voice-cancel":
 				m.cancelRecording()
-				return m, nil
-			case "voice-details":
-				cfg := m.audio().Profile.Speech
-				lines := []string{"Input: Whisper · English · push-to-talk / hands-free", "Output: Chatterbox " + cfg.Speaking.Variant + " · resident worker", "Microphone: " + cfg.Microphone, "Recognition: " + cfg.Listening.Ownership + " " + cfg.Listening.URL, "Speech model: " + cfg.Speaking.Model, "F8/Ctrl+R starts or finishes recording; wait for microphone readiness.", "Esc stops the current request and playback.", "Ctrl+L: hands-free with Silero VAD CPU and application-controlled interruption. Speech cue negotiation remains separate."}
-				if logs, ok := m.runtime().Voice.(interface{ Diagnostics() string }); ok {
-					lines = append(lines, "Logs: "+logs.Diagnostics())
-				}
-				m.openDialog("Speech services", lines)
-				return m, nil
-			case "save-profile":
-				m.saveChatProfile()
 				return m, nil
 			case "prompt-info":
 				m.inspectChatPrompt()

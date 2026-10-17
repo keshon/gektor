@@ -75,9 +75,7 @@ func (m *model) previewSettingsSpeech() tea.Cmd {
 		f.Error = "This profile has no speech service"
 		return nil
 	}
-	a, b := *staged.Speech, *current
-	a.Enabled = b.Enabled
-	if a != b {
+	if speechSettingsChanged(staged.Speech, current) {
 		f.Error = "Apply changed speech settings before playing its voice sample"
 		return nil
 	}

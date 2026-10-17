@@ -97,7 +97,7 @@ func (f *Model) OpenPicker(props Props) tea.Cmd {
 		if key == "character" {
 			root = filepath.Join(filepath.Dir(exe), "assets", "characters")
 		}
-		if key == "load-profile" || key == "app-profile" {
+		if key == "load-profile" {
 			root = filepath.Join(filepath.Dir(exe), "profiles")
 		}
 	}
@@ -288,7 +288,7 @@ func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 		title = "Character card"
 	case "model-file":
 		title = "Thinking model"
-	case "load-profile", "app-profile":
+	case "load-profile":
 		title = "Profile / saved setup"
 	case "app-workspace":
 		title = "Agent workspace"

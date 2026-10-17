@@ -4,8 +4,10 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/app"
 
 	"github.com/keshon/tars/internal/chat"
@@ -130,6 +132,58 @@ func TestSettingsSaveFailurePreservesRuntimeAndAllFiles(t *testing.T) {
 				t.Fatal("retry did not persist staged generation", err)
 			}
 		})
+	}
+}
+
+// Resolve writes neither Profiles nor Application, so a dirty draft made
+// only of those pages produced no change and no file — while the
+// transcript claimed the settings were applied.
+func TestProfilesApplyDoesNotClaimSuccess(t *testing.T) {
+	m := settingsModel(t)
+	m.editSettings("profiles")
+	ws := m.settingsWorkspace()
+	if len(appliedSections(ws)) != 0 {
+		t.Fatal("precondition: the Profiles page has nothing Resolve writes")
+	}
+	focusSetting(m, "profile-name")
+	m.dialog.form.Editor.SetValue("copy")
+	focusSetting(m, "load-profile")
+	m.applyForm()
+	if m.dialog != nil {
+		t.Fatalf("apply refused: %q", m.dialog.form.Error)
+	}
+	for _, b := range m.transcript.blocks {
+		if b.role == roleMarker && strings.Contains(b.text, "Settings applied") {
+			t.Fatal("claimed settings were applied when the Profiles page writes nothing")
+		}
+	}
+}
+
+// A profile loaded from disk has nothing to diff but must still take
+// effect, or loading a setup would silently do nothing.
+func TestLoadedProfileStillAppliesWithNoFieldEdits(t *testing.T) {
+	m := settingsModel(t)
+	m.application = &Application{Preferences: config.Preferences{Version: 1, Mode: "chat", Voice: "off"}}
+	root := t.TempDir()
+	p := m.chat.config.Profile.Clone()
+	p.Conversation.UserName = "Alex"
+	path := filepath.Join(root, "custom.json")
+	if err := config.SaveCopy(p, path); err != nil {
+		t.Fatal(err)
+	}
+	m.editSettings("profiles")
+	focusSetting(m, "load-profile")
+	m.openSettingsPicker()
+	picker := m.dialog.form.Picker
+	m.acceptSettingsScan(settingsScanMsg{ID: picker.ID, Items: []string{path}})
+	m.pickerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.editSettings("generation")
+	m.applyForm()
+	if m.dialog != nil {
+		t.Fatalf("apply refused: %q", m.dialog.form.Error)
+	}
+	if m.chat.config.Profile.Conversation.UserName != "Alex" {
+		t.Fatalf("loaded profile was not committed: %q", m.chat.config.Profile.Conversation.UserName)
 	}
 }
 

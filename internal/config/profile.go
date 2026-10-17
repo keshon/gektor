@@ -63,6 +63,16 @@ type Generation struct {
 	Temperature  float64 `json:"temperature,omitempty"`
 }
 
+// DefaultSystemPrompt is the base instruction a launch uses when nothing
+// configures one. It lived in three places as a literal — the -system-prompt
+// flag default, the substitution for a profile with no conversation block,
+// and the generated profile for a launch with no profile — and drifted
+// silently the first time one of them changed.
+const DefaultSystemPrompt = "You are a helpful conversational assistant."
+
+// DefaultUserName is the placeholder for an unset conversation user.
+const DefaultUserName = "User"
+
 type Conversation struct {
 	PromptPreset               string `json:"prompt_preset,omitempty"`
 	Name                       string `json:"name,omitempty"`

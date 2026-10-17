@@ -15,6 +15,7 @@ import (
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/speech"
+	"github.com/keshon/tars/internal/tui/settings"
 )
 
 func settingsModel(t *testing.T) *model {
@@ -120,7 +121,11 @@ func TestDirectRenameAndDeleteDefaultCancel(t *testing.T) {
 		t.Fatal("explicit delete failed")
 	}
 }
-func TestSaveProfileRefusesOverwriteAndKeepsCardPath(t *testing.T) {
+// Save-as-copy is reached through Settings > Profiles with Ctrl+D, and
+// refuses to overwrite. It resolves relative paths against the staged
+// profile's own directory depth, so a character card written relatively
+// still points at the same file after a move.
+func TestSaveCopyRefusesOverwriteAndKeepsCardPath(t *testing.T) {
 	m := settingsModel(t)
 	root := t.TempDir()
 	card := filepath.Join(root, "card.json")
@@ -128,26 +133,46 @@ func TestSaveProfileRefusesOverwriteAndKeepsCardPath(t *testing.T) {
 	m.chat.config.Profile.Conversation.Character = card
 	first := filepath.Join(root, "existing.json")
 	os.WriteFile(first, []byte("original"), 0600)
-	m.saveChatProfile()
-	m.dialog.form.Editor.SetValue(first)
-	m.applyForm()
-	if m.dialog == nil || m.dialog.form.Error == "" {
-		t.Fatal("existing profile overwritten")
+
+	// The copy is written beside the executable, so aim the name at an
+	// existing file there and read the saved path back from the message.
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
 	}
-	next := filepath.Join(root, "other folder", "profile.json")
-	m.dialog.form.Editor.SetValue(next)
-	m.applyForm()
-	if m.dialog != nil {
-		t.Fatal("save failed")
+	existing := filepath.Join(filepath.Dir(exe), "profiles", "existing.json")
+	if err := os.MkdirAll(filepath.Dir(existing), 0o755); err != nil {
+		t.Fatal(err)
 	}
-	p, err := config.Load(next)
+	if err := os.WriteFile(existing, []byte("original"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(existing)
+
+	m.editSettings("profiles")
+	focusSetting(m, "profile-name")
+	m.dialog.form.Editor.SetValue("existing")
+	m.handleSettingsIntent(settings.Intent{Action: settings.SaveCopy})
+	if !strings.Contains(m.dialog.form.Error, "The file exists") {
+		t.Fatalf("existing profile overwritten: %q", m.dialog.form.Error)
+	}
+	focusSetting(m, "profile-name")
+	m.dialog.form.Editor.SetValue("copied")
+	m.handleSettingsIntent(settings.Intent{Action: settings.SaveCopy})
+	if !strings.HasPrefix(m.dialog.form.Error, "Saved copy: ") {
+		t.Fatalf("save failed: %q", m.dialog.form.Error)
+	}
+	saved := strings.TrimPrefix(m.dialog.form.Error, "Saved copy: ")
+	defer os.Remove(saved)
+
+	p, err := config.Load(saved)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if p.Conversation.Character != card {
-		t.Fatal("retry resolved card against wrong directory")
+		t.Fatalf("card path did not survive the copy: %q", p.Conversation.Character)
 	}
-	data, _ := os.ReadFile(first)
+	data, _ := os.ReadFile(existing)
 	if string(data) != "original" {
 		t.Fatal("original file altered")
 	}
@@ -218,7 +243,11 @@ func agentSettingsModel(t *testing.T) *model {
 	t.Helper()
 	m := settingsModel(t)
 	audio := m.chat.config
-	audio.Profile.Speech = &speech.Config{Microphone: "mic", Speaking: speech.Speaking{Provider: "chatterbox"}}
+	audio.Profile.Speech = &speech.Config{
+		Microphone: "mic", Recorder: "ffmpeg", PlayerBinary: "ffplay", MaxSeconds: 120,
+		Speaking:  speech.Speaking{Provider: "chatterbox", Variant: "nano", Binary: "python", Model: "assets/models/speaking/chatterbox/nano"},
+		Listening: speech.Listening{Ownership: "external", URL: "http://127.0.0.1:19082"},
+	}
 	m.chat = nil
 	m.audioConfig = audio
 	m.application = &Application{Preferences: config.Preferences{Version: 1, Mode: "agent"}}
@@ -266,6 +295,33 @@ func TestEveryIdleSettingsRowOpens(t *testing.T) {
 		if m.dialog == nil {
 			t.Fatalf("Settings row %q (%s) opened nothing", item.text, item.command)
 		}
+	}
+}
+
+// Switching a profile-less session to Chat used to dead-end. The
+// generated profile carried no Conversation, ConfigureAgent's
+// substitution never reached the profile, and Apply refused with "Chat
+// requires a profile with conversation settings" — a requirement nothing
+// on that screen could satisfy.
+func TestAgentSessionCanSwitchToChat(t *testing.T) {
+	m := agentSettingsModel(t)
+	m.audioConfig.Profile.Conversation = nil // what a generated profile carried
+	m.application.Preferences.Mode = "agent"
+	// The Agent side reads its checkpoint before anything is written; a
+	// missing one would fail for a reason unrelated to this switch.
+	m.stateFile = writeSessionState(t, t.TempDir(), "agent", []llm.Message{{Role: llm.RoleUser, Content: "task"}})
+	m.editSettings("application")
+	if m.dialog == nil {
+		t.Fatal("application form did not open")
+	}
+	m.dialog.form.Editor.SetValue("chat")
+	focusSetting(m, "app-voice")
+	m.applyForm()
+	if m.dialog != nil {
+		t.Fatalf("mode switch refused: %q", m.dialog.form.Error)
+	}
+	if m.modeChange == nil || m.modeChange.Preferences.Mode != "chat" {
+		t.Fatalf("mode change not queued: %+v", m.modeChange)
 	}
 }
 

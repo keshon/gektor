@@ -7,15 +7,24 @@ import (
 	"strings"
 
 	"github.com/keshon/tars/internal/prompts"
+	"github.com/keshon/tars/internal/speech"
 )
 
 // ApplySection applies editor values to a staged profile. Callers should clone the
 // active profile first; validation failures can leave the staged copy partly edited.
+//
+// A nil Conversation or Speech is materialized rather than dereferenced. Both
+// are legitimately absent from a profile — Validate permits it, and the
+// bundled agent profile has neither a conversation block nor speech — so a
+// section that supplies one has to be able to create it.
 func ApplySection(profile *Profile, section string, values map[string]string) error {
 	conversation := profile.Conversation
 	if conversation == nil {
-		conversation = &Conversation{UserName: "User"}
+		conversation = &Conversation{UserName: DefaultUserName}
 		profile.Conversation = conversation
+	}
+	if section == "speech" && profile.Speech == nil {
+		profile.Speech = &speech.Config{}
 	}
 	switch section {
 	case "character":

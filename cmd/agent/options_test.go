@@ -73,6 +73,31 @@ func TestResolveLaunchClonesHandoffProfile(t *testing.T) {
 	}
 }
 
+// The generated profile must be usable for both modes. ConfigureAgent
+// substitutes a Conversation when one is missing but never writes it back,
+// so switching a generated session to Chat was refused with a requirement
+// nothing on that screen could satisfy.
+func TestGeneratedProfileCarriesAConversation(t *testing.T) {
+	o, err := parseLaunchOptions([]string{"-tui", "-backend-kind", "llama", "-backend", "http://127.0.0.1:8080"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := launchProfile(resolvedLaunch{launchOptions: o}, 32768)
+	if p.Conversation == nil {
+		t.Fatal("generated profile has no conversation settings")
+	}
+	if err := p.Validate(); err != nil {
+		t.Fatalf("generated profile rejected: %v", err)
+	}
+	if p.Conversation.UserName != config.DefaultUserName || p.Conversation.SystemPrompt != config.DefaultSystemPrompt {
+		t.Fatalf("conversation defaults: %+v", p.Conversation)
+	}
+	// Characters belong to Chat. An Agent must not be handed one.
+	if p.Conversation.Character != "" {
+		t.Fatalf("generated Agent profile carries a character: %q", p.Conversation.Character)
+	}
+}
+
 // The launch docs/tui.md shows has no -profile, and it still has to be
 // configurable: without a profile the services handle and the Application
 // both came back nil, which disabled every Settings, Mode and Voice row
@@ -93,9 +118,6 @@ func TestLaunchWithoutProfileStillValid(t *testing.T) {
 	}
 	if p.Generation.MaxTokens != o.maxTokens || p.Generation.ContextLimit != 32768 {
 		t.Fatalf("generated generation: %+v", p.Generation)
-	}
-	if p.Conversation != nil {
-		t.Fatal("generated profile must not invent conversation settings")
 	}
 	if applicationControl(launchRequest{}, p, "", false, ".") == nil {
 		t.Fatal("generated profile must still yield an Application")

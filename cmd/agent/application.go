@@ -85,7 +85,13 @@ func runApplication(args []string) error {
 	}
 }
 func applicationArgs(p config.Preferences) []string {
-	args := []string{"-tui", "-conversation", p.Mode, "-profile", p.ProfilePath}
+	args := []string{"-tui", "-conversation", p.Mode}
+	// Only when there is a file. A generated setup has none, and emitting
+	// an empty -profile produced a launch that parsed successfully and
+	// then came up on the flag defaults.
+	if p.ProfilePath != "" {
+		args = append(args, "-profile", p.ProfilePath)
+	}
 	if p.Voice != "off" {
 		args = append(args, "-voice")
 	}
@@ -125,13 +131,24 @@ func launchProfile(o resolvedLaunch, contextLimit int) config.Profile {
 	return config.Profile{
 		Version: 1,
 		Provider: config.Provider{
-			Kind:       o.backendKind,
-			URL:        o.backendURL,
-			Model:      o.model,
-			Ownership:  "external",
-			APIKeyEnv:  o.apiKeyEnv,
+			Kind:      o.backendKind,
+			URL:       o.backendURL,
+			Model:     o.model,
+			Ownership: "external",
+			APIKeyEnv: o.apiKeyEnv,
 		},
 		Generation: generation,
+		// Written, not left nil for ConfigureAgent to substitute: the
+		// substitution never reached the profile, so switching this session
+		// to Chat was refused with "Chat requires a profile with
+		// conversation settings" and nothing on that screen could fix it.
+		//
+		// No Character. Characters belong to Chat; an Agent takes its
+		// identity from Name and its instructions from its own prompts.
+		Conversation: &config.Conversation{
+			UserName:     config.DefaultUserName,
+			SystemPrompt: config.DefaultSystemPrompt,
+		},
 	}
 }
 

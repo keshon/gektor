@@ -17,6 +17,11 @@ type Workspace struct {
 	SampleID                 uint64
 	SampleCancel             context.CancelFunc
 	Section, LoadedPath      string
+	// VoiceMode is the voice input mode as it was when the form opened.
+	// Opening a settings page stops microphone capture, so the live mode
+	// afterwards no longer describes what the reader had; persisting that
+	// silently downgraded hands-free to push-to-talk on every Apply.
+	VoiceMode                string
 	AutoSaved, Nav, Advanced bool
 }
 type Model struct {
@@ -212,6 +217,11 @@ func (f *Model) AvailableCategories() []Category {
 			continue
 		}
 		if c.ID == "speech" && !f.HasSpeech() {
+			continue
+		}
+		// Cards belong to Chat. An Agent never reads one, so the page
+		// would be a setting that saves a value nothing consumes.
+		if c.ID == "character" && !f.Chat {
 			continue
 		}
 		out = append(out, c)

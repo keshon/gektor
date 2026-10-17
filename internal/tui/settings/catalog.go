@@ -16,7 +16,7 @@ import (
 )
 
 func PickerFiles(key string) bool {
-	return key == "model-file" || key == "character" || key == "load-profile" || key == "app-profile" || key == "app-workspace"
+	return key == "model-file" || key == "character" || key == "load-profile" || key == "app-workspace"
 }
 
 func PickerControl(key string) bool { return PickerFiles(key) || key == "model" || key == "microphone" }
@@ -28,7 +28,7 @@ func PickerAccepts(key, path string) bool {
 	case "character":
 		ext := strings.ToLower(filepath.Ext(path))
 		return ext == ".png" || ext == ".json"
-	case "app-profile", "load-profile":
+	case "load-profile":
 		return strings.EqualFold(filepath.Ext(path), ".json")
 	}
 	return false
@@ -66,7 +66,7 @@ func CatalogDetail(key, path string) string {
 		}
 		return card.Name + " · " + strings.ReplaceAll(card.Description, "\n", " ") + " · " + path
 	}
-	if key == "load-profile" || key == "app-profile" {
+	if key == "load-profile" {
 		p, err := config.Load(path)
 		if err != nil {
 			return "Unavailable profile: " + err.Error()
@@ -139,19 +139,21 @@ func ChoiceLabel(key, value string) string {
 func Hint(section string) string {
 	switch section {
 	case "profiles":
-		return "Profiles save your setup, including the selected character."
+		return "Profiles save your setup, including the character chosen for Chat."
 	case "character":
-		return "Character sets identity and dialogue in both Chat and Agent."
+		return "Character sets identity and dialogue. Chat only."
 	case "you":
-		return "Your name and persona are used by the character's prompts."
+		return "Your name and persona are used by the compiled prompts."
 	case "application":
-		return "Mode sets capabilities; switching keeps the selected character."
+		return "Mode sets capabilities; switching modes starts a session of its own."
 	case "model":
-		return "Choose the thinking model; the character stays selected."
+		return "Choose the thinking model."
+	case "generation":
+		return "Response budget and context window for one turn."
 	case "speech":
-		return "Choose voice services; the character stays selected."
+		return "Choose voice services."
 	case "prompts":
-		return "Preset adds response style; card overrides affect base instructions."
+		return "Preset adds response style to the compiled instruction."
 	}
 	return "Changes apply to this session; history stays intact."
 }

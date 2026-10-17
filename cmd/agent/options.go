@@ -180,11 +180,20 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 	if o.checkProfile && o.profilePath == "" {
 		return resolvedLaunch{}, fmt.Errorf("-check-profile requires -profile")
 	}
-	if o.profilePath != "" {
-		p, err := config.Load(o.profilePath)
+	// A relaunch carries the profile it last ran with in memory, because a
+	// generated setup never had a file to point at. Reading it only when
+	// -profile was non-empty dropped it: the rebuilt argv carried
+	// "-profile", and the next launch came up on the flag defaults instead
+	// of the backend it was created against. Any profile supplied in
+	// memory wins, exactly as it did before; the file is the fallback.
+	if o.profilePath != "" || launch.profile != nil {
+		var p config.Profile
+		var err error
 		if launch.profile != nil {
 			p = launch.profile.Clone()
 			err = p.Validate()
+		} else {
+			p, err = config.Load(o.profilePath)
 		}
 		if err != nil {
 			return resolvedLaunch{}, err

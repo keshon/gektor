@@ -98,9 +98,15 @@ func (m *model) formMouse(msg tea.MouseMsg) tea.Cmd {
 	return tea.Batch(cmd, m.handleSettingsIntent(intent))
 }
 func (m *model) editSettings(section string) {
+	// Read before the teardown below. stopListening nils m.listening, so
+	// anything that asks for the voice mode afterwards always gets
+	// push-to-talk: a hands-free reader was downgraded by merely opening
+	// this form, and the Application page reported itself as changed
+	// because its Voice field no longer matched what it compared against.
+	voice := m.liveVoiceMode()
 	m.stopListening()
 	if m.chat == nil && m.application == nil && section == "speech" {
-		m.editAgentSpeech()
+		m.editAgentSpeech(voice)
 		return
 	}
 
@@ -116,7 +122,7 @@ func (m *model) editSettings(section string) {
 		}
 	}
 	if ws == nil {
-		ws = &settingsWorkspace{Draft: settings.New(currentSettings.Profile)}
+		ws = &settingsWorkspace{Draft: settings.New(currentSettings.Profile), VoiceMode: voice}
 	}
 	ws.Section = section
 	profile := ws.Draft.Base()
@@ -124,7 +130,11 @@ func (m *model) editSettings(section string) {
 	if m.application != nil {
 		preferences = m.application.Preferences
 	}
-	title, fields := settings.PageFields(profile, section, preferences, m.currentVoiceMode())
+	// Built from the recorded mode, not currentVoiceMode(): at this point
+	// the new workspace is not attached yet, so the fallback would answer
+	// with the post-teardown mode and the field would disagree with the
+	// preference it is compared against.
+	title, fields := settings.PageFields(profile, section, preferences, voice)
 
 	if m.dialog != nil {
 		m.closeDialog()
@@ -187,21 +197,6 @@ func (m *model) inspectConnection() {
 	m.openDialog("Model connection", []string{"Model: " + nonEmpty(m.modelName), "Protocol: " + nonEmpty(m.backendKind), "Endpoint: " + nonEmpty(m.backendURL), fmt.Sprintf("Context: %d tokens · response: %d tokens", m.limit, m.responseCap), "Coding connection changes currently require restarting the application."})
 }
 
-func (m *model) saveChatProfile() {
-	profile := m.chat.config.Profile.Clone()
-	m.openForm("Save configuration as profile", "Creates a new file; existing profiles are never overwritten.", "Save profile", []formField{{Key: "path", Label: "New profile file", Value: "profiles/chat-custom.json", Multiline: false}}, func(values map[string]string) error {
-		path := strings.TrimSpace(values["path"])
-		if path == "" {
-			return fmt.Errorf("profile path is required")
-		}
-		if err := config.SaveCopy(profile, path); err != nil {
-			return err
-		}
-		m.appendBlock(markerBlock("Profile saved: " + path))
-		return nil
-	})
-}
-
 func (m *model) inspectChatPrompt() {
 	if m.audio() == nil {
 		return
@@ -212,9 +207,16 @@ func (m *model) inspectChatPrompt() {
 		selected = m.audio().Profile.Conversation.PromptPreset
 	}
 	preset, _ := prompts.ResponsePreset(selected)
-	lines := []string{"Prompt preset: " + preset.Name, "Preset adds response style; the card supplies identity. Agent keeps its operational instructions.", "Leading system instruction", s.System, "Opening assistant greeting", s.Greeting, "Post-history system directive", s.PostHistory, "This is the compiled prompt; saved conversation turns are inserted between greeting and post-history."}
+	// The greeting and the dialogue examples come from a character card,
+	// and a card is Chat-only. Offering an Agent a preview of two
+	// headings it can never have described the wrong prompt.
+	greeting, greetingLabel := s.Greeting, "Opening assistant greeting"
 	if m.chat == nil {
-		lines = append([]string{"Agent keeps its Plan/Act operational instructions and adds this character identity."}, lines...)
+		greeting, greetingLabel = "", "Opening assistant greeting (Chat only: this session takes no character)"
+	}
+	lines := []string{"Prompt preset: " + preset.Name, "Preset adds response style; a character card supplies identity in Chat.", "Leading system instruction", s.System, greetingLabel, greeting, "Post-history system directive", s.PostHistory, "This is the compiled prompt; saved conversation turns are inserted between greeting and post-history."}
+	if m.chat == nil {
+		lines = append([]string{"Agent keeps its Plan/Act operational instructions and adds this profile identity and response style."}, lines...)
 	}
 	for _, example := range s.Examples {
 		lines = append(lines, string(example.Role)+": "+example.Content)

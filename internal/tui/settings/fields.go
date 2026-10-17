@@ -7,6 +7,7 @@ import (
 
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/prompts"
+	"github.com/keshon/tars/internal/speech"
 	"github.com/keshon/tars/internal/tui/components/form"
 )
 
@@ -16,9 +17,13 @@ func PageFields(profile config.Profile, section string, preferences config.Prefe
 		conversation = *profile.Conversation
 	}
 	profile.Conversation = &conversation
+	// Copy rather than alias, so an editor field cannot reach back into the
+	// live profile. Also the nil guard the speech page depends on below: it
+	// anticipated an absent Speech and then dereferenced it eleven lines
+	// down, and PageFields is called with whatever the draft holds.
 	if profile.Speech != nil {
-		copy := *profile.Speech
-		profile.Speech = &copy
+		speechCopy := *profile.Speech
+		profile.Speech = &speechCopy
 	}
 	fields := []form.Field{}
 	add := func(key, label, value string, multi bool) {
@@ -66,6 +71,12 @@ func PageFields(profile config.Profile, section string, preferences config.Prefe
 		add("prefer-main", "Use card main prompt (true/false)", strconv.FormatBool(main), false)
 		add("prefer-post", "Use card post-history (true/false)", strconv.FormatBool(post), false)
 	case "speech":
+		// A profile without speech reaches here when a caller asks for the
+		// page directly rather than through the category rail, which
+		// filters it. Show the defaults and let Apply create the block.
+		if profile.Speech == nil {
+			profile.Speech = &speech.Config{}
+		}
 		title = "Speech services"
 		add("microphone", "Microphone (Windows device name)", profile.Speech.Microphone, false)
 		add("variant", "Chatterbox variant", profile.Speech.Speaking.Variant, false)

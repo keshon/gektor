@@ -2,17 +2,56 @@ package tui
 
 import (
 	"path/filepath"
-	"reflect"
 
 	"github.com/keshon/tars/internal/app"
 	"github.com/keshon/tars/internal/chat"
 	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/tars/internal/speech"
 )
+
+// speechSettingsChanged compares a staged speech configuration against the
+// live one, ignoring Enabled.
+//
+// Enabled is runtime state, not a setting: enabling voice, disabling it,
+// and previewing a sample all flip it on the live profile. A settings
+// draft is a snapshot taken when the form opened, so any of those inside
+// an open dialog read as "the user changed their speech settings" and
+// switched voice off on Apply — silently, with the transcript reporting
+// only that settings were applied.
+func speechSettingsChanged(staged, live *speech.Config) bool {
+	if staged == nil || live == nil {
+		return staged != live
+	}
+	a, b := *staged, *live
+	a.Enabled, b.Enabled = false, false
+	return a != b
+}
+
+// appliedSections are the staged sections Resolve actually writes.
+// Profiles and Application are not among them: the first is saved with
+// Ctrl+D, the second applied from its own page. Their buttons still read
+// as live because the draft is dirty, so applying has to say plainly that
+// nothing was applied rather than claim a success that did not happen.
+func appliedSections(ws *settingsWorkspace) []string {
+	var out []string
+	for _, section := range ws.Draft.ChangedSections() {
+		if section != "profiles" && section != "application" {
+			out = append(out, section)
+		}
+	}
+	return out
+}
 
 // applyChatSettings prepares and persists the candidate before transferring
 // service ownership. Every error leaves the active runtime and draft intact.
 func (m *model) applyChatSettings(profile config.Profile, ws *settingsWorkspace) error {
-	speechChanged := !reflect.DeepEqual(profile.Speech, m.chat.config.Profile.Speech)
+	// A loaded setup has no diff to report but must still be committed:
+	// its base is the profile, not the session's.
+	if len(appliedSections(ws)) == 0 && !ws.Draft.Loaded() {
+		m.appendBlock(markerBlock("Nothing to apply. Profiles saves a copy with Ctrl+D; Application changes apply from that page."))
+		return nil
+	}
+	speechChanged := speechSettingsChanged(profile.Speech, m.chat.config.Profile.Speech)
 	custom, err := m.customSettingsPath()
 	if err != nil {
 		return err
