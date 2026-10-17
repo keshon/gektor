@@ -114,6 +114,16 @@ type Config struct {
 	// Ask degrades to Deny.
 	BeforeToolCall func(ctx context.Context, tool, resource string, args json.RawMessage) (permission.Effect, error)
 
+	// ToolHint returns an extra nudge line naming a registered tool that
+	// suits this situation, or "" when none does. Situations are
+	// "truncated", "search-fatigue" and "compact".
+	//
+	// The loop does not know which tools a run has: it asks, and whoever
+	// assembled the registry answers. It used to test for write_file,
+	// ask_user and delegate_task by name, so a registry carrying
+	// patch_file but not write_file was told to use a tool it lacked.
+	ToolHint func(situation string) string
+
 	// AfterToolCall observes every completed call.
 	AfterToolCall func(tool, resource, result string, err error)
 
@@ -130,6 +140,9 @@ const DefaultMaxSteps = 25
 const DefaultCompactKeepSteps = 8
 
 func New(cfg Config) *Agent {
+	if cfg.ToolHint == nil {
+		cfg.ToolHint = hintResolver(cfg.Tools)
+	}
 	if cfg.MaxSteps == 0 {
 		cfg.MaxSteps = DefaultMaxSteps
 	}

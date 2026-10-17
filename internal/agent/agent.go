@@ -6,8 +6,11 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/tars/internal/prompts"
 	"github.com/keshon/tars/internal/session"
 )
 
@@ -107,11 +110,17 @@ func (a *Agent) Resume(ctx context.Context, history []llm.Message, note string, 
 }
 
 // PausedOnQuestion reports whether the last message in history is an
-// assistant message containing an unanswered ask_user tool call. This is
+// assistant message containing an unanswered question to a human. This is
 // the correct way to distinguish "interrupted by a question" from
 // "interrupted by a crash/timeout" when deciding which resume path to
 // take.
-func PausedOnQuestion(history []llm.Message) (callID string, question string, ok bool) {
+//
+// With a registry it asks the registered Questioner, so it finds whatever
+// tool this run actually offered. A nil registry falls back to matching a
+// "question" argument, which is what a caller reading a saved session off
+// disk has to do: the tool set that produced it is long gone. That is also
+// strictly more general than assuming the tool was called ask_user.
+func PausedOnQuestion(reg *Registry, history []llm.Message) (callID string, question string, ok bool) {
 	if len(history) == 0 {
 		return "", "", false
 	}
@@ -119,13 +128,19 @@ func PausedOnQuestion(history []llm.Message) (callID string, question string, ok
 	if last.Role != llm.RoleAssistant {
 		return "", "", false
 	}
+	q := reg.Questioner()
 	for _, tc := range last.ToolCalls {
-		if tc.Name == "ask_user" {
-			var args struct {
-				Question string `json:"question"`
+		if q != nil {
+			if tc.Name == q.Name() {
+				return tc.ID, q.Question(tc.Arguments), true
 			}
-			json.Unmarshal(tc.Arguments, &args)
-			return tc.ID, args.Question, true
+			continue
+		}
+		var args struct {
+			Question string `json:"question"`
+		}
+		if json.Unmarshal(tc.Arguments, &args) == nil && strings.TrimSpace(args.Question) != "" {
+			return tc.ID, strings.TrimSpace(args.Question), true
 		}
 	}
 	return "", "", false
@@ -302,8 +317,55 @@ func containsStr(list []string, s string) bool {
 // Nudge composition consults it so role-agnostic notices never cite
 // tools the recipient was never given (delegate_task to a worker,
 // ask_user to a subagent). Nil-registry safe: unknown means absent.
-func (a *Agent) hasTool(name string) bool {
-	return a.cfg.Tools != nil && containsStr(a.cfg.Tools.Names(), name)
+// Tools returns the run's registry, so callers holding an Agent can ask
+// what it was offered — which question tool, whether a checklist exists.
+func (a *Agent) Tools() *Registry { return a.cfg.Tools }
+
+// situationHints names, per nudge situation, the tools that could help.
+// The loop consults this table instead of branching on tool names in three
+// places, and a situation whose tools are all absent yields nothing.
+var situationHints = map[string][]string{
+	"truncated":     {"write_file", "patch_file", "patch_lines"},
+	"search-fatigue": {"ask_user"},
+	"compact":       {"delegate_task"},
+}
+
+var situationPrompts = map[string]string{
+	"truncated":      prompts.WriteHint,
+	"search-fatigue": prompts.AskHint,
+	"compact":        prompts.DelegateHint,
+}
+
+// hintResolver answers from a registry which of a situation's tools are
+// actually registered. It is the default Config.ToolHint; a caller that
+// wants different advice replaces it.
+func hintResolver(reg *Registry) func(string) string {
+	return func(situation string) string {
+		if !reg.HasAny(situationHints[situation]...) {
+			return ""
+		}
+		return situationPrompts[situation]
+	}
+}
+
+// writesFiles reports whether a tool writes a whole file to a path. It is
+// read from Config.MutatingTools rather than hardcoded, so a registry that
+// names a different writer gets the same rewrite guard — which used to
+// apply to write_file only, leaving a patch_file repeat unguarded.
+func (a *Agent) writesFiles(name string) bool {
+	return slices.Contains(a.cfg.MutatingTools, name)
+}
+
+// hint asks the run's owner which registered tool suits this situation.
+// Empty when nothing does, or when the run wired no resolver.
+func (a *Agent) hint(situation string) string {
+	if a.cfg.ToolHint == nil {
+		return ""
+	}
+	if line := strings.TrimSpace(a.cfg.ToolHint(situation)); line != "" {
+		return " " + line
+	}
+	return ""
 }
 
 func (a *Agent) resumeHistory(history []llm.Message) []llm.Message {

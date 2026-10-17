@@ -234,7 +234,7 @@ func (s *Session) Resume(ctx context.Context, history []llm.Message, note string
 	a, drain := s.build(ctx)
 	var ans string
 	var err error
-	if callID, question, paused := agent.PausedOnQuestion(history); paused {
+	if callID, question, paused := agent.PausedOnQuestion(a.Tools(), history); paused {
 		reply := agent.SuspendReply{Answer: s.cfg.ResumeAnswer}
 		var rerr error
 		if s.cfg.ResumeAnswer == "" {

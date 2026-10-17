@@ -128,6 +128,65 @@ func (r *Registry) ModeOf(name string) ToolMode {
 	return Exclusive
 }
 
+// Has reports whether a tool is registered.
+func (r *Registry) Has(name string) bool {
+	_, ok := r.tools[name]
+	return ok
+}
+
+// HasAny reports whether at least one of the named tools is registered.
+func (r *Registry) HasAny(names ...string) bool {
+	for _, name := range names {
+		if r.Has(name) {
+			return true
+		}
+	}
+	return false
+}
+
+// Checklister is a tool carrying the model's checklist, which the loop
+// reads and can close on the model's behalf. *tools.Todo is one. The
+// interface exists so the loop finds the checklist by shape rather than
+// by the name "todo".
+type Checklister interface {
+	Tool
+	Progress() (done int, open []string)
+}
+
+// Checklist returns the registry's checklist tool, or nil.
+func (r *Registry) Checklist() Checklister {
+	if r == nil {
+		return nil
+	}
+	for _, t := range r.tools {
+		if cl, ok := t.(Checklister); ok {
+			return cl
+		}
+	}
+	return nil
+}
+
+// Questioner is a tool that puts a question to a human. The loop finds an
+// unanswered one in history on resume, so it needs the question text back
+// out of the call arguments.
+type Questioner interface {
+	Tool
+	Question(args json.RawMessage) string
+}
+
+// Questioner returns the registry's human-question tool, or nil.
+func (r *Registry) Questioner() Questioner {
+	if r == nil {
+		return nil
+	}
+	for _, t := range r.tools {
+		if q, ok := t.(Questioner); ok {
+			return q
+		}
+	}
+	return nil
+}
+
 // IdempotentOf reports whether a tool has declared (via an optional
 // `Idempotent() bool` method) that identical calls return identical
 // results as long as nothing has mutated the workspace in between —
@@ -149,21 +208,13 @@ func (r *Registry) IdempotentOf(name string) bool {
 	return false
 }
 
-// TodoProgress reports the "todo" tool's checklist state: done count and
-// still-open item texts. Zeros when no such tool is registered or it
-// doesn't expose progress — the finish gate reads "no list" as "nothing
-// pending" (fail-open: registries without a checklist run exactly as
-// before). Nil-receiver safe: some loop paths run tool-less.
+// TodoProgress reports the checklist tool's state: done count and
+// still-open item texts. Zeros when the registry has none, which the
+// finish gate reads as "nothing pending". Nil-receiver safe: some loop
+// paths run tool-less.
 func (r *Registry) TodoProgress() (done int, open []string) {
-	if r == nil {
-		return 0, nil
-	}
-	t, ok := r.tools["todo"]
-	if !ok {
-		return 0, nil
-	}
-	if tl, ok := t.(interface{ Progress() (int, []string) }); ok {
-		return tl.Progress()
+	if cl := r.Checklist(); cl != nil {
+		return cl.Progress()
 	}
 	return 0, nil
 }
@@ -177,22 +228,22 @@ func (r *Registry) TodoProgress() (done int, open []string) {
 const maxIdenticalAttempts = 3
 
 // rehydrateTodo restores the checklist from history into the fresh
-// registry. The todo tool takes the full list per call, so replaying
-// the LAST todo call's args restores exact state through the normal
-// Run path (validation included, no policy side effects — Registry.Run
-// invokes the tool directly). Best-effort: stale args fail validation
-// and the tracker stays empty, exactly as before.
+// registry. The checklist tool takes the full list per call, so
+// replaying the LAST such call's args restores exact state through the
+// normal Run path. Best-effort: stale args fail validation and the
+// tracker stays empty, exactly as before.
 func (a *Agent) rehydrateTodo(ctx context.Context, history []llm.Message) {
-	if a.cfg.Tools == nil {
+	cl := a.cfg.Tools.Checklist()
+	if cl == nil {
 		return
 	}
 	for i := len(history) - 1; i >= 0; i-- {
 		calls := history[i].ToolCalls
 		for j := len(calls) - 1; j >= 0; j-- {
-			if calls[j].Name != "todo" {
+			if calls[j].Name != cl.Name() {
 				continue
 			}
-			_, _ = a.cfg.Tools.Run(ctx, "todo", calls[j].Arguments)
+			_, _ = a.cfg.Tools.Run(ctx, cl.Name(), calls[j].Arguments)
 			return
 		}
 	}
@@ -250,14 +301,14 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 					"reissue smaller: split the call into smaller pieces")}
 			continue
 		}
-		if call.Name == "write_file" {
+		if a.writesFiles(call.Name) {
 			if path := writePathFromArgs(call.Arguments); path != "" {
 				if prev, seen := st.wrotePaths[path]; seen {
 					skipped[i] = true
 					results[i] = callResult{err: fmt.Errorf(
-						"already wrote %s in step %d — it is on disk. Do NOT rewrite it with "+
-							"write_file. Use patch_file for edits, or write_file the NEXT missing "+
-							"file from your files_hint / acceptance list, then finish when done",
+						"already wrote %s in step %d — it is on disk. Do NOT rewrite it. "+
+							"Patch it for edits, or write the NEXT missing file from your "+
+							"files_hint / acceptance list, then finish when done",
 						path, prev)}
 					continue
 				}
@@ -393,7 +444,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 						}
 					}
 				}
-				if call.Name == "write_file" {
+				if a.writesFiles(call.Name) {
 					if path := writePathFromArgs(call.Arguments); path != "" {
 						if st.wrotePaths == nil {
 							st.wrotePaths = make(map[string]int)

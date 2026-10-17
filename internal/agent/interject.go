@@ -77,10 +77,7 @@ func (a *Agent) interject(st *runState, step int, o stepOutcome) string {
 
 	case st.exploratorySteps >= a.cfg.MaxExploratorySteps && !st.searchFatigueWarned:
 		st.searchFatigueWarned = true
-		msg := prompts.SearchFatigue
-		if a.hasTool("ask_user") {
-			msg += " " + prompts.AskHint
-		}
+		msg := prompts.SearchFatigue + a.hint("search-fatigue")
 		return a.markNudge(NudgeStuck, msg)
 	}
 

@@ -148,10 +148,7 @@ func (a *Agent) budgetWarning(usage llm.Usage, warned *int) string {
 	default:
 		return ""
 	}
-	if a.hasTool("delegate_task") {
-		msg += " " + prompts.DelegateHint
-	}
-	return msg
+	return msg + a.hint("compact")
 }
 
 // defaultCompactAtPercent is the share of the context window at which

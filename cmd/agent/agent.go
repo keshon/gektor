@@ -487,7 +487,9 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		}
 		note("resuming from %s (%d messages)", o.resume, len(history))
 
-		if callID, question, paused := agent.PausedOnQuestion(history); paused {
+		// The history is off disk and no agent exists yet, so the question is
+	// recognised by its argument shape rather than by a tool we could ask.
+	if callID, question, paused := agent.PausedOnQuestion(nil, history); paused {
 			ans := o.answer
 			if ans == "" {
 				var err error

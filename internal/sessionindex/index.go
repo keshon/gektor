@@ -95,7 +95,7 @@ func Scan(root string, previous map[string]CachedSession, search bool) ([]Entry,
 							e.Search = ConversationText(history)
 							current.searchable = true
 						}
-						if _, question, paused := agent.PausedOnQuestion(history); paused {
+						if _, question, paused := agent.PausedOnQuestion(nil, history); paused {
 							e.Status, e.Preview = "Needs input", question
 						} else {
 							for i := len(history) - 1; i >= 0; i-- {

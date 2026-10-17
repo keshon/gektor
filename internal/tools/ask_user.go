@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/keshon/tars/internal/agent"
 )
@@ -47,17 +48,28 @@ func (AskUser) Schema() json.RawMessage {
 	}`)
 }
 
-func (t AskUser) Run(_ context.Context, args json.RawMessage) (string, error) {
+// Question reads the question back out of a call's arguments, so the loop
+// can find one left unanswered in history and answer it on resume without
+// knowing this tool's argument shape.
+func (AskUser) Question(args json.RawMessage) string {
 	var in struct {
 		Question string `json:"question"`
 	}
-	if err := json.Unmarshal(args, &in); err != nil {
-		return "", fmt.Errorf("bad arguments: %w", err)
+	if json.Unmarshal(args, &in) != nil {
+		return ""
 	}
+	return strings.TrimSpace(in.Question)
+}
+
+func (t AskUser) Run(_ context.Context, args json.RawMessage) (string, error) {
 	if t.AskFn == nil {
 		return "", fmt.Errorf("ask_user: no AskFn configured")
 	}
-	answer, err := t.AskFn(in.Question)
+	question := AskUser{}.Question(args)
+	if question == "" {
+		return "", fmt.Errorf("ask_user: no question given")
+	}
+	answer, err := t.AskFn(question)
 	if err != nil {
 		return "", fmt.Errorf("ask_user: %w", err)
 	}

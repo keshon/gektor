@@ -1169,7 +1169,7 @@ func TestAgent_AskUser_PausesWithUnansweredCall(t *testing.T) {
 	}
 	<-done
 
-	if callID, _, ok := PausedOnQuestion(client.lastHistory[:len(client.lastHistory)-1]); ok {
+	if callID, _, ok := PausedOnQuestion(NewRegistry(), client.lastHistory[:len(client.lastHistory)-1]); ok {
 		_ = callID // history mid-run had unanswered call before tool result appended
 	}
 }
@@ -1462,7 +1462,7 @@ func TestPausedOnQuestion_DetectsAskUserCall(t *testing.T) {
 		}},
 	}
 
-	callID, question, ok := PausedOnQuestion(history)
+	callID, question, ok := PausedOnQuestion(NewRegistry(), history)
 	if !ok {
 		t.Fatal("PausedOnQuestion returned false for a history ending with ask_user")
 	}
@@ -1480,16 +1480,53 @@ func TestPausedOnQuestion_ReturnsFalseForNormalHistory(t *testing.T) {
 		{Role: llm.RoleUser, Content: "task"},
 		{Role: llm.RoleAssistant, Content: "I wrote the file."},
 	}
-	_, _, ok := PausedOnQuestion(history)
+	_, _, ok := PausedOnQuestion(NewRegistry(), history)
 	if ok {
 		t.Fatal("PausedOnQuestion returned true for a normal text response")
 	}
 }
 
 func TestPausedOnQuestion_ReturnsFalseForEmptyHistory(t *testing.T) {
-	_, _, ok := PausedOnQuestion(nil)
+	_, _, ok := PausedOnQuestion(nil, nil)
 	if ok {
 		t.Fatal("PausedOnQuestion returned true for empty history")
+	}
+}
+
+// stubQuestioner stands in for tools.AskUser, which cannot be imported
+// here: tools depends on this package.
+type stubQuestioner struct{ Tool }
+
+func (stubQuestioner) Name() string { return "stub_question" }
+func (stubQuestioner) Question(args json.RawMessage) string {
+	var in struct {
+		Ask string `json:"ask"`
+	}
+	if json.Unmarshal(args, &in) != nil {
+		return ""
+	}
+	return in.Ask
+}
+
+// With a registry the question comes from the registered Questioner, so a
+// tool with its own argument name is still found. The nil-registry shape
+// match would not see this one.
+func TestPausedOnQuestion_UsesTheRegisteredQuestioner(t *testing.T) {
+	reg := NewRegistry(stubQuestioner{})
+	history := []llm.Message{{
+		Role: llm.RoleAssistant,
+		ToolCalls: []llm.ToolCall{{
+			ID: "c1", Name: "stub_question", Arguments: json.RawMessage(`{"ask":"which one?"}`),
+		}},
+	}}
+	callID, question, ok := PausedOnQuestion(reg, history)
+	if !ok || callID != "c1" || question != "which one?" {
+		t.Fatalf("got %q %q %v", callID, question, ok)
+	}
+	// The same history against no registry is not a question, since the
+	// argument shape does not match.
+	if _, _, ok := PausedOnQuestion(nil, history); ok {
+		t.Fatal("shape fallback matched an argument it does not know")
 	}
 }
 

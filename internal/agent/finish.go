@@ -38,9 +38,7 @@ func (a *Agent) handleFinish(ctx context.Context, st *runState, step int, resp l
 	// bounded by MaxStuckSteps → MaxSteps.
 	if resp.FinishReason == "length" {
 		msg := prompts.Truncated
-		if a.hasTool("write_file") {
-			msg += " " + prompts.WriteHint
-		}
+		msg += a.hint("truncated")
 		history = a.nudge(history, NudgeTruncated, msg)
 		st.stuckSteps++
 		if st.stuckSteps >= a.cfg.MaxStuckSteps {

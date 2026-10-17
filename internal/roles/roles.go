@@ -265,10 +265,11 @@ func Subagent(e Env, role string) *agent.Agent {
 // written nothing on a subtask that was supposed to write, which is the
 // announce-without-write shape. See agent.Config.VerifyOnZeroWrites.
 func Worker(e Env, label, system, stateFile string, maxSteps int, expectsWrites bool) *agent.Agent {
+	reg := tools.Base(e.WS, e.Procs, e.OnFinding, e.MCPTools...)
 	return agent.New(agent.Config{
 		BeginChanges:       e.WS.ChangeObserver,
 		Client:             e.Client,
-		Tools:              tools.Base(e.WS, e.Procs, e.OnFinding, e.MCPTools...),
+		Tools:              reg,
 		System:             system + "\n\n" + prompts.PlatformLine() + e.WS.Instructions() + "\n\n" + e.Identity,
 		MaxSteps:           maxSteps,
 		MaxTokens:          e.MaxTokens,
@@ -311,11 +312,12 @@ func Interactive(e Env, label, stateFile string,
 	if ask != nil {
 		extra = append(extra, tools.AskUser{AskFn: ask})
 	}
+	reg := tools.Base(e.WS, e.Procs, e.OnFinding, extra...)
 
 	return agent.New(agent.Config{
 		BeginChanges:    e.WS.ChangeObserver,
 		Client:          e.Client,
-		Tools:           tools.Base(e.WS, e.Procs, e.OnFinding, extra...),
+		Tools:           reg,
 		System:          interactiveSystem(e.BackendKind) + "\n\n" + prompts.PlatformLine() + e.WS.Instructions() + "\n\n" + e.Identity,
 		MaxTokens:       e.MaxTokens,
 		Temperature:     e.Temperature,
