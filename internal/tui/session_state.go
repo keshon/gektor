@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"github.com/keshon/tars/internal/sessionindex"
 	"github.com/keshon/tars/internal/tui/components/composer"
 	"os"
 	"path/filepath"
@@ -40,8 +39,6 @@ func (m *model) resetRunFacts() {
 	m.elapsed = 0
 	m.firstToken = time.Time{}
 }
-
-func readSavedMode(dir string) string { return sessionindex.ReadMode(dir) }
 
 func (m *model) modeName() string {
 	if m.mission {

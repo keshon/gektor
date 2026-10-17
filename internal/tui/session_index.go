@@ -2,10 +2,7 @@ package tui
 
 import (
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/sessionindex"
 )
-
-type cachedSession = sessionindex.CachedSession
 
 type sessionsLoadedMsg struct {
 	revision uint64
@@ -56,7 +53,7 @@ func (m *model) acceptSessions(msg sessionsLoadedMsg) {
 }
 
 func scanSessions(root string, previous map[string]cachedSession, search bool) ([]sessionEntry, map[string]cachedSession) {
-	summaries, cache := sessionindex.Scan(root, previous, search)
+	summaries, cache := scanSavedSessions(root, previous, search)
 	entries := make([]sessionEntry, 0, len(summaries))
 	for _, summary := range summaries {
 		e := sessionEntry{id: summary.ID, dir: summary.Dir, title: summary.Title, msgs: summary.Msgs, updated: summary.Updated, status: summary.Status, mode: summary.Mode, preview: summary.Preview}

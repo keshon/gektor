@@ -156,7 +156,7 @@ func TestSessionIndexCachesUnchangedHistoryAndLoadsSearchOnDemand(t *testing.T) 
 	}
 	// Equal metadata must reuse cached text; a deliberately marked value makes this observable.
 	saved := cache[dir]
-	saved.Entry.Preview = "cached marker"
+	saved.Preview = "cached marker"
 	cache[dir] = saved
 	entries, cache = scanSessions(root, cache, true)
 	if entries[0].preview != "cached marker" {
