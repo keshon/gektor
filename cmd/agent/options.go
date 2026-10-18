@@ -13,47 +13,47 @@ import (
 // launchOptions holds command-line values and records explicit overrides.
 // Parsing does not open files, create clients, or start services.
 type launchOptions struct {
-	backendURL            string
-	model                 string
-	workspace             string
-	debug                 bool
-	grammar               bool
-	maxTokens             int
-	maxSteps              int
-	thinkBudget           int
-	resume                string
-	answer                string
-	verifyCmd             string
-	logMax                int
-	missionMode           bool
-	direct                bool
-	yes                   bool
-	auditPath             string
-	backendKind           string
-	apiKey                string
-	apiKeyEnv             string
-	contextLimit          int
-	allow                 string
-	deny                  string
-	stream                bool
-	mcp                   string
-	fork                  string
-	plan                  bool
-	outputMode            string
-	serve                 bool
-	tui                   bool
-	noVerify              bool
-	nudges                agent.NudgeLevel
-	images                string
-	profilePath           string
-	checkProfile          bool
-	systemPrompt          string
-	userName              string
-	postHistory           string
-	temperature           float64
-	explicitFlags         map[string]bool
-	explicitNames         []string
-	task                  string
+	backendURL    string
+	model         string
+	workspace     string
+	debug         bool
+	grammar       bool
+	maxTokens     int
+	maxSteps      int
+	thinkBudget   int
+	resume        string
+	answer        string
+	verifyCmd     string
+	logMax        int
+	missionMode   bool
+	direct        bool
+	yes           bool
+	auditPath     string
+	backendKind   string
+	apiKey        string
+	apiKeyEnv     string
+	contextLimit  int
+	allow         string
+	deny          string
+	stream        bool
+	mcp           string
+	fork          string
+	plan          bool
+	outputMode    string
+	serve         bool
+	tui           bool
+	noVerify      bool
+	nudges        agent.NudgeLevel
+	images        string
+	profilePath   string
+	checkProfile  bool
+	systemPrompt  string
+	userName      string
+	postHistory   string
+	temperature   float64
+	explicitFlags map[string]bool
+	explicitNames []string
+	task          string
 }
 
 func parseLaunchOptions(args []string) (launchOptions, error) {
@@ -116,7 +116,7 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	flags.BoolVar(&o.serve, "serve", false, "serve JSON-RPC over stdio instead of running one task: methods run/respond/cancel, events on stdout. See docs/rpc.md")
 	flags.BoolVar(&o.tui, "tui", false, "fullscreen terminal UI instead of print mode: live transcript, status, and gate prompts")
 	flags.BoolVar(&o.noVerify, "no-verify", false, "skip the self-check verify round (finish accepted without the extra verification turn). Saves 1-2 model calls; strong models only")
-flags.StringVar(&nudges, "nudges", "full", "how much harness advice the model hears: full, recovery (only the notices that turn a bad ending into another attempt), off")
+	flags.StringVar(&nudges, "nudges", "full", "how much harness advice the model hears: full, recovery (only the notices that turn a bad ending into another attempt), off")
 	flags.StringVar(&o.images, "image", "", "attach pictures to the task (comma-separated paths): the model sees them alongside the text. Needs a vision-capable backend (llama-server with --mmproj); koboldcpp refuses loudly")
 	flags.StringVar(&o.profilePath, "profile", "", "path to a versioned JSON provider and generation profile; explicit flags override it")
 	flags.BoolVar(&o.checkProfile, "check-profile", false, "validate and print a profile without contacting or starting its backend")
@@ -159,6 +159,26 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 	o := resolvedLaunch{launchOptions: options}
 	if o.checkProfile && o.profilePath == "" {
 		return resolvedLaunch{}, fmt.Errorf("-check-profile requires -profile")
+	}
+	// Harness preferences seed the same fields the flags fill, and an
+	// explicit flag still wins. This sits outside the profile block below
+	// because the harness is not a property of the backend: a launch with no
+	// profile at all still gets the step budget and nudge level the user
+	// chose. Without it these survived only as flags, so anything set in the
+	// TUI was gone by the next launch.
+	h := launch.preferences.Harness
+	if !o.explicitFlags["max-steps"] && h.MaxSteps > 0 {
+		o.maxSteps = h.MaxSteps
+	}
+	if !o.explicitFlags["reasoning-budget"] && h.ThinkBudget > 0 {
+		o.thinkBudget = h.ThinkBudget
+	}
+	if !o.explicitFlags["nudges"] && h.Nudges != "" {
+		level, ok := agent.ParseNudgeLevel(h.Nudges)
+		if !ok {
+			return resolvedLaunch{}, fmt.Errorf("saved nudge level %q: want full, recovery or off", h.Nudges)
+		}
+		o.nudges = level
 	}
 	// A relaunch carries the profile it last ran with in memory, because a
 	// generated setup never had a file to point at. Reading it only when

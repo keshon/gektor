@@ -213,6 +213,11 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 				}
 				m.sess = sess
 			}
+			if err := m.saveHarness(); err != nil {
+				m.maxStepsOverride = previous
+				m.appendBlock(errorBlock(err.Error()))
+				return
+			}
 			m.appendBlock(markerBlock("Max steps: " + m.stepBudget()))
 		})
 		return m, nil
@@ -233,6 +238,11 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 					return
 				}
 				m.sess = sess
+			}
+			if err := m.saveHarness(); err != nil {
+				m.thinkBudget = previous
+				m.appendBlock(errorBlock(err.Error()))
+				return
 			}
 			label := "default"
 			if m.thinkBudget > 0 {
@@ -407,6 +417,11 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 					return
 				}
 				m.sess = sess
+			}
+			if err := m.saveHarness(); err != nil {
+				m.nudges = previous
+				m.appendBlock(errorBlock(err.Error()))
+				return
 			}
 			m.appendBlock(markerBlock("Nudges: " + agent.NudgeLevelName(m.nudges)))
 		})

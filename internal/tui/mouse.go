@@ -28,8 +28,16 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.state == stPermission || m.state == stAsk {
-		if msg.Mouse().X < m.promptOffset() || msg.Mouse().Y < paneTop || msg.Mouse().Y >= paneTop+m.transcript.Viewport.Height() {
+		mouse := msg.Mouse()
+		if mouse.X < m.promptOffset() || mouse.Y < paneTop || mouse.Y >= paneTop+m.transcript.Viewport.Height() {
 			return m, nil
+		}
+		// The gate popup overlays the transcript rather than replacing it,
+		// so the transcript is what is on screen and what the wheel has to
+		// move. gateVP still backs the narrow terminals where the popup
+		// does not fit and the gate takes the pane outright.
+		if m.gatePopup.Pending() {
+			return m.scrollViewport(msg)
 		}
 		var cmd tea.Cmd
 		m.gateVP, cmd = m.gateVP.Update(msg)
@@ -89,7 +97,7 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	return m.scrollViewport(msg)
 }
 
-	// scrollDrag is a scrollbar thumb grab: which row of the thumb the
+// scrollDrag is a scrollbar thumb grab: which row of the thumb the
 // pointer holds, and whether it has moved since the grab.
 type scrollDrag struct {
 	active bool
