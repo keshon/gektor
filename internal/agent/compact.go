@@ -237,10 +237,35 @@ func CompactFile(stateFile string, keepSteps int) (before, after int, history []
 	return before, after, compacted, nil
 }
 
+// compactionCooldown is how much the prompt must grow past the size that
+// triggered the last compaction before another threshold pass is worth its
+// price. A share of the window, floored so a small window is not re-read
+// every single step.
+//
+// Compaction rewrites history from the notice onward, so a backend that
+// caches prompts re-reads everything. Without a cooldown, a run whose
+// keep-window alone sits above the threshold compacts on every step
+// forever: each pass drops one group and the next step adds one back, the
+// notice's own step count changes, and the prompt prefix changes with it.
+// Measured against a real loop, that turned 9 of 12 steps into full
+// re-reads. The fix is not to compact less eagerly but to stop paying for a
+// pass that cannot help: if one pass left us above the line, the next will
+// too, because the only difference is one step of work.
+//
+// Overflow recovery (handleChatError) is unaffected and still compacts hard
+// and immediately, so being late to the threshold costs a warning-free
+// steady state rather than an overflow.
+const compactionCooldownNumerator = 20
+
+func (a *Agent) compactionCooldown() int {
+	return max(a.cfg.ContextLimit/compactionCooldownNumerator, 512)
+}
+
 // maybeCompact drops old step groups once the prompt passes the
 // threshold, and may do so more than once in a run — a long run that
 // compacted at step 12 and then grew again is in exactly the state
-// compaction exists for.
+// compaction exists for. How often it may do so is bounded by
+// compactionCooldown.
 //
 // compactHistory returns its input unchanged when there is nothing left
 // to drop, which is what stops a full history from being compacted every
@@ -257,11 +282,17 @@ func (a *Agent) maybeCompact(history *[]llm.Message, usage llm.Usage, st *runSta
 	if a.cfg.ContextLimit >= 32000 && usage.PromptTokens < pruneMinimumTokens {
 		return false
 	}
+	// Still over the line from the last pass, and not enough new work has
+	// happened for another pass to free anything the first one could not.
+	if st.lastCompactTokens > 0 && usage.PromptTokens < st.lastCompactTokens+a.compactionCooldown() {
+		return false
+	}
 	compacted := compactHistory(*history, a.cfg.CompactKeepSteps)
 	if len(compacted) >= len(*history) {
 		return false
 	}
 	*history = compacted
+	st.lastCompactTokens = usage.PromptTokens
 	dropRepeatCaches(st)
 	// Report the compaction. The notice lives in the model's history, so
 	// without this an observer sees a transcript holding turns the model can

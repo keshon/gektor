@@ -193,7 +193,13 @@ type runState struct {
 	emptyFinishRetried                                                        bool
 	// overflowRetried allows one compact-and-retry per run. A second
 	// overflow means the window cannot hold this session however it is cut.
-	overflowRetried                                   bool
+	overflowRetried bool
+
+	// lastCompactTokens is the prompt size that triggered the most recent
+	// compaction. Threshold compaction waits for the prompt to grow past
+	// this by a cooldown before it will pay for another pass - see
+	// compactionCooldown.
+	lastCompactTokens                                 int
 	lastSignature, verifyFailedOutput, lastSingleTool string
 	mutatedPaths                                      []string
 
@@ -272,11 +278,11 @@ func containsStr(list []string, s string) bool {
 func (a *Agent) Tools() *Registry { return a.cfg.Tools }
 
 // situationHints names, per nudge situation, the tools that could help.
-	// A situation whose tools are all absent yields nothing.
+// A situation whose tools are all absent yields nothing.
 var situationHints = map[string][]string{
-	"truncated":     {"write_file", "patch_file", "patch_lines"},
+	"truncated":      {"write_file", "patch_file", "patch_lines"},
 	"search-fatigue": {"ask_user"},
-	"compact":       {"delegate_task"},
+	"compact":        {"delegate_task"},
 }
 
 var situationPrompts = map[string]string{

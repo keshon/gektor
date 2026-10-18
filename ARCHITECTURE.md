@@ -169,6 +169,16 @@ again, and a summary rebuilt from each pass's own window describes only
 that window — the plan and the dropped requests survive exactly one
 pass, in a feature that exists for runs that live past one.
 
+Compaction rewrites history from the notice onward, so a backend that
+caches prompts re-reads the whole conversation. The threshold therefore
+does not fire on prompt size alone: after a pass, another waits until the
+prompt has grown by a twentieth of the window. Without that cooldown a run
+whose keep-window sits above the line compacts on every step forever — one
+group dropped, one added back, the notice's step count changing, the prefix
+never settling. Measured against a real loop that was 9 full re-reads in 12
+steps. Overflow recovery is unaffected and still compacts immediately, so
+arriving late at the threshold costs a steady state, not an overflow.
+
 ### Budgets
 
 Every bound has a default in `agent.New` or the `Runner` methods: a 25-step

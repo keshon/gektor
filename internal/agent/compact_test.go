@@ -426,9 +426,12 @@ func TestMaybeCompact_CompactsAgainAfterHistoryGrows(t *testing.T) {
 	if !a.maybeCompact(&h, llm.Usage{PromptTokens: 700}, st) {
 		t.Fatal("first compaction did not fire")
 	}
-	h = append(h, historyWithSteps(10)[2:]...) // the run keeps going
-	if !a.maybeCompact(&h, llm.Usage{PromptTokens: 700}, st) {
-		t.Fatal("second compaction did not fire — a long run stays unprotected")
+	// The run keeps going, and the prompt grows with it. Growth is what buys
+	// the next pass: without it, a second pass over an unchanged prompt frees
+	// nothing the first did not already take, and costs a full re-read.
+	h = append(h, historyWithSteps(10)[2:]...)
+	if !a.maybeCompact(&h, llm.Usage{PromptTokens: 700 + a.compactionCooldown()}, st) {
+		t.Fatal("second compaction did not fire - a long run stays unprotected")
 	}
 }
 
