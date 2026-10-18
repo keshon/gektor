@@ -257,9 +257,30 @@ func TestHistoryMatchTranslationSkipsReasoningAndToolCards(t *testing.T) {
 		{Role: llm.RoleTool, ToolCallID: "lookup", Content: "result"},
 		{Role: llm.RoleAssistant, Content: "<think>private</think> answer"},
 	}
-	index := historyMatchBlock(history, 4)
-	blocks := renderHistory(history)
+	blocks, boundary := renderHistoryAt(history)
+	index := historyMatchBlock(blocks, boundary, 4)
 	if index >= len(blocks) || blocks[index].role != roleAnswer || blocks[index].text != "answer" {
 		t.Fatalf("search landed on wrong block: %d %+v", index, blocks)
+	}
+}
+
+// Opening from a search hit points at one message. It must not render the
+// whole prefix again to count it.
+func TestHistoryMatchReusesTheRenderItAlreadyHas(t *testing.T) {
+	history := userHistory("one", "two", "three", "four")
+	blocks, boundary := renderHistoryAt(history)
+
+	for message := range history {
+		got := historyMatchBlock(blocks, boundary, message)
+		if got < 0 || got >= len(blocks) {
+			t.Fatalf("message %d mapped outside the transcript: %d", message, got)
+		}
+		// A message must not point before its own blocks start.
+		if got < boundary[message] {
+			t.Fatalf("message %d mapped to %d, before its own block %d", message, got, boundary[message])
+		}
+	}
+	if got := historyMatchBlock(blocks, boundary, len(history)); got != len(blocks) {
+		t.Fatalf("end of history mapped to %d, want %d", got, len(blocks))
 	}
 }

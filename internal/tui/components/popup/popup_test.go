@@ -103,7 +103,8 @@ func TestBoxSizesItselfToItsWidestRow(t *testing.T) {
 }
 
 func TestFrameBoxCentres(t *testing.T) {
-	box := FrameBox([]string{"one", "two"}, 30, 10, testStyles())
+	const areaW, areaH = 40, 12
+	box := FrameBox([]string{"one", "two"}, areaW, areaH, testStyles())
 	lines := strings.Split(box, "\n")
 	if strings.TrimSpace(lines[0]) != "" {
 		t.Fatal("box is flush to the top; it should be centred")
@@ -112,15 +113,27 @@ func TestFrameBoxCentres(t *testing.T) {
 	for top < len(lines) && strings.TrimSpace(lines[top]) == "" {
 		top++
 	}
-	if !strings.HasPrefix(strings.TrimSpace(ansi.Strip(lines[top])), "╭") {
-		t.Fatalf("expected the frame to start at line %d", top)
+	framed := lines[top:]
+	if len(framed) != 4 {
+		t.Fatalf("got %d framed lines, want 4", len(framed))
 	}
-	if !strings.HasPrefix(lines[top], " ") {
-		t.Fatal("box is flush to the left; it should be centred")
-	}
-	for i, l := range lines[top:] {
-		if strings.TrimSpace(l) == "" {
-			t.Fatalf("line %d inside the box is blank", i+top)
+	// Every line of a centred box must be the same width and start at the
+	// same column. Indenting only the first line shifts the top border away
+	// from the box it belongs to, which reads as two overlapping frames.
+	width := lipgloss.Width(ansi.Strip(framed[0]))
+	for i, l := range framed {
+		if got := lipgloss.Width(ansi.Strip(l)); got != width {
+			t.Fatalf("line %d is %d cells, want %d: the box is ragged", i, got, width)
 		}
+	}
+	left := len(framed[0]) - len(strings.TrimLeft(framed[0], " "))
+	if boxWidth := width - left; left != max((areaW-boxWidth)/2, 0) {
+		t.Fatalf("box starts at column %d, want %d for a %d-cell box", left, (areaW-boxWidth)/2, boxWidth)
+	}
+	if !strings.HasPrefix(strings.TrimLeft(ansi.Strip(framed[0]), " "), "╭") {
+		t.Fatal("expected the frame to start the block")
+	}
+	if left == 0 {
+		t.Fatal("box is flush to the left; it should be centred")
 	}
 }

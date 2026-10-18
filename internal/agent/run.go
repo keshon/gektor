@@ -2,8 +2,8 @@ package agent
 
 import (
 	"context"
-	"fmt"
 	"errors"
+	"fmt"
 
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/prompts"
@@ -140,6 +140,9 @@ func (a *Agent) handleChatError(st *runState, step int, err error, history []llm
 	if len(history) > 2 {
 		keep := a.cfg.CompactKeepSteps
 		if keep <= 0 {
+			// Overrides a disabled threshold: the backend has already said
+			// the prompt does not fit, so this is recovery rather than
+			// housekeeping, and refusing would just end the run.
 			keep = DefaultCompactKeepSteps
 		}
 		// Caches drop only when history actually shrank: the

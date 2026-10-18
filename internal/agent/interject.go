@@ -109,6 +109,11 @@ const (
 	NudgeStuck     = "stuck"
 	NudgeTodo      = "todo"
 	NudgeClosing   = "closing"
+	// NudgeCompact is the one kind that is never shown to the model. It
+	// carries the compaction notice so an observer can see that context
+	// was dropped while the transcript still shows the turns that went
+	// with it.
+	NudgeCompact = "compact"
 )
 
 // NudgeLevel selects how much of the harness the model hears. The levels

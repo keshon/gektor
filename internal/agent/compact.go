@@ -263,6 +263,14 @@ func (a *Agent) maybeCompact(history *[]llm.Message, usage llm.Usage, st *runSta
 	}
 	*history = compacted
 	dropRepeatCaches(st)
+	// Report the compaction. The notice lives in the model's history, so
+	// without this an observer sees a transcript holding turns the model can
+	// no longer read, with nothing saying where they went. The text is the
+	// notice itself rather than a second rendering of it, so the two cannot
+	// disagree.
+	if len(compacted) > 2 && strings.HasPrefix(compacted[2].Content, harnessPrefix) {
+		a.notifyNudge(NudgeCompact, compacted[2].Content)
+	}
 	return true
 }
 

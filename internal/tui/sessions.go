@@ -328,7 +328,8 @@ func (m *model) openSelected() tea.Cmd {
 	m.mission = false
 	m.resetRunFacts()
 	m.restoreDraft()
-	m.transcript.blocks = append([]block{markerBlock("- opened " + cur.title + " -")}, renderHistory(history)...)
+	blocks, boundary := renderHistoryAt(history)
+	m.transcript.blocks = append([]block{markerBlock("- opened " + cur.title + " -")}, blocks...)
 	m.restoreContext(history)
 	m.retryRun = nil
 	m.runErr = nil
@@ -345,7 +346,7 @@ func (m *model) openSelected() tea.Cmd {
 	m.transcript.Viewport.GotoTop()
 	if cur.historyMatch {
 		// Match indices refer to renderHistory; the opened marker adds one block.
-		target := historyMatchBlock(history, cur.matchMessage) + 1
+		target := historyMatchBlock(blocks, boundary, cur.matchMessage) + 1
 		row := m.transcript.PartOffset(target)
 		m.transcript.Follow = false
 		m.transcript.Viewport.SetYOffset(row)
@@ -360,9 +361,20 @@ func (m *model) openSelected() tea.Cmd {
 // system notices. Tool cards re-attach their results by
 // call ID, same pairing the live path uses. No markers: the caller
 // prepends its own (resumed/compacted), this renders conversation.
+//
+// boundary[i] is the block index where message i starts, so a caller that
+// needs to point at one source message can do it without rendering the
+// prefix a second time and throwing it away.
 func renderHistory(history []llm.Message) []block {
+	blocks, _ := renderHistoryAt(history)
+	return blocks
+}
+
+func renderHistoryAt(history []llm.Message) ([]block, []int) {
 	var out []block
-	for _, msg := range history {
+	boundary := make([]int, len(history)+1)
+	for i, msg := range history {
+		boundary[i] = len(out)
 		switch msg.Role {
 		case llm.RoleSystem:
 			continue
@@ -403,7 +415,8 @@ func renderHistory(history []llm.Message) []block {
 	for i := range out {
 		out[i].at = time.Time{}
 	}
-	return out
+	boundary[len(history)] = len(out)
+	return out, boundary
 }
 
 // commitRename stores the title beside the session (empty restores the
@@ -683,15 +696,20 @@ func (m *model) updateSessionTitle(dir, title string) {
 
 // Translate a source-message match only when opening its transcript. Indexing
 // remains independent of reasoning blocks, tool cards, and display layout.
-func historyMatchBlock(history []llm.Message, message int) int {
-	message = min(max(message, 0), len(history))
-	prefix := len(renderHistory(history[:message]))
-	if message == len(history) {
+//
+// It reads the block index out of the render the caller already has. The
+// previous version rendered every block in the prefix purely to count them
+// and threw them away, which doubled the work of opening a session from a
+// search hit.
+func historyMatchBlock(blocks []block, boundary []int, message int) int {
+	message = min(max(message, 0), len(boundary)-1)
+	prefix := boundary[message]
+	if message >= len(boundary)-1 {
 		return prefix
 	}
-	for i, b := range renderHistory(history[message : message+1]) {
-		if b.role == roleUser || b.role == roleAnswer {
-			return prefix + i
+	for i := prefix; i < boundary[message+1]; i++ {
+		if blocks[i].role == roleUser || blocks[i].role == roleAnswer {
+			return i
 		}
 	}
 	return prefix

@@ -73,11 +73,22 @@ func Box(rows []string, s Styles) []string {
 
 // FrameBox centers a box in a larger area, which is how a dialog takes over
 // the transcript without splicing ANSI into the lines beneath it.
+//
+// Every line is indented, not just the first: indenting only the first
+// shifts the top border away from the box it belongs to, which reads as two
+// overlapping frames rather than one misaligned one.
 func FrameBox(rows []string, areaW, areaH int, s Styles) string {
-	box := strings.Join(Box(rows, s), "\n")
-	w, h := cell.Width(box), lipgloss.Height(box)
-	return strings.Repeat("\n", max((areaH-h)/2, 0)) +
-		strings.Repeat(" ", max((areaW-w)/2, 0)) + box
+	framed := Box(rows, s)
+	w := cell.Width(strings.Join(framed, "\n"))
+	left := max((areaW-w)/2, 0)
+	top := max((areaH-len(framed))/2, 0)
+
+	indent := strings.Repeat(" ", left)
+	indented := make([]string, len(framed))
+	for i, line := range framed {
+		indented[i] = indent + line
+	}
+	return strings.Repeat("\n", top) + strings.Join(indented, "\n")
 }
 
 func frame(rows []string, title string, width int, s Styles) []string {

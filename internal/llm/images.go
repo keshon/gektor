@@ -14,6 +14,13 @@ import (
 // is a video frame or a mistake, not a screenshot.
 const imageMaxBytes = 20 << 20
 
+// imageEstimateTokens is what one attached picture costs when the backend
+// does not report usage. A flat figure, because the real cost depends on the
+// model's vision encoder and the resize the server applies, neither of which
+// is knowable here. Undershooting would let an image-heavy turn overrun the
+// window the meter says it has; overshooting only compacts a little early.
+const imageEstimateTokens = 1024
+
 // imageMIME maps accepted extensions to wire MIME types. Deliberately
 // narrow: servers agree on these, and an exotic codec failing server-
 // side looks exactly like model blindness.

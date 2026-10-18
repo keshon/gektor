@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/tars/internal/run"
 )
 
@@ -115,6 +117,38 @@ func TestConfirmationSwallowsTyping(t *testing.T) {
 	}
 	if m.dialog == nil {
 		t.Fatal("confirmation closed on an unrelated key")
+	}
+}
+
+// A centred dialog is one frame, not two. Indenting only the first line of
+// the box shifted the top border away from the body it belongs to, which
+// reads as an empty box floating beside the real one.
+func TestConfirmationRendersAsOneAlignedFrame(t *testing.T) {
+	m := restartModel(t)
+	m.confirmRestart(func() {})
+
+	lines := strings.Split(m.dialogView(), "\n")
+	var box []string
+	for _, l := range lines {
+		if strings.Contains(ansi.Strip(l), "╭") || strings.Contains(ansi.Strip(l), "│") || strings.Contains(ansi.Strip(l), "╰") {
+			box = append(box, l)
+		}
+	}
+	if len(box) < 4 {
+		t.Fatalf("no framed dialog in %d lines:\n%s", len(lines), strings.Join(lines, "\n"))
+	}
+	width := lipgloss.Width(ansi.Strip(box[0]))
+	for i, l := range box {
+		if got := lipgloss.Width(ansi.Strip(l)); got != width {
+			t.Fatalf("dialog line %d is %d cells, want %d — the frame is ragged:\n%s",
+				i, got, width, strings.Join(box, "\n"))
+		}
+	}
+	if !strings.HasPrefix(ansi.Strip(box[0]), strings.Repeat(" ", 1)) {
+		t.Fatal("dialog is flush against the left edge")
+	}
+	if !strings.Contains(strings.Join(box, "\n"), "Restart session") {
+		t.Fatalf("the dialog does not show what it is asking:\n%s", strings.Join(box, "\n"))
 	}
 }
 

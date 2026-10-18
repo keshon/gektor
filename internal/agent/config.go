@@ -58,10 +58,10 @@ type Config struct {
 	VerifyOnZeroWrites bool
 
 	// Observers. All optional; the loop itself never prints.
-	OnStep       func(step int, msg llm.Message)
-	OnUsage      func(step int, usage llm.Usage)
-	OnResult     func(ToolResult)
-	OnDelta      func(chunk string)
+	OnStep   func(step int, msg llm.Message)
+	OnUsage  func(step int, usage llm.Usage)
+	OnResult func(ToolResult)
+	OnDelta  func(chunk string)
 	// OnReasoning receives streamed deliberation, which arrives before the
 	// answer and is reported separately so a reader can watch it first.
 	OnReasoning func(chunk string)
@@ -92,7 +92,12 @@ type Config struct {
 	Verify func(ctx context.Context) (output string, ok bool)
 
 	// CompactKeepSteps is how many recent step groups compaction keeps.
-	// Zero: DefaultCompactKeepSteps. -1 disables compaction.
+	// Zero: DefaultCompactKeepSteps. -1 disables threshold compaction.
+	//
+	// -1 does not disable overflow recovery. When the backend reports that
+	// the prompt does not fit, compaction is the only way the run
+	// continues; a setting that let it run out and then refused to
+	// compact would convert a recoverable step into a dead run.
 	CompactKeepSteps int
 
 	// CompactAtPercent is the share of ContextLimit that triggers

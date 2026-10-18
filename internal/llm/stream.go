@@ -213,12 +213,23 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onCon
 	// llama.cpp streams carry no usage block: estimate from the wire
 	// instead of reporting a dead meter (marked Estimated; displays
 	// show "~"). Same chars/4 ratio the reasoning budget uses.
+	//
+	// Count what goes on the wire and nothing else. Reasoning is decoded
+	// for display and never encoded back, and tool-call arguments are
+	// routinely larger than the text around them, so counting one and
+	// skipping the other inflated the prompt on every step of a reasoning
+	// run. Every budget downstream trusts this number: compaction fired
+	// early and the response allowance shrank for no reason.
 	estimated := false
 	if promptTokens == 0 {
 		estimated = true
 		n := 0
 		for _, m := range req.Messages {
-			n += len([]rune(m.Content)) + len([]rune(m.Reasoning))
+			n += len([]rune(m.Content))
+			n += len(m.Images) * imageEstimateTokens
+			for _, call := range m.ToolCalls {
+				n += len([]rune(call.Name)) + len(call.Arguments)
+			}
 		}
 		if toolsJSON, err := json.Marshal(req.Tools); err == nil {
 			n += len([]rune(string(toolsJSON)))
