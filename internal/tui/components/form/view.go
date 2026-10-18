@@ -16,6 +16,33 @@ type Props struct {
 	Width, Height                            int
 	Destructive                              bool
 	Styles                                   Styles
+
+	// Hooks for a form that needs more than plain fields. Every one is
+	// optional: a nil or zero value means the default, so a simple form
+	// draws exactly what it always did. They exist because the settings
+	// editor forked this renderer to get them, and two renderers of the
+	// same skeleton is how a form stops looking like the rest of the app.
+	//
+	// Visible hides fields - the settings editor keeps a rarely used field
+	// behind a toggle rather than showing it greyed out.
+	Visible func(index int) bool
+	// Label rewrites a field's name, for one whose stored key reads worse
+	// than the thing it describes.
+	Label func(Field) string
+	// Display renders a field's value as a row - shortened, annotated with
+	// what pressing it does - and reports whether that field still opens an
+	// editor. A field that opens a chooser is not editable in place, so it
+	// stays a value even while focused. Nil means the plain behaviour: the
+	// stored value, and an editor on the focused field.
+	Display func(field Field, current string) (string, bool)
+	// Note is the line above the buttons when there is nothing wrong.
+	Note string
+	// Footer replaces the key hints at the bottom.
+	Footer string
+	// DisablePrimary greys the primary action out. Inverted so that the zero
+	// value keeps it enabled: a form that has nothing to save should not
+	// offer a button that saves nothing.
+	DisablePrimary bool
 }
 
 func (f Model) Rows(props Props) ([]string, []Hit) {
@@ -23,15 +50,34 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 	inner := max(min(w-6, 72), 12)
 	height := f.Editor.Height()
 	rows := []string{props.Styles.Focus.Render(props.Title), "", props.Styles.Muted.Render(cell.Line(props.Hint, inner)), ""}
-	capacity := max((h-9-height)/3, 1)
-	start := max(min(f.Index, len(f.Fields)-1)-capacity/2, 0)
-	end := min(start+capacity, len(f.Fields))
-	if end == len(f.Fields) {
-		start = max(end-capacity, 0)
+
+	// Window over the fields that are actually showing, not over all of
+	// them: a hidden field must not take a row or a scroll step.
+	var indexes []int
+	for i := range f.Fields {
+		if props.Visible == nil || props.Visible(i) {
+			indexes = append(indexes, i)
+		}
 	}
+	position := 0
+	for p, i := range indexes {
+		if i == f.Index {
+			position = p
+		}
+	}
+	capacity := max((h-9-height)/3, 1)
+	start := max(min(position-capacity/2, len(indexes)-capacity), 0)
+	end := min(start+capacity, len(indexes))
+
 	hits := []Hit{}
-	for i := start; i < end; i++ {
-		label := f.Fields[i].Label
+	for _, i := range indexes[start:end] {
+		field := f.Fields[i]
+		label := field.Label
+		if props.Label != nil {
+			if custom := props.Label(field); custom != "" {
+				label = custom
+			}
+		}
 		style := props.Styles.Muted
 		if i == f.Index {
 			label = "› " + label
@@ -39,32 +85,44 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 		}
 		y := len(rows)
 		rows = append(rows, style.Render(cell.Line(label, inner)))
-		if i == f.Index && props.Choice != "" {
+		value := strings.ReplaceAll(field.Value, "\n", " ↵ ")
+		if i == f.Index {
+			value = strings.ReplaceAll(f.Editor.Value(), "\n", " ↵ ")
+		}
+		editable := true
+		if props.Display != nil {
+			value, editable = props.Display(field, value)
+		}
+		switch {
+		case i == f.Index && props.Choice != "":
 			rows = append(rows, cell.Line("[ "+props.Choice+" ]  Enter to choose", inner))
-		} else if i == f.Index {
+		case i == f.Index && editable:
 			rows = append(rows, strings.Split(f.Editor.View(), "\n")...)
-		} else {
-			rows = append(rows, cell.Line(strings.ReplaceAll(f.Fields[i].Value, "\n", " ↵ "), inner))
+		default:
+			rows = append(rows, cell.Line(value, inner))
 		}
 		hits = append(hits, Hit{i, y, len(rows), 0, 0})
 		rows = append(rows, "")
 	}
-	if len(f.Fields) > capacity {
-		rows = append(rows, props.Styles.Muted.Render(fmt.Sprintf("Fields %d–%d / %d · Tab moves through all fields", start+1, end, len(f.Fields))))
+	if len(indexes) > capacity {
+		rows = append(rows, props.Styles.Muted.Render(fmt.Sprintf("Fields %d–%d / %d · Tab moves through all fields", start+1, end, len(indexes))))
 	}
 	if props.Error != "" {
 		rows = append(rows, props.Styles.Error.Render(cell.Line(props.Error, inner)))
 	} else {
-		rows = append(rows, cell.Line("", inner))
+		rows = append(rows, cell.Line(props.Note, inner))
 	}
-	action, actionHits := f.Actions(inner, len(rows), props.PrimaryLabel, true, props.Styles)
+	action, actionHits := f.Actions(inner, len(rows), props.PrimaryLabel, !props.DisablePrimary, props.Styles)
 	rows = append(rows, action, props.Styles.Muted.Render(strings.Repeat("─", inner)))
 	hits = append(hits, actionHits...)
-	hint := "↑↓/Tab fields · Ctrl+↑↓ multiline fields · Ctrl+S apply · Esc cancel"
-	if props.Destructive {
-		hint = "Tab selects · Enter confirms selection · Esc cancel"
+	footer := props.Footer
+	if footer == "" {
+		footer = "↑↓/Tab fields · Ctrl+↑↓ multiline fields · Ctrl+S apply · Esc cancel"
+		if props.Destructive {
+			footer = "Tab selects · Enter confirms selection · Esc cancel"
+		}
 	}
-	rows = append(rows, props.Styles.Muted.Render(cell.Line(hint, inner)))
+	rows = append(rows, props.Styles.Muted.Render(cell.Line(footer, inner)))
 	return rows, hits
 }
 func (f Model) Actions(width, y int, primary string, enabled bool, styles Styles) (string, []Hit) {

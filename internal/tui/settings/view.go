@@ -23,6 +23,15 @@ type Props struct {
 func (p Props) formStyles() form.Styles {
 	return form.Styles{Muted: p.Styles.Muted, Focus: p.Styles.Focus, Error: p.Styles.Error}
 }
+
+// Rows draws the section's fields.
+//
+// It delegates to the shared form component rather than rendering its own.
+// The two were the same skeleton - title, hint, label/value pairs, actions,
+// rule, key hints - with four small differences, which is how the settings
+// modal came to look like nothing else in the app. Those four are now
+// optional hooks on form.Props, so every form draws the same way and the
+// editor states what it wants instead of drawing it.
 func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 	if f.Picker != nil {
 		return f.PickerRows(props)
@@ -30,102 +39,95 @@ func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 	if f.Workspace == nil {
 		return f.PlainRows(props)
 	}
-	w, h := props.Width, props.Height
-	// One section per modal. The rail that used to sit on the left listed
-	// the same sections the header's Settings menu already lists, so every
-	// section opened as a two-column window three quarters full of the other
-	// sections' names. The menu is the chooser; the modal is for the thing
-	// chosen.
-	inner := max(w-6, 12)
-	category := ""
+	rows, hits := f.Model.Rows(form.Props{
+		Title:        props.Styles.Focus.Render("Settings / " + f.sectionLabel()),
+		Hint:         Hint(f.Workspace.Section),
+		Error:        f.Error,
+		PrimaryLabel: f.ApplyLabel,
+		Width:        props.Width,
+		Height:       props.Height,
+		Choice:       f.choice(),
+		Styles:       props.formStyles(),
+		Visible:      f.FieldVisible,
+		Label:        settingsLabel,
+		Display:      f.display,
+		Note:         f.note(),
+		Footer:       "Tab controls · Ctrl+S apply · Esc cancel",
+		// Nothing to save is nothing to apply. Offering a live Apply on an
+		// unchanged form invites a relaunch that changes nothing.
+		DisablePrimary: !f.Dirty(),
+	})
+	return rows, hits, props.Width, props.Height
+}
+
+// sectionLabel names the section for the title line.
+func (f *Model) sectionLabel() string {
 	if f.Workspace.Section == "application" {
-		category = "Application"
+		return "Application"
 	}
 	for _, c := range categories {
 		if c.ID == f.Workspace.Section {
-			category = c.Label
+			return c.Label
 		}
 	}
-	hint := Hint(f.Workspace.Section)
-	rows := []string{props.Styles.Focus.Render("Settings / " + category), props.Styles.Muted.Render(cell.Line(hint, inner)), ""}
-	hits := []form.Hit{}
-	visible := []int{}
-	for i := range f.Fields {
-		if f.FieldVisible(i) {
-			visible = append(visible, i)
-		}
+	return ""
+}
+
+// choice is the label of the focused field's fixed options, if it has any.
+func (f *Model) choice() string {
+	if f.Index < len(f.Fields) && len(f.Options(f.Fields[f.Index].Key)) > 0 {
+		return ChoiceLabel(f.Fields[f.Index].Key, f.Editor.Value())
 	}
-	capacity := max((h-10)/3, 1)
-	position := 0
-	for i, v := range visible {
-		if v == f.Index {
-			position = i
-		}
+	return ""
+}
+
+// note is the line above the buttons when nothing has gone wrong.
+func (f *Model) note() string {
+	switch {
+	case f.Error != "":
+		return ""
+	case f.Workspace.Section == "profiles":
+		return "Ctrl+D saves a copy · Apply uses the loaded profile in this session"
+	case f.Dirty():
+		return "Apply saves a custom profile · F4 Advanced"
+	default:
+		return "No changes · F4 Advanced"
 	}
-	start := max(min(position-capacity/2, len(visible)-capacity), 0)
-	end := min(start+capacity, len(visible))
-	for _, i := range visible[start:end] {
-		field := f.Fields[i]
-		label := field.Label
-		switch field.Key {
-		case "endpoint":
-			label = "Server address"
-		case "kind":
-			label = "Protocol"
-		}
-		style := props.Styles.Muted
-		if i == f.Index {
-			style = props.Styles.Focus
-			label = "› " + label
-		}
-		y := len(rows)
-		rows = append(rows, style.Render(cell.Line(label, inner)))
-		value := field.Value
-		if i == f.Index {
-			value = f.Editor.Value()
-		}
-		if PickerFiles(field.Key) {
-			if value == "" {
-				value = "Not selected"
-			} else {
-				value = filepath.Base(value)
-			}
-			value += "  [ Choose… ]"
-		}
-		if field.Key == "model" {
-			value = value + "  [ Discover… ]"
-		}
-		if len(f.Options(field.Key)) > 0 {
-			value = "[ " + ChoiceLabel(field.Key, value) + " ▾ ]"
-		}
-		if i == f.Index && !PickerControl(field.Key) && len(f.Options(field.Key)) == 0 {
-			rows = append(rows, strings.Split(f.Editor.View(), "\n")...)
-		} else {
-			rows = append(rows, cell.Line(strings.ReplaceAll(value, "\n", " ↵ "), inner))
-		}
-		hits = append(hits, form.Hit{Index: i, Y0: y, Y1: len(rows), X0: 0, X1: 0})
-		rows = append(rows, "")
+}
+
+// settingsLabel renames the two fields whose stored key says less than the
+// thing it describes.
+func settingsLabel(field form.Field) string {
+	switch field.Key {
+	case "endpoint":
+		return "Server address"
+	case "kind":
+		return "Protocol"
 	}
-	// Actions stay at the bottom; a small terminal shows fewer controls.
-	for len(rows) < max(h-7, 3) {
-		rows = append(rows, "")
+	return ""
+}
+
+// display renders a field's value row and reports whether it still opens an
+// editor. A field that opens a chooser - a file, a set of fixed options, a
+// discovery - is not edited in place, so it stays a value row even while it
+// is the focused one, and says what pressing it will do.
+func (f *Model) display(field form.Field, value string) (string, bool) {
+	if len(f.Options(field.Key)) > 0 {
+		return "[ " + ChoiceLabel(field.Key, value) + " ▾ ]", false
 	}
-	note := f.Error
-	if note == "" {
-		note = "No changes · F4 Advanced"
-		if f.Dirty() {
-			note = "Apply saves a custom profile · F4 Advanced"
+	switch {
+	case PickerFiles(field.Key):
+		shown := "Not selected"
+		if value != "" {
+			// A full path is noise in a two-column row; the last
+			// element is what the reader recognises.
+			shown = filepath.Base(value)
 		}
-		if f.Workspace.Section == "profiles" {
-			note = "Ctrl+D saves a copy · Apply uses the loaded profile in this session"
-		}
+		return shown + "  [ Choose… ]", false
+	case field.Key == "model":
+		return value + "  [ Discover… ]", false
 	}
-	rows = append(rows, props.Styles.Muted.Render(cell.Line(note, inner)))
-	buttonRow, actionHits := f.Actions(inner, len(rows), "Apply", f.Dirty(), props.formStyles())
-	hits = append(hits, actionHits...)
-	rows = append(rows, buttonRow, props.Styles.Muted.Render(strings.Repeat("─", inner)))
-	rows = append(rows, props.Styles.Muted.Render(cell.Line("Tab controls · Ctrl+S apply · Esc cancel", inner)))
-	return rows, hits, w, h
+	return value, true
 }
 
 func (f *Model) PlainRows(props Props) ([]string, []form.Hit, int, int) {

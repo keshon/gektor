@@ -32,7 +32,13 @@ Run `go test -race ./...` and `go vet ./...`. Performance probes live in
   TARS: the command registry is the application's.
 - `form`: field/editor state, keyboard navigation, Apply/Cancel/Pick intents,
   compact form rows and action hit geometry. The caller supplies styles, labels,
-  dimensions, visibility and choice display; it performs persistence.
+  dimensions, visibility and choice display; it performs persistence. The
+  optional `Visible`, `Label`, `Display`, `Note`, `Footer` and `DisablePrimary`
+  props are for callers that need more than plain fields — the settings
+  editor uses them all rather than forking the renderer, which it did once,
+  and every divergence between the two copies was a bug waiting to happen. Its
+  file chooser is a searchable list rather than a field list, so it keeps its
+  own rows.
 - `composer`: textarea, bounded input history, draft recall and rune-based
   completion token/replacement operations. Command and file discovery stay in TARS.
 - `selection`: selection and scrolling geometry, used by Sessions and Settings pickers.
