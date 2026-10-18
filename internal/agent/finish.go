@@ -191,7 +191,17 @@ func (a *Agent) wrapUpTurn(ctx context.Context, st *runState, history []llm.Mess
 	if a.report.Steps <= 0 {
 		return "", false
 	}
-	h := append(history, llm.Message{Role: llm.RoleUser, Content: prompts.WrapUp})
+	// It is harness text, so it says so. It went in bare for as long as it
+	// existed, which meant the model could not tell a loop instruction from
+	// something the user typed - the one failure mode the [harness] prefix
+	// exists to prevent, and the more misleading here because it is the
+	// last thing the model reads before the run ends.
+	marked := harnessText(prompts.WrapUp)
+	a.notifyNudge(NudgeWrapUp, marked)
+	if !a.cfg.Nudges.allows(NudgeWrapUp) {
+		return "", false
+	}
+	h := append(history, llm.Message{Role: llm.RoleUser, Content: marked})
 	resp, err := a.chat(ctx, llm.ChatRequest{
 		Messages:  h,
 		Tools:     a.cfg.Tools.Defs(),

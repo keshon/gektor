@@ -109,10 +109,16 @@ const (
 	NudgeStuck     = "stuck"
 	NudgeTodo      = "todo"
 	NudgeClosing   = "closing"
-	// NudgeCompact is the one kind that is never shown to the model. It
-	// carries the compaction notice so an observer can see that context
-	// was dropped while the transcript still shows the turns that went
-	// with it.
+	// NudgeWrapUp is the closing turn's instruction. It is harness text
+	// and was appended bare, so the model read a loop instruction as
+	// something the user had typed.
+	NudgeWrapUp = "wrap-up"
+	// NudgeCompact carries the compaction notice so an observer can see
+	// that context was dropped while the transcript still shows the turns
+	// that went with it.
+	//
+	// Unlike every other kind it is not advice and cannot be turned off:
+	// see allows.
 	NudgeCompact = "compact"
 )
 
@@ -172,7 +178,19 @@ var advisoryNudges = map[string]bool{
 }
 
 // allows reports whether a kind should reach the model at this level.
+//
+// The compaction notice is the exception and always passes. It is not advice
+// - it is a fact about the conversation, in the same class as a tool result.
+// Suppressing it leaves the model reasoning over a window it believes is
+// complete, which is how a run ends up confidently answering from messages
+// that are no longer there. So "off" honestly means "no advice", rather than
+// claiming to be silence.
+//
+// Everything else is genuinely advice, and NudgeOff silences all of it.
 func (l NudgeLevel) allows(kind string) bool {
+	if kind == NudgeCompact {
+		return true
+	}
 	switch l {
 	case NudgeOff:
 		return false
