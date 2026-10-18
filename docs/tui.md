@@ -57,7 +57,9 @@ column 0. Machine notices are all `SYSTEM`, so their tag is what
 distinguishes them. Thinking and tool results can be collapsed or
 expanded with F3 or Ctrl+G. Collapsing is visual only; it does not
 remove model history. Scrolling up stops automatic following; F7 or
-Ctrl+End returns to the latest content.
+Ctrl+End returns to the latest content. A scrollbar in the right-hand column
+appears once the transcript is taller than the pane; its thumb is sized to
+the visible fraction and sits where you are in the document.
 
 ```text
 YOU

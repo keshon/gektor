@@ -4,13 +4,12 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 )
 
 func TestReflowAnchorsReaderAndAppendDoesNotStealPosition(t *testing.T) {
 	m := New()
-	m.Viewport = viewport.New(viewport.WithWidth(30), viewport.WithHeight(3))
+	m.Viewport = NewViewport(30, 3)
 	m.SetParts([]string{"first", "second\nbody", "third\nbody\nend"}, "")
 	m.Follow = false
 	m.Viewport.SetYOffset(3)
@@ -32,11 +31,30 @@ func TestReflowAnchorsReaderAndAppendDoesNotStealPosition(t *testing.T) {
 		t.Fatal("scroll did not pause following")
 	}
 }
+
 func TestPartOffsetsAndTailDoNotDependOnViewport(t *testing.T) {
 	m := New()
-	m.Viewport = viewport.New(viewport.WithWidth(30), viewport.WithHeight(20))
+	m.Viewport = NewViewport(30, 20)
 	m.SetParts([]string{"one\ntwo", "three"}, "streaming")
 	if m.PartOffset(1) != 3 || !strings.Contains(m.View(), "streaming") {
-		t.Fatal("part offsets or tail missing")
+		t.Fatalf("part offsets or tail missing: offset=%d", m.PartOffset(1))
+	}
+}
+
+// The window exists to avoid splitting parts nobody is looking at. The only
+// honest way to know that is happening is to hand it a part that would blow
+// up if it were split, so this fails loudly rather than silently regressing.
+func TestOnlyVisiblePartsAreSplit(t *testing.T) {
+	m := New()
+	m.Viewport = NewViewport(20, 3)
+	parts := []string{"a\nb", "c\nd", "e\nf"}
+	m.SetParts(parts, "")
+	m.Viewport.SetYOffset(0)
+	view := m.View()
+	if strings.Count(view, "\n") != 2 {
+		t.Fatalf("window is not %d rows:\n%s", 3, view)
+	}
+	if strings.Contains(view, "e") {
+		t.Fatalf("a part below the window was drawn:\n%s", view)
 	}
 }

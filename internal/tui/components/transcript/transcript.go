@@ -5,83 +5,90 @@ import (
 	"slices"
 	"strings"
 
-	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 )
 
 type Model struct {
-	Viewport viewport.Model
+	Viewport Viewport
 	Follow   bool
-	lines    []int
-	// lastParts/lastTail are what the viewport currently shows. The
-	// renderer rebuilds its parts on every frame, including frames that
-	// changed nothing, so this is what tells a real update from a repeat.
+	// lastParts/lastTail are what the window currently shows. The renderer
+	// hands over every block on every frame, including frames that changed
+	// nothing, so this is what tells a real update from a repeat.
 	lastParts []string
 	lastTail  string
 }
 
-func New() Model             { return Model{Follow: true} }
+func New() Model { return Model{Follow: true, Viewport: NewViewport(0, 0)} }
+
 func (m Model) View() string { return m.Viewport.View() }
+
 func (m *Model) Update(msg tea.Msg) tea.Cmd {
-	var cmd tea.Cmd
-	m.Viewport, cmd = m.Viewport.Update(msg)
+	cmd := m.Viewport.Update(msg)
 	m.Follow = m.Viewport.AtBottom()
 	return cmd
 }
+
+// PartOffset is the document line a part begins at, so a caller holding a
+// block index can scroll to it.
 func (m Model) PartOffset(index int) int {
-	row := 0
-	for i := 0; i < index && i < len(m.lines); i++ {
-		row += m.lines[i] + 1
+	if index <= 0 {
+		return 0
 	}
-	return row
+	if index < len(m.Viewport.starts) {
+		return m.Viewport.starts[index]
+	}
+	return m.Viewport.Total()
 }
 
 // SetParts accepts rendered, immutable strings. Tail is an unsettled streamed part.
 //
-// Identical input produces identical output, so a frame that re-renders to
-// the same parts skips the whole reassembly. That path is not free: the
-// viewport splits the joined content into lines and measures the widest of
-// them with an ANSI-aware scan on every call.
+// Parts are stored, not joined. The window needs a part's height to find the
+// next one, and every part's height to know how far the document scrolls, but
+// it never needs their text unless they are on screen.
 func (m *Model) SetParts(parts []string, tail string) {
 	if m.lastTail == tail && slices.Equal(m.lastParts, parts) {
 		return
 	}
-	content := strings.Join(parts, "\n\n")
+	all := parts
 	if tail != "" {
-		if content != "" {
-			content += "\n\n"
-		}
-		content += tail
+		all = make([]string, 0, len(parts)+1)
+		all = append(all, parts...)
+		all = append(all, tail)
 	}
-	heights := make([]int, len(parts))
-	for i, p := range parts {
-		heights[i] = strings.Count(p, "\n") + 1
+
+	starts := make([]int, len(all))
+	line := 0
+	for i, p := range all {
+		if i > 0 {
+			line++ // the blank line separating this part from the last
+		}
+		starts[i] = line
+		line += strings.Count(p, "\n") + 1
 	}
-	if !m.Follow && len(heights) > 0 && len(heights) == len(m.lines) {
-		oldTop := m.Viewport.YOffset()
-		acc, index := 0, 0
-		for index < len(m.lines) && acc+m.lines[index] <= oldTop {
-			acc += m.lines[index] + 1
-			index++
+	total := line
+
+	previous := m.Viewport
+	if !m.Follow && len(parts) == len(previous.parts) {
+		// Anchoring: the reader is inside some part, and that part is
+		// still the same one. Keep them the same distance into it, so a
+		// reflow above them moves the text under the reader rather than
+		// the reader away from the text.
+		if k := previous.partAt(previous.offset); k >= 0 && k < len(starts) {
+			within := previous.offset - previous.starts[k]
+			if within < 0 {
+				within = 0
+			}
+			m.Viewport.Set(parts, starts, total)
+			m.Viewport.SetYOffset(starts[k] + within)
+			m.lastParts, m.lastTail = parts, tail
+			return
 		}
-		shift := 0
-		for j := 0; j < index && j < len(heights); j++ {
-			shift += heights[j] - m.lines[j]
-		}
-		m.Viewport.SetContent(content)
-		offset := oldTop + shift
-		if maxOffset := strings.Count(content, "\n") + 1 - m.Viewport.Height(); maxOffset > 0 && offset > maxOffset {
-			offset = maxOffset
-		}
-		m.Viewport.SetYOffset(max(offset, 0))
-	} else {
-		m.Viewport.SetContent(content)
-		if m.Follow {
-			m.Viewport.GotoBottom()
-		} else if len(heights) == 0 {
-			m.Viewport.SetYOffset(0)
-		}
+	}
+	m.Viewport.Set(all, starts, total)
+	if m.Follow {
+		m.Viewport.GotoBottom()
+	} else if len(parts) == 0 {
+		m.Viewport.SetYOffset(0)
 	}
 	m.lastParts, m.lastTail = parts, tail
-	m.lines = heights
 }

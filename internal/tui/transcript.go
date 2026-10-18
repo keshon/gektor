@@ -697,7 +697,7 @@ type transcriptProps struct {
 	// reads THINK then RESPONSE instead of one buffer that blanks the
 	// answer to make room.
 	liveThink string
-	styles              styles
+	styles    styles
 	// hideSYS drops harness notices from the rendered transcript, and
 	// labels drops the [TAG] rows. Both are display-only: the blocks stay
 	// in m.transcript.blocks and come back unchanged when a filter lifts.
@@ -709,7 +709,7 @@ type transcriptProps struct {
 // emitted here because it depends on the previous block, which a per-block
 // cache keyed on the block value cannot know.
 func (t *transcriptState) refresh(props transcriptProps) {
-	width := t.Viewport.Width()
+	width := t.Viewport.ContentWidth()
 	opts := renderOpts{expand: !t.compact, labels: props.labels}
 	parts := make([]string, 0, len(t.blocks))
 	cache := make([]renderedBlock, len(t.blocks))

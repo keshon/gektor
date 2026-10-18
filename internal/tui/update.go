@@ -11,6 +11,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/run"
+	"github.com/keshon/tars/internal/tui/components/transcript"
 )
 
 func (m *model) Init() tea.Cmd {
@@ -31,6 +32,7 @@ func waitEvents(m *model) tea.Cmd {
 		return eventMsg(ev)
 	}
 }
+
 // Frame pacing. Revealing a reply needs frames; a running spinner needs
 // a tenth of a second; an idle session needs one tick to keep the clock
 // honest. They are separate because the spinner must not spin up when
@@ -177,7 +179,7 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 func (m *model) width(msg tea.WindowSizeMsg) {
 	m.termW, m.termH = msg.Width, msg.Height
 	if !m.ready {
-		m.transcript.Viewport = viewport.New(viewport.WithWidth(msg.Width), viewport.WithHeight(msg.Height))
+		m.transcript.Viewport = transcript.NewViewport(msg.Width, msg.Height)
 		m.ready = true
 	} else {
 		m.transcript.Viewport.SetWidth(msg.Width)

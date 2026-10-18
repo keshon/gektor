@@ -36,8 +36,11 @@ Run `go test -race ./...` and `go vet ./...`. Performance probes live in
 - `composer`: textarea, bounded input history, draft recall and rune-based
   completion token/replacement operations. Command and file discovery stay in TARS.
 - `selection`: selection and scrolling geometry, used by Sessions and Settings pickers.
-- `transcript`: viewport, follow behavior and part anchoring across reflows.
-  TARS retains role styling and the rendered-block cache.
+- `transcript`: the window (scroll, follow, part anchoring across reflows) and
+  its scrollbar. Parts are stored, not joined, so drawing a frame splits only
+  the parts on screen. TARS retains role styling and the rendered-block cache,
+  and asks for text at `ContentWidth`, which is a cell narrower when the bar
+  is showing.
 
 A confirmation is a `form` with no fields and `Destructive` set, not a
 separate widget: it is the same prompt the delete confirmation uses, so a
@@ -241,10 +244,11 @@ behaviour each copy had to agree with (`components/cell`, `components/popup`).
 - Session settings are rewritten only when their bytes change. They run at
   both ends of every turn and `SavePreferences` fsyncs, so an unchanged write
   was two dropped frames per turn for a payload that rarely differs.
-- The viewport is reassembled only when the rendered parts differ. A frame
-  that reveals nothing is now free; a frame that carries new text still
-  re-measures every rendered line, which grows with transcript length. That
-  one needs a windowed render, not a cache.
+- The viewport is reassembled only when the rendered parts differ, and it is
+  a window: parts are stored rather than joined, each one's starting line is
+  recorded, and `View` splits only the parts on screen. A frame that reveals
+  nothing is free, and a frame that carries new text costs the same whether
+  the transcript holds ten blocks or five hundred.
 - Terminal-cell table alignment is tested. The lightweight Markdown parser still
   does not implement escaped table pipes or nested formatting.
 
