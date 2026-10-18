@@ -7,7 +7,6 @@ import (
 	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/tars/internal/tui/components/popup"
 )
 
@@ -152,13 +151,5 @@ func highlightSearch(text string, re *regexp.Regexp, style lipgloss.Style) strin
 
 func (m *model) overlaySearch(background string) string {
 	g := m.searchGeometry()
-	lines := strings.Split(background, "\n")
-	for i, row := range strings.Split(m.searchView(), "\n") {
-		y := g.y + i
-		if y >= len(lines) {
-			break
-		}
-		lines[y] = ansi.Cut(lines[y], 0, g.x) + row + ansi.Cut(lines[y], g.x+g.width, m.termW)
-	}
-	return strings.Join(lines, "\n")
+	return popup.Overlay(background, strings.Split(m.searchView(), "\n"), g.x, g.y, g.width, m.termW)
 }

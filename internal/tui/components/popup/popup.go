@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/tars/internal/tui/components/cell"
 )
 
@@ -89,6 +90,33 @@ func FrameBox(rows []string, areaW, areaH int, s Styles) string {
 		indented[i] = indent + line
 	}
 	return strings.Repeat("\n", top) + strings.Join(indented, "\n")
+}
+
+// Overlay splices rows over an already-rendered screen at a position,
+// cutting the rows either side of the hole rather than overwriting whole
+// lines.
+//
+// This is the one piece of overlay chrome that does not live in a component,
+// and it was written twice in the root package with only the variable names
+// changed - which is the failure mode the package exists to prevent. The cut
+// is ANSI-aware, so a styled cell on the far side of the hole survives.
+//
+// width is the overlay's declared width, not the width of whichever row
+// happens to be shorter: the columns between the row's end and the frame are
+// background, and cutting from the row's own end would eat them.
+//
+// Rows past the end of the screen are dropped rather than appended: the
+// background is already the full terminal height.
+func Overlay(background string, rows []string, x, y, width, termW int) string {
+	lines := strings.Split(background, "\n")
+	for i, row := range rows {
+		at := y + i
+		if at < 0 || at >= len(lines) {
+			continue
+		}
+		lines[at] = ansi.Cut(lines[at], 0, x) + row + ansi.Cut(lines[at], x+width, termW)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func frame(rows []string, title string, width int, s Styles) []string {

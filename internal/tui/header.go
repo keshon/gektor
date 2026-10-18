@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/tars/internal/tui/components/popup"
 )
 
 type headerState struct {
@@ -404,16 +405,9 @@ func (m *model) overlayHeader(background string) string {
 		rows = append(rows, border.Render("│")+popupRow(style, label, width-2)+border.Render("│"))
 	}
 	rows = append(rows, border.Render("╰"+strings.Repeat("─", width-2)+"╯"))
-	lines := strings.Split(background, "\n")
-	for i, row := range rows {
-		y := m.headerTop() + i
-		if y >= len(lines) {
-			break
-		}
-		lines[y] = ansi.Cut(lines[y], 0, x) + row + ansi.Cut(lines[y], x+width, m.termW)
-	}
-	return strings.Join(lines, "\n")
+	return popup.Overlay(background, rows, x, m.headerTop(), width, m.termW)
 }
+
 func (m *model) headerMouse(msg tea.MouseMsg) (bool, tea.Cmd) {
 	mouse := msg.Mouse()
 	if mouse.Button == tea.MouseLeft && isMouseClick(msg) && mouse.Y == 0 {

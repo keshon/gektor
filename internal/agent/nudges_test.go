@@ -65,11 +65,16 @@ func TestNudgeLevels_SplitByCost(t *testing.T) {
 	if !NudgeRecovery.allows(NudgeTodo) {
 		t.Error("recovery must keep the turn-costing notices")
 	}
-	for _, l := range []NudgeLevel{NudgeOff, NudgeRecovery} {
-		for _, kind := range []string{NudgeStuck, NudgeBudget, NudgeTodo, NudgeVerify, NudgeTruncated} {
-			if l.allows(kind) && (l == NudgeOff || advisoryNudges[kind]) {
-				t.Errorf("%v allowed %q, want dropped", l, kind)
-			}
+	for _, kind := range []string{NudgeStuck, NudgeBudget, NudgeTodo, NudgeVerify, NudgeTruncated} {
+		if NudgeOff.allows(kind) {
+			t.Errorf("off allowed %q, want dropped", kind)
+		}
+		// Recovery keeps the turn-costing notices and drops the free ones.
+		if nudgeClasses[kind] == classAdvisory && NudgeRecovery.allows(kind) {
+			t.Errorf("recovery allowed advisory %q, want dropped", kind)
+		}
+		if nudgeClasses[kind] == classRecovery && !NudgeRecovery.allows(kind) {
+			t.Errorf("recovery dropped %q, which costs a turn", kind)
 		}
 	}
 }

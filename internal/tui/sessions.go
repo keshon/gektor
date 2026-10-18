@@ -215,37 +215,16 @@ func (m *model) sessionsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "enter":
 		return m, m.openSelected()
-	case "up", "down":
+	case "up", "down", "pgup", "pgdown":
 		s.flash = ""
 		if len(s.entries) == 0 {
 			return m, nil
 		}
-		if msg.String() == "up" && s.Cursor > 0 {
-			s.Cursor--
-		}
-		if msg.String() == "down" && s.Cursor < len(s.entries)-1 {
-			s.Cursor++
-		}
-		m.clampOffset()
-		return m, nil
-	case "pgup", "pgdown":
-		s.flash = ""
-		if len(s.entries) == 0 {
-			return m, nil
-		}
-		step := m.sessVisible()
-		if msg.String() == "pgup" {
-			s.Cursor -= step
-			if s.Cursor < 0 {
-				s.Cursor = 0
-			}
-		} else {
-			s.Cursor += step
-			if s.Cursor > len(s.entries)-1 {
-				s.Cursor = len(s.entries) - 1
-			}
-		}
-		m.clampOffset()
+		// The same component the navigator uses. It clamps the cursor and
+		// drags the offset with it; the hand-rolled version here had to be
+		// reminded to call clampOffset separately, and did not on every
+		// path that moved the cursor.
+		s.Update(msg, len(s.entries), m.sessVisible())
 		return m, nil
 	case "ctrl+r":
 		if len(s.entries) == 0 {

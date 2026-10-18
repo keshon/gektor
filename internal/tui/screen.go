@@ -70,7 +70,7 @@ func (m *model) screenContent() string {
 		bottom = cellLine("Queued  Ctrl+E edit  Ctrl+X cancel: "+m.queued, m.transcript.Viewport.Width()) + "\n" + bottom
 	}
 	bottom = cellFrame(bottom, m.transcript.Viewport.Width(), lipgloss.Height(bottom))
-	conversation := body + gap + "\n" + m.styles.dim.Render(strings.Repeat("─", m.transcript.Viewport.Width())) + "\n" + cellLine(m.statusLine(), m.transcript.Viewport.Width()) + "\n" + bottom
+	conversation := body + gap + "\n" + m.dividerLine() + "\n" + cellLine(m.statusLine(), m.transcript.Viewport.Width()) + "\n" + bottom
 	conversation = cellFrame(conversation, m.transcript.Viewport.Width(), m.paneHeight())
 	if m.sidebarVisible() {
 		divider := strings.Repeat(m.styles.dim.Render(" │ ")+"\n", m.paneHeight()-1) + m.styles.dim.Render(" │ ")
@@ -85,24 +85,28 @@ func (m *model) screenContent() string {
 		conversation = lipgloss.JoinHorizontal(lipgloss.Top, m.sidebarView(), divider, conversation)
 	}
 	innerWidth := max(m.termW-2, 0)
-	topRule := strings.Repeat("─", innerWidth)
+	// A full-width rule, optionally split by a junction where the sidebar
+	// divider meets it. Three rules use the same expression and differ only
+	// in that one rune; column is 0 when there is no sidebar.
+	column := 0
 	if m.sidebarVisible() {
-		column := navigatorWidth + 1
-		topRule = strings.Repeat("─", column) + "┬" + strings.Repeat("─", innerWidth-column-1)
+		column = navigatorWidth + 1
 	}
-	headerRule := strings.Repeat("─", innerWidth)
-	if m.sidebarVisible() {
-		column := navigatorWidth + 1
-		headerRule = strings.Repeat("─", column) + "┼" + strings.Repeat("─", innerWidth-column-1)
-	}
-	content := m.menuLine() + "\n" + m.styles.dim.Render(topRule) + "\n" + paneHeader + "\n" + m.styles.dim.Render(headerRule) + "\n" + conversation
-	if m.actionBarVisible() {
-		rule := m.dividerLine()
-		if m.sidebarVisible() {
-			column := navigatorWidth + 1
-			rule = m.styles.dim.Render(strings.Repeat("─", column) + "┴" + strings.Repeat("─", innerWidth-column-1))
+	rule := func(junction string) string {
+		if column <= 0 {
+			return strings.Repeat("─", innerWidth)
 		}
-		content += "\n" + rule + "\n" + m.actionBar()
+		return strings.Repeat("─", column) + junction +
+			strings.Repeat("─", max(innerWidth-column-1, 0))
+	}
+	content := m.menuLine() + "\n" + m.styles.dim.Render(rule("┬")) + "\n" + paneHeader +
+		"\n" + m.styles.dim.Render(rule("┼")) + "\n" + conversation
+	if m.actionBarVisible() {
+		barRule := m.dividerLine()
+		if column > 0 {
+			barRule = m.styles.dim.Render(rule("┴"))
+		}
+		content += "\n" + barRule + "\n" + m.actionBar()
 	}
 	if m.termW >= 2 && m.actionBarVisible() {
 		rows := strings.Split(content, "\n")

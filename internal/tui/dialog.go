@@ -273,20 +273,33 @@ func nonEmpty(s string) string {
 // kvRows aligns "label: value" rows so values start in one column:
 // short labels are padded, never truncated. Borderless on purpose —
 // status facts, not data grids (markdown tables already cover those).
+//
+// Padding is measured in cells, like every other column aligner in the
+// package. It used to be measured in bytes, which meant a label containing
+// anything non-ASCII pushed its own value out of line: "Сервер: x" measured
+// six columns and padded by twelve spaces.
 func kvRows(rows []string) []string {
+	split := func(r string) (label, rest string, ok bool) {
+		i := strings.Index(r, ":")
+		if i < 0 {
+			return "", r, false
+		}
+		return r[:i], r[i:], true
+	}
 	w := 0
 	for _, r := range rows {
-		if i := strings.Index(r, ":"); i > w {
-			w = i
+		if label, _, ok := split(r); ok {
+			w = max(w, lipgloss.Width(label))
 		}
 	}
 	out := make([]string, len(rows))
 	for i, r := range rows {
-		if j := strings.Index(r, ":"); j >= 0 {
-			out[i] = r[:j] + strings.Repeat(" ", w-j) + r[j:]
-		} else {
+		label, rest, ok := split(r)
+		if !ok {
 			out[i] = r
+			continue
 		}
+		out[i] = cellLine(label, w) + rest
 	}
 	return out
 }

@@ -46,7 +46,7 @@ func TestSuppressedAdviceIsStillReported(t *testing.T) {
 	var seen []string
 	a := New(Config{
 		Client: &stubClient{}, Tools: NewRegistry(), System: "sys", SkipVerify: true,
-		Nudges: NudgeOff,
+		Nudges:  NudgeOff,
 		OnNudge: func(kind, _ string) { seen = append(seen, kind) },
 	})
 	history := a.nudge(nil, NudgeVerify, "verify failed")
@@ -99,6 +99,63 @@ func TestEveryNudgeLevelRoundTrips(t *testing.T) {
 		}
 		if got := NudgeLevelName(level); got != name {
 			t.Errorf("%q parsed then rendered as %q", name, got)
+		}
+	}
+}
+
+// everyNudgeKind is the full set. A kind missing from nudgeClasses falls
+// through allows as a recovery nudge, which is exactly the silent default
+// that made the previous advisory set wrong.
+func everyNudgeKind() []string {
+	return []string{
+		NudgeOverflow, NudgeTruncated, NudgeThinkWrap, NudgeLeak, NudgeVerify,
+		NudgeRefusal, NudgeBudget, NudgeStuck, NudgeTodo, NudgeClosing,
+		NudgeWrapUp, NudgeCompact,
+	}
+}
+
+func TestEveryNudgeKindHasAClass(t *testing.T) {
+	for _, kind := range everyNudgeKind() {
+		if _, ok := nudgeClasses[kind]; !ok {
+			t.Errorf("%q has no class; it would default to recovery", kind)
+		}
+	}
+	// And nothing classified that the loop cannot produce, which would be a
+	// class nobody ever reads.
+	for kind := range nudgeClasses {
+		found := false
+		for _, k := range everyNudgeKind() {
+			if k == kind {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("%q is classified but never produced", kind)
+		}
+	}
+}
+
+// The three levels are presets over three classes. Each has to be exactly
+// the set of kinds its name promises, or the names are decoration.
+func TestLevelsArePresetsOverClasses(t *testing.T) {
+	want := map[NudgeLevel][]nudgeClass{
+		NudgeFull:     {classFact, classRecovery, classAdvisory},
+		NudgeRecovery: {classFact, classRecovery},
+		NudgeOff:      {classFact},
+	}
+	for level, classes := range want {
+		for _, kind := range everyNudgeKind() {
+			allowed := level.allows(kind)
+			expected := false
+			for _, c := range classes {
+				if nudgeClasses[kind] == c {
+					expected = true
+				}
+			}
+			if allowed != expected {
+				t.Errorf("%v allows %q = %v, want %v", NudgeLevelName(level), kind, allowed, expected)
+			}
 		}
 	}
 }

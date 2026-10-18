@@ -136,7 +136,8 @@ const (
 //	NudgeFull     everything (default)
 //	NudgeRecovery only the notices that turn a bad ending into another
 //	              attempt; the free advice is dropped
-//	NudgeOff      none
+//	NudgeOff      no advice at all. The compaction notice still arrives:
+//	              it is a fact about the conversation, not a suggestion.
 type NudgeLevel int
 
 const (
@@ -170,34 +171,72 @@ func NudgeLevelName(l NudgeLevel) string {
 	return "full"
 }
 
-// advisoryNudges ride an existing turn. Every other kind answers a finish
-// and therefore costs one.
-var advisoryNudges = map[string]bool{
-	NudgeStuck:  true,
-	NudgeBudget: true,
+// nudgeClass says what a kind of harness text costs, which is what actually
+// decides whether a level may deliver it.
+type nudgeClass uint8
+
+const (
+	// classFact is not advice. It states something about the conversation
+	// the model is in the middle of, in the same class as a tool result,
+	// and cannot be switched off: a model told to reason over a window
+	// that is quietly incomplete answers from messages that are no longer
+	// there.
+	classFact nudgeClass = iota
+	// classRecovery answers a finish and therefore costs a whole turn.
+	// These are what stop a bad ending from ending the run, so dropping
+	// them means a stuck loop spends every remaining step failing
+	// identically. That is why "off" drops them and why they are the only
+	// thing "recovery" keeps.
+	classRecovery
+	// classAdvisory rides a turn the model was already having, so it costs
+	// nothing to deliver. A strong model pays only the attention.
+	classAdvisory
+)
+
+// nudgeClasses is total over every kind the loop can produce.
+//
+// The previous hand-maintained advisory set was not: a new kind that nobody
+// remembered to add silently became a recovery nudge, so "recovery" meant
+// something different depending on when the code was written. Classifying
+// explicitly makes adding a nudge a decision, and
+// TestEveryNudgeKindHasAClass fails if it is not one.
+var nudgeClasses = map[string]nudgeClass{
+	// Ride an existing turn: delivered at the end of a step that made
+	// tool calls, without another round trip.
+	NudgeStuck:  classAdvisory,
+	NudgeBudget: classAdvisory,
+
+	// Answer a finish: each one is a turn the model did not otherwise
+	// spend.
+	NudgeOverflow:  classRecovery,
+	NudgeTruncated: classRecovery,
+	NudgeThinkWrap: classRecovery,
+	NudgeLeak:      classRecovery,
+	NudgeVerify:    classRecovery,
+	NudgeRefusal:   classRecovery,
+	NudgeTodo:      classRecovery,
+	NudgeClosing:   classRecovery,
+	NudgeWrapUp:    classRecovery,
+
+	NudgeCompact: classFact,
 }
 
 // allows reports whether a kind should reach the model at this level.
 //
-// The compaction notice is the exception and always passes. It is not advice
-// - it is a fact about the conversation, in the same class as a tool result.
-// Suppressing it leaves the model reasoning over a window it believes is
-// complete, which is how a run ends up confidently answering from messages
-// that are no longer there. So "off" honestly means "no advice", rather than
-// claiming to be silence.
-//
-// Everything else is genuinely advice, and NudgeOff silences all of it.
+// A fact always passes: "off" means no advice, not silence about what
+// happened to the conversation. Of what is left, full delivers everything,
+// recovery keeps the turn-costing notices and drops the free advice, and off
+// drops all of it.
 func (l NudgeLevel) allows(kind string) bool {
-	if kind == NudgeCompact {
+	switch nudgeClasses[kind] {
+	case classFact:
 		return true
+	case classRecovery:
+		return l != NudgeOff
+	case classAdvisory:
+		return l == NudgeFull
 	}
-	switch l {
-	case NudgeOff:
-		return false
-	case NudgeRecovery:
-		return !advisoryNudges[kind]
-	}
-	return true
+	return l == NudgeFull
 }
 
 // nudges reports whether a finish-bounce of this kind should happen at
