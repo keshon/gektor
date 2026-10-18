@@ -6,6 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/tars/internal/tui/components/cell"
 )
 
 type Hit struct{ Index, Y0, Y1, X0, X1 int }
@@ -21,7 +22,7 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 	w, h := props.Width, props.Height
 	inner := max(min(w-6, 72), 12)
 	height := f.Editor.Height()
-	rows := []string{props.Styles.Focus.Render(props.Title), "", props.Styles.Muted.Render(cellLine(props.Hint, inner)), ""}
+	rows := []string{props.Styles.Focus.Render(props.Title), "", props.Styles.Muted.Render(cell.Line(props.Hint, inner)), ""}
 	capacity := max((h-9-height)/3, 1)
 	start := max(min(f.Index, len(f.Fields)-1)-capacity/2, 0)
 	end := min(start+capacity, len(f.Fields))
@@ -37,13 +38,13 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 			style = props.Styles.Focus
 		}
 		y := len(rows)
-		rows = append(rows, style.Render(cellLine(label, inner)))
+		rows = append(rows, style.Render(cell.Line(label, inner)))
 		if i == f.Index && props.Choice != "" {
-			rows = append(rows, cellLine("[ "+props.Choice+" ]  Enter to choose", inner))
+			rows = append(rows, cell.Line("[ "+props.Choice+" ]  Enter to choose", inner))
 		} else if i == f.Index {
 			rows = append(rows, strings.Split(f.Editor.View(), "\n")...)
 		} else {
-			rows = append(rows, cellLine(strings.ReplaceAll(f.Fields[i].Value, "\n", " ↵ "), inner))
+			rows = append(rows, cell.Line(strings.ReplaceAll(f.Fields[i].Value, "\n", " ↵ "), inner))
 		}
 		hits = append(hits, Hit{i, y, len(rows), 0, 0})
 		rows = append(rows, "")
@@ -52,9 +53,9 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 		rows = append(rows, props.Styles.Muted.Render(fmt.Sprintf("Fields %d–%d / %d · Tab moves through all fields", start+1, end, len(f.Fields))))
 	}
 	if props.Error != "" {
-		rows = append(rows, props.Styles.Error.Render(cellLine(props.Error, inner)))
+		rows = append(rows, props.Styles.Error.Render(cell.Line(props.Error, inner)))
 	} else {
-		rows = append(rows, cellLine("", inner))
+		rows = append(rows, cell.Line("", inner))
 	}
 	action, actionHits := f.Actions(inner, len(rows), props.PrimaryLabel, true, props.Styles)
 	rows = append(rows, action, props.Styles.Muted.Render(strings.Repeat("─", inner)))
@@ -63,7 +64,7 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 	if props.Destructive {
 		hint = "Tab selects · Enter confirms selection · Esc cancel"
 	}
-	rows = append(rows, props.Styles.Muted.Render(cellLine(hint, inner)))
+	rows = append(rows, props.Styles.Muted.Render(cell.Line(hint, inner)))
 	return rows, hits
 }
 func (f Model) Actions(width, y int, primary string, enabled bool, styles Styles) (string, []Hit) {
@@ -95,11 +96,5 @@ func (f Model) Actions(width, y int, primary string, enabled bool, styles Styles
 		row += style.Render(text)
 		hits = append(hits, Hit{len(f.Fields) + i, y, y + 1, start, lipgloss.Width(row)})
 	}
-	return cellLine(row, width), hits
-}
-
-func cellLine(s string, width int) string {
-	width = max(width, 0)
-	s = ansi.Truncate(strings.ReplaceAll(s, "\n", " "), width, "…")
-	return s + strings.Repeat(" ", max(width-lipgloss.Width(s), 0))
+	return cell.Line(row, width), hits
 }

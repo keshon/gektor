@@ -10,6 +10,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/tars/internal/tui/components/cell"
 	"github.com/keshon/tars/internal/tui/components/form"
 	"github.com/keshon/tars/internal/tui/components/selection"
 )
@@ -271,7 +272,7 @@ func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 	if p.Location {
 		title += " / Location"
 	}
-	rows := []string{props.Styles.Focus.Render("Choose / " + title), cellLine(p.Search.View(), inner), props.Styles.Muted.Render(strings.Repeat("─", inner))}
+	rows := []string{props.Styles.Focus.Render("Choose / " + title), cell.Line(p.Search.View(), inner), props.Styles.Muted.Render(strings.Repeat("─", inner))}
 	capacity := max(h-10, 1)
 	start, end := p.Centered(len(p.Filtered), capacity)
 	for i := start; i < end; i++ {
@@ -288,7 +289,7 @@ func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 			label = "› " + label
 			style = props.Styles.Focus
 		}
-		rows = append(rows, style.Render(cellLine(label, inner)))
+		rows = append(rows, style.Render(cell.Line(label, inner)))
 	}
 	for len(rows) < max(h-6, 3) {
 		rows = append(rows, "")
@@ -304,7 +305,7 @@ func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 			detail = p.Detail
 		}
 	}
-	rows = append(rows, props.Styles.Muted.Render(cellLine(detail, inner)), props.Styles.Muted.Render(cellLine("↑↓ choose · Enter select · Esc back · Ctrl+B browse · Ctrl+L location · Ctrl+D drives · Ctrl+R scan", inner)))
+	rows = append(rows, props.Styles.Muted.Render(cell.Line(detail, inner)), props.Styles.Muted.Render(cell.Line("↑↓ choose · Enter select · Esc back · Ctrl+B browse · Ctrl+L location · Ctrl+D drives · Ctrl+R scan", inner)))
 	return rows, nil, w, h
 }
 
@@ -337,7 +338,6 @@ func (f *Model) ScanDirectory(root string) tea.Cmd {
 		return ScanMsg{id, items, err}
 	}
 }
-
 
 func (f *Model) DetailCommand() tea.Cmd {
 	if f == nil || f.Picker == nil {

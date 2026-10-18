@@ -24,6 +24,7 @@ import (
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/roles"
 	"github.com/keshon/tars/internal/run"
+	"github.com/keshon/tars/internal/tui/components/completion"
 	"github.com/keshon/tars/internal/tui/components/composer"
 	"github.com/keshon/tars/internal/workspace"
 )
@@ -88,7 +89,7 @@ type model struct {
 
 	transcript  transcriptState
 	input       composer.Model
-	suggestions suggestionState
+	suggestions completion.State
 	queued      string
 	gateDraft   string
 	events      chan run.Event
@@ -123,12 +124,8 @@ type model struct {
 	// its doneMsg renders neutrally instead of as an error.
 	interrupted bool
 	// stateFile locates the saved transcript for follow-ups.
-	stateFile string
-	// confirmAction, when set, is a pending session-restarting command
-	// waiting on the dialog's confirm component. y runs it, n/esc cancels.
-	// Cleared on either path.
-	confirmAction func()
-	sessionTitle  string
+	stateFile    string
+	sessionTitle string
 	// ws resolves @file paths against the workspace, escape-checked
 	// like every file tool path. Stored, not rebuilt per turn.
 	ws *workspace.Workspace

@@ -8,6 +8,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/tars/internal/tui/components/popup"
 )
 
 // sessionText is one searchable message and its index in the source history.
@@ -40,15 +41,18 @@ func (m *model) searchView() string {
 	state.clamp(m.sessVisible())
 	s := &state
 	g := m.searchGeometry()
-	normal, border, selected := popupStyles()
-	inner := g.width - 2
+	styles := popupSurface()
+	inner := max(g.width-4, 1)
 	query := strings.TrimSpace(s.filter.Value())
 	re := searchRegex(query)
-	rows := []string{border.Render("╭─ Search " + strings.Repeat("─", max(g.width-11, 0)) + "╮")}
-	line := func(text string, style lipgloss.Style) string {
-		return border.Render("│") + popupRow(style, text, inner) + border.Render("│")
+
+	// Rows are rendered here rather than by the frame: the list styles the
+	// selection and the match highlight, and only the frame's border is
+	// uniform.
+	line := func(style lipgloss.Style, text string) string {
+		return popup.Row(style, text, inner)
 	}
-	rows = append(rows, line(s.filter.View(), normal), line("", normal))
+	rows := []string{line(styles.Normal, s.filter.View()), line(styles.Normal, "")}
 	if len(s.entries) == 0 {
 		label := "No saved sessions"
 		if query != "" {
@@ -57,22 +61,24 @@ func (m *model) searchView() string {
 		if s.loading {
 			label = "Loading history…"
 		}
-		rows = append(rows, line(label, normal), line("", normal))
+		rows = append(rows, line(styles.Normal, label), line(styles.Normal, ""))
 	}
 	for i := s.Offset; i < min(s.Offset+m.sessVisible(), len(s.entries)); i++ {
 		e := s.entries[i]
-		mark, style := "  ", normal
+		mark, style := "  ", styles.Normal
 		if i == s.Cursor {
-			mark, style = "› ", selected
+			mark, style = "› ", styles.Selected
 		}
 		age := strings.TrimSuffix(ageString(e.updated), " ago")
 		if age == "just now" {
 			age = "now"
 		}
 		ageWidth := min(lipgloss.Width(age), max(inner/3, 1))
-		title := cellLine(mark+e.title, max(inner-ageWidth-1, 1))
 		ageStyle := style.Foreground(lipgloss.Color(themeColor(colorSecondaryText)))
-		rows = append(rows, border.Render("│")+highlightSearch(title, re, style)+style.Render(" ")+ageStyle.Render(cellLine(age, ageWidth))+border.Render("│"))
+		entry := mark + highlightSearch(cellLine(e.title, max(inner-ageWidth-1, 1)), re, style) +
+			" " + ageStyle.Render(cellLine(age, ageWidth))
+		rows = append(rows, line(style, entry))
+
 		text := e.preview
 		if e.matchText != "" {
 			text = e.matchText
@@ -80,28 +86,28 @@ func (m *model) searchView() string {
 		if text == "" {
 			text = e.mode
 		}
-		snippet := searchExcerpt(text, re, max(inner-2, 1))
-		rows = append(rows, border.Render("│")+highlightSearch(cellLine("  "+snippet, inner), re, style.Foreground(lipgloss.Color(themeColor(colorSecondaryText))))+border.Render("│"))
+		snippet := style.Foreground(lipgloss.Color(themeColor(colorSecondaryText)))
+		rows = append(rows, line(snippet, "  "+searchExcerpt(text, re, max(inner-2, 1))))
 	}
 	if s.flash != "" {
-		rows = append(rows, line(s.flash, normal.Foreground(lipgloss.Color(themeColor(colorPopupError)))))
+		rows = append(rows, line(styles.Normal.Foreground(lipgloss.Color(themeColor(colorPopupError))), s.flash))
 	}
 	switch s.mode {
 	case sessRename:
-		rows = append(rows, line("Rename session · Enter save · Esc back", normal), line(m.note.View(), normal))
+		rows = append(rows, line(styles.Normal, "Rename session · Enter save · Esc back"), line(styles.Normal, m.note.View()))
 	case sessConfirm:
 		title := "session"
 		if len(s.entries) > 0 {
 			title = s.entries[s.Cursor].title
 		}
-		rows = append(rows, line("Delete "+title+"? Y delete · N cancel", normal))
+		rows = append(rows, line(styles.Normal, "Delete "+title+"? Y delete · N cancel"))
 	}
 	hint := "↑↓ select · Enter open · Esc close"
 	if len(s.entries) > 0 {
 		hint += " · " + strconv.Itoa(s.Cursor+1) + "/" + strconv.Itoa(len(s.entries))
 	}
-	rows = append(rows, line(hint, normal), border.Render("╰"+strings.Repeat("─", inner)+"╯"))
-	return strings.Join(rows, "\n")
+	rows = append(rows, line(styles.Normal, hint))
+	return strings.Join(popup.TitledFrame("Search", rows, g.width, styles), "\n")
 }
 
 // searchRegex builds the matcher once per frame. Compiling it per visible

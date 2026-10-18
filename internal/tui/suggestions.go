@@ -11,18 +11,13 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/keshon/tars/internal/tui/components/completion"
 )
 
-type suggestion struct {
-	value, description string
-	directory          bool
-}
-
-type suggestionState struct {
-	items                []suggestion
-	selected, start, end int
-	key, dismissed       string
-}
+// The picker itself — its items, its selection and its frame — lives in
+// components/completion. What stays here is TARS's side: deciding which
+// commands and paths match the token at the caret, and what accepting one
+// means.
 
 // completionToken finds the slash command or @path at the caret.
 //
@@ -50,69 +45,80 @@ func (m *model) completionToken() (start, end int, prefix string) {
 
 func (m *model) syncSuggestions() {
 	s := &m.suggestions
-	if m.activeInputOwner() != focusInput || (m.ready && (m.transcript.Viewport.Height() < 4 || m.transcript.Viewport.Width() < 24)) || (m.state != stDone && m.state != stRunning) {
-		s.items = nil
-		s.key = ""
-		return
-	}
+	off := m.activeInputOwner() != focusInput ||
+		(m.ready && (m.transcript.Viewport.Height() < 4 || m.transcript.Viewport.Width() < 24)) ||
+		(m.state != stDone && m.state != stRunning)
 	start, end, prefix := m.completionToken()
 	key := m.input.Value() + "\x00" + strconv.Itoa(start) + ":" + strconv.Itoa(end) + ":" + prefix
-	if prefix == "" {
-		s.items, s.key, s.dismissed = nil, "", ""
+
+	if off || prefix == "" {
+		s.Close()
 		return
 	}
-	if key == s.key {
+	if !s.SetKey(key) {
 		return
 	}
-	s.key, s.start, s.end, s.selected = key, start, end, 0
-	s.items = nil
-	if key == s.dismissed {
-		return
-	}
+	s.Start, s.End = start, end
+	s.Open(m.completionItems(prefix), key)
+}
+
+// completionItems matches the token at the caret against the command
+// registry or the workspace, whichever the token is for.
+func (m *model) completionItems(prefix string) []completion.Item {
 	if prefix[0] == '/' {
-		s.items = nil
-		for _, c := range commands() {
-			// Past the name: offer the argument's fixed values.
-			if len(c.choices) > 0 && strings.HasPrefix(prefix, c.name+" ") {
-				arg := strings.ToLower(prefix[len(c.name)+1:])
-				for _, choice := range c.choices {
-					if strings.HasPrefix(choice, arg) {
-						s.items = append(s.items, suggestion{value: c.name + " " + choice, description: c.summary})
-					}
+		return commandItems(prefix)
+	}
+	return pathItems(m.ws, prefix)
+}
+
+// commandItems offers command names, or a command's fixed values once its
+// name is typed. The registry decides both, so a new enumerated command
+// gets its values completed without a second edit.
+func commandItems(prefix string) []completion.Item {
+	var items []completion.Item
+	for _, c := range commands() {
+		if len(c.choices) > 0 && strings.HasPrefix(prefix, c.name+" ") {
+			arg := strings.ToLower(prefix[len(c.name)+1:])
+			for _, choice := range c.choices {
+				if strings.HasPrefix(choice, arg) {
+					items = append(items, completion.Item{Value: c.name + " " + choice, Description: c.summary})
 				}
-				break
 			}
-			// Insert the bare name, never the reference: "/max-steps N" is
-			// how help describes it, and accepting that would type the
-			// placeholder into the prompt.
-			if strings.HasPrefix(c.name, strings.ToLower(prefix)) {
-				s.items = append(s.items, suggestion{value: c.name, description: c.summary})
-			}
+			return items
 		}
-		return
+		// Offer the bare name, never the reference: "/max-steps N" is how
+		// help describes it, and accepting that would type the placeholder
+		// into the prompt.
+		if strings.HasPrefix(c.name, strings.ToLower(prefix)) {
+			items = append(items, completion.Item{Value: c.name, Description: c.summary})
+		}
 	}
-	if m.ws == nil {
-		return
+	return items
+}
+
+// pathItems browses one directory rather than walking the repo: completion
+// runs on every keystroke, and a repository walk per keypress is a stall.
+func pathItems(ws workspaceResolver, prefix string) []completion.Item {
+	if ws == nil {
+		return nil
 	}
-	path := strings.TrimPrefix(strings.TrimPrefix(prefix, "@"), "\"")
-	path = strings.ReplaceAll(path, "\\", "/")
+	path := strings.ReplaceAll(strings.TrimPrefix(strings.TrimPrefix(prefix, "@"), "\""), "\\", "/")
 	dir, name := "", path
 	if i := strings.LastIndex(path, "/"); i >= 0 {
 		dir, name = path[:i+1], path[i+1:]
 	}
-	full, err := referencePath(m.ws, dir)
+	full, err := ws.Resolve(dir)
 	if err != nil {
-		return
+		return nil
 	}
 	f, err := os.Open(full)
 	if err != nil {
-		return
+		return nil
 	}
-	// Bound work on each edit; browse one directory rather than walking the repo.
 	entries, err := f.ReadDir(2048)
 	f.Close()
 	if err != nil && err != io.EOF {
-		return
+		return nil
 	}
 	sort.Slice(entries, func(i, j int) bool {
 		if entries[i].IsDir() != entries[j].IsDir() {
@@ -120,62 +126,70 @@ func (m *model) syncSuggestions() {
 		}
 		return strings.ToLower(entries[i].Name()) < strings.ToLower(entries[j].Name())
 	})
+
+	var items []completion.Item
 	for _, entry := range entries {
-		if entry.Type()&os.ModeSymlink != 0 || (!strings.HasPrefix(name, ".") && strings.HasPrefix(entry.Name(), ".")) || !strings.HasPrefix(strings.ToLower(entry.Name()), strings.ToLower(name)) {
+		if entry.Type()&os.ModeSymlink != 0 ||
+			(!strings.HasPrefix(name, ".") && strings.HasPrefix(entry.Name(), ".")) ||
+			!strings.HasPrefix(strings.ToLower(entry.Name()), strings.ToLower(name)) {
 			continue
 		}
 		value := filepath.ToSlash(dir + entry.Name())
-		if !entry.IsDir() && path == value {
-			continue
-		}
 		description := "File reference"
-		if entry.IsDir() {
+		dirEntry := entry.IsDir()
+		if dirEntry {
 			value += "/"
 			description = "Browse directory"
+		} else if path == value {
+			continue
 		}
-		s.items = append(s.items, suggestion{value, description, entry.IsDir()})
-		if len(s.items) == 64 {
+		items = append(items, completion.Item{Value: value, Description: description, Directory: dirEntry})
+		if len(items) == 64 {
 			break
 		}
 	}
+	return items
 }
 
-// suggestionKey routes a key to an open popup. The second result is true
-// when the popup consumed it, so the composer and the run state never see
+// workspaceResolver is the slice of *workspace.Workspace completion needs,
+// named so this file does not import the workspace package for one method.
+type workspaceResolver interface {
+	Resolve(string) (string, error)
+}
+
+// suggestionKey routes a key to an open picker. The second result is true
+// when the picker consumed it, so the composer and the run state never see
 // the same Enter.
 func (m *model) suggestionKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	s := &m.suggestions
-	if len(s.items) == 0 {
+	if !s.Pending() {
 		return nil, false
 	}
 	switch msg.String() {
-	case "up":
-		s.selected = (s.selected + len(s.items) - 1) % len(s.items)
-	case "down":
-		s.selected = (s.selected + 1) % len(s.items)
-	case "esc":
-		s.dismissed, s.items = s.key, nil
+	case "up", "down", "esc":
+		s.Keypress(msg)
+		return nil, true
 	case "tab":
-		return nil, m.acceptSuggestion()
+		m.acceptSuggestion()
+		return nil, true
 	case "enter":
 		// A command that takes no argument is complete the moment it is
 		// named, so Enter runs it. One that takes an argument hands the
 		// text to the composer, which is how the value gets typed.
-		item := s.items[s.selected]
-		if !item.directory && strings.HasPrefix(item.value, "/") && !commandTakesArgument(item.value) {
-			text := item.value
-			s.items, s.key = nil, ""
+		item := s.Current()
+		if !item.Directory && strings.HasPrefix(item.Value, "/") && !commandTakesArgument(item.Value) {
+			text := item.Value
+			s.Close()
 			m.input.SetValue("")
 			m.fitInput()
 			m.fitBottom()
 			_, cmd := m.command(text)
 			return cmd, true
 		}
-		return nil, m.acceptSuggestion()
-	default:
-		return nil, false
+		m.acceptSuggestion()
+		return nil, true
 	}
-	return nil, true
+	return nil, false
 }
 
 // acceptSuggestion writes the selected item into the composer. File paths
@@ -183,71 +197,46 @@ func (m *model) suggestionKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 // the prompt, not an action to run.
 func (m *model) acceptSuggestion() bool {
 	s := &m.suggestions
-	item := s.items[s.selected]
-	value := item.value
+	item := s.Current()
+	value := item.Value
 	runes := []rune(m.input.Value())
-	if runes[s.start] == '@' {
+	if runes[s.Start] == '@' {
 		if strings.ContainsAny(value, " \t") {
 			value = "@\"" + value + "\""
 		} else {
 			value = "@" + value
 		}
 	}
-	if !item.directory {
+	if !item.Directory {
 		value += " "
 	}
-	end := s.end
-	if !item.directory && end < len(runes) && runes[end] == ' ' {
+	end := s.End
+	if !item.Directory && end < len(runes) && runes[end] == ' ' {
 		end++
 	}
 	back := 0
-	if item.directory && strings.HasSuffix(value, "\"") {
+	if item.Directory && strings.HasSuffix(value, "\"") {
 		back = 1
 	}
-	m.input.Replace(s.start, end, value, back)
-	s.key = ""
+	m.input.Replace(s.Start, end, value, back)
+	s.Close()
 	m.fitInput()
 	m.fitBottom()
 	return true
 }
 
-// Replace the bottom of the transcript; the composer and its caret stay put.
+// suggestionView draws the picker over the bottom of the transcript; the
+// composer and its caret stay put.
 func (m *model) suggestionView(body string) string {
-	s := &m.suggestions
-	if len(s.items) == 0 || m.transcript.Viewport.Height() < 4 {
-		return body
-	}
 	width := min(m.transcript.Viewport.Width(), 78)
-	if width < 24 {
+	height := max(m.transcript.Viewport.Height(), lipgloss.Height(body))
+	rows := m.suggestions.View(width, height, popupSurface())
+	if len(rows) == 0 {
 		return body
 	}
-	height := max(m.transcript.Viewport.Height(), lipgloss.Height(body))
-	count := min(12, height-3, len(s.items))
-	start := min(max(s.selected-count+1, 0), len(s.items)-count)
-	normal, border, selected := popupStyles()
-	title, action := "Files", "Enter / Tab insert"
-	if strings.HasPrefix(s.items[0].value, "/") {
-		title, action = "Commands", "Enter run  Tab insert"
-	}
-	rows := []string{border.Render("╭─ " + title + " " + strings.Repeat("─", width-len(title)-5) + "╮")}
-	valueWidth := 0
-	for _, item := range s.items {
-		valueWidth = max(valueWidth, lipgloss.Width(item.value))
-	}
-	valueWidth = min(valueWidth, max((width-6)/2, 1))
-	for i := start; i < start+count; i++ {
-		item := s.items[i]
-		mark, style := "  ", normal
-		if i == s.selected {
-			mark, style = "› ", selected
-		}
-		label := mark + cellLine(item.value, valueWidth) + "  " + item.description
-		rows = append(rows, border.Render("│")+popupRow(style, label, width-2)+border.Render("│"))
-	}
-	hint := "↑↓ select  " + action + "  Esc dismiss"
-	rows = append(rows, border.Render("│")+popupRow(normal, "  "+hint, width-2)+border.Render("│"))
-	rows = append(rows, border.Render("╰"+strings.Repeat("─", width-2)+"╯"))
-
 	lines := strings.Split(cellFrame(body, m.transcript.Viewport.Width(), height), "\n")
+	if len(lines) < len(rows) {
+		return body
+	}
 	return strings.Join(append(lines[:len(lines)-len(rows)], rows...), "\n")
 }

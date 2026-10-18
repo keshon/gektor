@@ -32,7 +32,7 @@ func TestEnterHandsACommandThatTakesAnArgumentToTheComposer(t *testing.T) {
 	if m.input.Value() != "/max-steps " {
 		t.Fatalf("Enter did not complete the command: %q", m.input.Value())
 	}
-	if len(m.suggestions.items) != 0 {
+	if m.suggestions.Pending() {
 		t.Fatal("the argument is still missing, so the popup should have closed")
 	}
 }
@@ -86,8 +86,8 @@ func TestEnumeratedArgumentCompletesFromTheRegistry(t *testing.T) {
 	m.input.SetValue("/nudges ")
 	m.syncSuggestions()
 	var values []string
-	for _, item := range m.suggestions.items {
-		values = append(values, item.value)
+	for _, item := range m.suggestions.Items {
+		values = append(values, item.Value)
 	}
 	want := []string{"/nudges full", "/nudges recovery", "/nudges off"}
 	if strings.Join(values, ",") != strings.Join(want, ",") {
@@ -95,8 +95,8 @@ func TestEnumeratedArgumentCompletesFromTheRegistry(t *testing.T) {
 	}
 	m.input.SetValue("/nudges r")
 	m.syncSuggestions()
-	if len(m.suggestions.items) != 1 || m.suggestions.items[0].value != "/nudges recovery" {
-		t.Fatalf("partial argument did not narrow: %+v", m.suggestions.items)
+	if len(m.suggestions.Items) != 1 || m.suggestions.Items[0].Value != "/nudges recovery" {
+		t.Fatalf("partial argument did not narrow: %+v", m.suggestions.Items)
 	}
 }
 
@@ -107,7 +107,7 @@ func TestFreeFormArgumentStillCompletesPaths(t *testing.T) {
 	writeReference(t, m, "notes.txt", []byte("hello"))
 	m.input.SetValue("/new review @no")
 	m.syncSuggestions()
-	if len(m.suggestions.items) == 0 || !strings.HasPrefix(m.suggestions.items[0].value, "notes.txt") {
-		t.Fatalf("@path inside /new stopped completing: %+v", m.suggestions.items)
+	if len(m.suggestions.Items) == 0 || !strings.HasPrefix(m.suggestions.Items[0].Value, "notes.txt") {
+		t.Fatalf("@path inside /new stopped completing: %+v", m.suggestions.Items)
 	}
 }

@@ -19,6 +19,17 @@ Run `go test -race ./...` and `go vet ./...`. Performance probes live in
 
 `internal/tui/components` contains concrete reusable models, not a widget framework:
 
+- `cell`: terminal-cell geometry — fit to width, pad to height, measure.
+  Every overlay, form and popup needs these and each one reimplemented them,
+  and the copies had drifted on whether padding counted the border.
+- `popup`: the framed surface. One border, one set of side characters, one
+  surface-restoration hack, shared by the dialog, the completion list, the
+  session search and the header menus. Nested text styles reset SGR, which
+  drops the popup's background mid-row; `popup.Row` rewrites each reset to
+  restore the surface first.
+- `completion`: the slash-command and path picker — its items, its selection
+  and its frame. What completes, and what accepting an item means, stays in
+  TARS: the command registry is the application's.
 - `form`: field/editor state, keyboard navigation, Apply/Cancel/Pick intents,
   compact form rows and action hit geometry. The caller supplies styles, labels,
   dimensions, visibility and choice display; it performs persistence.
@@ -27,6 +38,11 @@ Run `go test -race ./...` and `go vet ./...`. Performance probes live in
 - `selection`: selection and scrolling geometry, used by Sessions and Settings pickers.
 - `transcript`: viewport, follow behavior and part anchoring across reflows.
   TARS retains role styling and the rendered-block cache.
+
+A confirmation is a `form` with no fields and `Destructive` set, not a
+separate widget: it is the same prompt the delete confirmation uses, so a
+restart asks in the shape a user already knows. `Destructive` starts focus on
+Cancel, so Enter alone can never restart or destroy something.
 
 The root model routes input to the active owner and translates component intents
 into application actions. Components never receive a root model pointer or own
@@ -199,6 +215,19 @@ Color literals belong in `styles.go`; components use named palette values.
 **Because:** scattered colors drift as components evolve.
 
 **Enforced by:** checked, `TestPaletteLivesInStyles`.
+
+## 8. Cell geometry and the popup frame have one home
+
+Fitting text to a width and drawing a bordered box are implemented once, in
+`components/cell` and `components/popup`. A component that rolls its own
+copy is how two overlays end up disagreeing about whether a border cell
+counts toward the width.
+
+**Because:** both look like three lines. Both are ANSI-aware and cell-aware,
+and both were written four times with three different answers.
+
+**Enforced by:** reviewed. The duplicates are gone; the test suite pins the
+behaviour each copy had to agree with (`components/cell`, `components/popup`).
 
 ## Limits
 

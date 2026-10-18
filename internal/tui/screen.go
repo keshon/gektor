@@ -29,7 +29,7 @@ func (m *model) screenContent() string {
 		}
 		paneHeader = cellLine(titleStyle.Render(" SESSIONS "), navigatorWidth) + m.styles.dim.Render(" │ ") + paneHeader
 	}
-	popup := len(m.suggestions.items) > 0 && m.transcript.Viewport.Height() >= 4 && m.transcript.Viewport.Width() >= 24
+	popup := m.suggestions.Pending() && m.transcript.Viewport.Height() >= 4 && m.transcript.Viewport.Width() >= 24
 	body := m.transcript.Viewport.View()
 	gap := "\n"
 	if popup {

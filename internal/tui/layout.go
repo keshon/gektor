@@ -5,8 +5,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/tars/internal/tui/components/cell"
 )
 
 const (
@@ -15,23 +14,11 @@ const (
 )
 
 // Terminal cells, rather than byte or rune counts, own the frame geometry.
-func cellLine(s string, width int) string {
-	width = max(width, 0)
-	s = ansi.Truncate(strings.ReplaceAll(s, "\n", " "), width, "…")
-	return s + strings.Repeat(" ", max(width-lipgloss.Width(s), 0))
-}
-func cellFrame(s string, width, height int) string {
-	lines := strings.Split(s, "\n")
-	out := make([]string, max(height, 0))
-	for i := range out {
-		if i < len(lines) {
-			out[i] = cellLine(lines[i], width)
-		} else {
-			out[i] = strings.Repeat(" ", max(width, 0))
-		}
-	}
-	return strings.Join(out, "\n")
-}
+// Both live in components/cell so a form, a popup and a pane cannot drift
+// in how they measure; these stay as the root package's spelling of them.
+func cellLine(s string, width int) string { return cell.Line(s, width) }
+
+func cellFrame(s string, width, height int) string { return cell.Frame(s, width, height) }
 func (m *model) sidebarVisible() bool {
 	return !m.sidebarHidden && m.termW >= navigatorMinWidth && m.termH >= 18 &&
 		m.dialog == nil

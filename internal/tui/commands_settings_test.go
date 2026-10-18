@@ -22,8 +22,11 @@ func runSlash(t *testing.T, m *model, text string) *model {
 	t.Helper()
 	updated, _ := m.command(text)
 	m = updated.(*model)
-	if m.dialog != nil && m.dialog.confirm != nil {
-		next, _ := m.handleKey(tea.KeyPressMsg{Code: 'y', Text: "y"})
+	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Destructive {
+		// The restart confirmation is a destructive form: pick Restart,
+		// then commit it.
+		m.handleKey(tea.KeyPressMsg{Code: tea.KeyUp})
+		next, _ := m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 		m = next.(*model)
 	}
 	return m

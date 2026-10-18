@@ -5,11 +5,10 @@ import (
 	"strconv"
 	"strings"
 
-	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/tui/components/confirm"
+	"github.com/keshon/tars/internal/tui/components/popup"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -27,58 +26,16 @@ func wsRootOf(ws *workspace.Workspace) string {
 // open it replaces the transcript body, so no ANSI splicing is needed
 // and scroll state underneath survives untouched.
 //
-// A dialog carries lines, a form, or a confirm — never two. confirm is
-// checked first everywhere because it is the only one that answers a key.
+// A dialog carries lines or a form, never both. Anything that needs an
+// answer from the user is a form: a destructive confirmation is a form with
+// no fields, which is what makes it consistent with the delete prompt.
 type infoDialog struct {
-	form *settingsForm
-	// confirm is a pending yes/no. While set the dialog renders the
-	// confirm component's rows and routes every key to it, so the prompt
-	// cannot be answered by a letter that reached the composer.
-	confirm *confirm.Model
-	title   string
-	lines   []string
-	help    bool
-	page    int
-	offset  int
-}
-
-// openConfirm shows a yes/no prompt over the transcript; the caller has
-// already stored the action in confirmAction. pushOverlay keeps the focus
-// stack balanced, so Esc restores the composer exactly like any dialog.
-func (m *model) openConfirm(title, subtitle, primary, secondary string, body ...string) {
-	c := confirm.New(title, subtitle, primary, secondary, body...)
-	c.Open()
-	m.dialog = &infoDialog{title: title, confirm: &c}
-	m.pushOverlay()
-	m.input.Blur()
-	m.fitBottom()
-}
-
-// confirmKey answers a pending confirmation. The dialog owns every key but
-// quit: it is a takeover, so a stray letter cannot reach the composer
-// behind it, and the pending action is cleared on both paths.
-func (m *model) confirmKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "ctrl+c", "ctrl+q":
-		m.quit = true
-		m.cancel()
-		return m, tea.Quit
-	}
-	intent, _ := m.dialog.confirm.Update(msg)
-	switch intent {
-	case confirm.Primary:
-		action := m.confirmAction
-		m.confirmAction = nil
-		m.closeDialog()
-		if action != nil {
-			action()
-		}
-	case confirm.Secondary:
-		m.confirmAction = nil
-		m.closeDialog()
-		m.appendBlock(markerBlock("cancelled"))
-	}
-	return m, nil
+	form   *settingsForm
+	title  string
+	lines  []string
+	help   bool
+	page   int
+	offset int
 }
 
 // openDialog pushes the overlay and shows an info dialog; closeDialog
@@ -101,9 +58,6 @@ func (m *model) closeDialog() {
 // title, body, close hint. Widths are clamped to the viewport; heights
 // are top-padded to center, the viewport clips the rest.
 func (m *model) dialogView() string {
-	if m.dialog.confirm != nil {
-		return m.confirmView()
-	}
 	if m.dialog.form != nil {
 		return m.formView()
 	}
@@ -167,43 +121,20 @@ func (m *model) dialogView() string {
 	return renderBox(rows, availW, availH)
 }
 
-// confirmView renders the pending confirmation through the shared box, so a
-// prompt looks like every other overlay. Appearance is the component's: the
-// styles come from the palette, the geometry from here.
-func (m *model) confirmView() string {
-	availW, availH := m.termW, m.termH-3
-	if m.ready {
-		availW, availH = m.transcript.Viewport.Width(), m.transcript.Viewport.Height()
-	}
-	inner := max(min(availW-6, 72), 10)
-	rows := m.dialog.confirm.View(inner, confirm.Styles{Title: m.styles.gate, Dim: m.styles.dim})
-	if len(rows) == 0 {
-		return ""
-	}
-	return renderBox(rows, availW, availH)
-}
-
 // renderBox centers rows in a bordered box: shared by the dialog and
 // the sessions screen, so overlay chrome can never drift in two.
+// renderBox centers a bordered dialog in the area it takes over. The frame
+// itself is components/popup, shared with the completion list, the session
+// search and the header menus so their chrome cannot drift.
 func renderBox(rows []string, availW, availH int) string {
-	bw := 0
-	for _, r := range rows {
-		if n := lipgloss.Width(r); n > bw {
-			bw = n
-		}
-	}
-	normal, border, _ := popupStyles()
-	framed := []string{border.Render("╭" + strings.Repeat("─", bw+2) + "╮")}
-	for _, row := range rows {
-		framed = append(framed, border.Render("│ ")+popupRow(normal, row, bw)+border.Render(" │"))
-	}
-	framed = append(framed, border.Render("╰"+strings.Repeat("─", bw+2)+"╯"))
-	box := strings.Join(framed, "\n")
-	top := (availH - lipgloss.Height(box)) / 2
-	if top < 0 {
-		top = 0
-	}
-	return strings.Repeat("\n", top) + lipgloss.PlaceHorizontal(availW, lipgloss.Center, box)
+	return popup.FrameBox(rows, availW, availH, popupSurface())
+}
+
+// popupSurface hands the popup component this palette's three surface
+// styles, so no overlay has to re-derive them.
+func popupSurface() popup.Styles {
+	normal, border, selected := popupStyles()
+	return popup.Styles{Normal: normal, Border: border, Selected: selected}
 }
 
 // helpSection groups rows under a title for the two-column help:

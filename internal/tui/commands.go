@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/tars/internal/tui/components/completion"
 )
 
 // command is one slash command.
@@ -87,6 +88,13 @@ func commandTakesArgument(value string) bool {
 	return c != nil && c.takesArgument()
 }
 
+func init() {
+	// The picker renders its own hint and needs the same answer, but the
+	// registry lives here. One lookup, injected, rather than a second list
+	// that could disagree about which commands take an argument.
+	completion.SetRunner(commandTakesArgument)
+}
+
 // Shared by help and command completion.
 func commandReference() [][2]string {
 	cmds := commands()
@@ -97,21 +105,29 @@ func commandReference() [][2]string {
 	return out
 }
 
-// confirmRestart asks before restarting a running session. If no session
-// is running, the action runs immediately: there is nothing to lose, and a
-// prompt the user cannot act on is worse than no prompt.
+// confirmRestart asks before restarting a running session. It uses the same
+// destructive form as deleting a session: nothing to type, the choice lands
+// on Cancel, and Enter only acts on whatever is selected.
+//
+// If no session is running the action runs immediately: there is nothing to
+// lose, and a prompt the user cannot act on is worse than no prompt.
 func (m *model) confirmRestart(action func()) {
 	if m.sess == nil {
 		action()
 		return
 	}
-	m.confirmAction = action
-	m.openConfirm(
-		"Restart session?",
-		"This command changes agent settings.",
-		"restart", "cancel",
-		"The running session will restart.",
+	m.openForm(
+		"Restart session",
+		"The running session will restart. History and draft are preserved.",
+		"Restart", nil,
+		func(map[string]string) error {
+			action()
+			return nil
+		},
 	)
+	m.dialog.form.Destructive = true
+	// Never open a destructive choice on the destructive one.
+	m.focusForm(1)
 }
 
 func (m *model) command(text string) (tea.Model, tea.Cmd) {

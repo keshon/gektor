@@ -7,9 +7,6 @@ import (
 
 func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	defer m.syncFocus()
-	if m.dialog != nil && m.dialog.confirm != nil {
-		return m.confirmKey(msg)
-	}
 	if m.dialog != nil && m.dialog.form != nil && msg.String() != "ctrl+c" && msg.String() != "ctrl+q" {
 		return m.formKey(msg)
 	}

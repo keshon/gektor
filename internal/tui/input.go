@@ -5,22 +5,14 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/keshon/tars/internal/tui/components/cell"
 	"github.com/keshon/tars/internal/tui/components/composer"
 )
 
 // truncate shortens display strings with a marker. Rune-based:
 // a byte slice can split multi-byte UTF-8 and emit invalid output.
-func truncate(s string, n int) string {
-	count := 0
-	for i := range s {
-		if count >= max(n, 0) {
-			return s[:i] + "…"
-		}
-		count++
-	}
-
-	return s
-}
+// Lives in components/cell; this is the root package's spelling of it.
+func truncate(s string, n int) string { return cell.Truncate(s, n) }
 
 // newInput builds the answer box: multiline, capped at a few rows.
 // Enter submits (handled by the model, never reaching the widget);

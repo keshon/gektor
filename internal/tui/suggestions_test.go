@@ -50,16 +50,16 @@ func TestCommandSuggestionsInsertWithoutSubmitting(t *testing.T) {
 	m.input.SetValue("/")
 	m.syncSuggestions()
 	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
-	if m.suggestions.selected != 1 {
+	if m.suggestions.Selected != 1 {
 		t.Fatal("Down must select the next suggestion")
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	m.Update(tickMsg{})
-	if len(m.suggestions.items) != 0 || m.input.Value() != "/" {
+	if len(m.suggestions.Items) != 0 || m.input.Value() != "/" {
 		t.Fatal("Esc must dismiss without changing the draft; ticks must not reopen")
 	}
 	m.Update(tea.KeyPressMsg{Code: 'h', Text: "h"})
-	if len(m.suggestions.items) != 1 || m.suggestions.items[0].value != "/help" {
+	if len(m.suggestions.Items) != 1 || m.suggestions.Items[0].Value != "/help" {
 		t.Fatal("typing after dismiss should refresh suggestions")
 	}
 }
@@ -104,7 +104,7 @@ func TestEnterCompletesFileWithoutSubmittingAndQueuesCommandDuringRun(t *testing
 	}
 	m.input.SetValue("read @notes.txt")
 	m.syncSuggestions()
-	if len(m.suggestions.items) != 0 {
+	if len(m.suggestions.Items) != 0 {
 		t.Fatal("a complete file path should allow normal submission")
 	}
 	m.state = stRunning
@@ -177,7 +177,7 @@ func TestFileSuggestionsBrowseDirectoriesAndQuoteSpaces(t *testing.T) {
 		t.Fatalf("directory = %q", m.input.Value())
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	if m.input.Value() != `inspect @"source/my code.go" ` || len(m.suggestions.items) != 0 {
+	if m.input.Value() != `inspect @"source/my code.go" ` || len(m.suggestions.Items) != 0 {
 		t.Fatalf("file completion = %q", m.input.Value())
 	}
 	text, images, err := splitAttachments(m.ws, m.input.Value())
@@ -197,7 +197,7 @@ func TestCompletionAtCursorPreservesSuffixAndUnicode(t *testing.T) {
 	}
 	m.input.SetValue("send me@example.com")
 	m.syncSuggestions()
-	if len(m.suggestions.items) != 0 {
+	if len(m.suggestions.Items) != 0 {
 		t.Fatal("email must not open a file picker")
 	}
 }
@@ -212,7 +212,7 @@ func TestSuggestionsYieldToOverlaysAndPreserveFrame(t *testing.T) {
 	}
 	m.openHelp()
 	m.syncSuggestions()
-	if len(m.suggestions.items) != 0 {
+	if len(m.suggestions.Items) != 0 {
 		t.Fatal("help must hide suggestions")
 	}
 	m.closeDialog()

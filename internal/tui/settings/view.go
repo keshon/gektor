@@ -7,7 +7,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/tars/internal/tui/components/cell"
 	"github.com/keshon/tars/internal/tui/components/form"
 )
 
@@ -46,7 +46,7 @@ func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 		}
 	}
 	hint := Hint(f.Workspace.Section)
-	rows := []string{props.Styles.Focus.Render("Settings / " + category), props.Styles.Muted.Render(cellLine(hint, inner)), ""}
+	rows := []string{props.Styles.Focus.Render("Settings / " + category), props.Styles.Muted.Render(cell.Line(hint, inner)), ""}
 	hits := []form.Hit{}
 	visible := []int{}
 	for i := range f.Fields {
@@ -78,7 +78,7 @@ func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 			label = "› " + label
 		}
 		y := len(rows)
-		rows = append(rows, style.Render(cellLine(label, inner)))
+		rows = append(rows, style.Render(cell.Line(label, inner)))
 		value := field.Value
 		if i == f.Index {
 			value = f.Editor.Value()
@@ -100,7 +100,7 @@ func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 		if i == f.Index && !PickerControl(field.Key) && len(f.Options(field.Key)) == 0 {
 			rows = append(rows, strings.Split(f.Editor.View(), "\n")...)
 		} else {
-			rows = append(rows, cellLine(strings.ReplaceAll(value, "\n", " ↵ "), inner))
+			rows = append(rows, cell.Line(strings.ReplaceAll(value, "\n", " ↵ "), inner))
 		}
 		hits = append(hits, form.Hit{Index: i, Y0: y, Y1: len(rows), X0: 0, X1: 0})
 		rows = append(rows, "")
@@ -119,11 +119,11 @@ func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 			note = "Ctrl+D saves a copy · Apply uses the loaded profile in this session"
 		}
 	}
-	rows = append(rows, props.Styles.Muted.Render(cellLine(note, inner)))
+	rows = append(rows, props.Styles.Muted.Render(cell.Line(note, inner)))
 	buttonRow, actionHits := f.Actions(inner, len(rows), "Apply", f.Dirty(), props.formStyles())
 	hits = append(hits, actionHits...)
 	rows = append(rows, buttonRow, props.Styles.Muted.Render(strings.Repeat("─", inner)))
-	rows = append(rows, props.Styles.Muted.Render(cellLine("Tab controls · Ctrl+S apply · Esc cancel", inner)))
+	rows = append(rows, props.Styles.Muted.Render(cell.Line("Tab controls · Ctrl+S apply · Esc cancel", inner)))
 	if rail > 0 {
 		for i := range rows {
 			label := ""
@@ -139,7 +139,7 @@ func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 					label = style.Render(label)
 				}
 			}
-			rows[i] = cellLine(label, rail-2) + props.Styles.Muted.Render("│ ") + cellLine(rows[i], inner)
+			rows[i] = cell.Line(label, rail-2) + props.Styles.Muted.Render("│ ") + cell.Line(rows[i], inner)
 		}
 	}
 	return rows, hits, w, h
@@ -171,17 +171,11 @@ func (f *Model) View(props Props) string {
 		} else if rail {
 			row = strings.Repeat(" ", 15) + props.Styles.Muted.Render("│ ")
 		}
-		out = append(out, props.Styles.Muted.Render("│ ")+cellLine(row, max(width-2, 0))+props.Styles.Muted.Render(" │"))
+		out = append(out, props.Styles.Muted.Render("│ ")+cell.Line(row, max(width-2, 0))+props.Styles.Muted.Render(" │"))
 	}
 	if rail {
 		rule = strings.Replace(rule, "┬", "┴", 1)
 	}
 	out = append(out, props.Styles.Muted.Render("╰"+rule+"╯"))
 	return strings.Join(out, "\n")
-}
-
-func cellLine(s string, width int) string {
-	width = max(width, 0)
-	s = ansi.Truncate(strings.ReplaceAll(s, "\n", " "), width, "…")
-	return s + strings.Repeat(" ", max(width-lipgloss.Width(s), 0))
 }

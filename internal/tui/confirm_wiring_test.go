@@ -8,86 +8,103 @@ import (
 	"github.com/keshon/tars/internal/run"
 )
 
-// The confirm component was built, tested in isolation, and then never
-// wired to a render path: commands pushed an overlay that drew nothing,
-// so a user pressing y restarted a session without ever being asked.
-// These cover the wiring, not the component.
+// A session-restarting command used to push an overlay that drew nothing,
+// so pressing y restarted a session without the user ever being asked.
+// These cover the confirmation itself, which is the same destructive form
+// the delete prompt uses: no fields, the choice lands on Cancel, and Enter
+// acts only on what is selected.
 
-func TestRestartCommandOpensAVisibleConfirmation(t *testing.T) {
+func restartModel(t *testing.T) *model {
+	t.Helper()
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.sess = &run.Session{}
+	return m
+}
 
+func TestRestartCommandOpensADestructiveConfirmation(t *testing.T) {
+	m := restartModel(t)
 	m.command("/mode plan")
-	if m.dialog == nil || m.dialog.confirm == nil {
-		t.Fatal("no confirmation dialog is open")
+	if m.dialog == nil || m.dialog.form == nil {
+		t.Fatal("no confirmation is open")
+	}
+	if !m.dialog.form.Destructive {
+		t.Fatal("a restart confirmation is not marked destructive")
+	}
+	if len(m.dialog.form.Fields) != 0 {
+		t.Fatalf("confirmation asks for input: %+v", m.dialog.form.Fields)
+	}
+	// It must open on Cancel. A confirmation that starts on Restart is one
+	// stray Enter away from a restart the user never chose.
+	if got := m.dialog.form.Index; got != 1 {
+		t.Fatalf("focus starts at %d, want Cancel (1)", got)
 	}
 
 	view := m.screenContent()
-	for _, want := range []string{"Restart session?", "restart", "cancel"} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("confirmation is not visible on screen; %q missing from:\n%s", want, view)
+	want := []string{"Restart session", "[ Restart ]", "[ Cancel ]"}
+	for _, w := range want {
+		if !strings.Contains(view, w) {
+			t.Fatalf("%q missing from the confirmation:\n%s", w, view)
 		}
 	}
 }
 
-func TestConfirmationAcceptRunsThePendingAction(t *testing.T) {
-	m := sizeModel(t, testModel())
-	m.state = stDone
-	m.sess = &run.Session{}
-
+func TestConfirmationEnterOnCancelDoesNotRestart(t *testing.T) {
+	m := restartModel(t)
 	ran := false
-	m.confirmAction = func() { ran = true }
-	m.openConfirm("Restart session?", "This command changes agent settings.", "restart", "cancel", "body")
+	m.confirmRestart(func() { ran = true })
 
-	m.handleKey(tea.KeyPressMsg{Code: 'y', Text: "y"})
-	if !ran {
-		t.Fatal("y did not run the pending action")
-	}
-	if m.confirmAction != nil {
-		t.Fatal("pending action survived the confirmation")
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if ran {
+		t.Fatal("Enter on Cancel ran the restart")
 	}
 	if m.dialog != nil {
-		t.Fatal("confirmation dialog stayed open after accepting")
+		t.Fatal("the confirmation stayed open after cancelling")
 	}
 }
 
-func TestConfirmationCancelDropsThePendingAction(t *testing.T) {
-	for _, key := range []tea.KeyPressMsg{
-		{Code: 'n', Text: "n"},
-		{Code: tea.KeyEsc},
-	} {
-		m := sizeModel(t, testModel())
-		m.state = stDone
-		m.sess = &run.Session{}
+func TestConfirmationSelectsThenConfirms(t *testing.T) {
+	m := restartModel(t)
+	ran := false
+	m.confirmRestart(func() { ran = true })
 
-		ran := false
-		m.confirmAction = func() { ran = true }
-		m.openConfirm("Restart session?", "sub", "restart", "cancel", "body")
+	// Move from Cancel to Restart, then commit.
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyUp})
+	if m.dialog == nil || m.dialog.form.Index != 0 {
+		t.Fatal("did not move onto the Restart button")
+	}
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !ran {
+		t.Fatal("Enter on Restart did not run it")
+	}
+	if m.dialog != nil {
+		t.Fatal("the confirmation stayed open after confirming")
+	}
+}
 
-		m.handleKey(key)
-		if ran {
-			t.Fatalf("%v ran the pending action", key)
-		}
-		if m.confirmAction != nil {
-			t.Fatalf("%v left the pending action armed", key)
-		}
-		if m.dialog != nil {
-			t.Fatalf("%v left the confirmation open", key)
-		}
+func TestConfirmationEscapeCancelsWithoutRunning(t *testing.T) {
+	m := restartModel(t)
+	ran := false
+	m.confirmRestart(func() { ran = true })
+
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEsc})
+	if ran {
+		t.Fatal("Esc ran the restart")
+	}
+	if m.dialog != nil {
+		t.Fatal("Esc left the confirmation open")
+	}
+	if !m.input.Focused() {
+		t.Fatal("composer did not regain focus after cancelling")
 	}
 }
 
 // A confirmation is a takeover: a stray letter must not reach the composer
 // behind it, or "y" would both answer the prompt and type into the draft.
 func TestConfirmationSwallowsTyping(t *testing.T) {
-	m := sizeModel(t, testModel())
-	m.state = stDone
-	m.sess = &run.Session{}
-
+	m := restartModel(t)
 	ran := false
-	m.confirmAction = func() { ran = true }
-	m.openConfirm("Restart session?", "sub", "restart", "cancel", "body")
+	m.confirmRestart(func() { ran = true })
 
 	m.handleKey(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	if ran {
@@ -96,20 +113,23 @@ func TestConfirmationSwallowsTyping(t *testing.T) {
 	if m.input.Value() != "" {
 		t.Fatalf("a letter reached the composer: %q", m.input.Value())
 	}
-	if m.dialog == nil || m.dialog.confirm == nil {
+	if m.dialog == nil {
 		t.Fatal("confirmation closed on an unrelated key")
 	}
 }
 
-// Cancelling must give focus back, or the composer is dead after one Esc.
-func TestConfirmationRestoresComposerFocus(t *testing.T) {
+// No session means nothing to restart, so the command runs outright rather
+// than showing a prompt the user cannot act on.
+func TestNoSessionRunsWithoutPrompting(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	m.sess = &run.Session{}
-	m.openConfirm("Restart session?", "sub", "restart", "cancel")
+	ran := false
+	m.confirmRestart(func() { ran = true })
 
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEsc})
-	if !m.input.Focused() {
-		t.Fatal("composer did not regain focus after cancelling")
+	if !ran {
+		t.Fatal("action did not run")
+	}
+	if m.dialog != nil {
+		t.Fatal("a prompt was shown with no session to restart")
 	}
 }
