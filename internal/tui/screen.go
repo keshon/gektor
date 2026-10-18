@@ -30,21 +30,27 @@ func (m *model) screenContent() string {
 		paneHeader = cellLine(titleStyle.Render(" SESSIONS "), navigatorWidth) + m.styles.dim.Render(" │ ") + paneHeader
 	}
 	popup := m.suggestions.Pending() && m.transcript.Viewport.Height() >= 4 && m.transcript.Viewport.Width() >= 24
+	gated := (m.state == stPermission || m.state == stAsk) && m.gatePopup.Pending()
 	body := m.transcript.Viewport.View()
 	gap := "\n"
-	if popup {
+	if popup || gated {
+		// Both overlays are spliced over the transcript's last rows, and
+		// both need one row more than the pane hands them. The row comes
+		// from the gap that would otherwise sit above the divider.
 		body += "\n"
 		gap = ""
 	}
 	body = m.suggestionView(body)
-	if m.state == stPermission || m.state == stAsk {
+	if gated {
+		body = m.gateView(body)
+	} else if m.state == stPermission || m.state == stAsk {
 		body = m.gateVP.View()
 	}
 	if m.dialog != nil {
 		body = m.dialogView()
 	}
 	bodyHeight := m.transcript.Viewport.Height()
-	if popup {
+	if popup || gated {
 		bodyHeight++
 	}
 	body = cellFrame(body, m.transcript.Viewport.Width(), bodyHeight)

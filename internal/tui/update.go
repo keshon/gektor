@@ -398,12 +398,14 @@ func (m *model) handleEvent(ev run.Event) {
 			m.note.Blur()
 			m.note.SetValue("")
 			m.pushOverlay()
+			m.openGatePopup()
 		} else {
 			m.state = stAsk
 			m.planGate = kind == string(agent.SuspendPlan)
 			m.gateDraft = m.input.Value()
 			m.input.SetValue("")
 			m.input.Focus()
+			m.openGatePopup()
 		}
 		m.fitInput()
 		m.fitBottom()

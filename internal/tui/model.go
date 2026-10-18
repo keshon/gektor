@@ -26,6 +26,7 @@ import (
 	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/tui/components/completion"
 	"github.com/keshon/tars/internal/tui/components/composer"
+	"github.com/keshon/tars/internal/tui/components/gate"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -90,6 +91,7 @@ type model struct {
 	transcript  transcriptState
 	input       composer.Model
 	suggestions completion.State
+	gatePopup   gate.State
 	queued      string
 	gateDraft   string
 	events      chan run.Event

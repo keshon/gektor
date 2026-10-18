@@ -36,6 +36,12 @@ Run `go test -race ./...` and `go vet ./...`. Performance probes live in
 - `composer`: textarea, bounded input history, draft recall and rune-based
   completion token/replacement operations. Command and file discovery stay in TARS.
 - `selection`: selection and scrolling geometry, used by Sessions and Settings pickers.
+- `gate`: the permission/ask/plan bottom popup — its options, selection and
+  the framed list spliced over the transcript. The interaction answers stay in
+  `gates.go`, the same split as `completion`. `View` treats its height as a
+  hard ceiling: the caller drops the whole popup when the rows do not fit, so
+  overshooting by one does not look wrong, it leaves a run blocked behind an
+  invisible question.
 - `transcript`: the window (scroll, follow, part anchoring across reflows) and
   its scrollbar. Parts are stored, not joined, so drawing a frame splits only
   the parts on screen. TARS retains role styling and the rendered-block cache,

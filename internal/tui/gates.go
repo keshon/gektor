@@ -12,6 +12,7 @@ import (
 	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/permission"
 	"github.com/keshon/tars/internal/tools"
+	"github.com/keshon/tars/internal/tui/components/gate"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -92,7 +93,18 @@ func (m *model) gateKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.note, cmd = m.note.Update(msg)
 		return m, cmd
 	default: // gsPermit
+		// The popup owns up/down; Enter confirms the highlighted
+		// option. Letter shortcuts still answer directly.
+		if m.gatePopup.Keypress(msg) {
+			return m, nil
+		}
 		switch msg.String() {
+		case "enter":
+			if m.gatePopup.Pending() {
+				m.confirmGateOption()
+				return m, nil
+			}
+			return m, nil
 		case "y", "Y":
 			m.resolveGate("y")
 		case "a", "A":
@@ -114,12 +126,33 @@ func (m *model) gateKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
+// confirmGateOption answers with the highlighted popup option.
+func (m *model) confirmGateOption() {
+	if !m.gatePopup.Pending() {
+		return
+	}
+	opt := m.gatePopup.Current()
+	switch opt.Value {
+	case "y":
+		m.resolveGate("y")
+	case "a":
+		m.gstage = gsAlways
+	case "n":
+		m.gstage = gsReject
+		m.note.SetValue("")
+		_ = m.note.Focus()
+	default:
+		m.resolveGate(opt.Value)
+	}
+}
+
 // resolveGate answers the pending gate and tears the overlay down:
 // stage reset, note blurred, focus restored, run resumed.
 func (m *model) resolveGate(answer string) {
 	_ = m.hub.Respond(answer)
 	m.gstage = gsPermit
 	m.note.Blur()
+	m.gatePopup.Close()
 	m.popOverlay()
 	m.state = stRunning
 	m.fitBottom()
@@ -133,8 +166,84 @@ func (m *model) answerAsk(answer string) {
 	m.input.Push(strings.TrimSpace(answer))
 	_ = m.hub.Respond(answer)
 	m.planGate = false
+	m.gatePopup.Close()
 	m.state = stRunning
 }
+
+// openGatePopup builds the bottom popup for the pending gate. The
+// transcript stays mounted behind it: history remains readable while
+// the question is open.
+func (m *model) openGatePopup() {
+	switch m.state {
+	case stPermission:
+		m.gatePopup.Open("Permission required", []gate.Option{
+			{Value: "y", Label: "Allow once", Hint: "Y"},
+			{Value: "a", Label: "Allow this run", Hint: "A"},
+			{Value: "n", Label: "Deny with note", Hint: "N"},
+		})
+	case stAsk:
+		if m.planGate {
+			m.gatePopup.Open("Plan approval required", []gate.Option{
+				{Value: "y", Label: "Approve", Hint: "Y"},
+				{Value: "n", Label: "Reject", Hint: "N"},
+			})
+			return
+		}
+		// A free-text question has no fixed answers: the popup shows
+		// the question and the composer takes the reply.
+		m.gatePopup.Open("Answer required", nil)
+	}
+}
+
+// gateHint is the single footer row naming the popup keys.
+func (m *model) gateHint() string {
+	switch m.state {
+	case stPermission:
+		switch m.gstage {
+		case gsAlways:
+			return "Enter confirm  Esc back"
+		case gsReject:
+			return "Enter deny with note  Esc back"
+		default:
+			return "↑↓ select  Y/A/N answer  Enter confirm  Esc deny"
+		}
+	case stAsk:
+		if m.planGate {
+			return "Y approve  N reject  or type a revision note and press Enter"
+		}
+		return "Type the answer and press Enter  Esc stop"
+	default:
+		return ""
+	}
+}
+
+// gateView draws the gate popup over the bottom of the transcript; the
+// composer and its caret stay put.
+//
+// The popup is sized to leave a band of transcript showing. A gate that
+// filled the pane would answer "what do I do" by hiding "what happened",
+// and the prompt being asked about lives in that transcript.
+func (m *model) gateView(body string) string {
+	if !m.gatePopup.Pending() {
+		return body
+	}
+	width := min(m.transcript.Viewport.Width(), 78)
+	lines := strings.Split(body, "\n")
+	height := max(len(lines)-gateTranscriptRows, 6)
+	question := gate.Wrap(m.gate, max(width-4, 1))
+	rows := m.gatePopup.View(width, height, question, m.gateHint(),
+		m.gstage == gsReject, popupSurface())
+	if len(rows) == 0 {
+		return body
+	}
+	if len(lines) < len(rows) {
+		return body
+	}
+	return strings.Join(append(lines[:len(lines)-len(rows)], rows...), "\n")
+}
+
+// gateTranscriptRows is how much conversation stays visible above a gate.
+const gateTranscriptRows = 4
 
 // gateBar renders the bottom bar for the permission overlay by stage.
 // The reject stage costs two lines (label + input); fitBottom budgets

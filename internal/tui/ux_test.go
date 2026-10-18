@@ -25,12 +25,17 @@ func TestPermissionDecisionAlwaysHasVisibleContext(t *testing.T) {
 	m.transcript.Viewport.GotoTop()
 	m.transcript.Follow = false
 	m.handleEvent(events.Event{Name: "awaiting_input", Fields: map[string]any{"kind": "permission", "prompt": "TARGET_SCOPE\n" + strings.Repeat("preview line\n", 40)}})
-	if !strings.Contains(m.View().Content, "TARGET_SCOPE") {
-		t.Fatal("permission context offscreen")
+	view := m.View().Content
+	// The popup pins the question head with the options; the full
+	// prompt lives in the transcript behind it.
+	for _, want := range []string{"TARGET_SCOPE", "Permission required", "Allow once", "Allow this run", "Deny with note"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("gate popup missing %q:\n%s", want, view)
+		}
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyPgDown})
-	if m.gateVP.YOffset() == 0 {
-		t.Fatal("permission preview cannot scroll")
+	// History stays mounted behind the popup, not replaced by it.
+	if !strings.Contains(view, "History 0") && !strings.Contains(view, "History 29") {
+		t.Fatal("gate popup replaced the transcript instead of overlaying it")
 	}
 	m.handleKey(tea.KeyPressMsg{Text: string("n")})
 	if !strings.Contains(m.View().Content, "note>") {
@@ -132,12 +137,17 @@ func TestQuestionHasScrollablePreviewAndPreservesDraftOnStop(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.input.SetValue("Original draft")
 	m.handleEvent(events.Event{Name: "awaiting_input", Fields: map[string]any{"kind": "question", "prompt": "QUESTION_SCOPE\n" + strings.Repeat("question detail\n", 40)}})
-	if !strings.Contains(m.View().Content, "QUESTION_SCOPE") {
-		t.Fatal("question is hidden")
+	view := m.View().Content
+	// The popup pins the question head; the full prompt lives in the
+	// transcript behind it, which keeps scrolling underneath.
+	for _, want := range []string{"QUESTION_SCOPE", "Answer required"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("question popup missing %q", want)
+		}
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyPgDown})
-	if m.gateVP.YOffset() == 0 {
-		t.Fatal("question cannot scroll")
+	if m.transcript.Viewport.YOffset() == 0 {
+		t.Fatal("transcript behind the question cannot scroll")
 	}
 	m.input.SetValue("Partial answer")
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEsc})
