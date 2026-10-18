@@ -45,4 +45,3 @@ func TestBudgetContinue_NeedsAnOperatorAndOpenWork(t *testing.T) {
 		t.Fatal("continued with no open work")
 	}
 }
-

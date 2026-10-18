@@ -42,7 +42,7 @@ func TestNudgeLevel_ZeroIsFull(t *testing.T) {
 		t.Error("the zero NudgeLevel must be NudgeFull")
 	}
 	a := New(Config{})
-	if !a.cfg.Nudges.allows(NudgeStuck) || !a.cfg.Nudges.allows(NudgeTodo) {
+	if !nudgeAllowed(a.cfg.Nudges, NudgeStuck) || !nudgeAllowed(a.cfg.Nudges, NudgeTodo) {
 		t.Error("an unset config must allow every nudge")
 	}
 	if !a.nudges(NudgeTodo) {
@@ -53,27 +53,27 @@ func TestNudgeLevel_ZeroIsFull(t *testing.T) {
 // Recovery drops the free advice and keeps the notices that buy another
 // attempt; off drops both.
 func TestNudgeLevels_SplitByCost(t *testing.T) {
-	if !NudgeFull.allows(NudgeStuck) || !NudgeFull.allows(NudgeTodo) {
+	if !nudgeAllowed(NudgeFull, NudgeStuck) || !nudgeAllowed(NudgeFull, NudgeTodo) {
 		t.Error("full must allow both kinds")
 	}
-	if NudgeRecovery.allows(NudgeStuck) {
+	if nudgeAllowed(NudgeRecovery, NudgeStuck) {
 		t.Error("recovery must drop the free advisory notices")
 	}
-	if NudgeRecovery.allows(NudgeBudget) {
+	if nudgeAllowed(NudgeRecovery, NudgeBudget) {
 		t.Error("recovery must drop the free budget notice")
 	}
-	if !NudgeRecovery.allows(NudgeTodo) {
+	if !nudgeAllowed(NudgeRecovery, NudgeTodo) {
 		t.Error("recovery must keep the turn-costing notices")
 	}
 	for _, kind := range []string{NudgeStuck, NudgeBudget, NudgeTodo, NudgeVerify, NudgeTruncated} {
-		if NudgeOff.allows(kind) {
+		if nudgeAllowed(NudgeOff, kind) {
 			t.Errorf("off allowed %q, want dropped", kind)
 		}
 		// Recovery keeps the turn-costing notices and drops the free ones.
-		if nudgeClasses[kind] == classAdvisory && NudgeRecovery.allows(kind) {
+		if nudgeClasses[kind] == classAdvisory && nudgeAllowed(NudgeRecovery, kind) {
 			t.Errorf("recovery allowed advisory %q, want dropped", kind)
 		}
-		if nudgeClasses[kind] == classRecovery && !NudgeRecovery.allows(kind) {
+		if nudgeClasses[kind] == classRecovery && !nudgeAllowed(NudgeRecovery, kind) {
 			t.Errorf("recovery dropped %q, which costs a turn", kind)
 		}
 	}

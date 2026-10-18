@@ -36,10 +36,13 @@ first and let it fail, then record the baseline.
 `internal/workspace`, `internal/permission` and `internal/events` import no other
 internal package.
 `internal/session` imports only `internal/llm`.
+`internal/harness` imports nothing internal: it holds the vocabulary shared
+by the loop and the preferences file, so each can reach it without either
+reaching for the other.
 `internal/agent` imports only `internal/llm`, `internal/prompts`,
-`internal/permission` and `internal/session`. This is what lets `internal/tools`
-implement `agent.Tool` without an import cycle, and what keeps the loop
-testable against a stub client with no filesystem in sight.
+`internal/permission`, `internal/session` and `internal/harness`. This is what
+lets `internal/tools` implement `agent.Tool` without an import cycle, and what
+keeps the loop testable against a stub client with no filesystem in sight.
 
 **[invariant]** `internal/agent` never learns which backend it is talking to.
 A backend quirk handled inside the loop is a quirk that will be handled twice

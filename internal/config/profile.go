@@ -18,10 +18,10 @@ import (
 // an endpoint and a model name and never a path to a runtime or a set of
 // weights.
 type Profile struct {
-	Version    int       `json:"version"`
-	Provider   Provider  `json:"provider"`
+	Version    int        `json:"version"`
+	Provider   Provider   `json:"provider"`
 	Generation Generation `json:"generation"`
-	Identity   *Identity `json:"identity,omitempty"`
+	Identity   *Identity  `json:"identity,omitempty"`
 }
 
 // Clone returns an independently editable profile, including the optional

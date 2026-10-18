@@ -3,8 +3,11 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/keshon/tars/internal/harness"
 )
 
 type Preferences struct {
@@ -44,9 +47,11 @@ func (p Preferences) Validate() error {
 		return fmt.Errorf("unknown theme %q", p.Theme)
 	}
 	switch p.Harness.Nudges {
-	case "", "full", "recovery", "off":
+	case "":
 	default:
-		return fmt.Errorf("unknown nudge level %q", p.Harness.Nudges)
+		if _, ok := harness.Parse(p.Harness.Nudges); !ok {
+			return fmt.Errorf("unknown nudge level %q: want full, recovery or off", p.Harness.Nudges)
+		}
 	}
 	if p.Version != 1 {
 		return fmt.Errorf("invalid application preferences")
@@ -55,18 +60,26 @@ func (p Preferences) Validate() error {
 }
 func LoadPreferences(path string) (Preferences, error) {
 	p := Preferences{Version: 1}
-	data, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if os.IsNotExist(err) {
 		return p, nil
 	}
 	if err != nil {
 		return p, err
 	}
-	if len(data) > 1<<20 {
-		return p, fmt.Errorf("application preferences exceed 1 MiB")
+	defer f.Close()
+	// Reject unknown keys, as Profile.Load does. Plain Unmarshal silently
+	// drops them, so a renamed field would quietly reset every user who had
+	// set it - which is the same "it reset anyway" symptom the preferences
+	// file is supposed to prevent.
+	d := json.NewDecoder(io.LimitReader(f, 1<<20))
+	d.DisallowUnknownFields()
+	if err := d.Decode(&p); err != nil {
+		return p, fmt.Errorf("application preferences: %w", err)
 	}
-	if err = json.Unmarshal(data, &p); err != nil {
-		return p, err
+	var extra any
+	if err := d.Decode(&extra); err != io.EOF {
+		return p, fmt.Errorf("application preferences: expected one JSON document")
 	}
 	return p, p.Validate()
 }

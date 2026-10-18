@@ -198,7 +198,7 @@ func (a *Agent) wrapUpTurn(ctx context.Context, st *runState, history []llm.Mess
 	// last thing the model reads before the run ends.
 	marked := harnessText(prompts.WrapUp)
 	a.notifyNudge(NudgeWrapUp, marked)
-	if !a.cfg.Nudges.allows(NudgeWrapUp) {
+	if !nudgeAllowed(a.cfg.Nudges, NudgeWrapUp) {
 		return "", false
 	}
 	h := append(history, llm.Message{Role: llm.RoleUser, Content: marked})

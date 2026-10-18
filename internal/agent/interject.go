@@ -1,8 +1,7 @@
 package agent
 
 import (
-	"strings"
-
+	"github.com/keshon/tars/internal/harness"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/prompts"
 )
@@ -24,7 +23,7 @@ type stepOutcome struct {
 func (a *Agent) markNudge(kind, text string) string {
 	marked := harnessText(text)
 	a.notifyNudge(kind, marked)
-	if !a.cfg.Nudges.allows(kind) {
+	if !nudgeAllowed(a.cfg.Nudges, kind) {
 		return ""
 	}
 	return marked
@@ -133,43 +132,21 @@ const (
 // turn. Tars is tuned for weak local models, where both pay for
 // themselves; a strong model pays the turns for nothing.
 //
-//	NudgeFull     everything (default)
-//	NudgeRecovery only the notices that turn a bad ending into another
-//	              attempt; the free advice is dropped
-//	NudgeOff      no advice at all. The compaction notice still arrives:
-//	              it is a fact about the conversation, not a suggestion.
-type NudgeLevel int
+// The level itself, and the vocabulary the preferences file has to spell, are
+// declared once in config; these are aliases rather than a second copy.
+type NudgeLevel = harness.NudgeLevel
 
 const (
-	NudgeFull NudgeLevel = iota
-	NudgeRecovery
-	NudgeOff
+	NudgeFull     = harness.NudgeFull
+	NudgeRecovery = harness.NudgeRecovery
+	NudgeOff      = harness.NudgeOff
 )
 
-// ParseNudgeLevel reads a -nudges value. Unknown names fail rather than
-// silently defaulting, so a typo cannot quietly disable the harness.
-func ParseNudgeLevel(s string) (NudgeLevel, bool) {
-	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "full", "all":
-		return NudgeFull, true
-	case "recovery", "essential":
-		return NudgeRecovery, true
-	case "off", "none":
-		return NudgeOff, true
-	}
-	return NudgeFull, false
-}
+// ParseNudgeLevel reads a -nudges value.
+func ParseNudgeLevel(s string) (NudgeLevel, bool) { return harness.Parse(s) }
 
 // NudgeLevelName renders a level back to its flag value.
-func NudgeLevelName(l NudgeLevel) string {
-	switch l {
-	case NudgeRecovery:
-		return "recovery"
-	case NudgeOff:
-		return "off"
-	}
-	return "full"
-}
+func NudgeLevelName(l NudgeLevel) string { return l.Name() }
 
 // nudgeClass says what a kind of harness text costs, which is what actually
 // decides whether a level may deliver it.
@@ -221,29 +198,33 @@ var nudgeClasses = map[string]nudgeClass{
 	NudgeCompact: classFact,
 }
 
-// allows reports whether a kind should reach the model at this level.
+// nudgeAllowed reports whether a kind should reach the model at this level.
+//
+// It is a function rather than a method because NudgeLevel is an alias for
+// config's type, and Go will not let a package define methods on a type it
+// does not own.
 //
 // A fact always passes: "off" means no advice, not silence about what
 // happened to the conversation. Of what is left, full delivers everything,
 // recovery keeps the turn-costing notices and drops the free advice, and off
 // drops all of it.
-func (l NudgeLevel) allows(kind string) bool {
+func nudgeAllowed(level NudgeLevel, kind string) bool {
 	switch nudgeClasses[kind] {
 	case classFact:
 		return true
 	case classRecovery:
-		return l != NudgeOff
+		return level != NudgeOff
 	case classAdvisory:
-		return l == NudgeFull
+		return level == NudgeFull
 	}
-	return l == NudgeFull
+	return level == NudgeFull
 }
 
 // nudges reports whether a finish-bounce of this kind should happen at
 // all. Callers ask before bouncing, not only before speaking: a bounce
 // costs a whole turn, so a suppressed one that still called the model
 // again would spend a turn to say nothing.
-func (a *Agent) nudges(kind string) bool { return a.cfg.Nudges.allows(kind) }
+func (a *Agent) nudges(kind string) bool { return nudgeAllowed(a.cfg.Nudges, kind) }
 
 // harnessText marks loop-generated text as harness provenance. The
 // model that mused "probably meta instructions from the user" was
@@ -275,7 +256,7 @@ func (a *Agent) notifyNudge(kind, text string) {
 func (a *Agent) nudge(history []llm.Message, kind, text string) []llm.Message {
 	marked := harnessText(text)
 	a.notifyNudge(kind, marked)
-	if !a.cfg.Nudges.allows(kind) {
+	if !nudgeAllowed(a.cfg.Nudges, kind) {
 		return history
 	}
 	return append(history, llm.Message{Role: llm.RoleUser, Content: marked})

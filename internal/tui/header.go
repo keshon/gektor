@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/tui/components/popup"
 )
 
@@ -63,6 +64,11 @@ func (m *model) headerBadges() []headerBadge {
 		label := fmt.Sprintf("step %d/%s  %s", m.steps, m.stepBudget(), formatElapsed(m.elapsed))
 		candidates = append(candidates, headerBadge{id: "run", label: label})
 	}
+	// The harness level sits next to the step counter because that is where
+	// a reader looks to judge a run: how much it is being steered, and how
+	// many turns that has cost. It was only reachable by remembering the
+	// slash command, which is why it read as a setting with no state.
+	candidates = append(candidates, headerBadge{id: "harness", label: "harness " + agent.NudgeLevelName(m.nudges)})
 	// Context and state stay visible before the optional model and run details.
 	total := 0
 	for _, b := range candidates {
@@ -105,6 +111,15 @@ func (m *model) badgeLine() string {
 				color = colorFailed
 			}
 			style = style.Foreground(lipgloss.Color(themeColor(color)))
+		case "harness":
+			// Dim at full, which is the default and needs no attention;
+			// brightened as the harness is turned back, because a run
+			// with no recovery notices is the one that ends in a
+			// repeated failure rather than a second attempt.
+			style = style.Foreground(lipgloss.Color(themeColor(colorDim)))
+			if m.nudges != agent.NudgeFull {
+				style = style.Foreground(lipgloss.Color(themeColor(colorMode)))
+			}
 		}
 		out = append(out, style.Render(" "+b.label+" "))
 	}
@@ -193,6 +208,13 @@ func (m *model) rawHeaderItems() []headerItem {
 			rows = append(rows, info("First token: "+formatElapsed(m.firstToken.Sub(m.started))))
 		}
 		return rows
+	case "harness":
+		return []headerItem{
+			info("Advice: " + agent.NudgeLevelName(m.nudges)),
+			headerItem{"Full — every notice", "/nudges full", idle && m.nudges != agent.NudgeFull},
+			headerItem{"Recovery — only what retries a bad ending", "/nudges recovery", idle && m.nudges != agent.NudgeRecovery},
+			headerItem{"Off — no advice", "/nudges off", idle && m.nudges != agent.NudgeOff},
+		}
 	}
 	return nil
 }

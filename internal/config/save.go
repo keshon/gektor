@@ -14,9 +14,6 @@ func SaveCopy(profile Profile, path string) error {
 	if err := profile.Validate(); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		return err
-	}
 	data, err := json.MarshalIndent(profile, "", "  ")
 	if err != nil {
 		return err

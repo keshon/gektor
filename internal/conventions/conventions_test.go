@@ -70,8 +70,9 @@ func checkPackageLayers(t *testing.T, r *repo) {
 		"workspace":  {},
 		"permission": {},
 		"events":     {},
+		"harness":    {},
 		"session":    {"llm"},
-		"agent":      {"llm", "prompts", "permission", "session"},
+		"agent":      {"llm", "prompts", "permission", "session", "harness"},
 	}
 	for pkg, permitted := range allowed {
 		for _, f := range r.goFiles {

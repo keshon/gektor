@@ -20,10 +20,10 @@ func TestOffSuppressesEveryKindOfAdvice(t *testing.T) {
 		NudgeWrapUp,
 	}
 	for _, kind := range advice {
-		if NudgeOff.allows(kind) {
+		if nudgeAllowed(NudgeOff, kind) {
 			t.Errorf("NudgeOff still delivers %q", kind)
 		}
-		if !NudgeFull.allows(kind) {
+		if !nudgeAllowed(NudgeFull, kind) {
 			t.Errorf("NudgeFull drops %q", kind)
 		}
 	}
@@ -34,7 +34,7 @@ func TestOffSuppressesEveryKindOfAdvice(t *testing.T) {
 // but it must not be quietly absent either.
 func TestCompactionNoticeIsNotSuppressible(t *testing.T) {
 	for _, level := range []NudgeLevel{NudgeFull, NudgeRecovery, NudgeOff} {
-		if !level.allows(NudgeCompact) {
+		if !nudgeAllowed(level, NudgeCompact) {
 			t.Errorf("%v would drop the compaction notice", NudgeLevelName(level))
 		}
 	}
@@ -146,7 +146,7 @@ func TestLevelsArePresetsOverClasses(t *testing.T) {
 	}
 	for level, classes := range want {
 		for _, kind := range everyNudgeKind() {
-			allowed := level.allows(kind)
+			allowed := nudgeAllowed(level, kind)
 			expected := false
 			for _, c := range classes {
 				if nudgeClasses[kind] == c {
