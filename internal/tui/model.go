@@ -201,6 +201,11 @@ type model struct {
 	// dialog is the open modal, if any (dialog.go). While open it
 	// replaces the transcript body and eats all keys but close/quit.
 	dialog *infoDialog
+	// scrollDrag tracks a scrollbar thumb grab: active while the pointer
+	// is held on the bar, grab is the pointer's row inside the thumb so
+	// the thumb follows without jumping, moved marks real motion so a
+	// press-and-release without motion still counts as a click.
+	scrollDrag scrollDrag
 	// sessions is the open session search popup, if any (sessions.go): a
 	// title/history results with rename/delete. It overlays the existing
 	// panes and owns its keys; like permission prompts it borrows

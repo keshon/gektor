@@ -111,6 +111,14 @@ func (v *Viewport) page(dir int) {
 	v.SetYOffset(v.offset + n)
 }
 
+// PageUp moves up by almost a screen. It is page(-1) for callers
+// outside the package, which drive paging from a scrollbar track click.
+func (v *Viewport) PageUp() { v.page(-1) }
+
+// PageDown moves down by almost a screen. It is page(1) for callers
+// outside the package, which drive paging from a scrollbar track click.
+func (v *Viewport) PageDown() { v.page(1) }
+
 // Update handles scrolling. Only the keys the application routes here and
 // the wheel are bound; the input keeps arrows and typing for itself.
 func (v *Viewport) Update(msg tea.Msg) tea.Cmd {
@@ -194,6 +202,39 @@ func (v Viewport) rows(height int) []string {
 	return out[:height]
 }
 
+// ThumbRange reports where the thumb sits in a window of the given
+// height: its top row and its size. It mirrors scrollbar() so hit
+// testing and dragging agree with what is drawn.
+func (v Viewport) ThumbRange(height int) (top, size int) {
+	size = max(height*v.height/max(v.total, 1), 1)
+	if size >= height {
+		return 0, height
+	}
+	free := height - size
+	pos := 0
+	if free > 0 {
+		pos = v.offset * free / max(v.maxOffset(), 1)
+	}
+	return pos, size
+}
+
+// DragOffset converts a row inside the window to a document offset,
+// so a grabbed thumb follows the pointer instead of jumping to it.
+func (v Viewport) DragOffset(row, height, grab int) int {
+	_, size := v.ThumbRange(height)
+	free := height - size
+	if free <= 0 {
+		return 0
+	}
+	row -= grab
+	if row < 0 {
+		row = 0
+	}
+	if row > free {
+		row = free
+	}
+	return row * v.maxOffset() / free
+}
 // scrollbar draws a track with a thumb sized to the visible fraction and
 // placed at the reader's position, so it reads as a position in the
 // document and not merely as "there is more".
@@ -212,15 +253,7 @@ func (v Viewport) scrollbar(height int) []string {
 	}
 	// The thumb is at least one row, and never so large that it hides the
 	// fact that there is somewhere left to go.
-	size := max(height*v.height/max(v.total, 1), 1)
-	if size >= height {
-		size = height
-	}
-	free := height - size
-	pos := 0
-	if free > 0 {
-		pos = v.offset * free / max(v.maxOffset(), 1)
-	}
+	pos, size := v.ThumbRange(height)
 	for i := range bar {
 		if i >= pos && i < pos+size {
 			bar[i] = string(thumb)
