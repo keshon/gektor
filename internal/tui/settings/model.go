@@ -11,7 +11,7 @@ import (
 type Workspace struct {
 	Draft               *Draft
 	Section, LoadedPath string
-	Nav, Advanced       bool
+	Advanced            bool
 }
 type Model struct {
 	form.Model
@@ -42,9 +42,6 @@ func NewModel(fields []form.Field, editor textarea.Model) Model {
 func (f *Model) InputOwner() InputOwner {
 	if f.Picker != nil {
 		return PickerInput
-	}
-	if f.Workspace != nil && f.Workspace.Nav {
-		return NoInput
 	}
 	if f.Index >= 0 && f.Index < len(f.Fields) {
 		return FieldInput
@@ -122,16 +119,6 @@ func (f *Model) CycleChoice() {
 	f.Editor.SetValue(next)
 }
 
-func (f *Model) AvailableCategories() []Category {
-	var out []Category
-	for _, c := range categories {
-		if c.ID == "application" && !f.HasApplication {
-			continue
-		}
-		out = append(out, c)
-	}
-	return out
-}
 func (f *Model) StorePage() { f.Sync(); f.Workspace.Draft.Store(f.Workspace.Section, f.Fields) }
 func (f *Model) Dirty() bool {
 	if f.Workspace == nil {

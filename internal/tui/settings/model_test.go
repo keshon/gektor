@@ -20,9 +20,10 @@ func TestScreenEmitsApplicationIntentsWithoutChangingProfile(t *testing.T) {
 	if intent.Action != Apply || p.Generation.Temperature != 0 {
 		t.Fatal("screen applied configuration instead of requesting Apply")
 	}
+	// One section per screen: there is no in-form category navigation left
+	// to keep focus away from the fields, so F6 is ordinary input.
 	m.UpdateKey(tea.KeyPressMsg{Code: tea.KeyF6}, Props{})
-	intent, _ = m.UpdateKey(tea.KeyPressMsg{Code: tea.KeyDown}, Props{})
-	if intent.Action != SwitchCategory || intent.Section != "profiles" || !m.Workspace.Nav {
-		t.Fatal("category navigation lost its intent or focus", intent)
+	if m.InputOwner() != FieldInput {
+		t.Fatalf("F6 took the editor away from its field: %v", m.InputOwner())
 	}
 }

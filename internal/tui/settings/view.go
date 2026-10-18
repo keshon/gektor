@@ -31,11 +31,12 @@ func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 		return f.PlainRows(props)
 	}
 	w, h := props.Width, props.Height
-	rail := 0
-	if w >= 76 {
-		rail = 17
-	}
-	inner := max(w-6-rail, 12)
+	// One section per modal. The rail that used to sit on the left listed
+	// the same sections the header's Settings menu already lists, so every
+	// section opened as a two-column window three quarters full of the other
+	// sections' names. The menu is the chooser; the modal is for the thing
+	// chosen.
+	inner := max(w-6, 12)
 	category := ""
 	if f.Workspace.Section == "application" {
 		category = "Application"
@@ -73,7 +74,7 @@ func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 			label = "Protocol"
 		}
 		style := props.Styles.Muted
-		if i == f.Index && !f.Workspace.Nav {
+		if i == f.Index {
 			style = props.Styles.Focus
 			label = "› " + label
 		}
@@ -111,9 +112,9 @@ func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 	}
 	note := f.Error
 	if note == "" {
-		note = "No changes · F4 Advanced · F6 Categories"
+		note = "No changes · F4 Advanced"
 		if f.Dirty() {
-			note = "Apply saves a custom profile · F4 Advanced · F6 Categories"
+			note = "Apply saves a custom profile · F4 Advanced"
 		}
 		if f.Workspace.Section == "profiles" {
 			note = "Ctrl+D saves a copy · Apply uses the loaded profile in this session"
@@ -124,24 +125,6 @@ func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 	hits = append(hits, actionHits...)
 	rows = append(rows, buttonRow, props.Styles.Muted.Render(strings.Repeat("─", inner)))
 	rows = append(rows, props.Styles.Muted.Render(cell.Line("Tab controls · Ctrl+S apply · Esc cancel", inner)))
-	if rail > 0 {
-		for i := range rows {
-			label := ""
-			if categories := f.AvailableCategories(); i < len(categories) {
-				c := categories[i]
-				label = "  " + c.Label
-				if c.ID == f.Workspace.Section {
-					label = "› " + c.Label
-					style := props.Styles.Selected
-					if f.Workspace.Nav {
-						style = props.Styles.Focus
-					}
-					label = style.Render(label)
-				}
-			}
-			rows[i] = cell.Line(label, rail-2) + props.Styles.Muted.Render("│ ") + cell.Line(rows[i], inner)
-		}
-	}
 	return rows, hits, w, h
 }
 

@@ -8,6 +8,27 @@ import (
 	"github.com/keshon/tars/internal/tui/components/form"
 )
 
+// DefaultTemperature is what the backend uses when a profile sets none.
+//
+// It lives next to the value it describes, in config, so the field that has
+// to name it and the validator that has to accept it cannot disagree.
+const DefaultTemperature = config.DefaultTemperature
+
+// temperatureValue renders the setting as the number that is actually in
+// force.
+//
+// A stored zero means "no opinion, use the default", and it used to display
+// as a bare 0 - which reads as "sampling is deterministic" rather than "unset,
+// the backend decides". A user who set 0.4 explicitly saw 0 too, so the two
+// states were indistinguishable and the field could not be trusted to show
+// what a run would do.
+func temperatureValue(t float64) string {
+	if t == 0 {
+		return "default (" + strconv.FormatFloat(DefaultTemperature, 'g', -1, 64) + ")"
+	}
+	return strconv.FormatFloat(t, 'g', -1, 64)
+}
+
 func PageFields(profile config.Profile, section string, preferences config.Preferences) (string, []form.Field) {
 	identity := config.Identity{UserName: config.DefaultUserName}
 	if profile.Identity != nil {
@@ -34,7 +55,7 @@ func PageFields(profile config.Profile, section string, preferences config.Prefe
 		add("persona", "Your persona description", identity.UserPersona, true)
 	case "generation":
 		title = "Generation"
-		add("temperature", "Temperature (0 = default 0.4)", strconv.FormatFloat(profile.Generation.Temperature, 'f', -1, 64), false)
+		add("temperature", "Temperature", temperatureValue(profile.Generation.Temperature), false)
 		add("max", "Response budget (tokens)", strconv.Itoa(profile.Generation.MaxTokens), false)
 		add("context", "Context window (tokens)", strconv.Itoa(profile.Generation.ContextLimit), false)
 	case "prompts":

@@ -314,7 +314,15 @@ local UI commands; they are not tools or RPC methods.
 
 The global menu and shortcut footer each occupy one row. Sessions remain in the left pane; the run status, transcript, and growing multiline composer stay in the right pane. Tab switches pane focus, F6/Ctrl+B toggles the sidebar, and F2/Ctrl+P opens session search. Top-menu clicks use the same function-key routing, including disabled actions during approval. Narrow terminals hide the sidebar and reduce visible footer controls; full bindings remain available through Help.
 
-The top row is an unbranded dropdown menu: Session, Run, View, Settings, Help. Click a category or press F9, then use Left/Right to switch categories, Up/Down to select, Enter to apply and Esc to back out. Session exposes new/search/compact/rename/delete/quit, Run exposes Plan/Act/stop/retry/permissions, View exposes the display toggles and jump/theme actions, and Settings opens the editable forms. The function-key and Ctrl shortcuts remain in the footer and Help.
+The top row is an unbranded dropdown menu: Session, Run, View, Settings, Help. Click a category or press F9, then use Left/Right to switch categories, Up/Down to select, Enter to apply and Esc to back out. Session exposes new/search/compact/rename/delete/quit, Run exposes Plan/Act/stop/retry/permissions, View exposes the display toggles and jump/theme actions, and Settings lists the editable sections. The function-key and Ctrl shortcuts remain in the footer and Help.
+
+Each Settings entry opens its own small modal with only that section's
+fields. The modal used to be one two-column window with a rail of section
+names down the left, so every section opened as a form three quarters full of
+the other sections' names; the menu is the chooser and the modal is for the
+thing chosen. An unset temperature reads `default (0.4)` rather than a bare
+`0`, which used to be indistinguishable from a profile that had explicitly
+been set to zero.
 
 ## Common menu flows
 

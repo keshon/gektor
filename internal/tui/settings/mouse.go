@@ -42,28 +42,18 @@ func (f *Model) Mouse(msg tea.MouseMsg, props Props) (Intent, tea.Cmd) {
 		}
 		return Intent{}, nil
 	}
-	if f.Workspace != nil && w >= 76 && mouse.X >= x+1 && mouse.X < x+17 {
-		row := mouse.Y - y
-		if row >= 0 && row < len(f.AvailableCategories()) {
-			category := f.AvailableCategories()[row].ID
-			if category != f.Workspace.Section {
-				return Intent{Action: SwitchCategory, Section: category}, nil
-			}
-		}
-		if row >= 0 && row < len(f.AvailableCategories()) {
-			return Intent{}, nil
-		}
-	}
 	if mouse.X < x || mouse.X >= x+bw+4 {
 		return Intent{}, nil
 	}
 	for _, hit := range hits {
 		if mouse.Y >= y+hit.Y0 && mouse.Y < y+hit.Y1 {
 			if hit.X1 > 0 {
+				// Content starts two cells inside the frame. It used to
+				// start seventeen further right, skipping the category
+				// rail; when the rail was removed the renderer was
+				// updated and this was not, so every button click landed
+				// seventeen cells short of its target.
 				contentX := x + 2
-				if f.Workspace != nil && w >= 76 {
-					contentX += 17
-				}
 				if mouse.X < contentX+hit.X0 || mouse.X >= contentX+hit.X1 {
 					continue
 				}

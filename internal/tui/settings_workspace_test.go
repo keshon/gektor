@@ -137,14 +137,11 @@ func TestSettingsPasteRespectsNestedFocus(t *testing.T) {
 	if f.Picker != nil || !f.Editor.Focused() {
 		t.Fatal("closing picker did not return focus to the field")
 	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyF6})
-	m.Update(tea.PasteMsg{Content: "hidden edit"})
-	if f.Editor.Value() != before || f.Editor.Focused() {
-		t.Fatal("category navigation edited a hidden field")
-	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	if !f.Editor.Focused() {
-		t.Fatal("leaving category navigation did not restore field focus")
+	// A closed picker hands typing back to the field rather than swallowing
+	// it or dropping focus.
+	m.Update(tea.PasteMsg{Content: "more text"})
+	if f.Editor.Value() == before || !f.Editor.Focused() {
+		t.Fatal("pasting after a picker did not reach the field")
 	}
 }
 func TestSettingsWorkspacePreview(t *testing.T) {

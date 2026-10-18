@@ -50,9 +50,9 @@ func ApplySection(profile *Profile, section string, values map[string]string) er
 		id.Name = strings.TrimSpace(values["name"])
 	case SectionGeneration:
 		var err error
-		profile.Generation.Temperature, err = strconv.ParseFloat(values["temperature"], 64)
+		profile.Generation.Temperature, err = ParseTemperature(values["temperature"])
 		if err != nil {
-			return fmt.Errorf("temperature must be a number")
+			return fmt.Errorf("temperature must be a number, or \"default\"")
 		}
 		profile.Generation.MaxTokens, err = strconv.Atoi(values["max"])
 		if err != nil {

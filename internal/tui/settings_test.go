@@ -115,8 +115,10 @@ func TestSettingsValidateThenApplyLeavesTheSavedTaskAlone(t *testing.T) {
 	path := m.stateFile
 	before, _ := os.ReadFile(path)
 	m.editSettings("generation")
-	if m.dialog.form.Editor.Value() != "0" {
-		t.Fatal("initial temperature lost")
+	// An unset temperature reads as the number that will actually be used,
+	// not as a bare 0 that looks like deterministic sampling.
+	if got := m.dialog.form.Editor.Value(); !strings.Contains(got, "default") {
+		t.Fatalf("unset temperature shows as %q", got)
 	}
 	m.dialog.form.Editor.SetValue("bad")
 	m.handleKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
@@ -193,9 +195,6 @@ func TestSettingsFormMouseAndFrame(t *testing.T) {
 			x = m.promptOffset() + max((w-bw-4)/2, 0) + 2 + cancel.X0
 			if m.dialog.form.Workspace != nil {
 				x = 2 + cancel.X0
-			}
-			if m.dialog.form.Workspace != nil && w >= 76 {
-				x += 17
 			}
 		}
 		m.Update(tea.MouseClickMsg{X: x, Y: y + cancel.Y0, Button: tea.MouseLeft})

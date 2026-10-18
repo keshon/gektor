@@ -42,10 +42,10 @@ func TestApplicationPageEmitsOnlyTheWorkspace(t *testing.T) {
 // value that reached back into the live profile would edit it in place.
 func TestPageFieldsDoNotAliasTheProfile(t *testing.T) {
 	p := config.Profile{
-		Version:      1,
-		Provider:     config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local"},
-		Generation:   config.Generation{MaxTokens: 100, ContextLimit: 1000},
-		Identity: &config.Identity{UserName: "User"},
+		Version:    1,
+		Provider:   config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local"},
+		Generation: config.Generation{MaxTokens: 100, ContextLimit: 1000},
+		Identity:   &config.Identity{UserName: "User"},
 	}
 	_, fields := PageFields(p, "you", config.Preferences{})
 	fields[0].Value = "mutated"

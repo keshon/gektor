@@ -7,6 +7,8 @@ import (
 	"math"
 	"net/url"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/keshon/tars/internal/prompts"
 )
@@ -52,6 +54,23 @@ type Generation struct {
 // the generated profile for a launch with no profile — and drifted silently
 // the first time one of them changed.
 const DefaultSystemPrompt = "You are a helpful assistant."
+
+// DefaultTemperature is what a backend uses when a profile sets none. Zero
+// means "unset", not "deterministic", so anything that shows this number has
+// to say so rather than rendering a bare 0.
+//
+// It lives next to the field it belongs to, so the editor that displays it
+// and the code that parses it cannot disagree about what it means.
+const DefaultTemperature = 0.4
+
+// ParseTemperature accepts a number, or the word "default" to hand the
+// choice back to the backend.
+func ParseTemperature(s string) (float64, error) {
+	if strings.EqualFold(strings.TrimSpace(s), "default") {
+		return 0, nil
+	}
+	return strconv.ParseFloat(strings.TrimSpace(s), 64)
+}
 
 // DefaultUserName is the placeholder for an unset user name.
 const DefaultUserName = "User"

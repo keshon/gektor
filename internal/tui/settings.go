@@ -72,8 +72,6 @@ func (m *model) handleSettingsIntent(intent settings.Intent) tea.Cmd {
 		m.closeDialog()
 	case settings.SaveCopy:
 		m.saveSettingsCopy()
-	case settings.SwitchCategory:
-		m.editSettings(intent.Section)
 	}
 	return nil
 }

@@ -9,10 +9,10 @@ import (
 
 func profile() config.Profile {
 	return config.Profile{
-		Version:      1,
-		Provider:     config.Provider{Kind: "llama", URL: "http://localhost:8080", Model: "local"},
-		Generation:   config.Generation{MaxTokens: 100, ContextLimit: 1000},
-		Identity: &config.Identity{UserName: "User"},
+		Version:    1,
+		Provider:   config.Provider{Kind: "llama", URL: "http://localhost:8080", Model: "local"},
+		Generation: config.Generation{MaxTokens: 100, ContextLimit: 1000},
+		Identity:   &config.Identity{UserName: "User"},
 	}
 }
 
