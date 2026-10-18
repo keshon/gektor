@@ -183,7 +183,7 @@ func TestSessionScanRestoresPlanMode(t *testing.T) {
 	m := settingsModel(t)
 	dir := m.sessionDirectory()
 	m.stateFile = writePlannedSession(t, dir, "plan", []llm.Message{{Role: llm.RoleUser, Content: "question"}, {Role: llm.RoleAssistant, Content: "answer"}})
-	if err := m.saveSessionSettings(); err != nil {
+	if err := m.savePreferences(); err != nil {
 		t.Fatal(err)
 	}
 	entries := listSessionsIn(filepath.Dir(dir))

@@ -17,11 +17,20 @@ import (
 // and waiting for a second Enter is right for "/max-steps" and wrong for
 // "/help", and a flat list of names cannot tell them apart — so the popup
 // had to treat every command as if it took an argument.
+//
+// immediate is the other thing a name cannot say about itself: whether it
+// touches the run in progress. Queuing is right for anything the model is
+// in the middle of, and wrong for the view toggles, the fact dialogs and
+// /stop — a command you reach for mid-run, which then waits for the run it
+// was meant to act on. The two are not the same list, and a command that
+// takes an argument used to fall through to the queue by accident, because
+// its second Enter no longer had a picker to run it.
 type command struct {
-	name    string
-	arg     string   // placeholder after the name; empty means it runs bare
-	choices []string // fixed values, offered once the name is typed
-	summary string
+	name      string
+	arg       string   // placeholder after the name; empty means it runs bare
+	choices   []string // fixed values, offered once the name is typed
+	immediate bool     // runs during a run instead of queueing behind it
+	summary   string
 }
 
 func (c command) reference() [2]string {
@@ -37,33 +46,33 @@ func (c command) takesArgument() bool { return c.arg != "" }
 // execution all read it, so a command cannot exist in one and not another.
 func commands() []command {
 	return []command{
-		{name: "/help", summary: "Open this help"},
-		{name: "/sessions", summary: "Browse saved sessions"},
+		{name: "/help", immediate: true, summary: "Open this help"},
+		{name: "/sessions", immediate: true, summary: "Browse saved sessions"},
 		{name: "/new", arg: "[task]", summary: "Start a fresh task; omit task for an empty session"},
 		{name: "/mode", arg: "plan|act", choices: []string{"plan", "act"}, summary: "Preview changes or execute them"},
 		{name: "/max-steps", arg: "N", summary: "Step budget (0 = no limit)"},
 		{name: "/budget-think", arg: "N", summary: "Reasoning budget in chars (0 = default)"},
 		{name: "/nudges", arg: "full|recovery|off", choices: []string{"full", "recovery", "off"}, summary: "How much harness advice the model hears"},
-		{name: "/sidebar", summary: "Toggle sidebar"},
-		{name: "/details", summary: "Toggle reply truncation"},
-		{name: "/sys", summary: "Toggle SYS messages"},
-		{name: "/labels", summary: "Toggle labels"},
-		{name: "/latest", summary: "Jump to latest"},
-		{name: "/stop", summary: "Stop the running task"},
+		{name: "/sidebar", immediate: true, summary: "Toggle sidebar"},
+		{name: "/details", immediate: true, summary: "Toggle reply truncation"},
+		{name: "/sys", immediate: true, summary: "Toggle SYS messages"},
+		{name: "/labels", immediate: true, summary: "Toggle labels"},
+		{name: "/latest", immediate: true, summary: "Jump to latest"},
+		{name: "/stop", immediate: true, summary: "Stop the running task"},
 		{name: "/rename", arg: "[title]", summary: "Rename the current session"},
 		{name: "/delete", summary: "Delete the current session"},
-		{name: "/permissions", summary: "Show permission policy"},
-		{name: "/model", summary: "Show model and backend"},
-		{name: "/context", summary: "Show context usage"},
-		{name: "/run", summary: "Show run stats"},
-		{name: "/activity", summary: "Show run activity"},
-		{name: "/about", summary: "About"},
-		{name: "/theme", arg: "dark|light", choices: []string{"dark", "light"}, summary: "Switch theme"},
-		{name: "/settings", summary: "Open settings"},
-		{name: "/status", summary: "Show current run facts"},
+		{name: "/permissions", immediate: true, summary: "Show permission policy"},
+		{name: "/model", immediate: true, summary: "Show model and backend"},
+		{name: "/context", immediate: true, summary: "Show context usage"},
+		{name: "/run", immediate: true, summary: "Show run stats"},
+		{name: "/activity", immediate: true, summary: "Show run activity"},
+		{name: "/about", immediate: true, summary: "About"},
+		{name: "/theme", arg: "dark|light", choices: []string{"dark", "light"}, immediate: true, summary: "Switch theme"},
+		{name: "/settings", immediate: true, summary: "Open settings"},
+		{name: "/status", immediate: true, summary: "Show current run facts"},
 		{name: "/retry", summary: "Retry the last failed turn"},
 		{name: "/compact", summary: "Shrink this session's history"},
-		{name: "/quit", summary: "Quit"},
+		{name: "/quit", immediate: true, summary: "Quit"},
 	}
 }
 
@@ -86,6 +95,29 @@ func commandTakesArgument(value string) bool {
 	name, _, _ := strings.Cut(value, " ")
 	c := lookupCommand(name)
 	return c != nil && c.takesArgument()
+}
+
+// runsImmediate reports whether a command acts on something other than the
+// run in progress: the view, a fact dialog, the agent's own services. It
+// reads the command's own declaration, so adding a command cannot leave it
+// queueing by default unnoticed.
+func runsImmediate(value string) bool {
+	name, _, _ := strings.Cut(strings.TrimSpace(value), " ")
+	c := lookupCommand(name)
+	return c != nil && c.immediate
+}
+
+// runsOnEnter reports whether Enter runs this text where it stands.
+//
+// Two things say no. A command that still needs an argument is not ready. A
+// ready command is not ready either if a run is in progress and it touches
+// that run: the picker would otherwise run /compact against a state file the
+// run is still writing, which is the mistake the queue exists to prevent.
+func (m *model) runsOnEnter(value string) bool {
+	if commandTakesArgument(value) {
+		return false
+	}
+	return !m.busy() || runsImmediate(value)
 }
 
 func init() {
@@ -117,8 +149,8 @@ func (m *model) confirmRestart(action func()) {
 		return
 	}
 	m.openForm(
-		"Restart session",
-		"The running session will restart. History and draft are preserved.",
+		"Restart agent",
+		"TARS will restart to apply this. The conversation and draft are preserved.",
 		"Restart", nil,
 		func(map[string]string) error {
 			action()

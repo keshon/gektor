@@ -174,10 +174,12 @@ func (m *model) suggestionKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		return nil, true
 	case "enter":
 		// A command that takes no argument is complete the moment it is
-		// named, so Enter runs it. One that takes an argument hands the
-		// text to the composer, which is how the value gets typed.
+		// named, so Enter runs it — unless a run is in progress and it
+		// acts on that run, in which case it waits. One that takes an
+		// argument hands the text to the composer, which is how the
+		// value gets typed.
 		item := s.Current()
-		if !item.Directory && strings.HasPrefix(item.Value, "/") && !commandTakesArgument(item.Value) {
+		if !item.Directory && strings.HasPrefix(item.Value, "/") && m.runsOnEnter(item.Value) {
 			text := item.Value
 			s.Close()
 			m.input.SetValue("")

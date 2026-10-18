@@ -2,8 +2,8 @@
 setlocal
 cd /d "%~dp0"
 
-REM TUI launcher (default backend: llama.cpp on 127.0.0.1:8080).
-set BACKEND=http://127.0.0.1:8080
+REM TUI launcher (default backend: llama.cpp on 127.0.0.1:9931).
+set BACKEND=http://127.0.0.1:9931
 
 curl.exe --silent --max-time 2 %BACKEND%/ >nul 2>&1
 if errorlevel 1 (

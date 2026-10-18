@@ -112,7 +112,7 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		m.answer = msg.answer
 		m.runErr = msg.err
 		m.state = stDone
-		if err := m.saveSessionSettings(); err != nil {
+		if err := m.savePreferences(); err != nil {
 			m.appendBlock(errorBlock("Cannot save session settings: " + err.Error()))
 		}
 		m.refreshNavigator()

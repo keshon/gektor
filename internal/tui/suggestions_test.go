@@ -89,7 +89,7 @@ func TestEnterRunsSelectedCommand(t *testing.T) {
 	}
 }
 
-func TestEnterCompletesFileWithoutSubmittingAndQueuesCommandDuringRun(t *testing.T) {
+func TestEnterCompletesFileWithoutSubmittingAndRespectsTheRunDuringARun(t *testing.T) {
 	m := completionModel(t)
 	writeReference(t, m, "notes.txt", []byte("hello"))
 	m.input.SetValue("read @no")
@@ -108,11 +108,25 @@ func TestEnterCompletesFileWithoutSubmittingAndQueuesCommandDuringRun(t *testing
 		t.Fatal("a complete file path should allow normal submission")
 	}
 	m.state = stRunning
+	// /new acts on the run, so completing it queues rather than starting a
+	// second task over the first.
+	m.input.SetValue("/ne")
+	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if m.queued != "/new" || m.dialog != nil {
+		t.Fatalf("a run-affecting command must queue during a run: %q", m.queued)
+	}
+
+	// /help does not, so the same two keys open it instead. Both paths
+	// start from a completed command in the picker; only the declaration
+	// differs.
+	m.queued = ""
 	m.input.SetValue("/he")
 	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.queued != "/help" || m.dialog != nil {
-		t.Fatalf("completed command must queue during a run: %q", m.queued)
+	if m.queued != "" || m.dialog == nil {
+		t.Fatalf("a view command must run during a run: queued %q, dialog %v",
+			m.queued, m.dialog != nil)
 	}
 }
 

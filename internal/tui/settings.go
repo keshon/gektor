@@ -116,7 +116,7 @@ func (m *model) editSettings(section string) {
 	if m.dialog != nil {
 		m.closeDialog()
 	}
-	m.openForm(title, "Updates this session; history and draft are preserved.", "Apply", fields, func(_ map[string]string) error {
+	m.openForm(title, "TARS restarts to apply these. The conversation and draft are preserved.", "Apply", fields, func(_ map[string]string) error {
 		m.storeSettingsPage()
 		profile, err := ws.Draft.Resolve()
 		if err != nil {

@@ -271,6 +271,19 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			if text == "" {
 				return m, nil
 			}
+			// A command that acts on the view, or on the agent's own
+			// services, runs now. Queuing it behind the run means the one
+			// command you reach for mid-run - /stop, /latest, a theme
+			// switch - waits for the run it acts on. Completeness is not
+			// re-checked here: the picker already ran the commands that
+			// were ready when it held Enter, so what reaches this branch
+			// is text the user finished typing.
+			if runsImmediate(text) {
+				m.input.SetValue("")
+				m.fitInput()
+				m.fitBottom()
+				return m.command(text)
+			}
 			if m.queued != "" {
 				m.appendBlock(markerBlock("a follow-up is already queued"))
 				return m, nil

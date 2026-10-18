@@ -3,7 +3,6 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	tea "charm.land/bubbletea/v2"
@@ -18,23 +17,23 @@ func (m *model) sessionDirectory() string {
 	}
 	return filepath.Dir(m.stateFile)
 }
-func (m *model) saveSessionSettings() error {
-	if m.stateFile == "" {
-		return nil
-	}
-	return m.saveSessionSettingsAt(m.sessionDirectory())
-}
 
-// saveSessionSettingsAt permits a candidate session to persist its settings
-// before the update loop installs it as the current session.
+// savePreferences writes the one set of application preferences.
+//
+// There used to be a second copy in every saved conversation's directory.
+// Opening an old conversation then restored the backend, model and workspace
+// it was created with, which read as the settings belonging to it - so
+// changing a backend appeared to take effect for one conversation and
+// silently not for the next one you opened. Preferences describe the
+// installation, not a transcript, and there is one of them now.
 //
 // An unchanged write is skipped. This runs at both ends of every turn and
 // the payload is a few kilobytes that rarely differ, while SavePreferences
-// fsyncs — FlushFileBuffers, tens of milliseconds on a spinning disk or an
-// AV-filtered path — on the render goroutine. Skipping the redundant write
+// fsyncs - FlushFileBuffers, tens of milliseconds on a spinning disk or an
+// AV-filtered path - on the render goroutine. Skipping the redundant write
 // costs nothing and keeps durability for the writes that carry a change.
-func (m *model) saveSessionSettingsAt(directory string) error {
-	if m.application == nil {
+func (m *model) savePreferences() error {
+	if m.application == nil || m.application.Temporary {
 		return nil
 	}
 	p := m.application.Preferences
@@ -42,56 +41,48 @@ func (m *model) saveSessionSettingsAt(directory string) error {
 		profile := m.config.Profile.Clone()
 		p.Profile = &profile
 	}
-	path := filepath.Join(directory, "settings.json")
 	data, err := json.Marshal(p)
 	if err != nil {
 		return err
 	}
-	if m.savedSettings[path] == string(data) {
+	if m.savedSettings == string(data) {
 		return nil
 	}
-	if err := config.SavePreferences(path, p); err != nil {
+	if err := config.SavePreferences(m.application.PreferencePath, p); err != nil {
 		return err
 	}
-	if m.savedSettings == nil {
-		m.savedSettings = map[string]string{}
-	}
-	m.savedSettings[path] = string(data)
+	m.savedSettings = string(data)
 	return nil
 }
+
+// openApplicationSession opens a saved conversation.
+//
+// Its settings are not restored: preferences are global and already loaded.
+// Existing conversations still carry a settings.json from when they were
+// per-conversation; those files are left exactly where they are and simply
+// not read, so nothing is destroyed if one turns out to matter.
 func (m *model) openApplicationSession(entry sessionEntry) (tea.Cmd, bool) {
-	path := filepath.Join(entry.dir, "settings.json")
-	var p config.Preferences
-	var err error
-	if _, statErr := os.Stat(path); os.IsNotExist(statErr) {
-		// Existing archives predate per-session settings. Keep the current
-		// service profile; there is no mode left to restore.
-		p = m.application.Preferences
-		profile := m.config.Profile.Clone()
-		p.Profile = &profile
-		if p.Workspace == "" {
-			m.sessions.flash = "Choose an Agent workspace in Settings → Application first"
-			return nil, true
-		}
-	} else {
-		p, err = config.LoadPreferences(path)
-		if err != nil {
-			m.sessions.flash = "Cannot read session settings: " + err.Error()
-			return nil, true
-		}
-	}
-	p.Theme = m.application.Preferences.Theme
-	if p.Profile == nil {
-		m.sessions.flash = "Session settings have no profile"
+	if m.application == nil {
+		m.sessions.flash = "no application settings available"
 		return nil, true
 	}
-	history, err := session.ReadHistory(filepath.Join(entry.dir, "state.json"))
+	p := m.application.Preferences
+	if p.Profile == nil {
+		profile := m.config.Profile.Clone()
+		p.Profile = &profile
+	}
+	if p.Workspace == "" {
+		m.sessions.flash = "Choose an Agent workspace in Settings → Application first"
+		return nil, true
+	}
+	stateFile := filepath.Join(entry.dir, "state.json")
+	history, err := session.ReadHistory(stateFile)
 	if err != nil {
-		m.sessions.flash = fmt.Sprintf("Cannot open session: %v", err)
+		m.sessions.flash = fmt.Sprintf("Cannot open conversation: %v", err)
 		return nil, true
 	}
 	m.saveDraft()
-	draft := m.drafts[filepath.Join(entry.dir, "state.json")].text
+	draft := m.drafts[stateFile].text
 	m.modeChange = &ModeChange{Preferences: p, History: history, Draft: draft, Directory: entry.dir}
 	return tea.Quit, true
 }

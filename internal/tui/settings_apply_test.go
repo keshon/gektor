@@ -65,7 +65,7 @@ func TestLoadedProfileIsCommittedOnApply(t *testing.T) {
 }
 
 // A refused apply must leave everything on disk untouched: no custom
-// profile, no session settings, and no queued restart.
+// profile, no preferences, and no queued restart.
 func TestRefusedApplyLeavesFilesAndRuntimeAlone(t *testing.T) {
 	m := settingsModel(t)
 	root := t.TempDir()
@@ -78,37 +78,52 @@ func TestRefusedApplyLeavesFilesAndRuntimeAlone(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.application.PreferencePath = filepath.Join(root, "var", "application.json")
-	m.application.Preferences.ProfilePath = custom
-	m.application.Preferences.Profile = &profile
-	if err := m.saveSessionSettings(); err != nil {
+	if err := os.MkdirAll(filepath.Dir(m.application.PreferencePath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	sessionSettings := filepath.Join(m.sessionDirectory(), "settings.json")
+	m.application.Preferences.ProfilePath = custom
+	m.application.Preferences.Profile = &profile
+	if err := m.savePreferences(); err != nil {
+		t.Fatal(err)
+	}
 	before := map[string][]byte{}
-	for _, path := range []string{custom, m.stateFile, sessionSettings} {
+	for _, path := range []string{custom, m.stateFile, m.application.PreferencePath} {
 		data, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("fixture missing %s: %v", path, err)
 		}
 		before[path] = data
 	}
-	// A directory where the global preferences file belongs makes the
-	// write fail late, after the candidate has been composed.
-	if err := os.MkdirAll(m.application.PreferencePath, 0o700); err != nil {
+	// A file where the custom profile directory belongs makes the custom
+	// save fail late, after the candidate has been composed and validated.
+	// requestProfileChange never reaches the preferences write, so blocking
+	// the preferences path would pass without exercising anything.
+	customDir := filepath.Dir(custom)
+	if err := os.RemoveAll(customDir); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(customDir, []byte("block"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	delete(before, custom)
 	m.editSettings("generation")
 	focusSetting(m, "max")
-	m.dialog.form.Editor.SetValue("999999")
+	m.dialog.form.Editor.SetValue("200")
 	m.applyForm()
 	if m.modeChange != nil {
 		t.Fatal("a refused apply queued a restart")
+	}
+	if m.dialog == nil || m.dialog.form.Error == "" {
+		t.Fatal("a refused apply closed the form without reporting the failure")
 	}
 	for path, want := range before {
 		got, err := os.ReadFile(path)
 		if err != nil || string(got) != string(want) {
 			t.Fatalf("%s was rewritten by a refused apply", path)
 		}
+	}
+	if info, err := os.Stat(customDir); err != nil || info.IsDir() {
+		t.Fatal("a refused apply moved the custom directory aside instead of failing")
 	}
 }
 

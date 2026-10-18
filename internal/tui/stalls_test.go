@@ -13,24 +13,23 @@ import (
 	"github.com/keshon/tars/internal/tui/components/transcript"
 )
 
-// saveSessionSettings runs at both ends of every turn and fsyncs. An
+// savePreferences runs at both ends of every turn and fsyncs. An
 // unchanged payload must not reach the disk, or a turn costs two flushes it
 // does not need — on the render goroutine.
 
-func TestSessionSettingsSkipAnUnchangedWrite(t *testing.T) {
+func TestPreferencesSkipAnUnchangedWrite(t *testing.T) {
 	dir := t.TempDir()
 	m := sizeModel(t, testModel())
+	path := filepath.Join(dir, "application.json")
 	m.application = &Application{
-		PreferencePath: filepath.Join(dir, "preferences.json"),
+		PreferencePath: path,
 		Preferences:    config.Preferences{Version: 1},
 	}
 
-	state := filepath.Join(dir, "session")
-	path := filepath.Join(state, "settings.json")
-	if err := m.saveSessionSettingsAt(state); err != nil {
+	if err := m.savePreferences(); err != nil {
 		t.Fatal(err)
 	}
-	first := m.savedSettings[path]
+	first := m.savedSettings
 	if first == "" {
 		t.Fatal("first write did not record what it stored")
 	}
@@ -39,7 +38,7 @@ func TestSessionSettingsSkipAnUnchangedWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := m.saveSessionSettingsAt(state); err != nil {
+	if err := m.savePreferences(); err != nil {
 		t.Fatal(err)
 	}
 	after, err := os.Stat(path)
@@ -51,10 +50,10 @@ func TestSessionSettingsSkipAnUnchangedWrite(t *testing.T) {
 	}
 
 	m.application.Preferences.Theme = "light"
-	if err := m.saveSessionSettingsAt(state); err != nil {
+	if err := m.savePreferences(); err != nil {
 		t.Fatal(err)
 	}
-	if m.savedSettings[path] == first {
+	if m.savedSettings == first {
 		t.Fatal("a real change was skipped")
 	}
 	if _, err := os.Stat(path); err != nil {

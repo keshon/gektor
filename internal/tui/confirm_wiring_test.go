@@ -43,7 +43,7 @@ func TestRestartCommandOpensADestructiveConfirmation(t *testing.T) {
 	}
 
 	view := m.screenContent()
-	want := []string{"Restart session", "[ Restart ]", "[ Cancel ]"}
+	want := []string{"Restart agent", "[ Restart ]", "[ Cancel ]"}
 	for _, w := range want {
 		if !strings.Contains(view, w) {
 			t.Fatalf("%q missing from the confirmation:\n%s", w, view)
@@ -147,7 +147,7 @@ func TestConfirmationRendersAsOneAlignedFrame(t *testing.T) {
 	if !strings.HasPrefix(ansi.Strip(box[0]), strings.Repeat(" ", 1)) {
 		t.Fatal("dialog is flush against the left edge")
 	}
-	if !strings.Contains(strings.Join(box, "\n"), "Restart session") {
+	if !strings.Contains(strings.Join(box, "\n"), "Restart agent") {
 		t.Fatalf("the dialog does not show what it is asking:\n%s", strings.Join(box, "\n"))
 	}
 }

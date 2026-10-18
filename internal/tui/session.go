@@ -437,7 +437,7 @@ func (m *model) startFreshPrompt(task, display string, images []string) error {
 	m.appendBlock(userBlock(display + imageSuffix(images)))
 	seed := append([]llm.Message(nil), m.seedHistory...)
 	m.seedHistory = nil
-	if err := m.saveSessionSettings(); err != nil {
+	if err := m.savePreferences(); err != nil {
 		return err
 	}
 	if len(seed) > 0 {

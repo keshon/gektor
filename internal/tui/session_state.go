@@ -57,7 +57,7 @@ func (m *model) saveMode() error {
 	if err := writeSavedMode(m.stateFile, m.plan); err != nil {
 		return err
 	}
-	return m.saveSessionSettings()
+	return m.savePreferences()
 }
 
 func writeSavedMode(stateFile string, plan bool) error {

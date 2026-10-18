@@ -32,21 +32,7 @@ func (m *model) openApplication() {
 	}
 }
 
-func (m *model) saveApplication() error {
-	if m.application == nil || m.application.Temporary {
-		return nil
-	}
-	p := m.application.Preferences
-	if m.config != nil {
-		profile := m.config.Profile.Clone()
-		p.Profile = &profile
-	}
-	if err := m.saveSessionSettings(); err != nil {
-		return err
-	}
-	return config.SavePreferences(m.application.PreferencePath, p)
-}
-
+func (m *model) saveApplication() error { return m.savePreferences() }
 
 // requestProfileChange replaces owned services without starting an Agent run.
 func (m *model) requestProfileChange(profile config.Profile) error {
@@ -56,7 +42,6 @@ func (m *model) requestProfileChange(profile config.Profile) error {
 	if err := profile.Validate(); err != nil {
 		return err
 	}
-
 
 	p := m.application.Preferences
 	p.Profile = &profile

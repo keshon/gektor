@@ -218,9 +218,9 @@ type model struct {
 
 	sessionIndex    map[string]cachedSession
 	sessionRevision uint64
-	// savedSettings remembers the bytes last written per session, so an
-	// unchanged preferences write is skipped rather than fsynced again.
-	savedSettings   map[string]string
+	// savedSettings remembers the bytes last written, so an unchanged
+	// preferences write is skipped rather than fsynced again.
+	savedSettings   string
 	pendingCommands []tea.Cmd
 	drafts          map[string]draft
 	plan            bool
@@ -483,7 +483,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	m.input.SetValue(cfg.InitialDraft)
 	m.fitInput()
 	m.fitBottom()
-	if err := m.saveSessionSettings(); err != nil {
+	if err := m.savePreferences(); err != nil {
 		return "", err
 	}
 	final, err := prog.Run()
