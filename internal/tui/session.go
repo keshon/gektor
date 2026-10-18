@@ -287,7 +287,12 @@ func (m *model) startRun(run func(ctx context.Context) (string, error)) {
 	m.state = stRunning
 	m.spinnerFrame = 0
 	m.navFocused = false
-	m.refreshNavigator()
+	// No navigator refresh here. Nothing about the session store changes
+	// when a turn starts, and the previous turn's doneMsg already
+	// rescanned it — two scans per turn, each re-decoding the state.json
+	// the agent rewrites on every step, which is a permanent cache miss.
+	// Mutating paths (rename, delete, open) and doneMsg still refresh, and
+	// opening the Sessions popup rescans regardless.
 	m.input.Focus()
 	m.fitInput()
 	m.fitBottom()
@@ -357,7 +362,7 @@ func (m *model) compactNow() (tea.Model, tea.Cmd) {
 		m.appendBlock(errorBlock("no active session to compact"))
 		return m, nil
 	}
-	before, after, err := agent.CompactFile(m.stateFile, agent.DefaultCompactKeepSteps)
+	before, after, history, err := agent.CompactFile(m.stateFile, agent.DefaultCompactKeepSteps)
 	if err != nil {
 		m.appendBlock(errorBlock("cannot compact: " + err.Error()))
 		return m, nil
@@ -366,11 +371,6 @@ func (m *model) compactNow() (tea.Model, tea.Cmd) {
 		m.appendBlock(markerBlock(fmt.Sprintf("nothing to compact: %d messages", before)))
 		m.transcript.Follow = true
 		m.transcript.Viewport.GotoBottom()
-		return m, nil
-	}
-	history, err := session.ReadHistory(m.stateFile)
-	if err != nil {
-		m.appendBlock(errorBlock("cannot reload compacted history: " + err.Error()))
 		return m, nil
 	}
 	if m.sess == nil {

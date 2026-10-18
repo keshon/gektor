@@ -40,7 +40,7 @@ func TestCompactFile_ShrinksSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	before, after, err := CompactFile(state, 8)
+	before, after, _, err := CompactFile(state, 8)
 	if err != nil {
 		t.Fatalf("CompactFile: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestCompactFile_ShrinksSnapshot(t *testing.T) {
 		t.Fatalf("snapshot holds %d messages, want %d", len(loaded), after)
 	}
 
-	before2, after2, err := CompactFile(state, 8)
+	before2, after2, _, err := CompactFile(state, 8)
 	if err != nil {
 		t.Fatalf("second CompactFile: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestCompactFile_ShrinksSnapshot(t *testing.T) {
 }
 
 func TestCompactFile_MissingSnapshotErrors(t *testing.T) {
-	if _, _, err := CompactFile(filepath.Join(t.TempDir(), "missing.json"), 8); err == nil {
+	if _, _, _, err := CompactFile(filepath.Join(t.TempDir(), "missing.json"), 8); err == nil {
 		t.Fatal("want error for missing snapshot")
 	}
 }
@@ -82,7 +82,7 @@ func TestCompactFile_CorruptSnapshotErrors(t *testing.T) {
 	if err := os.WriteFile(path, []byte("broken"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := CompactFile(path, 8); err == nil {
+	if _, _, _, err := CompactFile(path, 8); err == nil {
 		t.Fatal("a corrupt snapshot must not compact silently")
 	}
 }
@@ -97,7 +97,7 @@ func TestCompactFile_ShrinksASnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	before, after, err := CompactFile(path, 8)
+	before, after, _, err := CompactFile(path, 8)
 	if err != nil || before != len(history) || after >= before {
 		t.Fatalf("compaction: %d -> %d, %v", before, after, err)
 	}

@@ -10,8 +10,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -150,12 +150,16 @@ func TestNavigatorRenameAndDeleteKeepPaneFocus(t *testing.T) {
 
 func TestSearchHighlightExcerptKeepsUnicode(t *testing.T) {
 	text := strings.Repeat("Earlier text ", 20) + "Нужный парсер работает" + strings.Repeat(" later text", 20)
-	excerpt := searchExcerpt(text, "ПАРСЕР", 60)
+	re := searchRegex("ПАРСЕР")
+	excerpt := searchExcerpt(text, re, 60)
 	if !strings.Contains(excerpt, "парсер") || lipgloss.Width(excerpt) > 60 {
 		t.Fatal("matching excerpt lost Unicode or overflows")
 	}
 	normal, _, _ := popupStyles()
-	if !strings.Contains(highlightSearch(excerpt, "ПАРСЕР", normal), "38;2;243;213;138") {
+	if !strings.Contains(highlightSearch(excerpt, re, normal), "38;2;243;213;138") {
 		t.Fatal("matching words not highlighted")
+	}
+	if searchRegex("") != nil {
+		t.Fatal("an empty query should not compile a matcher")
 	}
 }

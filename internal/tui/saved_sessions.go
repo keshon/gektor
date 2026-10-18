@@ -15,9 +15,14 @@ import (
 
 // savedText is one searchable message and its index in the source history.
 // Positions refer to source messages, never UI blocks or geometry.
+//
+// lower is the case-folded copy the filter matches against. Folding it per
+// keystroke instead cost one allocation per message per keypress, over the
+// whole conversation corpus of every session.
 type savedText struct {
 	Text    string
 	Message int
+	lower   string
 }
 
 // savedSummary is one row of the sessions list.
@@ -163,7 +168,7 @@ func conversationText(history []llm.Message) []savedText {
 			continue
 		}
 		if strings.TrimSpace(text) != "" {
-			result = append(result, savedText{text, i})
+			result = append(result, savedText{Text: text, Message: i, lower: strings.ToLower(text)})
 		}
 	}
 	return result

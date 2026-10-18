@@ -3,7 +3,6 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -214,32 +213,28 @@ func dropRepeatCaches(st *runState) {
 
 // CompactFile mechanically compacts a saved snapshot in place: the
 // same compactHistory the loop uses, invoked on demand (/compact)
-// instead of at the usage threshold. Returns message counts before
-// and after; writes only when something actually dropped, atomically
-// like saveState. An error leaves the snapshot untouched.
-func CompactFile(stateFile string, keepSteps int) (before, after int, err error) {
-	history, err := session.ReadHistory(stateFile)
+// instead of at the usage threshold. Writes only when something actually
+// dropped, through the same atomic writer as saveState. An error leaves the
+// snapshot untouched.
+//
+// The compacted history is returned rather than left for the caller to read
+// back: it was already decoded here, and the /compact path read the same
+// file a second time purely to get it.
+func CompactFile(stateFile string, keepSteps int) (before, after int, history []llm.Message, err error) {
+	history, err = session.ReadHistory(stateFile)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, nil, err
 	}
 	before = len(history)
 	compacted := compactHistory(history, keepSteps)
 	after = len(compacted)
 	if after >= before {
-		return before, after, nil
+		return before, after, history, nil
 	}
-	data, err := json.MarshalIndent(compacted, "", "  ")
-	if err != nil {
-		return before, after, err
+	if err := session.WriteSnapshot(stateFile, compacted); err != nil {
+		return before, after, history, err
 	}
-	tmp := stateFile + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return before, after, err
-	}
-	if err := os.Rename(tmp, stateFile); err != nil {
-		return before, after, err
-	}
-	return before, after, nil
+	return before, after, compacted, nil
 }
 
 // maybeCompact drops old step groups once the prompt passes the

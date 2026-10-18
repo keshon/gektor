@@ -118,8 +118,16 @@ previous cache; searchable text is built when Search requests it.
 or replace a newer workspace's list. Scanning every history in Update used to
 block input and repainting.
 
-**Enforced by:** tested, `TestSessionScanRunsOutsideUpdateAndRejectsStaleResults`
-and `TestSessionIndexCachesUnchangedHistoryAndLoadsSearchOnDemand`.
+A scan runs when the store can have changed — a finished turn, a rename, a
+delete, the popup opening — and not when a turn starts. The agent rewrites
+its snapshot on every step, so the active session is a permanent cache miss;
+scanning at both ends of a turn decoded the same freshly written file twice
+for a store that cannot have moved in between.
+
+**Enforced by:** tested, `TestSessionScanRunsOutsideUpdateAndRejectsStaleResults`,
+`TestSessionIndexCachesUnchangedHistoryAndLoadsSearchOnDemand`,
+`TestStartingATurnDoesNotRescanTheSessionStore` and
+`TestFinishingATurnStillRescansTheSessionStore`.
 
 ## 3. The active owner controls all input
 
@@ -201,6 +209,13 @@ Color literals belong in `styles.go`; components use named palette values.
   both can evade cache invalidation; TARS writes snapshots atomically.
 - Single-session reads, attachment reads and mutation writes remain synchronous.
   The expensive all-session scans are asynchronous.
+- Session settings are rewritten only when their bytes change. They run at
+  both ends of every turn and `SavePreferences` fsyncs, so an unchanged write
+  was two dropped frames per turn for a payload that rarely differs.
+- The viewport is reassembled only when the rendered parts differ. A frame
+  that reveals nothing is now free; a frame that carries new text still
+  re-measures every rendered line, which grows with transcript length. That
+  one needs a windowed render, not a cache.
 - Terminal-cell table alignment is tested. The lightweight Markdown parser still
   does not implement escaped table pipes or nested formatting.
 

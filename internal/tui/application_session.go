@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,6 +27,12 @@ func (m *model) saveSessionSettings() error {
 
 // saveSessionSettingsAt permits a candidate session to persist its settings
 // before the update loop installs it as the current session.
+//
+// An unchanged write is skipped. This runs at both ends of every turn and
+// the payload is a few kilobytes that rarely differ, while SavePreferences
+// fsyncs — FlushFileBuffers, tens of milliseconds on a spinning disk or an
+// AV-filtered path — on the render goroutine. Skipping the redundant write
+// costs nothing and keeps durability for the writes that carry a change.
 func (m *model) saveSessionSettingsAt(directory string) error {
 	if m.application == nil {
 		return nil
@@ -35,7 +42,22 @@ func (m *model) saveSessionSettingsAt(directory string) error {
 		profile := m.config.Profile.Clone()
 		p.Profile = &profile
 	}
-	return config.SavePreferences(filepath.Join(directory, "settings.json"), p)
+	path := filepath.Join(directory, "settings.json")
+	data, err := json.Marshal(p)
+	if err != nil {
+		return err
+	}
+	if m.savedSettings[path] == string(data) {
+		return nil
+	}
+	if err := config.SavePreferences(path, p); err != nil {
+		return err
+	}
+	if m.savedSettings == nil {
+		m.savedSettings = map[string]string{}
+	}
+	m.savedSettings[path] = string(data)
+	return nil
 }
 func (m *model) openApplicationSession(entry sessionEntry) (tea.Cmd, bool) {
 	path := filepath.Join(entry.dir, "settings.json")

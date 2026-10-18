@@ -221,6 +221,9 @@ type model struct {
 
 	sessionIndex    map[string]cachedSession
 	sessionRevision uint64
+	// savedSettings remembers the bytes last written per session, so an
+	// unchanged preferences write is skipped rather than fsynced again.
+	savedSettings   map[string]string
 	pendingCommands []tea.Cmd
 	drafts          map[string]draft
 	plan            bool

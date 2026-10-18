@@ -10,9 +10,15 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
+// sessionText is one searchable message and its index in the source history.
+// Positions refer to source messages, never UI blocks or geometry.
+//
+// lower is the case-folded copy the filter matches against; it is folded
+// once when the session is indexed, not per keystroke.
 type sessionText struct {
 	text    string
 	message int
+	lower   string
 }
 type searchGeometry struct{ x, y, width, height, noteRow int }
 
@@ -37,6 +43,7 @@ func (m *model) searchView() string {
 	normal, border, selected := popupStyles()
 	inner := g.width - 2
 	query := strings.TrimSpace(s.filter.Value())
+	re := searchRegex(query)
 	rows := []string{border.Render("╭─ Search " + strings.Repeat("─", max(g.width-11, 0)) + "╮")}
 	line := func(text string, style lipgloss.Style) string {
 		return border.Render("│") + popupRow(style, text, inner) + border.Render("│")
@@ -65,7 +72,7 @@ func (m *model) searchView() string {
 		ageWidth := min(lipgloss.Width(age), max(inner/3, 1))
 		title := cellLine(mark+e.title, max(inner-ageWidth-1, 1))
 		ageStyle := style.Foreground(lipgloss.Color(themeColor(colorSecondaryText)))
-		rows = append(rows, border.Render("│")+highlightSearch(title, query, style)+style.Render(" ")+ageStyle.Render(cellLine(age, ageWidth))+border.Render("│"))
+		rows = append(rows, border.Render("│")+highlightSearch(title, re, style)+style.Render(" ")+ageStyle.Render(cellLine(age, ageWidth))+border.Render("│"))
 		text := e.preview
 		if e.matchText != "" {
 			text = e.matchText
@@ -73,8 +80,8 @@ func (m *model) searchView() string {
 		if text == "" {
 			text = e.mode
 		}
-		snippet := searchExcerpt(text, query, max(inner-2, 1))
-		rows = append(rows, border.Render("│")+highlightSearch(cellLine("  "+snippet, inner), query, style.Foreground(lipgloss.Color(themeColor(colorSecondaryText))))+border.Render("│"))
+		snippet := searchExcerpt(text, re, max(inner-2, 1))
+		rows = append(rows, border.Render("│")+highlightSearch(cellLine("  "+snippet, inner), re, style.Foreground(lipgloss.Color(themeColor(colorSecondaryText))))+border.Render("│"))
 	}
 	if s.flash != "" {
 		rows = append(rows, line(s.flash, normal.Foreground(lipgloss.Color(themeColor(colorPopupError)))))
@@ -97,12 +104,22 @@ func (m *model) searchView() string {
 	return strings.Join(rows, "\n")
 }
 
-func searchExcerpt(text, query string, width int) string {
+// searchRegex builds the matcher once per frame. Compiling it per visible
+// row per frame cost two compiles for every row of the popup on every
+// repaint, and the popup repaints on the same tick as everything else.
+func searchRegex(query string) *regexp.Regexp {
+	if query == "" {
+		return nil
+	}
+	return regexp.MustCompile("(?i)" + regexp.QuoteMeta(query))
+}
+
+func searchExcerpt(text string, re *regexp.Regexp, width int) string {
 	text = strings.Join(strings.Fields(cleanText(text)), " ")
 	runes := []rune(text)
 	start := 0
-	if query != "" {
-		if loc := regexp.MustCompile("(?i)" + regexp.QuoteMeta(query)).FindStringIndex(text); loc != nil {
+	if re != nil {
+		if loc := re.FindStringIndex(text); loc != nil {
 			start = max(utf8.RuneCountInString(text[:loc[0]])-width/4, 0)
 		}
 	}
@@ -112,14 +129,13 @@ func searchExcerpt(text, query string, width int) string {
 	return strings.TrimRight(cellLine(text, width), " ")
 }
 
-func highlightSearch(text, query string, style lipgloss.Style) string {
-	if query == "" {
+func highlightSearch(text string, re *regexp.Regexp, style lipgloss.Style) string {
+	if re == nil {
 		return style.Render(text)
 	}
-	matches := regexp.MustCompile("(?i)"+regexp.QuoteMeta(query)).FindAllStringIndex(text, -1)
 	var out strings.Builder
 	pos := 0
-	for _, loc := range matches {
+	for _, loc := range re.FindAllStringIndex(text, -1) {
 		out.WriteString(style.Render(text[pos:loc[0]]))
 		out.WriteString(style.Foreground(lipgloss.Color(themeColor(colorSearchMatch))).Bold(true).Render(text[loc[0]:loc[1]]))
 		pos = loc[1]

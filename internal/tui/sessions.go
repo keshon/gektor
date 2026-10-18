@@ -502,7 +502,6 @@ func (m *model) deleteSelected() {
 // headerLine renders the static brand and session title beside the clock.
 // During a run the clock shows elapsed time; activity lives in the badge strip.
 
-
 // activeSessionTitle names the open session for the header and the
 // sessions bottom bar: stored title, then dir id; a dash while a session is open
 // without one yet. No history reads: the header renders every second.
@@ -546,6 +545,13 @@ func sameSession(dir, stateFile string) bool {
 func (s *sessionsState) clamp(visible int) {
 	s.Clamp(len(s.entries), visible)
 }
+
+// applyFilter narrows the list to the sessions matching the query, title
+// first and history second.
+//
+// The searchable corpus is folded once at index time and kept on the entry.
+// Folding it here instead cost one allocation per cached message per
+// keystroke, over the whole conversation text of every session.
 func (s *sessionsState) applyFilter() {
 	query := strings.ToLower(strings.TrimSpace(s.filter.Value()))
 	var titles, history []sessionEntry
@@ -555,7 +561,7 @@ func (s *sessionsState) applyFilter() {
 		if query == "" || strings.Contains(strings.ToLower(e.title+" "+e.id), query) {
 			if query != "" {
 				for _, message := range e.search {
-					if strings.Contains(strings.ToLower(message.text), query) {
+					if strings.Contains(message.lower, query) {
 						e.matchText = message.text
 						break
 					}
@@ -565,7 +571,7 @@ func (s *sessionsState) applyFilter() {
 			continue
 		}
 		for _, message := range e.search {
-			if strings.Contains(strings.ToLower(message.text), query) {
+			if strings.Contains(message.lower, query) {
 				e.matchText, e.matchMessage, e.historyMatch = message.text, message.message, true
 				history = append(history, e)
 				break

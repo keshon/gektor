@@ -2,6 +2,7 @@
 package transcript
 
 import (
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/viewport"
@@ -12,6 +13,11 @@ type Model struct {
 	Viewport viewport.Model
 	Follow   bool
 	lines    []int
+	// lastParts/lastTail are what the viewport currently shows. The
+	// renderer rebuilds its parts on every frame, including frames that
+	// changed nothing, so this is what tells a real update from a repeat.
+	lastParts []string
+	lastTail  string
 }
 
 func New() Model             { return Model{Follow: true} }
@@ -31,7 +37,15 @@ func (m Model) PartOffset(index int) int {
 }
 
 // SetParts accepts rendered, immutable strings. Tail is an unsettled streamed part.
+//
+// Identical input produces identical output, so a frame that re-renders to
+// the same parts skips the whole reassembly. That path is not free: the
+// viewport splits the joined content into lines and measures the widest of
+// them with an ANSI-aware scan on every call.
 func (m *Model) SetParts(parts []string, tail string) {
+	if m.lastTail == tail && slices.Equal(m.lastParts, parts) {
+		return
+	}
 	content := strings.Join(parts, "\n\n")
 	if tail != "" {
 		if content != "" {
@@ -68,5 +82,6 @@ func (m *Model) SetParts(parts []string, tail string) {
 			m.Viewport.SetYOffset(0)
 		}
 	}
+	m.lastParts, m.lastTail = parts, tail
 	m.lines = heights
 }
