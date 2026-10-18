@@ -1,0 +1,140 @@
+//go:build windows
+
+package tui
+
+import (
+	"encoding/binary"
+	"fmt"
+	"testing"
+
+	uv "github.com/charmbracelet/ultraviolet"
+	xwindows "github.com/charmbracelet/x/windows"
+)
+
+func nativeMouseRecord(x, y int16, buttonState, control, flags uint32) xwindows.InputRecord {
+	r := xwindows.InputRecord{EventType: xwindows.MOUSE_EVENT}
+	binary.LittleEndian.PutUint16(r.Event[0:2], uint16(x))
+	binary.LittleEndian.PutUint16(r.Event[2:4], uint16(y))
+	binary.LittleEndian.PutUint32(r.Event[4:8], buttonState)
+	binary.LittleEndian.PutUint32(r.Event[8:12], control)
+	binary.LittleEndian.PutUint32(r.Event[12:16], flags)
+	return r
+}
+
+func encodeMouse(records ...xwindows.InputRecord) string {
+	r := &consoleReader{}
+	for _, rec := range records {
+		r.encode(rec)
+	}
+	return r.buffer.String()
+}
+
+// Windows packs a drag as MOUSE_MOVED|MOUSE_LEFT_BUTTON_DOWN, and
+// MOUSE_LEFT_BUTTON_DOWN is the same value as MOUSE_WHEELED. Comparing
+// event flags for equality classified every drag as "not a move", so no
+// motion event was emitted and the scrollbar could not be dragged. The wheel
+// and a click with a held button are told apart the same way.
+//
+// The delta lives in the high word of ButtonState: 120 per notch.
+const (
+	notchUp   = uint32(120) << 16
+	notchDown = uint32(0xFF880000) // -120
+	leftDown  = xwindows.FROM_LEFT_1ST_BUTTON_PRESSED
+	// MOUSE_LEFT_BUTTON_DOWN shares MOUSE_WHEELED's value, which is the
+	// whole reason the flags cannot be compared for equality.
+	leftButtonDown = xwindows.MOUSE_WHEELED
+)
+
+func TestNativeConsoleClassifiesRealMouseRecords(t *testing.T) {
+	cases := []struct {
+		name    string
+		records []xwindows.InputRecord
+		want    []string
+	}{
+		{
+			name: "drag is motion with the button held",
+			records: []xwindows.InputRecord{
+				nativeMouseRecord(5, 3, leftDown, 0, leftButtonDown),
+				nativeMouseRecord(5, 4, leftDown, 0,
+					xwindows.MOUSE_MOVED|leftButtonDown),
+				nativeMouseRecord(5, 9, leftDown, 0,
+					xwindows.MOUSE_MOVED|leftButtonDown),
+			},
+			// press, then two motions. A drag that arrives as clicks is
+			// what made the scrollbar look dead.
+			want: []string{"click", "motion", "motion"},
+		},
+		{
+			name: "plain move with no button is dropped",
+			records: []xwindows.InputRecord{
+				nativeMouseRecord(5, 3, 0, 0, xwindows.MOUSE_MOVED),
+			},
+			want: nil,
+		},
+		{
+			name: "wheel both ways with no button held",
+			records: []xwindows.InputRecord{
+				nativeMouseRecord(5, 3, notchUp, 0, xwindows.MOUSE_WHEELED),
+				nativeMouseRecord(5, 3, notchDown, 0, xwindows.MOUSE_WHEELED),
+			},
+			want: []string{"wheelup", "wheeldown"},
+		},
+		{
+			name: "wheel while a button is held is still a wheel",
+			records: []xwindows.InputRecord{
+				nativeMouseRecord(5, 3, notchUp|leftDown, 0, xwindows.MOUSE_WHEELED),
+			},
+			want: []string{"wheelup"},
+		},
+		{
+			name: "release ends the drag",
+			records: []xwindows.InputRecord{
+				nativeMouseRecord(5, 3, leftDown, 0, leftButtonDown),
+				nativeMouseRecord(5, 3, 0, 0, 0),
+			},
+			want: []string{"click", "release"},
+		},
+		{
+			// A positive delta is away from the user, which for a
+			// horizontal wheel is right.
+			name: "horizontal wheel",
+			records: []xwindows.InputRecord{
+				nativeMouseRecord(5, 3, notchUp, 0, xwindows.MOUSE_HWHEELED),
+				nativeMouseRecord(5, 3, notchDown, 0, xwindows.MOUSE_HWHEELED),
+			},
+			want: []string{"wheelright", "wheelleft"},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			events := decodeConsoleEvents(t, encodeMouse(c.records...))
+			var got []string
+			for _, e := range events {
+				got = append(got, mouseKind(e))
+			}
+			if len(got) != len(c.want) {
+				t.Fatalf("got %v, want %v", got, c.want)
+			}
+			for i := range got {
+				if got[i] != c.want[i] {
+					t.Fatalf("event %d was %q, want %q (all: %v)", i, got[i], c.want[i], got)
+				}
+			}
+		})
+	}
+}
+
+// mouseKind names a parsed mouse event the way the application sees it.
+func mouseKind(e uv.Event) string {
+	switch ev := e.(type) {
+	case uv.MouseWheelEvent:
+		return ev.String()
+	case uv.MouseMotionEvent:
+		return "motion"
+	case uv.MouseReleaseEvent:
+		return "release"
+	case uv.MouseClickEvent:
+		return "click"
+	}
+	return fmt.Sprintf("other(%T)", e)
+}

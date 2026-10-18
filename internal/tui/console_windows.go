@@ -111,14 +111,27 @@ func (r *consoleReader) encode(record xwindows.InputRecord) {
 	case xwindows.MOUSE_EVENT:
 		e := record.MouseEvent()
 		button, release := tea.MouseNone, false
-		motion := e.EventFlags == xwindows.MOUSE_MOVED
-		if e.EventFlags == xwindows.MOUSE_WHEELED || e.EventFlags == xwindows.MOUSE_HWHEELED {
-			positive := int16(e.ButtonState>>16) > 0
+		// The event flags cannot be compared for equality. Windows packs a
+		// drag as MOUSE_MOVED|MOUSE_LEFT_BUTTON_DOWN, and
+		// MOUSE_LEFT_BUTTON_DOWN carries the same value as MOUSE_WHEELED -
+		// the two are indistinguishable in this field by construction.
+		// Comparing exactly therefore classified every drag as something
+		// that was not a move, so no motion event was ever emitted and the
+		// scrollbar could not be dragged.
+		//
+		// MOUSE_MOVED is unambiguous. A wheel is then told apart from a
+		// click by its delta, which lives in the high word of
+		// ButtonState: a click and a drag always carry zero there, so this
+		// holds even when a button is held while the wheel turns.
+		motion := e.EventFlags&xwindows.MOUSE_MOVED != 0
+		delta := int16(e.ButtonState >> 16)
+		if !motion && delta != 0 {
+			positive := delta > 0
 			button = tea.MouseWheelDown
 			if positive {
 				button = tea.MouseWheelUp
 			}
-			if e.EventFlags == xwindows.MOUSE_HWHEELED {
+			if e.EventFlags&xwindows.MOUSE_HWHEELED != 0 {
 				button = tea.MouseWheelLeft
 				if positive {
 					button = tea.MouseWheelRight
