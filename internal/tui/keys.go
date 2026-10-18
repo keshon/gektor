@@ -7,6 +7,9 @@ import (
 
 func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	defer m.syncFocus()
+	if m.dialog != nil && m.dialog.confirm != nil {
+		return m.confirmKey(msg)
+	}
 	if m.dialog != nil && m.dialog.form != nil && msg.String() != "ctrl+c" && msg.String() != "ctrl+q" {
 		return m.formKey(msg)
 	}
@@ -76,11 +79,10 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	m.syncSuggestions()
-	if m.suggestionKey(msg) {
-		// Insert the suggestion into the input, never execute it
-		// directly: a command like /max-steps needs its argument, and
-		// even a complete one should let the user confirm with Enter.
-		return m, nil
+	if cmd, ok := m.suggestionKey(msg); ok {
+		// The popup owns this key: Enter either runs a bare command or
+		// inserts one that still needs an argument.
+		return m, cmd
 	}
 	if m.activeInputOwner() == focusInput && (m.state == stDone || m.state == stAsk || m.state == stRunning) && msg.Mod.Contains(tea.ModAlt) && (msg.Code == tea.KeyUp || msg.Code == tea.KeyDown) {
 		m.input.Recall(msg.Code == tea.KeyUp)
@@ -130,23 +132,10 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		// Takeover: the dialog eats every key but close and quit so
 		// typing can neither reach the input nor toggle state behind it.
 		// Close is esc/enter only: "q" must stay typable for dialogs
-		// with inputs tomorrow.
+		// with inputs tomorrow. Confirmations are answered above, before
+		// this branch; an info dialog has nothing to confirm.
 		switch msg.String() {
-		case "y", "Y":
-			if m.confirmAction != nil {
-				action := m.confirmAction
-				m.confirmAction = nil
-				m.closeDialog()
-				action()
-				return m, nil
-			}
 		case "n", "N", "esc":
-			if m.confirmAction != nil {
-				m.confirmAction = nil
-				m.closeDialog()
-				m.appendBlock(markerBlock("cancelled"))
-				return m, nil
-			}
 			m.closeDialog()
 			return m, nil
 		case "enter":

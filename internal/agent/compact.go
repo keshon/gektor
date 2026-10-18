@@ -19,28 +19,64 @@ import (
 // matching assistant tool_call. The inserted notice carries an extractive
 // summary of what was dropped (step count, tools used, paths touched) so
 // the model keeps ground facts instead of just being told text is gone.
+//
+// The notice is cumulative. Compaction exists for runs that outlive one
+// pass, and a summary rebuilt from each pass's own window describes only
+// that window: the previous notice is lifted back out, its facts merged
+// forward, and the merged set re-emitted. Without that the plan and the
+// dropped requests survive exactly one pass.
 func compactHistory(history []llm.Message, keepSteps int) []llm.Message {
 	if keepSteps <= 0 || len(history) <= 2 {
 		return history
 	}
 
 	prefix := append([]llm.Message(nil), history[:2]...)
-	rest := history[2:]
+	// Lift our own notice out of the tail first. It is a user-role
+	// message, so stepGroups would count it as a kept step: every pass
+	// would then drop it to make room, compact on every step, and
+	// regenerate the summary from a window that no longer held any of
+	// the older work.
+	carried, rest := splitNotice(history[2:])
 	groups := stepGroups(rest)
 	if len(groups) <= keepSteps {
 		return history
 	}
 
 	cut := findCutPoint(groups, len(groups)-keepSteps)
-	dropped := groups[:cut]
 	kept := groups[cut:]
 
+	facts := carried
+	facts.add(groups[:cut])
+
 	out := append([]llm.Message(nil), prefix...)
-	out = append(out, llm.Message{Role: llm.RoleUser, Content: harnessText(compactNotice(dropped))})
+	out = append(out, llm.Message{Role: llm.RoleUser, Content: facts.notice()})
 	for _, g := range kept {
 		out = append(out, g...)
 	}
 	return out
+}
+
+// splitNotice lifts a carried-over compaction notice out of the tail,
+// returning its facts and the remaining messages.
+//
+// Only a message at that exact position, that parses as a compaction
+// notice, is lifted. Other harness messages exist — stuck, budget and
+// think-wrap notices are all user-role and carry the same prefix — and
+// mistaking one for a summary would both delete the advice and import
+// nothing.
+func splitNotice(rest []llm.Message) (droppedFacts, []llm.Message) {
+	if len(rest) == 0 {
+		return newFacts(), rest
+	}
+	body := strings.TrimPrefix(rest[0].Content, harnessPrefix)
+	if body == rest[0].Content {
+		return newFacts(), rest
+	}
+	facts, ok := parseFacts(body)
+	if !ok {
+		return newFacts(), rest
+	}
+	return facts, rest[1:]
 }
 
 // findCutPoint returns how many leading groups to drop so exactly want
@@ -68,15 +104,15 @@ func findCutPoint(groups [][]llm.Message, want int) int {
 	return want
 }
 
-// compactNotice renders the insertion: the base notice plus a mechanical
-// summary of dropped groups. Extractive on purpose — no model call, so it
-// cannot fail and costs nothing on a weak backend.
-func compactNotice(dropped [][]llm.Message) string {
-	summary := summarizeDropped(dropped)
-	if summary == "" {
-		return prompts.CompactNotice
+// notice renders the compaction notice: the base prompt plus the carried
+// summary. Extractive on purpose — no model call, so it cannot fail and
+// costs nothing on a weak backend.
+func (f droppedFacts) notice() string {
+	body := prompts.CompactNotice
+	if summary := f.render(); summary != "" {
+		body += "\n" + summary
 	}
-	return prompts.CompactNotice + "\n" + summary
+	return harnessText(body)
 }
 
 // stepGroups splits messages into assistant-led steps: each group starts
@@ -235,62 +271,110 @@ func (a *Agent) maybeCompact(history *[]llm.Message, usage llm.Usage, st *runSta
 	return true
 }
 
-// summarizeDropped extracts ground facts from dropped step groups: how many
-// steps, which tools ran, which paths were touched, what the user asked
-// for, what the plan was, and the last assistant text snippet. Bounded
-// output — this string itself lives in context.
+// droppedFacts is what a compaction carries forward about the turns it
+// dropped. It exists so the next compaction can merge into these instead
+// of rebuilding from a window that no longer contains them.
+//
+// Every field is bounded: this string lives in context for the rest of the
+// run, so it must never become the largest thing in the prompt.
+type droppedFacts struct {
+	steps    int
+	tools    map[string]int
+	paths    []string
+	asks     []string
+	plan     string
+	lastText string
+}
+
+const (
+	factMaxPaths = 20
+	factMaxAsks  = 8
+	factMaxNote  = 200
+)
+
+// Line tags. The summary is tagged and line-oriented so the next pass can
+// read it back; a bare prose blob can only be re-derived from messages
+// that compaction has already removed.
+const (
+	tagSteps = "dropped "
+	tagPaths = "files: "
+	tagAsks  = "asks: "
+	tagPlan  = "plan: "
+	tagNote  = "note: "
+)
+
+func newFacts() droppedFacts { return droppedFacts{tools: map[string]int{}} }
+
+// add extracts ground facts from dropped step groups: how many steps, which
+// tools ran, which paths were touched, what the user asked for, what the
+// plan was, and the last assistant text snippet.
 //
 // The dropped user requests and the plan are the load-bearing part. Without
 // them a compaction that keeps the first user message as the standing task
 // leaves the model holding an already-answered aside and no checklist: it
 // finishes the work still visible in the tail, runs out, and answers a
 // question from twenty steps ago.
-func summarizeDropped(dropped [][]llm.Message) string {
+//
+// Order matters: asks append and the plan overwrites, because the carried
+// set is already older than this drop.
+func (f *droppedFacts) add(dropped [][]llm.Message) {
 	if len(dropped) == 0 {
-		return ""
+		return
 	}
-	toolCounts := map[string]int{}
-	var paths []string
-	var asks []string
-	lastText := ""
+	if f.tools == nil {
+		f.tools = map[string]int{}
+	}
+	f.steps += len(dropped)
 	for _, g := range dropped {
 		for _, m := range g {
-			if m.Role == llm.RoleAssistant {
+			switch m.Role {
+			case llm.RoleAssistant:
 				for _, tc := range m.ToolCalls {
-					toolCounts[tc.Name]++
+					f.tools[tc.Name]++
 					for _, p := range mutatedPathsFromCall(tc.Arguments) {
-						if p != "" && !containsStr(paths, p) && len(paths) < 20 {
-							paths = append(paths, p)
-						}
+						f.addPath(p)
 					}
 				}
-				if strings.TrimSpace(m.Content) != "" {
-					lastText = strings.TrimSpace(m.Content)
+				if t := strings.TrimSpace(m.Content); t != "" {
+					f.lastText = t
 				}
-			}
-			if m.Role == llm.RoleUser {
-				if a := droppedAsk(m.Content); a != "" && !containsStr(asks, a) && len(asks) < 8 {
-					asks = append(asks, a)
+			case llm.RoleUser:
+				if a := droppedAsk(m.Content); a != "" && !containsStr(f.asks, a) && len(f.asks) < factMaxAsks {
+					f.asks = append(f.asks, a)
 				}
-			}
-			if m.Role == llm.RoleTool {
+			case llm.RoleTool:
 				// Delegate reports name no files in their call
 				// arguments — the paths live in the result envelope.
 				// Without this, subagent work compacts down to a bare
 				// delegate_task×N with no record of what it touched.
 				_, dps := parseDelegateMutations(m.Content)
 				for _, p := range dps {
-					if p != "" && !containsStr(paths, p) && len(paths) < 20 {
-						paths = append(paths, p)
-					}
+					f.addPath(p)
 				}
 			}
 		}
 	}
+	if p := droppedPlan(dropped); p != "" {
+		f.plan = p
+	}
+}
+
+func (f *droppedFacts) addPath(p string) {
+	if p != "" && !containsStr(f.paths, p) && len(f.paths) < factMaxPaths {
+		f.paths = append(f.paths, p)
+	}
+}
+
+// render writes the facts as the tagged block that both the model reads
+// and the next compaction parses back.
+func (f droppedFacts) render() string {
+	if f.steps == 0 {
+		return ""
+	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "(dropped %d earlier steps:", len(dropped))
-	names := make([]string, 0, len(toolCounts))
-	for n := range toolCounts {
+	fmt.Fprintf(&b, "%s%d earlier steps:", tagSteps, f.steps)
+	names := make([]string, 0, len(f.tools))
+	for n := range f.tools {
 		names = append(names, n)
 	}
 	sort.Strings(names)
@@ -298,26 +382,90 @@ func summarizeDropped(dropped [][]llm.Message) string {
 		if i > 0 {
 			b.WriteString(",")
 		}
-		fmt.Fprintf(&b, " %s×%d", n, toolCounts[n])
+		fmt.Fprintf(&b, " %s×%d", n, f.tools[n])
 	}
-	if len(paths) > 0 {
-		fmt.Fprintf(&b, "; files: %s", strings.Join(paths, ", "))
+	if len(f.paths) > 0 {
+		fmt.Fprintf(&b, "\n%s%s", tagPaths, strings.Join(f.paths, ", "))
 	}
-	b.WriteString(")")
-	if len(asks) > 0 {
-		fmt.Fprintf(&b, " User requests dropped: %s", quoteEach(asks))
+	if len(f.asks) > 0 {
+		fmt.Fprintf(&b, "\n%s%s", tagAsks, quoteEach(f.asks))
 	}
-	if plan := droppedPlan(dropped); plan != "" {
-		fmt.Fprintf(&b, " Your plan at that point (keep working it): %s", plan)
+	if f.plan != "" {
+		fmt.Fprintf(&b, "\n%s%s", tagPlan, f.plan)
 	}
-	if lastText != "" {
-		r := []rune(lastText)
-		if len(r) > 200 {
-			lastText = string(r[:200]) + "…"
+	if f.lastText != "" {
+		note := f.lastText
+		if r := []rune(note); len(r) > factMaxNote {
+			note = string(r[:factMaxNote]) + "…"
 		}
-		fmt.Fprintf(&b, " Last note: %q", lastText)
+		fmt.Fprintf(&b, "\n%s%q", tagNote, note)
 	}
 	return b.String()
+}
+
+// parseFacts reads back a rendered block. ok is false unless a steps line
+// is present, which is what distinguishes a compaction notice from any
+// other harness message.
+func parseFacts(body string) (droppedFacts, bool) {
+	f := newFacts()
+	for _, line := range strings.Split(body, "\n") {
+		switch {
+		case strings.HasPrefix(line, tagSteps):
+			rest, ok := strings.CutPrefix(line, tagSteps)
+			count, tools, ok := strings.Cut(rest, " earlier steps:")
+			if !ok {
+				return f, false
+			}
+			n, err := strconv.Atoi(strings.TrimSpace(count))
+			if err != nil {
+				return f, false
+			}
+			f.steps = n
+			for _, entry := range strings.Split(tools, ",") {
+				name, count, ok := strings.Cut(strings.TrimSpace(entry), "×")
+				if !ok || name == "" {
+					continue
+				}
+				c, err := strconv.Atoi(count)
+				if err != nil {
+					continue
+				}
+				f.tools[name] += c
+			}
+		case strings.HasPrefix(line, tagPaths):
+			f.paths = splitAndTrim(strings.TrimPrefix(line, tagPaths))
+		case strings.HasPrefix(line, tagAsks):
+			f.asks = unquoteEach(strings.TrimPrefix(line, tagAsks))
+		case strings.HasPrefix(line, tagPlan):
+			f.plan = strings.TrimPrefix(line, tagPlan)
+		case strings.HasPrefix(line, tagNote):
+			if note, err := strconv.Unquote(strings.TrimPrefix(line, tagNote)); err == nil {
+				f.lastText = note
+			}
+		}
+	}
+	return f, f.steps > 0
+}
+
+func splitAndTrim(s string) []string {
+	var out []string
+	for _, part := range strings.Split(s, ",") {
+		if p := strings.TrimSpace(part); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// unquoteEach reverses quoteEach, which is how the asks were written.
+func unquoteEach(s string) []string {
+	var out []string
+	for _, part := range strings.Split(s, "; ") {
+		if q, err := strconv.Unquote(strings.TrimSpace(part)); err == nil && q != "" {
+			out = append(out, q)
+		}
+	}
+	return out
 }
 
 // droppedAsk returns a user's dropped request as one summary line, or ""

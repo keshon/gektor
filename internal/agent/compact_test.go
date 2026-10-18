@@ -219,6 +219,7 @@ func TestCompactHistory_CarriesThePlan(t *testing.T) {
 		t.Fatal("the notice must tell the model the plan is still current")
 	}
 }
+
 // A dropped plan is bounded: this string is carried for the rest of the
 // run, so a 40-item checklist cannot turn the notice into the largest
 // thing in the prompt.
@@ -258,11 +259,13 @@ func TestFormatChecklist_RejectsOtherTools(t *testing.T) {
 // Loop notices describe the loop, not the task. Listing them as the user's
 // requests would bury the request that matters.
 func TestSummarizeDropped_SkipsHarnessNotices(t *testing.T) {
-	summary := summarizeDropped([][]llm.Message{{
+	var f droppedFacts
+	f.add([][]llm.Message{{
 		{Role: llm.RoleUser, Content: harnessText("budget extended by operator approval")},
 		{Role: llm.RoleAssistant, Content: "working"},
 		{Role: llm.RoleUser, Content: "actually make it two players"},
 	}})
+	summary := f.render()
 	if strings.Contains(summary, "budget extended") {
 		t.Fatalf("harness notice leaked into the dropped requests: %s", summary)
 	}

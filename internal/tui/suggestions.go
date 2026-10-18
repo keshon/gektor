@@ -24,15 +24,23 @@ type suggestionState struct {
 	key, dismissed       string
 }
 
-// Positions are rune offsets, matching textarea's logical row and column.
+// completionToken finds the slash command or @path at the caret.
+//
+// Only an enumerated argument is treated as one. "/mode " completes
+// against plan|act, but the text after "/new " or "/rename " is free form,
+// and an @path reference inside it has to keep completing as a path rather
+// than being swallowed as an argument.
 func (m *model) completionToken() (start, end int, prefix string) {
 	start, end, prefix = m.input.Token()
 	runes := []rune(m.input.Value())
 	pos := start + len([]rune(prefix))
 	before := string(runes[:pos])
-	if strings.HasPrefix(strings.ToLower(strings.TrimLeftFunc(before, unicode.IsSpace)), "/mode ") {
-		start = len([]rune(before)) - len([]rune(strings.TrimLeftFunc(before, unicode.IsSpace)))
-		prefix = string(runes[start:pos])
+	trimmed := strings.TrimLeftFunc(before, unicode.IsSpace)
+	if name, _, ok := strings.Cut(trimmed, " "); ok && strings.HasPrefix(name, "/") {
+		if c := lookupCommand(name); c != nil && len(c.choices) > 0 {
+			start = len([]rune(before)) - len([]rune(trimmed))
+			prefix = string(runes[start:pos])
+		}
 	}
 	if prefix == "" || (prefix[0] != '@' && (prefix[0] != '/' || strings.TrimSpace(string(runes[:start])) != "")) {
 		return 0, 0, ""
@@ -62,16 +70,23 @@ func (m *model) syncSuggestions() {
 		return
 	}
 	if prefix[0] == '/' {
-		for _, row := range m.commandReference() {
-			name, _, _ := strings.Cut(row[0], " ")
-			names := []string{name}
-			if name == "/mode" && strings.Contains(prefix, " ") {
-				names = []string{"/mode plan", "/mode act"}
-			}
-			for _, candidate := range names {
-				if strings.HasPrefix(candidate, strings.ToLower(prefix)) {
-					s.items = append(s.items, suggestion{value: candidate, description: row[1]})
+		s.items = nil
+		for _, c := range commands() {
+			// Past the name: offer the argument's fixed values.
+			if len(c.choices) > 0 && strings.HasPrefix(prefix, c.name+" ") {
+				arg := strings.ToLower(prefix[len(c.name)+1:])
+				for _, choice := range c.choices {
+					if strings.HasPrefix(choice, arg) {
+						s.items = append(s.items, suggestion{value: c.name + " " + choice, description: c.summary})
+					}
 				}
+				break
+			}
+			// Insert the bare name, never the reference: "/max-steps N" is
+			// how help describes it, and accepting that would type the
+			// placeholder into the prompt.
+			if strings.HasPrefix(c.name, strings.ToLower(prefix)) {
+				s.items = append(s.items, suggestion{value: c.name, description: c.summary})
 			}
 		}
 		return
@@ -125,10 +140,13 @@ func (m *model) syncSuggestions() {
 	}
 }
 
-func (m *model) suggestionKey(msg tea.KeyPressMsg) bool {
+// suggestionKey routes a key to an open popup. The second result is true
+// when the popup consumed it, so the composer and the run state never see
+// the same Enter.
+func (m *model) suggestionKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	s := &m.suggestions
 	if len(s.items) == 0 {
-		return false
+		return nil, false
 	}
 	switch msg.String() {
 	case "up":
@@ -137,35 +155,59 @@ func (m *model) suggestionKey(msg tea.KeyPressMsg) bool {
 		s.selected = (s.selected + 1) % len(s.items)
 	case "esc":
 		s.dismissed, s.items = s.key, nil
-	case "tab", "enter":
+	case "tab":
+		return nil, m.acceptSuggestion()
+	case "enter":
+		// A command that takes no argument is complete the moment it is
+		// named, so Enter runs it. One that takes an argument hands the
+		// text to the composer, which is how the value gets typed.
 		item := s.items[s.selected]
-		value := item.value
-		runes := []rune(m.input.Value())
-		if runes[s.start] == '@' {
-			if strings.ContainsAny(value, " \t") {
-				value = "@\"" + value + "\""
-			} else {
-				value = "@" + value
-			}
+		if !item.directory && strings.HasPrefix(item.value, "/") && !commandTakesArgument(item.value) {
+			text := item.value
+			s.items, s.key = nil, ""
+			m.input.SetValue("")
+			m.fitInput()
+			m.fitBottom()
+			_, cmd := m.command(text)
+			return cmd, true
 		}
-		if !item.directory {
-			value += " "
-		}
-		end := s.end
-		if !item.directory && end < len(runes) && runes[end] == ' ' {
-			end++
-		}
-		back := 0
-		if item.directory && strings.HasSuffix(value, "\"") {
-			back = 1
-		}
-		m.input.Replace(s.start, end, value, back)
-		s.key = ""
-		m.fitInput()
-		m.fitBottom()
+		return nil, m.acceptSuggestion()
 	default:
-		return false
+		return nil, false
 	}
+	return nil, true
+}
+
+// acceptSuggestion writes the selected item into the composer. File paths
+// are inserted too: referencing a file is something the user finishes in
+// the prompt, not an action to run.
+func (m *model) acceptSuggestion() bool {
+	s := &m.suggestions
+	item := s.items[s.selected]
+	value := item.value
+	runes := []rune(m.input.Value())
+	if runes[s.start] == '@' {
+		if strings.ContainsAny(value, " \t") {
+			value = "@\"" + value + "\""
+		} else {
+			value = "@" + value
+		}
+	}
+	if !item.directory {
+		value += " "
+	}
+	end := s.end
+	if !item.directory && end < len(runes) && runes[end] == ' ' {
+		end++
+	}
+	back := 0
+	if item.directory && strings.HasSuffix(value, "\"") {
+		back = 1
+	}
+	m.input.Replace(s.start, end, value, back)
+	s.key = ""
+	m.fitInput()
+	m.fitBottom()
 	return true
 }
 

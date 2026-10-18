@@ -59,7 +59,7 @@ func (m *model) headerBadges() []headerBadge {
 	}
 	candidates := []headerBadge{{id: "mode", label: mode}, {id: "activity", label: activity}, {id: "model", label: strings.TrimSpace(cellLine(strings.ToUpper(nonEmpty(m.modelName)), modelWidth))}, {id: "context", label: ctx}}
 	if m.steps > 0 || m.state != stDone {
-		label := fmt.Sprintf("step %d/%d  %s", m.steps, m.maxSteps, formatElapsed(m.elapsed))
+		label := fmt.Sprintf("step %d/%s  %s", m.steps, m.stepBudget(), formatElapsed(m.elapsed))
 		candidates = append(candidates, headerBadge{id: "run", label: label})
 	}
 	// Context and state stay visible before the optional model and run details.
@@ -156,7 +156,7 @@ func (m *model) rawHeaderItems() []headerItem {
 	case "mode":
 		return []headerItem{{"ACT   Execute changes with tools", "/mode act", idle && !m.mission}, {"PLAN  Read-only exploration and planning", "/mode plan", idle && !m.mission}}
 	case "activity":
-		rows := []headerItem{info("State: " + m.statusWord()), info("Elapsed: " + formatElapsed(m.elapsed)), info(fmt.Sprintf("Steps: %d / %d", m.steps, m.maxSteps))}
+		rows := []headerItem{info("State: " + m.statusWord()), info("Elapsed: " + formatElapsed(m.elapsed)), info(m.stepLine())}
 		if m.runErr != nil {
 			rows = append(rows, info("Error: "+m.runErr.Error()), headerItem{"Retry failed turn", "/retry", idle && m.retryRun != nil})
 		}
@@ -187,7 +187,7 @@ func (m *model) rawHeaderItems() []headerItem {
 		}
 		return append(rows, headerItem{"Compact saved history", "/compact", idle && !m.mission && m.stateFile != ""})
 	case "run":
-		rows := []headerItem{info(fmt.Sprintf("Steps: %d / %d", m.steps, m.maxSteps)), info("Elapsed: " + formatElapsed(m.elapsed)), info(fmt.Sprintf("Tools: %d   Files: %d", m.toolsUsed, len(m.filesTouched)))}
+		rows := []headerItem{info(m.stepLine()), info("Elapsed: " + formatElapsed(m.elapsed)), info(fmt.Sprintf("Tools: %d   Files: %d", m.toolsUsed, len(m.filesTouched)))}
 		if !m.firstToken.IsZero() {
 			rows = append(rows, info("First token: "+formatElapsed(m.firstToken.Sub(m.started))))
 		}

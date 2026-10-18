@@ -154,6 +154,21 @@ paths, verification output and persistence warnings. A run writes one
 snapshot file and nothing else, so there is no log to rotate and no
 second copy to fall back on.
 
+### Compaction
+
+History is compacted by dropping whole assistant-led step groups and
+inserting one notice carrying an extractive summary: step count, tools
+run, paths touched, dropped requests, the current checklist. No model
+call — the notice has to be free and cannot fail on a weak backend.
+
+The notice is a persistent object, not a per-pass artifact. Being a
+user-role message, the next pass lifts it out of the window before
+grouping and merges its facts forward. That matters twice: left in the
+window it occupies a keep slot, so every step drops it and compacts
+again, and a summary rebuilt from each pass's own window describes only
+that window — the plan and the dropped requests survive exactly one
+pass, in a feature that exists for runs that live past one.
+
 ### Budgets
 
 Every bound has a default in `agent.New` or the `Runner` methods: a 25-step
@@ -214,8 +229,9 @@ prompts own their keys while open. Run metrics and the Braille spinner live in
 the header; the function-key footer owns a fixed set of action slots.
 
 Command/file suggestions replace the bottom of the transcript with a bounded
-popup. Enter executes a selected command or inserts a path; Tab only inserts.
-The picker does not move the composer caret. Text references are checked,
+popup. Enter runs a selected command that takes no argument and inserts
+one that does; Tab always inserts, as does Enter on a path. The picker
+does not move the composer caret. Text references are checked,
 bounded workspace snapshots appended to the user prompt, distinct from image
 attachments. Transcript rendering hides that attachment envelope when reopening
 history. Snapshots stay in the model transcript, so retry reuses the same turn.

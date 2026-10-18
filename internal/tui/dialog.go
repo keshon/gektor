@@ -5,9 +5,11 @@ import (
 	"strconv"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/tars/internal/tui/components/confirm"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -20,44 +22,70 @@ func wsRootOf(ws *workspace.Workspace) string {
 	return ws.Root()
 }
 
-// dialog is a centered modal over the transcript: status, help, and
-// future pickers. Takeover, not compositing: while open it replaces
-// the transcript body, so no ANSI splicing is needed and scroll state
-// underneath survives untouched.
-type dialog struct {
-	form         *settingsForm
-	title        string
-	subtitle     string
-	lines        []string
-	help         bool
-	page, offset int
-	// Structured modal fields. When set, dialogView renders them
-	// instead of the flat title+lines+hint layout.
-	head   string
-	body   []string
-	action string
-	tips   string
+// infoDialog is a centered flat modal over the transcript: title,
+// body lines, optional help tabs. Takeover, not compositing: while
+// open it replaces the transcript body, so no ANSI splicing is needed
+// and scroll state underneath survives untouched.
+//
+// A dialog carries lines, a form, or a confirm — never two. confirm is
+// checked first everywhere because it is the only one that answers a key.
+type infoDialog struct {
+	form *settingsForm
+	// confirm is a pending yes/no. While set the dialog renders the
+	// confirm component's rows and routes every key to it, so the prompt
+	// cannot be answered by a letter that reached the composer.
+	confirm *confirm.Model
+	title   string
+	lines   []string
+	help    bool
+	page    int
+	offset  int
 }
 
-// openDialog pushes the overlay and shows the dialog; closeDialog pops
-// it. Balanced by construction: every open path pairs with esc/enter
-// or run start.
-func (m *model) openModal(head, title, subtitle string, body []string, action, tips string) {
-	m.dialog = &dialog{
-		head:     head,
-		title:    title,
-		subtitle: subtitle,
-		body:     body,
-		action:   action,
-		tips:     tips,
-	}
+// openConfirm shows a yes/no prompt over the transcript; the caller has
+// already stored the action in confirmAction. pushOverlay keeps the focus
+// stack balanced, so Esc restores the composer exactly like any dialog.
+func (m *model) openConfirm(title, subtitle, primary, secondary string, body ...string) {
+	c := confirm.New(title, subtitle, primary, secondary, body...)
+	c.Open()
+	m.dialog = &infoDialog{title: title, confirm: &c}
 	m.pushOverlay()
 	m.input.Blur()
 	m.fitBottom()
 }
 
+// confirmKey answers a pending confirmation. The dialog owns every key but
+// quit: it is a takeover, so a stray letter cannot reach the composer
+// behind it, and the pending action is cleared on both paths.
+func (m *model) confirmKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "ctrl+q":
+		m.quit = true
+		m.cancel()
+		return m, tea.Quit
+	}
+	intent, _ := m.dialog.confirm.Update(msg)
+	switch intent {
+	case confirm.Primary:
+		action := m.confirmAction
+		m.confirmAction = nil
+		m.closeDialog()
+		if action != nil {
+			action()
+		}
+	case confirm.Secondary:
+		m.confirmAction = nil
+		m.closeDialog()
+		m.appendBlock(markerBlock("cancelled"))
+	}
+	return m, nil
+}
+
+// openDialog pushes the overlay and shows an info dialog; closeDialog
+// pops it. Balanced by construction: every open path pairs with esc/enter
+// or run start.
 func (m *model) openDialog(title string, lines []string) {
-	m.dialog = &dialog{title: title, lines: lines}
+	m.dialog = &infoDialog{title: title, lines: lines}
 	m.pushOverlay()
 	m.input.Blur()
 	m.fitBottom()
@@ -73,9 +101,14 @@ func (m *model) closeDialog() {
 // title, body, close hint. Widths are clamped to the viewport; heights
 // are top-padded to center, the viewport clips the rest.
 func (m *model) dialogView() string {
+	if m.dialog.confirm != nil {
+		return m.confirmView()
+	}
 	if m.dialog.form != nil {
 		return m.formView()
 	}
+	// Render from a copy: the offset clamp below normalizes a local, so a
+	// frame never writes scroll state back onto the model.
 	state := *m.dialog
 	d := &state
 	availW, availH := m.termW, m.termH-3
@@ -86,55 +119,7 @@ func (m *model) dialogView() string {
 	if inner < 10 {
 		inner = 10
 	}
-	// Structured modal: head, title, subtitle, --, body, --, action, tips.
-	if d.head != "" || d.action != "" || d.tips != "" || len(d.body) > 0 {
-		bw := 0
-		for _, r := range []string{d.head, d.title, d.subtitle, d.action, d.tips} {
-			if n := lipgloss.Width(r); n > bw {
-				bw = n
-			}
-		}
-		for _, line := range d.body {
-			if n := lipgloss.Width(line); n > bw {
-				bw = n
-			}
-		}
-		if bw < inner {
-			bw = inner
-		}
-		var rows []string
-		if d.head != "" {
-			rows = append(rows, m.styles.gate.Render(d.head))
-		}
-		if d.title != "" {
-			rows = append(rows, m.styles.gate.Render(d.title))
-		}
-		if d.subtitle != "" {
-			for _, line := range strings.Split(d.subtitle, "\n") {
-				rows = append(rows, m.styles.dim.Render(line))
-			}
-		}
-		if len(d.body) > 0 {
-			rows = append(rows, "")
-			rows = append(rows, m.styles.dim.Render(strings.Repeat("─", bw)))
-			for _, line := range d.body {
-				rows = append(rows, line)
-			}
-		}
-		if d.action != "" || d.tips != "" {
-			rows = append(rows, m.styles.dim.Render(strings.Repeat("─", bw)))
-		}
-		if d.action != "" {
-			rows = append(rows, "")
-			rows = append(rows, lipgloss.PlaceHorizontal(bw, lipgloss.Right, m.styles.gate.Render(d.action)))
-		}
-		if d.tips != "" {
-			rows = append(rows, m.styles.dim.Render(d.tips))
-		}
-		rows = append(rows, "")
-		return renderBox(rows, availW, availH)
-	}
-	// Legacy flat dialog: title, lines, close hint.
+	// Info dialog: title, lines, close hint (with help tabs if applicable).
 	rows := []string{m.styles.gate.Render(truncate(d.title, inner))}
 	lines := []string{}
 	for _, line := range d.lines {
@@ -179,6 +164,22 @@ func (m *model) dialogView() string {
 		rows = append(rows, m.styles.dim.Render(strconv.Itoa(d.offset+1)+"–"+strconv.Itoa(min(d.offset+capacity, len(lines)))+" / "+strconv.Itoa(len(lines))))
 	}
 	rows = append(rows, m.styles.dim.Render(truncate(hint, inner)))
+	return renderBox(rows, availW, availH)
+}
+
+// confirmView renders the pending confirmation through the shared box, so a
+// prompt looks like every other overlay. Appearance is the component's: the
+// styles come from the palette, the geometry from here.
+func (m *model) confirmView() string {
+	availW, availH := m.termW, m.termH-3
+	if m.ready {
+		availW, availH = m.transcript.Viewport.Width(), m.transcript.Viewport.Height()
+	}
+	inner := max(min(availW-6, 72), 10)
+	rows := m.dialog.confirm.View(inner, confirm.Styles{Title: m.styles.gate, Dim: m.styles.dim})
+	if len(rows) == 0 {
+		return ""
+	}
 	return renderBox(rows, availW, availH)
 }
 

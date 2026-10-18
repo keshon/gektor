@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,12 +18,12 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/app"
 	"github.com/keshon/tars/internal/audit"
 	"github.com/keshon/tars/internal/events"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/roles"
+	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/tui/components/composer"
 	"github.com/keshon/tars/internal/workspace"
 )
@@ -61,6 +62,13 @@ const (
 	stStopping
 )
 
+// Step-budget sentinels. The loop reads a non-positive MaxSteps as "use the
+// default", so an unlimited run is a large number rather than zero.
+const (
+	noStepLimit    = -1
+	unlimitedSteps = 999999
+)
+
 type eventMsg run.Event
 type doneMsg struct {
 	answer string
@@ -74,9 +82,9 @@ type model struct {
 	// config is the service set this launch was composed with. It is the
 	// only route to the profile, so a nil value means "not configurable"
 	// rather than "defaulted".
-	config       *app.Services
-	modeChange   *ModeChange
-	seedHistory  []llm.Message
+	config      *app.Services
+	modeChange  *ModeChange
+	seedHistory []llm.Message
 
 	transcript  transcriptState
 	input       composer.Model
@@ -96,10 +104,13 @@ type model struct {
 	// maxSteps is the run's step budget for the meter: the loop default,
 	// since the Interactive role never overrides it. Display only — the
 	// loop enforces its own copy.
-	maxSteps     int
-	// maxStepsOverride is the user's /max-steps setting: -1 = no limit,
-	// 0 = use the configured default, N > 0 = N steps.
+	maxSteps int
+	// maxStepsOverride is the user's /max-steps setting: noStepLimit for
+	// none, 0 for the configured default, N > 0 for N steps.
 	maxStepsOverride int
+	// baseEnv is the launch environment before the slash-command
+	// overrides; sessionEnv layers those on per session.
+	baseEnv      roles.Env
 	started      time.Time
 	elapsed      time.Duration
 	spinnerFrame int
@@ -112,12 +123,12 @@ type model struct {
 	// its doneMsg renders neutrally instead of as an error.
 	interrupted bool
 	// stateFile locates the saved transcript for follow-ups.
-	stateFile    string
+	stateFile string
 	// confirmAction, when set, is a pending session-restarting command
-	// waiting for yes/no. The dialog shows the prompt; y runs it, n/esc
-	// cancels. Cleared on either path.
+	// waiting on the dialog's confirm component. y runs it, n/esc cancels.
+	// Cleared on either path.
 	confirmAction func()
-	sessionTitle string
+	sessionTitle  string
 	// ws resolves @file paths against the workspace, escape-checked
 	// like every file tool path. Stored, not rebuilt per turn.
 	ws *workspace.Workspace
@@ -136,9 +147,10 @@ type model struct {
 	termH int
 	// tokens is the current prompt measurement or saved-history estimate; limit is the
 	// context window from Env. Together they drive the status meter.
+	// limit is display only and never overridden: the window is the server's
+	// to report, so the harness does not get to pretend otherwise.
 	tokens int
 	limit  int
-	contextLimit int
 	// tokensEst marks estimated numbers (streaming backends that report
 	// no usage block); the meter prefixes "~" so estimates never pose
 	// as measurements.
@@ -191,15 +203,15 @@ type model struct {
 	planGate bool
 	// dialog is the open modal, if any (dialog.go). While open it
 	// replaces the transcript body and eats all keys but close/quit.
-	dialog *dialog
+	dialog *infoDialog
 	// sessions is the open session search popup, if any (sessions.go): a
 	// title/history results with rename/delete. It overlays the existing
 	// panes and owns its keys; like permission prompts it borrows
 	// the note input for rename entry.
-	sessions        *sessionsState
-	nav             sessionsState
-	navFocused      bool
-	sidebarHidden   bool
+	sessions      *sessionsState
+	nav           sessionsState
+	navFocused    bool
+	sidebarHidden bool
 	// View-menu display filters. They hide transcript rows, never model
 	// history: a hidden block is still sent, stored and re-rendered the
 	// moment the filter is turned off. Session-only, so a restart always
@@ -217,16 +229,16 @@ type model struct {
 	gateVP          viewport.Model
 	// Status facts snapshotted from cfg at construction for /status:
 	// backend/workspace identity and budgets the run was given.
-	backendKind    string
-	backendURL     string
-	responseCap    int
-	streaming      bool
-	modelName      string
-	wsRoot         string
-	thinkBudget    int
-	mcpCount       int
-	policyRules    int
-	policyDetails  []string
+	backendKind   string
+	backendURL    string
+	responseCap   int
+	streaming     bool
+	modelName     string
+	wsRoot        string
+	thinkBudget   int
+	mcpCount      int
+	policyRules   int
+	policyDetails []string
 }
 
 // gateEvent reshapes hub fields into the TUI's event: kind, prompt,
@@ -268,6 +280,44 @@ func envMaxSteps(env roles.Env) int {
 	return agent.DefaultMaxSteps
 }
 
+// sessionEnv applies the user's slash-command overrides to the launch env.
+//
+// It is read when a session is built, not when the launch was composed.
+// /max-steps, /budget-think and /nudges mutate model fields long after Run
+// has frozen env, so a closure that captured env handed every rebuilt
+// session the values it started with and the commands silently did
+// nothing — while still restarting the session and asking permission to.
+func (m *model) sessionEnv() roles.Env {
+	env := m.baseEnv
+	env.Nudges = m.nudges
+	switch {
+	case m.maxStepsOverride == noStepLimit:
+		env.MaxSteps = unlimitedSteps
+	case m.maxStepsOverride > 0:
+		env.MaxSteps = m.maxStepsOverride
+	}
+	if m.thinkBudget > 0 {
+		env.ReasoningBudget = m.thinkBudget
+	}
+	return env
+}
+
+// stepBudget renders the enforced step ceiling for display. "no limit" is a
+// setting rather than a number: printing the sentinel would read as a real
+// budget, and printing zero would read as a finished one.
+func (m *model) stepBudget() string {
+	if m.maxStepsOverride == noStepLimit {
+		return "∞"
+	}
+	return strconv.Itoa(m.maxSteps)
+}
+
+// stepLine is the one phrasing of "steps so far / steps allowed", shared by
+// every place that reports run facts.
+func (m *model) stepLine() string {
+	return "Steps: " + strconv.Itoa(m.steps) + " / " + m.stepBudget()
+}
+
 // Run executes the task under the TUI and returns the final answer.
 // The terminal is restored on return, however the run ends.
 func Run(ctx context.Context, cfg Config) (string, error) {
@@ -299,7 +349,6 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		limit:        cfg.Env.ContextLimit,
 		maxSteps:     envMaxSteps(cfg.Env),
 		thinkBudget:  cfg.Env.ReasoningBudget,
-		contextLimit: cfg.Env.ContextLimit,
 		transcript:   newTranscript(),
 		plan:         cfg.Plan,
 		nudges:       cfg.Env.Nudges,
@@ -329,21 +378,10 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	env := withoutPrintHooks(cfg.Env)
 	env.Gate = nil
 	env.GateContext = audit.ContextHook(cfg.AuditPath, "tui", m.contextGate(hub, cfg.Env.WS))
-	env.Nudges = m.nudges
-	if m.maxStepsOverride == -1 {
-		env.MaxSteps = 999999
-	} else if m.maxStepsOverride > 0 {
-		env.MaxSteps = m.maxStepsOverride
-	}
-	if m.thinkBudget > 0 {
-		env.ReasoningBudget = m.thinkBudget
-	}
-	if m.contextLimit > 0 {
-		env.ContextLimit = m.contextLimit
-	}
+	m.baseEnv = env
 	m.newSession = func(task, stateFile string, images []string) (*run.Session, error) {
 		return run.New(run.Config{
-			Env:          env,
+			Env:          m.sessionEnv(),
 			Task:         task,
 			Plan:         m.plan,
 			StateFile:    stateFile,

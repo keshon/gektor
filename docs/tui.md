@@ -162,8 +162,11 @@ not in permission dialogs, question prompts, or session search.
 
 - Up/Down selects a match.
 - Tab inserts without executing.
-- Enter executes a selected command when idle; during a run it queues the
-  completed command. For files and directories, Enter inserts without sending.
+- Enter runs a selected command that takes no argument. A command that does
+  take one — `/max-steps`, `/budget-think`, `/mode`, `/nudges`, `/theme`,
+  `/new`, `/rename` — is handed to the composer instead, so the value can
+  be typed; during a run the completed command is queued. For files and
+  directories, Enter always inserts without sending.
 - Esc dismisses the popup; typing again can reopen it. Press Esc again to
   stop an active run.
 

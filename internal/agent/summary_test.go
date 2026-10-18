@@ -45,7 +45,9 @@ func TestSummarizeDropped_ListsToolsAndFiles(t *testing.T) {
 		}},
 		{Role: llm.RoleTool, ToolCallID: "1", Content: "ok"},
 	}}
-	s := summarizeDropped(dropped)
+	var f droppedFacts
+	f.add(dropped)
+	s := f.render()
 	if !strings.Contains(s, "write_file") || !strings.Contains(s, "a.go") {
 		t.Fatalf("summary missing facts: %q", s)
 	}

@@ -10,55 +10,107 @@ import (
 	"github.com/keshon/tars/internal/agent"
 )
 
-// Shared by help and command completion.
-func commandReference() [][2]string {
-	return [][2]string{
-		{"/help", "Open this help"},
-		{"/sessions", "Browse saved sessions"},
-		{"/new [task]", "Start a fresh task; omit task for an empty session"},
-		{"/mode plan|act", "Preview changes or execute them"},
-		{"/max-steps N", "Step budget (0 = no limit)"},
-		{"/budget-think N", "Reasoning budget in chars (0 = default)"},
-		{"/budget-context N", "Context window in tokens (0 = default)"},
-		{"/nudges full|recovery|off", "How much harness advice the model hears"},
-		{"/sidebar", "Toggle sidebar"},
-		{"/details", "Toggle reply truncation"},
-		{"/sys", "Toggle SYS messages"},
-		{"/labels", "Toggle labels"},
-		{"/latest", "Jump to latest"},
-		{"/stop", "Stop the running task"},
-		{"/rename [title]", "Rename the current session"},
-		{"/delete", "Delete the current session"},
-		{"/permissions", "Show permission policy"},
-		{"/model", "Show model and backend"},
-		{"/context", "Show context usage"},
-		{"/run", "Show run stats"},
-		{"/activity", "Show run activity"},
-		{"/about", "About"},
-		{"/theme dark|light", "Switch theme"},
-		{"/settings", "Open settings"},
-		{"/status", "Show current run facts"},
-		{"/retry", "Retry the last failed turn"},
-		{"/compact", "Shrink this session's history"},
-		{"/quit", "Quit"},
+// command is one slash command.
+//
+// arg is what makes Enter mean something. Handing "/help" to the composer
+// and waiting for a second Enter is right for "/max-steps" and wrong for
+// "/help", and a flat list of names cannot tell them apart — so the popup
+// had to treat every command as if it took an argument.
+type command struct {
+	name    string
+	arg     string   // placeholder after the name; empty means it runs bare
+	choices []string // fixed values, offered once the name is typed
+	summary string
+}
+
+func (c command) reference() [2]string {
+	if c.arg == "" {
+		return [2]string{c.name, c.summary}
+	}
+	return [2]string{c.name + " " + c.arg, c.summary}
+}
+
+func (c command) takesArgument() bool { return c.arg != "" }
+
+// commands is the single list of slash commands. Help, completion and
+// execution all read it, so a command cannot exist in one and not another.
+func commands() []command {
+	return []command{
+		{name: "/help", summary: "Open this help"},
+		{name: "/sessions", summary: "Browse saved sessions"},
+		{name: "/new", arg: "[task]", summary: "Start a fresh task; omit task for an empty session"},
+		{name: "/mode", arg: "plan|act", choices: []string{"plan", "act"}, summary: "Preview changes or execute them"},
+		{name: "/max-steps", arg: "N", summary: "Step budget (0 = no limit)"},
+		{name: "/budget-think", arg: "N", summary: "Reasoning budget in chars (0 = default)"},
+		{name: "/nudges", arg: "full|recovery|off", choices: []string{"full", "recovery", "off"}, summary: "How much harness advice the model hears"},
+		{name: "/sidebar", summary: "Toggle sidebar"},
+		{name: "/details", summary: "Toggle reply truncation"},
+		{name: "/sys", summary: "Toggle SYS messages"},
+		{name: "/labels", summary: "Toggle labels"},
+		{name: "/latest", summary: "Jump to latest"},
+		{name: "/stop", summary: "Stop the running task"},
+		{name: "/rename", arg: "[title]", summary: "Rename the current session"},
+		{name: "/delete", summary: "Delete the current session"},
+		{name: "/permissions", summary: "Show permission policy"},
+		{name: "/model", summary: "Show model and backend"},
+		{name: "/context", summary: "Show context usage"},
+		{name: "/run", summary: "Show run stats"},
+		{name: "/activity", summary: "Show run activity"},
+		{name: "/about", summary: "About"},
+		{name: "/theme", arg: "dark|light", choices: []string{"dark", "light"}, summary: "Switch theme"},
+		{name: "/settings", summary: "Open settings"},
+		{name: "/status", summary: "Show current run facts"},
+		{name: "/retry", summary: "Retry the last failed turn"},
+		{name: "/compact", summary: "Shrink this session's history"},
+		{name: "/quit", summary: "Quit"},
 	}
 }
 
+// lookupCommand finds a command by the name typed, or nil.
+func lookupCommand(name string) *command {
+	name = strings.ToLower(strings.TrimSpace(name))
+	for _, c := range commands() {
+		if c.name == name {
+			found := c
+			return &found
+		}
+	}
+	return nil
+}
+
+// commandTakesArgument reports whether Enter should hand the command to the
+// composer instead of running it. A command that takes nothing is ready the
+// moment it is named, and asking for a second Enter on it is busywork.
+func commandTakesArgument(value string) bool {
+	name, _, _ := strings.Cut(value, " ")
+	c := lookupCommand(name)
+	return c != nil && c.takesArgument()
+}
+
+// Shared by help and command completion.
+func commandReference() [][2]string {
+	cmds := commands()
+	out := make([][2]string, len(cmds))
+	for i, c := range cmds {
+		out[i] = c.reference()
+	}
+	return out
+}
+
 // confirmRestart asks before restarting a running session. If no session
-// is running, the action runs immediately.
+// is running, the action runs immediately: there is nothing to lose, and a
+// prompt the user cannot act on is worse than no prompt.
 func (m *model) confirmRestart(action func()) {
 	if m.sess == nil {
 		action()
 		return
 	}
 	m.confirmAction = action
-	m.openModal(
-		"",
+	m.openConfirm(
 		"Restart session?",
 		"This command changes agent settings.",
-		[]string{"The running session will restart."},
-		"y  restart   n  cancel",
-		"Esc close",
+		"restart", "cancel",
+		"The running session will restart.",
 	)
 }
 
@@ -99,23 +151,21 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.confirmRestart(func() {
-			m.maxStepsOverride = n
-			if m.maxStepsOverride == 0 {
-				m.maxStepsOverride = -1
+			previous := m.maxStepsOverride
+			if n == 0 {
+				n = noStepLimit
 			}
+			m.maxStepsOverride = n
 			if m.sess != nil {
 				sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
 				if err != nil {
+					m.maxStepsOverride = previous
 					m.appendBlock(errorBlock(err.Error()))
 					return
 				}
 				m.sess = sess
 			}
-			label := "no limit"
-			if m.maxStepsOverride > 0 {
-				label = strconv.Itoa(m.maxStepsOverride)
-			}
-			m.appendBlock(markerBlock("Max steps: " + label))
+			m.appendBlock(markerBlock("Max steps: " + m.stepBudget()))
 		})
 		return m, nil
 	case "budget-think":
@@ -125,10 +175,12 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.confirmRestart(func() {
+			previous := m.thinkBudget
 			m.thinkBudget = n
 			if m.sess != nil {
 				sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
 				if err != nil {
+					m.thinkBudget = previous
 					m.appendBlock(errorBlock(err.Error()))
 					return
 				}
@@ -139,29 +191,6 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 				label = strconv.Itoa(m.thinkBudget) + " chars"
 			}
 			m.appendBlock(markerBlock("Think budget: " + label))
-		})
-		return m, nil
-	case "budget-context":
-		n, err := strconv.Atoi(strings.TrimSpace(arg))
-		if err != nil || n < 0 {
-			m.appendBlock(errorBlock("Usage: /budget-context N (0 = default)"))
-			return m, nil
-		}
-		m.confirmRestart(func() {
-			m.contextLimit = n
-			if m.sess != nil {
-				sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
-				if err != nil {
-					m.appendBlock(errorBlock(err.Error()))
-					return
-				}
-				m.sess = sess
-			}
-			label := "default"
-			if m.contextLimit > 0 {
-				label = strconv.Itoa(m.contextLimit) + " tokens"
-			}
-			m.appendBlock(markerBlock("Context budget: " + label))
 		})
 		return m, nil
 	case "sidebar":
@@ -261,7 +290,7 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		m.openDialog("Context usage", rows)
 		return m, nil
 	case "run":
-		rows := []string{fmt.Sprintf("Steps: %d / %d", m.steps, m.maxSteps), "Elapsed: " + formatElapsed(m.elapsed)}
+		rows := []string{m.stepLine(), "Elapsed: " + formatElapsed(m.elapsed)}
 		if !m.firstToken.IsZero() {
 			rows = append(rows, "First token: "+formatElapsed(m.firstToken.Sub(m.started)))
 		}
@@ -269,7 +298,7 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		m.openDialog("Run", rows)
 		return m, nil
 	case "activity":
-		rows := []string{"State: " + m.statusWord(), "Elapsed: " + formatElapsed(m.elapsed), fmt.Sprintf("Steps: %d / %d", m.steps, m.maxSteps)}
+		rows := []string{"State: " + m.statusWord(), "Elapsed: " + formatElapsed(m.elapsed), m.stepLine()}
 		if m.runErr != nil {
 			rows = append(rows, "Error: "+m.runErr.Error())
 			if m.retryRun != nil {
@@ -294,7 +323,11 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 			m.appendBlock(errorBlock("Choose /theme dark or /theme light."))
 			return m, nil
 		}
-		setTheme(arg)
+		if err := m.persistTheme(arg); err != nil {
+			m.appendBlock(errorBlock(err.Error()))
+			return m, nil
+		}
+		m.applyTheme(arg)
 		m.appendBlock(markerBlock("Theme: " + arg))
 		return m, nil
 	case "settings":
@@ -316,10 +349,12 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.confirmRestart(func() {
+			previous := m.nudges
 			m.nudges = parsed
 			if m.sess != nil {
 				sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
 				if err != nil {
+					m.nudges = previous
 					m.appendBlock(errorBlock(err.Error()))
 					return
 				}
