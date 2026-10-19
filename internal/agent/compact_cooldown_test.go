@@ -87,7 +87,6 @@ func TestOverflowRecoveryIgnoresTheCooldown(t *testing.T) {
 
 	// Put the cooldown in the "recently compacted" state.
 	st.lastCompactTokens = 90000
-	st.idempotentSeen = map[string]int{"read_file|a": 3}
 
 	next, err := a.handleChatError(&st, 1, errors.New("maximum context length exceeded"), history)
 	if err != nil {
@@ -98,8 +97,5 @@ func TestOverflowRecoveryIgnoresTheCooldown(t *testing.T) {
 	}
 	if len(next) >= len(history) {
 		t.Fatalf("overflow did not compact: %d messages, started with %d", len(next), len(history))
-	}
-	if st.idempotentSeen != nil {
-		t.Fatal("repeat caches survived a compaction that dropped their bytes")
 	}
 }

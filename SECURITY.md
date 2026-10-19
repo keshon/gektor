@@ -28,7 +28,7 @@ image paths use the workspace's textual guard, like the file tools.
 
 The default policy asks for sensitive reads and known destructive shell or
 background command shapes. Explicit Deny cannot be approved away. CLI/RPC
-`-yes` auto-approves mission plans but denies permission Ask requests;
+`-yes` denies permission Ask requests;
 it does not authorize every tool. TUI permission requests remain interactive.
 All frontends remember an Always approval for the exact tool/resource pair
 for the current run only. These grants are not saved with the session.
@@ -50,10 +50,8 @@ credential or intranet oracle: any new network tool keeps these rules.
 
 Repository search follows Git ignore rules (tracked files remain searchable)
 and excludes sensitive paths; explicit reads use the permission gate. Shell
-commands can still read those files under the local account. Shell tools and
-mission checks share environment scrubbing, bounded output, cancellation,
-and process-tree cleanup. Model-generated mission checks also pass policy
-and approval gates. MCP servers are trusted local extensions.
+commands can still read those files under the local account. Shell tools and final verification share environment scrubbing, bounded output,
+cancellation and process-tree cleanup. MCP servers are trusted local extensions.
 
 State files and debug traces can contain conversation content
 and tool output. They are local plaintext artifacts; protect and remove them

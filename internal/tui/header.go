@@ -7,7 +7,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/tui/components/popup"
 )
 
@@ -68,7 +67,6 @@ func (m *model) headerBadges() []headerBadge {
 	// a reader looks to judge a run: how much it is being steered, and how
 	// many turns that has cost. It was only reachable by remembering the
 	// slash command, which is why it read as a setting with no state.
-	candidates = append(candidates, headerBadge{id: "harness", label: "harness " + agent.NudgeLevelName(m.nudges)})
 	// Context and state stay visible before the optional model and run details.
 	total := 0
 	for _, b := range candidates {
@@ -111,15 +109,7 @@ func (m *model) badgeLine() string {
 				color = colorFailed
 			}
 			style = style.Foreground(lipgloss.Color(themeColor(color)))
-		case "harness":
-			// Dim at full, which is the default and needs no attention;
-			// brightened as the harness is turned back, because a run
-			// with no recovery notices is the one that ends in a
-			// repeated failure rather than a second attempt.
-			style = style.Foreground(lipgloss.Color(themeColor(colorDim)))
-			if m.nudges != agent.NudgeFull {
-				style = style.Foreground(lipgloss.Color(themeColor(colorMode)))
-			}
+
 		}
 		out = append(out, style.Render(" "+b.label+" "))
 	}
@@ -140,11 +130,11 @@ func (m *model) rawHeaderItems() []headerItem {
 	idle := m.state == stDone
 	switch m.header.menu {
 	case "session":
-		rows := []headerItem{{"New", "/new", idle}, {"Open…", "/sessions", true}, {"Compact history", "/compact", idle && !m.mission && m.stateFile != ""}, {"Rename…", "rename-current", idle && m.stateFile != ""}, {"Delete…", "delete-current", idle && m.stateFile != ""}}
+		rows := []headerItem{{"New", "/new", idle}, {"Open…", "/sessions", true}, {"Compact history", "/compact", idle && m.stateFile != ""}, {"Rename…", "rename-current", idle && m.stateFile != ""}, {"Delete…", "delete-current", idle && m.stateFile != ""}}
 
 		return append(rows, headerItem{"", "", false}, headerItem{"Quit", "quit", true})
 	case "workflow":
-		return []headerItem{{"Plan", "/mode plan", idle && !m.mission}, {"Act", "/mode act", idle && !m.mission}, {"Stop run", "stop", m.state == stRunning}, {"Retry", "/retry", idle && m.runErr != nil && m.retryRun != nil}, {"Permissions…", "permissions-info", true}}
+		return []headerItem{{"Plan", "/mode plan", idle}, {"Act", "/mode act", idle}, {"Stop run", "stop", m.state == stRunning}, {"Retry", "/retry", idle && m.runErr != nil && m.retryRun != nil}, {"Permissions…", "permissions-info", true}}
 	case "view":
 		// Two zones: what the reader has chosen to hide, then what they
 		// can do. The separator exists because a filtered transcript and
@@ -170,7 +160,7 @@ func (m *model) rawHeaderItems() []headerItem {
 		return []headerItem{{"Keyboard shortcuts", "help-keys", true}, {"Commands", "help-commands", true}, {"About", "about", true}}
 
 	case "mode":
-		return []headerItem{{"ACT   Execute changes with tools", "/mode act", idle && !m.mission}, {"PLAN  Read-only exploration and planning", "/mode plan", idle && !m.mission}}
+		return []headerItem{{"ACT   Execute changes with tools", "/mode act", idle}, {"PLAN  Read-only exploration and planning", "/mode plan", idle}}
 	case "activity":
 		rows := []headerItem{info("State: " + m.statusWord()), info("Elapsed: " + formatElapsed(m.elapsed)), info(m.stepLine())}
 		if m.runErr != nil {
@@ -201,20 +191,14 @@ func (m *model) rawHeaderItems() []headerItem {
 		if m.usage.source == "Saved history estimate" {
 			rows = append(rows, info("Estimate excludes tool schemas and images."))
 		}
-		return append(rows, headerItem{"Compact saved history", "/compact", idle && !m.mission && m.stateFile != ""})
+		return append(rows, headerItem{"Compact saved history", "/compact", idle && m.stateFile != ""})
 	case "run":
 		rows := []headerItem{info(m.stepLine()), info("Elapsed: " + formatElapsed(m.elapsed)), info(fmt.Sprintf("Tools: %d   Files: %d", m.toolsUsed, len(m.filesTouched)))}
 		if !m.firstToken.IsZero() {
 			rows = append(rows, info("First token: "+formatElapsed(m.firstToken.Sub(m.started))))
 		}
 		return rows
-	case "harness":
-		return []headerItem{
-			info("Advice: " + agent.NudgeLevelName(m.nudges)),
-			headerItem{"Full — every notice", "/nudges full", idle && m.nudges != agent.NudgeFull},
-			headerItem{"Recovery — only what retries a bad ending", "/nudges recovery", idle && m.nudges != agent.NudgeRecovery},
-			headerItem{"Off — no advice", "/nudges off", idle && m.nudges != agent.NudgeOff},
-		}
+
 	}
 	return nil
 }

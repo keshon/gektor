@@ -23,7 +23,6 @@ const (
 	roleTool
 	roleResult
 	roleGate
-	roleMission
 	roleMarker
 	roleError
 	// roleWarning is a deterministic-check finding (gofmt, secrets):
@@ -85,14 +84,13 @@ func assistantBlocks(content, reasoning string) []block {
 	return blocks
 }
 
-func answerBlock(s string) block  { return block{role: roleAnswer, text: s, at: time.Now()} }
-func userBlock(s string) block    { return block{role: roleUser, text: s, at: time.Now()} }
-func thinkBlock(s string) block   { return block{role: roleThink, text: s, at: time.Now()} }
-func resultBlock(s string) block  { return block{role: roleResult, text: s, at: time.Now()} }
-func gateBlock(s string) block    { return block{role: roleGate, text: s, at: time.Now()} }
-func missionBlock(s string) block { return block{role: roleMission, text: s, at: time.Now()} }
-func markerBlock(s string) block  { return block{role: roleMarker, text: s, at: time.Now()} }
-func errorBlock(s string) block   { return block{role: roleError, text: s, at: time.Now()} }
+func answerBlock(s string) block { return block{role: roleAnswer, text: s, at: time.Now()} }
+func userBlock(s string) block   { return block{role: roleUser, text: s, at: time.Now()} }
+func thinkBlock(s string) block  { return block{role: roleThink, text: s, at: time.Now()} }
+func resultBlock(s string) block { return block{role: roleResult, text: s, at: time.Now()} }
+func gateBlock(s string) block   { return block{role: roleGate, text: s, at: time.Now()} }
+func markerBlock(s string) block { return block{role: roleMarker, text: s, at: time.Now()} }
+func errorBlock(s string) block  { return block{role: roleError, text: s, at: time.Now()} }
 
 // findingBlock renders one deterministic-check finding as plain text;
 // the rule carries the meaning, the warning style the urgency.
@@ -155,8 +153,6 @@ func roleLabel(r role) string {
 		return "TOOL RESULT"
 	case roleGate:
 		return "QUESTION"
-	case roleMission:
-		return "MISSION"
 	case roleMarker:
 		return "HARNESS"
 	case roleError:
@@ -167,10 +163,6 @@ func roleLabel(r role) string {
 	return "OUTPUT"
 }
 
-// systemSpeaker names every participant that is not the user or assistant:
-// the harness, gates, mission notes and failures. They share one name
-// because they share one source, and "who said that" should never require
-// distinguishing four shades of app.
 const systemSpeaker = "SYSTEM"
 
 // speakerLabel names the participant a block belongs to, uppercased.
@@ -476,8 +468,6 @@ func applyRoleStyle(r role, origLine, frag string, st styles) string {
 		return resultLineStyle(origLine, frag, st)
 	case roleGate:
 		return st.gate.Render(frag)
-	case roleMission:
-		return st.dim.Render(frag)
 	case roleMarker:
 		return st.dim.Render(frag)
 	case roleError:

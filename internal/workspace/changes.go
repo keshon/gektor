@@ -9,13 +9,9 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 )
 
-// IgnoredDirectory reports whether a directory is invisible to the agent's
-// tools. ".tars" is here because the eval harness writes mission state into
-// its throwaway workspace, and an agent that can read the scorer's own
-// ledger is not being measured. A user's TARS data lives in their home
-// directory and never appears here at all.
 func IgnoredDirectory(name string) bool {
 	switch name {
 	case ".git", ".tars", "node_modules", ".venv", "venv", "__pycache__", "target", "dist", "build":
@@ -39,7 +35,9 @@ func (w *Workspace) ChangeObserver(ctx context.Context) (func() ([]string, error
 		return nil, err
 	}
 	return func() ([]string, error) {
-		next, err := w.inventory(ctx, previous)
+		finalCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer cancel()
+		next, err := w.inventory(finalCtx, previous)
 		if err != nil {
 			return nil, err
 		}

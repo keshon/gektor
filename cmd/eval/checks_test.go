@@ -1,4 +1,4 @@
-package mission
+package main
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"github.com/keshon/tars/internal/workspace"
 )
 
-func testWS(t *testing.T) *workspace.Workspace {
+func checkWorkspaceForTest(t *testing.T) *workspace.Workspace {
 	t.Helper()
 	ws, err := workspace.New(t.TempDir())
 	if err != nil {
@@ -22,17 +22,17 @@ func testWS(t *testing.T) *workspace.Workspace {
 }
 
 func TestRunCheck_None(t *testing.T) {
-	out, ok := RunCheck(context.Background(), Check{Type: "none"}, testWS(t))
+	out, ok := RunCheck(context.Background(), Check{Type: "none"}, checkWorkspaceForTest(t))
 	if !ok {
 		t.Fatalf("none check should pass, got: %s", out)
 	}
-	if _, ok := RunCheck(context.Background(), Check{}, testWS(t)); !ok {
+	if _, ok := RunCheck(context.Background(), Check{}, checkWorkspaceForTest(t)); !ok {
 		t.Fatal("empty type should behave like none")
 	}
 }
 
 func TestRunCheck_FileAbsent(t *testing.T) {
-	ws := testWS(t)
+	ws := checkWorkspaceForTest(t)
 	ctx := context.Background()
 
 	if out, ok := RunCheck(ctx, Check{Type: "file_absent", Path: "gone.txt"}, ws); !ok {
@@ -49,13 +49,10 @@ func TestRunCheck_FileAbsent(t *testing.T) {
 	if out, ok := RunCheck(ctx, Check{Type: "file_absent", Path: "gone.txt"}, ws); ok {
 		t.Fatalf("existing file should fail, got: %s", out)
 	}
-	if got := (Check{Type: "file_absent", Path: "gone.txt"}).Render(); !strings.Contains(got, "absent") {
-		t.Fatalf("render = %q", got)
-	}
 }
 
 func TestRunCheck_FileExists(t *testing.T) {
-	ws := testWS(t)
+	ws := checkWorkspaceForTest(t)
 	ctx := context.Background()
 
 	if out, ok := RunCheck(ctx, Check{Type: "file_exists", Path: "a.txt"}, ws); ok {
@@ -90,7 +87,7 @@ func TestRunCheck_FileExists(t *testing.T) {
 }
 
 func TestRunCheck_Shell(t *testing.T) {
-	ws := testWS(t)
+	ws := checkWorkspaceForTest(t)
 	ctx := context.Background()
 
 	// echo works under both cmd.exe and sh.
@@ -116,7 +113,7 @@ func TestRunCheck_HTTP(t *testing.T) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	defer srv.Close()
-	ws := testWS(t)
+	ws := checkWorkspaceForTest(t)
 	ctx := context.Background()
 
 	if out, ok := RunCheck(ctx, Check{Type: "http", URL: srv.URL + "/ok"}, ws); !ok {
@@ -131,7 +128,7 @@ func TestRunCheck_HTTP(t *testing.T) {
 }
 
 func TestRunCheck_ContentContains(t *testing.T) {
-	ws := testWS(t)
+	ws := checkWorkspaceForTest(t)
 	ctx := context.Background()
 	full := filepath.Join(ws.Root(), "game.js")
 
@@ -180,23 +177,5 @@ func TestValidateCheck_Types(t *testing.T) {
 		if err := ValidateCheck(c); err == nil {
 			t.Errorf("ValidateCheck(%+v) = nil, want error", c)
 		}
-	}
-}
-
-func TestDerivedChecks_SkipsWhatTheDeclaredCheckAlreadyCovers(t *testing.T) {
-	sub := &Subtask{
-		FilesHint: []string{"index.html", "style.css"},
-		Check:     Check{Type: "content_contains", Path: "index.html", Contains: "<button"},
-	}
-	got := DerivedChecks(sub)
-	if len(got) != 1 || got[0].Path != "style.css" {
-		t.Fatalf("DerivedChecks = %+v, want one file_exists for style.css only", got)
-	}
-}
-
-func TestDerivedChecks_NothingToDeriveIsNotAFailure(t *testing.T) {
-	sub := &Subtask{FilesHint: nil, Check: Check{Type: "none"}}
-	if got := DerivedChecks(sub); len(got) != 0 {
-		t.Fatalf("DerivedChecks = %+v, want none", got)
 	}
 }

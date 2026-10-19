@@ -39,12 +39,10 @@ for launches without a profile remains `http://localhost:5001`.
 go run ./cmd/agent "add a Version constant to config.go"
 ```
 
-Direct mode handles single-file and question-shaped tasks. Bigger work gets
-`-mission`: an upfront plan you approve, then one fresh-context worker per
-subtask, each verified mechanically. Mission mode is explicit; multi-file
-tasks receive a recommendation. `-plan` proposes without touching
-anything; `-mode json` emits machine-readable step events; `-tui` renders
-the same run fullscreen with live transcript and inline gate prompts.
+One loop handles small and multi-file tasks. `-plan` explores read-only;
+Act executes changes. `-mode json` emits step events and `-tui` renders the
+session fullscreen. Use `-verify-cmd "go test ./..."` for a final mechanical check.
+The default limit is 25 steps; continuation requires your approval.
 
 ## Terminal UI
 
@@ -78,8 +76,7 @@ paths and keys live in `.env` (copy from `.env.example`; gitignored).
    `run-remote.cmd "task"` for a one-shot task run.
 
 The sibling launchers follow the same build-then-run shape:
-`run-task.cmd "task"` for a one-shot print-mode run, `run-plan.cmd` and
-`run-mission.cmd` for those modes, `run-resume.cmd` to list or resume saved
+`run-task.cmd "task"` for a one-shot print-mode run, `run-plan.cmd` for read-only planning, `run-resume.cmd` to list or resume saved
 tasks.
 Maintenance lives under `build.cmd` (`build test`, `build check`, `build fmt`,
 `build vuln`, `build clean`; `build help` lists everything), and the eval
@@ -116,8 +113,7 @@ go run ./cmd/eval -only 0 -require-model qwen
 ## Layout
 
 - `cmd/agent`, `cmd/eval` — CLI, probe runner
-- `internal/agent`, `internal/mission`, `internal/roles` — the loop, the
-  plan-execute-verify pipeline, the agent kinds
+- `internal/agent`, `internal/roles` — execution loop and agent capabilities
 - `internal/llm`, `internal/tools`, `internal/prompts` — backends, tools, prompts
 - `internal/run`, `internal/tui` — shared session events/gates and terminal UI
 - `internal/audit`, `internal/checks` — approval records and deterministic findings

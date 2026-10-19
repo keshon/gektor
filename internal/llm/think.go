@@ -2,7 +2,6 @@ package llm
 
 import (
 	"strings"
-	"unicode/utf8"
 )
 
 const (
@@ -34,21 +33,6 @@ func ThinkRegions(content string) [][2]int {
 	}
 }
 
-// ThinkChars counts runes inside think regions: the reasoning budget is
-// measured in characters because no backend on the wire reports reasoning
-// tokens separately (verified: koboldcpp usage has prompt/completion/total
-// only). Chars/4 approximates tokens, the same estimate budgets use
-// elsewhere for unmeasured text.
-func ThinkChars(content string) int {
-	n := 0
-	for _, r := range ThinkRegions(content) {
-		inner := content[r[0]+len(thinkOpen) : r[1]]
-		inner = strings.TrimSuffix(inner, thinkClose)
-		n += utf8.RuneCountInString(inner)
-	}
-	return n
-}
-
 // inRegions reports whether byte offset p falls inside any region.
 func inRegions(p int, regions [][2]int) bool {
 	for _, r := range regions {
@@ -57,15 +41,6 @@ func inRegions(p int, regions [][2]int) bool {
 		}
 	}
 	return false
-}
-
-// DeliberationChars measures everything the model spent reasoning on
-// this turn, both channels: inline <think> blocks (koboldcpp) and the
-// separate reasoning field (llama.cpp). Double counting when a backend
-// reports both is accepted: it only makes wrap-ups more eager, and
-// MaxThinkWraps bounds the consequence.
-func DeliberationChars(m Message) int {
-	return ThinkChars(m.Content) + utf8.RuneCountInString(m.Reasoning)
 }
 
 // stripRegions returns content with the given byte ranges removed.

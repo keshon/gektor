@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/keshon/tars/internal/harness"
 )
 
 func minimal() Profile {
@@ -90,7 +88,7 @@ func TestPreferencesRoundTripKeepsTheHarness(t *testing.T) {
 	want := Preferences{
 		Version: 1,
 		Theme:   "light",
-		Harness: Harness{MaxSteps: 42, Nudges: "recovery", ThinkBudget: 4000},
+		Harness: Harness{MaxSteps: 42},
 	}
 	if err := SavePreferences(path, want); err != nil {
 		t.Fatal(err)
@@ -107,26 +105,28 @@ func TestPreferencesRoundTripKeepsTheHarness(t *testing.T) {
 	}
 }
 
+func TestRetiredHarnessFieldsDropOnSave(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "application.json")
+	if err := os.WriteFile(path, []byte(`{"version":1,"harness":{"max_steps":42,"nudges":"recovery","think_budget":6000}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	p, err := LoadPreferences(path)
+	if err != nil || p.Harness.MaxSteps != 42 {
+		t.Fatalf("prefs=%+v err=%v", p, err)
+	}
+	if err := SavePreferences(path, p); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "nudges") || strings.Contains(string(data), "think_budget") {
+		t.Fatalf("retired fields retained: %s", data)
+	}
+}
+
 // The nudge vocabulary has one declaration, in internal/harness, which both
 // the loop and this validator read. They used to keep separate lists, so a
 // rename had to be made twice and the validator could accept a value the loop
 // then rejected.
-func TestNudgeVocabularyHasOneDeclaration(t *testing.T) {
-	for _, name := range []string{"full", "all", "recovery", "essential", "off", "none", "FULL", " off "} {
-		level, ok := harness.Parse(name)
-		if !ok {
-			t.Fatalf("harness.Parse(%q) failed", name)
-		}
-		// Whatever spelling was used, the value has to validate and round
-		// trip through the file's own spelling.
-		if err := (Preferences{Version: 1, Harness: Harness{Nudges: level.Name()}}).Validate(); err != nil {
-			t.Fatalf("%q renders as %q, which the validator rejects: %v", name, level.Name(), err)
-		}
-	}
-	if _, ok := harness.Parse("loud"); ok {
-		t.Fatal("an unknown level parsed")
-	}
-	if err := (Preferences{Version: 1, Harness: Harness{Nudges: "loud"}}).Validate(); err == nil {
-		t.Fatal("the validator accepted a level the loop cannot produce")
-	}
-}

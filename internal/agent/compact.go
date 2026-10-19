@@ -171,45 +171,7 @@ func (a *Agent) effectiveMaxTokens(lastPromptTokens int) int {
 	return room
 }
 
-// budgetWarning returns a one-time nudge when usage crosses a new context
-// threshold, or "" if there's nothing new to report. *warned tracks the
-// highest percentage already warned about, so crossing 75% doesn't nag
-// every single step afterward — only the next, higher threshold matters.
-func (a *Agent) budgetWarning(usage llm.Usage, warned *int) string {
-	if a.cfg.ContextLimit <= 0 || usage.PromptTokens <= 0 {
-		return ""
-	}
-	pct := usage.PromptTokens * 100 / a.cfg.ContextLimit
-	msg := ""
-	switch {
-	case pct >= 90 && *warned < 90:
-		*warned = 90
-		msg = fmt.Sprintf(prompts.BudgetWarning, usage.PromptTokens, a.cfg.ContextLimit, pct)
-	case pct >= 75 && *warned < 75:
-		*warned = 75
-		msg = fmt.Sprintf(prompts.BudgetNotice, usage.PromptTokens, a.cfg.ContextLimit, pct)
-	default:
-		return ""
-	}
-	return msg + a.hint("compact")
-}
-
-// defaultCompactAtPercent is the share of the context window at which
-// history is compacted. Well below the old 90%: a window is what the
-// backend will accept, not what the model can still reason over, and the
-// steps taken between those two points are the ones that produce
-// confidently wrong work.
 const defaultCompactAtPercent = 60
-
-// dropRepeatCaches forgets which calls ran and which failed. The refusal
-// texts cite conversation content ("re-read it from the conversation",
-// "already failed identically") — true while that content is present,
-// false once compaction drops it or a mutation supersedes it. The maps
-// re-learn from fresh executions, bounded exactly as before.
-func dropRepeatCaches(st *runState) {
-	st.idempotentSeen = nil
-	st.failedCalls = nil
-}
 
 // CompactFile mechanically compacts a saved snapshot in place: the
 // same compactHistory the loop uses, invoked on demand (/compact)
@@ -293,7 +255,6 @@ func (a *Agent) maybeCompact(history *[]llm.Message, usage llm.Usage, st *runSta
 	}
 	*history = compacted
 	st.lastCompactTokens = usage.PromptTokens
-	dropRepeatCaches(st)
 	// Report the compaction. The notice lives in the model's history, so
 	// without this an observer sees a transcript holding turns the model can
 	// no longer read, with nothing saying where they went. The text is the

@@ -165,7 +165,6 @@ func (m *model) resolveGate(answer string) {
 func (m *model) answerAsk(answer string) {
 	m.input.Push(strings.TrimSpace(answer))
 	_ = m.hub.Respond(answer)
-	m.planGate = false
 	m.gatePopup.Close()
 	m.state = stRunning
 }
@@ -182,13 +181,6 @@ func (m *model) openGatePopup() {
 			{Value: "n", Label: "Deny with note", Hint: "N"},
 		})
 	case stAsk:
-		if m.planGate {
-			m.gatePopup.Open("Plan approval required", []gate.Option{
-				{Value: "y", Label: "Approve", Hint: "Y"},
-				{Value: "n", Label: "Reject", Hint: "N"},
-			})
-			return
-		}
 		// A free-text question has no fixed answers: the popup shows
 		// the question and the composer takes the reply.
 		m.gatePopup.Open("Answer required", nil)
@@ -208,9 +200,6 @@ func (m *model) gateHint() string {
 			return "↑↓ select  Y/A/N answer  Enter confirm  Esc deny"
 		}
 	case stAsk:
-		if m.planGate {
-			return "Y approve  N reject  or type a revision note and press Enter"
-		}
 		return "Type the answer and press Enter  Esc stop"
 	default:
 		return ""
@@ -310,20 +299,12 @@ func isAlwaysAnswer(answer string) bool {
 func (m *model) refreshGate() {
 	title := "Permission required"
 	switch {
-	case m.planGate:
-		title = "Plan approval required"
 	case m.state == stAsk:
 		title = "Answer required"
 	}
 	rows := []string{m.styles.gate.Render(title), ""}
 	for _, line := range strings.Split(m.gate, "\n") {
 		rows = append(rows, reflow(line, max(m.gateVP.Width()-1, 1))...)
-	}
-	if m.planGate {
-		// The hint rides the plan text rather than the bottom bar, whose
-		// 1-line budget the layout math depends on.
-		rows = append(rows, "", m.styles.gate.Render(
-			"Y approve  N reject  or type a revision note and press Enter"))
 	}
 	m.gateVP.SetContent(strings.Join(rows, "\n"))
 }

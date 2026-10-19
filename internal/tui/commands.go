@@ -7,7 +7,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/tui/components/completion"
 )
 
@@ -51,8 +50,6 @@ func commands() []command {
 		{name: "/new", arg: "[task]", summary: "Start a fresh task; omit task for an empty session"},
 		{name: "/mode", arg: "plan|act", choices: []string{"plan", "act"}, summary: "Preview changes or execute them"},
 		{name: "/max-steps", arg: "N", summary: "Step budget (0 = no limit)"},
-		{name: "/budget-think", arg: "N", summary: "Reasoning budget in chars (0 = default)"},
-		{name: "/nudges", arg: "full|recovery|off", choices: []string{"full", "recovery", "off"}, summary: "How much harness advice the model hears"},
 		{name: "/sidebar", immediate: true, summary: "Toggle sidebar"},
 		{name: "/details", immediate: true, summary: "Toggle reply truncation"},
 		{name: "/sys", immediate: true, summary: "Toggle SYS messages"},
@@ -221,36 +218,6 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 			m.appendBlock(markerBlock("Max steps: " + m.stepBudget()))
 		})
 		return m, nil
-	case "budget-think":
-		n, err := strconv.Atoi(strings.TrimSpace(arg))
-		if err != nil || n < 0 {
-			m.appendBlock(errorBlock("Usage: /budget-think N (0 = default)"))
-			return m, nil
-		}
-		m.confirmRestart(func() {
-			previous := m.thinkBudget
-			m.thinkBudget = n
-			if m.sess != nil {
-				sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
-				if err != nil {
-					m.thinkBudget = previous
-					m.appendBlock(errorBlock(err.Error()))
-					return
-				}
-				m.sess = sess
-			}
-			if err := m.saveHarness(); err != nil {
-				m.thinkBudget = previous
-				m.appendBlock(errorBlock(err.Error()))
-				return
-			}
-			label := "default"
-			if m.thinkBudget > 0 {
-				label = strconv.Itoa(m.thinkBudget) + " chars"
-			}
-			m.appendBlock(markerBlock("Think budget: " + label))
-		})
-		return m, nil
 	case "sidebar":
 		m.sidebarHidden = !m.sidebarHidden
 		m.fitBottom()
@@ -395,44 +362,13 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		}
 		m.editSettings("application")
 		return m, nil
-	case "nudges":
-		level := strings.ToLower(strings.TrimSpace(arg))
-		if level == "" {
-			m.appendBlock(markerBlock("Nudges: " + agent.NudgeLevelName(m.nudges) + " · /nudges full|recovery|off"))
-			return m, nil
-		}
-		parsed, ok := agent.ParseNudgeLevel(level)
-		if !ok {
-			m.appendBlock(errorBlock("Choose /nudges full, recovery or off."))
-			return m, nil
-		}
-		m.confirmRestart(func() {
-			previous := m.nudges
-			m.nudges = parsed
-			if m.sess != nil {
-				sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
-				if err != nil {
-					m.nudges = previous
-					m.appendBlock(errorBlock(err.Error()))
-					return
-				}
-				m.sess = sess
-			}
-			if err := m.saveHarness(); err != nil {
-				m.nudges = previous
-				m.appendBlock(errorBlock(err.Error()))
-				return
-			}
-			m.appendBlock(markerBlock("Nudges: " + agent.NudgeLevelName(m.nudges)))
-		})
-		return m, nil
 	case "mode":
 		mode := strings.ToLower(strings.TrimSpace(arg))
 		if mode == "" {
 			m.appendBlock(markerBlock("Mode: " + m.modeName() + " · /mode plan previews changes · /mode act executes them"))
 			return m, nil
 		}
-		if m.mission || (mode != "plan" && mode != "act") {
+		if mode != "plan" && mode != "act" {
 			m.appendBlock(errorBlock("Choose /mode plan or /mode act."))
 			return m, nil
 		}

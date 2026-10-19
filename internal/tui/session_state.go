@@ -41,9 +41,6 @@ func (m *model) resetRunFacts() {
 }
 
 func (m *model) modeName() string {
-	if m.mission {
-		return "Mission"
-	}
 	if m.plan {
 		return "Plan"
 	}
@@ -51,7 +48,7 @@ func (m *model) modeName() string {
 }
 
 func (m *model) saveMode() error {
-	if m.stateFile == "" || m.mission {
+	if m.stateFile == "" {
 		return nil
 	}
 	if err := writeSavedMode(m.stateFile, m.plan); err != nil {

@@ -105,13 +105,6 @@ func scanSavedSessions(root string, previous map[string]cachedSession, search bo
 				}
 			}
 		}
-		if fi, err := os.Stat(filepath.Join(dir, "mission.json")); err == nil {
-			current.Mode = "Mission"
-			if current.Updated.IsZero() {
-				current.Updated = fi.ModTime()
-			}
-			current.Preview = "Mission snapshot. Resume with agent -tui -resume " + dir
-		}
 		if current.Updated.IsZero() {
 			continue
 		}

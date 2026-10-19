@@ -57,16 +57,6 @@ func mutatedPathsFromCall(args json.RawMessage) []string {
 	return out
 }
 
-func writePathFromArgs(args json.RawMessage) string {
-	var fields struct {
-		Path string `json:"path"`
-	}
-	if json.Unmarshal(args, &fields) != nil || fields.Path == "" {
-		return ""
-	}
-	return strings.TrimPrefix(strings.ReplaceAll(fields.Path, "\\", "/"), "./")
-}
-
 // parseDelegateMutations reads the structured DELEGATE header from a
 // delegate_task result so the parent run can count subagent writes.
 func parseDelegateMutations(content string) (int, []string) {

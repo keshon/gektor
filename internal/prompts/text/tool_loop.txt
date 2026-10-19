@@ -1,1 +1,0 @@
-You've called the same tool several steps in a row and gotten effectively the same result back each time. That pattern usually means the approach isn't converging. State what the results actually showed — if there's nothing new in them, broaden the search (a different tool or a different target) or stop and ask, rather than re-issuing the same call.

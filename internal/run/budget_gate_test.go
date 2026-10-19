@@ -91,7 +91,6 @@ func deathScript(extra ...llm.ChatResponse) []llm.ChatResponse {
 		steps = append(steps, budgetRead("r"))
 	}
 	// Budget death always ends with one wrap-up turn.
-	steps = append(steps, budgetSay("wrapping up"))
 	return append(steps, extra...)
 }
 
@@ -106,7 +105,7 @@ func TestSession_BudgetGate_ApproveContinues(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	client.steps = append(deathScript(),
-		budgetSay("one"), budgetSay("two"), budgetSay("three"), budgetSay("done"))
+		budgetSay("done"))
 
 	out, err := sess.Run(context.Background())
 	if err != nil {
@@ -126,8 +125,8 @@ func TestSession_BudgetGate_ApproveContinues(t *testing.T) {
 			t.Fatalf("gate prompt missing %q:\n%s", want, ga.prompt)
 		}
 	}
-	if client.calls != 30 {
-		t.Fatalf("calls = %d, want 30 (25 to die, wrap-up, 4 to finish)", client.calls)
+	if client.calls != 26 {
+		t.Fatalf("calls = %d, want 26 (25 to stop, 1 approved continuation)", client.calls)
 	}
 }
 
@@ -186,12 +185,12 @@ func TestSession_BudgetGate_AnswerErrorDeclines(t *testing.T) {
 	}
 }
 
-func TestSession_BudgetGate_SkipsWithoutOpenTodos(t *testing.T) {
+func TestSession_BudgetGate_DoesNotRequireTodos(t *testing.T) {
 	steps := make([]llm.ChatResponse, 0, 26)
 	for i := 0; i < 25; i++ {
 		steps = append(steps, budgetRead("r"))
 	}
-	steps = append(steps, budgetSay("wrapping up"))
+	steps = append(steps, budgetSay("done"))
 	client := &seqClient{steps: steps}
 	env, dir := budgetEnv(t, client)
 	ga := &gateAnswer{reply: "y"}
@@ -203,10 +202,10 @@ func TestSession_BudgetGate_SkipsWithoutOpenTodos(t *testing.T) {
 	}
 
 	_, err = sess.Run(context.Background())
-	if err == nil || !errors.Is(err, agent.ErrMaxSteps) {
+	if err != nil {
 		t.Fatalf("expected max-steps error, got %v", err)
 	}
-	if ga.calls != 0 {
-		t.Fatal("gate must not ask with nothing acknowledged")
+	if ga.calls != 1 {
+		t.Fatal("budget approval must not depend on checklist state")
 	}
 }

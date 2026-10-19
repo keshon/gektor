@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/session"
@@ -150,16 +149,7 @@ func (m *model) savePreferences() error {
 	return nil
 }
 
-// saveHarness persists the loop's own settings: step budget, nudge level and
-// reasoning budget.
-//
-// These used to be flags and live model fields only. A step budget set with
-// /max-steps was therefore still on screen when the process closed and gone
-// by the next launch, and the only way to keep it was to pass it on the
-// command line every time - which is exactly what a preferences file is for.
-//
-// MaxSteps is stored as the budget actually in force, so "no limit" survives
-// as itself rather than as an unset zero that would read as the default.
+// saveHarness persists the step limit, including the explicit unlimited value.
 func (m *model) saveHarness() error {
 	if m.application == nil || m.application.Temporary {
 		return nil
@@ -172,9 +162,7 @@ func (m *model) saveHarness() error {
 		steps = m.maxStepsOverride
 	}
 	m.application.Preferences.Harness = config.Harness{
-		MaxSteps:    steps,
-		Nudges:      agent.NudgeLevelName(m.nudges),
-		ThinkBudget: m.thinkBudget,
+		MaxSteps: steps,
 	}
 	return m.savePreferences()
 }

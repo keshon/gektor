@@ -184,16 +184,6 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.gateKey(msg)
 	case stAsk:
 		switch msg.String() {
-		case "y", "Y":
-			if m.planGate {
-				m.answerAsk("y")
-				return m, nil
-			}
-		case "n", "N":
-			if m.planGate {
-				m.answerAsk("n")
-				return m, nil
-			}
 		case "esc":
 			if answer := m.input.Value(); answer != "" {
 				if m.gateDraft != "" {

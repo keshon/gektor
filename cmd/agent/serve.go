@@ -27,7 +27,6 @@ import (
 	"github.com/keshon/tars/internal/audit"
 	"github.com/keshon/tars/internal/events"
 	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/mission"
 	"github.com/keshon/tars/internal/roles"
 	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/tars"
@@ -42,20 +41,18 @@ type serveDeps struct {
 	ws           *workspace.Workspace
 	procs        *tools.BackgroundProcesses
 	maxTokens    int
+	maxSteps     int
 	contextLimit int
 	logMax       int
 	verifyCmd    string
-	autoApprove  bool
-	autoDeny     bool
-	auditPath    string
-	allow        string
-	deny         string
-	backendKind  string
-	stream       bool
-	thinkBudget  int
-	skipVerify   bool
-	nudges       agent.NudgeLevel
-	mcpTools     []agent.Tool
+
+	autoDeny    bool
+	auditPath   string
+	allow       string
+	deny        string
+	backendKind string
+	stream      bool
+	mcpTools    []agent.Tool
 }
 
 type rpcRequest struct {
@@ -65,9 +62,9 @@ type rpcRequest struct {
 }
 
 type rpcRunParams struct {
-	Task    string   `json:"task"`
-	Mission bool     `json:"mission"`
-	Images  []string `json:"images,omitempty"`
+	Task string `json:"task"`
+
+	Images []string `json:"images,omitempty"`
 }
 
 type rpcRespondParams struct {
@@ -192,7 +189,7 @@ readLoop:
 						rec[k] = v
 					}
 					write(rec)
-				}, params.Task, params.Mission, params.Images)
+				}, params.Task, params.Images)
 				if err != nil {
 					respond(id, nil, err)
 					return
@@ -254,10 +251,7 @@ func (l *lockedWriter) Write(p []byte) (int, error) {
 	return l.w.Write(p)
 }
 
-// serveRun executes one request: fresh task dir, snapshot, then direct
-// session or mission pipeline, both gated through the hub suspender.
-// onEvent carries session step events to the client.
-func serveRun(ctx context.Context, d serveDeps, hub *run.GateHub, emitter *events.Emitter, noteW io.Writer, onEvent func(run.Event), task string, isMission bool, imagePaths []string) (string, error) {
+func serveRun(ctx context.Context, d serveDeps, hub *run.GateHub, emitter *events.Emitter, noteW io.Writer, onEvent func(run.Event), task string, imagePaths []string) (string, error) {
 	if task == "" {
 		return "", fmt.Errorf("run needs a task")
 	}
@@ -279,59 +273,24 @@ func serveRun(ctx context.Context, d serveDeps, hub *run.GateHub, emitter *event
 
 	suspend := hub.Suspender()
 	env := roles.Env{
-		Client:          d.client,
-		WS:              d.ws,
-		Procs:           d.procs,
-		MaxTokens:       d.maxTokens,
-		ContextLimit:    d.contextLimit,
-		Policy:          buildPolicy(d.allow, d.deny),
-		GateContext:     audit.ContextHook(d.auditPath, "serve", permissionGateContext(d.autoDeny, suspend, d.ws)),
-		BackendKind:     d.backendKind,
-		Stream:          d.stream,
-		SkipVerify:      d.skipVerify,
-		Nudges:          d.nudges,
-		MCPTools:        d.mcpTools,
-		ReasoningBudget: d.thinkBudget,
+		Client:       d.client,
+		WS:           d.ws,
+		Procs:        d.procs,
+		MaxTokens:    d.maxTokens,
+		MaxSteps:     d.maxSteps,
+		ContextLimit: d.contextLimit,
+		Policy:       buildPolicy(d.allow, d.deny),
+		GateContext:  audit.ContextHook(d.auditPath, "serve", permissionGateContext(d.autoDeny, suspend, d.ws)),
+		BackendKind:  d.backendKind,
+		Stream:       d.stream,
+		MCPTools:     d.mcpTools,
 	}
-	emitter.Emit("run_start", map[string]any{"task": task, "mission": isMission})
-	if isMission {
-		err := runMission(ctx, missionParams{
-			env:          env,
-			client:       d.client,
-			ws:           d.ws,
-			procs:        d.procs,
-			dir:          taskDir,
-			task:         task,
-			contextLimit: d.contextLimit,
-			maxTokens:    d.maxTokens,
-			logMax:       d.logMax,
-			verifyCmd:    d.verifyCmd,
-			autoApprove:  d.autoApprove,
-			noteW:        noteW,
-			emitter:      emitter,
-			suspend:      suspend,
-		})
-		if err != nil {
-			return "", err
-		}
-		return "mission complete", nil
-	}
-	verify := func(ctx context.Context) (string, bool) {
-		if d.verifyCmd == "" {
-			return "", false
-		}
-		out, err := mission.RunShellCommand(ctx, d.verifyCmd, d.ws.Root())
-		status := "PASSED"
-		if err != nil {
-			status = "FAILED"
-		}
-		return fmt.Sprintf("%s\n%s", status, out), true
-	}
+	emitter.Emit("run_start", map[string]any{"task": task})
 	sess, err := run.New(run.Config{
 		Env:       env,
 		Task:      task,
 		StateFile: stateFile,
-		Verify:    verify,
+		Verify:    verificationCommand(d.verifyCmd, d.ws.Root()),
 		Images:    images,
 		Answer:    suspend,
 		OnEvent:   onEvent,

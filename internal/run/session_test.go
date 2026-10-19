@@ -134,8 +134,8 @@ func TestSession_RunEmitsSameSchemaAsEmitter(t *testing.T) {
 	if !seenStep || !seenUsage || !seenOutcome {
 		t.Fatalf("steps and usage both expected: %+v", events)
 	}
-	if !seenNudge {
-		t.Fatalf("verify nudge expected on the wire: %+v", events)
+	if seenNudge {
+		t.Fatalf("ordinary completion injected an unsolicited retry: %+v", events)
 	}
 }
 
@@ -205,7 +205,7 @@ func TestSession_HarnessReplyFlaggedAfterNudge(t *testing.T) {
 	var events []Event
 	s, err := New(Config{
 		Task: "task",
-		Env:  testEnv(t, &writeThenDone{}, nil),
+		Env:  testEnv(t, &seqClient{steps: []llm.ChatResponse{{Message: llm.Message{Role: llm.RoleAssistant, Content: "partial"}, FinishReason: "length"}, budgetSay("done")}}, nil),
 		OnEvent: func(ev Event) {
 			events = append(events, ev)
 		},
@@ -341,7 +341,7 @@ func TestSessionSweepUsesTheEventReporter(t *testing.T) {
 		t.Run(fmt.Sprint(resume), func(t *testing.T) {
 			env := testEnv(t, stubOK{}, nil)
 			env.Client = &sideEffectClient{root: env.WS.Root()}
-			env.SkipVerify = true
+
 			env.Rules = checks.Secrets()
 			old, wire := 0, 0
 			env.Checks = checks.NewReporter(env.Rules, func(checks.Scope, checks.Finding) { old++ })

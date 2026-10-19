@@ -20,12 +20,6 @@ import (
 	"github.com/keshon/tars/internal/workspace"
 )
 
-// permissionGateContext answers Ask-gated calls through the shared
-// suspender. -yes auto-denies without suspending (fail-closed for
-// unattended runs). The y/a/n mapping lives here, not in the transport: a
-// channel-backed run answers the same question from its own UI. Mutating
-// calls carry a preview of what they would do, rendered from the call's own
-// arguments against the workspace as it is right now.
 func permissionGateContext(autoDeny bool, suspend agent.Suspender, ws *workspace.Workspace) func(context.Context, string, string, json.RawMessage) (permission.Effect, error) {
 	var mu sync.Mutex
 	always := map[[2]string]bool{}
@@ -165,10 +159,6 @@ func nudgePrinter(mode string) func(kind, text string) {
 	}
 }
 
-// printStep renders one model step to the console. label is a subtask id
-// or worker name in mission mode and empty for the top-level agent, which
-// is the only difference between what the two modes used to print from
-// two separate copies of this loop.
 func printStep(label string, step int, msg llm.Message, logMax int) {
 	prefix := fmt.Sprintf("[step %d]", step)
 	if label != "" {

@@ -198,7 +198,7 @@ func rewritesOnlyOnCompaction(t *testing.T, name string, trs []transition) {
 // prompt. A rewrite here means the model re-reads the conversation every
 // turn for no reason at all.
 func TestPromptsOnlyEverGrowAtTheTail(t *testing.T) {
-	trs := probe(t, Config{SkipVerify: true},
+	trs := probe(t, Config{},
 		[]int{100, 200, 300, 400, 500}, growTool{}, "grow")
 	rewritesOnlyOnCompaction(t, "ordinary run, no compaction", trs)
 	for _, tr := range trs {
@@ -212,7 +212,7 @@ func TestPromptsOnlyEverGrowAtTheTail(t *testing.T) {
 // but the end, they invalidate the whole prefix, and the model gets no
 // warning that anything moved.
 func TestNudgesDoNotRewriteEarlierTurns(t *testing.T) {
-	trs := probe(t, Config{SkipVerify: true, MaxStuckSteps: 2, Nudges: NudgeFull},
+	trs := probe(t, Config{},
 		nil, failTool{}, "fail")
 	if len(trs) == 0 {
 		t.Fatal("no steps ran; the probe would pass vacuously")
@@ -232,7 +232,7 @@ func TestNudgesDoNotRewriteEarlierTurns(t *testing.T) {
 // optimisation to compaction cannot quietly become a cache bug.
 func TestCompactionIsTheOnlyRewrite(t *testing.T) {
 	trs := probe(t, Config{
-		SkipVerify:       true,
+
 		ContextLimit:     1000,
 		CompactAtPercent: 40,
 		CompactKeepSteps: 2,

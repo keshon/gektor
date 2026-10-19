@@ -80,28 +80,6 @@ func TestSubagent_CannotDelegateOrAsk(t *testing.T) {
 
 // Taking the mutating tools away beats asking a weak model not to use
 // them, which is the whole reason inspectors get a different registry.
-func TestInspector_CannotChangeAnything(t *testing.T) {
-	a := Inspector(testEnv(t), "review", "sys", "")
-	for _, forbidden := range []string{"write_file", "patch_file", "patch_lines", "move_file", "run_shell"} {
-		if hasTool(a, forbidden) {
-			t.Errorf("inspector can call %s — got %v", forbidden, a.ToolNames())
-		}
-	}
-	if !hasTool(a, "read_file") {
-		t.Error("inspector must still be able to read")
-	}
-}
-
-func TestWorker_HasWorkingToolsButNoDelegation(t *testing.T) {
-	a := Worker(testEnv(t), "s1", "sys", "", 15, true)
-	if !hasTool(a, "write_file") {
-		t.Error("worker must be able to write")
-	}
-	if hasTool(a, "delegate_task") {
-		t.Error("a mission worker delegating means the plan already decomposed the task")
-	}
-}
-
 // seqStub replays scripted responses in order.
 type seqStub struct {
 	calls int
@@ -175,8 +153,6 @@ func TestRoleSystemToolsResolve(t *testing.T) {
 
 	interactive := Interactive(e, "", "", func(string) (string, error) { return "", nil }, nil)
 	subagent := Subagent(e, "tester")
-	worker := Worker(e, "w", prompts.MissionWorker, "", 15, false)
-	inspector := Inspector(e, "i", prompts.MissionMapAnnotate, "")
 	planner := Planner(e, "p", "")
 	// System texts as their roles actually ship them: the subagent
 	// composition includes its scope correction (mirrors Subagent).
@@ -188,8 +164,6 @@ func TestRoleSystemToolsResolve(t *testing.T) {
 	}{
 		{"interactive", []string{prompts.System, prompts.SystemForBackend("kobold"), prompts.SystemForBackend("openai")}, interactive.ToolNames()},
 		{"subagent", []string{subagentSystem}, subagent.ToolNames()},
-		{"worker", []string{prompts.MissionWorker}, worker.ToolNames()},
-		{"inspector", []string{prompts.MissionMapAnnotate, prompts.MissionReview}, inspector.ToolNames()},
 		{"planner", []string{prompts.PlanMode}, planner.ToolNames()},
 	}
 	for _, c := range cases {
@@ -231,40 +205,6 @@ func (s *scriptClient) Chat(context.Context, llm.ChatRequest) (llm.ChatResponse,
 	return s.responses[n], nil
 }
 
-// -no-verify threads Env.SkipVerify into the Interactive agent: the
-// finish is accepted without the extra verification turn (one fewer
-// model call after tool work). Workers never consult it.
-func TestInteractive_SkipVerifySkipsVerifyRound(t *testing.T) {
-	scripted := func(calls *int32) llm.Client {
-		return &scriptClient{responses: []llm.ChatResponse{
-			{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{
-				{ID: "1", Name: "list_files", Arguments: json.RawMessage(`{"path":"."}`)},
-			}}},
-			{Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}},
-			{Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}},
-		}, calls: calls}
-	}
-	run := func(skip bool) int32 {
-		var calls int32
-		e := testEnv(t)
-		e.Client = scripted(&calls)
-		e.SkipVerify = skip
-		a := Interactive(e, "", "", nil, nil)
-		if _, err := a.Run(context.Background(), "task"); err != nil {
-			t.Fatalf("Run(skip=%v): %v", skip, err)
-		}
-		return calls
-	}
-	if got := run(false); got != 3 {
-		t.Fatalf("verified run took %d model calls, want 3 (work + finish + verify)", got)
-	}
-	if got := run(true); got != 2 {
-		t.Fatalf("skipped run took %d model calls, want 2 (work + finish)", got)
-	}
-}
-
-// -max-steps threads Env.MaxSteps into the Interactive agent; zero keeps
-// the agent default. Roles with fixed budgets never consult it.
 func TestInteractive_HonorsEnvMaxSteps(t *testing.T) {
 	e := testEnv(t)
 	e.Client = textStub{"done"}
@@ -307,7 +247,7 @@ func TestPlanAndActUseProfileIdentity(t *testing.T) {
 		e.Client = client
 		e.Identity = "Assistant name: Ada"
 		e.IdentityName = "Ada"
-		e.SkipVerify = true
+
 		a := Interactive(e, "", "", nil, nil)
 		if plan {
 			a = Planner(e, "", "")

@@ -296,8 +296,7 @@ func (m *model) handleEvent(ev run.Event) {
 	switch ev.Name {
 	case "step":
 		m.steps++
-		// The enforced step budget rides the event (base plus any
-		// todo-funded extension): the meter reads the enforced line,
+		// The enforced step budget rides the event: the meter reads that limit,
 		// never a second literal. Absent on old producers — keep ours.
 		if ms, ok := ev.Fields["max_steps"].(float64); ok && ms > 0 {
 			m.maxSteps = int(ms)
@@ -401,7 +400,6 @@ func (m *model) handleEvent(ev run.Event) {
 			m.openGatePopup()
 		} else {
 			m.state = stAsk
-			m.planGate = kind == string(agent.SuspendPlan)
 			m.gateDraft = m.input.Value()
 			m.input.SetValue("")
 			m.input.Focus()
@@ -412,7 +410,6 @@ func (m *model) handleEvent(ev run.Event) {
 	case "input_answered":
 		m.state = stRunning
 		m.gate = ""
-		m.planGate = false
 		m.input.SetValue(m.gateDraft)
 		m.gateDraft = ""
 		m.input.Focus()
@@ -444,10 +441,6 @@ func (m *model) handleEvent(ev run.Event) {
 			text += "\nresume: agent -tui -resume " + resume
 		}
 		m.appendBlock(markerBlock(text))
-	case "mission":
-		if text, _ := ev.Fields["text"].(string); text != "" {
-			m.appendBlock(missionBlock("[mission] " + text))
-		}
 	case "reasoning":
 		// Streamed deliberation. Queued separately from the answer so the
 		// THINK block fills while the model is still thinking, and is still

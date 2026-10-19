@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -9,10 +8,6 @@ import (
 	"github.com/keshon/tars/internal/prompts"
 )
 
-// finishOutcome is what one text-only turn resolves to: either the run
-// continues (done false, history grown by a nudge) or it ends with an
-// answer or an error. Specific to finish handling — not a generic
-// outcome framework.
 type finishOutcome struct {
 	done    bool
 	answer  string
@@ -20,220 +15,43 @@ type finishOutcome struct {
 	history []llm.Message
 }
 
-// handleFinish decides what a model turn without tool calls means: a
-// recoverable truncation, a ramble over budget, leaked-call residue, a
-// blocked verify, an unchecked todo list, the verify round, a refused
-// zero-write finish, an empty finish, or a genuine answer. Check order
-// is load-bearing (verify catches the first announcement, the refusal
-// catches the rest) — preserve it.
-func (a *Agent) handleFinish(ctx context.Context, st *runState, step int, resp llm.ChatResponse, leakedText bool, budgetNudge string, history []llm.Message) finishOutcome {
-	// finish_reason "length" means the backend cut generation off
-	// and discarded whatever the model was building — usually the
-	// tool call it had just announced. That's a truncation, never a
-	// finish: treating the stump as an answer is how a live run
-	// "finished" a subtask with "Let me write the plan.md file…"
-	// and zero writes. Nudge and continue; escalate via the stuck
-	// counter so a backend that truncates every response is still
-	// bounded by MaxStuckSteps → MaxSteps. At NudgeOff the stump is
-	// accepted as the answer instead.
-	if resp.FinishReason == "length" && a.nudges(NudgeTruncated) {
-		msg := prompts.Truncated
-		msg += a.hint("truncated")
-		history = a.nudge(history, NudgeTruncated, msg)
-		st.stuckSteps++
-		if st.stuckSteps >= a.cfg.MaxStuckSteps {
-			history = a.nudge(history, NudgeStuck, prompts.StuckFailing)
-			st.stuckSteps = 0
-		}
-		return finishOutcome{history: history}
+// Only incomplete or malformed responses need another model turn.
+func (a *Agent) handleFinish(st *runState, resp llm.ChatResponse, leaked bool, history []llm.Message) finishOutcome {
+	if resp.FinishReason == "length" {
+		return finishOutcome{history: a.nudge(history, NudgeTruncated, prompts.Truncated+a.hint("truncated"))}
 	}
-
-	// A finish attempt carrying more reasoning than the budget is a
-	// model about to end the run on deliberation rather than a
-	// decision: wrap it up and demand commitment instead. Acting
-	// (tool calls above) is progress by definition, so only
-	// finishes are wrapped; a wrap-up round that yields another
-	// ramble counts as unproductive like any other, and past
-	// MaxThinkWraps the run degrades to finishing as-is.
-	if a.cfg.ReasoningBudget > 0 && st.thinkWraps < a.cfg.MaxThinkWraps && a.nudges(NudgeThinkWrap) {
-		if thought := llm.DeliberationChars(resp.Message); thought > a.cfg.ReasoningBudget {
-			st.thinkWraps++
-			st.stuckSteps++
-			history = a.nudge(history, NudgeThinkWrap, fmt.Sprintf(prompts.ThinkWrapUp, thought, a.cfg.ReasoningBudget))
-			a.saveState(history)
-			return finishOutcome{history: history}
-		}
-	}
-
-	// A model can write text that *looks* like a tool call
-	// ("<|tool_call>call:write_file{...}") instead of making a
-	// real structured one. Recoverable calls were extracted above;
-	// this branch sees only the unparseable remainder. Nothing here
-	// executes, but the model often
-	// then believes — and later claims — that it did. Catch this
-	// before it's mistaken for a genuine finish.
-	if leakedText && a.nudges(NudgeLeak) {
-		history = a.nudge(history, NudgeLeak, prompts.LeakDetected)
-		st.stuckSteps++
-		if st.stuckSteps >= a.cfg.MaxStuckSteps {
-			history = a.nudge(history, NudgeLeak, prompts.LeakRepeated)
-			st.stuckSteps = 0
-		}
-		return finishOutcome{history: history}
-	}
-
-	if st.blockFinishDueToVerify && a.nudges(NudgeVerify) {
-		st.blockFinishDueToVerify = false
-		st.verifiedOnce = false
-		history = a.nudge(history, NudgeVerify, fmt.Sprintf(prompts.VerifyFailedContinue, st.verifyFailedOutput))
-		st.verifyFailedOutput = ""
-		return finishOutcome{history: history}
-	}
-
-	// A text reply with unchecked todos is a progress report, not a finish.
-	// The latch keeps narration-only loops terminal; intervening tool work
-	// resets it below.
-	if _, open := a.cfg.Tools.TodoProgress(); len(open) > 0 && st.todoBounces < maxTodoBounces && a.nudges(NudgeTodo) {
-		st.todoBounces++
-		history = a.nudge(history, NudgeTodo, fmt.Sprintf(prompts.TodoOpen, len(open), formatTodoOpen(open)))
-		a.saveState(history)
-		return finishOutcome{history: history}
-	}
-
-	verifyWanted := !a.cfg.SkipVerify ||
-		(a.cfg.VerifyOnZeroWrites && st.mutatingSucceeded == 0)
-	// Whether writes are required is the caller's contract, never a guess
-	// from words in the answer. Read-only explanations can finish normally.
-	needsVerify := st.toolCalls > 0 || a.cfg.VerifyOnZeroWrites
-	if verifyWanted && !st.verifiedOnce && needsVerify && a.nudges(NudgeVerify) {
-		st.verifiedOnce = true
-		verifyMsg := prompts.Verify + a.stepTag(st, step)
-		// Zero writes is evidence of failure only where writes were expected or
-		// the answer claims file effects. On a read-only run it reads as an
-		// accusation and a weak model "fixes" it by writing an unasked file.
-		if st.mutatingSucceeded == 0 && a.cfg.VerifyOnZeroWrites {
-			verifyMsg += fmt.Sprintf(prompts.VerifyZeroWrites,
-				strings.Join(a.cfg.MutatingTools, "/"))
-		}
-		if a.cfg.Verify != nil {
-			if out, ok := a.cfg.Verify(ctx); ok {
-				a.report.Verification = TruncateMiddle(out, 8192)
-				if out == "" {
-					out = "(no output)"
-				}
-				verifyMsg += fmt.Sprintf(prompts.VerifyCheckResult, out)
-				if strings.HasPrefix(out, "FAILED") {
-					st.blockFinishDueToVerify = true
-					st.verifyFailedOutput = out
-				}
-			}
-		}
-		history = a.nudge(history, NudgeVerify, verifyMsg)
-		if budgetNudge != "" {
-			history = a.nudge(history, NudgeBudget, budgetNudge)
-		}
-		return finishOutcome{history: history}
-	}
-	// Announcing the work is not doing the work. A worker that ends
-	// its turn with "Now let me write the plan.md file" and no tool
-	// call has produced nothing, and its own narration is the only
-	// evidence to the contrary. The verify round above catches the
-	// FIRST such finish — but only the first, because verifiedOnce
-	// is a one-shot. Live failure, parseurl mission: the worker announced, took the verify nudge, announced again,
-	// and the second announcement was accepted as a finish. All
-	// three subtask attempts died in exactly that shape.
-	//
-	// While writes are still expected and none have landed, refuse
-	// the finish and quote the model's own claim back at it. Bounded
-	// by MaxZeroWriteRefusals: a few cheap in-context retries beat a
-	// fresh fix worker that has to rediscover the whole subtask.
-	if a.cfg.VerifyOnZeroWrites && st.mutatingSucceeded == 0 {
-		if st.zeroWriteFinishes < MaxZeroWriteRefusals && a.nudges(NudgeRefusal) {
-			st.zeroWriteFinishes++
-			history = a.nudge(history, NudgeRefusal, fmt.Sprintf(prompts.AnnouncedNotWritten,
-				lastClaim(resp.Message.Content),
-				strings.Join(a.cfg.MutatingTools, "/"))+a.stepTag(st, step))
-			a.saveState(history)
-			return finishOutcome{history: history}
-		}
-		// Refusals exhausted and still nothing written: end the
-		// run as a failure, not a narration-shaped success.
-		// Wrapping ErrMaxSteps keeps mission retry semantics (a
-		// stuck worker can converge; a dead backend cannot).
-		return finishOutcome{done: true, err: fmt.Errorf("%w: announced completion %d times without writing anything",
-			ErrMaxSteps, st.zeroWriteFinishes)}
+	if leaked {
+		return finishOutcome{history: a.nudge(history, NudgeLeak, prompts.LeakDetected)}
 	}
 	if strings.TrimSpace(resp.Message.Content) == "" {
 		if !st.emptyFinishRetried {
 			st.emptyFinishRetried = true
-			return finishOutcome{history: history}
+			return finishOutcome{history: a.nudge(history, NudgeTruncated, "The response was empty. Return an answer or a tool call.")}
 		}
-		return finishOutcome{done: true, err: fmt.Errorf("%w: empty finish after retry", ErrMaxSteps)}
+		return finishOutcome{done: true, err: fmt.Errorf("empty response after retry")}
 	}
 	a.report.Final = resp.Message.Content
 	return finishOutcome{done: true, answer: resp.Message.Content, history: history}
 }
 
-// wrapUpTurn issues one final text-only turn when the step budget is
-// exhausted: the model summarizes what was accomplished, what remains,
-// and the most useful next step. Tools stay in the request (opencode
-// parity — measure before hardening); any calls made are ignored, only
-// text is kept. Not a step: no hooks fire, no counters move, history is
-// untouched. Returns false when there is nothing to close (zero steps
-// ran) or the call itself fails — the original error stands either way.
-func (a *Agent) wrapUpTurn(ctx context.Context, st *runState, history []llm.Message) (string, bool) {
-	if a.report.Steps <= 0 {
-		return "", false
+const (
+	NudgeOverflow  = "overflow"
+	NudgeTruncated = "truncated"
+	NudgeLeak      = "leak"
+	NudgeCompact   = "compact"
+	harnessPrefix  = "[harness] "
+)
+
+func harnessText(text string) string { return harnessPrefix + text }
+
+func (a *Agent) notifyNudge(kind, text string) {
+	if a.cfg.OnNudge != nil {
+		a.cfg.OnNudge(kind, text)
 	}
-	// It is harness text, so it says so. It went in bare for as long as it
-	// existed, which meant the model could not tell a loop instruction from
-	// something the user typed - the one failure mode the [harness] prefix
-	// exists to prevent, and the more misleading here because it is the
-	// last thing the model reads before the run ends.
-	marked := harnessText(prompts.WrapUp)
-	a.notifyNudge(NudgeWrapUp, marked)
-	if !nudgeAllowed(a.cfg.Nudges, NudgeWrapUp) {
-		return "", false
-	}
-	h := append(history, llm.Message{Role: llm.RoleUser, Content: marked})
-	resp, err := a.chat(ctx, llm.ChatRequest{
-		Messages:  h,
-		Tools:     a.cfg.Tools.Defs(),
-		MaxTokens: a.effectiveMaxTokens(st.lastPromptTokens),
-	})
-	if err != nil {
-		return "", false
-	}
-	if strings.TrimSpace(resp.Message.Content) == "" {
-		return "", false
-	}
-	return resp.Message.Content, true
 }
 
-// MaxZeroWriteRefusals bounds how many times a run that was supposed to
-// write files may try to finish having written none. Each refusal costs
-// one cheap in-context step; past this the subtask goes back to the
-// mission layer, which has the failing check output and can seed a fix
-// worker with real evidence instead of another nudge.
-const MaxZeroWriteRefusals = 3
-
-// lastClaim returns the final non-empty line of a model message, trimmed
-// to something quotable. Quoting the model's own sentence back is the
-// point: a generic "you wrote nothing" nudge reads as boilerplate to a
-// weak model and gets answered with more narration, while its own words
-// are the one piece of context it can't pattern-match past.
-func lastClaim(content string) string {
-	lines := strings.Split(strings.TrimSpace(content), "\n")
-	for i := len(lines) - 1; i >= 0; i-- {
-		line := strings.TrimSpace(lines[i])
-		if line == "" {
-			continue
-		}
-		const maxQuote = 200
-		if r := []rune(line); len(r) > maxQuote {
-			line = string(r[:maxQuote]) + "…"
-		}
-		return line
-	}
-	return "(nothing)"
+func (a *Agent) nudge(history []llm.Message, kind, text string) []llm.Message {
+	marked := harnessText(text)
+	a.notifyNudge(kind, marked)
+	return append(history, llm.Message{Role: llm.RoleUser, Content: marked})
 }

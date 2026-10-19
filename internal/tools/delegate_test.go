@@ -24,10 +24,9 @@ func TestDelegate_PassesRoleToSpawn(t *testing.T) {
 		Spawn: func(role string) *agent.Agent {
 			gotRole = role
 			return agent.New(agent.Config{
-				Client:     stubSubClient{answer: "done"},
-				Tools:      agent.NewRegistry(),
-				System:     "base",
-				SkipVerify: true,
+				Client: stubSubClient{answer: "done"},
+				Tools:  agent.NewRegistry(),
+				System: "base",
 			})
 		},
 	}
@@ -59,10 +58,9 @@ func TestDelegate_EmptyRoleIsFine(t *testing.T) {
 			called = true
 			gotRole = role
 			return agent.New(agent.Config{
-				Client:     stubSubClient{answer: "done"},
-				Tools:      agent.NewRegistry(),
-				System:     "base",
-				SkipVerify: true,
+				Client: stubSubClient{answer: "done"},
+				Tools:  agent.NewRegistry(),
+				System: "base",
 			})
 		},
 	}
@@ -94,10 +92,9 @@ func TestDelegate_EmptyResultErrors(t *testing.T) {
 	d := &Delegate{
 		Spawn: func(role string) *agent.Agent {
 			return agent.New(agent.Config{
-				Client:     stubSubClient{answer: "   "},
-				Tools:      agent.NewRegistry(),
-				System:     "base",
-				SkipVerify: true,
+				Client: stubSubClient{answer: "   "},
+				Tools:  agent.NewRegistry(),
+				System: "base",
 			})
 		},
 	}
@@ -120,9 +117,8 @@ func TestDelegate_ReportsSubagentMutations(t *testing.T) {
 						{Message: llm.Message{Role: llm.RoleAssistant, Content: "wrote file"}},
 					},
 				},
-				Tools:      agent.NewRegistry(echoWriteStub{}),
-				System:     "base",
-				SkipVerify: true,
+				Tools:  agent.NewRegistry(echoWriteStub{}),
+				System: "base",
 			})
 		},
 	}

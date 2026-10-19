@@ -21,8 +21,6 @@ const (
 	SuspendAsk SuspendKind = "ask_user"
 	// SuspendPermission is an Ask-gated tool call awaiting allow/deny.
 	SuspendPermission SuspendKind = "permission"
-	// SuspendPlan is a mission plan awaiting approve/reject/note.
-	SuspendPlan SuspendKind = "plan_approval"
 	// SuspendBudget is an exhausted step budget with acknowledged work
 	// unfinished, asking the operator for one more base budget. Deny,
 	// error, or headless all decline — the run fails as before.
@@ -66,18 +64,8 @@ func ClosedSuspender(reason string) Suspender {
 	}
 }
 
-// BudgetContinue asks the operator for one more base budget when a run
-// dies at MaxSteps with acknowledged work unfinished and a state file to
-// resume from.
-//
-// One continuation per call, not a loop: piping yes into stdin must not buy
-// unbounded runs. A denial, an answer error, no operator (ClosedSuspender),
-// a missing state file and no open todos all fall through to the original
-// error, so the run fails exactly as it would have.
-//
-// This lives here rather than in a transport because it is about the run,
-// not about how it was started: the API session and the CLI both owe their
-// operator the same offer, and one of them had been silently missing it.
+// BudgetContinue offers one operator-approved continuation after the step
+// limit. A saved transcript and an affirmative operator reply are required.
 func BudgetContinue(ctx context.Context, a *Agent, runErr error, stateFile string, answer Suspender) (string, error, bool) {
 	if !errors.Is(runErr, ErrMaxSteps) {
 		return "", nil, false
@@ -86,9 +74,6 @@ func BudgetContinue(ctx context.Context, a *Agent, runErr error, stateFile strin
 		return "", nil, false
 	}
 	open := a.Report().OpenTodos
-	if len(open) == 0 {
-		return "", nil, false
-	}
 	rep, err := answer(ctx, SuspendRequest{
 		Kind: SuspendBudget, ID: "budget",
 		Prompt: fmt.Sprintf(prompts.BudgetContinue,
@@ -107,11 +92,11 @@ func BudgetContinue(ctx context.Context, a *Agent, runErr error, stateFile strin
 	// The [harness] prefix matches harnessText, which is unexported: this
 	// note is generated, not operator-typed.
 	note := fmt.Sprintf("[harness] Step budget extended by operator approval (+%d steps). Continue the remaining work: %s. Do not restart finished items.",
-		DefaultMaxSteps, shortOpen(open))
+		DefaultMaxSteps, remainingWork(open))
 	previous, mutations := a.Report(), a.LastRunMutations
-	maxSteps, todoFunding := a.cfg.MaxSteps, a.cfg.TodoFunding
-	a.cfg.MaxSteps, a.cfg.TodoFunding = DefaultMaxSteps, false
-	defer func() { a.cfg.MaxSteps, a.cfg.TodoFunding = maxSteps, todoFunding }()
+	maxSteps := a.cfg.MaxSteps
+	a.cfg.MaxSteps = DefaultMaxSteps
+	defer func() { a.cfg.MaxSteps = maxSteps }()
 	ans, err := a.Resume(ctx, history, note)
 	// Approval extends this run. Keep its measured effects, but never carry a
 	// verification verdict across the new work without running it again.
@@ -142,4 +127,11 @@ func shortOpen(open []string) string {
 			fmt.Sprintf(" (+%d more)", len(open)-max)
 	}
 	return strings.Join(open, ", ")
+}
+
+func remainingWork(open []string) string {
+	if len(open) == 0 {
+		return "continue the current task"
+	}
+	return shortOpen(open)
 }

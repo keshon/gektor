@@ -79,23 +79,23 @@ func TestCommandRegistryAgreesWithItself(t *testing.T) {
 }
 
 // An enumerated argument completes from the registry rather than from a
-// special case per command, so /nudges offers its levels the way /mode
+// special case per command, so /mode offers its levels the way /mode
 // offers its modes.
 func TestEnumeratedArgumentCompletesFromTheRegistry(t *testing.T) {
 	m := completionModel(t)
-	m.input.SetValue("/nudges ")
+	m.input.SetValue("/mode ")
 	m.syncSuggestions()
 	var values []string
 	for _, item := range m.suggestions.Items {
 		values = append(values, item.Value)
 	}
-	want := []string{"/nudges full", "/nudges recovery", "/nudges off"}
+	want := []string{"/mode plan", "/mode act"}
 	if strings.Join(values, ",") != strings.Join(want, ",") {
-		t.Fatalf("nudges choices = %v, want %v", values, want)
+		t.Fatalf("mode choices = %v, want %v", values, want)
 	}
-	m.input.SetValue("/nudges r")
+	m.input.SetValue("/mode a")
 	m.syncSuggestions()
-	if len(m.suggestions.Items) != 1 || m.suggestions.Items[0].Value != "/nudges recovery" {
+	if len(m.suggestions.Items) != 1 || m.suggestions.Items[0].Value != "/mode act" {
 		t.Fatalf("partial argument did not narrow: %+v", m.suggestions.Items)
 	}
 }

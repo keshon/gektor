@@ -1,8 +1,7 @@
-package mission
+package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,26 +9,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/keshon/tars/internal/permission"
 	"github.com/keshon/tars/internal/tools"
 	"github.com/keshon/tars/internal/workspace"
 )
 
-// checkShellTimeout bounds a shell check the same way tools.RunShell
-// bounds the model's own commands — a check that hangs is a failed
-// check, not a stuck mission.
+type Check struct {
+	Type     string `json:"type"`               // "shell" | "file_exists" | "file_absent" | "content_contains" | "http" | "none"
+	Cmd      string `json:"cmd,omitempty"`      // shell: the command line
+	Path     string `json:"path,omitempty"`     // file_exists / file_absent / content_contains
+	Contains string `json:"contains,omitempty"` // content_contains: substring that must appear
+	URL      string `json:"url,omitempty"`      // http: expect a 200 response
+}
+
 const checkShellTimeout = 120 * time.Second
 
-// RunCheck executes a subtask's declared check mechanically and returns
-// what it measured. ok is the verdict; output is the evidence (fed to
-// fix workers verbatim, so it should carry real command output, not a
-// paraphrase). A check the harness can't even attempt (bad type, path
-// escaping the workspace) is a failure with the reason as output — never
-// a silent pass.
-// ValidateCheck rejects probe checks the runner could never satisfy:
-// unknown types and missing required fields. loadProbes runs it dry so
-// a typo fails before spending model calls, not mid-run after them.
-// Every rule here mirrors a branch of RunCheck below; add both together.
+// ValidateCheck catches invalid frozen criteria before model calls.
 func ValidateCheck(c Check) error {
 	switch c.Type {
 	case "", "none":
@@ -159,87 +153,7 @@ func RunCheck(ctx context.Context, c Check, ws *workspace.Workspace) (output str
 	}
 }
 
-// RunShellCommand runs one command line in dir with the same OS-aware
-// shell choice as tools.RunShell (cmd.exe on Windows, sh elsewhere) and
-// returns combined output. Shared by shell checks and main.go's
-// -verify-cmd hook so the two can never drift apart.
+// RunShellCommand uses the same bounded shell runner as the agent tools.
 func RunShellCommand(ctx context.Context, command, dir string) (string, error) {
 	return tools.RunCommand(ctx, command, dir, checkShellTimeout)
-}
-
-// DerivedChecks returns checks the harness derives from a subtask's own
-// plan, independent of the check the model chose for itself.
-//
-// A subtask declares up to five acceptance criteria and exactly one
-// mechanical check, and the model picks which one. It picks an easy one:
-// a plan whose acceptance demanded package.json, vite.config.ts AND
-// src/main.ts declared a check that tested package.json for the string
-// "vite", and the subtask went green with src/main.ts never written.
-//
-// files_hint is the structured statement of what the subtask will
-// produce, so every path in it is checked whatever the model chose to
-// verify. Acceptance prose is deliberately not parsed: guessing paths out
-// of a sentence produces failures nobody can act on.
-//
-// A path the declared check already names is skipped — a weaker
-// file_exists beside a content_contains on the same file adds nothing.
-func DerivedChecks(sub *Subtask) []Check {
-	seen := map[string]bool{}
-	if p := normalizePlanPath(sub.Check.Path); p != "" {
-		seen[p] = true
-	}
-	var out []Check
-	for _, hint := range sub.FilesHint {
-		p := normalizePlanPath(hint)
-		if p == "" || seen[p] {
-			continue
-		}
-		seen[p] = true
-		out = append(out, Check{Type: "file_exists", Path: p})
-	}
-	return out
-}
-
-// RunDerivedChecks reports the first derived check that fails, or ok when
-// the subtask produced everything its plan said it would.
-func RunDerivedChecks(ctx context.Context, sub *Subtask, ws *workspace.Workspace) (output string, ok bool) {
-	for _, c := range DerivedChecks(sub) {
-		if out, passed := RunCheck(ctx, c, ws); !passed {
-			return fmt.Sprintf("%s (files_hint promised this subtask would produce it, "+
-				"and the declared check does not cover it)", out), false
-		}
-	}
-	return "", true
-}
-
-// Model-generated checks have the same permissions as their equivalent tools.
-// RunCheck remains the ungated primitive for trusted, frozen eval criteria.
-func (r *Runner) runCheck(ctx context.Context, c Check) (string, bool) {
-	if err := ctx.Err(); err != nil {
-		return err.Error(), false
-	}
-	tool, resource := "", ""
-	args := map[string]string{}
-	switch c.Type {
-	case "shell":
-		tool, resource = "run_shell", c.Cmd
-		args["command"] = c.Cmd
-	case "content_contains", "file_exists", "file_absent":
-		tool, resource = "read_file", c.Path
-		args["path"] = c.Path
-	case "http":
-		tool, resource = "check_url", c.URL
-		args["url"] = c.URL
-	}
-	if tool != "" {
-		policy := r.Env.Policy
-		if len(policy.Rules) == 0 {
-			policy = permission.Default()
-		}
-		data, _ := json.Marshal(args)
-		if err := permission.Authorize(ctx, policy, r.Env.ResolveGate(), tool, resource, data); err != nil {
-			return "check " + err.Error(), false
-		}
-	}
-	return RunCheck(ctx, c, r.WS)
 }

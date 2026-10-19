@@ -63,7 +63,7 @@ func TestSpeakerRowOpensRunOnce(t *testing.T) {
 // two kinds of block indistinguishable at a glance.
 func TestEveryRoleHasItsOwnLabel(t *testing.T) {
 	allRoles := []role{roleAnswer, roleUser, roleThink, roleTool, roleResult,
-		roleGate, roleMission, roleMarker, roleError, roleWarning}
+		roleGate, roleMarker, roleError, roleWarning}
 	seen := map[string]role{}
 	for _, r := range allRoles {
 		label := roleLabel(r)
@@ -82,7 +82,6 @@ func TestEveryRoleHasItsOwnLabel(t *testing.T) {
 		{roleUser, "INPUT"}, {roleAnswer, "RESPONSE"}, {roleThink, "THINKING"},
 		{roleTool, "TOOL CALL"}, {roleResult, "TOOL RESULT"}, {roleMarker, "HARNESS"},
 		{roleError, "ERROR"}, {roleWarning, "WARNING"}, {roleGate, "QUESTION"},
-		{roleMission, "MISSION"},
 	} {
 		if got := roleLabel(want.r); got != want.s {
 			t.Fatalf("role %v label = %q, want %q", want.r, got, want.s)
@@ -95,7 +94,7 @@ func TestEveryRoleHasItsOwnLabel(t *testing.T) {
 // application apart.
 func TestMachineRolesShareSystemSpeaker(t *testing.T) {
 	props := transcriptProps{speaker: "Ada", user: "Alex"}
-	for _, r := range []role{roleMarker, roleGate, roleMission, roleError, roleWarning} {
+	for _, r := range []role{roleMarker, roleGate, roleMarker, roleError, roleWarning} {
 		if got := speakerLabel(block{role: r}, props); got != systemSpeaker {
 			t.Fatalf("role %v speaker = %q, want %q", r, got, systemSpeaker)
 		}

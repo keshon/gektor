@@ -43,11 +43,7 @@ func (ReadFile) Description() string {
 }
 func (ReadFile) Mode() agent.ToolMode { return agent.Concurrent }
 
-// Idempotent: identical read_file calls return identical results until
-// something mutates the workspace — the agent loop uses this to
-// short-circuit exact-repeat calls instead of re-reading (see
 // Registry.IdempotentOf).
-func (ReadFile) Idempotent() bool { return true }
 
 func (ReadFile) Schema() json.RawMessage {
 	return json.RawMessage(`{
@@ -340,9 +336,6 @@ func (t WriteFile) Run(_ context.Context, args json.RawMessage) (string, error) 
 	if err := guardWriteSize("write_file", in.Content); err != nil {
 		return "", err
 	}
-	if msg := rewriteInsteadOfPatch(full, in.Path, in.Content); msg != "" {
-		return "", fmt.Errorf("%s", msg)
-	}
 	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 		return "", err
 	}
@@ -365,7 +358,6 @@ type ListFiles struct{ WS *workspace.Workspace }
 
 func (ListFiles) Name() string         { return "list_files" }
 func (ListFiles) Mode() agent.ToolMode { return agent.Concurrent }
-func (ListFiles) Idempotent() bool     { return true }
 func (ListFiles) Description() string {
 	return "List files and directories under a path, non-recursively."
 }
@@ -401,51 +393,4 @@ func (t ListFiles) Run(_ context.Context, args json.RawMessage) (string, error) 
 		}
 	}
 	return out, nil
-}
-
-// rewriteKeptRatio is how much of an existing file may survive a
-// write_file before it is treated as an edit wearing a rewrite's clothes.
-const rewriteKeptRatio = 0.7
-
-// rewriteInsteadOfPatch refuses a write_file that replaces an existing
-// file with something almost identical to it, and returns why.
-//
-// Rewriting a whole file to change one line is how surrounding code gets
-// silently dropped: everything the model does not happen to reproduce is
-// deleted, and nothing reports it. The system prompt has always asked for
-// patch_file here, and asking is not enough — a live probe run rewrote a
-// file to change one constant despite the rule.
-//
-// The test is how much of the old file survives. A genuine rewrite shares
-// little with what it replaces and passes; changing a constant in a file
-// that is otherwise reproduced verbatim does not. New files, tiny files
-// and wholesale replacements are all unaffected.
-func rewriteInsteadOfPatch(full, rel, content string) string {
-	old, err := os.ReadFile(full)
-	if err != nil || len(old) == 0 {
-		return "" // new file, or unreadable: nothing to protect
-	}
-	oldLines := strings.Split(string(old), "\n")
-	if len(oldLines) < 5 {
-		return "" // too small for a patch to be the clearly better tool
-	}
-	newLines := map[string]int{}
-	for _, l := range strings.Split(content, "\n") {
-		newLines[strings.TrimRight(l, "\r")]++
-	}
-	kept := 0
-	for _, l := range oldLines {
-		l = strings.TrimRight(l, "\r")
-		if newLines[l] > 0 {
-			newLines[l]--
-			kept++
-		}
-	}
-	if float64(kept)/float64(len(oldLines)) < rewriteKeptRatio {
-		return "" // a real rewrite, not an edit in disguise
-	}
-	return fmt.Sprintf("refusing to rewrite %s: %d of its %d lines are unchanged, so this is an "+
-		"edit, not a rewrite. Rewriting a whole file silently drops everything you did not "+
-		"reproduce. Use patch_file with the exact text you want changed, or patch_lines for a "+
-		"line range", rel, kept, len(oldLines))
 }

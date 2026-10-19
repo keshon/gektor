@@ -19,7 +19,6 @@ import (
 	"github.com/keshon/tars/internal/checks"
 	"github.com/keshon/tars/internal/events"
 	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/mission"
 	"github.com/keshon/tars/internal/permission"
 	"github.com/keshon/tars/internal/prompts"
 	"github.com/keshon/tars/internal/roles"
@@ -56,8 +55,6 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		fmt.Fprintf(noteW, format+"\n", args...)
 	}
 
-	// The event emitter must exist before either mode branches: mission
-	// output below needs it, and run_end must fire for both modes.
 	var emitter *events.Emitter
 	if o.outputMode == "json" {
 		emitter = events.New(os.Stdout)
@@ -68,29 +65,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		defer emitter.Emit("run_end", nil)
 	}
 
-	// One suspender for every gate in the run: ask_user questions,
-	// permission prompts, and the mission plan approval below all ask
-	// through it. A single shared stdin reader matters — three buffered
-	// readers on one stdin would eat each other's input.
 	suspend := stdioSuspender(noteW, emitter)
-
-	if !o.missionMode && !o.direct && task != "" && mission.SuggestMission(task) {
-		note("task spans multiple files; use -mission for a reviewed execution plan")
-	}
-
-	// A -resume target whose directory holds mission.json is a mission
-	// resume, whatever the path points at (the dir itself, mission.json,
-	// or a worker state file) — direct-mode resume stays the fallback.
-	missionDir := ""
-	if o.resume != "" {
-		cand := o.resume
-		if info, err := os.Stat(cand); err != nil || !info.IsDir() {
-			cand = filepath.Dir(cand)
-		}
-		if mission.Exists(cand) {
-			missionDir = cand
-		}
-	}
 
 	// Every run snapshots its history to disk after each step, so a crash
 	// or hitting MaxSteps doesn't lose everything — see -resume. -fork
@@ -119,12 +94,8 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			}
 			note("forked from %s (%d messages)", o.fork, len(forkHistory))
 		}
-		if o.missionMode {
-			missionDir = taskDir
-			note("mission id: %s (resume with -resume %s)", taskID, taskDir)
-		} else {
-			note("task id: %s (resume with -resume %s)", taskID, stateFile)
-		}
+
+		note("task id: %s (resume with -resume %s)", taskID, stateFile)
 	}
 
 	client, err := llm.ClientFor(o.backendKind, o.backendURL, o.model)
@@ -163,19 +134,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	note("context limit: %d tokens", contextLimit)
 	emitter.Emit("context", map[string]any{"context_limit": contextLimit})
 
-	// Reuses mission.RunShellCommand for the same OS-aware shell choice as
-	// tools.RunShell and mission shell checks — one exec shape everywhere.
-	var verify func(ctx context.Context) (string, bool)
-	if o.verifyCmd != "" {
-		verify = func(ctx context.Context) (string, bool) {
-			out, err := mission.RunShellCommand(ctx, o.verifyCmd, ws.Root())
-			status := "PASSED"
-			if err != nil {
-				status = "FAILED"
-			}
-			return fmt.Sprintf("%s\ncommand: %s\n%s", status, o.verifyCmd, out), true
-		}
-	}
+	verify := verificationCommand(o.verifyCmd, ws.Root())
 
 	// Shared across both tool sets so a subagent's start_background and
 	// the parent's check_background/stop_background see the same
@@ -218,20 +177,18 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			ws:           ws,
 			procs:        bgProcs,
 			maxTokens:    o.maxTokens,
+			maxSteps:     o.maxSteps,
 			contextLimit: contextLimit,
 			logMax:       o.logMax,
 			verifyCmd:    o.verifyCmd,
-			autoApprove:  o.yes,
-			autoDeny:     o.yes,
-			auditPath:    o.auditPath,
-			allow:        o.allow,
-			deny:         o.deny,
-			backendKind:  o.backendKind,
-			stream:       o.stream,
-			thinkBudget:  o.thinkBudget,
-			skipVerify:   o.noVerify,
-			nudges:       o.nudges,
-			mcpTools:     mcpTools,
+
+			autoDeny:    o.yes,
+			auditPath:   o.auditPath,
+			allow:       o.allow,
+			deny:        o.deny,
+			backendKind: o.backendKind,
+			stream:      o.stream,
+			mcpTools:    mcpTools,
 		}, os.Stdin, os.Stdout, os.Stderr)
 		return ctx.Err()
 	}
@@ -250,30 +207,26 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	// outside internal/checks so that package stays language-neutral.
 	rules := append(checks.Secrets(), rules.All()...)
 	env := roles.Env{
-		Identity:        app.IdentityPrompt(identity),
-		IdentityName:    identity.Name,
-		UserName:        o.userName,
-		Client:          client,
-		WS:              ws,
-		Procs:           bgProcs,
-		MaxTokens:       o.maxTokens,
-		Temperature:     o.temperature,
-		ContextLimit:    contextLimit,
-		MaxSteps:        o.maxSteps,
-		Policy:          buildPolicy(o.allow, o.deny),
-		GateContext:     audit.ContextHook(o.auditPath, "cli", permissionGateContext(o.yes, suspend, ws)),
-		BackendKind:     o.backendKind,
-		Model:           o.model,
-		Stream:          streamEnabled(o.stream, o.outputMode, o.tui),
-		MCPTools:        mcpTools,
-		ReasoningBudget: o.thinkBudget,
+		Identity:     app.IdentityPrompt(identity),
+		IdentityName: identity.Name,
+		UserName:     o.userName,
+		Client:       client,
+		WS:           ws,
+		Procs:        bgProcs,
+		MaxTokens:    o.maxTokens,
+		Temperature:  o.temperature,
+		ContextLimit: contextLimit,
+		MaxSteps:     o.maxSteps,
+		Policy:       buildPolicy(o.allow, o.deny),
+		GateContext:  audit.ContextHook(o.auditPath, "cli", permissionGateContext(o.yes, suspend, ws)),
+		BackendKind:  o.backendKind,
+		Model:        o.model,
+		Stream:       streamEnabled(o.stream, o.outputMode, o.tui),
+		MCPTools:     mcpTools,
 		// Direct runs fund acknowledged todo work with extra steps;
 		// -serve leaves this off until its budget story is decided.
-		TodoFunding: true,
-		SkipVerify:  o.noVerify,
-		Nudges:      o.nudges,
-		OnDelta:     func(chunk string) { fmt.Print(chunk) },
-		OnStep:      stepPrinter(o.outputMode, emitter, o.logMax),
+		OnDelta: func(chunk string) { fmt.Print(chunk) },
+		OnStep:  stepPrinter(o.outputMode, emitter, o.logMax),
 		OnResult: func(result agent.ToolResult) {
 			if o.outputMode == "json" {
 				events.EmitToolResult(emitter, result.CallID, result.Output, result.Failed)
@@ -283,41 +236,6 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		Rules:   rules,
 		Checks:  checks.NewReporter(rules, findingSink(emitter, o.outputMode)),
 		OnNudge: nudgePrinter(o.outputMode),
-	}
-	if missionDir != "" {
-		params := missionParams{
-			env:          env,
-			client:       client,
-			ws:           ws,
-			procs:        bgProcs,
-			dir:          missionDir,
-			task:         task,
-			resuming:     o.resume != "",
-			contextLimit: contextLimit,
-			maxTokens:    o.maxTokens,
-			logMax:       o.logMax,
-			verifyCmd:    o.verifyCmd,
-			autoApprove:  o.yes,
-			noteW:        noteW,
-			emitter:      emitter,
-			suspend:      suspend,
-		}
-		if o.tui {
-			_, err := tui.Run(ctx, tui.Config{BackendURL: o.backendURL, Env: env, Task: task, StateFile: filepath.Join(missionDir, "mission.json"), AuditPath: o.auditPath, Mission: func(runCtx context.Context, runEnv roles.Env, answer agent.Suspender, emitter *events.Emitter) error {
-				p := params
-				p.env = runEnv
-				p.suspend = answer
-				p.emitter = emitter
-				p.noteW = io.Discard
-				return runMission(runCtx, p)
-			}})
-			if err != nil {
-				return fmt.Errorf("mission: %w", err)
-			}
-		} else if err := runMission(ctx, params); err != nil {
-			return fmt.Errorf("mission: %w", err)
-		}
-		return nil
 	}
 
 	if o.plan {
@@ -466,131 +384,25 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			return fmt.Errorf("agent failed: %w", err)
 		}
 	}
-	// Printed whole. -log-max caps each *step* line so a run stays
-	// readable while it scrolls past; the final answer is the thing the
-	// run was for, and middle-truncating it to 300 characters cut the
-	// deliverable out of its own report. Mission mode already printed its
-	// report in full, so this also makes the two modes agree.
 	note("\n=== result ===")
 	fmt.Fprintln(noteW, result)
 	return nil
 }
 
-type missionParams struct {
-	env          roles.Env
-	client       llm.Client
-	ws           *workspace.Workspace
-	procs        *tools.BackgroundProcesses
-	dir          string
-	task         string
-	resuming     bool
-	contextLimit int
-	maxTokens    int
-	logMax       int
-	verifyCmd    string
-	autoApprove  bool
-	// noteW carries human-readable output (stderr in -mode json, so
-	// stdout stays pure JSONL). emitter is nil unless -mode json.
-	noteW   io.Writer
-	emitter *events.Emitter
-	// suspend answers the plan approval gate. Same shared suspender as
-	// the direct-mode gates: one stdin reader per run.
-	suspend agent.Suspender
-}
-
-// runMission is the -mission entry point: harness-owned plan → execute →
-// verify instead of one long reactive conversation. The interaction
-// point with the human is the plan approval gate; workers themselves
-// never ask questions.
-func runMission(ctx context.Context, p missionParams) error {
-	var m *mission.Mission
-	if p.resuming {
-		var err error
-		m, err = mission.Load(p.dir)
+func verificationCommand(command, directory string) func(context.Context) (string, error) {
+	if command == "" {
+		return nil
+	}
+	return func(ctx context.Context) (string, error) {
+		out, err := tools.RunCommand(ctx, command, directory, 120*time.Second)
+		status := "PASSED"
 		if err != nil {
-			return fmt.Errorf("resume mission: %w", err)
+			status = "FAILED"
 		}
-		progress := ""
-		if len(m.Subtasks) > 0 {
-			progress = fmt.Sprintf(", subtask %d/%d", m.Cursor+1, len(m.Subtasks))
-		}
-		fmt.Fprintf(p.noteW, "resuming mission %s (phase: %s%s)\n", m.ID, m.Phase, progress)
-	} else {
-		m = &mission.Mission{ID: filepath.Base(p.dir), Task: p.task, Phase: mission.PhaseExplore}
-		if err := m.Save(p.dir); err != nil {
-			return fmt.Errorf("create mission: %w", err)
-		}
+		return fmt.Sprintf("%s\ncommand: %s\n%s", status, command, out), err
 	}
-
-	// The approval gate is the cheapest, strongest defense against a
-	// weak model's garbage plans: a human reads it before anything runs.
-	var approve func(string) (bool, string)
-	if !p.autoApprove {
-		approve = func(rendered string) (bool, string) {
-			rep, err := p.suspend(ctx, agent.SuspendRequest{
-				Kind:   agent.SuspendPlan,
-				Prompt: "=== proposed plan ===\n" + rendered + "\n\napprove? [y]es / [n]o / or type a revision note",
-			})
-			if err != nil {
-				return false, ""
-			}
-			line := strings.TrimSpace(rep.Answer)
-			switch strings.ToLower(line) {
-			case "y", "yes":
-				return true, ""
-			case "n", "no":
-				return false, ""
-			default:
-				return false, line
-			}
-		}
-	}
-
-	runner := &mission.Runner{
-		Env:          p.env,
-		Client:       p.client,
-		WS:           p.ws,
-		Dir:          p.dir,
-		Procs:        p.procs,
-		ContextLimit: p.contextLimit,
-		MaxTokens:    p.maxTokens,
-		ApprovePlan:  approve,
-		VerifyCmd:    p.verifyCmd,
-		OnStep: func(subID string, step int, msg llm.Message) {
-			run.EmitStep(p.emitter, subID, step, msg, false, 0)
-			if msg.Content != "" {
-				fmt.Fprintf(p.noteW, "[%s step %d] %s\n", subID, step, agent.TruncateMiddle(msg.Content, p.logMax))
-			}
-			for _, tc := range msg.ToolCalls {
-				fmt.Fprintf(p.noteW, "[%s step %d] -> %s(%s)\n", subID, step, tc.Name,
-					agent.TruncateMiddle(string(tc.Arguments), p.logMax))
-			}
-		},
-		OnEvent: func(format string, args ...any) {
-			if p.emitter != nil {
-				p.emitter.Emit("mission", map[string]any{"text": fmt.Sprintf(format, args...)})
-			}
-			fmt.Fprintf(p.noteW, "[mission] "+format+"\n", args...)
-		},
-		OnResult: func(result agent.ToolResult) {
-			events.EmitToolResult(p.emitter, result.CallID, result.Output, result.Failed)
-		},
-		OnUsage: func(step int, usage llm.Usage) {
-			run.EmitUsage(p.emitter, step, usage)
-		},
-	}
-
-	report, err := runner.Run(ctx, m)
-	if p.emitter != nil {
-		p.emitter.Emit("result", map[string]any{"report": events.Message(report)})
-	}
-	fmt.Fprintln(p.noteW, "\n=== mission report ===")
-	fmt.Fprintln(p.noteW, report)
-	return err
 }
 
-// buildPolicy combines built-in defaults with -allow/-deny overrides.
-// Extra rules always win by append order.
 func buildPolicy(allow, deny string) permission.Policy {
 	p := permission.Default()
 	var extra []permission.Rule

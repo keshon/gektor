@@ -2276,7 +2276,7 @@ func TestToggleHoldsPosition(t *testing.T) {
 // the conversational ones.
 func TestStampsPolicy(t *testing.T) {
 	allRoles := []role{roleAnswer, roleUser, roleThink, roleTool, roleResult,
-		roleGate, roleMission, roleMarker, roleError, roleWarning}
+		roleGate, roleMarker, roleError, roleWarning}
 	st := defaultStyles()
 	stampPattern := regexp.MustCompile(`\[[0-2][0-9]:[0-5][0-9]\]`)
 	at := time.Date(2026, 10, 3, 14, 22, 0, 0, time.Local)

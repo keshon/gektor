@@ -1,32 +1,4 @@
-// Command eval scores TARS against the frozen probes in eval/probes and
-// reports pass rates.
-//
-// eval/prompts/ already describes 17 failure shapes with explicit pass and
-// fail criteria — the design was never the missing piece. What was missing
-// is that the verdict lived in a human reading a table, so "it got worse
-// lately" stayed unfalsifiable and the cheapest answer to it was always to
-// start the project over. This turns each probe's prose criteria into
-// checks a program can run.
-//
-// A probe asserts two different kinds of thing, because the prompts do:
-//
-//   - verify: what the workspace must look like afterwards. Reuses
-//     mission.Check, so an empty file still counts as a failure.
-//
-//   - trace: which tools were actually used. Half of eval/README.md's
-//     judging table is this shape — move_file rather than shell mv,
-//     list_files rather than run_shell ls, start_background rather than a
-//     run_shell that will time out. A run can produce a correct workspace
-//     the wrong way, and that predicts the next failure.
-//
-// The verdict is never the mission's own check: a subtask's check is
-// chosen by the model, and a model that writes its own exam writes an easy
-// one (live 2026-07-14: acceptance demanded src/main.ts, the check tested
-// package.json for "vite", the subtask went green with src/main.ts
-// absent). Probes are frozen by hand and the harness runs them itself.
-//
-// Because a weak model is stochastic, -runs repeats each probe and reports
-// a rate. A single pass proves very little.
+// Command eval scores agent runs against frozen workspace, tool and answer criteria.
 package main
 
 import (
@@ -50,7 +22,6 @@ import (
 	"time"
 
 	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/mission"
 	"github.com/keshon/tars/internal/roles"
 	"github.com/keshon/tars/internal/tools"
 	"github.com/keshon/tars/internal/workspace"
@@ -68,10 +39,6 @@ type Probe struct {
 	// Task is the instruction, exactly as a user would type it.
 	Task string `json:"task"`
 
-	// Mission runs the planner/worker pipeline instead of the direct
-	// agent loop — probes 15-17 in eval/prompts.
-	Mission bool `json:"mission"`
-
 	// Tier selects how often a probe is worth running, assigned from
 	// measured behaviour rather than taste:
 	//
@@ -79,8 +46,6 @@ type Probe struct {
 	//           a failure here means something is badly broken.
 	//   signal  varies across runs. This is where the information is, and
 	//           where most of the wall clock goes.
-	//   mission the planner pipeline. Expensive; run when mission code
-	//           changed or at a checkpoint.
 	Tier string `json:"tier"`
 
 	// Exclusive means this probe must not run alongside anything else —
@@ -96,7 +61,7 @@ type Probe struct {
 	Replies []string `json:"replies,omitempty"`
 
 	// Verify is the workspace verdict. Every check must pass.
-	Verify []mission.Check `json:"verify"`
+	Verify []Check `json:"verify"`
 
 	// Trace is the tool-usage verdict. Every check must pass.
 	Trace []TraceCheck `json:"trace"`
@@ -177,7 +142,6 @@ type call struct {
 // countingClient records how many times the backend was actually reached.
 //
 // Step counts cannot answer that question: they come from OnStep, which
-// only fires for agent and worker steps, so a mission that dies during
 // planning reports zero steps having made two model calls. Scoring that
 // as "never ran" excludes a real failure from the rate — the inversion of
 // the bug the Errored flag exists to prevent.
@@ -310,7 +274,6 @@ type Result struct {
 const defaultTimeout = 15 * time.Minute
 
 // evalStateDir is the one place TARS still writes inside a workspace.
-// Each probe runs in a throwaway copy of its seed, so its mission state
 // belongs to that copy and dies with it. Real runs keep theirs in the
 // user's TARS directory; nothing else writes to the workspace.
 const evalStateDir = ".tars"
@@ -325,7 +288,7 @@ func main() {
 		"requests (koboldcpp --parallelrequests, llama-server --parallel) and neither helps unless "+
 		"the client sends them; raising this past what the server was started with just queues")
 	tier := flag.String("tier", "", "run only probes in this tier: smoke (fast canary), signal "+
-		"(where the information is), mission (the planner pipeline). Empty runs every tier")
+		"(where the information is). Empty runs every tier")
 	runs := flag.Int("runs", 1, "runs per probe — a weak model is stochastic, so one pass "+
 		"proves very little")
 	outDir := flag.String("out", "eval/results", "directory for results.jsonl and per-run traces")
@@ -356,9 +319,6 @@ func main() {
 		}
 		for _, p := range keepTier(probes, *tier) {
 			mode := "agent"
-			if p.Mission {
-				mode = "mission"
-			}
 			fmt.Printf("  %-22s %-7s %-7s %d verify, %d trace, %d answer\n",
 				p.Name, p.Tier, mode, len(p.Verify), len(p.Trace), len(p.Answer))
 		}
@@ -497,7 +457,6 @@ func main() {
 		fmt.Println()
 	}
 
-	// Announce a probe before running it. A mission probe can take fifteen
 	// minutes, and printing only on completion means a working run looks
 	// identical to a hung one — results.jsonl stays empty either way.
 	run1 := func(j job) {
@@ -675,58 +634,34 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 	}
 
 	var answer string
-	if p.Mission {
-		runner := &mission.Runner{
-			Client:       modelClient,
-			WS:           ws,
-			Dir:          filepath.Join(work, evalStateDir, "eval"),
-			Procs:        procs,
-			ContextLimit: contextLimit,
-			MaxTokens:    maxTokens,
-			// No ApprovePlan: an eval that stops for a human measures the
-			// human. Review stays on — it is part of what is scored.
-			OnStep: func(_ string, step int, msg llm.Message) { record(step, msg) },
+	// roles.Interactive is what cmd/agent builds too, so the probe
+	// scores the agent that ships. This used to be a hand-copied
+	// config here and it had already drifted: no ask_user, no
+	// delegate_task, while two probes are specifically about whether
+	// those get reached for when they shouldn't be.
+	//
+	// The responder says plainly that nobody is there rather than
+	// faking an answer — dropping the tool would change the tool set,
+	// and inventing an answer would make the probe score the answer.
+	// Whether ask_user was called at all stays visible in the trace,
+	// which is what probe 12 measures.
+	env := evalEnv(modelClient, ws, procs, contextLimit, maxTokens, record, func(kind string) {
+		res.Nudges = append(res.Nudges, kind)
+	})
+	replyIndex := 0
+	a := roles.Interactive(env, "", "", func(string) (string, error) {
+		if replyIndex < len(p.Replies) {
+			reply := p.Replies[replyIndex]
+			replyIndex++
+			return reply, nil
 		}
-		m := &mission.Mission{
-			ID:    fmt.Sprintf("%s-%d", p.Name, run),
-			Task:  p.Task,
-			Phase: mission.PhasePlan,
-		}
-		report, err := runner.Run(runCtx, m)
-		answer = report
-		if err != nil {
-			res.RunError = firstLine(err.Error())
-		}
-	} else {
-		// roles.Interactive is what cmd/agent builds too, so the probe
-		// scores the agent that ships. This used to be a hand-copied
-		// config here and it had already drifted: no ask_user, no
-		// delegate_task, while two probes are specifically about whether
-		// those get reached for when they shouldn't be.
-		//
-		// The responder says plainly that nobody is there rather than
-		// faking an answer — dropping the tool would change the tool set,
-		// and inventing an answer would make the probe score the answer.
-		// Whether ask_user was called at all stays visible in the trace,
-		// which is what probe 12 measures.
-		env := evalEnv(modelClient, ws, procs, contextLimit, maxTokens, record, func(kind string) {
-			res.Nudges = append(res.Nudges, kind)
-		})
-		replyIndex := 0
-		a := roles.Interactive(env, "", "", func(string) (string, error) {
-			if replyIndex < len(p.Replies) {
-				reply := p.Replies[replyIndex]
-				replyIndex++
-				return reply, nil
-			}
-			return "This is an automated evaluation run; no human is available. " +
-				"State your assumption and proceed with the smallest reasonable action.", nil
-		}, nil)
-		final, err := a.Run(runCtx, p.Task)
-		answer = final
-		if err != nil {
-			res.RunError = firstLine(err.Error())
-		}
+		return "This is an automated evaluation run; no human is available. " +
+			"State your assumption and proceed with the smallest reasonable action.", nil
+	}, nil)
+	final, err := a.Run(runCtx, p.Task)
+	answer = final
+	if err != nil {
+		res.RunError = firstLine(err.Error())
 	}
 
 	// The backend was never reached, so the workspace checks below would
@@ -799,7 +734,7 @@ func evalEnv(client llm.Client, ws *workspace.Workspace, procs *tools.Background
 func checkWorkspace(ctx context.Context, p Probe, ws *workspace.Workspace) []string {
 	var out []string
 	for _, c := range p.Verify {
-		if msg, ok := mission.RunCheck(ctx, c, ws); !ok {
+		if msg, ok := RunCheck(ctx, c, ws); !ok {
 			out = append(out, firstLine(msg))
 		}
 	}
@@ -1065,9 +1000,9 @@ func loadProbes(dir, only string) ([]Probe, error) {
 			return nil, fmt.Errorf("%s: nothing asserted — it would score itself", path)
 		}
 		switch p.Tier {
-		case "smoke", "signal", "mission":
+		case "smoke", "signal":
 		default:
-			return nil, fmt.Errorf("%s: tier is %q, want smoke, signal or mission", path, p.Tier)
+			return nil, fmt.Errorf("%s: tier is %q, want smoke or signal", path, p.Tier)
 		}
 		for _, goos := range p.Oses {
 			switch goos {
@@ -1080,7 +1015,7 @@ func loadProbes(dir, only string) ([]Probe, error) {
 		// fields, and uncompilable regexes fail here, dry, instead of
 		// mid-run after model calls.
 		for i, c := range p.Verify {
-			if err := mission.ValidateCheck(c); err != nil {
+			if err := ValidateCheck(c); err != nil {
 				return nil, fmt.Errorf("%s: verify[%d]: %w", path, i, err)
 			}
 		}

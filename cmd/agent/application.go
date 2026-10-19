@@ -5,7 +5,6 @@ import (
 	"flag"
 	"path/filepath"
 
-	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/tars"
@@ -47,7 +46,7 @@ func runApplication(args []string) error {
 		if err != nil {
 			return err
 		}
-		request.preferences.Harness = config.Harness{MaxSteps: o.maxSteps, ThinkBudget: o.thinkBudget, Nudges: agent.NudgeLevelName(o.nudges)}
+		request.preferences.Harness = config.Harness{MaxSteps: o.maxSteps}
 		err = runResolved(request, o)
 		var change *tui.ModeChange
 		if !errors.As(err, &change) {
@@ -69,7 +68,7 @@ func relaunchOptions(previous launchOptions, p config.Preferences, keepAct bool)
 	previous.profilePath, previous.workspace = p.ProfilePath, p.Workspace
 	previous.task, previous.resume, previous.fork, previous.images, previous.answer = "", "", "", "", ""
 	previous.plan = !keepAct
-	previous.maxSteps, previous.thinkBudget, previous.nudges = 0, 0, agent.NudgeFull
+	previous.maxSteps = 0
 	return previous
 }
 func initialTUILaunch(options launchOptions, p config.Preferences, path string, common bool) launchRequest {

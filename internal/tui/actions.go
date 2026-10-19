@@ -190,7 +190,7 @@ func (m *model) footerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		gated := m.state == stPermission || m.state == stAsk
 		free := !gated && m.dialog == nil && m.sessions == nil && !m.header.focused
 		idle := free && m.state == stDone
-		if !(idle && !m.mission) {
+		if !idle {
 			return m, nil
 		}
 		mode := "plan"

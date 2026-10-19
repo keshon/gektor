@@ -31,6 +31,26 @@ func TestObserverMeasuresActualEffects(t *testing.T) {
 		t.Fatalf("effects=%v %v", paths, err)
 	}
 }
+
+func TestFinalObservationSurvivesRunCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	ws, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	observe, err := ws.ChangeObserver(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ws.Root(), "changed.txt"), []byte("saved before cancellation"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cancel()
+	paths, err := observe()
+	if err != nil || !reflect.DeepEqual(paths, []string{"changed.txt"}) {
+		t.Fatalf("paths=%v err=%v", paths, err)
+	}
+}
 func TestFileSetHonorsGitIgnoreAndTrackedExceptions(t *testing.T) {
 	root := t.TempDir()
 	if out, err := exec.Command("git", "-C", root, "init").CombinedOutput(); err != nil {

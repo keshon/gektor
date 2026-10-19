@@ -57,7 +57,7 @@ Three independent verdicts, all of which must hold:
 
 | Field | Asserts |
 |---|---|
-| `verify` | what the workspace contains afterwards, using `mission.Check` |
+| `verify` | what the workspace contains afterwards, using the evaluator’s Check type |
 | `trace` | which tools were called, with `mode`, `args_regex` and `max_calls` |
 | `answer` | what the run reported, by regex |
 
@@ -84,12 +84,11 @@ will fail someday for no stated reason.
 ```
 
 `why` is quoted in the failure, so a red row explains itself without opening
-the write-up. Set `"mission": true` to run the planner pipeline instead of the
-direct loop.
+the write-up. The same Interactive role as the CLI executes every scenario.
 
 ## Coverage
 
-All 18 scenarios are mechanized. Probes 01 and 02 request a temporary Git
+All 15 scenarios are mechanized. Probes 01 and 02 request a temporary Git
 seed with a fixed commit. Probe 12 supplies a scripted clarification and
 requires an improvement note grounded in the fixture. `git` and `replies`
 configure these harness inputs.

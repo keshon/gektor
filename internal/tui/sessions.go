@@ -270,10 +270,6 @@ func (m *model) openSelected() tea.Cmd {
 			return cmd
 		}
 	}
-	if cur.mode == "Mission" {
-		s.flash = "Mission: run agent -tui -resume " + cur.dir
-		return nil
-	}
 	stateFile := filepath.Join(cur.dir, "state.json")
 	history, err := session.ReadHistory(stateFile)
 	if err != nil {
@@ -304,7 +300,6 @@ func (m *model) openSelected() tea.Cmd {
 	m.sess = sess
 	m.stateFile = stateFile
 	m.sessionTitle = cur.title
-	m.mission = false
 	m.resetRunFacts()
 	m.restoreDraft()
 	blocks, boundary := renderHistoryAt(history)

@@ -338,7 +338,6 @@ func (m *model) newTask() {
 	m.cancel()
 	m.sess, m.stateFile, m.transcript.blocks = nil, "", nil
 	m.sessionTitle = ""
-	m.mission = false
 	m.resetRunFacts()
 	m.state, m.navFocused = stDone, false
 	m.restoreDraft()

@@ -103,22 +103,22 @@ func TestAgentServiceConfigurationSupportsTextOnlyProfile(t *testing.T) {
 	}
 }
 func TestExecutionPolicyOptionsSurviveServiceHandoff(t *testing.T) {
-	before, err := parseLaunchOptions([]string{"-tui", "-deny", "run_shell=*", "-allow", "read_file=*.go", "-mcp", "local=command", "-model", "old", "-verify-cmd", "go test ./...", "-audit", "audit.jsonl", "-nudges", "off", "-no-verify", "-yes", "-api-key", "transient", "-resume", "old-state"})
+	before, err := parseLaunchOptions([]string{"-tui", "-deny", "run_shell=*", "-allow", "read_file=*.go", "-mcp", "local=command", "-model", "old", "-verify-cmd", "go test ./...", "-audit", "audit.jsonl", "-yes", "-api-key", "transient", "-resume", "old-state"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	p := config.DefaultProfile()
 	p.Provider.Model = "new"
-	prefs := config.Preferences{Version: 1, Profile: &p, Workspace: t.TempDir(), Harness: config.Harness{Nudges: "recovery", MaxSteps: 42}}
+	prefs := config.Preferences{Version: 1, Profile: &p, Workspace: t.TempDir(), Harness: config.Harness{MaxSteps: 42}}
 	next := relaunchOptions(before, prefs, true)
 	after, err := resolveLaunch(launchRequest{options: &next, profile: &p, preferences: prefs})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if after.deny != before.deny || after.allow != before.allow || after.mcp != before.mcp || after.verifyCmd != before.verifyCmd || after.auditPath != before.auditPath || !after.noVerify || !after.yes || after.apiKey != before.apiKey {
+	if after.deny != before.deny || after.allow != before.allow || after.mcp != before.mcp || after.verifyCmd != before.verifyCmd || after.auditPath != before.auditPath || !after.yes || after.apiKey != before.apiKey {
 		t.Fatalf("execution options lost: %+v", after.launchOptions)
 	}
-	if after.model != "new" || after.maxSteps != 42 || after.nudges != 1 || after.plan || after.resume != "" {
+	if after.model != "new" || after.maxSteps != 42 || after.plan || after.resume != "" {
 		t.Fatalf("settings or task handoff wrong: %+v", after.launchOptions)
 	}
 }

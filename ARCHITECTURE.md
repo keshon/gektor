@@ -1,406 +1,85 @@
 # Architecture
 
-> Installation, flags and usage live in [README.md](README.md). House rules and
-> what the build enforces live in [docs/conventions.md](docs/conventions.md).
-> This document covers how the system works.
-
-TARS is one runner. It uses the agent loop against a workspace: every launch
-has tools and permission prompts, and the only choice is Plan or Act.
-
-The organising idea: a small local model is unreliable at knowing whether it did
-the work. The harness observes file effects and records command results.
-Direct runs require `-verify-cmd` for a mechanical completion check; mission
-checks are explicit but still only as strong as their acceptance criteria.
-
-## Package map
-
-```
-cmd/agent          CLI: flags, the approval gate, console output
-cmd/eval           probe runner and scorer
-
-internal/app       frontend-independent service composition and identity compilation
-internal/config    versioned provider, generation and identity profiles.
-internal/agent     the loop. Tool interface, Registry, repeat detection,
-                   budgets, history compaction. Knows nothing about
-                   koboldcpp or the filesystem.
-internal/llm       Client interface, backend dialects, streaming and image encoding,
-                   GBNF/JSON-schema structured output.
-                   Every backend quirk lives here.
-internal/tools     concrete tools: file, shell, search, process, delegation,
-                   webfetch (SSRF-validated), MCP stdio + HTTP clients,
-                   edit hardening, command probes, JSON reducers
-internal/roles     the five kinds of agent this project builds
-internal/run       one agent run: typed events, GateHub, gate transport
-internal/tui       Bubble Tea v2 model, transcript, sessions, composer and popups
-                   components owns reusable models; settings owns its screen
-internal/audit     JSONL approval-decision records
-internal/checks    deterministic file checks (formatting and secret findings)
-internal/permission allow/ask/deny policy for tool calls (leaf package)
-internal/events    the JSONL wire vocabulary and its emitter
-internal/session   the one persisted conversation snapshot, state.json
-internal/mission   plan, ledger, workers, checks, replan, review
-internal/prompts   every prompt, as .txt, embedded at build time
-internal/workspace path resolution, project instructions and change observation
-```
-
-`llm`, `prompts`, `workspace`, `permission` and `events` import no
-other internal package. `session` imports only `llm`. `agent` imports
-only `llm`, `prompts`, `permission` and `session`, which is why `tools`
-can implement `agent.Tool` without a cycle. `roles` sits above both
-because it needs each. The full rule with its enforcement lives in
-[docs/conventions.md](docs/conventions.md) under `package-layers` —
-this paragraph is a copy, and the test is the original.
-
-## Command startup
-
-`cmd/agent/main.go` handles process exit. `application.go` owns the frontend
-handoff loop and saved application preferences. `options.go` parses flags and
-resolves profile overrides without starting services; explicit flags, including
-false and empty values, take precedence over profile settings.
-
-`run.go` dispatches a resolved launch. `agent.go` composes workspace tools and
-runs direct or mission tasks. Each launch retains responsibility for closing
-its resources before handing settings back for a relaunch.
-`console.go` contains terminal output and approval transport helpers;
-`serve.go` owns the JSON-RPC frontend. These remain one command package.
-
-`internal/app` compiles the profile's identity, resolves transport
-credentials, and composes profile-driven services. It imports no frontend.
-Both the command and TUI consume `app.Services`. Each launch owns an
-`app.Runtime`; frontends borrow it. Runtime prepares, persists and installs
-service changes and closes accepted thinking services. Tool processes and MCP
-retain their separate per-launch owners. Staged profile copies do not
-share mutable options with their callers.
-
-TARS starts no backend process. There is no server owner, no readiness wait and
-no restart path, because there is nothing to own. A model server that exits
-mid-run surfaces as a connection error on the next request. This is a deliberate
-surrender: supervision belongs to a supervisor, and the trade is that nothing
-can be supervised badly at the cost of nothing recovering automatically.
-
-## The loop
-
-One model call per step. The response either requests tools or does not, and
-those are different paths.
-
-```mermaid
-flowchart TB
-  Call["model call"] --> Recover["recover leaked calls<br/>into real ones"]
-  Recover --> HasCalls{"tool calls?"}
-  HasCalls -- no --> Finish["finish checks:<br/>truncation, think budget,<br/>leaked-text nudge, verify round,<br/>zero writes"]
-  Finish -- "not done" --> Call
-  Finish -- done --> Return["return answer"]
-  HasCalls -- yes --> Guards["repeat guards:<br/>idempotentSeen, wrotePaths"]
-  Guards --> Run["run tools<br/>(consecutive reads in parallel,<br/>ordered mutation barriers)"]
-  Run --> Judge["interject: at most<br/>one nudge"]
-  Judge --> Call
-```
-
-### Judging a step
-
-Four pieces of state decide whether a step made progress, and they answer
-different questions:
-
-| State | Question |
-|---|---|
-| `idempotentSeen` | has this exact read already run with nothing changed since? |
-| `wrotePaths` | has this path already been written this run? |
-| `stuckSteps` | how many consecutive steps produced no useful result? |
-| `exploratorySteps` | how many consecutive steps changed nothing on disk? |
-
-The first two are **hard guards**: a repeat comes back as an error result, so
-the model must do something else. Errors do not count as progress, so the stuck
-counter keeps climbing if it will not change course.
-
-The last two feed **soft nudges**, and `interject` emits at most one per step,
-ranked by severity. Several used to fire together, which meant a worker could
-be told to broaden its search and to stop searching in the same breath.
-
-Repeat detection canonicalizes arguments before comparing. `{"path":"x"}` and
-`{"path": "x", "metadata_only": false}` are the same call spelled two ways, and
-a weak model rarely spells one the same way twice.
-
-### Finishing
-
-A turn with no tool calls is not automatically an answer. Before one is
-accepted the loop rules out: generation truncated by the token budget, a
-finish attempted on more reasoning than the think budget allows (wrapped
-up with a demand for commitment, at most twice per run), a tool call
-written as plain text instead of a structured call, a pending verify
-round, and — when the run was supposed to write files — a finish with nothing
-written. That last case is refused up to `MaxZeroWriteRefusals` times, quoting
-the model's own closing sentence back at it.
-
-Only an explicit `VerifyOnZeroWrites` contract requires file changes. Ordinary
-answers are never classified by words like "removed" or "created". Measured
-workspace effects and command verdicts remain separate from the model's prose.
-
-Well-formed leaked calls never reach these checks: the parser recovers
-them into real calls before the branch, so they execute through the
-normal tool path. Only the unparseable remainder earns the nudge, and
-deliberation inside `<think>` blocks is excluded from both — a sketch is
-not a decision. (On llama.cpp backends deliberation arrives out-of-band
-in `reasoning_content`; it is measured by the think budget and kept in
-history, but likewise never executes.)
-
-Read batches preserve their position relative to exclusive tools. Shell,
-background startup, delegation and MCP calls are exclusive because they can
-change the shared workspace. All roles inherit the same policy, approval
-handler, backend settings and project instructions. File observation includes
-shell and delegated effects; mutation invalidates cached reads and previous
-verification. Observer failures fail the run closed.
-
-Tool results carry typed failure status alongside model-facing text; the
-frontends style failures without guessing from compiler output.
-
-Outcomes distinguish completed, failed and cancelled runs, with measured
-paths, verification output and persistence warnings. A run writes one
-snapshot file and nothing else, so there is no log to rotate and no
-second copy to fall back on.
-
-### Compaction
-
-History is compacted by dropping whole assistant-led step groups and
-inserting one notice carrying an extractive summary: step count, tools
-run, paths touched, dropped requests, the current checklist. No model
-call — the notice has to be free and cannot fail on a weak backend.
-
-The notice is a persistent object, not a per-pass artifact. Being a
-user-role message, the next pass lifts it out of the window before
-grouping and merges its facts forward. That matters twice: left in the
-window it occupies a keep slot, so every step drops it and compacts
-again, and a summary rebuilt from each pass's own window describes only
-that window — the plan and the dropped requests survive exactly one
-pass, in a feature that exists for runs that live past one.
-
-Compaction rewrites history from the notice onward, so a backend that
-caches prompts re-reads the whole conversation. The threshold therefore
-does not fire on prompt size alone: after a pass, another waits until the
-prompt has grown by a twentieth of the window. Without that cooldown a run
-whose keep-window sits above the line compacts on every step forever — one
-group dropped, one added back, the notice's step count changing, the prefix
-never settling. Measured against a real loop that was 9 full re-reads in 12
-steps. Overflow recovery is unaffected and still compacts immediately, so
-arriving late at the threshold costs a steady state, not an overflow.
-
-### Budgets
-
-Every bound has a default in `agent.New` or the `Runner` methods: a 25-step
-base direct budget, 15 per mission worker, 12 per subagent, 8 per inspector, 8192 generation
-tokens, 6000 characters of `<think>` deliberation per response before a
-wrap-up round (at most 2 per run), 2 stuck steps before a nudge, 2 fix attempts
-and 1 replan per mission. Total worker runs per mission are bounded by
-construction: `subtasks × (1 + fixes) × (1 + replans)`.
-
-CLI/TUI interactive runs enable checklist-driven step funding: newly
-acknowledged work can add up to one extra base budget, with two extra closing
-steps when the checklist is completed. Workers and delegates stay fixed-budget.
-The RPC environment currently does not enable this funding or pass a custom
-CLI step limit. `-max-steps` sets a base budget, not an immutable hard cap for
-interactive CLI/TUI checklist work.
-
-## The five roles
-
-`internal/roles` is the only place that constructs an agent, so "what is a
-subagent allowed to do" has one answer rather than one per call site.
-
-| Role | Tools | Bounded by |
-|---|---|---|
-| `Inspector` | read-only | 8 steps |
-| `Subagent` | full set, no delegation or ask_user | 12 steps |
-| `Worker` | full set, no delegation | mission's worker budget |
-| `Interactive` | full set plus ask_user and delegate_task | run budget |
-| `Planner` | read-only, plan-mode prompt | run budget |
-
-An inspector gets a registry without the mutating tools rather than a prompt
-asking it not to mutate. A subagent cannot delegate, so delegation cannot
-recurse. A planner is an inspector with a different job: investigate and
-propose, change nothing — enforced by the same tool-set removal.
-
-## Frontends and terminal state
-
-Print/JSON mode, the stdio RPC server, and the TUI share role construction and
-session events. `internal/run` delivers typed events and transports suspended
-questions through GateHub. A gate belongs to the active run context; cancelling
-or closing the transport releases it. Policy Deny never becomes a question,
-and Ask without a live approval handler fails closed.
-
-Transcript loading belongs to `session.ReadHistory`, which reads one
-atomically-rewritten snapshot and accepts either the file or its session
-directory. CLI resume/fork, TUI open/continue,
-manual compaction, relaunch after a settings apply, and session search share
-this reader. Search caches watch the
-snapshot's size and mtime. There is no second copy to fall back on: the
-snapshot is written tmp+rename, so a crash cannot leave it half-written,
-and anything that could lose it would lose a backup on the same disk too.
-`agent.LoadState` is the same read under the agent's own name.
-
-The TUI owns presentation and input routing. A responsive Sessions pane and
-centered title/history search open saved tasks without generating; drafts and a
-single queued follow-up stay in memory for the current launch. Help, session
-search, and permission
-prompts own their keys while open. Run metrics and the Braille spinner live in
-the header; the function-key footer owns a fixed set of action slots.
-
-Command/file suggestions replace the bottom of the transcript with a bounded
-popup. Enter runs a selected command that takes no argument and inserts
-one that does; Tab always inserts, as does Enter on a path. The picker
-does not move the composer caret. Text references are checked,
-bounded workspace snapshots appended to the user prompt, distinct from image
-attachments. Transcript rendering hides that attachment envelope when reopening
-history. Snapshots stay in the model transcript, so retry reuses the same turn.
-
-On Windows, a native console input adapter keeps Shift+Enter modifiers intact
-while sending encoded key/mouse/resize records through the Charm decoder.
-Other platforms use Bubble Tea's normal input path. The native underline caret
-belongs to the terminal. Rendering uses v2 View/Cursor state rather than a
-synthetic blinking character. User controls are in [docs/tui.md](docs/tui.md).
-
-## Mission mode
-
-A mission is a state machine over phases — `explore`, `plan`, `execute`,
-`verify`, `done`, `failed` — persisted to `.tars/tasks/<id>/mission.json`
-after every transition. The model never chooses the next phase. Resume is
-"load, switch on phase, continue".
-
-Each subtask runs in a fresh context compiled from the ledger, not inherited
-from the previous worker's transcript. A worker that fills its context with
-grep output does not poison the plan.
-
-### Checks
-
-A subtask declares how it will be verified: `file_exists`, `file_absent`,
-`content_contains`, `shell`, `http` or `none`. The plan is rejected before a human sees it if two
-subtasks share a check, if a subtask reads without producing anything, or if a
-shell check cannot fail.
-
-The checks are the weak point of the design, not its strength: the model writes
-them, and a model that writes its own exam writes an easy one. Validation
-catches the known-bad shapes. It does not catch a check that is merely weaker
-than the acceptance criteria beside it.
-
-### Fix and replan
-
-A failed check starts a fresh fix worker seeded with the check's real output.
-When fix attempts run out, the remaining work is replanned once. Both budgets
-are small on purpose: a subtask needing many attempts is usually a planning
-failure, and more attempts will not fix a plan.
-
-## The backend boundary
-
-`internal/llm` owns every backend quirk. Three are worth knowing about:
-
-**Grammar.** Kobold requests can carry a content GBNF grammar that blocks a model from emitting
-its native tool-call template as plain text. It constrains the first character
-only; it is a patch for observed shapes, not a response envelope.
-Mission plans/verdicts carry both GBNF and JSON-schema descriptions: local
-Kobold uses grammar, while llama/OpenAI use response_format.
-
-**koboldcpp decides tool calls itself.** The server runs its own reasoning pass
-to choose whether to emit a tool call and which one. That decision is not
-visible to this harness and cannot be constrained by the grammar above. Owning
-it means moving to `/api/v1/generate` and taking on per-model chat templating.
-
-**Remote providers take the OpenAI path.** The `openai` backend kind speaks
-plain OpenAI chat completions: bearer auth, no grammar field, no local sampler
-spellings, structured output via `response_format`. There is no context-window
-probe, so the window comes from configuration rather than measurement.
-
-**Streaming is per-backend.** The `openai` and `llama` dialects stream
-server-sent events with per-chunk callbacks; koboldcpp refuses and the
-loop falls back to unary requests. Streaming changes observability, not
-semantics: the assembled response goes through the same finish checks.
-
-**Failures retry; overflows compact.** 429/5xx and dropped connections
-retry with backoff (honoring `Retry-After`); aborts surface immediately.
-A context-window error never retries — the loop compacts aggressively
-and continues, because another attempt at a full context fails the same
-way.
-
-## Evals
-
-`eval/probes/*.json` are scenarios with frozen pass criteria, scored three
-ways: what the workspace contains, which tools were used, and what the run
-reported — plus a harness-tail assertion where the probe declares one
-(overflow injection). Each runs in a throwaway copy of
-its seed, so fixtures cannot be mutated by a run. Probes that only make
-sense on one OS declare `oses` and report SKIP elsewhere rather than
-scoring the host. See [eval/README.md](eval/README.md).
-
-The criteria are frozen by hand rather than derived from the mission's own
-checks, for the reason given under Checks above.
-
-## Tried and rejected
-
-**Soft nudges alone.** Telling a model it is repeating itself does not stop it
-repeating itself. Repeats that can be detected are now refused as errors;
-nudges remain only for patterns that cannot be.
-
-**One shared transcript across subtasks.** Context filled with one worker's
-exploration, and later workers inherited it. Workers now start from a compiled
-seed.
-
-**Trusting `finish_reason` alone.** A truncated generation and a completed one
-both arrive as a message with no tool calls, and the truncated one usually
-contains the announcement of the call that got cut off.
-
-**Counting repeated tool names as a loop.** Writing four different files in a
-row is four `write_file` calls and is also the normal shape of scaffolding
-work. Repeat detection compares arguments, not names.
-
-**Nudging a leaked call instead of running it.** A well-formed leak names
-a real tool with parseable arguments — unambiguous intent. Refusing it
-cost a round-trip the model usually failed again; recovering it into a
-real call costs nothing. Only the unparseable remainder earns the nudge.
-
-## Known limitations
-
-- `internal/workspace` bounds the file tools. `run_shell` sets a working
-  directory and nothing else, so the workspace is a guardrail against a
-  mistyped path, not a sandbox.
-- Plan quality is the ceiling. Most mission failures are a bad plan executed
-  faithfully, not a subtask executed badly.
-- Mission checks are chosen by the model. See Checks.
-- Windows-first, but CI runs both Windows and Ubuntu, and OS-bound probes
-  declare `oses` and report SKIP elsewhere. The shell tools pick `cmd.exe`
-  or `sh` by OS.
-
-## The settings boundary
-
-Applying settings does not reconfigure the running session. `requestProfileChange`
-writes the staged profile to its own copy, saves the session's preferences, reads
-the current task back from disk, and returns a `ModeChange` carrying the new
-preferences, that history, the composer draft and the session directory. `Run`
-returns it as an error; `cmd/agent` catches it, persists the preferences, rebuilds
-argv and launches again. The next launch composes fresh services from the new
-profile.
-
-That indirection used to be an in-place apply: a candidate was composed, a client
-was reused when the provider and context window matched, and ownership transferred
-in place. It had three separate implementations — one per runner, then one for a
-text-only launch — that had drifted apart enough to give the same setting three
-different effects. A launch composes once now, so `app.Runtime` owns services and
-closes them, and nothing walks a reconfigure path.
-
-The boundary exists for one reason: a session cannot be half-configured. The old
-in-place apply could leave the transcript rendered under one identity while the
-client spoke under another. Restarting costs a second; being wrong costs a run.
-
-Reading the task back before writing anything is part of the same contract. A read
-failure used to leave a `profiles/custom` file on disk holding settings that were
-never applied and that nothing referenced, with the workspace still pointing at it
-as though the apply had landed.
-
-## Profile schema changes
-
-`config.Profile` decodes strictly: an unknown key is an error, so a misspelled
-setting fails at load rather than being silently ignored. That is the right
-default, and it means removing a field breaks every file that still carries it.
-
-Nothing rewrites such a file. A compatibility mapping is permanent cost for a
-one-time problem, and it keeps the removed keys documented forever, so a
-profile written against an older schema is rejected with the offending key
-named and the reader deletes the line. The bundled profiles are loaded by a
-test for exactly this reason: strictness plus no build-time coverage means a
-deleted field would otherwise surface only on someone's machine at first
-launch.
+TARS uses one coding-agent loop. Plan explores with read-only tools; Act
+edits files, runs commands and delegates bounded subtasks. Print, JSON, TUI
+and stdio RPC use the same loop.
+
+## Composition
+
+cmd/agent resolves flags, preferences and provider profiles. Each launch owns
+its backend client, MCP connections and background-process registry.
+internal/app compiles identity and profile settings into Services.
+internal/roles builds Planner, Interactive and Subagent from Env. Subagents
+share the workspace and permission policy, have 12 steps and cannot delegate
+again or ask the operator. Their results return through the parent tool call.
+
+internal/run provides Session events and operator gates for TUI and RPC.
+The print CLI supplies console observers to the same role constructors.
+internal/llm owns provider dialects, streaming, transport retries and usage.
+internal/tools supplies tools; internal/workspace resolves paths and measures
+file changes; internal/permission authorizes each tool call.
+
+## Execution and limits
+
+Each step requests one model response. Tool calls execute and their results
+append to history; a complete text response ends the run. Adjacent concurrent
+tools may overlap. Exclusive tools are barriers in model call order. Results
+retain that order, and errors preserve the command output alongside the error.
+
+The operator sets the step limit, default 25. Todo is checklist data: it cannot
+grant steps or prevent an answer. On exhaustion, an operator may explicitly
+approve one 25-step continuation. There is no additional closing model call.
+Repeated reads, failed commands and whole-file replacements remain legal.
+
+Recovery handles incomplete generations, malformed leaked calls, empty
+responses and context overflow. Well-formed leaked calls use the normal
+tool/permission path. An empty response gets one retry; overflow gets one
+compact-and-retry. Permission, cancellation and tool timeouts remain enforced.
+
+## Context and persistence
+
+Ordinary steps append to history, preserving the backend prompt prefix.
+Compaction retains the system prompt, initial task, recent complete step groups
+and a bounded extractive summary. A cooldown prevents compaction on every step
+when the retained working set remains large. Explicit compaction and overflow
+recovery use the same history transformation.
+
+Snapshots write atomically after responses and tool execution. Resume restores
+history and refreshes workspace instructions. Fork copies history into a fresh
+task directory; it does not create a Git checkout.
+
+## Effects and verification
+
+The workspace is inventoried at start and compared once at end, including failed
+and cancelled runs. The final scan has an independent 30-second limit so
+cancellation does not erase evidence of prior edits. It captures shell, MCP and
+delegate effects without scanning every step. Unchanged file metadata reuses
+the previous digest.
+
+An optional verify command runs once after a completed model answer. Its real
+output and error determine the recorded verdict, without another model call.
+The final workspace comparison follows verification, including files generated
+by that command. internal/checks collects report-only findings from file edits
+and a final pass over changed paths; internal/rules supplies language checks.
+
+## UI and settings
+
+The Bubble Tea update loop owns UI state. Components own local interactions;
+the root routes focus, messages and effects. Workers return messages rather
+than changing the live model.
+
+Applying settings returns ModeChange with saved preferences, history, draft
+and session directory. The CLI composes a fresh launch from structured options;
+execution policy survives the handoff. Provider profiles decode strictly.
+Preferences accept the two retired harness advice fields on load and omit them
+on the next save.
+
+## Evaluation and boundaries
+
+cmd/eval runs 15 scenarios in disposable seed workspaces. Frozen criteria check
+workspace contents, tool usage and answers independently of the model checklist.
+
+File tools validate paths and edits. Shell and MCP run with the user's process
+permissions; the workspace is not a process sandbox. See [SECURITY.md](SECURITY.md).
+Usage and flags live in [README.md](README.md) and [docs/cli.md](docs/cli.md).
+House rules are enforced by tests described in [docs/conventions.md](docs/conventions.md).

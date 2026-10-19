@@ -37,10 +37,9 @@ func TestAgent_Report_RecordsMutatedPathsStepsAndFinal(t *testing.T) {
 			Usage: llm.Usage{PromptTokens: 300}},
 	}}
 	a := New(Config{
-		Client:     client,
-		Tools:      NewRegistry(mutStub{"write_file"}, mutStub{"move_file"}),
-		System:     "sys",
-		SkipVerify: true,
+		Client: client,
+		Tools:  NewRegistry(mutStub{"write_file"}, mutStub{"move_file"}),
+		System: "sys",
 	})
 
 	out, err := a.Run(context.Background(), "task")
@@ -74,11 +73,11 @@ func TestAgent_Report_PopulatedEvenWhenMaxStepsExceeded(t *testing.T) {
 	writeArgs, _ := json.Marshal(map[string]string{"path": "half-done.txt"})
 	client := &repeatingToolClient{args: writeArgs}
 	a := New(Config{
-		Client:     client,
-		Tools:      NewRegistry(mutStub{"write_file"}),
-		System:     "sys",
-		SkipVerify: true,
-		MaxSteps:   2,
+		Client: client,
+		Tools:  NewRegistry(mutStub{"write_file"}),
+		System: "sys",
+
+		MaxSteps: 2,
 	})
 
 	if _, err := a.Run(context.Background(), "task"); err == nil {
@@ -93,8 +92,8 @@ func TestAgent_Report_PopulatedEvenWhenMaxStepsExceeded(t *testing.T) {
 		t.Fatalf("MutatedPaths = %v, want [half-done.txt] — a run that hit "+
 			"MaxSteps still wrote files, and the harness must know", r.MutatedPaths)
 	}
-	if a.LastRunMutations != 1 {
-		t.Fatalf("LastRunMutations = %d, want 1 (second write_file to same path is refused)", a.LastRunMutations)
+	if a.LastRunMutations != 2 {
+		t.Fatalf("LastRunMutations = %d, want 2", a.LastRunMutations)
 	}
 	if r.Final != "" {
 		t.Fatalf("Final = %q, want empty for an unfinished run", r.Final)
@@ -111,10 +110,9 @@ func TestAgent_Report_ResetBetweenRuns(t *testing.T) {
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: "second done"}},
 	}}
 	a := New(Config{
-		Client:     client,
-		Tools:      NewRegistry(mutStub{"write_file"}),
-		System:     "sys",
-		SkipVerify: true,
+		Client: client,
+		Tools:  NewRegistry(mutStub{"write_file"}),
+		System: "sys",
 	})
 
 	if _, err := a.Run(context.Background(), "task one"); err != nil {

@@ -1,13 +1,12 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-
-	"github.com/keshon/tars/internal/harness"
 )
 
 type Preferences struct {
@@ -19,39 +18,31 @@ type Preferences struct {
 	Harness     Harness  `json:"harness,omitempty"`
 }
 
-// Harness is how the loop itself behaves: how much advice the model hears,
-// and how much room a run gets.
-//
-// These live beside the profile, not inside it, because they describe the
-// harness and not the backend. A profile says which model answers; a harness
-// says how it is treated while it does. They also used to exist only as
-// flags and live model fields, so a step budget or a nudge level set in the
-// TUI was gone by the next launch and had to be typed again every time -
-// which is the behaviour a settings screen is supposed to remove.
-//
-// Zero means the launch default, matching the flag defaults: an absent field
-// and an explicit zero mean the same thing, so an older preferences file
-// still reads.
+// Harness stores the operator's per-run step limit.
 type Harness struct {
-	// MaxSteps is the per-run step budget.
 	MaxSteps int `json:"max_steps,omitempty"`
-	// Nudges is how much harness advice the model hears: full,
-	// recovery, or off. Empty means full.
-	Nudges string `json:"nudges,omitempty"`
-	// ThinkBudget is the per-response reasoning budget in characters.
-	ThinkBudget int `json:"think_budget,omitempty"`
+}
+
+// Retired advice settings are accepted when reading existing preferences;
+// the next save drops them. Other unknown keys still report an error.
+func (h *Harness) UnmarshalJSON(data []byte) error {
+	var saved struct {
+		MaxSteps    int             `json:"max_steps"`
+		Nudges      json.RawMessage `json:"nudges"`
+		ThinkBudget json.RawMessage `json:"think_budget"`
+	}
+	d := json.NewDecoder(bytes.NewReader(data))
+	d.DisallowUnknownFields()
+	if err := d.Decode(&saved); err != nil {
+		return err
+	}
+	h.MaxSteps = saved.MaxSteps
+	return nil
 }
 
 func (p Preferences) Validate() error {
 	if p.Theme != "" && p.Theme != "dark" && p.Theme != "light" {
 		return fmt.Errorf("unknown theme %q", p.Theme)
-	}
-	switch p.Harness.Nudges {
-	case "":
-	default:
-		if _, ok := harness.Parse(p.Harness.Nudges); !ok {
-			return fmt.Errorf("unknown nudge level %q: want full, recovery or off", p.Harness.Nudges)
-		}
 	}
 	if p.Version != 1 {
 		return fmt.Errorf("invalid application preferences")

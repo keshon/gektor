@@ -21,8 +21,8 @@ func TestClosedSuspender_Fails(t *testing.T) {
 }
 
 func TestSuspendKinds_Distinct(t *testing.T) {
-	if SuspendAsk == SuspendPermission || SuspendPermission == SuspendPlan || SuspendAsk == SuspendPlan ||
-		SuspendBudget == SuspendAsk || SuspendBudget == SuspendPermission || SuspendBudget == SuspendPlan {
+	if SuspendAsk == SuspendPermission ||
+		SuspendBudget == SuspendAsk || SuspendBudget == SuspendPermission {
 		t.Fatal("suspend kinds must be distinct")
 	}
 }
@@ -48,7 +48,7 @@ func TestBudgetContinuePreservesEffectsAndGrantsExactlyTheOfferedBudget(t *testi
 		t.Run(fmt.Sprint(base), func(t *testing.T) {
 			state := filepath.Join(t.TempDir(), "state.json")
 			client := &stubClient{responses: []llm.ChatResponse{say("done")}}
-			a := New(Config{Client: client, Tools: NewRegistry(), MaxSteps: base, TodoFunding: true, SkipVerify: true, Nudges: NudgeOff, StateFile: state})
+			a := New(Config{Client: client, Tools: NewRegistry(), MaxSteps: base, StateFile: state})
 			a.report = RunReport{Steps: base, MaxSteps: base, MutatedPaths: []string{"a.txt"}, OpenTodos: []string{"work"}, Verification: "PASSED old", Warnings: []string{"old warning"}}
 			a.LastRunMutations = 1
 			if err := SaveState(state, []llm.Message{{Role: llm.RoleSystem, Content: ""}, {Role: llm.RoleUser, Content: "task"}}); err != nil {
@@ -66,7 +66,7 @@ func TestBudgetContinuePreservesEffectsAndGrantsExactlyTheOfferedBudget(t *testi
 			if err != nil || !ok || ans != "done" {
 				t.Fatalf("result=%q err=%v ok=%v", ans, err, ok)
 			}
-			if observedBudget != DefaultMaxSteps || a.cfg.MaxSteps != base || !a.cfg.TodoFunding || r.MaxSteps != base+DefaultMaxSteps || r.Steps != base+1 {
+			if observedBudget != DefaultMaxSteps || a.cfg.MaxSteps != base || r.MaxSteps != base+DefaultMaxSteps || r.Steps != base+1 {
 				t.Fatalf("budgets wrong: observed=%d cfg=%+v report=%+v", observedBudget, a.cfg, r)
 			}
 			if len(r.MutatedPaths) != 1 || r.MutatedPaths[0] != "a.txt" || a.LastRunMutations != 1 || len(r.Warnings) != 1 || r.Verification != "" {
@@ -79,7 +79,7 @@ func TestBudgetContinuePreservesEffectsAndGrantsExactlyTheOfferedBudget(t *testi
 func TestBudgetContinueAccumulatesRealRunsWithOverlappingPaths(t *testing.T) {
 	state := filepath.Join(t.TempDir(), "state.json")
 	client := &stubClient{responses: []llm.ChatResponse{writeStep("1", "a.txt"), writeStep("2", "b.txt"), writeStep("3", "a.txt"), say("done")}}
-	a := New(Config{Client: client, Tools: NewRegistry(mutStub{"write_file"}, todoFake{open: []string{"work"}}), MaxSteps: 1, SkipVerify: true, Nudges: NudgeOff, StateFile: state})
+	a := New(Config{Client: client, Tools: NewRegistry(mutStub{"write_file"}, todoFake{open: []string{"work"}}), MaxSteps: 1, StateFile: state})
 	_, err := a.Run(t.Context(), "write both files")
 	if !errors.Is(err, ErrMaxSteps) || len(a.MutatedPaths()) != 1 {
 		t.Fatalf("initial run: %+v %v", a.Report(), err)

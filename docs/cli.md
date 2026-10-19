@@ -48,8 +48,7 @@ The terminal controls and local slash commands are in [tui.md](tui.md).
 | `-context-limit N` | `0` | Context window override. Remote backends expose no probe endpoint and fall back to a per-model estimate unless set |
 | `-grammar` | `true` | Apply the backend's own content grammar (blocks a model writing its native tool-call tags as plain text on koboldcpp) |
 | `-max-tokens N` | `8192` | Generation budget per response. Too low truncates large outputs mid-JSON, which looks like a model failure |
-| `-max-steps N` | `0` (=25) | Base direct-run step budget. CLI/TUI checklist funding can add up to another base budget plus two closing steps; workers and subagents keep fixed budgets. The RPC server currently uses the default budget |
-| `-reasoning-budget N` | `0` (=6000) | Characters of `<think>` deliberation allowed per response before a wrap-up round demands commitment. Negative disables wrapping |
+| `-max-steps N` | `0` (=25) | Fixed per-run step limit; todo cannot extend it. Subagents use 12 steps |
 
 ## Authentication (remote providers)
 
@@ -67,12 +66,10 @@ found under `TARS_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`,
 | Flag | Default | Meaning |
 |---|---|---|
 | `-workspace DIR` | `.` | Workspace root the agent may read and write |
-| `-mission` | `false` | Plan first (human-approved), then one fresh-context worker per subtask, each verified mechanically. Enable explicitly; multi-file tasks otherwise receive a recommendation |
-| `-direct` | `false` | Suppress the multi-file mission recommendation; direct mode is already the default |
 | `-plan` | `false` | Plan mode: read-only tools, proposes a plan and changes nothing |
-| `-yes` | `false` | Skip mission plan approval. Print/RPC permission Ask calls are denied instead of prompting; this is not allow-all. TUI permissions still use the interactive gate |
+| `-yes` | `false` | Print/RPC permission Ask calls are denied instead of prompting. TUI permissions remain interactive |
 | `-audit PATH` | - | Append gate decisions as JSONL to PATH (off when empty) |
-| `-verify-cmd CMD` | — | Command run at the self-check checkpoint, e.g. `"go test ./..."`. Real output is fed back as fact instead of trusting the model's claim |
+| `-verify-cmd CMD` | — | Final command; record output and fail on a command error without another model call |
 | `-resume PATH` | — | Continue an interrupted run from its saved state |
 | `-fork PATH` | — | Branch from a prior transcript file but write to a fresh task id |
 | `-answer TEXT` | — | Answer to supply with `-resume` when the run paused on `ask_user` |
@@ -89,40 +86,7 @@ fails closed. Rules are pattern tripwires, not process isolation. See
 |---|---|---|
 | `-allow RULES` | — | Comma-separated `tool=pattern` rules to allow, e.g. `"run_shell=go *,read_file=*.go"`. Wins over defaults |
 | `-deny RULES` | — | Comma-separated `tool=pattern` rules to deny, e.g. `"run_shell=rm *,read_file=.env"`. Wins over `-allow` |
-| `-no-verify` | `false` | Skip the self-check verify round (finish accepted without the extra verification turn). Also disables `-verify-cmd` in direct mode. Loop guards stay on |
-| `-nudges LEVEL` | `full` | How much harness advice the model hears: `full`, `recovery`, `off`. See [Nudge levels](#nudge-levels) |
 | `-mcp SERVERS` | - | MCP servers as `"name=cmd args...;name2=https://host/mcp"` over stdio JSON-RPC or Streamable HTTP. Tools appear as `mcp__name__tool`. A server that fails to start is skipped with a warning |
-
-## Nudge levels
-
-Tars tells the model when a step went wrong. `-nudges` decides how much
-of that it hears. The levels are not a quality ladder — they split by
-what a notice costs.
-
-A nudge delivered at the end of a step that already made tool calls
-**rides a turn the loop was taking anyway**: another model call happens
-regardless, and the notice adds roughly 40 tokens. These are the stuck
-escalations and the context-budget notices.
-
-A nudge that answers a finish — truncated, think-wrap, todo still open,
-closing, context overflow, announced-but-not-written — returns no
-answer, so the loop **calls the model again**. That is a whole extra
-turn.
-
-| Level | Notices |
-|---|---|
-| `full` | Everything (default) |
-| `recovery` | Only the notices that turn a bad ending into another attempt; the free advice is dropped |
-| `off` | None. A truncated response is accepted as the answer, and a finish with nothing written is accepted too |
-
-Lower the level when the model is strong enough not to need the help —
-a large model pays those extra turns and follows none of them. The
-narrow case for `off` is a local model already tuned by a profile;
-raise it back to `full` for a small one.
-
-Every nudge still reaches `-mode json` observers and the session
-transcript whatever the level: turning the harness down changes what the
-model is told, not the record of what happened.
 
 ## Output and debugging
 
@@ -130,7 +94,6 @@ model is told, not the record of what happened.
 |---|---|---|
 | `-mode MODE` | `print` | `print` (human-readable) or `json` (one JSON object per line on stdout; human chatter goes to stderr so the stream pipes cleanly) |
 | `-serve` | `false` | Serve JSON-RPC over stdio instead of running one task: methods `run`/`respond`/`cancel`, events on stdout. See `docs/rpc.md` |
-| `-tui` | `false` | Fullscreen terminal UI instead of print mode: live transcript, responsive session sidebar, centered title/history search (F2 / Ctrl+P), and inline gate prompts. Supports direct, `-plan`, `-resume`, `-fork` and `-mission` runs |
 | `-image PATHS` | — | Attach pictures to the task (comma-separated, e.g. `-image shot.png,plan.webp`). In the TUI use `@path` inline instead (`@"my shot.png"` when the name has spaces). Text references are also supported in the TUI; `-image` remains image-only. Requires a vision-capable OpenAI-compatible provider or llama-server with `--mmproj` and VL weights. Koboldcpp refuses loudly; a text-only model on a vision server fails at the backend, not silently |
 | `-stream` | `false` | Enable streaming in print/RPC mode. The TUI enables it automatically; direct `-mode json` disables it. OpenAI/llama only; KoboldCPP falls back to unary |
 | `-debug` | `false` | Log raw request/response JSON plus per-call token usage to `agent-debug.log` |
@@ -139,11 +102,10 @@ model is told, not the record of what happened.
 ## State
 
 Task state belongs to the user's `.tars` directory, under `tasks/<id>/`.
-Every run writes one file, `state.json`, rewritten atomically on each step;
-missions also use
-`mission.json` and worker transcripts. Session display title and Plan/Act metadata
+Every run writes one file, `state.json`, rewritten atomically on each step.
+Session display title and Plan/Act metadata
 are saved alongside the history. Resume accepts a task
-directory or state file; a directory containing `mission.json` resumes a mission.
+directory or state file.
 Fork loads a transcript into a fresh task; it does not create a Git branch or
 an isolated checkout. Ancestor/workspace AGENTS.md instructions are refreshed.
 
@@ -152,15 +114,14 @@ before a run on a tree you care about.
 
 ## Mode-specific limits
 
-The TUI honors direct/plan/resume/fork/mission modes. Slash commands and inline
+The TUI honors Act/Plan/resume/fork modes. Slash commands and inline
 text-file references are UI features, not special syntax in print mode.
 Streaming is automatic in the TUI, opt-in with `-stream` in print/RPC mode,
 and disabled in direct JSON output. Server support is still required.
 
-The RPC server takes tasks, mission selection, and images from each request.
+The RPC server takes tasks and images from each request.
 It does not expose session browsing, resume/fork, Plan/Act switching, or local
-slash commands. `-max-steps` is not wired into serve mode, which uses the default
-budget without CLI/TUI checklist funding. See [rpc.md](rpc.md) for the supported
+slash commands. The per-run step limit also applies in serve mode. See [rpc.md](rpc.md) for the supported
 run configuration and event contract.
 
 ## Profiles

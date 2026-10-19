@@ -35,8 +35,7 @@ func TestAgent_StreamRetryableErrorFallsBackToUnary(t *testing.T) {
 	}}
 	a := New(Config{
 		Client: client, Tools: NewRegistry(), System: "sys",
-		Stream: true, SkipVerify: true,
-	})
+		Stream: true})
 
 	out, err := a.Run(context.Background(), "task")
 	if err != nil {
@@ -58,8 +57,7 @@ func TestAgent_StreamNonRetryableErrorReturns(t *testing.T) {
 	}}
 	a := New(Config{
 		Client: client, Tools: NewRegistry(), System: "sys",
-		Stream: true, SkipVerify: true,
-	})
+		Stream: true})
 
 	_, err := a.Run(context.Background(), "task")
 	if err == nil {
@@ -95,7 +93,7 @@ func TestAgent_StreamShownReasoningBlocksRetry(t *testing.T) {
 	client := &thinkThenFailClient{}
 	a := New(Config{
 		Client: client, Tools: NewRegistry(), System: "sys",
-		Stream: true, SkipVerify: true, ReasoningBudget: 1 << 20,
+		Stream: true,
 	})
 	var shown []string
 	a.cfg.OnReasoning = func(chunk string) { shown = append(shown, chunk) }
@@ -116,8 +114,7 @@ func TestAgent_StreamUnsupportedFallsBackToUnary(t *testing.T) {
 	client := &failStreamClient{streamErr: fmt.Errorf("%w on koboldcpp", llm.ErrStreamUnsupported)}
 	a := New(Config{
 		Client: client, Tools: NewRegistry(), System: "sys",
-		Stream: true, SkipVerify: true,
-	})
+		Stream: true})
 
 	out, err := a.Run(context.Background(), "task")
 	if err != nil {

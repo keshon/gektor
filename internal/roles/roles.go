@@ -1,6 +1,6 @@
 // Package roles builds the agents this project runs.
 //
-// Five role constructors share one environment, tool policy, and context-aware gate.
+// Three role constructors share one environment, tool policy, and context-aware gate.
 // Frontends provide observers and transport; capabilities are chosen here.
 //
 // This lives outside internal/agent on purpose: agent defines the Tool
@@ -23,11 +23,6 @@ import (
 )
 
 const (
-	// inspectorSteps bounds a look-and-report agent. It cannot change
-	// anything, so the only thing an unbounded one can do is read the
-	// context window full.
-	inspectorSteps = 8
-
 	// subagentSteps bounds one delegated unit of work. Lower than a
 	// top-level agent's budget by design: a subagent that needs more than
 	// this was handed a task too big to delegate.
@@ -55,38 +50,10 @@ type Env struct {
 	Model  string
 	Stream bool
 
-	// ReasoningBudget caps <think> deliberation per response in
-	// characters. Zero means the agent default; negative disables
-	// wrap-ups. Passed straight into agent.Config, which documents it.
-	ReasoningBudget int
-
-	// TodoFunding enables todo-driven step funding for the Interactive
-	// agent: acknowledged checklist work extends its step budget up to
-	// one extra base budget. Consulted by Interactive only — Subagent,
-	// Worker, Inspector, and Planner run fixed step budgets even when
-	// sharing this Env, by construction (bounded unit of work).
-	TodoFunding bool
-
-	// MaxSteps overrides the agent default step budget (25) for the
-	// Interactive agent. Zero means default. Consulted by Interactive
-	// only, like TodoFunding above.
 	MaxSteps int
 
-	// SkipVerify drops the self-check verify round for the Interactive
-	// agent: the finish is accepted without the extra verification
-	// turn. Saves 1-2 model calls per run; the loop guards (stuck,
-	// truncation, repeat nudges) stay on — they are fault tolerance,
-	// not hand-holding. Consulted by Interactive only: mission workers
-	// keep their zero-writes refusal whatever this says.
-	SkipVerify bool
-
-	// Nudges is how much harness advice the model hears, from the
-	// -nudges flag. Zero is full, so mission workers that never set it
-	// are unaffected.
-	Nudges agent.NudgeLevel
-
 	// MCPTools are discovered MCP tools appended to the full tool set
-	// (Interactive, Subagent, Worker — never the read-only Inspector).
+	// (Interactive, Subagent; never Planner).
 	MCPTools []agent.Tool
 
 	// OnDelta receives streamed answer text for live display. OnReasoning
@@ -150,13 +117,6 @@ func (e Env) Sweep(paths []string) {
 	}
 }
 
-// ResolveGate returns the gate permission.Authorize should ask for:
-// GateContext when set, else Gate adapted to the context form, else nil,
-// which makes Authorize degrade Ask to Deny.
-//
-// Exported because mission asks the same question: its derived checks used
-// to re-implement the preference order inline, so the two could disagree
-// about which gate is live.
 func (e Env) ResolveGate() permission.Gate {
 	if e.GateContext != nil {
 		return e.GateContext
@@ -188,28 +148,26 @@ func interactiveSystem(backendKind string) string {
 // the tool set (ReadOnly), never by asking the model to hold back.
 func Planner(e Env, label, stateFile string) *agent.Agent {
 	cfg := e.agentConfig(prompts.PlanMode, label, stateFile)
-	cfg.Tools, cfg.SkipVerify = tools.ReadOnly(e.WS, e.Procs), true
+	cfg.Tools = tools.ReadOnly(e.WS, e.Procs)
 	return agent.New(cfg)
 }
 
 // Shared run invariants; each role chooses only its capabilities and budget.
 func (e Env) agentConfig(system, label, stateFile string) agent.Config {
 	return agent.Config{
-		BeginChanges:    e.WS.ChangeObserver,
-		Client:          e.Client,
-		System:          system + e.WS.Instructions() + "\n\n" + e.Identity,
-		MaxTokens:       e.MaxTokens,
-		Temperature:     e.Temperature,
-		ContextLimit:    e.ContextLimit,
-		ReasoningBudget: e.ReasoningBudget,
-		StateFile:       e.statePath(stateFile),
-		OnStep:          e.onStep(label),
-		OnResult:        e.OnResult,
-		OnUsage:         e.OnUsage,
-		OnNudge:         e.OnNudge,
-		Policy:          e.policy(),
-		BeforeToolCall:  e.ResolveGate(),
-		Nudges:          e.Nudges,
+		BeginChanges:   e.WS.ChangeObserver,
+		Client:         e.Client,
+		System:         system + e.WS.Instructions() + "\n\n" + e.Identity,
+		MaxTokens:      e.MaxTokens,
+		Temperature:    e.Temperature,
+		ContextLimit:   e.ContextLimit,
+		StateFile:      e.statePath(stateFile),
+		OnStep:         e.onStep(label),
+		OnResult:       e.OnResult,
+		OnUsage:        e.OnUsage,
+		OnNudge:        e.OnNudge,
+		Policy:         e.policy(),
+		BeforeToolCall: e.ResolveGate(),
 	}
 }
 
@@ -222,16 +180,6 @@ func (e Env) statePath(name string) string {
 	default:
 		return filepath.Join(e.StateDir, name)
 	}
-}
-
-// Inspector looks and reports: read-only tools, a hard step bound, and no
-// self-verify round. Used for codebase mapping and the end-of-mission
-// review. It gets ReadOnly rather than Base because taking the mutating
-// tools away beats asking a weak model not to reach for them.
-func Inspector(e Env, label, system, stateFile string) *agent.Agent {
-	cfg := e.agentConfig(system, label, stateFile)
-	cfg.Tools, cfg.SkipVerify, cfg.MaxSteps = tools.ReadOnly(e.WS, e.Procs), true, inspectorSteps
-	return agent.New(cfg)
 }
 
 // Subagent is what delegate_task spawns. It gets the full tool set minus
@@ -250,22 +198,8 @@ func Inspector(e Env, label, system, stateFile string) *agent.Agent {
 func Subagent(e Env, role string) *agent.Agent {
 	cfg := e.agentConfig(prompts.WithRole(role)+"\n\n"+prompts.SubagentScope+"\n\n"+prompts.PlatformLine(), "", "")
 	cfg.Tools = tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.MCPTools...)
-	cfg.MaxSteps, cfg.SkipVerify = subagentSteps, true
+	cfg.MaxSteps = subagentSteps
 	cfg.OnStep, cfg.OnResult, cfg.OnUsage, cfg.OnNudge = nil, nil, nil, nil
-	return agent.New(cfg)
-}
-
-// Worker executes one mission subtask in a fresh context.
-//
-// expectsWrites says whether finishing with nothing written is a failure
-// rather than an answer. Mission checks are mechanical, so the general
-// verify round is redundant — except for a worker about to end having
-// written nothing on a subtask that was supposed to write, which is the
-// announce-without-write shape. See agent.Config.VerifyOnZeroWrites.
-func Worker(e Env, label, system, stateFile string, maxSteps int, expectsWrites bool) *agent.Agent {
-	cfg := e.agentConfig(system+"\n\n"+prompts.PlatformLine(), label, stateFile)
-	cfg.Tools = tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.MCPTools...)
-	cfg.MaxSteps, cfg.SkipVerify, cfg.VerifyOnZeroWrites = maxSteps, true, expectsWrites
 	return agent.New(cfg)
 }
 
@@ -279,11 +213,10 @@ func Worker(e Env, label, system, stateFile string, maxSteps int, expectsWrites 
 // under test has the same tools as the one that ships and reaching for
 // ask_user stays visible in the trace.
 //
-// verify, if set, runs a real build/test command at the self-check
-// checkpoint so the finish is gated on ground truth rather than a claim.
+// verify, if set, runs the final build/test command without another model turn.
 func Interactive(e Env, label, stateFile string,
 	ask func(question string) (string, error),
-	verify func(ctx context.Context) (string, bool)) *agent.Agent {
+	verify func(ctx context.Context) (string, error)) *agent.Agent {
 	extra := []agent.Tool{&tools.Delegate{Spawn: func(role string) *agent.Agent { return Subagent(e, role) }}}
 	extra = append(extra, e.MCPTools...)
 	if ask != nil {
@@ -291,8 +224,8 @@ func Interactive(e Env, label, stateFile string,
 	}
 	cfg := e.agentConfig(interactiveSystem(e.BackendKind)+"\n\n"+prompts.PlatformLine(), label, stateFile)
 	cfg.Tools = tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, extra...)
-	cfg.TodoFunding, cfg.MaxSteps = e.TodoFunding, e.MaxSteps
-	cfg.SkipVerify, cfg.Verify = e.SkipVerify, verify
+	cfg.MaxSteps = e.MaxSteps
+	cfg.Verify = verify
 	cfg.Stream, cfg.OnDelta, cfg.OnReasoning = e.Stream, e.OnDelta, e.OnReasoning
 	return agent.New(cfg)
 }

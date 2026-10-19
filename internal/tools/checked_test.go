@@ -101,12 +101,4 @@ func TestChecked_FailOpen(t *testing.T) {
 	}
 }
 
-func TestChecked_IdempotentForwards(t *testing.T) {
-	ws := checkedWS(t)
-	sink := func(string, string, int, string) {}
-	if got := Checked(WriteFile{WS: ws}, ws, sink, checkedRules()); got.(interface{ Idempotent() bool }).Idempotent() {
-		t.Fatal("mutating tool must not report idempotent")
-	}
-}
-
 var errCheckedBoom = errors.New("boom")

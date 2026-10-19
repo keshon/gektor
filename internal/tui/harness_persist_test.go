@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/config"
 )
 
@@ -27,7 +26,6 @@ func harnessModel(t *testing.T) (*model, string) {
 		PreferencePath: path,
 		Preferences:    config.Preferences{Version: 1},
 	}
-	m.mission = false
 	return m, path
 }
 
@@ -67,40 +65,15 @@ func TestNoStepLimitSurvivesAsNoStepLimit(t *testing.T) {
 	}
 }
 
-func TestNudgesAndThinkBudgetSurviveAReload(t *testing.T) {
-	m, path := harnessModel(t)
-	m.command("/nudges recovery")
-	if m.nudges != agent.NudgeRecovery {
-		t.Fatalf("nudges not applied: %v", agent.NudgeLevelName(m.nudges))
-	}
-	m.command("/budget-think 4000")
-	if m.thinkBudget != 4000 {
-		t.Fatalf("think budget not applied: %d", m.thinkBudget)
-	}
-	saved, err := config.LoadPreferences(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if saved.Harness.Nudges != "recovery" {
-		t.Fatalf("saved nudges %q, want recovery", saved.Harness.Nudges)
-	}
-	if saved.Harness.ThinkBudget != 4000 {
-		t.Fatalf("saved think budget %d, want 4000", saved.Harness.ThinkBudget)
-	}
-}
-
-// Changing one must not disturb the others, and a repeated write of the same
-// settings must not churn the file.
 func TestHarnessWritesAreIndependentAndIdempotent(t *testing.T) {
 	m, path := harnessModel(t)
-	m.command("/nudges off")
 	m.command("/max-steps 7")
 
 	saved, err := config.LoadPreferences(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if saved.Harness.Nudges != "off" || saved.Harness.MaxSteps != 7 {
+	if saved.Harness.MaxSteps != 7 {
 		t.Fatalf("lost one: %+v", saved.Harness)
 	}
 	before, err := os.Stat(path)

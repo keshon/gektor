@@ -3,7 +3,6 @@ package main
 import (
 	"testing"
 
-	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/config"
 )
 
@@ -13,7 +12,7 @@ import (
 func TestHarnessPreferencesSeedTheLaunch(t *testing.T) {
 	o, err := resolveLaunch(launchRequest{
 		args:        []string{"-tui"},
-		preferences: config.Preferences{Version: 1, Harness: config.Harness{MaxSteps: 42, Nudges: "recovery", ThinkBudget: 4000}},
+		preferences: config.Preferences{Version: 1, Harness: config.Harness{MaxSteps: 42}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -21,28 +20,22 @@ func TestHarnessPreferencesSeedTheLaunch(t *testing.T) {
 	if o.maxSteps != 42 {
 		t.Fatalf("max steps = %d, want 42", o.maxSteps)
 	}
-	if o.nudges != agent.NudgeRecovery {
-		t.Fatalf("nudges = %v, want recovery", agent.NudgeLevelName(o.nudges))
-	}
-	if o.thinkBudget != 4000 {
-		t.Fatalf("think budget = %d, want 4000", o.thinkBudget)
-	}
+
 }
 
 // A flag on the command line is a deliberate instruction for this run, and
 // must beat what the last run happened to save.
 func TestExplicitFlagsBeatHarnessPreferences(t *testing.T) {
-	prefs := config.Preferences{Version: 1, Harness: config.Harness{MaxSteps: 42, Nudges: "recovery", ThinkBudget: 4000}}
+	prefs := config.Preferences{Version: 1, Harness: config.Harness{MaxSteps: 42}}
 	o, err := resolveLaunch(launchRequest{
-		args:        []string{"-tui", "-max-steps", "7", "-nudges", "off", "-reasoning-budget", "99"},
+		args:        []string{"-tui", "-max-steps", "7"},
 		preferences: prefs,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if o.maxSteps != 7 || o.nudges != agent.NudgeOff || o.thinkBudget != 99 {
-		t.Fatalf("saved settings beat the flags: steps=%d nudges=%v think=%d",
-			o.maxSteps, agent.NudgeLevelName(o.nudges), o.thinkBudget)
+	if o.maxSteps != 7 {
+		t.Fatalf("steps = %d", o.maxSteps)
 	}
 }
 
@@ -56,20 +49,10 @@ func TestLaunchWithoutHarnessKeepsFlagDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if o.maxSteps != 0 || o.thinkBudget != 0 || o.nudges != agent.NudgeFull {
-		t.Fatalf("absent harness changed the launch: steps=%d think=%d nudges=%v",
-			o.maxSteps, o.thinkBudget, agent.NudgeLevelName(o.nudges))
+	if o.maxSteps != 0 {
+		t.Fatalf("steps = %d", o.maxSteps)
 	}
 }
 
 // A corrupt value must fail the launch rather than silently run with
 // something else.
-func TestUnknownSavedNudgeLevelFailsTheLaunch(t *testing.T) {
-	_, err := resolveLaunch(launchRequest{
-		args:        []string{"-tui"},
-		preferences: config.Preferences{Version: 1, Harness: config.Harness{Nudges: "loud"}},
-	})
-	if err == nil {
-		t.Fatal("an unknown saved nudge level was accepted")
-	}
-}

@@ -268,7 +268,6 @@ func TestSystemNoticesShareConversationLayout(t *testing.T) {
 		{errorBlock("Cannot resume\nTry again"), "ERROR"},
 		{findingBlock("gofmt", "a.go", 3, "format required"), "WARNING"},
 		{gateBlock("Allow this tool?"), "QUESTION"},
-		{missionBlock("[mission] do the thing"), "MISSION"},
 	} {
 		for _, width := range []int{30, 80, 120} {
 			rendered := ansi.Strip(renderBlock(tc.b, defaultStyles(), tagged(), width))
@@ -320,14 +319,13 @@ func TestHideSYSKeepsFailuresAndQuestions(t *testing.T) {
 	m.transcript.blocks = []block{
 		answerBlock("answer"),
 		markerBlock("harness nudge"),
-		missionBlock("[mission] phase two"),
 		errorBlock("run failed"),
 		findingBlock("gofmt", "a.go", 3, "not formatted"),
 		gateBlock("Allow this tool?"),
 	}
 	m.refreshContent()
 	full := ansi.Strip(m.transcript.Viewport.View())
-	for _, want := range []string{"harness nudge", "[mission] phase two", "run failed", "not formatted", "Allow this tool?"} {
+	for _, want := range []string{"harness nudge", "run failed", "not formatted", "Allow this tool?"} {
 		if !strings.Contains(full, want) {
 			t.Fatalf("unfiltered transcript missing %q: %q", want, full)
 		}
@@ -338,7 +336,7 @@ func TestHideSYSKeepsFailuresAndQuestions(t *testing.T) {
 	if strings.Contains(hidden, "harness nudge") {
 		t.Fatalf("harness notice survived the SYS filter: %q", hidden)
 	}
-	for _, want := range []string{"run failed", "not formatted", "Allow this tool?", "[MISSION]", "[ERROR]", "[WARNING]", "[QUESTION]"} {
+	for _, want := range []string{"run failed", "not formatted", "Allow this tool?", "[ERROR]", "[WARNING]", "[QUESTION]"} {
 		if !strings.Contains(hidden, want) {
 			t.Fatalf("SYS filter took %q with it: %q", want, hidden)
 		}

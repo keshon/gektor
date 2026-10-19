@@ -19,7 +19,7 @@ func TestCommandRegistryDeclaresWhatRunsDuringARun(t *testing.T) {
 		// conversation. Running one mid-turn would either restart the
 		// agent under it or rewrite a file the run is still writing.
 		switch c.name {
-		case "/new", "/mode", "/max-steps", "/budget-think", "/nudges",
+		case "/new", "/mode", "/max-steps",
 			"/rename", "/delete", "/compact", "/retry":
 		default:
 			t.Errorf("%s queues during a run but touches nothing in it", c.name)

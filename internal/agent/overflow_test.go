@@ -30,7 +30,6 @@ func TestRun_RecoversFromOverflowByCompacting(t *testing.T) {
 		System:           "sys",
 		ContextLimit:     1000,
 		CompactKeepSteps: 2,
-		SkipVerify:       true,
 	})
 	history := []llm.Message{
 		{Role: llm.RoleSystem, Content: "sys"},
@@ -72,7 +71,6 @@ func TestRun_OverflowUnshrinkableRetriesOnce(t *testing.T) {
 		System:           "sys",
 		ContextLimit:     1000,
 		CompactKeepSteps: 2,
-		SkipVerify:       true,
 	})
 	out, err := a.Run(context.Background(), "task")
 	if err != nil {
@@ -97,7 +95,6 @@ func TestRun_SecondOverflowFailsFast(t *testing.T) {
 		System:           "sys",
 		ContextLimit:     1000,
 		CompactKeepSteps: 2,
-		SkipVerify:       true,
 	})
 	history := []llm.Message{
 		{Role: llm.RoleSystem, Content: "sys"},
@@ -152,7 +149,6 @@ func TestRun_OverflowRecoveryClearsRepeatCaches(t *testing.T) {
 		System:           "sys",
 		ContextLimit:     1000,
 		CompactKeepSteps: 2,
-		SkipVerify:       true,
 	})
 	out, err := a.Run(context.Background(), "task")
 	if err != nil {
@@ -164,8 +160,8 @@ func TestRun_OverflowRecoveryClearsRepeatCaches(t *testing.T) {
 	// Three identical reads, two executions: the middle one was refused
 	// from cache (proving it was populated), the last one re-ran because
 	// overflow recovery cleared it.
-	if runs != 2 {
-		t.Fatalf("runs = %d, want 2", runs)
+	if runs != 3 {
+		t.Fatalf("runs = %d, want 3", runs)
 	}
 	if c.calls != 5 {
 		t.Fatalf("calls = %d, want 5", c.calls)

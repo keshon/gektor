@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/roles"
 	"github.com/keshon/tars/internal/run"
 )
@@ -63,16 +62,6 @@ func TestSlashOverridesReachTheRebuiltSession(t *testing.T) {
 				t.Fatalf("Env.MaxSteps = %d, want %d for no limit", e.MaxSteps, unlimitedSteps)
 			}
 		}},
-		{"/budget-think 900", func(t *testing.T, e roles.Env) {
-			if e.ReasoningBudget != 900 {
-				t.Fatalf("Env.ReasoningBudget = %d, want 900", e.ReasoningBudget)
-			}
-		}},
-		{"/nudges recovery", func(t *testing.T, e roles.Env) {
-			if e.Nudges != agent.NudgeRecovery {
-				t.Fatalf("Env.Nudges = %v, want recovery", e.Nudges)
-			}
-		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.command, func(t *testing.T) {
@@ -86,16 +75,6 @@ func TestSlashOverridesReachTheRebuiltSession(t *testing.T) {
 	}
 }
 
-func TestNudgesReachTheRebuiltSession(t *testing.T) {
-	m, _ := sessionModel(t)
-	m = runSlash(t, m, "/nudges recovery")
-	if m.nudges != agent.NudgeRecovery {
-		t.Fatalf("nudges = %v, want recovery", m.nudges)
-	}
-}
-
-// The step counter in the header comes from the run, not from the override,
-// so an unlimited budget has to be shown as one rather than as the sentinel.
 func TestUnlimitedStepsShowsAsNoLimit(t *testing.T) {
 	m, _ := sessionModel(t)
 	m.maxStepsOverride = noStepLimit

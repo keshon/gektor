@@ -21,10 +21,6 @@ func TestWheelScrollsTheTranscriptInEveryStateThatShowsIt(t *testing.T) {
 			m.handleEvent(events.Event{Name: "awaiting_input", Fields: map[string]any{
 				"kind": "permission", "prompt": "ALLOW?"}})
 		}},
-		{"plan gate", func(m *model) {
-			m.handleEvent(events.Event{Name: "awaiting_input", Fields: map[string]any{
-				"kind": "plan_approval", "prompt": "APPROVE?"}})
-		}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

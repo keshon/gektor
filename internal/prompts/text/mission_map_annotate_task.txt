@@ -1,7 +1,0 @@
-## Task being planned
-%s
-
-## Workspace map (mechanical)
-%s
-
-Inspect what you need, then reply with your bullet notes.

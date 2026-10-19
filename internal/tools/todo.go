@@ -27,9 +27,8 @@ type todoItem struct {
 
 func (t *Todo) Name() string { return "todo" }
 
-// Mode is Concurrent: the checklist is process-local state behind a mutex
-// and touches no file, so it never needs to run alone.
-func (*Todo) Mode() agent.ToolMode { return agent.Concurrent }
+// Checklist updates execute in model call order, like other state changes.
+func (*Todo) Mode() agent.ToolMode { return agent.Exclusive }
 
 func (t *Todo) Description() string {
 	return "Record or update a short checklist for the current task. Send the full list every " +
@@ -58,10 +57,6 @@ func (t *Todo) Schema() json.RawMessage {
 		"required": ["items"]
 	}`)
 }
-
-// Idempotent: Run replaces the list wholesale, so a resent identical call
-// lands on the same state.
-func (*Todo) Idempotent() bool { return true }
 
 func (t *Todo) Run(_ context.Context, args json.RawMessage) (string, error) {
 	var in struct {

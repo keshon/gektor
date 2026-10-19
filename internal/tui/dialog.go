@@ -7,7 +7,6 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/tui/components/popup"
 	"github.com/keshon/tars/internal/workspace"
 )
@@ -230,11 +229,6 @@ func (m *model) statusLines() []string {
 	if !m.transcript.compact {
 		details = "full (Ctrl+G)"
 	}
-	// Zero means the loop's default; the TUI must not print "0".
-	budget := "default"
-	if m.thinkBudget > 0 {
-		budget = strconv.Itoa(m.thinkBudget) + " chars"
-	}
 	// Run-local scope matters: these grants die with the process.
 	allowed := "none"
 	m.alwaysMu.Lock()
@@ -255,8 +249,6 @@ func (m *model) statusLines() []string {
 		"context: " + m.meter(),
 		"run: " + strconv.Itoa(m.steps) + " steps  " + m.statusWord() + "  " + formatElapsed(m.elapsed),
 		"details: " + details,
-		"nudges: " + agent.NudgeLevelName(m.nudges),
-		"thinking budget: " + budget,
 		"permissions: Y allow once  A always allow  N deny with note",
 		"always allowed: " + allowed,
 		"tools: " + strconv.Itoa(m.mcpCount) + " mcp  " + strconv.Itoa(m.policyRules) + " policy rules",

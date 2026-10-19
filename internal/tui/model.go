@@ -1,8 +1,3 @@
-// Package tui renders a run in the terminal: transcript, status, and
-// gate prompts. It owns UI state and local session actions; agent execution
-// and permissions use run.Session events and GateHub.
-//
-// Print mode remains the default; -tui renders direct, plan, and mission runs.
 package tui
 
 import (
@@ -20,7 +15,6 @@ import (
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/app"
 	"github.com/keshon/tars/internal/audit"
-	"github.com/keshon/tars/internal/events"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/roles"
 	"github.com/keshon/tars/internal/run"
@@ -43,11 +37,11 @@ type Config struct {
 	Plan             bool
 	History          []llm.Message
 	ResumeAnswer     string
-	Mission          func(context.Context, roles.Env, agent.Suspender, *events.Emitter) error
-	Env              roles.Env
-	Task             string
-	StateFile        string
-	Verify           func(ctx context.Context) (output string, ok bool)
+
+	Env       roles.Env
+	Task      string
+	StateFile string
+	Verify    func(ctx context.Context) (output string, err error)
 	// Images attaches pictures to the opening task (-image with
 	// -tui); follow-up turns attach their own @paths per turn.
 	Images []string
@@ -185,10 +179,6 @@ type model struct {
 	// observed changed paths. They reset with the step counter in startRun.
 	toolsUsed    int
 	filesTouched map[string]bool
-	// overlays is the overlay stack (overlay.go); gates are its first
-	// client. gstage/gateTool/gateResource describe the open permission
-	// gate; note is the reject-note input; always remembers run-local
-	// always-allow pairs confirmed in this process.
 	overlays     []overlayFrame
 	gstage       gateStage
 	gateTool     string
@@ -196,22 +186,12 @@ type model struct {
 	note         textinput.Model
 	alwaysMu     sync.Mutex
 	always       map[[2]string]bool
-	// planGate marks an stAsk that is a plan approval rather than a
-	// question. Same interaction, so same state, but Y/N answer it and
-	// any other text is a revision note.
-	planGate bool
-	// dialog is the open modal, if any (dialog.go). While open it
-	// replaces the transcript body and eats all keys but close/quit.
-	dialog *infoDialog
+	dialog       *infoDialog
 	// scrollDrag tracks a scrollbar thumb grab: active while the pointer
 	// is held on the bar, grab is the pointer's row inside the thumb so
 	// the thumb follows without jumping, moved marks real motion so a
 	// press-and-release without motion still counts as a click.
-	scrollDrag scrollDrag
-	// sessions is the open session search popup, if any (sessions.go): a
-	// title/history results with rename/delete. It overlays the existing
-	// panes and owns its keys; like permission prompts it borrows
-	// the note input for rename entry.
+	scrollDrag    scrollDrag
 	sessions      *sessionsState
 	nav           sessionsState
 	navFocused    bool
@@ -231,9 +211,8 @@ type model struct {
 	pendingCommands []tea.Cmd
 	drafts          map[string]draft
 	plan            bool
-	nudges          agent.NudgeLevel
-	mission         bool
-	gateVP          viewport.Model
+
+	gateVP viewport.Model
 	// Status facts snapshotted from cfg at construction for /status:
 	// backend/workspace identity and budgets the run was given.
 	backendKind   string
@@ -242,17 +221,11 @@ type model struct {
 	streaming     bool
 	modelName     string
 	wsRoot        string
-	thinkBudget   int
 	mcpCount      int
 	policyRules   int
 	policyDetails []string
 }
 
-// gateEvent reshapes hub fields into the TUI's event: kind, prompt,
-// and the permission call identity gates render from. A field dropped
-// here never reaches handleEvent: the always-confirm scope went blank
-// live for exactly this reason (tests inject events directly and never
-// saw it).
 func gateEvent(name string, fields map[string]any) run.Event {
 	prompt, _ := fields["prompt"].(string)
 	tool, _ := fields["tool"].(string)
@@ -287,24 +260,13 @@ func envMaxSteps(env roles.Env) int {
 	return agent.DefaultMaxSteps
 }
 
-// sessionEnv applies the user's slash-command overrides to the launch env.
-//
-// It is read when a session is built, not when the launch was composed.
-// /max-steps, /budget-think and /nudges mutate model fields long after Run
-// has frozen env, so a closure that captured env handed every rebuilt
-// session the values it started with and the commands silently did
-// nothing — while still restarting the session and asking permission to.
 func (m *model) sessionEnv() roles.Env {
 	env := m.baseEnv
-	env.Nudges = m.nudges
 	switch {
 	case m.maxStepsOverride == noStepLimit:
 		env.MaxSteps = unlimitedSteps
 	case m.maxStepsOverride > 0:
 		env.MaxSteps = m.maxStepsOverride
-	}
-	if m.thinkBudget > 0 {
-		env.ReasoningBudget = m.thinkBudget
 	}
 	return env
 }
@@ -355,14 +317,12 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		styles:       defaultStyles(),
 		limit:        cfg.Env.ContextLimit,
 		maxSteps:     envMaxSteps(cfg.Env),
-		thinkBudget:  cfg.Env.ReasoningBudget,
 		transcript:   newTranscript(),
 		plan:         cfg.Plan,
-		nudges:       cfg.Env.Nudges,
-		mission:      cfg.Mission != nil,
-		stateFile:    cfg.StateFile,
-		note:         newNote(),
-		always:       map[[2]string]bool{},
+
+		stateFile: cfg.StateFile,
+		note:      newNote(),
+		always:    map[[2]string]bool{},
 		// Status facts come from cfg once: the TUI never re-reads Env.
 		backendKind: cfg.Env.BackendKind,
 		backendURL:  safeEndpoint(cfg.BackendURL),
@@ -429,28 +389,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		}
 		prog.Send(msg)
 	}
-	sendEvent := func(ev run.Event) {
-		select {
-		case eventsCh <- ev:
-		case <-uiCtx.Done():
-		}
-	}
 	switch {
-	case cfg.Mission != nil:
-		m.appendBlock(userBlock(cfg.Task))
-		m.startRun(func(runCtx context.Context) (string, error) {
-			report := ""
-			emitter := events.New(events.EventWriter(func(ev run.Event) {
-				if ev.Name == "result" {
-					report, _ = ev.Fields["report"].(string)
-				}
-				sendEvent(ev)
-			}))
-			missionEnv := env
-			missionEnv.OnNudge = func(kind, text string) { events.EmitNudge(emitter, kind, text) }
-			err := cfg.Mission(runCtx, missionEnv, hub.Suspender(), emitter)
-			return report, err
-		})
 	case len(cfg.History) > 0:
 		task := cfg.Task
 		if strings.TrimSpace(task) == "" {

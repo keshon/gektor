@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -34,7 +33,7 @@ func TestAgent_EmptyFinish_RetriesOnceBeforeReturning(t *testing.T) {
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: ""}},
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: "actual answer"}},
 	}}
-	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys", SkipVerify: true})
+	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys"})
 
 	out, err := a.Run(context.Background(), "task")
 	if err != nil {
@@ -53,10 +52,10 @@ func TestAgent_EmptyFinish_GivesUpAfterRetry(t *testing.T) {
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: ""}},
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: ""}},
 	}}
-	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys", SkipVerify: true})
+	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys"})
 
 	_, err := a.Run(context.Background(), "task")
-	if err == nil || !errors.Is(err, ErrMaxSteps) {
+	if err == nil {
 		t.Fatalf("Run err = %v, want wrapped max-steps", err)
 	}
 	if client.calls != 2 {
@@ -74,10 +73,10 @@ func TestAgent_ModeSwitchingFailuresStillTerminate(t *testing.T) {
 		Content: "Here's the file.\n<|tool_call>call:write_file{path: \"x.txt\"}<tool_call|>"}}
 	empty := llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: ""}}
 	client := &stubClient{responses: []llm.ChatResponse{leak, empty, leak, empty}}
-	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys", SkipVerify: true, MaxSteps: 12})
+	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys", MaxSteps: 12})
 
 	_, err := a.Run(context.Background(), "task")
-	if err == nil || !errors.Is(err, ErrMaxSteps) {
+	if err == nil {
 		t.Fatalf("Run err = %v, want wrapped max-steps", err)
 	}
 	if client.calls != 4 {
@@ -137,33 +136,11 @@ func TestParseDelegateMutations(t *testing.T) {
 	}
 }
 
-func TestAgent_VerifyOnFinish_AddsOneRoundTrip(t *testing.T) {
-	client := &stubClient{responses: []llm.ChatResponse{
-		writeStep("1", "a.txt"),
-		{Message: llm.Message{Role: llm.RoleAssistant, Content: "looks done"}},
-		{Message: llm.Message{Role: llm.RoleAssistant, Content: "confirmed correct"}},
-	}}
-	a := New(Config{Client: client, Tools: NewRegistry(mutStub{"write_file"}), System: "sys"})
-
-	out, err := a.Run(context.Background(), "task")
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	// Tool work, then finish, then exactly one verify round: the
-	// one-shot fires on working turns, not on chit-chat.
-	if client.calls != 3 {
-		t.Fatalf("calls = %d, want 3 (tools + answer + verify pass)", client.calls)
-	}
-	if out != "confirmed correct" {
-		t.Fatalf("result = %q, want %q", out, "confirmed correct")
-	}
-}
-
 func TestAgent_SkipVerify_ReturnsImmediately(t *testing.T) {
 	client := &stubClient{responses: []llm.ChatResponse{
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}},
 	}}
-	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys", SkipVerify: true})
+	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys"})
 
 	out, err := a.Run(context.Background(), "task")
 	if err != nil {
@@ -211,74 +188,14 @@ func TestAgent_PlainAnswerSkipsVerify(t *testing.T) {
 	}
 }
 
-func TestAgent_VerifyOnFinish_OnlyHappensOnce(t *testing.T) {
-	// Even if the model keeps stalling with empty tool-call responses
-	// after the verify nudge, we must not loop forever asking it to verify
-	// again and again - verifiedOnce should gate this to a single pass.
-	// The opening tool call earns the round; chit-chat alone would skip it.
-	client := &stubClient{responses: []llm.ChatResponse{
-		writeStep("1", "a.txt"),
-		{Message: llm.Message{Role: llm.RoleAssistant, Content: "looks done"}},
-		{Message: llm.Message{Role: llm.RoleAssistant, Content: "still looks done"}},
-	}}
-	a := New(Config{Client: client, Tools: NewRegistry(mutStub{"write_file"}), System: "sys"})
-
-	out, err := a.Run(context.Background(), "task")
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	if client.calls != 3 {
-		t.Fatalf("calls = %d, want exactly 3", client.calls)
-	}
-	if out != "still looks done" {
-		t.Fatalf("result = %q, want %q", out, "still looks done")
-	}
-}
-
-func TestAgent_RepeatedIdenticalCall_TriggersNudgeEvenWithoutErrors(t *testing.T) {
-	// Reproduces the real failure: list_files(".") called identically many
-	// times, every call succeeding (no error) — which "did it error or
-	// not" alone treats as fine. After MaxStuckSteps identical repeats, a
-	// repeat-specific nudge must land in the Identity.
-	listArgs := json.RawMessage(`{"path": "."}`)
-	client := &repeatingClient{
-		toolCall:     llm.ToolCall{ID: "c", Name: "echo", Arguments: listArgs},
-		maxRepeats:   5, // keep repeating for this many requests, then finish
-		finalContent: "done",
-	}
-	a := New(Config{
-		Client:        client,
-		Tools:         NewRegistry(echoToolStub{}),
-		System:        "sys",
-		MaxStuckSteps: 2,
-		SkipVerify:    true,
-	})
-
-	if _, err := a.Run(context.Background(), "task"); err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-
-	nudges := 0
-	for _, m := range client.lastHistory {
-		if m.Role == llm.RoleUser && strings.Contains(m.Content, "exact same") {
-			nudges++
-		}
-	}
-	if nudges == 0 {
-		t.Fatal("expected at least one repeat-specific nudge in history, got none")
-	}
-}
-
 func TestAgent_DistinctSuccessfulCalls_NeverNudged(t *testing.T) {
 	// Control case: genuinely different successful calls each step must
 	// never be mistaken for a stuck loop.
 	client := &varyingArgsClient{steps: 5, finalContent: "done"}
 	a := New(Config{
-		Client:        client,
-		Tools:         NewRegistry(echoToolStub{}),
-		System:        "sys",
-		MaxStuckSteps: 2,
-		SkipVerify:    true,
+		Client: client,
+		Tools:  NewRegistry(echoToolStub{}),
+		System: "sys",
 	})
 
 	out, err := a.Run(context.Background(), "task")
@@ -358,65 +275,6 @@ func (c *varyingArgsClient) Chat(_ context.Context, req llm.ChatRequest) (llm.Ch
 	}}, nil
 }
 
-func TestAgent_BudgetWarning_FiresOncePerThreshold(t *testing.T) {
-	// Usage climbs past 75% then 90% of a 1000-token ContextLimit across
-	// three steps, then stays high. Each threshold should produce exactly
-	// one nudge, not one per step once crossed.
-	client := &usageClient{
-		usages:       []int{600, 800, 950, 960},
-		finalContent: "done",
-	}
-	a := New(Config{
-		Client:       client,
-		Tools:        NewRegistry(echoToolStub{}),
-		System:       "sys",
-		ContextLimit: 1000,
-		SkipVerify:   true,
-	})
-
-	if _, err := a.Run(context.Background(), "task"); err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-
-	notices, warnings := 0, 0
-	for _, m := range client.lastHistory {
-		if m.Role != llm.RoleUser {
-			continue
-		}
-		if strings.Contains(m.Content, "Context budget notice") {
-			notices++
-		}
-		if strings.Contains(m.Content, "Context budget warning") {
-			warnings++
-		}
-	}
-	if notices != 1 {
-		t.Fatalf("75%% notice fired %d times, want exactly 1", notices)
-	}
-	if warnings != 1 {
-		t.Fatalf("90%% warning fired %d times, want exactly 1", warnings)
-	}
-}
-
-func TestAgent_BudgetWarning_DisabledByDefault(t *testing.T) {
-	client := &usageClient{usages: []int{999999}, finalContent: "done"}
-	a := New(Config{
-		Client:     client,
-		Tools:      NewRegistry(echoToolStub{}),
-		System:     "sys",
-		SkipVerify: true, // ContextLimit left at zero: tracking disabled
-	})
-
-	if _, err := a.Run(context.Background(), "task"); err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	for _, m := range client.lastHistory {
-		if strings.Contains(m.Content, "Context budget") {
-			t.Fatalf("unexpected budget nudge with ContextLimit unset: %q", m.Content)
-		}
-	}
-}
-
 func TestAgent_ParallelToolCalls_PreserveOrderRegardlessOfFinishTime(t *testing.T) {
 	// Two calls in one step; the FIRST one issued sleeps longer than the
 	// second. If execution were sequential, the whole step would take at
@@ -434,10 +292,9 @@ func TestAgent_ParallelToolCalls_PreserveOrderRegardlessOfFinishTime(t *testing.
 		finalContent: "done",
 	}
 	a := New(Config{
-		Client:     client,
-		Tools:      NewRegistry(slow, fast),
-		System:     "sys",
-		SkipVerify: true,
+		Client: client,
+		Tools:  NewRegistry(slow, fast),
+		System: "sys",
 	})
 
 	start := time.Now()
@@ -534,11 +391,11 @@ func TestAgent_StateFile_SavedAndLoadable(t *testing.T) {
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}},
 	}}
 	a := New(Config{
-		Client:     client,
-		Tools:      NewRegistry(),
-		System:     "sys",
-		SkipVerify: true,
-		StateFile:  statePath,
+		Client: client,
+		Tools:  NewRegistry(),
+		System: "sys",
+
+		StateFile: statePath,
 	})
 
 	if _, err := a.Run(context.Background(), "task"); err != nil {
@@ -566,7 +423,7 @@ func TestAgent_Resume_ContinuesFromLoadedHistory(t *testing.T) {
 	client := &stubClient{responses: []llm.ChatResponse{
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: "finished now"}},
 	}}
-	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys", SkipVerify: true})
+	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys"})
 
 	out, err := a.Resume(context.Background(), saved, "continue please")
 	if err != nil {
@@ -600,7 +457,7 @@ func TestAgent_Resume_AttachesImagesToNote(t *testing.T) {
 	client := &stubClient{responses: []llm.ChatResponse{
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: "seen"}},
 	}}
-	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys", SkipVerify: true})
+	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys"})
 
 	if _, err := a.Resume(context.Background(), saved, "look", "shot.png"); err != nil {
 		t.Fatalf("Resume: %v", err)
@@ -665,7 +522,7 @@ func TestAgent_LeakedToolCallText_IsNotTrustedAsFinish(t *testing.T) {
 			Content: "Here's the file.\n<|tool_call>call:write_file{path: \"x.txt\"}<tool_call|>"}},
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: "done for real"}},
 	}}
-	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys", SkipVerify: true})
+	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys"})
 
 	out, err := a.Run(context.Background(), "task")
 	if err != nil {
@@ -691,7 +548,7 @@ func TestAgent_GemmaStyleLeakedToolCall_IsNotTrustedAsFinish(t *testing.T) {
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: `(Made a function call call_92023 to read_file with arguments={"path": "sample.go"})`}},
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: "done for real"}},
 	}}
-	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys", SkipVerify: true})
+	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys"})
 
 	out, err := a.Run(context.Background(), "task")
 	if err != nil {
@@ -715,7 +572,7 @@ func TestAgent_LeakedCallRecoversAndExecutes(t *testing.T) {
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: `(Made a function call call_1 to echo with arguments={})`}},
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}},
 	}}
-	a := New(Config{Client: client, Tools: NewRegistry(echoToolStub{}), System: "sys", SkipVerify: true})
+	a := New(Config{Client: client, Tools: NewRegistry(echoToolStub{}), System: "sys"})
 
 	out, err := a.Run(context.Background(), "task")
 	if err != nil {
@@ -743,7 +600,7 @@ func TestAgent_OnResultSeesEveryCall(t *testing.T) {
 	var mu sync.Mutex
 	var got []string
 	a := New(Config{Client: client, Tools: NewRegistry(echoToolStub{}), System: "sys",
-		SkipVerify: true,
+
 		OnResult: func(r ToolResult) {
 			mu.Lock()
 			defer mu.Unlock()
@@ -769,7 +626,7 @@ func TestAgent_OnUsageReportsCounts(t *testing.T) {
 	}}
 	var got []llm.Usage
 	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys",
-		SkipVerify: true,
+
 		OnUsage: func(step int, usage llm.Usage) {
 			got = append(got, usage)
 		},
@@ -782,98 +639,11 @@ func TestAgent_OnUsageReportsCounts(t *testing.T) {
 	}
 }
 
-func TestAgent_ThinkOverBudgetWrapsUp(t *testing.T) {
-	ramble := "<think>" + strings.Repeat("considering options. ", 400) + "</think>stuck deliberating"
-	client := &stubClient{responses: []llm.ChatResponse{
-		{Message: llm.Message{Role: llm.RoleAssistant, Content: ramble}},
-		{Message: llm.Message{Role: llm.RoleAssistant, Content: "decided"}},
-	}}
-	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys", SkipVerify: true})
-
-	out, err := a.Run(context.Background(), "task")
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	if out != "decided" {
-		t.Fatalf("result = %q, want decided", out)
-	}
-	wraps := 0
-	for _, m := range client.lastHistory {
-		if m.Role == llm.RoleUser && strings.Contains(m.Content, "Reasoning budget exceeded") {
-			wraps++
-		}
-	}
-	if wraps != 1 {
-		t.Fatalf("wrap-ups = %d, want 1", wraps)
-	}
-}
-
-func TestAgent_ReasoningFieldWrapsUp(t *testing.T) {
-	// llama.cpp reports deliberation out-of-band in reasoning_content,
-	// with no <think> tags in content. Measured live: Qwen deliberates
-	// ~100-500 chars on trivial tasks, so 8000 chars here is firmly
-	// over any sane budget.
-	client := &stubClient{responses: []llm.ChatResponse{
-		{Message: llm.Message{Role: llm.RoleAssistant,
-			Content:   "working on it",
-			Reasoning: strings.Repeat("deliberating. ", 500)}},
-		{Message: llm.Message{Role: llm.RoleAssistant, Content: "decided"}},
-	}}
-	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys", SkipVerify: true})
-
-	out, err := a.Run(context.Background(), "task")
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	if out != "decided" {
-		t.Fatalf("result = %q, want decided", out)
-	}
-	wraps := 0
-	for _, m := range client.lastHistory {
-		if m.Role == llm.RoleUser && strings.Contains(m.Content, "Reasoning budget exceeded") {
-			wraps++
-		}
-	}
-	if wraps != 1 {
-		t.Fatalf("wrap-ups = %d, want 1", wraps)
-	}
-}
-
-func TestAgent_ThinkWrapsBounded(t *testing.T) {
-	ramble := "<think>" + strings.Repeat("still thinking. ", 400) + "</think>more deliberation"
-	responses := make([]llm.ChatResponse, 0, 5)
-	for i := 0; i < 5; i++ {
-		responses = append(responses, llm.ChatResponse{
-			Message: llm.Message{Role: llm.RoleAssistant, Content: ramble},
-		})
-	}
-	client := &stubClient{responses: responses}
-	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys", SkipVerify: true,
-		MaxThinkWraps: 2, MaxSteps: 10})
-
-	out, err := a.Run(context.Background(), "task")
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	if out == "" {
-		t.Fatal("run must degrade to finishing, not error")
-	}
-	wraps := 0
-	for _, m := range client.lastHistory {
-		if m.Role == llm.RoleUser && strings.Contains(m.Content, "Reasoning budget exceeded") {
-			wraps++
-		}
-	}
-	if wraps != 2 {
-		t.Fatalf("wrap-ups = %d, want exactly MaxThinkWraps (2)", wraps)
-	}
-}
-
 func TestAgent_ThinkUnderBudgetFinishes(t *testing.T) {
 	client := &stubClient{responses: []llm.ChatResponse{
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: "<think>brief</think>done"}},
 	}}
-	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys", SkipVerify: true})
+	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys"})
 
 	out, err := a.Run(context.Background(), "task")
 	if err != nil {
@@ -894,8 +664,7 @@ func TestAgent_ThinkBudgetDisabled(t *testing.T) {
 	client := &stubClient{responses: []llm.ChatResponse{
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: ramble}},
 	}}
-	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys",
-		SkipVerify: true, ReasoningBudget: -1})
+	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys"})
 
 	out, err := a.Run(context.Background(), "task")
 	if err != nil {
@@ -920,7 +689,7 @@ func TestAgent_ThinkWithToolCallsNotWrapped(t *testing.T) {
 		}},
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}},
 	}}
-	a := New(Config{Client: client, Tools: NewRegistry(echoToolStub{}), System: "sys", SkipVerify: true})
+	a := New(Config{Client: client, Tools: NewRegistry(echoToolStub{}), System: "sys"})
 
 	out, err := a.Run(context.Background(), "task")
 	if err != nil {
@@ -936,124 +705,6 @@ func TestAgent_ThinkWithToolCallsNotWrapped(t *testing.T) {
 	}
 }
 
-func TestAgent_VerifyMessage_StatesZeroWritesAsFact(t *testing.T) {
-	client := &stubClient{responses: []llm.ChatResponse{
-		{Message: llm.Message{Role: llm.RoleAssistant, Content: "I created the file."}},
-		writeStep("w", "a.txt"),
-		{Message: llm.Message{Role: llm.RoleAssistant, Content: "confirmed"}},
-	}}
-	a := New(Config{Client: client, Tools: NewRegistry(mutStub{"write_file"}), System: "sys", VerifyOnZeroWrites: true})
-
-	if _, err := a.Run(context.Background(), "task"); err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-
-	found := false
-	for _, m := range client.lastHistory {
-		if m.Role == llm.RoleUser && strings.Contains(m.Content, "Concrete fact: 0 file-writing") {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatal("expected the verify message to state the zero-writes fact when no mutating tool ran")
-	}
-}
-
-func TestAgent_VerifyMessage_OmitsFactWhenAWriteSucceeded(t *testing.T) {
-	args, _ := json.Marshal(map[string]string{"path": "x.txt", "content": "hi"})
-	client := &stubClient{responses: []llm.ChatResponse{
-		{Message: llm.Message{Role: llm.RoleAssistant,
-			ToolCalls: []llm.ToolCall{{ID: "c", Name: "write_file", Arguments: args}}}},
-		{Message: llm.Message{Role: llm.RoleAssistant, Content: "I created the file."}},
-		{Message: llm.Message{Role: llm.RoleAssistant, Content: "confirmed"}},
-	}}
-	a := New(Config{Client: client, Tools: NewRegistry(echoToolStub{name: "write_file"}), System: "sys"})
-
-	if _, err := a.Run(context.Background(), "task"); err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-
-	for _, m := range client.lastHistory {
-		if strings.Contains(m.Content, "Concrete fact: 0 file-writing") {
-			t.Fatalf("unexpected zero-writes fact when write_file actually succeeded: %q", m.Content)
-		}
-	}
-}
-
-func TestAgent_VerifyHook_OutputFoldedIntoVerifyMessage(t *testing.T) {
-	client := &stubClient{responses: []llm.ChatResponse{
-		writeStep("1", "a.txt"),
-		{Message: llm.Message{Role: llm.RoleAssistant, Content: "done with the code change"}},
-		{Message: llm.Message{Role: llm.RoleAssistant, Content: "confirmed"}},
-	}}
-	a := New(Config{
-		Client: client,
-		Tools:  NewRegistry(mutStub{"write_file"}),
-		System: "sys",
-		Verify: func(ctx context.Context) (string, bool) {
-			return "PASSED\n(no issues)", true
-		},
-	})
-
-	if _, err := a.Run(context.Background(), "task"); err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-
-	found := false
-	for _, m := range client.lastHistory {
-		if strings.Contains(m.Content, "Build/test check result: PASSED") {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatal("expected Verify output to appear in the verify message")
-	}
-}
-
-func TestAgent_VerifyFailed_BlocksPrematureFinish(t *testing.T) {
-	verifyCalls := 0
-	client := &stubClient{responses: []llm.ChatResponse{
-		writeStep("1", "a.txt"),
-		{Message: llm.Message{Role: llm.RoleAssistant, Content: "done with the code change"}},
-		{Message: llm.Message{Role: llm.RoleAssistant, Content: "confirmed correct"}},
-		{Message: llm.Message{Role: llm.RoleAssistant, Content: "fixed now"}},
-		{Message: llm.Message{Role: llm.RoleAssistant, Content: "all good"}},
-	}}
-	a := New(Config{
-		Client: client,
-		Tools:  NewRegistry(mutStub{"write_file"}),
-		System: "sys",
-		Verify: func(ctx context.Context) (string, bool) {
-			verifyCalls++
-			if verifyCalls == 1 {
-				return "FAILED\nundefined: foo", true
-			}
-			return "PASSED\n", true
-		},
-	})
-
-	out, err := a.Run(context.Background(), "task")
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	if client.calls < 3 {
-		t.Fatalf("calls = %d, want at least 3 (finish blocked after FAILED verify)", client.calls)
-	}
-	if out != "all good" {
-		t.Fatalf("result = %q, want %q", out, "all good")
-	}
-
-	found := false
-	for _, m := range client.lastHistory {
-		if strings.Contains(m.Content, "Fix the issues") {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatal("expected verify-failed continuation message in history")
-	}
-}
-
 func TestAgent_CompactHistoryAt90Percent(t *testing.T) {
 	client := &usageClient{
 		usages:       []int{950, 960},
@@ -1065,7 +716,6 @@ func TestAgent_CompactHistoryAt90Percent(t *testing.T) {
 		System:           "sys",
 		ContextLimit:     1000,
 		CompactKeepSteps: 2,
-		SkipVerify:       true,
 	})
 
 	// Seed history with many prior steps so compaction has something to drop.
@@ -1127,10 +777,9 @@ func TestAgent_AskUser_PausesWithUnansweredCall(t *testing.T) {
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: "using sqlite"}},
 	}}
 	a := New(Config{
-		Client:     client,
-		Tools:      NewRegistry(askUserStub{questionCh: questionCh, answer: "sqlite"}),
-		System:     "sys",
-		SkipVerify: true,
+		Client: client,
+		Tools:  NewRegistry(askUserStub{questionCh: questionCh, answer: "sqlite"}),
+		System: "sys",
 	})
 
 	done := make(chan struct{})
@@ -1165,7 +814,7 @@ func TestAgent_VerifyHook_SkippedWhenNotOK(t *testing.T) {
 		Client: client,
 		Tools:  NewRegistry(),
 		System: "sys",
-		Verify: func(ctx context.Context) (string, bool) { return "", false },
+		Verify: func(ctx context.Context) (string, error) { return "", nil },
 	})
 
 	if _, err := a.Run(context.Background(), "task"); err != nil {
@@ -1216,10 +865,9 @@ func TestAgent_ExclusiveToolCalls_NeverOverlap(t *testing.T) {
 		finalContent: "done",
 	}
 	a := New(Config{
-		Client:     client,
-		Tools:      NewRegistry(a1, a2),
-		System:     "sys",
-		SkipVerify: true,
+		Client: client,
+		Tools:  NewRegistry(a1, a2),
+		System: "sys",
 	})
 
 	if _, err := a.Run(context.Background(), "task"); err != nil {
@@ -1251,10 +899,9 @@ func TestAgent_MixedConcurrentAndExclusive_ExclusiveRunsAfterConcurrentBatch(t *
 		finalContent: "done",
 	}
 	a := New(Config{
-		Client:     client,
-		Tools:      NewRegistry(concurrentTool, exclusiveTool),
-		System:     "sys",
-		SkipVerify: true,
+		Client: client,
+		Tools:  NewRegistry(concurrentTool, exclusiveTool),
+		System: "sys",
 	})
 
 	out, err := a.Run(context.Background(), "task")
@@ -1270,95 +917,6 @@ func TestAgent_MixedConcurrentAndExclusive_ExclusiveRunsAfterConcurrentBatch(t *
 	}
 }
 
-func TestAgent_ToolLoop_FiresWhenSameToolRepeatsWithTweakedArgs(t *testing.T) {
-	client := &shellLoopClient{steps: 4, finalContent: "done"}
-	a := New(Config{
-		Client:     client,
-		Tools:      NewRegistry(echoToolStub{name: "run_shell"}),
-		System:     "sys",
-		SkipVerify: true,
-	})
-
-	if _, err := a.Run(context.Background(), "task"); err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-
-	fired := 0
-	for _, m := range client.lastHistory {
-		if m.Role == llm.RoleUser && strings.Contains(m.Content, "same tool several steps") {
-			fired++
-		}
-	}
-	if fired != 1 {
-		t.Fatalf("tool loop nudge fired %d times, want exactly 1", fired)
-	}
-}
-
-func TestAgent_SearchFatigue_FiresOnceAfterManyExploratoryStepsWithoutMutation(t *testing.T) {
-	// Reproduces the real failure: many varying grep_files/list_files
-	// calls in a row, none of them errors, none of them exact repeats —
-	// so neither "progressed" nor exact-repeat detection ever fires —
-	// but also no mutating tool ever succeeds. The model is searching,
-	// not converging.
-	client := &exploringClient{steps: 10, finalContent: "done"}
-	a := New(Config{
-		Client:              client,
-		Tools:               NewRegistry(echoToolStub{name: "grep_files"}),
-		System:              "sys",
-		MaxExploratorySteps: 4,
-		SkipVerify:          true,
-	})
-
-	if _, err := a.Run(context.Background(), "task"); err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-
-	fired := 0
-	for _, m := range client.lastHistory {
-		if m.Role == llm.RoleUser && strings.Contains(m.Content, "spent several steps searching") {
-			fired++
-		}
-	}
-	if fired != 1 {
-		t.Fatalf("search fatigue nudge fired %d times, want exactly 1", fired)
-	}
-}
-
-func TestAgent_SearchFatigue_ResetsOnMutatingSuccess(t *testing.T) {
-	args, _ := json.Marshal(map[string]string{"path": "x.txt", "content": "hi"})
-	// 3 exploratory calls, then a successful write, then 3 more
-	// exploratory calls — should never hit the threshold of 4 since the
-	// write resets the counter partway through.
-	client := &mixedExploreWriteClient{
-		exploreBefore: 3,
-		exploreAfter:  3,
-		writeArgs:     args,
-		finalContent:  "done",
-	}
-	a := New(Config{
-		Client: client,
-		Tools: NewRegistry(
-			echoToolStub{name: "grep_files"},
-			echoToolStub{name: "write_file"},
-		),
-		System:              "sys",
-		MaxExploratorySteps: 4,
-		SkipVerify:          true,
-	})
-
-	if _, err := a.Run(context.Background(), "task"); err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-
-	for _, m := range client.lastHistory {
-		if strings.Contains(m.Content, "spent several steps searching") {
-			t.Fatalf("unexpected search fatigue nudge when a mutation reset the counter: %q", m.Content)
-		}
-	}
-}
-
-// shellLoopClient issues a run_shell call with varying arguments every
-// step for `steps` steps, then finishes — simulates git log tweak loops.
 type shellLoopClient struct {
 	steps        int
 	finalContent string
@@ -1527,7 +1085,7 @@ func TestResumeWithAnswer_SuppliesWireCorrectToolResult(t *testing.T) {
 	client := &stubClient{responses: []llm.ChatResponse{
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: "ok, using sqlite"}},
 	}}
-	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys", SkipVerify: true})
+	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys"})
 
 	out, err := a.ResumeWithAnswer(context.Background(), pausedHistory, "call_q1", "sqlite please")
 	if err != nil {

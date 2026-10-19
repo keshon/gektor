@@ -80,24 +80,18 @@ shipping CLI had both, so it was scoring a different agent than the one under
 test. One answer per role, in one place.
 
 **[invariant]** A capability is removed by not passing the tool, never by
-asking the model not to use it. An inspector gets a registry without the
+asking the model not to use it. A Planner gets a registry without the
 mutating tools. A subagent gets one without delegation, so delegation cannot
 recurse.
 
 ## Verification
 
-**[invariant]** File effects and verification results are measured rather than inferred
-from the model's report. The default self-check is another model turn; it is
-not a mechanical acceptance test. Direct runs need an explicit verify command
-for that evidence, and mission checks are only as strong as their declared
-criteria. A model describing a file write has not written a file.
+**[invariant]** File effects and verification results are measured, never inferred
+from answer wording. An explicit verify command supplies mechanical evidence.
+Verification records a real command verdict without requesting a model self-check.
 
-**[invariant]** A repeat that can be detected is refused, not discouraged.
-Soft nudges do not stop a weak model repeating itself; an error result does,
-because it also stops counting as progress.
-
-**[practice]** At most one nudge reaches the model per step. Several
-corrections at once get none of them followed, and some contradict each other.
+**[invariant]** Repeated tool calls remain legal. The step limit bounds execution;
+checklist changes cannot extend it. Recovery addresses concrete protocol failures.
 
 ## Prompts
 

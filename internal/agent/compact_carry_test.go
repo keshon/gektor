@@ -127,8 +127,8 @@ func TestDroppedFacts_RoundTripsThroughItsOwnRendering(t *testing.T) {
 // prefix. Lifting one of those would delete the advice and import nothing.
 func TestSplitNotice_LeavesOtherHarnessNoticesAlone(t *testing.T) {
 	for _, notice := range []string{
-		prompts.StuckFailing,
-		prompts.BudgetWarning,
+		prompts.OverflowRecovered,
+		prompts.LeakDetected,
 		prompts.Truncated,
 	} {
 		rest := []llm.Message{

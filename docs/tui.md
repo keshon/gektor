@@ -26,7 +26,7 @@ run-tui.cmd -workspace D:\Projects\my-app -verify-cmd "go test ./..."
 3. In another terminal, run `run-tui.cmd -backend-kind kobold -backend http://127.0.0.1:5001`.
 
 The sibling launchers build and run the same binary for print-mode work:
-`run-task.cmd "task"`, `run-plan.cmd "task"`, `run-mission.cmd "task"`,
+`run-task.cmd "task"`, `run-plan.cmd "task"`,
 `run-resume.cmd [id]`. Each prints its usage
 when called without arguments.
 
@@ -165,7 +165,7 @@ not in permission dialogs, question prompts, or session search.
 - Up/Down selects a match.
 - Tab inserts without executing.
 - Enter runs a selected command that takes no argument. A command that does
-  take one — `/max-steps`, `/budget-think`, `/mode`, `/nudges`, `/theme`,
+  take one — `/max-steps`, `/mode`, `/theme`,
   `/new`, `/rename` — is handed to the composer instead, so the value can
   be typed; during a run the completed command is queued. For files and
   directories, Enter always inserts without sending.
@@ -461,7 +461,7 @@ to toggle simply leaves it blank.
 **Hide Sessions** (`Ctrl+B`, `F6`) hides the Sessions pane. **Truncate AI
 reply** (`Ctrl+G`, `F3`) collapses thinking and long tool output. **Hide
 SYS messages** drops harness notices, and nothing else: errors,
-warnings, permission questions, mission notes and tool results stay,
+warnings, permission questions, tool results stay,
 because they are the record of what happened. **Hide labels** drops the
 `[TAG]` rows and keeps the name rows, so every block still says who
 spoke.

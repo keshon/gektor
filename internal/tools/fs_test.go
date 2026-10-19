@@ -232,31 +232,6 @@ func TestReadFile_CapIsSmallEnoughForASmallContext(t *testing.T) {
 // which the system prompt had always told it not to do. Rewriting drops
 // everything the model does not happen to reproduce, and nothing reports
 // it — the surrounding code is simply gone.
-func TestWriteFile_RefusesARewriteThatIsReallyAnEdit(t *testing.T) {
-	dir := t.TempDir()
-	original := "package sample\n\nconst Version = \"v1\"\n\nfunc Greet() string {\n\treturn \"hello\"\n}\n\nfunc Bye() string {\n\treturn \"bye\"\n}\n"
-	if err := os.WriteFile(filepath.Join(dir, "sample.go"), []byte(original), 0o644); err != nil {
-		t.Fatalf("write fixture: %v", err)
-	}
-	ws, err := workspace.New(dir)
-	if err != nil {
-		t.Fatalf("workspace: %v", err)
-	}
-
-	edited := strings.Replace(original, `"v1"`, `"v2"`, 1)
-	args, _ := json.Marshal(map[string]string{"path": "sample.go", "content": edited})
-	if _, err := (WriteFile{WS: ws}).Run(context.Background(), args); err == nil {
-		t.Fatal("a one-line change delivered as a whole-file rewrite was accepted")
-	}
-
-	// The file must be untouched: a refusal that already wrote is no
-	// refusal at all.
-	after, _ := os.ReadFile(filepath.Join(dir, "sample.go"))
-	if string(after) != original {
-		t.Error("the refused write modified the file anyway")
-	}
-}
-
 func TestWriteFile_AllowsGenuineRewritesAndNewFiles(t *testing.T) {
 	dir := t.TempDir()
 	ws, err := workspace.New(dir)

@@ -106,17 +106,8 @@ serialized. The update loop owns the operation.
 **Enforced by:** tested, `TestRefusedApplyLeavesFilesAndRuntimeAlone`,
 `TestUnreadableTaskStopsApplyBeforeWriting`, and the file transaction suite.
 
-Command launches construct one `app.Runtime` and defer its Close across frontend
-handoffs. The TUI borrows the runtime. Direct TUI callers without a supplied
-runtime receive an owned fallback. Close is idempotent. Worker closures capture
-borrowed services before starting, rather than reading the mutable runtime from
-another goroutine. Runtime lifecycle tests and the TUI race suite cover these
-boundaries.
-
-`app.Runtime` deliberately has no reconfigure method. Settings used to be applied
-in place against a live session, which needed a candidate/reuse/persist dance and
-had three separate implementations that drifted apart enough to give one setting
-three different effects. A launch composes once now.
+Services are composed once per launch. Settings return ModeChange to the CLI,
+which starts a fresh launch and owns its MCP/background-process cleanup.
 
 The architecture refactor was smoke-tested through a Windows pseudoterminal
 using an isolated profile, session directory and deterministic local HTTP backend.

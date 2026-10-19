@@ -1,1 +1,0 @@
-Context budget notice: %d/%d tokens used (%d%%). Consider wrapping up soon.

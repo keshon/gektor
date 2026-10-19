@@ -1,1 +1,0 @@
-Context budget warning: %d/%d tokens used (%d%%). Wrap up now — finish this step and stop.

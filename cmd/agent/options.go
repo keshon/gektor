@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
 )
@@ -20,13 +19,10 @@ type launchOptions struct {
 	grammar       bool
 	maxTokens     int
 	maxSteps      int
-	thinkBudget   int
 	resume        string
 	answer        string
 	verifyCmd     string
 	logMax        int
-	missionMode   bool
-	direct        bool
 	yes           bool
 	auditPath     string
 	backendKind   string
@@ -42,8 +38,6 @@ type launchOptions struct {
 	outputMode    string
 	serve         bool
 	tui           bool
-	noVerify      bool
-	nudges        agent.NudgeLevel
 	images        string
 	profilePath   string
 	checkProfile  bool
@@ -57,7 +51,6 @@ type launchOptions struct {
 
 func parseLaunchOptions(args []string) (launchOptions, error) {
 	var o launchOptions
-	var nudges string
 	flags := flag.NewFlagSet("agent", flag.ContinueOnError)
 	flags.StringVar(&o.backendURL, "backend", "http://localhost:5001", "backend base URL: bare origin for a local server ("+
 		"http://localhost:5001) or API root for a hosted OpenAI-compatible provider "+
@@ -73,24 +66,16 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	flags.IntVar(&o.maxTokens, "max-tokens", 8192, "generation budget per response — too low truncates "+
 		"large outputs (e.g. a full HTML+CSS+JS file) mid-JSON")
 	flags.IntVar(&o.maxSteps, "max-steps", 0, "step budget per run — 0 takes the agent default (25). "+
-		"Applies to direct runs; mission workers and subagents keep fixed budgets")
-	flags.IntVar(&o.thinkBudget, "reasoning-budget", 0, "characters of <think> deliberation allowed per response "+
-		"before a wrap-up round demands commitment; 0 takes the agent default (6000), negative disables wrapping")
+		"Applies to direct runs; subagents keep fixed budgets")
 	flags.StringVar(&o.resume, "resume", "", "path to a .tars/tasks/.../state.json snapshot to resume "+
 		"an interrupted run from, instead of starting a new task")
 	flags.StringVar(&o.answer, "answer", "", "answer to supply when resuming a run paused on ask_user "+
 		"(use with -resume when the agent stopped to ask a clarifying question)")
-	flags.StringVar(&o.verifyCmd, "verify-cmd", "", "command to run at the self-check checkpoint "+
-		"(e.g. \"go build ./... && go vet ./... && go test ./...\") — real output gets fed back "+
-		"as fact instead of trusting the model's own claim that the code works. Empty disables this.")
+	flags.StringVar(&o.verifyCmd, "verify-cmd", "", "final verification command (e.g. \"go test ./...\"); "+
+		"record output and fail on a command error without another model call")
 	flags.IntVar(&o.logMax, "log-max", 300, "max characters per line in step console output; "+
 		"long text is truncated in the middle (head ... tail). 0 = no limit")
-	flags.BoolVar(&o.missionMode, "mission", false, "run the task as a mission: an upfront model-generated "+
-		"plan (approved by you), then one fresh-context worker per subtask, each verified mechanically. "+
-		"For complex multi-file tasks a weak model can't hold in its head; simple tasks are better off "+
-		"without it. Multi-file tasks receive a recommendation; mission mode is explicit")
-	flags.BoolVar(&o.direct, "direct", false, "suppress the multi-file mission recommendation (direct mode is the default)")
-	flags.BoolVar(&o.yes, "yes", false, "skip the mission plan approval gate and run the plan as generated")
+	flags.BoolVar(&o.yes, "yes", false, "deny permission prompts in unattended runs")
 	flags.StringVar(&o.auditPath, "audit", "", "append gate decisions as JSONL to this file (off when empty)")
 	flags.StringVar(&o.backendKind, "backend-kind", "kobold", "which server: "+
 		strings.Join(llm.Kinds(), ", ")+". kobold/llama are local; openai is any hosted "+
@@ -114,8 +99,6 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	flags.StringVar(&o.outputMode, "mode", "print", "output mode: print (human-readable) or json (one JSON object per line)")
 	flags.BoolVar(&o.serve, "serve", false, "serve JSON-RPC over stdio instead of running one task: methods run/respond/cancel, events on stdout. See docs/rpc.md")
 	flags.BoolVar(&o.tui, "tui", false, "fullscreen terminal UI instead of print mode: live transcript, status, and gate prompts")
-	flags.BoolVar(&o.noVerify, "no-verify", false, "skip the self-check verify round (finish accepted without the extra verification turn). Saves 1-2 model calls; strong models only")
-	flags.StringVar(&nudges, "nudges", "full", "how much harness advice the model hears: full, recovery (only the notices that turn a bad ending into another attempt), off")
 	flags.StringVar(&o.images, "image", "", "attach pictures to the task (comma-separated paths): the model sees them alongside the text. Needs a vision-capable backend (llama-server with --mmproj); koboldcpp refuses loudly")
 	flags.StringVar(&o.profilePath, "profile", "", "path to a versioned JSON provider and generation profile; explicit flags override it")
 	flags.BoolVar(&o.checkProfile, "check-profile", false, "validate and print a profile without contacting or starting its backend")
@@ -126,13 +109,6 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	if err := flags.Parse(args); err != nil {
 		return launchOptions{}, err
 	}
-	// Parsed here rather than at the use site so a typo fails the launch
-	// instead of leaving the harness silently at full.
-	level, ok := agent.ParseNudgeLevel(nudges)
-	if !ok {
-		return launchOptions{}, fmt.Errorf("-nudges %q: want full, recovery or off", nudges)
-	}
-	o.nudges = level
 	o.explicitFlags = map[string]bool{}
 	flags.Visit(func(f *flag.Flag) {
 		o.explicitFlags[f.Name] = true
@@ -163,25 +139,10 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 	if o.checkProfile && o.profilePath == "" {
 		return resolvedLaunch{}, fmt.Errorf("-check-profile requires -profile")
 	}
-	// Harness preferences seed the same fields the flags fill, and an
-	// explicit flag still wins. This sits outside the profile block below
-	// because the harness is not a property of the backend: a launch with no
-	// profile at all still gets the step budget and nudge level the user
-	// chose. Without it these survived only as flags, so anything set in the
-	// TUI was gone by the next launch.
+	// Explicit flags override the saved per-run step limit.
 	h := launch.preferences.Harness
 	if !o.explicitFlags["max-steps"] && h.MaxSteps > 0 {
 		o.maxSteps = h.MaxSteps
-	}
-	if !o.explicitFlags["reasoning-budget"] && h.ThinkBudget != 0 {
-		o.thinkBudget = h.ThinkBudget
-	}
-	if !o.explicitFlags["nudges"] && h.Nudges != "" {
-		level, ok := agent.ParseNudgeLevel(h.Nudges)
-		if !ok {
-			return resolvedLaunch{}, fmt.Errorf("saved nudge level %q: want full, recovery or off", h.Nudges)
-		}
-		o.nudges = level
 	}
 	// A relaunch carries the profile it last ran with in memory, because a
 	// generated setup never had a file to point at. Reading it only when

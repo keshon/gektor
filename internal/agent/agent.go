@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"slices"
 	"strings"
 
 	"github.com/keshon/tars/internal/llm"
@@ -15,7 +14,7 @@ import (
 type Agent struct {
 	cfg Config
 
-	// LastRunMutations counts observed mutation batches. Embedders without
+	// LastRunMutations counts changed paths. Embedders without
 	// BeginChanges fall back to successful mutating tool calls.
 	LastRunMutations int
 
@@ -43,18 +42,11 @@ type RunReport struct {
 	// Final is the model's final answer text ("" if the run errored out).
 	Final string
 
-	// WrapUp is the text-only closing summary captured on budget death,
-	// separate from Final because Final == "" on error is pinned by
-	// report_test.go and mission retry keys off the error, not the text.
-	WrapUp string
-
-	// MaxSteps is the budget enforced this run — base plus todo funding —
+	// MaxSteps is the budget enforced this run — fixed operator limit —
 	// so observers read the enforced line, not the configured one.
 	MaxSteps int
 
 	// OpenTodos is the checklist still unchecked when the run ended.
-	// Snapshot on the MaxSteps path only: that is the one exit where
-	// unfinished acknowledged work needs an operator decision.
 	OpenTodos []string
 
 	// LastPromptTokens is the backend-reported prompt size of the last
@@ -176,84 +168,11 @@ func (a *Agent) persistState(history []llm.Message) error {
 }
 
 type runState struct {
-	observeChanges                                                                     func() ([]string, error)
-	observationErr                                                                     error
-	stuckSteps, exploratorySteps, mutatingSucceeded, warnedThreshold, lastPromptTokens int
-	consecutiveSameToolCount                                                           int
-	// warnedSteps tracks the highest step-budget threshold already
-	// warned about (75/90 of the enforced limit), mirroring
-	// warnedThreshold for tokens.
-	warnedSteps int
-	// lastSingleResult fingerprints the previous same-tool step's
-	// outcome, so the loop counter accumulates identical results, not
-	// mere repetition: three fresh reads are exploration, three times
-	// the same bytes are grinding. See trackSingleToolLoop.
-	lastSingleResult                                                          uint64
-	verifiedOnce, searchFatigueWarned, blockFinishDueToVerify, toolLoopWarned bool
-	emptyFinishRetried                                                        bool
-	// overflowRetried allows one compact-and-retry per run. A second
-	// overflow means the window cannot hold this session however it is cut.
-	overflowRetried bool
-
-	// lastCompactTokens is the prompt size that triggered the most recent
-	// compaction. Threshold compaction waits for the prompt to grow past
-	// this by a cooldown before it will pay for another pass - see
-	// compactionCooldown.
-	lastCompactTokens                                 int
-	lastSignature, verifyFailedOutput, lastSingleTool string
-	mutatedPaths                                      []string
-
-	// zeroWriteFinishes counts how many times the model has tried to end
-	// the run having written nothing, while VerifyOnZeroWrites says the
-	// run was supposed to write. See MaxZeroWriteRefusals.
-	zeroWriteFinishes int
-
-	// todoBounces counts text-only finishes bounced for unchecked todos
-	// since the last tool work. See maxTodoBounces.
-	todoBounces int
-
-	// todoFunded counts step budget granted for acknowledged todo work.
-	// The high-water marks keep rewrites from double-funding: deleting an
-	// item doesn't refund, re-adding it past the mark doesn't re-grant.
-	todoFunded  int
-	todoOpenMax int
-	todoDoneMax int
-	// todoClosingGranted latches the delivery handshake per all-done
-	// episode, so reopening items earns its own close.
-	todoClosingGranted bool
-
-	// toolCalls gates the first verify round on actual tool activity.
-	toolCalls int
-
-	// thinkWraps counts wrap-up rounds this run: finishes attempted with
-	// more reasoning than ReasoningBudget allows. Bounded by
-	// MaxThinkWraps; past it the run degrades to finishing as-is.
-	thinkWraps int
-
-	// pendingBudget holds a context-usage notice that lost its slot to a
-	// more urgent nudge, to be delivered on the next step that has one
-	// free. See interject.
-	pendingBudget string
-
-	// failedCalls counts consecutive identical failures per call, cleared
-	// on success or on any workspace mutation. See maxIdenticalAttempts.
-	failedCalls map[string]int
-
-	// stuckNudges counts how many times this run has been told it is
-	// stuck, so the wording can escalate instead of repeating.
-	stuckNudges int
-
-	// idempotentSeen maps signature (name+args) of successful idempotent
-	// calls to the step that ran them, cleared on any mutation. Exact
-	// repeats short-circuit: a weak model re-reading the same bytes five
-	// times is told so, instead of getting five copies.
-	idempotentSeen map[string]int
-
-	// wrotePaths maps write_file path to the step that wrote it. A second
-	// write to the same path is refused. Added 2026-07-14: a weak model
-	// rewrote package.json with identical content in a loop, ignoring the
-	// softer loop nudges, because each "ok" reset stuckSteps.
-	wrotePaths map[string]int
+	observeChanges                                         func() ([]string, error)
+	observationErr                                         error
+	mutatingSucceeded, lastPromptTokens, lastCompactTokens int
+	emptyFinishRetried, overflowRetried                    bool
+	mutatedPaths                                           []string
 }
 
 // ErrMaxSteps marks a run that did real work but ran out of step budget,
@@ -277,17 +196,8 @@ func (a *Agent) Tools() *Registry { return a.cfg.Tools }
 
 // situationHints names, per nudge situation, the tools that could help.
 // A situation whose tools are all absent yields nothing.
-var situationHints = map[string][]string{
-	"truncated":      {"write_file", "patch_file", "patch_lines"},
-	"search-fatigue": {"ask_user"},
-	"compact":        {"delegate_task"},
-}
-
-var situationPrompts = map[string]string{
-	"truncated":      prompts.WriteHint,
-	"search-fatigue": prompts.AskHint,
-	"compact":        prompts.DelegateHint,
-}
+var situationHints = map[string][]string{"truncated": {"write_file", "patch_file", "patch_lines"}}
+var situationPrompts = map[string]string{"truncated": prompts.WriteHint}
 
 // hintResolver answers from a registry which of a situation's tools are
 // actually registered. It is the default Config.ToolHint; a caller that
@@ -299,19 +209,6 @@ func hintResolver(reg *Registry) func(string) string {
 		}
 		return situationPrompts[situation]
 	}
-}
-
-// writesFiles reads Config.MutatingTools rather than hardcoding a name,
-// so anything that counts as a change for the self-check covers whichever
-// writer a registry offers.
-func (a *Agent) writesFiles(name string) bool {
-	return slices.Contains(a.cfg.MutatingTools, name)
-}
-
-// rewritesFile reports whether a tool replaces a whole file rather than
-// editing part of one. Only these arm the rewrite guard.
-func (a *Agent) rewritesFile(name string) bool {
-	return a.writesFiles(name) && !slices.Contains(a.cfg.PatchingTools, name)
 }
 
 // hint asks the run's owner which registered tool suits this situation.

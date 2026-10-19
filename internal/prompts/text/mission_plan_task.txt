@@ -1,7 +1,0 @@
-## Task
-%s
-
-## Workspace files
-%s
-
-Produce the JSON plan now.

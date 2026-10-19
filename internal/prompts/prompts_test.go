@@ -8,48 +8,14 @@ import (
 
 func TestAllPromptsLoadNonEmpty(t *testing.T) {
 	all := map[string]string{
-		"System":                 System,
-		"RoleAddendum":           RoleAddendum,
-		"Resume":                 Resume,
-		"Verify":                 Verify,
-		"VerifyZeroWrites":       VerifyZeroWrites,
-		"VerifyCheckResult":      VerifyCheckResult,
-		"LeakDetected":           LeakDetected,
-		"LeakRepeated":           LeakRepeated,
-		"StuckFailing":           StuckFailing,
-		"StuckRepeating":         StuckRepeating,
-		"StuckEscalated":         StuckEscalated,
-		"BudgetWarning":          BudgetWarning,
-		"BudgetNotice":           BudgetNotice,
-		"StepNotice":             StepNotice,
-		"StepWarning":            StepWarning,
-		"SearchFatigue":          SearchFatigue,
-		"ToolLoop":               ToolLoop,
-		"TodoOpen":               TodoOpen,
-		"Closing":                Closing,
-		"BudgetContinue":         BudgetContinue,
-		"DelegateHint":           DelegateHint,
-		"AskHint":                AskHint,
-		"WriteHint":              WriteHint,
-		"SubagentScope":          SubagentScope,
-		"AnnouncedNotWritten":    AnnouncedNotWritten,
-		"Truncated":              Truncated,
-		"WrapUp":                 WrapUp,
-		"CompactNotice":          CompactNotice,
-		"VerifyFailedContinue":   VerifyFailedContinue,
-		"MissionPlan":            MissionPlan,
-		"MissionPlanTask":        MissionPlanTask,
-		"MissionPlanRetry":       MissionPlanRetry,
-		"MissionPlanEdit":        MissionPlanEdit,
-		"MissionWorker":          MissionWorker,
-		"MissionSeed":            MissionSeed,
-		"MissionFixSeed":         MissionFixSeed,
-		"MissionReplan":          MissionReplan,
-		"MissionMapAnnotate":     MissionMapAnnotate,
-		"MissionMapAnnotateTask": MissionMapAnnotateTask,
-		"MissionReview":          MissionReview,
-		"MissionReviewTask":      MissionReviewTask,
-		"MissionVerdict":         MissionVerdict,
+		"System":         System,
+		"Resume":         Resume,
+		"LeakDetected":   LeakDetected,
+		"BudgetContinue": BudgetContinue,
+		"WriteHint":      WriteHint,
+		"SubagentScope":  SubagentScope,
+		"Truncated":      Truncated,
+		"CompactNotice":  CompactNotice,
 	}
 	for name, val := range all {
 		if val == "" {
@@ -58,21 +24,6 @@ func TestAllPromptsLoadNonEmpty(t *testing.T) {
 		if strings.HasSuffix(val, "\n") {
 			t.Errorf("%s has a trailing newline, want trimmed", name)
 		}
-	}
-}
-
-func TestMissionSeed_PlaceholderCountMatchesCompiler(t *testing.T) {
-	if got := strings.Count(MissionSeed, "%s"); got != 9 {
-		t.Fatalf("MissionSeed has %d %%s placeholders, want 9 — mission.CompileSeed passes exactly nine", got)
-	}
-	if got := strings.Count(MissionFixSeed, "%s"); got != 10 {
-		t.Fatalf("MissionFixSeed has %d %%s placeholders, want 10 — mission.CompileFixSeed passes exactly ten", got)
-	}
-	if got := strings.Count(MissionReplan, "%s"); got != 4 {
-		t.Fatalf("MissionReplan has %d %%s placeholders, want 4", got)
-	}
-	if got := strings.Count(MissionReviewTask, "%s"); got != 3 {
-		t.Fatalf("MissionReviewTask has %d %%s placeholders, want 3", got)
 	}
 }
 
@@ -99,18 +50,6 @@ func TestWithRole_NonEmptyAppendsFormattedAddendum(t *testing.T) {
 // behavior: tool discipline, anti-fake-save, background policy, asking.
 // Rewording deletes the test's premise, so reword deliberately —
 // update the fragments, never just delete them.
-func TestVerify_KeepsProgressGuard(t *testing.T) {
-	if !strings.Contains(Verify, "A progress report is not a finish") {
-		t.Error("verify lost its progress-report guard")
-	}
-}
-
-func TestTodoOpen_NamesCheckoff(t *testing.T) {
-	if !strings.Contains(TodoOpen, "check it off") {
-		t.Error("todo bounce must name the checkoff action, not just more work")
-	}
-}
-
 func TestPlatformLine_NamesCurrentOS(t *testing.T) {
 	got := PlatformLine()
 	if got == "" {
@@ -130,7 +69,7 @@ func TestSystem_KeepsLoadBearingGuards(t *testing.T) {
 		"Never run a long-running process",
 		"use ask_user to ask one focused clarifying question",
 		"A progress report (\"done X so far\"",
-		"never finish with items unchecked",
+		"Report incomplete work honestly",
 	} {
 		if !strings.Contains(System, want) {
 			t.Errorf("system prompt lost its guard %q", want)
