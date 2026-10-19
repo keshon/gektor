@@ -190,6 +190,7 @@ func TestRemoteModelsDiscovery(t *testing.T) {
 		}
 	}
 }
+
 // Apply reads the saved task before it writes anything. A read failure
 // must stop the apply outright rather than queue a restart that would
 // seed the new session from nothing.
@@ -218,26 +219,42 @@ func TestUnreadableTaskStopsApplyBeforeWriting(t *testing.T) {
 	}
 }
 
-func TestSettingsTakesOverContentWithRoundedCorners(t *testing.T) {
+// A settings section is drawn the way every other dialog is drawn: on the
+// shared rounded surface, inside the app's own chrome. It used to short-
+// circuit the screen and build a bare one - no header, no rules, no side
+// borders - so the one screen you open to change how the app looks was the
+// only one that did not look like the app.
+func TestSettingsIsDrawnInsideTheAppChrome(t *testing.T) {
 	m := settingsModel(t)
+	m.width(tea.WindowSizeMsg{Width: 100, Height: 30})
 	m.editSettings("generation")
 	view := m.View().Content
-	if strings.Contains(view, "Draft preserved") || strings.Contains(view, "CTX") || strings.Contains(view, "unfinished draft") || strings.Contains(view, "┌") {
-		t.Fatal("settings rendered Identity chrome behind its panel")
-	}
 	if !strings.Contains(view, "╭") || !strings.Contains(view, "╯") {
-		t.Fatal("rounded settings corners missing")
+		t.Fatalf("rounded settings corners missing:\n%s", view)
+	}
+	// The header and the action bar the rest of the app has.
+	for _, chrome := range []string{"Session", "Help"} {
+		if !strings.Contains(view, chrome) {
+			t.Fatalf("settings dropped the %q header:\n%s", chrome, view)
+		}
+	}
+	// The conversation must not show through behind the panel.
+	for _, behind := range []string{"Base rules", "hello", "reply"} {
+		if strings.Contains(view, behind) {
+			t.Fatalf("settings showed the conversation behind it (%q)", behind)
+		}
 	}
 	m.closeDialog()
 	if m.input.Value() != "unfinished draft" {
-		t.Fatal("takeover lost composer draft")
+		t.Fatal("closing settings lost the composer draft")
 	}
 }
+
 // Staging a preset must not touch the live profile: the preset is an
 // application decision, not a reason to reconfigure services mid-form.
 func TestPromptPresetIsStagedNotApplied(t *testing.T) {
 	m := settingsModel(t)
-		m.editSettings("prompts")
+	m.editSettings("prompts")
 	focusSetting(m, "prompt-preset")
 	if m.dialog.form.Editor.Value() != "custom" {
 		t.Fatal("existing behavior not preserved")

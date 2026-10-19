@@ -68,12 +68,12 @@ func TestSettingsButtonsAreClickableWhereTheyAreDrawn(t *testing.T) {
 		if cancel.X1 <= 0 {
 			t.Fatalf("width %d: the last hit has no extent: %+v", width, cancel)
 		}
-		// A settings screen is anchored at the frame origin and its content
-		// column starts two cells in; the button's own extent decides the
-		// rest. Clicking the middle of the drawn span is the assertion.
-		const frameX, contentInset, frameY = 0, 2, 2
-		click := frameX + contentInset + (cancel.X0+cancel.X1)/2
-		m.Update(tea.MouseClickMsg{X: click, Y: frameY + cancel.Y0, Button: tea.MouseLeft})
+		// Click the drawn button, not a second opinion about where it is.
+		// The frame used to be stretched across the screen and is now sized
+		// to its content and centred; a test that worked the origin out
+		// itself failed on the change without anything being wrong, and had
+		// been agreeing with a genuinely misplaced renderer when it was.
+		clickVisible(t, m, "[ Cancel ]")
 		if m.dialog != nil {
 			t.Fatalf("width %d: clicking Cancel at its drawn position did nothing", width)
 		}

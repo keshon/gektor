@@ -235,6 +235,7 @@ func (v Viewport) DragOffset(row, height, grab int) int {
 	}
 	return row * v.maxOffset() / free
 }
+
 // scrollbar draws a track with a thumb sized to the visible fraction and
 // placed at the reader's position, so it reads as a position in the
 // document and not merely as "there is more".

@@ -105,7 +105,10 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 		rows = append(rows, "")
 	}
 	if len(indexes) > capacity {
-		rows = append(rows, props.Styles.Muted.Render(fmt.Sprintf("Fields %d–%d / %d · Tab moves through all fields", start+1, end, len(indexes))))
+		// Capped like every other row here. It was not, so a form with
+		// more fields than fit pushed its own frame wider than the pane and
+		// clipped its own right-hand border.
+		rows = append(rows, props.Styles.Muted.Render(cell.Line(fmt.Sprintf("Fields %d–%d / %d · Tab moves through all fields", start+1, end, len(indexes)), inner)))
 	}
 	if props.Error != "" {
 		rows = append(rows, props.Styles.Error.Render(cell.Line(props.Error, inner)))

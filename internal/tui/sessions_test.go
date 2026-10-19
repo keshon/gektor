@@ -10,8 +10,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/workspace"
 )
 

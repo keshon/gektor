@@ -56,15 +56,10 @@ func TestCompactDialogMouseAndHorizontalKeys(t *testing.T) {
 	if m.dialog.form.Index != 1 {
 		t.Fatal("right did not select cancel")
 	}
-	rows, hits, w, h := m.formRows()
-	bw := 0
-	for _, row := range rows {
-		bw = max(bw, lipgloss.Width(row))
-	}
-	x := m.promptOffset() + max((w-bw-4)/2, 0) + 2
-	y := paneTop + max((h-len(rows)-2)/2, 0) + 1
-	cancel := hits[len(hits)-1]
-	m.Update(tea.MouseClickMsg{X: x + cancel.X0, Y: y + cancel.Y0, Button: tea.MouseLeft})
+	// Click where Cancel is drawn. Working the position out here duplicated
+	// the layout maths, which made it a second opinion about where the
+	// renderer put the button rather than a check that it did.
+	clickVisible(t, m, "[ Cancel ]")
 	if m.dialog != nil || calls != 0 {
 		t.Fatal("cancel mouse hit missed")
 	}

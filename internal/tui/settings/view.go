@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/keshon/tars/internal/tui/components/cell"
 	"github.com/keshon/tars/internal/tui/components/form"
+	"github.com/keshon/tars/internal/tui/components/popup"
 )
 
 type Styles struct{ Muted, Focus, Error, Selected lipgloss.Style }
@@ -17,6 +18,7 @@ type Props struct {
 	Left, Top     int
 	Title         string
 	Styles        Styles
+	Surface       popup.Styles
 	SearchStyles  textinput.Styles
 }
 
@@ -140,27 +142,37 @@ func (f *Model) PlainRows(props Props) ([]string, []form.Hit, int, int) {
 	return rows, hits, w, h
 }
 
+// box is the framed, centred surface every form is drawn on - the settings
+// section editor, the confirmation, the file chooser. They are the same
+// surface with different rows, so they are the same box.
+//
+// It is sized to its content and centred, like every other overlay in the
+// app. The settings editor's own frame used to stretch to the whole screen,
+// which put a handful of fields in the top eighth of the terminal and left a
+// void that read as a failure to draw rather than as space.
+func (f *Model) box(props Props) []string {
+	rows, _, _, _ := f.Rows(props)
+	return popup.Box(rows, props.Surface)
+}
+
+// Origin is the screen position of the first content cell inside the frame:
+// row 0 of the rows, column 0 of a row's text.
+//
+// The renderer and the hit-test both read it, and callers can too. They used
+// to compute it separately and drifted apart twice - once when the rows lost
+// the category rail and the frame kept it, and once when the frame moved and
+// the caller did not. Every time they disagreed, buttons were drawn correctly
+// and clicked in the wrong place, and only a human looking at the screen could
+// tell.
+func (f *Model) Origin(props Props) (x, y int) {
+	framed := f.box(props)
+	width := cell.Width(strings.Join(framed, "\n"))
+	return props.Left + max((max(props.Width, 0)-width)/2, 0) + 2,
+		props.Top + max((max(props.Height, 0)-len(framed))/2, 0) + 1
+}
+
+// View draws the form on its shared surface.
 func (f *Model) View(props Props) string {
-	rows, _, w, h := f.Rows(props)
-	width := max(props.Width, 0)
-	rail := f.Picker == nil && w >= 76
-	rule := strings.Repeat("─", width)
-	if rail {
-		rule = strings.Repeat("─", 16) + "┬" + strings.Repeat("─", max(width-17, 0))
-	}
-	out := []string{props.Styles.Muted.Render("╭" + rule + "╮")}
-	for i := 0; i < max(h-2, 0); i++ {
-		row := ""
-		if i < len(rows) {
-			row = rows[i]
-		} else if rail {
-			row = strings.Repeat(" ", 15) + props.Styles.Muted.Render("│ ")
-		}
-		out = append(out, props.Styles.Muted.Render("│ ")+cell.Line(row, max(width-2, 0))+props.Styles.Muted.Render(" │"))
-	}
-	if rail {
-		rule = strings.Replace(rule, "┬", "┴", 1)
-	}
-	out = append(out, props.Styles.Muted.Render("╰"+rule+"╯"))
-	return strings.Join(out, "\n")
+	rows, _, _, _ := f.Rows(props)
+	return popup.FrameBox(rows, props.Width, props.Height, props.Surface)
 }

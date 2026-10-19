@@ -48,4 +48,3 @@ func (f *Model) UpdateKey(msg tea.KeyPressMsg, props Props) (Intent, tea.Cmd) {
 	}
 	return Intent{}, cmd
 }
-

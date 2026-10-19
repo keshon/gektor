@@ -320,9 +320,12 @@ Each Settings entry opens its own small modal with only that section's
 fields. The modal used to be one two-column window with a rail of section
 names down the left, so every section opened as a form three quarters full of
 the other sections' names; the menu is the chooser and the modal is for the
-thing chosen. An unset temperature reads `default (0.4)` rather than a bare
-`0`, which used to be indistinguishable from a profile that had explicitly
-been set to zero.
+thing chosen. It used to have its own renderer and its own full-screen frame,
+so it was the one screen in the app that looked unlike the rest; it is drawn
+by the shared form component on the shared overlay surface, inside the normal
+app chrome, exactly like a confirmation. An unset temperature reads
+`default (0.4)` rather than a bare `0`, which used to be indistinguishable
+from a profile that had explicitly been set to zero.
 
 ## Common menu flows
 

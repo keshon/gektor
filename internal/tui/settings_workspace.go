@@ -15,11 +15,16 @@ func (m *model) settingsFieldVisible(index int) bool { return m.dialog.form.Fiel
 func (m *model) formRows() ([]string, []formHit, int, int) {
 	return m.dialog.form.Rows(m.settingsProps())
 }
-func (m *model) settingsDimensions() (int, int) {
-	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Workspace != nil {
-		return max(m.termW-2, 1), max(m.termH-m.actionBarRows()-1, 3)
-	}
-	return m.transcript.Viewport.Width(), m.transcript.Viewport.Height()
+
+// settingsArea is the screen region the open form is drawn into: the
+// transcript pane, wherever the sidebar puts it.
+//
+// It used to have a second answer for the settings editor, on the theory that
+// a section needs more room than a confirmation. It does not - the pane is
+// the same pane - and having two answers meant the form's renderer and its
+// hit-test could be reading a different region than the one it was drawn into.
+func (m *model) settingsArea() (left, top, width, height int) {
+	return m.promptOffset(), paneTop, m.transcript.Viewport.Width(), m.transcript.Viewport.Height()
 }
 
 func (m *model) settingsDirty() bool {
@@ -34,6 +39,14 @@ func (m *model) acceptSettingsScan(msg settingsScanMsg) {
 	}
 }
 func (m *model) settingsProps() settings.Props {
-	w, h := m.settingsDimensions()
-	return settings.Props{Width: w, Height: h, Title: m.dialog.title, Left: m.promptOffset(), Top: paneTop, Styles: settings.Styles{Muted: m.styles.dim, Focus: m.styles.gate, Error: m.styles.err, Selected: m.styles.hunk}, SearchStyles: textInputStyles(textinput.New().Styles())}
+	left, top, width, height := m.settingsArea()
+	// The frame palette is the same one every other overlay uses, handed
+	// over rather than re-derived so no overlay invents its own.
+	return settings.Props{
+		Width: width, Height: height, Title: m.dialog.title,
+		Left: left, Top: top,
+		Styles:       settings.Styles{Muted: m.styles.dim, Focus: m.styles.gate, Error: m.styles.err, Selected: m.styles.hunk},
+		Surface:      popupSurface(),
+		SearchStyles: textInputStyles(textinput.New().Styles()),
+	}
 }

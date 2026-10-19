@@ -14,13 +14,12 @@ func (m *model) screenContent() string {
 	if !m.ready {
 		return "starting..."
 	}
-	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Workspace != nil {
-		content := m.menuLine() + "\n" + m.formView()
-		if m.actionBarVisible() {
-			content += "\n" + m.actionBar()
-		}
-		return cellFrame(content, m.termW, m.termH)
-	}
+	// A settings section used to short-circuit here and build its own screen:
+	// a menu line, a form and an action bar, framed as bare content. No
+	// header, no rules, no side borders - so the one screen you open to change
+	// how the app looks was the only one that did not look like the app. It
+	// takes the normal path now, where a form is drawn the way every other
+	// dialog is drawn: inside the pane, on the shared surface.
 	paneHeader := cellLine(m.identityLine(), m.transcript.Viewport.Width())
 	if m.sidebarVisible() {
 		titleStyle := m.styles.dim

@@ -1,8 +1,10 @@
 package settings
 
 import (
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
+	"github.com/keshon/tars/internal/tui/components/cell"
 )
 
 func (f *Model) Mouse(msg tea.MouseMsg, props Props) (Intent, tea.Cmd) {
@@ -18,45 +20,29 @@ func (f *Model) Mouse(msg tea.MouseMsg, props Props) (Intent, tea.Cmd) {
 	if msg.Mouse().Button != tea.MouseLeft || !isClick(msg) {
 		return Intent{}, nil
 	}
-	rows, hits, w, h := f.Rows(props)
-	bw := 0
-	for _, row := range rows {
-		bw = max(bw, lipgloss.Width(row))
-	}
-	x := props.Left + max((w-bw-4)/2, 0)
-	y := props.Top + max((h-len(rows)-2)/2, 0) + 1
-	if f.Workspace != nil {
-		x = 0
-		y = 2
-	}
+	x, y := f.Origin(props)
+	_, hits, _, _ := f.Rows(props)
+	width := cell.Width(strings.Join(f.box(props), "\n"))
 	mouse := msg.Mouse()
 	if f.Picker != nil {
 		p := f.Picker
 		row := mouse.Y - y - 3
-		capacity := max(h-10, 1)
+		capacity := max(props.Height-10, 1)
 		start := max(min(p.Cursor-capacity/2, len(p.Filtered)-capacity), 0)
-		if mouse.X >= x && mouse.X < x+bw+4 && row >= 0 && row < capacity && start+row < len(p.Filtered) {
+		if mouse.X >= x-2 && mouse.X < x-2+width && row >= 0 && row < capacity && start+row < len(p.Filtered) {
 			p.Cursor = start + row
 			cmd := f.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, props)
 			return Intent{}, cmd
 		}
 		return Intent{}, nil
 	}
-	if mouse.X < x || mouse.X >= x+bw+4 {
+	if mouse.X < x-2 || mouse.X >= x-2+width {
 		return Intent{}, nil
 	}
 	for _, hit := range hits {
 		if mouse.Y >= y+hit.Y0 && mouse.Y < y+hit.Y1 {
-			if hit.X1 > 0 {
-				// Content starts two cells inside the frame. It used to
-				// start seventeen further right, skipping the category
-				// rail; when the rail was removed the renderer was
-				// updated and this was not, so every button click landed
-				// seventeen cells short of its target.
-				contentX := x + 2
-				if mouse.X < contentX+hit.X0 || mouse.X >= contentX+hit.X1 {
-					continue
-				}
+			if hit.X1 > 0 && (mouse.X < x+hit.X0 || mouse.X >= x+hit.X1) {
+				continue
 			}
 			f.Focus(hit.Index, f.FieldVisible)
 			if hit.Index < len(f.Fields) && mouse.Y > y+hit.Y0 && (len(f.Options(f.Fields[hit.Index].Key)) > 0 || PickerControl(f.Fields[hit.Index].Key)) {

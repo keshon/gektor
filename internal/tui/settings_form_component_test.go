@@ -6,13 +6,32 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
-// The settings modal used to carry its own copy of the form skeleton. It
-// looked unlike every other form in the app, and every divergence between
-// the two was a bug waiting to happen. It now draws through the same
-// component, with hooks for the four things it actually needed.
+// A form is framed to the pane, so no row of one may be wider than the pane
+// allows. The scroll indicator was the one row that skipped the width cap, and
+// it made the form's own frame wider than the pane, which clipped the frame's
+// right-hand border and truncated every line beside it.
+//
+// A narrow terminal is the only place this shows, so every size is tried.
+func TestNoFormRowIsWiderThanItsPane(t *testing.T) {
+	for _, size := range [][2]int{{40, 20}, {44, 26}, {60, 24}, {80, 30}, {120, 40}} {
+		for _, section := range []string{"model", "generation", "prompts", "you", "application"} {
+			m := settingsModel(t)
+			m.width(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+			m.editSettings(section)
+			_, _, pane, _ := m.formRows()
+			for i, row := range formRowsOf(t, m) {
+				if n := lipgloss.Width(row); n > pane {
+					t.Fatalf("%dx%d %s: row %d is %d cells in a %d-cell pane: %q",
+						size[0], size[1], section, i, n, pane, ansi.Strip(row))
+				}
+			}
+		}
+	}
+}
 
 func TestSettingsModalIsDrawnByTheSharedForm(t *testing.T) {
 	for _, section := range []string{"model", "generation", "prompts", "you", "application"} {
@@ -163,7 +182,7 @@ func TestOptionFieldsShowTheCurrentChoice(t *testing.T) {
 // cost a row or a scroll step to the fields around it.
 func TestHiddenFieldsTakeNoRoom(t *testing.T) {
 	m := settingsModel(t)
-	m.width(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m.width(tea.WindowSizeMsg{Width: 120, Height: 40})
 	m.editSettings("model")
 	off := len(formRowsOf(t, m))
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF4})

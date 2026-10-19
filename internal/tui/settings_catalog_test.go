@@ -18,6 +18,7 @@ func focusSetting(m *model, key string) {
 		}
 	}
 }
+
 // Loading a profile stages it; it does not apply. The running session
 // keeps its own profile until Apply, and then the restart carries the
 // loaded values and the same session directory.

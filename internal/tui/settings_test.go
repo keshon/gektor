@@ -9,12 +9,12 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/keshon/tars/internal/tui/settings"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/app"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/tars/internal/tui/settings"
 )
 
 // headerRowFor finds a menu row by its command, so a test can select one
@@ -179,25 +179,9 @@ func TestSettingsFormMouseAndFrame(t *testing.T) {
 				t.Fatalf("width=%d row=%s", width, ansi.Strip(row))
 			}
 		}
-		rows, hits, w, h := m.formRows()
-		bw := 0
-		for _, row := range rows {
-			bw = max(bw, lipgloss.Width(row))
-		}
-		x := m.promptOffset() + max((w-bw-4)/2, 0) + 1
-		y := paneTop + max((h-len(rows)-2)/2, 0) + 1
-		if m.dialog.form.Workspace != nil {
-			x = 2
-			y = 2
-		}
-		cancel := hits[len(hits)-1]
-		if cancel.X1 > 0 {
-			x = m.promptOffset() + max((w-bw-4)/2, 0) + 2 + cancel.X0
-			if m.dialog.form.Workspace != nil {
-				x = 2 + cancel.X0
-			}
-		}
-		m.Update(tea.MouseClickMsg{X: x, Y: y + cancel.Y0, Button: tea.MouseLeft})
+		// Every drawn row fills the screen, and Cancel is where it is
+		// drawn - not where a second copy of the layout maths says.
+		clickVisible(t, m, "[ Cancel ]")
 		if m.dialog != nil || m.input.Value() != "unfinished draft" {
 			t.Fatal("mouse cancel missed or lost draft")
 		}
@@ -206,22 +190,24 @@ func TestSettingsFormMouseAndFrame(t *testing.T) {
 
 func TestSettingsMouseResizesMultilineEditor(t *testing.T) {
 	m := settingsModel(t)
+	m.width(tea.WindowSizeMsg{Width: 100, Height: 30})
 	m.editSettings("you")
-	for _, index := range []int{1, 0} {
-		_, hits, _, _ := m.formRows()
-		for _, hit := range hits {
-			if hit.Index != index {
-				continue
-			}
-			m.formMouse(tea.MouseClickMsg{X: 25, Y: 2 + hit.Y0, Button: tea.MouseLeft})
-			break
+	// A multiline field and a single-line one, named by key so the test does
+	// not depend on their order or on a label also appearing in the hint.
+	for _, c := range []struct {
+		key  string
+		want int
+	}{
+		{"persona", 3},
+		{"user", 1},
+	} {
+		clickHit(t, m, fieldHit(t, m, c.key))
+		if m.dialog.form.Editor.Height() != c.want {
+			t.Fatalf("clicking %q left the editor at height %d, want %d",
+				c.key, m.dialog.form.Editor.Height(), c.want)
 		}
-		want := 1
-		if index == 1 {
-			want = 3
-		}
-		if m.dialog.form.Index != index || m.dialog.form.Editor.Height() != want {
-			t.Fatalf("mouse focus %d left editor at height %d", index, m.dialog.form.Editor.Height())
+		if m.dialog.form.Fields[fieldHit(t, m, c.key)].Key != c.key {
+			t.Fatalf("the click did not focus %q", c.key)
 		}
 	}
 }

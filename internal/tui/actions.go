@@ -44,7 +44,10 @@ func (m *model) footerActions() []footerAction {
 			apply = footerAction{tea.KeyEnter, 0, "Enter", "Choose", "Choose", true}
 		}
 		if ws := m.dialog.form.Workspace; ws != nil {
-			actions := []footerAction{{tea.KeyF6, 0, "F6", "Categories", "Pages", true}, {tea.KeyTab, 0, "Tab", "Next", "Next", true}, apply, {tea.KeyEscape, 0, "Esc", "Cancel", "Cancel", true}}
+			// F6 was the in-form category switch. With one section per
+			// modal there is nothing for it to switch, and a footer entry
+			// that does nothing is worse than no entry.
+			actions := []footerAction{{tea.KeyF4, 0, "F4", "Advanced", "More", true}, {tea.KeyTab, 0, "Tab", "Next", "Next", true}, apply, {tea.KeyEscape, 0, "Esc", "Cancel", "Cancel", true}}
 			if ws.Section == "profiles" {
 				actions = append(actions, footerAction{'d', tea.ModCtrl, "Ctrl+D", "Save copy", "Save", true})
 			}

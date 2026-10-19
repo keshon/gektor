@@ -39,6 +39,12 @@ Run `go test -race ./...` and `go vet ./...`. Performance probes live in
   and every divergence between the two copies was a bug waiting to happen. Its
   file chooser is a searchable list rather than a field list, so it keeps its
   own rows.
+- Every form — a settings section, a confirmation, the file chooser — is framed
+  by `popup` through one path, sized to its content and centred in the pane.
+  `Model.Origin` reports where that frame landed; the renderer and the
+  hit-test both read it. They each used to work it out separately, and both
+  times they disagreed the buttons were drawn correctly and clicked in the
+  wrong place.
 - `composer`: textarea, bounded input history, draft recall and rune-based
   completion token/replacement operations. Command and file discovery stay in TARS.
 - `selection`: selection and scrolling geometry, used by Sessions and Settings pickers.

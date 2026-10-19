@@ -75,13 +75,13 @@ func (m *model) handleSettingsIntent(intent settings.Intent) tea.Cmd {
 	}
 	return nil
 }
+
+// formView draws the open form. Every form goes through the one path in the
+// settings package, which frames and centres it - the section editor, the
+// confirmation and the file chooser are the same surface with different rows,
+// and the caller used to have a second way of drawing the first two.
 func (m *model) formView() string {
-	f := m.dialog.form
-	if f.Workspace == nil {
-		rows, _, w, h := m.formRows()
-		return renderBox(rows, w, h)
-	}
-	return f.View(m.settingsProps())
+	return m.dialog.form.View(m.settingsProps())
 }
 func (m *model) formMouse(msg tea.MouseMsg) tea.Cmd {
 	intent, cmd := m.dialog.form.Mouse(msg, m.settingsProps())
