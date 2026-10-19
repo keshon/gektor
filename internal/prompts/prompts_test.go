@@ -8,14 +8,16 @@ import (
 
 func TestAllPromptsLoadNonEmpty(t *testing.T) {
 	all := map[string]string{
-		"System":         System,
-		"Resume":         Resume,
-		"LeakDetected":   LeakDetected,
-		"BudgetContinue": BudgetContinue,
-		"WriteHint":      WriteHint,
-		"SubagentScope":  SubagentScope,
-		"Truncated":      Truncated,
-		"CompactNotice":  CompactNotice,
+		"System":            System,
+		"Resume":            Resume,
+		"LeakDetected":      LeakDetected,
+		"BudgetContinue":    BudgetContinue,
+		"WriteHint":         WriteHint,
+		"SubagentScope":     SubagentScope,
+		"OverflowRecovered": OverflowRecovered,
+		"RepeatingSteps":    RepeatingSteps,
+		"Truncated":         Truncated,
+		"CompactNotice":     CompactNotice,
 	}
 	for name, val := range all {
 		if val == "" {

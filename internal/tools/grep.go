@@ -25,6 +25,9 @@ type GrepFiles struct{ WS *workspace.Workspace }
 
 func (GrepFiles) Name() string         { return "grep_files" }
 func (GrepFiles) Mode() agent.ToolMode { return agent.Concurrent }
+
+// Idempotent: a search returns the same matches until something mutates.
+func (GrepFiles) Idempotent() bool { return true }
 func (GrepFiles) Description() string {
 	return "Search file contents under a path (recursive) for a regex pattern. Returns " +
 		"path:line:content for each match, capped at 200 matches; long lines are truncated. " +

@@ -100,8 +100,18 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 			continue
 		}
 		history = a.executeToolCalls(ctx, &st, step, resp.FinishReason, resp.Message.ToolCalls, history)
-		a.maybeCompact(&history, resp.Usage, &st)
+		if a.maybeCompact(&history, resp.Usage, &st) {
+			// The refusal text points at conversation content; compaction just
+			// dropped some of it, so what it promises is no longer true.
+			st.forgetIdempotentSeen()
+		}
 		a.saveState(history)
+		if st.repeatCount >= maxRepeatedSteps {
+			from := step - st.repeatCount + 1
+			a.report.Warnings = append(a.report.Warnings, fmt.Sprintf(
+				"steps %d-%d issued identical tool calls; answered without tools", from, step))
+			return a.forceAnswer(ctx, &st, step, history, from)
+		}
 	}
 
 	// LastRunMutations and report.MutatedPaths are set by the defer above,
@@ -126,6 +136,7 @@ func (a *Agent) handleChatError(st *runState, step int, err error, history []llm
 		// refusal texts cite content that must really be gone.
 		if next := compactHistory(history, keep/2); len(next) < len(history) {
 			history = next
+			st.forgetIdempotentSeen()
 			shrunk = true
 		}
 		a.saveState(history)
@@ -149,12 +160,7 @@ func (a *Agent) handleChatError(st *runState, step int, err error, history []llm
 func (a *Agent) recoverLeakedCalls(resp llm.ChatResponse, step int) (llm.ChatResponse, bool) {
 	var leakedText bool
 	if len(resp.Message.ToolCalls) == 0 && resp.FinishReason != "length" {
-		known := map[string]bool{}
-		if a.cfg.Tools != nil {
-			for _, n := range a.cfg.Tools.Names() {
-				known[n] = true
-			}
-		}
+		known := a.knownTools()
 		var recovered []llm.LeakedCall
 		var cleaned string
 		recovered, cleaned, leakedText = llm.ExtractLeakedCalls(resp.Message.Content, known)

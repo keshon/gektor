@@ -29,7 +29,14 @@ retain that order, and errors preserve the command output alongside the error.
 The operator sets the step limit, default 25. Todo is checklist data: it cannot
 grant steps or prevent an answer. On exhaustion, an operator may explicitly
 approve one 25-step continuation. There is no additional closing model call.
-Repeated reads, failed commands and whole-file replacements remain legal.
+
+Repeats are bounded deterministically, because a soft hint is one more line to
+ignore. An exact repeat of a pure read is refused rather than re-executed: the
+bytes cannot have changed, and the duplicate would only fill the context. Three
+consecutive steps issuing the same set of calls end the run after one turn with
+no tools offered, so the model answers from what it already has
+(`ErrRepeatingSteps`). Both reset on any mutation, so rewrites and shell
+commands that change the workspace stay legal; the step limit bounds those.
 
 Recovery handles incomplete generations, malformed leaked calls, empty
 responses and context overflow. Well-formed leaked calls use the normal

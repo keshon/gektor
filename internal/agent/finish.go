@@ -39,6 +39,7 @@ const (
 	NudgeTruncated = "truncated"
 	NudgeLeak      = "leak"
 	NudgeCompact   = "compact"
+	NudgeRepeating = "repeating"
 	harnessPrefix  = "[harness] "
 )
 

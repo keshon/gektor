@@ -39,6 +39,7 @@ var (
 	Truncated         = read("truncated.txt")
 	LeakDetected      = read("leak_detected.txt")
 	OverflowRecovered = read("overflow_recovered.txt")
+	RepeatingSteps    = read("repeating_steps.txt")
 	BudgetContinue    = read("budget_continue.txt")
 	WriteHint         = read("write_hint.txt")
 	CompactNotice     = read("compact_notice.txt")

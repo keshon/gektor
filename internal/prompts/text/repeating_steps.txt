@@ -1,0 +1,1 @@
+The same tool calls have been repeated for several steps and nothing changed in between. No tools are available in this turn, so answer now from the context you already have - do not ask for files to be read.

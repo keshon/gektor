@@ -125,6 +125,22 @@ func (r *Registry) ModeOf(name string) ToolMode {
 	return Exclusive
 }
 
+// IdempotentOf reports whether a tool declared, via an optional
+// `Idempotent() bool`, that identical calls return identical results while
+// nothing mutates - true for pure reads, never for time-varying results
+// (check_url) or side effects (delegate_task). A tool must opt in: the
+// default is false, so a new tool cannot be silently cached.
+func (r *Registry) IdempotentOf(name string) bool {
+	t, ok := r.tools[name]
+	if !ok {
+		return false
+	}
+	if it, ok := t.(interface{ Idempotent() bool }); ok {
+		return it.Idempotent()
+	}
+	return false
+}
+
 // Has reports whether a tool is registered.
 func (r *Registry) Has(name string) bool {
 	_, ok := r.tools[name]
@@ -221,17 +237,50 @@ type callResult struct {
 }
 
 // executeToolCalls overlaps adjacent reads and serializes every mutation in
-// model call order. Repeated reads and writes are ordinary tool calls.
+// model call order.
+//
+// Two guards keep a model that has stopped learning from spending its budget
+// re-asking the same question. An exact repeat of a pure read is refused
+// instead of re-executed - the bytes cannot have changed, and a second copy in
+// the prompt teaches nothing. And the step's call signature is counted, so the
+// loop can stop offering tools after maxRepeatedSteps. Both are deterministic:
+// nothing here depends on the model choosing to obey a hint.
 func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, finishReason string, calls []llm.ToolCall, history []llm.Message) []llm.Message {
+	st.trackSignature(callSignature(calls))
 	results := make([]callResult, len(calls))
+
+	// A refusal is an error on purpose. It is not progress, and the text the
+	// model reads is "this already ran; re-read the conversation" rather than
+	// the same bytes a second time.
+	skipped := make([]bool, len(calls))
+	for i, call := range calls {
+		// Truncated arguments (generation cut off mid-call) are stumps, not
+		// calls: executing them fails arg parsing here and 500s backends that
+		// parse server-side. Refuse with reissue-smaller guidance instead.
+		if finishReason == "length" && len(strings.TrimSpace(string(call.Arguments))) > 0 && !json.Valid(call.Arguments) {
+			skipped[i] = true
+			results[i].err = fmt.Errorf("call arguments are truncated JSON; reissue the call in smaller pieces")
+			continue
+		}
+		if !a.cfg.Tools.IdempotentOf(call.Name) {
+			continue
+		}
+		prev, seen := st.idempotentSeen[callKey(call.Name, call.Arguments)]
+		if !seen {
+			continue
+		}
+		skipped[i] = true
+		results[i].err = fmt.Errorf(
+			"this exact %s call (same arguments) already ran in step %d and nothing has changed "+
+				"since - its result is still valid, so re-read it from the conversation instead of "+
+				"calling it again, or do something different (another path, another argument, or act "+
+				"on what you already know)", call.Name, prev)
+	}
+
 	runOne := func(i int) {
 		call := calls[i]
 		if err := ctx.Err(); err != nil {
 			results[i].err = err
-			return
-		}
-		if finishReason == "length" && !json.Valid(call.Arguments) {
-			results[i].err = fmt.Errorf("call arguments are truncated JSON; reissue the call in smaller pieces")
 			return
 		}
 		if err := permission.Authorize(ctx, a.cfg.Policy, a.cfg.BeforeToolCall, call.Name, toolResource(call.Arguments), call.Arguments); err != nil {
@@ -250,6 +299,9 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 	}
 	var batch []int
 	for i, call := range calls {
+		if skipped[i] {
+			continue
+		}
 		if a.cfg.Tools.ModeOf(call.Name) == Concurrent {
 			batch = append(batch, i)
 		} else {
@@ -259,6 +311,9 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 		}
 	}
 	runBatch(batch)
+
+	mutatingBefore := st.mutatingSucceeded
+	exclusiveSucceeded := false
 	for i, call := range calls {
 		content := results[i].content
 		if results[i].err != nil {
@@ -266,16 +321,27 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 				content += "\n"
 			}
 			content += "error: " + results[i].err.Error()
-		} else if st.observeChanges == nil {
-			// Embedders may omit the workspace observer.
-			if containsStr(a.cfg.MutatingTools, call.Name) {
-				st.mutatingSucceeded++
-				st.addPaths(mutatedPathsFromCall(call.Arguments))
+		} else {
+			if a.cfg.Tools.ModeOf(call.Name) == Exclusive {
+				exclusiveSucceeded = true
 			}
-			if call.Name == "delegate_task" {
-				mutations, paths := parseDelegateMutations(content)
-				st.mutatingSucceeded += mutations
-				st.addPaths(paths)
+			if a.cfg.Tools.IdempotentOf(call.Name) {
+				if st.idempotentSeen == nil {
+					st.idempotentSeen = make(map[string]int)
+				}
+				st.idempotentSeen[callKey(call.Name, call.Arguments)] = step
+			}
+			if st.observeChanges == nil {
+				// Embedders may omit the workspace observer.
+				if containsStr(a.cfg.MutatingTools, call.Name) {
+					st.mutatingSucceeded++
+					st.addPaths(mutatedPathsFromCall(call.Arguments))
+				}
+				if call.Name == "delegate_task" {
+					mutations, paths := parseDelegateMutations(content)
+					st.mutatingSucceeded += mutations
+					st.addPaths(paths)
+				}
 			}
 		}
 		content = TruncateMiddle(content, max(1, 48*1024/len(calls)))
@@ -283,6 +349,13 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 		if a.cfg.OnResult != nil {
 			a.cfg.OnResult(ToolResult{CallID: call.ID, Output: content, Failed: results[i].err != nil})
 		}
+	}
+
+	// Anything that mutated invalidates both caches: the same read can now
+	// legitimately return something new, and a signature that repeats across a
+	// mutation is work in progress, not a spin.
+	if exclusiveSucceeded || st.mutatingSucceeded > mutatingBefore {
+		st.noteMutation()
 	}
 	return history
 }

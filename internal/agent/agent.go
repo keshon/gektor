@@ -173,6 +173,20 @@ type runState struct {
 	mutatingSucceeded, lastPromptTokens, lastCompactTokens int
 	emptyFinishRetried, overflowRetried                    bool
 	mutatedPaths                                           []string
+
+	// repeatSignature is the previous step's call signature and repeatCount
+	// is how many consecutive steps have now issued it. A model that stops
+	// learning keeps asking the same question, so the loop stops handing it
+	// tools after maxRepeatedSteps. Cleared on mutation: repeating a call
+	// across a write is work, not a spin.
+	repeatSignature string
+	repeatCount     int
+
+	// idempotentSeen maps an idempotent call's canonical arguments to the
+	// step that ran it. An exact repeat is refused instead of served the
+	// same bytes again, and the map is dropped on mutation or compaction,
+	// because the refusal promises a result that is still valid.
+	idempotentSeen map[string]int
 }
 
 // ErrMaxSteps marks a run that did real work but ran out of step budget,

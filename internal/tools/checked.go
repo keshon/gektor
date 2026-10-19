@@ -45,6 +45,15 @@ func (c *checked) Schema() json.RawMessage {
 }
 func (c *checked) Mode() agent.ToolMode { return c.inner.Mode() }
 
+// Idempotent forwards only when the inner tool declares it: the wrapper must
+// never upgrade a mutating tool to idempotent by accident.
+func (c *checked) Idempotent() bool {
+	if it, ok := c.inner.(interface{ Idempotent() bool }); ok {
+		return it.Idempotent()
+	}
+	return false
+}
+
 func (c *checked) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	out, err := c.inner.Run(ctx, args)
 	if err != nil {

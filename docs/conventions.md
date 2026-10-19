@@ -90,8 +90,15 @@ recurse.
 from answer wording. An explicit verify command supplies mechanical evidence.
 Verification records a real command verdict without requesting a model self-check.
 
-**[invariant]** Repeated tool calls remain legal. The step limit bounds execution;
-checklist changes cannot extend it. Recovery addresses concrete protocol failures.
+**[invariant]** Repeated tool calls remain legal whenever something may have
+changed between them; the step limit bounds execution, and checklist changes
+cannot extend it. Two deterministic guards cover the case where nothing did
+change. An exact repeat of an idempotent call (a pure read, a directory listing,
+a search) is refused instead of re-executed, because its result is still in
+history. Three consecutive steps with the same call signature end the run with
+`ErrRepeatingSteps` after one turn with no tools offered. Both guards reset on
+any mutation, so rewrites and shell commands that change the workspace are never
+counted as repetition. Recovery addresses concrete protocol failures.
 
 ## Prompts
 

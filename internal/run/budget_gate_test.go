@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,9 +34,9 @@ func budgetTodo(id, items string) llm.ChatResponse {
 		{ID: id, Name: "todo", Arguments: json.RawMessage(`{"items":` + items + `}`)}}}}
 }
 
-func budgetRead(id string) llm.ChatResponse {
+func budgetRead(id, path string) llm.ChatResponse {
 	return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{
-		{ID: id, Name: "read_file", Arguments: json.RawMessage(`{"path":"a.go"}`)}}}}
+		{ID: id, Name: "read_file", Arguments: json.RawMessage(`{"path":"` + path + `"}`)}}}}
 }
 
 func budgetSay(text string) llm.ChatResponse {
@@ -81,14 +82,15 @@ func stateFileIn(dir string) string {
 }
 
 // deathScript burns a full 25-step budget: one todo creating two open
-// items, then 24 identical reads (first executes, rest refuse from
-// cache — every step still costs a round trip).
+// items, then 24 reads of distinct paths. The paths differ on purpose:
+// identical calls are answered without tools after a few steps
+// (maxRepeatedSteps), so reaching the budget now takes genuine variety.
 func deathScript(extra ...llm.ChatResponse) []llm.ChatResponse {
 	steps := []llm.ChatResponse{
 		budgetTodo("t1", `[{"id":1,"state":"pending","text":"Alpha"},{"id":2,"state":"pending","text":"Beta"}]`),
 	}
 	for i := 0; i < 24; i++ {
-		steps = append(steps, budgetRead("r"))
+		steps = append(steps, budgetRead("r", fmt.Sprintf("missing-%d.go", i)))
 	}
 	// Budget death always ends with one wrap-up turn.
 	return append(steps, extra...)
@@ -188,7 +190,7 @@ func TestSession_BudgetGate_AnswerErrorDeclines(t *testing.T) {
 func TestSession_BudgetGate_DoesNotRequireTodos(t *testing.T) {
 	steps := make([]llm.ChatResponse, 0, 26)
 	for i := 0; i < 25; i++ {
-		steps = append(steps, budgetRead("r"))
+		steps = append(steps, budgetRead("r", fmt.Sprintf("missing-%d.go", i)))
 	}
 	steps = append(steps, budgetSay("done"))
 	client := &seqClient{steps: steps}
