@@ -1,4 +1,4 @@
-﻿// Package tars resolves the one directory TARS keeps its data in.
+// Package tars resolves the one directory TARS keeps its data in.
 //
 // Everything the harness persists for the user lives under a single
 // dot-directory in their home, like .claude or .codex: preferences, the

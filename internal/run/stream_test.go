@@ -15,7 +15,7 @@ import (
 // streamingClient answers unary and streams, so a session that was built
 // with Stream on must take the streaming path and emit deltas.
 type streamingClient struct {
-	calls int
+	calls  int
 	deltas int
 }
 

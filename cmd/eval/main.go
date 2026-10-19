@@ -258,7 +258,6 @@ func gitInit(dir string) error {
 	return nil
 }
 
-
 type Result struct {
 	Probe   string  `json:"probe"`
 	Run     int     `json:"run"`
@@ -711,8 +710,8 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 		// Whether ask_user was called at all stays visible in the trace,
 		// which is what probe 12 measures.
 		env := evalEnv(modelClient, ws, procs, contextLimit, maxTokens, record, func(kind string) {
-		res.Nudges = append(res.Nudges, kind)
-	})
+			res.Nudges = append(res.Nudges, kind)
+		})
 		replyIndex := 0
 		a := roles.Interactive(env, "", "", func(string) (string, error) {
 			if replyIndex < len(p.Replies) {

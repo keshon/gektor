@@ -222,9 +222,7 @@ type runState struct {
 	// episode, so reopening items earns its own close.
 	todoClosingGranted bool
 
-	// toolCalls gates the first verify round together with
-	// claimsFileEffects: a finish with no tool work and no file-effect
-	// claims is chit-chat. The one-shot stays armed for a later turn.
+	// toolCalls gates the first verify round on actual tool activity.
 	toolCalls int
 
 	// thinkWraps counts wrap-up rounds this run: finishes attempted with

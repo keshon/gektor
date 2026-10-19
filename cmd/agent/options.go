@@ -52,7 +52,6 @@ type launchOptions struct {
 	postHistory   string
 	temperature   float64
 	explicitFlags map[string]bool
-	explicitNames []string
 	task          string
 }
 
@@ -137,7 +136,6 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	o.explicitFlags = map[string]bool{}
 	flags.Visit(func(f *flag.Flag) {
 		o.explicitFlags[f.Name] = true
-		o.explicitNames = append(o.explicitNames, f.Name)
 	})
 	o.task = strings.Join(flags.Args(), " ")
 	return o, nil
@@ -147,14 +145,19 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 // ownership stays with runConfigured; resolving a launch starts no services.
 type resolvedLaunch struct {
 	launchOptions
-	selectedProfile  config.Profile
-	thinkingSettings config.Provider
+	selectedProfile config.Profile
 }
 
 func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
-	options, err := parseLaunchOptions(launch.args)
-	if err != nil {
-		return resolvedLaunch{}, err
+	var options launchOptions
+	if launch.options != nil {
+		options = *launch.options
+	} else {
+		var err error
+		options, err = parseLaunchOptions(launch.args)
+		if err != nil {
+			return resolvedLaunch{}, err
+		}
 	}
 	o := resolvedLaunch{launchOptions: options}
 	if o.checkProfile && o.profilePath == "" {
@@ -170,7 +173,7 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 	if !o.explicitFlags["max-steps"] && h.MaxSteps > 0 {
 		o.maxSteps = h.MaxSteps
 	}
-	if !o.explicitFlags["reasoning-budget"] && h.ThinkBudget > 0 {
+	if !o.explicitFlags["reasoning-budget"] && h.ThinkBudget != 0 {
 		o.thinkBudget = h.ThinkBudget
 	}
 	if !o.explicitFlags["nudges"] && h.Nudges != "" {
@@ -199,7 +202,6 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 			return resolvedLaunch{}, err
 		}
 		o.selectedProfile = p
-		o.thinkingSettings = p.Provider
 		explicit := o.explicitFlags
 		if !explicit["backend-kind"] {
 			o.backendKind = p.Provider.Kind
@@ -246,11 +248,5 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 		o.selectedProfile = p
 	}
 
-	o.thinkingSettings.Kind, o.thinkingSettings.URL, o.thinkingSettings.Model = o.backendKind, o.backendURL, o.model
-	o.thinkingSettings.APIKeyEnv = o.apiKeyEnv
-	if o.selectedProfile.Version != 0 {
-		o.selectedProfile.Provider = o.thinkingSettings
-		o.selectedProfile.Generation = config.Generation{MaxTokens: o.maxTokens, ContextLimit: o.contextLimit, Temperature: o.temperature}
-	}
 	return o, nil
 }

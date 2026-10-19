@@ -24,14 +24,14 @@ import (
 	"time"
 
 	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/audit"
 	"github.com/keshon/tars/internal/events"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/mission"
 	"github.com/keshon/tars/internal/roles"
-	"github.com/keshon/tars/internal/tools"
+	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/tars"
+	"github.com/keshon/tars/internal/tools"
 	"github.com/keshon/tars/internal/workspace"
 )
 

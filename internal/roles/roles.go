@@ -187,24 +187,30 @@ func interactiveSystem(backendKind string) string {
 // proposes without the ability to change anything. Capability is removed by
 // the tool set (ReadOnly), never by asking the model to hold back.
 func Planner(e Env, label, stateFile string) *agent.Agent {
-	return agent.New(agent.Config{
+	cfg := e.agentConfig(prompts.PlanMode, label, stateFile)
+	cfg.Tools, cfg.SkipVerify = tools.ReadOnly(e.WS, e.Procs), true
+	return agent.New(cfg)
+}
+
+// Shared run invariants; each role chooses only its capabilities and budget.
+func (e Env) agentConfig(system, label, stateFile string) agent.Config {
+	return agent.Config{
 		BeginChanges:    e.WS.ChangeObserver,
 		Client:          e.Client,
-		Tools:           tools.ReadOnly(e.WS, e.Procs),
-		System:          prompts.PlanMode + e.WS.Instructions() + "\n\n" + e.Identity,
+		System:          system + e.WS.Instructions() + "\n\n" + e.Identity,
 		MaxTokens:       e.MaxTokens,
 		Temperature:     e.Temperature,
 		ContextLimit:    e.ContextLimit,
 		ReasoningBudget: e.ReasoningBudget,
 		StateFile:       e.statePath(stateFile),
-		SkipVerify:      true,
 		OnStep:          e.onStep(label),
 		OnResult:        e.OnResult,
 		OnUsage:         e.OnUsage,
 		OnNudge:         e.OnNudge,
 		Policy:          e.policy(),
 		BeforeToolCall:  e.ResolveGate(),
-	})
+		Nudges:          e.Nudges,
+	}
 }
 
 func (e Env) statePath(name string) string {
@@ -223,25 +229,9 @@ func (e Env) statePath(name string) string {
 // review. It gets ReadOnly rather than Base because taking the mutating
 // tools away beats asking a weak model not to reach for them.
 func Inspector(e Env, label, system, stateFile string) *agent.Agent {
-	return agent.New(agent.Config{
-		BeginChanges:    e.WS.ChangeObserver,
-		Client:          e.Client,
-		Tools:           tools.ReadOnly(e.WS, e.Procs),
-		System:          system + e.WS.Instructions() + "\n\n" + e.Identity,
-		MaxSteps:        inspectorSteps,
-		MaxTokens:       e.MaxTokens,
-		Temperature:     e.Temperature,
-		ContextLimit:    e.ContextLimit,
-		ReasoningBudget: e.ReasoningBudget,
-		SkipVerify:      true,
-		StateFile:       e.statePath(stateFile),
-		OnStep:          e.onStep(label),
-		OnResult:        e.OnResult,
-		OnUsage:         e.OnUsage,
-		OnNudge:         e.OnNudge,
-		Policy:          e.policy(),
-		BeforeToolCall:  e.ResolveGate(),
-	})
+	cfg := e.agentConfig(system, label, stateFile)
+	cfg.Tools, cfg.SkipVerify, cfg.MaxSteps = tools.ReadOnly(e.WS, e.Procs), true, inspectorSteps
+	return agent.New(cfg)
 }
 
 // Subagent is what delegate_task spawns. It gets the full tool set minus
@@ -258,20 +248,11 @@ func Inspector(e Env, label, system, stateFile string) *agent.Agent {
 // the DELEGATE result envelope. Enforcement (gate) and file-grounded
 // findings still flow: those constrain or describe the work itself.
 func Subagent(e Env, role string) *agent.Agent {
-	return agent.New(agent.Config{
-		BeginChanges:    e.WS.ChangeObserver,
-		Client:          e.Client,
-		Tools:           tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.MCPTools...),
-		System:          prompts.WithRole(role) + "\n\n" + prompts.SubagentScope + "\n\n" + prompts.PlatformLine() + e.WS.Instructions() + "\n\n" + e.Identity,
-		MaxSteps:        subagentSteps,
-		MaxTokens:       e.MaxTokens,
-		Temperature:     e.Temperature,
-		ContextLimit:    e.ContextLimit,
-		ReasoningBudget: e.ReasoningBudget,
-		SkipVerify:      true,
-		Policy:          e.policy(),
-		BeforeToolCall:  e.ResolveGate(),
-	})
+	cfg := e.agentConfig(prompts.WithRole(role)+"\n\n"+prompts.SubagentScope+"\n\n"+prompts.PlatformLine(), "", "")
+	cfg.Tools = tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.MCPTools...)
+	cfg.MaxSteps, cfg.SkipVerify = subagentSteps, true
+	cfg.OnStep, cfg.OnResult, cfg.OnUsage, cfg.OnNudge = nil, nil, nil, nil
+	return agent.New(cfg)
 }
 
 // Worker executes one mission subtask in a fresh context.
@@ -282,27 +263,10 @@ func Subagent(e Env, role string) *agent.Agent {
 // written nothing on a subtask that was supposed to write, which is the
 // announce-without-write shape. See agent.Config.VerifyOnZeroWrites.
 func Worker(e Env, label, system, stateFile string, maxSteps int, expectsWrites bool) *agent.Agent {
-	reg := tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.MCPTools...)
-	return agent.New(agent.Config{
-		BeginChanges:       e.WS.ChangeObserver,
-		Client:             e.Client,
-		Tools:              reg,
-		System:             system + "\n\n" + prompts.PlatformLine() + e.WS.Instructions() + "\n\n" + e.Identity,
-		MaxSteps:           maxSteps,
-		MaxTokens:          e.MaxTokens,
-		Temperature:        e.Temperature,
-		ContextLimit:       e.ContextLimit,
-		ReasoningBudget:    e.ReasoningBudget,
-		SkipVerify:         true,
-		VerifyOnZeroWrites: expectsWrites,
-		StateFile:          e.statePath(stateFile),
-		OnStep:             e.onStep(label),
-		OnResult:           e.OnResult,
-		OnUsage:            e.OnUsage,
-		OnNudge:            e.OnNudge,
-		Policy:             e.policy(),
-		BeforeToolCall:     e.ResolveGate(),
-	})
+	cfg := e.agentConfig(system+"\n\n"+prompts.PlatformLine(), label, stateFile)
+	cfg.Tools = tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.MCPTools...)
+	cfg.MaxSteps, cfg.SkipVerify, cfg.VerifyOnZeroWrites = maxSteps, true, expectsWrites
+	return agent.New(cfg)
 }
 
 // Interactive is the top-level agent a person talks to: the full tool set
@@ -320,39 +284,15 @@ func Worker(e Env, label, system, stateFile string, maxSteps int, expectsWrites 
 func Interactive(e Env, label, stateFile string,
 	ask func(question string) (string, error),
 	verify func(ctx context.Context) (string, bool)) *agent.Agent {
-
-	extra := []agent.Tool{&tools.Delegate{Spawn: func(role string) *agent.Agent {
-		return Subagent(e, role)
-	}}}
+	extra := []agent.Tool{&tools.Delegate{Spawn: func(role string) *agent.Agent { return Subagent(e, role) }}}
 	extra = append(extra, e.MCPTools...)
 	if ask != nil {
 		extra = append(extra, tools.AskUser{AskFn: ask})
 	}
-	reg := tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, extra...)
-
-	return agent.New(agent.Config{
-		BeginChanges:    e.WS.ChangeObserver,
-		Client:          e.Client,
-		Tools:           reg,
-		System:          interactiveSystem(e.BackendKind) + "\n\n" + prompts.PlatformLine() + e.WS.Instructions() + "\n\n" + e.Identity,
-		MaxTokens:       e.MaxTokens,
-		Temperature:     e.Temperature,
-		ContextLimit:    e.ContextLimit,
-		ReasoningBudget: e.ReasoningBudget,
-		TodoFunding:     e.TodoFunding,
-		MaxSteps:        e.MaxSteps,
-		StateFile:       e.statePath(stateFile),
-		SkipVerify:      e.SkipVerify,
-		Nudges:          e.Nudges,
-		Verify:          verify,
-		OnStep:          e.onStep(label),
-		OnResult:        e.OnResult,
-		OnUsage:         e.OnUsage,
-		OnNudge:         e.OnNudge,
-		Policy:          e.policy(),
-		BeforeToolCall:  e.ResolveGate(),
-		Stream:          e.Stream,
-		OnDelta:         e.OnDelta,
-		OnReasoning:     e.OnReasoning,
-	})
+	cfg := e.agentConfig(interactiveSystem(e.BackendKind)+"\n\n"+prompts.PlatformLine(), label, stateFile)
+	cfg.Tools = tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, extra...)
+	cfg.TodoFunding, cfg.MaxSteps = e.TodoFunding, e.MaxSteps
+	cfg.SkipVerify, cfg.Verify = e.SkipVerify, verify
+	cfg.Stream, cfg.OnDelta, cfg.OnReasoning = e.Stream, e.OnDelta, e.OnReasoning
+	return agent.New(cfg)
 }

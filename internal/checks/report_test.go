@@ -167,6 +167,7 @@ func TestReporter_NilIsInert(t *testing.T) {
 
 	// Nothing to assert but survival; a panic here fails the test.
 }
+
 // testRules is what a Go project runs: the universal secret scan plus
 // gofmt. checks.Secrets alone would find nothing in a .go file.
 func testRules() []Rule { return append(Secrets(), stubGofmt()) }

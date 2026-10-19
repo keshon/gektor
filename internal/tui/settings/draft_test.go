@@ -16,6 +16,37 @@ func profile() config.Profile {
 	}
 }
 
+func TestPageRoundTripPreservesUneditedValues(t *testing.T) {
+	p := profile()
+	p.Identity.Name = "TARS"
+	for _, section := range []string{"generation", "you"} {
+		t.Run(section, func(t *testing.T) {
+			d := New(p)
+			_, fields := PageFields(p, section, config.Preferences{})
+			d.Visit(section, fields)
+			if section == "generation" {
+				fields[1].Value = "200"
+			} else {
+				fields[0].Value = "Alice"
+			}
+			d.Store(section, fields)
+			got, err := d.Resolve()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Identity.Name != "TARS" || got.Generation.Temperature != 0 {
+				t.Fatalf("untouched values changed: %+v", got)
+			}
+			if section == "generation" && got.Generation.MaxTokens != 200 {
+				t.Fatal("budget edit lost")
+			}
+			if section == "you" && got.Identity.UserName != "Alice" {
+				t.Fatal("name edit lost")
+			}
+		})
+	}
+}
+
 func TestDraftOwnsPageEditsAndObservesUnstoredActiveEditor(t *testing.T) {
 	d := New(profile())
 	fields := []form.Field{{Key: "user", Value: "User"}, {Key: "persona"}}

@@ -2,32 +2,36 @@ package main
 
 import (
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/keshon/tars/internal/app"
 	"github.com/keshon/tars/internal/config"
 )
 
-// The relaunch has to carry the profile file, the workspace and plan mode, so
-// a session restarted from Settings comes back up where it left off.
-func TestApplicationArgsCarryProfileWorkspaceAndPlan(t *testing.T) {
-	p, err := config.LoadPreferences(t.TempDir() + "/missing.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	p.ProfilePath = "profiles/local.json"
-	p.Workspace = "D:/work"
-	args := strings.Join(applicationArgs(p), " ")
-	for _, want := range []string{"-tui", "-profile profiles/local.json", "-workspace D:/work", "-plan"} {
-		if !strings.Contains(args, want) {
-			t.Fatalf("missing %q in %q", want, args)
+func TestTUILaunchUsesSavedSettingsAndExplicitOverrides(t *testing.T) {
+	profile := config.DefaultProfile()
+	profile.Provider.Model = "saved-model"
+	prefs := config.Preferences{Version: 1, Profile: &profile, Workspace: "saved-workspace"}
+	for _, args := range [][]string{{"-tui"}, {"-tui", "-workspace", "other-workspace"}} {
+		options, err := parseLaunchOptions(args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		launch := initialTUILaunch(options, prefs, "application.json", len(args) == 1)
+		got, err := resolveLaunch(launch)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantWorkspace := "saved-workspace"
+		if len(args) > 1 {
+			wantWorkspace = "other-workspace"
+		}
+		if got.model != "saved-model" || got.backendKind != "llama" || got.workspace != wantWorkspace || got.allow != "" || (len(args) == 1 && !got.plan) {
+			t.Fatalf("wrong TUI launch: %+v", got)
 		}
 	}
-	if strings.Contains(args, "-voice") || strings.Contains(args, "-conversation") {
-		t.Fatalf("removed flag still emitted: %q", args)
-	}
 }
+
 // A relaunch must come back up on the backend the session was created
 // against. Rebuilding argv with an empty "-profile" parsed cleanly and
 // then silently reverted to the flag defaults, and the profile handed
@@ -35,17 +39,18 @@ func TestApplicationArgsCarryProfileWorkspaceAndPlan(t *testing.T) {
 // both halves dropped it.
 func TestRelaunchKeepsTheProfileItRanWith(t *testing.T) {
 	p := config.Preferences{Version: 1, Workspace: t.TempDir()}
-	args := applicationArgs(p)
-	if strings.Contains(strings.Join(args, " "), "-profile") {
-		t.Fatalf("a generated setup has no profile file: %q", args)
+	options, err := parseLaunchOptions([]string{"-tui"})
+	if err != nil {
+		t.Fatal(err)
 	}
+	next := relaunchOptions(options, p, false)
 
 	want := config.Profile{
 		Version:    1,
 		Provider:   config.Provider{Kind: "llama", URL: "http://10.0.0.5:8080", Model: "my-model"},
 		Generation: config.Generation{MaxTokens: 4096, ContextLimit: 32768},
 	}
-	resolved, err := resolveLaunch(launchRequest{args: args, profile: &want})
+	resolved, err := resolveLaunch(launchRequest{options: &next, profile: &want})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,18 +89,6 @@ func TestRelaunchProfileFallbacksUnchanged(t *testing.T) {
 	}
 }
 
-func TestAgentLaunchKeepsPermissionPlanBoundary(t *testing.T) {
-	p := config.Preferences{ProfilePath: "profile.json", Workspace: "D:/work"}
-	args := strings.Join(applicationArgs(p), " ")
-	for _, want := range []string{"-profile profile.json", "-plan", "-workspace D:/work"} {
-		if !strings.Contains(args, want) {
-			t.Fatalf("missing %q in %q", want, args)
-		}
-	}
-	if strings.Contains(args, "-allow") {
-		t.Fatal("launch granted permissions")
-	}
-}
 func TestAgentServiceConfigurationSupportsTextOnlyProfile(t *testing.T) {
 	p := config.Profile{Version: 1, Provider: config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local"}, Generation: config.Generation{MaxTokens: 100, ContextLimit: 1000}}
 	cfg, err := app.ConfigureAgent(p, t.TempDir())
@@ -110,10 +103,52 @@ func TestAgentServiceConfigurationSupportsTextOnlyProfile(t *testing.T) {
 	}
 }
 func TestExecutionPolicyOptionsSurviveServiceHandoff(t *testing.T) {
-	args := retainedAgentOptions([]string{"-tui", "-deny", "run_shell=*", "-allow", "read_file=*.go", "-mcp", "local=command", "-model", "old"})
-	joined := strings.Join(args, " ")
-	if !strings.Contains(joined, "-deny run_shell=*") || !strings.Contains(joined, "-allow read_file=*.go") ||
-		!strings.Contains(joined, "-mcp local=command") || strings.Contains(joined, "-model") {
-		t.Fatal(joined)
+	before, err := parseLaunchOptions([]string{"-tui", "-deny", "run_shell=*", "-allow", "read_file=*.go", "-mcp", "local=command", "-model", "old", "-verify-cmd", "go test ./...", "-audit", "audit.jsonl", "-nudges", "off", "-no-verify", "-yes", "-api-key", "transient", "-resume", "old-state"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := config.DefaultProfile()
+	p.Provider.Model = "new"
+	prefs := config.Preferences{Version: 1, Profile: &p, Workspace: t.TempDir(), Harness: config.Harness{Nudges: "recovery", MaxSteps: 42}}
+	next := relaunchOptions(before, prefs, true)
+	after, err := resolveLaunch(launchRequest{options: &next, profile: &p, preferences: prefs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.deny != before.deny || after.allow != before.allow || after.mcp != before.mcp || after.verifyCmd != before.verifyCmd || after.auditPath != before.auditPath || !after.noVerify || !after.yes || after.apiKey != before.apiKey {
+		t.Fatalf("execution options lost: %+v", after.launchOptions)
+	}
+	if after.model != "new" || after.maxSteps != 42 || after.nudges != 1 || after.plan || after.resume != "" {
+		t.Fatalf("settings or task handoff wrong: %+v", after.launchOptions)
+	}
+}
+
+func TestFirstRunProfileAndWorkspace(t *testing.T) {
+	p := config.DefaultProfile()
+	if err := p.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	prefs := config.Preferences{Version: 1}
+	options, err := parseLaunchOptions([]string{"-tui"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	o, err := resolveLaunch(initialTUILaunch(options, prefs, "application.json", true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o.backendKind != "llama" || o.backendURL != "http://127.0.0.1:8080" || o.workspace != "." || !o.plan {
+		t.Fatalf("bad bootstrap: %+v", o)
+	}
+}
+
+func TestGeneratedProfileKeepsResolvedIdentity(t *testing.T) {
+	o, err := resolveLaunch(launchRequest{args: []string{"-tui", "-system-prompt", "CUSTOM", "-user-name", "Alice", "-post-history", "POST"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := launchProfile(o, 65536)
+	if p.Identity.UserName != "Alice" || p.Identity.SystemPrompt != "CUSTOM" || p.Identity.PostHistory != "POST" {
+		t.Fatalf("identity lost: %+v", p.Identity)
 	}
 }

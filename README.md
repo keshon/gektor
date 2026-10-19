@@ -64,8 +64,8 @@ paths and keys live in `.env` (copy from `.env.example`; gitignored).
 **llama.cpp (default backend):**
 1. Fill in `LLAMA_SERVER_EXE` and `LLAMA_MODEL` in `.env`.
 2. Run `run-server-llama.cmd` and wait for the model to finish loading.
-3. In another terminal, run `run-tui.cmd`. It checks `127.0.0.1:8080`,
-   builds `agent.exe`, and opens the UI.
+3. In another terminal, run `run-tui.cmd`. It builds `agent.exe` and opens
+   the UI using saved settings, or llama.cpp at `127.0.0.1:8080` on first launch.
 
 **KoboldCPP (secondary):**
 1. Fill in `KOBOLD_EXE` and `KOBOLD_MODEL` in `.env`.

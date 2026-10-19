@@ -1,4 +1,4 @@
-﻿package tars
+package tars
 
 import (
 	"os"
@@ -27,7 +27,6 @@ func TestSub_CreatesNothing(t *testing.T) {
 		t.Fatalf("Sub must not create directories on its own: %q", filepath.Dir(got))
 	}
 }
-
 
 func home(t *testing.T) string {
 	t.Helper()

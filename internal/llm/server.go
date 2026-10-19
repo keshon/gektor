@@ -60,11 +60,11 @@ type Server struct {
 	// the referrer headers OpenRouter asks for. Empty by default.
 	ExtraHeaders map[string]string
 
-	mu           sync.Mutex
-	totalPrompt  int
-	totalGen     int
-	totalCalls   int
-	totalCached  int
+	mu          sync.Mutex
+	totalPrompt int
+	totalGen    int
+	totalCalls  int
+	totalCached int
 }
 
 // UsageTotals returns cumulative tokens across all Chat/Stream calls.
@@ -197,6 +197,8 @@ type wireTool struct {
 }
 
 type wireRequest struct {
+	Stream         bool            `json:"stream,omitempty"`
+	StreamOptions  *streamOptions  `json:"stream_options,omitempty"`
 	Model          string          `json:"model"`
 	Messages       []wireMessage   `json:"messages"`
 	Tools          []wireTool      `json:"tools,omitempty"`
@@ -218,6 +220,18 @@ type wireRequest struct {
 	DRYMult       float64 `json:"dry_multiplier,omitempty"`
 	DRYBase       float64 `json:"dry_base,omitempty"`
 	DRYAllowed    int     `json:"dry_allowed_length,omitempty"`
+}
+
+type streamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
+}
+
+type wireUsage struct {
+	PromptTokens        int `json:"prompt_tokens"`
+	CompletionTokens    int `json:"completion_tokens"`
+	PromptTokensDetails struct {
+		CachedTokens int `json:"cached_tokens"`
+	} `json:"prompt_tokens_details"`
 }
 
 // decodeContent reads response content: servers answer with a plain
@@ -263,14 +277,7 @@ type wireResponse struct {
 		Message      wireMessage `json:"message"`
 		FinishReason string      `json:"finish_reason"`
 	} `json:"choices"`
-	Usage struct {
-		PromptTokens     int `json:"prompt_tokens"`
-		CompletionTokens int `json:"completion_tokens"`
-		// llama.cpp reports prefix-cache hits here; koboldcpp omits it.
-		PromptTokensDetails struct {
-			CachedTokens int `json:"cached_tokens"`
-		} `json:"prompt_tokens_details"`
-	} `json:"usage"`
+	Usage wireUsage `json:"usage"`
 }
 
 // debugSyncer lets logDebug flush *os.File-backed Debug writers
@@ -408,8 +415,8 @@ func (c *Server) Chat(ctx context.Context, req ChatRequest) (ChatResponse, error
 	}
 	for _, tc := range wm.ToolCalls {
 		out.ToolCalls = append(out.ToolCalls, ToolCall{
-			ID:        tc.ID,
-			Name:      tc.Function.Name,
+			ID:   tc.ID,
+			Name: tc.Function.Name,
 			// Arguments reach tools as the backend sent them, including a
 			// bare string or invalid bytes, so the tool's own schema error
 			// is what the model sees. Wrapping them here would hide it.

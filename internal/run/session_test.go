@@ -4,11 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/tars/internal/checks"
 	"github.com/keshon/tars/internal/events"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/roles"
@@ -197,7 +201,6 @@ func TestSession_HeadlessFailsClosed(t *testing.T) {
 	}
 }
 
-
 func TestSession_HarnessReplyFlaggedAfterNudge(t *testing.T) {
 	var events []Event
 	s, err := New(Config{
@@ -314,5 +317,53 @@ func TestEmitUsage_RoundTrips(t *testing.T) {
 	f := got[0].Fields
 	if f["step"].(float64) != 4 || f["prompt"].(float64) != 12400 || f["completion"].(float64) != 300 {
 		t.Fatalf("fields = %+v", f)
+	}
+}
+
+type sideEffectClient struct {
+	root  string
+	calls int
+}
+
+func (c *sideEffectClient) Chat(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
+	c.calls++
+	if c.calls == 1 {
+		if err := os.WriteFile(filepath.Join(c.root, "stray.txt"), []byte("-----BEGIN PRIVATE KEY-----"), 0600); err != nil {
+			return llm.ChatResponse{}, err
+		}
+		return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "list", Name: "list_files", Arguments: json.RawMessage(`{"path":"."}`)}}}}, nil
+	}
+	return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}}, nil
+}
+
+func TestSessionSweepUsesTheEventReporter(t *testing.T) {
+	for _, resume := range []bool{false, true} {
+		t.Run(fmt.Sprint(resume), func(t *testing.T) {
+			env := testEnv(t, stubOK{}, nil)
+			env.Client = &sideEffectClient{root: env.WS.Root()}
+			env.SkipVerify = true
+			env.Rules = checks.Secrets()
+			old, wire := 0, 0
+			env.Checks = checks.NewReporter(env.Rules, func(checks.Scope, checks.Finding) { old++ })
+			s, err := New(Config{Task: "task", Env: env, OnEvent: func(e Event) {
+				if e.Name == "finding" {
+					wire++
+				}
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if resume {
+				_, err = s.Resume(t.Context(), []llm.Message{{Role: llm.RoleSystem}, {Role: llm.RoleUser, Content: "task"}}, "continue")
+			} else {
+				_, err = s.Run(t.Context())
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if old != 0 || wire != 1 {
+				t.Fatalf("old sink=%d event findings=%d", old, wire)
+			}
+		})
 	}
 }

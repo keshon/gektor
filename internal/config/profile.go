@@ -48,6 +48,15 @@ type Generation struct {
 	Temperature  float64 `json:"temperature,omitempty"`
 }
 
+// DefaultProfile is the first-run setup; no file needs to be installed.
+func DefaultProfile() Profile {
+	return Profile{Version: 1,
+		Provider:   Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local"},
+		Generation: Generation{MaxTokens: 2048, ContextLimit: 8192, Temperature: 0.7},
+		Identity:   &Identity{UserName: DefaultUserName, SystemPrompt: DefaultSystemPrompt, PromptPreset: "coding"},
+	}
+}
+
 // DefaultSystemPrompt is the base instruction a launch uses when nothing
 // configures one. It lived in three places as a literal — the -system-prompt
 // flag default, the substitution for a profile with no identity block, and

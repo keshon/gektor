@@ -22,6 +22,10 @@ func runConfigured(launch launchRequest) error {
 	if err != nil {
 		return err
 	}
+	return runResolved(launch, o)
+}
+
+func runResolved(launch launchRequest, o resolvedLaunch) error {
 	if o.checkProfile {
 		if o.selectedProfile.Identity != nil {
 			if _, _, err := app.Compile(app.IdentityOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), User: o.userName, System: o.systemPrompt, Post: o.postHistory, MaxTokens: o.maxTokens, ContextLimit: o.contextLimit, Temperature: o.temperature}); err != nil {

@@ -6,8 +6,9 @@ import (
 	"testing"
 
 	"github.com/keshon/tars/internal/checks"
-	"github.com/keshon/tars/internal/rules"
+	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/roles"
+	"github.com/keshon/tars/internal/rules"
 	"github.com/keshon/tars/internal/tools"
 )
 
@@ -78,6 +79,28 @@ func TestRunner_SweepsWhenTheMissionFails(t *testing.T) {
 		t.Fatalf("failed mission swept %+v, want the sweep to have run", got)
 	}
 }
+
 // sweepRules is a Go project's rule set: the mission writes a .go file
 // and expects the sweep to notice it is not gofmt-clean.
 func sweepRules() []checks.Rule { return append(checks.Secrets(), rules.All()...) }
+
+func TestRunnerSweepsFilesCreatedDuringTheMission(t *testing.T) {
+	client := &runnerClient{responses: []llm.ChatResponse{text(validPlanJSON), toolCall("list_files", map[string]string{"path": "."}), text("done")}}
+	r, _ := newRunner(t, client)
+	findings := 0
+	r.Env = roles.Env{Client: client, WS: r.WS, Rules: checks.Secrets(), Checks: checks.NewReporter(checks.Secrets(), func(checks.Scope, checks.Finding) { findings++ })}
+	r.Env.OnStep = func(_ string, _ int, msg llm.Message) {
+		if len(msg.ToolCalls) > 0 {
+			if err := os.WriteFile(filepath.Join(r.WS.Root(), "index.html"), []byte("<html>hello</html>\n-----BEGIN PRIVATE KEY-----"), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	m := &Mission{ID: "sweep", Task: "make a hello page", Phase: PhasePlan}
+	if _, err := r.Run(t.Context(), m); err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Mutated) != 1 || findings != 1 {
+		t.Fatalf("mutated=%v findings=%d", m.Mutated, findings)
+	}
+}

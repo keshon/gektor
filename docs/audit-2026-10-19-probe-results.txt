@@ -1,0 +1,48 @@
+=== RUN   TestAuditHandoffDropsVerification
+    audit_probe_test.go:18: before verify="go test ./..." audit="audit.jsonl" nudges=2 noVerify=true yes=true; after verify="" audit="" nudges=0 noVerify=false yes=false
+--- PASS: TestAuditHandoffDropsVerification (0.00s)
+=== RUN   TestAuditLocalContextOverrideIgnored
+task id: 0ec4455f (resume with -resume C:\Users\keshon\AppData\Local\Temp\tars-home518414709\.tars\tasks\0ec4455f\state.json)
+context window: 4096 tokens
+
+=== result ===
+done
+outcome: completed; changed files:
+checks: no current command verdict
+resume: agent -resume C:\Users\keshon\AppData\Local\Temp\tars-home518414709\.tars\tasks\0ec4455f\state.json
+    audit_probe_test.go:34: requested context=8192; emitted context=4096: true
+    audit_probe_test.go:35: events: {"backend":"llama","context_limit":8192,"event":"run_start","model":"local","seq":1,"task":"task","workspace":"C:\\Users\\keshon\\AppData\\Local\\Temp\\TestAuditLocalContextOverrideIgnored3612771376\\001"}
+        {"context_limit":4096,"event":"context","seq":2}
+        {"event":"step","label":"","seq":3,"step":0,"text":"done"}
+        {"cached":0,"completion":0,"estimated":false,"event":"usage","prompt":0,"seq":4,"step":0}
+        {"event":"outcome","files":null,"open_todos":null,"outcome":"completed","resume":"C:\\Users\\keshon\\AppData\\Local\\Temp\\tars-home518414709\\.tars\\tasks\\0ec4455f\\state.json","seq":5,"verification":"","warnings":null}
+        {"event":"run_end","seq":6}
+--- PASS: TestAuditLocalContextOverrideIgnored (0.15s)
+=== RUN   TestAuditIdentityWithoutProfile
+    audit_probe_test.go:41: effective system="CUSTOM" user="Alice" post="POST"; generated profile={PromptPreset: Name: UserPersona: UserName:User SystemPrompt:You are a helpful assistant. PostHistory:}
+--- PASS: TestAuditIdentityWithoutProfile (0.00s)
+PASS
+ok  	github.com/keshon/tars/cmd/agent	(cached)
+=== RUN   TestAuditGenerationRoundTrip
+    audit_probe_test.go:15: editing only max tokens: generation: temperature must be a number, or "default"
+--- PASS: TestAuditGenerationRoundTrip (0.00s)
+=== RUN   TestAuditYouErasesAssistant
+    audit_probe_test.go:24: before assistant="TARS"; after assistant="" user="Alice"
+--- PASS: TestAuditYouErasesAssistant (0.00s)
+PASS
+ok  	github.com/keshon/tars/internal/tui/settings	1.148s
+=== RUN   TestAuditSweepMissingFromEvents
+    audit_probe_test.go:31: original findings=1 wire findings=0 outcome=map[files:[stray.txt] open_todos:<nil> outcome:completed resume: verification: warnings:<nil>]
+--- PASS: TestAuditSweepMissingFromEvents (0.19s)
+PASS
+ok  	github.com/keshon/tars/internal/run	1.273s
+=== RUN   TestAuditMissionFreshMutationsNotSwept
+    audit_probe_test.go:27: mission err=<nil> mutated=[index.html] findings=0
+--- PASS: TestAuditMissionFreshMutationsNotSwept (0.20s)
+PASS
+ok  	github.com/keshon/tars/internal/mission	(cached)
+=== RUN   TestAuditFreshBareTUI
+    audit_first_launch_test.go:10: fresh home, bare -tui: open C:\Users\keshon\AppData\Local\Temp\tars-home2440056194\.tars\profiles\llama-external.json: The system cannot find the path specified.
+--- PASS: TestAuditFreshBareTUI (0.00s)
+PASS
+ok  	github.com/keshon/tars/cmd/agent	1.314s

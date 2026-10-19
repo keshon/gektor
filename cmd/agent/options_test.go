@@ -31,10 +31,10 @@ func TestParseLaunchOptionsKeepsExplicitNamesAndTaskText(t *testing.T) {
 
 func TestResolveLaunchExplicitValuesOverrideProfile(t *testing.T) {
 	p := config.Profile{
-		Version:      1,
-		Provider:     config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "profile-model"},
-		Generation:   config.Generation{MaxTokens: 256, ContextLimit: 4096, Temperature: .8},
-		Identity: &config.Identity{UserName: "Alex", SystemPrompt: "profile rules"},
+		Version:    1,
+		Provider:   config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "profile-model"},
+		Generation: config.Generation{MaxTokens: 256, ContextLimit: 4096, Temperature: .8},
+		Identity:   &config.Identity{UserName: "Alex", SystemPrompt: "profile rules"},
 	}
 	path := filepath.Join(t.TempDir(), "profile.json")
 	if err := config.SaveCopy(p, path); err != nil {
@@ -57,10 +57,10 @@ func TestResolveLaunchExplicitValuesOverrideProfile(t *testing.T) {
 
 func TestResolveLaunchClonesHandoffProfile(t *testing.T) {
 	p := config.Profile{
-		Version:      1,
-		Provider:     config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local"},
-		Generation:   config.Generation{MaxTokens: 256, ContextLimit: 4096},
-		Identity: &config.Identity{UserName: "Alex"},
+		Version:    1,
+		Provider:   config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local"},
+		Generation: config.Generation{MaxTokens: 256, ContextLimit: 4096},
+		Identity:   &config.Identity{UserName: "Alex"},
 	}
 	o, err := resolveLaunch(launchRequest{args: []string{"-profile", "missing.json", "-user-name", "Taylor"}, profile: &p})
 	if err != nil {

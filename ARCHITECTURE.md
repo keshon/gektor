@@ -131,6 +131,10 @@ round, and — when the run was supposed to write files — a finish with nothin
 written. That last case is refused up to `MaxZeroWriteRefusals` times, quoting
 the model's own closing sentence back at it.
 
+Only an explicit `VerifyOnZeroWrites` contract requires file changes. Ordinary
+answers are never classified by words like "removed" or "created". Measured
+workspace effects and command verdicts remain separate from the model's prose.
+
 Well-formed leaked calls never reach these checks: the parser recovers
 them into real calls before the branch, so they execute through the
 normal tool path. Only the unparseable remainder earns the nudge, and

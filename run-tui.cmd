@@ -2,15 +2,7 @@
 setlocal
 cd /d "%~dp0"
 
-REM TUI launcher (default backend: llama.cpp on 127.0.0.1:9931).
-set BACKEND=http://127.0.0.1:9931
-
-curl.exe --silent --max-time 2 %BACKEND%/ >nul 2>&1
-if errorlevel 1 (
-    echo ERROR: no model server at %BACKEND%.
-    echo Start run-server-llama.cmd in another terminal and wait for the model to finish loading.
-    exit /b 1
-)
+REM Go resolves saved settings, first-run defaults and explicit overrides.
 
 go build -o agent.exe .\cmd\agent
 if errorlevel 1 (
@@ -18,5 +10,5 @@ if errorlevel 1 (
     exit /b 1
 )
 
-.\agent.exe -tui -backend-kind llama -backend %BACKEND% -workspace . -yes -no-verify %*
+.\agent.exe -tui %*
 exit /b %errorlevel%

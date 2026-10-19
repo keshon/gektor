@@ -45,7 +45,7 @@ func TestFalseCompletionIsRejected(t *testing.T) {
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: "I created notes.txt"}},
 	}}
 	c.responses = append(c.responses, llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: "incomplete"}})
-	a := New(Config{Client: c, Tools: NewRegistry(), MaxSteps: 2})
+	a := New(Config{Client: c, Tools: NewRegistry(), MaxSteps: 2, VerifyOnZeroWrites: true})
 	out, err := a.Run(context.Background(), "Create notes.txt")
 	if err == nil || out != "" || a.LastRunMutations != 0 {
 		t.Fatalf("repro failed %q %v", out, err)

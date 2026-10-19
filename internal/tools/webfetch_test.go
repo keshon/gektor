@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-
 )
 
 func TestStripHTML_Basic(t *testing.T) {

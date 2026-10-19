@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -20,11 +21,11 @@ import (
 // much of the message list a backend could have reused.
 
 func sameMessage(a, b llm.Message) bool {
-	if a.Role != b.Role || a.Content != b.Content || len(a.ToolCalls) != len(b.ToolCalls) {
+	if a.Role != b.Role || a.Content != b.Content || a.ToolCallID != b.ToolCallID || !slices.Equal(a.Images, b.Images) || len(a.ToolCalls) != len(b.ToolCalls) {
 		return false
 	}
 	for i := range a.ToolCalls {
-		if a.ToolCalls[i].Name != b.ToolCalls[i].Name ||
+		if a.ToolCalls[i].ID != b.ToolCalls[i].ID || a.ToolCalls[i].Name != b.ToolCalls[i].Name ||
 			string(a.ToolCalls[i].Arguments) != string(b.ToolCalls[i].Arguments) {
 			return false
 		}

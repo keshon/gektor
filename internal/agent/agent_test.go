@@ -177,31 +177,12 @@ func TestAgent_SkipVerify_ReturnsImmediately(t *testing.T) {
 	}
 }
 
-func TestClaimsFileEffects(t *testing.T) {
-	fire := []string{
-		"I created notes.txt",
-		"wrote main.go with the fix",
-		"I created the file",
-		"deleted this file yesterday",
-		"patched a/b/c.go",
-		"moved old.txt to new.txt",
-	}
-	for _, s := range fire {
-		if !claimsFileEffects(s) {
-			t.Errorf("must fire on %q", s)
-		}
-	}
-	quiet := []string{
-		"hey there!",
-		"I fixed the bug",     // claim, but no file token
-		"read the file first", // file, but a read, not an effect
-		"I will create it next",
-		"see README for details",
-	}
-	for _, s := range quiet {
-		if claimsFileEffects(s) {
-			t.Errorf("must stay silent on %q", s)
-		}
+func TestExplanationDoesNotRequireFileEffects(t *testing.T) {
+	client := &stubClient{responses: []llm.ChatResponse{say("The function was removed from main.go.")}}
+	a := New(Config{Client: client, Tools: NewRegistry()})
+	out, err := a.Run(context.Background(), "Explain the change")
+	if err != nil || out != "The function was removed from main.go." || client.calls != 1 {
+		t.Fatalf("out=%q err=%v calls=%d", out, err, client.calls)
 	}
 }
 
@@ -958,9 +939,10 @@ func TestAgent_ThinkWithToolCallsNotWrapped(t *testing.T) {
 func TestAgent_VerifyMessage_StatesZeroWritesAsFact(t *testing.T) {
 	client := &stubClient{responses: []llm.ChatResponse{
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: "I created the file."}},
+		writeStep("w", "a.txt"),
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: "confirmed"}},
 	}}
-	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys"}) // SkipVerify left false
+	a := New(Config{Client: client, Tools: NewRegistry(mutStub{"write_file"}), System: "sys", VerifyOnZeroWrites: true})
 
 	if _, err := a.Run(context.Background(), "task"); err != nil {
 		t.Fatalf("Run: %v", err)

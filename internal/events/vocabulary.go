@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-
 )
 
 // The wire vocabulary. Every JSONL event that needs nothing but strings

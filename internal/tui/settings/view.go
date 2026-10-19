@@ -2,6 +2,7 @@ package settings
 
 import (
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"charm.land/bubbles/v2/textinput"
@@ -88,6 +89,8 @@ func (f *Model) note() string {
 	switch {
 	case f.Error != "":
 		return ""
+	case f.Workspace.Section == "generation":
+		return "Temperature: default uses " + strconv.FormatFloat(DefaultTemperature, 'g', -1, 64) + " · F4 Advanced"
 	case f.Workspace.Section == "profiles":
 		return "Ctrl+D saves a copy · Apply uses the loaded profile in this session"
 	case f.Dirty():

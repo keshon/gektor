@@ -1,0 +1,32 @@
+ok  	github.com/keshon/tars/cmd/agent	2.233s
+ok  	github.com/keshon/tars/cmd/eval	1.276s
+?   	github.com/keshon/tars/eval/fixtures	[no test files]
+ok  	github.com/keshon/tars/internal/agent	1.436s
+ok  	github.com/keshon/tars/internal/app	0.510s
+ok  	github.com/keshon/tars/internal/audit	0.590s
+ok  	github.com/keshon/tars/internal/checks	0.679s
+ok  	github.com/keshon/tars/internal/config	0.574s
+ok  	github.com/keshon/tars/internal/conventions	1.140s
+ok  	github.com/keshon/tars/internal/events	0.669s
+?   	github.com/keshon/tars/internal/harness	[no test files]
+ok  	github.com/keshon/tars/internal/llm	2.035s
+ok  	github.com/keshon/tars/internal/mission	13.520s
+ok  	github.com/keshon/tars/internal/permission	0.460s
+ok  	github.com/keshon/tars/internal/prompts	0.530s
+ok  	github.com/keshon/tars/internal/roles	3.986s
+ok  	github.com/keshon/tars/internal/rules	0.580s
+ok  	github.com/keshon/tars/internal/run	15.365s
+?   	github.com/keshon/tars/internal/session	[no test files]
+ok  	github.com/keshon/tars/internal/tars	0.477s
+ok  	github.com/keshon/tars/internal/tools	7.723s
+ok  	github.com/keshon/tars/internal/tui	9.799s
+ok  	github.com/keshon/tars/internal/tui/components/cell	1.110s
+?   	github.com/keshon/tars/internal/tui/components/completion	[no test files]
+ok  	github.com/keshon/tars/internal/tui/components/composer	0.871s
+ok  	github.com/keshon/tars/internal/tui/components/form	1.449s
+ok  	github.com/keshon/tars/internal/tui/components/gate	0.712s
+ok  	github.com/keshon/tars/internal/tui/components/popup	0.908s
+ok  	github.com/keshon/tars/internal/tui/components/selection	1.489s
+ok  	github.com/keshon/tars/internal/tui/components/transcript	0.621s
+ok  	github.com/keshon/tars/internal/tui/settings	1.302s
+ok  	github.com/keshon/tars/internal/workspace	1.305s

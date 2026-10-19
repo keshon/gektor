@@ -18,10 +18,10 @@ func TestAuthorize(t *testing.T) {
 		return Deny, nil
 	}
 	cases := []struct {
-		name  string
+		name   string
 		policy Policy
-		gate  Gate
-		want  bool // allowed
+		gate   Gate
+		want   bool // allowed
 	}{
 		{"allow needs no gate", Policy{Rules: []Rule{{Tool: "*", Pattern: "*", Effect: Allow}}}, nil, true},
 		{"deny needs no gate", Policy{Rules: []Rule{{Tool: "*", Pattern: "*", Effect: Deny}}}, nil, false},

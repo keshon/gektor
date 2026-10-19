@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/keshon/tars/internal/llm"
@@ -103,21 +102,16 @@ func (a *Agent) handleFinish(ctx context.Context, st *runState, step int, resp l
 
 	verifyWanted := !a.cfg.SkipVerify ||
 		(a.cfg.VerifyOnZeroWrites && st.mutatingSucceeded == 0)
-	// Verify only for turns that did tool work, were told to write and wrote
-	// nothing, or that claim file effects. The one-shot stays armed for a
-	// later working turn, and the workspace verdict below stays the
-	// authority either way: this round is a recovery chance, not the score.
-	needsVerify := st.toolCalls > 0 ||
-		(a.cfg.VerifyOnZeroWrites && st.mutatingSucceeded == 0) ||
-		claimsFileEffects(resp.Message.Content)
+	// Whether writes are required is the caller's contract, never a guess
+	// from words in the answer. Read-only explanations can finish normally.
+	needsVerify := st.toolCalls > 0 || a.cfg.VerifyOnZeroWrites
 	if verifyWanted && !st.verifiedOnce && needsVerify && a.nudges(NudgeVerify) {
 		st.verifiedOnce = true
 		verifyMsg := prompts.Verify + a.stepTag(st, step)
 		// Zero writes is evidence of failure only where writes were expected or
 		// the answer claims file effects. On a read-only run it reads as an
 		// accusation and a weak model "fixes" it by writing an unasked file.
-		if st.mutatingSucceeded == 0 &&
-			(a.cfg.VerifyOnZeroWrites || claimsFileEffects(resp.Message.Content)) {
+		if st.mutatingSucceeded == 0 && a.cfg.VerifyOnZeroWrites {
 			verifyMsg += fmt.Sprintf(prompts.VerifyZeroWrites,
 				strings.Join(a.cfg.MutatingTools, "/"))
 		}
@@ -153,7 +147,7 @@ func (a *Agent) handleFinish(ctx context.Context, st *runState, step int, resp l
 	// the finish and quote the model's own claim back at it. Bounded
 	// by MaxZeroWriteRefusals: a few cheap in-context retries beat a
 	// fresh fix worker that has to rediscover the whole subtask.
-	if (a.cfg.VerifyOnZeroWrites || claimsFileEffects(resp.Message.Content)) && st.mutatingSucceeded == 0 {
+	if a.cfg.VerifyOnZeroWrites && st.mutatingSucceeded == 0 {
 		if st.zeroWriteFinishes < MaxZeroWriteRefusals && a.nudges(NudgeRefusal) {
 			st.zeroWriteFinishes++
 			history = a.nudge(history, NudgeRefusal, fmt.Sprintf(prompts.AnnouncedNotWritten,
@@ -242,38 +236,4 @@ func lastClaim(content string) string {
 		return line
 	}
 	return "(nothing)"
-}
-
-// fileClaimVerbs are past-tense effect verbs: claims of completed file
-// work. Read-verbs are deliberately absent (reads aren't effects);
-// future tense is absent too (promises aren't claims).
-var fileClaimVerbs = []string{
-	"created", "wrote", "written", "saved", "updated", "added",
-	"deleted", "removed", "modified", "patched", "moved", "renamed", "fixed",
-}
-
-// fileToken matches a filename, path, or definite file reference:
-// dotted name, slash path, or "the/this/that file(s)". The last class
-// catches the canonical fake-save phrasing ("I created the file")
-// that names no path.
-var fileToken = regexp.MustCompile(`[A-Za-z0-9_][A-Za-z0-9_.\-]*(?:\.[A-Za-z0-9]{1,5}|\/[A-Za-z0-9_.\-]+)|\b(?:the|this|that) files?\b`)
-
-// claimsFileEffects reports whether answer text claims file effects: a
-// past-tense effect verb plus a file token. Heuristic with a fail-safe
-// direction: false positives cost today's verify round; false negatives
-// (claim without a filename, e.g. "updated the config") skip like
-// chit-chat and surface at the workspace verdict, which stays authoritative.
-func claimsFileEffects(text string) bool {
-	lower := strings.ToLower(text)
-	hasVerb := false
-	for _, v := range fileClaimVerbs {
-		if strings.Contains(lower, v) {
-			hasVerb = true
-			break
-		}
-	}
-	if !hasVerb {
-		return false
-	}
-	return fileToken.MatchString(text)
 }

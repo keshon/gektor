@@ -47,7 +47,6 @@ func ApplySection(profile *Profile, section string, values map[string]string) er
 		id := identity()
 		id.UserName = strings.TrimSpace(values["user"])
 		id.UserPersona = values["persona"]
-		id.Name = strings.TrimSpace(values["name"])
 	case SectionGeneration:
 		var err error
 		profile.Generation.Temperature, err = ParseTemperature(values["temperature"])

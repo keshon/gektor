@@ -76,7 +76,7 @@ func New(cfg Config) (*Session, error) {
 // Framing (run start/end) is the caller's job: in-process callers have
 // call boundaries, and wire transports add their own. Session streams
 // step events only.
-func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter) {
+func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, roles.Env) {
 	emitter := events.New(events.EventWriter(s.cfg.OnEvent))
 
 	askFn := s.asker(ctx)
@@ -146,18 +146,18 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter) {
 	} else {
 		a = roles.Interactive(env, "", s.cfg.StateFile, askFn, s.cfg.Verify)
 	}
-	return a, emitter
+	return a, emitter, env
 }
 
 func (s *Session) Run(ctx context.Context) (string, error) {
-	a, emitter := s.build(ctx)
+	a, emitter, env := s.build(ctx)
 	ans, err := a.Run(ctx, s.cfg.Task, s.cfg.Images...)
 	if err != nil {
 		if resAns, resErr, ok := agent.BudgetContinue(ctx, a, err, s.cfg.StateFile, s.cfg.Answer); ok {
 			ans, err = resAns, resErr
 		}
 	}
-	s.cfg.Env.Sweep(a.MutatedPaths())
+	env.Sweep(a.MutatedPaths())
 	s.report(a, emitter)
 	return ans, err
 }
@@ -174,7 +174,7 @@ func (s *Session) asker(ctx context.Context) func(string) (string, error) {
 
 // Resume continues from saved history with a note, mirroring Agent.Resume.
 func (s *Session) Resume(ctx context.Context, history []llm.Message, note string, images ...string) (string, error) {
-	a, emitter := s.build(ctx)
+	a, emitter, env := s.build(ctx)
 	var ans string
 	var err error
 	if callID, question, paused := agent.PausedOnQuestion(a.Tools(), history); paused {
@@ -195,7 +195,7 @@ func (s *Session) Resume(ctx context.Context, history []llm.Message, note string
 			ans, err = resAns, resErr
 		}
 	}
-	s.cfg.Env.Sweep(a.MutatedPaths())
+	env.Sweep(a.MutatedPaths())
 	s.report(a, emitter)
 	return ans, err
 }
@@ -273,4 +273,3 @@ func EmitUsage(emitter *events.Emitter, step int, usage llm.Usage) {
 		"estimated":  usage.Estimated,
 	})
 }
-

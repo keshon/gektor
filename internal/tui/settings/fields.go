@@ -14,17 +14,10 @@ import (
 // to name it and the validator that has to accept it cannot disagree.
 const DefaultTemperature = config.DefaultTemperature
 
-// temperatureValue renders the setting as the number that is actually in
-// force.
-//
-// A stored zero means "no opinion, use the default", and it used to display
-// as a bare 0 - which reads as "sampling is deterministic" rather than "unset,
-// the backend decides". A user who set 0.4 explicitly saw 0 too, so the two
-// states were indistinguishable and the field could not be trusted to show
-// what a run would do.
+// Keep editable values parseable; the note displays the effective default.
 func temperatureValue(t float64) string {
 	if t == 0 {
-		return "default (" + strconv.FormatFloat(DefaultTemperature, 'g', -1, 64) + ")"
+		return "default"
 	}
 	return strconv.FormatFloat(t, 'g', -1, 64)
 }

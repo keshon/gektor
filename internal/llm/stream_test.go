@@ -2,11 +2,41 @@ package llm
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+func TestStreamRequestsMeasuredUsageAndReportsCacheHits(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			StreamOptions struct {
+				IncludeUsage bool `json:"include_usage"`
+			} `json:"stream_options"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		if !body.StreamOptions.IncludeUsage {
+			t.Error("stream did not request usage")
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Write([]byte("data: {\"choices\":[{\"delta\":{\"content\":\"done\"},\"finish_reason\":\"stop\"}]}\n\n"))
+		w.Write([]byte("data: {\"choices\":[],\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":5,\"prompt_tokens_details\":{\"cached_tokens\":90}}}\n\n"))
+		w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer srv.Close()
+	c := NewLlamaClient(srv.URL, "test")
+	resp, err := c.Stream(t.Context(), ChatRequest{Messages: []Message{{Role: RoleUser, Content: "task"}}}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Usage.Estimated || resp.Usage.PromptTokens != 100 || resp.Usage.CachedTokens != 90 || c.CachedTotal() != 90 {
+		t.Fatalf("measured usage lost: %+v", resp.Usage)
+	}
+}
 
 // Deliberation must be reported as it arrives, on its own callback, and
 // ahead of the answer. It used to be accumulated into the final message

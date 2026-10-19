@@ -14,21 +14,21 @@ import (
 	"time"
 
 	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/app"
 	"github.com/keshon/tars/internal/audit"
 	"github.com/keshon/tars/internal/checks"
 	"github.com/keshon/tars/internal/events"
-	"github.com/keshon/tars/internal/rules"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/mission"
 	"github.com/keshon/tars/internal/permission"
 	"github.com/keshon/tars/internal/prompts"
 	"github.com/keshon/tars/internal/roles"
+	"github.com/keshon/tars/internal/rules"
+	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/session"
+	"github.com/keshon/tars/internal/tars"
 	"github.com/keshon/tars/internal/tools"
 	"github.com/keshon/tars/internal/tui"
-	"github.com/keshon/tars/internal/tars"
 	"github.com/keshon/tars/internal/workspace"
 )
 
@@ -156,48 +156,11 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	var contextLimit int
-	if o.backendKind == "openai" {
-		// Hosted gateways expose no probe endpoint, so the window comes
-		// from the flag or the per-model estimate. A local server answering
-		// here still means the kind is wrong, so keep that tripwire.
-		if o.contextLimit > 0 {
-			contextLimit = o.contextLimit
-		} else {
-			contextLimit = llm.OpenAIContextLimit(o.model)
-		}
-		note("context window: %d tokens (estimated for %s; override with -context-limit)",
-			contextLimit, o.model)
-		if actual := llm.DetectKind(ctx, o.backendURL); actual != "" && actual != o.backendKind {
-			return fmt.Errorf("-backend-kind is %q but %s is answering at %s.\n"+
-				"Re-run with -backend-kind %s. Continuing would send %s's grammar and\n"+
-				"sampler fields to a server that ignores both, and the run would look fine.",
-				o.backendKind, actual, o.backendURL, actual, o.backendKind)
-		}
-	} else {
-		var err error
-		contextLimit, err = client.MaxContextLength(ctx)
-		if err != nil {
-			// The probe failing is evidence, not noise: each dialect asks a
-			// different endpoint, so if the OTHER one answers, -backend-kind
-			// is wrong. Continuing is worse than stopping, because the
-			// dialects disagree about the grammar field, the sampler field
-			// names and the structured-output mechanism: the run completes
-			// having measured nothing. Nine mission runs did exactly that
-			// before this check existed.
-			if actual := llm.DetectKind(ctx, o.backendURL); actual != "" && actual != o.backendKind {
-				return fmt.Errorf("-backend-kind is %q but %s is answering at %s.\n"+
-					"Re-run with -backend-kind %s. Continuing would send %s's grammar and\n"+
-					"sampler fields to a server that ignores both, and the run would look fine.",
-					o.backendKind, actual, o.backendURL, actual, o.backendKind)
-			}
-			// Otherwise the backend is simply not reporting: keep going
-			// without budget tracking rather than failing the whole run.
-			contextLimit = 0
-		} else {
-			note("context window: %d tokens", contextLimit)
-		}
+	contextLimit, err := backendContext(ctx, client, o)
+	if err != nil {
+		return err
 	}
+	note("context limit: %d tokens", contextLimit)
 	emitter.Emit("context", map[string]any{"context_limit": contextLimit})
 
 	// Reuses mission.RunShellCommand for the same OS-aware shell choice as
@@ -465,8 +428,8 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		note("resuming from %s (%d messages)", o.resume, len(history))
 
 		// The history is off disk and no agent exists yet, so the question is
-	// recognised by its argument shape rather than by a tool we could ask.
-	if callID, question, paused := agent.PausedOnQuestion(nil, history); paused {
+		// recognised by its argument shape rather than by a tool we could ask.
+		if callID, question, paused := agent.PausedOnQuestion(nil, history); paused {
 			ans := o.answer
 			if ans == "" {
 				var err error
@@ -670,4 +633,28 @@ func parseRuleSpecs(spec string, eff permission.Effect) []permission.Rule {
 // Never in -mode json (chunks would corrupt the JSONL stream).
 func streamEnabled(streamFlag bool, modeFlag string, tuiFlag bool) bool {
 	return (streamFlag || tuiFlag) && modeFlag != "json"
+}
+
+// Backend knowledge is a fallback; an explicit profile/flag limit wins.
+func backendContext(ctx context.Context, client *llm.Server, o resolvedLaunch) (int, error) {
+	var detected int
+	var probeErr error
+	if o.backendKind != "openai" {
+		detected, probeErr = client.MaxContextLength(ctx)
+	}
+	if probeErr != nil || o.backendKind == "openai" {
+		if actual := llm.DetectKind(ctx, o.backendURL); actual != "" && actual != o.backendKind {
+			return 0, fmt.Errorf("-backend-kind is %q but %s is answering at %s; re-run with -backend-kind %s", o.backendKind, actual, o.backendURL, actual)
+		}
+	}
+	if o.contextLimit > 0 {
+		return o.contextLimit, nil
+	}
+	if o.backendKind == "openai" {
+		return llm.OpenAIContextLimit(o.model), nil
+	}
+	if probeErr != nil {
+		return 0, nil
+	}
+	return detected, nil
 }

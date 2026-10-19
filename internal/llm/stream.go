@@ -63,10 +63,8 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onCon
 		wreq.Tools = append(wreq.Tools, wt)
 	}
 
-	body, err := json.Marshal(struct {
-		wireRequest
-		Stream bool `json:"stream"`
-	}{wireRequest: wreq, Stream: true})
+	wreq.Stream, wreq.StreamOptions = true, &streamOptions{IncludeUsage: true}
+	body, err := json.Marshal(wreq)
 	if err != nil {
 		return ChatResponse{}, fmt.Errorf("marshal request: %w", err)
 	}
@@ -110,6 +108,7 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onCon
 	}
 	acc := map[int]*deltaCall{}
 	var promptTokens, completionTokens int
+	var cachedTokens int
 
 	sc := bufio.NewScanner(resp.Body)
 	sc.Buffer(make([]byte, 1024*1024), 16*1024*1024)
@@ -137,10 +136,7 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onCon
 				} `json:"delta"`
 				FinishReason string `json:"finish_reason"`
 			} `json:"choices"`
-			Usage *struct {
-				PromptTokens     int `json:"prompt_tokens"`
-				CompletionTokens int `json:"completion_tokens"`
-			} `json:"usage"`
+			Usage *wireUsage `json:"usage"`
 		}
 		if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
 			return ChatResponse{}, fmt.Errorf("invalid stream frame: %w", err)
@@ -151,6 +147,7 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onCon
 		if chunk.Usage != nil {
 			promptTokens = chunk.Usage.PromptTokens
 			completionTokens = chunk.Usage.CompletionTokens
+			cachedTokens = chunk.Usage.PromptTokensDetails.CachedTokens
 		}
 		for _, ch := range chunk.Choices {
 			if ch.FinishReason != "" {
@@ -210,9 +207,8 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onCon
 			Arguments: normalizeArguments(json.RawMessage(dc.Function.Arguments)),
 		})
 	}
-	// llama.cpp streams carry no usage block: estimate from the wire
-	// instead of reporting a dead meter (marked Estimated; displays
-	// show "~"). Same chars/4 ratio the reasoning budget uses.
+	// A backend may omit the requested usage block. Fall back to an estimate
+	// from the wire, marked Estimated (displays show "~").
 	//
 	// Count what goes on the wire and nothing else. Reasoning is decoded
 	// for display and never encoded back, and tool-call arguments are
@@ -240,13 +236,14 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onCon
 		estimated = true
 		completionTokens = (len([]rune(content.String())) + len([]rune(reasoning.String()))) / 4
 	}
-	c.recordUsage(promptTokens, completionTokens, 0)
+	c.recordUsage(promptTokens, completionTokens, cachedTokens)
 	p, g, n := c.UsageTotals()
 	c.logDebug("[%s] --- usage (stream: %d prompt + %d generated; run totals: %d prompt + %d generated over %d calls) ---\n\n",
 		time.Now().Format(time.RFC3339), promptTokens, completionTokens, p, g, n)
 	return ChatResponse{Message: msg, FinishReason: finish, Usage: Usage{
 		PromptTokens:     promptTokens,
 		CompletionTokens: completionTokens,
+		CachedTokens:     cachedTokens,
 		Estimated:        estimated,
 	}}, nil
 }

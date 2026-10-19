@@ -20,8 +20,8 @@ func TestUnsetTemperatureShowsTheNumberThatWillBeUsed(t *testing.T) {
 	if !strings.Contains(got, "default") {
 		t.Fatalf("unset temperature shows as %q", got)
 	}
-	if !strings.Contains(got, "0.4") {
-		t.Fatalf("unset temperature does not name the value that will be used: %q", got)
+	if !strings.Contains(ansi.Strip(m.formView()), "0.4") {
+		t.Fatalf("unset temperature does not name the value that will be used")
 	}
 }
 

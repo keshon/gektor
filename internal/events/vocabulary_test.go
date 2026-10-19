@@ -3,8 +3,8 @@ package events
 import (
 	"bytes"
 	"testing"
-
 )
+
 func TestEmitFinding_RoundTrips(t *testing.T) {
 	var buf bytes.Buffer
 	EmitFinding(New(&buf), "per-edit", "gofmt", "a.go", 3, "not gofmt-clean")
@@ -56,4 +56,3 @@ func TestEmitDelta_RoundTrips(t *testing.T) {
 	}
 	EmitDelta(nil, "x") // nil-safe
 }
-

@@ -24,11 +24,11 @@ type Identity struct {
 
 // IdentityOptions are the profile fields Identity is compiled from.
 type IdentityOptions struct {
-	Preset                        string
-	Name, Persona                 string
-	User, System, Post            string
-	MaxTokens, ContextLimit       int
-	Temperature                   float64
+	Preset                  string
+	Name, Persona           string
+	User, System, Post      string
+	MaxTokens, ContextLimit int
+	Temperature             float64
 }
 
 // Compile resolves a preset against the profile's identity fields.

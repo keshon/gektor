@@ -13,9 +13,9 @@ import (
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/checks"
 	"github.com/keshon/tars/internal/events"
-	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/permission"
+	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/tools"
 	"github.com/keshon/tars/internal/workspace"
 )
