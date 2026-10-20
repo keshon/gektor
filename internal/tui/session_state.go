@@ -77,13 +77,13 @@ func (m *model) actionHint() string {
 	case stPermission:
 		return "PgUp/PgDn preview  Ctrl+Q quit"
 	case stAsk:
-		return "Enter answer  Shift+Enter newline  Esc stop"
+		return "Enter answer  Ctrl+O newline  Esc stop"
 	case stRunning:
-		return "Enter queue  Shift+Enter newline  Esc stop"
+		return "Enter queue  Ctrl+O newline  Esc stop"
 	case stStopping:
 		return "Stopping…  draft is preserved  Ctrl+C exit"
 	default:
-		hint := "Enter send  Shift+Enter newline"
+		hint := "Enter send  Ctrl+O newline"
 		if m.sidebarVisible() {
 			hint += "  Tab switch pane"
 		}

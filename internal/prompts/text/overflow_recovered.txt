@@ -1,1 +1,1 @@
-The backend reported the context window was exceeded. Earlier history was compacted to a summary — re-read files you need and continue the task from the summary, keeping the next steps minimal.
+The backend rejected the previous request because the context window was exceeded. Older history was compacted into a mechanical summary, which may omit details. Continue from the retained instructions and results, checking only missing information needed for the next step. Avoid replaying completed changes and keep subsequent reads and output bounded.

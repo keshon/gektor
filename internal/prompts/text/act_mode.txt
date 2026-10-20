@@ -1,1 +1,1 @@
-Act mode: the plan-mode restriction is lifted. You may change the workspace again; this replaces any earlier mode instruction in this conversation.
+Act mode: carry out the user's authorized task with the available tools, respecting their constraints and the harness permissions. This is the current mode and replaces earlier Plan restrictions.

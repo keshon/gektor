@@ -76,6 +76,13 @@ and a final pass over changed paths; internal/rules supplies language checks.
 
 ## UI and settings
 
+Harness instructions live in internal/prompts/text and are embedded at build
+time. Interactive and Planner share the same base prompt and tool definitions;
+their current Plan/Act stance is a trailing harness message. Subagents reuse
+the base with an explicit task scope and budget. Provider adapters own wire
+formatting; selecting a backend does not select a different behavioral prompt.
+Profile identity and response presets are composed separately from capabilities.
+
 The Bubble Tea update loop owns UI state. Components own local interactions;
 the root routes focus, messages and effects. Workers return messages rather
 than changing the live model.

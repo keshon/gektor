@@ -16,7 +16,7 @@ func truncate(s string, n int) string { return cell.Truncate(s, n) }
 
 // newInput builds the answer box: multiline, capped at a few rows.
 // Enter submits (handled by the model, never reaching the widget);
-// Shift+Enter inserts a newline; Ctrl+O remains a terminal fallback.
+// Ctrl+O inserts a newline; Shift+Enter also works when the host preserves it.
 func newInput() composer.Model {
 	ta := textarea.New()
 	ta.Prompt = "> "

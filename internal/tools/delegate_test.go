@@ -33,7 +33,7 @@ func TestDelegate_PassesRoleToSpawn(t *testing.T) {
 
 	args, _ := json.Marshal(map[string]string{
 		"task": "write a greeting",
-		"role": "Alice, a software engineer from London who loves tea",
+		"role": "Go test coverage",
 	})
 	out, err := d.Run(context.Background(), args)
 	if err != nil {
@@ -45,7 +45,7 @@ func TestDelegate_PassesRoleToSpawn(t *testing.T) {
 	if !strings.Contains(out, "DELEGATE\nmutations: 0") {
 		t.Fatalf("expected DELEGATE header, got: %q", out)
 	}
-	if gotRole != "Alice, a software engineer from London who loves tea" {
+	if gotRole != "Go test coverage" {
 		t.Fatalf("role passed to Spawn = %q, want the role text", gotRole)
 	}
 }

@@ -51,7 +51,7 @@ The binary connects to an existing server. On Windows, the optional
 
 In the UI:
 
-- **Enter** sends; **Shift+Enter** adds a line; **Esc** stops a running turn.
+- **Enter** sends; **Ctrl+O** adds a line; **Esc** stops a running turn.
 - **F5** switches Plan/Act while idle. **Ctrl+G** expands thinking and tool details.
 - **Ctrl+P** searches sessions. **Ctrl+B** toggles the session list.
 - Type **`/`** for commands or **`@`** to attach a workspace file.

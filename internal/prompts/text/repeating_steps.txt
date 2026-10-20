@@ -1,1 +1,1 @@
-The same tool calls have been repeated for several steps and nothing changed in between. No tools are available in this turn, so answer now from the context you already have - do not ask for files to be read.
+Identical tool calls triggered the loop guard. No tools are available in this turn. Give a concise account of the observed results, unfinished work, and the specific blocker. Do not claim completion without evidence or promise further tool calls in this response.

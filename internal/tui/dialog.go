@@ -169,7 +169,7 @@ func helpSections() []helpSection {
 	return []helpSection{
 		{"Input", [][2]string{
 			{"Enter", "Send a message; queue a follow-up while running"},
-			{"Shift+Enter / Ctrl+O", "Insert a new line"},
+			{"Ctrl+O / Shift+Enter", "Insert a new line"},
 			{"Up / Down", "Move within the draft"},
 			{"Alt+Up / Alt+Down", "Recall input history"},
 			{"Ctrl+U", "Clear the draft"},

@@ -534,7 +534,7 @@ func TestAgent_LeakedToolCallText_IsNotTrustedAsFinish(t *testing.T) {
 
 	found := false
 	for _, m := range client.lastHistory {
-		if m.Role == llm.RoleUser && strings.Contains(m.Content, "looks like an attempted tool call") {
+		if m.Role == llm.RoleUser && m.Content == harnessText(prompts.LeakDetected) {
 			found = true
 		}
 	}
@@ -558,7 +558,7 @@ func TestAgent_GemmaStyleLeakedToolCall_IsNotTrustedAsFinish(t *testing.T) {
 		t.Fatalf("result = %q, want %q", out, "done for real")
 	}
 	for _, m := range client.lastHistory {
-		if m.Role == llm.RoleUser && strings.Contains(m.Content, "looks like an attempted tool call") {
+		if m.Role == llm.RoleUser && m.Content == harnessText(prompts.LeakDetected) {
 			return
 		}
 	}

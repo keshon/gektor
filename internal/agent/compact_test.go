@@ -228,8 +228,8 @@ func TestCompactHistory_CarriesDroppedUserRequests(t *testing.T) {
 	if strings.Index(notice, "add sliding animations") < strings.Index(notice, "build me a sliding puzzle") {
 		t.Fatalf("dropped requests must stay in order, newest last:\n%s", notice)
 	}
-	if !strings.Contains(prompts.CompactNotice, "the one you are working on") {
-		t.Fatal("the notice must state which dropped request is current")
+	if !strings.Contains(prompts.CompactNotice, "latest user instructions") {
+		t.Fatal("the notice must preserve current user instructions over the mechanical summary")
 	}
 }
 
@@ -272,8 +272,8 @@ func TestCompactHistory_CarriesThePlan(t *testing.T) {
 			t.Fatalf("plan item %q missing from the notice:\n%s", want, notice)
 		}
 	}
-	if !strings.Contains(prompts.CompactNotice, "Keep working the plan") {
-		t.Fatal("the notice must tell the model the plan is still current")
+	if !strings.Contains(prompts.CompactNotice, "checklist may be stale") {
+		t.Fatal("the notice must not present an extracted checklist as authoritative")
 	}
 }
 

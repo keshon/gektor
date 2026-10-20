@@ -1,1 +1,1 @@
-If you were writing a large file, write it in smaller pieces: write_file with the first part, then patch_file to append the rest.
+For a large new file, write smaller pieces with write_file followed by patch_file or patch_lines. For an existing file, apply smaller patches to the existing content; do not replace it with a partial draft. Check recorded tool results before repeating a write.

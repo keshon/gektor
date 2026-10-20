@@ -137,8 +137,8 @@ func TestSubagent_ObserverHooksStaySilent(t *testing.T) {
 // registry, or a weak model emits calls to tools it was never given
 // ("unknown tool", burned steps). Nudge and task texts are excluded on
 // purpose — they are role-agnostic by design, and the loop conditions
-// their tool-specific clauses on its own registry (DelegateHint,
-// AskHint, WriteHint) instead of promising statically.
+// their tool-specific clauses on its own registry (WriteHint) instead of
+// promising statically. The common prompt also makes optional tools conditional.
 func TestRoleSystemToolsResolve(t *testing.T) {
 	e := testEnv(t)
 	universe := map[string]bool{"ask_user": true, "delegate_task": true}
@@ -166,9 +166,9 @@ func TestRoleSystemToolsResolve(t *testing.T) {
 		texts []string
 		names []string
 	}{
-		{"interactive", []string{prompts.System, prompts.SystemForBackend("kobold"), prompts.SystemForBackend("openai")}, interactive.ToolNames()},
+		{"interactive", []string{prompts.System}, interactive.ToolNames()},
 		{"subagent", []string{subagentSystem}, subagent.ToolNames()},
-		{"planner", []string{prompts.System, prompts.SystemForBackend("kobold"), prompts.SystemForBackend("openai"), prompts.PlanMode}, planner.ToolNames()},
+		{"planner", []string{prompts.System, prompts.PlanMode}, planner.ToolNames()},
 	}
 	for _, c := range cases {
 		have := map[string]bool{}
@@ -274,6 +274,26 @@ func (c *recordingClient) Chat(_ context.Context, r llm.ChatRequest) (llm.ChatRe
 		Message:      llm.Message{Role: llm.RoleAssistant, Content: "done"},
 		FinishReason: "stop",
 	}, nil
+}
+
+func TestConversationPromptDoesNotDependOnBackendKind(t *testing.T) {
+	e := testEnv(t)
+	var baseline llm.ChatRequest
+	for _, kind := range []string{"llama", "kobold", "openai"} {
+		client := &recordingClient{}
+		e.Client, e.BackendKind = client, kind
+		if _, err := Interactive(e, "", "", nil, nil).Run(t.Context(), "task"); err != nil {
+			t.Fatal(err)
+		}
+		request := client.reqs[0]
+		if baseline.Messages == nil {
+			baseline = request
+			continue
+		}
+		if request.Messages[0].Content != baseline.Messages[0].Content || !reflect.DeepEqual(request.Tools, baseline.Tools) {
+			t.Fatalf("backend %s changed harness instructions or capabilities", kind)
+		}
+	}
 }
 
 // A backend reuses a cached prompt only while the new one starts with the

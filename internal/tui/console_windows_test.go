@@ -3,6 +3,7 @@
 package tui
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf16"
 	"unsafe"
 
 	tea "charm.land/bubbletea/v2"
@@ -90,7 +92,7 @@ func TestNativeConsoleDecodesPastedSurrogatePair(t *testing.T) {
 	}
 }
 
-func TestConsoleReaderReadsRealNativeShiftEnter(t *testing.T) {
+func TestConsoleReaderReadsRealControlNewline(t *testing.T) {
 	handle := windows.Handle(os.Stdin.Fd())
 	var original uint32
 	if windows.GetConsoleMode(handle, &original) != nil {
@@ -104,10 +106,10 @@ func TestConsoleReaderReadsRealNativeShiftEnter(t *testing.T) {
 	}
 	defer restore()
 	var mode uint32
-	if err := windows.GetConsoleMode(handle, &mode); err != nil || mode&windows.ENABLE_VIRTUAL_TERMINAL_INPUT != 0 {
-		t.Fatal("native console mode was not selected")
+	if err := windows.GetConsoleMode(handle, &mode); err != nil || mode&windows.ENABLE_VIRTUAL_TERMINAL_INPUT == 0 {
+		t.Fatal("native console input disabled paste boundaries")
 	}
-	record := nativeKeyRecord(xwindows.VK_RETURN, '\r', xwindows.SHIFT_PRESSED)
+	record := nativeKeyRecord('O', 15, xwindows.LEFT_CTRL_PRESSED)
 	var written uint32
 	writeInput := windows.NewLazySystemDLL("kernel32.dll").NewProc("WriteConsoleInputW")
 	wrote, _, callErr := writeInput.Call(uintptr(handle), uintptr(unsafe.Pointer(&record)), 1, uintptr(unsafe.Pointer(&written)))
@@ -125,11 +127,126 @@ func TestConsoleReaderReadsRealNativeShiftEnter(t *testing.T) {
 		t.Fatalf("unexpected native events: %#v", events)
 	}
 	key, ok := events[0].(uv.KeyPressEvent)
-	if !ok || tea.KeyPressMsg(key).String() != "shift+enter" {
-		t.Fatalf("console lost Shift modifier: %#v", events)
+	if !ok || tea.KeyPressMsg(key).String() != "ctrl+o" {
+		t.Fatalf("console lost Ctrl+O newline shortcut: %#v", events)
 	}
 	if mode == original {
 		t.Fatal("console input mode did not change")
+	}
+}
+
+func TestConsoleReaderReadsRealMultilinePaste(t *testing.T) {
+	handle := windows.Handle(os.Stdin.Fd())
+	var original uint32
+	if windows.GetConsoleMode(handle, &original) != nil {
+		t.Skip("requires a console; run the compiled test binary in a terminal")
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	_, restore, err := consoleInput(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { restore() }()
+	text := "first line\n/quit\nПривет 😀\n" + strings.Repeat("another line\n", 20)
+	var records []xwindows.InputRecord
+	for _, unit := range utf16.Encode([]rune("\x1b[200~" + text + "\x1b[201~")) {
+		records = append(records, nativeKeyRecord(0, unit, 0))
+	}
+	var written uint32
+	writeInput := windows.NewLazySystemDLL("kernel32.dll").NewProc("WriteConsoleInputW")
+	wrote, _, callErr := writeInput.Call(uintptr(handle), uintptr(unsafe.Pointer(&records[0])), uintptr(len(records)), uintptr(unsafe.Pointer(&written)))
+	if wrote == 0 || int(written) != len(records) {
+		t.Fatalf("write paste records: %v", callErr)
+	}
+	r := &consoleReader{ctx: ctx, handle: handle}
+	var trace bytes.Buffer
+	reader := uv.NewTerminalReader(io.TeeReader(r, &trace), "")
+	events := make(chan uv.Event, 8)
+	done := make(chan error, 1)
+	go func() {
+		done <- reader.StreamEvents(ctx, events)
+		close(events)
+	}()
+	pastes := 0
+	unexpected := 0
+	for event := range events {
+		switch e := event.(type) {
+		case uv.PasteStartEvent:
+		case uv.PasteEvent:
+			pastes++
+			if e.Content != text {
+				t.Errorf("native paste content changed: %q", e.Content)
+			}
+		case uv.PasteEndEvent:
+			cancel()
+		default:
+			unexpected++
+			if unexpected == 1 {
+				t.Errorf("native paste escaped as input: %#v", event)
+			}
+		}
+	}
+	<-done
+	if pastes != 1 {
+		t.Fatalf("expected one complete paste, got %d; prefix: %q", pastes, trace.String()[:min(500, trace.Len())])
+	}
+	// Restore must not leave the PowerShell console in the application's mode.
+	restore()
+	restore = func() {}
+	var mode uint32
+	if err := windows.GetConsoleMode(handle, &mode); err != nil || mode != original {
+		t.Fatalf("console mode was not restored: %#x, want %#x: %v", mode, original, err)
+	}
+}
+
+func TestNativeConsoleModeKeepsPasteAndNativeEvents(t *testing.T) {
+	for _, original := range []uint32{0, windows.ENABLE_LINE_INPUT | windows.ENABLE_ECHO_INPUT | windows.ENABLE_QUICK_EDIT_MODE, ^uint32(0)} {
+		mode := nativeConsoleMode(original)
+		required := uint32(windows.ENABLE_VIRTUAL_TERMINAL_INPUT | windows.ENABLE_EXTENDED_FLAGS | windows.ENABLE_MOUSE_INPUT | windows.ENABLE_WINDOW_INPUT)
+		forbidden := uint32(windows.ENABLE_LINE_INPUT | windows.ENABLE_ECHO_INPUT | windows.ENABLE_PROCESSED_INPUT | windows.ENABLE_QUICK_EDIT_MODE)
+		if mode&required != required || mode&forbidden != 0 {
+			t.Fatalf("unsafe console mode: %#x -> %#x", original, mode)
+		}
+	}
+}
+
+func TestNativeConsoleMultilinePasteWaitsForExplicitEnter(t *testing.T) {
+	// Exercise the native record encoder and the actual terminal decoder, not
+	// just a synthetic PasteMsg. Include text that would execute local commands
+	// or replace the active task if it escaped from the paste envelope.
+	text := "first line\n/quit\n/new another task\nUnicode: Привет 😀\nlast line\n"
+	r := &consoleReader{}
+	for _, unit := range utf16.Encode([]rune("\x1b[200~" + text + "\x1b[201~")) {
+		r.encode(nativeKeyRecord(0, unit, 0))
+	}
+	events := decodeConsoleEvents(t, r.buffer.String())
+	for _, state := range []runState{stDone, stRunning, stAsk} {
+		m := sizeModel(t, testModel())
+		m.state = state
+		pastes := 0
+		for _, event := range events {
+			switch e := event.(type) {
+			case uv.PasteEvent:
+				pastes++
+				m.Update(tea.PasteMsg(e))
+			case uv.PasteStartEvent:
+				m.Update(tea.PasteStartMsg(e))
+			case uv.PasteEndEvent:
+				m.Update(tea.PasteEndMsg(e))
+			default:
+				t.Fatalf("paste escaped as ordinary input: %#v", event)
+			}
+		}
+		if pastes != 1 || m.input.Value() != text || m.state != state || m.queued != "" || m.quit {
+			t.Fatalf("paste submitted or changed task in state %d: %q", state, m.input.Value())
+		}
+		if state == stRunning {
+			m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+			if m.input.Value() != "" || m.queued != strings.TrimSpace(text) {
+				t.Fatal("explicit Enter did not submit the pasted draft")
+			}
+		}
 	}
 }
 

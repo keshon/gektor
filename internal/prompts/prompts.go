@@ -48,7 +48,7 @@ func read(name string) string {
 		// condition any caller can meaningfully recover from.
 		panic("prompts: missing embedded file " + name + ": " + err.Error())
 	}
-	return strings.TrimRight(string(data), "\n")
+	return strings.TrimRight(string(data), "\r\n")
 }
 
 var (
@@ -64,8 +64,6 @@ var (
 	BudgetContinue    = read("budget_continue.txt")
 	WriteHint         = read("write_hint.txt")
 	CompactNotice     = read("compact_notice.txt")
-	KoboldAddendum    = read("kobold_addendum.txt")
-	OpenAIAddendum    = read("openai_addendum.txt")
 	PlanMode          = read("plan_mode.txt")
 	ActMode           = read("act_mode.txt")
 )
@@ -79,28 +77,16 @@ func WithRole(role string) string {
 	return System + "\n\n" + fmt.Sprintf(RoleAddendum, role)
 }
 
-// SystemForBackend returns System with the backend-specific addendum for
-// kind ("kobold", "llama", "openai"). Unknown kinds return System unchanged.
-func SystemForBackend(kind string) string {
-	switch kind {
-	case "kobold":
-		return System + "\n\n" + KoboldAddendum
-	case "openai":
-		return System + "\n\n" + OpenAIAddendum
-	default:
-		return System
-	}
-}
-
 // PlatformLine names the OS the agent runs on, for shell-capable roles.
 // System text is static and embedded, so it cannot say this itself —
 // and a weak model on Windows otherwise emits POSIX and burns steps on
 // "command not found". Attach at role construction (Interactive,
-// Subagent, Worker); Planner and Inspector are read-only and never shell.
+// Subagent); Planner receives the same prefix but cannot execute shell calls.
 func PlatformLine() string {
 	if runtime.GOOS == "windows" {
-		return "You run on Windows. Shell commands execute via cmd.exe: use `dir` (not `ls`), " +
-			"`copy`/`move`/`del` (not `cp`/`mv`/`rm`/`cat`). Both `\\` and `/` work in file paths."
+		return "You run on Windows. Shell commands execute via cmd.exe, not PowerShell or Bash. " +
+			"Use Windows-compatible syntax for builds, tests and scripts; use the provided file tools for listings, edits and moves. " +
+			"Both `\\` and `/` work in file paths."
 	}
 	return "You run on " + runtime.GOOS + " with a POSIX shell and standard coreutils available."
 }

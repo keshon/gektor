@@ -5,27 +5,25 @@ description: Go conventions for this agent. Read before writing or editing .go f
 
 # Go
 
-## Before finishing any Go change
-1. `run_shell`: `gofmt -l .` — must print nothing. If it prints files,
-   run `gofmt -w .` then check again.
-   On Windows, do not mistake line-ending normalization for a code change;
-   CI checks formatting on its Linux checkout.
-2. `run_shell`: `go build ./...` — must succeed.
-3. `run_shell`: `go vet ./...` — must be clean.
-4. `run_shell`: `go test ./...` — must pass. If the change has no test
-   covering the behavior, add a useful regression test. Skip tests that only
-   repeat a trivial implementation.
+## Validation
+1. Format only the changed Go files with gofmt. Do not rewrite the whole
+   workspace to normalize unrelated files or line endings.
+2. Run the relevant package tests, build and vet checks. For changes across
+   package boundaries, run go test ./..., go build ./... and go vet ./....
+3. Add a regression test when behavior changes or a bug needs coverage; avoid
+   tests that merely repeat a trivial implementation.
+4. Report commands actually run and their results. Distinguish failures caused
+   by this change from existing failures; do not fix unrelated code to get green.
 
 ## Style
-- Small, single-purpose packages. No `Manager`/`Kit`/`Helper` suffixes —
-  name the thing for what it does.
-- Wrap errors: `fmt.Errorf("...: %w", err)`. Never swallow silently.
-- Prefer composition over generics. Don't reach for generics unless the
-  alternative is real duplicated logic across concrete types.
-- No package-level mutable state. Pass dependencies explicitly (struct
-  fields / constructor args).
-- Keep files short enough to fit in one `read_file` call.
+- Follow the project's conventions. Organize packages and files around
+  responsibilities; avoid both giant files and needless fragmentation.
+- Prefer meaningful names and direct control flow over generic framework layers.
+- Wrap propagated errors with context using fmt.Errorf("...: %w", err).
+- Prefer explicit dependencies. Introduce generics when they remove useful
+  duplication, rather than replacing straightforward concrete code.
+- Avoid mutable global state when the dependency can be passed explicitly.
 
 ## Editing
-- Small fix: `patch_file` or `patch_lines`. New file or full rewrite:
-  `write_file`. Don't hand-edit Go via sed/awk in `run_shell`.
+- Use patch_file or patch_lines for a focused edit; write_file for a new file
+  or an intentional full replacement. Preserve unrelated user changes.

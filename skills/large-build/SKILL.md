@@ -1,33 +1,25 @@
 ---
 name: large-build
-description: Read before generating anything large (a game engine, a full app, 200+ lines). Check this before a big write_file.
+description: Build a large feature in working increments and decide when a fresh subagent context is useful.
 ---
 
 # Large builds
 
-A single huge generation is fragile: it can hit the token budget mid-file
-(truncated, invalid JSON/code) and the model loses coherence over very
-long completions even when it doesn't truncate. Build incrementally
-instead:
+1. Identify the existing structure and the smallest useful increment.
+2. Implement and check that increment before expanding it. A skeleton can help
+   for a new module, but do not replace working code with placeholders.
+3. Keep generated tool arguments small enough to complete within the response
+   budget. Use focused patches; split a large new file into smaller writes
+   when needed. Check tool results before proceeding.
+4. Track unfinished requirements with todo when helpful. A phase is not the
+   end of the task: continue until the requested work is done or blocked.
 
-1. `write_file` a skeleton first — structure, function/class signatures,
-   comments, `// TODO` markers. No full implementation yet.
-2. Confirm it saved (re-read or list it).
-3. Fill in each piece with separate `patch_file`/`patch_lines` calls —
-   one feature/module per call, not the whole thing at once.
-4. If the plan has explicit phases (like a PLAN.md with Phase 1, 2, 3...),
-   actually stop and use separate tool-call steps per phase. Don't let a
-   "here's my plan" response turn into one giant generation that tries to
-   do every phase at once.
+Use delegate_task only when it is available and a self-contained subtask
+benefits from fresh context enough to justify another model run. Include its
+requirements, relevant paths, and expected checks. Small tasks and tightly
+coupled edits usually belong in the parent context.
 
-Delegation does NOT help here. `delegate_task` is for independent,
-separate pieces that benefit from fresh context (N unrelated files). A single cohesive file (an engine,
-a tightly-coupled module) is not parallelizable — building it is
-inherently sequential, so do it yourself, incrementally, in this same
-conversation.
-
-When a task naturally splits into independent pieces, use one delegate_task
-call per piece when fresh context helps. Delegates execute sequentially
-because they share the workspace. If a subtask needs a specific expertise
-or mindset, use its role field. Explicit human instructions take precedence
-over delegation heuristics.
+Delegates share the workspace and run sequentially; delegation is context
+isolation, not parallel execution. Keep ownership of overlapping edits in one
+place. Read the returned result, verify important claims as needed, and integrate
+the work. Explicit user constraints take precedence over these heuristics.

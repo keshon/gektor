@@ -9,6 +9,8 @@ import (
 	"io"
 	"os"
 	"time"
+	"unicode/utf16"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -16,9 +18,9 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// Bubble Tea's default Windows VT reader drops console modifier flags.
-// Keep native records and encode them using the Win32 protocol its decoder
-// already understands. This also works in classic conhost, without host keymaps.
+// Keep console mouse records while allowing Windows to deliver bracketed paste.
+// VT packets pass through as characters; native keys retain their modifiers
+// when the host supplies them. Ctrl+O adds a newline even with legacy VT keys.
 func consoleInput(ctx context.Context) ([]tea.ProgramOption, func(), error) {
 	handle := windows.Handle(os.Stdin.Fd())
 	var original uint32
@@ -26,9 +28,7 @@ func consoleInput(ctx context.Context) ([]tea.ProgramOption, func(), error) {
 		// Pipes and remote terminals continue through Bubble Tea's normal reader.
 		return nil, func() {}, nil
 	}
-	mode := original &^ (windows.ENABLE_VIRTUAL_TERMINAL_INPUT | windows.ENABLE_LINE_INPUT |
-		windows.ENABLE_ECHO_INPUT | windows.ENABLE_PROCESSED_INPUT | windows.ENABLE_QUICK_EDIT_MODE)
-	mode |= windows.ENABLE_EXTENDED_FLAGS | windows.ENABLE_WINDOW_INPUT | windows.ENABLE_MOUSE_INPUT
+	mode := nativeConsoleMode(original)
 	if err := windows.SetConsoleMode(handle, mode); err != nil {
 		return nil, nil, fmt.Errorf("configure native console input: %w", err)
 	}
@@ -39,8 +39,7 @@ func consoleInput(ctx context.Context) ([]tea.ProgramOption, func(), error) {
 		_ = windows.SetConsoleMode(handle, original)
 	}
 	return []tea.ProgramOption{
-		// Deliberately expose only io.Reader: Bubble Tea must not re-enable VT
-		// input on this console or bypass the native record encoder.
+		// Expose only io.Reader so Bubble Tea cannot bypass the native encoder.
 		tea.WithInput(r),
 		tea.WithFilter(func(_ tea.Model, msg tea.Msg) tea.Msg {
 			if _, quitting := msg.(tea.QuitMsg); quitting {
@@ -51,11 +50,22 @@ func consoleInput(ctx context.Context) ([]tea.ProgramOption, func(), error) {
 	}, cleanup, nil
 }
 
+func nativeConsoleMode(original uint32) uint32 {
+	mode := original &^ (windows.ENABLE_LINE_INPUT | windows.ENABLE_ECHO_INPUT |
+		windows.ENABLE_PROCESSED_INPUT | windows.ENABLE_QUICK_EDIT_MODE)
+	// Without VT_INPUT Windows strips paste delimiters before ReadConsoleInput,
+	// turning pasted newlines into indistinguishable submit keys. Hosts may
+	// encode Shift+Enter as plain Enter in VT mode; Ctrl+O is unambiguous.
+	return mode | windows.ENABLE_VIRTUAL_TERMINAL_INPUT | windows.ENABLE_EXTENDED_FLAGS |
+		windows.ENABLE_WINDOW_INPUT | windows.ENABLE_MOUSE_INPUT
+}
+
 type consoleReader struct {
-	ctx        context.Context
-	handle     windows.Handle
-	buffer     bytes.Buffer
-	mouseState uint32
+	ctx           context.Context
+	handle        windows.Handle
+	buffer        bytes.Buffer
+	mouseState    uint32
+	highSurrogate uint16
 }
 
 func (r *consoleReader) Read(p []byte) (int, error) {
@@ -97,6 +107,14 @@ func (r *consoleReader) encode(record xwindows.InputRecord) {
 	switch record.EventType {
 	case xwindows.KEY_EVENT:
 		e := record.KeyEvent()
+		if e.VirtualKeyCode == 0 && e.KeyDown {
+			// VT packets already arrive as Unicode characters. Wrapping them
+			// in another Win32 packet nests the protocol and breaks paste.
+			for range max(1, int(e.RepeatCount)) {
+				r.encodeCharacter(uint16(e.Char))
+			}
+			return
+		}
 		down := 0
 		if e.KeyDown {
 			down = 1
@@ -164,4 +182,21 @@ func (r *consoleReader) encode(record xwindows.InputRecord) {
 			flags&(xwindows.LEFT_CTRL_PRESSED|xwindows.RIGHT_CTRL_PRESSED) != 0),
 			int(e.MousePositon.X), int(e.MousePositon.Y), release))
 	}
+}
+
+func (r *consoleReader) encodeCharacter(unit uint16) {
+	if r.highSurrogate != 0 {
+		high := r.highSurrogate
+		r.highSurrogate = 0
+		if unit >= 0xdc00 && unit <= 0xdfff {
+			r.buffer.WriteRune(utf16.DecodeRune(rune(high), rune(unit)))
+			return
+		}
+		r.buffer.WriteRune(utf8.RuneError)
+	}
+	if unit >= 0xd800 && unit <= 0xdbff {
+		r.highSurrogate = unit
+		return
+	}
+	r.buffer.WriteRune(rune(unit))
 }

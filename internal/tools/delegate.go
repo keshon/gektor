@@ -18,8 +18,7 @@ type Delegate struct {
 	// Spawn builds a fresh subagent for one subtask. role, if non-empty,
 	// is layered onto the subagent's base system prompt rather than
 	// replacing it — the caller still gets the baseline tool-usage rules
-	// (move_file, list_files-before-acting, etc); the subagent just also
-	// adopts a specific expertise, behavior, or identity for this task.
+	// (file tools, validation, etc); the role specializes its task focus.
 	// Spawn typically shares the same Client and Workspace but a smaller,
 	// task-specific tool set — in particular, without Delegate itself, so
 	// a task can't recurse into subagents forever.
@@ -34,12 +33,11 @@ func (*Delegate) Name() string { return "delegate_task" }
 func (*Delegate) Mode() agent.ToolMode { return agent.Exclusive }
 func (*Delegate) Description() string {
 	return "Delegate a self-contained subtask to a fresh subagent and return its final result. " +
-		"Use this for work that can be fully described in one instruction and doesn't need the " +
-		"current conversation's context. Optionally set role to specialize the subagent for this " +
-		"task — an expertise, a behavior pattern, a strict constraint, or an identity " +
-		"(e.g. 'a strict security reviewer who rejects anything unvalidated', 'a Python-only " +
-		"specialist', or 'Alice, a software engineer who loves tea'). This actually shapes how " +
-		"the subagent behaves, not just text embedded in the task description."
+		"Use it when a focused fresh context is worth the extra model work; do small or tightly coupled work directly. " +
+		"The subagent receives your task and relevant paths, not the parent conversation. " +
+		"It has a bounded step budget, shares the workspace, and runs sequentially without further delegation. " +
+		"Optionally set role to a task focus such as Go test coverage or security review. " +
+		"Check the returned changes and evidence before relying on its claims."
 }
 func (*Delegate) Schema() json.RawMessage {
 	return json.RawMessage(`{

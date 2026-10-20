@@ -28,14 +28,13 @@ func (RunShell) Name() string { return "run_shell" }
 func (RunShell) Mode() agent.ToolMode { return agent.Exclusive }
 func (RunShell) Description() string {
 	if runtime.GOOS == "windows" {
-		return "Run a command inside the workspace via cmd.exe (use Windows commands: " +
-			"ren, copy, move, del, git, go, npm, etc). For listing directory contents use " +
-			"list_files instead of dir. Return its combined output."
+		return "Run a finite command inside the workspace via cmd.exe, using Windows-compatible syntax. " +
+			"Use file tools for listings, edits and moves; use start_background for servers and watchers. " +
+			"Return combined stdout and stderr; inspect the result before claiming success."
 	}
-	return "Run a command inside the workspace via sh (use POSIX commands: " +
-		"mv, cp, rm, git, go, npm, etc). For listing directory contents use " +
-		"list_files instead of ls. For searching file text use grep_files " +
-		"instead of grep. Return combined stdout+stderr."
+	return "Run a finite command inside the workspace via sh, using POSIX syntax. " +
+		"Use file tools for listings, edits and moves; use start_background for servers and watchers. " +
+		"Return combined stdout and stderr; inspect the result before claiming success."
 }
 func (RunShell) Schema() json.RawMessage {
 	return json.RawMessage(`{

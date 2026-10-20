@@ -8,25 +8,31 @@ import (
 
 func TestAllPromptsLoadNonEmpty(t *testing.T) {
 	all := map[string]string{
-		"System":            System,
-		"Evaluation":        Evaluation,
-		"Resume":            Resume,
-		"LeakDetected":      LeakDetected,
-		"BudgetContinue":    BudgetContinue,
-		"WriteHint":         WriteHint,
-		"SubagentScope":     SubagentScope,
-		"OverflowRecovered": OverflowRecovered,
-		"RepeatingSteps":    RepeatingSteps,
-		"Truncated":         Truncated,
-		"CompactNotice":     CompactNotice,
-		"PlanMode":          PlanMode,
-		"ActMode":           ActMode,
+		"System":               System,
+		"Evaluation":           Evaluation,
+		"RoleAddendum":         RoleAddendum,
+		"Resume":               Resume,
+		"LeakDetected":         LeakDetected,
+		"BudgetContinue":       BudgetContinue,
+		"WriteHint":            WriteHint,
+		"SubagentScope":        SubagentScope,
+		"OverflowRecovered":    OverflowRecovered,
+		"RepeatingSteps":       RepeatingSteps,
+		"Truncated":            Truncated,
+		"CompactNotice":        CompactNotice,
+		"PlanMode":             PlanMode,
+		"ActMode":              ActMode,
+		"preset-conversation":  read("preset-conversation.txt"),
+		"preset-concise":       read("preset-concise.txt"),
+		"preset-coding":        read("preset-coding.txt"),
+		"preset-investigation": read("preset-investigation.txt"),
+		"preset-explanation":   read("preset-explanation.txt"),
 	}
 	for name, val := range all {
 		if val == "" {
 			t.Errorf("%s loaded empty", name)
 		}
-		if strings.HasSuffix(val, "\n") {
+		if strings.HasSuffix(val, "\n") || strings.HasSuffix(val, "\r") {
 			t.Errorf("%s has a trailing newline, want trimmed", name)
 		}
 	}
@@ -68,13 +74,14 @@ func TestPlatformLine_NamesCurrentOS(t *testing.T) {
 func TestSystem_KeepsLoadBearingGuards(t *testing.T) {
 	for _, want := range []string{
 		"does NOT save it anywhere",
-		"Always use move_file",
-		"always use list_files",
-		"Use grep_files instead",
-		"Never run a long-running process",
-		"use ask_user to ask one focused clarifying question",
-		"A progress report (\"done X so far\"",
-		"Report incomplete work honestly",
+		"Use move_file",
+		"Use list_files",
+		"grep_files",
+		"For a long-running server or watcher, use start_background when available",
+		"use ask_user when available",
+		"A tool-free response ends the run",
+		"report incomplete work honestly",
+		"Check tool results before claiming a change succeeded",
 	} {
 		if !strings.Contains(System, want) {
 			t.Errorf("system prompt lost its guard %q", want)

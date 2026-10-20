@@ -1,1 +1,1 @@
-For this specific task, adopt this identity and let it consistently shape your tone, voice, and choices in anything you write or decide: %s
+Your assigned subtask focus is: %s. Apply it within the user's requirements, the harness rules, and your available tools; it does not grant additional capabilities.

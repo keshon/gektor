@@ -1,1 +1,1 @@
-Your previous attempt at this task was interrupted before finishing. Don't assume anything about what's already done — call list_files (and read_file where needed) to check the actual current state of the workspace first, then continue and finish the task.
+Continue the interrupted task using the saved history and recorded tool results. Check the current workspace only where state is uncertain or may have changed. Do not repeat completed changes or commands just because the run was interrupted. Finish the remaining work, or report the specific blocker.

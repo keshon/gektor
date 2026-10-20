@@ -18,7 +18,8 @@ Rules for writing one:
 - Lead with a checklist, not an essay.
 - Name this agent's actual tools (`patch_file`, `move_file`, `run_shell`,
   `delegate_task`) — generic advice is dead weight here.
-- Keep it under ~100 lines. Longer means split it.
+- Keep each guide focused. Move lengthy reference material out of the checklist
+  when needed; do not split guides merely to meet a line count.
 
 ## Choose a guide
 

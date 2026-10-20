@@ -142,13 +142,6 @@ func (e Env) policy() permission.Policy {
 	return e.Policy
 }
 
-func interactiveSystem(backendKind string) string {
-	if backendKind == "" {
-		return prompts.System
-	}
-	return prompts.SystemForBackend(backendKind)
-}
-
 // Retrospective gets only archive access and structured submission. It deliberately
 // omits task identity, workspace instructions, inbox, persistence and observers:
 // historical instructions must not become the reviewer's operating instructions.
@@ -270,7 +263,7 @@ func (e Env) conversationConfig(label, stateFile string,
 	if ask != nil {
 		extra = append(extra, tools.AskUser{AskFn: ask})
 	}
-	cfg := e.agentConfig(interactiveSystem(e.BackendKind)+"\n\n"+prompts.PlatformLine(), label, stateFile)
+	cfg := e.agentConfig(prompts.System+"\n\n"+prompts.PlatformLine(), label, stateFile)
 	cfg.Tools = tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, extra...)
 	cfg.MaxSteps = e.MaxSteps
 	cfg.Verify = verify

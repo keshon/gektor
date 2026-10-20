@@ -13,7 +13,7 @@ func (m *model) statusLine() string {
 	}
 	if m.dialog != nil {
 		if m.dialog.form != nil {
-			return m.styles.status.Render("Tab fields/buttons · Shift+Enter newline · Esc cancel")
+			return m.styles.status.Render("Tab fields/buttons · Ctrl+O newline · Esc cancel")
 		}
 		return m.styles.status.Render("Esc close  ↑↓ scroll")
 	}

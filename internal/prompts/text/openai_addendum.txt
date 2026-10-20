@@ -1,1 +1,0 @@
-Always use strict structured tool calls matching the provided schemas exactly. Prefer precise minimal edits; verify with the available check tools rather than narration.

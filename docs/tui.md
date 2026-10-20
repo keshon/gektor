@@ -180,7 +180,8 @@ text, up to six visible rows (less in short terminals).
 
 - Enter sends when idle, or queues one follow-up during a run. Empty Enter
   does nothing.
-- Shift+Enter adds a line. Ctrl+O is the fallback.
+- Ctrl+O adds a line. Shift+Enter also works when the terminal preserves it.
+- Pasted multiline text stays in the draft, including a trailing newline; Enter sends it.
 - Up/Down moves within the draft, unless the suggestion picker is open.
 - Alt+Up/Alt+Down recalls submitted input and restores the unsent draft.
 - Ctrl+U clears the draft.
@@ -331,9 +332,9 @@ local UI commands; they are not tools or RPC methods.
 ## Troubleshooting
 
 - Server not ready: start `run-kobold.cmd` first and wait for loading to finish.
-- Shift+Enter inserts correctly in classic Windows consoles through native
-  key records. Other terminals must preserve key modifiers; Ctrl+O remains
-  available if a terminal maps Shift+Enter to plain Enter.
+- Use Ctrl+O for a newline on Windows. VT input keeps bracketed-paste boundaries
+  intact; some hosts encode Shift+Enter as plain Enter. Native mouse records
+  continue through the same adapter.
 - Strange scrolling: keep server logs in their own terminal. Do not redirect
   model/server output into the full-screen UI.
 - No streaming text on KoboldCPP: that dialect uses unary requests. OpenAI
@@ -377,7 +378,7 @@ environment references.
 
 Up/Down or Tab/Shift+Tab moves between single-line fields and Apply/Cancel.
 Multiline fields keep arrows for editing; Ctrl+Up/Down moves between fields. Enter moves to the next
-field or activates a button; Shift+Enter inserts a newline. Ctrl+S applies a
+field or activates a button; Ctrl+O inserts a newline. Ctrl+S applies a
 non-destructive form. Mouse clicks focus fields or activate buttons. Esc closes
 the form or dropdown in one step. Keyboard menu navigation skips disabled
 actions. Read-only inspectors support arrows, PageUp/PageDown and wheel scrolling.
@@ -532,18 +533,19 @@ A workspace change alone does not create a custom profile.
 Settings > Prompts > Prompt preset selects a reusable response style. Custom (the
 default) keeps the base prompts and profile settings without adding preset
 instructions. Concise, Coding, Investigation and Explanation add a style section
-to the compiled instruction. Conversation, Roleplay and Storytelling describe
-scenes and dialogue; they read oddly inside a tool-using loop and are kept only
-because the preset list is a saved profile value.
+to the compiled instruction. Conversation adds a natural, direct conversational
+style. Presets affect presentation; tools, permissions and Plan/Act constraints
+remain controlled by the harness.
 
 The picker describes each preset. Settings > Prompt preview shows the applied
 preset and its compiled instructions — the profile's contribution to the system
 prompt, not the agent's own Plan/Act instructions, which are not configurable.
 Apply saves the selection in the custom profile as `identity.prompt_preset`.
 
-Preset text may reference `{{char}}`, `{{user}}` and `{{persona}}`, which are
-substituted at compile time. A macro left unfilled is reported as a warning in
-the transcript rather than sent to the model as literal text.
+Preset text can reference `{{assistant}}`, `{{user}}` and `{{persona}}`, which
+are substituted when identity is compiled. Raw profile system/post-history text
+is passed through rather than expanded as a template; recognized unresolved
+name macros produce warnings and remain literal text.
 
 ## Experimental session retrospective
 
