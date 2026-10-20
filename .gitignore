@@ -37,3 +37,6 @@ run-serve.cmd
 *.png
 /bench-results
 *.csv
+
+# Public TUI preview used by the README.
+!/docs/images/tars-demo.png

@@ -1,131 +1,132 @@
 # TARS
 
-A local coding agent, written in Go. It runs against a workspace with tools
-and permission prompts, in Plan or Act mode.
+A terminal coding agent, written in Go. Bring your model server; TARS supplies
+the tool loop, workspace access, session history and terminal UI.
 
-The Go application builds without cgo.
+I'm building TARS to keep the agent understandable: one execution loop,
+explicit tools and a codebase I can reason about. The focus is coding work
+in a repository, with local inference as the starting point.
 
-## Quick start
+![TARS terminal UI showing a file patch and a passing Go test](docs/images/tars-demo.png)
 
-Requirements: Go 1.26.6+ and a model backend you start yourself. TARS connects
-to a server; it does not ship or launch one, and the repository contains no
-model weights.
+*Scripted demo rendered by the real TUI. The file patch and test command were
+executed on a small fixture project; model replies were scripted. This is an
+interface preview, not a model benchmark.*
+
+## What it does
+
+- **Plan and Act.** Explore with read-only tools, then switch to execution.
+- **Work with code.** Search, read, patch and move files; run commands and
+  manage background processes. Delegate a bounded subtask when useful.
+- **Show the work.** Stream answers and reasoning when the backend exposes
+  them. Inspect tool arguments, results, diffs and permission requests.
+- **Keep sessions.** Reopen and search conversations, continue interrupted
+  work, or fork a task. Context compaction keeps the full conversation archive.
+- **Extend through files and tools.** Read project `AGENTS.md` instructions
+  and task-specific skills. Connect external tools over MCP.
+- **Use the same loop outside the TUI.** One-shot CLI, JSONL events and a
+  stdio integration protocol are included.
+
+TARS connects to **llama.cpp**, **KoboldCPP**, and **OpenAI-compatible APIs**.
+Models, weights and inference servers are supplied separately. The Go binary
+builds without cgo; Windows is the primary development platform, with Windows
+and Linux checks configured in CI.
+
+## Start with a local model
+
+Requirements: **Go 1.26.6+** and a running model server capable of following
+tool instructions. These commands assume llama.cpp at `127.0.0.1:8080`.
 
 ```powershell
+git clone https://github.com/keshon/tars.git
+cd tars
 go build -o agent.exe ./cmd/agent
-.\agent.exe -tui
+.\agent.exe -tui -backend-kind llama -backend http://127.0.0.1:8080 -workspace "D:\path\to\project"
 ```
 
-On a fresh clone the launcher expects a backend at `http://127.0.0.1:8080`.
-Start one with `run-server-llama.cmd` in its own terminal, wait for the model to
-load, then run `run-tui.cmd`. Use **Settings → Model** to point TARS somewhere
-else if you want.
+On Linux, build with `go build -o agent ./cmd/agent` and launch `./agent`
+with the same flags and your workspace path.
 
-- **Run** selects Plan (read-only) or Act (executes), stops a run, or retries a failed one.
-- **Settings** selects models, generation parameters, identity and service profiles.
-- **View → Theme** selects Dark or Light.
-- **Session → Compact history** compacts the current history.
+The binary connects to an existing server. On Windows, the optional
+`run-server-llama.cmd` helper starts one using `LLAMA_SERVER_EXE` and
+`LLAMA_MODEL` from a gitignored `.env` file; copy `.env.example` to get started.
+`run-tui.cmd` builds and launches the TUI with saved settings.
 
-Applying settings restarts the launch so the new profile is composed into
-fresh services. The draft and the session carry across.
+In the UI:
 
-See [bootstrap and service ownership](docs/bootstrap.md) for setup and
-[the terminal guide](docs/tui.md) for interaction details. The CLI backend default
-for launches without a profile remains `http://localhost:5001`.
+- **Enter** sends; **Shift+Enter** adds a line; **Esc** stops a running turn.
+- **F5** switches Plan/Act while idle. **Ctrl+G** expands thinking and tool details.
+- **Ctrl+P** searches sessions. **Ctrl+B** toggles the session list.
+- Type **`/`** for commands or **`@`** to attach a workspace file.
+- **Settings → Model** changes the connection. **F1** opens help.
 
-## Usage
+Text attachments work without vision. Image attachments require a supported
+vision-capable backend. See the [terminal guide](docs/tui.md) for details.
 
-```bash
-go run ./cmd/agent "add a Version constant to config.go"
+## Run a task from the CLI
+
+Specify the backend explicitly: the standalone CLI's legacy default is
+KoboldCPP on port 5001, while the TUI's first-run connection is llama.cpp on 8080.
+
+```powershell
+.\agent.exe -backend-kind llama -backend http://127.0.0.1:8080 -workspace "D:\path\to\project" -verify-cmd "go test ./..." "Fix the failing title test"
 ```
 
-One loop handles small and multi-file tasks. `-plan` explores read-only;
-Act executes changes. `-mode json` emits step events and `-tui` renders the
-session fullscreen. Use `-verify-cmd "go test ./..."` for a final mechanical check.
-The default limit is 25 steps; continuation requires your approval.
+`-plan` selects read-only planning. `-mode json` emits JSONL events.
+`-verify-cmd` runs a final command once and records its result; failure fails
+the run without silently starting another model turn. The default step budget
+is 25; explicit `-max-steps 0` removes the limit for the main agent.
 
-## Terminal UI
+For a hosted OpenAI-compatible API, use `-backend-kind openai`, its API-root
+URL, and `-model`. Supply credentials through an environment variable such as
+`TARS_API_KEY` rather than putting a key on the command line. Local-server
+context detection takes precedence over a manual limit; hosted endpoints may
+need `-context-limit` set explicitly.
 
-```bash
-.\agent.exe -tui
+[CLI reference](docs/cli.md) · [stdio protocol](docs/rpc.md) ·
+[setup and service ownership](docs/bootstrap.md)
+
+## History and instructions
+
+Submitted input and completed steps are saved under the user's `.tars/`
+directory. `-resume` accepts a session directory or its `state.json` file;
+`-fork` continues a copy under a new task ID. Compaction reduces the model's
+working context to an extractive summary and recent messages, preserving
+the full archive for display and search. It does not ask an LLM to summarize.
+
+Ancestor and workspace `AGENTS.md` files are loaded into the agent's
+instructions. Guides in [`skills/`](skills/README.md) are read by the model
+when relevant. They belong to the task workspace; running TARS from this
+checkout does not install them into another project.
+
+## Current limits
+
+Model quality and tool-call reliability depend on the model and its server.
+Streaming and prompt-processing telemetry also depend on what the backend
+exposes; KoboldCPP uses non-streaming replies.
+
+TARS is **not a sandbox**. File tools guard against paths outside the workspace,
+but shell commands run with your account's permissions and symlinks are
+followed. Use a container or VM when isolation matters. There is no automatic
+workspace backup or rollback. See [SECURITY.md](SECURITY.md).
+
+## Develop and evaluate
+
+```text
+go test -race ./...
+go vet ./...
+go build ./...
+go run ./cmd/eval -dry
 ```
 
-Enter sends text, Shift+Enter adds a line, and Tab switches panel focus. The
-menu, session panel, status labels and contextual footer share one theme. Type
-`/` for commands or `@` for workspace files. F1 opens help, F2 searches
-sessions.
-## Model servers
+The dry run validates probe definitions without model calls. Live evaluations
+run tasks in throwaway fixture workspaces and check files, tool usage and the
+answer. See the [eval guide](eval/README.md) for setup, scoring and model-backed
+runs. On Windows, `build.cmd check` runs the local checks together.
 
-Start a model server in its own terminal before using TARS. Machine-specific
-paths and keys live in `.env` (copy from `.env.example`; gitignored).
-
-**llama.cpp (default backend):**
-1. Fill in `LLAMA_SERVER_EXE` and `LLAMA_MODEL` in `.env`.
-2. Run `run-server-llama.cmd` and wait for the model to finish loading.
-3. In another terminal, run `run-tui.cmd`. It builds `agent.exe` and opens
-   the UI using saved settings, or llama.cpp at `127.0.0.1:8080` on first launch.
-
-**KoboldCPP (secondary):**
-1. Fill in `KOBOLD_EXE` and `KOBOLD_MODEL` in `.env`.
-2. Run `run-server-kobold.cmd` and wait for the model to finish loading.
-3. In another terminal, run `run-tui.cmd -backend-kind kobold -backend http://127.0.0.1:5001`.
-
-**OpenAI-compatible / remote:**
-1. Fill in `TARS_API_KEY` in `.env`.
-2. Run `run-server-openai.cmd` for a stdio JSON-RPC server, or
-   `run-remote.cmd "task"` for a one-shot task run.
-
-The sibling launchers follow the same build-then-run shape:
-`run-task.cmd "task"` for a one-shot print-mode run, `run-plan.cmd` for read-only planning, `run-resume.cmd` to list or resume saved
-tasks.
-Maintenance lives under `build.cmd` (`build test`, `build check`, `build fmt`,
-`build vuln`, `build clean`; `build help` lists everything), and the eval
-helpers are `eval-dry.cmd`, `eval-run.cmd` and `eval-reset.cmd`.
-
-## Backend and saved runs
-
-All flags and backend examples are in [docs/cli.md](docs/cli.md).
-The [documentation index](docs/README.md) links the current guides and archived audits.
-The stdio integration protocol is in [docs/rpc.md](docs/rpc.md). Remote-provider keys resolve
-from `-api-key`, `-api-key-env`, or environment (`TARS_API_KEY`,
-`OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `DEEPSEEK_API_KEY`, `GROQ_API_KEY`,
-`TOGETHER_API_KEY`, `ANTHROPIC_API_KEY`).
-
-State lands in the user's `.tars/tasks/<id>/` after every step; `-resume`
-accepts its directory or state file. Ancestor and workspace `AGENTS.md`
-instructions are loaded in order and refreshed on resume.
-
-TARS does not archive the workspace and cannot revert it. Commit or stash
-before a run on a tree you care about.
-
-## Evals
-
-`eval/probes/` holds scenarios with frozen pass criteria, scored three
-ways: workspace contents, tool usage, reported answer. Each runs in a
-throwaway copy of its seed workspace. See [eval/README.md](eval/README.md).
-
-```bash
-go run ./cmd/eval -dry                      # validate probes, no model calls
-go run ./cmd/eval -runs 3                   # run everything
-go run ./cmd/eval -only 0 -require-model qwen
-```
-
-## Layout
-
-- `cmd/agent`, `cmd/eval` — CLI, probe runner
-- `internal/agent`, `internal/roles` — execution loop and agent capabilities
-- `internal/llm`, `internal/tools`, `internal/prompts` — backends, tools, prompts
-- `internal/run`, `internal/tui` — shared session events/gates and terminal UI
-- `internal/audit`, `internal/checks` — approval records and deterministic findings
-- `internal/permission`, `internal/session`,
-  `internal/events` — policy, conversation snapshots, JSONL output
-
-How it fits together is in [ARCHITECTURE.md](ARCHITECTURE.md). House rules
-are in [docs/conventions.md](docs/conventions.md), enforced by tests.
-The trust boundary is in [SECURITY.md](SECURITY.md): file tools are
-guardrails against mistyped paths, not a sandbox — use a container or a VM
-if process isolation matters.
+[Architecture](ARCHITECTURE.md) · [conventions](docs/conventions.md) ·
+[documentation index](docs/README.md)
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+[MIT](LICENSE).
