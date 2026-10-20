@@ -9,9 +9,6 @@ in a repository, with local inference as the starting point.
 
 ![GEKTOR terminal UI showing a file patch and a passing Go test](docs/images/gektor-demo.png)
 
-*Scripted demo rendered by the real TUI. The file patch and test command were
-executed on a small fixture project; model replies were scripted. This is an
-interface preview, not a model benchmark.*
 
 ## What it does
 
