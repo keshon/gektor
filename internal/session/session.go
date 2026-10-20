@@ -1,16 +1,12 @@
-// Package session owns the one file a run persists: the conversation
-// snapshot at <dir>/state.json, rewritten atomically on every step.
-//
-// There is deliberately no second copy. An append-only log of full
-// snapshots sat beside it for a while, read only as a fallback when the
-// snapshot failed to decode -- but the snapshot is written tmp+rename, so
-// a crash cannot leave it half-written, and anything that could take both
-// files down takes the backup with them. It cost a file per session and
-// grew without bound: 6 MB for a session that resumes from 46 KB.
+// Package session owns durable conversation history and its compacted model view.
+// A single snapshot stores each original message once; context is a retained tail
+// plus a summary. Old array snapshots remain readable.
 package session
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,46 +14,107 @@ import (
 	"github.com/keshon/tars/internal/llm"
 )
 
-// WriteSnapshot stores history at path, creating its directory. Writes
-// are atomic (tmp+rename) so an interrupted save leaves the previous
-// snapshot whole rather than a truncated one.
-func WriteSnapshot(path string, history []llm.Message) error {
+// Snapshot keeps the archive independent of the model's working context.
+// ContextStart is an index into History; zero means the entire conversation.
+type Snapshot struct {
+	Version      int           `json:"version"`
+	History      []llm.Message `json:"history"`
+	ContextStart int           `json:"context_start,omitempty"`
+	Summary      string        `json:"summary,omitempty"`
+}
+
+func New(history []llm.Message) Snapshot {
+	return Snapshot{Version: 1, History: append([]llm.Message(nil), history...)}
+}
+
+func (s Snapshot) Context() []llm.Message {
+	if s.ContextStart == 0 {
+		return append([]llm.Message(nil), s.History...)
+	}
+	out := append([]llm.Message(nil), s.History[:2]...)
+	out = append(out, llm.Message{Role: llm.RoleUser, Content: s.Summary})
+	return append(out, s.History[s.ContextStart:]...)
+}
+
+// Compact records the projection produced by the agent's compactor. Its tail
+// is a suffix of the current context and therefore of the archive.
+func (s *Snapshot) Compact(context []llm.Message) {
+	s.ContextStart = len(s.History) - len(context[3:])
+	s.Summary = context[2].Content
+}
+
+func Load(path string) (Snapshot, error) {
+	if info, err := os.Stat(path); err == nil && info.IsDir() {
+		path = filepath.Join(path, "state.json")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	var s Snapshot
+	if bytes.HasPrefix(bytes.TrimSpace(data), []byte("[")) {
+		var history []llm.Message
+		if err := json.Unmarshal(data, &history); err != nil {
+			return s, err
+		}
+		return New(history), nil
+	}
+	if err := json.Unmarshal(data, &s); err != nil {
+		return s, err
+	}
+	if s.Version != 1 || s.ContextStart < 0 || s.ContextStart > len(s.History) || (s.ContextStart > 0 && (s.ContextStart < 2 || s.Summary == "")) {
+		return Snapshot{}, fmt.Errorf("invalid conversation snapshot")
+	}
+	return s, nil
+}
+
+// Save replaces the snapshot only after the complete candidate is written.
+func (s Snapshot) Save(path string) error {
 	if path == "" {
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(history, "", "  ")
+	data, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0600); err != nil {
+	f, err := os.CreateTemp(filepath.Dir(path), ".state-*")
+	if err != nil {
 		return err
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp)
+	defer os.Remove(f.Name())
+	if _, err = f.Write(data); err != nil {
+		f.Close()
 		return err
 	}
-	return nil
+	if err = f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), path)
 }
 
-// ReadHistory loads a conversation snapshot. path may be the snapshot
-// itself or the session directory containing it.
+// WriteSnapshot starts or explicitly replaces a complete conversation.
+func WriteSnapshot(path string, history []llm.Message) error { return New(history).Save(path) }
+
+// ReadHistory returns the complete archive for display, search and export.
 func ReadHistory(path string) ([]llm.Message, error) {
-	if info, err := os.Stat(path); err == nil && info.IsDir() {
-		path = filepath.Join(path, "state.json")
-	}
-	data, err := os.ReadFile(path)
+	s, err := Load(path)
+	return s.History, err
+}
+
+// ReadContext returns the model projection for continuation and budgeting.
+func ReadContext(path string) ([]llm.Message, error) {
+	s, err := Load(path)
 	if err != nil {
 		return nil, err
 	}
-	var history []llm.Message
-	if err := json.Unmarshal(data, &history); err != nil {
-		return nil, err
-	}
-	return history, nil
+	return s.Context(), nil
 }
 
 // TitleFor derives the default display title: the first user message,

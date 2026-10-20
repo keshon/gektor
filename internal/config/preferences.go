@@ -10,6 +10,7 @@ import (
 )
 
 type Preferences struct {
+	Mode        string   `json:"mode,omitempty"`
 	Theme       string   `json:"theme,omitempty"`
 	Version     int      `json:"version"`
 	Workspace   string   `json:"workspace,omitempty"`
@@ -17,6 +18,9 @@ type Preferences struct {
 	Profile     *Profile `json:"profile,omitempty"`
 	Harness     Harness  `json:"harness,omitempty"`
 }
+
+// UnlimitedSteps is the persisted ceiling used for an unlimited direct run.
+const UnlimitedSteps = 999999
 
 // Harness stores the operator's per-run step limit.
 type Harness struct {
@@ -41,6 +45,9 @@ func (h *Harness) UnmarshalJSON(data []byte) error {
 }
 
 func (p Preferences) Validate() error {
+	if p.Mode != "" && p.Mode != "plan" && p.Mode != "act" {
+		return fmt.Errorf("unknown workflow mode %q", p.Mode)
+	}
 	if p.Theme != "" && p.Theme != "dark" && p.Theme != "light" {
 		return fmt.Errorf("unknown theme %q", p.Theme)
 	}

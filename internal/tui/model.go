@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/app"
 	"github.com/keshon/tars/internal/audit"
+	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/roles"
 	"github.com/keshon/tars/internal/run"
@@ -62,7 +64,7 @@ const (
 // default", so an unlimited run is a large number rather than zero.
 const (
 	noStepLimit    = -1
-	unlimitedSteps = 999999
+	unlimitedSteps = config.UnlimitedSteps
 )
 
 type eventMsg run.Event
@@ -71,10 +73,13 @@ type doneMsg struct {
 	err    error
 }
 type tickMsg time.Time
+type liveFlushMsg struct{}
 type model struct {
-	identityUser string
-	identityName string
-	application  *Application
+	liveFlushPending bool
+	progress         llm.Progress
+	identityUser     string
+	identityName     string
+	application      *Application
 	// config is the service set this launch was composed with. It is the
 	// only route to the profile, so a nil value means "not configurable"
 	// rather than "defaulted".
@@ -278,13 +283,19 @@ func (m *model) stepBudget() string {
 	if m.maxStepsOverride == noStepLimit {
 		return "∞"
 	}
+	if m.maxStepsOverride > 0 {
+		return strconv.Itoa(m.maxStepsOverride)
+	}
+	if m.maxSteps == unlimitedSteps {
+		return "∞"
+	}
 	return strconv.Itoa(m.maxSteps)
 }
 
 // stepLine is the one phrasing of "steps so far / steps allowed", shared by
 // every place that reports run facts.
 func (m *model) stepLine() string {
-	return "Steps: " + strconv.Itoa(m.steps) + " / " + m.stepBudget()
+	return "Steps: " + strconv.Itoa(m.steps) + "/" + m.stepBudget()
 }
 
 // Run executes the task under the TUI and returns the final answer.
@@ -335,8 +346,8 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		policyRules: len(cfg.Env.Policy.Rules),
 	}
 	defer m.cancel()
-	if len(cfg.History) > 0 && !cfg.Plan && readSavedMode(filepath.Dir(cfg.StateFile)) == "Plan" {
-		m.plan = true
+	if cfg.Env.MaxSteps == unlimitedSteps {
+		m.maxStepsOverride = noStepLimit
 	}
 	m.application = cfg.Application
 	m.config = cfg.Services
@@ -369,6 +380,9 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	}
 	m.seedHistory = cfg.SeedHistory
 	if cfg.SessionDirectory != "" {
+		if info, err := os.Stat(cfg.SessionDirectory); err != nil || !info.IsDir() {
+			return "", fmt.Errorf("cannot open session directory %s", cfg.SessionDirectory)
+		}
 		m.stateFile = filepath.Join(cfg.SessionDirectory, "state.json")
 		m.sessionTitle = workspace.ReadSessionTitle(cfg.SessionDirectory)
 	}
@@ -416,15 +430,15 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		m.input.Focus()
 	}
 	if len(cfg.SeedHistory) > 0 || cfg.SessionDirectory != "" {
+		if cfg.SessionDirectory != "" {
+			m.stateFile = filepath.Join(cfg.SessionDirectory, "state.json")
+		}
 		m.transcript.blocks = renderHistory(cfg.SeedHistory)
 		m.restoreContext(cfg.SeedHistory)
 		m.refreshContent()
 	}
 	if cfg.SessionDirectory != "" {
 		m.stateFile = filepath.Join(cfg.SessionDirectory, "state.json")
-		if err := agent.SaveState(m.stateFile, agentSeed(cfg.SeedHistory)); err != nil {
-			return "", err
-		}
 	}
 	m.input.SetValue(cfg.InitialDraft)
 	m.fitInput()

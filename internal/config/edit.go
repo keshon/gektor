@@ -57,9 +57,11 @@ func ApplySection(profile *Profile, section string, values map[string]string) er
 		if err != nil {
 			return fmt.Errorf("response budget must be an integer")
 		}
-		profile.Generation.ContextLimit, err = strconv.Atoi(values["context"])
-		if err != nil {
-			return fmt.Errorf("context window must be an integer")
+		if value, ok := values["context"]; ok {
+			profile.Generation.ContextLimit, err = strconv.Atoi(value)
+			if err != nil {
+				return fmt.Errorf("context window must be an integer")
+			}
 		}
 	case SectionPrompts:
 		id := identity()

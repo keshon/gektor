@@ -89,7 +89,8 @@ type Env struct {
 
 	// OnUsage, if set, receives backend token counts per step.
 	// See agent.Config.OnUsage.
-	OnUsage func(step int, usage llm.Usage)
+	OnUsage    func(step int, usage llm.Usage)
+	OnProgress func(llm.Progress)
 
 	// OnNudge receives loop-generated harness text (verify rounds,
 	// refusals, leak notices, wrap-ups, stuck escalations) tagged by
@@ -156,6 +157,7 @@ func Planner(e Env, label, stateFile string, ask func(question string) (string, 
 	cfg := e.conversationConfig(label, stateFile, ask, nil)
 	cfg.ReadOnly = tools.ReadOnly(e.WS, e.Procs).Names()
 	cfg.Directive = prompts.PlanMode
+	cfg.Supersedes = prompts.ActMode
 	return agent.New(cfg)
 }
 
@@ -172,6 +174,7 @@ func (e Env) agentConfig(system, label, stateFile string) agent.Config {
 		OnStep:         e.onStep(label),
 		OnResult:       e.OnResult,
 		OnUsage:        e.OnUsage,
+		OnProgress:     e.OnProgress,
 		OnNudge:        e.OnNudge,
 		Policy:         e.policy(),
 		BeforeToolCall: e.ResolveGate(),
@@ -207,6 +210,7 @@ func Subagent(e Env, role string) *agent.Agent {
 	cfg.Tools = tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.MCPTools...)
 	cfg.MaxSteps = subagentSteps
 	cfg.OnStep, cfg.OnResult, cfg.OnUsage, cfg.OnNudge = nil, nil, nil, nil
+	cfg.OnProgress = nil
 	return agent.New(cfg)
 }
 

@@ -4,18 +4,22 @@ import (
 	"encoding/json"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
+	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/tars/internal/session"
 )
 
 type usageState struct {
-	source  string
-	at      time.Time
-	last    usageSnapshot
-	thisRun bool
+	source     string
+	at         time.Time
+	last       usageSnapshot
+	thisRun    bool
+	historical bool
+	liveModel  bool
 }
 
 type usageSnapshot struct {
@@ -36,30 +40,47 @@ func safeEndpoint(endpoint string) string {
 
 func (m *model) clearContext() {
 	m.tokens, m.tokensEst, m.usage.source = 0, false, ""
-	m.usage.at, m.usage.last, m.usage.thisRun = time.Time{}, usageSnapshot{}, false
+	m.usage = usageState{}
 }
 
 func (m *model) restoreContext(history []llm.Message) {
 	m.clearContext()
-	chars := 0
-	for _, msg := range history {
-		// Reasoning is stored for display but is not replayed to the backend.
-		chars += utf8.RuneCountInString(msg.Content) + 16
-		for _, call := range msg.ToolCalls {
-			chars += utf8.RuneCountInString(call.Name) + utf8.RuneCount(call.Arguments)
+	if len(history) > 0 {
+		if m.stateFile != "" {
+			if active, err := session.ReadContext(m.stateFile); err == nil {
+				history = active
+			}
 		}
-	}
-	if chars > 0 {
-		m.tokens, m.tokensEst = (chars+3)/4, true
+		m.tokens, m.tokensEst = llm.EstimatePromptTokens(llm.ChatRequest{Messages: history}), true
 		m.usage.source = "Saved history estimate"
+		m.usage.historical = true
 	}
 	if m.stateFile != "" {
 		data, err := os.ReadFile(filepath.Join(filepath.Dir(m.stateFile), "usage.json"))
 		var saved usageSnapshot
-		if err == nil && json.Unmarshal(data, &saved) == nil && saved.Tokens > 0 && saved.Model == m.modelName {
+		if err == nil && json.Unmarshal(data, &saved) == nil && saved.Tokens > 0 {
 			m.usage.last = saved
 		}
 	}
+}
+
+func (m *model) displayedModel() string {
+	if !m.usage.liveModel && m.usage.last.Model != "" {
+		return m.usage.last.Model
+	}
+	if !m.usage.liveModel && m.usage.historical {
+		return ""
+	}
+	return m.modelName
+}
+
+// Backend model identifiers can be paths from either operating system.
+func modelLabel(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "—"
+	}
+	return path.Base(strings.ReplaceAll(name, `\`, "/"))
 }
 
 func (m *model) persistUsage() {

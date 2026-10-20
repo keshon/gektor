@@ -97,7 +97,7 @@ func TestFocusAndMetricsHaveDedicatedPlaces(t *testing.T) {
 		t.Fatal("run metrics must appear once in the top status row")
 	}
 	_, _, activeTitle := popupStyles()
-	if !strings.Contains(m.View().Content, activeTitle.Render(" AGENT ")) {
+	if !strings.Contains(m.View().Content, activeTitle.Render(" HISTORY ")) {
 		t.Fatal("input focus not identified")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyTab})
@@ -121,7 +121,7 @@ func TestHeaderPrioritizesRunMetricsOnNarrowTerminals(t *testing.T) {
 	for _, width := range []int{80, 120} {
 		m.width(tea.WindowSizeMsg{Width: width, Height: 30})
 		line := ansi.Strip(m.identityLine())
-		for _, fact := range []string{"step 2/25", "CTX 4.1k / 16.4k", "00:32"} {
+		for _, fact := range []string{"step 2/25", "CTX 4.1k/16.4k", "00:32"} {
 			if !strings.Contains(line, fact) {
 				t.Fatalf("header at width %d lost %q: %q", width, fact, line)
 			}

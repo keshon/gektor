@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/tars/internal/llm"
 	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/tui/components/transcript"
 )
@@ -95,8 +96,12 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 			m.spinnerFrame = 0
 		}
 		return m, tick(m.revealLive(), m.busy())
+	case liveFlushMsg:
+		m.liveFlushPending = false
+		m.revealLive()
+		return m, nil
 	case eventMsg:
-		if m.state != stStopping {
+		if m.state != stStopping || msg.Name == "tool_result" || msg.Name == "outcome" || msg.Name == "usage" || msg.Name == "finding" {
 			m.handleEvent(run.Event(msg))
 		}
 		return m, waitEvents(m)
@@ -294,7 +299,33 @@ func (m *model) handleEvent(ev run.Event) {
 	m.beginTranscriptUpdate()
 	defer m.endTranscriptUpdate()
 	switch ev.Name {
+	case "progress":
+		phase, _ := ev.Fields["phase"].(string)
+		number := func(key string) int { n, _ := ev.Fields[key].(float64); return int(n) }
+		estimated, _ := ev.Fields["estimated"].(bool)
+		m.progress = llm.Progress{Phase: phase, PromptTokens: number("prompt"), CompletionTokens: number("completion"), CachedTokens: number("cached"), ProcessedTokens: number("processed"), Estimated: estimated}
+		if phase == "reasoning" || phase == "generating" || phase == "tool_call" {
+			m.usage.liveModel = true
+			if m.firstToken.IsZero() {
+				m.firstToken = time.Now()
+			}
+		}
+		if m.progress.PromptTokens > 0 {
+			m.tokens, m.tokensEst = m.progress.PromptTokens+m.progress.CompletionTokens, estimated
+			m.usage.historical = false
+			m.usage.source = "Active request"
+			m.usage.at = time.Now()
+		}
+	case "backend":
+		if name, _ := ev.Fields["model"].(string); name != "" {
+			m.modelName = name
+		}
+		if limit, _ := ev.Fields["context_limit"].(float64); limit > 0 {
+			m.limit = int(limit)
+		}
 	case "step":
+		m.usage.liveModel = true
+		m.progress.Phase = "tools"
 		m.steps++
 		// The enforced step budget rides the event: the meter reads that limit,
 		// never a second literal. Absent on old producers — keep ours.
@@ -359,14 +390,17 @@ func (m *model) handleEvent(ev run.Event) {
 		}
 	case "usage":
 		if p, ok := ev.Fields["prompt"].(float64); ok && int(p) > 0 {
-			m.tokens = int(p)
+			completion, _ := ev.Fields["completion"].(float64)
+			m.tokens = int(p) + int(completion)
 			m.tokensEst, _ = ev.Fields["estimated"].(bool)
-			m.usage.source = "Last request prompt"
+			m.usage.source = "Last request context"
 			if m.tokensEst {
 				m.usage.source = "Last request estimate"
 			}
 			m.usage.at = time.Now()
 			m.usage.thisRun = true
+			m.usage.historical = false
+			m.usage.liveModel = true
 			m.usage.last = usageSnapshot{Tokens: m.tokens, Estimated: m.tokensEst, At: m.usage.at, Model: m.modelName}
 		}
 	case "awaiting_input":
@@ -442,18 +476,22 @@ func (m *model) handleEvent(ev run.Event) {
 		}
 		m.appendBlock(markerBlock(text))
 	case "reasoning":
+		m.usage.liveModel = true
+		m.progress.Phase = "reasoning"
 		// Streamed deliberation. Queued separately from the answer so the
 		// THINK block fills while the model is still thinking, and is still
 		// on screen when RESPONSE starts.
 		if text, _ := ev.Fields["text"].(string); text != "" {
 			m.liveThinkQueue += text
+			if m.firstToken.IsZero() {
+				m.firstToken = time.Now()
+			}
+			m.scheduleLiveFlush()
 		}
 	case "delta":
-		// Streamed chunk: queue it for the reveal, which draws it a few
-		// characters per frame. Deltas used to be appended straight into
-		// the buffer and painted on a completed line or a one-second
-		// heartbeat, so a reply in prose — which has no newlines — arrived
-		// in one-second jumps.
+		m.usage.liveModel = true
+		m.progress.Phase = "generating"
+		// Coalesce only until the next frame; never simulate character typing.
 		if text, _ := ev.Fields["text"].(string); text != "" && !m.liveCut {
 			if m.firstToken.IsZero() {
 				m.firstToken = time.Now()
@@ -472,6 +510,7 @@ func (m *model) handleEvent(ev run.Event) {
 				}
 				m.refreshContent()
 			}
+			m.scheduleLiveFlush()
 		}
 	}
 }

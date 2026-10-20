@@ -120,7 +120,7 @@ func TestJumpToLatestWorksWhenIdle(t *testing.T) {
 	}
 }
 
-func TestModePersistsAcrossReopening(t *testing.T) {
+func TestOpeningOldPlanSessionKeepsCurrentActMode(t *testing.T) {
 	root := t.TempDir()
 	dir := writeSessionState(t, root, "plan", userHistory("Plan changes"))
 	if err := writeSavedMode(filepath.Join(dir, "state.json"), true); err != nil {
@@ -128,8 +128,8 @@ func TestModePersistsAcrossReopening(t *testing.T) {
 	}
 	m := sessionsTestModel(t, listSessionsIn(root))
 	m.openSelected()
-	if !m.plan || m.modeName() != "Plan" {
-		t.Fatal("saved plan mode lost")
+	if m.plan || m.modeName() != "Act" {
+		t.Fatal("saved history replaced the current global mode")
 	}
 }
 

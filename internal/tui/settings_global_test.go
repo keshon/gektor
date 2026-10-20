@@ -128,12 +128,13 @@ func TestOpeningAConversationIgnoresItsOldSettingsFile(t *testing.T) {
 	}
 
 	entry := sessionEntry{dir: dir, title: "plan"}
-	m.sessions = &sessionsState{}
-	_, handled := m.openApplicationSession(entry)
-	if !handled || m.modeChange == nil {
+	m.sessions = &sessionsState{entries: []sessionEntry{entry}}
+	m.state = stDone
+	m.openSelected()
+	if m.sess == nil || m.modeChange != nil {
 		t.Fatal("opening the conversation failed outright")
 	}
-	got := m.modeChange.Preferences
+	got := m.application.Preferences
 	if got.Profile == nil || got.Profile.Provider.URL != m.application.Preferences.Profile.Provider.URL {
 		t.Fatalf("restored %+v; preferences came from the conversation, not the installation",
 			got.Profile)

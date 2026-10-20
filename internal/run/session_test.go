@@ -5,9 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -42,6 +45,68 @@ func TestNew_Validates(t *testing.T) {
 	}
 	if _, err := New(Config{Task: "x", Env: roles.Env{Client: stubOK{}, WS: ws}}); err != nil {
 		t.Fatalf("valid config: %v", err)
+	}
+}
+
+func TestLocalBackendWindowAndModelRefreshBetweenTurns(t *testing.T) {
+	for _, kind := range []string{"llama", "kobold"} {
+		t.Run(kind, func(t *testing.T) {
+			var window atomic.Int64
+			window.Store(8192)
+			budgets := make(chan int, 2)
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case "/props":
+					fmt.Fprintf(w, `{"model_path":"/models/%d.gguf","default_generation_settings":{"n_ctx":%d}}`, window.Load(), window.Load())
+				case "/api/extra/true_max_context_length":
+					fmt.Fprintf(w, `{"value":%d}`, window.Load())
+				case "/api/v1/model":
+					fmt.Fprintf(w, `{"result":"/models/%d.gguf"}`, window.Load())
+				case "/v1/chat/completions":
+					var req struct {
+						MaxTokens int `json:"max_tokens"`
+					}
+					if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+						t.Error(err)
+					}
+					budgets <- req.MaxTokens
+					fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":"done"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3000,"completion_tokens":1}}`)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer srv.Close()
+			client, err := llm.ClientFor(kind, srv.URL, "configured")
+			if err != nil {
+				t.Fatal(err)
+			}
+			env := testEnv(t, client, nil)
+			env.BackendKind, env.Model, env.ContextLimit, env.MaxTokens = kind, "stale", 1024, 8192
+			var metadata []Event
+			s, err := New(Config{Task: "say done", Env: env, OnEvent: func(ev Event) {
+				if ev.Name == "backend" {
+					metadata = append(metadata, ev)
+				}
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, size := range []int64{8192, 16384} {
+				window.Store(size)
+				if _, err := s.Run(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				budget := <-budgets
+				last := metadata[len(metadata)-1]
+				if last.Fields["model"] != fmt.Sprintf("/models/%d.gguf", size) || last.Fields["context_limit"] != float64(size) {
+					t.Fatalf("stale metadata: %+v", last)
+				}
+				if budget <= 1024 || budget > int(size)-256 {
+					t.Fatalf("budget=%d window=%d", budget, size)
+				}
+			}
+		})
 	}
 }
 
@@ -99,6 +164,10 @@ func TestSession_RunEmitsSameSchemaAsEmitter(t *testing.T) {
 		}
 		lastSeq = ev.Seq
 		switch ev.Name {
+		case "progress":
+			if _, ok := ev.Fields["phase"].(string); !ok {
+				t.Fatalf("progress without phase: %+v", ev)
+			}
 		case "step":
 			seenStep = true
 		case "usage":

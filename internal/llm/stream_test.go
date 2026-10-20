@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -35,6 +36,75 @@ func TestStreamRequestsMeasuredUsageAndReportsCacheHits(t *testing.T) {
 	}
 	if resp.Usage.Estimated || resp.Usage.PromptTokens != 100 || resp.Usage.CachedTokens != 90 || c.CachedTotal() != 90 {
 		t.Fatalf("measured usage lost: %+v", resp.Usage)
+	}
+}
+
+func TestPrefillTimingsDoNotReplaceFullPromptSize(t *testing.T) {
+	for _, cached := range []int{0, 1024} {
+		t.Run(fmt.Sprint(cached), func(t *testing.T) {
+			const total = 3398
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				for _, evaluated := range []int{512, 1024, 1536} {
+					fmt.Fprintf(w, "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\"}}],\"prompt_progress\":{\"total\":%d,\"cache\":%d,\"processed\":%d},\"timings\":{\"prompt_n\":%d,\"cache_n\":%d,\"predicted_n\":0}}\n\n", total, cached, evaluated+cached, evaluated, cached)
+				}
+				fmt.Fprintf(w, "data: {\"choices\":[{\"delta\":{\"content\":\"done\"},\"finish_reason\":\"stop\"}],\"timings\":{\"prompt_n\":%d,\"cache_n\":%d,\"predicted_n\":1}}\n\ndata: [DONE]\n\n", total-cached, cached)
+			}))
+			defer srv.Close()
+			var updates []Progress
+			resp, err := NewLlamaClient(srv.URL, "test").Stream(t.Context(), ChatRequest{OnProgress: func(p Progress) { updates = append(updates, p) }}, nil, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(updates) != 4 {
+				t.Fatalf("updates: %+v", updates)
+			}
+			for i, p := range updates[:3] {
+				processed := cached + (i+1)*512
+				if p.Phase != "prefill" || p.PromptTokens != total || p.ProcessedTokens != processed || p.CachedTokens != cached || p.Estimated {
+					t.Fatalf("prefill %d: %+v", i, p)
+				}
+			}
+			if resp.Usage.PromptTokens != total || resp.Usage.CachedTokens != cached || resp.Usage.Estimated {
+				t.Fatalf("final usage: %+v", resp.Usage)
+			}
+		})
+	}
+}
+
+func TestStreamRequestsLocalTelemetryOnlyFromLlama(t *testing.T) {
+	for _, local := range []bool{true, false} {
+		t.Run(fmt.Sprint(local), func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var req map[string]any
+				if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+					t.Error(err)
+				}
+				if local {
+					if req["return_progress"] != true || req["timings_per_token"] != true {
+						t.Error("llama telemetry disabled")
+					}
+				} else if req["return_progress"] != nil || req["timings_per_token"] != nil {
+					t.Error("local fields leaked to remote API")
+				}
+				w.Header().Set("Content-Type", "text/event-stream")
+				fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"hello\"},\"finish_reason\":\"stop\"}],\"timings\":{\"prompt_n\":2,\"predicted_n\":3}}\n\ndata: [DONE]\n\n")
+			}))
+			defer srv.Close()
+			client := NewLlamaClient(srv.URL, "local")
+			if !local {
+				client = NewOpenAIClient(srv.URL, "remote")
+			}
+			var last Progress
+			req := ChatRequest{Messages: []Message{{Role: RoleUser, Content: strings.Repeat("history ", 100)}}, OnProgress: func(p Progress) { last = p }}
+			resp, err := client.Stream(t.Context(), req, nil, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if last.PromptTokens != EstimatePromptTokens(req) || !last.Estimated || last.CompletionTokens != 3 || !resp.Usage.Estimated {
+				t.Fatalf("missing cache_n was treated as full input count: %+v usage=%+v", last, resp.Usage)
+			}
+		})
 	}
 }
 

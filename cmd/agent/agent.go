@@ -133,6 +133,10 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	}
 	note("context limit: %d tokens", contextLimit)
 	emitter.Emit("context", map[string]any{"context_limit": contextLimit})
+	displayModel := o.model
+	if name, err := client.ModelName(ctx); err == nil && strings.TrimSpace(name) != "" {
+		displayModel = name
+	}
 
 	verify := verificationCommand(o.verifyCmd, ws.Root())
 
@@ -220,7 +224,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		Policy:       buildPolicy(o.allow, o.deny),
 		GateContext:  audit.ContextHook(o.auditPath, "cli", permissionGateContext(o.yes, suspend, ws)),
 		BackendKind:  o.backendKind,
-		Model:        o.model,
+		Model:        displayModel,
 		Stream:       streamEnabled(o.stream, o.outputMode, o.tui),
 		MCPTools:     mcpTools,
 		// Direct runs fund acknowledged todo work with extra steps;
@@ -281,6 +285,9 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		if profile.Version == 0 {
 			profile = launchProfile(o, contextLimit)
 			note("no -profile: using a generated one so Settings stays reachable")
+		}
+		if contextLimit > 0 {
+			profile.Generation.ContextLimit = contextLimit
 		}
 
 		prepared, err := app.ConfigureAgent(profile, filepath.Join(filepath.Dir(launch.preferencePath), "sessions"))
@@ -365,7 +372,11 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		}
 	} else if len(forkHistory) > 0 {
 		var err error
-		result, err = a.Resume(ctx, forkHistory, prompts.Resume)
+		note := strings.TrimSpace(task)
+		if note == "" {
+			note = prompts.Resume
+		}
+		result, err = a.Resume(ctx, forkHistory, note, images...)
 		if err != nil {
 			return fmt.Errorf("agent failed: %w", err)
 		}
@@ -447,7 +458,7 @@ func streamEnabled(streamFlag bool, modeFlag string, tuiFlag bool) bool {
 	return (streamFlag || tuiFlag) && modeFlag != "json"
 }
 
-// Backend knowledge is a fallback; an explicit profile/flag limit wins.
+// Local servers own their actual window; configured limits are fallbacks.
 func backendContext(ctx context.Context, client *llm.Server, o resolvedLaunch) (int, error) {
 	var detected int
 	var probeErr error
@@ -458,6 +469,9 @@ func backendContext(ctx context.Context, client *llm.Server, o resolvedLaunch) (
 		if actual := llm.DetectKind(ctx, o.backendURL); actual != "" && actual != o.backendKind {
 			return 0, fmt.Errorf("-backend-kind is %q but %s is answering at %s; re-run with -backend-kind %s", o.backendKind, actual, o.backendURL, actual)
 		}
+	}
+	if probeErr == nil && detected > 0 {
+		return detected, nil
 	}
 	if o.contextLimit > 0 {
 		return o.contextLimit, nil

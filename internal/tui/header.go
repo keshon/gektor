@@ -34,7 +34,23 @@ func (m *model) headerBadges() []headerBadge {
 	}
 	switch m.state {
 	case stRunning:
-		activity = string(activityFrames[m.spinnerFrame%len(activityFrames)]) + " WORK"
+		phase := "WAIT"
+		switch m.progress.Phase {
+		case "prefill":
+			phase = "READ"
+			if m.progress.PromptTokens > 0 {
+				phase += fmt.Sprintf(" %d%%", min(100, m.progress.ProcessedTokens*100/m.progress.PromptTokens))
+			}
+		case "reasoning":
+			phase = "THINK"
+		case "generating":
+			phase = "STREAM"
+		case "tool_call", "tools":
+			phase = "TOOLS"
+		case "unary":
+			phase = "REPLY"
+		}
+		activity = string(activityFrames[m.spinnerFrame%len(activityFrames)]) + " " + phase
 	case stPermission, stAsk:
 		activity = "WAIT"
 	case stStopping:
@@ -44,33 +60,24 @@ func (m *model) headerBadges() []headerBadge {
 			activity = "ERROR"
 		}
 	}
-	ctx := "CTX —"
-	if m.tokens > 0 {
-		ctx = "CTX " + kTokens(m.tokens)
-		if m.tokensEst {
-			ctx = "~" + ctx
-		}
+	ctx := "CTX " + kTokens(m.tokens)
+	if m.tokensEst {
+		ctx = "~" + ctx
 	}
 	if m.limit > 0 {
-		ctx += " / " + kTokens(m.limit)
+		ctx += "/" + kTokens(m.limit)
 	}
 	modelWidth := 32
 	if m.transcript.Viewport.Width() < 110 {
 		modelWidth = 18
 	}
-	candidates := []headerBadge{{id: "mode", label: mode}, {id: "activity", label: activity}, {id: "model", label: strings.TrimSpace(cellLine(strings.ToUpper(nonEmpty(m.modelName)), modelWidth))}, {id: "context", label: ctx}}
-	if m.steps > 0 || m.state != stDone {
-		label := fmt.Sprintf("step %d/%s  %s", m.steps, m.stepBudget(), formatElapsed(m.elapsed))
-		candidates = append(candidates, headerBadge{id: "run", label: label})
-	}
-	// The harness level sits next to the step counter because that is where
-	// a reader looks to judge a run: how much it is being steered, and how
-	// many turns that has cost. It was only reachable by remembering the
-	// slash command, which is why it read as a setting with no state.
+	candidates := []headerBadge{{id: "mode", label: mode}, {id: "activity", label: activity}, {id: "model", label: strings.TrimSpace(cellLine(modelLabel(m.displayedModel()), modelWidth))}, {id: "context", label: ctx}}
+	label := fmt.Sprintf("step %d/%s  %s", m.steps, m.stepBudget(), formatElapsed(m.elapsed))
+	candidates = append(candidates, headerBadge{id: "run", label: label})
 	// Context and state stay visible before the optional model and run details.
 	total := 0
 	for _, b := range candidates {
-		total += lipgloss.Width(b.label) + 3
+		total += lipgloss.Width(b.label) + 2
 	}
 	total += lipgloss.Width(m.badgePaneLabel())
 	if total > m.transcript.Viewport.Width() {
@@ -85,7 +92,7 @@ func (m *model) headerBadges() []headerBadge {
 	for i := range candidates {
 		candidates[i].start = x
 		candidates[i].end = min(x+lipgloss.Width(candidates[i].label)+2, m.transcript.Viewport.Width())
-		x = candidates[i].end + 1
+		x = candidates[i].end
 	}
 	return candidates
 }
@@ -98,6 +105,14 @@ func (m *model) badgeLine() string {
 	for _, b := range badges {
 		style := normal
 		switch b.id {
+		case "model":
+			if !m.usage.liveModel && (m.usage.last.Model != "" || m.usage.historical) {
+				style = m.styles.dim
+			}
+		case "context":
+			if m.usage.historical {
+				style = m.styles.dim
+			}
 		case "mode":
 			style = style.Foreground(lipgloss.Color(themeColor(colorMode)))
 		case "activity":
@@ -118,11 +133,11 @@ func (m *model) badgeLine() string {
 	if !m.navFocused {
 		titleStyle = selected
 	}
-	return cellLine(titleStyle.Render(label)+strings.Join(out, " "), m.transcript.Viewport.Width())
+	return cellLine(titleStyle.Render(label)+strings.Join(out, ""), m.transcript.Viewport.Width())
 }
 
 func (m *model) badgePaneLabel() string {
-	return " AGENT "
+	return " HISTORY "
 }
 
 func (m *model) rawHeaderItems() []headerItem {
@@ -163,6 +178,12 @@ func (m *model) rawHeaderItems() []headerItem {
 		return []headerItem{{"ACT   Execute changes with tools", "/mode act", idle}, {"PLAN  Read-only exploration and planning", "/mode plan", idle}}
 	case "activity":
 		rows := []headerItem{info("State: " + m.statusWord()), info("Elapsed: " + formatElapsed(m.elapsed)), info(m.stepLine())}
+		if m.progress.PromptTokens > 0 {
+			rows = append(rows, info(fmt.Sprintf("Input: %s   Generated: %s", kTokens(m.progress.PromptTokens), kTokens(m.progress.CompletionTokens))))
+			if m.progress.CachedTokens > 0 {
+				rows = append(rows, info("Cached input: "+kTokens(m.progress.CachedTokens)))
+			}
+		}
 		if m.runErr != nil {
 			rows = append(rows, info("Error: "+m.runErr.Error()), headerItem{"Retry failed turn", "/retry", idle && m.retryRun != nil})
 		}
@@ -175,11 +196,15 @@ func (m *model) rawHeaderItems() []headerItem {
 		if m.streaming {
 			transport = "Streaming"
 		}
-		return []headerItem{info("Model: " + nonEmpty(m.modelName)), info("Backend: " + nonEmpty(m.backendKind)), info("Endpoint: " + nonEmpty(m.backendURL)), info("Transport: " + transport), info(fmt.Sprintf("Context window: %d tokens", m.limit)), info(fmt.Sprintf("Response budget: %d tokens", m.responseCap))}
+		rows := []headerItem{info("Model: " + nonEmpty(m.displayedModel())), info("Backend: " + nonEmpty(m.backendKind)), info("Endpoint: " + nonEmpty(m.backendURL)), info("Transport: " + transport), info(fmt.Sprintf("Context window: %d tokens", m.limit)), info(fmt.Sprintf("Response budget: %d tokens", m.responseCap))}
+		if !m.usage.liveModel && m.usage.historical {
+			rows = append(rows, info("Current backend model: "+nonEmpty(m.modelName)))
+		}
+		return rows
 	case "context":
 		rows := []headerItem{info("Context: " + strings.Replace(m.meter(), "ctx ", "", 1)), info("Source: " + nonEmpty(m.usage.source))}
 		if !m.usage.at.IsZero() {
-			rows = append(rows, info("Measured: "+m.usage.at.Format("15:04:05")))
+			rows = append(rows, info("Updated: "+m.usage.at.Format("15:04:05")))
 		}
 		if m.usage.last.Tokens > 0 {
 			kind := "reported"
@@ -189,7 +214,7 @@ func (m *model) rawHeaderItems() []headerItem {
 			rows = append(rows, info(fmt.Sprintf("Last request: %s tokens (%s)", kTokens(m.usage.last.Tokens), kind)), info("Request time: "+m.usage.last.At.Format("Jan 2 15:04:05")))
 		}
 		if m.usage.source == "Saved history estimate" {
-			rows = append(rows, info("Estimate excludes tool schemas and images."))
+			rows = append(rows, info("History estimate includes images; tool schemas are excluded."))
 		}
 		return append(rows, headerItem{"Compact saved history", "/compact", idle && m.stateFile != ""})
 	case "run":

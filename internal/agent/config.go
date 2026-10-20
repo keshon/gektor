@@ -48,6 +48,7 @@ type Config struct {
 	Stream           bool
 	OnStep           func(int, llm.Message)
 	OnUsage          func(int, llm.Usage)
+	OnProgress       func(llm.Progress)
 	OnResult         func(ToolResult)
 	OnDelta          func(string)
 	OnReasoning      func(string)

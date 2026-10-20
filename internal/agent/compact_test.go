@@ -1,10 +1,12 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -12,6 +14,61 @@ import (
 	"github.com/keshon/tars/internal/prompts"
 	"github.com/keshon/tars/internal/session"
 )
+
+type largeRead struct{}
+
+func (largeRead) Name() string            { return "large_read" }
+func (largeRead) Description() string     { return "read" }
+func (largeRead) Schema() json.RawMessage { return json.RawMessage(`{}`) }
+func (largeRead) Mode() ToolMode          { return Concurrent }
+func (largeRead) Run(context.Context, json.RawMessage) (string, error) {
+	return strings.Repeat("new ", 5000), nil
+}
+
+func TestAutoCompactIncludesNewestToolOutput(t *testing.T) {
+	h := []llm.Message{{Role: llm.RoleSystem, Content: "sys"}, {Role: llm.RoleUser, Content: "task"}}
+	for i := 0; i < 5; i++ {
+		h = append(h, llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: fmt.Sprint(i), Name: "large_read", Arguments: json.RawMessage(`{}`)}}}, llm.Message{Role: llm.RoleTool, ToolCallID: fmt.Sprint(i), Content: strings.Repeat("old ", 1000)})
+	}
+	c := &repeatSeqClient{responses: []llm.ChatResponse{stepOf(llm.ToolCall{ID: "new", Name: "large_read", Arguments: json.RawMessage(`{}`)}), say("done")}}
+	c.responses[0].Usage.PromptTokens = 6000
+	path := filepath.Join(t.TempDir(), "state.json")
+	a := New(Config{Client: c, Tools: NewRegistry(largeRead{}), StateFile: path, ContextLimit: 10000, CompactKeepSteps: 2})
+	if _, err := a.Resume(t.Context(), h, "continue"); err != nil {
+		t.Fatal(err)
+	}
+	if len(c.reqs) != 2 {
+		t.Fatalf("calls=%d", len(c.reqs))
+	}
+	for _, m := range c.reqs[1].Messages {
+		if m.ToolCallID == "0" {
+			t.Fatal("sent old history after the newest result crossed the threshold")
+		}
+	}
+	saved, err := session.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.ContextStart == 0 || len(saved.History) != len(h)+4 {
+		t.Fatalf("auto-compaction lost original messages: archive=%d start=%d", len(saved.History), saved.ContextStart)
+	}
+	if !reflect.DeepEqual(saved.History[1:len(h)], h[1:]) {
+		t.Fatal("auto-compaction rewrote the original archive")
+	}
+}
+
+func TestFirstRequestReservesOutputAgainstItsActualContent(t *testing.T) {
+	c := &repeatSeqClient{responses: []llm.ChatResponse{say("done")}}
+	a := New(Config{Client: c, Tools: NewRegistry(), System: strings.Repeat("word ", 4800), ContextLimit: 8192, MaxTokens: 8192})
+	if _, err := a.Run(t.Context(), "task"); err != nil {
+		t.Fatal(err)
+	}
+	// 24k ASCII characters already account for roughly 6k tokens; the old
+	// fixed 1536-token guess requested 6400 output tokens and overfilled 8192.
+	if c.reqs[0].MaxTokens > 8192-6000-256 {
+		t.Fatalf("output allowance ignores the 24k system prompt: %d", c.reqs[0].MaxTokens)
+	}
+}
 
 func assistantStep(id string) []llm.Message {
 	return []llm.Message{

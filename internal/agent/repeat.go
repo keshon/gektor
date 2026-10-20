@@ -107,7 +107,7 @@ func (a *Agent) forceAnswer(ctx context.Context, st *runState, step int, history
 	a.saveState(history)
 	resp, err := a.chat(ctx, llm.ChatRequest{
 		Messages:  history,
-		MaxTokens: a.effectiveMaxTokens(st.lastPromptTokens),
+		MaxTokens: a.effectiveMaxTokens(st.projectPrompt(llm.EstimatePromptTokens(llm.ChatRequest{Messages: history}))),
 	})
 	// The answer turn is a model round-trip like any other; counting it keeps
 	// Steps honest for whoever reads the report.
@@ -120,10 +120,23 @@ func (a *Agent) forceAnswer(ctx context.Context, st *runState, step int, history
 	// rather than executed, since this turn exists to stop acting.
 	_, cleaned, leaked := llm.ExtractLeakedCalls(resp.Message.Content, a.knownTools())
 	resp.Message.Content = cleaned
+	resp.Message.ToolCalls = nil
+	history = append(history, resp.Message)
+	if a.cfg.OnStep != nil {
+		a.cfg.OnStep(step+1, resp.Message)
+	}
+	if a.cfg.OnUsage != nil {
+		a.cfg.OnUsage(step+1, resp.Usage)
+	}
+	if resp.Usage.PromptTokens > 0 {
+		st.lastPromptTokens = resp.Usage.PromptTokens
+		a.report.LastPromptTokens = st.lastPromptTokens
+	}
+	a.saveState(history)
 	out := a.handleFinish(st, resp, leaked, history)
 	if !out.done {
 		return "", fmt.Errorf("%w: steps %d-%d issued identical calls and the tool-free turn produced no answer",
 			ErrRepeatingSteps, from, step)
 	}
-	return out.answer, nil
+	return out.answer, out.err
 }

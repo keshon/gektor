@@ -131,6 +131,7 @@ func (m *model) savePreferences() error {
 		return nil
 	}
 	p := m.application.Preferences
+	p.Mode = strings.ToLower(m.modeName())
 	if m.config != nil {
 		profile := m.config.Profile.Clone()
 		p.Profile = &profile
@@ -146,14 +147,21 @@ func (m *model) savePreferences() error {
 		return err
 	}
 	m.savedSettings = string(data)
+	m.application.Preferences = p
 	return nil
 }
 
 // saveHarness persists the step limit, including the explicit unlimited value.
-func (m *model) saveHarness() error {
-	if m.application == nil || m.application.Temporary {
+func (m *model) saveHarness() (saveErr error) {
+	if m.application == nil {
 		return nil
 	}
+	previous := m.application.Preferences.Harness
+	defer func() {
+		if saveErr != nil {
+			m.application.Preferences.Harness = previous
+		}
+	}()
 	steps := 0
 	switch {
 	case m.maxStepsOverride == noStepLimit:
@@ -164,39 +172,33 @@ func (m *model) saveHarness() error {
 	m.application.Preferences.Harness = config.Harness{
 		MaxSteps: steps,
 	}
+	if m.application.Temporary {
+		p, err := config.LoadPreferences(m.application.PreferencePath)
+		if err != nil {
+			return err
+		}
+		p.Harness = m.application.Preferences.Harness
+		return config.SavePreferences(m.application.PreferencePath, p)
+	}
 	return m.savePreferences()
 }
 
-// openApplicationSession opens a saved conversation.
-//
-// Its settings are not restored: preferences are global and already loaded.
-// Existing conversations still carry a settings.json from when they were
-// per-conversation; those files are left exactly where they are and simply
-// not read, so nothing is destroyed if one turns out to matter.
-func (m *model) openApplicationSession(entry sessionEntry) (tea.Cmd, bool) {
-	if m.application == nil {
-		m.sessions.flash = "no application settings available"
-		return nil, true
+// An explicit workflow choice is global even when this launch uses a temporary
+// backend or workspace. Save only the choice, preserving the installed profile.
+func (m *model) saveDefaultMode() error {
+	if m.application == nil || !m.application.Temporary {
+		return m.savePreferences()
 	}
-	p := m.application.Preferences
-	if p.Profile == nil {
-		profile := m.config.Profile.Clone()
-		p.Profile = &profile
-	}
-	if p.Workspace == "" {
-		m.sessions.flash = "Choose an Agent workspace in Settings → Application first"
-		return nil, true
-	}
-	stateFile := filepath.Join(entry.dir, "state.json")
-	history, err := session.ReadHistory(stateFile)
+	p, err := config.LoadPreferences(m.application.PreferencePath)
 	if err != nil {
-		m.sessions.flash = fmt.Sprintf("Cannot open conversation: %v", err)
-		return nil, true
+		return err
 	}
-	m.saveDraft()
-	draft := m.drafts[stateFile].text
-	m.modeChange = &ModeChange{Preferences: p, History: history, Draft: draft, Directory: entry.dir}
-	return tea.Quit, true
+	p.Mode = strings.ToLower(m.modeName())
+	if err := config.SavePreferences(m.application.PreferencePath, p); err != nil {
+		return err
+	}
+	m.application.Preferences.Mode = p.Mode
+	return nil
 }
 
 // Agent installs its current system instruction when resuming. Never carry the

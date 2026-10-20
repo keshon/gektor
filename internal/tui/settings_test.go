@@ -14,7 +14,10 @@ import (
 	"github.com/keshon/tars/internal/app"
 	"github.com/keshon/tars/internal/config"
 	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/tars/internal/roles"
+	"github.com/keshon/tars/internal/run"
 	"github.com/keshon/tars/internal/tui/settings"
+	workspaces "github.com/keshon/tars/internal/workspace"
 )
 
 // headerRowFor finds a menu row by its command, so a test can select one
@@ -53,6 +56,14 @@ func settingsModel(t *testing.T) *model {
 	})
 	sessions := t.TempDir()
 	workspace := t.TempDir()
+	ws, err := workspaces.New(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.baseEnv = roles.Env{Client: client, WS: ws, MaxTokens: 100, ContextLimit: 1000}
+	m.newSession = func(task, stateFile string, images []string) (*run.Session, error) {
+		return run.New(run.Config{Env: m.sessionEnv(), Task: task, StateFile: stateFile, Plan: m.plan, Images: images})
+	}
 	id, _, err := app.Compile(app.IdentityOptions{Preset: profile.Identity.PromptPreset, Name: profile.Identity.Name, Persona: profile.Identity.UserPersona, User: profile.Identity.UserName, System: profile.Identity.SystemPrompt, Post: profile.Identity.PostHistory, MaxTokens: profile.Generation.MaxTokens, ContextLimit: profile.Generation.ContextLimit, Temperature: profile.Generation.Temperature})
 	if err != nil {
 		t.Fatal(err)

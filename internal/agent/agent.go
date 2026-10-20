@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"reflect"
 	"strings"
 
 	"github.com/keshon/tars/internal/llm"
@@ -12,7 +14,9 @@ import (
 )
 
 type Agent struct {
-	cfg Config
+	cfg           Config
+	snapshot      session.Snapshot
+	checkpointLen int
 
 	// allowed is the read-only allowlist, nil when unrestricted.
 	allowed map[string]bool
@@ -78,10 +82,12 @@ func (a *Agent) Report() RunReport {
 // (absolute paths) to the opening user message for vision-capable
 // backends; imageless runs are unchanged.
 func (a *Agent) Run(ctx context.Context, task string, images ...string) (string, error) {
-	return a.run(ctx, []llm.Message{
+	history := []llm.Message{
 		{Role: llm.RoleSystem, Content: a.cfg.System},
 		{Role: llm.RoleUser, Content: task, Images: images},
-	})
+	}
+	a.snapshot, a.checkpointLen = session.New(history), len(history)
+	return a.run(ctx, history)
 }
 
 // Resume continues from a previously saved history (see LoadState) after
@@ -89,8 +95,15 @@ func (a *Agent) Run(ctx context.Context, task string, images ...string) (string,
 // appended as a fresh user message; the full history is already there, so
 // it need not summarise what happened.
 func (a *Agent) Resume(ctx context.Context, history []llm.Message, note string, images ...string) (string, error) {
-	history = a.resumeHistory(history)
-	history = append(history, llm.Message{Role: llm.RoleUser, Content: note, Images: images})
+	var err error
+	history, err = a.restoreHistory(history)
+	if err != nil {
+		return "", err
+	}
+	history = a.closePendingCalls(a.resumeHistory(history), "", "")
+	if strings.TrimSpace(note) != "" || len(images) > 0 {
+		history = append(history, llm.Message{Role: llm.RoleUser, Content: note, Images: images})
+	}
 	return a.run(ctx, history)
 }
 
@@ -130,18 +143,18 @@ func PausedOnQuestion(reg *Registry, history []llm.Message) (callID string, ques
 // message: a backend expects every tool_call answered before anything
 // else, and a naked user turn after one is wire-invalid.
 func (a *Agent) ResumeWithAnswer(ctx context.Context, history []llm.Message, callID, answer string) (string, error) {
-	history = a.resumeHistory(history)
-	history = append(history, llm.Message{
-		Role:       llm.RoleTool,
-		ToolCallID: callID,
-		Content:    answer,
-	})
+	var err error
+	history, err = a.restoreHistory(history)
+	if err != nil {
+		return "", err
+	}
+	history = a.closePendingCalls(a.resumeHistory(history), callID, answer)
 	return a.run(ctx, history)
 }
 
 // LoadState reads a history previously written via Config.StateFile.
 func LoadState(path string) ([]llm.Message, error) {
-	return session.ReadHistory(path)
+	return session.ReadContext(path)
 }
 
 // SaveState writes a checkpoint atomically without running an agent.
@@ -167,7 +180,83 @@ func (a *Agent) saveState(history []llm.Message) {
 }
 
 func (a *Agent) persistState(history []llm.Message) error {
-	return session.WriteSnapshot(a.cfg.StateFile, history)
+	a.captureHistory(history)
+	return a.snapshot.Save(a.cfg.StateFile)
+}
+
+func (a *Agent) restoreHistory(history []llm.Message) ([]llm.Message, error) {
+	a.snapshot = session.New(history)
+	if a.cfg.StateFile != "" {
+		s, err := session.Load(a.cfg.StateFile)
+		if err == nil && (sameHistory(history, s.History) || sameHistory(history, s.Context())) {
+			a.snapshot = s
+		} else if err != nil && !os.IsNotExist(err) {
+			return nil, err
+		}
+	}
+	history = a.snapshot.Context()
+	a.checkpointLen = len(history)
+	return history, nil
+}
+
+func sameHistory(a, b []llm.Message) bool {
+	if len(a) > 0 && len(b) > 0 && a[0].Role == llm.RoleSystem && b[0].Role == llm.RoleSystem {
+		return reflect.DeepEqual(a[1:], b[1:])
+	}
+	return reflect.DeepEqual(a, b)
+}
+
+func (a *Agent) captureHistory(history []llm.Message) {
+	if a.snapshot.Version == 0 {
+		a.snapshot = session.New(history)
+		a.checkpointLen = len(history)
+		return
+	}
+	if len(history) > a.checkpointLen {
+		a.snapshot.History = append(a.snapshot.History, history[a.checkpointLen:]...)
+	}
+	if len(history) > 0 && len(a.snapshot.History) > 0 {
+		a.snapshot.History[0] = history[0]
+	}
+	a.checkpointLen = len(history)
+}
+
+func (a *Agent) compactContext(previous, next []llm.Message) {
+	a.captureHistory(previous)
+	a.snapshot.Compact(next)
+	a.checkpointLen = len(next)
+}
+
+// Never replay a tool whose completion is unknown: it may already have changed
+// the workspace. Close only the interrupted trailing group with explicit results.
+func (a *Agent) closePendingCalls(history []llm.Message, answerID, answer string) []llm.Message {
+	start := len(history) - 1
+	for start >= 0 && history[start].Role == llm.RoleTool {
+		start--
+	}
+	if start < 0 || history[start].Role != llm.RoleAssistant {
+		return history
+	}
+	answered := map[string]bool{}
+	for _, msg := range history[start+1:] {
+		answered[msg.ToolCallID] = true
+	}
+	for _, call := range history[start].ToolCalls {
+		if answered[call.ID] {
+			continue
+		}
+		failed := true
+		result := llm.Message{Role: llm.RoleTool, ToolCallID: call.ID, ToolFailed: &failed, Content: "error: execution interrupted; completion is unknown. Inspect the workspace before retrying this action."}
+		if call.ID == answerID {
+			result.Content = answer
+			failed = false
+		}
+		history = append(history, result)
+		if a.cfg.OnResult != nil {
+			a.cfg.OnResult(ToolResult{CallID: call.ID, Output: result.Content, Failed: failed})
+		}
+	}
+	return history
 }
 
 type runState struct {
@@ -189,7 +278,8 @@ type runState struct {
 	// step that ran it. An exact repeat is refused instead of served the
 	// same bytes again, and the map is dropped on mutation or compaction,
 	// because the refusal promises a result that is still valid.
-	idempotentSeen map[string]int
+	idempotentSeen     map[string]int
+	lastPromptEstimate int
 }
 
 // ErrMaxSteps marks a run that did real work but ran out of step budget,
@@ -285,12 +375,6 @@ func (a *Agent) withDirective(history []llm.Message) []llm.Message {
 		}
 	}
 	if last == mine {
-		return history
-	}
-	// The default stance has no turn of its own, so it stays silent until a
-	// different one has been stated. A role that supersedes nothing states
-	// itself whenever the conversation has not already done so.
-	if last == "" && other != "" {
 		return history
 	}
 	return append(history, llm.Message{Role: llm.RoleUser, Content: mine})

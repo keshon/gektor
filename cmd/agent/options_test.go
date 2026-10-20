@@ -120,9 +120,8 @@ func TestLaunchWithoutProfileStillValid(t *testing.T) {
 	}
 }
 
-// Validate rejects a context limit that does not exceed the response
-// budget. The probe returns 0 when a backend will not report its window,
-// and the launch still has to produce a usable profile.
+// An unknown window needs a fallback, but an actual small server window
+// must never be inflated just to exceed the requested response ceiling.
 func TestLaunchProfileContextFloor(t *testing.T) {
 	o, err := parseLaunchOptions([]string{"-tui", "-backend-kind", "llama", "-backend", "http://127.0.0.1:8080"})
 	if err != nil {
@@ -133,7 +132,7 @@ func TestLaunchProfileContextFloor(t *testing.T) {
 		if err := p.Validate(); err != nil {
 			t.Fatalf("probed %d: generated profile rejected: %v", probed, err)
 		}
-		if probed > o.maxTokens && p.Generation.ContextLimit != probed {
+		if probed > 0 && p.Generation.ContextLimit != probed {
 			t.Fatalf("probed %d: reported window replaced by %d", probed, p.Generation.ContextLimit)
 		}
 	}

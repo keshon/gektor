@@ -93,7 +93,7 @@ func TestCompactFileReturnsTheHistoryItWrote(t *testing.T) {
 	}
 	// What it returns must be what is on disk, or the transcript and the
 	// saved context disagree about what was dropped.
-	stored, err := session.ReadHistory(state)
+	stored, err := session.ReadContext(state)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -33,6 +33,7 @@ func (m *model) resetRunFacts() {
 	m.answer, m.live, m.gateDraft = "", "", ""
 	m.resetLive()
 	m.steps, m.toolsUsed = 0, 0
+	m.progress.Phase = ""
 	m.clearContext()
 	m.tokensEst, m.interrupted = false, false
 	m.filesTouched = nil
@@ -48,11 +49,10 @@ func (m *model) modeName() string {
 }
 
 func (m *model) saveMode() error {
-	if m.stateFile == "" {
-		return nil
-	}
-	if err := writeSavedMode(m.stateFile, m.plan); err != nil {
-		return err
+	if m.stateFile != "" {
+		if err := writeSavedMode(m.stateFile, m.plan); err != nil {
+			return err
+		}
 	}
 	return m.savePreferences()
 }

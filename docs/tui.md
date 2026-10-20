@@ -38,9 +38,39 @@ required or distributed as part of the setup.
 ## Screen and focus
 
 The unbranded one-row global menu exposes Session, Run, View, Settings and Help dropdowns. A separate one-row status header inside the transcript pane shows Plan/Act mode, model, context, and run status.
-During a run, a Braille spinner and step/context/elapsed metrics appear
-at the top; the Run menu includes tool and file counts. Estimated context
-usage has a `~` prefix.
+Step/context/elapsed metrics remain visible while idle; a running turn adds
+a Braille spinner. The Run menu includes tool and file counts. Estimated context
+usage has a `~` prefix. Empty history shows `CTX 0/window` and `step 0/limit`.
+Status badges are separated by two spaces; ratios have no spaces around `/`.
+
+Thinking and response fragments share a 16ms repaint buffer. Each frame paints
+everything received, with no character-by-character typing animation. Thinking
+is visible even before response text exists; tool calls remain complete cards.
+The activity badge distinguishes waiting (`WAIT`), server-reported prompt
+processing (`READ`, with a percentage when supplied), thinking (`THINK`),
+streamed response (`STREAM`), tools (`TOOLS`), and non-streamed reply (`REPLY`).
+llama.cpp telemetry supplies live prompt progress and generated token counts;
+servers without it show estimates marked `~`, not an invented read percentage.
+The context meter includes cached input and generated output, including thinking
+and tool arguments. Final usage replaces live estimates when the reply ends.
+
+The pane titles are Sessions and History. Plan/Act and the step limit are
+global preferences: opening old history or changing the model preserves them.
+`/max-steps 0` means unlimited, displayed as `∞`; the CLI flag has the same
+meaning when explicitly supplied.
+
+Local llama.cpp and KoboldCPP servers supply the context window and loaded
+model at startup and before each turn. Settings exposes a manual window only
+for remote OpenAI-compatible providers. Local configured windows remain a
+fallback when the server cannot report one. Model badges show the filename
+without directory prefixes.
+
+Opening a saved conversation immediately shows a gray history context estimate
+and its last recorded model. The estimate includes messages and images but
+excludes tool schemas. The model badge becomes current on the first response;
+the context badge becomes current as the new request starts, initially estimated
+until the server supplies counts. Older sessions without
+model metadata show `—` until a new response.
 
 At 110 columns and 18 rows or larger, the 34-column Sessions pane appears
 unless hidden with F6 or Ctrl+B. Tab switches between the pane and input.
@@ -246,8 +276,9 @@ highlighted matching excerpt. Up/Down and PgUp/PgDn move through results;
 Enter opens the session without generating a response. History matches jump
 to the matching message. Esc closes and preserves the composer draft.
 
-Search covers the saved `state.json` conversation: compacted-away messages,
-system/harness instructions, reasoning, and tool output are not searched.
+Search covers user and assistant messages in the complete saved archive,
+including messages outside the compacted model context. System/harness
+instructions, reasoning, and tool output are not searched.
 Stop a running turn before switching sessions.
 
 Focus the Sessions pane with Tab, then use Ctrl+R to rename or Ctrl+D to
@@ -290,8 +321,8 @@ The draft is preserved while Help is open.
   switch keeps the conversation and the cached prompt prefix, so it does not
   restart the session or make the backend re-read the history.
 - `/status`: append current run facts to the transcript.
-- `/retry`: retry the last failed turn from its saved starting history.
-- `/compact`: shrink the saved conversation history when idle.
+- `/retry`: continue the last failed turn from its latest saved checkpoint.
+- `/compact`: shrink the model context when idle, preserving the conversation archive.
 - `/quit` or `/q`: quit.
 
 Unknown commands show an error and are never sent to the model. These are
@@ -425,9 +456,8 @@ the existing permission gates. Applying settings in an existing session preserve
 the Plan/Act choice and never starts a run.
 
 Common-launch sessions live under `~/.tars/sessions`, with `state.json` as the
-checkpoint and `settings.json` recording the saved profile. Opening a session
-restores its profile and opens in Plan. Existing archives without settings use
-the current service profile. Standalone CLI sessions live beside them in
+complete archive and compacted context projection. Global settings provide
+the current service profile; the session restores its saved Plan/Act choice. Standalone CLI sessions live beside them in
 `~/.tars/tasks`.
 
 ## Panel status and manual compaction
@@ -436,8 +466,8 @@ A connected horizontal rule separates the panel titles from their contents.
 The status row contains plain labels; clicking it does not open menus.
 Session > Compact history (or /compact) works while idle and uses the same
 extractive checkpoint compaction the loop applies at its own threshold. The
-transcript rebuilds from the compacted snapshot with a stats marker, so what is
-on screen and what is in context agree about what was dropped.
+model receives a summary and retained tail. The full transcript remains
+available for reading and search; a marker reports the context reduction.
 
 ## View menu
 

@@ -83,8 +83,8 @@ func initialTUILaunch(options launchOptions, p config.Preferences, path string, 
 	if !options.explicitFlags["workspace"] && p.Workspace != "" {
 		options.workspace = p.Workspace
 	}
-	if common {
-		options.plan = true
+	if !options.explicitFlags["plan"] {
+		options.plan = p.Mode == "plan" || (p.Mode == "" && common)
 	}
 	request.options = &options
 	return request
@@ -97,11 +97,9 @@ func launchProfile(o resolvedLaunch, contextLimit int) config.Profile {
 		ContextLimit: contextLimit,
 		Temperature:  o.temperature,
 	}
-	if generation.ContextLimit <= generation.MaxTokens {
-		// The probe reported no window. Profile validation requires a limit
-		// above the response budget, and erring small is the safe side of
-		// that: history is compacted sooner instead of overrunning a
-		// backend whose real window is unknown.
+	if generation.ContextLimit <= 0 {
+		// This fallback is used only when the backend reports no window.
+		// A detected window is preserved even below the response ceiling.
 		generation.ContextLimit = max(4*generation.MaxTokens, 8192)
 	}
 	return config.Profile{

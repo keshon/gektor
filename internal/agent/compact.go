@@ -140,15 +140,16 @@ const pruneMinimumTokens = 20000
 // warning thresholds. Sibling to compaction (which reacts when the
 // window fills) rather than part of it.
 
-// effectiveMaxTokens caps Config.MaxTokens against the room actually left
-// in the context window, using the prompt size from the previous call as
-// a stand-in for "about how big the next prompt will be" (history only
-// grows a little per step, so this is a safe approximation, not the exact
-// next value). Without this, asking for e.g. 32768 tokens of generation
-// when the prompt itself is already using real context space causes
-// exactly what koboldcpp warns about: "most of the context will be
-// removed" — the backend starts evicting the prompt mid-generation and
-// produces incoherent, runaway output instead of erroring cleanly.
+// projectPrompt anchors the estimate to the last provider count and adds
+// newly appended content. It is still approximate for an unknown tokenizer.
+func (st *runState) projectPrompt(estimate int) int {
+	if st.lastPromptEstimate > 0 && st.lastPromptTokens > 0 {
+		return max(1, st.lastPromptTokens+estimate-st.lastPromptEstimate)
+	}
+	return estimate
+}
+
+// effectiveMaxTokens reserves space against the current projected input.
 func (a *Agent) effectiveMaxTokens(lastPromptTokens int) int {
 	if a.cfg.ContextLimit <= 0 {
 		return a.cfg.MaxTokens
@@ -162,8 +163,8 @@ func (a *Agent) effectiveMaxTokens(lastPromptTokens int) int {
 	}
 	const safetyMargin = 256 // chat template / role overhead, not exact
 	room := a.cfg.ContextLimit - promptEstimate - safetyMargin
-	if room < 256 {
-		room = 256 // always ask for *something* rather than zero/negative
+	if room < 1 {
+		room = 1 // the backend reports an overflow if even this cannot fit
 	}
 	if room > a.cfg.MaxTokens {
 		return a.cfg.MaxTokens
@@ -171,13 +172,8 @@ func (a *Agent) effectiveMaxTokens(lastPromptTokens int) int {
 	return room
 }
 
-// defaultCompactAtPercent is how full the window may get before the loop
-// drops old step groups. The remaining share is headroom for the next step,
-// not for the answer: completionBudget already clamps generation to whatever
-// room is left, so the only thing that can overflow is a step that grows the
-// prompt with tool output. At 60% a 262k window compacted while a hundred
-// thousand tokens were still free, dropping context the model could have
-// used; 85% keeps the work and still leaves room for several large results.
+// The threshold is a share of the full input+output context window. Input
+// is projected before sending; the remaining output budget is capped separately.
 const defaultCompactAtPercent = 85
 
 // CompactFile mechanically compacts a saved snapshot in place: the
@@ -190,17 +186,20 @@ const defaultCompactAtPercent = 85
 // back: it was already decoded here, and the /compact path read the same
 // file a second time purely to get it.
 func CompactFile(stateFile string, keepSteps int) (before, after int, history []llm.Message, err error) {
-	history, err = session.ReadHistory(stateFile)
+	snapshot, loadErr := session.Load(stateFile)
+	err = loadErr
 	if err != nil {
 		return 0, 0, nil, err
 	}
+	history = snapshot.Context()
 	before = len(history)
 	compacted := compactHistory(history, keepSteps)
 	after = len(compacted)
 	if after >= before {
 		return before, after, history, nil
 	}
-	if err := session.WriteSnapshot(stateFile, compacted); err != nil {
+	snapshot.Compact(compacted)
+	if err := snapshot.Save(stateFile); err != nil {
 		return before, after, history, err
 	}
 	return before, after, compacted, nil
@@ -253,13 +252,19 @@ func (a *Agent) maybeCompact(history *[]llm.Message, usage llm.Usage, st *runSta
 	}
 	// Still over the line from the last pass, and not enough new work has
 	// happened for another pass to free anything the first one could not.
-	if st.lastCompactTokens > 0 && usage.PromptTokens < st.lastCompactTokens+a.compactionCooldown() {
+	if st.lastCompactTokens > 0 && usage.PromptTokens < a.cfg.ContextLimit-256 && usage.PromptTokens < st.lastCompactTokens+a.compactionCooldown() {
 		return false
 	}
 	compacted := compactHistory(*history, a.cfg.CompactKeepSteps)
+	// A few large results can exceed the window before eight groups exist.
+	// Reduce the retained tail only when its estimate is already at the limit.
+	for keep := a.cfg.CompactKeepSteps / 2; keep > 0 && llm.EstimatePromptTokens(llm.ChatRequest{Messages: compacted, Tools: a.cfg.Tools.Defs()}) >= a.cfg.ContextLimit-256; keep /= 2 {
+		compacted = compactHistory(*history, keep)
+	}
 	if len(compacted) >= len(*history) {
 		return false
 	}
+	a.compactContext(*history, compacted)
 	*history = compacted
 	st.lastCompactTokens = usage.PromptTokens
 	// Report the compaction. The notice lives in the model's history, so

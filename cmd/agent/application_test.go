@@ -32,6 +32,29 @@ func TestTUILaunchUsesSavedSettingsAndExplicitOverrides(t *testing.T) {
 	}
 }
 
+func TestSavedModeAndUnlimitedStepsSurviveLaunchAndRelaunch(t *testing.T) {
+	p := config.DefaultProfile()
+	prefs := config.Preferences{Version: 1, Mode: "act", Profile: &p, Harness: config.Harness{MaxSteps: config.UnlimitedSteps}}
+	for _, args := range [][]string{{"-tui"}, {"-tui", "-workspace", "."}, {"-tui", "-plan"}, {"-tui", "-plan=false", "-max-steps", "0"}} {
+		opts, err := parseLaunchOptions(args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := resolveLaunch(initialTUILaunch(opts, prefs, "application.json", len(args) == 1))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.plan != (opts.explicitFlags["plan"] && opts.plan) || got.maxSteps != config.UnlimitedSteps {
+			t.Fatalf("launch %v: plan=%v steps=%d", args, got.plan, got.maxSteps)
+		}
+		next := relaunchOptions(got.launchOptions, prefs, !got.plan)
+		again, err := resolveLaunch(launchRequest{options: &next, preferences: prefs, profile: &p})
+		if err != nil || again.plan != got.plan || again.maxSteps != config.UnlimitedSteps {
+			t.Fatalf("relaunch: plan=%v steps=%d err=%v", again.plan, again.maxSteps, err)
+		}
+	}
+}
+
 // A relaunch must come back up on the backend the session was created
 // against. Rebuilding argv with an empty "-profile" parsed cleanly and
 // then silently reverted to the flag defaults, and the profile handed

@@ -62,16 +62,14 @@ var activityFrames = []rune("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
 
 func (m *model) busy() bool { return m.state == stRunning || m.state == stStopping }
 
-// meter renders the context fill from the latest backend-reported prompt
-// size: "12.4k / 131k (9%)". Unknown window or no measurement yet shows
-// a dash instead of a guess — the loop itself treats zero limits as
-// "no budget tracking", and the display follows the same rule.
+// meter renders occupied context (input plus generated output). Live estimates
+// are marked with ~; a new empty conversation starts at zero.
 func (m *model) meter() string {
-	if m.limit <= 0 || m.tokens <= 0 {
-		return "ctx —"
+	if m.limit <= 0 {
+		return "ctx " + kTokens(m.tokens)
 	}
 	pct := m.tokens * 100 / m.limit
-	s := fmt.Sprintf("ctx %s / %s (%d%%)", kTokens(m.tokens), kTokens(m.limit), pct)
+	s := fmt.Sprintf("ctx %s/%s (%d%%)", kTokens(m.tokens), kTokens(m.limit), pct)
 	if m.tokensEst {
 		return "~" + s
 	}

@@ -78,7 +78,7 @@ func (m *Model) SetParts(parts []string, tail string) {
 			if within < 0 {
 				within = 0
 			}
-			m.Viewport.Set(parts, starts, total)
+			m.Viewport.Set(all, starts, total)
 			m.Viewport.SetYOffset(starts[k] + within)
 			m.lastParts, m.lastTail = parts, tail
 			return

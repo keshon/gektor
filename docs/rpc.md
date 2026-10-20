@@ -75,7 +75,7 @@ reported once rather than once per pass. `per-edit` scans content a
 tool addressed by `path`; `session-end` re-reads every path the run
 changed, which is the only pass that sees shell redirections, MCP
 writes and background jobs. Loop-generated harness notices surface as
-`nudge` events (`kind` overflow/truncated/leak/compact/repeating): the same `[harness]`-marked text the model
+`nudge` events (`kind` overflow/truncated/leak/compact/repeating/verification): the same `[harness]`-marked text the model
 saw, so observers can audit every intervention. Streamed content
 chunks surface as `delta` events, and streamed deliberation as
 `reasoning` events (display-only; the step event carries the

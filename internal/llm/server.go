@@ -197,17 +197,19 @@ type wireTool struct {
 }
 
 type wireRequest struct {
-	Stream         bool            `json:"stream,omitempty"`
-	StreamOptions  *streamOptions  `json:"stream_options,omitempty"`
-	Model          string          `json:"model"`
-	Messages       []wireMessage   `json:"messages"`
-	Tools          []wireTool      `json:"tools,omitempty"`
-	Grammar        string          `json:"grammar,omitempty"`
-	ResponseFormat *responseFormat `json:"response_format,omitempty"`
-	MaxTokens      int             `json:"max_tokens,omitempty"`
-	Temperature    float64         `json:"temperature,omitempty"`
-	TopP           float64         `json:"top_p,omitempty"`
-	TopK           int             `json:"top_k,omitempty"`
+	ReturnProgress  bool            `json:"return_progress,omitempty"`
+	TimingsPerToken bool            `json:"timings_per_token,omitempty"`
+	Stream          bool            `json:"stream,omitempty"`
+	StreamOptions   *streamOptions  `json:"stream_options,omitempty"`
+	Model           string          `json:"model"`
+	Messages        []wireMessage   `json:"messages"`
+	Tools           []wireTool      `json:"tools,omitempty"`
+	Grammar         string          `json:"grammar,omitempty"`
+	ResponseFormat  *responseFormat `json:"response_format,omitempty"`
+	MaxTokens       int             `json:"max_tokens,omitempty"`
+	Temperature     float64         `json:"temperature,omitempty"`
+	TopP            float64         `json:"top_p,omitempty"`
+	TopK            int             `json:"top_k,omitempty"`
 
 	// Repetition controls. Both backends pass unknown fields through to
 	// the sampler, the same route the grammar field takes, and each
@@ -428,6 +430,10 @@ func (c *Server) Chat(ctx context.Context, req ChatRequest) (ChatResponse, error
 		PromptTokens:     wresp.Usage.PromptTokens,
 		CompletionTokens: wresp.Usage.CompletionTokens,
 		CachedTokens:     wresp.Usage.PromptTokensDetails.CachedTokens,
+	}
+	if usage.PromptTokens == 0 {
+		usage.PromptTokens = EstimatePromptTokens(req)
+		usage.Estimated = true
 	}
 	c.recordUsage(usage.PromptTokens, usage.CompletionTokens, usage.CachedTokens)
 	p, g, n := c.UsageTotals()

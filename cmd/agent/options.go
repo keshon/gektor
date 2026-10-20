@@ -65,7 +65,7 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 		"grammar the server builds from the tool schemas")
 	flags.IntVar(&o.maxTokens, "max-tokens", 8192, "generation budget per response — too low truncates "+
 		"large outputs (e.g. a full HTML+CSS+JS file) mid-JSON")
-	flags.IntVar(&o.maxSteps, "max-steps", 0, "step budget per run — 0 takes the agent default (25). "+
+	flags.IntVar(&o.maxSteps, "max-steps", 0, "step budget per run — explicit 0 means no limit; omitted uses the saved limit or default (25). "+
 		"Applies to direct runs; subagents keep fixed budgets")
 	flags.StringVar(&o.resume, "resume", "", "path to a .tars/tasks/.../state.json snapshot to resume "+
 		"an interrupted run from, instead of starting a new task")
@@ -87,7 +87,7 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 		"TARS_API_KEY / OPENAI_API_KEY / OPENROUTER_API_KEY env vars so the secret never lands in shell history")
 	flags.StringVar(&o.apiKeyEnv, "api-key-env", "", "name of the env var holding the bearer token, "+
 		"e.g. OPENROUTER_API_KEY — overrides the built-in lookup order")
-	flags.IntVar(&o.contextLimit, "context-limit", 0, "context window in tokens, overriding the backend probe. "+
+	flags.IntVar(&o.contextLimit, "context-limit", 0, "context window in tokens; local server detection takes precedence. "+
 		"Required knowledge for -backend-kind openai, which has no probe endpoint: defaults to a "+
 		"per-model estimate when 0")
 	flags.StringVar(&o.allow, "allow", "", "comma-separated tool=pattern rules to allow, e.g. \"run_shell=go *,read_file=*.go\" (wins over defaults)")
@@ -143,6 +143,9 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 	h := launch.preferences.Harness
 	if !o.explicitFlags["max-steps"] && h.MaxSteps > 0 {
 		o.maxSteps = h.MaxSteps
+	}
+	if o.explicitFlags["max-steps"] && o.maxSteps == 0 {
+		o.maxSteps = config.UnlimitedSteps
 	}
 	// A relaunch carries the profile it last ran with in memory, because a
 	// generated setup never had a file to point at. Reading it only when

@@ -191,8 +191,9 @@ func TestSessionScanRestoresPlanMode(t *testing.T) {
 		t.Fatalf("duplicated or wrong session mode: %+v", entries)
 	}
 	m.sessions = &sessionsState{entries: entries}
-	_, handled := m.openApplicationSession(entries[0])
-	if !handled || m.modeChange == nil || m.modeChange.Directory != dir || len(m.modeChange.History) != 2 {
+	m.state = stDone
+	m.openSelected()
+	if m.stateFile != filepath.Join(dir, "state.json") || m.sess == nil || m.modeChange != nil {
 		t.Fatal("saved session failed to restore")
 	}
 }

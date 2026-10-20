@@ -50,7 +50,9 @@ func PageFields(profile config.Profile, section string, preferences config.Prefe
 		title = "Generation"
 		add("temperature", "Temperature", temperatureValue(profile.Generation.Temperature), false)
 		add("max", "Response budget (tokens)", strconv.Itoa(profile.Generation.MaxTokens), false)
-		add("context", "Context window (tokens)", strconv.Itoa(profile.Generation.ContextLimit), false)
+		if profile.Provider.Kind == "openai" {
+			add("context", "Context window (tokens)", strconv.Itoa(profile.Generation.ContextLimit), false)
+		}
 	case "prompts":
 		title = "Identity prompts"
 		preset, _ := prompts.ResponsePreset(identity.PromptPreset)

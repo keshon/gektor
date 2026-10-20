@@ -118,7 +118,7 @@ func EmitToolResult(emitter *Emitter, callID string, result string, failed ...bo
 	if emitter == nil {
 		return
 	}
-	fields := map[string]any{"call_id": callID, "text": Message(result)}
+	fields := map[string]any{"call_id": callID, "text": result}
 	if len(failed) > 0 {
 		fields["failed"] = failed[0]
 	}

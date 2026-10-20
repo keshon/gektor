@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // ErrIncompleteStream reports a stream the backend ended early. A caller
@@ -64,6 +65,9 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onCon
 	}
 
 	wreq.Stream, wreq.StreamOptions = true, &streamOptions{IncludeUsage: true}
+	if _, ok := c.dialect.(llamaDialect); ok {
+		wreq.ReturnProgress, wreq.TimingsPerToken = true, true
+	}
 	body, err := json.Marshal(wreq)
 	if err != nil {
 		return ChatResponse{}, fmt.Errorf("marshal request: %w", err)
@@ -109,6 +113,8 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onCon
 	acc := map[int]*deltaCall{}
 	var promptTokens, completionTokens int
 	var cachedTokens int
+	progress := Progress{Phase: "waiting", PromptTokens: EstimatePromptTokens(req), Estimated: true}
+	promptKnown, generationKnown, generatedRunes := false, true, 0
 
 	sc := bufio.NewScanner(resp.Body)
 	sc.Buffer(make([]byte, 1024*1024), 16*1024*1024)
@@ -126,6 +132,16 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onCon
 			break
 		}
 		var chunk struct {
+			PromptProgress *struct {
+				Total     int `json:"total"`
+				Cache     int `json:"cache"`
+				Processed int `json:"processed"`
+			} `json:"prompt_progress"`
+			Timings *struct {
+				Prompt    int  `json:"prompt_n"`
+				Cached    *int `json:"cache_n"`
+				Predicted *int `json:"predicted_n"`
+			} `json:"timings"`
 			Error   json.RawMessage `json:"error"`
 			Choices []struct {
 				Delta struct {
@@ -149,12 +165,20 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onCon
 			completionTokens = chunk.Usage.CompletionTokens
 			cachedTokens = chunk.Usage.PromptTokensDetails.CachedTokens
 		}
+		if p := chunk.PromptProgress; p != nil && p.Total > 0 {
+			progress.Phase, progress.PromptTokens = "prefill", p.Total
+			progress.ProcessedTokens, progress.CachedTokens = p.Processed, p.Cache
+			promptKnown = true
+		}
+		previousRunes := generatedRunes
 		for _, ch := range chunk.Choices {
 			if ch.FinishReason != "" {
 				finish = ch.FinishReason
 				complete = true
 			}
 			if ch.Delta.Content != "" {
+				progress.Phase = "generating"
+				generatedRunes += utf8.RuneCountInString(ch.Delta.Content)
 				content.WriteString(ch.Delta.Content)
 				if onContent != nil {
 					onContent(ch.Delta.Content)
@@ -165,12 +189,16 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onCon
 			// It used to accumulate silently and appear only once the whole
 			// reply was done.
 			if ch.Delta.Reasoning != "" {
+				progress.Phase = "reasoning"
+				generatedRunes += utf8.RuneCountInString(ch.Delta.Reasoning)
 				reasoning.WriteString(ch.Delta.Reasoning)
 				if onReasoning != nil {
 					onReasoning(ch.Delta.Reasoning)
 				}
 			}
 			for _, dc := range ch.Delta.ToolCalls {
+				progress.Phase = "tool_call"
+				generatedRunes += utf8.RuneCountInString(dc.Function.Name) + utf8.RuneCountInString(dc.Function.Arguments)
 				a := acc[dc.Index]
 				if a == nil {
 					cp := dc
@@ -186,6 +214,32 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onCon
 					}
 				}
 			}
+		}
+		if generatedRunes != previousRunes {
+			progress.CompletionTokens = (generatedRunes + 3) / 4
+			generationKnown = false
+		}
+		if chunk.Timings != nil {
+			// During prefill prompt_n is only the work completed so far.
+			// Keep prompt_progress.total authoritative; infer a total from
+			// timings only after generation starts and no total was supplied.
+			if cached := chunk.Timings.Cached; !promptKnown && generatedRunes > 0 && cached != nil && chunk.Timings.Prompt+*cached > 0 {
+				progress.PromptTokens, promptKnown = chunk.Timings.Prompt+*cached, true
+				progress.CachedTokens = *cached
+			}
+			if generated := chunk.Timings.Predicted; generated != nil {
+				progress.CompletionTokens, generationKnown = *generated, true
+			}
+		}
+		if chunk.Usage != nil && chunk.Usage.PromptTokens > 0 {
+			progress.PromptTokens, promptKnown = chunk.Usage.PromptTokens, true
+			progress.CompletionTokens = chunk.Usage.CompletionTokens
+			progress.CachedTokens = chunk.Usage.PromptTokensDetails.CachedTokens
+			generationKnown = true
+		}
+		progress.Estimated = !promptKnown || !generationKnown
+		if req.OnProgress != nil {
+			req.OnProgress(progress)
 		}
 	}
 	if err := sc.Err(); err != nil {
@@ -218,23 +272,20 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onCon
 	// early and the response allowance shrank for no reason.
 	estimated := false
 	if promptTokens == 0 {
-		estimated = true
-		n := 0
-		for _, m := range req.Messages {
-			n += len([]rune(m.Content))
-			n += len(m.Images) * imageEstimateTokens
-			for _, call := range m.ToolCalls {
-				n += len([]rune(call.Name)) + len(call.Arguments)
-			}
+		if promptKnown {
+			promptTokens, cachedTokens = progress.PromptTokens, progress.CachedTokens
+		} else {
+			estimated = true
+			promptTokens = EstimatePromptTokens(req)
 		}
-		if toolsJSON, err := json.Marshal(req.Tools); err == nil {
-			n += len([]rune(string(toolsJSON)))
-		}
-		promptTokens = n / 4
 	}
 	if completionTokens == 0 {
-		estimated = true
-		completionTokens = (len([]rune(content.String())) + len([]rune(reasoning.String()))) / 4
+		if generationKnown {
+			completionTokens = progress.CompletionTokens
+		} else {
+			estimated = true
+			completionTokens = (generatedRunes + 3) / 4
+		}
 	}
 	c.recordUsage(promptTokens, completionTokens, cachedTokens)
 	p, g, n := c.UsageTotals()

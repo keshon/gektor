@@ -1,13 +1,18 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/tars/internal/prompts"
+	"github.com/keshon/tars/internal/session"
 )
 
 // Task state and spilled output live in the user's TARS directory. A test
@@ -26,12 +31,66 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func TestBackendContextHonorsConfiguredLimitAndProbeFallback(t *testing.T) {
+func TestCLIForkUsesTheSubmittedTask(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "state.json")
+	history := []llm.Message{{Role: llm.RoleSystem, Content: "sys"}, {Role: llm.RoleUser, Content: "old task"}, {Role: llm.RoleAssistant, Content: "old answer"}}
+	if err := session.WriteSnapshot(source, history); err != nil {
+		t.Fatal(err)
+	}
+	for _, task := range []string{"new task", ""} {
+		t.Run(task, func(t *testing.T) {
+			requests := make(chan []llm.Message, 1)
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !strings.HasSuffix(r.URL.Path, "/chat/completions") {
+					http.NotFound(w, r)
+					return
+				}
+				var body struct {
+					Messages []llm.Message `json:"messages"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Error(err)
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				requests <- body.Messages
+				fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":"done"},"finish_reason":"stop"}]}`)
+			}))
+			defer srv.Close()
+			args := []string{"-fork", source, "-workspace", t.TempDir(), "-backend-kind", "openai", "-backend", srv.URL, "-model", "test", "-context-limit", "32768"}
+			if task != "" {
+				args = append(args, task)
+			}
+			launch := launchRequest{args: args}
+			o, err := resolveLaunch(launch)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := runAgentLaunch(launch, o); err != nil {
+				t.Fatal(err)
+			}
+			got := <-requests
+			want := task
+			if want == "" {
+				want = prompts.Resume
+			}
+			found := false
+			for _, msg := range got[len(history):] {
+				found = found || (msg.Role == llm.RoleUser && msg.Content == want)
+			}
+			if !found {
+				t.Fatalf("fork lost continuation %q: %+v", want, got)
+			}
+		})
+	}
+}
+
+func TestBackendContextUsesServerThenConfiguredFallback(t *testing.T) {
 	for _, tt := range []struct {
 		name                    string
 		configured, probe, want int
 	}{
-		{"override", 8192, 4096, 8192}, {"detected", 0, 4096, 4096}, {"probe-down", 8192, 0, 8192}, {"unknown", 0, 0, 0},
+		{"server-wins", 8192, 4096, 4096}, {"detected", 0, 4096, 4096}, {"probe-down", 8192, 0, 8192}, {"unknown", 0, 0, 0},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

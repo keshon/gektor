@@ -148,8 +148,10 @@ func (p Profile) Validate() error {
 	if p.Provider.Model == "" {
 		return fmt.Errorf("profile: model is required")
 	}
-	if p.Generation.MaxTokens <= 0 || p.Generation.ContextLimit <= p.Generation.MaxTokens {
-		return fmt.Errorf("profile: context_limit must exceed positive max_tokens")
+	// MaxTokens is a ceiling; the agent reduces it to the room left in the
+	// server's window on each request, including after a smaller model loads.
+	if p.Generation.MaxTokens <= 0 || p.Generation.ContextLimit <= 0 {
+		return fmt.Errorf("profile: context_limit and max_tokens must be positive")
 	}
 	return nil
 }

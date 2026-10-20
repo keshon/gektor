@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -187,6 +188,54 @@ func TestRun_RepeatedStepsAnswerWithoutTools(t *testing.T) {
 	last := history[len(history)-1]
 	if last.Role != llm.RoleUser || !strings.HasPrefix(last.Content, harnessPrefix) {
 		t.Fatalf("answer turn history ends with %+v, want the marked harness line", last)
+	}
+}
+
+func TestRepeatAnswerReachesEventsAndSnapshot(t *testing.T) {
+	var runs int32
+	c := &repeatSeqClient{responses: []llm.ChatResponse{stepOf(readCall("1", "a")), stepOf(readCall("2", "a")), stepOf(readCall("3", "a")), say("final answer")}}
+	c.responses[3].Usage = llm.Usage{PromptTokens: 321, CompletionTokens: 9}
+	var steps, usage int
+	path := filepath.Join(t.TempDir(), "state.json")
+	a := New(Config{Client: c, Tools: NewRegistry(repeatingReadTool{&runs}), StateFile: path, OnStep: func(_ int, m llm.Message) {
+		if m.Content == "final answer" {
+			steps++
+		}
+	}, OnUsage: func(_ int, u llm.Usage) {
+		if u.PromptTokens == 321 {
+			usage++
+		}
+	}})
+	if _, err := a.Run(t.Context(), "task"); err != nil {
+		t.Fatal(err)
+	}
+	h, err := LoadState(path)
+	if err != nil || h[len(h)-1].Content != "final answer" || steps != 1 || usage != 1 || a.Report().LastPromptTokens != 321 {
+		t.Fatalf("history=%+v steps=%d usage=%d report=%+v err=%v", h, steps, usage, a.Report(), err)
+	}
+}
+
+type failingMutation struct{ auditTool }
+
+func (failingMutation) Run(context.Context, json.RawMessage) (string, error) {
+	return "partial edit", errors.New("exit 1")
+}
+
+func TestReadsAfterMutationBarrierUseFreshResult(t *testing.T) {
+	for _, failed := range []bool{false, true} {
+		var reads int32
+		ran := false
+		var writer Tool = auditTool{&ran}
+		if failed {
+			writer = failingMutation{}
+		}
+		a := New(Config{Tools: NewRegistry(repeatingReadTool{&reads}, writer)})
+		st := &runState{}
+		a.executeToolCalls(t.Context(), st, 0, "stop", []llm.ToolCall{readCall("1", "a")}, nil)
+		out := a.executeToolCalls(t.Context(), st, 1, "stop", []llm.ToolCall{{ID: "w", Name: "audit_tool", Arguments: json.RawMessage(`{}`)}, readCall("2", "a")}, nil)
+		if reads != 2 || strings.HasPrefix(out[len(out)-1].Content, "error:") {
+			t.Fatalf("failed=%v reads=%d out=%+v", failed, reads, out)
+		}
 	}
 }
 

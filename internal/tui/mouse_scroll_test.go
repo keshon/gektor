@@ -105,3 +105,14 @@ func TestWheelScrollsTheDialogNotTheTranscript(t *testing.T) {
 		t.Fatalf("the transcript moved behind the overlay: %d -> %d", before, got)
 	}
 }
+
+func TestWheelOverHistoryWorksBesideSessionList(t *testing.T) {
+	m := scrollModel(t, 140, 30)
+	m.nav.entries = []sessionEntry{{id: "a"}, {id: "b"}}
+	m.navFocused = true
+	m.input.Blur()
+	m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown, X: m.termW - 5, Y: paneTop + 3})
+	if m.transcript.Viewport.YOffset() == 0 || m.nav.Cursor != 0 {
+		t.Fatal("wheel over history failed or changed session selection")
+	}
+}

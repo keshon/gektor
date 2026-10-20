@@ -76,7 +76,7 @@ func (m *model) dialogView() string {
 	rows := []string{m.styles.gate.Render(truncate(d.title, inner))}
 	lines := []string{}
 	for _, line := range d.lines {
-		lines = append(lines, strings.Split(ansi.Wrap(line, max(inner, 1), ""), "\n")...)
+		lines = append(lines, strings.Split(ansi.Wrap(cleanText(line), max(inner, 1), ""), "\n")...)
 	}
 	hint := "Esc / Enter close"
 	if d.help {

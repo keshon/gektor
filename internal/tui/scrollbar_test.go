@@ -2,9 +2,11 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // A scrollbar over a tall document must drag: press on the thumb,
@@ -111,5 +113,44 @@ func TestScrollbarDragEndsOffBar(t *testing.T) {
 	m.handleMouse(tea.MouseReleaseMsg{X: 1, Y: paneTop, Button: tea.MouseLeft})
 	if m.scrollDrag.active {
 		t.Fatal("release off the bar left the drag stuck")
+	}
+}
+
+func TestScrollbarGrabUsesDrawnColumnWithAndWithoutSidebar(t *testing.T) {
+	for _, hidden := range []bool{false, true} {
+		t.Run(fmt.Sprint("hidden=", hidden), func(t *testing.T) {
+			m := scrollModel(t, 140, 30)
+			m.sidebarHidden = hidden
+			m.fitColumns()
+			m.refreshContent()
+			m.transcript.Viewport.GotoTop()
+			// Select the actual rightmost content cell in the assembled frame,
+			// independently of scrollbarHit/scrollbarX's coordinate arithmetic.
+			row := []rune(strings.Split(ansi.Strip(m.View().Content), "\n")[paneTop])
+			x := len(row) - 2
+			m.Update(tea.MouseClickMsg{X: x, Y: paneTop, Button: tea.MouseLeft})
+			if !m.scrollDrag.active {
+				t.Fatalf("drawn bar at x=%d did not grab (sidebar=%v)", x, m.sidebarVisible())
+			}
+			m.Update(tea.MouseMotionMsg{X: x - 3, Y: paneTop + 8, Button: tea.MouseLeft})
+			if m.transcript.Viewport.YOffset() == 0 {
+				t.Fatal("horizontal drift stopped drag")
+			}
+			// Move across the sidebar and outside the pane vertically. Capture
+			// must keep ownership until release, without selecting a session.
+			m.nav.entries = []sessionEntry{{id: "a"}, {id: "b"}}
+			m.Update(tea.MouseMotionMsg{X: 3, Y: m.termH - 1, Button: tea.MouseLeft})
+			if !m.transcript.Viewport.AtBottom() || m.nav.Cursor != 0 {
+				t.Fatal("drag was intercepted or failed to clamp below the pane")
+			}
+			m.Update(tea.MouseMotionMsg{X: x + 3, Y: paneTop - 2, Button: tea.MouseLeft})
+			if m.transcript.Viewport.YOffset() != 0 {
+				t.Fatal("drag failed to clamp above the pane")
+			}
+			m.Update(tea.MouseReleaseMsg{X: 3, Y: paneTop + 1, Button: tea.MouseLeft})
+			if m.scrollDrag.active || m.nav.Cursor != 0 {
+				t.Fatal("sidebar intercepted release")
+			}
+		})
 	}
 }

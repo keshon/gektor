@@ -172,19 +172,29 @@ func TestReadOnlyRoleRefusesMutations(t *testing.T) {
 // Compaction may drop the stance along with the turns it summarises; the loop
 // puts it back rather than continuing without it.
 func TestCompactionRestoresTheStance(t *testing.T) {
-	history := historyWithSteps(10)
-	history = append(history, llm.Message{Role: llm.RoleUser, Content: harnessPrefix + "PLAN"})
-	a := New(Config{
-		Client: &stubClient{}, Tools: NewRegistry(), System: "sys",
-		ContextLimit: 1000, CompactKeepSteps: 2, CompactAtPercent: 10,
-	})
-	if !a.maybeCompact(&history, llm.Usage{PromptTokens: 500}, &runState{}) {
-		t.Fatal("compaction did not fire")
-	}
-	history = a.withDirective(history)
-	last := history[len(history)-1]
-	if last.Content != harnessPrefix+"PLAN" {
-		t.Fatalf("last message = %q, want the stance restored at the tail", last.Content)
+	for _, stance := range []string{"PLAN", "ACT"} {
+		t.Run(stance, func(t *testing.T) {
+			steps := historyWithSteps(10)
+			history := append([]llm.Message(nil), steps[:2]...)
+			history = append(history, llm.Message{Role: llm.RoleUser, Content: harnessPrefix + stance})
+			history = append(history, steps[2:]...)
+			a := New(Config{
+				Client: &stubClient{}, Tools: NewRegistry(), System: "sys", Directive: stance,
+				ContextLimit: 1000, CompactKeepSteps: 2, CompactAtPercent: 10,
+			})
+			if !a.maybeCompact(&history, llm.Usage{PromptTokens: 500}, &runState{}) {
+				t.Fatal("compaction did not fire")
+			}
+			for _, msg := range history {
+				if msg.Content == harnessPrefix+stance {
+					t.Fatal("test did not drop the original stance")
+				}
+			}
+			history = a.withDirective(history)
+			if last := history[len(history)-1]; last.Content != harnessPrefix+stance {
+				t.Fatalf("last message = %q, want the stance restored at the tail", last.Content)
+			}
+		})
 	}
 }
 

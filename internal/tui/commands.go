@@ -197,6 +197,7 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		}
 		m.confirmRestart(func() {
 			previous := m.maxStepsOverride
+			previousSession := m.sess
 			if n == 0 {
 				n = noStepLimit
 			}
@@ -212,6 +213,7 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 			}
 			if err := m.saveHarness(); err != nil {
 				m.maxStepsOverride = previous
+				m.sess = previousSession
 				m.appendBlock(errorBlock(err.Error()))
 				return
 			}
@@ -373,6 +375,10 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if (mode == "plan") == m.plan {
+			if err := m.saveDefaultMode(); err != nil {
+				m.appendBlock(errorBlock(err.Error()))
+				return m, nil
+			}
 			m.appendBlock(markerBlock("Mode: " + m.modeName()))
 			return m, nil
 		}
@@ -383,6 +389,7 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		// session mid-run keeps the existing destructive prompt.
 		apply := func() error {
 			previous := m.plan
+			nextSession := m.sess
 			m.plan = mode == "plan"
 			if m.sess != nil {
 				sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
@@ -394,8 +401,19 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 					m.plan = previous
 					return err
 				}
-				m.sess = sess
+				nextSession = sess
+			} else if err := m.saveMode(); err != nil {
+				m.plan = previous
+				return err
 			}
+			if err := m.saveDefaultMode(); err != nil {
+				m.plan = previous
+				if m.stateFile != "" {
+					_ = writeSavedMode(m.stateFile, previous)
+				}
+				return err
+			}
+			m.sess = nextSession
 			m.appendBlock(markerBlock("Mode: " + m.modeName()))
 			return nil
 		}

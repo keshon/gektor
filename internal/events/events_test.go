@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
-	"unicode/utf8"
 )
 
 func TestEmit_JSONLines(t *testing.T) {
@@ -35,35 +34,4 @@ func TestEmit_JSONLines(t *testing.T) {
 func TestNilEmitter_Drops(t *testing.T) {
 	var e *Emitter
 	e.Emit("x", nil) // must not panic
-}
-
-func TestMessage_Truncates(t *testing.T) {
-	long := strings.Repeat("x", 17000)
-	got := Message(long)
-	if n := len([]rune(got)); n > messageMaxRunes+1 {
-		t.Fatalf("not truncated: %d runes", n)
-	}
-	if !strings.HasSuffix(got, "…") {
-		t.Fatal("cut needs its marker")
-	}
-	if Message("short") != "short" {
-		t.Fatal("short text altered")
-	}
-	// A detailed answer (multi-section + table) passes intact.
-	if got := Message(strings.Repeat("y", 12000)); len([]rune(got)) != 12000 {
-		t.Fatalf("detailed answer cut at %d runes", len([]rune(got)))
-	}
-}
-
-func TestMessage_RuneSafe(t *testing.T) {
-	// A byte cut would split the em-dash (3 bytes in UTF-8) mid-rune.
-	long := strings.Repeat("—", 17000)
-	got := Message(long)
-	body := strings.TrimSuffix(got, "…")
-	if !utf8.ValidString(body) {
-		t.Fatal("cut split a multi-byte rune")
-	}
-	if len([]rune(body)) != messageMaxRunes {
-		t.Fatalf("cut %d runes, want %d", len([]rune(body)), messageMaxRunes)
-	}
 }

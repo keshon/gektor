@@ -13,6 +13,11 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, m.formMouse(msg)
 	}
+	// A grabbed thumb owns motion and release until the button is released,
+	// including over the sidebar, footer and outside the scrollbar column.
+	if m.scrollDrag.active && m.dialog == nil && m.sessions == nil && m.header.menu == "" && m.scrollbarMouse(msg) {
+		return m, nil
+	}
 	if handled, cmd := m.headerMouse(msg); handled {
 		return m, cmd
 	}
@@ -37,6 +42,9 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		// move. gateVP still backs the narrow terminals where the popup
 		// does not fit and the gate takes the pane outright.
 		if m.gatePopup.Pending() {
+			if m.scrollbarMouse(msg) {
+				return m, nil
+			}
 			return m.scrollViewport(msg)
 		}
 		var cmd tea.Cmd
@@ -72,10 +80,6 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		m.input.Blur()
 		return m, nil
 	}
-	if m.dialog == nil && m.sessions == nil && m.sidebarVisible() && msg.Mouse().X >= navigatorWidth+3 && msg.Mouse().Y >= paneTop && msg.Mouse().Y < paneTop+m.paneHeight() && msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) {
-		m.navFocused = false
-		return m, m.input.Focus()
-	}
 	if m.dialog != nil {
 		switch msg.Mouse().Button {
 		case tea.MouseWheelDown:
@@ -85,12 +89,12 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	// An overlay freezes the background: scroll resumes on close.
-	if m.dialog != nil || m.sessions != nil {
-		return m, nil
-	}
 	if m.scrollbarMouse(msg) {
 		return m, nil
+	}
+	if m.sidebarVisible() && msg.Mouse().X >= m.promptOffset() && msg.Mouse().Y >= paneTop && msg.Mouse().Y < paneTop+m.paneHeight() && msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) {
+		m.navFocused = false
+		return m, m.input.Focus()
 	}
 	// The input never consumes mouse messages, so scroll works in
 	// every state: wheel in ask/done used to fall through and die.
@@ -112,12 +116,7 @@ func (m *model) scrollbarHit(x, y int) (row int, ok bool) {
 	if !m.ready || !m.transcript.Viewport.Scrollable() {
 		return 0, false
 	}
-	left := m.promptOffset()
-	bar := left + m.transcript.Viewport.Width() - 1
-	if m.sidebarVisible() {
-		bar += navigatorWidth + 3
-	}
-	if x != bar {
+	if x != m.scrollbarX() {
 		return 0, false
 	}
 	top := paneTop
@@ -138,19 +137,7 @@ func (m *model) scrollbarMouse(msg tea.MouseMsg) bool {
 		if !m.scrollDrag.active {
 			return false
 		}
-		row, ok := m.scrollbarHit(mouse.X, mouse.Y)
-		if !ok {
-			// Clamp to the nearest end: dragging past the edge pins
-			// the document there instead of stalling mid-drag.
-			if mouse.X == m.scrollbarX() {
-				row = 0
-				if mouse.Y >= paneTop {
-					row = m.transcript.Viewport.Height() - 1
-				}
-			} else {
-				return false
-			}
-		}
+		row := min(max(mouse.Y-paneTop, 0), m.transcript.Viewport.Height()-1)
 		m.scrollDrag.moved = true
 		m.transcript.Viewport.SetYOffset(m.transcript.Viewport.DragOffset(row, m.transcript.Viewport.Height(), m.scrollDrag.grab))
 		m.transcript.Follow = m.transcript.Viewport.AtBottom()
@@ -184,12 +171,6 @@ func (m *model) scrollbarMouse(msg tea.MouseMsg) bool {
 	}
 	row, ok := m.scrollbarHit(mouse.X, mouse.Y)
 	if !ok {
-		// A release off the bar still ends a grab: the pointer can
-		// wander mid-drag, and the grab must not stick.
-		if _, isRelease := msg.(tea.MouseReleaseMsg); isRelease {
-			m.scrollDrag = scrollDrag{}
-			return true
-		}
 		return false
 	}
 	top, _ := m.transcript.Viewport.ThumbRange(m.transcript.Viewport.Height())
@@ -204,8 +185,5 @@ func (m *model) scrollbarX() int {
 		return -1
 	}
 	x := m.promptOffset() + m.transcript.Viewport.Width() - 1
-	if m.sidebarVisible() {
-		x += navigatorWidth + 3
-	}
 	return x
 }

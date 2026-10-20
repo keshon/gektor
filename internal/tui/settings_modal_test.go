@@ -99,3 +99,20 @@ func TestSettingsModalIsNotTwoColumns(t *testing.T) {
 		t.Fatalf("the modal does not show its field:\n%s", view)
 	}
 }
+
+func TestPromptDialogNormalizesWindowsLineEndings(t *testing.T) {
+	m := settingsModel(t)
+	m.width(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m.config.Identity.System = "Before\r\nWindows line\r\nAfter\rLone return"
+	m.inspectPrompt()
+	view := m.View().Content
+	if strings.ContainsRune(view, '\r') {
+		t.Fatal("dialog emitted a carriage return that can overwrite its frame")
+	}
+	plain := ansi.Strip(view)
+	for _, want := range []string{"Before", "Windows line", "After", "Lone return"} {
+		if !strings.Contains(plain, want) {
+			t.Fatalf("dialog lost %q", want)
+		}
+	}
+}

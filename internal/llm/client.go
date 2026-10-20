@@ -7,6 +7,7 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"unicode/utf8"
 )
 
 type Role string
@@ -28,6 +29,8 @@ type ToolCall struct {
 // Message is one turn. ToolCalls is set only on assistant messages that
 // invoke tools; ToolCallID only on tool results answering a call.
 type Message struct {
+	// ToolFailed is durable display metadata; wire encoders omit it.
+	ToolFailed *bool `json:"tool_failed,omitempty"`
 	Role       Role
 	Content    string
 	ToolCalls  []ToolCall
@@ -54,8 +57,10 @@ type ToolDef struct {
 }
 
 type ChatRequest struct {
-	Messages []Message
-	Tools    []ToolDef
+	// OnProgress observes this request without changing its wire payload.
+	OnProgress func(Progress)
+	Messages   []Message
+	Tools      []ToolDef
 
 	// MaxTokens caps generation. Left at the backend default, large
 	// generations cut off mid-JSON — see agent.Config.MaxTokens.
@@ -82,6 +87,31 @@ type ChatRequest struct {
 	// sampling makes a grammar-constrained weak model loop on repeated
 	// tokens. Structured calls pass a low value instead.
 	Temperature float64
+}
+
+// Progress separates server-reported prompt processing from generated output.
+// Estimated counters are display-only; final Usage remains authoritative.
+type Progress struct {
+	Phase                                                         string
+	PromptTokens, CompletionTokens, CachedTokens, ProcessedTokens int
+	Estimated                                                     bool
+}
+
+// EstimatePromptTokens is a fallback, not a tokenizer. Count the replayed
+// content, tool schemas and images; out-of-band Reasoning is never replayed.
+func EstimatePromptTokens(req ChatRequest) int {
+	chars, tokens := 0, 0
+	for _, m := range req.Messages {
+		chars += utf8.RuneCountInString(m.Content) + len(m.ToolCallID)
+		tokens += 4 + len(m.Images)*imageEstimateTokens
+		for _, call := range m.ToolCalls {
+			chars += len(call.Name) + len(call.ID) + len(call.Arguments)
+		}
+	}
+	if data, err := json.Marshal(req.Tools); err == nil && len(req.Tools) > 0 {
+		chars += utf8.RuneCount(data)
+	}
+	return max(1, tokens+(chars+3)/4)
 }
 
 // Usage reports the backend's own tokenizer counts, not a tiktoken

@@ -35,12 +35,13 @@ func (a *Agent) handleFinish(st *runState, resp llm.ChatResponse, leaked bool, h
 }
 
 const (
-	NudgeOverflow  = "overflow"
-	NudgeTruncated = "truncated"
-	NudgeLeak      = "leak"
-	NudgeCompact   = "compact"
-	NudgeRepeating = "repeating"
-	harnessPrefix  = "[harness] "
+	NudgeOverflow     = "overflow"
+	NudgeTruncated    = "truncated"
+	NudgeLeak         = "leak"
+	NudgeCompact      = "compact"
+	NudgeRepeating    = "repeating"
+	NudgeVerification = "verification"
+	harnessPrefix     = "[harness] "
 )
 
 func harnessText(text string) string { return harnessPrefix + text }

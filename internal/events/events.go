@@ -44,20 +44,3 @@ func (e *Emitter) Emit(kind string, fields map[string]any) {
 		_ = f.Sync()
 	}
 }
-
-// messageMaxRunes caps one event text field. It bounds runaway model
-// output on the wire (JSONL log, TUI, RPC share the funnel), not routine
-// prose: detailed answers run past 4000 runes, and the TUI's
-// expanded-think view is pointless if reasoning arrives pre-cut. Cuts
-// keep their "…" marker per R5 (plan P10).
-const messageMaxRunes = 16000
-
-// Message renders a tool call's arguments compactly for an event.
-// The cut is rune-based: a byte slice can split multi-byte UTF-8 and
-// emit invalid output.
-func Message(s string) string {
-	if runes := []rune(s); len(runes) > messageMaxRunes {
-		return string(runes[:messageMaxRunes]) + "…"
-	}
-	return s
-}

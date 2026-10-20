@@ -136,7 +136,7 @@ func TestMarkdownPipesLiteral(t *testing.T) {
 // markup, which is what the reader ends up looking at.
 func TestLiveStaysRawUntilTheStepRendersIt(t *testing.T) {
 	st := defaultStyles()
-	streamed := ansi.Strip(strings.Join(renderLive(transcriptProps{live: "<think>private</think>Say **hello**.", styles: st, speaker: "Assistant", labels: true}, 80), "\n"))
+	streamed := ansi.Strip(strings.Join(renderLive(transcriptProps{live: "<think>private</think>Say **hello**.", styles: st, speaker: "Assistant", labels: true}, 80, tagged()), "\n"))
 	if strings.Contains(streamed, "<think>") {
 		t.Fatalf("live response leaked reasoning: %q", streamed)
 	}

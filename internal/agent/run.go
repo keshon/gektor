@@ -15,6 +15,8 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 	var st runState
 	a.LastRunMutations = 0
 	a.report = RunReport{MaxSteps: a.cfg.MaxSteps}
+	history = a.withDirective(history)
+	a.saveState(history)
 	defer func() {
 		if runErr == nil {
 			runErr = ctx.Err()
@@ -24,6 +26,13 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 			a.report.Verification = TruncateMiddle(out, 8192)
 			if err != nil {
 				runErr = fmt.Errorf("verification failed: %w", err)
+				// A user-triggered retry needs the measured failure, not only
+				// the preceding final answer. Persist it without requesting
+				// another model turn automatically.
+				if ctx.Err() == nil {
+					history = a.nudge(history, NudgeVerification, fmt.Sprintf("Verification failed: %v\n%s", err, a.report.Verification))
+					a.saveState(history)
+				}
 			}
 		}
 		a.observeWorkspace(&st)
@@ -57,7 +66,6 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 			return "", fmt.Errorf("observe workspace: %w", err)
 		}
 	}
-	history = a.withDirective(history)
 	// Restore the task checklist when resuming a saved conversation.
 	a.rehydrateTodo(ctx, history)
 
@@ -65,11 +73,24 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
-		resp, err := a.chat(ctx, llm.ChatRequest{
-			Messages:  history,
-			Tools:     a.cfg.Tools.Defs(),
-			MaxTokens: a.effectiveMaxTokens(st.lastPromptTokens),
-		})
+		req := llm.ChatRequest{
+			Messages: history,
+			Tools:    a.cfg.Tools.Defs(),
+		}
+		estimate := llm.EstimatePromptTokens(req)
+		promptTokens := st.projectPrompt(estimate)
+		if a.maybeCompact(&history, llm.Usage{PromptTokens: promptTokens}, &st) {
+			st.forgetIdempotentSeen()
+			st.lastPromptEstimate = 0
+			history = a.withDirective(history)
+			req.Messages = history
+			estimate = llm.EstimatePromptTokens(req)
+			promptTokens = estimate
+			a.saveState(history)
+		}
+		req.MaxTokens = a.effectiveMaxTokens(promptTokens)
+		st.lastPromptEstimate = estimate
+		resp, err := a.chat(ctx, req)
 		if err != nil {
 			history, err = a.handleChatError(&st, step, err, history)
 			if err != nil {
@@ -87,6 +108,8 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 		history = append(history, resp.Message)
 		if resp.Usage.PromptTokens > 0 {
 			st.lastPromptTokens = resp.Usage.PromptTokens
+		} else {
+			st.lastPromptTokens = estimate
 		}
 		a.report.Steps = step + 1
 		a.report.LastPromptTokens = st.lastPromptTokens
@@ -98,15 +121,10 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 			if out.done {
 				return out.answer, out.err
 			}
+			a.saveState(history)
 			continue
 		}
 		history = a.executeToolCalls(ctx, &st, step, resp.FinishReason, resp.Message.ToolCalls, history)
-		if a.maybeCompact(&history, resp.Usage, &st) {
-			// The refusal text points at conversation content; compaction just
-			// dropped some of it, so what it promises is no longer true.
-			st.forgetIdempotentSeen()
-			history = a.withDirective(history)
-		}
 		a.saveState(history)
 		if st.repeatCount >= maxRepeatedSteps {
 			from := step - st.repeatCount + 1
@@ -137,8 +155,10 @@ func (a *Agent) handleChatError(st *runState, step int, err error, history []llm
 		// Caches drop only when history actually shrank: the
 		// refusal texts cite content that must really be gone.
 		if next := compactHistory(history, keep/2); len(next) < len(history) {
+			a.compactContext(history, next)
 			history = next
 			st.forgetIdempotentSeen()
+			st.lastPromptEstimate = 0
 			history = a.withDirective(history)
 			shrunk = true
 		}
@@ -157,6 +177,7 @@ func (a *Agent) handleChatError(st *runState, step int, err error, history []llm
 	}
 	st.overflowRetried = true
 	history = a.nudge(history, NudgeOverflow, prompts.OverflowRecovered)
+	a.saveState(history)
 	return history, nil
 }
 
@@ -184,6 +205,11 @@ func (a *Agent) recoverLeakedCalls(resp llm.ChatResponse, step int) (llm.ChatRes
 // has been shown yet, since a partial stream cannot be resumed.
 func (a *Agent) chat(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
 	req.Temperature = a.cfg.Temperature
+	req.OnProgress = a.cfg.OnProgress
+	progress := llm.Progress{Phase: "waiting", PromptTokens: llm.EstimatePromptTokens(req), Estimated: true}
+	if req.OnProgress != nil {
+		req.OnProgress(progress)
+	}
 	if a.cfg.Stream {
 		if s, ok := a.cfg.Client.(llm.Streamer); ok {
 			shown := false
@@ -216,6 +242,10 @@ func (a *Agent) chat(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse
 				return resp, err
 			}
 		}
+	}
+	if req.OnProgress != nil {
+		progress.Phase = "unary"
+		req.OnProgress(progress)
 	}
 	return llm.ChatWithRetry(ctx, a.cfg.Client, req, llm.DefaultRetryPolicy())
 }

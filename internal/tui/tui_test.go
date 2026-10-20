@@ -272,10 +272,46 @@ func TestFollowUpResumes(t *testing.T) {
 	}
 }
 
+func TestSeededContinuationKeepsHistoricalHeaderUntilResponse(t *testing.T) {
+	m := sizeModel(t, testModel())
+	ws, err := workspace.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	m.application = &Application{Temporary: true}
+	m.stateFile = filepath.Join(dir, "state.json")
+	m.seedHistory = []llm.Message{{Role: llm.RoleSystem, Content: "old system"}, {Role: llm.RoleUser, Content: "previous task"}, {Role: llm.RoleAssistant, Content: "previous answer"}}
+	data, err := json.Marshal(usageSnapshot{Tokens: 1000, Model: "/old/model.gguf"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "usage.json"), data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	m.modelName = "/new/model.gguf"
+	m.newSession = func(task, stateFile string, _ []string) (*run.Session, error) {
+		return run.New(run.Config{Task: task, StateFile: stateFile, Env: roles.Env{Client: stubDone{}, WS: ws}})
+	}
+	done := make(chan tea.Msg, 1)
+	m.send = func(msg tea.Msg) { done <- msg }
+	if err := m.startFreshPrompt("continue", "continue", nil); err != nil {
+		t.Fatal(err)
+	}
+	if m.tokens <= 0 || !m.usage.historical || m.usage.liveModel || m.displayedModel() != "/old/model.gguf" {
+		t.Fatalf("sending cleared historical values: tokens=%d usage=%+v model=%q", m.tokens, m.usage, m.displayedModel())
+	}
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("continuation did not finish")
+	}
+}
+
 func TestMeter_UsageAndUnknown(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.limit = 131072
-	if got := m.meter(); got != "ctx —" {
+	if got := m.meter(); got != "ctx 0/131.1k (0%)" {
 		t.Fatalf("no measurement yet: %q", got)
 	}
 	updated, _ := m.Update(eventMsg(events.Event{
@@ -283,7 +319,7 @@ func TestMeter_UsageAndUnknown(t *testing.T) {
 		Fields: map[string]any{"prompt": float64(12400)},
 	}))
 	mm := updated.(*model)
-	if got := mm.meter(); got != "ctx 12.4k / 131.1k (9%)" {
+	if got := mm.meter(); got != "ctx 12.4k/131.1k (9%)" {
 		t.Fatalf("meter = %q", got)
 	}
 }
@@ -296,7 +332,7 @@ func TestMeter_Estimated(t *testing.T) {
 		Fields: map[string]any{"prompt": float64(12400), "estimated": true},
 	}))
 	mm := updated.(*model)
-	if got := mm.meter(); got != "~ctx 12.4k / 131.1k (9%)" {
+	if got := mm.meter(); got != "~ctx 12.4k/131.1k (9%)" {
 		t.Fatalf("estimated meter = %q", got)
 	}
 }
@@ -1382,7 +1418,7 @@ func TestStatusPostsToHistory(t *testing.T) {
 		t.Fatal("status must post to history, not a modal")
 	}
 	view := m.transcript.Viewport.View()
-	for _, want := range []string{"backend", "workspace", "context", "ctx 12.4k / 131.1k (9%)", "permissions"} {
+	for _, want := range []string{"backend", "workspace", "context", "ctx 12.4k/131.1k (9%)", "permissions"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("status missing %q", want)
 		}
@@ -1946,7 +1982,7 @@ func TestLiveAccumulatesAndStepReplaces(t *testing.T) {
 	updated, _ := m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "hel"}}))
 	mm := updated.(*model)
 	if mm.live != "" || mm.liveQueue != "hel" {
-		t.Fatalf("a delta must queue, not paint: live=%q queue=%q", mm.live, mm.liveQueue)
+		t.Fatalf("a delta must wait only for the next frame: live=%q queue=%q", mm.live, mm.liveQueue)
 	}
 	updated, _ = mm.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "lo"}}))
 	mm = advanceFrames(t, updated)
@@ -1974,7 +2010,7 @@ func TestLiveQueuedTextIsAdoptedByStep(t *testing.T) {
 	updated, _ := m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "unseen tail"}}))
 	mm := updated.(*model)
 	if mm.liveQueue == "" {
-		t.Fatal("precondition: text should still be queued")
+		t.Fatal("precondition: text should be awaiting its frame")
 	}
 	updated, _ = mm.Update(eventMsg(events.Event{Name: "step", Fields: map[string]any{}}))
 	mm = updated.(*model)
@@ -2066,11 +2102,8 @@ func TestUnfollowedRevealSkipsTheAnimation(t *testing.T) {
 	}
 }
 
-// A trickle reveals one character at a time so it reads as typing; a
-// burst drains in a bounded number of frames instead of trailing the
-// model. The old cadence repainted on a completed line or a one-second
-// heartbeat, so prose arrived in one-second jumps.
-func TestRevealRateIsAdaptive(t *testing.T) {
+// Coalescing must drain the complete backlog in one frame, regardless of size.
+func TestRevealHasNoArtificialTypingDelay(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stRunning
 
@@ -2083,15 +2116,8 @@ func TestRevealRateIsAdaptive(t *testing.T) {
 
 	// A fast backend: a 4000-character backlog must not take 4000 frames.
 	m.live, m.liveQueue = "", strings.Repeat("x", 4000)
-	frames := 0
-	for m.revealLive() {
-		frames++
-		if frames > 100 {
-			t.Fatal("burst did not catch up: still queued after 100 frames")
-		}
-	}
-	if frames == 0 || frames > 32 {
-		t.Fatalf("4000 characters took %d frames, want a handful", frames)
+	if m.revealLive() || m.liveQueue != "" {
+		t.Fatal("a received burst must paint in one update")
 	}
 	if n := len([]rune(m.live)); n != 4000 {
 		t.Fatalf("revealed %d runes, want 4000", n)
@@ -2316,7 +2342,7 @@ func TestHeaderDetailsShowStepBudget(t *testing.T) {
 	m.steps = 7
 	m.maxSteps = 40
 	m.header.menu = "run"
-	if joined := headerText(m.headerItems()); !strings.Contains(joined, "7 / 40") {
+	if joined := headerText(m.headerItems()); !strings.Contains(joined, "7/40") {
 		t.Fatalf("header details missing step budget: %q", joined)
 	}
 }

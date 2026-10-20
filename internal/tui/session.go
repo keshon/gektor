@@ -262,15 +262,26 @@ func (m *model) startRun(run func(ctx context.Context) (string, error)) {
 	if m.sessions != nil {
 		m.closeSessions()
 	}
-	// The turn closure is kept for /retry: re-invoking it re-attempts
-	// the exact turn (follow-ups reuse their loaded history, so a
-	// retry restarts from last known-good, not partial failure).
+	// Retry resumes the latest durable checkpoint so completed tool work
+	// is never replayed from the original turn closure.
 	// runErr clears: a new turn has no result yet, and /retry gates on it.
 	// Live state clears too: a new turn starts with no partial text.
 	m.alwaysMu.Lock()
 	m.always = map[[2]string]bool{}
 	m.alwaysMu.Unlock()
-	m.retryRun = func() { m.startRun(run) }
+	m.retryRun = func() {
+		if m.sess == nil || m.stateFile == "" {
+			m.startRun(run)
+			return
+		}
+		history, err := session.ReadHistory(m.stateFile)
+		if err != nil {
+			m.appendBlock(errorBlock("cannot retry saved task: " + err.Error()))
+			return
+		}
+		sess := m.sess
+		m.startRun(func(ctx context.Context) (string, error) { return sess.Resume(ctx, history, "") })
+	}
 	m.runErr = nil
 	m.resetLive()
 	m.firstToken = time.Time{}
@@ -298,6 +309,7 @@ func (m *model) startRun(run func(ctx context.Context) (string, error)) {
 	m.fitBottom()
 	m.started = time.Now()
 	m.steps = 0
+	m.progress = llm.Progress{Phase: "waiting"}
 	m.usage.thisRun = false
 	m.header.focused, m.header.menu = false, ""
 	go func() {
@@ -346,12 +358,8 @@ func (m *model) newTask() {
 	m.transcript.Viewport.GotoBottom()
 }
 
-// compactNow mechanically compacts the active session's saved history
-// in place (/compact): the same compactHistory the loop uses, on
-// demand instead of at the usage threshold. The transcript rebuilds
-// from the compacted snapshot with a stats marker, so display and
-// context agree on what was dropped. Follow-ups continue on the
-// compacted history through the normal Resume path.
+// compactNow reduces the model context on demand while preserving the
+// full archive and transcript. Resume loads the saved context projection.
 func (m *model) compactNow() (tea.Model, tea.Cmd) {
 	if m.state != stDone {
 		m.appendBlock(markerBlock("Stop the current turn before compacting"))
@@ -372,19 +380,14 @@ func (m *model) compactNow() (tea.Model, tea.Cmd) {
 		m.transcript.Viewport.GotoBottom()
 		return m, nil
 	}
-	if m.sess == nil {
-		m.seedHistory = append([]llm.Message(nil), history...)
-	}
 	mb := markerBlock(fmt.Sprintf("- compacted: %d → %d messages -", before, after))
 	// Marker last, not first: the viewport lands at the bottom showing
 	// the kept tail, which reads identical to before — the marker is
 	// the only visible signal that anything happened.
-	m.transcript.blocks = append(renderHistory(history), mb)
+	m.transcript.blocks = append(m.transcript.blocks, mb)
 	m.restoreContext(history)
 	m.refreshContent()
-	// The point of manual compaction is seeing the shrunken transcript:
-	// re-arm follow and jump to bottom even if the reader scrolled up,
-	// or the marker lands below the fold and nothing visibly changed.
+	// Show the compaction marker even when the reader had scrolled up.
 	m.transcript.Follow = true
 	m.transcript.Viewport.GotoBottom()
 	return m, nil
@@ -428,7 +431,11 @@ func (m *model) startFreshPrompt(task, display string, images []string) error {
 	}
 	m.sess, m.stateFile = sess, stateFile
 	m.sessionTitle = title
-	m.clearContext()
+	if len(m.seedHistory) > 0 {
+		m.restoreContext(m.seedHistory)
+	} else {
+		m.clearContext()
+	}
 	m.input.Restore(composer.Snapshot{History: []string{display}, Index: 1})
 	m.queued = ""
 	m.transcript.blocks = nil

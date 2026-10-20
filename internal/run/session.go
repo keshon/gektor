@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/keshon/tars/internal/agent"
 	"github.com/keshon/tars/internal/checks"
@@ -82,9 +83,29 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, rol
 	askFn := s.asker(ctx)
 
 	env := s.cfg.Env
+	// A local server may load different weights between turns. Probe before
+	// building the agent so the display and enforced budget use the same facts.
+	if server, ok := env.Client.(*llm.Server); ok && env.BackendKind != "openai" {
+		probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		if limit, err := server.MaxContextLength(probeCtx); err == nil && limit > 0 {
+			env.ContextLimit = limit
+		}
+		if name, err := server.ModelName(probeCtx); err == nil && strings.TrimSpace(name) != "" {
+			env.Model = name
+		}
+		cancel()
+		emitter.Emit("backend", map[string]any{"model": env.Model, "context_limit": env.ContextLimit})
+	}
 	prevOnStep := env.OnStep
 	prevTypedResult := env.OnResult
 	prevOnUsage := env.OnUsage
+	prevOnProgress := env.OnProgress
+	env.OnProgress = func(p llm.Progress) {
+		emitter.Emit("progress", map[string]any{"phase": p.Phase, "prompt": p.PromptTokens, "completion": p.CompletionTokens, "cached": p.CachedTokens, "processed": p.ProcessedTokens, "estimated": p.Estimated})
+		if prevOnProgress != nil {
+			prevOnProgress(p)
+		}
+	}
 	// expectReply marks the next text-only step as harness-caused: a
 	// nudge was just delivered, so the following bare answer reacts to
 	// the harness, not the operator. One-shot and text-only: tool calls
@@ -215,8 +236,7 @@ func EmitOutcome(e *events.Emitter, r agent.RunReport, stateFile string) {
 	e.Emit("outcome", map[string]any{"outcome": r.Outcome, "files": r.MutatedPaths, "verification": r.Verification, "warnings": r.Warnings, "resume": stateFile, "open_todos": r.OpenTodos})
 }
 
-// EmitStep writes one step. Shared by the direct loop, mission workers and
-// the session driver so all three speak the same schema. harnessReply
+// EmitStep writes one step for the CLI and session driver. harnessReply
 // marks a text-only answer to a harness nudge (first reply is enough); the
 // field is omitted when false so old consumers see no change. maxSteps
 // carries the enforced step budget; zero omits it, for callers with no run
@@ -236,20 +256,19 @@ func EmitStep(emitter *events.Emitter, label string, step int, msg llm.Message, 
 		ev["max_steps"] = maxSteps
 	}
 	if msg.Content != "" {
-		ev["text"] = events.Message(msg.Content)
+		ev["text"] = msg.Content
 	}
-	// Deliberation travels with the step that produced it, capped like
-	// every other field. Observers render it dimmed or not at all; the
-	// budget in the loop is what constrains it, not display.
+	// Keep final deliberation complete so folding and reopening the live
+	// block never replaces streamed text with a truncated version.
 	if msg.Reasoning != "" {
-		ev["reasoning"] = events.Message(msg.Reasoning)
+		ev["reasoning"] = msg.Reasoning
 	}
 	calls := make([]any, 0, len(msg.ToolCalls))
 	for _, tc := range msg.ToolCalls {
 		calls = append(calls, map[string]any{
 			// The id pairs results to calls (duplicate ids across
 			// steps match the most recent open card).
-			"id": tc.ID, "name": tc.Name, "args": events.Message(string(tc.Arguments)),
+			"id": tc.ID, "name": tc.Name, "args": string(tc.Arguments),
 		})
 	}
 	if len(calls) > 0 {

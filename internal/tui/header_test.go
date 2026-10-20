@@ -77,6 +77,41 @@ func TestHeaderContextPersistsAndRestoresEstimate(t *testing.T) {
 	}
 }
 
+func TestEmptyHeaderShowsZeroMetricsAndTwoSpaceGaps(t *testing.T) {
+	m := sizeModelTo(t, testModel(), 140, 25)
+	m.state, m.limit, m.modelName = stDone, 65536, "model.gguf"
+	line := ansi.Strip(m.badgeLine())
+	if !strings.Contains(line, "HISTORY  ACT  READY  model.gguf  CTX 0/65.5k  step 0/25  00:00") {
+		t.Fatalf("header: %q", line)
+	}
+}
+
+func TestHistoricalModelAndContextBecomeLiveIndependently(t *testing.T) {
+	m := sizeModel(t, testModel())
+	m.stateFile = filepath.Join(t.TempDir(), "state.json")
+	m.modelName = `D:\models\one\two\old.gguf`
+	m.handleEvent(events.Event{Name: "usage", Fields: map[string]any{"prompt": float64(4100)}})
+	m.persistUsage()
+	m.modelName = "/models/new/current.gguf"
+	m.restoreContext([]llm.Message{{Role: llm.RoleUser, Content: "previous task"}})
+	if !m.usage.historical || m.usage.liveModel || modelLabel(m.displayedModel()) != "old.gguf" || m.tokens == 0 {
+		t.Fatalf("historical header: %+v model=%q", m.usage, m.displayedModel())
+	}
+	m.handleEvent(events.Event{Name: "delta", Fields: map[string]any{"text": "reply"}})
+	if modelLabel(m.displayedModel()) != "current.gguf" || !m.usage.historical {
+		t.Fatal("model should be live while context awaits fresh usage")
+	}
+	m.handleEvent(events.Event{Name: "usage", Fields: map[string]any{"prompt": float64(5200)}})
+	if m.usage.historical || m.tokens != 5200 || m.usage.last.Model != m.modelName {
+		t.Fatal("fresh usage did not replace historical values")
+	}
+	m.persistUsage()
+	m.restoreContext(nil)
+	if modelLabel(m.displayedModel()) != "current.gguf" {
+		t.Fatal("saved model was not updated")
+	}
+}
+
 func TestHeaderEndpointSanitizationAndLongDetails(t *testing.T) {
 	got := safeEndpoint("https://user:secret@example.com/v1?api_key=secret#secret")
 	if got != "https://example.com/v1" {

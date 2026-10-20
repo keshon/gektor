@@ -7,6 +7,7 @@ import (
 
 	"github.com/keshon/tars/internal/tui/components/transcript"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/tars/internal/llm"
@@ -502,8 +503,8 @@ func (m *model) appendBlock(b block) {
 // renderLive uses the same label rows and Markdown blocks as completed
 // replies. The live buffer is one assistant turn, so the name row opens
 // it exactly once.
-func renderLive(props transcriptProps, width int) []string {
-	opts := renderOpts{labels: props.labels, raw: true}
+func renderLive(props transcriptProps, width int, opts renderOpts) []string {
+	opts.raw = true
 	var parts []string
 	// Streamed deliberation renders first and stays put, so the turn reads
 	// as THINK then RESPONSE. Wrapping in <think> lets assistantBlocks
@@ -519,7 +520,7 @@ func renderLive(props transcriptProps, width int) []string {
 			parts = append(parts, part)
 		}
 	}
-	for _, b := range assistantBlocks(props.live, "") {
+	for _, b := range assistantBlocks(liveContent(props.live), "") {
 		b.at = time.Time{}
 		b.speaker = props.speaker
 		part := renderBlock(b, props.styles, opts, width)
@@ -532,6 +533,19 @@ func renderLive(props transcriptProps, width int) []string {
 		return nil
 	}
 	return strings.Split(strings.Join(parts, "\n\n"), "\n")
+}
+
+// A tag split across SSE frames must not flash as response/thinking text.
+// Hold only its unfinished suffix; the stored message is never changed.
+func liveContent(text string) string {
+	for _, tag := range []string{"<think>", "</think>"} {
+		for n := min(len(text), len(tag)-1); n > 0; n-- {
+			if strings.HasSuffix(text, tag[:n]) {
+				return text[:len(text)-n]
+			}
+		}
+	}
+	return text
 }
 
 // refreshContent re-renders every block into the viewport. Called on
@@ -561,10 +575,8 @@ func (m *model) refreshContent() {
 // through rather than shredding into slivers.
 const minWrapWidth = 8
 
-// liveMaxRunes bounds the live streamed buffer. revealFrame paces the
-// reveal: 16ms is about sixty frames a second, and a repaint costs
-// 0.3-1.3ms for a large transcript, so the frame budget is never the
-// limiting factor.
+// liveMaxRunes bounds streamed answer text. revealFrame coalesces fragments for
+// one frame without slowing generation to an artificial character rate.
 const (
 	liveMaxRunes = 64 * 1024
 	revealFrame  = 16 * time.Millisecond
@@ -578,20 +590,22 @@ func (m *model) resetLive() {
 	m.liveThink, m.liveThinkQueue = "", ""
 }
 
-// revealLive moves queued text into the transcript and reports whether more
-// is waiting. The rate is adaptive: a slow backend queues a character or
-// two per frame, which reads as the model typing, while a fast one queues
-// thousands that a fixed rate would leave trailing by seconds — so each
-// frame drains a quarter of the backlog. A reader who has scrolled away is
-// not watching the tail, so the queue empties whole.
+// Coalesce rapid network fragments for one frame, then paint all received text.
+// This timer is independent of the idle/spinner heartbeat.
+func (m *model) scheduleLiveFlush() {
+	if m.liveFlushPending {
+		return
+	}
+	m.liveFlushPending = true
+	m.pendingCommands = append(m.pendingCommands, tea.Tick(revealFrame, func(time.Time) tea.Msg { return liveFlushMsg{} }))
+}
+
+// revealLive paints complete received chunks without a simulated typing rate.
 func (m *model) revealLive() bool {
 	pending := false
 	if m.liveThinkQueue != "" {
 		think := []rune(m.liveThinkQueue)
 		take := len(think)
-		if m.transcript.Follow {
-			take = max(1, len(think)/4)
-		}
 		m.liveThink += string(think[:take])
 		m.liveThinkQueue = string(think[take:])
 		pending = true
@@ -604,13 +618,10 @@ func (m *model) revealLive() bool {
 	}
 	queued := []rune(m.liveQueue)
 	take := len(queued)
-	if m.transcript.Follow {
-		take = max(1, len(queued)/4)
-	}
 	m.live += string(queued[:take])
 	m.liveQueue = string(queued[take:])
 	m.refreshContent()
-	return pending || m.liveQueue != "" || m.liveThinkQueue != ""
+	return false
 }
 
 // reflow word-wraps one logical line to width columns. Leading
@@ -733,8 +744,8 @@ func (t *transcriptState) refresh(props transcriptProps) {
 	t.render.cache = cache
 
 	tail := ""
-	if props.live != "" {
-		if live := renderLive(props, width); len(live) > 0 {
+	if props.live != "" || props.liveThink != "" {
+		if live := renderLive(props, width, opts); len(live) > 0 {
 			tail = strings.Join(live, "\n")
 		}
 	}

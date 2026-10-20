@@ -265,11 +265,6 @@ func (m *model) openSelected() tea.Cmd {
 		return nil
 	}
 	cur := s.entries[s.Cursor]
-	if m.application != nil {
-		if cmd, handled := m.openApplicationSession(cur); handled {
-			return cmd
-		}
-	}
 	stateFile := filepath.Join(cur.dir, "state.json")
 	history, err := session.ReadHistory(stateFile)
 	if err != nil {
@@ -284,15 +279,8 @@ func (m *model) openSelected() tea.Cmd {
 		s.flash = "sessions unavailable here"
 		return nil
 	}
-	oldPlan := m.plan
-	if cur.mode == "Plan" {
-		m.plan = true
-	} else if cur.mode == "Act" {
-		m.plan = false
-	}
 	sess, err := m.newSession(task, stateFile, nil)
 	if err != nil {
-		m.plan = oldPlan
 		s.flash = "cannot open session: " + err.Error()
 		return nil
 	}
@@ -374,7 +362,10 @@ func renderHistoryAt(history []llm.Message) ([]block, []int) {
 					if b.role == roleTool && b.open && b.callID == msg.ToolCallID {
 						b.result = msg.Content
 						b.open = false
-						b.failed = strings.HasPrefix(msg.Content, "error:")
+						b.failed = strings.HasPrefix(msg.Content, "error:") || strings.Contains(msg.Content, "\nerror:")
+						if msg.ToolFailed != nil {
+							b.failed = *msg.ToolFailed
+						}
 						attached = true
 						break
 					}

@@ -89,6 +89,9 @@ func (r *Registry) Names() []string {
 
 // Defs returns the tool definitions to hand to the LLM client.
 func (r *Registry) Defs() []llm.ToolDef {
+	if r == nil {
+		return nil
+	}
 	names := make([]string, 0, len(r.tools))
 	for name := range r.tools {
 		names = append(names, name)
@@ -273,21 +276,10 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 					"state the change as a step in the plan and let the operator apply it", call.Name)
 			continue
 		}
-		if !a.cfg.Tools.IdempotentOf(call.Name) {
-			continue
-		}
-		prev, seen := st.idempotentSeen[callKey(call.Name, call.Arguments)]
-		if !seen {
-			continue
-		}
-		skipped[i] = true
-		results[i].err = fmt.Errorf(
-			"this exact %s call (same arguments) already ran in step %d and nothing has changed "+
-				"since - its result is still valid, so re-read it from the conversation instead of "+
-				"calling it again, or do something different (another path, another argument, or act "+
-				"on what you already know)", call.Name, prev)
+
 	}
 
+	executed := make([]bool, len(calls))
 	runOne := func(i int) {
 		call := calls[i]
 		if err := ctx.Err(); err != nil {
@@ -298,15 +290,34 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 			results[i].err = err
 			return
 		}
+		executed[i] = true
 		results[i].content, results[i].err = a.cfg.Tools.Run(ctx, call.Name, call.Arguments)
+	}
+	rememberRead := func(i int) {
+		call := calls[i]
+		if !executed[i] || results[i].err != nil || !a.cfg.Tools.IdempotentOf(call.Name) {
+			return
+		}
+		if st.idempotentSeen == nil {
+			st.idempotentSeen = make(map[string]int)
+		}
+		st.idempotentSeen[callKey(call.Name, call.Arguments)] = step
 	}
 	runBatch := func(indices []int) {
 		var wg sync.WaitGroup
 		for _, i := range indices {
+			call := calls[i]
+			if prev, seen := st.idempotentSeen[callKey(call.Name, call.Arguments)]; seen && a.cfg.Tools.IdempotentOf(call.Name) {
+				results[i].err = fmt.Errorf("this exact %s call already ran in step %d; its result is still valid; re-read it from the conversation", call.Name, prev)
+				continue
+			}
 			wg.Add(1)
 			go func(i int) { defer wg.Done(); runOne(i) }(i)
 		}
 		wg.Wait()
+		for _, i := range indices {
+			rememberRead(i)
+		}
 	}
 	var batch []int
 	for i, call := range calls {
@@ -319,12 +330,17 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 			runBatch(batch)
 			batch = nil
 			runOne(i)
+			// A command may change files and still fail. Invalidate at this
+			// barrier, before the following read batch examines the cache.
+			if executed[i] {
+				st.noteMutation()
+			}
+			rememberRead(i)
 		}
 	}
 	runBatch(batch)
 
 	mutatingBefore := st.mutatingSucceeded
-	exclusiveSucceeded := false
 	for i, call := range calls {
 		content := results[i].content
 		if results[i].err != nil {
@@ -333,15 +349,6 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 			}
 			content += "error: " + results[i].err.Error()
 		} else {
-			if a.cfg.Tools.ModeOf(call.Name) == Exclusive {
-				exclusiveSucceeded = true
-			}
-			if a.cfg.Tools.IdempotentOf(call.Name) {
-				if st.idempotentSeen == nil {
-					st.idempotentSeen = make(map[string]int)
-				}
-				st.idempotentSeen[callKey(call.Name, call.Arguments)] = step
-			}
 			if st.observeChanges == nil {
 				// Embedders may omit the workspace observer.
 				if containsStr(a.cfg.MutatingTools, call.Name) {
@@ -356,7 +363,8 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 			}
 		}
 		content = TruncateMiddle(content, max(1, 48*1024/len(calls)))
-		history = append(history, llm.Message{Role: llm.RoleTool, ToolCallID: call.ID, Content: content})
+		failed := results[i].err != nil
+		history = append(history, llm.Message{Role: llm.RoleTool, ToolCallID: call.ID, Content: content, ToolFailed: &failed})
 		if a.cfg.OnResult != nil {
 			a.cfg.OnResult(ToolResult{CallID: call.ID, Output: content, Failed: results[i].err != nil})
 		}
@@ -365,7 +373,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 	// Anything that mutated invalidates both caches: the same read can now
 	// legitimately return something new, and a signature that repeats across a
 	// mutation is work in progress, not a spin.
-	if exclusiveSucceeded || st.mutatingSucceeded > mutatingBefore {
+	if st.mutatingSucceeded > mutatingBefore {
 		st.noteMutation()
 	}
 	return history

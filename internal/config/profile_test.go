@@ -41,6 +41,14 @@ func valid() Profile {
 	}
 }
 
+func TestResponseCeilingCanExceedDetectedWindow(t *testing.T) {
+	p := valid()
+	p.Generation.MaxTokens, p.Generation.ContextLimit = 8192, 4096
+	if err := p.Validate(); err != nil {
+		t.Fatalf("response ceiling should be clamped by the agent: %v", err)
+	}
+}
+
 // Decoding is strict on purpose. A misspelled setting must fail at load
 // rather than being silently dropped and taking its effect with it: this is
 // the only place a typo becomes visible.

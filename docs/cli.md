@@ -45,10 +45,10 @@ The terminal controls and local slash commands are in [tui.md](tui.md).
 | `-backend URL` | `http://localhost:5001` | Backend base URL: bare origin for a local server, API root for a hosted OpenAI-compatible provider |
 | `-backend-kind KIND` | `kobold` | `kobold`, `llama`, or `openai`. A mismatch is caught at startup: the dialects disagree about grammar and sampler fields, so a wrong value measures nothing |
 | `-model NAME` | `local` | Model name. Ignored by most local servers (they serve whatever weights they started with); required for remote providers |
-| `-context-limit N` | `0` | Context window override. Remote backends expose no probe endpoint and fall back to a per-model estimate unless set |
+| `-context-limit N` | `0` | Remote context window or local fallback. A reported local server window takes precedence; remote backends fall back to a per-model estimate unless set |
 | `-grammar` | `true` | Apply the backend's own content grammar (blocks a model writing its native tool-call tags as plain text on koboldcpp) |
 | `-max-tokens N` | `8192` | Generation budget per response. Too low truncates large outputs mid-JSON, which looks like a model failure |
-| `-max-steps N` | `0` (=25) | Fixed per-run step limit; todo cannot extend it. Subagents use 12 steps |
+| `-max-steps N` | saved limit or 25 | Fixed per-run step limit; explicit `0` means unlimited. Todo cannot extend it. Subagents use 12 steps |
 
 ## Authentication (remote providers)
 
