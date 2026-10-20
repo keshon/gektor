@@ -20,7 +20,10 @@ Rules for writing one:
   `delegate_task`) — generic advice is dead weight here.
 - Keep it under ~100 lines. Longer means split it.
 
-Current guides: [Git](git/SKILL.md), [Go](go/SKILL.md),
+Current guides: [code navigation](code-navigation/SKILL.md),
+[Git](git/SKILL.md), [Go](go/SKILL.md),
 [TypeScript](typescript/SKILL.md), [dev servers](dev-server/SKILL.md),
-and [large builds](large-build/SKILL.md). Read-only roles cannot follow steps
+[large builds](large-build/SKILL.md), and [image assets](pixelita/SKILL.md).
+The image guide uses the external pixelita CLI; measurements and optimization
+work with text-only models. Read-only roles cannot follow steps
 requiring shell commands or writes; their tool sets enforce that limit.
