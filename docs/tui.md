@@ -335,6 +335,9 @@ local UI commands; they are not tools or RPC methods.
 - Use Ctrl+O for a newline on Windows. VT input keeps bracketed-paste boundaries
   intact; some hosts encode Shift+Enter as plain Enter. Native mouse records
   continue through the same adapter.
+- In ConEmu, enable Settings > Mouse > Send mouse events to console. The input
+  adapter accepts its marked XTerm packets as well as native mouse records.
+  Window resizing uses the visible viewport rather than scrollback buffer size.
 - Strange scrolling: keep server logs in their own terminal. Do not redirect
   model/server output into the full-screen UI.
 - No streaming text on KoboldCPP: that dialect uses unary requests. OpenAI

@@ -36,13 +36,17 @@ func decodeConsoleEvents(t *testing.T, input string) []uv.Event {
 	defer cancel()
 	events := make(chan uv.Event, 64)
 	reader := uv.NewTerminalReader(strings.NewReader(input), "")
-	if err := reader.StreamEvents(ctx, events); err != nil {
-		t.Fatal(err)
-	}
-	close(events)
+	done := make(chan error, 1)
+	go func() {
+		done <- reader.StreamEvents(ctx, events)
+		close(events)
+	}()
 	var result []uv.Event
 	for event := range events {
 		result = append(result, event)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
 	}
 	return result
 }
@@ -207,6 +211,31 @@ func TestNativeConsoleModeKeepsPasteAndNativeEvents(t *testing.T) {
 		forbidden := uint32(windows.ENABLE_LINE_INPUT | windows.ENABLE_ECHO_INPUT | windows.ENABLE_PROCESSED_INPUT | windows.ENABLE_QUICK_EDIT_MODE)
 		if mode&required != required || mode&forbidden != 0 {
 			t.Fatalf("unsafe console mode: %#x -> %#x", original, mode)
+		}
+	}
+}
+
+func TestConsoleResizeUsesVisibleWindowAndIgnoresBufferChurn(t *testing.T) {
+	r := &consoleReader{}
+	info := windows.ConsoleScreenBufferInfo{
+		Size:   windows.Coord{X: 200, Y: 9000},
+		Window: windows.SmallRect{Left: 10, Top: 500, Right: 109, Bottom: 529},
+	}
+	r.encodeResize(info)
+	// Buffer growth and a shifted viewport are not changes to layout size.
+	info.Size.Y = 16000
+	info.Window.Top, info.Window.Bottom = 600, 629
+	r.encodeResize(info)
+	info.Window.Right = 129
+	r.encodeResize(info)
+	events := decodeConsoleEvents(t, r.buffer.String())
+	if len(events) != 2 {
+		t.Fatalf("buffer churn generated resize events: %#v", events)
+	}
+	for i, width := range []int{100, 120} {
+		e, ok := events[i].(uv.WindowSizeEvent)
+		if !ok || e.Width != width || e.Height != 30 {
+			t.Fatalf("resize used buffer dimensions: %#v", events[i])
 		}
 	}
 }

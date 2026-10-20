@@ -61,11 +61,13 @@ func nativeConsoleMode(original uint32) uint32 {
 }
 
 type consoleReader struct {
-	ctx           context.Context
-	handle        windows.Handle
-	buffer        bytes.Buffer
-	mouseState    uint32
-	highSurrogate uint16
+	ctx            context.Context
+	handle         windows.Handle
+	buffer         bytes.Buffer
+	mouseState     uint32
+	highSurrogate  uint16
+	conEmuSequence bool
+	width, height  int
 }
 
 func (r *consoleReader) Read(p []byte) (int, error) {
@@ -107,11 +109,24 @@ func (r *consoleReader) encode(record xwindows.InputRecord) {
 	switch record.EventType {
 	case xwindows.KEY_EVENT:
 		e := record.KeyEvent()
-		if e.VirtualKeyCode == 0 && e.KeyDown {
+		// ConEmu PostString marks the first keydown and last keyup of an
+		// XTerm packet with scan code 255. The packet's characters may have
+		// nonzero virtual keys, so vk==0 alone does not identify VT input.
+		if e.VirtualScanCode == 255 {
+			if e.KeyDown && e.Char == '\x1b' {
+				r.conEmuSequence = true
+			} else if !e.KeyDown && r.conEmuSequence {
+				r.conEmuSequence = false
+				return
+			}
+		}
+		if r.conEmuSequence || e.VirtualKeyCode == 0 && e.KeyDown {
 			// VT packets already arrive as Unicode characters. Wrapping them
 			// in another Win32 packet nests the protocol and breaks paste.
-			for range max(1, int(e.RepeatCount)) {
-				r.encodeCharacter(uint16(e.Char))
+			if e.KeyDown {
+				for range max(1, int(e.RepeatCount)) {
+					r.encodeCharacter(uint16(e.Char))
+				}
 			}
 			return
 		}
@@ -124,8 +139,13 @@ func (r *consoleReader) encode(record xwindows.InputRecord) {
 		fmt.Fprintf(&r.buffer, "\x1b[%d;%d;%d;%d;%d;%d_", e.VirtualKeyCode,
 			e.VirtualScanCode, e.Char, down, e.ControlKeyState, e.RepeatCount)
 	case xwindows.WINDOW_BUFFER_SIZE_EVENT:
-		e := record.WindowBufferSizeEvent()
-		r.buffer.WriteString(ansi.WindowOp(8, int(e.Size.Y), int(e.Size.X)))
+		// A console buffer can include thousands of scrollback rows. Layout
+		// follows the visible window, not that buffer; using the latter can
+		// make rendering resize the buffer again in a feedback loop.
+		var info windows.ConsoleScreenBufferInfo
+		if windows.GetConsoleScreenBufferInfo(windows.Handle(os.Stdout.Fd()), &info) == nil {
+			r.encodeResize(info)
+		}
 	case xwindows.MOUSE_EVENT:
 		e := record.MouseEvent()
 		button, release := tea.MouseNone, false
@@ -182,6 +202,16 @@ func (r *consoleReader) encode(record xwindows.InputRecord) {
 			flags&(xwindows.LEFT_CTRL_PRESSED|xwindows.RIGHT_CTRL_PRESSED) != 0),
 			int(e.MousePositon.X), int(e.MousePositon.Y), release))
 	}
+}
+
+func (r *consoleReader) encodeResize(info windows.ConsoleScreenBufferInfo) {
+	width := int(info.Window.Right) - int(info.Window.Left) + 1
+	height := int(info.Window.Bottom) - int(info.Window.Top) + 1
+	if width <= 0 || height <= 0 || width == r.width && height == r.height {
+		return
+	}
+	r.width, r.height = width, height
+	r.buffer.WriteString(ansi.WindowOp(8, height, width))
 }
 
 func (r *consoleReader) encodeCharacter(unit uint16) {

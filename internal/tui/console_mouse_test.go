@@ -6,10 +6,79 @@ import (
 	"encoding/binary"
 	"fmt"
 	"testing"
+	"unicode/utf16"
 
 	uv "github.com/charmbracelet/ultraviolet"
 	xwindows "github.com/charmbracelet/x/windows"
 )
+
+// ConEmu PostString marks an XTerm sequence with scan code 255 on the
+// first keydown and last keyup. Its characters can have nonzero virtual keys.
+func conEmuSequenceRecords(text string) []xwindows.InputRecord {
+	units := utf16.Encode([]rune(text))
+	var records []xwindows.InputRecord
+	for i, unit := range units {
+		down := nativeKeyRecord(unit, unit, 0)
+		up := down
+		binary.LittleEndian.PutUint32(up.Event[0:4], 0)
+		if i == 0 {
+			binary.LittleEndian.PutUint16(down.Event[8:10], 255)
+		}
+		if i == len(units)-1 {
+			binary.LittleEndian.PutUint16(up.Event[8:10], 255)
+		}
+		records = append(records, down, up)
+	}
+	return records
+}
+
+func TestConEmuMousePacketsDoNotBecomeText(t *testing.T) {
+	r := &consoleReader{}
+	for _, packet := range []string{"\x1b[<0;10;4M", "\x1b[<32;11;5M", "\x1b[<0;11;5m", "\x1b[<64;11;5M"} {
+		for _, record := range conEmuSequenceRecords(packet) {
+			r.encode(record)
+		}
+	}
+	r.encode(nativeKeyRecord('X', 'x', 0))
+	events := decodeConsoleEvents(t, r.buffer.String())
+	if len(events) != 5 {
+		t.Fatalf("mouse packets escaped as text: %d events", len(events))
+	}
+	for i, want := range []string{"click", "motion", "release", "wheelup"} {
+		if got := mouseKind(events[i]); got != want {
+			t.Fatalf("event %d: got %s, want %s", i, got, want)
+		}
+	}
+	key, ok := events[4].(uv.KeyPressEvent)
+	if !ok || key.Text != "x" {
+		t.Fatalf("normal keyboard input after mouse packet was lost: %#v", events[4])
+	}
+}
+
+func TestConEmuPasteKeepsNewlinesAndCommandsInDraft(t *testing.T) {
+	text := "first\n/quit\nПривет 😀\n"
+	r := &consoleReader{}
+	for _, record := range conEmuSequenceRecords("\x1b[200~" + text + "\x1b[201~") {
+		r.encode(record)
+	}
+	events := decodeConsoleEvents(t, r.buffer.String())
+	pastes := 0
+	for _, event := range events {
+		switch e := event.(type) {
+		case uv.PasteStartEvent, uv.PasteEndEvent:
+		case uv.PasteEvent:
+			pastes++
+			if e.Content != text {
+				t.Fatalf("ConEmu paste changed: %q", e.Content)
+			}
+		default:
+			t.Fatalf("ConEmu paste became keyboard input: %T", event)
+		}
+	}
+	if pastes != 1 {
+		t.Fatalf("got %d pastes, want 1", pastes)
+	}
+}
 
 func nativeMouseRecord(x, y int16, buttonState, control, flags uint32) xwindows.InputRecord {
 	r := xwindows.InputRecord{EventType: xwindows.MOUSE_EVENT}
