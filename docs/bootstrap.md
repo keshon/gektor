@@ -42,10 +42,9 @@ reports should not be silently overridable by a string it never inspects.
 - `cmd`: executable entry points; `internal`: Go implementation.
 - `profiles`: small, versioned configuration examples; personal overrides stay private.
 - `scripts`: reproducible build operations.
-- `bin`: built application executables.
-- `lab`: experiments only; shipping code must have no dependency on it.
+- `gektor.exe` / `gektor`: the application executable in a release archive.
 
-Everything GEKTOR persists for the user -- preferences, sessions, missions,
+Everything GEKTOR persists for the user -- preferences, sessions,
 task state, spilled tool output -- lives under `.gektor` in the user's home
 directory. The repository is never written to except where the agent is
 working on it.

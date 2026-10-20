@@ -35,17 +35,13 @@ if "%GEKTOR_API_KEY%"=="" (
     exit /b 1
 )
 
-REM --- where go ---
-where go >nul 2>nul
-if errorlevel 1 (
-    echo ERROR: Go was not found. Install Go 1.26.10 or newer first.
-    exit /b 1
-)
+call scripts\ensure-build.cmd
+if errorlevel 1 exit /b %errorlevel%
 
 REM --- export keys so the Go client's APIKeyFromEnv() can pick them up ---
 set OPENROUTER_API_KEY=%GEKTOR_API_KEY%
 
 REM --- launch ---
 echo Starting GEKTOR stdio server (backend: %OPENAI_BACKEND%, model: %OPENAI_MODEL%)...
-go run ./cmd/gektor -serve -backend-kind openai -backend %OPENAI_BACKEND% -model %OPENAI_MODEL% -workspace %OPENAI_WORKSPACE% -yes
+.\gektor.exe -serve -backend-kind openai -backend %OPENAI_BACKEND% -model %OPENAI_MODEL% -workspace %OPENAI_WORKSPACE% -yes
 exit /b %errorlevel%

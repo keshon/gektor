@@ -12,7 +12,6 @@ Current guides:
 - [Conventions](conventions.md): enforced checks and coding practices.
 - [Eval guide](../eval/README.md): frozen probes and repeatable scoring.
 - [Agent skills](../skills/README.md): task-workspace guidance for the local model.
-- [Manual example task](example-task.md): landing-page acceptance criteria.
 
 The code is authoritative for behavior. Documentation checks cover registered
 CLI flags, referenced identifiers and convention tags; they do not prove that

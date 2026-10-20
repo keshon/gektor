@@ -31,8 +31,15 @@ and Linux checks configured in CI.
 
 ## Start with a local model
 
-Requirements: **Go 1.26.10+** and a running model server capable of following
-tool instructions. These commands assume llama.cpp at `127.0.0.1:8080`.
+Download a Windows or Linux archive from [Releases](https://github.com/keshon/gektor/releases)
+and extract it completely. Windows packages include `run-tui.cmd`, backend
+launchers and `.env.example`. Copy `.env.example` to `.env` to configure the
+backend launchers, or connect to an existing server through Settings → Model.
+The packaged binary does not require Go. On Linux, run `./gektor -tui`.
+
+To build from source, install **Go 1.26.10+**. A running model server capable
+of following tool instructions is required either way. These commands assume
+llama.cpp at `127.0.0.1:8080`.
 
 ```powershell
 git clone https://github.com/keshon/gektor.git
@@ -47,7 +54,7 @@ with the same flags and your workspace path.
 The binary connects to an existing server. On Windows, the optional
 `run-server-llama.cmd` helper starts one using `LLAMA_SERVER_EXE` and
 `LLAMA_MODEL` from a gitignored `.env` file; copy `.env.example` to get started.
-`run-tui.cmd` builds and launches the TUI with saved settings.
+`run-tui.cmd` launches the TUI with saved settings; source checkouts rebuild first.
 
 In the UI:
 

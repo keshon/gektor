@@ -28,11 +28,8 @@ echo Run run-resume.cmd without arguments to list saved tasks.
 exit /b 1
 
 :resume
-go build -o gektor.exe .\cmd\gektor
-if errorlevel 1 (
-    echo ERROR: build failed.
-    exit /b 1
-)
+call scripts\ensure-build.cmd
+if errorlevel 1 exit /b %errorlevel%
 
 .\gektor.exe -resume "%RESUME%" %2 %3 %4 %5 %6 %7 %8 %9
 exit /b %errorlevel%

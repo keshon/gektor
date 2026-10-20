@@ -18,11 +18,8 @@ if "%~1"=="" (
     exit /b 1
 )
 
-go build -o gektor.exe .\cmd\gektor
-if errorlevel 1 (
-    echo ERROR: build failed.
-    exit /b 1
-)
+call scripts\ensure-build.cmd
+if errorlevel 1 exit /b %errorlevel%
 
 .\gektor.exe %*
 exit /b %errorlevel%
