@@ -120,3 +120,8 @@ previews, capped at 48 KiB per call, followed by a limit notice if needed.
 Append chunks to the matching pending call; replace them with the authoritative
 `tool_result` when it arrives. Previews are not appended to model history.
 Output buffered inside a child process becomes visible only when it flushes.
+
+In-process sessions accept steering through `Session.Submit(text, images...)`.
+A `user_input` event acknowledges insertion into saved history and carries
+`text` and `images`. Inputs never split tool calls from their results. The
+stdio RPC API is unchanged; it does not yet expose a submit operation.

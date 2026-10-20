@@ -481,3 +481,61 @@ func TestSessionStreamsToolPreviewBeforeFinalResult(t *testing.T) {
 		t.Fatalf("events=%v previous=%v", observed, previous)
 	}
 }
+
+type steeringClient struct {
+	started chan struct{}
+	release chan struct{}
+	calls   int
+}
+
+func (c *steeringClient) Chat(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
+	c.calls++
+	if c.calls == 1 {
+		close(c.started)
+		select {
+		case <-c.release:
+		case <-ctx.Done():
+			return llm.ChatResponse{}, ctx.Err()
+		}
+	} else if req.Messages[len(req.Messages)-1].Content != "steer now" {
+		return llm.ChatResponse{}, fmt.Errorf("steering missing: %+v", req.Messages)
+	}
+	return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}}, nil
+}
+func TestSessionAcceptsMessagesDuringActiveModelRequest(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	client := &steeringClient{started: make(chan struct{}), release: make(chan struct{})}
+	var received []string
+	s, err := New(Config{Task: "task", Env: testEnv(t, client, nil), OnEvent: func(ev Event) {
+		if ev.Name == "user_input" {
+			received = append(received, ev.Fields["text"].(string))
+		}
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { _, err := s.Run(ctx); done <- err }()
+	select {
+	case <-client.started:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	if err := s.Submit("steer now", "image.png"); err != nil {
+		t.Fatal(err)
+	}
+	if s.PendingInputCount() != 1 {
+		t.Fatal("pending message not visible")
+	}
+	close(client.release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if client.calls != 2 || strings.Join(received, "|") != "steer now" || s.PendingInputCount() != 0 {
+		t.Fatalf("calls=%d received=%v pending=%d", client.calls, received, s.PendingInputCount())
+	}
+	if err := s.Submit("too late"); err != agent.ErrInputClosed {
+		t.Fatalf("late submit=%v", err)
+	}
+}

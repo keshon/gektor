@@ -458,3 +458,10 @@ func (m *model) startFreshPrompt(task, display string, images []string) error {
 	})
 	return nil
 }
+
+func (m *model) pendingInputCount() int {
+	if m.sess == nil {
+		return 0
+	}
+	return m.sess.PendingInputCount()
+}

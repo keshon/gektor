@@ -54,6 +54,7 @@ type Config struct {
 type Session struct {
 	cfg         Config
 	askerBudget *agent.Asker
+	inbox       agent.Inbox
 }
 
 // New validates the config without running anything.
@@ -83,6 +84,14 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, rol
 	askFn := s.asker(ctx)
 
 	env := s.cfg.Env
+	env.Inbox = &s.inbox
+	previousInput := env.OnInput
+	env.OnInput = func(input llm.Message) {
+		emitter.Emit("user_input", map[string]any{"text": input.Content, "images": input.Images})
+		if previousInput != nil {
+			previousInput(input)
+		}
+	}
 	// A local server may load different weights between turns. Probe before
 	// building the agent so the display and enforced budget use the same facts.
 	if server, ok := env.Client.(*llm.Server); ok && env.BackendKind != "openai" {
@@ -299,3 +308,8 @@ func EmitUsage(emitter *events.Emitter, step int, usage llm.Usage) {
 		"estimated":  usage.Estimated,
 	})
 }
+
+// Submit queues steering for the next complete model/tool boundary.
+// ErrInputClosed means the caller should start a follow-up turn instead.
+func (s *Session) Submit(text string, images ...string) error { return s.inbox.Send(text, images...) }
+func (s *Session) PendingInputCount() int                     { return s.inbox.Len() }

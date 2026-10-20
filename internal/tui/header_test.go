@@ -376,3 +376,17 @@ func TestKeyboardNavigationSkipsViewSeparator(t *testing.T) {
 		m.header.row = m.headerActionRow(m.header.row+1, 1)
 	}
 }
+
+func TestAboutMenuAndCommandShareContent(t *testing.T) {
+	m := sizeModel(t, testModel())
+	m.command("/about")
+	expected := strings.Join(m.dialog.lines, "\n")
+	m.closeDialog()
+	m.header.focused = true
+	m.header.menu = "help"
+	m.header.row = 2
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if m.dialog == nil || m.dialog.title != "GEKTOR" || strings.Join(m.dialog.lines, "\n") != expected {
+		t.Fatalf("About menu and command disagree: %+v", m.dialog)
+	}
+}

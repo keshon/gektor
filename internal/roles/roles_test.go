@@ -426,3 +426,36 @@ func TestModeSwitchWirePrefixAcrossProviders(t *testing.T) {
 		})
 	}
 }
+
+type subagentBudgetClient struct{ history []llm.Message }
+
+func (c *subagentBudgetClient) Chat(_ context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
+	c.history = req.Messages
+	return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}}, nil
+}
+func TestSubagentKeepsOwnBudgetAndDoesNotConsumeParentSteering(t *testing.T) {
+	env := testEnv(t)
+	client := &subagentBudgetClient{}
+	env.Client = client
+	env.MaxSteps = 999999
+	env.Inbox = &agent.Inbox{}
+	if err := env.Inbox.Send("parent-only steering"); err != nil {
+		t.Fatal(err)
+	}
+	env.OnInput = func(llm.Message) { t.Error("subagent inherited parent input hook") }
+	sub := Subagent(env, "")
+	if _, err := sub.Run(t.Context(), "subtask"); err != nil {
+		t.Fatal(err)
+	}
+	if sub.Report().MaxSteps != 12 || env.Inbox.Len() != 1 {
+		t.Fatalf("budget=%d pending=%d", sub.Report().MaxSteps, env.Inbox.Len())
+	}
+	if !strings.Contains(client.history[0].Content, "Your budget is 12 model steps") {
+		t.Fatal("subagent cannot see its budget")
+	}
+	for _, msg := range client.history {
+		if strings.Contains(msg.Content, "parent-only steering") {
+			t.Fatal("subagent consumed parent inbox")
+		}
+	}
+}

@@ -552,3 +552,12 @@ Reusable form, composer, list-selection and transcript viewport models live unde
 and handles effects; components own their local editing/selection/scroll state.
 Session indexing lives in `the TUI itself`, independently of terminal
 rendering. See [TUI ownership](tui-ownership.md) for enforced boundaries and limits.
+
+While the agent is running, Enter sends ordinary text to the current run.
+Messages wait until the current model/tool step completes, then enter history
+in submission order, including resolved file references and images. A pending
+count stays visible until delivery. This does not reset the step budget or
+interrupt a tool. Commands that replace the session or change run settings
+still wait for the run to finish. Messages received during cancellation or
+failure are saved in history for an explicit retry. A message racing normal
+completion uses the existing follow-up queue instead.

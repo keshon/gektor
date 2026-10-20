@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"github.com/keshon/gektor/internal/run"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -98,4 +100,22 @@ func runningModel(t *testing.T) *model {
 
 func (m *model) handleEnter() {
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+}
+
+func TestRunningInputSubmitsSeveralMessagesWithoutWaitingForCompletion(t *testing.T) {
+	m := runningModel(t)
+	m.sess = &run.Session{}
+	for _, text := range []string{"first update", "second update"} {
+		m.input.SetValue(text)
+		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+		if m.input.Value() != "" || m.queued != "" {
+			t.Fatal("message remained in the completion queue")
+		}
+	}
+	if m.pendingInputCount() != 2 {
+		t.Fatalf("pending=%d", m.pendingInputCount())
+	}
+	if !strings.Contains(m.View().Content, "Sent: 2") {
+		t.Fatal("pending messages have no visible feedback")
+	}
 }

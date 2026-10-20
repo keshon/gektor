@@ -69,6 +69,9 @@ func (m *model) screenContent() string {
 	if m.queued != "" && m.dialog == nil && m.state != stPermission && m.state != stAsk {
 		bottom = cellLine("Queued  Ctrl+E edit  Ctrl+X cancel: "+m.queued, m.transcript.Viewport.Width()) + "\n" + bottom
 	}
+	if count := m.pendingInputCount(); count > 0 && m.dialog == nil && m.state != stPermission && m.state != stAsk {
+		bottom = cellLine(fmt.Sprintf("Sent: %d · waiting for the agent", count), m.transcript.Viewport.Width()) + "\n" + bottom
+	}
 	bottom = cellFrame(bottom, m.transcript.Viewport.Width(), lipgloss.Height(bottom))
 	conversation := body + gap + "\n" + m.dividerLine() + "\n" + cellLine(m.statusLine(), m.transcript.Viewport.Width()) + "\n" + bottom
 	conversation = cellFrame(conversation, m.transcript.Viewport.Width(), m.paneHeight())

@@ -15,9 +15,14 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 	var st runState
 	a.LastRunMutations = 0
 	a.report = RunReport{MaxSteps: a.cfg.MaxSteps}
+	a.cfg.Inbox.start()
 	history = a.withDirective(history)
 	a.saveState(history)
 	defer func() {
+		// Even when cancelled or failed, retain accepted steering for retry.
+		if pending := a.cfg.Inbox.stop(); len(pending) > 0 {
+			history = a.acceptInputs(a.snapshot.Context(), pending, &st)
+		}
 		if runErr == nil {
 			runErr = ctx.Err()
 		}
@@ -73,6 +78,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
+		history = a.acceptInputs(history, a.cfg.Inbox.take(false), &st)
 		req := llm.ChatRequest{
 			Messages: history,
 			Tools:    a.cfg.Tools.Defs(),
@@ -119,18 +125,43 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 			out := a.handleFinish(&st, resp, leakedText, history)
 			history = out.history
 			if out.done {
+				if out.err == nil {
+					if pending := a.cfg.Inbox.take(true); len(pending) > 0 {
+						history = a.acceptInputs(history, pending, &st)
+						a.report.Final = ""
+						continue
+					}
+				}
 				return out.answer, out.err
 			}
 			a.saveState(history)
 			continue
 		}
 		history = a.executeToolCalls(ctx, &st, step, resp.FinishReason, resp.Message.ToolCalls, history)
+		if remaining := a.cfg.MaxSteps - step - 1; remaining == 2 {
+			history = a.nudge(history, "step_limit", "2 model steps remain in this run, including the final answer. Finish the task or report concrete progress and remaining work.")
+		}
 		a.saveState(history)
+		if a.cfg.Inbox.Len() > 0 {
+			continue
+		}
 		if st.repeatCount >= maxRepeatedSteps {
 			from := step - st.repeatCount + 1
 			a.report.Warnings = append(a.report.Warnings, fmt.Sprintf(
 				"steps %d-%d issued identical tool calls; answered without tools", from, step))
-			return a.forceAnswer(ctx, &st, step, history, from)
+			answer, err := a.forceAnswer(ctx, &st, step, history, from)
+			if err == nil && a.cfg.Inbox != nil {
+				// The tool-free answer is also an in-flight model request.
+				// It must observe the same completion boundary as normal answers.
+				history = a.snapshot.Context()
+				if pending := a.cfg.Inbox.take(true); len(pending) > 0 {
+					history = a.acceptInputs(history, pending, &st)
+					a.report.Final = ""
+					step++ // forceAnswer used an additional model round-trip.
+					continue
+				}
+			}
+			return answer, err
 		}
 	}
 

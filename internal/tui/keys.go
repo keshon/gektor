@@ -2,6 +2,8 @@ package tui
 
 import (
 	tea "charm.land/bubbletea/v2"
+	"errors"
+	"github.com/keshon/gektor/internal/agent"
 	"strings"
 )
 
@@ -273,6 +275,24 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				m.fitInput()
 				m.fitBottom()
 				return m.command(text)
+			}
+			if !strings.HasPrefix(text, "/") && m.sess != nil {
+				resolved, images, err := splitAttachments(m.ws, text)
+				if err == nil {
+					err = m.sess.Submit(resolved, images...)
+				}
+				if err == nil {
+					m.input.Push(text)
+					m.input.SetValue("")
+					m.fitInput()
+					m.fitBottom()
+					return m, nil
+				}
+				if !errors.Is(err, agent.ErrInputClosed) {
+					m.appendBlock(errorBlock("Cannot send message: " + err.Error()))
+					return m, nil
+				}
+				// Completion raced this key: preserve the existing follow-up path.
 			}
 			if m.queued != "" {
 				m.appendBlock(markerBlock("a follow-up is already queued"))

@@ -11,6 +11,7 @@ package roles
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 
 	"github.com/keshon/gektor/internal/agent"
@@ -23,9 +24,8 @@ import (
 )
 
 const (
-	// subagentSteps bounds one delegated unit of work. Lower than a
-	// top-level agent's budget by design: a subagent that needs more than
-	// this was handed a task too big to delegate.
+	// subagentSteps bounds one delegated unit independently of the parent's
+	// limit, including when the parent has an unlimited budget.
 	subagentSteps = 12
 )
 
@@ -51,6 +51,8 @@ type Env struct {
 	Stream bool
 
 	MaxSteps int
+	Inbox    *agent.Inbox
+	OnInput  func(llm.Message)
 
 	// MCPTools are discovered MCP tools appended to the full tool set
 	// (Interactive, Subagent). Planner advertises them too, so that its
@@ -167,6 +169,8 @@ func (e Env) agentConfig(system, label, stateFile string) agent.Config {
 	return agent.Config{
 		BeginChanges:   e.WS.ChangeObserver,
 		Client:         e.Client,
+		Inbox:          e.Inbox,
+		OnInput:        e.OnInput,
 		System:         system + e.WS.Instructions() + "\n\n" + e.Identity,
 		MaxTokens:      e.MaxTokens,
 		Temperature:    e.Temperature,
@@ -211,6 +215,8 @@ func Subagent(e Env, role string) *agent.Agent {
 	cfg := e.agentConfig(prompts.WithRole(role)+"\n\n"+prompts.SubagentScope+"\n\n"+prompts.PlatformLine(), "", "")
 	cfg.Tools = tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.MCPTools...)
 	cfg.MaxSteps = subagentSteps
+	cfg.System += fmt.Sprintf("\n\nYour budget is %d model steps, including your final answer. Keep the subtask focused and report unfinished work honestly.", subagentSteps)
+	cfg.Inbox, cfg.OnInput = nil, nil
 	cfg.OnStep, cfg.OnResult, cfg.OnUsage, cfg.OnNudge = nil, nil, nil, nil
 	cfg.OnToolOutput = nil
 	cfg.OnProgress = nil

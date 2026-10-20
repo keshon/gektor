@@ -101,7 +101,7 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		m.revealLive()
 		return m, nil
 	case eventMsg:
-		if m.state != stStopping || msg.Name == "tool_result" || msg.Name == "tool_output" || msg.Name == "outcome" || msg.Name == "usage" || msg.Name == "finding" {
+		if m.state != stStopping || msg.Name == "tool_result" || msg.Name == "tool_output" || msg.Name == "user_input" || msg.Name == "outcome" || msg.Name == "usage" || msg.Name == "finding" {
 			m.handleEvent(run.Event(msg))
 		}
 		return m, waitEvents(m)
@@ -256,6 +256,9 @@ func (m *model) fitBottom() {
 	if m.queued != "" && m.state != stPermission && m.state != stAsk {
 		lines++
 	}
+	if m.pendingInputCount() > 0 && m.state != stPermission && m.state != stAsk {
+		lines++
+	}
 	if m.dialog != nil {
 		lines = 1
 	}
@@ -365,6 +368,17 @@ func (m *model) handleEvent(ev run.Event) {
 				m.appendBlock(toolCardBlock(id, name+" "+truncate(args, 120)))
 			}
 		}
+	case "user_input":
+		text, _ := ev.Fields["text"].(string)
+		var images []string
+		imageValues, _ := ev.Fields["images"].([]any)
+		for _, raw := range imageValues {
+			if path, ok := raw.(string); ok {
+				images = append(images, path)
+			}
+		}
+		m.appendBlock(userBlock(displayInputContent(text) + imageSuffix(images)))
+		m.fitBottom()
 	case "tool_output":
 		text, _ := ev.Fields["text"].(string)
 		callID, _ := ev.Fields["call_id"].(string)

@@ -12,6 +12,8 @@ import (
 type Config struct {
 	BeginChanges  func(context.Context) (func() ([]string, error), error)
 	Client        llm.Client
+	Inbox         *Inbox
+	OnInput       func(llm.Message)
 	Tools         *Registry
 	System        string
 	MaxSteps      int

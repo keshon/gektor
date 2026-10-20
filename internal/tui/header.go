@@ -321,8 +321,7 @@ func (m *model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				m.openTheme()
 				return m, nil
 			case "about":
-				m.openDialog("About", []string{"Local coding assistant", "Go · Bubble Tea"})
-				return m, nil
+				return m.command("/about")
 			case "application":
 				m.openApplication()
 				return m, nil
