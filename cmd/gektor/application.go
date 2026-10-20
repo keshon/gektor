@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 
 	"github.com/keshon/gektor/internal/config"
-	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/gektor"
+	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/tui"
 )
 

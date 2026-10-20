@@ -11,9 +11,9 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/session"
-	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/workspace"
 )
 

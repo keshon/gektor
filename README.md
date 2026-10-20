@@ -31,7 +31,7 @@ and Linux checks configured in CI.
 
 ## Start with a local model
 
-Requirements: **Go 1.26.6+** and a running model server capable of following
+Requirements: **Go 1.26.10+** and a running model server capable of following
 tool instructions. These commands assume llama.cpp at `127.0.0.1:8080`.
 
 ```powershell

@@ -159,8 +159,10 @@ func splitAttachments(ws *workspace.Workspace, text string) (string, []string, e
 		if total > maxTurnReferenceBytes {
 			return "", nil, fmt.Errorf("file references exceed 64 KiB for this message")
 		}
-		rel, _ := filepath.Rel(ws.Root(), full)
-		files = append(files, "Workspace file "+strconv.Quote(filepath.ToSlash(rel))+" (attached content):\n"+string(data))
+		// Keep the validated reference spelling. Resolving junctions or
+		// symlinks can give full a different root than ws.Root().
+		label := filepath.ToSlash(filepath.Clean(raw[1:]))
+		files = append(files, "Workspace file "+strconv.Quote(label)+" (attached content):\n"+string(data))
 		seen[full] = true
 	}
 	clean := text

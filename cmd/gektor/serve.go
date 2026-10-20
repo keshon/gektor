@@ -26,10 +26,10 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/audit"
 	"github.com/keshon/gektor/internal/events"
+	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/run"
-	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/workspace"
 )

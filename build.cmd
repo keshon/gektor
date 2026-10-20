@@ -44,7 +44,7 @@ if "%MODE%"=="" set MODE=build
 
 where go >nul 2>nul
 if errorlevel 1 (
-    echo ERROR: Go was not found. Install Go 1.26.6 or newer first.
+    echo ERROR: Go was not found. Install Go 1.26.10 or newer first.
     exit /b 1
 )
 

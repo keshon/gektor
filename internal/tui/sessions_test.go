@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -688,4 +689,31 @@ func finishSessionRefresh(t *testing.T, m *model) {
 		m.Update(msg)
 	}
 	execute(m.takeCommands())
+}
+
+func TestSplitAttachmentsThroughWorkspaceAlias(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "notes.txt"), []byte("aliased file"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(t.TempDir(), "workspace")
+	if err := os.Symlink(root, alias); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skipf("directory symlinks unavailable: %v", err)
+		}
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Remove(alias); err != nil {
+			t.Error(err)
+		}
+	})
+	ws, err := workspace.New(alias)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, _, err := splitAttachments(ws, "read @notes.txt")
+	if err != nil || !strings.Contains(text, "Workspace file \"notes.txt\"") || !strings.Contains(text, "aliased file") {
+		t.Fatalf("invalid reference through alias: %q %v", text, err)
+	}
 }
