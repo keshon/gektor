@@ -5,7 +5,10 @@ package tui
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
+	"strings"
 	"testing"
+	"testing/iotest"
 	"unicode/utf16"
 
 	uv "github.com/charmbracelet/ultraviolet"
@@ -52,6 +55,34 @@ func TestConEmuMousePacketsDoNotBecomeText(t *testing.T) {
 	key, ok := events[4].(uv.KeyPressEvent)
 	if !ok || key.Text != "x" {
 		t.Fatalf("normal keyboard input after mouse packet was lost: %#v", events[4])
+	}
+}
+
+func TestUnmarkedVTKeysAndMouseDoNotBecomeText(t *testing.T) {
+	r := &consoleReader{}
+	for _, packet := range []string{"\x1b[<0;29;1M", "\x1b[<3;29;1m", "\x1bOP", "\x1bOQ", "\x1bOR", "\t", "\x1b[A"} {
+		for _, record := range conEmuSequenceRecords(packet) {
+			// Some ConEmu paths deliver the translated character key pairs
+			// without the scan-code markers. Include releases between every
+			// character, exactly where a serialized keyup can break CSI/SS3.
+			binary.LittleEndian.PutUint16(record.Event[8:10], 0)
+			r.encode(record)
+		}
+	}
+	for _, input := range []io.Reader{strings.NewReader(r.buffer.String()), iotest.OneByteReader(strings.NewReader(r.buffer.String()))} {
+		events := readConsoleEvents(t, input)
+		if len(events) != 7 {
+			t.Fatalf("VT packets leaked into input: got %d events, want 7", len(events))
+		}
+		if mouseKind(events[0]) != "click" || mouseKind(events[1]) != "release" {
+			t.Fatalf("mouse packets were not decoded: %#v", events[:2])
+		}
+		for i, want := range []string{"f1", "f2", "f3", "tab", "up"} {
+			key, ok := events[i+2].(uv.KeyPressEvent)
+			if !ok || key.String() != want || key.Text != "" {
+				t.Fatalf("VT key %d: got %#v, want %s without text", i, events[i+2], want)
+			}
+		}
 	}
 }
 

@@ -32,10 +32,15 @@ func nativeKeyRecord(vk, char uint16, modifiers uint32) xwindows.InputRecord {
 
 func decodeConsoleEvents(t *testing.T, input string) []uv.Event {
 	t.Helper()
+	return readConsoleEvents(t, strings.NewReader(input))
+}
+
+func readConsoleEvents(t *testing.T, input io.Reader) []uv.Event {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	events := make(chan uv.Event, 64)
-	reader := uv.NewTerminalReader(strings.NewReader(input), "")
+	reader := uv.NewTerminalReader(input, "")
 	done := make(chan error, 1)
 	go func() {
 		done <- reader.StreamEvents(ctx, events)
@@ -93,6 +98,28 @@ func TestNativeConsoleDecodesPastedSurrogatePair(t *testing.T) {
 	key, ok := events[0].(uv.KeyPressEvent)
 	if !ok || key.Text != "😀" {
 		t.Fatalf("emoji corrupted: %#v", events)
+	}
+}
+
+func TestNativeNonTextAndModifiedEditingKeysKeepModifiers(t *testing.T) {
+	r := &consoleReader{}
+	for _, record := range []xwindows.InputRecord{
+		nativeKeyRecord(xwindows.VK_F1, 0, 0),
+		nativeKeyRecord(xwindows.VK_UP, 0, xwindows.LEFT_ALT_PRESSED),
+		nativeKeyRecord(xwindows.VK_TAB, '\t', xwindows.SHIFT_PRESSED),
+		nativeKeyRecord(xwindows.VK_RETURN, '\r', xwindows.LEFT_CTRL_PRESSED),
+	} {
+		r.encode(record)
+	}
+	events := decodeConsoleEvents(t, r.buffer.String())
+	if len(events) != 4 {
+		t.Fatalf("unexpected native keys: %#v", events)
+	}
+	for i, want := range []string{"f1", "alt+up", "shift+tab", "ctrl+enter"} {
+		key, ok := events[i].(uv.KeyPressEvent)
+		if !ok || key.String() != want {
+			t.Fatalf("key %d: got %#v, want %s", i, events[i], want)
+		}
 	}
 }
 

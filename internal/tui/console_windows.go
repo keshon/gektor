@@ -19,8 +19,8 @@ import (
 )
 
 // Keep console mouse records while allowing Windows to deliver bracketed paste.
-// VT packets pass through as characters; native keys retain their modifiers
-// when the host supplies them. Ctrl+O adds a newline even with legacy VT keys.
+// VT characters pass through as one stream regardless of their virtual keys.
+// Native non-text keys retain modifiers. Ctrl+O is the portable newline key.
 func consoleInput(ctx context.Context) ([]tea.ProgramOption, func(), error) {
 	handle := windows.Handle(os.Stdin.Fd())
 	var original uint32
@@ -61,13 +61,12 @@ func nativeConsoleMode(original uint32) uint32 {
 }
 
 type consoleReader struct {
-	ctx            context.Context
-	handle         windows.Handle
-	buffer         bytes.Buffer
-	mouseState     uint32
-	highSurrogate  uint16
-	conEmuSequence bool
-	width, height  int
+	ctx           context.Context
+	handle        windows.Handle
+	buffer        bytes.Buffer
+	mouseState    uint32
+	highSurrogate uint16
+	width, height int
 }
 
 func (r *consoleReader) Read(p []byte) (int, error) {
@@ -109,35 +108,26 @@ func (r *consoleReader) encode(record xwindows.InputRecord) {
 	switch record.EventType {
 	case xwindows.KEY_EVENT:
 		e := record.KeyEvent()
-		// ConEmu PostString marks the first keydown and last keyup of an
-		// XTerm packet with scan code 255. The packet's characters may have
-		// nonzero virtual keys, so vk==0 alone does not identify VT input.
-		if e.VirtualScanCode == 255 {
-			if e.KeyDown && e.Char == '\x1b' {
-				r.conEmuSequence = true
-			} else if !e.KeyDown && r.conEmuSequence {
-				r.conEmuSequence = false
-				return
-			}
+		// A VT character stream has no key releases. Serializing native
+		// keyups between its characters breaks escape sequences into text.
+		if !e.KeyDown {
+			return
 		}
-		if r.conEmuSequence || e.VirtualKeyCode == 0 && e.KeyDown {
-			// VT packets already arrive as Unicode characters. Wrapping them
-			// in another Win32 packet nests the protocol and breaks paste.
-			if e.KeyDown {
-				for range max(1, int(e.RepeatCount)) {
-					r.encodeCharacter(uint16(e.Char))
-				}
+		modifiedEditingKey := (e.VirtualKeyCode == xwindows.VK_RETURN || e.VirtualKeyCode == xwindows.VK_TAB) &&
+			e.ControlKeyState&(xwindows.SHIFT_PRESSED|xwindows.LEFT_ALT_PRESSED|xwindows.RIGHT_ALT_PRESSED|
+				xwindows.LEFT_CTRL_PRESSED|xwindows.RIGHT_CTRL_PRESSED) != 0
+		if e.Char != 0 && !modifiedEditingKey {
+			// ConEmu can assign ordinary virtual keys to every byte of a VT
+			// packet without retaining sequence markers. Decode the character
+			// stream itself instead of wrapping it in Win32 input packets.
+			for range max(1, int(e.RepeatCount)) {
+				r.encodeCharacter(uint16(e.Char))
 			}
 			return
 		}
-		down := 0
-		if e.KeyDown {
-			down = 1
-		}
-		// Encoding UTF-16 units as records lets the existing decoder join
-		// surrogate pairs, including pasted emoji and terminal escape packets.
-		fmt.Fprintf(&r.buffer, "\x1b[%d;%d;%d;%d;%d;%d_", e.VirtualKeyCode,
-			e.VirtualScanCode, e.Char, down, e.ControlKeyState, e.RepeatCount)
+		// Native function/navigation keys can still arrive without text.
+		fmt.Fprintf(&r.buffer, "\x1b[%d;%d;%d;1;%d;%d_", e.VirtualKeyCode,
+			e.VirtualScanCode, e.Char, e.ControlKeyState, e.RepeatCount)
 	case xwindows.WINDOW_BUFFER_SIZE_EVENT:
 		// A console buffer can include thousands of scrollback rows. Layout
 		// follows the visible window, not that buffer; using the latter can
