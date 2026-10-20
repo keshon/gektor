@@ -9,8 +9,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/events"
-	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/gektor/internal/events"
+	"github.com/keshon/gektor/internal/llm"
 )
 
 func TestHeaderMenusPreserveDraftAndFrame(t *testing.T) {

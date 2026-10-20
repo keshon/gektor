@@ -13,13 +13,13 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/keshon/tars/internal/session"
-	"github.com/keshon/tars/internal/tui/components/composer"
+	"github.com/keshon/gektor/internal/session"
+	"github.com/keshon/gektor/internal/tui/components/composer"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // followUp sends a non-empty input line as a resumed turn;
@@ -396,7 +396,7 @@ func (m *model) compactNow() (tea.Model, tea.Cmd) {
 // taskDirectory decides where an Agent task's files live. A task keeps the
 // directory it is resuming, so reopening a session does not relocate it.
 // Task state belongs to the user, not the workspace: the same directory
-// has to be found whichever directory TARS was pointed at.
+// has to be found whichever directory GEKTOR was pointed at.
 func (m *model) taskDirectory(taskID string) string {
 	if m.application != nil {
 		if m.stateFile != "" && m.sess == nil {

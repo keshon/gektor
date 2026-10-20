@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 func testWS(t *testing.T) (*workspace.Workspace, string) {

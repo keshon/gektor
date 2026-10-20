@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/tui/components/cell"
+	"github.com/keshon/gektor/internal/tui/components/cell"
 )
 
 func (f *Model) Mouse(msg tea.MouseMsg, props Props) (Intent, tea.Cmd) {

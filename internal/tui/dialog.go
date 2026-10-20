@@ -7,8 +7,8 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/tui/components/popup"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/tui/components/popup"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // wsRootOf names the workspace root, empty when none (unit models
@@ -56,14 +56,40 @@ func (m *model) closeDialog() {
 // dialogView renders the open dialog centered in the viewport area:
 // title, body, close hint. Widths are clamped to the viewport; heights
 // are top-padded to center, the viewport clips the rest.
+type dialogLayout struct {
+	rows, lines                    []string
+	hint                           string
+	inner, capacity, width, height int
+}
+
 func (m *model) dialogView() string {
 	if m.dialog.form != nil {
 		return m.formView()
 	}
-	// Render from a copy: the offset clamp below normalizes a local, so a
-	// frame never writes scroll state back onto the model.
-	state := *m.dialog
-	d := &state
+	layout := m.layoutDialog()
+	offset := min(max(m.dialog.offset, 0), max(len(layout.lines)-layout.capacity, 0))
+	rows := layout.rows
+	for _, line := range layout.lines[offset:min(offset+layout.capacity, len(layout.lines))] {
+		rows = append(rows, cellLine(line, layout.inner))
+	}
+	rows = append(rows, "")
+	if len(layout.lines) > layout.capacity {
+		rows = append(rows, m.styles.dim.Render(strconv.Itoa(offset+1)+"–"+strconv.Itoa(min(offset+layout.capacity, len(layout.lines)))+" / "+strconv.Itoa(len(layout.lines))))
+	}
+	rows = append(rows, m.styles.dim.Render(truncate(layout.hint, layout.inner)))
+	return renderBox(rows, layout.width, layout.height)
+}
+
+func (m *model) scrollDialog(delta int) {
+	if m.dialog == nil || m.dialog.form != nil {
+		return
+	}
+	layout := m.layoutDialog()
+	m.dialog.offset = min(max(m.dialog.offset+delta, 0), max(len(layout.lines)-layout.capacity, 0))
+}
+
+func (m *model) layoutDialog() dialogLayout {
+	d := m.dialog
 	availW, availH := m.termW, m.termH-3
 	if m.ready {
 		availW, availH = m.transcript.Viewport.Width(), m.transcript.Viewport.Height()
@@ -80,20 +106,12 @@ func (m *model) dialogView() string {
 	}
 	hint := "Esc / Enter close"
 	if d.help {
-		sections := m.helpSections()
-		if d.title == "Keyboard shortcuts" || d.title == "Commands" {
-			filtered := []helpSection{}
-			for _, section := range sections {
-				if (section.title == "Commands") == (d.title == "Commands") {
-					filtered = append(filtered, section)
-				}
-			}
-			sections = filtered
-		}
+		sections := m.dialogHelpSections()
+		page := min(max(d.page, 0), len(sections)-1)
 		tabs := make([]string, len(sections))
 		for i, section := range sections {
 			label := section.title
-			if i == d.page {
+			if i == page {
 				label = m.styles.gate.Render("[" + label + "]")
 			} else {
 				label = m.styles.dim.Render(label)
@@ -104,20 +122,16 @@ func (m *model) dialogView() string {
 		if availH >= 10 {
 			rows = append(rows, "")
 		}
-		lines = m.helpRows(sections[d.page], inner)
+		lines = m.helpRows(sections[page], inner)
 		hint = "Tab / ← → category   ↑ ↓ scroll   Esc close"
 	}
 	capacity := max(availH-2-len(rows)-3, 1)
-	d.offset = min(max(d.offset, 0), max(len(lines)-capacity, 0))
-	for _, ln := range lines[d.offset:min(d.offset+capacity, len(lines))] {
-		rows = append(rows, cellLine(ln, inner))
-	}
-	rows = append(rows, "")
+	// Reserve an extra row for the scroll-position indicator when needed.
 	if len(lines) > capacity {
-		rows = append(rows, m.styles.dim.Render(strconv.Itoa(d.offset+1)+"–"+strconv.Itoa(min(d.offset+capacity, len(lines)))+" / "+strconv.Itoa(len(lines))))
+		capacity = max(capacity-1, 1)
 	}
-	rows = append(rows, m.styles.dim.Render(truncate(hint, inner)))
-	return renderBox(rows, availW, availH)
+	return dialogLayout{rows: rows, lines: lines, hint: hint, inner: inner,
+		capacity: capacity, width: availW, height: availH}
 }
 
 // renderBox centers rows in a bordered box: shared by the dialog and
@@ -294,6 +308,21 @@ func kvRows(rows []string) []string {
 		out[i] = cellLine(label, w) + rest
 	}
 	return out
+}
+
+// dialogHelpSections is shared by category navigation and rendering.
+func (m *model) dialogHelpSections() []helpSection {
+	sections := m.helpSections()
+	if m.dialog.title != "Keyboard shortcuts" && m.dialog.title != "Commands" {
+		return sections
+	}
+	filtered := make([]helpSection, 0, len(sections))
+	for _, section := range sections {
+		if (section.title == "Commands") == (m.dialog.title == "Commands") {
+			filtered = append(filtered, section)
+		}
+	}
+	return filtered
 }
 
 func (m *model) helpSections() []helpSection {

@@ -7,7 +7,7 @@ The runner supplies a throwaway workspace and any declared Git seed or replies.
 
 **Run (repo root, needs `go` installed):**
 ```bash
-go run ./cmd/agent -log-max 300 \
+go run ./cmd/gektor -log-max 300 \
   "start a tiny HTTP server on :9876 that serves \"ok\" and verify it works"
 ```
 

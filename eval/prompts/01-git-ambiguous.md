@@ -7,7 +7,7 @@ The runner supplies a throwaway workspace and any declared Git seed or replies.
 
 **Run:**
 ```bash
-go run ./cmd/agent -log-max 300 \
+go run ./cmd/gektor -log-max 300 \
   "scan .git dir and form a list of all commits in a readable form"
 ```
 

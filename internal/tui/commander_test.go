@@ -55,7 +55,7 @@ func TestCommanderMenuClickPreservesDraftAndGate(t *testing.T) {
 
 // Optional export uses the real frame renderer with fixture content, no model.
 func TestCommanderPreview(t *testing.T) {
-	dir := os.Getenv("TARS_TUI_PREVIEW_DIR")
+	dir := os.Getenv("GEKTOR_TUI_PREVIEW_DIR")
 	if dir == "" {
 		t.Skip("preview export opt-in")
 	}
@@ -106,7 +106,7 @@ func TestGlobalDropdownNavigationAndSettings(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	line := ansi.Strip(m.menuLine())
-	if strings.Contains(line, "TARS") || strings.Contains(line, "F1") || !strings.Contains(line, "Settings") {
+	if strings.Contains(line, "GEKTOR") || strings.Contains(line, "F1") || !strings.Contains(line, "Settings") {
 		t.Fatal(line)
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF9})

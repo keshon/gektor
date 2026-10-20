@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // PatchFile replaces one exact occurrence of old_content with new_content

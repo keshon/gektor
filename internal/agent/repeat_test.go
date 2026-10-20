@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/gektor/internal/llm"
 )
 
 // repeatingReadTool is a pure read: Concurrent, declaring itself idempotent.

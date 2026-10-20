@@ -9,10 +9,10 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/run"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/run"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // writeSessionState stores a history as state.json in root/<id>/,
@@ -45,7 +45,7 @@ func userHistory(tasks ...string) []llm.Message {
 // chdirSessions points the relative tasks root at tmp: sessions code
 // resolves like the CLI (cwd-joined), so tests relocate cwd instead.
 // sessionsRootFor points the session library at a throwaway directory and
-// returns it. Sessions live in the user's TARS directory, so a test that
+// returns it. Sessions live in the user's GEKTOR directory, so a test that
 // creates or opens them must redirect both the path and the scanner --
 // writing to the real one would pollute the developer's own sessions.
 func sessionsRootFor(t *testing.T, base string) string {
@@ -61,13 +61,13 @@ func sessionsRootFor(t *testing.T, base string) string {
 }
 
 // chdirSessions redirects the session library into a temporary tree and
-// chdirs into it, so the relative ".tars/tasks" paths these tests use
-// resolve there. Sessions live in the user's TARS directory, which a test
+// chdirs into it, so the relative ".gektor/tasks" paths these tests use
+// resolve there. Sessions live in the user's GEKTOR directory, which a test
 // must never write to.
 func chdirSessions(t *testing.T, tmp string) string {
 	t.Helper()
 	t.Chdir(tmp)
-	root := filepath.Join(".tars", "tasks")
+	root := filepath.Join(".gektor", "tasks")
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func listSessionsIn(root string) []sessionEntry {
 func TestListSessions_TitlesAndOrder(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
-	tasks := filepath.Join(".tars", "tasks")
+	tasks := filepath.Join(".gektor", "tasks")
 	writeSessionState(t, tasks, "aaa", userHistory("fix the login bug"))
 	oldDir := writeSessionState(t, tasks, "bbb", userHistory("add dark mode"))
 	// bbb is older: newest-first must put aaa on top regardless of id.
@@ -117,7 +117,7 @@ func TestListSessions_TitlesAndOrder(t *testing.T) {
 func TestListSessions_TitleFileOverridesCorruptSurvives(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
-	tasks := filepath.Join(".tars", "tasks")
+	tasks := filepath.Join(".gektor", "tasks")
 	dir := writeSessionState(t, tasks, "aaa", userHistory("original task text"))
 	if err := os.WriteFile(filepath.Join(dir, "title"), []byte("my label\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -164,7 +164,7 @@ func sessionsTestModel(t *testing.T, entries []sessionEntry) *model {
 func TestSessions_RenameWritesTitleFile(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
-	dir := writeSessionState(t, filepath.Join(".tars", "tasks"), "aaa", userHistory("original text"))
+	dir := writeSessionState(t, filepath.Join(".gektor", "tasks"), "aaa", userHistory("original text"))
 	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
@@ -193,7 +193,7 @@ func TestSessions_RenameWritesTitleFile(t *testing.T) {
 func TestSessions_EmptyRenameClearsTitle(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
-	tasks := filepath.Join(".tars", "tasks")
+	tasks := filepath.Join(".gektor", "tasks")
 	dir := writeSessionState(t, tasks, "aaa", userHistory("original text"))
 	if err := os.WriteFile(filepath.Join(dir, "title"), []byte("old\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -216,7 +216,7 @@ func TestSessions_EmptyRenameClearsTitle(t *testing.T) {
 func TestSessions_DeleteRemovesDir(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
-	tasks := filepath.Join(".tars", "tasks")
+	tasks := filepath.Join(".gektor", "tasks")
 	writeSessionState(t, tasks, "aaa", userHistory("one"))
 	writeSessionState(t, tasks, "bbb", userHistory("two"))
 	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
@@ -245,7 +245,7 @@ func TestSessions_DeleteRemovesDir(t *testing.T) {
 func TestSessions_DeleteActiveUnloadsFirst(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
-	dir := writeSessionState(t, filepath.Join(".tars", "tasks"), "aaa", userHistory("live"))
+	dir := writeSessionState(t, filepath.Join(".gektor", "tasks"), "aaa", userHistory("live"))
 	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
 	m.stateFile = filepath.Join(dir, "state.json")
 	m.sess = &run.Session{}
@@ -269,7 +269,7 @@ func TestSessions_DeleteActiveUnloadsFirst(t *testing.T) {
 func TestSessions_DeleteActiveRefusesWhileRunning(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
-	dir := writeSessionState(t, filepath.Join(".tars", "tasks"), "aaa", userHistory("live"))
+	dir := writeSessionState(t, filepath.Join(".gektor", "tasks"), "aaa", userHistory("live"))
 	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
 	m.state = stRunning
 	m.stateFile = filepath.Join(dir, "state.json")
@@ -302,7 +302,7 @@ func TestSessions_EnterResumesWithHistory(t *testing.T) {
 		{Role: llm.RoleTool, ToolCallID: "c1", Content: "a.go\nb.go\n"},
 		{Role: llm.RoleAssistant, Content: "widget built"},
 	}
-	dir := writeSessionState(t, filepath.Join(".tars", "tasks"), "aaa", history)
+	dir := writeSessionState(t, filepath.Join(".gektor", "tasks"), "aaa", history)
 	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -339,7 +339,7 @@ func TestSessions_EnterResumesWithHistory(t *testing.T) {
 func TestSessions_OpenCorruptSnapshot(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
-	dir := writeSessionState(t, filepath.Join(".tars", "tasks"), "broken", userHistory("was fine"))
+	dir := writeSessionState(t, filepath.Join(".gektor", "tasks"), "broken", userHistory("was fine"))
 	path := filepath.Join(dir, "state.json")
 	if err := os.WriteFile(path, []byte("broken"), 0600); err != nil {
 		t.Fatal(err)
@@ -355,7 +355,7 @@ func TestSessions_OpenCorruptSnapshot(t *testing.T) {
 func TestSessions_EnterRefusesWhileRunning(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
-	writeSessionState(t, filepath.Join(".tars", "tasks"), "aaa", userHistory("task"))
+	writeSessionState(t, filepath.Join(".gektor", "tasks"), "aaa", userHistory("task"))
 	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
 	m.state = stRunning
 
@@ -375,7 +375,7 @@ func TestSessions_EnterRefusesWhileRunning(t *testing.T) {
 func TestSessions_ListScrollsToCursor(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
-	tasks := filepath.Join(".tars", "tasks")
+	tasks := filepath.Join(".gektor", "tasks")
 	for i := 0; i < 20; i++ {
 		id := "s" + twoDigits(i)
 		writeSessionState(t, tasks, id, userHistory("task "+id))
@@ -414,7 +414,7 @@ func TestSessions_ListScrollsToCursor(t *testing.T) {
 func TestSessions_PageKeysMoveByViewport(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
-	tasks := filepath.Join(".tars", "tasks")
+	tasks := filepath.Join(".gektor", "tasks")
 	for i := 0; i < 20; i++ {
 		id := "s" + twoDigits(i)
 		writeSessionState(t, tasks, id, userHistory("task "+id))
@@ -481,7 +481,7 @@ func TestViewportRefitsOnResize(t *testing.T) {
 func TestSessions_ResumeShowsTop(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
-	writeSessionState(t, filepath.Join(".tars", "tasks"), "aaa", compactTestHistory(15))
+	writeSessionState(t, filepath.Join(".gektor", "tasks"), "aaa", compactTestHistory(15))
 	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*model)
@@ -526,7 +526,7 @@ func compactTestHistory(n int) []llm.Message {
 func TestCommand_CompactShrinksAndRerenders(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
-	dir := writeSessionState(t, filepath.Join(".tars", "tasks"), "aaa", compactTestHistory(15))
+	dir := writeSessionState(t, filepath.Join(".gektor", "tasks"), "aaa", compactTestHistory(15))
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.stateFile = filepath.Join(dir, "state.json")
@@ -566,7 +566,7 @@ func TestCommand_CompactNeedsSession(t *testing.T) {
 func TestCommand_CompactNothingToDrop(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
-	dir := writeSessionState(t, filepath.Join(".tars", "tasks"), "aaa", userHistory("small"))
+	dir := writeSessionState(t, filepath.Join(".gektor", "tasks"), "aaa", userHistory("small"))
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.stateFile = filepath.Join(dir, "state.json")
@@ -584,7 +584,7 @@ func TestCommand_CompactNothingToDrop(t *testing.T) {
 func TestCommand_CompactForcesBottom(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
-	dir := writeSessionState(t, filepath.Join(".tars", "tasks"), "aaa", compactTestHistory(15))
+	dir := writeSessionState(t, filepath.Join(".gektor", "tasks"), "aaa", compactTestHistory(15))
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.stateFile = filepath.Join(dir, "state.json")

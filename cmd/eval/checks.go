@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/keshon/tars/internal/tools"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/tools"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 type Check struct {

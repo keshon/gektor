@@ -11,7 +11,7 @@ import (
 	"go/scanner"
 	"strings"
 
-	"github.com/keshon/tars/internal/checks"
+	"github.com/keshon/gektor/internal/checks"
 )
 
 // gofmt reports when Go source is not gofmt-clean, or does not parse.

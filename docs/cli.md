@@ -1,37 +1,37 @@
 # CLI reference
 
-Every flag of `cmd/agent`, grouped by purpose. A conventions test
+Every flag of `cmd/gektor`, grouped by purpose. A conventions test
 (`internal/conventions`, tag `cli-flags`) fails if a flag exists in code
 but is missing here. It checks coverage, not defaults or semantics; those
 are verified against the implementation.
 
 ## Invocation
 
-Build the terminal application with `go build -o agent.exe ./cmd/agent`.
+Build the terminal application with `go build -o gektor.exe ./cmd/gektor`.
 Run the built executable so bundled profiles resolve from the project directory.
 
 ```bash
-go run ./cmd/agent [flags] "task description"
-./agent.exe -tui
-go run ./cmd/agent -resume .tars/tasks/<id>
+go run ./cmd/gektor [flags] "task description"
+./gektor.exe -tui
+go run ./cmd/gektor -resume .gektor/tasks/<id>
 ```
 
 Put all flags before the task: Go's flag parser stops at the first positional
-argument. Run `go run ./cmd/agent -h` for the binary's registered flags.
+argument. Run `go run ./cmd/gektor -h` for the binary's registered flags.
 Direct execution is the default. An empty task is allowed for `-tui`,
 `-serve` and resume/fork; ordinary print mode needs one.
 
 Local llama-server example:
 
 ```bash
-./agent.exe -tui -backend-kind llama -backend http://127.0.0.1:8080 -stream
+./gektor.exe -tui -backend-kind llama -backend http://127.0.0.1:8080 -stream
 ```
 
 For LM Studio or a hosted OpenAI-compatible service, use the `openai` dialect
 and the provider's API root, including `/v1` when required:
 
 ```bash
-./agent.exe -tui -backend-kind openai -backend http://127.0.0.1:1234/v1 -model your-model -context-limit 16384
+./gektor.exe -tui -backend-kind openai -backend http://127.0.0.1:1234/v1 -model your-model -context-limit 16384
 ```
 
 For a hosted service, set a key in the environment or select its variable
@@ -53,7 +53,7 @@ The terminal controls and local slash commands are in [tui.md](tui.md).
 ## Authentication (remote providers)
 
 The key resolves as `-api-key`, then `-api-key-env`, then the first token
-found under `TARS_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`,
+found under `GEKTOR_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`,
 `DEEPSEEK_API_KEY`, `GROQ_API_KEY`, `TOGETHER_API_KEY`, `ANTHROPIC_API_KEY`.
 
 | Flag | Default | Meaning |
@@ -101,7 +101,7 @@ fails closed. Rules are pattern tripwires, not process isolation. See
 
 ## State
 
-Task state belongs to the user's `.tars` directory, under `tasks/<id>/`.
+Task state belongs to the user's `.gektor` directory, under `tasks/<id>/`.
 Every run writes one file, `state.json`, rewritten atomically on each step.
 Session display title and Plan/Act metadata
 are saved alongside the history. Resume accepts a task
@@ -109,7 +109,7 @@ directory or state file.
 Fork loads a transcript into a fresh task; it does not create a Git branch or
 an isolated checkout. Ancestor/workspace AGENTS.md instructions are refreshed.
 
-TARS does not archive the workspace, so it does not revert it. Commit or stash
+GEKTOR does not archive the workspace, so it does not revert it. Commit or stash
 before a run on a tree you care about.
 
 ## Mode-specific limits
@@ -135,8 +135,8 @@ Secrets remain environment references; the printed profile contains no API key.
 This checks configuration, not backend availability or model capacity.
 
 ```cmd
-agent.exe -profile profiles\llama-external.json -check-profile
-agent.exe -profile profiles\llama-external.json -tui
+gektor.exe -profile profiles\llama-external.json -check-profile
+gektor.exe -profile profiles\llama-external.json -tui
 ```
 
 One profile ships with the repository: `llama-external.json`, which expects a
@@ -175,12 +175,12 @@ unfilled is reported as a warning in the transcript rather than shipped to the
 model as literal text.
 
 ```cmd
-agent.exe -profile profiles\llama-external.json -user-name Alex -system-prompt "be terse"
+gektor.exe -profile profiles\llama-external.json -user-name Alex -system-prompt "be terse"
 ```
 
 ## Common terminal entry
 
-    .\\agent.exe -tui
+    .\\gektor.exe -tui
 
 First use selects the installed local profile (or the external one when its
 starter weights are absent) and opens in Plan. Models load only when a request
@@ -195,7 +195,7 @@ Applying settings restarts the launch rather than reconfiguring in place, so the
 new profile is composed into fresh services. The composer draft and the session
 directory carry across the restart.
 
-Choices and effective profile settings are saved under `~/.tars/application.json`.
+Choices and effective profile settings are saved under `~/.gektor/application.json`.
 Explicit command-line combinations remain supported as temporary launches; a
 change applied through the UI becomes the saved default. Direct API-key flags stay
 in memory across a restart and are never written to preferences.

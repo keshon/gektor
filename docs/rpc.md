@@ -1,10 +1,10 @@
 # RPC over stdio (`-serve`)
 
-`agent -serve` speaks line-delimited JSON-RPC on stdin and writes event
+`gektor -serve` speaks line-delimited JSON-RPC on stdin and writes event
 lines plus id-responses on stdout. Human chatter always goes to stderr,
 so stdout parses cleanly. Single-flight: one run and one pending gate at
 a time; overlapping run/gate requests report an error instead of queueing.
-This is TARS's compact JSON-RPC-style envelope, not a full JSON-RPC 2.0
+This is GEKTOR's compact JSON-RPC-style envelope, not a full JSON-RPC 2.0
 implementation: requests use id/method/params without a required jsonrpc
 field, and errors carry message rather than a standard numeric code.
 
@@ -101,7 +101,7 @@ process cleanup has finished. Wait for the run response before starting again.
 ```bash
 printf '%s\n' \
   '{"id":1,"method":"run","params":{"task":"what files are here?"}}' |
-  go run ./cmd/agent -serve -backend-kind llama -backend http://127.0.0.1:8080 -workspace ./site |
+  go run ./cmd/gektor -serve -backend-kind llama -backend http://127.0.0.1:8080 -workspace ./site |
   while IFS= read -r line; do echo "$line" | jq -c '{event, id, result}'; done
 ```
 
@@ -109,7 +109,14 @@ PowerShell one-shot (read-only, no interactive replies):
 
 ```powershell
 '{"id":1,"method":"run","params":{"task":"what files are here?"}}' |
-  go run ./cmd/agent -serve -backend-kind llama -backend http://127.0.0.1:8080 -workspace .
+  go run ./cmd/gektor -serve -backend-kind llama -backend http://127.0.0.1:8080 -workspace .
 ```
 
 One-shot EOF denies future gates; use a persistent client for interactive runs.
+
+Foreground shell commands emit `tool_output` events as output arrives, with
+`call_id` and `text` containing a UTF-8 text chunk. These are display-only
+previews, capped at 48 KiB per call, followed by a limit notice if needed.
+Append chunks to the matching pending call; replace them with the authoritative
+`tool_result` when it arrives. Previews are not appended to model history.
+Output buffered inside a child process becomes visible only when it flushes.

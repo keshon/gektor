@@ -11,8 +11,8 @@ import (
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/llm"
 )
 
 func colorHex(c color.Color) string {

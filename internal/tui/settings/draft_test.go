@@ -3,8 +3,8 @@ package settings
 import (
 	"testing"
 
-	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/tui/components/form"
+	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/tui/components/form"
 )
 
 func profile() config.Profile {
@@ -18,7 +18,7 @@ func profile() config.Profile {
 
 func TestPageRoundTripPreservesUneditedValues(t *testing.T) {
 	p := profile()
-	p.Identity.Name = "TARS"
+	p.Identity.Name = "GEKTOR"
 	for _, section := range []string{"generation", "you"} {
 		t.Run(section, func(t *testing.T) {
 			d := New(p)
@@ -34,7 +34,7 @@ func TestPageRoundTripPreservesUneditedValues(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got.Identity.Name != "TARS" || got.Generation.Temperature != 0 {
+			if got.Identity.Name != "GEKTOR" || got.Generation.Temperature != 0 {
 				t.Fatalf("untouched values changed: %+v", got)
 			}
 			if section == "generation" && got.Generation.MaxTokens != 200 {

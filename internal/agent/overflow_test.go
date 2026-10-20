@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/gektor/internal/llm"
 )
 
 // overflowOnce returns an overflow error on the first call, then answers.

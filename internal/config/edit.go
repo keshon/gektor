@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/keshon/tars/internal/prompts"
+	"github.com/keshon/gektor/internal/prompts"
 )
 
 // Sections are the editor's pages. They are named here rather than derived

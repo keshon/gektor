@@ -13,17 +13,17 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/app"
-	"github.com/keshon/tars/internal/audit"
-	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/roles"
-	"github.com/keshon/tars/internal/run"
-	"github.com/keshon/tars/internal/tui/components/completion"
-	"github.com/keshon/tars/internal/tui/components/composer"
-	"github.com/keshon/tars/internal/tui/components/gate"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/audit"
+	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/roles"
+	"github.com/keshon/gektor/internal/run"
+	"github.com/keshon/gektor/internal/tui/components/completion"
+	"github.com/keshon/gektor/internal/tui/components/composer"
+	"github.com/keshon/gektor/internal/tui/components/gate"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // Config wires one TUI run. Env carries the full harness (client,
@@ -250,6 +250,7 @@ func withoutPrintHooks(env roles.Env) roles.Env {
 	env.OnDelta = func(string) {}
 	env.OnStep = func(string, int, llm.Message) {}
 	env.OnResult = func(agent.ToolResult) {}
+	env.OnToolOutput = func(string, string) {}
 	env.OnUsage = func(int, llm.Usage) {}
 	env.OnNudge = nil
 	return env

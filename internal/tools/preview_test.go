@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 func previewWS(t *testing.T) (*workspace.Workspace, string) {

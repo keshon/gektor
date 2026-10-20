@@ -10,16 +10,16 @@ import (
 )
 
 // mcpHelperEnv marks a re-executed copy of this binary as the MCP server.
-const mcpHelperEnv = "TARS_MCP_HELPER"
+const mcpHelperEnv = "GEKTOR_MCP_HELPER"
 
 func TestMain(m *testing.M) {
 	if os.Getenv(mcpHelperEnv) == "1" {
 		serveFakeMCP(os.Stdin, os.Stdout)
 		return
 	}
-	// Spilled tool output lands in the user's TARS directory. A test that
+	// Spilled tool output lands in the user's GEKTOR directory. A test that
 	// exercises spilling must not write into the developer's real one.
-	home, err := os.MkdirTemp("", "tars-home")
+	home, err := os.MkdirTemp("", "gektor-home")
 	if err != nil {
 		panic(err)
 	}

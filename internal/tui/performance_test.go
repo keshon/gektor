@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/gektor/internal/llm"
 )
 
 func benchmarkSessionRoot(b *testing.B) string {

@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/keshon/tars/internal/prompts"
+	"github.com/keshon/gektor/internal/prompts"
 )
 
 // SuspendKind names what a run is waiting on. The loop itself never

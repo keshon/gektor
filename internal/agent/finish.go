@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/prompts"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/prompts"
 )
 
 type finishOutcome struct {

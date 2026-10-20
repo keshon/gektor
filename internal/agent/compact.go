@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/prompts"
-	"github.com/keshon/tars/internal/session"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/prompts"
+	"github.com/keshon/gektor/internal/session"
 )
 
 // compactHistory drops older assistant-led step groups from history while

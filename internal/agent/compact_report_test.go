@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/gektor/internal/llm"
 )
 
 // A compaction the observer cannot see leaves the transcript holding turns

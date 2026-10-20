@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/roles"
+	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/roles"
 )
 
 // These three used to be flags and live model fields, so a step budget or a

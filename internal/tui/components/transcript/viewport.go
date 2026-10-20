@@ -6,7 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/keshon/tars/internal/tui/components/cell"
+	"github.com/keshon/gektor/internal/tui/components/cell"
 )
 
 // Viewport is a scrolling window over a document made of parts.

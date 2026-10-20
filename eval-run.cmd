@@ -20,7 +20,7 @@ REM
 REM All other flags pass through to cmd/eval; see eval\README.md. Results
 REM land in eval\results\<timestamp>\ (gitignored).
 
-set "ENV_TMP=%TEMP%\tars-eval-env-%RANDOM%.tmp"
+set "ENV_TMP=%TEMP%\gektor-eval-env-%RANDOM%.tmp"
 if exist .env (
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts\set-env.ps1 .env > "%ENV_TMP%" 2>nul
     if exist "%ENV_TMP%" (

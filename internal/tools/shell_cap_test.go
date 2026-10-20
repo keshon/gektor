@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // Live (probe 10): read_file was capped at 48KB an hour earlier, so the

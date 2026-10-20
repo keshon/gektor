@@ -12,9 +12,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/events"
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/events"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 func TestPermissionDecisionAlwaysHasVisibleContext(t *testing.T) {
@@ -215,7 +215,7 @@ func TestBrowserActionsRemainInsideTerminalFrame(t *testing.T) {
 }
 
 func TestInlineThinkingUsesThinkingBlockLiveAndOnReopen(t *testing.T) {
-	content := "<think>Проверяю ответ.\nSecond line.</think>\n\nI'm TARS."
+	content := "<think>Проверяю ответ.\nSecond line.</think>\n\nI'm GEKTOR."
 	m := sizeModel(t, testModel())
 	m.handleEvent(events.Event{Name: "step", Fields: map[string]any{"text": content}})
 	history := renderHistory([]llm.Message{{Role: llm.RoleAssistant, Content: content}})
@@ -223,7 +223,7 @@ func TestInlineThinkingUsesThinkingBlockLiveAndOnReopen(t *testing.T) {
 		if len(blocks) != 2 || blocks[0].role != roleThink || blocks[1].role != roleAnswer {
 			t.Fatalf("incorrect reasoning split: %+v", blocks)
 		}
-		if blocks[0].text != "Проверяю ответ.\nSecond line." || blocks[1].text != "I'm TARS." {
+		if blocks[0].text != "Проверяю ответ.\nSecond line." || blocks[1].text != "I'm GEKTOR." {
 			t.Fatalf("content changed: %+v", blocks)
 		}
 	}

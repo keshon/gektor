@@ -10,9 +10,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/run"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/run"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 func TestSearchIndexesConversationAndRanksTitles(t *testing.T) {

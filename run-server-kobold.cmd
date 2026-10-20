@@ -8,7 +8,7 @@ REM   run-server-kobold.cmd
 REM   set KOBOLD_PORT=5002 && run-server-kobold.cmd
 
 REM --- load .env ---
-set "ENV_TMP=%TEMP%\tars-env-%RANDOM%.tmp"
+set "ENV_TMP=%TEMP%\gektor-env-%RANDOM%.tmp"
 if exist .env (
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts\set-env.ps1 .env > "%ENV_TMP%" 2>nul
     if exist "%ENV_TMP%" (

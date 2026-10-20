@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/tars/internal/tars"
+	"github.com/keshon/gektor/internal/gektor"
 )
 
-// Spilled tool output lands in the user's TARS directory, never in the
+// Spilled tool output lands in the user's GEKTOR directory, never in the
 // workspace the agent is working on. A 4 MB fetch written into the repo
 // is a file the agent did not make, in a tree the user is reviewing.
 func TestSpill_WritesFullContentOutsideTheWorkspace(t *testing.T) {
@@ -26,8 +26,8 @@ func TestSpill_WritesFullContentOutsideTheWorkspace(t *testing.T) {
 	if string(data) != content {
 		t.Fatal("spill content mismatch")
 	}
-	if !strings.HasPrefix(p, tars.Sub("output")) {
-		t.Fatalf("spill landed outside the user's TARS directory: %s", p)
+	if !strings.HasPrefix(p, gektor.Sub("output")) {
+		t.Fatalf("spill landed outside the user's GEKTOR directory: %s", p)
 	}
 }
 

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/gektor/internal/agent"
 )
 
 func TestGateHub_SingleFlight(t *testing.T) {

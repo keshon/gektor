@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/gektor/internal/llm"
 )
 
 // Snapshot keeps the archive independent of the model's working context.

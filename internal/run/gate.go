@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/gektor/internal/agent"
 )
 
 // GateHub routes one suspension at a time from the run goroutine to

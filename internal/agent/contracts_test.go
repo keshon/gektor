@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/permission"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/permission"
 )
 
 type auditTool struct{ ran *bool }

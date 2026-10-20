@@ -1,4 +1,4 @@
-package tars
+package gektor
 
 import (
 	"os"
@@ -6,11 +6,11 @@ import (
 )
 
 // Every path this package produces lives in the user's home directory. A
-// test that runs against the real one leaves a .tars behind on the
+// test that runs against the real one leaves a .gektor behind on the
 // developer's machine, and the next run reads it back as though it were
 // theirs. Redirect the home for the package instead.
 func TestMain(m *testing.M) {
-	home, err := os.MkdirTemp("", "tars-home")
+	home, err := os.MkdirTemp("", "gektor-home")
 	if err != nil {
 		panic(err)
 	}

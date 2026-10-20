@@ -14,8 +14,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/keshon/tars/internal/tui/components/cell"
-	"github.com/keshon/tars/internal/tui/components/popup"
+	"github.com/keshon/gektor/internal/tui/components/cell"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
 // Item is one candidate: what is inserted, and what it is.

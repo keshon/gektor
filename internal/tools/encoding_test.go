@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // utf16le encodes s as BOM-prefixed UTF-16LE with CRLF line endings —

@@ -4,7 +4,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"sync/atomic"
 
-	"github.com/keshon/tars/internal/tui/components/popup"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
 const (

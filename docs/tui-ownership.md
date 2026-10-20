@@ -1,7 +1,7 @@
 # TUI ownership
 
 Who writes UI state, how results cross goroutines, and what enforces the rules.
-This uses the ownership approach from Melodix, applied to TARS rather than
+This uses the ownership approach from Melodix, applied to GEKTOR rather than
 copying its playback-specific rules.
 
 ## Enforcement
@@ -29,7 +29,7 @@ Run `go test -race ./...` and `go vet ./...`. Performance probes live in
   restore the surface first.
 - `completion`: the slash-command and path picker — its items, its selection
   and its frame. What completes, and what accepting an item means, stays in
-  TARS: the command registry is the application's.
+  GEKTOR: the command registry is the application's.
 - `form`: field/editor state, keyboard navigation, Apply/Cancel/Pick intents,
   compact form rows and action hit geometry. The caller supplies styles, labels,
   dimensions, visibility and choice display; it performs persistence. The
@@ -46,7 +46,7 @@ Run `go test -race ./...` and `go vet ./...`. Performance probes live in
   times they disagreed the buttons were drawn correctly and clicked in the
   wrong place.
 - `composer`: textarea, bounded input history, draft recall and rune-based
-  completion token/replacement operations. Command and file discovery stay in TARS.
+  completion token/replacement operations. Command and file discovery stay in GEKTOR.
 - `selection`: selection and scrolling geometry, used by Sessions and Settings pickers.
 - `gate`: the permission/ask/plan bottom popup — its options, selection and
   the framed list spliced over the transcript. The interaction answers stay in
@@ -56,7 +56,7 @@ Run `go test -race ./...` and `go vet ./...`. Performance probes live in
   invisible question.
 - `transcript`: the window (scroll, follow, part anchoring across reflows) and
   its scrollbar. Parts are stored, not joined, so drawing a frame splits only
-  the parts on screen. TARS retains role styling and the rendered-block cache,
+  the parts on screen. GEKTOR retains role styling and the rendered-block cache,
   and asks for text at `ContentWidth`, which is a cell narrower when the bar
   is showing.
 
@@ -95,7 +95,7 @@ Applying settings does not reconfigure the running session. `requestProfileChang
 stages the custom profile and the session and application preferences through
 `filetxn.Replace`, reads the current task back from disk, and returns a
 `ModeChange` carrying the new preferences, that history, the composer draft and
-the session directory. `Run` surfaces it as an error; `cmd/agent` persists the
+the session directory. `Run` surfaces it as an error; `cmd/gektor` persists the
 preferences, rebuilds argv and launches again. The next launch composes fresh
 services from the new profile. Failed preparation writes nothing and queues no
 restart; a commit failure restores already replaced files. If restoration itself
@@ -247,7 +247,7 @@ behaviour each copy had to agree with (`components/cell`, `components/popup`).
 - View tests cover application selection and focus, not every internal field in
   third-party widgets. They are behavioral tests, not a static proof of purity.
 - File signatures use modification time and size. An external edit preserving
-  both can evade cache invalidation; TARS writes snapshots atomically.
+  both can evade cache invalidation; GEKTOR writes snapshots atomically.
 - Single-session reads, attachment reads and mutation writes remain synchronous.
   The expensive all-session scans are asynchronous.
 - Session settings are rewritten only when their bytes change. They run at

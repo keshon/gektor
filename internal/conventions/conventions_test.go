@@ -319,7 +319,7 @@ func (r *repo) readPath(t *testing.T, rel string) string {
 // generated output or an agent's scratch space rather than source.
 func goFiles(t *testing.T, root string) []string {
 	t.Helper()
-	skip := map[string]bool{".git": true, ".tars": true, "sandbox": true, "results": true, ".kilo": true}
+	skip := map[string]bool{".git": true, ".gektor": true, "sandbox": true, "results": true, ".kilo": true}
 	var out []string
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -356,7 +356,7 @@ func pkgOf(r *repo, path string) string {
 	return ""
 }
 
-var importLine = regexp.MustCompile(`"github\.com/keshon/tars/internal/([a-z]+)"`)
+var importLine = regexp.MustCompile(`"github\.com/keshon/gektor/internal/([a-z]+)"`)
 
 func internalImports(src string) []string {
 	var out []string
@@ -414,14 +414,14 @@ func checkCgoFree(t *testing.T, r *repo) {
 // flag.String("backend", ...) or flags.StringVar(&value, "backend", ...).
 var flagDecl = regexp.MustCompile(`\bflags?\.(?:String|Bool|Int|Float64|Duration)(?:Var\([^,]+,\s*|\()"([a-z0-9-]+)"`)
 
-// checkCliFlags keeps docs/cli.md complete: every flag cmd/agent
+// checkCliFlags keeps docs/cli.md complete: every flag cmd/gektor
 // registers must be named there (as `-name`), or the reference rots one
 // flag at a time — which is how five flags went undocumented unnoticed.
 // The check reads names, not help text: wording stays a human judgment.
 func checkCliFlags(t *testing.T, r *repo) {
 	var src string
 	for _, file := range r.goFiles {
-		if strings.HasPrefix(r.rel(file), "cmd/agent/") && !strings.HasSuffix(file, "_test.go") {
+		if strings.HasPrefix(r.rel(file), "cmd/gektor/") && !strings.HasSuffix(file, "_test.go") {
 			src += r.read(t, file) + "\n"
 		}
 	}

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/prompts"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/prompts"
 )
 
 // A compaction notice is a user-role message, so stepGroups counted it as a

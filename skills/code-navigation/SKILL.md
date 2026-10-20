@@ -60,7 +60,7 @@ inspect a match in context. Follow up on a truncated read only as needed.
 
 ## Scripts and validation
 
-- Use the current platform's shell: TARS uses `cmd.exe` on Windows and `sh`
+- Use the current platform's shell: GEKTOR uses `cmd.exe` on Windows and `sh`
   elsewhere. Do not send Bash heredocs to Windows `run_shell`. If quoting is
   fragile, `write_file` a short temporary script, run it, then remove only
   that script. Keep its output bounded and include source paths and lines.

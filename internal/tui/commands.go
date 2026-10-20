@@ -2,12 +2,13 @@ package tui
 
 import (
 	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/keshon/tars/internal/tui/components/completion"
+	"github.com/keshon/gektor/internal/tui/components/completion"
 )
 
 // command is one slash command.
@@ -147,7 +148,7 @@ func (m *model) confirmRestart(action func()) {
 	}
 	m.openForm(
 		"Restart agent",
-		"TARS will restart to apply this. The conversation and draft are preserved.",
+		"GEKTOR will restart to apply this. The conversation and draft are preserved.",
 		"Restart", nil,
 		func(map[string]string) error {
 			action()
@@ -338,7 +339,22 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		m.openDialog("Activity", rows)
 		return m, nil
 	case "about":
-		m.openDialog("About", []string{"Local coding assistant", "Go · Bubble Tea"})
+		m.openDialog("GEKTOR", []string{
+			"A small coding agent for your terminal.",
+			"Your model server. Your workspace. Explicit tools.",
+			"",
+			m.styles.gate.Render("Work with your code"),
+			"Read, search and edit files, run commands and tests, and resume saved sessions.",
+			"Plan before changes or work directly in Act mode; tool permissions stay visible.",
+			"",
+			m.styles.gate.Render("Bring your model"),
+			"llama.cpp · KoboldCPP · OpenAI-compatible APIs",
+			"Models and inference servers are supplied separately.",
+			"",
+			m.styles.gate.Render("Built by keshon"),
+			"https://github.com/keshon/gektor",
+			"Go " + strings.TrimPrefix(runtime.Version(), "go") + " · Bubble Tea · " + runtime.GOOS + "/" + runtime.GOARCH,
+		})
 		return m, nil
 	case "theme":
 		arg = strings.ToLower(strings.TrimSpace(arg))

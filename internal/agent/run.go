@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/prompts"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/prompts"
 )
 
 // run requests a response, executes its tools and persists history until

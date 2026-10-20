@@ -127,7 +127,7 @@ func TestComponentsDoNotImportApplicationPackages(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if strings.HasPrefix(name, "github.com/keshon/tars/") && !strings.HasPrefix(name, "github.com/keshon/tars/internal/tui/components/") {
+			if strings.HasPrefix(name, "github.com/keshon/gektor/") && !strings.HasPrefix(name, "github.com/keshon/gektor/internal/tui/components/") {
 				t.Errorf("%s imports application package %s", path, name)
 			}
 		}
@@ -156,7 +156,7 @@ func TestSettingsDoesNotOwnRuntimeServices(t *testing.T) {
 				return err
 			}
 			for _, owner := range []string{"app"} {
-				prefix := "github.com/keshon/tars/internal/" + owner
+				prefix := "github.com/keshon/gektor/internal/" + owner
 				if name == prefix || strings.HasPrefix(name, prefix+"/") {
 					t.Errorf("%s imports runtime owner %s", path, name)
 				}

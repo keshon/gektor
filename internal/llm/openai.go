@@ -83,7 +83,8 @@ func (openaiDialect) modelName(ctx context.Context, hc *http.Client, baseURL str
 // names, or "". Flag values win over this; this is the unattended path.
 func APIKeyFromEnv() string {
 	for _, name := range []string{
-		"TARS_API_KEY",
+		"GEKTOR_API_KEY",
+		"TARS_API_KEY", // Existing installations keep their credentials.
 		"OPENAI_API_KEY",
 		"OPENROUTER_API_KEY",
 		"DEEPSEEK_API_KEY",

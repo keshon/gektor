@@ -13,29 +13,29 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/app"
-	"github.com/keshon/tars/internal/audit"
-	"github.com/keshon/tars/internal/checks"
-	"github.com/keshon/tars/internal/events"
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/permission"
-	"github.com/keshon/tars/internal/prompts"
-	"github.com/keshon/tars/internal/roles"
-	"github.com/keshon/tars/internal/rules"
-	"github.com/keshon/tars/internal/run"
-	"github.com/keshon/tars/internal/session"
-	"github.com/keshon/tars/internal/tars"
-	"github.com/keshon/tars/internal/tools"
-	"github.com/keshon/tars/internal/tui"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/audit"
+	"github.com/keshon/gektor/internal/checks"
+	"github.com/keshon/gektor/internal/events"
+	"github.com/keshon/gektor/internal/gektor"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/prompts"
+	"github.com/keshon/gektor/internal/roles"
+	"github.com/keshon/gektor/internal/rules"
+	"github.com/keshon/gektor/internal/run"
+	"github.com/keshon/gektor/internal/session"
+	"github.com/keshon/gektor/internal/tools"
+	"github.com/keshon/gektor/internal/tui"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // runAgentLaunch composes workspace tools and owns their per-launch cleanup.
 func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	task := o.task
 	if task == "" && o.resume == "" && o.fork == "" && !o.serve && !o.tui {
-		return fmt.Errorf(`usage: agent [flags] "task description"  (or  agent -resume <state.json> [-answer "..."])`)
+		return fmt.Errorf(`usage: gektor [flags] "task description"  (or  gektor -resume <state.json> [-answer "..."])`)
 	}
 
 	ws, wsErr := workspace.New(o.workspace)
@@ -80,7 +80,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	} else if !o.serve && (!o.tui || task != "" || o.fork != "") {
 		sum := sha1.Sum([]byte(task + time.Now().String()))
 		taskID := hex.EncodeToString(sum[:])[:8]
-		taskDir := tars.Sub("tasks", taskID)
+		taskDir := gektor.Sub("tasks", taskID)
 		stateFile = filepath.Join(taskDir, "state.json")
 		// The session title lives with the session (pi's session_info):
 		// written once here, rewritten on TUI rename, derived from
@@ -169,7 +169,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		return suspend(ctx, req)
 	}, func(question string) string {
 		return fmt.Sprintf("\n[paused — state saved at %s]\n"+
-			"[resume: agent -resume %s -answer \"your answer\"]\n"+
+			"[resume: gektor -resume %s -answer \"your answer\"]\n"+
 			"\n[agent asks] %s", stateFile, stateFile, question)
 	})
 
@@ -206,7 +206,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	for _, warning := range warnings {
 		note("Identity warning: " + warning)
 	}
-	// What TARS checks written files for. Secrets apply to every text
+	// What GEKTOR checks written files for. Secrets apply to every text
 	// file whatever the language; gofmt is one rule among them and lives
 	// outside internal/checks so that package stays language-neutral.
 	rules := append(checks.Secrets(), rules.All()...)
@@ -231,6 +231,13 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		// -serve leaves this off until its budget story is decided.
 		OnDelta: func(chunk string) { fmt.Print(chunk) },
 		OnStep:  stepPrinter(o.outputMode, emitter, o.logMax),
+		OnToolOutput: func(callID, text string) {
+			if o.outputMode == "json" {
+				events.EmitToolOutput(emitter, callID, text)
+			} else {
+				fmt.Print(text)
+			}
+		},
 		OnResult: func(result agent.ToolResult) {
 			if o.outputMode == "json" {
 				events.EmitToolResult(emitter, result.CallID, result.Output, result.Failed)
@@ -341,7 +348,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		for _, warning := range r.Warnings {
 			note("%s", warning)
 		}
-		note("resume: agent -resume %s", stateFile)
+		note("resume: gektor -resume %s", stateFile)
 	}()
 
 	var result string

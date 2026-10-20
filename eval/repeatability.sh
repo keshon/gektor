@@ -51,7 +51,7 @@ echo "runs: $RUNS -> $OUT_DIR/${PROMPT_ID}-${STAMP}-*.log"
 for i in $(seq 1 "$RUNS"); do
 	LOG="${OUT_DIR}/${PROMPT_ID}-${STAMP}-run${i}.log"
 	echo "=== run $i/$RUNS ===" | tee "$LOG"
-	go run ./cmd/agent -log-max 300 -workspace eval/fixtures "$PROMPT_TEXT" 2>&1 | tee -a "$LOG"
+	go run ./cmd/gektor -log-max 300 -workspace eval/fixtures "$PROMPT_TEXT" 2>&1 | tee -a "$LOG"
 	echo "" | tee -a "$LOG"
 done
 

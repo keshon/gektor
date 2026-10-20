@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/llm"
 )
 
 // stubSubClient returns a fixed answer with no tool calls, so spawned

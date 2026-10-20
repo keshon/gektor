@@ -146,31 +146,31 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if !m.dialog.help {
 			switch msg.String() {
 			case "down":
-				m.dialog.offset++
+				m.scrollDialog(1)
 			case "up":
-				m.dialog.offset = max(m.dialog.offset-1, 0)
+				m.scrollDialog(-1)
 			case "pgdown":
-				m.dialog.offset += max(m.transcript.Viewport.Height()/2, 1)
+				m.scrollDialog(max(m.transcript.Viewport.Height()/2, 1))
 			case "pgup":
-				m.dialog.offset = max(m.dialog.offset-max(m.transcript.Viewport.Height()/2, 1), 0)
+				m.scrollDialog(-max(m.transcript.Viewport.Height()/2, 1))
 			}
 		}
 		if m.dialog.help {
 			switch msg.String() {
 			case "tab", "right":
-				m.dialog.page = (m.dialog.page + 1) % len(helpSections())
+				m.dialog.page = (m.dialog.page + 1) % len(m.dialogHelpSections())
 				m.dialog.offset = 0
 			case "shift+tab", "left":
-				m.dialog.page = (m.dialog.page + len(helpSections()) - 1) % len(helpSections())
+				m.dialog.page = (m.dialog.page + len(m.dialogHelpSections()) - 1) % len(m.dialogHelpSections())
 				m.dialog.offset = 0
 			case "down":
-				m.dialog.offset++
+				m.scrollDialog(1)
 			case "up":
-				m.dialog.offset = max(m.dialog.offset-1, 0)
+				m.scrollDialog(-1)
 			case "pgdown":
-				m.dialog.offset += max(m.transcript.Viewport.Height()/2, 1)
+				m.scrollDialog(max(m.transcript.Viewport.Height()/2, 1))
 			case "pgup":
-				m.dialog.offset = max(m.dialog.offset-max(m.transcript.Viewport.Height()/2, 1), 0)
+				m.scrollDialog(-max(m.transcript.Viewport.Height()/2, 1))
 			}
 		}
 		return m, nil

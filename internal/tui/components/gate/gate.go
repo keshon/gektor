@@ -12,8 +12,8 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/tui/components/cell"
-	"github.com/keshon/tars/internal/tui/components/popup"
+	"github.com/keshon/gektor/internal/tui/components/cell"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
 // Option is one answer row: what it sends, and what it says.

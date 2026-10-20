@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/app"
-	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/llm"
 )
 
 // A startup failure must surface rather than starting a program. The

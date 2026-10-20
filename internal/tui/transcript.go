@@ -5,12 +5,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/keshon/tars/internal/tui/components/transcript"
+	"github.com/keshon/gektor/internal/tui/components/transcript"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/gektor/internal/llm"
 )
 
 // role names the kind of a transcript block. Every role maps to one
@@ -354,7 +354,7 @@ const resultPreviewLines = 10
 
 // Tool output hangs off the call as a tree branch: every row keeps the
 // rail so the card's edge never breaks, and the final row closes the
-// branch so a reader can see where a call's output stopped without
+// branch on its own row so no text shares the closing corner, without
 // counting rows.
 const (
 	toolRail  = "│ "
@@ -377,21 +377,23 @@ func renderToolCard(b block, st styles, expand bool, width int) []string {
 	}
 	call := ansi.Truncate(b.text, max(width-2, 1), "…")
 	out := []string{glyph + " " + st.dim.Render(call)}
-	// An open card has produced nothing yet. One pending row keeps the
-	// branch shape identical whether the call is still running or done,
-	// so the layout does not jump when the result lands.
+	// Before the first chunk, show a pending row. Once output arrives the
+	// same card renders it while retaining its running glyph.
 	result := b.result
-	if b.open {
+	if b.open && result == "" {
 		result = "…"
 	}
 	lines := strings.Split(result, "\n")
 	if !expand && len(lines) > resultPreviewLines {
-		kept := lines[:resultPreviewLines]
-		kept = append(kept, fmt.Sprintf("… (%d more lines)", len(lines)-resultPreviewLines))
-		lines = kept
+		hidden := len(lines) - resultPreviewLines
+		if b.open {
+			lines = append([]string{fmt.Sprintf("… (%d earlier lines)", hidden)}, lines[hidden:]...)
+		} else {
+			lines = append(lines[:resultPreviewLines], fmt.Sprintf("… (%d more lines)", hidden))
+		}
 	}
-	// Fragments are flattened first: a wrapped line contributes several
-	// rows, and only the very last one may close the branch.
+	// Reflow every output line inside the rail; the closing corner has
+	// a separate row and never consumes the final content row.
 	wrapW := max(width-toolRailWidth, 1)
 	orig := make([]string, 0, len(lines))
 	frags := make([]string, 0, len(lines))
@@ -402,12 +404,9 @@ func renderToolCard(b block, st styles, expand bool, width int) []string {
 		}
 	}
 	for i, f := range frags {
-		rail := toolRail
-		if i == len(frags)-1 {
-			rail = toolClose + " "
-		}
-		out = append(out, st.dim.Render(rail)+resultLineStyle(orig[i], f, st))
+		out = append(out, st.dim.Render(toolRail)+resultLineStyle(orig[i], f, st))
 	}
+	out = append(out, st.dim.Render(toolClose))
 	return out
 }
 
@@ -691,7 +690,7 @@ type transcriptState struct {
 
 func newTranscript() transcriptState { return transcriptState{Model: transcript.New(), compact: true} }
 
-// The TARS renderer receives presentation values, never the application model.
+// The GEKTOR renderer receives presentation values, never the application model.
 type transcriptProps struct {
 	speaker, user, live string
 	// liveThink is streamed deliberation, rendered above live so the turn

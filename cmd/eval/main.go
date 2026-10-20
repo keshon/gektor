@@ -21,10 +21,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/roles"
-	"github.com/keshon/tars/internal/tools"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/roles"
+	"github.com/keshon/gektor/internal/tools"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // Probe is one frozen scenario. It pairs with a human-readable write-up in
@@ -84,7 +84,7 @@ type Probe struct {
 	// "linux", "darwin" as runtime.GOOS spells them). Empty means anywhere.
 	// A probe whose checks only run on one OS (a findstr pipeline, a
 	// cmd.exe builtin) reports SKIP elsewhere: scoring it would measure
-	// the host, not the agent - the same reason a run that never reached
+	// the host, not the gektor - the same reason a run that never reached
 	// the model reports ERR instead of a rate.
 	Oses []string `json:"oses,omitempty"`
 
@@ -212,7 +212,7 @@ func gitInit(dir string) error {
 	for _, a := range [][]string{
 		{"init"},
 		{"add", "-A"},
-		{"-c", "user.email=tars-eval@localhost", "-c", "user.name=tars-eval", "commit", "-qm", "seed"},
+		{"-c", "user.email=gektor-eval@localhost", "-c", "user.name=gektor-eval", "commit", "-qm", "seed"},
 	} {
 		cmd := exec.Command("git", append([]string{"-C", dir}, a...)...)
 		if out, err := cmd.CombinedOutput(); err != nil {
@@ -273,10 +273,10 @@ type Result struct {
 
 const defaultTimeout = 15 * time.Minute
 
-// evalStateDir is the one place TARS still writes inside a workspace.
+// evalStateDir is the one place GEKTOR still writes inside a workspace.
 // belongs to that copy and dies with it. Real runs keep theirs in the
-// user's TARS directory; nothing else writes to the workspace.
-const evalStateDir = ".tars"
+// user's GEKTOR directory; nothing else writes to the workspace.
+const evalStateDir = ".gektor"
 
 func main() {
 	backend := flag.String("backend", "http://localhost:5001", "backend base URL: bare origin for a local "+
@@ -401,7 +401,13 @@ func main() {
 	}
 	fmt.Printf("backend %s (%s)\nmodel   %s\ncontext %d\n%d probes x %d runs\n\n",
 		*backend, probe.Backend(), backendModel, contextLimit, len(probes), *runs)
-	writeMeta(runDir, probe.Backend(), *backend, backendModel, contextLimit, *jobsN)
+	if err := writeMeta(runDir, evalMetadata{
+		BackendKind: probe.Backend(), Backend: *backend, Model: backendModel,
+		ContextLimit: contextLimit, Jobs: *jobsN, MaxTokens: *maxTokens,
+		Runs: *runs, DrySampler: *dry_,
+	}, probes); err != nil {
+		log.Fatalf("record experiment metadata: %v", err)
+	}
 
 	// Every (probe, run) pair is one job. Both backends batch concurrent
 	// requests — koboldcpp with --parallelrequests, llama-server with
@@ -560,7 +566,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 
 	// A fresh copy per run. Without it the second run starts from the
 	// first run's output and measures nothing.
-	work, err := os.MkdirTemp("", "tars-eval-")
+	work, err := os.MkdirTemp("", "gektor-eval-")
 	if err != nil {
 		res.RunError = "mkdir temp: " + err.Error()
 		return res
@@ -634,7 +640,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 	}
 
 	var answer string
-	// roles.Interactive is what cmd/agent builds too, so the probe
+	// roles.Interactive is what cmd/gektor builds too, so the probe
 	// scores the agent that ships. This used to be a hand-copied
 	// config here and it had already drifted: no ask_user, no
 	// delegate_task, while two probes are specifically about whether
@@ -947,25 +953,6 @@ func summarizeNudges(all []Result) string {
 		fmt.Fprintf(&b, "  %-18s %6d %8d %8d\n", k, s.total, s.onPass, s.onFail)
 	}
 	return b.String()
-}
-
-// writeMeta records what produced these numbers, next to the numbers.
-func writeMeta(runDir, kind, backend, model string, contextLimit, jobs int) {
-	meta := map[string]any{
-		"backend_kind":  kind,
-		"backend":       backend,
-		"model":         model,
-		"context_limit": contextLimit,
-		// Recorded because it changes what the per-probe seconds mean: at
-		// more than one job those are wall time including queueing behind
-		// other probes, not the work the probe did. Comparing a
-		// concurrent run's timings against a sequential one measures the
-		// scheduler.
-		"jobs":    jobs,
-		"started": time.Now().Format(time.RFC3339),
-	}
-	data, _ := json.MarshalIndent(meta, "", "  ")
-	_ = os.WriteFile(filepath.Join(runDir, "meta.json"), data, 0o644)
 }
 
 func loadProbes(dir, only string) ([]Probe, error) {

@@ -14,7 +14,7 @@ probe 10 asserts the fixed size. It is text containing base64-like noise.
 
 **Run:**
 ```bash
-go run ./cmd/agent -log-max 300 -workspace sandbox/eval-manual \
+go run ./cmd/gektor -log-max 300 -workspace sandbox/eval-manual \
   "read big.txt and tell me the exact file size in bytes and whether it looks like text"
 ```
 

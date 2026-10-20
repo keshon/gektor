@@ -11,7 +11,7 @@ import (
 )
 
 func TestProbeCommand_Missing(t *testing.T) {
-	got := ProbeCommand(context.Background(), "definitely-not-a-real-binary-tars-probe")
+	got := ProbeCommand(context.Background(), "definitely-not-a-real-binary-gektor-probe")
 	if got.Status != "missing" || got.Hint == "" {
 		t.Fatalf("got %+v, want missing with hint", got)
 	}
@@ -29,7 +29,7 @@ func TestProbeCommand_Ok(t *testing.T) {
 func TestProbeCommand_UnknownFlagStillOk(t *testing.T) {
 	// A tool that dislikes the probe flag still proves it exists by
 	// starting: `go --no-such-flag` exits 2, which is an existence proof.
-	got := ProbeCommand(context.Background(), "go", "--no-such-flag-tars-probe")
+	got := ProbeCommand(context.Background(), "go", "--no-such-flag-gektor-probe")
 	if got.Status != "ok" {
 		t.Fatalf("got %+v, want ok", got)
 	}
@@ -44,7 +44,7 @@ func TestProbeCommand_BrokenShim(t *testing.T) {
 	// verdict for it, not the broken path under test.
 	dir := t.TempDir()
 	name := "deadshim"
-	content := "#!/nonexistent-interpreter-tars-probe\nexit 0\n"
+	content := "#!/nonexistent-interpreter-gektor-probe\nexit 0\n"
 	mode := os.FileMode(0o700)
 	if runtime.GOOS == "windows" {
 		// cmd.exe interprets any .cmd text (even garbage exits 0), so a

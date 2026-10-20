@@ -3,9 +3,9 @@ package settings
 import (
 	"strconv"
 
-	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/prompts"
-	"github.com/keshon/tars/internal/tui/components/form"
+	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/prompts"
+	"github.com/keshon/gektor/internal/tui/components/form"
 )
 
 // DefaultTemperature is what the backend uses when a profile sets none.

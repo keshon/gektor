@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // shellTimeout bounds one command. Builds and installs outlive anything
@@ -46,6 +46,10 @@ func (RunShell) Schema() json.RawMessage {
 }
 
 func (t RunShell) Run(ctx context.Context, args json.RawMessage) (string, error) {
+	return t.RunStreaming(ctx, args, nil)
+}
+
+func (t RunShell) RunStreaming(ctx context.Context, args json.RawMessage, onOutput func(string)) (string, error) {
 	var in struct {
 		Command string `json:"command"`
 	}
@@ -53,7 +57,7 @@ func (t RunShell) Run(ctx context.Context, args json.RawMessage) (string, error)
 		return "", fmt.Errorf("bad arguments: %w", err)
 	}
 
-	full, err := RunCommand(ctx, in.Command, t.WS.Root(), shellTimeout)
+	full, err := runCommand(ctx, in.Command, t.WS.Root(), shellTimeout, onOutput)
 	result := capShellOutput(full)
 
 	if err != nil {

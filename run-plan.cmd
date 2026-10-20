@@ -13,11 +13,11 @@ if "%~1"=="" (
     exit /b 1
 )
 
-go build -o agent.exe .\cmd\agent
+go build -o gektor.exe .\cmd\gektor
 if errorlevel 1 (
     echo ERROR: build failed.
     exit /b 1
 )
 
-.\agent.exe -plan %*
+.\gektor.exe -plan %*
 exit /b %errorlevel%

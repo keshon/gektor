@@ -3,7 +3,7 @@ package tui
 import (
 	"fmt"
 
-	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/gektor/internal/config"
 )
 
 // applyTheme swaps the palette and everything derived from it.

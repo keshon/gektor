@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/gektor/internal/agent"
 )
 
 // httpMCPTimeout bounds one HTTP exchange. Streamable HTTP is
@@ -84,7 +84,7 @@ func StartMCPHTTP(ctx context.Context, server, rawURL string) ([]agent.Tool, *ht
 	if err := c.call(ctx, "initialize", map[string]any{
 		"protocolVersion": "2024-11-05",
 		"capabilities":    map[string]any{},
-		"clientInfo":      map[string]any{"name": "tars", "version": "1.0"},
+		"clientInfo":      map[string]any{"name": "gektor", "version": "1.0"},
 	}, &initResult); err != nil {
 		return nil, nil, fmt.Errorf("mcp %s: initialize: %w", server, err)
 	}

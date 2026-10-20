@@ -1,9 +1,9 @@
 package tools
 
 import (
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/checks"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/checks"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // Base returns the standard tool set shared by the main agent and

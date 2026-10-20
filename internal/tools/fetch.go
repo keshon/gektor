@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/gektor/internal/agent"
 )
 
 // webfetch and fetch_raw are the same request with a different cap and a
@@ -65,7 +65,7 @@ func fetch(ctx context.Context, in fetchArgs, spec fetchSpec) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("bad url: %w", err)
 	}
-	req.Header.Set("User-Agent", "tars-agent/1.0")
+	req.Header.Set("User-Agent", "gektor-agent/1.0")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,text/*;q=0.8,*/*;q=0.1")
 
 	resp, err := networkClient(false, spec.seam).Do(req)

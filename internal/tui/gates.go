@@ -8,12 +8,12 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/permission"
-	"github.com/keshon/tars/internal/run"
-	"github.com/keshon/tars/internal/tools"
-	"github.com/keshon/tars/internal/tui/components/gate"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/run"
+	"github.com/keshon/gektor/internal/tools"
+	"github.com/keshon/gektor/internal/tui/components/gate"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // gateStage is the permission overlay stage: permit, always-confirm,

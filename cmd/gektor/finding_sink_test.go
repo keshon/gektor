@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/tars/internal/checks"
-	"github.com/keshon/tars/internal/events"
+	"github.com/keshon/gektor/internal/checks"
+	"github.com/keshon/gektor/internal/events"
 )
 
 // json mode used to return a nil sink, and a nil sink is not a quiet

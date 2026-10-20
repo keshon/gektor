@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/prompts"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/prompts"
 )
 
 // stubClient returns canned responses in sequence, one per Chat call.

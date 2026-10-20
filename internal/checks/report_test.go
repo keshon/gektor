@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // dirty is a file with gofmt drift and nothing else.

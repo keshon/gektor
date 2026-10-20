@@ -23,15 +23,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/audit"
-	"github.com/keshon/tars/internal/events"
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/roles"
-	"github.com/keshon/tars/internal/run"
-	"github.com/keshon/tars/internal/tars"
-	"github.com/keshon/tars/internal/tools"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/audit"
+	"github.com/keshon/gektor/internal/events"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/roles"
+	"github.com/keshon/gektor/internal/run"
+	"github.com/keshon/gektor/internal/gektor"
+	"github.com/keshon/gektor/internal/tools"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // serveDeps is everything a run needs, assembled once in main. Per-run
@@ -223,7 +223,7 @@ readLoop:
 	}
 	// Stdin closed: no more requests will arrive, but an in-flight run
 	// still owns its answer — drain it instead of abandoning it. This is
-	// what makes piped one-shots (`printf ... | agent -serve`) work
+	// what makes piped one-shots (`printf ... | gektor -serve`) work
 	// instead of racing startup against EOF. Exception: a run suspended
 	// on a gate can never proceed — its answer was going to arrive on
 	// the stdin that just closed — so cancel it instead of hanging.
@@ -267,7 +267,7 @@ func serveRun(ctx context.Context, d serveDeps, hub *run.GateHub, emitter *event
 	}
 	sum := sha1.Sum([]byte(task + time.Now().String()))
 	taskID := hex.EncodeToString(sum[:])[:8]
-	taskDir := tars.Sub("tasks", taskID)
+	taskDir := gektor.Sub("tasks", taskID)
 	stateFile := filepath.Join(taskDir, "state.json")
 	_ = workspace.WriteSessionTitle(taskDir, workspace.TitleLine(task))
 

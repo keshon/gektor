@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/checks"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/checks"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // FindingSink receives deterministic post-write findings. Nil disables

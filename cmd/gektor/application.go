@@ -5,10 +5,10 @@ import (
 	"flag"
 	"path/filepath"
 
-	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/tars"
-	"github.com/keshon/tars/internal/tui"
+	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/gektor"
+	"github.com/keshon/gektor/internal/tui"
 )
 
 type launchRequest struct {
@@ -31,7 +31,7 @@ func runApplication(args []string) error {
 	if err != nil {
 		return err
 	}
-	path := tars.Sub("application.json")
+	path := gektor.Sub("application.json")
 	if !options.tui {
 		return runConfigured(launchRequest{options: &options, preferencePath: path})
 	}

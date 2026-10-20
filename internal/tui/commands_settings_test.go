@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/roles"
-	"github.com/keshon/tars/internal/run"
+	"github.com/keshon/gektor/internal/roles"
+	"github.com/keshon/gektor/internal/run"
 )
 
 // /max-steps, /budget-think and /nudges all set a model field and rebuild the

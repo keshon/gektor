@@ -11,7 +11,9 @@
 package prompts
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"fmt"
 	"runtime"
 	"strings"
@@ -19,6 +21,24 @@ import (
 
 //go:embed text/*.txt
 var files embed.FS
+
+// Digest identifies the exact prompt files embedded in the running binary.
+func Digest() string {
+	h := sha256.New()
+	entries, err := files.ReadDir("text")
+	if err != nil {
+		panic(err)
+	}
+	for _, entry := range entries {
+		data, err := files.ReadFile("text/" + entry.Name())
+		if err != nil {
+			panic(err)
+		}
+		fmt.Fprintf(h, "%s\x00%d\x00", entry.Name(), len(data))
+		h.Write(data)
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
 
 func read(name string) string {
 	data, err := files.ReadFile("text/" + name)

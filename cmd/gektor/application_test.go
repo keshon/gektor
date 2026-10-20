@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/keshon/tars/internal/app"
-	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/config"
 )
 
 func TestTUILaunchUsesSavedSettingsAndExplicitOverrides(t *testing.T) {

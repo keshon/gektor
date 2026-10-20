@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/session"
-	"github.com/keshon/tars/internal/tui/components/transcript"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/session"
+	"github.com/keshon/gektor/internal/tui/components/transcript"
 )
 
 // savePreferences runs at both ends of every turn and fsyncs. An

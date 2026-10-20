@@ -7,7 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/gektor/internal/config"
 )
 
 func focusSetting(m *model, key string) {
@@ -62,7 +62,7 @@ func TestLoadedProfileStagedUntilApply(t *testing.T) {
 	}
 }
 func TestSettingsLibrariesPreview(t *testing.T) {
-	dir := os.Getenv("TARS_TUI_PREVIEW_DIR")
+	dir := os.Getenv("GEKTOR_TUI_PREVIEW_DIR")
 	if dir == "" {
 		t.Skip("preview opt-in")
 	}

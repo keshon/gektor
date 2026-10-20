@@ -7,11 +7,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/app"
-	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // The fixture builds a saved task so the apply path has a checkpoint to
@@ -113,7 +113,7 @@ func TestApplicationPageRejectsAMissingWorkspace(t *testing.T) {
 }
 
 func TestApplicationPreview(t *testing.T) {
-	dir := os.Getenv("TARS_TUI_PREVIEW_DIR")
+	dir := os.Getenv("GEKTOR_TUI_PREVIEW_DIR")
 	if dir == "" {
 		t.Skip("preview opt-in")
 	}
@@ -127,7 +127,7 @@ func TestApplicationPreview(t *testing.T) {
 }
 
 func TestSharedSettingsPreview(t *testing.T) {
-	dir := os.Getenv("TARS_TUI_PREVIEW_DIR")
+	dir := os.Getenv("GEKTOR_TUI_PREVIEW_DIR")
 	if dir == "" {
 		t.Skip("preview export")
 	}

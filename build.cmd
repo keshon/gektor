@@ -1,8 +1,8 @@
 @echo off
 rem ---------------------------------------------------------------------------
-rem  TARS build helper.
+rem  GEKTOR build helper.
 rem
-rem    build            build every package, then agent.exe
+rem    build            build every package, then gektor.exe
 rem    build test       run the unit tests (extra args pass through)
 rem    build check      full local CI: vet, build, race tests, conventions,
 rem                      eval probes -dry
@@ -19,10 +19,10 @@ rem  artifact, not a formatting problem - CI is the authority on formatting.
 rem
 rem  build test and build check redirect the user's home to a throwaway
 rem  directory for the duration of the run, so no test can write into the
-rem  real .tars\. Nothing to clean up afterwards, because nothing real was
+rem  real .gektor\. Nothing to clean up afterwards, because nothing real was
 rem  reachable.
 rem
-rem  build clean never touches .tars\: that directory holds resumable task
+rem  build clean never touches .gektor\: that directory holds resumable task
 rem  state, and losing it means losing saved runs. It is the only user data
 rem  the project keeps, and it lives in the user's home, not in the repo -
 rem  so a recursive delete anywhere near it is never the answer to anything.
@@ -73,14 +73,14 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo Building agent.exe...
-go build -o agent.exe .\cmd\agent
+echo Building gektor.exe...
+go build -o gektor.exe .\cmd\gektor
 if errorlevel 1 (
-    echo ERROR: agent.exe build failed.
+    echo ERROR: gektor.exe build failed.
     exit /b 1
 )
 
-echo Done: agent.exe
+echo Done: gektor.exe
 exit /b 0
 
 rem ---------------------------------------------------------------------------
@@ -107,8 +107,8 @@ exit /b %errorlevel%
 rem ---------------------------------------------------------------------------
 rem  Point the user's home at a throwaway directory for the duration of a run.
 rem
-rem  Packages that persist anything call internal/tars, which resolves the
-rem  user's real .tars. Four of them redirect it in TestMain, but a package
+rem  Packages that persist anything call internal/gektor, which resolves the
+rem  user's real .gektor. Four of them redirect it in TestMain, but a package
 rem  that forgets, or a test that shells out to a binary that does not, would
 rem  write into the live session library. Redirecting USERPROFILE makes the
 rem  real one unreachable, so there is nothing left to clean up afterwards.
@@ -119,12 +119,12 @@ rem  sandbox as well. setlocal scopes both, so the caller's home is intact
 rem  when this script returns and no caller has to undo anything.
 rem ---------------------------------------------------------------------------
 :sandbox
-if not defined TARS_TEST_SANDBOX (
-    set "TARS_TEST_SANDBOX=%TEMP%\tars-test-home-%RANDOM%%RANDOM%"
-    mkdir "%TARS_TEST_SANDBOX%" 2>nul
+if not defined GEKTOR_TEST_SANDBOX (
+    set "GEKTOR_TEST_SANDBOX=%TEMP%\gektor-test-home-%RANDOM%%RANDOM%"
+    mkdir "%GEKTOR_TEST_SANDBOX%" 2>nul
 )
-set "USERPROFILE=%TARS_TEST_SANDBOX%"
-set "HOME=%TARS_TEST_SANDBOX%"
+set "USERPROFILE=%GEKTOR_TEST_SANDBOX%"
+set "HOME=%GEKTOR_TEST_SANDBOX%"
 exit /b 0
 
 rem ---------------------------------------------------------------------------
@@ -199,12 +199,12 @@ exit /b %errorlevel%
 
 rem ---------------------------------------------------------------------------
 rem  Remove what building and evaluating leave behind. Resumable task state
-rem  in .tars\ and local launcher files are never touched.
+rem  in .gektor\ and local launcher files are never touched.
 rem ---------------------------------------------------------------------------
 :clean
 echo Removing build outputs, logs and eval results...
 
-if exist agent.exe del /q agent.exe
+if exist gektor.exe del /q gektor.exe
 if exist eval.exe del /q eval.exe
 if exist agent-debug.log del /q agent-debug.log
 if exist tmp rmdir /s /q tmp
@@ -212,14 +212,14 @@ if exist temp rmdir /s /q temp
 if exist eval\results rmdir /s /q eval\results
 if exist eval\log rmdir /s /q eval\log
 
-echo Done. Saved task state in .tars\ was not touched.
+echo Done. Saved task state in .gektor\ was not touched.
 exit /b 0
 
 rem ---------------------------------------------------------------------------
 :help
-echo TARS build helper. Usage: build [mode] [args]
+echo GEKTOR build helper. Usage: build [mode] [args]
 echo.
-echo   build            build every package, then agent.exe
+echo   build            build every package, then gektor.exe
 echo   build test       run the unit tests (extra args pass through)
 echo   build check      full local CI: vet, build, race tests, conventions,
 echo                    eval probes -dry

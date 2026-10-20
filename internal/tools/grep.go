@@ -12,9 +12,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/permission"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // GrepFiles searches file contents by regex instead of requiring read_file
@@ -134,7 +134,7 @@ func (t GrepFiles) Run(ctx context.Context, args json.RawMessage) (string, error
 					return filepath.SkipDir
 				}
 			}
-			if p != root && !in.IncludeIgnored && (info.Name() == ".git" || info.Name() == ".tars" || (files == nil && workspace.IgnoredDirectory(info.Name()))) {
+			if p != root && !in.IncludeIgnored && (info.Name() == ".git" || info.Name() == ".gektor" || info.Name() == ".tars" || (files == nil && workspace.IgnoredDirectory(info.Name()))) {
 				return filepath.SkipDir
 			}
 			return nil

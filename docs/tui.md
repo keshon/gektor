@@ -1,18 +1,18 @@
 # Terminal guide
 
-Start TARS with `agent.exe -tui`, or use `run-tui.cmd` on Windows.
+Start GEKTOR with `gektor.exe -tui`, or use `run-tui.cmd` on Windows.
 The UI uses Bubble Tea v2. [CLI flags](cli.md) configure the backend,
 workspace, permissions, verification, and response budgets.
 
 ## Windows launchers
 
-Start a model server in its own terminal before using TARS. Machine-specific
+Start a model server in its own terminal before using GEKTOR. Machine-specific
 paths and keys live in `.env` (copy from `.env.example`; gitignored).
 
 **llama.cpp (default backend):**
 1. Fill in `LLAMA_SERVER_EXE` and `LLAMA_MODEL` in `.env`.
 2. Run `run-server-llama.cmd` and wait for the model to finish loading.
-3. In another terminal, run `run-tui.cmd`. It builds `agent.exe` and opens
+3. In another terminal, run `run-tui.cmd`. It builds `gektor.exe` and opens
    saved settings, defaulting to llama.cpp at `127.0.0.1:8080` on first launch.
    Extra arguments are forwarded to the binary:
 
@@ -30,7 +30,7 @@ The sibling launchers build and run the same binary for print-mode work:
 `run-resume.cmd [id]`. Each prints its usage
 when called without arguments.
 
-Keep flags before any task text. Closing TARS leaves the independently
+Keep flags before any task text. Closing GEKTOR leaves the independently
 started model server running. Closing the server terminal stops that server.
 The optional `run-remote.cmd` is a local, gitignored helper; it is not
 required or distributed as part of the setup.
@@ -230,7 +230,7 @@ configured backend. See [the trust boundary](../SECURITY.md).
 
 PNG, JPG/JPEG, WebP, GIF, and BMP use image attachments instead of text.
 The backend caps each image at 20 MiB. A vision-capable OpenAI-compatible
-provider or llama-server with VL weights and `--mmproj` is required. TARS's
+provider or llama-server with VL weights and `--mmproj` is required. GEKTOR's
 KoboldCPP dialect rejects image attachments. `-image` attaches images to
 an opening task; inline text-file references are a TUI composer feature,
 not syntax interpreted by print mode or RPC.
@@ -289,7 +289,7 @@ search popup does not resume them as direct runs.
 
 Drafts, input history, and the queued follow-up are kept separately for each
 run while the UI is open. They are not persisted across app restarts. Saved
-model history and display metadata live under `.tars/tasks/<id>/`.
+model history and display metadata live under `.gektor/tasks/<id>/`.
 
 ## Running, stopping, and permissions
 
@@ -387,16 +387,16 @@ expose their own Next/Apply/Cancel footer actions instead of unrelated hotkeys.
 
 ## Thinking service
 
-TARS connects to a model server someone else started. Start one with
+GEKTOR connects to a model server someone else started. Start one with
 `run-server-llama.cmd` or `run-server-kobold.cmd`, wait for it to report the
-model loaded, then point TARS at it.
+model loaded, then point GEKTOR at it.
 
 Settings > Model selects the protocol, server address, model identifier and,
 in Advanced, the environment variable holding an API key. Focus the model
 field and press Space for models the server reports; typing a name that is
 not on that list works too, since a server need not enumerate what it serves.
 
-TARS does not start, stop or restart that server. If it exits mid-run the
+GEKTOR does not start, stop or restart that server. If it exits mid-run the
 next request reports a connection error.
 
 ## Shared settings workspace
@@ -417,7 +417,7 @@ configured protocol; unsupported discovery falls back to manual entry.
 
 Explicit-profile launches keep runtime edits in memory until saved as a profile.
 The common launcher also remembers its effective configuration in
-`~/.tars/application.json`;
+`~/.gektor/application.json`;
 source profile files are not overwritten. Profiles can be loaded as staged settings
 and saved as new portable copies.
 
@@ -430,7 +430,7 @@ exist.
 
 ### Profiles
 
-Profiles > Load setup opens saved JSON profiles beside agent.exe. Choosing one
+Profiles > Load setup opens saved JSON profiles beside gektor.exe. Choosing one
 stages its configuration without applying it; Apply is a separate decision, and a
 loaded profile with no field edits after the load still commits. Changing
 categories displays staged values. Ctrl+D saves a new portable copy using the
@@ -442,7 +442,7 @@ see [cli.md](cli.md#profiles).
 
 ## Common launcher
 
-    .\agent.exe -tui
+    .\gektor.exe -tui
 
 The menu is Session, Run, View, Settings, Help. Run selects Plan or Act; the
 current choice is marked. Settings opens the workspace as Model, Generation,
@@ -455,10 +455,10 @@ A launch requires a workspace and starts in Plan. Act enables tool execution und
 the existing permission gates. Applying settings in an existing session preserves
 the Plan/Act choice and never starts a run.
 
-Common-launch sessions live under `~/.tars/sessions`, with `state.json` as the
+Common-launch sessions live under `~/.gektor/sessions`, with `state.json` as the
 complete archive and compacted context projection. Global settings provide
 the current service profile; the session restores its saved Plan/Act choice. Standalone CLI sessions live beside them in
-`~/.tars/tasks`.
+`~/.gektor/tasks`.
 
 ## Panel status and manual compaction
 
@@ -548,7 +548,7 @@ the transcript rather than sent to the model as literal text.
 ## Implementation boundaries
 
 Reusable form, composer, list-selection and transcript viewport models live under
-`internal/tui/components`. TARS supplies styles and application data, routes focus,
+`internal/tui/components`. GEKTOR supplies styles and application data, routes focus,
 and handles effects; components own their local editing/selection/scroll state.
 Session indexing lives in `the TUI itself`, independently of terminal
 rendering. See [TUI ownership](tui-ownership.md) for enforced boundaries and limits.

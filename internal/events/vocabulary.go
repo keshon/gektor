@@ -111,6 +111,13 @@ func EmitDelta(emitter *Emitter, text string) {
 	emitter.Emit("delta", map[string]any{"text": text})
 }
 
+// EmitToolOutput writes a display-only chunk before the authoritative result.
+func EmitToolOutput(emitter *Emitter, callID, text string) {
+	if emitter != nil && text != "" {
+		emitter.Emit("tool_output", map[string]any{"call_id": callID, "text": text})
+	}
+}
+
 // EmitToolResult writes one completed tool call. Callers pair it with the
 // matching tool_calls entry by call ID; the result text is capped like
 // every other field.

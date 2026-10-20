@@ -24,7 +24,7 @@ description: Inspect, optimize, resize, convert and compare image assets with th
 5. Report measured byte savings, dimensions and fidelity metrics. Confirm
    written outputs from the apply result; preview savings are estimates.
 
-Use the existing `run_shell`; there is no dedicated image tool in TARS.
+Use the existing `run_shell`; there is no dedicated image tool in GEKTOR.
 Plan has no shell access: describe the operation there and execute it in Act.
 Run commands from the task workspace and keep asset/output paths within it.
 

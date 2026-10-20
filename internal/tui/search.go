@@ -7,7 +7,7 @@ import (
 	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
-	"github.com/keshon/tars/internal/tui/components/popup"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
 // sessionText is one searchable message and its index in the source history.

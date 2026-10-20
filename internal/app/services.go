@@ -3,8 +3,8 @@
 package app
 
 import (
-	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/llm"
 )
 
 // Services is what one launch is composed from: a thinking client, the

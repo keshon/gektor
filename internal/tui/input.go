@@ -5,8 +5,8 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/keshon/tars/internal/tui/components/cell"
-	"github.com/keshon/tars/internal/tui/components/composer"
+	"github.com/keshon/gektor/internal/tui/components/cell"
+	"github.com/keshon/gektor/internal/tui/components/composer"
 )
 
 // truncate shortens display strings with a marker. Rune-based:

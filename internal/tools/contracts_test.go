@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 func TestRedirectCannotReachLoopback(t *testing.T) {

@@ -3,7 +3,7 @@ package settings
 import (
 	"testing"
 
-	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/gektor/internal/config"
 )
 
 // Every category the rail can show must carry its own hint. Generation

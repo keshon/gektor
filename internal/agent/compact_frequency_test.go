@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/gektor/internal/llm"
 )
 
 // A backend re-reads the whole prompt when the prefix changes. The loop

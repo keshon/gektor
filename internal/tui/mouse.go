@@ -83,9 +83,9 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if m.dialog != nil {
 		switch msg.Mouse().Button {
 		case tea.MouseWheelDown:
-			m.dialog.offset++
+			m.scrollDialog(1)
 		case tea.MouseWheelUp:
-			m.dialog.offset = max(m.dialog.offset-1, 0)
+			m.scrollDialog(-1)
 		}
 		return m, nil
 	}

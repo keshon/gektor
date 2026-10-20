@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/gektor/internal/agent"
 )
 
 // webfetchMaxBytes caps a fetched page: 5MB on the wire, 48KB in context.

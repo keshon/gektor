@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/session"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/session"
 )
 
 type usageState struct {

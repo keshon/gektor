@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/checks"
-	"github.com/keshon/tars/internal/rules"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/checks"
+	"github.com/keshon/gektor/internal/rules"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 type stubWrite struct {

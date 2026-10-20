@@ -1,4 +1,4 @@
-module github.com/keshon/tars
+module github.com/keshon/gektor
 
 go 1.26.6
 

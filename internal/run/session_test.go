@@ -14,13 +14,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/checks"
-	"github.com/keshon/tars/internal/events"
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/roles"
-	"github.com/keshon/tars/internal/tools"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/checks"
+	"github.com/keshon/gektor/internal/events"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/roles"
+	"github.com/keshon/gektor/internal/tools"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 func testEnv(t *testing.T, client llm.Client, record func(string, int, llm.Message)) roles.Env {
@@ -434,5 +434,50 @@ func TestSessionSweepUsesTheEventReporter(t *testing.T) {
 				t.Fatalf("old sink=%d event findings=%d", old, wire)
 			}
 		})
+	}
+}
+
+type sessionPreviewTool struct{ tools.CheckURL }
+
+func (sessionPreviewTool) Name() string { return "stream_test" }
+func (sessionPreviewTool) Run(context.Context, json.RawMessage) (string, error) {
+	return "final output", nil
+}
+func (s sessionPreviewTool) RunStreaming(ctx context.Context, args json.RawMessage, emit func(string)) (string, error) {
+	emit("live output")
+	return s.Run(ctx, args)
+}
+
+type previewClient struct{ calls int }
+
+func (c *previewClient) Chat(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
+	c.calls++
+	if c.calls == 1 {
+		return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "live", Name: "stream_test", Arguments: json.RawMessage(`{}`)}}}}, nil
+	}
+	return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}}, nil
+}
+func TestSessionStreamsToolPreviewBeforeFinalResult(t *testing.T) {
+	env := testEnv(t, &previewClient{}, nil)
+	env.MCPTools = []agent.Tool{sessionPreviewTool{}}
+	var previous []string
+	env.OnToolOutput = func(id, text string) { previous = append(previous, id+":"+text) }
+	var observed []string
+	s, err := New(Config{Task: "task", Env: env, OnEvent: func(ev Event) {
+		if ev.Name == "tool_output" || ev.Name == "tool_result" {
+			if ev.Fields["call_id"] != "live" {
+				t.Errorf("wrong ID: %+v", ev)
+			}
+			observed = append(observed, ev.Name+":"+ev.Fields["text"].(string))
+		}
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Run(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(observed, "|") != "tool_output:live output|tool_result:final output" || strings.Join(previous, "|") != "live:live output" {
+		t.Fatalf("events=%v previous=%v", observed, previous)
 	}
 }

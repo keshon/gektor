@@ -3,7 +3,7 @@ package tools
 import (
 	"testing"
 
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 func TestReadOnly_ContainsNoMutatingOrShellTools(t *testing.T) {

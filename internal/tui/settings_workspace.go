@@ -2,7 +2,7 @@ package tui
 
 import (
 	"charm.land/bubbles/v2/textinput"
-	"github.com/keshon/tars/internal/tui/settings"
+	"github.com/keshon/gektor/internal/tui/settings"
 )
 
 type settingsWorkspace = settings.Workspace

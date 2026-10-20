@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/tui/components/form"
+	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/tui/components/form"
 )
 
 type page struct {

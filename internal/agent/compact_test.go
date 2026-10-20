@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/prompts"
-	"github.com/keshon/tars/internal/session"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/prompts"
+	"github.com/keshon/gektor/internal/session"
 )
 
 type largeRead struct{}

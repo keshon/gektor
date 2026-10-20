@@ -14,7 +14,7 @@ import (
 
 func IgnoredDirectory(name string) bool {
 	switch name {
-	case ".git", ".tars", "node_modules", ".venv", "venv", "__pycache__", "target", "dist", "build":
+	case ".git", ".gektor", ".tars", "node_modules", ".venv", "venv", "__pycache__", "target", "dist", "build":
 		return true
 	}
 	return false
@@ -79,7 +79,7 @@ func (w *Workspace) inventory(ctx context.Context, previous map[string]fileStamp
 					return filepath.SkipDir
 				}
 			}
-			if path != w.root && (d.Name() == ".git" || d.Name() == ".tars" || (files == nil && IgnoredDirectory(d.Name()) && d.Name() != "dist" && d.Name() != "build" && d.Name() != "target")) {
+			if path != w.root && (d.Name() == ".git" || d.Name() == ".gektor" || d.Name() == ".tars" || (files == nil && IgnoredDirectory(d.Name()) && d.Name() != "dist" && d.Name() != "build" && d.Name() != "target")) {
 				return filepath.SkipDir
 			}
 			return nil

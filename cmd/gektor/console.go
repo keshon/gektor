@@ -10,14 +10,14 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/checks"
-	"github.com/keshon/tars/internal/events"
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/permission"
-	"github.com/keshon/tars/internal/run"
-	"github.com/keshon/tars/internal/tools"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/checks"
+	"github.com/keshon/gektor/internal/events"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/run"
+	"github.com/keshon/gektor/internal/tools"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 func permissionGateContext(autoDeny bool, suspend agent.Suspender, ws *workspace.Workspace) func(context.Context, string, string, json.RawMessage) (permission.Effect, error) {

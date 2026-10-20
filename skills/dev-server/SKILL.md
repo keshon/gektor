@@ -23,5 +23,5 @@ Treat it differently from a normal command:
    holding the port).
 5. Use `stop_background` when checks no longer need the server. Managed
    background processes are cleaned up when the frontend exits; do not promise
-   that a server will survive TARS closing. For a persistent server, give the
+   that a server will survive GEKTOR closing. For a persistent server, give the
    user the startup command to run in a separate terminal.

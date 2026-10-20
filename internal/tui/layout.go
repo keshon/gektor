@@ -1,11 +1,10 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/tui/components/cell"
+	"github.com/keshon/gektor/internal/tui/components/cell"
 )
 
 const (
@@ -43,7 +42,7 @@ func (m *model) promptOffset() int {
 	return 1
 }
 func (m *model) paneHeight() int    { return max(m.termH-4-m.footerRows(), 1) }
-func (m *model) navigatorRows() int { return max(m.paneHeight()-1, 1) }
+func (m *model) navigatorRows() int { return m.paneHeight() }
 
 func (m *model) sidebarView() string {
 	rows := []string{}
@@ -77,56 +76,9 @@ func (m *model) sidebarView() string {
 	for len(rows) < m.navigatorRows() {
 		rows = append(rows, "")
 	}
-	rows = append(rows, m.sidebarDetails())
 	return cellFrame(strings.Join(rows, "\n"), navigatorWidth, m.paneHeight())
 }
 
-func (m *model) sidebarDetails() string {
-	if len(m.nav.entries) == 0 {
-		return "No session selected"
-	}
-	nav := m.nav
-	nav.clamp(m.navigatorRows())
-	e := nav.entries[nav.Cursor]
-	if !m.navFocused {
-		for _, entry := range nav.entries {
-			if sameSession(entry.dir, m.stateFile) {
-				e = entry
-				break
-			}
-		}
-	}
-	noun := "messages"
-	if e.msgs == 1 {
-		noun = "message"
-	}
-	details := fmt.Sprintf("%s  %d %s", nonEmpty(e.mode), e.msgs, noun)
-	if state := m.entryState(e); state != "" {
-		details = state + "  " + details
-	}
-	return m.styles.dim.Render(cellLine(details, navigatorWidth))
-}
-
-func (m *model) entryState(e sessionEntry) string {
-	if sameSession(e.dir, m.stateFile) {
-		switch m.state {
-		case stRunning:
-			return "Working"
-		case stStopping:
-			return "Stopping"
-		case stAsk, stPermission:
-			return "Needs input"
-		case stDone:
-			if m.runErr != nil {
-				return "Failed"
-			}
-		}
-	}
-	if e.status != "" && e.status != "Saved" {
-		return e.status
-	}
-	return ""
-}
 func (m *model) navigatorKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if msg.String() == "ctrl+c" || msg.String() == "ctrl+q" {
 		m.quit = true

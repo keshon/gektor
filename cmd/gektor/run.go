@@ -9,9 +9,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/app"
-	"github.com/keshon/tars/internal/tools"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/tools"
 )
 
 func runConfigured(launch launchRequest) error {

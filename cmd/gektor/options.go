@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/llm"
 )
 
 // launchOptions holds command-line values and records explicit overrides.
@@ -51,7 +51,7 @@ type launchOptions struct {
 
 func parseLaunchOptions(args []string) (launchOptions, error) {
 	var o launchOptions
-	flags := flag.NewFlagSet("agent", flag.ContinueOnError)
+	flags := flag.NewFlagSet("gektor", flag.ContinueOnError)
 	flags.StringVar(&o.backendURL, "backend", "http://localhost:5001", "backend base URL: bare origin for a local server ("+
 		"http://localhost:5001) or API root for a hosted OpenAI-compatible provider "+
 		"(https://api.openai.com/v1, https://openrouter.ai/api/v1)")
@@ -67,7 +67,7 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 		"large outputs (e.g. a full HTML+CSS+JS file) mid-JSON")
 	flags.IntVar(&o.maxSteps, "max-steps", 0, "step budget per run — explicit 0 means no limit; omitted uses the saved limit or default (25). "+
 		"Applies to direct runs; subagents keep fixed budgets")
-	flags.StringVar(&o.resume, "resume", "", "path to a .tars/tasks/.../state.json snapshot to resume "+
+	flags.StringVar(&o.resume, "resume", "", "path to a .gektor/tasks/.../state.json snapshot to resume "+
 		"an interrupted run from, instead of starting a new task")
 	flags.StringVar(&o.answer, "answer", "", "answer to supply when resuming a run paused on ask_user "+
 		"(use with -resume when the agent stopped to ask a clarifying question)")
@@ -84,7 +84,7 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 		"than run: the dialects disagree about grammar, sampler fields and structured "+
 		"output, so a mismatched run completes and measures nothing")
 	flags.StringVar(&o.apiKey, "api-key", "", "bearer token for a remote provider; prefer the "+
-		"TARS_API_KEY / OPENAI_API_KEY / OPENROUTER_API_KEY env vars so the secret never lands in shell history")
+		"GEKTOR_API_KEY / OPENAI_API_KEY / OPENROUTER_API_KEY env vars so the secret never lands in shell history")
 	flags.StringVar(&o.apiKeyEnv, "api-key-env", "", "name of the env var holding the bearer token, "+
 		"e.g. OPENROUTER_API_KEY — overrides the built-in lookup order")
 	flags.IntVar(&o.contextLimit, "context-limit", 0, "context window in tokens; local server detection takes precedence. "+

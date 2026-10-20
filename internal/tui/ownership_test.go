@@ -10,8 +10,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 func TestOpeningSessionRetainsContextEstimate(t *testing.T) {

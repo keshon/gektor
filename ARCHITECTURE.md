@@ -1,12 +1,12 @@
 # Architecture
 
-TARS uses one coding-agent loop. Plan explores without changing anything; Act
+GEKTOR uses one coding-agent loop. Plan explores without changing anything; Act
 edits files, runs commands and delegates bounded subtasks. Print, JSON, TUI
 and stdio RPC use the same loop.
 
 ## Composition
 
-cmd/agent resolves flags, preferences and provider profiles. Each launch owns
+cmd/gektor resolves flags, preferences and provider profiles. Each launch owns
 its backend client, MCP connections and background-process registry.
 internal/app compiles identity and profile settings into Services.
 internal/roles builds Planner, Interactive and Subagent from Env. Subagents

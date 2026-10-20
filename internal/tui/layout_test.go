@@ -9,7 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/events"
+	"github.com/keshon/gektor/internal/events"
 )
 
 func TestCompactSessionRowsSharePagingAndMouseGeometry(t *testing.T) {
@@ -29,10 +29,10 @@ func TestCompactSessionRowsSharePagingAndMouseGeometry(t *testing.T) {
 		t.Fatal("session rows repeated status or wasted available space")
 	}
 	rows := strings.Split(view, "\n")
-	if !strings.Contains(ansi.Strip(m.sidebarDetails()), "Act  1 message") || strings.TrimSpace(string([]rune(rows[0])[navigatorWidth-4:])) != "2m" {
-		t.Fatal("selected details or aligned age missing")
+	if strings.TrimSpace(string([]rune(rows[0])[navigatorWidth-4:])) != "2m" {
+		t.Fatal("aligned age missing")
 	}
-	for _, label := range []string{"NAME", "AGE", "tars"} {
+	for _, label := range []string{"NAME", "AGE", "gektor"} {
 		if strings.Contains(view, label) {
 			t.Fatalf("redundant pane label remains: %s", label)
 		}
@@ -42,8 +42,8 @@ func TestCompactSessionRowsSharePagingAndMouseGeometry(t *testing.T) {
 	if strings.Contains(frame[footer-1][:navigatorWidth], "─") {
 		t.Fatal("Sessions status still has its own divider")
 	}
-	if !strings.Contains(frame[footer], "Act  1 message") || !strings.Contains(frame[footer], "│") {
-		t.Fatal("session details are not at the bottom of the pane")
+	if strings.Contains(view, "message") || strings.Contains(view, "Act") || !strings.Contains(frame[footer], "│") {
+		t.Fatal("redundant session details remain or pane border is missing")
 	}
 	if m.footerRows() != 2 || len(strings.Split(m.actionBar(), "\n")) != 1 {
 		t.Fatal("footer must occupy one row")

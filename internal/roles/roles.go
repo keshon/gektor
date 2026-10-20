@@ -13,13 +13,13 @@ import (
 	"encoding/json"
 	"path/filepath"
 
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/checks"
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/permission"
-	"github.com/keshon/tars/internal/prompts"
-	"github.com/keshon/tars/internal/tools"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/checks"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/prompts"
+	"github.com/keshon/gektor/internal/tools"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 const (
@@ -75,7 +75,8 @@ type Env struct {
 	// each wrapped it slightly differently.
 	OnStep func(label string, step int, msg llm.Message)
 
-	OnResult func(agent.ToolResult)
+	OnResult     func(agent.ToolResult)
+	OnToolOutput func(callID, text string)
 
 	// Rules are the deterministic checks this run applies to written
 	// files. Language rules live in internal/rules; checks.Secrets covers
@@ -173,6 +174,7 @@ func (e Env) agentConfig(system, label, stateFile string) agent.Config {
 		StateFile:      e.statePath(stateFile),
 		OnStep:         e.onStep(label),
 		OnResult:       e.OnResult,
+		OnToolOutput:   e.OnToolOutput,
 		OnUsage:        e.OnUsage,
 		OnProgress:     e.OnProgress,
 		OnNudge:        e.OnNudge,
@@ -210,6 +212,7 @@ func Subagent(e Env, role string) *agent.Agent {
 	cfg.Tools = tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.MCPTools...)
 	cfg.MaxSteps = subagentSteps
 	cfg.OnStep, cfg.OnResult, cfg.OnUsage, cfg.OnNudge = nil, nil, nil, nil
+	cfg.OnToolOutput = nil
 	cfg.OnProgress = nil
 	return agent.New(cfg)
 }

@@ -6,7 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/gektor/internal/config"
 )
 
 // An unset temperature is not zero. It used to display as a bare 0, which

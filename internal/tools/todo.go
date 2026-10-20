@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/gektor/internal/agent"
 )
 
 // Todo is opencode's todowrite: a local checklist the model maintains to

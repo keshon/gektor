@@ -2,7 +2,7 @@ package settings
 
 import (
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/tui/components/form"
+	"github.com/keshon/gektor/internal/tui/components/form"
 )
 
 type Action int

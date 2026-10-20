@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/session"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/session"
 )
 
 type auditFailedChat struct{}

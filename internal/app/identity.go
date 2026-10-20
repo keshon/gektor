@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/prompts"
+	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/prompts"
 )
 
 // Identity is the persona a profile contributes to a run: the instruction

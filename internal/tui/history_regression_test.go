@@ -6,13 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/events"
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/roles"
-	"github.com/keshon/tars/internal/run"
-	"github.com/keshon/tars/internal/session"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/events"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/roles"
+	"github.com/keshon/gektor/internal/run"
+	"github.com/keshon/gektor/internal/session"
+	"github.com/keshon/gektor/internal/workspace"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -156,5 +156,30 @@ func TestExplicitSuccessfulToolStatusSurvivesErrorText(t *testing.T) {
 	blocks := renderHistory([]llm.Message{{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "c", Name: "read_file"}}}, {Role: llm.RoleTool, ToolCallID: "c", Content: "a log example\nerror: printed text", ToolFailed: &failed}})
 	if len(blocks) != 1 || blocks[0].failed {
 		t.Fatal("successful result inferred as error despite saved status")
+	}
+}
+
+func TestToolPreviewUpdatesPendingCardAndIsReplacedOnCompletion(t *testing.T) {
+	for _, compact := range []bool{true, false} {
+		m := sizeModel(t, testModel())
+		m.transcript.compact = compact
+		m.appendBlock(toolCardBlock("call", "run_shell {}"))
+		m.appendBlock(toolCardBlock("other", "read_file {}"))
+		for _, text := range []string{"first line\n", "second line"} {
+			m.handleEvent(events.Event{Name: "tool_output", Fields: map[string]any{"call_id": "call", "text": text}})
+		}
+		first := m.transcript.blocks[0]
+		if !first.open || first.result != "first line\nsecond line" || m.transcript.blocks[1].result != "" {
+			t.Fatalf("preview attached incorrectly: %+v", m.transcript.blocks)
+		}
+		if !strings.Contains(ansi.Strip(m.View().Content), "second line") {
+			t.Fatal("pending output not visible")
+		}
+		m.handleEvent(events.Event{Name: "tool_result", Fields: map[string]any{"call_id": "call", "text": "authoritative result", "failed": true}})
+		m.handleEvent(events.Event{Name: "tool_output", Fields: map[string]any{"call_id": "call", "text": "late chunk"}})
+		first = m.transcript.blocks[0]
+		if first.open || !first.failed || first.result != "authoritative result" || len(m.transcript.blocks) != 2 {
+			t.Fatalf("result duplicated or corrupted: %+v", m.transcript.blocks)
+		}
 	}
 }

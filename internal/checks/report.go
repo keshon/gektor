@@ -6,7 +6,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // Scope names the pass a finding came from.

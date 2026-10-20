@@ -1,7 +1,7 @@
 // Command agent runs coding tasks and tool-free conversations against an LLM backend.
 //
 //	agent "create a snake game in plain JS under ./game"
-//	agent -debug "..."   # also writes agent-debug.log with raw request/response JSON
+//	gektor -debug "..."   # also writes agent-debug.log with raw request/response JSON
 package main
 
 import (

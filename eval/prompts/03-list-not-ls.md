@@ -10,7 +10,7 @@ For the manual examples below, first copy `eval/fixtures` into
 
 **Run:**
 ```bash
-go run ./cmd/agent -log-max 300 -workspace sandbox/eval-manual \
+go run ./cmd/gektor -log-max 300 -workspace sandbox/eval-manual \
   "what files are in the workspace root? just list their names"
 ```
 

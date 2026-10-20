@@ -14,7 +14,7 @@ import (
 // helpers that need a specific tree (sessionsRootFor, chdirSessions) still
 // override it per test and restore on cleanup.
 func TestMain(m *testing.M) {
-	dir, err := os.MkdirTemp("", "tars-tui-sessions")
+	dir, err := os.MkdirTemp("", "gektor-tui-sessions")
 	if err != nil {
 		panic(err)
 	}

@@ -6,18 +6,18 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/keshon/tars/internal/tars"
+	"github.com/keshon/gektor/internal/gektor"
 )
 
 // Spill writes full tool output to disk and returns its path. Best-effort:
 // any failure returns "" and the caller keeps the truncated inline result.
-// Files land in the user's TARS directory so a large fetch never lands in
+// Files land in the user's GEKTOR directory so a large fetch never lands in
 // the workspace the agent is working on.
 func Spill(tool string, content string) string {
 	if content == "" {
 		return ""
 	}
-	dir := tars.Sub("output")
+	dir := gektor.Sub("output")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return ""
 	}

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/events"
+	"github.com/keshon/gektor/internal/events"
 )
 
 func TestCtrlGExpandsThinkingWhileItIsStillStreaming(t *testing.T) {

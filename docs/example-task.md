@@ -1,7 +1,7 @@
 # Example task (manual runs)
 
 A sample task for trying the agent by hand, e.g.
-`go run ./cmd/agent "build the landing page in docs/example-task.md"`.
+`go run ./cmd/gektor "build the landing page in docs/example-task.md"`.
 
 
 ---

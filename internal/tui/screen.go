@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -135,7 +136,7 @@ func (m *model) screenContent() string {
 }
 
 func (m *model) View() tea.View {
-	v := tea.NewView(m.screenContent())
+	v := tea.NewView(paintScreen(m.screenContent()))
 	// Renderer defaults color unstyled cells without overwriting popup surfaces.
 	v.BackgroundColor = lipgloss.Color(currentPalette().background)
 	v.ForegroundColor = lipgloss.Color(themeColor(colorPopupText))
@@ -176,4 +177,24 @@ func (m *model) View() tea.View {
 		}
 	}
 	return v
+}
+
+// Paint every cell explicitly. Terminal default colors (OSC 10/11) are not
+// reliable across native cursor and input repaints in all Windows hosts.
+// Restore only reset colors, preserving semantic text and popup surfaces.
+func paintScreen(content string) string {
+	sequence := func(code int, color string) string {
+		r, g, b, _ := lipgloss.Color(color).RGBA()
+		return fmt.Sprintf("\x1b[%d;2;%d;%d;%dm", code, r>>8, g>>8, b>>8)
+	}
+	fg := sequence(38, themeColor(colorPopupText))
+	bg := sequence(48, currentPalette().background)
+	reset := fg + bg
+	restore := strings.NewReplacer(
+		"\x1b[m", "\x1b[m"+reset,
+		"\x1b[0m", "\x1b[0m"+reset,
+		"\x1b[39m", fg,
+		"\x1b[49m", bg,
+	)
+	return reset + restore.Replace(content) + "\x1b[m"
 }

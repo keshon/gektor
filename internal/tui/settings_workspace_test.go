@@ -11,7 +11,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/tui/settings"
+	"github.com/keshon/gektor/internal/tui/settings"
 )
 
 // Staged edits survive a category switch inside one dialog and land
@@ -145,7 +145,7 @@ func TestSettingsPasteRespectsNestedFocus(t *testing.T) {
 	}
 }
 func TestSettingsWorkspacePreview(t *testing.T) {
-	dir := os.Getenv("TARS_TUI_PREVIEW_DIR")
+	dir := os.Getenv("GEKTOR_TUI_PREVIEW_DIR")
 	if dir == "" {
 		t.Skip("preview opt-in")
 	}
@@ -168,7 +168,7 @@ func TestSettingsWorkspacePreview(t *testing.T) {
 }
 
 func TestRemoteModelsDiscovery(t *testing.T) {
-	t.Setenv("TARS_TEST_MODEL_KEY", "test-key")
+	t.Setenv("GEKTOR_TEST_MODEL_KEY", "test-key")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer test-key" {
 			t.Error("missing configured authentication")
@@ -184,7 +184,7 @@ func TestRemoteModelsDiscovery(t *testing.T) {
 	}))
 	defer server.Close()
 	for _, kind := range []string{"llama", "openai", "kobold"} {
-		models, err := settings.RemoteModelChoices(kind, server.URL, "TARS_TEST_MODEL_KEY")
+		models, err := settings.RemoteModelChoices(kind, server.URL, "GEKTOR_TEST_MODEL_KEY")
 		if err != nil || len(models) != 1 {
 			t.Fatalf("%s: %v %v", kind, models, err)
 		}

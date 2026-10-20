@@ -1,7 +1,7 @@
 package tui
 
 import (
-	"github.com/keshon/tars/internal/tui/components/composer"
+	"github.com/keshon/gektor/internal/tui/components/composer"
 	"os"
 	"path/filepath"
 	"time"

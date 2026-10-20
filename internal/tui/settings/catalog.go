@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/prompts"
+	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/prompts"
 )
 
 func PickerFiles(key string) bool {

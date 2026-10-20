@@ -1,13 +1,13 @@
-# TARS
+# GEKTOR
 
-A terminal coding agent, written in Go. Bring your model server; TARS supplies
+A terminal coding agent, written in Go. Bring your model server; GEKTOR supplies
 the tool loop, workspace access, session history and terminal UI.
 
-I'm building TARS to keep the agent understandable: one execution loop,
+I'm building GEKTOR to keep the agent understandable: one execution loop,
 explicit tools and a codebase I can reason about. The focus is coding work
 in a repository, with local inference as the starting point.
 
-![TARS terminal UI showing a file patch and a passing Go test](docs/images/tars-demo.png)
+![GEKTOR terminal UI showing a file patch and a passing Go test](docs/images/gektor-demo.png)
 
 *Scripted demo rendered by the real TUI. The file patch and test command were
 executed on a small fixture project; model replies were scripted. This is an
@@ -27,7 +27,7 @@ interface preview, not a model benchmark.*
 - **Use the same loop outside the TUI.** One-shot CLI, JSONL events and a
   stdio integration protocol are included.
 
-TARS connects to **llama.cpp**, **KoboldCPP**, and **OpenAI-compatible APIs**.
+GEKTOR connects to **llama.cpp**, **KoboldCPP**, and **OpenAI-compatible APIs**.
 Models, weights and inference servers are supplied separately. The Go binary
 builds without cgo; Windows is the primary development platform, with Windows
 and Linux checks configured in CI.
@@ -38,13 +38,13 @@ Requirements: **Go 1.26.6+** and a running model server capable of following
 tool instructions. These commands assume llama.cpp at `127.0.0.1:8080`.
 
 ```powershell
-git clone https://github.com/keshon/tars.git
-cd tars
-go build -o agent.exe ./cmd/agent
-.\agent.exe -tui -backend-kind llama -backend http://127.0.0.1:8080 -workspace "D:\path\to\project"
+git clone https://github.com/keshon/gektor.git
+cd gektor
+go build -o gektor.exe ./cmd/gektor
+.\gektor.exe -tui -backend-kind llama -backend http://127.0.0.1:8080 -workspace "D:\path\to\project"
 ```
 
-On Linux, build with `go build -o agent ./cmd/agent` and launch `./agent`
+On Linux, build with `go build -o gektor ./cmd/gektor` and launch `./gektor`
 with the same flags and your workspace path.
 
 The binary connects to an existing server. On Windows, the optional
@@ -69,7 +69,7 @@ Specify the backend explicitly: the standalone CLI's legacy default is
 KoboldCPP on port 5001, while the TUI's first-run connection is llama.cpp on 8080.
 
 ```powershell
-.\agent.exe -backend-kind llama -backend http://127.0.0.1:8080 -workspace "D:\path\to\project" -verify-cmd "go test ./..." "Fix the failing title test"
+.\gektor.exe -backend-kind llama -backend http://127.0.0.1:8080 -workspace "D:\path\to\project" -verify-cmd "go test ./..." "Fix the failing title test"
 ```
 
 `-plan` selects read-only planning. `-mode json` emits JSONL events.
@@ -79,7 +79,7 @@ is 25; explicit `-max-steps 0` removes the limit for the main agent.
 
 For a hosted OpenAI-compatible API, use `-backend-kind openai`, its API-root
 URL, and `-model`. Supply credentials through an environment variable such as
-`TARS_API_KEY` rather than putting a key on the command line. Local-server
+`GEKTOR_API_KEY` rather than putting a key on the command line. Local-server
 context detection takes precedence over a manual limit; hosted endpoints may
 need `-context-limit` set explicitly.
 
@@ -88,15 +88,17 @@ need `-context-limit` set explicitly.
 
 ## History and instructions
 
-Submitted input and completed steps are saved under the user's `.tars/`
-directory. `-resume` accepts a session directory or its `state.json` file;
+Submitted input and completed steps are saved under the user's `.gektor/`
+directory. Existing installations reuse `~/.tars` when `~/.gektor` is absent;
+no session data is moved. `GEKTOR_API_KEY` replaces `TARS_API_KEY`, which remains
+accepted for existing setups. `-resume` accepts a session directory or its `state.json` file;
 `-fork` continues a copy under a new task ID. Compaction reduces the model's
 working context to an extractive summary and recent messages, preserving
 the full archive for display and search. It does not ask an LLM to summarize.
 
 Ancestor and workspace `AGENTS.md` files are loaded into the agent's
 instructions. Guides in [`skills/`](skills/README.md) are read by the model
-when relevant. They belong to the task workspace; running TARS from this
+when relevant. They belong to the task workspace; running GEKTOR from this
 checkout does not install them into another project.
 
 ## Current limits
@@ -105,7 +107,7 @@ Model quality and tool-call reliability depend on the model and its server.
 Streaming and prompt-processing telemetry also depend on what the backend
 exposes; KoboldCPP uses non-streaming replies.
 
-TARS is **not a sandbox**. File tools guard against paths outside the workspace,
+GEKTOR is **not a sandbox**. File tools guard against paths outside the workspace,
 but shell commands run with your account's permissions and symlinks are
 followed. Use a container or VM when isolation matters. There is no automatic
 workspace backup or rollback. See [SECURITY.md](SECURITY.md).

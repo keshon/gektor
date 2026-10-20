@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/tools"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/tools"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 type stubChat struct {

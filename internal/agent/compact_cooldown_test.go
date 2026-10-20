@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/gektor/internal/llm"
 )
 
 // Compaction rewrites history from the notice onward, which makes a caching

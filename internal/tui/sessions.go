@@ -7,14 +7,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/keshon/tars/internal/tui/components/selection"
+	"github.com/keshon/gektor/internal/tui/components/selection"
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/session"
-	"github.com/keshon/tars/internal/tars"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/session"
+	"github.com/keshon/gektor/internal/gektor"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // Session search: a centered popup over the transcript with open,
@@ -70,10 +70,10 @@ type sessionsState struct {
 	fromNavigator bool
 }
 
-// tasksRoot is where saved sessions live, under the user's TARS
+// tasksRoot is where saved sessions live, under the user's GEKTOR
 // directory. A var rather than a bare call so tests can point it
 // somewhere temporary instead of writing to the real home directory.
-var tasksRoot = func() string { return tars.Sub("tasks") }
+var tasksRoot = func() string { return gektor.Sub("tasks") }
 
 // sessChrome counts border title, search, gap, hint and bottom border,
 // plus mutation prompts. Each result has a title and an excerpt.
@@ -505,7 +505,7 @@ func (m *model) sessionRoot() string {
 		return m.config.Directory
 	}
 	// Saved sessions belong to the user, not to the workspace: the same
-	// list has to appear whichever directory TARS was pointed at.
+	// list has to appear whichever directory GEKTOR was pointed at.
 	return tasksRoot()
 }
 func sameSession(dir, stateFile string) bool {

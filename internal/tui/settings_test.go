@@ -10,14 +10,14 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/app"
-	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/roles"
-	"github.com/keshon/tars/internal/run"
-	"github.com/keshon/tars/internal/tui/settings"
-	workspaces "github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/roles"
+	"github.com/keshon/gektor/internal/run"
+	"github.com/keshon/gektor/internal/tui/settings"
+	workspaces "github.com/keshon/gektor/internal/workspace"
 )
 
 // headerRowFor finds a menu row by its command, so a test can select one
@@ -297,7 +297,7 @@ func TestCommonMenusHaveNoRedirects(t *testing.T) {
 	}
 }
 func TestMenuSettingsPreview(t *testing.T) {
-	dir := os.Getenv("TARS_SETTINGS_PREVIEW_DIR")
+	dir := os.Getenv("GEKTOR_SETTINGS_PREVIEW_DIR")
 	if dir == "" {
 		t.Skip("renderer export opt-in")
 	}

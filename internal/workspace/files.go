@@ -32,7 +32,7 @@ func (w *Workspace) FileSet(ctx context.Context) (map[string]bool, error) {
 	}
 	files := map[string]bool{}
 	for _, name := range strings.Split(string(out), "\x00") {
-		if name == "" || name == ".tars" || strings.HasPrefix(name, ".tars/") {
+		if name == "" || name == ".gektor" || strings.HasPrefix(name, ".gektor/") || name == ".tars" || strings.HasPrefix(name, ".tars/") {
 			continue
 		}
 		files[filepath.Clean(filepath.FromSlash(name))] = true

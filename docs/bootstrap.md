@@ -1,6 +1,6 @@
 # Bootstrap and runtime ownership
 
-Status: TARS connects to a model server that someone else starts. It does not
+Status: GEKTOR connects to a model server that someone else starts. It does not
 ship, launch or supervise one. The source repository therefore contains no
 model weights and no runtime bundles.
 
@@ -45,14 +45,14 @@ reports should not be silently overridable by a string it never inspects.
 - `bin`: built application executables.
 - `lab`: experiments only; shipping code must have no dependency on it.
 
-Everything TARS persists for the user -- preferences, sessions, missions,
-task state, spilled tool output -- lives under `.tars` in the user's home
+Everything GEKTOR persists for the user -- preferences, sessions, missions,
+task state, spilled tool output -- lives under `.gektor` in the user's home
 directory. The repository is never written to except where the agent is
 working on it.
 
 ## Service contract
 
-TARS starts no backend process. That means:
+GEKTOR starts no backend process. That means:
 
 - It never terminates a server it did not start.
 - A server that exits mid-run surfaces as a connection error on the next
@@ -70,6 +70,6 @@ way to get a server running on a new machine.
 
 `llama.cpp` and KoboldCPP both start with a handful of flags and keep running in
 their own window. A process supervisor, a scheduled task, or a container image
-built from your own base will cover what TARS used to do here, and each of those
+built from your own base will cover what GEKTOR used to do here, and each of those
 is a better fit for the job than an application-level supervisor with no
 restart policy of its own.

@@ -11,11 +11,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/keshon/tars/internal/tui/components/completion"
+	"github.com/keshon/gektor/internal/tui/components/completion"
 )
 
 // The picker itself — its items, its selection and its frame — lives in
-// components/completion. What stays here is TARS's side: deciding which
+// components/completion. What stays here is GEKTOR's side: deciding which
 // commands and paths match the token at the caret, and what accepting one
 // means.
 

@@ -13,7 +13,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/tui/components/cell"
+	"github.com/keshon/gektor/internal/tui/components/cell"
 )
 
 // Styles are the palette values a popup draws with. The caller supplies them

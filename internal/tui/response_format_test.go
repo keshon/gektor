@@ -31,7 +31,7 @@ func TestAgentIdentityAndLongNameLabel(t *testing.T) {
 	m.refreshContent()
 	// One name row opens the run; thinking and the tool card follow under
 	// it with label rows only.
-	if got := ansi.Strip(m.transcript.Viewport.View()); strings.Contains(got, "TARS") || strings.Count(got, "ADA") != 1 {
+	if got := ansi.Strip(m.transcript.Viewport.View()); strings.Contains(got, "GEKTOR") || strings.Count(got, "ADA") != 1 {
 		t.Fatal(got)
 	}
 	row := speakerRow("AN EXTREMELY LONG ASSISTANT NAME", roleAnswer, defaultStyles(), 24)

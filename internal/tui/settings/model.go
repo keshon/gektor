@@ -5,7 +5,7 @@ import (
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/tui/components/form"
+	"github.com/keshon/gektor/internal/tui/components/form"
 )
 
 type Workspace struct {

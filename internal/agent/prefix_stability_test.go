@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/tars/internal/llm"
+	"github.com/keshon/gektor/internal/llm"
 )
 
 // A backend that caches a prompt reuses it only when the new prompt starts

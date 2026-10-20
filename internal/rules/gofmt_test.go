@@ -3,7 +3,7 @@ package rules
 import (
 	"testing"
 
-	"github.com/keshon/tars/internal/checks"
+	"github.com/keshon/gektor/internal/checks"
 )
 
 func gofmtCheck(path, src string) []checks.Finding {

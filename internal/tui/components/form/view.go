@@ -6,7 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/tui/components/cell"
+	"github.com/keshon/gektor/internal/tui/components/cell"
 )
 
 type Hit struct{ Index, Y0, Y1, X0, X1 int }

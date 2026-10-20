@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/gektor/internal/config"
 )
 
 // Flag parsing has three behaviours worth pinning: an explicit false, the

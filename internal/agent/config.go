@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/permission"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/permission"
 )
 
 // Config supplies capabilities, limits and observers for one run.
@@ -50,9 +50,11 @@ type Config struct {
 	OnUsage          func(int, llm.Usage)
 	OnProgress       func(llm.Progress)
 	OnResult         func(ToolResult)
-	OnDelta          func(string)
-	OnReasoning      func(string)
-	OnNudge          func(kind, text string)
+	// OnToolOutput receives transient preview chunks, never model history.
+	OnToolOutput func(callID, text string)
+	OnDelta      func(string)
+	OnReasoning  func(string)
+	OnNudge      func(kind, text string)
 }
 
 const DefaultMaxSteps = 25

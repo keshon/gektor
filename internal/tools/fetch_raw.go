@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/gektor/internal/agent"
 )
 
 // fetchRawMaxBytes caps a fetched page: 5MB on the wire, 128KB in context.

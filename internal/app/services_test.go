@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/gektor/internal/config"
 )
 
 // A composed launch owns its profile copy: the caller may keep mutating the

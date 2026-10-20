@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/keshon/tars/internal/permission"
+	"github.com/keshon/gektor/internal/permission"
 )
 
 // ContextHook records decisions while preserving cancellation.

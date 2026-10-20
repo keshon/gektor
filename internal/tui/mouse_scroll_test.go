@@ -1,11 +1,12 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/events"
+	"github.com/keshon/gektor/internal/events"
 )
 
 // The wheel is the only way to read back while a run is streaming, and the
@@ -114,5 +115,53 @@ func TestWheelOverHistoryWorksBesideSessionList(t *testing.T) {
 	m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown, X: m.termW - 5, Y: paneTop + 3})
 	if m.transcript.Viewport.YOffset() == 0 || m.nav.Cursor != 0 {
 		t.Fatal("wheel over history failed or changed session selection")
+	}
+}
+
+func TestDialogOverscrollRespondsToTheFirstReverseStep(t *testing.T) {
+	m := sizeModel(t, testModel())
+	rows := make([]string, 70)
+	for i := range rows {
+		rows[i] = fmt.Sprintf("dialog line %d", i)
+	}
+	m.openDialog("long", rows)
+	for range 200 {
+		m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
+	}
+	before := m.View().Content
+	bottom := m.dialog.offset
+	m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
+	if m.dialog.offset != bottom-1 || m.View().Content == before {
+		t.Fatal("reverse wheel was swallowed by an invisible overscroll")
+	}
+	for range 200 {
+		m.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
+	}
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 35})
+	before = m.View().Content
+	m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	if m.View().Content == before {
+		t.Fatal("resize left the dialog overscrolled")
+	}
+}
+
+func TestHelpCategoriesStayWithinVisibleSections(t *testing.T) {
+	for _, title := range []string{"Help", "Commands", "Keyboard shortcuts"} {
+		t.Run(title, func(t *testing.T) {
+			m := sizeModel(t, testModel())
+			m.openDialog(title, nil)
+			m.dialog.help = true
+			count := len(m.dialogHelpSections())
+			for _, key := range []rune{tea.KeyRight, tea.KeyLeft, tea.KeyTab} {
+				for range 12 {
+					m.Update(tea.KeyPressMsg{Code: key})
+					if m.dialog.page < 0 || m.dialog.page >= count {
+						t.Fatalf("category %d outside %d sections", m.dialog.page, count)
+					}
+					m.View()
+					m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+				}
+			}
+		})
 	}
 }

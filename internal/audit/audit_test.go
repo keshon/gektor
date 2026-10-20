@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/tars/internal/permission"
+	"github.com/keshon/gektor/internal/permission"
 )
 
 func TestHook_DisabledIsPassthrough(t *testing.T) {

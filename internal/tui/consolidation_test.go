@@ -6,7 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/tui/components/popup"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
 // Column alignment is measured in cells. This one was measured in bytes, so a

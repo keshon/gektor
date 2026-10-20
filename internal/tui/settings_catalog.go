@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/keshon/tars/internal/config"
-	"github.com/keshon/tars/internal/tui/settings"
+	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/tui/settings"
 )
 
 func (m *model) stagedSettings() (config.Profile, error) {

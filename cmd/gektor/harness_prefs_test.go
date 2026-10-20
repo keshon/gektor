@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/gektor/internal/config"
 )
 
 // The TUI writes the harness block; the launch has to read it. Without this

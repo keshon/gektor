@@ -16,15 +16,15 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/audit"
-	"github.com/keshon/tars/internal/events"
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/permission"
-	"github.com/keshon/tars/internal/roles"
-	"github.com/keshon/tars/internal/run"
-	"github.com/keshon/tars/internal/tools"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/audit"
+	"github.com/keshon/gektor/internal/events"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/roles"
+	"github.com/keshon/gektor/internal/run"
+	"github.com/keshon/gektor/internal/tools"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 func testModel() *model {
@@ -997,7 +997,7 @@ func TestToolCardHeader_SingleLine(t *testing.T) {
 	st := defaultStyles()
 	out := renderBlock(toolCardBlock("c1", "write_file {\n  \"path\": \"a.go\"\n}"), st, renderOpts{expand: true, labels: true}, 80)
 	lines := strings.Split(out, "\n")
-	if len(lines) != 3 || !strings.Contains(lines[1], `{ "path": "a.go" }`) {
+	if len(lines) != 4 || !strings.Contains(lines[1], `{ "path": "a.go" }`) {
 		t.Fatalf("card call must hold collapsed args: %q", out)
 	}
 }
@@ -1453,11 +1453,12 @@ func TestStatusLinesPlainLanguage(t *testing.T) {
 }
 
 func TestWithoutPrintHooks_Silent(t *testing.T) {
-	env := withoutPrintHooks(roles.Env{})
+	env := withoutPrintHooks(roles.Env{OnToolOutput: func(string, string) { t.Error("CLI hook leaked into TUI") }})
 	// Callable with dummy args: silence by construction, never a
 	// nil dereference whatever the loop passes.
 	env.OnStep("l", 1, llm.Message{Content: "x"})
 	env.OnResult(agent.ToolResult{})
+	env.OnToolOutput("call", "live output")
 	env.OnUsage(1, llm.Usage{})
 	env.OnDelta("z")
 }
@@ -1703,7 +1704,7 @@ func TestToolOutputBranchesAndCloses(t *testing.T) {
 	if !strings.HasPrefix(rows[0], "[TOOL CALL]") || !strings.HasPrefix(rows[1], "✓ read_file ") {
 		t.Fatalf("label row then call row expected: %q", renderBlock(b, st, tagged(), 80))
 	}
-	for i, want := range []string{"│ file content ....", "│ file content ....", "└─ file content ...."} {
+	for i, want := range []string{"│ file content ....", "│ file content ....", "│ file content ....", "└─"} {
 		if rows[i+2] != want {
 			t.Fatalf("row %d = %q, want %q", i+2, rows[i+2], want)
 		}
@@ -1714,7 +1715,7 @@ func TestToolOutputBranchesAndCloses(t *testing.T) {
 	// An open card keeps the same shape, pending rather than empty.
 	open := toolCardBlock("c2", "read_file {}")
 	openRows := strings.Split(ansi.Strip(renderBlock(open, st, tagged(), 80)), "\n")
-	if len(openRows) != 3 || !strings.HasPrefix(openRows[1], "… ") || openRows[2] != "└─ …" {
+	if len(openRows) != 4 || !strings.HasPrefix(openRows[1], "… ") || openRows[2] != "│ …" || openRows[3] != "└─" {
 		t.Fatalf("open card must show one pending row: %q", renderBlock(open, st, tagged(), 80))
 	}
 }
@@ -1733,7 +1734,7 @@ func TestToolBranchClosesOnFinalFragment(t *testing.T) {
 		}
 	}
 	last := len(rows) - 1
-	if !strings.HasPrefix(rows[last], "└─ ") {
+	if rows[last] != "└─" {
 		t.Fatalf("last row must close the branch: %q", rows[last])
 	}
 	for i, row := range rows[2:last] {
@@ -2453,8 +2454,8 @@ func TestStatusBrand_RightAligned(t *testing.T) {
 	}
 	mm.state = stDone
 	updated, _ = mm.Update(tea.WindowSizeMsg{Width: 160, Height: 24})
-	// Brand owns TARS alone: exactly one occurrence on the row.
-	if view := updated.(*model).View().Content; strings.Count(view, "TARS") != 0 {
+	// Brand owns GEKTOR alone: exactly one occurrence on the row.
+	if view := updated.(*model).View().Content; strings.Count(view, "GEKTOR") != 0 {
 		t.Fatalf("done header must show one brand: %q", view)
 	}
 }

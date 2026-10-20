@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // longRunningCommand is a sleep spelled for the host shell. "sleep" is not

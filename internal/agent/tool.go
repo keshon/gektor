@@ -12,8 +12,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/permission"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/permission"
 )
 
 // ToolResult carries execution status separately from model-facing prose.
@@ -111,9 +111,20 @@ func (r *Registry) Defs() []llm.ToolDef {
 }
 
 func (r *Registry) Run(ctx context.Context, name string, args json.RawMessage) (string, error) {
+	return r.RunStreaming(ctx, name, args, nil)
+}
+
+// RunStreaming observes display-only output when the tool supports it.
+// The returned result remains authoritative for model history.
+func (r *Registry) RunStreaming(ctx context.Context, name string, args json.RawMessage, onOutput func(string)) (string, error) {
 	t, ok := r.tools[name]
 	if !ok {
 		return "", fmt.Errorf("unknown tool %q", name)
+	}
+	if streaming, ok := t.(interface {
+		RunStreaming(context.Context, json.RawMessage, func(string)) (string, error)
+	}); ok && onOutput != nil {
+		return streaming.RunStreaming(ctx, args, onOutput)
 	}
 	return t.Run(ctx, args)
 }
@@ -291,7 +302,11 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 			return
 		}
 		executed[i] = true
-		results[i].content, results[i].err = a.cfg.Tools.Run(ctx, call.Name, call.Arguments)
+		var onOutput func(string)
+		if a.cfg.OnToolOutput != nil {
+			onOutput = func(text string) { a.cfg.OnToolOutput(call.ID, text) }
+		}
+		results[i].content, results[i].err = a.cfg.Tools.RunStreaming(ctx, call.Name, call.Arguments, onOutput)
 	}
 	rememberRead := func(i int) {
 		call := calls[i]

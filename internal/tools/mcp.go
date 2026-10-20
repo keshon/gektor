@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/gektor/internal/agent"
 )
 
 // mcpTimeout bounds a full discovery (initialize + tools/list) per server.
@@ -134,7 +134,7 @@ func connectMCP(ctx context.Context, server string, cmd *exec.Cmd, stdin io.Writ
 	if err := c.call(ctx, "initialize", map[string]any{
 		"protocolVersion": "2024-11-05",
 		"capabilities":    map[string]any{},
-		"clientInfo":      map[string]any{"name": "tars", "version": "1.0"},
+		"clientInfo":      map[string]any{"name": "gektor", "version": "1.0"},
 	}, &initResult); err != nil {
 		c.Close()
 		return nil, nil, fmt.Errorf("mcp %s: initialize: %w", server, err)
@@ -350,7 +350,7 @@ func (c *MCPClient) restartTransport(ctx context.Context) error {
 	req := rpcRequest{JSONRPC: "2.0", ID: c.nextID(), Method: "initialize", Params: map[string]any{
 		"protocolVersion": "2024-11-05",
 		"capabilities":    map[string]any{},
-		"clientInfo":      map[string]any{"name": "tars", "version": "1.0"},
+		"clientInfo":      map[string]any{"name": "gektor", "version": "1.0"},
 	}}
 	if err := c.callOnce(ctx, req, "initialize", &initResult); err != nil {
 		c.Close()

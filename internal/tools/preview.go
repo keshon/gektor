@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // previewMaxLines caps a preview: approval prompts share context with

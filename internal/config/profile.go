@@ -10,12 +10,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/keshon/tars/internal/prompts"
+	"github.com/keshon/gektor/internal/prompts"
 )
 
 // Profile describes a thinking backend and the identity its runs speak with.
 //
-// The backend is always external: TARS talks to a server someone else
+// The backend is always external: GEKTOR talks to a server someone else
 // started. It does not ship, launch or supervise one, so a profile carries
 // an endpoint and a model name and never a path to a runtime or a set of
 // weights.

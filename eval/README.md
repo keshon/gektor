@@ -24,6 +24,16 @@ Each invocation writes `eval/results/<timestamp>/` by default, containing `resul
 recording which model produced the numbers, and a full request/response trace
 per run.
 
+`meta.json` also records requested response budget, run count, sampler setting,
+concurrency and runtime platform. SHA-256 digests identify the running binary,
+its embedded prompt files, and the selected probe definitions plus seed-file
+contents (including skills inside those seeds). Repository guides are not
+automatically copied into eval workspaces. A source-checkout revision and dirty
+flag are recorded when Git is available; they describe the checkout, while the
+binary digest identifies what actually ran. Metadata write failures stop the
+evaluation before solver calls. These fields identify experiments; they do not
+enable result caching or guarantee deterministic model sampling.
+
 On Windows use `eval-run.cmd` instead of `go run` directly. It reads `.env` and
 prepends `-backend-kind llama -backend http://$LLAMA_HOST:$LLAMA_PORT
 -context-limit $LLAMA_CTX_SIZE`, so the suite targets the same server

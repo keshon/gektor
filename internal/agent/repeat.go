@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/prompts"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/prompts"
 )
 
 // maxRepeatedSteps is how many consecutive steps may issue the same set of

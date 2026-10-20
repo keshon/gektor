@@ -14,12 +14,12 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/gektor/internal/agent"
 
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/prompts"
-	"github.com/keshon/tars/internal/tools"
-	"github.com/keshon/tars/internal/workspace"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/prompts"
+	"github.com/keshon/gektor/internal/tools"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 type stubClient struct{}
@@ -239,7 +239,7 @@ type identityClient struct {
 
 func (c *identityClient) Chat(_ context.Context, r llm.ChatRequest) (llm.ChatResponse, error) {
 	c.calls++
-	if len(r.Messages) == 0 || !strings.Contains(r.Messages[0].Content, "Assistant name: Ada") || strings.Contains(r.Messages[0].Content, "You are TARS") {
+	if len(r.Messages) == 0 || !strings.Contains(r.Messages[0].Content, "Assistant name: Ada") || strings.Contains(r.Messages[0].Content, "You are GEKTOR") {
 		c.t.Fatal(r.Messages)
 	}
 	return llm.ChatResponse{Message: llm.Message{Content: "Hello"}}, nil

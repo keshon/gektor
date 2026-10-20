@@ -10,16 +10,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/prompts"
-	"github.com/keshon/tars/internal/session"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/prompts"
+	"github.com/keshon/gektor/internal/session"
 )
 
-// Task state and spilled output live in the user's TARS directory. A test
+// Task state and spilled output live in the user's GEKTOR directory. A test
 // that runs a real agent flow writes real task directories there, and the
 // next run lists them as the user's own sessions. Redirect the home.
 func TestMain(m *testing.M) {
-	home, err := os.MkdirTemp("", "tars-home")
+	home, err := os.MkdirTemp("", "gektor-home")
 	if err != nil {
 		panic(err)
 	}

@@ -58,7 +58,7 @@ func TestEveryOfferedSectionIsHandled(t *testing.T) {
 		SectionModel:      {"kind": "llama", "endpoint": "http://127.0.0.1:8080", "model": "local"},
 		SectionGeneration: {"temperature": "0.7", "max": "256", "context": "4096"},
 		SectionPrompts:    {"system": "rules", "post": ""},
-		SectionYou:        {"user": "Alex", "persona": "", "name": "TARS"},
+		SectionYou:        {"user": "Alex", "persona": "", "name": "GEKTOR"},
 	}
 	for _, section := range Sections() {
 		p := minimal()

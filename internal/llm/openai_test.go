@@ -29,6 +29,20 @@ func TestOpenAIClient_RegisteredAsKind(t *testing.T) {
 	}
 }
 
+func TestRenamedAPIKeyKeepsLegacyCredentials(t *testing.T) {
+	for _, name := range []string{"GEKTOR_API_KEY", "TARS_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "GROQ_API_KEY", "TOGETHER_API_KEY", "ANTHROPIC_API_KEY"} {
+		t.Setenv(name, "")
+	}
+	t.Setenv("TARS_API_KEY", "legacy-key")
+	if APIKeyFromEnv() != "legacy-key" {
+		t.Fatal("legacy key stopped working")
+	}
+	t.Setenv("GEKTOR_API_KEY", "new-key")
+	if APIKeyFromEnv() != "new-key" {
+		t.Fatal("new key does not take precedence")
+	}
+}
+
 func TestOpenAIChat_SendsAuthAndOmitsLocalFields(t *testing.T) {
 	var captured []byte
 	var auth, ctype string

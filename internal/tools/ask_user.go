@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/keshon/tars/internal/agent"
+	"github.com/keshon/gektor/internal/agent"
 )
 
 // AskUser blocks until the user supplies an answer via AskFn, which the

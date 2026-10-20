@@ -5,7 +5,7 @@ import (
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/tars/internal/config"
+	"github.com/keshon/gektor/internal/config"
 )
 
 func TestScreenEmitsApplicationIntentsWithoutChangingProfile(t *testing.T) {

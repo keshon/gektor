@@ -9,10 +9,10 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/keshon/tars/internal/agent"
-	"github.com/keshon/tars/internal/llm"
-	"github.com/keshon/tars/internal/run"
-	"github.com/keshon/tars/internal/tui/components/transcript"
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/run"
+	"github.com/keshon/gektor/internal/tui/components/transcript"
 )
 
 func (m *model) Init() tea.Cmd {
@@ -101,7 +101,7 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		m.revealLive()
 		return m, nil
 	case eventMsg:
-		if m.state != stStopping || msg.Name == "tool_result" || msg.Name == "outcome" || msg.Name == "usage" || msg.Name == "finding" {
+		if m.state != stStopping || msg.Name == "tool_result" || msg.Name == "tool_output" || msg.Name == "outcome" || msg.Name == "usage" || msg.Name == "finding" {
 			m.handleEvent(run.Event(msg))
 		}
 		return m, waitEvents(m)
@@ -209,6 +209,7 @@ func (m *model) width(msg tea.WindowSizeMsg) {
 	// leaves a stale viewport height, clipping content by the delta.
 	m.fitBottom()
 	m.resizeFormEditor()
+	m.scrollDialog(0)
 	// Render (or re-render): blocks appended before the first resize
 	// never reached the viewport, and reflow follows later resizes.
 	m.refreshContent()
@@ -364,6 +365,17 @@ func (m *model) handleEvent(ev run.Event) {
 				m.appendBlock(toolCardBlock(id, name+" "+truncate(args, 120)))
 			}
 		}
+	case "tool_output":
+		text, _ := ev.Fields["text"].(string)
+		callID, _ := ev.Fields["call_id"].(string)
+		for i := len(m.transcript.blocks) - 1; i >= 0; i-- {
+			b := &m.transcript.blocks[i]
+			if b.role == roleTool && b.open && b.callID == callID {
+				b.result += text
+				m.refreshContent()
+				break
+			}
+		}
 	case "tool_result":
 		text, _ := ev.Fields["text"].(string)
 		callID, _ := ev.Fields["call_id"].(string)
@@ -472,7 +484,7 @@ func (m *model) handleEvent(ev run.Event) {
 		resume, _ := ev.Fields["resume"].(string)
 		text := fmt.Sprintf("outcome: %s\nfiles: %s\nchecks: %s", outcome, strings.Join(files, ", "), truncate(checks, 512))
 		if resume != "" {
-			text += "\nresume: agent -tui -resume " + resume
+			text += "\nresume: gektor -tui -resume " + resume
 		}
 		m.appendBlock(markerBlock(text))
 	case "reasoning":
