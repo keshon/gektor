@@ -262,6 +262,17 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 			results[i].err = fmt.Errorf("call arguments are truncated JSON; reissue the call in smaller pieces")
 			continue
 		}
+		// A read-only role is offered the full tool set so a mode switch
+		// cannot rewrite the prompt prefix, so refusal has to be explicit:
+		// nothing runs, nothing changes, and the model is told what to do
+		// instead.
+		if !a.mayRun(call.Name) {
+			skipped[i] = true
+			results[i].err = fmt.Errorf(
+				"this run is read-only: %s is unavailable and nothing was changed - "+
+					"state the change as a step in the plan and let the operator apply it", call.Name)
+			continue
+		}
 		if !a.cfg.Tools.IdempotentOf(call.Name) {
 			continue
 		}

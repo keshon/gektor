@@ -79,10 +79,12 @@ drifted — one harness ended up without `ask_user` and `delegate_task` while th
 shipping CLI had both, so it was scoring a different agent than the one under
 test. One answer per role, in one place.
 
-**[invariant]** A capability is removed by not passing the tool, never by
-asking the model not to use it. A Planner gets a registry without the
-mutating tools. A subagent gets one without delegation, so delegation cannot
-recurse.
+**[invariant]** A capability is removed by the harness, never by asking the
+model not to use it. The plan role keeps the acting role's system prompt and
+tool list — a narrower one would change the prompt prefix, so a backend that
+caches prompts would re-read the whole conversation on every mode switch — and
+refuses every call outside the read-only set before it runs. A subagent gets a
+registry without delegation, so delegation cannot recurse.
 
 ## Verification
 

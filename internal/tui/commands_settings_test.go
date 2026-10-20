@@ -100,3 +100,40 @@ func TestContextWindowIsNotSlashSettable(t *testing.T) {
 		t.Fatalf("limit = %d, want the configured window 16384", m.limit)
 	}
 }
+
+// Switching modes is not a restart: the system prompt and tool set do not
+// change, so there is nothing to confirm and the backend keeps its cached
+// prefix. The session is still rebuilt, because the mode decides what the
+// loop refuses and which stance turn it appends.
+func TestModeSwitchRebuildsWithoutConfirmation(t *testing.T) {
+	m, built := sessionModel(t)
+	updated, _ := m.command("/mode plan")
+	m = updated.(*model)
+	if m.dialog != nil {
+		t.Fatal("/mode still asks to restart")
+	}
+	if !m.plan {
+		t.Fatal("plan mode not applied")
+	}
+	if len(*built) != 1 {
+		t.Fatalf("session rebuilt %d times, want 1", len(*built))
+	}
+
+	updated, _ = m.command("/mode plan")
+	m = updated.(*model)
+	if len(*built) != 1 {
+		t.Fatalf("repeating the current mode rebuilt the session again (%d)", len(*built))
+	}
+}
+
+// Replacing a session mid-run is still destructive, so that switch keeps the
+// confirmation the idle one no longer needs.
+func TestModeSwitchDuringARunStillConfirms(t *testing.T) {
+	m, _ := sessionModel(t)
+	m.state = stRunning
+	updated, _ := m.command("/mode plan")
+	m = updated.(*model)
+	if m.dialog == nil || m.dialog.form == nil || !m.dialog.form.Destructive {
+		t.Fatal("a mode switch that replaces a running session must confirm")
+	}
+}

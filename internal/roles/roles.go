@@ -53,7 +53,9 @@ type Env struct {
 	MaxSteps int
 
 	// MCPTools are discovered MCP tools appended to the full tool set
-	// (Interactive, Subagent; never Planner).
+	// (Interactive, Subagent). Planner advertises them too, so that its
+	// prompt matches Interactive's, but refuses to run them: a mode switch
+	// must not change the prompt prefix.
 	MCPTools []agent.Tool
 
 	// OnDelta receives streamed answer text for live display. OnReasoning
@@ -143,12 +145,17 @@ func interactiveSystem(backendKind string) string {
 	return prompts.SystemForBackend(backendKind)
 }
 
-// Planner is the read-only agent behind -plan: it investigates and
-// proposes without the ability to change anything. Capability is removed by
-// the tool set (ReadOnly), never by asking the model to hold back.
-func Planner(e Env, label, stateFile string) *agent.Agent {
-	cfg := e.agentConfig(prompts.PlanMode, label, stateFile)
-	cfg.Tools = tools.ReadOnly(e.WS, e.Procs)
+// Planner is the read-only conversation. It deliberately shares
+// Interactive's system prompt and tool set: a narrower registry would change
+// the prompt prefix, and a backend that caches prompts would re-read the
+// whole conversation every time the operator switches modes. Capability is
+// removed where it is used - the loop refuses every call outside
+// tools.ReadOnly - rather than by asking the model to hold back, so nothing
+// can write in this role whatever the model decides to try.
+func Planner(e Env, label, stateFile string, ask func(question string) (string, error)) *agent.Agent {
+	cfg := e.conversationConfig(label, stateFile, ask, nil)
+	cfg.ReadOnly = tools.ReadOnly(e.WS, e.Procs).Names()
+	cfg.Directive = prompts.PlanMode
 	return agent.New(cfg)
 }
 
@@ -217,6 +224,19 @@ func Subagent(e Env, role string) *agent.Agent {
 func Interactive(e Env, label, stateFile string,
 	ask func(question string) (string, error),
 	verify func(ctx context.Context) (string, error)) *agent.Agent {
+	cfg := e.conversationConfig(label, stateFile, ask, verify)
+	cfg.Directive = prompts.ActMode
+	cfg.Supersedes = prompts.PlanMode
+	return agent.New(cfg)
+}
+
+// conversationConfig is everything Interactive and Planner share, which is
+// everything except the stance. One builder keeps their prompt prefix
+// identical by construction: the tests assert it, because a divergence there
+// is invisible until the operator pays for a full re-read.
+func (e Env) conversationConfig(label, stateFile string,
+	ask func(question string) (string, error),
+	verify func(ctx context.Context) (string, error)) agent.Config {
 	extra := []agent.Tool{&tools.Delegate{Spawn: func(role string) *agent.Agent { return Subagent(e, role) }}}
 	extra = append(extra, e.MCPTools...)
 	if ask != nil {
@@ -227,5 +247,5 @@ func Interactive(e Env, label, stateFile string,
 	cfg.MaxSteps = e.MaxSteps
 	cfg.Verify = verify
 	cfg.Stream, cfg.OnDelta, cfg.OnReasoning = e.Stream, e.OnDelta, e.OnReasoning
-	return agent.New(cfg)
+	return cfg
 }

@@ -171,7 +171,14 @@ func (a *Agent) effectiveMaxTokens(lastPromptTokens int) int {
 	return room
 }
 
-const defaultCompactAtPercent = 60
+// defaultCompactAtPercent is how full the window may get before the loop
+// drops old step groups. The remaining share is headroom for the next step,
+// not for the answer: completionBudget already clamps generation to whatever
+// room is left, so the only thing that can overflow is a step that grows the
+// prompt with tool output. At 60% a 262k window compacted while a hundred
+// thousand tokens were still free, dropping context the model could have
+// used; 85% keeps the work and still leaves room for several large results.
+const defaultCompactAtPercent = 85
 
 // CompactFile mechanically compacts a saved snapshot in place: the
 // same compactHistory the loop uses, invoked on demand (/compact)

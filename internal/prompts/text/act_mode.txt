@@ -1,0 +1,1 @@
+Act mode: the plan-mode restriction is lifted. You may change the workspace again; this replaces any earlier mode instruction in this conversation.

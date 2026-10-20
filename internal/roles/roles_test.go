@@ -3,6 +3,7 @@ package roles
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"regexp"
 	"slices"
 	"sort"
@@ -153,7 +154,7 @@ func TestRoleSystemToolsResolve(t *testing.T) {
 
 	interactive := Interactive(e, "", "", func(string) (string, error) { return "", nil }, nil)
 	subagent := Subagent(e, "tester")
-	planner := Planner(e, "p", "")
+	planner := Planner(e, "p", "", func(string) (string, error) { return "", nil })
 	// System texts as their roles actually ship them: the subagent
 	// composition includes its scope correction (mirrors Subagent).
 	subagentSystem := prompts.WithRole("tester") + "\n\n" + prompts.SubagentScope
@@ -164,7 +165,7 @@ func TestRoleSystemToolsResolve(t *testing.T) {
 	}{
 		{"interactive", []string{prompts.System, prompts.SystemForBackend("kobold"), prompts.SystemForBackend("openai")}, interactive.ToolNames()},
 		{"subagent", []string{subagentSystem}, subagent.ToolNames()},
-		{"planner", []string{prompts.PlanMode}, planner.ToolNames()},
+		{"planner", []string{prompts.System, prompts.SystemForBackend("kobold"), prompts.SystemForBackend("openai"), prompts.PlanMode}, planner.ToolNames()},
 	}
 	for _, c := range cases {
 		have := map[string]bool{}
@@ -250,7 +251,7 @@ func TestPlanAndActUseProfileIdentity(t *testing.T) {
 
 		a := Interactive(e, "", "", nil, nil)
 		if plan {
-			a = Planner(e, "", "")
+			a = Planner(e, "", "", nil)
 		}
 		if _, err := a.Run(context.Background(), "Hello"); err != nil {
 			t.Fatal(err)
@@ -258,5 +259,61 @@ func TestPlanAndActUseProfileIdentity(t *testing.T) {
 		if client.calls == 0 {
 			t.Fatal("no backend request")
 		}
+	}
+}
+
+// recordingClient captures every request and answers immediately.
+type recordingClient struct{ reqs []llm.ChatRequest }
+
+func (c *recordingClient) Chat(_ context.Context, r llm.ChatRequest) (llm.ChatResponse, error) {
+	c.reqs = append(c.reqs, r)
+	return llm.ChatResponse{
+		Message:      llm.Message{Role: llm.RoleAssistant, Content: "done"},
+		FinishReason: "stop",
+	}, nil
+}
+
+// A backend reuses a cached prompt only while the new one starts with the
+// old one. Plan and act are the same conversation in different stances, so
+// they must send the same system prompt and the same tool definitions -
+// otherwise every mode switch makes the backend re-read the whole
+// conversation, which on a large window is minutes of prefill.
+func TestPlanAndActSendTheSamePrefix(t *testing.T) {
+	e := testEnv(t)
+	ask := func(string) (string, error) { return "", nil }
+
+	run := func(a *agent.Agent, rec *recordingClient) llm.ChatRequest {
+		t.Helper()
+		if _, err := a.Run(context.Background(), "task"); err != nil {
+			t.Fatal(err)
+		}
+		if len(rec.reqs) == 0 {
+			t.Fatal("no backend request")
+		}
+		return rec.reqs[0]
+	}
+
+	planRec := &recordingClient{}
+	e.Client = planRec
+	plan := run(Planner(e, "plan", "", ask), planRec)
+
+	actRec := &recordingClient{}
+	e.Client = actRec
+	act := run(Interactive(e, "", "", ask, nil), actRec)
+
+	if plan.Messages[0].Content != act.Messages[0].Content {
+		t.Fatal("plan and act send different system prompts; a mode switch would re-read the whole conversation")
+	}
+	if plan.Messages[1].Content != act.Messages[1].Content {
+		t.Fatalf("plan and act send different tasks: %q / %q", plan.Messages[1].Content, act.Messages[1].Content)
+	}
+	if !reflect.DeepEqual(plan.Tools, act.Tools) {
+		t.Fatal("plan and act send different tool definitions; a mode switch would re-read the whole conversation")
+	}
+	if got, want := plan.Messages[len(plan.Messages)-1].Content, "[harness] "+prompts.PlanMode; got != want {
+		t.Fatalf("plan stance = %q, want %q appended at the tail", got, want)
+	}
+	if len(act.Messages) != 2 {
+		t.Fatalf("act run grew a stance turn it does not need: %d messages", len(act.Messages))
 	}
 }

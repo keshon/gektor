@@ -66,7 +66,7 @@ found under `TARS_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`,
 | Flag | Default | Meaning |
 |---|---|---|
 | `-workspace DIR` | `.` | Workspace root the agent may read and write |
-| `-plan` | `false` | Plan mode: read-only tools, proposes a plan and changes nothing |
+| `-plan` | `false` | Plan mode: proposes a plan and changes nothing; mutating tool calls are refused |
 | `-yes` | `false` | Print/RPC permission Ask calls are denied instead of prompting. TUI permissions remain interactive |
 | `-audit PATH` | - | Append gate decisions as JSONL to PATH (off when empty) |
 | `-verify-cmd CMD` | — | Final command; record output and fail on a command error without another model call |

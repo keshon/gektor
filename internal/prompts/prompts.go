@@ -46,6 +46,7 @@ var (
 	KoboldAddendum    = read("kobold_addendum.txt")
 	OpenAIAddendum    = read("openai_addendum.txt")
 	PlanMode          = read("plan_mode.txt")
+	ActMode           = read("act_mode.txt")
 )
 
 // WithRole returns System with RoleAddendum appended for role, or System

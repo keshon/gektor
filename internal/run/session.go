@@ -142,7 +142,7 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, rol
 		events.EmitFinding(emitter, string(scope), f.Rule, f.Path, f.Line, f.Summary)
 	})
 	if s.cfg.Plan {
-		a = roles.Planner(env, "plan", s.cfg.StateFile)
+		a = roles.Planner(env, "plan", s.cfg.StateFile, askFn)
 	} else {
 		a = roles.Interactive(env, "", s.cfg.StateFile, askFn, s.cfg.Verify)
 	}

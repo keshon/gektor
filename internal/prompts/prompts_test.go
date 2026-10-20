@@ -18,6 +18,8 @@ func TestAllPromptsLoadNonEmpty(t *testing.T) {
 		"RepeatingSteps":    RepeatingSteps,
 		"Truncated":         Truncated,
 		"CompactNotice":     CompactNotice,
+		"PlanMode":          PlanMode,
+		"ActMode":           ActMode,
 	}
 	for name, val := range all {
 		if val == "" {

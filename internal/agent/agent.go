@@ -14,6 +14,9 @@ import (
 type Agent struct {
 	cfg Config
 
+	// allowed is the read-only allowlist, nil when unrestricted.
+	allowed map[string]bool
+
 	// LastRunMutations counts changed paths. Embedders without
 	// BeginChanges fall back to successful mutating tool calls.
 	LastRunMutations int
@@ -243,4 +246,52 @@ func (a *Agent) resumeHistory(history []llm.Message) []llm.Message {
 		history[0].Content = a.cfg.System
 	}
 	return history
+}
+
+// mayRun reports whether this role is allowed to execute a tool. Unrestricted
+// roles allow every name the registry knows.
+func (a *Agent) mayRun(name string) bool {
+	return a.allowed == nil || a.allowed[name]
+}
+
+// withDirective keeps the role's stance at the end of the conversation. A
+// stance is a harness turn rather than part of System because System is the
+// prompt's first message: changing it when the role changes makes a caching
+// backend re-read the entire conversation. The turn is only appended when the
+// conversation ended in a different stance, so resuming in the same role adds
+// nothing, and calling this after compaction restores a stance the compaction
+// dropped.
+func (a *Agent) withDirective(history []llm.Message) []llm.Message {
+	if a.cfg.Directive == "" {
+		return history
+	}
+	mine := harnessPrefix + a.cfg.Directive
+	other := ""
+	if a.cfg.Supersedes != "" {
+		other = harnessPrefix + a.cfg.Supersedes
+	}
+	last := ""
+	for i := len(history) - 1; i >= 0; i-- {
+		if history[i].Role != llm.RoleUser {
+			continue
+		}
+		if history[i].Content == mine {
+			last = mine
+			break
+		}
+		if other != "" && history[i].Content == other {
+			last = other
+			break
+		}
+	}
+	if last == mine {
+		return history
+	}
+	// The default stance has no turn of its own, so it stays silent until a
+	// different one has been stated. A role that supersedes nothing states
+	// itself whenever the conversation has not already done so.
+	if last == "" && other != "" {
+		return history
+	}
+	return append(history, llm.Message{Role: llm.RoleUser, Content: mine})
 }

@@ -1,6 +1,6 @@
 # Architecture
 
-TARS uses one coding-agent loop. Plan explores with read-only tools; Act
+TARS uses one coding-agent loop. Plan explores without changing anything; Act
 edits files, runs commands and delegates bounded subtasks. Print, JSON, TUI
 and stdio RPC use the same loop.
 
@@ -50,6 +50,11 @@ Compaction retains the system prompt, initial task, recent complete step groups
 and a bounded extractive summary. A cooldown prevents compaction on every step
 when the retained working set remains large. Explicit compaction and overflow
 recovery use the same history transformation.
+
+Switching between plan and act appends a stance turn rather than rewriting the
+system prompt: the prefix stays byte-identical, so the cached conversation is
+reused instead of re-read. The plan role shares the acting role's tool list and
+refuses mutating calls at execution for the same reason.
 
 Snapshots write atomically after responses and tool execution. Resume restores
 history and refreshes workspace instructions. Fork copies history into a fresh

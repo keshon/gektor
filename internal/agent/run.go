@@ -57,6 +57,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 			return "", fmt.Errorf("observe workspace: %w", err)
 		}
 	}
+	history = a.withDirective(history)
 	// Restore the task checklist when resuming a saved conversation.
 	a.rehydrateTodo(ctx, history)
 
@@ -104,6 +105,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 			// The refusal text points at conversation content; compaction just
 			// dropped some of it, so what it promises is no longer true.
 			st.forgetIdempotentSeen()
+			history = a.withDirective(history)
 		}
 		a.saveState(history)
 		if st.repeatCount >= maxRepeatedSteps {
@@ -137,6 +139,7 @@ func (a *Agent) handleChatError(st *runState, step int, err error, history []llm
 		if next := compactHistory(history, keep/2); len(next) < len(history) {
 			history = next
 			st.forgetIdempotentSeen()
+			history = a.withDirective(history)
 			shrunk = true
 		}
 		a.saveState(history)

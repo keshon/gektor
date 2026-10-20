@@ -286,7 +286,9 @@ The draft is preserved while Help is open.
 - `/help`: help modal.
 - `/sessions`: session search popup.
 - `/new [task]`: start a new task; without text, reset to an empty task.
-- `/mode plan|act`: switch direct-run mode; `/mode` alone shows the mode.
+- `/mode plan|act`: switch direct-run mode; `/mode` alone shows the mode. The
+  switch keeps the conversation and the cached prompt prefix, so it does not
+  restart the session or make the backend re-read the history.
 - `/status`: append current run facts to the transcript.
 - `/retry`: retry the last failed turn from its saved starting history.
 - `/compact`: shrink the saved conversation history when idle.

@@ -20,6 +20,23 @@ type Config struct {
 	ContextLimit  int
 	StateFile     string
 	MutatingTools []string
+	// ReadOnly names the only tools this role may run. The registry still
+	// advertises the full set: a narrower one would change the prompt
+	// prefix, and a backend that caches prompts would then re-read the whole
+	// conversation whenever the operator switches roles. A call outside the
+	// set is refused before it runs, so the capability is still removed by
+	// the harness rather than by asking the model to hold back. Nil means
+	// unrestricted; a non-nil empty slice means nothing may run.
+	ReadOnly []string
+	// Directive is the harness turn that states this role's stance, and
+	// Supersedes is the stance turn it answers. A stance cannot live in
+	// System: System is the prompt's first message, so changing it when the
+	// role changes throws away the cached prefix. The loop keeps a stance
+	// turn at the end of the conversation instead, appending one only when
+	// the conversation ended in a different stance. Empty Directive means
+	// the role has no stance turn at all.
+	Directive  string
+	Supersedes string
 	// Verify runs the configured command once after the final answer.
 	// Its output is recorded without another model call.
 	Verify           func(context.Context) (output string, err error)
@@ -59,5 +76,12 @@ func New(cfg Config) *Agent {
 	if cfg.CompactAtPercent == 0 {
 		cfg.CompactAtPercent = defaultCompactAtPercent
 	}
-	return &Agent{cfg: cfg}
+	a := &Agent{cfg: cfg}
+	if cfg.ReadOnly != nil {
+		a.allowed = make(map[string]bool, len(cfg.ReadOnly))
+		for _, name := range cfg.ReadOnly {
+			a.allowed[name] = true
+		}
+	}
+	return a
 }

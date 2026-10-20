@@ -372,25 +372,44 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 			m.appendBlock(errorBlock("Choose /mode plan or /mode act."))
 			return m, nil
 		}
-		m.confirmRestart(func() {
+		if (mode == "plan") == m.plan {
+			m.appendBlock(markerBlock("Mode: " + m.modeName()))
+			return m, nil
+		}
+		// The system prompt and tool set do not change with the mode, only
+		// what the loop refuses and which stance turn it appends, so the
+		// rebuild below cannot cost the backend its cached prefix. An idle
+		// switch is free and needs no confirmation; one that would replace a
+		// session mid-run keeps the existing destructive prompt.
+		apply := func() error {
 			previous := m.plan
 			m.plan = mode == "plan"
 			if m.sess != nil {
 				sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
 				if err != nil {
 					m.plan = previous
-					m.appendBlock(errorBlock(err.Error()))
-					return
+					return err
 				}
 				if err := m.saveMode(); err != nil {
 					m.plan = previous
-					m.appendBlock(errorBlock(err.Error()))
-					return
+					return err
 				}
 				m.sess = sess
 			}
 			m.appendBlock(markerBlock("Mode: " + m.modeName()))
-		})
+			return nil
+		}
+		if m.state == stRunning {
+			m.confirmRestart(func() {
+				if err := apply(); err != nil {
+					m.appendBlock(errorBlock(err.Error()))
+				}
+			})
+			return m, nil
+		}
+		if err := apply(); err != nil {
+			m.appendBlock(errorBlock(err.Error()))
+		}
 		return m, nil
 	case "retry":
 		if m.runErr == nil || m.retryRun == nil {

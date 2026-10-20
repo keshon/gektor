@@ -26,7 +26,7 @@ func restartModel(t *testing.T) *model {
 
 func TestRestartCommandOpensADestructiveConfirmation(t *testing.T) {
 	m := restartModel(t)
-	m.command("/mode plan")
+	m.command("/max-steps 40")
 	if m.dialog == nil || m.dialog.form == nil {
 		t.Fatal("no confirmation is open")
 	}

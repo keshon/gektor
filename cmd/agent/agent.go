@@ -314,7 +314,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 
 	var a *agent.Agent
 	if o.plan {
-		a = roles.Planner(env, "plan", stateFile)
+		a = roles.Planner(env, "plan", stateFile, askFn)
 	} else {
 		a = roles.Interactive(env, "", stateFile, askFn, verify)
 	}
