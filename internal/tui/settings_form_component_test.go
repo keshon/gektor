@@ -1,7 +1,7 @@
 package tui
 
 import (
-	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -159,7 +159,8 @@ func TestChooserFieldsShowWhatPressingThemDoes(t *testing.T) {
 		t.Fatalf("the workspace field does not say it opens a chooser:\n%s", got)
 	}
 	// A path is shown as its last element; a full temp path is noise.
-	if strings.Contains(got, string(os.PathSeparator)) {
+	path := m.application.Preferences.Workspace
+	if strings.Contains(got, path) || !strings.Contains(got, filepath.Base(path)+"  [ Choose… ]") {
 		t.Fatalf("the workspace row shows a whole path:\n%s", got)
 	}
 }
