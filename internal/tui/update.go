@@ -81,6 +81,7 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		m.acceptEvaluation(msg)
 		return m, nil
 	case tickMsg:
+		m.refreshEvaluation()
 		// The clock runs only while a run is in flight (gates
 		// included: a run blocked on input hasn't finished). Once
 		// done, elapsed freezes instead of counting idle reading time.

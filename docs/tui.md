@@ -558,6 +558,13 @@ whole session. Add a focus after an explicit scope, for example
 `/eval last check the test evidence`. Old sessions without recorded execution
 boundaries require `/eval session`; GEKTOR does not guess task boundaries.
 
+While the evaluation runs, its dialog shows the observed stage, elapsed time,
+model step budget and number of selected archive messages inspected. Reading
+an excerpt counts as inspecting a message; it does not mean the entire message
+was read. Model requests currently wait for a complete response, so the dialog
+reports that wait rather than inventing generation progress. Esc or Enter
+cancels the evaluation; keep the dialog open to receive its result.
+
 The reviewer reads the full JSON archive, including messages hidden by any number
 of compactions, in bounded pages. Run boundaries use archive indices. Retries and
 answers to `ask_user` retain the preceding task in scope, so ranges may overlap.

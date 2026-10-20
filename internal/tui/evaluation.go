@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/gektor/internal/retrospect"
@@ -11,7 +13,36 @@ import (
 
 // A review owns only its dialog and context. It cannot replace the task's
 // session, retry closure, history, token meter, or step counter.
-type evaluationJob struct{ cancel context.CancelFunc }
+type evaluationJob struct {
+	cancel   context.CancelFunc
+	started  time.Time
+	mu       sync.Mutex
+	progress retrospect.Progress
+}
+
+func (j *evaluationJob) update(progress retrospect.Progress) {
+	j.mu.Lock()
+	j.progress = progress
+	j.mu.Unlock()
+}
+
+func (m *model) refreshEvaluation() {
+	j := m.evaluation
+	if j == nil || m.dialog == nil {
+		return
+	}
+	j.mu.Lock()
+	p := j.progress
+	j.mu.Unlock()
+	m.dialog.lines = []string{
+		p.Stage,
+		fmt.Sprintf("Step %d/%d · elapsed %s", p.Step, p.Steps, formatElapsed(time.Since(j.started))),
+		fmt.Sprintf("Archive: inspected %d of %d messages (excerpts may be partial)", p.Read, p.Total),
+		"", "Keep this window open until the evaluation finishes.",
+		"Closing it cancels the evaluation. The original task remains unchanged.",
+	}
+}
+
 type evaluationDoneMsg struct {
 	job    *evaluationJob
 	result retrospect.Result
@@ -33,10 +64,12 @@ func (m *model) evaluate(arg string) (tea.Model, tea.Cmd) {
 		base = context.Background()
 	}
 	ctx, cancel := context.WithCancel(base)
-	job := &evaluationJob{cancel: cancel}
+	job := &evaluationJob{cancel: cancel, started: time.Now(), progress: retrospect.Progress{Stage: "Loading saved archive", Steps: 12}}
 	config := retrospect.Config{Client: m.baseEnv.Client, Workspace: m.ws, StateFile: m.stateFile, Scope: selection, Focus: strings.TrimSpace(focus), ContextLimit: m.limit, MaxTokens: m.baseEnv.MaxTokens}
 	m.openDialog("Session evaluation", []string{"Reviewing the saved archive in a separate context…", "", "Keep this window open until the evaluation finishes.", "Closing it cancels the evaluation. The original task remains unchanged."})
 	m.evaluation = job
+	config.OnProgress = job.update
+	m.refreshEvaluation()
 	return m, func() tea.Msg {
 		result, err := retrospect.Evaluate(ctx, config)
 		return evaluationDoneMsg{job: job, result: result, err: err}
