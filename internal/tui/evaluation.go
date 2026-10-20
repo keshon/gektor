@@ -35,7 +35,7 @@ func (m *model) evaluate(arg string) (tea.Model, tea.Cmd) {
 	ctx, cancel := context.WithCancel(base)
 	job := &evaluationJob{cancel: cancel}
 	config := retrospect.Config{Client: m.baseEnv.Client, Workspace: m.ws, StateFile: m.stateFile, Scope: selection, Focus: strings.TrimSpace(focus), ContextLimit: m.limit, MaxTokens: m.baseEnv.MaxTokens}
-	m.openDialog("Session evaluation", []string{"Reviewing the saved archive in a separate context…", "", "Esc cancels. The original task remains unchanged."})
+	m.openDialog("Session evaluation", []string{"Reviewing the saved archive in a separate context…", "", "Keep this window open until the evaluation finishes.", "Closing it cancels the evaluation. The original task remains unchanged."})
 	m.evaluation = job
 	return m, func() tea.Msg {
 		result, err := retrospect.Evaluate(ctx, config)

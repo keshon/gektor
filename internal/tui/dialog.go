@@ -107,6 +107,9 @@ func (m *model) layoutDialog() dialogLayout {
 		lines = append(lines, strings.Split(ansi.Wrap(cleanText(line), max(inner, 1), ""), "\n")...)
 	}
 	hint := "Esc / Enter close"
+	if m.evaluation != nil {
+		hint = "Esc / Enter cancel evaluation"
+	}
 	if d.help {
 		sections := m.dialogHelpSections()
 		page := min(max(d.page, 0), len(sections)-1)
