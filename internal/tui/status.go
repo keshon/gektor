@@ -60,7 +60,9 @@ func formatElapsed(d time.Duration) string {
 // activityFrames animate in the header badge while a run is live.
 var activityFrames = []rune("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
 
-func (m *model) busy() bool { return m.state == stRunning || m.state == stStopping }
+func (m *model) busy() bool {
+	return m.evaluation != nil || m.state == stRunning || m.state == stStopping
+}
 
 // meter renders occupied context (input plus generated output). Live estimates
 // are marked with ~; a new empty conversation starts at zero.

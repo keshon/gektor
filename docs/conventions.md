@@ -74,7 +74,7 @@ Process cleanup in the tools package uses the Windows system dependency.
 ## Building agents
 
 **[enforced: agent-construction]** Only `internal/roles` calls `agent.New`.
-Five kinds of agent exist; each was once configured at its call site, and they
+Agent roles were once configured at their call sites, and they
 drifted — one harness ended up without `ask_user` and `delegate_task` while the
 shipping CLI had both, so it was scoring a different agent than the one under
 test. One answer per role, in one place.

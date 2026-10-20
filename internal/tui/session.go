@@ -255,6 +255,7 @@ func imageSuffix(images []string) string {
 // fresh context: an interrupted run's cancelled context must never leak
 // into the next turn.
 func (m *model) startRun(run func(ctx context.Context) (string, error)) {
+	m.cancelEvaluation()
 	m.cancel()
 	// A run takes over: an open dialog — or sessions screen — would
 	// shadow a transcript that is suddenly live again.

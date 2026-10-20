@@ -65,6 +65,7 @@ func commands() []command {
 		{name: "/run", immediate: true, summary: "Show run stats"},
 		{name: "/activity", immediate: true, summary: "Show run activity"},
 		{name: "/about", immediate: true, summary: "About"},
+		{name: "/eval", immediate: true, summary: "Review last run; /eval session or /eval N [focus]"},
 		{name: "/theme", arg: "dark|light", choices: []string{"dark", "light"}, immediate: true, summary: "Switch theme"},
 		{name: "/settings", immediate: true, summary: "Open settings"},
 		{name: "/status", immediate: true, summary: "Show current run facts"},
@@ -162,10 +163,17 @@ func (m *model) confirmRestart(action func()) {
 
 func (m *model) command(text string) (tea.Model, tea.Cmd) {
 	name, arg, _ := strings.Cut(strings.TrimPrefix(text, "/"), " ")
+	name = strings.ToLower(name)
 	m.input.Push(text)
+	if m.evaluation != nil && name != "stop" && name != "quit" && name != "q" {
+		return m, nil
+	}
 	switch strings.ToLower(name) {
+	case "eval":
+		return m.evaluate(arg)
 	case "q", "quit":
 		m.quit = true
+		m.cancelEvaluation()
 		m.cancel()
 		return m, tea.Quit
 	case "help":
@@ -263,6 +271,10 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		m.transcript.Follow = true
 		return m, nil
 	case "stop":
+		if m.evaluation != nil {
+			m.closeDialog()
+			return m, nil
+		}
 		if m.state != stRunning {
 			m.appendBlock(markerBlock("nothing running"))
 			return m, nil

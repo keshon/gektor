@@ -29,6 +29,7 @@ func (m *model) restoreDraft() {
 }
 
 func (m *model) resetRunFacts() {
+	m.cancelEvaluation()
 	m.retryRun, m.runErr = nil, nil
 	m.answer, m.live, m.gateDraft = "", "", ""
 	m.resetLive()

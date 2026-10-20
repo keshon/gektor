@@ -41,6 +41,28 @@ func TestSnapshotRetainsArchiveAndRoundTripsContext(t *testing.T) {
 	}
 }
 
+func TestRunRangesSurviveRepeatedCompaction(t *testing.T) {
+	history := []llm.Message{{Role: llm.RoleSystem}, {Role: llm.RoleUser, Content: "task"}, {Role: llm.RoleAssistant, Content: "first"}, {Role: llm.RoleUser, Content: "next"}, {Role: llm.RoleAssistant, Content: "last"}}
+	s := New(history)
+	s.Runs = []Run{{Start: 1, End: 3, Outcome: "completed", Steps: 1}, {Start: 3, End: 5, Outcome: "completed", Steps: 1}}
+	for _, start := range []int{3, 4} {
+		projection := append(append([]llm.Message(nil), history[:2]...), llm.Message{Role: llm.RoleUser, Content: "summary"})
+		s.Compact(append(projection, history[start:]...))
+	}
+	data, _ := json.Marshal(s)
+	loaded, err := Decode(data)
+	if err != nil || !reflect.DeepEqual(loaded.Runs, s.Runs) || !reflect.DeepEqual(loaded.History, history) {
+		t.Fatalf("lost archive or run ranges: %+v %v", loaded, err)
+	}
+	for _, r := range []Run{{Start: -1, End: 2}, {Start: 1, End: 6}, {Start: 4, End: 2}} {
+		s.Runs = []Run{r}
+		data, _ := json.Marshal(s)
+		if _, err := Decode(data); err == nil {
+			t.Fatalf("accepted invalid range %+v", r)
+		}
+	}
+}
+
 func TestSnapshotRejectsInvalidContextAndCleansFailedWrites(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "state.json")

@@ -53,6 +53,7 @@ func read(name string) string {
 
 var (
 	System            = read("system.txt")
+	Evaluation        = read("evaluation.txt")
 	RoleAddendum      = read("role_addendum.txt")
 	SubagentScope     = read("subagent_scope.txt")
 	Resume            = read("resume.txt")

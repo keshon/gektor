@@ -545,6 +545,39 @@ Preset text may reference `{{char}}`, `{{user}}` and `{{persona}}`, which are
 substituted at compile time. A macro left unfilled is reported as a warning in
 the transcript rather than sent to the model as literal text.
 
+## Experimental session retrospective
+
+`/eval` reviews the last archived execution in a fresh model context while the
+task is idle. `/eval N` selects an execution number; `/eval session` selects the
+whole session. Add a focus after an explicit scope, for example
+`/eval last check the test evidence`. Old sessions without recorded execution
+boundaries require `/eval session`; GEKTOR does not guess task boundaries.
+
+The reviewer reads the full JSON archive, including messages hidden by any number
+of compactions, in bounded pages. Run boundaries use archive indices. Retries and
+answers to `ask_user` retain the preceding task in scope, so ranges may overlap.
+The dialog reports inspected messages and partial reads. Twelve model steps limit
+the review; a long session can exceed that budget, so coverage is not guaranteed.
+Esc cancels. Task history, draft, step budget and token meter stay unchanged.
+
+The report is the model's assessment of historical evidence, not an independent
+correctness verdict. The reviewer has only `read_history` and `submit_evaluation`:
+it cannot run tests, inspect current files, edit code or delegate. Findings must
+cite messages actually read in the selected scope. The latest report replaces
+`evaluation.json` next to that session's `state.json`.
+
+Optionally, up to three observations are appended to
+`skills/project-memory/SKILL.md` and linked from `skills/README.md`, preserving
+existing catalog entries. Each needs a condition, a lesson, and a literal quote
+from an explicitly successful archived tool result. This gate checks provenance,
+not the general truth of the lesson. Entries remain historical observations to
+check against current files; they are not promoted to system instructions.
+Duplicate observations are skipped, and memory is capped at 64 KiB. A review can
+legitimately produce no memory. Cancellation or an archive changed during the
+model review prevents saving its results.
+
+This TUI command is distinct from `cmd/eval`, the repeatable scenario benchmark.
+
 ## Implementation boundaries
 
 Reusable form, composer, list-selection and transcript viewport models live under

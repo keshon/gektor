@@ -9,6 +9,7 @@ import (
 func TestAllPromptsLoadNonEmpty(t *testing.T) {
 	all := map[string]string{
 		"System":            System,
+		"Evaluation":        Evaluation,
 		"Resume":            Resume,
 		"LeakDetected":      LeakDetected,
 		"BudgetContinue":    BudgetContinue,

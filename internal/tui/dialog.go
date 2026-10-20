@@ -41,6 +41,7 @@ type infoDialog struct {
 // pops it. Balanced by construction: every open path pairs with esc/enter
 // or run start.
 func (m *model) openDialog(title string, lines []string) {
+	m.cancelEvaluation()
 	m.dialog = &infoDialog{title: title, lines: lines}
 	m.pushOverlay()
 	m.input.Blur()
@@ -48,6 +49,7 @@ func (m *model) openDialog(title string, lines []string) {
 }
 
 func (m *model) closeDialog() {
+	m.cancelEvaluation()
 	m.dialog = nil
 	m.popOverlay()
 	m.fitBottom()

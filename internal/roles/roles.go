@@ -1,6 +1,6 @@
 // Package roles builds the agents this project runs.
 //
-// Three role constructors share one environment, tool policy, and context-aware gate.
+// Role constructors share one environment, tool policy, and context-aware gate.
 // Frontends provide observers and transport; capabilities are chosen here.
 //
 // This lives outside internal/agent on purpose: agent defines the Tool
@@ -147,6 +147,21 @@ func interactiveSystem(backendKind string) string {
 		return prompts.System
 	}
 	return prompts.SystemForBackend(backendKind)
+}
+
+// Retrospective gets only archive access and structured submission. It deliberately
+// omits task identity, workspace instructions, inbox, persistence and observers:
+// historical instructions must not become the reviewer's operating instructions.
+func Retrospective(e Env, archive, submit agent.Tool) *agent.Agent {
+	maxTokens := e.MaxTokens
+	if maxTokens <= 0 || maxTokens > 4096 {
+		maxTokens = 4096
+	}
+	return agent.New(agent.Config{
+		Client: e.Client, System: prompts.Evaluation, MaxSteps: 12,
+		MaxTokens: maxTokens, ContextLimit: e.ContextLimit,
+		Tools: agent.NewRegistry(archive, submit),
+	})
 }
 
 // Planner is the read-only conversation. It deliberately shares

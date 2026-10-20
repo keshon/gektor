@@ -123,6 +123,12 @@ run tasks in throwaway fixture workspaces and check files, tool usage and the
 answer. See the [eval guide](eval/README.md) for setup, scoring and model-backed
 runs. On Windows, `build.cmd check` runs the local checks together.
 
+Experimental TUI `/eval` reviews an archived execution in a separate context,
+including history hidden by compaction. It reports evidence-linked findings and
+can save narrow project observations as a workspace skill. This is a model
+retrospective, not a benchmark score or independent proof of correctness.
+See [session retrospective](docs/tui.md#experimental-session-retrospective).
+
 [Architecture](ARCHITECTURE.md) · [conventions](docs/conventions.md) ·
 [documentation index](docs/README.md)
 

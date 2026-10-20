@@ -7,12 +7,33 @@ import (
 
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
+	"github.com/keshon/gektor/internal/session"
 )
 
 // run requests a response, executes its tools and persists history until
 // the model answers, the operator cancels or the step limit is reached.
 func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, runErr error) {
 	var st runState
+	runStart := len(a.snapshot.History)
+	if runStart == 2 {
+		runStart = 1
+	}
+	hasRequest := false
+	for _, msg := range history[a.checkpointLen:] {
+		if msg.Role == llm.RoleUser {
+			hasRequest = true
+			break
+		}
+	}
+	if !hasRequest {
+		runStart = 1
+		if len(a.snapshot.Runs) > 0 {
+			runStart = a.snapshot.Runs[len(a.snapshot.Runs)-1].Start
+		}
+	}
+	if n := len(a.snapshot.History); hasRequest && n > 0 && len(a.snapshot.History[n-1].ToolCalls) > 0 {
+		runStart = n - 1
+	}
 	a.LastRunMutations = 0
 	a.report = RunReport{MaxSteps: a.cfg.MaxSteps}
 	a.cfg.Inbox.start()
@@ -62,6 +83,12 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 		}
 		if ctx.Err() != nil {
 			a.report.Outcome = "cancelled"
+		}
+		if a.cfg.StateFile != "" {
+			a.snapshot.Runs = append(a.snapshot.Runs, session.Run{Start: runStart, End: len(a.snapshot.History), Outcome: a.report.Outcome, Steps: a.report.Steps, Verification: a.report.Verification})
+			if err := a.snapshot.Save(a.cfg.StateFile); err != nil {
+				a.report.Warnings = append(a.report.Warnings, "run boundary persistence failed: "+err.Error())
+			}
 		}
 	}()
 	if a.cfg.BeginChanges != nil {

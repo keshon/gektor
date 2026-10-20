@@ -91,6 +91,14 @@ on the next save.
 cmd/eval runs 15 scenarios in disposable seed workspaces. Frozen criteria check
 workspace contents, tool usage and answers independently of the model checklist.
 
+The experimental TUI /eval command is a separate retrospective, implemented in
+internal/retrospect. Session snapshots retain execution ranges alongside the full
+archive; compaction changes only the working projection. The Retrospective role
+has archive-reading and structured-submission tools, without task capabilities.
+Validated reports can append quoted historical observations to a workspace skill.
+Literal evidence and read coverage are checked mechanically; the model's judgment
+and the general usefulness of a lesson are not independently verified.
+
 File tools validate paths and edits. Shell and MCP run with the user's process
 permissions; the workspace is not a process sandbox. See [SECURITY.md](SECURITY.md).
 Usage and flags live in [README.md](README.md) and [docs/cli.md](docs/cli.md).

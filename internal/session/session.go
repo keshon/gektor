@@ -21,6 +21,17 @@ type Snapshot struct {
 	History      []llm.Message `json:"history"`
 	ContextStart int           `json:"context_start,omitempty"`
 	Summary      string        `json:"summary,omitempty"`
+	Runs         []Run         `json:"runs,omitempty"`
+}
+
+// Run identifies one execution in the full archive, independent of compaction.
+// Retries can overlap the preceding run so the original task stays in scope.
+type Run struct {
+	Start        int    `json:"start"`
+	End          int    `json:"end"`
+	Outcome      string `json:"outcome"`
+	Steps        int    `json:"steps"`
+	Verification string `json:"verification,omitempty"`
 }
 
 func New(history []llm.Message) Snapshot {
@@ -51,6 +62,11 @@ func Load(path string) (Snapshot, error) {
 	if err != nil {
 		return Snapshot{}, err
 	}
+	return Decode(data)
+}
+
+// Decode validates one immutable archive buffer, including legacy snapshots.
+func Decode(data []byte) (Snapshot, error) {
 	var s Snapshot
 	if bytes.HasPrefix(bytes.TrimSpace(data), []byte("[")) {
 		var history []llm.Message
@@ -64,6 +80,11 @@ func Load(path string) (Snapshot, error) {
 	}
 	if s.Version != 1 || s.ContextStart < 0 || s.ContextStart > len(s.History) || (s.ContextStart > 0 && (s.ContextStart < 2 || s.Summary == "")) {
 		return Snapshot{}, fmt.Errorf("invalid conversation snapshot")
+	}
+	for _, run := range s.Runs {
+		if run.Start < 1 || run.End < run.Start || run.End > len(s.History) {
+			return s, fmt.Errorf("invalid archived run range")
+		}
 	}
 	return s, nil
 }

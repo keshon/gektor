@@ -60,6 +60,9 @@ func (m *model) headerBadges() []headerBadge {
 			activity = "ERROR"
 		}
 	}
+	if m.evaluation != nil {
+		activity = string(activityFrames[m.spinnerFrame%len(activityFrames)]) + " EVAL"
+	}
 	ctx := "CTX " + kTokens(m.tokens)
 	if m.tokensEst {
 		ctx = "~" + ctx

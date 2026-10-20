@@ -92,6 +92,7 @@ type model struct {
 	suggestions completion.State
 	gatePopup   gate.State
 	queued      string
+	evaluation  *evaluationJob
 	gateDraft   string
 	events      chan run.Event
 	hub         *run.GateHub
