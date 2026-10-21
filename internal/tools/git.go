@@ -11,50 +11,33 @@ import (
 	"github.com/keshon/gektor/internal/workspace"
 )
 
-// gitTimeout bounds one git operation. Inspections over a large history can
-// take longer than a quick check, so this is generous rather than matching
-// the shell's 10-minute default.
 const gitTimeout = 60 * time.Second
-
-// gitMaxItems caps how many entries log/show emit before truncating, so a
-// huge history cannot swallow the whole context window the way a raw
-// `git log` would.
 const gitMaxItems = 50
 
-// Git runs a curated, read-only subset of git through the same bounded,
-// sandboxed command runner as run_shell. It exists specifically so a model
-// never has to shell out to `git diff`/`git log` itself: a Go-owned runner
-// enforces the workspace boundary, scrubs credentials from the environment,
-// and bounds output, whereas `git` written by hand is only as safe as the
-// shell it lands in. The command set is intentionally read-only and fixed,
-// so the same tool set is available even in a read-only role where writes
-// are blocked but inspection must still work.
+// Git inspects repositories. Mutations have separate names so Plan and
+// read-only workers can exclude them before execution, independently of JSON.
 type Git struct{ WS *workspace.Workspace }
 
 func (Git) Name() string         { return "git" }
 func (Git) Mode() agent.ToolMode { return agent.Concurrent }
-
-// Idempotent: none of these mutate the repository, so results hold until
-// something else changes the tree or history.
-func (Git) Idempotent() bool { return true }
-
+func (Git) Idempotent() bool     { return true }
 func (Git) Description() string {
-	return fmt.Sprintf("Run a read-only git inspection inside the workspace (status, log, diff, show, blame, ls-files). "+
-		"Use this instead of run_shell(\"git ...\"), which bypasses the workspace boundary and credential scrubbing. "+
-		"Read-only only: committing, staging, pushing or otherwise changing history is out of scope — use run_shell for that. "+
-		"Output is capped at %d entries for list-like commands.", gitMaxItems)
+	return "Inspect Git status, log, diff, show, blame or ls-files. Paths are literal workspace-relative paths, not shell expressions or globs. " +
+		"diff and show include the patch; staged=true selects the staged diff. log returns at most 50 commits. Output is byte-bounded. " +
+		"Use git_add and git_commit only when authorized to stage or commit changes."
 }
 func (Git) Schema() json.RawMessage {
-	return json.RawMessage(fmt.Sprintf(`{
-		"type": "object",
-		"properties": {
-			"subcommand": {"type": "string", "enum": ["status","log","diff","show","blame","ls-files"]},
-			"path": {"type": "string", "description": "optional path within the workspace to scope the command to"},
-			"ref": {"type": "string", "description": "required for show: commit, branch, tag or other ref to inspect"},
-			"max_items": {"type": "integer", "description": "optional cap for log/show entries, default %d"}
-		},
-		"required": ["subcommand"]
-	}`, gitMaxItems))
+	return json.RawMessage(`{
+        "type":"object",
+        "properties":{
+            "subcommand":{"type":"string","enum":["status","log","diff","show","blame","ls-files"]},
+            "path":{"type":"string","description":"literal workspace-relative path; required for blame"},
+            "ref":{"type":"string","description":"commit revision for log/diff/show; required for show"},
+            "max_items":{"type":"integer","minimum":1,"maximum":50,"description":"log only; default 50"},
+            "staged":{"type":"boolean","description":"diff only: inspect the index"}
+        },
+        "required":["subcommand"],"additionalProperties":false
+    }`)
 }
 
 func (t Git) Run(ctx context.Context, args json.RawMessage) (string, error) {
@@ -63,75 +46,82 @@ func (t Git) Run(ctx context.Context, args json.RawMessage) (string, error) {
 		Path       string `json:"path"`
 		Ref        string `json:"ref"`
 		MaxItems   int    `json:"max_items"`
+		Staged     bool   `json:"staged"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", fmt.Errorf("bad arguments: %w", err)
 	}
-	if err := rejectUnknownFields(args, "subcommand", "path", "ref", "max_items"); err != nil {
+	if err := rejectUnknownFields(args, "subcommand", "path", "ref", "max_items", "staged"); err != nil {
 		return "", err
 	}
-
-	args_, err := t.buildArgs(in)
-	if err != nil {
-		return "", err
+	switch in.Subcommand {
+	case "status", "log", "diff", "show", "blame", "ls-files":
+	default:
+		return "", fmt.Errorf("unknown read-only git subcommand %q", in.Subcommand)
 	}
-
-	full, err := runCommand(ctx, "git "+strings.Join(args_, " "), t.WS.Root(), gitTimeout, nil)
-	if err != nil {
-		// git exits non-zero for many benign conditions (dirty tree,
-		// no commits yet); surface the captured output with the exit
-		// reason rather than swallowing it.
-		if strings.TrimSpace(full) != "" {
-			return full, fmt.Errorf("git failed: %w", err)
+	if in.MaxItems < 0 || (in.MaxItems != 0 && in.Subcommand != "log") {
+		return "", fmt.Errorf("max_items is a positive log-only limit")
+	}
+	if in.Staged && in.Subcommand != "diff" {
+		return "", fmt.Errorf("staged is supported only for diff")
+	}
+	if in.Ref != "" && in.Subcommand != "log" && in.Subcommand != "diff" && in.Subcommand != "show" {
+		return "", fmt.Errorf("ref is supported only for log, diff and show")
+	}
+	if in.Subcommand == "show" && strings.TrimSpace(in.Ref) == "" {
+		return "", fmt.Errorf("ref is required for show")
+	}
+	if in.Subcommand == "blame" && strings.TrimSpace(in.Path) == "" {
+		return "", fmt.Errorf("path is required for blame")
+	}
+	path := "."
+	if in.Path != "" {
+		if _, err := t.WS.Resolve(in.Path); err != nil {
+			return "", err
 		}
-		return "", fmt.Errorf("git failed: %w", err)
+		path = in.Path
 	}
-	return strings.TrimRight(full, "\n"), nil
-}
-
-// buildArgs validates the subcommand and assembles the git argument vector.
-// A pathspec is appended when a path is given so git itself scopes the work
-// against the resolved workspace path.
-func (t Git) buildArgs(in struct {
-	Subcommand string `json:"subcommand"`
-	Path       string `json:"path"`
-	Ref        string `json:"ref"`
-	MaxItems   int    `json:"max_items"`
-}) ([]string, error) {
 	var parts []string
 	switch in.Subcommand {
 	case "status":
 		parts = []string{"status", "--porcelain"}
 	case "log":
 		n := in.MaxItems
-		if n <= 0 {
+		if n == 0 {
 			n = gitMaxItems
 		}
-		parts = append(parts, "log", "--oneline", fmt.Sprintf("-%d", n))
+		parts = []string{"log", "--oneline", fmt.Sprintf("--max-count=%d", min(n, gitMaxItems))}
 	case "diff":
-		parts = []string{"diff", "--stat"}
+		parts = []string{"diff", "--no-ext-diff", "--no-textconv", "--stat", "--patch"}
+		if in.Staged {
+			parts = append(parts, "--cached")
+		}
 	case "show":
-		if strings.TrimSpace(in.Ref) == "" {
-			return nil, fmt.Errorf("ref is required for show")
-		}
-		n := in.MaxItems
-		if n <= 0 {
-			n = gitMaxItems
-		}
-		parts = append(parts, "show", "--stat", "--format=hash|%an|%ad|%s%n%b", "--date=short", in.Ref)
+		parts = []string{"show", "--no-ext-diff", "--no-textconv", "--format=fuller", "--stat", "--patch"}
 	case "blame":
-		parts = []string{"blame", "--line-porcelain"}
+		parts = []string{"blame", "--no-textconv"}
 	case "ls-files":
 		parts = []string{"ls-files"}
-	default:
-		return nil, fmt.Errorf("unknown subcommand %q (expected one of: status, log, diff, show, blame, ls-files)", in.Subcommand)
 	}
-
-	if strings.TrimSpace(in.Path) != "" {
-		if _, err := t.WS.Resolve(in.Path); err != nil {
-			return nil, err
+	if in.Ref != "" {
+		// Resolve only commits: option-like strings and ref:path blob selectors
+		// must not become options or bypass the path scope of an inspection.
+		oid, err := runGit(ctx, t.WS, "rev-parse", "--verify", "--end-of-options", in.Ref+"^{commit}")
+		if err != nil {
+			return oid, err
 		}
-		parts = append(parts, "--", in.Path)
+		parts = append(parts, strings.TrimSpace(oid))
 	}
-	return parts, nil
+	parts = append(parts, "--", path)
+	return runGit(ctx, t.WS, parts...)
+}
+
+func runGit(ctx context.Context, ws *workspace.Workspace, args ...string) (string, error) {
+	prefix := []string{"--no-pager", "--literal-pathspecs", "-c", "color.ui=false", "-c", "core.quotePath=false", "-c", "core.fsmonitor=false"}
+	out, err := runProgram(ctx, "git", append(prefix, args...), ws.Root(), gitTimeout)
+	out = strings.TrimRight(out, "\r\n")
+	if err != nil {
+		return out, fmt.Errorf("git failed: %w", err)
+	}
+	return out, nil
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 // stopGrace is how long stop waits for a killed process to actually be
@@ -35,6 +36,45 @@ func (s *syncBuffer) String() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return boundedOutput(s.head.String(), s.tail.String(), s.total)
+}
+
+// since returns retained bytes after cursor. Gaps from eviction are explicit;
+// an unfinished UTF-8 character is left for the next read while running.
+func (s *syncBuffer) since(cursor int, final bool) (string, int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	head, tail := s.head.String(), s.tail.String()
+	end := s.total
+	if !final {
+		last := tail[max(0, len(tail)-utf8.UTFMax):]
+		if len(tail) < utf8.UTFMax && s.total <= shellMaxBytes {
+			last = head[max(0, len(head)-(utf8.UTFMax-len(tail))):] + tail
+		}
+		if len(last) > 0 {
+			start := len(last) - 1
+			for start > 0 && !utf8.RuneStart(last[start]) {
+				start--
+			}
+			if !utf8.FullRuneInString(last[start:]) {
+				end -= len(last) - start
+			}
+		}
+	}
+	if cursor < 0 || cursor > end {
+		return "", 0, fmt.Errorf("cursor must be between 0 and %d", end)
+	}
+	var out strings.Builder
+	if cursor < len(head) {
+		out.WriteString(head[cursor:min(len(head), end)])
+	}
+	tailStart := s.total - len(tail)
+	if gap := tailStart - max(cursor, len(head)); gap > 0 {
+		fmt.Fprintf(&out, "\n...(output truncated: %d bytes no longer retained)\n", gap)
+	}
+	if end > tailStart {
+		out.WriteString(tail[max(cursor-tailStart, 0) : end-tailStart])
+	}
+	return strings.ToValidUTF8(out.String(), "�"), end, nil
 }
 
 type bgProc struct {
@@ -108,14 +148,15 @@ func (p *BackgroundProcesses) start(cmd *exec.Cmd) (id string, output *syncBuffe
 	return id, buf
 }
 
-func (p *BackgroundProcesses) status(id string) (output string, exited bool, exitErr error, err error) {
+func (p *BackgroundProcesses) status(id string, cursor int) (output string, next int, exited bool, exitErr error, err error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	proc, ok := p.procs[id]
 	if !ok {
-		return "", false, nil, fmt.Errorf("unknown background process id %q", id)
+		return "", 0, false, nil, fmt.Errorf("unknown background process id %q", id)
 	}
-	return proc.output.String(), proc.exited, proc.exitErr, nil
+	output, next, err = proc.output.since(cursor, proc.exited)
+	return output, next, proc.exited, proc.exitErr, err
 }
 
 // stop kills a process tree and waits for it to be gone.

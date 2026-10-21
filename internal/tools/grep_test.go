@@ -28,6 +28,36 @@ func TestGrepFiles_FindsMatchesAcrossFiles(t *testing.T) {
 	}
 }
 
+func TestGrepContextMergesWindowsAndKeepsMatchLabels(t *testing.T) {
+	ws, dir := testWS(t)
+	writeTmp(t, dir, "a.txt", "one\ntwo\nMATCH three\nMATCH four\nfive\nsix\nseven\neight\nMATCH nine\nten\n")
+	out, err := (GrepFiles{WS: ws}).Run(t.Context(), json.RawMessage(`{"path":".","pattern":"MATCH","before_context":1,"after_context":1}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "a.txt-2-two\na.txt:3:MATCH three\na.txt:4:MATCH four\na.txt-5-five\n--\na.txt-8-eight\na.txt:9:MATCH nine\na.txt-10-ten\n"
+	if out != want {
+		t.Fatalf("overlap duplicated context or mislabelled a match:\ngot: %s\nwant: %s", out, want)
+	}
+}
+
+func TestGrepContextBoundsOutputAndArguments(t *testing.T) {
+	ws, dir := testWS(t)
+	writeTmp(t, dir, "a.txt", strings.Repeat("MATCH "+strings.Repeat("x", 600)+"\n", 300))
+	out, err := (GrepFiles{WS: ws}).Run(t.Context(), json.RawMessage(`{"path":".","pattern":"MATCH","before_context":10,"after_context":10}`))
+	if err != nil || len(out) > readMaxBytes+200 || !strings.Contains(out, "output capped at 48 KiB") {
+		t.Fatalf("unbounded or silent truncation: len=%d err=%v", len(out), err)
+	}
+	for _, args := range []string{
+		`{"path":".","pattern":"MATCH","before_context":-1}`,
+		`{"path":".","pattern":"MATCH","after_context":11}`,
+	} {
+		if _, err := (GrepFiles{WS: ws}).Run(t.Context(), json.RawMessage(args)); err == nil {
+			t.Fatalf("accepted unbounded context: %s", args)
+		}
+	}
+}
+
 func TestGrepFiles_GlobFilter(t *testing.T) {
 	dir := t.TempDir()
 	ws, _ := workspace.New(dir)

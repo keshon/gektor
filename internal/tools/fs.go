@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/workspace"
@@ -39,7 +40,8 @@ func (ReadFile) Name() string { return "read_file" }
 func (ReadFile) Description() string {
 	return "Read a text file. Returns a FILE header (path, size, lines, truncated, binary) and the " +
 		"content, optionally from offset (a 1-based first line) for paging through large files. Set metadata_only=true to get only the header — use this for file size or " +
-		"type checks without loading content into context."
+		"type checks without loading content into context. For a truncated line, continue from the returned byte_offset " +
+		"(an absolute offset in decoded UTF-8 text with CRLF normalized to LF). Do not combine byte_offset with offset."
 }
 func (ReadFile) Mode() agent.ToolMode { return agent.Concurrent }
 
@@ -61,6 +63,7 @@ func (ReadFile) Schema() json.RawMessage {
 				"type": "integer",
 				"description": "optional cap on content bytes; omit or 0 for the full content"
 			},
+			"byte_offset": {"type":"integer","minimum":0,"description":"absolute normalized UTF-8 byte position; use the continuation value returned by a truncated read"},
 			"offset": {
 				"type": "integer",
 				"description": "1-based first line to return; omit or 0 to start at the top. Use with the lines: count from a truncated read to page past it"
@@ -76,11 +79,12 @@ func (t ReadFile) Run(ctx context.Context, args json.RawMessage) (string, error)
 		MetadataOnly bool   `json:"metadata_only"`
 		MaxBytes     *int   `json:"max_bytes"`
 		Offset       int    `json:"offset"`
+		ByteOffset   *int   `json:"byte_offset"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", fmt.Errorf("bad arguments: %w", err)
 	}
-	if err := rejectUnknownFields(args, "path", "metadata_only", "max_bytes", "offset"); err != nil {
+	if err := rejectUnknownFields(args, "path", "metadata_only", "max_bytes", "offset", "byte_offset"); err != nil {
 		return "", err
 	}
 	if strings.TrimSpace(in.Path) == "" {
@@ -88,6 +92,13 @@ func (t ReadFile) Run(ctx context.Context, args json.RawMessage) (string, error)
 	}
 	if in.Offset < 0 {
 		return "", fmt.Errorf("offset must be >= 0")
+	}
+	byteOffset := 0
+	if in.ByteOffset != nil {
+		if *in.ByteOffset < 0 || in.Offset != 0 {
+			return "", fmt.Errorf("byte_offset must be >= 0 and cannot be combined with offset")
+		}
+		byteOffset = *in.ByteOffset
 	}
 	full, err := t.WS.Resolve(in.Path)
 	if err != nil {
@@ -118,12 +129,12 @@ func (t ReadFile) Run(ctx context.Context, args json.RawMessage) (string, error)
 			maxBody = *in.MaxBytes
 		}
 	}
-	return streamReadFile(ctx, f, rel, maxBody, in.Offset)
+	return streamReadFile(ctx, f, rel, maxBody, in.Offset, byteOffset)
 }
 
 // streamReadFile retains only the requested display window. Metadata reads
 // inspect a prefix; content reads count lines while streaming, including UTF-16.
-func streamReadFile(ctx context.Context, f *os.File, path string, limit, offset int) (string, error) {
+func streamReadFile(ctx context.Context, f *os.File, path string, limit, offset, byteOffset int) (string, error) {
 	info, err := f.Stat()
 	if err != nil {
 		return "", err
@@ -154,15 +165,20 @@ func streamReadFile(ctx context.Context, f *os.File, path string, limit, offset 
 	line := 1
 	total := 0
 	windowBytes := 0
+	windowStart, windowLine := 0, start
 	last := byte(0)
 	var window strings.Builder
 	if limit != 0 {
 		pendingCR := false
 		buffer := make([]byte, 32*1024)
 		emit := func(c byte) {
+			index := total
 			total++
 			last = c
-			if line >= start {
+			if line >= start && index >= byteOffset {
+				if windowBytes == 0 {
+					windowStart, windowLine = index, line
+				}
 				windowBytes++
 				if window.Len() < limit {
 					window.WriteByte(c)
@@ -199,14 +215,7 @@ func streamReadFile(ctx context.Context, f *os.File, path string, limit, offset 
 		}
 
 		if pendingCR {
-			total++
-			last = '\r'
-			if line >= start {
-				windowBytes++
-				if window.Len() < limit {
-					window.WriteByte('\r')
-				}
-			}
+			emit('\r')
 		}
 	}
 	lines := line
@@ -215,6 +224,33 @@ func streamReadFile(ctx context.Context, f *os.File, path string, limit, offset 
 	} else if last == '\n' {
 		lines--
 	}
+	if limit > 0 && byteOffset > total {
+		return "", fmt.Errorf("byte_offset %d is past end of decoded file (%d bytes)", byteOffset, total)
+	}
+	shown := window.String()
+	if !binary && len(shown) > 0 && !utf8.RuneStart(shown[0]) {
+		return "", fmt.Errorf("byte_offset must point to a UTF-8 character boundary")
+	}
+	if !binary && windowBytes > len(shown) {
+		for len(shown) > 0 {
+			r, size := utf8.DecodeLastRuneInString(shown)
+			if r != utf8.RuneError || size != 1 || shown[len(shown)-1] < 0x80 {
+				break
+			}
+			shown = shown[:len(shown)-1]
+		}
+		if shown == "" {
+			return "", fmt.Errorf("max_bytes is too small for the next UTF-8 character; increase it to at least 4")
+		}
+	}
+	if windowBytes > len(shown) {
+		// Prefer complete lines. A single overlong line continues by bytes.
+		if end := strings.LastIndexByte(shown, '\n'); end >= 0 {
+			shown = shown[:end+1]
+		}
+	}
+	truncated := windowBytes > len(shown)
+	start = windowLine
 	var b strings.Builder
 	fmt.Fprintf(&b, "FILE\npath: %s\nsize: %d\n", path, info.Size())
 	if limit == 0 {
@@ -225,7 +261,7 @@ func streamReadFile(ctx context.Context, f *os.File, path string, limit, offset 
 	if encoding != "" {
 		fmt.Fprintf(&b, "encoding: %s (decoded for display; patches are refused — convert to UTF-8 first)\n", encoding)
 	}
-	fmt.Fprintf(&b, "truncated: %t\n", info.Size() > readMaxBytes)
+	fmt.Fprintf(&b, "truncated: %t\n", truncated || (limit == 0 && info.Size() > readMaxBytes))
 	if binary {
 		b.WriteString("binary: true\n")
 	}
@@ -237,24 +273,27 @@ func streamReadFile(ctx context.Context, f *os.File, path string, limit, offset 
 		fmt.Fprintf(&b, "(offset %d past end of file: %d lines)", offset, lines)
 		return b.String(), nil
 	}
-	shown := window.String()
 	end := start + strings.Count(shown, "\n")
 	if strings.HasSuffix(shown, "\n") {
 		end--
 	}
-	if start > 1 {
+	if start > 1 || byteOffset > 0 {
 		fmt.Fprintf(&b, "window: lines %d-%d of %d\n", start, end, lines)
 	}
 	b.WriteString(shown)
-	if windowBytes > limit {
-		fmt.Fprintf(&b, "\n...(content truncated at %d of %d bytes, lines %d-%d of %d — re-read with offset %d to continue)", len(shown), windowBytes, start, end, lines, end+1)
+	if truncated {
+		next := fmt.Sprintf("byte_offset %d", windowStart+len(shown))
+		if strings.HasSuffix(shown, "\n") {
+			next = fmt.Sprintf("offset %d, or %s", end+1, next)
+		}
+		fmt.Fprintf(&b, "\n...(content truncated at %d of %d bytes, lines %d-%d of %d — re-read with %s to continue)", len(shown), windowBytes, start, end, lines, next)
 	}
 	return b.String(), nil
 }
 
 // maxBodyBytes: 0 = header only; otherwise cap body at min(maxBodyBytes, readMaxBytes).
-// offset is a 1-based first line; <=1 reads from the start, byte-identical
-// to the old path. Line windows make large files pageable: the header
+// offset is a 1-based first line; byte_offset continues a truncated line
+// without skipping its unseen suffix. Line windows make large files pageable: the header
 // always reports total lines (and the shown window when offset), and the
 // truncation note points at the next offset instead of a dead end —
 // without this, bytes past the cap are unreachable (max_bytes only

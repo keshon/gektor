@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"runtime"
@@ -52,7 +53,7 @@ func TestBackgroundProcesses_StartCheckStop(t *testing.T) {
 	}
 
 	check := CheckBackground{Procs: procs}
-	cArgs, _ := json.Marshal(map[string]string{"id": id})
+	cArgs, _ := json.Marshal(map[string]any{"id": id, "cursor": 0})
 	checkOut, err := check.Run(context.Background(), cArgs)
 	if err != nil {
 		t.Fatalf("check: %v", err)
@@ -62,7 +63,7 @@ func TestBackgroundProcesses_StartCheckStop(t *testing.T) {
 	}
 
 	stop := StopBackground{Procs: procs}
-	if _, err := stop.Run(context.Background(), cArgs); err != nil {
+	if _, err := stop.Run(context.Background(), json.RawMessage(`{"id":"`+id+`"}`)); err != nil {
 		t.Fatalf("stop: %v", err)
 	}
 
@@ -90,7 +91,7 @@ func TestBackgroundProcesses_CapturesOutput(t *testing.T) {
 	deadline := time.Now().Add(3 * time.Second)
 	for !strings.Contains(out, "hello-from-bg") && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
-		out, err = (CheckBackground{Procs: procs}).Run(context.Background(), json.RawMessage(`{"id":"bg1"}`))
+		out, err = (CheckBackground{Procs: procs}).Run(context.Background(), json.RawMessage(`{"id":"bg1","cursor":0}`))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -98,11 +99,22 @@ func TestBackgroundProcesses_CapturesOutput(t *testing.T) {
 	if !strings.Contains(out, "hello-from-bg") {
 		t.Fatalf("expected captured output, got: %q", out)
 	}
+	var cursor int
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "next_cursor:") {
+			fmt.Sscanf(line, "next_cursor: %d", &cursor)
+		}
+	}
+	args, _ = json.Marshal(map[string]any{"id": "bg1", "cursor": cursor})
+	out, err = (CheckBackground{Procs: procs}).Run(t.Context(), args)
+	if err != nil || cursor == 0 || strings.Contains(out, "hello-from-bg") {
+		t.Fatalf("cursor repeated the startup output: %v %s", err, out)
+	}
 }
 
 func TestCheckBackground_UnknownID(t *testing.T) {
 	check := CheckBackground{Procs: NewBackgroundProcesses()}
-	args, _ := json.Marshal(map[string]string{"id": "bg999"})
+	args, _ := json.Marshal(map[string]any{"id": "bg999", "cursor": 0})
 	if _, err := check.Run(context.Background(), args); err == nil {
 		t.Fatal("expected error for unknown id")
 	}
@@ -219,7 +231,13 @@ func TestBackgroundProcesses_StopKillsWholeProcessTree(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		for {
-			out, _ := check.Run(context.Background(), sArgs)
+			checkArgs, _ := json.Marshal(map[string]any{"id": id, "cursor": 0})
+			out, err := check.Run(context.Background(), checkArgs)
+			if err != nil {
+				t.Errorf("check after stop: %v", err)
+				close(done)
+				return
+			}
 			if !strings.Contains(out, "still running") {
 				close(done)
 				return
@@ -231,5 +249,72 @@ func TestBackgroundProcesses_StopKillsWholeProcessTree(t *testing.T) {
 	case <-done:
 	case <-time.After(3 * time.Second):
 		t.Fatal("check_background never reported the process as exited within 3s")
+	}
+}
+
+func TestBackgroundCursorRetainsDeltasAndReportsEviction(t *testing.T) {
+	buffer := &syncBuffer{}
+	buffer.Write([]byte("first\n"))
+	out, cursor, err := buffer.since(0, false)
+	if err != nil || out != "first\n" {
+		t.Fatalf("initial output: %q %v", out, err)
+	}
+	buffer.Write([]byte("second\n"))
+	for range 2 {
+		delta, next, err := buffer.since(cursor, false)
+		if err != nil || delta != "second\n" || next != len("first\nsecond\n") {
+			t.Fatalf("cursor was destructive or repeated old output: %q %d %v", delta, next, err)
+		}
+	}
+	buffer.Write([]byte(strings.Repeat("x", shellMaxBytes*3) + "last"))
+	out, cursor, err = buffer.since(cursor, false)
+	if err != nil || !strings.Contains(out, "output truncated") || !strings.HasSuffix(out, "last") || len(out) > shellMaxBytes+200 {
+		t.Fatalf("eviction lost its diagnostic or newest output: bytes=%d %v", len(out), err)
+	}
+	buffer.Write([]byte("new"))
+	out, next, err := buffer.since(cursor, false)
+	if err != nil || out != "new" || next != cursor+3 {
+		t.Fatalf("delta after eviction: %q %d %v", out, next, err)
+	}
+	out, _, err = buffer.since(next, false)
+	if err != nil || out != "" {
+		t.Fatalf("idle poll repeated output: %q %v", out, err)
+	}
+}
+
+func TestBackgroundCursorPreservesSplitUTF8AcrossBufferSegments(t *testing.T) {
+	buffer := &syncBuffer{}
+	buffer.Write([]byte(strings.Repeat("a", shellMaxBytes/2-1)))
+	_, cursor, _ := buffer.since(0, false)
+	for i, b := range []byte("😀") {
+		buffer.Write([]byte{b})
+		out, next, err := buffer.since(cursor, false)
+		want := ""
+		if i == len("😀")-1 {
+			want = "😀"
+		}
+		if err != nil || out != want {
+			t.Fatalf("split character at byte %d: %q %v", i, out, err)
+		}
+		cursor = next
+	}
+	buffer.Write([]byte{0xf0})
+	out, next, _ := buffer.since(cursor, false)
+	if out != "" || next != cursor {
+		t.Fatal("acknowledged an incomplete UTF-8 character")
+	}
+	out, next, _ = buffer.since(cursor, true)
+	if out != "�" || next != cursor+1 {
+		t.Fatal("final incomplete character was not flushed")
+	}
+}
+
+func TestCheckBackgroundRequiresValidExplicitCursor(t *testing.T) {
+	procs := NewBackgroundProcesses()
+	procs.procs["bg1"] = &bgProc{output: &syncBuffer{}}
+	for _, args := range []string{`{"id":"bg1"}`, `{"id":"bg1","cursor":-1}`, `{"id":"bg1","cursor":1}`, `{"id":"bg1","cursor":0,"offset":1}`} {
+		if _, err := (CheckBackground{Procs: procs}).Run(t.Context(), json.RawMessage(args)); err == nil {
+			t.Fatalf("accepted an invalid cursor contract: %s", args)
+		}
 	}
 }

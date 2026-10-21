@@ -25,5 +25,5 @@ description: Go conventions for this agent. Read before writing or editing .go f
 - Avoid mutable global state when the dependency can be passed explicitly.
 
 ## Editing
-- Use patch_file or patch_lines for a focused edit; write_file for a new file
+- Use patch_file for a focused edit; write_file for a new file
   or an intentional full replacement. Preserve unrelated user changes.

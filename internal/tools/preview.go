@@ -57,6 +57,10 @@ func previewPatch(ws *workspace.Workspace, args json.RawMessage) string {
 	}
 	content, _ := normalizeContent(data)
 	oldNorm, _ := normalizeContent([]byte(in.OldContent))
+	newNorm, _ := normalizeContent([]byte(in.NewContent))
+	if err := guardEdit("patch_file", oldNorm, newNorm); err != nil {
+		return ""
+	}
 	count := strings.Count(content, oldNorm)
 	if count == 0 {
 		return "(old_content not found — this patch would fail)"
@@ -64,10 +68,8 @@ func previewPatch(ws *workspace.Workspace, args json.RawMessage) string {
 	if count > 1 {
 		return "(old_content matches multiple places — this patch would fail)"
 	}
-	newContent := strings.Replace(content, oldNorm, in.NewContent, 1)
-	oldLines := strings.Split(content, "\n")
-	newLines := strings.Split(newContent, "\n")
-	return capLines(unifiedDiff(in.Path, oldLines, 0, len(oldLines), newLines), previewMaxLines)
+	newContent := strings.Replace(content, oldNorm, newNorm, 1)
+	return capLines(unifiedDiff(in.Path, content, newContent), previewMaxLines)
 }
 
 func previewWrite(ws *workspace.Workspace, args json.RawMessage) string {
@@ -95,9 +97,7 @@ func previewWrite(ws *workspace.Workspace, args json.RawMessage) string {
 	if oldText == newText {
 		return "(identical to the file on disk — this write changes nothing)"
 	}
-	return capLines(unifiedDiff(in.Path,
-		strings.Split(oldText, "\n"), 0, len(strings.Split(oldText, "\n")),
-		strings.Split(newText, "\n")), previewMaxLines)
+	return capLines(unifiedDiff(in.Path, oldText, newText), previewMaxLines)
 }
 
 func previewMove(args json.RawMessage) string {

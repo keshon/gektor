@@ -34,7 +34,7 @@ func (StartBackground) Name() string { return "start_background" }
 func (StartBackground) Mode() agent.ToolMode { return agent.Exclusive }
 func (StartBackground) Description() string {
 	return "Start a long-running command (dev server, watcher, anything that doesn't exit on " +
-		"its own) without blocking. Returns an id to check on it with check_background or stop " +
+		"its own) without blocking. Returns an id and next_cursor; pass both to check_background for new output, or stop " +
 		"it with stop_background. Use this instead of run_shell for anything like 'npm run dev' " +
 		"— run_shell will time out and kill it before you can test anything."
 }
@@ -74,12 +74,15 @@ func (t StartBackground) Run(ctx context.Context, args json.RawMessage) (string,
 		return "", ctx.Err()
 	}
 
-	output, exited, exitErr, _ := t.Procs.status(id)
+	output, next, exited, exitErr, err := t.Procs.status(id, 0)
+	if err != nil {
+		return "", err
+	}
 	status := "running in background"
 	if exited {
 		status = fmt.Sprintf("already exited: %v", exitErr)
 	}
-	return fmt.Sprintf("id: %s\nstatus: %s\noutput so far:\n%s", id, status, output), nil
+	return fmt.Sprintf("id: %s\nstatus: %s\nnext_cursor: %d\noutput:\n%s", id, status, next, output), nil
 }
 
 type CheckBackground struct{ Procs *BackgroundProcesses }
@@ -88,24 +91,32 @@ func (CheckBackground) Name() string         { return "check_background" }
 func (CheckBackground) Mode() agent.ToolMode { return agent.Concurrent }
 func (CheckBackground) Description() string {
 	return "Check the current output and status (running/exited) of a process started with " +
-		"start_background."
+		"start_background. Pass its next_cursor as cursor to receive only new output. " +
+		"Use cursor=0 to read from the beginning; evicted output is marked explicitly."
 }
 func (CheckBackground) Schema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
-		"properties": {"id": {"type": "string"}},
-		"required": ["id"]
+		"properties": {"id": {"type": "string"}, "cursor": {"type":"integer","minimum":0}},
+		"required": ["id", "cursor"]
 	}`)
 }
 
 func (t CheckBackground) Run(_ context.Context, args json.RawMessage) (string, error) {
 	var in struct {
-		ID string `json:"id"`
+		ID     string `json:"id"`
+		Cursor *int   `json:"cursor"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", fmt.Errorf("bad arguments: %w", err)
 	}
-	output, exited, exitErr, err := t.Procs.status(in.ID)
+	if err := rejectUnknownFields(args, "id", "cursor"); err != nil {
+		return "", err
+	}
+	if in.Cursor == nil {
+		return "", fmt.Errorf("cursor is required; use next_cursor from the previous result, or 0 to read from the beginning")
+	}
+	output, next, exited, exitErr, err := t.Procs.status(in.ID, *in.Cursor)
 	if err != nil {
 		return "", err
 	}
@@ -116,7 +127,7 @@ func (t CheckBackground) Run(_ context.Context, args json.RawMessage) (string, e
 			status = fmt.Sprintf("exited with error: %v", exitErr)
 		}
 	}
-	return fmt.Sprintf("status: %s\noutput:\n%s", status, output), nil
+	return fmt.Sprintf("status: %s\nnext_cursor: %d\noutput:\n%s", status, next, output), nil
 }
 
 type StopBackground struct{ Procs *BackgroundProcesses }

@@ -7,17 +7,23 @@
   "max_steps": 3,
   "trace": [
     {
-      "tool": "run_shell",
+      "tool": "git",
       "mode": "required",
       "max_calls": 1,
-      "args_regex": "git log",
-      "why": "read actual commit history from the workspace root"
+      "args_regex": "\"subcommand\"\\s*:\\s*\"log\"",
+      "why": "read actual commit history through the dedicated Git tool from the workspace root"
     },
     {
       "tool": "run_shell",
       "mode": "forbidden",
       "args_regex": "(git log[^\"\\n]* \\.git|\\b(ls|dir)\\b)",
       "why": "avoid a .git path argument and shell directory exploration"
+    },
+    {
+      "tool": "git",
+      "mode": "forbidden",
+      "args_regex": "\"path\"\\s*:\\s*\"\\.git(?:[\\\\/]|\")",
+      "why": "inspect repository history, not the .git metadata directory"
     }
   ],
   "answer": [

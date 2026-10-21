@@ -75,31 +75,60 @@ func guardWriteSize(tool, content string) error {
 	return nil
 }
 
-// unifiedDiff renders oldLines[start:start+len(newSeg)] → newSeg with 3
-// lines of context, in a compact unified-hunk shape for the tool result.
-func unifiedDiff(path string, oldLines []string, start, end int, newSeg []string) string {
-	cs := start - 3
-	if cs < 0 {
-		cs = 0
+// unifiedDiff describes the single changed region using complete file lines.
+// End-of-file markers matter: a final newline is not an extra empty line.
+func unifiedDiff(path, before, after string) string {
+	split := func(s string) []string {
+		if s == "" {
+			return nil
+		}
+		return strings.Split(strings.TrimSuffix(s, "\n"), "\n")
 	}
-	ce := end + 3
-	if ce > len(oldLines) {
-		ce = len(oldLines)
+	oldLines, newLines := split(before), split(after)
+	oldNL, newNL := strings.HasSuffix(before, "\n"), strings.HasSuffix(after, "\n")
+	start := 0
+	for start < min(len(oldLines), len(newLines)) && oldLines[start] == newLines[start] {
+		start++
+	}
+	if start > 0 && ((start == len(oldLines) && !oldNL) || (start == len(newLines) && !newNL) || oldNL != newNL) {
+		start--
+	}
+	oldEnd, newEnd := len(oldLines), len(newLines)
+	for oldEnd > start && newEnd > start && oldLines[oldEnd-1] == newLines[newEnd-1] {
+		if oldEnd == len(oldLines) && newEnd == len(newLines) && oldNL != newNL {
+			break
+		}
+		oldEnd--
+		newEnd--
+	}
+	cs, ce := max(start-3, 0), min(oldEnd+3, len(oldLines))
+	oldCount, newCount := ce-cs, start-cs+(newEnd-start)+(ce-oldEnd)
+	oldStart, newStart := cs+1, cs+1
+	if oldCount == 0 {
+		oldStart = cs
+	}
+	if newCount == 0 {
+		newStart = cs
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "--- %s\n+++ %s\n", path, path)
-	fmt.Fprintf(&b, "@@ -%d,%d +%d,%d @@\n", cs+1, ce-cs, cs+1, cs+len(newSeg)+(ce-end))
-	for _, l := range oldLines[cs:start] {
-		b.WriteString(" " + l + "\n")
+	fmt.Fprintf(&b, "--- %s\n+++ %s\n@@ -%d,%d +%d,%d @@\n", path, path, oldStart, oldCount, newStart, newCount)
+	line := func(prefix string, lines []string, n int, finalNL bool) {
+		b.WriteString(prefix + lines[n] + "\n")
+		if n == len(lines)-1 && !finalNL {
+			b.WriteString("\\ No newline at end of file\n")
+		}
 	}
-	for _, l := range oldLines[start:end] {
-		b.WriteString("-" + l + "\n")
+	for n := cs; n < start; n++ {
+		line(" ", oldLines, n, oldNL)
 	}
-	for _, l := range newSeg {
-		b.WriteString("+" + l + "\n")
+	for n := start; n < oldEnd; n++ {
+		line("-", oldLines, n, oldNL)
 	}
-	for _, l := range oldLines[end:ce] {
-		b.WriteString(" " + l + "\n")
+	for n := start; n < newEnd; n++ {
+		line("+", newLines, n, newNL)
+	}
+	for n := oldEnd; n < ce; n++ {
+		line(" ", oldLines, n, oldNL)
 	}
 	return b.String()
 }

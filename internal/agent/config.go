@@ -73,7 +73,7 @@ func New(cfg Config) *Agent {
 		cfg.MaxTokens = 8192
 	}
 	if len(cfg.MutatingTools) == 0 {
-		cfg.MutatingTools = []string{"write_file", "patch_file", "patch_lines", "move_file"}
+		cfg.MutatingTools = []string{"write_file", "patch_file", "move_file"}
 	}
 	if cfg.CompactKeepSteps == 0 {
 		cfg.CompactKeepSteps = DefaultCompactKeepSteps

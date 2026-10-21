@@ -13,7 +13,7 @@ go run ./cmd/gektor -log-max 300 \
 
 **Pass (weak model realistic):**
 - ≤5 steps
-- `git log` from repo root (no `.git` path argument)
+- Dedicated `git` tool with `subcommand: "log"` from repo root (no `.git` path argument)
 - No `run_shell` with `ls`/`dir` for exploration
 - Correct commit list in final answer
 

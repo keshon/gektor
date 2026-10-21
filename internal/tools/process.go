@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -17,7 +18,17 @@ func RunCommand(ctx context.Context, command, dir string, timeout time.Duration)
 func runCommand(ctx context.Context, command, dir string, timeout time.Duration, onOutput func(string)) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	cmd := shellCommand(ctx, command)
+	return runProcess(ctx, shellCommand(ctx, command), dir, onOutput)
+}
+
+// runProgram preserves argument boundaries without passing through a shell.
+func runProgram(ctx context.Context, program string, args []string, dir string, timeout time.Duration) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return runProcess(ctx, exec.CommandContext(ctx, program, args...), dir, nil)
+}
+
+func runProcess(ctx context.Context, cmd *exec.Cmd, dir string, onOutput func(string)) (string, error) {
 	cmd.Dir = dir
 	cmd.Env = scrubEnv(os.Environ())
 	cmd.WaitDelay = stopGrace

@@ -14,7 +14,8 @@ in a repository, with local inference as the starting point.
 
 - **Plan and Act.** Explore with read-only tools, then switch to execution.
 - **Work with code.** Search, read, patch and move files; run commands and
-  manage background processes. Delegate a bounded subtask when useful.
+  manage background processes. Inspect Git changes, stage selected paths and
+  make requested commits. Delegate a bounded subtask when useful.
 - **Show the work.** Stream answers and reasoning when the backend exposes
   them. Inspect tool arguments, results, diffs and permission requests.
 - **Keep sessions.** Reopen and search conversations, continue interrupted

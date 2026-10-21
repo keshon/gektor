@@ -199,3 +199,51 @@ Choices and effective profile settings are saved under `~/.gektor/application.js
 Explicit command-line combinations remain supported as temporary launches; a
 change applied through the UI becomes the saved default. Direct API-key flags stay
 in memory across a restart and are never written to preferences.
+
+## Editing and Git tools
+
+Existing files are edited with `patch_file`: its `old_content` must match one
+exact block copied from the current file. Include surrounding lines to make
+the block unique. Missing, ambiguous or unchanged matches are refused before
+writing. The line-number editor has been removed. CRLF and UTF-8 BOM are
+preserved; UTF-16 text must be converted before patching.
+
+`read_file` returns a continuation when its content limit is reached. Use the
+returned `offset` for a complete-line boundary or `byte_offset` to continue
+inside a long line. Byte positions refer to decoded UTF-8 with CRLF normalized
+to LF, not raw bytes in a UTF-16 or CRLF file. Do not combine the two offsets.
+
+`git` inspects status, log, diff, show, blame and tracked files without shell
+interpretation. `diff` includes actual changes; `staged: true` selects the
+index. `show` requires a commit revision; `blame` requires a file path. Log
+results are limited to 50 commits; all output is byte-bounded.
+
+`git_add` stages a literal workspace-relative path. `git_commit` commits the
+already-staged changes using the supplied message and appends
+`Co-authored-by: Gektor <no-reply@keshon.ru>`. It keeps the configured author
+and runs normal repository hooks. These two tools are unavailable for
+execution in Plan and read-only workers. Inspect staged changes and obtain
+user authorization before committing; a commit includes unrelated changes
+that were already staged too.
+
+## Search context and process output
+
+`grep_files` accepts `before_context` and `after_context`, each from 0 to 10.
+Matches use `path:line:text`, context uses `path-line-text`; overlapping windows
+are merged. Disjoint groups are separated by `--`. Results stop at 200 matches
+or 48 KiB of rows and report truncation. Long lines remain individually capped.
+
+`run_shell` accepts an optional workspace-relative `workdir` and
+`timeout_seconds` from 1 to 600. Defaults are the workspace root and 600 seconds.
+The working directory applies to that call only. Unknown parameters and invalid
+bounds are refused before starting a command. Servers still use
+`start_background` rather than a longer blocking timeout.
+
+`start_background` returns an id and `next_cursor`. `check_background` requires
+both `id` and `cursor`: pass the previous `next_cursor` to retrieve only new
+output. Cursors are byte positions in that process's output; use the returned
+value rather than calculating it from rendered text. `cursor: 0` explicitly
+reads retained output from the beginning. Evicted bytes are reported, and
+incomplete UTF-8 characters are held until complete or the process exits.
+Cursors are owned by the caller, so two readers do not consume each other's
+output. `stop_background` still takes only the process id.

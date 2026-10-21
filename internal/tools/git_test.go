@@ -32,6 +32,11 @@ func initGitRepo(t *testing.T, dir string) string {
 		}
 	}
 	run("init")
+	run("config", "user.name", "test")
+	run("config", "user.email", "test@example.com")
+	run("config", "commit.gpgsign", "false")
+	run("config", "core.autocrlf", "false")
+	run("config", "core.hooksPath", filepath.Join(dir, ".git", "no-hooks"))
 	if err := os.WriteFile(filepath.Join(dir, "hello.txt"), []byte("hi\n"), 0o644); err != nil {
 		t.Fatalf("seed file: %v", err)
 	}
@@ -119,5 +124,64 @@ func TestGit_RejectsEscapedPath(t *testing.T) {
 	args, _ := json.Marshal(map[string]string{"subcommand": "ls-files", "path": "../outside"})
 	if _, err := tool.Run(context.Background(), args); err == nil {
 		t.Fatal("expected an error for a path escaping the workspace, got nil")
+	}
+}
+
+func TestGit_ShowAndLiteralArguments(t *testing.T) {
+	dir := initGitRepo(t, t.TempDir())
+	tool := newGitTool(t, dir)
+	out, err := tool.Run(t.Context(), json.RawMessage(`{"subcommand":"show","ref":"HEAD"}`))
+	if err != nil || !strings.Contains(out, "initial") || !strings.Contains(out, "+hi") {
+		t.Fatalf("show did not include the commit and patch: %v\n%s", err, out)
+	}
+	out, err = tool.Run(t.Context(), json.RawMessage(`{"subcommand":"blame","path":"hello.txt"}`))
+	if err != nil || !strings.Contains(out, "hi") {
+		t.Fatalf("blame did not inspect the requested file: %v %s", err, out)
+	}
+	name := "file with spaces 100% & more.txt"
+	writeTmp(t, dir, name, "content\n")
+	args, _ := json.Marshal(map[string]string{"path": name})
+	if out, err := (GitAdd{WS: tool.WS}).Run(t.Context(), args); err != nil {
+		t.Fatalf("literal add: %v %s", err, out)
+	}
+	args, _ = json.Marshal(map[string]string{"subcommand": "ls-files", "path": name})
+	out, err = tool.Run(t.Context(), args)
+	if err != nil || !strings.Contains(out, name) {
+		t.Fatalf("literal path lost: %v %q", err, out)
+	}
+	args, _ = json.Marshal(map[string]string{"subcommand": "ls-files", "path": "hello.txt & echo audit-proof > audit-proof.txt"})
+	_, _ = tool.Run(t.Context(), args)
+	if _, err := os.Stat(filepath.Join(dir, "audit-proof.txt")); !os.IsNotExist(err) {
+		t.Fatal("read-only inspection executed a shell write")
+	}
+	for _, ref := range []string{"--output=audit-proof.txt", "HEAD:hello.txt"} {
+		args, _ = json.Marshal(map[string]string{"subcommand": "show", "ref": ref})
+		if _, err := tool.Run(t.Context(), args); err == nil {
+			t.Fatalf("accepted a non-commit ref %q", ref)
+		}
+	}
+}
+
+func TestGit_DiffReadsWorktreeAndIndexSeparately(t *testing.T) {
+	dir := initGitRepo(t, t.TempDir())
+	tool := newGitTool(t, dir)
+	writeTmp(t, dir, "hello.txt", "staged\n")
+	if _, err := (GitAdd{WS: tool.WS}).Run(t.Context(), json.RawMessage(`{"path":"hello.txt"}`)); err != nil {
+		t.Fatal(err)
+	}
+	writeTmp(t, dir, "hello.txt", "worktree\n")
+	for _, staged := range []bool{true, false} {
+		args, _ := json.Marshal(map[string]any{"subcommand": "diff", "staged": staged})
+		out, err := tool.Run(t.Context(), args)
+		want := "+worktree"
+		if staged {
+			want = "+staged"
+		}
+		if err != nil || !strings.Contains(out, want) {
+			t.Fatalf("staged=%v: %v %s", staged, err, out)
+		}
+	}
+	if _, err := tool.Run(t.Context(), json.RawMessage(`{"subcommand":"add","path":"hello.txt"}`)); err == nil {
+		t.Fatal("inspection accepted a mutation")
 	}
 }

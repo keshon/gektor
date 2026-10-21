@@ -15,7 +15,7 @@ go run ./cmd/gektor -log-max 300 -workspace sandbox/eval-manual \
 ```
 
 **Pass:**
-- `patch_file` or `patch_lines` (not full `write_file` rewrite of whole file)
+- `patch_file` (not full `write_file` rewrite of whole file)
 - `sample.go` contains `const Version = "v2"`
 - `go build` would succeed (file still valid Go)
 

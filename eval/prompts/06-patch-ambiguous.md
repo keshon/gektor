@@ -15,7 +15,7 @@ go run ./cmd/gektor -log-max 300 -workspace sandbox/eval-manual \
 ```
 
 **Pass:**
-- Recognizes patch would match twice (tool error) **or** uses `patch_lines` / narrower context
+- Recognizes patch would match twice (tool error) **or** uses narrower exact context
 - Ends with exactly two lines containing `REPLACED` OR one line replaced if task interpreted as single line — **agent must not silently corrupt file**
 - Reads file before/after to verify
 

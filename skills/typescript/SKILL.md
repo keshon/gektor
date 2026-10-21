@@ -23,5 +23,5 @@ description: TypeScript conventions for this agent. Read before writing or editi
 - Follow the framework and project's established export conventions.
 
 ## Editing
-- Small fix: `patch_file` or `patch_lines`. New file or full rewrite:
+- Small fix: `patch_file`. New file or full rewrite:
   `write_file`.

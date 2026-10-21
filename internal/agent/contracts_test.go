@@ -217,7 +217,7 @@ func TestMutationIsBarrierInModelOrder(t *testing.T) {
 }
 
 func TestAgent_PatchIsNotBlockedByTheRewriteGuard(t *testing.T) {
-	for _, tool := range []string{"patch_file", "patch_lines"} {
+	for _, tool := range []string{"patch_file"} {
 		t.Run(tool, func(t *testing.T) {
 			var runs int32
 			client := &stubClient{responses: []llm.ChatResponse{

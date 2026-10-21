@@ -61,16 +61,3 @@ func TestPatchFile_RefusesUTF16WithReason(t *testing.T) {
 		t.Fatalf("must not degrade to not-found: %v", err)
 	}
 }
-
-func TestPatchLines_RefusesUTF16(t *testing.T) {
-	dir := t.TempDir()
-	ws, _ := workspace.New(dir)
-	if err := os.WriteFile(filepath.Join(dir, "b.txt"), utf16le("a\r\nb\r\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	pl := PatchLines{WS: ws}
-	if _, err := pl.Run(context.Background(),
-		json.RawMessage(`{"path":"b.txt","start_line":1,"end_line":1,"new_content":"A"}`)); err == nil {
-		t.Fatal("expected refusal")
-	}
-}

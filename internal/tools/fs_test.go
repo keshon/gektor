@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -280,5 +283,82 @@ func TestWriteFile_OversizedContentRefused(t *testing.T) {
 	}
 	if _, stat := os.Stat(filepath.Join(dir, "big.go")); !os.IsNotExist(stat) {
 		t.Fatal("refused write must not touch disk")
+	}
+}
+
+func TestReadFilePaginationReconstructsNormalizedText(t *testing.T) {
+	for _, content := range []string{
+		"first long line\nsecond line\nlast",
+		"\r\nпривет 🌍\r\n" + strings.Repeat("я", 40) + "\r\nend\r\n",
+		strings.Repeat("x", 100) + "\nend",
+		"a\rb\r\nc\r",
+	} {
+		ws, dir := testWS(t)
+		writeTmp(t, dir, "file.txt", content)
+		cursor := 0
+		var reconstructed strings.Builder
+		for page := 0; ; page++ {
+			if page > len(content) {
+				t.Fatal("pagination stopped making progress")
+			}
+			args, _ := json.Marshal(map[string]any{"path": "file.txt", "max_bytes": 7, "byte_offset": cursor})
+			out, err := (ReadFile{WS: ws}).Run(t.Context(), args)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, body, ok := strings.Cut(out, "----\n")
+			if !ok {
+				t.Fatalf("missing content: %s", out)
+			}
+			if strings.HasPrefix(body, "window:") {
+				_, body, _ = strings.Cut(body, "\n")
+			}
+			if strings.Contains(out, "truncated: false") {
+				reconstructed.WriteString(body)
+				break
+			}
+			chunk, _, found := strings.Cut(body, "\n...(content truncated at ")
+			if !found || !utf8.ValidString(chunk) || len(chunk) > 7 {
+				t.Fatalf("invalid page: %q", out)
+			}
+			reconstructed.WriteString(chunk)
+			match := regexp.MustCompile(`byte_offset (\d+)`).FindStringSubmatch(body)
+			if len(match) != 2 {
+				t.Fatalf("no continuation: %s", out)
+			}
+			next, _ := strconv.Atoi(match[1])
+			if next <= cursor {
+				t.Fatalf("cursor did not advance: %d -> %d", cursor, next)
+			}
+			cursor = next
+		}
+		if want := strings.ReplaceAll(content, "\r\n", "\n"); reconstructed.String() != want {
+			t.Fatalf("lost or repeated text: got %q, want %q", reconstructed.String(), want)
+		}
+	}
+}
+
+func TestReadFileContinuationValidation(t *testing.T) {
+	ws, dir := testWS(t)
+	writeTmp(t, dir, "file.txt", "язык\n")
+	for _, args := range []string{
+		`{"path":"file.txt","byte_offset":-1}`,
+		`{"path":"file.txt","byte_offset":1}`,
+		`{"path":"file.txt","byte_offset":999}`,
+		`{"path":"file.txt","offset":1,"byte_offset":0}`,
+		`{"path":"file.txt","max_bytes":1}`,
+	} {
+		if _, err := (ReadFile{WS: ws}).Run(t.Context(), json.RawMessage(args)); err == nil {
+			t.Fatalf("accepted unusable continuation: %s", args)
+		}
+	}
+
+	// Decoded UTF-16 uses the same normalized cursor as a UTF-8 file.
+	if err := os.WriteFile(filepath.Join(dir, "utf16.txt"), utf16le("abcd\r\nef\r\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := (ReadFile{WS: ws}).Run(t.Context(), json.RawMessage(`{"path":"utf16.txt","byte_offset":3,"max_bytes":4}`))
+	if err != nil || !strings.Contains(out, "d\n") || !strings.Contains(out, "byte_offset 5") {
+		t.Fatalf("decoded cursor is inconsistent: %v %s", err, out)
 	}
 }

@@ -12,7 +12,7 @@ go run ./cmd/gektor -log-max 300 \
 ```
 
 **Pass:**
-- 1× `run_shell` with `git log --oneline` (or equivalent)
+- 1× dedicated `git` tool call with `subcommand: "log"`
 - ≤3 model round-trips including verify
 - Output matches real history
 

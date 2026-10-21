@@ -3,7 +3,9 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -89,27 +91,6 @@ func TestPatchFile_CRLFPreserved(t *testing.T) {
 	}
 }
 
-func TestPatchLines_IdenticalRejected(t *testing.T) {
-	ws, dir := testWS(t)
-	writeTmp(t, dir, "a.txt", "one\ntwo\nthree\n")
-	_, err := runTool(t, PatchLines{WS: ws}, `{"path":"a.txt","start_line":2,"end_line":2,"new_content":"two"}`)
-	if err == nil || !strings.Contains(err.Error(), "identical") {
-		t.Fatalf("expected identical rejection, got %v", err)
-	}
-}
-
-func TestPatchLines_ReturnsDiff(t *testing.T) {
-	ws, dir := testWS(t)
-	writeTmp(t, dir, "a.txt", "one\ntwo\nthree\nfour\n")
-	out, err := runTool(t, PatchLines{WS: ws}, `{"path":"a.txt","start_line":2,"end_line":3,"new_content":"TWO"}`)
-	if err != nil {
-		t.Fatalf("run: %v", err)
-	}
-	if !strings.Contains(out, "@@") || !strings.Contains(out, "+TWO") {
-		t.Fatalf("expected diff, got %q", out)
-	}
-}
-
 func TestWriteFile_RejectsUnknownFields(t *testing.T) {
 	ws, _ := testWS(t)
 	_, err := runTool(t, WriteFile{WS: ws}, `{"path":"a.txt","content":"x","command":"y"}`)
@@ -147,5 +128,71 @@ func TestPathLocks_Serialize(t *testing.T) {
 	wg.Wait()
 	if len(order) != 10 {
 		t.Fatalf("order=%v", order)
+	}
+}
+
+func TestPatchDiffAppliesWithGitIncludingEOFChanges(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	for _, pair := range [][2]string{
+		{"one\ntwo\nthree\n", "one\nTWO\nthree\n"},
+		{"one\ntwo\n", "one\n"},
+		{"one\n", ""}, {"", "one\n"},
+		{"one", "one\n"}, {"one\n", "one"},
+		{"one", "one\ntwo"},
+		{strings.Repeat("unchanged\n", 149) + "old\n", strings.Repeat("unchanged\n", 149) + "new\n"},
+	} {
+		t.Run(fmt.Sprintf("%d-%d-%q", len(pair[0]), len(pair[1]), pair[0][:min(4, len(pair[0]))]), func(t *testing.T) {
+			dir := t.TempDir()
+			writeTmp(t, dir, "file.txt", pair[0])
+			patch := unifiedDiff("file.txt", pair[0], pair[1])
+			cmd := exec.Command("git", "-c", "core.autocrlf=false", "apply", "-")
+			cmd.Dir = dir
+			cmd.Stdin = strings.NewReader(patch)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("diff is not applicable: %v %s\n%s", err, out, patch)
+			}
+			got, _ := os.ReadFile(filepath.Join(dir, "file.txt"))
+			if string(got) != pair[1] {
+				t.Fatalf("diff produced %q, expected %q", got, pair[1])
+			}
+		})
+	}
+}
+
+func TestPatchFileStableAnchorsAndRefusalPreserveBytes(t *testing.T) {
+	ws, dir := testWS(t)
+	before := "\xef\xbb\xbfpackage example\r\n\r\nfunc first() {}\r\nfunc second() {}\r\n"
+	writeTmp(t, dir, "file.go", before)
+	tool := PatchFile{WS: ws}
+	patch := func(old, replacement string) error {
+		args, _ := json.Marshal(map[string]string{"path": "file.go", "old_content": old, "new_content": replacement})
+		_, err := tool.Run(t.Context(), args)
+		return err
+	}
+	if err := patch("func first() {}", "// inserted before the second function\nfunc first() {}"); err != nil {
+		t.Fatal(err)
+	}
+	if err := patch("func second() {}", "func second() {\n}\n"); err != nil {
+		t.Fatal(err)
+	}
+	current, _ := os.ReadFile(filepath.Join(dir, "file.go"))
+	if !strings.HasPrefix(string(current), "\xef\xbb\xbf") || !strings.Contains(string(current), "\r\n") {
+		t.Fatalf("lost BOM or CRLF: %q", current)
+	}
+	for _, old := range []string{"func second() {}", "{}"} {
+		// Missing or ambiguous matches must not touch the file.
+		if old == "{}" {
+			writeTmp(t, dir, "file.go", "{}\r\n{}\r\n")
+			current, _ = os.ReadFile(filepath.Join(dir, "file.go"))
+		}
+		if err := patch(old, "replacement"); err == nil {
+			t.Fatalf("unsafe match accepted: %q", old)
+		}
+		got, _ := os.ReadFile(filepath.Join(dir, "file.go"))
+		if string(got) != string(current) {
+			t.Fatal("refused patch changed the file")
+		}
 	}
 }

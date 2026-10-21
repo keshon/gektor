@@ -303,7 +303,7 @@ func (a *Agent) Tools() *Registry { return a.cfg.Tools }
 
 // situationHints names, per nudge situation, the tools that could help.
 // A situation whose tools are all absent yields nothing.
-var situationHints = map[string][]string{"truncated": {"write_file", "patch_file", "patch_lines"}}
+var situationHints = map[string][]string{"truncated": {"write_file", "patch_file"}}
 var situationPrompts = map[string]string{"truncated": prompts.WriteHint}
 
 // hintResolver answers from a registry which of a situation's tools are

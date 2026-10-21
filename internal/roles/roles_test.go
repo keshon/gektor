@@ -90,6 +90,36 @@ type seqStub struct {
 	steps []llm.ChatResponse
 }
 
+func TestPlannerRejectsGitMutationsBeforeExecution(t *testing.T) {
+	e := testEnv(t)
+	e.Client = &seqStub{steps: []llm.ChatResponse{
+		{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{
+			{ID: "add", Name: "git_add", Arguments: json.RawMessage(`{"path":"."}`)},
+			{ID: "commit", Name: "git_commit", Arguments: json.RawMessage(`{"message":"not allowed"}`)},
+		}}},
+		{Message: llm.Message{Role: llm.RoleAssistant, Content: "Plan only."}},
+	}}
+	var results []agent.ToolResult
+	e.OnResult = func(r agent.ToolResult) { results = append(results, r) }
+	a := Planner(e, "planner", "", nil)
+	for _, name := range []string{"git_add", "git_commit"} {
+		if !hasTool(a, name) {
+			t.Fatalf("%s missing from the common schema; switching mode would change the prefix", name)
+		}
+	}
+	if _, err := a.Run(t.Context(), "Inspect the project"); err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected two refusals, got %+v", results)
+	}
+	for _, r := range results {
+		if !r.Failed || !strings.Contains(r.Output, "read-only") {
+			t.Fatalf("mutation reached execution instead of the read-only guard: %+v", r)
+		}
+	}
+}
+
 func (s *seqStub) Chat(_ context.Context, _ llm.ChatRequest) (llm.ChatResponse, error) {
 	r := s.steps[s.calls]
 	s.calls++
