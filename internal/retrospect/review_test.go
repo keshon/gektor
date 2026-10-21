@@ -92,6 +92,39 @@ func reviewClient(t *testing.T, start, evidence int, memory bool, beforeFinish f
 	})
 }
 
+func TestEvaluationProgressFollowsObservedWork(t *testing.T) {
+	c, _ := archiveFixture(t)
+	c.Scope = "1"
+	c.Client = reviewClient(t, 2, 4, false, nil)
+	var updates []Progress
+	c.OnProgress = func(p Progress) { updates = append(updates, p) }
+	if _, err := Evaluate(t.Context(), c); err != nil {
+		t.Fatal(err)
+	}
+	if len(updates) == 0 || updates[0].Stage != "Loading saved archive" {
+		t.Fatalf("missing archive load: %+v", updates)
+	}
+	waiting := map[int]bool{}
+	read := false
+	for _, p := range updates {
+		if p.Stage == "Waiting for model response" {
+			waiting[p.Step] = true
+		}
+		if p.Read == 4 && p.Total == 4 {
+			read = true
+		}
+		if p.Read > p.Total || p.Step > p.Steps {
+			t.Fatalf("invalid counters: %+v", p)
+		}
+	}
+	if !waiting[1] || !waiting[2] || !waiting[3] || waiting[4] || !read {
+		t.Fatalf("progress did not follow three requests and four archive excerpts: %+v", updates)
+	}
+	if last := updates[len(updates)-1]; last.Stage != "Saving evaluation" || last.Read != 4 {
+		t.Fatalf("missing persistence phase: %+v", last)
+	}
+}
+
 func TestEvaluateCompactedArchiveAndDeduplicatesMemory(t *testing.T) {
 	c, _ := archiveFixture(t)
 	catalogPath := filepath.Join(c.Workspace.Root(), "skills", "README.md")

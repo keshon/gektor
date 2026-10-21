@@ -53,12 +53,28 @@ type Config struct {
 	Workspace               *workspace.Workspace
 	StateFile, Scope, Focus string
 	ContextLimit, MaxTokens int
+	OnProgress              func(Progress)
+}
+
+// Progress reports observed work, not an estimate of time remaining.
+type Progress struct {
+	Stage       string
+	Step, Steps int
+	Read, Total int
 }
 
 // Evaluate uses a fresh, bounded agent with archive-reading tools only. It
 // cannot run commands, edit source, delegate, or change the original context.
 func Evaluate(ctx context.Context, c Config) (Result, error) {
 	var result Result
+	progress := Progress{Stage: "Loading saved archive", Steps: 12}
+	report := func(stage string) {
+		progress.Stage = stage
+		if c.OnProgress != nil {
+			c.OnProgress(progress)
+		}
+	}
+	report(progress.Stage)
 	if c.Client == nil || c.Workspace == nil {
 		return result, fmt.Errorf("evaluation needs a model and workspace")
 	}
@@ -76,7 +92,43 @@ func Evaluate(ctx context.Context, c Config) (Result, error) {
 	}
 	archive := &archiveTool{snapshot: snapshot, seen: map[int]string{}}
 	submit := &submitTool{archive: archive, start: start, end: end}
-	a := roles.Retrospective(roles.Env{Client: c.Client, MaxTokens: c.MaxTokens, ContextLimit: c.ContextLimit}, archive, submit)
+	progress.Total = end - start
+	completed := 0
+	a := roles.Retrospective(roles.Env{
+		Client: c.Client, MaxTokens: c.MaxTokens, ContextLimit: c.ContextLimit,
+		OnProgress: func(_ llm.Progress) {
+			progress.Step = completed + 1
+			if progress.Step > progress.Steps {
+				progress.Step = progress.Steps
+				report("Waiting for final model response (step limit reached)")
+				return
+			}
+			report("Waiting for model response")
+		},
+		OnStep: func(_ string, step int, msg llm.Message) {
+			completed = step + 1
+			progress.Step = completed
+			stage := "Checking model response"
+			if len(msg.ToolCalls) > 0 {
+				switch msg.ToolCalls[0].Name {
+				case "read_history":
+					stage = "Reading archive excerpts"
+				case "submit_evaluation":
+					stage = "Validating evaluation"
+				}
+			}
+			report(stage)
+		},
+		OnResult: func(_ agent.ToolResult) {
+			progress.Read = 0
+			for id := range archive.seen {
+				if id > start && id <= end {
+					progress.Read++
+				}
+			}
+			report(progress.Stage)
+		},
+	}, archive, submit)
 	request := fmt.Sprintf("Review %s, archive messages %d–%d (one-based, inclusive). Focus: %s\n\n%s", label, start+1, end, c.Focus, overview(snapshot, start, end))
 	if _, err := a.Run(ctx, request); err != nil {
 		return result, fmt.Errorf("evaluation: %w", err)
@@ -103,10 +155,12 @@ func Evaluate(ctx context.Context, c Config) (Result, error) {
 		return Result{}, fmt.Errorf("session changed during evaluation; run /eval again")
 	}
 	path := filepath.Join(filepath.Dir(c.StateFile), "evaluation.json")
+	report("Saving evaluation")
 	if err := writeJSON(path, result); err != nil {
 		return Result{}, err
 	}
 	if len(result.Memory) > 0 {
+		report("Saving project observations")
 		result.Saved, err = saveMemory(ctx, c.Workspace.Root(), result, filepath.Base(filepath.Dir(c.StateFile)))
 		if err != nil {
 			result.Warning = "Memory was not saved: " + err.Error()

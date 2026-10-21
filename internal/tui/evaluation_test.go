@@ -5,11 +5,46 @@ import (
 	"errors"
 	"os"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/retrospect"
 )
+
+func TestEvaluationProgressIsIsolatedAndSafeDuringTicks(t *testing.T) {
+	m := settingsModel(t)
+	m.steps, m.tokens = 7, 1234
+	m.openDialog("Session evaluation", nil)
+	job := &evaluationJob{cancel: func() {}, started: time.Now().Add(-3 * time.Second)}
+	m.evaluation = job
+	var worker sync.WaitGroup
+	worker.Go(func() {
+		for range 100 {
+			job.update(retrospect.Progress{Stage: "Waiting for model response", Step: 2, Steps: 12, Read: 4, Total: 8})
+		}
+	})
+	for range 100 {
+		m.refreshEvaluation()
+	}
+	worker.Wait()
+	m.refreshEvaluation()
+	view := strings.Join(m.dialog.lines, "\n")
+	if !strings.Contains(view, "Step 2/12") || !strings.Contains(view, "inspected 4 of 8") || !strings.Contains(view, "Waiting for model response") {
+		t.Fatalf("missing live counters: %s", view)
+	}
+	if m.steps != 7 || m.tokens != 1234 || m.input.Value() != "unfinished draft" {
+		t.Fatal("evaluation progress changed original task")
+	}
+	m.closeDialog()
+	m.openDialog("Other dialog", []string{"keep"})
+	job.update(retrospect.Progress{Stage: "stale update"})
+	m.refreshEvaluation()
+	if strings.Join(m.dialog.lines, "") != "keep" {
+		t.Fatal("cancelled evaluation changed another dialog")
+	}
+}
 
 func TestEvaluationDoesNotReplaceTaskAndClosesOnEscape(t *testing.T) {
 	m := settingsModel(t)

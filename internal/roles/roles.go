@@ -143,7 +143,7 @@ func (e Env) policy() permission.Policy {
 }
 
 // Retrospective gets only archive access and structured submission. It deliberately
-// omits task identity, workspace instructions, inbox, persistence and observers:
+// omits task identity, workspace instructions, inbox and persistence:
 // historical instructions must not become the reviewer's operating instructions.
 func Retrospective(e Env, archive, submit agent.Tool) *agent.Agent {
 	maxTokens := e.MaxTokens
@@ -153,7 +153,8 @@ func Retrospective(e Env, archive, submit agent.Tool) *agent.Agent {
 	return agent.New(agent.Config{
 		Client: e.Client, System: prompts.Evaluation, MaxSteps: 12,
 		MaxTokens: maxTokens, ContextLimit: e.ContextLimit,
-		Tools: agent.NewRegistry(archive, submit),
+		Tools:  agent.NewRegistry(archive, submit),
+		OnStep: e.onStep("evaluation"), OnProgress: e.OnProgress, OnResult: e.OnResult,
 	})
 }
 
