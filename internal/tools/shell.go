@@ -29,18 +29,25 @@ func (RunShell) Mode() agent.ToolMode { return agent.Exclusive }
 func (RunShell) Description() string {
 	if runtime.GOOS == "windows" {
 		return "Run a finite command inside the workspace via cmd.exe, using Windows-compatible syntax. " +
+			"Use workdir for a workspace-relative working directory and timeout_seconds (1–600) to bound execution. " +
 			"Use file tools for listings, edits and moves; use start_background for servers and watchers. " +
 			"Return combined stdout and stderr; inspect the result before claiming success."
 	}
 	return "Run a finite command inside the workspace via sh, using POSIX syntax. " +
+		"Use workdir for a workspace-relative working directory and timeout_seconds (1–600) to bound execution. " +
 		"Use file tools for listings, edits and moves; use start_background for servers and watchers. " +
 		"Return combined stdout and stderr; inspect the result before claiming success."
 }
 func (RunShell) Schema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
-		"properties": {"command": {"type": "string"}},
-		"required": ["command"]
+		"properties": {
+			"command": {"type": "string", "minLength": 1},
+			"workdir": {"type": "string", "description": "Workspace-relative directory; defaults to the root."},
+			"timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 600, "default": 600}
+		},
+		"required": ["command"],
+		"additionalProperties": false
 	}`)
 }
 
@@ -50,13 +57,32 @@ func (t RunShell) Run(ctx context.Context, args json.RawMessage) (string, error)
 
 func (t RunShell) RunStreaming(ctx context.Context, args json.RawMessage, onOutput func(string)) (string, error) {
 	var in struct {
-		Command string `json:"command"`
+		Command        string `json:"command"`
+		Workdir        string `json:"workdir"`
+		TimeoutSeconds *int   `json:"timeout_seconds"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", fmt.Errorf("bad arguments: %w", err)
 	}
 
-	full, err := runCommand(ctx, in.Command, t.WS.Root(), shellTimeout, onOutput)
+	if err := rejectUnknownFields(args, "command", "workdir", "timeout_seconds"); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(in.Command) == "" {
+		return "", fmt.Errorf("command is required")
+	}
+	timeout := shellTimeout
+	if in.TimeoutSeconds != nil {
+		if *in.TimeoutSeconds < 1 || *in.TimeoutSeconds > 600 {
+			return "", fmt.Errorf("timeout_seconds must be between 1 and 600")
+		}
+		timeout = time.Duration(*in.TimeoutSeconds) * time.Second
+	}
+	dir, err := t.WS.Resolve(in.Workdir)
+	if err != nil {
+		return "", err
+	}
+	full, err := runCommand(ctx, in.Command, dir, timeout, onOutput)
 	result := capShellOutput(full)
 
 	if err != nil {
