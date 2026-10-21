@@ -18,7 +18,7 @@ if exist .env (
 )
 
 REM --- defaults ---
-if "%LLAMA_PORT%"=="" set LLAMA_PORT=8080
+if "%LLAMA_PORT%"=="" set LLAMA_PORT=9931
 if "%LLAMA_HOST%"=="" set LLAMA_HOST=127.0.0.1
 if "%LLAMA_CTX_SIZE%"=="" set LLAMA_CTX_SIZE=65536
 if "%LLAMA_GPU_LAYERS%"=="" set LLAMA_GPU_LAYERS=999

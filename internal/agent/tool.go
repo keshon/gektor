@@ -250,6 +250,24 @@ type callResult struct {
 	err     error
 }
 
+// Keep refused calls in the transcript without letting malformed RawMessage
+// bytes break persistence or the next backend request. Execution checks the
+// original arguments; the paired error result explains this placeholder.
+func recordableMessage(msg llm.Message) llm.Message {
+	for i, call := range msg.ToolCalls {
+		if !json.Valid(call.Arguments) {
+			msg.ToolCalls = append([]llm.ToolCall(nil), msg.ToolCalls...)
+			for j := i; j < len(msg.ToolCalls); j++ {
+				if !json.Valid(msg.ToolCalls[j].Arguments) {
+					msg.ToolCalls[j].Arguments = json.RawMessage(`{}`)
+				}
+			}
+			break
+		}
+	}
+	return msg
+}
+
 // executeToolCalls overlaps adjacent reads and serializes every mutation in
 // model call order.
 //
@@ -271,9 +289,13 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 		// Truncated arguments (generation cut off mid-call) are stumps, not
 		// calls: executing them fails arg parsing here and 500s backends that
 		// parse server-side. Refuse with reissue-smaller guidance instead.
-		if finishReason == "length" && len(strings.TrimSpace(string(call.Arguments))) > 0 && !json.Valid(call.Arguments) {
+		if !json.Valid(call.Arguments) {
 			skipped[i] = true
-			results[i].err = fmt.Errorf("call arguments are truncated JSON; reissue the call in smaller pieces")
+			kind := "invalid"
+			if finishReason == "length" {
+				kind = "truncated"
+			}
+			results[i].err = fmt.Errorf("call arguments are %s JSON; nothing was executed. Damaged arguments were discarded and recorded as {}; reissue the call in smaller pieces", kind)
 			continue
 		}
 		// A read-only role is offered the full tool set so a mode switch

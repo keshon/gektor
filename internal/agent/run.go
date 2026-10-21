@@ -132,13 +132,14 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 			continue
 		}
 		resp, leakedText := a.recoverLeakedCalls(resp, step)
+		message := recordableMessage(resp.Message)
 		if a.cfg.OnStep != nil {
-			a.cfg.OnStep(step, resp.Message)
+			a.cfg.OnStep(step, message)
 		}
 		if a.cfg.OnUsage != nil {
 			a.cfg.OnUsage(step, resp.Usage)
 		}
-		history = append(history, resp.Message)
+		history = append(history, message)
 		if resp.Usage.PromptTokens > 0 {
 			st.lastPromptTokens = resp.Usage.PromptTokens
 		} else {
