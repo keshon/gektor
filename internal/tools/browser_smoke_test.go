@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -30,6 +29,10 @@ func TestBrowserMCPIntegration(t *testing.T) {
 	root := t.TempDir()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
+		if r.URL.Path == "/broken" {
+			w.Write([]byte(`<script type="importmap">{"imports":{"modules":"/lib/"}}</script><script type="module">import 'modules/missing.js';</script>`))
+			return
+		}
 		w.Write([]byte(`<button onclick="document.querySelector('output').textContent='42'">Calculate</button><output>0</output>`))
 	}))
 	defer server.Close()
@@ -37,13 +40,7 @@ func TestBrowserMCPIntegration(t *testing.T) {
 	if channel == "" {
 		channel = "chrome"
 	}
-	command := "npx"
-	args := []string{"-y", "@playwright/mcp@0.0.83", "--browser", channel, "--headless", "--isolated", "--image-responses", "allow", "--output-dir", ".gektor/browser"}
-	if runtime.GOOS == "windows" {
-		command = "cmd.exe"
-		args = append([]string{"/d", "/c", "npx"}, args...)
-	}
-	list, client, err := StartMCP(t.Context(), "browser", root, command, args...)
+	list, client, err := StartBrowser(t.Context(), channel, root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,6 +113,13 @@ func TestBrowserMCPIntegration(t *testing.T) {
 	out = call("browser_take_screenshot", map[string]any{"filename": "smoke.png", "type": "png", "scale": "css"})
 	if !strings.Contains(out, "smoke.png") {
 		t.Fatal(out)
+	}
+	// Archived regression: HTTP 200 with a broken import-map prefix must be
+	// visible as a browser error, not accepted as proof that the UI works.
+	call("browser_navigate", map[string]any{"url": server.URL + "/broken"})
+	out = call("browser_console_messages", map[string]any{"level": "error"})
+	if !strings.Contains(out, "modules/missing.js") {
+		t.Fatal("browser failed to expose the broken import map", out)
 	}
 	call("browser_close", map[string]any{})
 	if attached == 0 {

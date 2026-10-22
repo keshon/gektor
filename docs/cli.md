@@ -87,6 +87,7 @@ fails closed. Rules are pattern tripwires, not process isolation. See
 | `-allow RULES` | — | Comma-separated `tool=pattern` rules to allow, e.g. `"run_shell=go *,read_file=*.go"`. Wins over defaults |
 | `-deny RULES` | — | Comma-separated `tool=pattern` rules to deny, e.g. `"run_shell=rm *,read_file=.env"`. Wins over `-allow` |
 | `-mcp SERVERS` | - | MCP servers as `"name=cmd args...;name2=https://host/mcp"` over stdio JSON-RPC or Streamable HTTP. Tools appear as `mcp__name__tool`. A server that fails to start is skipped with a warning |
+| `-browser CHANNEL` | - | Connect cached Playwright MCP to installed `chrome` or `msedge` using an isolated headless profile. Connection failure stops launch. See [browser setup](browser.md) |
 
 ## Output and debugging
 
@@ -241,7 +242,13 @@ Matches use `path:line:text`, context uses `path-line-text`; overlapping windows
 are merged. Disjoint groups are separated by `--`. Results stop at 200 matches
 or 48 KiB of rows and report truncation. Long lines remain individually capped.
 
-`run_shell` accepts an optional workspace-relative `workdir` and
+`run_shell` and `start_background` accept either `program` with literal `args`
+or a shell `command`. These modes are mutually exclusive. Prefer program/args
+for executables: no shell quoting, expansion, pipes or redirection is applied.
+Use command for shell builtins, pipelines and Windows `.cmd`/`.bat` wrappers.
+Both tools accept a workspace-relative `workdir`.
+
+`run_shell` also accepts
 `timeout_seconds` from 1 to 600. Defaults are the workspace root and 600 seconds.
 The working directory applies to that call only. Unknown parameters and invalid
 bounds are refused before starting a command. Servers still use

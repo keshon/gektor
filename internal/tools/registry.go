@@ -3,7 +3,6 @@ package tools
 import (
 	"encoding/json"
 	"path/filepath"
-	"strings"
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/checks"
@@ -51,12 +50,7 @@ func PathResources(ws *workspace.Workspace, tool string, args json.RawMessage) (
 // backend capability probe, not a guess.
 func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSink, rules []checks.Rule, vision bool, extra ...agent.Tool) *agent.Registry {
 	scan := func(t agent.Tool) agent.Tool { return Checked(t, ws, report, rules) }
-	info := SystemInfo{WS: ws}
-	for _, tool := range extra {
-		if remote, ok := tool.(*MCPTool); ok && strings.HasPrefix(remote.def.Name, "browser_") {
-			info.BrowserTools = append(info.BrowserTools, tool.Name())
-		}
-	}
+	info := SystemInfo{WS: ws, BrowserTools: BrowserToolNames(extra)}
 	tools := []agent.Tool{
 		info,
 		ReadOutput{},

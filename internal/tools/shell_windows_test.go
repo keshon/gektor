@@ -43,3 +43,10 @@ func TestWindowsShellPreservesQuotes(t *testing.T) {
 		}
 	}
 }
+
+func TestDirectBatchInvocationExplainsShellRequirement(t *testing.T) {
+	_, err := (executionInput{Program: "script.cmd"}).cmd(t.Context())
+	if err == nil || !strings.Contains(err.Error(), "use command with CMD syntax") {
+		t.Fatal(err)
+	}
+}

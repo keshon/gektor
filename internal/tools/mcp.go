@@ -75,6 +75,7 @@ func StartMCP(ctx context.Context, server, dir, command string, args ...string) 
 	// the handshake timeout cannot cancel. Close cancels it, which also
 	// reaps a process a restart replaced.
 	procCtx, killProc := context.WithCancel(context.WithoutCancel(ctx))
+	var startupLog *syncBuffer
 	launch := func() (io.Writer, io.Reader, *exec.Cmd, error) {
 		cmd := exec.CommandContext(procCtx, command, args...)
 		cmd.Dir = dir
@@ -93,7 +94,8 @@ func StartMCP(ctx context.Context, server, dir, command string, args ...string) 
 			group.release()
 			return nil, nil, nil, fmt.Errorf("mcp %s: stdout: %w", server, err)
 		}
-		cmd.Stderr = nil
+		startupLog = &syncBuffer{}
+		cmd.Stderr = startupLog
 		if err := cmd.Start(); err != nil {
 			stdin.Close()
 			stdout.Close()
@@ -120,6 +122,11 @@ func StartMCP(ctx context.Context, server, dir, command string, args ...string) 
 	tools, c, err := connectMCP(handshake, server, cmd, stdin, stdout)
 	if err != nil {
 		killProc()
+		if startupLog != nil {
+			if text := strings.TrimSpace(startupLog.String()); text != "" {
+				err = fmt.Errorf("%w\nserver stderr: %s", err, agent.TruncateMiddle(text, 2048))
+			}
+		}
 		return nil, nil, err
 	}
 	c.close = killProc

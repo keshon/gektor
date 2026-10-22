@@ -14,11 +14,13 @@ import (
 // covered by using one of those instead of by being registered here.
 func toolResource(args json.RawMessage) string {
 	var fields struct {
-		Command string `json:"command"`
-		Path    string `json:"path"`
-		From    string `json:"from"`
-		To      string `json:"to"`
-		URL     string `json:"url"`
+		Command string   `json:"command"`
+		Program string   `json:"program"`
+		Args    []string `json:"args"`
+		Path    string   `json:"path"`
+		From    string   `json:"from"`
+		To      string   `json:"to"`
+		URL     string   `json:"url"`
 	}
 	if json.Unmarshal(args, &fields) != nil {
 		return ""
@@ -30,6 +32,8 @@ func toolResource(args json.RawMessage) string {
 		return fields.From + "->" + fields.To
 	case fields.Command != "":
 		return fields.Command
+	case fields.Program != "":
+		return fields.Program + " " + strings.Join(fields.Args, " ")
 	case fields.URL != "":
 		return fields.URL
 	}

@@ -13,19 +13,27 @@ download does not consume GEKTOR's MCP startup timeout:
 npx -y @playwright/mcp@0.0.83 --help
 ```
 
-Windows (PowerShell or CMD):
+After that one-time setup, Windows, Linux and macOS use the same option:
 
 ```text
-gektor.exe -tui -workspace D:\path\to\project -mcp "browser=cmd.exe /d /c npx -y @playwright/mcp@0.0.83 --browser chrome --headless --isolated --image-responses omit --output-dir .gektor/browser"
+gektor -tui -workspace /path/to/project -browser chrome
 ```
 
-Linux/macOS:
+For installed Edge, use `-browser msedge`. GEKTOR starts the cached, pinned
+MCP package without downloading it, uses an isolated headless profile, and
+reports the discovered browser tools. A connection failure stops launch with
+the server's diagnostic instead of continuing without the requested browser.
+First navigation checks that the browser itself can launch. The selected
+browser must already be installed. Without `-browser` or a custom browser MCP,
+the model is explicitly told browser automation is unavailable.
+
+Advanced configuration through the existing MCP option is still available:
 
 ```sh
 ./gektor -tui -workspace /path/to/project -mcp 'browser=npx -y @playwright/mcp@0.0.83 --browser chrome --headless --isolated --image-responses omit --output-dir .gektor/browser'
 ```
 
-Use `--browser msedge` for installed Edge. Omit `--headless` to see the
+For a custom MCP command, use `--browser msedge` for installed Edge. Omit `--headless` to see the
 separate browser window. `--isolated` avoids using your personal profile.
 The server runs in the task workspace. The example omits inline images to keep
 DOM-based work cheap. With a vision-capable backend, `--image-responses allow`
@@ -36,6 +44,8 @@ For predictable screenshot paths, supply a workspace-relative filename.
 Copy `skills/browser/` into the task workspace's `skills/` directory before
 starting GEKTOR. Its catalog will advertise the guide; actual skill reads and
 browser calls appear in history. No browser tools are loaded unless configured.
+Browser checks must use these tools; shell launches and mass termination of
+Chrome/Edge are not recovery steps.
 
 Try: “Open the local app, exercise its main form, inspect console errors,
 and save a screenshot. Verify the actual page; report any unverified visual

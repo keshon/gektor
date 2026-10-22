@@ -19,6 +19,12 @@ Ancestor `AGENTS.md` files are explicit launch configuration; sessions and
 immutable image snapshots live in the application data directory. Those
 application-owned paths are separate from workspace file-tool access.
 
+The default permission tripwires ask before process-kill commands such as
+`taskkill`, `Stop-Process`, `pkill` and `killall`, including direct program/args
+execution. These are operator checks, not a shell sandbox or an exhaustive
+command parser. Agent-owned background jobs are stopped by their tracked id;
+the optional browser MCP uses an isolated profile instead of the user's profile.
+
 GEKTOR relies on trustworthy skills, extensions and repositories. Files like
 `SKILL.md`, `AGENTS.md` or comment instructions can prompt-inject the agent
 and this cannot be protected against — only contained with approvals and

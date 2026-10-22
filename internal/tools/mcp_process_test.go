@@ -13,6 +13,14 @@ import (
 const mcpHelperEnv = "GEKTOR_MCP_HELPER"
 
 func TestMain(m *testing.M) {
+	if os.Getenv("GEKTOR_EXEC_HELPER") == "1" {
+		writeLiteralExecutionArgs()
+		return
+	}
+	if os.Getenv(mcpHelperEnv) == "stderr" {
+		os.Stderr.WriteString("browser startup failed: test package missing\n")
+		return
+	}
 	if os.Getenv(mcpHelperEnv) == "1" {
 		serveFakeMCP(os.Stdin, os.Stdout)
 		return
@@ -29,6 +37,14 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 	os.RemoveAll(home)
 	os.Exit(code)
+}
+
+func TestMCPStartupFailureIncludesServerStderr(t *testing.T) {
+	t.Setenv(mcpHelperEnv, "stderr")
+	_, _, err := StartMCP(t.Context(), "broken", t.TempDir(), os.Args[0])
+	if err == nil || !strings.Contains(err.Error(), "test package missing") {
+		t.Fatalf("startup diagnostic lost: %v", err)
+	}
 }
 
 // StartMCP spawns a real child process, which the in-process pipe tests

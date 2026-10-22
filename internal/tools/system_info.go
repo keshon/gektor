@@ -115,7 +115,7 @@ func (t SystemInfo) browserInfo(ctx context.Context) map[string]any {
 	if len(t.BrowserTools) > 0 {
 		status = "browser MCP tools discovered at startup; first navigation still verifies browser launch"
 	}
-	return map[string]any{"browser_paths": installed, "playwright_executables": executables, "mcp_tools": t.BrowserTools, "status": status, "package_inventory": "PATH does not include every local/global/npm-cache package; absence here is not proof of absence. No installation or download attempted.", "warnings": warnings}
+	return map[string]any{"browser_paths": installed, "playwright_executables": executables, "mcp_tools": t.BrowserTools, "status": status, "operator_setup": "Restart GEKTOR with -browser chrome or -browser msedge; see docs/browser.md. Do not improvise browser shell commands when MCP is unavailable.", "package_inventory": "PATH does not include every local/global/npm-cache package; absence here is not proof of absence. No installation or download attempted.", "warnings": warnings}
 }
 
 type pathTool struct {

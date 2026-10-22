@@ -23,7 +23,7 @@ in a repository, with local inference as the starting point.
 - **Extend through files and tools.** Read project `AGENTS.md` instructions
   and task-specific skills. Query OS, hardware and PATH tools on demand.
   Connect external tools over MCP, including an optional
-  [browser for UI checks](docs/browser.md).
+  [browser for UI checks](docs/browser.md) (`-browser chrome` or `-browser msedge`).
 - **Use the same loop outside the TUI.** One-shot CLI, JSONL events and a
   stdio integration protocol are included.
 

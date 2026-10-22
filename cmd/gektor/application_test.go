@@ -126,7 +126,7 @@ func TestAgentServiceConfigurationSupportsTextOnlyProfile(t *testing.T) {
 	}
 }
 func TestExecutionPolicyOptionsSurviveServiceHandoff(t *testing.T) {
-	before, err := parseLaunchOptions([]string{"-tui", "-deny", "run_shell=*", "-allow", "read_file=*.go", "-mcp", "local=command", "-model", "old", "-verify-cmd", "go test ./...", "-audit", "audit.jsonl", "-yes", "-api-key", "transient", "-resume", "old-state"})
+	before, err := parseLaunchOptions([]string{"-tui", "-browser", "chrome", "-deny", "run_shell=*", "-allow", "read_file=*.go", "-mcp", "local=command", "-model", "old", "-verify-cmd", "go test ./...", "-audit", "audit.jsonl", "-yes", "-api-key", "transient", "-resume", "old-state"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestExecutionPolicyOptionsSurviveServiceHandoff(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if after.deny != before.deny || after.allow != before.allow || after.mcp != before.mcp || after.verifyCmd != before.verifyCmd || after.auditPath != before.auditPath || !after.yes || after.apiKey != before.apiKey {
+	if after.deny != before.deny || after.allow != before.allow || after.mcp != before.mcp || after.browser != before.browser || after.verifyCmd != before.verifyCmd || after.auditPath != before.auditPath || !after.yes || after.apiKey != before.apiKey {
 		t.Fatalf("execution options lost: %+v", after.launchOptions)
 	}
 	if after.model != "new" || after.maxSteps != 42 || after.plan || after.resume != "" {

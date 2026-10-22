@@ -194,7 +194,7 @@ func (e Env) agentConfig(system, label, stateFile string) agent.Config {
 		Client:        e.Client,
 		Inbox:         e.Inbox,
 		OnInput:       e.OnInput,
-		System:        system + "\n\n" + prompts.Environment(e.WS.Root(), e.Vision) + e.WS.Instructions() + "\n\n" + e.Identity,
+		System:        system + "\n\n" + prompts.Environment(e.WS.Root(), e.Vision) + tools.BrowserContext(e.MCPTools) + e.WS.Instructions() + "\n\n" + e.Identity,
 		MaxTokens:     e.MaxTokens,
 		Temperature:   e.Temperature,
 		ContextLimit:  e.ContextLimit,

@@ -33,6 +33,7 @@ type launchOptions struct {
 	deny          string
 	stream        bool
 	mcp           string
+	browser       string
 	fork          string
 	plan          bool
 	outputMode    string
@@ -94,6 +95,7 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	flags.StringVar(&o.deny, "deny", "", "comma-separated tool=pattern rules to deny, e.g. \"run_shell=rm *,read_file=.env\" (wins over -allow)")
 	flags.BoolVar(&o.stream, "stream", false, "stream response tokens live (openai/llama backends only; koboldcpp falls back to unary)")
 	flags.StringVar(&o.mcp, "mcp", "", "MCP servers: \"name=cmd args...;name2=https://host/mcp\" (stdio JSON-RPC or Streamable HTTP, tools appear as mcp__name__tool)")
+	flags.StringVar(&o.browser, "browser", "", "connect isolated headless browser: chrome or msedge (requires cached Playwright MCP; see docs/browser.md)")
 	flags.StringVar(&o.fork, "fork", "", "history file to branch from: loads its transcript but writes to a fresh task id")
 	flags.BoolVar(&o.plan, "plan", false, "plan mode: read-only tools, propose a plan and change nothing")
 	flags.StringVar(&o.outputMode, "mode", "print", "output mode: print (human-readable) or json (one JSON object per line)")
@@ -108,6 +110,9 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	flags.Float64Var(&o.temperature, "temperature", 0, "sampling temperature, 0 uses transport default 0.4; literal greedy zero is unsupported")
 	if err := flags.Parse(args); err != nil {
 		return launchOptions{}, err
+	}
+	if o.browser != "" && o.browser != "chrome" && o.browser != "msedge" {
+		return launchOptions{}, fmt.Errorf("-browser must be chrome or msedge")
 	}
 	o.explicitFlags = map[string]bool{}
 	flags.Visit(func(f *flag.Flag) {

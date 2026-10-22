@@ -33,28 +33,38 @@ func (StartBackground) Name() string { return "start_background" }
 // Starting an arbitrary command is a mutation barrier.
 func (StartBackground) Mode() agent.ToolMode { return agent.Exclusive }
 func (StartBackground) Description() string {
-	return "Start a server, watcher or background command without blocking. Returns id and next_cursor for check_background. Completion is delivered at the next model turn; use wait_background for finite builds/tests instead of polling. A completion after this run ends waits for the next run. Stop your processes when no longer needed."
+	return "Start a server, watcher or background command without blocking. Prefer program + args for executables (literal arguments, no shell escaping); use command for shell syntax. Returns id and next_cursor for check_background. Use wait_background for finite builds/tests instead of polling. Stop only your processes via stop_background with its returned id."
 }
 func (StartBackground) Schema() json.RawMessage {
-	return json.RawMessage(`{
-		"type": "object",
-		"properties": {"command": {"type": "string"}},
-		"required": ["command"]
-	}`)
+	return executionSchema(false)
 }
 
 func (t StartBackground) Run(ctx context.Context, args json.RawMessage) (string, error) {
-	var in struct {
-		Command string `json:"command"`
-	}
+	var in executionInput
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", fmt.Errorf("bad arguments: %w", err)
+	}
+	if err := rejectUnknownFields(args, "command", "program", "args", "workdir"); err != nil {
+		return "", err
+	}
+	if err := in.validate(); err != nil {
+		return "", err
+	}
+	if t.Procs == nil {
+		return "", fmt.Errorf("no background process manager")
+	}
+	dir, err := t.WS.Resolve(in.Workdir)
+	if err != nil {
+		return "", err
 	}
 
 	// Deliberately context.Background(), not the tool call's ctx — this
 	// process must outlive the call that started it.
-	cmd := shellCommand(context.Background(), in.Command)
-	cmd.Dir = t.WS.Root()
+	cmd, err := in.cmd(context.Background())
+	if err != nil {
+		return "", err
+	}
+	cmd.Dir = dir
 	cmd.Env = scrubEnv(os.Environ())
 	id, _ := t.Procs.start(ctx, cmd)
 

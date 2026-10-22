@@ -96,7 +96,7 @@ func TestUnknownDefaultsAllow(t *testing.T) {
 
 func TestDestructiveShellAsks(t *testing.T) {
 	p := Default()
-	for _, cmd := range []string{"rm -rf /tmp/x", "del /s /q build", "sudo mkfs.ext4 /dev/sda1", "dd if=/dev/zero of=x"} {
+	for _, cmd := range []string{"rm -rf /tmp/x", "del /s /q build", "sudo mkfs.ext4 /dev/sda1", "dd if=/dev/zero of=x", "taskkill /IM chrome.exe /F", `C:\Windows\System32\TASKKILL.EXE /F /IM chrome.exe`, "powershell -Command Stop-Process -Name chrome", "pkill chrome", "killall chrome"} {
 		if got := p.Evaluate("run_shell", cmd); got != Ask {
 			t.Errorf("shell %q = %v, want ask", cmd, got)
 		}

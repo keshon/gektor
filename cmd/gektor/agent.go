@@ -171,6 +171,22 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			c.Close()
 		}
 	}()
+	if o.browser != "" {
+		if len(tools.BrowserToolNames(mcpTools)) > 0 {
+			return fmt.Errorf("use either -browser or browser tools configured through -mcp, not both")
+		}
+		browserCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		list, browser, err := tools.StartBrowser(browserCtx, o.browser, ws.Root())
+		cancel()
+		if err != nil {
+			return err
+		}
+		mcpTools = append(mcpTools, list...)
+		mcpClients = append(mcpClients, browser)
+		note("browser: %s, isolated headless profile, %d MCP tools connected", o.browser, len(list))
+	} else if len(tools.BrowserToolNames(mcpTools)) == 0 {
+		note("browser: not connected (enable with -browser chrome or -browser msedge)")
+	}
 
 	// ask_user blocks on stdin inside the tool. State is snapshotted by
 	// the agent loop after the assistant message (with the unanswered tool

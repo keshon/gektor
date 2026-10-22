@@ -17,6 +17,7 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/workspace"
@@ -55,6 +56,39 @@ func TestInteractive_HasTheToolsThatShip(t *testing.T) {
 		if !hasTool(a, want) {
 			t.Errorf("interactive agent is missing %s — got %v", want, a.ToolNames())
 		}
+	}
+}
+
+func TestProcessKillCommandsRequireApprovalInBothExecutionModes(t *testing.T) {
+	e := testEnv(t)
+	var calls []llm.ToolCall
+	for _, name := range []string{"run_shell", "start_background"} {
+		for i, input := range []string{`{"command":"taskkill /IM GEKTOR_TEST_NOT_REAL.exe /F"}`, `{"program":"taskkill","args":["/IM","GEKTOR_TEST_NOT_REAL.exe","/F"]}`} {
+			calls = append(calls, llm.ToolCall{ID: name + string(rune('0'+i)), Name: name, Arguments: json.RawMessage(input)})
+		}
+	}
+	e.Client = &seqStub{steps: []llm.ChatResponse{
+		{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: calls}},
+		{Message: llm.Message{Role: llm.RoleAssistant, Content: "Blocked."}},
+	}}
+	asked, blocked := 0, 0
+	e.GateContext = func(_ context.Context, tool, resource string, _ json.RawMessage) (permission.Effect, error) {
+		asked++
+		if !strings.Contains(resource, "taskkill") {
+			t.Fatalf("program arguments absent from permission resource: %s", resource)
+		}
+		return permission.Deny, nil
+	}
+	e.OnResult = func(result agent.ToolResult) {
+		if result.Failed && strings.Contains(result.Output, "blocked by policy") {
+			blocked++
+		}
+	}
+	if _, err := Interactive(e, "", "", nil, nil).Run(t.Context(), "test process ownership"); err != nil {
+		t.Fatal(err)
+	}
+	if asked != 4 || blocked != 4 {
+		t.Fatalf("asked=%d blocked=%d; expected four blocked calls", asked, blocked)
 	}
 }
 

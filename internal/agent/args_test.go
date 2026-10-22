@@ -16,6 +16,7 @@ func TestToolResourceReadsTheArgumentShape(t *testing.T) {
 	}{
 		{"file tool", `{"path":"a/b.go"}`, "a/b.go"},
 		{"shell", `{"command":"go test ./..."}`, "go test ./..."},
+		{"direct program", `{"program":"taskkill","args":["/IM","chrome.exe","/F"]}`, "taskkill /IM chrome.exe /F"},
 		{"background shell", `{"command":"serve","name":"web"}`, "serve"},
 		{"url", `{"url":"https://example.com/x"}`, "https://example.com/x"},
 		{"rename shows both ends", `{"from":"old.txt","to":"new.txt"}`, "old.txt->new.txt"},

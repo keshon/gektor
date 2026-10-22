@@ -57,6 +57,7 @@ type Policy struct {
 // workspace package header on what each layer promises.
 var destructiveShell = []string{
 	"rm -rf", "del /s", "del /q", "rd /s", "format ", "mkfs", "dd if=", ":(){",
+	"taskkill", "stop-process", "killall", "pkill",
 }
 
 // Default returns the shipping policy: permissive but sensitive reads
