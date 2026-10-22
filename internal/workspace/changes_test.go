@@ -13,6 +13,9 @@ import (
 func TestObserverMeasuresActualEffects(t *testing.T) {
 	root := t.TempDir()
 	ws, err := New(root)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,6 +38,9 @@ func TestObserverMeasuresActualEffects(t *testing.T) {
 func TestFinalObservationSurvivesRunCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	ws, err := New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,6 +69,9 @@ func TestFileSetHonorsGitIgnoreAndTrackedExceptions(t *testing.T) {
 	os.WriteFile(filepath.Join(root, "build", "artifact"), []byte("generated"), 0600)
 	os.WriteFile(filepath.Join(root, "secret.log"), []byte("ignored"), 0600)
 	ws, _ := New(root)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	files, err := ws.FileSet(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -78,6 +87,9 @@ func TestInstructionsLoadAncestorsBeforeRoot(t *testing.T) {
 	os.WriteFile(filepath.Join(parent, "AGENTS.md"), []byte("outer rule"), 0600)
 	os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte("inner rule"), 0600)
 	ws, err := New(root)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,6 +117,9 @@ func TestStateDirectoriesStayOutOfGitInventory(t *testing.T) {
 		t.Fatalf("git add: %v %s", err, out)
 	}
 	ws, err := New(root)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

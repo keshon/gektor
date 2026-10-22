@@ -1,11 +1,47 @@
 package tools
 
 import (
+	"encoding/json"
+	"path/filepath"
+	"strings"
+
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/checks"
 	"github.com/keshon/gektor/internal/workspace"
-	"strings"
 )
+
+// PathResources gives permissions the same relative paths used by filesystem
+// access. In particular, an absolute spelling cannot bypass a relative rule,
+// and a move must be authorized for its destination as well as its source.
+func PathResources(ws *workspace.Workspace, tool string, args json.RawMessage) ([]string, error) {
+	if ws == nil {
+		return nil, nil
+	}
+	var in struct{ Path, From, To string }
+	var paths []string
+	switch tool {
+	case "read_file", "write_file", "patch_file", "list_files", "grep_files", "git", "git_add":
+		if err := json.Unmarshal(args, &in); err != nil {
+			return nil, err
+		}
+		paths = []string{in.Path}
+	case "move_file":
+		if err := json.Unmarshal(args, &in); err != nil {
+			return nil, err
+		}
+		paths = []string{in.From, in.To}
+	default:
+		return nil, nil
+	}
+	for i, path := range paths {
+		rel, err := ws.Relative(path)
+		if err != nil {
+			return nil, err
+		}
+		paths[i] = filepath.ToSlash(rel)
+	}
+	return paths, nil
+}
 
 // Base returns the standard tool set shared by the main agent and
 // subagents. Pass extra tools (ask_user, delegate_task, todo) for the main

@@ -17,6 +17,9 @@ func completionModel(t *testing.T) *model {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

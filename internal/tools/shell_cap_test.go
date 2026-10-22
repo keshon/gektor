@@ -25,6 +25,9 @@ func TestRunShell_CapsHugeOutput(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatalf("workspace: %v", err)
 	}
@@ -48,6 +51,9 @@ func TestRunShell_CapsHugeOutput(t *testing.T) {
 
 func TestRunShell_LeavesNormalOutputAlone(t *testing.T) {
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatalf("workspace: %v", err)
 	}

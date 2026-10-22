@@ -1,10 +1,13 @@
 package tools
 
 import (
+	"bytes"
 	"fmt"
 	"os/exec"
 	"strings"
 	"sync"
+
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 // pathLocks serializes mutating tools per workspace path: two Exclusive
@@ -135,7 +138,7 @@ func unifiedDiff(path, before, after string) string {
 
 // gofmtNote runs gofmt -l on a .go file after an edit. Best-effort: empty
 // when gofmt is missing, the file isn't Go, or it's already formatted.
-func gofmtNote(full string) string {
+func gofmtNote(ws *workspace.Workspace, full string) string {
 	if !strings.HasSuffix(strings.ToLower(full), ".go") {
 		return ""
 	}
@@ -143,7 +146,13 @@ func gofmtNote(full string) string {
 	if err != nil {
 		return ""
 	}
-	out, err := exec.Command(gofmt, "-l", full).Output()
+	data, err := ws.ReadFile(full)
+	if err != nil {
+		return ""
+	}
+	cmd := exec.Command(gofmt, "-l")
+	cmd.Stdin = bytes.NewReader(data)
+	out, err := cmd.Output()
 	if err != nil {
 		return ""
 	}

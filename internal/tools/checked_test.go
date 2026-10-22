@@ -31,6 +31,9 @@ func (s stubWrite) Run(context.Context, json.RawMessage) (string, error) {
 func checkedWS(t *testing.T) *workspace.Workspace {
 	t.Helper()
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

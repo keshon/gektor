@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -80,7 +81,12 @@ func (t ReadFile) Attach(args json.RawMessage) ([]string, error) {
 	if !llm.IsImagePath(full) {
 		return nil, nil
 	}
-	snapshot, err := llm.SnapshotImage(full, filepath.Join(t.WS.Root(), ".gektor", "images"))
+	source, err := t.WS.Open(full)
+	if err != nil {
+		return nil, err
+	}
+	defer source.Close()
+	snapshot, err := llm.SnapshotImageFile(source, full, gektor.Sub("images"))
 	if err != nil {
 		return nil, err
 	}
@@ -154,9 +160,9 @@ func (t ReadFile) Run(ctx context.Context, args json.RawMessage) (string, error)
 	if llm.IsImagePath(full) {
 		return t.imageHeader(full, rel, in.MetadataOnly)
 	}
-	f, err := os.Open(full)
+	f, err := t.WS.Open(full)
 	if err != nil {
-		return "", fileReadError(full, rel, err)
+		return "", fileReadError(t.WS, full, rel, err)
 	}
 	defer f.Close()
 
@@ -182,11 +188,11 @@ func (t ReadFile) Run(ctx context.Context, args json.RawMessage) (string, error)
 }
 
 // Suggest names only; never silently redirect a read to another file.
-func fileReadError(full, rel string, err error) error {
+func fileReadError(ws *workspace.Workspace, full, rel string, err error) error {
 	if !os.IsNotExist(err) {
 		return err
 	}
-	entries, listErr := os.ReadDir(filepath.Dir(full))
+	entries, listErr := ws.ReadDir(filepath.Dir(full))
 	if listErr != nil {
 		return fmt.Errorf("file %q not found; use list_files to locate its parent directory: %w", rel, err)
 	}
@@ -216,9 +222,9 @@ func fileReadError(full, rel string, err error) error {
 // asking rather than re-reading a file whose only content it can never
 // receive.
 func (t ReadFile) imageHeader(full, rel string, metadataOnly bool) (string, error) {
-	info, err := os.Stat(full)
+	info, err := t.WS.Stat(full)
 	if err != nil {
-		return "", fileReadError(full, rel, err)
+		return "", fileReadError(t.WS, full, rel, err)
 	}
 	if info.IsDir() {
 		return "", fmt.Errorf("%s is a directory", rel)
@@ -231,7 +237,12 @@ func (t ReadFile) imageHeader(full, rel string, metadataOnly bool) (string, erro
 		b.WriteString("(this backend cannot process pictures, so the pixels are unavailable. Use a vision-capable backend for visual inspection; use browser DOM, console and functional checks for text-only verification.)")
 		return b.String(), nil
 	}
-	if err := llm.ValidateImage(full); err != nil {
+	source, err := t.WS.Open(full)
+	if err != nil {
+		return "", err
+	}
+	defer source.Close()
+	if err := llm.ValidateImageFile(source, full); err != nil {
 		return "", err
 	}
 	if metadataOnly {
@@ -492,11 +503,11 @@ func (t WriteFile) Run(_ context.Context, args json.RawMessage) (string, error) 
 	if err := guardWriteSize("write_file", in.Content); err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+	if err := t.WS.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 		return "", err
 	}
 	res, err := withPathLock(in.Path, func() (string, error) {
-		if err := os.WriteFile(full, []byte(in.Content), 0o644); err != nil {
+		if err := t.WS.WriteFile(full, []byte(in.Content), 0o644); err != nil {
 			return "", err
 		}
 		return fmt.Sprintf("wrote %s (%d bytes)", in.Path, len(in.Content)), nil
@@ -504,7 +515,7 @@ func (t WriteFile) Run(_ context.Context, args json.RawMessage) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	if note := gofmtNote(full); note != "" {
+	if note := gofmtNote(t.WS, full); note != "" {
 		res += "\n" + note
 	}
 	return res, nil
@@ -537,7 +548,7 @@ func (t ListFiles) Run(_ context.Context, args json.RawMessage) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	entries, err := os.ReadDir(full)
+	entries, err := t.WS.ReadDir(full)
 	if err != nil {
 		return "", err
 	}

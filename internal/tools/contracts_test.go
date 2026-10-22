@@ -42,6 +42,9 @@ func TestWebfetchRejectsNonIntegerLimit(t *testing.T) {
 func TestPatchPreservesCRLFReplacement(t *testing.T) {
 	dir := t.TempDir()
 	ws, _ := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	path := filepath.Join(dir, "x.txt")
 	os.WriteFile(path, []byte("alpha\r\nbeta\r\n"), 0600)
 	_, err := (PatchFile{WS: ws}).Run(context.Background(), json.RawMessage(`{"path":"x.txt","old_content":"beta","new_content":"new\r\nline"}`))

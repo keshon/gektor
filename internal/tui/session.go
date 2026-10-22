@@ -13,6 +13,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/session"
 	"github.com/keshon/gektor/internal/tui/components/composer"
 
@@ -122,7 +123,7 @@ func splitAttachments(ws *workspace.Workspace, text string) (string, []string, e
 			}
 			return "", nil, fmt.Errorf("reference %s: %w", tok, err)
 		}
-		info, err := os.Stat(full)
+		info, err := ws.Stat(full)
 		if err != nil {
 			return "", nil, err
 		}
@@ -132,7 +133,16 @@ func splitAttachments(ws *workspace.Workspace, text string) (string, []string, e
 		if llm.IsImagePath(full) {
 			imageSpans = append(imageSpans, span)
 			if !seen[full] {
-				images = append(images, full)
+				source, err := ws.Open(full)
+				if err != nil {
+					return "", nil, err
+				}
+				snapshot, err := llm.SnapshotImageFile(source, full, gektor.Sub("images"))
+				source.Close()
+				if err != nil {
+					return "", nil, err
+				}
+				images = append(images, snapshot)
 				seen[full] = true
 			}
 			continue
@@ -140,7 +150,7 @@ func splitAttachments(ws *workspace.Workspace, text string) (string, []string, e
 		if seen[full] {
 			continue
 		}
-		f, err := os.Open(full)
+		f, err := ws.Open(full)
 		if err != nil {
 			return "", nil, err
 		}
@@ -185,26 +195,14 @@ func splitAttachments(ws *workspace.Workspace, text string) (string, []string, e
 // Keep snapshots in model history without dumping their contents into the UI.
 func displayInputContent(text string) string { return session.DisplayInput(text) }
 
-// Resolve symlinks as well as textual paths before exposing file contents.
+// References and built-in tools use the same rooted filesystem contract.
 func referencePath(ws *workspace.Workspace, path string) (string, error) {
-	if filepath.IsAbs(path) || filepath.VolumeName(path) != "" {
-		return "", fmt.Errorf("use a workspace-relative path")
-	}
 	full, err := ws.Resolve(path)
 	if err != nil {
 		return "", err
 	}
-	full, err = filepath.EvalSymlinks(full)
-	if err != nil {
+	if _, err := ws.Stat(full); err != nil {
 		return "", err
-	}
-	root, err := filepath.EvalSymlinks(ws.Root())
-	if err != nil {
-		return "", err
-	}
-	rel, err := filepath.Rel(root, full)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
-		return "", fmt.Errorf("path escapes the workspace")
 	}
 	return full, nil
 }

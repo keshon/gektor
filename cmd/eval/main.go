@@ -594,6 +594,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 		res.RunError = "workspace: " + err.Error()
 		return res
 	}
+	defer ws.Close()
 
 	kobold := newBackend(backendKind, backend, model, apiKey, apiKeyEnv)
 	kobold.DRY = drySampler

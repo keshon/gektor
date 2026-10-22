@@ -32,6 +32,9 @@ func (s *stubChat) Chat(_ context.Context, _ llm.ChatRequest) (llm.ChatResponse,
 func testServeDeps(t *testing.T, client llm.Client) serveDeps {
 	t.Helper()
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

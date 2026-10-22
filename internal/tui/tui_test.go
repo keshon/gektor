@@ -217,6 +217,9 @@ func TestDoneQuits(t *testing.T) {
 func TestFollowUpResumes(t *testing.T) {
 	m := sizeModel(t, testModel())
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,6 +278,9 @@ func TestFollowUpResumes(t *testing.T) {
 func TestSeededContinuationKeepsHistoricalHeaderUntilResponse(t *testing.T) {
 	m := sizeModel(t, testModel())
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -391,10 +397,13 @@ func TestCommand_Quit(t *testing.T) {
 func TestFollowUp_AttachesImages(t *testing.T) {
 	m := sizeModel(t, testModel())
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(ws.Root(), "shot.png"), []byte("x"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(ws.Root(), "shot.png"), []byte("\x89PNG\r\n\x1a\nfake"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	m.ws = ws
@@ -434,6 +443,9 @@ func TestFollowUp_AttachesImages(t *testing.T) {
 func TestCommand_NewStartsFresh(t *testing.T) {
 	m := sizeModel(t, testModel())
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -839,6 +851,9 @@ func TestActivityBadgeAnimatesOnlyWhileRunning(t *testing.T) {
 func TestEmptyStart_SubmitBegins(t *testing.T) {
 	m := sizeModel(t, testModel())
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1152,6 +1167,9 @@ func TestGateRejectEmptyNoteDenies(t *testing.T) {
 func TestGateHook_AuditsDecisions(t *testing.T) {
 	m := sizeModel(t, testModel())
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1184,6 +1202,9 @@ func TestGateHook_AuditsDecisions(t *testing.T) {
 func TestContextGate_AlwaysMemory(t *testing.T) {
 	m := sizeModel(t, testModel())
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1290,6 +1311,9 @@ func TestTimestampRendered(t *testing.T) {
 func TestInitialTaskEchoedAsUser(t *testing.T) {
 	m := sizeModel(t, testModel())
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

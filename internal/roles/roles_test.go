@@ -31,6 +31,9 @@ func (stubClient) Chat(context.Context, llm.ChatRequest) (llm.ChatResponse, erro
 func testEnv(t *testing.T) Env {
 	t.Helper()
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatalf("workspace: %v", err)
 	}

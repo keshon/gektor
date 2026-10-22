@@ -10,8 +10,26 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/session"
 )
+
+func TestAllPathResourcesAreAuthorizedBeforeMutation(t *testing.T) {
+	runs := 0
+	c := &repeatSeqClient{responses: []llm.ChatResponse{
+		{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "move", Name: "required_tool", Arguments: json.RawMessage(`{"path":"source"}`)}}}}, say("blocked"),
+	}}
+	a := New(Config{Client: c, Tools: NewRegistry(requiredTool{&runs}), System: "sys",
+		Resources: func(string, json.RawMessage) ([]string, error) { return []string{"source", "protected"}, nil },
+		Policy:    permission.Policy{Rules: []permission.Rule{{Tool: "required_tool", Pattern: "protected", Effect: permission.Deny}}},
+	})
+	if _, err := a.Run(t.Context(), "task"); err != nil {
+		t.Fatal(err)
+	}
+	if runs != 0 {
+		t.Fatal("destination denial was ignored")
+	}
+}
 
 type requiredTool struct{ runs *int }
 

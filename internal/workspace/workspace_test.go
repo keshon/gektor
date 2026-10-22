@@ -18,6 +18,9 @@ func testWS(t *testing.T) (*Workspace, string) {
 		t.Fatalf("resolve temp dir: %v", err)
 	}
 	ws, err := New(root)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -70,56 +73,28 @@ func TestResolve_RejectsSiblingWithRootAsNamePrefix(t *testing.T) {
 	}
 }
 
-// An absolute path used to be joined onto the root, so "/etc/passwd"
-// resolved to "<root>/etc/passwd" and a model got an unreadable
-// "open ...\etc\passwd" error instead of being told the rule.
-func TestResolve_RejectsAbsolutePathByName(t *testing.T) {
+func TestResolveAcceptsAbsolutePathsOnlyInsideRoot(t *testing.T) {
 	ws, root := testWS(t)
-	abs := []string{root, root + string(filepath.Separator) + "inside"}
-	if vol := filepath.VolumeName(root); vol != "" {
-		// On Windows a bare "\etc\passwd" is rooted but drive-less, and
-		// filepath.IsAbs correctly says no; only a drive makes it absolute.
-		abs = append(abs, vol+string(filepath.Separator)+"etc", vol+string(filepath.Separator)+"etc"+string(filepath.Separator)+"passwd")
+	for _, name := range []string{root, filepath.Join(root, "inside")} {
+		if got, err := ws.Resolve(name); err != nil || got != name {
+			t.Fatalf("Resolve(%q) = %q, %v", name, got, err)
+		}
 	}
-	for _, p := range abs {
-		_, err := ws.Resolve(p)
-		if err == nil {
-			t.Fatalf("Resolve(%q) succeeded, want rejected", p)
-		}
-		msg := err.Error()
-		if !strings.Contains(msg, "is absolute") {
-			t.Errorf("error for %q = %v, want it to say the path is absolute", p, err)
-		}
-		if !strings.Contains(msg, "relative to the workspace root") {
-			t.Errorf("error for %q = %v, want it to name the rule", p, err)
-		}
+	if _, err := ws.Resolve(filepath.Join(t.TempDir(), "outside")); err == nil {
+		t.Fatal("accepted external absolute path")
 	}
 }
 
-// Clean() is textual: it cannot see that a symlink inside the workspace
-// points out of it. This is a real hole — a tool that follows the link
-// writes outside the sandbox — and this test documents it rather than
-// asserting the safe behaviour, so that closing it with EvalSymlinks is
-// a visible change here rather than a silent one.
-func TestResolve_SymlinkEscape_IsCurrentlyAllowed(t *testing.T) {
+func TestRootedAccessRejectsEscapingSymlink(t *testing.T) {
 	ws, root := testWS(t)
 	outside := t.TempDir()
-	link := filepath.Join(root, "link")
-	if err := os.Symlink(outside, link); err != nil {
-		t.Skipf("cannot create symlinks on this machine: %v", err)
+	if err := os.Symlink(outside, filepath.Join(root, "link")); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
 	}
-
-	resolved, err := ws.Resolve("link/escaped.txt")
-	if err != nil {
-		t.Fatalf("Resolve returned an error, so the hole is closed — "+
-			"update this test to assert rejection: %v", err)
+	if err := ws.WriteFile("link/escaped.txt", []byte("bad"), 0600); err == nil {
+		t.Fatal("write escaped through symlink")
 	}
-	real, err := filepath.EvalSymlinks(filepath.Dir(resolved))
-	if err != nil {
-		t.Fatalf("EvalSymlinks: %v", err)
+	if _, err := os.Stat(filepath.Join(outside, "escaped.txt")); !os.IsNotExist(err) {
+		t.Fatal("outside file was created")
 	}
-	if strings.HasPrefix(real, root+string(filepath.Separator)) {
-		t.Fatal("symlink did not actually leave the workspace; test is not measuring what it claims")
-	}
-	t.Logf("KNOWN GAP: %q resolves inside the root textually but really points at %q", "link/escaped.txt", real)
 }

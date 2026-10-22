@@ -107,11 +107,7 @@ func pathItems(ws workspaceResolver, prefix string) []completion.Item {
 	if i := strings.LastIndex(path, "/"); i >= 0 {
 		dir, name = path[:i+1], path[i+1:]
 	}
-	full, err := ws.Resolve(dir)
-	if err != nil {
-		return nil
-	}
-	f, err := os.Open(full)
+	f, err := ws.Open(dir)
 	if err != nil {
 		return nil
 	}
@@ -154,7 +150,7 @@ func pathItems(ws workspaceResolver, prefix string) []completion.Item {
 // workspaceResolver is the slice of *workspace.Workspace completion needs,
 // named so this file does not import the workspace package for one method.
 type workspaceResolver interface {
-	Resolve(string) (string, error)
+	Open(string) (*os.File, error)
 }
 
 // suggestionKey routes a key to an open picker. The second result is true

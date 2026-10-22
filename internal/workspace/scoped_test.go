@@ -15,6 +15,9 @@ func TestNestedInstructionsStayInTheirScope(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(root, "a", "inner", "AGENTS.md"), []byte("INNER_RULE"), 0600)
 	_ = os.WriteFile(filepath.Join(root, "b", "AGENTS.md"), []byte("B_RULE"), 0600)
 	w, err := New(root)
+	if w != nil {
+		t.Cleanup(func() { w.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,6 +38,9 @@ func TestSkillCatalogUnderstandsMultilineDescription(t *testing.T) {
 		_ = os.MkdirAll(dir, 0700)
 		_ = os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("---\nname: test\ndescription: "+style+"\n  Read the actual browser DOM.\n  Check console errors.\n---\nFULL_BODY_MUST_STAY_UNLOADED"), 0600)
 		w, err := New(root)
+		if w != nil {
+			t.Cleanup(func() { w.Close() })
+		}
 		if err != nil {
 			t.Fatal(err)
 		}

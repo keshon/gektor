@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 	"encoding/json"
-	"os"
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/checks"
@@ -60,7 +59,7 @@ func (c *checked) Run(ctx context.Context, args json.RawMessage) (string, error)
 	if rerr != nil {
 		return out, err
 	}
-	data, rerr := os.ReadFile(full)
+	data, rerr := c.ws.ReadFile(full)
 	if rerr != nil {
 		return out, err
 	}

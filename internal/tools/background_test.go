@@ -30,6 +30,9 @@ var longRunningCommand = func() string {
 func TestBackgroundProcesses_StartCheckStop(t *testing.T) {
 	dir := t.TempDir()
 	ws, _ := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	procs := NewBackgroundProcesses()
 
 	start := StartBackground{WS: ws, Procs: procs, SettleTime: 100 * time.Millisecond}
@@ -80,6 +83,9 @@ func TestBackgroundProcesses_StartCheckStop(t *testing.T) {
 func TestBackgroundProcesses_CapturesOutput(t *testing.T) {
 	dir := t.TempDir()
 	ws, _ := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	procs := NewBackgroundProcesses()
 
 	start := StartBackground{WS: ws, Procs: procs, SettleTime: 300 * time.Millisecond}
@@ -203,6 +209,9 @@ func TestBackgroundProcesses_StopKillsWholeProcessTree(t *testing.T) {
 	// forever. stop() must kill the whole process group.
 	dir := t.TempDir()
 	ws, _ := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	procs := NewBackgroundProcesses()
 	marker := dir + "/still-alive"
 

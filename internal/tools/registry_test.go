@@ -8,6 +8,9 @@ import (
 
 func TestReadOnly_ContainsNoMutatingOrShellTools(t *testing.T) {
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatalf("workspace: %v", err)
 	}

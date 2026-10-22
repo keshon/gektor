@@ -46,12 +46,15 @@ type Config struct {
 	CompactAtPercent int
 	Policy           permission.Policy
 	BeforeToolCall   func(context.Context, string, string, json.RawMessage) (permission.Effect, error)
-	ToolHint         func(string) string
-	Stream           bool
-	OnStep           func(int, llm.Message)
-	OnUsage          func(int, llm.Usage)
-	OnProgress       func(llm.Progress)
-	OnResult         func(ToolResult)
+	// Resources canonicalizes file paths and includes both ends of a move.
+	// Nil results use the ordinary command/URL resource.
+	Resources  func(string, json.RawMessage) ([]string, error)
+	ToolHint   func(string) string
+	Stream     bool
+	OnStep     func(int, llm.Message)
+	OnUsage    func(int, llm.Usage)
+	OnProgress func(llm.Progress)
+	OnResult   func(ToolResult)
 	// OnToolOutput receives transient preview chunks, never model history.
 	OnToolOutput  func(callID, text string)
 	OnDelta       func(string)

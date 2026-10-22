@@ -26,6 +26,9 @@ func utf16le(s string) []byte {
 func TestReadFile_UTF16ReadableWithEncodingHeader(t *testing.T) {
 	dir := t.TempDir()
 	ws, _ := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err := os.WriteFile(filepath.Join(dir, "b.txt"), utf16le("world\r\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -44,6 +47,9 @@ func TestReadFile_UTF16ReadableWithEncodingHeader(t *testing.T) {
 func TestPatchFile_RefusesUTF16WithReason(t *testing.T) {
 	dir := t.TempDir()
 	ws, _ := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err := os.WriteFile(filepath.Join(dir, "b.txt"), utf16le("world\r\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

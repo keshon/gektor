@@ -1,31 +1,19 @@
-// Package workspace draws a line between "where the agent's code lives"
-// and "where the agent is doing a task": the file tools resolve every
-// path through a Workspace instead of touching os.* directly, so a model
-// that emits "../../etc/passwd" gets an error rather than a write.
-//
-// It is a guardrail, not a sandbox, and the difference matters. run_shell
-// executes arbitrary commands with only its working directory set to the
-// root — nothing stops `del C:\...` — so a Workspace bounds mistakes by
-// the file tools, not what a determined or badly-steered agent can reach.
-// Real containment needs the process boundary (a container, a VM, a
-// restricted user), not this type. Do not treat a Workspace as one, and
-// do not harden it in ways that imply it is one.
-//
-// Resolve is textual: filepath.Clean handles "..", but a symlink or
-// Windows junction inside the root that points outside is followed like
-// any other path. See workspace_test.go, which documents that gap
-// deliberately rather than papering over it.
+// Package workspace confines built-in file access to an os.Root directory.
+// Shell, Git and external MCP processes still run with the user's permissions;
+// this file boundary does not provide process or network isolation.
 package workspace
 
 import (
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
 type Workspace struct {
+	files        *os.Root
 	root         string
 	instructions string
 }
@@ -35,7 +23,17 @@ func New(root string) (*Workspace, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve workspace root: %w", err)
 	}
-	w := &Workspace{root: abs}
+	files, err := os.OpenRoot(abs)
+	if err != nil {
+		return nil, fmt.Errorf("open workspace: %w", err)
+	}
+	ready := false
+	defer func() {
+		if !ready {
+			files.Close()
+		}
+	}()
+	w := &Workspace{root: abs, files: files}
 	var dirs []string
 	for dir := abs; ; dir = filepath.Dir(dir) {
 		dirs = append(dirs, dir)
@@ -45,7 +43,13 @@ func New(root string) (*Workspace, error) {
 	}
 	for i := len(dirs) - 1; i >= 0; i-- {
 		path := filepath.Join(dirs[i], "AGENTS.md")
-		f, err := os.Open(path)
+		var f *os.File
+		var err error
+		if dirs[i] == abs {
+			f, err = w.Open("AGENTS.md")
+		} else {
+			f, err = os.Open(path)
+		}
 		if os.IsNotExist(err) {
 			continue
 		}
@@ -63,13 +67,14 @@ func New(root string) (*Workspace, error) {
 		w.instructions += "\n\nProject instructions (" + path + "):\n" + string(data)
 	}
 	w.instructions += w.skillCatalog()
+	ready = true
 	return w, nil
 }
 
 // Discover only metadata at workspace creation; full guides remain explicit
 // read_file calls so the operator can see what the agent actually consulted.
 func (w *Workspace) skillCatalog() string {
-	paths, _ := filepath.Glob(filepath.Join(w.root, "skills", "*", "SKILL.md"))
+	paths, _ := fs.Glob(w.FS(), "skills/*/SKILL.md")
 	if len(paths) == 0 {
 		return "\n\nNo workspace skills found at skills/*/SKILL.md."
 	}
@@ -80,9 +85,9 @@ func (w *Workspace) skillCatalog() string {
 			b.WriteString("More skills exist; use list_files on skills/.\n")
 			break
 		}
-		rel, _ := filepath.Rel(w.root, path)
+		rel := filepath.FromSlash(path)
 		fmt.Fprintf(&b, "- %s", filepath.ToSlash(rel))
-		f, err := os.Open(path)
+		f, err := w.Open(path)
 		if err == nil {
 			data, _ := io.ReadAll(io.LimitReader(f, 4096))
 			f.Close()
@@ -128,7 +133,7 @@ func (w *Workspace) ScopedInstructions(rel string) (string, error) {
 		return "", err
 	}
 	dir := filepath.Dir(full)
-	if info, err := os.Stat(full); err == nil && info.IsDir() {
+	if info, err := w.Stat(full); err == nil && info.IsDir() {
 		dir = full
 	}
 	var dirs []string
@@ -139,7 +144,7 @@ func (w *Workspace) ScopedInstructions(rel string) (string, error) {
 	var b strings.Builder
 	for i := len(dirs) - 1; i >= 0; i-- {
 		path := filepath.Join(dirs[i], "AGENTS.md")
-		f, err := os.Open(path)
+		f, err := w.Open(path)
 		if os.IsNotExist(err) {
 			continue
 		}
@@ -168,21 +173,4 @@ func (w *Workspace) Instructions() string {
 		return ""
 	}
 	return w.instructions
-}
-
-// Resolve turns a path relative to the workspace into an absolute path,
-// refusing anything that escapes the root.
-//
-// Absolute paths are refused by name: filepath.Join(root, "D:\x") yields
-// "<root>\D:\x", which is neither the requested path nor a recognised
-// escape, so the caller got an unreadable "open ..." error instead.
-func (w *Workspace) Resolve(rel string) (string, error) {
-	if filepath.IsAbs(rel) {
-		return "", fmt.Errorf("path %q is absolute; use a path relative to the workspace root %q", rel, w.root)
-	}
-	full := filepath.Clean(filepath.Join(w.root, rel))
-	if full != w.root && !strings.HasPrefix(full, w.root+string(filepath.Separator)) {
-		return "", fmt.Errorf("path %q escapes workspace root %q", rel, w.root)
-	}
-	return full, nil
 }

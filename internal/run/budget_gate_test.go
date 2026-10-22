@@ -66,6 +66,9 @@ func budgetEnv(t *testing.T, client llm.Client) (roles.Env, string) {
 	t.Helper()
 	dir := t.TempDir()
 	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

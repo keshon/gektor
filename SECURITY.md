@@ -8,9 +8,16 @@ GEKTOR treats the local user account and files writable by that account as
 inside the same trust boundary as the agent process. Deny rules are terminal;
 Ask rules fail closed when no approval handler exists. Approvals marked
 Always last only for the current run. `internal/workspace`
-bounds file tools against mistyped paths, not attackers: `run_shell` sets a
-working directory and nothing else, symlinks are followed, and child
-processes inherit a scrubbed environment (no `*_API_KEY`/`*_SECRET`).
+confines built-in file reads, writes, patches, moves, search and previews
+through `os.Root`, including symlink/junction traversal checks at the operation.
+Relative and in-workspace absolute paths share normalized relative permission resources;
+moves apply the configured permission rules to both endpoints. `run_shell` sets a working directory
+and nothing else, and child processes inherit a scrubbed environment (no `*_API_KEY`/`*_SECRET`).
+
+The root handle is owned by the launch and closed at shutdown/restart.
+Ancestor `AGENTS.md` files are explicit launch configuration; sessions and
+immutable image snapshots live in the application data directory. Those
+application-owned paths are separate from workspace file-tool access.
 
 GEKTOR relies on trustworthy skills, extensions and repositories. Files like
 `SKILL.md`, `AGENTS.md` or comment instructions can prompt-inject the agent

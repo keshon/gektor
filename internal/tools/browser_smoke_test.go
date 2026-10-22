@@ -132,6 +132,9 @@ func TestBrowserMCPIntegration(t *testing.T) {
 			t.Fatal("screenshot neither attached nor saved")
 		}
 		ws, err := workspace.New(root)
+		if ws != nil {
+			t.Cleanup(func() { ws.Close() })
+		}
 		if err != nil {
 			t.Fatal(err)
 		}

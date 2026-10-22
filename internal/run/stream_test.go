@@ -44,6 +44,9 @@ func (c *streamingClient) Stream(_ context.Context, _ llm.ChatRequest, _, onCont
 // so a run that takes the unary path shows the whole reply at once.
 func TestSession_StreamsWhenConfigured(t *testing.T) {
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,6 +86,9 @@ func TestSession_StreamsWhenConfigured(t *testing.T) {
 // Without Stream the session must take the unary path and emit no deltas.
 func TestSession_UnaryWhenNotConfiguredToStream(t *testing.T) {
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

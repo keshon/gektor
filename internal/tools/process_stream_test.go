@@ -78,6 +78,9 @@ func TestShellOutputArrivesBeforeExitAndSurvivesFailureOrCancellation(t *testing
 			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
 			ws, err := workspace.New(root)
+			if ws != nil {
+				t.Cleanup(func() { ws.Close() })
+			}
 			if err != nil {
 				t.Fatal(err)
 			}

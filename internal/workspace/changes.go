@@ -65,7 +65,8 @@ func (w *Workspace) inventory(ctx context.Context, previous map[string]fileStamp
 	}
 	dirs := FileDirectories(files)
 	result := map[string]fileStamp{}
-	err = filepath.WalkDir(w.root, func(path string, d fs.DirEntry, err error) error {
+	err = fs.WalkDir(w.FS(), ".", func(name string, d fs.DirEntry, err error) error {
+		path := filepath.Join(w.root, filepath.FromSlash(name))
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -108,7 +109,7 @@ func (w *Workspace) inventory(ctx context.Context, previous map[string]fileStamp
 			return nil
 		}
 		if info.Mode()&os.ModeSymlink != 0 {
-			target, err := os.Readlink(path)
+			target, err := w.files.Readlink(filepath.FromSlash(name))
 			if err != nil {
 				return err
 			}
@@ -116,7 +117,7 @@ func (w *Workspace) inventory(ctx context.Context, previous map[string]fileStamp
 			result[rel] = stamp
 			return nil
 		}
-		f, err := os.Open(path)
+		f, err := w.Open(path)
 		if err != nil {
 			return err
 		}

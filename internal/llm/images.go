@@ -48,11 +48,21 @@ func IsImagePath(path string) bool {
 // Tools use it before naming an attachment so the model gets the reason
 // now instead of the whole turn failing at send time.
 func ValidateImage(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("image %q: %w", path, err)
+	}
+	defer f.Close()
+	return ValidateImageFile(f, path)
+}
+
+// ValidateImageFile validates an already-opened source without reopening its path.
+func ValidateImageFile(f *os.File, path string) error {
 	ext := strings.ToLower(filepath.Ext(path))
 	if _, ok := imageMIME[ext]; !ok {
 		return fmt.Errorf("image %q: format %q not supported (png, jpg, webp, gif, bmp)", path, ext)
 	}
-	fi, err := os.Stat(path)
+	fi, err := f.Stat()
 	if err != nil {
 		return fmt.Errorf("image %q: %w", path, err)
 	}
@@ -65,13 +75,8 @@ func ValidateImage(path string) error {
 	if fi.Size() > MaxImageBytes {
 		return fmt.Errorf("image %q: %d bytes over the %d-byte cap", path, fi.Size(), MaxImageBytes)
 	}
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
 	header := make([]byte, 512)
-	n, err := f.Read(header)
+	n, err := f.ReadAt(header, 0)
 	if err != nil && err != io.EOF {
 		return err
 	}
@@ -84,14 +89,23 @@ func ValidateImage(path string) error {
 // SnapshotImage freezes a tool image before it enters history. A subsequent
 // screenshot at the same source path must not change earlier model inputs.
 func SnapshotImage(path, dir string) (string, error) {
-	if err := ValidateImage(path); err != nil {
-		return "", err
-	}
 	source, err := os.Open(path)
 	if err != nil {
 		return "", err
 	}
 	defer source.Close()
+	return SnapshotImageFile(source, path, dir)
+}
+
+// SnapshotImageFile stores bytes from the confined file handle into the trusted
+// application cache. The original path is used only to select the image format.
+func SnapshotImageFile(source *os.File, path, dir string) (string, error) {
+	if err := ValidateImageFile(source, path); err != nil {
+		return "", err
+	}
+	if _, err := source.Seek(0, 0); err != nil {
+		return "", err
+	}
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return "", err
 	}
@@ -112,7 +126,11 @@ func SnapshotImage(path, dir string) (string, error) {
 	if n > MaxImageBytes {
 		return "", fmt.Errorf("image grew beyond the %d-byte cap", MaxImageBytes)
 	}
-	target := filepath.Join(dir, fmt.Sprintf("%x%s", hash.Sum(nil), strings.ToLower(filepath.Ext(path))))
+	targetDir := filepath.Join(dir, fmt.Sprintf("%x", hash.Sum(nil)))
+	if err := os.MkdirAll(targetDir, 0700); err != nil {
+		return "", err
+	}
+	target := filepath.Join(targetDir, filepath.Base(path))
 	if err := os.Rename(f.Name(), target); err != nil {
 		// Another concurrent read may have stored these identical bytes.
 		if _, statErr := os.Stat(target); statErr != nil {

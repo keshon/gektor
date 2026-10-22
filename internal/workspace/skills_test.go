@@ -17,6 +17,9 @@ func TestSkillCatalogLoadsMetadataNotInstructions(t *testing.T) {
 		t.Fatal(err)
 	}
 	w, err := New(root)
+	if w != nil {
+		t.Cleanup(func() { w.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

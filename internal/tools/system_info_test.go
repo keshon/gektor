@@ -36,6 +36,9 @@ func TestSystemInfoDiscoveryAndPaging(t *testing.T) {
 	t.Setenv("PATH", strings.Join([]string{a, b, a, filepath.Join(root, "missing")}, string(os.PathListSeparator)))
 	t.Setenv("PRIVATE_TOKEN", "must-not-leak")
 	ws, err := workspace.New(root)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

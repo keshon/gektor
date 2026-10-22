@@ -375,9 +375,23 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 			results[i].err = err
 			return
 		}
-		if err := permission.Authorize(ctx, a.cfg.Policy, a.cfg.BeforeToolCall, call.Name, toolResource(call.Arguments), call.Arguments); err != nil {
-			results[i].err = err
-			return
+		var resources []string
+		if a.cfg.Resources != nil {
+			var err error
+			resources, err = a.cfg.Resources(call.Name, call.Arguments)
+			if err != nil {
+				results[i].err = err
+				return
+			}
+		}
+		if len(resources) == 0 {
+			resources = []string{toolResource(call.Arguments)}
+		}
+		for _, resource := range resources {
+			if err := permission.Authorize(ctx, a.cfg.Policy, a.cfg.BeforeToolCall, call.Name, resource, call.Arguments); err != nil {
+				results[i].err = err
+				return
+			}
 		}
 		executed[i] = true
 		var onOutput func(string)

@@ -13,6 +13,9 @@ import (
 func TestMoveFile_PreservesContent(t *testing.T) {
 	dir := t.TempDir()
 	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatalf("workspace.New: %v", err)
 	}
@@ -44,6 +47,9 @@ func TestMoveFile_PreservesContent(t *testing.T) {
 func TestMoveFile_MissingSourceErrors(t *testing.T) {
 	dir := t.TempDir()
 	ws, _ := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	tool := MoveFile{WS: ws}
 
 	args, _ := json.Marshal(map[string]string{"from": "ghost.txt", "to": "renamed.txt"})

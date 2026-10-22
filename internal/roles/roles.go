@@ -186,25 +186,27 @@ func Planner(e Env, label, stateFile string, ask func(question string) (string, 
 // Shared run invariants; each role chooses only its capabilities and budget.
 func (e Env) agentConfig(system, label, stateFile string) agent.Config {
 	store := e.Outputs
-	if store == nil { store = tools.NewOutputStore(e.statePath(stateFile)) }
+	if store == nil {
+		store = tools.NewOutputStore(e.statePath(stateFile))
+	}
 	return agent.Config{
-		BeginChanges: e.WS.ChangeObserver,
-		Client:       e.Client,
-		Inbox:        e.Inbox,
-		OnInput:      e.OnInput,
-		System:       system + "\n\n" + prompts.Environment(e.WS.Root(), e.Vision) + e.WS.Instructions() + "\n\n" + e.Identity,
-		MaxTokens:    e.MaxTokens,
-		Temperature:  e.Temperature,
-		ContextLimit: e.ContextLimit,
-		StateFile:    e.statePath(stateFile),
-		OnStep:       e.onStep(label),
-		OnResult:     e.OnResult,
-		OnToolOutput: e.OnToolOutput,
-		OnUsage:      e.OnUsage,
-		OnProgress:   e.OnProgress,
-		OnNudge:      e.OnNudge,
-		OnContext:    e.OnContext,
-		ToolContext: func(ctx context.Context) context.Context { return tools.VisionContext(store.Context(ctx), e.Vision) },
+		BeginChanges:  e.WS.ChangeObserver,
+		Client:        e.Client,
+		Inbox:         e.Inbox,
+		OnInput:       e.OnInput,
+		System:        system + "\n\n" + prompts.Environment(e.WS.Root(), e.Vision) + e.WS.Instructions() + "\n\n" + e.Identity,
+		MaxTokens:     e.MaxTokens,
+		Temperature:   e.Temperature,
+		ContextLimit:  e.ContextLimit,
+		StateFile:     e.statePath(stateFile),
+		OnStep:        e.onStep(label),
+		OnResult:      e.OnResult,
+		OnToolOutput:  e.OnToolOutput,
+		OnUsage:       e.OnUsage,
+		OnProgress:    e.OnProgress,
+		OnNudge:       e.OnNudge,
+		OnContext:     e.OnContext,
+		ToolContext:   func(ctx context.Context) context.Context { return tools.VisionContext(store.Context(ctx), e.Vision) },
 		LimitOutput:   tools.LimitOutput,
 		Notifications: e.Procs.Notifications,
 		Summarize:     true,
@@ -213,16 +215,30 @@ func (e Env) agentConfig(system, label, stateFile string) agent.Config {
 			var in struct {
 				Path string `json:"path"`
 				From string `json:"from"`
-				To string `json:"to"`
+				To   string `json:"to"`
 			}
 			if json.Unmarshal(args, &in) != nil || e.WS == nil {
 				return "", nil
 			}
 			var parts []string
-			for _, path := range []string{in.Path,in.From,in.To} { if path == "" {continue}; text,err:=e.WS.ScopedInstructions(path);if err!=nil{return "",err};if text!=""&&!slices.Contains(parts,text){parts=append(parts,text)} }
-			return strings.Join(parts,"\n"),nil
+			for _, path := range []string{in.Path, in.From, in.To} {
+				if path == "" {
+					continue
+				}
+				text, err := e.WS.ScopedInstructions(path)
+				if err != nil {
+					return "", err
+				}
+				if text != "" && !slices.Contains(parts, text) {
+					parts = append(parts, text)
+				}
+			}
+			return strings.Join(parts, "\n"), nil
 		},
-		Policy:         e.policy(),
+		Policy: e.policy(),
+		Resources: func(name string, args json.RawMessage) ([]string, error) {
+			return tools.PathResources(e.WS, name, args)
+		},
 		BeforeToolCall: e.ResolveGate(),
 	}
 }
@@ -291,7 +307,9 @@ func Interactive(e Env, label, stateFile string,
 func (e Env) conversationConfig(label, stateFile string,
 	ask func(question string) (string, error),
 	verify func(ctx context.Context) (string, error)) agent.Config {
-	if e.Outputs == nil { e.Outputs = tools.NewOutputStore(e.statePath(stateFile)) }
+	if e.Outputs == nil {
+		e.Outputs = tools.NewOutputStore(e.statePath(stateFile))
+	}
 	extra := []agent.Tool{&tools.Delegate{Spawn: func(role string) *agent.Agent { return Subagent(e, role) }}}
 	extra = append(extra, e.MCPTools...)
 	extra = append(extra, tools.ReadHistory{Path: e.statePath(stateFile)})

@@ -57,6 +57,9 @@ func settingsModel(t *testing.T) *model {
 	sessions := t.TempDir()
 	workspace := t.TempDir()
 	ws, err := workspaces.New(workspace)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

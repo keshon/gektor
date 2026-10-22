@@ -44,6 +44,9 @@ func archiveFixture(t *testing.T) (Config, session.Snapshot) {
 		t.Fatal(err)
 	}
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

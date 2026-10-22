@@ -48,7 +48,7 @@ func previewPatch(ws *workspace.Workspace, args json.RawMessage) string {
 	if err != nil {
 		return ""
 	}
-	data, err := os.ReadFile(full)
+	data, err := ws.ReadFile(full)
 	if err != nil {
 		return ""
 	}
@@ -84,8 +84,11 @@ func previewWrite(ws *workspace.Workspace, args json.RawMessage) string {
 	if err != nil {
 		return ""
 	}
-	old, err := os.ReadFile(full)
+	old, err := ws.ReadFile(full)
 	if err != nil {
+		if !os.IsNotExist(err) {
+			return ""
+		}
 		n := len(strings.Split(in.Content, "\n"))
 		return fmt.Sprintf("(new file, %d lines)", n)
 	}

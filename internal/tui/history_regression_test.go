@@ -52,6 +52,9 @@ func TestHistoryAuditFinalStepKeepsFullStreamedResponse(t *testing.T) {
 
 func TestRetryUsesCheckpointAfterSuccessfulToolAndBackendFailure(t *testing.T) {
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

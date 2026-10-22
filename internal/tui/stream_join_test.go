@@ -63,6 +63,9 @@ func TestHTTPStreamShowsThinkingBeforeResponseFinishes(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,6 +164,9 @@ func (c *liveStreamClient) Stream(_ context.Context, _ llm.ChatRequest, _, onCon
 func TestSessionDeltasReachTheLiveBuffer(t *testing.T) {
 	dir := t.TempDir()
 	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -14,6 +14,9 @@ import (
 func TestGrepFiles_FindsMatchesAcrossFiles(t *testing.T) {
 	dir := t.TempDir()
 	ws, _ := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	os.WriteFile(filepath.Join(dir, "a.go"), []byte("package a\nfunc Foo() {}\n"), 0o644)
 	os.WriteFile(filepath.Join(dir, "b.go"), []byte("package b\nfunc Bar() { Foo() }\n"), 0o644)
 
@@ -93,6 +96,9 @@ func TestGrepContextBoundsOutputAndArguments(t *testing.T) {
 func TestGrepFiles_GlobFilter(t *testing.T) {
 	dir := t.TempDir()
 	ws, _ := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	os.WriteFile(filepath.Join(dir, "a.go"), []byte("token\n"), 0o644)
 	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("token\n"), 0o644)
 
@@ -110,6 +116,9 @@ func TestGrepFiles_GlobFilter(t *testing.T) {
 func TestGrepFiles_NoMatches(t *testing.T) {
 	dir := t.TempDir()
 	ws, _ := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	os.WriteFile(filepath.Join(dir, "a.go"), []byte("nothing here\n"), 0o644)
 
 	tool := GrepFiles{WS: ws}
@@ -126,6 +135,9 @@ func TestGrepFiles_NoMatches(t *testing.T) {
 func TestGrepFiles_BadPatternErrors(t *testing.T) {
 	dir := t.TempDir()
 	ws, _ := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	tool := GrepFiles{WS: ws}
 	args, _ := json.Marshal(map[string]string{"path": ".", "pattern": "("})
 	if _, err := tool.Run(context.Background(), args); err == nil {
@@ -136,6 +148,9 @@ func TestGrepFiles_BadPatternErrors(t *testing.T) {
 func TestGrepFiles_EmptyPatternErrors(t *testing.T) {
 	dir := t.TempDir()
 	ws, _ := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	tool := GrepFiles{WS: ws}
 	args, _ := json.Marshal(map[string]string{"path": ".", "pattern": ""})
 	if _, err := tool.Run(context.Background(), args); err == nil {
@@ -146,6 +161,9 @@ func TestGrepFiles_EmptyPatternErrors(t *testing.T) {
 func TestGrepFiles_UnknownFieldErrors(t *testing.T) {
 	dir := t.TempDir()
 	ws, _ := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	tool := GrepFiles{WS: ws}
 	args, _ := json.Marshal(map[string]string{"path": ".", "command": "foo"})
 	_, err := tool.Run(context.Background(), args)
@@ -160,6 +178,9 @@ func TestGrepFiles_UnknownFieldErrors(t *testing.T) {
 func TestGrepFiles_SkipsBinaryFiles(t *testing.T) {
 	dir := t.TempDir()
 	ws, _ := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 
 	// Reproduces the real failure: a binary file with long stretches of
 	// non-newline bytes that a wildcard pattern would happily "match",
@@ -193,6 +214,9 @@ func TestGrepFiles_SkipsBinaryFiles(t *testing.T) {
 func TestGrepFiles_TruncatesLongLines(t *testing.T) {
 	dir := t.TempDir()
 	ws, _ := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 
 	longLine := "needle" + strings.Repeat("x", 2000)
 	os.WriteFile(filepath.Join(dir, "minified.js"), []byte(longLine+"\n"), 0o644)

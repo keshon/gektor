@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/keshon/gektor/internal/agent"
@@ -53,31 +52,31 @@ func (t MoveFile) Run(_ context.Context, args json.RawMessage) (string, error) {
 		return "", err
 	}
 
-	if _, err := os.Stat(src); err != nil {
+	if _, err := t.WS.Stat(src); err != nil {
 		return "", fmt.Errorf("source not found: %w", err)
 	}
-	if _, err := os.Stat(dst); err == nil {
+	if _, err := t.WS.Stat(dst); err == nil {
 		return "", fmt.Errorf("destination %s already exists — move would overwrite it", in.To)
 	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+	if err := t.WS.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return "", err
 	}
 
-	if err := os.Rename(src, dst); err == nil {
+	if err := t.WS.Rename(src, dst); err == nil {
 		return "ok", nil
 	}
 
 	// os.Rename can fail across filesystem boundaries. Fall back to an
 	// explicit copy-then-delete — and if any step of that fails, return a
 	// loud error rather than risk a silently empty or partial destination.
-	data, err := os.ReadFile(src)
+	data, err := t.WS.ReadFile(src)
 	if err != nil {
 		return "", fmt.Errorf("read source: %w", err)
 	}
-	if err := os.WriteFile(dst, data, 0o644); err != nil {
+	if err := t.WS.WriteFile(dst, data, 0o644); err != nil {
 		return "", fmt.Errorf("write destination: %w", err)
 	}
-	if err := os.Remove(src); err != nil {
+	if err := t.WS.Remove(src); err != nil {
 		return "", fmt.Errorf("copied to %s but failed to remove original %s: %w", in.To, in.From, err)
 	}
 	return "ok", nil

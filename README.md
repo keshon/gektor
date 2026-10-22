@@ -130,9 +130,9 @@ Model quality and tool-call reliability depend on the model and its server.
 Streaming and prompt-processing telemetry also depend on what the backend
 exposes; KoboldCPP uses non-streaming replies.
 
-GEKTOR is **not a sandbox**. File tools guard against paths outside the workspace,
-but shell commands run with your account's permissions and symlinks are
-followed. Use a container or VM when isolation matters. There is no automatic
+GEKTOR is **not a process sandbox**. Built-in file tools use `os.Root` to confine
+access to the workspace, including symlink and junction traversal checks. Shell,
+Git and external MCP processes run with your account's permissions. Use a container or VM when isolation matters. There is no automatic
 workspace backup or rollback. See [SECURITY.md](SECURITY.md).
 
 ## Develop and evaluate

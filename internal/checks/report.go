@@ -3,7 +3,6 @@ package checks
 import (
 	"fmt"
 	"io"
-	"os"
 	"strconv"
 
 	"github.com/keshon/gektor/internal/workspace"
@@ -87,7 +86,7 @@ func (r *Reporter) Sweep(ws *workspace.Workspace, paths []string) {
 		if err != nil {
 			continue // deleted or escaped since: nothing to scan
 		}
-		data, err := readCapped(full)
+		data, err := readCapped(ws, full)
 		if err != nil {
 			continue
 		}
@@ -151,8 +150,8 @@ func Clamp(in []Finding, max int) (out []Finding, dropped int) {
 	return in[:max], len(in) - max
 }
 
-func readCapped(path string) ([]byte, error) {
-	f, err := os.Open(path)
+func readCapped(ws *workspace.Workspace, path string) ([]byte, error) {
+	f, err := ws.Open(path)
 	if err != nil {
 		return nil, err
 	}

@@ -19,6 +19,9 @@ import (
 func TestReadFile_TruncatesLargeFiles(t *testing.T) {
 	dir := t.TempDir()
 	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatalf("workspace: %v", err)
 	}
@@ -52,6 +55,9 @@ func TestReadFile_TruncatesLargeFiles(t *testing.T) {
 func TestReadFile_OffsetPagesLargeFile(t *testing.T) {
 	dir := t.TempDir()
 	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatalf("workspace: %v", err)
 	}
@@ -108,6 +114,9 @@ func TestReadFile_OffsetPagesLargeFile(t *testing.T) {
 func TestReadFile_SmallFileUnchanged(t *testing.T) {
 	dir := t.TempDir()
 	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatalf("workspace: %v", err)
 	}
@@ -140,6 +149,9 @@ func minLen(a, b int) int {
 func TestReadFile_MetadataOnly_NoBody(t *testing.T) {
 	dir := t.TempDir()
 	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatalf("workspace: %v", err)
 	}
@@ -173,6 +185,9 @@ func TestReadFile_MetadataOnly_NoBody(t *testing.T) {
 func TestReadFile_MaxBytesZero_ReturnsFullContent(t *testing.T) {
 	dir := t.TempDir()
 	ws, _ := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	os.WriteFile(filepath.Join(dir, "f.txt"), []byte("hello"), 0o644)
 
 	zero := 0
@@ -189,6 +204,9 @@ func TestReadFile_MaxBytesZero_ReturnsFullContent(t *testing.T) {
 func TestReadFile_MaxBytesPositive_CapsContent(t *testing.T) {
 	dir := t.TempDir()
 	ws, _ := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	os.WriteFile(filepath.Join(dir, "f.txt"), []byte("hello world"), 0o644)
 
 	args, _ := json.Marshal(map[string]any{"path": "f.txt", "max_bytes": 5})
@@ -212,6 +230,9 @@ func TestReadFile_CapIsSmallEnoughForASmallContext(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatalf("workspace: %v", err)
 	}
@@ -239,6 +260,9 @@ func TestReadFile_CapIsSmallEnoughForASmallContext(t *testing.T) {
 func TestWriteFile_AllowsGenuineRewritesAndNewFiles(t *testing.T) {
 	dir := t.TempDir()
 	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatalf("workspace: %v", err)
 	}
@@ -273,6 +297,9 @@ func TestWriteFile_AllowsGenuineRewritesAndNewFiles(t *testing.T) {
 func TestWriteFile_OversizedContentRefused(t *testing.T) {
 	dir := t.TempDir()
 	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatalf("workspace: %v", err)
 	}
@@ -367,6 +394,9 @@ func TestReadFileContinuationValidation(t *testing.T) {
 func TestReadFileLineLimit(t *testing.T) {
 	root := t.TempDir()
 	ws, err := workspace.New(root)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -386,6 +416,9 @@ func TestReadFileLineLimit(t *testing.T) {
 func TestReadFileSuggestsExistingNamesWithoutReadingThem(t *testing.T) {
 	root := t.TempDir()
 	ws, err := workspace.New(root)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -410,6 +443,9 @@ func TestReadFileSuggestsExistingNamesWithoutReadingThem(t *testing.T) {
 func TestAmbiguousPatchReportsLocationsAndLeavesFileUnchanged(t *testing.T) {
 	root := t.TempDir()
 	ws, err := workspace.New(root)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

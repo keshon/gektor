@@ -42,6 +42,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	if wsErr != nil {
 		return fmt.Errorf("workspace: %w", wsErr)
 	}
+	defer ws.Close()
 
 	// noteW is where human-readable chatter goes. In -mode json it is
 	// stderr, so stdout carries nothing but JSONL and a caller can pipe

@@ -26,6 +26,9 @@ import (
 func testEnv(t *testing.T, client llm.Client, record func(string, int, llm.Message)) roles.Env {
 	t.Helper()
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,6 +43,9 @@ func TestNew_Validates(t *testing.T) {
 		t.Fatal("empty task must fail")
 	}
 	ws, _ := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if _, err := New(Config{Task: "x", Env: roles.Env{WS: ws}}); err == nil {
 		t.Fatal("nil client must fail")
 	}

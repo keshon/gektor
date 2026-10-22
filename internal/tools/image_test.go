@@ -16,6 +16,9 @@ func imageWorkspace(t *testing.T) (*workspace.Workspace, string) {
 	t.Helper()
 	dir := t.TempDir()
 	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatalf("workspace: %v", err)
 	}
@@ -91,6 +94,9 @@ func TestReadFile_ImageMetadataOnlyDoesNotAttach(t *testing.T) {
 func TestReadFile_AttachIgnoresTextFiles(t *testing.T) {
 	dir := t.TempDir()
 	ws, _ := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("text"), 0o644); err != nil {
 		t.Fatal(err)
 	}

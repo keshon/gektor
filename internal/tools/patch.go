@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/keshon/gektor/internal/agent"
@@ -60,7 +59,7 @@ func (t PatchFile) Run(_ context.Context, args json.RawMessage) (string, error) 
 		return "", err
 	}
 	return withPathLock(in.Path, func() (string, error) {
-		data, err := os.ReadFile(full)
+		data, err := t.WS.ReadFile(full)
 		if err != nil {
 			return "", err
 		}
@@ -98,7 +97,7 @@ func (t PatchFile) Run(_ context.Context, args json.RawMessage) (string, error) 
 		if strings.HasPrefix(string(data), "\xef\xbb\xbf") {
 			encoded = "\xef\xbb\xbf" + encoded
 		}
-		if err := os.WriteFile(full, []byte(encoded), 0o644); err != nil {
+		if err := t.WS.WriteFile(full, []byte(encoded), 0o644); err != nil {
 			return "", err
 		}
 
@@ -117,7 +116,7 @@ func (t PatchFile) Run(_ context.Context, args json.RawMessage) (string, error) 
 		}
 
 		out := "ok: " + summary + "\n" + unifiedDiff(in.Path, content, newContent)
-		if note := gofmtNote(full); note != "" {
+		if note := gofmtNote(t.WS, full); note != "" {
 			out += "\n" + note
 		}
 		return out, nil

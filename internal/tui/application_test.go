@@ -155,6 +155,9 @@ func TestAgentTaskKeepsTheDirectoryItAlreadyHas(t *testing.T) {
 	m := sizeModel(t, testModel())
 	root := t.TempDir()
 	ws, err := workspace.New(root)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

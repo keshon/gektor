@@ -60,10 +60,13 @@ func TestCompletionAndPasteRespectHelpOwner(t *testing.T) {
 
 func TestImageReferencePreservesMultilinePrompt(t *testing.T) {
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "shot.png"), []byte("image"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "shot.png"), []byte("\x89PNG\r\n\x1a\nfake"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	ws, err := workspace.New(root)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

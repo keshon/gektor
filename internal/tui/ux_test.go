@@ -174,6 +174,9 @@ func TestQueueHeldWhenSuccessfulRunHasAnotherDraft(t *testing.T) {
 func TestInvalidAttachmentPreservesSubmission(t *testing.T) {
 	m := sizeModel(t, testModel())
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

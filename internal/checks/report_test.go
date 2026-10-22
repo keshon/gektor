@@ -13,6 +13,9 @@ import (
 func dirty(t *testing.T, dir, name string) *workspace.Workspace {
 	t.Helper()
 	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,6 +99,9 @@ func TestReporter_BoundsAnnounceThemselves(t *testing.T) {
 	var got []Finding
 	r := NewReporter(testRules(), func(_ Scope, f Finding) { got = append(got, f) })
 	ws, err := workspace.New(t.TempDir())
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,6 +122,9 @@ func TestReporter_BoundsFindings(t *testing.T) {
 	r := NewReporter(testRules(), func(_ Scope, f Finding) { got = append(got, f) })
 	dir := t.TempDir()
 	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

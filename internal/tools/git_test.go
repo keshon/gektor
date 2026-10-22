@@ -48,6 +48,9 @@ func initGitRepo(t *testing.T, dir string) string {
 func newGitTool(t *testing.T, dir string) Git {
 	t.Helper()
 	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatalf("workspace.New: %v", err)
 	}

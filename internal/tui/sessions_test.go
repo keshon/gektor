@@ -606,10 +606,13 @@ func TestCommand_CompactForcesBottom(t *testing.T) {
 func TestSplitAttachments(t *testing.T) {
 	dir := t.TempDir()
 	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "shot.png"), []byte("x"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "shot.png"), []byte("\x89PNG\r\n\x1a\nfake"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("x"), 0o644); err != nil {
@@ -620,7 +623,7 @@ func TestSplitAttachments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if clean != "look  please" || len(images) != 1 || filepath.Base(images[0]) != "shot.png" {
+	if clean != "look  please" || len(images) != 1 || !llm.IsImagePath(images[0]) {
 		t.Fatalf("clean=%q images=%v", clean, images)
 	}
 
@@ -633,7 +636,7 @@ func TestSplitAttachments(t *testing.T) {
 	}
 
 	// Quoted spans survive spaces: Windows screenshot names.
-	if err := os.WriteFile(filepath.Join(dir, "my shot.png"), []byte("x"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "my shot.png"), []byte("\x89PNG\r\n\x1a\nfake"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	clean, images, err = splitAttachments(ws, `describe @"my shot.png" now`)
@@ -709,6 +712,9 @@ func TestSplitAttachmentsThroughWorkspaceAlias(t *testing.T) {
 		}
 	})
 	ws, err := workspace.New(alias)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

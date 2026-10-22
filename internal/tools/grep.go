@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -119,7 +120,7 @@ func (t GrepFiles) Run(ctx context.Context, args json.RawMessage) (string, error
 	if err != nil {
 		return "", err
 	}
-	info, err := os.Stat(root)
+	info, err := t.WS.Stat(root)
 	if err != nil {
 		return "", err
 	}
@@ -145,7 +146,13 @@ func (t GrepFiles) Run(ctx context.Context, args json.RawMessage) (string, error
 	var out strings.Builder
 	matches := 0
 	outputCapped := false
-	walkErr := filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
+	searchPath, _ := t.WS.Relative(in.Path)
+	walkErr := fs.WalkDir(t.WS.FS(), filepath.ToSlash(searchPath), func(name string, entry fs.DirEntry, err error) error {
+		p := filepath.Join(t.WS.Root(), filepath.FromSlash(name))
+		var info os.FileInfo
+		if err == nil {
+			info, err = entry.Info()
+		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -187,7 +194,7 @@ func (t GrepFiles) Run(ctx context.Context, args json.RawMessage) (string, error
 			skippedSensitive++
 			return nil
 		}
-		f, err := os.Open(resolved)
+		f, err := t.WS.Open(resolved)
 		if err != nil {
 			return err
 		}
