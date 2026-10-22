@@ -11,7 +11,7 @@ func TestReadOnly_ContainsNoMutatingOrShellTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("workspace: %v", err)
 	}
-	reg := ReadOnly(ws, NewBackgroundProcesses())
+	reg := ReadOnly(ws, NewBackgroundProcesses(), false)
 
 	forbidden := map[string]bool{
 		"write_file": true, "patch_file": true, "git_add": true, "git_commit": true,

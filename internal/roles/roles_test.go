@@ -172,10 +172,10 @@ func TestSubagent_ObserverHooksStaySilent(t *testing.T) {
 func TestRoleSystemToolsResolve(t *testing.T) {
 	e := testEnv(t)
 	universe := map[string]bool{"ask_user": true, "delegate_task": true}
-	for _, n := range tools.Base(e.WS, e.Procs, nil, nil).Names() {
+	for _, n := range tools.Base(e.WS, e.Procs, nil, nil, false).Names() {
 		universe[n] = true
 	}
-	for _, n := range tools.ReadOnly(e.WS, e.Procs).Names() {
+	for _, n := range tools.ReadOnly(e.WS, e.Procs, false).Names() {
 		universe[n] = true
 	}
 	var alts []string

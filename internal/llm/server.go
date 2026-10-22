@@ -447,6 +447,18 @@ func (c *Server) Chat(ctx context.Context, req ChatRequest) (ChatResponse, error
 	}, nil
 }
 
+// SupportsVision reports whether the loaded backend can process pictures.
+// It is a capability probe, not a guess: a false or unknown answer keeps
+// image-producing tools out of the model's tool set, because attaching a
+// picture to a text-only backend turns one tool call into a failed turn.
+func (c *Server) SupportsVision(ctx context.Context) (bool, error) {
+	// A capability probe must not hold up startup as long as a generation
+	// request; a slow or black-holed backend answers "unknown" quickly.
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	return c.dialect.vision(ctx, c.http, c.baseURL, c.APIKey, c.model)
+}
+
 // MaxContextLength reports the context window the server was actually
 // started with, so budget tracking uses a fact rather than a guess. Call
 // once at startup and feed the result into agent.Config.ContextLimit.

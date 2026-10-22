@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -34,14 +35,22 @@ import (
 // see what it did not get.
 const readMaxBytes = 48 * 1024
 
-type ReadFile struct{ WS *workspace.Workspace }
+type ReadFile struct {
+	WS *workspace.Workspace
+	// Vision enables picture reads: when the backend can process images,
+	// reading one marks it for attachment to the conversation instead of
+	// returning binary metadata. False keeps the text-only behaviour.
+	Vision bool
+}
 
 func (ReadFile) Name() string { return "read_file" }
 func (ReadFile) Description() string {
 	return "Read a text file. Returns a FILE header (path, size, lines, truncated, binary) and the " +
 		"content, optionally from offset (a 1-based first line) for paging through large files. Set metadata_only=true to get only the header — use this for file size or " +
 		"type checks without loading content into context. For a truncated line, continue from the returned byte_offset " +
-		"(an absolute offset in decoded UTF-8 text with CRLF normalized to LF). Do not combine byte_offset with offset."
+		"(an absolute offset in decoded UTF-8 text with CRLF normalized to LF). Do not combine byte_offset with offset. " +
+		"Reading a picture (png, jpg, jpeg, webp, gif, bmp) attaches the image itself when the backend is vision-capable; " +
+		"paging arguments do not apply to pictures."
 }
 func (ReadFile) Mode() agent.ToolMode { return agent.Concurrent }
 
@@ -49,6 +58,38 @@ func (ReadFile) Mode() agent.ToolMode { return agent.Concurrent }
 // something mutates, so an exact repeat can be refused instead of re-sending
 // the content. See Registry.IdempotentOf.
 func (ReadFile) Idempotent() bool { return true }
+
+// Attach is the agent.Attacher half of a picture read: after Run succeeds,
+// the loop asks for the pictures to put in front of the model. The file is
+// re-resolved and re-validated because Run and Attach are separate calls;
+// deleting or replacing the file in between must fail the tool, not abort
+// the next model request at the wire encoder.
+func (t ReadFile) Attach(args json.RawMessage) ([]string, error) {
+	if !t.Vision {
+		return nil, nil
+	}
+	var in struct {
+		Path         string `json:"path"`
+		MetadataOnly bool   `json:"metadata_only"`
+	}
+	if err := json.Unmarshal(args, &in); err != nil {
+		return nil, fmt.Errorf("bad arguments: %w", err)
+	}
+	if in.MetadataOnly || strings.TrimSpace(in.Path) == "" {
+		return nil, nil
+	}
+	full, err := t.WS.Resolve(in.Path)
+	if err != nil {
+		return nil, err
+	}
+	if !llm.IsImagePath(full) {
+		return nil, nil
+	}
+	if err := llm.ValidateImage(full); err != nil {
+		return nil, err
+	}
+	return []string{full}, nil
+}
 
 func (ReadFile) Schema() json.RawMessage {
 	return json.RawMessage(`{
@@ -104,12 +145,15 @@ func (t ReadFile) Run(ctx context.Context, args json.RawMessage) (string, error)
 	if err != nil {
 		return "", err
 	}
+	rel, _ := filepath.Rel(t.WS.Root(), full)
+	if llm.IsImagePath(full) {
+		return t.imageHeader(full, rel, in.MetadataOnly)
+	}
 	f, err := os.Open(full)
 	if err != nil {
 		return "", err
 	}
 	defer f.Close()
-	rel, _ := filepath.Rel(t.WS.Root(), full)
 
 	// max_bytes=0 (or omitted) means "no explicit cap", NOT metadata-only:
 	// every model tested reads 0 as the universal "unlimited" convention.
@@ -130,6 +174,43 @@ func (t ReadFile) Run(ctx context.Context, args json.RawMessage) (string, error)
 		}
 	}
 	return streamReadFile(ctx, f, rel, maxBody, in.Offset, byteOffset)
+}
+
+// imageHeader reports a picture instead of streaming its bytes. On a
+// vision-capable backend the loop attaches the file after the tool result,
+// unless that step's picture budget is already spent; without vision the
+// header says plainly that the pixels are unavailable, so the model stops
+// asking rather than re-reading a file whose only content it can never
+// receive.
+func (t ReadFile) imageHeader(full, rel string, metadataOnly bool) (string, error) {
+	info, err := os.Stat(full)
+	if err != nil {
+		return "", err
+	}
+	if info.IsDir() {
+		return "", fmt.Errorf("%s is a directory", rel)
+	}
+	format := strings.TrimPrefix(strings.ToLower(filepath.Ext(full)), ".")
+	var b strings.Builder
+	fmt.Fprintf(&b, "FILE\npath: %s\nsize: %d\nimage: true\nformat: %s\n", rel, info.Size(), format)
+	if !t.Vision {
+		b.WriteString("attached: false\nbinary: true\n----\n")
+		b.WriteString("(this backend cannot process pictures, so the pixels are unavailable. Do not re-read this file expecting content; use a vision-capable backend or ask the operator to attach it.)")
+		return b.String(), nil
+	}
+	if err := llm.ValidateImage(full); err != nil {
+		return "", err
+	}
+	if metadataOnly {
+		b.WriteString("attached: false (metadata_only)\n")
+		return b.String(), nil
+	}
+	// The harness, not the tool, decides whether the picture is attached:
+	// a step that already hit its picture limit leaves this read out. So
+	// the header states only what Run knows for certain.
+	b.WriteString("----\n")
+	b.WriteString("(paging arguments do not apply to images)")
+	return b.String(), nil
 }
 
 // streamReadFile retains only the requested display window. Metadata reads

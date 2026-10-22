@@ -137,6 +137,16 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	if name, err := client.ModelName(ctx); err == nil && strings.TrimSpace(name) != "" {
 		displayModel = name
 	}
+	// Capability, not a flag: a text-only backend must not be offered a
+	// read_file that would attach pictures and fail the turn at the wire
+	// encoder. An unknown answer is treated as "no".
+	vision, err := client.SupportsVision(ctx)
+	if err != nil {
+		vision = false
+	}
+	if vision {
+		note("vision: image files can be read by the agent")
+	}
 
 	verify := verificationCommand(o.verifyCmd, ws.Root())
 
@@ -183,6 +193,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			maxTokens:    o.maxTokens,
 			maxSteps:     o.maxSteps,
 			contextLimit: contextLimit,
+			vision:       vision,
 			logMax:       o.logMax,
 			verifyCmd:    o.verifyCmd,
 
@@ -222,6 +233,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		ContextLimit: contextLimit,
 		MaxSteps:     o.maxSteps,
 		Policy:       buildPolicy(o.allow, o.deny),
+		Vision:       vision,
 		GateContext:  audit.ContextHook(o.auditPath, "cli", permissionGateContext(o.yes, suspend, ws)),
 		BackendKind:  o.backendKind,
 		Model:        displayModel,

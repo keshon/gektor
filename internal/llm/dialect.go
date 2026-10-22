@@ -16,7 +16,7 @@ import (
 // accept extra sampler fields alongside it, so almost everything is
 // shared. What differs is where you ask what model is loaded and how
 // large its context is, and how each spells its repetition penalty. That
-// is the whole of it, which is why this interface is three methods rather
+// is the whole of it, which is why this interface is four methods rather
 // than a second client.
 type dialect interface {
 	// name identifies the backend in errors and recorded results.
@@ -28,6 +28,13 @@ type dialect interface {
 	// need an unrelated endpoint to exist.
 	contextLimit(ctx context.Context, hc *http.Client, baseURL string) (int, error)
 	modelName(ctx context.Context, hc *http.Client, baseURL string) (string, error)
+
+	// vision reports whether the loaded backend can process pictures.
+	// apiKey is supplied for hosted providers whose model list is
+	// authenticated; local dialects ignore it. An error means "unknown",
+	// never "supported": attaching to a text-only model fails the whole
+	// turn at the backend.
+	vision(ctx context.Context, hc *http.Client, baseURL, apiKey, model string) (bool, error)
 
 	// applySampling writes this backend's spelling of the sampler
 	// settings into an outgoing request.

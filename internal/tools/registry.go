@@ -10,10 +10,12 @@ import (
 // subagents. Pass extra tools (ask_user, delegate_task, todo) for the main
 // agent only. File-mutating tools run post-write deterministic checks
 // from rules, reporting to sink; a nil sink or no rules builds unwrapped.
-func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSink, rules []checks.Rule, extra ...agent.Tool) *agent.Registry {
+// vision enables reading pictures through read_file; it must come from a
+// backend capability probe, not a guess.
+func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSink, rules []checks.Rule, vision bool, extra ...agent.Tool) *agent.Registry {
 	scan := func(t agent.Tool) agent.Tool { return Checked(t, ws, report, rules) }
 	tools := []agent.Tool{
-		ReadFile{WS: ws},
+		ReadFile{WS: ws, Vision: vision},
 		scan(WriteFile{WS: ws}),
 		scan(PatchFile{WS: ws}),
 		ListFiles{WS: ws},
@@ -41,9 +43,9 @@ func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSin
 // control. For workers whose job is to look and report (codebase mapping,
 // final review): removing the mutating tools entirely beats prompting a
 // weak model not to use them.
-func ReadOnly(ws *workspace.Workspace, procs *BackgroundProcesses) *agent.Registry {
+func ReadOnly(ws *workspace.Workspace, procs *BackgroundProcesses, vision bool) *agent.Registry {
 	return agent.NewRegistry(
-		ReadFile{WS: ws},
+		ReadFile{WS: ws, Vision: vision},
 		ListFiles{WS: ws},
 		GrepFiles{WS: ws},
 		Git{WS: ws},

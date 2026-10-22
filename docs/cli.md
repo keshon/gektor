@@ -213,6 +213,14 @@ returned `offset` for a complete-line boundary or `byte_offset` to continue
 inside a long line. Byte positions refer to decoded UTF-8 with CRLF normalized
 to LF, not raw bytes in a UTF-16 or CRLF file. Do not combine the two offsets.
 
+Reading a picture (PNG, JPG/JPEG, WebP, GIF, BMP) attaches its pixels to the
+conversation on a vision-capable backend instead of returning binary content;
+`metadata_only=true` still returns just the header. Vision capability is
+detected at startup from llama-server's `/props` modalities, or from an
+OpenAI-compatible `/models` list when the provider publishes input modalities,
+with a known-model-family fallback. A text-only backend reports the image type
+and says the pixels are unavailable, so the agent does not re-read the file.
+
 `git` inspects status, log, diff, show, blame and tracked files without shell
 interpretation. `diff` includes actual changes; `staged: true` selects the
 index. `show` requires a commit revision; `blame` requires a file path. Log

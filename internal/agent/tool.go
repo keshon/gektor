@@ -61,6 +61,15 @@ type Tool interface {
 	Run(ctx context.Context, args json.RawMessage) (string, error)
 }
 
+// Attacher is implemented by a tool whose successful result includes
+// pictures the model should see. The loop asks for absolute paths after
+// Run succeeds and appends them to a user turn, because the OpenAI wire
+// format has no image parts in a role:tool message. A tool without this
+// interface is exactly as before.
+type Attacher interface {
+	Attach(args json.RawMessage) ([]string, error)
+}
+
 // Registry is a fixed set of tools, looked up by name.
 type Registry struct {
 	tools map[string]Tool
@@ -153,6 +162,17 @@ func (r *Registry) IdempotentOf(name string) bool {
 		return it.Idempotent()
 	}
 	return false
+}
+
+// AttacherOf returns the tool's picture-returning half, or nil. Like
+// Idempotent, this is opt-in: a new tool cannot silently attach files.
+func (r *Registry) AttacherOf(name string) Attacher {
+	t, ok := r.tools[name]
+	if !ok {
+		return nil
+	}
+	a, _ := t.(Attacher)
+	return a
 }
 
 // Has reports whether a tool is registered.
@@ -268,6 +288,14 @@ func recordableMessage(msg llm.Message) llm.Message {
 	return msg
 }
 
+// maxToolImagesPerStep caps the pictures one assistant step may pull into
+// the conversation. A model that reads a directory of screenshots would
+// otherwise pay the vision-encoder cost for every one of them in a single
+// turn, and the estimate used by the context meter deliberately
+// undercounts that cost. Four is enough for a screenshot and its
+// reference; more is usually the model losing track of what it asked for.
+const maxToolImagesPerStep = 4
+
 // executeToolCalls overlaps adjacent reads and serializes every mutation in
 // model call order.
 //
@@ -378,7 +406,28 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 	runBatch(batch)
 
 	mutatingBefore := st.mutatingSucceeded
+	var pictures []string
 	for i, call := range calls {
+		if results[i].err == nil {
+			if at := a.cfg.Tools.AttacherOf(call.Name); at != nil {
+				paths, err := at.Attach(call.Arguments)
+				switch {
+				case err != nil:
+					results[i].err = fmt.Errorf("attach picture: %w", err)
+				case len(paths) > 0 && len(pictures)+len(paths) > maxToolImagesPerStep:
+					results[i].err = fmt.Errorf("at most %d pictures can be attached in one step; this picture was not attached — re-read it in a later step", maxToolImagesPerStep)
+				default:
+					pictures = append(pictures, paths...)
+				}
+				if results[i].err != nil {
+					// The read itself succeeded and was cached as an
+					// idempotent call, but the picture never reached the
+					// model. Leave it retryable, or the refusal above
+					// becomes a dead end.
+					delete(st.idempotentSeen, callKey(call.Name, call.Arguments))
+				}
+			}
+		}
 		content := results[i].content
 		if results[i].err != nil {
 			if strings.TrimSpace(content) != "" {
@@ -406,6 +455,17 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 			a.cfg.OnResult(ToolResult{CallID: call.ID, Output: content, Failed: results[i].err != nil})
 		}
 	}
+	if len(pictures) > 0 {
+		// The tool result is already in history; the pictures ride the
+		// next user turn because role:tool has no image parts on the
+		// OpenAI wire format. The note says where they came from, so a
+		// model does not mistake harness output for fresh user input.
+		history = append(history, llm.Message{
+			Role:    llm.RoleUser,
+			Content: pictureNote(pictures),
+			Images:  pictures,
+		})
+	}
 
 	// Anything that mutated invalidates both caches: the same read can now
 	// legitimately return something new, and a signature that repeats across a
@@ -414,6 +474,19 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 		st.noteMutation()
 	}
 	return history
+}
+
+// pictureNote labels attached pictures as tool output. The model must not
+// read them as a new instruction from the operator; the paths let it
+// connect each picture to the read_file result it requested.
+func pictureNote(paths []string) string {
+	var b strings.Builder
+	b.WriteString("Pictures from read_file (tool output, not a new user request):\n")
+	for _, p := range paths {
+		fmt.Fprintf(&b, "- %s\n", p)
+	}
+	b.WriteString("Use what you see to continue the task.")
+	return b.String()
 }
 
 func (st *runState) addPaths(paths []string) {

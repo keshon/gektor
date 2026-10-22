@@ -232,9 +232,12 @@ configured backend. See [the trust boundary](../SECURITY.md).
 PNG, JPG/JPEG, WebP, GIF, and BMP use image attachments instead of text.
 The backend caps each image at 20 MiB. A vision-capable OpenAI-compatible
 provider or llama-server with VL weights and `--mmproj` is required. GEKTOR's
-KoboldCPP dialect rejects image attachments. `-image` attaches images to
-an opening task; inline text-file references are a TUI composer feature,
-not syntax interpreted by print mode or RPC.
+KoboldCPP dialect rejects image attachments. On a vision-capable backend the
+agent can also read a workspace picture itself: `read_file` on one of those
+formats attaches the image to the following turn, and at most four pictures
+are attached per step. `-image` attaches images to an opening task; inline
+text-file references are a TUI composer feature, not syntax interpreted by
+print mode or RPC.
 
 Bare unknown mentions such as `@someone` remain literal. A missing unquoted
 image path also remains literal for compatibility; quoted missing paths and

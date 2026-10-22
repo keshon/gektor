@@ -9,10 +9,10 @@ import (
 	"strings"
 )
 
-// imageMaxBytes caps one attached image at 20MB: vision turns already
+// MaxImageBytes caps one attached image at 20MB: vision turns already
 // spend thousands of context tokens per picture, and anything bigger
 // is a video frame or a mistake, not a screenshot.
-const imageMaxBytes = 20 << 20
+const MaxImageBytes = 20 << 20
 
 // imageEstimateTokens is what one attached picture costs when the backend
 // does not report usage. A flat figure, because the real cost depends on the
@@ -40,25 +40,39 @@ func IsImagePath(path string) bool {
 	return ok
 }
 
+// ValidateImage reports whether path is a picture the wire encoder can
+// send: a supported extension, a regular file, and within MaxImageBytes.
+// Tools use it before naming an attachment so the model gets the reason
+// now instead of the whole turn failing at send time.
+func ValidateImage(path string) error {
+	ext := strings.ToLower(filepath.Ext(path))
+	if _, ok := imageMIME[ext]; !ok {
+		return fmt.Errorf("image %q: format %q not supported (png, jpg, webp, gif, bmp)", path, ext)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("image %q: %w", path, err)
+	}
+	if fi.IsDir() {
+		return fmt.Errorf("image %q: is a directory", path)
+	}
+	if !fi.Mode().IsRegular() {
+		return fmt.Errorf("image %q: is not a regular file", path)
+	}
+	if fi.Size() > MaxImageBytes {
+		return fmt.Errorf("image %q: %d bytes over the %d-byte cap", path, fi.Size(), MaxImageBytes)
+	}
+	return nil
+}
+
 // encodeImageFile reads an absolute image path into a data URL. Paths
 // arrive resolved (workspace escape already checked at attach time);
 // this checks existence, size, and format only.
 func encodeImageFile(path string) (string, error) {
-	ext := strings.ToLower(filepath.Ext(path))
-	mime, ok := imageMIME[ext]
-	if !ok {
-		return "", fmt.Errorf("image %q: format %q not supported (png, jpg, webp, gif, bmp)", path, ext)
+	if err := ValidateImage(path); err != nil {
+		return "", err
 	}
-	fi, err := os.Stat(path)
-	if err != nil {
-		return "", fmt.Errorf("image %q: %w", path, err)
-	}
-	if fi.IsDir() {
-		return "", fmt.Errorf("image %q: is a directory", path)
-	}
-	if fi.Size() > imageMaxBytes {
-		return "", fmt.Errorf("image %q: %d bytes over the %d-byte cap", path, fi.Size(), imageMaxBytes)
-	}
+	mime := imageMIME[strings.ToLower(filepath.Ext(path))]
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("image %q: %w", path, err)

@@ -66,7 +66,9 @@ In the UI:
 - **Settings → Model** changes the connection. **F1** opens help.
 
 Text attachments work without vision. Image attachments require a supported
-vision-capable backend. See the [terminal guide](docs/tui.md) for details.
+vision-capable backend. On such a backend the agent can also read a workspace
+picture itself with `read_file`, so a screenshot named in a task does not have
+to be attached first. See the [terminal guide](docs/tui.md) for details.
 
 ## Run a task from the CLI
 

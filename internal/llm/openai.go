@@ -13,6 +13,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -77,6 +78,89 @@ func (openaiDialect) contextLimit(ctx context.Context, hc *http.Client, baseURL 
 
 func (openaiDialect) modelName(ctx context.Context, hc *http.Client, baseURL string) (string, error) {
 	return "", fmt.Errorf("openai-compatible backends serve the requested model; use the configured name")
+}
+
+// openaiModels is the part of /models that carries capability metadata.
+// OpenRouter and a few gateways publish architecture.input_modalities;
+// OpenAI itself publishes only ids.
+type openaiModels struct {
+	Data []struct {
+		ID           string `json:"id"`
+		Architecture struct {
+			Modality        string   `json:"modality"`
+			InputModalities []string `json:"input_modalities"`
+		} `json:"architecture"`
+	} `json:"data"`
+}
+
+// vision asks the provider's model list before falling back to a name
+// heuristic. A provider that reports capabilities is authoritative even
+// when it says no; one that reports only ids cannot answer, and there the
+// name is the only evidence available.
+func (openaiDialect) vision(ctx context.Context, hc *http.Client, baseURL, apiKey, model string) (bool, error) {
+	path := "/v1/models"
+	if strings.HasSuffix(strings.TrimRight(baseURL, "/"), "/v1") {
+		path = "/models"
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint(baseURL, path), nil)
+	if err != nil {
+		return modelVisionName(model), err
+	}
+	if apiKey != "" {
+		request.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+	resp, err := hc.Do(request)
+	if err != nil {
+		return modelVisionName(model), err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return modelVisionName(model), fmt.Errorf("%s returned %s", request.URL, resp.Status)
+	}
+	var list openaiModels
+	// Gateway model lists carry per-model metadata and OpenRouter's runs
+	// past a megabyte; truncating early would lose the entry this probe
+	// needs. The limit still bounds a hostile or broken endpoint.
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&list); err != nil {
+		return modelVisionName(model), fmt.Errorf("decode model list: %w", err)
+	}
+	for _, item := range list.Data {
+		if !strings.EqualFold(item.ID, model) {
+			continue
+		}
+		for _, m := range item.Architecture.InputModalities {
+			if m == "image" {
+				return true, nil
+			}
+		}
+		if item.Architecture.Modality != "" {
+			return strings.Contains(item.Architecture.Modality, "image"), nil
+		}
+		break // the provider lists ids only; the name is all we have
+	}
+	return modelVisionName(model), nil
+}
+
+// modelVisionName is the fallback for providers that do not publish
+// capabilities: the families known to accept image input. Unknown names
+// are treated as text-only, because a wrong "yes" fails a whole turn while
+// a wrong "no" only withholds a read_file convenience.
+func modelVisionName(model string) bool {
+	m := strings.ToLower(model)
+	for _, marker := range []string{
+		"gpt-4o", "gpt-4.1", "gpt-4-turbo", "gpt-5",
+		"claude", "gemini", "grok-4", "grok-2-vision",
+		"llava", "pixtral", "internvl", "vision",
+		"qwen-vl", "qwen2-vl", "qwen2.5-vl", "qwen3-vl", "qvq",
+		"glm-4v", "glm-4.1v", "gemma-3", "gemma-4",
+		"llama-3.2-vision", "llama-4", "phi-3.5-vision", "phi-4-multimodal",
+		"mistral-small-3",
+	} {
+		if strings.Contains(m, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 // APIKeyFromEnv returns the first bearer token found under the usual

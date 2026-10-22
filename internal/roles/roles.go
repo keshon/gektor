@@ -44,6 +44,11 @@ type Env struct {
 	Policy       permission.Policy
 	BackendKind  string
 
+	// Vision reports that the backend can process pictures, so read_file
+	// may attach an image instead of returning binary metadata. It comes
+	// from llm.Server.SupportsVision, never from a guess.
+	Vision bool
+
 	// Model names the backend model for display (status, logs). Local
 	// servers ignore it on the wire (they serve one model); it still
 	// answers "what am I talking to". Empty renders as a dash.
@@ -167,7 +172,7 @@ func Retrospective(e Env, archive, submit agent.Tool) *agent.Agent {
 // can write in this role whatever the model decides to try.
 func Planner(e Env, label, stateFile string, ask func(question string) (string, error)) *agent.Agent {
 	cfg := e.conversationConfig(label, stateFile, ask, nil)
-	cfg.ReadOnly = tools.ReadOnly(e.WS, e.Procs).Names()
+	cfg.ReadOnly = tools.ReadOnly(e.WS, e.Procs, e.Vision).Names()
 	cfg.Directive = prompts.PlanMode
 	cfg.Supersedes = prompts.ActMode
 	return agent.New(cfg)
@@ -222,7 +227,7 @@ func (e Env) statePath(name string) string {
 // findings still flow: those constrain or describe the work itself.
 func Subagent(e Env, role string) *agent.Agent {
 	cfg := e.agentConfig(prompts.WithRole(role)+"\n\n"+prompts.SubagentScope+"\n\n"+prompts.PlatformLine(), "", "")
-	cfg.Tools = tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.MCPTools...)
+	cfg.Tools = tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.Vision, e.MCPTools...)
 	cfg.MaxSteps = subagentSteps
 	cfg.System += fmt.Sprintf("\n\nYour budget is %d model steps, including your final answer. Keep the subtask focused and report unfinished work honestly.", subagentSteps)
 	cfg.Inbox, cfg.OnInput = nil, nil
@@ -265,7 +270,7 @@ func (e Env) conversationConfig(label, stateFile string,
 		extra = append(extra, tools.AskUser{AskFn: ask})
 	}
 	cfg := e.agentConfig(prompts.System+"\n\n"+prompts.PlatformLine(), label, stateFile)
-	cfg.Tools = tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, extra...)
+	cfg.Tools = tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.Vision, extra...)
 	cfg.MaxSteps = e.MaxSteps
 	cfg.Verify = verify
 	cfg.Stream, cfg.OnDelta, cfg.OnReasoning = e.Stream, e.OnDelta, e.OnReasoning

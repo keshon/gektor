@@ -85,3 +85,9 @@ func (koboldDialect) modelName(ctx context.Context, hc *http.Client, baseURL str
 	err := getJSON(ctx, hc, endpoint(baseURL, "/api/v1/model"), &out)
 	return out.Result, err
 }
+
+// koboldcpp refuses image content parts outright, so the agent must not
+// offer a tool that produces them.
+func (koboldDialect) vision(context.Context, *http.Client, string, string, string) (bool, error) {
+	return false, nil
+}

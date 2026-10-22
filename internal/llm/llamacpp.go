@@ -58,12 +58,16 @@ func (llamaDialect) applySampling(req *wireRequest, dry bool) {
 }
 
 // /props carries both the loaded model's path and the context size the
-// server was actually started with.
+// server was actually started with, plus the modalities its current
+// vision/audio projectors enable.
 type llamaProps struct {
 	ModelPath string `json:"model_path"`
 	Default   struct {
 		NCtx int `json:"n_ctx"`
 	} `json:"default_generation_settings"`
+	Modalities struct {
+		Vision bool `json:"vision"`
+	} `json:"modalities"`
 }
 
 func (llamaDialect) contextLimit(ctx context.Context, hc *http.Client, baseURL string) (int, error) {
@@ -76,4 +80,13 @@ func (llamaDialect) modelName(ctx context.Context, hc *http.Client, baseURL stri
 	var p llamaProps
 	err := getJSON(ctx, hc, endpoint(baseURL, "/props"), &p)
 	return p.ModelPath, err
+}
+
+// vision reads the modalities block /props reports for the loaded
+// weights and their projector. A server that predates the field answers
+// false: no projector means no picture processing either way.
+func (llamaDialect) vision(ctx context.Context, hc *http.Client, baseURL, _, _ string) (bool, error) {
+	var p llamaProps
+	err := getJSON(ctx, hc, endpoint(baseURL, "/props"), &p)
+	return p.Modalities.Vision, err
 }

@@ -43,6 +43,7 @@ type serveDeps struct {
 	maxTokens    int
 	maxSteps     int
 	contextLimit int
+	vision       bool
 	logMax       int
 	verifyCmd    string
 
@@ -279,6 +280,7 @@ func serveRun(ctx context.Context, d serveDeps, hub *run.GateHub, emitter *event
 		MaxTokens:    d.maxTokens,
 		MaxSteps:     d.maxSteps,
 		ContextLimit: d.contextLimit,
+		Vision:       d.vision,
 		Policy:       buildPolicy(d.allow, d.deny),
 		GateContext:  audit.ContextHook(d.auditPath, "serve", permissionGateContext(d.autoDeny, suspend, d.ws)),
 		BackendKind:  d.backendKind,
