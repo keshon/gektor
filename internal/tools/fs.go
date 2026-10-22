@@ -161,7 +161,7 @@ func (t ReadFile) Run(ctx context.Context, args json.RawMessage) (string, error)
 	}
 	f, err := os.Open(full)
 	if err != nil {
-		return "", err
+		return "", fileReadError(full, rel, err)
 	}
 	defer f.Close()
 
@@ -186,6 +186,34 @@ func (t ReadFile) Run(ctx context.Context, args json.RawMessage) (string, error)
 	return streamReadFile(ctx, f, rel, maxBody, in.Offset, byteOffset, lineLimit)
 }
 
+// Suggest names only; never silently redirect a read to another file.
+func fileReadError(full, rel string, err error) error {
+	if !os.IsNotExist(err) {
+		return err
+	}
+	entries, listErr := os.ReadDir(filepath.Dir(full))
+	if listErr != nil {
+		return fmt.Errorf("file %q not found; use list_files to locate its parent directory: %w", rel, err)
+	}
+	base := strings.ToLower(filepath.Base(rel))
+	stem := strings.TrimSuffix(base, filepath.Ext(base))
+	var candidates []string
+	for _, entry := range entries {
+		name := strings.ToLower(entry.Name())
+		if entry.IsDir() || !(strings.Contains(name, base) || strings.Contains(base, name) || (stem != "" && strings.TrimSuffix(name, filepath.Ext(name)) == stem)) {
+			continue
+		}
+		candidates = append(candidates, filepath.ToSlash(filepath.Join(filepath.Dir(rel), entry.Name())))
+		if len(candidates) == 3 {
+			break
+		}
+	}
+	if len(candidates) > 0 {
+		return fmt.Errorf("file %q not found; possible paths (not read): %s: %w", rel, strings.Join(candidates, ", "), err)
+	}
+	return fmt.Errorf("file %q not found; use list_files on %q: %w", rel, filepath.ToSlash(filepath.Dir(rel)), err)
+}
+
 // imageHeader reports a picture instead of streaming its bytes. On a
 // vision-capable backend the loop attaches the file after the tool result,
 // unless that step's picture budget is already spent; without vision the
@@ -195,7 +223,7 @@ func (t ReadFile) Run(ctx context.Context, args json.RawMessage) (string, error)
 func (t ReadFile) imageHeader(full, rel string, metadataOnly bool) (string, error) {
 	info, err := os.Stat(full)
 	if err != nil {
-		return "", err
+		return "", fileReadError(full, rel, err)
 	}
 	if info.IsDir() {
 		return "", fmt.Errorf("%s is a directory", rel)

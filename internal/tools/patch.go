@@ -79,7 +79,17 @@ func (t PatchFile) Run(_ context.Context, args json.RawMessage) (string, error) 
 			return "", fmt.Errorf("old_content not found in %s; the file was not changed. Read the current file and copy an exact block, including whitespace", in.Path)
 		}
 		if count > 1 {
-			return "", fmt.Errorf("old_content appears %d times in %s — make it unique before patching", count, in.Path)
+			var lines []string
+			for pos := 0; len(lines) < 5; {
+				at := strings.Index(content[pos:], oldNorm)
+				if at < 0 {
+					break
+				}
+				at += pos
+				lines = append(lines, fmt.Sprint(1+strings.Count(content[:at], "\n")))
+				pos = at + len(oldNorm)
+			}
+			return "", fmt.Errorf("old_content appears %d times in %s at starting lines %s (up to 5 shown); file unchanged. Read around the intended match with offset/limit and include enough surrounding text to make old_content unique", count, in.Path, strings.Join(lines, ", "))
 		}
 
 		start := strings.Index(content, oldNorm)

@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -379,5 +380,58 @@ func TestReadFileLineLimit(t *testing.T) {
 	out, err = (ReadFile{WS: ws}).Run(t.Context(), json.RawMessage(`{"path":"lines.txt","offset":4,"limit":2}`))
 	if err != nil || !strings.Contains(out, "four") || strings.Contains(out, "truncated: true") {
 		t.Fatal(out, err)
+	}
+}
+
+func TestReadFileSuggestsExistingNamesWithoutReadingThem(t *testing.T) {
+	root := t.TempDir()
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"widget.ts", "widget.test.ts", "shot.webp"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("MUST NOT READ"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tool := ReadFile{WS: ws}
+	for _, tc := range []struct{ path, want string }{{"widget", "widget.ts"}, {"widget.js", "widget.ts"}, {"shot.png", "shot.webp"}, {"absent.txt", "list_files"}, {"missing/absent.txt", "parent directory"}} {
+		args, _ := json.Marshal(map[string]string{"path": tc.path})
+		out, err := tool.Run(t.Context(), args)
+		if err == nil || !strings.Contains(err.Error(), tc.want) || !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("%s: %s %v", tc.path, out, err)
+		}
+		if strings.Contains(out+err.Error(), "MUST NOT READ") {
+			t.Fatal("suggestion read another file")
+		}
+	}
+}
+
+func TestAmbiguousPatchReportsLocationsAndLeavesFileUnchanged(t *testing.T) {
+	root := t.TempDir()
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := "before\r\ntarget\r\nmiddle\r\ntarget\r\nafter\r\n"
+	path := filepath.Join(root, "data.txt")
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+		t.Fatal(err)
+	}
+	_, err = (PatchFile{WS: ws}).Run(t.Context(), json.RawMessage(`{"path":"data.txt","old_content":"target","new_content":"changed"}`))
+	if err == nil || !strings.Contains(err.Error(), "starting lines 2, 4") {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil || string(got) != content {
+		t.Fatal("ambiguous patch changed file", err)
+	}
+	_, err = (PatchFile{WS: ws}).Run(t.Context(), json.RawMessage(`{"path":"data.txt","old_content":"middle\ntarget","new_content":"middle\nchanged"}`))
+	if err != nil {
+		t.Fatal("could not recover with context", err)
+	}
+	got, err = os.ReadFile(path)
+	if err != nil || string(got) != "before\r\ntarget\r\nmiddle\r\nchanged\r\nafter\r\n" {
+		t.Fatal(string(got), err)
 	}
 }
