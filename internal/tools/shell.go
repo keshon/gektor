@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -29,64 +28,68 @@ func (RunShell) Name() string { return "run_shell" }
 func (RunShell) Mode() agent.ToolMode { return agent.Exclusive }
 func (RunShell) Description() string {
 	if runtime.GOOS == "windows" {
-		return "Run a finite process inside the workspace. command uses cmd.exe syntax. " +
-			"Prefer program + args for executables (including paths with spaces); no shell quoting or expansion applies. Use command for shell builtins and .cmd/.bat scripts; never combine the two. " +
+		return "Run a finite shell command inside the workspace. command is complete cmd.exe source. " +
+			"Use it for builtins, pipelines, redirection and .cmd/.bat scripts. " +
+			"For native executables with literal arguments, use run_program instead. " +
 			"Use workdir for a workspace-relative working directory and timeout_seconds (1–600) to bound execution. " +
 			"Use file tools for listings, edits and moves; use start_background for servers and watchers. " +
 			"Return combined stdout and stderr; inspect the result before claiming success."
 	}
-	return "Run a finite process inside the workspace. command uses POSIX sh syntax. " +
-		"Prefer program + args for executables; use command only for shell syntax. Never combine the two. " +
+	return "Run a finite shell command inside the workspace. command is complete POSIX sh source. " +
+		"Use it for builtins, pipelines and redirection. " +
+		"For native executables with literal arguments, use run_program instead. " +
 		"Use workdir for a workspace-relative working directory and timeout_seconds (1–600) to bound execution. " +
 		"Use file tools for listings, edits and moves; use start_background for servers and watchers. " +
 		"Return combined stdout and stderr; inspect the result before claiming success."
 }
 func (RunShell) Schema() json.RawMessage {
-	return executionSchema(true)
+	return shellSchema(true)
 }
 
-// Both process tools share argument boundaries and validation. command is shell
-// source; program/args are passed verbatim to the OS, never joined for execution.
-type executionInput struct {
-	Command        string   `json:"command"`
-	Program        string   `json:"program"`
-	Args           []string `json:"args"`
-	Workdir        string   `json:"workdir"`
-	TimeoutSeconds *int     `json:"timeout_seconds"`
+// Shell input is deliberately a single mode: command is always shell source.
+// Native processes use programInput and the separate run_program/start_program
+// tools, so neither schema needs a top-level oneOf.
+type shellInput struct {
+	Command        string `json:"command"`
+	Workdir        string `json:"workdir"`
+	TimeoutSeconds *int   `json:"timeout_seconds"`
 }
 
-func executionSchema(timeout bool) json.RawMessage {
+func shellSchema(timeout bool) json.RawMessage {
 	extra := ""
 	if timeout {
 		extra = `,"timeout_seconds":{"type":"integer","minimum":1,"maximum":600,"default":600}`
 	}
 	return json.RawMessage(`{"type":"object","properties":{
-		"command":{"type":"string","minLength":1,"description":"Shell source; use either command OR program + args."},
-		"program":{"type":"string","minLength":1,"description":"Executable name or path without wrapping quotes."},
-		"args":{"type":"array","items":{"type":"string"},"description":"Literal arguments. Spaces, quotes and shell metacharacters need no escaping."},
+		"command":{"type":"string","minLength":1,"description":"Complete shell source for cmd.exe on Windows or sh on POSIX."},
 		"workdir":{"type":"string","description":"Workspace-relative working directory; defaults to root."}` + extra +
-		`},"oneOf":[{"required":["command"]},{"required":["program"]}],"additionalProperties":false}`)
+		`},"required":["command"],"additionalProperties":false}`)
 }
 
-func (in executionInput) validate() error {
-	if (strings.TrimSpace(in.Command) == "") == (strings.TrimSpace(in.Program) == "") {
-		return fmt.Errorf("provide exactly one of command or program; use program + args for executables")
-	}
-	if in.Command != "" && in.Args != nil {
-		return fmt.Errorf("args requires program; command is complete shell source")
+func (in shellInput) validate() error {
+	if strings.TrimSpace(in.Command) == "" {
+		return fmt.Errorf("command is required")
 	}
 	return nil
 }
 
-func (in executionInput) cmd(ctx context.Context) (*exec.Cmd, error) {
-	if in.Program != "" {
-		cmd := exec.CommandContext(ctx, in.Program, in.Args...)
-		if ext := strings.ToLower(filepath.Ext(cmd.Path)); runtime.GOOS == "windows" && (ext == ".cmd" || ext == ".bat") {
-			return nil, fmt.Errorf("%s is a shell script, not a native executable; use command with CMD syntax instead of program + args", in.Program)
-		}
-		return cmd, nil
+func executionTimeout(seconds *int) (time.Duration, error) {
+	if seconds == nil {
+		return shellTimeout, nil
 	}
-	return shellCommand(ctx, in.Command), nil
+	if *seconds < 1 || *seconds > 600 {
+		return 0, fmt.Errorf("timeout_seconds must be between 1 and 600")
+	}
+	return time.Duration(*seconds) * time.Second, nil
+}
+
+func runExecution(ctx context.Context, cmd *exec.Cmd, dir string, onOutput func(string)) (string, error) {
+	full, err := runProcess(ctx, cmd, dir, onOutput)
+	result := capShellOutput(full)
+	if err != nil {
+		return result, fmt.Errorf("command failed: %w", err)
+	}
+	return result, nil
 }
 
 func (t RunShell) Run(ctx context.Context, args json.RawMessage) (string, error) {
@@ -94,23 +97,20 @@ func (t RunShell) Run(ctx context.Context, args json.RawMessage) (string, error)
 }
 
 func (t RunShell) RunStreaming(ctx context.Context, args json.RawMessage, onOutput func(string)) (string, error) {
-	var in executionInput
+	var in shellInput
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", fmt.Errorf("bad arguments: %w", err)
 	}
 
-	if err := rejectUnknownFields(args, "command", "program", "args", "workdir", "timeout_seconds"); err != nil {
+	if err := rejectUnknownFields(args, "command", "workdir", "timeout_seconds"); err != nil {
 		return "", err
 	}
 	if err := in.validate(); err != nil {
 		return "", err
 	}
-	timeout := shellTimeout
-	if in.TimeoutSeconds != nil {
-		if *in.TimeoutSeconds < 1 || *in.TimeoutSeconds > 600 {
-			return "", fmt.Errorf("timeout_seconds must be between 1 and 600")
-		}
-		timeout = time.Duration(*in.TimeoutSeconds) * time.Second
+	timeout, err := executionTimeout(in.TimeoutSeconds)
+	if err != nil {
+		return "", err
 	}
 	dir, err := t.WS.Resolve(in.Workdir)
 	if err != nil {
@@ -118,17 +118,7 @@ func (t RunShell) RunStreaming(ctx context.Context, args json.RawMessage, onOutp
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	cmd, err := in.cmd(ctx)
-	if err != nil {
-		return "", err
-	}
-	full, err := runProcess(ctx, cmd, dir, onOutput)
-	result := capShellOutput(full)
-
-	if err != nil {
-		return result, fmt.Errorf("command failed: %w", err)
-	}
-	return result, nil
+	return runExecution(ctx, shellCommand(ctx, in.Command), dir, onOutput)
 }
 
 // shellMaxBytes caps one run_shell result, matching the read_file cap for

@@ -242,19 +242,21 @@ Matches use `path:line:text`, context uses `path-line-text`; overlapping windows
 are merged. Disjoint groups are separated by `--`. Results stop at 200 matches
 or 48 KiB of rows and report truncation. Long lines remain individually capped.
 
-`run_shell` and `start_background` accept either `program` with literal `args`
-or a shell `command`. These modes are mutually exclusive. Prefer program/args
-for executables: no shell quoting, expansion, pipes or redirection is applied.
-Use command for shell builtins, pipelines and Windows `.cmd`/`.bat` wrappers.
-Both tools accept a workspace-relative `workdir`.
+`run_shell` and `start_background` take a required shell `command`. Use them for
+builtins, pipelines, redirection and Windows `.cmd`/`.bat` wrappers.
+`run_program` and `start_program` take a required native `program` plus literal
+`args`; the executable is started directly, so no shell quoting, expansion,
+pipes or redirection applies. All four tools accept a workspace-relative
+`workdir`.
 
-`run_shell` also accepts
-`timeout_seconds` from 1 to 600. Defaults are the workspace root and 600 seconds.
-The working directory applies to that call only. Unknown parameters and invalid
-bounds are refused before starting a command. Servers still use
-`start_background` rather than a longer blocking timeout.
+`run_shell` and `run_program` also accept `timeout_seconds` from 1 to 600.
+Defaults are the workspace root and 600 seconds. The working directory applies
+to that call only. Unknown parameters and invalid bounds are refused before
+starting a process. Servers still use `start_background` or `start_program`
+rather than a longer blocking timeout.
 
-`start_background` returns an id and `next_cursor`. `check_background` requires
+`start_background` and `start_program` return an id and `next_cursor`.
+`check_background` requires
 both `id` and `cursor`: pass the previous `next_cursor` to retrieve only new
 output. Cursors are byte positions in that process's output; use the returned
 value rather than calculating it from rendered text. `cursor: 0` explicitly

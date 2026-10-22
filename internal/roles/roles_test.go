@@ -62,10 +62,13 @@ func TestInteractive_HasTheToolsThatShip(t *testing.T) {
 func TestProcessKillCommandsRequireApprovalInBothExecutionModes(t *testing.T) {
 	e := testEnv(t)
 	var calls []llm.ToolCall
-	for _, name := range []string{"run_shell", "start_background"} {
-		for i, input := range []string{`{"command":"taskkill /IM GEKTOR_TEST_NOT_REAL.exe /F"}`, `{"program":"taskkill","args":["/IM","GEKTOR_TEST_NOT_REAL.exe","/F"]}`} {
-			calls = append(calls, llm.ToolCall{ID: name + string(rune('0'+i)), Name: name, Arguments: json.RawMessage(input)})
-		}
+	for i, c := range []struct{ name, input string }{
+		{"run_shell", `{"command":"taskkill /IM GEKTOR_TEST_NOT_REAL.exe /F"}`},
+		{"start_background", `{"command":"taskkill /IM GEKTOR_TEST_NOT_REAL.exe /F"}`},
+		{"run_program", `{"program":"taskkill","args":["/IM","GEKTOR_TEST_NOT_REAL.exe","/F"]}`},
+		{"start_program", `{"program":"taskkill","args":["/IM","GEKTOR_TEST_NOT_REAL.exe","/F"]}`},
+	} {
+		calls = append(calls, llm.ToolCall{ID: c.name + string(rune('0'+i)), Name: c.name, Arguments: json.RawMessage(c.input)})
 	}
 	e.Client = &seqStub{steps: []llm.ChatResponse{
 		{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: calls}},
@@ -75,7 +78,7 @@ func TestProcessKillCommandsRequireApprovalInBothExecutionModes(t *testing.T) {
 	e.GateContext = func(_ context.Context, tool, resource string, _ json.RawMessage) (permission.Effect, error) {
 		asked++
 		if !strings.Contains(resource, "taskkill") {
-			t.Fatalf("program arguments absent from permission resource: %s", resource)
+			t.Fatalf("command arguments absent from permission resource: %s", resource)
 		}
 		return permission.Deny, nil
 	}

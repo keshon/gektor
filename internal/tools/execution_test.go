@@ -23,7 +23,7 @@ func writeLiteralExecutionArgs() {
 	os.Exit(2)
 }
 
-func TestProcessToolsPreserveLiteralArguments(t *testing.T) {
+func TestProgramToolsPreserveLiteralArguments(t *testing.T) {
 	root := t.TempDir()
 	ws, err := workspace.New(root)
 	if err != nil {
@@ -47,13 +47,13 @@ func TestProcessToolsPreserveLiteralArguments(t *testing.T) {
 	input, _ := json.Marshal(map[string]any{"program": program, "args": args, "workdir": "working dir"})
 	procs := NewBackgroundProcesses()
 	defer procs.StopAll()
-	for _, tool := range []agent.Tool{RunShell{WS: ws}, StartBackground{WS: ws, Procs: procs, SettleTime: 100 * time.Millisecond}} {
+	for _, tool := range []agent.Tool{RunProgram{WS: ws}, StartProgram{WS: ws, Procs: procs, SettleTime: 100 * time.Millisecond}} {
 		t.Run(tool.Name(), func(t *testing.T) {
 			out, err := tool.Run(t.Context(), input)
 			if err != nil {
-				t.Fatalf("%s: %v", out, err)
+				t.Fatalf("%s: %v", tool.Name(), err)
 			}
-			if tool.Name() == "start_background" {
+			if tool.Name() == "start_program" {
 				id := strings.TrimPrefix(strings.Split(out, "\n")[0], "id: ")
 				wait, _ := json.Marshal(map[string]any{"id": id, "timeout_seconds": 10})
 				out, err = (WaitBackground{Procs: procs}).Run(t.Context(), wait)
@@ -81,13 +81,66 @@ func TestProcessToolsPreserveLiteralArguments(t *testing.T) {
 	}
 }
 
-func TestProcessToolsRejectConflictingInputs(t *testing.T) {
-	for _, tool := range []agent.Tool{RunShell{}, StartBackground{}} {
-		for _, input := range []string{`{}`, `{"command":"echo x","program":"node"}`, `{"command":"echo x","args":[]}`, `{"program":" "}`, `{"program":"node","unknown":true}`} {
-			if out, err := tool.Run(t.Context(), json.RawMessage(input)); err == nil {
-				t.Fatalf("%s accepted %s: %s", tool.Name(), input, out)
-			}
+func TestProcessToolsRejectInvalidInputs(t *testing.T) {
+	cases := []struct {
+		tool  agent.Tool
+		input string
+	}{
+		{RunShell{}, `{}`},
+		{RunShell{}, `{"command":" "}`},
+		{RunShell{}, `{"command":"echo x","program":"node"}`},
+		{RunShell{}, `{"command":"echo x","args":["x"]}`},
+		{StartBackground{}, `{}`},
+		{StartBackground{}, `{"program":"node"}`},
+		{RunProgram{}, `{}`},
+		{RunProgram{}, `{"program":" "}`},
+		{RunProgram{}, `{"program":"node","command":"echo x"}`},
+		{RunProgram{}, `{"program":"node","unknown":true}`},
+		{StartProgram{}, `{}`},
+		{StartProgram{}, `{"program":"node","command":"echo x"}`},
+	}
+	for _, tc := range cases {
+		if out, err := tc.tool.Run(t.Context(), json.RawMessage(tc.input)); err == nil {
+			t.Fatalf("%s accepted %s: %s", tc.tool.Name(), tc.input, out)
 		}
+	}
+}
+
+func TestProcessSchemasAreGrammarSafe(t *testing.T) {
+	cases := []struct {
+		tool     agent.Tool
+		required string
+	}{
+		{RunShell{}, "command"},
+		{StartBackground{}, "command"},
+		{RunProgram{}, "program"},
+		{StartProgram{}, "program"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.tool.Name(), func(t *testing.T) {
+			var schema map[string]any
+			if err := json.Unmarshal(tc.tool.Schema(), &schema); err != nil {
+				t.Fatal(err)
+			}
+			for _, unsupported := range []string{"oneOf", "anyOf", "allOf"} {
+				if _, ok := schema[unsupported]; ok {
+					t.Fatalf("%s schema uses %s; llama.cpp collapses such tool arguments to {}", tc.tool.Name(), unsupported)
+				}
+			}
+			required, _ := schema["required"].([]any)
+			if len(required) != 1 || required[0] != tc.required {
+				t.Fatalf("%s required = %v, want [%s]", tc.tool.Name(), required, tc.required)
+			}
+			properties, _ := schema["properties"].(map[string]any)
+			if _, ok := properties[tc.required]; !ok {
+				t.Fatalf("%s schema has no %s property", tc.tool.Name(), tc.required)
+			}
+			if tc.required == "program" {
+				if _, ok := properties["args"]; !ok {
+					t.Fatalf("%s schema has no args property", tc.tool.Name())
+				}
+			}
+		})
 	}
 }
 

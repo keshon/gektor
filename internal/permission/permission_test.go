@@ -104,6 +104,11 @@ func TestDestructiveShellAsks(t *testing.T) {
 			t.Errorf("background %q = %v, want ask", cmd, got)
 		}
 	}
+	for _, tool := range []string{"run_program", "start_program"} {
+		if got := p.Evaluate(tool, "taskkill /IM chrome.exe /F"); got != Ask {
+			t.Errorf("%s = %v, want ask", tool, got)
+		}
+	}
 	for _, cmd := range []string{"go test ./...", "npm run dev", "git status"} {
 		if got := p.Evaluate("run_shell", cmd); got != Allow {
 			t.Errorf("shell %q = %v, want allow", cmd, got)

@@ -71,7 +71,7 @@ func Default() Policy {
 		{Tool: "read_file", Pattern: "*credentials*", Effect: Ask},
 		{Tool: "read_file", Pattern: "*secret*", Effect: Ask},
 	}
-	for _, tool := range []string{"run_shell", "start_background"} {
+	for _, tool := range []string{"run_shell", "run_program", "start_background", "start_program"} {
 		for _, pat := range destructiveShell {
 			rules = append(rules, Rule{Tool: tool, Pattern: pat, Effect: Ask})
 		}

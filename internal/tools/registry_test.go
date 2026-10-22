@@ -18,8 +18,8 @@ func TestReadOnly_ContainsNoMutatingOrShellTools(t *testing.T) {
 
 	forbidden := map[string]bool{
 		"write_file": true, "patch_file": true, "git_add": true, "git_commit": true,
-		"move_file": true, "run_shell": true,
-		"start_background": true, "stop_background": true,
+		"move_file": true, "run_shell": true, "run_program": true,
+		"start_background": true, "start_program": true, "stop_background": true,
 		"ask_user": true, "delegate_task": true,
 	}
 	var names []string

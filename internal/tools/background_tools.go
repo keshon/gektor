@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"time"
 
 	"github.com/keshon/gektor/internal/agent"
@@ -33,25 +34,62 @@ func (StartBackground) Name() string { return "start_background" }
 // Starting an arbitrary command is a mutation barrier.
 func (StartBackground) Mode() agent.ToolMode { return agent.Exclusive }
 func (StartBackground) Description() string {
-	return "Start a server, watcher or background command without blocking. Prefer program + args for executables (literal arguments, no shell escaping); use command for shell syntax. Returns id and next_cursor for check_background. Use wait_background for finite builds/tests instead of polling. Stop only your processes via stop_background with its returned id."
+	return "Start a shell server, watcher or background command without blocking. command is complete shell source. Returns id and next_cursor for check_background. Use start_program for a native executable with literal arguments. Use wait_background for finite builds/tests instead of polling. Stop only your processes via stop_background with its returned id."
 }
 func (StartBackground) Schema() json.RawMessage {
-	return executionSchema(false)
+	return shellSchema(false)
 }
 
 func (t StartBackground) Run(ctx context.Context, args json.RawMessage) (string, error) {
-	var in executionInput
+	var in shellInput
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", fmt.Errorf("bad arguments: %w", err)
 	}
-	if err := rejectUnknownFields(args, "command", "program", "args", "workdir"); err != nil {
+	if err := rejectUnknownFields(args, "command", "workdir"); err != nil {
 		return "", err
 	}
 	if err := in.validate(); err != nil {
 		return "", err
 	}
-	if t.Procs == nil {
-		return "", fmt.Errorf("no background process manager")
+	dir, err := t.WS.Resolve(in.Workdir)
+	if err != nil {
+		return "", err
+	}
+
+	// Deliberately context.Background(), not the tool call's ctx — this
+	// process must outlive the call that started it.
+	return startBackgroundProcess(ctx, t.Procs, shellCommand(context.Background(), in.Command), dir, t.SettleTime)
+}
+
+// StartProgram is the direct-exec counterpart of StartBackground. It exists
+// as a separate tool so neither schema has to switch modes on optional fields.
+type StartProgram struct {
+	WS         *workspace.Workspace
+	Procs      *BackgroundProcesses
+	SettleTime time.Duration
+}
+
+func (StartProgram) Name() string { return "start_program" }
+
+// Starting an arbitrary process is a mutation barrier.
+func (StartProgram) Mode() agent.ToolMode { return agent.Exclusive }
+func (StartProgram) Description() string {
+	return "Start a native executable in the background without a shell. program is an executable name or path; args are passed literally, with no quoting or expansion. Returns id and next_cursor for check_background. Use start_background for shell syntax, builtins, pipelines or .cmd/.bat scripts. Stop only your processes via stop_background with its returned id."
+}
+func (StartProgram) Schema() json.RawMessage {
+	return programSchema(false)
+}
+
+func (t StartProgram) Run(ctx context.Context, args json.RawMessage) (string, error) {
+	var in programInput
+	if err := json.Unmarshal(args, &in); err != nil {
+		return "", fmt.Errorf("bad arguments: %w", err)
+	}
+	if err := rejectUnknownFields(args, "program", "args", "workdir"); err != nil {
+		return "", err
+	}
+	if err := in.validate(); err != nil {
+		return "", err
 	}
 	dir, err := t.WS.Resolve(in.Workdir)
 	if err != nil {
@@ -64,11 +102,17 @@ func (t StartBackground) Run(ctx context.Context, args json.RawMessage) (string,
 	if err != nil {
 		return "", err
 	}
+	return startBackgroundProcess(ctx, t.Procs, cmd, dir, t.SettleTime)
+}
+
+func startBackgroundProcess(ctx context.Context, procs *BackgroundProcesses, cmd *exec.Cmd, dir string, settle time.Duration) (string, error) {
+	if procs == nil {
+		return "", fmt.Errorf("no background process manager")
+	}
 	cmd.Dir = dir
 	cmd.Env = scrubEnv(os.Environ())
-	id, _ := t.Procs.start(ctx, cmd)
+	id, _ := procs.start(ctx, cmd)
 
-	settle := t.SettleTime
 	if settle == 0 {
 		settle = 1500 * time.Millisecond
 	}
@@ -77,11 +121,11 @@ func (t StartBackground) Run(ctx context.Context, args json.RawMessage) (string,
 	select {
 	case <-timer.C:
 	case <-ctx.Done():
-		_ = t.Procs.stop(id)
+		_ = procs.stop(id)
 		return "", ctx.Err()
 	}
 
-	output, next, exited, exitErr, err := t.Procs.status(id, 0)
+	output, next, exited, exitErr, err := procs.status(id, 0)
 	if err != nil {
 		return "", err
 	}
@@ -146,7 +190,7 @@ func (CheckBackground) Name() string         { return "check_background" }
 func (CheckBackground) Mode() agent.ToolMode { return agent.Concurrent }
 func (CheckBackground) Description() string {
 	return "Check the current output and status (running/exited) of a process started with " +
-		"start_background. Pass its next_cursor as cursor to receive only new output. " +
+		"start_background or start_program. Pass its next_cursor as cursor to receive only new output. " +
 		"Use cursor=0 to read from the beginning; evicted output is marked explicitly."
 }
 func (CheckBackground) Schema() json.RawMessage {
@@ -189,7 +233,9 @@ type StopBackground struct{ Procs *BackgroundProcesses }
 
 func (StopBackground) Name() string         { return "stop_background" }
 func (StopBackground) Mode() agent.ToolMode { return agent.Exclusive }
-func (StopBackground) Description() string  { return "Stop a process started with start_background." }
+func (StopBackground) Description() string {
+	return "Stop a process started with start_background or start_program."
+}
 func (StopBackground) Schema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",

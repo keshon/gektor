@@ -11,8 +11,9 @@ Always last only for the current run. `internal/workspace`
 confines built-in file reads, writes, patches, moves, search and previews
 through `os.Root`, including symlink/junction traversal checks at the operation.
 Relative and in-workspace absolute paths share normalized relative permission resources;
-moves apply the configured permission rules to both endpoints. `run_shell` sets a working directory
-and nothing else, and child processes inherit a scrubbed environment (no `*_API_KEY`/`*_SECRET`).
+moves apply the configured permission rules to both endpoints. The process
+tools set a working directory and nothing else, and child processes inherit a
+scrubbed environment (no `*_API_KEY`/`*_SECRET`).
 
 The root handle is owned by the launch and closed at shutdown/restart.
 Ancestor `AGENTS.md` files are explicit launch configuration; sessions and
