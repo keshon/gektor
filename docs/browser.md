@@ -15,6 +15,10 @@ npx -y @playwright/mcp@0.0.83 --help
 
 After that one-time setup, Windows, Linux and macOS use the same option:
 
+On Windows, `run-tui.cmd` already enables `-browser chrome`. To use Edge,
+run `run-tui.cmd -browser msedge`; to disable browser automation, use
+`run-tui.cmd -browser=`. Explicit arguments override the launcher's default.
+
 ```text
 gektor -tui -workspace /path/to/project -browser chrome
 ```
