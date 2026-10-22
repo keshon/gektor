@@ -63,7 +63,7 @@ In the UI:
 
 - **Enter** sends; **Ctrl+O** adds a line; **Esc** stops a running turn.
 - **F5** switches Plan/Act while idle. **Ctrl+G** expands thinking and tool details.
-- **Ctrl+P** searches sessions. **Ctrl+B** toggles the session list.
+- **Ctrl+P** opens saved sessions and searches their names and history.
 - Type **`/`** for commands or **`@`** to attach a workspace file.
 - **Settings → Model** changes the connection. **F1** opens help.
 

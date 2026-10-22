@@ -51,7 +51,6 @@ func commands() []command {
 		{name: "/new", arg: "[task]", summary: "Start a fresh task; omit task for an empty session"},
 		{name: "/mode", arg: "plan|act", choices: []string{"plan", "act"}, summary: "Preview changes or execute them"},
 		{name: "/max-steps", arg: "N", summary: "Step budget (0 = no limit)"},
-		{name: "/sidebar", immediate: true, summary: "Toggle sidebar"},
 		{name: "/details", immediate: true, summary: "Toggle reply truncation"},
 		{name: "/sys", immediate: true, summary: "Toggle SYS messages"},
 		{name: "/labels", immediate: true, summary: "Toggle labels"},
@@ -228,16 +227,6 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 			}
 			m.appendBlock(markerBlock("Max steps: " + m.stepBudget()))
 		})
-		return m, nil
-	case "sidebar":
-		m.sidebarHidden = !m.sidebarHidden
-		m.fitBottom()
-		m.refreshContent()
-		state := "shown"
-		if m.sidebarHidden {
-			state = "hidden"
-		}
-		m.appendBlock(markerBlock("Sidebar: " + state))
 		return m, nil
 	case "details":
 		m.transcript.compact = !m.transcript.compact

@@ -46,7 +46,7 @@ func TestPaletteLivesInStyles(t *testing.T) {
 // Direct model writes are forbidden in the application render helpers. Calls
 // into helpers or third-party widgets still require behavioral/race coverage.
 func TestRenderHelpersDoNotAssignModelFields(t *testing.T) {
-	methods := map[string]bool{"View": true, "screenContent": true, "badgeLine": true, "headerGeometry": true, "sidebarView": true, "sidebarDetails": true, "searchView": true, "dialogView": true}
+	methods := map[string]bool{"View": true, "screenContent": true, "badgeLine": true, "headerGeometry": true, "searchView": true, "dialogView": true}
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)
@@ -95,7 +95,7 @@ func writesReceiver(expr ast.Expr, receiver string) bool {
 }
 
 func TestRenderWriteCheckRecognizesNestedAssignments(t *testing.T) {
-	for _, source := range []string{"m.header.row", "m.nav.entries[0]", "m.dialog.offset"} {
+	for _, source := range []string{"m.header.row", "m.savedSessions[0]", "m.dialog.offset"} {
 		expr, err := parser.ParseExpr(source)
 		if err != nil {
 			t.Fatal(err)

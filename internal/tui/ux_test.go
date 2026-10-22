@@ -89,7 +89,7 @@ func TestSessionBrowserMouseSelects(t *testing.T) {
 	m.state = stDone
 	m.sessions = &sessionsState{filter: newSearchInput(80), entries: []sessionEntry{{id: "a"}, {id: "b"}}}
 	g := m.searchGeometry()
-	m.Update(tea.MouseClickMsg{X: g.x + 2, Y: g.y + 5, Button: tea.MouseLeft})
+	m.Update(tea.MouseClickMsg{X: g.x + 2, Y: g.y + 8, Button: tea.MouseLeft})
 	if m.sessions.Cursor != 1 {
 		t.Fatal("click ignored")
 	}
@@ -198,7 +198,7 @@ func TestPromptTransitionsFitWideAndNarrowTerminals(t *testing.T) {
 			t.Fatalf("note hidden at width %d", width)
 		}
 		m.handleEvent(events.Event{Name: "input_answered"})
-		if m.sidebarVisible() && m.transcript.Viewport.Width() != width-navigatorWidth-5 {
+		if m.transcript.Viewport.Width() != width-2 {
 			t.Fatalf("transcript did not refit: %d", m.transcript.Viewport.Width())
 		}
 	}
@@ -209,7 +209,7 @@ func TestBrowserActionsRemainInsideTerminalFrame(t *testing.T) {
 	m.state = stDone
 	m.sessions = &sessionsState{filter: newSearchInput(80), entries: []sessionEntry{{id: "a", title: "Saved session"}}}
 	m.fitBottom()
-	if !strings.Contains(m.View().Content, "╭─ Search") || !strings.Contains(m.View().Content, "Enter open") {
+	if !strings.Contains(m.View().Content, "Open session") || !strings.Contains(m.View().Content, "Enter open") {
 		t.Fatal("search popup actions clipped")
 	}
 }

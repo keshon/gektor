@@ -6,7 +6,7 @@
     "model": "local"
   },
   "generation": {
-    "max_tokens": 2048,
+    "max_tokens": 8192,
     "context_limit": 8192,
     "temperature": 0.7
   },

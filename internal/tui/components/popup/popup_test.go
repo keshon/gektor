@@ -57,11 +57,11 @@ func TestTitledFrameFitsItsTitle(t *testing.T) {
 }
 
 // A frame that has lost its own title is worse than one cell too wide.
-func TestTitledFrameWidensRatherThanClippingItsTitle(t *testing.T) {
+func TestTitledFrameClipsTitleToAvailableWidth(t *testing.T) {
 	rows := []string{Row(testStyles().Normal, "x", 36)}
 	framed := TitledFrame("a rather long popup title", rows, 8, testStyles())
-	if !strings.Contains(ansi.Strip(framed[0]), "a rather long popup title") {
-		t.Fatalf("title clipped at a narrow width: %q", ansi.Strip(framed[0]))
+	if lipgloss.Width(framed[0]) != 8 || !strings.Contains(ansi.Strip(framed[0]), "…") {
+		t.Fatalf("title exceeded its frame: %q", ansi.Strip(framed[0]))
 	}
 }
 

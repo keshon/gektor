@@ -70,9 +70,7 @@ func writeSavedMode(stateFile string, plan bool) error {
 }
 
 func (m *model) actionHint() string {
-	if m.navFocused {
-		return "↑↓ choose  Enter open  Ctrl+R rename  Ctrl+D delete  Tab input"
-	}
+
 	switch m.state {
 	case stPermission:
 		return "PgUp/PgDn preview  Ctrl+Q quit"
@@ -84,9 +82,7 @@ func (m *model) actionHint() string {
 		return "Stopping…  draft is preserved  Ctrl+C exit"
 	default:
 		hint := "Enter send  Ctrl+O newline"
-		if m.sidebarVisible() {
-			hint += "  Tab switch pane"
-		}
+
 		return hint
 	}
 }

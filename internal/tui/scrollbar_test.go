@@ -117,10 +117,9 @@ func TestScrollbarDragEndsOffBar(t *testing.T) {
 }
 
 func TestScrollbarGrabUsesDrawnColumnWithAndWithoutSidebar(t *testing.T) {
-	for _, hidden := range []bool{false, true} {
-		t.Run(fmt.Sprint("hidden=", hidden), func(t *testing.T) {
-			m := scrollModel(t, 140, 30)
-			m.sidebarHidden = hidden
+	for _, width := range []int{80, 140} {
+		t.Run(fmt.Sprint("width=", width), func(t *testing.T) {
+			m := scrollModel(t, width, 30)
 			m.fitColumns()
 			m.refreshContent()
 			m.transcript.Viewport.GotoTop()
@@ -130,7 +129,7 @@ func TestScrollbarGrabUsesDrawnColumnWithAndWithoutSidebar(t *testing.T) {
 			x := len(row) - 2
 			m.Update(tea.MouseClickMsg{X: x, Y: paneTop, Button: tea.MouseLeft})
 			if !m.scrollDrag.active {
-				t.Fatalf("drawn bar at x=%d did not grab (sidebar=%v)", x, m.sidebarVisible())
+				t.Fatalf("drawn bar at x=%d did not grab", x)
 			}
 			m.Update(tea.MouseMotionMsg{X: x - 3, Y: paneTop + 8, Button: tea.MouseLeft})
 			if m.transcript.Viewport.YOffset() == 0 {
@@ -138,9 +137,9 @@ func TestScrollbarGrabUsesDrawnColumnWithAndWithoutSidebar(t *testing.T) {
 			}
 			// Move across the sidebar and outside the pane vertically. Capture
 			// must keep ownership until release, without selecting a session.
-			m.nav.entries = []sessionEntry{{id: "a"}, {id: "b"}}
+			m.savedSessions = []sessionEntry{{id: "a"}, {id: "b"}}
 			m.Update(tea.MouseMotionMsg{X: 3, Y: m.termH - 1, Button: tea.MouseLeft})
-			if !m.transcript.Viewport.AtBottom() || m.nav.Cursor != 0 {
+			if !m.transcript.Viewport.AtBottom() {
 				t.Fatal("drag was intercepted or failed to clamp below the pane")
 			}
 			m.Update(tea.MouseMotionMsg{X: x + 3, Y: paneTop - 2, Button: tea.MouseLeft})
@@ -148,7 +147,7 @@ func TestScrollbarGrabUsesDrawnColumnWithAndWithoutSidebar(t *testing.T) {
 				t.Fatal("drag failed to clamp above the pane")
 			}
 			m.Update(tea.MouseReleaseMsg{X: 3, Y: paneTop + 1, Button: tea.MouseLeft})
-			if m.scrollDrag.active || m.nav.Cursor != 0 {
+			if m.scrollDrag.active {
 				t.Fatal("sidebar intercepted release")
 			}
 		})

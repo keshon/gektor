@@ -22,13 +22,7 @@ func (m *model) screenContent() string {
 	// takes the normal path now, where a form is drawn the way every other
 	// dialog is drawn: inside the pane, on the shared surface.
 	paneHeader := cellLine(m.identityLine(), m.transcript.Viewport.Width())
-	if m.sidebarVisible() {
-		titleStyle := m.styles.dim
-		if m.navFocused {
-			_, _, titleStyle = popupStyles()
-		}
-		paneHeader = cellLine(titleStyle.Render(" SESSIONS "), navigatorWidth) + m.styles.dim.Render(" │ ") + paneHeader
-	}
+
 	popup := m.suggestions.Pending() && m.transcript.Viewport.Height() >= 4 && m.transcript.Viewport.Width() >= 24
 	gated := (m.state == stPermission || m.state == stAsk) && m.gatePopup.Pending()
 	body := m.transcript.Viewport.View()
@@ -47,7 +41,7 @@ func (m *model) screenContent() string {
 		body = m.gateVP.View()
 	}
 	if m.dialog != nil {
-		body = m.dialogView()
+		body = m.overlayDialog(body)
 	}
 	bodyHeight := m.transcript.Viewport.Height()
 	if popup || gated {
@@ -75,50 +69,29 @@ func (m *model) screenContent() string {
 	bottom = cellFrame(bottom, m.transcript.Viewport.Width(), lipgloss.Height(bottom))
 	conversation := body + gap + "\n" + m.dividerLine() + "\n" + cellLine(m.statusLine(), m.transcript.Viewport.Width()) + "\n" + bottom
 	conversation = cellFrame(conversation, m.transcript.Viewport.Width(), m.paneHeight())
-	if m.sidebarVisible() {
-		divider := strings.Repeat(m.styles.dim.Render(" │ ")+"\n", m.paneHeight()-1) + m.styles.dim.Render(" │ ")
-		// Connect only the conversation composer rule to the vertical divider.
-		rows := strings.Split(divider, "\n")
-		ruleRow := bodyHeight
-		if !popup {
-			ruleRow++
-		}
-		rows[ruleRow] = m.styles.dim.Render(" ├─")
-		divider = strings.Join(rows, "\n")
-		conversation = lipgloss.JoinHorizontal(lipgloss.Top, m.sidebarView(), divider, conversation)
-	}
+
 	innerWidth := max(m.termW-2, 0)
-	// A full-width rule, optionally split by a junction where the sidebar
-	// divider meets it. Three rules use the same expression and differ only
-	// in that one rune; column is 0 when there is no sidebar.
-	column := 0
-	if m.sidebarVisible() {
-		column = navigatorWidth + 1
-	}
-	rule := func(junction string) string {
-		if column <= 0 {
-			return strings.Repeat("─", innerWidth)
-		}
-		return strings.Repeat("─", column) + junction +
-			strings.Repeat("─", max(innerWidth-column-1, 0))
-	}
-	content := m.menuLine() + "\n" + m.styles.dim.Render(rule("┬")) + "\n" + paneHeader +
-		"\n" + m.styles.dim.Render(rule("┼")) + "\n" + conversation
+	rule := strings.Repeat("─", innerWidth)
+	content := m.menuLine() + "\n" + m.styles.dim.Render(rule) + "\n" + paneHeader +
+		"\n" + m.styles.dim.Render(rule) + "\n" + conversation
 	if m.actionBarVisible() {
-		barRule := m.dividerLine()
-		if column > 0 {
-			barRule = m.styles.dim.Render(rule("┴"))
-		}
-		content += "\n" + barRule + "\n" + m.actionBar()
+		content += "\n" + m.styles.dim.Render(rule) + "\n" + m.actionBar()
 	}
 	if m.termW >= 2 && m.actionBarVisible() {
 		rows := strings.Split(content, "\n")
+		composerRule := paneTop + bodyHeight
+		if gap != "" {
+			composerRule++
+		}
 		for i := 1; i < len(rows)-1; i++ {
 			left, right := "│", "│"
 			if i == 1 {
 				left, right = "┌", "┐"
 			}
 			if i == 3 {
+				left, right = "├", "┤"
+			}
+			if i == composerRule {
 				left, right = "├", "┤"
 			}
 			if i == len(rows)-2 {
@@ -145,6 +118,7 @@ func (m *model) View() tea.View {
 	v.ForegroundColor = lipgloss.Color(themeColor(colorPopupText))
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
+	v.ReportFocus = true
 	owner := m.activeInputOwner()
 	if !m.ready || owner == focusDialog || owner == focusHeader {
 		return v
@@ -154,14 +128,14 @@ func (m *model) View() tea.View {
 		if m.sessions.mode == sessRename {
 			v.Cursor = m.note.Cursor()
 			if v.Cursor != nil {
-				v.Cursor.X += g.x + 1
+				v.Cursor.X += g.x + 2
 				v.Cursor.Y += g.noteRow
 			}
 		} else if m.sessions.mode == sessList {
 			v.Cursor = m.sessions.filter.Cursor()
 			if v.Cursor != nil {
-				v.Cursor.X += g.x + 1
-				v.Cursor.Y += g.y + 1
+				v.Cursor.X += g.x + 2
+				v.Cursor.Y += g.y + 2
 			}
 		}
 	} else if m.state == stPermission {

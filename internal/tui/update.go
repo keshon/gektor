@@ -9,6 +9,7 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/run"
@@ -65,6 +66,14 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	defer m.syncFocus()
 	defer m.queueSettingsDetail()
 	switch msg := msg.(type) {
+	case tea.FocusMsg:
+		// Hosts can restore their own default colors when their window gains
+		// focus. Cells remain themed, but terminal padding follows those defaults.
+		// The renderer only emits OSC colors when the View's colors change, so
+		// reapply them explicitly through its output queue on focus recovery.
+		return m, tea.Raw(ansi.SetForegroundColor(themeColor(colorPopupText)) + ansi.SetBackgroundColor(currentPalette().background))
+	case tea.BlurMsg:
+		return m, nil
 	case settingsDetailMsg:
 		m.acceptSettingsDetail(msg)
 		return m, nil
@@ -124,7 +133,7 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		if err := m.savePreferences(); err != nil {
 			m.appendBlock(errorBlock("Cannot save session settings: " + err.Error()))
 		}
-		m.refreshNavigator()
+		m.refreshSessions()
 		// Partial live text is not an answer: discard it either way.
 		m.resetLive()
 		if m.interrupted {
@@ -286,7 +295,7 @@ func (m *model) fitBottom() {
 		m.refreshGate()
 	}
 	if m.sessions != nil {
-		width := m.searchGeometry().width - 2
+		width := m.searchGeometry().width - 4
 		m.sessions.filter.SetWidth(max(width-lipgloss.Width(m.sessions.filter.Prompt)-1, 1))
 		if m.sessions.mode == sessRename {
 			m.note.SetWidth(max(width-lipgloss.Width(m.note.Prompt)-1, 1))
@@ -468,7 +477,6 @@ func (m *model) handleEvent(ev run.Event) {
 		if m.dialog != nil {
 			m.closeDialog()
 		}
-		m.navFocused = false
 		// The prompt lives in the transcript, not the bottom bar: the
 		// bar has a fixed 1-line budget (2 with the answer box), so the
 		// viewport math below always fits the terminal. A long question

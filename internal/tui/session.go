@@ -300,8 +300,7 @@ func (m *model) startRun(run func(ctx context.Context) (string, error)) {
 	m.cancel = cancel
 	m.state = stRunning
 	m.spinnerFrame = 0
-	m.navFocused = false
-	// No navigator refresh here. Nothing about the session store changes
+	// No session-list refresh here. Nothing about the session store changes
 	// when a turn starts, and the previous turn's doneMsg already
 	// rescanned it — two scans per turn, each re-decoding the state.json
 	// the agent rewrites on every step, which is a permanent cache miss.
@@ -354,7 +353,7 @@ func (m *model) newTask() {
 	m.sess, m.stateFile, m.transcript.blocks = nil, "", nil
 	m.sessionTitle = ""
 	m.resetRunFacts()
-	m.state, m.navFocused = stDone, false
+	m.state = stDone
 	m.restoreDraft()
 	m.appendBlock(markerBlock("New task · type a task to begin"))
 	m.transcript.Follow = true

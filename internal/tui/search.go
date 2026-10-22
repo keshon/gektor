@@ -1,9 +1,11 @@
 package tui
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
@@ -24,11 +26,11 @@ type searchGeometry struct{ x, y, width, height, noteRow int }
 
 // Search geometry owns render, caret and hit testing in terminal cells.
 func (m *model) searchGeometry() searchGeometry {
-	width := max(8, min(78, m.termW-4))
+	width := popup.ModalWidth(m.termW - 2)
 	count := min(m.sessVisible(), max(len(m.sessions.entries), 1))
-	height := m.sessChrome() + 2*count
-	top := paneTop + max((m.paneHeight()-height)/2, 0)
-	noteRow := top + 3 + 2*count + 1
+	height := m.sessChrome() + 4*count
+	top := paneTop + max((m.transcript.Viewport.Height()-height)/2, 0)
+	noteRow := top + 4 + 4*count
 	if m.sessions.flash != "" {
 		noteRow++
 	}
@@ -51,7 +53,7 @@ func (m *model) searchView() string {
 	line := func(style lipgloss.Style, text string) string {
 		return popup.Row(style, text, inner)
 	}
-	rows := []string{line(styles.Normal, s.filter.View()), line(styles.Normal, "")}
+	rows := []string{line(styles.Normal, m.styles.gate.Render("Open session")), line(styles.Normal, s.filter.View()), line(styles.Normal, "")}
 	if len(s.entries) == 0 {
 		label := "No saved sessions"
 		if query != "" {
@@ -60,7 +62,7 @@ func (m *model) searchView() string {
 		if s.loading {
 			label = "Loading history…"
 		}
-		rows = append(rows, line(styles.Normal, label), line(styles.Normal, ""))
+		rows = append(rows, line(styles.Normal, label), line(styles.Normal, ""), line(styles.Normal, ""))
 	}
 	for i := s.Offset; i < min(s.Offset+m.sessVisible(), len(s.entries)); i++ {
 		e := s.entries[i]
@@ -68,15 +70,16 @@ func (m *model) searchView() string {
 		if i == s.Cursor {
 			mark, style = "› ", styles.Selected
 		}
-		age := strings.TrimSuffix(ageString(e.updated), " ago")
-		if age == "just now" {
-			age = "now"
-		}
-		ageWidth := min(lipgloss.Width(age), max(inner/3, 1))
-		ageStyle := style.Foreground(lipgloss.Color(themeColor(colorSecondaryText)))
-		entry := mark + highlightSearch(cellLine(e.title, max(inner-ageWidth-1, 1)), re, style) +
-			" " + ageStyle.Render(cellLine(age, ageWidth))
+		entry := mark + highlightSearch(cellLine(e.title, max(inner-2, 1)), re, style)
 		rows = append(rows, line(style, entry))
+		metadata := "Date unavailable"
+		if !e.updated.IsZero() {
+			days := max(int(time.Since(e.updated).Hours()/24), 0)
+			metadata = fmt.Sprintf("%s · %dd ago", e.updated.Local().Format("2006-01-02 15:04"), days)
+		}
+		metadata += fmt.Sprintf(" · %d messages", e.msgs)
+		muted := style.Foreground(lipgloss.Color(themeColor(colorSecondaryText)))
+		rows = append(rows, line(muted, "  "+metadata))
 
 		text := e.preview
 		if e.matchText != "" {
@@ -87,6 +90,9 @@ func (m *model) searchView() string {
 		}
 		snippet := style.Foreground(lipgloss.Color(themeColor(colorSecondaryText)))
 		rows = append(rows, line(snippet, "  "+searchExcerpt(text, re, max(inner-2, 1))))
+		if i+1 < min(s.Offset+m.sessVisible(), len(s.entries)) {
+			rows = append(rows, line(styles.Normal.Foreground(lipgloss.Color(themeColor(colorSecondaryText))), strings.Repeat("─", inner)))
+		}
 	}
 	if s.flash != "" {
 		rows = append(rows, line(styles.Normal.Foreground(lipgloss.Color(themeColor(colorPopupError))), s.flash))
@@ -106,7 +112,7 @@ func (m *model) searchView() string {
 		hint += " · " + strconv.Itoa(s.Cursor+1) + "/" + strconv.Itoa(len(s.entries))
 	}
 	rows = append(rows, line(styles.Normal, hint))
-	return strings.Join(popup.TitledFrame("Search", rows, g.width, styles), "\n")
+	return strings.Join(popup.Frame(rows, g.width, styles), "\n")
 }
 
 // searchRegex builds the matcher once per frame. Compiling it per visible

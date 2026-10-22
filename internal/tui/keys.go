@@ -20,8 +20,6 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.footerKey(tea.KeyPressMsg{Code: tea.KeyF2})
 	case "ctrl+n":
 		return m.footerKey(tea.KeyPressMsg{Code: tea.KeyF4})
-	case "ctrl+b":
-		return m.footerKey(tea.KeyPressMsg{Code: tea.KeyF6})
 	}
 	if m.activeInputOwner() == focusHeader {
 		return m.headerKey(msg)
@@ -88,38 +86,6 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.fitInput()
 		m.fitBottom()
 		return m, nil
-	}
-	if m.state != stPermission && m.state != stAsk && m.sessions == nil && m.dialog == nil {
-		switch msg.String() {
-		case "ctrl+p":
-			m.openSessions()
-			return m, nil
-		case "ctrl+b":
-			m.sidebarHidden = !m.sidebarHidden
-			m.fitBottom()
-			m.refreshContent()
-			return m, nil
-		case "tab", "shift+tab":
-			if m.sidebarVisible() {
-				m.navFocused = !m.navFocused
-				if m.navFocused {
-					m.input.Blur()
-				} else {
-					return m, m.input.Focus()
-				}
-				return m, nil
-			}
-		case "ctrl+n":
-			if m.state == stDone {
-				m.navFocused = false
-				m.newTask()
-				return m, m.input.Focus()
-			}
-			return m, nil
-		}
-		if m.navFocused {
-			return m.navigatorKey(msg)
-		}
 	}
 	if m.sessions != nil && m.state != stPermission {
 		// The sessions screen owns its keys like a dialog — except
@@ -286,6 +252,8 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 					m.input.SetValue("")
 					m.fitInput()
 					m.fitBottom()
+					m.transcript.Follow = true
+					m.transcript.Viewport.GotoBottom()
 					return m, nil
 				}
 				if !errors.Is(err, agent.ErrInputClosed) {
@@ -303,6 +271,8 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.appendBlock(markerBlock("queued follow-up: " + truncate(text, 120)))
 			m.fitInput()
 			m.fitBottom()
+			m.transcript.Follow = true
+			m.transcript.Viewport.GotoBottom()
 			return m, nil
 		case "pgup", "pgdown":
 			return m.scrollViewport(msg)

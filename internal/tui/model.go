@@ -197,11 +197,10 @@ type model struct {
 	// is held on the bar, grab is the pointer's row inside the thumb so
 	// the thumb follows without jumping, moved marks real motion so a
 	// press-and-release without motion still counts as a click.
-	scrollDrag    scrollDrag
-	sessions      *sessionsState
-	nav           sessionsState
-	navFocused    bool
-	sidebarHidden bool
+	scrollDrag      scrollDrag
+	sessions        *sessionsState
+	savedSessions   []sessionEntry
+	sessionsLoading bool
 	// View-menu display filters. They hide transcript rows, never model
 	// history: a hidden block is still sent, stored and re-rendered the
 	// moment the filter is turned off. Session-only, so a restart always
@@ -354,7 +353,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	}
 	m.application = cfg.Application
 	m.config = cfg.Services
-	m.refreshNavigator()
+	m.refreshSessions()
 	m.input = newInput()
 	env := withoutPrintHooks(cfg.Env)
 	env.Gate = nil

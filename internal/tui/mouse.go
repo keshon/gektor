@@ -14,7 +14,7 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, m.formMouse(msg)
 	}
 	// A grabbed thumb owns motion and release until the button is released,
-	// including over the sidebar, footer and outside the scrollbar column.
+	// including over the footer and outside the scrollbar column.
 	if m.scrollDrag.active && m.dialog == nil && m.sessions == nil && m.header.menu == "" && m.scrollbarMouse(msg) {
 		return m, nil
 	}
@@ -54,32 +54,7 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if m.sessions != nil {
 		return m.browserMouse(msg)
 	}
-	if m.sidebarVisible() && msg.Mouse().X < navigatorWidth && msg.Mouse().Y >= paneTop && msg.Mouse().Y < paneTop+m.paneHeight() {
-		if m.state == stPermission || m.state == stAsk {
-			return m, nil
-		}
-		switch msg.Mouse().Button {
-		case tea.MouseWheelUp:
-			m.nav.Cursor--
-		case tea.MouseWheelDown:
-			m.nav.Cursor++
-		case tea.MouseLeft:
-			if !isMouseClick(msg) {
-				return m, nil
-			}
-			row := msg.Mouse().Y - paneTop
-			if msg.Mouse().Y < paneTop || row >= m.navigatorRows() || m.nav.Offset+row >= len(m.nav.entries) {
-				return m, nil
-			}
-			m.nav.Cursor = m.nav.Offset + row
-		default:
-			return m, nil
-		}
-		m.nav.clamp(m.navigatorRows())
-		m.navFocused = true
-		m.input.Blur()
-		return m, nil
-	}
+
 	if m.dialog != nil {
 		switch msg.Mouse().Button {
 		case tea.MouseWheelDown:
@@ -92,10 +67,7 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if m.scrollbarMouse(msg) {
 		return m, nil
 	}
-	if m.sidebarVisible() && msg.Mouse().X >= m.promptOffset() && msg.Mouse().Y >= paneTop && msg.Mouse().Y < paneTop+m.paneHeight() && msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) {
-		m.navFocused = false
-		return m, m.input.Focus()
-	}
+
 	// The input never consumes mouse messages, so scroll works in
 	// every state: wheel in ask/done used to fall through and die.
 	return m.scrollViewport(msg)

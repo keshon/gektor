@@ -1,12 +1,12 @@
 package tui
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/tui/components/selection"
 
 	"charm.land/bubbles/v2/textinput"
@@ -66,8 +66,7 @@ type sessionsState struct {
 	flash string
 	// root is the tasks dir scanned at open; mutations re-scan it so
 	// the list always reflects disk, never a stale copy.
-	root          string
-	fromNavigator bool
+	root string
 }
 
 // tasksRoot is where saved sessions live, under the user's GEKTOR
@@ -95,9 +94,9 @@ func (m *model) sessChrome() int {
 func (m *model) sessVisible() int {
 	availH := m.termH - 3
 	if m.ready {
-		availH = m.paneHeight()
+		availH = m.transcript.Viewport.Height()
 	}
-	if n := min(6, (availH-m.sessChrome())/2); n > 0 {
+	if n := min(6, (availH-m.sessChrome())/4); n > 0 {
 		return n
 	}
 	return 1
@@ -109,36 +108,14 @@ func (m *model) clampOffset() {
 	m.sessions.clamp(m.sessVisible())
 }
 
-// ageString renders mtime as "5m ago"; zero time (no snapshot yet)
-// renders a dash, never "0s ago".
-func ageString(t time.Time) string {
-	if t.IsZero() {
-		return "—"
-	}
-	d := time.Since(t)
-	if d < 0 {
-		d = 0
-	}
-	switch {
-	case d < time.Minute:
-		return "just now"
-	case d < time.Hour:
-		return fmt.Sprintf("%dm ago", int(d.Minutes()))
-	case d < 24*time.Hour:
-		return fmt.Sprintf("%dh ago", int(d.Hours()))
-	default:
-		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
-	}
-}
-
 // openSessions builds the list and pushes the overlay; closeSessions
 // tears it down with focus restored. Balanced by construction: every
 // open pairs with esc/enter or run start.
 func (m *model) openSessions() {
-	filter := newSearchInput(max(m.termW-14, 1))
+	filter := newSearchInput(max(popup.ModalWidth(m.termW-2)-6, 1))
 	filter.Focus()
-	m.sessions = &sessionsState{entries: m.nav.entries, all: m.nav.entries, root: m.sessionRoot(), filter: filter}
-	m.refreshNavigator()
+	m.sessions = &sessionsState{entries: m.savedSessions, all: m.savedSessions, loading: m.sessionsLoading, root: m.sessionRoot(), filter: filter}
+	m.refreshSessions()
 	m.pushOverlay()
 	// Search overlays the existing panes without changing composer geometry.
 	m.fitBottom()
@@ -184,9 +161,6 @@ func (m *model) sessionsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case "esc":
 			m.resetNote()
 			s.mode = sessList
-			if s.fromNavigator {
-				m.closeSessions()
-			}
 			return m, nil
 		}
 		var cmd tea.Cmd
@@ -201,9 +175,6 @@ func (m *model) sessionsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case "n", "N", "esc":
 			s.mode = sessList
 			s.flash = ""
-			if s.fromNavigator {
-				m.closeSessions()
-			}
 			return m, nil
 		}
 		return m, nil
@@ -220,10 +191,7 @@ func (m *model) sessionsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if len(s.entries) == 0 {
 			return m, nil
 		}
-		// The same component the navigator uses. It clamps the cursor and
-		// drags the offset with it; the hand-rolled version here had to be
-		// reminded to call clampOffset separately, and did not on every
-		// path that moved the cursor.
+		// Selection owns cursor and viewport bounds for keys and mouse.
 		s.Update(msg, len(s.entries), m.sessVisible())
 		return m, nil
 	case "ctrl+r":
@@ -298,7 +266,6 @@ func (m *model) openSelected() tea.Cmd {
 	m.answer = ""
 	m.steps = 0
 	m.state = stDone
-	m.navFocused = false
 	m.closeSessions()
 	m.fitBottom()
 	m.refreshContent()
@@ -431,12 +398,9 @@ func (m *model) commitRename() {
 	s.flash = ""
 	cur.title = name
 	m.updateSessionTitle(cur.dir, name)
-	m.refreshNavigator()
+	m.refreshSessions()
 	if s.all != nil {
 		s.replaceEntries(s.all)
-	}
-	if s.fromNavigator {
-		m.closeSessions()
 	}
 }
 
@@ -471,10 +435,10 @@ func (m *model) deleteSelected() {
 		return
 	}
 	delete(m.drafts, filepath.Join(cur.dir, "state.json"))
-	m.nav.entries = withoutSession(m.nav.entries, cur.dir)
+	m.savedSessions = withoutSession(m.savedSessions, cur.dir)
 	s.all = withoutSession(s.all, cur.dir)
 	s.entries = withoutSession(s.entries, cur.dir)
-	m.refreshNavigator()
+	m.refreshSessions()
 
 	if s.Cursor >= len(s.entries) && s.Cursor > 0 {
 		s.Cursor--
@@ -482,9 +446,6 @@ func (m *model) deleteSelected() {
 	m.clampOffset()
 	s.mode = sessList
 	s.flash = ""
-	if s.fromNavigator {
-		m.closeSessions()
-	}
 }
 
 // headerLine renders the static brand and session title beside the clock.
@@ -498,7 +459,7 @@ func (m *model) activeSessionTitle() string {
 		return "New session"
 	}
 	dir := filepath.Dir(m.stateFile)
-	for _, e := range m.nav.entries {
+	for _, e := range m.savedSessions {
 		if sameSession(e.dir, m.stateFile) {
 			return e.title
 		}
@@ -605,8 +566,9 @@ func (m *model) browserMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		if !isMouseClick(msg) {
 			return m, nil
 		}
-		row := (mouse.Y - g.y - 3) / 2
-		if mouse.Y < g.y+3 || row >= m.sessVisible() || s.Offset+row >= len(s.entries) {
+		at := mouse.Y - g.y - 4
+		row := at / 4
+		if at < 0 || at%4 == 3 || row >= m.sessVisible() || s.Offset+row >= len(s.entries) {
 			return m, nil
 		}
 		s.Cursor = s.Offset + row
@@ -652,9 +614,9 @@ func withoutSession(entries []sessionEntry, dir string) []sessionEntry {
 	return out
 }
 func (m *model) updateSessionTitle(dir, title string) {
-	for i := range m.nav.entries {
-		if m.nav.entries[i].dir == dir {
-			m.nav.entries[i].title = title
+	for i := range m.savedSessions {
+		if m.savedSessions[i].dir == dir {
+			m.savedSessions[i].title = title
 		}
 	}
 	if m.sessions != nil {

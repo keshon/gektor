@@ -17,7 +17,7 @@ func (m *model) formRows() ([]string, []formHit, int, int) {
 }
 
 // settingsArea is the screen region the open form is drawn into: the
-// transcript pane, wherever the sidebar puts it.
+// transcript pane.
 //
 // It used to have a second answer for the settings editor, on the theory that
 // a section needs more room than a confirmation. It does not - the pane is

@@ -20,7 +20,7 @@ func TestStartingATurnDoesNotRescanTheSessionStore(t *testing.T) {
 	// startRun's worker reports completion through send; a unit model has
 	// no program to deliver to.
 	m.send = func(tea.Msg) {}
-	m.refreshNavigator()
+	m.refreshSessions()
 	if cmd := m.takeCommands(); cmd == nil {
 		t.Fatal("launch did not queue a scan")
 	}
@@ -43,7 +43,7 @@ func TestFinishingATurnStillRescansTheSessionStore(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stRunning
 	m.wsRoot = t.TempDir()
-	m.refreshNavigator()
+	m.refreshSessions()
 	m.takeCommands()
 	before := m.sessionRevision
 

@@ -30,6 +30,25 @@ func nativeKeyRecord(vk, char uint16, modifiers uint32) xwindows.InputRecord {
 	return r
 }
 
+func TestNativeConsolePreservesWindowFocus(t *testing.T) {
+	r := &consoleReader{}
+	for _, focused := range []byte{0, 1} {
+		record := xwindows.InputRecord{EventType: xwindows.FOCUS_EVENT}
+		record.Event[0] = focused
+		r.encode(record)
+	}
+	events := decodeConsoleEvents(t, r.buffer.String())
+	if len(events) != 2 {
+		t.Fatalf("focus reports lost: %#v", events)
+	}
+	if _, ok := events[0].(uv.BlurEvent); !ok {
+		t.Fatalf("focus loss became %T", events[0])
+	}
+	if _, ok := events[1].(uv.FocusEvent); !ok {
+		t.Fatalf("focus recovery became %T", events[1])
+	}
+}
+
 func decodeConsoleEvents(t *testing.T, input string) []uv.Event {
 	t.Helper()
 	return readConsoleEvents(t, strings.NewReader(input))

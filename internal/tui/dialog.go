@@ -20,10 +20,9 @@ func wsRootOf(ws *workspace.Workspace) string {
 	return ws.Root()
 }
 
-// infoDialog is a centered flat modal over the transcript: title,
-// body lines, optional help tabs. Takeover, not compositing: while
-// open it replaces the transcript body, so no ANSI splicing is needed
-// and scroll state underneath survives untouched.
+// infoDialog is a centered modal over the transcript: title, body lines
+// and optional help tabs. Its frame overlays the document without clearing
+// the surrounding history or changing the underlying reading position.
 //
 // A dialog carries lines or a form, never both. Anything that needs an
 // answer from the user is a form: a destructive confirmation is a form with
@@ -68,6 +67,19 @@ func (m *model) dialogView() string {
 	if m.dialog.form != nil {
 		return m.formView()
 	}
+	rows, width, height := m.dialogRows()
+	return renderBox(rows, width, height)
+}
+
+func (m *model) overlayDialog(background string) string {
+	if m.dialog.form != nil {
+		return m.dialog.form.Overlay(background, m.settingsProps())
+	}
+	rows, width, height := m.dialogRows()
+	return popup.OverlayBox(background, rows, width, height, popupSurface())
+}
+
+func (m *model) dialogRows() ([]string, int, int) {
 	layout := m.layoutDialog()
 	offset := min(max(m.dialog.offset, 0), max(len(layout.lines)-layout.capacity, 0))
 	rows := layout.rows
@@ -79,7 +91,7 @@ func (m *model) dialogView() string {
 		rows = append(rows, m.styles.dim.Render(strconv.Itoa(offset+1)+"–"+strconv.Itoa(min(offset+layout.capacity, len(layout.lines)))+" / "+strconv.Itoa(len(layout.lines))))
 	}
 	rows = append(rows, m.styles.dim.Render(truncate(layout.hint, layout.inner)))
-	return renderBox(rows, layout.width, layout.height)
+	return rows, layout.width, layout.height
 }
 
 func (m *model) scrollDialog(delta int) {
@@ -96,10 +108,7 @@ func (m *model) layoutDialog() dialogLayout {
 	if m.ready {
 		availW, availH = m.transcript.Viewport.Width(), m.transcript.Viewport.Height()
 	}
-	inner := min(availW-6, 72)
-	if inner < 10 {
-		inner = 10
-	}
+	inner := max(popup.ModalWidth(availW)-4, 1)
 	// Info dialog: title, lines, close hint (with help tabs if applicable).
 	rows := []string{m.styles.gate.Render(truncate(d.title, inner))}
 	lines := []string{}
@@ -141,7 +150,7 @@ func (m *model) layoutDialog() dialogLayout {
 
 // renderBox centers rows in a bordered box: shared by the dialog and
 // the sessions screen, so overlay chrome can never drift in two.
-// renderBox centers a bordered dialog in the area it takes over. The frame
+// renderBox centers a standalone bordered dialog for previews. The frame
 // itself is components/popup, shared with the completion list, the session
 // search and the header menus so their chrome cannot drift.
 func renderBox(rows []string, availW, availH int) string {
@@ -186,9 +195,7 @@ func helpSections() []helpSection {
 			{"F1", "Open or close help"},
 			{"F2 / Ctrl+P", "Search session names and history"},
 			{"F3 / Ctrl+G", "Expand or collapse thinking and tool details"},
-			{"F6 / Ctrl+B", "Show or hide the session pane"},
-			{"Tab", "Switch between sessions and input"},
-			{"Ctrl+R / Ctrl+D", "Rename / delete the selected session in the Sessions pane"},
+			{"Ctrl+R / Ctrl+D", "Rename / delete the selected session in Open session"},
 			{"PgUp / PgDn", "Scroll the transcript; mouse wheel also works"},
 			{"F7 / Ctrl+End", "Jump to the latest message"},
 			{"F9", "Focus header badges; Left / Right choose, Enter opens"},

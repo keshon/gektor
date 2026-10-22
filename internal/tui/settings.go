@@ -10,6 +10,7 @@ import (
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/tui/components/form"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/tui/settings"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -145,7 +146,7 @@ func (m *model) renameActive() {
 			return err
 		}
 		m.updateSessionTitle(dir, title)
-		m.refreshNavigator()
+		m.refreshSessions()
 		return nil
 	})
 }
@@ -161,7 +162,7 @@ func (m *model) deleteActive() {
 			return err
 		}
 		m.newTask()
-		m.refreshNavigator()
+		m.refreshSessions()
 		return nil
 	})
 	m.dialog.form.Destructive = true
@@ -200,7 +201,7 @@ func (m *model) resizeFormEditor() {
 		return
 	}
 	f := m.dialog.form
-	f.Editor.SetWidth(max(min(m.transcript.Viewport.Width()-6, 72), 12))
+	f.Editor.SetWidth(max(popup.ModalWidth(m.transcript.Viewport.Width())-4, 1))
 	height := 1
 	if f.Index < len(f.Fields) && f.Fields[f.Index].Multiline {
 		height = min(3, max(m.transcript.Viewport.Height()-10, 1))

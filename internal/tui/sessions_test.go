@@ -79,7 +79,7 @@ func chdirSessions(t *testing.T, tmp string) string {
 }
 
 // listSessionsIn was deleted from production (nothing called it; scanSessions
-// is the real path via refreshNavigator). Tests still need a list call, so the
+// is the real path via refreshSessions). Tests still need a list call, so the
 // wrapper lives here.
 func listSessionsIn(root string) []sessionEntry {
 	entries, _ := scanSessions(root, nil, true)
@@ -151,7 +151,7 @@ func sessionsTestModel(t *testing.T, entries []sessionEntry) *model {
 	t.Helper()
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	m.nav.entries = append([]sessionEntry(nil), entries...)
+	m.savedSessions = append([]sessionEntry(nil), entries...)
 	m.sessions = &sessionsState{filter: newSearchInput(80), entries: entries, root: tasksRoot()}
 	// Resume needs a session object for follow-ups; run.New validates
 	// a full Env, so tests stub the constructor (production always

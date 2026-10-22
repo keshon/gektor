@@ -16,6 +16,9 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/cell"
 )
 
+// ModalWidth is shared by task modals; anchored menus size to content.
+func ModalWidth(areaW int) int { return max(4, min(80, areaW-2)) }
+
 // Styles are the palette values a popup draws with. The caller supplies them
 // so this package stays free of the application's theme.
 type Styles struct {
@@ -52,8 +55,7 @@ func Frame(rows []string, width int, s Styles) []string {
 }
 
 // TitledFrame is Frame with a title set into the top border. A title too long
-// for the requested width widens the border rather than being clipped: a
-// frame that has lost its own title is worse than one cell too wide.
+// for the requested width is clipped so it cannot escape the terminal.
 func TitledFrame(title string, rows []string, width int, s Styles) []string {
 	return frame(rows, title, width, s)
 }
@@ -72,6 +74,16 @@ func Box(rows []string, s Styles) []string {
 	return framed
 }
 
+// ModalBox uses the common task-modal width for both drawing and hit testing.
+func ModalBox(rows []string, areaW int, s Styles) []string {
+	width := ModalWidth(areaW)
+	styled := make([]string, len(rows))
+	for i, row := range rows {
+		styled[i] = Row(s.Normal, row, max(width-4, 1))
+	}
+	return Frame(styled, width, s)
+}
+
 // FrameBox centers a box in a larger area, which is how a dialog takes over
 // the transcript without splicing ANSI into the lines beneath it.
 //
@@ -79,7 +91,7 @@ func Box(rows []string, s Styles) []string {
 // shifts the top border away from the box it belongs to, which reads as two
 // overlapping frames rather than one misaligned one.
 func FrameBox(rows []string, areaW, areaH int, s Styles) string {
-	framed := Box(rows, s)
+	framed := ModalBox(rows, areaW, s)
 	w := cell.Width(strings.Join(framed, "\n"))
 	left := max((areaW-w)/2, 0)
 	top := max((areaH-len(framed))/2, 0)
@@ -90,6 +102,14 @@ func FrameBox(rows []string, areaW, areaH int, s Styles) string {
 		indented[i] = indent + line
 	}
 	return strings.Repeat("\n", top) + strings.Join(indented, "\n")
+}
+
+// OverlayBox shares the modal frame and centering with FrameBox while keeping
+// the underlying document visible outside the frame.
+func OverlayBox(background string, rows []string, areaW, areaH int, s Styles) string {
+	framed := ModalBox(rows, areaW, s)
+	width := ModalWidth(areaW)
+	return Overlay(background, framed, max((areaW-width)/2, 0), max((areaH-len(framed))/2, 0), width, areaW)
 }
 
 // Overlay splices rows over an already-rendered screen at a position,
@@ -138,13 +158,6 @@ func topBorder(title string, width int) string {
 	if title == "" {
 		return "╭" + strings.Repeat("─", edge) + "╮"
 	}
-	label := "─ " + title + " "
-	fill := edge - lipgloss.Width(label)
-	if fill < 0 {
-		// The title is longer than the frame asked for. Widen rather than
-		// clip: a frame that has lost its own title is worse than a popup
-		// two cells wider than the caller's preference.
-		return "╭" + label + strings.Repeat("─", -fill+1) + "╮"
-	}
-	return "╭" + label + strings.Repeat("─", fill) + "╮"
+	label := ansi.Truncate("─ "+title+" ", edge, "…")
+	return "╭" + label + strings.Repeat("─", max(edge-lipgloss.Width(label), 0)) + "╮"
 }

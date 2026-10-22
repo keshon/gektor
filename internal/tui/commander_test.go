@@ -25,8 +25,8 @@ func TestCommanderFrameAtSupportedSizes(t *testing.T) {
 					t.Fatalf("%d state %d: row width %d", width, state, lipgloss.Width(row))
 				}
 			}
-			if width >= navigatorMinWidth && !strings.Contains(ansi.Strip(rows[2]), "SESSIONS") {
-				t.Fatal("missing session pane header")
+			if strings.Contains(ansi.Strip(rows[2]), "SESSIONS") {
+				t.Fatal("removed session pane still visible")
 			}
 			if m.transcript.Viewport.Height() != 20 {
 				t.Fatalf("lost transcript rows: %d", m.transcript.Viewport.Height())
@@ -134,21 +134,22 @@ func TestCommanderOutlinesCloseOnBothSides(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.width(tea.WindowSizeMsg{Width: 120, Height: 30})
 	rows := strings.Split(ansi.Strip(m.View().Content), "\n")
-	if !strings.HasPrefix(rows[1], "┌") || !strings.HasSuffix(rows[1], "┐") || !strings.Contains(rows[1], "┬") {
+	if !strings.HasPrefix(rows[1], "┌") || !strings.HasSuffix(rows[1], "┐") || strings.Contains(rows[1], "┬") {
 		t.Fatal("top outline is open")
 	}
 	for i, row := range rows[2:28] {
 		if i == 1 {
-			if !strings.HasPrefix(row, "├") || !strings.HasSuffix(row, "┤") || !strings.Contains(row, "┼") {
+			if !strings.HasPrefix(row, "├") || !strings.HasSuffix(row, "┤") || strings.Contains(row, "┼") {
 				t.Fatal("header rule disconnected")
 			}
 			continue
 		}
-		if !strings.HasPrefix(row, "│") || !strings.HasSuffix(row, "│") {
+		if (!strings.HasPrefix(row, "│") || !strings.HasSuffix(row, "│")) &&
+			(!strings.HasPrefix(row, "├") || !strings.HasSuffix(row, "┤")) {
 			t.Fatal("side outline is open")
 		}
 	}
-	if !strings.HasPrefix(rows[28], "└") || !strings.HasSuffix(rows[28], "┘") || !strings.Contains(rows[28], "┴") {
+	if !strings.HasPrefix(rows[28], "└") || !strings.HasSuffix(rows[28], "┘") || strings.Contains(rows[28], "┴") {
 		t.Fatal("bottom outline is open")
 	}
 }

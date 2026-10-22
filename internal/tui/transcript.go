@@ -517,8 +517,14 @@ func resultLineStyle(origLine, frag string, st styles) string {
 
 // appendBlock records a block and re-renders the transcript.
 func (m *model) appendBlock(b block) {
+	if b.role == roleUser {
+		m.transcript.Follow = true
+	}
 	m.transcript.blocks = append(m.transcript.blocks, b)
 	m.refreshContent()
+	if b.role == roleUser {
+		m.transcript.Viewport.GotoBottom()
+	}
 }
 
 // renderLive uses the same label rows and Markdown blocks as completed

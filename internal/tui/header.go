@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -86,7 +87,6 @@ func (m *model) headerBadges() []headerBadge {
 	for _, b := range candidates {
 		total += lipgloss.Width(b.label) + 2
 	}
-	total += lipgloss.Width(m.badgePaneLabel())
 	if total > m.transcript.Viewport.Width() {
 		available := lipgloss.Width(candidates[2].label) - (total - m.transcript.Viewport.Width())
 		if available >= 6 {
@@ -95,7 +95,7 @@ func (m *model) headerBadges() []headerBadge {
 			candidates = append(candidates[:2], candidates[3:]...)
 		}
 	}
-	x := lipgloss.Width(m.badgePaneLabel())
+	x := 0
 	for i := range candidates {
 		candidates[i].start = x
 		candidates[i].end = min(x+lipgloss.Width(candidates[i].label)+2, m.transcript.Viewport.Width())
@@ -106,7 +106,6 @@ func (m *model) headerBadges() []headerBadge {
 
 func (m *model) badgeLine() string {
 	normal := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorPopupText)))
-	_, _, selected := popupStyles()
 	badges := m.headerBadges()
 	var out []string
 	for _, b := range badges {
@@ -135,16 +134,7 @@ func (m *model) badgeLine() string {
 		}
 		out = append(out, style.Render(" "+b.label+" "))
 	}
-	label := m.badgePaneLabel()
-	titleStyle := m.styles.dim
-	if !m.navFocused {
-		titleStyle = selected
-	}
-	return cellLine(titleStyle.Render(label)+strings.Join(out, ""), m.transcript.Viewport.Width())
-}
-
-func (m *model) badgePaneLabel() string {
-	return " HISTORY "
+	return cellLine(strings.Join(out, ""), m.transcript.Viewport.Width())
 }
 
 func (m *model) rawHeaderItems() []headerItem {
@@ -163,7 +153,6 @@ func (m *model) rawHeaderItems() []headerItem {
 		// a scroll action are not the same kind of thing, and listing
 		// them as one flat list hid that.
 		return []headerItem{
-			{"Hide Sessions", "toggle-sidebar", m.termW >= navigatorMinWidth},
 			{"Truncate AI reply", "toggle-details", true},
 			{"Hide SYS messages", "toggle-sys", true},
 			{"Hide labels", "toggle-labels", true},
@@ -349,8 +338,6 @@ func (m *model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				return m, nil
 			case "quit":
 				return m.requestQuit()
-			case "toggle-sidebar":
-				return m.handleKey(tea.KeyPressMsg{Code: 'b', Mod: tea.ModCtrl})
 			case "toggle-details":
 				return m.handleKey(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
 			case "toggle-sys":
@@ -542,6 +529,17 @@ func (m *model) menuLine() string {
 		}
 		line += label
 	}
+	// Session identity lives opposite the menus, leaving run metrics intact.
+	identity := m.activeSessionTitle()
+	if m.stateFile != "" {
+		identity = filepath.Base(filepath.Dir(m.stateFile)) + " · " + identity
+	}
+	available := m.termW - lipgloss.Width(line) - 3
+	if available >= 12 {
+		identity = strings.TrimSpace(cellLine(identity, available))
+		line += normal.Render(strings.Repeat(" ", max(m.termW-lipgloss.Width(line)-lipgloss.Width(identity)-1, 0)))
+		line += normal.Foreground(lipgloss.Color(themeColor(colorSecondaryText))).Render(identity)
+	}
 	return line + normal.Render(strings.Repeat(" ", max(m.termW-lipgloss.Width(line), 0)))
 }
 
@@ -578,11 +576,9 @@ func (m *model) headerActionRow(start, delta int) int {
 // is blank on most of them.
 //
 // on is the state the label names, not the state a toggle flips to: the
-// mark on "Hide Sessions" means the sidebar is hidden.
+// mark on "Hide SYS messages" means harness messages are hidden.
 func (m *model) headerToggle(command string) (toggle, on bool) {
 	switch command {
-	case "toggle-sidebar":
-		return true, m.sidebarHidden
 	case "toggle-details":
 		return true, m.transcript.compact
 	case "toggle-sys":
@@ -605,8 +601,6 @@ func menuShortcut(command string) string {
 		return "Ctrl+N"
 	case "quit":
 		return "Ctrl+Q"
-	case "toggle-sidebar":
-		return "Ctrl+B"
 	case "toggle-details":
 		return "Ctrl+G"
 	case "latest":

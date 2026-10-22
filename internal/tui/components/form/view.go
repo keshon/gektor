@@ -7,6 +7,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/tui/components/cell"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
 type Hit struct{ Index, Y0, Y1, X0, X1 int }
@@ -47,7 +48,7 @@ type Props struct {
 
 func (f Model) Rows(props Props) ([]string, []Hit) {
 	w, h := props.Width, props.Height
-	inner := max(min(w-6, 72), 12)
+	inner := max(popup.ModalWidth(w)-4, 1)
 	height := f.Editor.Height()
 	rows := []string{props.Styles.Focus.Render(props.Title), "", props.Styles.Muted.Render(cell.Line(props.Hint, inner)), ""}
 

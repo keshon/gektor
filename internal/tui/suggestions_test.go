@@ -39,7 +39,7 @@ func TestCommandSuggestionsInsertWithoutSubmitting(t *testing.T) {
 	m := completionModel(t)
 	m.input.SetValue("/se")
 	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	if m.input.Value() != "/sessions " || m.sessions != nil || m.navFocused {
+	if m.input.Value() != "/sessions " || m.sessions != nil {
 		t.Fatal("Tab must complete the command without running it or switching panes")
 	}
 	m.input.SetValue("/mode p")

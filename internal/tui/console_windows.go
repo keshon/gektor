@@ -106,6 +106,14 @@ func (r *consoleReader) Read(p []byte) (int, error) {
 
 func (r *consoleReader) encode(record xwindows.InputRecord) {
 	switch record.EventType {
+	case xwindows.FOCUS_EVENT:
+		// Preserve native focus reports as VT events, as the standard terminal
+		// reader does. Dropping them prevents the model restoring host colors.
+		if record.FocusEvent().SetFocus {
+			r.buffer.WriteString("\x1b[I")
+		} else {
+			r.buffer.WriteString("\x1b[O")
+		}
 	case xwindows.KEY_EVENT:
 		e := record.KeyEvent()
 		// A VT character stream has no key releases. Serializing native

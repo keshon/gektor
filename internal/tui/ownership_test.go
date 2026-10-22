@@ -89,14 +89,13 @@ func TestViewDoesNotChangeSelectionOrFocus(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.width(tea.WindowSizeMsg{Width: 120, Height: 30})
-	m.nav.entries = []sessionEntry{{title: "session", updated: time.Now()}}
-	m.nav.Cursor, m.nav.Offset = 99, 99
+	m.savedSessions = []sessionEntry{{title: "session", updated: time.Now()}}
 	m.header = headerState{focused: true, index: 99, menu: "model", row: 99}
 	beforeHeader := m.header
 	beforeFocused := m.input.Focused()
 	m.View()
 	m.View()
-	if !reflect.DeepEqual(m.header, beforeHeader) || m.nav.Cursor != 99 || m.nav.Offset != 99 || m.input.Focused() != beforeFocused {
+	if !reflect.DeepEqual(m.header, beforeHeader) || m.input.Focused() != beforeFocused {
 		t.Fatal("render changed UI state")
 	}
 	m.header = headerState{}
@@ -123,22 +122,22 @@ func TestSessionScanRunsOutsideUpdateAndRejectsStaleResults(t *testing.T) {
 	m.state = stDone
 	m.wsRoot = t.TempDir()
 	writeSessionState(t, sessionsRootFor(t, m.wsRoot), "one", userHistory("one"))
-	m.refreshNavigator()
+	m.refreshSessions()
 	first := m.takeCommands()
-	if len(m.nav.entries) != 0 {
+	if len(m.savedSessions) != 0 {
 		t.Fatal("refresh scanned synchronously")
 	}
 	old := first().(sessionsLoadedMsg)
-	m.refreshNavigator()
+	m.refreshSessions()
 	_, next := m.Update(old)
-	if len(m.nav.entries) != 0 {
+	if len(m.savedSessions) != 0 {
 		t.Fatal("stale scan replaced current state")
 	}
 	if next == nil {
 		t.Fatal("latest scan command missing")
 	}
 	m.Update(next())
-	if len(m.nav.entries) != 1 {
+	if len(m.savedSessions) != 1 {
 		t.Fatal("current scan not applied")
 	}
 }
@@ -183,7 +182,7 @@ func TestSessionCommandDoesNotReadLiveModel(t *testing.T) {
 	m.state = stDone
 	root := sessionsRootFor(t, t.TempDir())
 	writeSessionState(t, root, "one", userHistory("captured root"))
-	m.refreshNavigator()
+	m.refreshSessions()
 	cmd := m.takeCommands()
 	// Move the session library before executing the worker. It must use
 	// the root captured with the command, not the live one.
@@ -228,24 +227,6 @@ func TestCompletionClosesCancelledPermissionOverlay(t *testing.T) {
 	m.Update(doneMsg{})
 	if len(m.overlays) != 0 || m.activeInputOwner() != focusInput {
 		t.Fatal("finished gate retained overlay ownership")
-	}
-}
-
-func TestHelpRestoresNavigatorOwner(t *testing.T) {
-	m := sizeModel(t, testModel())
-	m.state = stDone
-	m.width(tea.WindowSizeMsg{Width: 120, Height: 30})
-	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	m.Update(tea.KeyPressMsg{Code: tea.KeyF1})
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	if m.activeInputOwner() != focusNavigator || !m.navFocused || m.input.Focused() {
-		t.Fatal("Help lost Sessions ownership")
-	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyF1})
-	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	if m.activeInputOwner() != focusInput || !m.input.Focused() {
-		t.Fatal("hidden sidebar retained ownership after resize")
 	}
 }
 

@@ -72,12 +72,10 @@ the context badge becomes current as the new request starts, initially estimated
 until the server supplies counts. Older sessions without
 model metadata show `—` until a new response.
 
-At 110 columns and 18 rows or larger, the 34-column Sessions pane appears
-unless hidden with F6 or Ctrl+B. Tab switches between the pane and input.
-Gray rules stay neutral; the focused pane label is colored. A cyan `▌`
-marks the current saved session; `›` marks the row selected in the focused
-pane. Ages are gray. `*`, `?`, and `!` indicate working/stopping, input
-needed, and failed/unreadable states.
+The transcript and composer use the full width. Ctrl+P / F2 opens saved sessions
+with name/history search, rename and delete. Each entry shows its last update,
+age in days, message count and preview, separated by a rule. Task modals share
+an 80-cell frame (clamped to the terminal), overlaid on the visible history; menus remain anchored to their controls. The session ID and title sit at the right of the top menu row when space allows. Sending a message resumes follow at the bottom; incoming assistant output preserves a manually scrolled reading position.
 
 The transcript reads as a name row, a label row and a body. A run of
 blocks by one participant opens with its name in uppercase; the blocks
@@ -161,7 +159,7 @@ which is saved in optional `usage.json` alongside `state.json`. Missing or
 corrupt usage metadata does not prevent opening a session.
 
 Session scans run in background commands, with revision checks preventing stale
-results from replacing newer state. The sidebar loads session metadata; opening
+results from replacing newer state. The session cache loads metadata; opening
 Search prepares conversation text. Unchanged histories reuse the session cache.
 Opening old history omits message timestamps because the saved format does not
 record them; live messages retain their actual display times.
@@ -250,7 +248,7 @@ missing text-file paths with an extension/path separator report an error.
 Help (F1), Search (Ctrl+P), and New (Ctrl+N) keep fixed positions.
 The middle actions follow focus: Send/Newline in the composer, Stop/Latest
 during a run, Rename/Delete in Sessions, and Back/Choose in overlays.
-Details/Less (Ctrl+G), Sessions (Ctrl+B), and Quit (Ctrl+Q) remain at the end. Ctrl shortcuts use
+Details/Less (Ctrl+G) and Quit (Ctrl+Q) remain at the end. Ctrl shortcuts use
 compact caret notation (for example, `^P`) in narrow cells. Below 120
 columns the toolbar stays on one row, shortening labels and reducing visible actions when needed. Mouse clicks invoke the same key routing.
 
@@ -261,7 +259,6 @@ Existing function keys remain aliases:
 - F3 Details: expand/collapse thinking and tool output.
 - F4 New: start an empty session when idle.
 - F5 Mode: switch Plan/Act when idle in a direct run.
-- F6 Sidebar: show/hide the pane when the terminal is wide enough.
 - F7 Latest: jump to the latest message.
 - F8: unused.
 - F9: focus the global menu. Left/Right selects a category; Enter opens its dropdown.
@@ -354,7 +351,7 @@ local UI commands; they are not tools or RPC methods.
 
 ### Commander-style frame
 
-The global menu and shortcut footer each occupy one row. Sessions remain in the left pane; the run status, transcript, and growing multiline composer stay in the right pane. Tab switches pane focus, F6/Ctrl+B toggles the sidebar, and F2/Ctrl+P opens session search. Top-menu clicks use the same function-key routing, including disabled actions during approval. Narrow terminals hide the sidebar and reduce visible footer controls; full bindings remain available through Help.
+The global menu and shortcut footer each occupy one row. The run status, transcript and multiline composer use the full width. F2/Ctrl+P opens saved sessions. Top-menu clicks use the same function-key routing, including disabled actions during approval. Narrow terminals reduce visible footer controls; full bindings remain available through Help.
 
 The top row is an unbranded dropdown menu: Session, Run, View, Settings, Help. Click a category or press F9, then use Left/Right to switch categories, Up/Down to select, Enter to apply and Esc to back out. Session exposes new/search/compact/rename/delete/quit, Run exposes Plan/Act/stop/retry/permissions, View exposes the display toggles and jump/theme actions, and Settings lists the editable sections. The function-key and Ctrl shortcuts remain in the footer and Help.
 
@@ -484,7 +481,6 @@ The View menu splits into what the reader hides and what they can do,
 with a rule between the two zones:
 
 ```text
-✓ Hide Sessions            Ctrl+B
 ✓ Truncate AI reply        Ctrl+G
 ✓ Hide SYS messages
   Hide labels
@@ -494,12 +490,12 @@ with a rule between the two zones:
 ```
 
 A checkmark states the condition the row's own label names, so it
-appears on "Hide Sessions" only while the sidebar is hidden. It fills the
+appears on "Hide SYS messages" while harness messages are hidden. It fills the
 label indent every menu row already carries, so a tick costs no width and
 never moves the labels. Plan/Act share the same indent; a menu with nothing
 to toggle simply leaves it blank.
 
-**Hide Sessions** (`Ctrl+B`, `F6`) hides the Sessions pane. **Truncate AI
+**Truncate AI
 reply** (`Ctrl+G`, `F3`) collapses thinking and long tool output. **Hide
 SYS messages** drops harness notices, and nothing else: errors,
 warnings, permission questions, tool results stay,
@@ -507,7 +503,7 @@ because they are the record of what happened. **Hide labels** drops the
 `[TAG]` rows and keeps the name rows, so every block still says who
 spoke.
 
-All four are display-only and session-only. Hidden blocks stay in the
+All three are display-only and session-only. Hidden blocks stay in the
 model history and return unchanged when a filter is lifted; nothing is
 persisted, so a restart always shows the full transcript. **Jump to
 latest** (`Ctrl+End`, `F7`) scrolls to the newest content, and **Select

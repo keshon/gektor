@@ -52,7 +52,7 @@ type Generation struct {
 func DefaultProfile() Profile {
 	return Profile{Version: 1,
 		Provider:   Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local"},
-		Generation: Generation{MaxTokens: 2048, ContextLimit: 8192, Temperature: 0.7},
+		Generation: Generation{MaxTokens: 8192, ContextLimit: 8192, Temperature: 0.7},
 		Identity:   &Identity{UserName: DefaultUserName, SystemPrompt: DefaultSystemPrompt, PromptPreset: "coding"},
 	}
 }

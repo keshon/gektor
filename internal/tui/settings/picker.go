@@ -12,6 +12,7 @@ import (
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/tui/components/cell"
 	"github.com/keshon/gektor/internal/tui/components/form"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/tui/components/selection"
 )
 
@@ -261,7 +262,7 @@ func (p *Picker) UpdateInput(msg tea.Msg) tea.Cmd {
 func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 	p := f.Picker
 	w, h := props.Width, props.Height
-	inner := max(w-6, 12)
+	inner := max(popup.ModalWidth(w)-4, 1)
 	title := p.Field
 	switch title {
 	case "load-profile":

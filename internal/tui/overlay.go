@@ -8,7 +8,6 @@ type focusOwner int
 
 const (
 	focusViewport focusOwner = iota
-	focusNavigator
 	focusInput
 	focusNote
 	focusSearch
@@ -27,8 +26,6 @@ type overlayFrame struct {
 func (m *model) pushOverlay() {
 	focus := focusViewport
 	switch {
-	case m.navFocused:
-		focus = focusNavigator
 	case m.note.Focused():
 		focus = focusNote
 	case m.input.Focused():
@@ -49,16 +46,11 @@ func (m *model) popOverlay() {
 func (m *model) applyFocus(f focusOwner) {
 	m.input.Blur()
 	m.note.Blur()
-	m.navFocused = f == focusNavigator && m.sidebarVisible()
 	switch f {
 	case focusInput:
 		m.input.Focus()
 	case focusNote:
 		m.note.Focus()
-	case focusNavigator:
-		if !m.navFocused {
-			m.input.Focus()
-		}
 	}
 }
 
@@ -87,9 +79,6 @@ func (m *model) activeInputOwner() focusOwner {
 	}
 	if m.header.focused {
 		return focusHeader
-	}
-	if m.navFocused {
-		return focusNavigator
 	}
 	return focusInput
 }

@@ -3,13 +3,45 @@ package tui
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/config"
 )
+
+func TestWindowFocusRestoresTerminalThemeWithoutEditingDraft(t *testing.T) {
+	defer setTheme("dark")
+	for _, theme := range []string{"light", "dark"} {
+		m := sizeModel(t, testModel())
+		m.state = stDone
+		m.applyTheme(theme)
+		m.input.SetValue("unfinished\nsecond line")
+		m.pendingCommands = nil
+		if !m.View().ReportFocus {
+			t.Fatal("terminal focus reports are disabled")
+		}
+		m.Update(tea.BlurMsg{})
+		_, cmd := m.Update(tea.FocusMsg{})
+		if cmd == nil {
+			t.Fatal("focus recovery did not restore terminal colors")
+		}
+		raw, ok := cmd().(tea.RawMsg)
+		if !ok {
+			t.Fatal("theme restoration bypassed the renderer output queue")
+		}
+		colors, ok := raw.Msg.(string)
+		if !ok || !strings.Contains(colors, ansi.SetBackgroundColor(currentPalette().background)) || !strings.Contains(colors, ansi.SetForegroundColor(themeColor(colorPopupText))) {
+			t.Fatal("focus recovery used different terminal colors than the frame")
+		}
+		if m.input.Value() != "unfinished\nsecond line" || !m.input.Focused() {
+			t.Fatal("window focus changed the draft or its input owner")
+		}
+	}
+}
 
 func TestThemeChangesOnlyAppearanceAndPersists(t *testing.T) {
 	defer setTheme("dark")

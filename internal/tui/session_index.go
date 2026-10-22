@@ -12,9 +12,9 @@ type sessionsLoadedMsg struct {
 }
 
 // Commands capture immutable inputs. Only Update accepts their results into UI state.
-func (m *model) refreshNavigator() {
+func (m *model) refreshSessions() {
 	m.sessionRevision++
-	m.nav.loading = true
+	m.sessionsLoading = true
 	if m.sessions != nil {
 		m.sessions.loading = true
 	}
@@ -33,19 +33,8 @@ func (m *model) acceptSessions(msg sessionsLoadedMsg) {
 	if msg.revision != m.sessionRevision || msg.root != m.sessionRoot() {
 		return
 	}
-	selected := ""
-	if len(m.nav.entries) > 0 {
-		selected = m.nav.entries[min(m.nav.Cursor, len(m.nav.entries)-1)].dir
-	}
-	m.nav.entries, m.sessionIndex = msg.entries, msg.cache
-	m.nav.loading = false
-	for i, e := range m.nav.entries {
-		if e.dir == selected {
-			m.nav.Cursor = i
-			break
-		}
-	}
-	m.nav.clamp(m.navigatorRows())
+	m.savedSessions, m.sessionIndex = msg.entries, msg.cache
+	m.sessionsLoading = false
 	if m.sessions != nil {
 		m.sessions.replaceEntries(msg.entries)
 		m.sessions.loading = false

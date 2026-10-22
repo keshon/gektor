@@ -96,16 +96,12 @@ func TestFocusAndMetricsHaveDedicatedPlaces(t *testing.T) {
 	if !strings.Contains(rows[2], "step 7/25") || strings.Count(strings.Join(rows, "\n"), "step 7/25") != 1 {
 		t.Fatal("run metrics must appear once in the top status row")
 	}
-	_, _, activeTitle := popupStyles()
-	if !strings.Contains(m.View().Content, activeTitle.Render(" HISTORY ")) {
-		t.Fatal("input focus not identified")
+	if strings.Contains(ansi.Strip(m.identityLine()), "HISTORY") {
+		t.Fatal("obsolete pane label remains")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyTab})
-	if !strings.Contains(m.View().Content, activeTitle.Render(" SESSIONS ")) || !m.navFocused {
-		t.Fatal("transcript pane focus not identified")
-	}
+
 	m.Update(tea.MouseClickMsg{X: 60, Y: 5, Button: tea.MouseLeft})
-	if m.navFocused || !m.input.Focused() {
+	if !m.input.Focused() {
 		t.Fatal("click did not return focus to input")
 	}
 }
@@ -167,16 +163,6 @@ func TestFooterModeAndNewPreserveDraft(t *testing.T) {
 	}
 }
 
-func TestSidebarHasOneHeadingAndNoShortcutCluster(t *testing.T) {
-	m := sizeModel(t, testModel())
-	m.state = stDone
-	m.width(tea.WindowSizeMsg{Width: 120, Height: 30})
-	view := ansi.Strip(m.View().Content)
-	if strings.Count(view, "SESSIONS") != 1 || strings.Contains(m.sidebarView(), "Ctrl+") || strings.Contains(m.identityLine(), "Chat input") {
-		t.Fatal("duplicate chat heading or shortcut clutter")
-	}
-}
-
 func TestToolbarContextAndQuitProtection(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
@@ -190,11 +176,11 @@ func TestToolbarContextAndQuitProtection(t *testing.T) {
 	if !strings.Contains(m.input.Value(), "\n") {
 		t.Fatal("toolbar newline shortcut")
 	}
-	m.navFocused = true
+	m.openSessions()
 	if m.footerActions()[3].label != "Rename" {
 		t.Fatal("navigator actions")
 	}
-	m.navFocused = false
+	m.closeSessions()
 	m.state = stRunning
 	if m.footerActions()[3].label != "Stop" {
 		t.Fatal("run actions")

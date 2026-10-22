@@ -67,7 +67,7 @@ func TestSearchPopupGeometryAndDraftPreservation(t *testing.T) {
 		if strings.Contains(m.sessions.filter.View(), "…") {
 			t.Fatal("search field clipped its own padding")
 		}
-		if view.Cursor == nil || view.Cursor.X < g.x || view.Cursor.X >= g.x+g.width || view.Cursor.Y != g.y+1 {
+		if view.Cursor == nil || view.Cursor.X < g.x || view.Cursor.X >= g.x+g.width || view.Cursor.Y != g.y+2 {
 			t.Fatalf("size %v: caret %+v geometry %+v", size, view.Cursor, g)
 		}
 		for _, line := range strings.Split(view.Content, "\n") {
@@ -78,8 +78,8 @@ func TestSearchPopupGeometryAndDraftPreservation(t *testing.T) {
 		if lipgloss.Height(view.Content) != size[1] || g.x != (size[0]-g.width)/2 {
 			t.Fatal("popup not centered or frame clipped")
 		}
-		if size[1] >= 24 && m.sessVisible() != 6 {
-			t.Fatal("search did not use six result slots")
+		if m.sessVisible()*4+m.sessChrome() > m.transcript.Viewport.Height() && m.sessVisible() > 1 {
+			t.Fatal("search rows do not fit the transcript")
 		}
 		m.sessionsKey(tea.KeyPressMsg{Code: tea.KeyEsc})
 		if m.input.Value() != "draft\nsecond line" {
@@ -113,36 +113,37 @@ func TestSearchHistoryMatchOpensAtMessage(t *testing.T) {
 	}
 }
 
-func TestNavigatorRenameAndDeleteKeepPaneFocus(t *testing.T) {
+func TestSessionRenameAndDeleteKeepModalOpen(t *testing.T) {
 	m := testModel()
 	m.state = stDone
 	m.wsRoot = t.TempDir()
 	dir := writeSessionState(t, sessionsRootFor(t, m.wsRoot), "one", userHistory("Original title"))
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
-	m.refreshNavigator()
+	m.refreshSessions()
 	finishSessionRefresh(t, m)
-	m.navFocused = true
+	m.openSessions()
+	finishSessionRefresh(t, m)
 	m.input.Blur()
-	m.navigatorKey(tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+	m.sessionsKey(tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
 	if m.sessions == nil || m.sessions.mode != sessRename {
 		t.Fatal("pane rename shortcut missing")
 	}
 	m.note.SetValue("Renamed")
 	m.sessionsKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.sessions != nil || !m.navFocused || workspace.ReadSessionTitle(dir) != "Renamed" {
+	if m.sessions == nil || m.sessions.mode != sessList || workspace.ReadSessionTitle(dir) != "Renamed" {
 		t.Fatal("rename did not return to pane")
 	}
-	m.navigatorKey(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
+	m.sessionsKey(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
 	if m.sessions == nil || m.sessions.mode != sessConfirm {
 		t.Fatal("pane delete shortcut missing")
 	}
 	m.sessionsKey(tea.KeyPressMsg{Code: 'n', Text: "n"})
-	if m.sessions != nil || !m.navFocused {
+	if m.sessions == nil || m.sessions.mode != sessList {
 		t.Fatal("cancel deletion did not return to pane")
 	}
-	m.navigatorKey(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
+	m.sessionsKey(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
 	m.sessionsKey(tea.KeyPressMsg{Code: 'y', Text: "y"})
-	if _, err := os.Stat(dir); !os.IsNotExist(err) || m.sessions != nil || !m.navFocused {
+	if _, err := os.Stat(dir); !os.IsNotExist(err) || m.sessions == nil || m.sessions.mode != sessList {
 		t.Fatal("confirmed deletion did not remove session and restore pane")
 	}
 

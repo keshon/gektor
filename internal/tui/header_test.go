@@ -81,7 +81,7 @@ func TestEmptyHeaderShowsZeroMetricsAndTwoSpaceGaps(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 140, 25)
 	m.state, m.limit, m.modelName = stDone, 65536, "model.gguf"
 	line := ansi.Strip(m.badgeLine())
-	if !strings.Contains(line, "HISTORY  ACT  READY  model.gguf  CTX 0/65.5k  step 0/25  00:00") {
+	if !strings.Contains(line, "ACT  READY  model.gguf  CTX 0/65.5k  step 0/25  00:00") {
 		t.Fatalf("header: %q", line)
 	}
 }
@@ -140,7 +140,6 @@ func TestHeaderEndpointSanitizationAndLongDetails(t *testing.T) {
 func TestHeaderStopWorksFromSessionPaneAndGateClosesMenu(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stRunning
-	m.navFocused = true
 	cancelled := false
 	m.cancel = func() { cancelled = true }
 	m.header.focused = true
@@ -194,7 +193,7 @@ func TestViewMenuZonesAndItems(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 80, 30)
 	m.header.menu = "view"
 	items := m.headerItems()
-	want := []string{"Hide Sessions", "Truncate AI reply", "Hide SYS messages", "Hide labels", "", "Jump to latest", "Select Theme…"}
+	want := []string{"Truncate AI reply", "Hide SYS messages", "Hide labels", "", "Jump to latest", "Select Theme…"}
 	if len(items) != len(want) {
 		t.Fatalf("view menu has %d rows, want %d: %+v", len(items), len(want), items)
 	}
@@ -210,10 +209,10 @@ func TestViewMenuZonesAndItems(t *testing.T) {
 			sep = i
 		}
 	}
-	if sep != 4 {
-		t.Fatalf("separator at row %d, want 4", sep)
+	if sep != 3 {
+		t.Fatalf("separator at row %d, want 3", sep)
 	}
-	cmds := []string{"toggle-sidebar", "toggle-details", "toggle-sys", "toggle-labels", "", "latest", "theme"}
+	cmds := []string{"toggle-details", "toggle-sys", "toggle-labels", "", "latest", "theme"}
 	for i, c := range cmds {
 		if items[i].command != c {
 			t.Fatalf("row %d command = %q, want %q", i, items[i].command, c)
@@ -231,16 +230,15 @@ func TestViewMenuCheckmarksFollowState(t *testing.T) {
 		t.Fatal("precondition: transcript starts truncated")
 	}
 	for _, tc := range []struct {
-		name                     string
-		sidebar, hideSYS, labels bool
-		want                     string
+		name            string
+		hideSYS, labels bool
+		want            string
 	}{
-		{"default", false, false, false, "│✓ Truncate AI reply   Ctrl+G│"},
-		{"sessions hidden", true, false, false, "│✓ Hide Sessions       Ctrl+B│"},
-		{"sys hidden", false, true, false, "│✓ Hide SYS messages         │"},
-		{"labels hidden", false, false, true, "│✓ Hide labels               │"},
+		{"default", false, false, "│✓ Truncate AI reply   Ctrl+G│"},
+		{"sys hidden", true, false, "│✓ Hide SYS messages         │"},
+		{"labels hidden", false, true, "│✓ Hide labels               │"},
 	} {
-		m.sidebarHidden, m.hideSYS, m.hideLabels = tc.sidebar, tc.hideSYS, tc.labels
+		m.hideSYS, m.hideLabels = tc.hideSYS, tc.labels
 		rows := strings.Join(popupRows(t, m), "\n")
 		if !strings.Contains(rows, tc.want) {
 			t.Fatalf("%s: missing %q in:\n%s", tc.name, tc.want, rows)
@@ -317,9 +315,9 @@ func TestCheckmarkUsesTheLabelIndent(t *testing.T) {
 func TestMarkCostsNoWidth(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 80, 30)
 	m.header.menu = "view"
-	m.sidebarHidden, m.hideSYS = false, false
+	m.hideSYS = false
 	_, plain, _, _ := m.headerGeometry()
-	m.sidebarHidden, m.hideSYS = true, true
+	m.hideSYS = true
 	_, ticked, _, _ := m.headerGeometry()
 	if plain != ticked {
 		t.Fatalf("ticking rows changed menu width: %d -> %d", plain, ticked)
@@ -369,7 +367,7 @@ func TestKeyboardNavigationSkipsViewSeparator(t *testing.T) {
 	m.header.global = true
 	m.header.menu = "view"
 	m.header.row = m.headerActionRow(0, 1)
-	for _, want := range []string{"toggle-sidebar", "toggle-details", "toggle-sys", "toggle-labels"} {
+	for _, want := range []string{"toggle-details", "toggle-sys", "toggle-labels"} {
 		if got := m.headerItems()[m.header.row].command; got != want {
 			t.Fatalf("row = %q, want %q", got, want)
 		}

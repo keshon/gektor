@@ -155,7 +155,7 @@ func (f *Model) PlainRows(props Props) ([]string, []form.Hit, int, int) {
 // void that read as a failure to draw rather than as space.
 func (f *Model) box(props Props) []string {
 	rows, _, _, _ := f.Rows(props)
-	return popup.Box(rows, props.Surface)
+	return popup.ModalBox(rows, props.Width, props.Surface)
 }
 
 // Origin is the screen position of the first content cell inside the frame:
@@ -178,4 +178,10 @@ func (f *Model) Origin(props Props) (x, y int) {
 func (f *Model) View(props Props) string {
 	rows, _, _, _ := f.Rows(props)
 	return popup.FrameBox(rows, props.Width, props.Height, props.Surface)
+}
+
+// Overlay draws the same form at the same origin over the existing document.
+func (f *Model) Overlay(background string, props Props) string {
+	rows, _, _, _ := f.Rows(props)
+	return popup.OverlayBox(background, rows, props.Width, props.Height, props.Surface)
 }

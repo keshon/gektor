@@ -1,89 +1,13 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/events"
 )
-
-func TestCompactSessionRowsSharePagingAndMouseGeometry(t *testing.T) {
-	m := testModel()
-	m.state = stDone
-	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
-	m.navFocused = true
-	m.input.Blur()
-	for i := 0; i < 40; i++ {
-		m.nav.entries = append(m.nav.entries, sessionEntry{
-			title: fmt.Sprintf("Session %02d", i), mode: "Act", status: "Saved",
-			updated: time.Now().Add(-2 * time.Minute), msgs: i + 1,
-		})
-	}
-	view := ansi.Strip(m.sidebarView())
-	if strings.Contains(view, "Saved") || strings.Count(view, "Session ") != m.navigatorRows() {
-		t.Fatal("session rows repeated status or wasted available space")
-	}
-	rows := strings.Split(view, "\n")
-	if strings.TrimSpace(string([]rune(rows[0])[navigatorWidth-4:])) != "2m" {
-		t.Fatal("aligned age missing")
-	}
-	for _, label := range []string{"NAME", "AGE", "gektor"} {
-		if strings.Contains(view, label) {
-			t.Fatalf("redundant pane label remains: %s", label)
-		}
-	}
-	frame := strings.Split(ansi.Strip(m.View().Content), "\n")
-	footer := paneTop + m.paneHeight() - 1
-	if strings.Contains(frame[footer-1][:navigatorWidth], "─") {
-		t.Fatal("Sessions status still has its own divider")
-	}
-	if strings.Contains(view, "message") || strings.Contains(view, "Act") || !strings.Contains(frame[footer], "│") {
-		t.Fatal("redundant session details remain or pane border is missing")
-	}
-	if m.footerRows() != 2 || len(strings.Split(m.actionBar(), "\n")) != 1 {
-		t.Fatal("footer must occupy one row")
-	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyPgDown})
-	if m.nav.Cursor != m.navigatorRows() || m.nav.Offset != 1 {
-		t.Fatal("paging did not use compact row capacity")
-	}
-	m.Update(tea.MouseClickMsg{X: 5, Y: paneTop, Button: tea.MouseLeft})
-	if m.nav.Cursor != m.nav.Offset {
-		t.Fatal("click missed the first visible compact row")
-	}
-}
-
-func TestResponsiveNavigator(t *testing.T) {
-	m := testModel()
-	m.state = stDone
-	m.input.SetValue("unfinished draft")
-	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
-	if !m.sidebarVisible() || m.transcript.Viewport.Width() != 120-navigatorWidth-5 {
-		t.Fatalf("wide viewport: %d", m.transcript.Viewport.Width())
-	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyTab})
-	if !m.navFocused || m.input.Focused() {
-		t.Fatal("sidebar did not own focus")
-	}
-	m.handleKey(tea.KeyPressMsg{Text: string("x")})
-	if m.input.Value() != "unfinished draft" {
-		t.Fatal("sidebar keys edited draft")
-	}
-	m.handleKey(tea.KeyPressMsg{Code: 'b', Mod: tea.ModCtrl})
-	if m.sidebarVisible() || m.transcript.Viewport.Width() != 118 || !m.input.Focused() {
-		t.Fatal("hidden sidebar failed to restore input")
-	}
-	m.handleKey(tea.KeyPressMsg{Code: 'b', Mod: tea.ModCtrl})
-	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	if m.sidebarVisible() || m.transcript.Viewport.Width() != 78 || m.input.Value() != "unfinished draft" {
-		t.Fatal("narrow resize lost draft or space")
-	}
-}
 
 func TestBrowserSearchUsesWorkspace(t *testing.T) {
 	m := testModel()
@@ -116,29 +40,20 @@ func TestBrowserSearchUsesWorkspace(t *testing.T) {
 func TestNavigatorCannotSwitchDuringRun(t *testing.T) {
 	m := testModel()
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
-	m.nav.entries = []sessionEntry{{id: "aaa", title: "Saved task", dir: "aaa"}}
-	m.navFocused = true
+	m.savedSessions = []sessionEntry{{id: "aaa", title: "Saved task", dir: "aaa"}}
 	m.stateFile = "active/state.json"
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.stateFile != "active/state.json" || m.state != stRunning || m.sessions != nil {
+	m.openSessions()
+	m.sessions.entries = m.savedSessions
+	m.sessionsKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if m.stateFile != "active/state.json" || m.state != stRunning {
 		t.Fatal("browse interrupted active run")
 	}
 	// A gate arriving during browsing takes over both rendering and keys.
 	m.openSessions()
 	finishSessionRefresh(t, m)
 	m.handleEvent(events.Event{Name: "awaiting_input", Fields: map[string]any{"kind": "permission", "prompt": "Run tests?"}})
-	if m.sessions != nil || m.navFocused || m.state != stPermission {
+	if m.sessions != nil || m.state != stPermission {
 		t.Fatal("permission gate did not take over")
-	}
-}
-
-func TestSidebarWheelSelectsWithoutScrollingChat(t *testing.T) {
-	m := testModel()
-	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
-	m.nav.entries = []sessionEntry{{id: "a"}, {id: "b"}}
-	m.Update(tea.MouseWheelMsg{X: 5, Y: 6, Button: tea.MouseWheelDown})
-	if m.nav.Cursor != 1 || !m.navFocused || m.input.Focused() || m.transcript.Viewport.YOffset() != 0 {
-		t.Fatal("sidebar wheel reached the transcript or failed to select")
 	}
 }
 
@@ -183,52 +98,10 @@ func TestReflowPreservesWideCharacters(t *testing.T) {
 	}
 }
 
-func TestConversationOwnsComposerAndSessionsKeepTheirHeight(t *testing.T) {
-	m := testModel()
-	m.state = stDone
-	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
-	m.nav.entries = []sessionEntry{{title: "Current session", mode: "Act", msgs: 2}}
-	rows := m.navigatorRows()
-	m.input.SetValue("first line\nsecond line")
-	m.fitBottom()
-	if m.navigatorRows() != rows {
-		t.Fatal("multiline composer took space from Sessions")
-	}
-	view := m.View()
-	lines := strings.Split(ansi.Strip(view.Content), "\n")
-	inputTop := m.termH - m.footerRows() - m.input.Height()
-	for y := paneTop; y < m.termH-m.footerRows(); y++ {
-		if []rune(lines[y])[navigatorWidth+2] != '│' && []rune(lines[y])[navigatorWidth+2] != '┤' && []rune(lines[y])[navigatorWidth+2] != '├' {
-			t.Fatalf("session divider interrupted at row %d: %q", y, lines[y])
-		}
-	}
-	if !strings.HasPrefix(string([]rune(lines[inputTop])[m.promptOffset():]), "> first line") {
-		t.Fatal("composer did not align with the Identity")
-	}
-	if view.Cursor == nil || view.Cursor.X < m.promptOffset() || view.Cursor.Y != inputTop+1 {
-		t.Fatalf("caret escaped the Identity composer: %+v", view.Cursor)
-	}
-	m.navFocused = true
-	m.input.Blur()
-	m.Update(tea.MouseClickMsg{X: m.promptOffset() + 2, Y: inputTop, Button: tea.MouseLeft})
-	if m.navFocused || !m.input.Focused() {
-		t.Fatal("clicking the composer did not restore input focus")
-	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
-	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
-	if m.input.Value() != "first line\nsecond line" || m.input.Height() != 2 {
-		t.Fatal("composer navigation changed the multiline draft")
-	}
-	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	if m.promptOffset() != 1 || m.View().Cursor.X >= 80 || m.input.Value() != "first line\nsecond line" {
-		t.Fatal("narrow layout lost the composer or its draft")
-	}
-}
-
 func TestConversationComposerWrapsWithinPane(t *testing.T) {
 	m := completionModel(t)
 	m.Update(tea.WindowSizeMsg{Width: 110, Height: 30})
-	m.Update(tea.PasteMsg{Content: strings.Repeat("text ", 20)})
+	m.Update(tea.PasteMsg{Content: strings.Repeat("text ", 30)})
 	if m.input.Height() < 2 {
 		t.Fatal("draft wrapped against terminal width instead of Identity width")
 	}
