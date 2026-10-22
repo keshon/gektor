@@ -4,8 +4,9 @@ Lean, checklist-style guides for THIS agent — not general documentation
 copied from elsewhere. Written for a small local model: short, directive,
 no prose padding, no theory.
 
-Convention: `skills/<name>/SKILL.md`. Discovered via `list_files` +
-`read_file` — no special tool needed (see system prompt). Skills must exist
+Convention: `skills/<name>/SKILL.md`. The workspace adds a bounded catalog of paths and descriptions to the initial
+context. Full guides are loaded through visible `read_file` calls only when
+relevant; the agent should name the skill it applies. No special tool is needed. Skills must exist
 in the task workspace: launching GEKTOR from this repository does not install
 these guides into a different workspace. Copy the relevant skills there if
 you want the agent to use them. Project/ancestor AGENTS.md instructions load
@@ -32,6 +33,8 @@ More than one guide can apply; do not load the whole directory.
 - Write or edit TypeScript/TSX: [typescript/SKILL.md](typescript/SKILL.md).
 - Inspect Git history, blame or diffs, or make commits:
   [git/SKILL.md](git/SKILL.md).
+- Exercise a web UI, inspect browser errors or capture screenshots:
+  [browser/SKILL.md](browser/SKILL.md).
 - Start or test a local server or watcher:
   [dev-server/SKILL.md](dev-server/SKILL.md).
 - Build a large feature incrementally or decide whether to delegate:

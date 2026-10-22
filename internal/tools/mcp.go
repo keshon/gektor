@@ -70,25 +70,43 @@ type MCPToolDef struct {
 
 // StartMCP launches command with args and runs initialize + tools/list,
 // returning one agent.Tool per remote tool named mcp__server__tool.
-func StartMCP(ctx context.Context, server, command string, args ...string) ([]agent.Tool, *MCPClient, error) {
+func StartMCP(ctx context.Context, server, dir, command string, args ...string) ([]agent.Tool, *MCPClient, error) {
 	// The server must outlive the handshake, so its process gets a context
 	// the handshake timeout cannot cancel. Close cancels it, which also
 	// reaps a process a restart replaced.
 	procCtx, killProc := context.WithCancel(context.WithoutCancel(ctx))
 	launch := func() (io.Writer, io.Reader, *exec.Cmd, error) {
 		cmd := exec.CommandContext(procCtx, command, args...)
+		cmd.Dir = dir
+		group := newProcessGroup()
+		group.beforeStart(cmd)
+		cmd.Cancel = func() error { return group.kill(cmd) }
+		cmd.WaitDelay = stopGrace
 		stdin, err := cmd.StdinPipe()
 		if err != nil {
+			group.release()
 			return nil, nil, nil, fmt.Errorf("mcp %s: stdin: %w", server, err)
 		}
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
+			stdin.Close()
+			group.release()
 			return nil, nil, nil, fmt.Errorf("mcp %s: stdout: %w", server, err)
 		}
 		cmd.Stderr = nil
 		if err := cmd.Start(); err != nil {
+			stdin.Close()
+			stdout.Close()
+			group.release()
 			return nil, nil, nil, fmt.Errorf("mcp %s: start %s: %w", server, command, err)
 		}
+		if err := group.afterStart(cmd); err != nil {
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+			group.release()
+			return nil, nil, nil, err
+		}
+		go func() { _ = cmd.Wait(); _ = group.kill(cmd); group.release() }()
 		return stdin, stdout, cmd, nil
 	}
 
@@ -294,6 +312,12 @@ func (c *MCPClient) call(ctx context.Context, method string, params any, out any
 		if c.restarter == nil || !isTransportDead(err) {
 			return err
 		}
+		if method == "tools/call" {
+			// A disconnected response may follow a successful mutation.
+			// Restart only for the next request; never replay a click/write.
+			rerr := c.restartTransport(ctx)
+			return fmt.Errorf("MCP connection lost; action outcome unknown, inspect state before retrying: %v (restart: %v)", err, rerr)
+		}
 		if rerr := c.restartTransport(ctx); rerr != nil {
 			return fmt.Errorf("%s: %v (server restart: %v)", method, err, rerr)
 		}
@@ -494,30 +518,64 @@ func allowedMCPMime(m string) bool {
 }
 
 // ParseMCPFlag parses -mcp "name=cmd args...;name2=cmd2" into server specs.
-func ParseMCPFlag(spec string) (names, commands []string, args [][]string) {
-	for _, part := range strings.Split(spec, ";") {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
+func ParseMCPFlag(spec string) (names, commands []string, args [][]string, err error) {
+	var tokens []string
+	var token strings.Builder
+	var quote rune
+	started := false
+	flush := func() {
+		if started {
+			tokens = append(tokens, token.String())
+			token.Reset()
+			started = false
 		}
-		name, cmdline := part, ""
-		if i := strings.Index(part, "="); i >= 0 {
-			name = strings.TrimSpace(part[:i])
-			cmdline = strings.TrimSpace(part[i+1:])
-		} else {
-			fields := strings.Fields(part)
-			if len(fields) == 0 {
-				continue
-			}
-			name, cmdline = fields[0], part
+	}
+	entry := func() error {
+		flush()
+		if len(tokens) == 0 {
+			return nil
 		}
-		fields := strings.Fields(cmdline)
-		if len(fields) == 0 || name == "" {
-			continue
+		name, command, ok := strings.Cut(tokens[0], "=")
+		if !ok {
+			command = name
+		}
+		if name == "" || command == "" {
+			return fmt.Errorf("invalid MCP entry: expected name=command")
 		}
 		names = append(names, name)
-		commands = append(commands, fields[0])
-		args = append(args, fields[1:])
+		commands = append(commands, command)
+		args = append(args, tokens[1:])
+		tokens = nil
+		return nil
 	}
-	return names, commands, args
+	for _, c := range spec {
+		if quote != 0 {
+			if c == quote {
+				quote = 0
+			} else {
+				token.WriteRune(c)
+			}
+			continue
+		}
+		switch c {
+		case '\'', '"':
+			quote = c
+			started = true
+		case ';':
+			if err = entry(); err != nil {
+				return
+			}
+		case ' ', '\t', '\r', '\n':
+			flush()
+		default:
+			token.WriteRune(c)
+			started = true
+		}
+	}
+	if quote != 0 {
+		err = fmt.Errorf("unterminated quote in MCP specification")
+		return
+	}
+	err = entry()
+	return
 }

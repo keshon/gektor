@@ -179,15 +179,18 @@ func TestAssignToolNames_DedupAndCap(t *testing.T) {
 }
 
 func TestMCPParseFlag(t *testing.T) {
-	names, cmds, args := ParseMCPFlag("fs=node mcp-fs.js /root;git=python mcp-git.py")
+	names, cmds, args, err := ParseMCPFlag("fs=node mcp-fs.js /root;git=python mcp-git.py")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(names) != 2 || names[0] != "fs" || names[1] != "git" {
 		t.Fatalf("names=%v", names)
 	}
 	if cmds[0] != "node" || len(args[0]) != 2 || args[0][1] != "/root" {
 		t.Fatalf("cmds=%v args=%v", cmds, args)
 	}
-	if _, _, _ = ParseMCPFlag(""); true {
-		n, _, _ := ParseMCPFlag(";;;")
+	if _, _, _, _ = ParseMCPFlag(""); true {
+		n, _, _, _ := ParseMCPFlag(";;;")
 		if len(n) != 0 {
 			t.Fatalf("expected empty, got %v", n)
 		}
@@ -200,5 +203,46 @@ func TestMCPAllowedMime(t *testing.T) {
 	}
 	if allowedMCPMime("image/png") || allowedMCPMime("application/octet-stream") {
 		t.Error("binary must not pass")
+	}
+}
+
+func TestMCPQuotedPaths(t *testing.T) {
+	names, cmds, args, err := ParseMCPFlag(`browser="C:\Program Files\node.exe" 'script with spaces.js' "a;b" "";other=node x.js`)
+	if err != nil || len(names) != 2 || cmds[0] != `C:\Program Files\node.exe` || len(args[0]) != 3 || args[0][0] != "script with spaces.js" || args[0][1] != "a;b" || args[0][2] != "" {
+		t.Fatal(names, cmds, args, err)
+	}
+	if _, _, _, err := ParseMCPFlag(`x="unclosed`); err == nil {
+		t.Fatal("accepted unclosed quote")
+	}
+}
+
+func TestMCPDoesNotReplayToolAfterDisconnect(t *testing.T) {
+	old := mcpRestartBackoff
+	mcpRestartBackoff = 0
+	defer func() { mcpRestartBackoff = old }()
+	cr, sw := io.Pipe()
+	sr, cw := io.Pipe()
+	go fakeMCPServer(t, sr, sw)
+	_, client, err := connectMCP(t.Context(), "flaky", nil, cw, cr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	_ = sw.Close()
+	_ = sr.Close()
+	client.restarter = func(context.Context) (io.Writer, io.Reader, *exec.Cmd, error) {
+		cr, sw := io.Pipe()
+		sr, cw := io.Pipe()
+		t.Cleanup(func() { cr.Close(); sw.Close(); sr.Close(); cw.Close() })
+		go fakeMCPServer(t, sr, sw)
+		return cw, cr, nil, nil
+	}
+	var out json.RawMessage
+	err = client.call(t.Context(), "tools/call", map[string]any{"name": "echo", "arguments": map[string]any{}}, &out)
+	if err == nil || !strings.Contains(err.Error(), "outcome unknown") {
+		t.Fatal("tool replayed or missing recovery guidance", err, string(out))
+	}
+	if err = client.call(t.Context(), "tools/list", map[string]any{}, &out); err != nil {
+		t.Fatal("replacement server unavailable", err)
 	}
 }

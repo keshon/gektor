@@ -129,3 +129,36 @@ func TestDecodeContent_StringAndParts(t *testing.T) {
 		t.Fatalf("parts: %q", got)
 	}
 }
+
+func TestSnapshotImagePreservesHistory(t *testing.T) {
+	source := writeTestPNG(t, "shot.png")
+	cache := t.TempDir()
+	first, err := SnapshotImage(source, cache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := append(append([]byte(nil), onePixelPNG...), 'x')
+	if err := os.WriteFile(source, changed, 0600); err != nil {
+		t.Fatal(err)
+	}
+	second, err := SnapshotImage(source, cache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first == second {
+		t.Fatal("overwritten screenshot reused old snapshot")
+	}
+	if err := os.Remove(source); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(first)
+	if err != nil || string(b) != string(onePixelPNG) {
+		t.Fatal("history image changed", err)
+	}
+	if err := os.WriteFile(source, []byte("not an image"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateImage(source); err == nil {
+		t.Fatal("accepted text disguised as PNG")
+	}
+}

@@ -85,10 +85,16 @@ func WithRole(role string) string {
 func PlatformLine() string {
 	if runtime.GOOS == "windows" {
 		return "You run on Windows. Shell commands execute via cmd.exe, not PowerShell or Bash. " +
+			"Use && to chain successful commands; ; is not a CMD separator. Invoke PowerShell explicitly for PowerShell syntax. " +
 			"Use Windows-compatible syntax for builds, tests and scripts; use the provided file tools for listings, edits and moves. " +
 			"Both `\\` and `/` work in file paths."
 	}
-	return "You run on " + runtime.GOOS + " with a POSIX shell and standard coreutils available."
+	return "You run on " + runtime.GOOS + " with /bin/sh syntax. Do not assume additional utilities are installed."
+}
+
+// Environment keeps the cached prefix small; details are queried on demand.
+func Environment(root string, vision bool) string {
+	return fmt.Sprintf("Workspace: %s\nImage input enabled: %t. Query system_info for OS, hardware, environment or PATH tools when needed.", root, vision)
 }
 
 var responsePresets = []Preset{

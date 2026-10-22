@@ -62,7 +62,50 @@ func New(root string) (*Workspace, error) {
 		}
 		w.instructions += "\n\nProject instructions (" + path + "):\n" + string(data)
 	}
+	w.instructions += w.skillCatalog()
 	return w, nil
+}
+
+// Discover only metadata at workspace creation; full guides remain explicit
+// read_file calls so the operator can see what the agent actually consulted.
+func (w *Workspace) skillCatalog() string {
+	paths, _ := filepath.Glob(filepath.Join(w.root, "skills", "*", "SKILL.md"))
+	if len(paths) == 0 {
+		return "\n\nNo workspace skills found at skills/*/SKILL.md."
+	}
+	var b strings.Builder
+	b.WriteString("\n\nAvailable workspace skills (catalog only, not loaded). Read the relevant SKILL.md with read_file before applying it; briefly name the skill you use:\n")
+	for i, path := range paths {
+		if i == 32 {
+			b.WriteString("More skills exist; use list_files on skills/.\n")
+			break
+		}
+		rel, _ := filepath.Rel(w.root, path)
+		fmt.Fprintf(&b, "- %s", filepath.ToSlash(rel))
+		f, err := os.Open(path)
+		if err == nil {
+			data, _ := io.ReadAll(io.LimitReader(f, 4096))
+			f.Close()
+			text := strings.ReplaceAll(string(data), "\r\n", "\n")
+			if strings.HasPrefix(text, "---\n") {
+				for _, line := range strings.Split(strings.TrimPrefix(text, "---\n"), "\n") {
+					if line == "---" {
+						break
+					}
+					if value, ok := strings.CutPrefix(line, "description:"); ok {
+						description := []rune(strings.Trim(strings.TrimSpace(value), "\"'"))
+						if len(description) > 220 {
+							description = append(description[:220], '…')
+						}
+						fmt.Fprintf(&b, ": %s", string(description))
+						break
+					}
+				}
+			}
+		}
+		b.WriteByte('\n')
+	}
+	return b.String()
 }
 
 func (w *Workspace) Root() string { return w.root }

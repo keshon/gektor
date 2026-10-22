@@ -40,7 +40,7 @@ func TestStartMCPKeepsServerAliveAfterLauncherCancels(t *testing.T) {
 	t.Setenv(mcpHelperEnv, "1")
 	launch, cancelLaunch := context.WithCancel(context.Background())
 
-	tools, client, err := StartMCP(launch, "helper", os.Args[0])
+	tools, client, err := StartMCP(launch, "helper", t.TempDir(), os.Args[0])
 	if err != nil {
 		t.Fatalf("StartMCP: %v", err)
 	}

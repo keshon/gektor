@@ -362,3 +362,22 @@ func TestReadFileContinuationValidation(t *testing.T) {
 		t.Fatalf("decoded cursor is inconsistent: %v %s", err, out)
 	}
 }
+
+func TestReadFileLineLimit(t *testing.T) {
+	root := t.TempDir()
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "lines.txt"), []byte("one\r\ntwo\r\nthree\r\nfour"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := (ReadFile{WS: ws}).Run(t.Context(), json.RawMessage(`{"path":"lines.txt","offset":2,"limit":2}`))
+	if err != nil || !strings.Contains(out, "two\nthree\n") || strings.Contains(out, "four") || !strings.Contains(out, "offset 4") {
+		t.Fatal(out, err)
+	}
+	out, err = (ReadFile{WS: ws}).Run(t.Context(), json.RawMessage(`{"path":"lines.txt","offset":4,"limit":2}`))
+	if err != nil || !strings.Contains(out, "four") || strings.Contains(out, "truncated: true") {
+		t.Fatal(out, err)
+	}
+}

@@ -102,6 +102,9 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, rol
 		if name, err := server.ModelName(probeCtx); err == nil && strings.TrimSpace(name) != "" {
 			env.Model = name
 		}
+		if vision, err := server.SupportsVision(probeCtx); err == nil {
+			env.Vision = vision
+		}
 		cancel()
 		emitter.Emit("backend", map[string]any{"model": env.Model, "context_limit": env.ContextLimit})
 	}

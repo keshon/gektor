@@ -28,6 +28,38 @@ func TestGrepFiles_FindsMatchesAcrossFiles(t *testing.T) {
 	}
 }
 
+func TestGrepExplicitIgnoredTargets(t *testing.T) {
+	ws, root := testWS(t)
+	initGitRepo(t, root)
+	writeTmp(t, root, ".gitignore", "sandbox/\n")
+	if err := os.Mkdir(filepath.Join(root, "sandbox"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	writeTmp(t, root, "sandbox/page.html", "<script>initScene();</script>\n")
+	for _, path := range []string{"sandbox/page.html", "sandbox", "."} {
+		args, _ := json.Marshal(map[string]any{"path": path, "pattern": "script"})
+		out, err := (GrepFiles{WS: ws}).Run(t.Context(), args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(out, "initScene") != (path != ".") {
+			t.Fatalf("search %s: %s", path, out)
+		}
+	}
+}
+
+func TestGrepLiteralAndInvalidGlob(t *testing.T) {
+	ws, root := testWS(t)
+	writeTmp(t, root, "a.txt", "keys.push({\nkeysXpush({\n")
+	out, err := (GrepFiles{WS: ws}).Run(t.Context(), json.RawMessage(`{"pattern":"keys.push({","literal":true}`))
+	if err != nil || !strings.Contains(out, "a.txt:1:") || strings.Contains(out, "keysX") {
+		t.Fatalf("literal search: %q %v", out, err)
+	}
+	if _, err := (GrepFiles{WS: ws}).Run(t.Context(), json.RawMessage(`{"pattern":"keys","glob":"["}`)); err == nil {
+		t.Fatal("malformed glob silently returned no matches")
+	}
+}
+
 func TestGrepContextMergesWindowsAndKeepsMatchLabels(t *testing.T) {
 	ws, dir := testWS(t)
 	writeTmp(t, dir, "a.txt", "one\ntwo\nMATCH three\nMATCH four\nfive\nsix\nseven\neight\nMATCH nine\nten\n")

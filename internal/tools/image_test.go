@@ -45,8 +45,19 @@ func TestReadFile_ImageAttachesOnlyWithVision(t *testing.T) {
 		t.Fatalf("vision header claims an attachment the tool cannot guarantee:\n%s", out)
 	}
 	got, err := (ReadFile{WS: ws, Vision: true}).Attach(args)
-	if err != nil || len(got) != 1 || got[0] != path {
-		t.Fatalf("Attach = %v, %v; want %s", got, err, path)
+	if err != nil || len(got) != 1 || got[0] == path {
+		t.Fatalf("Attach = %v, %v; want an immutable copy of %s", got, err, path)
+	}
+	original, _ := os.ReadFile(path)
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	copy, err := os.ReadFile(got[0])
+	if err != nil || string(copy) != string(original) {
+		t.Fatalf("snapshot was lost with source: %v", err)
+	}
+	if err := os.WriteFile(path, original, 0600); err != nil {
+		t.Fatal(err)
 	}
 
 	out, err = (ReadFile{WS: ws}).Run(context.Background(), args)

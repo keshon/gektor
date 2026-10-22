@@ -58,7 +58,7 @@ func TestLocalBackendWindowAndModelRefreshBetweenTurns(t *testing.T) {
 				w.Header().Set("Content-Type", "application/json")
 				switch r.URL.Path {
 				case "/props":
-					fmt.Fprintf(w, `{"model_path":"/models/%d.gguf","default_generation_settings":{"n_ctx":%d}}`, window.Load(), window.Load())
+					fmt.Fprintf(w, `{"model_path":"/models/%d.gguf","default_generation_settings":{"n_ctx":%d},"modalities":{"vision":%t}}`, window.Load(), window.Load(), window.Load() == 16384)
 				case "/api/extra/true_max_context_length":
 					fmt.Fprintf(w, `{"value":%d}`, window.Load())
 				case "/api/v1/model":
@@ -94,6 +94,10 @@ func TestLocalBackendWindowAndModelRefreshBetweenTurns(t *testing.T) {
 			}
 			for _, size := range []int64{8192, 16384} {
 				window.Store(size)
+				_, _, refreshed := s.build(t.Context())
+				if refreshed.Vision != (kind == "llama" && size == 16384) {
+					t.Fatalf("stale vision capability: %t", refreshed.Vision)
+				}
 				if _, err := s.Run(t.Context()); err != nil {
 					t.Fatal(err)
 				}

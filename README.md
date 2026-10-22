@@ -21,7 +21,9 @@ in a repository, with local inference as the starting point.
 - **Keep sessions.** Reopen and search conversations, continue interrupted
   work, or fork a task. Context compaction keeps the full conversation archive.
 - **Extend through files and tools.** Read project `AGENTS.md` instructions
-  and task-specific skills. Connect external tools over MCP.
+  and task-specific skills. Query OS, hardware and PATH tools on demand.
+  Connect external tools over MCP, including an optional
+  [browser for UI checks](docs/browser.md).
 - **Use the same loop outside the TUI.** One-shot CLI, JSONL events and a
   stdio integration protocol are included.
 
@@ -104,8 +106,8 @@ working context to an extractive summary and recent messages, preserving
 the full archive for display and search. It does not ask an LLM to summarize.
 
 Ancestor and workspace `AGENTS.md` files are loaded into the agent's
-instructions. Guides in [`skills/`](skills/README.md) are read by the model
-when relevant. They belong to the task workspace; running GEKTOR from this
+instructions. A compact catalog advertises workspace [`skills/`](skills/README.md);
+full guides are read through visible tool calls when relevant. They belong to the task workspace; running GEKTOR from this
 checkout does not install them into another project.
 
 ## Current limits

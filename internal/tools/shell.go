@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"runtime"
 	"strings"
 	"time"
@@ -134,16 +133,4 @@ func scrubEnv(env []string) []string {
 		out = append(out, kv)
 	}
 	return out
-}
-
-// shellCommand picks a shell that actually understands the commands a
-// model writes for this host OS. On Windows that's cmd.exe — ren, dir,
-// copy and friends are cmd.exe builtins with no standalone executable, so
-// running them through a POSIX sh (even one present via Git Bash) just
-// fails with "command not found".
-func shellCommand(ctx context.Context, command string) *exec.Cmd {
-	if runtime.GOOS == "windows" {
-		return exec.CommandContext(ctx, "cmd", "/C", command)
-	}
-	return exec.CommandContext(ctx, "sh", "-c", command)
 }

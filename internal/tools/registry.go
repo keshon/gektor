@@ -4,6 +4,7 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/checks"
 	"github.com/keshon/gektor/internal/workspace"
+	"strings"
 )
 
 // Base returns the standard tool set shared by the main agent and
@@ -14,7 +15,14 @@ import (
 // backend capability probe, not a guess.
 func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSink, rules []checks.Rule, vision bool, extra ...agent.Tool) *agent.Registry {
 	scan := func(t agent.Tool) agent.Tool { return Checked(t, ws, report, rules) }
+	info := SystemInfo{WS: ws}
+	for _, tool := range extra {
+		if remote, ok := tool.(*MCPTool); ok && strings.HasPrefix(remote.def.Name, "browser_") {
+			info.BrowserTools = append(info.BrowserTools, tool.Name())
+		}
+	}
 	tools := []agent.Tool{
+		info,
 		ReadFile{WS: ws, Vision: vision},
 		scan(WriteFile{WS: ws}),
 		scan(PatchFile{WS: ws}),
@@ -45,6 +53,7 @@ func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSin
 // weak model not to use them.
 func ReadOnly(ws *workspace.Workspace, procs *BackgroundProcesses, vision bool) *agent.Registry {
 	return agent.NewRegistry(
+		SystemInfo{WS: ws},
 		ReadFile{WS: ws, Vision: vision},
 		ListFiles{WS: ws},
 		GrepFiles{WS: ws},

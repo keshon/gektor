@@ -29,7 +29,7 @@ func (GrepFiles) Mode() agent.ToolMode { return agent.Concurrent }
 // Idempotent: a search returns the same matches until something mutates.
 func (GrepFiles) Idempotent() bool { return true }
 func (GrepFiles) Description() string {
-	return "Search file contents under a path (recursive) for a regex pattern. Returns " +
+	return "Search a file or directory (recursive) for a Go regex pattern, or exact text with literal=true. Explicit files and ignored directory roots are searched even when Git ignores them. Returns " +
 		"path:line:content for each match, capped at 200 matches; long lines are truncated. " +
 		"before_context and after_context add up to 10 surrounding lines each; context uses path-line-content. Overlapping windows are merged and total output is bounded. " +
 		"Binary files (compiled executables, images, etc) are skipped automatically. Use this " +
@@ -39,14 +39,16 @@ func (GrepFiles) Schema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
 		"properties": {
-			"path": {"type": "string", "description": "directory to search, recursive"},
+			"path": {"type": "string", "description": "file or directory to search; defaults to the workspace root"},
 			"pattern": {"type": "string", "description": "regular expression"},
+			"literal": {"type":"boolean", "description":"match exact text instead of regex; avoids escaping punctuation"},
 			"glob": {"type": "string", "description": "optional filename glob filter, e.g. *.go"},
 			"before_context": {"type":"integer","minimum":0,"maximum":10},
 			"after_context": {"type":"integer","minimum":0,"maximum":10},
 			"include_ignored": {"type":"boolean", "description":"include generated and hidden directories; default false"}
 		},
-		"required": ["path", "pattern"]
+		"required": ["pattern"],
+		"additionalProperties": false
 	}`)
 }
 
@@ -85,6 +87,7 @@ func (t GrepFiles) Run(ctx context.Context, args json.RawMessage) (string, error
 	var in struct {
 		Path           string `json:"path"`
 		Pattern        string `json:"pattern"`
+		Literal        bool   `json:"literal"`
 		Glob           string `json:"glob"`
 		IncludeIgnored bool   `json:"include_ignored"`
 		Before         int    `json:"before_context"`
@@ -93,19 +96,23 @@ func (t GrepFiles) Run(ctx context.Context, args json.RawMessage) (string, error
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", fmt.Errorf("bad arguments: %w", err)
 	}
-	if err := rejectUnknownFields(args, "path", "pattern", "glob", "include_ignored", "before_context", "after_context"); err != nil {
+	if err := rejectUnknownFields(args, "path", "pattern", "literal", "glob", "include_ignored", "before_context", "after_context"); err != nil {
 		return "", err
 	}
 	if in.Before < 0 || in.Before > 10 || in.After < 0 || in.After > 10 {
 		return "", fmt.Errorf("before_context and after_context must be between 0 and 10")
 	}
 	if strings.TrimSpace(in.Path) == "" {
-		return "", fmt.Errorf("path is required and must be non-empty")
+		in.Path = "."
 	}
 	if strings.TrimSpace(in.Pattern) == "" {
 		return "", fmt.Errorf("pattern is required and must be non-empty")
 	}
-	re, err := regexp.Compile(in.Pattern)
+	pattern := in.Pattern
+	if in.Literal {
+		pattern = regexp.QuoteMeta(pattern)
+	}
+	re, err := regexp.Compile(pattern)
 	if err != nil {
 		return "", fmt.Errorf("bad pattern: %w", err)
 	}
@@ -113,16 +120,29 @@ func (t GrepFiles) Run(ctx context.Context, args json.RawMessage) (string, error
 	if err != nil {
 		return "", err
 	}
+	info, err := os.Stat(root)
+	if err != nil {
+		return "", err
+	}
+	if _, err := filepath.Match(in.Glob, ""); err != nil {
+		return "", fmt.Errorf("bad filename glob: %w", err)
+	}
 
 	var files map[string]bool
-	if !in.IncludeIgnored {
+	if !in.IncludeIgnored && info.IsDir() {
 		files, err = t.WS.FileSet(ctx)
 		if err != nil {
 			return "", err
 		}
 	}
 	dirs := workspace.FileDirectories(files)
+	// An explicitly selected ignored directory is a deliberate search scope.
+	// Root-wide discovery still honors ignore rules, including nested ignores.
+	if rel, _ := filepath.Rel(t.WS.Root(), root); rel != "." && dirs != nil && !dirs[rel] {
+		files, dirs = nil, nil
+	}
 	skippedSensitive := 0
+	searched := 0
 	var out strings.Builder
 	matches := 0
 	outputCapped := false
@@ -179,6 +199,7 @@ func (t GrepFiles) Run(ctx context.Context, args json.RawMessage) (string, error
 		} else if binary {
 			return nil
 		}
+		searched++
 
 		rel, _ := filepath.Rel(t.WS.Root(), p)
 		scanner := bufio.NewScanner(f)
@@ -257,6 +278,9 @@ func (t GrepFiles) Run(ctx context.Context, args json.RawMessage) (string, error
 		fmt.Fprintf(&out, "(skipped %d sensitive files; use read_file to request permission)\n", skippedSensitive)
 	}
 	if matches == 0 && skippedSensitive == 0 && !outputCapped {
+		if searched == 0 {
+			return "no searchable text files (check path/glob; use include_ignored=true for ignored files)", nil
+		}
 		return "no matches", nil
 	}
 	if matches >= grepMaxMatches {

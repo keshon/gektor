@@ -46,7 +46,7 @@ type ReadFile struct {
 func (ReadFile) Name() string { return "read_file" }
 func (ReadFile) Description() string {
 	return "Read a text file. Returns a FILE header (path, size, lines, truncated, binary) and the " +
-		"content, optionally from offset (a 1-based first line) for paging through large files. Set metadata_only=true to get only the header — use this for file size or " +
+		"content. Use offset (1-based first line) and limit (number of lines) for a section; omit both for a normal read. max_bytes is an optional byte cap, NOT a line count. Set metadata_only=true for file size or " +
 		"type checks without loading content into context. For a truncated line, continue from the returned byte_offset " +
 		"(an absolute offset in decoded UTF-8 text with CRLF normalized to LF). Do not combine byte_offset with offset. " +
 		"Reading a picture (png, jpg, jpeg, webp, gif, bmp) attaches the image itself when the backend is vision-capable; " +
@@ -85,10 +85,11 @@ func (t ReadFile) Attach(args json.RawMessage) ([]string, error) {
 	if !llm.IsImagePath(full) {
 		return nil, nil
 	}
-	if err := llm.ValidateImage(full); err != nil {
+	snapshot, err := llm.SnapshotImage(full, filepath.Join(t.WS.Root(), ".gektor", "images"))
+	if err != nil {
 		return nil, err
 	}
-	return []string{full}, nil
+	return []string{snapshot}, nil
 }
 
 func (ReadFile) Schema() json.RawMessage {
@@ -96,13 +97,14 @@ func (ReadFile) Schema() json.RawMessage {
 		"type": "object",
 		"properties": {
 			"path": {"type": "string"},
+			"limit": {"type":"integer","minimum":1,"maximum":10000,"description":"Number of lines to return from offset; output still has a 48 KiB safety cap"},
 			"metadata_only": {
 				"type": "boolean",
 				"description": "if true, return only the FILE header (size, truncated, binary) with no body"
 			},
 			"max_bytes": {
 				"type": "integer",
-				"description": "optional cap on content bytes; omit or 0 for the full content"
+				"description": "content byte cap, NOT a line count; omit or 0 for the default 48 KiB cap"
 			},
 			"byte_offset": {"type":"integer","minimum":0,"description":"absolute normalized UTF-8 byte position; use the continuation value returned by a truncated read"},
 			"offset": {
@@ -121,11 +123,12 @@ func (t ReadFile) Run(ctx context.Context, args json.RawMessage) (string, error)
 		MaxBytes     *int   `json:"max_bytes"`
 		Offset       int    `json:"offset"`
 		ByteOffset   *int   `json:"byte_offset"`
+		Limit        *int   `json:"limit"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", fmt.Errorf("bad arguments: %w", err)
 	}
-	if err := rejectUnknownFields(args, "path", "metadata_only", "max_bytes", "offset", "byte_offset"); err != nil {
+	if err := rejectUnknownFields(args, "path", "metadata_only", "max_bytes", "offset", "byte_offset", "limit"); err != nil {
 		return "", err
 	}
 	if strings.TrimSpace(in.Path) == "" {
@@ -133,6 +136,13 @@ func (t ReadFile) Run(ctx context.Context, args json.RawMessage) (string, error)
 	}
 	if in.Offset < 0 {
 		return "", fmt.Errorf("offset must be >= 0")
+	}
+	lineLimit := 0
+	if in.Limit != nil {
+		if *in.Limit < 1 || *in.Limit > 10000 {
+			return "", fmt.Errorf("limit must be 1–10000 lines")
+		}
+		lineLimit = *in.Limit
 	}
 	byteOffset := 0
 	if in.ByteOffset != nil {
@@ -173,7 +183,7 @@ func (t ReadFile) Run(ctx context.Context, args json.RawMessage) (string, error)
 			maxBody = *in.MaxBytes
 		}
 	}
-	return streamReadFile(ctx, f, rel, maxBody, in.Offset, byteOffset)
+	return streamReadFile(ctx, f, rel, maxBody, in.Offset, byteOffset, lineLimit)
 }
 
 // imageHeader reports a picture instead of streaming its bytes. On a
@@ -195,7 +205,7 @@ func (t ReadFile) imageHeader(full, rel string, metadataOnly bool) (string, erro
 	fmt.Fprintf(&b, "FILE\npath: %s\nsize: %d\nimage: true\nformat: %s\n", rel, info.Size(), format)
 	if !t.Vision {
 		b.WriteString("attached: false\nbinary: true\n----\n")
-		b.WriteString("(this backend cannot process pictures, so the pixels are unavailable. Do not re-read this file expecting content; use a vision-capable backend or ask the operator to attach it.)")
+		b.WriteString("(this backend cannot process pictures, so the pixels are unavailable. Use a vision-capable backend for visual inspection; use browser DOM, console and functional checks for text-only verification.)")
 		return b.String(), nil
 	}
 	if err := llm.ValidateImage(full); err != nil {
@@ -215,7 +225,7 @@ func (t ReadFile) imageHeader(full, rel string, metadataOnly bool) (string, erro
 
 // streamReadFile retains only the requested display window. Metadata reads
 // inspect a prefix; content reads count lines while streaming, including UTF-16.
-func streamReadFile(ctx context.Context, f *os.File, path string, limit, offset, byteOffset int) (string, error) {
+func streamReadFile(ctx context.Context, f *os.File, path string, limit, offset, byteOffset, lineLimit int) (string, error) {
 	info, err := f.Stat()
 	if err != nil {
 		return "", err
@@ -261,7 +271,7 @@ func streamReadFile(ctx context.Context, f *os.File, path string, limit, offset,
 					windowStart, windowLine = index, line
 				}
 				windowBytes++
-				if window.Len() < limit {
+				if window.Len() < limit && (lineLimit == 0 || line-windowLine < lineLimit) {
 					window.WriteByte(c)
 				}
 			}

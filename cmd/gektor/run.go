@@ -42,8 +42,12 @@ func runResolved(launch launchRequest, o resolvedLaunch) error {
 // (Streamable HTTP). A server that fails to answer risks nothing: it is
 // reported and skipped, and the run continues with the rest. Close every
 // client when the run ends so no server process outlives it.
-func discoverMCP(ctx context.Context, spec string) ([]agent.Tool, []MCPCloser) {
-	names, commands, argss := tools.ParseMCPFlag(spec)
+func discoverMCP(ctx context.Context, spec, dir string) ([]agent.Tool, []MCPCloser) {
+	names, commands, argss, parseErr := tools.ParseMCPFlag(spec)
+	if parseErr != nil {
+		fmt.Fprintf(os.Stderr, "mcp: %v (skipped)\n", parseErr)
+		return nil, nil
+	}
 	var out []agent.Tool
 	var clients []MCPCloser
 	for i, name := range names {
@@ -54,7 +58,7 @@ func discoverMCP(ctx context.Context, spec string) ([]agent.Tool, []MCPCloser) {
 		if tools.IsMCPURL(commands[i]) {
 			mcpTools, mcpClient, err = tools.StartMCPHTTP(dctx, name, commands[i])
 		} else {
-			mcpTools, mcpClient, err = tools.StartMCP(dctx, name, commands[i], argss[i]...)
+			mcpTools, mcpClient, err = tools.StartMCP(dctx, name, dir, commands[i], argss[i]...)
 		}
 		cancel()
 		if err != nil {

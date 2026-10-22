@@ -1,9 +1,12 @@
 package llm
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -62,7 +65,64 @@ func ValidateImage(path string) error {
 	if fi.Size() > MaxImageBytes {
 		return fmt.Errorf("image %q: %d bytes over the %d-byte cap", path, fi.Size(), MaxImageBytes)
 	}
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	header := make([]byte, 512)
+	n, err := f.Read(header)
+	if err != nil && err != io.EOF {
+		return err
+	}
+	if mime := http.DetectContentType(header[:n]); mime != imageMIME[ext] {
+		return fmt.Errorf("image %q: content type %s does not match %s", path, mime, imageMIME[ext])
+	}
 	return nil
+}
+
+// SnapshotImage freezes a tool image before it enters history. A subsequent
+// screenshot at the same source path must not change earlier model inputs.
+func SnapshotImage(path, dir string) (string, error) {
+	if err := ValidateImage(path); err != nil {
+		return "", err
+	}
+	source, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer source.Close()
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return "", err
+	}
+	f, err := os.CreateTemp(dir, ".image-*")
+	if err != nil {
+		return "", err
+	}
+	defer os.Remove(f.Name())
+	hash := sha256.New()
+	n, copyErr := io.Copy(io.MultiWriter(f, hash), io.LimitReader(source, MaxImageBytes+1))
+	closeErr := f.Close()
+	if copyErr != nil {
+		return "", copyErr
+	}
+	if closeErr != nil {
+		return "", closeErr
+	}
+	if n > MaxImageBytes {
+		return "", fmt.Errorf("image grew beyond the %d-byte cap", MaxImageBytes)
+	}
+	target := filepath.Join(dir, fmt.Sprintf("%x%s", hash.Sum(nil), strings.ToLower(filepath.Ext(path))))
+	if err := os.Rename(f.Name(), target); err != nil {
+		// Another concurrent read may have stored these identical bytes.
+		if _, statErr := os.Stat(target); statErr != nil {
+			return "", err
+		}
+	}
+	if err := ValidateImage(target); err != nil {
+		return "", err
+	}
+	return target, nil
 }
 
 // encodeImageFile reads an absolute image path into a data URL. Paths
@@ -73,9 +133,17 @@ func encodeImageFile(path string) (string, error) {
 		return "", err
 	}
 	mime := imageMIME[strings.ToLower(filepath.Ext(path))]
-	raw, err := os.ReadFile(path)
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	raw, err := io.ReadAll(io.LimitReader(f, MaxImageBytes+1))
 	if err != nil {
 		return "", fmt.Errorf("image %q: %w", path, err)
+	}
+	if len(raw) > MaxImageBytes {
+		return "", fmt.Errorf("image %q grew beyond the byte cap", path)
 	}
 	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(raw), nil
 }

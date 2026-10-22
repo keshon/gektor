@@ -164,7 +164,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	// reached from here.
 	//
 
-	mcpTools, mcpClients := discoverMCP(ctx, o.mcp)
+	mcpTools, mcpClients := discoverMCP(ctx, o.mcp, ws.Root())
 	defer func() {
 		for _, c := range mcpClients {
 			c.Close()
