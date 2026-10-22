@@ -26,7 +26,7 @@ func TestSnapshotRetainsArchiveAndRoundTripsContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	active := append(append([]llm.Message(nil), history[:2]...), llm.Message{Role: llm.RoleUser, Content: "summary"}, history[4])
+	active := append(append([]llm.Message(nil), history[:2]...), llm.Message{Role: llm.RoleUser, Content: "summary", Harness: "compact"}, history[4])
 	s.Compact(active)
 	if err := s.Save(path); err != nil {
 		t.Fatal(err)
@@ -46,7 +46,7 @@ func TestRunRangesSurviveRepeatedCompaction(t *testing.T) {
 	s := New(history)
 	s.Runs = []Run{{Start: 1, End: 3, Outcome: "completed", Steps: 1}, {Start: 3, End: 5, Outcome: "completed", Steps: 1}}
 	for _, start := range []int{3, 4} {
-		projection := append(append([]llm.Message(nil), history[:2]...), llm.Message{Role: llm.RoleUser, Content: "summary"})
+		projection := append(append([]llm.Message(nil), history[:2]...), llm.Message{Role: llm.RoleUser, Content: "summary", Harness: "compact"})
 		s.Compact(append(projection, history[start:]...))
 	}
 	data, _ := json.Marshal(s)

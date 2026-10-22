@@ -23,6 +23,7 @@ func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSin
 	}
 	tools := []agent.Tool{
 		info,
+		ReadOutput{},
 		ReadFile{WS: ws, Vision: vision},
 		scan(WriteFile{WS: ws}),
 		scan(PatchFile{WS: ws}),
@@ -35,6 +36,7 @@ func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSin
 		GitCommit{WS: ws},
 		StartBackground{WS: ws, Procs: procs},
 		CheckBackground{Procs: procs},
+		WaitBackground{Procs: procs},
 		StopBackground{Procs: procs},
 		CheckURL{},
 		Webfetch{},
@@ -54,11 +56,14 @@ func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSin
 func ReadOnly(ws *workspace.Workspace, procs *BackgroundProcesses, vision bool) *agent.Registry {
 	return agent.NewRegistry(
 		SystemInfo{WS: ws},
+		ReadOutput{},
+		ReadHistory{},
 		ReadFile{WS: ws, Vision: vision},
 		ListFiles{WS: ws},
 		GrepFiles{WS: ws},
 		Git{WS: ws},
 		CheckBackground{Procs: procs},
+		WaitBackground{Procs: procs},
 		CheckURL{},
 		Webfetch{},
 		FetchRaw{},

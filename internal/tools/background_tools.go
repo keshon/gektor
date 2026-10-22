@@ -33,10 +33,7 @@ func (StartBackground) Name() string { return "start_background" }
 // Starting an arbitrary command is a mutation barrier.
 func (StartBackground) Mode() agent.ToolMode { return agent.Exclusive }
 func (StartBackground) Description() string {
-	return "Start a long-running command (dev server, watcher, anything that doesn't exit on " +
-		"its own) without blocking. Returns an id and next_cursor; pass both to check_background for new output, or stop " +
-		"it with stop_background. Use this instead of run_shell for anything like 'npm run dev' " +
-		"— run_shell will time out and kill it before you can test anything."
+	return "Start a server, watcher or background command without blocking. Returns id and next_cursor for check_background. Completion is delivered at the next model turn; use wait_background for finite builds/tests instead of polling. A completion after this run ends waits for the next run. Stop your processes when no longer needed."
 }
 func (StartBackground) Schema() json.RawMessage {
 	return json.RawMessage(`{
@@ -59,7 +56,7 @@ func (t StartBackground) Run(ctx context.Context, args json.RawMessage) (string,
 	cmd := shellCommand(context.Background(), in.Command)
 	cmd.Dir = t.WS.Root()
 	cmd.Env = scrubEnv(os.Environ())
-	id, _ := t.Procs.start(cmd)
+	id, _ := t.Procs.start(ctx, cmd)
 
 	settle := t.SettleTime
 	if settle == 0 {
@@ -86,6 +83,54 @@ func (t StartBackground) Run(ctx context.Context, args json.RawMessage) (string,
 }
 
 type CheckBackground struct{ Procs *BackgroundProcesses }
+
+type WaitBackground struct{ Procs *BackgroundProcesses }
+
+func (WaitBackground) Name() string         { return "wait_background" }
+func (WaitBackground) Mode() agent.ToolMode { return agent.Concurrent }
+func (WaitBackground) Description() string {
+	return "Wait for a finite background build/test without model polling. timeout_seconds defaults to 30, maximum 60. Servers remain running. Completion after this agent run ends is delivered on the next run, never by a hidden model invocation."
+}
+func (WaitBackground) Schema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"},"timeout_seconds":{"type":"integer","minimum":1,"maximum":60}},"required":["id"],"additionalProperties":false}`)
+}
+func (t WaitBackground) Run(ctx context.Context, args json.RawMessage) (string, error) {
+	var in struct {
+		ID             string
+		TimeoutSeconds int `json:"timeout_seconds"`
+	}
+	if err := json.Unmarshal(args, &in); err != nil {
+		return "", err
+	}
+	if in.TimeoutSeconds == 0 {
+		in.TimeoutSeconds = 30
+	}
+	if in.TimeoutSeconds < 1 || in.TimeoutSeconds > 60 {
+		return "", fmt.Errorf("timeout_seconds must be 1–60")
+	}
+	if t.Procs == nil {
+		return "", fmt.Errorf("no background processes")
+	}
+	t.Procs.mu.Lock()
+	proc := t.Procs.procs[in.ID]
+	t.Procs.mu.Unlock()
+	if proc == nil {
+		return "", fmt.Errorf("unknown background process %q", in.ID)
+	}
+	if store := outputStore(ctx); store != nil && proc.scope != store.dir {
+		return "", fmt.Errorf("background process belongs to another session")
+	}
+	timer := time.NewTimer(time.Duration(in.TimeoutSeconds) * time.Second)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	case <-proc.done:
+	case <-timer.C:
+	}
+	readArgs, _ := json.Marshal(map[string]any{"id": in.ID, "cursor": 0})
+	return (CheckBackground{Procs: t.Procs}).Run(ctx, readArgs)
+}
 
 func (CheckBackground) Name() string         { return "check_background" }
 func (CheckBackground) Mode() agent.ToolMode { return agent.Concurrent }
@@ -133,7 +178,7 @@ func (t CheckBackground) Run(_ context.Context, args json.RawMessage) (string, e
 type StopBackground struct{ Procs *BackgroundProcesses }
 
 func (StopBackground) Name() string         { return "stop_background" }
-func (StopBackground) Mode() agent.ToolMode { return agent.Concurrent }
+func (StopBackground) Mode() agent.ToolMode { return agent.Exclusive }
 func (StopBackground) Description() string  { return "Stop a process started with start_background." }
 func (StopBackground) Schema() json.RawMessage {
 	return json.RawMessage(`{

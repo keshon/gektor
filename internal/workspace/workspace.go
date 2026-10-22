@@ -88,11 +88,23 @@ func (w *Workspace) skillCatalog() string {
 			f.Close()
 			text := strings.ReplaceAll(string(data), "\r\n", "\n")
 			if strings.HasPrefix(text, "---\n") {
-				for _, line := range strings.Split(strings.TrimPrefix(text, "---\n"), "\n") {
+				lines := strings.Split(strings.TrimPrefix(text, "---\n"), "\n")
+				for n, line := range lines {
 					if line == "---" {
 						break
 					}
 					if value, ok := strings.CutPrefix(line, "description:"); ok {
+						value = strings.TrimSpace(value)
+						if strings.HasPrefix(value, ">") || strings.HasPrefix(value, "|") {
+							var parts []string
+							for _, next := range lines[n+1:] {
+								if next != "" && next[0] != ' ' && next[0] != '\t' {
+									break
+								}
+								parts = append(parts, strings.TrimSpace(next))
+							}
+							value = strings.Join(parts, " ")
+						}
 						description := []rune(strings.Trim(strings.TrimSpace(value), "\"'"))
 						if len(description) > 220 {
 							description = append(description[:220], '…')
@@ -106,6 +118,46 @@ func (w *Workspace) skillCatalog() string {
 		b.WriteByte('\n')
 	}
 	return b.String()
+}
+
+// ScopedInstructions loads only descendant AGENTS.md files on the target's
+// directory chain. Every block names its scope; root rules are already loaded.
+func (w *Workspace) ScopedInstructions(rel string) (string, error) {
+	full, err := w.Resolve(rel)
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Dir(full)
+	if info, err := os.Stat(full); err == nil && info.IsDir() {
+		dir = full
+	}
+	var dirs []string
+	for dir != w.root && strings.HasPrefix(dir, w.root+string(filepath.Separator)) {
+		dirs = append(dirs, dir)
+		dir = filepath.Dir(dir)
+	}
+	var b strings.Builder
+	for i := len(dirs) - 1; i >= 0; i-- {
+		path := filepath.Join(dirs[i], "AGENTS.md")
+		f, err := os.Open(path)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		data, err := io.ReadAll(io.LimitReader(f, 64*1024+1))
+		f.Close()
+		if err != nil {
+			return "", err
+		}
+		if len(data) > 64*1024 || b.Len()+len(data) > 64*1024 {
+			return "", fmt.Errorf("scoped instructions exceed 64 KiB: %s", path)
+		}
+		scope, _ := filepath.Rel(w.root, dirs[i])
+		fmt.Fprintf(&b, "Instructions for %s/ and its descendants only (%s):\n%s\n", filepath.ToSlash(scope), filepath.ToSlash(filepath.Join(scope, "AGENTS.md")), data)
+	}
+	return b.String(), nil
 }
 
 func (w *Workspace) Root() string { return w.root }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -17,6 +18,7 @@ type Agent struct {
 	cfg           Config
 	snapshot      session.Snapshot
 	checkpointLen int
+	requests      int
 
 	// allowed is the read-only allowlist, nil when unrestricted.
 	allowed map[string]bool
@@ -172,8 +174,8 @@ func (a *Agent) saveState(history []llm.Message) {
 		warning := "session persistence failed: " + err.Error()
 		if !containsStr(a.report.Warnings, warning) {
 			a.report.Warnings = append(a.report.Warnings, warning)
-			if a.cfg.OnNudge != nil {
-				a.cfg.OnNudge("persistence-error", warning)
+			if a.cfg.OnLocal != nil {
+				a.cfg.OnLocal(warning)
 			}
 		}
 	}
@@ -195,6 +197,18 @@ func (a *Agent) restoreHistory(history []llm.Message) ([]llm.Message, error) {
 		}
 	}
 	history = a.snapshot.Context()
+	if a.snapshot.ContextStart > 0 {
+		var err error
+		history, err = retainArchivedInstructions(a.snapshot, history)
+		if err != nil {
+			return nil, err
+		}
+		a.snapshot.Summary = history[2].Content
+		a.snapshot.SummaryRequest = history[2].Request
+	}
+	for _, msg := range history {
+		a.requests = max(a.requests, msg.Request)
+	}
 	a.checkpointLen = len(history)
 	return history, nil
 }
@@ -218,6 +232,23 @@ func (a *Agent) captureHistory(history []llm.Message) {
 	if len(history) > 0 && len(a.snapshot.History) > 0 {
 		a.snapshot.History[0] = history[0]
 	}
+	for i, msg := range history {
+		if msg.Request == 0 {
+			continue
+		}
+		index := i
+		if a.snapshot.ContextStart > 0 && i >= 3 {
+			index = a.snapshot.ContextStart + i - 3
+		}
+		if a.snapshot.ContextStart > 0 && i == 2 {
+			a.snapshot.SummaryRequest = msg.Request
+			continue
+		}
+		if index < len(a.snapshot.History) {
+			a.snapshot.History[index].Harness = msg.Harness
+			a.snapshot.History[index].Request = msg.Request
+		}
+	}
 	a.checkpointLen = len(history)
 }
 
@@ -238,10 +269,15 @@ func (a *Agent) closePendingCalls(history []llm.Message, answerID, answer string
 		return history
 	}
 	answered := map[string]bool{}
+	var rejected []string
 	for _, msg := range history[start+1:] {
 		answered[msg.ToolCallID] = true
 	}
 	for _, call := range history[start].ToolCalls {
+		if call.InputError != "" {
+			rejected = append(rejected, fmt.Sprintf("Call %s (%s) was rejected before execution: %s. Arguments were supplied and retained as text. Reissue valid complete arguments. Original input excerpt:\n%s", call.ID, call.Name, call.InputError, TruncateMiddle(call.RawArguments, 1800)))
+			continue
+		}
 		if answered[call.ID] {
 			continue
 		}
@@ -255,6 +291,9 @@ func (a *Agent) closePendingCalls(history []llm.Message, answerID, answer string
 		if a.cfg.OnResult != nil {
 			a.cfg.OnResult(ToolResult{CallID: call.ID, Output: result.Content, Failed: failed})
 		}
+	}
+	for _, diagnostic := range rejected {
+		history = a.nudge(history, "tool_input", diagnostic)
 	}
 	return history
 }
@@ -274,12 +313,8 @@ type runState struct {
 	repeatSignature string
 	repeatCount     int
 
-	// idempotentSeen maps an idempotent call's canonical arguments to the
-	// step that ran it. An exact repeat is refused instead of served the
-	// same bytes again, and the map is dropped on mutation or compaction,
-	// because the refusal promises a result that is still valid.
-	idempotentSeen     map[string]int
 	lastPromptEstimate int
+	compactErr         error
 }
 
 // ErrMaxSteps marks a run that did real work but ran out of step budget,

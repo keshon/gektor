@@ -312,6 +312,7 @@ func (m *model) handleEvent(ev run.Event) {
 		number := func(key string) int { n, _ := ev.Fields[key].(float64); return int(n) }
 		estimated, _ := ev.Fields["estimated"].(bool)
 		m.progress = llm.Progress{Phase: phase, PromptTokens: number("prompt"), CompletionTokens: number("completion"), CachedTokens: number("cached"), ProcessedTokens: number("processed"), Estimated: estimated}
+		m.progress.Detail, _ = ev.Fields["detail"].(string)
 		if phase == "reasoning" || phase == "generating" || phase == "tool_call" {
 			m.usage.liveModel = true
 			if m.firstToken.IsZero() {
@@ -416,8 +417,30 @@ func (m *model) handleEvent(ev run.Event) {
 		// Harness notices render as dim markers: same text the model
 		// saw (provenance mark included), no decisions attached.
 		if text, _ := ev.Fields["text"].(string); text != "" {
-			m.appendBlock(markerBlock(text))
+			m.appendBlock(contextBlock(llm.Message{Role: llm.RoleUser, Content: text}))
 		}
+	case "local_warning":
+		if text, _ := ev.Fields["text"].(string); text != "" {
+			m.appendBlock(errorBlock(text))
+		}
+	case "context":
+		text, _ := ev.Fields["text"].(string)
+		role, _ := ev.Fields["role"].(string)
+		request, _ := ev.Fields["request"].(float64)
+		found := false
+		for i := len(m.transcript.blocks) - 1; i >= 0; i-- {
+			if m.transcript.blocks[i].role == roleMarker && m.transcript.blocks[i].contextText == text {
+				at := m.transcript.blocks[i].at
+				m.transcript.blocks[i] = contextBlock(llm.Message{Role: llm.Role(role), Content: text, Request: int(request)})
+				m.transcript.blocks[i].at = at
+				found = true
+				break
+			}
+		}
+		if !found {
+			m.appendBlock(contextBlock(llm.Message{Role: llm.Role(role), Content: text, Request: int(request)}))
+		}
+		m.refreshContent()
 	case "usage":
 		if p, ok := ev.Fields["prompt"].(float64); ok && int(p) > 0 {
 			completion, _ := ev.Fields["completion"].(float64)

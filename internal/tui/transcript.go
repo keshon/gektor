@@ -30,6 +30,7 @@ const (
 	// report-only signal, never an error, so it takes the warning's
 	// unbold yellow rather than the error's bold red.
 	roleWarning
+	roleStatus
 )
 
 // block is one transcript entry: raw content plus its role. Styling
@@ -46,10 +47,11 @@ type block struct {
 	// Tool card fields (roleTool only): callID pairs the result event,
 	// result/output text lands on attach, open until it does, failed
 	// when the result reports an error.
-	callID string
-	result string
-	open   bool
-	failed bool
+	callID      string
+	result      string
+	open        bool
+	failed      bool
+	contextText string
 }
 
 // assistantBlocks normalizes both backend reasoning formats for display only.
@@ -90,8 +92,24 @@ func userBlock(s string) block   { return block{role: roleUser, text: s, at: tim
 func thinkBlock(s string) block  { return block{role: roleThink, text: s, at: time.Now()} }
 func resultBlock(s string) block { return block{role: roleResult, text: s, at: time.Now()} }
 func gateBlock(s string) block   { return block{role: roleGate, text: s, at: time.Now()} }
-func markerBlock(s string) block { return block{role: roleMarker, text: s, at: time.Now()} }
-func errorBlock(s string) block  { return block{role: roleError, text: s, at: time.Now()} }
+func markerBlock(s string) block {
+	r := roleStatus
+	if strings.HasPrefix(s, harnessPrefix) {
+		r = roleMarker
+	}
+	return block{role: r, text: s, contextText: s, at: time.Now()}
+}
+
+func contextBlock(msg llm.Message) block {
+	b := markerBlock(msg.Content)
+	state := "pending next request"
+	if msg.Request > 0 {
+		state = fmt.Sprintf("included in request %d", msg.Request)
+	}
+	b.text += fmt.Sprintf("\n[role=%s · %s]", msg.Role, state)
+	return b
+}
+func errorBlock(s string) block { return block{role: roleError, text: s, at: time.Now()} }
 
 // findingBlock renders one deterministic-check finding as plain text;
 // the rule carries the meaning, the warning style the urgency.
@@ -160,6 +178,8 @@ func roleLabel(r role) string {
 		return "ERROR"
 	case roleWarning:
 		return "WARNING"
+	case roleStatus:
+		return "STATUS"
 	}
 	return "OUTPUT"
 }
@@ -175,8 +195,10 @@ func speakerLabel(b block, props transcriptProps) string {
 		return strings.ToUpper(props.user)
 	case roleAnswer, roleThink, roleTool, roleResult:
 		return strings.ToUpper(props.speaker)
-	default:
+	case roleMarker:
 		return systemSpeaker
+	default:
+		return "STATUS"
 	}
 }
 
@@ -468,7 +490,7 @@ func applyRoleStyle(r role, origLine, frag string, st styles) string {
 		return resultLineStyle(origLine, frag, st)
 	case roleGate:
 		return st.gate.Render(frag)
-	case roleMarker:
+	case roleMarker, roleStatus:
 		return st.dim.Render(frag)
 	case roleError:
 		return st.err.Render(frag)

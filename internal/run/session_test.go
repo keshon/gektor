@@ -183,6 +183,10 @@ func TestSession_RunEmitsSameSchemaAsEmitter(t *testing.T) {
 			if _, ok := ev.Fields["call_id"]; !ok {
 				t.Fatalf("tool_result without call_id: %+v", ev)
 			}
+		case "context":
+			if ev.Fields["role"] != "user" {
+				t.Fatalf("context role missing: %+v", ev)
+			}
 		case "nudge":
 			seenNudge = true
 			if _, ok := ev.Fields["kind"]; !ok {
@@ -443,7 +447,8 @@ func TestSessionSweepUsesTheEventReporter(t *testing.T) {
 
 type sessionPreviewTool struct{ tools.CheckURL }
 
-func (sessionPreviewTool) Name() string { return "stream_test" }
+func (sessionPreviewTool) Name() string            { return "stream_test" }
+func (sessionPreviewTool) Schema() json.RawMessage { return json.RawMessage(`{"type":"object"}`) }
 func (sessionPreviewTool) Run(context.Context, json.RawMessage) (string, error) {
 	return "final output", nil
 }

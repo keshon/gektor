@@ -27,8 +27,10 @@ Linux/macOS:
 
 Use `--browser msedge` for installed Edge. Omit `--headless` to see the
 separate browser window. `--isolated` avoids using your personal profile.
-The server runs in the task workspace. Images are saved to files; inline MCP
-image payloads are omitted because GEKTOR currently reads images via `read_file`.
+The server runs in the task workspace. The example omits inline images to keep
+DOM-based work cheap. With a vision-capable backend, `--image-responses allow`
+also permits validated MCP image attachments. Saved screenshot links remain
+references; read their workspace files with `read_file` to load the pixels.
 For predictable screenshot paths, supply a workspace-relative filename.
 
 Copy `skills/browser/` into the task workspace's `skills/` directory before

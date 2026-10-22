@@ -88,7 +88,6 @@ func (a *Agent) acceptInputs(history []llm.Message, inputs []llm.Message, st *ru
 	history = append(history, inputs...)
 	st.repeatSignature, st.repeatCount = "", 0
 	st.emptyFinishRetried = false
-	st.forgetIdempotentSeen()
 	a.saveState(history)
 	for _, input := range inputs {
 		if a.cfg.OnInput != nil {

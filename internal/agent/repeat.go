@@ -67,20 +67,10 @@ func (st *runState) trackSignature(signature string) int {
 	return 1
 }
 
-// noteMutation forgets both repeat caches. The same read can now legitimately
-// return something new, and a signature that repeats across a mutation is work
-// in progress (test, patch, test) rather than a spin - which is why the
-// counter, not just the read cache, has to go.
+// noteMutation clears repetition after a potentially mutating action.
 func (st *runState) noteMutation() {
-	st.forgetIdempotentSeen()
 	st.repeatSignature, st.repeatCount = "", 0
 }
-
-// forgetIdempotentSeen drops the record of which pure reads already ran. The
-// refusal text promises the result "is still valid - re-read it from the
-// conversation", which stops being true once a mutation supersedes it or
-// compaction drops that conversation from the prompt.
-func (st *runState) forgetIdempotentSeen() { st.idempotentSeen = nil }
 
 // knownTools is the set of tool names the model was offered, for the leak
 // parser: text shaped like a call to an unknown tool is prose, not a call.

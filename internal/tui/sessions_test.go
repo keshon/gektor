@@ -536,8 +536,8 @@ func TestCommand_CompactShrinksAndRerenders(t *testing.T) {
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*model)
-	if len(mm.transcript.blocks) == 0 || !strings.Contains(mm.transcript.blocks[len(mm.transcript.blocks)-1].text, "compacted:") {
-		t.Fatalf("blocks = %+v, want a compaction marker last", mm.transcript.blocks)
+	if len(mm.transcript.blocks) < 2 || !strings.Contains(mm.transcript.blocks[len(mm.transcript.blocks)-2].text, "compacted:") || !strings.Contains(mm.transcript.blocks[len(mm.transcript.blocks)-1].contextText, "Earlier history was compacted") {
+		t.Fatalf("blocks = %+v, want a local compaction marker followed by model context", mm.transcript.blocks)
 	}
 	loaded, err := agent.LoadState(mm.stateFile)
 	if err != nil {

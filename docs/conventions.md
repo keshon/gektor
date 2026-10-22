@@ -92,15 +92,16 @@ registry without delegation, so delegation cannot recurse.
 from answer wording. An explicit verify command supplies mechanical evidence.
 Verification records a real command verdict without requesting a model self-check.
 
-**[invariant]** Repeated tool calls remain legal whenever something may have
-changed between them; the step limit bounds execution, and checklist changes
-cannot extend it. Two deterministic guards cover the case where nothing did
-change. An exact repeat of an idempotent call (a pure read, a directory listing,
-a search) is refused instead of re-executed, because its result is still in
-history. Three consecutive steps with the same call signature end the run with
-`ErrRepeatingSteps` after one turn with no tools offered. Both guards reset on
-any mutation, so rewrites and shell commands that change the workspace are never
-counted as repetition. Recovery addresses concrete protocol failures.
+**[invariant]** Reads are always refreshed: an editor or background process can
+change their result without an agent mutation. Three consecutive steps with the
+same calls and results trigger a final tool-free answer. Changed results are
+progress. The step budget still bounds execution.
+
+**[invariant]** Invalid arguments are never executed or replaced by a fake empty
+object. Keep original input as archive text and send an explicit diagnostic to
+the model. SYSTEM displays model-facing harness messages and their request
+delivery; local UI statuses are labelled STATUS. Hiding SYSTEM changes display
+only.
 
 ## Prompts
 

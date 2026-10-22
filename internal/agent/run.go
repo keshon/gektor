@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
@@ -13,6 +14,9 @@ import (
 // run requests a response, executes its tools and persists history until
 // the model answers, the operator cancels or the step limit is reached.
 func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, runErr error) {
+	if a.cfg.ToolContext != nil {
+		ctx = a.cfg.ToolContext(ctx)
+	}
 	var st runState
 	runStart := len(a.snapshot.History)
 	if runStart == 2 {
@@ -106,14 +110,14 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 			return "", err
 		}
 		history = a.acceptInputs(history, a.cfg.Inbox.take(false), &st)
+		history = a.acceptNotifications(ctx, history)
 		req := llm.ChatRequest{
 			Messages: history,
 			Tools:    a.cfg.Tools.Defs(),
 		}
 		estimate := llm.EstimatePromptTokens(req)
 		promptTokens := st.projectPrompt(estimate)
-		if a.maybeCompact(&history, llm.Usage{PromptTokens: promptTokens}, &st) {
-			st.forgetIdempotentSeen()
+		if a.maybeCompact(&history, llm.Usage{PromptTokens: promptTokens}, &st, ctx) {
 			st.lastPromptEstimate = 0
 			history = a.withDirective(history)
 			req.Messages = history
@@ -121,17 +125,39 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 			promptTokens = estimate
 			a.saveState(history)
 		}
+		if st.compactErr != nil {
+			return "", fmt.Errorf("checkpoint failed; previous context retained: %w", st.compactErr)
+		}
 		req.MaxTokens = a.effectiveMaxTokens(promptTokens)
 		st.lastPromptEstimate = estimate
 		resp, err := a.chat(ctx, req)
 		if err != nil {
-			history, err = a.handleChatError(&st, step, err, history)
+			if len(resp.Message.ToolCalls) > 0 || resp.Message.Content != "" || resp.Message.Reasoning != "" {
+				for i := range resp.Message.ToolCalls {
+					resp.Message.ToolCalls[i].InputError = "incomplete_stream"
+				}
+				resp.Message.FinishReason = resp.FinishReason
+				message := recordableMessage(resp.Message)
+				if a.cfg.OnStep != nil {
+					a.cfg.OnStep(step, message)
+				}
+				history = append(history, message)
+				if len(resp.Message.ToolCalls) > 0 {
+					history = a.executeToolCalls(ctx, &st, step, "incomplete_stream", resp.Message.ToolCalls, history)
+				} else {
+					history = a.nudge(history, "incomplete_stream", "Generation stream was interrupted; the preceding answer is incomplete. No tool call from that interrupted response was executed.")
+				}
+				a.saveState(history)
+				return "", fmt.Errorf("step %d: incomplete response retained: %w", step, err)
+			}
+			history, err = a.handleChatError(&st, step, err, history, ctx)
 			if err != nil {
 				return "", err
 			}
 			continue
 		}
 		resp, leakedText := a.recoverLeakedCalls(resp, step)
+		resp.Message.FinishReason = resp.FinishReason
 		message := recordableMessage(resp.Message)
 		if a.cfg.OnStep != nil {
 			a.cfg.OnStep(step, message)
@@ -154,6 +180,11 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 			history = out.history
 			if out.done {
 				if out.err == nil {
+					if next := a.acceptNotifications(ctx, history); len(next) > len(history) {
+						history = next
+						a.report.Final = ""
+						continue
+					}
 					if pending := a.cfg.Inbox.take(true); len(pending) > 0 {
 						history = a.acceptInputs(history, pending, &st)
 						a.report.Final = ""
@@ -198,7 +229,20 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 	return "", fmt.Errorf("%w (%d) without finishing", ErrMaxSteps, a.cfg.MaxSteps)
 }
 
-func (a *Agent) handleChatError(st *runState, step int, err error, history []llm.Message) ([]llm.Message, error) {
+func (a *Agent) acceptNotifications(ctx context.Context, history []llm.Message) []llm.Message {
+	if a.cfg.Notifications == nil {
+		return history
+	}
+	for _, note := range a.cfg.Notifications(ctx) {
+		if a.cfg.LimitOutput != nil {
+			note = a.cfg.LimitOutput(ctx, "background", note, 8192)
+		}
+		history = a.nudge(history, "background", note)
+	}
+	return history
+}
+
+func (a *Agent) handleChatError(st *runState, step int, err error, history []llm.Message, contexts ...context.Context) ([]llm.Message, error) {
 	if !llm.IsOverflow(err) {
 		return nil, fmt.Errorf("step %d: chat: %w", step, err)
 	}
@@ -214,9 +258,21 @@ func (a *Agent) handleChatError(st *runState, step int, err error, history []llm
 		// Caches drop only when history actually shrank: the
 		// refusal texts cite content that must really be gone.
 		if next := compactHistory(history, keep/2); len(next) < len(history) {
+			a.captureHistory(history)
+			var compactErr error
+			next, compactErr = retainArchivedInstructions(a.snapshot, next)
+			if compactErr == nil && a.cfg.Summarize {
+				ctx := context.Background()
+				if len(contexts) > 0 {
+					ctx = contexts[0]
+				}
+				next, compactErr = a.checkpoint(ctx, history, next)
+			}
+			if compactErr != nil {
+				return history, fmt.Errorf("overflow recovery checkpoint failed; original archive and context retained: %w", compactErr)
+			}
 			a.compactContext(history, next)
 			history = next
-			st.forgetIdempotentSeen()
 			st.lastPromptEstimate = 0
 			history = a.withDirective(history)
 			shrunk = true
@@ -263,6 +319,21 @@ func (a *Agent) recoverLeakedCalls(resp llm.ChatResponse, step int) (llm.ChatRes
 // otherwise ChatWithRetry. The stream is retried unary only while nothing
 // has been shown yet, since a partial stream cannot be resumed.
 func (a *Agent) chat(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
+	a.requests++
+	for i := range req.Messages {
+		m := &req.Messages[i]
+		if m.Harness == "" && strings.HasPrefix(m.Content, harnessPrefix) {
+			m.Harness = "notice"
+		}
+		if m.Harness != "" && m.Request == 0 {
+			m.Request = a.requests
+			if a.cfg.OnContext != nil {
+				a.cfg.OnContext(*m)
+			}
+		}
+	}
+	a.saveState(req.Messages)
+	req.Messages = llm.ModelMessages(req.Messages)
 	req.Temperature = a.cfg.Temperature
 	req.OnProgress = a.cfg.OnProgress
 	progress := llm.Progress{Phase: "waiting", PromptTokens: llm.EstimatePromptTokens(req), Estimated: true}
@@ -292,7 +363,7 @@ func (a *Agent) chat(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse
 				return resp, nil
 			case errors.Is(err, llm.ErrStreamUnsupported):
 				// Fall through to the unary path.
-			case !shown && (errors.Is(err, llm.ErrIncompleteStream) || llm.IsRetryableTransport(err)):
+			case !shown && len(resp.Message.ToolCalls) == 0 && (errors.Is(err, llm.ErrIncompleteStream) || llm.IsRetryableTransport(err)):
 				// Nothing reached the screen, so a unary retry is safe.
 			case !shown && isRetryableAPI(err):
 				// An HTTP error status arrives before any SSE data, so

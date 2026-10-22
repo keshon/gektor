@@ -20,7 +20,6 @@ type Git struct{ WS *workspace.Workspace }
 
 func (Git) Name() string         { return "git" }
 func (Git) Mode() agent.ToolMode { return agent.Concurrent }
-func (Git) Idempotent() bool     { return true }
 func (Git) Description() string {
 	return "Inspect Git status, log, diff, show, blame or ls-files. Paths are literal workspace-relative paths, not shell expressions or globs. " +
 		"diff and show include the patch; staged=true selects the staged diff. log returns at most 50 commits. Output is byte-bounded. " +

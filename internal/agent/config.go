@@ -53,10 +53,17 @@ type Config struct {
 	OnProgress       func(llm.Progress)
 	OnResult         func(ToolResult)
 	// OnToolOutput receives transient preview chunks, never model history.
-	OnToolOutput func(callID, text string)
-	OnDelta      func(string)
-	OnReasoning  func(string)
-	OnNudge      func(kind, text string)
+	OnToolOutput  func(callID, text string)
+	OnDelta       func(string)
+	OnReasoning   func(string)
+	OnNudge       func(kind, text string)
+	OnContext     func(llm.Message)
+	ToolContext   func(context.Context) context.Context
+	LimitOutput   func(context.Context, string, string, int) string
+	Instructions  func(json.RawMessage) (string, error)
+	Notifications func(context.Context) []string
+	Summarize     bool
+	OnLocal       func(string)
 }
 
 const DefaultMaxSteps = 25

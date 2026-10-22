@@ -24,17 +24,26 @@ type ToolCall struct {
 	ID        string
 	Name      string
 	Arguments json.RawMessage
+	// Rejected input is archived as text, never replayed as a tool call.
+	RawArguments string `json:"raw_arguments,omitempty"`
+	InputError   string `json:"input_error,omitempty"`
 }
 
 // Message is one turn. ToolCalls is set only on assistant messages that
 // invoke tools; ToolCallID only on tool results answering a call.
 type Message struct {
+	// Harness marks model-facing diagnostics. Delivery is recorded only when
+	// the message is included in a request, independently of UI visibility.
+	Harness string `json:"harness,omitempty"`
+	Request int    `json:"request,omitempty"`
 	// ToolFailed is durable display metadata; wire encoders omit it.
-	ToolFailed *bool `json:"tool_failed,omitempty"`
-	Role       Role
-	Content    string
-	ToolCalls  []ToolCall
-	ToolCallID string
+	ToolFailed   *bool  `json:"tool_failed,omitempty"`
+	ToolStatus   string `json:"tool_status,omitempty"`
+	FinishReason string `json:"finish_reason,omitempty"`
+	Role         Role
+	Content      string
+	ToolCalls    []ToolCall
+	ToolCallID   string
 
 	// Images attaches pictures as absolute paths, resolved at send time.
 	// Paths rather than bytes keeps snapshots small; files are re-read per
@@ -95,6 +104,29 @@ type Progress struct {
 	Phase                                                         string
 	PromptTokens, CompletionTokens, CachedTokens, ProcessedTokens int
 	Estimated                                                     bool
+	Detail                                                        string
+}
+
+// ModelMessages omits rejected calls without inventing empty arguments.
+// Their paired harness diagnostics remain ordinary, valid messages.
+func ModelMessages(history []Message) []Message {
+	out := make([]Message, 0, len(history))
+	for _, m := range history {
+		m.ToolCalls = append([]ToolCall(nil), m.ToolCalls...)
+		calls := m.ToolCalls[:0]
+		for _, c := range m.ToolCalls {
+			if c.InputError == "" {
+				calls = append(calls, c)
+			}
+		}
+		m.ToolCalls = calls
+		m.Request = 0 // delivery metadata is never part of a model request
+		if m.Role == RoleAssistant && len(calls) == 0 && m.Content == "" && len(m.Images) == 0 {
+			continue
+		}
+		out = append(out, m)
+	}
+	return out
 }
 
 // EstimatePromptTokens is a fallback, not a tokenizer. Count the replayed

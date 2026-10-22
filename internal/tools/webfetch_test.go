@@ -68,11 +68,12 @@ func TestWebfetch_TruncatesWithSpill(t *testing.T) {
 		return cannedResponse(r, "text/html", big)
 	})
 	defer func() { webfetchTransport = nil }()
-	out, err := Webfetch{}.Run(context.Background(), json.RawMessage(`{"url":"https://example.com/big"}`))
+	store := &OutputStore{dir: t.TempDir()}
+	out, err := Webfetch{}.Run(store.Context(t.Context()), json.RawMessage(`{"url":"https://example.com/big"}`))
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
-	if !strings.Contains(out, "truncated") || !strings.Contains(out, "Full text:") {
+	if !strings.Contains(out, "read_output") || !strings.Contains(out, "retained") {
 		t.Fatalf("expected truncation + spill, got %.200q", out)
 	}
 }

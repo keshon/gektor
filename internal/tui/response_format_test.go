@@ -95,7 +95,11 @@ func TestEveryRoleHasItsOwnLabel(t *testing.T) {
 func TestMachineRolesShareSystemSpeaker(t *testing.T) {
 	props := transcriptProps{speaker: "Ada", user: "Alex"}
 	for _, r := range []role{roleMarker, roleGate, roleMarker, roleError, roleWarning} {
-		if got := speakerLabel(block{role: r}, props); got != systemSpeaker {
+		want := "STATUS"
+		if r == roleMarker {
+			want = systemSpeaker
+		}
+		if got := speakerLabel(block{role: r}, props); got != want {
 			t.Fatalf("role %v speaker = %q, want %q", r, got, systemSpeaker)
 		}
 	}

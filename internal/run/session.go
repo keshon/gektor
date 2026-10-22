@@ -113,7 +113,7 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, rol
 	prevOnUsage := env.OnUsage
 	prevOnProgress := env.OnProgress
 	env.OnProgress = func(p llm.Progress) {
-		emitter.Emit("progress", map[string]any{"phase": p.Phase, "prompt": p.PromptTokens, "completion": p.CompletionTokens, "cached": p.CachedTokens, "processed": p.ProcessedTokens, "estimated": p.Estimated})
+		emitter.Emit("progress", map[string]any{"phase": p.Phase, "prompt": p.PromptTokens, "completion": p.CompletionTokens, "cached": p.CachedTokens, "processed": p.ProcessedTokens, "estimated": p.Estimated, "detail": p.Detail})
 		if prevOnProgress != nil {
 			prevOnProgress(p)
 		}
@@ -146,6 +146,7 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, rol
 	}
 	prevOnNudge := env.OnNudge
 	env.OnNudge = func(kind, text string) {
+
 		events.EmitNudge(emitter, kind, text)
 		expectReply = true
 		if prevOnNudge != nil {
@@ -153,6 +154,14 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, rol
 		}
 	}
 	previousOutput := env.OnToolOutput
+	previousContext := env.OnContext
+	env.OnLocal = func(text string) { emitter.Emit("local_warning", map[string]any{"text": text}) }
+	env.OnContext = func(m llm.Message) {
+		emitter.Emit("context", map[string]any{"text": m.Content, "role": string(m.Role), "request": m.Request, "kind": m.Harness})
+		if previousContext != nil {
+			previousContext(m)
+		}
+	}
 	env.OnToolOutput = func(callID, text string) {
 		events.EmitToolOutput(emitter, callID, text)
 		if previousOutput != nil {
@@ -284,10 +293,14 @@ func EmitStep(emitter *events.Emitter, label string, step int, msg llm.Message, 
 	}
 	calls := make([]any, 0, len(msg.ToolCalls))
 	for _, tc := range msg.ToolCalls {
+		args := string(tc.Arguments)
+		if tc.InputError != "" {
+			args = tc.RawArguments
+		}
 		calls = append(calls, map[string]any{
 			// The id pairs results to calls (duplicate ids across
 			// steps match the most recent open card).
-			"id": tc.ID, "name": tc.Name, "args": string(tc.Arguments),
+			"id": tc.ID, "name": tc.Name, "args": args, "input_error": tc.InputError,
 		})
 	}
 	if len(calls) > 0 {

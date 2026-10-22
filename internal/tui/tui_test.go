@@ -462,7 +462,7 @@ func TestCommand_NewStartsFresh(t *testing.T) {
 	if mm.state != stRunning {
 		t.Fatalf("state = %v, want running", mm.state)
 	}
-	if len(mm.transcript.blocks) != 2 || mm.transcript.blocks[0].role != roleMarker || mm.transcript.blocks[1].role != roleUser {
+	if len(mm.transcript.blocks) != 2 || mm.transcript.blocks[0].role != roleStatus || mm.transcript.blocks[1].role != roleUser {
 		t.Fatalf("transcript must open marker + task echo: %+v", mm.transcript.blocks)
 	}
 	if mm.transcript.blocks[1].text != "second" {

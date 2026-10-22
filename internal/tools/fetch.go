@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/keshon/gektor/internal/agent"
 )
 
 // webfetch and fetch_raw are the same request with a different cap and a
@@ -103,13 +101,7 @@ func fetch(ctx context.Context, in fetchArgs, spec fetchSpec) (string, error) {
 	}
 	b.WriteString("----\n")
 	if len(text) > limit {
-		b.WriteString(agent.TruncateMiddle(text, limit))
-		fmt.Fprintf(&b, "\n...(text truncated at %d bytes of %d total.", limit, len(text))
-		if p := Spill(spec.tool, text); p != "" {
-			fmt.Fprintf(&b, " Full text: %s)", p)
-		} else {
-			b.WriteString(")")
-		}
+		b.WriteString(LimitOutput(ctx, spec.tool, text, limit))
 	} else {
 		b.WriteString(text)
 	}

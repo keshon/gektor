@@ -123,7 +123,7 @@ func TestAgent_TruncatedArgs_RefusedWithGuidance(t *testing.T) {
 	}
 	found := false
 	for _, m := range client.lastHistory {
-		if m.Role == llm.RoleTool && strings.Contains(m.Content, "truncated") {
+		if m.Harness == "tool_input" && strings.Contains(m.Content, "truncated") {
 			found = true
 		}
 	}
@@ -158,7 +158,7 @@ func TestAgent_TruncatedArgs_MixedBatchExecutesValid(t *testing.T) {
 	}
 	var ok, refused bool
 	for _, m := range client.lastHistory {
-		if m.Role != llm.RoleTool {
+		if m.Role != llm.RoleTool && m.Harness != "tool_input" {
 			continue
 		}
 		if strings.Contains(m.Content, "ok") {
@@ -203,7 +203,7 @@ func TestAgent_InvalidArgsRemainPersistableAndReplayable(t *testing.T) {
 							}
 							found := false
 							for _, m := range snapshot.History {
-								if m.ToolCallID == "bad" && m.ToolFailed != nil && *m.ToolFailed {
+								if m.Harness == "tool_input" && strings.Contains(m.Content, "call bad") {
 									found = true
 								}
 							}

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -31,6 +32,7 @@ type httpMCPClient struct {
 	mu      sync.Mutex
 	seq     int
 	session string
+	renew   sync.Mutex
 }
 
 func (c *httpMCPClient) nextID() int {
@@ -92,15 +94,13 @@ func StartMCPHTTP(ctx context.Context, server, rawURL string) ([]agent.Tool, *ht
 		"jsonrpc": "2.0", "method": "notifications/initialized",
 	})
 
-	var listResult struct {
-		Tools []MCPToolDef `json:"tools"`
-	}
-	if err := c.call(ctx, "tools/list", map[string]any{}, &listResult); err != nil {
+	defs, err := listMCPTools(ctx, c)
+	if err != nil {
 		return nil, nil, fmt.Errorf("mcp %s: tools/list: %w", server, err)
 	}
-	names := assignToolNames(server, listResult.Tools)
-	tools := make([]agent.Tool, 0, len(listResult.Tools))
-	for i, td := range listResult.Tools {
+	names := assignToolNames(server, defs)
+	tools := make([]agent.Tool, 0, len(defs))
+	for i, td := range defs {
 		tools = append(tools, &MCPTool{client: c, server: server, def: td, toolName: names[i]})
 	}
 	return tools, c, nil
@@ -133,6 +133,26 @@ func (c *httpMCPClient) call(ctx context.Context, method string, params any, out
 		return err
 	}
 	raw, session, err := c.post(ctx, body, true)
+	if errors.Is(err, errMCPSessionExpired) && method != "initialize" {
+		c.renew.Lock()
+		if c.sessionID() == "" {
+			var initialized any
+			err = c.call(ctx, "initialize", map[string]any{"protocolVersion": "2024-11-05", "capabilities": map[string]any{}, "clientInfo": map[string]any{"name": "gektor", "version": "1.0"}}, &initialized)
+			if err == nil {
+				err = c.notify(map[string]any{"jsonrpc": "2.0", "method": "notifications/initialized"})
+			}
+		} else {
+			err = nil
+		}
+		c.renew.Unlock()
+		if err != nil {
+			return fmt.Errorf("renew MCP session: %w", err)
+		}
+		if method == "tools/call" {
+			return fmt.Errorf("MCP session expired and was reinitialized; original tool call was not replayed. Inspect its effects before explicitly retrying")
+		}
+		raw, session, err = c.post(ctx, body, false)
+	}
 	if err != nil {
 		return err
 	}
@@ -168,13 +188,16 @@ func (c *httpMCPClient) post(ctx context.Context, body []byte, allowRenew bool) 
 		c.mu.Lock()
 		c.session = ""
 		c.mu.Unlock()
-		return c.post(ctx, body, false)
+		return nil, "", errMCPSessionExpired
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 		return nil, "", fmt.Errorf("mcp %s: HTTP %s: %s", c.server, resp.Status, strings.TrimSpace(string(raw)))
 	}
 	session := resp.Header.Get("Mcp-Session-Id")
+	if resp.StatusCode == http.StatusAccepted || resp.StatusCode == http.StatusNoContent {
+		return nil, session, nil
+	}
 	if ct := resp.Header.Get("Content-Type"); strings.Contains(ct, "text/event-stream") {
 		raw, err := scanSSE(resp.Body)
 		if err != nil {
@@ -202,6 +225,8 @@ func (c *httpMCPClient) post(ctx context.Context, body []byte, allowRenew bool) 
 	}
 	return rpc.Result, session, nil
 }
+
+var errMCPSessionExpired = errors.New("MCP session expired")
 
 func (c *httpMCPClient) notify(msg map[string]any) error {
 	body, err := json.Marshal(msg)

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -46,6 +47,11 @@ func compactHistory(history []llm.Message, keepSteps int) []llm.Message {
 
 	facts := carried
 	facts.add(groups[:cut])
+	// User instructions remain complete. If they alone exceed the bounded
+	// projection, refuse to compact rather than silently discard constraints.
+	if len(facts.notice()) > 64*1024 {
+		return history
+	}
 
 	out := append([]llm.Message(nil), prefix...)
 	out = append(out, llm.Message{Role: llm.RoleUser, Content: facts.notice()})
@@ -194,6 +200,12 @@ func CompactFile(stateFile string, keepSteps int) (before, after int, history []
 	history = snapshot.Context()
 	before = len(history)
 	compacted := compactHistory(history, keepSteps)
+	if len(compacted) < len(history) {
+		compacted, err = retainArchivedInstructions(snapshot, compacted)
+		if err != nil {
+			return before, before, history, err
+		}
+	}
 	after = len(compacted)
 	if after >= before {
 		return before, after, history, nil
@@ -238,7 +250,7 @@ func (a *Agent) compactionCooldown() int {
 // compactHistory returns its input unchanged when there is nothing left
 // to drop, which is what stops a full history from being compacted every
 // step to no effect.
-func (a *Agent) maybeCompact(history *[]llm.Message, usage llm.Usage, st *runState) bool {
+func (a *Agent) maybeCompact(history *[]llm.Message, usage llm.Usage, st *runState, contexts ...context.Context) bool {
 	if a.cfg.ContextLimit <= 0 || a.cfg.CompactKeepSteps <= 0 || usage.PromptTokens <= 0 {
 		return false
 	}
@@ -258,11 +270,39 @@ func (a *Agent) maybeCompact(history *[]llm.Message, usage llm.Usage, st *runSta
 	compacted := compactHistory(*history, a.cfg.CompactKeepSteps)
 	// A few large results can exceed the window before eight groups exist.
 	// Reduce the retained tail only when its estimate is already at the limit.
-	for keep := a.cfg.CompactKeepSteps / 2; keep > 0 && llm.EstimatePromptTokens(llm.ChatRequest{Messages: compacted, Tools: a.cfg.Tools.Defs()}) >= a.cfg.ContextLimit-256; keep /= 2 {
+	inputBudget := a.cfg.ContextLimit - 256
+	if a.cfg.ContextLimit >= 2048 {
+		inputBudget = a.cfg.ContextLimit - min(a.cfg.MaxTokens, max(1024, a.cfg.ContextLimit/4)) - 512
+	}
+	for keep := a.cfg.CompactKeepSteps / 2; keep > 0 && llm.EstimatePromptTokens(llm.ChatRequest{Messages: compacted, Tools: a.cfg.Tools.Defs()}) > inputBudget; keep /= 2 {
 		compacted = compactHistory(*history, keep)
 	}
 	if len(compacted) >= len(*history) {
 		return false
+	}
+	a.captureHistory(*history)
+	var archiveErr error
+	compacted, archiveErr = retainArchivedInstructions(a.snapshot, compacted)
+	if archiveErr != nil {
+		st.compactErr = archiveErr
+		return false
+	}
+	if a.cfg.Summarize {
+		ctx := context.Background()
+		if len(contexts) > 0 {
+			ctx = contexts[0]
+		}
+		var err error
+		compacted, err = a.checkpoint(ctx, *history, compacted)
+		if err != nil {
+			st.compactErr = err
+			return false
+		}
+		compacted, err = a.fitCheckpoint(compacted, inputBudget)
+		if err != nil {
+			st.compactErr = err
+			return false
+		}
 	}
 	a.compactContext(*history, compacted)
 	*history = compacted
@@ -285,12 +325,13 @@ func (a *Agent) maybeCompact(history *[]llm.Message, usage llm.Usage, st *runSta
 // Every field is bounded: this string lives in context for the rest of the
 // run, so it must never become the largest thing in the prompt.
 type droppedFacts struct {
-	steps    int
-	tools    map[string]int
-	paths    []string
-	asks     []string
-	plan     string
-	lastText string
+	steps      int
+	tools      map[string]int
+	paths      []string
+	asks       []string
+	plan       string
+	lastText   string
+	checkpoint string
 }
 
 const (
@@ -303,11 +344,12 @@ const (
 // read it back; a bare prose blob can only be re-derived from messages
 // that compaction has already removed.
 const (
-	tagSteps = "dropped "
-	tagPaths = "files: "
-	tagAsks  = "asks: "
-	tagPlan  = "plan: "
-	tagNote  = "note: "
+	tagSteps      = "dropped "
+	tagPaths      = "files: "
+	tagAsks       = "asks: "
+	tagPlan       = "plan: "
+	tagNote       = "note: "
+	tagCheckpoint = "checkpoint: "
 )
 
 func newFacts() droppedFacts { return droppedFacts{tools: map[string]int{}} }
@@ -346,7 +388,7 @@ func (f *droppedFacts) add(dropped [][]llm.Message) {
 					f.lastText = t
 				}
 			case llm.RoleUser:
-				if a := droppedAsk(m.Content); a != "" && !containsStr(f.asks, a) && len(f.asks) < factMaxAsks {
+				if a := droppedAsk(m.Content); a != "" {
 					f.asks = append(f.asks, a)
 				}
 			case llm.RoleTool:
@@ -407,6 +449,9 @@ func (f droppedFacts) render() string {
 		}
 		fmt.Fprintf(&b, "\n%s%q", tagNote, note)
 	}
+	if f.checkpoint != "" {
+		fmt.Fprintf(&b, "\n%s%q", tagCheckpoint, f.checkpoint)
+	}
 	return b.String()
 }
 
@@ -449,6 +494,8 @@ func parseFacts(body string) (droppedFacts, bool) {
 			if note, err := strconv.Unquote(strings.TrimPrefix(line, tagNote)); err == nil {
 				f.lastText = note
 			}
+		case strings.HasPrefix(line, tagCheckpoint):
+			f.checkpoint, _ = strconv.Unquote(strings.TrimPrefix(line, tagCheckpoint))
 		}
 	}
 	return f, f.steps > 0
@@ -467,6 +514,9 @@ func splitAndTrim(s string) []string {
 // unquoteEach reverses quoteEach, which is how the asks were written.
 func unquoteEach(s string) []string {
 	var out []string
+	if json.Unmarshal([]byte(s), &out) == nil {
+		return out
+	}
 	for _, part := range strings.Split(s, "; ") {
 		if q, err := strconv.Unquote(strings.TrimSpace(part)); err == nil && q != "" {
 			out = append(out, q)
@@ -483,12 +533,6 @@ func droppedAsk(content string) string {
 	t := strings.TrimSpace(content)
 	if t == "" || strings.HasPrefix(t, harnessPrefix) {
 		return ""
-	}
-	if i := strings.IndexByte(t, '\n'); i >= 0 {
-		t = strings.TrimSpace(t[:i])
-	}
-	if r := []rune(t); len(r) > 160 {
-		t = string(r[:160]) + "…"
 	}
 	return t
 }
@@ -560,9 +604,6 @@ func formatChecklist(args json.RawMessage) (string, bool) {
 }
 
 func quoteEach(items []string) string {
-	out := make([]string, len(items))
-	for i, s := range items {
-		out[i] = strconv.Quote(s)
-	}
-	return strings.Join(out, "; ")
+	data, _ := json.Marshal(items)
+	return string(data)
 }

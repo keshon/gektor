@@ -55,5 +55,5 @@ func (a *Agent) notifyNudge(kind, text string) {
 func (a *Agent) nudge(history []llm.Message, kind, text string) []llm.Message {
 	marked := harnessText(text)
 	a.notifyNudge(kind, marked)
-	return append(history, llm.Message{Role: llm.RoleUser, Content: marked})
+	return append(history, llm.Message{Role: llm.RoleUser, Content: marked, Harness: kind})
 }

@@ -263,7 +263,7 @@ func TestSystemNoticesShareConversationLayout(t *testing.T) {
 		b     block
 		label string
 	}{
-		{markerBlock("— new task —"), "HARNESS"},
+		{markerBlock("— new task —"), "STATUS"},
 		{markerBlock("[harness] " + strings.Repeat("review this carefully ", 20)), "HARNESS"},
 		{errorBlock("Cannot resume\nTry again"), "ERROR"},
 		{findingBlock("gofmt", "a.go", 3, "format required"), "WARNING"},
@@ -318,7 +318,7 @@ func TestHideSYSKeepsFailuresAndQuestions(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 80, 30)
 	m.transcript.blocks = []block{
 		answerBlock("answer"),
-		markerBlock("harness nudge"),
+		markerBlock("[harness] harness nudge"),
 		errorBlock("run failed"),
 		findingBlock("gofmt", "a.go", 3, "not formatted"),
 		gateBlock("Allow this tool?"),
@@ -342,7 +342,7 @@ func TestHideSYSKeepsFailuresAndQuestions(t *testing.T) {
 		}
 	}
 	// Hiding is display-only: lifting it restores the block verbatim.
-	if !strings.HasPrefix(m.transcript.blocks[1].text, "harness nudge") {
+	if !strings.HasPrefix(m.transcript.blocks[1].text, "[harness] harness nudge") {
 		t.Fatal("filter mutated stored text")
 	}
 	m.hideSYS = false
@@ -358,7 +358,7 @@ func TestHideSYSKeepsFailuresAndQuestions(t *testing.T) {
 func TestHideLabelsKeepsSpeakerRows(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 80, 30)
 	m.identityName = "Ada"
-	m.transcript.blocks = []block{userBlock("question"), answerBlock("answer"), markerBlock("harness nudge")}
+	m.transcript.blocks = []block{userBlock("question"), answerBlock("answer"), markerBlock("[harness] harness nudge")}
 	m.refreshContent()
 	full := ansi.Strip(m.transcript.Viewport.View())
 	for _, want := range []string{"YOU", "ADA", "SYSTEM", "[INPUT]", "[RESPONSE]", "[HARNESS]"} {
@@ -424,7 +424,7 @@ func TestHiddenBlockDoesNotPoisonCache(t *testing.T) {
 // The menu rows and the transcript read the same two flags.
 func TestViewMenuCommandsDriveTheTranscript(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 80, 30)
-	m.transcript.blocks = []block{answerBlock("answer"), markerBlock("harness nudge")}
+	m.transcript.blocks = []block{answerBlock("answer"), markerBlock("[harness] harness nudge")}
 	m.refreshContent()
 	m.header.focused = true
 	m.header.global = true

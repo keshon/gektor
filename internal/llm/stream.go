@@ -242,12 +242,6 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onCon
 			req.OnProgress(progress)
 		}
 	}
-	if err := sc.Err(); err != nil {
-		return ChatResponse{}, fmt.Errorf("read stream: %w", err)
-	}
-	if !complete {
-		return ChatResponse{}, fmt.Errorf("%w: EOF before completion", ErrIncompleteStream)
-	}
 
 	msg := Message{Role: RoleAssistant, Content: content.String(), Reasoning: reasoning.String()}
 	for i := 0; i < len(acc); i++ {
@@ -261,6 +255,13 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onCon
 			Arguments: normalizeArguments(json.RawMessage(dc.Function.Arguments)),
 		})
 	}
+	if err := sc.Err(); err != nil {
+		return ChatResponse{Message: msg, FinishReason: "incomplete_stream"}, fmt.Errorf("read stream: %w", err)
+	}
+	if !complete {
+		return ChatResponse{Message: msg, FinishReason: "incomplete_stream"}, fmt.Errorf("%w: EOF before completion", ErrIncompleteStream)
+	}
+
 	// A backend may omit the requested usage block. Fall back to an estimate
 	// from the wire, marked Estimated (displays show "~").
 	//

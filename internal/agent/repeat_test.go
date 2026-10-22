@@ -84,7 +84,7 @@ func TestCallSignature_IgnoresCallOrder(t *testing.T) {
 // An exact repeat of a pure read is refused rather than served the same bytes
 // a second time: the bytes cannot have changed, and the duplicate would only
 // consume context.
-func TestExecuteToolCalls_RefusesExactIdempotentRepeat(t *testing.T) {
+func TestExecuteToolCalls_RefreshesExactIdempotentRepeat(t *testing.T) {
 	var runs int32
 	a := New(Config{Tools: NewRegistry(repeatingReadTool{runs: &runs})})
 	st := &runState{}
@@ -99,12 +99,11 @@ func TestExecuteToolCalls_RefusesExactIdempotentRepeat(t *testing.T) {
 	}
 
 	second := a.executeToolCalls(ctx, st, 1, "stop", []llm.ToolCall{readCall("2", "a.txt")}, nil)
-	if runs != 1 {
-		t.Fatalf("repeat executed the tool (runs=%d), want it refused", runs)
+	if runs != 2 {
+		t.Fatalf("repeat must perform a fresh read, runs=%d", runs)
 	}
-	got := second[len(second)-1].Content
-	if !strings.Contains(got, "already ran in step 0") || !strings.Contains(got, "re-read it from the conversation") {
-		t.Fatalf("refusal = %q, want it to name the step and point at the history", got)
+	if got := second[len(second)-1].Content; !strings.Contains(got, "contents") {
+		t.Fatalf("fresh result = %q", got)
 	}
 }
 

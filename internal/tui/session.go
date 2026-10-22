@@ -388,6 +388,9 @@ func (m *model) compactNow() (tea.Model, tea.Cmd) {
 	// the kept tail, which reads identical to before — the marker is
 	// the only visible signal that anything happened.
 	m.transcript.blocks = append(m.transcript.blocks, mb)
+	if len(history) > 2 && history[2].Harness == "compact" {
+		m.transcript.blocks = append(m.transcript.blocks, contextBlock(history[2]))
+	}
 	m.restoreContext(history)
 	m.refreshContent()
 	// Show the compaction marker even when the reader had scrolled up.

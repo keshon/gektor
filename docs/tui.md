@@ -83,8 +83,10 @@ The transcript reads as a name row, a label row and a body. A run of
 blocks by one participant opens with its name in uppercase; the blocks
 after it carry only their label rows. The label row is a bracketed tag
 at the left edge with the time flush right, and the body starts in
-column 0. Machine notices are all `SYSTEM`, so their tag is what
-distinguishes them. Thinking and tool results can be collapsed or
+column 0. `SYSTEM` contains model-facing harness messages, labelled with their
+actual role and delivery request (or pending delivery). Local interface notices
+use `STATUS`; they are not silently sent to the model. Hiding SYSTEM changes
+only rendering, never the model's context. Thinking and tool results can be collapsed or
 expanded with F3 or Ctrl+G. Collapsing is visual only; it does not
 remove model history. Scrolling up stops automatic following; F7 or
 Ctrl+End returns to the latest content. A scrollbar in the right-hand column

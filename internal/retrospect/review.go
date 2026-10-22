@@ -234,19 +234,7 @@ type archiveTool struct {
 	covered  map[int]int // contiguous Unicode prefix; out-of-order reads undercount
 }
 
-func messageText(m llm.Message) string {
-	text := m.Content
-	if len(m.Images) > 0 {
-		text += "\nAttachment paths (image pixels unavailable): " + strings.Join(m.Images, ", ")
-	}
-	if m.Reasoning != "" {
-		text += "\nHistorical reasoning: " + m.Reasoning
-	}
-	for _, call := range m.ToolCalls {
-		text += "\nTool call " + call.ID + " " + call.Name + " " + string(call.Arguments)
-	}
-	return text
-}
+func messageText(m llm.Message) string { return session.ArchivedText(m) }
 
 func (*archiveTool) Name() string { return "read_history" }
 func (*archiveTool) Description() string {
@@ -270,42 +258,18 @@ func (t *archiveTool) Run(_ context.Context, args json.RawMessage) (string, erro
 	if in.Count < 1 || in.Count > 10 || (in.Offset > 0 && in.Count != 1) {
 		return "", fmt.Errorf("count must be 1–10; offsets require count=1")
 	}
-	type row struct {
-		ID         int      `json:"id"`
-		Role       llm.Role `json:"role"`
-		Text       string   `json:"text"`
-		CallID     string   `json:"call_id,omitempty"`
-		Failed     *bool    `json:"failed,omitempty"`
-		NextOffset int      `json:"next_offset,omitempty"`
+	rows, err := session.PageHistory(t.snapshot, in.Start, in.Count, in.Offset)
+	if err != nil {
+		return "", err
 	}
-	var rows []row
-	size := 0
-	for n := in.Start - 1; n < min(in.Start-1+in.Count, len(t.snapshot.History)); n++ {
-		m := t.snapshot.History[n]
-		runes := []rune(messageText(m))
-		if in.Offset > len(runes) {
-			return "", fmt.Errorf("offset is past message end")
-		}
-		end := min(in.Offset+2000, len(runes))
-		text := string(runes[in.Offset:end])
-		r := row{ID: n + 1, Role: m.Role, Text: text, CallID: m.ToolCallID, Failed: m.ToolFailed}
-
-		if end < len(runes) {
-			r.NextOffset = end
-		}
-		encoded, _ := json.Marshal(r)
-		if size+len(encoded) > 24000 {
-			break
-		}
-		size += len(encoded)
-		t.seen[n+1] += text
+	for _, row := range rows {
+		t.seen[row.ID] += row.Text
 		if t.covered == nil {
 			t.covered = map[int]int{}
 		}
-		if in.Offset <= t.covered[n+1] {
-			t.covered[n+1] = max(t.covered[n+1], end)
+		if in.Offset <= t.covered[row.ID] {
+			t.covered[row.ID] = max(t.covered[row.ID], in.Offset+len([]rune(row.Text)))
 		}
-		rows = append(rows, r)
 	}
 	data, err := json.Marshal(rows)
 	return string(data), err

@@ -2,6 +2,7 @@ package tools
 
 import (
 	"encoding/json"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,6 +11,9 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 var browserHostHome = os.Getenv("USERPROFILE")
@@ -34,7 +38,7 @@ func TestBrowserMCPIntegration(t *testing.T) {
 		channel = "chrome"
 	}
 	command := "npx"
-	args := []string{"-y", "@playwright/mcp@0.0.83", "--browser", channel, "--headless", "--isolated", "--image-responses", "omit", "--output-dir", ".gektor/browser"}
+	args := []string{"-y", "@playwright/mcp@0.0.83", "--browser", channel, "--headless", "--isolated", "--image-responses", "allow", "--output-dir", ".gektor/browser"}
 	if runtime.GOOS == "windows" {
 		command = "cmd.exe"
 		args = append([]string{"/d", "/c", "npx"}, args...)
@@ -44,14 +48,29 @@ func TestBrowserMCPIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Close()
+	var attached int
 	call := func(name string, input any) string {
 		t.Helper()
 		data, _ := json.Marshal(input)
 		for _, tool := range list {
 			if tool.Name() == "mcp__browser__"+name {
-				out, err := tool.Run(t.Context(), data)
+				out, err := tool.Run(VisionContext(t.Context(), true), data)
 				if err != nil {
 					t.Fatalf("%s: %v\n%s", name, err, out)
+				}
+				if at, ok := tool.(interface {
+					Attach(json.RawMessage) ([]string, error)
+				}); ok {
+					paths, err := at.Attach(data)
+					if err != nil {
+						t.Fatal(err)
+					}
+					for _, path := range paths {
+						if err := llm.ValidateImage(path); err != nil {
+							t.Fatal(err)
+						}
+						attached++
+					}
 				}
 				return out
 			}
@@ -99,5 +118,36 @@ func TestBrowserMCPIntegration(t *testing.T) {
 		t.Fatal(out)
 	}
 	call("browser_close", map[string]any{})
+	if attached == 0 {
+		// This server may return a saved screenshot link rather than inline
+		// image content. Exercise the supported read_file route in that case.
+		var screenshot string
+		_ = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+			if err == nil && !entry.IsDir() && entry.Name() == "smoke.png" {
+				screenshot = path
+			}
+			return nil
+		})
+		if screenshot == "" {
+			t.Fatal("screenshot neither attached nor saved")
+		}
+		ws, err := workspace.New(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rel, _ := filepath.Rel(root, screenshot)
+		args, _ := json.Marshal(map[string]any{"path": filepath.ToSlash(rel)})
+		reader := ReadFile{WS: ws, Vision: true}
+		if _, err := reader.Run(t.Context(), args); err != nil {
+			t.Fatal(err)
+		}
+		paths, err := reader.Attach(args)
+		if err != nil || len(paths) != 1 {
+			t.Fatal(paths, err)
+		}
+		if err := llm.ValidateImage(paths[0]); err != nil {
+			t.Fatal(err)
+		}
+	}
 	t.Log("DOM, real button click, result 42, console and screenshot succeeded")
 }

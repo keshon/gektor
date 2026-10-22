@@ -1,0 +1,1 @@
+Update service/VERSION from v1 to v2 following the applicable project instructions. The frozen checks require both the requested version and the companion CHECK update mandated by service/AGENTS.md. This tests instruction delivery near the file, including a mutation attempted before reading.

@@ -342,7 +342,7 @@ func renderHistoryAt(history []llm.Message) ([]block, []int) {
 			continue
 		case llm.RoleUser:
 			if strings.HasPrefix(msg.Content, "[harness] ") {
-				out = append(out, markerBlock(msg.Content))
+				out = append(out, contextBlock(msg))
 				continue
 			}
 			if strings.TrimSpace(msg.Content) == "" && len(msg.Images) == 0 {
@@ -352,7 +352,17 @@ func renderHistoryAt(history []llm.Message) ([]block, []int) {
 		case llm.RoleAssistant:
 			out = append(out, assistantBlocks(msg.Content, msg.Reasoning)...)
 			for _, tc := range msg.ToolCalls {
-				out = append(out, toolCardBlock(tc.ID, tc.Name+" "+truncate(string(tc.Arguments), 120)))
+				args := string(tc.Arguments)
+				if tc.InputError != "" {
+					args = tc.RawArguments
+				}
+				card := toolCardBlock(tc.ID, tc.Name+" "+truncate(args, 120))
+				if tc.InputError != "" {
+					card.open = false
+					card.failed = true
+					card.result = "not executed: " + tc.InputError + "; original arguments preserved"
+				}
+				out = append(out, card)
 			}
 		case llm.RoleTool:
 			attached := false

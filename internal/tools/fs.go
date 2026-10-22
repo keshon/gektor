@@ -54,11 +54,6 @@ func (ReadFile) Description() string {
 }
 func (ReadFile) Mode() agent.ToolMode { return agent.Concurrent }
 
-// Idempotent: the same path and paging arguments return the same bytes until
-// something mutates, so an exact repeat can be refused instead of re-sending
-// the content. See Registry.IdempotentOf.
-func (ReadFile) Idempotent() bool { return true }
-
 // Attach is the agent.Attacher half of a picture read: after Run succeeds,
 // the loop asks for the pictures to put in front of the model. The file is
 // re-resolved and re-validated because Run and Attach are separate calls;
@@ -520,8 +515,6 @@ type ListFiles struct{ WS *workspace.Workspace }
 func (ListFiles) Name() string         { return "list_files" }
 func (ListFiles) Mode() agent.ToolMode { return agent.Concurrent }
 
-// Idempotent: a directory listing does not change until something mutates.
-func (ListFiles) Idempotent() bool { return true }
 func (ListFiles) Description() string {
 	return "List files and directories under a path, non-recursively."
 }

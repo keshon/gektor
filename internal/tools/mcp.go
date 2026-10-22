@@ -161,16 +161,14 @@ func connectMCP(ctx context.Context, server string, cmd *exec.Cmd, stdin io.Writ
 		"jsonrpc": "2.0", "method": "notifications/initialized",
 	})
 
-	var listResult struct {
-		Tools []MCPToolDef `json:"tools"`
-	}
-	if err := c.call(ctx, "tools/list", map[string]any{}, &listResult); err != nil {
+	defs, err := listMCPTools(ctx, c)
+	if err != nil {
 		c.Close()
 		return nil, nil, fmt.Errorf("mcp %s: tools/list: %w", server, err)
 	}
-	names := assignToolNames(server, listResult.Tools)
-	tools := make([]agent.Tool, 0, len(listResult.Tools))
-	for i, td := range listResult.Tools {
+	names := assignToolNames(server, defs)
+	tools := make([]agent.Tool, 0, len(defs))
+	for i, td := range defs {
 		tools = append(tools, &MCPTool{client: c, server: server, def: td, toolName: names[i]})
 	}
 	return tools, c, nil
@@ -232,6 +230,7 @@ type rpcRequest struct {
 }
 
 type rpcResponse struct {
+	Method  string          `json:"method,omitempty"`
 	JSONRPC string          `json:"jsonrpc"`
 	ID      int             `json:"id"`
 	Result  json.RawMessage `json:"result,omitempty"`
@@ -269,6 +268,12 @@ func (c *MCPClient) readLoop(r *bufio.Reader) {
 		}
 		var resp rpcResponse
 		if err := json.Unmarshal(line, &resp); err != nil {
+			continue
+		}
+		if resp.Method != "" {
+			if resp.ID != 0 {
+				_ = c.notify(map[string]any{"jsonrpc": "2.0", "id": resp.ID, "error": map[string]any{"code": -32601, "message": "client method not supported"}})
+			}
 			continue
 		}
 		if resp.ID == 0 && resp.Result == nil {
@@ -438,6 +443,8 @@ type MCPTool struct {
 	server   string
 	def      MCPToolDef
 	toolName string
+	imageMu  sync.Mutex
+	images   map[string][][]string
 }
 
 func (t *MCPTool) Name() string { return t.toolName }
@@ -470,8 +477,15 @@ func (t *MCPTool) Run(ctx context.Context, args json.RawMessage) (string, error)
 			Type     string `json:"type"`
 			Text     string `json:"text"`
 			MimeType string `json:"mimeType"`
+			Data     string `json:"data"`
+			Resource *struct {
+				Text     string `json:"text"`
+				URI      string `json:"uri"`
+				MimeType string `json:"mimeType"`
+			} `json:"resource"`
 		} `json:"content"`
-		IsError bool `json:"isError"`
+		StructuredContent json.RawMessage `json:"structuredContent"`
+		IsError           bool            `json:"isError"`
 	}
 	if err := t.client.call(ctx, "tools/call", map[string]any{
 		"name": t.def.Name, "arguments": params,
@@ -479,11 +493,30 @@ func (t *MCPTool) Run(ctx context.Context, args json.RawMessage) (string, error)
 		return "", fmt.Errorf("mcp %s/%s: %w", t.server, t.def.Name, err)
 	}
 	var b strings.Builder
+	var pictures []string
+	if len(result.StructuredContent) > 0 && string(result.StructuredContent) != "null" {
+		b.Write(result.StructuredContent)
+		b.WriteByte('\n')
+	}
 	for _, c := range result.Content {
 		if c.Type == "text" {
 			b.WriteString(c.Text)
 			b.WriteString("\n")
-		} else if c.Type == "resource" || c.Type == "image" {
+		} else if c.Type == "image" {
+			path, err := saveMCPImage(ctx, c.Data, c.MimeType)
+			if err != nil {
+				fmt.Fprintf(&b, "[image unavailable: %s]\n", err)
+			} else {
+				pictures = append(pictures, path)
+				fmt.Fprintf(&b, "[image attached: %s]\n", path)
+			}
+		} else if c.Type == "resource" && c.Resource != nil {
+			if allowedMCPMime(c.Resource.MimeType) {
+				fmt.Fprintf(&b, "Resource %s:\n%s\n", c.Resource.URI, c.Resource.Text)
+			} else {
+				fmt.Fprintf(&b, "[resource omitted: %s]\n", c.Resource.MimeType)
+			}
+		} else if c.Type == "resource" {
 			if !allowedMCPMime(c.MimeType) {
 				fmt.Fprintf(&b, "[omitted %s content: %s]\n", c.Type, c.MimeType)
 				continue
@@ -495,21 +528,72 @@ func (t *MCPTool) Run(ctx context.Context, args json.RawMessage) (string, error)
 	if result.IsError {
 		return out, fmt.Errorf("mcp %s/%s reported an error", t.server, t.def.Name)
 	}
+	if len(pictures) > 0 {
+		t.imageMu.Lock()
+		if t.images == nil {
+			t.images = map[string][][]string{}
+		}
+		t.images[string(args)] = append(t.images[string(args)], pictures)
+		t.imageMu.Unlock()
+	}
 	if len(out) > mcpResultMax {
 		// Structured output reduces; prose truncates. A blind middle-cut
 		// through a JSON array leaves half an element to parse, so try
 		// the reducer first and fall back to truncation for non-JSON.
-		if reduced := ReduceJSON([]byte(out), mcpResultMax); reduced != out {
-			out = reduced + "\n(reduced from a larger MCP result — refine the query for detail)"
-		} else {
-			out = agent.TruncateMiddle(out, mcpResultMax) +
-				fmt.Sprintf("\n...(mcp result truncated at %d bytes)", mcpResultMax)
-		}
+		out = LimitOutput(ctx, t.Name(), out, mcpResultMax)
 	}
 	if out == "" {
 		return "(empty result)", nil
 	}
 	return out, nil
+}
+
+func (t *MCPTool) Attach(args json.RawMessage) ([]string, error) {
+	t.imageMu.Lock()
+	defer t.imageMu.Unlock()
+	queue := t.images[string(args)]
+	if len(queue) == 0 {
+		return nil, nil
+	}
+	paths := queue[0]
+	if len(queue) == 1 {
+		delete(t.images, string(args))
+	} else {
+		t.images[string(args)] = queue[1:]
+	}
+	return paths, nil
+}
+
+func listMCPTools(ctx context.Context, c mcpCaller) ([]MCPToolDef, error) {
+	var defs []MCPToolDef
+	cursor := ""
+	seen := map[string]bool{}
+	for page := 0; page < 100; page++ {
+		params := map[string]any{}
+		if cursor != "" {
+			params["cursor"] = cursor
+		}
+		var result struct {
+			Tools      []MCPToolDef `json:"tools"`
+			NextCursor string       `json:"nextCursor"`
+		}
+		if err := c.call(ctx, "tools/list", params, &result); err != nil {
+			return nil, err
+		}
+		defs = append(defs, result.Tools...)
+		if len(defs) > 4096 {
+			return nil, fmt.Errorf("MCP tool catalog exceeds 4096 tools")
+		}
+		if result.NextCursor == "" {
+			return defs, nil
+		}
+		if seen[result.NextCursor] {
+			return nil, fmt.Errorf("MCP tool catalog repeated cursor")
+		}
+		seen[result.NextCursor] = true
+		cursor = result.NextCursor
+	}
+	return nil, fmt.Errorf("MCP tool catalog exceeds 100 pages")
 }
 
 func allowedMCPMime(m string) bool {

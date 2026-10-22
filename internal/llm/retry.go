@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"time"
 )
@@ -71,8 +72,11 @@ func ChatWithRetry(ctx context.Context, c Client, req ChatRequest, policy RetryP
 			wait = policy.MaxDelay
 		}
 		// 25% jitter so parallel workers don't march in lockstep.
-		jitter := time.Duration(rand.Int63n(int64(wait) / 4))
-		wait += jitter
+		jitter := time.Duration(rand.Int63n(max(1, int64(wait)/4)))
+		wait = min(wait+jitter, policy.MaxDelay)
+		if req.OnProgress != nil {
+			req.OnProgress(Progress{Phase: "retry", Detail: fmt.Sprintf("attempt %d/%d in %s: %v", attempt+1, policy.MaxRetries, wait.Round(time.Millisecond), err)})
+		}
 		select {
 		case <-ctx.Done():
 			return ChatResponse{}, ctx.Err()

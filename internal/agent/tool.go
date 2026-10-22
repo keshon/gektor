@@ -7,6 +7,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -21,6 +22,7 @@ type ToolResult struct {
 	CallID string
 	Output string
 	Failed bool
+	Status string
 }
 
 // ToolMode tells the loop whether a tool may run concurrently with others
@@ -123,12 +125,26 @@ func (r *Registry) Run(ctx context.Context, name string, args json.RawMessage) (
 	return r.RunStreaming(ctx, name, args, nil)
 }
 
+func (r *Registry) ValidateCall(name string, args json.RawMessage) error {
+	if r == nil {
+		return fmt.Errorf("unknown tool %q", name)
+	}
+	t, ok := r.tools[name]
+	if !ok {
+		return fmt.Errorf("unknown tool %q", name)
+	}
+	return validateArguments(args, t.Schema())
+}
+
 // RunStreaming observes display-only output when the tool supports it.
 // The returned result remains authoritative for model history.
 func (r *Registry) RunStreaming(ctx context.Context, name string, args json.RawMessage, onOutput func(string)) (string, error) {
 	t, ok := r.tools[name]
 	if !ok {
 		return "", fmt.Errorf("unknown tool %q", name)
+	}
+	if err := validateArguments(args, t.Schema()); err != nil {
+		return "", err
 	}
 	if streaming, ok := t.(interface {
 		RunStreaming(context.Context, json.RawMessage, func(string)) (string, error)
@@ -148,24 +164,8 @@ func (r *Registry) ModeOf(name string) ToolMode {
 	return Exclusive
 }
 
-// IdempotentOf reports whether a tool declared, via an optional
-// `Idempotent() bool`, that identical calls return identical results while
-// nothing mutates - true for pure reads, never for time-varying results
-// (check_url) or side effects (delegate_task). A tool must opt in: the
-// default is false, so a new tool cannot be silently cached.
-func (r *Registry) IdempotentOf(name string) bool {
-	t, ok := r.tools[name]
-	if !ok {
-		return false
-	}
-	if it, ok := t.(interface{ Idempotent() bool }); ok {
-		return it.Idempotent()
-	}
-	return false
-}
-
 // AttacherOf returns the tool's picture-returning half, or nil. Like
-// Idempotent, this is opt-in: a new tool cannot silently attach files.
+// other optional capabilities, this is opt-in.
 func (r *Registry) AttacherOf(name string) Attacher {
 	t, ok := r.tools[name]
 	if !ok {
@@ -275,11 +275,15 @@ type callResult struct {
 // original arguments; the paired error result explains this placeholder.
 func recordableMessage(msg llm.Message) llm.Message {
 	for i, call := range msg.ToolCalls {
-		if !json.Valid(call.Arguments) {
+		if !json.Valid(call.Arguments) || call.InputError != "" {
 			msg.ToolCalls = append([]llm.ToolCall(nil), msg.ToolCalls...)
 			for j := i; j < len(msg.ToolCalls); j++ {
-				if !json.Valid(msg.ToolCalls[j].Arguments) {
-					msg.ToolCalls[j].Arguments = json.RawMessage(`{}`)
+				if !json.Valid(msg.ToolCalls[j].Arguments) || msg.ToolCalls[j].InputError != "" {
+					msg.ToolCalls[j].RawArguments = string(msg.ToolCalls[j].Arguments)
+					if msg.ToolCalls[j].InputError == "" {
+						msg.ToolCalls[j].InputError = "invalid_json"
+					}
+					msg.ToolCalls[j].Arguments = nil
 				}
 			}
 			break
@@ -299,37 +303,37 @@ const maxToolImagesPerStep = 4
 // executeToolCalls overlaps adjacent reads and serializes every mutation in
 // model call order.
 //
-// Two guards keep a model that has stopped learning from spending its budget
-// re-asking the same question. An exact repeat of a pure read is refused
-// instead of re-executed - the bytes cannot have changed, and a second copy in
-// the prompt teaches nothing. And the step's call signature is counted, so the
-// loop can stop offering tools after maxRepeatedSteps. Both are deterministic:
-// nothing here depends on the model choosing to obey a hint.
+// Repeat detection compares calls and results: refreshed data is progress.
 func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, finishReason string, calls []llm.ToolCall, history []llm.Message) []llm.Message {
-	st.trackSignature(callSignature(calls))
 	results := make([]callResult, len(calls))
+	if a.cfg.OnProgress != nil {
+		a.cfg.OnProgress(llm.Progress{Phase: "tools", Detail: fmt.Sprintf("executing %d tool calls", len(calls))})
+	}
 
-	// A refusal is an error on purpose. It is not progress, and the text the
-	// model reads is "this already ran; re-read the conversation" rather than
-	// the same bytes a second time.
 	skipped := make([]bool, len(calls))
+	var newInstructions []string
 	for i, call := range calls {
 		// Truncated arguments (generation cut off mid-call) are stumps, not
 		// calls: executing them fails arg parsing here and 500s backends that
 		// parse server-side. Refuse with reissue-smaller guidance instead.
-		if !json.Valid(call.Arguments) {
+		if !json.Valid(call.Arguments) || call.InputError != "" {
 			skipped[i] = true
 			kind := "invalid"
 			if finishReason == "length" {
 				kind = "truncated"
 			}
-			results[i].err = fmt.Errorf("call arguments are %s JSON; nothing was executed. Damaged arguments were discarded and recorded as {}; reissue the call in smaller pieces", kind)
+			results[i].err = fmt.Errorf("%s JSON arguments; call %s (%s) was NOT executed. Arguments were supplied but could not be parsed, not omitted. finish_reason=%q. Reissue complete valid arguments%s. Original input excerpt (%d bytes):\n%s", kind, call.ID, call.Name, finishReason, map[bool]string{true: " in smaller calls because the output limit was reached", false: ""}[finishReason == "length"], len(call.Arguments), TruncateMiddle(string(call.Arguments), 1800))
 			continue
 		}
 		// A read-only role is offered the full tool set so a mode switch
 		// cannot rewrite the prompt prefix, so refusal has to be explicit:
 		// nothing runs, nothing changes, and the model is told what to do
 		// instead.
+		if err := a.cfg.Tools.ValidateCall(call.Name, call.Arguments); err != nil {
+			skipped[i] = true
+			results[i].err = err
+			continue
+		}
 		if !a.mayRun(call.Name) {
 			skipped[i] = true
 			results[i].err = fmt.Errorf(
@@ -338,6 +342,30 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 			continue
 		}
 
+		if a.cfg.Instructions != nil && !skipped[i] {
+			text, err := a.cfg.Instructions(call.Arguments)
+			if err != nil {
+				skipped[i] = true
+				results[i].err = fmt.Errorf("load scoped instructions: %w", err)
+				continue
+			}
+			loaded := false
+			for _, msg := range history {
+				if strings.Contains(msg.Content, text) {
+					loaded = true
+					break
+				}
+			}
+			if text != "" && !loaded {
+				if !containsStr(newInstructions, text) {
+					newInstructions = append(newInstructions, text)
+				}
+				if a.cfg.Tools.ModeOf(call.Name) == Exclusive {
+					skipped[i] = true
+					results[i].err = fmt.Errorf("new scoped instructions were discovered; nothing was executed. Read the following harness instructions and reconsider this call before retrying")
+				}
+			}
+		}
 	}
 
 	executed := make([]bool, len(calls))
@@ -358,31 +386,13 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 		}
 		results[i].content, results[i].err = a.cfg.Tools.RunStreaming(ctx, call.Name, call.Arguments, onOutput)
 	}
-	rememberRead := func(i int) {
-		call := calls[i]
-		if !executed[i] || results[i].err != nil || !a.cfg.Tools.IdempotentOf(call.Name) {
-			return
-		}
-		if st.idempotentSeen == nil {
-			st.idempotentSeen = make(map[string]int)
-		}
-		st.idempotentSeen[callKey(call.Name, call.Arguments)] = step
-	}
 	runBatch := func(indices []int) {
 		var wg sync.WaitGroup
 		for _, i := range indices {
-			call := calls[i]
-			if prev, seen := st.idempotentSeen[callKey(call.Name, call.Arguments)]; seen && a.cfg.Tools.IdempotentOf(call.Name) {
-				results[i].err = fmt.Errorf("this exact %s call already ran in step %d; its result is still valid; re-read it from the conversation", call.Name, prev)
-				continue
-			}
 			wg.Add(1)
 			go func(i int) { defer wg.Done(); runOne(i) }(i)
 		}
 		wg.Wait()
-		for _, i := range indices {
-			rememberRead(i)
-		}
 	}
 	var batch []int
 	for i, call := range calls {
@@ -395,18 +405,18 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 			runBatch(batch)
 			batch = nil
 			runOne(i)
-			// A command may change files and still fail. Invalidate at this
-			// barrier, before the following read batch examines the cache.
+			// A failed command may still change files. Treat it as a mutation barrier.
 			if executed[i] {
 				st.noteMutation()
 			}
-			rememberRead(i)
 		}
 	}
 	runBatch(batch)
 
 	mutatingBefore := st.mutatingSucceeded
 	var pictures []string
+	var signature strings.Builder
+	var diagnostics []string
 	for i, call := range calls {
 		if results[i].err == nil {
 			if at := a.cfg.Tools.AttacherOf(call.Name); at != nil {
@@ -419,13 +429,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 				default:
 					pictures = append(pictures, paths...)
 				}
-				if results[i].err != nil {
-					// The read itself succeeded and was cached as an
-					// idempotent call, but the picture never reached the
-					// model. Leave it retryable, or the refusal above
-					// becomes a dead end.
-					delete(st.idempotentSeen, callKey(call.Name, call.Arguments))
-				}
+
 			}
 		}
 		content := results[i].content
@@ -448,13 +452,50 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 				}
 			}
 		}
-		content = TruncateMiddle(content, max(1, 48*1024/len(calls)))
+		if a.cfg.LimitOutput != nil {
+			content = a.cfg.LimitOutput(ctx, call.Name, content, max(1, 48*1024/len(calls)))
+		} else {
+			content = TruncateMiddle(content, max(1, 48*1024/len(calls)))
+		}
 		failed := results[i].err != nil
-		history = append(history, llm.Message{Role: llm.RoleTool, ToolCallID: call.ID, Content: content, ToolFailed: &failed})
+		fmt.Fprintf(&signature, "%s\x00%s\x00", callKey(call.Name, call.Arguments), content)
+		status := "success"
+		if failed {
+			status = "execution_error"
+			if !executed[i] {
+				status = "rejected"
+			}
+			if errors.Is(results[i].err, context.Canceled) || errors.Is(results[i].err, context.DeadlineExceeded) {
+				status = "cancelled"
+			}
+			if strings.HasPrefix(results[i].err.Error(), "invalid_arguments:") {
+				status = "invalid_arguments"
+			}
+		}
+		if !json.Valid(call.Arguments) || call.InputError != "" {
+			status = "invalid_json"
+			if finishReason == "length" {
+				status = "output_limit"
+			}
+			if call.InputError == "incomplete_stream" {
+				status = "incomplete_stream"
+			}
+			diagnostics = append(diagnostics, content)
+		} else {
+			history = append(history, llm.Message{Role: llm.RoleTool, ToolCallID: call.ID, Content: content, ToolFailed: &failed, ToolStatus: status})
+		}
+
 		if a.cfg.OnResult != nil {
-			a.cfg.OnResult(ToolResult{CallID: call.ID, Output: content, Failed: results[i].err != nil})
+			a.cfg.OnResult(ToolResult{CallID: call.ID, Output: content, Failed: failed, Status: status})
 		}
 	}
+	for _, diagnostic := range diagnostics {
+		history = a.nudge(history, "tool_input", diagnostic)
+	}
+	for _, instructions := range newInstructions {
+		history = a.nudge(history, "instructions", instructions)
+	}
+	st.trackSignature(signature.String())
 	if len(pictures) > 0 {
 		// The tool result is already in history; the pictures ride the
 		// next user turn because role:tool has no image parts on the
@@ -467,9 +508,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 		})
 	}
 
-	// Anything that mutated invalidates both caches: the same read can now
-	// legitimately return something new, and a signature that repeats across a
-	// mutation is work in progress, not a spin.
+	// A successful mutation is progress, even when calls repeat.
 	if st.mutatingSucceeded > mutatingBefore {
 		st.noteMutation()
 	}
@@ -481,7 +520,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 // connect each picture to the read_file result it requested.
 func pictureNote(paths []string) string {
 	var b strings.Builder
-	b.WriteString("Pictures from read_file (tool output, not a new user request):\n")
+	b.WriteString("Pictures returned by tools (tool output, not a new user request):\n")
 	for _, p := range paths {
 		fmt.Fprintf(&b, "- %s\n", p)
 	}

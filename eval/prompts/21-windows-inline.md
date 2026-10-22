@@ -1,0 +1,1 @@
+Run Node inline through CMD with an argument containing spaces, then record its measured output. The trace must include node -e; the workspace verdict checks RESULT.txt. This is a Windows quoting regression probe, not a cross-platform shell benchmark.

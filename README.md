@@ -102,13 +102,27 @@ directory. Existing installations reuse `~/.tars` when `~/.gektor` is absent;
 no session data is moved. `GEKTOR_API_KEY` replaces `TARS_API_KEY`, which remains
 accepted for existing setups. `-resume` accepts a session directory or its `state.json` file;
 `-fork` continues a copy under a new task ID. Compaction reduces the model's
-working context to an extractive summary and recent messages, preserving
-the full archive for display and search. It does not ask an LLM to summarize.
+working context while preserving the full archive. Automatic compaction makes
+a bounded LLM checkpoint and retains user instructions verbatim alongside
+recent messages. An invalid checkpoint leaves the previous context intact.
+`/compact` performs a fast extractive pass; `read_history` recovers original
+messages from saved sessions.
 
 Ancestor and workspace `AGENTS.md` files are loaded into the agent's
-instructions. A compact catalog advertises workspace [`skills/`](skills/README.md);
+instructions; nested instructions are delivered before file mutations.
+A compact catalog advertises workspace [`skills/`](skills/README.md);
 full guides are read through visible tool calls when relevant. They belong to the task workspace; running GEKTOR from this
 checkout does not install them into another project.
+
+Large tool results can be paged with `read_output` using a session-local ID.
+Logs retain at most 16 MiB per output and 128 MiB per session, expire after
+seven days, and explicitly report storage limits. Background completions enter
+the next model turn; `wait_background` waits for finite jobs without polling.
+Completions after a run ends wait for the next run.
+
+In the TUI, `SYSTEM` shows harness messages queued for or included in a model
+request, including their actual role and request number. Local interface
+notifications use `STATUS`. Hiding SYSTEM only changes the display.
 
 ## Current limits
 

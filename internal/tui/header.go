@@ -49,6 +49,10 @@ func (m *model) headerBadges() []headerBadge {
 			phase = "TOOLS"
 		case "unary":
 			phase = "REPLY"
+		case "retry":
+			phase = "RETRY"
+		case "checkpoint":
+			phase = "COMPACT"
 		}
 		activity = string(activityFrames[m.spinnerFrame%len(activityFrames)]) + " " + phase
 	case stPermission, stAsk:

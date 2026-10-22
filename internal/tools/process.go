@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/keshon/gektor/internal/agent"
 )
 
 // RunCommand is the common bounded, credential-scrubbed shell path for tools
@@ -28,7 +30,7 @@ func runProgram(ctx context.Context, program string, args []string, dir string, 
 	return runProcess(ctx, exec.CommandContext(ctx, program, args...), dir, nil)
 }
 
-func runProcess(ctx context.Context, cmd *exec.Cmd, dir string, onOutput func(string)) (string, error) {
+func runProcess(ctx context.Context, cmd *exec.Cmd, dir string, onOutput func(string)) (result string, runErr error) {
 	cmd.Dir = dir
 	cmd.Env = scrubEnv(os.Environ())
 	cmd.WaitDelay = stopGrace
@@ -37,6 +39,22 @@ func runProcess(ctx context.Context, cmd *exec.Cmd, dir string, onOutput func(st
 	group.beforeStart(cmd)
 	cmd.Cancel = func() error { return group.kill(cmd) }
 	out := &commandOutput{onOutput: onOutput}
+	if store := outputStore(ctx); store != nil {
+		file, err := store.create()
+		if err != nil {
+			defer func() { result += "\nOutput storage warning: " + err.Error() }()
+		} else {
+			out.file = file
+			defer func() {
+				note := file.close()
+				if out.total > shellMaxBytes || file.problem != nil {
+					result = agent.TruncateMiddle(result, max(1, shellMaxBytes-len(note)-1)) + "\n" + note
+				} else {
+					_ = os.Remove(file.file.Name())
+				}
+			}()
+		}
+	}
 	cmd.Stdout = out
 	cmd.Stderr = out
 	if err := cmd.Start(); err != nil {
@@ -96,12 +114,16 @@ func appendBounded(head, tail *strings.Builder, total *int, p []byte) {
 // Preview bytes are bounded independently of the authoritative head/tail log.
 type commandOutput struct {
 	syncBuffer
+	file     *outputFile
 	onOutput func(string)
 	pending  []byte
 	emitted  int
 }
 
 func (o *commandOutput) Write(p []byte) (int, error) {
+	if o.file != nil {
+		_, _ = o.file.Write(p)
+	}
 	n, err := o.syncBuffer.Write(p)
 	if o.onOutput == nil || o.emitted >= shellMaxBytes {
 		return n, err

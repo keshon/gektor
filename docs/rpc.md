@@ -76,7 +76,12 @@ tool addressed by `path`; `session-end` re-reads every path the run
 changed, which is the only pass that sees shell redirections, MCP
 writes and background jobs. Loop-generated harness notices surface as
 `nudge` events (`kind` overflow/truncated/leak/compact/repeating/verification): the same `[harness]`-marked text the model
-saw, so observers can audit every intervention. Streamed content
+saw, so observers can audit every intervention. A `nudge` means the message is
+queued; `context` confirms its inclusion in a request and carries `text`,
+`role`, `request`, and `kind`. Local persistence warnings use `local_warning`
+and are not model messages. Rejected malformed calls retain `raw_arguments`
+in the archive; they are omitted from replayed tool_calls and replaced by an
+explicit model-facing diagnostic. Streamed content
 chunks surface as `delta` events, and streamed deliberation as
 `reasoning` events (display-only; the step event carries the
 authoritative text and replaces whatever was live). A thinking model

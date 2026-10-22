@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/keshon/gektor/internal/agent"
 	"io"
 	"io/fs"
 	"log"
@@ -161,12 +162,16 @@ type countingClient struct {
 	// a small prompt — roughly 1,700 tokens of the ~2,000 a simple probe
 	// uses — so the pair says how much of a result is the work and how
 	// much is boilerplate the harness sends on every call.
-	floorPrompt int64
+	floorPrompt                                  int64
+	promptTokens, cachedTokens, completionTokens int64
 }
 
 func (c *countingClient) Chat(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
 	atomic.AddInt64(&c.calls, 1)
 	resp, err := c.inner.Chat(ctx, req)
+	atomic.AddInt64(&c.promptTokens, int64(resp.Usage.PromptTokens))
+	atomic.AddInt64(&c.cachedTokens, int64(resp.Usage.CachedTokens))
+	atomic.AddInt64(&c.completionTokens, int64(resp.Usage.CompletionTokens))
 	got := int64(resp.Usage.PromptTokens)
 	for {
 		peak := atomic.LoadInt64(&c.peakPrompt)
@@ -223,11 +228,17 @@ func gitInit(dir string) error {
 }
 
 type Result struct {
-	Probe   string  `json:"probe"`
-	Run     int     `json:"run"`
-	Passed  bool    `json:"passed"`
-	Steps   int     `json:"steps"`
-	Seconds float64 `json:"seconds"`
+	Probe            string         `json:"probe"`
+	Run              int            `json:"run"`
+	Passed           bool           `json:"passed"`
+	Steps            int            `json:"steps"`
+	Seconds          float64        `json:"seconds"`
+	ModelCalls       int64          `json:"model_calls"`
+	PromptTokens     int64          `json:"prompt_tokens"`
+	CachedTokens     int64          `json:"cached_tokens"`
+	CompletionTokens int64          `json:"completion_tokens"`
+	FirstToolSeconds float64        `json:"first_tool_seconds,omitempty"`
+	ToolFailures     map[string]int `json:"tool_failures,omitempty"`
 
 	// Errored means the run never reached the model — a dead backend, a
 	// bad seed path — so it says nothing about the agent and must not be
@@ -654,6 +665,17 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 	env := evalEnv(modelClient, ws, procs, contextLimit, maxTokens, record, func(kind string) {
 		res.Nudges = append(res.Nudges, kind)
 	})
+	env.OnResult = func(result agent.ToolResult) {
+		if res.FirstToolSeconds == 0 {
+			res.FirstToolSeconds = time.Since(started).Seconds()
+		}
+		if result.Failed {
+			if res.ToolFailures == nil {
+				res.ToolFailures = map[string]int{}
+			}
+			res.ToolFailures[result.Status]++
+		}
+	}
 	replyIndex := 0
 	a := roles.Interactive(env, "", "", func(string) (string, error) {
 		if replyIndex < len(p.Replies) {
@@ -697,6 +719,10 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 	res.Failures = append(res.Failures, checkAnswer(p, answer)...)
 
 	res.PeakPromptTokens = int(atomic.LoadInt64(&counter.peakPrompt))
+	res.ModelCalls = atomic.LoadInt64(&counter.calls)
+	res.PromptTokens = atomic.LoadInt64(&counter.promptTokens)
+	res.CachedTokens = atomic.LoadInt64(&counter.cachedTokens)
+	res.CompletionTokens = atomic.LoadInt64(&counter.completionTokens)
 	res.FloorPromptTokens = int(atomic.LoadInt64(&counter.floorPrompt))
 	if contextLimit > 0 {
 		res.PeakContextPct = res.PeakPromptTokens * 100 / contextLimit

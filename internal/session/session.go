@@ -17,11 +17,12 @@ import (
 // Snapshot keeps the archive independent of the model's working context.
 // ContextStart is an index into History; zero means the entire conversation.
 type Snapshot struct {
-	Version      int           `json:"version"`
-	History      []llm.Message `json:"history"`
-	ContextStart int           `json:"context_start,omitempty"`
-	Summary      string        `json:"summary,omitempty"`
-	Runs         []Run         `json:"runs,omitempty"`
+	Version        int           `json:"version"`
+	History        []llm.Message `json:"history"`
+	ContextStart   int           `json:"context_start,omitempty"`
+	Summary        string        `json:"summary,omitempty"`
+	SummaryRequest int           `json:"summary_request,omitempty"`
+	Runs           []Run         `json:"runs,omitempty"`
 }
 
 // Run identifies one execution in the full archive, independent of compaction.
@@ -43,7 +44,7 @@ func (s Snapshot) Context() []llm.Message {
 		return append([]llm.Message(nil), s.History...)
 	}
 	out := append([]llm.Message(nil), s.History[:2]...)
-	out = append(out, llm.Message{Role: llm.RoleUser, Content: s.Summary})
+	out = append(out, llm.Message{Role: llm.RoleUser, Content: s.Summary, Harness: "compact", Request: s.SummaryRequest})
 	return append(out, s.History[s.ContextStart:]...)
 }
 
@@ -52,6 +53,7 @@ func (s Snapshot) Context() []llm.Message {
 func (s *Snapshot) Compact(context []llm.Message) {
 	s.ContextStart = len(s.History) - len(context[3:])
 	s.Summary = context[2].Content
+	s.SummaryRequest = context[2].Request
 }
 
 func Load(path string) (Snapshot, error) {

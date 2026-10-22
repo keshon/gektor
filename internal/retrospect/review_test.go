@@ -67,7 +67,7 @@ func reviewClient(t *testing.T, start, evidence int, memory bool, beforeFinish f
 			if last := req.Messages[len(req.Messages)-1]; last.ToolFailed == nil || *last.ToolFailed || !strings.Contains(last.Content, "verification") {
 				t.Fatalf("archive read failed: %+v", last)
 			}
-			r := Result{Summary: "Observed a successful command, not proof of general correctness.", Findings: []Finding{{Text: "Verification is archived.", Evidence: []int{evidence}}}}
+			r := Result{Memory: []Memory{}, Summary: "Observed a successful command, not proof of general correctness.", Findings: []Finding{{Text: "Verification is archived.", Evidence: []int{evidence}}}}
 			if memory {
 				r.Memory = []Memory{{When: "Repeating the first check", Lesson: "The recorded command passed in this session; check current files first.", Evidence: []int{evidence}, Quote: "PASS first verification"}}
 			}
