@@ -62,7 +62,7 @@ func TestWithRole_NonEmptyAppendsFormattedAddendum(t *testing.T) {
 // Rewording deletes the test's premise, so reword deliberately —
 // update the fragments, never just delete them.
 func TestPlatformLine_NamesCurrentOS(t *testing.T) {
-	got := PlatformLine()
+	got := PlatformLine("powershell.exe")
 	if got == "" {
 		t.Fatal("platform line must not be empty")
 	}

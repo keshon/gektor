@@ -10,11 +10,14 @@ import (
 
 // Config supplies capabilities, limits and observers for one run.
 type Config struct {
-	BeginChanges  func(context.Context) (func() ([]string, error), error)
-	Client        llm.Client
-	Inbox         *Inbox
-	OnInput       func(llm.Message)
-	Tools         *Registry
+	BeginChanges func(context.Context) (func() ([]string, error), error)
+	Client       llm.Client
+	Inbox        *Inbox
+	OnInput      func(llm.Message)
+	Tools        *Registry
+	// RestoreTools restores optional capabilities from the complete archive
+	// before the first request, including when their activation was compacted.
+	RestoreTools  func(context.Context, []llm.Message) error
 	System        string
 	MaxSteps      int
 	MaxTokens     int

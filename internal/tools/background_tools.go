@@ -34,7 +34,7 @@ func (StartBackground) Name() string { return "start_background" }
 // Starting an arbitrary command is a mutation barrier.
 func (StartBackground) Mode() agent.ToolMode { return agent.Exclusive }
 func (StartBackground) Description() string {
-	return "Start a shell server, watcher or background command without blocking. command is complete shell source. Returns id and next_cursor for check_background. Use start_program for a native executable with literal arguments. Use wait_background for finite builds/tests instead of polling. Stop only your processes via stop_background with its returned id."
+	return "Start a server, watcher or background command using " + ShellName() + " without blocking. command is complete shell source. Returns id and next_cursor for check_background. Use start_program for a native executable with literal arguments. Use wait_background for finite builds/tests instead of polling. Stop only your processes via stop_background with its returned id."
 }
 func (StartBackground) Schema() json.RawMessage {
 	return shellSchema(false)

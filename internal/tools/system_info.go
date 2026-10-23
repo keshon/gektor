@@ -20,6 +20,7 @@ import (
 type SystemInfo struct {
 	WS           *workspace.Workspace
 	BrowserTools []string
+	Browser      *EnableBrowser
 }
 
 func (SystemInfo) Name() string         { return "system_info" }
@@ -79,7 +80,7 @@ func (t SystemInfo) Run(ctx context.Context, args json.RawMessage) (string, erro
 	case "browser":
 		result = t.browserInfo(ctx)
 	case "environment":
-		result = map[string]any{"workspace": t.WS.Root(), "temp_dir": os.TempDir(), "path": filepath.SplitList(os.Getenv("PATH")), "pathext": os.Getenv("PATHEXT")}
+		result = map[string]any{"workspace": t.WS.Root(), "shell": ShellName(), "temp_dir": os.TempDir(), "path": filepath.SplitList(os.Getenv("PATH")), "pathext": os.Getenv("PATHEXT")}
 	case "tools":
 		entries, warnings, err := pathTools(ctx, t.WS.Root(), in.Filter)
 		if err != nil {
@@ -137,10 +138,17 @@ func (t SystemInfo) browserInfo(ctx context.Context) map[string]any {
 	installed := installedBrowsers()
 	executables, warnings, _ := pathTools(ctx, t.WS.Root(), "playwright")
 	status := "not connected: no browser MCP tools discovered; do not assume npx means Playwright is installed"
-	if len(t.BrowserTools) > 0 {
-		status = "browser MCP tools discovered at startup; first navigation still verifies browser launch"
+	names := t.BrowserTools
+	setup := "Restart GEKTOR with -browser chrome or -browser msedge; see docs/browser.md. Do not improvise browser shell commands when MCP is unavailable."
+	if t.Browser != nil {
+		names = t.Browser.Names()
+		status = "available on request: call enable_browser to check prerequisites and connect MCP"
+		setup = "Call enable_browser; it reports missing prerequisites and prepares the pinned MCP package if needed."
 	}
-	return map[string]any{"browser_paths": installed, "playwright_executables": executables, "mcp_tools": t.BrowserTools, "status": status, "operator_setup": "Restart GEKTOR with -browser chrome or -browser msedge; see docs/browser.md. Do not improvise browser shell commands when MCP is unavailable.", "package_inventory": "PATH does not include every local/global/npm-cache package; absence here is not proof of absence. No installation or download attempted.", "warnings": warnings}
+	if len(names) > 0 {
+		status = "browser MCP tools connected for this session; first navigation still verifies browser launch"
+	}
+	return map[string]any{"browser_paths": installed, "playwright_executables": executables, "mcp_tools": names, "status": status, "operator_setup": setup, "package_inventory": "PATH does not include every local/global/npm-cache package; absence here is not proof of absence. No installation or download attempted by system_info.", "warnings": warnings}
 }
 
 type pathTool struct {

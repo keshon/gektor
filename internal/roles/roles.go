@@ -67,6 +67,7 @@ type Env struct {
 	// prompt matches Interactive's, but refuses to run them: a mode switch
 	// must not change the prompt prefix.
 	MCPTools []agent.Tool
+	Browser  *tools.Browser
 
 	// OnDelta receives streamed answer text for live display. OnReasoning
 	// receives streamed deliberation, which arrives first.
@@ -194,7 +195,7 @@ func (e Env) agentConfig(system, label, stateFile string) agent.Config {
 		Client:        e.Client,
 		Inbox:         e.Inbox,
 		OnInput:       e.OnInput,
-		System:        system + "\n\n" + prompts.Environment(e.WS.Root(), e.Vision) + tools.BrowserContext(e.MCPTools) + e.WS.Instructions() + "\n\n" + e.Identity,
+		System:        system + "\n\n" + prompts.Environment(e.WS.Root(), e.Vision) + e.browserContext() + e.WS.Instructions() + "\n\n" + e.Identity,
 		MaxTokens:     e.MaxTokens,
 		Temperature:   e.Temperature,
 		ContextLimit:  e.ContextLimit,
@@ -268,8 +269,8 @@ func (e Env) statePath(name string) string {
 // the DELEGATE result envelope. Enforcement (gate) and file-grounded
 // findings still flow: those constrain or describe the work itself.
 func Subagent(e Env, role string) *agent.Agent {
-	cfg := e.agentConfig(prompts.WithRole(role)+"\n\n"+prompts.SubagentScope+"\n\n"+prompts.PlatformLine(), "", "")
-	cfg.Tools = tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.Vision, e.MCPTools...)
+	cfg := e.agentConfig(prompts.WithRole(role)+"\n\n"+prompts.SubagentScope+"\n\n"+prompts.PlatformLine(tools.ShellName()), "", "")
+	e.configureTools(&cfg, e.MCPTools...)
 	cfg.MaxSteps = subagentSteps
 	cfg.System += fmt.Sprintf("\n\nYour budget is %d model steps, including your final answer. Keep the subtask focused and report unfinished work honestly.", subagentSteps)
 	cfg.Inbox, cfg.OnInput = nil, nil
@@ -316,10 +317,30 @@ func (e Env) conversationConfig(label, stateFile string,
 	if ask != nil {
 		extra = append(extra, tools.AskUser{AskFn: ask})
 	}
-	cfg := e.agentConfig(prompts.System+"\n\n"+prompts.PlatformLine(), label, stateFile)
-	cfg.Tools = tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.Vision, extra...)
+	cfg := e.agentConfig(prompts.System+"\n\n"+prompts.PlatformLine(tools.ShellName()), label, stateFile)
+	e.configureTools(&cfg, extra...)
 	cfg.MaxSteps = e.MaxSteps
 	cfg.Verify = verify
 	cfg.Stream, cfg.OnDelta, cfg.OnReasoning = e.Stream, e.OnDelta, e.OnReasoning
 	return cfg
+}
+
+func (e Env) browserContext() string {
+	if e.Browser != nil {
+		return "\nBrowser automation: available on request through enable_browser. Call it when browser work is needed. If browser tools are already present, use them directly."
+	}
+	return tools.BrowserContext(e.MCPTools)
+}
+
+func (e Env) configureTools(cfg *agent.Config, extra ...agent.Tool) {
+	var browser *tools.EnableBrowser
+	if e.Browser != nil {
+		browser = &tools.EnableBrowser{Browser: e.Browser}
+		extra = append(extra, browser)
+	}
+	cfg.Tools = tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.Vision, extra...)
+	if browser != nil {
+		browser.Registry = cfg.Tools
+		cfg.RestoreTools = browser.Restore
+	}
 }

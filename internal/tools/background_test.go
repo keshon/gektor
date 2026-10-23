@@ -15,14 +15,10 @@ import (
 	"github.com/keshon/gektor/internal/workspace"
 )
 
-// longRunningCommand is a sleep spelled for the host shell. "sleep" is not
-// a cmd.exe builtin and has no standalone executable on a stock Windows
-// box, so the POSIX spelling exited instantly and the test below failed
-// with "not recognized as an internal or external command" — a platform
-// bug in the fixture, not in the process tracking it was written for.
+// longRunningCommand uses the selected platform shell.
 var longRunningCommand = func() string {
 	if runtime.GOOS == "windows" {
-		return "ping -n 6 127.0.0.1 > nul"
+		return "Start-Sleep -Seconds 5"
 	}
 	return "sleep 5"
 }()
@@ -35,7 +31,7 @@ func TestBackgroundStartupFailureIsNotSuccessfulToolResult(t *testing.T) {
 	defer ws.Close()
 	procs := NewBackgroundProcesses()
 	defer procs.StopAll()
-	out, err := (StartBackground{WS: ws, Procs: procs, SettleTime: 200 * time.Millisecond}).Run(t.Context(), json.RawMessage(`{"command":"exit 7"}`))
+	out, err := (StartBackground{WS: ws, Procs: procs, SettleTime: 3 * time.Second}).Run(t.Context(), json.RawMessage(`{"command":"exit 7"}`))
 	if err == nil || !strings.Contains(out, "already exited") || !strings.Contains(err.Error(), "failed") {
 		t.Fatal(out, err)
 	}

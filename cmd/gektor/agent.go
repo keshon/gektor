@@ -127,11 +127,6 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	// Ask the backend for its real context window instead of guessing.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if o.browser != "" {
-		if err := tools.PrepareBrowser(ctx, o.browser, ws.Root(), func(message string) { note("%s", message) }); err != nil {
-			return err
-		}
-	}
 
 	contextLimit, err := backendContext(ctx, client, o)
 	if err != nil {
@@ -176,19 +171,14 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			c.Close()
 		}
 	}()
+	var browser *tools.Browser
 	if o.browser != "" {
 		if len(tools.BrowserToolNames(mcpTools)) > 0 {
 			return fmt.Errorf("use either -browser or browser tools configured through -mcp, not both")
 		}
-		browserCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		list, browser, err := tools.StartBrowser(browserCtx, o.browser, ws.Root())
-		cancel()
-		if err != nil {
-			return err
-		}
-		mcpTools = append(mcpTools, list...)
-		mcpClients = append(mcpClients, browser)
-		note("browser: %s, isolated headless profile, %d MCP tools connected", o.browser, len(list))
+		browser = &tools.Browser{Channel: o.browser, Dir: ws.Root()}
+		defer browser.Close()
+		note("browser: %s available on request through enable_browser", o.browser)
 	} else if len(tools.BrowserToolNames(mcpTools)) == 0 {
 		note("browser: not connected (enable with -browser chrome or -browser msedge)")
 	}
@@ -226,6 +216,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			backendKind: o.backendKind,
 			stream:      o.stream,
 			mcpTools:    mcpTools,
+			browser:     browser,
 		}, os.Stdin, os.Stdout, os.Stderr)
 		return ctx.Err()
 	}
@@ -261,6 +252,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		Model:        displayModel,
 		Stream:       streamEnabled(o.stream, o.outputMode, o.tui),
 		MCPTools:     mcpTools,
+		Browser:      browser,
 		// Direct runs fund acknowledged todo work with extra steps;
 		// -serve leaves this off until its budget story is decided.
 		OnDelta: func(chunk string) { fmt.Print(chunk) },

@@ -519,6 +519,46 @@ func TestModeSwitchWirePrefixAcrossProviders(t *testing.T) {
 
 type subagentBudgetClient struct{ history []llm.Message }
 
+func TestRolesDescribeTheSelectedShell(t *testing.T) {
+	env := testEnv(t)
+	client := &subagentBudgetClient{}
+	env.Client = client
+	for _, a := range []*agent.Agent{Interactive(env, "", "", nil, nil), Subagent(env, "")} {
+		if _, err := a.Run(t.Context(), "Describe the platform"); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(client.history[0].Content, prompts.PlatformLine(tools.ShellName())) {
+			t.Fatal("role does not describe the executor's shell")
+		}
+	}
+}
+
+func TestBrowserIsLazyAcrossRoles(t *testing.T) {
+	env := testEnv(t)
+	env.Browser = &tools.Browser{Channel: "chrome", Dir: env.WS.Root()}
+	client := &subagentBudgetClient{}
+	env.Client = client
+	var system string
+	for _, a := range []*agent.Agent{Interactive(env, "", "", nil, nil), Planner(env, "", "", nil), Subagent(env, "")} {
+		if !hasTool(a, "enable_browser") || len(tools.BrowserToolNames(env.MCPTools)) != 0 {
+			t.Fatal("browser entry point missing")
+		}
+		if _, err := a.Run(t.Context(), "hello"); err != nil {
+			t.Fatal(err)
+		}
+		text := client.history[0].Content
+		if !strings.Contains(text, "available on request through enable_browser") {
+			t.Fatal("browser capability not advertised")
+		}
+		if system != "" && !strings.Contains(text, "Your budget is") && system != text {
+			t.Fatal("Plan/Act changed the prefix")
+		}
+		if system == "" {
+			system = text
+		}
+	}
+}
+
 func (c *subagentBudgetClient) Chat(_ context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
 	c.history = req.Messages
 	return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}}, nil

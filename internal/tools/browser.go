@@ -48,7 +48,11 @@ func PrepareBrowser(ctx context.Context, channel, dir string, note func(string))
 		if install {
 			mode = "--yes"
 		}
-		return runCommand(ctx, "npx "+mode+" "+browserPackage+" --help", dir, 3*time.Minute, nil)
+		command := "npx"
+		if runtime.GOOS == "windows" {
+			command = "npx.cmd"
+		}
+		return runCommand(ctx, command+" "+mode+" "+browserPackage+" --help", dir, 3*time.Minute, nil)
 	})
 }
 

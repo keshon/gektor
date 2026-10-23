@@ -54,6 +54,7 @@ type serveDeps struct {
 	backendKind string
 	stream      bool
 	mcpTools    []agent.Tool
+	browser     *tools.Browser
 }
 
 type rpcRequest struct {
@@ -286,6 +287,7 @@ func serveRun(ctx context.Context, d serveDeps, hub *run.GateHub, emitter *event
 		BackendKind:  d.backendKind,
 		Stream:       d.stream,
 		MCPTools:     d.mcpTools,
+		Browser:      d.browser,
 	}
 	emitter.Emit("run_start", map[string]any{"task": task})
 	sess, err := run.New(run.Config{

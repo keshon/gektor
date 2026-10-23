@@ -6,35 +6,42 @@ installed Chrome or Edge. DOM snapshots, clicks, forms, JavaScript, console
 and network checks work with text-only models. Visual judgment requires a
 vision-capable backend and a saved screenshot read through `read_file`.
 
-Install Node.js 20+ with npm and Chrome or Edge. GEKTOR checks these prerequisites
+Install Node.js 20+ with npm and Chrome or Edge. On activation, GEKTOR checks these prerequisites
 and reports a specific fix if they are missing. Windows, Linux and macOS use
 the same option:
 
 On Windows, `run-tui.cmd` already enables `-browser chrome`. To use Edge,
 run `run-tui.cmd -browser msedge`; to disable browser automation, use
 `run-tui.cmd -browser=`. Explicit arguments override the launcher's default.
-The Windows launcher keeps an error visible before closing, including missing
-prerequisites or a failed first-use package preparation.
+The flag makes browser automation available on request; it does not start MCP
+or put all its schemas into the opening model request.
 
 ```text
 gektor -tui -workspace /path/to/project -browser chrome
 ```
 
-For installed Edge, use `-browser msedge`. First use checks the pinned Playwright
+For installed Edge, use `-browser msedge`. The agent first calls `enable_browser`
+when its task needs browser interaction. Activation checks the pinned Playwright
 MCP package in npm's cache. If unavailable, GEKTOR announces preparation and
 downloads `@playwright/mcp@0.0.83` into that cache with a three-minute limit,
 separate from the MCP handshake timeout. This needs internet on first use;
-later launches reuse the cache. Node.js and browsers are not installed by GEKTOR.
+later activations reuse the cache. Node.js and browsers are not installed by GEKTOR.
 Setup errors include the npm diagnostic and `-browser=` escape hatch.
 
-GEKTOR uses an isolated headless profile and reports the discovered browser
-tools. A connection failure stops launch with
-the server's diagnostic instead of continuing without the requested browser.
+GEKTOR uses an isolated headless profile. Successful activation returns browser
+instructions and exposes the MCP tools for the rest of that session. A connection
+failure is a failed tool result with the server's diagnostic; ordinary coding
+tasks can still run without a working browser installation.
+The full session archive records activation, so resuming after compaction restores
+the tool set before the next model request. New sessions start with only the
+activation tool. Activation can invalidate part of the backend's prompt cache once;
+tools are not unloaded between turns or Plan/Act switches.
 First navigation checks that the browser itself can launch. The selected
 browser must already be installed. Without `-browser` or a custom browser MCP,
 the model is explicitly told browser automation is unavailable.
 
-Advanced configuration through the existing MCP option is still available:
+Advanced configuration through the existing MCP option is still available.
+Explicit custom MCP servers connect at startup and advertise their tools immediately:
 
 ```sh
 ./gektor -tui -workspace /path/to/project -mcp 'browser=npx -y @playwright/mcp@0.0.83 --browser chrome --headless --isolated --image-responses omit --output-dir .gektor/browser'

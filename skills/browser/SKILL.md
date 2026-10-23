@@ -5,8 +5,9 @@ description: Checks web UI behavior with connected browser tools. Read when buil
 
 # Browser checks
 
-1. Query system_info with group=browser when availability is unknown. Use
-   connected browser tools and their actual schemas. If absent,
+1. Query system_info with group=browser when availability is unknown. If
+   enable_browser is available, call it to load browser tools and instructions
+   for this session. Use connected browser tools and their actual schemas. If absent,
    report browser verification unavailable. Ask the operator to restart with
    -browser chrome or -browser msedge; do not invent Chrome CLI flags.
 2. Start a native local server with start_program; use start_background only

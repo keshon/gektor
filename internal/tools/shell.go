@@ -29,7 +29,7 @@ func (RunShell) Name() string { return "run_shell" }
 func (RunShell) Mode() agent.ToolMode { return agent.Exclusive }
 func (RunShell) Description() string {
 	if runtime.GOOS == "windows" {
-		return "Run a finite shell command inside the workspace. command is complete cmd.exe source. " +
+		return "Run a finite shell command inside the workspace using " + ShellName() + ". command is complete PowerShell source. " +
 			"Use it for builtins, pipelines, redirection and .cmd/.bat scripts. " +
 			"For native executables with literal arguments, use run_program instead. " +
 			"Use workdir for a workspace-relative working directory and timeout_seconds (1–600) to bound execution. " +
@@ -62,7 +62,7 @@ func shellSchema(timeout bool) json.RawMessage {
 		extra = `,"timeout_seconds":{"type":"integer","minimum":1,"maximum":600,"default":600}`
 	}
 	return json.RawMessage(`{"type":"object","properties":{
-		"command":{"type":"string","minLength":1,"description":"Complete shell source for cmd.exe on Windows or sh on POSIX."},
+		"command":{"type":"string","minLength":1,"description":"Complete PowerShell source on Windows or POSIX sh source elsewhere."},
 		"workdir":{"type":"string","description":"Workspace-relative working directory; defaults to root."}` + extra +
 		`},"required":["command"],"additionalProperties":false}`)
 }

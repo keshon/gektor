@@ -51,6 +51,11 @@ func PathResources(ws *workspace.Workspace, tool string, args json.RawMessage) (
 func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSink, rules []checks.Rule, vision bool, extra ...agent.Tool) *agent.Registry {
 	scan := func(t agent.Tool) agent.Tool { return Checked(t, ws, report, rules) }
 	info := SystemInfo{WS: ws, BrowserTools: BrowserToolNames(extra)}
+	for _, t := range extra {
+		if browser, ok := t.(*EnableBrowser); ok {
+			info.Browser = browser
+		}
+	}
 	tools := []agent.Tool{
 		info,
 		ReadOutput{},

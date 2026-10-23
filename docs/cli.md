@@ -38,6 +38,21 @@ For a hosted service, set a key in the environment or select its variable
 with `-api-key-env`; supply the provider's actual model ID and context limit.
 The terminal controls and local slash commands are in [tui.md](tui.md).
 
+## Command execution
+
+On Windows, shell tools and `-verify-cmd` use `pwsh.exe` when available,
+otherwise `powershell.exe`. The executable is selected once per process;
+the agent's platform instructions and `system_info` report that same shell.
+Scripts travel through UTF-8 stdin with profiles and interactive prompts disabled.
+Use PowerShell syntax; `&&` and `||` are not portable to Windows PowerShell 5.1.
+On other platforms shell commands use `sh`.
+
+Use `run_program` for native executables with literal arguments. PowerShell
+has its own quoting, pipeline and error semantics (notably native stderr
+redirection in 5.1); the harness does not rewrite scripts or enable global
+fail-fast behavior. Shell success describes the final statement, not every
+earlier command. Use explicit conditions when one command depends on another.
+
 ## Backend
 
 | Flag | Default | Meaning |
@@ -87,7 +102,7 @@ fails closed. Rules are pattern tripwires, not process isolation. See
 | `-allow RULES` | — | Comma-separated `tool=pattern` rules to allow, e.g. `"run_shell=go *,read_file=*.go"`. Wins over defaults |
 | `-deny RULES` | — | Comma-separated `tool=pattern` rules to deny, e.g. `"run_shell=rm *,read_file=.env"`. Wins over `-allow` |
 | `-mcp SERVERS` | - | MCP servers as `"name=cmd args...;name2=https://host/mcp"` over stdio JSON-RPC or Streamable HTTP. Tools appear as `mcp__name__tool`. A server that fails to start is skipped with a warning |
-| `-browser CHANNEL` | - | Check Node/npm and installed `chrome` or `msedge`, prepare the pinned Playwright MCP package in npm cache on first use, then connect an isolated headless profile. Setup/connection failure stops launch. See [browser setup](browser.md) |
+| `-browser CHANNEL` | - | Make installed `chrome` or `msedge` available through `enable_browser`. Check prerequisites, prepare pinned Playwright MCP and load its tools only on activation. Setup failures are tool results. See [browser setup](browser.md) |
 
 ## Output and debugging
 

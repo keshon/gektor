@@ -86,8 +86,8 @@ func TestShellOutputArrivesBeforeExitAndSurvivesFailureOrCancellation(t *testing
 			}
 			command := fmt.Sprintf("'%s' -test.run=^TestShellStreamingHelper$", os.Args[0])
 			if runtime.GOOS == "windows" {
-				t.Setenv("GEKTOR_STREAM_TEST_EXE", "\""+os.Args[0]+"\"")
-				command = "call %GEKTOR_STREAM_TEST_EXE% -test.run=TestShellStreamingHelper"
+				t.Setenv("GEKTOR_STREAM_TEST_EXE", os.Args[0])
+				command = "& $env:GEKTOR_STREAM_TEST_EXE '-test.run=TestShellStreamingHelper'"
 			}
 			args, _ := json.Marshal(map[string]string{"command": command})
 			var live strings.Builder

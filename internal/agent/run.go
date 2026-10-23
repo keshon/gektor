@@ -104,6 +104,11 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 	}
 	// Restore the task checklist when resuming a saved conversation.
 	a.rehydrateTodo(ctx, history)
+	if a.cfg.RestoreTools != nil {
+		if err := a.cfg.RestoreTools(ctx, a.snapshot.History); err != nil {
+			return "", fmt.Errorf("restore session tools: %w", err)
+		}
+	}
 
 	for step := 0; step < a.cfg.MaxSteps; step++ {
 		if err := ctx.Err(); err != nil {

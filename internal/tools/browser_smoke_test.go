@@ -43,14 +43,20 @@ func TestBrowserMCPIntegration(t *testing.T) {
 	if channel == "" {
 		channel = "chrome"
 	}
-	if err := PrepareBrowser(t.Context(), channel, root, func(message string) { t.Log(message) }); err != nil {
-		t.Fatal(err)
+	browser := &Browser{Channel: channel, Dir: root}
+	defer browser.Close()
+	registry, enable := browserRegistry(browser)
+	if len(registry.Defs()) != 1 {
+		t.Fatal("browser eagerly advertised")
 	}
-	list, client, err := StartBrowser(t.Context(), channel, root)
+	_, err := enable.RunStreaming(t.Context(), json.RawMessage(`{}`), func(message string) { t.Log(message) })
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer client.Close()
+	list := browser.tools
+	if len(registry.Defs()) != len(list)+1 {
+		t.Fatal("browser tools were not registered")
+	}
 	var attached int
 	call := func(name string, input any) string {
 		t.Helper()

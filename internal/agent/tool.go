@@ -72,8 +72,9 @@ type Attacher interface {
 	Attach(args json.RawMessage) ([]string, error)
 }
 
-// Registry is a fixed set of tools, looked up by name.
+// Registry holds tools looked up by name. An exclusive tool may add capabilities.
 type Registry struct {
+	mu    sync.RWMutex
 	tools map[string]Tool
 }
 
@@ -90,6 +91,8 @@ func NewRegistry(tools ...Tool) *Registry {
 // a hand-assembled agent silently ended up with a smaller tool set than
 // the one that ships.
 func (r *Registry) Names() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	names := make([]string, 0, len(r.tools))
 	for name := range r.tools {
 		names = append(names, name)
@@ -103,6 +106,8 @@ func (r *Registry) Defs() []llm.ToolDef {
 	if r == nil {
 		return nil
 	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	names := make([]string, 0, len(r.tools))
 	for name := range r.tools {
 		names = append(names, name)
@@ -121,6 +126,30 @@ func (r *Registry) Defs() []llm.ToolDef {
 	return defs
 }
 
+// Add installs a complete batch atomically. Existing names cannot be replaced.
+func (r *Registry) Add(tools ...Tool) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	seen := make(map[string]bool, len(tools))
+	for _, t := range tools {
+		if _, exists := r.tools[t.Name()]; exists || seen[t.Name()] {
+			return fmt.Errorf("tool %q already registered", t.Name())
+		}
+		seen[t.Name()] = true
+	}
+	for _, t := range tools {
+		r.tools[t.Name()] = t
+	}
+	return nil
+}
+
+func (r *Registry) lookup(name string) (Tool, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	t, ok := r.tools[name]
+	return t, ok
+}
+
 func (r *Registry) Run(ctx context.Context, name string, args json.RawMessage) (string, error) {
 	return r.RunStreaming(ctx, name, args, nil)
 }
@@ -129,7 +158,7 @@ func (r *Registry) ValidateCall(name string, args json.RawMessage) error {
 	if r == nil {
 		return fmt.Errorf("unknown tool %q", name)
 	}
-	t, ok := r.tools[name]
+	t, ok := r.lookup(name)
 	if !ok {
 		return fmt.Errorf("unknown tool %q", name)
 	}
@@ -139,7 +168,7 @@ func (r *Registry) ValidateCall(name string, args json.RawMessage) error {
 // RunStreaming observes display-only output when the tool supports it.
 // The returned result remains authoritative for model history.
 func (r *Registry) RunStreaming(ctx context.Context, name string, args json.RawMessage, onOutput func(string)) (string, error) {
-	t, ok := r.tools[name]
+	t, ok := r.lookup(name)
 	if !ok {
 		return "", fmt.Errorf("unknown tool %q", name)
 	}
@@ -158,7 +187,7 @@ func (r *Registry) RunStreaming(ctx context.Context, name string, args json.RawM
 // happen — the model can only call tools it was offered) is treated as
 // Exclusive: the safe default when in doubt.
 func (r *Registry) ModeOf(name string) ToolMode {
-	if t, ok := r.tools[name]; ok {
+	if t, ok := r.lookup(name); ok {
 		return t.Mode()
 	}
 	return Exclusive
@@ -167,7 +196,7 @@ func (r *Registry) ModeOf(name string) ToolMode {
 // AttacherOf returns the tool's picture-returning half, or nil. Like
 // other optional capabilities, this is opt-in.
 func (r *Registry) AttacherOf(name string) Attacher {
-	t, ok := r.tools[name]
+	t, ok := r.lookup(name)
 	if !ok {
 		return nil
 	}
@@ -177,7 +206,7 @@ func (r *Registry) AttacherOf(name string) Attacher {
 
 // Has reports whether a tool is registered.
 func (r *Registry) Has(name string) bool {
-	_, ok := r.tools[name]
+	_, ok := r.lookup(name)
 	return ok
 }
 
@@ -205,6 +234,8 @@ func (r *Registry) Checklist() Checklister {
 	if r == nil {
 		return nil
 	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	for _, t := range r.tools {
 		if cl, ok := t.(Checklister); ok {
 			return cl
@@ -226,6 +257,8 @@ func (r *Registry) Questioner() Questioner {
 	if r == nil {
 		return nil
 	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	for _, t := range r.tools {
 		if q, ok := t.(Questioner); ok {
 			return q

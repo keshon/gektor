@@ -82,12 +82,12 @@ func WithRole(role string) string {
 // and a weak model on Windows otherwise emits POSIX and burns steps on
 // "command not found". Attach at role construction (Interactive,
 // Subagent); Planner receives the same prefix but cannot execute shell calls.
-func PlatformLine() string {
+func PlatformLine(shell string) string {
 	if runtime.GOOS == "windows" {
-		return "You run on Windows. Shell commands execute via cmd.exe, not PowerShell or Bash. " +
-			"Use && to chain successful commands; ; is not a CMD separator. Invoke PowerShell explicitly for PowerShell syntax. " +
-			"Use Windows-compatible syntax for builds, tests and scripts; use the provided file tools for listings, edits and moves. " +
-			"Both `\\` and `/` work in file paths."
+		return "You run on Windows. Shell tools use PowerShell (" + shell + "), not CMD or Bash. " +
+			"Use ; to separate statements and if (...) for conditions; avoid &&/|| for Windows PowerShell compatibility. " +
+			"Invoke quoted executable paths with &. $LASTEXITCODE is a native exit code; $? is a success boolean. " +
+			"Use run_program for native executables and file tools for listings, edits and moves."
 	}
 	return "You run on " + runtime.GOOS + " with /bin/sh syntax. Do not assume additional utilities are installed."
 }

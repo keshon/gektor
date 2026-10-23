@@ -28,7 +28,7 @@ func (RunProgram) Description() string {
 	if runtime.GOOS == "windows" {
 		return "Run a finite native executable inside the workspace without a shell. " +
 			"Prefer this for go, git, python and other native programs. args are separate literal arguments, without shell quoting or expansion. " +
-			"Use run_shell for cmd.exe syntax, builtins, pipelines, redirection or .cmd/.bat scripts. " +
+			"Use run_shell for PowerShell syntax, builtins, pipelines, redirection or scripts. " +
 			"Use workdir for a workspace-relative working directory and timeout_seconds (1–600) to bound execution. " +
 			"Returns exit_code and combined stdout/stderr. Nonzero exits remain failures, including expected negative-test results."
 	}
@@ -72,8 +72,8 @@ func (in programInput) validate() error {
 
 func (in programInput) cmd(ctx context.Context) (*exec.Cmd, error) {
 	cmd := exec.CommandContext(ctx, in.Program, in.Args...)
-	if ext := strings.ToLower(filepath.Ext(cmd.Path)); runtime.GOOS == "windows" && (ext == ".cmd" || ext == ".bat") {
-		return nil, fmt.Errorf("%s is a shell script, not a native executable; use run_shell or start_background with CMD syntax instead", in.Program)
+	if ext := strings.ToLower(filepath.Ext(cmd.Path)); runtime.GOOS == "windows" && (ext == ".cmd" || ext == ".bat" || ext == ".ps1") {
+		return nil, fmt.Errorf("%s is a shell script, not a native executable; use run_shell or start_background with PowerShell syntax instead", in.Program)
 	}
 	return cmd, nil
 }
