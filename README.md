@@ -4,7 +4,7 @@ A terminal coding agent written in Go, focused on local models. It searches
 and edits files, runs commands, and saves sessions you can continue later.
 You provide the model server.
 
-![GEKTOR showing a live session and a system_info tool call](docs/images/gektor-demo.png)
+![GEKTOR terminal UI showing an assistant response about its coding capabilities](docs/images/gektor-demo.png)
 
 ## Quick start
 
