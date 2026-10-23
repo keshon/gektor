@@ -21,7 +21,7 @@
   ],
   "answer": [
     {
-      "regex": "(?i)(unavailable|not connected|cannot.*browser|couldn.t.*browser|unable.*browser|unverified|недоступ|не подключ|не.*провер)",
+      "regex": "(?i)(unavailable|not connected|no browser[^\\n]*connected|cannot.*browser|couldn.t.*browser|unable.*browser|unverified|недоступ|не подключ|не.*провер)",
       "mode": "required",
       "why": "explicitly report unavailable browser verification"
     },

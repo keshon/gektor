@@ -11,6 +11,36 @@ Frozen scenarios for a weak local model, scored by a program.
 
 ## Running
 
+For the fixed seven-scenario starting baseline:
+
+```text
+eval-run.cmd -suite core -runs 1 -jobs 1 -require-model Cyber-Tiel
+eval-run.cmd -suite core -runs 3 -jobs 1 -require-model Cyber-Tiel
+```
+
+On other platforms use `go run ./cmd/eval -suite core` with explicit backend
+flags. One pass is a calibration, not a reliability estimate; use at least
+three repeats before interpreting model variance. Keep weights/quantization,
+server configuration, response budget, suite inputs and machine load fixed.
+With `-jobs 1`, scenarios and repeats execute in declared order.
+
+Core covers an exact patch, search/edit, managed HTTP server lifecycle,
+overflow recovery, truthful reporting without browser capability, nested skills,
+and a small Go CLI repair. The last scenario uses trusted acceptance tests
+injected only after the model finishes; their contents enter the input digest.
+Browser absence is a deliberate capability test, not a completed UI task.
+Connected-browser mechanics are separately checked by the opt-in browser test;
+this core suite does not measure visual design quality.
+
+Every run directory also contains `summary.json`: per-scenario and overall
+pass counts, excluded errors/skips, median time/steps, tool failures, clarification
+calls and token counts. Cached tokens are reported only as supplied by the
+backend; zero does not establish that caching was disabled. Read `meta.json`
+and raw traces before comparing summaries. A pass proves declared criteria,
+not general agent correctness or the truth of unrestricted prose.
+Tool failures count all failed tool results, including deliberate negative-input
+checks; inspect the trace before treating them as wasted attempts.
+
 ```bash
 go run ./cmd/eval -dry                          # validate probes, no model calls
 go run ./cmd/eval                               # everything, once each
@@ -104,7 +134,7 @@ the write-up. The same Interactive role as the CLI executes every scenario.
 
 ## Coverage
 
-All 15 scenarios are mechanized. Probes 01 and 02 request a temporary Git
+The scenarios are mechanized. Probes 01 and 02 request a temporary Git
 seed with a fixed commit. Probe 12 supplies a scripted clarification and
 requires an improvement note grounded in the fixture. `git` and `replies`
 configure these harness inputs.

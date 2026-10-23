@@ -6,6 +6,7 @@ REM Run the eval suite against a backend that is already running.
 REM
 REM   eval-run.cmd                       every probe, once
 REM   eval-run.cmd -tier smoke           quick subset
+REM   eval-run.cmd -suite core -runs 3   frozen seven-scenario baseline
 REM   eval-run.cmd -only 05 -runs 3      one probe, three runs
 REM   eval-run.cmd -backend-kind kobold  target koboldcpp instead
 REM   eval-run.cmd -require-model qwen   refuse other weights

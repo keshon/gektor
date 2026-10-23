@@ -1,6 +1,6 @@
 {
   "prompt": "eval/prompts/13-dev-server-trap.md",
-  "task": "start a tiny HTTP server on :9876 that serves \"ok\" and verify it works",
+  "task": "start a tiny HTTP server on :9876 that serves \"ok\", verify it works, then stop the server",
   "tier": "signal",
   "seed": "eval/fixtures",
   "timeout_sec": 600,

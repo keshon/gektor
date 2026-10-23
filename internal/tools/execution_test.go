@@ -1,7 +1,9 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -19,6 +21,14 @@ import (
 
 func writeLiteralExecutionArgs() {
 	for i, arg := range os.Args {
+		if arg == "--exit-result" {
+			fmt.Fprintln(os.Stdout, "stdout marker")
+			fmt.Fprintln(os.Stderr, "stderr marker")
+			os.Exit(3)
+		}
+		if arg == "--quiet-success" {
+			return
+		}
 		if arg == "--spawn-http-child" {
 			child := exec.Command(os.Args[0], "--http-fixture")
 			child.Stdout, child.Stderr = os.Stdout, os.Stderr
@@ -43,6 +53,44 @@ func writeLiteralExecutionArgs() {
 		}
 	}
 	os.Exit(2)
+}
+
+func TestExecutionReportsExitAndLaunchFacts(t *testing.T) {
+	ws, _ := testWS(t)
+	t.Setenv("GEKTOR_EXEC_HELPER", "1")
+	for _, tc := range []struct {
+		name, program string
+		args          []string
+		want          string
+		failed        bool
+	}{
+		{"quiet success", os.Args[0], []string{"--quiet-success"}, "exit_code: 0\n", false},
+		{"nonzero exit", os.Args[0], []string{"--exit-result"}, "exit_code: 3\n", true},
+		{"missing executable", filepath.Join(ws.Root(), "missing-executable"), nil, "process did not start", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			args, _ := json.Marshal(map[string]any{"program": tc.program, "args": tc.args})
+			out, err := (RunProgram{WS: ws}).Run(t.Context(), args)
+			if (err != nil) != tc.failed || !strings.Contains(out+fmt.Sprint(err), tc.want) {
+				t.Fatalf("out=%q err=%v", out, err)
+			}
+			if tc.name == "nonzero exit" {
+				var exited *exec.ExitError
+				if !errors.As(err, &exited) || exited.ExitCode() != 3 || !strings.Contains(out, "stdout marker") || !strings.Contains(out, "stderr marker") {
+					t.Fatalf("lost exit status or output: %q %v", out, err)
+				}
+			}
+			if tc.name == "missing executable" && strings.Contains(out, "exit_code:") {
+				t.Fatal("invented exit status", out)
+			}
+		})
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	args, _ := json.Marshal(map[string]any{"program": os.Args[0], "args": []string{"--quiet-success"}})
+	if out, err := (RunProgram{WS: ws}).Run(ctx, args); !errors.Is(err, context.Canceled) || strings.Contains(out, "exit_code:") {
+		t.Fatalf("cancellation lost: %q %v", out, err)
+	}
 }
 
 func TestManagedNativeHTTPServerLifecycle(t *testing.T) {

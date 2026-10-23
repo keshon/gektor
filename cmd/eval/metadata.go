@@ -18,6 +18,7 @@ import (
 )
 
 type evalMetadata struct {
+	Suite          string `json:"suite,omitempty"`
 	BackendKind    string `json:"backend_kind"`
 	Backend        string `json:"backend"`
 	Model          string `json:"model"`
@@ -92,6 +93,15 @@ func inputsDigest(probes []Probe) (string, error) {
 	inputs := make([]input, 0, len(probes))
 	for _, probe := range probes {
 		item := input{Name: probe.Name, Probe: probe, Files: map[string]string{}}
+		for _, check := range probe.Verify {
+			if check.Type == "go_acceptance" {
+				digest, err := fileDigest(check.Path)
+				if err != nil {
+					return "", err
+				}
+				item.Files["verifier:"+filepath.ToSlash(check.Path)] = digest
+			}
+		}
 		if probe.Seed != "" {
 			err := filepath.WalkDir(probe.Seed, func(path string, entry fs.DirEntry, err error) error {
 				if err != nil {

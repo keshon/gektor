@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -33,14 +34,14 @@ func (RunShell) Description() string {
 			"For native executables with literal arguments, use run_program instead. " +
 			"Use workdir for a workspace-relative working directory and timeout_seconds (1–600) to bound execution. " +
 			"Use file tools for listings, edits and moves; use start_background for servers and watchers. " +
-			"Return combined stdout and stderr; inspect the result before claiming success."
+			"Returns exit_code and combined stdout/stderr; shell exit_code describes the whole command."
 	}
 	return "Run a finite shell command inside the workspace. command is complete POSIX sh source. " +
 		"Use it for builtins, pipelines and redirection. " +
 		"For native executables with literal arguments, use run_program instead. " +
 		"Use workdir for a workspace-relative working directory and timeout_seconds (1–600) to bound execution. " +
 		"Use file tools for listings, edits and moves; use start_background for servers and watchers. " +
-		"Return combined stdout and stderr; inspect the result before claiming success."
+		"Returns exit_code and combined stdout/stderr; shell exit_code describes the whole command."
 }
 func (RunShell) Schema() json.RawMessage {
 	return shellSchema(true)
@@ -86,10 +87,20 @@ func executionTimeout(seconds *int) (time.Duration, error) {
 func runExecution(ctx context.Context, cmd *exec.Cmd, dir string, onOutput func(string)) (string, error) {
 	full, err := runProcess(ctx, cmd, dir, onOutput)
 	result := capShellOutput(full)
-	if err != nil {
-		return result, fmt.Errorf("command failed: %w", err)
+	if err == nil {
+		return "exit_code: 0\n" + result, nil
 	}
-	return result, nil
+	if cmd.Process == nil {
+		return result, fmt.Errorf("process did not start: %w", err)
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return result, fmt.Errorf("process interrupted: %w", err)
+	}
+	var exited *exec.ExitError
+	if errors.As(err, &exited) {
+		return fmt.Sprintf("exit_code: %d\n%s", exited.ExitCode(), result), fmt.Errorf("process exited unsuccessfully: %w", err)
+	}
+	return result, fmt.Errorf("process execution failed: %w", err)
 }
 
 func (t RunShell) Run(ctx context.Context, args json.RawMessage) (string, error) {
@@ -142,8 +153,7 @@ func capShellOutput(s string) string {
 		return s
 	}
 	return agent.TruncateMiddle(s, shellMaxBytes) +
-		fmt.Sprintf("\n\n(output truncated: %d bytes total. Re-run narrowed — a pipe through "+
-			"findstr/grep, a smaller path, or head/tail — rather than asking for all of it again.)",
+		fmt.Sprintf("\n\n(output truncated: %d bytes total. Narrow the command's paths or output options; use read_output if a saved output id is provided.)",
 			len(s))
 }
 

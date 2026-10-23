@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -14,7 +16,7 @@ import (
 )
 
 type Check struct {
-	Type     string `json:"type"`               // "shell" | "file_exists" | "file_absent" | "content_contains" | "http" | "none"
+	Type     string `json:"type"`               // shell, go_acceptance, file_exists, file_absent, content_contains, http, none
 	Cmd      string `json:"cmd,omitempty"`      // shell: the command line
 	Path     string `json:"path,omitempty"`     // file_exists / file_absent / content_contains
 	Contains string `json:"contains,omitempty"` // content_contains: substring that must appear
@@ -44,6 +46,14 @@ func ValidateCheck(c Check) error {
 	case "shell":
 		if strings.TrimSpace(c.Cmd) == "" {
 			return fmt.Errorf("type %q needs cmd", c.Type)
+		}
+		return nil
+	case "go_acceptance":
+		if !strings.HasPrefix(filepath.ToSlash(filepath.Clean(c.Path)), "eval/verifiers/") || !strings.HasSuffix(c.Path, ".gotest") {
+			return fmt.Errorf("go_acceptance needs an eval/verifiers/*.gotest source")
+		}
+		if _, err := os.Stat(c.Path); err != nil {
+			return err
 		}
 		return nil
 	case "http":
@@ -129,6 +139,21 @@ func RunCheck(ctx context.Context, c Check, ws *workspace.Workspace) (output str
 		}
 		if out == "" {
 			out = "(no output)"
+		}
+		return out, true
+	case "go_acceptance":
+		body, err := os.ReadFile(c.Path)
+		if err != nil {
+			return err.Error(), false
+		}
+		target := "gektor_acceptance_" + rand.Text() + "_test.go"
+		if err := ws.WriteFile(target, body, 0600); err != nil {
+			return err.Error(), false
+		}
+		defer ws.Remove(target)
+		out, err := RunShellCommand(ctx, "go test ./...", ws.Root())
+		if err != nil {
+			return fmt.Sprintf("acceptance failed: %v\n%s", err, out), false
 		}
 		return out, true
 

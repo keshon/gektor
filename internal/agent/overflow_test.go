@@ -84,6 +84,21 @@ func TestRun_OverflowUnshrinkableRetriesOnce(t *testing.T) {
 	}
 }
 
+func TestRun_FreshOverflowRetriesWithModeDirective(t *testing.T) {
+	c := &overflowOnce{}
+	var notices []string
+	a := New(Config{Client: c, System: "sys", Directive: "Act mode: do the task", MaxSteps: 3,
+		OnNudge: func(kind, text string) { notices = append(notices, text) },
+	})
+	out, err := a.Run(t.Context(), "task")
+	if err != nil || out != "recovered" || c.calls != 2 {
+		t.Fatal(out, err, c.calls)
+	}
+	if len(notices) != 1 || !strings.Contains(notices[0], "no earlier conversation to compact") || strings.Contains(notices[0], "was compacted") {
+		t.Fatal(notices)
+	}
+}
+
 // One compact-and-retry per run: a second overflow means the window
 // cannot hold the session however it is cut — fail, don't grind.
 func TestRun_SecondOverflowFailsFast(t *testing.T) {

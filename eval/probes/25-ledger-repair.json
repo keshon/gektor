@@ -1,0 +1,10 @@
+{
+  "prompt":"eval/prompts/25-ledger-repair.md",
+  "task":"Fix this Go ledger library and CLI. TotalCents must add decimal amounts exactly in integer cents: 1 means 100, 1.2 means 120, 1.23 means 123; signed refunds and surrounding whitespace are allowed. Reject empty amounts, nonnumeric input, exponent notation and more than two fractional digits. The CLI accepts amounts from arguments, prints only the total cents to stdout, and reports invalid input with a nonzero exit. Keep the existing API. Add useful tests and verify the real project before finishing.",
+  "tier":"signal",
+  "seed":"eval/fixtures-ledger",
+  "max_steps":16,
+  "timeout_sec":900,
+  "verify":[{"type":"go_acceptance","path":"eval/verifiers/ledger.gotest"}],
+  "trace":[{"tool":"run_*","mode":"required","success":true,"args_regex":"go.*test","why":"verify the actual project, not only describe the repair"}]
+}

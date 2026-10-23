@@ -77,7 +77,7 @@ func TestSystem_KeepsLoadBearingGuards(t *testing.T) {
 		"Use move_file",
 		"Use list_files",
 		"grep_files",
-		"For a server or watcher, use start_background",
+		"For servers or watchers use start_program",
 		"use ask_user when available",
 		"A tool-free response ends the run",
 		"report incomplete work honestly",

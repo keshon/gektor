@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/keshon/gektor/internal/agent"
 	"io"
 	"io/fs"
 	"log"
@@ -23,6 +22,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/tools"
@@ -302,6 +302,7 @@ func main() {
 	model := flag.String("model", "local", "model name: ignored by most local servers, required for remote providers")
 	dir := flag.String("probes", "eval/probes", "directory of probe .json files")
 	only := flag.String("only", "", "run only probes whose name contains this substring")
+	suite := flag.String("suite", "", "named frozen subset: core (seven baseline scenarios)")
 	jobsN := flag.Int("jobs", 1, "how many probes to run at once. Both backends batch concurrent "+
 		"requests (koboldcpp --parallelrequests, llama-server --parallel) and neither helps unless "+
 		"the client sends them; raising this past what the server was started with just queues")
@@ -327,6 +328,9 @@ func main() {
 	apiKeyEnv := flag.String("api-key-env", "", "env var holding the bearer token")
 	contextLimitFlag := flag.Int("context-limit", 0, "context window override; remote backends default to a per-model estimate")
 	flag.Parse()
+	if *runs < 1 || *jobsN < 1 {
+		log.Fatal("-runs and -jobs must be positive")
+	}
 
 	if *dry {
 		// Deliberately ignores -only: the point is to validate the whole
@@ -335,18 +339,37 @@ func main() {
 		if err != nil {
 			log.Fatalf("load probes: %v", err)
 		}
-		for _, p := range keepTier(probes, *tier) {
+		validated := len(probes)
+		probes, err = selectSuite(probes, *suite)
+		if err != nil {
+			log.Fatal(err)
+		}
+		selected := keepTier(probes, *tier)
+		for _, p := range selected {
 			mode := "agent"
 			fmt.Printf("  %-22s %-7s %-7s %d verify, %d trace, %d answer\n",
 				p.Name, p.Tier, mode, len(p.Verify), len(p.Trace), len(p.Answer))
 		}
-		fmt.Printf("%d probes OK\n", len(probes))
+		fmt.Printf("%d probes OK; %d selected\n", validated, len(selected))
 		return
 	}
 
-	probes, err := loadProbes(*dir, *only)
+	probes, err := loadProbes(*dir, "")
 	if err != nil {
 		log.Fatalf("load probes: %v", err)
+	}
+	probes, err = selectSuite(probes, *suite)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if *only != "" {
+		selected := []Probe{}
+		for _, p := range probes {
+			if strings.Contains(p.Name, *only) {
+				selected = append(selected, p)
+			}
+		}
+		probes = selected
 	}
 	probes = keepTier(probes, *tier)
 	if len(probes) == 0 {
@@ -407,6 +430,7 @@ func main() {
 				log.Fatalf("-backend-kind is %q but %s is answering at %s - re-run with "+
 					"-backend-kind %s", *backendKind, actual, *backend, actual)
 			}
+			log.Fatalf("backend metadata probes failed at %s: context=%v; model=%v; no baseline was run", *backend, ctxErr, modelErr)
 		}
 	}
 	// Live on 2026-09-05: koboldcpp was restarted and came back holding
@@ -423,6 +447,7 @@ func main() {
 		BackendKind: probe.Backend(), Backend: *backend, Model: backendModel,
 		ContextLimit: contextLimit, Jobs: *jobsN, MaxTokens: *maxTokens,
 		Runs: *runs, DrySampler: *dry_,
+		Suite: *suite,
 	}, probes); err != nil {
 		log.Fatalf("record experiment metadata: %v", err)
 	}
@@ -500,6 +525,10 @@ func main() {
 	sem := make(chan struct{}, max(*jobsN, 1))
 	var wg sync.WaitGroup
 	for _, j := range jobs {
+		if !concurrent {
+			run1(j)
+			continue
+		}
 		wg.Add(1)
 		go func(j job) {
 			defer wg.Done()
@@ -519,6 +548,11 @@ func main() {
 	})
 
 	fmt.Printf("\n%s\n\nresults: %s\n", summarize(all), resultsPath)
+	if err := writeSummary(runDir, all); err != nil {
+		log.Fatalf("write summary: %v", err)
+	}
+	stats := aggregateRuns(all)
+	fmt.Printf("median %.1fs / %.1f steps; tool failures %d; tokens prompt=%d cached=%d completion=%d\nsummary: %s\n", stats.MedianSeconds, stats.MedianSteps, stats.ToolFailures, stats.PromptTokens, stats.CachedTokens, stats.CompletionTokens, filepath.Join(runDir, "summary.json"))
 }
 
 // The return value is named so the deferred timing write lands in what
@@ -570,7 +604,7 @@ func osSkipReason(oses []string) (bool, string) {
 func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend, model string,
 	contextLimit, maxTokens int, drySampler bool, apiKey, apiKeyEnv string) (res Result) {
 
-	res = Result{Probe: p.Name, Run: run}
+	res = Result{Probe: p.Name, Run: run, Errored: true}
 	started := time.Now()
 	defer func() { res.Seconds = time.Since(started).Seconds() }()
 
@@ -696,6 +730,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 			"State your assumption and proceed with the smallest reasonable action.", nil
 	}, nil)
 	final, err := a.Run(runCtx, p.Task)
+	res.Errored = !counter.reached() && !p.InjectOverflowOnce
 	answer = final
 	if err != nil {
 		res.RunError = firstLine(err.Error())

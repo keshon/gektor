@@ -86,7 +86,7 @@ func TestRunShellUsesWorkspaceRelativeWorkdir(t *testing.T) {
 		if dir != "" {
 			want = "child marker"
 		}
-		if err != nil || strings.TrimSpace(out) != want {
+		if err != nil || strings.TrimSpace(out) != "exit_code: 0\n"+want {
 			t.Fatalf("workdir=%q: %q %v", dir, out, err)
 		}
 	}

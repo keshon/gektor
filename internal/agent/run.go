@@ -247,7 +247,14 @@ func (a *Agent) handleChatError(st *runState, step int, err error, history []llm
 		return nil, fmt.Errorf("step %d: chat: %w", step, err)
 	}
 	shrunk := false
-	if len(history) > 2 {
+	hasExchange := false
+	for _, message := range history {
+		if message.Role == llm.RoleAssistant || message.Role == llm.RoleTool {
+			hasExchange = true
+			break
+		}
+	}
+	if hasExchange {
 		keep := a.cfg.CompactKeepSteps
 		if keep <= 0 {
 			// Overrides a disabled threshold: the backend has already said
@@ -291,7 +298,11 @@ func (a *Agent) handleChatError(st *runState, step int, err error, history []llm
 		return nil, fmt.Errorf("step %d: context overflow persists after compaction — /compact the session, shorten the task, or use a larger-context model: %w", step, err)
 	}
 	st.overflowRetried = true
-	history = a.nudge(history, NudgeOverflow, prompts.OverflowRecovered)
+	notice := prompts.OverflowRecovered
+	if !hasExchange {
+		notice = "The backend reported context overflow before any completed exchanges. There is no earlier conversation to compact. Retrying once with the original instructions; a repeated overflow will stop the run."
+	}
+	history = a.nudge(history, NudgeOverflow, notice)
 	a.saveState(history)
 	return history, nil
 }
