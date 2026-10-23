@@ -27,6 +27,20 @@ var longRunningCommand = func() string {
 	return "sleep 5"
 }()
 
+func TestBackgroundStartupFailureIsNotSuccessfulToolResult(t *testing.T) {
+	ws, err := workspace.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	procs := NewBackgroundProcesses()
+	defer procs.StopAll()
+	out, err := (StartBackground{WS: ws, Procs: procs, SettleTime: 200 * time.Millisecond}).Run(t.Context(), json.RawMessage(`{"command":"exit 7"}`))
+	if err == nil || !strings.Contains(out, "already exited") || !strings.Contains(err.Error(), "failed") {
+		t.Fatal(out, err)
+	}
+}
+
 func TestBackgroundProcesses_StartCheckStop(t *testing.T) {
 	dir := t.TempDir()
 	ws, _ := workspace.New(dir)
@@ -202,65 +216,11 @@ func TestHealthProbes_SendNoCredentials(t *testing.T) {
 }
 
 func TestBackgroundProcesses_StopKillsWholeProcessTree(t *testing.T) {
-	// Regression test for the actual bug found: "sh -c '...'" forks a
-	// child instead of exec-replacing itself. Killing only the wrapper
-	// PID leaves the real child running as an orphan — and that orphan
-	// holding the output pipe open is exactly what makes cmd.Wait() hang
-	// forever. stop() must kill the whole process group.
-	dir := t.TempDir()
-	ws, _ := workspace.New(dir)
-	if ws != nil {
-		t.Cleanup(func() { ws.Close() })
-	}
-	procs := NewBackgroundProcesses()
-	marker := dir + "/still-alive"
-
-	start := StartBackground{WS: ws, Procs: procs, SettleTime: 200 * time.Millisecond}
-	cmd := "sh -c 'while true; do date +%s > " + marker + "; sleep 0.1; done'"
-	args, _ := json.Marshal(map[string]string{"command": cmd})
-	out, err := start.Run(context.Background(), args)
-	if err != nil {
-		t.Fatalf("start: %v", err)
-	}
-	var id string
-	for _, line := range strings.Split(out, "\n") {
-		if strings.HasPrefix(line, "id: ") {
-			id = strings.TrimPrefix(line, "id: ")
-		}
-	}
-
-	stop := StopBackground{Procs: procs}
-	sArgs, _ := json.Marshal(map[string]string{"id": id})
-	if _, err := stop.Run(context.Background(), sArgs); err != nil {
-		t.Fatalf("stop: %v", err)
-	}
-
-	// Exactly what hung indefinitely before the process-group fix.
-	check := CheckBackground{Procs: procs}
-	done := make(chan struct{})
-	go func() {
-		for {
-			checkArgs, _ := json.Marshal(map[string]any{"id": id, "cursor": 0})
-			out, err := check.Run(context.Background(), checkArgs)
-			if err != nil {
-				t.Errorf("check after stop: %v", err)
-				close(done)
-				return
-			}
-			if !strings.Contains(out, "still running") {
-				close(done)
-				return
-			}
-			time.Sleep(50 * time.Millisecond)
-		}
-	}()
-	select {
-	case <-done:
-	case <-time.After(3 * time.Second):
-		t.Fatal("check_background never reported the process as exited within 3s")
-	}
+	// The tracked native wrapper starts a separate HTTP child. Verify the child
+	// really serves before stopping its parent, and refuses connections after.
+	// This exercises descendant cleanup on Windows and Unix without shell syntax.
+	testManagedNativeHTTPServerLifecycle(t, []string{"--spawn-http-child"})
 }
-
 func TestBackgroundCursorRetainsDeltasAndReportsEviction(t *testing.T) {
 	buffer := &syncBuffer{}
 	buffer.Write([]byte("first\n"))

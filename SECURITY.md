@@ -26,6 +26,10 @@ execution. These are operator checks, not a shell sandbox or an exhaustive
 command parser. Agent-owned background jobs are stopped by their tracked id;
 the optional browser MCP uses an isolated profile instead of the user's profile.
 
+Explicit `-browser` startup may fetch the pinned Playwright MCP package into
+npm's cache if it is missing; preparation is announced and time-bounded.
+GEKTOR checks for Node/npm and the requested browser, but does not install them.
+
 GEKTOR relies on trustworthy skills, extensions and repositories. Files like
 `SKILL.md`, `AGENTS.md` or comment instructions can prompt-inject the agent
 and this cannot be protected against — only contained with approvals and

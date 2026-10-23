@@ -6,21 +6,32 @@
   "timeout_sec": 600,
   "trace": [
     {
-      "tool": "start_background",
+      "tool": "start_*",
       "mode": "required",
-      "why": "a server does not exit on its own; run_shell blocks until the timeout kills it"
+      "why": "a server does not exit on its own; run_shell blocks until the timeout kills it",
+      "success": true,
+      "output_regex": "status: running in background"
     },
     {
       "tool": "check_url",
       "mode": "required",
-      "why": "a startup banner is not proof the port is listening"
+      "why": "a startup banner is not proof the port is listening",
+      "success": true,
+      "output_regex": "(?s)status: 200.*body-prefix:\\s*ok"
     },
     {
-      "tool": "run_shell",
+      "tool": "run_*",
       "mode": "forbidden",
-      "args_regex": "(?i)\"command\" *: *\"[^\"]*(go run|http.server|npm run|node )",
+      "args_regex": "(?i)(http\\.server|uvicorn|go run|npm run|Start-Process)",
       "why": "the long-process trap: this blocks, times out, and looks like a model failure"
+    },
+    {
+      "tool": "stop_background",
+      "mode": "required",
+      "success": true,
+      "why": "stop the managed server with its returned id"
     }
   ],
-  "exclusive": true
+  "exclusive": true,
+  "max_steps": 10
 }

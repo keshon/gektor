@@ -74,7 +74,7 @@ func (StartProgram) Name() string { return "start_program" }
 // Starting an arbitrary process is a mutation barrier.
 func (StartProgram) Mode() agent.ToolMode { return agent.Exclusive }
 func (StartProgram) Description() string {
-	return "Start a native executable in the background without a shell. program is an executable name or path; args are passed literally, with no quoting or expansion. Returns id and next_cursor for check_background. Use start_background for shell syntax, builtins, pipelines or .cmd/.bat scripts. Stop only your processes via stop_background with its returned id."
+	return "Start a native server or watcher without a shell. For a local static page use program=python, args=[-m,http.server,PORT,--bind,127.0.0.1]. Arguments are literal. Returns an owned id for check_background and stop_background; save it. Use start_background for shell syntax or .cmd/.bat scripts. Do not detach servers through run_shell/Start-Process."
 }
 func (StartProgram) Schema() json.RawMessage {
 	return programSchema(false)
@@ -133,7 +133,11 @@ func startBackgroundProcess(ctx context.Context, procs *BackgroundProcesses, cmd
 	if exited {
 		status = fmt.Sprintf("already exited: %v", exitErr)
 	}
-	return fmt.Sprintf("id: %s\nstatus: %s\nnext_cursor: %d\noutput:\n%s", id, status, next, output), nil
+	result := fmt.Sprintf("id: %s\nstatus: %s\nnext_cursor: %d\nstop: stop_background {\"id\":%q}\noutput:\n%s", id, status, next, id, output)
+	if exited && exitErr != nil {
+		return result, fmt.Errorf("background process %s failed: %w", id, exitErr)
+	}
+	return result, nil
 }
 
 type CheckBackground struct{ Procs *BackgroundProcesses }
@@ -244,12 +248,28 @@ func (StopBackground) Schema() json.RawMessage {
 	}`)
 }
 
-func (t StopBackground) Run(_ context.Context, args json.RawMessage) (string, error) {
+func (t StopBackground) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	var in struct {
 		ID string `json:"id"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", fmt.Errorf("bad arguments: %w", err)
+	}
+	if err := rejectUnknownFields(args, "id"); err != nil {
+		return "", err
+	}
+	if t.Procs == nil {
+		return "", fmt.Errorf("no background process manager")
+	}
+	// IDs are supplied by the manager, never inferred from executable names.
+	t.Procs.mu.Lock()
+	proc := t.Procs.procs[in.ID]
+	t.Procs.mu.Unlock()
+	if proc == nil {
+		return "", fmt.Errorf("unknown background process id %q; use the exact id returned by start_program/start_background. Processes launched through run_shell or Start-Process have no managed id; do not invent an id or kill processes by application name", in.ID)
+	}
+	if store := outputStore(ctx); store != nil && proc.scope != store.dir {
+		return "", fmt.Errorf("background process belongs to another session")
 	}
 	if err := t.Procs.stop(in.ID); err != nil {
 		return "", err

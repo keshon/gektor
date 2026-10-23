@@ -12,6 +12,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	pathmatch "path"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -99,7 +100,10 @@ type Probe struct {
 
 // TraceCheck asserts that a tool was, or was not, used.
 type TraceCheck struct {
-	Tool string `json:"tool"`
+	// Tool is an exact name or glob: start_* accepts either managed launcher.
+	Tool        string `json:"tool"`
+	Success     *bool  `json:"success,omitempty"`
+	OutputRegex string `json:"output_regex,omitempty"`
 
 	// Mode is "required", "forbidden", or empty when only MaxCalls
 	// applies.
@@ -136,8 +140,11 @@ type AnswerCheck struct {
 
 // call is one tool invocation as it actually happened.
 type call struct {
-	tool string
-	args string
+	id      string
+	tool    string
+	args    string
+	success *bool
+	output  string
 }
 
 // countingClient records how many times the backend was actually reached.
@@ -647,7 +654,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 			res.Steps = step + 1
 		}
 		for _, tc := range msg.ToolCalls {
-			calls = append(calls, call{tool: tc.Name, args: string(tc.Arguments)})
+			calls = append(calls, call{id: tc.ID, tool: tc.Name, args: string(tc.Arguments)})
 		}
 	}
 
@@ -667,6 +674,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 		res.Nudges = append(res.Nudges, kind)
 	})
 	env.OnResult = func(result agent.ToolResult) {
+		recordToolResult(calls, result)
 		if res.FirstToolSeconds == 0 {
 			res.FirstToolSeconds = time.Since(started).Seconds()
 		}
@@ -774,9 +782,31 @@ func checkWorkspace(ctx context.Context, p Probe, ws *workspace.Workspace) []str
 	return out
 }
 
+// Providers can reuse tool IDs across turns. Match the newest pending
+// occurrence so later success never rewrites an earlier failure.
+func recordToolResult(calls []call, result agent.ToolResult) {
+	for i := len(calls) - 1; i >= 0; i-- {
+		if calls[i].id == result.CallID && calls[i].success == nil {
+			ok := !result.Failed
+			calls[i].success = &ok
+			calls[i].output = result.Output
+			return
+		}
+	}
+}
+
 func checkTrace(p Probe, calls []call) []string {
 	var out []string
 	for _, tc := range p.Trace {
+		var resultRE *regexp.Regexp
+		if tc.OutputRegex != "" {
+			var err error
+			resultRE, err = regexp.Compile(tc.OutputRegex)
+			if err != nil {
+				out = append(out, fmt.Sprintf("bad output_regex: %v", err))
+				continue
+			}
+		}
 		var re *regexp.Regexp
 		if tc.ArgsRegex != "" {
 			var err error
@@ -787,7 +817,13 @@ func checkTrace(p Probe, calls []call) []string {
 		}
 		matched := 0
 		for _, c := range calls {
-			if c.tool != tc.Tool {
+			if ok, _ := pathmatch.Match(tc.Tool, c.tool); !ok {
+				continue
+			}
+			if tc.Success != nil && (c.success == nil || *c.success != *tc.Success) {
+				continue
+			}
+			if resultRE != nil && !resultRE.MatchString(c.output) {
 				continue
 			}
 			if re != nil && !re.MatchString(c.args) {
@@ -1034,6 +1070,17 @@ func loadProbes(dir, only string) ([]Probe, error) {
 			}
 		}
 		for _, tc := range p.Trace {
+			if tc.OutputRegex != "" {
+				if _, err := regexp.Compile(tc.OutputRegex); err != nil {
+					return nil, fmt.Errorf("%s: bad output_regex: %w", path, err)
+				}
+			}
+			if tc.Tool == "" {
+				return nil, fmt.Errorf("%s: trace tool is empty", path)
+			}
+			if _, err := pathmatch.Match(tc.Tool, ""); err != nil {
+				return nil, fmt.Errorf("%s: bad tool pattern: %w", path, err)
+			}
 			if tc.ArgsRegex != "" {
 				if _, err := regexp.Compile(tc.ArgsRegex); err != nil {
 					return nil, fmt.Errorf("%s: trace %q: bad args_regex %q: %v", path, tc.Tool, tc.ArgsRegex, err)

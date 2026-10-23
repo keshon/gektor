@@ -25,10 +25,10 @@ type SystemInfo struct {
 func (SystemInfo) Name() string         { return "system_info" }
 func (SystemInfo) Mode() agent.ToolMode { return agent.Concurrent }
 func (SystemInfo) Description() string {
-	return "Inspect one group: os, hardware, environment, tools, or browser. tools lists executables in PATH with name filter and paging. browser reports installed browser paths, Playwright executables and browser tools discovered over MCP; npx alone does not prove Playwright is ready. No credential dump or automatic installation."
+	return "Inspect one group: os, hardware, environment, tools, skills, or browser. tools lists PATH executables; skills discovers all nested workspace SKILL.md metadata. Both support filter, offset and limit. Read a matching SKILL.md before applying it. browser reports installed browsers and connected MCP tools; npx alone does not prove readiness. No automatic installation."
 }
 func (SystemInfo) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"group":{"type":"string","enum":["os","hardware","environment","tools","browser"]},"filter":{"type":"string","description":"Case-insensitive tool filename substring"},"offset":{"type":"integer","minimum":0},"limit":{"type":"integer","minimum":1,"maximum":100,"default":50}},"required":["group"],"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"group":{"type":"string","enum":["os","hardware","environment","tools","skills","browser"]},"filter":{"type":"string","description":"Case-insensitive substring in tool filename or skill path/description"},"offset":{"type":"integer","minimum":0},"limit":{"type":"integer","minimum":1,"maximum":100,"default":50}},"required":["group"],"additionalProperties":false}`)
 }
 func (t SystemInfo) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	var in struct {
@@ -53,11 +53,29 @@ func (t SystemInfo) Run(ctx context.Context, args json.RawMessage) (string, erro
 	if in.Offset < 0 || limit < 1 || limit > 100 {
 		return "", fmt.Errorf("offset must be >= 0; limit must be 1–100")
 	}
-	if in.Group != "tools" && (in.Filter != "" || in.Offset != 0 || in.Limit != nil) {
-		return "", fmt.Errorf("filter, offset and limit apply only to tools")
+	if in.Group != "tools" && in.Group != "skills" && (in.Filter != "" || in.Offset != 0 || in.Limit != nil) {
+		return "", fmt.Errorf("filter, offset and limit apply only to tools and skills")
 	}
 	var result any
 	switch in.Group {
+	case "skills":
+		entries, err := t.WS.Skills()
+		if err != nil {
+			return "", fmt.Errorf("discover skills: %w", err)
+		}
+		matches := []workspace.Skill{}
+		for _, skill := range entries {
+			if strings.Contains(strings.ToLower(skill.Path+" "+skill.Description), strings.ToLower(in.Filter)) {
+				matches = append(matches, skill)
+			}
+		}
+		start := min(in.Offset, len(matches))
+		end := start + min(limit, len(matches)-start)
+		page := map[string]any{"skills": matches[start:end], "total": len(matches)}
+		if end < len(matches) {
+			page["next_offset"] = end
+		}
+		result = page
 	case "browser":
 		result = t.browserInfo(ctx)
 	case "environment":
@@ -77,16 +95,16 @@ func (t SystemInfo) Run(ctx context.Context, args json.RawMessage) (string, erro
 	case "os", "hardware":
 		result = hostInfo(ctx, in.Group, t.WS.Root())
 	default:
-		return "", fmt.Errorf("group must be os, hardware, environment, tools or browser")
+		return "", fmt.Errorf("group must be os, hardware, environment, tools, skills or browser")
 	}
 	b, err := json.Marshal(result)
 	return string(b), err
 }
 
-func (t SystemInfo) browserInfo(ctx context.Context) map[string]any {
+func installedBrowsers() []string {
 	installed := []string{}
 	paths := []string{}
-	for _, name := range []string{"google-chrome", "chromium", "chromium-browser", "chrome", "msedge", "firefox"} {
+	for _, name := range []string{"google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "chrome", "msedge", "microsoft-edge", "microsoft-edge-stable", "firefox"} {
 		if path, err := exec.LookPath(name); err == nil {
 			paths = append(paths, path)
 		}
@@ -102,6 +120,8 @@ func (t SystemInfo) browserInfo(ctx context.Context) map[string]any {
 		}
 	} else if runtime.GOOS == "darwin" {
 		paths = append(paths, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge", "/Applications/Firefox.app/Contents/MacOS/firefox")
+	} else if runtime.GOOS == "linux" {
+		paths = append(paths, "/opt/google/chrome/chrome", "/opt/microsoft/msedge/msedge")
 	}
 	seen := map[string]bool{}
 	for _, path := range paths {
@@ -110,6 +130,11 @@ func (t SystemInfo) browserInfo(ctx context.Context) map[string]any {
 			seen[path] = true
 		}
 	}
+	return installed
+}
+
+func (t SystemInfo) browserInfo(ctx context.Context) map[string]any {
+	installed := installedBrowsers()
 	executables, warnings, _ := pathTools(ctx, t.WS.Root(), "playwright")
 	status := "not connected: no browser MCP tools discovered; do not assume npx means Playwright is installed"
 	if len(t.BrowserTools) > 0 {

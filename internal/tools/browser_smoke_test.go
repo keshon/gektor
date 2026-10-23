@@ -26,6 +26,9 @@ func TestBrowserMCPIntegration(t *testing.T) {
 	// TestMain isolates agent state; browser profile APIs need the real host home.
 	t.Setenv("USERPROFILE", browserHostHome)
 	t.Setenv("HOME", browserUnixHome)
+	if os.Getenv("GEKTOR_BROWSER_COLD") == "1" {
+		t.Setenv("npm_config_cache", t.TempDir())
+	}
 	root := t.TempDir()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
@@ -39,6 +42,9 @@ func TestBrowserMCPIntegration(t *testing.T) {
 	channel := os.Getenv("GEKTOR_BROWSER_CHANNEL")
 	if channel == "" {
 		channel = "chrome"
+	}
+	if err := PrepareBrowser(t.Context(), channel, root, func(message string) { t.Log(message) }); err != nil {
+		t.Fatal(err)
 	}
 	list, client, err := StartBrowser(t.Context(), channel, root)
 	if err != nil {
@@ -110,10 +116,28 @@ func TestBrowserMCPIntegration(t *testing.T) {
 	}
 
 	call("browser_console_messages", map[string]any{"level": "error"})
+	// A viewport change alone is not verification: ask the live DOM for proof.
+	call("browser_resize", map[string]any{"width": 375, "height": 812})
+	measure := func(want bool) {
+		t.Helper()
+		out := call("browser_evaluate", map[string]any{"function": `() => ({overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth})`})
+		pattern := `"overflow"\s*:\s*false`
+		if want {
+			pattern = `"overflow"\s*:\s*true`
+		}
+		if !regexp.MustCompile(pattern).MatchString(out) {
+			t.Fatal("unexpected measured overflow", out)
+		}
+	}
+	measure(false)
 	out = call("browser_take_screenshot", map[string]any{"filename": "smoke.png", "type": "png", "scale": "css"})
 	if !strings.Contains(out, "smoke.png") {
 		t.Fatal(out)
 	}
+	// Introduce a narrow-layout regression in the actual page and ensure the
+	// same measurement detects it; the check must not be a constant green light.
+	call("browser_evaluate", map[string]any{"function": `() => { const block=document.createElement('div'); block.style.cssText='width:900px;height:10px'; block.textContent='overflow regression'; document.body.append(block); }`})
+	measure(true)
 	// Archived regression: HTTP 200 with a broken import-map prefix must be
 	// visible as a browser error, not accepted as proof that the UI works.
 	call("browser_navigate", map[string]any{"url": server.URL + "/broken"})

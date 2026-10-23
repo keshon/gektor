@@ -63,6 +63,12 @@ usually the thing worth reading.
 
 ## How a probe is scored
 
+Trace `tool` values accept exact names or globs (`start_*` covers both managed
+launchers). Optional `success: true` requires a completed, nonfailed tool result;
+`output_regex` checks the observed output. A successful diagnostic tool call is
+not necessarily a successful operation: for example, require an HTTP 200 in
+`check_url` output rather than counting a connection-error report as server proof.
+
 Three independent verdicts, all of which must hold:
 
 | Field | Asserts |

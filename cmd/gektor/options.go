@@ -95,7 +95,7 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	flags.StringVar(&o.deny, "deny", "", "comma-separated tool=pattern rules to deny, e.g. \"run_shell=rm *,read_file=.env\" (wins over -allow)")
 	flags.BoolVar(&o.stream, "stream", false, "stream response tokens live (openai/llama backends only; koboldcpp falls back to unary)")
 	flags.StringVar(&o.mcp, "mcp", "", "MCP servers: \"name=cmd args...;name2=https://host/mcp\" (stdio JSON-RPC or Streamable HTTP, tools appear as mcp__name__tool)")
-	flags.StringVar(&o.browser, "browser", "", "connect isolated headless browser: chrome or msedge (requires cached Playwright MCP; see docs/browser.md)")
+	flags.StringVar(&o.browser, "browser", "", "connect isolated headless chrome or msedge; checks Node/npm and prepares pinned Playwright MCP on first use (see docs/browser.md)")
 	flags.StringVar(&o.fork, "fork", "", "history file to branch from: loads its transcript but writes to a fresh task id")
 	flags.BoolVar(&o.plan, "plan", false, "plan mode: read-only tools, propose a plan and change nothing")
 	flags.StringVar(&o.outputMode, "mode", "print", "output mode: print (human-readable) or json (one JSON object per line)")

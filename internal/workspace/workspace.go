@@ -6,7 +6,7 @@ package workspace
 import (
 	"fmt"
 	"io"
-	"io/fs"
+
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,60 +69,6 @@ func New(root string) (*Workspace, error) {
 	w.instructions += w.skillCatalog()
 	ready = true
 	return w, nil
-}
-
-// Discover only metadata at workspace creation; full guides remain explicit
-// read_file calls so the operator can see what the agent actually consulted.
-func (w *Workspace) skillCatalog() string {
-	paths, _ := fs.Glob(w.FS(), "skills/*/SKILL.md")
-	if len(paths) == 0 {
-		return "\n\nNo workspace skills found at skills/*/SKILL.md."
-	}
-	var b strings.Builder
-	b.WriteString("\n\nAvailable workspace skills (catalog only, not loaded). Read the relevant SKILL.md with read_file before applying it; briefly name the skill you use:\n")
-	for i, path := range paths {
-		if i == 32 {
-			b.WriteString("More skills exist; use list_files on skills/.\n")
-			break
-		}
-		rel := filepath.FromSlash(path)
-		fmt.Fprintf(&b, "- %s", filepath.ToSlash(rel))
-		f, err := w.Open(path)
-		if err == nil {
-			data, _ := io.ReadAll(io.LimitReader(f, 4096))
-			f.Close()
-			text := strings.ReplaceAll(string(data), "\r\n", "\n")
-			if strings.HasPrefix(text, "---\n") {
-				lines := strings.Split(strings.TrimPrefix(text, "---\n"), "\n")
-				for n, line := range lines {
-					if line == "---" {
-						break
-					}
-					if value, ok := strings.CutPrefix(line, "description:"); ok {
-						value = strings.TrimSpace(value)
-						if strings.HasPrefix(value, ">") || strings.HasPrefix(value, "|") {
-							var parts []string
-							for _, next := range lines[n+1:] {
-								if next != "" && next[0] != ' ' && next[0] != '\t' {
-									break
-								}
-								parts = append(parts, strings.TrimSpace(next))
-							}
-							value = strings.Join(parts, " ")
-						}
-						description := []rune(strings.Trim(strings.TrimSpace(value), "\"'"))
-						if len(description) > 220 {
-							description = append(description[:220], '…')
-						}
-						fmt.Fprintf(&b, ": %s", string(description))
-						break
-					}
-				}
-			}
-		}
-		b.WriteByte('\n')
-	}
-	return b.String()
 }
 
 // ScopedInstructions loads only descendant AGENTS.md files on the target's

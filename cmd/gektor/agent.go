@@ -127,6 +127,11 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	// Ask the backend for its real context window instead of guessing.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if o.browser != "" {
+		if err := tools.PrepareBrowser(ctx, o.browser, ws.Root(), func(message string) { note("%s", message) }); err != nil {
+			return err
+		}
+	}
 
 	contextLimit, err := backendContext(ctx, client, o)
 	if err != nil {

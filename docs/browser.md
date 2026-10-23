@@ -6,26 +6,29 @@ installed Chrome or Edge. DOM snapshots, clicks, forms, JavaScript, console
 and network checks work with text-only models. Visual judgment requires a
 vision-capable backend and a saved screenshot read through `read_file`.
 
-Install Node.js/npm and Chrome first. Warm the pinned package once so its
-download does not consume GEKTOR's MCP startup timeout:
-
-```text
-npx -y @playwright/mcp@0.0.83 --help
-```
-
-After that one-time setup, Windows, Linux and macOS use the same option:
+Install Node.js 20+ with npm and Chrome or Edge. GEKTOR checks these prerequisites
+and reports a specific fix if they are missing. Windows, Linux and macOS use
+the same option:
 
 On Windows, `run-tui.cmd` already enables `-browser chrome`. To use Edge,
 run `run-tui.cmd -browser msedge`; to disable browser automation, use
 `run-tui.cmd -browser=`. Explicit arguments override the launcher's default.
+The Windows launcher keeps an error visible before closing, including missing
+prerequisites or a failed first-use package preparation.
 
 ```text
 gektor -tui -workspace /path/to/project -browser chrome
 ```
 
-For installed Edge, use `-browser msedge`. GEKTOR starts the cached, pinned
-MCP package without downloading it, uses an isolated headless profile, and
-reports the discovered browser tools. A connection failure stops launch with
+For installed Edge, use `-browser msedge`. First use checks the pinned Playwright
+MCP package in npm's cache. If unavailable, GEKTOR announces preparation and
+downloads `@playwright/mcp@0.0.83` into that cache with a three-minute limit,
+separate from the MCP handshake timeout. This needs internet on first use;
+later launches reuse the cache. Node.js and browsers are not installed by GEKTOR.
+Setup errors include the npm diagnostic and `-browser=` escape hatch.
+
+GEKTOR uses an isolated headless profile and reports the discovered browser
+tools. A connection failure stops launch with
 the server's diagnostic instead of continuing without the requested browser.
 First navigation checks that the browser itself can launch. The selected
 browser must already be installed. Without `-browser` or a custom browser MCP,
@@ -59,4 +62,8 @@ turn a text-only model into a vision model.
 For maintainers, `GEKTOR_BROWSER_SMOKE=1 go test ./internal/tools -run
 TestBrowserMCPIntegration -v` runs an opt-in test against a local fixture:
 navigation, button click, result assertion, console, screenshot and cleanup.
+The test also measures mobile overflow, deliberately introduces overflow to
+prove the check detects it, and exposes an import-map error on an HTTP 200 page.
 Set that environment variable using your shell's syntax.
+Add `GEKTOR_BROWSER_COLD=1` to use a fresh temporary npm cache and verify
+first-use download and browser checks together; this requires internet.

@@ -87,7 +87,7 @@ fails closed. Rules are pattern tripwires, not process isolation. See
 | `-allow RULES` | — | Comma-separated `tool=pattern` rules to allow, e.g. `"run_shell=go *,read_file=*.go"`. Wins over defaults |
 | `-deny RULES` | — | Comma-separated `tool=pattern` rules to deny, e.g. `"run_shell=rm *,read_file=.env"`. Wins over `-allow` |
 | `-mcp SERVERS` | - | MCP servers as `"name=cmd args...;name2=https://host/mcp"` over stdio JSON-RPC or Streamable HTTP. Tools appear as `mcp__name__tool`. A server that fails to start is skipped with a warning |
-| `-browser CHANNEL` | - | Connect cached Playwright MCP to installed `chrome` or `msedge` using an isolated headless profile. Connection failure stops launch. See [browser setup](browser.md) |
+| `-browser CHANNEL` | - | Check Node/npm and installed `chrome` or `msedge`, prepare the pinned Playwright MCP package in npm cache on first use, then connect an isolated headless profile. Setup/connection failure stops launch. See [browser setup](browser.md) |
 
 ## Output and debugging
 
@@ -236,6 +236,13 @@ user authorization before committing; a commit includes unrelated changes
 that were already staged too.
 
 ## Search context and process output
+
+`system_info {"group":"skills"}` discovers metadata from nested `skills/**/SKILL.md`
+packages, including libraries copied into an extra category directory. Filter
+matches path or description; offset/limit paginate all matches. Discovery is
+live, while the initial prompt catalog stays stable for context caching.
+Large libraries are searched on demand instead of loading all guides or
+arbitrarily hiding entries after the first 32. Read a guide before using it.
 
 `grep_files` accepts `before_context` and `after_context`, each from 0 to 10.
 Matches use `path:line:text`, context uses `path-line-text`; overlapping windows

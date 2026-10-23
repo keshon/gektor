@@ -12,6 +12,49 @@ import (
 	"github.com/keshon/gektor/internal/workspace"
 )
 
+func TestSystemInfoSearchesNestedSkillsAddedDuringSession(t *testing.T) {
+	root := t.TempDir()
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	for _, name := range []string{"first", "last"} {
+		dir := filepath.Join(root, "skills", "library", "marketing", name)
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("---\ndescription: Landing pages.\n---\nDO NOT LOAD THIS GUIDE"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tool := SystemInfo{WS: ws}
+	for offset := 0; offset < 2; offset++ {
+		args, _ := json.Marshal(map[string]any{"group": "skills", "filter": "LANDING", "offset": offset, "limit": 1})
+		out, err := tool.Run(t.Context(), args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var page struct {
+			Skills     []workspace.Skill
+			Total      int
+			NextOffset int `json:"next_offset"`
+		}
+		if err := json.Unmarshal([]byte(out), &page); err != nil {
+			t.Fatal(err)
+		}
+		if page.Total != 2 || len(page.Skills) != 1 || strings.Contains(out, "DO NOT LOAD") {
+			t.Fatal(out)
+		}
+		if offset == 0 && page.NextOffset != 1 {
+			t.Fatal(out)
+		}
+		if offset == 1 && !strings.Contains(page.Skills[0].Path, "/last/") {
+			t.Fatal(out)
+		}
+	}
+}
+
 func TestSystemInfoDiscoveryAndPaging(t *testing.T) {
 	root := t.TempDir()
 	a, b := filepath.Join(root, "a"), filepath.Join(root, "b")
