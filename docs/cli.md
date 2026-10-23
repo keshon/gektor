@@ -57,8 +57,8 @@ earlier command. Use explicit conditions when one command depends on another.
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `-backend URL` | `http://localhost:5001` | Backend base URL: bare origin for a local server, API root for a hosted OpenAI-compatible provider |
-| `-backend-kind KIND` | `kobold` | `kobold`, `llama`, or `openai`. A mismatch is caught at startup: the dialects disagree about grammar and sampler fields, so a wrong value measures nothing |
+| `-backend URL` | `http://127.0.0.1:8080` | Backend base URL: bare origin for a local server, API root for an OpenAI-compatible provider |
+| `-backend-kind KIND` | `llama` | `llama`, `openai`, or `kobold`. Select the protocol served by the endpoint |
 | `-model NAME` | `local` | Model name. Ignored by most local servers (they serve whatever weights they started with); required for remote providers |
 | `-context-limit N` | `0` | Remote context window or local fallback. A reported local server window takes precedence; remote backends fall back to a per-model estimate unless set |
 | `-grammar` | `true` | Apply the backend's own content grammar (blocks a model writing its native tool-call tags as plain text on koboldcpp) |

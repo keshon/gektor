@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableExtensions
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 REM =====================================================================
 REM  bench-llama.cmd - llama-bench matrix runner + comparison report
@@ -11,8 +11,8 @@ REM    bench-llama.cmd quick                reduced matrix (much faster)
 REM    bench-llama.cmd path\to\model.gguf   benchmark another model
 REM    (arguments can be combined, e.g.: bench-llama.cmd quick model.gguf)
 REM
-REM  Reads from .env (same file as run-server-llama.cmd):
-REM    LLAMA_SERVER_EXE   llama-bench.exe is taken from the same folder
+REM  Reads from the repository-root .env:
+REM    BENCH_EXE          path to llama-bench.exe
 REM    LLAMA_MODEL        model to test (or pass it as an argument)
 REM    LLAMA_GPU_LAYERS   default 999
 REM    LLAMA_THREADS      optional
@@ -43,7 +43,7 @@ REM report: safety margin added to n-cpu-moe for the recommendation
 set "BENCH_MARGIN=2"
 
 REM ---- load .env (only LLAMA_* and BENCH_* keys with a value) ---------
-set "ENV_FILE=%~dp0.env"
+set "ENV_FILE=.env"
 if exist "%ENV_FILE%" call :load_env
 
 REM ---- arguments ------------------------------------------------------
@@ -59,10 +59,7 @@ if defined QUICK call :apply_quick
 
 REM ---- resolve paths --------------------------------------------------
 if not defined LLAMA_GPU_LAYERS set "LLAMA_GPU_LAYERS=999"
-if defined BENCH_EXE goto have_exe
-if not defined LLAMA_SERVER_EXE goto err_noexe
-for %%Q in ("%LLAMA_SERVER_EXE%") do set "BENCH_EXE=%%~dpQllama-bench.exe"
-:have_exe
+if not defined BENCH_EXE goto err_noexe
 if not exist "%BENCH_EXE%" goto err_exe
 if not defined LLAMA_MODEL goto err_nomodel
 if not exist "%LLAMA_MODEL%" goto err_model
@@ -79,7 +76,7 @@ if errorlevel 1 echo WARNING: this llama-bench does not list --n-cpu-moe. Update
 
 REM ---- output folder --------------------------------------------------
 for /f %%T in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmmss"') do set "STAMP=%%T"
-set "OUT_DIR=%~dp0bench-results\%STAMP%"
+set "OUT_DIR=%CD%\bench-results\%STAMP%"
 mkdir "%OUT_DIR%" >nul 2>&1
 > "%OUT_DIR%\runs.csv" echo moe,kv,exit
 
@@ -142,7 +139,7 @@ goto :eof
 
 REM ---- errors ---------------------------------------------------------
 :err_noexe
-echo ERROR: LLAMA_SERVER_EXE is not set. Put it in .env or set BENCH_EXE to llama-bench.exe.
+echo ERROR: BENCH_EXE is not set. Put the path to llama-bench.exe in .env.
 exit /b 1
 :err_exe
 echo ERROR: llama-bench.exe not found: %BENCH_EXE%

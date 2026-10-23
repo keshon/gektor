@@ -52,9 +52,10 @@ type launchOptions struct {
 
 func parseLaunchOptions(args []string) (launchOptions, error) {
 	var o launchOptions
+	provider := config.DefaultProfile().Provider
 	flags := flag.NewFlagSet("gektor", flag.ContinueOnError)
-	flags.StringVar(&o.backendURL, "backend", "http://localhost:5001", "backend base URL: bare origin for a local server ("+
-		"http://localhost:5001) or API root for a hosted OpenAI-compatible provider "+
+	flags.StringVar(&o.backendURL, "backend", provider.URL, "backend base URL: bare origin for a local server ("+
+		"http://127.0.0.1:8080) or API root for a hosted OpenAI-compatible provider "+
 		"(https://api.openai.com/v1, https://openrouter.ai/api/v1)")
 	flags.StringVar(&o.model, "model", "local", "model name: ignored by most local servers (they serve "+
 		"whatever weights they started with), required for remote providers")
@@ -78,7 +79,7 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 		"long text is truncated in the middle (head ... tail). 0 = no limit")
 	flags.BoolVar(&o.yes, "yes", false, "deny permission prompts in unattended runs")
 	flags.StringVar(&o.auditPath, "audit", "", "append gate decisions as JSONL to this file (off when empty)")
-	flags.StringVar(&o.backendKind, "backend-kind", "kobold", "which server: "+
+	flags.StringVar(&o.backendKind, "backend-kind", provider.Kind, "which server: "+
 		strings.Join(llm.Kinds(), ", ")+". kobold/llama are local; openai is any hosted "+
 		"OpenAI-compatible API (OpenAI, OpenRouter, DeepSeek, Groq, Together, Mistral, xAI). "+
 		"A wrong value is caught at startup rather "+

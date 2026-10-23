@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/tools"
@@ -297,7 +298,8 @@ const defaultTimeout = 15 * time.Minute
 const evalStateDir = ".gektor"
 
 func main() {
-	backend := flag.String("backend", "http://localhost:5001", "backend base URL: bare origin for a local "+
+	provider := config.DefaultProfile().Provider
+	backend := flag.String("backend", provider.URL, "backend base URL: bare origin for a local "+
 		"server or API root for a hosted OpenAI-compatible provider")
 	model := flag.String("model", "local", "model name: ignored by most local servers, required for remote providers")
 	dir := flag.String("probes", "eval/probes", "directory of probe .json files")
@@ -322,7 +324,7 @@ func main() {
 	requireModel := flag.String("require-model", "", "refuse to run unless the model the backend "+
 		"reports contains this substring — a local server loads whatever it was last started "+
 		"with, and comparing a score against one from different weights is worse than having no score")
-	backendKind := flag.String("backend-kind", "kobold", "which server: kobold, llama or openai "+
+	backendKind := flag.String("backend-kind", provider.Kind, "which server: llama, openai or kobold "+
 		"(any hosted OpenAI-compatible API)")
 	apiKey := flag.String("api-key", "", "bearer token for a remote provider")
 	apiKeyEnv := flag.String("api-key-env", "", "env var holding the bearer token")

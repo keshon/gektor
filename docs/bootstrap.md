@@ -1,74 +1,53 @@
-# Bootstrap and runtime ownership
+# Setup and saved data
 
-Status: GEKTOR connects to a model server that someone else starts. It does not
-ship, launch or supervise one. The source repository therefore contains no
-model weights and no runtime bundles.
+## Model server
 
-## Current setup
+Start an inference server independently and wait for the model to load.
+GEKTOR defaults to llama.cpp at `http://127.0.0.1:8080` in both CLI and the
+first-run TUI profile. Configure other addresses in Settings → Model or with
+`-backend`; use `-backend-kind openai` for an OpenAI-compatible API.
+KoboldCPP remains available through `-backend-kind kobold`.
 
-Start a backend, then configure **Settings → Model**. The launchers in the
-repository root are the supported way to do this:
+GEKTOR does not install models or start, stop or supervise inference servers.
+Readiness, server logs and recovery belong to your server setup. A lost
+connection is reported as a request error.
 
-```powershell
-.\run-server-llama.cmd      # llama.cpp on 127.0.0.1:8080
-.\run-server-kobold.cmd      # KoboldCPP on 127.0.0.1:5001
-```
+## Windows launchers
 
-Each reads `.env` (copy from `.env.example`), applies defaults, validates the
-values it needs, refuses to start if the port is already serving, and then
-execs the server in the foreground so its logs stay where you can see them.
-Run one in its own terminal, wait for the model to load, then launch the UI:
+`run-tui.cmd` launches the UI and makes Chrome automation available on request.
+In a source checkout it rebuilds the binary first; release archives use the
+included executable without requiring Go.
 
-```powershell
-.\run-tui.cmd
-```
-
-There is no installer. Point `LLAMA_MODEL` or `KOBOLD_MODEL` at whatever weights
-you already have.
+Additional helpers live in `scripts/`: `run-task.cmd`, `run-plan.cmd` and
+`run-resume.cmd`. They run from the application directory and forward flags
+to the same executable. Development helpers include eval and llama-bench runners.
+No backend launchers are included.
 
 ## Configuration
 
-`.env` holds machine-specific paths and keys and is gitignored. The launchers
-name each setting they read, and anything they do not name goes in the
-`*_ARGS` escape hatch.
+The TUI saves connection and generation settings in the user's GEKTOR directory.
+Explicit CLI flags override the selected configuration. API keys are read from
+the process environment; GEKTOR does not automatically load `.env`.
+See [authentication](cli.md#authentication-remote-providers).
 
-`*_ARGS` is placed **first** on the command line. llama.cpp and KoboldCPP take
-the last occurrence of a repeated flag, so every named setting wins over it.
-That is deliberate: a documented setting the script defaults, validates and
-reports should not be silently overridable by a string it never inspects.
+`.env.example` documents the API key variable and optional external benchmark
+settings. Only `scripts/bench-llama.cmd` reads its benchmark settings from `.env`.
+The file is gitignored; do not commit credentials or machine-specific paths.
 
-## Directory ownership
+## Saved data
 
-- `cmd`: executable entry points; `internal`: Go implementation.
-- `profiles`: small, versioned configuration examples; personal overrides stay private.
-- `scripts`: reproducible build operations.
-- `gektor.exe` / `gektor`: the application executable in a release archive.
+Preferences, sessions and retained tool output live under `~/.gektor`.
+`GEKTOR_API_KEY` is the generic API key variable.
 
-Everything GEKTOR persists for the user -- preferences, sessions,
-task state, spilled tool output -- lives under `.gektor` in the user's home
-directory. The repository is never written to except where the agent is
-working on it.
+A session stores the full conversation archive and its compacted model context.
+The archive allows resume, fork and historical reads. It is not a backup of
+workspace files. Output retention and session controls are described in the
+[terminal guide](tui.md).
 
-## Service contract
+## Distribution
 
-GEKTOR starts no backend process. That means:
-
-- It never terminates a server it did not start.
-- A server that exits mid-run surfaces as a connection error on the next
-  request, not as an automatic restart. Restart it yourself.
-- An occupied port is the launcher's problem to report, which is why it probes
-  before starting and says so instead of letting the server fail obscurely.
-- Readiness, logs and shutdown belong to whoever owns the terminal the server
-  runs in.
-
-The last point is the trade being made. Nothing is supervised, so nothing can
-be supervised badly — but there is also no automatic recovery, and no bundled
-way to get a server running on a new machine.
-
-## If you want a managed setup
-
-`llama.cpp` and KoboldCPP both start with a handful of flags and keep running in
-their own window. A process supervisor, a scheduled task, or a container image
-built from your own base will cover what GEKTOR used to do here, and each of those
-is a better fit for the job than an application-level supervisor with no
-restart policy of its own.
+Release archives contain a Windows or Linux amd64 binary, profiles, skills and
+documentation. Windows archives also include the UI launcher and CLI helpers.
+Models, server runtimes, Node.js and browsers are external dependencies.
+Browser requirements and first-use preparation are documented in
+[browser setup](browser.md).

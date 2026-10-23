@@ -21,13 +21,5 @@ func Sub(parts ...string) string {
 		return filepath.Join(append([]string{DirName}, parts...)...)
 	}
 	root := filepath.Join(home, DirName)
-	// Reuse existing installations without moving files while an older
-	// process may still be using them. A new .gektor directory takes precedence.
-	if _, err := os.Stat(root); os.IsNotExist(err) {
-		legacy := filepath.Join(home, ".tars")
-		if info, err := os.Stat(legacy); err == nil && info.IsDir() {
-			root = legacy
-		}
-	}
 	return filepath.Join(append([]string{root}, parts...)...)
 }

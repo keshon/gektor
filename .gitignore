@@ -1,5 +1,4 @@
 .gektor/
-.tars/
 # Another agent's worktrees (kilo). A full second checkout of this repo,
 # including its own .git file — never source, never committed.
 .kilo/
@@ -22,7 +21,7 @@ tmp/
 .env
 # Local launchers holding live API keys are never committed.
 run-remote.cmd
-# Local serve launcher (ports and backends are machine-specific) — replaced by run-server-openai.cmd.
+# Local serve launcher (ports and backends are machine-specific).
 run-serve.cmd
 
 # Local session state and model assets. Nothing here is read by the agent.

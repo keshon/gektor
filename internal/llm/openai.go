@@ -168,7 +168,6 @@ func modelVisionName(model string) bool {
 func APIKeyFromEnv() string {
 	for _, name := range []string{
 		"GEKTOR_API_KEY",
-		"TARS_API_KEY", // Existing installations keep their credentials.
 		"OPENAI_API_KEY",
 		"OPENROUTER_API_KEY",
 		"DEEPSEEK_API_KEY",

@@ -1,6 +1,6 @@
 @echo off
 setlocal
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 REM List saved tasks, or resume one.
 REM
@@ -13,7 +13,6 @@ REM that paused on ask_user). The id form resolves under "%STATE_ROOT%\tasks".
 
 set "STATE_ROOT=.gektor"
 if defined USERPROFILE set "STATE_ROOT=%USERPROFILE%\.gektor"
-if not exist "%STATE_ROOT%" if defined USERPROFILE if exist "%USERPROFILE%\.tars\" set "STATE_ROOT=%USERPROFILE%\.tars"
 
 if "%~1"=="" goto :list
 

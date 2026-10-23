@@ -1,6 +1,6 @@
 @echo off
 setlocal
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 REM Run one task in print mode: build gektor.exe, then run it.
 REM
@@ -9,8 +9,8 @@ REM   run-task.cmd -max-steps 40 -debug "fix the failing test"
 REM
 REM Flags pass through to gektor.exe. Keep them before the task text:
 REM Go's flag parser stops at the first positional argument.
-REM The backend defaults to http://localhost:5001 - start run-server-kobold.cmd
-REM first, or pass -backend/-backend-kind for something else.
+REM The backend defaults to llama.cpp at http://127.0.0.1:8080.
+REM Start the model server separately, or pass -backend/-backend-kind.
 
 if "%~1"=="" (
     echo Usage: run-task.cmd [flags] "task"

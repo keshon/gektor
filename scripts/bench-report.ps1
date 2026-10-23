@@ -185,13 +185,7 @@ if ($best) {
         [void]$out.Add(('Fastest   : n-cpu-moe={0} kv={1} ubatch={2}  (est. {3} s/step) - uses more VRAM' -f $best.Moe, $best.Kv, $best.Ub, $bp))
     }
     [void]$out.Add('')
-    [void]$out.Add('For run-server-llama.cmd with LLAMA_CPU_MOE support, put in .env:')
-    if ($safe.Moe -ne '-') { [void]$out.Add("LLAMA_CPU_MOE=$($safe.Moe)") }
-    [void]$out.Add("LLAMA_UBATCH_SIZE=$($safe.Ub)")
-    [void]$out.Add('LLAMA_FLASH_ATTN=on')
-    [void]$out.Add("LLAMA_CACHE_TYPE=$($safe.Kv)")
-    [void]$out.Add('')
-    [void]$out.Add('For the older script (everything in LLAMA_ARGS), append to LLAMA_ARGS:')
+    [void]$out.Add('Equivalent llama-server arguments (apply in your own server configuration):')
     $moeArg = ''
     if ($safe.Moe -ne '-') { $moeArg = "--n-cpu-moe $($safe.Moe) " }
     [void]$out.Add("$moeArg--ubatch-size $($safe.Ub) -fa on --cache-type-k $($safe.Kv) --cache-type-v $($safe.Kv)")

@@ -1,6 +1,6 @@
 @echo off
 setlocal
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 REM Plan mode: read-only tools, propose a plan, change nothing.
 REM

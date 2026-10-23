@@ -6,34 +6,21 @@ workspace, permissions, verification, and response budgets.
 
 ## Windows launchers
 
-Start a model server in its own terminal before using GEKTOR. Machine-specific
-paths and keys live in `.env` (copy from `.env.example`; gitignored).
-
-**llama.cpp (default backend):**
-1. Fill in `LLAMA_SERVER_EXE` and `LLAMA_MODEL` in `.env`.
-2. Run `run-server-llama.cmd` and wait for the model to finish loading.
-3. In another terminal, run `run-tui.cmd`. It builds `gektor.exe` and opens
-   saved settings, defaulting to llama.cpp at `127.0.0.1:8080` on first launch.
-   Extra arguments are forwarded to the binary:
+Start your model server separately and wait for loading to finish, then run
+`run-tui.cmd`. Source checkouts rebuild first; release archives use the included
+binary. The first-run connection is llama.cpp at `http://127.0.0.1:8080`.
+Saved settings are reused. Extra arguments are forwarded:
 
 ```bat
 run-tui.cmd -workspace D:\Projects\my-app -verify-cmd "go test ./..."
 ```
 
-**KoboldCPP (secondary):**
-1. Fill in `KOBOLD_EXE` and `KOBOLD_MODEL` in `.env`.
-2. Run `run-server-kobold.cmd` and wait for the model to finish loading.
-3. In another terminal, run `run-tui.cmd -backend-kind kobold -backend http://127.0.0.1:5001`.
+For another protocol, pass `-backend-kind openai` or `-backend-kind kobold`
+and its server URL. GEKTOR does not launch or manage inference servers.
 
-The sibling launchers build and run the same binary for print-mode work:
-`run-task.cmd "task"`, `run-plan.cmd "task"`,
-`run-resume.cmd [id]`. Each prints its usage
-when called without arguments.
-
-Keep flags before any task text. Closing GEKTOR leaves the independently
-started model server running. Closing the server terminal stops that server.
-The optional `run-remote.cmd` is a local, gitignored helper; it is not
-required or distributed as part of the setup.
+CLI helpers live in `scripts/`: `scripts\run-task.cmd "task"`,
+`scripts\run-plan.cmd "task"`, and `scripts\run-resume.cmd [id]`.
+Keep flags before the task text. Closing GEKTOR leaves the external server running.
 
 ## Screen and focus
 
@@ -333,7 +320,7 @@ local UI commands; they are not tools or RPC methods.
 
 ## Troubleshooting
 
-- Server not ready: start `run-kobold.cmd` first and wait for loading to finish.
+- Server not ready: start your model server separately and wait for loading to finish.
 - Use Ctrl+O for a newline on Windows. VT input keeps bracketed-paste boundaries
   intact; some hosts encode Shift+Enter as plain Enter. Native mouse records
   continue through the same adapter.
@@ -393,9 +380,8 @@ expose their own Next/Apply/Cancel footer actions instead of unrelated hotkeys.
 
 ## Thinking service
 
-GEKTOR connects to a model server someone else started. Start one with
-`run-server-llama.cmd` or `run-server-kobold.cmd`, wait for it to report the
-model loaded, then point GEKTOR at it.
+GEKTOR connects to a model server someone else started. Wait for it to report
+the model loaded, then configure its address in Settings > Model.
 
 Settings > Model selects the protocol, server address, model identifier and,
 in Advanced, the environment variable holding an API key. Focus the model

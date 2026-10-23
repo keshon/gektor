@@ -1,4 +1,4 @@
-"""Build self-contained Windows/Linux amd64 distributions: python scripts/release.py v0.1.1."""
+"""Build Windows/Linux amd64 archives: python scripts/release.py vMAJOR.MINOR.PATCH."""
 
 import hashlib
 import os
@@ -24,9 +24,9 @@ def main():
         ["git", "ls-files", "docs", "skills", "profiles", "eval/README.md"], text=True
     ).splitlines()
     windows = [
-        "run-tui.cmd", "run-task.cmd", "run-plan.cmd", "run-resume.cmd",
-        "run-server-llama.cmd", "run-server-kobold.cmd", "run-server-openai.cmd",
-        "scripts/set-env.ps1", "scripts/ensure-build.cmd",
+        "run-tui.cmd", "scripts/run-task.cmd", "scripts/run-plan.cmd",
+        "scripts/run-resume.cmd", "scripts/ensure-build.cmd",
+        "scripts/README.md",
     ]
     for name in common + windows:
         if not (root / name).is_file():

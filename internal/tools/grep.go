@@ -169,7 +169,7 @@ func (t GrepFiles) Run(ctx context.Context, args json.RawMessage) (string, error
 					return filepath.SkipDir
 				}
 			}
-			if p != root && !in.IncludeIgnored && (info.Name() == ".git" || info.Name() == ".gektor" || info.Name() == ".tars" || (files == nil && workspace.IgnoredDirectory(info.Name()))) {
+			if p != root && !in.IncludeIgnored && (info.Name() == ".git" || info.Name() == ".gektor" || (files == nil && workspace.IgnoredDirectory(info.Name()))) {
 				return filepath.SkipDir
 			}
 			return nil

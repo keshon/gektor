@@ -26,8 +26,10 @@ execution. These are operator checks, not a shell sandbox or an exhaustive
 command parser. Agent-owned background jobs are stopped by their tracked id;
 the optional browser MCP uses an isolated profile instead of the user's profile.
 
-Explicit `-browser` startup may fetch the pinned Playwright MCP package into
-npm's cache if it is missing; preparation is announced and time-bounded.
+With `-browser`, activation through `enable_browser` may fetch the pinned
+Playwright MCP package into npm's cache if missing. Restoring an activated
+session can also prepare the package. Preparation is announced during activation
+and time-bounded.
 GEKTOR checks for Node/npm and the requested browser, but does not install them.
 
 GEKTOR relies on trustworthy skills, extensions and repositories. Files like
@@ -71,10 +73,10 @@ and excludes sensitive paths; explicit reads use the permission gate. Shell
 commands can still read those files under the local account. Shell tools and final verification share environment scrubbing, bounded output,
 cancellation and process-tree cleanup. MCP servers are trusted local extensions.
 
-State files and debug traces can contain conversation content
-and tool output. They are local plaintext artifacts; protect and remove them
-according to the sensitivity of the workspace. Nothing else is written:
-GEKTOR archives no workspace content, so there is no checkpoint to leak.
+State files and debug traces can contain conversation content, tool arguments
+and tool output, including file contents. Image attachments are stored as
+session-owned snapshots. Protect these local artifacts according to the
+sensitivity of the workspace. There is no separate workspace backup or rollback.
 
 ## Out of scope
 

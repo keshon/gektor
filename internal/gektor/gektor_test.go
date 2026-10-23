@@ -36,33 +36,3 @@ func home(t *testing.T) string {
 	}
 	return h
 }
-
-func TestExistingInstallationKeepsItsSavedData(t *testing.T) {
-	root := t.TempDir()
-	t.Setenv("USERPROFILE", root)
-	t.Setenv("HOME", root)
-	legacy := filepath.Join(root, ".tars")
-	if err := os.MkdirAll(legacy, 0755); err != nil {
-		t.Fatal(err)
-	}
-	settings := []byte(`{"version":1,"theme":"light","mode":"act"}`)
-	if err := os.WriteFile(filepath.Join(legacy, "application.json"), settings, 0600); err != nil {
-		t.Fatal(err)
-	}
-	if got := Sub("application.json"); got != filepath.Join(legacy, "application.json") {
-		t.Fatalf("lost old settings: %s", got)
-	}
-	data, err := os.ReadFile(Sub("application.json"))
-	if err != nil || string(data) != string(settings) {
-		t.Fatal("legacy data changed")
-	}
-	if _, err := os.Stat(filepath.Join(root, DirName)); !os.IsNotExist(err) {
-		t.Fatal("lookup moved or created data")
-	}
-	if err := os.Mkdir(filepath.Join(root, DirName), 0755); err != nil {
-		t.Fatal(err)
-	}
-	if got := Sub("application.json"); got != filepath.Join(root, DirName, "application.json") {
-		t.Fatal("new installation does not take precedence")
-	}
-}

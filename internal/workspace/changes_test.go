@@ -104,14 +104,12 @@ func TestStateDirectoriesStayOutOfGitInventory(t *testing.T) {
 	if out, err := exec.Command("git", "-C", root, "init").CombinedOutput(); err != nil {
 		t.Fatalf("git: %v %s", err, out)
 	}
-	for _, dir := range []string{".gektor", ".tars"} {
-		path := filepath.Join(root, dir, "tasks")
-		if err := os.MkdirAll(path, 0700); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(path, "history.json"), []byte("old"), 0600); err != nil {
-			t.Fatal(err)
-		}
+	path := filepath.Join(root, ".gektor", "tasks")
+	if err := os.MkdirAll(path, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(path, "history.json"), []byte("old"), 0600); err != nil {
+		t.Fatal(err)
 	}
 	if out, err := exec.Command("git", "-C", root, "add", ".").CombinedOutput(); err != nil {
 		t.Fatalf("git add: %v %s", err, out)
@@ -131,10 +129,8 @@ func TestStateDirectoriesStayOutOfGitInventory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, dir := range []string{".gektor", ".tars"} {
-		if err := os.WriteFile(filepath.Join(root, dir, "tasks", "history.json"), []byte("changed"), 0600); err != nil {
-			t.Fatal(err)
-		}
+	if err := os.WriteFile(filepath.Join(path, "history.json"), []byte("changed"), 0600); err != nil {
+		t.Fatal(err)
 	}
 	if paths, err := observe(); err != nil || len(paths) != 0 {
 		t.Fatalf("state effects: %v %v", paths, err)

@@ -1,6 +1,6 @@
 @echo off
 setlocal
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 REM Reset eval\fixtures to the committed baseline and remove artifacts
 REM from prior manual eval runs. Safe to run repeatedly.

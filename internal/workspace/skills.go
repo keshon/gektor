@@ -28,7 +28,7 @@ func (w *Workspace) Skills() ([]Skill, error) {
 		}
 		if entry.IsDir() {
 			switch entry.Name() {
-			case ".git", "node_modules", ".gektor", ".tars":
+			case ".git", "node_modules", ".gektor":
 				return fs.SkipDir
 			}
 			return nil

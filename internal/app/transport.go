@@ -32,20 +32,11 @@ func ExtraHeadersFromEnv() map[string]string {
 	out := map[string]string{}
 	if v := strings.TrimSpace(os.Getenv("OPENROUTER_REFERER")); v != "" {
 		out["HTTP-Referer"] = v
-	} else if v := firstEnv("GEKTOR_SITE_URL", "TARS_SITE_URL"); v != "" {
+	} else if v := strings.TrimSpace(os.Getenv("GEKTOR_SITE_URL")); v != "" {
 		out["HTTP-Referer"] = v
 	}
-	if v := firstEnv("GEKTOR_SITE_TITLE", "TARS_SITE_TITLE"); v != "" {
+	if v := strings.TrimSpace(os.Getenv("GEKTOR_SITE_TITLE")); v != "" {
 		out["X-Title"] = v
 	}
 	return out
-}
-
-func firstEnv(names ...string) string {
-	for _, name := range names {
-		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
-			return value
-		}
-	}
-	return ""
 }

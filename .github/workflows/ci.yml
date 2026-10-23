@@ -12,7 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         # Windows is the primary target (README), but the shell tool picks
-        # cmd.exe or sh by OS, so a change that only builds on one of them
+        # PowerShell or sh by OS, so a change that only builds on one of them
         # is a bug the other platform finds later.
         os: [windows-latest, ubuntu-latest]
     steps:

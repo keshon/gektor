@@ -63,7 +63,7 @@ exit /b 1
 
 rem ---------------------------------------------------------------------------
 rem  Build every package first (catches compile errors anywhere), then link
-rem  the agent binary the run-*.cmd launchers expect at the repo root.
+rem  the agent binary run-tui.cmd and scripts\run-*.cmd expect at the repo root.
 rem ---------------------------------------------------------------------------
 :build
 echo Building packages...

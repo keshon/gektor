@@ -2,8 +2,8 @@
 
 Current guides:
 
-- [Quick start](../README.md): requirements, terminal/server launch, saved runs.
-- [Bootstrap](bootstrap.md): external services, asset import and packaging limits.
+- [Quick start](../README.md): purpose, requirements and first launch.
+- [Setup](bootstrap.md): external server setup, saved data and release contents.
 - [CLI reference](cli.md): flags, backend examples, permissions, mode limitations.
 - [Terminal guide](tui.md): composer, suggestions, file references, sessions and keys.
 - [RPC protocol](rpc.md): stdio requests, events, gates and client lifetime.

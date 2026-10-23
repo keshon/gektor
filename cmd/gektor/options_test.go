@@ -9,6 +9,17 @@ import (
 	"github.com/keshon/gektor/internal/config"
 )
 
+func TestLaunchDefaultsMatchFirstRunProfile(t *testing.T) {
+	o, err := parseLaunchOptions(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider := config.DefaultProfile().Provider
+	if o.backendKind != "llama" || o.backendKind != provider.Kind || o.backendURL != provider.URL {
+		t.Fatalf("CLI and first-run profile differ: %+v vs %+v", o, provider)
+	}
+}
+
 // Flag parsing has three behaviours worth pinning: an explicit false, the
 // name a flag was typed under, and the task text.
 func TestParseLaunchOptionsKeepsExplicitNamesAndTaskText(t *testing.T) {

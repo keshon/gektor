@@ -14,8 +14,8 @@ Frozen scenarios for a weak local model, scored by a program.
 For the fixed seven-scenario starting baseline:
 
 ```text
-eval-run.cmd -suite core -runs 1 -jobs 1 -require-model Cyber-Tiel
-eval-run.cmd -suite core -runs 3 -jobs 1 -require-model Cyber-Tiel
+scripts\eval-run.cmd -suite core -runs 1 -jobs 1 -require-model Cyber-Tiel
+scripts\eval-run.cmd -suite core -runs 3 -jobs 1 -require-model Cyber-Tiel
 ```
 
 On other platforms use `go run ./cmd/eval -suite core` with explicit backend
@@ -64,12 +64,10 @@ binary digest identifies what actually ran. Metadata write failures stop the
 evaluation before solver calls. These fields identify experiments; they do not
 enable result caching or guarantee deterministic model sampling.
 
-On Windows use `eval-run.cmd` instead of `go run` directly. It reads `.env` and
-prepends `-backend-kind llama -backend http://$LLAMA_HOST:$LLAMA_PORT
--context-limit $LLAMA_CTX_SIZE`, so the suite targets the same server
-`run-server-llama.cmd` starts. A `-backend` or `-backend-kind` on the command
-line overrides those, since Go's flag package takes the last occurrence. Called
-directly, `cmd/eval` still defaults to koboldcpp on `localhost:5001`.
+CLI, TUI first-run settings and this runner default to llama.cpp at
+`http://127.0.0.1:8080`. On Windows, `scripts\eval-run.cmd` forwards flags to
+`go run ./cmd/eval`; it does not read `.env`. For another endpoint, pass
+`-backend http://127.0.0.1:9931`. Select another protocol with `-backend-kind`.
 
 `-only` is a substring match on the probe filename, not a numeric range:
 `-only 0` selects 01–09, while `-only 10` selects 10. `-dry` validates the
