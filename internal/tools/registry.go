@@ -52,12 +52,16 @@ func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSin
 	scan := func(t agent.Tool) agent.Tool { return Checked(t, ws, report, rules) }
 	info := SystemInfo{WS: ws, BrowserTools: BrowserToolNames(extra)}
 	for _, t := range extra {
+		if discover, ok := t.(DiscoverCapabilities); ok {
+			info.Capabilities = discover.Catalog
+		}
 		if browser, ok := t.(*EnableBrowser); ok {
 			info.Browser = browser
 		}
 	}
 	tools := []agent.Tool{
 		info,
+		LoadSkill{WS: ws},
 		ReadOutput{},
 		ReadFile{WS: ws, Vision: vision},
 		scan(WriteFile{WS: ws}),
@@ -93,6 +97,7 @@ func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSin
 func ReadOnly(ws *workspace.Workspace, procs *BackgroundProcesses, vision bool) *agent.Registry {
 	return agent.NewRegistry(
 		SystemInfo{WS: ws},
+		LoadSkill{WS: ws},
 		ReadOutput{},
 		ReadHistory{},
 		ReadFile{WS: ws, Vision: vision},

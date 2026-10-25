@@ -47,14 +47,15 @@ type serveDeps struct {
 	logMax       int
 	verifyCmd    string
 
-	autoDeny    bool
-	auditPath   string
-	allow       string
-	deny        string
-	backendKind string
-	stream      bool
-	mcpTools    []agent.Tool
-	browser     *tools.Browser
+	autoDeny     bool
+	auditPath    string
+	allow        string
+	deny         string
+	backendKind  string
+	stream       bool
+	mcpTools     []agent.Tool
+	browser      *tools.Browser
+	capabilities []*tools.Capability
 }
 
 type rpcRequest struct {
@@ -288,6 +289,7 @@ func serveRun(ctx context.Context, d serveDeps, hub *run.GateHub, emitter *event
 		Stream:       d.stream,
 		MCPTools:     d.mcpTools,
 		Browser:      d.browser,
+		Capabilities: d.capabilities,
 	}
 	emitter.Emit("run_start", map[string]any{"task": task})
 	sess, err := run.New(run.Config{

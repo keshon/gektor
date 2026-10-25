@@ -3,10 +3,12 @@ package tools
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -71,6 +73,9 @@ type MCPToolDef struct {
 // StartMCP launches command with args and runs initialize + tools/list,
 // returning one agent.Tool per remote tool named mcp__server__tool.
 func StartMCP(ctx context.Context, server, dir, command string, args ...string) ([]agent.Tool, *MCPClient, error) {
+	if err := validateCapabilityID(server); err != nil {
+		return nil, nil, err
+	}
 	// The server must outlive the handshake, so its process gets a context
 	// the handshake timeout cannot cancel. Close cancels it, which also
 	// reaps a process a restart replaced.
@@ -187,32 +192,43 @@ func connectMCP(ctx context.Context, server string, cmd *exec.Cmd, stdin io.Writ
 // with or shadow its siblings — silent shadowing would route a call to
 // the wrong remote tool with no visible trace.
 func assignToolNames(server string, defs []MCPToolDef) []string {
-	const prefix = "mcp__"
-	seen := map[string]int{}
+	seen := map[string]bool{}
 	out := make([]string, 0, len(defs))
 	for _, td := range defs {
-		base := prefix + server + "__" + td.Name
-		if len(base) > mcpMaxToolName {
-			keep := mcpMaxToolName - len(prefix) - len(server) - len("__")
-			if keep < 1 {
-				keep = 1
-			}
-			base = prefix + server + "__" + td.Name[:min(keep, len(td.Name))]
-		}
+		base := boundedToolName("mcp__" + server + "__" + td.Name)
 		name := base
-		if n := seen[base]; n > 0 {
-			suffix := fmt.Sprintf("_%d", n+1)
-			trim := len(base) + len(suffix) - mcpMaxToolName
-			if trim > 0 {
-				name = base[:len(base)-trim] + suffix
-			} else {
-				name = base + suffix
-			}
+		for n := 2; seen[name]; n++ {
+			suffix := fmt.Sprintf("_%d", n)
+			name = base[:min(len(base), mcpMaxToolName-len(suffix))] + suffix
 		}
-		seen[base]++
+		seen[name] = true
 		out = append(out, name)
 	}
 	return out
+}
+
+var capabilityIdentifier = regexp.MustCompile(`^[A-Za-z0-9_-]{1,32}$`)
+
+func validateCapabilityID(id string) error {
+	if !capabilityIdentifier.MatchString(id) {
+		return fmt.Errorf("invalid capability/server ID %q: use 1–32 ASCII letters, digits, underscores or hyphens", id)
+	}
+	return nil
+}
+
+func boundedToolName(raw string) string {
+	clean := strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '-' {
+			return r
+		}
+		return '_'
+	}, raw)
+	if clean != raw || len(clean) > mcpMaxToolName {
+		sum := sha256.Sum256([]byte(raw))
+		suffix := fmt.Sprintf("_%x", sum[:6])
+		clean = clean[:min(len(clean), mcpMaxToolName-len(suffix))] + suffix
+	}
+	return clean
 }
 
 // Close stops the server process, including any that replaced it.
@@ -632,6 +648,14 @@ func ParseMCPFlag(spec string) (names, commands []string, args [][]string, err e
 		}
 		if name == "" || command == "" {
 			return fmt.Errorf("invalid MCP entry: expected name=command")
+		}
+		if err := validateCapabilityID(name); err != nil {
+			return err
+		}
+		for _, previous := range names {
+			if previous == name {
+				return fmt.Errorf("duplicate MCP server %q", name)
+			}
 		}
 		names = append(names, name)
 		commands = append(commands, command)

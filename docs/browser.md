@@ -32,9 +32,11 @@ GEKTOR uses an isolated headless profile. Successful activation returns browser
 instructions and exposes the MCP tools for the rest of that session. A connection
 failure is a failed tool result with the server's diagnostic; ordinary coding
 tasks can still run without a working browser installation.
-The full session archive records activation, so resuming after compaction restores
-the tool set before the next model request. New sessions start with only the
-activation tool. Activation can invalidate part of the backend's prompt cache once;
+The session snapshot preserves activated schemas through compaction. Resume
+restores the tool set without connecting; the first browser call reconnects and
+validates the catalog. Missing browser dependencies fail that tool call while
+other session work can continue. Older archives migrate from activation results.
+New sessions start without the browser schemas. Activation can invalidate part of the backend's prompt cache once;
 tools are not unloaded between turns or Plan/Act switches.
 First navigation checks that the browser itself can launch. The selected
 browser must already be installed. Without `-browser` or a custom browser MCP,

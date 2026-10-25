@@ -65,7 +65,8 @@ Browser DOM checks work with text-only models. Inspecting image contents require
 a vision-capable model and backend.
 
 **Shell, Git and MCP tools run with your account's permissions.** Built-in file
-tools confine access to the workspace through `os.Root`; this does not isolate
+tools confine access to the workspace through `os.Root`; `load_skill` also reads
+configured skill packages. This does not isolate
 processes or network access. There is no automatic workspace backup or rollback.
 Keep projects in Git and review changes. [Security boundary](SECURITY.md).
 

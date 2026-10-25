@@ -41,6 +41,7 @@ const (
 	NudgeCompact      = "compact"
 	NudgeRepeating    = "repeating"
 	NudgeVerification = "verification"
+	NudgeRecovery     = "capability_recovery"
 	harnessPrefix     = "[harness] "
 )
 

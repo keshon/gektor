@@ -14,8 +14,19 @@ import (
 // run requests a response, executes its tools and persists history until
 // the model answers, the operator cancels or the step limit is reached.
 func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, runErr error) {
+	if err := a.cfg.Tools.Err(); err != nil {
+		return "", fmt.Errorf("tool registry: %w", err)
+	}
+	if err := a.cfg.Policy.Validate(); err != nil {
+		return "", err
+	}
 	if a.cfg.ToolContext != nil {
 		ctx = a.cfg.ToolContext(ctx)
+	}
+	if a.cfg.RestoreCapabilities != nil {
+		if err := a.cfg.RestoreCapabilities(ctx, a.snapshot.Capabilities); err != nil {
+			return "", fmt.Errorf("restore capabilities: %w", err)
+		}
 	}
 	var st runState
 	runStart := len(a.snapshot.History)
@@ -106,7 +117,10 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 	a.rehydrateTodo(ctx, history)
 	if a.cfg.RestoreTools != nil {
 		if err := a.cfg.RestoreTools(ctx, a.snapshot.History); err != nil {
-			return "", fmt.Errorf("restore session tools: %w", err)
+			if ctx.Err() != nil {
+				return "", ctx.Err()
+			}
+			history = a.nudge(history, NudgeRecovery, "Optional session tools unavailable: "+err.Error()+". Continue with available tools or explicitly retry activation.")
 		}
 	}
 
@@ -116,6 +130,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 		}
 		history = a.acceptInputs(history, a.cfg.Inbox.take(false), &st)
 		history = a.acceptNotifications(ctx, history)
+		history = a.withCapabilityInstructions(history)
 		req := llm.ChatRequest{
 			Messages: history,
 			Tools:    a.cfg.Tools.Defs(),
@@ -125,6 +140,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 		if a.maybeCompact(&history, llm.Usage{PromptTokens: promptTokens}, &st, ctx) {
 			st.lastPromptEstimate = 0
 			history = a.withDirective(history)
+			history = a.withCapabilityInstructions(history)
 			req.Messages = history
 			estimate = llm.EstimatePromptTokens(req)
 			promptTokens = estimate

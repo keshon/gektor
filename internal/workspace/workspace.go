@@ -16,9 +16,15 @@ type Workspace struct {
 	files        *os.Root
 	root         string
 	instructions string
+	skillRoots   []string
 }
 
 func New(root string) (*Workspace, error) {
+	return NewWithSkillRoots(root, nil)
+}
+
+// NewWithSkillRoots adds library roots lowest priority first; project skills win.
+func NewWithSkillRoots(root string, skillRoots []string) (*Workspace, error) {
 	abs, err := filepath.Abs(root)
 	if err != nil {
 		return nil, fmt.Errorf("resolve workspace root: %w", err)
@@ -33,7 +39,7 @@ func New(root string) (*Workspace, error) {
 			files.Close()
 		}
 	}()
-	w := &Workspace{root: abs, files: files}
+	w := &Workspace{root: abs, files: files, skillRoots: append([]string(nil), skillRoots...)}
 	var dirs []string
 	for dir := abs; ; dir = filepath.Dir(dir) {
 		dirs = append(dirs, dir)

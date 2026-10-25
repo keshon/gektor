@@ -183,6 +183,9 @@ func (a *Agent) saveState(history []llm.Message) {
 
 func (a *Agent) persistState(history []llm.Message) error {
 	a.captureHistory(history)
+	if a.cfg.SaveCapabilities != nil {
+		a.snapshot.Capabilities = a.cfg.SaveCapabilities()
+	}
 	return a.snapshot.Save(a.cfg.StateFile)
 }
 
@@ -376,7 +379,18 @@ func (a *Agent) resumeHistory(history []llm.Message) []llm.Message {
 // mayRun reports whether this role is allowed to execute a tool. Unrestricted
 // roles allow every name the registry knows.
 func (a *Agent) mayRun(name string) bool {
-	return a.allowed == nil || a.allowed[name]
+	if a.allowed == nil || a.allowed[name] {
+		return true
+	}
+	if !a.cfg.AllowReadOnlyExtensions {
+		return false
+	}
+	if tool, ok := a.cfg.Tools.lookup(name); ok {
+		if extension, ok := tool.(interface{ ReadOnly() bool }); ok {
+			return extension.ReadOnly()
+		}
+	}
+	return false
 }
 
 // withDirective keeps the role's stance at the end of the conversation. A

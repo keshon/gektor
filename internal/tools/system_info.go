@@ -18,6 +18,7 @@ import (
 
 // SystemInfo discovers the host on demand, without probing arbitrary programs.
 type SystemInfo struct {
+	Capabilities *Capabilities
 	WS           *workspace.Workspace
 	BrowserTools []string
 	Browser      *EnableBrowser
@@ -26,7 +27,7 @@ type SystemInfo struct {
 func (SystemInfo) Name() string         { return "system_info" }
 func (SystemInfo) Mode() agent.ToolMode { return agent.Concurrent }
 func (SystemInfo) Description() string {
-	return "Inspect one group: os, hardware, environment, tools, skills, or browser. tools lists PATH executables; skills discovers all nested workspace SKILL.md metadata. Both support filter, offset and limit. Read a matching SKILL.md before applying it. browser reports installed browsers and connected MCP tools; npx alone does not prove readiness. No automatic installation."
+	return "Inspect one group: os, hardware, environment, tools, skills, or browser. tools lists PATH executables; skills discovers nested project and user-library metadata. Both support filter, offset and limit. Load a matching skill before applying it. browser reports installed browsers and available browser tools; npx alone does not prove readiness. No automatic installation."
 }
 func (SystemInfo) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{"group":{"type":"string","enum":["os","hardware","environment","tools","skills","browser"]},"filter":{"type":"string","description":"Case-insensitive substring in tool filename or skill path/description"},"offset":{"type":"integer","minimum":0},"limit":{"type":"integer","minimum":1,"maximum":100,"default":50}},"required":["group"],"additionalProperties":false}`)
@@ -66,7 +67,7 @@ func (t SystemInfo) Run(ctx context.Context, args json.RawMessage) (string, erro
 		}
 		matches := []workspace.Skill{}
 		for _, skill := range entries {
-			if strings.Contains(strings.ToLower(skill.Path+" "+skill.Description), strings.ToLower(in.Filter)) {
+			if strings.Contains(strings.ToLower(skill.ID+" "+skill.Path+" "+skill.Description), strings.ToLower(in.Filter)) {
 				matches = append(matches, skill)
 			}
 		}
@@ -140,13 +141,24 @@ func (t SystemInfo) browserInfo(ctx context.Context) map[string]any {
 	status := "not connected: no browser MCP tools discovered; do not assume npx means Playwright is installed"
 	names := t.BrowserTools
 	setup := "Restart GEKTOR with -browser chrome or -browser msedge; see docs/browser.md. Do not improvise browser shell commands when MCP is unavailable."
+	if t.Capabilities != nil {
+		status = "no active browser tools; search discover_capabilities for a configured browser integration"
+		setup = "Discover and enable a configured browser capability, or restart with -browser chrome/-browser msedge."
+		for _, state := range t.Capabilities.Save() {
+			for _, def := range state.Tools {
+				if strings.HasPrefix(def.Name, "mcp__") && strings.Contains(def.Name, "__browser_") {
+					names = append(names, def.Name)
+				}
+			}
+		}
+	}
 	if t.Browser != nil {
 		names = t.Browser.Names()
 		status = "available on request: call enable_browser to check prerequisites and connect MCP"
 		setup = "Call enable_browser; it reports missing prerequisites and prepares the pinned MCP package if needed."
 	}
 	if len(names) > 0 {
-		status = "browser MCP tools connected for this session; first navigation still verifies browser launch"
+		status = "browser tools available for this session; first use verifies connection and browser launch"
 	}
 	return map[string]any{"browser_paths": installed, "playwright_executables": executables, "mcp_tools": names, "status": status, "operator_setup": setup, "package_inventory": "PATH does not include every local/global/npm-cache package; absence here is not proof of absence. No installation or download attempted by system_info.", "warnings": warnings}
 }

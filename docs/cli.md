@@ -1,5 +1,10 @@
 # CLI reference
 
+`-capabilities <file>` selects versioned JSON configuration for optional MCP
+and executable packs and additional skill roots. Packs load on request through
+`discover_capabilities` and `enable_capability`. See [Extensions](extensions.md)
+for configuration, executable protocol, permissions and skill precedence.
+
 Every flag of `cmd/gektor`, grouped by purpose. A conventions test
 (`internal/conventions`, tag `cli-flags`) fails if a flag exists in code
 but is missing here. It checks coverage, not defaults or semantics; those
@@ -102,6 +107,7 @@ fails closed. Rules are pattern tripwires, not process isolation. See
 | `-allow RULES` | — | Comma-separated `tool=pattern` rules to allow, e.g. `"run_shell=go *,read_file=*.go"`. Wins over defaults |
 | `-deny RULES` | — | Comma-separated `tool=pattern` rules to deny, e.g. `"run_shell=rm *,read_file=.env"`. Wins over `-allow` |
 | `-mcp SERVERS` | - | MCP servers as `"name=cmd args...;name2=https://host/mcp"` over stdio JSON-RPC or Streamable HTTP. Tools appear as `mcp__name__tool`. A server that fails to start is skipped with a warning |
+| `-capabilities FILE` | — | Explicit JSON configuration for optional tool packs and extra skill roots. See [Extensions](extensions.md) |
 | `-browser CHANNEL` | - | Make installed `chrome` or `msedge` available through `enable_browser`. Check prerequisites, prepare pinned Playwright MCP and load its tools only on activation. Setup failures are tool results. See [browser setup](browser.md) |
 
 ## Output and debugging

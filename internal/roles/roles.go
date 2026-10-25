@@ -66,8 +66,9 @@ type Env struct {
 	// (Interactive, Subagent). Planner advertises them too, so that its
 	// prompt matches Interactive's, but refuses to run them: a mode switch
 	// must not change the prompt prefix.
-	MCPTools []agent.Tool
-	Browser  *tools.Browser
+	MCPTools     []agent.Tool
+	Browser      *tools.Browser
+	Capabilities []*tools.Capability
 
 	// OnDelta receives streamed answer text for live display. OnReasoning
 	// receives streamed deliberation, which arrives first.
@@ -179,6 +180,7 @@ func Retrospective(e Env, archive, submit agent.Tool) *agent.Agent {
 func Planner(e Env, label, stateFile string, ask func(question string) (string, error)) *agent.Agent {
 	cfg := e.conversationConfig(label, stateFile, ask, nil)
 	cfg.ReadOnly = tools.ReadOnly(e.WS, e.Procs, e.Vision).Names()
+	cfg.AllowReadOnlyExtensions = true
 	cfg.Directive = prompts.PlanMode
 	cfg.Supersedes = prompts.ActMode
 	return agent.New(cfg)
@@ -329,18 +331,32 @@ func (e Env) browserContext() string {
 	if e.Browser != nil {
 		return "\nBrowser automation: available on request through enable_browser. Call it when browser work is needed. If browser tools are already present, use them directly."
 	}
+	if len(e.Capabilities) > 0 && len(tools.BrowserToolNames(e.MCPTools)) == 0 {
+		return "\nBrowser automation: search discover_capabilities for a configured browser integration when needed. Use browser tools only after activation succeeds; if none are configured, report browser checks as unverified."
+	}
 	return tools.BrowserContext(e.MCPTools)
 }
 
 func (e Env) configureTools(cfg *agent.Config, extra ...agent.Tool) {
+	sources := append([]*tools.Capability(nil), e.Capabilities...)
+	if e.Browser != nil {
+		sources = append(sources, e.Browser.Capability())
+	}
+	catalog := &tools.Capabilities{Sources: sources}
 	var browser *tools.EnableBrowser
 	if e.Browser != nil {
-		browser = &tools.EnableBrowser{Browser: e.Browser}
+		browser = &tools.EnableBrowser{Browser: e.Browser, Catalog: catalog}
 		extra = append(extra, browser)
 	}
+	if len(sources) > 0 {
+		extra = append(extra, tools.DiscoverCapabilities{Catalog: catalog}, tools.EnableCapability{Catalog: catalog})
+	}
 	cfg.Tools = tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.Vision, extra...)
+	catalog.Registry = cfg.Tools
+	cfg.SaveCapabilities = catalog.Save
+	cfg.RestoreCapabilities = catalog.Restore
+	cfg.RestoreTools = catalog.RestoreArchive
 	if browser != nil {
 		browser.Registry = cfg.Tools
-		cfg.RestoreTools = browser.Restore
 	}
 }

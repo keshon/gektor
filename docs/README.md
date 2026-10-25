@@ -5,6 +5,7 @@ Current guides:
 - [Quick start](../README.md): purpose, requirements and first launch.
 - [Setup](bootstrap.md): external server setup, saved data and release contents.
 - [CLI reference](cli.md): flags, backend examples, permissions, mode limitations.
+- [Extensions](extensions.md): capability packs, executable adapters and skill libraries.
 - [Terminal guide](tui.md): composer, suggestions, file references, sessions and keys.
 - [RPC protocol](rpc.md): stdio requests, events, gates and client lifetime.
 - [Architecture](../ARCHITECTURE.md): packages, loop, role budgets and frontends.

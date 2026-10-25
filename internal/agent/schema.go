@@ -19,6 +19,24 @@ type schemaResult struct {
 }
 type noSchemaNetwork struct{}
 
+// ValidateToolSchema compiles extension schemas without fetching references.
+func ValidateToolSchema(schema json.RawMessage) error {
+	var doc any
+	if err := json.Unmarshal(schema, &doc); err != nil {
+		return err
+	}
+	if _, ok := doc.(map[string]any); !ok {
+		return fmt.Errorf("tool schema must be an object")
+	}
+	c := jsonschema.NewCompiler()
+	c.UseLoader(noSchemaNetwork{})
+	if err := c.AddResource("urn:gektor:extension", doc); err != nil {
+		return err
+	}
+	_, err := c.Compile("urn:gektor:extension")
+	return err
+}
+
 func (noSchemaNetwork) Load(url string) (any, error) {
 	return nil, fmt.Errorf("external schema reference is unavailable: %s", url)
 }

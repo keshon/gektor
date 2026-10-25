@@ -65,6 +65,9 @@ func (c *httpMCPClient) setSession(id string) {
 // absolute http(s); loopback is permitted (local dev servers), everything
 // else follows the public-URL rules.
 func StartMCPHTTP(ctx context.Context, server, rawURL string) ([]agent.Tool, *httpMCPClient, error) {
+	if err := validateCapabilityID(server); err != nil {
+		return nil, nil, err
+	}
 	clean, err := normalizeLoopbackURL(rawURL)
 	if err != nil {
 		return nil, nil, fmt.Errorf("mcp %s: %w", server, err)

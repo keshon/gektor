@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -76,14 +77,30 @@ type Attacher interface {
 type Registry struct {
 	mu    sync.RWMutex
 	tools map[string]Tool
+	err   error
 }
 
 func NewRegistry(tools ...Tool) *Registry {
 	r := &Registry{tools: make(map[string]Tool, len(tools))}
-	for _, t := range tools {
-		r.tools[t.Name()] = t
-	}
+	r.err = r.Add(tools...)
 	return r
+}
+
+// Err reports an invalid initial catalog before any model request or tool runs.
+func (r *Registry) Err() error {
+	if r == nil {
+		return nil
+	}
+	return r.err
+}
+
+var toolIdentifier = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+
+func ValidateToolName(name string) error {
+	if !toolIdentifier.MatchString(name) {
+		return fmt.Errorf("invalid tool name %q: use 1–64 ASCII letters, digits, underscores or hyphens", name)
+	}
+	return nil
 }
 
 // Names returns this registry's tool names, sorted. What an agent may do
@@ -130,8 +147,17 @@ func (r *Registry) Defs() []llm.ToolDef {
 func (r *Registry) Add(tools ...Tool) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.err != nil {
+		return r.err
+	}
 	seen := make(map[string]bool, len(tools))
 	for _, t := range tools {
+		if t == nil {
+			return fmt.Errorf("nil tool")
+		}
+		if err := ValidateToolName(t.Name()); err != nil {
+			return err
+		}
 		if _, exists := r.tools[t.Name()]; exists || seen[t.Name()] {
 			return fmt.Errorf("tool %q already registered", t.Name())
 		}
@@ -155,6 +181,9 @@ func (r *Registry) Run(ctx context.Context, name string, args json.RawMessage) (
 }
 
 func (r *Registry) ValidateCall(name string, args json.RawMessage) error {
+	if err := r.Err(); err != nil {
+		return err
+	}
 	if r == nil {
 		return fmt.Errorf("unknown tool %q", name)
 	}
@@ -168,6 +197,9 @@ func (r *Registry) ValidateCall(name string, args json.RawMessage) error {
 // RunStreaming observes display-only output when the tool supports it.
 // The returned result remains authoritative for model history.
 func (r *Registry) RunStreaming(ctx context.Context, name string, args json.RawMessage, onOutput func(string)) (string, error) {
+	if err := r.Err(); err != nil {
+		return "", err
+	}
 	t, ok := r.lookup(name)
 	if !ok {
 		return "", fmt.Errorf("unknown tool %q", name)
@@ -409,7 +441,19 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 			return
 		}
 		var resources []string
-		if a.cfg.Resources != nil {
+		if tool, ok := a.cfg.Tools.lookup(call.Name); ok {
+			if scoped, ok := tool.(interface {
+				Resources(json.RawMessage) ([]string, error)
+			}); ok {
+				var err error
+				resources, err = scoped.Resources(call.Arguments)
+				if err != nil {
+					results[i].err = err
+					return
+				}
+			}
+		}
+		if len(resources) == 0 && a.cfg.Resources != nil {
 			var err error
 			resources, err = a.cfg.Resources(call.Name, call.Arguments)
 			if err != nil {

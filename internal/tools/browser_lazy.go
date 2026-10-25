@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/keshon/gektor/internal/agent"
@@ -70,7 +69,7 @@ type EnableBrowser struct {
 	Browser  *Browser
 	Registry *agent.Registry
 	mu       sync.Mutex
-	names    []string
+	Catalog  *Capabilities
 }
 
 func (*EnableBrowser) Name() string         { return "enable_browser" }
@@ -100,42 +99,44 @@ const browserInstructions = "Browser enabled for this session. Use the newly ava
 func (b *EnableBrowser) enable(ctx context.Context, note func(string)) (string, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if len(b.names) > 0 {
-		return browserInstructions, nil
+	if b.Catalog == nil {
+		b.Catalog = &Capabilities{Registry: b.Registry, Sources: []*Capability{b.Browser.Capability()}}
 	}
-	list, err := b.Browser.load(ctx, note)
-	if err != nil {
+	if _, err := b.Catalog.Enable(ctx, "browser", note); err != nil {
 		return "", err
 	}
-	if err = b.Registry.Add(list...); err != nil {
-		return "", err
-	}
-	b.names = BrowserToolNames(list)
 	return browserInstructions, nil
 }
 
 func (b *EnableBrowser) Names() []string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return append([]string(nil), b.names...)
+	if b.Catalog != nil {
+		for _, state := range b.Catalog.Save() {
+			if state.ID == "browser" {
+				names := []string{}
+				for _, def := range state.Tools {
+					names = append(names, def.Name)
+				}
+				return names
+			}
+		}
+	}
+	return nil
+}
+
+func (b *Browser) Capability() *Capability {
+	return &Capability{ID: "browser", Version: browserPackage, Description: "Navigate and test web pages with Playwright browser automation", Instructions: browserInstructions, Source: "browser:" + b.Channel, Load: b.load, Close: b.Close}
 }
 
 // Restore reads the full archive, not the compacted model view. Only a measured
 // successful result enables tools; an interrupted or rejected call does not.
 func (b *EnableBrowser) Restore(ctx context.Context, archive []llm.Message) error {
-	calls := make(map[string]bool)
-	for _, m := range archive {
-		if m.Role == llm.RoleAssistant {
-			for _, c := range m.ToolCalls {
-				if c.InputError == "" && (c.Name == b.Name() || strings.HasPrefix(c.Name, "mcp__browser__browser_")) {
-					calls[c.ID] = true
-				}
-			}
-		}
-		if m.Role == llm.RoleTool && calls[m.ToolCallID] && m.ToolFailed != nil && !*m.ToolFailed {
-			_, err := b.enable(ctx, nil)
-			return err
-		}
+	b.mu.Lock()
+	if b.Catalog == nil {
+		b.Catalog = &Capabilities{Registry: b.Registry, Sources: []*Capability{b.Browser.Capability()}}
 	}
-	return nil
+	catalog := b.Catalog
+	b.mu.Unlock()
+	return catalog.RestoreArchive(ctx, archive)
 }

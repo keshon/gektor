@@ -113,6 +113,29 @@ happens to look.
 
 ## Adding a probe
 
+### Optional extension continuity test
+
+`TestLiveExtensionsAcrossTurns` in internal/roles is a separate opt-in test
+against a running llama.cpp server. It uses disposable workspaces, a real JSON
+executable adapter and an external skill library. Six user turns cover initial
+discovery/activation, resume, explicit compaction, a service outage, recovery
+and a read-only Plan request. Each turn records its own answer, tool results,
+step count and verdict, so early success cannot hide a late failure.
+
+```powershell
+$env:GEKTOR_LIVE_EXTENSIONS = '1'
+$env:GEKTOR_LIVE_BACKEND = 'http://127.0.0.1:9931'
+$env:GEKTOR_LIVE_RUNS = '3'
+$env:GEKTOR_LIVE_OUTPUT = 'D:/tmp/gektor-extension-eval'
+go test ./internal/roles -run '^TestLiveExtensionsAcrossTurns$' -count=1 -v -timeout 30m
+```
+
+Use a fresh output directory for each invocation. The test is skipped in normal
+unit/CI runs. It verifies the declared transitions, not general long-session
+reasoning quality. Run it separately from other model evals on a single-slot
+server. Existing skill probes accept either file reads or explicit skill loads
+and require the process text in the successful result.
+
 Write the scenario in `prompts/` first, then mechanize it. Criteria come from
 the write-up — a threshold invented while writing the JSON is a number that
 will fail someday for no stated reason.

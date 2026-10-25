@@ -89,15 +89,18 @@ the transport. Instructions arrive as the tool result, and the registry adds
 the actual MCP tools. Tool names cannot replace existing registry entries.
 
 The transport belongs to the launch; activation belongs to each agent's registry.
-New sessions start without browser schemas. Resume restores activation from
-successful tool results in the full archive, including after compaction, before
-the first model request. It reconnects the transport without replaying browser
-actions. The expanded catalog stays present across subsequent turns and Plan/Act
+New sessions start without browser schemas. Snapshots preserve activated tool
+catalogs independently of compaction. Resume restores schemas before the first
+model request and reconnects only on actual use, checking the configuration and
+catalog fingerprint before execution. Older archives migrate from successful
+activation results. The expanded catalog stays present across turns and Plan/Act
 switches. Activation can invalidate the backend's prompt cache once.
 
-Explicit custom MCP servers still connect at launch. They are not part of the
-browser's deferred setup. Environment details and the skill catalog are queried
-through system_info; full SKILL.md guides are read only when needed.
+Explicit -mcp servers still connect at launch. Configured capability packs share
+the browser's deferred activation mechanism and support native Go, executable
+JSON and MCP adapters. Environment details and skill metadata are queried through
+system_info; load_skill reads guides and supporting resources from configured
+libraries or project skill directories. See [Extensions](docs/extensions.md).
 
 ## Effects and verification
 

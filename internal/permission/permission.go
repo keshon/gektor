@@ -102,10 +102,23 @@ func (p Policy) WithExtra(rules []Rule) Policy {
 }
 
 func toolMatch(pattern, tool string) bool {
-	if pattern == "*" {
-		return true
+	ok, err := path.Match(strings.ToLower(pattern), strings.ToLower(tool))
+	return err == nil && ok
+}
+
+// Validate rejects malformed patterns instead of silently ignoring restrictions.
+func (p Policy) Validate() error {
+	for _, rule := range p.Rules {
+		if _, err := path.Match(rule.Tool, ""); err != nil {
+			return fmt.Errorf("invalid tool permission pattern %q: %w", rule.Tool, err)
+		}
+		if strings.ContainsAny(rule.Pattern, "*?[") {
+			if _, err := path.Match(rule.Pattern, ""); err != nil {
+				return fmt.Errorf("invalid resource permission pattern %q: %w", rule.Pattern, err)
+			}
+		}
 	}
-	return strings.EqualFold(pattern, tool)
+	return nil
 }
 
 func resourceMatch(pattern, resource string) bool {
@@ -152,6 +165,9 @@ type Gate func(ctx context.Context, tool, resource string, args json.RawMessage)
 //
 // The zero Policy allows everything, matching Policy's own zero value.
 func Authorize(ctx context.Context, p Policy, gate Gate, tool, resource string, args json.RawMessage) error {
+	if err := p.Validate(); err != nil {
+		return err
+	}
 	if tool == "" {
 		return nil
 	}

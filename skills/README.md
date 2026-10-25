@@ -4,13 +4,14 @@ Lean, checklist-style guides for THIS agent — not general documentation
 copied from elsewhere. Written for a small local model: short, directive,
 no prose padding, no theory.
 
-Convention: `skills/<name>/SKILL.md`. The workspace adds a bounded catalog of paths and descriptions to the initial
-context. Full guides are loaded through visible `read_file` calls only when
-relevant; the agent should name the skill it applies. No special tool is needed. Skills must exist
-in the task workspace: launching GEKTOR from this repository does not install
-these guides into a different workspace. Copy the relevant skills there if
-you want the agent to use them. Project/ancestor AGENTS.md instructions load
-automatically; SKILL.md is read by the model when relevant.
+Convention: `skills/<name>/SKILL.md`. The workspace adds a bounded metadata
+catalog to the initial context. Full guides load through visible `load_skill`
+calls by ID; workspace guides also work with `read_file`. The agent should name
+the skill it applies. User libraries and project directories are supported,
+with project guides overriding the same ID. Launching from this repository
+does not install its guides into another workspace. See
+[skill roots and precedence](../docs/extensions.md#skill-libraries).
+Project/ancestor AGENTS.md instructions load automatically.
 
 Baseline tool discipline lives in the system prompt. Skills cover
 task-specific workflows (git, dev servers, large builds, language quirks).

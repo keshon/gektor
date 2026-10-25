@@ -38,11 +38,36 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		return fmt.Errorf(`usage: gektor [flags] "task description"  (or  gektor -resume <state.json> [-answer "..."])`)
 	}
 
-	ws, wsErr := workspace.New(o.workspace)
+	if err := buildPolicy(o.allow, o.deny).Validate(); err != nil {
+		return err
+	}
+	if _, _, _, err := tools.ParseMCPFlag(o.mcp); err != nil {
+		return err
+	}
+	var capabilityConfig tools.CapabilityConfig
+	if o.capabilities != "" {
+		configPath, err := filepath.Abs(o.capabilities)
+		if err != nil {
+			return err
+		}
+		capabilityConfig, err = tools.LoadCapabilityConfig(configPath)
+		if err != nil {
+			return err
+		}
+	}
+	for _, pack := range capabilityConfig.Packs {
+		if pack.ID == "browser" && o.browser != "" {
+			return fmt.Errorf("capability ID browser is reserved while -browser is enabled")
+		}
+	}
+	skillRoots := append(workspace.DefaultSkillRoots(), capabilityConfig.SkillRoots...)
+	ws, wsErr := workspace.NewWithSkillRoots(o.workspace, skillRoots)
 	if wsErr != nil {
 		return fmt.Errorf("workspace: %w", wsErr)
 	}
 	defer ws.Close()
+	capabilities, closeCapabilities := tools.BuildCapabilities(capabilityConfig, ws.Root())
+	defer closeCapabilities()
 
 	// noteW is where human-readable chatter goes. In -mode json it is
 	// stderr, so stdout carries nothing but JSONL and a caller can pipe
@@ -209,14 +234,15 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			logMax:       o.logMax,
 			verifyCmd:    o.verifyCmd,
 
-			autoDeny:    o.yes,
-			auditPath:   o.auditPath,
-			allow:       o.allow,
-			deny:        o.deny,
-			backendKind: o.backendKind,
-			stream:      o.stream,
-			mcpTools:    mcpTools,
-			browser:     browser,
+			autoDeny:     o.yes,
+			auditPath:    o.auditPath,
+			allow:        o.allow,
+			deny:         o.deny,
+			backendKind:  o.backendKind,
+			stream:       o.stream,
+			mcpTools:     mcpTools,
+			browser:      browser,
+			capabilities: capabilities,
 		}, os.Stdin, os.Stdout, os.Stderr)
 		return ctx.Err()
 	}
@@ -253,6 +279,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		Stream:       streamEnabled(o.stream, o.outputMode, o.tui),
 		MCPTools:     mcpTools,
 		Browser:      browser,
+		Capabilities: capabilities,
 		// Direct runs fund acknowledged todo work with extra steps;
 		// -serve leaves this off until its budget story is decided.
 		OnDelta: func(chunk string) { fmt.Print(chunk) },

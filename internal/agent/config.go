@@ -6,6 +6,7 @@ import (
 
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/session"
 )
 
 // Config supplies capabilities, limits and observers for one run.
@@ -17,14 +18,16 @@ type Config struct {
 	Tools        *Registry
 	// RestoreTools restores optional capabilities from the complete archive
 	// before the first request, including when their activation was compacted.
-	RestoreTools  func(context.Context, []llm.Message) error
-	System        string
-	MaxSteps      int
-	MaxTokens     int
-	Temperature   float64
-	ContextLimit  int
-	StateFile     string
-	MutatingTools []string
+	RestoreTools        func(context.Context, []llm.Message) error
+	SaveCapabilities    func() []session.Capability
+	RestoreCapabilities func(context.Context, []session.Capability) error
+	System              string
+	MaxSteps            int
+	MaxTokens           int
+	Temperature         float64
+	ContextLimit        int
+	StateFile           string
+	MutatingTools       []string
 	// ReadOnly names the only tools this role may run. The registry still
 	// advertises the full set: a narrower one would change the prompt
 	// prefix, and a backend that caches prompts would then re-read the whole
@@ -33,6 +36,9 @@ type Config struct {
 	// the harness rather than by asking the model to hold back. Nil means
 	// unrestricted; a non-nil empty slice means nothing may run.
 	ReadOnly []string
+	// AllowReadOnlyExtensions lets Planner admit locally declared read-only tools.
+	// Other restricted roles retain the exact allowlist above.
+	AllowReadOnlyExtensions bool
 	// Directive is the harness turn that states this role's stance, and
 	// Supersedes is the stance turn it answers. A stance cannot live in
 	// System: System is the prompt's first message, so changing it when the

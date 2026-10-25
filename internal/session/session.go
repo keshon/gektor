@@ -23,6 +23,17 @@ type Snapshot struct {
 	Summary        string        `json:"summary,omitempty"`
 	SummaryRequest int           `json:"summary_request,omitempty"`
 	Runs           []Run         `json:"runs,omitempty"`
+	Capabilities   []Capability  `json:"capabilities,omitempty"`
+}
+
+// Capability preserves the advertised catalog without reconnecting on resume.
+// Definitions are compared to the current adapter before any tool executes.
+type Capability struct {
+	ID           string        `json:"id"`
+	Version      string        `json:"version"`
+	Fingerprint  string        `json:"fingerprint"`
+	Tools        []llm.ToolDef `json:"tools"`
+	Instructions string        `json:"instructions,omitempty"`
 }
 
 // Run identifies one execution in the full archive, independent of compaction.

@@ -20,6 +20,12 @@ Ancestor `AGENTS.md` files are explicit launch configuration; sessions and
 immutable image snapshots live in the application data directory. Those
 application-owned paths are separate from workspace file-tool access.
 
+Skill libraries are additional read roots. `load_skill` reads discovered guides
+and supporting files inside the selected package through its own `os.Root`;
+it does not widen ordinary workspace file tools. The CLI includes user skill
+directories and project directories; extra roots come from explicit capability
+configuration. See [Extensions](docs/extensions.md) for precedence.
+
 The default permission tripwires ask before process-kill commands such as
 `taskkill`, `Stop-Process`, `pkill` and `killall`, including direct program/args
 execution. These are operator checks, not a shell sandbox or an exhaustive
@@ -27,10 +33,19 @@ command parser. Agent-owned background jobs are stopped by their tracked id;
 the optional browser MCP uses an isolated profile instead of the user's profile.
 
 With `-browser`, activation through `enable_browser` may fetch the pinned
-Playwright MCP package into npm's cache if missing. Restoring an activated
-session can also prepare the package. Preparation is announced during activation
+Playwright MCP package into npm's cache if missing. Saved catalogs restore
+without connecting; preparation can occur on the first actual browser call.
+Older transcripts without saved catalogs can prepare during migration.
+Preparation is announced during activation
 and time-bounded.
 GEKTOR checks for Node/npm and the requested browser, but does not install them.
+
+Executable and MCP packs are selected explicitly with `-capabilities`. Loading
+a skill does not activate a pack. Each actual tool call is authorized under the
+current policy; saved activation never saves an approval. Locally configured
+`read_only` and `concurrent` declarations are trusted adapter metadata, not
+process containment. Executable adapters share native process environment
+scrubbing, output limits and process-tree cleanup.
 
 GEKTOR relies on trustworthy skills, extensions and repositories. Files like
 `SKILL.md`, `AGENTS.md` or comment instructions can prompt-inject the agent

@@ -1,1 +1,1 @@
-Prepare a patch release using the project's available process. The skill catalog has a multiline description; the trace must show that the skill was actually read. The workspace verdict checks VERSION and RELEASE.txt, rather than the assistant's claim.
+Prepare a patch release using the project's available process. The skill catalog has a multiline description; the trace must show a successful read_file or load_skill result containing the guide's actual approval instruction. The workspace verdict checks VERSION and RELEASE.txt, rather than the assistant's claim.
