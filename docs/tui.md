@@ -461,6 +461,17 @@ extractive checkpoint compaction the loop applies at its own threshold. The
 model receives a summary and retained tail. The full transcript remains
 available for reading and search; a marker reports the context reduction.
 
+Automatic model checkpoints retain the goal, decisions, completed work and
+remaining work (including blockers). User instructions are preserved verbatim
+in chronological order. The harness replaces model-written evidence with the
+latest six archived tool results, including failures and subsequent edits, with
+stable archive IDs. These are execution records, not a completion verdict.
+The agent can recover originals with `read_history`, either by `start` (archive
+ID) or a literal, case-insensitive `query`. Search returns bounded excerpts;
+`next_start` continues matching messages and `offset`/`next_offset` reads a long
+original message. Older evidence remains in the archive after it leaves the
+checkpoint.
+
 ## View menu
 
 The View menu splits into what the reader hides and what they can do,
