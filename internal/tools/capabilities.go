@@ -21,6 +21,7 @@ type Capability struct {
 	ID, Version, Description, Instructions, Source string
 	ReadOnly, Concurrent                           bool
 	ResourceField                                  string
+	ToolPolicies                                   map[string]ToolPolicy
 	Load                                           func(context.Context, func(string)) ([]agent.Tool, error)
 	mu                                             sync.Mutex
 	tools                                          []agent.Tool
@@ -55,6 +56,14 @@ func (c *Capability) load(ctx context.Context, note func(string)) ([]agent.Tool,
 		}
 		return nil, err
 	}
+	for name := range c.ToolPolicies {
+		if !check.Has(name) {
+			if c.Close != nil {
+				c.Close()
+			}
+			return nil, fmt.Errorf("capability %s policy names unknown tool %s", c.ID, name)
+		}
+	}
 	for _, tool := range list {
 		if err := agent.ValidateToolSchema(tool.Schema()); err != nil {
 			if c.Close != nil {
@@ -77,7 +86,8 @@ func catalogFingerprint(c *Capability, defs []llm.ToolDef) string {
 		Source, Version, Instructions, Resource string
 		ReadOnly, Concurrent                    bool
 		Tools                                   []llm.ToolDef
-	}{c.Source, c.Version, c.Instructions, c.ResourceField, c.ReadOnly, c.Concurrent, defs})
+		Policies                                map[string]ToolPolicy `json:"policies,omitempty"`
+	}{c.Source, c.Version, c.Instructions, c.ResourceField, c.ReadOnly, c.Concurrent, defs, c.ToolPolicies})
 	return fmt.Sprintf("%x", sha256.Sum256(data))
 }
 
@@ -225,25 +235,43 @@ func (t *capabilityTool) Name() string            { return t.def.Name }
 func (t *capabilityTool) Description() string     { return t.def.Description }
 func (t *capabilityTool) Schema() json.RawMessage { return t.def.Parameters }
 func (t *capabilityTool) Mode() agent.ToolMode {
-	if t.source.ReadOnly && t.source.Concurrent {
+	policy := t.source.ToolPolicies[t.Name()]
+	concurrent := t.source.Concurrent
+	if policy.Concurrent != nil {
+		concurrent = *policy.Concurrent
+	}
+	if t.ReadOnly() && concurrent {
 		return agent.Concurrent
 	}
 	return agent.Exclusive
 }
-func (t *capabilityTool) ReadOnly() bool { return t.source.ReadOnly }
+func (t *capabilityTool) ReadOnly() bool {
+	if value := t.source.ToolPolicies[t.Name()].ReadOnly; value != nil {
+		return *value
+	}
+	return t.source.ReadOnly
+}
 func (t *capabilityTool) Resources(args json.RawMessage) ([]string, error) {
-	if t.source.ResourceField == "" {
+	fields := t.source.ToolPolicies[t.Name()].ResourceFields
+	if fields == nil && t.source.ResourceField != "" {
+		fields = []string{t.source.ResourceField}
+	}
+	if len(fields) == 0 {
 		return nil, nil
 	}
 	var in map[string]json.RawMessage
 	if err := json.Unmarshal(args, &in); err != nil {
 		return nil, err
 	}
-	var value string
-	if err := json.Unmarshal(in[t.source.ResourceField], &value); err != nil || value == "" {
-		return nil, fmt.Errorf("capability resource %q must be a nonempty string", t.source.ResourceField)
+	resources := make([]string, 0, len(fields))
+	for _, field := range fields {
+		var value string
+		if err := json.Unmarshal(in[field], &value); err != nil || value == "" {
+			return nil, fmt.Errorf("capability resource %q must be a nonempty string", field)
+		}
+		resources = append(resources, value)
 	}
-	return []string{value}, nil
+	return resources, nil
 }
 func (t *capabilityTool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	return t.RunStreaming(ctx, args, nil)

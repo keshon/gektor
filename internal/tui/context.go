@@ -14,6 +14,7 @@ import (
 )
 
 type usageState struct {
+	breakdown  llm.ContextReport
 	source     string
 	at         time.Time
 	last       usageSnapshot

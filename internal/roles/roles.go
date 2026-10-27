@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/checks"
@@ -58,9 +59,10 @@ type Env struct {
 	Model  string
 	Stream bool
 
-	MaxSteps int
-	Inbox    *agent.Inbox
-	OnInput  func(llm.Message)
+	MaxSteps   int
+	RunTimeout time.Duration
+	Inbox      *agent.Inbox
+	OnInput    func(llm.Message)
 
 	// MCPTools are discovered MCP tools appended to the full tool set
 	// (Interactive, Subagent). Planner advertises them too, so that its
@@ -104,6 +106,7 @@ type Env struct {
 	// See agent.Config.OnUsage.
 	OnUsage    func(step int, usage llm.Usage)
 	OnProgress func(llm.Progress)
+	OnPrompt   func(llm.ContextReport)
 
 	// OnNudge receives loop-generated harness text (verify rounds,
 	// refusals, leak notices, wrap-ups, stuck escalations) tagged by
@@ -192,28 +195,32 @@ func (e Env) agentConfig(system, label, stateFile string) agent.Config {
 	if store == nil {
 		store = tools.NewOutputStore(e.statePath(stateFile))
 	}
+	project, skills := e.WS.InstructionSections()
+	core := system + "\n\n" + prompts.Environment(e.WS.Root(), e.Vision) + e.browserContext()
 	return agent.Config{
-		BeginChanges:  e.WS.ChangeObserver,
-		Client:        e.Client,
-		Inbox:         e.Inbox,
-		OnInput:       e.OnInput,
-		System:        system + "\n\n" + prompts.Environment(e.WS.Root(), e.Vision) + e.browserContext() + e.WS.Instructions() + "\n\n" + e.Identity,
-		MaxTokens:     e.MaxTokens,
-		Temperature:   e.Temperature,
-		ContextLimit:  e.ContextLimit,
-		StateFile:     e.statePath(stateFile),
-		OnStep:        e.onStep(label),
-		OnResult:      e.OnResult,
-		OnToolOutput:  e.OnToolOutput,
-		OnUsage:       e.OnUsage,
-		OnProgress:    e.OnProgress,
-		OnNudge:       e.OnNudge,
-		OnContext:     e.OnContext,
-		ToolContext:   func(ctx context.Context) context.Context { return tools.VisionContext(store.Context(ctx), e.Vision) },
-		LimitOutput:   tools.LimitOutput,
-		Notifications: e.Procs.Notifications,
-		Summarize:     true,
-		OnLocal:       e.OnLocal,
+		BeginChanges:   e.WS.ChangeObserver,
+		Client:         e.Client,
+		Inbox:          e.Inbox,
+		OnInput:        e.OnInput,
+		System:         core + project + skills + "\n\n" + e.Identity,
+		SystemSections: []llm.PromptSection{{Name: "core_instructions", Text: core}, {Name: "project_instructions", Text: project}, {Name: "skill_metadata", Text: skills}, {Name: "identity", Text: "\n\n" + e.Identity}},
+		OnPrompt:       e.OnPrompt,
+		MaxTokens:      e.MaxTokens,
+		Temperature:    e.Temperature,
+		ContextLimit:   e.ContextLimit,
+		StateFile:      e.statePath(stateFile),
+		OnStep:         e.onStep(label),
+		OnResult:       e.OnResult,
+		OnToolOutput:   e.OnToolOutput,
+		OnUsage:        e.OnUsage,
+		OnProgress:     e.OnProgress,
+		OnNudge:        e.OnNudge,
+		OnContext:      e.OnContext,
+		ToolContext:    func(ctx context.Context) context.Context { return tools.VisionContext(store.Context(ctx), e.Vision) },
+		LimitOutput:    tools.LimitOutput,
+		Notifications:  e.Procs.Notifications,
+		Summarize:      true,
+		OnLocal:        e.OnLocal,
 		Instructions: func(args json.RawMessage) (string, error) {
 			var in struct {
 				Path string `json:"path"`
@@ -279,6 +286,7 @@ func Subagent(e Env, role string) *agent.Agent {
 	cfg.OnStep, cfg.OnResult, cfg.OnUsage, cfg.OnNudge = nil, nil, nil, nil
 	cfg.OnToolOutput = nil
 	cfg.OnProgress = nil
+	cfg.OnPrompt = nil
 	cfg.OnContext, cfg.OnLocal, cfg.Notifications = nil, nil, nil
 	return agent.New(cfg)
 }
@@ -322,6 +330,7 @@ func (e Env) conversationConfig(label, stateFile string,
 	cfg := e.agentConfig(prompts.System+"\n\n"+prompts.PlatformLine(tools.ShellName()), label, stateFile)
 	e.configureTools(&cfg, extra...)
 	cfg.MaxSteps = e.MaxSteps
+	cfg.RunTimeout = e.RunTimeout
 	cfg.Verify = verify
 	cfg.Stream, cfg.OnDelta, cfg.OnReasoning = e.Stream, e.OnDelta, e.OnReasoning
 	return cfg
@@ -338,7 +347,7 @@ func (e Env) browserContext() string {
 }
 
 func (e Env) configureTools(cfg *agent.Config, extra ...agent.Tool) {
-	sources := append([]*tools.Capability(nil), e.Capabilities...)
+	sources := tools.WithBuiltinCapabilities(e.Capabilities)
 	if e.Browser != nil {
 		sources = append(sources, e.Browser.Capability())
 	}

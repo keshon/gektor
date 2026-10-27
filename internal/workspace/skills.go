@@ -264,16 +264,20 @@ func (w *Workspace) skillCatalog() string {
 	if len(entries) == 0 {
 		return "\n\nNo workspace skills found. Query system_info group=skills after adding packages."
 	}
-	header := "\n\nAvailable workspace skills (metadata only). Load the relevant guide with load_skill(id), or read workspace SKILL.md with read_file; briefly name the skill you use. Discover nested packages with system_info group=skills, filter, offset and limit:\n"
+	header := "\n\nSkills (ID: summary). Search full metadata with system_info group=skills; load instructions with load_skill(id):\n"
 	var b strings.Builder
 	for _, skill := range entries {
-		fmt.Fprintf(&b, "- %s", skill.Path)
+		fmt.Fprintf(&b, "- %s", skill.ID)
 		if skill.Description != "" {
-			fmt.Fprintf(&b, ": %s", strings.Join(strings.Fields(skill.Description), " "))
+			description := []rune(strings.Join(strings.Fields(skill.Description), " "))
+			if len(description) > 120 {
+				description = append(description[:117], '.', '.', '.')
+			}
+			fmt.Fprintf(&b, ": %s", string(description))
 		}
-		fmt.Fprintf(&b, " [id=%s]\n", skill.ID)
+		b.WriteByte('\n')
 	}
-	if b.Len() > 8192 {
+	if len(header)+b.Len() > 2048 {
 		return fmt.Sprintf("\n\n%d workspace skills discovered. Search metadata with system_info group=skills (filter, offset, limit); then load_skill by ID. Full guides are not loaded.", len(entries))
 	}
 	return header + b.String()

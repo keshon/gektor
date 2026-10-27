@@ -29,19 +29,9 @@ func (RunShell) Name() string { return "run_shell" }
 func (RunShell) Mode() agent.ToolMode { return agent.Exclusive }
 func (RunShell) Description() string {
 	if runtime.GOOS == "windows" {
-		return "Run a finite shell command inside the workspace using " + ShellName() + ". command is complete PowerShell source. " +
-			"Use it for builtins, pipelines, redirection and .cmd/.bat scripts. " +
-			"For native executables with literal arguments, use run_program instead. " +
-			"Use workdir for a workspace-relative working directory and timeout_seconds (1–600) to bound execution. " +
-			"Use file tools for listings, edits and moves; use start_background for servers and watchers. " +
-			"Returns exit_code and combined stdout/stderr; shell exit_code describes the whole command."
+		return "Run finite PowerShell source using " + ShellName() + ". For builtins, pipelines, redirection and scripts; prefer run_program for native executables. Servers use start_background. Returns whole-command exit_code and combined stdout/stderr."
 	}
-	return "Run a finite shell command inside the workspace. command is complete POSIX sh source. " +
-		"Use it for builtins, pipelines and redirection. " +
-		"For native executables with literal arguments, use run_program instead. " +
-		"Use workdir for a workspace-relative working directory and timeout_seconds (1–600) to bound execution. " +
-		"Use file tools for listings, edits and moves; use start_background for servers and watchers. " +
-		"Returns exit_code and combined stdout/stderr; shell exit_code describes the whole command."
+	return "Run finite POSIX sh source for builtins, pipelines, redirection and scripts; prefer run_program for native executables. Servers use start_background. Returns whole-command exit_code and combined stdout/stderr."
 }
 func (RunShell) Schema() json.RawMessage {
 	return shellSchema(true)
@@ -168,7 +158,8 @@ func scrubEnv(env []string) []string {
 		}
 		upper := strings.ToUpper(k)
 		if strings.Contains(upper, "API_KEY") || strings.Contains(upper, "APIKEY") ||
-			strings.Contains(upper, "AUTH_TOKEN") || strings.Contains(upper, "SECRET") {
+			strings.Contains(upper, "TOKEN") || strings.Contains(upper, "SECRET") ||
+			strings.Contains(upper, "PASSWORD") || strings.Contains(upper, "CREDENTIAL") || strings.Contains(upper, "COOKIE") {
 			continue
 		}
 		out = append(out, kv)

@@ -22,18 +22,27 @@ type CapabilityConfig struct {
 }
 
 type CapabilityPack struct {
-	ID             string              `json:"id"`
-	Version        string              `json:"version"`
-	Description    string              `json:"description"`
-	Instructions   string              `json:"instructions,omitempty"`
-	Type           string              `json:"type"`
-	Command        []string            `json:"command,omitempty"`
-	URL            string              `json:"url,omitempty"`
-	ReadOnly       bool                `json:"read_only,omitempty"`
-	Concurrent     bool                `json:"concurrent,omitempty"`
-	ResourceField  string              `json:"resource_field,omitempty"`
-	TimeoutSeconds int                 `json:"timeout_seconds,omitempty"`
-	Tools          []ExecutableToolDef `json:"tools,omitempty"`
+	ID             string                `json:"id"`
+	Version        string                `json:"version"`
+	Description    string                `json:"description"`
+	Instructions   string                `json:"instructions,omitempty"`
+	Type           string                `json:"type"`
+	Command        []string              `json:"command,omitempty"`
+	URL            string                `json:"url,omitempty"`
+	ReadOnly       bool                  `json:"read_only,omitempty"`
+	Concurrent     bool                  `json:"concurrent,omitempty"`
+	ResourceField  string                `json:"resource_field,omitempty"`
+	TimeoutSeconds int                   `json:"timeout_seconds,omitempty"`
+	Tools          []ExecutableToolDef   `json:"tools,omitempty"`
+	EnvRefs        map[string]string     `json:"env_refs,omitempty"`
+	ToolPolicies   map[string]ToolPolicy `json:"tool_policies,omitempty"`
+}
+
+// Keys in ToolPolicies are the full exposed names, as returned by activation.
+type ToolPolicy struct {
+	ReadOnly       *bool    `json:"read_only,omitempty"`
+	Concurrent     *bool    `json:"concurrent,omitempty"`
+	ResourceFields []string `json:"resource_fields,omitempty"`
 }
 
 type ExecutableToolDef struct {
@@ -81,6 +90,31 @@ func LoadCapabilityConfig(path string) (CapabilityConfig, error) {
 		if pack.Concurrent && !pack.ReadOnly {
 			return config, fmt.Errorf("capability %s concurrent requires read_only", pack.ID)
 		}
+		for key, ref := range pack.EnvRefs {
+			if !envIdentifier.MatchString(key) || !envIdentifier.MatchString(ref) {
+				return config, fmt.Errorf("capability %s env_refs requires environment variable names", pack.ID)
+			}
+		}
+		for name, policy := range pack.ToolPolicies {
+			if err := agent.ValidateToolName(name); err != nil {
+				return config, err
+			}
+			readOnly, concurrent := pack.ReadOnly, pack.Concurrent
+			if policy.ReadOnly != nil {
+				readOnly = *policy.ReadOnly
+			}
+			if policy.Concurrent != nil {
+				concurrent = *policy.Concurrent
+			}
+			if concurrent && !readOnly {
+				return config, fmt.Errorf("tool %s concurrent requires read_only", name)
+			}
+			for _, field := range policy.ResourceFields {
+				if field == "" {
+					return config, fmt.Errorf("tool %s has empty resource field", name)
+				}
+			}
+		}
 		switch pack.Type {
 		case "executable":
 			if len(pack.Command) == 0 || pack.Command[0] == "" || pack.URL != "" || len(pack.Tools) == 0 {
@@ -103,6 +137,9 @@ func LoadCapabilityConfig(path string) (CapabilityConfig, error) {
 				}
 			}
 		case "mcp":
+			if pack.URL != "" && len(pack.EnvRefs) > 0 {
+				return config, fmt.Errorf("capability %s: env_refs requires a subprocess", pack.ID)
+			}
 			if len(pack.Command) > 0 && pack.Command[0] == "" {
 				return config, fmt.Errorf("MCP capability %s command must not be empty", pack.ID)
 			}
@@ -141,6 +178,7 @@ func BuildCapabilities(config CapabilityConfig, dir string) ([]*Capability, func
 	for _, pack := range config.Packs {
 		encoded, _ := json.Marshal(pack)
 		source := &Capability{ID: pack.ID, Version: pack.Version, Description: pack.Description, Instructions: pack.Instructions, Source: string(encoded), ReadOnly: pack.ReadOnly, Concurrent: pack.Concurrent, ResourceField: pack.ResourceField}
+		source.ToolPolicies = pack.ToolPolicies
 		conn := &connection{source: source}
 		source.Close = func() {
 			if conn.close != nil {
@@ -167,7 +205,7 @@ func BuildCapabilities(config CapabilityConfig, dir string) ([]*Capability, func
 				}
 			} else {
 				var client *MCPClient
-				tools, client, err = StartMCP(ctx, pack.ID, dir, pack.Command[0], pack.Command[1:]...)
+				tools, client, err = startMCP(ctx, pack.ID, dir, pack.EnvRefs, pack.Command[0], pack.Command[1:]...)
 				if err == nil {
 					conn.close = client.Close
 				}
@@ -176,8 +214,8 @@ func BuildCapabilities(config CapabilityConfig, dir string) ([]*Capability, func
 				return nil, err
 			}
 			if pack.TimeoutSeconds > 0 {
-				for i, tool := range tools {
-					tools[i] = &timeoutTool{Tool: tool, timeout: time.Duration(pack.TimeoutSeconds) * time.Second}
+				for _, tool := range tools {
+					tool.(*MCPTool).timeout = time.Duration(pack.TimeoutSeconds) * time.Second
 				}
 			}
 			return tools, nil
@@ -191,21 +229,4 @@ func BuildCapabilities(config CapabilityConfig, dir string) ([]*Capability, func
 			conn.source.mu.Unlock()
 		}
 	}
-}
-
-type timeoutTool struct {
-	agent.Tool
-	timeout time.Duration
-}
-
-func (t *timeoutTool) Run(ctx context.Context, args json.RawMessage) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, t.timeout)
-	defer cancel()
-	return t.Tool.Run(ctx, args)
-}
-func (t *timeoutTool) Attach(args json.RawMessage) ([]string, error) {
-	if a, ok := t.Tool.(agent.Attacher); ok {
-		return a.Attach(args)
-	}
-	return nil, nil
 }

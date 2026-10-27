@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 )
 
 type evalMetadata struct {
+	DeadlineAware  bool   `json:"deadline_aware"`
 	Suite          string `json:"suite,omitempty"`
 	BackendKind    string `json:"backend_kind"`
 	Backend        string `json:"backend"`
@@ -33,6 +35,9 @@ type evalMetadata struct {
 	Arch           string `json:"arch"`
 	SourceRevision string `json:"source_revision,omitempty"`
 	SourceModified *bool  `json:"source_modified,omitempty"`
+	SourceSHA256   string `json:"source_sha256,omitempty"`
+	BuildRevision  string `json:"build_revision,omitempty"`
+	BuildModified  *bool  `json:"build_modified,omitempty"`
 	BinarySHA256   string `json:"binary_sha256"`
 	PromptsSHA256  string `json:"prompts_sha256"`
 	InputsSHA256   string `json:"inputs_sha256"`
@@ -54,9 +59,24 @@ func writeMeta(runDir string, meta evalMetadata, probes []Probe) error {
 	meta.PromptsSHA256 = prompts.Digest()
 	meta.Started = time.Now().Format(time.RFC3339)
 	meta.GoVersion, meta.OS, meta.Arch = runtime.Version(), runtime.GOOS, runtime.GOARCH
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			switch setting.Key {
+			case "vcs.revision":
+				meta.BuildRevision = setting.Value
+			case "vcs.modified":
+				modified := setting.Value == "true"
+				meta.BuildModified = &modified
+			}
+		}
+	}
 	// This is the source checkout, not a claim about a previously built binary.
 	if revision, err := exec.Command("git", "rev-parse", "HEAD").Output(); err == nil {
 		meta.SourceRevision = strings.TrimSpace(string(revision))
+		meta.SourceSHA256, err = sourceDigest()
+		if err != nil {
+			return fmt.Errorf("source identity: %w", err)
+		}
 		if status, err := exec.Command("git", "status", "--porcelain", "--untracked-files=normal").Output(); err == nil {
 			modified := len(status) > 0
 			meta.SourceModified = &modified

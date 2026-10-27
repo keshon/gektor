@@ -46,6 +46,10 @@ current policy; saved activation never saves an approval. Locally configured
 `read_only` and `concurrent` declarations are trusted adapter metadata, not
 process containment. Executable adapters share native process environment
 scrubbing, output limits and process-tree cleanup.
+Stdio MCP processes also scrub inherited credential variables. Explicit
+`env_refs` forward selected values only to the configured subprocess; catalogs
+persist variable references, not resolved credentials. Returned literal values
+are redacted, but adapters remain trusted code and must not disclose secrets.
 
 GEKTOR relies on trustworthy skills, extensions and repositories. Files like
 `SKILL.md`, `AGENTS.md` or comment instructions can prompt-inject the agent

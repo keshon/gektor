@@ -229,6 +229,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			procs:        bgProcs,
 			maxTokens:    o.maxTokens,
 			maxSteps:     o.maxSteps,
+			runTimeout:   o.runTimeout,
 			contextLimit: contextLimit,
 			vision:       vision,
 			logMax:       o.logMax,
@@ -271,6 +272,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		Temperature:  o.temperature,
 		ContextLimit: contextLimit,
 		MaxSteps:     o.maxSteps,
+		RunTimeout:   o.runTimeout,
 		Policy:       buildPolicy(o.allow, o.deny),
 		Vision:       vision,
 		GateContext:  audit.ContextHook(o.auditPath, "cli", permissionGateContext(o.yes, suspend, ws)),
@@ -297,6 +299,20 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			}
 		},
 		OnUsage: usagePrinter(o.outputMode, emitter),
+		OnPrompt: func(report llm.ContextReport) {
+			if o.outputMode == "json" {
+				emitter.Emit("prompt_budget", map[string]any{"report": report})
+				return
+			}
+			if report.Request == 1 && report.BackendTokens == 0 {
+				note("startup context: ~%d tokens (%d tool schemas); estimates exclude backend template/tokenization", report.EstimatedTokens, len(report.Tools))
+				for _, section := range report.Sections {
+					if section.EstimatedTokens > 0 {
+						note("  %s: ~%d", section.Name, section.EstimatedTokens)
+					}
+				}
+			}
+		},
 		Rules:   rules,
 		Checks:  checks.NewReporter(rules, findingSink(emitter, o.outputMode)),
 		OnNudge: nudgePrinter(o.outputMode),
@@ -388,6 +404,9 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 
 	defer func() {
 		r := a.Report()
+		if r.Summary != "" {
+			note("%s", r.Summary)
+		}
 		// Deep pass over everything the run changed, catching writes no
 		// tool reported: shell redirections, MCP, background jobs.
 		env.Sweep(r.MutatedPaths)

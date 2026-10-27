@@ -301,6 +301,25 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "context":
 		rows := []string{"Context: " + strings.Replace(m.meter(), "ctx ", "", 1), "Source: " + nonEmpty(m.usage.source)}
+		if report := m.usage.breakdown; report.EstimatedTokens > 0 {
+			rows = append(rows, fmt.Sprintf("Request estimate: ~%d tokens", report.EstimatedTokens))
+			for _, section := range report.Sections {
+				if section.EstimatedTokens > 0 {
+					rows = append(rows, fmt.Sprintf("  %s: ~%d", section.Name, section.EstimatedTokens))
+				}
+			}
+			rows = append(rows, "Largest tool schemas (estimates):")
+			for _, tool := range report.Tools[:min(5, len(report.Tools))] {
+				rows = append(rows, fmt.Sprintf("  %s: ~%d", tool.Name, tool.EstimatedTokens))
+			}
+			if report.BackendTokens > 0 {
+				kind := "measured"
+				if report.BackendEstimated {
+					kind = "estimated"
+				}
+				rows = append(rows, fmt.Sprintf("Backend prompt: %d (%s); cached: %d (still occupies context)", report.BackendTokens, kind, report.CachedTokens))
+			}
+		}
 		if !m.usage.at.IsZero() {
 			rows = append(rows, "Measured: "+m.usage.at.Format("15:04:05"))
 		}

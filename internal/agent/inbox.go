@@ -87,6 +87,7 @@ func (a *Agent) acceptInputs(history []llm.Message, inputs []llm.Message, st *ru
 	}
 	history = append(history, inputs...)
 	st.repeatSignature, st.repeatCount = "", 0
+	st.observations, st.observationWarning = nil, false
 	st.emptyFinishRetried = false
 	a.saveState(history)
 	for _, input := range inputs {

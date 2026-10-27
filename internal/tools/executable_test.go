@@ -22,6 +22,8 @@ func TestExecutableProtocolHelper(t *testing.T) {
 	}
 	data, _ := io.ReadAll(os.Stdin)
 	switch mode {
+	case "credentials":
+		_ = json.NewEncoder(os.Stdout).Encode(map[string]any{"output": os.Getenv("READER_TOKEN") + os.Getenv("UNRELATED_API_KEY")})
 	case "echo":
 		var request struct {
 			Tool      string            `json:"tool"`

@@ -33,7 +33,7 @@ func TestNestedSkillDiscoveryAndBoundedCatalog(t *testing.T) {
 		t.Fatal(list[79])
 	}
 	got := w.Instructions()
-	if !strings.Contains(got, "80 workspace skills") || !strings.Contains(got, "group=skills") || strings.Contains(got, "PRIVATE GUIDE") || len(got) > 8192 {
+	if !strings.Contains(got, "80 workspace skills") || !strings.Contains(got, "group=skills") || strings.Contains(got, "PRIVATE GUIDE") || len(got) > 2048 {
 		t.Fatal(got)
 	}
 	// Discovery is live; the cached prompt remains stable.
@@ -63,7 +63,7 @@ func TestSkillCatalogLoadsMetadataNotInstructions(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := w.Instructions()
-	if !strings.Contains(got, "skills/custom/SKILL.md: Inspect widgets.") || strings.Contains(got, "PRIVATE FULL GUIDE") {
+	if !strings.Contains(got, "custom: Inspect widgets.") || strings.Contains(got, "PRIVATE FULL GUIDE") {
 		t.Fatal(got)
 	}
 	// The catalog stays stable within a workspace lifetime (prompt cache).
@@ -72,5 +72,33 @@ func TestSkillCatalogLoadsMetadataNotInstructions(t *testing.T) {
 	}
 	if w.Instructions() != got {
 		t.Fatal("catalog changed")
+	}
+}
+
+func TestCompactSkillCatalogRetainsFullSearchMetadata(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "skills", "reader")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	description := strings.Repeat("word ", 80) + "TAIL_KEYWORD"
+	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("---\nname: reader\ndescription: "+description+"\n---\nFULL GUIDE"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	w, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	if strings.Contains(w.Instructions(), "TAIL_KEYWORD") || !strings.Contains(w.Instructions(), "reader:") || len(w.Instructions()) > 2048 {
+		t.Fatal(w.Instructions())
+	}
+	entries, err := w.Skills()
+	if err != nil || len(entries) != 1 || entries[0].Description != description {
+		t.Fatal(entries, err)
+	}
+	_, guide, _, err := w.LoadSkill("reader")
+	if err != nil || !strings.Contains(guide, "FULL GUIDE") || !strings.Contains(guide, "TAIL_KEYWORD") {
+		t.Fatal(guide, err)
 	}
 }

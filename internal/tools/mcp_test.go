@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -60,7 +61,12 @@ func serveFakeMCP(r io.Reader, w io.Writer) {
 			if p.Name == "boom" {
 				respond(req.ID, `{"content":[{"type":"text","text":"kaput"}],"isError":true}`)
 			} else {
-				respond(req.ID, `{"content":[{"type":"text","text":"hello from fake"}]}`)
+				if os.Getenv("GEKTOR_MCP_ENV_TEST") == "1" {
+					data, _ := json.Marshal(map[string]any{"content": []map[string]string{{"type": "text", "text": os.Getenv("READER_TOKEN") + os.Getenv("UNRELATED_API_KEY")}}})
+					respond(req.ID, string(data))
+				} else {
+					respond(req.ID, `{"content":[{"type":"text","text":"hello from fake"}]}`)
+				}
 			}
 		}
 	}

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -70,6 +71,28 @@ func (st *runState) trackSignature(signature string) int {
 // noteMutation clears repetition after a potentially mutating action.
 func (st *runState) noteMutation() {
 	st.repeatSignature, st.repeatCount = "", 0
+	st.observations = nil
+}
+
+// Diagnostic only: polling and useful rereads can legitimately repeat results.
+func (a *Agent) noteObservation(st *runState, name string, args json.RawMessage, output string) {
+	signature := sha256.Sum256([]byte(callKey(name, args) + "\x00" + output))
+	st.observations = append(st.observations, signature)
+	if len(st.observations) > 8 {
+		st.observations = st.observations[1:]
+	}
+	duplicates := 0
+	seen := map[[32]byte]bool{}
+	for _, item := range st.observations {
+		if seen[item] {
+			duplicates++
+		}
+		seen[item] = true
+	}
+	if duplicates >= 4 && !st.observationWarning {
+		st.observationWarning = true
+		a.report.Warnings = append(a.report.Warnings, "Repeated tool observations in the last 8 calls; inspect for polling or investigation without new evidence. Diagnostic only; execution was not stopped.")
+	}
 }
 
 // knownTools is the set of tool names the model was offered, for the leak

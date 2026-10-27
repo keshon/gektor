@@ -46,12 +46,7 @@ type ReadFile struct {
 
 func (ReadFile) Name() string { return "read_file" }
 func (ReadFile) Description() string {
-	return "Read a text file. Returns a FILE header (path, size, lines, truncated, binary) and the " +
-		"content. Use offset (1-based first line) and limit (number of lines) for a section; omit both for a normal read. max_bytes is an optional byte cap, NOT a line count. Set metadata_only=true for file size or " +
-		"type checks without loading content into context. For a truncated line, continue from the returned byte_offset " +
-		"(an absolute offset in decoded UTF-8 text with CRLF normalized to LF). Do not combine byte_offset with offset. " +
-		"Reading a picture (png, jpg, jpeg, webp, gif, bmp) attaches the image itself when the backend is vision-capable; " +
-		"paging arguments do not apply to pictures."
+	return "Read text with a FILE metadata header. Page by offset+limit (lines) or the returned normalized UTF-8 byte_offset; never combine offset with byte_offset. max_bytes caps bytes, not lines. metadata_only returns the header. Pictures attach only with image input enabled; paging does not apply."
 }
 func (ReadFile) Mode() agent.ToolMode { return agent.Concurrent }
 
@@ -98,19 +93,19 @@ func (ReadFile) Schema() json.RawMessage {
 		"type": "object",
 		"properties": {
 			"path": {"type": "string"},
-			"limit": {"type":"integer","minimum":1,"maximum":10000,"description":"Number of lines to return from offset; output still has a 48 KiB safety cap"},
+			"limit": {"type":"integer","minimum":1,"maximum":10000,"description":"Lines from offset; output capped at 48 KiB"},
 			"metadata_only": {
 				"type": "boolean",
-				"description": "if true, return only the FILE header (size, truncated, binary) with no body"
+				"description": "Header only; omit content"
 			},
 			"max_bytes": {
 				"type": "integer",
-				"description": "content byte cap, NOT a line count; omit or 0 for the default 48 KiB cap"
+				"description": "Byte cap; omit or 0 for 48 KiB"
 			},
-			"byte_offset": {"type":"integer","minimum":0,"description":"absolute normalized UTF-8 byte position; use the continuation value returned by a truncated read"},
+			"byte_offset": {"type":"integer","minimum":0,"description":"Normalized UTF-8 continuation position returned by a truncated read"},
 			"offset": {
 				"type": "integer",
-				"description": "1-based first line to return; omit or 0 to start at the top. Use with the lines: count from a truncated read to page past it"
+				"description": "First line, 1-based; omit or 0 for start"
 			}
 		},
 		"required": ["path"]

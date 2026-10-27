@@ -172,11 +172,31 @@ type countingClient struct {
 	// much is boilerplate the harness sends on every call.
 	floorPrompt                                  int64
 	promptTokens, cachedTokens, completionTokens int64
+	mu                                           sync.Mutex
+	timings                                      []requestTiming
 }
 
 func (c *countingClient) Chat(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
+	started := time.Now()
+	var first atomic.Int64
+	progress := req.OnProgress
+	req.OnProgress = func(p llm.Progress) {
+		if p.CompletionTokens > 0 {
+			first.CompareAndSwap(0, time.Since(started).Nanoseconds())
+		}
+		if progress != nil {
+			progress(p)
+		}
+	}
 	atomic.AddInt64(&c.calls, 1)
 	resp, err := c.inner.Chat(ctx, req)
+	timing := requestTiming{Seconds: time.Since(started).Seconds(), FirstTokenSeconds: time.Duration(first.Load()).Seconds(), FinishReason: resp.FinishReason, PromptTokens: resp.Usage.PromptTokens, CompletionTokens: resp.Usage.CompletionTokens}
+	if err != nil {
+		timing.Error = firstLine(err.Error())
+	}
+	c.mu.Lock()
+	c.timings = append(c.timings, timing)
+	c.mu.Unlock()
 	atomic.AddInt64(&c.promptTokens, int64(resp.Usage.PromptTokens))
 	atomic.AddInt64(&c.cachedTokens, int64(resp.Usage.CachedTokens))
 	atomic.AddInt64(&c.completionTokens, int64(resp.Usage.CompletionTokens))
@@ -236,17 +256,26 @@ func gitInit(dir string) error {
 }
 
 type Result struct {
-	Probe            string         `json:"probe"`
-	Run              int            `json:"run"`
-	Passed           bool           `json:"passed"`
-	Steps            int            `json:"steps"`
-	Seconds          float64        `json:"seconds"`
-	ModelCalls       int64          `json:"model_calls"`
-	PromptTokens     int64          `json:"prompt_tokens"`
-	CachedTokens     int64          `json:"cached_tokens"`
-	CompletionTokens int64          `json:"completion_tokens"`
-	FirstToolSeconds float64        `json:"first_tool_seconds,omitempty"`
-	ToolFailures     map[string]int `json:"tool_failures,omitempty"`
+	Probe            string            `json:"probe"`
+	Run              int               `json:"run"`
+	Passed           bool              `json:"passed"`
+	Steps            int               `json:"steps"`
+	Seconds          float64           `json:"seconds"`
+	ModelCalls       int64             `json:"model_calls"`
+	PromptTokens     int64             `json:"prompt_tokens"`
+	CachedTokens     int64             `json:"cached_tokens"`
+	CompletionTokens int64             `json:"completion_tokens"`
+	FirstToolSeconds float64           `json:"first_tool_seconds,omitempty"`
+	RunSeconds       float64           `json:"run_seconds"`
+	CheckSeconds     float64           `json:"check_seconds"`
+	ArtifactPassed   *bool             `json:"artifact_passed,omitempty"`
+	ArtifactFailures []string          `json:"artifact_failures,omitempty"`
+	Requests         []requestTiming   `json:"requests,omitempty"`
+	Warnings         []string          `json:"warnings,omitempty"`
+	Summary          string            `json:"incomplete_summary,omitempty"`
+	StartupContext   llm.ContextReport `json:"startup_context"`
+	ToolSeconds      float64           `json:"tool_seconds"`
+	ToolFailures     map[string]int    `json:"tool_failures,omitempty"`
 
 	// Errored means the run never reached the model — a dead backend, a
 	// bad seed path — so it says nothing about the agent and must not be
@@ -314,6 +343,7 @@ func main() {
 		"proves very little")
 	outDir := flag.String("out", "eval/results", "directory for results.jsonl and per-run traces")
 	maxTokens := flag.Int("max-tokens", 8192, "generation budget per response")
+	deadlineAware := flag.Bool("deadline-aware", false, "reserve part of each probe timeout for a tool-free incomplete-work report")
 	dry := flag.Bool("dry", false, "load and validate every probe, then exit — checking a probe "+
 		"should not cost a model round-trip")
 	dry_ := flag.Bool("dry-sampler", false, "enable the DRY sampler — off by default because it "+
@@ -449,7 +479,8 @@ func main() {
 		BackendKind: probe.Backend(), Backend: *backend, Model: backendModel,
 		ContextLimit: contextLimit, Jobs: *jobsN, MaxTokens: *maxTokens,
 		Runs: *runs, DrySampler: *dry_,
-		Suite: *suite,
+		DeadlineAware: *deadlineAware,
+		Suite:         *suite,
 	}, probes); err != nil {
 		log.Fatalf("record experiment metadata: %v", err)
 	}
@@ -515,7 +546,7 @@ func main() {
 		fmt.Printf("  ....  %-22s run %d  started\n", j.probe.Name, j.run)
 		mu.Unlock()
 		record(runOnce(ctx, j.probe, j.run, runDir, *backendKind, *backend, *model,
-			contextLimit, *maxTokens, *dry_, *apiKey, *apiKeyEnv))
+			contextLimit, *maxTokens, *dry_, *apiKey, *apiKeyEnv, *deadlineAware))
 	}
 
 	// Exclusive probes first and alone: one that binds a fixed port
@@ -604,7 +635,7 @@ func osSkipReason(oses []string) (bool, string) {
 }
 
 func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend, model string,
-	contextLimit, maxTokens int, drySampler bool, apiKey, apiKeyEnv string) (res Result) {
+	contextLimit, maxTokens int, drySampler bool, apiKey, apiKeyEnv string, deadlineAware bool) (res Result) {
 
 	res = Result{Probe: p.Name, Run: run, Errored: true}
 	started := time.Now()
@@ -710,6 +741,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 		res.Nudges = append(res.Nudges, kind)
 	})
 	env.OnResult = func(result agent.ToolResult) {
+		res.ToolSeconds += result.Duration.Seconds()
 		recordToolResult(calls, result)
 		if res.FirstToolSeconds == 0 {
 			res.FirstToolSeconds = time.Since(started).Seconds()
@@ -719,6 +751,14 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 				res.ToolFailures = map[string]int{}
 			}
 			res.ToolFailures[result.Status]++
+		}
+	}
+	if deadlineAware {
+		env.RunTimeout = timeout
+	}
+	env.OnPrompt = func(report llm.ContextReport) {
+		if report.Request == 1 {
+			res.StartupContext = report
 		}
 	}
 	replyIndex := 0
@@ -731,7 +771,11 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 		return "This is an automated evaluation run; no human is available. " +
 			"State your assumption and proceed with the smallest reasonable action.", nil
 	}, nil)
+	runStarted := time.Now()
 	final, err := a.Run(runCtx, p.Task)
+	res.RunSeconds = time.Since(runStarted).Seconds()
+	res.Warnings, res.Summary = a.Report().Warnings, a.Report().Summary
+	res.Requests = counter.timings
 	res.Errored = !counter.reached() && !p.InjectOverflowOnce
 	answer = final
 	if err != nil {
@@ -760,7 +804,12 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 		res.Failures = append(res.Failures, "run did not complete: "+res.RunError)
 	}
 
-	res.Failures = append(res.Failures, checkWorkspace(runCtx, p, ws)...)
+	checkStarted := time.Now()
+	res.ArtifactFailures = checkArtifacts(ctx, p, ws)
+	artifactPassed := len(res.ArtifactFailures) == 0
+	res.ArtifactPassed = &artifactPassed
+	res.CheckSeconds = time.Since(checkStarted).Seconds()
+	res.Failures = append(res.Failures, res.ArtifactFailures...)
 	res.Failures = append(res.Failures, checkTrace(p, calls)...)
 	res.Failures = append(res.Failures, checkAnswer(p, answer)...)
 
@@ -875,7 +924,7 @@ func checkTrace(p Probe, calls []call) []string {
 		switch tc.Mode {
 		case "required":
 			if matched == 0 {
-				out = append(out, describe(tc, "never called"))
+				out = append(out, describe(tc, "no call matched the required arguments, result and success criteria"))
 			}
 		case "forbidden":
 			if matched > 0 {

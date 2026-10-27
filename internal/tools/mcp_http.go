@@ -16,11 +16,6 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 )
 
-// httpMCPTimeout bounds one HTTP exchange. Streamable HTTP is
-// request/response per call (no persistent stream), so this is a plain
-// per-call deadline, not a session lifetime.
-const httpMCPTimeout = 60 * time.Second
-
 // httpMCPClient speaks JSON-RPC 2.0 to one MCP server over Streamable
 // HTTP: each call is a POST; the answer is a single JSON object or an
 // SSE stream of `data:` lines. No subprocess, so no restart: every call
@@ -78,7 +73,8 @@ func StartMCPHTTP(ctx context.Context, server, rawURL string) ([]agent.Tool, *ht
 	c := &httpMCPClient{
 		server: server,
 		url:    clean,
-		http:   &http.Client{Timeout: httpMCPTimeout},
+		// Discovery, calls, notifications and Close each own their context deadline.
+		http: &http.Client{},
 	}
 	var initResult struct {
 		ServerInfo struct {

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -450,6 +451,12 @@ func (m *model) handleEvent(ev run.Event) {
 			m.appendBlock(contextBlock(llm.Message{Role: llm.Role(role), Content: text, Request: int(request)}))
 		}
 		m.refreshContent()
+	case "prompt_budget":
+		data, err := json.Marshal(ev.Fields["report"])
+		var report llm.ContextReport
+		if err == nil && json.Unmarshal(data, &report) == nil {
+			m.usage.breakdown = report
+		}
 	case "usage":
 		if p, ok := ev.Fields["prompt"].(float64); ok && int(p) > 0 {
 			completion, _ := ev.Fields["completion"].(float64)

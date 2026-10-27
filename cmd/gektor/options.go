@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/llm"
@@ -16,9 +17,11 @@ type launchOptions struct {
 	model         string
 	workspace     string
 	debug         bool
+	contextReport bool
 	grammar       bool
 	maxTokens     int
 	maxSteps      int
+	runTimeout    time.Duration
 	resume        string
 	answer        string
 	verifyCmd     string
@@ -62,6 +65,7 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 		"whatever weights they started with), required for remote providers")
 	flags.StringVar(&o.workspace, "workspace", ".", "workspace root the agent may read/write")
 	flags.BoolVar(&o.debug, "debug", false, "log raw request/response JSON to agent-debug.log")
+	flags.BoolVar(&o.contextReport, "context-report", false, "print a fresh-run context estimate as JSON and exit without contacting the backend or starting adapters")
 	flags.BoolVar(&o.grammar, "grammar", true, "apply the backend's own content grammar. On koboldcpp "+
 		"that blocks a model writing its native tool-call tags as plain text; on llama-server there "+
 		"is none, because those tags are the protocol there and constraining them fights the "+
@@ -72,6 +76,7 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 		"Applies to direct runs; subagents keep fixed budgets")
 	flags.StringVar(&o.resume, "resume", "", "path to a .gektor/tasks/.../state.json snapshot to resume "+
 		"an interrupted run from, instead of starting a new task")
+	flags.DurationVar(&o.runTimeout, "run-timeout", 0, "total run duration, including a short tool-free closing phase (e.g. 5m); 0 disables")
 	flags.StringVar(&o.answer, "answer", "", "answer to supply when resuming a run paused on ask_user "+
 		"(use with -resume when the agent stopped to ask a clarifying question)")
 	flags.StringVar(&o.verifyCmd, "verify-cmd", "", "final verification command (e.g. \"go test ./...\"); "+
@@ -116,6 +121,9 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	}
 	if o.browser != "" && o.browser != "chrome" && o.browser != "msedge" {
 		return launchOptions{}, fmt.Errorf("-browser must be chrome or msedge")
+	}
+	if o.runTimeout < 0 {
+		return launchOptions{}, fmt.Errorf("-run-timeout must not be negative")
 	}
 	o.explicitFlags = map[string]bool{}
 	flags.Visit(func(f *flag.Flag) {

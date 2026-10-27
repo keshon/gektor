@@ -78,6 +78,45 @@ read-only pack can run in Plan; Plan does not activate new packs. Discovery
 and skill loading work in Plan. Concurrent execution requires `read_only`.
 These declarations do not sandbox processes; use them for trusted adapters.
 
+Mixed packs can override policy per exposed tool name:
+
+```json
+"tool_policies": {
+  "mcp__social__read_post": {
+    "read_only": true,
+    "concurrent": true,
+    "resource_fields": ["url"]
+  },
+  "mcp__social__copy_post": {
+    "resource_fields": ["source", "destination"]
+  }
+}
+```
+
+Unspecified values inherit the pack defaults. `resource_fields` names top-level
+string arguments; every selected resource is authorized before execution.
+An empty array clears the inherited resource selection. Unknown tool names
+fail activation. Policy changes require a new session, like other catalog changes.
+
+For subprocess credentials, use references rather than values:
+
+```json
+"env_refs": {"READER_TOKEN": "MY_READER_TOKEN"}
+```
+
+The destination variable is provided only to that adapter. References resolve
+when an executable runs or an MCP process connects; missing values fail that
+operation. MCP restarts reuse its connection's resolved environment. Restart
+the host to rotate credentials. HTTP MCP packs do not accept `env_refs`; the
+service owns its authentication. Executable and stdio MCP processes both use
+the native scrubbed environment plus explicit references. Known credential
+values are redacted from returned text and errors; adapters must still avoid
+logging secrets or returning encoded/transformed credentials. This is not process isolation.
+
+MCP calls default to 60 seconds; `timeout_seconds` overrides that limit up to
+600 seconds and parent cancellation always wins. Initial MCP discovery has a
+separate 20-second limit.
+
 `resource_field` selects a nonempty string argument for permission matching.
 For example, `-deny "cap__widgets__*=private-*"` blocks matching widget keys.
 `-deny "enable_capability=widgets"` blocks activation. Tool patterns accept
@@ -111,6 +150,28 @@ Stdout is limited to 1 MiB, stderr to 8 KiB, and model output to 48 KiB with
 the normal output store. Cancellation stops the process tree. Executables
 inherit the same credential-scrubbed environment as native process tools.
 
+## Built-in social reader
+
+The `social` capability is compiled into Gektor. It needs no extra executable
+or configuration file. Discover it, enable `social`, then call
+`cap__social__read_post` with an HTTPS X/Twitter post URL. Discovery and
+activation make no network requests. Until activation, its tool schema and
+instructions do not enter the prompt. A configured pack with ID `social`
+replaces the built-in provider.
+
+The reader uses the [FxTwitter Status Fetch API](https://github.com/FxEmbed/FxEmbed/wiki/Status-Fetch-API).
+The requested post ID is sent to that third-party service. Results contain
+canonical URL, author, text, dates, media references and retrieval status.
+Media is not downloaded. Requests have a 20-second deadline and a 2 MiB
+response limit; normalized output is bounded to 40 KiB. Restricted, missing,
+transient, unsupported, malformed and truncated results fail the tool while
+retaining available structured evidence. Cancellation remains cancellation.
+
+This provider supports public single posts, not Instagram, private posts,
+full threads or replies. It requires no API key. Upstream availability is not
+guaranteed. Older sessions using the standalone example must start a new
+session to adopt the native provider's catalog.
+
 Compiled Go integrations supply a capability loader returning tools through
 the existing agent tool interface. They share activation, persistence,
 permissions and catalog validation with executable and MCP adapters.
@@ -135,6 +196,10 @@ digits and single hyphens, with a maximum of 64 characters. Descriptions retain
 up to 1024 characters, including YAML quoted and multiline values. Legacy guides
 without a name use their package path as an ID. Frontmatter is limited to 16 KiB.
 Only metadata enters the bounded initial catalog.
+
+The initial catalog uses IDs and descriptions shortened to 120 characters.
+If the list exceeds 2 KiB, only discovery instructions and the count enter the
+prompt. Full metadata remains searchable through `system_info group=skills`.
 
 `system_info` with `group=skills` searches live metadata. `load_skill` with `id`
 returns the full guide, source, base directory and SHA-256 digest. Supporting

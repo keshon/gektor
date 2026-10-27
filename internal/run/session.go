@@ -112,6 +112,13 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, rol
 	prevTypedResult := env.OnResult
 	prevOnUsage := env.OnUsage
 	prevOnProgress := env.OnProgress
+	prevOnPrompt := env.OnPrompt
+	env.OnPrompt = func(report llm.ContextReport) {
+		emitter.Emit("prompt_budget", map[string]any{"report": report})
+		if prevOnPrompt != nil {
+			prevOnPrompt(report)
+		}
+	}
 	env.OnProgress = func(p llm.Progress) {
 		emitter.Emit("progress", map[string]any{"phase": p.Phase, "prompt": p.PromptTokens, "completion": p.CompletionTokens, "cached": p.CachedTokens, "processed": p.ProcessedTokens, "estimated": p.Estimated, "detail": p.Detail})
 		if prevOnProgress != nil {
@@ -261,7 +268,7 @@ func EmitOutcome(e *events.Emitter, r agent.RunReport, stateFile string) {
 	if e == nil {
 		return
 	}
-	e.Emit("outcome", map[string]any{"outcome": r.Outcome, "files": r.MutatedPaths, "verification": r.Verification, "warnings": r.Warnings, "resume": stateFile, "open_todos": r.OpenTodos})
+	e.Emit("outcome", map[string]any{"outcome": r.Outcome, "files": r.MutatedPaths, "verification": r.Verification, "warnings": r.Warnings, "resume": stateFile, "open_todos": r.OpenTodos, "summary": r.Summary})
 }
 
 // EmitStep writes one step for the CLI and session driver. harnessReply

@@ -29,11 +29,7 @@ func (GrepFiles) Mode() agent.ToolMode { return agent.Concurrent }
 
 // Idempotent: a search returns the same matches until something mutates.
 func (GrepFiles) Description() string {
-	return "Search a file or directory (recursive) for a Go regex pattern, or exact text with literal=true. Explicit files and ignored directory roots are searched even when Git ignores them. Returns " +
-		"path:line:content for each match, capped at 200 matches; long lines are truncated. " +
-		"before_context and after_context add up to 10 surrounding lines each; context uses path-line-content. Overlapping windows are merged and total output is bounded. " +
-		"Binary files (compiled executables, images, etc) are skipped automatically. Use this " +
-		"instead of read_file-ing many files just to find where something is."
+	return "Search recursively with a Go regex, or exact text with literal=true. Returns path:line:content, at most 200 matches; truncates long lines and skips binaries. Context windows merge. Explicit files and directory roots are searched even if ignored."
 }
 func (GrepFiles) Schema() json.RawMessage {
 	return json.RawMessage(`{

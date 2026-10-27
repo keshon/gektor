@@ -64,6 +64,27 @@ binary digest identifies what actually ran. Metadata write failures stop the
 evaluation before solver calls. These fields identify experiments; they do not
 enable result caching or guarantee deterministic model sampling.
 
+`source_sha256` includes tracked and untracked Go source contents and module
+files, including dirty changes. `build_revision` and `build_modified`, when
+embedded by Go, identify the binary's build checkout separately from the
+checkout present at evaluation time.
+
+Results separate `run_seconds` from `check_seconds`. Artifact checks have a
+fresh two-minute budget after the agent ends, while parent cancellation still
+stops them. `artifact_passed` and `artifact_failures` describe resulting files;
+an interrupted agent remains a failed run even if those checks pass. `requests`
+records duration, tokens, finish reason and error for each backend attempt.
+First-token timing appears only when incremental generation progress is reported.
+`startup_context` records the first request's section/tool estimates and any
+backend-reported prompt/cached counts. Estimates do not include backend-specific
+chat-template/tokenizer differences; cached tokens still occupy context.
+`tool_seconds` sums tool execution durations; concurrent durations can overlap.
+
+Use `-deadline-aware` for a controlled comparison of the agent's completion
+budget. It reserves part of the existing probe timeout for a tool-free report;
+it does not extend the timeout. Metadata records this switch. Repeated-observation
+warnings are diagnostics and do not stop execution or add model turns.
+
 CLI, TUI first-run settings and this runner default to llama.cpp at
 `http://127.0.0.1:8080`. On Windows, `scripts\eval-run.cmd` forwards flags to
 `go run ./cmd/eval`; it does not read `.env`. For another endpoint, pass

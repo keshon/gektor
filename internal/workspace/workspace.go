@@ -13,10 +13,11 @@ import (
 )
 
 type Workspace struct {
-	files        *os.Root
-	root         string
-	instructions string
-	skillRoots   []string
+	files         *os.Root
+	root          string
+	instructions  string
+	skillMetadata string
+	skillRoots    []string
 }
 
 func New(root string) (*Workspace, error) {
@@ -72,7 +73,8 @@ func NewWithSkillRoots(root string, skillRoots []string) (*Workspace, error) {
 		}
 		w.instructions += "\n\nProject instructions (" + path + "):\n" + string(data)
 	}
-	w.instructions += w.skillCatalog()
+	w.skillMetadata = w.skillCatalog()
+	w.instructions += w.skillMetadata
 	ready = true
 	return w, nil
 }
@@ -125,4 +127,11 @@ func (w *Workspace) Instructions() string {
 		return ""
 	}
 	return w.instructions
+}
+
+func (w *Workspace) InstructionSections() (project, skills string) {
+	if w == nil {
+		return "", ""
+	}
+	return strings.TrimSuffix(w.instructions, w.skillMetadata), w.skillMetadata
 }

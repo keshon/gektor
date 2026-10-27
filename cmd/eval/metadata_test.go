@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -51,6 +52,33 @@ func TestInputsDigestTracksTasksAndWorkspaceSkills(t *testing.T) {
 	}
 	if digest() == changed {
 		t.Fatal("removed seed file was invisible")
+	}
+}
+
+func TestSourceDigestTracksUncommittedSources(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	if out, err := exec.Command("git", "init", "-q").CombinedOutput(); err != nil {
+		t.Fatalf("%v %s", err, out)
+	}
+	before, err := sourceDigest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(dir, "adapter.go")
+	if err := os.WriteFile(file, []byte("package main\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	after, err := sourceDigest()
+	if err != nil || after == before {
+		t.Fatal("untracked source omitted", err)
+	}
+	if err := os.WriteFile(file, []byte("package main\n// changed\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := sourceDigest()
+	if err != nil || changed == after {
+		t.Fatal("dirty content omitted", err)
 	}
 }
 

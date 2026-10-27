@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -28,7 +27,15 @@ func (t *ExecutableTool) Name() string {
 func (t *ExecutableTool) Description() string     { return t.Def.Description }
 func (t *ExecutableTool) Schema() json.RawMessage { return t.Def.InputSchema }
 func (t *ExecutableTool) Mode() agent.ToolMode    { return agent.Exclusive }
-func (t *ExecutableTool) Run(ctx context.Context, args json.RawMessage) (string, error) {
+func (t *ExecutableTool) Run(ctx context.Context, args json.RawMessage) (result string, runErr error) {
+	env, secrets, err := adapterEnv(t.Pack.EnvRefs)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		result = redactCredentials(result, secrets)
+		runErr = redactCredentialError(runErr, secrets)
+	}()
 	timeout := t.Pack.TimeoutSeconds
 	if timeout == 0 {
 		timeout = 60
@@ -43,7 +50,7 @@ func (t *ExecutableTool) Run(ctx context.Context, args json.RawMessage) (string,
 		return "", err
 	}
 	cmd := exec.CommandContext(ctx, t.Pack.Command[0], t.Pack.Command[1:]...)
-	cmd.Dir, cmd.Env, cmd.Stdin = t.Dir, scrubEnv(os.Environ()), bytes.NewReader(append(request, '\n'))
+	cmd.Dir, cmd.Env, cmd.Stdin = t.Dir, env, bytes.NewReader(append(request, '\n'))
 	stdout := &jsonOutput{limit: 1 << 20, cancel: cancel}
 	stderr := &jsonOutput{limit: 8192}
 	cmd.Stdout, cmd.Stderr = stdout, stderr

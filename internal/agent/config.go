@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
@@ -22,12 +23,16 @@ type Config struct {
 	SaveCapabilities    func() []session.Capability
 	RestoreCapabilities func(context.Context, []session.Capability) error
 	System              string
+	SystemSections      []llm.PromptSection
+	OnPrompt            func(llm.ContextReport)
 	MaxSteps            int
-	MaxTokens           int
-	Temperature         float64
-	ContextLimit        int
-	StateFile           string
-	MutatingTools       []string
+	// RunTimeout includes work and a short tool-free closing phase. Zero disables it.
+	RunTimeout    time.Duration
+	MaxTokens     int
+	Temperature   float64
+	ContextLimit  int
+	StateFile     string
+	MutatingTools []string
 	// ReadOnly names the only tools this role may run. The registry still
 	// advertises the full set: a narrower one would change the prompt
 	// prefix, and a backend that caches prompts would then re-read the whole

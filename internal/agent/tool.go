@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
@@ -20,10 +21,11 @@ import (
 
 // ToolResult carries execution status separately from model-facing prose.
 type ToolResult struct {
-	CallID string
-	Output string
-	Failed bool
-	Status string
+	Duration time.Duration
+	CallID   string
+	Output   string
+	Failed   bool
+	Status   string
 }
 
 // ToolMode tells the loop whether a tool may run concurrently with others
@@ -331,8 +333,9 @@ func (a *Agent) rehydrateTodo(ctx context.Context, history []llm.Message) {
 }
 
 type callResult struct {
-	content string
-	err     error
+	duration time.Duration
+	content  string
+	err      error
 }
 
 // Keep refused calls in the transcript without letting malformed RawMessage
@@ -471,6 +474,8 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 			}
 		}
 		executed[i] = true
+		started := time.Now()
+		defer func() { results[i].duration = time.Since(started) }()
 		var onOutput func(string)
 		if a.cfg.OnToolOutput != nil {
 			onOutput = func(text string) { a.cfg.OnToolOutput(call.ID, text) }
@@ -549,6 +554,9 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 			content = TruncateMiddle(content, max(1, 48*1024/len(calls)))
 		}
 		failed := results[i].err != nil
+		if a.cfg.Tools.ModeOf(call.Name) == Concurrent || failed {
+			a.noteObservation(st, call.Name, call.Arguments, content)
+		}
 		fmt.Fprintf(&signature, "%s\x00%s\x00", callKey(call.Name, call.Arguments), content)
 		status := "success"
 		if failed {
@@ -577,7 +585,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 		}
 
 		if a.cfg.OnResult != nil {
-			a.cfg.OnResult(ToolResult{CallID: call.ID, Output: content, Failed: failed, Status: status})
+			a.cfg.OnResult(ToolResult{CallID: call.ID, Output: content, Failed: failed, Status: status, Duration: results[i].duration})
 		}
 	}
 	for _, diagnostic := range diagnostics {

@@ -126,6 +126,12 @@ Append chunks to the matching pending call; replace them with the authoritative
 `tool_result` when it arrives. Previews are not appended to model history.
 Output buffered inside a child process becomes visible only when it flushes.
 
+`prompt_budget` events contain `report`: character-based section/tool estimates
+before each request, then backend prompt/cached counts when returned. The
+report contains sizes and names, not instruction or conversation contents.
+Backend tokenization can differ from the estimates. Cached tokens remain part
+of the occupied context.
+
 In-process sessions accept steering through `Session.Submit(text, images...)`.
 A `user_input` event acknowledges insertion into saved history and carries
 `text` and `images`. Inputs never split tool calls from their results. The

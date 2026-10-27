@@ -77,6 +77,18 @@ func TestHeaderContextPersistsAndRestoresEstimate(t *testing.T) {
 	}
 }
 
+func TestContextBreakdownDistinguishesEstimatesAndMeasuredCounts(t *testing.T) {
+	m := sizeModel(t, testModel())
+	m.handleEvent(events.Event{Name: "prompt_budget", Fields: map[string]any{"report": llm.ContextReport{EstimatedTokens: 500, BackendTokens: 600, CachedTokens: 400}}})
+	if m.usage.breakdown.BackendTokens != 600 {
+		t.Fatal("measurement missing")
+	}
+	m.handleEvent(events.Event{Name: "prompt_budget", Fields: map[string]any{"report": llm.ContextReport{EstimatedTokens: 700}}})
+	if m.usage.breakdown.BackendTokens != 0 || m.usage.breakdown.EstimatedTokens != 700 {
+		t.Fatal("old measurement attributed to new request")
+	}
+}
+
 func TestEmptyHeaderShowsZeroMetricsAndTwoSpaceGaps(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 140, 25)
 	m.state, m.limit, m.modelName = stDone, 65536, "model.gguf"

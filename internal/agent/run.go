@@ -14,6 +14,8 @@ import (
 // run requests a response, executes its tools and persists history until
 // the model answers, the operator cancels or the step limit is reached.
 func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, runErr error) {
+	ctx, workCtx, cancelBudget := runBudget(ctx, a.cfg.RunTimeout)
+	defer cancelBudget()
 	if err := a.cfg.Tools.Err(); err != nil {
 		return "", fmt.Errorf("tool registry: %w", err)
 	}
@@ -24,7 +26,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 		ctx = a.cfg.ToolContext(ctx)
 	}
 	if a.cfg.RestoreCapabilities != nil {
-		if err := a.cfg.RestoreCapabilities(ctx, a.snapshot.Capabilities); err != nil {
+		if err := a.cfg.RestoreCapabilities(workCtx, a.snapshot.Capabilities); err != nil {
 			return "", fmt.Errorf("restore capabilities: %w", err)
 		}
 	}
@@ -55,6 +57,13 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 	history = a.withDirective(history)
 	a.saveState(history)
 	defer func() {
+		if a.cfg.RunTimeout > 0 && errors.Is(workCtx.Err(), context.DeadlineExceeded) && runErr != nil {
+			a.closeBudget(ctx, &st, history)
+			runErr = ErrRunBudget
+			if errors.Is(ctx.Err(), context.Canceled) {
+				runErr = ctx.Err()
+			}
+		}
 		// Even when cancelled or failed, retain accepted steering for retry.
 		if pending := a.cfg.Inbox.stop(); len(pending) > 0 {
 			history = a.acceptInputs(a.snapshot.Context(), pending, &st)
@@ -99,6 +108,9 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 		if ctx.Err() != nil {
 			a.report.Outcome = "cancelled"
 		}
+		if errors.Is(runErr, ErrRunBudget) {
+			a.report.Outcome = "incomplete"
+		}
 		if a.cfg.StateFile != "" {
 			a.snapshot.Runs = append(a.snapshot.Runs, session.Run{Start: runStart, End: len(a.snapshot.History), Outcome: a.report.Outcome, Steps: a.report.Steps, Verification: a.report.Verification})
 			if err := a.snapshot.Save(a.cfg.StateFile); err != nil {
@@ -108,7 +120,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 	}()
 	if a.cfg.BeginChanges != nil {
 		var err error
-		st.observeChanges, err = a.cfg.BeginChanges(ctx)
+		st.observeChanges, err = a.cfg.BeginChanges(workCtx)
 		if err != nil {
 			return "", fmt.Errorf("observe workspace: %w", err)
 		}
@@ -116,7 +128,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 	// Restore the task checklist when resuming a saved conversation.
 	a.rehydrateTodo(ctx, history)
 	if a.cfg.RestoreTools != nil {
-		if err := a.cfg.RestoreTools(ctx, a.snapshot.History); err != nil {
+		if err := a.cfg.RestoreTools(workCtx, a.snapshot.History); err != nil {
 			if ctx.Err() != nil {
 				return "", ctx.Err()
 			}
@@ -125,7 +137,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 	}
 
 	for step := 0; step < a.cfg.MaxSteps; step++ {
-		if err := ctx.Err(); err != nil {
+		if err := workCtx.Err(); err != nil {
 			return "", err
 		}
 		history = a.acceptInputs(history, a.cfg.Inbox.take(false), &st)
@@ -137,7 +149,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 		}
 		estimate := llm.EstimatePromptTokens(req)
 		promptTokens := st.projectPrompt(estimate)
-		if a.maybeCompact(&history, llm.Usage{PromptTokens: promptTokens}, &st, ctx) {
+		if a.maybeCompact(&history, llm.Usage{PromptTokens: promptTokens}, &st, workCtx) {
 			st.lastPromptEstimate = 0
 			history = a.withDirective(history)
 			history = a.withCapabilityInstructions(history)
@@ -151,7 +163,8 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 		}
 		req.MaxTokens = a.effectiveMaxTokens(promptTokens)
 		st.lastPromptEstimate = estimate
-		resp, err := a.chat(ctx, req)
+		a.report.Steps = step + 1
+		resp, err := a.chat(workCtx, req)
 		if err != nil {
 			if len(resp.Message.ToolCalls) > 0 || resp.Message.Content != "" || resp.Message.Reasoning != "" {
 				for i := range resp.Message.ToolCalls {
@@ -164,14 +177,14 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 				}
 				history = append(history, message)
 				if len(resp.Message.ToolCalls) > 0 {
-					history = a.executeToolCalls(ctx, &st, step, "incomplete_stream", resp.Message.ToolCalls, history)
+					history = a.executeToolCalls(workCtx, &st, step, "incomplete_stream", resp.Message.ToolCalls, history)
 				} else {
 					history = a.nudge(history, "incomplete_stream", "Generation stream was interrupted; the preceding answer is incomplete. No tool call from that interrupted response was executed.")
 				}
 				a.saveState(history)
 				return "", fmt.Errorf("step %d: incomplete response retained: %w", step, err)
 			}
-			history, err = a.handleChatError(&st, step, err, history, ctx)
+			history, err = a.handleChatError(&st, step, err, history, workCtx)
 			if err != nil {
 				return "", err
 			}
@@ -217,7 +230,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 			a.saveState(history)
 			continue
 		}
-		history = a.executeToolCalls(ctx, &st, step, resp.FinishReason, resp.Message.ToolCalls, history)
+		history = a.executeToolCalls(workCtx, &st, step, resp.FinishReason, resp.Message.ToolCalls, history)
 		if remaining := a.cfg.MaxSteps - step - 1; remaining == 2 {
 			history = a.nudge(history, "step_limit", "2 model steps remain in this run, including the final answer. Finish the task or report concrete progress and remaining work.")
 		}
@@ -229,7 +242,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 			from := step - st.repeatCount + 1
 			a.report.Warnings = append(a.report.Warnings, fmt.Sprintf(
 				"steps %d-%d issued identical tool calls; answered without tools", from, step))
-			answer, err := a.forceAnswer(ctx, &st, step, history, from)
+			answer, err := a.forceAnswer(workCtx, &st, step, history, from)
 			if err == nil && a.cfg.Inbox != nil {
 				// The tool-free answer is also an in-flight model request.
 				// It must observe the same completion boundary as normal answers.
@@ -350,7 +363,7 @@ func (a *Agent) recoverLeakedCalls(resp llm.ChatResponse, step int) (llm.ChatRes
 // chat runs one model turn: streaming when configured and supported,
 // otherwise ChatWithRetry. The stream is retried unary only while nothing
 // has been shown yet, since a partial stream cannot be resumed.
-func (a *Agent) chat(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
+func (a *Agent) chat(ctx context.Context, req llm.ChatRequest) (response llm.ChatResponse, callErr error) {
 	a.requests++
 	for i := range req.Messages {
 		m := &req.Messages[i]
@@ -366,6 +379,21 @@ func (a *Agent) chat(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse
 	}
 	a.saveState(req.Messages)
 	req.Messages = llm.ModelMessages(req.Messages)
+	breakdown := llm.AnalyzeContext(req, a.cfg.SystemSections)
+	breakdown.Request = a.requests
+	a.report.Prompt = breakdown
+	if a.cfg.OnPrompt != nil {
+		a.cfg.OnPrompt(breakdown)
+	}
+	defer func() {
+		if response.Usage.PromptTokens > 0 {
+			breakdown.BackendTokens, breakdown.CachedTokens, breakdown.BackendEstimated = response.Usage.PromptTokens, response.Usage.CachedTokens, response.Usage.Estimated
+			a.report.Prompt = breakdown
+			if a.cfg.OnPrompt != nil {
+				a.cfg.OnPrompt(breakdown)
+			}
+		}
+	}()
 	req.Temperature = a.cfg.Temperature
 	req.OnProgress = a.cfg.OnProgress
 	progress := llm.Progress{Phase: "waiting", PromptTokens: llm.EstimatePromptTokens(req), Estimated: true}

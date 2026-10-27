@@ -68,7 +68,9 @@ earlier command. Use explicit conditions when one command depends on another.
 | `-context-limit N` | `0` | Remote context window or local fallback. A reported local server window takes precedence; remote backends fall back to a per-model estimate unless set |
 | `-grammar` | `true` | Apply the backend's own content grammar (blocks a model writing its native tool-call tags as plain text on koboldcpp) |
 | `-max-tokens N` | `8192` | Generation budget per response. Too low truncates large outputs mid-JSON, which looks like a model failure |
+| `-context-report` | off | Print a fresh-run context breakdown as JSON and exit; no model, adapters or workspace writes. Lists estimated sections and tool costs |
 | `-max-steps N` | saved limit or 25 | Fixed per-run step limit; explicit `0` means unlimited. Todo cannot extend it. Subagents use 12 steps |
+| `-run-timeout D` | disabled | Total duration such as `5m`. Reserves up to 30 seconds (20%) for a tool-free incomplete-work report. A timed-out task still fails; cancellation does not request a closing answer |
 
 ## Authentication (remote providers)
 
@@ -282,6 +284,21 @@ Defaults are the workspace root and 600 seconds. The working directory applies
 to that call only. Unknown parameters and invalid bounds are refused before
 starting a process. Servers still use `start_background` or `start_program`
 rather than a longer blocking timeout.
+
+Inspect startup context without running a task:
+
+```powershell
+gektor -workspace . -context-report "Explain this project"
+```
+
+Reports separate core instructions, project instructions, skill metadata,
+identity, history/task and tool schemas. Component costs use character-based
+estimates; they are not tokenizer measurements. Normal runs also publish
+`prompt_budget` events with backend prompt/cached counts when available.
+The TUI `/context` dialog shows the breakdown and largest tool schemas.
+Cached tokens still occupy context. Offline previews exclude eager `-mcp`
+catalogs and images, and use text-only schemas; runtime reports use the actual
+request. Resumed sessions use runtime reporting instead of offline preview.
 
 `start_background` and `start_program` return an id and `next_cursor`.
 `check_background` requires

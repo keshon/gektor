@@ -38,6 +38,9 @@ func (a *Agent) MutatedPaths() []string {
 
 // RunReport records the outcome, observed effects, and real check output.
 type RunReport struct {
+	Prompt llm.ContextReport
+	// Summary describes incomplete work; it never represents successful completion.
+	Summary      string
 	Outcome      string
 	Verification string
 	Warnings     []string
@@ -313,8 +316,10 @@ type runState struct {
 	// learning keeps asking the same question, so the loop stops handing it
 	// tools after maxRepeatedSteps. Cleared on mutation: repeating a call
 	// across a write is work, not a spin.
-	repeatSignature string
-	repeatCount     int
+	repeatSignature    string
+	repeatCount        int
+	observations       [][32]byte
+	observationWarning bool
 
 	lastPromptEstimate int
 	compactErr         error

@@ -174,6 +174,14 @@ func TestSession_RunEmitsSameSchemaAsEmitter(t *testing.T) {
 		}
 		lastSeq = ev.Seq
 		switch ev.Name {
+		case "prompt_budget":
+			report, ok := ev.Fields["report"].(map[string]any)
+			if !ok || report["estimated_tokens"].(float64) <= 0 {
+				t.Fatalf("context breakdown missing: %+v", ev)
+			}
+			if _, ok := report["sections"].([]any); !ok {
+				t.Fatalf("context sections missing: %+v", ev)
+			}
 		case "progress":
 			if _, ok := ev.Fields["phase"].(string); !ok {
 				t.Fatalf("progress without phase: %+v", ev)

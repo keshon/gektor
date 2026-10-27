@@ -26,17 +26,9 @@ func (RunProgram) Name() string { return "run_program" }
 func (RunProgram) Mode() agent.ToolMode { return agent.Exclusive }
 func (RunProgram) Description() string {
 	if runtime.GOOS == "windows" {
-		return "Run a finite native executable inside the workspace without a shell. " +
-			"Prefer this for go, git, python and other native programs. args are separate literal arguments, without shell quoting or expansion. " +
-			"Use run_shell for PowerShell syntax, builtins, pipelines, redirection or scripts. " +
-			"Use workdir for a workspace-relative working directory and timeout_seconds (1–600) to bound execution. " +
-			"Returns exit_code and combined stdout/stderr. Nonzero exits remain failures, including expected negative-test results."
+		return "Run a finite native executable without a shell. Pass literal args, without quoting or expansion. Use run_shell for PowerShell syntax/scripts. Returns exit_code and combined stdout/stderr; nonzero exits are failures."
 	}
-	return "Run a finite native executable inside the workspace without a shell. " +
-		"Prefer this for go, git, python and other native programs. args are separate literal arguments, without shell quoting or expansion. " +
-		"Use run_shell for POSIX sh syntax, builtins, pipelines or redirection. " +
-		"Use workdir for a workspace-relative working directory and timeout_seconds (1–600) to bound execution. " +
-		"Returns exit_code and combined stdout/stderr. Nonzero exits remain failures, including expected negative-test results."
+	return "Run a finite native executable without a shell. Pass literal args, without quoting or expansion. Use run_shell for POSIX sh syntax/scripts. Returns exit_code and combined stdout/stderr; nonzero exits are failures."
 }
 func (RunProgram) Schema() json.RawMessage {
 	return programSchema(true)

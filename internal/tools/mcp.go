@@ -73,6 +73,15 @@ type MCPToolDef struct {
 // StartMCP launches command with args and runs initialize + tools/list,
 // returning one agent.Tool per remote tool named mcp__server__tool.
 func StartMCP(ctx context.Context, server, dir, command string, args ...string) ([]agent.Tool, *MCPClient, error) {
+	return startMCP(ctx, server, dir, nil, command, args...)
+}
+
+func startMCP(ctx context.Context, server, dir string, refs map[string]string, command string, args ...string) (list []agent.Tool, client *MCPClient, runErr error) {
+	env, secrets, err := adapterEnv(refs)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer func() { runErr = redactCredentialError(runErr, secrets) }()
 	if err := validateCapabilityID(server); err != nil {
 		return nil, nil, err
 	}
@@ -84,6 +93,7 @@ func StartMCP(ctx context.Context, server, dir, command string, args ...string) 
 	launch := func() (io.Writer, io.Reader, *exec.Cmd, error) {
 		cmd := exec.CommandContext(procCtx, command, args...)
 		cmd.Dir = dir
+		cmd.Env = env
 		group := newProcessGroup()
 		group.beforeStart(cmd)
 		cmd.Cancel = func() error { return group.kill(cmd) }
@@ -135,6 +145,12 @@ func StartMCP(ctx context.Context, server, dir, command string, args ...string) 
 		return nil, nil, err
 	}
 	c.close = killProc
+	for _, tool := range tools {
+		t := tool.(*MCPTool)
+		t.secrets = secrets
+		t.def.Description = redactCredentials(t.def.Description, secrets)
+		t.def.InputSchema = json.RawMessage(redactCredentials(string(t.def.InputSchema), secrets))
+	}
 	// The restarter reuses procCtx rather than its argument: a per-call
 	// deadline would kill the replacement moments after it started.
 	c.restarter = func(context.Context) (io.Writer, io.Reader, *exec.Cmd, error) {
@@ -462,6 +478,8 @@ func (c *MCPClient) notify(msg map[string]any) error {
 
 // MCPTool is one remote MCP tool exposed as an agent tool.
 type MCPTool struct {
+	secrets  []string
+	timeout  time.Duration
 	client   mcpCaller
 	server   string
 	def      MCPToolDef
@@ -488,12 +506,20 @@ func (t *MCPTool) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object"}`)
 }
 
-func (t *MCPTool) Run(ctx context.Context, args json.RawMessage) (string, error) {
+func (t *MCPTool) Run(ctx context.Context, args json.RawMessage) (output string, runErr error) {
+	defer func() {
+		output = redactCredentials(output, t.secrets)
+		runErr = redactCredentialError(runErr, t.secrets)
+	}()
 	var params map[string]any
 	if err := json.Unmarshal(args, &params); err != nil {
 		return "", fmt.Errorf("bad arguments: %w", err)
 	}
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	timeout := t.timeout
+	if timeout <= 0 {
+		timeout = 60 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var result struct {
 		Content []struct {
