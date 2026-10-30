@@ -2,12 +2,58 @@ package tui
 
 import (
 	tea "charm.land/bubbletea/v2"
+	uv "github.com/charmbracelet/ultraviolet"
 	"strings"
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/events"
 )
+
+func TestThinkingKeepsDimItalicInEveryView(t *testing.T) {
+	defer setTheme("dark")
+	const thought = "Plain **bold** *emphasis* `code`\n# Heading\n```go\nvalue := 1\n```"
+	for _, theme := range []string{"dark", "light"} {
+		setTheme(theme)
+		st := defaultStyles()
+		for _, expand := range []bool{false, true} {
+			opts := renderOpts{expand: expand}
+			for _, text := range []string{
+				renderBlock(block{role: roleThink, text: thought}, st, opts, 90),
+				strings.Join(renderLive(transcriptProps{liveThink: thought, styles: st, hideNames: true}, 90, opts), "\n"),
+				strings.Join(renderLive(transcriptProps{live: "<think>" + thought, styles: st, hideNames: true}, 90, opts), "\n"),
+			} {
+				screen := uv.NewScreenBuffer(90, 15)
+				uv.NewStyledString(text).Draw(screen, uv.Rect(0, 0, 90, 15))
+				for y := 0; y < 15; y++ {
+					for x := 0; x < 90; x++ {
+						c := screen.CellAt(x, y)
+						if c == nil || strings.TrimSpace(c.Content) == "" {
+							continue
+						}
+						if c.Style.Attrs&uv.AttrItalic == 0 || !sameColor(c.Style.Fg, themeColor(colorDim)) {
+							t.Fatalf("thinking lost dim italic: theme=%s expanded=%v cell=%+v", theme, expand, c)
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestStreamingMarkdownMatchesCompletedReply(t *testing.T) {
+	st := defaultStyles()
+	for _, text := range []string{"# Heading\n**bold** and *emphasis* and `code`", "- first\n- second", "```go\nvalue := 1", "**unfinished", "\n\nParagraph one.\n\nParagraph two.\n\n"} {
+		live := strings.Join(renderLive(transcriptProps{live: text, styles: st, hideNames: true}, 80, renderOpts{}), "\n")
+		final := renderBlock(block{role: roleAnswer, text: text}, st, renderOpts{}, 80)
+		if live != final {
+			t.Fatalf("stream formatting differs from completion:\nlive=%q\nfinal=%q", live, final)
+		}
+		if strings.HasPrefix(ansi.Strip(live), "\n") || strings.HasSuffix(ansi.Strip(live), "\n") {
+			t.Fatal("outer model whitespace added display gaps", live)
+		}
+	}
+}
 
 func TestCtrlGExpandsThinkingWhileItIsStillStreaming(t *testing.T) {
 	for _, inline := range []bool{false, true} {

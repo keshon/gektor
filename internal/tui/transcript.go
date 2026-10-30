@@ -243,10 +243,6 @@ type renderOpts struct {
 	hideTools bool
 	// labels false drops the [TAG] row, independently of speaker names.
 	labels bool
-	// raw draws the body as literal text instead of markdown. Only the
-	// live stream uses it: a span revealed one character at a time would
-	// show its own delimiters for several frames before closing.
-	raw bool
 }
 
 // renderBlock draws one transcript block: a label row carrying the role's
@@ -262,6 +258,9 @@ func renderBlock(b block, st styles, opts renderOpts, width int) string {
 	// Normalizing on the by-value copy covers every path to the terminal
 	// without touching stored history.
 	b.text = strings.TrimRight(cleanText(b.text), "\n")
+	if b.role == roleAnswer || b.role == roleThink {
+		b.text = strings.Trim(b.text, "\n")
+	}
 	b.result = strings.TrimRight(cleanText(b.result), "\n")
 	b = normalizeHarnessMarker(b)
 	raw := b.text
@@ -274,7 +273,7 @@ func renderBlock(b block, st styles, opts renderOpts, width int) string {
 	var body []string
 	switch {
 	case b.role == roleThink && !opts.expand:
-		body = []string{st.dim.Render(raw)}
+		body = []string{st.think.Render(raw)}
 	case b.role == roleTool && opts.hideTools:
 		state := "done"
 		if b.open {
@@ -289,7 +288,7 @@ func renderBlock(b block, st styles, opts renderOpts, width int) string {
 		body = []string{st.dim.Render(cellLine(fmt.Sprintf("Tool result · %d bytes", len(b.text)), width))}
 	case b.role == roleTool:
 		body = renderToolCard(b, st, width)
-	case isMdRole(b.role) && !opts.raw:
+	case isMdRole(b.role):
 		body = renderMdBlock(b, raw, st, width)
 	default:
 		body = renderRaw(b, raw, st, width)
@@ -447,13 +446,21 @@ func renderMdBlock(b block, raw string, st styles, width int) []string {
 		for _, f := range reflow(ml.text, max(width, 1)) {
 			var body string
 			if ml.fence {
-				body = st.dim.Render(f)
+				style := st.dim
+				if b.role == roleThink {
+					style = base
+				}
+				body = style.Render(f)
 			} else {
 				bb := base
 				if ml.header {
 					bb = base.Bold(true)
 				}
-				body = renderSpans(f, bb, bb.Bold(true), bb.Foreground(lipgloss.Color(themeColor(colorAccent))), span)
+				code := bb.Foreground(lipgloss.Color(themeColor(colorAccent)))
+				if b.role == roleThink {
+					code = bb
+				}
+				body = renderSpans(f, bb, bb.Bold(true), code, span)
 			}
 			out = append(out, body)
 		}
@@ -532,7 +539,6 @@ func (m *model) appendBlock(b block) {
 // replies. The live buffer is one assistant turn, so the name row opens
 // it exactly once.
 func renderLive(props transcriptProps, width int, opts renderOpts) []string {
-	opts.raw = true
 	var parts []string
 	// Streamed deliberation renders first and stays put, so the turn reads
 	// as THINK then RESPONSE. Wrapping in <think> lets assistantBlocks

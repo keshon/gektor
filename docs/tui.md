@@ -72,7 +72,10 @@ column 0. `GEKTOR` is the default agent name; configured identities keep their
 names. `SYSTEM` covers harness messages and local interface notices. Message
 labels distinguish their kinds; local notices never enter model context.
 SYSTEM rails use the same accent as ACT. Thinking can be expanded or summarized
-with F3 or Ctrl+G; tool content is controlled separately in View. Display changes do not
+with F3 or Ctrl+G and stays dim and italic in both views. Live thinking and replies
+use the same formatting as completed blocks. Outer blank lines in model replies
+are trimmed for display; saved text and paragraph spacing remain unchanged.
+Tool content is controlled separately in View. Display changes do not
 remove model history. Scrolling up stops automatic following; F7 or
 Ctrl+End returns to the latest content. A scrollbar in the right-hand column
 appears once the transcript is taller than the pane; its thumb is sized to
