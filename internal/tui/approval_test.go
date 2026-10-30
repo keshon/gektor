@@ -59,6 +59,11 @@ func testApprovalInspection(t *testing.T, frame string) {
 		}
 	}
 	await()
+	m.hideSYS = true
+	m.refreshContent()
+	if !strings.Contains(ansi.Strip(m.View().Content), "Permission required") {
+		t.Fatal("hiding SYSTEM history hid the pending approval")
+	}
 	export := func(name string) {
 		if dir := os.Getenv("GEKTOR_TUI_PREVIEW_DIR"); dir != "" {
 			if err := os.MkdirAll(dir, 0700); err != nil {

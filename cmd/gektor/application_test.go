@@ -2,11 +2,45 @@ package main
 
 import (
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/config"
 )
+
+func TestBrowserLauncherRestoresAllSavedSettings(t *testing.T) {
+	profile := config.DefaultProfile()
+	profile.Provider = config.Provider{Kind: "openai", URL: "http://127.0.0.1:12345/v1", Model: "fixture-model", APIKeyEnv: "GEKTOR_TEST_KEY"}
+	profile.Generation = config.Generation{Temperature: .42, MaxTokens: 1536, ContextLimit: 12288}
+	profile.Identity.UserName, profile.Identity.UserPersona = "Operator", "Precise"
+	profile.Identity.SystemPrompt, profile.Identity.PostHistory, profile.Identity.PromptPreset = "BASE_RULES", "POST_RULES", "custom"
+	prefs := config.Preferences{Version: 1, Profile: &profile, Workspace: t.TempDir(), Mode: "plan", Theme: "light", Harness: config.Harness{MaxSteps: 42}, Appearance: config.Appearance{Frame: "outlined", ExpandThinking: true, HideTools: true, HideSystem: true, HideNames: true, HideLabels: true}}
+	path := filepath.Join(t.TempDir(), "application.json")
+	if err := config.SavePreferences(path, prefs); err != nil {
+		t.Fatal(err)
+	}
+	p, err := config.LoadPreferences(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	options, err := parseLaunchOptions([]string{"-tui", "-browser", "chrome", "-browser-profile", "work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := initialTUILaunch(options, p, path, false)
+	resolved, err := resolveLaunch(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(resolved.selectedProfile, profile) || !resolved.plan || resolved.maxSteps != 42 || resolved.workspace != prefs.Workspace {
+		t.Fatal("launcher lost persisted configuration")
+	}
+	control := applicationControl(request, resolved.selectedProfile, resolved.profilePath, resolved.workspace)
+	if control == nil || control.Preferences.Appearance != prefs.Appearance || control.Preferences.Theme != "light" {
+		t.Fatal("launcher dropped UI preferences", control)
+	}
+}
 
 func TestTUILaunchUsesSavedSettingsAndExplicitOverrides(t *testing.T) {
 	profile := config.DefaultProfile()

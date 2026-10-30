@@ -26,7 +26,7 @@ func (m *model) legacyFooterActions() []footerAction {
 	return []footerAction{
 		{tea.KeyF1, 0, "F1", "Help", "Help", !gated && m.sessions == nil && !m.header.focused},
 		{tea.KeyF2, 0, "F2", "Search", "Search", !gated && m.dialog == nil && !m.header.focused},
-		{tea.KeyF3, 0, "F3", "Details", "View", free},
+		{tea.KeyF3, 0, "F3", "Thinking", "Think", free},
 		{tea.KeyF4, 0, "F4", "New", "New", idle},
 		{tea.KeyF10, 0, "F10", "Quit", "Quit", true},
 	}
@@ -83,10 +83,7 @@ func (m *model) footerActions() []footerAction {
 	if m.activeInputOwner() == focusInput && m.state == stDone && !m.transcript.Follow {
 		actions[3] = footerAction{tea.KeyEnter, 0, "Enter", "Send", "Go", true}
 	}
-	details := "Details"
-	if !m.transcript.compact {
-		details = "Less"
-	}
+	details := "Thinking"
 	actions = append(actions,
 		footerAction{'g', tea.ModCtrl, "Ctrl+G", details, "View", legacy[2].enabled},
 		footerAction{'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true})
@@ -150,9 +147,6 @@ func (m *model) actionBar() string {
 		if cell.end-cell.start < lipgloss.Width(number)+2+lipgloss.Width(label) {
 			label = cell.action.short
 		}
-		if cell.action.key == tea.KeyF3 && !m.transcript.compact {
-			label = "Less"
-		}
 		numberStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorDisabledText))).Background(lipgloss.Color(themeColor(colorDisabledNumber)))
 		labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorDisabledText))).Background(lipgloss.Color(themeColor(colorDisabledLabel)))
 		if cell.action.enabled {
@@ -187,8 +181,7 @@ func (m *model) footerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.openSessions()
 		}
 	case tea.KeyF3:
-		m.transcript.compact = !m.transcript.compact
-		m.refreshContent()
+		return m.toggleThinking()
 	case tea.KeyF4:
 		m.newTask()
 		return m, m.input.Focus()

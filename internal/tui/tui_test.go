@@ -1467,7 +1467,7 @@ func TestStatusLinesPlainLanguage(t *testing.T) {
 			t.Fatalf("status keeps harness jargon %q:\n%s", banned, out)
 		}
 	}
-	for _, want := range []string{"details", "Ctrl+G", "permissions", "Y allow once", "always allowed", "none"} {
+	for _, want := range []string{"thinking", "Ctrl+G", "permissions", "Y allow once", "always allowed", "none"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("status missing %q:\n%s", want, out)
 		}
@@ -1885,20 +1885,17 @@ func TestToolCardAttachesResult(t *testing.T) {
 	}
 }
 
-func TestToolResultCollapsesLongOutput(t *testing.T) {
+func TestToolContentVisibilityIsIndependentOfThinking(t *testing.T) {
 	st := defaultStyles()
 	text := strings.TrimRight(strings.Repeat("abcdef\n", 25), "\n")
 	mk := func() block {
 		return block{role: roleTool, text: "run x", callID: "c1", result: text}
 	}
-	compact := renderBlock(mk(), st, tagged(), 80)
-	if n := strings.Count(compact, "abcdef"); n != resultPreviewLines {
-		t.Fatalf("compact shows %d lines, want %d", n, resultPreviewLines)
+	hidden := renderBlock(mk(), st, renderOpts{hideTools: true, labels: true}, 80)
+	if strings.Contains(hidden, "abcdef") || !strings.Contains(hidden, "run · done") {
+		t.Fatal("tool metadata leaked content", hidden)
 	}
-	if !strings.Contains(compact, "(15 more lines)") {
-		t.Fatalf("compact must count the rest: %q", compact)
-	}
-	full := renderBlock(mk(), st, renderOpts{expand: true, labels: true}, 80)
+	full := renderBlock(mk(), st, tagged(), 80)
 	if n := strings.Count(full, "abcdef"); n != 25 {
 		t.Fatalf("full view shows %d lines, want 25", n)
 	}

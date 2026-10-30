@@ -52,7 +52,7 @@ func commands() []command {
 		{name: "/new", arg: "[task]", summary: "Start a fresh task; omit task for an empty session"},
 		{name: "/mode", arg: "plan|act", choices: []string{"plan", "act"}, summary: "Preview changes or execute them"},
 		{name: "/max-steps", arg: "N", summary: "Step budget (0 = no limit)"},
-		{name: "/details", immediate: true, summary: "Toggle reply truncation"},
+		{name: "/details", immediate: true, summary: "Toggle full agent thinking"},
 		{name: "/sys", immediate: true, summary: "Toggle SYS messages"},
 		{name: "/labels", immediate: true, summary: "Toggle labels"},
 		{name: "/latest", immediate: true, summary: "Jump to latest"},
@@ -230,22 +230,11 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		})
 		return m, nil
 	case "details":
-		m.transcript.compact = !m.transcript.compact
-		m.refreshContent()
-		state := "full"
-		if m.transcript.compact {
-			state = "truncated"
-		}
-		m.appendBlock(markerBlock("AI replies: " + state))
-		return m, nil
+		return m.toggleThinking()
 	case "sys":
-		m.hideSYS = !m.hideSYS
-		m.refreshContent()
-		state := "shown"
-		if m.hideSYS {
-			state = "hidden"
+		if err := m.changeAppearance(func(a *config.Appearance) { a.HideSystem = !a.HideSystem }); err != nil {
+			m.openDialog("Appearance", []string{err.Error()})
 		}
-		m.appendBlock(markerBlock("SYS messages: " + state))
 		return m, nil
 	case "labels":
 		if err := m.changeAppearance(func(a *config.Appearance) { a.HideLabels = !a.HideLabels }); err != nil {

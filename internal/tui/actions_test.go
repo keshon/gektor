@@ -225,10 +225,7 @@ func TestDetailsToolbarRemainsVisibleAndClickable(t *testing.T) {
 	m.width(tea.WindowSizeMsg{Width: 160, Height: 30})
 	for _, compact := range []bool{true, false} {
 		m.transcript.compact = compact
-		label := "Details"
-		if !compact {
-			label = "Less"
-		}
+		label := "Thinking"
 		found := false
 		for _, cell := range m.footerCells() {
 			if cell.action.key != 'g' {

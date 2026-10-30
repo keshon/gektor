@@ -8,9 +8,6 @@ import (
 
 // statusLine describes the current input; run metrics belong in the header.
 func (m *model) statusLine() string {
-	if progress := m.prefillStatus(); progress != "" {
-		return progress
-	}
 	if m.sessions != nil {
 		return m.styles.status.Render("Search names and saved session text")
 	}

@@ -132,12 +132,17 @@ func (m *model) layoutDialog() dialogLayout {
 			}
 			tabs[i] = label
 		}
-		rows = append(rows, strings.Split(lipgloss.NewStyle().Width(inner).Render(strings.Join(tabs, "  ")), "\n")...)
+		if len(sections) > 1 {
+			rows = append(rows, strings.Split(lipgloss.NewStyle().Width(inner).Render(strings.Join(tabs, "  ")), "\n")...)
+		}
 		if availH >= 10 {
 			rows = append(rows, "")
 		}
 		lines = m.helpRows(sections[page], inner)
 		hint = "Tab / ← → category   ↑ ↓ scroll   Esc close"
+		if len(sections) == 1 {
+			hint = "↑ ↓ scroll   Esc close"
+		}
 	}
 	capacity := max(availH-2-len(rows)-3, 1)
 	// Reserve an extra row for the scroll-position indicator when needed.
@@ -194,7 +199,7 @@ func helpSections() []helpSection {
 		{"Navigate", [][2]string{
 			{"F1", "Open or close help"},
 			{"F2 / Ctrl+P", "Search session names and history"},
-			{"F3 / Ctrl+G", "Expand or collapse thinking and tool details"},
+			{"F3 / Ctrl+G", "Show full thinking or a one-line summary"},
 			{"Ctrl+R / Ctrl+D", "Rename / delete the selected session in Open session"},
 			{"PgUp / PgDn", "Scroll the transcript; mouse wheel also works"},
 			{"F7 / Ctrl+End", "Jump to the latest message"},
@@ -274,7 +279,7 @@ func (m *model) statusLines() []string {
 		"task dir: " + taskDir,
 		"context: " + m.meter(),
 		"run: " + strconv.Itoa(m.steps) + " steps  " + m.statusWord() + "  " + formatElapsed(m.elapsed),
-		"details: " + details,
+		"thinking: " + details,
 		"permissions: Y allow once  A always allow  N deny with note",
 		"always allowed: " + allowed,
 		"tools: " + strconv.Itoa(m.mcpCount) + " mcp  " + strconv.Itoa(m.policyRules) + " policy rules",

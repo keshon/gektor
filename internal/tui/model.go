@@ -204,13 +204,12 @@ type model struct {
 	sessionsLoading bool
 	// View-menu display filters. They hide transcript rows, never model
 	// history: a hidden block is still sent, stored and re-rendered the
-	// moment the filter is turned off. Only the harness-message filter is
-	// session-only; appearance is stored in application preferences.
+	// moment the filter is turned off. All choices are global preferences.
 	hideSYS    bool
 	hideLabels bool
 	hideNames  bool
 	minimal    bool
-	dense      bool
+	hideTools  bool
 
 	sessionIndex    map[string]cachedSession
 	sessionRevision uint64

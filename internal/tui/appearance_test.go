@@ -19,7 +19,7 @@ import (
 func TestAppearancePersistsWithoutChangingHistory(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	m.application = &Application{PreferencePath: filepath.Join(t.TempDir(), "application.json"), Preferences: config.Preferences{Version: 1}}
+	m.application = &Application{PreferencePath: filepath.Join(t.TempDir(), "application.json"), Preferences: config.Preferences{Version: 1}, Temporary: true}
 	m.appendBlock(userBlock("request"))
 	m.appendBlock(markerBlock("harness instruction"))
 	m.appendBlock(block{role: roleStatus, text: "local notice"})
@@ -28,7 +28,8 @@ func TestAppearancePersistsWithoutChangingHistory(t *testing.T) {
 		a.Frame = "minimal"
 		a.HideNames = true
 		a.HideLabels = true
-		a.Density = "compact"
+		a.ExpandThinking = true
+		a.HideTools = true
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +39,7 @@ func TestAppearancePersistsWithoutChangingHistory(t *testing.T) {
 	}
 	n := sizeModel(t, testModel())
 	n.applyAppearance(p.Appearance)
-	if !n.minimal || !n.hideNames || !n.hideLabels || !n.dense {
+	if !n.minimal || !n.hideNames || !n.hideLabels || n.transcript.compact || !n.hideTools {
 		t.Fatal("appearance not restored")
 	}
 	if !reflect.DeepEqual(before, m.transcript.blocks) {
@@ -105,21 +106,21 @@ func TestBothFramesAndMeasuredPrefillFit(t *testing.T) {
 			}
 			height := m.transcript.Viewport.Height()
 			m.handleEvent(events.Event{Name: "reasoning", Fields: map[string]any{"text": "thinking"}})
-			if size[0] >= 40 && m.transcript.Viewport.Height() != height+1 {
-				t.Fatal("prefill row not reclaimed")
+			if m.transcript.Viewport.Height() != height {
+				t.Fatal("prefill changed input layout")
 			}
 			m.progress = llm.Progress{Phase: "prefill", PromptTokens: 12288, ProcessedTokens: 8897}
 			m.progress.Estimated = true
-			if m.prefillStatus() != "" {
+			if m.prefillActive() {
 				t.Fatal("estimated determinate progress")
 			}
 			m.progress = llm.Progress{Phase: "reasoning"}
 			m.fitBottom()
-			if strings.Contains(ansi.Strip(m.View().Content), "Prompt processing") {
+			if strings.Contains(ansi.Strip(m.View().Content), "prompt processing") {
 				t.Fatal("stale progress")
 			}
 			m.openDialog("Inspect", []string{"evidence"})
-			if m.prefillStatus() != "" {
+			if m.prefillActive() {
 				t.Fatal("progress behind dialog")
 			}
 			m.closeDialog()

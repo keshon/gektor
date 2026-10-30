@@ -226,18 +226,11 @@ func speakerRow(name string, r role, st styles, width int) string {
 	return ansi.Truncate(speakerStyle(r, st).Render(name), max(width, 1), "…")
 }
 
-// thinkPreviewLen caps the collapsed thinking summary (runes, not bytes).
-const thinkPreviewLen = 80
-
-// thinkSummary shrinks reasoning to one line plus its size: the reader
-// sees that thinking happened and how much, never the raw
-// chain-of-thought as answer text.
-func thinkSummary(s string) string {
-	line, _, _ := strings.Cut(s, "\n")
-	if runes := []rune(line); len(runes) > thinkPreviewLen {
-		line = string(runes[:thinkPreviewLen]) + "…"
-	}
-	return fmt.Sprintf("%s [%d chars]", line, len([]rune(s)))
+// thinkSummary fits reasoning and its size into one terminal row.
+func thinkSummary(s string, width int) string {
+	line := strings.Join(strings.Fields(s), " ")
+	suffix := fmt.Sprintf(" [%d chars]", len([]rune(s)))
+	return cellLine(ansi.Truncate(line, max(width-lipgloss.Width(suffix), 1), "…")+suffix, max(width, 1))
 }
 
 // renderOpts are the view choices that change how one block renders.
@@ -245,10 +238,9 @@ func thinkSummary(s string) string {
 // reads differently depending on what the reader has chosen to hide,
 // and nothing about the stored message changed.
 type renderOpts struct {
-	// expand opens verbose content: full thinking, full tool output. It
-	// is the inverse of the transcript's compact flag.
-	expand bool
-	dense  bool
+	// expand controls thinking only; tool content has its own preference.
+	expand    bool
+	hideTools bool
 	// labels false drops the [TAG] row, independently of speaker names.
 	labels bool
 	// raw draws the body as literal text instead of markdown. Only the
@@ -277,15 +269,25 @@ func renderBlock(b block, st styles, opts renderOpts, width int) string {
 		// Collapsed keeps the summary-only rule (size here, never in
 		// full view); the label row carries the tag either way, so the
 		// body never repeats it.
-		raw = thinkSummary(b.text)
+		raw = thinkSummary(b.text, width)
 	}
 	var body []string
 	switch {
-	case b.role == roleTool:
-		body = renderToolCard(b, st, opts.expand, width)
-		if opts.dense && len(body) > 1 {
-			body = body[:len(body)-1]
+	case b.role == roleThink && !opts.expand:
+		body = []string{st.dim.Render(raw)}
+	case b.role == roleTool && opts.hideTools:
+		name, _, _ := strings.Cut(b.text, " ")
+		state := "done"
+		if b.open {
+			state = "running"
+		} else if b.failed {
+			state = "failed"
 		}
+		body = []string{st.dim.Render(cellLine(fmt.Sprintf("%s · %s · %d output bytes", name, state, len(b.result)), width))}
+	case b.role == roleResult && opts.hideTools:
+		body = []string{st.dim.Render(cellLine(fmt.Sprintf("Tool result · %d bytes", len(b.text)), width))}
+	case b.role == roleTool:
+		body = renderToolCard(b, st, width)
 	case isMdRole(b.role) && !opts.raw:
 		body = renderMdBlock(b, raw, st, width)
 	default:
@@ -375,11 +377,6 @@ func cleanText(s string) string {
 	return strings.ReplaceAll(s, "\r", "\n")
 }
 
-// resultPreviewLines caps collapsed tool results (pi parity:
-// FALLBACK_PREVIEW_LINES=10). The overflow note keeps the count, so
-// compacted output never silently loses lines.
-const resultPreviewLines = 10
-
 // Tool output hangs off the call as a tree branch: every row keeps the
 // rail so the card's edge never breaks, and the final row closes the
 // branch on its own row so no text shares the closing corner, without
@@ -395,8 +392,8 @@ var toolRailWidth = lipgloss.Width(toolRail)
 // renderToolCard draws the call and its output. The call is one line
 // with collapsed arguments: models emit pretty-printed JSON, and a
 // header sprawling down the transcript reads stale next to the label
-// rows. Compact view previews long results; full view shows all.
-func renderToolCard(b block, st styles, expand bool, width int) []string {
+// rows. Tool visibility is decided before rendering this content.
+func renderToolCard(b block, st styles, width int) []string {
 	glyph := st.add.Render("✓")
 	if b.open {
 		glyph = st.dim.Render("…")
@@ -412,14 +409,6 @@ func renderToolCard(b block, st styles, expand bool, width int) []string {
 		result = "…"
 	}
 	lines := strings.Split(result, "\n")
-	if !expand && len(lines) > resultPreviewLines {
-		hidden := len(lines) - resultPreviewLines
-		if b.open {
-			lines = append([]string{fmt.Sprintf("… (%d earlier lines)", hidden)}, lines[hidden:]...)
-		} else {
-			lines = append(lines[:resultPreviewLines], fmt.Sprintf("… (%d more lines)", hidden))
-		}
-	}
 	// Reflow every output line inside the rail; the closing corner has
 	// a separate row and never consumes the final content row.
 	wrapW := max(width-toolRailWidth, 1)
@@ -598,7 +587,7 @@ func (m *model) refreshContent() {
 		m.transcript.render.dirty = true
 		return
 	}
-	m.transcript.refresh(transcriptProps{
+	props := transcriptProps{
 		speaker:   m.speakerName(),
 		user:      m.userName(),
 		styles:    m.styles,
@@ -607,8 +596,13 @@ func (m *model) refreshContent() {
 		hideSYS:   m.hideSYS,
 		labels:    !m.hideLabels,
 		hideNames: m.hideNames,
-		dense:     m.dense,
-	})
+		hideTools: m.hideTools,
+	}
+	if m.prefillActive() {
+		p := m.progress
+		props.prefill = &p
+	}
+	m.transcript.refresh(props)
 }
 
 // minWrapWidth guards absurdly narrow viewports: below it, lines pass
@@ -684,12 +678,12 @@ type transcriptRenderState struct {
 
 // Cached text belongs to the update loop; View only reads the viewport.
 type renderedBlock struct {
-	block    block
-	width    int
-	expanded bool
-	labels   bool
-	dense    bool
-	text     string
+	block     block
+	width     int
+	expanded  bool
+	labels    bool
+	hideTools bool
+	text      string
 }
 
 func (m *model) beginTranscriptUpdate() { m.transcript.render.batch++ }
@@ -702,8 +696,8 @@ func (m *model) endTranscriptUpdate() {
 }
 
 func nonEmptySpeaker(name string) string {
-	if name == "" {
-		return "Assistant"
+	if name == "" || strings.EqualFold(name, "Assistant") {
+		return "GEKTOR"
 	}
 	return name
 }
@@ -740,11 +734,12 @@ type transcriptProps struct {
 	// answer to make room.
 	liveThink string
 	styles    styles
-	// hideSYS drops harness notices from the rendered transcript, and
+	// hideSYS drops all scaffolding history from the rendered transcript, and
 	// labels drops the [TAG] rows. Both are display-only: the blocks stay
 	// in m.transcript.blocks and come back unchanged when a filter lifts.
-	hideSYS, labels  bool
-	hideNames, dense bool
+	hideSYS, labels      bool
+	hideNames, hideTools bool
+	prefill              *llm.Progress
 }
 
 // refresh renders every block and assembles the parts. The name row opens a
@@ -753,7 +748,7 @@ type transcriptProps struct {
 // cache keyed on the block value cannot know.
 func (t *transcriptState) refresh(props transcriptProps) {
 	width := t.Viewport.ContentWidth()
-	opts := renderOpts{expand: !t.compact, labels: props.labels, dense: props.dense}
+	opts := renderOpts{expand: !t.compact, labels: props.labels, hideTools: props.hideTools}
 	parts := make([]string, 0, len(t.blocks))
 	cache := make([]renderedBlock, len(t.blocks))
 	prevSpeaker := ""
@@ -762,7 +757,7 @@ func (t *transcriptState) refresh(props transcriptProps) {
 		if b.role == roleUser {
 			b.speaker = props.user
 		}
-		if props.hideSYS && b.role == roleMarker {
+		if props.hideSYS && systemBlock(b.role) {
 			// A filtered block must not satisfy a later lookup: the zero
 			// renderedBlock equals an empty roleAnswer, so a filter that
 			// was lifted would reuse it and render nothing.
@@ -774,10 +769,10 @@ func (t *transcriptState) refresh(props transcriptProps) {
 			renderWidth = max(width-2, 1)
 		}
 		var rendered renderedBlock
-		if i < len(t.render.cache) && t.render.cache[i].block == b && t.render.cache[i].width == width && t.render.cache[i].expanded == opts.expand && t.render.cache[i].labels == opts.labels && t.render.cache[i].dense == opts.dense {
+		if i < len(t.render.cache) && t.render.cache[i].block == b && t.render.cache[i].width == width && t.render.cache[i].expanded == opts.expand && t.render.cache[i].labels == opts.labels && t.render.cache[i].hideTools == opts.hideTools {
 			rendered = t.render.cache[i]
 		} else {
-			rendered = renderedBlock{block: b, width: width, expanded: opts.expand, labels: opts.labels, dense: opts.dense, text: renderBlock(b, props.styles, opts, renderWidth)}
+			rendered = renderedBlock{block: b, width: width, expanded: opts.expand, labels: opts.labels, hideTools: opts.hideTools, text: renderBlock(b, props.styles, opts, renderWidth)}
 		}
 		cache[i] = rendered
 		part := rendered.text
@@ -802,6 +797,16 @@ func (t *transcriptState) refresh(props transcriptProps) {
 			tail = strings.Join(live, "\n")
 		}
 	}
+	if props.prefill != nil && !props.hideSYS {
+		progress := railText(prefillText(*props.prefill, props.styles, max(width-2, 1)), props.styles, width)
+		if !props.hideNames {
+			progress = speakerRow(systemSpeaker, roleStatus, props.styles, width) + "\n" + progress
+		}
+		if tail != "" {
+			tail += "\n\n"
+		}
+		tail += progress
+	}
 	t.SetParts(parts, tail)
 	if t.Viewport.ContentWidth() != width {
 		// Reflow once if this content added or removed the scrollbar column.
@@ -820,7 +825,7 @@ func systemBlock(r role) bool {
 func railText(text string, st styles, width int) string {
 	lines := strings.Split(text, "\n")
 	for i := range lines {
-		lines[i] = st.dim.Render("│ ") + cellLine(lines[i], max(width-2, 1))
+		lines[i] = lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorMode))).Render("│ ") + cellLine(lines[i], max(width-2, 1))
 	}
 	return strings.Join(lines, "\n")
 }

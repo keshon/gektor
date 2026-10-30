@@ -250,9 +250,6 @@ func (m *model) fitBottom() {
 	// Done budgets the input box only (the hint moved right into the
 	// status row); a run error adds its own line on top.
 	lines := 1
-	if m.prefillStatus() != "" {
-		lines++
-	}
 	if m.state == stDone && m.runErr != nil {
 		lines++
 	}
@@ -324,10 +321,10 @@ func (m *model) scrollViewport(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *model) handleEvent(ev run.Event) {
 	m.beginTranscriptUpdate()
 	defer m.endTranscriptUpdate()
-	wasPrefill := m.prefillStatus() != ""
+	wasPrefill := m.prefillActive()
 	defer func() {
-		if wasPrefill != (m.prefillStatus() != "") {
-			m.fitBottom()
+		if wasPrefill || m.prefillActive() {
+			m.refreshContent()
 		}
 	}()
 	switch ev.Name {

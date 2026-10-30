@@ -484,6 +484,9 @@ func TestSessions_ResumeShowsTop(t *testing.T) {
 	chdirSessions(t, tmp)
 	writeSessionState(t, filepath.Join(".gektor", "tasks"), "aaa", compactTestHistory(15))
 	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
+	m.hideSYS, m.hideTools, m.hideNames, m.hideLabels, m.minimal = true, true, true, true, true
+	m.transcript.compact = false
+	appearance := m.currentAppearance()
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*model)
 	if mm.sessions != nil {
@@ -491,6 +494,9 @@ func TestSessions_ResumeShowsTop(t *testing.T) {
 	}
 	if !mm.transcript.Follow || mm.transcript.Viewport.YOffset() != 0 {
 		t.Fatal("resume must land at the top with follow on")
+	}
+	if mm.currentAppearance() != appearance {
+		t.Fatal("opening history reset View preferences")
 	}
 }
 

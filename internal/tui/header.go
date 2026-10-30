@@ -154,12 +154,12 @@ func (m *model) rawHeaderItems() []headerItem {
 		// a scroll action are not the same kind of thing, and listing
 		// them as one flat list hid that.
 		return []headerItem{
-			{"Truncate AI reply", "toggle-details", true},
-			{"Hide SYS messages", "toggle-sys", true},
-			{"Hide labels", "toggle-labels", true},
-			{"Hide speaker names", "toggle-names", true},
-			{"Connected outlines", "toggle-outline", true},
-			{"Compact spacing", "toggle-density", true},
+			{"Agent thinking", "toggle-details", true},
+			{"Agent tools", "toggle-tools", true},
+			{"System messages", "toggle-sys", true},
+			{"Speaker names", "toggle-names", true},
+			{"Message labels", "toggle-labels", true},
+			{"Outlined frame", "toggle-outline", true},
 			{"", "", false},
 			{"Jump to latest", "latest", true},
 			{"Select Theme…", "theme", true},
@@ -345,15 +345,13 @@ func (m *model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			case "toggle-details":
 				return m.handleKey(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
 			case "toggle-sys":
-				m.hideSYS = !m.hideSYS
-				m.refreshContent()
-				return m, nil
+				return m.command("sys")
 			case "toggle-labels":
 				if err := m.changeAppearance(func(a *config.Appearance) { a.HideLabels = !m.hideLabels }); err != nil {
 					m.openDialog("Appearance", []string{err.Error()})
 				}
 				return m, nil
-			case "toggle-names", "toggle-outline", "toggle-density":
+			case "toggle-names", "toggle-outline", "toggle-tools":
 				err := m.changeAppearance(func(a *config.Appearance) {
 					switch item.command {
 					case "toggle-names":
@@ -364,12 +362,8 @@ func (m *model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 						} else {
 							a.Frame = "minimal"
 						}
-					case "toggle-density":
-						if m.dense {
-							a.Density = "comfortable"
-						} else {
-							a.Density = "compact"
-						}
+					case "toggle-tools":
+						a.HideTools = !m.hideTools
 					}
 				})
 				if err != nil {
@@ -604,21 +598,21 @@ func (m *model) headerActionRow(start, delta int) int {
 // is blank on most of them.
 //
 // on is the state the label names, not the state a toggle flips to: the
-// mark on "Hide SYS messages" means harness messages are hidden.
+// mark on "System messages" means scaffolding history is visible.
 func (m *model) headerToggle(command string) (toggle, on bool) {
 	switch command {
 	case "toggle-details":
-		return true, m.transcript.compact
+		return true, !m.transcript.compact
 	case "toggle-sys":
-		return true, m.hideSYS
+		return true, !m.hideSYS
 	case "toggle-labels":
-		return true, m.hideLabels
+		return true, !m.hideLabels
 	case "toggle-names":
-		return true, m.hideNames
+		return true, !m.hideNames
 	case "toggle-outline":
 		return true, !m.minimal
-	case "toggle-density":
-		return true, m.dense
+	case "toggle-tools":
+		return true, !m.hideTools
 	case "/mode plan":
 		return true, m.plan
 	case "/mode act":
