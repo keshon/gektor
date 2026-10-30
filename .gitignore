@@ -40,3 +40,4 @@ run-serve.cmd
 
 # Public TUI preview used by the README.
 !/docs/images/gektor-demo.png
+/design/website
