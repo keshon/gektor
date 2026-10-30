@@ -491,7 +491,8 @@ Checked View options show the named content. Commands follow the separator:
 **Agent thinking** shows full reasoning when checked; otherwise it occupies
 one summary row sized to the available width. It does not truncate the answer.
 **Agent tools** shows tool content when checked; otherwise cards show the tool
-name, execution state and output size, without arguments or result content.
+name and arguments on one line, followed by execution state and output size.
+Arguments shorten to fit the window; result content stays hidden.
 **System messages** shows scaffolding history, including local notices and
 receipts. Turning it off hides those blocks; pending questions and approvals
 remain reachable in their own overlays.

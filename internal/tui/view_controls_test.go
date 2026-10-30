@@ -14,6 +14,24 @@ import (
 	"github.com/keshon/gektor/internal/events"
 )
 
+func TestCompactToolArgumentsFitOneRow(t *testing.T) {
+	b := toolCardBlock("call", "read_file {\n  \"path\": \"internal/tui/transcript.go\"\n}")
+	b.open = false
+	b.result = "PRIVATE_RESULT"
+	for _, width := range []int{40, 80, 140} {
+		text := ansi.Strip(renderBlock(b, defaultStyles(), renderOpts{hideTools: true}, width))
+		if strings.Contains(text, "\n") || lipgloss.Width(text) > width || strings.Contains(text, b.result) {
+			t.Fatal("compact tool row wrapped or exposed result", width, text)
+		}
+		if !strings.HasPrefix(text, "read_file {") || !strings.Contains(text, " · done · 14 output bytes") {
+			t.Fatal("compact tool row lost arguments or status", width, text)
+		}
+		if width >= 80 && !strings.Contains(text, `"path": "internal/tui/transcript.go"`) {
+			t.Fatal("arguments shortened despite available space", text)
+		}
+	}
+}
+
 func TestThinkingSummaryUsesOneWindowWidthRow(t *testing.T) {
 	thought := strings.Repeat("Check 界 condition.\n", 40)
 	for _, width := range []int{20, 40, 80, 140} {

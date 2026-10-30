@@ -276,14 +276,15 @@ func renderBlock(b block, st styles, opts renderOpts, width int) string {
 	case b.role == roleThink && !opts.expand:
 		body = []string{st.dim.Render(raw)}
 	case b.role == roleTool && opts.hideTools:
-		name, _, _ := strings.Cut(b.text, " ")
 		state := "done"
 		if b.open {
 			state = "running"
 		} else if b.failed {
 			state = "failed"
 		}
-		body = []string{st.dim.Render(cellLine(fmt.Sprintf("%s · %s · %d output bytes", name, state, len(b.result)), width))}
+		suffix := fmt.Sprintf(" · %s · %d output bytes", state, len(b.result))
+		call := ansi.Truncate(b.text, max(width-lipgloss.Width(suffix), 1), "…")
+		body = []string{st.dim.Render(cellLine(call+suffix, width))}
 	case b.role == roleResult && opts.hideTools:
 		body = []string{st.dim.Render(cellLine(fmt.Sprintf("Tool result · %d bytes", len(b.text)), width))}
 	case b.role == roleTool:

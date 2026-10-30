@@ -1892,7 +1892,7 @@ func TestToolContentVisibilityIsIndependentOfThinking(t *testing.T) {
 		return block{role: roleTool, text: "run x", callID: "c1", result: text}
 	}
 	hidden := renderBlock(mk(), st, renderOpts{hideTools: true, labels: true}, 80)
-	if strings.Contains(hidden, "abcdef") || !strings.Contains(hidden, "run · done") {
+	if strings.Contains(hidden, "abcdef") || !strings.Contains(hidden, "run x · done") {
 		t.Fatal("tool metadata leaked content", hidden)
 	}
 	full := renderBlock(mk(), st, tagged(), 80)
