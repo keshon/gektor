@@ -658,23 +658,21 @@ func TestNativeUnderlineCaretTracksComposerAndHidesOnHelp(t *testing.T) {
 	}
 }
 
-// Breathing room: the last transcript line never touches the divider —
-// a blank line sits between content and rule at the bottom.
-func TestTranscriptBreathesBeforeDivider(t *testing.T) {
+func TestTranscriptMeetsDividerWithoutReservedBlankRow(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	for _, b := range renderHistory(compactTestHistory(15)) {
 		m.appendBlock(b)
 	}
+	m.appendBlock(answerBlock("last transcript line"))
 	m.transcript.Viewport.GotoBottom()
 	lines := strings.Split(m.View().Content, "\n")
-	// The composer rule sits below the transcript breathing row.
-	div := paneTop + m.transcript.Viewport.Height() + 1
+	div := paneTop + m.transcript.Viewport.Height()
 	if div < 1 {
 		t.Fatalf("no divider in view:\n%s", m.View().Content)
 	}
-	if strings.TrimSpace(strings.Trim(ansi.Strip(lines[div-1]), "│")) != "" {
-		t.Fatalf("line above divider = %q, want blank", lines[div-1])
+	if !strings.Contains(ansi.Strip(lines[div-1]), "last transcript line") {
+		t.Fatalf("last transcript row lost above divider: %q", lines[div-1])
 	}
 }
 
@@ -1540,22 +1538,22 @@ func TestBottomZoneHeights(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	if mm := updated.(*model); mm.transcript.Viewport.Height() != 14 {
-		t.Fatalf("done viewport height = %d, want 14 (24 - header - identity - rule - status - rule - breathing row - input - footer separator - actions)", mm.transcript.Viewport.Height())
+	if mm := updated.(*model); mm.transcript.Viewport.Height() != 15 {
+		t.Fatalf("done viewport height = %d, want 15", mm.transcript.Viewport.Height())
 	}
 	mm := updated.(*model)
 	mm.state = stRunning
 	updated, _ = mm.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	if mm := updated.(*model); mm.transcript.Viewport.Height() != 14 {
-		t.Fatalf("running viewport height = %d, want 14", mm.transcript.Viewport.Height())
+	if mm := updated.(*model); mm.transcript.Viewport.Height() != 15 {
+		t.Fatalf("running viewport height = %d, want 15", mm.transcript.Viewport.Height())
 	}
 	// Composing keeps the same budget: the hint stays put, so the
 	// layout never shifts while typing (user call: always visible).
 	mm.input.SetValue("typing")
 	mm.state = stDone
 	updated, _ = mm.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	if mm = updated.(*model); mm.transcript.Viewport.Height() != 14 {
-		t.Fatalf("composing viewport height = %d, want 14", mm.transcript.Viewport.Height())
+	if mm = updated.(*model); mm.transcript.Viewport.Height() != 15 {
+		t.Fatalf("composing viewport height = %d, want 15", mm.transcript.Viewport.Height())
 	}
 	// The frame uses every row, including the footer at the bottom edge.
 	if n := len(strings.Split(mm.View().Content, "\n")); n != 24 {

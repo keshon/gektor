@@ -117,7 +117,7 @@ func (m *model) footerRows() int {
 func (m *model) footerCells() []footerCell {
 	actions := m.footerActions()
 	columns := (len(actions) + max(m.actionBarRows(), 1) - 1) / max(m.actionBarRows(), 1)
-	width := max(m.termW-2, 0)
+	width := m.paneWidth()
 	cells := make([]footerCell, len(actions))
 	for i, action := range actions {
 		row, column := i/columns, i%columns

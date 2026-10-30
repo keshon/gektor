@@ -84,7 +84,7 @@ func TestComposerRuleMeetsBothFrameEdges(t *testing.T) {
 		m.input.SetValue(draft)
 		m.fitBottom()
 		rows := strings.Split(ansi.Strip(m.View().Content), "\n")
-		y := paneTop + m.transcript.Viewport.Height() + 1
+		y := paneTop + m.transcript.Viewport.Height()
 		if rows[y] != "├"+strings.Repeat("─", m.termW-2)+"┤" {
 			t.Fatalf("composer divider is disconnected: %q", rows[y])
 		}

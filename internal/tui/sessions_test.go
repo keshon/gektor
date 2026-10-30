@@ -452,16 +452,16 @@ func TestSessions_CommandOpensAndEscCloses(t *testing.T) {
 	}
 	// The overlay owns the bottom bar (slim line, no input): the list
 	// gains the freed rows, and closing hands them back.
-	if mm.transcript.Viewport.Height() != 24-8-mm.footerRows() {
-		t.Fatalf("sessions viewport height = %d, want 14", mm.transcript.Viewport.Height())
+	if mm.transcript.Viewport.Height() != 24-7-mm.footerRows() {
+		t.Fatalf("sessions viewport height = %d, want 15", mm.transcript.Viewport.Height())
 	}
 	updated, _ = mm.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	mm = updated.(*model)
 	if mm.sessions != nil {
 		t.Fatal("esc did not close the screen")
 	}
-	if mm.transcript.Viewport.Height() != 24-8-mm.footerRows() {
-		t.Fatalf("closed viewport height = %d, want 14", mm.transcript.Viewport.Height())
+	if mm.transcript.Viewport.Height() != 24-7-mm.footerRows() {
+		t.Fatalf("closed viewport height = %d, want 15", mm.transcript.Viewport.Height())
 	}
 }
 
@@ -472,8 +472,8 @@ func TestViewportRefitsOnResize(t *testing.T) {
 	m.state = stDone
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
 	mm := updated.(*model)
-	if mm.transcript.Viewport.Height() != 30-8-mm.footerRows() {
-		t.Fatalf("resized viewport height = %d, want 20", mm.transcript.Viewport.Height())
+	if mm.transcript.Viewport.Height() != 30-7-mm.footerRows() {
+		t.Fatalf("resized viewport height = %d, want 21", mm.transcript.Viewport.Height())
 	}
 }
 

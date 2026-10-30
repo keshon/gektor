@@ -49,7 +49,7 @@ func (m *model) prefillStatus() string {
 	}
 	processed := min(p.ProcessedTokens, p.PromptTokens)
 	label := fmt.Sprintf("SYSTEM · Prompt processing %d%% · %d/%d tokens", int(float64(processed)*100/float64(p.PromptTokens)), processed, p.PromptTokens)
-	width := max(m.transcript.Viewport.Width()-2, 1)
+	width := max(m.transcript.Viewport.Width(), 1)
 	if width < 60 {
 		label = fmt.Sprintf("SYSTEM · Prefill %d%% · %d/%d", int(float64(processed)*100/float64(p.PromptTokens)), processed, p.PromptTokens)
 	}

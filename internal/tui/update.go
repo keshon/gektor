@@ -263,10 +263,7 @@ func (m *model) fitBottom() {
 	if m.state == stAsk || m.state == stDone || m.state == stRunning || m.state == stStopping {
 		lines += m.input.Height() - 1
 	}
-	// The fixed rows count the menu, pane header, status and divider,
-	// plus the bottom base and breathing blank line above the divider
-	// (layout, not content: a content trailing newline breaks scroll
-	// math — phantom blank rows mid-scroll).
+	// Fixed rows cover the menu, pane header/rules, status and divider.
 	// `lines` adds per-state extras (done hint, reject label, input growth).
 	// A takeover overlay owns the bottom bar (one slim line), so it
 	// budgets nothing extra: the input hides with it.
@@ -285,7 +282,7 @@ func (m *model) fitBottom() {
 	if oldWidth != m.transcript.Viewport.Width() {
 		m.refreshContent()
 	}
-	h := m.termH - 7 - lines
+	h := m.termH - 6 - lines
 	if m.actionBarVisible() {
 		h -= m.footerRows()
 	}
@@ -293,7 +290,11 @@ func (m *model) fitBottom() {
 		h = 1
 	}
 	pinned := m.transcript.Follow && m.transcript.Viewport.AtBottom()
+	contentWidth := m.transcript.Viewport.ContentWidth()
 	m.transcript.Viewport.SetHeight(h)
+	if m.transcript.Viewport.ContentWidth() != contentWidth {
+		m.refreshContent()
+	}
 	if pinned {
 		m.transcript.Viewport.GotoBottom()
 	}

@@ -803,6 +803,10 @@ func (t *transcriptState) refresh(props transcriptProps) {
 		}
 	}
 	t.SetParts(parts, tail)
+	if t.Viewport.ContentWidth() != width {
+		// Reflow once if this content added or removed the scrollbar column.
+		t.refresh(props)
+	}
 }
 
 func systemBlock(r role) bool {
