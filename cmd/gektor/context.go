@@ -41,7 +41,7 @@ func inspectStartup(o resolvedLaunch, out io.Writer) error {
 	}
 	env := roles.Env{WS: ws, Procs: tools.NewBackgroundProcesses(), Identity: app.IdentityPrompt(identity), Capabilities: sources}
 	if o.browser != "" {
-		env.Browser = &tools.Browser{Channel: o.browser, Dir: ws.Root()}
+		env.Browser = &tools.Browser{Channel: o.browser, Dir: ws.Root(), Profile: o.browserProfile, ProfileExplicit: o.explicitFlags["browser-profile"], Headless: o.browserHeadless}
 	}
 	var a *agent.Agent
 	if o.plan {

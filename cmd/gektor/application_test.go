@@ -126,7 +126,7 @@ func TestAgentServiceConfigurationSupportsTextOnlyProfile(t *testing.T) {
 	}
 }
 func TestExecutionPolicyOptionsSurviveServiceHandoff(t *testing.T) {
-	before, err := parseLaunchOptions([]string{"-tui", "-browser", "chrome", "-capabilities", "extensions.json", "-deny", "run_shell=*", "-allow", "read_file=*.go", "-mcp", "local=command", "-model", "old", "-verify-cmd", "go test ./...", "-audit", "audit.jsonl", "-yes", "-api-key", "transient", "-resume", "old-state"})
+	before, err := parseLaunchOptions([]string{"-tui", "-browser", "chrome", "-browser-profile", "work", "-browser-headless", "-capabilities", "extensions.json", "-deny", "run_shell=*", "-allow", "read_file=*.go", "-mcp", "local=command", "-model", "old", "-verify-cmd", "go test ./...", "-audit", "audit.jsonl", "-yes", "-api-key", "transient", "-resume", "old-state"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,6 +143,9 @@ func TestExecutionPolicyOptionsSurviveServiceHandoff(t *testing.T) {
 	}
 	if after.model != "new" || after.maxSteps != 42 || after.plan || after.resume != "" {
 		t.Fatalf("settings or task handoff wrong: %+v", after.launchOptions)
+	}
+	if after.browserProfile != "work" || !after.browserHeadless || !after.explicitFlags["browser-profile"] {
+		t.Fatal("browser selection lost on relaunch", after.launchOptions)
 	}
 }
 

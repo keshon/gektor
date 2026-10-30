@@ -189,6 +189,9 @@ func (a *Agent) persistState(history []llm.Message) error {
 	if a.cfg.SaveCapabilities != nil {
 		a.snapshot.Capabilities = a.cfg.SaveCapabilities()
 	}
+	if a.cfg.SaveBrowser != nil {
+		a.snapshot.Browser = a.cfg.SaveBrowser()
+	}
 	return a.snapshot.Save(a.cfg.StateFile)
 }
 

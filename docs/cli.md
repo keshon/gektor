@@ -111,6 +111,8 @@ fails closed. Rules are pattern tripwires, not process isolation. See
 | `-mcp SERVERS` | - | MCP servers as `"name=cmd args...;name2=https://host/mcp"` over stdio JSON-RPC or Streamable HTTP. Tools appear as `mcp__name__tool`. A server that fails to start is skipped with a warning |
 | `-capabilities FILE` | — | Explicit JSON configuration for optional tool packs and extra skill roots. See [Extensions](extensions.md) |
 | `-browser CHANNEL` | - | Make installed `chrome` or `msedge` available through `enable_browser`. Check prerequisites, prepare pinned Playwright MCP and load its tools only on activation. Setup failures are tool results. See [browser setup](browser.md) |
+| `-browser-profile NAME` | `default` | Dedicated persistent browser profile. Saved conversations restore their profile unless this flag explicitly overrides it. Browser files stay under `~/.gektor/browser-profiles/` |
+| `-browser-headless` | `false` | Hide the browser window for unattended checks. Interactive login uses the visible default mode |
 
 ## Output and debugging
 

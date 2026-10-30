@@ -17,13 +17,21 @@ import (
 // Snapshot keeps the archive independent of the model's working context.
 // ContextStart is an index into History; zero means the entire conversation.
 type Snapshot struct {
-	Version        int           `json:"version"`
-	History        []llm.Message `json:"history"`
-	ContextStart   int           `json:"context_start,omitempty"`
-	Summary        string        `json:"summary,omitempty"`
-	SummaryRequest int           `json:"summary_request,omitempty"`
-	Runs           []Run         `json:"runs,omitempty"`
-	Capabilities   []Capability  `json:"capabilities,omitempty"`
+	Version        int             `json:"version"`
+	History        []llm.Message   `json:"history"`
+	ContextStart   int             `json:"context_start,omitempty"`
+	Summary        string          `json:"summary,omitempty"`
+	SummaryRequest int             `json:"summary_request,omitempty"`
+	Runs           []Run           `json:"runs,omitempty"`
+	Capabilities   []Capability    `json:"capabilities,omitempty"`
+	Browser        *BrowserProfile `json:"browser,omitempty"`
+}
+
+// BrowserProfile references browser-managed data outside the conversation.
+// It never contains cookies, passwords, or an arbitrary filesystem path.
+type BrowserProfile struct {
+	Channel string `json:"channel"`
+	Profile string `json:"profile"`
 }
 
 // Capability preserves the advertised catalog without reconnecting on resume.

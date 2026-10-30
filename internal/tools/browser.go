@@ -78,18 +78,21 @@ func prepareBrowserPackage(ctx context.Context, note func(string), run func(cont
 	if err != nil {
 		return fmt.Errorf("browser setup failed: %w\n%s\nCheck network/npm access and retry; use -browser= to run without a browser", err, agent.TruncateMiddle(strings.TrimSpace(out), 2048))
 	}
-	note("browser: Playwright MCP prepared; connecting isolated browser tools...")
+	note("browser: Playwright MCP prepared; connecting browser tools...")
 	return nil
 }
 
-// StartBrowser uses the existing MCP transport and a separate, ephemeral browser
-// profile. --no-install permits cached packages but never downloads dependencies.
+// StartBrowser retains an isolated headless entry point for automated checks.
 func StartBrowser(ctx context.Context, channel, dir string) ([]agent.Tool, *MCPClient, error) {
+	return startBrowser(ctx, channel, dir, "", true)
+}
+
+func startBrowser(ctx context.Context, channel, dir, profileDir string, headless bool) ([]agent.Tool, *MCPClient, error) {
 	if channel != "chrome" && channel != "msedge" {
 		return nil, nil, fmt.Errorf("browser must be chrome or msedge")
 	}
 	command := "npx"
-	args := []string{"--no-install", browserPackage, "--browser", channel, "--headless", "--isolated", "--image-responses", "allow", "--output-dir", ".gektor/browser"}
+	args := browserArgs(channel, profileDir, headless)
 	if runtime.GOOS == "windows" {
 		command = "cmd.exe"
 		args = append([]string{"/d", "/c", "npx"}, args...)
@@ -103,6 +106,19 @@ func StartBrowser(ctx context.Context, channel, dir string) ([]agent.Tool, *MCPC
 		return nil, nil, fmt.Errorf("browser MCP returned no browser tools")
 	}
 	return list, client, nil
+}
+
+func browserArgs(channel, profileDir string, headless bool) []string {
+	args := []string{"--no-install", browserPackage, "--browser", channel, "--image-responses", "allow", "--output-dir", ".gektor/browser"}
+	if headless {
+		args = append(args, "--headless")
+	}
+	if profileDir == "" {
+		args = append(args, "--isolated")
+	} else {
+		args = append(args, "--user-data-dir", profileDir)
+	}
+	return args
 }
 
 func BrowserToolNames(list []agent.Tool) []string {

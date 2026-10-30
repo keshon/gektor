@@ -22,6 +22,8 @@ type Config struct {
 	RestoreTools        func(context.Context, []llm.Message) error
 	SaveCapabilities    func() []session.Capability
 	RestoreCapabilities func(context.Context, []session.Capability) error
+	SaveBrowser         func() *session.BrowserProfile
+	RestoreBrowser      func(*session.BrowserProfile) error
 	System              string
 	SystemSections      []llm.PromptSection
 	OnPrompt            func(llm.ContextReport)

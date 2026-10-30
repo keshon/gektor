@@ -64,7 +64,7 @@ func runApplication(args []string) error {
 // Keep execution policy in memory. Settings owns the profile and harness;
 // task-only arguments must not replay when opening another session.
 func relaunchOptions(previous launchOptions, p config.Preferences, keepAct bool) launchOptions {
-	previous.explicitFlags = map[string]bool{}
+	previous.explicitFlags = map[string]bool{"browser-profile": previous.explicitFlags["browser-profile"]}
 	previous.profilePath, previous.workspace = p.ProfilePath, p.Workspace
 	previous.task, previous.resume, previous.fork, previous.images, previous.answer = "", "", "", "", ""
 	previous.plan = !keepAct

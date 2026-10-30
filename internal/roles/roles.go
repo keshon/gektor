@@ -22,6 +22,7 @@ import (
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/prompts"
+	"github.com/keshon/gektor/internal/session"
 	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -330,6 +331,10 @@ func (e Env) conversationConfig(label, stateFile string,
 	cfg := e.agentConfig(prompts.System+"\n\n"+prompts.PlatformLine(tools.ShellName()), label, stateFile)
 	e.configureTools(&cfg, extra...)
 	cfg.MaxSteps = e.MaxSteps
+	if e.Browser != nil {
+		cfg.SaveBrowser = e.Browser.Reference
+		cfg.RestoreBrowser = e.Browser.SelectProfile
+	}
 	cfg.RunTimeout = e.RunTimeout
 	cfg.Verify = verify
 	cfg.Stream, cfg.OnDelta, cfg.OnReasoning = e.Stream, e.OnDelta, e.OnReasoning
@@ -363,7 +368,12 @@ func (e Env) configureTools(cfg *agent.Config, extra ...agent.Tool) {
 	cfg.Tools = tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.Vision, extra...)
 	catalog.Registry = cfg.Tools
 	cfg.SaveCapabilities = catalog.Save
-	cfg.RestoreCapabilities = catalog.Restore
+	cfg.RestoreCapabilities = func(ctx context.Context, states []session.Capability) error {
+		if e.Browser != nil {
+			states = e.Browser.UpgradeCatalog(states)
+		}
+		return catalog.Restore(ctx, states)
+	}
 	cfg.RestoreTools = catalog.RestoreArchive
 	if browser != nil {
 		browser.Registry = cfg.Tools

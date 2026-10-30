@@ -25,6 +25,11 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 	if a.cfg.ToolContext != nil {
 		ctx = a.cfg.ToolContext(ctx)
 	}
+	if a.cfg.RestoreBrowser != nil {
+		if err := a.cfg.RestoreBrowser(a.snapshot.Browser); err != nil {
+			return "", fmt.Errorf("restore browser profile: %w", err)
+		}
+	}
 	if a.cfg.RestoreCapabilities != nil {
 		if err := a.cfg.RestoreCapabilities(workCtx, a.snapshot.Capabilities); err != nil {
 			return "", fmt.Errorf("restore capabilities: %w", err)

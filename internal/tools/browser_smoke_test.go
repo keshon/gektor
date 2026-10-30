@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"io/fs"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -43,7 +45,12 @@ func TestBrowserMCPIntegration(t *testing.T) {
 	if channel == "" {
 		channel = "chrome"
 	}
-	browser := &Browser{Channel: channel, Dir: root}
+	browser := &Browser{Channel: channel, Dir: root, connect: func(ctx context.Context, note func(string)) ([]agent.Tool, *MCPClient, error) {
+		if err := PrepareBrowser(ctx, channel, root, note); err != nil {
+			return nil, nil, err
+		}
+		return StartBrowser(ctx, channel, root)
+	}}
 	defer browser.Close()
 	registry, enable := browserRegistry(browser)
 	if len(registry.Defs()) != 1 {

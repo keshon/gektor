@@ -201,7 +201,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		if len(tools.BrowserToolNames(mcpTools)) > 0 {
 			return fmt.Errorf("use either -browser or browser tools configured through -mcp, not both")
 		}
-		browser = &tools.Browser{Channel: o.browser, Dir: ws.Root()}
+		browser = &tools.Browser{Channel: o.browser, Dir: ws.Root(), Profile: o.browserProfile, ProfileExplicit: o.explicitFlags["browser-profile"], Headless: o.browserHeadless}
 		defer browser.Close()
 		note("browser: %s available on request through enable_browser", o.browser)
 	} else if len(tools.BrowserToolNames(mcpTools)) == 0 {

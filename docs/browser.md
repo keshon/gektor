@@ -28,7 +28,8 @@ separate from the MCP handshake timeout. This needs internet on first use;
 later activations reuse the cache. Node.js and browsers are not installed by GEKTOR.
 Setup errors include the npm diagnostic and `-browser=` escape hatch.
 
-GEKTOR uses an isolated headless profile. Successful activation returns browser
+GEKTOR opens a visible Chrome or Edge window with a dedicated persistent profile.
+It does not use your personal browser profile. Successful activation returns browser
 instructions and exposes the MCP tools for the rest of that session. A connection
 failure is a failed tool result with the server's diagnostic; ordinary coding
 tasks can still run without a working browser installation.
@@ -42,6 +43,42 @@ First navigation checks that the browser itself can launch. The selected
 browser must already be installed. Without `-browser` or a custom browser MCP,
 the model is explicitly told browser automation is unavailable.
 
+## Profiles and manual login
+
+Profiles live under `~/.gektor/browser-profiles/<channel>/<name>/`, outside the
+workspace. The default name is `default`. Chrome and Edge have separate profile
+directories. Cookies and browser storage stay in these directories; conversation
+`state.json` files contain only a reference:
+
+```json
+{"browser": {"channel": "chrome", "profile": "work"}}
+```
+
+Select an account/environment with `-browser-profile work`. Names are
+case-insensitive and use 1–48 letters, digits, underscores or hyphens, starting
+with a letter or digit. Opening a saved conversation restores its profile name
+unless `-browser-profile` was explicitly supplied. Resume with the saved browser
+channel; start a new conversation to change Chrome to Edge or vice versa.
+Older conversations without a reference use the launch selection.
+
+Profile files are created only when the browser is activated. Conversations can
+reuse a profile, but only one Gektor process can hold it at a time. A busy profile
+returns an error; close the other Gektor or select another profile. The operating
+system releases the lock if Gektor exits unexpectedly. Deleting a conversation
+does not remove its browser profile or sign you out.
+
+For login or MFA, the agent uses `ask_user` to pause. Switch to the visible browser,
+finish the manual step, and confirm completion in the CLI/TUI. Enter credentials
+in the browser, not the conversation. The browser instructions require a fresh
+DOM snapshot after handoff before further interaction. This uses the existing
+operator prompt; no separate desktop application is required.
+
+For unattended checks, add `-browser-headless`. Manual login requires restarting
+without that flag. Both modes keep the same persistent profile. To sign out,
+use the website's normal logout flow in the Gektor browser.
+
+## Custom MCP
+
 Advanced configuration through the existing MCP option is still available.
 Explicit custom MCP servers connect at startup and advertise their tools immediately:
 
@@ -50,7 +87,9 @@ Explicit custom MCP servers connect at startup and advertise their tools immedia
 ```
 
 For a custom MCP command, use `--browser msedge` for installed Edge. Omit `--headless` to see the
-separate browser window. `--isolated` avoids using your personal profile.
+separate browser window. `--isolated` avoids using your personal profile and
+discards its state on close. Custom MCP commands manage their own profiles;
+Gektor's named-profile selection and lock apply to the built-in `-browser` path.
 The server runs in the task workspace. The example omits inline images to keep
 DOM-based work cheap. With a vision-capable backend, `--image-responses allow`
 also permits validated MCP image attachments. Saved screenshot links remain
