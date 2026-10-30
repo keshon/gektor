@@ -7,7 +7,7 @@ REM Go resolves saved settings, first-run defaults and explicit overrides.
 call scripts\ensure-build.cmd
 if errorlevel 1 goto :failed
 
-.\gektor.exe -tui -browser chrome %*
+.\gektor.exe -tui -browser chrome -browser-profile work %*
 if errorlevel 1 goto :failed
 exit /b 0
 
