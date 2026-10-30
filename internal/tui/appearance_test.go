@@ -140,7 +140,7 @@ func TestOutcomeReceiptPreservesMeasuredStates(t *testing.T) {
 			t.Fatal("receipt changed delivery metadata", b)
 		}
 		text := ansi.Strip(m.transcript.Viewport.View())
-		for _, part := range []string{"│ outcome: " + outcome, "main.go", "checks failed: assertion X", "gektor -tui -resume session-1"} {
+		for _, part := range []string{strings.ToUpper(outcome[:1]) + outcome[1:], "main.go", "checks failed: assertion X", "Session: session-1"} {
 			if !strings.Contains(text, part) {
 				t.Fatal("receipt lost evidence", part, text)
 			}

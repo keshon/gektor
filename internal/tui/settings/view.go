@@ -90,13 +90,15 @@ func (f *Model) note() string {
 	case f.Error != "":
 		return ""
 	case f.Workspace.Section == "generation":
-		return "Temperature: default uses " + strconv.FormatFloat(DefaultTemperature, 'g', -1, 64) + " · F4 Advanced"
+		return "Temperature: default uses " + strconv.FormatFloat(DefaultTemperature, 'g', -1, 64)
 	case f.Workspace.Section == "profiles":
 		return "Ctrl+D saves a copy · Apply uses the loaded profile in this session"
+	case f.Workspace.PersistCurrent:
+		return "Apply saves the current launch settings"
 	case f.Dirty():
-		return "Apply saves a custom profile · F4 Advanced"
+		return "Apply saves a custom profile"
 	default:
-		return "No changes · F4 Advanced"
+		return ""
 	}
 }
 

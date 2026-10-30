@@ -31,6 +31,42 @@ type settingsClient struct {
 	llm.Client
 }
 
+func TestApplyUneditedLaunchOverridePersistsCurrentProtocol(t *testing.T) {
+	m := settingsModel(t)
+	m.application.Temporary = true
+	saved := m.application.Preferences
+	profile := m.config.Profile.Clone()
+	profile.Provider.Kind = "kobold"
+	saved.Profile = &profile
+	if err := config.SavePreferences(m.application.PreferencePath, saved); err != nil {
+		t.Fatal(err)
+	}
+	// The runtime and Settings show the explicit llama launch override.
+	m.editSettings("model")
+	m.formKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	if m.modeChange == nil {
+		t.Fatal("Apply silently ignored the visible launch settings")
+	}
+	if got := m.modeChange.Preferences.Profile.Provider.Kind; got != "llama" {
+		t.Fatal("Apply used stale saved protocol", got)
+	}
+	// Mirror the application restart loop, then reload with no launch override.
+	if err := config.SavePreferences(m.application.PreferencePath, m.modeChange.Preferences); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := config.LoadPreferences(m.application.PreferencePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Profile.Provider.Kind != "llama" {
+		t.Fatal("restart restored stale protocol")
+	}
+	file, err := config.Load(reloaded.ProfilePath)
+	if err != nil || file.Provider.Kind != "llama" {
+		t.Fatal("profile file disagrees with application settings", err)
+	}
+}
+
 // A profile loaded from disk has nothing to diff but must still be
 // committed, or loading a setup would silently do nothing.
 func TestLoadedProfileIsCommittedOnApply(t *testing.T) {

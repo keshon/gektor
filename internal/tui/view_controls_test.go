@@ -23,10 +23,10 @@ func TestCompactToolArgumentsFitOneRow(t *testing.T) {
 		if strings.Contains(text, "\n") || lipgloss.Width(text) > width || strings.Contains(text, b.result) {
 			t.Fatal("compact tool row wrapped or exposed result", width, text)
 		}
-		if !strings.HasPrefix(text, "read_file {") || !strings.Contains(text, " · done · 14 output bytes") {
+		if !strings.HasPrefix(text, "✓ Read file ") || !strings.Contains(text, "read_file") {
 			t.Fatal("compact tool row lost arguments or status", width, text)
 		}
-		if width >= 80 && !strings.Contains(text, `"path": "internal/tui/transcript.go"`) {
+		if width >= 80 && !strings.Contains(text, "internal/tui/transcript.go") {
 			t.Fatal("arguments shortened despite available space", text)
 		}
 	}

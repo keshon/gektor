@@ -130,13 +130,16 @@ func TestScrollbarTakesItsColumnFromTheText(t *testing.T) {
 		parts[i] = strings.Repeat("x", 40)
 	}
 	m.SetParts(parts, "")
-	if got := m.Viewport.ContentWidth(); got != 19 {
-		t.Fatalf("ContentWidth = %d, want 19", got)
+	if got := m.Viewport.ContentWidth(); got != 18 {
+		t.Fatalf("ContentWidth = %d, want 18 plus gutter and scrollbar", got)
 	}
 	for i, row := range strings.Split(m.View(), "\n") {
 		plain := ansi.Strip(row)
 		if got := lipgloss.Width(plain); got != 20 {
 			t.Fatalf("row %d is %d cells, want 20", i, got)
+		}
+		if []rune(plain)[18] != ' ' {
+			t.Fatalf("row %d has no gutter before the scrollbar: %q", i, plain)
 		}
 		if strings.Contains(plain, "x╎") || strings.Contains(plain, "x█") {
 			t.Fatalf("row %d ran text under the scrollbar: %q", i, plain)

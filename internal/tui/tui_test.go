@@ -1010,7 +1010,7 @@ func TestToolCardHeader_SingleLine(t *testing.T) {
 	st := defaultStyles()
 	out := renderBlock(toolCardBlock("c1", "write_file {\n  \"path\": \"a.go\"\n}"), st, renderOpts{expand: true, labels: true}, 80)
 	lines := strings.Split(out, "\n")
-	if len(lines) != 4 || !strings.Contains(lines[1], `{ "path": "a.go" }`) {
+	if len(lines) != 4 || !strings.Contains(lines[1], `{"path":"a.go"}`) {
 		t.Fatalf("card call must hold collapsed args: %q", out)
 	}
 }
@@ -1891,8 +1891,8 @@ func TestToolContentVisibilityIsIndependentOfThinking(t *testing.T) {
 	mk := func() block {
 		return block{role: roleTool, text: "run x", callID: "c1", result: text}
 	}
-	hidden := renderBlock(mk(), st, renderOpts{hideTools: true, labels: true}, 80)
-	if strings.Contains(hidden, "abcdef") || !strings.Contains(hidden, "run x · done") {
+	hidden := ansi.Strip(renderBlock(mk(), st, renderOpts{hideTools: true, labels: true}, 80))
+	if strings.Contains(hidden, "abcdef") || !strings.Contains(hidden, "run x") || !strings.Contains(hidden, "✓") {
 		t.Fatal("tool metadata leaked content", hidden)
 	}
 	full := renderBlock(mk(), st, tagged(), 80)

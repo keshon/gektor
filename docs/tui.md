@@ -493,9 +493,10 @@ Checked View options show the named content. Commands follow the separator:
 
 **Agent thinking** shows full reasoning when checked; otherwise it occupies
 one summary row sized to the available width. It does not truncate the answer.
-**Agent tools** shows tool content when checked; otherwise cards show the tool
-name and arguments on one line, followed by execution state and output size.
-Arguments shorten to fit the window; result content stays hidden.
+**Agent tools** shows complete arguments and output when checked. Otherwise a
+single row shows the action and target, with the tool name aligned right.
+Running and failed calls show their state there; failures include a short error.
+Targets shorten to fit the window; unknown tools fall back to their name and arguments.
 **System messages** shows scaffolding history, including local notices and
 receipts. Turning it off hides those blocks; pending questions and approvals
 remain reachable in their own overlays.
@@ -519,8 +520,10 @@ telemetry uses the usual activity indicator. Progress does not enter the
 conversation archive or model context and does not occupy the input hint area.
 
 Outcome receipts show the existing outcome, observed files, command verdict
-and resume command. A completed response without a command verdict remains
-unverified; failed and cancelled states are preserved.
+and session ID with a pointer to Session → Open. They use the page background
+and SYSTEM accent rail. A completed response without a command verdict remains
+unverified; failed and cancelled states are preserved. The duplicate run-finished
+notice is omitted when the outcome receipt already closes the run.
 
 For file approval, **F4 Proposal** opens the complete diff, including new-file
 contents beyond the bounded prompt preview. Scroll with arrows, Page Up/Down

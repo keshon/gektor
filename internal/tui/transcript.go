@@ -125,11 +125,10 @@ func findingBlock(rule, path string, line int, summary string) block {
 // toolCardBlock opens a tool card: the header renders immediately, the
 // result attaches by ID when its event lands. No arrow prefix — the role
 // gutter already marks tool lines. One line always: models emit
-// pretty-printed multi-line args, and a card header sprawling down the
-// transcript reads stale next to speaker labels. Whitespace collapsed,
-// never cut.
+// pretty-printed multi-line args. Compact JSON keeps string values intact;
+// presentation chooses whether to summarize or wrap the complete arguments.
 func toolCardBlock(callID, text string) block {
-	return block{role: roleTool, text: strings.Join(strings.Fields(text), " "), at: time.Now(), callID: callID, open: true}
+	return block{role: roleTool, text: compactToolText(text), at: time.Now(), callID: callID, open: true}
 }
 
 // attachResult lands a tool result on the most recent open card with a
@@ -275,15 +274,9 @@ func renderBlock(b block, st styles, opts renderOpts, width int) string {
 	case b.role == roleThink && !opts.expand:
 		body = []string{st.think.Render(raw)}
 	case b.role == roleTool && opts.hideTools:
-		state := "done"
-		if b.open {
-			state = "running"
-		} else if b.failed {
-			state = "failed"
-		}
-		suffix := fmt.Sprintf(" · %s · %d output bytes", state, len(b.result))
-		call := ansi.Truncate(b.text, max(width-lipgloss.Width(suffix), 1), "…")
-		body = []string{st.dim.Render(cellLine(call+suffix, width))}
+		body = []string{compactTool(b, st, width)}
+	case b.role == roleReceipt:
+		body = receiptText(raw, st, width)
 	case b.role == roleResult && opts.hideTools:
 		body = []string{st.dim.Render(cellLine(fmt.Sprintf("Tool result · %d bytes", len(b.text)), width))}
 	case b.role == roleTool:
@@ -389,10 +382,8 @@ const (
 // toolRailWidth is what the rail costs on every output row.
 var toolRailWidth = lipgloss.Width(toolRail)
 
-// renderToolCard draws the call and its output. The call is one line
-// with collapsed arguments: models emit pretty-printed JSON, and a
-// header sprawling down the transcript reads stale next to the label
-// rows. Tool visibility is decided before rendering this content.
+// renderToolCard draws the complete call and output, wrapping arguments
+// without discarding them. Compact summaries use a separate renderer.
 func renderToolCard(b block, st styles, width int) []string {
 	glyph := st.add.Render("✓")
 	if b.open {
@@ -400,8 +391,14 @@ func renderToolCard(b block, st styles, width int) []string {
 	} else if b.failed {
 		glyph = st.err.Render("✕")
 	}
-	call := ansi.Truncate(b.text, max(width-2, 1), "…")
-	out := []string{glyph + " " + st.dim.Render(call)}
+	var out []string
+	for i, call := range reflow(b.text, max(width-2, 1)) {
+		prefix := "  "
+		if i == 0 {
+			prefix = glyph + " "
+		}
+		out = append(out, prefix+st.dim.Render(call))
+	}
 	// Before the first chunk, show a pending row. Once output arrives the
 	// same card renders it while retaining its running glyph.
 	result := b.result

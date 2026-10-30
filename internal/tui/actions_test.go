@@ -55,34 +55,36 @@ func TestFooterActionsCannotHidePendingPrompts(t *testing.T) {
 }
 
 func TestActionBarCellsAndMouseShareGeometry(t *testing.T) {
-	for _, width := range []int{40, 80, 120} {
-		m := sizeModel(t, testModel())
-		m.minimal = true
-		m.state = stDone
-		m.width(tea.WindowSizeMsg{Width: width, Height: 24})
-		rows := strings.Split(ansi.Strip(m.View().Content), "\n")
-		top := len(rows) - m.actionBarRows()
-		cells := m.footerCells()
-		if cells[0].start != 0 || cells[len(cells)-1].end != m.transcript.Viewport.Width() {
-			t.Fatal("footer edges do not align with content")
-		}
-		for _, cell := range cells {
-			bar := rows[top+cell.row]
-			if !strings.HasPrefix(string([]rune(bar)[cell.start:]), func() string {
-				if cell.end-cell.start < 14 && strings.HasPrefix(cell.action.name, "Ctrl+") {
-					return " ^" + strings.TrimPrefix(cell.action.name, "Ctrl+") + " "
+	for _, minimal := range []bool{false, true} {
+		for _, width := range []int{40, 80, 120} {
+			m := sizeModel(t, testModel())
+			m.minimal = minimal
+			m.state = stDone
+			m.width(tea.WindowSizeMsg{Width: width, Height: 24})
+			rows := strings.Split(ansi.Strip(m.View().Content), "\n")
+			top := len(rows) - m.actionBarRows()
+			cells := m.footerCells()
+			if cells[0].start != 0 || cells[len(cells)-1].end != m.termW {
+				t.Fatal("footer edges do not align with outer frame")
+			}
+			for _, cell := range cells {
+				bar := rows[top+cell.row]
+				if !strings.HasPrefix(string([]rune(bar)[cell.start:]), func() string {
+					if cell.end-cell.start < 14 && strings.HasPrefix(cell.action.name, "Ctrl+") {
+						return " ^" + strings.TrimPrefix(cell.action.name, "Ctrl+") + " "
+					}
+					return " " + cell.action.name + " "
+				}()) {
+					t.Fatalf("button moved at width %d: %q", width, bar)
 				}
-				return " " + cell.action.name + " "
-			}()) {
-				t.Fatalf("button moved at width %d: %q", width, bar)
-			}
-			if cell.start > 0 && []rune(bar)[cell.start-1] != ' ' {
-				t.Fatal("button separator missing")
-			}
-			if cell.action.key == 'p' {
-				m.Update(tea.MouseClickMsg{X: cell.start, Y: top + cell.row, Button: tea.MouseLeft})
-				if m.sessions == nil {
-					t.Fatalf("transcript button click missed at width %d", width)
+				if cell.start > 0 && []rune(bar)[cell.start-1] != ' ' {
+					t.Fatal("button separator missing")
+				}
+				if cell.action.key == 'p' {
+					m.Update(tea.MouseClickMsg{X: cell.start, Y: top + cell.row, Button: tea.MouseLeft})
+					if m.sessions == nil {
+						t.Fatalf("transcript button click missed at width %d", width)
+					}
 				}
 			}
 		}

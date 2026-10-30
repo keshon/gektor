@@ -114,14 +114,16 @@ func (m *model) footerRows() int {
 func (m *model) footerCells() []footerCell {
 	actions := m.footerActions()
 	columns := (len(actions) + max(m.actionBarRows(), 1) - 1) / max(m.actionBarRows(), 1)
-	width := m.paneWidth()
+	// The menu, frame and hotkey bar share the terminal's outer edges.
+	// Only transcript/composer content uses the frame's inner inset.
+	width := m.termW
 	cells := make([]footerCell, len(actions))
 	for i, action := range actions {
 		row, column := i/columns, i%columns
 		count := min(columns, len(actions)-row*columns)
 		contentWidth := width - (count - 1)
-		start := m.promptOffset() + column*contentWidth/count + column
-		end := m.promptOffset() + (column+1)*contentWidth/count + column
+		start := column*contentWidth/count + column
+		end := (column+1)*contentWidth/count + column
 		cells[i] = footerCell{action, row, start, end}
 	}
 	return cells

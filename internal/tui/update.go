@@ -143,7 +143,9 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 			marker := "— interrupted —"
 			m.appendBlock(markerBlock(marker))
 		} else {
-			m.appendBlock(markerBlock("— run finished —"))
+			if len(m.transcript.blocks) == 0 || m.transcript.blocks[len(m.transcript.blocks)-1].role != roleReceipt {
+				m.appendBlock(markerBlock("— run finished —"))
+			}
 			if msg.err != nil {
 				// Failures live in the transcript, not just the bottom
 				// bar: scrolled-up context keeps the error beside the
@@ -391,7 +393,7 @@ func (m *model) handleEvent(ev run.Event) {
 				args, _ := call["args"].(string)
 				id, _ := call["id"].(string)
 				m.toolsUsed++
-				m.appendBlock(toolCardBlock(id, name+" "+truncate(args, 120)))
+				m.appendBlock(toolCardBlock(id, name+" "+args))
 			}
 		}
 	case "user_input":
