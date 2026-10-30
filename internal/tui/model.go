@@ -344,7 +344,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		backendKind: cfg.Env.BackendKind,
 		backendURL:  safeEndpoint(cfg.BackendURL),
 		responseCap: cfg.Env.MaxTokens,
-		streaming:   cfg.Env.Stream && cfg.Env.BackendKind != "kobold",
+		streaming:   cfg.Env.Stream,
 		modelName:   cfg.Env.Model,
 		ws:          cfg.Env.WS,
 		wsRoot:      wsRootOf(cfg.Env.WS),

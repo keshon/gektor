@@ -3,11 +3,13 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestStreamRequestsMeasuredUsageAndReportsCacheHits(t *testing.T) {
@@ -207,16 +209,53 @@ func TestStream_DeltasAndAssembly(t *testing.T) {
 	}
 }
 
-func TestStream_KoboldRefuses(t *testing.T) {
-	// Refusal happens before any HTTP dial: unreachable URL proves it.
-	c := NewKoboldClient("http://127.0.0.1:1", "x")
-	called := false
-	_, err := c.Stream(context.Background(), ChatRequest{}, nil, func(string) { called = true })
-	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "unsupported") {
-		t.Fatalf("err = %v, want unsupported", err)
+func TestStream_KoboldReasoningAndBufferedTools(t *testing.T) {
+	first := make(chan string, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req wireRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Error(err)
+		}
+		if r.URL.Path != "/v1/chat/completions" || !req.Stream || req.Grammar != DefaultGrammar || req.RepPen == 0 || req.ReturnProgress || req.TimingsPerToken || len(req.Tools) != 1 {
+			t.Errorf("wrong Kobold request: %+v", req)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"checking\"}}]}\n\n")
+		w.(http.Flusher).Flush()
+		select {
+		case got := <-first:
+			if got != "checking" {
+				t.Error("wrong reasoning chunk", got)
+			}
+		case <-r.Context().Done():
+			return
+		}
+		for _, frame := range []string{
+			`{"choices":[{"delta":{"content":"inspect"}}]}`,
+			`{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_0","type":"function","function":{"name":"read_file","arguments":""}}]}}]}`,
+			`{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"path\":\"main.go\"}"}}]}}]}`,
+			`{"choices":[{"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":100,"completion_tokens":12}}`,
+		} {
+			fmt.Fprintf(w, "data: %s\n\n", frame)
+		}
+		fmt.Fprint(w, "data: [DONE]\n\n")
+	}))
+	defer srv.Close()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	var content strings.Builder
+	resp, err := NewKoboldClient(srv.URL, "test").Stream(ctx, ChatRequest{
+		Messages: []Message{{Role: RoleUser, Content: "inspect main.go"}},
+		Tools:    []ToolDef{{Name: "read_file", Parameters: json.RawMessage(`{"type":"object"}`)}},
+	}, func(s string) { first <- s }, func(s string) { content.WriteString(s) })
+	if err != nil {
+		t.Fatal(err)
 	}
-	if called {
-		t.Fatal("no deltas may flow from a refused stream")
+	if resp.Message.Reasoning != "checking" || resp.Message.Content != "inspect" || content.String() != "inspect" || resp.FinishReason != "tool_calls" || resp.Usage.Estimated || resp.Usage.PromptTokens != 100 {
+		t.Fatalf("lost streamed response: %+v", resp)
+	}
+	if calls := resp.Message.ToolCalls; len(calls) != 1 || calls[0].ID != "call_0" || calls[0].Name != "read_file" || string(calls[0].Arguments) != `{"path":"main.go"}` {
+		t.Fatalf("lost buffered tool call: %+v", calls)
 	}
 }
 
@@ -269,18 +308,67 @@ func TestStream_KeepsMeasuredUsage(t *testing.T) {
 }
 
 func TestStreamRejectsIncompleteAndMalformedFrames(t *testing.T) {
-	for _, body := range []string{
-		`data: {"choices":[{"delta":{"content":"partial"}}]}` + "\n\n",
-		"data: invalid\n\ndata: [DONE]\n\n",
-		`data: {"error":{"message":"failed"}}` + "\n\ndata: [DONE]\n\n",
+	for _, newClient := range []func(string, string) *Server{NewLlamaClient, NewKoboldClient} {
+		for _, body := range []string{
+			`data: {"choices":[{"delta":{"content":"partial"}}]}` + "\n\n",
+			"data: invalid\n\ndata: [DONE]\n\n",
+			`data: {"error":{"message":"failed"}}` + "\n\ndata: [DONE]\n\n",
+		} {
+			t.Run(body, func(t *testing.T) {
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(body)) }))
+				defer srv.Close()
+				c := newClient(srv.URL, "test")
+				_, err := c.Stream(context.Background(), ChatRequest{}, nil, nil)
+				if err == nil {
+					t.Fatal("partial/error stream accepted")
+				}
+			})
+		}
+	}
+}
+
+func TestStreamKoboldCancellation(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"partial\"}}]}\n\n")
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	}))
+	defer srv.Close()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	resp, err := NewKoboldClient(srv.URL, "test").Stream(ctx, ChatRequest{}, nil, func(string) { cancel() })
+	if !errors.Is(err, context.Canceled) || resp.Message.Content != "partial" || resp.FinishReason != "incomplete_stream" {
+		t.Fatalf("cancellation lost partial response or accepted completion: %+v %v", resp, err)
+	}
+}
+
+func TestStreamKoboldGrammarPrecedence(t *testing.T) {
+	for _, tc := range []struct {
+		name, client, request, want string
+		disabled                    bool
+	}{
+		{name: "default", want: DefaultGrammar},
+		{name: "disabled", disabled: true},
+		{name: "client", client: "client grammar", want: "client grammar"},
+		{name: "request", client: "client grammar", request: "request grammar", want: "request grammar"},
 	} {
-		t.Run(body, func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(body)) }))
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var req wireRequest
+				if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+					t.Error(err)
+				}
+				if req.Grammar != tc.want {
+					t.Errorf("grammar=%q, want %q", req.Grammar, tc.want)
+				}
+				fmt.Fprint(w, "data: [DONE]\n\n")
+			}))
 			defer srv.Close()
-			c := NewLlamaClient(srv.URL, "test")
-			_, err := c.Stream(context.Background(), ChatRequest{}, nil, nil)
-			if err == nil {
-				t.Fatal("partial/error stream accepted")
+			c := NewKoboldClient(srv.URL, "test")
+			c.Grammar, c.NoGrammar = tc.client, tc.disabled
+			if _, err := c.Stream(t.Context(), ChatRequest{Grammar: tc.request}, nil, nil); err != nil {
+				t.Fatal(err)
 			}
 		})
 	}

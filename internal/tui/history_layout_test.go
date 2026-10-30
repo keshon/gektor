@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/run"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 func TestSendingMessageRestoresHistoryFollow(t *testing.T) {
@@ -63,10 +65,20 @@ func TestTaskModalsKeepHistoryBehindTheirFrame(t *testing.T) {
 
 func TestSessionIdentityIsRightAlignedWithoutOverlappingMenus(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 160, 30)
+	root := filepath.Join(t.TempDir(), "workspace-name")
+	if err := os.Mkdir(root, 0700); err != nil {
+		t.Fatal(err)
+	}
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	m.ws = ws
 	m.stateFile = filepath.Join("sessions", "655e57ba", "state.json")
 	m.sessionTitle = "Calculator mockup"
 	line := ansi.Strip(m.menuLine())
-	if !strings.HasSuffix(line, "655e57ba · Calculator mockup ") {
+	if !strings.HasSuffix(line, "workspace-name · 655e57ba · Calculator mockup ") {
 		t.Fatalf("missing right-aligned identity: %q", line)
 	}
 	for _, width := range []int{40, 80, 120, 160} {

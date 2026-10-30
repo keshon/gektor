@@ -62,7 +62,7 @@ model metadata show `—` until a new response.
 The transcript and composer use the full width. Ctrl+P / F2 opens saved sessions
 with name/history search, rename and delete. Each entry shows its last update,
 age in days, message count and preview, separated by a rule. Task modals share
-an 80-cell frame (clamped to the terminal), overlaid on the visible history; menus remain anchored to their controls. The session ID and title sit at the right of the top menu row when space allows. Sending a message resumes follow at the bottom; incoming assistant output preserves a manually scrolled reading position.
+an 80-cell frame (clamped to the terminal), overlaid on the visible history; menus remain anchored to their controls. The workspace directory name, session ID and title sit at the right of the top menu row when space allows, separated by `·`. Sending a message resumes follow at the bottom; incoming assistant output preserves a manually scrolled reading position.
 
 The transcript reads as a name row, a label row and a body. A run of
 blocks by one participant opens with its name in uppercase; the blocks
@@ -329,9 +329,9 @@ local UI commands; they are not tools or RPC methods.
   Window resizing uses the visible viewport rather than scrollback buffer size.
 - Strange scrolling: keep server logs in their own terminal. Do not redirect
   model/server output into the full-screen UI.
-- No streaming text on KoboldCPP: that dialect uses unary requests. OpenAI
-  and llama stream automatically in the TUI; the spinner still reports activity
-  in unary mode.
+- OpenAI, llama and KoboldCPP stream automatically in the TUI. KoboldCPP may
+  buffer tool-call turns before sending their chunks. Measured prompt-processing
+  percentages require llama telemetry; other backends retain the waiting indicator.
 - Large reference rejected: use a smaller file or ask the agent to inspect
   it with bounded file tools. Raising the generation budget does not raise
   attachment limits.

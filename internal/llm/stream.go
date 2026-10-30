@@ -25,13 +25,9 @@ var ErrStreamUnsupported = errors.New("streaming unsupported")
 
 // Stream sends req with stream:true and reports each chunk as it arrives,
 // reasoning on onReasoning and answer text on onContent, then returns the
-// assembled ChatResponse. Only dialects with SSE support work: koboldcpp
-// decides tool calls in its own server-side pass and has no stable stream
-// contract, so it refuses and the caller falls back to ChatWithRetry.
+// assembled ChatResponse. Kobold may buffer tool turns server-side, then
+// deliver the completed calls through the same SSE delta format.
 func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onContent func(string)) (ChatResponse, error) {
-	if _, ok := c.dialect.(koboldDialect); ok {
-		return ChatResponse{}, fmt.Errorf("%w on koboldcpp — use Chat", ErrStreamUnsupported)
-	}
 	temperature := req.Temperature
 	if temperature <= 0 {
 		temperature = defaultTemperature
@@ -46,11 +42,19 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onCon
 	structured := req.Grammar != "" || req.JSONSchema != ""
 	if structured {
 		c.dialect.applyStructured(&wreq, req.Grammar, req.JSONSchema)
+	} else {
+		grammar := c.Grammar
+		if grammar == "" && !c.NoGrammar {
+			grammar = c.dialect.contentGrammar()
+		}
+		if grammar != "" {
+			c.dialect.applyStructured(&wreq, grammar, "")
+		}
 	}
 	c.dialect.applySampling(&wreq, c.DRY)
-	// Koboldcpp never reaches here (refused above), so images are
-	// always encodable on the streaming path.
-	msgs, err := encodeMessages(req.Messages, true)
+	// Preserve the same image capability policy as unary requests.
+	_, kobold := c.dialect.(koboldDialect)
+	msgs, err := encodeMessages(req.Messages, !kobold)
 	if err != nil {
 		return ChatResponse{}, err
 	}

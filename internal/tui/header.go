@@ -556,6 +556,9 @@ func (m *model) menuLine() string {
 	if m.stateFile != "" {
 		identity = filepath.Base(filepath.Dir(m.stateFile)) + " · " + identity
 	}
+	if m.ws != nil {
+		identity = filepath.Base(m.ws.Root()) + " · " + identity
+	}
 	available := m.termW - lipgloss.Width(line) - 3
 	if available >= 12 {
 		identity = strings.TrimSpace(cellLine(identity, available))
