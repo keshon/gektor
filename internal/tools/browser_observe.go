@@ -40,10 +40,10 @@ return {
 func (*BrowserObserve) Name() string         { return "browser_observe" }
 func (*BrowserObserve) Mode() agent.ToolMode { return agent.Exclusive }
 func (*BrowserObserve) Description() string {
-	return "Observe current page: text (default; Unicode offset paging), controls (DOM refs), visual (image input required). expect_text checks literal visible body text; mismatch fails. Current state alone proves neither persistence nor task completion."
+	return "Read page text (default), DOM controls/refs, or a screenshot (image input required). expect_text asserts literal visible body text; mismatch fails. Verify persistence after reload; observations alone do not prove task completion."
 }
 func (*BrowserObserve) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"mode":{"type":"string","enum":["text","controls","visual"]},"offset":{"type":"integer","minimum":0},"expect_text":{"type":"string","minLength":1,"maxLength":1000}},"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"mode":{"type":"string","enum":["text","controls","visual"]},"offset":{"type":"integer","minimum":0,"description":"Text mode only: zero-based Unicode character offset. Continue with next_offset; absent means end."},"expect_text":{"type":"string","minLength":1,"maxLength":1000}},"additionalProperties":false}`)
 }
 
 func canObserveBrowser(defs []llm.ToolDef) bool {

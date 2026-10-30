@@ -24,9 +24,7 @@ type CheckURL struct{}
 func (CheckURL) Name() string         { return "check_url" }
 func (CheckURL) Mode() agent.ToolMode { return agent.Concurrent }
 func (CheckURL) Description() string {
-	return "Make an HTTP GET request to a URL and report the status code, or the connection " +
-		"error if it's not reachable. Use this to verify a server is actually up instead of " +
-		"trusting its startup output."
+	return "GET a URL with a 5s timeout; follow redirects and return HTTP status plus up to 512 body bytes, or a request error. Reachability alone does not verify page behavior."
 }
 func (CheckURL) Schema() json.RawMessage {
 	return json.RawMessage(`{

@@ -32,7 +32,7 @@ func (*Delegate) Name() string { return "delegate_task" }
 // semaphore here would only ever admit one.
 func (*Delegate) Mode() agent.ToolMode { return agent.Exclusive }
 func (*Delegate) Description() string {
-	return "Delegate self-contained work worth a fresh context; do small/coupled work directly. Supply requirements and paths: parent history is absent. Optional role sets focus. Shares the workspace; runs sequentially with a step limit and no further delegation. Verify returned changes and evidence."
+	return "Delegate independent subtasks worth fresh context; handle small or tightly related changes yourself. Supply requirements and paths: parent history is absent. Optional role sets focus. Shares the workspace; runs sequentially with a step limit and no further delegation. Verify returned changes and evidence."
 }
 func (*Delegate) Schema() json.RawMessage {
 	return json.RawMessage(`{

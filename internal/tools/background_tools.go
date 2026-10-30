@@ -147,7 +147,7 @@ type WaitBackground struct{ Procs *BackgroundProcesses }
 func (WaitBackground) Name() string         { return "wait_background" }
 func (WaitBackground) Mode() agent.ToolMode { return agent.Concurrent }
 func (WaitBackground) Description() string {
-	return "Wait for a finite background build/test without model polling. timeout_seconds defaults to 30, maximum 60. Servers remain running. Completion after this agent run ends is delivered on the next run, never by a hidden model invocation."
+	return "Wait for a background build/test and return status/output; timeout_seconds defaults to 30 (max 60). Does not stop servers. Completion after this run ends is reported on the next; it never starts a model run."
 }
 func (WaitBackground) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"},"timeout_seconds":{"type":"integer","minimum":1,"maximum":60}},"required":["id"],"additionalProperties":false}`)
@@ -193,9 +193,8 @@ func (t WaitBackground) Run(ctx context.Context, args json.RawMessage) (string, 
 func (CheckBackground) Name() string         { return "check_background" }
 func (CheckBackground) Mode() agent.ToolMode { return agent.Concurrent }
 func (CheckBackground) Description() string {
-	return "Check the current output and status (running/exited) of a process started with " +
-		"start_background or start_program. Pass its next_cursor as cursor to receive only new output. " +
-		"Use cursor=0 to read from the beginning; evicted output is marked explicitly."
+	return "Read status and output of a process started with start_background or start_program. " +
+		"Pass next_cursor as cursor for new output, or 0 for the beginning. Older output discarded from the buffer is marked."
 }
 func (CheckBackground) Schema() json.RawMessage {
 	return json.RawMessage(`{
