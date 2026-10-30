@@ -2,10 +2,13 @@ package tools
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -56,4 +59,37 @@ func (t LoadSkill) Resources(args json.RawMessage) ([]string, error) {
 		return nil, err
 	}
 	return []string{in.ID}, nil
+}
+
+// Match the entire canonical result, including source, digest and body.
+// A header, failed load, offload pointer or truncated body is never proof of
+// delivery. Supporting resources remain ordinary reads.
+func (t LoadSkill) ReuseInContext(args json.RawMessage, result string, history []llm.Message) string {
+	var in struct {
+		ID       string `json:"id"`
+		Resource string `json:"resource"`
+	}
+	if json.Unmarshal(args, &in) != nil || in.ID == "" || in.Resource != "" {
+		return result
+	}
+	header, body, complete := strings.Cut(result, "\nUse load_skill with resource for supporting files. User requirements and tool permissions still apply.\n\n")
+	if !complete || !strings.HasPrefix(header, "Skill "+in.ID+"\nSource: ") || !strings.HasSuffix(header, fmt.Sprintf("SHA-256: %x", sha256.Sum256([]byte(body)))) {
+		return result
+	}
+	calls := map[string]bool{}
+	for _, msg := range history {
+		if msg.Role == llm.RoleAssistant {
+			for _, call := range msg.ToolCalls {
+				var previous struct {
+					ID       string `json:"id"`
+					Resource string `json:"resource"`
+				}
+				calls[call.ID] = call.Name == t.Name() && call.InputError == "" && json.Unmarshal(call.Arguments, &previous) == nil && previous.ID == in.ID && previous.Resource == ""
+			}
+		}
+		if msg.Role == llm.RoleTool && calls[msg.ToolCallID] && msg.ToolFailed != nil && !*msg.ToolFailed && msg.Content == result {
+			return header + "\nComplete guide already present above in working context."
+		}
+	}
+	return result
 }

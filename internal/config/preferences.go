@@ -10,13 +10,14 @@ import (
 )
 
 type Preferences struct {
-	Mode        string   `json:"mode,omitempty"`
-	Theme       string   `json:"theme,omitempty"`
-	Version     int      `json:"version"`
-	Workspace   string   `json:"workspace,omitempty"`
-	ProfilePath string   `json:"profile_path,omitempty"`
-	Profile     *Profile `json:"profile,omitempty"`
-	Harness     Harness  `json:"harness,omitempty"`
+	Mode        string     `json:"mode,omitempty"`
+	Theme       string     `json:"theme,omitempty"`
+	Appearance  Appearance `json:"appearance,omitempty"`
+	Version     int        `json:"version"`
+	Workspace   string     `json:"workspace,omitempty"`
+	ProfilePath string     `json:"profile_path,omitempty"`
+	Profile     *Profile   `json:"profile,omitempty"`
+	Harness     Harness    `json:"harness,omitempty"`
 }
 
 // UnlimitedSteps is the persisted ceiling used for an unlimited direct run.
@@ -45,6 +46,9 @@ func (h *Harness) UnmarshalJSON(data []byte) error {
 }
 
 func (p Preferences) Validate() error {
+	if err := p.Appearance.Validate(); err != nil {
+		return err
+	}
 	if p.Mode != "" && p.Mode != "plan" && p.Mode != "act" {
 		return fmt.Errorf("unknown workflow mode %q", p.Mode)
 	}

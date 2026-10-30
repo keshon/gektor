@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/run"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 func TestSendingMessageRestoresHistoryFollow(t *testing.T) {
@@ -63,10 +65,20 @@ func TestTaskModalsKeepHistoryBehindTheirFrame(t *testing.T) {
 
 func TestSessionIdentityIsRightAlignedWithoutOverlappingMenus(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 160, 30)
+	root := filepath.Join(t.TempDir(), "workspace-name")
+	if err := os.Mkdir(root, 0700); err != nil {
+		t.Fatal(err)
+	}
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	m.ws = ws
 	m.stateFile = filepath.Join("sessions", "655e57ba", "state.json")
 	m.sessionTitle = "Calculator mockup"
 	line := ansi.Strip(m.menuLine())
-	if !strings.HasSuffix(line, "655e57ba · Calculator mockup ") {
+	if !strings.HasSuffix(line, "workspace-name · 655e57ba · Calculator mockup ") {
 		t.Fatalf("missing right-aligned identity: %q", line)
 	}
 	for _, width := range []int{40, 80, 120, 160} {
@@ -84,9 +96,33 @@ func TestComposerRuleMeetsBothFrameEdges(t *testing.T) {
 		m.input.SetValue(draft)
 		m.fitBottom()
 		rows := strings.Split(ansi.Strip(m.View().Content), "\n")
-		y := paneTop + m.transcript.Viewport.Height() + 1
+		y := paneTop + m.transcript.Viewport.Height()
 		if rows[y] != "├"+strings.Repeat("─", m.termW-2)+"┤" {
 			t.Fatalf("composer divider is disconnected: %q", rows[y])
+		}
+	}
+}
+
+func TestOutlinedChromeKeepsOuterBoundsOnResize(t *testing.T) {
+	m := sizeModelTo(t, testModel(), 120, 30)
+	m.minimal = false
+	for _, width := range []int{40, 80, 160, 64, 120} {
+		m.width(tea.WindowSizeMsg{Width: width, Height: 30})
+		rows := strings.Split(ansi.Strip(m.View().Content), "\n")
+		if len(rows) != 30 || rows[1] != "┌"+strings.Repeat("─", width-2)+"┐" {
+			t.Fatal("outer frame moved", width, rows)
+		}
+		for _, y := range []int{0, 1, len(rows) - 1} {
+			if lipgloss.Width(rows[y]) != width {
+				t.Fatal("chrome width mismatch", width, y, rows[y])
+			}
+		}
+		cells := m.footerCells()
+		if cells[0].start != 0 || cells[len(cells)-1].end != width || m.promptOffset() != 1 || m.paneWidth() != width-2 {
+			t.Fatal("outer controls and inner content share the wrong inset", width, cells)
+		}
+		if !strings.HasPrefix(rows[len(rows)-1], " F1 ") {
+			t.Fatal("first button is inset", rows[len(rows)-1])
 		}
 	}
 }

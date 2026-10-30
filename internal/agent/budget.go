@@ -35,7 +35,7 @@ func (a *Agent) closeBudget(ctx context.Context, st *runState, history []llm.Mes
 	}
 	history = a.nudge(history, "time_limit", "Work time has ended. Tools are disabled. Briefly report completed work, verification actually observed, blockers and remaining work. The task is incomplete; do not claim success.")
 	a.saveState(history)
-	resp, err := a.chat(ctx, llm.ChatRequest{Messages: history, MaxTokens: min(1024, a.effectiveMaxTokens(st.lastPromptTokens))})
+	resp, err := a.chat(ctx, llm.ChatRequest{Messages: a.reuseContext(history), MaxTokens: min(1024, a.effectiveMaxTokens(st.lastPromptTokens))})
 	a.report.Steps++
 	if err != nil || resp.FinishReason == "length" || len(resp.Message.ToolCalls) > 0 || strings.TrimSpace(resp.Message.Content) == "" {
 		return

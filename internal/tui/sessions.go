@@ -323,7 +323,7 @@ func renderHistoryAt(history []llm.Message) ([]block, []int) {
 				if tc.InputError != "" {
 					args = tc.RawArguments
 				}
-				card := toolCardBlock(tc.ID, tc.Name+" "+truncate(args, 120))
+				card := toolCardBlock(tc.ID, tc.Name+" "+args)
 				if tc.InputError != "" {
 					card.open = false
 					card.failed = true

@@ -129,19 +129,14 @@ func TestMarkdownPipesLiteral(t *testing.T) {
 	}
 }
 
-// The live stream deliberately does not render markdown. A span
-// revealed one character at a time would show its own delimiters for
-// several frames before closing, and a code fence would show raw lines
-// until it closed. The step event renders the finished blocks with full
-// markup, which is what the reader ends up looking at.
-func TestLiveStaysRawUntilTheStepRendersIt(t *testing.T) {
+func TestLiveRendersMarkdownBeforeTheStep(t *testing.T) {
 	st := defaultStyles()
 	streamed := ansi.Strip(strings.Join(renderLive(transcriptProps{live: "<think>private</think>Say **hello**.", styles: st, speaker: "Assistant", labels: true}, 80, tagged()), "\n"))
 	if strings.Contains(streamed, "<think>") {
 		t.Fatalf("live response leaked reasoning: %q", streamed)
 	}
-	if !strings.Contains(streamed, "**hello**") {
-		t.Fatalf("live stream must keep markup literal: %q", streamed)
+	if strings.Contains(streamed, "**hello**") || !strings.Contains(streamed, "hello") {
+		t.Fatalf("live stream must render markup: %q", streamed)
 	}
 	final := ansi.Strip(renderBlock(answerBlock("Say **hello**."), st, tagged(), 80))
 	if strings.Contains(final, "**hello**") || !strings.Contains(final, "hello") {

@@ -151,7 +151,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 		history = a.acceptNotifications(ctx, history)
 		history = a.withCapabilityInstructions(history)
 		req := llm.ChatRequest{
-			Messages: history,
+			Messages: a.reuseContext(history),
 			Tools:    a.cfg.Tools.Defs(),
 		}
 		estimate := llm.EstimatePromptTokens(req)
@@ -160,7 +160,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 			st.lastPromptEstimate = 0
 			history = a.withDirective(history)
 			history = a.withCapabilityInstructions(history)
-			req.Messages = history
+			req.Messages = a.reuseContext(history)
 			estimate = llm.EstimatePromptTokens(req)
 			promptTokens = estimate
 			a.saveState(history)

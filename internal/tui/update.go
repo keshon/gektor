@@ -143,7 +143,9 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 			marker := "— interrupted —"
 			m.appendBlock(markerBlock(marker))
 		} else {
-			m.appendBlock(markerBlock("— run finished —"))
+			if len(m.transcript.blocks) == 0 || m.transcript.blocks[len(m.transcript.blocks)-1].role != roleReceipt {
+				m.appendBlock(markerBlock("— run finished —"))
+			}
 			if msg.err != nil {
 				// Failures live in the transcript, not just the bottom
 				// bar: scrolled-up context keeps the error beside the
@@ -260,10 +262,7 @@ func (m *model) fitBottom() {
 	if m.state == stAsk || m.state == stDone || m.state == stRunning || m.state == stStopping {
 		lines += m.input.Height() - 1
 	}
-	// The fixed rows count the menu, pane header, status and divider,
-	// plus the bottom base and breathing blank line above the divider
-	// (layout, not content: a content trailing newline breaks scroll
-	// math — phantom blank rows mid-scroll).
+	// Fixed rows cover the menu, pane header/rules, status and divider.
 	// `lines` adds per-state extras (done hint, reject label, input growth).
 	// A takeover overlay owns the bottom bar (one slim line), so it
 	// budgets nothing extra: the input hides with it.
@@ -282,14 +281,22 @@ func (m *model) fitBottom() {
 	if oldWidth != m.transcript.Viewport.Width() {
 		m.refreshContent()
 	}
-	h := m.termH - 7 - lines
+	h := m.termH - 6 - lines
 	if m.actionBarVisible() {
 		h -= m.footerRows()
 	}
 	if h < 1 {
 		h = 1
 	}
+	pinned := m.transcript.Follow && m.transcript.Viewport.AtBottom()
+	contentWidth := m.transcript.Viewport.ContentWidth()
 	m.transcript.Viewport.SetHeight(h)
+	if m.transcript.Viewport.ContentWidth() != contentWidth {
+		m.refreshContent()
+	}
+	if pinned {
+		m.transcript.Viewport.GotoBottom()
+	}
 	m.gateVP.SetWidth(m.transcript.Viewport.Width())
 	m.gateVP.SetHeight(h)
 	if m.state == stPermission || m.state == stAsk {
@@ -316,6 +323,12 @@ func (m *model) scrollViewport(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *model) handleEvent(ev run.Event) {
 	m.beginTranscriptUpdate()
 	defer m.endTranscriptUpdate()
+	wasPrefill := m.prefillActive()
+	defer func() {
+		if wasPrefill || m.prefillActive() {
+			m.refreshContent()
+		}
+	}()
 	switch ev.Name {
 	case "progress":
 		phase, _ := ev.Fields["phase"].(string)
@@ -380,7 +393,7 @@ func (m *model) handleEvent(ev run.Event) {
 				args, _ := call["args"].(string)
 				id, _ := call["id"].(string)
 				m.toolsUsed++
-				m.appendBlock(toolCardBlock(id, name+" "+truncate(args, 120)))
+				m.appendBlock(toolCardBlock(id, name+" "+args))
 			}
 		}
 	case "user_input":
@@ -472,6 +485,8 @@ func (m *model) handleEvent(ev run.Event) {
 			m.usage.liveModel = true
 			m.usage.last = usageSnapshot{Tokens: m.tokens, Estimated: m.tokensEst, At: m.usage.at, Model: m.modelName}
 		}
+	case "_permission_preview":
+		m.gatePreview, _ = ev.Fields["text"].(string)
 	case "awaiting_input":
 		m.closeHeader()
 		kind, _ := ev.Fields["kind"].(string)
@@ -502,6 +517,7 @@ func (m *model) handleEvent(ev run.Event) {
 			m.openGatePopup()
 		} else {
 			m.state = stAsk
+			m.gatePreview = ""
 			m.gateDraft = m.input.Value()
 			m.input.SetValue("")
 			m.input.Focus()
@@ -511,6 +527,7 @@ func (m *model) handleEvent(ev run.Event) {
 		m.fitBottom()
 	case "input_answered":
 		m.state = stRunning
+		m.gatePreview = ""
 		m.gate = ""
 		m.input.SetValue(m.gateDraft)
 		m.gateDraft = ""
@@ -538,11 +555,15 @@ func (m *model) handleEvent(ev run.Event) {
 			checks = "no current command verdict"
 		}
 		resume, _ := ev.Fields["resume"].(string)
-		text := fmt.Sprintf("outcome: %s\nfiles: %s\nchecks: %s", outcome, strings.Join(files, ", "), truncate(checks, 512))
+		fileList := strings.Join(files, ", ")
+		if fileList == "" {
+			fileList = "none observed"
+		}
+		text := fmt.Sprintf("outcome: %s\nfiles: %s\nchecks: %s", outcome, fileList, checks)
 		if resume != "" {
 			text += "\nresume: gektor -tui -resume " + resume
 		}
-		m.appendBlock(markerBlock(text))
+		m.appendBlock(block{role: roleReceipt, text: text, at: time.Now()})
 	case "reasoning":
 		m.usage.liveModel = true
 		m.progress.Phase = "reasoning"

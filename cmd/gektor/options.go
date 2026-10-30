@@ -103,7 +103,7 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 		"per-model estimate when 0")
 	flags.StringVar(&o.allow, "allow", "", "comma-separated tool=pattern rules to allow, e.g. \"run_shell=go *,read_file=*.go\" (wins over defaults)")
 	flags.StringVar(&o.deny, "deny", "", "comma-separated tool=pattern rules to deny, e.g. \"run_shell=rm *,read_file=.env\" (wins over -allow)")
-	flags.BoolVar(&o.stream, "stream", false, "stream response tokens live (openai/llama backends only; koboldcpp falls back to unary)")
+	flags.BoolVar(&o.stream, "stream", false, "stream response tokens live (openai, llama and koboldcpp)")
 	flags.StringVar(&o.mcp, "mcp", "", "MCP servers: \"name=cmd args...;name2=https://host/mcp\" (stdio JSON-RPC or Streamable HTTP, tools appear as mcp__name__tool)")
 	flags.StringVar(&o.capabilities, "capabilities", "", "path to a versioned JSON capability configuration (lazy MCP packs, JSON executables and extra skill roots; see docs/extensions.md)")
 	flags.StringVar(&o.browser, "browser", "", "make visible chrome or msedge available through enable_browser; load Playwright MCP only when needed (see docs/browser.md)")

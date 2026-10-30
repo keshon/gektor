@@ -68,8 +68,8 @@ needed for the requested design rather than delivering it as a finished website.
 ```json
 [
   {"command":"node.create","params":{"type":"rectangle","name":"Accent","parent":2,"x":80,"y":80,"width":48,"height":6,"props":{"fill":"#E95A28"}}},
-  {"command":"text.create","params":{"name":"Heading","parent":2,"text":"Your code. Your model.","x":80,"y":130,"width":1120,"props":{"fontFamily":"Inter","fontStyle":"SemiBold","fontSize":72,"lineHeight":82,"fill":"#20221F","textAutoResize":"height"}}},
-  {"command":"text.create","params":{"name":"Description","parent":2,"text":"A coding agent for the models you run.","x":80,"y":252,"width":900,"props":{"fontFamily":"Inter","fontSize":22,"lineHeight":32,"fill":"#696C63","textAutoResize":"height"}}},
+  {"command":"text.create","params":{"name":"Heading","parent":2,"text":"Terminal coding agent","x":80,"y":130,"width":1120,"props":{"fontFamily":"Inter","fontStyle":"SemiBold","fontSize":72,"lineHeight":82,"fill":"#20221F","textAutoResize":"height"}}},
+  {"command":"text.create","params":{"name":"Description","parent":2,"text":"Search files, edit code and run tests.","x":80,"y":252,"width":900,"props":{"fontFamily":"Inter","fontSize":22,"lineHeight":32,"fill":"#696C63","textAutoResize":"height"}}},
   {"command":"node.create","params":{"type":"rectangle","name":"Primary button","parent":2,"x":80,"y":340,"width":200,"height":56,"props":{"fill":"#E95A28","cornerRadius":4}}},
   {"command":"text.create","params":{"name":"Button label","parent":2,"text":"Get started","x":100,"y":355,"width":160,"props":{"fontFamily":"Inter","fontStyle":"SemiBold","fontSize":18,"lineHeight":26,"fill":"#FFFFFF","textAutoResize":"height"}}}
 ]

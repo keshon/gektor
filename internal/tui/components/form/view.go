@@ -113,7 +113,7 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 	}
 	if props.Error != "" {
 		rows = append(rows, props.Styles.Error.Render(cell.Line(props.Error, inner)))
-	} else {
+	} else if props.Note != "" {
 		rows = append(rows, cell.Line(props.Note, inner))
 	}
 	action, actionHits := f.Actions(inner, len(rows), props.PrimaryLabel, !props.DisablePrimary, props.Styles)

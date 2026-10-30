@@ -658,23 +658,21 @@ func TestNativeUnderlineCaretTracksComposerAndHidesOnHelp(t *testing.T) {
 	}
 }
 
-// Breathing room: the last transcript line never touches the divider —
-// a blank line sits between content and rule at the bottom.
-func TestTranscriptBreathesBeforeDivider(t *testing.T) {
+func TestTranscriptMeetsDividerWithoutReservedBlankRow(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	for _, b := range renderHistory(compactTestHistory(15)) {
 		m.appendBlock(b)
 	}
+	m.appendBlock(answerBlock("last transcript line"))
 	m.transcript.Viewport.GotoBottom()
 	lines := strings.Split(m.View().Content, "\n")
-	// The composer rule sits below the transcript breathing row.
-	div := paneTop + m.transcript.Viewport.Height() + 1
+	div := paneTop + m.transcript.Viewport.Height()
 	if div < 1 {
 		t.Fatalf("no divider in view:\n%s", m.View().Content)
 	}
-	if strings.TrimSpace(strings.Trim(ansi.Strip(lines[div-1]), "│")) != "" {
-		t.Fatalf("line above divider = %q, want blank", lines[div-1])
+	if !strings.Contains(ansi.Strip(lines[div-1]), "last transcript line") {
+		t.Fatalf("last transcript row lost above divider: %q", lines[div-1])
 	}
 }
 
@@ -1012,7 +1010,7 @@ func TestToolCardHeader_SingleLine(t *testing.T) {
 	st := defaultStyles()
 	out := renderBlock(toolCardBlock("c1", "write_file {\n  \"path\": \"a.go\"\n}"), st, renderOpts{expand: true, labels: true}, 80)
 	lines := strings.Split(out, "\n")
-	if len(lines) != 4 || !strings.Contains(lines[1], `{ "path": "a.go" }`) {
+	if len(lines) != 4 || !strings.Contains(lines[1], `{"path":"a.go"}`) {
 		t.Fatalf("card call must hold collapsed args: %q", out)
 	}
 }
@@ -1469,7 +1467,7 @@ func TestStatusLinesPlainLanguage(t *testing.T) {
 			t.Fatalf("status keeps harness jargon %q:\n%s", banned, out)
 		}
 	}
-	for _, want := range []string{"details", "Ctrl+G", "permissions", "Y allow once", "always allowed", "none"} {
+	for _, want := range []string{"thinking", "Ctrl+G", "permissions", "Y allow once", "always allowed", "none"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("status missing %q:\n%s", want, out)
 		}
@@ -1540,22 +1538,22 @@ func TestBottomZoneHeights(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	if mm := updated.(*model); mm.transcript.Viewport.Height() != 14 {
-		t.Fatalf("done viewport height = %d, want 14 (24 - header - identity - rule - status - rule - breathing row - input - footer separator - actions)", mm.transcript.Viewport.Height())
+	if mm := updated.(*model); mm.transcript.Viewport.Height() != 15 {
+		t.Fatalf("done viewport height = %d, want 15", mm.transcript.Viewport.Height())
 	}
 	mm := updated.(*model)
 	mm.state = stRunning
 	updated, _ = mm.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	if mm := updated.(*model); mm.transcript.Viewport.Height() != 14 {
-		t.Fatalf("running viewport height = %d, want 14", mm.transcript.Viewport.Height())
+	if mm := updated.(*model); mm.transcript.Viewport.Height() != 15 {
+		t.Fatalf("running viewport height = %d, want 15", mm.transcript.Viewport.Height())
 	}
 	// Composing keeps the same budget: the hint stays put, so the
 	// layout never shifts while typing (user call: always visible).
 	mm.input.SetValue("typing")
 	mm.state = stDone
 	updated, _ = mm.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	if mm = updated.(*model); mm.transcript.Viewport.Height() != 14 {
-		t.Fatalf("composing viewport height = %d, want 14", mm.transcript.Viewport.Height())
+	if mm = updated.(*model); mm.transcript.Viewport.Height() != 15 {
+		t.Fatalf("composing viewport height = %d, want 15", mm.transcript.Viewport.Height())
 	}
 	// The frame uses every row, including the footer at the bottom edge.
 	if n := len(strings.Split(mm.View().Content, "\n")); n != 24 {
@@ -1887,20 +1885,17 @@ func TestToolCardAttachesResult(t *testing.T) {
 	}
 }
 
-func TestToolResultCollapsesLongOutput(t *testing.T) {
+func TestToolContentVisibilityIsIndependentOfThinking(t *testing.T) {
 	st := defaultStyles()
 	text := strings.TrimRight(strings.Repeat("abcdef\n", 25), "\n")
 	mk := func() block {
 		return block{role: roleTool, text: "run x", callID: "c1", result: text}
 	}
-	compact := renderBlock(mk(), st, tagged(), 80)
-	if n := strings.Count(compact, "abcdef"); n != resultPreviewLines {
-		t.Fatalf("compact shows %d lines, want %d", n, resultPreviewLines)
+	hidden := ansi.Strip(renderBlock(mk(), st, renderOpts{hideTools: true, labels: true}, 80))
+	if strings.Contains(hidden, "abcdef") || !strings.Contains(hidden, "run x") || !strings.Contains(hidden, "✓") {
+		t.Fatal("tool metadata leaked content", hidden)
 	}
-	if !strings.Contains(compact, "(15 more lines)") {
-		t.Fatalf("compact must count the rest: %q", compact)
-	}
-	full := renderBlock(mk(), st, renderOpts{expand: true, labels: true}, 80)
+	full := renderBlock(mk(), st, tagged(), 80)
 	if n := strings.Count(full, "abcdef"); n != 25 {
 		t.Fatalf("full view shows %d lines, want 25", n)
 	}

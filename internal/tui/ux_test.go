@@ -313,11 +313,9 @@ func TestHarnessNoticeMatchesLiveAndRebuiltHistory(t *testing.T) {
 	}
 }
 
-// The SYS filter hides harness notices and nothing else. Errors,
-// warnings, permission questions and tool results are the reader”s
-// record of what happened; hiding them would let a failed run scroll
-// away with no trace.
-func TestHideSYSKeepsFailuresAndQuestions(t *testing.T) {
+// SYSTEM includes local notices, failures and questions. Filtering display
+// never removes them from history; pending gates have their own overlay.
+func TestSystemVisibilityCoversAllScaffoldingHistory(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 80, 30)
 	m.transcript.blocks = []block{
 		answerBlock("answer"),
@@ -340,8 +338,8 @@ func TestHideSYSKeepsFailuresAndQuestions(t *testing.T) {
 		t.Fatalf("harness notice survived the SYS filter: %q", hidden)
 	}
 	for _, want := range []string{"run failed", "not formatted", "Allow this tool?", "[ERROR]", "[WARNING]", "[QUESTION]"} {
-		if !strings.Contains(hidden, want) {
-			t.Fatalf("SYS filter took %q with it: %q", want, hidden)
+		if strings.Contains(hidden, want) {
+			t.Fatalf("system history survived filter: %q", want)
 		}
 	}
 	// Hiding is display-only: lifting it restores the block verbatim.

@@ -154,7 +154,7 @@ func TestSuggestionPopupHasBackgroundAndFits(t *testing.T) {
 	}
 }
 
-func TestPopupShowsSixSuggestionsAndUsesBreathingRow(t *testing.T) {
+func TestPopupShowsSixSuggestionsAndMeetsDivider(t *testing.T) {
 	for _, width := range []int{80, 140} {
 		m := completionModel(t)
 		m.Update(tea.WindowSizeMsg{Width: width, Height: 30})
@@ -177,7 +177,7 @@ func TestPopupShowsSixSuggestionsAndUsesBreathingRow(t *testing.T) {
 			t.Fatalf("%d columns: got %d suggestions", width, count)
 		}
 		if !strings.Contains(lines[bottom+1], "────") {
-			t.Fatal("popup must occupy the former blank row above the divider")
+			t.Fatal("popup must meet the divider without a blank row")
 		}
 		if len(lines) != m.termH || view.Cursor.Y != before {
 			t.Fatal("popup moved the composer or changed frame height")

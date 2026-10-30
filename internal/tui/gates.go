@@ -50,6 +50,10 @@ func newNote() textinput.Model {
 // the overlay down, so a answered gate can never strand a stage.
 func (m *model) gateKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	defer m.fitBottom()
+	if msg.String() == "f4" && m.gatePreview != "" {
+		m.openDialog("Full proposal · Esc returns to approval", strings.Split(m.gatePreview, "\n"))
+		return m, nil
+	}
 	if msg.String() == "ctrl+q" {
 		// Quit works from every gate stage: letters are answers here.
 		m.quit = true
@@ -197,6 +201,9 @@ func (m *model) gateHint() string {
 		case gsReject:
 			return "Enter deny with note  Esc back"
 		default:
+			if m.gatePreview != "" {
+				return "F4 full proposal  ↑↓ select  Y/A/N answer  Esc deny"
+			}
 			return "↑↓ select  Y/A/N answer  Enter confirm  Esc deny"
 		}
 	case stAsk:
@@ -260,29 +267,46 @@ func (m *model) contextGate(hub *run.GateHub, ws *workspace.Workspace) func(cont
 		if allowed {
 			return permission.Allow, nil
 		}
-		prompt := fmt.Sprintf("[permission] %s on %q", tool, resource)
-		if preview := tools.PreviewArgs(ws, tool, args); preview != "" {
-			prompt += "\n" + preview
+		stale := false
+		for {
+			evidence := tools.FullApproval(ws, tool, args)
+			// This private UI event bypasses the run/archive event publisher.
+			select {
+			case m.events <- run.Event{Name: "_permission_preview", Fields: map[string]any{"text": evidence.Text}}:
+			case <-runCtx.Done():
+				return permission.Deny, runCtx.Err()
+			}
+			prompt := fmt.Sprintf("[permission] %s on %q", tool, resource)
+			if stale {
+				prompt += "\nSource changed during approval. Review the refreshed proposal and approve again."
+			}
+			if preview := tools.PreviewArgs(ws, tool, args); preview != "" {
+				prompt += "\n" + preview
+			}
+			rep, err := hub.Suspender()(runCtx, agent.SuspendRequest{
+				Kind:     agent.SuspendPermission,
+				Tool:     tool,
+				Resource: resource,
+				Prompt:   prompt,
+			})
+			if err != nil {
+				return permission.Deny, err
+			}
+			eff, derr := permission.Decide(rep.Answer)
+			if derr != nil {
+				return permission.Deny, derr
+			}
+			if eff == permission.Allow && !evidence.Current(ws) {
+				stale = true
+				continue
+			}
+			if isAlwaysAnswer(rep.Answer) {
+				m.alwaysMu.Lock()
+				m.always[key] = true
+				m.alwaysMu.Unlock()
+			}
+			return eff, nil
 		}
-		rep, err := hub.Suspender()(runCtx, agent.SuspendRequest{
-			Kind:     agent.SuspendPermission,
-			Tool:     tool,
-			Resource: resource,
-			Prompt:   prompt,
-		})
-		if err != nil {
-			return permission.Deny, err
-		}
-		eff, derr := permission.Decide(rep.Answer)
-		if derr != nil {
-			return permission.Deny, derr
-		}
-		if isAlwaysAnswer(rep.Answer) {
-			m.alwaysMu.Lock()
-			m.always[key] = true
-			m.alwaysMu.Unlock()
-		}
-		return eff, nil
 	}
 }
 

@@ -102,7 +102,7 @@ func (m *model) editSettings(section string) {
 		}
 	}
 	if ws == nil {
-		ws = &settingsWorkspace{Draft: settings.New(currentSettings.Profile)}
+		ws = &settingsWorkspace{Draft: settings.New(currentSettings.Profile), PersistCurrent: m.application != nil && m.application.Temporary}
 	}
 	ws.Section = section
 	profile := ws.Draft.Base()

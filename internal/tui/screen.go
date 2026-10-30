@@ -23,17 +23,8 @@ func (m *model) screenContent() string {
 	// dialog is drawn: inside the pane, on the shared surface.
 	paneHeader := cellLine(m.identityLine(), m.transcript.Viewport.Width())
 
-	popup := m.suggestions.Pending() && m.transcript.Viewport.Height() >= 4 && m.transcript.Viewport.Width() >= 24
 	gated := (m.state == stPermission || m.state == stAsk) && m.gatePopup.Pending()
 	body := m.transcript.Viewport.View()
-	gap := "\n"
-	if popup || gated {
-		// Both overlays are spliced over the transcript's last rows, and
-		// both need one row more than the pane hands them. The row comes
-		// from the gap that would otherwise sit above the divider.
-		body += "\n"
-		gap = ""
-	}
 	body = m.suggestionView(body)
 	if gated {
 		body = m.gateView(body)
@@ -44,9 +35,6 @@ func (m *model) screenContent() string {
 		body = m.overlayDialog(body)
 	}
 	bodyHeight := m.transcript.Viewport.Height()
-	if popup || gated {
-		bodyHeight++
-	}
 	body = cellFrame(body, m.transcript.Viewport.Width(), bodyHeight)
 	var bottom string
 	switch {
@@ -67,22 +55,21 @@ func (m *model) screenContent() string {
 		bottom = cellLine(fmt.Sprintf("Sent: %d · waiting for the agent", count), m.transcript.Viewport.Width()) + "\n" + bottom
 	}
 	bottom = cellFrame(bottom, m.transcript.Viewport.Width(), lipgloss.Height(bottom))
-	conversation := body + gap + "\n" + m.dividerLine() + "\n" + cellLine(m.statusLine(), m.transcript.Viewport.Width()) + "\n" + bottom
+	status := m.statusLine()
+	status = cellFrame(status, m.transcript.Viewport.Width(), lipgloss.Height(status))
+	conversation := body + "\n" + m.dividerLine() + "\n" + status + "\n" + bottom
 	conversation = cellFrame(conversation, m.transcript.Viewport.Width(), m.paneHeight())
 
-	innerWidth := max(m.termW-2, 0)
+	innerWidth := m.paneWidth()
 	rule := strings.Repeat("─", innerWidth)
 	content := m.menuLine() + "\n" + m.styles.dim.Render(rule) + "\n" + paneHeader +
 		"\n" + m.styles.dim.Render(rule) + "\n" + conversation
 	if m.actionBarVisible() {
 		content += "\n" + m.styles.dim.Render(rule) + "\n" + m.actionBar()
 	}
-	if m.termW >= 2 && m.actionBarVisible() {
+	if m.termW >= 2 && m.actionBarVisible() && !m.minimal {
 		rows := strings.Split(content, "\n")
 		composerRule := paneTop + bodyHeight
-		if gap != "" {
-			composerRule++
-		}
 		for i := 1; i < len(rows)-1; i++ {
 			left, right := "│", "│"
 			if i == 1 {

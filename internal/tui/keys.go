@@ -15,6 +15,9 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if msg.String() == "ctrl+q" {
 		return m.requestQuit()
 	}
+	if m.state == stPermission && m.dialog == nil && msg.String() == "f4" && m.gatePreview != "" {
+		return m.gateKey(msg)
+	}
 	switch msg.String() {
 	case "ctrl+p":
 		return m.footerKey(tea.KeyPressMsg{Code: tea.KeyF2})
@@ -33,7 +36,7 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.cancel()
 		return m, tea.Quit
 	}
-	if m.state == stPermission || m.state == stAsk {
+	if m.dialog == nil && (m.state == stPermission || m.state == stAsk) {
 		if msg.String() == "pgup" || msg.String() == "pgdown" || msg.String() == "ctrl+end" {
 			var cmd tea.Cmd
 			if msg.String() == "ctrl+end" {

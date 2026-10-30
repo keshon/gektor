@@ -321,10 +321,6 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	if o.plan {
 		emitter.Emit("plan_mode", map[string]any{"read_only": true})
 	}
-	if o.stream && o.backendKind == "kobold" {
-		note("note: -stream is unsupported on koboldcpp, using unary requests")
-	}
-
 	// Images resolve against the workspace (escape-checked like every
 	// file tool path) into absolute paths the backend layer reads.
 	var images []string
@@ -529,9 +525,8 @@ func parseRuleSpecs(spec string, eff permission.Effect) []permission.Rule {
 }
 
 // streamEnabled decides whether model responses stream token by
-// token: explicit -stream, or the fullscreen TUI (which renders live
-// text and degrades to spinner+final where the backend refuses —
-// koboldcpp has no Stream method, so agent.chat falls back unary).
+// token: explicit -stream, or the fullscreen TUI. Backends share the SSE
+// reader; a backend may still buffer a turn before sending its chunks.
 // Never in -mode json (chunks would corrupt the JSONL stream).
 func streamEnabled(streamFlag bool, modeFlag string, tuiFlag bool) bool {
 	return (streamFlag || tuiFlag) && modeFlag != "json"

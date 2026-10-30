@@ -205,7 +205,7 @@ func TestViewMenuZonesAndItems(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 80, 30)
 	m.header.menu = "view"
 	items := m.headerItems()
-	want := []string{"Truncate AI reply", "Hide SYS messages", "Hide labels", "", "Jump to latest", "Select Theme…"}
+	want := []string{"Agent thinking", "Agent tools", "System messages", "Speaker names", "Message labels", "Outlined frame", "", "Jump to latest", "Select Theme…"}
 	if len(items) != len(want) {
 		t.Fatalf("view menu has %d rows, want %d: %+v", len(items), len(want), items)
 	}
@@ -221,10 +221,10 @@ func TestViewMenuZonesAndItems(t *testing.T) {
 			sep = i
 		}
 	}
-	if sep != 3 {
-		t.Fatalf("separator at row %d, want 3", sep)
+	if sep != 6 {
+		t.Fatalf("separator at row %d, want 6", sep)
 	}
-	cmds := []string{"toggle-details", "toggle-sys", "toggle-labels", "", "latest", "theme"}
+	cmds := []string{"toggle-details", "toggle-tools", "toggle-sys", "toggle-names", "toggle-labels", "toggle-outline", "", "latest", "theme"}
 	for i, c := range cmds {
 		if items[i].command != c {
 			t.Fatalf("row %d command = %q, want %q", i, items[i].command, c)
@@ -246,9 +246,10 @@ func TestViewMenuCheckmarksFollowState(t *testing.T) {
 		hideSYS, labels bool
 		want            string
 	}{
-		{"default", false, false, "│✓ Truncate AI reply   Ctrl+G│"},
-		{"sys hidden", true, false, "│✓ Hide SYS messages         │"},
-		{"labels hidden", false, true, "│✓ Hide labels               │"},
+		{"default", false, false, "│  Agent thinking"},
+		{"sys shown", false, false, "│✓ System messages"},
+		{"sys hidden", true, false, "│  System messages"},
+		{"labels hidden", false, true, "│  Message labels"},
 	} {
 		m.hideSYS, m.hideLabels = tc.hideSYS, tc.labels
 		rows := strings.Join(popupRows(t, m), "\n")
@@ -334,7 +335,7 @@ func TestMarkCostsNoWidth(t *testing.T) {
 	if plain != ticked {
 		t.Fatalf("ticking rows changed menu width: %d -> %d", plain, ticked)
 	}
-	const want = 30
+	const want = 29
 	if ticked != want {
 		t.Fatalf("menu width %d, want %d — a mark column is being reserved", ticked, want)
 	}
@@ -379,7 +380,7 @@ func TestKeyboardNavigationSkipsViewSeparator(t *testing.T) {
 	m.header.global = true
 	m.header.menu = "view"
 	m.header.row = m.headerActionRow(0, 1)
-	for _, want := range []string{"toggle-details", "toggle-sys", "toggle-labels"} {
+	for _, want := range []string{"toggle-details", "toggle-tools", "toggle-sys"} {
 		if got := m.headerItems()[m.header.row].command; got != want {
 			t.Fatalf("row = %q, want %q", got, want)
 		}

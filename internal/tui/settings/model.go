@@ -12,6 +12,8 @@ type Workspace struct {
 	Draft               *Draft
 	Section, LoadedPath string
 	Advanced            bool
+	// Explicit Apply may persist launch overrides even without field edits.
+	PersistCurrent bool
 }
 type Model struct {
 	form.Model
@@ -128,7 +130,7 @@ func (f *Model) Dirty() bool {
 	if f.Index >= 0 && f.Index < len(fields) {
 		fields[f.Index].Value = f.Editor.Value()
 	}
-	return f.Workspace.Draft.Dirty(f.Workspace.Section, fields)
+	return f.Workspace.PersistCurrent || f.Workspace.Draft.Dirty(f.Workspace.Section, fields)
 }
 func (f *Model) UpdateInput(msg tea.Msg) tea.Cmd {
 	switch f.InputOwner() {

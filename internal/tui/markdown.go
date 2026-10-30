@@ -266,12 +266,15 @@ func renderSpans(frag string, base, bold, code lipgloss.Style, s *spanState) str
 		case s.code:
 			style = code
 		case s.bold:
-			style = bold.Italic(s.italic)
-			if s.italic {
+			style = bold.Italic(base.GetItalic() || s.italic)
+			if s.italic && !base.GetItalic() {
 				style = style.Foreground(lipgloss.Color(themeColor(colorSecondaryText)))
 			}
 		case s.italic:
-			style = base.Foreground(lipgloss.Color(themeColor(colorSecondaryText))).Italic(true)
+			style = base.Italic(true)
+			if !base.GetItalic() {
+				style = style.Foreground(lipgloss.Color(themeColor(colorSecondaryText)))
+			}
 		}
 		sb.WriteString(style.Render(seg.String()))
 		seg.Reset()

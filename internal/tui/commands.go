@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/keshon/gektor/internal/config"
 
 	"github.com/keshon/gektor/internal/tui/components/completion"
 )
@@ -51,7 +52,7 @@ func commands() []command {
 		{name: "/new", arg: "[task]", summary: "Start a fresh task; omit task for an empty session"},
 		{name: "/mode", arg: "plan|act", choices: []string{"plan", "act"}, summary: "Preview changes or execute them"},
 		{name: "/max-steps", arg: "N", summary: "Step budget (0 = no limit)"},
-		{name: "/details", immediate: true, summary: "Toggle reply truncation"},
+		{name: "/details", immediate: true, summary: "Toggle full agent thinking"},
 		{name: "/sys", immediate: true, summary: "Toggle SYS messages"},
 		{name: "/labels", immediate: true, summary: "Toggle labels"},
 		{name: "/latest", immediate: true, summary: "Jump to latest"},
@@ -229,26 +230,17 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		})
 		return m, nil
 	case "details":
-		m.transcript.compact = !m.transcript.compact
-		m.refreshContent()
-		state := "full"
-		if m.transcript.compact {
-			state = "truncated"
-		}
-		m.appendBlock(markerBlock("AI replies: " + state))
-		return m, nil
+		return m.toggleThinking()
 	case "sys":
-		m.hideSYS = !m.hideSYS
-		m.refreshContent()
-		state := "shown"
-		if m.hideSYS {
-			state = "hidden"
+		if err := m.changeAppearance(func(a *config.Appearance) { a.HideSystem = !a.HideSystem }); err != nil {
+			m.openDialog("Appearance", []string{err.Error()})
 		}
-		m.appendBlock(markerBlock("SYS messages: " + state))
 		return m, nil
 	case "labels":
-		m.hideLabels = !m.hideLabels
-		m.refreshContent()
+		if err := m.changeAppearance(func(a *config.Appearance) { a.HideLabels = !a.HideLabels }); err != nil {
+			m.openDialog("Appearance", []string{err.Error()})
+			return m, nil
+		}
 		state := "shown"
 		if m.hideLabels {
 			state = "hidden"
@@ -360,18 +352,17 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "about":
 		m.openDialog("GEKTOR", []string{
-			"A small coding agent for your terminal.",
-			"Your model server. Your workspace. Explicit tools.",
+			"Terminal coding agent written in Go.",
 			"",
-			m.styles.gate.Render("Work with your code"),
+			m.styles.gate.Render("Capabilities"),
 			"Read, search and edit files, run commands and tests, and resume saved sessions.",
 			"Plan before changes or work directly in Act mode; tool permissions stay visible.",
 			"",
-			m.styles.gate.Render("Bring your model"),
+			m.styles.gate.Render("Model backends"),
 			"llama.cpp · KoboldCPP · OpenAI-compatible APIs",
 			"Models and inference servers are supplied separately.",
 			"",
-			m.styles.gate.Render("Built by keshon"),
+			m.styles.gate.Render("Repository"),
 			"https://github.com/keshon/gektor",
 			"Go " + strings.TrimPrefix(runtime.Version(), "go") + " · Bubble Tea · " + runtime.GOOS + "/" + runtime.GOARCH,
 		})

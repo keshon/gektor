@@ -62,17 +62,20 @@ model metadata show `—` until a new response.
 The transcript and composer use the full width. Ctrl+P / F2 opens saved sessions
 with name/history search, rename and delete. Each entry shows its last update,
 age in days, message count and preview, separated by a rule. Task modals share
-an 80-cell frame (clamped to the terminal), overlaid on the visible history; menus remain anchored to their controls. The session ID and title sit at the right of the top menu row when space allows. Sending a message resumes follow at the bottom; incoming assistant output preserves a manually scrolled reading position.
+an 80-cell frame (clamped to the terminal), overlaid on the visible history; menus remain anchored to their controls. The workspace directory name, session ID and title sit at the right of the top menu row when space allows, separated by `·`. Sending a message resumes follow at the bottom; incoming assistant output preserves a manually scrolled reading position.
 
 The transcript reads as a name row, a label row and a body. A run of
 blocks by one participant opens with its name in uppercase; the blocks
 after it carry only their label rows. The label row is a bracketed tag
 at the left edge with the time flush right, and the body starts in
-column 0. `SYSTEM` contains model-facing harness messages, labelled with their
-actual role and delivery request (or pending delivery). Local interface notices
-use `STATUS`; they are not silently sent to the model. Hiding SYSTEM changes
-only rendering, never the model's context. Thinking and tool results can be collapsed or
-expanded with F3 or Ctrl+G. Collapsing is visual only; it does not
+column 0. `GEKTOR` is the default agent name; configured identities keep their
+names. `SYSTEM` covers harness messages and local interface notices. Message
+labels distinguish their kinds; local notices never enter model context.
+SYSTEM rails use the same accent as ACT. Thinking can be expanded or summarized
+with F3 or Ctrl+G and stays dim and italic in both views. Live thinking and replies
+use the same formatting as completed blocks. Outer blank lines in model replies
+are trimmed for display; saved text and paragraph spacing remain unchanged.
+Tool content is controlled separately in View. Display changes do not
 remove model history. Scrolling up stops automatic following; F7 or
 Ctrl+End returns to the latest content. A scrollbar in the right-hand column
 appears once the transcript is taller than the pane; its thumb is sized to
@@ -83,7 +86,7 @@ YOU
 [INPUT]                                       [14:51]
 I want you to reply with a phrase....
 
-ASSISTANT
+GEKTOR
 [THINKING]                                    [14:53]
 The user asked me to reply with a phrase...
 
@@ -235,7 +238,7 @@ missing text-file paths with an extension/path separator report an error.
 Help (F1), Search (Ctrl+P), and New (Ctrl+N) keep fixed positions.
 The middle actions follow focus: Send/Newline in the composer, Stop/Latest
 during a run, Rename/Delete in Sessions, and Back/Choose in overlays.
-Details/Less (Ctrl+G) and Quit (Ctrl+Q) remain at the end. Ctrl shortcuts use
+Thinking (Ctrl+G) and Quit (Ctrl+Q) remain at the end. Ctrl shortcuts use
 compact caret notation (for example, `^P`) in narrow cells. Below 120
 columns the toolbar stays on one row, shortening labels and reducing visible actions when needed. Mouse clicks invoke the same key routing.
 
@@ -243,7 +246,7 @@ Existing function keys remain aliases:
 
 - F1 Help: open/close the help modal.
 - F2 Search: open/close the centered session search popup.
-- F3 Details: expand/collapse thinking and tool output.
+- F3 Thinking: show full thinking or a one-line summary.
 - F4 New: start an empty session when idle.
 - F5 Mode: switch Plan/Act when idle in a direct run.
 - F7 Latest: jump to the latest message.
@@ -329,9 +332,9 @@ local UI commands; they are not tools or RPC methods.
   Window resizing uses the visible viewport rather than scrollback buffer size.
 - Strange scrolling: keep server logs in their own terminal. Do not redirect
   model/server output into the full-screen UI.
-- No streaming text on KoboldCPP: that dialect uses unary requests. OpenAI
-  and llama stream automatically in the TUI; the spinner still reports activity
-  in unary mode.
+- OpenAI, llama and KoboldCPP stream automatically in the TUI. KoboldCPP may
+  buffer tool-call turns before sending their chunks. Measured prompt-processing
+  percentages require llama telemetry; other backends retain the waiting indicator.
 - Large reference rejected: use a smaller file or ask the agent to inspect
   it with bounded file tools. Raising the generation budget does not raise
   attachment limits.
@@ -474,37 +477,60 @@ checkpoint.
 
 ## View menu
 
-The View menu splits into what the reader hides and what they can do,
-with a rule between the two zones:
+Checked View options show the named content. Commands follow the separator:
 
 ```text
-✓ Truncate AI reply        Ctrl+G
-✓ Hide SYS messages
-  Hide labels
+  Agent thinking          Ctrl+G
+✓ Agent tools
+✓ System messages
+✓ Speaker names
+✓ Message labels
+  Outlined frame
 ──────────────────────────────
   Jump to latest        Ctrl+End
   Select Theme…
 ```
 
-A checkmark states the condition the row's own label names, so it
-appears on "Hide SYS messages" while harness messages are hidden. It fills the
-label indent every menu row already carries, so a tick costs no width and
-never moves the labels. Plan/Act share the same indent; a menu with nothing
-to toggle simply leaves it blank.
+**Agent thinking** shows full reasoning when checked; otherwise it occupies
+one summary row sized to the available width. It does not truncate the answer.
+**Agent tools** shows complete arguments and output when checked. Otherwise a
+single row shows the action and target, with the tool name aligned right.
+Running and failed calls show their state there; failures include a short error.
+Targets shorten to fit the window; unknown tools fall back to their name and arguments.
+**System messages** shows scaffolding history, including local notices and
+receipts. Turning it off hides those blocks; pending questions and approvals
+remain reachable in their own overlays.
 
-**Truncate AI
-reply** (`Ctrl+G`, `F3`) collapses thinking and long tool output. **Hide
-SYS messages** drops harness notices, and nothing else: errors,
-warnings, permission questions, tool results stay,
-because they are the record of what happened. **Hide labels** drops the
-`[TAG]` rows and keeps the name rows, so every block still says who
-spoke.
+**Speaker names** controls participant attribution. **Message labels** controls
+the `[INPUT]`, `[THINKING]`, `[TOOL CALL]` and other block tags independently.
+With names hidden, user messages are shaded and SYSTEM blocks keep an accent
+rail. **Outlined frame** restores the connected border; minimal framing uses
+the full terminal width. Both keep the top menu and bottom hotkeys.
 
-All three are display-only and session-only. Hidden blocks stay in the
-model history and return unchanged when a filter is lifted; nothing is
-persisted, so a restart always shows the full transcript. **Jump to
-latest** (`Ctrl+End`, `F7`) scrolls to the newest content, and **Select
-Theme…** opens the Dark/Light picker.
+All six choices and theme persist globally, including launches with browser,
+backend or workspace flags. They survive Settings Apply and opening other
+sessions. Hidden content remains in the archive and model context unchanged.
+**Jump to latest** (`Ctrl+End`, `F7`) scrolls to the newest content;
+**Select Theme…** opens the Dark/Light picker. The former Compact spacing
+preference is ignored when loading older settings.
+
+During measured prompt processing, a transient SYSTEM block in the history
+viewport shows a progress bar and processed/total counts. Estimated or unavailable
+telemetry uses the usual activity indicator. Progress does not enter the
+conversation archive or model context and does not occupy the input hint area.
+
+Outcome receipts show the existing outcome, observed files, command verdict
+and session ID with a pointer to Session → Open. They use the page background
+and SYSTEM accent rail. A completed response without a command verdict remains
+unverified; failed and cancelled states are preserved. The duplicate run-finished
+notice is omitted when the outcome receipt already closes the run.
+
+For file approval, **F4 Proposal** opens the complete diff, including new-file
+contents beyond the bounded prompt preview. Scroll with arrows, Page Up/Down
+or the mouse wheel; Esc returns to the pending gate without approving it.
+Expanded evidence is operator-only. If source content changes before approval
+is accepted, GEKTOR refreshes the proposal and asks again. This check does not
+lock files against other processes between approval and execution.
 
 ## Themes and session rows
 

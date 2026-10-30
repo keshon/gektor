@@ -32,6 +32,15 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
+	if m.dialog != nil {
+		switch msg.Mouse().Button {
+		case tea.MouseWheelDown:
+			m.scrollDialog(1)
+		case tea.MouseWheelUp:
+			m.scrollDialog(-1)
+		}
+		return m, nil
+	}
 	if m.state == stPermission || m.state == stAsk {
 		mouse := msg.Mouse()
 		if mouse.X < m.promptOffset() || mouse.Y < paneTop || mouse.Y >= paneTop+m.transcript.Viewport.Height() {
@@ -55,15 +64,6 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m.browserMouse(msg)
 	}
 
-	if m.dialog != nil {
-		switch msg.Mouse().Button {
-		case tea.MouseWheelDown:
-			m.scrollDialog(1)
-		case tea.MouseWheelUp:
-			m.scrollDialog(-1)
-		}
-		return m, nil
-	}
 	if m.scrollbarMouse(msg) {
 		return m, nil
 	}

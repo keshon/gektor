@@ -26,7 +26,7 @@ func (m *model) legacyFooterActions() []footerAction {
 	return []footerAction{
 		{tea.KeyF1, 0, "F1", "Help", "Help", !gated && m.sessions == nil && !m.header.focused},
 		{tea.KeyF2, 0, "F2", "Search", "Search", !gated && m.dialog == nil && !m.header.focused},
-		{tea.KeyF3, 0, "F3", "Details", "View", free},
+		{tea.KeyF3, 0, "F3", "Thinking", "Think", free},
 		{tea.KeyF4, 0, "F4", "New", "New", idle},
 		{tea.KeyF10, 0, "F10", "Quit", "Quit", true},
 	}
@@ -34,6 +34,13 @@ func (m *model) legacyFooterActions() []footerAction {
 
 // The first three actions stay in place; the middle pair follows input ownership.
 func (m *model) footerActions() []footerAction {
+	if m.state == stPermission && m.dialog == nil && m.gstage == gsPermit {
+		actions := []footerAction{{'y', 0, "Y", "Allow once", "Allow", true}, {'n', 0, "N", "Deny", "Deny", true}, {'a', 0, "A", "This run", "Run", true}}
+		if m.gatePreview != "" {
+			actions = append(actions, footerAction{tea.KeyF4, 0, "F4", "Proposal", "View", true})
+		}
+		return append(actions, footerAction{'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true})
+	}
 	if m.dialog != nil && m.dialog.form != nil {
 		if m.dialog.form.Picker != nil {
 			return []footerAction{{tea.KeyEnter, 0, "Enter", "Choose", "Choose", true}, {tea.KeyEscape, 0, "Esc", "Back", "Back", true}, {'b', tea.ModCtrl, "Ctrl+B", "Browse", "Browse", pickerFiles(m.dialog.form.Picker.Field)}, {'r', tea.ModCtrl, "Ctrl+R", "Refresh", "Refresh", true}, {'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true}}
@@ -76,10 +83,7 @@ func (m *model) footerActions() []footerAction {
 	if m.activeInputOwner() == focusInput && m.state == stDone && !m.transcript.Follow {
 		actions[3] = footerAction{tea.KeyEnter, 0, "Enter", "Send", "Go", true}
 	}
-	details := "Details"
-	if !m.transcript.compact {
-		details = "Less"
-	}
+	details := "Thinking"
 	actions = append(actions,
 		footerAction{'g', tea.ModCtrl, "Ctrl+G", details, "View", legacy[2].enabled},
 		footerAction{'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true})
@@ -106,18 +110,20 @@ func (m *model) footerRows() int {
 	return m.actionBarRows() + 1
 }
 
-// Rendering and mouse clicks share these cell boundaries, including gaps.
+// Rendering and mouse clicks share button boundaries; gaps are not clickable.
 func (m *model) footerCells() []footerCell {
 	actions := m.footerActions()
 	columns := (len(actions) + max(m.actionBarRows(), 1) - 1) / max(m.actionBarRows(), 1)
-	width := max(m.termW-2, 0)
+	// The menu, frame and hotkey bar share the terminal's outer edges.
+	// Only transcript/composer content uses the frame's inner inset.
+	width := m.termW
 	cells := make([]footerCell, len(actions))
 	for i, action := range actions {
 		row, column := i/columns, i%columns
 		count := min(columns, len(actions)-row*columns)
 		contentWidth := width - (count - 1)
-		start := 1 + column*contentWidth/count + column
-		end := 1 + (column+1)*contentWidth/count + column
+		start := column*contentWidth/count + column
+		end := (column+1)*contentWidth/count + column
 		cells[i] = footerCell{action, row, start, end}
 	}
 	return cells
@@ -127,6 +133,7 @@ func (m *model) actionBar() string {
 	var rows []string
 	row := ""
 	current := 0
+	gapStyle := lipgloss.NewStyle().Background(lipgloss.Color(currentPalette().background))
 	for _, cell := range m.footerCells() {
 		if cell.row != current {
 			rows = append(rows, row)
@@ -139,11 +146,8 @@ func (m *model) actionBar() string {
 		if cell.end-cell.start < 14 && strings.HasPrefix(number, "Ctrl+") {
 			number = "^" + strings.TrimPrefix(number, "Ctrl+")
 		}
-		if cell.end-cell.start < len(number)+1+len(label) {
+		if cell.end-cell.start < lipgloss.Width(number)+2+lipgloss.Width(label) {
 			label = cell.action.short
-		}
-		if cell.action.key == tea.KeyF3 && !m.transcript.compact {
-			label = "Less"
 		}
 		numberStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorDisabledText))).Background(lipgloss.Color(themeColor(colorDisabledNumber)))
 		labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorDisabledText))).Background(lipgloss.Color(themeColor(colorDisabledLabel)))
@@ -151,10 +155,11 @@ func (m *model) actionBar() string {
 			numberStyle = numberStyle.Foreground(lipgloss.Color(themeColor(colorNumberText))).Background(lipgloss.Color(themeColor(colorNumberBackground))).Bold(true)
 			labelStyle = labelStyle.Foreground(lipgloss.Color(themeColor(colorSelectedText))).Background(lipgloss.Color(themeColor(colorActionBackground)))
 		}
-		row += numberStyle.Render(strings.Repeat(" ", max(cell.start-lipgloss.Width(row), 0)))
-		row += numberStyle.Render(number) + labelStyle.Render(cellLine(" "+label, cell.end-cell.start-len(number)))
+		row += gapStyle.Render(strings.Repeat(" ", max(cell.start-lipgloss.Width(row), 0)))
+		numberWidth := min(lipgloss.Width(number)+2, cell.end-cell.start)
+		row += numberStyle.Render(cellLine(" "+number+" ", numberWidth)) + labelStyle.Render(cellLine(label, cell.end-cell.start-numberWidth))
 	}
-	row += lipgloss.NewStyle().Background(lipgloss.Color(themeColor(colorActionBackground))).Render(strings.Repeat(" ", max(m.termW-lipgloss.Width(row), 0)))
+	row += gapStyle.Render(strings.Repeat(" ", max(m.termW-lipgloss.Width(row), 0)))
 	return strings.Join(append(rows, row), "\n")
 }
 
@@ -178,8 +183,7 @@ func (m *model) footerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.openSessions()
 		}
 	case tea.KeyF3:
-		m.transcript.compact = !m.transcript.compact
-		m.refreshContent()
+		return m.toggleThinking()
 	case tea.KeyF4:
 		m.newTask()
 		return m, m.input.Focus()

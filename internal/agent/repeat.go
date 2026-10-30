@@ -118,9 +118,10 @@ func (a *Agent) knownTools() map[string]bool {
 func (a *Agent) forceAnswer(ctx context.Context, st *runState, step int, history []llm.Message, from int) (string, error) {
 	history = a.nudge(history, NudgeRepeating, prompts.RepeatingSteps)
 	a.saveState(history)
+	projected := a.reuseContext(history)
 	resp, err := a.chat(ctx, llm.ChatRequest{
-		Messages:  history,
-		MaxTokens: a.effectiveMaxTokens(st.projectPrompt(llm.EstimatePromptTokens(llm.ChatRequest{Messages: history}))),
+		Messages:  projected,
+		MaxTokens: a.effectiveMaxTokens(st.projectPrompt(llm.EstimatePromptTokens(llm.ChatRequest{Messages: projected}))),
 	})
 	// The answer turn is a model round-trip like any other; counting it keeps
 	// Steps honest for whoever reads the report.

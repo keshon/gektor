@@ -53,12 +53,10 @@ func (v *Viewport) SetHeight(h int) {
 // says nothing except that the layout lost a column.
 func (v Viewport) Scrollable() bool { return v.total > v.height }
 
-// ContentWidth is the width text may occupy. One cell is held back for the
-// scrollbar when there is one, so a line that fits ContentWidth still fits
-// beside it rather than being clipped under it.
+// ContentWidth reserves the scrollbar and a blank cell separating it from text.
 func (v Viewport) ContentWidth() int {
 	if v.Scrollable() {
-		return max(v.width-1, 0)
+		return max(v.width-2, 0)
 	}
 	return v.width
 }
@@ -160,7 +158,7 @@ func (v Viewport) View() string {
 	bar := v.scrollbar(height)
 	rows = rows[:height]
 	for i := range rows {
-		rows[i] += bar[i]
+		rows[i] += strings.Repeat(" ", max(width-text-1, 0)) + bar[i]
 	}
 	return strings.Join(rows, "\n")
 }

@@ -132,6 +132,7 @@ func (m *model) savePreferences() error {
 	}
 	p := m.application.Preferences
 	p.Mode = strings.ToLower(m.modeName())
+	p.Appearance = m.currentAppearance()
 	if m.config != nil {
 		profile := m.config.Profile.Clone()
 		p.Profile = &profile

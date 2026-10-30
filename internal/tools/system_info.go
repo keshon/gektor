@@ -27,7 +27,7 @@ type SystemInfo struct {
 func (SystemInfo) Name() string         { return "system_info" }
 func (SystemInfo) Mode() agent.ToolMode { return agent.Concurrent }
 func (SystemInfo) Description() string {
-	return "Inspect os/hardware/environment/tools/skills/browser. tools lists PATH executables; skills lists nested project/user-library metadata. Both support filter/offset/limit. Load relevant skills before use. browser reports installation/tools; npx alone is not readiness. Installs nothing."
+	return "Inspect OS, hardware, environment, PATH tools, skills or browser setup. tools/skills support filter/offset/limit. Browser setup does not prove launch succeeds. Installs nothing."
 }
 func (SystemInfo) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{"group":{"type":"string","enum":["os","hardware","environment","tools","skills","browser"]},"filter":{"type":"string","description":"Case-insensitive substring in tool filename or skill path/description"},"offset":{"type":"integer","minimum":0},"limit":{"type":"integer","minimum":1,"maximum":100,"default":50}},"required":["group"],"additionalProperties":false}`)

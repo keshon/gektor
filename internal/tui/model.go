@@ -189,6 +189,7 @@ type model struct {
 	gstage       gateStage
 	gateTool     string
 	gateResource string
+	gatePreview  string
 	note         textinput.Model
 	alwaysMu     sync.Mutex
 	always       map[[2]string]bool
@@ -203,10 +204,12 @@ type model struct {
 	sessionsLoading bool
 	// View-menu display filters. They hide transcript rows, never model
 	// history: a hidden block is still sent, stored and re-rendered the
-	// moment the filter is turned off. Session-only, so a restart always
-	// shows the full transcript.
+	// moment the filter is turned off. All choices are global preferences.
 	hideSYS    bool
 	hideLabels bool
+	hideNames  bool
+	minimal    bool
+	hideTools  bool
 
 	sessionIndex    map[string]cachedSession
 	sessionRevision uint64
@@ -341,7 +344,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		backendKind: cfg.Env.BackendKind,
 		backendURL:  safeEndpoint(cfg.BackendURL),
 		responseCap: cfg.Env.MaxTokens,
-		streaming:   cfg.Env.Stream && cfg.Env.BackendKind != "kobold",
+		streaming:   cfg.Env.Stream,
 		modelName:   cfg.Env.Model,
 		ws:          cfg.Env.WS,
 		wsRoot:      wsRootOf(cfg.Env.WS),
@@ -360,6 +363,11 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	env.Gate = nil
 	env.GateContext = audit.ContextHook(cfg.AuditPath, "tui", m.contextGate(hub, cfg.Env.WS))
 	m.baseEnv = env
+	if cfg.Application != nil {
+		m.applyAppearance(cfg.Application.Preferences.Appearance)
+	} else {
+		m.applyAppearance(config.Appearance{})
+	}
 	m.newSession = func(task, stateFile string, images []string) (*run.Session, error) {
 		return run.New(run.Config{
 			Env:          m.sessionEnv(),
