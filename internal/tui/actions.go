@@ -113,7 +113,7 @@ func (m *model) footerRows() int {
 	return m.actionBarRows() + 1
 }
 
-// Rendering and mouse clicks share these cell boundaries, including gaps.
+// Rendering and mouse clicks share button boundaries; gaps are not clickable.
 func (m *model) footerCells() []footerCell {
 	actions := m.footerActions()
 	columns := (len(actions) + max(m.actionBarRows(), 1) - 1) / max(m.actionBarRows(), 1)
@@ -123,8 +123,8 @@ func (m *model) footerCells() []footerCell {
 		row, column := i/columns, i%columns
 		count := min(columns, len(actions)-row*columns)
 		contentWidth := width - (count - 1)
-		start := 1 + column*contentWidth/count + column
-		end := 1 + (column+1)*contentWidth/count + column
+		start := m.promptOffset() + column*contentWidth/count + column
+		end := m.promptOffset() + (column+1)*contentWidth/count + column
 		cells[i] = footerCell{action, row, start, end}
 	}
 	return cells
@@ -134,6 +134,7 @@ func (m *model) actionBar() string {
 	var rows []string
 	row := ""
 	current := 0
+	gapStyle := lipgloss.NewStyle().Background(lipgloss.Color(currentPalette().background))
 	for _, cell := range m.footerCells() {
 		if cell.row != current {
 			rows = append(rows, row)
@@ -146,7 +147,7 @@ func (m *model) actionBar() string {
 		if cell.end-cell.start < 14 && strings.HasPrefix(number, "Ctrl+") {
 			number = "^" + strings.TrimPrefix(number, "Ctrl+")
 		}
-		if cell.end-cell.start < len(number)+1+len(label) {
+		if cell.end-cell.start < lipgloss.Width(number)+2+lipgloss.Width(label) {
 			label = cell.action.short
 		}
 		if cell.action.key == tea.KeyF3 && !m.transcript.compact {
@@ -158,10 +159,11 @@ func (m *model) actionBar() string {
 			numberStyle = numberStyle.Foreground(lipgloss.Color(themeColor(colorNumberText))).Background(lipgloss.Color(themeColor(colorNumberBackground))).Bold(true)
 			labelStyle = labelStyle.Foreground(lipgloss.Color(themeColor(colorSelectedText))).Background(lipgloss.Color(themeColor(colorActionBackground)))
 		}
-		row += numberStyle.Render(strings.Repeat(" ", max(cell.start-lipgloss.Width(row), 0)))
-		row += numberStyle.Render(number) + labelStyle.Render(cellLine(" "+label, cell.end-cell.start-len(number)))
+		row += gapStyle.Render(strings.Repeat(" ", max(cell.start-lipgloss.Width(row), 0)))
+		numberWidth := min(lipgloss.Width(number)+2, cell.end-cell.start)
+		row += numberStyle.Render(cellLine(" "+number+" ", numberWidth)) + labelStyle.Render(cellLine(label, cell.end-cell.start-numberWidth))
 	}
-	row += lipgloss.NewStyle().Background(lipgloss.Color(themeColor(colorActionBackground))).Render(strings.Repeat(" ", max(m.termW-lipgloss.Width(row), 0)))
+	row += gapStyle.Render(strings.Repeat(" ", max(m.termW-lipgloss.Width(row), 0)))
 	return strings.Join(append(rows, row), "\n")
 }
 

@@ -57,17 +57,22 @@ func TestFooterActionsCannotHidePendingPrompts(t *testing.T) {
 func TestActionBarCellsAndMouseShareGeometry(t *testing.T) {
 	for _, width := range []int{40, 80, 120} {
 		m := sizeModel(t, testModel())
+		m.minimal = true
 		m.state = stDone
 		m.width(tea.WindowSizeMsg{Width: width, Height: 24})
 		rows := strings.Split(ansi.Strip(m.View().Content), "\n")
 		top := len(rows) - m.actionBarRows()
-		for _, cell := range m.footerCells() {
+		cells := m.footerCells()
+		if cells[0].start != 0 || cells[len(cells)-1].end != m.transcript.Viewport.Width() {
+			t.Fatal("footer edges do not align with content")
+		}
+		for _, cell := range cells {
 			bar := rows[top+cell.row]
 			if !strings.HasPrefix(string([]rune(bar)[cell.start:]), func() string {
 				if cell.end-cell.start < 14 && strings.HasPrefix(cell.action.name, "Ctrl+") {
-					return "^" + strings.TrimPrefix(cell.action.name, "Ctrl+")
+					return " ^" + strings.TrimPrefix(cell.action.name, "Ctrl+") + " "
 				}
-				return cell.action.name
+				return " " + cell.action.name + " "
 			}()) {
 				t.Fatalf("button moved at width %d: %q", width, bar)
 			}
