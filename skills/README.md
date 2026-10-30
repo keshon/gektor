@@ -43,6 +43,8 @@ More than one guide can apply; do not load the whole directory.
 - Inspect image assets, measure compression, resize, convert or compare:
   [pixelita/SKILL.md](pixelita/SKILL.md). Uses the external pixelita CLI;
   measurements and optimization work with text-only models.
+- Create or edit UI mockups and export previews with the Figcraft CLI:
+  [figcraft/SKILL.md](figcraft/SKILL.md).
 
 Read-only roles cannot execute shell commands or write files; follow only
 steps their available tools support.
