@@ -5,23 +5,14 @@ description: TypeScript conventions for this agent. Read before writing or editi
 
 # TypeScript
 
-## Before finishing any TS change
-1. `list_files` to find `package.json`, then `read_file` it to find the
-   real typecheck/lint/test scripts — don't guess command names.
-2. Use `run_shell` for the existing typecheck script with the project
-   configuration and installed dependencies; do not download a compiler
-   implicitly through npx. Report missing tools rather than inventing scripts.
-3. Run the configured linter and relevant tests. Fix regressions from the
-   change; distinguish pre-existing failures and avoid unrelated cleanup.
-
-## Style
-- Follow the project's existing compiler settings and conventions. Prefer
-  `unknown` + narrowing over introducing `any`.
-- Use explicit return types where they clarify an exported contract.
-- Prefer plain functions/objects over classes unless state and behavior
-  genuinely belong together.
-- Follow the framework and project's established export conventions.
-
-## Editing
-- Small fix: `patch_file`. New file or full rewrite:
-  `write_file`.
+1. Locate and read package.json for actual typecheck/lint/test scripts; do not
+   invent command names. Run relevant checks with project configuration and
+   installed dependencies. Never download a compiler implicitly through npx;
+   report missing tools. Use run_shell for shell/package scripts, run_program
+   for native executables with literal args.
+2. Fix introduced regressions; identify pre-existing failures and avoid unrelated
+   cleanup. Report actual validation.
+3. Follow compiler/framework/export conventions. Prefer unknown plus narrowing
+   over any, and functions/objects over classes unless state/behavior belong
+   together. Use explicit return types when they clarify exported contracts.
+4. Use patch_file for small edits, write_file for new files or full replacements.

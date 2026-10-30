@@ -32,11 +32,7 @@ func (AskUser) Name() string { return "ask_user" }
 func (AskUser) Mode() agent.ToolMode { return agent.Exclusive }
 
 func (AskUser) Description() string {
-	return "Ask the user one focused clarifying question and wait for their answer. " +
-		"Also use this to pause for manual browser login or MFA; ask for completion, never passwords. " +
-		"Use this when the task is genuinely ambiguous and the answer would meaningfully " +
-		"change what you build — not for minor style choices. Prefer a stated reasonable " +
-		"assumption over asking about trivialities. Do not call this in delegated subtasks."
+	return "Pause for one consequential clarification or manual browser login/MFA. Ask for completion, never passwords. Assume minor choices. Not available to delegated subtasks."
 }
 
 func (AskUser) Schema() json.RawMessage {

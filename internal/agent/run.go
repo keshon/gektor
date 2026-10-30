@@ -14,6 +14,11 @@ import (
 // run requests a response, executes its tools and persists history until
 // the model answers, the operator cancels or the step limit is reached.
 func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, runErr error) {
+	// Derive both deadlines from the enriched context: tools execute on workCtx,
+	// so enriching only the hard-deadline context loses vision/output metadata.
+	if a.cfg.ToolContext != nil {
+		ctx = a.cfg.ToolContext(ctx)
+	}
 	ctx, workCtx, cancelBudget := runBudget(ctx, a.cfg.RunTimeout)
 	defer cancelBudget()
 	if err := a.cfg.Tools.Err(); err != nil {
@@ -21,9 +26,6 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 	}
 	if err := a.cfg.Policy.Validate(); err != nil {
 		return "", err
-	}
-	if a.cfg.ToolContext != nil {
-		ctx = a.cfg.ToolContext(ctx)
 	}
 	if a.cfg.RestoreBrowser != nil {
 		if err := a.cfg.RestoreBrowser(a.snapshot.Browser); err != nil {

@@ -32,12 +32,7 @@ func (*Delegate) Name() string { return "delegate_task" }
 // semaphore here would only ever admit one.
 func (*Delegate) Mode() agent.ToolMode { return agent.Exclusive }
 func (*Delegate) Description() string {
-	return "Delegate a self-contained subtask to a fresh subagent and return its final result. " +
-		"Use it when a focused fresh context is worth the extra model work; do small or tightly coupled work directly. " +
-		"The subagent receives your task and relevant paths, not the parent conversation. " +
-		"It has a bounded step budget, shares the workspace, and runs sequentially without further delegation. " +
-		"Optionally set role to a task focus such as Go test coverage or security review. " +
-		"Check the returned changes and evidence before relying on its claims."
+	return "Delegate self-contained work worth a fresh context; do small/coupled work directly. Supply requirements and paths: parent history is absent. Optional role sets focus. Shares the workspace; runs sequentially with a step limit and no further delegation. Verify returned changes and evidence."
 }
 func (*Delegate) Schema() json.RawMessage {
 	return json.RawMessage(`{

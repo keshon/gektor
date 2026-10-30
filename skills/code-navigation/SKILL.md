@@ -1,73 +1,43 @@
 ---
 name: code-navigation
-description: Locate declarations, trace callers and imports, and assess symbol usages in Go, TypeScript/JavaScript and Python using existing file tools and small scripts. Read when tracing behavior or planning a refactor across files.
+description: Trace declarations, callers, imports and state ownership across Go, TypeScript/JavaScript and Python.
 ---
 
-# Navigate code with existing tools
+# Code navigation
 
-1. Use `list_files` to locate the relevant package and its configuration:
-   `go.mod`/`go.work`, `package.json`/`tsconfig.json`, or `pyproject.toml`.
-   In a monorepo, identify the target subproject before searching everything.
-2. Use `grep_files` with a narrow path, symbol name and filename glob.
-   Find declaration candidates, then `read_file` the relevant code and imports.
-   If output is capped, narrow the search; do not interpret a partial result
-   as a complete list of usages.
-3. Trace the actual entrypoint, callers and state ownership. Follow import
-   aliases, re-exports, receiver types and registration code as needed.
-   Prefer a few relevant reads over dumping whole directories into context.
-4. Use `run_shell` for installed language tools or a small read-only script
-   only when ordinary search cannot answer the question reliably. Python is
-   useful for joining search results or parsing Python, not mandatory for
-   every task. Do not build an index or start a language server for this.
-5. Report concrete `path:line` locations and distinguish text matches,
-   syntax declarations and resolved symbol references. State unresolved
-   ambiguity instead of claiming all callers were found.
+1. Locate the subproject and its configuration with list_files: go.mod/go.work,
+   package.json/tsconfig.json, or pyproject.toml. Narrow the scope first.
+2. Search with grep_files using a path, symbol and filename glob; read relevant
+   declarations/imports. Narrow capped results instead of treating them as complete.
+3. Trace entrypoints, callers, state ownership, aliases, re-exports, receiver types
+   and registration. Read selected files rather than dumping directories.
+4. When text search is insufficient, use installed language tools or a small
+   read-only script. No new index, language server or downloaded dependencies
+   without authorization. Plan permits only its existing read-only tools.
+5. Report path:line evidence and unresolved ambiguity. Distinguish text matches,
+   syntax declarations and resolved references. For refactors, search the old name
+   again and run existing build/typecheck/tests; passing builds do not cover every
+   dynamic caller.
 
-## Searches
-
-These are `grep_files` arguments, not shell commands. Its patterns use Go
-regular expressions: no lookbehind or backreferences.
+grep_files uses Go regex (no lookbehind/backreferences); do not assume brace globs.
 
 ```json
 {"path":"internal","pattern":"\\bLoadState\\b","glob":"*.go"}
 ```
 
-```json
-{"path":"src","pattern":"\\bexport\\b.*\\bloadSession\\b","glob":"*.ts"}
-```
+Read matches with read_file's 1-based offset and bounded max_bytes. Follow
+truncated reads only as needed.
 
-The export pattern only finds candidates; multiline declarations and
-re-exports need follow-up inspection. Search `.tsx`, `.js` or `.jsx` separately
-when the project uses them. Do not assume a tool's glob supports brace syntax.
+- Go: verify package, imports and receiver; same-name methods may differ.
+  Interfaces, build tags and generated code need follow-up. go/parser supplies
+  syntax, not type resolution.
+- TS/JS: inspect aliases, barrel exports and tsconfig paths; search .tsx/.js/.jsx
+  when used. Reuse an installed TypeScript compiler API for type-aware questions;
+  regex/Python scans are not a type checker.
+- Python: ast.parse can inspect definitions/imports/calls without executing the
+  project; it cannot resolve every dynamic attribute or import.
 
-Use `read_file` with its 1-based `offset` and an appropriate `max_bytes` to
-inspect a match in context. Follow up on a truncated read only as needed.
-
-## Language-specific precision
-
-- **Go:** check the package, imports and receiver type. Same-name methods on
-  different types are different symbols. Interface calls, build tags and
-  generated code can hide relevant usages from a simple name search.
-  A small helper using standard `go/parser` can list syntax declarations;
-  it does not by itself resolve calls or interface implementations.
-- **TypeScript/JavaScript:** inspect aliases, barrel exports and `tsconfig`
-  path mappings. If the project already has `typescript`, a Node script may
-  use its compiler API and the project's configuration. Regex or a Python
-  text scan is not a TypeScript type checker.
-- **Python:** use standard `ast.parse` for definitions, imports and call
-  syntax when useful. Read sources without importing or executing the project.
-  AST alone cannot resolve dynamic attributes, monkey patches or all imports.
-
-## Scripts and validation
-
-- Use the current platform's shell: GEKTOR uses `cmd.exe` on Windows and `sh`
-  elsewhere. Do not send Bash heredocs to Windows `run_shell`. If quoting is
-  fragile, `write_file` a short temporary script, run it, then remove only
-  that script. Keep its output bounded and include source paths and lines.
-- Reuse installed tools and project dependencies. Do not install packages
-  or download tooling just to improve navigation without authorization.
-- Plan has no shell or write tools. Use `list_files`, `grep_files` and
-  `read_file` there; report any remaining ambiguity without bypassing the role.
-- For a refactor, search the old name again and run the relevant existing
-  build/typecheck/tests. A text search is not proof of a safe rename, and a
-  passing build does not prove that every runtime caller was covered.
+Prefer run_program for native tools with literal args; run_shell uses PowerShell
+on Windows and sh elsewhere. Avoid Bash heredocs on Windows. If quoting is
+fragile, write a temporary script, run it, then remove only that script. Bound
+its output and include source locations.

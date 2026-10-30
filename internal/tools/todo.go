@@ -31,9 +31,7 @@ func (t *Todo) Name() string { return "todo" }
 func (*Todo) Mode() agent.ToolMode { return agent.Exclusive }
 
 func (t *Todo) Description() string {
-	return "Record or update a short checklist for the current task. Send the full list every " +
-		"time: each item needs an id, a state (pending | in_progress | done) and text. Use it to " +
-		"keep track of remaining work on a multi-step task; it changes nothing on disk."
+	return "Replace the task checklist with the full items list: id, state (pending/in_progress/done), text. Track remaining work; does not edit project files."
 }
 
 func (t *Todo) Schema() json.RawMessage {

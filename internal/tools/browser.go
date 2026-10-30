@@ -105,6 +105,14 @@ func startBrowser(ctx context.Context, channel, dir, profileDir string, headless
 		client.Close()
 		return nil, nil, fmt.Errorf("browser MCP returned no browser tools")
 	}
+	for _, tool := range list {
+		if remote, ok := tool.(*MCPTool); ok {
+			remote.browserWorkspace = dir
+		}
+	}
+	if canObserveBrowser(agent.NewRegistry(list...).Defs()) {
+		list = append(list, &BrowserObserve{Tools: agent.NewRegistry(list...)})
+	}
 	return list, client, nil
 }
 

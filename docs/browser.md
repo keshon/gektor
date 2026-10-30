@@ -4,7 +4,8 @@ GEKTOR uses its MCP connection for browser automation. The optional
 [Playwright MCP server](https://github.com/microsoft/playwright-mcp) controls
 installed Chrome or Edge. DOM snapshots, clicks, forms, JavaScript, console
 and network checks work with text-only models. Visual judgment requires a
-vision-capable backend and a saved screenshot read through `read_file`.
+vision-capable backend. Built-in browser screenshots attach automatically;
+custom MCP integrations may require reading the saved image with `read_file`.
 
 Install Node.js 20+ with npm and Chrome or Edge. On activation, GEKTOR checks these prerequisites
 and reports a specific fix if they are missing. Windows, Linux and macOS use
@@ -42,6 +43,37 @@ tools are not unloaded between turns or Plan/Act switches.
 First navigation checks that the browser itself can launch. The selected
 browser must already be installed. Without `-browser` or a custom browser MCP,
 the model is explicitly told browser automation is unavailable.
+
+## Page observations
+
+After activation, `browser_observe` provides three modes without requiring the
+model to parse echoed automation code or open browser-generated snapshot files:
+
+| Mode | Returned observation |
+| --- | --- |
+| `text` (default) | Rendered text from the first visible article, main, or body, with URL, title and scope. Up to 3,000 Unicode characters per page; follow `next_offset` with `offset` |
+| `controls` | Current accessibility snapshot with element references for interaction |
+| `visual` | Current screenshot attached as image input. Fails explicitly when vision is unavailable or pixels cannot be delivered |
+
+Built-in MCP browser results also inline linked generated `page-*.yml` snapshots
+and attach returned screenshots under `.gektor/browser/`. Reads stay confined to
+that output directory, including symlink checks; unrelated and older snapshots
+are not scanned. Observations are capped at 16 KiB with explicit truncation
+markers. Linked originals remain available through `read_file` when more controls
+are needed. Successful calls omit redundant echoed Playwright code; failed calls
+retain their diagnostics. Page data remains untrusted input.
+
+Optional `expect_text` checks case-sensitive literal text in the rendered body,
+independently of the article excerpt. A mismatch is a failed verification tool
+result. This proves only that text was present at observation time. To check a
+saved change, reopen/reload the page and inspect the actual saved value. A click,
+HTTP success or success toast alone does not establish persistence. Visual
+judgment and broader task completion still require the relevant evidence.
+
+Browser schemas and instructions remain deferred until activation. Core/mode
+prompts live under `internal/prompts/text/`; tool descriptions stay short, and
+the browser instructions have a regression budget. Historical instruction
+literals used to migrate catalog fingerprints are not added to active context.
 
 ## Profiles and manual login
 
@@ -115,3 +147,9 @@ prove the check detects it, and exposes an import-map error on an HTTP 200 page.
 Set that environment variable using your shell's syntax.
 Add `GEKTOR_BROWSER_COLD=1` to use a fresh temporary npm cache and verify
 first-use download and browser checks together; this requires internet.
+
+`GEKTOR_BROWSER_SMOKE=1 go test ./internal/tools -run
+TestBrowserTaskObservationsLive -v` exercises article paging, live form controls,
+successful and deliberately dropped saves, simulated operator login handoff,
+and screenshot delivery through the agent loop. These use real Chrome with a
+deterministic model driver; they test the harness, not an LLM success rate.

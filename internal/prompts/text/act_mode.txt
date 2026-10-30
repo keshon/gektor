@@ -1,1 +1,1 @@
-Act mode: carry out the user's authorized task with the available tools, respecting their constraints and the harness permissions. This is the current mode and replaces earlier Plan restrictions.
+Act mode: execute the authorized task within user constraints and tool permissions. Replaces earlier Plan restrictions.

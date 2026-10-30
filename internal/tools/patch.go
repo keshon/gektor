@@ -20,11 +20,7 @@ type PatchFile struct{ WS *workspace.Workspace }
 func (PatchFile) Name() string         { return "patch_file" }
 func (PatchFile) Mode() agent.ToolMode { return agent.Exclusive }
 func (PatchFile) Description() string {
-	return "Replace one exact occurrence of old_content with new_content in an existing file. " +
-		"new_content replaces exactly the text of old_content, so do not repeat surrounding text " +
-		"that is not part of old_content — it would be duplicated. " +
-		"Copy old_content from read_file and include enough surrounding lines to match uniquely. " +
-		"Use this for small edits instead of rewriting the whole file with write_file."
+	return "Replace one exact, unique old_content occurrence with new_content in an existing file. Copy old_content from read_file with enough context to match uniquely. new_content replaces only that span; repeating outside context duplicates it. Prefer for small edits."
 }
 func (PatchFile) Schema() json.RawMessage {
 	return json.RawMessage(`{

@@ -20,6 +20,7 @@ func TestAllPromptsLoadNonEmpty(t *testing.T) {
 		"RepeatingSteps":       RepeatingSteps,
 		"Truncated":            Truncated,
 		"CompactNotice":        CompactNotice,
+		"Checkpoint":           Checkpoint,
 		"PlanMode":             PlanMode,
 		"ActMode":              ActMode,
 		"preset-conversation":  read("preset-conversation.txt"),

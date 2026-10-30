@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,6 +32,21 @@ func TestStartupContextMatchesRequest(t *testing.T) {
 	}
 	if before.EstimatedTokens != reports[0].EstimatedTokens {
 		t.Fatal("preview drifted from request")
+	}
+}
+
+func TestBrowserEnabledStartupStaysWithinPromptBudget(t *testing.T) {
+	e := testEnv(t)
+	e.Browser = &tools.Browser{Channel: "chrome", Dir: e.WS.Root()}
+	a := Interactive(e, "", "", func(string) (string, error) { return "", nil }, nil)
+	report := a.StartupContext("Explain this project")
+	if report.EstimatedTokens > 5000 {
+		t.Fatalf("startup estimate %d exceeds 5000; keep instructions dense and optional tools deferred", report.EstimatedTokens)
+	}
+	for _, def := range report.Tools {
+		if def.Name == "browser_observe" || strings.HasPrefix(def.Name, "mcp__browser__") {
+			t.Fatal("browser schema loaded at startup", def.Name)
+		}
 	}
 }
 

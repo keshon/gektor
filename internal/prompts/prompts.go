@@ -64,6 +64,7 @@ var (
 	BudgetContinue    = read("budget_continue.txt")
 	WriteHint         = read("write_hint.txt")
 	CompactNotice     = read("compact_notice.txt")
+	Checkpoint        = read("checkpoint.txt")
 	PlanMode          = read("plan_mode.txt")
 	ActMode           = read("act_mode.txt")
 )

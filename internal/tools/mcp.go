@@ -478,14 +478,17 @@ func (c *MCPClient) notify(msg map[string]any) error {
 
 // MCPTool is one remote MCP tool exposed as an agent tool.
 type MCPTool struct {
-	secrets  []string
-	timeout  time.Duration
-	client   mcpCaller
-	server   string
-	def      MCPToolDef
-	toolName string
-	imageMu  sync.Mutex
-	images   map[string][][]string
+	// Set only by the built-in browser launcher. Other MCP servers do not
+	// gain automatic filesystem access from links in their responses.
+	browserWorkspace string
+	secrets          []string
+	timeout          time.Duration
+	client           mcpCaller
+	server           string
+	def              MCPToolDef
+	toolName         string
+	imageMu          sync.Mutex
+	images           map[string][][]string
 }
 
 func (t *MCPTool) Name() string { return t.toolName }
@@ -576,6 +579,9 @@ func (t *MCPTool) Run(ctx context.Context, args json.RawMessage) (output string,
 	out := strings.TrimRight(b.String(), "\n")
 	if result.IsError {
 		return out, fmt.Errorf("mcp %s/%s reported an error", t.server, t.def.Name)
+	}
+	if t.browserWorkspace != "" {
+		out, pictures = browserArtifacts(ctx, t.browserWorkspace, t.def.Name, out, pictures)
 	}
 	if len(pictures) > 0 {
 		t.imageMu.Lock()

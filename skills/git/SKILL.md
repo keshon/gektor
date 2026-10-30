@@ -5,29 +5,20 @@ description: Inspect Git changes and history, stage requested paths and make aut
 
 # Git
 
-Prefer the dedicated Git tools when available. They pass literal arguments to
-Git without a shell. Paths are relative to the workspace; do not pass `.git`
-as a history path. Use `run_shell` for operations the tools do not expose,
-with quoting appropriate to the current operating system.
-
-1. Inspect `git` with `subcommand: "status"` and `subcommand: "diff"` before
-   changing Git state. `staged: true` selects the staged diff.
-2. For history, use `subcommand: "log"` with `max_items` up to 50, optionally
-   narrowed by `path` or a commit `ref`. `show` requires a commit `ref`;
-   `blame` requires a file `path`. Truncated output is not a complete result.
-3. Stage only the intended files with `git_add`. Preserve unrelated work.
-4. Commit only when the user authorizes it. Inspect the staged diff first:
-   `git_commit` records everything already staged, including pre-existing
-   staged changes. If unrelated changes are staged, resolve the scope before
-   committing rather than silently including or unstaging them.
-5. Write a concise imperative subject describing the resulting behavior.
-   Follow the repository's commit conventions; add a body when the reason or
-   tradeoff needs explanation. `git_commit` adds
-   `Co-authored-by: Gektor <no-reply@keshon.ru>` and preserves Git's author
-   configuration. Do not replace the user's identity with the agent's.
-
-If a command fails, read its diagnostics and address the actual cause. Do not
-repeat a failed command with cosmetic changes. Report observed results;
-do not claim a commit or push succeeded without a successful command result.
-The Git inspection tool remains read-only; `git_add` and `git_commit` are not
-available for execution in Plan or read-only workers.
+1. Prefer dedicated Git tools with literal workspace-relative paths; .git is
+   not a history path. Inspect status and diff before mutations; staged=true
+   inspects the index. Use run_shell only for unsupported operations with the
+   current platform's quoting.
+2. log caps at 50 commits; narrow by path/ref as needed. show requires ref;
+   blame requires path. Truncated output is incomplete evidence.
+3. git_add only intended, authorized paths. Preserve unrelated work.
+4. Commit only with user authorization. Inspect the entire staged diff:
+   git_commit includes pre-existing staged changes. Resolve unrelated staged
+   scope before committing; never silently include or unstage it.
+5. Use a concise imperative subject and repository conventions; explain reasons
+   or tradeoffs in the body when useful. git_commit adds
+   `Co-authored-by: Gektor <no-reply@keshon.ru>`; preserve the user's Git author
+   configuration and hooks.
+6. Diagnose actual failures; avoid cosmetic retries. Claim commit/push success
+   only after successful results. Plan/read-only workers have inspection tools,
+   not git_add/git_commit.
