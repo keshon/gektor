@@ -231,7 +231,7 @@ in memory across a restart and are never written to preferences.
 Existing files are edited with `patch_file`: its `old_content` must match one
 exact block copied from the current file. Include surrounding lines to make
 the block unique. Missing, ambiguous or unchanged matches are refused before
-writing. The line-number editor has been removed. CRLF and UTF-8 BOM are
+writing. CRLF and UTF-8 BOM are
 preserved; UTF-16 text must be converted before patching.
 
 `read_file` returns a continuation when its content limit is reached. Use the

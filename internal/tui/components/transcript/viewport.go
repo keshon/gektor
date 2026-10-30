@@ -18,8 +18,8 @@ import (
 // that meant splitting and measuring two megabytes to draw thirty lines,
 // which is the 9ms-per-frame cost the window exists to remove.
 //
-// The document is parts joined by one blank line, which is what makes
-// starts[] enough to find any row without walking the parts before it.
+// starts records each part's first row, including any gap before it, so
+// locating a visible row does not require walking the preceding parts.
 type Viewport struct {
 	width, height int
 	offset        int

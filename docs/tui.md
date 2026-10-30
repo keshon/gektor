@@ -107,32 +107,23 @@ You've spent several steps searching (.....)
 The user name follows Settings > You and the assistant name comes from the
 run's identity; both are uppercased. The tags are fixed:
 `INPUT`, `RESPONSE`, `THINKING`, `TOOL CALL`, `TOOL RESULT`,
-`QUESTION`, `MISSION`, `HARNESS`, `ERROR` and `WARNING`. Blocks are
-separated by one blank row; horizontal rules stay outside the transcript
+`QUESTION`, `HARNESS`, `STATUS`, `OUTCOME`, `ERROR` and `WARNING`. Blocks are
+separated by one blank row, except consecutive compact tool calls. Horizontal rules stay outside the transcript
 and belong to pane boundaries, so a turn reads `YOU`/`[INPUT]` followed by
 the assistant's name and `[RESPONSE]`.
 Reopened history shows no times, because the saved format records none.
 
-A reply in flight is revealed a few characters per frame rather than
-landing in whatever chunks the backend sent. The rate adapts: a slow
-model queues one or two characters between frames and appears to type,
-while a fast one drains a quarter of its backlog per frame and catches up
-in well under a second instead of trailing. Scrolling up empties the
-queue at once, because nobody is watching the tail. The streamed body is
-shown as literal text — a bold span would show its own asterisks for
-several frames before closing — and the finished block renders with full
-markup when the step arrives.
-
-Deliberation streams the same way, on a buffer of its own: a thinking
-model fills the THINK block while it is still thinking, and the block
-stays on screen as the answer streams underneath it. One merged buffer
-would interleave the two instead of chaining them, and reasoning that
-arrives at the end would blank the answer to make room.
+Streaming displays complete received chunks on the next render frame, without
+a simulated typing delay. Thinking and reply text use separate buffers and the
+same Markdown formatting as completed blocks. Thinking remains above the reply
+as the answer arrives.
 
 ## Header badges
 
-The session title and clock sit above a badge strip: Act/Plan, Ready/Work/Wait/
-Stop/Error, model, context, and run progress. Work includes the braille spinner.
+The top menu includes the workspace directory, session ID and title. The badge
+strip below shows mode, activity, model, context, steps and elapsed time.
+During a run, activity identifies waiting, prompt processing, thinking, streaming,
+tool execution or compaction and includes a braille spinner.
 Click a status badge to inspect it, or use F9 to open the global menu without moving focus. Pane
 rules remain gray. Narrow terminals omit run and model badges before context.
 
@@ -153,9 +144,6 @@ results from replacing newer state. The session cache loads metadata; opening
 Search prepares conversation text. Unchanged histories reuse the session cache.
 Opening old history omits message timestamps because the saved format does not
 record them; live messages retain their actual display times.
-
-The ownership rules and their regression tests are documented in
-[tui-ownership.md](tui-ownership.md).
 
 ## Input and suggestions
 
@@ -274,15 +262,14 @@ including messages outside the compacted model context. System/harness
 instructions, reasoning, and tool output are not searched.
 Stop a running turn before switching sessions.
 
-Focus the Sessions pane with Tab, then use Ctrl+R to rename or Ctrl+D to
-confirm deletion. The same shortcuts remain available in the search popup.
+In session search, use Ctrl+R to rename or Ctrl+D to confirm deletion.
 Type a follow-up to continue. Saved Plan/Act mode is restored when
-opening a direct run. Missions can be resumed from the CLI; the session
-search popup does not resume them as direct runs.
+opening a direct run.
 
 Drafts, input history, and the queued follow-up are kept separately for each
 run while the UI is open. They are not persisted across app restarts. Saved
-model history and display metadata live under `.gektor/tasks/<id>/`.
+model history and display metadata use the session store described under
+[Common launcher](#common-launcher).
 
 ## Running, stopping, and permissions
 
@@ -345,16 +332,8 @@ The global menu and shortcut footer each occupy one row. The run status, transcr
 
 The top row is an unbranded dropdown menu: Session, Run, View, Settings, Help. Click a category or press F9, then use Left/Right to switch categories, Up/Down to select, Enter to apply and Esc to back out. Session exposes new/search/compact/rename/delete/quit, Run exposes Plan/Act/stop/retry/permissions, View exposes the display toggles and jump/theme actions, and Settings lists the editable sections. The function-key and Ctrl shortcuts remain in the footer and Help.
 
-Each Settings entry opens its own small modal with only that section's
-fields. The modal used to be one two-column window with a rail of section
-names down the left, so every section opened as a form three quarters full of
-the other sections' names; the menu is the chooser and the modal is for the
-thing chosen. It used to have its own renderer and its own full-screen frame,
-so it was the one screen in the app that looked unlike the rest; it is drawn
-by the shared form component on the shared overlay surface, inside the normal
-app chrome, exactly like a confirmation. An unset temperature reads
-`default (0.4)` rather than a bare `0`, which used to be indistinguishable
-from a profile that had explicitly been set to zero.
+Each Settings entry opens a modal for that section. An unset temperature reads
+`default (0.4)`; literal greedy zero is unsupported.
 
 ## Common menu flows
 
@@ -378,10 +357,10 @@ non-destructive form. Mouse clicks focus fields or activate buttons. Esc closes
 the form or dropdown in one step. Keyboard menu navigation skips disabled
 actions. Read-only inspectors support arrows, PageUp/PageDown and wheel scrolling.
 
-Choice fields and protocol switches cycle with Space or a mouse click. Forms
+Choice fields and protocol switches open a picker with Space or a mouse click. Forms
 expose their own Next/Apply/Cancel footer actions instead of unrelated hotkeys.
 
-## Thinking service
+## Model connection
 
 GEKTOR connects to a model server someone else started. Wait for it to report
 the model loaded, then configure its address in Settings > Model.
@@ -396,32 +375,21 @@ next request reports a connection error.
 
 ## Shared settings workspace
 
-Model, Generation, Profiles, Application, You and Prompts share the Commander
-palette and connected square frame. F6 focuses the category rail; arrows change category,
-Enter returns to controls. Edits survive category switches. Ctrl+S applies all
-staged pages, which restarts the launch. Esc cancels all staged edits; it never
-clears history or the text draft.
+Settings contains Model, Generation, Profiles, Application, You and Prompts.
+Edits survive section switches. Ctrl+S applies staged settings and restarts the
+launch while preserving the conversation and composer draft. Esc cancels edits.
 
-Model shows connection, model and GPU layers in local mode. External mode shows
-protocol, endpoint and model. F4 reveals technical paths and authentication settings.
-Enter on a selection opens a searchable list; arrows/Enter choose, Esc returns.
-Local GGUF discovery runs asynchronously. Ctrl+B browses folders and model files;
-Ctrl+L opens the folder-path control; Ctrl+R scans/refreshes. Full locations and file
-size are shown below the list. Server model names are discovered through the
-configured protocol; unsupported discovery falls back to manual entry.
+Model shows protocol, server address and model identifier. F4 reveals the API-key
+environment field. Space opens a choice list; arrows and Enter select an item.
+Model names are discovered from the configured server; manual entry is supported.
+File and directory pickers provide Ctrl+B browsing, Ctrl+L location entry and
+Ctrl+R refresh where applicable.
 
-Explicit-profile launches keep runtime edits in memory until saved as a profile.
-The common launcher also remembers its effective configuration in
-`~/.gektor/application.json`;
-source profile files are not overwritten. Profiles can be loaded as staged settings
-and saved as new portable copies.
-
-A launch without `-profile` generates one from the flags it resolved, plus the
-context window the backend reported, and says so at startup. Settings reads the
-profile rather than the flags, so without one it was disabled outright and could
-not be entered at all. Generated settings land in `profiles/custom` like any other
-unsourced edit; the generated profile is never written back to a file that did not
-exist.
+CLI flags override saved configuration for the current launch. Explicit Apply
+can save these effective launch settings even without further field edits.
+Global preferences live in `~/.gektor/application.json`; model and identity
+changes save a custom profile under `~/.gektor/profiles/custom`. Bundled and
+external source profiles are not overwritten.
 
 ### Profiles
 
@@ -432,8 +400,7 @@ categories displays staged values. Ctrl+D saves a new portable copy using the
 entered name. Existing files are never overwritten. The picker has separate
 Ctrl+D drive browsing, distinguished by its footer.
 
-A profile that predates the `conversation` → `identity` rename loads unchanged;
-see [cli.md](cli.md#profiles).
+See [CLI profiles](cli.md#profiles) for the JSON format and validation rules.
 
 ## Common launcher
 
@@ -441,10 +408,9 @@ see [cli.md](cli.md#profiles).
 
 The menu is Session, Run, View, Settings, Help. Run selects Plan or Act; the
 current choice is marked. Settings opens the workspace as Model, Generation,
-Profiles, Application, You and Prompts. Application selects the workspace. Enter
-opens choices or file/directory pickers. F6 moves to the category list; unsaved
-values remain staged across categories. Apply with no changes does nothing.
-Cancel discards the staged values.
+Profiles, Application, You and Prompts. Application selects the workspace.
+Space opens choices or file/directory pickers; edits remain staged across sections.
+Apply saves edits or effective launch overrides. Cancel discards staged values.
 
 A launch requires a workspace and starts in Plan. Act enables tool execution under
 the existing permission gates. Applying settings in an existing session preserves
@@ -495,8 +461,11 @@ Checked View options show the named content. Commands follow the separator:
 one summary row sized to the available width. It does not truncate the answer.
 **Agent tools** shows complete arguments and output when checked. Otherwise a
 single row shows the action and target, with the tool name aligned right.
-Running and failed calls show their state there; failures include a short error.
+Running and failed calls keep the tool name there, followed by `│ Running`
+or `│` and a short error. A checkmark on the left indicates success.
 Targets shorten to fit the window; unknown tools fall back to their name and arguments.
+Consecutive compact tool calls stack without blank lines; the group keeps its
+spacing from surrounding messages.
 **System messages** shows scaffolding history, including local notices and
 receipts. Turning it off hides those blocks; pending questions and approvals
 remain reachable in their own overlays.
@@ -511,16 +480,17 @@ All six choices and theme persist globally, including launches with browser,
 backend or workspace flags. They survive Settings Apply and opening other
 sessions. Hidden content remains in the archive and model context unchanged.
 **Jump to latest** (`Ctrl+End`, `F7`) scrolls to the newest content;
-**Select Theme…** opens the Dark/Light picker. The former Compact spacing
-preference is ignored when loading older settings.
+**Select Theme…** opens the Dark/Light picker.
 
 During measured prompt processing, a transient SYSTEM block in the history
 viewport shows a progress bar and processed/total counts. Estimated or unavailable
 telemetry uses the usual activity indicator. Progress does not enter the
 conversation archive or model context and does not occupy the input hint area.
 
-Outcome receipts show the existing outcome, observed files, command verdict
-and session ID with a pointer to Session → Open. They use the page background
+Outcome receipts show the outcome, session ID, saved session path and a quoted
+resume command. Failed outcomes also show `/retry`. **Observed changes** lists
+paths recorded as changed during the run; it is omitted when empty and is not a
+Git diff or rollback record. Command verdicts appear when available. Receipts use the page background
 and SYSTEM accent rail. A completed response without a command verdict remains
 unverified; failed and cancelled states are preserved. The duplicate run-finished
 notice is omitted when the outcome receipt already closes the run.
@@ -614,13 +584,7 @@ model review prevents saving its results.
 
 This TUI command is distinct from `cmd/eval`, the repeatable scenario benchmark.
 
-## Implementation boundaries
-
-Reusable form, composer, list-selection and transcript viewport models live under
-`internal/tui/components`. GEKTOR supplies styles and application data, routes focus,
-and handles effects; components own their local editing/selection/scroll state.
-Session indexing lives in `the TUI itself`, independently of terminal
-rendering. See [TUI ownership](tui-ownership.md) for enforced boundaries and limits.
+## Follow-up messages
 
 While the agent is running, Enter sends ordinary text to the current run.
 Messages wait until the current model/tool step completes, then enter history

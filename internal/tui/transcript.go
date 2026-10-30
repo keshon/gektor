@@ -754,14 +754,17 @@ func (t *transcriptState) refresh(props transcriptProps) {
 	width := t.Viewport.ContentWidth()
 	opts := renderOpts{expand: !t.compact, labels: props.labels, hideTools: props.hideTools}
 	parts := make([]string, 0, len(t.blocks))
+	gaps := make([]int, 0, len(t.blocks))
 	cache := make([]renderedBlock, len(t.blocks))
 	prevSpeaker := ""
+	previousTool := false
 	for i, b := range t.blocks {
 		b.speaker = props.speaker
 		if b.role == roleUser {
 			b.speaker = props.user
 		}
 		if props.hideSYS && systemBlock(b.role) {
+			previousTool = false
 			// A filtered block must not satisfy a later lookup: the zero
 			// renderedBlock equals an empty roleAnswer, so a filter that
 			// was lifted would reuse it and render nothing.
@@ -791,6 +794,12 @@ func (t *transcriptState) refresh(props transcriptProps) {
 			}
 			prevSpeaker = name
 		}
+		gap := 1
+		if props.hideTools && b.role == roleTool && previousTool {
+			gap = 0
+		}
+		gaps = append(gaps, gap)
+		previousTool = b.role == roleTool
 		parts = append(parts, part)
 	}
 	t.render.cache = cache
@@ -811,7 +820,7 @@ func (t *transcriptState) refresh(props transcriptProps) {
 		}
 		tail += progress
 	}
-	t.SetParts(parts, tail)
+	t.SetPartsWithGaps(parts, tail, gaps)
 	if t.Viewport.ContentWidth() != width {
 		// Reflow once if this content added or removed the scrollbar column.
 		t.refresh(props)

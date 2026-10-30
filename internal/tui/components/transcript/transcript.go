@@ -16,6 +16,7 @@ type Model struct {
 	// nothing, so this is what tells a real update from a repeat.
 	lastParts []string
 	lastTail  string
+	lastGaps  []int
 }
 
 func New() Model { return Model{Follow: true, Viewport: NewViewport(0, 0)} }
@@ -46,7 +47,13 @@ func (m Model) PartOffset(index int) int {
 // next one, and every part's height to know how far the document scrolls, but
 // it never needs their text unless they are on screen.
 func (m *Model) SetParts(parts []string, tail string) {
-	if m.lastTail == tail && slices.Equal(m.lastParts, parts) {
+	m.SetPartsWithGaps(parts, tail, nil)
+}
+
+// SetPartsWithGaps keeps each part independently addressable while allowing
+// adjacent rows to form a group. Missing gaps default to one blank line.
+func (m *Model) SetPartsWithGaps(parts []string, tail string, gaps []int) {
+	if m.lastTail == tail && slices.Equal(m.lastParts, parts) && slices.Equal(m.lastGaps, gaps) {
 		return
 	}
 	all := parts
@@ -60,7 +67,11 @@ func (m *Model) SetParts(parts []string, tail string) {
 	line := 0
 	for i, p := range all {
 		if i > 0 {
-			line++ // the blank line separating this part from the last
+			gap := 1
+			if i < len(gaps) {
+				gap = max(gaps[i], 0)
+			}
+			line += gap
 		}
 		starts[i] = line
 		line += strings.Count(p, "\n") + 1
@@ -68,7 +79,7 @@ func (m *Model) SetParts(parts []string, tail string) {
 	total := line
 
 	previous := m.Viewport
-	if !m.Follow && len(parts) == len(previous.parts) {
+	if !m.Follow && len(parts) == len(m.lastParts) {
 		// Anchoring: the reader is inside some part, and that part is
 		// still the same one. Keep them the same distance into it, so a
 		// reflow above them moves the text under the reader rather than
@@ -80,7 +91,7 @@ func (m *Model) SetParts(parts []string, tail string) {
 			}
 			m.Viewport.Set(all, starts, total)
 			m.Viewport.SetYOffset(starts[k] + within)
-			m.lastParts, m.lastTail = parts, tail
+			m.lastParts, m.lastTail, m.lastGaps = parts, tail, gaps
 			return
 		}
 	}
@@ -90,5 +101,5 @@ func (m *Model) SetParts(parts []string, tail string) {
 	} else if len(parts) == 0 {
 		m.Viewport.SetYOffset(0)
 	}
-	m.lastParts, m.lastTail = parts, tail
+	m.lastParts, m.lastTail, m.lastGaps = parts, tail, gaps
 }

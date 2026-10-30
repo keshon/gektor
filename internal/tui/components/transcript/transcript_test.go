@@ -41,6 +41,28 @@ func TestPartOffsetsAndTailDoNotDependOnViewport(t *testing.T) {
 	}
 }
 
+func TestGroupedPartsKeepOffsetsAndReadingPosition(t *testing.T) {
+	m := New()
+	m.Viewport = NewViewport(30, 3)
+	parts := []string{"reply", "tool one", "tool two", "next reply"}
+	m.SetPartsWithGaps(parts, "streaming", []int{1, 1, 0, 1})
+	if m.PartOffset(1) != 2 || m.PartOffset(2) != 3 || m.PartOffset(3) != 5 {
+		t.Fatal("grouping lost individual part offsets")
+	}
+	m.Follow = false
+	m.Viewport.SetYOffset(3)
+	m.SetParts(parts, "streaming")
+	if m.PartOffset(2) != 4 || m.Viewport.YOffset() != 4 {
+		t.Fatal("spacing change moved the reader away from tool two")
+	}
+	m.SetPartsWithGaps(parts, "", []int{1, 1, 0, 1})
+	m.Viewport.SetHeight(20)
+	m.Viewport.GotoTop()
+	if !strings.Contains(m.View(), "tool one                      \ntool two") {
+		t.Fatal("grouped tool parts still have a blank separator", m.View())
+	}
+}
+
 // The window exists to avoid splitting parts nobody is looking at. The only
 // honest way to know that is happening is to hand it a part that would blow
 // up if it were split, so this fails loudly rather than silently regressing.

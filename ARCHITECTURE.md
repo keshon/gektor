@@ -35,8 +35,8 @@ retain that order, and errors preserve the command output alongside the error.
 Arguments are validated before execution. Invalid or truncated JSON is retained
 as text in the archive and explained to the model through a harness message;
 it is not replaced with an invented empty call. Tool results carry failure
-metadata separately from their text. SYSTEM displays model-facing harness
-messages; local UI notices use STATUS.
+metadata separately from their text. SYSTEM identifies harness messages and
+local UI notices; local notices are excluded from model context.
 
 Native process tools pass an executable and literal arguments directly.
 Shell tools use pwsh.exe, then powershell.exe on Windows, or sh elsewhere.
@@ -129,6 +129,17 @@ Profile identity and response presets are composed separately from capabilities.
 The Bubble Tea update loop owns UI state. Components own local interactions;
 the root routes focus, messages and effects. Workers return messages rather
 than changing the live model.
+
+Reusable geometry, popup, form, composer, selection and transcript models live
+under `internal/tui/components`. The application supplies styles and data;
+components do not own backend services. The active input owner determines
+keyboard, paste, mouse and caret routing. Session scans return revision-tagged
+results; stale results cannot replace the current session list.
+
+Settled transcript blocks are cached by content and presentation settings.
+The viewport retains separate rendered parts and draws only visible lines.
+Colors live in `styles.go`; changing the theme invalidates cached rendering.
+Width calculations use terminal cells, including frames, gutters and scrollbars.
 
 Applying settings returns ModeChange with saved preferences, history, draft
 and session directory. The CLI composes a fresh launch from structured options;

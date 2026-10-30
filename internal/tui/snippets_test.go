@@ -15,9 +15,15 @@ import (
 
 func TestCompactToolActionAndFailure(t *testing.T) {
 	for _, tc := range []struct{ call, action, target string }{
-		{`system_info {"group":"skills"}`, "List skills", "skills"},
+		{`system_info {"group":"skills"}`, "List skills", ""},
+		{`system_info {"group":"tools"}`, "List tools", ""},
 		{`read_file {"path":"AGENTS.md"}`, "Read file", "AGENTS.md"},
-		{`webfetch {"url":"https://example.com/guide"}`, "Fetch page", "example.com/guide"},
+		{`webfetch {"url":"https://example.com/guide"}`, "Read page", "example.com/guide"},
+		{`run_program {"program":"go.exe","args":["test","./..."]}`, "Run program", "go.exe test ./..."},
+		{`run_program {"program":"echo","args":["a b",""]}`, "Run program", `echo "a b" ""`},
+		{`move_file {"from":"a.go","to":"b.go"}`, "Move file", "a.go → b.go"},
+		{`load_skill {"id":"go","resource":"references/tests.md"}`, "Load skill", "go references/tests.md"},
+		{`todo {"items":[{"text":"test"}]}`, "Update tasks", "1 items"},
 		{`custom_tool {"value":"hello"}`, "custom_tool", `{"value":"hello"}`},
 	} {
 		b := toolCardBlock("call", tc.call)
@@ -33,9 +39,50 @@ func TestCompactToolActionAndFailure(t *testing.T) {
 			}
 		}
 		b.failed, b.result = true, "error: HTTP 404\nPRIVATE_OUTPUT"
-		text := ansi.Strip(compactTool(b, defaultStyles(), 100))
-		if !strings.Contains(text, "×") || !strings.HasSuffix(text, "HTTP 404") || strings.Contains(text, "PRIVATE_OUTPUT") {
+		text := ansi.Strip(compactTool(b, defaultStyles(), 160))
+		name, _, _ := strings.Cut(tc.call, " ")
+		if !strings.Contains(text, "×") || !strings.HasSuffix(text, name+" │ HTTP 404") || strings.Contains(text, "PRIVATE_OUTPUT") {
 			t.Fatal("failure hidden or result leaked", text)
+		}
+		b.open = true
+		text = ansi.Strip(compactTool(b, defaultStyles(), 160))
+		if !strings.HasSuffix(text, name+" │ Running") || !strings.Contains(text, tc.action) {
+			t.Fatal("running call lost identity or action", text)
+		}
+	}
+}
+
+func TestCompactToolCallsStackBetweenOtherMessages(t *testing.T) {
+	m := sizeModelTo(t, testModel(), 100, 34)
+	m.hideNames, m.hideLabels = true, true
+	m.appendBlock(answerBlock("Before tools"))
+	m.appendBlock(toolCardBlock("a", `read_file {"path":"FIRST_FILE"}`))
+	m.appendBlock(toolCardBlock("b", `read_file {"path":"SECOND_FILE"}`))
+	m.appendBlock(answerBlock("After tools"))
+	for _, compact := range []bool{true, false, true} {
+		m.hideTools = compact
+		m.refreshContent()
+		rows := strings.Split(ansi.Strip(m.transcript.View()), "\n")
+		at := func(s string) int {
+			for i, line := range rows {
+				if strings.Contains(line, s) {
+					return i
+				}
+			}
+			return -1
+		}
+		first, second := at("FIRST_FILE"), at("SECOND_FILE")
+		if first < 0 || second < 0 {
+			t.Fatal("tool disappeared", rows)
+		}
+		if compact && second != first+1 {
+			t.Fatal("compact calls are not stacked", rows)
+		}
+		if !compact && second <= first+1 {
+			t.Fatal("full tool cards lost their separation", rows)
+		}
+		if first <= at("Before tools")+1 || at("After tools") <= second+1 {
+			t.Fatal("tool group touched surrounding replies", rows)
 		}
 	}
 }
@@ -75,13 +122,13 @@ func TestCompletionPanelKeepsEvidenceAndFits(t *testing.T) {
 				}
 				if width >= 80 {
 					text := ansi.Strip(view)
-					for _, want := range []string{"Completed", "No verification result", "Files: no changes observed", "Checks: no current command verdict", "Session: 47003e38"} {
+					for _, want := range []string{"Completed", "No verification result", "Session: 47003e38", "Path: ", "Resume: gektor -tui -resume"} {
 						if !strings.Contains(text, want) {
 							t.Fatal("lost evidence", want, text)
 						}
 					}
-					if strings.Contains(text, "-resume") {
-						t.Fatal("resume command still occupies transcript", text)
+					if strings.Contains(text, "Observed changes:") || strings.Contains(text, "Checks: no current command verdict") {
+						t.Fatal("empty evidence occupies transcript", text)
 					}
 				}
 				if m.transcript.blocks[len(m.transcript.blocks)-1].text != before {
@@ -103,6 +150,16 @@ func TestCompletionPanelKeepsEvidenceAndFits(t *testing.T) {
 	text := strings.Join(receiptText("outcome: failed\nfiles: main.go\nchecks: tests failed\nFAIL: assertion X", defaultStyles(), 80), "\n")
 	if !strings.Contains(ansi.Strip(text), "FAIL: assertion X") {
 		t.Fatal("multiline verification lost", text)
+	}
+	for _, want := range []string{"Observed changes: main.go", "Retry: /retry"} {
+		if !strings.Contains(ansi.Strip(text), want) {
+			t.Fatal("completion action or changes missing", want, text)
+		}
+	}
+	path := `C:\Users\user name\.gektor\sessions\12345678\state.json`
+	text = ansi.Strip(strings.Join(receiptText("outcome: completed\nresume: gektor -tui -resume "+path, defaultStyles(), 200), "\n"))
+	if !strings.Contains(text, `Resume: gektor -tui -resume "`+path+`"`) {
+		t.Fatal("resume command changed Windows path or lost quoting", text)
 	}
 }
 

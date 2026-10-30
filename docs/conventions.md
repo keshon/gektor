@@ -5,27 +5,18 @@
 
 ## How to read this
 
-Every rule carries a tier, because a rule nobody can verify is worse than no
-rule: it creates the belief of compliance without the fact.
+Every rule carries an enforcement tier:
 
 - **[enforced: &lt;name&gt;]** — a check fails, and the name says which one.
   `internal/conventions` is an ordinary Go test, so `go test ./...` runs it
-  with everything else. `TestDocumentAndChecksAgree` keeps the tags here and
-  the checks there in step, so this file cannot advertise enforcement that does
-  not run, and a check cannot enforce something this file never states.
+  with everything else. `TestDocumentAndChecksAgree` checks that the tags here
+  match the registered checks.
 - **[invariant]** — nothing checks it, and violating it breaks something
   nameable. Each states the failure it prevents.
 - **[practice]** — how things are done here. Nothing breaks if you deviate.
 
-A rule earns a place only if it can claim one of those three. A preference
-without a test method is a preference, and preferences get deleted rather than
-documented.
-
-**This file is executable.** `internal/conventions` reads it while the tests
-run. Reword a paragraph tagged `[enforced: x]` and you have reworded a build
-failure message. Remove or rename a tag and the build goes red until the checks
-match — deliberately, because a rule that quietly stops being enforced is the
-failure this arrangement exists to prevent.
+`internal/conventions` reads this file during tests. Update the documentation
+and registered check together when changing an enforced rule.
 
 **Adding a rule.** Give it a tier. If it would be [enforced], write the check
 first and let it fail, then record the baseline.
