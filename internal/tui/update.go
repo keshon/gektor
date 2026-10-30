@@ -250,6 +250,9 @@ func (m *model) fitBottom() {
 	// Done budgets the input box only (the hint moved right into the
 	// status row); a run error adds its own line on top.
 	lines := 1
+	if m.prefillStatus() != "" {
+		lines++
+	}
 	if m.state == stDone && m.runErr != nil {
 		lines++
 	}
@@ -289,7 +292,11 @@ func (m *model) fitBottom() {
 	if h < 1 {
 		h = 1
 	}
+	pinned := m.transcript.Follow && m.transcript.Viewport.AtBottom()
 	m.transcript.Viewport.SetHeight(h)
+	if pinned {
+		m.transcript.Viewport.GotoBottom()
+	}
 	m.gateVP.SetWidth(m.transcript.Viewport.Width())
 	m.gateVP.SetHeight(h)
 	if m.state == stPermission || m.state == stAsk {
@@ -316,6 +323,12 @@ func (m *model) scrollViewport(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *model) handleEvent(ev run.Event) {
 	m.beginTranscriptUpdate()
 	defer m.endTranscriptUpdate()
+	wasPrefill := m.prefillStatus() != ""
+	defer func() {
+		if wasPrefill != (m.prefillStatus() != "") {
+			m.fitBottom()
+		}
+	}()
 	switch ev.Name {
 	case "progress":
 		phase, _ := ev.Fields["phase"].(string)
@@ -472,6 +485,8 @@ func (m *model) handleEvent(ev run.Event) {
 			m.usage.liveModel = true
 			m.usage.last = usageSnapshot{Tokens: m.tokens, Estimated: m.tokensEst, At: m.usage.at, Model: m.modelName}
 		}
+	case "_permission_preview":
+		m.gatePreview, _ = ev.Fields["text"].(string)
 	case "awaiting_input":
 		m.closeHeader()
 		kind, _ := ev.Fields["kind"].(string)
@@ -502,6 +517,7 @@ func (m *model) handleEvent(ev run.Event) {
 			m.openGatePopup()
 		} else {
 			m.state = stAsk
+			m.gatePreview = ""
 			m.gateDraft = m.input.Value()
 			m.input.SetValue("")
 			m.input.Focus()
@@ -511,6 +527,7 @@ func (m *model) handleEvent(ev run.Event) {
 		m.fitBottom()
 	case "input_answered":
 		m.state = stRunning
+		m.gatePreview = ""
 		m.gate = ""
 		m.input.SetValue(m.gateDraft)
 		m.gateDraft = ""
@@ -538,11 +555,15 @@ func (m *model) handleEvent(ev run.Event) {
 			checks = "no current command verdict"
 		}
 		resume, _ := ev.Fields["resume"].(string)
-		text := fmt.Sprintf("outcome: %s\nfiles: %s\nchecks: %s", outcome, strings.Join(files, ", "), truncate(checks, 512))
+		fileList := strings.Join(files, ", ")
+		if fileList == "" {
+			fileList = "none observed"
+		}
+		text := fmt.Sprintf("outcome: %s\nfiles: %s\nchecks: %s", outcome, fileList, checks)
 		if resume != "" {
 			text += "\nresume: gektor -tui -resume " + resume
 		}
-		m.appendBlock(markerBlock(text))
+		m.appendBlock(block{role: roleReceipt, text: text, at: time.Now()})
 	case "reasoning":
 		m.usage.liveModel = true
 		m.progress.Phase = "reasoning"

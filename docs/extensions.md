@@ -207,3 +207,10 @@ text files use the same ID plus `resource`, relative to that package. Reads stay
 inside that package through `os.Root`, including symlink checks; each file is
 limited to 256 KiB. Workspace guides remain readable through `read_file`.
 Skills provide instructions and never install tools or grant permissions.
+
+Repeated guide loads use a short reminder in the outgoing model view only
+when an identical complete guide is already present there. Matching includes
+source, SHA-256 and body after output limiting. Truncated, offloaded or failed
+loads do not count; supporting resources are read normally. The view is rebuilt
+after compaction and on resume, so a retained load regains its full body when
+the earlier copy is removed. The saved archive keeps the original results.

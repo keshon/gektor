@@ -31,6 +31,7 @@ const (
 	// unbold yellow rather than the error's bold red.
 	roleWarning
 	roleStatus
+	roleReceipt
 )
 
 // block is one transcript entry: raw content plus its role. Styling
@@ -180,6 +181,8 @@ func roleLabel(r role) string {
 		return "WARNING"
 	case roleStatus:
 		return "STATUS"
+	case roleReceipt:
+		return "OUTCOME"
 	}
 	return "OUTPUT"
 }
@@ -198,7 +201,7 @@ func speakerLabel(b block, props transcriptProps) string {
 	case roleMarker:
 		return systemSpeaker
 	default:
-		return "STATUS"
+		return systemSpeaker
 	}
 }
 
@@ -245,8 +248,8 @@ type renderOpts struct {
 	// expand opens verbose content: full thinking, full tool output. It
 	// is the inverse of the transcript's compact flag.
 	expand bool
-	// labels false drops the [TAG] row. The name row stays: it is what
-	// says who spoke, and dropping it would leave unattributed prose.
+	dense  bool
+	// labels false drops the [TAG] row, independently of speaker names.
 	labels bool
 	// raw draws the body as literal text instead of markdown. Only the
 	// live stream uses it: a span revealed one character at a time would
@@ -280,6 +283,9 @@ func renderBlock(b block, st styles, opts renderOpts, width int) string {
 	switch {
 	case b.role == roleTool:
 		body = renderToolCard(b, st, opts.expand, width)
+		if opts.dense && len(body) > 1 {
+			body = body[:len(body)-1]
+		}
 	case isMdRole(b.role) && !opts.raw:
 		body = renderMdBlock(b, raw, st, width)
 	default:
@@ -496,6 +502,11 @@ func applyRoleStyle(r role, origLine, frag string, st styles) string {
 		return st.err.Render(frag)
 	case roleWarning:
 		return st.warn.Render(frag)
+	case roleReceipt:
+		if strings.HasPrefix(origLine, "outcome:") {
+			return st.gate.Bold(true).Render(frag)
+		}
+		return st.dim.Render(frag)
 	default:
 		return frag
 	}
@@ -541,7 +552,7 @@ func renderLive(props transcriptProps, width int, opts renderOpts) []string {
 			b.at = time.Time{}
 			b.speaker = props.speaker
 			part := renderBlock(b, props.styles, opts, width)
-			if len(parts) == 0 {
+			if len(parts) == 0 && !props.hideNames {
 				part = speakerRow(speakerLabel(b, props), b.role, props.styles, width) + "\n" + part
 			}
 			parts = append(parts, part)
@@ -551,7 +562,7 @@ func renderLive(props transcriptProps, width int, opts renderOpts) []string {
 		b.at = time.Time{}
 		b.speaker = props.speaker
 		part := renderBlock(b, props.styles, opts, width)
-		if len(parts) == 0 {
+		if len(parts) == 0 && !props.hideNames {
 			part = speakerRow(speakerLabel(b, props), b.role, props.styles, width) + "\n" + part
 		}
 		parts = append(parts, part)
@@ -595,6 +606,8 @@ func (m *model) refreshContent() {
 		liveThink: m.liveThink,
 		hideSYS:   m.hideSYS,
 		labels:    !m.hideLabels,
+		hideNames: m.hideNames,
+		dense:     m.dense,
 	})
 }
 
@@ -675,6 +688,7 @@ type renderedBlock struct {
 	width    int
 	expanded bool
 	labels   bool
+	dense    bool
 	text     string
 }
 
@@ -729,7 +743,8 @@ type transcriptProps struct {
 	// hideSYS drops harness notices from the rendered transcript, and
 	// labels drops the [TAG] rows. Both are display-only: the blocks stay
 	// in m.transcript.blocks and come back unchanged when a filter lifts.
-	hideSYS, labels bool
+	hideSYS, labels  bool
+	hideNames, dense bool
 }
 
 // refresh renders every block and assembles the parts. The name row opens a
@@ -738,7 +753,7 @@ type transcriptProps struct {
 // cache keyed on the block value cannot know.
 func (t *transcriptState) refresh(props transcriptProps) {
 	width := t.Viewport.ContentWidth()
-	opts := renderOpts{expand: !t.compact, labels: props.labels}
+	opts := renderOpts{expand: !t.compact, labels: props.labels, dense: props.dense}
 	parts := make([]string, 0, len(t.blocks))
 	cache := make([]renderedBlock, len(t.blocks))
 	prevSpeaker := ""
@@ -754,16 +769,27 @@ func (t *transcriptState) refresh(props transcriptProps) {
 			cache[i] = renderedBlock{block: b, width: -1}
 			continue
 		}
+		renderWidth := width
+		if systemBlock(b.role) {
+			renderWidth = max(width-2, 1)
+		}
 		var rendered renderedBlock
-		if i < len(t.render.cache) && t.render.cache[i].block == b && t.render.cache[i].width == width && t.render.cache[i].expanded == opts.expand && t.render.cache[i].labels == opts.labels {
+		if i < len(t.render.cache) && t.render.cache[i].block == b && t.render.cache[i].width == width && t.render.cache[i].expanded == opts.expand && t.render.cache[i].labels == opts.labels && t.render.cache[i].dense == opts.dense {
 			rendered = t.render.cache[i]
 		} else {
-			rendered = renderedBlock{block: b, width: width, expanded: opts.expand, labels: opts.labels, text: renderBlock(b, props.styles, opts, width)}
+			rendered = renderedBlock{block: b, width: width, expanded: opts.expand, labels: opts.labels, dense: opts.dense, text: renderBlock(b, props.styles, opts, renderWidth)}
 		}
 		cache[i] = rendered
 		part := rendered.text
+		if systemBlock(b.role) {
+			part = railText(part, props.styles, width)
+		} else if b.role == roleUser && props.hideNames {
+			part = lipgloss.NewStyle().Background(lipgloss.Color(themeColor(colorPopupBackground))).Render(part)
+		}
 		if name := speakerLabel(b, props); name != prevSpeaker {
-			part = speakerRow(name, b.role, props.styles, width) + "\n" + part
+			if !props.hideNames {
+				part = speakerRow(name, b.role, props.styles, width) + "\n" + part
+			}
 			prevSpeaker = name
 		}
 		parts = append(parts, part)
@@ -777,4 +803,20 @@ func (t *transcriptState) refresh(props transcriptProps) {
 		}
 	}
 	t.SetParts(parts, tail)
+}
+
+func systemBlock(r role) bool {
+	switch r {
+	case roleUser, roleAnswer, roleThink, roleTool, roleResult:
+		return false
+	}
+	return true
+}
+
+func railText(text string, st styles, width int) string {
+	lines := strings.Split(text, "\n")
+	for i := range lines {
+		lines[i] = st.dim.Render("│ ") + cellLine(lines[i], max(width-2, 1))
+	}
+	return strings.Join(lines, "\n")
 }

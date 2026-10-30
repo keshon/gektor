@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
@@ -156,6 +157,9 @@ func (m *model) rawHeaderItems() []headerItem {
 			{"Truncate AI reply", "toggle-details", true},
 			{"Hide SYS messages", "toggle-sys", true},
 			{"Hide labels", "toggle-labels", true},
+			{"Hide speaker names", "toggle-names", true},
+			{"Connected outlines", "toggle-outline", true},
+			{"Compact spacing", "toggle-density", true},
 			{"", "", false},
 			{"Jump to latest", "latest", true},
 			{"Select Theme…", "theme", true},
@@ -345,8 +349,32 @@ func (m *model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				m.refreshContent()
 				return m, nil
 			case "toggle-labels":
-				m.hideLabels = !m.hideLabels
-				m.refreshContent()
+				if err := m.changeAppearance(func(a *config.Appearance) { a.HideLabels = !m.hideLabels }); err != nil {
+					m.openDialog("Appearance", []string{err.Error()})
+				}
+				return m, nil
+			case "toggle-names", "toggle-outline", "toggle-density":
+				err := m.changeAppearance(func(a *config.Appearance) {
+					switch item.command {
+					case "toggle-names":
+						a.HideNames = !m.hideNames
+					case "toggle-outline":
+						if m.minimal {
+							a.Frame = "outlined"
+						} else {
+							a.Frame = "minimal"
+						}
+					case "toggle-density":
+						if m.dense {
+							a.Density = "comfortable"
+						} else {
+							a.Density = "compact"
+						}
+					}
+				})
+				if err != nil {
+					m.openDialog("Appearance", []string{err.Error()})
+				}
 				return m, nil
 			case "latest":
 				return m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnd, Mod: tea.ModCtrl})
@@ -585,6 +613,12 @@ func (m *model) headerToggle(command string) (toggle, on bool) {
 		return true, m.hideSYS
 	case "toggle-labels":
 		return true, m.hideLabels
+	case "toggle-names":
+		return true, m.hideNames
+	case "toggle-outline":
+		return true, !m.minimal
+	case "toggle-density":
+		return true, m.dense
 	case "/mode plan":
 		return true, m.plan
 	case "/mode act":

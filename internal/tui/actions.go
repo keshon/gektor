@@ -34,6 +34,13 @@ func (m *model) legacyFooterActions() []footerAction {
 
 // The first three actions stay in place; the middle pair follows input ownership.
 func (m *model) footerActions() []footerAction {
+	if m.state == stPermission && m.dialog == nil && m.gstage == gsPermit {
+		actions := []footerAction{{'y', 0, "Y", "Allow once", "Allow", true}, {'n', 0, "N", "Deny", "Deny", true}, {'a', 0, "A", "This run", "Run", true}}
+		if m.gatePreview != "" {
+			actions = append(actions, footerAction{tea.KeyF4, 0, "F4", "Proposal", "View", true})
+		}
+		return append(actions, footerAction{'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true})
+	}
 	if m.dialog != nil && m.dialog.form != nil {
 		if m.dialog.form.Picker != nil {
 			return []footerAction{{tea.KeyEnter, 0, "Enter", "Choose", "Choose", true}, {tea.KeyEscape, 0, "Esc", "Back", "Back", true}, {'b', tea.ModCtrl, "Ctrl+B", "Browse", "Browse", pickerFiles(m.dialog.form.Picker.Field)}, {'r', tea.ModCtrl, "Ctrl+R", "Refresh", "Refresh", true}, {'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true}}

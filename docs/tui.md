@@ -481,6 +481,9 @@ with a rule between the two zones:
 ✓ Truncate AI reply        Ctrl+G
 ✓ Hide SYS messages
   Hide labels
+  Hide speaker names
+  Connected outlines
+✓ Compact spacing
 ──────────────────────────────
   Jump to latest        Ctrl+End
   Select Theme…
@@ -497,14 +500,37 @@ reply** (`Ctrl+G`, `F3`) collapses thinking and long tool output. **Hide
 SYS messages** drops harness notices, and nothing else: errors,
 warnings, permission questions, tool results stay,
 because they are the record of what happened. **Hide labels** drops the
-`[TAG]` rows and keeps the name rows, so every block still says who
-spoke.
+`[TAG]` rows independently of **Hide speaker names**. User and assistant
+use their configured names; all scaffolding, including local status, is
+attributed to SYSTEM. With names hidden, user messages have a shaded
+background and system blocks retain a left rail. Styling does not change
+which messages reach the model.
 
-All three are display-only and session-only. Hidden blocks stay in the
-model history and return unchanged when a filter is lifted; nothing is
-persisted, so a restart always shows the full transcript. **Jump to
+**Connected outlines** restores the previous outer frame; the default is
+minimal framing. **Compact spacing** removes the separate closing row on
+tool cards. Both preserve the top menu and bottom hotkeys. Frame, spacing,
+speaker names and labels persist as application preferences, independently
+of theme. Truncation and the harness-message filter remain session-only.
+All controls affect display only. Hidden blocks remain in history and
+return unchanged when a filter is lifted. **Jump to
 latest** (`Ctrl+End`, `F7`) scrolls to the newest content, and **Select
 Theme…** opens the Dark/Light picker.
+
+During measured prompt processing, the input status area shows a transient
+SYSTEM progress bar and processed/total counts. Estimated or unavailable
+telemetry uses the usual activity indicator. Progress does not enter the
+conversation archive or model context.
+
+Outcome receipts show the existing outcome, observed files, command verdict
+and resume command. A completed response without a command verdict remains
+unverified; failed and cancelled states are preserved.
+
+For file approval, **F4 Proposal** opens the complete diff, including new-file
+contents beyond the bounded prompt preview. Scroll with arrows, Page Up/Down
+or the mouse wheel; Esc returns to the pending gate without approving it.
+Expanded evidence is operator-only. If source content changes before approval
+is accepted, GEKTOR refreshes the proposal and asks again. This check does not
+lock files against other processes between approval and execution.
 
 ## Themes and session rows
 

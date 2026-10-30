@@ -67,7 +67,9 @@ func (m *model) screenContent() string {
 		bottom = cellLine(fmt.Sprintf("Sent: %d · waiting for the agent", count), m.transcript.Viewport.Width()) + "\n" + bottom
 	}
 	bottom = cellFrame(bottom, m.transcript.Viewport.Width(), lipgloss.Height(bottom))
-	conversation := body + gap + "\n" + m.dividerLine() + "\n" + cellLine(m.statusLine(), m.transcript.Viewport.Width()) + "\n" + bottom
+	status := m.statusLine()
+	status = cellFrame(status, m.transcript.Viewport.Width(), lipgloss.Height(status))
+	conversation := body + gap + "\n" + m.dividerLine() + "\n" + status + "\n" + bottom
 	conversation = cellFrame(conversation, m.transcript.Viewport.Width(), m.paneHeight())
 
 	innerWidth := max(m.termW-2, 0)
@@ -77,7 +79,7 @@ func (m *model) screenContent() string {
 	if m.actionBarVisible() {
 		content += "\n" + m.styles.dim.Render(rule) + "\n" + m.actionBar()
 	}
-	if m.termW >= 2 && m.actionBarVisible() {
+	if m.termW >= 2 && m.actionBarVisible() && !m.minimal {
 		rows := strings.Split(content, "\n")
 		composerRule := paneTop + bodyHeight
 		if gap != "" {

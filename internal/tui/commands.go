@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/keshon/gektor/internal/config"
 
 	"github.com/keshon/gektor/internal/tui/components/completion"
 )
@@ -247,8 +248,10 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		m.appendBlock(markerBlock("SYS messages: " + state))
 		return m, nil
 	case "labels":
-		m.hideLabels = !m.hideLabels
-		m.refreshContent()
+		if err := m.changeAppearance(func(a *config.Appearance) { a.HideLabels = !a.HideLabels }); err != nil {
+			m.openDialog("Appearance", []string{err.Error()})
+			return m, nil
+		}
 		state := "shown"
 		if m.hideLabels {
 			state = "hidden"

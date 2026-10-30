@@ -75,6 +75,13 @@ type Attacher interface {
 	Attach(args json.RawMessage) ([]string, error)
 }
 
+// ContextReuser may shorten a successful, already limited result using only
+// complete content in the outgoing projection. It must validate completeness.
+// Stored history stays intact; the projection is rebuilt after compaction.
+type ContextReuser interface {
+	ReuseInContext(args json.RawMessage, result string, history []llm.Message) string
+}
+
 // Registry holds tools looked up by name. An exclusive tool may add capabilities.
 type Registry struct {
 	mu    sync.RWMutex

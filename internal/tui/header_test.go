@@ -205,7 +205,7 @@ func TestViewMenuZonesAndItems(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 80, 30)
 	m.header.menu = "view"
 	items := m.headerItems()
-	want := []string{"Truncate AI reply", "Hide SYS messages", "Hide labels", "", "Jump to latest", "Select Theme…"}
+	want := []string{"Truncate AI reply", "Hide SYS messages", "Hide labels", "Hide speaker names", "Connected outlines", "Compact spacing", "", "Jump to latest", "Select Theme…"}
 	if len(items) != len(want) {
 		t.Fatalf("view menu has %d rows, want %d: %+v", len(items), len(want), items)
 	}
@@ -221,10 +221,10 @@ func TestViewMenuZonesAndItems(t *testing.T) {
 			sep = i
 		}
 	}
-	if sep != 3 {
-		t.Fatalf("separator at row %d, want 3", sep)
+	if sep != 6 {
+		t.Fatalf("separator at row %d, want 6", sep)
 	}
-	cmds := []string{"toggle-details", "toggle-sys", "toggle-labels", "", "latest", "theme"}
+	cmds := []string{"toggle-details", "toggle-sys", "toggle-labels", "toggle-names", "toggle-outline", "toggle-density", "", "latest", "theme"}
 	for i, c := range cmds {
 		if items[i].command != c {
 			t.Fatalf("row %d command = %q, want %q", i, items[i].command, c)
