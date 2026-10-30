@@ -363,18 +363,17 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "about":
 		m.openDialog("GEKTOR", []string{
-			"A small coding agent for your terminal.",
-			"Your model server. Your workspace. Explicit tools.",
+			"Terminal coding agent written in Go.",
 			"",
-			m.styles.gate.Render("Work with your code"),
+			m.styles.gate.Render("Capabilities"),
 			"Read, search and edit files, run commands and tests, and resume saved sessions.",
 			"Plan before changes or work directly in Act mode; tool permissions stay visible.",
 			"",
-			m.styles.gate.Render("Bring your model"),
+			m.styles.gate.Render("Model backends"),
 			"llama.cpp · KoboldCPP · OpenAI-compatible APIs",
 			"Models and inference servers are supplied separately.",
 			"",
-			m.styles.gate.Render("Built by keshon"),
+			m.styles.gate.Render("Repository"),
 			"https://github.com/keshon/gektor",
 			"Go " + strings.TrimPrefix(runtime.Version(), "go") + " · Bubble Tea · " + runtime.GOOS + "/" + runtime.GOARCH,
 		})
