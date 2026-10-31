@@ -21,6 +21,7 @@ import (
 	"github.com/keshon/gektor/internal/retrospect"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/run"
+	"github.com/keshon/gektor/internal/session"
 	"github.com/keshon/gektor/internal/tui/components/completion"
 	"github.com/keshon/gektor/internal/tui/components/composer"
 	"github.com/keshon/gektor/internal/tui/components/gate"
@@ -429,6 +430,9 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		}
 		m.sess = sess
 		m.transcript.blocks = append(m.transcript.blocks, renderHistory(cfg.History)...)
+		if snapshot, err := session.Load(m.stateFile); err == nil {
+			m.appendSavedRun(snapshot)
+		}
 		m.restoreContext(cfg.History)
 		m.startRun(func(runCtx context.Context) (string, error) {
 			return sess.Resume(runCtx, cfg.History, task, cfg.Images...)
@@ -448,6 +452,9 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 			m.stateFile = filepath.Join(cfg.SessionDirectory, "state.json")
 		}
 		m.transcript.blocks = renderHistory(cfg.SeedHistory)
+		if snapshot, err := session.Load(m.stateFile); err == nil {
+			m.appendSavedRun(snapshot)
+		}
 		m.restoreContext(cfg.SeedHistory)
 		m.refreshContent()
 	}

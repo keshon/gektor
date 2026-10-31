@@ -199,6 +199,8 @@ in a message are limited to 64 KiB combined. Repeated references to the same
 resolved file attach one copy. Directories, binary/invalid UTF-8 files,
 oversized files, and paths escaping the workspace (including resolved
 symlinks) produce an error. No partial attachment is sent on these errors.
+Missing `@image.png` references also stop submission and preserve the draft.
+Correct the path, or remove `@` to send the filename as ordinary text.
 
 The model receives the original text plus file snapshots. The transcript
 shows the original message, including after reopening saved history. Queued
@@ -488,12 +490,20 @@ telemetry uses the usual activity indicator. Progress does not enter the
 conversation archive or model context and does not occupy the input hint area.
 
 Outcome receipts show the outcome, session ID, saved session path and a quoted
-resume command. Failed outcomes also show `/retry`. **Observed changes** lists
-paths recorded as changed during the run; it is omitted when empty and is not a
-Git diff or rollback record. Command verdicts appear when available. Receipts use the page background
-and SYSTEM accent rail. A completed response without a command verdict remains
-unverified; failed and cancelled states are preserved. The duplicate run-finished
-notice is omitted when the outcome receipt already closes the run.
+resume command, warnings, remaining tasks and any incomplete-work summary.
+Run errors show recovery advice appropriate to the cause; `/retry` continues from
+the saved checkpoint and does not roll back workspace changes.
+
+**Observed changes** lists paths recorded as changed during the run; it is omitted
+when empty and is not a Git diff or rollback record. Command verdicts appear when
+available. A completed response without a command verdict remains unverified.
+Failed tool cards stay expanded when tool details are collapsed.
+
+Newly saved runs retain a bounded terminal-error diagnostic; reopening a failed
+session shows that error and its recorded verification. Older archives remain
+readable but cannot recover errors that were never saved. The session browser
+distinguishes unreadable archives from archives too large to index and reports
+session-store access failures instead of presenting them as an empty history.
 
 For file approval, **F4 Proposal** opens the complete diff, including new-file
 contents beyond the bounded prompt preview. Scroll with arrows, Page Up/Down
@@ -552,9 +562,9 @@ whole session. Add a focus after an explicit scope, for example
 `/eval last check the test evidence`. Old sessions without recorded execution
 boundaries require `/eval session`; GEKTOR does not guess task boundaries.
 
-While the evaluation runs, its dialog shows the observed stage, elapsed time,
-model step budget and number of selected archive messages inspected. Reading
-an excerpt counts as inspecting a message; it does not mean the entire message
+While the evaluation runs, its dialog shows the selected scope, request excerpt,
+observed stage, elapsed time, model step budget and number of archive messages
+inspected. Reading an excerpt counts as inspecting a message; it does not mean the entire message
 was read. Model requests currently wait for a complete response, so the dialog
 reports that wait rather than inventing generation progress. Esc or Enter
 cancels the evaluation; keep the dialog open to receive its result.
@@ -584,8 +594,14 @@ The result offers at most one lesson, showing when it applies, a procedure and
 quoted historical evidence. Press **S** to save, **E** to edit before saving, or
 **Esc/Enter** to skip. An empty result needs no approval. `/eval` no longer saves
 observations automatically: press **R** in its result to review a proposed lesson.
+
 `/learn review` reopens this session's latest proposal without another model call,
-including after a restart. The source archive must still match before saving.
+including after a restart. When saved failure diagnostics are available, it shows
+them instead: completed steps, archive coverage and the last rejected submission,
+when available. These are stored in `evaluation-failure.json` beside
+the session archive and cleared after a successful review. Retrying starts a fresh
+review; it does not resume the failed reviewer. The source archive must still match
+before saving.
 Existing `skills/project-memory/SKILL.md` files are left unchanged.
 
 Approved lessons become individual `skills/learned-<id>/SKILL.md` packages.

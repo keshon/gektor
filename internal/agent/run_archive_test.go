@@ -1,12 +1,34 @@
 package agent
 
 import (
+	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/session"
 )
+
+type failedArchiveClient struct{}
+
+func (failedArchiveClient) Chat(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
+	return llm.ChatResponse{}, &llm.APIError{Status: 401, Body: "private-key"}
+}
+
+func TestRunArchivePersistsTerminalFailure(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	a := New(Config{Client: failedArchiveClient{}, Tools: NewRegistry(), StateFile: path, System: "sys"})
+	_, err := a.Run(t.Context(), "task")
+	var api *llm.APIError
+	if !errors.As(err, &api) {
+		t.Fatal(err)
+	}
+	s, err := session.Load(path)
+	if err != nil || len(s.Runs) != 1 || s.Runs[0].Error != "Backend HTTP 401; response body omitted from saved diagnostics" {
+		t.Fatalf("%+v %v", s.Runs, err)
+	}
+}
 
 func TestRunArchiveSeparatesTasksAndKeepsRetryScope(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")

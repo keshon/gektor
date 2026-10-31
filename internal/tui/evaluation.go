@@ -39,6 +39,8 @@ func (m *model) refreshEvaluation() {
 	p := j.progress
 	j.mu.Unlock()
 	m.dialog.lines = []string{
+		"Scope: " + p.Scope,
+		p.Request,
 		p.Stage,
 		fmt.Sprintf("Step %d/%d · elapsed %s", p.Step, p.Steps, formatElapsed(time.Since(j.started))),
 		fmt.Sprintf("Archive: inspected %d of %d messages (excerpts may be partial)", p.Read, p.Total),
@@ -141,6 +143,19 @@ func (m *model) learn(arg string) (tea.Model, tea.Cmd) {
 		}
 		if m.ws == nil || m.stateFile == "" {
 			m.appendBlock(markerBlock("Open a saved session before reviewing a lesson."))
+			return m, nil
+		}
+		failureData, failureErr := os.ReadFile(filepath.Join(filepath.Dir(m.stateFile), "evaluation-failure.json"))
+		if failureErr == nil {
+			var failure retrospect.Failure
+			if err := json.Unmarshal(failureData, &failure); err != nil {
+				m.openDialog("Cannot read review diagnostics", []string{err.Error()})
+			} else {
+				m.openDialog("Last review failed", strings.Split(failure.Error(), "\n"))
+			}
+			return m, nil
+		} else if !os.IsNotExist(failureErr) {
+			m.openDialog("Cannot read review diagnostics", []string{failureErr.Error()})
 			return m, nil
 		}
 		data, err := os.ReadFile(filepath.Join(filepath.Dir(m.stateFile), "evaluation.json"))

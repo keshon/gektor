@@ -52,6 +52,7 @@ type Run struct {
 	Outcome      string `json:"outcome"`
 	Steps        int    `json:"steps"`
 	Verification string `json:"verification,omitempty"`
+	Error        string `json:"error,omitempty"`
 }
 
 func New(history []llm.Message) Snapshot {

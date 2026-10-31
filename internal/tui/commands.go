@@ -343,7 +343,7 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		if m.runErr != nil {
 			rows = append(rows, "Error: "+m.runErr.Error())
 			if m.retryRun != nil {
-				rows = append(rows, "Use /retry to retry the failed turn.")
+				rows = append(rows, recoveryHint(m.runErr))
 			}
 		}
 		if m.busy() {

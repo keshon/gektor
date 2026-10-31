@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -48,10 +49,15 @@ type cachedSession struct {
 	hasSnapshot bool
 }
 
-func scanSavedSessions(root string, previous map[string]cachedSession, search bool) ([]savedSummary, map[string]cachedSession) {
+func scanSavedSessions(root string, previous map[string]cachedSession, search bool) ([]savedSummary, map[string]cachedSession, error) {
 	dirs, err := os.ReadDir(root)
 	if err != nil {
-		return nil, nil
+		if os.IsNotExist(err) {
+			if _, statErr := os.Stat(root); os.IsNotExist(statErr) {
+				return nil, nil, nil
+			}
+		}
+		return nil, previous, fmt.Errorf("cannot list sessions in %s: %w; check the directory and access permissions, then reopen Sessions", root, err)
 	}
 	cache := make(map[string]cachedSession, len(dirs))
 	var entries []savedSummary
@@ -81,7 +87,8 @@ func scanSavedSessions(root string, previous map[string]cachedSession, search bo
 				current.Status = "Unreadable"
 				current.Updated = fi.ModTime()
 				if fi.Size() < 64<<20 {
-					if history, err := session.ReadHistory(state); err == nil {
+					if snapshot, err := session.Load(state); err == nil {
+						history := snapshot.History
 						e := &current.savedSummary
 						e.Status, e.Msgs = "Saved", len(history)
 						if search {
@@ -101,8 +108,25 @@ func scanSavedSessions(root string, previous map[string]cachedSession, search bo
 						if e.Title == "" {
 							e.Title = session.TitleFor(history)
 						}
+						if len(snapshot.Runs) > 0 && e.Status != "Needs input" {
+							last := snapshot.Runs[len(snapshot.Runs)-1]
+							e.Status = last.Outcome
+							if last.Error != "" {
+								e.Preview = last.Error
+							}
+						}
+					} else {
+						current.Preview = "Cannot read saved history: " + err.Error()
 					}
+				} else {
+					current.Status = "Too large to index"
+					current.Preview = "Archive is at least 64 MiB; indexing was skipped. The archive has not been changed."
 				}
+			}
+		} else if !os.IsNotExist(stateErr) {
+			current.Status, current.Preview = "Unreadable", stateErr.Error()
+			if info, err := d.Info(); err == nil {
+				current.Updated = info.ModTime()
 			}
 		}
 		if current.Updated.IsZero() {
@@ -115,7 +139,7 @@ func scanSavedSessions(root string, previous map[string]cachedSession, search bo
 		entries = append(entries, current.savedSummary)
 	}
 	sort.SliceStable(entries, func(i, j int) bool { return entries[i].Updated.After(entries[j].Updated) })
-	return entries, cache
+	return entries, cache, nil
 }
 
 func readSavedMode(dir string) string {

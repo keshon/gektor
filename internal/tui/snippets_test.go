@@ -151,7 +151,7 @@ func TestCompletionPanelKeepsEvidenceAndFits(t *testing.T) {
 	if !strings.Contains(ansi.Strip(text), "FAIL: assertion X") {
 		t.Fatal("multiline verification lost", text)
 	}
-	for _, want := range []string{"Observed changes: main.go", "Retry: /retry"} {
+	for _, want := range []string{"Observed changes: main.go"} {
 		if !strings.Contains(ansi.Strip(text), want) {
 			t.Fatal("completion action or changes missing", want, text)
 		}

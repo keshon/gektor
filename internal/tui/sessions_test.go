@@ -82,7 +82,7 @@ func chdirSessions(t *testing.T, tmp string) string {
 // is the real path via refreshSessions). Tests still need a list call, so the
 // wrapper lives here.
 func listSessionsIn(root string) []sessionEntry {
-	entries, _ := scanSessions(root, nil, true)
+	entries, _, _ := scanSessions(root, nil, true)
 	return entries
 }
 
@@ -634,11 +634,8 @@ func TestSplitAttachments(t *testing.T) {
 	}
 
 	clean, images, err = splitAttachments(ws, "mail me@home and @missing.png")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if clean != "mail me@home and @missing.png" || len(images) != 0 {
-		t.Fatalf("literals must survive: %q %v", clean, images)
+	if err == nil || !strings.Contains(err.Error(), "was not attached") {
+		t.Fatalf("missing image must not silently become text: %q %v %v", clean, images, err)
 	}
 
 	// Quoted spans survive spaces: Windows screenshot names.

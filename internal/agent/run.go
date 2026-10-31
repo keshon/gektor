@@ -119,7 +119,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 			a.report.Outcome = "incomplete"
 		}
 		if a.cfg.StateFile != "" {
-			a.snapshot.Runs = append(a.snapshot.Runs, session.Run{Start: runStart, End: len(a.snapshot.History), Outcome: a.report.Outcome, Steps: a.report.Steps, Verification: a.report.Verification})
+			a.snapshot.Runs = append(a.snapshot.Runs, session.Run{Start: runStart, End: len(a.snapshot.History), Outcome: a.report.Outcome, Steps: a.report.Steps, Verification: a.report.Verification, Error: session.FailureText(runErr)})
 			if err := a.snapshot.Save(a.cfg.StateFile); err != nil {
 				a.report.Warnings = append(a.report.Warnings, "run boundary persistence failed: "+err.Error())
 			}

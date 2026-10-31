@@ -29,7 +29,7 @@ func BenchmarkSessionIndexCold(b *testing.B) {
 
 func BenchmarkSessionIndexWarm(b *testing.B) {
 	root := benchmarkSessionRoot(b)
-	_, cache := scanSessions(root, nil, true)
+	_, cache, _ := scanSessions(root, nil, true)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		scanSessions(root, cache, true)

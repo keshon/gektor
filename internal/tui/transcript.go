@@ -273,7 +273,7 @@ func renderBlock(b block, st styles, opts renderOpts, width int) string {
 	switch {
 	case b.role == roleThink && !opts.expand:
 		body = []string{st.think.Render(raw)}
-	case b.role == roleTool && opts.hideTools:
+	case b.role == roleTool && opts.hideTools && !b.failed:
 		body = []string{compactTool(b, st, width)}
 	case b.role == roleReceipt:
 		body = receiptText(raw, st, width)

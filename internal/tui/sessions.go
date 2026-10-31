@@ -234,11 +234,12 @@ func (m *model) openSelected() tea.Cmd {
 	}
 	cur := s.entries[s.Cursor]
 	stateFile := filepath.Join(cur.dir, "state.json")
-	history, err := session.ReadHistory(stateFile)
+	snapshot, err := session.Load(stateFile)
 	if err != nil {
 		s.flash = "Cannot read saved history: " + err.Error()
 		return nil
 	}
+	history := snapshot.History
 	task := session.TitleFor(history)
 	if task == "" {
 		task = cur.title
@@ -260,6 +261,7 @@ func (m *model) openSelected() tea.Cmd {
 	m.restoreDraft()
 	blocks, boundary := renderHistoryAt(history)
 	m.transcript.blocks = append([]block{markerBlock("- opened " + cur.title + " -")}, blocks...)
+	m.appendSavedRun(snapshot)
 	m.restoreContext(history)
 	m.retryRun = nil
 	m.runErr = nil
@@ -273,6 +275,9 @@ func (m *model) openSelected() tea.Cmd {
 	// mid-history or blank. follow stays on so live turns behave.
 	m.transcript.Follow = true
 	m.transcript.Viewport.GotoTop()
+	if len(snapshot.Runs) > 0 && snapshot.Runs[len(snapshot.Runs)-1].Outcome != "completed" {
+		m.transcript.Viewport.GotoBottom()
+	}
 	if cur.historyMatch {
 		// Match indices refer to renderHistory; the opened marker adds one block.
 		target := historyMatchBlock(blocks, boundary, cur.matchMessage) + 1
@@ -650,4 +655,25 @@ func historyMatchBlock(blocks []block, boundary []int, message int) int {
 		}
 	}
 	return prefix
+}
+
+func (m *model) appendSavedRun(snapshot session.Snapshot) {
+	if len(snapshot.Runs) > 0 {
+		last := snapshot.Runs[len(snapshot.Runs)-1]
+		text := "Last run: " + last.Outcome
+		if last.Error != "" {
+			text += "\n" + last.Error
+		}
+		if last.Verification != "" {
+			text += "\nVerification: " + last.Verification
+		}
+		if last.Outcome != "completed" {
+			text += "\nReview the saved work, then send a follow-up to continue. Existing changes remain."
+		}
+		b := markerBlock(text)
+		if last.Error != "" {
+			b = errorBlock(text)
+		}
+		m.transcript.blocks = append(m.transcript.blocks, b)
+	}
 }

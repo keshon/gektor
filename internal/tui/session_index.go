@@ -9,6 +9,7 @@ type sessionsLoadedMsg struct {
 	root     string
 	entries  []sessionEntry
 	cache    map[string]cachedSession
+	err      error
 }
 
 // Commands capture immutable inputs. Only Update accepts their results into UI state.
@@ -20,8 +21,8 @@ func (m *model) refreshSessions() {
 	}
 	revision, root, cache, search := m.sessionRevision, m.sessionRoot(), m.sessionIndex, m.sessions != nil
 	m.pendingCommands = append(m.pendingCommands, func() tea.Msg {
-		entries, index := scanSessions(root, cache, search)
-		return sessionsLoadedMsg{revision, root, entries, index}
+		entries, index, err := scanSessions(root, cache, search)
+		return sessionsLoadedMsg{revision, root, entries, index, err}
 	})
 }
 func (m *model) takeCommands() tea.Cmd {
@@ -33,16 +34,25 @@ func (m *model) acceptSessions(msg sessionsLoadedMsg) {
 	if msg.revision != m.sessionRevision || msg.root != m.sessionRoot() {
 		return
 	}
-	m.savedSessions, m.sessionIndex = msg.entries, msg.cache
 	m.sessionsLoading = false
+	if msg.err != nil {
+		if m.sessions != nil {
+			m.sessions.loading = false
+			m.sessions.flash = msg.err.Error()
+		} else {
+			m.appendBlock(errorBlock(msg.err.Error()))
+		}
+		return
+	}
+	m.savedSessions, m.sessionIndex = msg.entries, msg.cache
 	if m.sessions != nil {
 		m.sessions.replaceEntries(msg.entries)
 		m.sessions.loading = false
 	}
 }
 
-func scanSessions(root string, previous map[string]cachedSession, search bool) ([]sessionEntry, map[string]cachedSession) {
-	summaries, cache := scanSavedSessions(root, previous, search)
+func scanSessions(root string, previous map[string]cachedSession, search bool) ([]sessionEntry, map[string]cachedSession, error) {
+	summaries, cache, err := scanSavedSessions(root, previous, search)
 	entries := make([]sessionEntry, 0, len(summaries))
 	for _, summary := range summaries {
 		e := sessionEntry{id: summary.ID, dir: summary.Dir, title: summary.Title, msgs: summary.Msgs, updated: summary.Updated, status: summary.Status, mode: summary.Mode, preview: summary.Preview}
@@ -51,5 +61,5 @@ func scanSessions(root string, previous map[string]cachedSession, search bool) (
 		}
 		entries = append(entries, e)
 	}
-	return entries, cache
+	return entries, cache, err
 }

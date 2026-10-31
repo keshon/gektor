@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -58,15 +59,15 @@ type Config struct {
 
 // Progress reports observed work, not an estimate of time remaining.
 type Progress struct {
-	Stage       string
-	Step, Steps int
-	Read, Total int
+	Stage          string
+	Scope, Request string
+	Step, Steps    int
+	Read, Total    int
 }
 
 // Evaluate uses a fresh, bounded agent with archive-reading tools only. It
 // cannot run commands, edit source, delegate, or change the original context.
-func Evaluate(ctx context.Context, c Config) (Result, error) {
-	var result Result
+func Evaluate(ctx context.Context, c Config) (result Result, runErr error) {
 	progress := Progress{Stage: "Loading saved archive", Steps: 12}
 	report := func(stage string) {
 		progress.Stage = stage
@@ -93,7 +94,38 @@ func Evaluate(ctx context.Context, c Config) (Result, error) {
 	archive := &archiveTool{snapshot: snapshot, seen: map[int]string{}}
 	submit := &submitTool{archive: archive, start: start, end: end}
 	progress.Total = end - start
+	progress.Scope = label
+	progress.Request = agent.TruncateMiddle(session.DisplayInput(snapshot.History[start].Content), 240)
+	report("Reading selected archive")
+	failurePath := filepath.Join(filepath.Dir(c.StateFile), "evaluation-failure.json")
+	lastValidation := ""
+	calls := map[string]string{}
 	completed := 0
+	defer func() {
+		if runErr == nil {
+			if err := os.Remove(failurePath); err != nil && !os.IsNotExist(err) {
+				runErr = fmt.Errorf("review saved, but could not clear previous failure: %w", err)
+			}
+			return
+		}
+		failureProgress := progress
+		failureProgress.Step = completed
+		failure := &Failure{Progress: failureProgress, Cause: session.FailureText(runErr), LastValidation: lastValidation, Path: failurePath}
+		switch {
+		case errors.Is(runErr, agent.ErrMaxSteps):
+			failure.Recovery = "Review budget exhausted. Try /learn last with a specific focus, or select one run instead of session."
+		case lastValidation != "":
+			failure.Recovery = "The reviewer could not submit valid evidence. Inspect the validation error below; retry with a narrower focus. No lesson was saved."
+		default:
+			failure.Recovery = "No lesson was saved. Resolve the error before starting a fresh review."
+		}
+		if err := writeJSON(failurePath, failure); err != nil {
+			failure.Path = ""
+			failure.Recovery += " Diagnostics could not be saved: " + err.Error()
+		}
+		failure.err = runErr
+		runErr = failure
+	}()
 	a := roles.Retrospective(roles.Env{
 		Client: c.Client, MaxTokens: c.MaxTokens, ContextLimit: c.ContextLimit,
 		OnProgress: func(_ llm.Progress) {
@@ -106,6 +138,9 @@ func Evaluate(ctx context.Context, c Config) (Result, error) {
 			report("Waiting for model response")
 		},
 		OnStep: func(_ string, step int, msg llm.Message) {
+			for _, call := range msg.ToolCalls {
+				calls[call.ID] = call.Name
+			}
 			completed = step + 1
 			progress.Step = completed
 			stage := "Checking model response"
@@ -119,7 +154,10 @@ func Evaluate(ctx context.Context, c Config) (Result, error) {
 			}
 			report(stage)
 		},
-		OnResult: func(_ agent.ToolResult) {
+		OnResult: func(result agent.ToolResult) {
+			if result.Failed && calls[result.CallID] == "submit_evaluation" {
+				lastValidation = agent.TruncateMiddle(result.Output, 1000)
+			}
 			progress.Read = 0
 			for id := range archive.seen {
 				if id > start && id <= end {
@@ -179,7 +217,7 @@ func scope(s session.Snapshot, selection string) (int, int, string, error) {
 	if selection != "" && selection != "last" {
 		n, err := strconv.Atoi(selection)
 		if err != nil || n < 1 || n > len(s.Runs) {
-			return 0, 0, "", fmt.Errorf("choose last, session, or a run number from 1 to %d", len(s.Runs))
+			return 0, 0, "", fmt.Errorf("unknown scope %q; choose last, session, or a run number from 1 to %d (for example /learn last)", selection, len(s.Runs))
 		}
 		index = n - 1
 	}

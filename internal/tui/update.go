@@ -149,8 +149,8 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 			if msg.err != nil {
 				// Failures live in the transcript, not just the bottom
 				// bar: scrolled-up context keeps the error beside the
-				// turn that produced it. /retry re-runs this turn.
-				m.appendBlock(errorBlock("failed: " + msg.err.Error() + "\n/retry re-runs this turn"))
+				// turn that produced it.
+				m.appendBlock(errorBlock("failed: " + msg.err.Error() + "\n" + recoveryHint(msg.err)))
 			}
 		}
 		m.alwaysMu.Lock()
@@ -560,6 +560,24 @@ func (m *model) handleEvent(ev run.Event) {
 			fileList = "none observed"
 		}
 		text := fmt.Sprintf("outcome: %s\nfiles: %s\nchecks: %s", outcome, fileList, checks)
+		for _, field := range []string{"summary", "warnings", "open_todos"} {
+			var values []string
+			switch value := ev.Fields[field].(type) {
+			case string:
+				values = []string{value}
+			case []string:
+				values = value
+			case []any:
+				for _, item := range value {
+					if s, ok := item.(string); ok {
+						values = append(values, s)
+					}
+				}
+			}
+			if value := strings.Join(values, "\n"); value != "" {
+				text += "\n" + field + ": " + value
+			}
+		}
 		if resume != "" {
 			text += "\nresume: gektor -tui -resume " + resume
 		}

@@ -176,7 +176,7 @@ func receiptText(raw string, st styles, width int) []string {
 	current := ""
 	for _, line := range strings.Split(raw, "\n") {
 		key, value, ok := strings.Cut(line, ": ")
-		if ok && (key == "outcome" || key == "files" || key == "checks" || key == "resume") {
+		if ok && (key == "outcome" || key == "files" || key == "checks" || key == "resume" || key == "summary" || key == "warnings" || key == "open_todos") {
 			fields[key] = value
 			current = key
 		} else if current != "" {
@@ -201,6 +201,11 @@ func receiptText(raw string, st styles, width int) []string {
 	}
 	rows := []string{snippetRow(style.Render(title), st.dim.Render(meta), width), ""}
 	details := []string{}
+	for _, field := range []struct{ key, label string }{{"summary", "Progress"}, {"warnings", "Warning"}, {"open_todos", "Remaining"}} {
+		if value := fields[field.key]; value != "" {
+			details = append(details, field.label+": "+value)
+		}
+	}
 	if files := fields["files"]; files != "" && files != "none observed" {
 		details = append(details, "Observed changes: "+files)
 	}
@@ -214,9 +219,6 @@ func receiptText(raw string, st styles, width int) []string {
 		}
 		details = append(details, "Session: "+id, "Path: "+resume)
 		details = append(details, "Resume: gektor -tui -resume \""+resume+"\"")
-	}
-	if outcome == "failed" {
-		details = append(details, "Retry: /retry re-runs the failed turn")
 	}
 	for _, detail := range details {
 		for _, line := range strings.Split(detail, "\n") {

@@ -148,11 +148,11 @@ func TestSessionScanRunsOutsideUpdateAndRejectsStaleResults(t *testing.T) {
 func TestSessionIndexCachesUnchangedHistoryAndLoadsSearchOnDemand(t *testing.T) {
 	root := t.TempDir()
 	dir := writeSessionState(t, root, "one", userHistory("original"))
-	entries, cache := scanSessions(root, nil, false)
+	entries, cache, _ := scanSessions(root, nil, false)
 	if len(entries) != 1 || len(entries[0].search) != 0 {
 		t.Fatal("sidebar eagerly indexed history")
 	}
-	entries, cache = scanSessions(root, cache, true)
+	entries, cache, _ = scanSessions(root, cache, true)
 	if len(entries[0].search) == 0 {
 		t.Fatal("search not indexed")
 	}
@@ -160,21 +160,21 @@ func TestSessionIndexCachesUnchangedHistoryAndLoadsSearchOnDemand(t *testing.T) 
 	saved := cache[dir]
 	saved.Preview = "cached marker"
 	cache[dir] = saved
-	entries, cache = scanSessions(root, cache, true)
+	entries, cache, _ = scanSessions(root, cache, true)
 	if entries[0].preview != "cached marker" {
 		t.Fatal("unchanged history was reloaded")
 	}
 	if err := workspace.WriteSessionTitle(dir, "renamed"); err != nil {
 		t.Fatal(err)
 	}
-	entries, cache = scanSessions(root, cache, true)
+	entries, cache, _ = scanSessions(root, cache, true)
 	if entries[0].title != "renamed" {
 		t.Fatal("rename not reflected")
 	}
 	if err := workspace.WriteSessionTitle(dir, ""); err != nil {
 		t.Fatal(err)
 	}
-	entries, _ = scanSessions(root, cache, true)
+	entries, _, _ = scanSessions(root, cache, true)
 	if entries[0].title != "original" {
 		t.Fatal("cleared title did not return to derived title")
 	}

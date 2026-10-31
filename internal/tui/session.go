@@ -117,9 +117,8 @@ func splitAttachments(ws *workspace.Workspace, text string) (string, []string, e
 			if os.IsNotExist(err) && !quoted && !strings.ContainsAny(raw[1:], "/\\.") {
 				continue
 			}
-			// Preserve legacy literal mentions of missing unquoted images.
 			if os.IsNotExist(err) && !quoted && llm.IsImagePath(raw[1:]) {
-				continue
+				return "", nil, fmt.Errorf("image %s was not attached: file not found. Correct the path, or remove @ to send it as ordinary text; your draft is preserved", tok)
 			}
 			return "", nil, fmt.Errorf("reference %s: %w", tok, err)
 		}
