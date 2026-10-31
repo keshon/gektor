@@ -247,3 +247,27 @@ func TestDetailsToolbarRemainsVisibleAndClickable(t *testing.T) {
 		}
 	}
 }
+
+func TestSlashQuitWaitsForRunCompletion(t *testing.T) {
+	for _, command := range []string{"/quit", "/q"} {
+		t.Run(command, func(t *testing.T) {
+			m := sizeModel(t, testModel())
+			m.state = stRunning
+			cancelled := false
+			m.cancel = func() { cancelled = true }
+			m.command(command)
+			if !cancelled || m.quit || m.state != stStopping {
+				t.Fatal("quit did not wait for cancellation")
+			}
+			m.command(command)
+			if m.quit {
+				t.Fatal("quit while worker still running")
+			}
+			m.Update(doneMsg{})
+			_, cmd := m.command(command)
+			if !m.quit || cmd == nil {
+				t.Fatal("completed worker prevented quit")
+			}
+		})
+	}
+}

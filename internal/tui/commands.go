@@ -172,10 +172,8 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 	case "eval":
 		return m.evaluate(arg)
 	case "q", "quit":
-		m.quit = true
 		m.cancelEvaluation()
-		m.cancel()
-		return m, tea.Quit
+		return m.requestQuit()
 	case "help":
 		m.openHelp()
 		return m, nil

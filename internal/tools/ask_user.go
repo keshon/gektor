@@ -22,7 +22,7 @@ import (
 type AskUser struct {
 	// AskFn is the actual blocking I/O. It receives the question and
 	// returns the user's answer. The CLI uses bufio.NewReader(os.Stdin).
-	AskFn func(question string) (answer string, err error)
+	AskFn func(context.Context, string) (string, error)
 }
 
 func (AskUser) Name() string { return "ask_user" }
@@ -58,7 +58,7 @@ func (AskUser) Question(args json.RawMessage) string {
 	return strings.TrimSpace(in.Question)
 }
 
-func (t AskUser) Run(_ context.Context, args json.RawMessage) (string, error) {
+func (t AskUser) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	if t.AskFn == nil {
 		return "", fmt.Errorf("ask_user: no AskFn configured")
 	}
@@ -66,7 +66,7 @@ func (t AskUser) Run(_ context.Context, args json.RawMessage) (string, error) {
 	if question == "" {
 		return "", fmt.Errorf("ask_user: no question given")
 	}
-	answer, err := t.AskFn(question)
+	answer, err := t.AskFn(ctx, question)
 	if err != nil {
 		return "", fmt.Errorf("ask_user: %w", err)
 	}

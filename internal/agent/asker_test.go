@@ -20,11 +20,11 @@ func TestAskerRefusesPastTheBudget(t *testing.T) {
 	ask := NewAsker(2).Ask(suspend, nil)
 
 	for i := 0; i < 2; i++ {
-		if _, err := ask("q"); err != nil {
+		if _, err := ask(t.Context(), "q"); err != nil {
 			t.Fatalf("question %d: %v", i+1, err)
 		}
 	}
-	_, err := ask("q")
+	_, err := ask(t.Context(), "q")
 	if err == nil || !strings.Contains(err.Error(), "limit (2)") {
 		t.Fatalf("third question = %v, want the limit", err)
 	}
@@ -36,7 +36,7 @@ func TestAskerRefusesPastTheBudget(t *testing.T) {
 func TestAskerZeroTakesTheDefault(t *testing.T) {
 	ask := NewAsker(0).Ask(ClosedSuspender("test"), nil)
 	for i := 0; i < DefaultMaxQuestions; i++ {
-		ask("q")
+		ask(t.Context(), "q")
 	}
 	// ClosedSuspender always errors, so the budget is not what stops this;
 	// just confirm the default is not zero.
@@ -52,7 +52,7 @@ func TestAskerDecoratesThePrompt(t *testing.T) {
 		return SuspendReply{Answer: "yes"}, nil
 	}
 	ask := NewAsker(1).Ask(suspend, func(q string) string { return "framed: " + q })
-	if _, err := ask("original"); err != nil {
+	if _, err := ask(t.Context(), "original"); err != nil {
 		t.Fatal(err)
 	}
 	if seen != "framed: original" {
@@ -65,7 +65,7 @@ func TestAskerPropagatesSuspendErrors(t *testing.T) {
 	ask := NewAsker(1).Ask(func(context.Context, SuspendRequest) (SuspendReply, error) {
 		return SuspendReply{}, boom
 	}, nil)
-	if _, err := ask("q"); !errors.Is(err, boom) {
+	if _, err := ask(t.Context(), "q"); !errors.Is(err, boom) {
 		t.Fatalf("err = %v, want %v", err, boom)
 	}
 }
@@ -82,7 +82,7 @@ func TestAskerIsSafeUnderConcurrency(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			ask("q")
+			ask(t.Context(), "q")
 		}()
 	}
 	wg.Wait()

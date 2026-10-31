@@ -188,11 +188,7 @@ readLoop:
 				defer wg.Done()
 				defer setCancel(nil)
 				answer, err := serveRun(runCtx, d, hub, emitter, noteW, func(ev run.Event) {
-					rec := map[string]any{"seq": ev.Seq, "event": ev.Name}
-					for k, v := range ev.Fields {
-						rec[k] = v
-					}
-					write(rec)
+					emitter.Emit(ev.Name, ev.Fields)
 				}, params.Task, params.Images)
 				if err != nil {
 					respond(id, nil, err)

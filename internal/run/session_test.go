@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -560,5 +561,35 @@ func TestSessionAcceptsMessagesDuringActiveModelRequest(t *testing.T) {
 	}
 	if err := s.Submit("too late"); err != agent.ErrInputClosed {
 		t.Fatalf("late submit=%v", err)
+	}
+}
+
+func TestQuestionUsesRunDeadline(t *testing.T) {
+	client := &seqClient{steps: []llm.ChatResponse{{Message: llm.Message{
+		Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "q", Name: "ask_user", Arguments: json.RawMessage(`{"question":"which?"}`)}},
+	}}}}
+	env := testEnv(t, client, nil)
+	env.RunTimeout = time.Second
+	env.MaxSteps = 1
+	parent, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	asked := false
+	sess, err := New(Config{Task: "ask", Env: env, Answer: func(ctx context.Context, _ agent.SuspendRequest) (agent.SuspendReply, error) {
+		asked = true
+		deadline, ok := ctx.Deadline()
+		outer, _ := parent.Deadline()
+		if !ok || !deadline.Before(outer) {
+			t.Error("question did not receive run deadline")
+			return agent.SuspendReply{}, context.Canceled
+		}
+		<-ctx.Done()
+		return agent.SuspendReply{}, ctx.Err()
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = sess.Run(parent)
+	if !asked || !errors.Is(err, agent.ErrRunBudget) || parent.Err() != nil {
+		t.Fatalf("asked=%v error=%v parent=%v", asked, err, parent.Err())
 	}
 }

@@ -74,8 +74,15 @@ func StartMCPHTTP(ctx context.Context, server, rawURL string) ([]agent.Tool, *ht
 		server: server,
 		url:    clean,
 		// Discovery, calls, notifications and Close each own their context deadline.
-		http: &http.Client{},
+		http: networkClient(true, nil),
 	}
+	c.http.Timeout = 0 // Each operation supplies its own deadline.
+	success := false
+	defer func() {
+		if !success {
+			c.Close()
+		}
+	}()
 	var initResult struct {
 		ServerInfo struct {
 			Name    string `json:"name"`
@@ -89,7 +96,7 @@ func StartMCPHTTP(ctx context.Context, server, rawURL string) ([]agent.Tool, *ht
 	}, &initResult); err != nil {
 		return nil, nil, fmt.Errorf("mcp %s: initialize: %w", server, err)
 	}
-	_ = c.notify(map[string]any{
+	_ = c.notify(ctx, map[string]any{
 		"jsonrpc": "2.0", "method": "notifications/initialized",
 	})
 
@@ -102,6 +109,7 @@ func StartMCPHTTP(ctx context.Context, server, rawURL string) ([]agent.Tool, *ht
 	for i, td := range defs {
 		tools = append(tools, &MCPTool{client: c, server: server, def: td, toolName: names[i]})
 	}
+	success = true
 	return tools, c, nil
 }
 
@@ -127,18 +135,19 @@ func (c *httpMCPClient) Close() {
 }
 
 func (c *httpMCPClient) call(ctx context.Context, method string, params any, out any) error {
-	body, err := json.Marshal(rpcRequest{JSONRPC: "2.0", ID: c.nextID(), Method: method, Params: params})
+	id := c.nextID()
+	body, err := json.Marshal(rpcRequest{JSONRPC: "2.0", ID: id, Method: method, Params: params})
 	if err != nil {
 		return err
 	}
-	raw, session, err := c.post(ctx, body, true)
+	raw, session, err := c.post(ctx, body, true, id)
 	if errors.Is(err, errMCPSessionExpired) && method != "initialize" {
 		c.renew.Lock()
 		if c.sessionID() == "" {
 			var initialized any
 			err = c.call(ctx, "initialize", map[string]any{"protocolVersion": "2024-11-05", "capabilities": map[string]any{}, "clientInfo": map[string]any{"name": "gektor", "version": "1.0"}}, &initialized)
 			if err == nil {
-				err = c.notify(map[string]any{"jsonrpc": "2.0", "method": "notifications/initialized"})
+				err = c.notify(ctx, map[string]any{"jsonrpc": "2.0", "method": "notifications/initialized"})
 			}
 		} else {
 			err = nil
@@ -150,7 +159,7 @@ func (c *httpMCPClient) call(ctx context.Context, method string, params any, out
 		if method == "tools/call" {
 			return fmt.Errorf("MCP session expired and was reinitialized; original tool call was not replayed. Inspect its effects before explicitly retrying")
 		}
-		raw, session, err = c.post(ctx, body, false)
+		raw, session, err = c.post(ctx, body, false, id)
 	}
 	if err != nil {
 		return err
@@ -168,7 +177,7 @@ func (c *httpMCPClient) call(ctx context.Context, method string, params any, out
 // session id when the server answers 404 (session expired): the retry
 // carries no session, the server starts a fresh one, and its id is
 // captured from the answer like any other.
-func (c *httpMCPClient) post(ctx context.Context, body []byte, allowRenew bool) (json.RawMessage, string, error) {
+func (c *httpMCPClient) post(ctx context.Context, body []byte, allowRenew bool, expectedID int) (json.RawMessage, string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, bytes.NewReader(body))
 	if err != nil {
 		return nil, "", err
@@ -198,7 +207,7 @@ func (c *httpMCPClient) post(ctx context.Context, body []byte, allowRenew bool) 
 		return nil, session, nil
 	}
 	if ct := resp.Header.Get("Content-Type"); strings.Contains(ct, "text/event-stream") {
-		raw, err := scanSSE(resp.Body)
+		raw, err := scanSSE(resp.Body, expectedID)
 		if err != nil {
 			return nil, "", err
 		}
@@ -227,41 +236,67 @@ func (c *httpMCPClient) post(ctx context.Context, body []byte, allowRenew bool) 
 
 var errMCPSessionExpired = errors.New("MCP session expired")
 
-func (c *httpMCPClient) notify(msg map[string]any) error {
+func (c *httpMCPClient) notify(ctx context.Context, msg map[string]any) error {
 	body, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	_, _, err = c.post(ctx, body, false)
+	_, _, err = c.post(ctx, body, false, 0)
 	return err
 }
 
-// scanSSE reads the last data: payload of an SSE stream: the final JSON-RPC
-// message. Earlier chunks are progress the caller cannot use.
-func scanSSE(r io.Reader) (json.RawMessage, error) {
-	var last json.RawMessage
+// scanSSE returns the matching response without waiting for the server to close
+// the stream. Notifications and responses for other requests do not complete it.
+func scanSSE(r io.Reader, expectedID int) (json.RawMessage, error) {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 1024*1024), mcpWireMax)
+	var data []string
+	dataBytes := 0
+	decode := func() (json.RawMessage, error) {
+		if len(data) == 0 {
+			return nil, nil
+		}
+		payload := strings.Join(data, "\n")
+		data = nil
+		dataBytes = 0
+		if payload == "[DONE]" {
+			return nil, nil
+		}
+		var response rpcResponse
+		if err := json.Unmarshal([]byte(payload), &response); err != nil {
+			return nil, fmt.Errorf("decode SSE response: %w", err)
+		}
+		if response.Method == "" && response.ID == expectedID &&
+			(response.Result != nil || response.Error != nil) {
+			return json.RawMessage(payload), nil
+		}
+		return nil, nil
+	}
 	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if !strings.HasPrefix(line, "data:") {
+		line := sc.Text()
+		if line == "" {
+			if raw, err := decode(); raw != nil || err != nil {
+				return raw, err
+			}
 			continue
 		}
-		payload := strings.TrimSpace(line[len("data:"):])
-		if payload == "" || payload == "[DONE]" {
-			continue
+		if value, ok := strings.CutPrefix(line, "data:"); ok {
+			dataBytes += len(value) + 1
+			if dataBytes > mcpWireMax {
+				return nil, fmt.Errorf("SSE event exceeds %d bytes", mcpWireMax)
+			}
+			data = append(data, strings.TrimPrefix(value, " "))
 		}
-		last = json.RawMessage(payload)
 	}
 	if err := sc.Err(); err != nil {
 		return nil, err
 	}
-	if last == nil {
-		return nil, fmt.Errorf("empty SSE stream")
+	if raw, err := decode(); raw != nil || err != nil {
+		return raw, err
 	}
-	return last, nil
+	return nil, fmt.Errorf("SSE stream ended without response for request %d", expectedID)
 }
 
 // IsMCPURL reports whether s is an http(s) URL (an MCP server address)

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -36,14 +37,18 @@ const (
 
 // MCPClient speaks JSON-RPC 2.0 to one MCP server over stdio.
 type MCPClient struct {
-	server  string
-	cmd     *exec.Cmd
-	stdin   *bufio.Writer
-	stdout  *bufio.Reader
-	mu      sync.Mutex
-	seq     int
-	pending map[int]chan json.RawMessage
-	scanErr error
+	server      string
+	cmd         *exec.Cmd
+	stdin       *bufio.Writer
+	input       io.Closer
+	output      io.Closer
+	writeGate   chan struct{}
+	restartGate chan struct{}
+	stdout      *bufio.Reader
+	mu          sync.Mutex
+	seq         int
+	pending     map[int]chan json.RawMessage
+	scanErr     error
 
 	// close stops the server process, including any that replaced it.
 	// Set by StartMCP; nil for the in-process transports tests inject.
@@ -163,12 +168,16 @@ func startMCP(ctx context.Context, server, dir string, refs map[string]string, c
 // use it with in-process pipes and a fake server instead of a subprocess.
 func connectMCP(ctx context.Context, server string, cmd *exec.Cmd, stdin io.Writer, stdout io.Reader) ([]agent.Tool, *MCPClient, error) {
 	c := &MCPClient{
-		server:  server,
-		cmd:     cmd,
-		stdin:   bufio.NewWriter(stdin),
-		stdout:  bufio.NewReader(stdout),
-		pending: map[int]chan json.RawMessage{},
+		server:      server,
+		cmd:         cmd,
+		stdin:       bufio.NewWriter(stdin),
+		stdout:      bufio.NewReader(stdout),
+		pending:     map[int]chan json.RawMessage{},
+		writeGate:   make(chan struct{}, 1),
+		restartGate: make(chan struct{}, 1),
 	}
+	c.input, _ = stdin.(io.Closer)
+	c.output, _ = stdout.(io.Closer)
 	go c.readLoop(c.stdout)
 
 	var initResult struct {
@@ -185,7 +194,7 @@ func connectMCP(ctx context.Context, server string, cmd *exec.Cmd, stdin io.Writ
 		c.Close()
 		return nil, nil, fmt.Errorf("mcp %s: initialize: %w", server, err)
 	}
-	_ = c.notify(map[string]any{
+	_ = c.notify(ctx, map[string]any{
 		"jsonrpc": "2.0", "method": "notifications/initialized",
 	})
 
@@ -252,6 +261,15 @@ func (c *MCPClient) Close() {
 	if c.close != nil {
 		c.close()
 	}
+	c.mu.Lock()
+	input, output := c.input, c.output
+	c.mu.Unlock()
+	if input != nil {
+		_ = input.Close()
+	}
+	if output != nil {
+		_ = output.Close()
+	}
 }
 
 func (c *MCPClient) nextID() int {
@@ -279,18 +297,62 @@ type rpcResponse struct {
 	} `json:"error,omitempty"`
 }
 
-func (c *MCPClient) send(req rpcRequest) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+var errMCPTransport = errors.New("MCP transport closed")
+
+func (c *MCPClient) send(ctx context.Context, req rpcRequest) error {
 	data, err := json.Marshal(req)
 	if err != nil {
 		return err
 	}
-	data = append(data, '\n')
-	if _, err := c.stdin.Write(data); err != nil {
+	return c.write(ctx, append(data, '\n'))
+}
+
+// A cancelled write invalidates only the current transport. Closing its pipes
+// unblocks the writer and reader; the callback finishes before write returns.
+func (c *MCPClient) write(ctx context.Context, data []byte) error {
+	select {
+	case c.writeGate <- struct{}{}:
+		defer func() { <-c.writeGate }()
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return c.stdin.Flush()
+	c.mu.Lock()
+	writer, reader, input, output, dead := c.stdin, c.stdout, c.input, c.output, c.scanErr
+	c.mu.Unlock()
+	if dead != nil {
+		return dead
+	}
+	finished := make(chan struct{})
+	stop := context.AfterFunc(ctx, func() {
+		if input != nil {
+			_ = input.Close()
+		}
+		if output != nil {
+			_ = output.Close()
+		}
+		close(finished)
+	})
+	_, err := writer.Write(data)
+	if err == nil {
+		err = writer.Flush()
+	}
+	if !stop() {
+		<-finished
+	}
+	if ctx.Err() != nil {
+		err = ctx.Err()
+	}
+	if err != nil {
+		c.mu.Lock()
+		if c.stdout == reader {
+			c.scanErr = fmt.Errorf("%w: %v", errMCPTransport, err)
+		}
+		c.mu.Unlock()
+	}
+	return err
 }
 
 // readLoop dispatches responses for one transport. It tears the client
@@ -311,7 +373,9 @@ func (c *MCPClient) readLoop(r *bufio.Reader) {
 		}
 		if resp.Method != "" {
 			if resp.ID != 0 {
-				_ = c.notify(map[string]any{"jsonrpc": "2.0", "id": resp.ID, "error": map[string]any{"code": -32601, "message": "client method not supported"}})
+				ctx, cancel := context.WithTimeout(context.Background(), mcpTimeout)
+				_ = c.notify(ctx, map[string]any{"jsonrpc": "2.0", "id": resp.ID, "error": map[string]any{"code": -32601, "message": "client method not supported"}})
+				cancel()
 			}
 			continue
 		}
@@ -342,7 +406,8 @@ func (c *MCPClient) readLoop(r *bufio.Reader) {
 	if err == nil {
 		err = fmt.Errorf("server stdout closed")
 	}
-	c.scanErr = err
+	c.scanErr = fmt.Errorf("%w: %v", errMCPTransport, err)
+	err = c.scanErr
 	for id, ch := range c.pending {
 		delete(c.pending, id)
 		ch <- json.RawMessage(fmt.Sprintf(`{"error":%q}`, err.Error()))
@@ -353,7 +418,7 @@ func (c *MCPClient) readLoop(r *bufio.Reader) {
 func (c *MCPClient) call(ctx context.Context, method string, params any, out any) error {
 	req := rpcRequest{JSONRPC: "2.0", ID: c.nextID(), Method: method, Params: params}
 	if err := c.callOnce(ctx, req, method, out); err != nil {
-		if c.restarter == nil || !isTransportDead(err) {
+		if ctx.Err() != nil || c.restarter == nil || !isTransportDead(err) {
 			return err
 		}
 		if method == "tools/call" {
@@ -370,17 +435,20 @@ func (c *MCPClient) call(ctx context.Context, method string, params any, out any
 	return nil
 }
 
-// isTransportDead reports send-side failures that a restart can fix: the
+// isTransportDead reports transport failures that a restart can fix: the
 // server is gone. Anything else (bad args, server-reported errors,
 // timeouts) would fail identically against a fresh server.
 func isTransportDead(err error) bool {
 	if err == nil {
 		return false
 	}
+	if errors.Is(err, errMCPTransport) {
+		return true
+	}
 	s := strings.ToLower(err.Error())
 	for _, m := range []string{
 		"broken pipe", "closed pipe", "connection reset", "connection refused",
-		"use of closed", "file already closed", "eof",
+		"use of closed", "file already closed", "eof", "mcp transport closed",
 	} {
 		if strings.Contains(s, m) {
 			return true
@@ -395,6 +463,19 @@ func isTransportDead(err error) bool {
 // server fails too, the error surfaces.
 func (c *MCPClient) restartTransport(ctx context.Context) error {
 	select {
+	case c.restartGate <- struct{}{}:
+		defer func() { <-c.restartGate }()
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	c.mu.Lock()
+	dead := c.scanErr != nil
+	c.mu.Unlock()
+	if !dead {
+		return nil
+	}
+
+	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-time.After(mcpRestartBackoff):
@@ -404,11 +485,22 @@ func (c *MCPClient) restartTransport(ctx context.Context) error {
 		return err
 	}
 	c.mu.Lock()
+	oldInput, oldOutput := c.input, c.output
 	c.cmd = cmd
 	c.stdin = bufio.NewWriter(stdin)
-	c.stdout = bufio.NewReader(stdout)
+	reader := bufio.NewReader(stdout)
+	c.stdout = reader
+	c.input, _ = stdin.(io.Closer)
+	c.output, _ = stdout.(io.Closer)
+	c.scanErr = nil
 	c.mu.Unlock()
-	go c.readLoop(c.stdout)
+	if oldInput != nil {
+		_ = oldInput.Close()
+	}
+	if oldOutput != nil {
+		_ = oldOutput.Close()
+	}
+	go c.readLoop(reader)
 	var initResult struct {
 		ServerInfo struct {
 			Name    string `json:"name"`
@@ -424,7 +516,7 @@ func (c *MCPClient) restartTransport(ctx context.Context) error {
 		c.Close()
 		return err
 	}
-	_ = c.notify(map[string]any{
+	_ = c.notify(ctx, map[string]any{
 		"jsonrpc": "2.0", "method": "notifications/initialized",
 	})
 	return nil
@@ -433,6 +525,11 @@ func (c *MCPClient) restartTransport(ctx context.Context) error {
 func (c *MCPClient) callOnce(ctx context.Context, req rpcRequest, method string, out any) error {
 	ch := make(chan json.RawMessage, 1)
 	c.mu.Lock()
+	if c.scanErr != nil {
+		err := c.scanErr
+		c.mu.Unlock()
+		return err
+	}
 	c.pending[req.ID] = ch
 	c.mu.Unlock()
 	defer func() {
@@ -440,7 +537,7 @@ func (c *MCPClient) callOnce(ctx context.Context, req rpcRequest, method string,
 		delete(c.pending, req.ID)
 		c.mu.Unlock()
 	}()
-	if err := c.send(req); err != nil {
+	if err := c.send(ctx, req); err != nil {
 		return err
 	}
 	select {
@@ -462,18 +559,12 @@ func (c *MCPClient) callOnce(ctx context.Context, req rpcRequest, method string,
 	}
 }
 
-func (c *MCPClient) notify(msg map[string]any) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (c *MCPClient) notify(ctx context.Context, msg map[string]any) error {
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}
-	data = append(data, '\n')
-	if _, err := c.stdin.Write(data); err != nil {
-		return err
-	}
-	return c.stdin.Flush()
+	return c.write(ctx, append(data, '\n'))
 }
 
 // MCPTool is one remote MCP tool exposed as an agent tool.

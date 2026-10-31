@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -45,9 +46,9 @@ func inspectStartup(o resolvedLaunch, out io.Writer) error {
 	}
 	var a *agent.Agent
 	if o.plan {
-		a = roles.Planner(env, "", "", func(string) (string, error) { return "", nil })
+		a = roles.Planner(env, "", "", func(context.Context, string) (string, error) { return "", nil })
 	} else {
-		a = roles.Interactive(env, "", "", func(string) (string, error) { return "", nil }, nil)
+		a = roles.Interactive(env, "", "", func(context.Context, string) (string, error) { return "", nil }, nil)
 	}
 	report := a.StartupContext(o.task)
 	report.Notes = append(report.Notes, warnings...)

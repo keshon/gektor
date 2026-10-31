@@ -7,7 +7,7 @@ import (
 )
 
 func TestAskUser_CallsAskFnAndReturnsAnswer(t *testing.T) {
-	tool := AskUser{AskFn: func(question string) (string, error) {
+	tool := AskUser{AskFn: func(_ context.Context, question string) (string, error) {
 		if question != "what color?" {
 			t.Errorf("got question %q, want %q", question, "what color?")
 		}

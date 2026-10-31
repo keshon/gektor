@@ -39,8 +39,8 @@ func NewAsker(max int) *Asker {
 //
 // Over the budget it returns an error telling the model to decide rather
 // than asking again, since the operator has nothing left to give.
-func (a *Asker) Ask(suspend Suspender, decorate func(question string) string) func(string) (string, error) {
-	return func(question string) (string, error) {
+func (a *Asker) Ask(suspend Suspender, decorate func(question string) string) func(context.Context, string) (string, error) {
+	return func(ctx context.Context, question string) (string, error) {
 		a.mu.Lock()
 		a.used++
 		used := a.used
@@ -53,7 +53,7 @@ func (a *Asker) Ask(suspend Suspender, decorate func(question string) string) fu
 		if decorate != nil {
 			prompt = decorate(question)
 		}
-		reply, err := suspend(context.Background(), SuspendRequest{Kind: SuspendAsk, Prompt: prompt})
+		reply, err := suspend(ctx, SuspendRequest{Kind: SuspendAsk, Prompt: prompt})
 		if err != nil {
 			return "", err
 		}

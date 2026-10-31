@@ -81,7 +81,7 @@ func New(cfg Config) (*Session, error) {
 func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, roles.Env) {
 	emitter := events.New(events.EventWriter(s.cfg.OnEvent))
 
-	askFn := s.asker(ctx)
+	askFn := s.asker()
 
 	env := s.cfg.Env
 	env.Inbox = &s.inbox
@@ -222,10 +222,8 @@ func (s *Session) Run(ctx context.Context) (string, error) {
 // sharing one question budget across Run and Resume calls. Resume runs
 // used to refuse all questions; a follow-up that needs clarification
 // should ask like any other turn.
-func (s *Session) asker(ctx context.Context) func(string) (string, error) {
-	return s.askerBudget.Ask(func(_ context.Context, req agent.SuspendRequest) (agent.SuspendReply, error) {
-		return s.cfg.Answer(ctx, req)
-	}, nil)
+func (s *Session) asker() func(context.Context, string) (string, error) {
+	return s.askerBudget.Ask(s.cfg.Answer, nil)
 }
 
 // Resume continues from saved history with a note, mirroring Agent.Resume.

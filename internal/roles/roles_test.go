@@ -51,7 +51,7 @@ func hasTool(a interface{ ToolNames() []string }, name string) bool {
 // different agent than the one under test, and two probes are
 // specifically about those two tools.
 func TestInteractive_HasTheToolsThatShip(t *testing.T) {
-	a := Interactive(testEnv(t), "", "", func(string) (string, error) { return "", nil }, nil)
+	a := Interactive(testEnv(t), "", "", func(context.Context, string) (string, error) { return "", nil }, nil)
 	for _, want := range []string{"ask_user", "delegate_task", "write_file", "run_shell"} {
 		if !hasTool(a, want) {
 			t.Errorf("interactive agent is missing %s — got %v", want, a.ToolNames())
@@ -225,9 +225,9 @@ func TestRoleSystemToolsResolve(t *testing.T) {
 	sort.Strings(alts)
 	mentioned := regexp.MustCompile(`\b(` + strings.Join(alts, "|") + `)\b`)
 
-	interactive := Interactive(e, "", "", func(string) (string, error) { return "", nil }, nil)
+	interactive := Interactive(e, "", "", func(context.Context, string) (string, error) { return "", nil }, nil)
 	subagent := Subagent(e, "tester")
-	planner := Planner(e, "p", "", func(string) (string, error) { return "", nil })
+	planner := Planner(e, "p", "", func(context.Context, string) (string, error) { return "", nil })
 	// System texts as their roles actually ship them: the subagent
 	// composition includes its scope correction (mirrors Subagent).
 	subagentSystem := prompts.WithRole("tester") + "\n\n" + prompts.SubagentScope
@@ -373,7 +373,7 @@ func TestConversationPromptDoesNotDependOnBackendKind(t *testing.T) {
 // conversation, which on a large window is minutes of prefill.
 func TestPlanAndActSendTheSamePrefix(t *testing.T) {
 	e := testEnv(t)
-	ask := func(string) (string, error) { return "", nil }
+	ask := func(context.Context, string) (string, error) { return "", nil }
 
 	run := func(a *agent.Agent, rec *recordingClient) llm.ChatRequest {
 		t.Helper()

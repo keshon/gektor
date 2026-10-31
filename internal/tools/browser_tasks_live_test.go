@@ -194,7 +194,7 @@ func TestBrowserTaskObservationsLive(t *testing.T) {
 	t.Run("login handoff refreshes page before continuing", func(t *testing.T) {
 		reg, _ := browserRegistry(b)
 		asked := 0
-		if err := reg.Add(AskUser{AskFn: func(question string) (string, error) {
+		if err := reg.Add(AskUser{AskFn: func(_ context.Context, question string) (string, error) {
 			asked++
 			if strings.Contains(strings.ToLower(question), "password") {
 				t.Fatal("requested credentials in chat")

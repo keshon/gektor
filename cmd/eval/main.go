@@ -762,7 +762,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 		}
 	}
 	replyIndex := 0
-	a := roles.Interactive(env, "", "", func(string) (string, error) {
+	a := roles.Interactive(env, "", "", func(context.Context, string) (string, error) {
 		if replyIndex < len(p.Replies) {
 			reply := p.Replies[replyIndex]
 			replyIndex++

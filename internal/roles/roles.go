@@ -181,7 +181,7 @@ func Retrospective(e Env, archive, submit agent.Tool) *agent.Agent {
 // removed where it is used - the loop refuses every call outside
 // tools.ReadOnly - rather than by asking the model to hold back, so nothing
 // can write in this role whatever the model decides to try.
-func Planner(e Env, label, stateFile string, ask func(question string) (string, error)) *agent.Agent {
+func Planner(e Env, label, stateFile string, ask func(ctx context.Context, question string) (string, error)) *agent.Agent {
 	cfg := e.conversationConfig(label, stateFile, ask, nil)
 	cfg.ReadOnly = tools.ReadOnly(e.WS, e.Procs, e.Vision).Names()
 	cfg.AllowReadOnlyExtensions = true
@@ -304,7 +304,7 @@ func Subagent(e Env, role string) *agent.Agent {
 //
 // verify, if set, runs the final build/test command without another model turn.
 func Interactive(e Env, label, stateFile string,
-	ask func(question string) (string, error),
+	ask func(ctx context.Context, question string) (string, error),
 	verify func(ctx context.Context) (string, error)) *agent.Agent {
 	cfg := e.conversationConfig(label, stateFile, ask, verify)
 	cfg.Directive = prompts.ActMode
@@ -317,7 +317,7 @@ func Interactive(e Env, label, stateFile string,
 // identical by construction: the tests assert it, because a divergence there
 // is invisible until the operator pays for a full re-read.
 func (e Env) conversationConfig(label, stateFile string,
-	ask func(question string) (string, error),
+	ask func(ctx context.Context, question string) (string, error),
 	verify func(ctx context.Context) (string, error)) agent.Config {
 	if e.Outputs == nil {
 		e.Outputs = tools.NewOutputStore(e.statePath(stateFile))

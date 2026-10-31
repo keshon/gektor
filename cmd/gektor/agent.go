@@ -212,7 +212,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	// the agent loop after the assistant message (with the unanswered tool
 	// call) and before tool execution — so Ctrl+C while waiting leaves a
 	// resumable state.json. Use -resume with -answer to continue.
-	askFn := agent.NewAsker(0).Ask(func(_ context.Context, req agent.SuspendRequest) (agent.SuspendReply, error) {
+	askFn := agent.NewAsker(0).Ask(func(ctx context.Context, req agent.SuspendRequest) (agent.SuspendReply, error) {
 		return suspend(ctx, req)
 	}, func(question string) string {
 		return fmt.Sprintf("\n[paused — state saved at %s]\n"+
@@ -433,7 +433,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			ans := o.answer
 			if ans == "" {
 				var err error
-				ans, err = askFn(question)
+				ans, err = askFn(ctx, question)
 				if err != nil {
 					return fmt.Errorf("reading answer: %w", err)
 				}

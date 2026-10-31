@@ -297,3 +297,32 @@ func TestServe_EOFCancelsGatedRun(t *testing.T) {
 		return id == 1 && hasErr
 	})
 }
+
+func TestServeEventSequenceIsMonotonic(t *testing.T) {
+	stub := &stubChat{responses: []llm.ChatResponse{
+		{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "q", Name: "ask_user", Arguments: json.RawMessage(`{"question":"which?"}`)}}}},
+		{Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}},
+	}}
+	out := runServe(t, testServeDeps(t, stub), []string{`{"id":1,"method":"run","params":{"task":"ask"}}`})
+	out.waitFor(t, 5*time.Second, func(rec map[string]any) bool { return rec["event"] == "awaiting_input" })
+	out.mu.Lock()
+	defer out.mu.Unlock()
+	previous := 0
+	for _, line := range out.lines {
+		var rec map[string]any
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := rec["event"]; !ok {
+			continue
+		}
+		seq := int(rec["seq"].(float64))
+		if seq != previous+1 {
+			t.Fatalf("sequence %d after %d: %s", seq, previous, line)
+		}
+		previous = seq
+	}
+	if previous < 3 {
+		t.Fatalf("too few events: %d", previous)
+	}
+}
