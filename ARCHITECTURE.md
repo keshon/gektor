@@ -155,7 +155,9 @@ The experimental TUI /eval command is a separate retrospective, implemented in
 internal/retrospect. Session snapshots retain execution ranges alongside the full
 archive; compaction changes only the working projection. The Retrospective role
 has archive-reading and structured-submission tools, without task capabilities.
-Validated reports can append quoted historical observations to a workspace skill.
+Reports remain proposals until the user saves a lesson through `/learn` or the
+`/eval` result. Each approved procedure is an ordinary discoverable workspace
+skill with pinned evidence excerpts; retirement removes its guide from discovery.
 Literal evidence and read coverage are checked mechanically; the model's judgment
 and the general usefulness of a lesson are not independently verified.
 

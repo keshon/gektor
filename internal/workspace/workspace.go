@@ -133,5 +133,7 @@ func (w *Workspace) InstructionSections() (project, skills string) {
 	if w == nil {
 		return "", ""
 	}
-	return strings.TrimSuffix(w.instructions, w.skillMetadata), w.skillMetadata
+	// Rebuild only routing metadata when constructing a task. Approved or retired
+	// skills must be visible without reopening the workspace; guides stay lazy.
+	return strings.TrimSuffix(w.instructions, w.skillMetadata), w.skillCatalog()
 }

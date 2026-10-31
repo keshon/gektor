@@ -66,6 +66,7 @@ func commands() []command {
 		{name: "/activity", immediate: true, summary: "Show run activity"},
 		{name: "/about", immediate: true, summary: "About"},
 		{name: "/eval", immediate: true, summary: "Review last run; /eval session or /eval N [focus]"},
+		{name: "/learn", immediate: true, summary: "Learn from last run; N/session select, review reopens, undo disables"},
 		{name: "/theme", arg: "dark|light", choices: []string{"dark", "light"}, immediate: true, summary: "Switch theme"},
 		{name: "/settings", immediate: true, summary: "Open settings"},
 		{name: "/status", immediate: true, summary: "Show current run facts"},
@@ -171,6 +172,8 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 	switch strings.ToLower(name) {
 	case "eval":
 		return m.evaluate(arg)
+	case "learn":
+		return m.learn(arg)
 	case "q", "quit":
 		m.cancelEvaluation()
 		return m.requestQuit()

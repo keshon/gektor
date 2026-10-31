@@ -134,6 +134,47 @@ happens to look.
 
 ## Adding a probe
 
+### Optional learned-skill comparison
+
+`TestLiveLearnedImageSkill` in `internal/retrospect` compares an already approved
+image-inspection lesson with no lesson, using the production Interactive role.
+It runs ten paired local-image tasks and five paired search/edit controls based
+on probe 09, serially, with fresh workspaces and balanced image-arm order.
+Images have generated ground truth; success is scored from files, not the model's
+self-assessment. Loading the lesson is recorded separately and is never required
+for a pass. No new lesson is trained or approved during the experiment.
+
+```powershell
+$env:GEKTOR_LIVE_LEARNING = '1'
+$env:GEKTOR_LIVE_BACKEND = 'http://127.0.0.1:9931'
+$env:GEKTOR_LIVE_LESSON = 'D:/project/skills/learned-ID/SKILL.md'
+$env:GEKTOR_LIVE_OUTPUT = 'D:/tmp/gektor-learning-comparison'
+go test ./internal/retrospect -run '^TestLiveLearnedImageSkill$' -count=1 -v -timeout 100m
+```
+
+The output directory must not exist; its parent must exist. The server must
+advertise image support. Avoid other inference jobs during the comparison.
+The fixed budget is 12 steps, 8192 output tokens per response, 180 seconds per
+task, temperature 0.7 and a 131072-token context limit. Stock project skills are
+frozen into both arms; user libraries and browser/MCP are excluded equally.
+The approved guide is copied without modification and its digest is recorded.
+`manifest.json`, `results.jsonl`, per-run traces, session archives and inventories
+remain in the output directory. Disposable task workspaces are removed.
+
+A passing Go test means the experiment completed, not that model tasks passed:
+inspect `passed` in each result. Report discovery, success, steps, failed tools,
+latency and tokens separately. Ten pairs give an initial estimate for this lesson
+and task family, not proof of general learning gains or small reliability changes.
+This comparison excludes the cost of generating and reviewing the original lesson.
+To measure a fresh retrospective separately, set `GEKTOR_LIVE_LEARNING_REVIEW=1`,
+`GEKTOR_LIVE_REVIEW_SOURCE` to the original session's `state.json`, and
+`GEKTOR_LIVE_OUTPUT` to another fresh directory; run
+`go test ./internal/retrospect -run '^TestLiveLearningReviewCost$' -count=1 -v -timeout 5m`.
+This copies the source archive, records inference time and tokens in `cost.json`,
+and never approves the new proposal. It does not measure human review time.
+`GEKTOR_LIVE_REVIEW_SCOPE` selects `last` (default), `session`, or a run number;
+select the execution that originally produced the lesson when comparing costs.
+
 ### Optional extension continuity test
 
 `TestLiveExtensionsAcrossTurns` in internal/roles is a separate opt-in test

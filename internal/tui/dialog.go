@@ -24,10 +24,11 @@ func wsRootOf(ws *workspace.Workspace) string {
 // and optional help tabs. Its frame overlays the document without clearing
 // the surrounding history or changing the underlying reading position.
 //
-// A dialog carries lines or a form, never both. Anything that needs an
-// answer from the user is a form: a destructive confirmation is a form with
-// no fields, which is what makes it consistent with the delete prompt.
+// A dialog carries lines or a form, never both. A lesson preview also offers
+// explicit save/edit actions; Enter still closes without saving.
 type infoDialog struct {
+	review func()
+	save   func() error
 	form   *settingsForm
 	title  string
 	lines  []string
@@ -116,6 +117,12 @@ func (m *model) layoutDialog() dialogLayout {
 		lines = append(lines, strings.Split(ansi.Wrap(cleanText(line), max(inner, 1), ""), "\n")...)
 	}
 	hint := "Esc / Enter close"
+	if d.review != nil {
+		hint = "R review lesson   Esc / Enter skip"
+	}
+	if d.save != nil {
+		hint = "S save lesson   E edit   Esc / Enter skip"
+	}
 	if m.evaluation != nil {
 		hint = "Esc / Enter cancel evaluation"
 	}

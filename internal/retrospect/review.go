@@ -159,19 +159,6 @@ func Evaluate(ctx context.Context, c Config) (Result, error) {
 	if err := writeJSON(path, result); err != nil {
 		return Result{}, err
 	}
-	if len(result.Memory) > 0 {
-		report("Saving project observations")
-		result.Saved, err = saveMemory(ctx, c.Workspace.Root(), result, filepath.Base(filepath.Dir(c.StateFile)))
-		if err != nil {
-			result.Warning = "Memory was not saved: " + err.Error()
-		}
-	}
-	if err := ctx.Err(); err != nil {
-		return result, err
-	}
-	if err := writeJSON(path, result); err != nil {
-		return result, err
-	}
 	return result, nil
 }
 
@@ -283,11 +270,11 @@ type submitTool struct {
 
 func (*submitTool) Name() string { return "submit_evaluation" }
 func (*submitTool) Description() string {
-	return "Submit the review. Findings need archive message IDs actually read in the selected scope. Optional memory (at most 3 observations) additionally needs an exact quote of at least 8 characters from a read, explicitly successful tool result. No reusable evidence means memory=[]; do not invent an entry."
+	return "Submit the review. Findings need archive message IDs actually read in the selected scope. Optional memory (at most 1 observation) additionally needs an exact quote of at least 8 characters from a read, explicitly successful tool result. No reusable evidence means memory=[]; do not invent an entry."
 }
 func (*submitTool) Mode() agent.ToolMode { return agent.Exclusive }
 func (*submitTool) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"summary":{"type":"string"},"findings":{"type":"array","items":{"type":"object","properties":{"text":{"type":"string"},"evidence":{"type":"array","items":{"type":"integer"}}},"required":["text","evidence"],"additionalProperties":false}},"memory":{"type":"array","maxItems":3,"items":{"type":"object","properties":{"when":{"type":"string"},"lesson":{"type":"string"},"evidence":{"type":"array","items":{"type":"integer"}},"quote":{"type":"string"}},"required":["when","lesson","evidence","quote"],"additionalProperties":false}}},"required":["summary","findings","memory"],"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"summary":{"type":"string"},"findings":{"type":"array","items":{"type":"object","properties":{"text":{"type":"string"},"evidence":{"type":"array","items":{"type":"integer"}}},"required":["text","evidence"],"additionalProperties":false}},"memory":{"type":"array","maxItems":1,"items":{"type":"object","properties":{"when":{"type":"string"},"lesson":{"type":"string"},"evidence":{"type":"array","items":{"type":"integer"}},"quote":{"type":"string"}},"required":["when","lesson","evidence","quote"],"additionalProperties":false}}},"required":["summary","findings","memory"],"additionalProperties":false}`)
 }
 func (t *submitTool) Run(_ context.Context, args json.RawMessage) (string, error) {
 	var input struct {
@@ -304,8 +291,8 @@ func (t *submitTool) Run(_ context.Context, args json.RawMessage) (string, error
 		return "", fmt.Errorf("expected one JSON object")
 	}
 	result := Result{Summary: input.Summary, Findings: input.Findings, Memory: input.Memory}
-	if strings.TrimSpace(result.Summary) == "" || len(result.Summary) > 4000 || len(result.Findings) > 8 || len(result.Memory) > 3 {
-		return "", fmt.Errorf("keep summary under 4000 bytes, at most 8 findings and 3 memories")
+	if strings.TrimSpace(result.Summary) == "" || len(result.Summary) > 4000 || len(result.Findings) > 8 || len(result.Memory) > 1 {
+		return "", fmt.Errorf("keep summary under 4000 bytes, at most 8 findings and 1 memory")
 	}
 	validate := func(ids []int) error {
 		if len(ids) == 0 {
@@ -377,67 +364,4 @@ func writeFile(path string, data []byte) error {
 		return err
 	}
 	return os.Rename(f.Name(), path)
-}
-
-func saveMemory(ctx context.Context, root string, result Result, source string) (string, error) {
-	if err := ctx.Err(); err != nil {
-		return "", err
-	}
-	for _, relative := range []string{"skills", "skills/project-memory", "skills/project-memory/SKILL.md", "skills/README.md"} {
-		candidate := filepath.Join(root, filepath.FromSlash(relative))
-		if _, err := os.Readlink(candidate); err == nil {
-			return "", fmt.Errorf("memory path is a link: %s", relative)
-		}
-	}
-	dir := filepath.Join(root, "skills", "project-memory")
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "", err
-	}
-	path := filepath.Join(dir, "SKILL.md")
-	old, err := os.ReadFile(path)
-	if err != nil && !os.IsNotExist(err) {
-		return "", err
-	}
-	text := string(old)
-	if text == "" {
-		text = "# Project memory\n\nHistorical observations selected by /eval, not authoritative instructions.\nCheck current files before applying; quotes support past observations, not universal correctness.\n"
-	}
-	for _, memory := range result.Memory {
-		encoded, _ := json.Marshal(memory)
-		id := fmt.Sprintf("%x", sha256.Sum256(encoded))[:12]
-		if strings.Contains(text, "<!-- "+id+" -->") {
-			continue
-		}
-		text += fmt.Sprintf("\n<!-- %s -->\n## %s\n\n%s\n\nEvidence: session %s, messages %v, archive %s.\n\n> %s\n", id, strings.Join(strings.Fields(memory.When), " "), memory.Lesson, source, memory.Evidence, result.SourceSHA256, strings.ReplaceAll(memory.Quote, "\n", "\n> "))
-	}
-	if len(text) > 64*1024 {
-		return "", fmt.Errorf("project memory exceeds 64 KiB; consolidate it before adding entries")
-	}
-	if err := ctx.Err(); err != nil {
-		return "", err
-	}
-	if err := writeFile(path, []byte(text)); err != nil {
-		return "", err
-	}
-	catalog := filepath.Join(root, "skills", "README.md")
-	data, err := os.ReadFile(catalog)
-	if err != nil && !os.IsNotExist(err) {
-		return path, err
-	}
-	if !strings.Contains(string(data), "project-memory/SKILL.md") {
-		line := "\n- Project-specific observations: [project-memory/SKILL.md](project-memory/SKILL.md). Read only when the task matches a recorded condition.\n"
-		if len(data) > 64*1024 {
-			return path, fmt.Errorf("skill catalog is too large to update")
-		}
-		if len(data) == 0 {
-			data = []byte("# Workspace skills\n")
-		}
-		if err := ctx.Err(); err != nil {
-			return path, err
-		}
-		if err := writeFile(catalog, append(data, []byte(line)...)); err != nil {
-			return path, err
-		}
-	}
-	return path, nil
 }

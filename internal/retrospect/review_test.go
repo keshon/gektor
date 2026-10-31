@@ -128,38 +128,24 @@ func TestEvaluationProgressFollowsObservedWork(t *testing.T) {
 	}
 }
 
-func TestEvaluateCompactedArchiveAndDeduplicatesMemory(t *testing.T) {
+func TestEvaluateCompactedArchiveLeavesProposalOutsideSkills(t *testing.T) {
 	c, _ := archiveFixture(t)
-	catalogPath := filepath.Join(c.Workspace.Root(), "skills", "README.md")
-	if err := os.MkdirAll(filepath.Dir(catalogPath), 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(catalogPath, []byte("# Existing catalog\n- Keep this entry.\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
 	original, _ := os.ReadFile(c.StateFile)
 	c.Scope = "1"
-	for range 2 {
-		c.Client = reviewClient(t, 2, 4, true, nil)
-		r, err := Evaluate(t.Context(), c)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if r.Start != 2 || r.End != 5 || r.Read != 4 || r.Partial != 0 || r.SourceSHA256 == "" || r.Saved == "" || r.Warning != "" {
-			t.Fatalf("unexpected report: %+v", r)
-		}
+	c.Client = reviewClient(t, 2, 4, true, nil)
+	r, err := Evaluate(t.Context(), c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Start != 2 || r.End != 5 || r.Read != 4 || r.Partial != 0 || r.SourceSHA256 == "" || r.Saved != "" || len(r.Memory) != 1 {
+		t.Fatalf("unexpected report: %+v", r)
 	}
 	current, _ := os.ReadFile(c.StateFile)
 	if string(current) != string(original) {
 		t.Fatal("review changed original session")
 	}
-	memory, err := os.ReadFile(filepath.Join(c.Workspace.Root(), "skills", "project-memory", "SKILL.md"))
-	if err != nil || strings.Count(string(memory), "## Repeating") != 1 || !strings.Contains(string(memory), "PASS first verification") {
-		t.Fatalf("missing or duplicate memory: %s %v", memory, err)
-	}
-	catalog, err := os.ReadFile(catalogPath)
-	if err != nil || strings.Count(string(catalog), "project-memory/SKILL.md") != 2 || !strings.Contains(string(catalog), "Keep this entry.") {
-		t.Fatalf("invalid catalog: %s %v", catalog, err)
+	if _, err := os.Stat(filepath.Join(c.Workspace.Root(), "skills")); !os.IsNotExist(err) {
+		t.Fatalf("unapproved proposal changed workspace: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(filepath.Dir(c.StateFile), "evaluation.json")); err != nil {
 		t.Fatal(err)
@@ -292,7 +278,7 @@ func TestSaveMemoryCancelledLeavesNoFiles(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	root := t.TempDir()
-	_, err := saveMemory(ctx, root, Result{}, "source")
+	_, err := Approve(ctx, root, "", Result{}, "", "")
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}

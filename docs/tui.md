@@ -572,15 +572,45 @@ it cannot run tests, inspect current files, edit code or delegate. Findings must
 cite messages actually read in the selected scope. The latest report replaces
 `evaluation.json` next to that session's `state.json`.
 
-Optionally, up to three observations are appended to
-`skills/project-memory/SKILL.md` and linked from `skills/README.md`, preserving
-existing catalog entries. Each needs a condition, a lesson, and a literal quote
-from an explicitly successful archived tool result. This gate checks provenance,
-not the general truth of the lesson. Entries remain historical observations to
-check against current files; they are not promoted to system instructions.
-Duplicate observations are skipped, and memory is capped at 64 KiB. A review can
-legitimately produce no memory. Cancellation or an archive changed during the
-model review prevents saving its results.
+### Learning from a task
+
+Run `/learn` when a task exposed a correction worth reusing. It reviews the last
+execution; `/learn N` and `/learn session` select another scope. A focus follows
+an explicit scope, for example `/learn last avoid repeating the test setup mistake`.
+There is no automatic background review after tasks and no inference cost on save.
+The same bounded retrospective model calls are used as for `/eval`.
+
+The result offers at most one lesson, showing when it applies, a procedure and
+quoted historical evidence. Press **S** to save, **E** to edit before saving, or
+**Esc/Enter** to skip. An empty result needs no approval. `/eval` no longer saves
+observations automatically: press **R** in its result to review a proposed lesson.
+`/learn review` reopens this session's latest proposal without another model call,
+including after a restart. The source archive must still match before saving.
+Existing `skills/project-memory/SKILL.md` files are left unchanged.
+
+Approved lessons become individual `skills/learned-<id>/SKILL.md` packages.
+Their conditions appear in ordinary skill discovery on the next task, including
+follow-ups without restarting the app. Full guides are loaded only when selected
+by the agent; retrieval and usefulness are not guaranteed. No extra tool
+permissions are granted. Identical approved text is deduplicated; existing edited
+files are never overwritten. Each directory includes `evidence.json` with the
+original proposal, quoted successful-tool excerpts, message IDs and archive hash,
+so those excerpts survive later session changes. Whole tool outputs are not copied.
+Review both files before sharing through Git.
+
+`/learn undo` disables the most recently saved lesson in this app instance and
+workspace by renaming its guide to `SKILL.retired.md`; it preserves the evidence
+and refuses to change an edited guide. Saving an identical retired lesson again
+explicitly reactivates it. To retire any older lesson, rename its `SKILL.md` in the
+same way; edit ordinary skill files to correct them. Retirement affects future
+discovery, not text already loaded into a conversation; start a fresh session to
+exclude that text.
+
+The quote check establishes provenance, not truth or causality. Approval means
+user-reviewed guidance, not independently tested knowledge. There is no automatic
+repo-drift detection or retirement based on outcome statistics. Lessons instruct
+the agent to check current files before use. A changed archive between review and
+approval requires a fresh review. Cancelling or skipping does not create a skill.
 
 This TUI command is distinct from `cmd/eval`, the repeatable scenario benchmark.
 

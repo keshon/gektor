@@ -37,6 +37,9 @@ On Linux, use `-o gektor`.
 - **History:** stream answers and reasoning when supported, inspect tool results,
   reopen sessions and continue interrupted tasks. Compaction preserves the full archive.
 - **Project guidance:** load `AGENTS.md` instructions and discover workspace skills.
+- **Learning (experimental):** `/learn` proposes one reusable lesson from a completed
+  task. Save, edit or skip it; `/learn undo` disables the latest save.
+  [How learning works](docs/tui.md#learning-from-a-task).
 - **Browser:** connect Playwright MCP on demand for page interactions, console checks
   and screenshots. Windows `run-tui.cmd` makes Chrome available; other launches use
   `-browser chrome` or `-browser msedge`. [Setup and requirements](docs/browser.md).

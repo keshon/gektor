@@ -97,6 +97,19 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.sessionsKey(msg)
 	}
 	if m.dialog != nil {
+		if (msg.String() == "s" || msg.String() == "S") && m.dialog.save != nil {
+			if err := m.dialog.save(); err != nil {
+				m.dialog.lines = append(m.dialog.lines, "", "Could not save: "+err.Error())
+				m.dialog.offset = 0
+			} else {
+				m.closeDialog()
+			}
+			return m, nil
+		}
+		if (msg.String() == "r" || msg.String() == "R" || msg.String() == "e" || msg.String() == "E") && m.dialog.review != nil {
+			m.dialog.review()
+			return m, nil
+		}
 		// Takeover: the dialog eats every key but close and quit so
 		// typing can neither reach the input nor toggle state behind it.
 		// Close is esc/enter only: "q" must stay typable for dialogs

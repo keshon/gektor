@@ -18,6 +18,7 @@ import (
 	"github.com/keshon/gektor/internal/audit"
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/retrospect"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/run"
 	"github.com/keshon/gektor/internal/tui/components/completion"
@@ -194,6 +195,8 @@ type model struct {
 	alwaysMu     sync.Mutex
 	always       map[[2]string]bool
 	dialog       *infoDialog
+	lastLesson   retrospect.Lesson
+	lessonRoot   string
 	// scrollDrag tracks a scrollbar thumb grab: active while the pointer
 	// is held on the bar, grab is the pointer's row inside the thumb so
 	// the thumb follows without jumping, moved marks real motion so a
