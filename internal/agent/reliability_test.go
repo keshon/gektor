@@ -155,6 +155,32 @@ func TestCheckpointFailureLeavesPreviousProjectionUntouched(t *testing.T) {
 	}
 }
 
+func TestCheckpointRejectionReportsCause(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		response llm.ChatResponse
+		want     string
+	}{
+		{"generation limit", llm.ChatResponse{FinishReason: "length", Message: llm.Message{Content: "partial", Reasoning: "thinking"}}, "2048-token generation limit before finishing (summary: 7 bytes, reasoning: 8 bytes)"},
+		{"tool calls", stepOf(llm.ToolCall{ID: "unexpected", Name: "read_file"}), "1 tool calls instead of a JSON summary"},
+		{"summary size", say(strings.Repeat("x", 12001)), "12000-byte limit (12001 bytes)"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := longHistory(12, 200)
+			original := append([]llm.Message(nil), h...)
+			c := &repeatSeqClient{responses: []llm.ChatResponse{tc.response}}
+			a := New(Config{Client: c, Tools: NewRegistry(), Summarize: true, ContextLimit: 4096, CompactKeepSteps: 2})
+			st := &runState{}
+			if a.maybeCompact(&h, llm.Usage{PromptTokens: 4000}, st, t.Context()) || st.compactErr == nil || !strings.Contains(st.compactErr.Error(), tc.want) {
+				t.Fatalf("unexpected checkpoint result: %v", st.compactErr)
+			}
+			if !reflect.DeepEqual(h, original) {
+				t.Fatal("failed checkpoint changed the previous context")
+			}
+		})
+	}
+}
+
 func TestCheckpointKeepsVerbatimRequirements(t *testing.T) {
 	h := longHistory(12, 200)
 	h[3].Content = "Keep А; Б\nDo not publish"

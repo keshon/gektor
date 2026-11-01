@@ -11,19 +11,19 @@ import (
 
 func recoveryHint(err error) string {
 	if errors.Is(err, agent.ErrMaxSteps) {
-		return "Step budget exhausted. Narrow the remaining task or change /max-steps N, then /retry to continue from the saved checkpoint."
+		return "Narrow the remaining task or change /max-steps N, then /retry to continue from the saved checkpoint."
 	}
 	if errors.Is(err, agent.ErrRunBudget) {
-		return "Time budget exhausted. Send a narrower follow-up to continue the remaining work."
+		return "Send a narrower follow-up to continue the remaining work."
 	}
 	if errors.Is(err, context.Canceled) {
-		return "Run cancelled. Send a follow-up to continue; completed changes remain."
+		return "Send a follow-up to continue; completed changes remain."
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
-		return "Request timed out. Check the model server or tool, then /retry to continue from the saved checkpoint."
+		return "Check the model server or tool, then /retry to continue from the saved checkpoint."
 	}
 	if llm.IsOverflow(err) || strings.Contains(strings.ToLower(err.Error()), "insufficient") && strings.Contains(strings.ToLower(err.Error()), "context") {
-		return "Context does not fit. Try /compact; if it cannot free enough room, use a larger model-server context and restart with the saved session."
+		return "Try /compact; if it cannot free enough room, use a larger model-server context and restart with the saved session."
 	}
 	if api, ok := llm.AsAPIError(err); ok && !api.Retryable() {
 		if api.Status == 401 || api.Status == 403 {
@@ -32,7 +32,7 @@ func recoveryHint(err error) string {
 		return "Check the backend model, endpoint and request settings before retrying. Connection settings are shown under Model."
 	}
 	if strings.Contains(strings.ToLower(err.Error()), "checkpoint") {
-		return "Context checkpoint failed; previous context was retained. Check the error above before retrying."
+		return "Use /retry to try the summary again. If it keeps failing, start a new session with the remaining task."
 	}
 	return "After resolving the cause, /retry continues from the saved checkpoint. Existing workspace changes are not rolled back."
 }

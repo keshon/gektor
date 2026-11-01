@@ -40,9 +40,6 @@ func (m *model) headerBadges() []headerBadge {
 		switch m.progress.Phase {
 		case "prefill":
 			phase = "READ"
-			if m.progress.PromptTokens > 0 {
-				phase += fmt.Sprintf(" %d%%", min(100, m.progress.ProcessedTokens*100/m.progress.PromptTokens))
-			}
 		case "reasoning":
 			phase = "THINK"
 		case "generating":
@@ -69,37 +66,36 @@ func (m *model) headerBadges() []headerBadge {
 	if m.evaluation != nil {
 		activity = string(activityFrames[m.spinnerFrame%len(activityFrames)]) + " EVAL"
 	}
-	ctx := "CTX " + kTokens(m.tokens)
+	ctx := kTokens(m.tokens)
 	if m.tokensEst {
 		ctx = "~" + ctx
 	}
 	if m.limit > 0 {
 		ctx += "/" + kTokens(m.limit)
 	}
-	modelWidth := 32
-	if m.transcript.Viewport.Width() < 110 {
-		modelWidth = 18
+	width := m.transcript.Viewport.Width()
+	candidates := []headerBadge{{id: "mode", label: mode}, {id: "activity", label: activity + "  " + ctx}}
+	leftWidth := lipgloss.Width(mode) + lipgloss.Width(activity+"  "+ctx) + 4
+	run := headerBadge{id: "run", label: fmt.Sprintf("STEP %d/%s  %s", m.steps, m.stepBudget(), formatElapsed(m.elapsed))}
+	runWidth := lipgloss.Width(run.label) + 2
+	showRun := leftWidth+runWidth <= width
+	available := width - leftWidth - 2
+	if showRun {
+		available -= runWidth
 	}
-	candidates := []headerBadge{{id: "mode", label: mode}, {id: "activity", label: activity}, {id: "model", label: strings.TrimSpace(cellLine(modelLabel(m.displayedModel()), modelWidth))}, {id: "context", label: ctx}}
-	label := fmt.Sprintf("step %d/%s  %s", m.steps, m.stepBudget(), formatElapsed(m.elapsed))
-	candidates = append(candidates, headerBadge{id: "run", label: label})
-	// Context and state stay visible before the optional model and run details.
-	total := 0
-	for _, b := range candidates {
-		total += lipgloss.Width(b.label) + 2
+	if available >= 6 {
+		candidates = append(candidates, headerBadge{id: "model", label: strings.TrimSpace(cellLine(modelLabel(m.displayedModel()), available))})
 	}
-	if total > m.transcript.Viewport.Width() {
-		available := lipgloss.Width(candidates[2].label) - (total - m.transcript.Viewport.Width())
-		if available >= 6 {
-			candidates[2].label = strings.TrimSpace(cellLine(candidates[2].label, available))
-		} else {
-			candidates = append(candidates[:2], candidates[3:]...)
-		}
+	if showRun {
+		candidates = append(candidates, run)
 	}
 	x := 0
 	for i := range candidates {
+		if candidates[i].id == "run" {
+			x = width - runWidth
+		}
 		candidates[i].start = x
-		candidates[i].end = min(x+lipgloss.Width(candidates[i].label)+2, m.transcript.Viewport.Width())
+		candidates[i].end = min(x+lipgloss.Width(candidates[i].label)+2, width)
 		x = candidates[i].end
 	}
 	return candidates
@@ -109,22 +105,21 @@ func (m *model) badgeLine() string {
 	normal := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorPopupText)))
 	badges := m.headerBadges()
 	var out []string
+	x := 0
 	for _, b := range badges {
+		out = append(out, strings.Repeat(" ", max(b.start-x, 0)))
+		x = b.end
 		style := normal
 		switch b.id {
 		case "model":
 			if !m.usage.liveModel && (m.usage.last.Model != "" || m.usage.historical) {
 				style = m.styles.dim
 			}
-		case "context":
-			if m.usage.historical {
-				style = m.styles.dim
-			}
 		case "mode":
 			style = style.Foreground(lipgloss.Color(themeColor(colorMode)))
 		case "activity":
 			color := colorReady
-			if m.state != stDone {
+			if m.state != stDone || m.evaluation != nil {
 				color = colorBusy
 			}
 			if m.runErr != nil {
@@ -132,6 +127,19 @@ func (m *model) badgeLine() string {
 			}
 			style = style.Foreground(lipgloss.Color(themeColor(color)))
 
+		}
+		if b.id == "activity" {
+			phase, context, _ := strings.Cut(b.label, "  ")
+			contextStyle := normal
+			if m.usage.historical {
+				contextStyle = m.styles.dim
+			} else if m.limit > 0 && float64(m.tokens)/float64(m.limit) >= 0.95 {
+				contextStyle = m.styles.err
+			} else if m.limit > 0 && float64(m.tokens)/float64(m.limit) >= 0.85 {
+				contextStyle = m.styles.warn
+			}
+			out = append(out, style.Render(" "+phase)+m.styles.dim.Render("  ")+contextStyle.Render(context+" "))
+			continue
 		}
 		out = append(out, style.Render(" "+b.label+" "))
 	}
@@ -184,6 +192,7 @@ func (m *model) rawHeaderItems() []headerItem {
 				rows = append(rows, info("Cached input: "+kTokens(m.progress.CachedTokens)))
 			}
 		}
+		rows = append(rows, m.contextItems()...)
 		if m.runErr != nil {
 			rows = append(rows, info("Error: "+m.runErr.Error()), headerItem{"Retry failed turn", "/retry", idle && m.retryRun != nil})
 		}
@@ -202,30 +211,35 @@ func (m *model) rawHeaderItems() []headerItem {
 		}
 		return rows
 	case "context":
-		rows := []headerItem{info("Context: " + strings.Replace(m.meter(), "ctx ", "", 1)), info("Source: " + nonEmpty(m.usage.source))}
-		if !m.usage.at.IsZero() {
-			rows = append(rows, info("Updated: "+m.usage.at.Format("15:04:05")))
-		}
-		if m.usage.last.Tokens > 0 {
-			kind := "reported"
-			if m.usage.last.Estimated {
-				kind = "estimated"
-			}
-			rows = append(rows, info(fmt.Sprintf("Last request: %s tokens (%s)", kTokens(m.usage.last.Tokens), kind)), info("Request time: "+m.usage.last.At.Format("Jan 2 15:04:05")))
-		}
-		if m.usage.source == "Saved history estimate" {
-			rows = append(rows, info("History estimate includes images; tool schemas are excluded."))
-		}
-		return append(rows, headerItem{"Compact saved history", "/compact", idle && m.stateFile != ""})
+		return m.contextItems()
 	case "run":
 		rows := []headerItem{info(m.stepLine()), info("Elapsed: " + formatElapsed(m.elapsed)), info(fmt.Sprintf("Tools: %d   Files: %d", m.toolsUsed, len(m.filesTouched)))}
 		if !m.firstToken.IsZero() {
 			rows = append(rows, info("First token: "+formatElapsed(m.firstToken.Sub(m.started))))
 		}
 		return rows
-
 	}
 	return nil
+}
+
+func (m *model) contextItems() []headerItem {
+	info := func(s string) headerItem { return headerItem{text: s} }
+	idle := m.state == stDone
+	rows := []headerItem{info("Context: " + strings.Replace(m.meter(), "ctx ", "", 1)), info("Source: " + nonEmpty(m.usage.source))}
+	if !m.usage.at.IsZero() {
+		rows = append(rows, info("Updated: "+m.usage.at.Format("15:04:05")))
+	}
+	if m.usage.last.Tokens > 0 {
+		kind := "reported"
+		if m.usage.last.Estimated {
+			kind = "estimated"
+		}
+		rows = append(rows, info(fmt.Sprintf("Last request: %s tokens (%s)", kTokens(m.usage.last.Tokens), kind)), info("Request time: "+m.usage.last.At.Format("Jan 2 15:04:05")))
+	}
+	if m.usage.source == "Saved history estimate" {
+		rows = append(rows, info("History estimate includes images; tool schemas are excluded."))
+	}
+	return append(rows, headerItem{"Compact saved history", "/compact", idle && m.stateFile != ""})
 }
 
 // Wrap informational rows so full model names, endpoints, and errors remain accessible.

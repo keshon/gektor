@@ -53,19 +53,58 @@ func (m *model) toggleThinking() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// Only measured backend progress gets a transient history block.
+// Compaction remains visible even before the backend reports token counts.
 func (m *model) prefillActive() bool {
 	p := m.progress
-	return m.state == stRunning && !m.hideSYS && p.Phase == "prefill" && !p.Estimated && p.PromptTokens > 0 && p.ProcessedTokens >= 0 && m.termW >= 40 && m.termH >= 18
+	visible := p.Phase == "checkpoint" || (p.Phase == "prefill" && !p.Estimated && p.PromptTokens > 0 && p.ProcessedTokens >= 0)
+	return m.state == stRunning && !m.hideSYS && visible && m.termW >= 40 && m.termH >= 18
+}
+
+func historyProgressText(p llm.Progress, st styles, width, frame int) string {
+	width = max(width, 1)
+	phase := "READ"
+	if p.Phase == "checkpoint" {
+		phase = "COMPACT"
+	}
+	heading := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorBusy))).Render(phase)
+	if p.Phase != "checkpoint" || (p.Subphase == "prefill" && !p.Estimated && p.PromptTokens > 0) {
+		return heading + "\n" + prefillText(p, st, width)
+	}
+	label := "Summarizing earlier steps"
+	if p.CompletionTokens > 0 {
+		label += fmt.Sprintf(" (%d tokens generated)", p.CompletionTokens)
+	}
+	span := max(width/8, 1)
+	position := (width - span) * frame / max(len(activityFrames)-1, 1)
+	bar := st.dim.Render(strings.Repeat("─", position)) +
+		lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorMode))).Render(strings.Repeat("━", span)) +
+		st.dim.Render(strings.Repeat("─", width-position-span))
+	return heading + "\n" + st.dim.Render(strings.Join(reflow(label, width), "\n")) + "\n" + bar
 }
 
 func prefillText(p llm.Progress, st styles, width int) string {
-	processed := min(p.ProcessedTokens, p.PromptTokens)
-	label := fmt.Sprintf("Server-reported prompt processing %d%% · %d/%d tokens", int(float64(processed)*100/float64(p.PromptTokens)), processed, p.PromptTokens)
-	if width < 60 {
-		label = fmt.Sprintf("Prefill %d%% · %d/%d", int(float64(processed)*100/float64(p.PromptTokens)), processed, p.PromptTokens)
+	width = max(width, 1)
+	total := max(p.PromptTokens, 0)
+	processed := min(max(p.ProcessedTokens, 0), total)
+	label := fmt.Sprintf("Cached unknown · Prompt %d/%d", processed, total)
+	filled := 0
+	// llama.cpp processed includes cache; only the suffix is new work.
+	if p.CacheKnown && p.CachedTokens >= 0 && p.CachedTokens <= processed {
+		cached := p.CachedTokens
+		work, done := total-cached, processed-cached
+		label = fmt.Sprintf("Cached %s · Processing %d/%d", kTokens(cached), done, work)
+		if work == 0 {
+			label = fmt.Sprintf("Cached %s · No new input to process", kTokens(cached))
+			filled = width
+		} else {
+			filled = int(float64(done) * float64(width) / float64(work))
+		}
+		if width < lipgloss.Width(label) {
+			label = fmt.Sprintf("Cached %s · New %s/%s", kTokens(cached), kTokens(done), kTokens(work))
+		}
+	} else if total > 0 {
+		filled = int(float64(processed) * float64(width) / float64(total))
 	}
-	filled := int(float64(processed) * float64(width) / float64(p.PromptTokens))
 	bar := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorMode))).Render(strings.Repeat("━", filled)) + st.dim.Render(strings.Repeat("─", width-filled))
 	return st.dim.Render(cellLine(label, width)) + "\n" + bar
 }

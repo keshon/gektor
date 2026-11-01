@@ -137,9 +137,9 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onCon
 		}
 		var chunk struct {
 			PromptProgress *struct {
-				Total     int `json:"total"`
-				Cache     int `json:"cache"`
-				Processed int `json:"processed"`
+				Total     int  `json:"total"`
+				Cache     *int `json:"cache"`
+				Processed int  `json:"processed"`
 			} `json:"prompt_progress"`
 			Timings *struct {
 				Prompt    int  `json:"prompt_n"`
@@ -171,7 +171,12 @@ func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onCon
 		}
 		if p := chunk.PromptProgress; p != nil && p.Total > 0 {
 			progress.Phase, progress.PromptTokens = "prefill", p.Total
-			progress.ProcessedTokens, progress.CachedTokens = p.Processed, p.Cache
+			progress.ProcessedTokens = p.Processed
+			progress.CacheKnown = p.Cache != nil
+			progress.CachedTokens = 0
+			if p.Cache != nil {
+				progress.CachedTokens = *p.Cache
+			}
 			promptKnown = true
 		}
 		previousRunes := generatedRunes

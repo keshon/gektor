@@ -27,14 +27,14 @@ Keep flags before the task text. Closing GEKTOR leaves the external server runni
 The unbranded one-row global menu exposes Session, Run, View, Settings and Help dropdowns. A separate one-row status header inside the transcript pane shows Plan/Act mode, model, context, and run status.
 Step/context/elapsed metrics remain visible while idle; a running turn adds
 a Braille spinner. The Run menu includes tool and file counts. Estimated context
-usage has a `~` prefix. Empty history shows `CTX 0/window` and `step 0/limit`.
+usage has a `~` prefix. Empty history shows `READY  0/window` and `STEP 0/limit`.
 Status badges are separated by two spaces; ratios have no spaces around `/`.
 
 Thinking and response fragments share a 16ms repaint buffer. Each frame paints
 everything received, with no character-by-character typing animation. Thinking
 is visible even before response text exists; tool calls remain complete cards.
 The activity badge distinguishes waiting (`WAIT`), server-reported prompt
-processing (`READ`, with a percentage when supplied), thinking (`THINK`),
+processing (`READ`), thinking (`THINK`),
 streamed response (`STREAM`), tools (`TOOLS`), and non-streamed reply (`REPLY`).
 llama.cpp telemetry supplies live prompt progress and generated token counts;
 servers without it show estimates marked `~`, not an invented read percentage.
@@ -121,19 +121,25 @@ as the answer arrives.
 ## Header badges
 
 The top menu includes the workspace directory, session ID and title. The badge
-strip below shows mode, activity, model, context, steps and elapsed time.
+strip below shows mode, combined activity/context and model, with `STEP current/limit`
+and total run elapsed time aligned right. The model name uses the remaining space
+and is shown in full when it fits.
 During a run, activity identifies waiting, prompt processing, thinking, streaming,
 tool execution or compaction and includes a braille spinner.
+For example: `⠋ COMPACT  56.6k/65.5k`. Context usage turns amber at 85% of the
+window and red at 95%; saved-history estimates remain gray.
 Click a status badge to inspect it, or use F9 to open the global menu without moving focus. Pane
-rules remain gray. Narrow terminals omit run and model badges before context.
+rules remain gray. Narrow terminals shorten or omit the model name, then omit
+run metrics if necessary to preserve activity and context.
 
 Mode offers Act/Plan while idle; Activity offers Stop or Retry when applicable.
 Model shows the configured backend, sanitized endpoint, transport, context
 window, and response budget. These are configuration details, not server-health
-measurements. Context offers manual compaction when an idle session has saved state.
+measurements. The activity/context menu includes usage details and manual
+compaction when an idle session has saved state.
 
-The context badge retains the latest request's prompt usage between turns.
-`~CTX` marks an estimate. Opening or compacting a saved task recomputes an
+The context count retains the latest request's prompt usage between turns.
+`~` marks an estimate. Opening or compacting a saved task recomputes an
 estimate from replayed text and tool calls, excluding tool schemas and image
 tokens. Context details identify the source and show previous request usage,
 which is saved in optional `usage.json` alongside `state.json`. Missing or
@@ -485,13 +491,18 @@ sessions. Hidden content remains in the archive and model context unchanged.
 **Select Theme…** opens the Dark/Light picker.
 
 During measured prompt processing, a transient SYSTEM block in the history
-viewport shows a progress bar and processed/total counts. Estimated or unavailable
+viewport separates cached input from new processing. The bar measures progress
+through uncached tokens when cache telemetry is available; otherwise it shows
+overall prompt progress with `Cached unknown`. Estimated or unavailable
 telemetry uses the usual activity indicator. Progress does not enter the
 conversation archive or model context and does not occupy the input hint area.
+Compaction uses the same SYSTEM layout with a `COMPACT` label: measured progress
+while reading input, then an animated bar while generating the summary.
 
 Outcome receipts show the outcome, session ID, saved session path and a quoted
 resume command, warnings, remaining tasks and any incomplete-work summary.
-Run errors show recovery advice appropriate to the cause; `/retry` continues from
+Run errors appear once in history with recovery advice; the header retains the
+ERROR status without repeating the error above the input. `/retry` continues from
 the saved checkpoint and does not roll back workspace changes.
 
 **Observed changes** lists paths recorded as changed during the run; it is omitted

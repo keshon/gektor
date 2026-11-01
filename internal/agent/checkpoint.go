@@ -69,7 +69,7 @@ func (a *Agent) checkpoint(ctx context.Context, previous, next []llm.Message) ([
 	}
 	req.OnProgress = func(p llm.Progress) {
 		if a.cfg.OnProgress != nil {
-			p.Phase = "checkpoint"
+			p.Subphase, p.Phase = p.Phase, "checkpoint"
 			a.cfg.OnProgress(p)
 		}
 	}
@@ -77,8 +77,14 @@ func (a *Agent) checkpoint(ctx context.Context, previous, next []llm.Message) ([
 	if err != nil {
 		return nil, err
 	}
-	if resp.FinishReason == "length" || len(resp.Message.ToolCalls) != 0 || len(resp.Message.Content) > 12000 {
-		return nil, fmt.Errorf("checkpoint was incomplete or exceeded its budget")
+	if resp.FinishReason == "length" {
+		return nil, fmt.Errorf("checkpoint reached its %d-token generation limit before finishing (summary: %d bytes, reasoning: %d bytes); previous context was not changed", output, len(resp.Message.Content), len(resp.Message.Reasoning))
+	}
+	if len(resp.Message.ToolCalls) != 0 {
+		return nil, fmt.Errorf("checkpoint returned %d tool calls instead of a JSON summary; no checkpoint tools were executed", len(resp.Message.ToolCalls))
+	}
+	if len(resp.Message.Content) > 12000 {
+		return nil, fmt.Errorf("checkpoint summary exceeded its 12000-byte limit (%d bytes)", len(resp.Message.Content))
 	}
 	if err := validateArguments(json.RawMessage(resp.Message.Content), json.RawMessage(checkpointSchema)); err != nil {
 		return nil, fmt.Errorf("invalid checkpoint: %w", err)

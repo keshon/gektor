@@ -26,11 +26,29 @@ func TestFailureRecoveryHints(t *testing.T) {
 		{agent.ErrMaxSteps, "/max-steps"}, {agent.ErrRunBudget, "follow-up"},
 		{&llm.APIError{Status: 401}, "credentials"}, {&llm.APIError{Status: 400}, "request settings"},
 		{&llm.APIError{Status: 503}, "saved checkpoint"},
-		{errors.New("checkpoint failed"), "previous context was retained"},
+		{errors.New("checkpoint failed"), "try the summary again"},
 	} {
 		if got := recoveryHint(tc.err); !strings.Contains(got, tc.want) {
 			t.Fatalf("%v: %s", tc.err, got)
 		}
+	}
+}
+
+func TestRunFailureAppearsOnceAndDoesNotShrinkComposer(t *testing.T) {
+	m := sizeModelTo(t, testModel(), 120, 34)
+	m.input.SetValue("preserved draft")
+	m.fitBottom()
+	height := m.transcript.Viewport.Height()
+	m.Update(doneMsg{err: errors.New("checkpoint failed: summary limit reached")})
+	view := ansi.Strip(m.View().Content)
+	if strings.Count(view, "summary limit reached") != 1 || !strings.Contains(view, "try the summary again") {
+		t.Fatal(view)
+	}
+	if m.transcript.Viewport.Height() != height || m.input.Value() != "preserved draft" {
+		t.Fatal("failure changed composer layout or draft")
+	}
+	if !strings.Contains(ansi.Strip(m.badgeLine()), "ERROR") {
+		t.Fatal("persistent failure status is missing")
 	}
 }
 

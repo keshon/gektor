@@ -457,7 +457,18 @@ func renderMdBlock(b block, raw string, st styles, width int) []string {
 				if b.role == roleThink {
 					code = bb
 				}
-				body = renderSpans(f, bb, bb.Bold(true), code, span)
+				if ml.table {
+					cells := strings.Split(f, "|")
+					for i, cell := range cells {
+						if i > 0 {
+							*span = spanState{}
+						}
+						cells[i] = renderSpans(cell, bb, bb.Bold(true), code, span)
+					}
+					body = strings.Join(cells, st.dim.Render("|"))
+				} else {
+					body = renderSpans(f, bb, bb.Bold(true), code, span)
+				}
 			}
 			out = append(out, body)
 		}
@@ -605,6 +616,7 @@ func (m *model) refreshContent() {
 	if m.prefillActive() {
 		p := m.progress
 		props.prefill = &p
+		props.progressFrame = m.spinnerFrame
 	}
 	m.transcript.refresh(props)
 }
@@ -744,6 +756,7 @@ type transcriptProps struct {
 	hideSYS, labels      bool
 	hideNames, hideTools bool
 	prefill              *llm.Progress
+	progressFrame        int
 }
 
 // refresh renders every block and assembles the parts. The name row opens a
@@ -811,7 +824,7 @@ func (t *transcriptState) refresh(props transcriptProps) {
 		}
 	}
 	if props.prefill != nil && !props.hideSYS {
-		progress := railText(prefillText(*props.prefill, props.styles, max(width-2, 1)), props.styles, width)
+		progress := railText(historyProgressText(*props.prefill, props.styles, max(width-2, 1), props.progressFrame), props.styles, width)
 		if !props.hideNames {
 			progress = speakerRow(systemSpeaker, roleStatus, props.styles, width) + "\n" + progress
 		}

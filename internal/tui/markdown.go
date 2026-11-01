@@ -19,6 +19,7 @@ import (
 type mdLine struct {
 	text          string
 	header, fence bool
+	table         bool
 }
 
 // mdBlockLines splits raw text into interpreted lines: fence tracking,
@@ -196,14 +197,14 @@ func renderTable(rows []string) []mdLine {
 		return "| " + strings.Join(padded, " | ") + " |"
 	}
 	var out []mdLine
-	out = append(out, mdLine{text: join(header), header: true})
+	out = append(out, mdLine{text: join(header), header: true, table: true})
 	rule := make([]string, ncol)
 	for i := range rule {
 		rule[i] = strings.Repeat("─", max(widths[i], 3))
 	}
 	out = append(out, mdLine{text: join(rule), fence: true})
 	for _, r := range body {
-		out = append(out, mdLine{text: join(r)})
+		out = append(out, mdLine{text: join(r), table: true})
 	}
 	return out
 }

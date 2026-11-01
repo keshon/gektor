@@ -62,7 +62,7 @@ func TestPrefillAndSystemRailMatchHistoryInBothThemes(t *testing.T) {
 			rows := strings.Split(ansi.Strip(view), "\n")
 			progressRow := -1
 			for y, line := range rows {
-				if strings.Contains(line, "Server-reported prompt processing 72%") {
+				if strings.Contains(line, "Cached unknown · Prompt") {
 					progressRow = y
 				}
 			}

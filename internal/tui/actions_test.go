@@ -96,11 +96,11 @@ func TestFocusAndMetricsHaveDedicatedPlaces(t *testing.T) {
 	m.state = stDone
 	m.width(tea.WindowSizeMsg{Width: 120, Height: 30})
 	m.steps, m.maxSteps = 7, 25
-	if strings.Contains(m.statusLine(), "step") || !strings.Contains(m.View().Content, "step 7/25") {
+	if strings.Contains(m.statusLine(), "step") || !strings.Contains(m.View().Content, "STEP 7/25") {
 		t.Fatal("metrics mixed with key hints")
 	}
 	rows := strings.Split(ansi.Strip(m.View().Content), "\n")
-	if !strings.Contains(rows[2], "step 7/25") || strings.Count(strings.Join(rows, "\n"), "step 7/25") != 1 {
+	if !strings.Contains(rows[2], "STEP 7/25") || strings.Count(strings.Join(rows, "\n"), "STEP 7/25") != 1 {
 		t.Fatal("run metrics must appear once in the top status row")
 	}
 	if strings.Contains(ansi.Strip(m.identityLine()), "HISTORY") {
@@ -124,7 +124,7 @@ func TestHeaderPrioritizesRunMetricsOnNarrowTerminals(t *testing.T) {
 	for _, width := range []int{80, 120} {
 		m.width(tea.WindowSizeMsg{Width: width, Height: 30})
 		line := ansi.Strip(m.identityLine())
-		for _, fact := range []string{"step 2/25", "CTX 4.1k/16.4k", "00:32"} {
+		for _, fact := range []string{"STEP 2/25", "4.1k/16.4k", "00:32"} {
 			if !strings.Contains(line, fact) {
 				t.Fatalf("header at width %d lost %q: %q", width, fact, line)
 			}

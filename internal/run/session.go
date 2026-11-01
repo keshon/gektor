@@ -120,7 +120,7 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, rol
 		}
 	}
 	env.OnProgress = func(p llm.Progress) {
-		emitter.Emit("progress", map[string]any{"phase": p.Phase, "prompt": p.PromptTokens, "completion": p.CompletionTokens, "cached": p.CachedTokens, "processed": p.ProcessedTokens, "estimated": p.Estimated, "detail": p.Detail})
+		emitter.Emit("progress", map[string]any{"phase": p.Phase, "subphase": p.Subphase, "prompt": p.PromptTokens, "completion": p.CompletionTokens, "cached": p.CachedTokens, "cache_known": p.CacheKnown, "processed": p.ProcessedTokens, "estimated": p.Estimated, "detail": p.Detail})
 		if prevOnProgress != nil {
 			prevOnProgress(p)
 		}

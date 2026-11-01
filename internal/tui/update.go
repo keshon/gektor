@@ -105,6 +105,9 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 			if m.lastSpin.IsZero() || time.Since(m.lastSpin) >= spinInterval {
 				m.spinnerFrame = (m.spinnerFrame + 1) % len(activityFrames)
 				m.lastSpin = time.Now()
+				if m.prefillActive() && m.progress.Phase == "checkpoint" {
+					m.refreshContent()
+				}
 			}
 		} else {
 			m.spinnerFrame = 0
@@ -147,10 +150,7 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 				m.appendBlock(markerBlock("— run finished —"))
 			}
 			if msg.err != nil {
-				// Failures live in the transcript, not just the bottom
-				// bar: scrolled-up context keeps the error beside the
-				// turn that produced it.
-				m.appendBlock(errorBlock("failed: " + msg.err.Error() + "\n" + recoveryHint(msg.err)))
+				m.appendBlock(errorBlock(msg.err.Error() + "\n" + recoveryHint(msg.err)))
 			}
 		}
 		m.alwaysMu.Lock()
@@ -249,12 +249,8 @@ func (m *model) fitBottom() {
 		return
 	}
 	m.input.SetWidth(max(m.termW-m.promptOffset()-5, 1))
-	// Done budgets the input box only (the hint moved right into the
-	// status row); a run error adds its own line on top.
+	// Input hints live in the status row; error details live in history.
 	lines := 1
-	if m.state == stDone && m.runErr != nil {
-		lines++
-	}
 	// The reject stage shows label + input: two bottom lines.
 	if m.state == stPermission && m.gstage == gsReject {
 		lines = 2
@@ -335,6 +331,8 @@ func (m *model) handleEvent(ev run.Event) {
 		number := func(key string) int { n, _ := ev.Fields[key].(float64); return int(n) }
 		estimated, _ := ev.Fields["estimated"].(bool)
 		m.progress = llm.Progress{Phase: phase, PromptTokens: number("prompt"), CompletionTokens: number("completion"), CachedTokens: number("cached"), ProcessedTokens: number("processed"), Estimated: estimated}
+		m.progress.CacheKnown, _ = ev.Fields["cache_known"].(bool)
+		m.progress.Subphase, _ = ev.Fields["subphase"].(string)
 		m.progress.Detail, _ = ev.Fields["detail"].(string)
 		if phase == "reasoning" || phase == "generating" || phase == "tool_call" {
 			m.usage.liveModel = true

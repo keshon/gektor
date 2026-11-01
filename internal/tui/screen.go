@@ -44,9 +44,6 @@ func (m *model) screenContent() string {
 		bottom = m.gateBar()
 	default:
 		bottom = m.input.View()
-		if m.state == stDone && m.runErr != nil {
-			bottom = m.styles.err.Render("error: "+truncate(m.runErr.Error(), 240)) + "\n" + bottom
-		}
 	}
 	if m.queued != "" && m.dialog == nil && m.state != stPermission && m.state != stAsk {
 		bottom = cellLine("Queued  Ctrl+E edit  Ctrl+X cancel: "+m.queued, m.transcript.Viewport.Width()) + "\n" + bottom

@@ -93,8 +93,30 @@ func TestEmptyHeaderShowsZeroMetricsAndTwoSpaceGaps(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 140, 25)
 	m.state, m.limit, m.modelName = stDone, 65536, "model.gguf"
 	line := ansi.Strip(m.badgeLine())
-	if !strings.Contains(line, "ACT  READY  model.gguf  CTX 0/65.5k  step 0/25  00:00") {
+	if !strings.Contains(line, "ACT  READY  0/65.5k  model.gguf") || !strings.HasSuffix(line, "STEP 0/25  00:00 ") {
 		t.Fatalf("header: %q", line)
+	}
+}
+
+func TestHeaderModelUsesSpaceAndRunIsRightAligned(t *testing.T) {
+	name := "NVIDIA-Nemotron-3.5-Bolt-74B-A9B-long-model-name.gguf"
+	for _, width := range []int{40, 80, 160} {
+		m := sizeModelTo(t, testModel(), width, 25)
+		m.modelName = name
+		line := ansi.Strip(m.badgeLine())
+		if width == 160 && !strings.Contains(line, name) {
+			t.Fatalf("model truncated despite available space: %q", line)
+		}
+		previousEnd := 0
+		for _, b := range m.headerBadges() {
+			if b.start < previousEnd || b.end > m.transcript.Viewport.Width() {
+				t.Fatalf("overlapping or overflowing badge: %+v", b)
+			}
+			previousEnd = b.end
+			if b.id == "run" && (b.end != m.transcript.Viewport.Width() || !strings.HasSuffix(line, b.label+" ")) {
+				t.Fatalf("run not right aligned: %q %+v", line, b)
+			}
+		}
 	}
 }
 

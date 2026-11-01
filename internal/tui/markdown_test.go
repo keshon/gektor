@@ -129,6 +129,31 @@ func TestMarkdownPipesLiteral(t *testing.T) {
 	}
 }
 
+func TestMarkdownTableBordersAreDim(t *testing.T) {
+	st := defaultStyles()
+	in := "| Day | Conditions |\n| --- | --- |\n| **Saturday** | `Snow` |"
+	for _, width := range []int{80, 12} {
+		rows := renderMdBlock(block{role: roleAnswer}, in, st, width)
+		for _, row := range rows {
+			if strings.Contains(row, "─") {
+				continue
+			}
+			withoutBorders := strings.ReplaceAll(row, st.dim.Render("|"), "")
+			if strings.Contains(ansi.Strip(withoutBorders), "|") {
+				t.Fatalf("width %d: bright table separator in %q", width, row)
+			}
+		}
+		if width == 80 {
+			if !strings.Contains(rows[0], baseStyle(roleAnswer, st).Bold(true).Render(" Day      ")) {
+				t.Fatalf("header lost bold style: %q", rows[0])
+			}
+			if strings.Contains(ansi.Strip(strings.Join(rows, "\n")), "**") {
+				t.Fatal("cell markup was not rendered")
+			}
+		}
+	}
+}
+
 func TestLiveRendersMarkdownBeforeTheStep(t *testing.T) {
 	st := defaultStyles()
 	streamed := ansi.Strip(strings.Join(renderLive(transcriptProps{live: "<think>private</think>Say **hello**.", styles: st, speaker: "Assistant", labels: true}, 80, tagged()), "\n"))

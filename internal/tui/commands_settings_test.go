@@ -82,7 +82,7 @@ func TestUnlimitedStepsShowsAsNoLimit(t *testing.T) {
 	if got := m.stepBudget(); got != "∞" {
 		t.Fatalf("stepBudget() = %q, want a no-limit marker", got)
 	}
-	if view := m.screenContent(); !strings.Contains(view, "step 3/∞") {
+	if view := m.screenContent(); !strings.Contains(view, "STEP 3/∞") {
 		t.Fatalf("header lost its step badge:\n%s", view)
 	}
 }
