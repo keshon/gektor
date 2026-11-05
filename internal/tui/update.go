@@ -69,16 +69,7 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	case clipboardMsg:
 		m.acceptClipboard(msg)
 		return m, nil
-	case tea.FocusMsg:
-		return m, m.focusTerminal()
-	case tea.BlurMsg:
-		m.terminalFocused = false
-		m.terminalFocusEpoch++
-		return m, nil
-	case terminalThemeRestoreMsg:
-		if m.terminalFocused && msg.epoch == m.terminalFocusEpoch {
-			return m, restoreTerminalColors()
-		}
+	case tea.FocusMsg, tea.BlurMsg:
 		return m, nil
 	case settingsDetailMsg:
 		m.acceptSettingsDetail(msg)
@@ -193,6 +184,9 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		case focusSearch:
 			return m.updateSearchInput(msg)
 		case focusInput:
+			if pasted, ok := msg.(tea.PasteMsg); ok && m.state != stAsk && pastedImagePath(pasted.Content) != "" {
+				return m, m.pasteImagePath(pasted.Content)
+			}
 			var cmd tea.Cmd
 			m.input, cmd = m.input.Update(msg)
 			m.fitInput()
@@ -336,6 +330,7 @@ func (m *model) handleEvent(ev run.Event) {
 	}()
 	switch ev.Name {
 	case "progress":
+		m.progressStarted = time.Now()
 		phase, _ := ev.Fields["phase"].(string)
 		number := func(key string) int { n, _ := ev.Fields[key].(float64); return int(n) }
 		estimated, _ := ev.Fields["estimated"].(bool)

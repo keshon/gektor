@@ -8,9 +8,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptrace"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/keshon/gektor/internal/llm"
 )
@@ -160,6 +163,9 @@ func (c *Client) responses(ctx context.Context, req llm.ChatRequest, onReasoning
 	if c.tokenSource == nil {
 		return llm.ChatResponse{}, fmt.Errorf("ChatGPT credentials were not configured")
 	}
+	if req.OnProgress != nil {
+		req.OnProgress(llm.Progress{Phase: "waiting", Subphase: "credentials", Detail: "Preparing ChatGPT credentials"})
+	}
 	token, err := c.tokenSource(ctx)
 	if err != nil {
 		return llm.ChatResponse{}, err
@@ -173,9 +179,14 @@ func (c *Client) responses(ctx context.Context, req llm.ChatRequest, onReasoning
 
 // sendResponses is also used by protocol tests with a local SSE server.
 func (c *Client) sendResponses(ctx context.Context, req llm.ChatRequest, body []byte, token string, onReasoning, onContent func(string)) (result llm.ChatResponse, resultErr error) {
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
 	partial := llm.Message{Role: llm.RoleAssistant}
 	defer func() {
 		if resultErr != nil {
+			if cause := context.Cause(ctx); cause != nil {
+				resultErr = cause
+			}
 			// Keep what observers already saw, but never authorize a partial call.
 			result = llm.ChatResponse{Message: partial, FinishReason: "incomplete_stream"}
 		}
@@ -187,11 +198,40 @@ func (c *Client) sendResponses(ctx context.Context, req llm.ChatRequest, body []
 	request.Header.Set("Authorization", "Bearer "+token)
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "text/event-stream")
+	if req.OnProgress != nil {
+		req.OnProgress(llm.Progress{Phase: "waiting", Subphase: "sending", Detail: "Sending request to ChatGPT"})
+	}
+	var traceMu sync.Mutex
+	traceFinished := false
+	trace := &httptrace.ClientTrace{WroteRequest: func(info httptrace.WroteRequestInfo) {
+		traceMu.Lock()
+		defer traceMu.Unlock()
+		if traceFinished {
+			return
+		}
+		if info.Err == nil && req.OnProgress != nil {
+			req.OnProgress(llm.Progress{Phase: "waiting", Subphase: "headers", Detail: "Waiting for ChatGPT response headers (90s limit)"})
+		}
+	}}
+	request = request.WithContext(httptrace.WithClientTrace(request.Context(), trace))
 	resp, err := c.http.Do(request)
+	// httptrace callbacks may outlive RoundTrip; finish delivery before the
+	// request observer or its session log can close.
+	traceMu.Lock()
+	traceFinished = true
+	traceMu.Unlock()
 	if err != nil {
 		return llm.ChatResponse{}, fmt.Errorf("ChatGPT request: %w", err)
 	}
 	defer resp.Body.Close()
+	idle := time.AfterFunc(c.idleTimeout(), func() {
+		cancel(fmt.Errorf("ChatGPT stream idle for %s: %w", c.idleTimeout(), context.DeadlineExceeded))
+	})
+	defer idle.Stop()
+
+	if req.OnProgress != nil {
+		req.OnProgress(llm.Progress{Phase: "waiting", Subphase: "response_headers", HTTPStatus: resp.StatusCode, RequestID: resp.Header.Get("x-request-id"), Detail: "ChatGPT response headers received"})
+	}
 	if resp.StatusCode != 200 {
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return llm.ChatResponse{}, responseFailure(resp.StatusCode, raw, resp.Header.Get("x-request-id"))
@@ -200,12 +240,13 @@ func (c *Client) sendResponses(ctx context.Context, req llm.ChatRequest, body []
 		return llm.ChatResponse{}, fmt.Errorf("ChatGPT returned a non-stream response")
 	}
 	if req.OnProgress != nil {
-		req.OnProgress(llm.Progress{Phase: "waiting", Detail: "Waiting for ChatGPT"})
+		req.OnProgress(llm.Progress{Phase: "waiting", Subphase: "stream", RequestID: resp.Header.Get("x-request-id"), Detail: "ChatGPT connected; waiting for response"})
 	}
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 8192), 8<<20)
 	var eventData []string
 	completedItems := map[int]json.RawMessage{}
+	firstEvent := true
 	process := func(raw []byte) (llm.ChatResponse, bool, error) {
 		var ev struct {
 			Item        json.RawMessage  `json:"item"`
@@ -221,6 +262,12 @@ func (c *Client) sendResponses(ctx context.Context, req llm.ChatRequest, body []
 		}
 		if err := json.Unmarshal(raw, &ev); err != nil {
 			return llm.ChatResponse{}, false, fmt.Errorf("invalid ChatGPT stream event")
+		}
+		if firstEvent {
+			firstEvent = false
+			if req.OnProgress != nil {
+				req.OnProgress(llm.Progress{Phase: "waiting", Subphase: "first_event", Detail: "ChatGPT is processing the response"})
+			}
 		}
 		switch ev.Type {
 		case "response.output_item.done":
@@ -264,6 +311,7 @@ func (c *Client) sendResponses(ctx context.Context, req llm.ChatRequest, body []
 		return llm.ChatResponse{}, false, nil
 	}
 	for scanner.Scan() {
+		idle.Reset(c.idleTimeout())
 		line := scanner.Text()
 		if strings.HasPrefix(line, "data:") {
 			eventData = append(eventData, strings.TrimPrefix(strings.TrimPrefix(line, "data:"), " "))

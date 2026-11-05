@@ -100,9 +100,7 @@ func (m *model) screenContent() string {
 
 func (m *model) View() tea.View {
 	v := tea.NewView(paintScreen(m.screenContent()))
-	// Renderer defaults color unstyled cells without overwriting popup surfaces.
-	v.BackgroundColor = lipgloss.Color(currentPalette().background)
-	v.ForegroundColor = lipgloss.Color(themeColor(colorPopupText))
+	// Theme only the character grid; terminal defaults and margins belong to the host.
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
 	v.ReportFocus = true

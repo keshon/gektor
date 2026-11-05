@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"strings"
+	"time"
 
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
@@ -408,7 +410,31 @@ func (a *Agent) chat(ctx context.Context, req llm.ChatRequest) (response llm.Cha
 		}
 	}()
 	req.Temperature = a.cfg.Temperature
-	req.OnProgress = a.cfg.OnProgress
+	started := time.Now()
+	attempt := 0
+	req.OnProgress = func(p llm.Progress) {
+		if p.Subphase == "sending" {
+			attempt++
+		}
+		p.Request, p.Attempt = a.requests, attempt
+		if a.cfg.OnProgress != nil {
+			a.cfg.OnProgress(p)
+		}
+	}
+	defer func() {
+		outcome := "completed"
+		if callErr != nil {
+			outcome = "failed"
+		}
+		var timeout net.Error
+		if errors.Is(callErr, context.DeadlineExceeded) || (errors.As(callErr, &timeout) && timeout.Timeout()) {
+			outcome = "timeout"
+		}
+		if errors.Is(ctx.Err(), context.Canceled) {
+			outcome = "cancelled"
+		}
+		req.OnProgress(llm.Progress{Phase: "request_done", DurationMS: time.Since(started).Milliseconds(), Outcome: outcome})
+	}()
 	progress := llm.Progress{Phase: "waiting", PromptTokens: llm.EstimatePromptTokens(req), Estimated: true}
 	if req.OnProgress != nil {
 		req.OnProgress(progress)

@@ -681,3 +681,37 @@ interrupt a tool. Commands that replace the session or change run settings
 still wait for the run to finish. Messages received during cancellation or
 failure are saved in history for an explicit retry. A message racing normal
 completion uses the existing follow-up queue instead.
+
+## Pasted image paths
+
+Some terminals handle Ctrl+V themselves and deliver a filename instead of a key
+press. Pasting a single absolute image path (optionally quoted) into the composer
+imports a snapshot as an attachment, including files outside the workspace.
+Paste each image separately, then add your message. Ordinary text stays text;
+typed paths and agent tools keep their workspace restrictions.
+
+## Request diagnostics
+
+TUI sessions write `diagnostics.jsonl` beside `state.json`. It records timestamps,
+run/request/attempt identifiers, request phases, completion status, and tool call
+boundaries. It excludes prompts, reasoning, tool arguments/results, credentials,
+and response bodies. The log rotates at 2 MiB and retains one previous file.
+
+ChatGPT connection setup uses the HTTP transport's bounded dial and TLS waits;
+response headers have a 90-second limit. Once streaming starts, five minutes
+without a stream line stops the request. Active generation retains the separate
+two-hour overall ceiling. Waiting and retry phases appear above the composer.
+These transport limits apply to ChatGPT, not local-model loading or generation.
+
+## Windows Terminal margins
+
+Gektor themes only the character grid and leaves the terminal's default colors alone.
+The pixels outside that grid belong to the terminal host, not PowerShell or the
+TUI. Windows Terminal uses its default background for padding and leftover pixels;
+a host reset can expose a dark outline around a light grid.
+
+For a dedicated light-theme terminal profile, set its background to `#F2F4F6`
+(and foreground to `#253542`). Gektor's dark background is `#11161C`. Matching the
+profile keeps the margin consistent even when the host restores its defaults.
+Setting padding to zero alone cannot remove fractional-cell pixels in maximized
+windows. Gektor does not override terminal colors on startup, focus, or typing.

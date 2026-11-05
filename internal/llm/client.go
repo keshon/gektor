@@ -104,6 +104,12 @@ type ChatRequest struct {
 // Progress separates server-reported prompt processing from generated output.
 // Estimated counters are display-only; final Usage remains authoritative.
 type Progress struct {
+	HTTPStatus                                                    int
+	Request                                                       int
+	Attempt                                                       int
+	RequestID                                                     string
+	DurationMS                                                    int64
+	Outcome                                                       string
 	CacheKnown                                                    bool // Distinguishes a measured zero from unavailable cache telemetry.
 	Phase                                                         string
 	PromptTokens, CompletionTokens, CachedTokens, ProcessedTokens int

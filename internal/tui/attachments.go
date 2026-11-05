@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -45,6 +46,9 @@ func (m *model) pasteClipboard(imageOnly bool) tea.Cmd {
 				out.err = fmt.Errorf("clipboard contains no image")
 			} else {
 				out.text, out.err = textclipboard.ReadAll()
+				if out.err == nil {
+					out = importPastedImage(out)
+				}
 			}
 			return out
 		}
@@ -157,4 +161,36 @@ func (m *model) queuedLabel() string {
 		return fmt.Sprintf("%s [%d images]", m.queued, len(m.queuedImages))
 	}
 	return m.queued
+}
+
+// Only an explicit paste of a single absolute image path grants import access.
+// Ordinary typed paths and agent tools retain the workspace boundary.
+func pastedImagePath(text string) string {
+	path := strings.TrimSpace(text)
+	if len(path) >= 2 && ((path[0] == '"' && path[len(path)-1] == '"') || (path[0] == '\'' && path[len(path)-1] == '\'')) {
+		path = path[1 : len(path)-1]
+	}
+	if strings.ContainsAny(path, "\r\n") || !filepath.IsAbs(path) || !llm.IsImagePath(path) {
+		return ""
+	}
+	return path
+}
+func importPastedImage(msg clipboardMsg) clipboardMsg {
+	path := pastedImagePath(msg.text)
+	if path == "" {
+		return msg
+	}
+	msg.path, msg.err = llm.SnapshotImage(path, gektor.Sub("images"))
+	msg.text = ""
+	return msg
+}
+func (m *model) pasteImagePath(text string) tea.Cmd {
+	if m.clipboardBusy {
+		m.appendBlock(errorBlock("Wait for the current image import, then paste again."))
+		return nil
+	}
+	m.clipboardBusy = true
+	m.fitBottom()
+	msg := clipboardMsg{text: text, session: m.stateFile, revision: m.attachmentEpoch}
+	return func() tea.Msg { return importPastedImage(msg) }
 }

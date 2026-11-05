@@ -3,17 +3,14 @@ package tui
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
-	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/config"
 )
 
-func TestWindowFocusRestoresTerminalThemeWithoutEditingDraft(t *testing.T) {
+func TestWindowFocusLeavesTerminalColorsAndDraftAlone(t *testing.T) {
 	defer setTheme("dark")
 	for _, theme := range []string{"light", "dark"} {
 		m := sizeModel(t, testModel())
@@ -26,20 +23,8 @@ func TestWindowFocusRestoresTerminalThemeWithoutEditingDraft(t *testing.T) {
 		}
 		m.Update(tea.BlurMsg{})
 		_, cmd := m.Update(tea.FocusMsg{})
-		if cmd == nil {
-			t.Fatal("focus recovery did not restore terminal colors")
-		}
-		batch, ok := cmd().(tea.BatchMsg)
-		if !ok || len(batch) != 2 {
-			t.Fatal("focus recovery needs immediate and settled repairs")
-		}
-		raw, ok := batch[0]().(tea.RawMsg)
-		if !ok {
-			t.Fatal("theme restoration bypassed the renderer output queue")
-		}
-		colors, ok := raw.Msg.(string)
-		if !ok || !strings.Contains(colors, ansi.SetBackgroundColor(currentPalette().background)) || !strings.Contains(colors, ansi.SetForegroundColor(themeColor(colorPopupText))) {
-			t.Fatal("focus recovery used different terminal colors than the frame")
+		if cmd != nil {
+			t.Fatal("focus must not override terminal colors")
 		}
 		if m.input.Value() != "unfinished\nsecond line" || !m.input.Focused() {
 			t.Fatal("window focus changed the draft or its input owner")
@@ -120,59 +105,14 @@ func TestScreenPaintPreservesPopupAndSemanticColors(t *testing.T) {
 	}
 }
 
-func TestThemeSetsRendererDefaultsForUnstyledCells(t *testing.T) {
+func TestThemeLeavesTerminalDefaultsAlone(t *testing.T) {
 	defer setTheme("dark")
 	for _, name := range []string{"dark", "light"} {
 		setTheme(name)
 		m := settingsModel(t)
 		view := m.View()
-		if view.BackgroundColor == nil || view.ForegroundColor == nil {
-			t.Fatal("renderer inherits terminal colors")
+		if view.BackgroundColor != nil || view.ForegroundColor != nil {
+			t.Fatal("theme overrides terminal defaults")
 		}
-		r, g, b, a := view.BackgroundColor.RGBA()
-		er, eg, eb, ea := lipgloss.Color(currentPalette().background).RGBA()
-		if r != er || g != eg || b != eb || a != ea {
-			t.Fatal("wrong frame background")
-		}
-		r, g, b, a = view.ForegroundColor.RGBA()
-		er, eg, eb, ea = lipgloss.Color(themeColor(colorPopupText)).RGBA()
-		if r != er || g != eg || b != eb || a != ea {
-			t.Fatal("unstyled text uses terminal foreground")
-		}
-	}
-}
-
-func TestTerminalThemeRepairsLateResetAndIgnoresStaleFocus(t *testing.T) {
-	defer setTheme("dark")
-	m := sizeModel(t, testModel())
-	m.state = stDone
-	m.applyTheme("light")
-	m.input.SetValue("keep my draft")
-	m.Update(tea.FocusMsg{})
-	epoch := m.terminalFocusEpoch
-	// Simulate the host resetting its background after the immediate focus repair.
-	_, cmd := m.Update(terminalThemeRestoreMsg{epoch: epoch})
-	if cmd == nil {
-		t.Fatal("late host reset was not repaired")
-	}
-	raw, ok := cmd().(tea.RawMsg)
-	if !ok || !strings.Contains(raw.Msg.(string), ansi.SetBackgroundColor(currentPalette().background)) {
-		t.Fatal("repair did not restore light background")
-	}
-	m.applyTheme("dark")
-	_, cmd = m.Update(terminalThemeRestoreMsg{epoch: epoch})
-	if cmd == nil || !strings.Contains(cmd().(tea.RawMsg).Msg.(string), ansi.SetBackgroundColor(currentPalette().background)) {
-		t.Fatal("delayed repair restored stale theme")
-	}
-	m.Update(tea.BlurMsg{})
-	if _, cmd = m.Update(terminalThemeRestoreMsg{epoch: epoch}); cmd != nil {
-		t.Fatal("repair ran after focus loss")
-	}
-	m.Update(tea.FocusMsg{})
-	if _, cmd = m.Update(terminalThemeRestoreMsg{epoch: epoch}); cmd != nil {
-		t.Fatal("old repair ran during another focus transition")
-	}
-	if m.input.Value() != "keep my draft" {
-		t.Fatal("theme repair changed draft")
 	}
 }

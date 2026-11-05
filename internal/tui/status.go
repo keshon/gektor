@@ -18,6 +18,9 @@ func (m *model) statusLine() string {
 		return m.styles.status.Render("Esc close  ↑↓ scroll")
 	}
 	hint := m.actionHint()
+	if m.state == stRunning && m.progress.Detail != "" && (m.progress.Phase == "waiting" || m.progress.Phase == "retry") {
+		hint = m.progress.Detail + " · " + formatElapsed(time.Since(m.progressStarted)) + " · Esc stop"
+	}
 	if !m.transcript.Follow && m.state == stDone {
 		hint += "  Scrolled up"
 	}

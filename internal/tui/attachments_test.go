@@ -141,3 +141,38 @@ func TestAttachmentRenderSizes(t *testing.T) {
 		t.Logf("width %d:\n%s", width, view)
 	}
 }
+
+func TestTerminalPastedImageImportsOutsideWorkspace(t *testing.T) {
+	t.Setenv("USERPROFILE", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	m := sizeModel(t, testModel())
+	m.state = stDone
+	source := attachmentFixture(t)
+	m.input.SetValue("describe ")
+	_, cmd := m.Update(tea.PasteMsg{Content: "\"" + source + "\""})
+	if cmd == nil {
+		t.Fatal("no import command")
+	}
+	msg, ok := cmd().(clipboardMsg)
+	if !ok {
+		t.Fatal("unexpected paste command")
+	}
+	m.Update(msg)
+	if len(m.draftImages) != 1 || m.draftImages[0] == source || m.input.Value() != "describe " {
+		t.Fatalf("draft: %v %q", m.draftImages, m.input.Value())
+	}
+	if err := os.Remove(source); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(m.draftImages[0]); err != nil {
+		t.Fatal("attachment not snapshotted", err)
+	}
+}
+func TestPastePathRecognitionDoesNotImportProse(t *testing.T) {
+	path := attachmentFixture(t)
+	for _, text := range []string{"look at " + path, path + "\n" + path, "relative.png", "https://example.com/image.png"} {
+		if pastedImagePath(text) != "" {
+			t.Fatalf("recognized non-attachment %q", text)
+		}
+	}
+}

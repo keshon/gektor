@@ -109,7 +109,7 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, rol
 		}
 	}
 	env.OnProgress = func(p llm.Progress) {
-		emitter.Emit("progress", map[string]any{"phase": p.Phase, "subphase": p.Subphase, "prompt": p.PromptTokens, "completion": p.CompletionTokens, "cached": p.CachedTokens, "cache_known": p.CacheKnown, "processed": p.ProcessedTokens, "estimated": p.Estimated, "detail": p.Detail})
+		emitter.Emit("progress", map[string]any{"phase": p.Phase, "subphase": p.Subphase, "prompt": p.PromptTokens, "completion": p.CompletionTokens, "cached": p.CachedTokens, "cache_known": p.CacheKnown, "processed": p.ProcessedTokens, "estimated": p.Estimated, "detail": p.Detail, "request": p.Request, "attempt": p.Attempt, "request_id": p.RequestID, "http_status": p.HTTPStatus, "duration_ms": p.DurationMS, "outcome": p.Outcome})
 		if prevOnProgress != nil {
 			prevOnProgress(p)
 		}
@@ -195,6 +195,8 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, rol
 }
 
 func (s *Session) Run(ctx context.Context) (string, error) {
+	closeDiagnostics := s.diagnostics()
+	defer closeDiagnostics()
 	a, emitter, env := s.build(ctx)
 	ans, err := a.Run(ctx, s.cfg.Task, s.cfg.Images...)
 	if err != nil {
@@ -217,6 +219,8 @@ func (s *Session) asker() func(context.Context, string) (string, error) {
 
 // Resume continues from saved history with a note, mirroring Agent.Resume.
 func (s *Session) Resume(ctx context.Context, history []llm.Message, note string, images ...string) (string, error) {
+	closeDiagnostics := s.diagnostics()
+	defer closeDiagnostics()
 	a, emitter, env := s.build(ctx)
 	var ans string
 	var err error

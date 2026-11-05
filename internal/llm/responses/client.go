@@ -13,6 +13,7 @@ import (
 type Client struct {
 	reasoningEffort                                string
 	reasoningSummary                               bool
+	streamIdleTimeout                              time.Duration
 	baseURL, model                                 string
 	http                                           *http.Client
 	tokenSource                                    func(context.Context) (string, error)
@@ -22,7 +23,7 @@ type Client struct {
 }
 
 func New(baseURL, model, scope string, token func(context.Context) (string, error)) *Client {
-	return &Client{baseURL: baseURL, model: model, replayScope: scope, tokenSource: token, http: &http.Client{Timeout: 120 * time.Minute}}
+	return &Client{baseURL: baseURL, model: model, replayScope: scope, tokenSource: token, http: responseHTTPClient()}
 }
 func (c *Client) Chat(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
 	return c.responses(ctx, req, nil, nil)

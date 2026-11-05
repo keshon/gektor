@@ -99,8 +99,7 @@ type model struct {
 	draftImages, queuedImages []string
 	clipboardBusy             bool
 	attachmentEpoch           uint64
-	terminalFocusEpoch        uint64
-	terminalFocused           bool
+	progressStarted           time.Time
 	evaluation                *evaluationJob
 	gateDraft                 string
 	events                    chan run.Event

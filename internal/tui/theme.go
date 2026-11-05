@@ -1,10 +1,7 @@
 package tui
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"fmt"
-	"github.com/charmbracelet/x/ansi"
-	"time"
 
 	"github.com/keshon/gektor/internal/config"
 )
@@ -59,18 +56,4 @@ func (m *model) openTheme() {
 		return nil
 	})
 	m.dialog.form.Choices = map[string][]string{"theme": {"dark", "light"}}
-}
-
-// A host can restore its profile colors after delivering the focus event.
-// Repair once after the transition; epochs cancel stale repairs on blur.
-type terminalThemeRestoreMsg struct{ epoch uint64 }
-
-func restoreTerminalColors() tea.Cmd {
-	return tea.Raw(ansi.SetForegroundColor(themeColor(colorPopupText)) + ansi.SetBackgroundColor(currentPalette().background))
-}
-func (m *model) focusTerminal() tea.Cmd {
-	m.terminalFocused = true
-	m.terminalFocusEpoch++
-	epoch := m.terminalFocusEpoch
-	return tea.Batch(restoreTerminalColors(), tea.Tick(250*time.Millisecond, func(time.Time) tea.Msg { return terminalThemeRestoreMsg{epoch} }))
 }
