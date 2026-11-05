@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	pathmatch "path"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -20,7 +21,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	pathmatch "path"
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
@@ -60,9 +60,10 @@ type Probe struct {
 
 	// Seed is a directory copied in as the starting workspace, relative to
 	// the repo root. Empty means start from an empty directory.
-	Seed    string   `json:"seed"`
-	Git     bool     `json:"git,omitempty"`
-	Replies []string `json:"replies,omitempty"`
+	Seed      string   `json:"seed"`
+	Generated string   `json:"generated,omitempty"`
+	Git       bool     `json:"git,omitempty"`
+	Replies   []string `json:"replies,omitempty"`
 
 	// Verify is the workspace verdict. Every check must pass.
 	Verify []Check `json:"verify"`
@@ -334,7 +335,7 @@ func main() {
 	model := flag.String("model", "local", "model name: ignored by most local servers, required for remote providers")
 	dir := flag.String("probes", "eval/probes", "directory of probe .json files")
 	only := flag.String("only", "", "run only probes whose name contains this substring")
-	suite := flag.String("suite", "", "named frozen subset: core (seven baseline scenarios)")
+	suite := flag.String("suite", "", "named frozen subset: core or workflows")
 	jobsN := flag.Int("jobs", 1, "how many probes to run at once. Both backends batch concurrent "+
 		"requests (koboldcpp --parallelrequests, llama-server --parallel) and neither helps unless "+
 		"the client sends them; raising this past what the server was started with just queues")
@@ -628,6 +629,24 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 			return res
 		}
 	}
+	if p.Generated != "" {
+		files, err := workflowFixture(p.Generated)
+		if err != nil {
+			res.RunError = err.Error()
+			return res
+		}
+		for path, data := range files {
+			target := filepath.Join(work, filepath.FromSlash(path))
+			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+				res.RunError = err.Error()
+				return res
+			}
+			if err := os.WriteFile(target, data, 0600); err != nil {
+				res.RunError = err.Error()
+				return res
+			}
+		}
+	}
 	ws, err := workspace.New(work)
 	if err != nil {
 		res.RunError = "workspace: " + err.Error()
@@ -776,6 +795,11 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 	res.CheckSeconds = time.Since(checkStarted).Seconds()
 	res.Failures = append(res.Failures, res.ArtifactFailures...)
 	res.Failures = append(res.Failures, checkTrace(p, calls)...)
+	if p.Generated != "" {
+		if err := checkWorkflowTrace(calls, ws); err != nil {
+			res.Failures = append(res.Failures, err.Error())
+		}
+	}
 	res.Failures = append(res.Failures, checkAnswer(p, answer)...)
 
 	res.PeakPromptTokens = int(atomic.LoadInt64(&counter.peakPrompt))
@@ -1115,6 +1139,11 @@ func loadProbes(dir, only string) ([]Probe, error) {
 		// Selftest before spend: unknown check types, missing check
 		// fields, and uncompilable regexes fail here, dry, instead of
 		// mid-run after model calls.
+		if p.Generated != "" {
+			if _, err := workflowFixture(p.Generated); err != nil {
+				return nil, fmt.Errorf("%s: %w", path, err)
+			}
+		}
 		for i, c := range p.Verify {
 			if err := ValidateCheck(c); err != nil {
 				return nil, fmt.Errorf("%s: verify[%d]: %w", path, i, err)

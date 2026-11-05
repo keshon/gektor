@@ -1,6 +1,17 @@
 package tools
 
-import "github.com/keshon/gektor/internal/agent"
+import (
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/tools/pixelita"
+	"github.com/keshon/gektor/internal/tools/workflow"
+)
+
+func nativeInstructions(id string) string {
+	if id == "native_images" {
+		return "These native tools call Pixelita in-process; CLI setup/discovery is unnecessary. unsupported_metadata is a shared engine limitation: do not retry via CLI, keep or apply. Report the restriction and preserve profiles. Claim source preservation only from matching source hashes."
+	}
+	return ""
+}
 
 // Factories construct fresh native tools; no entry captures session state.
 func builtinPackages() []packageDefinition {
@@ -51,6 +62,16 @@ func builtinPackages() []packageDefinition {
 			{func(d packageDependencies) agent.Tool { return Webfetch{} }, true},
 			{func(d packageDependencies) agent.Tool { return FetchRaw{} }, true},
 			{func(d packageDependencies) agent.Tool { return SearchWeb{WS: d.WS} }, true},
+		}},
+		{"native_images", "Inspect, preview, write separate image variants and compare fidelity", Lazy, []toolEntry{
+			{func(d packageDependencies) agent.Tool { return &pixelita.Tool{WS: d.WS, Operation: "inspect"} }, true},
+			{func(d packageDependencies) agent.Tool { return &pixelita.Tool{WS: d.WS, Operation: "preview"} }, true},
+			{func(d packageDependencies) agent.Tool { return &pixelita.Tool{WS: d.WS, Operation: "variants"} }, false},
+			{func(d packageDependencies) agent.Tool { return &pixelita.Tool{WS: d.WS, Operation: "compare"} }, true},
+		}},
+		{"native_workflows", "Validate and manually run saved image recipes", Lazy, []toolEntry{
+			{func(d packageDependencies) agent.Tool { return &workflow.Tool{WS: d.WS, ValidateOnly: true} }, true},
+			{func(d packageDependencies) agent.Tool { return &workflow.Tool{WS: d.WS} }, false},
 		}},
 	}
 }

@@ -1,36 +1,21 @@
 ---
 name: pixelita
-description: Inspect, optimize, resize, convert and compare image assets with pixelita; visual judgment requires vision.
+description: Inspect, preview, resize and compare images with Gektor's native Pixelita tools; save reusable image recipes.
 ---
 
-# Image assets
+# Native image tools
 
-1. Find pixelita on PATH; Windows fallback:
-   `D:\Projects\dev\keshon\pixelita\bin\pixelita.exe`.
-   Use run_program with literal args; run_shell only for shell syntax. Query
-   `pixelita capabilities --json` before assuming operations/flags. Do not install
-   or build it automatically. If unavailable, report that blocker and its source:
-   https://github.com/keshon/pixelita.
-2. Inspect with `pixelita inspect --json <paths>`. Add --measure only for encoding
-   estimates; large directories can be expensive. skipped/headers_only is a
-   successful metadata inspection.
-3. Preview with `pixelita optimize --json <paths>`; it writes nothing. Inspect
-   strategy, skips and errors. Add --apply and an explicit --out-dir to perform
-   an authorized operation. Default to separate outputs; source replacement,
-   deletion and overwriting existing outputs require authorization for those effects.
-4. Report measured bytes, dimensions and fidelity; confirm writes from the apply
-   result. Preview savings are estimates. Inspect each failed/skipped item, not
-   just process exit. JSON contains schema/items/summary; capabilities includes
-   build metadata.
-
-- --format webp opts into conversion; --widths 640,1280 opts into resizing.
-  Both remain previews without --apply. Generate variants from originals and
-  update consuming references when names/formats change.
-- Compare with `pixelita compare --json --strict-size original.png optimized.png`.
-  PSNR/SSIM measure similarity, not semantic or visual correctness.
-- pixelita view produces a preview file, not LLM vision. Read images with
-  read_file only when image input is enabled; otherwise claim no visual judgment.
-  Metadata/optimization/comparison need no projector or backend switch.
-- Keep asset/output paths inside the task workspace. Plan has no shell access:
-  describe operations there and execute in Act. For other flags, use
-  `pixelita <command> --help`; report missing capabilities rather than guessing.
+1. Enable `native_images`. Use `image_inspect` for metadata, `image_preview` for
+   write-free estimates, `image_variants` for explicit widths in a new out_dir,
+   and `image_compare` for two files. Use the published argument schemas.
+2. For reusable recipes enable `native_workflows`. Save JSON with only version,
+   name and steps; version is 1, each step has id, tool and args. Validate and run
+   that saved file with `recipe_path`. Validation checks structure, not image
+   compatibility. The runner stops on a failed or blocked operation.
+3. Preserve originals. Report unsupported_metadata as a capability limitation;
+   keep/apply/retry cannot bypass it. Do not strip profiles or probe CLI alternatives.
+   If native capabilities are absent, report that this build lacks the integration.
+4. Report written outputs separately from previews. Claim source preservation
+   only from matching before/after hashes. PSNR/SSIM are measurements, not visual
+   approval. Read images with read_file for visual judgment only when image input
+   is enabled. No executable lookup, installation or backend switch is needed.

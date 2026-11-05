@@ -52,7 +52,7 @@ func hasTool(a interface{ ToolNames() []string }, name string) bool {
 // specifically about those two tools.
 func TestInteractive_HasTheToolsThatShip(t *testing.T) {
 	a := Interactive(testEnv(t), "", "", func(context.Context, string) (string, error) { return "", nil }, nil)
-	for _, want := range []string{"ask_user", "delegate_task", "write_file", "run_shell"} {
+	for _, want := range []string{"ask_user", "delegate_task", "write_file", "run_shell", "discover_capabilities", "enable_capability"} {
 		if !hasTool(a, want) {
 			t.Errorf("interactive agent is missing %s — got %v", want, a.ToolNames())
 		}

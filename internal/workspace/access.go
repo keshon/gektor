@@ -75,12 +75,30 @@ func (w *Workspace) WriteFile(name string, data []byte, mode os.FileMode) error 
 	}
 	return w.files.WriteFile(rel, data, mode)
 }
+
+// CreateExclusive refuses existing files, including symlinks and hard links.
+func (w *Workspace) CreateExclusive(name string, mode os.FileMode) (*os.File, error) {
+	rel, err := w.Relative(name)
+	if err != nil {
+		return nil, err
+	}
+	return w.files.OpenFile(rel, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
+}
 func (w *Workspace) MkdirAll(name string, mode os.FileMode) error {
 	rel, err := w.Relative(name)
 	if err != nil {
 		return err
 	}
 	return w.files.MkdirAll(rel, mode)
+}
+
+// Mkdir reserves a new directory; unlike MkdirAll it rejects an existing path.
+func (w *Workspace) Mkdir(name string, mode os.FileMode) error {
+	rel, err := w.Relative(name)
+	if err != nil {
+		return err
+	}
+	return w.files.Mkdir(rel, mode)
 }
 func (w *Workspace) Rename(from, to string) error {
 	src, err := w.Relative(from)

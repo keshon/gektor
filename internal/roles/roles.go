@@ -377,9 +377,8 @@ func (e Env) configureTools(cfg *agent.Config, mainAgent, allowQuestions bool, e
 		browser = &tools.EnableBrowser{Browser: e.Browser, Catalog: catalog}
 		extra = append(extra, browser)
 	}
-	if len(sources) > 0 {
-		extra = append(extra, tools.DiscoverCapabilities{Catalog: catalog}, tools.EnableCapability{Catalog: catalog})
-	}
+	// Native optional packs exist even without external capability sources.
+	extra = append(extra, tools.DiscoverCapabilities{Catalog: catalog}, tools.EnableCapability{Catalog: catalog})
 	var composeErr error
 	cfg.Tools, composeErr = tools.Compose(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.Vision, catalog, e.NativeExposure, extra...)
 	if composeErr != nil {
@@ -396,6 +395,7 @@ func (e Env) configureTools(cfg *agent.Config, mainAgent, allowQuestions bool, e
 		cfg.System += catalog.Map()
 	}
 	catalog.Registry = cfg.Tools
+	tools.BindWorkflowPolicy(catalog, e.WS, e.policy(), e.ResolveGate())
 	cfg.SaveCapabilities = catalog.Save
 	cfg.RestoreCapabilities = func(ctx context.Context, states []session.Capability) error {
 		if composeErr != nil {

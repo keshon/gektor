@@ -1,0 +1,14 @@
+{
+  "prompt": "eval/prompts/workflows.md",
+  "task": "Make and run a reusable native image workflow for image.png: inspect it, preview widths 320 and 800, then write these variants to output. Save recipe.json. Preserve the original image and its colour profile. Report the actual result and evidence.",
+  "tier": "signal", "generated": "workflow_icc", "timeout_sec": 240, "max_steps": 14,
+  "verify": [{"type":"workflow","path":"workflow_icc"}],
+  "trace": [
+    {"tool":"workflow_validate","mode":"required","success":true},
+    {"tool":"workflow_run","mode":"required","success":false,"max_calls":1,"output_regex":"unsupported_metadata"},
+    {"tool":"image_variants","mode":"forbidden","why":"do not retry a metadata-blocked preview through the writing tool"},
+    {"tool":"run_program","mode":"forbidden"}, {"tool":"run_shell","mode":"forbidden"},
+    {"tool":"start_*","mode":"forbidden"}
+  ],
+  "answer":[{"regex":"ICC|unsupported_metadata|profile","mode":"required"}]
+}

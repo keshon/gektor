@@ -124,6 +124,11 @@ restore before eager preparation. Native definitions are checked immediately;
 external adapters still reconnect and validate on use. Eager native schemas can
 be previewed for context reports without publishing them or making network calls.
 Discovery and a bounded prompt map share one optional-package catalog.
+Built-in `native_images` and `native_workflows` packages load on demand.
+`tools/pixelita` stages rooted inputs for the external Pixelita Go library;
+`tools/workflow` adapts manual recipes to `internal/automation`. The runner has
+no model dependency and only dispatches allowlisted image steps. Nested steps
+retain direct-call permissions. Run records live in the task workspace.
 Main-only sources are excluded for children before loading; role constructors
 reject forbidden direct extras. Plan can activate native packages without IO,
 but external activation stays blocked. Every resulting call still goes through

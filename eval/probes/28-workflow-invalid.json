@@ -1,0 +1,14 @@
+{
+  "prompt": "eval/prompts/workflows.md",
+  "task": "Check whether the saved recipe.json is valid using native workflow validation. Report the exact problem if there is one. Do not edit the recipe or execute its steps.",
+  "tier": "signal", "generated": "workflow_invalid", "timeout_sec": 180, "max_steps": 10,
+  "verify": [{"type":"workflow","path":"workflow_invalid"}],
+  "trace": [
+    {"tool":"workflow_validate","mode":"required","success":false,"output_regex":"additional properties.*input"},
+    {"tool":"workflow_run","mode":"forbidden"}, {"tool":"image_variants","mode":"forbidden"},
+    {"tool":"write_file","mode":"forbidden"}, {"tool":"patch_file","mode":"forbidden"},
+    {"tool":"run_program","mode":"forbidden"}, {"tool":"run_shell","mode":"forbidden"},
+    {"tool":"start_*","mode":"forbidden"}
+  ],
+  "answer":[{"regex":"input","mode":"required"}]
+}

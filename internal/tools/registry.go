@@ -6,6 +6,8 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/checks"
+	"github.com/keshon/gektor/internal/tools/pixelita"
+	"github.com/keshon/gektor/internal/tools/workflow"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -29,6 +31,18 @@ func PathResources(ws *workspace.Workspace, tool string, args json.RawMessage) (
 			return nil, err
 		}
 		paths = []string{in.From, in.To}
+	case "image_inspect", "image_preview", "image_variants", "image_compare":
+		var err error
+		paths, err = pixelita.Resources(args)
+		if err != nil {
+			return nil, err
+		}
+	case "workflow_run", "workflow_validate":
+		var err error
+		paths, err = workflow.Resources(args)
+		if err != nil {
+			return nil, err
+		}
 	default:
 		return nil, nil
 	}

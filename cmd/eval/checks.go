@@ -28,6 +28,9 @@ const checkShellTimeout = 120 * time.Second
 // ValidateCheck catches invalid frozen criteria before model calls.
 func ValidateCheck(c Check) error {
 	switch c.Type {
+	case "workflow":
+		_, err := workflowFixture(c.Path)
+		return err
 	case "", "none":
 		return nil
 	case "file_exists", "file_absent":
@@ -68,6 +71,11 @@ func ValidateCheck(c Check) error {
 
 func RunCheck(ctx context.Context, c Check, ws *workspace.Workspace) (output string, ok bool) {
 	switch c.Type {
+	case "workflow":
+		if err := checkWorkflow(c.Path, ws); err != nil {
+			return err.Error(), false
+		}
+		return "workflow artifacts and preservation verified", true
 	case "", "none":
 		return "(no check declared)", true
 

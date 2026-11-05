@@ -6,6 +6,7 @@ Current guides:
 - [Setup](bootstrap.md): external server setup, saved data and release contents.
 - [CLI reference](cli.md): flags, backend examples, permissions, mode limitations.
 - [Extensions](extensions.md): capability packs, executable adapters and skill libraries.
+- [Image workflows](workflows.md): built-in image tools and saved recipes.
 - [Browser](browser.md): setup, persistent profiles, login and observation tools.
 - [Terminal guide](tui.md): composer, suggestions, file references, sessions and keys.
 - [RPC protocol](rpc.md): stdio requests, events, gates and client lifetime.

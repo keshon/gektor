@@ -73,6 +73,9 @@ definitions are checked against the current build before a resumed run; a
 mismatch requires compatible code or a fresh session. Other always-present
 native tools are reconstructed normally and are not saved as capability packs.
 
+Built-in `native_images` and `native_workflows` load on demand.
+See [image workflows](workflows.md) for tools, limits and the recipe format.
+
 The prompt includes a bounded map of optional pack IDs and descriptions from
 the discovery catalog. A known ID can be enabled without a preceding search.
 

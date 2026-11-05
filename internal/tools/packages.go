@@ -43,6 +43,9 @@ type packageDefinition struct {
 func nativeTools(d packageDependencies, readOnly bool) []agent.Tool {
 	var list []agent.Tool
 	for _, p := range builtinPackages() {
+		if p.exposure == Lazy {
+			continue
+		}
 		for _, entry := range p.entries {
 			if !readOnly || entry.readOnly {
 				list = append(list, entry.build(d))
@@ -98,7 +101,7 @@ func Compose(ws *workspace.Workspace, procs *BackgroundProcesses, report Finding
 		if value, ok := overrides[p.id]; ok {
 			exposure = value
 		}
-		catalog.Native = append(catalog.Native, &NativePackage{ID: p.id, Description: p.description, Version: "1", Exposure: exposure, Tools: list, ReadOnly: readOnly})
+		catalog.Native = append(catalog.Native, &NativePackage{ID: p.id, Description: p.description, Instructions: nativeInstructions(p.id), Version: "1", Exposure: exposure, Tools: list, ReadOnly: readOnly})
 	}
 	all = append(all, extra...)
 	for _, tool := range all {

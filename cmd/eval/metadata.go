@@ -113,6 +113,15 @@ func inputsDigest(probes []Probe) (string, error) {
 	inputs := make([]input, 0, len(probes))
 	for _, probe := range probes {
 		item := input{Name: probe.Name, Probe: probe, Files: map[string]string{}}
+		if probe.Generated != "" {
+			files, err := workflowFixture(probe.Generated)
+			if err != nil {
+				return "", err
+			}
+			for path, data := range files {
+				item.Files["generated:"+path] = fmt.Sprintf("%x", sha256.Sum256(data))
+			}
+		}
 		for _, check := range probe.Verify {
 			if check.Type == "go_acceptance" {
 				digest, err := fileDigest(check.Path)

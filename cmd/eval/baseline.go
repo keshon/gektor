@@ -20,11 +20,14 @@ func selectSuite(probes []Probe, name string) ([]Probe, error) {
 	if name == "" {
 		return probes, nil
 	}
-	if name != "core" {
-		return nil, fmt.Errorf("unknown suite %q; available: core", name)
+	names := coreProbes
+	if name == "workflows" {
+		names = []string{"26-workflow-success", "27-workflow-icc", "28-workflow-invalid", "29-workflow-existing"}
+	} else if name != "core" {
+		return nil, fmt.Errorf("unknown suite %q; available: core, workflows", name)
 	}
 	selected := make([]Probe, 0, len(coreProbes))
-	for _, wanted := range coreProbes {
+	for _, wanted := range names {
 		found := false
 		for _, p := range probes {
 			if p.Name == wanted {
@@ -34,7 +37,7 @@ func selectSuite(probes []Probe, name string) ([]Probe, error) {
 			}
 		}
 		if !found {
-			return nil, fmt.Errorf("core suite is missing probe %s", wanted)
+			return nil, fmt.Errorf("%s suite is missing probe %s", name, wanted)
 		}
 	}
 	return selected, nil

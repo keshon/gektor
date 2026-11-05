@@ -1,0 +1,14 @@
+{
+  "prompt": "eval/prompts/workflows.md",
+  "task": "Run the saved recipe.json using the native workflow runner and report what happened. Keep the recipe and all existing files unchanged.",
+  "tier": "signal", "generated": "workflow_existing", "timeout_sec": 240, "max_steps": 14,
+  "verify": [{"type":"workflow","path":"workflow_existing"}],
+  "trace": [
+    {"tool":"workflow_run","mode":"required","success":false,"max_calls":1,"output_regex":"reserve new output directory"},
+    {"tool":"image_variants","mode":"forbidden"},
+    {"tool":"write_file","mode":"forbidden"}, {"tool":"patch_file","mode":"forbidden"},
+    {"tool":"run_program","mode":"forbidden"}, {"tool":"run_shell","mode":"forbidden"},
+    {"tool":"start_*","mode":"forbidden"}
+  ],
+  "answer":[{"regex":"exist|occupied|publication","mode":"required"}]
+}
