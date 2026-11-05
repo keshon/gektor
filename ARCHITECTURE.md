@@ -38,6 +38,12 @@ it is not replaced with an invented empty call. Tool results carry failure
 metadata separately from their text. SYSTEM identifies harness messages and
 local UI notices; local notices are excluded from model context.
 
+ChatGPT sign-in and credential renewal live under `internal/providers/openai`.
+The Responses adapter implements the same LLM client boundary as local servers;
+Gektor owns tool execution, permissions and compaction for every backend.
+OAuth credentials stay in the protected user store. Opaque model reasoning state
+is separate session metadata, replayed only by the matching Responses backend.
+
 Native process tools pass an executable and literal arguments directly.
 Shell tools use pwsh.exe, then powershell.exe on Windows, or sh elsewhere.
 Windows shell source travels through UTF-8 stdin with profiles disabled.

@@ -24,6 +24,9 @@ type launchRequest struct {
 }
 
 func runApplication(args []string) error {
+	if len(args) > 0 && args[0] == "auth" {
+		return runAuth(args[1:])
+	}
 	options, err := parseLaunchOptions(args)
 	if errors.Is(err, flag.ErrHelp) {
 		return nil

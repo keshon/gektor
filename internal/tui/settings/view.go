@@ -86,6 +86,17 @@ func (f *Model) choice() string {
 
 // note is the line above the buttons when nothing has gone wrong.
 func (f *Model) note() string {
+	if f.providerKind() == "chatgpt" {
+		if f.Workspace.Section == "generation" {
+			return "ChatGPT controls sampling and output length; context is a local budget"
+		}
+		if f.Workspace.Section == "model" {
+			if f.Workspace.AccountLabel != "" {
+				return "Account: " + f.Workspace.AccountLabel + " | gektor auth login/logout"
+			}
+			return "Connect: gektor auth login | Account: gektor auth status"
+		}
+	}
 	switch {
 	case f.Error != "":
 		return ""

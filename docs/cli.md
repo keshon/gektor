@@ -43,6 +43,49 @@ For a hosted service, set a key in the environment or select its variable
 with `-api-key-env`; supply the provider's actual model ID and context limit.
 The terminal controls and local slash commands are in [tui.md](tui.md).
 
+### ChatGPT account
+
+The `chatgpt` backend uses browser sign-in and eligible ChatGPT plan usage;
+it does not require an API key. Connect before starting a task:
+
+```powershell
+.\gektor.exe auth login
+.\gektor.exe auth models
+.\gektor.exe auth test gpt-6.1-sol
+.\gektor.exe -tui -backend-kind chatgpt -model gpt-6.1-sol -context-limit 32768
+```
+
+Use an available model ID from `auth models`. The endpoint is fixed to
+`https://api.openai.com/v1`; local-server URLs and API-key environment variables
+do not apply. `auth status` shows the connection; `auth logout` revokes it.
+`auth login --new` adds an account, `auth accounts` lists registrations and
+`auth select <id>` selects one for subsequent requests. Switch accounts between
+runs. Credentials are independent of workspace profiles and session history.
+
+Credentials live under `~/.gektor/auth/chatgpt`. Windows encrypts the store with
+user-bound DPAPI; Unix uses a private directory and owner-only file. Refreshes
+are locked across processes. Login callbacks validate state, PKCE, the signed
+ID token, nonce and the granted plan-usage scope. Tokens never enter profiles,
+transcripts or debug output.
+
+This backend uses Responses with streaming and client-maintained history.
+Gektor still executes tools under its normal permissions. Opaque reasoning state
+is retained with assistant messages for session resume and is replayed only to
+this backend with the same model. Visible reasoning is a provider summary,
+when supplied. Model capabilities are not inferred from the ChatGPT UI; automatic
+image-producing tools remain disabled until model-specific vision is established.
+
+Sampling and `max_output_tokens` are unsupported on this OAuth route.
+Temperature and response-limit controls are hidden in Settings; `-max-tokens`
+remains a local planning budget, not a server-enforced generation limit.
+The configured context limit is also a local budget, not a measured model window;
+the default without a profile is 32768. Plan-usage limits stop the run and refer
+to ChatGPT Settings > Usage. Account eligibility and model access require a
+successful inference request, not just a successful login or model listing.
+
+See [OpenAI sign-in](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)
+and [route limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations).
+
 ## Command execution
 
 On Windows, shell tools and `-verify-cmd` use `pwsh.exe` when available,
@@ -63,7 +106,7 @@ earlier command. Use explicit conditions when one command depends on another.
 | Flag | Default | Meaning |
 |---|---|---|
 | `-backend URL` | `http://127.0.0.1:8080` | Backend base URL: bare origin for a local server, API root for an OpenAI-compatible provider |
-| `-backend-kind KIND` | `llama` | `llama`, `openai`, or `kobold`. Select the protocol served by the endpoint |
+| `-backend-kind KIND` | `llama` | `llama`, `openai`, `kobold`, or `chatgpt`. Select the protocol; `chatgpt` uses browser OAuth and Responses |
 | `-model NAME` | `local` | Model name. Ignored by most local servers (they serve whatever weights they started with); required for remote providers |
 | `-context-limit N` | `0` | Remote context window or local fallback. A reported local server window takes precedence; remote backends fall back to a per-model estimate unless set |
 | `-grammar` | `true` | Apply the backend's own content grammar (blocks a model writing its native tool-call tags as plain text on koboldcpp) |

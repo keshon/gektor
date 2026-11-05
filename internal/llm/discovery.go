@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/keshon/gektor/internal/providers/openai"
 	"io"
 	"net/http"
 	"strings"
@@ -17,6 +18,9 @@ const discoveryTimeout = 5 * time.Second
 
 // DiscoverModels queries a compatible backend using the caller's cancellation and credentials.
 func DiscoverModels(ctx context.Context, kind, base, apiKey string) ([]string, error) {
+	if kind == "chatgpt" {
+		return openai.Default().Models(ctx)
+	}
 	path := "/v1/models"
 	if kind == "kobold" {
 		path = "/api/v1/model"

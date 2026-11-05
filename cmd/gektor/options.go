@@ -90,7 +90,7 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	flags.StringVar(&o.auditPath, "audit", "", "append gate decisions as JSONL to this file (off when empty)")
 	flags.StringVar(&o.backendKind, "backend-kind", provider.Kind, "which server: "+
 		strings.Join(llm.Kinds(), ", ")+". kobold/llama are local; openai is any hosted "+
-		"OpenAI-compatible API (OpenAI, OpenRouter, DeepSeek, Groq, Together, Mistral, xAI). "+
+		"OpenAI-compatible API (OpenAI, OpenRouter, DeepSeek, Groq, Together, Mistral, xAI); chatgpt uses browser sign-in (gektor auth login). "+
 		"A wrong value is caught at startup rather "+
 		"than run: the dialects disagree about grammar, sampler fields and structured "+
 		"output, so a mismatched run completes and measures nothing")
@@ -228,6 +228,7 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 		if p.Identity != nil || o.postHistory != "" {
 			p.Identity = &config.Identity{PromptPreset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), UserPersona: selectedProfilePersona(o.selectedProfile), UserName: o.userName, SystemPrompt: o.systemPrompt, PostHistory: o.postHistory}
 		}
+		chatGPTLaunchDefaults(&o)
 		p.Provider.Kind, p.Provider.URL, p.Provider.Model, p.Provider.APIKeyEnv = o.backendKind, o.backendURL, o.model, o.apiKeyEnv
 		p.Generation.MaxTokens, p.Generation.ContextLimit = o.maxTokens, o.contextLimit
 		if err := p.Validate(); err != nil {
@@ -236,5 +237,12 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 		o.selectedProfile = p
 	}
 
+	chatGPTLaunchDefaults(&o)
 	return o, nil
+}
+
+func chatGPTLaunchDefaults(o *resolvedLaunch) {
+	if o.backendKind == "chatgpt" && !o.explicitFlags["backend"] {
+		o.backendURL = "https://api.openai.com/v1"
+	}
 }

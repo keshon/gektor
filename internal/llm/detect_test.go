@@ -60,7 +60,11 @@ func TestClientFor(t *testing.T) {
 		t.Fatal("Kinds() is empty")
 	}
 	for _, k := range kinds {
-		c, err := ClientFor(k, "http://example.invalid", "local")
+		base := "http://example.invalid"
+		if k == "chatgpt" {
+			base = "https://api.openai.com/v1"
+		}
+		c, err := ClientFor(k, base, "local")
 		if err != nil {
 			t.Errorf("ClientFor(%q): %v", k, err)
 			continue
@@ -80,7 +84,7 @@ func TestClientFor(t *testing.T) {
 // undetectable by design and skipped here rather than stubbed.
 func TestDetectKindAgreesWithTheClientItRecommends(t *testing.T) {
 	for _, kind := range Kinds() {
-		if kind == "openai" {
+		if kind == "openai" || kind == "chatgpt" {
 			srv := backendStub(t, "neither")
 			defer srv.Close()
 			if got := DetectKind(context.Background(), srv.URL); got != "" {

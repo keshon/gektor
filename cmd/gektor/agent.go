@@ -22,6 +22,7 @@ import (
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/prompts"
+	"github.com/keshon/gektor/internal/providers/openai"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/rules"
 	"github.com/keshon/gektor/internal/run"
@@ -152,6 +153,17 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	// Ask the backend for its real context window instead of guessing.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	accountLabel := ""
+	if o.backendKind == "chatgpt" {
+		accountCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		accountLabel, err = openai.Default().Status(accountCtx)
+		cancel()
+		if err != nil {
+			return fmt.Errorf("ChatGPT account: %w", err)
+		}
+		note("ChatGPT account: %s", accountLabel)
+		note("ChatGPT controls sampling and output length; configured response tokens are a local planning budget")
+	}
 
 	contextLimit, err := backendContext(ctx, client, o)
 	if err != nil {
@@ -371,6 +383,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		app := applicationControl(launch, profile, o.profilePath, o.workspace)
 		answer, err := tui.Run(ctx, tui.Config{Application: app, Services: &services, SeedHistory: launch.history, InitialDraft: launch.draft, SessionDirectory: launch.directory,
 			BackendURL:   o.backendURL,
+			AccountLabel: accountLabel,
 			Plan:         o.plan,
 			History:      history,
 			ResumeAnswer: o.answer,
@@ -534,6 +547,12 @@ func streamEnabled(streamFlag bool, modeFlag string, tuiFlag bool) bool {
 
 // Local servers own their actual window; configured limits are fallbacks.
 func backendContext(ctx context.Context, client *llm.Server, o resolvedLaunch) (int, error) {
+	if o.backendKind == "chatgpt" {
+		if o.contextLimit > 0 {
+			return o.contextLimit, nil
+		}
+		return 32768, nil
+	}
 	var detected int
 	var probeErr error
 	if o.backendKind != "openai" {

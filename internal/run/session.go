@@ -94,7 +94,7 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, rol
 	}
 	// A local server may load different weights between turns. Probe before
 	// building the agent so the display and enforced budget use the same facts.
-	if server, ok := env.Client.(*llm.Server); ok && env.BackendKind != "openai" {
+	if server, ok := env.Client.(*llm.Server); ok && env.BackendKind != "openai" && env.BackendKind != "chatgpt" {
 		probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		if limit, err := server.MaxContextLength(probeCtx); err == nil && limit > 0 {
 			env.ContextLimit = limit

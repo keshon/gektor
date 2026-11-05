@@ -38,6 +38,7 @@ type Config struct {
 	SeedHistory      []llm.Message
 	InitialDraft     string
 	BackendURL       string
+	AccountLabel     string
 	Plan             bool
 	History          []llm.Message
 	ResumeAnswer     string
@@ -228,6 +229,7 @@ type model struct {
 	// Status facts snapshotted from cfg at construction for /status:
 	// backend/workspace identity and budgets the run was given.
 	backendKind   string
+	accountLabel  string
 	backendURL    string
 	responseCap   int
 	streaming     bool
@@ -345,15 +347,16 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		note:      newNote(),
 		always:    map[[2]string]bool{},
 		// Status facts come from cfg once: the TUI never re-reads Env.
-		backendKind: cfg.Env.BackendKind,
-		backendURL:  safeEndpoint(cfg.BackendURL),
-		responseCap: cfg.Env.MaxTokens,
-		streaming:   cfg.Env.Stream,
-		modelName:   cfg.Env.Model,
-		ws:          cfg.Env.WS,
-		wsRoot:      wsRootOf(cfg.Env.WS),
-		mcpCount:    len(cfg.Env.MCPTools),
-		policyRules: len(cfg.Env.Policy.Rules),
+		backendKind:  cfg.Env.BackendKind,
+		accountLabel: cfg.AccountLabel,
+		backendURL:   safeEndpoint(cfg.BackendURL),
+		responseCap:  cfg.Env.MaxTokens,
+		streaming:    cfg.Env.Stream,
+		modelName:    cfg.Env.Model,
+		ws:           cfg.Env.WS,
+		wsRoot:       wsRootOf(cfg.Env.WS),
+		mcpCount:     len(cfg.Env.MCPTools),
+		policyRules:  len(cfg.Env.Policy.Rules),
 	}
 	defer m.cancel()
 	if cfg.Env.MaxSteps == unlimitedSteps {

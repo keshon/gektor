@@ -28,6 +28,9 @@ var ErrStreamUnsupported = errors.New("streaming unsupported")
 // assembled ChatResponse. Kobold may buffer tool turns server-side, then
 // deliver the completed calls through the same SSE delta format.
 func (c *Server) Stream(ctx context.Context, req ChatRequest, onReasoning, onContent func(string)) (ChatResponse, error) {
+	if c.Backend() == "chatgpt" {
+		return c.responses(ctx, req, onReasoning, onContent)
+	}
 	temperature := req.Temperature
 	if temperature <= 0 {
 		temperature = defaultTemperature

@@ -50,7 +50,7 @@ func PageFields(profile config.Profile, section string, preferences config.Prefe
 		title = "Generation"
 		add("temperature", "Temperature", temperatureValue(profile.Generation.Temperature), false)
 		add("max", "Response budget (tokens)", strconv.Itoa(profile.Generation.MaxTokens), false)
-		if profile.Provider.Kind == "openai" {
+		if profile.Provider.Kind == "openai" || profile.Provider.Kind == "chatgpt" {
 			add("context", "Context window (tokens)", strconv.Itoa(profile.Generation.ContextLimit), false)
 		}
 	case "prompts":
@@ -61,7 +61,7 @@ func PageFields(profile config.Profile, section string, preferences config.Prefe
 		add("post", "Base post-history directive", identity.PostHistory, true)
 	case "model":
 		title = "Model"
-		add("kind", "Protocol (llama/kobold/openai)", profile.Provider.Kind, false)
+		add("kind", "Protocol (llama/kobold/openai/chatgpt)", profile.Provider.Kind, false)
 		add("endpoint", "Backend URL", profile.Provider.URL, false)
 		add("model", "Model identifier", profile.Provider.Model, false)
 		add("key-env", "API key environment variable", profile.Provider.APIKeyEnv, false)

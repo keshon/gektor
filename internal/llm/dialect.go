@@ -93,6 +93,7 @@ var kinds = []struct {
 	{"kobold", koboldDialect{}},
 	{"llama", llamaDialect{}},
 	{"openai", openaiDialect{}},
+	{"chatgpt", chatgptDialect{}},
 }
 
 // Kinds lists the accepted -backend-kind values, for flag help and error
@@ -107,6 +108,9 @@ func Kinds() []string {
 
 // ClientFor builds the client for a -backend-kind value.
 func ClientFor(kind, baseURL, model string) (*Server, error) {
+	if kind == "chatgpt" && strings.TrimSuffix(baseURL, "/") != "https://api.openai.com/v1" {
+		return nil, fmt.Errorf("ChatGPT requires https://api.openai.com/v1; OAuth credentials cannot be sent to another endpoint")
+	}
 	for _, k := range kinds {
 		if k.kind == kind {
 			return newServer(baseURL, model, k.dialect), nil

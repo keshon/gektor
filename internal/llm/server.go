@@ -298,6 +298,9 @@ func (c *Server) logDebug(format string, args ...any) {
 }
 
 func (c *Server) Chat(ctx context.Context, req ChatRequest) (ChatResponse, error) {
+	if c.Backend() == "chatgpt" {
+		return c.responses(ctx, req, nil, nil)
+	}
 	// Precedence: a per-request grammar (the structured plan and verdict
 	// calls, which are schema constraints and correct on either backend)
 	// wins, then an explicit client override, then whatever this backend
@@ -481,6 +484,9 @@ func (c *Server) MaxContextLength(ctx context.Context) (int, error) {
 // A hosted gateway serves the model named in each request, so the
 // configured name is the answer and no probe is needed.
 func (c *Server) ModelName(ctx context.Context) (string, error) {
+	if c.Backend() == "chatgpt" {
+		return c.model, nil
+	}
 	if _, ok := c.dialect.(openaiDialect); ok {
 		if c.model != "" {
 			return c.model, nil

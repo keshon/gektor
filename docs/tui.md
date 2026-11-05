@@ -390,6 +390,10 @@ launch while preserving the conversation and composer draft. Esc cancels edits.
 Model shows protocol, server address and model identifier. F4 reveals the API-key
 environment field. Space opens a choice list; arrows and Enter select an item.
 Model names are discovered from the configured server; manual entry is supported.
+The ChatGPT protocol uses the connected account's model catalog. Connect with
+`gektor auth login` before starting a ChatGPT run; Model settings show the active
+account. Sampling and response-limit fields are hidden because that route does
+not accept them; its context field is a local planning budget.
 File and directory pickers provide Ctrl+B browsing, Ctrl+L location entry and
 Ctrl+R refresh where applicable.
 

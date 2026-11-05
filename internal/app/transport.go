@@ -11,6 +11,9 @@ import (
 // is the flag, then the named env var, then the built-in lookup order.
 // Local backends need no key and are left alone.
 func ResolveAPIKey(flagVal, envName string, client *llm.Server) {
+	if client.Backend() == "chatgpt" {
+		return
+	}
 	if strings.TrimSpace(flagVal) != "" {
 		client.WithAPIKey(strings.TrimSpace(flagVal))
 		return

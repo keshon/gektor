@@ -105,7 +105,17 @@ func (m *model) editSettings(section string) {
 		ws = &settingsWorkspace{Draft: settings.New(currentSettings.Profile), PersistCurrent: m.application != nil && m.application.Temporary}
 	}
 	ws.Section = section
+	ws.AccountLabel = m.accountLabel
 	profile := ws.Draft.Base()
+	if section != "model" {
+		if modelFields, ok := ws.Draft.Fields("model"); ok {
+			for _, field := range modelFields {
+				if field.Key == "kind" {
+					profile.Provider.Kind = field.Value
+				}
+			}
+		}
+	}
 	preferences := config.Preferences{}
 	if m.application != nil {
 		preferences = m.application.Preferences

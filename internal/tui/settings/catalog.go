@@ -118,7 +118,7 @@ func Choices(key string) []string {
 	case "prefer-main", "prefer-post":
 		return []string{"true", "false"}
 	case "kind":
-		return []string{"llama", "kobold", "openai"}
+		return []string{"llama", "kobold", "openai", "chatgpt"}
 	}
 	return nil
 }
@@ -126,6 +126,15 @@ func Choices(key string) []string {
 // SuggestedBackendURL changes only the previous protocol's local default.
 // OpenAI denotes a compatible API, so its suggestion stays local.
 func SuggestedBackendURL(endpoint, previous, next string) string {
+	if next == "chatgpt" {
+		return "https://api.openai.com/v1"
+	}
+	if previous == "chatgpt" && strings.TrimSuffix(endpoint, "/") == "https://api.openai.com/v1" {
+		if next == "kobold" {
+			return "http://127.0.0.1:5001"
+		}
+		return "http://127.0.0.1:8080"
+	}
 	ports := map[string]string{"llama": "8080", "kobold": "5001", "openai": "8080"}
 	u, err := url.Parse(endpoint)
 	if err != nil || u.Scheme != "http" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {

@@ -134,11 +134,14 @@ func (p Profile) Validate() error {
 		return fmt.Errorf("profile: unsupported version %d", p.Version)
 	}
 	switch p.Provider.Kind {
-	case "kobold", "llama", "openai":
+	case "kobold", "llama", "openai", "chatgpt":
 	default:
 		return fmt.Errorf("profile: unsupported provider %q", p.Provider.Kind)
 	}
 	u, err := url.Parse(p.Provider.URL)
+	if p.Provider.Kind == "chatgpt" && strings.TrimSuffix(p.Provider.URL, "/") != "https://api.openai.com/v1" {
+		return fmt.Errorf("profile: ChatGPT requires https://api.openai.com/v1")
+	}
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
 		return fmt.Errorf("profile: provider URL must be an HTTP(S) endpoint without credentials, query or fragment")
 	}

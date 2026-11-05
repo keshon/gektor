@@ -14,6 +14,7 @@ type Workspace struct {
 	Advanced            bool
 	// Explicit Apply may persist launch overrides even without field edits.
 	PersistCurrent bool
+	AccountLabel   string
 }
 type Model struct {
 	form.Model
@@ -71,6 +72,12 @@ func (f *Model) SyncInputFocus(active bool) {
 }
 
 func (f *Model) FieldVisible(index int) bool {
+	if index < len(f.Fields) && f.Workspace != nil && f.providerKind() == "chatgpt" {
+		switch f.Fields[index].Key {
+		case "temperature", "max", "key-env", "endpoint":
+			return false
+		}
+	}
 	if index >= len(f.Fields) || f.Workspace == nil || f.Workspace.Section != "model" {
 		return true
 	}
@@ -78,6 +85,27 @@ func (f *Model) FieldVisible(index int) bool {
 		return f.Workspace.Advanced
 	}
 	return true
+}
+
+func (f *Model) providerKind() string {
+	if f.Workspace == nil {
+		return ""
+	}
+	if f.Workspace.Section == "model" {
+		for _, field := range f.Fields {
+			if field.Key == "kind" {
+				return field.Value
+			}
+		}
+	}
+	if fields, ok := f.Workspace.Draft.Fields("model"); ok {
+		for _, field := range fields {
+			if field.Key == "kind" {
+				return field.Value
+			}
+		}
+	}
+	return f.Workspace.Draft.Base().Provider.Kind
 }
 
 func (f *Model) FirstVisibleField() int {
