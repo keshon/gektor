@@ -323,11 +323,6 @@ type Result struct {
 
 const defaultTimeout = 15 * time.Minute
 
-// evalStateDir is the one place GEKTOR still writes inside a workspace.
-// belongs to that copy and dies with it. Real runs keep theirs in the
-// user's GEKTOR directory; nothing else writes to the workspace.
-const evalStateDir = ".gektor"
-
 func main() {
 	provider := config.DefaultProfile().Provider
 	backend := flag.String("backend", provider.URL, "backend base URL: bare origin for a local "+

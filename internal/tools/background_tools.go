@@ -187,7 +187,7 @@ func (t WaitBackground) Run(ctx context.Context, args json.RawMessage) (string, 
 	case <-timer.C:
 	}
 	readArgs, _ := json.Marshal(map[string]any{"id": in.ID, "cursor": 0})
-	return (CheckBackground{Procs: t.Procs}).Run(ctx, readArgs)
+	return CheckBackground(t).Run(ctx, readArgs)
 }
 
 func (CheckBackground) Name() string         { return "check_background" }

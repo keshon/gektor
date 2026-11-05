@@ -357,7 +357,7 @@ func TestCommand_HelpAndUnknown(t *testing.T) {
 	m.state = stDone
 	m.input.SetValue("/help")
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	updated, _ = updated.(*model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*model)
 	if mm.quit || mm.state != stDone {
 		t.Fatalf("help must not quit or resume: quit=%v state=%v", mm.quit, mm.state)
@@ -386,7 +386,7 @@ func TestCommand_Quit(t *testing.T) {
 	m.state = stDone
 	m.input.SetValue("/quit")
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	updated, _ = updated.(*model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if mm := updated.(*model); !mm.quit {
 		t.Fatal("/quit must quit")
 	}
@@ -1020,7 +1020,7 @@ func TestHelpMentionsThinkKey(t *testing.T) {
 	m.state = stDone
 	m.input.SetValue("/help")
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	updated, _ = updated.(*model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*model)
 	mm.dialog.page = 1
 	if !strings.Contains(mm.dialogView(), "Ctrl+G") {
@@ -1157,6 +1157,10 @@ func TestGateRejectEmptyNoteDenies(t *testing.T) {
 	updated, _ := mm.Update(keyRunes('n'))
 	mm = updated.(*model)
 	updated, _ = mm.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	mm = updated.(*model)
+	if len(mm.overlays) != 0 {
+		t.Fatal("deny must close the permission gate")
+	}
 	if rep := awaitReply(t, answered); rep.Answer != "n" {
 		t.Fatalf("reply = %+v, want plain deny", rep)
 	}
@@ -1434,12 +1438,12 @@ func TestStatusPostsToHistory(t *testing.T) {
 	m.tokens = 12400
 	m.input.SetValue("/status")
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	updated, _ = updated.(*model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*model)
 	if mm.dialog != nil {
 		t.Fatal("status must post to history, not a modal")
 	}
-	view := m.transcript.Viewport.View()
+	view := mm.transcript.Viewport.View()
 	for _, want := range []string{"backend", "workspace", "context", "ctx 12.4k/131.1k (9%)", "permissions"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("status missing %q", want)
@@ -1792,7 +1796,7 @@ func TestRetryRerunsLastTurn(t *testing.T) {
 	m.state = stDone
 	m.input.SetValue("/retry")
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	updated, _ = updated.(*model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*model)
 	if mm.state != stRunning {
 		t.Fatalf("state = %v, want running", mm.state)
@@ -1809,7 +1813,7 @@ func TestRetryRefusesWhenOk(t *testing.T) {
 	m.state = stDone
 	m.input.SetValue("/retry")
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	updated, _ = updated.(*model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*model)
 	if mm.state != stDone {
 		t.Fatalf("state = %v, want done", mm.state)

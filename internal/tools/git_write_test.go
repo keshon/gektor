@@ -26,11 +26,11 @@ func TestGitCommitMessageCreditAndTemporaryFileLifetime(t *testing.T) {
 		"Next change\n\n" + gitAttribution,
 	} {
 		writeTmp(t, dir, "hello.txt", message)
-		if _, err := (GitAdd{WS: tool.WS}).Run(t.Context(), json.RawMessage(`{"path":"hello.txt"}`)); err != nil {
+		if _, err := GitAdd(tool).Run(t.Context(), json.RawMessage(`{"path":"hello.txt"}`)); err != nil {
 			t.Fatal(err)
 		}
 		args, _ := json.Marshal(map[string]string{"message": message})
-		if out, err := (GitCommit{WS: tool.WS}).Run(t.Context(), args); err != nil {
+		if out, err := GitCommit(tool).Run(t.Context(), args); err != nil {
 			t.Fatalf("commit %d failed: %v %s", i, err, out)
 		}
 		cmd := exec.Command("git", "show", "-s", "--format=%an <%ae>%n%B", "HEAD")
@@ -46,7 +46,7 @@ func TestGitCommitMessageCreditAndTemporaryFileLifetime(t *testing.T) {
 	}
 	// A failed commit must clean up synchronously too, without a timer.
 	args, _ := json.Marshal(map[string]string{"message": "Nothing staged"})
-	if _, err := (GitCommit{WS: tool.WS}).Run(t.Context(), args); err == nil {
+	if _, err := GitCommit(tool).Run(t.Context(), args); err == nil {
 		t.Fatal("empty index unexpectedly committed")
 	}
 	files, _ := filepath.Glob(filepath.Join(temp, "gektor-commit-*.txt"))

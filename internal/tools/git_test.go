@@ -144,7 +144,7 @@ func TestGit_ShowAndLiteralArguments(t *testing.T) {
 	name := "file with spaces 100% & more.txt"
 	writeTmp(t, dir, name, "content\n")
 	args, _ := json.Marshal(map[string]string{"path": name})
-	if out, err := (GitAdd{WS: tool.WS}).Run(t.Context(), args); err != nil {
+	if out, err := GitAdd(tool).Run(t.Context(), args); err != nil {
 		t.Fatalf("literal add: %v %s", err, out)
 	}
 	args, _ = json.Marshal(map[string]string{"subcommand": "ls-files", "path": name})
@@ -169,7 +169,7 @@ func TestGit_DiffReadsWorktreeAndIndexSeparately(t *testing.T) {
 	dir := initGitRepo(t, t.TempDir())
 	tool := newGitTool(t, dir)
 	writeTmp(t, dir, "hello.txt", "staged\n")
-	if _, err := (GitAdd{WS: tool.WS}).Run(t.Context(), json.RawMessage(`{"path":"hello.txt"}`)); err != nil {
+	if _, err := GitAdd(tool).Run(t.Context(), json.RawMessage(`{"path":"hello.txt"}`)); err != nil {
 		t.Fatal(err)
 	}
 	writeTmp(t, dir, "hello.txt", "worktree\n")

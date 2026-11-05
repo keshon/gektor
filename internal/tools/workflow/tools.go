@@ -2,6 +2,7 @@
 package workflow
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -94,7 +95,7 @@ func Resources(args json.RawMessage) ([]string, error) {
 	var in struct {
 		RecipePath string `json:"recipe_path"`
 	}
-	if err := pixelita.Decode(args, &in); err != nil {
+	if err := decode(args, &in); err != nil {
 		return nil, err
 	}
 	return []string{in.RecipePath, ".gektor/workflow-runs"}, nil
@@ -110,7 +111,7 @@ func (t Tool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	var in struct {
 		RecipePath string `json:"recipe_path"`
 	}
-	if err := pixelita.Decode(args, &in); err != nil {
+	if err := decode(args, &in); err != nil {
 		return "", err
 	}
 	if t.WS == nil || t.Authorize == nil {
@@ -138,7 +139,7 @@ func (t Tool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 		return "", fmt.Errorf("recipe %s: %w; allowed root fields: version, name, steps; edit the saved file", in.RecipePath, err)
 	}
 	var d automation.Definition
-	if err := pixelita.Decode(source, &d); err != nil {
+	if err := decode(source, &d); err != nil {
 		return "", fmt.Errorf("recipe %s: %w", in.RecipePath, err)
 	}
 	digest := fmt.Sprintf("%x", sha256.Sum256(source))
@@ -222,4 +223,17 @@ type stepSummary struct {
 	Error        string          `json:"error,omitempty"`
 	Sources      json.RawMessage `json:"sources,omitempty"`
 	Items        json.RawMessage `json:"items,omitempty"`
+}
+
+// decode accepts one JSON value, rejecting accidental concatenated arguments.
+func decode(data []byte, out any) error {
+	d := json.NewDecoder(bytes.NewReader(data))
+	d.DisallowUnknownFields()
+	if err := d.Decode(out); err != nil {
+		return err
+	}
+	if err := d.Decode(new(any)); err != io.EOF {
+		return fmt.Errorf("expected one JSON object")
+	}
+	return nil
 }

@@ -463,7 +463,7 @@ func parseFacts(body string) (droppedFacts, bool) {
 	for _, line := range strings.Split(body, "\n") {
 		switch {
 		case strings.HasPrefix(line, tagSteps):
-			rest, ok := strings.CutPrefix(line, tagSteps)
+			rest := strings.TrimPrefix(line, tagSteps)
 			count, tools, ok := strings.Cut(rest, " earlier steps:")
 			if !ok {
 				return f, false

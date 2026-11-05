@@ -94,7 +94,7 @@ func TestInstructionsLoadAncestorsBeforeRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := ws.Instructions()
-	if strings.Index(text, "outer rule") < 0 || strings.Index(text, "inner rule") < strings.Index(text, "outer rule") {
+	if !strings.Contains(text, "outer rule") || strings.Index(text, "inner rule") < strings.Index(text, "outer rule") {
 		t.Fatal(text)
 	}
 }

@@ -265,20 +265,6 @@ func (s textStub) Chat(context.Context, llm.ChatRequest) (llm.ChatResponse, erro
 	return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: s.text}}, nil
 }
 
-// scriptClient replays canned responses in order, counting calls.
-type scriptClient struct {
-	responses []llm.ChatResponse
-	calls     *int32
-}
-
-func (s *scriptClient) Chat(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
-	n := atomic.AddInt32(s.calls, 1) - 1
-	if int(n) >= len(s.responses) {
-		return s.responses[len(s.responses)-1], nil
-	}
-	return s.responses[n], nil
-}
-
 func TestInteractive_HonorsEnvMaxSteps(t *testing.T) {
 	e := testEnv(t)
 	e.Client = textStub{"done"}

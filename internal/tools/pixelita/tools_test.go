@@ -112,7 +112,7 @@ func TestImageWorkflowPreservesSourcesAndOutputs(t *testing.T) {
 		}
 		var result struct {
 			Status  string           `json:"status"`
-			Sources []SourceEvidence `json:"sources"`
+			Sources []sourceEvidence `json:"sources"`
 		}
 		if err := json.Unmarshal([]byte(out), &result); err != nil {
 			t.Fatal(err)

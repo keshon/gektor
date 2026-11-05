@@ -121,7 +121,7 @@ func (t Tool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	defer os.RemoveAll(dir)
 	paths := make([]string, 0, len(in.Paths))
 	names := map[string]string{}
-	sources := make([]SourceEvidence, 0, len(in.Paths))
+	sources := make([]sourceEvidence, 0, len(in.Paths))
 	for i, path := range in.Paths {
 		if err := ctx.Err(); err != nil {
 			return "", err
@@ -161,7 +161,7 @@ func (t Tool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 		}
 		paths = append(paths, staged)
 		names[staged] = path
-		sources = append(sources, SourceEvidence{Path: filepath.ToSlash(path), Before: fmt.Sprintf("%x", sha256.Sum256(data))})
+		sources = append(sources, sourceEvidence{Path: filepath.ToSlash(path), Before: fmt.Sprintf("%x", sha256.Sum256(data))})
 	}
 	var rep *imagekit.Report
 	switch t.Operation {
@@ -355,7 +355,7 @@ func (t Tool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 		Summary      map[string]int   `json:"summary"`
 		Status       string           `json:"status"`
 		Recovery     string           `json:"recovery,omitempty"`
-		Sources      []SourceEvidence `json:"sources"`
+		Sources      []sourceEvidence `json:"sources"`
 		FailureStage string           `json:"failure_stage,omitempty"`
 		Error        string           `json:"error,omitempty"`
 	}{rep, "gektor.images.v1", t.Name(), summary, status, recovery, sources, failureStage, errorText})
@@ -367,7 +367,7 @@ func (t Tool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 
 // Unchanged is absent when an after-hash could not be obtained; absence is not
 // evidence of preservation. Hashes compare source bytes, not just metadata.
-type SourceEvidence struct {
+type sourceEvidence struct {
 	Path      string `json:"path"`
 	Before    string `json:"sha256_before"`
 	After     string `json:"sha256_after,omitempty"`
@@ -434,18 +434,5 @@ func publish(ctx context.Context, ws *workspace.Workspace, source, destination s
 		return err
 	}
 	complete = true
-	return nil
-}
-
-// Decode accepts one JSON value, rejecting accidental concatenated arguments.
-func Decode(data []byte, out any) error {
-	d := json.NewDecoder(bytes.NewReader(data))
-	d.DisallowUnknownFields()
-	if err := d.Decode(out); err != nil {
-		return err
-	}
-	if err := d.Decode(new(any)); err != io.EOF {
-		return fmt.Errorf("expected one JSON object")
-	}
 	return nil
 }

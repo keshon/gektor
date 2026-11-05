@@ -490,12 +490,8 @@ func verificationCommand(command, directory string) func(context.Context) (strin
 func buildPolicy(allow, deny string) permission.Policy {
 	p := permission.Default()
 	var extra []permission.Rule
-	for _, spec := range parseRuleSpecs(allow, permission.Allow) {
-		extra = append(extra, spec)
-	}
-	for _, spec := range parseRuleSpecs(deny, permission.Deny) {
-		extra = append(extra, spec)
-	}
+	extra = append(extra, parseRuleSpecs(allow, permission.Allow)...)
+	extra = append(extra, parseRuleSpecs(deny, permission.Deny)...)
 	return p.WithExtra(extra)
 }
 

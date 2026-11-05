@@ -66,7 +66,7 @@ func TestSlashOverridesReachTheRebuiltSession(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.command, func(t *testing.T) {
 			m, built := sessionModel(t)
-			m = runSlash(t, m, tc.command)
+			runSlash(t, m, tc.command)
 			if len(*built) != 1 {
 				t.Fatalf("session rebuilt %d times, want 1", len(*built))
 			}
@@ -121,6 +121,9 @@ func TestModeSwitchRebuildsWithoutConfirmation(t *testing.T) {
 
 	updated, _ = m.command("/mode plan")
 	m = updated.(*model)
+	if !m.plan {
+		t.Fatal("repeating plan mode changed the mode")
+	}
 	if len(*built) != 1 {
 		t.Fatalf("repeating the current mode rebuilt the session again (%d)", len(*built))
 	}

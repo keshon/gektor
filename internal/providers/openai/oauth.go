@@ -122,7 +122,7 @@ func (m *Manager) Login(ctx context.Context, open func(string) error, newAccount
 		case returned <- r.URL.Query():
 			fmt.Fprint(w, "Return to Gektor to check the sign-in result.")
 		default:
-			http.Error(w, "Sign-in callback already received.", 409)
+			http.Error(w, "Sign-in callback already received.", http.StatusConflict)
 		}
 	})
 	server := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}

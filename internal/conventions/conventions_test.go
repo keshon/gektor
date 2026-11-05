@@ -351,19 +351,6 @@ func goFiles(t *testing.T, root string) []string {
 	return out
 }
 
-func pkgOf(r *repo, path string) string {
-	rel := r.rel(path)
-	const prefix = "internal/"
-	if !strings.HasPrefix(rel, prefix) {
-		return ""
-	}
-	rest := rel[len(prefix):]
-	if i := strings.Index(rest, "/"); i >= 0 {
-		return rest[:i]
-	}
-	return ""
-}
-
 var importLine = regexp.MustCompile(`"github\.com/keshon/gektor/internal/([a-z/]+)"`)
 
 func internalImports(src string) []string {

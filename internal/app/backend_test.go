@@ -69,7 +69,7 @@ func TestDiscoveryUsesInferenceConnectionHeaders(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer test-key" || r.Header.Get("X-Title") != "test-app" {
 			t.Error("missing connection headers", r.URL.Path)
-			http.Error(w, "missing", 401)
+			http.Error(w, "missing", http.StatusUnauthorized)
 			return
 		}
 		switch r.URL.Path {

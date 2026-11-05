@@ -482,7 +482,3 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 }
-
-func (m *model) commandReference() [][2]string {
-	return commandReference()
-}

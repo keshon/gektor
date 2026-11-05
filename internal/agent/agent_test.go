@@ -229,29 +229,6 @@ func (echoToolStub) Run(context.Context, json.RawMessage) (string, error) {
 	return "ok", nil
 }
 
-// repeatingClient returns the same tool call for a fixed number of
-// requests, then a final no-tool-call answer. It records the history it
-// was given on its last call so the test can inspect what got nudged in.
-type repeatingClient struct {
-	toolCall     llm.ToolCall
-	maxRepeats   int
-	finalContent string
-	calls        int
-	lastHistory  []llm.Message
-}
-
-func (c *repeatingClient) Chat(_ context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
-	c.lastHistory = req.Messages
-	c.calls++
-	if c.calls > c.maxRepeats {
-		return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: c.finalContent}}, nil
-	}
-	return llm.ChatResponse{Message: llm.Message{
-		Role:      llm.RoleAssistant,
-		ToolCalls: []llm.ToolCall{c.toolCall},
-	}}, nil
-}
-
 // varyingArgsClient issues a different tool call (different args) on
 // every step, then finishes — confirms distinct calls are never flagged
 // as a repeat.
@@ -915,81 +892,6 @@ func TestAgent_MixedConcurrentAndExclusive_ExclusiveRunsAfterConcurrentBatch(t *
 	if len(log) != 2 || log[0] != "start:write" || log[1] != "end:write" {
 		t.Fatalf("expected exclusive tool to run cleanly, got log: %v", log)
 	}
-}
-
-type shellLoopClient struct {
-	steps        int
-	finalContent string
-	calls        int
-	lastHistory  []llm.Message
-}
-
-func (c *shellLoopClient) Chat(_ context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
-	c.lastHistory = req.Messages
-	if c.calls >= c.steps {
-		return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: c.finalContent}}, nil
-	}
-	c.calls++
-	args, _ := json.Marshal(map[string]string{"command": fmt.Sprintf("git log tweak %d", c.calls)})
-	return llm.ChatResponse{Message: llm.Message{
-		Role:      llm.RoleAssistant,
-		ToolCalls: []llm.ToolCall{{ID: "c", Name: "run_shell", Arguments: args}},
-	}}, nil
-}
-
-// exploringClient issues a grep_files call with varying arguments every
-// step (never an exact repeat, never an error) for `steps` steps, then
-// finishes — simulates a model searching without converging.
-type exploringClient struct {
-	steps        int
-	finalContent string
-	calls        int
-	lastHistory  []llm.Message
-}
-
-func (c *exploringClient) Chat(_ context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
-	c.lastHistory = req.Messages
-	if c.calls >= c.steps {
-		return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: c.finalContent}}, nil
-	}
-	c.calls++
-	args, _ := json.Marshal(map[string]int{"n": c.calls})
-	return llm.ChatResponse{Message: llm.Message{
-		Role:      llm.RoleAssistant,
-		ToolCalls: []llm.ToolCall{{ID: "c", Name: "grep_files", Arguments: args}},
-	}}, nil
-}
-
-// mixedExploreWriteClient issues exploreBefore varying grep calls, one
-// write_file call, then exploreAfter more varying grep calls, then
-// finishes.
-type mixedExploreWriteClient struct {
-	exploreBefore, exploreAfter int
-	writeArgs                   json.RawMessage
-	finalContent                string
-	calls                       int
-	lastHistory                 []llm.Message
-}
-
-func (c *mixedExploreWriteClient) Chat(_ context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
-	c.lastHistory = req.Messages
-	total := c.exploreBefore + 1 + c.exploreAfter
-	if c.calls >= total {
-		return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: c.finalContent}}, nil
-	}
-	i := c.calls
-	c.calls++
-	if i == c.exploreBefore {
-		return llm.ChatResponse{Message: llm.Message{
-			Role:      llm.RoleAssistant,
-			ToolCalls: []llm.ToolCall{{ID: "w", Name: "write_file", Arguments: c.writeArgs}},
-		}}, nil
-	}
-	args, _ := json.Marshal(map[string]int{"n": i})
-	return llm.ChatResponse{Message: llm.Message{
-		Role:      llm.RoleAssistant,
-		ToolCalls: []llm.ToolCall{{ID: "c", Name: "grep_files", Arguments: args}},
-	}}, nil
 }
 
 func TestPausedOnQuestion_DetectsAskUserCall(t *testing.T) {
