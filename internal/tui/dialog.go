@@ -194,6 +194,9 @@ func helpSections() []helpSection {
 		{"Input", [][2]string{
 			{"Enter", "Send a message; queue a follow-up while running"},
 			{"Ctrl+O / Shift+Enter", "Insert a new line"},
+			{"Ctrl+V", "Paste text or an image when forwarded by the terminal"},
+			{"Ctrl+Alt+V / /paste-image", "Attach a clipboard image"},
+			{"Alt+1…8 / /detach N", "Remove an attached image"},
 			{"Up / Down", "Move within the draft"},
 			{"Alt+Up / Alt+Down", "Recall input history"},
 			{"Ctrl+U", "Clear the draft"},

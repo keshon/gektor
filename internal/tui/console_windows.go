@@ -124,7 +124,13 @@ func (r *consoleReader) encode(record xwindows.InputRecord) {
 		modifiedEditingKey := (e.VirtualKeyCode == xwindows.VK_RETURN || e.VirtualKeyCode == xwindows.VK_TAB) &&
 			e.ControlKeyState&(xwindows.SHIFT_PRESSED|xwindows.LEFT_ALT_PRESSED|xwindows.RIGHT_ALT_PRESSED|
 				xwindows.LEFT_CTRL_PRESSED|xwindows.RIGHT_CTRL_PRESSED) != 0
-		if e.Char != 0 && !modifiedEditingKey {
+			// Preserve attachment shortcuts when native hosts supply both a character
+		// and modifiers; ordinary VT paste bytes must remain a plain stream.
+		alt := e.ControlKeyState&(xwindows.LEFT_ALT_PRESSED|xwindows.RIGHT_ALT_PRESSED) != 0
+		ctrl := e.ControlKeyState&(xwindows.LEFT_CTRL_PRESSED|xwindows.RIGHT_CTRL_PRESSED) != 0
+		attachmentKey := alt && ((ctrl && e.VirtualKeyCode == 'V' && e.Char == 22) ||
+			(!ctrl && e.VirtualKeyCode >= '1' && e.VirtualKeyCode <= '8' && uint16(e.Char) == e.VirtualKeyCode))
+		if e.Char != 0 && !modifiedEditingKey && !attachmentKey {
 			// ConEmu can assign ordinary virtual keys to every byte of a VT
 			// packet without retaining sequence markers. Decode the character
 			// stream itself instead of wrapping it in Win32 input packets.

@@ -10,7 +10,6 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/run"
@@ -67,13 +66,19 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	defer m.syncFocus()
 	defer m.queueSettingsDetail()
 	switch msg := msg.(type) {
+	case clipboardMsg:
+		m.acceptClipboard(msg)
+		return m, nil
 	case tea.FocusMsg:
-		// Hosts can restore their own default colors when their window gains
-		// focus. Cells remain themed, but terminal padding follows those defaults.
-		// The renderer only emits OSC colors when the View's colors change, so
-		// reapply them explicitly through its output queue on focus recovery.
-		return m, tea.Raw(ansi.SetForegroundColor(themeColor(colorPopupText)) + ansi.SetBackgroundColor(currentPalette().background))
+		return m, m.focusTerminal()
 	case tea.BlurMsg:
+		m.terminalFocused = false
+		m.terminalFocusEpoch++
+		return m, nil
+	case terminalThemeRestoreMsg:
+		if m.terminalFocused && msg.epoch == m.terminalFocusEpoch {
+			return m, restoreTerminalColors()
+		}
 		return m, nil
 	case settingsDetailMsg:
 		m.acceptSettingsDetail(msg)
@@ -162,11 +167,12 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		}
 		m.fitInput()
 		m.fitBottom()
-		if m.queued != "" {
+		if m.hasQueued() {
 			queued := m.queued
-			if m.runErr == nil && !wasInterrupted && strings.TrimSpace(m.input.Value()) == "" {
+			if m.runErr == nil && !wasInterrupted && strings.TrimSpace(m.input.Value()) == "" && len(m.draftImages) == 0 {
 				m.queued = ""
 				m.input.SetValue(queued)
+				m.draftImages, m.queuedImages = m.queuedImages, nil
 				_, cmd := m.followUp()
 				return m, tea.Batch(cmd, waitEvents(m))
 			}
@@ -262,10 +268,13 @@ func (m *model) fitBottom() {
 	// `lines` adds per-state extras (done hint, reject label, input growth).
 	// A takeover overlay owns the bottom bar (one slim line), so it
 	// budgets nothing extra: the input hides with it.
-	if m.queued != "" && m.state != stPermission && m.state != stAsk {
+	if m.hasQueued() && m.state != stPermission && m.state != stAsk {
 		lines++
 	}
 	if m.pendingInputCount() > 0 && m.state != stPermission && m.state != stAsk {
+		lines++
+	}
+	if (len(m.draftImages) > 0 || m.clipboardBusy) && m.state != stPermission && m.state != stAsk {
 		lines++
 	}
 	if m.dialog != nil {

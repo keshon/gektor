@@ -164,3 +164,17 @@ func TestSnapshotImagePreservesHistory(t *testing.T) {
 		t.Fatal("accepted text disguised as PNG")
 	}
 }
+
+func TestEncodeContent_ImageOnly(t *testing.T) {
+	raw, err := encodeContent("", []string{writeTestPNG(t, "a.png"), writeTestPNG(t, "b.png")}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parts []contentPart
+	if err = json.Unmarshal(raw, &parts); err != nil {
+		t.Fatal(err)
+	}
+	if len(parts) != 2 || parts[0].Type != "image_url" || parts[1].Type != "image_url" {
+		t.Fatalf("invalid image-only message: %s", raw)
+	}
+}

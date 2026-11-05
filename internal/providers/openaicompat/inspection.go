@@ -80,23 +80,29 @@ func (p *Inspector) SupportsVision(ctx context.Context) (bool, error) {
 		if !strings.EqualFold(item.ID, p.model) {
 			continue
 		}
-		for _, m := range item.Architecture.InputModalities {
-			if m == "image" {
-				return true, nil
+		if item.Architecture.InputModalities != nil {
+			for _, m := range item.Architecture.InputModalities {
+				if m == "image" {
+					return true, nil
+				}
 			}
+			return false, nil
 		}
 		if item.Architecture.Modality != "" {
 			return strings.Contains(item.Architecture.Modality, "image"), nil
 		}
 		break // the provider lists ids only; the name is all we have
 	}
-	return modelVisionName(p.model), nil
+	if modelVisionName(p.model) {
+		return true, nil
+	}
+	return false, fmt.Errorf("image input support is unknown for %s", p.model)
 }
 
 // modelVisionName is the fallback for providers that do not publish
 // capabilities: the families known to accept image input. Unknown names
-// are treated as text-only, because a wrong "yes" fails a whole turn while
-// a wrong "no" only withholds a read_file convenience.
+// remain unknown: they withhold automatic image tools without blocking an
+// explicit user attachment that the server may support.
 func modelVisionName(model string) bool {
 	m := strings.ToLower(model)
 	for _, marker := range []string{

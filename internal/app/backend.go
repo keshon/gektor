@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/keshon/gektor/internal/llm"
@@ -40,6 +41,7 @@ type Backend struct {
 	model        string
 	backendName  string
 	inspector    modelInspector
+	visionProbe  func(context.Context) (bool, error)
 	setDebug     func(io.Writer)
 	setDRY       func(bool)
 }
@@ -80,6 +82,14 @@ func NewBackend(ctx context.Context, o BackendOptions) (*Backend, error) {
 		c.ConfigureReasoning(o.ReasoningEffort, o.ReasoningSummary)
 		b.usageClient = c
 		b.AccountLabel = bound.Label
+		// Replayed image history must not fetch the account catalog on every step.
+		var once sync.Once
+		var vision bool
+		var visionErr error
+		b.visionProbe = func(ctx context.Context) (bool, error) {
+			once.Do(func() { vision, visionErr = bound.SupportsVision(ctx, o.Model) })
+			return vision, visionErr
+		}
 	case providers.ChatCompletions:
 		c, err := chatcompletions.ClientFor(d.Dialect, o.URL, o.Model)
 		if err != nil {
@@ -137,8 +147,36 @@ func (b *Backend) ModelName(ctx context.Context) (string, error) {
 func (b *Backend) SupportsVision(ctx context.Context) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+	if b.visionProbe != nil {
+		return b.visionProbe(ctx)
+	}
 	if b.inspector == nil {
 		return false, fmt.Errorf("model vision support is unknown")
 	}
 	return b.inspector.SupportsVision(ctx)
+}
+
+func (b *Backend) checkImages(ctx context.Context, req llm.ChatRequest) error {
+	for _, message := range req.Messages {
+		if len(message.Images) > 0 {
+			vision, err := b.SupportsVision(ctx)
+			if err == nil && !vision {
+				return fmt.Errorf("model %s does not support image input; select a vision model", b.model)
+			}
+			return nil
+		}
+	}
+	return nil
+}
+func (b *Backend) Chat(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
+	if err := b.checkImages(ctx, req); err != nil {
+		return llm.ChatResponse{}, err
+	}
+	return b.usageClient.Chat(ctx, req)
+}
+func (b *Backend) Stream(ctx context.Context, req llm.ChatRequest, reasoning, text func(string)) (llm.ChatResponse, error) {
+	if err := b.checkImages(ctx, req); err != nil {
+		return llm.ChatResponse{}, err
+	}
+	return b.usageClient.Stream(ctx, req, reasoning, text)
 }

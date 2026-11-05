@@ -58,7 +58,7 @@ type Session struct {
 
 // New validates the config without running anything.
 func New(cfg Config) (*Session, error) {
-	if strings.TrimSpace(cfg.Task) == "" {
+	if strings.TrimSpace(cfg.Task) == "" && len(cfg.Images) == 0 {
 		return nil, fmt.Errorf("run: task is empty")
 	}
 	if cfg.Env.Client == nil {

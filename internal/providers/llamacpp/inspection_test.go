@@ -27,3 +27,12 @@ func TestSupportsVision_LlamaReadsModalities(t *testing.T) {
 		})
 	}
 }
+
+func TestMissingVisionMetadataIsUnknown(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, `{}`) }))
+	defer srv.Close()
+	got, err := New(srv.URL, "local", nil).SupportsVision(context.Background())
+	if got || err == nil {
+		t.Fatalf("missing metadata became unsupported: %v %v", got, err)
+	}
+}

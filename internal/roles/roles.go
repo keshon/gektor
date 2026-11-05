@@ -53,7 +53,8 @@ type Env struct {
 	// Vision reports that the backend can process pictures, so read_file
 	// may attach an image instead of returning binary metadata. It comes
 	// from application model discovery, never from a guess.
-	Vision bool
+	Vision      bool
+	VisionKnown bool
 
 	// Model names the backend model for display (status, logs). Local
 	// servers ignore it on the wire (they serve one model); it still
@@ -420,6 +421,7 @@ func (e Env) Refreshed(ctx context.Context) Env {
 	}
 	if facts.VisionKnown {
 		e.Vision = facts.Vision
+		e.VisionKnown = true
 	}
 	return e
 }

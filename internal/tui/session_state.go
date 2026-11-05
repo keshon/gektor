@@ -9,20 +9,24 @@ import (
 
 // Drafts are local UI state, separate from submitted model history.
 type draft struct {
-	text, queued string
-	recall       composer.Snapshot
+	text, queued         string
+	images, queuedImages []string
+	recall               composer.Snapshot
 }
 
 func (m *model) saveDraft() {
 	if m.drafts == nil {
 		m.drafts = make(map[string]draft)
 	}
-	m.drafts[m.stateFile] = draft{m.input.Value(), m.queued, m.input.Snapshot()}
+	m.drafts[m.stateFile] = draft{text: m.input.Value(), queued: m.queued, recall: m.input.Snapshot(), images: append([]string(nil), m.draftImages...), queuedImages: append([]string(nil), m.queuedImages...)}
 }
 func (m *model) restoreDraft() {
+	m.attachmentEpoch++
 	d := m.drafts[m.stateFile]
 	m.input.SetValue(d.text)
 	m.queued = d.queued
+	m.draftImages = append([]string(nil), d.images...)
+	m.queuedImages = append([]string(nil), d.queuedImages...)
 	m.input.Restore(d.recall)
 	m.fitInput()
 	m.fitBottom()

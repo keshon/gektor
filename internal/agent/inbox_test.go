@@ -161,3 +161,16 @@ func TestSteeringDuringRepeatRecoveryAnswerContinuesRun(t *testing.T) {
 		t.Fatalf("answer=%q err=%v report=%+v calls=%d", answer, err, a.Report(), calls)
 	}
 }
+
+func TestInboxAcceptsImagesWithoutText(t *testing.T) {
+	var inbox Inbox
+	if err := inbox.Send("", "shot.png"); err != nil {
+		t.Fatal(err)
+	}
+	if inbox.Len() != 1 {
+		t.Fatal("image-only input missing")
+	}
+	if err := inbox.Send(""); err == nil {
+		t.Fatal("accepted empty input")
+	}
+}

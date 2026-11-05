@@ -22,6 +22,7 @@ type ModeChange struct {
 	Preferences config.Preferences
 	History     []llm.Message
 	Draft       string
+	Images      []string
 	Directory   string
 	KeepAct     bool
 }
@@ -100,7 +101,7 @@ func (m *model) requestProfileChange(profile config.Profile) error {
 	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Workspace != nil && m.dialog.form.Workspace.LoadedPath != "" {
 		p.ProfilePath = m.dialog.form.Workspace.LoadedPath
 	}
-	m.modeChange = &ModeChange{Preferences: p, History: history, Draft: m.input.Value(), Directory: m.sessionDirectory(), KeepAct: !m.plan}
+	m.modeChange = &ModeChange{Preferences: p, History: history, Draft: m.input.Value(), Images: append([]string(nil), m.draftImages...), Directory: m.sessionDirectory(), KeepAct: !m.plan}
 	m.pendingCommands = append(m.pendingCommands, tea.Quit)
 	return nil
 }

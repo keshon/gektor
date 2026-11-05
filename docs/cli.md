@@ -72,8 +72,10 @@ This backend uses Responses with streaming and client-maintained history.
 Gektor still executes tools under its normal permissions. Opaque reasoning state
 is retained with assistant messages for session resume and is replayed only to
 this backend with the same model. Visible reasoning is a provider summary,
-when supplied. Model capabilities are not inferred from the ChatGPT UI; automatic
-image-producing tools remain disabled until model-specific vision is established.
+when supplied. Image input support comes from the account model catalog's
+`input_modalities`. Models declaring `image` enable image-reading tools and
+attachments. Missing metadata remains unknown; explicitly text-only models reject
+images before inference.
 
 Sampling and `max_output_tokens` are unsupported on this OAuth route.
 Use `-reasoning-effort high` to select an effort level, or leave it unset for
@@ -178,7 +180,7 @@ fails closed. Rules are pattern tripwires, not process isolation. See
 |---|---|---|
 | `-mode MODE` | `print` | `print` (human-readable) or `json` (one JSON object per line on stdout; human chatter goes to stderr so the stream pipes cleanly) |
 | `-serve` | `false` | Serve JSON-RPC over stdio instead of running one task: methods `run`/`respond`/`cancel`, events on stdout. See `docs/rpc.md` |
-| `-image PATHS` | — | Attach pictures to the task (comma-separated, e.g. `-image shot.png,plan.webp`). In the TUI use `@path` inline instead (`@"my shot.png"` when the name has spaces). Text references are also supported in the TUI; `-image` remains image-only. Requires a vision-capable OpenAI-compatible provider or llama-server with `--mmproj` and VL weights. Koboldcpp refuses loudly; a text-only model on a vision server fails at the backend, not silently |
+| `-image PATHS` | — | Attach pictures to the task (comma-separated, e.g. `-image shot.png,plan.webp`). In the TUI use `@path` inline instead (`@"my shot.png"` when the name has spaces). Text references are also supported in the TUI; `-image` remains image-only. Supports ChatGPT models with image input, a vision-capable OpenAI-compatible provider, or llama-server with `--mmproj` and VL weights. Koboldcpp refuses loudly; a text-only model on a vision server fails at the backend, not silently |
 | `-stream` | `false` | Enable streaming in print/RPC mode. The TUI enables it automatically; direct `-mode json` disables it. Supports OpenAI, llama and KoboldCPP |
 | `-debug` | `false` | Log raw request/response JSON plus per-call token usage to `agent-debug.log` |
 | `-log-max N` | `300` | Max characters per line in step console output. `0` means no limit. The final answer always prints whole |
@@ -302,7 +304,9 @@ conversation on a vision-capable backend instead of returning binary content;
 `metadata_only=true` still returns just the header. Vision capability is
 detected at startup from llama-server's `/props` modalities, or from an
 OpenAI-compatible `/models` list when the provider publishes input modalities,
-with a known-model-family fallback. A text-only backend reports the image type
+with a known-model-family fallback. Missing metadata stays unknown and does not
+block explicit attachments. ChatGPT reads `input_modalities` from the account
+model catalog. A text-only backend reports the image type
 and says the pixels are unavailable, so the agent does not re-read the file.
 
 `git` inspects status, log, diff, show, blame and tracked files without shell

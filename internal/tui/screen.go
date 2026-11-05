@@ -44,9 +44,12 @@ func (m *model) screenContent() string {
 		bottom = m.gateBar()
 	default:
 		bottom = m.input.View()
+		if (len(m.draftImages) > 0 || m.clipboardBusy) && m.state != stAsk {
+			bottom = cellLine(m.attachmentLine(), m.transcript.Viewport.Width()) + "\n" + bottom
+		}
 	}
-	if m.queued != "" && m.dialog == nil && m.state != stPermission && m.state != stAsk {
-		bottom = cellLine("Queued  Ctrl+E edit  Ctrl+X cancel: "+m.queued, m.transcript.Viewport.Width()) + "\n" + bottom
+	if m.hasQueued() && m.dialog == nil && m.state != stPermission && m.state != stAsk {
+		bottom = cellLine("Queued  Ctrl+E edit  Ctrl+X cancel: "+m.queuedLabel(), m.transcript.Viewport.Width()) + "\n" + bottom
 	}
 	if count := m.pendingInputCount(); count > 0 && m.dialog == nil && m.state != stPermission && m.state != stAsk {
 		bottom = cellLine(fmt.Sprintf("Sent: %d · waiting for the agent", count), m.transcript.Viewport.Width()) + "\n" + bottom

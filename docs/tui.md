@@ -191,6 +191,27 @@ An exact completed file path closes its suggestion, so Enter can send the
 message. Directory completion adds `/` and keeps browsing. Paths containing
 spaces are quoted automatically. `/mode p` and `/mode a` suggest Plan and Act.
 
+## Clipboard images (Windows)
+
+Copy a screenshot, then press Ctrl+Alt+V or run `/paste-image` to attach it.
+Ctrl+V pastes an image or text when the terminal forwards that key to Gektor.
+Windows Terminal may consume Ctrl+V for its own text paste action; use the
+fallback shortcut or unbind that terminal action if you want Gektor to own it.
+Gektor does not change terminal settings.
+
+Repeat for more screenshots, type a message, and press Enter. Each paste freezes
+the pixels immediately as PNG. The composer lists numbered attachments; Alt+1
+through Alt+8 removes the corresponding image without changing your text.
+`/detach N` also removes an image. Ctrl+U clears text and attachments.
+Image-only messages work, including while the agent is running.
+
+The composer allows eight images and 40 MiB combined per message, with a 20 MiB
+limit per image. Clipboard decoding also limits images to 32 megapixels.
+Attachments survive failed submission, session switching, and settings relaunch;
+submitted snapshots remain available for session resume. Drafts are not persisted
+across process exit. Clipboard access happens only on an explicit paste request.
+Other operating systems can attach saved files with `@path`.
+
 ## File references
 
 ```text
@@ -216,8 +237,10 @@ read_file permission gate. Attach only content you intend to send to the
 configured backend. See [the trust boundary](../SECURITY.md).
 
 PNG, JPG/JPEG, WebP, GIF, and BMP use image attachments instead of text.
-The backend caps each image at 20 MiB. A vision-capable OpenAI-compatible
-provider or llama-server with VL weights and `--mmproj` is required. GEKTOR's
+The backend caps each image at 20 MiB. ChatGPT uses the selected account model's
+`input_modalities` to establish vision support. ChatGPT accepts PNG, JPEG, WebP
+and non-animated GIF; convert BMP files to PNG first. A vision-capable
+OpenAI-compatible provider or llama-server with VL weights and `--mmproj` also works. GEKTOR's
 KoboldCPP dialect rejects image attachments. On a vision-capable backend the
 agent can also read a workspace picture itself: `read_file` on one of those
 formats attaches the image to the following turn, and at most four pictures
@@ -225,9 +248,8 @@ are attached per step. `-image` attaches images to an opening task; inline
 text-file references are a TUI composer feature, not syntax interpreted by
 print mode or RPC.
 
-Bare unknown mentions such as `@someone` remain literal. A missing unquoted
-image path also remains literal for compatibility; quoted missing paths and
-missing text-file paths with an extension/path separator report an error.
+Bare unknown mentions such as `@someone` remain literal. Missing image paths,
+quoted paths, and text-file paths with an extension/path separator report an error.
 
 ## Action toolbar
 
@@ -487,6 +509,10 @@ the `[INPUT]`, `[THINKING]`, `[TOOL CALL]` and other block tags independently.
 With names hidden, user messages are shaded and SYSTEM blocks keep an accent
 rail. **Outlined frame** restores the connected border; minimal framing uses
 the full terminal width. Both keep the top menu and bottom hotkeys.
+
+Terminal colors are restored on focus and once more after the focus transition
+settles, so tab/window switching does not leave the host padding on its default
+background. Stale restorations are cancelled on focus loss.
 
 All six choices and theme persist globally, including launches with browser,
 backend or workspace flags. They survive Settings Apply and opening other

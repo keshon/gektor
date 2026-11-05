@@ -19,6 +19,7 @@ type launchRequest struct {
 	options        *launchOptions
 	history        []llm.Message
 	draft          string
+	images         []string
 	directory      string
 	common         bool
 }
@@ -60,7 +61,7 @@ func runApplication(args []string) error {
 			return err
 		}
 		next := relaunchOptions(o.launchOptions, prefs, change.KeepAct)
-		request = launchRequest{options: &next, preferences: prefs, preferencePath: path, profile: prefs.Profile, history: change.History, draft: change.Draft, directory: change.Directory, common: true}
+		request = launchRequest{options: &next, preferences: prefs, preferencePath: path, profile: prefs.Profile, history: change.History, draft: change.Draft, images: change.Images, directory: change.Directory, common: true}
 	}
 }
 

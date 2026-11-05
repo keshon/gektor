@@ -3,6 +3,7 @@ package llamacpp
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/keshon/gektor/internal/providers/internal/probe"
@@ -29,7 +30,7 @@ type llamaProps struct {
 		NCtx int `json:"n_ctx"`
 	} `json:"default_generation_settings"`
 	Modalities struct {
-		Vision bool `json:"vision"`
+		Vision *bool `json:"vision"`
 	} `json:"modalities"`
 }
 
@@ -46,12 +47,17 @@ func (p *Inspector) ModelName(ctx context.Context) (string, error) {
 }
 
 // vision reads the modalities block /props reports for the loaded
-// weights and their projector. A server that predates the field answers
-// false: no projector means no picture processing either way.
+// weights and their projector. Missing metadata stays unknown.
 func (p *Inspector) SupportsVision(ctx context.Context) (bool, error) {
 	var props llamaProps
 	err := probe.GetJSON(ctx, p.http, probe.Endpoint(p.baseURL, "/props"), &props)
-	return props.Modalities.Vision, err
+	if err != nil {
+		return false, err
+	}
+	if props.Modalities.Vision == nil {
+		return false, fmt.Errorf("server did not report image input support")
+	}
+	return *props.Modalities.Vision, nil
 }
 
 func (p *Inspector) Models(ctx context.Context) ([]string, error) {

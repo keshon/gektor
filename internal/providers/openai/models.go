@@ -19,9 +19,10 @@ func (m *Manager) Models(ctx context.Context) ([]string, error) {
 }
 
 type Model struct {
-	Slug                     string `json:"slug"`
-	Visibility               string `json:"visibility"`
-	DefaultReasoningLevel    string `json:"default_reasoning_level"`
+	Slug                     string   `json:"slug"`
+	InputModalities          []string `json:"input_modalities"`
+	Visibility               string   `json:"visibility"`
+	DefaultReasoningLevel    string   `json:"default_reasoning_level"`
 	SupportedReasoningLevels []struct {
 		Effort      string `json:"effort"`
 		Description string `json:"description"`
@@ -97,4 +98,29 @@ func (m *Manager) Select(ctx context.Context, id string) error {
 		s.Active = id
 		return true, nil
 	})
+}
+
+// Vision distinguishes absent metadata from an explicitly text-only model.
+func (m Model) Vision() (bool, error) {
+	if m.InputModalities == nil {
+		return false, fmt.Errorf("image input support is unknown for %s", m.Slug)
+	}
+	for _, modality := range m.InputModalities {
+		if modality == "image" {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+func (m *BoundAccount) SupportsVision(ctx context.Context, model string) (bool, error) {
+	catalog, err := m.ModelCatalog(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, entry := range catalog {
+		if entry.Slug == model {
+			return entry.Vision()
+		}
+	}
+	return false, fmt.Errorf("model %q is absent from the account catalog", model)
 }

@@ -73,6 +73,8 @@ func commands() []command {
 		{name: "/retry", summary: "Retry the last failed turn"},
 		{name: "/compact", summary: "Shrink this session's history"},
 		{name: "/quit", immediate: true, summary: "Quit"},
+		{name: "/paste-image", immediate: true, summary: "Attach an image from the clipboard"},
+		{name: "/detach", arg: "N", immediate: true, summary: "Remove a draft image by number"},
 	}
 }
 
@@ -170,6 +172,11 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	switch strings.ToLower(name) {
+	case "paste-image":
+		return m, m.pasteClipboard(true)
+	case "detach":
+		m.detachImage(arg)
+		return m, nil
 	case "eval":
 		return m.evaluate(arg)
 	case "learn":

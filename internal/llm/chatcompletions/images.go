@@ -32,7 +32,10 @@ func encodeContent(text string, images []string, allowImages bool) (json.RawMess
 	if !allowImages {
 		return nil, fmt.Errorf("images attached but this backend cannot process images — use a vision-capable llama-server backend with --mmproj")
 	}
-	parts := []contentPart{{Type: "text", Text: text}}
+	parts := []contentPart{}
+	if text != "" {
+		parts = append(parts, contentPart{Type: "text", Text: text})
+	}
 	for _, path := range images {
 		url, err := llm.EncodeImageFile(path)
 		if err != nil {

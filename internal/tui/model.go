@@ -37,6 +37,7 @@ type Config struct {
 	Services         *app.Services
 	SeedHistory      []llm.Message
 	InitialDraft     string
+	InitialImages    []string
 	BackendURL       string
 	AccountLabel     string
 	Plan             bool
@@ -90,16 +91,21 @@ type model struct {
 	modeChange  *ModeChange
 	seedHistory []llm.Message
 
-	transcript  transcriptState
-	input       composer.Model
-	suggestions completion.State
-	gatePopup   gate.State
-	queued      string
-	evaluation  *evaluationJob
-	gateDraft   string
-	events      chan run.Event
-	hub         *run.GateHub
-	cancel      context.CancelFunc
+	transcript                transcriptState
+	input                     composer.Model
+	suggestions               completion.State
+	gatePopup                 gate.State
+	queued                    string
+	draftImages, queuedImages []string
+	clipboardBusy             bool
+	attachmentEpoch           uint64
+	terminalFocusEpoch        uint64
+	terminalFocused           bool
+	evaluation                *evaluationJob
+	gateDraft                 string
+	events                    chan run.Event
+	hub                       *run.GateHub
+	cancel                    context.CancelFunc
 	// base spawns one context per run: an interrupted run's cancelled
 	// context must never leak into the next turn.
 	base  context.Context
@@ -465,6 +471,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		m.stateFile = filepath.Join(cfg.SessionDirectory, "state.json")
 	}
 	m.input.SetValue(cfg.InitialDraft)
+	m.draftImages = append([]string(nil), cfg.InitialImages...)
 	m.fitInput()
 	m.fitBottom()
 	if err := m.savePreferences(); err != nil {

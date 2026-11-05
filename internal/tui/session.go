@@ -35,12 +35,12 @@ func (m *model) followUp() (tea.Model, tea.Cmd) {
 		m.fitBottom()
 		return m.command(text)
 	}
-	if text == "" {
+	if text == "" && len(m.draftImages) == 0 {
 		return m, nil
 	}
 	m.input.Push(text)
 	// Resolve explicit file references before starting a turn.
-	text, images, err := splitAttachments(m.ws, text)
+	text, images, err := m.draftAttachments(text)
 	if err != nil {
 		m.appendBlock(errorBlock(err.Error()))
 		return m, nil
@@ -58,6 +58,9 @@ func (m *model) followUp() (tea.Model, tea.Cmd) {
 			m.fitInput()
 			m.fitBottom()
 			m.appendBlock(errorBlock("cannot start: " + err.Error()))
+		} else {
+			m.draftImages = nil
+			m.fitBottom()
 		}
 		return m, nil
 	}
@@ -76,6 +79,8 @@ func (m *model) followUp() (tea.Model, tea.Cmd) {
 		m.appendBlock(errorBlock("cannot save mode: " + err.Error()))
 		return m, nil
 	}
+	m.draftImages = nil
+	m.fitBottom()
 	m.appendBlock(userBlock(strings.TrimSpace(original) + imageSuffix(images)))
 	// Capture the session: startRun runs on a goroutine, and the Update
 	// loop can replace m.sess before this body is entered.
@@ -341,6 +346,7 @@ func (m *model) startInitial(task string, images []string) error {
 // last-turn state go, the next submitted line starts a fresh run
 // through the sess==nil path in followUp. Bare /new.
 func (m *model) newTask() {
+	m.attachmentEpoch++
 	m.seedHistory = nil
 	if m.stateFile == "" && m.sess == nil {
 		return
@@ -440,6 +446,7 @@ func (m *model) startFreshPrompt(task, display string, images []string) error {
 	}
 	m.input.Restore(composer.Snapshot{History: []string{display}, Index: 1})
 	m.queued = ""
+	m.queuedImages = nil
 	m.transcript.blocks = nil
 	m.appendBlock(markerBlock("- new task -"))
 	m.appendBlock(userBlock(display + imageSuffix(images)))
@@ -452,6 +459,9 @@ func (m *model) startFreshPrompt(task, display string, images []string) error {
 		m.transcript.blocks = append(renderHistory(seed), m.transcript.blocks...)
 		seed = agentSeed(seed)
 	}
+	m.draftImages = nil
+	m.attachmentEpoch++
+	m.fitBottom()
 	m.startRun(func(runCtx context.Context) (string, error) {
 		if len(seed) > 0 {
 			return sess.Resume(runCtx, seed, task, images...)

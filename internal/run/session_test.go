@@ -595,3 +595,32 @@ func TestQuestionUsesRunDeadline(t *testing.T) {
 		t.Fatalf("asked=%v error=%v parent=%v", asked, err, parent.Err())
 	}
 }
+
+type imageOnlyClient struct{ messages []llm.Message }
+
+func (c *imageOnlyClient) Chat(_ context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
+	c.messages = req.Messages
+	return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: "image received"}}, nil
+}
+func TestNewAcceptsImageOnlyTask(t *testing.T) {
+	client := &imageOnlyClient{}
+	sess, err := New(Config{Images: []string{"shot.png"}, Env: testEnv(t, client, nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = sess.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, m := range client.messages {
+		if m.Role == llm.RoleUser && m.Content == "" && len(m.Images) == 1 && m.Images[0] == "shot.png" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("image-only task never reached the model")
+	}
+	if _, err := New(Config{}); err == nil {
+		t.Fatal("accepted empty task")
+	}
+}

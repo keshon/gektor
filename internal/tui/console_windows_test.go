@@ -334,3 +334,27 @@ func TestConsoleReaderCancellation(t *testing.T) {
 		t.Fatalf("canceled read returned %v", err)
 	}
 }
+
+func TestNativeConsoleAttachmentShortcuts(t *testing.T) {
+	for _, tc := range []struct {
+		key, char uint16
+		mods      uint32
+		want      string
+	}{
+		{'V', 22, xwindows.LEFT_CTRL_PRESSED, "ctrl+v"},
+		{'V', 22, xwindows.LEFT_CTRL_PRESSED | xwindows.LEFT_ALT_PRESSED, "ctrl+alt+v"},
+		{'V', 0, xwindows.LEFT_CTRL_PRESSED | xwindows.LEFT_ALT_PRESSED, "ctrl+alt+v"},
+		{'1', '1', xwindows.LEFT_ALT_PRESSED, "alt+1"},
+	} {
+		r := &consoleReader{}
+		r.encode(nativeKeyRecord(tc.key, tc.char, tc.mods))
+		events := decodeConsoleEvents(t, r.buffer.String())
+		if len(events) != 1 {
+			t.Fatalf("%s: %#v", tc.want, events)
+		}
+		key, ok := events[0].(uv.KeyPressEvent)
+		if !ok || tea.KeyPressMsg(key).String() != tc.want {
+			t.Fatalf("want %s got %#v", tc.want, events[0])
+		}
+	}
+}

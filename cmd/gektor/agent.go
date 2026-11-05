@@ -159,6 +159,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	// read_file that would attach pictures and fail the turn at the wire
 	// encoder. An unknown answer is treated as "no".
 	vision, err := client.SupportsVision(ctx)
+	visionKnown := err == nil
 	if err != nil {
 		vision = false
 	}
@@ -269,6 +270,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		RunTimeout:        o.runTimeout,
 		Policy:            buildPolicy(o.allow, o.deny),
 		Vision:            vision,
+		VisionKnown:       visionKnown,
 		GateContext:       audit.ContextHook(o.auditPath, "cli", permissionGateContext(o.yes, suspend, ws)),
 		BackendKind:       o.backendKind,
 		Model:             displayModel,
@@ -363,7 +365,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		prepared.Client = client
 		services := prepared
 		app := applicationControl(launch, profile, o.profilePath, o.workspace)
-		answer, err := tui.Run(ctx, tui.Config{Application: app, Services: &services, SeedHistory: launch.history, InitialDraft: launch.draft, SessionDirectory: launch.directory,
+		answer, err := tui.Run(ctx, tui.Config{Application: app, Services: &services, SeedHistory: launch.history, InitialDraft: launch.draft, InitialImages: launch.images, SessionDirectory: launch.directory,
 			BackendURL:   o.backendURL,
 			AccountLabel: accountLabel,
 			Plan:         o.plan,

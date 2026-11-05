@@ -48,29 +48,43 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	if m.activeInputOwner() == focusInput {
+		if m.state != stAsk && msg.Mod == tea.ModAlt && msg.Code >= '1' && msg.Code <= '8' {
+			m.detachImage(string(rune(msg.Code)))
+			return m, nil
+		}
 		switch msg.String() {
+		case "ctrl+v", "ctrl+alt+v":
+			if m.state != stAsk {
+				return m, m.pasteClipboard(msg.String() == "ctrl+alt+v")
+			}
 		case "ctrl+end":
 			m.transcript.Viewport.GotoBottom()
 			m.transcript.Follow = true
 			return m, nil
 		case "ctrl+u":
 			m.input.SetValue("")
+			if m.state != stAsk {
+				m.attachmentEpoch++
+				m.draftImages = nil
+			}
 			m.fitInput()
 			m.fitBottom()
 			return m, nil
 		case "ctrl+x":
-			if m.queued != "" {
+			if m.hasQueued() {
 				m.queued = ""
+				m.queuedImages = nil
 				m.fitBottom()
 				return m, nil
 			}
 		case "ctrl+e":
-			if m.queued != "" && m.state != stAsk {
-				if m.input.Value() != "" {
+			if m.hasQueued() && m.state != stAsk {
+				if m.input.Value() != "" || len(m.draftImages) > 0 {
 					m.appendBlock(markerBlock("Keep or clear the current draft before editing the queue."))
 					return m, nil
 				}
 				m.input.SetValue(m.queued)
+				m.draftImages, m.queuedImages = m.queuedImages, nil
 				m.queued = ""
 				m.fitInput()
 				m.fitBottom()
@@ -242,7 +256,7 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			text := strings.TrimSpace(m.input.Value())
-			if text == "" {
+			if text == "" && len(m.draftImages) == 0 {
 				return m, nil
 			}
 			// A command that acts on the view, or on the agent's own
@@ -259,12 +273,13 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				return m.command(text)
 			}
 			if !strings.HasPrefix(text, "/") && m.sess != nil {
-				resolved, images, err := splitAttachments(m.ws, text)
+				resolved, images, err := m.draftAttachments(text)
 				if err == nil {
 					err = m.sess.Submit(resolved, images...)
 				}
 				if err == nil {
 					m.input.Push(text)
+					m.draftImages = nil
 					m.input.SetValue("")
 					m.fitInput()
 					m.fitBottom()
@@ -278,13 +293,18 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				}
 				// Completion raced this key: preserve the existing follow-up path.
 			}
-			if m.queued != "" {
+			if m.hasQueued() {
 				m.appendBlock(markerBlock("a follow-up is already queued"))
 				return m, nil
 			}
+			if m.clipboardBusy {
+				m.appendBlock(errorBlock("wait for clipboard capture to finish"))
+				return m, nil
+			}
 			m.queued = text
+			m.queuedImages, m.draftImages = m.draftImages, nil
 			m.input.SetValue("")
-			m.appendBlock(markerBlock("queued follow-up: " + truncate(text, 120)))
+			m.appendBlock(markerBlock("queued follow-up: " + truncate(m.queuedLabel(), 120)))
 			m.fitInput()
 			m.fitBottom()
 			m.transcript.Follow = true

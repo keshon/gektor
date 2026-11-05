@@ -25,7 +25,7 @@ func (i *Inbox) Send(text string, images ...string) error {
 	if i.closed {
 		return ErrInputClosed
 	}
-	if strings.TrimSpace(text) == "" {
+	if strings.TrimSpace(text) == "" && len(images) == 0 {
 		return fmt.Errorf("message is empty")
 	}
 	if len(i.pending) >= 64 {

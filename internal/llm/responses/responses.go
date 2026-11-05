@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -63,7 +64,7 @@ func (c *Client) buildRequest(req llm.ChatRequest) ([]byte, bool, error) {
 			if len(m.Images) > 0 {
 				content := []any{map[string]any{"type": "input_text", "text": "Images returned by tool " + m.ToolCallID}}
 				for _, path := range m.Images {
-					image, err := llm.EncodeImageFile(path)
+					image, err := encodeImage(path)
 					if err != nil {
 						return nil, fallback, err
 					}
@@ -80,9 +81,12 @@ func (c *Client) buildRequest(req llm.ChatRequest) ([]byte, bool, error) {
 		if m.Content != "" || len(m.Images) > 0 {
 			msg := map[string]any{"role": role, "content": m.Content}
 			if len(m.Images) > 0 {
-				content := []any{map[string]any{"type": "input_text", "text": m.Content}}
+				content := []any{}
+				if m.Content != "" {
+					content = append(content, map[string]any{"type": "input_text", "text": m.Content})
+				}
 				for _, path := range m.Images {
-					image, err := llm.EncodeImageFile(path)
+					image, err := encodeImage(path)
 					if err != nil {
 						return nil, fallback, err
 					}
@@ -383,4 +387,11 @@ func (c *Client) decodeResponse(w responseEnvelope) (llm.ChatResponse, error) {
 		out.FinishReason = "tool_calls"
 	}
 	return out, nil
+}
+
+func encodeImage(path string) (string, error) {
+	if strings.EqualFold(filepath.Ext(path), ".bmp") {
+		return "", fmt.Errorf("ChatGPT image input does not support BMP; convert %q to PNG", path)
+	}
+	return llm.EncodeImageFile(path)
 }
