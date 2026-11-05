@@ -106,7 +106,7 @@ func TestCapabilityDiscoveryAndFailureAreSideEffectFree(t *testing.T) {
 }
 
 func TestCapabilityConfigValidation(t *testing.T) {
-	valid := `{"version":1,"skill_roots":["library"],"packs":[{"id":"reader","version":"1","description":"Read widgets","type":"executable","command":["host","literal argument"],"read_only":true,"concurrent":true,"tools":[{"name":"read","description":"Read one","input_schema":{"type":"object","properties":{"url":{"type":"string"}},"required":["url"]}}]}]}`
+	valid := `{"version":1,"skill_roots":["library"],"packs":[{"id":"reader","main_only":true,"version":"1","description":"Read widgets","type":"executable","command":["host","literal argument"],"read_only":true,"concurrent":true,"tools":[{"name":"read","description":"Read one","input_schema":{"type":"object","properties":{"url":{"type":"string"}},"required":["url"]}}]}]}`
 	file := filepath.Join(t.TempDir(), "capabilities.json")
 	if err := os.WriteFile(file, []byte(valid), 0600); err != nil {
 		t.Fatal(err)
@@ -117,6 +117,9 @@ func TestCapabilityConfigValidation(t *testing.T) {
 	}
 	sources, close := BuildCapabilities(config, t.TempDir())
 	defer close()
+	if !config.Packs[0].MainOnly || !sources[0].MainOnly {
+		t.Fatal("main-only configuration lost")
+	}
 	cat := &Capabilities{Sources: sources, Registry: agent.NewRegistry()}
 	if _, err := cat.Enable(t.Context(), "reader", nil); err != nil {
 		t.Fatal("activation ran unavailable executable", err)

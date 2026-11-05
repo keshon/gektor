@@ -70,14 +70,14 @@ func TestExtensionResumeCompactionAndCurrentPermissions(t *testing.T) {
 		t.Fatal(err)
 	}
 	saved, err := session.Load(state)
-	if err != nil || len(saved.Capabilities) != 1 || calls != 1 {
+	if err != nil || len(saved.Capabilities) != 2 || calls != 1 {
 		t.Fatal(saved.Capabilities, err, calls)
 	}
 	if _, _, _, err := agent.CompactFile(state, 1); err != nil {
 		t.Fatal(err)
 	}
 	saved, err = session.Load(state)
-	if err != nil || len(saved.Capabilities) != 1 {
+	if err != nil || len(saved.Capabilities) != 2 {
 		t.Fatal(err)
 	}
 	// An unrelated resumed answer must not load an unavailable adapter.

@@ -27,7 +27,7 @@ func TestConversationRestoresBrowserReferenceWithoutStartingBrowser(t *testing.T
 		t.Fatal(err)
 	}
 	saved, err := session.Load(path)
-	if err != nil || saved.Browser == nil || saved.Browser.Profile != "work" || len(saved.Capabilities) != 0 {
+	if err != nil || saved.Browser == nil || saved.Browser.Profile != "work" || len(saved.Capabilities) != 1 || saved.Capabilities[0].ID != tools.NativeWeb {
 		t.Fatal(saved, err)
 	}
 	// Session metadata survives a compacted projection independently of the

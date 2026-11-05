@@ -62,9 +62,21 @@ process; MCP activation connects to discover the remote catalog.
 Executable tools are named `cap__<pack>__<tool>`. MCP tools use
 `mcp__<server>__<tool>`. The existing `-mcp` flag still connects eagerly.
 `-browser` uses the shared capability lifecycle and retains `enable_browser`.
-ID `browser` is reserved while `-browser` is enabled.
+ID `browser` is reserved while `-browser` is enabled. IDs starting with
+`native_` are reserved for native tool packages. Rename any configured pack
+using that prefix before launching this version.
 
-Activated catalogs persist through compaction. Resume restores schemas without
+Built-in web tools remain available from the first model request. They now use
+the same activation manager as optional packs and persist as `native_web`.
+Native tools keep their public names and execution permissions. Their saved
+definitions are checked against the current build before a resumed run; a
+mismatch requires compatible code or a fresh session. Other always-present
+native tools are reconstructed normally and are not saved as capability packs.
+
+The prompt includes a bounded map of optional pack IDs and descriptions from
+the discovery catalog. A known ID can be enabled without a preceding search.
+
+Activated catalogs persist through compaction. For adapter packs, resume restores schemas without
 connecting. The first tool call reconnects and compares the current configuration
 and catalog with the saved fingerprint. A changed catalog requires a new session.
 A missing adapter fails its tool call; other work can continue. Older transcripts
@@ -74,7 +86,9 @@ the system prompt remains stable.
 
 `read_only` and `concurrent` default to false. These are declarations made by
 local configuration, not claims accepted from a remote server. A restored
-read-only pack can run in Plan; Plan does not activate new packs. Discovery
+read-only pack can run in Plan. Plan can activate native packages without IO;
+external-pack activation remains blocked, including packs declared read-only.
+Activation and subsequent tool calls still pass through permission checks. Discovery
 and skill loading work in Plan. Concurrent execution requires `read_only`.
 These declarations do not sandbox processes; use them for trusted adapters.
 
@@ -218,3 +232,17 @@ source, SHA-256 and body after output limiting. Truncated, offloaded or failed
 loads do not count; supporting resources are read normally. The view is rebuilt
 after compaction and on resume, so a retained load regains its full body when
 the earlier copy is removed. The saved archive keeps the original results.
+
+### Role availability
+
+Set `main_only: true` on a configured pack to keep it out of subagent discovery,
+activation and restoration. The default is false, preserving existing pack
+availability. This restriction is independent of `read_only` and permissions.
+Role constructors also reject `ask_user` and `delegate_task` in child registries,
+including direct programmatic extras. A main agent without an ask callback cannot
+acquire `ask_user` through an extra or pack.
+
+Dynamically loaded packs still undergo a tool-name check before publication.
+A loader that fails to declare its main-only requirement may run discovery
+before that check; its forbidden tools are never published. Declare `main_only`
+when the entire pack is unsuitable for children.

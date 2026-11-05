@@ -409,7 +409,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 			results[i].err = err
 			continue
 		}
-		if !a.mayRun(call.Name) {
+		if !a.mayRunCall(call.Name, call.Arguments) {
 			skipped[i] = true
 			results[i].err = fmt.Errorf(
 				"this run is read-only: %s is unavailable and nothing was changed - "+

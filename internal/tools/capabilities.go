@@ -17,6 +17,8 @@ import (
 // Capability owns a launch's adapter. Activation belongs to each session.
 // Load may discover tools, but must never execute a requested tool action.
 type Capability struct {
+	// MainOnly excludes this source from child discovery, activation and restore.
+	MainOnly                                       bool
 	Close                                          func()
 	ID, Version, Description, Instructions, Source string
 	ReadOnly, Concurrent                           bool
@@ -93,10 +95,13 @@ func catalogFingerprint(c *Capability, defs []llm.ToolDef) string {
 
 // Capabilities is one session's catalog. Saved schemas reconnect only on use.
 type Capabilities struct {
-	Registry *agent.Registry
-	Sources  []*Capability
-	mu       sync.Mutex
-	active   map[string]session.Capability
+	Subagent       bool
+	Registry       *agent.Registry
+	Sources        []*Capability
+	Native         []*NativePackage
+	ForbiddenTools []string
+	mu             sync.Mutex
+	active         map[string]session.Capability
 }
 
 func (c *Capabilities) source(id string) *Capability {
@@ -111,13 +116,29 @@ func (c *Capabilities) source(id string) *Capability {
 func (c *Capabilities) Enable(ctx context.Context, id string, note func(string)) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if err := c.validateSources(); err != nil {
+		return "", err
+	}
 	if err := validateCapabilityID(id); err != nil {
 		return "", err
 	}
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
+	if !c.available(id) {
+		return "", fmt.Errorf("capability %s is unavailable to this role", id)
+	}
 	if state, ok := c.active[id]; ok {
+		return activationText(state), nil
+	}
+	if p := c.native(id); p != nil {
+		state := p.state()
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		if err := c.publish(ctx, state, p.Tools); err != nil {
+			return "", err
+		}
 		return activationText(state), nil
 	}
 	source := c.source(id)
@@ -125,8 +146,11 @@ func (c *Capabilities) Enable(ctx context.Context, id string, note func(string))
 	if err != nil {
 		return "", err
 	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	state := capabilityState(source, list)
-	if err := c.install(source, state); err != nil {
+	if err := c.install(ctx, source, state); err != nil {
 		return "", err
 	}
 	return activationText(state), nil
@@ -140,19 +164,12 @@ func activationText(state session.Capability) string {
 	return fmt.Sprintf("Capability %s enabled for this session. Tools: %s.\n%s", state.ID, strings.Join(names, ", "), state.Instructions)
 }
 
-func (c *Capabilities) install(source *Capability, state session.Capability) error {
+func (c *Capabilities) install(ctx context.Context, source *Capability, state session.Capability) error {
 	list := make([]agent.Tool, 0, len(state.Tools))
 	for _, def := range state.Tools {
 		list = append(list, &capabilityTool{source: source, state: state, def: def})
 	}
-	if err := c.Registry.Add(list...); err != nil {
-		return err
-	}
-	if c.active == nil {
-		c.active = map[string]session.Capability{}
-	}
-	c.active[state.ID] = state
-	return nil
+	return c.publish(ctx, state, list)
 }
 
 func (c *Capabilities) Save() []session.Capability {
@@ -169,11 +186,20 @@ func (c *Capabilities) Save() []session.Capability {
 func (c *Capabilities) Restore(ctx context.Context, states []session.Capability) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if err := c.validateSources(); err != nil {
+		return err
+	}
 	for _, state := range states {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if _, ok := c.active[state.ID]; ok {
+		if !c.available(state.ID) {
+			return fmt.Errorf("capability %s is unavailable to this role", state.ID)
+		}
+		if active, ok := c.active[state.ID]; ok {
+			if !sameCapability(active, state) {
+				return fmt.Errorf("capability %s conflicts with saved activation", state.ID)
+			}
 			continue
 		}
 		if err := validateCapabilityID(state.ID); err != nil {
@@ -182,7 +208,19 @@ func (c *Capabilities) Restore(ctx context.Context, states []session.Capability)
 		if len(state.Tools) == 0 || len(state.Tools) > 4096 {
 			return fmt.Errorf("invalid saved capability %s catalog", state.ID)
 		}
-		if err := c.install(c.source(state.ID), state); err != nil {
+		if p := c.native(state.ID); p != nil {
+			if !sameCapability(p.state(), state) {
+				return fmt.Errorf("native capability %s changed; use compatible code or start a new session", state.ID)
+			}
+			if err := c.publish(ctx, state, p.Tools); err != nil {
+				return err
+			}
+			continue
+		}
+		if strings.HasPrefix(state.ID, "native_") {
+			return fmt.Errorf("native capability %s is unavailable to this role or build", state.ID)
+		}
+		if err := c.install(ctx, c.source(state.ID), state); err != nil {
 			return err
 		}
 	}
@@ -335,17 +373,12 @@ func (t DiscoverCapabilities) Run(ctx context.Context, args json.RawMessage) (st
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", err
 	}
-	type entry struct {
-		ID          string `json:"id"`
-		Description string `json:"description"`
-	}
-	result := []entry{}
-	for _, source := range t.Catalog.Sources {
-		if strings.Contains(strings.ToLower(source.ID+" "+source.Description), strings.ToLower(in.Query)) {
-			result = append(result, entry{source.ID, source.Description})
+	result := []capabilityEntry{}
+	for _, entry := range t.Catalog.entries() {
+		if strings.Contains(strings.ToLower(entry.ID+" "+entry.Description), strings.ToLower(in.Query)) {
+			result = append(result, entry)
 		}
 	}
-	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
 	data, err := json.Marshal(result)
 	return string(data), err
 }
@@ -360,6 +393,16 @@ func (EnableCapability) Resources(args json.RawMessage) ([]string, error) {
 		return nil, err
 	}
 	return []string{in.ID}, nil
+}
+
+// ReadOnlyCall admits only native activation in Plan. Native factories have
+// already run without IO; this only publishes schemas. Tool execution still
+// passes through the normal Plan allowlist and permission gate.
+func (t EnableCapability) ReadOnlyCall(args json.RawMessage) bool {
+	var in struct {
+		ID string `json:"id"`
+	}
+	return json.Unmarshal(args, &in) == nil && t.Catalog.native(in.ID) != nil && t.Catalog.available(in.ID)
 }
 
 func (EnableCapability) Name() string         { return "enable_capability" }

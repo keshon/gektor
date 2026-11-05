@@ -19,7 +19,11 @@ type Config struct {
 	Tools        *Registry
 	// RestoreTools restores optional capabilities from the complete archive
 	// before the first request, including when their activation was compacted.
-	RestoreTools        func(context.Context, []llm.Message) error
+	RestoreTools func(context.Context, []llm.Message) error
+	// PrepareTools publishes eager packages after saved and legacy restoration.
+	PrepareTools func(context.Context) error
+	// PreviewTools reports pending eager schemas without IO or registry mutation.
+	PreviewTools        func() []llm.ToolDef
 	SaveCapabilities    func() []session.Capability
 	RestoreCapabilities func(context.Context, []session.Capability) error
 	SaveBrowser         func() *session.BrowserProfile

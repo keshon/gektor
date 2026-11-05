@@ -43,50 +43,13 @@ func PathResources(ws *workspace.Workspace, tool string, args json.RawMessage) (
 }
 
 // Base returns the standard tool set shared by the main agent and
-// subagents. Pass extra tools (ask_user, delegate_task, todo) for the main
+// subagents. Pass extra tools (ask_user, delegate_task, read_history) for the main
 // agent only. File-mutating tools run post-write deterministic checks
 // from rules, reporting to sink; a nil sink or no rules builds unwrapped.
 // vision enables reading pictures through read_file; it must come from a
 // backend capability probe, not a guess.
 func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSink, rules []checks.Rule, vision bool, extra ...agent.Tool) *agent.Registry {
-	scan := func(t agent.Tool) agent.Tool { return Checked(t, ws, report, rules) }
-	info := SystemInfo{WS: ws, BrowserTools: BrowserToolNames(extra)}
-	for _, t := range extra {
-		if discover, ok := t.(DiscoverCapabilities); ok {
-			info.Capabilities = discover.Catalog
-		}
-		if browser, ok := t.(*EnableBrowser); ok {
-			info.Browser = browser
-		}
-	}
-	tools := []agent.Tool{
-		info,
-		LoadSkill{WS: ws},
-		ReadOutput{},
-		ReadFile{WS: ws, Vision: vision},
-		scan(WriteFile{WS: ws}),
-		scan(PatchFile{WS: ws}),
-		ListFiles{WS: ws},
-		MoveFile{WS: ws},
-		RunShell{WS: ws},
-		RunProgram{WS: ws},
-		GrepFiles{WS: ws},
-		Git{WS: ws},
-		GitAdd{WS: ws},
-		GitCommit{WS: ws},
-		StartBackground{WS: ws, Procs: procs},
-		StartProgram{WS: ws, Procs: procs},
-		CheckBackground{Procs: procs},
-		WaitBackground{Procs: procs},
-		StopBackground{Procs: procs},
-		CheckURL{},
-		Webfetch{},
-		FetchRaw{},
-		SearchWeb{WS: ws},
-		&Todo{},
-	}
-	tools = append(tools, extra...)
-	return agent.NewRegistry(tools...)
+	return agent.NewRegistry(nativeTools(packageDependencies{ws, procs, report, rules, vision, extra}, false)...)
 }
 
 // ReadOnly returns a tool set that can inspect the workspace and running
@@ -95,20 +58,5 @@ func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSin
 // final review): removing the mutating tools entirely beats prompting a
 // weak model not to use them.
 func ReadOnly(ws *workspace.Workspace, procs *BackgroundProcesses, vision bool) *agent.Registry {
-	return agent.NewRegistry(
-		SystemInfo{WS: ws},
-		LoadSkill{WS: ws},
-		ReadOutput{},
-		ReadHistory{},
-		ReadFile{WS: ws, Vision: vision},
-		ListFiles{WS: ws},
-		GrepFiles{WS: ws},
-		Git{WS: ws},
-		CheckBackground{Procs: procs},
-		WaitBackground{Procs: procs},
-		CheckURL{},
-		Webfetch{},
-		FetchRaw{},
-		SearchWeb{WS: ws},
-	)
+	return agent.NewRegistry(nativeTools(packageDependencies{WS: ws, Procs: procs, Vision: vision}, true)...)
 }

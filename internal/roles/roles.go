@@ -73,6 +73,8 @@ type Env struct {
 	MCPTools     []agent.Tool
 	Browser      *tools.Browser
 	Capabilities []*tools.Capability
+	// NativeExposure is an internal eval override; nil preserves eager web tools.
+	NativeExposure map[string]tools.Exposure
 
 	// OnDelta receives streamed answer text for live display. OnReasoning
 	// receives streamed deliberation, which arrives first.
@@ -281,7 +283,7 @@ func (e Env) statePath(name string) string {
 // findings still flow: those constrain or describe the work itself.
 func Subagent(e Env, role string) *agent.Agent {
 	cfg := e.agentConfig(prompts.WithRole(role)+"\n\n"+prompts.SubagentScope+"\n\n"+prompts.PlatformLine(tools.ShellName()), "", "")
-	e.configureTools(&cfg, e.MCPTools...)
+	e.configureTools(&cfg, false, false, e.MCPTools...)
 	cfg.MaxSteps = subagentSteps
 	cfg.System += fmt.Sprintf("\n\nYour budget is %d model steps, including your final answer. Keep the subtask focused and report unfinished work honestly.", subagentSteps)
 	cfg.Inbox, cfg.OnInput = nil, nil
@@ -330,7 +332,7 @@ func (e Env) conversationConfig(label, stateFile string,
 		extra = append(extra, tools.AskUser{AskFn: ask})
 	}
 	cfg := e.agentConfig(prompts.System+"\n\n"+prompts.PlatformLine(tools.ShellName()), label, stateFile)
-	e.configureTools(&cfg, extra...)
+	e.configureTools(&cfg, true, ask != nil, extra...)
 	cfg.MaxSteps = e.MaxSteps
 	if e.Browser != nil {
 		cfg.SaveBrowser = e.Browser.Reference
@@ -352,12 +354,18 @@ func (e Env) browserContext() string {
 	return tools.BrowserContext(e.MCPTools)
 }
 
-func (e Env) configureTools(cfg *agent.Config, extra ...agent.Tool) {
+func (e Env) configureTools(cfg *agent.Config, mainAgent, allowQuestions bool, extra ...agent.Tool) {
 	sources := tools.WithBuiltinCapabilities(e.Capabilities)
 	if e.Browser != nil {
 		sources = append(sources, e.Browser.Capability())
 	}
-	catalog := &tools.Capabilities{Sources: sources}
+	catalog := &tools.Capabilities{Sources: sources, Subagent: !mainAgent}
+	if !mainAgent {
+		catalog.ForbiddenTools = append(catalog.ForbiddenTools, "delegate_task")
+	}
+	if !allowQuestions {
+		catalog.ForbiddenTools = append(catalog.ForbiddenTools, "ask_user")
+	}
 	var browser *tools.EnableBrowser
 	if e.Browser != nil {
 		browser = &tools.EnableBrowser{Browser: e.Browser, Catalog: catalog}
@@ -366,10 +374,27 @@ func (e Env) configureTools(cfg *agent.Config, extra ...agent.Tool) {
 	if len(sources) > 0 {
 		extra = append(extra, tools.DiscoverCapabilities{Catalog: catalog}, tools.EnableCapability{Catalog: catalog})
 	}
-	cfg.Tools = tools.Base(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.Vision, extra...)
+	var composeErr error
+	cfg.Tools, composeErr = tools.Compose(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.Vision, catalog, e.NativeExposure, extra...)
+	if composeErr != nil {
+		cfg.Tools = agent.NewRegistry()
+	}
+	cfg.PrepareTools = func(ctx context.Context) error {
+		if composeErr != nil {
+			return composeErr
+		}
+		return catalog.Prepare(ctx)
+	}
+	if composeErr == nil {
+		cfg.PreviewTools = catalog.PreviewDefs
+		cfg.System += catalog.Map()
+	}
 	catalog.Registry = cfg.Tools
 	cfg.SaveCapabilities = catalog.Save
 	cfg.RestoreCapabilities = func(ctx context.Context, states []session.Capability) error {
+		if composeErr != nil {
+			return composeErr
+		}
 		if e.Browser != nil {
 			states = e.Browser.UpgradeCatalog(states)
 		}

@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/keshon/gektor/internal/agent"
@@ -22,6 +23,7 @@ type CapabilityConfig struct {
 }
 
 type CapabilityPack struct {
+	MainOnly       bool                  `json:"main_only,omitempty"`
 	ID             string                `json:"id"`
 	Version        string                `json:"version"`
 	Description    string                `json:"description"`
@@ -74,6 +76,9 @@ func LoadCapabilityConfig(path string) (CapabilityConfig, error) {
 	seen := map[string]bool{}
 	for i := range config.Packs {
 		pack := &config.Packs[i]
+		if strings.HasPrefix(pack.ID, "native_") {
+			return config, fmt.Errorf("capability %q uses the reserved native_ namespace", pack.ID)
+		}
 		if err := validateCapabilityID(pack.ID); err != nil {
 			return config, err
 		}
@@ -177,7 +182,7 @@ func BuildCapabilities(config CapabilityConfig, dir string) ([]*Capability, func
 	connections := []*connection{}
 	for _, pack := range config.Packs {
 		encoded, _ := json.Marshal(pack)
-		source := &Capability{ID: pack.ID, Version: pack.Version, Description: pack.Description, Instructions: pack.Instructions, Source: string(encoded), ReadOnly: pack.ReadOnly, Concurrent: pack.Concurrent, ResourceField: pack.ResourceField}
+		source := &Capability{MainOnly: pack.MainOnly, ID: pack.ID, Version: pack.Version, Description: pack.Description, Instructions: pack.Instructions, Source: string(encoded), ReadOnly: pack.ReadOnly, Concurrent: pack.Concurrent, ResourceField: pack.ResourceField}
 		source.ToolPolicies = pack.ToolPolicies
 		conn := &connection{source: source}
 		source.Close = func() {

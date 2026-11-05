@@ -109,6 +109,26 @@ Snapshots write atomically after responses and tool execution. Resume restores
 history and composes the current launch's instructions. Fork copies history into a fresh
 task directory; it does not create a Git checkout.
 
+## Tool composition
+
+`tools/packages_builtin.go` defines native package membership, per-agent
+constructors and Plan eligibility. Base and ReadOnly use those same entries.
+Native tools enter the registry directly, retaining their streaming, image,
+checklist, question and context-reuse interfaces. Stateful tool instances belong
+to one agent; adapter connections keep their existing launch lifetime.
+
+The capability manager also activates native packages. Web tools remain eager
+under `native_web`; an internal role-environment override supports lazy-web
+evaluation. There is no new user-facing exposure setting. Saved activations
+restore before eager preparation. Native definitions are checked immediately;
+external adapters still reconnect and validate on use. Eager native schemas can
+be previewed for context reports without publishing them or making network calls.
+Discovery and a bounded prompt map share one optional-package catalog.
+Main-only sources are excluded for children before loading; role constructors
+reject forbidden direct extras. Plan can activate native packages without IO,
+but external activation stays blocked. Every resulting call still goes through
+the Plan allowlist and permission gate.
+
 ## Optional browser
 
 The browser flag exposes only enable_browser initially. Its first successful

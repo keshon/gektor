@@ -143,6 +143,12 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 		}
 	}
 
+	if a.cfg.PrepareTools != nil {
+		if err := a.cfg.PrepareTools(workCtx); err != nil {
+			return "", fmt.Errorf("prepare tools: %w", err)
+		}
+	}
+
 	for step := 0; step < a.cfg.MaxSteps; step++ {
 		if err := workCtx.Err(); err != nil {
 			return "", err

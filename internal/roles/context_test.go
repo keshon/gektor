@@ -51,7 +51,7 @@ func TestBrowserEnabledStartupStaysWithinPromptBudget(t *testing.T) {
 	}
 }
 
-func TestInactiveCatalogSizeDoesNotGrowStartupContext(t *testing.T) {
+func TestInactiveCatalogMapHasBoundedStartupCost(t *testing.T) {
 	e := testEnv(t)
 	loads := 0
 	var baseline int
@@ -67,8 +67,8 @@ func TestInactiveCatalogSizeDoesNotGrowStartupContext(t *testing.T) {
 		report := a.StartupContext("explain")
 		if count == 1 {
 			baseline = report.EstimatedTokens
-		} else if report.EstimatedTokens != baseline {
-			t.Fatal("inactive catalogs grew prompt", baseline, report.EstimatedTokens)
+		} else if report.EstimatedTokens > baseline+400 {
+			t.Fatal("inactive capability map exceeded its bounded cost", baseline, report.EstimatedTokens)
 		}
 		for _, tool := range report.Tools {
 			if tool.Name == "cap__social__read_post" {
