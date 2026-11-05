@@ -79,6 +79,7 @@ type doneMsg struct {
 type tickMsg time.Time
 type liveFlushMsg struct{}
 type model struct {
+	inspector        toolInspector
 	liveFlushPending bool
 	progress         llm.Progress
 	identityUser     string

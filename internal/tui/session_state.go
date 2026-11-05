@@ -21,6 +21,8 @@ func (m *model) saveDraft() {
 	m.drafts[m.stateFile] = draft{text: m.input.Value(), queued: m.queued, recall: m.input.Snapshot(), images: append([]string(nil), m.draftImages...), queuedImages: append([]string(nil), m.queuedImages...)}
 }
 func (m *model) restoreDraft() {
+	m.inspector = toolInspector{}
+	m.fitColumns()
 	m.attachmentEpoch++
 	d := m.drafts[m.stateFile]
 	m.input.SetValue(d.text)

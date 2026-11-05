@@ -29,8 +29,8 @@ func snippetRow(left, right string, width int) string {
 	return left + strings.Repeat(" ", width-lipgloss.Width(left)-lipgloss.Width(right)) + right
 }
 
-func compactTool(b block, st styles, width int) string {
-	name, args, _ := strings.Cut(b.text, " ")
+func toolSummary(text string) (name, action, target string) {
+	name, args, _ := strings.Cut(text, " ")
 	var fields map[string]json.RawMessage
 	_ = json.Unmarshal([]byte(args), &fields)
 	value := func(key string) string {
@@ -53,7 +53,7 @@ func compactTool(b block, st styles, width int) string {
 		}
 		return strings.Join(parts, " ")
 	}
-	action, target := name, args
+	action, target = name, args
 	switch name {
 	case "system_info":
 		action, target = "System info", value("group")
@@ -152,6 +152,11 @@ func compactTool(b block, st styles, width int) string {
 	if target == "" && action == name {
 		target = args
 	}
+	return name, action, target
+}
+
+func compactTool(b block, st styles, width int) string {
+	name, action, target := toolSummary(b.text)
 	glyph, right := st.add.Render("✓"), st.dim.Render(name)
 	if b.open {
 		glyph, right = st.dim.Render("…"), st.dim.Render(name+" │ Running")

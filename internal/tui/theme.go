@@ -23,6 +23,8 @@ func (m *model) applyTheme(name string) {
 	}
 	m.transcript.render.cache = nil
 	m.refreshContent()
+	m.inspector.pane.render.cache = nil
+	m.refreshInspector()
 }
 
 // persistTheme records the choice in the application preferences, so the

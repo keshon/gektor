@@ -24,6 +24,9 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+n":
 		return m.footerKey(tea.KeyPressMsg{Code: tea.KeyF4})
 	}
+	if handled, cmd := m.inspectorKey(msg); handled {
+		return m, cmd
+	}
 	if m.activeInputOwner() == focusHeader {
 		return m.headerKey(msg)
 	}

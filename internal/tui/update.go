@@ -66,6 +66,9 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	defer m.syncFocus()
 	defer m.queueSettingsDetail()
 	switch msg := msg.(type) {
+	case childLoadedMsg:
+		m.acceptChildHistory(msg)
+		return m, nil
 	case clipboardMsg:
 		m.acceptClipboard(msg)
 		return m, nil
@@ -82,6 +85,7 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		return m, nil
 	case tea.WindowSizeMsg:
 		m.width(msg)
+		m.refreshInspector()
 		return m, nil
 	case evaluationDoneMsg:
 		m.acceptEvaluation(msg)
@@ -114,7 +118,7 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		m.revealLive()
 		return m, nil
 	case eventMsg:
-		if m.state != stStopping || msg.Name == "tool_result" || msg.Name == "tool_output" || msg.Name == "user_input" || msg.Name == "outcome" || msg.Name == "usage" || msg.Name == "finding" {
+		if m.state != stStopping || msg.Name == "child" || msg.Name == "tool_result" || msg.Name == "tool_output" || msg.Name == "user_input" || msg.Name == "outcome" || msg.Name == "usage" || msg.Name == "finding" {
 			m.handleEvent(run.Event(msg))
 		}
 		return m, waitEvents(m)
@@ -237,7 +241,7 @@ func (m *model) fitInput() {
 	if m.ready {
 		// DynamicHeight counts wrapped rows and clamps the scroll offset when
 		// the composer grows, keeping earlier lines visible after a newline.
-		m.input.SetWidth(max(m.termW-m.promptOffset()-5, 1))
+		m.input.SetWidth(max(m.mainWidth()-m.promptOffset()-5, 1))
 	}
 }
 
@@ -248,7 +252,8 @@ func (m *model) fitBottom() {
 	if !m.ready {
 		return
 	}
-	m.input.SetWidth(max(m.termW-m.promptOffset()-5, 1))
+	defer m.refreshInspector()
+	m.input.SetWidth(max(m.mainWidth()-m.promptOffset()-5, 1))
 	// Input hints live in the status row; error details live in history.
 	lines := 1
 	// The reject stage shows label + input: two bottom lines.
@@ -322,6 +327,7 @@ func (m *model) scrollViewport(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *model) handleEvent(ev run.Event) {
 	m.beginTranscriptUpdate()
 	defer m.endTranscriptUpdate()
+	defer m.refreshInspector()
 	wasPrefill := m.prefillActive()
 	defer func() {
 		if wasPrefill || m.prefillActive() {
@@ -329,6 +335,9 @@ func (m *model) handleEvent(ev run.Event) {
 		}
 	}()
 	switch ev.Name {
+	case "child":
+		m.acceptChildEvent(ev)
+		return
 	case "progress":
 		m.progressStarted = time.Now()
 		phase, _ := ev.Fields["phase"].(string)

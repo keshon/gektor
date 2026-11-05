@@ -13,6 +13,7 @@ const (
 	focusSearch
 	focusHeader
 	focusDialog
+	focusInspector
 )
 
 type overlayFrame struct {
@@ -79,6 +80,12 @@ func (m *model) activeInputOwner() focusOwner {
 	}
 	if m.header.focused {
 		return focusHeader
+	}
+	if m.inspectorVisible() && (m.inspector.focused || m.termW < inspectorSplitWidth) {
+		return focusInspector
+	}
+	if m.inspector.selecting {
+		return focusViewport
 	}
 	return focusInput
 }

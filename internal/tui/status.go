@@ -21,6 +21,9 @@ func (m *model) statusLine() string {
 	if m.state == stRunning && m.progress.Detail != "" && (m.progress.Phase == "waiting" || m.progress.Phase == "retry") {
 		hint = m.progress.Detail + " · " + formatElapsed(time.Since(m.progressStarted)) + " · Esc stop"
 	}
+	if selected := m.inspectorHint(); selected != "" {
+		hint = selected
+	}
 	if !m.transcript.Follow && m.state == stDone {
 		hint += "  Scrolled up"
 	}

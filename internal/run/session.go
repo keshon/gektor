@@ -83,6 +83,13 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, rol
 	askFn := s.asker()
 
 	env := s.cfg.Env
+	previousChild := env.OnChild
+	env.OnChild = func(callID, kind string, fields map[string]any) {
+		emitter.Emit("child", map[string]any{"call_id": callID, "kind": kind, "fields": fields})
+		if previousChild != nil {
+			previousChild(callID, kind, fields)
+		}
+	}
 	env.Inbox = &s.inbox
 	previousInput := env.OnInput
 	env.OnInput = func(input llm.Message) {

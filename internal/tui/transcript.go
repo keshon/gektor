@@ -613,6 +613,9 @@ func (m *model) refreshContent() {
 		hideNames: m.hideNames,
 		hideTools: m.hideTools,
 	}
+	if m.inspector.selecting && m.inspector.selected >= 0 && m.inspector.selected < len(m.transcript.blocks) {
+		props.selectedCall = m.transcript.blocks[m.inspector.selected].callID
+	}
 	if m.prefillActive() {
 		p := m.progress
 		props.prefill = &p
@@ -687,9 +690,11 @@ func reflow(line string, width int) []string {
 }
 
 type transcriptRenderState struct {
-	cache []renderedBlock
-	batch int
-	dirty bool
+	partBlocks []int
+	toolHits   map[int]toolNameHit
+	cache      []renderedBlock
+	batch      int
+	dirty      bool
 }
 
 // Cached text belongs to the update loop; View only reads the viewport.
@@ -745,6 +750,7 @@ func newTranscript() transcriptState { return transcriptState{Model: transcript.
 // The GEKTOR renderer receives presentation values, never the application model.
 type transcriptProps struct {
 	speaker, user, live string
+	selectedCall        string
 	// liveThink is streamed deliberation, rendered above live so the turn
 	// reads THINK then RESPONSE instead of one buffer that blanks the
 	// answer to make room.
@@ -767,6 +773,8 @@ func (t *transcriptState) refresh(props transcriptProps) {
 	width := t.Viewport.ContentWidth()
 	opts := renderOpts{expand: !t.compact, labels: props.labels, hideTools: props.hideTools}
 	parts := make([]string, 0, len(t.blocks))
+	t.render.partBlocks = nil
+	t.render.toolHits = make(map[int]toolNameHit)
 	gaps := make([]int, 0, len(t.blocks))
 	cache := make([]renderedBlock, len(t.blocks))
 	prevSpeaker := ""
@@ -807,6 +815,24 @@ func (t *transcriptState) refresh(props transcriptProps) {
 			}
 			prevSpeaker = name
 		}
+		if b.role == roleTool && b.callID != "" && b.callID == props.selectedCall {
+			part = lipgloss.NewStyle().Background(lipgloss.Color(themeColor(colorPopupBackground))).Bold(true).Render(part)
+		}
+		if b.role == roleTool && b.callID != "" {
+			name, action, _ := toolSummary(b.text)
+			if !opts.hideTools || b.failed {
+				action = name
+			}
+			// The name starts after the status glyph. Match the actual rendered
+			// line so speaker/label rows and wrapped output cannot become links.
+			for row, line := range strings.Split(ansi.Strip(part), "\n") {
+				if strings.HasPrefix(line, "✓ ") || strings.HasPrefix(line, "… ") || strings.HasPrefix(line, "✕ ") {
+					n := min(ansi.StringWidth(action), max(ansi.StringWidth(line)-2, 0))
+					t.render.toolHits[len(parts)] = toolNameHit{row: row, start: 2, end: 2 + n}
+					break
+				}
+			}
+		}
 		gap := 1
 		if props.hideTools && b.role == roleTool && previousTool {
 			gap = 0
@@ -814,6 +840,7 @@ func (t *transcriptState) refresh(props transcriptProps) {
 		gaps = append(gaps, gap)
 		previousTool = b.role == roleTool
 		parts = append(parts, part)
+		t.render.partBlocks = append(t.render.partBlocks, i)
 	}
 	t.render.cache = cache
 
@@ -855,3 +882,6 @@ func railText(text string, st styles, width int) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+// toolNameHit is relative to a rendered transcript part.
+type toolNameHit struct{ row, start, end int }

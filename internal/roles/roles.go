@@ -36,6 +36,8 @@ const (
 // Env is what every role needs regardless of what it does. Build one per
 // run and pass it to each constructor.
 type Env struct {
+	// OnChild routes child activity separately from parent transcript and usage.
+	OnChild           func(callID, kind string, fields map[string]any)
 	RefreshModelFacts func(context.Context) llm.ModelFacts
 	Identity          string
 	IdentityName      string
@@ -274,15 +276,12 @@ func (e Env) statePath(name string) string {
 // can block the process waiting on a human who is watching the parent.
 // The inherited System text names both withheld tools, so the scope
 // correction is composed here, where the restricted registry is chosen.
-// Observer hooks (steps, results, usage, nudges) are deliberately muted
-// here, not inherited: the parent session wraps them into parent-evidence
-// events, and a subagent's blow-by-blow would land in the parent
-// transcript as orphan blocks and overwrite the parent's usage meter —
-// unactionable noise the parent model can't even map, since it never sees
-// the subagent's history. The parent learns everything it can use from
-// the DELEGATE result envelope. Enforcement (gate) and file-grounded
-// findings still flow: those constrain or describe the work itself.
-func Subagent(e Env, role string) *agent.Agent {
+// Parent observation hooks remain muted: child steps and usage must never
+// appear as parent evidence. Interactive delegation adds a separate child event
+// route and archive. Gates and workspace findings still constrain shared work.
+func Subagent(e Env, role string) *agent.Agent { return inspectedSubagent(e, role, "", "") }
+
+func inspectedSubagent(e Env, role, callID, parentState string) *agent.Agent {
 	cfg := e.agentConfig(prompts.WithRole(role)+"\n\n"+prompts.SubagentScope+"\n\n"+prompts.PlatformLine(tools.ShellName()), "", "")
 	e.configureTools(&cfg, false, false, e.MCPTools...)
 	cfg.MaxSteps = subagentSteps
@@ -293,6 +292,10 @@ func Subagent(e Env, role string) *agent.Agent {
 	cfg.OnProgress = nil
 	cfg.OnPrompt = nil
 	cfg.OnContext, cfg.OnLocal, cfg.Notifications = nil, nil, nil
+	cfg.StateFile = session.ChildStatePath(parentState, callID)
+	if callID != "" && e.OnChild != nil {
+		observeSubagent(&cfg, e, callID)
+	}
 	return agent.New(cfg)
 }
 
@@ -326,7 +329,9 @@ func (e Env) conversationConfig(label, stateFile string,
 	if e.Outputs == nil {
 		e.Outputs = tools.NewOutputStore(e.statePath(stateFile))
 	}
-	extra := []agent.Tool{&tools.Delegate{Spawn: func(role string) *agent.Agent { return Subagent(e, role) }}}
+	extra := []agent.Tool{&tools.Delegate{Spawn: func(ctx context.Context, role string) *agent.Agent {
+		return inspectedSubagent(e, role, agent.ToolCallID(ctx), e.statePath(stateFile))
+	}}}
 	extra = append(extra, e.MCPTools...)
 	extra = append(extra, tools.ReadHistory{Path: e.statePath(stateFile)})
 	if ask != nil {

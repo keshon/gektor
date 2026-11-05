@@ -63,8 +63,8 @@ func TestBothFramesAndMeasuredPrefillFit(t *testing.T) {
 			m := sizeModelTo(t, testModel(), size[0], size[1])
 			m.state = stRunning
 			m.applyAppearance(config.Appearance{Frame: frame, HideNames: true})
-			if frame == "minimal" && m.transcript.Viewport.Width() != size[0] {
-				t.Fatal("minimal frame reserves unused columns", size)
+			if frame == "minimal" && m.transcript.Viewport.Width() != size[0]-2*m.promptOffset() {
+				t.Fatal("minimal frame has incorrect side margins", size)
 			}
 			m.appendBlock(userBlock("Check 界 text"))
 			m.appendBlock(answerBlock("I’ll inspect the configuration first."))
@@ -73,8 +73,8 @@ func TestBothFramesAndMeasuredPrefillFit(t *testing.T) {
 			m.appendBlock(block{role: roleStatus, text: "processing"})
 			m.handleEvent(events.Event{Name: "progress", Fields: map[string]any{"phase": "prefill", "prompt": float64(12288), "processed": float64(8897)}})
 			text := ansi.Strip(m.View().Content)
-			if frame == "minimal" && m.transcript.Viewport.Scrollable() && m.scrollbarX() != size[0]-1 {
-				t.Fatal("scrollbar is not on the right edge", size)
+			if frame == "minimal" && m.transcript.Viewport.Scrollable() && m.scrollbarX() != size[0]-1-m.promptOffset() {
+				t.Fatal("scrollbar is not inside the right margin", size)
 			}
 			if m.transcript.Follow && !m.transcript.Viewport.AtBottom() {
 				t.Fatal("progress resize lost latest content")

@@ -88,6 +88,18 @@ func (m *model) screenContent() string {
 		}
 		content = strings.Join(rows, "\n")
 	}
+	if m.minimal && m.promptOffset() > 0 {
+		rows := strings.Split(content, "\n")
+		end := len(rows) - m.actionBarRows()
+		for i := 1; i < end; i++ {
+			if i == 1 || i == 3 || i == paneTop+bodyHeight || i == end-1 {
+				rows[i] = m.styles.dim.Render(strings.Repeat("─", m.mainWidth()))
+			} else {
+				rows[i] = " " + cellLine(rows[i], innerWidth)
+			}
+		}
+		content = strings.Join(rows, "\n")
+	}
 	content = cellFrame(content, max(m.termW, 0), max(m.termH, 0))
 	if m.sessions != nil {
 		content = m.overlaySearch(content)
@@ -95,7 +107,7 @@ func (m *model) screenContent() string {
 	if m.header.menu != "" {
 		content = m.overlayHeader(content)
 	}
-	return content
+	return m.composeInspector(content)
 }
 
 func (m *model) View() tea.View {

@@ -487,7 +487,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 		if a.cfg.OnToolOutput != nil {
 			onOutput = func(text string) { a.cfg.OnToolOutput(call.ID, text) }
 		}
-		results[i].content, results[i].err = a.cfg.Tools.RunStreaming(ctx, call.Name, call.Arguments, onOutput)
+		results[i].content, results[i].err = a.cfg.Tools.RunStreaming(context.WithValue(ctx, toolCallIDKey{}, call.ID), call.Name, call.Arguments, onOutput)
 	}
 	runBatch := func(indices []int) {
 		var wg sync.WaitGroup
@@ -655,3 +655,8 @@ func (a *Agent) observeWorkspace(st *runState) {
 	st.addPaths(paths)
 	st.mutatingSucceeded = len(paths)
 }
+
+// ToolCallID identifies the currently executing call without adding model arguments.
+type toolCallIDKey struct{}
+
+func ToolCallID(ctx context.Context) string { id, _ := ctx.Value(toolCallIDKey{}).(string); return id }

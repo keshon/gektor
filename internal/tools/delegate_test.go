@@ -21,7 +21,7 @@ func (c stubSubClient) Chat(_ context.Context, _ llm.ChatRequest) (llm.ChatRespo
 func TestDelegate_PassesRoleToSpawn(t *testing.T) {
 	var gotRole string
 	d := &Delegate{
-		Spawn: func(role string) *agent.Agent {
+		Spawn: func(ctx context.Context, role string) *agent.Agent {
 			gotRole = role
 			return agent.New(agent.Config{
 				Client: stubSubClient{answer: "done"},
@@ -54,7 +54,7 @@ func TestDelegate_EmptyRoleIsFine(t *testing.T) {
 	var gotRole string
 	called := false
 	d := &Delegate{
-		Spawn: func(role string) *agent.Agent {
+		Spawn: func(ctx context.Context, role string) *agent.Agent {
 			called = true
 			gotRole = role
 			return agent.New(agent.Config{
@@ -90,7 +90,7 @@ func TestDelegate_IsExclusiveSoTheLoopSerialisesIt(t *testing.T) {
 
 func TestDelegate_EmptyResultErrors(t *testing.T) {
 	d := &Delegate{
-		Spawn: func(role string) *agent.Agent {
+		Spawn: func(ctx context.Context, role string) *agent.Agent {
 			return agent.New(agent.Config{
 				Client: stubSubClient{answer: "   "},
 				Tools:  agent.NewRegistry(),
@@ -107,7 +107,7 @@ func TestDelegate_EmptyResultErrors(t *testing.T) {
 func TestDelegate_ReportsSubagentMutations(t *testing.T) {
 	writeArgs, _ := json.Marshal(map[string]string{"path": "x.txt", "content": "hi"})
 	d := &Delegate{
-		Spawn: func(role string) *agent.Agent {
+		Spawn: func(ctx context.Context, role string) *agent.Agent {
 			return agent.New(agent.Config{
 				Client: &stubClientSequence{
 					responses: []llm.ChatResponse{

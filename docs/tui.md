@@ -715,3 +715,26 @@ For a dedicated light-theme terminal profile, set its background to `#F2F4F6`
 profile keeps the margin consistent even when the host restores its defaults.
 Setting padding to zero alone cannot remove fractional-cell pixels in maximized
 windows. Gektor does not override terminal colors on startup, focus, or typing.
+
+## Tool inspector
+
+Click the tool name on the left to open its details. From the keyboard, press Ctrl+T, select a
+call with Up/Down, then press Enter. The right pane shows full arguments and
+available output; delegated calls show the child's conversation and streamed
+answer or reasoning summary when the provider supplies one.
+
+The two panes share the top menu and bottom action bar, have matching widths
+and height, and follow the same outline setting. Only the left-hand tool name
+opens details; arguments, output, and scrollbar clicks do not.
+
+The inspector is read-only. Tab switches focus between it and the parent
+composer. Up/Down, Page Up/Down, Home/End and the mouse wheel scroll the inspector;
+Esc or its close button closes it. Ctrl+T can select another parent tool without
+opening nested panes. The parent draft remains intact. Below 100 columns the
+inspector takes the full width; Esc returns to the conversation. Permission and
+question dialogs retain priority.
+
+New delegated runs save separate histories under the parent session's
+`children` directory. Reopened sessions can inspect those histories. Older runs
+without saved child history show the returned tool result instead. Child events
+do not become parent transcript messages or replace the parent's context meter.
