@@ -11,6 +11,42 @@ import (
 )
 
 func (m *Manager) Models(ctx context.Context) ([]string, error) {
+	bound, err := m.Bind(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return bound.Models(ctx)
+}
+
+type Model struct {
+	Slug                     string `json:"slug"`
+	Visibility               string `json:"visibility"`
+	DefaultReasoningLevel    string `json:"default_reasoning_level"`
+	SupportedReasoningLevels []struct {
+		Effort      string `json:"effort"`
+		Description string `json:"description"`
+	} `json:"supported_reasoning_levels"`
+	SupportsReasoningSummaries        bool `json:"supports_reasoning_summaries"`
+	SupportsReasoningSummaryParameter bool `json:"supports_reasoning_summary_parameter"`
+}
+
+func (m *BoundAccount) Models(ctx context.Context) ([]string, error) {
+	catalog, err := m.ModelCatalog(ctx)
+	if err != nil {
+		return nil, err
+	}
+	models := []string{}
+	for _, model := range catalog {
+		if model.Visibility == "list" && model.Slug != "" {
+			models = append(models, model.Slug)
+		}
+	}
+	if len(models) == 0 {
+		return nil, fmt.Errorf("ChatGPT account returned no selectable models")
+	}
+	return models, nil
+}
+func (m *BoundAccount) ModelCatalog(ctx context.Context) ([]Model, error) {
 	token, err := m.Token(ctx)
 	if err != nil {
 		return nil, err
@@ -29,24 +65,12 @@ func (m *Manager) Models(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("ChatGPT model discovery HTTP %d", resp.StatusCode)
 	}
 	var payload struct {
-		Models []struct {
-			Slug       string `json:"slug"`
-			Visibility string `json:"visibility"`
-		} `json:"models"`
+		Models []Model `json:"models"`
 	}
 	if err = json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&payload); err != nil {
 		return nil, fmt.Errorf("invalid ChatGPT model catalog")
 	}
-	var models []string
-	for _, model := range payload.Models {
-		if model.Visibility == "list" && model.Slug != "" {
-			models = append(models, model.Slug)
-		}
-	}
-	if len(models) == 0 {
-		return nil, fmt.Errorf("ChatGPT account returned no selectable models")
-	}
-	return models, nil
+	return payload.Models, nil
 }
 
 type Connection struct {

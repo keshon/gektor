@@ -61,10 +61,7 @@ func (t SystemInfo) Run(ctx context.Context, args json.RawMessage) (string, erro
 	var result any
 	switch in.Group {
 	case "skills":
-		entries, err := t.WS.Skills()
-		if err != nil {
-			return "", fmt.Errorf("discover skills: %w", err)
-		}
+		entries, discoveryErr := t.WS.Skills()
 		matches := []workspace.Skill{}
 		for _, skill := range entries {
 			if strings.Contains(strings.ToLower(skill.ID+" "+skill.Path+" "+skill.Description), strings.ToLower(in.Filter)) {
@@ -74,6 +71,9 @@ func (t SystemInfo) Run(ctx context.Context, args json.RawMessage) (string, erro
 		start := min(in.Offset, len(matches))
 		end := start + min(limit, len(matches)-start)
 		page := map[string]any{"skills": matches[start:end], "total": len(matches)}
+		if discoveryErr != nil {
+			page["warnings"] = strings.Split(discoveryErr.Error(), "\n")
+		}
 		if end < len(matches) {
 			page["next_offset"] = end
 		}

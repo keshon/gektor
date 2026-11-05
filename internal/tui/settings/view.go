@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"charm.land/bubbles/v2/textinput"
-
 	"charm.land/lipgloss/v2"
+	"github.com/keshon/gektor/internal/providers"
 	"github.com/keshon/gektor/internal/tui/components/cell"
 	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/components/popup"
@@ -86,9 +86,9 @@ func (f *Model) choice() string {
 
 // note is the line above the buttons when nothing has gone wrong.
 func (f *Model) note() string {
-	if f.providerKind() == "chatgpt" {
+	if d, err := providers.Lookup(f.providerKind()); err == nil && d.Auth == providers.ChatGPTAccount {
 		if f.Workspace.Section == "generation" {
-			return "ChatGPT controls sampling and output length; context is a local budget"
+			return "Effort choices come from this model; thinking shows a summary when available"
 		}
 		if f.Workspace.Section == "model" {
 			if f.Workspace.AccountLabel != "" {

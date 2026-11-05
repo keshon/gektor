@@ -1,14 +1,18 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/prompts"
+	"github.com/keshon/gektor/internal/providers"
 	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/tui/settings"
@@ -138,6 +142,8 @@ func (m *model) editSettings(section string) {
 		return m.requestProfileChange(profile)
 	})
 	m.dialog.form.Workspace = ws
+	m.dialog.form.DiscoverModels = remoteModelChoices
+	m.dialog.form.DiscoverReasoning = remoteReasoningChoices
 	saved := ws.Draft.Visit(section, fields)
 	m.dialog.form.Fields = saved
 	m.dialog.form.Index = len(saved)
@@ -217,4 +223,20 @@ func (m *model) resizeFormEditor() {
 		height = min(3, max(m.transcript.Viewport.Height()-10, 1))
 	}
 	f.Editor.SetHeight(height)
+}
+
+func remoteModelChoices(kind, endpoint, keyEnv string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	items, err := app.DiscoverModels(ctx, app.BackendOptions{Kind: kind, URL: endpoint, APIKeyEnv: keyEnv})
+	if err != nil {
+		return nil, fmt.Errorf("%w; Esc returns to manual entry", err)
+	}
+	return items, nil
+}
+
+func remoteReasoningChoices(kind, endpoint, model string) (providers.ReasoningOptions, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return app.DiscoverReasoning(ctx, app.BackendOptions{Kind: kind, URL: endpoint, Model: model})
 }

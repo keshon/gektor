@@ -65,18 +65,26 @@ func TestDocumentAndChecksAgree(t *testing.T) {
 // than by noticing a cycle once the compiler refuses to build.
 func checkPackageLayers(t *testing.T, r *repo) {
 	allowed := map[string][]string{
-		"llm":        {},
-		"prompts":    {},
-		"workspace":  {},
-		"permission": {},
-		"events":     {},
-		"harness":    {},
-		"session":    {"llm"},
-		"agent":      {"llm", "prompts", "permission", "session", "harness"},
+		"llm":                      {},
+		"llm/chatcompletions":      {"llm"},
+		"llm/responses":            {"llm"},
+		"providers":                {},
+		"providers/openai":         {},
+		"providers/llamacpp":       {"providers/internal/probe"},
+		"providers/koboldcpp":      {"providers/internal/probe"},
+		"providers/openaicompat":   {"providers/internal/probe"},
+		"providers/internal/probe": {},
+		"prompts":                  {},
+		"workspace":                {},
+		"permission":               {},
+		"events":                   {},
+		"harness":                  {},
+		"session":                  {"llm"},
+		"agent":                    {"llm", "prompts", "permission", "session", "harness"},
 	}
 	for pkg, permitted := range allowed {
 		for _, f := range r.goFiles {
-			if pkgOf(r, f) != pkg || strings.HasSuffix(f, "_test.go") {
+			if strings.TrimPrefix(filepath.ToSlash(filepath.Dir(r.rel(f))), "internal/") != pkg || strings.HasSuffix(f, "_test.go") {
 				continue
 			}
 			for _, imp := range internalImports(r.read(t, f)) {
@@ -356,7 +364,7 @@ func pkgOf(r *repo, path string) string {
 	return ""
 }
 
-var importLine = regexp.MustCompile(`"github\.com/keshon/gektor/internal/([a-z]+)"`)
+var importLine = regexp.MustCompile(`"github\.com/keshon/gektor/internal/([a-z/]+)"`)
 
 func internalImports(src string) []string {
 	var out []string

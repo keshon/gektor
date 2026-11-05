@@ -22,7 +22,6 @@ import (
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/prompts"
-	"github.com/keshon/gektor/internal/providers/openai"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/rules"
 	"github.com/keshon/gektor/internal/run"
@@ -125,44 +124,25 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		note("task id: %s (resume with -resume %s)", taskID, stateFile)
 	}
 
-	client, err := llm.ClientFor(o.backendKind, o.backendURL, o.model)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	client, err := app.NewBackend(ctx, app.BackendOptions{Kind: o.backendKind, URL: o.backendURL, Model: o.model, APIKey: o.apiKey, APIKeyEnv: o.apiKeyEnv, NoGrammar: !o.grammar, ReasoningEffort: o.reasoningEffort, ReasoningSummary: o.reasoningSummary})
 	if err != nil {
-		return fmt.Errorf("%w", err)
+		return err
 	}
-	app.ResolveAPIKey(o.apiKey, o.apiKeyEnv, client)
-	if hdrs := app.ExtraHeadersFromEnv(); len(hdrs) > 0 {
-		if client.ExtraHeaders == nil {
-			client.ExtraHeaders = hdrs
-		} else {
-			for k, v := range hdrs {
-				client.ExtraHeaders[k] = v
-			}
-		}
-	}
-	client.NoGrammar = !o.grammar
 	if o.debug {
 		f, err := os.Create("agent-debug.log")
 		if err != nil {
 			return fmt.Errorf("open debug log: %w", err)
 		}
 		defer f.Close()
-		client.Debug = f
+		client.SetDebug(f)
 		note("debug: logging raw request/response JSON to agent-debug.log")
 	}
 
-	// Ask the backend for its real context window instead of guessing.
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	accountLabel := ""
-	if o.backendKind == "chatgpt" {
-		accountCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-		accountLabel, err = openai.Default().Status(accountCtx)
-		cancel()
-		if err != nil {
-			return fmt.Errorf("ChatGPT account: %w", err)
-		}
+	accountLabel := client.AccountLabel
+	if accountLabel != "" {
 		note("ChatGPT account: %s", accountLabel)
-		note("ChatGPT controls sampling and output length; configured response tokens are a local planning budget")
 	}
 
 	contextLimit, err := backendContext(ctx, client, o)
@@ -236,16 +216,17 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		// stdout is the protocol in serve mode regardless of -mode:
 		// human chatter always goes to stderr.
 		serveMain(ctx, serveDeps{
-			client:       client,
-			ws:           ws,
-			procs:        bgProcs,
-			maxTokens:    o.maxTokens,
-			maxSteps:     o.maxSteps,
-			runTimeout:   o.runTimeout,
-			contextLimit: contextLimit,
-			vision:       vision,
-			logMax:       o.logMax,
-			verifyCmd:    o.verifyCmd,
+			client:            client,
+			refreshModelFacts: client.RefreshModelFacts,
+			ws:                ws,
+			procs:             bgProcs,
+			maxTokens:         o.maxTokens,
+			maxSteps:          o.maxSteps,
+			runTimeout:        o.runTimeout,
+			contextLimit:      contextLimit,
+			vision:            vision,
+			logMax:            o.logMax,
+			verifyCmd:         o.verifyCmd,
 
 			autoDeny:     o.yes,
 			auditPath:    o.auditPath,
@@ -274,26 +255,27 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	// outside internal/checks so that package stays language-neutral.
 	rules := append(checks.Secrets(), rules.All()...)
 	env := roles.Env{
-		Identity:     app.IdentityPrompt(identity),
-		IdentityName: identity.Name,
-		UserName:     o.userName,
-		Client:       client,
-		WS:           ws,
-		Procs:        bgProcs,
-		MaxTokens:    o.maxTokens,
-		Temperature:  o.temperature,
-		ContextLimit: contextLimit,
-		MaxSteps:     o.maxSteps,
-		RunTimeout:   o.runTimeout,
-		Policy:       buildPolicy(o.allow, o.deny),
-		Vision:       vision,
-		GateContext:  audit.ContextHook(o.auditPath, "cli", permissionGateContext(o.yes, suspend, ws)),
-		BackendKind:  o.backendKind,
-		Model:        displayModel,
-		Stream:       streamEnabled(o.stream, o.outputMode, o.tui),
-		MCPTools:     mcpTools,
-		Browser:      browser,
-		Capabilities: capabilities,
+		Identity:          app.IdentityPrompt(identity),
+		IdentityName:      identity.Name,
+		UserName:          o.userName,
+		RefreshModelFacts: client.RefreshModelFacts,
+		Client:            client,
+		WS:                ws,
+		Procs:             bgProcs,
+		MaxTokens:         o.maxTokens,
+		Temperature:       o.temperature,
+		ContextLimit:      contextLimit,
+		MaxSteps:          o.maxSteps,
+		RunTimeout:        o.runTimeout,
+		Policy:            buildPolicy(o.allow, o.deny),
+		Vision:            vision,
+		GateContext:       audit.ContextHook(o.auditPath, "cli", permissionGateContext(o.yes, suspend, ws)),
+		BackendKind:       o.backendKind,
+		Model:             displayModel,
+		Stream:            streamEnabled(o.stream, o.outputMode, o.tui),
+		MCPTools:          mcpTools,
+		Browser:           browser,
+		Capabilities:      capabilities,
 		// Direct runs fund acknowledged todo work with extra steps;
 		// -serve leaves this off until its budget story is decided.
 		OnDelta: func(chunk string) { fmt.Print(chunk) },
@@ -404,6 +386,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		return nil
 	}
 
+	env = env.Refreshed(ctx)
 	var a *agent.Agent
 	if o.plan {
 		a = roles.Planner(env, "plan", stateFile, askFn)
@@ -546,34 +529,8 @@ func streamEnabled(streamFlag bool, modeFlag string, tuiFlag bool) bool {
 }
 
 // Local servers own their actual window; configured limits are fallbacks.
-func backendContext(ctx context.Context, client *llm.Server, o resolvedLaunch) (int, error) {
-	if o.backendKind == "chatgpt" {
-		if o.contextLimit > 0 {
-			return o.contextLimit, nil
-		}
-		return 32768, nil
-	}
-	var detected int
-	var probeErr error
-	if o.backendKind != "openai" {
-		detected, probeErr = client.MaxContextLength(ctx)
-	}
-	if probeErr != nil || o.backendKind == "openai" {
-		if actual := llm.DetectKind(ctx, o.backendURL); actual != "" && actual != o.backendKind {
-			return 0, fmt.Errorf("-backend-kind is %q but %s is answering at %s; re-run with -backend-kind %s", o.backendKind, actual, o.backendURL, actual)
-		}
-	}
-	if probeErr == nil && detected > 0 {
-		return detected, nil
-	}
-	if o.contextLimit > 0 {
-		return o.contextLimit, nil
-	}
-	if o.backendKind == "openai" {
-		return llm.OpenAIContextLimit(o.model), nil
-	}
-	if probeErr != nil {
-		return 0, nil
-	}
-	return detected, nil
+func backendContext(ctx context.Context, client interface {
+	MaxContextLength(context.Context) (int, error)
+}, o resolvedLaunch) (int, error) {
+	return app.ContextLimit(ctx, o.backendKind, o.backendURL, o.model, o.contextLimit, client)
 }

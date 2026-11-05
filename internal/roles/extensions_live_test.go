@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/keshon/gektor/internal/app"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -89,7 +90,10 @@ func TestLiveExtensionsAcrossTurns(t *testing.T) {
 	if err := os.MkdirAll(output, 0700); err != nil {
 		t.Fatal(err)
 	}
-	client := llm.NewLlamaClient(backend, "local")
+	client, err := app.NewBackend(t.Context(), app.BackendOptions{Kind: "llama", URL: backend, Model: "local"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	probeCtx, probeCancel := context.WithTimeout(t.Context(), 10*time.Second)
 	model, err := client.ModelName(probeCtx)
 	probeCancel()

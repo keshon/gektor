@@ -15,8 +15,8 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/agent"
-
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/llm/chatcompletions"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/tools"
@@ -464,7 +464,7 @@ func TestModeSwitchWirePrefixAcrossProviders(t *testing.T) {
 			}))
 			defer srv.Close()
 			e := testEnv(t)
-			client, err := llm.ClientFor(kind, srv.URL, "test")
+			client, err := chatcompletions.ClientFor(kind, srv.URL, "test")
 			if err != nil {
 				t.Fatal(err)
 			}

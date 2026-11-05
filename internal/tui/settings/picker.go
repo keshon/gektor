@@ -52,6 +52,32 @@ func (f *Model) OpenPicker(props Props) tea.Cmd {
 	p := &Picker{ID: scanID.Add(1), Field: key, Search: search}
 	f.Picker = p
 	f.Editor.Blur()
+	if key == "reasoning-effort" {
+		p.Loading = true
+		id, discover := p.ID, f.DiscoverReasoning
+		profile := f.Workspace.Draft.Base()
+		if fields, ok := f.Workspace.Draft.Fields("model"); ok {
+			values := map[string]string{}
+			for _, field := range fields {
+				values[field.Key] = field.Value
+			}
+			if err := config.ApplySection(&profile, "model", values); err != nil {
+				p.Loading = false
+				p.Err = err.Error()
+				return nil
+			}
+		}
+		return func() tea.Msg {
+			if discover == nil {
+				return ScanMsg{ID: id, Err: fmt.Errorf("reasoning options unavailable")}
+			}
+			options, err := discover(profile.Provider.Kind, profile.Provider.URL, profile.Provider.Model)
+			if err != nil {
+				return ScanMsg{ID: id, Err: err}
+			}
+			return ScanMsg{ID: id, Items: append([]string{"default"}, options.Efforts...)}
+		}
+	}
 	if key == "model" {
 		values := map[string]string{}
 		for _, field := range f.Fields {
@@ -59,8 +85,12 @@ func (f *Model) OpenPicker(props Props) tea.Cmd {
 		}
 		p.Loading = true
 		id := p.ID
+		discover := f.DiscoverModels
 		return func() tea.Msg {
-			items, err := RemoteModelChoices(values["kind"], values["endpoint"], values["key-env"])
+			if discover == nil {
+				return ScanMsg{ID: id, Err: fmt.Errorf("model discovery unavailable; enter model manually")}
+			}
+			items, err := discover(values["kind"], values["endpoint"], values["key-env"])
 			return ScanMsg{id, items, err}
 		}
 	}

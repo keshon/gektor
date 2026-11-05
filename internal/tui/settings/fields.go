@@ -5,6 +5,7 @@ import (
 
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/prompts"
+	"github.com/keshon/gektor/internal/providers"
 	"github.com/keshon/gektor/internal/tui/components/form"
 )
 
@@ -50,9 +51,15 @@ func PageFields(profile config.Profile, section string, preferences config.Prefe
 		title = "Generation"
 		add("temperature", "Temperature", temperatureValue(profile.Generation.Temperature), false)
 		add("max", "Response budget (tokens)", strconv.Itoa(profile.Generation.MaxTokens), false)
-		if profile.Provider.Kind == "openai" || profile.Provider.Kind == "chatgpt" {
+		if d, err := providers.Lookup(profile.Provider.Kind); err == nil && d.SelectModel {
 			add("context", "Context window (tokens)", strconv.Itoa(profile.Generation.ContextLimit), false)
 		}
+		effort := profile.Generation.ReasoningEffort
+		if effort == "" {
+			effort = "default"
+		}
+		add("reasoning-effort", "Reasoning effort", effort, false)
+		add("reasoning-summary", "Show reasoning summary", strconv.FormatBool(profile.Generation.ReasoningSummary), false)
 	case "prompts":
 		title = "Identity prompts"
 		preset, _ := prompts.ResponsePreset(identity.PromptPreset)
@@ -61,7 +68,7 @@ func PageFields(profile config.Profile, section string, preferences config.Prefe
 		add("post", "Base post-history directive", identity.PostHistory, true)
 	case "model":
 		title = "Model"
-		add("kind", "Protocol (llama/kobold/openai/chatgpt)", profile.Provider.Kind, false)
+		add("kind", "Provider", profile.Provider.Kind, false)
 		add("endpoint", "Backend URL", profile.Provider.URL, false)
 		add("model", "Model identifier", profile.Provider.Model, false)
 		add("key-env", "API key environment variable", profile.Provider.APIKeyEnv, false)

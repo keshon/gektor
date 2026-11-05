@@ -137,11 +137,50 @@ func (m *Manager) Status(ctx context.Context) (string, error) {
 	return label, err
 }
 
-func (m *Manager) Token(ctx context.Context) (string, error) {
-	var token string
+// BoundAccount pins a registration and verified subject, not an access token.
+type BoundAccount struct {
+	manager               *Manager
+	registration, subject string
+	Label                 string
+}
+
+func (m *Manager) Bind(ctx context.Context) (*BoundAccount, error) {
+	var bound *BoundAccount
 	err := m.withStore(ctx, func(s *credentials) (bool, error) {
 		a, ok := s.Accounts[s.Active]
 		if !ok || a.AccessToken == "" {
+			return false, fmt.Errorf("ChatGPT is not connected; run: gektor auth login")
+		}
+		if a.Subject == "" {
+			return false, fmt.Errorf("ChatGPT identity is missing; sign in again")
+		}
+		label := a.Email
+		if label == "" {
+			label = "ChatGPT account"
+		}
+		bound = &BoundAccount{manager: m, registration: s.Active, subject: a.Subject, Label: label}
+		return false, nil
+	})
+	return bound, err
+}
+
+// Scope contains no credentials and changes if a registration changes identity.
+func (a *BoundAccount) Scope() string { return a.registration + ":" + a.subject }
+func (a *BoundAccount) Token(ctx context.Context) (string, error) {
+	return a.manager.token(ctx, a.registration, a.subject)
+}
+func (m *Manager) Token(ctx context.Context) (string, error) {
+	return m.token(ctx, "", "")
+}
+func (m *Manager) token(ctx context.Context, registration, subject string) (string, error) {
+	var token string
+	err := m.withStore(ctx, func(s *credentials) (bool, error) {
+		id := registration
+		if id == "" {
+			id = s.Active
+		}
+		a, ok := s.Accounts[id]
+		if !ok || a.AccessToken == "" || (subject != "" && a.Subject != subject) {
 			return false, fmt.Errorf("ChatGPT is not connected; run: gektor auth login")
 		}
 		if !permitted(a.Scope) {
@@ -163,7 +202,7 @@ func (m *Manager) Token(ctx context.Context) (string, error) {
 			if t.IDToken != "" {
 				a.IDToken = t.IDToken
 			}
-			s.Accounts[s.Active], changed = a, true
+			s.Accounts[id], changed = a, true
 		}
 		if !permitted(a.Scope) {
 			return changed, fmt.Errorf("ChatGPT plan permission was withdrawn; sign in again")

@@ -12,7 +12,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/checks"
@@ -94,18 +93,8 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, rol
 	}
 	// A local server may load different weights between turns. Probe before
 	// building the agent so the display and enforced budget use the same facts.
-	if server, ok := env.Client.(*llm.Server); ok && env.BackendKind != "openai" && env.BackendKind != "chatgpt" {
-		probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-		if limit, err := server.MaxContextLength(probeCtx); err == nil && limit > 0 {
-			env.ContextLimit = limit
-		}
-		if name, err := server.ModelName(probeCtx); err == nil && strings.TrimSpace(name) != "" {
-			env.Model = name
-		}
-		if vision, err := server.SupportsVision(probeCtx); err == nil {
-			env.Vision = vision
-		}
-		cancel()
+	if env.RefreshModelFacts != nil {
+		env = env.Refreshed(ctx)
 		emitter.Emit("backend", map[string]any{"model": env.Model, "context_limit": env.ContextLimit})
 	}
 	prevOnStep := env.OnStep

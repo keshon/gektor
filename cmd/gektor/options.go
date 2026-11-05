@@ -7,54 +7,56 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/config"
-	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/providers"
 	"github.com/keshon/gektor/internal/tools"
 )
 
 // launchOptions holds command-line values and records explicit overrides.
 // Parsing does not open files, create clients, or start services.
 type launchOptions struct {
-	backendURL      string
-	model           string
-	workspace       string
-	debug           bool
-	contextReport   bool
-	grammar         bool
-	maxTokens       int
-	maxSteps        int
-	runTimeout      time.Duration
-	resume          string
-	answer          string
-	verifyCmd       string
-	logMax          int
-	yes             bool
-	auditPath       string
-	backendKind     string
-	apiKey          string
-	apiKeyEnv       string
-	contextLimit    int
-	allow           string
-	deny            string
-	stream          bool
-	mcp             string
-	capabilities    string
-	browser         string
-	browserProfile  string
-	browserHeadless bool
-	fork            string
-	plan            bool
-	outputMode      string
-	serve           bool
-	tui             bool
-	images          string
-	profilePath     string
-	checkProfile    bool
-	systemPrompt    string
-	userName        string
-	postHistory     string
-	temperature     float64
-	explicitFlags   map[string]bool
-	task            string
+	backendURL       string
+	model            string
+	workspace        string
+	debug            bool
+	contextReport    bool
+	grammar          bool
+	maxTokens        int
+	maxSteps         int
+	runTimeout       time.Duration
+	resume           string
+	answer           string
+	verifyCmd        string
+	logMax           int
+	yes              bool
+	auditPath        string
+	backendKind      string
+	apiKey           string
+	apiKeyEnv        string
+	contextLimit     int
+	allow            string
+	deny             string
+	stream           bool
+	mcp              string
+	capabilities     string
+	browser          string
+	browserProfile   string
+	browserHeadless  bool
+	fork             string
+	plan             bool
+	outputMode       string
+	serve            bool
+	tui              bool
+	images           string
+	profilePath      string
+	checkProfile     bool
+	systemPrompt     string
+	userName         string
+	postHistory      string
+	temperature      float64
+	reasoningEffort  string
+	reasoningSummary bool
+	explicitFlags    map[string]bool
+	task             string
 }
 
 func parseLaunchOptions(args []string) (launchOptions, error) {
@@ -89,7 +91,7 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	flags.BoolVar(&o.yes, "yes", false, "deny permission prompts in unattended runs")
 	flags.StringVar(&o.auditPath, "audit", "", "append gate decisions as JSONL to this file (off when empty)")
 	flags.StringVar(&o.backendKind, "backend-kind", provider.Kind, "which server: "+
-		strings.Join(llm.Kinds(), ", ")+". kobold/llama are local; openai is any hosted "+
+		strings.Join(providers.Kinds(), ", ")+". kobold/llama are local; openai is any hosted "+
 		"OpenAI-compatible API (OpenAI, OpenRouter, DeepSeek, Groq, Together, Mistral, xAI); chatgpt uses browser sign-in (gektor auth login). "+
 		"A wrong value is caught at startup rather "+
 		"than run: the dialects disagree about grammar, sampler fields and structured "+
@@ -120,6 +122,8 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	flags.StringVar(&o.systemPrompt, "system-prompt", "You are a helpful assistant.", "identity instruction placed ahead of the agent's own operating instructions")
 	flags.StringVar(&o.userName, "user-name", "User", "name the assistant addresses you by")
 	flags.StringVar(&o.postHistory, "post-history", "", "instruction placed after the latest turn, on top of the agent's own")
+	flags.StringVar(&o.reasoningEffort, "reasoning-effort", "", "reasoning effort from the selected ChatGPT model catalog; default leaves it to the server")
+	flags.BoolVar(&o.reasoningSummary, "reasoning-summary", false, "request a visible reasoning summary from ChatGPT (not raw reasoning)")
 	flags.Float64Var(&o.temperature, "temperature", 0, "sampling temperature, 0 uses transport default 0.4; literal greedy zero is unsupported")
 	if err := flags.Parse(args); err != nil {
 		return launchOptions{}, err
@@ -209,6 +213,12 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 		if !explicit["context-limit"] {
 			o.contextLimit = p.Generation.ContextLimit
 		}
+		if !explicit["reasoning-effort"] {
+			o.reasoningEffort = p.Generation.ReasoningEffort
+		}
+		if !explicit["reasoning-summary"] {
+			o.reasoningSummary = p.Generation.ReasoningSummary
+		}
 		if !explicit["temperature"] {
 			o.temperature = p.Generation.Temperature
 		}
@@ -224,11 +234,13 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 				o.postHistory = c.PostHistory
 			}
 		}
+		p.Generation.ReasoningEffort = providers.NormalizeReasoningEffort(o.reasoningEffort)
+		p.Generation.ReasoningSummary = o.reasoningSummary
 		p.Generation.Temperature = o.temperature
 		if p.Identity != nil || o.postHistory != "" {
 			p.Identity = &config.Identity{PromptPreset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), UserPersona: selectedProfilePersona(o.selectedProfile), UserName: o.userName, SystemPrompt: o.systemPrompt, PostHistory: o.postHistory}
 		}
-		chatGPTLaunchDefaults(&o)
+		providerLaunchDefaults(&o)
 		p.Provider.Kind, p.Provider.URL, p.Provider.Model, p.Provider.APIKeyEnv = o.backendKind, o.backendURL, o.model, o.apiKeyEnv
 		p.Generation.MaxTokens, p.Generation.ContextLimit = o.maxTokens, o.contextLimit
 		if err := p.Validate(); err != nil {
@@ -237,12 +249,16 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 		o.selectedProfile = p
 	}
 
-	chatGPTLaunchDefaults(&o)
+	providerLaunchDefaults(&o)
+	o.reasoningEffort = providers.NormalizeReasoningEffort(o.reasoningEffort)
+	if d, err := providers.Lookup(o.backendKind); err == nil && !d.Reasoning && (o.reasoningEffort != "" || o.reasoningSummary) {
+		return resolvedLaunch{}, fmt.Errorf("%s does not support reasoning controls", d.Label)
+	}
 	return o, nil
 }
 
-func chatGPTLaunchDefaults(o *resolvedLaunch) {
-	if o.backendKind == "chatgpt" && !o.explicitFlags["backend"] {
-		o.backendURL = "https://api.openai.com/v1"
+func providerLaunchDefaults(o *resolvedLaunch) {
+	if d, err := providers.Lookup(o.backendKind); err == nil && d.FixedURL != "" && !o.explicitFlags["backend"] {
+		o.backendURL = d.FixedURL
 	}
 }

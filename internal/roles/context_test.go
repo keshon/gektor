@@ -12,6 +12,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/llm/chatcompletions"
 	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -105,7 +106,7 @@ func TestStartupContextLive(t *testing.T) {
 	req.MaxTokens = 1
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
-	server := llm.NewLlamaClient(url, "local")
+	server := chatcompletions.NewLlamaClient(url, "local")
 	resp, err := server.Chat(ctx, req)
 	if err != nil {
 		t.Fatal(err)

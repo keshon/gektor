@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/tui/settings"
+	tea "charm.land/bubbletea/v2"
 )
 
 // Staged edits survive a category switch inside one dialog and land
@@ -184,7 +184,7 @@ func TestRemoteModelsDiscovery(t *testing.T) {
 	}))
 	defer server.Close()
 	for _, kind := range []string{"llama", "openai", "kobold"} {
-		models, err := settings.RemoteModelChoices(kind, server.URL, "GEKTOR_TEST_MODEL_KEY")
+		models, err := remoteModelChoices(kind, server.URL, "GEKTOR_TEST_MODEL_KEY")
 		if err != nil || len(models) != 1 {
 			t.Fatalf("%s: %v %v", kind, models, err)
 		}

@@ -11,7 +11,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	pathmatch "path"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -21,8 +20,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	pathmatch "path"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/roles"
@@ -430,40 +431,13 @@ func main() {
 	// quantization is the exact mistake this tool exists to prevent.
 	probe := newBackend(*backendKind, *backend, *model, *apiKey, *apiKeyEnv)
 	ctx := context.Background()
-	var contextLimit int
-	var ctxErr error
-	var backendModel string
-	var modelErr error
-	if *backendKind == "openai" {
-		if *contextLimitFlag > 0 {
-			contextLimit = *contextLimitFlag
-		} else {
-			contextLimit = llm.OpenAIContextLimit(*model)
-		}
-		backendModel = *model
-		if actual := llm.DetectKind(ctx, *backend); actual != "" && actual != *backendKind {
-			log.Fatalf("-backend-kind is %q but %s is answering at %s - re-run with "+
-				"-backend-kind %s", *backendKind, actual, *backend, actual)
-		}
-	} else {
-		contextLimit, ctxErr = probe.MaxContextLength(ctx)
-		backendModel, modelErr = probe.ModelName(ctx)
-		if modelErr != nil {
-			backendModel = "(unknown)"
-		}
-		// Both probes above are dialect-specific endpoints, so both failing
-		// usually means -backend-kind is wrong rather than the server being
-		// down. Without this the run continued at context 0 against model
-		// "(unknown)", and -require-model then blamed the model for what was
-		// a flag mistake. Every score in that run would be a measurement of
-		// a client talking the wrong protocol.
-		if ctxErr != nil && modelErr != nil {
-			if actual := llm.DetectKind(ctx, *backend); actual != "" && actual != *backendKind {
-				log.Fatalf("-backend-kind is %q but %s is answering at %s - re-run with "+
-					"-backend-kind %s", *backendKind, actual, *backend, actual)
-			}
-			log.Fatalf("backend metadata probes failed at %s: context=%v; model=%v; no baseline was run", *backend, ctxErr, modelErr)
-		}
+	facts, err := probe.Inspect(ctx, *backend, *contextLimitFlag, true)
+	if err != nil {
+		log.Fatal(err)
+	}
+	contextLimit, backendModel := facts.ContextLimit, facts.Model
+	if !facts.ModelKnown {
+		backendModel = "(unknown)"
 	}
 	// Live on 2026-09-05: koboldcpp was restarted and came back holding
 	// different weights, so a 4/8 looked like a refactor regression next
@@ -595,19 +569,10 @@ func main() {
 // newBackend picks a dialect. Unknown names fail loudly rather than
 // silently defaulting: a run against the wrong backend is the same class
 // of wasted measurement as a run against the wrong model.
-func newBackend(kind, baseURL, model, apiKey, apiKeyEnv string) *llm.Server {
-	c, err := llm.ClientFor(kind, baseURL, model)
+func newBackend(kind, baseURL, model, apiKey, apiKeyEnv string) *app.Backend {
+	c, err := app.NewBackend(context.Background(), app.BackendOptions{Kind: kind, URL: baseURL, Model: model, APIKey: apiKey, APIKeyEnv: apiKeyEnv})
 	if err != nil {
 		log.Fatalf("%v", err)
-	}
-	if strings.TrimSpace(apiKey) != "" {
-		c.WithAPIKey(strings.TrimSpace(apiKey))
-	} else if strings.TrimSpace(apiKeyEnv) != "" {
-		if v := strings.TrimSpace(os.Getenv(strings.TrimSpace(apiKeyEnv))); v != "" {
-			c.WithAPIKey(v)
-		}
-	} else if v := llm.APIKeyFromEnv(); v != "" {
-		c.WithAPIKey(v)
 	}
 	return c
 }
@@ -671,7 +636,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 	defer ws.Close()
 
 	kobold := newBackend(backendKind, backend, model, apiKey, apiKeyEnv)
-	kobold.DRY = drySampler
+	kobold.SetDRY(drySampler)
 	client := kobold
 
 	// Every model call, verbatim. When a probe regresses this is the only
@@ -680,7 +645,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 	tracePath := filepath.Join(runDir, fmt.Sprintf("%s-run%d.log", p.Name, run))
 	if tf, err := os.Create(tracePath); err == nil {
 		defer tf.Close()
-		kobold.Debug = tf
+		kobold.SetDebug(tf)
 		res.Trace = tracePath
 	}
 

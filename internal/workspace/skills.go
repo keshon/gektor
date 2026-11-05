@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -19,6 +20,19 @@ import (
 
 const skillGuideLimit = 256 * 1024
 const skillMetadataLimit = 16 * 1024
+const defaultSkillDescriptionLimit = 1024
+
+func skillDescriptionLimitFromEnv() (int, error) {
+	raw := strings.TrimSpace(os.Getenv("GEKTOR_SKILL_DESCRIPTION_LIMIT"))
+	if raw == "" {
+		return defaultSkillDescriptionLimit, nil
+	}
+	limit, err := strconv.Atoi(raw)
+	if err != nil || limit <= 0 {
+		return 0, fmt.Errorf("GEKTOR_SKILL_DESCRIPTION_LIMIT must be a positive integer (Unicode characters)")
+	}
+	return limit, nil
+}
 
 // Skill contains routing metadata; the guide is read only through LoadSkill.
 type Skill struct {
@@ -41,17 +55,20 @@ func DefaultSkillRoots() []string {
 }
 
 // Skills discovers roots recursively without following directory symlinks.
-// Later roots override earlier ones; malformed guides fail visibly.
+// Later roots override earlier ones. Valid entries are returned even when other
+// guides fail; the error aggregates discovery warnings for callers to display.
 func (w *Workspace) Skills() ([]Skill, error) {
 	type rootSpec struct {
 		root, prefix, source string
 		project              bool
 	}
+	var warnings []error
 	roots := []rootSpec{}
 	for _, root := range w.skillRoots {
 		abs, err := filepath.Abs(root)
 		if err != nil {
-			return nil, err
+			warnings = append(warnings, err)
+			continue
 		}
 		roots = append(roots, rootSpec{root: abs, prefix: ".", source: abs})
 	}
@@ -70,16 +87,19 @@ func (w *Workspace) Skills() ([]Skill, error) {
 				continue
 			}
 			if err != nil {
-				return nil, err
+				warnings = append(warnings, fmt.Errorf("skill root %s: %w", spec.root, err))
+				continue
 			}
 		}
 		found := map[string]Skill{}
+		ambiguous := map[string]bool{}
 		err := fs.WalkDir(rooted.FS(), spec.prefix, func(name string, entry fs.DirEntry, err error) error {
 			if err != nil {
 				if name == spec.prefix && errors.Is(err, fs.ErrNotExist) {
 					return nil
 				}
-				return err
+				warnings = append(warnings, fmt.Errorf("skill %s: %w", filepath.Join(spec.root, filepath.FromSlash(name)), err))
+				return nil
 			}
 			if entry.IsDir() {
 				switch entry.Name() {
@@ -95,12 +115,14 @@ func (w *Workspace) Skills() ([]Skill, error) {
 			}
 			file, err := rooted.Open(name)
 			if err != nil {
-				return err
+				warnings = append(warnings, fmt.Errorf("skill %s: %w", filepath.Join(spec.root, filepath.FromSlash(name)), err))
+				return nil
 			}
-			meta, err := readSkillMetadata(file)
+			meta, err := readSkillMetadataLimit(file, w.skillDescriptionLimit)
 			file.Close()
 			if err != nil {
-				return fmt.Errorf("skill %s: %w", filepath.Join(spec.root, filepath.FromSlash(name)), err)
+				warnings = append(warnings, fmt.Errorf("skill %s: %w", filepath.Join(spec.root, filepath.FromSlash(name)), err))
+				return nil
 			}
 			rel := strings.TrimPrefix(strings.TrimPrefix(name, spec.prefix), "/")
 			if spec.prefix == "." {
@@ -113,8 +135,11 @@ func (w *Workspace) Skills() ([]Skill, error) {
 					id = filepath.Base(spec.root)
 				}
 			}
-			if _, exists := found[id]; exists {
-				return fmt.Errorf("duplicate skill ID %q in %s", id, spec.source)
+			if _, exists := found[id]; exists || ambiguous[id] {
+				warnings = append(warnings, fmt.Errorf("duplicate skill ID %q in %s; skipped ambiguous entries", id, spec.source))
+				delete(found, id)
+				ambiguous[id] = true
+				return nil
 			}
 			display := filepath.Join(spec.root, filepath.FromSlash(name))
 			if spec.project {
@@ -127,7 +152,8 @@ func (w *Workspace) Skills() ([]Skill, error) {
 			rooted.Close()
 		}
 		if err != nil {
-			return nil, err
+			warnings = append(warnings, fmt.Errorf("skill root %s: %w", spec.root, err))
+			continue
 		}
 		for id, skill := range found {
 			byID[id] = skill
@@ -138,7 +164,7 @@ func (w *Workspace) Skills() ([]Skill, error) {
 		entries = append(entries, skill)
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].ID < entries[j].ID })
-	return entries, nil
+	return entries, errors.Join(warnings...)
 }
 
 type skillMetadata struct {
@@ -149,6 +175,9 @@ type skillMetadata struct {
 var skillName = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 func readSkillMetadata(reader io.Reader) (skillMetadata, error) {
+	return readSkillMetadataLimit(reader, defaultSkillDescriptionLimit)
+}
+func readSkillMetadataLimit(reader io.Reader, descriptionLimit int) (skillMetadata, error) {
 	var meta skillMetadata
 	scanner := bufio.NewScanner(io.LimitReader(reader, skillMetadataLimit+1))
 	scanner.Buffer(make([]byte, 1024), skillMetadataLimit+1)
@@ -184,18 +213,15 @@ func readSkillMetadata(reader io.Reader) (skillMetadata, error) {
 		return meta, fmt.Errorf("invalid skill name %q", meta.Name)
 	}
 	meta.Description = strings.TrimSpace(meta.Description)
-	if len([]rune(meta.Description)) > 1024 {
-		return meta, fmt.Errorf("skill description exceeds 1024 characters")
+	if len([]rune(meta.Description)) > descriptionLimit {
+		return meta, fmt.Errorf("skill description exceeds %d characters", descriptionLimit)
 	}
 	return meta, nil
 }
 
 // LoadSkill confines access to a discovered library root, including symlinks.
 func (w *Workspace) LoadSkill(id string) (Skill, string, string, error) {
-	entries, err := w.Skills()
-	if err != nil {
-		return Skill{}, "", "", err
-	}
+	entries, discoveryErr := w.Skills()
 	for _, skill := range entries {
 		if skill.ID != id {
 			continue
@@ -206,21 +232,18 @@ func (w *Workspace) LoadSkill(id string) (Skill, string, string, error) {
 		}
 		return skill, string(data), fmt.Sprintf("%x", sha256.Sum256(data)), nil
 	}
-	return Skill{}, "", "", fmt.Errorf("unknown skill %q; discover it with system_info group=skills", id)
+	return Skill{}, "", "", errors.Join(fmt.Errorf("unknown skill %q; discover it with system_info group=skills", id), discoveryErr)
 }
 
 func (w *Workspace) LoadSkillResource(id, resource string) (Skill, string, error) {
-	entries, err := w.Skills()
-	if err != nil {
-		return Skill{}, "", err
-	}
+	entries, discoveryErr := w.Skills()
 	for _, skill := range entries {
 		if skill.ID == id {
 			data, err := w.readSkillResource(skill, resource)
 			return skill, string(data), err
 		}
 	}
-	return Skill{}, "", fmt.Errorf("unknown skill %q", id)
+	return Skill{}, "", errors.Join(fmt.Errorf("unknown skill %q", id), discoveryErr)
 }
 
 func (w *Workspace) readSkillResource(skill Skill, resource string) ([]byte, error) {
@@ -258,11 +281,16 @@ func (w *Workspace) readSkillResource(skill Skill, resource string) ([]byte, err
 
 func (w *Workspace) skillCatalog() string {
 	entries, err := w.Skills()
+	warning := ""
 	if err != nil {
-		return fmt.Sprintf("\n\nWorkspace skill discovery incomplete: %v. Query system_info group=skills after resolving the error.", err)
+		detail := []rune(strings.Join(strings.Fields(err.Error()), " "))
+		if len(detail) > 400 {
+			detail = append(detail[:397], '.', '.', '.')
+		}
+		warning = fmt.Sprintf("\n\nSkill discovery warnings (invalid entries skipped): %s. Query system_info group=skills for details.", string(detail))
 	}
 	if len(entries) == 0 {
-		return "\n\nNo workspace skills found. Query system_info group=skills after adding packages."
+		return "\n\nNo valid workspace skills found. Query system_info group=skills after adding packages." + warning
 	}
 	header := "\n\nSkills (ID: summary). Search full metadata with system_info group=skills; load instructions with load_skill(id):\n"
 	var b strings.Builder
@@ -278,7 +306,7 @@ func (w *Workspace) skillCatalog() string {
 		b.WriteByte('\n')
 	}
 	if len(header)+b.Len() > 2048 {
-		return fmt.Sprintf("\n\n%d workspace skills discovered. Search metadata with system_info group=skills (filter, offset, limit); then load_skill by ID. Full guides are not loaded.", len(entries))
+		return fmt.Sprintf("\n\n%d workspace skills discovered. Search metadata with system_info group=skills (filter, offset, limit); then load_skill by ID. Full guides are not loaded.", len(entries)) + warning
 	}
-	return header + b.String()
+	return header + b.String() + warning
 }

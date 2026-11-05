@@ -50,6 +50,10 @@ func ChatWithRetry(ctx context.Context, c Client, req ChatRequest, policy RetryP
 		if err == nil {
 			return resp, nil
 		}
+		// Partial output belongs to history. Retrying would replace what was seen.
+		if resp.Message.Content != "" || resp.Message.Reasoning != "" || len(resp.Message.ToolCalls) > 0 {
+			return resp, err
+		}
 		if IsAbort(err) || IsOverflow(err) {
 			return ChatResponse{}, err
 		}

@@ -96,6 +96,7 @@ func initialTUILaunch(options launchOptions, p config.Preferences, path string, 
 // Materialize the resolved settings so the editor and the runner agree.
 func launchProfile(o resolvedLaunch, contextLimit int) config.Profile {
 	generation := config.Generation{
+		ReasoningEffort: o.reasoningEffort, ReasoningSummary: o.reasoningSummary,
 		MaxTokens:    o.maxTokens,
 		ContextLimit: contextLimit,
 		Temperature:  o.temperature,

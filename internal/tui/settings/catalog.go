@@ -1,24 +1,22 @@
 package settings
 
 import (
-	"context"
-	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/keshon/gektor/internal/config"
-	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
+	"github.com/keshon/gektor/internal/providers"
 )
 
 func PickerFiles(key string) bool {
 	return key == "load-profile" || key == "app-workspace"
 }
 
-func PickerControl(key string) bool { return PickerFiles(key) || key == "model" }
+func PickerControl(key string) bool {
+	return PickerFiles(key) || key == "model" || key == "reasoning-effort"
+}
 
 func PickerAccepts(key, path string) bool {
 	switch key {
@@ -65,6 +63,15 @@ func CatalogDetail(key, path string) string {
 
 func ChoiceLabel(key, value string) string {
 	switch key {
+	case "reasoning-effort":
+		if value == "default" {
+			return "Model default"
+		}
+	case "reasoning-summary":
+		if value == "true" {
+			return "On (summary)"
+		}
+		return "Off"
 	case "prompt-preset":
 		preset, err := prompts.ResponsePreset(value)
 		if err == nil {
@@ -97,16 +104,6 @@ func Hint(section string) string {
 	return "Changes apply to this session; history stays intact."
 }
 
-func RemoteModelChoices(kind, endpoint, keyEnv string) ([]string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	items, err := llm.DiscoverModels(ctx, kind, endpoint, os.Getenv(keyEnv))
-	if err != nil {
-		return nil, fmt.Errorf("%w; Esc returns to manual entry", err)
-	}
-	return items, nil
-}
-
 func Choices(key string) []string {
 	switch key {
 	case "prompt-preset":
@@ -115,10 +112,10 @@ func Choices(key string) []string {
 			ids = append(ids, preset.ID)
 		}
 		return ids
-	case "prefer-main", "prefer-post":
+	case "prefer-main", "prefer-post", "reasoning-summary":
 		return []string{"true", "false"}
 	case "kind":
-		return []string{"llama", "kobold", "openai", "chatgpt"}
+		return providers.Kinds()
 	}
 	return nil
 }
@@ -126,35 +123,5 @@ func Choices(key string) []string {
 // SuggestedBackendURL changes only the previous protocol's local default.
 // OpenAI denotes a compatible API, so its suggestion stays local.
 func SuggestedBackendURL(endpoint, previous, next string) string {
-	if next == "chatgpt" {
-		return "https://api.openai.com/v1"
-	}
-	if previous == "chatgpt" && strings.TrimSuffix(endpoint, "/") == "https://api.openai.com/v1" {
-		if next == "kobold" {
-			return "http://127.0.0.1:5001"
-		}
-		return "http://127.0.0.1:8080"
-	}
-	ports := map[string]string{"llama": "8080", "kobold": "5001", "openai": "8080"}
-	u, err := url.Parse(endpoint)
-	if err != nil || u.Scheme != "http" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
-		return endpoint
-	}
-	host := u.Hostname()
-	if host != "localhost" && host != "127.0.0.1" {
-		return endpoint
-	}
-	path := strings.TrimSuffix(u.Path, "/")
-	if u.Port() != ports[previous] || (path != "" && !(previous == "openai" && path == "/v1")) {
-		return endpoint
-	}
-	if ports[next] == "" {
-		return endpoint
-	}
-	u.Host = host + ":" + ports[next]
-	u.Path = ""
-	if next == "openai" {
-		u.Path = "/v1"
-	}
-	return u.String()
+	return providers.SuggestedURL(endpoint, previous, next)
 }

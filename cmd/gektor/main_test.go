@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/session"
@@ -102,7 +103,11 @@ func TestBackendContextUsesServerThenConfiguredFallback(t *testing.T) {
 			}))
 			defer srv.Close()
 			o := resolvedLaunch{launchOptions: launchOptions{backendKind: "llama", backendURL: srv.URL, contextLimit: tt.configured}}
-			got, err := backendContext(t.Context(), llm.NewLlamaClient(srv.URL, "local"), o)
+			backend, err := app.NewBackend(t.Context(), app.BackendOptions{Kind: "llama", URL: srv.URL, Model: "local"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := backendContext(t.Context(), backend, o)
 			if err != nil || got != tt.want {
 				t.Fatalf("limit=%d err=%v want=%d", got, err, tt.want)
 			}

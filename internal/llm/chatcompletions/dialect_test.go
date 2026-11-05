@@ -1,0 +1,118 @@
+package chatcompletions
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/keshon/gektor/internal/llm"
+)
+
+// Each backend spells the repetition penalty its own way, and sending the
+// other's spelling would be silently ignored — the sampler would run
+// unpenalised while the request looked correct.
+func TestDialects_UseTheirOwnSamplerSpelling(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		newClient  func(string, string) *Server
+		want, deny string
+	}{
+		{"kobold", NewKoboldClient, `"rep_pen"`, `"repeat_penalty"`},
+		{"llama", NewLlamaClient, `"repeat_penalty"`, `"rep_pen"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var captured []byte
+			srv := captureServer(t, &captured)
+			defer srv.Close()
+
+			c := tc.newClient(srv.URL, "local")
+			if _, err := c.Chat(context.Background(), llm.ChatRequest{
+				Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
+			}); err != nil {
+				t.Fatalf("Chat: %v", err)
+			}
+			if !strings.Contains(string(captured), tc.want) {
+				t.Errorf("missing %s in %s", tc.want, captured)
+			}
+			if strings.Contains(string(captured), tc.deny) {
+				t.Errorf("sent the other backend's %s in %s", tc.deny, captured)
+			}
+		})
+	}
+}
+
+// DefaultGrammar blocks a response that starts with '<'. On koboldcpp
+// that stops a model writing its native tool-call tags into content. On
+// llama-server those tags are the protocol — gemma4 opens a tool call
+// with "<|tool_call>" and its reasoning with "<|channel>thought" — so
+// sending the same grammar there forbids the model's own tool calls at
+// the first token.
+func TestDialects_ContentGrammarIsBackendSpecific(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		newClient func(string, string) *Server
+		wantGuard bool
+	}{
+		{"kobold", NewKoboldClient, true},
+		{"llama", NewLlamaClient, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var captured []byte
+			srv := captureServer(t, &captured)
+			defer srv.Close()
+
+			c := tc.newClient(srv.URL, "local")
+			if _, err := c.Chat(context.Background(), llm.ChatRequest{
+				Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
+			}); err != nil {
+				t.Fatalf("Chat: %v", err)
+			}
+			sent := strings.Contains(string(captured), `"grammar"`)
+			if sent != tc.wantGuard {
+				t.Errorf("content grammar sent = %v, want %v: %s", sent, tc.wantGuard, captured)
+			}
+		})
+	}
+}
+
+// A structured call carries its own schema grammar, which is correct on
+// either backend and must not be replaced by the content guard.
+func TestServer_RequestGrammarWinsOverTheBackendDefault(t *testing.T) {
+	var captured []byte
+	srv := captureServer(t, &captured)
+	defer srv.Close()
+
+	c := NewKoboldClient(srv.URL, "local")
+	if _, err := c.Chat(context.Background(), llm.ChatRequest{
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
+		Grammar:  `root ::= "yes" | "no"`,
+	}); err != nil {
+		t.Fatalf("Chat: %v", err)
+	}
+	if !strings.Contains(string(captured), `yes`) {
+		t.Errorf("per-request grammar was overridden: %s", captured)
+	}
+}
+
+// Omitting top_p and top_k left each backend applying its own, and the
+// two do not agree — a backend comparison would have been partly a
+// comparison of sampler presets.
+func TestChat_SendsTopPAndTopKOnBothBackends(t *testing.T) {
+	for _, newClient := range []func(string, string) *Server{NewKoboldClient, NewLlamaClient} {
+		var captured []byte
+		srv := captureServer(t, &captured)
+
+		c := newClient(srv.URL, "local")
+		if _, err := c.Chat(context.Background(), llm.ChatRequest{
+			Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
+		}); err != nil {
+			t.Fatalf("Chat: %v", err)
+		}
+		for _, field := range []string{`"top_p"`, `"top_k"`} {
+			if !strings.Contains(string(captured), field) {
+				t.Errorf("%s missing for %s: %s", field, c.Backend(), captured)
+			}
+		}
+		srv.Close()
+	}
+}

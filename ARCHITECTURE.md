@@ -17,13 +17,22 @@ again or ask the operator. Their results return through the parent tool call.
 
 internal/run provides Session events and operator gates for TUI and RPC.
 The print CLI supplies console observers to the same role constructors.
-internal/llm owns provider dialects, streaming, transport retries and usage.
+internal/llm defines provider-neutral messages, replay envelopes, errors and retries.
+internal/llm/chatcompletions owns Chat Completions transport and request-format dialects;
+internal/llm/responses owns the current ChatGPT Responses integration.
+internal/providers declares provider metadata without importing implementations.
+Its llamacpp, koboldcpp and openaicompat subpackages inspect backend metadata;
+they depend only on a shared internal HTTP probe helper, never protocol clients.
+internal/app constructs connections, binds credentials, and orchestrates discovery.
 internal/tools supplies tools; internal/workspace resolves paths and measures
 file changes; internal/permission authorizes each tool call.
 
 The model server is external. GEKTOR does not install or supervise it.
-API-compatible providers share the OpenAI transport; local dialects handle
-server-specific grammar, sampling, capability discovery and telemetry.
+API-compatible providers share the Chat Completions transport; local dialects handle
+server-specific grammar and sampling. The catalog selects an inspection strategy
+separately from the wire dialect. Application composition binds both to the same
+HTTP connection; model listing, capability probes and backend detection never
+run inside the protocol client.
 
 ## Execution and limits
 
@@ -41,8 +50,21 @@ local UI notices; local notices are excluded from model context.
 ChatGPT sign-in and credential renewal live under `internal/providers/openai`.
 The Responses adapter implements the same LLM client boundary as local servers;
 Gektor owns tool execution, permissions and compaction for every backend.
-OAuth credentials stay in the protected user store. Opaque model reasoning state
-is separate session metadata, replayed only by the matching Responses backend.
+OAuth credentials stay in the protected user store. Each client binds one account
+registration and verified identity; changing the selected account cannot redirect
+an existing connection. Token renewal remains serialized across processes.
+
+Responses replay preserves ordered native items separately from display text.
+The envelope is replayed only when its integration, model, account scope, and
+canonical message projection match. Mutation or incompatible legacy state falls
+back to the normal transcript without restoring removed calls. Interrupted output
+is archived as partial text/reasoning, never as executable tool calls.
+
+Application composition supplies a model-facts callback on roles.Env. Sessions
+refresh local facts before Run/Resume, and direct CLI execution refreshes before
+constructing the parent agent. Delegated roles inherit the run snapshot. Unknown
+probe results preserve known facts; settings relaunch replaces client and probe
+together. The settings form receives discovery as a callback from its TUI owner.
 
 Native process tools pass an executable and literal arguments directly.
 Shell tools use pwsh.exe, then powershell.exe on Windows, or sh elsewhere.

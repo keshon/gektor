@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/checks"
 	"github.com/keshon/gektor/internal/events"
 	"github.com/keshon/gektor/internal/llm"
@@ -84,11 +85,12 @@ func TestLocalBackendWindowAndModelRefreshBetweenTurns(t *testing.T) {
 				}
 			}))
 			defer srv.Close()
-			client, err := llm.ClientFor(kind, srv.URL, "configured")
+			client, err := app.NewBackend(t.Context(), app.BackendOptions{Kind: kind, URL: srv.URL, Model: "configured"})
 			if err != nil {
 				t.Fatal(err)
 			}
 			env := testEnv(t, client, nil)
+			env.RefreshModelFacts = client.RefreshModelFacts
 			env.BackendKind, env.Model, env.ContextLimit, env.MaxTokens = kind, "stale", 1024, 8192
 			var metadata []Event
 			s, err := New(Config{Task: "say done", Env: env, OnEvent: func(ev Event) {

@@ -5,6 +5,7 @@ import (
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
+	"github.com/keshon/gektor/internal/providers"
 	"github.com/keshon/gektor/internal/tui/components/form"
 )
 
@@ -17,6 +18,8 @@ type Workspace struct {
 	AccountLabel   string
 }
 type Model struct {
+	DiscoverModels    func(kind, endpoint, keyEnv string) ([]string, error)
+	DiscoverReasoning func(kind, endpoint, model string) (providers.ReasoningOptions, error)
 	form.Model
 	Error, Hint, ApplyLabel string
 	Destructive             bool
@@ -72,10 +75,28 @@ func (f *Model) SyncInputFocus(active bool) {
 }
 
 func (f *Model) FieldVisible(index int) bool {
-	if index < len(f.Fields) && f.Workspace != nil && f.providerKind() == "chatgpt" {
-		switch f.Fields[index].Key {
-		case "temperature", "max", "key-env", "endpoint":
-			return false
+	if index >= 0 && index < len(f.Fields) && f.Workspace != nil {
+		if d, err := providers.Lookup(f.providerKind()); err == nil {
+			switch f.Fields[index].Key {
+			case "reasoning-effort", "reasoning-summary":
+				return d.Reasoning
+			case "temperature":
+				if !d.Sampling {
+					return false
+				}
+			case "max":
+				if !d.OutputLimit {
+					return false
+				}
+			case "key-env":
+				if d.Auth != providers.Bearer {
+					return false
+				}
+			case "endpoint":
+				if d.FixedURL != "" {
+					return false
+				}
+			}
 		}
 	}
 	if index >= len(f.Fields) || f.Workspace == nil || f.Workspace.Section != "model" {

@@ -110,7 +110,7 @@ type span [2]int
 
 // callObject tries to read raw as {"name": N, "arguments": {...}} with N
 // a known tool. Arguments may be an object or a JSON string wrapping one
-// (the same shape normalizeArguments accepts on the wire).
+// (the same shape NormalizeArguments accepts on the wire).
 func callObject(raw json.RawMessage, known map[string]bool) (LeakedCall, bool) {
 	var obj struct {
 		Name      string          `json:"name"`
@@ -130,7 +130,7 @@ func callObject(raw json.RawMessage, known map[string]bool) (LeakedCall, bool) {
 	if name == "" || !known[name] {
 		return LeakedCall{}, false
 	}
-	args = normalizeArguments(args)
+	args = NormalizeArguments(args)
 	var probe map[string]any
 	if err := json.Unmarshal(args, &probe); err != nil {
 		return LeakedCall{}, false
@@ -258,7 +258,7 @@ func nextTaggedOrNarrative(s string, known map[string]bool, regions [][2]int) (L
 		name := s[loc[2]:loc[3]]
 		if known[name] {
 			if raw, end := balancedJSON(s, loc[1]); raw != "" {
-				args := normalizeArguments(json.RawMessage(raw))
+				args := NormalizeArguments(json.RawMessage(raw))
 				var probe map[string]any
 				if json.Unmarshal(args, &probe) == nil {
 					consider(LeakedCall{Name: name, Arguments: args}, span{loc[0], end})
@@ -285,7 +285,7 @@ func parseTaggedInner(inner string, known map[string]bool) (LeakedCall, bool) {
 		if raw == "" {
 			return LeakedCall{}, false
 		}
-		args := normalizeArguments(json.RawMessage(raw))
+		args := NormalizeArguments(json.RawMessage(raw))
 		var probe map[string]any
 		if json.Unmarshal(args, &probe) != nil {
 			return LeakedCall{}, false

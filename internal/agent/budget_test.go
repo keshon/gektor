@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/llm/chatcompletions"
 )
 
 type budgetClient struct {
@@ -64,7 +65,7 @@ func TestRunBudgetLive(t *testing.T) {
 	if endpoint == "" {
 		t.Skip("set GEKTOR_BUDGET_LIVE_URL to a local llama.cpp endpoint")
 	}
-	a := New(Config{Client: llm.NewLlamaClient(endpoint, "local"), Tools: NewRegistry(), System: "You are a coding assistant.", MaxSteps: 4, MaxTokens: 8192, ContextLimit: 32768, RunTimeout: 4 * time.Second, Stream: true})
+	a := New(Config{Client: chatcompletions.NewLlamaClient(endpoint, "local"), Tools: NewRegistry(), System: "You are a coding assistant.", MaxSteps: 4, MaxTokens: 8192, ContextLimit: 32768, RunTimeout: 4 * time.Second, Stream: true})
 	started := time.Now()
 	_, err := a.Run(t.Context(), "Write a complete HTTP server in Go, followed by extensive tests and a detailed explanation. Produce at least 2000 words.")
 	if !errors.Is(err, ErrRunBudget) || a.Report().Summary == "" || a.Report().Outcome != "incomplete" {

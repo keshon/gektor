@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"github.com/keshon/gektor/internal/app"
 	"image"
 	"image/color"
 	"image/draw"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/llm/chatcompletions"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/workspace"
@@ -78,7 +80,10 @@ func TestLiveLearnedImageSkill(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	client := llm.NewLlamaClient(backend, "local")
+	client, err := app.NewBackend(t.Context(), app.BackendOptions{Kind: "llama", URL: backend, Model: "local"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	model, err := client.ModelName(ctx)
 	if err != nil {
@@ -360,7 +365,7 @@ func TestLiveLearningReviewCost(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ws.Close()
-	server := llm.NewLlamaClient(backend, "local")
+	server := chatcompletions.NewLlamaClient(backend, "local")
 	var usage llm.Usage
 	requests := 0
 	client := clientFunc(func(ctx context.Context, request llm.ChatRequest) (llm.ChatResponse, error) {

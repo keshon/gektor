@@ -18,6 +18,83 @@ func putSkill(t *testing.T, root, relative, content string) {
 	}
 }
 
+func TestMalformedSkillsDoNotHideValidLibraries(t *testing.T) {
+	root, library := t.TempDir(), t.TempDir()
+	putSkill(t, library, "a-bad/SKILL.md", "---\nname: broken\ndescription: invalid: YAML\n---\nBAD")
+	putSkill(t, library, "b-valid/SKILL.md", "---\nname: usable\ndescription: Library guide\n---\nVALID")
+	putSkill(t, library, "b-valid/ref.txt", "RESOURCE")
+	putSkill(t, root, "skills/project/SKILL.md", "---\nname: project\ndescription: Project guide\n---\nPROJECT")
+	w, err := NewWithSkillRoots(root, []string{library})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	entries, warning := w.Skills()
+	if len(entries) != 2 || warning == nil || !strings.Contains(warning.Error(), "a-bad") {
+		t.Fatalf("entries=%v warning=%v", entries, warning)
+	}
+	if _, text, _, err := w.LoadSkill("usable"); err != nil || !strings.Contains(text, "VALID") {
+		t.Fatalf("valid guide unavailable: %s %v", text, err)
+	}
+	if _, text, err := w.LoadSkillResource("usable", "ref.txt"); err != nil || text != "RESOURCE" {
+		t.Fatalf("valid resource unavailable: %s %v", text, err)
+	}
+	if _, _, _, err := w.LoadSkill("broken"); err == nil || !strings.Contains(err.Error(), "frontmatter") {
+		t.Fatal("missing invalid-guide diagnostic", err)
+	}
+	for _, marker := range []string{"usable:", "project:", "invalid entries skipped"} {
+		if !strings.Contains(w.Instructions(), marker) {
+			t.Fatalf("catalog missing %q", marker)
+		}
+	}
+}
+
+func TestSkillDescriptionLimitFromEnvironment(t *testing.T) {
+	root := t.TempDir()
+	putSkill(t, root, "skills/long/SKILL.md", "---\nname: long\ndescription: "+strings.Repeat("я", 1100)+"\n---\nGUIDE")
+	for _, tc := range []struct {
+		value string
+		count int
+	}{{"", 0}, {"1200", 1}, {"1099", 0}} {
+		t.Run(tc.value, func(t *testing.T) {
+			t.Setenv("GEKTOR_SKILL_DESCRIPTION_LIMIT", tc.value)
+			w, err := New(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer w.Close()
+			entries, warning := w.Skills()
+			if len(entries) != tc.count || (warning != nil) != (tc.count == 0) {
+				t.Fatalf("count=%d warning=%v", len(entries), warning)
+			}
+		})
+	}
+	for _, value := range []string{"0", "-1", "abc"} {
+		t.Setenv("GEKTOR_SKILL_DESCRIPTION_LIMIT", value)
+		if w, err := New(root); err == nil {
+			w.Close()
+			t.Fatalf("accepted invalid limit %q", value)
+		}
+	}
+}
+
+func TestDuplicateSkillDoesNotDisableUnrelatedSkill(t *testing.T) {
+	root := t.TempDir()
+	for _, dir := range []string{"one", "two"} {
+		putSkill(t, root, "skills/"+dir+"/SKILL.md", "---\nname: duplicate\n---\nguide")
+	}
+	putSkill(t, root, "skills/valid/SKILL.md", "---\nname: valid\n---\nguide")
+	w, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	entries, warning := w.Skills()
+	if warning == nil || len(entries) != 1 || entries[0].ID != "valid" {
+		t.Fatalf("entries=%v warning=%v", entries, warning)
+	}
+}
+
 func TestSkillLibrariesPrecedenceAndResources(t *testing.T) {
 	root, library := t.TempDir(), t.TempDir()
 	putSkill(t, library, "engineering/release/SKILL.md", "---\nname: release\ndescription: 'Ship: safely # exact'\n---\nLIBRARY_ONLY_BODY")

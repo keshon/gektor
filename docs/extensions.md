@@ -189,11 +189,15 @@ Roots have the following precedence, from lowest to highest:
 
 Relative configured roots resolve against the configuration file's directory.
 Discovery is recursive and skips directory symlinks. Later roots override the
-same ID; duplicate IDs inside one root are errors.
+same ID; duplicate IDs inside one root are skipped with a warning.
+Malformed skills do not prevent valid skills from loading. Discovery warnings
+appear in the initial catalog and `system_info group=skills`.
 
 Use YAML frontmatter with `name` and `description`. Names use lowercase letters,
 digits and single hyphens, with a maximum of 64 characters. Descriptions retain
-up to 1024 characters, including YAML quoted and multiline values. Legacy guides
+up to 1024 Unicode characters by default, including YAML quoted and multiline
+values. Set `GEKTOR_SKILL_DESCRIPTION_LIMIT` to a positive integer before launch
+to change this limit. Legacy guides
 without a name use their package path as an ID. Frontmatter is limited to 16 KiB.
 Only metadata enters the bounded initial catalog.
 

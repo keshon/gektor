@@ -116,7 +116,7 @@ func TestRefreshIsSerializedAndReplacesTokenAcrossManagers(t *testing.T) {
 	m := &Manager{Dir: dir}
 	err := m.withStore(t.Context(), func(s *credentials) (bool, error) {
 		s.Active = "client"
-		s.Accounts["client"] = Account{ClientID: "client", AccessToken: "old-access", RefreshToken: "old-refresh", Scope: scopes, Expires: time.Now().Add(-time.Hour)}
+		s.Accounts["client"] = Account{ClientID: "client", Subject: "subject", AccessToken: "old-access", RefreshToken: "old-refresh", Scope: scopes, Expires: time.Now().Add(-time.Hour)}
 		return true, nil
 	})
 	if err != nil {
@@ -136,7 +136,12 @@ func TestRefreshIsSerializedAndReplacesTokenAcrossManagers(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 5 {
 		wg.Go(func() {
-			token, err := (&Manager{Dir: dir}).Token(t.Context())
+			bound, err := (&Manager{Dir: dir}).Bind(t.Context())
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			token, err := bound.Token(t.Context())
 			if err != nil || token != "new-access" {
 				t.Error("refresh failed", err)
 			}

@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/keshon/gektor/internal/prompts"
+	"github.com/keshon/gektor/internal/providers"
 )
 
 // Profile describes a thinking backend and the identity its runs speak with.
@@ -43,15 +43,18 @@ type Provider struct {
 	APIKeyEnv string `json:"api_key_env,omitempty"`
 }
 type Generation struct {
-	MaxTokens    int     `json:"max_tokens"`
-	ContextLimit int     `json:"context_limit"`
-	Temperature  float64 `json:"temperature,omitempty"`
+	ReasoningEffort  string  `json:"reasoning_effort,omitempty"`
+	ReasoningSummary bool    `json:"reasoning_summary,omitempty"`
+	MaxTokens        int     `json:"max_tokens"`
+	ContextLimit     int     `json:"context_limit"`
+	Temperature      float64 `json:"temperature,omitempty"`
 }
 
 // DefaultProfile is the first-run setup; no file needs to be installed.
 func DefaultProfile() Profile {
+	d := providers.Default()
 	return Profile{Version: 1,
-		Provider:   Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local"},
+		Provider:   Provider{Kind: d.ID, URL: d.DefaultURL, Model: "local"},
 		Generation: Generation{MaxTokens: 8192, ContextLimit: 8192, Temperature: 0.7},
 		Identity:   &Identity{UserName: DefaultUserName, SystemPrompt: DefaultSystemPrompt, PromptPreset: "coding"},
 	}
@@ -133,17 +136,15 @@ func (p Profile) Validate() error {
 	if p.Version != 1 {
 		return fmt.Errorf("profile: unsupported version %d", p.Version)
 	}
-	switch p.Provider.Kind {
-	case "kobold", "llama", "openai", "chatgpt":
-	default:
-		return fmt.Errorf("profile: unsupported provider %q", p.Provider.Kind)
+	descriptor, err := providers.Lookup(p.Provider.Kind)
+	if err != nil {
+		return fmt.Errorf("profile: %w", err)
 	}
-	u, err := url.Parse(p.Provider.URL)
-	if p.Provider.Kind == "chatgpt" && strings.TrimSuffix(p.Provider.URL, "/") != "https://api.openai.com/v1" {
-		return fmt.Errorf("profile: ChatGPT requires https://api.openai.com/v1")
+	if (providers.NormalizeReasoningEffort(p.Generation.ReasoningEffort) != "" || p.Generation.ReasoningSummary) && !descriptor.Reasoning {
+		return fmt.Errorf("profile: %s does not support reasoning controls", descriptor.Label)
 	}
-	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
-		return fmt.Errorf("profile: provider URL must be an HTTP(S) endpoint without credentials, query or fragment")
+	if err := descriptor.ValidateEndpoint(p.Provider.URL); err != nil {
+		return fmt.Errorf("profile: %w", err)
 	}
 	if p.Identity != nil && len(p.Identity.Name) > 100 {
 		return fmt.Errorf("profile: assistant name must be at most 100 characters")

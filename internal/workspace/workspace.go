@@ -13,11 +13,12 @@ import (
 )
 
 type Workspace struct {
-	files         *os.Root
-	root          string
-	instructions  string
-	skillMetadata string
-	skillRoots    []string
+	files                 *os.Root
+	root                  string
+	instructions          string
+	skillMetadata         string
+	skillRoots            []string
+	skillDescriptionLimit int
 }
 
 func New(root string) (*Workspace, error) {
@@ -26,6 +27,10 @@ func New(root string) (*Workspace, error) {
 
 // NewWithSkillRoots adds library roots lowest priority first; project skills win.
 func NewWithSkillRoots(root string, skillRoots []string) (*Workspace, error) {
+	descriptionLimit, err := skillDescriptionLimitFromEnv()
+	if err != nil {
+		return nil, err
+	}
 	abs, err := filepath.Abs(root)
 	if err != nil {
 		return nil, fmt.Errorf("resolve workspace root: %w", err)
@@ -40,7 +45,7 @@ func NewWithSkillRoots(root string, skillRoots []string) (*Workspace, error) {
 			files.Close()
 		}
 	}()
-	w := &Workspace{root: abs, files: files, skillRoots: append([]string(nil), skillRoots...)}
+	w := &Workspace{skillDescriptionLimit: descriptionLimit, root: abs, files: files, skillRoots: append([]string(nil), skillRoots...)}
 	var dirs []string
 	for dir := abs; ; dir = filepath.Dir(dir) {
 		dirs = append(dirs, dir)

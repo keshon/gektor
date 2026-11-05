@@ -106,17 +106,16 @@ func TestIsRetryableTransport_DroppedConnection(t *testing.T) {
 	}
 }
 
-func TestServer_UsageTotalsAccumulate(t *testing.T) {
-	s := &Server{}
-	if p, g, n := s.UsageTotals(); p != 0 || g != 0 || n != 0 {
-		t.Fatalf("fresh totals = %d/%d/%d, want 0/0/0", p, g, n)
-	}
-	s.recordUsage(100, 20, 30)
-	s.recordUsage(50, 5, 0)
-	if p, g, n := s.UsageTotals(); p != 150 || g != 25 || n != 2 {
-		t.Fatalf("totals = %d/%d/%d, want 150/25/2", p, g, n)
-	}
-	if c := s.CachedTotal(); c != 30 {
-		t.Fatalf("cached = %d, want 30", c)
+type partialClient struct{ calls int }
+
+func (c *partialClient) Chat(context.Context, ChatRequest) (ChatResponse, error) {
+	c.calls++
+	return ChatResponse{Message: Message{Role: RoleAssistant, Content: "visible"}}, fmt.Errorf("connection reset")
+}
+func TestRetryPreservesPartialResponse(t *testing.T) {
+	c := &partialClient{}
+	out, err := ChatWithRetry(t.Context(), c, ChatRequest{}, DefaultRetryPolicy())
+	if err == nil || out.Message.Content != "visible" || c.calls != 1 {
+		t.Fatal("partial reply lost or retried", out, err, c.calls)
 	}
 }

@@ -37,16 +37,17 @@ import (
 // serveDeps is everything a run needs, assembled once in main. Per-run
 // values (task dir, cancellation) are created per request.
 type serveDeps struct {
-	client       llm.Client
-	ws           *workspace.Workspace
-	procs        *tools.BackgroundProcesses
-	maxTokens    int
-	maxSteps     int
-	runTimeout   time.Duration
-	contextLimit int
-	vision       bool
-	logMax       int
-	verifyCmd    string
+	client            llm.Client
+	refreshModelFacts func(context.Context) llm.ModelFacts
+	ws                *workspace.Workspace
+	procs             *tools.BackgroundProcesses
+	maxTokens         int
+	maxSteps          int
+	runTimeout        time.Duration
+	contextLimit      int
+	vision            bool
+	logMax            int
+	verifyCmd         string
 
 	autoDeny     bool
 	auditPath    string
@@ -273,21 +274,22 @@ func serveRun(ctx context.Context, d serveDeps, hub *run.GateHub, emitter *event
 
 	suspend := hub.Suspender()
 	env := roles.Env{
-		Client:       d.client,
-		WS:           d.ws,
-		Procs:        d.procs,
-		MaxTokens:    d.maxTokens,
-		MaxSteps:     d.maxSteps,
-		RunTimeout:   d.runTimeout,
-		ContextLimit: d.contextLimit,
-		Vision:       d.vision,
-		Policy:       buildPolicy(d.allow, d.deny),
-		GateContext:  audit.ContextHook(d.auditPath, "serve", permissionGateContext(d.autoDeny, suspend, d.ws)),
-		BackendKind:  d.backendKind,
-		Stream:       d.stream,
-		MCPTools:     d.mcpTools,
-		Browser:      d.browser,
-		Capabilities: d.capabilities,
+		Client:            d.client,
+		RefreshModelFacts: d.refreshModelFacts,
+		WS:                d.ws,
+		Procs:             d.procs,
+		MaxTokens:         d.maxTokens,
+		MaxSteps:          d.maxSteps,
+		RunTimeout:        d.runTimeout,
+		ContextLimit:      d.contextLimit,
+		Vision:            d.vision,
+		Policy:            buildPolicy(d.allow, d.deny),
+		GateContext:       audit.ContextHook(d.auditPath, "serve", permissionGateContext(d.autoDeny, suspend, d.ws)),
+		BackendKind:       d.backendKind,
+		Stream:            d.stream,
+		MCPTools:          d.mcpTools,
+		Browser:           d.browser,
+		Capabilities:      d.capabilities,
 	}
 	emitter.Emit("run_start", map[string]any{"task": task})
 	sess, err := run.New(run.Config{

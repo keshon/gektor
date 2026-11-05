@@ -55,6 +55,38 @@ func TestSystemInfoSearchesNestedSkillsAddedDuringSession(t *testing.T) {
 	}
 }
 
+func TestSystemInfoReturnsValidSkillsAlongsideWarnings(t *testing.T) {
+	root := t.TempDir()
+	for name, description := range map[string]string{"good": "Valid", "bad": "invalid: YAML"} {
+		dir := filepath.Join(root, "skills", name)
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("---\nname: "+name+"\ndescription: "+description+"\n---\nGUIDE"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	text, err := (SystemInfo{WS: ws}).Run(t.Context(), json.RawMessage(`{"group":"skills"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var page struct {
+		Skills   []workspace.Skill
+		Warnings []string
+	}
+	if err := json.Unmarshal([]byte(text), &page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Skills) != 1 || page.Skills[0].ID != "good" || len(page.Warnings) == 0 {
+		t.Fatal(text)
+	}
+}
+
 func TestSystemInfoDiscoveryAndPaging(t *testing.T) {
 	root := t.TempDir()
 	a, b := filepath.Join(root, "a"), filepath.Join(root, "b")

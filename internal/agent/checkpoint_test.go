@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/llm/chatcompletions"
 	"github.com/keshon/gektor/internal/session"
 )
 
@@ -111,7 +112,7 @@ func TestCheckpointContinuityLive(t *testing.T) {
 	if endpoint == "" {
 		t.Skip("set GEKTOR_CHECKPOINT_LIVE_URL to a local llama.cpp endpoint")
 	}
-	a := New(Config{Client: llm.NewLlamaClient(endpoint, "local"), Tools: NewRegistry(), ContextLimit: 16384, MaxTokens: 1536})
+	a := New(Config{Client: chatcompletions.NewLlamaClient(endpoint, "local"), Tools: NewRegistry(), ContextLimit: 16384, MaxTokens: 1536})
 	h := []llm.Message{{Role: llm.RoleSystem, Content: "Coding assistant"}, {Role: llm.RoleUser, Content: "Build a Postgres server"}}
 	a.snapshot, a.checkpointLen = session.New(h), len(h)
 	failed := true

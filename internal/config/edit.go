@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/keshon/gektor/internal/prompts"
+	"github.com/keshon/gektor/internal/providers"
 )
 
 // Sections are the editor's pages. They are named here rather than derived
@@ -48,6 +49,16 @@ func ApplySection(profile *Profile, section string, values map[string]string) er
 		id.UserName = strings.TrimSpace(values["user"])
 		id.UserPersona = values["persona"]
 	case SectionGeneration:
+		if value, ok := values["reasoning-effort"]; ok {
+			profile.Generation.ReasoningEffort = providers.NormalizeReasoningEffort(value)
+		}
+		if value, ok := values["reasoning-summary"]; ok {
+			enabled, err := strconv.ParseBool(value)
+			if err != nil {
+				return fmt.Errorf("reasoning summary must be true or false")
+			}
+			profile.Generation.ReasoningSummary = enabled
+		}
 		var err error
 		profile.Generation.Temperature, err = ParseTemperature(values["temperature"])
 		if err != nil {
@@ -78,6 +89,10 @@ func ApplySection(profile *Profile, section string, values map[string]string) er
 		profile.Provider.URL = strings.TrimSpace(values["endpoint"])
 		profile.Provider.Model = strings.TrimSpace(values["model"])
 		profile.Provider.APIKeyEnv = strings.TrimSpace(values["key-env"])
+		if d, err := providers.Lookup(profile.Provider.Kind); err == nil && !d.Reasoning {
+			profile.Generation.ReasoningEffort = ""
+			profile.Generation.ReasoningSummary = false
+		}
 	default:
 		return fmt.Errorf("unknown settings section %q", section)
 	}

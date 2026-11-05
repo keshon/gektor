@@ -76,6 +76,13 @@ when supplied. Model capabilities are not inferred from the ChatGPT UI; automati
 image-producing tools remain disabled until model-specific vision is established.
 
 Sampling and `max_output_tokens` are unsupported on this OAuth route.
+Use `-reasoning-effort high` to select an effort level, or leave it unset for
+the model default. Settings > Generation lists levels from the selected
+account's model catalog. Unsupported levels fail before inference.
+Enable `-reasoning-summary` to request a visible thinking summary; Ctrl+G
+expands the THINK block. This is a provider summary, not raw hidden reasoning.
+Both controls are saved in profiles and currently apply only to ChatGPT.
+
 Temperature and response-limit controls are hidden in Settings; `-max-tokens`
 remains a local planning budget, not a server-enforced generation limit.
 The configured context limit is also a local budget, not a measured model window;
@@ -85,6 +92,14 @@ successful inference request, not just a successful login or model listing.
 
 See [OpenAI sign-in](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)
 and [route limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations).
+
+## Skill metadata
+
+`GEKTOR_SKILL_DESCRIPTION_LIMIT` sets the maximum skill description length in
+Unicode characters (default: 1024). Set it before launching Gektor; it must be
+a positive integer. The separate 16 KiB frontmatter limit still applies.
+Malformed skills are skipped without hiding valid skills. Discovery warnings
+appear in the skill catalog and `system_info` with `group=skills`.
 
 ## Command execution
 
@@ -354,3 +369,17 @@ reads retained output from the beginning. Evicted bytes are reported, and
 incomplete UTF-8 characters are held until complete or the process exits.
 Cursors are owned by the caller, so two readers do not consume each other's
 output. `stop_background` still takes only the process id.
+
+
+### Connection ownership
+
+Each launch binds its ChatGPT account registration. Selecting another registration
+with `gektor auth select` affects new launches; an existing launch continues using
+its bound account. Signing that account out makes further requests fail until it
+is connected again. Local model facts are refreshed before each run, while one
+run and its delegated agents share a consistent model/capability snapshot.
+
+Saved ChatGPT native state is reused only for a matching integration, model,
+account, and unchanged message. Otherwise Gektor sends the normal transcript.
+Old saved sessions remain readable; legacy native state without identity metadata
+is not replayed. Interrupted output is retained as incomplete history.

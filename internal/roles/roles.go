@@ -36,22 +36,23 @@ const (
 // Env is what every role needs regardless of what it does. Build one per
 // run and pass it to each constructor.
 type Env struct {
-	Identity     string
-	IdentityName string
-	UserName     string
-	Client       llm.Client
-	WS           *workspace.Workspace
-	Procs        *tools.BackgroundProcesses
-	Outputs      *tools.OutputStore
-	MaxTokens    int
-	Temperature  float64
-	ContextLimit int
-	Policy       permission.Policy
-	BackendKind  string
+	RefreshModelFacts func(context.Context) llm.ModelFacts
+	Identity          string
+	IdentityName      string
+	UserName          string
+	Client            llm.Client
+	WS                *workspace.Workspace
+	Procs             *tools.BackgroundProcesses
+	Outputs           *tools.OutputStore
+	MaxTokens         int
+	Temperature       float64
+	ContextLimit      int
+	Policy            permission.Policy
+	BackendKind       string
 
 	// Vision reports that the backend can process pictures, so read_file
 	// may attach an image instead of returning binary metadata. It comes
-	// from llm.Server.SupportsVision, never from a guess.
+	// from application model discovery, never from a guess.
 	Vision bool
 
 	// Model names the backend model for display (status, logs). Local
@@ -378,4 +379,22 @@ func (e Env) configureTools(cfg *agent.Config, extra ...agent.Tool) {
 	if browser != nil {
 		browser.Registry = cfg.Tools
 	}
+}
+
+// Refreshed returns one run's snapshot; subagents inherit it without probing.
+func (e Env) Refreshed(ctx context.Context) Env {
+	if e.RefreshModelFacts == nil {
+		return e
+	}
+	facts := e.RefreshModelFacts(ctx)
+	if facts.ContextKnown && facts.ContextLimit > 0 {
+		e.ContextLimit = facts.ContextLimit
+	}
+	if facts.ModelKnown {
+		e.Model = facts.Model
+	}
+	if facts.VisionKnown {
+		e.Vision = facts.Vision
+	}
+	return e
 }

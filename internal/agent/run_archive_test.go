@@ -3,6 +3,10 @@ package agent
 import (
 	"context"
 	"errors"
+	"fmt"
+	"github.com/keshon/gektor/internal/llm/responses"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"testing"
 
@@ -76,5 +80,39 @@ func TestRunArchiveQuestionContinuationKeepsTask(t *testing.T) {
 	s, err := session.Load(path)
 	if err != nil || len(s.Runs) != 2 || s.Runs[1].Start != 1 || s.Runs[1].End != 5 {
 		t.Fatalf("question continuation lost task: %+v %v", s.Runs, err)
+	}
+}
+
+func TestResponsesPartialOutputReachesArchive(t *testing.T) {
+	for _, stream := range []bool{false, true} {
+		t.Run(fmt.Sprint(stream), func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				fmt.Fprint(w, "data: {\"type\":\"response.output_text.delta\",\"delta\":\"visible partial answer\"}\n\n")
+			}))
+			defer srv.Close()
+			path := filepath.Join(t.TempDir(), "state.json")
+			c := responses.New(srv.URL, "test", "scope", func(context.Context) (string, error) { return "test-token", nil })
+			a := New(Config{Client: c, Tools: NewRegistry(), StateFile: path, System: "sys", Stream: stream})
+			if _, err := a.Run(t.Context(), "task"); err == nil {
+				t.Fatal("interruption succeeded")
+			}
+			state, err := session.Load(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for _, m := range state.Context() {
+				if m.Content == "visible partial answer" {
+					found = true
+					if len(m.ToolCalls) > 0 || m.ProviderState != nil {
+						t.Fatal("unsafe partial state")
+					}
+				}
+			}
+			if !found {
+				t.Fatal("displayed partial output missing from saved context")
+			}
+		})
 	}
 }

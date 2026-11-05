@@ -25,7 +25,12 @@ first and let it fail, then record the baseline.
 
 **[enforced: package-layers]** `internal/llm`, `internal/prompts`,
 `internal/workspace`, `internal/permission` and `internal/events` import no other
-internal package.
+internal package. The `internal/llm/chatcompletions` and `internal/llm/responses`
+protocol packages import only `internal/llm`. The `internal/providers` catalog
+and `internal/providers/openai` account package import no other internal package.
+Provider inspection packages (`llamacpp`, `koboldcpp`, `openaicompat`) import only
+`internal/providers/internal/probe`, whose HTTP helpers import no internal package.
+Request dialects format inference requests; inspection belongs to providers.
 `internal/session` imports only `internal/llm`.
 `internal/harness` imports nothing internal: it holds the vocabulary shared
 by the loop and the preferences file, so each can reach it without either

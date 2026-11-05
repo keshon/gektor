@@ -34,7 +34,7 @@ type ToolCall struct {
 type Message struct {
 	// ProviderState retains opaque reasoning between Responses tool turns.
 	// It is saved with the assistant message, never sent to another backend.
-	ProviderState *ResponseState `json:"provider_state,omitempty"`
+	ProviderState *ReplayState `json:"provider_state,omitempty"`
 	// Harness marks model-facing diagnostics. Delivery is recorded only when
 	// the message is included in a request, independently of UI visibility.
 	Harness string `json:"harness,omitempty"`
@@ -59,13 +59,6 @@ type Message struct {
 	// templates accept it, and on a backend that passes extras through an
 	// unknown field is a behaviour change, not a replay.
 	Reasoning string
-}
-
-type ResponseState struct {
-	Model           string            `json:"model"`
-	Reasoning       []json.RawMessage `json:"reasoning,omitempty"`
-	ReasoningTokens int               `json:"reasoning_tokens,omitempty"`
-	Phase           string            `json:"phase,omitempty"`
 }
 
 // ToolDef is what we tell the model a tool looks like.
@@ -146,11 +139,11 @@ func ModelMessages(history []Message) []Message {
 func EstimatePromptTokens(req ChatRequest) int {
 	chars, tokens := 0, 0
 	for _, m := range req.Messages {
-		if m.ProviderState != nil {
-			tokens += m.ProviderState.ReasoningTokens
+		if m.ProviderState.Matches(m) {
+			tokens += m.ProviderState.AdditionalTokens
 		}
 		chars += utf8.RuneCountInString(m.Content) + len(m.ToolCallID)
-		tokens += 4 + len(m.Images)*imageEstimateTokens
+		tokens += 4 + len(m.Images)*ImageEstimateTokens
 		for _, call := range m.ToolCalls {
 			chars += len(call.Name) + len(call.ID) + len(call.Arguments)
 		}

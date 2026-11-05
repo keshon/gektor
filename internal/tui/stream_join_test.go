@@ -13,6 +13,7 @@ import (
 
 	"github.com/keshon/gektor/internal/events"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/llm/chatcompletions"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/run"
 	"github.com/keshon/gektor/internal/tools"
@@ -70,7 +71,7 @@ func TestHTTPStreamShowsThinkingBeforeResponseFinishes(t *testing.T) {
 		t.Fatal(err)
 	}
 	queue := make(chan run.Event, 32)
-	sess, err := run.New(run.Config{Task: "say hello", Plan: true, Env: roles.Env{Client: llm.NewLlamaClient(srv.URL, "local"), WS: ws, BackendKind: "llama", Stream: true}, OnEvent: func(ev run.Event) { queue <- ev }})
+	sess, err := run.New(run.Config{Task: "say hello", Plan: true, Env: roles.Env{Client: chatcompletions.NewLlamaClient(srv.URL, "local"), WS: ws, BackendKind: "llama", Stream: true}, OnEvent: func(ev run.Event) { queue <- ev }})
 	if err != nil {
 		t.Fatal(err)
 	}

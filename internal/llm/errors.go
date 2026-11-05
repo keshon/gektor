@@ -104,8 +104,8 @@ func IsRetryableTransport(err error) bool {
 	return false
 }
 
-// parseRetryAfterMs reads milliseconds from a retry-after-ms value.
-func parseRetryAfterMs(v string) time.Duration {
+// ParseRetryAfterMs reads milliseconds from a retry-after-ms value.
+func ParseRetryAfterMs(v string) time.Duration {
 	v = strings.TrimSpace(v)
 	if v == "" {
 		return 0
@@ -120,8 +120,8 @@ func parseRetryAfterMs(v string) time.Duration {
 	return 0
 }
 
-// parseRetryAfter reads seconds or HTTP-date from a Retry-After value.
-func parseRetryAfter(v string) time.Duration {
+// ParseRetryAfter reads seconds or HTTP-date from a Retry-After value.
+func ParseRetryAfter(v string) time.Duration {
 	v = strings.TrimSpace(v)
 	if v == "" {
 		return 0
@@ -140,3 +140,12 @@ func parseRetryAfter(v string) time.Duration {
 	}
 	return 0
 }
+
+// ErrIncompleteStream reports a stream the backend ended early. A caller
+// that has not shown any of the text yet can retry the turn unary; the
+// same failure mid-request is retryable transport on that path.
+var ErrIncompleteStream = errors.New("incomplete stream")
+
+// ErrStreamUnsupported reports a backend with no streaming endpoint, so a
+// caller can fall back to a unary call instead of failing the turn.
+var ErrStreamUnsupported = errors.New("streaming unsupported")

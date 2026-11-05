@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/providers/openai"
 )
@@ -82,7 +83,7 @@ func runAuth(args []string) error {
 		if len(args) != 2 {
 			return fmt.Errorf("usage: gektor auth test <model-from-auth-models>")
 		}
-		client, err := llm.ClientFor("chatgpt", openai.API, args[1])
+		client, err := app.NewBackend(ctx, app.BackendOptions{Kind: "chatgpt", URL: openai.API, Model: args[1]})
 		if err != nil {
 			return err
 		}
