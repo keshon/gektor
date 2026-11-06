@@ -196,7 +196,7 @@ func TestSession_RunEmitsSameSchemaAsEmitter(t *testing.T) {
 			if _, ok := ev.Fields["prompt"]; !ok {
 				t.Fatalf("usage without prompt: %+v", ev)
 			}
-		case "tool_result":
+		case "tool_result", "tool_finished":
 			if _, ok := ev.Fields["call_id"]; !ok {
 				t.Fatalf("tool_result without call_id: %+v", ev)
 			}

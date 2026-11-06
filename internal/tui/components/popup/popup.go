@@ -68,6 +68,10 @@ func Box(rows []string, s Styles) []string {
 	framed := make([]string, 0, len(rows)+2)
 	framed = append(framed, s.Border.Render(topBorder("", width)))
 	for _, row := range rows {
+		if isDivider(row) {
+			framed = append(framed, s.Border.Render("├"+strings.Repeat("─", max(width-2, 0))+"┤"))
+			continue
+		}
 		framed = append(framed, s.Border.Render("│ ")+Row(s.Normal, row, inner)+s.Border.Render(" │"))
 	}
 	framed = append(framed, bottom(width, s))
@@ -143,10 +147,24 @@ func frame(rows []string, title string, width int, s Styles) []string {
 	framed := make([]string, 0, len(rows)+2)
 	framed = append(framed, s.Border.Render(topBorder(title, width)))
 	for _, row := range rows {
+		if isDivider(row) {
+			framed = append(framed, s.Border.Render("├"+strings.Repeat("─", max(width-2, 0))+"┤"))
+			continue
+		}
 		framed = append(framed, s.Border.Render("│ ")+row+s.Border.Render(" │"))
 	}
 	framed = append(framed, bottom(width, s))
 	return framed
+}
+
+func isDivider(row string) bool {
+	plain := ansi.Strip(row)
+	return strings.Contains(plain, "─") && strings.Trim(plain, "─ ") == ""
+}
+
+// TitleRow reserves a fixed close target at the right of a modal heading.
+func TitleRow(title string, width int) string {
+	return cell.Line(title, max(width-3, 0)) + " × "
 }
 
 func bottom(width int, s Styles) string {

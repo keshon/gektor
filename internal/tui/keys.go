@@ -74,6 +74,12 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.fitBottom()
 			return m, nil
 		case "ctrl+x":
+			if m.state != stAsk && m.sess != nil {
+				if _, ok := m.sess.RecallInput(); ok {
+					m.fitBottom()
+					return m, nil
+				}
+			}
 			if m.hasQueued() {
 				m.queued = ""
 				m.queuedImages = nil
@@ -81,6 +87,22 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		case "ctrl+e":
+			if m.state != stAsk && m.pendingInputCount() > 0 {
+				if m.input.Value() != "" || len(m.draftImages) > 0 || m.clipboardBusy {
+					m.appendBlock(markerBlock("Keep or clear the current draft before editing the queue."))
+					return m, nil
+				}
+				if msg, ok := m.sess.RecallInput(); ok {
+					m.attachmentEpoch++
+					m.input.SetValue(msg.Content)
+					m.draftImages = msg.Images
+					m.fitInput()
+					m.fitBottom()
+					return m, m.input.Focus()
+				}
+				m.appendBlock(markerBlock("The agent already received that message."))
+				return m, nil
+			}
 			if m.hasQueued() && m.state != stAsk {
 				if m.input.Value() != "" || len(m.draftImages) > 0 {
 					m.appendBlock(markerBlock("Keep or clear the current draft before editing the queue."))

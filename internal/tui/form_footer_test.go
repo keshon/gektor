@@ -35,8 +35,8 @@ func TestFormsShareRightAlignedActionRowAndDivider(t *testing.T) {
 			if !strings.HasSuffix(line, "[ Cancel ]") {
 				t.Fatal("actions not right aligned", line)
 			}
-			if !strings.Contains(ansi.Strip(rows[y+1]), "────") || y+2 >= len(rows) {
-				t.Fatal("missing divider or help line")
+			if y < 1 || !strings.Contains(ansi.Strip(rows[y-1]), "────") || y != len(rows)-1 {
+				t.Fatal("actions must sit in the footer beneath its divider")
 			}
 		}
 	}

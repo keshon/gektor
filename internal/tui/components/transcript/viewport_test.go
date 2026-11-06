@@ -115,7 +115,7 @@ func TestNoScrollbarWhenEverythingFits(t *testing.T) {
 		t.Fatalf("ContentWidth = %d, want the full 20", got)
 	}
 	for _, row := range strings.Split(m.View(), "\n") {
-		if strings.ContainsAny(ansi.Strip(row), "╎█") {
+		if strings.ContainsAny(ansi.Strip(row), "│█") {
 			t.Fatalf("a fitting document drew a scrollbar:\n%s", m.View())
 		}
 	}
@@ -141,7 +141,7 @@ func TestScrollbarTakesItsColumnFromTheText(t *testing.T) {
 		if []rune(plain)[18] != ' ' {
 			t.Fatalf("row %d has no gutter before the scrollbar: %q", i, plain)
 		}
-		if strings.Contains(plain, "x╎") || strings.Contains(plain, "x█") {
+		if strings.Contains(plain, "x│") || strings.Contains(plain, "x█") {
 			t.Fatalf("row %d ran text under the scrollbar: %q", i, plain)
 		}
 	}

@@ -22,6 +22,118 @@ func inspectorModel(t *testing.T, width int) *model {
 	m.attachResult("read-1", strings.Repeat("line of output\n", 70))
 	return m
 }
+
+func TestInspectorRemainsVisibleBehindMainMenu(t *testing.T) {
+	for _, width := range []int{70, 120} {
+		for _, minimal := range []bool{false, true} {
+			m := inspectorModel(t, width)
+			m.minimal = minimal
+			m.openInspector(len(m.transcript.blocks) - 1)
+			m.inspector.pane.Viewport.SetYOffset(10)
+			beforeWidth := m.mainWidth()
+			beforeOffset := m.inspector.pane.Viewport.YOffset()
+			for _, menu := range []string{"session", "workflow", "view", "settings", "help"} {
+				m.header = headerState{focused: true, global: true, menu: menu}
+				m.fitBottom()
+				view := ansi.Strip(m.View().Content)
+				if !m.inspectorVisible() || m.mainWidth() != beforeWidth || !strings.Contains(view, "line of output") {
+					t.Fatalf("menu %s hid inspector or changed layout: width=%d minimal=%v", menu, width, minimal)
+				}
+				if menu == "settings" && !strings.Contains(view, "Steering") {
+					t.Fatal("inspector painted over menu")
+				}
+				m.handleKey(tea.KeyPressMsg{Code: tea.KeyDown})
+				if m.inspector.pane.Viewport.YOffset() != beforeOffset {
+					t.Fatal("menu navigation scrolled inspector")
+				}
+				m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+				if !m.inspectorVisible() || m.inspector.callID != "read-1" {
+					t.Fatal("closing menu closed inspector")
+				}
+			}
+		}
+	}
+}
+
+func TestInspectorScrollbarMouseMatchesBothLayouts(t *testing.T) {
+	for _, width := range []int{70, 120} {
+		for _, minimal := range []bool{false, true} {
+			m := inspectorModel(t, width)
+			m.minimal = minimal
+			m.openInspector(len(m.transcript.blocks) - 1)
+			v := &m.inspector.pane.Viewport
+			v.GotoTop()
+			m.inspector.pane.Follow = false
+			x := m.termW - m.promptOffset() - 1
+			rows := strings.Split(ansi.Strip(m.View().Content), "\n")
+			if !strings.HasSuffix(ansi.Truncate(rows[paneTop], x+1, ""), "█") {
+				t.Fatal("hit target differs from thumb", width, minimal, rows[paneTop])
+			}
+			parent := m.transcript.Viewport.YOffset()
+			_, size := v.ThumbRange(v.Height())
+			m.handleMouse(tea.MouseClickMsg{X: x, Y: paneTop + size, Button: tea.MouseLeft})
+			m.handleMouse(tea.MouseReleaseMsg{X: x, Y: paneTop + size, Button: tea.MouseLeft})
+			if v.YOffset() == 0 {
+				t.Fatal("track click did not page inspector", width, minimal)
+			}
+			v.GotoTop()
+			m.handleMouse(tea.MouseClickMsg{X: x, Y: paneTop, Button: tea.MouseLeft})
+			m.handleMouse(tea.MouseMotionMsg{X: 0, Y: m.termH + 4, Button: tea.MouseLeft})
+			if !v.AtBottom() {
+				t.Fatal("drag outside pane did not reach bottom")
+			}
+			m.handleMouse(tea.MouseReleaseMsg{X: 0, Y: m.termH + 4, Button: tea.MouseLeft})
+			if m.inspector.drag.active || m.transcript.Viewport.YOffset() != parent {
+				t.Fatal("drag leaked into parent")
+			}
+		}
+	}
+}
+
+func TestCollapsedFailureAndBackgroundRemainInspectable(t *testing.T) {
+	m := inspectorModel(t, 120)
+	m.hideTools = true
+	m.hideNames = true
+	m.hideLabels = true
+	text := harnessPrefix + "Background process bg1 completed successfully. Historical command output:\nPRIVATE_BACKGROUND"
+	m.appendBlock(contextBlock(llm.Message{Role: llm.RoleUser, Content: text}))
+	index := len(m.transcript.blocks) - 1
+	if m.transcript.blocks[index].role != roleTool {
+		t.Fatal("background is not inspectable")
+	}
+	if strings.Contains(ansi.Strip(m.transcript.View()), "PRIVATE_BACKGROUND") {
+		t.Fatal("collapsed background leaked")
+	}
+	m.openInspector(index)
+	if !strings.Contains(ansi.Strip(m.inspector.pane.View()), "PRIVATE_BACKGROUND") {
+		t.Fatal("inspector lost background output")
+	}
+	m.closeInspector()
+	blocks, _ := renderHistoryAt([]llm.Message{{Role: llm.RoleUser, Content: text}})
+	if len(blocks) != 1 || blocks[0].callID != m.transcript.blocks[index].callID {
+		t.Fatal("reload lost background card")
+	}
+	m.appendBlock(toolCardBlock("failed", `run_program {"program":"go","args":["test"]}`))
+	m.attachResult("failed", "PRIVATE_DOWNLOAD_LOG\nerror: process timed out", true)
+	m.transcript.Viewport.GotoBottom()
+	view := ansi.Strip(m.transcript.View())
+	if strings.Contains(view, "PRIVATE_DOWNLOAD_LOG") || !strings.Contains(view, "process timed out") {
+		t.Fatal(view)
+	}
+	for part, blockIndex := range m.transcript.render.partBlocks {
+		if blockIndex == len(m.transcript.blocks)-1 {
+			hit, ok := m.transcript.render.toolHits[part]
+			if !ok {
+				t.Fatal("failed summary is not clickable")
+			}
+			y := paneTop + m.transcript.PartOffset(part) + hit.row - m.transcript.Viewport.YOffset()
+			m.handleMouse(tea.MouseClickMsg{X: m.promptOffset() + hit.start, Y: y, Button: tea.MouseLeft})
+		}
+	}
+	if !m.inspectorVisible() || !strings.Contains(ansi.Strip(m.inspector.pane.View()), "PRIVATE_DOWNLOAD_LOG") {
+		t.Fatal("error inspection lost output")
+	}
+}
 func TestInspectorSplitKeepsComposerAndScrollIndependent(t *testing.T) {
 	m := inspectorModel(t, 120)
 	m.openInspector(len(m.transcript.blocks) - 1)

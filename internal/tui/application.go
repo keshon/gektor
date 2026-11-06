@@ -164,7 +164,7 @@ func (m *model) saveHarness() (saveErr error) {
 			m.application.Preferences.Harness = previous
 		}
 	}()
-	steps := 0
+	steps := previous.MaxSteps
 	switch {
 	case m.maxStepsOverride == noStepLimit:
 		steps = unlimitedSteps
@@ -173,6 +173,7 @@ func (m *model) saveHarness() (saveErr error) {
 	}
 	m.application.Preferences.Harness = config.Harness{
 		MaxSteps: steps,
+		Steering: m.steering,
 	}
 	if m.application.Temporary {
 		p, err := config.LoadPreferences(m.application.PreferencePath)

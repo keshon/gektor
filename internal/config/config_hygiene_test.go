@@ -88,7 +88,7 @@ func TestPreferencesRoundTripKeepsTheHarness(t *testing.T) {
 	want := Preferences{
 		Version: 1,
 		Theme:   "light",
-		Harness: Harness{MaxSteps: 42},
+		Harness: Harness{MaxSteps: 42, Steering: true},
 	}
 	if err := SavePreferences(path, want); err != nil {
 		t.Fatal(err)

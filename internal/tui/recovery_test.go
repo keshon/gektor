@@ -66,12 +66,16 @@ func TestReceiptShowsRunnerWarningsAndRemainingWork(t *testing.T) {
 	}
 }
 
-func TestFailedToolIsExpandedInCompactView(t *testing.T) {
+func TestFailedToolRespectsCompactView(t *testing.T) {
 	b := block{role: roleTool, text: `run_program {"program":"go","args":["test"]}`, failed: true, result: "exit_code: 1\ncompile failed at main.go:9"}
 	opts := tagged()
 	opts.hideTools = true
 	text := ansi.Strip(renderBlock(b, defaultStyles(), opts, 80))
-	if !strings.Contains(text, "compile failed at main.go:9") {
+	if strings.Contains(text, "compile failed at main.go:9") || !strings.Contains(text, "×") {
+		t.Fatal(text)
+	}
+	opts.hideTools = false
+	if text := ansi.Strip(renderBlock(b, defaultStyles(), opts, 80)); !strings.Contains(text, "compile failed at main.go:9") {
 		t.Fatal(text)
 	}
 }

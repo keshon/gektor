@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -52,6 +53,8 @@ type block struct {
 	result      string
 	open        bool
 	failed      bool
+	returned    bool
+	toolStatus  string
 	contextText string
 }
 
@@ -108,6 +111,21 @@ func contextBlock(msg llm.Message) block {
 		state = fmt.Sprintf("included in request %d", msg.Request)
 	}
 	b.text += fmt.Sprintf("\n[role=%s · %s]", msg.Role, state)
+	// Completion notifications are tool evidence even though the harness sends
+	// them as context. Use the same compact/inspect presentation as tool results.
+	header, _, notification := strings.Cut(strings.TrimPrefix(msg.Content, harnessPrefix), ". Historical command output:\n")
+	if notification && strings.HasPrefix(header, "Background process ") {
+		id, status, ok := strings.Cut(strings.TrimPrefix(header, "Background process "), " ")
+		if ok && (status == "completed successfully" || strings.HasPrefix(status, "failed: ")) {
+			args, _ := json.Marshal(map[string]string{"id": id})
+			b.role, b.callID = roleTool, "background:"+id
+			b.result, b.text = b.text, "background_process "+string(args)
+			b.failed = strings.HasPrefix(status, "failed: ")
+			if b.failed {
+				b.result = "error: " + strings.TrimPrefix(status, "failed: ") + "\n" + b.result
+			}
+		}
+	}
 	return b
 }
 func errorBlock(s string) block { return block{role: roleError, text: s, at: time.Now()} }
@@ -273,7 +291,7 @@ func renderBlock(b block, st styles, opts renderOpts, width int) string {
 	switch {
 	case b.role == roleThink && !opts.expand:
 		body = []string{st.think.Render(raw)}
-	case b.role == roleTool && opts.hideTools && !b.failed:
+	case b.role == roleTool && opts.hideTools:
 		body = []string{compactTool(b, st, width)}
 	case b.role == roleReceipt:
 		body = receiptText(raw, st, width)
@@ -388,6 +406,11 @@ func renderToolCard(b block, st styles, width int) []string {
 	glyph := st.add.Render("✓")
 	if b.open {
 		glyph = st.dim.Render("…")
+		if b.returned {
+			glyph = st.dim.Render("·")
+		}
+	} else if b.toolStatus == "skipped_for_input" {
+		glyph = st.dim.Render("–")
 	} else if b.failed {
 		glyph = st.err.Render("✕")
 	}
@@ -770,6 +793,7 @@ type transcriptProps struct {
 // emitted here because it depends on the previous block, which a per-block
 // cache keyed on the block value cannot know.
 func (t *transcriptState) refresh(props transcriptProps) {
+	t.Viewport.SetScrollbarStyle(props.styles.dim, props.styles.dim)
 	width := t.Viewport.ContentWidth()
 	opts := renderOpts{expand: !t.compact, labels: props.labels, hideTools: props.hideTools}
 	parts := make([]string, 0, len(t.blocks))
@@ -820,13 +844,13 @@ func (t *transcriptState) refresh(props transcriptProps) {
 		}
 		if b.role == roleTool && b.callID != "" {
 			name, action, _ := toolSummary(b.text)
-			if !opts.hideTools || b.failed {
+			if !opts.hideTools {
 				action = name
 			}
 			// The name starts after the status glyph. Match the actual rendered
 			// line so speaker/label rows and wrapped output cannot become links.
 			for row, line := range strings.Split(ansi.Strip(part), "\n") {
-				if strings.HasPrefix(line, "✓ ") || strings.HasPrefix(line, "… ") || strings.HasPrefix(line, "✕ ") {
+				if strings.HasPrefix(line, "· ") || strings.HasPrefix(line, "– ") || strings.HasPrefix(line, "✓ ") || strings.HasPrefix(line, "… ") || strings.HasPrefix(line, "✕ ") || strings.HasPrefix(line, "× ") {
 					n := min(ansi.StringWidth(action), max(ansi.StringWidth(line)-2, 0))
 					t.render.toolHits[len(parts)] = toolNameHit{row: row, start: 2, end: 2 + n}
 					break

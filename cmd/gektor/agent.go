@@ -295,6 +295,11 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		// -serve leaves this off until its budget story is decided.
 		OnDelta: func(chunk string) { fmt.Print(chunk) },
 		OnStep:  stepPrinter(o.outputMode, emitter, o.logMax),
+		OnToolFinished: func(callID string) {
+			if emitter != nil {
+				events.EmitToolFinished(emitter, callID)
+			}
+		},
 		OnToolOutput: func(callID, text string) {
 			if o.outputMode == "json" {
 				events.EmitToolOutput(emitter, callID, text)
@@ -304,7 +309,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		},
 		OnResult: func(result agent.ToolResult) {
 			if o.outputMode == "json" {
-				events.EmitToolResult(emitter, result.CallID, result.Output, result.Failed)
+				events.EmitToolResultStatus(emitter, result.CallID, result.Output, result.Failed, result.Status)
 			}
 		},
 		OnUsage: usagePrinter(o.outputMode, emitter),

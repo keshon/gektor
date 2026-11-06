@@ -80,6 +80,10 @@ remove model history. Scrolling up stops automatic following; F7 or
 Ctrl+End returns to the latest content. A scrollbar in the right-hand column
 appears once the transcript is taller than the pane; its thumb is sized to
 the visible fraction and sits where you are in the document.
+Both history and inspector scrollbars support track clicks to page and thumb
+dragging, including dragging beyond the pane. The track uses a continuous muted
+line. Collapsed tools show one summary for successes, errors and background
+completions; click the tool name to inspect the full output.
 
 ```text
 YOU
@@ -162,7 +166,7 @@ terminal width.
 The prompt is `>` with an underline caret. The input grows to fit multiline
 text, up to six visible rows (less in short terminals).
 
-- Enter sends when idle, or queues one follow-up during a run. Empty Enter
+- Enter sends when idle, or queues steering for the active run. Empty Enter
   does nothing.
 - Ctrl+O adds a line. Shift+Enter also works when the terminal preserves it.
 - Pasted multiline text stays in the draft, including a trailing newline; Enter sends it.
@@ -303,9 +307,31 @@ model history and display metadata use the session store described under
 
 ## Running, stopping, and permissions
 
-Only one follow-up can be queued. Ctrl+E moves it into an empty draft;
-Ctrl+X cancels it. It starts after a successful run if the draft is empty.
-Failure, interruption, or a nonempty draft leaves it queued for editing.
+During a direct run, Enter queues messages for the next model/tool boundary.
+The composer shows the pending count and a truncated preview of the latest
+message, including its image count. Ctrl+E returns the latest pending message
+and images to an empty draft; Ctrl+X discards the latest pending message.
+Earlier messages keep their order. Once the agent consumes a message, it cannot
+be recalled.
+
+Settings → Steering or `/steering on|off` controls how soon new input takes
+effect. The header shows `STEER` only when enabled. The setting is saved and
+defaults to off. With steering on, new input withholds tools that have not
+started, including calls waiting for permission. Running tools finish; their
+results and explicit skipped-call results precede the new message in history.
+Once input has caused tools to be withheld, it is accepted and cannot be
+recalled. Turning steering off does not restart withheld calls.
+
+With steering off, the current tool batch finishes before input is consumed.
+Neither mode cancels an in-flight model response or a running tool. A single
+long-running tool can still delay the next response. Permission prompts remain
+separate: a new message never grants permission. Tools show Returned when their
+execution ends, before the complete batch is processed into history.
+
+Commands and runs without a live input inbox use a separate single follow-up.
+The same edit/cancel shortcuts apply. That follow-up starts after a successful
+run if the draft is empty; failure, interruption, or a nonempty draft leaves it
+queued for editing.
 Esc stops the run and waits for cleanup; it does not quit or erase the session.
 Ctrl+Q or F10 quits when idle. During a run, it first stops the run;
 press again after stopping to quit. Ctrl+C aborts and quits immediately.
@@ -418,6 +444,13 @@ account. Sampling and response-limit fields are hidden because that route does
 not accept them; its context field is a local planning budget.
 File and directory pickers provide Ctrl+B browsing, Ctrl+L location entry and
 Ctrl+R refresh where applicable.
+The directory browser shows its absolute location. Click or Enter opens a
+directory; `...` goes up one level. **Use this folder** (Ctrl+S) selects the
+displayed directory as the workspace. Navigation alone never selects it.
+
+Modal headings have a close button that cancels without applying. Apply and
+Cancel sit in the footer. Long dialogs have a scrollbar; its thumb can be
+dragged. Theme choices use a compact list with the current theme selected.
 
 CLI flags override saved configuration for the current launch. Explicit Apply
 can save these effective launch settings even without further field edits.

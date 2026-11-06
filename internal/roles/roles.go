@@ -96,8 +96,9 @@ type Env struct {
 	// each wrapped it slightly differently.
 	OnStep func(label string, step int, msg llm.Message)
 
-	OnResult     func(agent.ToolResult)
-	OnToolOutput func(callID, text string)
+	OnResult       func(agent.ToolResult)
+	OnToolFinished func(callID string)
+	OnToolOutput   func(callID, text string)
 
 	// Rules are the deterministic checks this run applies to written
 	// files. Language rules live in internal/rules; checks.Secrets covers
@@ -221,6 +222,7 @@ func (e Env) agentConfig(system, label, stateFile string) agent.Config {
 		OnStep:         e.onStep(label),
 		OnResult:       e.OnResult,
 		OnToolOutput:   e.OnToolOutput,
+		OnToolFinished: e.OnToolFinished,
 		OnUsage:        e.OnUsage,
 		OnProgress:     e.OnProgress,
 		OnNudge:        e.OnNudge,
@@ -291,6 +293,7 @@ func inspectedSubagent(e Env, role, callID, parentState string) *agent.Agent {
 	cfg.Inbox, cfg.OnInput = nil, nil
 	cfg.OnStep, cfg.OnResult, cfg.OnUsage, cfg.OnNudge = nil, nil, nil, nil
 	cfg.OnToolOutput = nil
+	cfg.OnToolFinished = nil
 	cfg.OnProgress = nil
 	cfg.OnPrompt = nil
 	cfg.OnContext, cfg.OnLocal, cfg.Notifications = nil, nil, nil

@@ -47,6 +47,9 @@ func NewModel(fields []form.Field, editor textarea.Model) Model {
 
 func (f *Model) InputOwner() InputOwner {
 	if f.Picker != nil {
+		if f.Picker.Field == "theme" {
+			return NoInput
+		}
 		return PickerInput
 	}
 	if f.Index >= 0 && f.Index < len(f.Fields) {

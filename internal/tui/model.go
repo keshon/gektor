@@ -79,6 +79,7 @@ type doneMsg struct {
 type tickMsg time.Time
 type liveFlushMsg struct{}
 type model struct {
+	steering         bool
 	inspector        toolInspector
 	liveFlushPending bool
 	progress         llm.Progress
@@ -266,6 +267,7 @@ func withoutPrintHooks(env roles.Env) roles.Env {
 	env.OnStep = func(string, int, llm.Message) {}
 	env.OnResult = func(agent.ToolResult) {}
 	env.OnToolOutput = func(string, string) {}
+	env.OnToolFinished = nil
 	env.OnUsage = func(int, llm.Usage) {}
 	env.OnNudge = nil
 	env.OnPrompt = nil
@@ -378,6 +380,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	m.baseEnv = env
 	if cfg.Application != nil {
 		m.applyAppearance(cfg.Application.Preferences.Appearance)
+		m.steering = cfg.Application.Preferences.Harness.Steering
 	} else {
 		m.applyAppearance(config.Appearance{})
 	}

@@ -444,8 +444,14 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 	}
 
 	executed := make([]bool, len(calls))
+	withheld := make([]bool, len(calls))
+	yielded := false
 	runOne := func(i int) {
 		call := calls[i]
+		if !a.cfg.Inbox.admit(&yielded) {
+			withheld[i] = true
+			return
+		}
 		if err := ctx.Err(); err != nil {
 			results[i].err = err
 			return
@@ -475,10 +481,22 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 			resources = []string{toolResource(call.Arguments)}
 		}
 		for _, resource := range resources {
+			if !a.cfg.Inbox.admit(&yielded) {
+				withheld[i] = true
+				return
+			}
 			if err := permission.Authorize(ctx, a.cfg.Policy, a.cfg.BeforeToolCall, call.Name, resource, call.Arguments); err != nil {
 				results[i].err = err
 				return
 			}
+		}
+		if !a.cfg.Inbox.admit(&yielded) {
+			withheld[i] = true
+			return
+		}
+		if err := ctx.Err(); err != nil {
+			results[i].err = err
+			return
 		}
 		executed[i] = true
 		started := time.Now()
@@ -489,13 +507,19 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 		}
 		results[i].content, results[i].err = a.cfg.Tools.RunStreaming(context.WithValue(ctx, toolCallIDKey{}, call.ID), call.Name, call.Arguments, onOutput)
 	}
-	runBatch := func(indices []int) {
-		var wg sync.WaitGroup
-		for _, i := range indices {
-			wg.Add(1)
-			go func(i int) { defer wg.Done(); runOne(i) }(i)
+	notifyFinished := func(i int) {
+		if executed[i] && a.cfg.OnToolFinished != nil {
+			a.cfg.OnToolFinished(calls[i].ID)
 		}
-		wg.Wait()
+	}
+	runBatch := func(indices []int) {
+		done := make(chan int, len(indices))
+		for _, i := range indices {
+			go func(i int) { runOne(i); done <- i }(i)
+		}
+		for range indices {
+			notifyFinished(<-done)
+		}
 	}
 	var batch []int
 	for i, call := range calls {
@@ -508,6 +532,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 			runBatch(batch)
 			batch = nil
 			runOne(i)
+			notifyFinished(i)
 			// A failed command may still change files. Treat it as a mutation barrier.
 			if executed[i] {
 				st.noteMutation()
@@ -521,7 +546,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 	var signature strings.Builder
 	var diagnostics []string
 	for i, call := range calls {
-		if results[i].err == nil {
+		if results[i].err == nil && !withheld[i] {
 			if at := a.cfg.Tools.AttacherOf(call.Name); at != nil {
 				paths, err := at.Attach(call.Arguments)
 				switch {
@@ -541,7 +566,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 				content += "\n"
 			}
 			content += "error: " + results[i].err.Error()
-		} else {
+		} else if !withheld[i] {
 			if st.observeChanges == nil {
 				// Embedders may omit the workspace observer.
 				if containsStr(a.cfg.MutatingTools, call.Name) {
@@ -555,17 +580,23 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 				}
 			}
 		}
+		if withheld[i] {
+			content = "Not executed because new user input arrived. Reconsider this action using the updated instructions."
+		}
 		if a.cfg.LimitOutput != nil {
 			content = a.cfg.LimitOutput(ctx, call.Name, content, max(1, 48*1024/len(calls)))
 		} else {
 			content = TruncateMiddle(content, max(1, 48*1024/len(calls)))
 		}
 		failed := results[i].err != nil
-		if a.cfg.Tools.ModeOf(call.Name) == Concurrent || failed {
+		if !withheld[i] && (a.cfg.Tools.ModeOf(call.Name) == Concurrent || failed) {
 			a.noteObservation(st, call.Name, call.Arguments, content)
 		}
 		fmt.Fprintf(&signature, "%s\x00%s\x00", callKey(call.Name, call.Arguments), content)
 		status := "success"
+		if withheld[i] {
+			status = "skipped_for_input"
+		}
 		if failed {
 			status = "execution_error"
 			if !executed[i] {
@@ -601,7 +632,9 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 	for _, instructions := range newInstructions {
 		history = a.nudge(history, "instructions", instructions)
 	}
-	st.trackSignature(signature.String())
+	if !yielded {
+		st.trackSignature(signature.String())
+	}
 	if len(pictures) > 0 {
 		// The tool result is already in history; the pictures ride the
 		// next user turn because role:tool has no image parts on the

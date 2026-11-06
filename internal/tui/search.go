@@ -53,7 +53,13 @@ func (m *model) searchView() string {
 	line := func(style lipgloss.Style, text string) string {
 		return popup.Row(style, text, inner)
 	}
-	rows := []string{line(styles.Normal, m.styles.gate.Render("Open session")), line(styles.Normal, s.filter.View()), line(styles.Normal, "")}
+	rule := line(styles.Normal, strings.Repeat("─", inner))
+	rows := []string{line(styles.Normal, popup.TitleRow(m.styles.gate.Render("Open session"), inner)), line(styles.Normal, s.filter.View()), rule}
+	bodyStart := len(rows)
+	contentWidth := inner
+	if len(s.entries) > m.sessVisible() {
+		contentWidth = max(inner-2, 1)
+	}
 	if len(s.entries) == 0 {
 		label := "No saved sessions"
 		if query != "" {
@@ -70,7 +76,7 @@ func (m *model) searchView() string {
 		if i == s.Cursor {
 			mark, style = "› ", styles.Selected
 		}
-		entry := mark + highlightSearch(cellLine(e.title, max(inner-2, 1)), re, style)
+		entry := mark + highlightSearch(cellLine(e.title, max(contentWidth-2, 1)), re, style)
 		rows = append(rows, line(style, entry))
 		metadata := "Date unavailable"
 		if !e.updated.IsZero() {
@@ -78,7 +84,10 @@ func (m *model) searchView() string {
 			metadata = fmt.Sprintf("%s · %dd ago", e.updated.Local().Format("2006-01-02 15:04"), days)
 		}
 		metadata += fmt.Sprintf(" · %d messages", e.msgs)
-		muted := style.Foreground(lipgloss.Color(themeColor(colorSecondaryText)))
+		muted := style
+		if i != s.Cursor {
+			muted = muted.Foreground(lipgloss.Color(themeColor(colorSecondaryText)))
+		}
 		rows = append(rows, line(muted, "  "+metadata))
 
 		text := e.preview
@@ -88,12 +97,13 @@ func (m *model) searchView() string {
 		if text == "" {
 			text = e.mode
 		}
-		snippet := style.Foreground(lipgloss.Color(themeColor(colorSecondaryText)))
-		rows = append(rows, line(snippet, "  "+searchExcerpt(text, re, max(inner-2, 1))))
+		snippet := muted
+		rows = append(rows, line(snippet, "  "+searchExcerpt(text, re, max(contentWidth-2, 1))))
 		if i+1 < min(s.Offset+m.sessVisible(), len(s.entries)) {
-			rows = append(rows, line(styles.Normal.Foreground(lipgloss.Color(themeColor(colorSecondaryText))), strings.Repeat("─", inner)))
+			rows = append(rows, line(styles.Normal, ""))
 		}
 	}
+	rows = append(rows[:bodyStart], popup.ScrollRows(rows[bodyStart:], inner, s.Offset*4, len(s.entries)*4-1, styles.Normal)...)
 	if s.flash != "" {
 		rows = append(rows, line(styles.Normal.Foreground(lipgloss.Color(themeColor(colorPopupError))), s.flash))
 	}
@@ -111,7 +121,7 @@ func (m *model) searchView() string {
 	if len(s.entries) > 0 {
 		hint += " · " + strconv.Itoa(s.Cursor+1) + "/" + strconv.Itoa(len(s.entries))
 	}
-	rows = append(rows, line(styles.Normal, hint))
+	rows = append(rows, rule, line(styles.Normal, hint))
 	return strings.Join(popup.Frame(rows, g.width, styles), "\n")
 }
 
@@ -148,7 +158,13 @@ func highlightSearch(text string, re *regexp.Regexp, style lipgloss.Style) strin
 	pos := 0
 	for _, loc := range re.FindAllStringIndex(text, -1) {
 		out.WriteString(style.Render(text[pos:loc[0]]))
-		out.WriteString(style.Foreground(lipgloss.Color(themeColor(colorSearchMatch))).Bold(true).Render(text[loc[0]:loc[1]]))
+		match := style.Bold(true)
+		if style.GetBackground() == popupSurface().Selected.GetBackground() {
+			match = match.Underline(true)
+		} else {
+			match = match.Foreground(lipgloss.Color(themeColor(colorSearchMatch)))
+		}
+		out.WriteString(match.Render(text[loc[0]:loc[1]]))
 		pos = loc[1]
 	}
 	out.WriteString(style.Render(text[pos:]))

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/keshon/gektor/internal/tui/components/cell"
 )
@@ -21,13 +22,18 @@ import (
 // starts records each part's first row, including any gap before it, so
 // locating a visible row does not require walking the preceding parts.
 type Viewport struct {
-	width, height int
-	offset        int
-	parts         []string
+	trackStyle, thumbStyle lipgloss.Style
+	width, height          int
+	offset                 int
+	parts                  []string
 	// starts[i] is the document line where part i begins. Blank
 	// separators are implicit: starts[i+1] is ends-of-part-i plus one.
 	starts []int
 	total  int
+}
+
+func (v *Viewport) SetScrollbarStyle(track, thumb lipgloss.Style) {
+	v.trackStyle, v.thumbStyle = track, thumb
 }
 
 // NewViewport returns an empty window of the given size.
@@ -239,14 +245,13 @@ func (v Viewport) DragOffset(row, height, grab int) int {
 // document and not merely as "there is more".
 func (v Viewport) scrollbar(height int) []string {
 	bar := make([]string, height)
-	// A light rule, not a heavy one: this column sits directly against the
-	// pane border, and the same glyph in both reads as a doubled rule
-	// rather than as a position in the document.
-	track := '╎'
+	// Keep the track continuous and the thumb solid; the parent supplies
+	// theme styles while geometry and hit testing stay identical.
+	track := '│'
 	thumb := '█'
 	if v.total <= 0 {
 		for i := range bar {
-			bar[i] = string(track)
+			bar[i] = v.trackStyle.Render(string(track))
 		}
 		return bar
 	}
@@ -255,9 +260,9 @@ func (v Viewport) scrollbar(height int) []string {
 	pos, size := v.ThumbRange(height)
 	for i := range bar {
 		if i >= pos && i < pos+size {
-			bar[i] = string(thumb)
+			bar[i] = v.thumbStyle.Render(string(thumb))
 		} else {
-			bar[i] = string(track)
+			bar[i] = v.trackStyle.Render(string(track))
 		}
 	}
 	return bar

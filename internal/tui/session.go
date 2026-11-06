@@ -311,6 +311,9 @@ func (m *model) startRun(run func(ctx context.Context) (string, error)) {
 	m.input.Focus()
 	m.fitInput()
 	m.fitBottom()
+	if m.sess != nil {
+		m.sess.SetSteering(m.steering)
+	}
 	m.started = time.Now()
 	m.steps = 0
 	m.progress = llm.Progress{Phase: "waiting"}

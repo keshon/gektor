@@ -91,6 +91,13 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, rol
 		}
 	}
 	env.Inbox = &s.inbox
+	previousFinished := env.OnToolFinished
+	env.OnToolFinished = func(callID string) {
+		events.EmitToolFinished(emitter, callID)
+		if previousFinished != nil {
+			previousFinished(callID)
+		}
+	}
 	previousInput := env.OnInput
 	env.OnInput = func(input llm.Message) {
 		emitter.Emit("user_input", map[string]any{"text": input.Content, "images": input.Images})
@@ -136,7 +143,7 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, rol
 		}
 	}
 	env.OnResult = func(result agent.ToolResult) {
-		events.EmitToolResult(emitter, result.CallID, result.Output, result.Failed)
+		events.EmitToolResultStatus(emitter, result.CallID, result.Output, result.Failed, result.Status)
 		if prevTypedResult != nil {
 			prevTypedResult(result)
 		}
@@ -334,3 +341,9 @@ func EmitUsage(emitter *events.Emitter, step int, usage llm.Usage) {
 // ErrInputClosed means the caller should start a follow-up turn instead.
 func (s *Session) Submit(text string, images ...string) error { return s.inbox.Send(text, images...) }
 func (s *Session) PendingInputCount() int                     { return s.inbox.Len() }
+func (s *Session) PendingInput() (llm.Message, int)           { return s.inbox.Latest() }
+func (s *Session) RecallInput() (llm.Message, bool)           { return s.inbox.RecallLatest() }
+
+// SetSteering controls tool admission without restarting the session.
+func (s *Session) SetSteering(enabled bool)              { s.inbox.SetSteering(enabled) }
+func (s *Session) InputPreview() (llm.Message, int, int) { return s.inbox.Preview() }

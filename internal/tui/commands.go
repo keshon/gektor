@@ -52,6 +52,7 @@ func commands() []command {
 		{name: "/new", arg: "[task]", summary: "Start a fresh task; omit task for an empty session"},
 		{name: "/mode", arg: "plan|act", choices: []string{"plan", "act"}, summary: "Preview changes or execute them"},
 		{name: "/max-steps", arg: "N", summary: "Step budget (0 = no limit)"},
+		{name: "/steering", arg: "on|off", choices: []string{"on", "off"}, immediate: true, summary: "Let new input withhold unstarted tools"},
 		{name: "/details", immediate: true, summary: "Toggle full agent thinking"},
 		{name: "/sys", immediate: true, summary: "Toggle SYS messages"},
 		{name: "/labels", immediate: true, summary: "Toggle labels"},
@@ -236,6 +237,23 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 			}
 			m.appendBlock(markerBlock("Max steps: " + m.stepBudget()))
 		})
+		return m, nil
+	case "steering":
+		value := strings.ToLower(strings.TrimSpace(arg))
+		if value != "on" && value != "off" {
+			m.appendBlock(errorBlock("Usage: /steering on|off"))
+			return m, nil
+		}
+		previous := m.steering
+		m.steering = value == "on"
+		if err := m.saveHarness(); err != nil {
+			m.steering = previous
+			m.appendBlock(errorBlock(err.Error()))
+			return m, nil
+		}
+		if m.sess != nil {
+			m.sess.SetSteering(m.steering)
+		}
 		return m, nil
 	case "details":
 		return m.toggleThinking()

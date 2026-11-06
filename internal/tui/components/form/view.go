@@ -11,7 +11,7 @@ import (
 )
 
 type Hit struct{ Index, Y0, Y1, X0, X1 int }
-type Styles struct{ Muted, Focus, Error lipgloss.Style }
+type Styles struct{ Muted, Focus, Error, Scrollbar lipgloss.Style }
 type Props struct {
 	Title, Hint, Error, PrimaryLabel, Choice string
 	Width, Height                            int
@@ -50,7 +50,7 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 	w, h := props.Width, props.Height
 	inner := max(popup.ModalWidth(w)-4, 1)
 	height := f.Editor.Height()
-	rows := []string{props.Styles.Focus.Render(props.Title), "", props.Styles.Muted.Render(cell.Line(props.Hint, inner)), ""}
+	rows := []string{popup.TitleRow(props.Styles.Focus.Render(props.Title), inner), strings.Repeat("─", inner), props.Styles.Muted.Render(cell.Line(props.Hint, inner)), ""}
 
 	// Window over the fields that are actually showing, not over all of
 	// them: a hidden field must not take a row or a scroll step.
@@ -70,7 +70,7 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 	start := max(min(position-capacity/2, len(indexes)-capacity), 0)
 	end := min(start+capacity, len(indexes))
 
-	hits := []Hit{}
+	hits := []Hit{{Index: len(f.Fields) + 1, Y0: 0, Y1: 1, X0: max(inner-3, 0), X1: inner}}
 	for _, i := range indexes[start:end] {
 		field := f.Fields[i]
 		label := field.Label
@@ -81,7 +81,6 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 		}
 		style := props.Styles.Muted
 		if i == f.Index {
-			label = "› " + label
 			style = props.Styles.Focus
 		}
 		y := len(rows)
@@ -106,6 +105,14 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 		rows = append(rows, "")
 	}
 	if len(indexes) > capacity {
+		fieldRows := rows[4:]
+		rows = append(rows[:4], popup.ScrollRows(fieldRows, inner, start*3, len(indexes)*3+height-1, props.Styles.Scrollbar)...)
+		trackHits := make([]Hit, 0, len(fieldRows))
+		for row := range fieldRows {
+			index := indexes[min(row*len(indexes)/max(len(fieldRows), 1), len(indexes)-1)]
+			trackHits = append(trackHits, Hit{Index: index, Y0: 4 + row, Y1: 5 + row, X0: inner - 1, X1: inner})
+		}
+		hits = append(trackHits, hits...)
 		// Capped like every other row here. It was not, so a form with
 		// more fields than fit pushed its own frame wider than the pane and
 		// clipped its own right-hand border.
@@ -116,9 +123,6 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 	} else if props.Note != "" {
 		rows = append(rows, cell.Line(props.Note, inner))
 	}
-	action, actionHits := f.Actions(inner, len(rows), props.PrimaryLabel, !props.DisablePrimary, props.Styles)
-	rows = append(rows, action, props.Styles.Muted.Render(strings.Repeat("─", inner)))
-	hits = append(hits, actionHits...)
 	footer := props.Footer
 	if footer == "" {
 		footer = "↑↓/Tab fields · Ctrl+↑↓ multiline fields · Ctrl+S apply · Esc cancel"
@@ -126,7 +130,13 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 			footer = "Tab selects · Enter confirms selection · Esc cancel"
 		}
 	}
-	rows = append(rows, props.Styles.Muted.Render(cell.Line(footer, inner)))
+	rows = append(rows, props.Styles.Muted.Render(strings.Repeat("─", inner)))
+	action, actionHits := f.Actions(inner, len(rows), props.PrimaryLabel, !props.DisablePrimary, props.Styles)
+	if gap := max(actionHits[0].X0-2, 0); gap >= 12 {
+		action = props.Styles.Muted.Render(cell.Line(footer, gap)) + "  " + ansi.Cut(action, actionHits[0].X0, inner)
+	}
+	rows = append(rows, action)
+	hits = append(hits, actionHits...)
 	return rows, hits
 }
 func (f Model) Actions(width, y int, primary string, enabled bool, styles Styles) (string, []Hit) {

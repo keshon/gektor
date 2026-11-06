@@ -62,6 +62,7 @@ type sessionsState struct {
 	selection.Model
 	// offset is the first visible row: the list scrolls under a
 	// stationary viewport instead of clipping past it.
+	drag  scrollDrag
 	mode  sessionsMode
 	flash string
 	// root is the tasks dir scanned at open; mutations re-scan it so
@@ -77,7 +78,7 @@ var tasksRoot = func() string { return gektor.Sub("tasks") }
 // sessChrome counts border title, search, gap, hint and bottom border,
 // plus mutation prompts. Each result has a title and an excerpt.
 func (m *model) sessChrome() int {
-	chrome := 5
+	chrome := 6
 	if m.sessions.flash != "" {
 		chrome++
 	}
@@ -343,6 +344,7 @@ func renderHistoryAt(history []llm.Message) ([]block, []int) {
 					b := &out[i]
 					if b.role == roleTool && b.open && b.callID == msg.ToolCallID {
 						b.result = msg.Content
+						b.toolStatus = msg.ToolStatus
 						b.open = false
 						b.failed = strings.HasPrefix(msg.Content, "error:") || strings.Contains(msg.Content, "\nerror:")
 						if msg.ToolFailed != nil {
@@ -554,11 +556,18 @@ func (s *sessionsState) replaceEntries(entries []sessionEntry) {
 
 func (m *model) browserMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	s := m.sessions
+	g := m.searchGeometry()
+	mouse := msg.Mouse()
+	if isMouseClick(msg) && mouse.Button == tea.MouseLeft && mouse.Y == g.y+1 && mouse.X >= g.x+g.width-5 && mouse.X < g.x+g.width-2 {
+		m.closeSessions()
+		return m, nil
+	}
 	if s.mode != sessList {
 		return m, nil
 	}
-	g := m.searchGeometry()
-	mouse := msg.Mouse()
+	if m.sessionsScrollbarMouse(msg) {
+		return m, nil
+	}
 	if mouse.X < g.x || mouse.X >= g.x+g.width || mouse.Y < g.y || mouse.Y >= g.y+g.height {
 		return m, nil
 	}
@@ -676,4 +685,44 @@ func (m *model) appendSavedRun(snapshot session.Snapshot) {
 		}
 		m.transcript.blocks = append(m.transcript.blocks, b)
 	}
+}
+
+// The list scrolls in whole entries; the track is measured in terminal rows.
+func (m *model) sessionsScrollbarMouse(msg tea.MouseMsg) bool {
+	s := m.sessions
+	visible := m.sessVisible()
+	if len(s.entries) <= visible {
+		s.drag = scrollDrag{}
+		return false
+	}
+	g := m.searchGeometry()
+	height, total := visible*4-1, len(s.entries)*4-1
+	mouse := msg.Mouse()
+	row := mouse.Y - g.y - 4
+	move := func(offset int) {
+		s.Offset = min(max(offset, 0), len(s.entries)-visible)
+		s.Cursor = min(max(s.Cursor, s.Offset), s.Offset+visible-1)
+	}
+	if s.drag.active {
+		switch msg.(type) {
+		case tea.MouseMotionMsg, tea.MouseReleaseMsg:
+			move((popup.ScrollOffset(row, height, total, s.drag.grab) + 2) / 4)
+			if _, ok := msg.(tea.MouseReleaseMsg); ok {
+				s.drag = scrollDrag{}
+			}
+			return true
+		}
+	}
+	if !isMouseClick(msg) || mouse.Button != tea.MouseLeft || mouse.X != g.x+g.width-3 || row < 0 || row >= height {
+		return false
+	}
+	top, size := popup.ScrollThumb(height, total, s.Offset*4)
+	if row >= top && row < top+size {
+		s.drag = scrollDrag{active: true, grab: row - top}
+	} else if row < top {
+		move(s.Offset - visible)
+	} else {
+		move(s.Offset + visible)
+	}
+	return true
 }

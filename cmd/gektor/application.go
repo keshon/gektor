@@ -53,7 +53,7 @@ func runApplication(args []string) error {
 		if err != nil {
 			return err
 		}
-		request.preferences.Harness = config.Harness{MaxSteps: o.maxSteps}
+		request.preferences.Harness.MaxSteps = o.maxSteps
 		err = runResolved(request, o)
 		var change *tui.ModeChange
 		if !errors.As(err, &change) {

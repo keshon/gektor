@@ -87,6 +87,8 @@ func toolSummary(text string) (name, action, target string) {
 		action, target = "Start command", value("command")
 	case "start_program":
 		action, target = "Start program", command()
+	case "background_process":
+		action, target = "Background process", value("id")
 	case "check_background", "wait_background", "stop_background":
 		action = map[string]string{"check_background": "Check process", "wait_background": "Wait for process", "stop_background": "Stop process"}[name]
 		target = value("id")
@@ -160,8 +162,19 @@ func compactTool(b block, st styles, width int) string {
 	glyph, right := st.add.Render("✓"), st.dim.Render(name)
 	if b.open {
 		glyph, right = st.dim.Render("…"), st.dim.Render(name+" │ Running")
+		if b.returned {
+			glyph, right = st.dim.Render("·"), st.dim.Render(name+" │ Returned")
+		}
+	} else if b.toolStatus == "skipped_for_input" {
+		glyph, right = st.dim.Render("–"), st.dim.Render(name+" │ Skipped for input")
 	} else if b.failed {
-		failure := strings.TrimSpace(strings.TrimPrefix(b.result, "error:"))
+		failure := "Failed"
+		for _, line := range strings.Split(b.result, "\n") {
+			if strings.HasPrefix(strings.TrimSpace(line), "error:") {
+				failure = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "error:"))
+				break
+			}
+		}
 		failure, _, _ = strings.Cut(failure, "\n")
 		if failure == "" {
 			failure = "Failed"

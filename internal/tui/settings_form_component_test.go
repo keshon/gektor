@@ -130,7 +130,7 @@ func focusApply(t *testing.T, m *model) string {
 }
 
 // applyColour is the SGR run that styles the Apply button. The row is
-// padding, then Apply, then Cancel, so the first styled run is Apply's.
+// hints, then Apply, then Cancel; inspect the run immediately before Apply.
 func applyColour(t *testing.T, m *model) string {
 	t.Helper()
 	rows, _, _, _ := m.formRows()
@@ -138,11 +138,12 @@ func applyColour(t *testing.T, m *model) string {
 		if !strings.Contains(ansi.Strip(rows[i]), "[ Apply ]") {
 			continue
 		}
-		parts := strings.Split(rows[i], "\x1b[")
-		if len(parts) < 2 {
+		prefix := rows[i][:strings.Index(rows[i], "[ Apply ]")]
+		at := strings.LastIndex(prefix, "\x1b[")
+		if at < 0 {
 			t.Fatal("Apply carries no styling")
 		}
-		return strings.TrimSuffix(parts[1], "m[ Apply ]")
+		return prefix[at+2:]
 	}
 	t.Fatal("Apply is not on the form")
 	return ""

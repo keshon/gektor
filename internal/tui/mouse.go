@@ -1,8 +1,15 @@
 package tui
 
-import tea "charm.land/bubbletea/v2"
+import (
+	tea "charm.land/bubbletea/v2"
+	"github.com/keshon/gektor/internal/tui/components/popup"
+	"github.com/keshon/gektor/internal/tui/components/transcript"
+)
 
 func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if m.sessions != nil {
+		return m.browserMouse(msg)
+	}
 	if m.dialog != nil && m.dialog.form != nil {
 		if msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) && msg.Mouse().Y == m.termH-1 {
 			for _, cell := range m.footerCells() {
@@ -12,6 +19,9 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, m.formMouse(msg)
+	}
+	if m.inspectorVisible() && m.header.menu == "" && m.inspector.drag.active && m.inspectorScrollbarMouse(msg) {
+		return m, nil
 	}
 	// A grabbed thumb owns motion and release until the button is released,
 	// including over the footer and outside the scrollbar column.
@@ -38,6 +48,19 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.dialog != nil {
+		if m.dialog.form == nil && msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) {
+			rows, w, h := m.dialogRows()
+			inner := popup.ModalWidth(w) - 4
+			x := m.promptOffset() + max((w-popup.ModalWidth(w))/2, 0) + 2
+			y := paneTop + max((h-len(rows)-2)/2, 0) + 1
+			if msg.Mouse().Y == y && msg.Mouse().X >= x+inner-3 && msg.Mouse().X < x+inner {
+				m.closeDialog()
+				return m, nil
+			}
+		}
+		if m.dialogScrollbarMouse(msg) {
+			return m, nil
+		}
 		switch msg.Mouse().Button {
 		case tea.MouseWheelDown:
 			m.scrollDialog(1)
@@ -65,9 +88,6 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		m.gateVP, cmd = m.gateVP.Update(msg)
 		return m, cmd
 	}
-	if m.sessions != nil {
-		return m.browserMouse(msg)
-	}
 
 	if handled, cmd := m.inspectorMouse(msg); handled {
 		return m, cmd
@@ -81,6 +101,42 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	return m.scrollViewport(msg)
 }
 
+func (m *model) dialogScrollbarMouse(msg tea.MouseMsg) bool {
+	d := m.dialog
+	if d == nil || d.form != nil {
+		return false
+	}
+	l := m.layoutDialog()
+	if len(l.lines) <= l.capacity {
+		return false
+	}
+	rows, _, _ := m.dialogRows()
+	x := m.promptOffset() + max((l.width-popup.ModalWidth(l.width))/2, 0) + 2 + l.inner - 1
+	y := paneTop + max((l.height-len(rows)-2)/2, 0) + 1 + len(l.rows)
+	mouse := msg.Mouse()
+	if d.drag.active {
+		switch msg.(type) {
+		case tea.MouseMotionMsg, tea.MouseReleaseMsg:
+			d.offset = popup.ScrollOffset(mouse.Y-y, l.capacity, len(l.lines), d.drag.grab)
+			if _, ok := msg.(tea.MouseReleaseMsg); ok {
+				d.drag = scrollDrag{}
+			}
+			return true
+		}
+	}
+	if mouse.X != x || mouse.Y < y || mouse.Y >= y+l.capacity || mouse.Button != tea.MouseLeft || !isMouseClick(msg) {
+		return false
+	}
+	top, size := popup.ScrollThumb(l.capacity, len(l.lines), d.offset)
+	row := mouse.Y - y
+	if row >= top && row < top+size {
+		d.drag = scrollDrag{active: true, grab: row - top}
+	} else {
+		m.scrollDialog(map[bool]int{true: -l.capacity, false: l.capacity}[row < top])
+	}
+	return true
+}
+
 // scrollDrag is a scrollbar thumb grab: which row of the thumb the
 // pointer holds, and whether it has moved since the grab.
 type scrollDrag struct {
@@ -89,72 +145,62 @@ type scrollDrag struct {
 	moved  bool
 }
 
-// scrollbarHit reports whether the pointer is on the transcript
-// scrollbar, and which body row it points at. The bar lives in the last
-// column of the transcript pane, so anything left of it is content.
-func (m *model) scrollbarHit(x, y int) (row int, ok bool) {
-	if !m.ready || !m.transcript.Viewport.Scrollable() {
-		return 0, false
-	}
-	if x != m.scrollbarX() {
-		return 0, false
-	}
-	top := paneTop
-	row = y - top
-	if row < 0 || row >= m.transcript.Viewport.Height() {
-		return 0, false
-	}
-	return row, true
-}
-
 // scrollbarMouse handles press, motion and release on the transcript
 // scrollbar. A grab on the thumb drags it; a click on the track pages.
 // It reports whether it consumed the message.
 func (m *model) scrollbarMouse(msg tea.MouseMsg) bool {
+	return viewportScrollbarMouse(&m.transcript.Viewport, &m.transcript.Follow, &m.scrollDrag, m.scrollbarX(), paneTop, msg)
+}
+
+func viewportScrollbarMouse(v *transcript.Viewport, follow *bool, drag *scrollDrag, column, paneY int, msg tea.MouseMsg) bool {
+	hit := func(x, y int) (int, bool) {
+		row := y - paneY
+		return row, v.Scrollable() && column >= 0 && x == column && row >= 0 && row < v.Height()
+	}
 	mouse := msg.Mouse()
 	switch msg.(type) {
 	case tea.MouseMotionMsg:
-		if !m.scrollDrag.active {
+		if !drag.active {
 			return false
 		}
-		row := min(max(mouse.Y-paneTop, 0), m.transcript.Viewport.Height()-1)
-		m.scrollDrag.moved = true
-		m.transcript.Viewport.SetYOffset(m.transcript.Viewport.DragOffset(row, m.transcript.Viewport.Height(), m.scrollDrag.grab))
-		m.transcript.Follow = m.transcript.Viewport.AtBottom()
+		row := min(max(mouse.Y-paneY, 0), v.Height()-1)
+		drag.moved = true
+		v.SetYOffset(v.DragOffset(row, v.Height(), drag.grab))
+		*follow = v.AtBottom()
 		return true
 	case tea.MouseReleaseMsg:
-		if !m.scrollDrag.active {
+		if !drag.active {
 			return false
 		}
-		drag := m.scrollDrag
-		m.scrollDrag = scrollDrag{}
-		if !drag.moved && mouse.Button == tea.MouseLeft {
+		previous := *drag
+		*drag = scrollDrag{}
+		if !previous.moved && mouse.Button == tea.MouseLeft {
 			// A press-and-release without motion is a click: thumb
 			// holds position, track pages toward the pointer.
-			top, size := m.transcript.Viewport.ThumbRange(m.transcript.Viewport.Height())
-			row, ok := m.scrollbarHit(mouse.X, mouse.Y)
+			top, size := v.ThumbRange(v.Height())
+			row, ok := hit(mouse.X, mouse.Y)
 			if !ok {
 				return true
 			}
 			switch {
 			case row < top:
-				m.transcript.Viewport.PageUp()
+				v.PageUp()
 			case row >= top+size:
-				m.transcript.Viewport.PageDown()
+				v.PageDown()
 			}
-			m.transcript.Follow = m.transcript.Viewport.AtBottom()
+			*follow = v.AtBottom()
 		}
 		return true
 	}
 	if mouse.Button != tea.MouseLeft || !isMouseClick(msg) {
 		return false
 	}
-	row, ok := m.scrollbarHit(mouse.X, mouse.Y)
+	row, ok := hit(mouse.X, mouse.Y)
 	if !ok {
 		return false
 	}
-	top, _ := m.transcript.Viewport.ThumbRange(m.transcript.Viewport.Height())
-	m.scrollDrag = scrollDrag{active: true, grab: max(row-top, 0)}
+	top, _ := v.ThumbRange(v.Height())
+	*drag = scrollDrag{active: true, grab: max(row-top, 0)}
 	return true
 }
 

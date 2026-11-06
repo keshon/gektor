@@ -126,6 +126,11 @@ Append chunks to the matching pending call; replace them with the authoritative
 `tool_result` when it arrives. Previews are not appended to model history.
 Output buffered inside a child process becomes visible only when it flushes.
 
+`tool_finished` carries `call_id` when execution returns, before ordered result
+processing. It is a display signal, not a success verdict. The authoritative
+`tool_result` includes `status`; `skipped_for_input` means new user input
+prevented the tool from starting (`failed: false`).
+
 `prompt_budget` events contain `report`: character-based section/tool estimates
 before each request, then backend prompt/cached counts when returned. The
 report contains sizes and names, not instruction or conversation contents.

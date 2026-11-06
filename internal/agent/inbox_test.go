@@ -13,6 +13,37 @@ import (
 
 type inputClient func(context.Context, llm.ChatRequest) (llm.ChatResponse, error)
 
+func TestInboxRecallRacesConsumptionWithoutDuplicateDelivery(t *testing.T) {
+	for range 100 {
+		var inbox Inbox
+		if err := inbox.Send("message", "shot.png"); err != nil {
+			t.Fatal(err)
+		}
+		preview, count := inbox.Latest()
+		preview.Images[0] = "mutated"
+		if count != 1 {
+			t.Fatal(count)
+		}
+		taken := make(chan []llm.Message, 1)
+		go func() { taken <- inbox.take(false) }()
+		recalled, ok := inbox.RecallLatest()
+		delivered := <-taken
+		if (ok && len(delivered) != 0) || (!ok && len(delivered) != 1) {
+			t.Fatal("input lost or delivered twice")
+		}
+		if ok {
+			if recalled.Images[0] != "shot.png" {
+				t.Fatal("snapshot changed pending input")
+			}
+		} else if delivered[0].Images[0] != "shot.png" {
+			t.Fatal("snapshot changed delivered input")
+		}
+		if inbox.Len() != 0 {
+			t.Fatal("recall left pending input")
+		}
+	}
+}
+
 func (f inputClient) Chat(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
 	return f(ctx, req)
 }

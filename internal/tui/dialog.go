@@ -27,6 +27,7 @@ func wsRootOf(ws *workspace.Workspace) string {
 // A dialog carries lines or a form, never both. A lesson preview also offers
 // explicit save/edit actions; Enter still closes without saving.
 type infoDialog struct {
+	drag   scrollDrag
 	review func()
 	save   func() error
 	form   *settingsForm
@@ -84,9 +85,11 @@ func (m *model) dialogRows() ([]string, int, int) {
 	layout := m.layoutDialog()
 	offset := min(max(m.dialog.offset, 0), max(len(layout.lines)-layout.capacity, 0))
 	rows := layout.rows
+	body := []string{}
 	for _, line := range layout.lines[offset:min(offset+layout.capacity, len(layout.lines))] {
-		rows = append(rows, cellLine(line, layout.inner))
+		body = append(body, cellLine(line, layout.inner))
 	}
+	rows = append(rows, popup.ScrollRows(body, layout.inner, offset, len(layout.lines), popupSurface().Normal)...)
 	rows = append(rows, "")
 	if len(layout.lines) > layout.capacity {
 		rows = append(rows, m.styles.dim.Render(strconv.Itoa(offset+1)+"–"+strconv.Itoa(min(offset+layout.capacity, len(layout.lines)))+" / "+strconv.Itoa(len(layout.lines))))
@@ -111,10 +114,10 @@ func (m *model) layoutDialog() dialogLayout {
 	}
 	inner := max(popup.ModalWidth(availW)-4, 1)
 	// Info dialog: title, lines, close hint (with help tabs if applicable).
-	rows := []string{m.styles.gate.Render(truncate(d.title, inner))}
+	rows := []string{popup.TitleRow(m.styles.gate.Render(truncate(d.title, inner)), inner), strings.Repeat("─", inner)}
 	lines := []string{}
 	for _, line := range d.lines {
-		lines = append(lines, strings.Split(ansi.Wrap(cleanText(line), max(inner, 1), ""), "\n")...)
+		lines = append(lines, strings.Split(ansi.Wrap(cleanText(line), max(inner-1, 1), ""), "\n")...)
 	}
 	hint := "Esc / Enter close"
 	if d.review != nil {
@@ -145,7 +148,7 @@ func (m *model) layoutDialog() dialogLayout {
 		if availH >= 10 {
 			rows = append(rows, "")
 		}
-		lines = m.helpRows(sections[page], inner)
+		lines = m.helpRows(sections[page], max(inner-1, 1))
 		hint = "Tab / ← → category   ↑ ↓ scroll   Esc close"
 		if len(sections) == 1 {
 			hint = "↑ ↓ scroll   Esc close"
@@ -204,8 +207,8 @@ func helpSections() []helpSection {
 			{"Ctrl+U", "Clear the draft"},
 			{"/ or @", "Suggest commands or workspace paths"},
 			{"Enter / Tab / Esc", "Run a command, insert a suggestion, or dismiss the picker"},
-			{"Ctrl+E", "Move the queued follow-up back to the draft"},
-			{"Ctrl+X", "Cancel the queued follow-up"},
+			{"Ctrl+E", "Return the latest pending message to the draft"},
+			{"Ctrl+X", "Cancel the latest pending message"},
 			{"@\"image path\"", "Attach a workspace file or image; quote paths with spaces"},
 		}},
 		{"Navigate", [][2]string{

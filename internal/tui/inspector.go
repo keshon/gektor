@@ -15,6 +15,7 @@ import (
 const inspectorSplitWidth = 100
 
 type toolInspector struct {
+	drag               scrollDrag
 	callID             string
 	focused, selecting bool
 	selected           int
@@ -23,7 +24,7 @@ type toolInspector struct {
 }
 
 func (m *model) inspectorVisible() bool {
-	return m.inspector.callID != "" && m.dialog == nil && m.sessions == nil && m.header.menu == "" && m.state != stPermission && m.state != stAsk
+	return m.inspector.callID != "" && m.dialog == nil && m.sessions == nil && m.state != stPermission && m.state != stAsk
 }
 func (m *model) mainWidth() int {
 	if m.inspectorVisible() && m.termW >= inspectorSplitWidth {
@@ -49,6 +50,7 @@ func (m *model) openInspector(index int) tea.Cmd {
 		return nil
 	}
 	if m.inspector.callID != b.callID {
+		m.inspector.drag = scrollDrag{}
 		m.inspector.pane = newTranscript()
 		m.inspector.pane.compact = false
 	}
@@ -81,6 +83,7 @@ func (m *model) openInspector(index int) tea.Cmd {
 	}
 }
 func (m *model) closeInspector() {
+	m.inspector.drag = scrollDrag{}
 	m.inspector.callID = ""
 	m.inspector.focused = false
 	m.inspector.selecting = false
@@ -123,11 +126,17 @@ func (m *model) refreshInspector() {
 		pane.blocks = append(pane.blocks, resultBlock("Output\n"+b.result))
 	}
 	state := "Running"
+	if b.returned {
+		state = "Returned · awaiting result processing"
+	}
 	if b.open && strings.HasPrefix(b.text, "delegate_task ") && m.child(b.callID).phase != "" {
 		state += " · " + m.child(b.callID).phase
 	}
 	if !b.open {
 		state = "Completed"
+		if b.toolStatus == "skipped_for_input" {
+			state = "Skipped for input"
+		}
 		if b.failed {
 			state = "Failed"
 		}
@@ -334,6 +343,10 @@ func (m *model) selectTool(direction int) {
 		}
 	}
 }
+func (m *model) inspectorScrollbarMouse(msg tea.MouseMsg) bool {
+	return viewportScrollbarMouse(&m.inspector.pane.Viewport, &m.inspector.pane.Follow, &m.inspector.drag, m.termW-m.promptOffset()-1, paneTop, msg)
+}
+
 func (m *model) inspectorMouse(msg tea.MouseMsg) (bool, tea.Cmd) {
 	mouse := msg.Mouse()
 	if m.inspectorVisible() && (m.termW < inspectorSplitWidth || mouse.X >= m.mainWidth()) {
@@ -346,6 +359,9 @@ func (m *model) inspectorMouse(msg tea.MouseMsg) (bool, tea.Cmd) {
 				return true, nil
 			}
 			m.inspector.focused = true
+		}
+		if m.inspectorScrollbarMouse(msg) {
+			return true, nil
 		}
 		if mouse.Button == tea.MouseWheelUp || mouse.Button == tea.MouseWheelDown {
 			return true, m.inspector.pane.Update(msg)

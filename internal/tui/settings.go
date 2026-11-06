@@ -217,7 +217,7 @@ func (m *model) resizeFormEditor() {
 		return
 	}
 	f := m.dialog.form
-	f.Editor.SetWidth(max(popup.ModalWidth(m.transcript.Viewport.Width())-4, 1))
+	f.Editor.SetWidth(max(popup.ModalWidth(m.transcript.Viewport.Width())-5, 1))
 	height := 1
 	if f.Index < len(f.Fields) && f.Fields[f.Index].Multiline {
 		height = min(3, max(m.transcript.Viewport.Height()-10, 1))

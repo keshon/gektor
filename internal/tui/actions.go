@@ -43,6 +43,13 @@ func (m *model) footerActions() []footerAction {
 	}
 	if m.dialog != nil && m.dialog.form != nil {
 		if m.dialog.form.Picker != nil {
+			p := m.dialog.form.Picker
+			if p.Field == "theme" {
+				return []footerAction{{tea.KeyEnter, 0, "Enter", "Choose", "Choose", true}, {tea.KeyEscape, 0, "Esc", "Back", "Back", true}}
+			}
+			if p.Field == "app-workspace" {
+				return []footerAction{{tea.KeyEnter, 0, "Enter", "Open", "Open", true}, {'s', tea.ModCtrl, "Ctrl+S", "Use folder", "Use", !p.Loading && p.Err == "" && p.Directory != ""}, {'l', tea.ModCtrl, "Ctrl+L", "Path", "Path", true}, {'d', tea.ModCtrl, "Ctrl+D", "Drives", "Drives", true}, {tea.KeyEscape, 0, "Esc", "Back", "Back", true}}
+			}
 			return []footerAction{{tea.KeyEnter, 0, "Enter", "Choose", "Choose", true}, {tea.KeyEscape, 0, "Esc", "Back", "Back", true}, {'b', tea.ModCtrl, "Ctrl+B", "Browse", "Browse", pickerFiles(m.dialog.form.Picker.Field)}, {'r', tea.ModCtrl, "Ctrl+R", "Refresh", "Refresh", true}, {'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true}}
 		}
 		apply := footerAction{'s', tea.ModCtrl, "Ctrl+S", "Apply", "Apply", true}

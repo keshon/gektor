@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/gektor/internal/tui/components/cell"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
 func (f *Model) Mouse(msg tea.MouseMsg, props Props) (Intent, tea.Cmd) {
@@ -18,6 +19,13 @@ func (f *Model) Mouse(msg tea.MouseMsg, props Props) (Intent, tea.Cmd) {
 		return Intent{}, nil
 	}
 	if msg.Mouse().Button != tea.MouseLeft || !isClick(msg) {
+		if f.Picker == nil && (msg.Mouse().Button == tea.MouseWheelUp || msg.Mouse().Button == tea.MouseWheelDown) {
+			key := tea.KeyDown
+			if msg.Mouse().Button == tea.MouseWheelUp {
+				key = tea.KeyUp
+			}
+			return f.UpdateKey(tea.KeyPressMsg{Code: key}, props)
+		}
 		return Intent{}, nil
 	}
 	x, y := f.Origin(props)
@@ -26,9 +34,21 @@ func (f *Model) Mouse(msg tea.MouseMsg, props Props) (Intent, tea.Cmd) {
 	mouse := msg.Mouse()
 	if f.Picker != nil {
 		p := f.Picker
-		row := mouse.Y - y - 3
-		capacity := max(props.Height-10, 1)
+		for _, hit := range hits {
+			if hit.Index == -3 && mouse.Y == y && mouse.X >= x+hit.X0 && mouse.X < x+hit.X1 {
+				return Intent{}, f.PickerKey(tea.KeyPressMsg{Code: tea.KeyEscape}, props)
+			}
+			if hit.Index == -2 && mouse.Y == y+hit.Y0 && mouse.X >= x+hit.X0 && mouse.X < x+hit.X1 {
+				return Intent{}, f.PickerKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl}, props)
+			}
+		}
+		row := mouse.Y - y - p.listTop()
+		capacity := p.capacity(props.Height)
 		start := max(min(p.Cursor-capacity/2, len(p.Filtered)-capacity), 0)
+		if mouse.X == x+width-5 && row >= 0 && row < capacity && len(p.Filtered) > capacity {
+			p.Cursor = min(popup.ScrollOffset(row, capacity, len(p.Filtered), 0)+capacity/2, len(p.Filtered)-1)
+			return Intent{}, nil
+		}
 		if mouse.X >= x-2 && mouse.X < x-2+width && row >= 0 && row < capacity && start+row < len(p.Filtered) {
 			p.Cursor = start + row
 			cmd := f.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, props)

@@ -118,7 +118,7 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		m.revealLive()
 		return m, nil
 	case eventMsg:
-		if m.state != stStopping || msg.Name == "child" || msg.Name == "tool_result" || msg.Name == "tool_output" || msg.Name == "user_input" || msg.Name == "outcome" || msg.Name == "usage" || msg.Name == "finding" {
+		if m.state != stStopping || msg.Name == "child" || msg.Name == "tool_finished" || msg.Name == "tool_result" || msg.Name == "tool_output" || msg.Name == "user_input" || msg.Name == "outcome" || msg.Name == "usage" || msg.Name == "finding" {
 			m.handleEvent(run.Event(msg))
 		}
 		return m, waitEvents(m)
@@ -271,7 +271,7 @@ func (m *model) fitBottom() {
 		lines++
 	}
 	if m.pendingInputCount() > 0 && m.state != stPermission && m.state != stAsk {
-		lines++
+		lines += 2
 	}
 	if (len(m.draftImages) > 0 || m.clipboardBusy) && m.state != stPermission && m.state != stAsk {
 		lines++
@@ -429,12 +429,26 @@ func (m *model) handleEvent(ev run.Event) {
 				break
 			}
 		}
+	case "tool_finished":
+		callID, _ := ev.Fields["call_id"].(string)
+		for i := range m.transcript.blocks {
+			b := &m.transcript.blocks[i]
+			if b.role == roleTool && b.callID == callID {
+				b.returned = true
+			}
+		}
+		m.refreshContent()
 	case "tool_result":
 		text, _ := ev.Fields["text"].(string)
 		callID, _ := ev.Fields["call_id"].(string)
 		var status []bool
 		if failed, ok := ev.Fields["failed"].(bool); ok {
 			status = []bool{failed}
+		}
+		for i := range m.transcript.blocks {
+			if m.transcript.blocks[i].callID == callID && m.transcript.blocks[i].role == roleTool {
+				m.transcript.blocks[i].toolStatus, _ = ev.Fields["status"].(string)
+			}
 		}
 		if !m.attachResult(callID, text, status...) {
 			m.appendBlock(resultBlock(text))
@@ -463,7 +477,7 @@ func (m *model) handleEvent(ev run.Event) {
 		request, _ := ev.Fields["request"].(float64)
 		found := false
 		for i := len(m.transcript.blocks) - 1; i >= 0; i-- {
-			if m.transcript.blocks[i].role == roleMarker && m.transcript.blocks[i].contextText == text {
+			if m.transcript.blocks[i].contextText != "" && m.transcript.blocks[i].contextText == text {
 				at := m.transcript.blocks[i].at
 				m.transcript.blocks[i] = contextBlock(llm.Message{Role: llm.Role(role), Content: text, Request: int(request)})
 				m.transcript.blocks[i].at = at

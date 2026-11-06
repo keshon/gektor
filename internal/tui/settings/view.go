@@ -24,7 +24,7 @@ type Props struct {
 }
 
 func (p Props) formStyles() form.Styles {
-	return form.Styles{Muted: p.Styles.Muted, Focus: p.Styles.Focus, Error: p.Styles.Error}
+	return form.Styles{Muted: p.Styles.Muted, Focus: p.Styles.Focus, Error: p.Styles.Error, Scrollbar: p.Surface.Normal}
 }
 
 // Rows draws the section's fields.
@@ -168,7 +168,7 @@ func (f *Model) PlainRows(props Props) ([]string, []form.Hit, int, int) {
 // void that read as a failure to draw rather than as space.
 func (f *Model) box(props Props) []string {
 	rows, _, _, _ := f.Rows(props)
-	return popup.ModalBox(rows, props.Width, props.Surface)
+	return popup.ModalBox(rows, f.modalWidth(props), props.Surface)
 }
 
 // Origin is the screen position of the first content cell inside the frame:
@@ -189,12 +189,18 @@ func (f *Model) Origin(props Props) (x, y int) {
 
 // View draws the form on its shared surface.
 func (f *Model) View(props Props) string {
-	rows, _, _, _ := f.Rows(props)
-	return popup.FrameBox(rows, props.Width, props.Height, props.Surface)
+	framed := f.box(props)
+	width := cell.Width(strings.Join(framed, "\n"))
+	indent := strings.Repeat(" ", max((props.Width-width)/2, 0))
+	for i := range framed {
+		framed[i] = indent + framed[i]
+	}
+	return strings.Repeat("\n", max((props.Height-len(framed))/2, 0)) + strings.Join(framed, "\n")
 }
 
 // Overlay draws the same form at the same origin over the existing document.
 func (f *Model) Overlay(background string, props Props) string {
-	rows, _, _, _ := f.Rows(props)
-	return popup.OverlayBox(background, rows, props.Width, props.Height, props.Surface)
+	framed := f.box(props)
+	width := cell.Width(strings.Join(framed, "\n"))
+	return popup.Overlay(background, framed, max((props.Width-width)/2, 0), max((props.Height-len(framed))/2, 0), width, props.Width)
 }

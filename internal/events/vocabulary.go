@@ -131,3 +131,17 @@ func EmitToolResult(emitter *Emitter, callID string, result string, failed ...bo
 	}
 	emitter.Emit("tool_result", fields)
 }
+
+// EmitToolFinished reports execution completion before ordered result processing.
+func EmitToolFinished(emitter *Emitter, callID string) {
+	if emitter != nil {
+		emitter.Emit("tool_finished", map[string]any{"call_id": callID})
+	}
+}
+
+// EmitToolResultStatus preserves the execution status alongside the result.
+func EmitToolResultStatus(emitter *Emitter, callID, output string, failed bool, status string) {
+	if emitter != nil {
+		emitter.Emit("tool_result", map[string]any{"call_id": callID, "text": output, "failed": failed, "status": status})
+	}
+}

@@ -51,8 +51,26 @@ func (m *model) screenContent() string {
 	if m.hasQueued() && m.dialog == nil && m.state != stPermission && m.state != stAsk {
 		bottom = cellLine("Queued  Ctrl+E edit  Ctrl+X cancel: "+m.queuedLabel(), m.transcript.Viewport.Width()) + "\n" + bottom
 	}
-	if count := m.pendingInputCount(); count > 0 && m.dialog == nil && m.state != stPermission && m.state != stAsk {
-		bottom = cellLine(fmt.Sprintf("Sent: %d · waiting for the agent", count), m.transcript.Viewport.Width()) + "\n" + bottom
+	if m.sess != nil && m.dialog == nil && m.state != stPermission && m.state != stAsk {
+		msg, count, claimed := m.sess.InputPreview()
+		if count > 0 {
+			preview := strings.Join(strings.Fields(msg.Content), " ")
+			if len(msg.Images) > 0 {
+				preview = fmt.Sprintf("[%d images] %s", len(msg.Images), preview)
+			}
+			label := fmt.Sprintf("Pending %d · latest: %s", count, preview)
+			hint := "Ctrl+E edit latest · Ctrl+X cancel latest"
+			if claimed > 0 {
+				label = fmt.Sprintf("Accepted %d · waiting for active tools", claimed)
+				if count > claimed {
+					label += fmt.Sprintf(" · pending %d: %s", count-claimed, preview)
+				} else {
+					label += " · " + preview
+					hint = "Accepted input cannot be recalled · Esc stop"
+				}
+			}
+			bottom = cellLine(label, m.transcript.Viewport.Width()) + "\n" + cellLine(hint, m.transcript.Viewport.Width()) + "\n" + bottom
+		}
 	}
 	bottom = cellFrame(bottom, m.transcript.Viewport.Width(), lipgloss.Height(bottom))
 	status := m.statusLine()
@@ -104,10 +122,11 @@ func (m *model) screenContent() string {
 	if m.sessions != nil {
 		content = m.overlaySearch(content)
 	}
+	content = m.composeInspector(content)
 	if m.header.menu != "" {
 		content = m.overlayHeader(content)
 	}
-	return m.composeInspector(content)
+	return content
 }
 
 func (m *model) View() tea.View {

@@ -115,7 +115,32 @@ func TestRunningInputSubmitsSeveralMessagesWithoutWaitingForCompletion(t *testin
 	if m.pendingInputCount() != 2 {
 		t.Fatalf("pending=%d", m.pendingInputCount())
 	}
-	if !strings.Contains(m.View().Content, "Sent: 2") {
+	if !strings.Contains(m.View().Content, "Pending 2") || !strings.Contains(m.View().Content, "second update") || !strings.Contains(m.View().Content, "Ctrl+E") {
 		t.Fatal("pending messages have no visible feedback")
+	}
+}
+
+func TestPendingInputRecallPreservesDraftAndImages(t *testing.T) {
+	m := runningModel(t)
+	m.sess = &run.Session{}
+	if err := m.sess.Submit("first"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.sess.Submit("latest\nline", "shot.png"); err != nil {
+		t.Fatal(err)
+	}
+	m.input.SetValue("keep draft")
+	m.handleKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	if m.pendingInputCount() != 2 || m.input.Value() != "keep draft" {
+		t.Fatal("recall clobbered draft")
+	}
+	m.input.SetValue("")
+	m.handleKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	if m.pendingInputCount() != 1 || m.input.Value() != "latest\nline" || len(m.draftImages) != 1 || m.draftImages[0] != "shot.png" {
+		t.Fatal("recall lost pending input or attachment")
+	}
+	m.handleKey(tea.KeyPressMsg{Code: 'x', Mod: tea.ModCtrl})
+	if m.pendingInputCount() != 0 || m.input.Value() != "latest\nline" || len(m.draftImages) != 1 {
+		t.Fatal("cancel changed draft")
 	}
 }

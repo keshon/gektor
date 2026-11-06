@@ -76,6 +76,10 @@ func (m *model) headerBadges() []headerBadge {
 	width := m.transcript.Viewport.Width()
 	candidates := []headerBadge{{id: "mode", label: mode}, {id: "activity", label: activity + "  " + ctx}}
 	leftWidth := lipgloss.Width(mode) + lipgloss.Width(activity+"  "+ctx) + 4
+	if m.steering {
+		candidates = append(candidates, headerBadge{id: "steering", label: "STEER"})
+		leftWidth += 7
+	}
 	run := headerBadge{id: "run", label: fmt.Sprintf("STEP %d/%s  %s", m.steps, m.stepBudget(), formatElapsed(m.elapsed))}
 	runWidth := lipgloss.Width(run.label) + 2
 	showRun := leftWidth+runWidth <= width
@@ -115,6 +119,8 @@ func (m *model) badgeLine() string {
 			if !m.usage.liveModel && (m.usage.last.Model != "" || m.usage.historical) {
 				style = m.styles.dim
 			}
+		case "steering":
+			style = m.styles.dim
 		case "mode":
 			style = style.Foreground(lipgloss.Color(themeColor(colorMode)))
 		case "activity":
@@ -178,10 +184,13 @@ func (m *model) rawHeaderItems() []headerItem {
 		if m.config != nil {
 			rows = append(rows, headerItem{"You…", "edit:you", editable}, headerItem{"Prompts…", "edit:prompts", editable}, headerItem{"Prompt preview…", "prompt-info", true})
 		}
+		rows = append(rows, headerItem{"Steering", "toggle-steering", true})
 		return rows
 	case "help":
 		return []headerItem{{"Keyboard shortcuts", "help-keys", true}, {"Commands", "help-commands", true}, {"About", "about", true}}
 
+	case "steering":
+		return []headerItem{{"Steering", "toggle-steering", true}}
 	case "mode":
 		return []headerItem{{"ACT   Execute changes with tools", "/mode act", idle}, {"PLAN  Read-only exploration and planning", "/mode plan", idle}}
 	case "activity":
@@ -356,6 +365,12 @@ func (m *model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				return m, nil
 			case "quit":
 				return m.requestQuit()
+			case "toggle-steering":
+				value := "on"
+				if m.steering {
+					value = "off"
+				}
+				return m.command("/steering " + value)
 			case "toggle-details":
 				return m.handleKey(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
 			case "toggle-sys":
@@ -618,6 +633,8 @@ func (m *model) headerActionRow(start, delta int) int {
 // mark on "System messages" means scaffolding history is visible.
 func (m *model) headerToggle(command string) (toggle, on bool) {
 	switch command {
+	case "toggle-steering":
+		return true, m.steering
 	case "toggle-details":
 		return true, !m.transcript.compact
 	case "toggle-sys":

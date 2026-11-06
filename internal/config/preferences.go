@@ -23,15 +23,17 @@ type Preferences struct {
 // UnlimitedSteps is the persisted ceiling used for an unlimited direct run.
 const UnlimitedSteps = 999999
 
-// Harness stores the operator's per-run step limit.
+// Harness stores operator preferences for execution, independently of the model.
 type Harness struct {
-	MaxSteps int `json:"max_steps,omitempty"`
+	MaxSteps int  `json:"max_steps,omitempty"`
+	Steering bool `json:"steering,omitempty"`
 }
 
 // Retired advice settings are accepted when reading existing preferences;
 // the next save drops them. Other unknown keys still report an error.
 func (h *Harness) UnmarshalJSON(data []byte) error {
 	var saved struct {
+		Steering    bool            `json:"steering"`
 		MaxSteps    int             `json:"max_steps"`
 		Nudges      json.RawMessage `json:"nudges"`
 		ThinkBudget json.RawMessage `json:"think_budget"`
@@ -42,6 +44,7 @@ func (h *Harness) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	h.MaxSteps = saved.MaxSteps
+	h.Steering = saved.Steering
 	return nil
 }
 

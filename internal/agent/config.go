@@ -75,6 +75,9 @@ type Config struct {
 	OnUsage    func(int, llm.Usage)
 	OnProgress func(llm.Progress)
 	OnResult   func(ToolResult)
+	// OnToolFinished is a transient execution-complete signal. OnResult follows
+	// after ordered attachment and history processing. Called serially.
+	OnToolFinished func(callID string)
 	// OnToolOutput receives transient preview chunks, never model history.
 	OnToolOutput  func(callID, text string)
 	OnDelta       func(string)

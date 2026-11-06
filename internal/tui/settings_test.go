@@ -265,6 +265,12 @@ func TestEveryIdleSettingsRowOpens(t *testing.T) {
 			}
 		}
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+		if item.command == "toggle-steering" {
+			if !m.steering {
+				t.Fatal("steering toggle did nothing")
+			}
+			continue
+		}
 		if m.dialog == nil {
 			t.Fatalf("Settings row %q (%s) opened nothing", item.text, item.command)
 		}
