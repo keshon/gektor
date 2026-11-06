@@ -9,7 +9,7 @@ rem                      eval probes -dry
 rem    build fmt        list files gofmt would change
 rem    build fmt fix    rewrite files with gofmt -w
 rem    build vuln       govulncheck on all packages (installs if missing)
-rem    build clean      remove build outputs, logs and eval results
+rem    build clean      remove generated root executables
 rem    build help       show this list
 rem
 rem  gofmt runs only when you ask for it. The CI format job runs on a Linux
@@ -22,10 +22,7 @@ rem  directory for the duration of the run, so no test can write into the
 rem  real .gektor\. Nothing to clean up afterwards, because nothing real was
 rem  reachable.
 rem
-rem  build clean never touches .gektor\: that directory holds resumable task
-rem  state, and losing it means losing saved runs. It is the only user data
-rem  the project keeps, and it lives in the user's home, not in the repo -
-rem  so a recursive delete anywhere near it is never the answer to anything.
+rem  build clean leaves user state, tmp, temp, bin and eval results alone.
 rem
 rem  Messages are English on purpose: a .cmd file with non-ASCII text is at
 rem  the mercy of whatever code page the console happens to be in, and a
@@ -37,10 +34,12 @@ rem  three BOM bytes as part of the first line, "@echo off" fails as an
 rem  unknown command, and every line after it is echoed to the console.
 rem ---------------------------------------------------------------------------
 setlocal
-cd /d "%~dp0"
+cd /d "%~dp0" || exit /b 1
 
-set MODE=%~1
+set "MODE=%~1"
 if "%MODE%"=="" set MODE=build
+if /i "%MODE%"=="help" goto :help
+if /i "%MODE%"=="clean" goto :clean
 
 where go >nul 2>nul
 if errorlevel 1 (
@@ -48,13 +47,11 @@ if errorlevel 1 (
     exit /b 1
 )
 
-if /i "%MODE%"=="help" goto :help
 if /i "%MODE%"=="build" goto :build
 if /i "%MODE%"=="test" goto :test
 if /i "%MODE%"=="check" goto :check
 if /i "%MODE%"=="fmt" goto :fmt
 if /i "%MODE%"=="vuln" goto :vuln
-if /i "%MODE%"=="clean" goto :clean
 
 echo ERROR: unknown mode "%MODE%".
 echo.
@@ -63,7 +60,7 @@ exit /b 1
 
 rem ---------------------------------------------------------------------------
 rem  Build every package first (catches compile errors anywhere), then link
-rem  the agent binary run-tui.cmd and scripts\run-*.cmd expect at the repo root.
+rem  the executable used by the root launchers.
 rem ---------------------------------------------------------------------------
 :build
 echo Building packages...
@@ -91,6 +88,7 @@ rem ---------------------------------------------------------------------------
 :test
 echo Running tests...
 call :sandbox
+if errorlevel 1 exit /b 1
 set EXTRAS=
 shift
 
@@ -119,9 +117,13 @@ rem  sandbox as well. setlocal scopes both, so the caller's home is intact
 rem  when this script returns and no caller has to undo anything.
 rem ---------------------------------------------------------------------------
 :sandbox
-if not defined GEKTOR_TEST_SANDBOX (
-    set "GEKTOR_TEST_SANDBOX=%TEMP%\gektor-test-home-%RANDOM%%RANDOM%"
-    mkdir "%GEKTOR_TEST_SANDBOX%" 2>nul
+rem Keep the existing module cache when redirecting the test home.
+if not defined GOPATH for /f "delims=" %%G in ('go env GOPATH') do set "GOPATH=%%G"
+if not defined GEKTOR_TEST_SANDBOX set "GEKTOR_TEST_SANDBOX=%TEMP%\gektor-test-home-%RANDOM%%RANDOM%"
+if not exist "%GEKTOR_TEST_SANDBOX%\" mkdir "%GEKTOR_TEST_SANDBOX%" 2>nul
+if not exist "%GEKTOR_TEST_SANDBOX%\" (
+    echo ERROR: test home directory could not be created.
+    exit /b 1
 )
 set "USERPROFILE=%GEKTOR_TEST_SANDBOX%"
 set "HOME=%GEKTOR_TEST_SANDBOX%"
@@ -143,6 +145,7 @@ if errorlevel 1 exit /b 1
 
 echo == test -race
 call :sandbox
+if errorlevel 1 exit /b 1
 go test -race ./...
 if errorlevel 1 exit /b 1
 
@@ -168,7 +171,7 @@ echo Checking formatting (gofmt -l)...
 echo Reminder: on a CRLF Windows working tree this lists every file.
 echo CI runs on a Linux LF checkout and is the formatting authority.
 gofmt -l .
-exit /b 0
+exit /b %errorlevel%
 
 :fmt_fix
 echo Rewriting files with gofmt -w ...
@@ -198,21 +201,22 @@ govulncheck ./...
 exit /b %errorlevel%
 
 rem ---------------------------------------------------------------------------
-rem  Remove what building and evaluating leave behind. Resumable task state
-rem  in .gektor\ and local launcher files are never touched.
+rem  Remove root executables only. Scratch folders and saved results may
+rem  contain operator data and are not build outputs owned by this command.
 rem ---------------------------------------------------------------------------
 :clean
-echo Removing build outputs, logs and eval results...
+echo Removing generated root executables...
 
-if exist gektor.exe del /q gektor.exe
-if exist eval.exe del /q eval.exe
-if exist agent-debug.log del /q agent-debug.log
-if exist tmp rmdir /s /q tmp
-if exist temp rmdir /s /q temp
-if exist eval\results rmdir /s /q eval\results
-if exist eval\log rmdir /s /q eval\log
+if exist gektor.exe (
+    del /q gektor.exe
+    if errorlevel 1 exit /b 1
+)
+if exist eval.exe (
+    del /q eval.exe
+    if errorlevel 1 exit /b 1
+)
 
-echo Done. Saved task state in .gektor\ was not touched.
+echo Done. User data and scratch folders were not touched.
 exit /b 0
 
 rem ---------------------------------------------------------------------------
@@ -226,6 +230,6 @@ echo                    eval probes -dry
 echo   build fmt        list files gofmt would change
 echo   build fmt fix    rewrite files with gofmt -w
 echo   build vuln       govulncheck on all packages (installs if missing)
-echo   build clean      remove build outputs, logs and eval results
+echo   build clean      remove generated root executables
 echo   build help       show this list
 exit /b 0

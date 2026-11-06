@@ -1,6 +1,5 @@
 @echo off
 setlocal
-cd /d "%~dp0.."
 
 REM List saved tasks, or resume one.
 REM
@@ -27,10 +26,10 @@ echo Run run-resume.cmd without arguments to list saved tasks.
 exit /b 1
 
 :resume
-call scripts\ensure-build.cmd
+call "%~dp0ensure-build.cmd"
 if errorlevel 1 exit /b %errorlevel%
 
-.\gektor.exe -resume "%RESUME%" %2 %3 %4 %5 %6 %7 %8 %9
+"%~dp0..\gektor.exe" -resume "%RESUME%" %2 %3 %4 %5 %6 %7 %8 %9
 exit /b %errorlevel%
 
 :list

@@ -39,6 +39,24 @@ func workflowTestModel(t *testing.T) *model {
 func workflowRecipe() automation.Definition {
 	return automation.Definition{Version: 3, Name: "Test", Steps: []automation.Step{{ID: "transform", Tool: "script_transform", NodeVersion: 1, Args: json.RawMessage(`{"code":"return input + 1;","input":2}`)}}}
 }
+
+func TestWorkflowStartupOpensEditorWithoutStartingRun(t *testing.T) {
+	m := workflowTestModel(t)
+	m.workflows = nil
+	m.startWorkflows = true
+	draft := "unsent Agent text"
+	m.input.SetValue(draft)
+	m.Init()
+	if !m.workflowActive() || m.workflows.busy || m.workflows.run != nil || m.state != stDone || m.input.Value() != draft {
+		t.Fatal("startup did not open an idle workflow editor")
+	}
+	// Init should not reopen Workflows after returning to Agent.
+	m.workflows.active = false
+	m.Init()
+	if m.workflowActive() {
+		t.Fatal("startup action repeated")
+	}
+}
 func TestWorkflowMenuCanvasAndModalGeometry(t *testing.T) {
 	m := workflowTestModel(t)
 	w := m.workflows
@@ -68,7 +86,7 @@ func TestWorkflowMenuCanvasAndModalGeometry(t *testing.T) {
 	m.closeHeader()
 	m.workflowCommand("edit")
 	left, top, width, height := m.settingsArea()
-	if left != 1 || top != 4 || width != 118 || height != 22 {
+	if left != 1 || top != 4 || width != 118 || height != 23 {
 		t.Fatalf("geometry %d %d %d %d", left, top, width, height)
 	}
 	if !strings.Contains(ansi.Strip(m.screenContent()), "script_transform") {
@@ -213,7 +231,7 @@ func TestWorkflowOutlineJoins(t *testing.T) {
 	for _, minimal := range []bool{false, true} {
 		m.minimal = minimal
 		m.workflows.inspectorOpen = true
-		cw, ch := m.workflowCanvasSize()
+		_, _ = m.workflowCanvasSize()
 		rows := strings.Split(ansi.Strip(m.screenContent()), "\n")
 		if len(rows) != m.termH {
 			t.Fatal("wrong height")
@@ -230,7 +248,7 @@ func TestWorkflowOutlineJoins(t *testing.T) {
 			continue
 		}
 		at := func(y, x int) rune { return []rune(rows[y])[x] }
-		if at(1, 0) != '┌' || at(1, m.termW-1) != '┐' || at(2, 0) != '│' || at(3, cw+1) != '┬' || at(4+ch, cw+1) != '┴' || at(m.termH-3, 0) != '│' || at(m.termH-2, 0) != '└' {
+		if at(1, 0) != '┌' || at(1, m.termW-1) != '┐' || at(2, 0) != '│' || at(1, m.termW/2) != '┌' || at(3, m.termW/2) != '├' || at(m.termH-2, m.termW/2) != '└' || at(m.termH-3, 0) != '│' || at(m.termH-2, 0) != '└' {
 			t.Fatal(strings.Join(rows, "\n"))
 		}
 	}

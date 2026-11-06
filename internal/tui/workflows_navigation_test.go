@@ -69,6 +69,7 @@ func TestWorkflowInspectorCloseAndResponsiveLayout(t *testing.T) {
 	for _, width := range []int{120, 80, 40} {
 		sizeModelTo(t, m, width, 24)
 		m.workflowCommand("inspector")
+		m.workflowSetInspectorTab(2)
 		rows := strings.Split(ansi.Strip(m.screenContent()), "\n")
 		if len(rows) != 24 {
 			t.Fatal("height")
@@ -84,13 +85,13 @@ func TestWorkflowInspectorCloseAndResponsiveLayout(t *testing.T) {
 				t.Fatal("narrow inspector shrank canvas")
 			}
 		}
-		if !strings.Contains(rows[4], "[x]") {
-			t.Fatal("close control missing", rows[4])
+		if !strings.Contains(rows[2], "×") {
+			t.Fatal("close control missing", rows[2])
 		}
 		if !strings.Contains(strings.Join(m.workflowInspectorContent(), ""), long) {
 			t.Fatal("inspector truncated a long value")
 		}
-		m.handleMouse(tea.MouseClickMsg{X: width - 4, Y: 4, Button: tea.MouseLeft})
+		m.handleMouse(tea.MouseClickMsg{X: width - 4, Y: 2, Button: tea.MouseLeft})
 		if w.inspectorOpen {
 			t.Fatal("close control did not close inspector")
 		}

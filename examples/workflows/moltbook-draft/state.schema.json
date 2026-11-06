@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "properties": {
+    "seen_ids": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "string"
+      }
+    },
+    "last_http_status": {
+      "type": "integer"
+    },
+    "retry_after": {
+      "type": "string"
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "draft_saved",
+        "no_new_posts",
+        "http_error"
+      ]
+    }
+  },
+  "required": [
+    "seen_ids",
+    "last_http_status",
+    "retry_after",
+    "outcome"
+  ],
+  "additionalProperties": false
+}

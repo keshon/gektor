@@ -17,6 +17,10 @@ import (
 )
 
 func (m *model) Init() tea.Cmd {
+	if m.startWorkflows {
+		m.startWorkflows = false
+		m.openWorkflows()
+	}
 	// The terminal owns the native caret's blink and shape.
 	return tea.Batch(waitEvents(m), tick(false, m.busy()), m.takeCommands())
 }

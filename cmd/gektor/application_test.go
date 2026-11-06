@@ -28,7 +28,7 @@ func TestBrowserLauncherRestoresAllSavedSettings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request := initialTUILaunch(options, p, path, false)
+	request := initialTUILaunch(options, p, path)
 	resolved, err := resolveLaunch(request)
 	if err != nil {
 		t.Fatal(err)
@@ -37,7 +37,7 @@ func TestBrowserLauncherRestoresAllSavedSettings(t *testing.T) {
 		t.Fatal("launcher lost persisted configuration")
 	}
 	control := applicationControl(request, resolved.selectedProfile, resolved.profilePath, resolved.workspace)
-	if control == nil || control.Preferences.Harness != prefs.Harness || control.Preferences.Appearance != prefs.Appearance || control.Preferences.Theme != "light" {
+	if control == nil || control.Temporary || control.Preferences.Harness != prefs.Harness || control.Preferences.Appearance != prefs.Appearance || control.Preferences.Theme != "light" {
 		t.Fatal("launcher dropped UI preferences", control)
 	}
 }
@@ -51,7 +51,7 @@ func TestTUILaunchUsesSavedSettingsAndExplicitOverrides(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		launch := initialTUILaunch(options, prefs, "application.json", len(args) == 1)
+		launch := initialTUILaunch(options, prefs, "application.json")
 		got, err := resolveLaunch(launch)
 		if err != nil {
 			t.Fatal(err)
@@ -66,6 +66,47 @@ func TestTUILaunchUsesSavedSettingsAndExplicitOverrides(t *testing.T) {
 	}
 }
 
+func TestTUILaunchFlagsKeepPlanDefaultAndProtectOverrides(t *testing.T) {
+	profilePath := filepath.Join(t.TempDir(), "profile.json")
+	profile := config.DefaultProfile()
+	profile.Provider.Model = "from-file"
+	if err := config.SaveCopy(profile, profilePath); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name      string
+		args      []string
+		temporary bool
+		plan      bool
+	}{
+		{"bare", []string{"-tui"}, false, true},
+		{"long-spelling", []string{"--tui"}, false, true},
+		{"browser-launcher", []string{"-tui", "-browser", "chrome", "-browser-profile", "work"}, false, true},
+		{"runtime-options", []string{"-tui", "-debug", "-stream", "-allow", "read_file=*", "-verify-cmd", "go test ./..."}, false, true},
+		{"workspace", []string{"-tui", "-workspace", "other-workspace"}, true, true},
+		{"model", []string{"-tui", "-model", "one-off-model"}, true, true},
+		{"profile", []string{"-tui", "-profile", profilePath}, true, true},
+		{"chatgpt-launcher", []string{"-tui", "-browser", "chrome", "-backend-kind", "chatgpt", "-model", "gpt-6.1-sol", "-context-limit", "262144"}, true, true},
+		{"explicit-act", []string{"-tui", "-plan=false"}, false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			options, err := parseLaunchOptions(tc.args)
+			if err != nil {
+				t.Fatal(err)
+			}
+			request := initialTUILaunch(options, config.Preferences{Version: 1}, "application.json")
+			resolved, err := resolveLaunch(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			control := applicationControl(request, resolved.selectedProfile, resolved.profilePath, resolved.workspace)
+			if control == nil || control.Temporary != tc.temporary || resolved.plan != tc.plan {
+				t.Fatalf("temporary=%v plan=%v; expected temporary=%v plan=%v", control, resolved.plan, tc.temporary, tc.plan)
+			}
+		})
+	}
+}
+
 func TestSavedModeAndUnlimitedStepsSurviveLaunchAndRelaunch(t *testing.T) {
 	p := config.DefaultProfile()
 	prefs := config.Preferences{Version: 1, Mode: "act", Profile: &p, Harness: config.Harness{MaxSteps: config.UnlimitedSteps}}
@@ -74,7 +115,7 @@ func TestSavedModeAndUnlimitedStepsSurviveLaunchAndRelaunch(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := resolveLaunch(initialTUILaunch(opts, prefs, "application.json", len(args) == 1))
+		got, err := resolveLaunch(initialTUILaunch(opts, prefs, "application.json"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -193,7 +234,7 @@ func TestFirstRunProfileAndWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	o, err := resolveLaunch(initialTUILaunch(options, prefs, "application.json", true))
+	o, err := resolveLaunch(initialTUILaunch(options, prefs, "application.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

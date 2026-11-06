@@ -8,11 +8,14 @@ import (
 // Routes use world cells, so panning clips the same path instead of changing it.
 // Search is bounded to keep a dense or overlapping canvas responsive.
 func (m Model) route(from, to Node, used map[Point]bool, budget *int) []Point {
-	start := Point{from.X + m.nodeWidth(), from.Y + m.nodeHeight()/2}
-	end := Point{to.X - 1, to.Y + m.nodeHeight()/2}
+	return m.routeEdge(from, to, "", "", used, budget)
+}
+func (m Model) routeEdge(from, to Node, fromPort, toPort string, used map[Point]bool, budget *int) []Point {
+	start := Point{from.X + m.nodeWidth(), from.Y + m.portRow(from, fromPort, true)}
+	end := Point{to.X - 1, to.Y + m.portRow(to, toPort, false)}
 	blocked := func(p Point) bool {
 		for _, n := range m.Nodes {
-			if p.X >= n.X && p.X < n.X+m.nodeWidth() && p.Y >= n.Y && p.Y < n.Y+m.nodeHeight() {
+			if p.X >= n.X && p.X < n.X+m.nodeWidth() && p.Y >= n.Y && p.Y < n.Y+m.height(n) {
 				return true
 			}
 		}
@@ -26,7 +29,7 @@ func (m Model) route(from, to Node, used map[Point]bool, budget *int) []Point {
 		minX = min(minX, n.X-3)
 		maxX = max(maxX, n.X+m.nodeWidth()+3)
 		minY = min(minY, n.Y-3)
-		maxY = max(maxY, n.Y+m.nodeHeight()+3)
+		maxY = max(maxY, n.Y+m.height(n)+3)
 	}
 	distance := func(a, b Point) int { return abs(a.X-b.X) + abs(a.Y-b.Y) }
 	queue := routeQueue{{point: start, score: distance(start, end)}}
@@ -98,9 +101,9 @@ func (q *routeQueue) Push(v any)        { *q = append(*q, v.(routeItem)) }
 func (q *routeQueue) Pop() any          { old := *q; v := old[len(old)-1]; *q = old[:len(old)-1]; return v }
 
 func (m Model) edges() []Edge {
-	byPair := map[[2]string]Edge{}
+	byPair := map[[4]string]Edge{}
 	for _, e := range m.Edges {
-		key := [2]string{e.From, e.To}
+		key := [4]string{e.From, e.To, e.FromPort, e.ToPort}
 		previous := byPair[key]
 		e.Data = e.Data || previous.Data
 		byPair[key] = e
@@ -113,27 +116,44 @@ func (m Model) edges() []Edge {
 		if out[i].From != out[j].From {
 			return out[i].From < out[j].From
 		}
-		return out[i].To < out[j].To
+		if out[i].To != out[j].To {
+			return out[i].To < out[j].To
+		}
+		if out[i].FromPort != out[j].FromPort {
+			return out[i].FromPort < out[j].FromPort
+		}
+		return out[i].ToPort < out[j].ToPort
 	})
 	return out
 }
 
 func (m Model) PortAt(x, y int) (string, bool) {
+	id, _, output := m.PortHit(x, y)
+	return id, output
+}
+func (m Model) PortHit(x, y int) (string, string, bool) {
 	x += m.Pan.X
 	y += m.Pan.Y
 	for i := len(m.Nodes) - 1; i >= 0; i-- {
 		n := m.Nodes[i]
-		if y != n.Y+m.nodeHeight()/2 {
+		output := x == n.X+m.nodeWidth()-1
+		if x != n.X && !output {
 			continue
 		}
-		if x == n.X {
-			return n.ID, false
+		ports := n.Inputs
+		if output {
+			ports = n.Outputs
 		}
-		if x == n.X+m.nodeWidth()-1 {
-			return n.ID, true
+		if ports == nil {
+			ports = []Port{{}}
+		}
+		for _, p := range ports {
+			if y == n.Y+m.portRow(n, p.Key, output) {
+				return n.ID, p.Key, output
+			}
 		}
 	}
-	return "", false
+	return "", "", false
 }
 
 const (

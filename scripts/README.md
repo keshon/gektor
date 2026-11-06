@@ -1,30 +1,87 @@
-# Helper scripts
+# Launchers and helper scripts
 
-The application connects to an already running model server. These scripts do
-not start or manage inference backends.
+## Windows entry points
 
-Release archives include the three CLI launchers and ensure-build.cmd.
-Eval, benchmark and release-building helpers require a source checkout.
+The five main launchers live beside `gektor.exe`:
 
-Windows helpers change to the application root before running. Invoke them
-from the repository root as `scripts\NAME.cmd`:
+| Script | Purpose |
+|---|---|
+| `start-gektor-agent.cmd` | Open the Agent TUI with saved settings |
+| `start-gektor-workflows.cmd` | Open the Workflows TUI with saved settings |
+| `run-gektor-agent.cmd [flags] "task"` | Run one Agent task in the CLI |
+| `run-gektor-workflow.cmd [flags] recipe.json` | Run a saved recipe once |
+| `serve-gektor-workflows.cmd [flags]` | Run the workflow worker until stopped |
 
-- `run-task.cmd "task"`: run one CLI task.
-- `run-plan.cmd "task"`: run a read-only planning task.
-- `run-resume.cmd [id or path]`: list saved CLI tasks or resume one.
-- `eval-run.cmd [flags]`: run eval probes against a model server.
-- `eval-dry.cmd [flags]`: validate probes without model calls.
-- `eval-reset.cmd`: restore the committed manual fixture baseline.
-- `bench-llama.cmd [quick] [model.gguf]`: run the external llama-bench tool.
-  Reads benchmark settings from the root `.env`; see `.env.example`.
-- `bench-report.ps1 -Dir PATH`: report on an existing llama-bench results directory.
+All launchers build first in a source checkout.
+Release archives use the included binary and do not require Go.
+They do not start or manage model servers.
 
-`release.py vMAJOR.MINOR.PATCH` builds Windows/Linux amd64 archives and SHA-256
-checksums under `tmp/`. It does not publish a release.
+**Start** opens a screen, **run** executes once, and **serve** stays running.
+These words do not select a backend.
 
-`ensure-build.cmd` is called by launchers after changing to the application root.
-It rebuilds a source checkout or checks that a release binary is present.
-`set-env.ps1` is available for custom local launchers that import a dotenv file;
-the application itself does not load it.
+The TUI restores saved settings and workspace.
+The Agent CLI uses its normal flag/profile defaults.
+A workflow uses the profiles named by its model nodes; many workflows need no model.
+For CLI profiles, see [the reference](../docs/cli.md#profiles).
 
-`run-tui.cmd` and `build.cmd` remain in the root as the UI and build entry points.
+Run these examples from the application folder:
+
+```powershell
+.\start-gektor-agent.cmd
+.\start-gektor-agent.cmd -profile profiles/chatgpt.json
+.\start-gektor-agent.cmd -browser chrome -browser-profile work
+.\start-gektor-workflows.cmd
+.\run-gektor-agent.cmd -profile profiles/chatgpt.json -workspace D:\Projects\my-app "Explain this project"
+.\run-gektor-workflow.cmd -workspace examples/workflows/transform-and-review recipe.json
+.\serve-gektor-workflows.cmd -workspace D:\Projects\my-app
+```
+
+The ChatGPT profile uses your signed-in account. Connect with `gektor.exe auth login`.
+Edit the profile to change its model or context budget.
+
+Relative CLI paths use the caller's current directory, even when the launcher
+is installed elsewhere. The build helper temporarily enters the installation
+folder and then restores the caller's directory.
+Keep flags before the Agent task text or workflow recipe path.
+A worker still needs permission rules for the operations it will execute;
+starting it does not grant access.
+
+The new TUI launchers do not enable browser access by default.
+Pass `-browser chrome` or `-browser msedge` when needed.
+This makes browser tools available for lazy activation.
+
+## Existing names
+
+The older CLI helpers still work:
+
+- `scripts/run-task.cmd` forwards to `run-gektor-agent.cmd`.
+- `scripts/run-plan.cmd` runs an Agent task with `-plan`.
+- `scripts/run-resume.cmd [id or path]` lists saved CLI tasks or resumes one.
+
+Use [the demos](../demos/README.md) to try complete examples without remembering
+their inputs and permission flags.
+
+## Development helpers
+
+These require a source checkout:
+
+- `build.cmd` builds packages and writes `gektor.exe` at the project root.
+- `build.cmd test [flags]` runs tests.
+- `build.cmd check` runs vet, builds, race tests, conventions and dry eval probes.
+- `build.cmd fmt` lists files that gofmt would change; `fmt fix` formats them.
+- `build.cmd vuln` runs govulncheck, installing it if needed.
+- `build.cmd clean` removes generated root executables only.
+  It leaves `bin/`, scratch folders, saved history and eval results alone.
+- `eval-run.cmd [flags]` runs model eval probes.
+- `eval-dry.cmd [flags]` checks probes without model calls.
+- `eval-reset.cmd` restores the committed manual fixture baseline.
+- `bench-llama.cmd [quick] [model.gguf]` runs external llama-bench.
+  It reads benchmark settings from the root `.env`; see `.env.example`.
+- `bench-report.ps1 -Dir PATH` reports on an existing benchmark directory.
+- `release.py vMAJOR.MINOR.PATCH` builds Windows/Linux archives and checksums
+  under `tmp/`. It does not publish them.
+
+Invoke helpers under `scripts/` as `scripts/NAME.cmd`.
+`ensure-build.cmd` builds in the application folder without changing the caller's
+working directory. `set-env.ps1` supports custom dotenv launchers;
+GEKTOR itself does not load `.env`.

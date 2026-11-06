@@ -38,17 +38,13 @@ func TestDeclaredRunInputsPreserveTypesDefaultsAndOmissions(t *testing.T) {
 	w.editor.Replace(d)
 	before := w.editor.Source()
 	m.workflowCommand("run")
-	if err := m.dialog.form.apply(map[string]string{"format": "Fields"}); err != nil {
-		t.Fatal(err)
-	}
-	nextConnectionForm(t, m)
 	f := m.dialog.form
 	values := map[string]string{
-		"mode:count": "Use default", "value:count": "ignored",
-		"value:text": `{"$step":"literal string"}`,
-		"mode:empty": "Provide", "value:empty": "",
-		"value:flag": "false", "value:data": `{"count":9007199254740993}`,
-		"mode:skip": "Omit",
+		"value:count": "9007199254740993",
+		"value:text":  `{"$step":"literal string"}`,
+		"value:empty": "",
+		"value:flag":  "false", "value:data": `{"count":9007199254740993}`,
+		"value:skip": "",
 	}
 	if err := f.apply(values); err != nil {
 		t.Fatal(err)
@@ -65,13 +61,12 @@ func TestDeclaredRunInputsPreserveTypesDefaultsAndOmissions(t *testing.T) {
 	if json.Unmarshal(got["text"], &literal) != nil || literal != values["value:text"] {
 		t.Fatal("string interpreted as reference")
 	}
-	values["mode:count"] = "Provide"
-	values["value:count"] = "9007199254740993"
+	values["value:count"] = "9007199254740995"
 	if err := f.apply(values); err != nil {
 		t.Fatal(err)
 	}
 	in = queuedInvocation(t, m)
-	if !strings.Contains(string(in.Inputs), `"count":9007199254740993`) {
+	if !strings.Contains(string(in.Inputs), `"count":9007199254740995`) {
 		t.Fatal(string(in.Inputs))
 	}
 	values["value:count"] = "1.5"

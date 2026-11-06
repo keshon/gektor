@@ -1,798 +1,456 @@
 # Terminal guide
 
-Start GEKTOR with `gektor.exe -tui`, or use `run-tui.cmd` on Windows.
-The UI uses Bubble Tea v2. [CLI flags](cli.md) configure the backend,
-workspace, permissions, verification, and response budgets.
+GEKTOR has two ways to work:
 
-## Windows launchers
+| Mode | Use it when | What you save |
+|---|---|---|
+| **Agent** | You want to discuss a task, explore a project or ask the model to do work | A conversation session |
+| **Workflows** | You want to define steps and run them again with different inputs | A recipe and a separate record of each run |
 
-Start your model server separately and wait for loading to finish, then run
-`run-tui.cmd`. Source checkouts rebuild first; release archives use the included
-binary. The first-run connection is llama.cpp at `http://127.0.0.1:8080`.
-Saved settings are reused. Extra arguments are forwarded:
+Both use the selected workspace: the folder GEKTOR works in.
+Agent's **Plan / Act** choice is separate from these two modes.
 
-```bat
-run-tui.cmd -workspace D:\Projects\my-app -verify-cmd "go test ./..."
-```
+## Start and choose a workspace
 
-For another protocol, pass `-backend-kind openai` or `-backend-kind kobold`
-and its server URL. GEKTOR does not launch or manage inference servers.
+On Windows, run `start-gektor-agent.cmd`, or `start-gektor-workflows.cmd`
+to open Workflows directly. On other systems, run `gektor -tui`;
+add `-tui-screen workflows` to open Workflows.
+Source checkouts rebuild through the Windows launcher; release archives use
+the supplied binary.
 
-CLI helpers live in `scripts/`: `scripts\run-task.cmd "task"`,
-`scripts\run-plan.cmd "task"`, and `scripts\run-resume.cmd [id]`.
-Keep flags before the task text. Closing GEKTOR leaves the external server running.
+For a local model, start its server first and wait for it to load.
+Open **Settings**, then **Model**, to set the protocol, address and model.
+For the ChatGPT connection, run `gektor auth login` first.
+See [setup](bootstrap.md) and [connection options](cli.md).
 
-## Screen and focus
+Choose your project folder under **Application** in Settings.
+In the folder browser, **Use this folder** selects the displayed folder.
+Opening a folder in the browser only browses it.
 
-The unbranded one-row global menu exposes Session, Run, View, Settings and Help dropdowns. A separate one-row status header inside the transcript pane shows Plan/Act mode, model, context, and run status.
-Step/context/elapsed metrics remain visible while idle; a running turn adds
-a Braille spinner. The Run menu includes tool and file counts. Estimated context
-usage has a `~` prefix. Empty history shows `READY  0/window` and `STEP 0/limit`.
-Status badges are separated by two spaces; ratios have no spaces around `/`.
+Choose **Apply**, or press `Ctrl+S`, to save settings.
+**Cancel** discards the pending edits.
+Explicit command-line flags can override saved settings for a launch.
+Browser, debug and permission flags keep normal settings behavior.
+Workspace, profile, model, generation and identity overrides stay temporary
+until you apply them in Settings. A new installation starts in Plan even when
+extra flags are supplied; `-plan=false` explicitly starts in Act.
 
-Thinking and response fragments share a 16ms repaint buffer. Each frame paints
-everything received, with no character-by-character typing animation. Thinking
-is visible even before response text exists; tool calls remain complete cards.
-The activity badge distinguishes waiting (`WAIT`), server-reported prompt
-processing (`READ`), thinking (`THINK`),
-streamed response (`STREAM`), tools (`TOOLS`), and non-streamed reply (`REPLY`).
-llama.cpp telemetry supplies live prompt progress and generated token counts;
-servers without it show estimates marked `~`, not an invented read percentage.
-The context meter includes cached input and generated output, including thinking
-and tool arguments. Final usage replaces live estimates when the reply ends.
+Click the top menus, or press `F9` and use the arrow keys.
+The bottom row shows actions for the current screen. Press `F1` for help.
 
-The pane titles are Sessions and History. Plan/Act and the step limit are
-global preferences: opening old history or changing the model preserves them.
-`/max-steps 0` means unlimited, displayed as `∞`; the CLI flag has the same
-meaning when explicitly supplied.
+### Other settings
 
-Local llama.cpp and KoboldCPP servers supply the context window and loaded
-model at startup and before each turn. Settings exposes a manual window only
-for remote OpenAI-compatible providers. Local configured windows remain a
-fallback when the server cannot report one. Model badges show the filename
-without directory prefixes.
+| Section | What it changes |
+|---|---|
+| Model | Connection and model selection |
+| Generation | Response limits and sampling settings supported by that connection |
+| Profiles | Load or save a group of settings |
+| Application | Workspace |
+| You | Your displayed name and persona |
+| Prompts | Response style and base instructions |
 
-Opening a saved conversation immediately shows a gray history context estimate
-and its last recorded model. The estimate includes messages and images but
-excludes tool schemas. The model badge becomes current on the first response;
-the context badge becomes current as the new request starts, initially estimated
-until the server supplies counts. Older sessions without
-model metadata show `—` until a new response.
+Loading a profile stages its values; choose Apply to use them.
+Changing settings does not send a task to the model.
+See [profiles](cli.md#profiles) for the file format and command-line use.
 
-The transcript and composer use the full width. Ctrl+P / F2 opens saved sessions
-with name/history search, rename and delete. Each entry shows its last update,
-age in days, message count and preview, separated by a rule. Task modals share
-an 80-cell frame (clamped to the terminal), overlaid on the visible history; menus remain anchored to their controls. The workspace directory name, session ID and title sit at the right of the top menu row when space allows, separated by `·`. Sending a message resumes follow at the bottom; incoming assistant output preserves a manually scrolled reading position.
+## Agent
 
-The transcript reads as a name row, a label row and a body. A run of
-blocks by one participant opens with its name in uppercase; the blocks
-after it carry only their label rows. The label row is a bracketed tag
-at the left edge with the time flush right, and the body starts in
-column 0. `GEKTOR` is the default agent name; configured identities keep their
-names. `SYSTEM` covers harness messages and local interface notices. Message
-labels distinguish their kinds; local notices never enter model context.
-SYSTEM rails use the same accent as ACT. Thinking can be expanded or summarized
-with F3 or Ctrl+G and stays dim and italic in both views. Live thinking and replies
-use the same formatting as completed blocks. Outer blank lines in model replies
-are trimmed for display; saved text and paragraph spacing remain unchanged.
-Tool content is controlled separately in View. Display changes do not
-remove model history. Scrolling up stops automatic following; F7 or
-Ctrl+End returns to the latest content. A scrollbar in the right-hand column
-appears once the transcript is taller than the pane; its thumb is sized to
-the visible fraction and sits where you are in the document.
-Both history and inspector scrollbars support track clicks to page and thumb
-dragging, including dragging beyond the pane. The track uses a continuous muted
-line. Collapsed tools show one summary for successes, errors and background
-completions; click the tool name to inspect the full output.
+Agent is the chat screen. You describe a task; the model chooses its next steps.
+
+### Do a task
+
+1. Check the workspace and model in the header.
+2. Choose **Plan** in the Agent menu to discuss and inspect, or **Act** to allow changes.
+   Some launch paths call this menu **Run**.
+3. Type your request and press `Enter`. Use `Ctrl+O` for a new line.
+4. Read the reply and tool summaries. Answer questions or permission requests.
+5. Review the result. Send a follow-up in the same conversation if needed.
+
+Plan uses read-only tools. Act allows changes under the current permissions.
+Switching between them keeps the conversation.
+
+For example, start with:
+
+> Find where this app saves settings. Explain what happens when saving fails.
+
+After reviewing the answer, switch to Act and ask:
+
+> Fix that failure path and run the relevant tests.
+
+### Read history and tool results
+
+History contains messages, replies, thinking, tool calls and system notices.
+A successful tool call does not mean the whole task has been verified.
+
+Compact tool rows show the action and its target.
+Click the tool name to inspect its arguments and output.
+From the keyboard, use `Ctrl+T`, select a call and press `Enter`.
+
+The inspector opens beside history, or fills the screen in a narrow terminal.
+`Tab` changes focus. Arrow keys, page keys and the mouse wheel scroll it.
+`Esc` closes the focused inspector; its close button works too.
+
+Scrolling up lets you read without following new messages.
+`Ctrl+End` or `F7` returns to the latest message.
+
+The **View** menu controls how history looks:
+
+| Option | When checked |
+|---|---|
+| Agent thinking | Show full thinking; otherwise show a one-line summary |
+| Agent tools | Show tool details; otherwise show compact rows |
+| System messages | Show system notices |
+| Speaker names | Show participant names |
+| Message labels | Show tags such as THINKING and RESPONSE |
+| Outlined frame | Show pane borders |
+
+`Ctrl+G` toggles full thinking. It does not shorten the normal reply.
+View choices and the theme are saved. Hidden content remains in saved history.
+
+### Stop, retry and continue
+
+Press `Esc` to stop an active turn. Stopping does not undo completed changes.
+If a popup is open, Esc may close it first.
+
+You can send another message while Agent is working.
+It waits for a model/tool boundary and does not interrupt a running tool.
+`Ctrl+E` brings the latest pending message back to an empty draft.
+`Ctrl+X` removes the latest pending message.
+
+The **Steering** setting, or `/steering on|off`, controls delivery.
+With steering enabled, new input can withhold tools that have not started.
+With it disabled, the current tool batch finishes first.
+A new message never grants permission.
+
+After a failed turn, `/retry` continues from the saved checkpoint.
+It does not roll back files. Read the error and check completed work first.
+
+### Permissions
+
+A permission request shows the operation and its target.
+In Agent's permission prompt, `Y` allows once. `A` opens confirmation for
+allowing the same tool and target for this run. `N` lets you add a redirect
+note. Esc at the first prompt denies the request.
+An explicit deny rule cannot be overridden here.
+
+Shell commands, Git commands and external tools run with your account's
+permissions. The workspace folder is not a sandbox for those programs.
+See [security](../SECURITY.md).
+
+### Save and reopen a conversation
+
+Conversations are saved under `~/.gektor/sessions/` in the normal TUI launch.
+Choose **Open** in the Session menu, or press `Ctrl+P`, to search and reopen one.
+Opening a session does not send a new model request.
+Use `Ctrl+R` in the session list to rename it, or `Ctrl+D` to confirm deletion.
+
+Choose **New** in the Session menu, or press `Ctrl+N`, for a fresh conversation.
+Unsent drafts are kept while the app is open, but are not saved across exit.
+
+Long conversations may be compacted to fit the model's context window.
+The full saved archive remains available to read and search.
+You can also use `/compact` while idle.
+A session is not a backup of project files.
+
+## Workflow workspace
+
+A workflow is a set of saved steps.
+The runner follows those steps instead of asking a model to choose each action.
+
+| Term | Meaning | Available today |
+|---|---|---|
+| **Recipe** | Instructions: steps, connections, inputs and outputs | A JSON file in the workspace |
+| **Run** | One execution with its input values and results | Saved separately in your GEKTOR user directory |
+| **Template** | A reusable starting point copied into a new recipe | No template library yet; copy a recipe manually |
+| **Schedule** | A trigger that starts a workflow at set times | CLI/service support; no TUI schedule screen |
+
+You can edit and run workflows without a model connection.
+AI change requests need a model. A model-generation node also needs its configured model.
+
+### Open or create a recipe
+
+Finish or stop the active Agent turn first.
+In the **Workflows** menu:
+
+- **Open recipe…** opens a workspace recipe.
+- **New recipe…** starts one.
+- **Open workflows**, or `/workflows`, enters the editor.
+
+The editor has **Workflow / Node / Run / View / Settings / Help** menus.
+Choose a recipe path inside the workspace.
+For example, `workflows/image-report.json` is a useful convention,
+not a required folder.
+There is no automatic recipe library or shared user-directory recipe lookup yet.
+
+In the editor, `Ctrl+O` opens, `Ctrl+N` creates and `Ctrl+S` saves.
+Save before replacing a draft.
+New/Open asks before discarding unsaved changes.
+
+### Read the nodes and connections
+
+Each card shows its name, operation, input and output ports, and status.
+The selected card has a double border.
+
+- Inputs are on the left. They receive values.
+- Outputs are on the right. They pass results to other steps.
+- Solid lines carry data, such as text from one step to another.
+- Dashed lines set order. The diamond ports **then** and **after**
+  mean “wait for this step,” without passing a value.
+- Filled ports are connected; empty ports are not.
+- A crossing is not a connection.
+  A `!` at an output means the wire could not be drawn.
+  The recipe still keeps the connection.
+
+**Not run** means there is no run result on that card.
+It does not mean the recipe has passed validation.
+Steps execute one at a time, even when the graph branches.
+
+Click a card or use the arrow keys to select it.
+Drag empty space to pan. Use `Shift+wheel` for horizontal movement,
+or `Alt+arrows` to pan with the keyboard.
+
+**Lock node positions** in View (`G`) prevents accidental card movement.
+You can still pan, inspect and edit.
+When unlocked, drag cards or use `Shift+arrows` to move them.
+`L` arranges them automatically; `F` shows an overview.
+
+### Inspect a step
+
+Select a node and press `Ctrl+T`. The inspector has three tabs:
+
+| Tab | What it answers |
+|---|---|
+| **Properties** | What values does this step use? Where do they come from? Who uses its outputs? |
+| **Result** | What happened in the selected run? What values and errors were recorded? |
+| **Code** | What script does this step use, if it has one? |
+
+Click a tab or press `1`, `2` or `3`.
+`Tab` moves focus between canvas and inspector.
+In the focused inspector, left/right changes tabs and up/down scrolls.
+
+Properties uses the same port names as the cards.
+Result needs a selected run; a draft alone has no recorded result.
+`Ctrl+J` shows raw data when you need the full record.
+Close the inspector with its close button or focused `Esc`.
+
+### Change a recipe
+
+1. Press `A`, or choose **Add node…** in Node, to select an operation.
+2. Press `Enter` on a draft node to edit its arguments.
+3. Click an output port, then an input port, to set their connection.
+   Review the mapping in the form before applying.
+4. Choose **Behavior…** in Node (`E` on the canvas) for conditions,
+   repeat-for-each, ordering, review and retry settings.
+5. Choose **Edit workflow…** in Workflow to change its name, inputs or outputs.
+6. Save with `Ctrl+S`.
+
+`B` opens connections for editing or removal. `C` opens a connection form.
+`Delete` removes a node. `Ctrl+Z` undoes a recipe change; `Ctrl+Y` redoes it.
+These controls do not undo an executed operation.
+
+In the focused inspector, `E` edits Properties or Code instead of node behavior.
+Code has a separate script editor. Complex values may still need JSON.
+`J` on the canvas opens the full recipe JSON.
+
+Press `I` to describe a change to the model.
+Review its proposed changes before applying them with `S`.
+Esc discards the proposal.
+Applying changes updates the draft; it does not save or run it.
+Save and validate after reviewing it.
+
+### Validate and run
+
+1. Press `V`, or choose **Validate…** in Run, to check the recipe.
+   Supply input values if asked. Fix any reported errors.
+2. Press `R`, or choose **Run…** in Run, to execute it.
+3. If it declares inputs, a form shows their defaults.
+   Change the values for this run, then continue.
+4. Read and answer any permission requests or step reviews.
+5. Select a node and open **Result** to inspect what happened.
+
+Inputs are values the recipe expects from you, such as a folder, a label
+or a list of numbers.
+They let you reuse the same steps with different data.
+Text fields take plain text.
+List fields accept a JSON array such as `[2, 3, 5]`,
+or comma-separated JSON values such as `2, 3, 5`.
+Other complex values use JSON. Recipes without inputs skip the form.
+
+**Run with JSON…** in Run is an advanced option for entering the complete input
+object. It is not needed for ordinary runs.
+
+Validation checks the recipe and input types.
+It does not prove that a later file, server request or model call will succeed.
+The TUI runs the current draft; save it to reopen those edits later.
+
+Press Esc during execution to request cancellation.
+Completed writes and requests remain.
+A failed run stops the remaining work; inspect results before running again.
+
+### Review and reopen a run
+
+Press `H`, or choose **Saved runs…** in Run, to open an earlier run.
+It shows the recipe captured for that run and its recorded results.
+Editing the current recipe does not change that record.
+
+A step may pause for review before it executes.
+Press `P`, or choose **Review…** in Run, to approve or reject it.
+Approval continues that saved run without repeating completed steps.
+Permissions still apply.
+
+Saved runs are read-only.
+Press `D`, or choose **Return to draft** in Run, to edit the draft again.
+There is no general “resume any failed step” action.
+
+### Try a small example
+
+In a source checkout, the [transform-and-review example](../examples/workflows/transform-and-review/README.md)
+lets you try a run without a model call:
+
+1. Set the workspace to `examples/workflows/transform-and-review` in the checkout.
+2. Open `recipe.json` in Workflows.
+3. Press `V` to validate and keep the default numbers.
+4. Press `R` to run, again keeping the defaults. Answer permission requests if shown.
+5. The run pauses before the **double** step. Press `P` to review it and approve.
+6. Select **double**, open the inspector and choose Result.
+   Its output contains the doubled numbers: `4, 6, 10`.
+7. Press `D` to return to the draft. Run it again with different input numbers.
+
+This example changes data in memory and stores run results; it does not edit
+project files. You do not need to change its script to try different numbers.
+
+### Save, leave and reuse
+
+`Ctrl+S` saves the recipe file.
+Card positions and the position lock are stored separately in your user directory.
+Moving a card does not change execution.
+
+Choose **Return to chat** in Workflow, or press Esc on the canvas, to return
+to Agent. The draft stays in memory while the app is open.
+Save before quitting; this in-memory draft is not crash recovery.
+
+To reuse a recipe in another project, copy it into that workspace.
+Check its paths and required profiles.
+Paths inside called recipes are also relative to the workspace,
+not the recipe's own folder.
+There is no automatic shared-template installation.
+
+Schedules, background queue management and webhook setup use the
+[CLI/service](cli.md#workflow-queue-and-service).
+Closing the TUI does not keep an ordinary foreground run alive.
+
+See the [workflow reference](workflows.md) for available operations,
+data mappings, execution rules and examples.
+
+## Attach files and images
+
+Type `@` to browse workspace files. For example:
 
 ```text
-YOU
-[INPUT]                                       [14:51]
-I want you to reply with a phrase....
-
-GEKTOR
-[THINKING]                                    [14:53]
-The user asked me to reply with a phrase...
-
-[RESPONSE]                                    [14:54]
-This is a textual response generated by AI.
-
-[TOOL CALL]                                   [14:55]
-✓ read_file {"path":"internal/config/profile.go"}
-| file content ....
-| file content ....
-└─ file content ....
-
-SYSTEM
-[HARNESS]                                     [14:55]
-You've spent several steps searching (.....)
-```
-
-The user name follows Settings > You and the assistant name comes from the
-run's identity; both are uppercased. The tags are fixed:
-`INPUT`, `RESPONSE`, `THINKING`, `TOOL CALL`, `TOOL RESULT`,
-`QUESTION`, `HARNESS`, `STATUS`, `OUTCOME`, `ERROR` and `WARNING`. Blocks are
-separated by one blank row, except consecutive compact tool calls. Horizontal rules stay outside the transcript
-and belong to pane boundaries, so a turn reads `YOU`/`[INPUT]` followed by
-the assistant's name and `[RESPONSE]`.
-Reopened history shows no times, because the saved format records none.
-
-Streaming displays complete received chunks on the next render frame, without
-a simulated typing delay. Thinking and reply text use separate buffers and the
-same Markdown formatting as completed blocks. Thinking remains above the reply
-as the answer arrives.
-
-## Header badges
-
-The top menu includes the workspace directory, session ID and title. The badge
-strip below shows mode, combined activity/context and model, with `STEP current/limit`
-and total run elapsed time aligned right. The model name uses the remaining space
-and is shown in full when it fits.
-During a run, activity identifies waiting, prompt processing, thinking, streaming,
-tool execution or compaction and includes a braille spinner.
-For example: `⠋ COMPACT  56.6k/65.5k`. Context usage turns amber at 85% of the
-window and red at 95%; saved-history estimates remain gray.
-Click a status badge to inspect it, or use F9 to open the global menu without moving focus. Pane
-rules remain gray. Narrow terminals shorten or omit the model name, then omit
-run metrics if necessary to preserve activity and context.
-
-Mode offers Act/Plan while idle; Activity offers Stop or Retry when applicable.
-Model shows the configured backend, sanitized endpoint, transport, context
-window, and response budget. These are configuration details, not server-health
-measurements. The activity/context menu includes usage details and manual
-compaction when an idle session has saved state.
-
-The context count retains the latest request's prompt usage between turns.
-`~` marks an estimate. Opening or compacting a saved task recomputes an
-estimate from replayed text and tool calls, excluding tool schemas and image
-tokens. Context details identify the source and show previous request usage,
-which is saved in optional `usage.json` alongside `state.json`. Missing or
-corrupt usage metadata does not prevent opening a session.
-
-Session scans run in background commands, with revision checks preventing stale
-results from replacing newer state. The session cache loads metadata; opening
-Search prepares conversation text. Unchanged histories reuse the session cache.
-Opening old history omits message timestamps because the saved format does not
-record them; live messages retain their actual display times.
-
-## Input and suggestions
-
-The composer sits below the transcript inside the conversation pane; its
-suggestions and prompts share that pane's width. The Sessions divider extends
-to the single-row global action toolbar. Session
-details sit at the bottom of the pane without a separate divider. Hiding Sessions gives the composer the full
-terminal width.
-
-The prompt is `>` with an underline caret. The input grows to fit multiline
-text, up to six visible rows (less in short terminals).
-
-- Enter sends when idle, or queues steering for the active run. Empty Enter
-  does nothing.
-- Ctrl+O adds a line. Shift+Enter also works when the terminal preserves it.
-- Pasted multiline text stays in the draft, including a trailing newline; Enter sends it.
-- Up/Down moves within the draft, unless the suggestion picker is open.
-- Alt+Up/Alt+Down recalls submitted input and restores the unsent draft.
-- Ctrl+U clears the draft.
-
-Type `/` at the start of the message for commands, or `@` at a token boundary
-for workspace paths. The popup shows up to six matches and keeps the input
-in place. It filters by prefix; files are browsed one directory at a time,
-not by searching the entire repository. Hidden entries appear when you type
-a leading dot. Suggestions are available in the idle and running composer,
-not in permission dialogs, question prompts, or session search.
-
-- Up/Down selects a match.
-- Tab inserts without executing.
-- Enter runs a selected command that takes no argument. A command that does
-  take one — `/max-steps`, `/mode`, `/theme`,
-  `/new`, `/rename` — is handed to the composer instead, so the value can
-  be typed; during a run the completed command is queued. For files and
-  directories, Enter always inserts without sending.
-- Esc dismisses the popup; typing again can reopen it. Press Esc again to
-  stop an active run.
-
-An exact completed file path closes its suggestion, so Enter can send the
-message. Directory completion adds `/` and keeps browsing. Paths containing
-spaces are quoted automatically. `/mode p` and `/mode a` suggest Plan and Act.
-
-## Clipboard images (Windows)
-
-Copy a screenshot, then press Ctrl+Alt+V or run `/paste-image` to attach it.
-Ctrl+V pastes an image or text when the terminal forwards that key to Gektor.
-Windows Terminal may consume Ctrl+V for its own text paste action; use the
-fallback shortcut or unbind that terminal action if you want Gektor to own it.
-Gektor does not change terminal settings.
-
-Repeat for more screenshots, type a message, and press Enter. Each paste freezes
-the pixels immediately as PNG. The composer lists numbered attachments; Alt+1
-through Alt+8 removes the corresponding image without changing your text.
-`/detach N` also removes an image. Ctrl+U clears text and attachments.
-Image-only messages work, including while the agent is running.
-
-The composer allows eight images and 40 MiB combined per message, with a 20 MiB
-limit per image. Clipboard decoding also limits images to 32 megapixels.
-Attachments survive failed submission, session switching, and settings relaunch;
-submitted snapshots remain available for session resume. Drafts are not persisted
-across process exit. Clipboard access happens only on an explicit paste request.
-Other operating systems can attach saved files with `@path`.
-
-## File references
-
-```text
-Review @internal/tui/input.go
+Review @README.md
 Compare @"docs/design notes.txt" with @README.md
 Describe @screenshot.png
 ```
 
-Paths are relative to the selected workspace. Text files must be UTF-8 and
-contain no NUL bytes. Each text file is limited to 32 KiB; all text references
-in a message are limited to 64 KiB combined. Repeated references to the same
-resolved file attach one copy. Directories, binary/invalid UTF-8 files,
-oversized files, and paths escaping the workspace (including resolved
-symlinks) produce an error. No partial attachment is sent on these errors.
-Missing `@image.png` references also stop submission and preserve the draft.
-Correct the path, or remove `@` to send the filename as ordinary text.
+Use arrows to choose a suggestion and Tab to insert it.
+File suggestions insert a path; they do not send the message.
 
-The model receives the original text plus file snapshots. The transcript
-shows the original message, including after reopening saved history. Queued
-references are read when their turn begins; retries reuse that turn's snapshot.
-Typing a reference is an explicit user action: it does not invoke the model's
-read_file permission gate. Attach only content you intend to send to the
-configured backend. See [the trust boundary](../SECURITY.md).
+Text files must be UTF-8, up to 32 KiB each and 64 KiB combined per message.
+Invalid, binary, missing or out-of-workspace file references stop submission
+and keep the draft. A repeated reference attaches one copy.
+The model receives file snapshots.
+Queued references are read when their turn begins; retries reuse that turn's snapshot.
+Attach only content you intend to send to the selected backend.
 
-PNG, JPG/JPEG, WebP, GIF, and BMP use image attachments instead of text.
-The backend caps each image at 20 MiB. ChatGPT uses the selected account model's
-`input_modalities` to establish vision support. ChatGPT accepts PNG, JPEG, WebP
-and non-animated GIF; convert BMP files to PNG first. A vision-capable
-OpenAI-compatible provider or llama-server with VL weights and `--mmproj` also works. GEKTOR's
-KoboldCPP dialect rejects image attachments. On a vision-capable backend the
-agent can also read a workspace picture itself: `read_file` on one of those
-formats attaches the image to the following turn, and at most four pictures
-are attached per step. `-image` attaches images to an opening task; inline
-text-file references are a TUI composer feature, not syntax interpreted by
-print mode or RPC.
+On Windows, copy a screenshot and press `Ctrl+Alt+V`, or use `/paste-image`.
+Ctrl+V also works when the terminal forwards it.
+Some terminals paste an image path instead.
+A single pasted absolute image path can be imported, including from outside
+the workspace. Typing a path or using a file tool keeps the workspace restrictions.
 
-Bare unknown mentions such as `@someone` remain literal. Missing image paths,
-quoted paths, and text-file paths with an extension/path separator report an error.
+The composer accepts up to eight images, 20 MiB each and 40 MiB combined.
+Clipboard images also have a 32-megapixel limit.
+`Alt+1` through `Alt+8`, or `/detach N`, removes an attachment.
+`Ctrl+U` clears the draft and attachments.
 
-## Action toolbar
+Image understanding needs a vision-capable model and backend.
+ChatGPT accepts PNG, JPEG, WebP and non-animated GIF; convert BMP to PNG first.
+llama.cpp vision also needs its vision projector.
+GEKTOR's KoboldCPP connection currently rejects image attachments.
 
-Help (F1), Search (Ctrl+P), and New (Ctrl+N) keep fixed positions.
-The middle actions follow focus: Send/Newline in the composer, Stop/Latest
-during a run, Rename/Delete in Sessions, and Back/Choose in overlays.
-Thinking (Ctrl+G) and Quit (Ctrl+Q) remain at the end. Ctrl shortcuts use
-compact caret notation (for example, `^P`) in narrow cells. Below 120
-columns the toolbar stays on one row, shortening labels and reducing visible actions when needed. Mouse clicks invoke the same key routing.
+## Useful keys and commands
 
-Existing function keys remain aliases:
+Shortcuts depend on the active screen.
+For example, `Ctrl+O` inserts a new line in Agent but opens a recipe in Workflows.
 
-- F1 Help: open/close the help modal.
-- F2 Search: open/close the centered session search popup.
-- F3 Thinking: show full thinking or a one-line summary.
-- F4 New: start an empty session when idle.
-- F5 Mode: switch Plan/Act when idle in a direct run.
-- F7 Latest: jump to the latest message.
-- F8: unused.
-- F9: focus the global menu. Left/Right selects a category; Enter opens its dropdown.
-  Up/Down browses details and actions; Enter chooses an action. Esc goes back
-  or returns to the composer. You can also click badges and actions.
-- F10 Quit: exit when idle; stop an active run first.
+| Agent action | Key or command |
+|---|---|
+| Send | Enter |
+| New line | Ctrl+O |
+| Clear draft | Ctrl+U |
+| Recall submitted input | Alt+Up / Alt+Down |
+| New session | Ctrl+N |
+| Open sessions | Ctrl+P |
+| Switch Plan / Act | F5 in a direct run, or the Agent menu |
+| Inspect tools | Ctrl+T |
+| Show full thinking | Ctrl+G |
+| Latest message | Ctrl+End |
+| Help / menus | F1 / F9 |
+| Retry failed turn | /retry |
+| Compact context | /compact |
+| Show current run facts | /status |
+| Quit | Ctrl+Q |
 
-The footer can be clicked. Disabled actions are dimmed. Below 120 columns,
-it remains one row with abbreviated labels; very small terminals omit it.
+Type `/` for local commands.
+Unknown commands show an error; they are not sent as model requests.
+Ctrl+Q stops an active run first; press again after stopping to quit.
+Ctrl+C aborts and quits immediately.
 
-## Sessions
+## Learning from a task
 
-F2 or Ctrl+P opens a centered popup over the transcript, using the same palette as
-input suggestions. Search matches session names/IDs and saved user messages
-and assistant replies, case-insensitively. Title matches rank ahead of history
-matches; empty search shows recent sessions. Results show gray ages and a
-highlighted matching excerpt. Up/Down and PgUp/PgDn move through results;
-Enter opens the session without generating a response. History matches jump
-to the matching message. Esc closes and preserves the composer draft.
+These Agent commands are experimental:
 
-Search covers user and assistant messages in the complete saved archive,
-including messages outside the compacted model context. System/harness
-instructions, reasoning, and tool output are not searched.
-Stop a running turn before switching sessions.
+- `/eval` asks a model to review the last task's saved history.
+- `/learn` asks it to propose one reusable lesson.
+- Add `N` to select an execution, or `session` for the full conversation.
+  For example, `/learn session`.
+- `/learn review` reopens the latest proposal or saved review diagnostic.
 
-In session search, use Ctrl+R to rename or Ctrl+D to confirm deletion.
-Type a follow-up to continue. Saved Plan/Act mode is restored when
-opening a direct run.
+The reviewer reads saved history. It cannot inspect current files or run tests.
+Its report is a model assessment, not a fresh verification.
+Keep the review dialog open to receive the result; Esc cancels it.
 
-Drafts, input history, and the queued follow-up are kept separately for each
-run while the UI is open. They are not persisted across app restarts. Saved
-model history and display metadata use the session store described under
-[Common launcher](#common-launcher).
+For a lesson, `S` saves, `E` edits first, and Esc/Enter skips.
+Saved lessons become workspace `skills/learned-<id>/SKILL.md` files with
+`evidence.json` beside them. Review both before sharing through Git.
+They can guide later tasks but grant no extra permissions.
 
-## Running, stopping, and permissions
+`/learn undo` retires the latest lesson saved in this app instance and workspace
+if its guide has not been edited.
+To retire an older one, rename its `SKILL.md` to `SKILL.retired.md`.
+Start a new session to exclude guidance already loaded into the conversation.
 
-During a direct run, Enter queues messages for the next model/tool boundary.
-The composer shows the pending count and a truncated preview of the latest
-message, including its image count. Ctrl+E returns the latest pending message
-and images to an empty draft; Ctrl+X discards the latest pending message.
-Earlier messages keep their order. Once the agent consumes a message, it cannot
-be recalled.
-
-Settings → Steering or `/steering on|off` controls how soon new input takes
-effect. The header shows `STEER` only when enabled. The setting is saved and
-defaults to off. With steering on, new input withholds tools that have not
-started, including calls waiting for permission. Running tools finish; their
-results and explicit skipped-call results precede the new message in history.
-Once input has caused tools to be withheld, it is accepted and cannot be
-recalled. Turning steering off does not restart withheld calls.
-
-With steering off, the current tool batch finishes before input is consumed.
-Neither mode cancels an in-flight model response or a running tool. A single
-long-running tool can still delay the next response. Permission prompts remain
-separate: a new message never grants permission. Tools show Returned when their
-execution ends, before the complete batch is processed into history.
-
-Commands and runs without a live input inbox use a separate single follow-up.
-The same edit/cancel shortcuts apply. That follow-up starts after a successful
-run if the draft is empty; failure, interruption, or a nonempty draft leaves it
-queued for editing.
-Esc stops the run and waits for cleanup; it does not quit or erase the session.
-Ctrl+Q or F10 quits when idle. During a run, it first stops the run;
-press again after stopping to quit. Ctrl+C aborts and quits immediately.
-
-Permission requests show the tool and resource with a scrollable preview:
-Y allows once, A asks for confirmation to allow the same tool/resource for
-this run, and N opens an optional redirect note. Enter submits the note;
-Esc returns from the note/confirmation step. Esc at the initial permission
-prompt denies the request. Explicit policy denial cannot be overridden.
-Question prompts accept a multiline answer with Enter.
-
-## Help and local commands
-
-F1 and `/help` open the same modal with Input, Navigate, Run, and Commands
-categories. Tab/Shift+Tab or Left/Right switches category; Up/Down,
-PgUp/PgDn, and the mouse wheel scroll. Esc, Enter, or F1 closes it.
-The draft is preserved while Help is open.
-
-- `/help`: help modal.
-- `/sessions`: session search popup.
-- `/new [task]`: start a new task; without text, reset to an empty task.
-- `/mode plan|act`: switch direct-run mode; `/mode` alone shows the mode. The
-  switch keeps the conversation and the cached prompt prefix, so it does not
-  restart the session or make the backend re-read the history.
-- `/status`: append current run facts to the transcript.
-- `/retry`: continue the last failed turn from its latest saved checkpoint.
-- `/compact`: shrink the model context when idle, preserving the conversation archive.
-- `/quit` or `/q`: quit.
-
-Unknown commands show an error and are never sent to the model. These are
-local UI commands; they are not tools or RPC methods.
+These commands are separate from the developer's [eval runner](../eval/README.md).
 
 ## Troubleshooting
 
-- Server not ready: start your model server separately and wait for loading to finish.
-- Use Ctrl+O for a newline on Windows. VT input keeps bracketed-paste boundaries
-  intact; some hosts encode Shift+Enter as plain Enter. Native mouse records
-  continue through the same adapter.
-- In ConEmu, enable Settings > Mouse > Send mouse events to console. The input
-  adapter accepts XTerm character sequences as well as native mouse records.
-  Window resizing uses the visible viewport rather than scrollback buffer size.
-- Strange scrolling: keep server logs in their own terminal. Do not redirect
-  model/server output into the full-screen UI.
-- OpenAI, llama and KoboldCPP stream automatically in the TUI. KoboldCPP may
-  buffer tool-call turns before sending their chunks. Measured prompt-processing
-  percentages require llama telemetry; other backends retain the waiting indicator.
-- Large reference rejected: use a smaller file or ask the agent to inspect
-  it with bounded file tools. Raising the generation budget does not raise
-  attachment limits.
-
-### Commander-style frame
-
-The global menu and shortcut footer each occupy one row. The run status, transcript and multiline composer use the full width. F2/Ctrl+P opens saved sessions. Top-menu clicks use the same function-key routing, including disabled actions during approval. Narrow terminals reduce visible footer controls; full bindings remain available through Help.
-
-The top row is an unbranded dropdown menu: Session, Run, View, Settings, Help. Click a category or press F9, then use Left/Right to switch categories, Up/Down to select, Enter to apply and Esc to back out. Session exposes new/search/compact/rename/delete/quit, Run exposes Plan/Act/stop/retry/permissions, View exposes the display toggles and jump/theme actions, and Settings lists the editable sections. The function-key and Ctrl shortcuts remain in the footer and Help.
-
-Each Settings entry opens a modal for that section. An unset temperature reads
-`default (0.4)`; literal greedy zero is unsupported.
-
-## Common menu flows
-
-Session opens New, Browse/search, Rename current and Delete current directly.
-Rename edits only the title. Delete requires confirmation and starts focused
-on Cancel; the delete action is unavailable while generating.
-
-Settings forms edit the user name and persona, prompt preset and base
-instructions, sampling/context budgets and the model connection. They are
-unavailable during a run. **Apply restarts the launch** so the new profile is
-composed into fresh services rather than being swapped under a session that is
-already running; the composer draft and the session directory carry across. Cancel
-discards the form without changing anything. Changes are staged until saved as a
-new profile. Save-as refuses to overwrite an existing file and stores only API-key
-environment references.
-
-Up/Down or Tab/Shift+Tab moves between single-line fields and Apply/Cancel.
-Multiline fields keep arrows for editing; Ctrl+Up/Down moves between fields. Enter moves to the next
-field or activates a button; Ctrl+O inserts a newline. Ctrl+S applies a
-non-destructive form. Mouse clicks focus fields or activate buttons. Esc closes
-the form or dropdown in one step. Keyboard menu navigation skips disabled
-actions. Read-only inspectors support arrows, PageUp/PageDown and wheel scrolling.
-
-Choice fields and protocol switches open a picker with Space or a mouse click. Forms
-expose their own Next/Apply/Cancel footer actions instead of unrelated hotkeys.
-
-## Model connection
-
-GEKTOR connects to a model server someone else started. Wait for it to report
-the model loaded, then configure its address in Settings > Model.
-
-Settings > Model selects the protocol, server address, model identifier and,
-in Advanced, the environment variable holding an API key. Focus the model
-field and press Space for models the server reports; typing a name that is
-not on that list works too, since a server need not enumerate what it serves.
-
-GEKTOR does not start, stop or restart that server. If it exits mid-run the
-next request reports a connection error.
-
-## Shared settings workspace
-
-Settings contains Model, Generation, Profiles, Application, You and Prompts.
-Edits survive section switches. Ctrl+S applies staged settings and restarts the
-launch while preserving the conversation and composer draft. Esc cancels edits.
-
-Model shows protocol, server address and model identifier. F4 reveals the API-key
-environment field. Space opens a choice list; arrows and Enter select an item.
-Model names are discovered from the configured server; manual entry is supported.
-The ChatGPT protocol uses the connected account's model catalog. Connect with
-`gektor auth login` before starting a ChatGPT run; Model settings show the active
-account. Sampling and response-limit fields are hidden because that route does
-not accept them; its context field is a local planning budget.
-File and directory pickers provide Ctrl+B browsing, Ctrl+L location entry and
-Ctrl+R refresh where applicable.
-The directory browser shows its absolute location. Click or Enter opens a
-directory; `...` goes up one level. **Use this folder** (Ctrl+S) selects the
-displayed directory as the workspace. Navigation alone never selects it.
-
-Modal headings have a close button that cancels without applying. Apply and
-Cancel sit in the footer. Long dialogs have a scrollbar; its thumb can be
-dragged. Theme choices use a compact list with the current theme selected.
-
-CLI flags override saved configuration for the current launch. Explicit Apply
-can save these effective launch settings even without further field edits.
-Global preferences live in `~/.gektor/application.json`; model and identity
-changes save a custom profile under `~/.gektor/profiles/custom`. Bundled and
-external source profiles are not overwritten.
-
-### Profiles
-
-Profiles > Load setup opens saved JSON profiles beside gektor.exe. Choosing one
-stages its configuration without applying it; Apply is a separate decision, and a
-loaded profile with no field edits after the load still commits. Changing
-categories displays staged values. Ctrl+D saves a new portable copy using the
-entered name. Existing files are never overwritten. The picker has separate
-Ctrl+D drive browsing, distinguished by its footer.
-
-See [CLI profiles](cli.md#profiles) for the JSON format and validation rules.
-
-## Common launcher
-
-    .\gektor.exe -tui
-
-The menu is Session, Run, View, Settings, Help. Run selects Plan or Act; the
-current choice is marked. Settings opens the workspace as Model, Generation,
-Profiles, Application, You and Prompts. Application selects the workspace.
-Space opens choices or file/directory pickers; edits remain staged across sections.
-Apply saves edits or effective launch overrides. Cancel discards staged values.
-
-A launch requires a workspace and starts in Plan. Act enables tool execution under
-the existing permission gates. Applying settings in an existing session preserves
-the Plan/Act choice and never starts a run.
-
-Common-launch sessions live under `~/.gektor/sessions`, with `state.json` as the
-complete archive and compacted context projection. Global settings provide
-the current service profile; the session restores its saved Plan/Act choice. Standalone CLI sessions live beside them in
-`~/.gektor/tasks`.
-
-## Panel status and manual compaction
-
-A connected horizontal rule separates the panel titles from their contents.
-The status row contains plain labels; clicking it does not open menus.
-Session > Compact history (or /compact) works while idle and uses the same
-extractive checkpoint compaction the loop applies at its own threshold. The
-model receives a summary and retained tail. The full transcript remains
-available for reading and search; a marker reports the context reduction.
-
-Automatic model checkpoints retain the goal, decisions, completed work and
-remaining work (including blockers). User instructions are preserved verbatim
-in chronological order. The harness replaces model-written evidence with the
-latest six archived tool results, including failures and subsequent edits, with
-stable archive IDs. These are execution records, not a completion verdict.
-The agent can recover originals with `read_history`, either by `start` (archive
-ID) or a literal, case-insensitive `query`. Search returns bounded excerpts;
-`next_start` continues matching messages and `offset`/`next_offset` reads a long
-original message. Older evidence remains in the archive after it leaves the
-checkpoint.
-
-## View menu
-
-Checked View options show the named content. Commands follow the separator:
-
-```text
-  Agent thinking          Ctrl+G
-✓ Agent tools
-✓ System messages
-✓ Speaker names
-✓ Message labels
-  Outlined frame
-──────────────────────────────
-  Jump to latest        Ctrl+End
-  Select Theme…
-```
-
-**Agent thinking** shows full reasoning when checked; otherwise it occupies
-one summary row sized to the available width. It does not truncate the answer.
-**Agent tools** shows complete arguments and output when checked. Otherwise a
-single row shows the action and target, with the tool name aligned right.
-Running and failed calls keep the tool name there, followed by `│ Running`
-or `│` and a short error. A checkmark on the left indicates success.
-Targets shorten to fit the window; unknown tools fall back to their name and arguments.
-Consecutive compact tool calls stack without blank lines; the group keeps its
-spacing from surrounding messages.
-**System messages** shows scaffolding history, including local notices and
-receipts. Turning it off hides those blocks; pending questions and approvals
-remain reachable in their own overlays.
-
-**Speaker names** controls participant attribution. **Message labels** controls
-the `[INPUT]`, `[THINKING]`, `[TOOL CALL]` and other block tags independently.
-With names hidden, user messages are shaded and SYSTEM blocks keep an accent
-rail. **Outlined frame** restores the connected border; minimal framing uses
-the full terminal width. Both keep the top menu and bottom hotkeys.
-
-Terminal colors are restored on focus and once more after the focus transition
-settles, so tab/window switching does not leave the host padding on its default
-background. Stale restorations are cancelled on focus loss.
-
-All six choices and theme persist globally, including launches with browser,
-backend or workspace flags. They survive Settings Apply and opening other
-sessions. Hidden content remains in the archive and model context unchanged.
-**Jump to latest** (`Ctrl+End`, `F7`) scrolls to the newest content;
-**Select Theme…** opens the Dark/Light picker.
-
-During measured prompt processing, a transient SYSTEM block in the history
-viewport separates cached input from new processing. The bar measures progress
-through uncached tokens when cache telemetry is available; otherwise it shows
-overall prompt progress with `Cached unknown`. Estimated or unavailable
-telemetry uses the usual activity indicator. Progress does not enter the
-conversation archive or model context and does not occupy the input hint area.
-Compaction uses the same SYSTEM layout with a `COMPACT` label: measured progress
-while reading input, then an animated bar while generating the summary.
-
-Outcome receipts show the outcome, session ID, saved session path and a quoted
-resume command, warnings, remaining tasks and any incomplete-work summary.
-Run errors appear once in history with recovery advice; the header retains the
-ERROR status without repeating the error above the input. `/retry` continues from
-the saved checkpoint and does not roll back workspace changes.
-
-**Observed changes** lists paths recorded as changed during the run; it is omitted
-when empty and is not a Git diff or rollback record. Command verdicts appear when
-available. A completed response without a command verdict remains unverified.
-Failed tool cards stay expanded when tool details are collapsed.
-
-Newly saved runs retain a bounded terminal-error diagnostic; reopening a failed
-session shows that error and its recorded verification. Older archives remain
-readable but cannot recover errors that were never saved. The session browser
-distinguishes unreadable archives from archives too large to index and reports
-session-store access failures instead of presenting them as an empty history.
-
-For file approval, **F4 Proposal** opens the complete diff, including new-file
-contents beyond the bounded prompt preview. Scroll with arrows, Page Up/Down
-or the mouse wheel; Esc returns to the pending gate without approving it.
-Expanded evidence is operator-only. If source content changes before approval
-is accepted, GEKTOR refreshes the proposal and asks again. This check does not
-lock files against other processes between approval and execution.
-
-## Themes and session rows
-
-View > Select Theme picks Dark or Light. Themes use shared semantic colors for primary
-text, secondary text, accent, selection, disabled controls and status. The choice
-is saved as an application preference and does not change the session, model or
-permissions. Session rows use one full-row selection highlight, including the age.
-There are no activity prefixes or competing current-session bars; the lower detail
-line names the selected session's status.
-
-## Message layout and custom setups
-
-A name row opens each run of blocks by one participant; after it, blocks
-carry only a label row and their body at the left edge. The user name
-follows Settings > You > Your name. Asterisk emphasis
-uses the theme's secondary grey in both Dark and Light; code spans retain code
-styling. Display labels and colors are never added to model message content.
-
-Applying model, identity, prompt or generation changes automatically saves a
-setup under `profiles/custom` and selects it as the profile source. Further
-changes update that custom profile atomically. Bundled and external source
-profiles remain intact. Profiles can load these setups or save a named copy.
-A workspace change alone does not create a custom profile.
-
-## Prompt presets
-
-Settings > Prompts > Prompt preset selects a reusable response style. Custom (the
-default) keeps the base prompts and profile settings without adding preset
-instructions. Concise, Coding, Investigation and Explanation add a style section
-to the compiled instruction. Conversation adds a natural, direct conversational
-style. Presets affect presentation; tools, permissions and Plan/Act constraints
-remain controlled by the harness.
-
-The picker describes each preset. Settings > Prompt preview shows the applied
-preset and its compiled instructions — the profile's contribution to the system
-prompt, not the agent's own Plan/Act instructions, which are not configurable.
-Apply saves the selection in the custom profile as `identity.prompt_preset`.
-
-Preset text can reference `{{assistant}}`, `{{user}}` and `{{persona}}`, which
-are substituted when identity is compiled. Raw profile system/post-history text
-is passed through rather than expanded as a template; recognized unresolved
-name macros produce warnings and remain literal text.
-
-## Experimental session retrospective
-
-`/eval` reviews the last archived execution in a fresh model context while the
-task is idle. `/eval N` selects an execution number; `/eval session` selects the
-whole session. Add a focus after an explicit scope, for example
-`/eval last check the test evidence`. Old sessions without recorded execution
-boundaries require `/eval session`; GEKTOR does not guess task boundaries.
-
-While the evaluation runs, its dialog shows the selected scope, request excerpt,
-observed stage, elapsed time, model step budget and number of archive messages
-inspected. Reading an excerpt counts as inspecting a message; it does not mean the entire message
-was read. Model requests currently wait for a complete response, so the dialog
-reports that wait rather than inventing generation progress. Esc or Enter
-cancels the evaluation; keep the dialog open to receive its result.
-
-The reviewer reads the full JSON archive, including messages hidden by any number
-of compactions, in bounded pages. Run boundaries use archive indices. Retries and
-answers to `ask_user` retain the preceding task in scope, so ranges may overlap.
-The dialog reports inspected messages and partial reads. Twelve model steps limit
-the review; a long session can exceed that budget, so coverage is not guaranteed.
-Esc cancels. Task history, draft, step budget and token meter stay unchanged.
-
-The report is the model's assessment of historical evidence, not an independent
-correctness verdict. The reviewer has only `read_history` and `submit_evaluation`:
-it cannot run tests, inspect current files, edit code or delegate. Findings must
-cite messages actually read in the selected scope. The latest report replaces
-`evaluation.json` next to that session's `state.json`.
-
-### Learning from a task
-
-Run `/learn` when a task exposed a correction worth reusing. It reviews the last
-execution; `/learn N` and `/learn session` select another scope. A focus follows
-an explicit scope, for example `/learn last avoid repeating the test setup mistake`.
-There is no automatic background review after tasks and no inference cost on save.
-The same bounded retrospective model calls are used as for `/eval`.
-
-The result offers at most one lesson, showing when it applies, a procedure and
-quoted historical evidence. Press **S** to save, **E** to edit before saving, or
-**Esc/Enter** to skip. An empty result needs no approval. `/eval` no longer saves
-observations automatically: press **R** in its result to review a proposed lesson.
-
-`/learn review` reopens this session's latest proposal without another model call,
-including after a restart. When saved failure diagnostics are available, it shows
-them instead: completed steps, archive coverage and the last rejected submission,
-when available. These are stored in `evaluation-failure.json` beside
-the session archive and cleared after a successful review. Retrying starts a fresh
-review; it does not resume the failed reviewer. The source archive must still match
-before saving.
-Existing `skills/project-memory/SKILL.md` files are left unchanged.
-
-Approved lessons become individual `skills/learned-<id>/SKILL.md` packages.
-Their conditions appear in ordinary skill discovery on the next task, including
-follow-ups without restarting the app. Full guides are loaded only when selected
-by the agent; retrieval and usefulness are not guaranteed. No extra tool
-permissions are granted. Identical approved text is deduplicated; existing edited
-files are never overwritten. Each directory includes `evidence.json` with the
-original proposal, quoted successful-tool excerpts, message IDs and archive hash,
-so those excerpts survive later session changes. Whole tool outputs are not copied.
-Review both files before sharing through Git.
-
-`/learn undo` disables the most recently saved lesson in this app instance and
-workspace by renaming its guide to `SKILL.retired.md`; it preserves the evidence
-and refuses to change an edited guide. Saving an identical retired lesson again
-explicitly reactivates it. To retire any older lesson, rename its `SKILL.md` in the
-same way; edit ordinary skill files to correct them. Retirement affects future
-discovery, not text already loaded into a conversation; start a fresh session to
-exclude that text.
-
-The quote check establishes provenance, not truth or causality. Approval means
-user-reviewed guidance, not independently tested knowledge. There is no automatic
-repo-drift detection or retirement based on outcome statistics. Lessons instruct
-the agent to check current files before use. A changed archive between review and
-approval requires a fresh review. Cancelling or skipping does not create a skill.
-
-This TUI command is distinct from `cmd/eval`, the repeatable scenario benchmark.
-
-## Follow-up messages
-
-While the agent is running, Enter sends ordinary text to the current run.
-Messages wait until the current model/tool step completes, then enter history
-in submission order, including resolved file references and images. A pending
-count stays visible until delivery. This does not reset the step budget or
-interrupt a tool. Commands that replace the session or change run settings
-still wait for the run to finish. Messages received during cancellation or
-failure are saved in history for an explicit retry. A message racing normal
-completion uses the existing follow-up queue instead.
-
-## Pasted image paths
-
-Some terminals handle Ctrl+V themselves and deliver a filename instead of a key
-press. Pasting a single absolute image path (optionally quoted) into the composer
-imports a snapshot as an attachment, including files outside the workspace.
-Paste each image separately, then add your message. Ordinary text stays text;
-typed paths and agent tools keep their workspace restrictions.
-
-## Request diagnostics
-
-TUI sessions write `diagnostics.jsonl` beside `state.json`. It records timestamps,
-run/request/attempt identifiers, request phases, completion status, and tool call
-boundaries. It excludes prompts, reasoning, tool arguments/results, credentials,
-and response bodies. The log rotates at 2 MiB and retains one previous file.
-
-ChatGPT connection setup uses the HTTP transport's bounded dial and TLS waits;
-response headers have a 90-second limit. Once streaming starts, five minutes
-without a stream line stops the request. Active generation retains the separate
-two-hour overall ceiling. Waiting and retry phases appear above the composer.
-These transport limits apply to ChatGPT, not local-model loading or generation.
-
-## Windows Terminal margins
-
-Gektor themes only the character grid and leaves the terminal's default colors alone.
-The pixels outside that grid belong to the terminal host, not PowerShell or the
-TUI. Windows Terminal uses its default background for padding and leftover pixels;
-a host reset can expose a dark outline around a light grid.
-
-For a dedicated light-theme terminal profile, set its background to `#F2F4F6`
-(and foreground to `#253542`). Gektor's dark background is `#11161C`. Matching the
-profile keeps the margin consistent even when the host restores its defaults.
-Setting padding to zero alone cannot remove fractional-cell pixels in maximized
-windows. Gektor does not override terminal colors on startup, focus, or typing.
-
-## Tool inspector
-
-Click the tool name on the left to open its details. From the keyboard, press Ctrl+T, select a
-call with Up/Down, then press Enter. The right pane shows full arguments and
-available output; delegated calls show the child's conversation and streamed
-answer or reasoning summary when the provider supplies one.
-
-The two panes share the top menu and bottom action bar, have matching widths
-and height, and follow the same outline setting. Only the left-hand tool name
-opens details; arguments, output, and scrollbar clicks do not.
-
-The inspector is read-only. Tab switches focus between it and the parent
-composer. Up/Down, Page Up/Down, Home/End and the mouse wheel scroll the inspector;
-Esc or its close button closes it. Ctrl+T can select another parent tool without
-opening nested panes. The parent draft remains intact. Below 100 columns the
-inspector takes the full width; Esc returns to the conversation. Permission and
-question dialogs retain priority.
-
-New delegated runs save separate histories under the parent session's
-`children` directory. Reopened sessions can inspect those histories. Older runs
-without saved child history show the returned tool result instead. Child events
-do not become parent transcript messages or replace the parent's context meter.
-
-MCP servers are managed through Settings → MCP servers or `/mcp`. The shared
-forms cover saved definitions, JSON import, enabled state, loading policy, and
-connection actions. Details shows the tool count and last connection error.
-Connection changes wait until the agent turn has finished. See [extensions](extensions.md).
-
-## Workflow workspace
-
-From Chat, open **Workflows → Editor**, or enter `/workflows`. The editor changes the top menus to **Workflow / Node / Run / View / Settings / Help**. Workflow handles files and recipe settings; Node handles adding, editing and connecting; Run handles execution and saved runs. With canvas focus, `Esc` returns to Chat and keeps the draft in memory. Finish an active agent turn before opening the editor.
-
-- `Ctrl+O` opens a recipe form with a JSON file chooser rooted at the workspace; `Ctrl+N` starts one; `Ctrl+S` saves.
-- `A` adds a registered operation. `Enter` edits its arguments; `E` edits review, dependencies, conditions, iteration and retry settings. `J` retains complete recipe JSON editing.
-- `M` edits the recipe name. `U` manages named inputs with type, required and optional JSON default fields. `O` manages named output values, using JSON literals or references. These controls are also under **Workflow → Recipe settings**. Existing input/output names are fixed; remove and add explicitly when changing a contract. Removal does not rewrite references, so validate afterward. Each change supports undo/redo.
-- Node cards have left input and right output ports: `○` is unconnected, `●` connected. Click an output then an input to open the mapping form; Esc cancels port selection. Saved-run ports inspect instead of editing.
-- `C` connects nodes. Choose the source and destination, then select Run after or an argument from the destination schema. The next form shows the current destination value before replacement. Choose a source-field hint where its output schema supplies one, or enter a manual JSON pointer; hints do not guarantee runtime values. Solid connections carry data; dashed connections only order execution. Execution remains sequential. Routes avoid cards, join corners and emphasize selected-node links. Duplicate ordering/data links share one route; data takes visual precedence. `╪` marks crossing tracks, not an extra dependency. An output port marked `!` means a route could not be drawn within the bounded search, often because cards overlap; move cards apart or use auto-layout. The recipe connection remains intact.
-- `B`, or **Node → Connections**, lists incoming and outgoing connections for the selected node, including nested arguments, conditions and iteration references. Edit changes the source or mapping through the same forms; Remove confirms the current value before deleting the dependency or reference. Removing a required argument shows a validation issue rather than filling a default. Each change supports undo/redo; connections in stored runs are read-only.
-- Arrows select nodes, `Shift+arrows` move them, and `Alt+arrows` pan. Mouse clicks select; dragging a card moves it. Drag empty space or use the middle mouse button to pan in both directions. Shift+wheel and horizontal wheel events pan horizontally; ordinary wheel events pan vertically. `L` restores the layout; `F` shows a compact overview. `Ctrl+T` or **View → Inspector** opens/closes the inspector. It splits the canvas on wide terminals and uses the full width on narrow ones. `Tab` switches pane focus; `Esc` closes the focused inspector, and its pinned `[x]` control closes it by mouse. Long values wrap; its scrollbar supports clicking and dragging.
-- `Ctrl+Z` / `Ctrl+Y` undo and redo recipe edits. Canvas positions are stored separately under `~/.gektor/workflow-layouts/`.
-- `V` validates with input values. `R` runs a snapshot of the draft through the existing workflow service and permission policy. Declared inputs offer generated fields or a JSON object. Strings are literal text; other types use JSON, with boolean choices. Use default omits a key, Provide supplies it (including an empty string), and optional inputs without defaults can be omitted. Both formats check types and required values before submission. `Esc` requests cancellation; it does not undo completed effects.
-- Validation errors focus the affected node and inspector when a schema location or explicit step ID identifies one. The error dialog includes the value path when available. Unknown/global errors retain the current selection; navigation never edits the recipe.
-- `H` opens saved runs. Their definitions and resolved arguments are read-only. `P` approves or rejects a waiting review; completed operations are not repeated. `D` returns to the draft.
-- `I` asks the connected model for a recipe proposal. Review the before/after changes, then press `S` to apply to the draft or `Esc` to discard. This call has no tools and cannot save or execute the recipe.
-- `F1` shows all shortcuts; `F9` opens the main menu.
-
-New node types appear from the existing registry and JSON schemas. Complex values remain editable as JSON. AI is optional; manual editing and execution do not require a model.
+| Problem | What to check |
+|---|---|
+| Cannot connect to a local model | Is the server loaded? Do protocol and address in Model settings match it? |
+| Mouse does nothing | Check that the terminal sends mouse events; in ConEmu, check its mouse settings |
+| Ctrl+V does not attach a screenshot | Use Ctrl+Alt+V or /paste-image |
+| Cannot edit a workflow node | Are you viewing a saved run? Return to draft with D |
+| Cannot move nodes | Turn off Lock node positions in View |
+| A workflow input asks for JSON | Use the expected type; lists can use comma-separated values |
+| Need full failure details | Open the step's Result tab or the Agent tool inspector |
+
+Agent sessions keep `diagnostics.jsonl` beside `state.json`.
+It records request phases and tool boundaries, without message bodies or tool
+arguments/results. It rotates at 2 MiB and retains one previous file.
+
+Terminal margins belong to the terminal application.
+For matching margins, use background `#F2F4F6` for the light theme or
+`#11161C` for the dark theme in your terminal profile.
+
+See [setup and saved data](bootstrap.md), [workflow reference](workflows.md)
+and [security](../SECURITY.md) for more detail.

@@ -4,7 +4,6 @@ package graph
 import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/gektor/internal/tui/components/cell"
 	"strings"
 )
 
@@ -12,13 +11,18 @@ type Point struct {
 	X int `json:"x"`
 	Y int `json:"y"`
 }
+type Port struct {
+	Key, Label string
+}
 type Node struct {
 	ID, Label, Detail string
+	Inputs, Outputs   []Port
 	Point
 }
 type Edge struct {
-	From, To string
-	Data     bool
+	From, To         string
+	FromPort, ToPort string
+	Data             bool
 }
 type Model struct {
 	Compact  bool
@@ -28,8 +32,8 @@ type Model struct {
 	Pan      Point
 }
 
-const NodeWidth = 24
-const NodeHeight = 5
+const NodeWidth = 32
+const NodeHeight = 8
 
 func (m Model) nodeWidth() int {
 	if m.Compact {
@@ -37,11 +41,27 @@ func (m Model) nodeWidth() int {
 	}
 	return NodeWidth
 }
-func (m Model) nodeHeight() int {
+func (n Node) Height() int { return 7 + max(1, len(n.Inputs), len(n.Outputs)) }
+func (m Model) height(n Node) int {
 	if m.Compact {
 		return 3
 	}
-	return NodeHeight
+	return n.Height()
+}
+func (m Model) portRow(n Node, key string, output bool) int {
+	if m.Compact {
+		return 1
+	}
+	ports := n.Inputs
+	if output {
+		ports = n.Outputs
+	}
+	for i, p := range ports {
+		if p.Key == key {
+			return 4 + i
+		}
+	}
+	return 4
 }
 
 // Overview returns a compact, temporary layout. Original positions are untouched.
@@ -61,7 +81,7 @@ func (m *Model) Hit(x, y int) string {
 	y += m.Pan.Y
 	for i := len(m.Nodes) - 1; i >= 0; i-- {
 		n := m.Nodes[i]
-		if x >= n.X && x < n.X+m.nodeWidth() && y >= n.Y && y < n.Y+m.nodeHeight() {
+		if x >= n.X && x < n.X+m.nodeWidth() && y >= n.Y && y < n.Y+m.height(n) {
 			return n.ID
 		}
 	}
@@ -94,8 +114,8 @@ func (m *Model) Reveal(w, h int) {
 		if n.X+m.nodeWidth() > m.Pan.X+w {
 			m.Pan.X = max(0, n.X+m.nodeWidth()-w)
 		}
-		if n.Y+m.nodeHeight() > m.Pan.Y+h {
-			m.Pan.Y = max(0, n.Y+m.nodeHeight()-h)
+		if n.Y+m.height(n) > m.Pan.Y+h {
+			m.Pan.Y = max(0, n.Y+m.height(n)-h)
 		}
 	}
 }
@@ -125,19 +145,19 @@ func (m Model) View(w, h int, normal, selected lipgloss.Style) string {
 	for _, n := range m.Nodes {
 		nodes[n.ID] = n
 	}
-	incoming, outgoing := map[string]bool{}, map[string]bool{}
+	incoming, outgoing := map[[2]string]bool{}, map[[2]string]bool{}
 	budget := 30000
-	failed := map[string]bool{}
+	failed := map[[2]string]bool{}
 	for _, e := range m.edges() {
 		a, ok := nodes[e.From]
 		b, ok2 := nodes[e.To]
 		if !ok || !ok2 {
 			continue
 		}
-		incoming[e.To], outgoing[e.From] = true, true
-		path := m.route(a, b, used, &budget)
+		incoming[[2]string{e.To, e.ToPort}], outgoing[[2]string{e.From, e.FromPort}] = true, true
+		path := m.routeEdge(a, b, e.FromPort, e.ToPort, used, &budget)
 		if len(path) == 0 {
-			failed[a.ID] = true
+			failed[[2]string{a.ID, e.FromPort}] = true
 		}
 		for i, p := range path {
 			stroke := strokes[p]
@@ -199,29 +219,7 @@ func (m Model) View(w, h int, normal, selected lipgloss.Style) string {
 		rows[y] = row.String()
 	}
 	for _, n := range m.Nodes {
-		box := []string{"┌" + strings.Repeat("─", m.nodeWidth()-2) + "┐", "│" + cell.Line(ansi.Strip(n.ID), m.nodeWidth()-2) + "│", "│" + cell.Line(ansi.Strip(n.Label), m.nodeWidth()-2) + "│", "│" + cell.Line(ansi.Strip(n.Detail), m.nodeWidth()-2) + "│", "└" + strings.Repeat("─", m.nodeWidth()-2) + "┘"}
-		if m.Compact {
-			box = []string{box[0], box[1], box[len(box)-1]}
-		}
-		portRow := m.nodeHeight() / 2
-		inPort, outPort := '○', '○'
-		if incoming[n.ID] {
-			inPort = '●'
-		}
-		if outgoing[n.ID] {
-			outPort = '●'
-		}
-		if failed[n.ID] {
-			outPort = '!'
-		}
-		port := []rune(box[portRow])
-		port[0] = inPort
-		port[len(port)-1] = outPort
-		box[portRow] = string(port)
-		style := normal
-		if n.ID == m.Selected {
-			style = selected
-		}
+		box := m.card(n, normal, selected, incoming, outgoing, failed)
 		for j, s := range box {
 			y := n.Y + j - m.Pan.Y
 			x := n.X - m.Pan.X
@@ -231,7 +229,7 @@ func (m Model) View(w, h int, normal, selected lipgloss.Style) string {
 			start := max(x, 0)
 			end := min(x+m.nodeWidth(), w)
 			segment := ansi.Cut(s, start-x, end-x)
-			rows[y] = ansi.Cut(rows[y], 0, start) + style.Render(segment) + ansi.Cut(rows[y], end, w)
+			rows[y] = ansi.Cut(rows[y], 0, start) + segment + ansi.Cut(rows[y], end, w)
 		}
 	}
 	return strings.Join(rows, "\n")

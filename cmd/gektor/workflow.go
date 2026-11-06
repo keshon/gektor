@@ -169,7 +169,7 @@ func workflowDraftOptions(args []string) (launchOptions, error) {
 	if err != nil {
 		return o, err
 	}
-	for _, name := range []string{"tui", "serve", "resume", "fork", "answer", "plan", "verify-cmd", "images", "mcp", "browser", "browser-profile", "browser-headless", "capabilities", "check-profile", "context-report"} {
+	for _, name := range []string{"tui", "tui-screen", "serve", "resume", "fork", "answer", "plan", "verify-cmd", "images", "mcp", "browser", "browser-profile", "browser-headless", "capabilities", "check-profile", "context-report"} {
 		if o.explicitFlags[name] {
 			return o, fmt.Errorf("workflow draft does not support -%s", name)
 		}

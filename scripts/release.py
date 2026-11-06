@@ -21,12 +21,17 @@ def main():
     # Explicit runtime kit. Never glob local files: .env can contain credentials.
     common = ["README.md", "LICENSE", "SECURITY.md", "ARCHITECTURE.md", ".env.example"]
     common += subprocess.check_output(
-        ["git", "ls-files", "docs", "skills", "profiles", "eval/README.md"], text=True
+        ["git", "ls-files", "--cached",
+         "docs", "skills", "profiles", "examples/workflows", "eval/README.md",
+         "demos/README.md", "scripts/README.md"], text=True
     ).splitlines()
     windows = [
-        "run-tui.cmd", "scripts/run-task.cmd", "scripts/run-plan.cmd",
+        "start-gektor-agent.cmd", "start-gektor-workflows.cmd",
+        "run-gektor-agent.cmd", "run-gektor-workflow.cmd", "serve-gektor-workflows.cmd",
+        "scripts/run-task.cmd", "scripts/run-plan.cmd",
         "scripts/run-resume.cmd", "scripts/ensure-build.cmd",
-        "scripts/README.md",
+        "demos/agent-task.cmd", "demos/workflow-draft.cmd", "demos/workflow-review.cmd",
+        "demos/demo.ps1",
     ]
     for name in common + windows:
         if not (root / name).is_file():

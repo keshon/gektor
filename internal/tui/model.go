@@ -33,6 +33,7 @@ import (
 // workspace, tools, policy, budgets); gate behavior comes from the TUI,
 // so Env.Gate is overridden, never read.
 type Config struct {
+	StartScreen      string
 	MCP              *mcpmanager.Manager
 	SessionDirectory string
 	Application      *Application
@@ -81,6 +82,7 @@ type doneMsg struct {
 type tickMsg time.Time
 type liveFlushMsg struct{}
 type model struct {
+	startWorkflows   bool
 	workflows        *workflowWorkspace
 	steering         bool
 	inspector        toolInspector
@@ -343,18 +345,19 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		setTheme(cfg.Application.Preferences.Theme)
 	}
 	m := &model{
-		identityName: cfg.Env.IdentityName,
-		identityUser: cfg.Env.UserName,
-		events:       eventsCh,
-		hub:          hub,
-		cancel:       cancel,
-		base:         uiCtx,
-		started:      time.Now(),
-		styles:       defaultStyles(),
-		limit:        cfg.Env.ContextLimit,
-		maxSteps:     envMaxSteps(cfg.Env),
-		transcript:   newTranscript(),
-		plan:         cfg.Plan,
+		startWorkflows: cfg.StartScreen == "workflows",
+		identityName:   cfg.Env.IdentityName,
+		identityUser:   cfg.Env.UserName,
+		events:         eventsCh,
+		hub:            hub,
+		cancel:         cancel,
+		base:           uiCtx,
+		started:        time.Now(),
+		styles:         defaultStyles(),
+		limit:          cfg.Env.ContextLimit,
+		maxSteps:       envMaxSteps(cfg.Env),
+		transcript:     newTranscript(),
+		plan:           cfg.Plan,
 
 		stateFile: cfg.StateFile,
 		note:      newNote(),

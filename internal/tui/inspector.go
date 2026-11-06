@@ -203,10 +203,28 @@ func (m *model) composeInspector(content string) string {
 	if left == 0 {
 		hint = "Esc return to conversation · ↑↓ scroll"
 	}
+	rows := m.inspectionRows(heading, hint, m.inspector.pane.View(), width, m.inspector.pane.Viewport.Height())
+	base := strings.Split(content, "\n")
+	for i, row := range rows {
+		y := i + 1 // The menu belongs to the whole screen.
+		if y >= len(base) {
+			break
+		}
+		if left == 0 {
+			base[y] = cellLine(row, width)
+		} else {
+			base[y] = cellLine(ansi.Truncate(base[y], left, ""), left) + cellLine(row, width)
+		}
+	}
+	return strings.Join(base, "\n")
+}
+
+// inspectionRows keeps chat and workflow panels aligned without sharing their content or state.
+func (m *model) inspectionRows(heading, hint, body string, width, bodyHeight int) []string {
 	inner := max(width-2*m.promptOffset(), 1)
 	rule := m.styles.dim.Render(strings.Repeat("─", inner))
 	rows := []string{rule, cellLine(m.styles.gate.Render(heading), max(inner-3, 0)) + " × ", rule}
-	rows = append(rows, strings.Split(cellFrame(m.inspector.pane.View(), inner, m.inspector.pane.Viewport.Height()), "\n")...)
+	rows = append(rows, strings.Split(cellFrame(body, inner, bodyHeight), "\n")...)
 	rows = append(rows, cellLine(m.styles.dim.Render(hint), inner))
 	if m.actionBarVisible() {
 		rows = append(rows, rule)
@@ -234,19 +252,7 @@ func (m *model) composeInspector(content string) string {
 			}
 		}
 	}
-	base := strings.Split(content, "\n")
-	for i, row := range rows {
-		y := i + 1 // The menu belongs to the whole screen.
-		if y >= len(base) {
-			break
-		}
-		if left == 0 {
-			base[y] = cellLine(row, width)
-		} else {
-			base[y] = cellLine(ansi.Truncate(base[y], left, ""), left) + cellLine(row, width)
-		}
-	}
-	return strings.Join(base, "\n")
+	return rows
 }
 
 func (m *model) inspectorKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {

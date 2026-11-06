@@ -406,7 +406,8 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		services := prepared
 		app := applicationControl(launch, profile, o.profilePath, o.workspace)
 		answer, err := tui.Run(ctx, tui.Config{
-			MCP: managedMCP, Application: app, Services: &services, SeedHistory: launch.history, InitialDraft: launch.draft, InitialImages: launch.images, SessionDirectory: launch.directory,
+			StartScreen: o.tuiScreen,
+			MCP:         managedMCP, Application: app, Services: &services, SeedHistory: launch.history, InitialDraft: launch.draft, InitialImages: launch.images, SessionDirectory: launch.directory,
 			BackendURL:   o.backendURL,
 			AccountLabel: accountLabel,
 			Plan:         o.plan,

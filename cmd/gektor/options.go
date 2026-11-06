@@ -47,6 +47,7 @@ type launchOptions struct {
 	outputMode       string
 	serve            bool
 	tui              bool
+	tuiScreen        string
 	images           string
 	profilePath      string
 	checkProfile     bool
@@ -117,6 +118,7 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	flags.StringVar(&o.outputMode, "mode", "print", "output mode: print (human-readable) or json (one JSON object per line)")
 	flags.BoolVar(&o.serve, "serve", false, "serve JSON-RPC over stdio instead of running one task: methods run/respond/cancel, events on stdout. See docs/rpc.md")
 	flags.BoolVar(&o.tui, "tui", false, "fullscreen terminal UI instead of print mode: live transcript, status, and gate prompts")
+	flags.StringVar(&o.tuiScreen, "tui-screen", "agent", "initial TUI screen: agent or workflows; requires -tui")
 	flags.StringVar(&o.images, "image", "", "attach pictures to the task (comma-separated paths): the model sees them alongside the text. Needs a vision-capable backend (llama-server with --mmproj); koboldcpp refuses loudly")
 	flags.StringVar(&o.profilePath, "profile", "", "path to a versioned JSON provider and generation profile; explicit flags override it")
 	flags.BoolVar(&o.checkProfile, "check-profile", false, "validate and print a profile without contacting or starting its backend")
@@ -143,6 +145,15 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 		o.explicitFlags[f.Name] = true
 	})
 	o.task = strings.Join(flags.Args(), " ")
+	if o.tuiScreen != "agent" && o.tuiScreen != "workflows" {
+		return o, fmt.Errorf("-tui-screen must be agent or workflows")
+	}
+	if o.explicitFlags["tui-screen"] && !o.tui {
+		return o, fmt.Errorf("-tui-screen requires -tui")
+	}
+	if o.tuiScreen == "workflows" && (o.task != "" || o.resume != "" || o.fork != "" || o.serve) {
+		return o, fmt.Errorf("-tui-screen workflows cannot start an Agent task, resume, fork or RPC service")
+	}
 	return o, nil
 }
 

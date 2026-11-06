@@ -62,13 +62,19 @@ func (m *model) openMCP() {
 	m.openForm("MCP servers", "Saved connections · changes are available between agent turns.", "Continue", []formField{{Key: "mcp-server", Label: "Server", Value: selected}, {Key: "mcp-action", Label: "Action", Value: action}}, func(v map[string]string) error {
 		id, _, _ := strings.Cut(v["mcp-server"], " · ")
 		a := strings.ToLower(v["mcp-action"])
-		if a != "add" && a != "import" && id == "" {
+		switch a {
+		case "paste json":
+			a = "import-json"
+		case "import file":
+			a = "import"
+		}
+		if a != "add" && a != "import" && a != "import-json" && id == "" {
 			return fmt.Errorf("select a server")
 		}
 		m.queueMCP(a, id)
 		return nil
 	})
-	m.dialog.form.Choices = map[string][]string{"mcp-server": options, "mcp-action": {"Details", "Connect", "Disconnect", "Reconnect", "Enable", "Disable", "Edit", "Delete", "Add", "Import"}}
+	m.dialog.form.Choices = map[string][]string{"mcp-server": options, "mcp-action": {"Details", "Connect", "Disconnect", "Reconnect", "Enable", "Disable", "Edit", "Delete", "Add", "Paste JSON", "Import file"}}
 }
 func (m *model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 	if m.mcp == nil {
@@ -136,13 +142,25 @@ func (m *model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 			return nil
 		})
 		m.dialog.form.Choices = map[string][]string{"enabled": {"on", "off"}, "loading": {"on demand", "at startup"}}
-	case "import":
-		m.openForm("Import MCP servers", "Select a JSON file containing mcpServers. Credentials are stored separately.", "Import", []formField{{Key: "path", Label: "Configuration file"}, {Key: "replace", Label: "Replace existing servers", Value: "off"}}, func(v map[string]string) error {
-			raw, e := os.ReadFile(strings.Trim(v["path"], "\""))
-			if e != nil {
-				return e
+	case "import", "import-json":
+		title := "Import MCP file"
+		hint := "Select a JSON file containing mcpServers. Credentials are stored separately."
+		field := formField{Key: "path", Label: "Configuration file"}
+		if a.action == "import-json" {
+			title = "Paste MCP configuration"
+			hint = "Paste the JSON object containing mcpServers. Credentials are stored separately."
+			field = formField{Key: "json", Label: "JSON configuration", Multiline: true}
+		}
+		m.openForm(title, hint, "Import", []formField{field, {Key: "replace", Label: "Replace existing servers", Value: "off"}}, func(v map[string]string) error {
+			raw := []byte(v["json"])
+			if a.action == "import" {
+				var e error
+				raw, e = os.ReadFile(strings.Trim(v["path"], "\""))
+				if e != nil {
+					return e
+				}
 			}
-			if _, e = m.mcp.Import(raw, v["replace"] == "on"); e != nil {
+			if _, e := m.mcp.Import(raw, v["replace"] == "on"); e != nil {
 				return e
 			}
 			m.queueMCP("list", "")

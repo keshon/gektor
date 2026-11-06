@@ -15,17 +15,18 @@ import (
 
 type Resolver func(name, origin string) (header, value, secret string, err error)
 type input struct {
-	URL        string            `json:"url"`
-	Method     string            `json:"method"`
-	Headers    map[string]string `json:"headers"`
-	Body       json.RawMessage   `json:"body"`
-	Credential string            `json:"credential"`
-	Timeout    int               `json:"timeout_seconds"`
+	URL          string            `json:"url"`
+	Method       string            `json:"method"`
+	Headers      map[string]string `json:"headers"`
+	Body         json.RawMessage   `json:"body"`
+	Credential   string            `json:"credential"`
+	Timeout      int               `json:"timeout_seconds"`
+	StatusAsData bool              `json:"status_as_data"`
 }
 
 func Definition(resolve Resolver) automation.Node { return definition(resolve, nil) }
 func definition(resolve Resolver, transport http.RoundTripper) automation.Node {
-	schema := json.RawMessage(`{"type":"object","properties":{"url":{"type":"string","minLength":1},"method":{"type":"string","enum":["GET","POST","PUT","PATCH","DELETE","HEAD"]},"headers":{"type":"object","properties":{"Accept":{"type":"string"},"Content-Type":{"type":"string"}},"additionalProperties":false},"body":{},"credential":{"type":"string","pattern":"^[a-zA-Z0-9_-]{1,64}$"},"timeout_seconds":{"type":"integer","minimum":1,"maximum":120}},"required":["url"],"additionalProperties":false}`)
+	schema := json.RawMessage(`{"type":"object","properties":{"url":{"type":"string","minLength":1},"method":{"type":"string","enum":["GET","POST","PUT","PATCH","DELETE","HEAD"]},"headers":{"type":"object","properties":{"Accept":{"type":"string"},"Content-Type":{"type":"string"}},"additionalProperties":false},"body":{},"credential":{"type":"string","pattern":"^[a-zA-Z0-9_-]{1,64}$"},"timeout_seconds":{"type":"integer","minimum":1,"maximum":120},"status_as_data":{"type":"boolean"}},"required":["url"],"additionalProperties":false}`)
 	parse := func(raw json.RawMessage) (input, error) {
 		var in input
 		if err := json.Unmarshal(raw, &in); err != nil {
@@ -44,7 +45,7 @@ func definition(resolve Resolver, transport http.RoundTripper) automation.Node {
 		}
 		return in, err
 	}
-	return automation.Node{Name: "http_request", Version: 1, Description: "One public HTTP request with explicit method, JSON body and optional origin-bound credential reference. Redirects and automatic retries are disabled. Returns status_code, body and parsed JSON data when available.", InputSchema: schema,
+	return automation.Node{Name: "http_request", Version: 1, Description: "One public HTTP request with explicit method, JSON body and optional origin-bound credential reference. No redirects or automatic retries. Returns status_code, selected response headers, body and parsed JSON data. status_as_data returns non-2xx responses without failing; network and response-read errors still fail.", InputSchema: schema,
 		Validate: func(raw json.RawMessage) error { _, err := parse(raw); return err },
 		Resources: func(raw json.RawMessage) ([]string, error) {
 			in, err := parse(raw)
@@ -111,7 +112,16 @@ func definition(resolve Resolver, transport http.RoundTripper) automation.Node {
 				return "", fmt.Errorf("HTTP response exceeds 256 KiB")
 			}
 			safe := redact(string(body))
-			result := map[string]any{"status_code": response.StatusCode, "body": safe}
+			headers := map[string]string{}
+			for _, name := range []string{"Content-Type", "Retry-After", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"} {
+				if value := response.Header.Get(name); value != "" {
+					if len(value) > 4096 {
+						return "", fmt.Errorf("HTTP response header %s exceeds 4 KiB", name)
+					}
+					headers[strings.ToLower(name)] = redact(value)
+				}
+			}
+			result := map[string]any{"status_code": response.StatusCode, "headers": headers, "body": safe}
 			if json.Valid([]byte(safe)) {
 				result["data"] = json.RawMessage(safe)
 			}
@@ -119,7 +129,7 @@ func definition(resolve Resolver, transport http.RoundTripper) automation.Node {
 			if err != nil {
 				return "", err
 			}
-			if response.StatusCode < 200 || response.StatusCode >= 300 {
+			if !in.StatusAsData && (response.StatusCode < 200 || response.StatusCode >= 300) {
 				return string(out), fmt.Errorf("HTTP status %d; request was not retried", response.StatusCode)
 			}
 			return string(out), nil

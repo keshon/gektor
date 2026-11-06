@@ -3,6 +3,7 @@ package record
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/keshon/gektor/internal/automation/store"
 
@@ -28,7 +29,7 @@ func (t Operation) Description() string {
 	if t.Write {
 		return "Create or update a record in this workspace's user store. Kind needs an operator-registered schema. expected_revision: 0 creates; updates require the last read revision. Conflicts fail without overwriting."
 	}
-	return "Read a record by kind and id from this workspace's user store, including data and its revision."
+	return "Read a record by kind and id, including data and revision. allow_missing returns found:false, revision:0 and data:null for a missing record. The kind must still have a registered schema."
 }
 func (t Operation) ReadOnly() bool { return !t.Write }
 func (t Operation) Schema() json.RawMessage {
@@ -37,6 +38,8 @@ func (t Operation) Schema() json.RawMessage {
 	if t.Write {
 		properties += `,"expected_revision":{"type":"integer","minimum":0,"maximum":18446744073709551614},"data":{"type":"object"}`
 		required += `,"expected_revision","data"`
+	} else {
+		properties += `,"allow_missing":{"type":"boolean"}`
 	}
 	return json.RawMessage(`{"type":"object","properties":{` + properties + `},"required":[` + required + `],"additionalProperties":false}`)
 }
@@ -54,10 +57,11 @@ func (t Operation) Run(ctx context.Context, args json.RawMessage) (string, error
 		return "", err
 	}
 	var in struct {
-		Kind     string          `json:"kind"`
-		ID       string          `json:"id"`
-		Revision uint64          `json:"expected_revision"`
-		Data     json.RawMessage `json:"data"`
+		Kind         string          `json:"kind"`
+		ID           string          `json:"id"`
+		Revision     uint64          `json:"expected_revision"`
+		Data         json.RawMessage `json:"data"`
+		AllowMissing bool            `json:"allow_missing"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", err
@@ -72,9 +76,20 @@ func (t Operation) Run(ctx context.Context, args json.RawMessage) (string, error
 		entry, err = s.PutEntry(ctx, in.Kind, in.ID, in.Revision, in.Data)
 	} else {
 		entry, err = s.Entry(in.Kind, in.ID)
+		if in.AllowMissing && errors.Is(err, store.ErrEntryNotFound) {
+			b, e := json.Marshal(map[string]any{"kind": in.Kind, "id": in.ID, "found": false, "revision": 0, "data": nil})
+			return string(b), e
+		}
 	}
 	if err != nil {
 		return "", err
+	}
+	if !t.Write && in.AllowMissing {
+		b, err := json.Marshal(struct {
+			automation.Entry
+			Found bool `json:"found"`
+		}{entry, true})
+		return string(b), err
 	}
 	b, err := json.Marshal(entry)
 	return string(b), err

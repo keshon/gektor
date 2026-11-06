@@ -49,8 +49,7 @@ func runApplication(args []string) error {
 	if err != nil {
 		return err
 	}
-	bare := len(args) == 1 && (args[0] == "-tui" || args[0] == "-tui=true")
-	request := initialTUILaunch(options, prefs, path, bare)
+	request := initialTUILaunch(options, prefs, path)
 	for {
 		o, err := resolveLaunch(request)
 		if err != nil {
@@ -81,8 +80,16 @@ func relaunchOptions(previous launchOptions, p config.Preferences, keepAct bool)
 	previous.maxSteps = 0
 	return previous
 }
-func initialTUILaunch(options launchOptions, p config.Preferences, path string, common bool) launchRequest {
-	request := launchRequest{preferences: p, preferencePath: path, common: common}
+func initialTUILaunch(options launchOptions, p config.Preferences, path string) launchRequest {
+	request := launchRequest{preferences: p, preferencePath: path, common: true}
+	// Runtime flags do not make settings temporary. Only explicit workspace or
+	// profile values must be kept out of automatic preference writes.
+	for _, name := range []string{"workspace", "profile", "backend-kind", "backend", "model", "api-key", "api-key-env", "max-tokens", "context-limit", "temperature", "reasoning-effort", "reasoning-summary", "user-name", "system-prompt", "post-history"} {
+		if options.explicitFlags[name] {
+			request.common = false
+			break
+		}
+	}
 	if !options.explicitFlags["profile"] {
 		options.profilePath, request.profile = p.ProfilePath, p.Profile
 		if request.profile == nil && options.profilePath == "" {
@@ -94,7 +101,7 @@ func initialTUILaunch(options launchOptions, p config.Preferences, path string, 
 		options.workspace = p.Workspace
 	}
 	if !options.explicitFlags["plan"] {
-		options.plan = p.Mode == "plan" || (p.Mode == "" && common)
+		options.plan = p.Mode != "act"
 	}
 	request.options = &options
 	return request

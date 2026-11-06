@@ -221,7 +221,14 @@ func (m *model) acceptWorkflowResult(r workflowResult) tea.Cmd {
 	}
 	w.notice = "Ready"
 	if r.text != "" {
-		w.notice = r.text
+		var summary struct {
+			Status string `json:"status"`
+		}
+		if json.Unmarshal([]byte(r.text), &summary) == nil && summary.Status != "" {
+			w.notice = "Run: " + summary.Status + " / H opens saved runs"
+		} else {
+			w.notice = r.text
+		}
 	}
 	if w.runID != "" {
 		return m.workflowPoll(w.runID, false)
@@ -257,7 +264,7 @@ func (m *model) acceptWorkflowPoll(p workflowPoll) tea.Cmd {
 		return nil
 	}
 	w.run = p.run
-	e := &editor.Editor{Definition: p.run.Definition}
+	e := &editor.Editor{Definition: m.workflowDefinition()}
 	w.graph = e.Graph(w.graph)
 	for i := range w.graph.Nodes {
 		for _, s := range p.run.Steps {
@@ -275,6 +282,13 @@ func (m *model) workflowLayoutPath() string {
 	key := fmt.Sprintf("%x", sha256.Sum256([]byte(m.wsRoot+"\x00"+m.workflows.editor.Path)))
 	return filepath.Join(gektor.Sub("workflow-layouts"), key+".json")
 }
+
+type workflowLayout struct {
+	Version   int                    `json:"version,omitempty"`
+	Positions map[string]graph.Point `json:"positions"`
+	Locked    bool                   `json:"locked"`
+}
+
 func (m *model) saveWorkflowLayout() error {
 	p := m.workflowLayoutPath()
 	if err := os.MkdirAll(filepath.Dir(p), 0700); err != nil {
@@ -284,23 +298,38 @@ func (m *model) saveWorkflowLayout() error {
 	for _, n := range m.workflows.graph.Nodes {
 		positions[n.ID] = n.Point
 	}
-	b, err := json.Marshal(positions)
+	b, err := json.Marshal(workflowLayout{Version: 2, Positions: positions, Locked: m.workflows.positionsLocked})
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(p, b, 0600)
 }
 func (m *model) loadWorkflowLayout() {
+	m.workflows.positionsLocked = false
 	b, err := os.ReadFile(m.workflowLayoutPath())
 	if err != nil {
 		return
 	}
-	var positions map[string]graph.Point
-	if json.Unmarshal(b, &positions) != nil {
-		return
+	var layout workflowLayout
+	if err := json.Unmarshal(b, &layout); err != nil || layout.Positions == nil { // Older files contained only the position map.
+		layout.Locked = false
+		if json.Unmarshal(b, &layout.Positions) != nil {
+			return
+		}
 	}
+	m.workflows.positionsLocked = layout.Locked
 	for i, n := range m.workflows.graph.Nodes {
-		if p, ok := positions[n.ID]; ok && p.X >= 0 && p.Y >= 0 && p.X < 10000 && p.Y < 10000 {
+		if p, ok := layout.Positions[n.ID]; ok && p.X >= 0 && p.Y >= 0 && p.X < 10000 && p.Y < 10000 {
+			// Earlier cards used 30x8 layout spacing. Make room for named ports
+			// while retaining the relative arrangement of existing user layouts.
+			if layout.Version < 2 {
+				if p.X >= 2 {
+					p.X = 2 + (p.X-2)*(graph.NodeWidth+10)/30
+				}
+				if p.Y >= 1 {
+					p.Y = 1 + (p.Y-1)*14/8
+				}
+			}
 			m.workflows.graph.Nodes[i].Point = p
 		}
 	}

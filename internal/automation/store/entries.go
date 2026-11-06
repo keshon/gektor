@@ -17,6 +17,7 @@ import (
 )
 
 var ErrConflict = errors.New("record revision conflict")
+var ErrEntryNotFound = errors.New("record not found")
 
 type localSchemas struct{}
 
@@ -159,6 +160,9 @@ func (s *Store) Entry(kind, id string) (automation.Entry, error) {
 	}
 	var entry automation.Entry
 	if err := s.read(filepath.Join("records", kind, id+".json"), 128<<10, &entry); err != nil {
+		if os.IsNotExist(err) {
+			return automation.Entry{}, fmt.Errorf("%w: %s/%s", ErrEntryNotFound, kind, id)
+		}
 		return automation.Entry{}, err
 	}
 	if entry.Kind != kind || entry.ID != id || entry.Revision == 0 || entry.SchemaSHA256 != digest {
@@ -189,7 +193,7 @@ func (s *Store) PutEntry(ctx context.Context, kind, id string, revision uint64, 
 		return automation.Entry{}, err
 	}
 	old, err := s.Entry(kind, id)
-	if err != nil && !os.IsNotExist(err) {
+	if err != nil && !errors.Is(err, ErrEntryNotFound) {
 		return automation.Entry{}, err
 	}
 	if old.Revision != revision || revision == ^uint64(0) {

@@ -1,7 +1,44 @@
-# Workflows
+# Workflow reference
 
-A workflow is a saved recipe: a versioned JSON graph of steps. Gektor can write
-it as a normal workspace file, read it later, validate it and run it directly or through the local queue.
+A recipe is a JSON file that describes steps, their inputs and their connections.
+A run is one execution of that recipe. It records the input values, results and
+status separately from the recipe file.
+
+For the everyday TUI flow, read the [terminal guide](tui.md#workflow-workspace).
+This page covers operation names, data formats and execution rules.
+
+Recipes live inside the selected workspace. Runs and other workflow state live
+under `~/.gektor/workflows/`, separated by workspace. See
+[saved data](bootstrap.md#saved-data) for the locations.
+There is no shared template library yet. Copy a recipe into another workspace
+to use it as a starting point, then check its paths and profiles.
+
+Schedules start workflows at set times. They are managed through the
+[CLI and service](cli.md#workflow-queue-and-service), not the TUI editor.
+
+## Available operations
+
+| Task | Operations |
+|---|---|
+| Inspect and process images | `image_inspect`, `image_preview`, `image_variants`, `image_compare` |
+| Read and save structured records | `record_read`, `record_write` |
+| Transform data with JavaScript | `script_transform` |
+| Ask a model for text or structured data | `model_generate` |
+| Make an HTTP request | `http_request` |
+| Keep files or text with a run | `artifact_import`, `artifact_write`, `artifact_read_text` |
+| Run a local program | `run_program` |
+| Call another recipe | `workflow_call` |
+
+Conditions, iteration, review and retry are [step settings](#graphs-iteration-and-reviews).
+They are not separate operations in this catalog.
+There are no dedicated GitHub, notification, file-watcher or general file
+read/write nodes in this catalog. An artifact is stored with a run; it is not
+the same as writing an ordinary project file.
+
+Only `model_generate` needs a model during execution. The other operations do
+not ask a model to decide what to do.
+
+## Create and run from the command line
 
 Use `gektor workflow draft recipe.json [agent flags] "task"` for a constrained
 authoring session. It can inspect or preview sources and save only that recipe;
@@ -19,18 +56,10 @@ Run `gektor workflow validate [flags] recipe.json` and
 `-inputs inputs.json` supplies a workspace JSON object. See the
 [CLI reference](cli.md#saved-workflows) for permissions, flags and drafting limits.
 
-## Build
+## Image tools
 
-Gektor pins the Pixelita public Go API to a published Git revision in go.mod.
-No sibling checkout or separately installed image executable is required.
-
-```powershell
-go build -o bin/gektor.exe ./cmd/gektor
-```
-
-This leaves the existing root executable unchanged.
-
-## Tools
+Image operations use the bundled Pixelita integration. They do not need a
+separate image executable. The same operations can be called by Agent tools.
 
 Enable `native_images` through `enable_capability` to load these schemas:
 
@@ -203,6 +232,14 @@ Direct tools and recipe steps use the same arguments:
 | `record_write` | `{"kind":"assets","id":"image","expected_revision":0,"data":{"width":320}}` | Entry with revision 1 |
 | `record_read` | `{"kind":"assets","id":"image"}` | Entry with `data`, `revision`, schema hash and update time |
 
+By default, reading a missing record fails. Add `"allow_missing": true` to
+return `{"kind":"assets","id":"image","found":false,"revision":0,"data":null}`
+instead. An existing record returns its normal fields plus `"found": true`
+when this option is enabled. The read does not create anything. Pass revision
+zero to a later write to create it; a concurrent create still causes a conflict.
+The kind must have a registered schema. Missing schemas, invalid IDs and damaged
+records still fail.
+
 Revision 0 creates; updates require the current revision. Concurrent or stale
 updates fail without overwriting. Workflow references can pass `/revision` from
 a read to a later write. A repeated create fails rather than silently replacing
@@ -330,7 +367,8 @@ remain live resources; a snapshot does not freeze their contents.
 
 The optional [HTTP API](#http-api-and-webhooks) submits to this same queue.
 Named credentials reference environment values; they are not a secret vault.
-The visual node editor remains a separate step.
+The TUI can edit recipes and inspect runs. Queue and schedule management use
+the CLI/service commands linked above.
 
 ## HTTP API and webhooks
 
@@ -407,9 +445,22 @@ local PowerShell walkthrough without AI or external services.
 `http_request` accepts a public HTTP(S) URL, method (default GET), optional JSON
 body, `Accept`/`Content-Type` headers, a named credential and a 1–120 second
 `timeout_seconds` (default 30). Redirects are not followed. Non-2xx statuses fail
-the step with a bounded response retained for inspection. Responses are limited
-to 256 KiB; output contains `status_code`, `body`, and `data` for valid JSON.
+the step with a bounded response retained for inspection. Set
+`"status_as_data": true` to return those statuses as ordinary results so later
+steps can handle them. Network failures, read failures and oversized responses
+still fail the step.
+
+Responses are limited to 256 KiB. Output contains `status_code`, `body`,
+`headers`, and `data` for valid JSON. The `headers` object contains only
+`content-type`, `retry-after`, `x-ratelimit-limit`, `x-ratelimit-remaining` and
+`x-ratelimit-reset`, when present. Names are lowercase; only the first value is
+returned. Each selected header is limited to 4 KiB; exceeding it fails the step.
+Credential values are redacted from these headers as well as the body.
 No HTTP request is automatically retried, including POSTs with ambiguous outcomes.
+
+The [Moltbook draft example](../examples/workflows/moltbook-draft/README.md)
+uses HTTP status handling and an optional record read. It saves local drafts
+without publishing anything.
 
 It shares URL and DNS validation with native network tools: private destinations,
 loopback and environment proxies are excluded. Resolved addresses are checked
@@ -419,7 +470,9 @@ after authorization and are redacted from response/error text when echoed
 verbatim. Never put secrets in recipe URLs, bodies or ordinary arguments.
 
 [Repository report example](../examples/workflows/repository-report/README.md)
-shows fetch → transform → optional model summary → operator review → record.
+fetches data, transforms it, optionally asks a model for a summary, waits for
+operator review, and saves a record.
+
 ## CLI review guidance
 
 When `workflow run` or `workflow review` pauses for review, stderr shows inspection,
@@ -447,8 +500,7 @@ is exposed to nodes.
 Use `{"$step":"capture","pointer":"/id"}` to pass an imported artifact to
 another node. Text still obeys ordinary recipe argument and output limits. Binary
 files can be captured and exported, but `artifact_read_text` is not a binary decoder.
-Existing image nodes still accept workspace paths; this step does not change their
-input contract.
+Image nodes accept workspace paths rather than artifact IDs.
 
 Each artifact is limited to 16 MiB; a run may retain 256 artifacts and 256 MiB total.
 Writes publish complete data and metadata together. Reads and exports verify size

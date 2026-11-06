@@ -2,7 +2,7 @@
 
 ## Saved MCP servers
 
-Open **Settings → MCP servers** or `/mcp` to list, add, edit, delete, import,
+Open **MCP servers** in Settings, or use `/mcp`, to list, add, edit, delete, import,
 enable, and connect servers. The manager uses the same capability catalog as
 file-based extensions. Changes are allowed between agent turns.
 
@@ -15,6 +15,24 @@ original definitions; changed definitions may require a fresh session.
 
 The importer accepts `mcpServers` objects with `url` and `headers`, or `command`
 and `args`. Import rejects existing IDs unless replacement is explicitly selected.
+In the MCP servers form, choose **Paste JSON** to paste the configuration into
+a multiline field, or **Import file** to read it from a file. Choose **Import**
+to save the servers. This does not connect them or call their tools.
+
+For example:
+
+```json
+{
+  "mcpServers": {
+    "reference": {
+      "url": "https://example.com/mcp"
+    }
+  }
+}
+```
+
+Replace the example address with your server's endpoint.
+
 Use replacement import to rotate HTTP credentials. Subprocess environment
 credentials use `env_refs`, mapping destination names to existing environment
 variable names; inline `env` import is rejected.

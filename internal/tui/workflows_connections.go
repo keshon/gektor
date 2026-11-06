@@ -14,6 +14,8 @@ import (
 
 type workflowConnectionEdit struct {
 	From, To, Field, Path, Draft string
+	Pointer                      string
+	FixedSource                  bool
 	Old                          *editor.Connection
 	Remove                       bool
 }
@@ -231,13 +233,15 @@ func (m *model) workflowConnectionEdit(edit workflowConnectionEdit) {
 		return
 	}
 	c := editor.Connection{From: edit.From, To: edit.To, Field: edit.Field, Path: edit.Path}
-	pointer := ""
+	pointer := edit.Pointer
 	if edit.Old != nil {
 		pointer = edit.Old.Pointer
 	}
 	fields := []formField{}
 	choices := map[string][]string{}
-	if c.Field != "depends_on" {
+	if edit.FixedSource {
+		fields = append(fields, formField{Key: "source", Label: "Source", Value: c.From + " / " + portLabelForDisplay(pointer), ReadOnly: true})
+	} else if c.Field != "depends_on" {
 		var hints []string
 		for _, s := range w.editor.Definition.Steps {
 			if s.ID == c.From {
@@ -259,6 +263,9 @@ func (m *model) workflowConnectionEdit(edit workflowConnectionEdit) {
 			return fmt.Errorf("draft changed; reopen connections")
 		}
 		c.Pointer = v["pointer"]
+		if edit.FixedSource {
+			c.Pointer = edit.Pointer
+		}
 		if hint := v["source_field"]; hint != "" && hint != "Manual JSON pointer" {
 			valid := false
 			for _, option := range choices["source_field"] {
@@ -282,6 +289,13 @@ func (m *model) workflowConnectionEdit(edit workflowConnectionEdit) {
 		return nil
 	})
 	m.dialog.form.Choices = choices
+}
+
+func portLabelForDisplay(pointer string) string {
+	if pointer == "" {
+		return "whole output"
+	}
+	return strings.TrimPrefix(pointer, "/")
 }
 
 func (m *model) workflowConnectionChanged() {

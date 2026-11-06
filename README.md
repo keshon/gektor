@@ -1,8 +1,11 @@
 # GEKTOR
 
-A terminal coding agent written in Go, focused on local models. It searches
-and edits files, runs commands, and saves sessions you can continue later.
-You provide the model server.
+A terminal app written in Go for working with models and saved workflows.
+In Agent mode, it searches and edits files, runs commands, and saves
+conversations you can continue later. In Workflows, you connect steps,
+run them with inputs, and inspect the results.
+Local models use a server you start separately; a ChatGPT account connection
+is also available.
 
 ![GEKTOR terminal UI showing an assistant response about its coding capabilities](docs/images/gektor-demo.png)
 
@@ -12,13 +15,13 @@ Start a model server separately. GEKTOR defaults to **llama.cpp at
 `http://127.0.0.1:8080`**. The model must support tool calls.
 
 Download and extract a [release](https://github.com/keshon/gektor/releases).
-On Windows, run `run-tui.cmd`. On Linux:
+On Windows, run `start-gektor-agent.cmd`. On Linux:
 
 ```sh
 ./gektor -tui
 ```
 
-Use **Settings → Model** to change the connection. Saved settings are reused.
+Open **Settings**, then **Model**, to change the connection. Saved settings are reused.
 To select a workspace and server explicitly:
 
 ```powershell
@@ -28,6 +31,33 @@ To select a workspace and server explicitly:
 Release binaries need no Go installation. To build from source, install
 Go 1.26.10+ and run `go build -o gektor.exe ./cmd/gektor`.
 On Linux, use `-o gektor`.
+
+## Choose how to work
+
+Use **Agent** for a conversation where the model chooses its next steps.
+Use **Workflows** for saved steps you can run again with different inputs.
+The [terminal guide](docs/tui.md) explains both, from opening a project to
+reading the result.
+
+Windows launchers use the same naming rule:
+
+| Script | What it does |
+|---|---|
+| `start-gektor-agent.cmd` | Open Agent in the TUI |
+| `start-gektor-workflows.cmd` | Open Workflows in the TUI |
+| `run-gektor-agent.cmd` | Run one Agent task in the CLI |
+| `run-gektor-workflow.cmd` | Run a saved recipe once |
+| `serve-gektor-workflows.cmd` | Run the background workflow worker |
+
+The TUI launchers use saved settings. To select ChatGPT explicitly, run
+`start-gektor-agent.cmd -profile profiles/chatgpt.json` after signing in with
+`gektor.exe auth login`. Browser access is optional: add `-browser chrome`.
+See [launcher examples](scripts/README.md) and
+[working demos](demos/README.md).
+
+Workflow recipes are workspace files. Each run has its own saved results.
+Most workflow operations do not need a model; AI changes and model-generation
+steps do. [Workflow reference and examples](docs/workflows.md).
 
 ## Working with code
 
@@ -41,8 +71,8 @@ On Linux, use `-o gektor`.
   task. Save, edit or skip it; `/learn undo` disables the latest save.
   [How learning works](docs/tui.md#learning-from-a-task).
 - **Browser:** connect Playwright MCP on demand for page interactions, console checks
-  and screenshots. Windows `run-tui.cmd` makes Chrome available; other launches use
-  `-browser chrome` or `-browser msedge`. [Setup and requirements](docs/browser.md).
+  and screenshots. Add `-browser chrome` or `-browser msedge` to make it
+  available. [Setup and requirements](docs/browser.md).
 
 Enter sends, Ctrl+O inserts a newline, Esc stops a running turn.
 F5 switches Plan/Act, Ctrl+P opens sessions, F1 opens help.
@@ -61,7 +91,7 @@ Put flags before the task text.
 ## Servers and limits
 
 llama.cpp is the default backend. OpenAI-compatible APIs and KoboldCPP are also
-supported; KoboldCPP replies do not stream. GEKTOR does not install, launch or
+supported, including streamed replies. GEKTOR does not install, launch or
 manage inference servers or model weights. [Connection and authentication](docs/cli.md).
 
 Browser DOM checks work with text-only models. Inspecting image contents requires

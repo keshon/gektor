@@ -28,6 +28,10 @@ Direct execution is the default. An empty task is allowed for `-tui`,
 
 ### Saved workflows
 
+For the TUI, `-tui-screen agent|workflows` chooses the initial screen and
+requires `-tui`. It keeps saved settings. The workflows screen starts idle;
+it cannot be combined with an opening task, resume, fork or RPC service.
+
 `workflow validate` and `workflow run` operate without a model backend. They
 print a JSON result to stdout, diagnostics and permission prompts to stderr,
 and exit nonzero on failure. A failed run can still print its saved record path.

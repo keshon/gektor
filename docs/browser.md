@@ -11,9 +11,8 @@ Install Node.js 20+ with npm and Chrome or Edge. On activation, GEKTOR checks th
 and reports a specific fix if they are missing. Windows, Linux and macOS use
 the same option:
 
-On Windows, `run-tui.cmd` already enables `-browser chrome`. To use Edge,
-run `run-tui.cmd -browser msedge`; to disable browser automation, use
-`run-tui.cmd -browser=`. Explicit arguments override the launcher's default.
+On Windows, run `start-gektor-agent.cmd -browser chrome`, or use
+`-browser msedge` for Edge. The launcher does not enable browser access by default.
 The flag makes browser automation available on request; it does not start MCP
 or put all its schemas into the opening model request.
 

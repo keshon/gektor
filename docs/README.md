@@ -1,18 +1,23 @@
 # Documentation
 
-Current guides:
+Start here:
 
 - [Quick start](../README.md): purpose, requirements and first launch.
 - [Setup](bootstrap.md): external server setup, saved data and release contents.
-- [CLI reference](cli.md): flags, backend examples, permissions, mode limitations.
-- [Extensions](extensions.md): capability packs, executable adapters and skill libraries.
-- [Workflows](workflows.md): image tools, saved recipes, run history and structured records.
-- [Workflow next steps](workflow-next-steps.md): remaining editor work and acceptance checks.
+- [Terminal guide](tui.md): using Agent and Workflows, with steps for everyday tasks.
+
+Look up a specific task:
+
+- [Workflow reference](workflows.md): operations, data mappings, run records, schedules and API.
+- [CLI reference](cli.md): flags, backend examples, permissions and service commands.
 - [Browser](browser.md): setup, persistent profiles, login and observation tools.
-- [Terminal guide](tui.md): composer, suggestions, file references, sessions and keys.
+- [Extensions](extensions.md): capability packs, executable adapters and skill libraries.
+- [Security](../SECURITY.md): permissions, workspace access and network behavior.
+
+For developers:
+
 - [RPC protocol](rpc.md): stdio requests, events, gates and client lifetime.
 - [Architecture](../ARCHITECTURE.md): packages, loop, role budgets and frontends.
-- [Security](../SECURITY.md): trust boundary, approvals, files and network behavior.
 - [Conventions](conventions.md): enforced checks and coding practices.
 - [Eval guide](../eval/README.md): frozen probes and repeatable scoring.
 - [Agent skills](../skills/README.md): task-workspace guidance for the local model.

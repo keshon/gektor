@@ -66,7 +66,7 @@ func TestRoutesAvoidCardsAndRerouteAfterMoving(t *testing.T) {
 }
 
 func TestOverlappingCardsShowUnroutableMarker(t *testing.T) {
-	m := Model{Nodes: []Node{{ID: "a", Point: Point{2, 2}}, {ID: "b", Point: Point{26, 2}}}, Edges: []Edge{{From: "a", To: "b", Data: true}}}
+	m := Model{Nodes: []Node{{ID: "a", Point: Point{2, 2}}, {ID: "b", Point: Point{2 + NodeWidth, 2}}}, Edges: []Edge{{From: "a", To: "b", Data: true}}}
 	// The adjacent card covers the source's exit cell. It cannot be routed
 	// honestly; the renderer must not draw a fake line through either card.
 	budget := 10
