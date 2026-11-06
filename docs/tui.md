@@ -781,9 +781,9 @@ Connection changes wait until the agent turn has finished. See [extensions](exte
 
 Open **Workflows → Editor**, or enter `/workflows`. The canvas uses the same theme, menus, forms and scrollbars as Chat. `Esc` returns to Chat and keeps the draft in memory. Finish an active agent turn before opening the editor.
 
-- `Ctrl+O` opens a workspace-relative recipe; `Ctrl+N` starts one; `Ctrl+S` saves.
+- `Ctrl+O` opens a recipe form with a JSON file chooser rooted at the workspace; `Ctrl+N` starts one; `Ctrl+S` saves.
 - `A` adds a registered operation. `Enter` edits its arguments; `E` edits review, dependencies, conditions, iteration and retry settings. `J` edits the complete recipe, including inputs and outputs.
-- `C` connects nodes. Leave the destination argument empty for a run-after dependency, or name an argument to pass source output. A JSON pointer selects part of that output. Solid connections carry data; dashed connections only order execution. Execution remains sequential.
+- `C` connects nodes. Choose the source and destination, then select Run after or an argument from the destination schema. Mapping data replaces that argument. A JSON pointer selects part of that output. Solid connections carry data; dashed connections only order execution. Execution remains sequential.
 - Arrows select nodes, `Shift+arrows` move them, and `Alt+arrows` pan. Mouse clicks select; dragging moves nodes. `L` restores the layout; `F` shows a compact overview. `Tab` focuses the inspector; its scrollbar supports clicking and dragging.
 - `Ctrl+Z` / `Ctrl+Y` undo and redo recipe edits. Canvas positions are stored separately under `~/.gektor/workflow-layouts/`.
 - `V` validates with input values. `R` runs a snapshot of the draft through the existing workflow service and permission policy. `Esc` requests cancellation; it does not undo completed effects.

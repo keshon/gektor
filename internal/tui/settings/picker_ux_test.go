@@ -64,3 +64,45 @@ func TestThemePickerIsCompactAndStartsAtCurrentValue(t *testing.T) {
 		t.Fatal("compact picker mouse coordinates diverged")
 	}
 }
+
+func TestConfiguredFilePickerFiltersNavigatesAndSelects(t *testing.T) {
+	root := t.TempDir()
+	child := filepath.Join(root, "recipes")
+	if err := os.Mkdir(child, 0700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"recipe.JSON", "notes.txt"} {
+		if err := os.WriteFile(filepath.Join(child, name), []byte("{}"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f := NewModel([]form.Field{{Key: "path"}}, textarea.New())
+	f.FileFields = map[string]FilePicker{"path": {Root: root, Extensions: []string{".json"}}}
+	f.Focus(0, nil)
+	props := Props{Width: 100, Height: 30}
+	f.AcceptScan(f.OpenPicker(props)().(ScanMsg))
+	if !f.Picker.IsFiles() || f.Picker.Directory != root {
+		t.Fatal("wrong picker root")
+	}
+	for i, item := range f.Picker.Filtered {
+		if filepath.Clean(item) == child {
+			f.Picker.Cursor = i
+		}
+	}
+	f.AcceptScan(f.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, props)().(ScanMsg))
+	if f.Picker.Directory != child || f.Editor.Value() != "" {
+		t.Fatal("navigation selected a directory")
+	}
+	for i, item := range f.Picker.Filtered {
+		if strings.HasSuffix(item, "notes.txt") {
+			t.Fatal("unmatched extension shown")
+		}
+		if strings.HasSuffix(item, "recipe.JSON") {
+			f.Picker.Cursor = i
+		}
+	}
+	f.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, props)
+	if f.Picker != nil || f.Editor.Value() != filepath.Join(child, "recipe.JSON") {
+		t.Fatal("file not selected")
+	}
+}

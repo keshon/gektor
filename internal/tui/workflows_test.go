@@ -68,7 +68,7 @@ func TestWorkflowMenuCanvasAndModalGeometry(t *testing.T) {
 	m.closeHeader()
 	m.workflowCommand("edit")
 	left, top, width, height := m.settingsArea()
-	if left != 1 || top != 4 || width != 118 || height != 23 {
+	if left != 1 || top != 4 || width != 118 || height != 22 {
 		t.Fatalf("geometry %d %d %d %d", left, top, width, height)
 	}
 	if !strings.Contains(ansi.Strip(m.screenContent()), "script_transform") {
@@ -205,5 +205,90 @@ func TestWorkflowAIProposalCannotApplyToChangedDraft(t *testing.T) {
 	w.editor.Definition.Name = "Changed elsewhere"
 	if err := m.dialog.save(); err == nil {
 		t.Fatal("stale proposal applied")
+	}
+}
+
+func TestWorkflowOutlineJoins(t *testing.T) {
+	m := workflowTestModel(t)
+	for _, minimal := range []bool{false, true} {
+		m.minimal = minimal
+		cw, ch := m.workflowCanvasSize()
+		rows := strings.Split(ansi.Strip(m.screenContent()), "\n")
+		if len(rows) != m.termH {
+			t.Fatal("wrong height")
+		}
+		for _, row := range rows {
+			if ansi.StringWidth(row) != m.termW {
+				t.Fatal("wrong width")
+			}
+		}
+		if minimal {
+			if strings.Contains(rows[3], "┬") {
+				t.Fatal("outline leaked into minimal mode")
+			}
+			continue
+		}
+		at := func(y, x int) rune { return []rune(rows[y])[x] }
+		if at(1, 0) != '┌' || at(1, m.termW-1) != '┐' || at(2, 0) != '│' || at(3, cw+1) != '┬' || at(4+ch, cw+1) != '┴' || at(m.termH-3, 0) != '│' || at(m.termH-2, 0) != '└' {
+			t.Fatal(strings.Join(rows, "\n"))
+		}
+	}
+}
+func TestMissingWorkflowKeepsDraftAndOffersPathCorrection(t *testing.T) {
+	m := workflowTestModel(t)
+	w := m.workflows
+	w.editor.Definition = workflowRecipe()
+	before := w.editor.Source()
+	cmd := m.workflowAction(workflowAction{"open-path", "missing.json"})
+	result, ok := cmd().(workflowResult)
+	if !ok || result.err == nil {
+		t.Fatalf("expected missing recipe: %+v", result)
+	}
+	m.acceptWorkflowResult(result)
+	if w.editor.Source() != before {
+		t.Fatal("failed open replaced draft")
+	}
+	if m.dialog == nil || m.dialog.form == nil {
+		t.Fatal("path correction form missing")
+	}
+	if m.dialog.form.Editor.Value() != "missing.json" || !strings.Contains(m.dialog.form.Error, "Recipe not found") {
+		t.Fatal(m.dialog.form.Error)
+	}
+	if !strings.Contains(m.dialog.form.Hint, m.wsRoot) {
+		t.Fatal("workspace not shown")
+	}
+}
+
+func TestWorkflowConnectionUsesDestinationSchema(t *testing.T) {
+	m := workflowTestModel(t)
+	d := workflowRecipe()
+	second := d.Steps[0]
+	second.ID = "second"
+	d.Steps = append(d.Steps, second)
+	m.workflows.editor.Replace(d)
+	m.workflowLinkTarget(`["transform","second"]`)
+	if m.dialog == nil || m.dialog.form == nil {
+		t.Fatal("missing mapping form")
+	}
+	f := m.dialog.form
+	if !strings.Contains(strings.Join(f.Choices["arg"], ","), "Argument: input") {
+		t.Fatal(f.Choices)
+	}
+	before := m.workflows.editor.Source()
+	if err := f.apply(map[string]string{"arg": "Argument: nonexistent"}); err == nil {
+		t.Fatal("accepted unknown argument")
+	}
+	if m.workflows.editor.Source() != before {
+		t.Fatal("invalid mapping changed draft")
+	}
+	if err := f.apply(map[string]string{"arg": "Argument: input", "pointer": "/result"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(m.workflows.editor.Definition.Steps[1].Args), `"$step":"transform"`) {
+		t.Fatal("missing data reference")
+	}
+	m.workflows.editor.Undo()
+	if m.workflows.editor.Source() != before {
+		t.Fatal("mapping not undoable")
 	}
 }

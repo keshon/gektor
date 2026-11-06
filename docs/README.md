@@ -7,6 +7,7 @@ Current guides:
 - [CLI reference](cli.md): flags, backend examples, permissions, mode limitations.
 - [Extensions](extensions.md): capability packs, executable adapters and skill libraries.
 - [Workflows](workflows.md): image tools, saved recipes, run history and structured records.
+- [Workflow next steps](workflow-next-steps.md): remaining editor work and acceptance checks.
 - [Browser](browser.md): setup, persistent profiles, login and observation tools.
 - [Terminal guide](tui.md): composer, suggestions, file references, sessions and keys.
 - [RPC protocol](rpc.md): stdio requests, events, gates and client lifetime.

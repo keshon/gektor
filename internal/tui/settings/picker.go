@@ -16,7 +16,10 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/selection"
 )
 
+func (p *Picker) IsFiles() bool { return p.FileConfig != nil || PickerFiles(p.Field) }
+
 type Picker struct {
+	FileConfig         *FilePicker
 	Parent             string
 	DetailPath, Detail string
 	Location           bool
@@ -95,7 +98,12 @@ func (f *Model) OpenPicker(props Props) tea.Cmd {
 			return ScanMsg{id, items, err}
 		}
 	}
-	if !PickerFiles(key) {
+	if config, ok := f.FileFields[key]; ok {
+		p.FileConfig = &config
+		p.Browser = true
+		return f.ScanDirectory(config.Root)
+	}
+	if !f.FilePicker(key) {
 		p.Items = f.Options(key)
 		p.Filter()
 		for i, item := range p.Filtered {
@@ -235,10 +243,10 @@ func (f *Model) PickerKey(msg tea.KeyPressMsg, props Props) tea.Cmd {
 		}
 		return nil
 	case "ctrl+r":
-		if p.Field == "app-workspace" {
+		if p.Field == "app-workspace" || p.FileConfig != nil {
 			return f.ScanDirectory(p.Directory)
 		}
-		if PickerFiles(p.Field) {
+		if p.IsFiles() {
 			root, key := p.Directory, p.Field
 			p.Browser = false
 			p.ID = scanID.Add(1)
@@ -256,20 +264,20 @@ func (f *Model) PickerKey(msg tea.KeyPressMsg, props Props) tea.Cmd {
 		}
 		return f.OpenPicker(props)
 	case "ctrl+b":
-		if !PickerFiles(p.Field) {
+		if !p.IsFiles() {
 			return nil
 		}
 		p.Browser = true
 		return f.ScanDirectory(p.Directory)
 	case "ctrl+l":
-		if !PickerFiles(p.Field) {
+		if !p.IsFiles() {
 			return nil
 		}
 		p.Location = true
 		p.Search.SetValue(p.Directory)
 		return nil
 	case "ctrl+d":
-		if !PickerFiles(p.Field) {
+		if !p.IsFiles() {
 			return nil
 		}
 		p.Browser = true
@@ -311,7 +319,7 @@ func (p *Picker) listTop() int {
 	if p.Field == "theme" {
 		return 2
 	}
-	if PickerFiles(p.Field) {
+	if p.IsFiles() {
 		return 4
 	}
 	return 3
@@ -319,7 +327,7 @@ func (p *Picker) listTop() int {
 func (p *Picker) capacity(height int) int { return max(height-7-p.listTop(), 1) }
 
 func (f *Model) modalWidth(props Props) int {
-	if p := f.Picker; p != nil && !PickerFiles(p.Field) && len(p.Items) <= 12 {
+	if p := f.Picker; p != nil && !p.IsFiles() && len(p.Items) <= 12 {
 		return min(props.Width, 52)
 	}
 	return props.Width
@@ -340,7 +348,7 @@ func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 		title += " / Location"
 	}
 	rows := []string{popup.TitleRow(props.Styles.Focus.Render("Choose / "+title), inner), props.Styles.Muted.Render(strings.Repeat("─", inner))}
-	if PickerFiles(p.Field) {
+	if p.IsFiles() {
 		rows = append(rows, cell.Line(p.Directory, inner))
 	}
 	if p.Field != "theme" {
@@ -352,7 +360,7 @@ func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 	body := []string{}
 	for i := start; i < end; i++ {
 		label := ChoiceLabel(p.Field, p.Filtered[i])
-		if PickerFiles(p.Field) {
+		if p.IsFiles() {
 			if p.Browser && filepath.Clean(p.Filtered[i]) == p.Parent && p.Parent != p.Directory {
 				label = "..."
 			} else if strings.HasSuffix(label, string(os.PathSeparator)) {
@@ -375,7 +383,7 @@ func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 		detail = "Loading…"
 	} else if p.Err != "" {
 		detail = p.Err
-	} else if len(p.Filtered) > 0 && PickerFiles(p.Field) {
+	} else if len(p.Filtered) > 0 && p.IsFiles() {
 		detail = p.Filtered[p.Cursor]
 		if p.DetailPath == detail && p.Detail != "" {
 			detail = p.Detail
@@ -389,7 +397,7 @@ func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 		rows = append(rows, props.Styles.Focus.Render(cell.Line(label, inner)))
 	}
 	hint := "↑↓ choose · Enter select · Esc back"
-	if PickerFiles(p.Field) {
+	if p.IsFiles() {
 		hint = "Enter open · Esc back · Ctrl+L path · Ctrl+D drives"
 	}
 	rows = append(rows, props.Styles.Muted.Render(cell.Line(hint, inner)))
@@ -413,6 +421,18 @@ func (f *Model) ScanDirectory(root string) tea.Cmd {
 	p.Search.SetValue("")
 	id := p.ID
 	key := p.Field
+	config := p.FileConfig
+	accepts := func(path string) bool {
+		if config == nil {
+			return PickerAccepts(key, path)
+		}
+		for _, ext := range config.Extensions {
+			if strings.EqualFold(filepath.Ext(path), ext) {
+				return true
+			}
+		}
+		return len(config.Extensions) == 0
+	}
 	return func() tea.Msg {
 		entries, err := os.ReadDir(root)
 		items := []string{}
@@ -424,7 +444,7 @@ func (f *Model) ScanDirectory(root string) tea.Cmd {
 			path := filepath.Join(root, entry.Name())
 			if entry.IsDir() {
 				items = append(items, path+string(os.PathSeparator))
-			} else if PickerAccepts(key, path) {
+			} else if accepts(path) {
 				items = append(items, path)
 			}
 		}
@@ -437,7 +457,7 @@ func (f *Model) DetailCommand() tea.Cmd {
 		return nil
 	}
 	p := f.Picker
-	if !PickerFiles(p.Field) || len(p.Filtered) == 0 || p.Loading {
+	if !p.IsFiles() || len(p.Filtered) == 0 || p.Loading {
 		return nil
 	}
 	path := p.Filtered[p.Cursor]

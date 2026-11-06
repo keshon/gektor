@@ -36,7 +36,7 @@ func (f *Model) UpdateKey(msg tea.KeyPressMsg, props Props) (Intent, tea.Cmd) {
 			return Intent{}, nil
 		}
 	}
-	choice := f.Index < len(f.Fields) && (len(f.Options(f.Fields[f.Index].Key)) > 0 || PickerControl(f.Fields[f.Index].Key))
+	choice := f.Index < len(f.Fields) && (len(f.Options(f.Fields[f.Index].Key)) > 0 || f.PickerControl(f.Fields[f.Index].Key))
 	intent, cmd := f.Model.Update(msg, f.FieldVisible, choice, f.Destructive)
 	switch intent {
 	case form.Apply:

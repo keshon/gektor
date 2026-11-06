@@ -17,6 +17,17 @@ type Workspace struct {
 	PersistCurrent bool
 	AccountLabel   string
 }
+type FilePicker struct {
+	Root       string
+	Extensions []string
+}
+
+func (f *Model) FilePicker(key string) bool {
+	_, ok := f.FileFields[key]
+	return ok || PickerFiles(key)
+}
+func (f *Model) PickerControl(key string) bool { return f.FilePicker(key) || PickerControl(key) }
+
 type Model struct {
 	DiscoverModels    func(kind, endpoint, keyEnv string) ([]string, error)
 	DiscoverReasoning func(kind, endpoint, model string) (providers.ReasoningOptions, error)
@@ -24,6 +35,7 @@ type Model struct {
 	Error, Hint, ApplyLabel string
 	Destructive             bool
 	Choices                 map[string][]string
+	FileFields              map[string]FilePicker
 	Workspace               *Workspace
 	Picker                  *Picker
 	HasApplication          bool

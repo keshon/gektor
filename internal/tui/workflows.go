@@ -15,7 +15,9 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/tui/components/schemaform"
+	"github.com/keshon/gektor/internal/tui/settings"
 	editor "github.com/keshon/gektor/internal/tui/workflow"
+	"sort"
 	"strings"
 )
 
@@ -40,6 +42,7 @@ type workflowResult struct {
 	text         string
 	err          error
 	source, path string
+	action       string
 }
 type workflowPermission struct {
 	tool, resource string
@@ -133,6 +136,9 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 			m.queueWorkflow(action+"-path", v["path"])
 			return nil
 		})
+		if action == "open" {
+			m.dialog.form.FileFields = map[string]settings.FilePicker{"path": {Root: m.wsRoot, Extensions: []string{".json"}}}
+		}
 	case "save":
 		m.openForm("Save workflow", "Writes the recipe; canvas positions stay in your user settings.", "Save", []formField{{Key: "path", Label: "Recipe path", Value: w.editor.Path}}, func(v map[string]string) error {
 			if strings.TrimSpace(v["path"]) == "" {
@@ -224,14 +230,20 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 			w.notice = "Add at least two nodes first"
 			return nil
 		}
-		m.openForm("Connect nodes", "Empty argument creates a run-after dependency. A named argument receives source output.", "Connect", []formField{{Key: "from", Label: "Source node", Value: w.graph.Selected}, {Key: "to", Label: "Destination node", Value: names[len(names)-1]}, {Key: "arg", Label: "Destination argument (empty = run after)"}, {Key: "pointer", Label: "Source JSON pointer (empty = whole output)"}}, func(v map[string]string) error {
-			if err := w.editor.Link(v["from"], v["to"], v["arg"], v["pointer"]); err != nil {
-				return err
+		destination := names[0]
+		if destination == w.graph.Selected {
+			destination = names[1]
+		}
+		m.openForm("Connect nodes", "Choose the source and destination, then map their data.", "Next", []formField{{Key: "from", Label: "Source node", Value: w.graph.Selected}, {Key: "to", Label: "Destination node", Value: destination}}, func(v map[string]string) error {
+			if v["from"] == v["to"] {
+				return fmt.Errorf("choose different nodes")
 			}
-			w.graph = w.editor.Graph(w.graph)
+			payload, _ := json.Marshal([]string{v["from"], v["to"]})
+			m.queueWorkflow("link-target", string(payload))
 			return nil
 		})
 		m.dialog.form.Choices = map[string][]string{"from": names, "to": names}
+
 	case "delete":
 		id := w.graph.Selected
 		m.openForm("Delete node", "References to this node must be repaired before validation succeeds.", "Delete", []formField{{Key: "id", Label: "Type node ID to delete"}}, func(v map[string]string) error {
@@ -469,7 +481,13 @@ func (m *model) workflowKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
-func (m *model) workflowCanvasSize() (int, int) { return max(20, (m.termW-3)*2/3), max(1, m.termH-7) }
+func (m *model) workflowCanvasSize() (int, int) {
+	rows := 7
+	if !m.minimal {
+		rows++
+	}
+	return max(1, min(max(20, (m.termW-3)*2/3), m.termW-4)), max(1, m.termH-rows)
+}
 func (m *model) workflowScreen() string {
 	w := m.workflows
 	cw, ch := m.workflowCanvasSize()
@@ -525,7 +543,25 @@ func (m *model) workflowScreen() string {
 		title += " · running"
 	}
 	rule := m.styles.dim.Render(strings.Repeat("─", max(1, m.termW)))
-	content := cellLine(m.menuLine(), m.termW) + "\n" + rule + "\n" + cellLine(" Workflows · sequential · "+cleanText(title), m.termW) + "\n" + rule + "\n" + body + "\n" + cellLine(" "+cleanText(w.notice), m.termW) + "\n" + rule + "\n" + m.actionBar()
+	header := cellLine(" Workflows · sequential · "+cleanText(title), m.termW)
+	notice := cellLine(" "+cleanText(w.notice), m.termW)
+	top, divider, bottom := rule, rule, rule
+	bodyBottom := ""
+	if !m.minimal && m.termW >= 4 {
+		frameRow := func(text string) string {
+			return m.styles.dim.Render("│") + cellLine(text, m.termW-2) + m.styles.dim.Render("│")
+		}
+		splitRule := func(left, joint, right string) string {
+			return m.styles.dim.Render(left + strings.Repeat("─", cw) + joint + strings.Repeat("─", rw) + right)
+		}
+		top = m.styles.dim.Render("┌" + strings.Repeat("─", m.termW-2) + "┐")
+		divider = splitRule("├", "┬", "┤")
+		bodyBottom = "\n" + splitRule("├", "┴", "┤")
+		bottom = m.styles.dim.Render("└" + strings.Repeat("─", m.termW-2) + "┘")
+		header = frameRow(" Workflows · sequential · " + cleanText(title))
+		notice = frameRow(" " + cleanText(w.notice))
+	}
+	content := cellLine(m.menuLine(), m.termW) + "\n" + top + "\n" + header + "\n" + divider + "\n" + body + bodyBottom + "\n" + notice + "\n" + bottom + "\n" + m.actionBar()
 	content = cellFrame(content, m.termW, m.termH)
 	if m.header.menu != "" {
 		content = m.overlayHeader(content)
@@ -671,4 +707,67 @@ func (m *model) workflowFooterActions() []footerAction {
 		return []footerAction{actions[0], actions[1], actions[4], actions[7]}
 	}
 	return actions
+}
+
+// workflowLinkTarget resolves the destination schema after both nodes are chosen.
+func (m *model) workflowLinkTarget(value string) {
+	w := m.workflows
+	if w.run != nil {
+		return
+	}
+	var pair []string
+	if json.Unmarshal([]byte(value), &pair) != nil || len(pair) != 2 {
+		return
+	}
+	from, to := pair[0], pair[1]
+	sourceExists := false
+	for _, step := range w.editor.Definition.Steps {
+		if step.ID == from {
+			sourceExists = true
+		}
+	}
+	if !sourceExists {
+		return
+	}
+	for _, step := range w.editor.Definition.Steps {
+		if step.ID != to {
+			continue
+		}
+		node, err := w.registry.Node(step.Tool)
+		if err != nil {
+			w.notice = err.Error()
+			return
+		}
+		schema := schemaform.Parse(node.InputSchema)
+		arguments := []string{}
+		mapping := map[string]string{"Run after (no data)": ""}
+		for name := range schema.Properties {
+			label := "Argument: " + name
+			arguments = append(arguments, label)
+			mapping[label] = name
+		}
+		sort.Strings(arguments)
+		options := append([]string{"Run after (no data)"}, arguments...)
+		m.openForm("Connect "+from+" → "+to, "Mapping replaces the selected argument. Leave the pointer empty for whole output.", "Connect",
+			[]formField{{Key: "arg", Label: "Destination", Value: options[0]}, {Key: "pointer", Label: "Source JSON pointer (for data mapping)"}},
+			func(v map[string]string) error {
+				arg, ok := mapping[v["arg"]]
+				if !ok {
+					return fmt.Errorf("choose a destination argument")
+				}
+				if arg == "" && v["pointer"] != "" {
+					return fmt.Errorf("choose an argument to use a source pointer")
+				}
+				if arg != "" && v["pointer"] != "" && !strings.HasPrefix(v["pointer"], "/") {
+					return fmt.Errorf("JSON pointer must start with /")
+				}
+				if err := w.editor.Link(from, to, arg, v["pointer"]); err != nil {
+					return err
+				}
+				w.graph = w.editor.Graph(w.graph)
+				return nil
+			})
+		m.dialog.form.Choices = map[string][]string{"arg": options}
+		return
+	}
 }

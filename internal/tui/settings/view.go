@@ -134,7 +134,7 @@ func (f *Model) display(field form.Field, value string) (string, bool) {
 		return "[ " + ChoiceLabel(field.Key, value) + " ▾ ]", false
 	}
 	switch {
-	case PickerFiles(field.Key):
+	case f.FilePicker(field.Key):
 		shown := "Not selected"
 		if value != "" {
 			// A full path is noise in a two-column row; the last

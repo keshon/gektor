@@ -65,7 +65,7 @@ func (f *Model) Mouse(msg tea.MouseMsg, props Props) (Intent, tea.Cmd) {
 				continue
 			}
 			f.Focus(hit.Index, f.FieldVisible)
-			if hit.Index < len(f.Fields) && mouse.Y > y+hit.Y0 && (len(f.Options(f.Fields[hit.Index].Key)) > 0 || PickerControl(f.Fields[hit.Index].Key)) {
+			if hit.Index < len(f.Fields) && mouse.Y > y+hit.Y0 && (len(f.Options(f.Fields[hit.Index].Key)) > 0 || f.PickerControl(f.Fields[hit.Index].Key)) {
 				return Intent{}, f.OpenPicker(props)
 			}
 			if hit.Index == len(f.Fields) {

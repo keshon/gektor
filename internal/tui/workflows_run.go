@@ -29,6 +29,9 @@ func (m *model) workflowAction(a workflowAction) tea.Cmd {
 		return nil
 	}
 	switch a.action {
+	case "link-target":
+		m.workflowLinkTarget(a.value)
+		return nil
 	case "ai-prompt":
 		return m.proposeWorkflow(a.value)
 	case "new-path":
@@ -79,7 +82,7 @@ func (m *model) workflowAction(a workflowAction) tea.Cmd {
 		if err == nil {
 			path, err = ws.Relative(path)
 		}
-		result := workflowResult{}
+		result := workflowResult{action: a.action}
 		if err == nil {
 			s.OnRun = func(id string) error { events <- workflowRunID(id); return nil }
 			switch a.action {
@@ -145,6 +148,19 @@ func (m *model) acceptWorkflowResult(r workflowResult) tea.Cmd {
 		m.closeDialog()
 	}
 	if r.err != nil {
+		if r.action == "open-path" {
+			w.notice = "Recipe was not opened · Ctrl+O choose a file"
+			m.workflowCommand("open")
+			if m.dialog != nil && m.dialog.form != nil {
+				m.dialog.form.Editor.SetValue(r.path)
+				message := "Could not open recipe: " + r.err.Error()
+				if os.IsNotExist(r.err) {
+					message = "Recipe not found: " + r.path + ". Enter an existing path, or Esc then Ctrl+N to create one."
+				}
+				m.dialog.form.Error = message
+			}
+			return nil
+		}
 		w.notice = r.err.Error()
 		m.openDialog("Workflow failed", []string{r.err.Error(), r.text})
 		return nil
