@@ -154,8 +154,10 @@ func (m *model) badgeLine() string {
 
 func (m *model) rawHeaderItems() []headerItem {
 	info := func(s string) headerItem { return headerItem{text: s} }
-	idle := m.state == stDone
+	idle := m.state == stDone && (m.workflows == nil || !m.workflows.busy)
 	switch m.header.menu {
+	case "pipelines":
+		return []headerItem{{"Editor", "/workflows", idle}, {"Open recipe…", "/workflows open", idle}, {"New recipe…", "/workflows new", idle}, {"Saved runs…", "/workflows runs", idle}, {"Return to chat", "/workflows chat", idle}}
 	case "session":
 		rows := []headerItem{{"New", "/new", idle}, {"Open…", "/sessions", true}, {"Compact history", "/compact", idle && m.stateFile != ""}, {"Rename…", "rename-current", idle && m.stateFile != ""}, {"Delete…", "delete-current", idle && m.stateFile != ""}}
 
@@ -539,7 +541,7 @@ func (m *model) menuCells() []footerCell {
 	enabled := m.dialog == nil && m.sessions == nil && m.state != stPermission && m.state != stAsk
 	x := 1
 	var cells []footerCell
-	menus := []struct{ id, label string }{{"session", "Session"}, {"workflow", "Run"}, {"view", "View"}, {"settings", "Settings"}, {"help", "Help"}}
+	menus := []struct{ id, label string }{{"session", "Session"}, {"workflow", "Run"}, {"pipelines", "Workflows"}, {"view", "View"}, {"settings", "Settings"}, {"help", "Help"}}
 	for _, menu := range menus {
 		if x >= m.termW-1 {
 			break

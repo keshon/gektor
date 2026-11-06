@@ -538,3 +538,7 @@ Constant and input-only outputs are still collected when all effect steps skip.
 A skipped call does not collect its child's outputs.
 
 See [the reusable report example](../examples/workflows/subworkflow/README.md).
+
+## TUI editor
+
+The [workflow workspace](tui.md#workflow-workspace) opens from `/workflows` or the Workflows menu. It edits the same version 3 recipes used by the CLI and uses the same execution, permission and review services. Canvas layout is user-local metadata, not part of the executable recipe.

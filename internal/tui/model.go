@@ -81,6 +81,7 @@ type doneMsg struct {
 type tickMsg time.Time
 type liveFlushMsg struct{}
 type model struct {
+	workflows        *workflowWorkspace
 	steering         bool
 	inspector        toolInspector
 	liveFlushPending bool

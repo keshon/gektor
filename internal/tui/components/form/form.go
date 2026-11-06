@@ -9,6 +9,7 @@ import (
 type Field struct {
 	Key, Label, Value string
 	Multiline         bool
+	ReadOnly          bool
 }
 
 type Intent int
@@ -31,7 +32,7 @@ func New(fields []Field, editor textarea.Model) Model {
 	return Model{Fields: append([]Field(nil), fields...), Index: len(fields), Editor: editor}
 }
 func (m *Model) Sync() {
-	if m.Index >= 0 && m.Index < len(m.Fields) {
+	if m.Index >= 0 && m.Index < len(m.Fields) && !m.Fields[m.Index].ReadOnly {
 		m.Fields[m.Index].Value = m.Editor.Value()
 	}
 }
@@ -117,6 +118,17 @@ func (m *Model) Update(msg tea.Msg, visible func(int) bool, choice bool, destruc
 		}
 	}
 	if m.Index < len(m.Fields) {
+		if m.Fields[m.Index].ReadOnly {
+			key, ok := msg.(tea.KeyPressMsg)
+			if !ok {
+				return None, nil
+			}
+			switch key.String() {
+			case "up", "down", "left", "right", "home", "end", "pgup", "pgdown":
+			default:
+				return None, nil
+			}
+		}
 		var cmd tea.Cmd
 		m.Editor, cmd = m.Editor.Update(msg)
 		return None, cmd

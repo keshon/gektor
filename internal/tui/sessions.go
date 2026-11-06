@@ -113,6 +113,12 @@ func (m *model) clampOffset() {
 // tears it down with focus restored. Balanced by construction: every
 // open pairs with esc/enter or run start.
 func (m *model) openSessions() {
+	if m.workflows != nil {
+		if m.workflows.busy {
+			return
+		}
+		m.workflows.active = false
+	}
 	filter := newSearchInput(max(popup.ModalWidth(m.termW-2)-6, 1))
 	filter.Focus()
 	m.sessions = &sessionsState{entries: m.savedSessions, all: m.savedSessions, loading: m.sessionsLoading, root: m.sessionRoot(), filter: filter}

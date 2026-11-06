@@ -24,6 +24,10 @@ func (m *model) formRows() ([]string, []formHit, int, int) {
 // the same pane - and having two answers meant the form's renderer and its
 // hit-test could be reading a different region than the one it was drawn into.
 func (m *model) settingsArea() (left, top, width, height int) {
+	if m.workflowActive() {
+		_, h := m.workflowCanvasSize()
+		return 1, paneTop, max(1, m.termW-2), h
+	}
 	return m.promptOffset(), paneTop, m.transcript.Viewport.Width(), m.transcript.Viewport.Height()
 }
 

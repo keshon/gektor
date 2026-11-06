@@ -7,6 +7,9 @@ import (
 )
 
 func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if m.workflowActive() && m.dialog == nil && (m.workflows.dragging || m.workflows.thumb.active) {
+		return m.workflowMouse(msg)
+	}
 	if m.sessions != nil {
 		return m.browserMouse(msg)
 	}
@@ -31,6 +34,9 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if handled, cmd := m.headerMouse(msg); handled {
 		return m, cmd
 	}
+	if m.workflowActive() && m.dialog == nil {
+		return m.workflowMouse(msg)
+	}
 	if m.inspectorVisible() && (m.termW < inspectorSplitWidth || msg.Mouse().X >= m.mainWidth()) && msg.Mouse().Y >= 1 && msg.Mouse().Y < m.termH-m.actionBarRows() {
 		if handled, cmd := m.inspectorMouse(msg); handled {
 			return m, cmd
@@ -51,7 +57,8 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		if m.dialog.form == nil && msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) {
 			rows, w, h := m.dialogRows()
 			inner := popup.ModalWidth(w) - 4
-			x := m.promptOffset() + max((w-popup.ModalWidth(w))/2, 0) + 2
+			left, _, _, _ := m.settingsArea()
+			x := left + max((w-popup.ModalWidth(w))/2, 0) + 2
 			y := paneTop + max((h-len(rows)-2)/2, 0) + 1
 			if msg.Mouse().Y == y && msg.Mouse().X >= x+inner-3 && msg.Mouse().X < x+inner {
 				m.closeDialog()
@@ -111,7 +118,8 @@ func (m *model) dialogScrollbarMouse(msg tea.MouseMsg) bool {
 		return false
 	}
 	rows, _, _ := m.dialogRows()
-	x := m.promptOffset() + max((l.width-popup.ModalWidth(l.width))/2, 0) + 2 + l.inner - 1
+	left, _, _, _ := m.settingsArea()
+	x := left + max((l.width-popup.ModalWidth(l.width))/2, 0) + 2 + l.inner - 1
 	y := paneTop + max((l.height-len(rows)-2)/2, 0) + 1 + len(l.rows)
 	mouse := msg.Mouse()
 	if d.drag.active {

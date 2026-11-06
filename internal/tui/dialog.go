@@ -27,15 +27,17 @@ func wsRootOf(ws *workspace.Workspace) string {
 // A dialog carries lines or a form, never both. A lesson preview also offers
 // explicit save/edit actions; Enter still closes without saving.
 type infoDialog struct {
-	drag   scrollDrag
-	review func()
-	save   func() error
-	form   *settingsForm
-	title  string
-	lines  []string
-	help   bool
-	page   int
-	offset int
+	hint    string
+	onClose func()
+	drag    scrollDrag
+	review  func()
+	save    func() error
+	form    *settingsForm
+	title   string
+	lines   []string
+	help    bool
+	page    int
+	offset  int
 }
 
 // openDialog pushes the overlay and shows an info dialog; closeDialog
@@ -50,6 +52,9 @@ func (m *model) openDialog(title string, lines []string) {
 }
 
 func (m *model) closeDialog() {
+	if m.dialog != nil && m.dialog.onClose != nil {
+		m.dialog.onClose()
+	}
 	m.cancelEvaluation()
 	m.dialog = nil
 	m.popOverlay()
@@ -110,7 +115,7 @@ func (m *model) layoutDialog() dialogLayout {
 	d := m.dialog
 	availW, availH := m.termW, m.termH-3
 	if m.ready {
-		availW, availH = m.transcript.Viewport.Width(), m.transcript.Viewport.Height()
+		_, _, availW, availH = m.settingsArea()
 	}
 	inner := max(popup.ModalWidth(availW)-4, 1)
 	// Info dialog: title, lines, close hint (with help tabs if applicable).
@@ -125,6 +130,9 @@ func (m *model) layoutDialog() dialogLayout {
 	}
 	if d.save != nil {
 		hint = "S save lesson   E edit   Esc / Enter skip"
+	}
+	if d.hint != "" {
+		hint = d.hint
 	}
 	if m.evaluation != nil {
 		hint = "Esc / Enter cancel evaluation"

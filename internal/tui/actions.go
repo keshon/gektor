@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -67,6 +68,9 @@ func (m *model) footerActions() []footerAction {
 			return actions
 		}
 		return []footerAction{{tea.KeyTab, 0, "Tab", "Next", "Next", true}, apply, {tea.KeyEscape, 0, "Esc", "Cancel", "Cancel", true}, {'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true}}
+	}
+	if m.workflowActive() && m.dialog == nil && m.sessions == nil && !m.header.focused {
+		return m.workflowFooterActions()
 	}
 	legacy := m.legacyFooterActions()
 	actions := []footerAction{
@@ -231,6 +235,27 @@ func (m *model) footerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 // A normal quit first stops an active run. Ctrl+C remains the immediate exit.
 func (m *model) requestQuit() (tea.Model, tea.Cmd) {
+	if w := m.workflows; w != nil {
+		if w.busy {
+			if w.cancel != nil {
+				w.cancel()
+			}
+			w.notice = "Stopping workflow. Quit again once stopped."
+			return m, nil
+		}
+		if w.editor.Dirty() {
+			m.openForm("Quit with unsaved workflow?", "Return to Workflows and save, or discard the draft.", "Quit", []formField{{Key: "decision", Label: "Type discard to quit"}}, func(v map[string]string) error {
+				if v["decision"] != "discard" {
+					return fmt.Errorf("type discard, or Esc to keep editing")
+				}
+				m.workflows = nil
+				m.pendingCommands = append(m.pendingCommands, func() tea.Msg { return workflowQuit{} })
+				return nil
+			})
+			return m, nil
+		}
+	}
+
 	if m.state != stDone {
 		if m.state != stStopping {
 			m.interrupted = true

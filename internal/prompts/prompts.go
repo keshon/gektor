@@ -52,6 +52,7 @@ func read(name string) string {
 }
 
 var (
+	WorkflowEdit      = read("workflow_edit.txt")
 	System            = read("system.txt")
 	Evaluation        = read("evaluation.txt")
 	RoleAddendum      = read("role_addendum.txt")

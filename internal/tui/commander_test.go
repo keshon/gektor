@@ -122,7 +122,13 @@ func TestGlobalDropdownNavigationAndSettings(t *testing.T) {
 	if !m.plan || m.header.focused {
 		t.Fatal("Plan selection failed")
 	}
-	settings := m.menuCells()[3]
+	var settings footerCell
+	for _, c := range m.menuCells() {
+		if c.action.name == "settings" {
+			settings = c
+			break
+		}
+	}
 	m.Update(tea.MouseClickMsg{X: settings.start, Y: 0, Button: tea.MouseLeft})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.header.menu != "settings" || m.header.row != 0 {

@@ -66,6 +66,22 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	defer m.syncFocus()
 	defer m.queueSettingsDetail()
 	switch msg := msg.(type) {
+	case workflowQuit:
+		return m.requestQuit()
+	case workflowProposal:
+		m.acceptWorkflowProposal(msg)
+		return m, nil
+	case workflowAction:
+		return m, m.workflowAction(msg)
+	case workflowPermission:
+		return m, m.acceptWorkflowPermission(msg)
+	case workflowResult:
+		return m, m.acceptWorkflowResult(msg)
+	case workflowRunID:
+		m.workflows.runID = string(msg)
+		return m, tea.Batch(workflowWait(m.workflows.events), m.workflowPoll(string(msg), false))
+	case workflowPoll:
+		return m, m.acceptWorkflowPoll(msg)
 	case mcpActionMsg:
 		return m, m.handleMCPAction(msg)
 	case mcpDoneMsg:

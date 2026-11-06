@@ -15,6 +15,9 @@ func (m *model) screenContent() string {
 	if !m.ready {
 		return "starting..."
 	}
+	if m.workflowActive() && m.sessions == nil {
+		return m.workflowScreen()
+	}
 	// A settings section used to short-circuit here and build its own screen:
 	// a menu line, a form and an action bar, framed as bare content. No
 	// header, no rules, no side borders - so the one screen you open to change
@@ -136,7 +139,7 @@ func (m *model) View() tea.View {
 	v.MouseMode = tea.MouseModeCellMotion
 	v.ReportFocus = true
 	owner := m.activeInputOwner()
-	if !m.ready || owner == focusDialog || owner == focusHeader {
+	if !m.ready || owner == focusDialog || owner == focusHeader || m.workflowActive() {
 		return v
 	}
 	if m.sessions != nil {

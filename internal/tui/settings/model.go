@@ -189,6 +189,9 @@ func (f *Model) UpdateInput(msg tea.Msg) tea.Cmd {
 	case PickerInput:
 		return f.Picker.UpdateInput(msg)
 	case FieldInput:
+		if f.Fields[f.Index].ReadOnly {
+			return nil
+		}
 		var cmd tea.Cmd
 		f.Editor, cmd = f.Editor.Update(msg)
 		return cmd

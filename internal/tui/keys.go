@@ -15,6 +15,9 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if msg.String() == "ctrl+q" {
 		return m.requestQuit()
 	}
+	if m.workflowActive() && m.dialog == nil && !m.header.focused && m.sessions == nil && m.header.menu == "" && msg.String() != "ctrl+c" {
+		return m.workflowKey(msg)
+	}
 	if m.state == stPermission && m.dialog == nil && msg.String() == "f4" && m.gatePreview != "" {
 		return m.gateKey(msg)
 	}

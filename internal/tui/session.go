@@ -352,6 +352,12 @@ func (m *model) startInitial(task string, images []string) error {
 // last-turn state go, the next submitted line starts a fresh run
 // through the sess==nil path in followUp. Bare /new.
 func (m *model) newTask() {
+	if m.workflows != nil {
+		if m.workflows.busy {
+			return
+		}
+		m.workflows.active = false
+	}
 	m.attachmentEpoch++
 	m.seedHistory = nil
 	if m.stateFile == "" && m.sess == nil {

@@ -10,7 +10,7 @@ import (
 )
 
 func TestIndependentFormsAndVisibility(t *testing.T) {
-	fields := []Field{{"hidden", "Hidden", "old", false}, {"body", "Body", "one\ntwo", true}}
+	fields := []Field{{Key: "hidden", Label: "Hidden", Value: "old"}, {Key: "body", Label: "Body", Value: "one\ntwo", Multiline: true}}
 	a, b := New(fields, textarea.New()), New(fields, textarea.New())
 	visible := func(i int) bool { return i != 0 }
 	a.Focus(0, visible)
@@ -60,5 +60,19 @@ func TestRowsAndHitGeometryUseTerminalCells(t *testing.T) {
 	}
 	if !strings.Contains(row, "保存") || hits[0].Y0 != 4 {
 		t.Fatal("button text or row missing")
+	}
+}
+
+func TestReadOnlyFieldKeepsEvidence(t *testing.T) {
+	m := New([]Field{{Key: "args", Value: "original", ReadOnly: true, Multiline: true}}, textarea.New())
+	m.Focus(0, nil)
+	m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"}, nil, false, false)
+	m.Editor.SetValue("tampered")
+	if m.Values()["args"] != "original" {
+		t.Fatal("read-only evidence changed")
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyTab}, nil, false, false)
+	if m.Index != 1 {
+		t.Fatal("read-only field trapped focus")
 	}
 }
