@@ -157,7 +157,22 @@ func (m *model) rawHeaderItems() []headerItem {
 	idle := m.state == stDone && (m.workflows == nil || !m.workflows.busy)
 	switch m.header.menu {
 	case "pipelines":
-		return []headerItem{{"Editor", "/workflows", idle}, {"Open recipe…", "/workflows open", idle}, {"New recipe…", "/workflows new", idle}, {"Saved runs…", "/workflows runs", idle}, {"Return to chat", "/workflows chat", idle}}
+		if m.workflowActive() {
+			return []headerItem{{"New…", "/workflows new", idle}, {"Open…", "/workflows open", idle}, {"Save…", "/workflows save", idle && m.workflows.run == nil}, {"", "", false}, {"Recipe settings…", "/workflows setup", idle && m.workflows.run == nil}, {"", "", false}, {"Return to chat", "/workflows chat", idle}}
+		}
+		return []headerItem{{"Editor", "/workflows", idle}, {"Open recipe…", "/workflows open", idle}, {"New recipe…", "/workflows new", idle}, {"Saved runs…", "/workflows runs", idle}}
+	case "workflow-node":
+		if m.workflows == nil {
+			return nil
+		}
+		edit := idle && m.workflows.run == nil
+		return []headerItem{{"Add node…", "/workflows add", edit}, {"Edit arguments…", "/workflows edit", edit}, {"Behavior…", "/workflows behavior", edit}, {"Connections…", "/workflows connections", edit}, {"Connect nodes…", "/workflows link", edit}, {"", "", false}, {"Delete node…", "/workflows delete", edit}}
+	case "workflow-execution":
+		if m.workflows == nil {
+			return nil
+		}
+		edit := idle && m.workflows.run == nil
+		return []headerItem{{"Validate…", "/workflows validate", edit}, {"Run…", "/workflows run", edit}, {"Cancel", "/workflows stop", m.workflows.busy}, {"", "", false}, {"Saved runs…", "/workflows runs", idle}, {"Review…", "/workflows review", idle && m.workflows.run != nil}, {"Return to draft", "/workflows draft", idle && m.workflows.run != nil}}
 	case "session":
 		rows := []headerItem{{"New", "/new", idle}, {"Open…", "/sessions", true}, {"Compact history", "/compact", idle && m.stateFile != ""}, {"Rename…", "rename-current", idle && m.stateFile != ""}, {"Delete…", "delete-current", idle && m.stateFile != ""}}
 
@@ -165,6 +180,9 @@ func (m *model) rawHeaderItems() []headerItem {
 	case "workflow":
 		return []headerItem{{"Plan", "/mode plan", idle}, {"Act", "/mode act", idle}, {"Stop run", "stop", m.state == stRunning}, {"Retry", "/retry", idle && m.runErr != nil && m.retryRun != nil}, {"Permissions…", "permissions-info", true}}
 	case "view":
+		if m.workflowActive() {
+			return []headerItem{{"Inspector", "/workflows inspector", true}, {"Overview", "/workflows overview", true}, {"Auto-layout", "/workflows layout", idle}, {"", "", false}, {"Outlined frame", "toggle-outline", true}, {"Select Theme…", "theme", true}}
+		}
 		// Two zones: what the reader has chosen to hide, then what they
 		// can do. The separator exists because a filtered transcript and
 		// a scroll action are not the same kind of thing, and listing
@@ -189,6 +207,9 @@ func (m *model) rawHeaderItems() []headerItem {
 		rows = append(rows, headerItem{"Steering", "toggle-steering", true}, headerItem{"MCP servers…", "/mcp", true})
 		return rows
 	case "help":
+		if m.workflowActive() {
+			return []headerItem{{"Workflow keys", "/workflows help", true}, {"About", "about", true}}
+		}
 		return []headerItem{{"Keyboard shortcuts", "help-keys", true}, {"Commands", "help-commands", true}, {"About", "about", true}}
 
 	case "steering":
@@ -542,6 +563,9 @@ func (m *model) menuCells() []footerCell {
 	x := 1
 	var cells []footerCell
 	menus := []struct{ id, label string }{{"session", "Session"}, {"workflow", "Run"}, {"pipelines", "Workflows"}, {"view", "View"}, {"settings", "Settings"}, {"help", "Help"}}
+	if m.workflowActive() {
+		menus = []struct{ id, label string }{{"pipelines", "Workflow"}, {"workflow-node", "Node"}, {"workflow-execution", "Run"}, {"view", "View"}, {"settings", "Settings"}, {"help", "Help"}}
+	}
 	for _, menu := range menus {
 		if x >= m.termW-1 {
 			break
@@ -590,6 +614,9 @@ func (m *model) menuLine() string {
 	if m.ws != nil {
 		identity = filepath.Base(m.ws.Root()) + " · " + identity
 	}
+	if m.workflowActive() {
+		identity = filepath.Base(m.wsRoot)
+	}
 	available := m.termW - lipgloss.Width(line) - 3
 	if available >= 12 {
 		identity = strings.TrimSpace(cellLine(identity, available))
@@ -635,6 +662,10 @@ func (m *model) headerActionRow(start, delta int) int {
 // mark on "System messages" means scaffolding history is visible.
 func (m *model) headerToggle(command string) (toggle, on bool) {
 	switch command {
+	case "/workflows inspector":
+		return m.workflows != nil, m.workflows != nil && m.workflows.inspectorOpen
+	case "/workflows overview":
+		return m.workflows != nil, m.workflows != nil && m.workflows.overview
 	case "toggle-steering":
 		return true, m.steering
 	case "toggle-details":
@@ -661,6 +692,42 @@ func (m *model) headerToggle(command string) (toggle, on bool) {
 // the menu. A row with no shortcut still works by click.
 func menuShortcut(command string) string {
 	switch command {
+	case "/workflows new":
+		return "Ctrl+N"
+	case "/workflows open":
+		return "Ctrl+O"
+	case "/workflows save":
+		return "Ctrl+S"
+	case "/workflows add":
+		return "A"
+	case "/workflows edit":
+		return "Enter"
+	case "/workflows behavior":
+		return "E"
+	case "/workflows connections":
+		return "B"
+	case "/workflows link":
+		return "C"
+	case "/workflows delete":
+		return "Delete"
+	case "/workflows validate":
+		return "V"
+	case "/workflows run":
+		return "R"
+	case "/workflows runs":
+		return "H"
+	case "/workflows review":
+		return "P"
+	case "/workflows draft":
+		return "D"
+	case "/workflows inspector":
+		return "Ctrl+T"
+	case "/workflows overview":
+		return "F"
+	case "/workflows layout":
+		return "L"
+	case "/workflows chat":
+		return "Esc"
 	case "/new":
 		return "Ctrl+N"
 	case "quit":

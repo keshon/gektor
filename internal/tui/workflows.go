@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/automation"
 	"github.com/keshon/gektor/internal/automation/service"
@@ -17,25 +18,26 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/schemaform"
 	"github.com/keshon/gektor/internal/tui/settings"
 	editor "github.com/keshon/gektor/internal/tui/workflow"
-	"sort"
 	"strings"
 )
 
 type workflowWorkspace struct {
-	thumb                 scrollDrag
-	active, busy, inspect bool
-	overview              bool
-	editor                *editor.Editor
-	graph                 graph.Model
-	registry              *automation.Registry
-	notice                string
-	offset                int
-	dragging              bool
-	last                  graph.Point
-	cancel                context.CancelFunc
-	events                chan tea.Msg
-	run                   *automation.Run
-	runID                 string
+	thumb                  scrollDrag
+	active, busy, inspect  bool
+	overview               bool
+	inspectorOpen, panning bool
+	connectFrom            string
+	editor                 *editor.Editor
+	graph                  graph.Model
+	registry               *automation.Registry
+	notice                 string
+	offset                 int
+	dragging               bool
+	last                   graph.Point
+	cancel                 context.CancelFunc
+	events                 chan tea.Msg
+	run                    *automation.Run
+	runID                  string
 }
 type workflowAction struct{ action, value string }
 type workflowResult struct {
@@ -92,6 +94,16 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 		return nil
 	}
 	w := m.workflows
+	if action == "inspector" {
+		w.inspectorOpen = !w.inspectorOpen
+		w.inspect = w.inspectorOpen
+		w.thumb = scrollDrag{}
+		return nil
+	}
+	if action == "overview" {
+		w.overview = !w.overview
+		return nil
+	}
 	if action == "" {
 		return nil
 	}
@@ -100,7 +112,7 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 		w.notice = "Operation in progress · Esc stops it"
 		return nil
 	}
-	if w.run != nil && (action == "edit" || action == "add" || action == "link" || action == "delete" || action == "recipe" || action == "ai" || action == "behavior" || action == "undo" || action == "redo" || action == "save" || action == "run") {
+	if w.run != nil && (action == "edit" || action == "add" || action == "link" || action == "connections" || action == "delete" || action == "recipe" || action == "name" || action == "inputs" || action == "outputs" || action == "ai" || action == "behavior" || action == "undo" || action == "redo" || action == "save" || action == "run" || action == "validate") {
 		w.notice = "Frozen run · D returns to the editable draft"
 		return nil
 	}
@@ -110,6 +122,31 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 	}
 	fail := func(err error) { m.openDialog("Workflow", []string{err.Error()}) }
 	switch action {
+	case "help":
+		_, cmd := m.workflowKey(tea.KeyPressMsg{Code: tea.KeyF1})
+		return cmd
+	case "setup":
+		if w.run != nil {
+			return nil
+		}
+		m.openForm("Recipe settings", "Choose a part of the recipe to edit.", "Open", []formField{{Key: "section", Label: "Section", Value: "Name"}}, func(v map[string]string) error {
+			actions := map[string]string{"Name": "name", "Inputs": "inputs", "Outputs": "outputs", "Complete JSON": "recipe"}
+			action, ok := actions[v["section"]]
+			if !ok {
+				return fmt.Errorf("choose a section")
+			}
+			m.queueWorkflow(action, "")
+			return nil
+		})
+		m.dialog.form.Choices = map[string][]string{"section": {"Name", "Inputs", "Outputs", "Complete JSON"}}
+	case "name":
+		if w.run == nil {
+			m.workflowRecipeName()
+		}
+	case "inputs", "outputs":
+		if w.run == nil {
+			m.workflowParameters(action)
+		}
 	case "stop":
 		if w.cancel != nil {
 			w.cancel()
@@ -243,6 +280,8 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 			return nil
 		})
 		m.dialog.form.Choices = map[string][]string{"from": names, "to": names}
+	case "connections":
+		m.workflowConnections()
 
 	case "delete":
 		id := w.graph.Selected
@@ -263,17 +302,7 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 			return nil
 		})
 	case "validate", "run":
-		m.openForm("Workflow / "+action, "Runs execute sequentially. Reviews pause before effects. Unsaved draft is snapshotted.", "Continue", []formField{{Key: "inputs", Label: "Input values (JSON object)", Value: "{}", Multiline: true}}, func(v map[string]string) error {
-			var in map[string]json.RawMessage
-			if err := json.Unmarshal([]byte(v["inputs"]), &in); err != nil {
-				return err
-			}
-			if in == nil {
-				return fmt.Errorf("inputs must be an object")
-			}
-			m.queueWorkflow(action+"-inputs", v["inputs"])
-			return nil
-		})
+		m.workflowRunInputs(action)
 	case "runs":
 		s, err := store.OpenStore(gektor.Sub("workflows"), m.wsRoot)
 		if err != nil {
@@ -386,9 +415,18 @@ func (m *model) workflowKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		if w.busy {
 			action = "stop"
+		} else if w.connectFrom != "" {
+			w.connectFrom = ""
+			w.notice = "Connection cancelled"
+		} else if w.inspectorOpen && w.inspect {
+			w.inspectorOpen = false
+			w.inspect = false
+			w.thumb = scrollDrag{}
 		} else {
 			action = "chat"
 		}
+	case "ctrl+t":
+		action = "inspector"
 	case "ctrl+o":
 		action = "open"
 	case "ctrl+n":
@@ -399,12 +437,15 @@ func (m *model) workflowKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		action = "add"
 	case "enter":
 		if w.run != nil {
-			m.openDialog("Run node", m.workflowDetailRows())
+			w.inspectorOpen = true
+			w.inspect = true
 			return m, nil
 		}
 		action = "edit"
 	case "c":
 		action = "link"
+	case "b":
+		action = "connections"
 	case "delete":
 		action = "delete"
 	case "e":
@@ -413,6 +454,12 @@ func (m *model) workflowKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		action = "ai"
 	case "j":
 		action = "recipe"
+	case "m":
+		action = "name"
+	case "u":
+		action = "inputs"
+	case "o":
+		action = "outputs"
 	case "v":
 		action = "validate"
 	case "r":
@@ -432,7 +479,9 @@ func (m *model) workflowKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+y":
 		action = "redo"
 	case "tab":
-		w.inspect = !w.inspect
+		if w.inspectorOpen {
+			w.inspect = !w.inspect
+		}
 	case "up", "down", "left", "right":
 		delta := 1
 		if key == "up" || key == "left" {
@@ -454,15 +503,15 @@ func (m *model) workflowKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "shift+down":
 		w.graph.Move(0, 1)
 	case "alt+left":
-		w.graph.Pan.X = max(0, w.graph.Pan.X-8)
+		w.graph.Pan.X -= 8
 	case "alt+right":
 		w.graph.Pan.X += 8
 	case "alt+up":
-		w.graph.Pan.Y = max(0, w.graph.Pan.Y-4)
+		w.graph.Pan.Y -= 4
 	case "alt+down":
 		w.graph.Pan.Y += 4
 	case "f1":
-		m.openDialog("Workflow keys", strings.Split("Ctrl+O open · Ctrl+N new · Ctrl+S save\nA add · Enter edit/inspect · Delete delete\nC connect · E node behavior · J complete recipe JSON\nArrows select · Shift+arrows move · Alt+arrows pan\nMouse select/drag · wheel scroll · Tab focus inspector\nF compact overview · L auto-layout · Ctrl+Z undo · Ctrl+Y redo\nV validate · R run · H saved runs · P review\nD editable draft · I AI proposal\nEsc chat (draft retained) / stop active operation\nF9 main menu · Ctrl+Q quit", "\n"))
+		m.openDialog("Workflow keys", strings.Split("Ctrl+O open · Ctrl+N new · Ctrl+S save\nA add · Enter edit/inspect · Delete delete\nC connect · B connections · E node behavior · J complete recipe JSON\nM recipe name · U inputs · O outputs\nArrows select · Shift+arrows move · Alt+arrows pan\nDrag background to pan · Shift+wheel horizontal\nClick output then input to connect · Ctrl+T inspector\nTab pane focus · Esc closes focused inspector\nF compact overview · L auto-layout · Ctrl+Z undo · Ctrl+Y redo\nV validate · R run · H saved runs · P review\nD editable draft · I AI proposal\nEsc chat (draft retained) / stop active operation\nF9 main menu · Ctrl+Q quit", "\n"))
 		return m, nil
 	case "f9":
 		return m.footerKey(msg)
@@ -473,7 +522,7 @@ func (m *model) workflowKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.persistWorkflowLayout()
 	}
 	if action != "" {
-		if w.run != nil && (action == "ai" || action == "edit" || action == "add" || action == "link" || action == "delete" || action == "recipe") {
+		if w.run != nil && (action == "ai" || action == "edit" || action == "add" || action == "link" || action == "connections" || action == "delete" || action == "recipe") {
 			w.notice = "Viewing a frozen run · D returns to the editable draft"
 			return m, nil
 		}
@@ -486,7 +535,11 @@ func (m *model) workflowCanvasSize() (int, int) {
 	if !m.minimal {
 		rows++
 	}
-	return max(1, min(max(20, (m.termW-3)*2/3), m.termW-4)), max(1, m.termH-rows)
+	width := max(1, m.termW-2)
+	if m.workflows.inspectorOpen && m.termW >= inspectorSplitWidth {
+		width = max(1, (m.termW-3)*2/3)
+	}
+	return width, max(1, m.termH-rows)
 }
 func (m *model) workflowScreen() string {
 	w := m.workflows
@@ -505,21 +558,34 @@ func (m *model) workflowScreen() string {
 	if len(w.graph.Nodes) == 0 {
 		left = cellFrame("  No nodes yet.\n\n  A add a node   Ctrl+O open a recipe", cw, ch)
 	}
-	detail := m.workflowDetailRows()
-	w.offset = min(w.offset, max(0, len(detail)-ch))
-	visible := detail[w.offset:min(len(detail), w.offset+ch)]
-	right := popup.ScrollRows(visible, rw, w.offset, len(detail), normal)
-	right = strings.Split(cellFrame(strings.Join(right, "\n"), rw, ch), "\n")
-	lr := strings.Split(left, "\n")
-	rows := make([]string, ch)
-	for i := range rows {
-		separator := " "
-		if !m.minimal {
-			separator = "│"
+	split := w.inspectorOpen && m.termW >= inspectorSplitWidth
+	body := left
+	if w.inspectorOpen {
+		paneWidth := rw
+		if !split {
+			paneWidth = cw
 		}
-		rows[i] = lr[i] + separator + right[i]
+		detail := m.workflowDetailRows()
+		detail[0] = cellLine(detail[0], max(0, paneWidth-4)) + " [x]"
+		content := m.workflowInspectorContent()
+		capacity := max(1, ch-1)
+		w.offset = min(w.offset, max(0, len(content)-capacity))
+		visible := content[w.offset:min(len(content), w.offset+capacity)]
+		paneStyle := styles.Normal
+		right := append([]string{paneStyle.Bold(true).Render(detail[0])}, popup.ScrollRows(visible, paneWidth, w.offset, len(content), paneStyle)...)
+		right = strings.Split(cellFrame(strings.Join(right, "\n"), paneWidth, ch), "\n")
+		if split {
+			lr := strings.Split(left, "\n")
+			rows := make([]string, ch)
+			for i := range rows {
+				separator := styles.Border.Render("│")
+				rows[i] = lr[i] + separator + right[i]
+			}
+			body = strings.Join(rows, "\n")
+		} else {
+			body = strings.Join(right, "\n")
+		}
 	}
-	body := strings.Join(rows, "\n")
 	if m.dialog != nil {
 		body = m.overlayDialog(body)
 	}
@@ -555,8 +621,13 @@ func (m *model) workflowScreen() string {
 			return m.styles.dim.Render(left + strings.Repeat("─", cw) + joint + strings.Repeat("─", rw) + right)
 		}
 		top = m.styles.dim.Render("┌" + strings.Repeat("─", m.termW-2) + "┐")
-		divider = splitRule("├", "┬", "┤")
-		bodyBottom = "\n" + splitRule("├", "┴", "┤")
+		if split {
+			divider = splitRule("├", "┬", "┤")
+			bodyBottom = "\n" + splitRule("├", "┴", "┤")
+		} else {
+			divider = m.styles.dim.Render("├" + strings.Repeat("─", m.termW-2) + "┤")
+			bodyBottom = "\n" + divider
+		}
 		bottom = m.styles.dim.Render("└" + strings.Repeat("─", m.termW-2) + "┘")
 		header = frameRow(" Workflows · sequential · " + cleanText(title))
 		notice = frameRow(" " + cleanText(w.notice))
@@ -579,22 +650,29 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-
 	cw, ch := m.workflowCanvasSize()
 	x, y := mouse.X-1, mouse.Y-4
+	pane := w.inspectorOpen && (m.termW < inspectorSplitWidth || x > cw)
 	if w.thumb.active {
-		w.offset = popup.ScrollOffset(y, ch, len(m.workflowDetailRows()), w.thumb.grab)
+		w.offset = popup.ScrollOffset(y-1, max(1, ch-1), len(m.workflowInspectorContent()), w.thumb.grab)
 		if _, ok := msg.(tea.MouseReleaseMsg); ok {
 			w.thumb = scrollDrag{}
 		}
 		return m, nil
 	}
 	if _, ok := msg.(tea.MouseReleaseMsg); ok {
-		wasDragging := w.dragging
+		dragged := w.dragging
 		w.dragging = false
-		if wasDragging {
+		w.panning = false
+		if dragged {
 			m.persistWorkflowLayout()
 		}
+		return m, nil
+	}
+	if w.panning {
+		w.graph.Pan.X -= x - w.last.X
+		w.graph.Pan.Y -= y - w.last.Y
+		w.last = graph.Point{X: x, Y: y}
 		return m, nil
 	}
 	if w.dragging {
@@ -605,47 +683,104 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if y < 0 || y >= ch {
 		return m, nil
 	}
-	if mouse.Button == tea.MouseWheelDown || mouse.Button == tea.MouseWheelUp {
+	wheel := mouse.Button == tea.MouseWheelDown || mouse.Button == tea.MouseWheelUp || mouse.Button == tea.MouseWheelLeft || mouse.Button == tea.MouseWheelRight
+	if wheel {
 		delta := 3
-		if mouse.Button == tea.MouseWheelUp {
+		if mouse.Button == tea.MouseWheelUp || mouse.Button == tea.MouseWheelLeft {
 			delta = -3
 		}
-		if x > cw {
+		if pane {
 			w.offset = max(0, w.offset+delta)
+		} else if mouse.Button == tea.MouseWheelLeft || mouse.Button == tea.MouseWheelRight || mouse.Mod&tea.ModShift != 0 {
+			w.graph.Pan.X += delta
 		} else {
-			w.graph.Pan.Y = max(0, w.graph.Pan.Y+delta)
+			w.graph.Pan.Y += delta
 		}
 		return m, nil
 	}
-	if mouse.Button == tea.MouseLeft && isMouseClick(msg) {
-		if x > cw {
+	if pane {
+		if mouse.Button == tea.MouseLeft && isMouseClick(msg) {
+			if y == 0 && mouse.X >= m.termW-5 {
+				w.inspectorOpen = false
+				w.inspect = false
+				w.thumb = scrollDrag{}
+				return m, nil
+			}
 			w.inspect = true
-			if x >= m.termW-4 {
-				total := len(m.workflowDetailRows())
-				top, size := popup.ScrollThumb(ch, total, w.offset)
-				if y >= top && y < top+size {
-					w.thumb = scrollDrag{active: true, grab: y - top}
+			if y > 0 && x >= m.termW-4 {
+				total := len(m.workflowInspectorContent())
+				top, size := popup.ScrollThumb(max(1, ch-1), total, w.offset)
+				if y-1 >= top && y-1 < top+size {
+					w.thumb = scrollDrag{active: true, grab: y - 1 - top}
 				} else {
-					w.offset = popup.ScrollOffset(y, ch, total, 0)
+					w.offset = popup.ScrollOffset(y-1, max(1, ch-1), total, 0)
 				}
 			}
-			return m, nil
 		}
+		return m, nil
+	}
+	if x < 0 || x >= cw {
+		return m, nil
+	}
+	if mouse.Button == tea.MouseMiddle && isMouseClick(msg) {
+		w.panning = true
+		w.last = graph.Point{X: x, Y: y}
+		return m, nil
+	}
+	if mouse.Button == tea.MouseLeft && isMouseClick(msg) {
 		canvas := w.graph
 		if w.overview {
 			canvas = w.graph.Overview(cw)
 		}
+		if !w.overview {
+			if id, output := canvas.PortAt(x, y); id != "" {
+				w.graph.Selected = id
+				w.offset = 0
+				w.inspect = false
+				if w.run != nil || w.busy {
+					w.inspectorOpen = true
+					w.inspect = true
+					return m, nil
+				}
+				if output {
+					w.connectFrom = id
+					w.notice = "Choose an input port · Esc cancels"
+				} else if w.connectFrom != "" {
+					pair, _ := json.Marshal([]string{w.connectFrom, id})
+					w.connectFrom = ""
+					m.workflowLinkTarget(string(pair))
+				} else {
+					w.notice = "Choose an output port first · C connects by keyboard"
+				}
+				return m, nil
+			}
+		}
 		id := canvas.Hit(x, y)
+		w.inspect = false
 		if id != "" {
 			w.graph.Selected = id
 			w.offset = 0
-			w.inspect = false
 			w.dragging = !w.overview
-			w.last = graph.Point{X: x, Y: y}
+		} else {
+			w.panning = !w.overview
 		}
+		w.last = graph.Point{X: x, Y: y}
 	}
 	return m, nil
 }
+func (m *model) workflowInspectorContent() []string {
+	cw, _ := m.workflowCanvasSize()
+	width := cw
+	if m.termW >= inspectorSplitWidth {
+		width = m.termW - cw - 3
+	}
+	var out []string
+	for _, line := range m.workflowDetailRows()[1:] {
+		out = append(out, strings.Split(ansi.Hardwrap(line, max(1, width-1), true), "\n")...)
+	}
+	return out
+}
+
 func (m *model) workflowDetailRows() []string {
 	w := m.workflows
 	label := "Inspector · Tab focus"
@@ -681,6 +816,11 @@ func (m *model) workflowDetailRows() []string {
 		}
 
 	} else {
+		detail = append(detail, "", "Connections · B edits")
+		for _, c := range w.editor.Connections(w.graph.Selected) {
+			detail = append(detail, c.Label())
+		}
+		detail = append(detail, "")
 		for _, s := range w.editor.Definition.Steps {
 			if s.ID == w.graph.Selected {
 				b, _ := json.MarshalIndent(s, "", "  ")
@@ -701,73 +841,23 @@ func (m *model) workflowFooterActions() []footerAction {
 	back := "Chat"
 	if w.busy {
 		back = "Stop"
+	} else if w.connectFrom != "" {
+		back = "Cancel"
+	} else if w.inspectorOpen && w.inspect {
+		back = "Close"
 	}
-	actions := []footerAction{{tea.KeyF1, 0, "F1", "Help", "Help", true}, {'o', tea.ModCtrl, "Ctrl+O", "Open", "Open", !w.busy}, {'s', tea.ModCtrl, "Ctrl+S", "Save", "Save", edit}, {'a', 0, "A", "Add", "Add", edit}, {tea.KeyEnter, 0, "Enter", label, label, !w.busy}, {'r', 0, "R", "Run", "Run", edit}, {'i', 0, "I", "AI edit", "AI", edit}, {tea.KeyEscape, 0, "Esc", back, back, true}}
+	actions := []footerAction{{tea.KeyF1, 0, "F1", "Help", "Help", true}, {'a', 0, "A", "Add node", "Add", edit}, {tea.KeyEnter, 0, "Enter", label, label, !w.busy}, {'c', 0, "C", "Connect", "Link", edit}, {'r', 0, "R", "Run", "Run", edit}, {'t', tea.ModCtrl, "Ctrl+T", "Inspector", "Inspect", true}, {'s', tea.ModCtrl, "Ctrl+S", "Save", "Save", edit}, {tea.KeyEscape, 0, "Esc", back, back, true}}
 	if m.termW < 80 {
-		return []footerAction{actions[0], actions[1], actions[4], actions[7]}
+		return []footerAction{actions[0], actions[1], actions[5], actions[7]}
 	}
 	return actions
 }
 
 // workflowLinkTarget resolves the destination schema after both nodes are chosen.
 func (m *model) workflowLinkTarget(value string) {
-	w := m.workflows
-	if w.run != nil {
-		return
-	}
 	var pair []string
 	if json.Unmarshal([]byte(value), &pair) != nil || len(pair) != 2 {
 		return
 	}
-	from, to := pair[0], pair[1]
-	sourceExists := false
-	for _, step := range w.editor.Definition.Steps {
-		if step.ID == from {
-			sourceExists = true
-		}
-	}
-	if !sourceExists {
-		return
-	}
-	for _, step := range w.editor.Definition.Steps {
-		if step.ID != to {
-			continue
-		}
-		node, err := w.registry.Node(step.Tool)
-		if err != nil {
-			w.notice = err.Error()
-			return
-		}
-		schema := schemaform.Parse(node.InputSchema)
-		arguments := []string{}
-		mapping := map[string]string{"Run after (no data)": ""}
-		for name := range schema.Properties {
-			label := "Argument: " + name
-			arguments = append(arguments, label)
-			mapping[label] = name
-		}
-		sort.Strings(arguments)
-		options := append([]string{"Run after (no data)"}, arguments...)
-		m.openForm("Connect "+from+" → "+to, "Mapping replaces the selected argument. Leave the pointer empty for whole output.", "Connect",
-			[]formField{{Key: "arg", Label: "Destination", Value: options[0]}, {Key: "pointer", Label: "Source JSON pointer (for data mapping)"}},
-			func(v map[string]string) error {
-				arg, ok := mapping[v["arg"]]
-				if !ok {
-					return fmt.Errorf("choose a destination argument")
-				}
-				if arg == "" && v["pointer"] != "" {
-					return fmt.Errorf("choose an argument to use a source pointer")
-				}
-				if arg != "" && v["pointer"] != "" && !strings.HasPrefix(v["pointer"], "/") {
-					return fmt.Errorf("JSON pointer must start with /")
-				}
-				if err := w.editor.Link(from, to, arg, v["pointer"]); err != nil {
-					return err
-				}
-				w.graph = w.editor.Graph(w.graph)
-				return nil
-			})
-		m.dialog.form.Choices = map[string][]string{"arg": options}
-		return
-	}
+	m.workflowConnectionTarget(pair[0], pair[1], nil)
 }

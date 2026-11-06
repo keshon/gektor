@@ -51,7 +51,8 @@ func (e *Editor) Replace(d automation.Definition) {
 	}
 	e.redo = nil
 	b, _ := json.Marshal(d)
-	_ = json.Unmarshal(b, &e.Definition)
+	// Decode into a fresh value: reusing the old struct retains omitted fields.
+	e.Definition, _ = Decode(b)
 }
 func (e *Editor) Undo() {
 	if len(e.undo) == 0 {
@@ -71,40 +72,11 @@ func (e *Editor) Redo() {
 }
 func (e *Editor) Clone() automation.Definition { d, _ := Decode([]byte(e.Source())); return d }
 func (e *Editor) Link(from, to, arg, pointer string) error {
-	d := e.Clone()
-	found := false
-	for i := range d.Steps {
-		s := &d.Steps[i]
-		if s.ID != to {
-			continue
-		}
-		found = true
-		if arg == "" {
-			s.DependsOn = append(s.DependsOn, from)
-		} else {
-			var args map[string]json.RawMessage
-			if err := json.Unmarshal(s.Args, &args); err != nil {
-				return err
-			}
-			if args == nil {
-				args = map[string]json.RawMessage{}
-			}
-			ref := map[string]string{"$step": from}
-			if pointer != "" {
-				ref["pointer"] = pointer
-			}
-			args[arg], _ = json.Marshal(ref)
-			s.Args, _ = json.Marshal(args)
-		}
+	c := Connection{From: from, To: to, Field: "depends_on", Pointer: pointer}
+	if arg != "" {
+		c.Field, c.Path = "args", "/"+escapePointer(arg)
 	}
-	if !found {
-		return fmt.Errorf("destination missing")
-	}
-	if _, err := recipe.Order(d.Steps); err != nil {
-		return err
-	}
-	e.Replace(d)
-	return nil
+	return e.ChangeConnection(nil, &c)
 }
 func (e *Editor) Graph(old graph.Model) graph.Model {
 	positions := map[string]graph.Point{}

@@ -114,50 +114,110 @@ func (m Model) View(w, h int, normal, selected lipgloss.Style) string {
 	for y := range grid {
 		grid[y] = []rune(strings.Repeat(" ", w))
 	}
-	put := func(x, y int, r rune) {
-		x -= m.Pan.X
-		y -= m.Pan.Y
-		if x >= 0 && x < w && y >= 0 && y < h {
-			grid[y][x] = r
-		}
+	type stroke struct {
+		mask          int
+		data, focused bool
+		arrow         bool
 	}
+	strokes := map[Point]stroke{}
+	used := map[Point]bool{}
 	nodes := map[string]Node{}
 	for _, n := range m.Nodes {
 		nodes[n.ID] = n
 	}
-	for _, e := range m.Edges {
+	incoming, outgoing := map[string]bool{}, map[string]bool{}
+	budget := 30000
+	failed := map[string]bool{}
+	for _, e := range m.edges() {
 		a, ok := nodes[e.From]
 		b, ok2 := nodes[e.To]
 		if !ok || !ok2 {
 			continue
 		}
-		x1, y1 := a.X+m.nodeWidth(), a.Y+m.nodeHeight()/2
-		x2, y2 := b.X-1, b.Y+m.nodeHeight()/2
-		mid := (x1 + x2) / 2
-		line := '┄'
-		if e.Data {
-			line = '─'
+		incoming[e.To], outgoing[e.From] = true, true
+		path := m.route(a, b, used, &budget)
+		if len(path) == 0 {
+			failed[a.ID] = true
 		}
-		for x := min(x1, mid); x <= max(x1, mid); x++ {
-			put(x, y1, line)
+		for i, p := range path {
+			stroke := strokes[p]
+			stroke.data = stroke.data || e.Data
+			stroke.focused = stroke.focused || e.From == m.Selected || e.To == m.Selected
+			if i == 0 {
+				stroke.mask |= west
+			} else {
+				stroke.mask |= direction(p, path[i-1])
+			}
+			if i == len(path)-1 {
+				stroke.mask |= east
+				stroke.arrow = true
+			} else {
+				stroke.mask |= direction(p, path[i+1])
+			}
+			strokes[p] = stroke
+			used[p] = true
 		}
-		for y := min(y1, y2); y <= max(y1, y2); y++ {
-			put(mid, y, '│')
+	}
+	for p, stroke := range strokes {
+		x, y := p.X-m.Pan.X, p.Y-m.Pan.Y
+		if x >= 0 && x < w && y >= 0 && y < h {
+			r := lineRune(stroke.mask, stroke.data)
+			if stroke.arrow {
+				r = '▶'
+			}
+			grid[y][x] = r
 		}
-		for x := min(mid, x2); x <= max(mid, x2); x++ {
-			put(x, y2, line)
-		}
-		put(x2, y2, '▶')
 	}
 	rows := make([]string, h)
 	for y := range rows {
-		rows[y] = normal.Render(string(grid[y]))
+		var row strings.Builder
+		kindAt := func(x int) int {
+			stroke, ok := strokes[Point{x + m.Pan.X, y + m.Pan.Y}]
+			if !ok {
+				return 0
+			}
+			if stroke.focused {
+				return 2
+			}
+			return 1
+		}
+		for start := 0; start < w; {
+			kind := kindAt(start)
+			end := start + 1
+			for end < w && kindAt(end) == kind {
+				end++
+			}
+			style := normal
+			if kind == 1 {
+				style = normal.Faint(true)
+			} else if kind == 2 {
+				style = normal.Bold(true)
+			}
+			row.WriteString(style.Render(string(grid[y][start:end])))
+			start = end
+		}
+		rows[y] = row.String()
 	}
 	for _, n := range m.Nodes {
 		box := []string{"┌" + strings.Repeat("─", m.nodeWidth()-2) + "┐", "│" + cell.Line(ansi.Strip(n.ID), m.nodeWidth()-2) + "│", "│" + cell.Line(ansi.Strip(n.Label), m.nodeWidth()-2) + "│", "│" + cell.Line(ansi.Strip(n.Detail), m.nodeWidth()-2) + "│", "└" + strings.Repeat("─", m.nodeWidth()-2) + "┘"}
 		if m.Compact {
 			box = []string{box[0], box[1], box[len(box)-1]}
 		}
+		portRow := m.nodeHeight() / 2
+		inPort, outPort := '○', '○'
+		if incoming[n.ID] {
+			inPort = '●'
+		}
+		if outgoing[n.ID] {
+			outPort = '●'
+		}
+		if failed[n.ID] {
+			outPort = '!'
+		}
+		port := []rune(box[portRow])
+		port[0] = inPort
+		port[len(port)-1] = outPort
+		box[portRow] = string(port)
 		style := normal
 		if n.ID == m.Selected {
 			style = selected

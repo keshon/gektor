@@ -7,7 +7,7 @@ import (
 )
 
 func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	if m.workflowActive() && m.dialog == nil && (m.workflows.dragging || m.workflows.thumb.active) {
+	if m.workflowActive() && m.dialog == nil && (m.workflows.dragging || m.workflows.panning || m.workflows.thumb.active) {
 		return m.workflowMouse(msg)
 	}
 	if m.sessions != nil {

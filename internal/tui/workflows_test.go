@@ -62,7 +62,7 @@ func TestWorkflowMenuCanvasAndModalGeometry(t *testing.T) {
 	sizeModelTo(t, m, 120, 30)
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF9})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.header.menu != "session" {
+	if m.header.menu != "pipelines" {
 		t.Fatal("canvas swallowed menu keys")
 	}
 	m.closeHeader()
@@ -212,6 +212,7 @@ func TestWorkflowOutlineJoins(t *testing.T) {
 	m := workflowTestModel(t)
 	for _, minimal := range []bool{false, true} {
 		m.minimal = minimal
+		m.workflows.inspectorOpen = true
 		cw, ch := m.workflowCanvasSize()
 		rows := strings.Split(ansi.Strip(m.screenContent()), "\n")
 		if len(rows) != m.termH {
@@ -281,7 +282,14 @@ func TestWorkflowConnectionUsesDestinationSchema(t *testing.T) {
 	if m.workflows.editor.Source() != before {
 		t.Fatal("invalid mapping changed draft")
 	}
-	if err := f.apply(map[string]string{"arg": "Argument: input", "pointer": "/result"}); err != nil {
+	if err := f.apply(map[string]string{"from": "transform", "arg": "Argument: input"}); err != nil {
+		t.Fatal(err)
+	}
+	m.dialog = nil
+	action := m.pendingCommands[len(m.pendingCommands)-1]()
+	m.workflowAction(action.(workflowAction))
+	f = m.dialog.form
+	if err := f.apply(map[string]string{"pointer": "/result"}); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(m.workflows.editor.Definition.Steps[1].Args), `"$step":"transform"`) {

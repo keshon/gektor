@@ -22,36 +22,65 @@ the next work should make everyday editing reliable and comfortable.
 See [workflow behavior](workflows.md) and [editor controls](tui.md#workflow-workspace)
 for the current contracts.
 
-## Next: finish connection editing
+## Connection editing implemented
 
-Connections can be created, but removing or changing them still requires editing
-node arguments, dependencies or the complete recipe.
+`B` or Node → Connections lists links for the selected node. Create, edit
+and remove use the shared forms, including current-value previews. Nested
+argument, condition and iteration references are included. Source output schemas
+offer pointer hints; manual pointers remain available for dynamic results.
 
-- Add a connection list for the selected node, showing source, destination,
-  argument and JSON pointer.
-- Support removing an ordering dependency or data reference, and changing a
-  mapping through the same controls used to create it.
-- Show the current destination value before replacing it. Removing a required
-  argument must leave a visible validation issue, not silently invent a value.
-- Offer source fields from output schemas where available. Keep manual JSON
-  pointers for dynamic outputs; schema hints are not runtime guarantees.
-- Preserve cycle checks and recipe undo/redo for every connection change.
+Cycle checks and one-change undo/redo apply to every connection mutation.
+Removing a required argument surfaces a node validation error. Stored runs and
+stale forms cannot edit the draft. Draft replacement decodes into a fresh value,
+so removing optional fields does not retain their previous values.
 
-Acceptance: build, change and remove a two-node data connection without opening
-the full recipe JSON; undo restores the exact previous definition.
+Automated coverage exercises creating, changing and removing a two-node data
+connection without full recipe JSON, exact undo/redo, nested references, stale
+drafts, frozen runs, invalid pointers and cycles. Native interactive acceptance
+remains outstanding.
 
-## Then: reduce reliance on full recipe JSON
+## Recipe setup implemented
 
-- Add dedicated recipe name, description, input and output controls.
-- Reuse schema forms and JSON fallback fields rather than writing separate
-  editors for each node type.
-- Make validation errors easy to associate with a node and argument. Focus the
-  affected node when the error contains a usable step identifier.
-- Improve run input forms using declared recipe inputs; preserve a JSON option
-  for complex values.
+`M` edits the name, `U` manages individual typed inputs, and `O` manages named
+outputs. Input declarations reuse schema forms; defaults and output values use
+JSON fields for literals and references. Existing names stay fixed to avoid
+implicitly rewriting contracts. Invalid defaults, duplicate names, stale forms
+and edits to frozen runs are rejected. Setup changes support undo/redo.
 
-Advanced JSON editing should remain available. It should not be necessary for
-routine recipe setup.
+The recipe format has no description field; this pass does not add one.
+Advanced JSON editing remains available for larger changes.
+
+## Run inputs and validation navigation implemented
+
+Run/validate offer generated fields or JSON for declared inputs. Fields preserve
+literal strings and numeric precision; default, provided and omitted values remain
+distinct. Both formats use the engine's input checks before submission. A queued
+invocation is rejected if its draft changed before execution.
+
+Validation errors use structured schema paths or explicit step IDs to focus the
+node and inspector. Child errors can focus the authored parent call. Value paths
+are shown where available; unidentifiable errors retain the selection. Tests
+cover typed inputs, empty-string overrides, omissions, defaults, stale invocations
+and schema/step error navigation.
+
+## Canvas UX pass implemented
+
+Workflow mode now has contextual Workflow, Node, Run and View menus. Add node
+is visible in Node and the footer even at narrow widths. Recipe setup is grouped
+under Workflow → Recipe settings.
+
+The canvas supports dragging empty space, middle-button panning, horizontal
+wheel events and Shift+wheel. Node dragging remains separate from panning.
+Input/output ports expose connection state and open the mapping form by clicks.
+Routes avoid cards, deduplicate ordering/data pairs and use connected corner
+and crossing glyphs. Routing has a bounded search; an unroutable output port
+shows `!` rather than drawing through a card. Layout changes never edit recipes.
+
+The inspector toggles with Ctrl+T, closes with focused Esc or its pinned mouse
+control, and wraps long values. Wide windows split; narrow windows show a full
+width inspector. Automated tests cover routing, port hits, dragging, horizontal
+scrolling, menus, inspector closing and resize geometry. Native terminal checks
+below still apply.
 
 ## Verify before treating the TUI as finished
 
@@ -84,9 +113,12 @@ of the latest chooser and connection changes remains outstanding.
 
 ## Delivery
 
-The outline/error-recovery fixes and latest chooser/connection improvements are
-still uncommitted at this snapshot. Review the combined diff, finish the targeted
-acceptance checks, then commit. Push/release is a separate requested action.
+The outline/error-recovery fixes and chooser improvements were committed in
+`9d3424b`. Connection editing, recipe setup, run inputs, validation navigation and the
+canvas UX pass are subsequent work. Finish
+native interactive acceptance before treating the editor as complete.
+Commit, push and release remain separate requested actions.
 
-Recommended next implementation: connection inspection, editing and removal.
-It closes the clearest gap in the current canvas without expanding engine scope.
+Next: exercise the complete editing-to-execution flow in a native terminal,
+then test live AI proposals with local and ChatGPT providers. Queue/schedule UI
+and further canvas polish remain later work, driven by those checks.

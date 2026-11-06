@@ -9,7 +9,9 @@ import (
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/gektor/internal/tui/components/cell"
 	"github.com/keshon/gektor/internal/tui/components/form"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
 func TestWorkspacePickerNavigatesBeforeSelecting(t *testing.T) {
@@ -62,6 +64,29 @@ func TestThemePickerIsCompactAndStartsAtCurrentValue(t *testing.T) {
 	f.Mouse(tea.MouseClickMsg{X: x + 2, Y: y + f.Picker.listTop(), Button: tea.MouseLeft}, props)
 	if f.Picker != nil || f.Editor.Value() != "dark" {
 		t.Fatal("compact picker mouse coordinates diverged")
+	}
+}
+
+func TestLongChoicePickerUsesStandardModalWidthAndMouseOrigin(t *testing.T) {
+	items := []string{strings.Repeat("A", 26) + " · Agent workflow with a long name", strings.Repeat("B", 26) + " · Another saved workflow"}
+	for _, width := range []int{140, 80, 40} {
+		f := NewModel([]form.Field{{Key: "run", Value: items[1]}}, textarea.New())
+		f.Choices = map[string][]string{"run": items}
+		f.Focus(0, nil)
+		props := Props{Width: width, Height: 30}
+		f.OpenPicker(props)
+		if actual := cell.Width(strings.Join(f.box(props), "\n")); actual != popup.ModalWidth(width) {
+			t.Fatalf("width %d: chooser %d, expected standard %d", width, actual, popup.ModalWidth(width))
+		}
+		rows, _, _, _ := f.PickerRows(props)
+		if width >= 80 && !strings.Contains(ansi.Strip(strings.Join(rows, "\n")), "Agent workflow with a long name") {
+			t.Fatal("wide chooser truncated a fitting name", rows)
+		}
+		x, y := f.Origin(props)
+		f.Mouse(tea.MouseClickMsg{X: x + 2, Y: y + f.Picker.listTop(), Button: tea.MouseLeft}, props)
+		if f.Picker != nil || f.Editor.Value() != items[0] {
+			t.Fatal("wider picker click missed first choice")
+		}
 	}
 }
 

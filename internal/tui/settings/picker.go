@@ -328,7 +328,16 @@ func (p *Picker) capacity(height int) int { return max(height-7-p.listTop(), 1) 
 
 func (f *Model) modalWidth(props Props) int {
 	if p := f.Picker; p != nil && !p.IsFiles() && len(p.Items) <= 12 {
-		return min(props.Width, 52)
+		compact := min(props.Width, 52)
+		inner := max(popup.ModalWidth(compact)-4, 1)
+		// Item count controls height, not whether labels fit. Long run IDs,
+		// connection descriptions and profile names need the normal modal.
+		for _, item := range p.Items {
+			if cell.Width(ChoiceLabel(p.Field, item))+3 > inner {
+				return props.Width
+			}
+		}
+		return compact
 	}
 	return props.Width
 }

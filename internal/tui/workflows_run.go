@@ -29,6 +29,35 @@ func (m *model) workflowAction(a workflowAction) tea.Cmd {
 		return nil
 	}
 	switch a.action {
+	case "input-form", "invoke":
+		var in workflowInvocation
+		if json.Unmarshal([]byte(a.value), &in) != nil {
+			return nil
+		}
+		if in.Draft != w.editor.Source() || w.run != nil {
+			w.notice = "Draft changed · reopen run inputs"
+			return nil
+		}
+		if a.action == "input-form" {
+			m.workflowInputForm(in)
+			return nil
+		}
+		if in.Action != "run" && in.Action != "validate" {
+			return nil
+		}
+		return m.workflowAction(workflowAction{in.Action + "-inputs", string(in.Inputs)})
+	case "parameter-edit":
+		var edit workflowParameterEdit
+		if json.Unmarshal([]byte(a.value), &edit) == nil {
+			m.workflowParameterEdit(edit)
+		}
+		return nil
+	case "connection-edit":
+		var edit workflowConnectionEdit
+		if json.Unmarshal([]byte(a.value), &edit) == nil {
+			m.workflowConnectionEdit(edit)
+		}
+		return nil
 	case "link-target":
 		m.workflowLinkTarget(a.value)
 		return nil
@@ -162,7 +191,11 @@ func (m *model) acceptWorkflowResult(r workflowResult) tea.Cmd {
 			return nil
 		}
 		w.notice = r.err.Error()
-		m.openDialog("Workflow failed", []string{r.err.Error(), r.text})
+		rows := m.workflowValidationRows(r.err)
+		if r.text != "" {
+			rows = append(rows, r.text)
+		}
+		m.openDialog("Workflow failed", rows)
 		return nil
 	}
 	if r.source != "" {
