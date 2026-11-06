@@ -36,7 +36,7 @@ func PageFields(profile config.Profile, section string, preferences config.Prefe
 	title := ""
 	switch section {
 	case "application":
-		title = "Application"
+		title = "Workspace"
 		p := preferences
 		add("app-workspace", "Workspace", p.Workspace, false)
 	case "profiles":

@@ -9,6 +9,7 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/tui/components/cell"
 	"github.com/keshon/gektor/internal/tui/components/form"
@@ -316,6 +317,9 @@ func (p *Picker) UpdateInput(msg tea.Msg) tea.Cmd {
 }
 
 func (p *Picker) listTop() int {
+	if p.Field == "app-workspace" {
+		return 6
+	}
 	if p.Field == "theme" {
 		return 2
 	}
@@ -324,7 +328,12 @@ func (p *Picker) listTop() int {
 	}
 	return 3
 }
-func (p *Picker) capacity(height int) int { return max(height-7-p.listTop(), 1) }
+func (p *Picker) capacity(height int) int {
+	if p.Field == "app-workspace" {
+		return max(height-12-p.listTop(), 1)
+	}
+	return max(height-7-p.listTop(), 1)
+}
 
 func (f *Model) modalWidth(props Props) int {
 	if p := f.Picker; p != nil && !p.IsFiles() && len(p.Items) <= 12 {
@@ -351,18 +360,36 @@ func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 		title = "Profile / saved setup"
 	}
 	if title == "app-workspace" {
-		title = "Agent workspace"
+		title = "Workspace"
 	}
 	if p.Location {
 		title += " / Location"
 	}
 	rows := []string{popup.TitleRow(props.Styles.Focus.Render("Choose / "+title), inner), props.Styles.Muted.Render(strings.Repeat("─", inner))}
 	if p.IsFiles() {
-		rows = append(rows, cell.Line(p.Directory, inner))
+		location := p.Directory
+		if p.Field == "app-workspace" {
+			available := max(inner-cell.Width("Current folder: "), 1)
+			if extra := cell.Width(location) - available; extra > 0 {
+				location = ansi.TruncateLeft(location, extra+1, "…")
+			}
+			location = "Current folder: " + location
+		}
+		rows = append(rows, cell.Line(location, inner))
+	}
+	if p.Field == "app-workspace" {
+		rows = append(rows, "")
+		p.Search.Prompt = "Filter folders: "
+		if p.Location {
+			p.Search.Prompt = "Folder path: "
+		}
 	}
 	if p.Field != "theme" {
-		p.Search.SetWidth(max(inner-8, 1))
+		p.Search.SetWidth(max(inner-cell.Width(p.Search.Prompt)-2, 1))
 		rows = append(rows, cell.Line(p.Search.View(), inner))
+	}
+	if p.Field == "app-workspace" {
+		rows = append(rows, "")
 	}
 	capacity := p.capacity(h)
 	start, end := p.Centered(len(p.Filtered), capacity)
@@ -371,7 +398,7 @@ func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 		label := ChoiceLabel(p.Field, p.Filtered[i])
 		if p.IsFiles() {
 			if p.Browser && filepath.Clean(p.Filtered[i]) == p.Parent && p.Parent != p.Directory {
-				label = "..."
+				label = "Parent folder"
 			} else if strings.HasSuffix(label, string(os.PathSeparator)) {
 				label = "[Dir] " + filepath.Base(filepath.Clean(label))
 			} else {
@@ -398,16 +425,38 @@ func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 			detail = p.Detail
 		}
 	}
-	rows = append(rows, props.Styles.Muted.Render(cell.Line(detail, inner)))
+	if p.Field != "app-workspace" || p.Loading || p.Err != "" {
+		rows = append(rows, props.Styles.Muted.Render(cell.Line(detail, inner)))
+	} else if len(p.Filtered) == 0 {
+		rows = append(rows, props.Styles.Muted.Render("No matching folders"))
+	}
 	hits := []form.Hit{{Index: -3, Y0: 0, Y1: 1, X0: max(inner-3, 0), X1: inner}}
 	if p.Field == "app-workspace" {
-		label := "[ Use this folder ]  Ctrl+S"
-		hits = append(hits, form.Hit{Index: -2, Y0: len(rows), Y1: len(rows) + 1, X0: 0, X1: len("[ Use this folder ]")})
-		rows = append(rows, props.Styles.Focus.Render(cell.Line(label, inner)))
+		rows = append(rows, "", props.Styles.Muted.Render(strings.Repeat("─", inner)))
+		button := "[ Select current folder ]"
+		label := button + "  Ctrl+S"
+		hits = append(hits, form.Hit{Index: -2, Y0: len(rows), Y1: len(rows) + 1, X0: 0, X1: len(button)})
+		cancel := "[ Cancel ]"
+		cancelX := len(label) + 3
+		if cancelX+len(cancel) <= inner {
+			hits = append(hits, form.Hit{Index: -4, Y0: len(rows), Y1: len(rows) + 1, X0: cancelX, X1: cancelX + len(cancel)})
+			rows = append(rows, props.Styles.Focus.Render(label)+"   "+props.Styles.Muted.Render(cancel))
+		} else {
+			rows = append(rows, cell.Line(props.Styles.Focus.Render(label), inner))
+			hits = append(hits, form.Hit{Index: -4, Y0: len(rows), Y1: len(rows) + 1, X0: 0, X1: len(cancel)})
+			rows = append(rows, cancel)
+		}
 	}
 	hint := "↑↓ choose · Enter select · Esc back"
 	if p.IsFiles() {
 		hint = "Enter open · Esc back · Ctrl+L path · Ctrl+D drives"
+	}
+	if p.Field == "app-workspace" {
+		rows = append(rows, props.Styles.Muted.Render(cell.Line("↑↓ choose   Enter open   Esc cancel", inner)))
+		hint = "Ctrl+L enter path   Ctrl+D drives"
+		if p.Location {
+			rows[len(rows)-1] = props.Styles.Muted.Render(cell.Line("Enter open path   Esc back to folders", inner))
+		}
 	}
 	rows = append(rows, props.Styles.Muted.Render(cell.Line(hint, inner)))
 	return rows, hits, w, h

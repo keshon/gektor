@@ -201,7 +201,7 @@ func (m *model) rawHeaderItems() []headerItem {
 		}
 	case "settings":
 		editable := idle && m.config != nil
-		rows := []headerItem{{"Model…", "edit:model", editable}, {"Generation…", "edit:generation", editable}, {"Profiles…", "edit:profiles", editable}, {"Application…", "application", idle && m.application != nil}}
+		rows := []headerItem{{"Model…", "edit:model", editable}, {"Generation…", "edit:generation", editable}, {"Profiles…", "edit:profiles", editable}, {"Workspace…", "application", idle && m.application != nil}}
 		if m.config != nil {
 			rows = append(rows, headerItem{"You…", "edit:you", editable}, headerItem{"Prompts…", "edit:prompts", editable}, headerItem{"Prompt preview…", "prompt-info", true})
 		}

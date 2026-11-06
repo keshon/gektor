@@ -25,8 +25,12 @@ func TestWorkspacePickerNavigatesBeforeSelecting(t *testing.T) {
 	props := Props{Width: 100, Height: 30}
 	f.AcceptScan(f.OpenPicker(props)().(ScanMsg))
 	rows, _, _, _ := f.PickerRows(props)
-	if !strings.Contains(ansi.Strip(strings.Join(rows, "\n")), "...") || !strings.HasPrefix(rows[2], filepath.VolumeName(child)) || f.Picker.Directory != child {
+	text := ansi.Strip(strings.Join(rows, "\n"))
+	if !strings.Contains(text, "Parent folder") || !strings.HasPrefix(rows[2], "Current folder: ") || !strings.Contains(rows[2], "child") || f.Picker.Directory != child {
 		t.Fatal(rows)
+	}
+	if strings.Count(text, "Current folder:") != 1 || strings.Contains(text, root+string(os.PathSeparator)+"\n") || !strings.Contains(text, "Filter folders:") || !strings.Contains(text, "Select current folder") {
+		t.Fatal("folder picker does not distinguish location, filter and selection", text)
 	}
 	x, y := f.Origin(props)
 	_, cmd := f.Mouse(tea.MouseClickMsg{X: x + 2, Y: y + f.Picker.listTop(), Button: tea.MouseLeft}, props)
@@ -46,6 +50,31 @@ func TestWorkspacePickerNavigatesBeforeSelecting(t *testing.T) {
 	}
 	if f.Picker != nil || f.Editor.Value() != root {
 		t.Fatal("explicit folder selection failed")
+	}
+}
+
+func TestWorkspacePickerCancelKeepsWorkspace(t *testing.T) {
+	for _, width := range []int{100, 50} {
+		root := t.TempDir()
+		f := NewModel([]form.Field{{Key: "app-workspace", Value: root}}, textarea.New())
+		f.Focus(0, nil)
+		props := Props{Width: width, Height: 30}
+		f.AcceptScan(f.OpenPicker(props)().(ScanMsg))
+		rows, hits, _, _ := f.PickerRows(props)
+		x, y := f.Origin(props)
+		clicked := false
+		for _, hit := range hits {
+			if hit.Index == -4 {
+				if !strings.Contains(ansi.Strip(rows[hit.Y0]), "[ Cancel ]") {
+					t.Fatal("Cancel hit does not match its drawn row")
+				}
+				f.Mouse(tea.MouseClickMsg{X: x + hit.X0 + 1, Y: y + hit.Y0, Button: tea.MouseLeft}, props)
+				clicked = true
+			}
+		}
+		if !clicked || f.Picker != nil || f.Fields[0].Value != root {
+			t.Fatal("Cancel changed the workspace or did not close the picker")
+		}
 	}
 }
 

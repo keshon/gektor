@@ -86,7 +86,7 @@ func TestSettingsModalIsNotTwoColumns(t *testing.T) {
 	m.width(tea.WindowSizeMsg{Width: 120, Height: 24})
 	m.editSettings("generation")
 	view := ansi.Strip(m.View().Content)
-	for _, other := range []string{"Application", "Profiles", "Prompts"} {
+	for _, other := range []string{"Workspace", "Profiles", "Prompts"} {
 		if strings.Contains(view, other) {
 			t.Fatalf("the section modal still lists other sections (%q):\n%s", other, view)
 		}

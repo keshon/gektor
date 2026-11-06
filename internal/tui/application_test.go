@@ -69,9 +69,9 @@ func TestSettingsApplyQueuesRestartWithContextAndDraft(t *testing.T) {
 	}
 }
 
-// The Application page keeps staged values from another page in the same
+// The Workspace page keeps staged values from another page in the same
 // dialog, and always carries the session directory into the restart.
-func TestApplicationPageRetainsStagedModelAndSession(t *testing.T) {
+func TestWorkspacePageRetainsStagedModelAndSession(t *testing.T) {
 	m := settingsModel(t)
 	original := m.sessionDirectory()
 	m.application.Preferences.Workspace = original
@@ -89,7 +89,7 @@ func TestApplicationPageRetainsStagedModelAndSession(t *testing.T) {
 		t.Fatal("apply did not queue a restart")
 	}
 	if m.modeChange.Preferences.Profile.Provider.Model != "selected-model" {
-		t.Fatal("application page lost the staged model")
+		t.Fatal("workspace page lost the staged model")
 	}
 	if m.modeChange.Directory != original {
 		t.Fatalf("restart moved the session: %q -> %q", original, m.modeChange.Directory)
@@ -98,7 +98,7 @@ func TestApplicationPageRetainsStagedModelAndSession(t *testing.T) {
 
 // The workspace is resolved and checked, so the relaunch comes up rooted at
 // a directory that exists rather than at whatever the editor string said.
-func TestApplicationPageRejectsAMissingWorkspace(t *testing.T) {
+func TestWorkspacePageRejectsAMissingWorkspace(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("application")
 	focusSetting(m, "app-workspace")

@@ -23,8 +23,8 @@ Open **Settings**, then **Model**, to set the protocol, address and model.
 For the ChatGPT connection, run `gektor auth login` first.
 See [setup](bootstrap.md) and [connection options](cli.md).
 
-Choose your project folder under **Application** in Settings.
-In the folder browser, **Use this folder** selects the displayed folder.
+Choose your project folder under **Workspace** in Settings.
+In the folder browser, **Select current folder** selects the displayed folder.
 Opening a folder in the browser only browses it.
 
 Choose **Apply**, or press `Ctrl+S`, to save settings.
@@ -45,7 +45,7 @@ The bottom row shows actions for the current screen. Press `F1` for help.
 | Model | Connection and model selection |
 | Generation | Response limits and sampling settings supported by that connection |
 | Profiles | Load or save a group of settings |
-| Application | Workspace |
+| Workspace | Project folder |
 | You | Your displayed name and persona |
 | Prompts | Response style and base instructions |
 

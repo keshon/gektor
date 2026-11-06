@@ -18,10 +18,10 @@ func TestEveryCategoryHasAHint(t *testing.T) {
 	}
 }
 
-// The Application page offers the workspace and nothing else. A page that
+// The Workspace page offers the workspace and nothing else. A page that
 // emitted a key nothing reads would let a draft stage values that silently
 // vanish on apply.
-func TestApplicationPageEmitsOnlyTheWorkspace(t *testing.T) {
+func TestWorkspacePageEmitsOnlyTheWorkspace(t *testing.T) {
 	_, fields := PageFields(config.Profile{Version: 1}, "application", config.Preferences{Workspace: "D:/work"})
 	want := []string{"app-workspace"}
 	if len(fields) != len(want) {

@@ -35,6 +35,10 @@ func (f *Model) Mouse(msg tea.MouseMsg, props Props) (Intent, tea.Cmd) {
 	if f.Picker != nil {
 		p := f.Picker
 		for _, hit := range hits {
+			if hit.Index == -4 && mouse.Y == y+hit.Y0 && mouse.X >= x+hit.X0 && mouse.X < x+hit.X1 {
+				f.Picker = nil
+				return Intent{}, nil
+			}
 			if hit.Index == -3 && mouse.Y == y && mouse.X >= x+hit.X0 && mouse.X < x+hit.X1 {
 				return Intent{}, f.PickerKey(tea.KeyPressMsg{Code: tea.KeyEscape}, props)
 			}

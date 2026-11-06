@@ -319,7 +319,7 @@ starter weights are absent) and opens in Plan. Models load only when a request
 needs them.
 
 Run > Plan/Act switches execution mode; Run > Act enables tool calls under the
-existing permission gates. Settings > Application chooses the workspace.
+existing permission gates. Settings > Workspace chooses the workspace.
 Settings > Profiles loads or saves presets; Settings > Model selects the model.
 Enter opens shared pickers.
 

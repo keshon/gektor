@@ -42,7 +42,7 @@ type Model struct {
 }
 type Category struct{ ID, Label string }
 
-var categories = []Category{{"model", "Model"}, {"generation", "Generation"}, {"profiles", "Profiles"}, {"application", "Application"}, {"you", "You"}, {"prompts", "Prompts"}}
+var categories = []Category{{"model", "Model"}, {"generation", "Generation"}, {"profiles", "Profiles"}, {"application", "Workspace"}, {"you", "You"}, {"prompts", "Prompts"}}
 
 type InputOwner int
 

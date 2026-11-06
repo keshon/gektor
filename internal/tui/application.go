@@ -68,7 +68,7 @@ func (m *model) requestProfileChange(profile config.Profile) error {
 		}
 		info, err := os.Stat(absolute)
 		if err != nil || !info.IsDir() {
-			return fmt.Errorf("select an existing Agent workspace")
+			return fmt.Errorf("select an existing workspace")
 		}
 		p.Workspace = absolute
 	}
