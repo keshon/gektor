@@ -47,7 +47,9 @@ func (r *Registry) Names() []string {
 	names := []string{}
 	if r != nil {
 		for name := range r.nodes {
-			names = append(names, name)
+			if !r.nodes[name].Internal {
+				names = append(names, name)
+			}
 		}
 	}
 	sort.Strings(names)

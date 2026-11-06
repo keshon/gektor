@@ -24,50 +24,12 @@ func Prepare(d automation.Definition, values map[string]json.RawMessage, h autom
 		return d, nil, err
 	}
 	d.Steps = ordered
-	if len(d.Name) == 0 || len(d.Name) > 120 || len(d.Steps) == 0 || len(d.Steps) > 16 {
-		return d, nil, fmt.Errorf("workflow requires a 1–120 byte name and 1–16 steps")
+	if len(d.Name) == 0 || len(d.Name) > 120 || len(d.Steps) == 0 || len(d.Steps) > 128 {
+		return d, nil, fmt.Errorf("workflow requires a 1–120 byte name and 1–128 expanded steps")
 	}
-	if len(d.Inputs) > 32 {
-		return d, nil, fmt.Errorf("workflow permits at most 32 inputs")
-	}
-	bound := make(map[string]json.RawMessage, len(d.Inputs))
-	for name := range values {
-		if _, ok := d.Inputs[name]; !ok {
-			return d, nil, fmt.Errorf("unknown input %q", name)
-		}
-	}
-	for name, spec := range d.Inputs {
-		if name == "" || len(name) > 64 {
-			return d, nil, fmt.Errorf("input names must contain 1–64 bytes")
-		}
-		switch spec.Type {
-		case "string", "integer", "number", "boolean", "array", "object":
-		default:
-			return d, nil, fmt.Errorf("input %s: unsupported type %q", name, spec.Type)
-		}
-		if spec.Default != nil {
-			if err := CheckInput(spec.Default, spec.Type); err != nil {
-				return d, nil, fmt.Errorf("input %s default: %w", name, err)
-			}
-		}
-		value, exists := values[name]
-		if !exists {
-			value = spec.Default
-		}
-		if value == nil {
-			if spec.Required {
-				return d, nil, fmt.Errorf("required input %q missing", name)
-			}
-			continue
-		}
-		if err := CheckInput(value, spec.Type); err != nil {
-			return d, nil, fmt.Errorf("input %s: %w", name, err)
-		}
-		bound[name] = append(json.RawMessage(nil), value...)
-	}
-	data, err := json.Marshal(bound)
-	if err != nil || len(data) > MaxArguments {
-		return d, nil, fmt.Errorf("bound inputs exceed 64 KiB or are invalid")
+	bound, err := BindInputs(d.Inputs, values)
+	if err != nil {
+		return d, nil, err
 	}
 	steps := make([]automation.Step, len(d.Steps))
 	seen := map[string]bool{}
@@ -176,6 +138,11 @@ func jsonValue(raw []byte, limit int) (any, error) {
 		return nil, fmt.Errorf("expected one JSON value")
 	}
 	return value, nil
+}
+
+// MapReferences transforms structured references without interpolating strings.
+func MapReferences(raw json.RawMessage, lookup func(map[string]any) (any, error)) (json.RawMessage, error) {
+	return bind(raw, lookup)
 }
 
 func bind(raw json.RawMessage, lookup func(map[string]any) (any, error)) (json.RawMessage, error) {
@@ -316,4 +283,51 @@ func ResolveOutputs(args json.RawMessage, outputs map[string]string) (json.RawMe
 		}
 		return value, nil
 	})
+}
+
+// BindInputs validates a concrete invocation against its declared typed inputs.
+func BindInputs(specs map[string]automation.Input, values map[string]json.RawMessage) (map[string]json.RawMessage, error) {
+	if len(specs) > 32 {
+		return nil, fmt.Errorf("workflow permits at most 32 inputs")
+	}
+	bound := make(map[string]json.RawMessage, len(specs))
+	for name := range values {
+		if _, ok := specs[name]; !ok {
+			return nil, fmt.Errorf("unknown input %q", name)
+		}
+	}
+	for name, spec := range specs {
+		if name == "" || len(name) > 64 {
+			return nil, fmt.Errorf("input names must contain 1–64 bytes")
+		}
+		switch spec.Type {
+		case "string", "integer", "number", "boolean", "array", "object":
+		default:
+			return nil, fmt.Errorf("input %s: unsupported type %q", name, spec.Type)
+		}
+		if spec.Default != nil {
+			if err := CheckInput(spec.Default, spec.Type); err != nil {
+				return nil, fmt.Errorf("input %s default: %w", name, err)
+			}
+		}
+		value, exists := values[name]
+		if !exists {
+			value = spec.Default
+		}
+		if value == nil {
+			if spec.Required {
+				return nil, fmt.Errorf("required input %q missing", name)
+			}
+			continue
+		}
+		if err := CheckInput(value, spec.Type); err != nil {
+			return nil, fmt.Errorf("input %s: %w", name, err)
+		}
+		bound[name] = append(json.RawMessage(nil), value...)
+	}
+	data, err := json.Marshal(bound)
+	if err != nil || len(data) > MaxArguments {
+		return nil, fmt.Errorf("bound inputs exceed 64 KiB or are invalid")
+	}
+	return bound, nil
 }

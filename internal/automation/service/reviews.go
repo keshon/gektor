@@ -78,7 +78,11 @@ func (s Service) Review(ctx context.Context, id, step string, approve bool) (str
 			}
 			runErr = w.Save(r)
 		}
-		result, _ := json.Marshal(map[string]string{"run_id": id, "status": r.Status})
+		summary := map[string]any{"run_id": id, "status": r.Status}
+		if outputs := runOutputs(r); outputs != nil {
+			summary["outputs"] = outputs
+		}
+		result, _ := json.Marshal(summary)
 		return string(result), runErr
 	}
 	if linked != nil {

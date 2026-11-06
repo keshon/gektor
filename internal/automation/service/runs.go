@@ -52,6 +52,8 @@ func (t definitionTool) Schema() json.RawMessage {
 	var schema map[string]any
 	_ = json.Unmarshal(raw, &schema)
 	schema["properties"].(map[string]any)["steps"].(map[string]any)["items"].(map[string]any)["properties"].(map[string]any)["tool"].(map[string]any)["enum"] = t.Registry.Names()
+	schema["properties"].(map[string]any)["outputs"] = map[string]any{"type": "object", "maxProperties": 32, "description": "Named values returned by this recipe. Required for recipes used by workflow_call. Values may use $input and $step references."}
+	schema["properties"].(map[string]any)["steps"].(map[string]any)["items"].(map[string]any)["properties"].(map[string]any)["id"].(map[string]any)["pattern"] = `^[^@/][^/]*$`
 	data, _ := json.Marshal(schema)
 	return data
 }
@@ -165,6 +167,12 @@ func (t Service) authorizeNode(ctx context.Context, name string, args json.RawMe
 	if err != nil {
 		return err
 	}
+	if n.Internal {
+		if n.PermissionName == "" {
+			return nil
+		}
+		name = n.PermissionName
+	}
 	resources, err := n.Resources(args)
 	if err != nil {
 		return err
@@ -215,7 +223,7 @@ func (t Service) Run(ctx context.Context, args json.RawMessage) (string, error) 
 		return "", fmt.Errorf("workflow authorization or workspace unavailable")
 	}
 
-	source, err := t.Snapshot(ctx, in.RecipePath)
+	source, err := t.SnapshotRecipe(ctx, in.RecipePath)
 	if err != nil {
 		return "", err
 	}
@@ -261,12 +269,9 @@ func (t Service) RunSource(ctx context.Context, source []byte, path string, inpu
 	if len(source) > 64<<10 {
 		return "", fmt.Errorf("recipe exceeds 64 KiB")
 	}
-	if err := automation.ValidateJSON(source, t.DefinitionSchema()); err != nil {
-		return "", fmt.Errorf("recipe %s: %w; allowed root fields: version, name, steps, inputs; edit the saved file", path, err)
-	}
-	var d automation.Definition
-	if err := decode(source, &d); err != nil {
-		return "", fmt.Errorf("recipe %s: %w", path, err)
+	d, source, err := t.compileSource(ctx, source, path)
+	if err != nil {
+		return "", fmt.Errorf("recipe %s: %w; allowed root fields: version, name, steps, inputs, outputs; edit the saved file", path, err)
 	}
 	digest := fmt.Sprintf("%x", sha256.Sum256(source))
 	h := handler{registry: t.Registry, authorize: t.authorizeNode, authorized: map[authorization]bool{}, templates: true}
@@ -334,16 +339,26 @@ func (t Service) RunSource(ctx context.Context, source []byte, path string, inpu
 		steps = append(steps, stepSummary{ID: s.ID, Status: s.Status, Error: s.Error, Sources: evidence.Sources, Items: evidence.Items, FailureStage: evidence.FailureStage, Recovery: evidence.Recovery})
 	}
 	data, marshalErr := json.Marshal(struct {
-		ID     string        `json:"run_id"`
-		Path   string        `json:"record_path"`
-		Status string        `json:"status"`
-		SHA256 string        `json:"recipe_sha256"`
-		Steps  []stepSummary `json:"steps"`
-	}{w.ID(), filepath.ToSlash(w.Path()), r.Status, digest, steps})
+		Outputs json.RawMessage `json:"outputs,omitempty"`
+		ID      string          `json:"run_id"`
+		Path    string          `json:"record_path"`
+		Status  string          `json:"status"`
+		SHA256  string          `json:"recipe_sha256"`
+		Steps   []stepSummary   `json:"steps"`
+	}{runOutputs(r), w.ID(), filepath.ToSlash(w.Path()), r.Status, digest, steps})
 	if marshalErr != nil {
 		return "", marshalErr
 	}
 	return string(data), err
+}
+
+func runOutputs(r automation.Run) json.RawMessage {
+	for _, s := range r.Steps {
+		if s.ID == "@outputs" && s.Status == "completed" {
+			return json.RawMessage(s.Output)
+		}
+	}
+	return nil
 }
 
 type stepSummary struct {

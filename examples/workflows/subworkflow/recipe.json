@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "name": "Two reports from one subworkflow",
+  "steps": [
+    {"id":"daily","tool":"workflow_call","args":{"recipe_path":"report.json","inputs":{
+      "title":"Daily report","body":"All scheduled checks completed.","filename":"daily.md"
+    }}},
+    {"id":"handoff","tool":"workflow_call","depends_on":["daily"],"args":{"recipe_path":"report.json","inputs":{
+      "title":"Handoff","body":"The daily report is ready for review.","filename":"handoff.md"
+    }}}
+  ],
+  "outputs": {
+    "daily":{"$step":"daily","pointer":"/artifact"},
+    "handoff":{"$step":"handoff","pointer":"/artifact"}
+  }
+}

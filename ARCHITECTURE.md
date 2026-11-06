@@ -237,6 +237,13 @@ runs, records, queue snapshots, schedules and immutable run artifacts. `automati
 workspace access, catalog validation, resource authorization and persistence.
 CLI and agent adapters call the service. `app` assembles the built-in catalog.
 
+`automation/api` provides optional authenticated HTTP ingress to the durable
+queue. Operator-configured routes freeze recipe dependencies at startup;
+route-scoped webhook tokens can only submit inputs. The API does not execute
+nodes or approve reviews. The existing daemon owns execution and its policy.
+Submission deduplication is atomic with enqueueing in `automation/store` and
+lasts while the original job remains retained.
+
 Artifact access is scoped to a run and producing step during node execution,
 including review continuation. Nodes receive an `ArtifactAccess` interface through
 the execution context; they never receive the store path or choose another run.
@@ -265,3 +272,14 @@ Native agent tools and the automation `run_program` node use those primitives.
 The workflow node supplies its workspace directory and optional artifact stdin,
 enforces a finite deadline and output bounds, and persists stdout/stderr artifacts
 even on failure. It does not depend on `tools` or provide an OS sandbox.
+
+Workflow composition snapshots the recipe dependency closure and expands calls into
+qualified steps in one graph. Compiler-owned input binding and output collection
+nodes are omitted from authoring schemas. Input binding preserves typed contracts;
+the engine's gate dependency remains separate from `merge: any` branch semantics.
+Compiler-owned output collectors wait for dependencies without inheriting branch
+skip rules; a child's collector still requires its call gate. Missing referenced
+outputs fail collection rather than silently disappearing from the result.
+Nested calls share the parent run lease, review decisions, cancellation and artifact
+store. No second worker or child-run lifecycle is created. Queues persist the source
+bundle; review continuation uses the saved compiled definition.

@@ -83,15 +83,26 @@ func run(ctx context.Context, d automation.Definition, inputs map[string]json.Ra
 		err := ctx.Err()
 		skip := false
 		completed := 0
+		dependencies := 0
 		for _, dep := range s.DependsOn {
+			if dep == s.Gate {
+				continue
+			}
+			dependencies++
 			if status[dep] == "completed" {
 				completed++
 			} else {
 				skip = true
 			}
 		}
-		if s.Merge == "any" && len(s.DependsOn) > 0 {
+		if s.Merge == "any" && dependencies > 0 {
 			skip = completed == 0
+		}
+		if s.CollectOutputs {
+			skip = false
+		}
+		if s.Gate != "" && status[s.Gate] != "completed" {
+			skip = true
 		}
 		if !skip && err == nil && len(s.When) > 0 {
 			var condition json.RawMessage

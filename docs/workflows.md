@@ -65,7 +65,9 @@ They read that saved workspace file, up to
 checks structure, supported operations, argument schemas, IDs and path scope.
 It does not predict whether future input files exist or encoding will succeed.
 The catalog includes these four image operations, `record_read`, `record_write`,
-`script_transform`, `model_generate` and `http_request`. Image and record permissions match direct calls. It validates step templates and authorizes known arguments
+`script_transform`, `model_generate`, `http_request`, `artifact_import`,
+`artifact_write`, `artifact_read_text`, `run_program` and `workflow_call`.
+Image and record permissions match direct calls. It validates step templates and authorizes known arguments
 before starting. Output-dependent arguments are validated and authorized after
 resolution, immediately before that step. Earlier effects remain if a later
 value or permission check fails.
@@ -107,8 +109,7 @@ the recorded status remains unchanged. A crash can leave partial step effects.
 Each completed step is saved before the next step is prepared. If saving fails,
 execution stops; an effect may have happened even when its result could not be
 persisted. Writes use a synced temporary file and rename; this is not a power-loss recovery
-or workspace rollback guarantee. Legacy `.gektor/workflow-runs` files remain
-readable with normal file tools and are not imported into this store.
+or workspace rollback guarantee.
 
 Steps run sequentially and stop on failure; remaining steps are marked skipped.
 Inspect outputs before deciding to rerun;
@@ -327,10 +328,79 @@ schedules, cancellation and review commands. Queue entries freeze recipe bytes
 and inputs. Referenced workspace files, model profiles and external services
 remain live resources; a snapshot does not freeze their contents.
 
-The current backend has no HTTP listener, webhook ingress,
-credential vault or visual editor. Named credentials currently reference
-environment values; they are not a secret vault. Those remain separate implementation
-steps. No TUI node-editor behavior is introduced here.
+The optional [HTTP API](#http-api-and-webhooks) submits to this same queue.
+Named credentials reference environment values; they are not a secret vault.
+The visual node editor remains a separate step.
+
+## HTTP API and webhooks
+
+`workflow serve -listen 127.0.0.1:9841 -api-config api.json` starts the queue
+worker and a loopback HTTP listener together. The normal `-workspace`, `-allow`
+and `-deny` flags apply. Omitting both HTTP flags keeps the queue-only service.
+The listener accepts literal loopback addresses only. Remote access requires a
+separately configured TLS reverse proxy; Gektor does not configure one.
+
+Configuration names recipes and environment variables containing bearer tokens:
+
+```json
+{
+  "token_env": "GEKTOR_WORKFLOW_API_TOKEN",
+  "routes": {
+    "note": {
+      "recipe_path": "recipe.json",
+      "token_env": "GEKTOR_NOTE_WEBHOOK_TOKEN"
+    }
+  }
+}
+```
+
+Tokens must be at least 32 bytes with no surrounding whitespace. Use randomly
+generated secrets. Each webhook token must differ from the operator token and
+all other webhook tokens. Omit a route's `token_env` to expose it only to the
+operator API. Tokens are read once at startup; configuration stores only their
+environment variable names. Restart to rotate tokens or publish recipe changes.
+Recipes and their subworkflow dependencies are frozen at startup.
+
+All requests use `Authorization: Bearer TOKEN`. Endpoints:
+
+- `POST /v1/submit/{route}`: operator submits a registered recipe.
+- `GET /v1/jobs`: operator lists retained job statuses.
+- `GET /v1/jobs/{id}`: operator reads one job status and its run ID.
+- `POST /v1/jobs/{id}/cancel`: operator requests cancellation. Review-waiting
+  jobs must instead be rejected through `workflow review`.
+- `POST /hooks/{route}`: the route's webhook token submits only that recipe.
+
+Submission bodies must be `application/json`, at most 64 KiB, with the shape
+`{"inputs":{"text":"hello"}}`. Use `{"inputs":{}}` for recipes without inputs.
+Recipe paths, policies and review approvals cannot be supplied by callers.
+Webhook credentials cannot read jobs or cancel them. No browser CORS access is
+enabled. The server bounds active authenticated requests to 32.
+
+An accepted submission returns HTTP 202 with `id`, `status`, `run_id`, `created`
+and `cancel_requested`. Acceptance is not execution success: the worker checks
+its policy and records failures. Inspect details and artifacts using the CLI.
+Review gates still require an operator's CLI approval.
+
+Every HTTP response carries a generated `X-Request-ID`. Error JSON also includes
+`request_id` and a stable `code` such as `validation_rejected`, `submission_conflict`
+or `queue_unavailable`. Request logs go to stderr with that ID, the endpoint,
+configured route name, status, outcome code, elapsed time and accepted job ID.
+Job start/finish logs link the job to its run ID and status. These logs omit raw
+errors, request bodies, headers and idempotency keys. No incoming request ID is trusted.
+To diagnose a failed accepted job, use `workflow job` and `workflow inspect`;
+those local records contain the detailed error. For rejected inputs, reproduce
+with `workflow validate -inputs inputs.json recipe.json` under the same workspace
+and policy. HTTP validation errors deliberately do not echo submitted values.
+
+Send an `Idempotency-Key` header (up to 128 bytes) when retrying deliveries.
+The same endpoint, credential, key and submission return the original retained
+job; changed inputs or recipe content return HTTP 409. This survives restarts.
+Keys stop deduplicating after terminal jobs are evicted from the 1,000-job queue
+history. A new key, rotated token or different endpoint creates a new submission;
+this is not an exactly-once guarantee for external effects.
+
+See [the webhook example](../examples/workflows/webhook-note/README.md) for a
+local PowerShell walkthrough without AI or external services.
 
 ## HTTP requests
 
@@ -430,3 +500,41 @@ No automatic retries are allowed: a failed process may already have changed file
 or contacted a service. Stdout/stderr are artifacts; other generated workspace files
 can be captured by a subsequent `artifact_import` step after successful execution.
 See [the local program example](../examples/workflows/process-report/README.md).
+
+## Reusable subworkflows
+
+`workflow_call` invokes a saved recipe using a literal workspace-relative
+`recipe_path` and an explicit `inputs` object. Values may use the caller's `$input`
+and `$step` references. Called recipes declare an `outputs` object; these named
+values become the call step's output. Internal step outputs stay private to the
+child's namespace. A top-level recipe may also declare `outputs`, returned in the
+completed CLI summary.
+
+Calls expand into one execution graph before execution. Child IDs are qualified
+(`daily/save`), artifacts belong to the parent run, and every child operation keeps
+its own permission check. Calling the recipe also checks `workflow_call` against
+its normalized path; reading its source checks `read_file`. Allowing a call does
+not override denials on its operations. A call's `review: true` gates entry at
+`daily/@inputs`; reviews inside the child use their qualified step IDs. Inspection
+shows input-binding and output-collection steps as well as the child operations.
+Rejecting any pending review cancels the whole run.
+
+Queue submission and scheduling freeze the root recipe and its dependency closure.
+Manual runs freeze them at startup. The run hash covers that bundle; the compiled
+definition is persisted for review continuation, which does not reread recipe files.
+Other workspace inputs, programs and profiles remain live unless captured as artifacts.
+Paths inside child recipes remain relative to the workspace, not the child file's
+directory. Validation never executes a child. Static inputs are type-checked before
+execution; values from earlier steps are checked at the call boundary.
+
+Limits: four nested calls, 16 authored steps per recipe, 128 expanded steps including
+call boundaries, and a 64 KiB serialized recipe bundle. Recursive calls are rejected.
+Step IDs cannot contain `/` or begin with `@`; those namespaces belong to composition.
+Qualified IDs still have the 64-byte limit. A call cannot use `for_each` or `retry`;
+ordinary nodes inside a child retain their iteration and retry rules. Declare each
+call explicitly when invoking the same recipe more than once. Every declared output
+must resolve; an output referring to a skipped step fails collection.
+Constant and input-only outputs are still collected when all effect steps skip.
+A skipped call does not collect its child's outputs.
+
+See [the reusable report example](../examples/workflows/subworkflow/README.md).

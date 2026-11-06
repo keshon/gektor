@@ -8,6 +8,9 @@ import (
 // Node describes one executable operation. Permission names remain stable even
 // when display names or recipe versions change.
 type Node struct {
+	// Internal nodes are compiler-generated and omitted from authoring schemas.
+	Internal       bool
+	PermissionName string
 	// RetrySafe declares that repeating a failed execution cannot duplicate effects.
 	RetrySafe        bool
 	Name             string

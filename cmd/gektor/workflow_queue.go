@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"os"
 
 	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/automation/api"
 	"github.com/keshon/gektor/internal/automation/daemon"
 	"github.com/keshon/gektor/internal/automation/store"
 	"github.com/keshon/gektor/internal/workspace"
@@ -27,6 +29,8 @@ func workflowQueue(ctx context.Context, args []string, out io.Writer, directory 
 	missed := flags.String("missed", "skip", "missed triggers: skip or once")
 	decision := flags.String("decision", "", "review decision: approve or reject")
 	overlap := flags.String("overlap", "skip", "active schedule: skip or queue")
+	listen := flags.String("listen", "", "optional loopback HTTP address, e.g. 127.0.0.1:9841")
+	apiConfig := flags.String("api-config", "", "workspace-relative API route and token-environment configuration")
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
@@ -34,6 +38,9 @@ func workflowQueue(ctx context.Context, args []string, out io.Writer, directory 
 	count, ok := counts[command]
 	if !ok || flags.NArg() != count {
 		return fmt.Errorf("workflow %s expects %d arguments (flags precede arguments)", command, count)
+	}
+	if (*listen != "" || *apiConfig != "") && (command != "serve" || *listen == "" || *apiConfig == "") {
+		return fmt.Errorf("-listen and -api-config must be used together with workflow serve")
 	}
 	policy := buildPolicy(*allow, *deny)
 	if err := policy.Validate(); err != nil {
@@ -86,7 +93,8 @@ func workflowQueue(ctx context.Context, args []string, out io.Writer, directory 
 	case "unschedule":
 		return s.DeleteSchedule(ctx, flags.Arg(0))
 	}
-	// Unattended execution never prompts and never treats missing rules as approval.
+	// Unattended execution rejects prompts. The operator's policy still determines
+	// default access; -allow does not turn it into an allowlist.
 	svc, err := app.NewAutomation(ws, directory, policy, permissionGateContext(true, nil, nil))
 	if err != nil {
 		return err
@@ -105,6 +113,32 @@ func workflowQueue(ctx context.Context, args []string, out io.Writer, directory 
 		return err
 	}
 	if command == "serve" {
+		if *listen != "" {
+			data, err := svc.Snapshot(ctx, *apiConfig)
+			if err != nil {
+				return err
+			}
+			var cfg api.Config
+			decoder := json.NewDecoder(bytes.NewReader(data))
+			decoder.DisallowUnknownFields()
+			if err := decoder.Decode(&cfg); err != nil {
+				return err
+			}
+			if err := decoder.Decode(new(any)); err != io.EOF {
+				return fmt.Errorf("API configuration must contain one JSON object")
+			}
+			handler, err := api.New(ctx, s, svc, cfg, nil)
+			if err != nil {
+				return err
+			}
+			listener, err := api.Listen(*listen)
+			if err != nil {
+				return err
+			}
+			defer listener.Close()
+			fmt.Fprintf(os.Stderr, "workflow API listening on http://%s\n", listener.Addr())
+			return api.Serve(ctx, listener, handler, func(workerCtx context.Context) error { return daemon.Serve(workerCtx, s, svc) })
+		}
 		return daemon.Serve(ctx, s, svc)
 	}
 	path := flags.Arg(0)
@@ -115,7 +149,7 @@ func workflowQueue(ctx context.Context, args []string, out io.Writer, directory 
 	if err != nil {
 		return err
 	}
-	source, err := svc.Snapshot(ctx, path)
+	source, err := svc.SnapshotRecipe(ctx, path)
 	if err != nil {
 		return err
 	}

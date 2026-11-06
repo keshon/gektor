@@ -439,8 +439,14 @@ These commands accept `-workspace`.
 
 `workflow serve [-workspace dir] [-allow tool=pattern] [-deny tool=pattern]`
 runs one local worker until Ctrl+C. Run it under your OS process supervisor for
-unattended use. It opens no network listener. Permissions belong to this process,
-not to queued recipes. Requests that need interactive approval are denied.
+unattended use. Permissions belong to this process, not to queued recipes.
+Requests that need interactive approval are denied.
+
+Add `-listen 127.0.0.1:9841 -api-config api.json` to enable authenticated HTTP
+submission and webhook routes alongside the worker. Both flags are required
+together and are accepted only by `serve`: `-listen` selects the loopback address,
+and `-api-config` names a workspace-relative route configuration file.
+See [HTTP API and webhooks](workflows.md#http-api-and-webhooks).
 
 `workflow schedule -cron "0 9 * * 1-5" -timezone Europe/Moscow -missed once
 -overlap skip daily recipe.json` saves a schedule and recipe snapshot.
@@ -492,3 +498,9 @@ completed, failed or cancelled runs whose finish time is older than seven days.
 `-older-than` is required and must be positive. Active, interrupted and waiting-review
 runs are retained. Run records and structured records are never deleted. Retention
 is explicit; no background cleanup runs automatically.
+
+Reusable recipes use the `workflow_call` node and declare named `outputs`.
+Completed run/review summaries include those outputs. Nested reviews use qualified
+step IDs such as `daily/save`; the CLI prints the exact pending ID. Submit and
+schedule snapshot the root recipe and all called recipes together. See
+[subworkflows](workflows.md#reusable-subworkflows) for syntax and limits.

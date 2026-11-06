@@ -15,16 +15,18 @@ import (
 )
 
 type Job struct {
-	ID         string                     `json:"id"`
-	RecipePath string                     `json:"recipe_path"`
-	Source     json.RawMessage            `json:"source"`
-	Inputs     map[string]json.RawMessage `json:"inputs,omitempty"`
-	Status     string                     `json:"status"`
-	Created    time.Time                  `json:"created"`
-	RunID      string                     `json:"run_id,omitempty"`
-	Error      string                     `json:"error,omitempty"`
-	Cancel     bool                       `json:"cancel_requested,omitempty"`
-	Schedule   string                     `json:"schedule,omitempty"`
+	ID             string                     `json:"id"`
+	RecipePath     string                     `json:"recipe_path"`
+	Source         json.RawMessage            `json:"source"`
+	Inputs         map[string]json.RawMessage `json:"inputs,omitempty"`
+	Status         string                     `json:"status"`
+	Created        time.Time                  `json:"created"`
+	RunID          string                     `json:"run_id,omitempty"`
+	Error          string                     `json:"error,omitempty"`
+	Cancel         bool                       `json:"cancel_requested,omitempty"`
+	Schedule       string                     `json:"schedule,omitempty"`
+	SubmissionKey  string                     `json:"submission_key,omitempty"`
+	SubmissionHash string                     `json:"submission_hash,omitempty"`
 }
 type Schedule struct {
 	ID         string                     `json:"id"`
@@ -91,8 +93,31 @@ func (s *Store) control(ctx context.Context, fn func(*control) error) error {
 	return s.write("control.json", c)
 }
 func (s *Store) Enqueue(ctx context.Context, path string, source json.RawMessage, inputs map[string]json.RawMessage) (Job, error) {
+	return s.EnqueueOnce(ctx, path, source, inputs, "", "")
+}
+
+var ErrSubmissionConflict = errors.New("idempotency key already used for a different submission")
+
+// EnqueueOnce deduplicates retained jobs atomically. Keys are opaque hashes supplied
+// by ingress; eviction of terminal jobs also ends their deduplication window.
+func (s *Store) EnqueueOnce(ctx context.Context, path string, source json.RawMessage, inputs map[string]json.RawMessage, key, hash string) (Job, error) {
 	j := Job{ID: rand.Text(), RecipePath: path, Source: source, Inputs: inputs, Status: "queued", Created: time.Now().UTC()}
+	if len(key) > 128 || len(hash) > 128 || (key == "") != (hash == "") {
+		return Job{}, fmt.Errorf("invalid submission identity")
+	}
+	j.SubmissionKey, j.SubmissionHash = key, hash
 	err := s.control(ctx, func(c *control) error {
+		if key != "" {
+			for _, previous := range c.Jobs {
+				if previous.SubmissionKey == key {
+					if previous.SubmissionHash != hash {
+						return ErrSubmissionConflict
+					}
+					j = previous
+					return nil
+				}
+			}
+		}
 		if err := makeJobRoom(c); err != nil {
 			return err
 		}

@@ -1,0 +1,9 @@
+{
+  "token_env": "GEKTOR_WORKFLOW_API_TOKEN",
+  "routes": {
+    "note": {
+      "recipe_path": "recipe.json",
+      "token_env": "GEKTOR_NOTE_WEBHOOK_TOKEN"
+    }
+  }
+}

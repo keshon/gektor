@@ -61,7 +61,7 @@ func (s Schema) Run(ctx context.Context, args json.RawMessage) (string, error) {
 		Operations map[string]json.RawMessage `json:"operations"`
 		References string                     `json:"references"`
 		Examples   []json.RawMessage          `json:"argument_examples"`
-	}{definitionTool{}.Schema(), operations, `v3 references are JSON objects, not strings. No interpolation or workspace prefix is needed. A variants item has its written workspace path in output. Validation needs values or defaults for referenced inputs.`, []json.RawMessage{
+	}{definitionTool{}.Schema(), operations, `v3 references are JSON objects, not strings. No interpolation or workspace prefix is needed. A variants item has its written workspace path in output. Validation needs values or defaults for referenced inputs. workflow_call uses a literal workspace recipe_path and explicit inputs; its output is the called recipe's declared outputs object. Calls share one run; nested review IDs are qualified, for example daily/save.`, []json.RawMessage{
 		json.RawMessage(`{"paths":[{"$input":"source"}]}`),
 		json.RawMessage(`{"paths":[{"$input":"source"},{"$step":"write","pointer":"/items/1/output"}]}`),
 	}})

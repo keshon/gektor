@@ -7,6 +7,11 @@ import (
 )
 
 type Step struct {
+	// CollectOutputs is compiler-owned: dependencies order collection but skipped
+	// branches do not suppress it. Missing referenced outputs still fail resolution.
+	CollectOutputs bool `json:"collect_outputs,omitempty"`
+	// Gate is compiler-owned; it must complete regardless of merge semantics.
+	Gate        string          `json:"gate,omitempty"`
 	Review      bool            `json:"review,omitempty"`
 	ForEach     json.RawMessage `json:"for_each,omitempty"`
 	NodeVersion int             `json:"node_version,omitempty"`
@@ -19,10 +24,11 @@ type Step struct {
 	Merge       string          `json:"merge,omitempty"`
 }
 type Definition struct {
-	Version int              `json:"version"`
-	Name    string           `json:"name"`
-	Inputs  map[string]Input `json:"inputs,omitempty"`
-	Steps   []Step           `json:"steps"`
+	Outputs map[string]json.RawMessage `json:"outputs,omitempty"`
+	Version int                        `json:"version"`
+	Name    string                     `json:"name"`
+	Inputs  map[string]Input           `json:"inputs,omitempty"`
+	Steps   []Step                     `json:"steps"`
 }
 type RetryPolicy struct {
 	MaxAttempts int `json:"max_attempts"`

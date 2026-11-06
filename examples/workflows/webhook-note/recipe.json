@@ -1,0 +1,8 @@
+{
+  "version": 3,
+  "name": "Save a webhook note",
+  "inputs": {"text": {"type": "string", "required": true}},
+  "steps": [
+    {"id": "save", "tool": "artifact_write", "args": {"name": "note.txt", "text": {"$input": "text"}}}
+  ]
+}

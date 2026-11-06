@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/keshon/gektor/internal/automation/store"
+	"log/slog"
 	"time"
 )
 
@@ -36,6 +37,7 @@ func (s Service) ExecuteJob(ctx context.Context, db *store.Store, job store.Job)
 type jobPersistenceError struct{ error }
 
 func withJob(ctx context.Context, db *store.Store, job store.Job, execute func(context.Context) (string, error)) (string, error) {
+	started := time.Now()
 	cancelRequested := false
 	if err := db.UpdateJob(ctx, job.ID, func(j *store.Job) error {
 		if j.Status != "running" && j.Status != "waiting_review" {
@@ -45,8 +47,10 @@ func withJob(ctx context.Context, db *store.Store, job store.Job, execute func(c
 		j.Status = "running"
 		return nil
 	}); err != nil {
+		slog.ErrorContext(ctx, "workflow job unavailable", "job_id", job.ID, "code", "job_start_failed")
 		return "", &jobPersistenceError{err}
 	}
+	slog.InfoContext(ctx, "workflow job started", "job_id", job.ID)
 	runctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	if cancelRequested {
@@ -87,6 +91,7 @@ func withJob(ctx context.Context, db *store.Store, job store.Job, execute func(c
 	pollErr := <-polled
 	persist, stop := context.WithTimeout(context.Background(), 5*time.Second)
 	defer stop()
+	var status, runID string
 	err := db.UpdateJob(persist, job.ID, func(j *store.Job) error {
 		var summary struct{ Status string }
 		_ = json.Unmarshal([]byte(result), &summary)
@@ -103,12 +108,20 @@ func withJob(ctx context.Context, db *store.Store, job store.Job, execute func(c
 		if runErr != nil {
 			j.Error = runErr.Error()
 		}
+		status, runID = j.Status, j.RunID
 		return nil
 	})
 	if err != nil {
+		slog.ErrorContext(persist, "workflow job persistence failed", "job_id", job.ID, "code", "job_persist_failed")
 		return result, errors.Join(runErr, &jobPersistenceError{err})
 	}
+	level := slog.LevelInfo
+	if status == "failed" {
+		level = slog.LevelError
+	}
+	slog.Log(persist, level, "workflow job finished", "job_id", job.ID, "run_id", runID, "status", status, "duration_ms", time.Since(started).Milliseconds())
 	if pollErr != nil && ctx.Err() == nil && !errors.Is(pollErr, context.Canceled) {
+		slog.ErrorContext(persist, "workflow cancellation monitor failed", "job_id", job.ID, "code", "job_monitor_failed")
 		return result, errors.Join(runErr, &jobPersistenceError{pollErr})
 	}
 	return result, runErr

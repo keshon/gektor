@@ -12,6 +12,7 @@ import (
 	processnode "github.com/keshon/gektor/internal/automation/nodes/process"
 	"github.com/keshon/gektor/internal/automation/nodes/record"
 	scriptnode "github.com/keshon/gektor/internal/automation/nodes/script"
+	workflownodes "github.com/keshon/gektor/internal/automation/nodes/workflow"
 	"github.com/keshon/gektor/internal/automation/service"
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/gektor"
@@ -29,6 +30,7 @@ func AutomationRegistry(ws *workspace.Workspace, store string, output pixelita.O
 	nodes = append(nodes, record.Definitions(ws, store)...)
 	nodes = append(nodes, artifactnodes.Definitions(ws)...)
 	nodes = append(nodes, processnode.Definition(ws))
+	nodes = append(nodes, workflownodes.Definitions()...)
 	model := modelnode.Definition(func(ctx context.Context, path string) (modelnode.Connection, error) {
 		if ws == nil {
 			return modelnode.Connection{}, fmt.Errorf("workspace unavailable")

@@ -1,0 +1,19 @@
+{
+  "version": 3,
+  "name": "Reusable Markdown report",
+  "inputs": {
+    "title": {"type": "string", "required": true},
+    "body": {"type": "string", "required": true},
+    "filename": {"type": "string", "default": "report.md"}
+  },
+  "steps": [
+    {"id":"format","tool":"script_transform","args":{
+      "input":{"title":{"$input":"title"},"body":{"$input":"body"}},
+      "code":"return {text: '# ' + input.title + '\\n\\n' + input.body + '\\n'};"
+    }},
+    {"id":"save","tool":"artifact_write","review":true,"args":{
+      "name":{"$input":"filename"},"text":{"$step":"format","pointer":"/text"}
+    }}
+  ],
+  "outputs": {"artifact":{"$step":"save"}}
+}
