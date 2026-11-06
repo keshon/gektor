@@ -67,6 +67,7 @@ var (
 	Checkpoint        = read("checkpoint.txt")
 	PlanMode          = read("plan_mode.txt")
 	ActMode           = read("act_mode.txt")
+	WorkflowAuthor    = read("workflow_author.txt")
 )
 
 // WithRole returns System with RoleAddendum appended for role, or System

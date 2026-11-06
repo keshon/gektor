@@ -127,8 +127,15 @@ Discovery and a bounded prompt map share one optional-package catalog.
 Built-in `native_images` and `native_workflows` packages load on demand.
 `tools/pixelita` stages rooted inputs for the external Pixelita Go library;
 `tools/workflow` adapts manual recipes to `internal/automation`. The runner has
-no model dependency and only dispatches allowlisted image steps. Nested steps
-retain direct-call permissions. Run records live in the task workspace.
+no model dependency and only dispatches allowlisted image and record steps.
+Nested steps retain direct-call permissions. Runs and schema-validated records
+live in the workspace-scoped user store, outside task files. OS locks identify
+active runs and serialize record revision checks; interrupted runs never retry
+automatically. Schema registration is an operator action.
+Version-2 recipes bind typed inputs and earlier JSON outputs; resolved values
+are validated and authorized before their operation. `workflow validate/run`
+executes without an LLM backend. `roles.WorkflowAuthor` has a fixed tool set
+and can save only an operator-selected recipe; schema lookup is on demand.
 Main-only sources are excluded for children before loading; role constructors
 reject forbidden direct extras. Plan can activate native packages without IO,
 but external activation stays blocked. Every resulting call still goes through

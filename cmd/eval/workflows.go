@@ -83,37 +83,28 @@ func checkWorkflow(kind string, ws *workspace.Workspace) error {
 			return fmt.Errorf("fixture changed: %s", path)
 		}
 	}
-	base := ".gektor/workflow-runs"
-	entries, err := ws.ReadDir(base)
+	store, err := automation.OpenStore(workflowStoreDir(ws), ws.Root())
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	entries, err := store.Runs()
+	if err != nil {
+		return err
+	}
 	if kind == "workflow_invalid" {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
 		if len(entries) != 0 {
 			return fmt.Errorf("invalid recipe executed")
 		}
 		return nil
 	}
-	if err != nil {
-		return fmt.Errorf("run records missing: %w", err)
-	}
 	var records []automation.Record
 	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		data, err := ws.ReadFile(filepath.Join(base, entry.Name(), "run.json"))
+		r, err := store.Run(entry.ID)
 		if err != nil {
 			return err
 		}
-		var r automation.Record
-		if err := json.Unmarshal(data, &r); err != nil {
-			return err
-		}
-		records = append(records, r)
+		records = append(records, r.Record)
 	}
 	if len(records) != 1 {
 		return fmt.Errorf("expected one execution record, got %d", len(records))
@@ -221,15 +212,14 @@ func checkWorkflow(kind string, ws *workspace.Workspace) error {
 	return nil
 }
 
-// Workspace records are model-editable. Tie their provenance back to captured
-// tool results so rewriting a recipe and its record cannot manufacture a pass.
+// Match store records to captured results and the recipe selected by the call.
 func checkWorkflowTrace(calls []call, ws *workspace.Workspace) error {
 	for _, c := range calls {
 		if c.tool != "workflow_run" {
 			continue
 		}
 		var result struct {
-			Path   string `json:"record_path"`
+			ID     string `json:"run_id"`
 			Digest string `json:"recipe_sha256"`
 			Status string `json:"status"`
 		}
@@ -237,14 +227,16 @@ func checkWorkflowTrace(calls []call, ws *workspace.Workspace) error {
 		if err := json.Unmarshal([]byte(body), &result); err != nil {
 			return fmt.Errorf("workflow result is not a recorded execution: %w", err)
 		}
-		data, err := ws.ReadFile(result.Path)
+		store, err := automation.OpenStore(workflowStoreDir(ws), ws.Root())
 		if err != nil {
 			return err
 		}
-		var r automation.Record
-		if err := json.Unmarshal(data, &r); err != nil {
+		state, err := store.Run(result.ID)
+		store.Close()
+		if err != nil {
 			return err
 		}
+		r := state.Record
 		if r.RecipeSHA256 != result.Digest || r.Status != result.Status {
 			return fmt.Errorf("workspace record differs from captured tool result")
 		}
@@ -267,4 +259,8 @@ func checkWorkflowTrace(calls []call, ws *workspace.Workspace) error {
 		}
 	}
 	return nil
+}
+
+func workflowStoreDir(ws *workspace.Workspace) string {
+	return filepath.Join(filepath.Dir(ws.Root()), "workflow-store")
 }

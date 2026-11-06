@@ -69,9 +69,13 @@ func builtinPackages() []packageDefinition {
 			{func(d packageDependencies) agent.Tool { return &pixelita.Tool{WS: d.WS, Operation: "variants"} }, false},
 			{func(d packageDependencies) agent.Tool { return &pixelita.Tool{WS: d.WS, Operation: "compare"} }, true},
 		}},
-		{"native_workflows", "Validate and manually run saved image recipes", Lazy, []toolEntry{
+		{"native_workflows", "Validate and run saved image/record recipes; inspect runs and structured records", Lazy, []toolEntry{
+			{func(d packageDependencies) agent.Tool { return &workflow.Schema{WS: d.WS} }, true},
 			{func(d packageDependencies) agent.Tool { return &workflow.Tool{WS: d.WS, ValidateOnly: true} }, true},
 			{func(d packageDependencies) agent.Tool { return &workflow.Tool{WS: d.WS} }, false},
+			{func(d packageDependencies) agent.Tool { return &workflow.Inspect{WS: d.WS} }, true},
+			{func(d packageDependencies) agent.Tool { return &workflow.Data{WS: d.WS} }, true},
+			{func(d packageDependencies) agent.Tool { return &workflow.Data{WS: d.WS, Write: true} }, false},
 		}},
 	}
 }

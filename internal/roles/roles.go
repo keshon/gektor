@@ -127,6 +127,8 @@ type Env struct {
 	// argument is resolved against it. Empty means the caller passes
 	// whole paths, or none at all.
 	StateDir string
+	// WorkflowDir overrides the user workflow store for isolated evaluations.
+	WorkflowDir string
 }
 
 func (e Env) onStep(label string) func(int, llm.Message) {
@@ -395,7 +397,7 @@ func (e Env) configureTools(cfg *agent.Config, mainAgent, allowQuestions bool, e
 		cfg.System += catalog.Map()
 	}
 	catalog.Registry = cfg.Tools
-	tools.BindWorkflowPolicy(catalog, e.WS, e.policy(), e.ResolveGate())
+	tools.BindWorkflowPolicy(catalog, e.WS, e.policy(), e.ResolveGate(), e.WorkflowDir)
 	cfg.SaveCapabilities = catalog.Save
 	cfg.RestoreCapabilities = func(ctx context.Context, states []session.Capability) error {
 		if composeErr != nil {

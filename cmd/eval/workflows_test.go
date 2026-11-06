@@ -26,7 +26,7 @@ func TestWorkflowVerifierAcceptsRealRunsAndRejectsTampering(t *testing.T) {
 			if !bytes.Equal(files["image.png"], again["image.png"]) {
 				t.Fatal("fixture not deterministic")
 			}
-			dir := t.TempDir()
+			dir := filepath.Join(t.TempDir(), "workspace")
 			for path, data := range files {
 				target := filepath.Join(dir, filepath.FromSlash(path))
 				if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
@@ -51,7 +51,7 @@ func TestWorkflowVerifierAcceptsRealRunsAndRejectsTampering(t *testing.T) {
 				}
 			}
 			allow := func(context.Context, string, json.RawMessage) error { return nil }
-			tool := workflow.Tool{WS: ws, ValidateOnly: kind == "workflow_invalid", Authorize: allow, AuthorizeOutput: allow}
+			tool := workflow.Tool{WS: ws, StoreDir: workflowStoreDir(ws), ValidateOnly: kind == "workflow_invalid", Authorize: allow, AuthorizeOutput: allow}
 			output, runErr := tool.Run(t.Context(), json.RawMessage(`{"recipe_path":"recipe.json"}`))
 			if (runErr == nil) != (kind == "workflow_success") {
 				t.Fatalf("unexpected operation result: %v", runErr)
@@ -71,7 +71,7 @@ func TestWorkflowVerifierAcceptsRealRunsAndRejectsTampering(t *testing.T) {
 					if err := json.Unmarshal([]byte(output), &result); err != nil {
 						t.Fatal(err)
 					}
-					data, err := ws.ReadFile(result.Path)
+					data, err := os.ReadFile(result.Path)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -94,7 +94,7 @@ func TestWorkflowVerifierAcceptsRealRunsAndRejectsTampering(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if err := ws.WriteFile(result.Path, data, 0600); err != nil {
+					if err := os.WriteFile(result.Path, data, 0600); err != nil {
 						t.Fatal(err)
 					}
 					if err := checkWorkflow(kind, ws); err != nil {

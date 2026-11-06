@@ -27,7 +27,7 @@ func TestWorkflowCannotBypassNestedToolDeny(t *testing.T) {
 	if r.Has("image_inspect") || r.Has("workflow_run") {
 		t.Fatal("optional schemas loaded eagerly")
 	}
-	BindWorkflowPolicy(c, ws, permission.Policy{Rules: []permission.Rule{{Tool: "image_inspect", Pattern: "*", Effect: permission.Deny}}}, nil)
+	BindWorkflowPolicy(c, ws, permission.Policy{Rules: []permission.Rule{{Tool: "image_inspect", Pattern: "*", Effect: permission.Deny}}}, nil, t.TempDir())
 	if _, err := c.Enable(t.Context(), "native_workflows", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestWorkflowCannotBypassNestedToolDeny(t *testing.T) {
 		t.Fatal("denied workflow had effects")
 	}
 	paths, err := PathResources(ws, "workflow_run", json.RawMessage(`{"recipe_path":"recipe.json"}`))
-	if err != nil || len(paths) != 2 || paths[0] != "recipe.json" {
+	if err != nil || len(paths) != 1 || paths[0] != "recipe.json" {
 		t.Fatalf("missing nested resources: %v %v", paths, err)
 	}
 }
@@ -65,7 +65,7 @@ func TestGeneratedOutputFilenameCannotBypassPermission(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.Registry = r
-	BindWorkflowPolicy(c, ws, permission.Policy{Rules: []permission.Rule{{Tool: "image_variants", Pattern: "out/input-8w.png", Effect: permission.Deny}}}, nil)
+	BindWorkflowPolicy(c, ws, permission.Policy{Rules: []permission.Rule{{Tool: "image_variants", Pattern: "out/input-8w.png", Effect: permission.Deny}}}, nil, t.TempDir())
 	for _, id := range []string{"native_images", "native_workflows"} {
 		if _, err := c.Enable(t.Context(), id, nil); err != nil {
 			t.Fatal(err)

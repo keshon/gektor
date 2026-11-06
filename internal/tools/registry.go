@@ -21,6 +21,24 @@ func PathResources(ws *workspace.Workspace, tool string, args json.RawMessage) (
 	var in struct{ Path, From, To string }
 	var paths []string
 	switch tool {
+	case "workflow_schema":
+		var in struct {
+			Kind string `json:"record_kind"`
+		}
+		if err := json.Unmarshal(args, &in); err != nil {
+			return nil, err
+		}
+		return []string{in.Kind}, nil
+	case "record_read", "record_write":
+		return workflow.RecordResources(args)
+	case "workflow_inspect":
+		var in struct {
+			ID string `json:"run_id"`
+		}
+		if err := json.Unmarshal(args, &in); err != nil {
+			return nil, err
+		}
+		return []string{in.ID}, nil
 	case "read_file", "write_file", "patch_file", "list_files", "grep_files", "git", "git_add":
 		if err := json.Unmarshal(args, &in); err != nil {
 			return nil, err

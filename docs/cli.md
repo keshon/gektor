@@ -26,6 +26,46 @@ argument. Run `go run ./cmd/gektor -h` for the binary's registered flags.
 Direct execution is the default. An empty task is allowed for `-tui`,
 `-serve` and resume/fork; ordinary print mode needs one.
 
+### Saved workflows
+
+`workflow validate` and `workflow run` operate without a model backend. They
+print a JSON result to stdout, diagnostics and permission prompts to stderr,
+and exit nonzero on failure. A failed run can still print its saved record path.
+
+```powershell
+.\gektor.exe workflow schema
+.\gektor.exe workflow draft recipe.json -workspace . -backend-kind llama -backend http://127.0.0.1:9931 "Prepare a reusable image resize and comparison recipe"
+.\gektor.exe workflow validate -workspace . -inputs inputs.json recipe.json
+.\gektor.exe workflow run -workspace . -inputs inputs.json -yes recipe.json
+.\gektor.exe workflow runs -workspace .
+.\gektor.exe workflow inspect -workspace . <run-id>
+.\gektor.exe workflow register-schema -workspace . assets assets.schema.json
+```
+
+For validate/run, put flags before the recipe path. `-inputs` selects a JSON
+object file inside the workspace, up to 64 KiB. Its read is permission-checked.
+These commands support `-workspace`, `-allow`, `-deny`, `-yes` and
+`-run-timeout` (default 5m, 0 disables). `-yes` denies Ask-gated operations;
+it does not grant permission. Cancellation is cooperative during image encoding.
+Model flags, profiles, browser and external adapters do not apply to execution.
+Runs are stored outside the workspace under `~/.gektor/workflows`, scoped to
+the workspace's canonical path. Inspect by run ID; `record_path` is absolute.
+`runs` and `inspect` support `-workspace`. `register-schema` takes a kind and a
+workspace schema file after its `-workspace` flag; existing schemas cannot change.
+
+For draft, put the destination immediately after `draft`, followed by ordinary
+agent flags and the task. It uses the selected model/profile but a restricted
+role: read files, inspect/preview images, fetch workflow schemas, validate and
+save only the selected recipe. There is no shell, delegation, external adapter
+activation, image writing or workflow execution. The model budget is at most
+16 steps. It cannot resume/fork sessions or use TUI/serve/Plan mode, attached
+images, browser/MCP/capability flags, verification commands or inspection-only
+startup flags. Its history is saved, but resuming it as a generic coding session
+does not preserve these restrictions. Use `workflow draft` again to revise it.
+
+Saved definitions, input binding, supported operations and execution limits are
+documented in [Workflows](workflows.md).
+
 Local llama-server example:
 
 ```bash

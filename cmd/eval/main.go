@@ -612,12 +612,17 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 
 	// A fresh copy per run. Without it the second run starts from the
 	// first run's output and measures nothing.
-	work, err := os.MkdirTemp("", "gektor-eval-")
+	tempRoot, err := os.MkdirTemp("", "gektor-eval-")
 	if err != nil {
 		res.RunError = "mkdir temp: " + err.Error()
 		return res
 	}
-	defer os.RemoveAll(work)
+	defer os.RemoveAll(tempRoot)
+	work := filepath.Join(tempRoot, "workspace")
+	if err := os.Mkdir(work, 0700); err != nil {
+		res.RunError = "mkdir workspace: " + err.Error()
+		return res
+	}
 	if p.Seed != "" {
 		if err := copyTree(p.Seed, work); err != nil {
 			res.RunError = "seed workspace: " + err.Error()
@@ -719,6 +724,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 	env := evalEnv(modelClient, ws, procs, contextLimit, maxTokens, record, func(kind string) {
 		res.Nudges = append(res.Nudges, kind)
 	})
+	env.WorkflowDir = workflowStoreDir(ws)
 	env.OnResult = func(result agent.ToolResult) {
 		res.ToolSeconds += result.Duration.Seconds()
 		recordToolResult(calls, result)

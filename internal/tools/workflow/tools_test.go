@@ -25,6 +25,119 @@ func recipeArgs(t *testing.T, ws *workspace.Workspace, source []byte) json.RawMe
 }
 func allow(context.Context, string, json.RawMessage) error { return nil }
 
+func TestVersionTwoBindsInputsAndImageOutput(t *testing.T) {
+	ws, err := workspace.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	var imageBytes bytes.Buffer
+	if err := png.Encode(&imageBytes, image.NewNRGBA(image.Rect(0, 0, 32, 24))); err != nil {
+		t.Fatal(err)
+	}
+	if err := ws.WriteFile("input.png", imageBytes.Bytes(), 0600); err != nil {
+		t.Fatal(err)
+	}
+	source := []byte(`{"version":2,"name":"Reusable variants","inputs":{"source":{"type":"string","required":true},"destination":{"type":"string","default":"web"}},"steps":[{"id":"write","tool":"image_variants","args":{"paths":[{"$input":"source"}],"widths":[16],"out_dir":{"$input":"destination"}}},{"id":"compare","tool":"image_compare","args":{"paths":[{"$input":"source"},{"$step":"write","pointer":"/items/0/output"}]}}]}`)
+	recipeArgs(t, ws, source)
+	args := json.RawMessage(`{"recipe_path":"recipe.json","inputs":{"source":"input.png"}}`)
+	tool := Tool{WS: ws, StoreDir: t.TempDir(), ValidateOnly: true, Authorize: allow, AuthorizeOutput: allow}
+	if _, err := tool.Run(t.Context(), args); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ws.Stat("web"); !os.IsNotExist(err) {
+		t.Fatal("validation wrote outputs")
+	}
+	tool.ValidateOnly = false
+	out, err := tool.Run(t.Context(), args)
+	if err != nil {
+		t.Fatalf("%v %s", err, out)
+	}
+	var result struct {
+		Path string `json:"record_path"`
+	}
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(result.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var record automation.Record
+	if err := json.Unmarshal(data, &record); err != nil {
+		t.Fatal(err)
+	}
+	if record.Status != "completed" || string(record.Inputs["destination"]) != `"web"` || strings.Contains(string(record.Steps[1].Args), "$step") || !strings.Contains(string(record.Steps[1].Args), "web/input-16w.png") {
+		t.Fatalf("wrong binding/evidence: %s", data)
+	}
+	if record.RecipeSource != string(source) {
+		t.Fatal("source recipe changed")
+	}
+}
+
+func TestOutputDerivedPathsAreAuthorizedAndValidated(t *testing.T) {
+	for _, mode := range []string{"deny", "wrong-type", "literal-escape", "forbidden-tool", "string-interpolation"} {
+		t.Run(mode, func(t *testing.T) {
+			ws, err := workspace.New(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer ws.Close()
+			var imageBytes bytes.Buffer
+			if err := png.Encode(&imageBytes, image.NewNRGBA(image.Rect(0, 0, 32, 24))); err != nil {
+				t.Fatal(err)
+			}
+			if err := ws.WriteFile("input.png", imageBytes.Bytes(), 0600); err != nil {
+				t.Fatal(err)
+			}
+			source := `{"version":2,"name":"Dynamic paths","steps":[{"id":"write","tool":"image_variants","args":{"paths":["input.png"],"widths":[16],"out_dir":"web"}},{"id":"read","tool":"image_inspect","args":{"paths":[{"$step":"write","pointer":"/items/0/output"}]}}]}`
+			switch mode {
+			case "string-interpolation":
+				source = strings.Replace(source, `"input.png"`, `"{$input:source}"`, 1)
+			case "wrong-type":
+				source = strings.Replace(source, "/items/0/output", "/items", 1)
+			case "literal-escape":
+				source = strings.Replace(source, `"paths":[{"$step"`, `"paths":["../escape.png",{"$step"`, 1)
+			case "forbidden-tool":
+				source = strings.Replace(source, `"tool":"image_inspect"`, `"tool":"run_shell"`, 1)
+			}
+			args := recipeArgs(t, ws, []byte(source))
+			dynamicAuthorized := false
+			tool := Tool{WS: ws, StoreDir: t.TempDir(), AuthorizeOutput: allow, Authorize: func(_ context.Context, name string, args json.RawMessage) error {
+				if name == "image_inspect" && strings.Contains(string(args), "web/input-16w.png") {
+					dynamicAuthorized = true
+					if mode == "deny" {
+						return fmt.Errorf("denied resolved path")
+					}
+				}
+				return nil
+			}}
+			out, err := tool.Run(t.Context(), args)
+			if err == nil {
+				t.Fatalf("accepted %s: %s", mode, out)
+			}
+			if mode == "string-interpolation" && !strings.Contains(err.Error(), "JSON object") {
+				t.Fatalf("unhelpful reference diagnostic: %v", err)
+			}
+			if mode == "literal-escape" || mode == "forbidden-tool" || mode == "string-interpolation" {
+				if _, err := ws.Stat("web"); !os.IsNotExist(err) {
+					t.Fatal("invalid template had effects")
+				}
+			} else {
+				if _, err := ws.Stat("web/input-16w.png"); err != nil {
+					t.Fatal("earlier step did not complete", err)
+				}
+				if !strings.Contains(out, `"status":"failed"`) {
+					t.Fatalf("missing failure record: %s", out)
+				}
+			}
+			if mode == "deny" && !dynamicAuthorized {
+				t.Fatal("resolved path skipped authorization")
+			}
+		})
+	}
+}
+
 func TestManualImageRecipeCompletes(t *testing.T) {
 	ws, err := workspace.New(t.TempDir())
 	if err != nil {
@@ -41,14 +154,14 @@ func TestManualImageRecipeCompletes(t *testing.T) {
 	args := json.RawMessage(`{"version":1,"name":"web images","steps":[{"id":"inspect","tool":"image_inspect","args":{"paths":["input.png"]}},{"id":"preview","tool":"image_preview","args":{"paths":["input.png"],"widths":[16]}},{"id":"write","tool":"image_variants","args":{"paths":["input.png"],"widths":[16],"out_dir":"web"}},{"id":"compare","tool":"image_compare","args":{"paths":["input.png","web/input-16w.png"]}}]}`)
 	source := append([]byte(nil), args...)
 	args = recipeArgs(t, ws, source)
-	if _, err := (Tool{WS: ws, ValidateOnly: true, Authorize: allow}).Run(t.Context(), args); err != nil {
+	if _, err := (Tool{WS: ws, StoreDir: t.TempDir(), ValidateOnly: true, Authorize: allow}).Run(t.Context(), args); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := ws.Stat(".gektor"); !os.IsNotExist(err) {
 		t.Fatal("validation wrote state")
 	}
 	authorized := 0
-	out, err := (Tool{WS: ws, AuthorizeOutput: allow, Authorize: func(context.Context, string, json.RawMessage) error { authorized++; return nil }}).Run(t.Context(), args)
+	out, err := (Tool{WS: ws, StoreDir: t.TempDir(), AuthorizeOutput: allow, Authorize: func(context.Context, string, json.RawMessage) error { authorized++; return nil }}).Run(t.Context(), args)
 	if err != nil {
 		t.Fatalf("%v %s", err, out)
 	}
@@ -59,7 +172,7 @@ func TestManualImageRecipeCompletes(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
 		t.Fatal(err)
 	}
-	data, err := ws.ReadFile(result.Path)
+	data, err := os.ReadFile(result.Path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +185,7 @@ func TestManualImageRecipeCompletes(t *testing.T) {
 	if authorized != 5 || result.Record.Status != "completed" || result.Record.Finished == nil {
 		t.Fatalf("bad completion: %s", out)
 	}
-	if _, err := ws.ReadFile(result.Path); err != nil {
+	if _, err := os.ReadFile(result.Path); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := ws.Stat("web/input-16w.png"); err != nil {
@@ -104,7 +217,7 @@ func TestManualRunRecordsFailureAndRejectsHiddenCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ws.Close()
-	tool := Tool{WS: ws, Authorize: func(context.Context, string, json.RawMessage) error { return nil }}
+	tool := Tool{WS: ws, StoreDir: t.TempDir(), Authorize: func(context.Context, string, json.RawMessage) error { return nil }}
 	for _, args := range []string{
 		`{"version":1,"name":"bad","steps":[{"id":"one","tool":"image_inspect","args":{"paths":["a.png"]}},{"id":"two","tool":"run_shell","args":{"command":"echo nope"}}]}`,
 		`{"version":1,"name":"bad","steps":[{"id":"one","tool":"image_variants","args":{"paths":["a.png"],"widths":[8],"out_dir":"../escape"}}]}`,
@@ -127,7 +240,7 @@ func TestManualRunRecordsFailureAndRejectsHiddenCommands(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
 		t.Fatal(err)
 	}
-	data, err := ws.ReadFile(result.Path)
+	data, err := os.ReadFile(result.Path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,12 +261,12 @@ func TestRunRevalidatesSavedFile(t *testing.T) {
 	defer ws.Close()
 	source := `{"version":1,"name":"test","steps":[{"id":"read","tool":"image_inspect","args":{"paths":["input.png"]}}]}`
 	args := recipeArgs(t, ws, []byte(source))
-	if _, err := (Tool{WS: ws, ValidateOnly: true, Authorize: allow}).Run(t.Context(), args); err != nil {
+	if _, err := (Tool{WS: ws, StoreDir: t.TempDir(), ValidateOnly: true, Authorize: allow}).Run(t.Context(), args); err != nil {
 		t.Fatal(err)
 	}
 	recipeArgs(t, ws, []byte(strings.Replace(source, `"version":1`, `"version":1,"input":"bad"`, 1)))
 	for _, validate := range []bool{true, false} {
-		_, err := (Tool{WS: ws, ValidateOnly: validate, Authorize: allow}).Run(t.Context(), args)
+		_, err := (Tool{WS: ws, StoreDir: t.TempDir(), ValidateOnly: validate, Authorize: allow}).Run(t.Context(), args)
 		if err == nil || !strings.Contains(err.Error(), "input") || !strings.Contains(err.Error(), "recipe.json") {
 			t.Fatalf("saved invalid recipe accepted: %v", err)
 		}
@@ -161,7 +274,7 @@ func TestRunRevalidatesSavedFile(t *testing.T) {
 	if _, err := ws.Stat(".gektor"); !os.IsNotExist(err) {
 		t.Fatal("invalid recipe created state")
 	}
-	_, err = (Tool{WS: ws, ValidateOnly: true, Authorize: func(_ context.Context, name string, _ json.RawMessage) error {
+	_, err = (Tool{WS: ws, StoreDir: t.TempDir(), ValidateOnly: true, Authorize: func(_ context.Context, name string, _ json.RawMessage) error {
 		if name == "read_file" {
 			return fmt.Errorf("denied")
 		}

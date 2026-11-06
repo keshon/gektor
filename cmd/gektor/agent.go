@@ -66,6 +66,15 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		return fmt.Errorf("workspace: %w", wsErr)
 	}
 	defer ws.Close()
+	if o.workflowRecipe != "" {
+		path, err := ws.Relative(o.workflowRecipe)
+		if err != nil {
+			return err
+		}
+		if path == "." {
+			return fmt.Errorf("recipe path must name a file")
+		}
+	}
 	capabilities, closeCapabilities := tools.BuildCapabilities(capabilityConfig, ws.Root())
 	defer closeCapabilities()
 
@@ -121,7 +130,11 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			note("forked from %s (%d messages)", o.fork, len(forkHistory))
 		}
 
-		note("task id: %s (resume with -resume %s)", taskID, stateFile)
+		if o.workflowRecipe != "" {
+			note("workflow draft session: %s (history: %s)", taskID, stateFile)
+		} else {
+			note("task id: %s (resume with -resume %s)", taskID, stateFile)
+		}
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -390,7 +403,12 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 
 	env = env.Refreshed(ctx)
 	var a *agent.Agent
-	if o.plan {
+	if o.workflowRecipe != "" {
+		a, err = roles.WorkflowAuthor(env, o.workflowRecipe, stateFile)
+		if err != nil {
+			return err
+		}
+	} else if o.plan {
 		a = roles.Planner(env, "plan", stateFile, askFn)
 	} else {
 		a = roles.Interactive(env, "", stateFile, askFn, verify)
@@ -414,7 +432,11 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		for _, warning := range r.Warnings {
 			note("%s", warning)
 		}
-		note("resume: gektor -resume %s", stateFile)
+		if o.workflowRecipe != "" {
+			note("draft history: %s; workflow draft sessions do not support resume", stateFile)
+		} else {
+			note("resume: gektor -resume %s", stateFile)
+		}
 	}()
 
 	var result string
@@ -456,7 +478,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	} else {
 		var err error
 		result, err = a.Run(ctx, task, images...)
-		if err != nil {
+		if err != nil && o.workflowRecipe == "" {
 			// A run that hit MaxSteps with work still open gets one more
 			// budget if the operator says yes. This used to exist only in
 			// the API session, so the primary CLI silently never offered it.

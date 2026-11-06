@@ -14,6 +14,7 @@ import (
 // launchOptions holds command-line values and records explicit overrides.
 // Parsing does not open files, create clients, or start services.
 type launchOptions struct {
+	workflowRecipe   string // Set by workflow draft, never an unrestricted agent flag.
 	backendURL       string
 	model            string
 	workspace        string

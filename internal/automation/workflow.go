@@ -15,26 +15,31 @@ type Step struct {
 	Args json.RawMessage `json:"args"`
 }
 type Definition struct {
-	Version int    `json:"version"`
-	Name    string `json:"name"`
-	Steps   []Step `json:"steps"`
+	Version int              `json:"version"`
+	Name    string           `json:"name"`
+	Inputs  map[string]Input `json:"inputs,omitempty"`
+	Steps   []Step           `json:"steps"`
 }
 type StepResult struct {
-	ID     string `json:"id"`
-	Status string `json:"status"`
-	Output string `json:"output,omitempty"`
-	Error  string `json:"error,omitempty"`
+	ID     string          `json:"id"`
+	Status string          `json:"status"`
+	Args   json.RawMessage `json:"args,omitempty"`
+	Output string          `json:"output,omitempty"`
+	Error  string          `json:"error,omitempty"`
 }
 type Record struct {
-	RecipePath   string       `json:"recipe_path,omitempty"`
-	RecipeSHA256 string       `json:"recipe_sha256,omitempty"`
-	RecipeSource string       `json:"recipe_source,omitempty"`
-	Definition   Definition   `json:"definition"`
-	Digest       string       `json:"digest"`
-	Status       string       `json:"status"`
-	Started      time.Time    `json:"started"`
-	Finished     *time.Time   `json:"finished,omitempty"`
-	Steps        []StepResult `json:"steps"`
+	RunID        string                     `json:"run_id,omitempty"`
+	Workspace    string                     `json:"workspace,omitempty"`
+	RecipePath   string                     `json:"recipe_path,omitempty"`
+	RecipeSHA256 string                     `json:"recipe_sha256,omitempty"`
+	RecipeSource string                     `json:"recipe_source,omitempty"`
+	Definition   Definition                 `json:"definition"`
+	Inputs       map[string]json.RawMessage `json:"inputs,omitempty"`
+	Digest       string                     `json:"digest"`
+	Status       string                     `json:"status"`
+	Started      time.Time                  `json:"started"`
+	Finished     *time.Time                 `json:"finished,omitempty"`
+	Steps        []StepResult               `json:"steps"`
 }
 type Handler interface {
 	Validate(Step) error
@@ -42,54 +47,61 @@ type Handler interface {
 }
 
 func Validate(d Definition, h Handler) error {
-	if d.Version != 1 {
-		return fmt.Errorf("workflow version must be 1")
-	}
-	if len(d.Name) == 0 || len(d.Name) > 120 {
-		return fmt.Errorf("name must contain 1–120 bytes")
-	}
-	if len(d.Steps) == 0 || len(d.Steps) > 16 {
-		return fmt.Errorf("workflow requires 1–16 sequential steps")
-	}
-	seen := map[string]bool{}
-	for _, s := range d.Steps {
-		if s.ID == "" || len(s.ID) > 64 || seen[s.ID] {
-			return fmt.Errorf("step IDs must be unique and contain 1–64 bytes")
-		}
-		seen[s.ID] = true
-		if err := h.Validate(s); err != nil {
-			return fmt.Errorf("step %s: %w", s.ID, err)
-		}
-	}
-	return nil
+	_, _, err := Prepare(d, nil, h)
+	return err
 }
 
-// Run validates every step before any effects. Save is called before each
+// Run validates step templates before any effects. Save is called before each
 // operation; a process crash leaves a running record, never a false success.
 // There is deliberately no automatic retry of a step with possible effects.
 func Run(ctx context.Context, d Definition, h Handler, save func(Record) error) (Record, error) {
-	if err := Validate(d, h); err != nil {
-		return Record{}, err
-	}
+	return RunWithInputs(ctx, d, nil, h, save)
+}
+
+func RunWithInputs(ctx context.Context, d Definition, inputs map[string]json.RawMessage, h Handler, save func(Record) error) (Record, error) {
 	data, err := json.Marshal(d)
 	if err != nil {
 		return Record{}, err
 	}
-	r := Record{Definition: d, Digest: fmt.Sprintf("%x", sha256.Sum256(data)), Status: "running", Started: time.Now().UTC()}
+	// Freeze caller-owned maps and argument slices for the execution record.
+	var frozen Definition
+	if err := json.Unmarshal(data, &frozen); err != nil {
+		return Record{}, err
+	}
+	d = frozen
+	prepared, bound, err := Prepare(d, inputs, h)
+	if err != nil {
+		return Record{}, err
+	}
+	r := Record{Definition: d, Inputs: bound, Digest: fmt.Sprintf("%x", sha256.Sum256(data)), Status: "running", Started: time.Now().UTC()}
+	outputs := map[string]string{}
 	for _, s := range d.Steps {
 		r.Steps = append(r.Steps, StepResult{ID: s.ID, Status: "pending"})
 	}
-	for i, s := range d.Steps {
+	for i, s := range prepared.Steps {
+		err := ctx.Err()
+		if err == nil && d.Version == 2 {
+			s.Args, err = resolveOutputs(s.Args, outputs)
+		}
+		if err == nil {
+			r.Steps[i].Args = s.Args
+			err = h.Validate(s)
+		}
 		r.Steps[i].Status = "running"
 		if err := save(r); err != nil {
 			return r, fmt.Errorf("save before step: %w", err)
 		}
-		err := ctx.Err()
 		var out string
 		if err == nil {
 			out, err = h.Run(ctx, s)
 		}
 		r.Steps[i].Output = out
+		if len(out) > maxOutput {
+			r.Steps[i].Output = out[:maxOutput]
+			if err == nil {
+				err = fmt.Errorf("step output exceeds 1 MiB")
+			}
+		}
 		if err == nil {
 			err = ctx.Err()
 		}
@@ -108,6 +120,7 @@ func Run(ctx context.Context, d Definition, h Handler, save func(Record) error) 
 			return r, fmt.Errorf("step %s: %w", s.ID, err)
 		}
 		r.Steps[i].Status = "completed"
+		outputs[s.ID] = out
 	}
 	r.Status = "completed"
 	now := time.Now().UTC()

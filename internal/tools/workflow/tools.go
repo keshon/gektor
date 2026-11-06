@@ -1,10 +1,9 @@
-// Package workflow exposes manual image recipes without arbitrary tool dispatch.
+// Package workflow exposes saved recipes without arbitrary tool dispatch.
 package workflow
 
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -19,6 +18,7 @@ import (
 
 type Tool struct {
 	WS              *workspace.Workspace
+	StoreDir        string
 	ValidateOnly    bool
 	Authorize       func(context.Context, string, json.RawMessage) error
 	AuthorizeOutput pixelita.OutputAuthorizer
@@ -34,7 +34,7 @@ func (t Tool) Name() string {
 }
 func (t Tool) Description() string {
 	if t.ValidateOnly {
-		return "Validate the saved recipe_path JSON file; does not execute steps or prove image compatibility. Recipe format: {version:1,name,steps:[{id,tool,args}]}; no other fields. Enable native_images for step argument schemas."
+		return "Validate saved recipe_path with optional typed inputs. v2 supports JSON input/output references. Use workflow_schema for format and operation schemas. Record data schemas and output-dependent values are checked during execution."
 	}
 	return "Read and revalidate recipe_path, then execute that saved recipe once; stop on failed or blocked steps. Returns run record path and evidence. No scheduling or retries."
 }
@@ -45,23 +45,29 @@ func (t Tool) Mode() agent.ToolMode {
 	return agent.Exclusive
 }
 func (t Tool) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"recipe_path":{"type":"string","minLength":1}},"required":["recipe_path"],"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"recipe_path":{"type":"string","minLength":1},"inputs":{"type":"object","maxProperties":32}},"required":["recipe_path"],"additionalProperties":false}`)
 }
 
 type definitionTool struct{ Tool }
 
 func (definitionTool) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"version":{"type":"integer","enum":[1]},"name":{"type":"string","minLength":1,"maxLength":120},"steps":{"type":"array","minItems":1,"maxItems":16,"items":{"type":"object","properties":{"id":{"type":"string","minLength":1,"maxLength":64},"tool":{"type":"string","enum":["image_inspect","image_preview","image_variants","image_compare"]},"args":{"type":"object"}},"required":["id","tool","args"],"additionalProperties":false}}},"required":["version","name","steps"],"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"version":{"type":"integer","enum":[1,2]},"name":{"type":"string","minLength":1,"maxLength":120},"inputs":{"type":"object","maxProperties":32,"additionalProperties":{"type":"object","properties":{"type":{"type":"string","enum":["string","integer","number","boolean","array","object"]},"required":{"type":"boolean"},"default":{}},"required":["type"],"additionalProperties":false}},"steps":{"type":"array","minItems":1,"maxItems":16,"items":{"type":"object","properties":{"id":{"type":"string","minLength":1,"maxLength":64},"tool":{"type":"string","enum":["image_inspect","image_preview","image_variants","image_compare","record_read","record_write"]},"args":{"type":"object"}},"required":["id","tool","args"],"additionalProperties":false}}},"required":["version","name","steps"],"additionalProperties":false}`)
 }
 
 type handler struct {
 	ws              *workspace.Workspace
+	storeDir        string
 	authorizeOutput pixelita.OutputAuthorizer
+	authorize       func(context.Context, string, json.RawMessage) error
+	authorized      map[string]bool
+	templates       bool
 }
 
-func (h handler) tool(s automation.Step) (pixelita.Tool, error) {
+func (h handler) tool(s automation.Step) (agent.Tool, error) {
 	var op string
 	switch s.Tool {
+	case "record_read", "record_write":
+		return Data{WS: h.ws, StoreDir: h.storeDir, Write: s.Tool == "record_write"}, nil
 	case "image_inspect":
 		op = "inspect"
 	case "image_preview":
@@ -71,7 +77,7 @@ func (h handler) tool(s automation.Step) (pixelita.Tool, error) {
 	case "image_compare":
 		op = "compare"
 	default:
-		return pixelita.Tool{}, fmt.Errorf("unsupported workflow tool %q", s.Tool)
+		return nil, fmt.Errorf("unsupported workflow tool %q", s.Tool)
 	}
 	return pixelita.Tool{WS: h.ws, Operation: op, AuthorizeOutput: h.authorizeOutput}, nil
 }
@@ -80,25 +86,42 @@ func (h handler) Validate(s automation.Step) error {
 	if err != nil {
 		return err
 	}
-	_, err = t.Validate(s.Args)
-	return err
+	if h.templates {
+		if err := h.validateLiteralPaths(s.Args); err != nil {
+			return err
+		}
+		if automation.HasOutputReferences(s.Args) {
+			return h.validateTemplate(t, s.Args)
+		}
+	}
+	if image, ok := t.(pixelita.Tool); ok {
+		_, err = image.Validate(s.Args)
+		return err
+	}
+	return agent.NewRegistry(t).ValidateCall(t.Name(), s.Args)
 }
 func (h handler) Run(ctx context.Context, s automation.Step) (string, error) {
 	t, err := h.tool(s)
 	if err != nil {
 		return "", err
 	}
+	if !h.authorized[s.ID] {
+		if err := h.authorize(ctx, s.Tool, s.Args); err != nil {
+			return "", err
+		}
+	}
 	return t.Run(ctx, s.Args)
 }
 
 func Resources(args json.RawMessage) ([]string, error) {
 	var in struct {
-		RecipePath string `json:"recipe_path"`
+		RecipePath string                     `json:"recipe_path"`
+		Inputs     map[string]json.RawMessage `json:"inputs"`
 	}
 	if err := decode(args, &in); err != nil {
 		return nil, err
 	}
-	return []string{in.RecipePath, ".gektor/workflow-runs"}, nil
+	return []string{in.RecipePath}, nil
 }
 
 func (t Tool) Run(ctx context.Context, args json.RawMessage) (string, error) {
@@ -109,7 +132,8 @@ func (t Tool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 		return "", err
 	}
 	var in struct {
-		RecipePath string `json:"recipe_path"`
+		RecipePath string                     `json:"recipe_path"`
+		Inputs     map[string]json.RawMessage `json:"inputs"`
 	}
 	if err := decode(args, &in); err != nil {
 		return "", err
@@ -136,15 +160,16 @@ func (t Tool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 		return "", fmt.Errorf("recipe exceeds 64 KiB")
 	}
 	if err := agent.NewRegistry(definitionTool{t}).ValidateCall(t.Name(), source); err != nil {
-		return "", fmt.Errorf("recipe %s: %w; allowed root fields: version, name, steps; edit the saved file", in.RecipePath, err)
+		return "", fmt.Errorf("recipe %s: %w; allowed root fields: version, name, steps, inputs (v2); edit the saved file", in.RecipePath, err)
 	}
 	var d automation.Definition
 	if err := decode(source, &d); err != nil {
 		return "", fmt.Errorf("recipe %s: %w", in.RecipePath, err)
 	}
 	digest := fmt.Sprintf("%x", sha256.Sum256(source))
-	h := handler{t.WS, t.AuthorizeOutput}
-	if err := automation.Validate(d, h); err != nil {
+	h := handler{ws: t.WS, storeDir: t.StoreDir, authorizeOutput: t.AuthorizeOutput, authorize: t.Authorize, authorized: map[string]bool{}, templates: d.Version == 2}
+	prepared, _, err := automation.Prepare(d, in.Inputs, h)
+	if err != nil {
 		return "", err
 	}
 	if t.ValidateOnly {
@@ -153,43 +178,40 @@ func (t Tool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 			RecipePath string `json:"recipe_path"`
 			SHA256     string `json:"recipe_sha256"`
 			Scope      string `json:"scope"`
-		}{true, in.RecipePath, digest, "structure and arguments only; image compatibility checked during execution"})
+		}{true, in.RecipePath, digest, "structure, inputs and argument templates; output-dependent values, permissions, record schemas and image compatibility checked during execution"})
 		return string(data), nil
 	}
-	// Authorize the entire recipe before any step. The outer workflow permission
-	// cannot override a deny or approval requirement on an individual image tool.
-	for _, s := range d.Steps {
+	// Authorize known arguments before effects. Output-dependent arguments are
+	// authorized in handler.Run after resolution, never with placeholder paths.
+	for _, s := range prepared.Steps {
+		if d.Version == 2 && automation.HasOutputReferences(s.Args) {
+			continue
+		}
 		if err := t.Authorize(ctx, s.Tool, s.Args); err != nil {
 			return "", err
 		}
+		h.authorized[s.ID] = true
 	}
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	base := ".gektor/workflow-runs"
-	if err := t.WS.MkdirAll(base, 0700); err != nil {
+	store, err := automation.OpenStore(t.StoreDir, t.WS.Root())
+	if err != nil {
 		return "", err
 	}
-	runDir := filepath.Join(base, rand.Text())
-	if err := t.WS.Mkdir(runDir, 0700); err != nil {
+	defer store.Close()
+	w, err := store.NewRun()
+	if err != nil {
 		return "", err
 	}
-	path := filepath.Join(runDir, "run.json")
+	defer w.Close()
 	save := func(r automation.Record) error {
 		r.RecipePath = in.RecipePath
 		r.RecipeSHA256 = digest
 		r.RecipeSource = string(source)
-		data, err := json.MarshalIndent(r, "", "  ")
-		if err != nil {
-			return err
-		}
-		tmp := filepath.Join(runDir, "run.tmp")
-		if err := t.WS.WriteFile(tmp, data, 0600); err != nil {
-			return err
-		}
-		return t.WS.Rename(tmp, path)
+		return w.Save(r)
 	}
-	r, err := automation.Run(ctx, d, h, save)
+	r, err := automation.RunWithInputs(ctx, d, in.Inputs, h, save)
 	// The full definition and outputs stay in the record, rather than being
 	// repeated in model context after every run.
 	steps := make([]stepSummary, 0, len(r.Steps))
@@ -204,11 +226,12 @@ func (t Tool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 		steps = append(steps, stepSummary{ID: s.ID, Status: s.Status, Error: s.Error, Sources: evidence.Sources, Items: evidence.Items, FailureStage: evidence.FailureStage, Recovery: evidence.Recovery})
 	}
 	data, marshalErr := json.Marshal(struct {
+		ID     string        `json:"run_id"`
 		Path   string        `json:"record_path"`
 		Status string        `json:"status"`
 		SHA256 string        `json:"recipe_sha256"`
 		Steps  []stepSummary `json:"steps"`
-	}{filepath.ToSlash(path), r.Status, digest, steps})
+	}{w.ID(), filepath.ToSlash(w.Path()), r.Status, digest, steps})
 	if marshalErr != nil {
 		return "", marshalErr
 	}
