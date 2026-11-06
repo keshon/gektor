@@ -1,5 +1,53 @@
 # Extensions and skills
 
+## Saved MCP servers
+
+Open **Settings → MCP servers** or `/mcp` to list, add, edit, delete, import,
+enable, and connect servers. The manager uses the same capability catalog as
+file-based extensions. Changes are allowed between agent turns.
+
+Servers are saved under `~/.gektor/mcp/`. Enabled servers are available to the
+agent on demand. **Connect** discovers tools and makes them available on the
+next turn; it does not call those tools. **At startup** connects at launch.
+**Disconnect** closes the connection; an enabled server can reconnect on demand.
+Disable it to remove it from discovery. Existing session catalogs retain their
+original definitions; changed definitions may require a fresh session.
+
+The importer accepts `mcpServers` objects with `url` and `headers`, or `command`
+and `args`. Import rejects existing IDs unless replacement is explicitly selected.
+Use replacement import to rotate HTTP credentials. Subprocess environment
+credentials use `env_refs`, mapping destination names to existing environment
+variable names; inline `env` import is rejected.
+
+HTTP header values are stored separately under `~/.gektor/credentials/`; server
+files contain opaque references. Windows encrypts them with DPAPI for the current
+user. Other platforms use owner-only files in a private directory. References
+are bound to an HTTPS origin and header name. Authenticated connections refuse
+redirects. OAuth login is not implemented.
+
+CLI management works without an LLM backend:
+
+```powershell
+.\gektor.exe mcp list
+.\gektor.exe mcp import C:\path\to\mcp.json
+.\gektor.exe mcp connect yougile
+.\gektor.exe mcp disable yougile
+.\gektor.exe mcp enable yougile
+.\gektor.exe mcp delete yougile
+```
+
+`connect` checks the handshake and tool catalog, then closes its connection when
+the CLI command exits. `save FILE` adds or updates a server definition;
+`import-replace FILE` explicitly replaces matching imported definitions.
+`import -` reads JSON from stdin. A saved definition uses `id`, `description`,
+`url` or a `command` array, `enabled`, optional `startup`, `header_refs`, and
+`env_refs`. Unknown or conflicting adapter IDs are rejected at launch.
+
+Server failures are visible in Details, including failures from agent-triggered
+activation. Tool calls retain normal permission checks. Startup connection
+failures are reported and leave the server available for a later retry.
+
+
 Pass `-capabilities path/to/extensions.json` to configure optional tool packs
 and extra skill libraries. CLI, TUI and RPC use the same configuration. The
 file is selected explicitly; opening a workspace does not load executable
@@ -124,8 +172,8 @@ For subprocess credentials, use references rather than values:
 The destination variable is provided only to that adapter. References resolve
 when an executable runs or an MCP process connects; missing values fail that
 operation. MCP restarts reuse its connection's resolved environment. Restart
-the host to rotate credentials. HTTP MCP packs do not accept `env_refs`; the
-service owns its authentication. Executable and stdio MCP processes both use
+the host to rotate credentials. HTTP MCP packs do not accept `env_refs`; use `header_refs` created by the
+MCP manager for HTTP credentials. Executable and stdio MCP processes both use
 the native scrubbed environment plus explicit references. Known credential
 values are redacted from returned text and errors; adapters must still avoid
 logging secrets or returning encoded/transformed credentials. This is not process isolation.

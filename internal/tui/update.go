@@ -66,6 +66,16 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	defer m.syncFocus()
 	defer m.queueSettingsDetail()
 	switch msg := msg.(type) {
+	case mcpActionMsg:
+		return m, m.handleMCPAction(msg)
+	case mcpDoneMsg:
+		m.mcpBusy = false
+		if msg.err != nil {
+			m.openDialog("MCP / "+msg.id, []string{msg.err.Error()})
+		} else {
+			m.openMCP()
+		}
+		return m, nil
 	case childLoadedMsg:
 		m.acceptChildHistory(msg)
 		return m, nil

@@ -27,6 +27,9 @@ import (
 // the saved transcript carries the conversation, so every follow-up is
 // a continuation, not a fresh run. A /command runs locally instead.
 func (m *model) followUp() (tea.Model, tea.Cmd) {
+	if m.mcpBusy {
+		return m, nil
+	}
 	original := m.input.Value()
 	text := strings.TrimSpace(original)
 	if strings.HasPrefix(text, "/") {
@@ -419,6 +422,9 @@ func (m *model) taskDirectory(taskID string) string {
 }
 
 func (m *model) startFreshPrompt(task, display string, images []string) error {
+	if m.mcpBusy {
+		return fmt.Errorf("wait for the MCP connection attempt to finish")
+	}
 	sum := sha1.Sum([]byte(task + time.Now().String()))
 	taskDir := m.taskDirectory(hex.EncodeToString(sum[:])[:8])
 	stateFile := filepath.Join(taskDir, "state.json")

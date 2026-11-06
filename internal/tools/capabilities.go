@@ -18,6 +18,7 @@ import (
 // Load may discover tools, but must never execute a requested tool action.
 type Capability struct {
 	// MainOnly excludes this source from child discovery, activation and restore.
+	Eager                                          bool
 	MainOnly                                       bool
 	Close                                          func()
 	ID, Version, Description, Instructions, Source string
@@ -27,11 +28,18 @@ type Capability struct {
 	Load                                           func(context.Context, func(string)) ([]agent.Tool, error)
 	mu                                             sync.Mutex
 	tools                                          []agent.Tool
+	lastError                                      string
 }
 
-func (c *Capability) load(ctx context.Context, note func(string)) ([]agent.Tool, error) {
+func (c *Capability) load(ctx context.Context, note func(string)) (result []agent.Tool, loadErr error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	defer func() {
+		c.lastError = ""
+		if loadErr != nil {
+			c.lastError = loadErr.Error()
+		}
+	}()
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -427,4 +435,52 @@ func (t EnableCapability) RunStreaming(ctx context.Context, args json.RawMessage
 		return "", err
 	}
 	return t.Catalog.Enable(ctx, in.ID, output)
+}
+
+// Connect discovers and caches the catalog without executing remote tools.
+func (c *Capability) Connect(ctx context.Context) (int, error) {
+	list, e := c.load(ctx, nil)
+	return len(list), e
+}
+func (c *Capability) Disconnect() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.Close != nil {
+		c.Close()
+	}
+	c.tools = nil
+	c.lastError = ""
+}
+func (c *Capability) Connected() (bool, int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.tools != nil, len(c.tools)
+}
+
+// ConnectionStatus never waits for a discovery operation to finish.
+func (c *Capability) ConnectionStatus() (string, int, string) {
+	if !c.mu.TryLock() {
+		return "connecting", 0, ""
+	}
+	defer c.mu.Unlock()
+	if c.tools != nil {
+		return "connected", len(c.tools), ""
+	}
+	if c.lastError != "" {
+		return "failed", 0, c.lastError
+	}
+	return "disconnected", 0, ""
+}
+
+func (c *Capability) ToolNames() []string {
+	if !c.mu.TryLock() {
+		return nil
+	}
+	defer c.mu.Unlock()
+	names := make([]string, 0, len(c.tools))
+	for _, tool := range c.tools {
+		names = append(names, tool.Name())
+	}
+	sort.Strings(names)
+	return names
 }

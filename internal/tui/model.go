@@ -18,6 +18,7 @@ import (
 	"github.com/keshon/gektor/internal/audit"
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/mcpmanager"
 	"github.com/keshon/gektor/internal/retrospect"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/run"
@@ -32,6 +33,7 @@ import (
 // workspace, tools, policy, budgets); gate behavior comes from the TUI,
 // so Env.Gate is overridden, never read.
 type Config struct {
+	MCP              *mcpmanager.Manager
 	SessionDirectory string
 	Application      *Application
 	Services         *app.Services
@@ -123,6 +125,8 @@ type model struct {
 	maxStepsOverride int
 	// baseEnv is the launch environment before the slash-command
 	// overrides; sessionEnv layers those on per session.
+	mcp          *mcpmanager.Manager
+	mcpBusy      bool
 	baseEnv      roles.Env
 	started      time.Time
 	elapsed      time.Duration
@@ -378,6 +382,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	env.Gate = nil
 	env.GateContext = audit.ContextHook(cfg.AuditPath, "tui", m.contextGate(hub, cfg.Env.WS))
 	m.baseEnv = env
+	m.mcp = cfg.MCP
 	if cfg.Application != nil {
 		m.applyAppearance(cfg.Application.Preferences.Appearance)
 		m.steering = cfg.Application.Preferences.Harness.Steering

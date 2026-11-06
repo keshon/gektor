@@ -73,9 +73,10 @@ type Env struct {
 	// (Interactive, Subagent). Planner advertises them too, so that its
 	// prompt matches Interactive's, but refuses to run them: a mode switch
 	// must not change the prompt prefix.
-	MCPTools     []agent.Tool
-	Browser      *tools.Browser
-	Capabilities []*tools.Capability
+	MCPTools          []agent.Tool
+	Browser           *tools.Browser
+	CapabilitySources func() []*tools.Capability
+	Capabilities      []*tools.Capability
 	// NativeExposure is an internal eval override; nil preserves eager web tools.
 	NativeExposure map[string]tools.Exposure
 
@@ -366,7 +367,11 @@ func (e Env) browserContext() string {
 }
 
 func (e Env) configureTools(cfg *agent.Config, mainAgent, allowQuestions bool, extra ...agent.Tool) {
-	sources := tools.WithBuiltinCapabilities(e.Capabilities)
+	configured := append([]*tools.Capability(nil), e.Capabilities...)
+	if e.CapabilitySources != nil {
+		configured = append(configured, e.CapabilitySources()...)
+	}
+	sources := tools.WithBuiltinCapabilities(configured)
 	if e.Browser != nil {
 		sources = append(sources, e.Browser.Capability())
 	}

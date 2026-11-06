@@ -27,6 +27,8 @@ type httpMCPClient struct {
 	mu      sync.Mutex
 	seq     int
 	session string
+	headers map[string]string
+	secrets []string
 	renew   sync.Mutex
 }
 
@@ -60,6 +62,25 @@ func (c *httpMCPClient) setSession(id string) {
 // absolute http(s); loopback is permitted (local dev servers), everything
 // else follows the public-URL rules.
 func StartMCPHTTP(ctx context.Context, server, rawURL string) ([]agent.Tool, *httpMCPClient, error) {
+	return StartMCPHTTPWithHeaders(ctx, server, rawURL, nil)
+}
+
+// StartMCPHTTPWithHeaders binds credentials to one endpoint and refuses redirects.
+func StartMCPHTTPWithHeaders(ctx context.Context, server, rawURL string, headers map[string]string) (list []agent.Tool, client *httpMCPClient, runErr error) {
+	var secrets []string
+	for name, value := range headers {
+		if !validMCPHeader(name) || strings.ContainsAny(value, "\r\n") || value == "" {
+			return nil, nil, fmt.Errorf("invalid MCP header")
+		}
+		secrets = append(secrets, value)
+		if strings.HasPrefix(value, "Bearer ") {
+			secrets = append(secrets, strings.TrimPrefix(value, "Bearer "))
+		}
+	}
+	defer func() { runErr = redactCredentialError(runErr, secrets) }()
+	if len(headers) > 0 && !strings.HasPrefix(rawURL, "https://") {
+		return nil, nil, fmt.Errorf("authenticated MCP requires HTTPS")
+	}
 	if err := validateCapabilityID(server); err != nil {
 		return nil, nil, err
 	}
@@ -71,10 +92,16 @@ func StartMCPHTTP(ctx context.Context, server, rawURL string) ([]agent.Tool, *ht
 	defer cancel()
 
 	c := &httpMCPClient{
+		headers: headers, secrets: secrets,
 		server: server,
 		url:    clean,
 		// Discovery, calls, notifications and Close each own their context deadline.
 		http: networkClient(true, nil),
+	}
+	if len(headers) > 0 {
+		c.http.CheckRedirect = func(*http.Request, []*http.Request) error {
+			return fmt.Errorf("authenticated MCP redirects are not allowed")
+		}
 	}
 	c.http.Timeout = 0 // Each operation supplies its own deadline.
 	success := false
@@ -107,7 +134,9 @@ func StartMCPHTTP(ctx context.Context, server, rawURL string) ([]agent.Tool, *ht
 	names := assignToolNames(server, defs)
 	tools := make([]agent.Tool, 0, len(defs))
 	for i, td := range defs {
-		tools = append(tools, &MCPTool{client: c, server: server, def: td, toolName: names[i]})
+		td.Description = redactCredentials(td.Description, secrets)
+		td.InputSchema = json.RawMessage(redactCredentials(string(td.InputSchema), secrets))
+		tools = append(tools, &MCPTool{client: c, server: server, def: td, toolName: names[i], secrets: secrets})
 	}
 	success = true
 	return tools, c, nil
@@ -126,6 +155,9 @@ func (c *httpMCPClient) Close() {
 	if err != nil {
 		return
 	}
+	for name, value := range c.headers {
+		req.Header.Set(name, value)
+	}
 	req.Header.Set("Mcp-Session-Id", session)
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -134,7 +166,8 @@ func (c *httpMCPClient) Close() {
 	resp.Body.Close()
 }
 
-func (c *httpMCPClient) call(ctx context.Context, method string, params any, out any) error {
+func (c *httpMCPClient) call(ctx context.Context, method string, params any, out any) (callErr error) {
+	defer func() { callErr = redactCredentialError(callErr, c.secrets) }()
 	id := c.nextID()
 	body, err := json.Marshal(rpcRequest{JSONRPC: "2.0", ID: id, Method: method, Params: params})
 	if err != nil {
@@ -181,6 +214,9 @@ func (c *httpMCPClient) post(ctx context.Context, body []byte, allowRenew bool, 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, bytes.NewReader(body))
 	if err != nil {
 		return nil, "", err
+	}
+	for name, value := range c.headers {
+		req.Header.Set(name, value)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
@@ -308,4 +344,20 @@ func IsMCPURL(s string) bool {
 	}
 	lower := strings.ToLower(fields[0])
 	return strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://")
+}
+
+func validMCPHeader(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, c := range name {
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-') {
+			return false
+		}
+	}
+	switch strings.ToLower(name) {
+	case "host", "content-type", "accept", "content-length", "connection", "cookie", "transfer-encoding", "mcp-session-id", "mcp-protocol-version":
+		return false
+	}
+	return true
 }

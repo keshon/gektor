@@ -184,7 +184,7 @@ func (m *model) rawHeaderItems() []headerItem {
 		if m.config != nil {
 			rows = append(rows, headerItem{"You…", "edit:you", editable}, headerItem{"Prompts…", "edit:prompts", editable}, headerItem{"Prompt preview…", "prompt-info", true})
 		}
-		rows = append(rows, headerItem{"Steering", "toggle-steering", true})
+		rows = append(rows, headerItem{"Steering", "toggle-steering", true}, headerItem{"MCP servers…", "/mcp", true})
 		return rows
 	case "help":
 		return []headerItem{{"Keyboard shortcuts", "help-keys", true}, {"Commands", "help-commands", true}, {"About", "about", true}}

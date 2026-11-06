@@ -49,6 +49,7 @@ func commands() []command {
 	return []command{
 		{name: "/help", immediate: true, summary: "Open this help"},
 		{name: "/sessions", immediate: true, summary: "Browse saved sessions"},
+		{name: "/mcp", immediate: true, summary: "Manage MCP servers"},
 		{name: "/new", arg: "[task]", summary: "Start a fresh task; omit task for an empty session"},
 		{name: "/mode", arg: "plan|act", choices: []string{"plan", "act"}, summary: "Preview changes or execute them"},
 		{name: "/max-steps", arg: "N", summary: "Step budget (0 = no limit)"},
@@ -173,6 +174,13 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	switch strings.ToLower(name) {
+	case "mcp":
+		action, id, _ := strings.Cut(strings.TrimSpace(arg), " ")
+		if action == "" {
+			m.openMCP()
+			return m, nil
+		}
+		return m, m.handleMCPAction(mcpActionMsg{action, id})
 	case "paste-image":
 		return m, m.pasteClipboard(true)
 	case "detach":

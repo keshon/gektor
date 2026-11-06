@@ -85,6 +85,14 @@ func (c *Capabilities) Prepare(ctx context.Context) error {
 	if err := c.validateSources(); err != nil {
 		return err
 	}
+
+	for _, source := range c.Sources {
+		if source.Eager && (!c.Subagent || !source.MainOnly) {
+			if _, err := c.Enable(ctx, source.ID, nil); err != nil {
+				return err
+			}
+		}
+	}
 	for _, p := range c.Native {
 		if p.Exposure == Eager {
 			if _, err := c.Enable(ctx, p.ID, nil); err != nil {

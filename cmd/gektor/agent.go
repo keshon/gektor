@@ -20,6 +20,7 @@ import (
 	"github.com/keshon/gektor/internal/events"
 	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/mcpmanager"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/roles"
@@ -77,6 +78,18 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	}
 	capabilities, closeCapabilities := tools.BuildCapabilities(capabilityConfig, ws.Root())
 	defer closeCapabilities()
+	reserved, _, _, _ := tools.ParseMCPFlag(o.mcp)
+	for _, p := range capabilityConfig.Packs {
+		reserved = append(reserved, p.ID)
+	}
+	if o.browser != "" {
+		reserved = append(reserved, "browser")
+	}
+	managedMCP, err := mcpmanager.New(gektor.Sub("mcp"), ws.Root(), gektor.Sub("credentials"), reserved)
+	if err != nil {
+		return err
+	}
+	defer managedMCP.Close()
 
 	// noteW is where human-readable chatter goes. In -mode json it is
 	// stderr, so stdout carries nothing but JSONL and a caller can pipe
@@ -139,6 +152,13 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	for _, server := range managedMCP.List() {
+		if server.Enabled && server.Startup {
+			if _, e := managedMCP.Connect(ctx, server.ID); e != nil {
+				fmt.Fprintf(os.Stderr, "mcp %s: %v\n", server.ID, e)
+			}
+		}
+	}
 	client, err := app.NewBackend(ctx, app.BackendOptions{Kind: o.backendKind, URL: o.backendURL, Model: o.model, APIKey: o.apiKey, APIKeyEnv: o.apiKeyEnv, NoGrammar: !o.grammar, ReasoningEffort: o.reasoningEffort, ReasoningSummary: o.reasoningSummary})
 	if err != nil {
 		return err
@@ -242,15 +262,16 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			logMax:            o.logMax,
 			verifyCmd:         o.verifyCmd,
 
-			autoDeny:     o.yes,
-			auditPath:    o.auditPath,
-			allow:        o.allow,
-			deny:         o.deny,
-			backendKind:  o.backendKind,
-			stream:       o.stream,
-			mcpTools:     mcpTools,
-			browser:      browser,
-			capabilities: capabilities,
+			autoDeny:          o.yes,
+			auditPath:         o.auditPath,
+			allow:             o.allow,
+			deny:              o.deny,
+			backendKind:       o.backendKind,
+			stream:            o.stream,
+			mcpTools:          mcpTools,
+			browser:           browser,
+			capabilities:      capabilities,
+			capabilitySources: managedMCP.Sources,
 		}, os.Stdin, os.Stdout, os.Stderr)
 		return ctx.Err()
 	}
@@ -291,6 +312,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		MCPTools:          mcpTools,
 		Browser:           browser,
 		Capabilities:      capabilities,
+		CapabilitySources: managedMCP.Sources,
 		// Direct runs fund acknowledged todo work with extra steps;
 		// -serve leaves this off until its budget story is decided.
 		OnDelta: func(chunk string) { fmt.Print(chunk) },
@@ -383,7 +405,8 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		prepared.Client = client
 		services := prepared
 		app := applicationControl(launch, profile, o.profilePath, o.workspace)
-		answer, err := tui.Run(ctx, tui.Config{Application: app, Services: &services, SeedHistory: launch.history, InitialDraft: launch.draft, InitialImages: launch.images, SessionDirectory: launch.directory,
+		answer, err := tui.Run(ctx, tui.Config{
+			MCP: managedMCP, Application: app, Services: &services, SeedHistory: launch.history, InitialDraft: launch.draft, InitialImages: launch.images, SessionDirectory: launch.directory,
 			BackendURL:   o.backendURL,
 			AccountLabel: accountLabel,
 			Plan:         o.plan,

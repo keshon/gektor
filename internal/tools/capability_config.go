@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/credentials"
+	"github.com/keshon/gektor/internal/gektor"
 )
 
 // CapabilityConfig is explicitly selected by -capabilities. Workspace files
@@ -23,21 +25,23 @@ type CapabilityConfig struct {
 }
 
 type CapabilityPack struct {
-	MainOnly       bool                  `json:"main_only,omitempty"`
-	ID             string                `json:"id"`
-	Version        string                `json:"version"`
-	Description    string                `json:"description"`
-	Instructions   string                `json:"instructions,omitempty"`
-	Type           string                `json:"type"`
-	Command        []string              `json:"command,omitempty"`
-	URL            string                `json:"url,omitempty"`
-	ReadOnly       bool                  `json:"read_only,omitempty"`
-	Concurrent     bool                  `json:"concurrent,omitempty"`
-	ResourceField  string                `json:"resource_field,omitempty"`
-	TimeoutSeconds int                   `json:"timeout_seconds,omitempty"`
-	Tools          []ExecutableToolDef   `json:"tools,omitempty"`
-	EnvRefs        map[string]string     `json:"env_refs,omitempty"`
-	ToolPolicies   map[string]ToolPolicy `json:"tool_policies,omitempty"`
+	CredentialDirectory string                `json:"-"`
+	HeaderRefs          map[string]string     `json:"header_refs,omitempty"`
+	MainOnly            bool                  `json:"main_only,omitempty"`
+	ID                  string                `json:"id"`
+	Version             string                `json:"version"`
+	Description         string                `json:"description"`
+	Instructions        string                `json:"instructions,omitempty"`
+	Type                string                `json:"type"`
+	Command             []string              `json:"command,omitempty"`
+	URL                 string                `json:"url,omitempty"`
+	ReadOnly            bool                  `json:"read_only,omitempty"`
+	Concurrent          bool                  `json:"concurrent,omitempty"`
+	ResourceField       string                `json:"resource_field,omitempty"`
+	TimeoutSeconds      int                   `json:"timeout_seconds,omitempty"`
+	Tools               []ExecutableToolDef   `json:"tools,omitempty"`
+	EnvRefs             map[string]string     `json:"env_refs,omitempty"`
+	ToolPolicies        map[string]ToolPolicy `json:"tool_policies,omitempty"`
 }
 
 // Keys in ToolPolicies are the full exposed names, as returned by activation.
@@ -70,6 +74,11 @@ func LoadCapabilityConfig(path string) (CapabilityConfig, error) {
 	if err := d.Decode(new(any)); err != io.EOF {
 		return config, fmt.Errorf("capabilities: expected one JSON document")
 	}
+	return ValidateCapabilityConfig(config, filepath.Dir(path))
+}
+
+// ValidateCapabilityConfig applies the same contract to saved and file-based adapters.
+func ValidateCapabilityConfig(config CapabilityConfig, base string) (CapabilityConfig, error) {
 	if config.Version != 1 {
 		return config, fmt.Errorf("unsupported capability config version %d", config.Version)
 	}
@@ -142,6 +151,16 @@ func LoadCapabilityConfig(path string) (CapabilityConfig, error) {
 				}
 			}
 		case "mcp":
+			if len(pack.HeaderRefs) > 0 {
+				if _, err := credentials.Origin(pack.URL); err != nil {
+					return config, err
+				}
+			}
+			for header, ref := range pack.HeaderRefs {
+				if pack.URL == "" || !validMCPHeader(header) || ref == "" {
+					return config, fmt.Errorf("invalid MCP header reference")
+				}
+			}
 			if pack.URL != "" && len(pack.EnvRefs) > 0 {
 				return config, fmt.Errorf("capability %s: env_refs requires a subprocess", pack.ID)
 			}
@@ -165,7 +184,7 @@ func LoadCapabilityConfig(path string) (CapabilityConfig, error) {
 			return config, fmt.Errorf("skill root cannot be empty")
 		}
 		if !filepath.IsAbs(root) {
-			config.SkillRoots[i] = filepath.Join(filepath.Dir(path), root)
+			config.SkillRoots[i] = filepath.Join(base, root)
 		}
 	}
 	return config, nil
@@ -204,7 +223,19 @@ func BuildCapabilities(config CapabilityConfig, dir string) ([]*Capability, func
 			var err error
 			if pack.URL != "" {
 				var client *httpMCPClient
-				tools, client, err = StartMCPHTTP(ctx, pack.ID, pack.URL)
+				credentialDir := pack.CredentialDirectory
+				if credentialDir == "" {
+					credentialDir = gektor.Sub("credentials")
+				}
+				headers := map[string]string{}
+				for name, ref := range pack.HeaderRefs {
+					value, e := (credentials.Store{Directory: credentialDir}).Resolve(ref, pack.URL, name)
+					if e != nil {
+						return nil, e
+					}
+					headers[name] = value
+				}
+				tools, client, err = StartMCPHTTPWithHeaders(ctx, pack.ID, pack.URL, headers)
 				if err == nil {
 					conn.close = client.Close
 				}

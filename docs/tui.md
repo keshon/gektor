@@ -771,3 +771,8 @@ New delegated runs save separate histories under the parent session's
 `children` directory. Reopened sessions can inspect those histories. Older runs
 without saved child history show the returned tool result instead. Child events
 do not become parent transcript messages or replace the parent's context meter.
+
+MCP servers are managed through Settings → MCP servers or `/mcp`. The shared
+forms cover saved definitions, JSON import, enabled state, loading policy, and
+connection actions. Details shows the tool count and last connection error.
+Connection changes wait until the agent turn has finished. See [extensions](extensions.md).

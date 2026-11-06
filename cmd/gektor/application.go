@@ -25,6 +25,9 @@ type launchRequest struct {
 }
 
 func runApplication(args []string) error {
+	if len(args) > 0 && args[0] == "mcp" {
+		return runMCP(args[1:])
+	}
 	if len(args) > 0 && args[0] == "workflow" {
 		return runWorkflow(args[1:])
 	}
