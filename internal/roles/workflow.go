@@ -7,12 +7,13 @@ import (
 	"path/filepath"
 
 	"github.com/keshon/gektor/internal/agent"
+	workflow "github.com/keshon/gektor/internal/automation/agenttools"
 	"github.com/keshon/gektor/internal/gektor"
+	"github.com/keshon/gektor/internal/integrations/pixelita"
+	imageagent "github.com/keshon/gektor/internal/integrations/pixelita/agenttools"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/tools"
-	"github.com/keshon/gektor/internal/tools/pixelita"
-	"github.com/keshon/gektor/internal/tools/workflow"
 )
 
 type authorValidation struct {
@@ -70,7 +71,7 @@ func WorkflowAuthor(e Env, recipePath, stateFile string) (*agent.Agent, error) {
 		workflow.Schema{WS: e.WS, StoreDir: storeDir}, save,
 		validation,
 		tools.ReadFile{WS: e.WS}, tools.ListFiles{WS: e.WS},
-		&pixelita.Tool{WS: e.WS, Operation: "inspect"}, &pixelita.Tool{WS: e.WS, Operation: "preview"},
+		&imageagent.Tool{Operation: pixelita.Operation{WS: e.WS, Operation: "inspect"}}, &imageagent.Tool{Operation: pixelita.Operation{WS: e.WS, Operation: "preview"}},
 	)
 	cfg.Resources = func(name string, args json.RawMessage) ([]string, error) {
 		if name == "workflow_save" {

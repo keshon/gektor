@@ -125,16 +125,17 @@ external adapters still reconnect and validate on use. Eager native schemas can
 be previewed for context reports without publishing them or making network calls.
 Discovery and a bounded prompt map share one optional-package catalog.
 Built-in `native_images` and `native_workflows` packages load on demand.
-`tools/pixelita` stages rooted inputs for the external Pixelita Go library;
-`tools/workflow` adapts manual recipes to `internal/automation`. The runner has
-no model dependency and only dispatches allowlisted image and record steps.
+`integrations/pixelita` stages rooted inputs for the external Pixelita Go library;
+`automation/agenttools` adapts manual recipes to `internal/automation`. The runner has
+no model dependency and dispatches registered node descriptors. Model access is
+an explicit node with its own bounded context.
 Nested steps retain direct-call permissions. Runs and schema-validated records
 live in the workspace-scoped user store, outside task files. OS locks identify
 active runs and serialize record revision checks; interrupted runs never retry
 automatically. Schema registration is an operator action.
-Version-2 recipes bind typed inputs and earlier JSON outputs; resolved values
+Version-3 recipes bind typed inputs and dependency JSON outputs; resolved values
 are validated and authorized before their operation. `workflow validate/run`
-executes without an LLM backend. `roles.WorkflowAuthor` has a fixed tool set
+requires no LLM backend unless the recipe contains a model node. `roles.WorkflowAuthor` has a fixed tool set
 and can save only an operator-selected recipe; schema lookup is on demand.
 Main-only sources are excluded for children before loading; role constructors
 reject forbidden direct extras. Plan can activate native packages without IO,
@@ -225,3 +226,42 @@ File tools validate paths and edits. Shell and MCP run with the user's process
 permissions; the workspace is not a process sandbox. See [SECURITY.md](SECURITY.md).
 Usage and flags live in [README.md](README.md) and [docs/cli.md](docs/cli.md).
 House rules are enforced by tests described in [docs/conventions.md](docs/conventions.md).
+
+### Automation boundaries
+
+`automation` owns node descriptors, recipe/run values and the node catalog.
+`automation/recipe` binds typed values and validates graph edges;
+`automation/engine` handles execution, skips, iterations, attempts and review
+boundaries. Neither package imports agent tools. `automation/store` owns durable
+runs, records, queue snapshots, schedules and immutable run artifacts. `automation/service` coordinates
+workspace access, catalog validation, resource authorization and persistence.
+CLI and agent adapters call the service. `app` assembles the built-in catalog.
+
+Artifact access is scoped to a run and producing step during node execution,
+including review continuation. Nodes receive an `ArtifactAccess` interface through
+the execution context; they never receive the store path or choose another run.
+The store publishes bytes and metadata together, verifies reads, bounds storage,
+and uses the run lease for export and retention. Artifact IDs travel through the
+existing step-output references. Operator pruning removes payloads from old terminal
+runs while retaining run history; it does not run implicitly.
+
+Pixelita operations live under `integrations/pixelita`; its `agenttools` and
+`nodes` packages adapt the same operations for their respective callers.
+JavaScript workers and bounded model nodes have explicit inputs and outputs;
+they do not inherit the parent agent conversation or tool registry.
+
+Adding a node means providing a descriptor (version, schemas, resources,
+validation and execution), registering it in composition, and testing its
+contract. Execution and recipe schemas do not maintain separate name switches.
+
+HTTP nodes and native network tools share `integrations/httptransport`, including
+public-address validation and DNS checks. `automation/credentials` stores only
+origin-bound environment references. The HTTP node has no dependency on agent
+tools. Queued starts and operator continuations share one service execution
+lifecycle for cancellation and final status persistence; recovery respects run leases.
+
+`integrations/process` owns shared process-group cleanup and environment scrubbing.
+Native agent tools and the automation `run_program` node use those primitives.
+The workflow node supplies its workspace directory and optional artifact stdin,
+enforces a finite deadline and output bounds, and persists stdout/stderr artifacts
+even on failure. It does not depend on `tools` or provide an OS sandbox.

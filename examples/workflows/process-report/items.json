@@ -1,0 +1,1 @@
+{"services":[{"name":"api","status":"healthy"},{"name":"worker","status":"degraded"},{"name":"scheduler","status":"healthy"}]}

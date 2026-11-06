@@ -31,7 +31,7 @@ func TestWorkflowCannotBypassNestedToolDeny(t *testing.T) {
 	if _, err := c.Enable(t.Context(), "native_workflows", nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := ws.WriteFile("recipe.json", []byte(`{"version":1,"name":"denied","steps":[{"id":"read","tool":"image_inspect","args":{"paths":["input.png"]}}]}`), 0600); err != nil {
+	if err := ws.WriteFile("recipe.json", []byte(`{"version":3,"name":"denied","steps":[{"id":"read","tool":"image_inspect","args":{"paths":["input.png"]}}]}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := r.Run(t.Context(), "workflow_run", json.RawMessage(`{"recipe_path":"recipe.json"}`)); err == nil {
@@ -75,7 +75,7 @@ func TestGeneratedOutputFilenameCannotBypassPermission(t *testing.T) {
 	if _, err := r.Run(t.Context(), "image_variants", args); err == nil {
 		t.Fatal("direct call bypassed filename deny")
 	}
-	if err := ws.WriteFile("recipe.json", []byte(`{"version":1,"name":"denied output","steps":[{"id":"write","tool":"image_variants","args":{"paths":["input.png"],"widths":[8],"out_dir":"out"}}]}`), 0600); err != nil {
+	if err := ws.WriteFile("recipe.json", []byte(`{"version":3,"name":"denied output","steps":[{"id":"write","tool":"image_variants","args":{"paths":["input.png"],"widths":[8],"out_dir":"out"}}]}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := r.Run(t.Context(), "workflow_run", json.RawMessage(`{"recipe_path":"recipe.json"}`)); err == nil {

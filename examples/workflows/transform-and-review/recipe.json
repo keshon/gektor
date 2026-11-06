@@ -1,0 +1,13 @@
+{
+  "version": 3,
+  "name": "Transform and review",
+  "inputs": {"numbers": {"type": "array", "default": [2, 3, 5]}},
+  "steps": [
+    {"id": "prepare", "tool": "script_transform", "args": {
+      "input": {"$input": "numbers"},
+      "code": "return {items: input.map(n => ({code: 'return input * 2;', input: n}))};"
+    }},
+    {"id": "double", "tool": "script_transform", "review": true,
+      "args": {}, "for_each": {"$step": "prepare", "pointer": "/items"}}
+  ]
+}

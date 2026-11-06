@@ -2,8 +2,9 @@ package tools
 
 import (
 	"github.com/keshon/gektor/internal/agent"
-	"github.com/keshon/gektor/internal/tools/pixelita"
-	"github.com/keshon/gektor/internal/tools/workflow"
+	workflow "github.com/keshon/gektor/internal/automation/agenttools"
+	"github.com/keshon/gektor/internal/integrations/pixelita"
+	imageagent "github.com/keshon/gektor/internal/integrations/pixelita/agenttools"
 )
 
 func nativeInstructions(id string) string {
@@ -64,10 +65,18 @@ func builtinPackages() []packageDefinition {
 			{func(d packageDependencies) agent.Tool { return SearchWeb{WS: d.WS} }, true},
 		}},
 		{"native_images", "Inspect, preview, write separate image variants and compare fidelity", Lazy, []toolEntry{
-			{func(d packageDependencies) agent.Tool { return &pixelita.Tool{WS: d.WS, Operation: "inspect"} }, true},
-			{func(d packageDependencies) agent.Tool { return &pixelita.Tool{WS: d.WS, Operation: "preview"} }, true},
-			{func(d packageDependencies) agent.Tool { return &pixelita.Tool{WS: d.WS, Operation: "variants"} }, false},
-			{func(d packageDependencies) agent.Tool { return &pixelita.Tool{WS: d.WS, Operation: "compare"} }, true},
+			{func(d packageDependencies) agent.Tool {
+				return &imageagent.Tool{Operation: pixelita.Operation{WS: d.WS, Operation: "inspect"}}
+			}, true},
+			{func(d packageDependencies) agent.Tool {
+				return &imageagent.Tool{Operation: pixelita.Operation{WS: d.WS, Operation: "preview"}}
+			}, true},
+			{func(d packageDependencies) agent.Tool {
+				return &imageagent.Tool{Operation: pixelita.Operation{WS: d.WS, Operation: "variants"}}
+			}, false},
+			{func(d packageDependencies) agent.Tool {
+				return &imageagent.Tool{Operation: pixelita.Operation{WS: d.WS, Operation: "compare"}}
+			}, true},
 		}},
 		{"native_workflows", "Validate and run saved image/record recipes; inspect runs and structured records", Lazy, []toolEntry{
 			{func(d packageDependencies) agent.Tool { return &workflow.Schema{WS: d.WS} }, true},

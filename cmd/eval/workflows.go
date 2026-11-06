@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/keshon/gektor/internal/automation/store"
 	"hash/crc32"
 	"image"
 	"image/color"
@@ -57,9 +58,9 @@ func workflowFixture(kind string) (map[string][]byte, error) {
 	}
 	files := map[string][]byte{"image.png": data}
 	if kind == "workflow_invalid" || kind == "workflow_existing" {
-		recipe := `{"version":1,"name":"Image variants","steps":[{"id":"write","tool":"image_variants","args":{"paths":["image.png"],"widths":[320,800],"out_dir":"output"}}]}`
+		recipe := `{"version":3,"name":"Image variants","steps":[{"id":"write","tool":"image_variants","args":{"paths":["image.png"],"widths":[320,800],"out_dir":"output"}}]}`
 		if kind == "workflow_invalid" {
-			recipe = strings.Replace(recipe, `"version":1`, `"version":1,"input":"image.png"`, 1)
+			recipe = strings.Replace(recipe, `"version":3`, `"version":3,"input":"image.png"`, 1)
 		}
 		files["recipe.json"] = []byte(recipe + "\n")
 	}
@@ -83,7 +84,7 @@ func checkWorkflow(kind string, ws *workspace.Workspace) error {
 			return fmt.Errorf("fixture changed: %s", path)
 		}
 	}
-	store, err := automation.OpenStore(workflowStoreDir(ws), ws.Root())
+	store, err := store.OpenStore(workflowStoreDir(ws), ws.Root())
 	if err != nil {
 		return err
 	}
@@ -98,7 +99,7 @@ func checkWorkflow(kind string, ws *workspace.Workspace) error {
 		}
 		return nil
 	}
-	var records []automation.Record
+	var records []automation.Run
 	for _, entry := range entries {
 		r, err := store.Run(entry.ID)
 		if err != nil {
@@ -227,7 +228,7 @@ func checkWorkflowTrace(calls []call, ws *workspace.Workspace) error {
 		if err := json.Unmarshal([]byte(body), &result); err != nil {
 			return fmt.Errorf("workflow result is not a recorded execution: %w", err)
 		}
-		store, err := automation.OpenStore(workflowStoreDir(ws), ws.Root())
+		store, err := store.OpenStore(workflowStoreDir(ws), ws.Root())
 		if err != nil {
 			return err
 		}

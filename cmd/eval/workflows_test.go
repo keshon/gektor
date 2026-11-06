@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/automation"
-	"github.com/keshon/gektor/internal/tools/workflow"
+	workflow "github.com/keshon/gektor/internal/automation/agenttools"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -42,7 +42,7 @@ func TestWorkflowVerifierAcceptsRealRunsAndRejectsTampering(t *testing.T) {
 			}
 			defer ws.Close()
 			if kind == "workflow_success" || kind == "workflow_icc" {
-				source := `{"version":1,"name":"Image workflow","steps":[{"id":"inspect","tool":"image_inspect","args":{"paths":["image.png"]}},{"id":"preview","tool":"image_preview","args":{"paths":["image.png"],"widths":[320,800]}},{"id":"write","tool":"image_variants","args":{"paths":["image.png"],"widths":[320,800],"out_dir":"output"}}]}`
+				source := `{"version":3,"name":"Image workflow","steps":[{"id":"inspect","tool":"image_inspect","args":{"paths":["image.png"]}},{"id":"preview","tool":"image_preview","args":{"paths":["image.png"],"widths":[320,800]}},{"id":"write","tool":"image_variants","args":{"paths":["image.png"],"widths":[320,800],"out_dir":"output"}}]}`
 				if kind == "workflow_success" {
 					source = source[:len(source)-2] + `,{"id":"compare","tool":"image_compare","args":{"paths":["image.png","output/image-800w.png"]}}]}`
 				}
@@ -75,7 +75,7 @@ func TestWorkflowVerifierAcceptsRealRunsAndRejectsTampering(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					var r automation.Record
+					var r automation.Run
 					if err := json.Unmarshal(data, &r); err != nil {
 						t.Fatal(err)
 					}

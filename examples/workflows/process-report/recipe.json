@@ -1,0 +1,13 @@
+{
+  "version": 3,
+  "name": "Local program report",
+  "steps": [
+    {"id":"capture","tool":"artifact_import","args":{"path":"items.json"}},
+    {"id":"generate","tool":"run_program","review":true,"args":{
+      "program":"python","args":["summarize.py"],"timeout_seconds":30,
+      "stdin_artifact":{"$step":"capture","pointer":"/id"}
+    }},
+    {"id":"read","tool":"artifact_read_text","args":{"id":{"$step":"generate","pointer":"/stdout/id"}}},
+    {"id":"save","tool":"artifact_write","args":{"name":"report.md","text":{"$step":"read","pointer":"/text"}}}
+  ]
+}

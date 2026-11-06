@@ -1,0 +1,15 @@
+{
+  "version": 3,
+  "name": "Log error report",
+  "steps": [
+    {"id": "capture", "tool": "artifact_import", "args": {"path": "application.log"}},
+    {"id": "read", "tool": "artifact_read_text", "args": {"id": {"$step": "capture", "pointer": "/id"}}},
+    {"id": "summarize", "tool": "script_transform", "args": {
+      "input": {"$step": "read", "pointer": "/text"},
+      "code": "const errors = input.split(/\\r?\\n/).filter(line => line.includes(' ERROR ')); return {text: '# Application errors\\n\\n' + errors.length + ' errors found.\\n\\n' + errors.map(line => '- ' + line).join('\\n') + '\\n'};"
+    }},
+    {"id": "save", "tool": "artifact_write", "review": true, "args": {
+      "name": "errors.md", "text": {"$step": "summarize", "pointer": "/text"}
+    }}
+  ]
+}

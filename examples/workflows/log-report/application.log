@@ -1,0 +1,4 @@
+2026-11-06T09:00:00Z INFO api started
+2026-11-06T09:01:00Z ERROR api database connection timed out
+2026-11-06T09:02:00Z WARN worker queue delay 4s
+2026-11-06T09:03:00Z ERROR worker report generation failed

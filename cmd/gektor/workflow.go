@@ -6,24 +6,44 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/keshon/gektor/internal/automation/credentials"
+	"github.com/keshon/gektor/internal/automation/script"
+	"github.com/keshon/gektor/internal/automation/store"
 	"io"
 	"os"
 	"os/signal"
 	"time"
 
-	"github.com/keshon/gektor/internal/automation"
+	"github.com/keshon/gektor/internal/app"
+	workflow "github.com/keshon/gektor/internal/automation/agenttools"
 	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tools"
-	"github.com/keshon/gektor/internal/tools/workflow"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
-const workflowUsage = "usage: gektor workflow schema | draft <recipe.json> [agent flags] <task> | validate|run [flags] <recipe.json> | runs [-workspace dir] | inspect [-workspace dir] <run-id> | register-schema [-workspace dir] <kind> <schema.json>"
+const workflowUsage = "usage: gektor workflow schema | artifacts|export-artifact|prune-artifacts [flags] [arguments] | submit|serve|jobs|job|cancel|schedule|schedules|pause|resume|unschedule|review [flags] [arguments] | draft <recipe.json> [agent flags] <task> | validate|run [flags] <recipe.json> | runs [-workspace dir] | inspect [-workspace dir] <run-id> | record [-workspace dir] <kind> <id> | register-schema [-workspace dir] <kind> <schema.json>"
 
 func runWorkflow(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("%s", workflowUsage)
+	}
+	if args[0] == "internal-script-worker" {
+		return script.Serve(os.Stdin, os.Stdout)
+	}
+	if args[0] == "register-credential" {
+		f := flag.NewFlagSet("workflow register-credential", flag.ContinueOnError)
+		origin := f.String("origin", "", "exact HTTPS origin permitted to receive this credential")
+		env := f.String("env", "", "environment variable containing the secret")
+		header := f.String("header", "Authorization", "Authorization or X-API-Key")
+		prefix := f.String("prefix", "Bearer ", "credential header prefix; use an empty prefix for API keys")
+		if err := f.Parse(args[1:]); err != nil {
+			return err
+		}
+		if f.NArg() != 1 {
+			return fmt.Errorf("register-credential requires one name")
+		}
+		return (credentials.Store{Directory: gektor.Sub("credentials")}).Register(f.Arg(0), credentials.Config{Origin: *origin, Env: *env, Header: *header, Prefix: *prefix})
 	}
 	if args[0] == "draft" {
 		o, err := workflowDraftOptions(args[1:])
@@ -37,10 +57,16 @@ func runWorkflow(args []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+	switch args[0] {
+	case "artifacts", "export-artifact", "prune-artifacts":
+		return workflowArtifacts(ctx, args, os.Stdout, gektor.Sub("workflows"))
+	case "review", "serve", "submit", "jobs", "job", "cancel", "schedules", "schedule", "pause", "resume", "unschedule":
+		return workflowQueue(ctx, args, os.Stdout, gektor.Sub("workflows"))
+	}
 	if args[0] == "register-schema" {
 		return workflowRegisterSchema(ctx, args[1:], os.Stdout, gektor.Sub("workflows"))
 	}
-	if args[0] == "runs" || args[0] == "inspect" {
+	if args[0] == "runs" || args[0] == "inspect" || args[0] == "record" {
 		return workflowHistory(ctx, args, os.Stdout, gektor.Sub("workflows"))
 	}
 	if args[0] == "schema" {
@@ -88,7 +114,7 @@ func workflowRegisterSchema(ctx context.Context, args []string, out io.Writer, s
 	if err := errors.Join(readErr, f.Close()); err != nil {
 		return err
 	}
-	s, err := automation.OpenStore(storeDir, ws.Root())
+	s, err := store.OpenStore(storeDir, ws.Root())
 	if err != nil {
 		return err
 	}
@@ -107,13 +133,13 @@ func workflowHistory(ctx context.Context, args []string, out io.Writer, storeDir
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
-	if args[0] == "runs" && flags.NArg() != 0 || args[0] == "inspect" && flags.NArg() != 1 {
+	if args[0] == "runs" && flags.NArg() != 0 || args[0] == "inspect" && flags.NArg() != 1 || args[0] == "record" && flags.NArg() != 2 {
 		return fmt.Errorf("%s", workflowUsage)
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	s, err := automation.OpenStore(storeDir, *dir)
+	s, err := store.OpenStore(storeDir, *dir)
 	if err != nil {
 		return err
 	}
@@ -121,6 +147,11 @@ func workflowHistory(ctx context.Context, args []string, out io.Writer, storeDir
 	var value any
 	if args[0] == "runs" {
 		value, err = s.Runs()
+	} else if args[0] == "record" {
+		value, err = s.Entry(flags.Arg(0), flags.Arg(1))
+		if os.IsNotExist(err) {
+			return fmt.Errorf("record %q/%q or its schema not found in this workspace; pending review writes do not exist until approved", flags.Arg(0), flags.Arg(1))
+		}
 	} else {
 		value, err = s.Run(flags.Arg(0))
 	}
@@ -166,7 +197,7 @@ func parseWorkflowOptions(args []string, note io.Writer) (workflowOptions, error
 	flags := flag.NewFlagSet("gektor workflow "+args[0], flag.ContinueOnError)
 	flags.SetOutput(note)
 	flags.StringVar(&o.workspace, "workspace", ".", "workspace containing recipe and input files")
-	flags.StringVar(&o.inputs, "inputs", "", "workspace-relative JSON object file containing version-2 inputs")
+	flags.StringVar(&o.inputs, "inputs", "", "workspace-relative JSON object file containing typed inputs")
 	flags.StringVar(&o.allow, "allow", "", "additional tool=pattern permission rules")
 	flags.StringVar(&o.deny, "deny", "", "denied tool=pattern permission rules")
 	flags.BoolVar(&o.yes, "yes", false, "deny permission prompts in unattended runs")
@@ -184,8 +215,8 @@ func parseWorkflowOptions(args []string, note io.Writer) (workflowOptions, error
 	return o, buildPolicy(o.allow, o.deny).Validate()
 }
 
-// executeWorkflow never constructs an LLM client, starts adapters or reads model
-// preferences. Outer, nested and generated-file permissions still apply.
+// executeWorkflow composes the headless service. A model client is constructed
+// only when a model node executes. All operation permissions still apply.
 func executeWorkflow(ctx context.Context, o workflowOptions, out io.Writer, gate permission.Gate) error {
 	if o.timeout > 0 {
 		var cancel context.CancelFunc
@@ -253,10 +284,11 @@ func executeWorkflow(ctx context.Context, o workflowOptions, out io.Writer, gate
 	if err != nil {
 		return err
 	}
-	t := tools.NewWorkflow(ws, o.validateOnly, policy, gate)
-	if o.storeDir != "" {
-		t.StoreDir = o.storeDir
+	t, err := app.NewAutomation(ws, o.storeDir, policy, gate)
+	if err != nil {
+		return err
 	}
+	t.ValidateOnly = o.validateOnly
 	if err := authorize(t.Name(), args); err != nil {
 		return err
 	}
@@ -265,6 +297,11 @@ func executeWorkflow(ctx context.Context, o workflowOptions, out io.Writer, gate
 		if _, err := fmt.Fprintln(out, result); err != nil {
 			return errors.Join(runErr, err)
 		}
+		directory := o.storeDir
+		if directory == "" {
+			directory = gektor.Sub("workflows")
+		}
+		workflowGuidance(os.Stderr, result, directory, o.workspace, o.allow, o.deny)
 	}
 	return runErr
 }

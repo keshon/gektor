@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 
 	"github.com/keshon/gektor/internal/agent"
+	workflow "github.com/keshon/gektor/internal/automation/agenttools"
 	"github.com/keshon/gektor/internal/checks"
-	"github.com/keshon/gektor/internal/tools/pixelita"
-	"github.com/keshon/gektor/internal/tools/workflow"
+	"github.com/keshon/gektor/internal/integrations/pixelita"
 	"github.com/keshon/gektor/internal/workspace"
 )
 

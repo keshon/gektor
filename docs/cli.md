@@ -39,6 +39,7 @@ and exit nonzero on failure. A failed run can still print its saved record path.
 .\gektor.exe workflow run -workspace . -inputs inputs.json -yes recipe.json
 .\gektor.exe workflow runs -workspace .
 .\gektor.exe workflow inspect -workspace . <run-id>
+.\gektor.exe workflow record -workspace . assets image
 .\gektor.exe workflow register-schema -workspace . assets assets.schema.json
 ```
 
@@ -50,7 +51,8 @@ it does not grant permission. Cancellation is cooperative during image encoding.
 Model flags, profiles, browser and external adapters do not apply to execution.
 Runs are stored outside the workspace under `~/.gektor/workflows`, scoped to
 the workspace's canonical path. Inspect by run ID; `record_path` is absolute.
-`runs` and `inspect` support `-workspace`. `register-schema` takes a kind and a
+`runs`, `inspect` and `record` support `-workspace`. `record <kind> <id>`
+reads a stored entry, including its revision and schema hash, without a model. `register-schema` takes a kind and a
 workspace schema file after its `-workspace` flag; existing schemas cannot change.
 
 For draft, put the destination immediately after `draft`, followed by ordinary
@@ -427,3 +429,66 @@ Saved ChatGPT native state is reused only for a matching integration, model,
 account, and unchanged message. Otherwise Gektor sends the normal transcript.
 Old saved sessions remain readable; legacy native state without identity metadata
 is not replayed. Interrupted output is retained as incomplete history.
+
+### Workflow queue and service
+
+`workflow submit [-workspace dir] [-inputs inputs.json] recipe.json` validates
+and queues a snapshot. `workflow jobs` lists jobs; `workflow job <id>` shows one;
+`workflow cancel <id>` cancels pending work or requests cancellation of a running job.
+These commands accept `-workspace`.
+
+`workflow serve [-workspace dir] [-allow tool=pattern] [-deny tool=pattern]`
+runs one local worker until Ctrl+C. Run it under your OS process supervisor for
+unattended use. It opens no network listener. Permissions belong to this process,
+not to queued recipes. Requests that need interactive approval are denied.
+
+`workflow schedule -cron "0 9 * * 1-5" -timezone Europe/Moscow -missed once
+-overlap skip daily recipe.json` saves a schedule and recipe snapshot.
+All flags must precede the schedule ID and recipe path. `-inputs` binds a saved
+input object. `-cron` uses five fields (minute, hour, day, month, weekday);
+`-timezone` is an IANA name, default UTC. `-missed` is `skip` (default) or `once`;
+`-overlap` is `skip` (default) or `queue`. Missed `skip` triggers older than one
+minute are discarded. `once` queues one catch-up job, never a burst.
+
+`workflow schedules`, `workflow pause <id>`, `workflow resume <id>`, and
+`workflow unschedule <id>` inspect and manage schedules. Resume starts from the
+next future occurrence. The service must be running to process triggers.
+The queue retains 1000 jobs, evicting the oldest terminal job when needed;
+active jobs are never evicted. Run records remain available through `workflow inspect`.
+A service restart marks unfinished jobs interrupted; inspect their effects before resubmitting.
+
+`workflow review -decision approve|reject [-workspace dir] [-allow tool=pattern]
+<run-id> <step-id>` records an operator decision and, on approval, continues the
+saved run. `-decision` is required. Completed steps are not repeated. Inspect
+resolved arguments with `workflow inspect` before approving. Agent tools cannot
+approve their own runs. Reject a waiting run through this command rather than `cancel`.
+
+### Workflow credential references
+
+`workflow register-credential -origin https://api.example.com -env EXAMPLE_TOKEN
+-header Authorization -prefix "Bearer " example` registers a named reference.
+`-origin` pins the exact HTTPS origin. `-env` names the environment variable read
+at execution time. `-header` accepts `Authorization` or `X-API-Key`; `-prefix`
+defaults to `Bearer ` (pass an empty string for an API key). The name is the final
+argument. Registration refuses to overwrite an existing entry.
+
+Only metadata is saved in `~/.gektor/credentials/<name>.json`; the secret stays in
+the environment of the executing process. A running service must already have
+that variable. Recipes use `"credential":"example"`. Permission checks cover
+both `METHOD URL` and `credential:example@https://api.example.com` under the
+`http_request` tool name. An origin mismatch fails before sending the request.
+
+### Workflow artifacts
+
+`workflow artifacts [-workspace dir] <run-id>` lists immutable artifact metadata.
+`workflow export-artifact [-workspace dir] <run-id> <artifact-id> <destination>`
+verifies the saved bytes and copies them to an explicit workspace-relative path.
+The destination parent must exist. Export refuses existing files and paths outside
+the workspace. These operator commands acquire the run lease; a currently executing
+run reports that it is in use. Paused and completed runs are available.
+
+`workflow prune-artifacts [-workspace dir] -older-than 168h` deletes artifacts of
+completed, failed or cancelled runs whose finish time is older than seven days.
+`-older-than` is required and must be positive. Active, interrupted and waiting-review
+runs are retained. Run records and structured records are never deleted. Retention
+is explicit; no background cleanup runs automatically.

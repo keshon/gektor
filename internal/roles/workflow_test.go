@@ -39,9 +39,9 @@ func (c *authorClient) Chat(_ context.Context, req llm.ChatRequest) (llm.ChatRes
 			call("image_variants", `{"paths":["image.png"],"widths":[8],"out_dir":"output"}`),
 		}
 	case 2:
-		calls = []llm.ToolCall{call("workflow_save", `{"path":"other.json","recipe":{"version":1,"name":"test","steps":[{"id":"read","tool":"image_inspect","args":{"paths":["image.png"]}}]}}`)}
+		calls = []llm.ToolCall{call("workflow_save", `{"path":"other.json","recipe":{"version":3,"name":"test","steps":[{"id":"read","tool":"image_inspect","args":{"paths":["image.png"]}}]}}`)}
 	case 3:
-		calls = []llm.ToolCall{call("workflow_save", `{"recipe":{"version":1,"name":"test","steps":[{"id":"read","tool":"image_inspect","args":{"paths":["image.png"]}}]}}`)}
+		calls = []llm.ToolCall{call("workflow_save", `{"recipe":{"version":3,"name":"test","steps":[{"id":"read","tool":"image_inspect","args":{"paths":["image.png"]}}]}}`)}
 	case 4:
 		if c.skipValidation {
 			return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: "Saved."}}, nil
@@ -49,7 +49,7 @@ func (c *authorClient) Chat(_ context.Context, req llm.ChatRequest) (llm.ChatRes
 		calls = []llm.ToolCall{call("workflow_validate", `{"recipe_path":"recipe.json"}`)}
 	case 5:
 		if c.changeAfterValidation {
-			calls = []llm.ToolCall{call("workflow_save", `{"recipe":{"version":2,"name":"changed","steps":[{"id":"read","tool":"image_inspect","args":{"paths":[{"$input":"missing"}]}}]}}`)}
+			calls = []llm.ToolCall{call("workflow_save", `{"recipe":{"version":3,"name":"changed","steps":[{"id":"read","tool":"image_inspect","args":{"paths":[{"$input":"missing"}]}}]}}`)}
 		} else {
 			return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: "Saved and validated."}}, nil
 		}

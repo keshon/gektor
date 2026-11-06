@@ -1,0 +1,48 @@
+{
+  "version": 3,
+  "name": "Review a repository report",
+  "inputs": {
+    "record_id": {
+      "type": "string",
+      "default": "gektor"
+    }
+  },
+  "steps": [
+    {
+      "id": "fetch",
+      "tool": "http_request",
+      "args": {
+        "url": "https://api.github.com/repos/keshon/gektor",
+        "headers": {
+          "Accept": "application/vnd.github+json"
+        }
+      }
+    },
+    {
+      "id": "normalize",
+      "tool": "script_transform",
+      "args": {
+        "input": {
+          "$step": "fetch",
+          "pointer": "/data"
+        },
+        "code": "return {repository: input.full_name, description: input.description || \"\", stars: input.stargazers_count, open_issues: input.open_issues_count};"
+      }
+    },
+    {
+      "id": "save",
+      "tool": "record_write",
+      "review": true,
+      "args": {
+        "kind": "repository_reports",
+        "id": {
+          "$input": "record_id"
+        },
+        "expected_revision": 0,
+        "data": {
+          "$step": "normalize"
+        }
+      }
+    }
+  ]
+}

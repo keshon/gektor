@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"path/filepath"
 
+	workflow "github.com/keshon/gektor/internal/automation/agenttools"
 	"github.com/keshon/gektor/internal/gektor"
+	"github.com/keshon/gektor/internal/integrations/pixelita"
+	imageagent "github.com/keshon/gektor/internal/integrations/pixelita/agenttools"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/tools/pixelita"
-	"github.com/keshon/gektor/internal/tools/workflow"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -31,9 +32,12 @@ func BindWorkflowPolicy(c *Capabilities, ws *workspace.Workspace, policy permiss
 			}
 			if t, ok := tool.(*workflow.Tool); ok {
 				t.AuthorizeOutput, t.Authorize = output, authorize
+				t.AuthorizeResource = func(ctx context.Context, name, resource string, args json.RawMessage) error {
+					return permission.Authorize(ctx, policy, gate, name, resource, args)
+				}
 				t.StoreDir = storeDir
 			}
-			if t, ok := tool.(*pixelita.Tool); ok {
+			if t, ok := tool.(*imageagent.Tool); ok {
 				t.AuthorizeOutput = output
 			}
 		}
@@ -44,7 +48,9 @@ func BindWorkflowPolicy(c *Capabilities, ws *workspace.Workspace, policy permiss
 // Its caller must also authorize the outer workflow call.
 func NewWorkflow(ws *workspace.Workspace, validateOnly bool, policy permission.Policy, gate permission.Gate) *workflow.Tool {
 	authorize, output := workflowPolicy(ws, policy, gate)
-	return &workflow.Tool{WS: ws, StoreDir: gektor.Sub("workflows"), ValidateOnly: validateOnly, Authorize: authorize, AuthorizeOutput: output}
+	return &workflow.Tool{WS: ws, StoreDir: gektor.Sub("workflows"), ValidateOnly: validateOnly, Authorize: authorize, AuthorizeOutput: output, AuthorizeResource: func(ctx context.Context, name, resource string, args json.RawMessage) error {
+		return permission.Authorize(ctx, policy, gate, name, resource, args)
+	}}
 }
 
 func workflowPolicy(ws *workspace.Workspace, policy permission.Policy, gate permission.Gate) (func(context.Context, string, json.RawMessage) error, pixelita.OutputAuthorizer) {

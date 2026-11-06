@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/keshon/gektor/internal/automation/store"
 	"image"
 	"image/png"
 	"io"
@@ -26,7 +27,7 @@ func workflowWorkspace(t *testing.T) string {
 	files := map[string][]byte{
 		"image.png":   b.Bytes(),
 		"inputs.json": []byte(`{"source":"image.png"}`),
-		"recipe.json": []byte(`{"version":2,"name":"CLI workflow","inputs":{"source":{"type":"string","required":true}},"steps":[{"id":"write","tool":"image_variants","args":{"paths":[{"$input":"source"}],"widths":[8],"out_dir":"output"}},{"id":"compare","tool":"image_compare","args":{"paths":[{"$input":"source"},{"$step":"write","pointer":"/items/0/output"}]}}]}`),
+		"recipe.json": []byte(`{"version":3,"name":"CLI workflow","inputs":{"source":{"type":"string","required":true}},"steps":[{"id":"write","tool":"image_variants","args":{"paths":[{"$input":"source"}],"widths":[8],"out_dir":"output"}},{"id":"compare","tool":"image_compare","args":{"paths":[{"$input":"source"},{"$step":"write","pointer":"/items/0/output"}]}}]}`),
 	}
 	for name, data := range files {
 		if err := os.WriteFile(filepath.Join(dir, name), data, 0600); err != nil {
@@ -109,7 +110,7 @@ func TestWorkflowCLIRegistersSchemasAndRequiresDurableStorage(t *testing.T) {
 	if err := workflowRegisterSchema(t.Context(), []string{"-workspace", dir, "assets", "assets.json"}, &out, base); err != nil {
 		t.Fatal(err)
 	}
-	store, err := automation.OpenStore(base, dir)
+	store, err := store.OpenStore(base, dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,5 +208,54 @@ func TestWorkflowCommandParsing(t *testing.T) {
 	o, err := workflowDraftOptions([]string{"recipe.json", "-workspace", "project", "-backend-kind", "llama", "prepare images"})
 	if err != nil || o.workflowRecipe != "recipe.json" || o.workspace != "project" || o.task != "prepare images" {
 		t.Fatal(o, err)
+	}
+}
+
+func TestWorkflowCLIRecordsAcrossRuns(t *testing.T) {
+	dir, base := t.TempDir(), t.TempDir()
+	schema := `{"type":"object","required":["value"],"properties":{"value":{"type":"integer"}},"additionalProperties":false}`
+	if err := os.WriteFile(filepath.Join(dir, "schema.json"), []byte(schema), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := workflowRegisterSchema(t.Context(), []string{"-workspace", dir, "notes", "schema.json"}, io.Discard, base); err != nil {
+		t.Fatal(err)
+	}
+	recipe := `{"version":3,"name":"Store a note","steps":[{"id":"create","tool":"record_write","args":{"kind":"notes","id":"first","expected_revision":0,"data":{"value":42}}},{"id":"read","tool":"record_read","args":{"kind":"notes","id":{"$step":"create","pointer":"/id"}}}]}`
+	if err := os.WriteFile(filepath.Join(dir, "recipe.json"), []byte(recipe), 0600); err != nil {
+		t.Fatal(err)
+	}
+	o := workflowOptions{workspace: dir, recipe: "recipe.json", storeDir: base, allow: "record_write=notes/*"}
+	var out bytes.Buffer
+	if err := executeWorkflow(t.Context(), o, &out, nil); err != nil {
+		t.Fatal(err, out.String())
+	}
+	out.Reset()
+	if err := workflowHistory(t.Context(), []string{"record", "-workspace", dir, "notes", "first"}, &out, base); err != nil {
+		t.Fatal(err)
+	}
+	var entry automation.Entry
+	if err := json.Unmarshal(out.Bytes(), &entry); err != nil || entry.Revision != 1 || string(entry.Data) != `{"value":42}` {
+		t.Fatal(entry, err)
+	}
+	if err := executeWorkflow(t.Context(), o, io.Discard, nil); err == nil {
+		t.Fatal("rerun overwrote record")
+	}
+	out.Reset()
+	if err := workflowHistory(t.Context(), []string{"runs", "-workspace", dir}, &out, base); err != nil {
+		t.Fatal(err)
+	}
+	var runs []store.RunSummary
+	if err := json.Unmarshal(out.Bytes(), &runs); err != nil || len(runs) != 2 {
+		t.Fatal(runs, err)
+	}
+	for _, run := range runs {
+		out.Reset()
+		if err := workflowHistory(t.Context(), []string{"inspect", "-workspace", dir, run.ID}, &out, base); err != nil {
+			t.Fatal(err)
+		}
+		var state store.RunState
+		if err := json.Unmarshal(out.Bytes(), &state); err != nil || state.Record.RecipeSource != recipe || state.Record.Finished == nil {
+			t.Fatal(state, err)
+		}
 	}
 }
