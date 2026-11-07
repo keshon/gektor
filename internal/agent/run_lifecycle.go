@@ -74,3 +74,82 @@ func (a *Agent) finalizeRun(ctx, workCtx context.Context, st *runState, history 
 	}
 	return answer, runErr
 }
+
+// restoreRun validates wiring and restores saved selections before opening a run.
+func (a *Agent) restoreRun(ctx context.Context) error {
+	if err := a.cfg.Tools.Err(); err != nil {
+		return fmt.Errorf("tool registry: %w", err)
+	}
+	if err := a.cfg.Policy.Validate(); err != nil {
+		return err
+	}
+	if a.cfg.RestoreBrowser != nil {
+		if err := a.cfg.RestoreBrowser(a.snapshot.Browser); err != nil {
+			return fmt.Errorf("restore browser profile: %w", err)
+		}
+	}
+	if a.cfg.RestoreCapabilities != nil {
+		if err := a.cfg.RestoreCapabilities(ctx, a.snapshot.Capabilities); err != nil {
+			return fmt.Errorf("restore capabilities: %w", err)
+		}
+	}
+	return nil
+}
+
+// startRun records the archive boundary before accepting tools or steering.
+func (a *Agent) startRun(history []llm.Message) ([]llm.Message, int) {
+	runStart := len(a.snapshot.History)
+	if runStart == 2 {
+		runStart = 1
+	}
+	hasRequest := false
+	for _, msg := range history[a.checkpointLen:] {
+		if msg.Role == llm.RoleUser {
+			hasRequest = true
+			break
+		}
+	}
+	if !hasRequest {
+		runStart = 1
+		if len(a.snapshot.Runs) > 0 {
+			runStart = a.snapshot.Runs[len(a.snapshot.Runs)-1].Start
+		}
+	}
+	if n := len(a.snapshot.History); hasRequest && n > 0 && len(a.snapshot.History[n-1].ToolCalls) > 0 {
+		runStart = n - 1
+	}
+	a.LastRunMutations = 0
+	a.report = RunReport{MaxSteps: a.cfg.MaxSteps}
+	a.cfg.Inbox.start()
+	history = a.withDirective(history)
+	a.saveState(history)
+	return history, runStart
+}
+
+// prepareRun may fail after initialization; finalization still owns that exit.
+func (a *Agent) prepareRun(ctx, workCtx context.Context, st *runState, history []llm.Message) ([]llm.Message, error) {
+	if a.cfg.BeginChanges != nil {
+		var err error
+		st.observeChanges, err = a.cfg.BeginChanges(workCtx)
+		if err != nil {
+			return history, fmt.Errorf("observe workspace: %w", err)
+		}
+	}
+	// Restore the task checklist when resuming a saved conversation.
+	a.rehydrateTodo(ctx, history)
+	if a.cfg.RestoreTools != nil {
+		if err := a.cfg.RestoreTools(workCtx, a.snapshot.History); err != nil {
+			if ctx.Err() != nil {
+				return history, ctx.Err()
+			}
+			history = a.nudge(history, NudgeRecovery, "Optional session tools unavailable: "+err.Error()+". Continue with available tools or explicitly retry activation.")
+		}
+	}
+
+	if a.cfg.PrepareTools != nil {
+		if err := a.cfg.PrepareTools(workCtx); err != nil {
+			return history, fmt.Errorf("prepare tools: %w", err)
+		}
+	}
+	return history, nil
+}

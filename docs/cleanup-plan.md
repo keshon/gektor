@@ -100,7 +100,7 @@ they actually validate. Do not silence ordinary mistakes with baseline entries.
 - [x] Extract finalization from agent.run without changing its ordering.
   Preserve verification, cancellation, workspace observation, warnings and
   persistence on every exit path.
-- [ ] Separate setup from model-turn execution. Keep ownership of deadlines,
+- [x] Separate setup from model-turn execution. Keep ownership of deadlines,
   history and run state visible at the call site.
 - [x] Consolidate completion handling after the bug fix is covered.
 - [ ] Make step accounting easy to follow. Treat changes to counting and limits

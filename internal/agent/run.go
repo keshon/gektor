@@ -22,73 +22,18 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 	}
 	ctx, workCtx, cancelBudget := runBudget(ctx, a.cfg.RunTimeout)
 	defer cancelBudget()
-	if err := a.cfg.Tools.Err(); err != nil {
-		return "", fmt.Errorf("tool registry: %w", err)
-	}
-	if err := a.cfg.Policy.Validate(); err != nil {
+	if err := a.restoreRun(workCtx); err != nil {
 		return "", err
 	}
-	if a.cfg.RestoreBrowser != nil {
-		if err := a.cfg.RestoreBrowser(a.snapshot.Browser); err != nil {
-			return "", fmt.Errorf("restore browser profile: %w", err)
-		}
-	}
-	if a.cfg.RestoreCapabilities != nil {
-		if err := a.cfg.RestoreCapabilities(workCtx, a.snapshot.Capabilities); err != nil {
-			return "", fmt.Errorf("restore capabilities: %w", err)
-		}
-	}
 	var st runState
-	runStart := len(a.snapshot.History)
-	if runStart == 2 {
-		runStart = 1
-	}
-	hasRequest := false
-	for _, msg := range history[a.checkpointLen:] {
-		if msg.Role == llm.RoleUser {
-			hasRequest = true
-			break
-		}
-	}
-	if !hasRequest {
-		runStart = 1
-		if len(a.snapshot.Runs) > 0 {
-			runStart = a.snapshot.Runs[len(a.snapshot.Runs)-1].Start
-		}
-	}
-	if n := len(a.snapshot.History); hasRequest && n > 0 && len(a.snapshot.History[n-1].ToolCalls) > 0 {
-		runStart = n - 1
-	}
-	a.LastRunMutations = 0
-	a.report = RunReport{MaxSteps: a.cfg.MaxSteps}
-	a.cfg.Inbox.start()
-	history = a.withDirective(history)
-	a.saveState(history)
+	history, runStart := a.startRun(history)
 	defer func() {
 		answer, runErr = a.finalizeRun(ctx, workCtx, &st, history, runStart, answer, runErr)
 	}()
-	if a.cfg.BeginChanges != nil {
-		var err error
-		st.observeChanges, err = a.cfg.BeginChanges(workCtx)
-		if err != nil {
-			return "", fmt.Errorf("observe workspace: %w", err)
-		}
-	}
-	// Restore the task checklist when resuming a saved conversation.
-	a.rehydrateTodo(ctx, history)
-	if a.cfg.RestoreTools != nil {
-		if err := a.cfg.RestoreTools(workCtx, a.snapshot.History); err != nil {
-			if ctx.Err() != nil {
-				return "", ctx.Err()
-			}
-			history = a.nudge(history, NudgeRecovery, "Optional session tools unavailable: "+err.Error()+". Continue with available tools or explicitly retry activation.")
-		}
-	}
-
-	if a.cfg.PrepareTools != nil {
-		if err := a.cfg.PrepareTools(workCtx); err != nil {
-			return "", fmt.Errorf("prepare tools: %w", err)
-		}
+	var err error
+	history, err = a.prepareRun(ctx, workCtx, &st, history)
+	if err != nil {
+		return "", err
 	}
 
 	for step := 0; step < a.cfg.MaxSteps; step++ {
