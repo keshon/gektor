@@ -66,21 +66,24 @@ func TestDocumentAndChecksAgree(t *testing.T) {
 // than by noticing a cycle once the compiler refuses to build.
 func checkPackageLayers(t *testing.T, r *repo) {
 	allowed := map[string][]string{
-		"llm":                      {},
-		"llm/chatcompletions":      {"llm"},
-		"llm/responses":            {"llm"},
-		"providers":                {},
-		"providers/openai":         {},
-		"providers/llamacpp":       {"providers/internal/probe"},
-		"providers/koboldcpp":      {"providers/internal/probe"},
-		"providers/openaicompat":   {"providers/internal/probe"},
-		"providers/internal/probe": {},
-		"prompts":                  {},
-		"workspace":                {},
-		"permission":               {},
-		"events":                   {},
-		"session":                  {"llm"},
-		"agent":                    {"llm", "prompts", "permission", "session"},
+		"llm":                        {},
+		"llm/chatcompletions":        {"llm"},
+		"llm/responses":              {"llm"},
+		"providers":                  {},
+		"providers/openai":           {},
+		"providers/llamacpp":         {"providers/internal/probe"},
+		"providers/koboldcpp":        {"providers/internal/probe"},
+		"providers/openaicompat":     {"providers/internal/probe"},
+		"providers/internal/probe":   {},
+		"prompts":                    {},
+		"workspace":                  {},
+		"permission":                 {},
+		"events":                     {},
+		"session":                    {"llm"},
+		"agent":                      {"llm", "prompts", "permission", "session"},
+		"integrations/social":        {},
+		"integrations/httptransport": {},
+		"integrations/fileops":       {"workspace", "integrations/httptransport"},
 	}
 	for pkg, permitted := range allowed {
 		for _, name := range append([]string{pkg}, permitted...) {
@@ -97,6 +100,17 @@ func checkPackageLayers(t *testing.T, r *repo) {
 					t.Errorf("%s imports internal/%s\n%s",
 						r.rel(f), imp, r.rule("package-layers"))
 				}
+			}
+		}
+	}
+	for _, f := range r.goFiles {
+		pkg := filepath.ToSlash(filepath.Dir(r.rel(f)))
+		if !strings.HasPrefix(pkg, "internal/tui/components/") || strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		for _, imp := range internalImports(r.read(t, f)) {
+			if !strings.HasPrefix(imp, "tui/components/") {
+				t.Errorf("%s imports application package internal/%s%s", r.rel(f), imp, r.rule("package-layers"))
 			}
 		}
 	}

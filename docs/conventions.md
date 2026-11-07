@@ -36,6 +36,9 @@ Request dialects format inference requests; inspection belongs to providers.
 `internal/permission` and `internal/session`. This is what
 lets `internal/tools` implement `agent.Tool` without an import cycle, and what
 keeps the loop testable against a stub client with no filesystem in sight.
+The social reader and shared integration HTTP transport import no internal
+packages. Native file operations import only workspace access and that transport.
+Reusable TUI components may import other components, but no application packages.
 
 **[invariant]** `internal/agent` never learns which backend it is talking to.
 A backend quirk handled inside the loop is a quirk that will be handled twice
