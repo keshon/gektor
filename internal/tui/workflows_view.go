@@ -1,11 +1,16 @@
 package tui
 
 import (
+	tea "charm.land/bubbletea/v2"
 	"encoding/json"
-
+	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/automation"
 	"github.com/keshon/gektor/internal/automation/recipe"
+	"github.com/keshon/gektor/internal/tui/components/graph"
+	"github.com/keshon/gektor/internal/tui/components/pane"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 	editor "github.com/keshon/gektor/internal/tui/workflow"
+	"strings"
 )
 
 func (m *model) workflowDefinition() automation.Definition {
@@ -97,4 +102,279 @@ func (m *model) workflowPage(key string) {
 	}
 	width, height := m.workflowCanvasSize()
 	w.graph.Reveal(width, height)
+}
+
+func (m *model) workflowCanvasSize() (int, int) {
+	area := m.screenPanes(m.workflows.inspectorOpen).Main
+	layout := m.panelGeometry(area.Width, 1, false, false)
+	return max(layout.Body.Width, 1), max(layout.Body.Height, 1)
+}
+
+func (m *model) workflowScreen() string {
+	w := m.workflows
+	cw, ch := m.workflowCanvasSize()
+	m.workflowEnsureSelection()
+	if w.run == nil {
+		w.graph = m.workflowGraph(w.graph)
+	}
+	canvas := w.graph
+	if w.overview {
+		canvas = w.graph.Overview(cw)
+	}
+	left := canvas.View(cw, ch, m.graphStyles())
+	if len(canvas.Nodes) == 0 {
+		left = cellFrame("No workflow open.\nCtrl+O opens a recipe · H saved runs\nA adds a node · I requests an AI proposal", cw, ch)
+	}
+	title := w.editor.Definition.Name
+	if w.editor.Dirty() {
+		title += " *"
+	}
+	if w.run != nil {
+		title = w.run.Definition.Name + " / " + w.run.Status
+	}
+	mode := "Workflow"
+	if w.positionsLocked {
+		mode += " [positions locked]"
+	}
+	regions := m.screenPanes(w.inspectorOpen)
+	split := w.inspectorOpen && !regions.Covered
+	leftWidth := regions.Main.Width
+	footerWidth := m.panelGeometry(leftWidth, 1, false, false).Footer.Width
+	rows := m.inspectionRows(mode+" / "+cleanText(title), pane.NoticeRow(cleanText(w.notice), w.noticeLevel, footerWidth, m.noticeStyles()), left, leftWidth, !w.inspect, false)
+	if w.inspectorOpen {
+		width := regions.Side.Width
+		content := m.workflowInspectorContent()
+		tabs := m.workflowInspectorTabs()
+		capacity := max(1, ch-len(tabs.Rows)-1)
+		w.offset = min(w.offset, max(0, len(content)-capacity))
+		visible := content[w.offset:min(len(content), w.offset+capacity)]
+		inner := m.panelGeometry(width, 1, true, false).Body.Width
+		body := strings.Join(tabs.Rows, "\n") + "\n\n" + strings.Join(popup.ScrollRows(visible, inner, w.offset, len(content), m.styles.dim), "\n")
+		heading := "Inspect / " + cleanText(w.graph.Selected)
+		if m.workflowSelectedSchedule() != nil && w.run == nil {
+			heading = "Inspect / Schedule"
+		}
+		if w.rawDetails {
+			heading += " / Raw"
+		}
+		if w.inspect {
+			heading += " [focused]"
+		}
+		shortcuts := []popup.Shortcut{{Key: "Tab", Action: "focus inspector"}, {Key: "1–3", Action: "tabs"}}
+		if w.inspect {
+			shortcuts = []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "Tab", Action: "parent"}, {Key: "1–3", Action: "tabs"}}
+		}
+		if w.inspect && w.run == nil && !w.busy && w.inspectorTab != 1 {
+			shortcuts = []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "Tab", Action: "parent"}, {Key: "E", Action: "edit"}, {Key: "1–3", Action: "tabs"}}
+		}
+		hint := m.inspectionHints(width, shortcuts...)
+		right := m.inspectionRows(heading, hint, body, width, w.inspect, true)
+		if split {
+			for i := range rows {
+				rows[i] += right[i]
+			}
+		} else {
+			rows = right
+		}
+	}
+	content := cellLine(m.menuLine(), m.termW) + "\n" + strings.Join(rows, "\n") + "\n" + m.actionBar()
+	content = cellFrame(content, m.termW, m.termH)
+	if m.dialog != nil {
+		content = m.workflowDialog(content)
+	}
+	if m.header.menu != "" {
+		content = m.overlayHeader(content)
+	}
+	return content
+}
+
+// Shared dialogs overlay pane-local content; their hit tests add settingsArea's
+// screen origin. Keep that same origin when composing the workflow's full screen.
+func (m *model) workflowDialog(content string) string {
+	left, top, width, height := m.settingsArea()
+	base := strings.Split(content, "\n")
+	pane := make([]string, height)
+	for i := range pane {
+		if top+i < len(base) {
+			pane[i] = cellLine(ansi.Cut(base[top+i], left, left+width), width)
+		}
+	}
+	rows := strings.Split(m.overlayDialog(strings.Join(pane, "\n")), "\n")
+	for i, row := range rows {
+		y := top + i
+		if y >= len(base) || i >= height {
+			break
+		}
+		base[y] = cellLine(ansi.Cut(base[y], 0, left), left) + cellLine(row, width) + ansi.Cut(base[y], left+width, m.termW)
+	}
+	return cellFrame(strings.Join(base, "\n"), m.termW, m.termH)
+}
+
+func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	w := m.workflows
+	mouse := msg.Mouse()
+	if m.actionBarVisible() && mouse.Y == m.termH-1 && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
+		return m.toolbarClick(mouse.X)
+	}
+
+	cw, ch := m.workflowCanvasSize()
+	regions := m.screenPanes(w.inspectorOpen)
+	canvasLayout := m.panelGeometry(regions.Main.Width, 1, false, false)
+	sideLayout := m.panelGeometry(regions.Side.Width, 1, true, false)
+	x, y := mouse.X-canvasLayout.Body.X, mouse.Y-regions.Main.Y-canvasLayout.Body.Y
+	inspectorHeader := len(m.workflowInspectorTabs().Rows) + 1
+	inInspector := w.inspectorOpen && regions.Side.Contains(mouse.X, mouse.Y)
+	if inInspector && sideLayout.CloseHit.Contains(mouse.X-regions.Side.X, mouse.Y-regions.Side.Y) && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
+		w.inspectorOpen, w.inspect = false, false
+		w.thumb = scrollDrag{}
+		return m, nil
+	}
+	if w.thumb.active {
+		w.offset = popup.ScrollOffset(y-inspectorHeader, max(1, ch-inspectorHeader), len(m.workflowInspectorContent()), w.thumb.grab)
+		if _, ok := msg.(tea.MouseReleaseMsg); ok {
+			w.thumb = scrollDrag{}
+		}
+		return m, nil
+	}
+	if inInspector && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
+		tabs := m.workflowInspectorTabs()
+		if tab := tabs.Hit(mouse.X-regions.Side.X-sideLayout.Body.X, y); tab >= 0 {
+			m.workflowSetInspectorTab(tab)
+			w.inspect = true
+			return m, nil
+		}
+	}
+
+	if _, ok := msg.(tea.MouseReleaseMsg); ok {
+		dragged := w.dragging
+		w.dragging = false
+		w.panning = false
+		if dragged {
+			m.persistWorkflowLayout()
+		}
+		return m, nil
+	}
+	if w.panning {
+		w.graph.Pan.X -= x - w.last.X
+		w.graph.Pan.Y -= y - w.last.Y
+		w.last = graph.Point{X: x, Y: y}
+		return m, nil
+	}
+	if w.dragging {
+		w.graph.Move(x-w.last.X, y-w.last.Y)
+		w.last = graph.Point{X: x, Y: y}
+		return m, nil
+	}
+	if y < 0 || y >= ch {
+		return m, nil
+	}
+	wheel := mouse.Button == tea.MouseWheelDown || mouse.Button == tea.MouseWheelUp || mouse.Button == tea.MouseWheelLeft || mouse.Button == tea.MouseWheelRight
+	if wheel {
+		delta := 3
+		if mouse.Button == tea.MouseWheelUp || mouse.Button == tea.MouseWheelLeft {
+			delta = -3
+		}
+		if inInspector {
+			if y >= inspectorHeader {
+				w.offset = max(0, w.offset+delta)
+			}
+		} else if mouse.Button == tea.MouseWheelLeft || mouse.Button == tea.MouseWheelRight || mouse.Mod&tea.ModShift != 0 {
+			w.graph.Pan.X += delta
+		} else {
+			w.graph.Pan.Y += delta
+		}
+		return m, nil
+	}
+	if inInspector {
+		if mouse.Button == tea.MouseLeft && isMouseClick(msg) {
+			w.inspect = true
+			if y >= inspectorHeader && y < ch && mouse.X == regions.Side.X+sideLayout.Body.X+sideLayout.Body.Width-1 {
+				total := len(m.workflowInspectorContent())
+				top, size := popup.ScrollThumb(max(1, ch-inspectorHeader), total, w.offset)
+				if y-inspectorHeader >= top && y-inspectorHeader < top+size {
+					w.thumb = scrollDrag{active: true, grab: y - inspectorHeader - top}
+				} else {
+					w.offset = popup.ScrollOffset(y-inspectorHeader, max(1, ch-inspectorHeader), total, 0)
+				}
+			}
+		}
+		return m, nil
+	}
+	if x < 0 || x >= cw {
+		return m, nil
+	}
+	if mouse.Button == tea.MouseMiddle && isMouseClick(msg) {
+		w.panning = true
+		w.last = graph.Point{X: x, Y: y}
+		return m, nil
+	}
+	if mouse.Button == tea.MouseLeft && isMouseClick(msg) {
+		canvas := w.graph
+		if w.overview {
+			canvas = w.graph.Overview(cw)
+		}
+		if !w.overview {
+			if id, port, output := canvas.PortHit(x, y); id != "" {
+				w.graph.Selected = id
+				if strings.HasPrefix(id, workflowSchedulePrefix) || strings.HasPrefix(w.connectFrom, workflowSchedulePrefix) {
+					w.connectFrom = ""
+					w.inspectorOpen = true
+					w.setNotice(pane.NoticeInfo, "Schedule starts the whole recipe; its connections are automatic")
+					return m, nil
+				}
+				m.workflowFocusPort(port, output)
+				w.inspect = false
+				if w.run != nil || w.busy {
+					w.inspectorOpen = true
+					w.inspect = true
+					return m, nil
+				}
+				if output {
+					w.connectFrom = id
+					w.connectPort = port
+					w.setNotice(pane.NoticeInfo, "Choose an input port · Esc cancels")
+				} else if w.connectFrom != "" {
+					if (port == "@order") != (w.connectPort == "@order") {
+						w.setNotice(pane.NoticeWarning, "Connect data ports together, or then → after for execution order")
+						return m, nil
+					}
+					edit := workflowConnectionEdit{From: w.connectFrom, To: id, Pointer: w.connectPort, FixedSource: true, Draft: w.editor.Source()}
+					switch {
+					case port == "@order":
+						edit.Field = "depends_on"
+						edit.Pointer = ""
+					case strings.HasPrefix(port, "args/"):
+						edit.Field = "args"
+						edit.Path = strings.TrimPrefix(port, "args")
+					case port == "for_each" || strings.HasPrefix(port, "for_each/"):
+						edit.Field = "for_each"
+						edit.Path = strings.TrimPrefix(port, "for_each")
+					case port == "when" || strings.HasPrefix(port, "when/"):
+						edit.Field = "when"
+						edit.Path = strings.TrimPrefix(port, "when")
+					default:
+						w.setNotice(pane.NoticeWarning, "Choose a named destination port")
+						return m, nil
+					}
+					w.connectFrom = ""
+					m.workflowConnectionEdit(edit)
+				} else {
+					w.setNotice(pane.NoticeWarning, "Choose an output port first · C connects by keyboard")
+				}
+				return m, nil
+			}
+		}
+		id := canvas.Hit(x, y)
+		w.inspect = false
+		if id != "" {
+			w.graph.Selected = id
+			w.portSelected = false
+			w.offset = 0
+			w.dragging = !w.overview && !w.positionsLocked
+		} else {
+			w.panning = !w.overview
+		}
+		w.last = graph.Point{X: x, Y: y}
+	}
+	return m, nil
 }

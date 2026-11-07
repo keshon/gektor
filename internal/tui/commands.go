@@ -210,36 +210,7 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		m.appendBlock(markerBlock(strings.Join(m.statusLines(), "\n")))
 		return m, nil
 	case "max-steps":
-		n, err := strconv.Atoi(strings.TrimSpace(arg))
-		if err != nil || n < 0 {
-			m.appendBlock(errorBlock("Usage: /max-steps N (0 = no limit)"))
-			return m, nil
-		}
-		m.confirmRestart(func() {
-			previous := m.maxStepsOverride
-			previousSession := m.sess
-			if n == 0 {
-				n = noStepLimit
-			}
-			m.maxStepsOverride = n
-			if m.sess != nil {
-				sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
-				if err != nil {
-					m.maxStepsOverride = previous
-					m.appendBlock(errorBlock(err.Error()))
-					return
-				}
-				m.sess = sess
-			}
-			if err := m.saveHarness(); err != nil {
-				m.maxStepsOverride = previous
-				m.sess = previousSession
-				m.appendBlock(errorBlock(err.Error()))
-				return
-			}
-			m.appendBlock(markerBlock("Max steps: " + m.stepBudget()))
-		})
-		return m, nil
+		return m.commandStepLimit(arg)
 	case "steering":
 		value := strings.ToLower(strings.TrimSpace(arg))
 		if value != "on" && value != "off" {
@@ -318,43 +289,7 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		})
 		return m, nil
 	case "context":
-		rows := []string{"Context: " + strings.Replace(m.meter(), "ctx ", "", 1), "Source: " + nonEmpty(m.usage.source)}
-		if report := m.usage.breakdown; report.EstimatedTokens > 0 {
-			rows = append(rows, fmt.Sprintf("Request estimate: ~%d tokens", report.EstimatedTokens))
-			for _, section := range report.Sections {
-				if section.EstimatedTokens > 0 {
-					rows = append(rows, fmt.Sprintf("  %s: ~%d", section.Name, section.EstimatedTokens))
-				}
-			}
-			rows = append(rows, "Largest tool schemas (estimates):")
-			for _, tool := range report.Tools[:min(5, len(report.Tools))] {
-				rows = append(rows, fmt.Sprintf("  %s: ~%d", tool.Name, tool.EstimatedTokens))
-			}
-			if report.BackendTokens > 0 {
-				kind := "measured"
-				if report.BackendEstimated {
-					kind = "estimated"
-				}
-				rows = append(rows, fmt.Sprintf("Backend prompt: %d (%s); cached: %d (still occupies context)", report.BackendTokens, kind, report.CachedTokens))
-			}
-		}
-		if !m.usage.at.IsZero() {
-			rows = append(rows, "Measured: "+m.usage.at.Format("15:04:05"))
-		}
-		if m.usage.last.Tokens > 0 {
-			kind := "reported"
-			if m.usage.last.Estimated {
-				kind = "estimated"
-			}
-			rows = append(rows, fmt.Sprintf("Last request: %s tokens (%s)", kTokens(m.usage.last.Tokens), kind))
-			rows = append(rows, "Request time: "+m.usage.last.At.Format("Jan 2 15:04:05"))
-		}
-		if m.usage.source == "Saved history estimate" {
-			rows = append(rows, "Estimate excludes tool schemas and images.")
-		}
-		rows = append(rows, "/compact is available for coding task history.")
-		m.openDialog("Context usage", rows)
-		return m, nil
+		return m.commandContext()
 	case "run":
 		rows := []string{m.stepLine(), "Elapsed: " + formatElapsed(m.elapsed)}
 		if !m.firstToken.IsZero() {
@@ -418,70 +353,7 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		m.editSettings("application")
 		return m, nil
 	case "mode":
-		mode := strings.ToLower(strings.TrimSpace(arg))
-		if mode == "" {
-			m.appendBlock(markerBlock("Mode: " + m.modeName() + " · /mode plan previews changes · /mode act executes them"))
-			return m, nil
-		}
-		if mode != "plan" && mode != "act" {
-			m.appendBlock(errorBlock("Choose /mode plan or /mode act."))
-			return m, nil
-		}
-		if (mode == "plan") == m.plan {
-			if err := m.saveDefaultMode(); err != nil {
-				m.appendBlock(errorBlock(err.Error()))
-				return m, nil
-			}
-			m.appendBlock(markerBlock("Mode: " + m.modeName()))
-			return m, nil
-		}
-		// The system prompt and tool set do not change with the mode, only
-		// what the loop refuses and which stance turn it appends, so the
-		// rebuild below cannot cost the backend its cached prefix. An idle
-		// switch is free and needs no confirmation; one that would replace a
-		// session mid-run keeps the existing destructive prompt.
-		apply := func() error {
-			previous := m.plan
-			nextSession := m.sess
-			m.plan = mode == "plan"
-			if m.sess != nil {
-				sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
-				if err != nil {
-					m.plan = previous
-					return err
-				}
-				if err := m.saveMode(); err != nil {
-					m.plan = previous
-					return err
-				}
-				nextSession = sess
-			} else if err := m.saveMode(); err != nil {
-				m.plan = previous
-				return err
-			}
-			if err := m.saveDefaultMode(); err != nil {
-				m.plan = previous
-				if m.stateFile != "" {
-					_ = writeSavedMode(m.stateFile, previous)
-				}
-				return err
-			}
-			m.sess = nextSession
-			m.appendBlock(markerBlock("Mode: " + m.modeName()))
-			return nil
-		}
-		if m.state == stRunning {
-			m.confirmRestart(func() {
-				if err := apply(); err != nil {
-					m.appendBlock(errorBlock(err.Error()))
-				}
-			})
-			return m, nil
-		}
-		if err := apply(); err != nil {
-			m.appendBlock(errorBlock(err.Error()))
-		}
-		return m, nil
+		return m.commandMode(arg)
 	case "retry":
 		if m.runErr == nil || m.retryRun == nil {
 			m.appendBlock(markerBlock("nothing to retry: last run did not fail"))
@@ -499,4 +371,144 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		m.appendBlock(errorBlock("unknown command " + text + " (try /help)"))
 		return m, nil
 	}
+}
+
+func (m *model) commandStepLimit(arg string) (tea.Model, tea.Cmd) {
+	n, err := strconv.Atoi(strings.TrimSpace(arg))
+	if err != nil || n < 0 {
+		m.appendBlock(errorBlock("Usage: /max-steps N (0 = no limit)"))
+		return m, nil
+	}
+	m.confirmRestart(func() {
+		previous := m.maxStepsOverride
+		previousSession := m.sess
+		if n == 0 {
+			n = noStepLimit
+		}
+		m.maxStepsOverride = n
+		if m.sess != nil {
+			sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
+			if err != nil {
+				m.maxStepsOverride = previous
+				m.appendBlock(errorBlock(err.Error()))
+				return
+			}
+			m.sess = sess
+		}
+		if err := m.saveHarness(); err != nil {
+			m.maxStepsOverride = previous
+			m.sess = previousSession
+			m.appendBlock(errorBlock(err.Error()))
+			return
+		}
+		m.appendBlock(markerBlock("Max steps: " + m.stepBudget()))
+	})
+	return m, nil
+}
+
+func (m *model) commandMode(arg string) (tea.Model, tea.Cmd) {
+	mode := strings.ToLower(strings.TrimSpace(arg))
+	if mode == "" {
+		m.appendBlock(markerBlock("Mode: " + m.modeName() + " · /mode plan previews changes · /mode act executes them"))
+		return m, nil
+	}
+	if mode != "plan" && mode != "act" {
+		m.appendBlock(errorBlock("Choose /mode plan or /mode act."))
+		return m, nil
+	}
+	if (mode == "plan") == m.plan {
+		if err := m.saveDefaultMode(); err != nil {
+			m.appendBlock(errorBlock(err.Error()))
+			return m, nil
+		}
+		m.appendBlock(markerBlock("Mode: " + m.modeName()))
+		return m, nil
+	}
+	// The system prompt and tool set do not change with the mode, only
+	// what the loop refuses and which stance turn it appends, so the
+	// rebuild below cannot cost the backend its cached prefix. An idle
+	// switch is free and needs no confirmation; one that would replace a
+	// session mid-run keeps the existing destructive prompt.
+	apply := func() error {
+		previous := m.plan
+		nextSession := m.sess
+		m.plan = mode == "plan"
+		if m.sess != nil {
+			sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
+			if err != nil {
+				m.plan = previous
+				return err
+			}
+			if err := m.saveMode(); err != nil {
+				m.plan = previous
+				return err
+			}
+			nextSession = sess
+		} else if err := m.saveMode(); err != nil {
+			m.plan = previous
+			return err
+		}
+		if err := m.saveDefaultMode(); err != nil {
+			m.plan = previous
+			if m.stateFile != "" {
+				_ = writeSavedMode(m.stateFile, previous)
+			}
+			return err
+		}
+		m.sess = nextSession
+		m.appendBlock(markerBlock("Mode: " + m.modeName()))
+		return nil
+	}
+	if m.state == stRunning {
+		m.confirmRestart(func() {
+			if err := apply(); err != nil {
+				m.appendBlock(errorBlock(err.Error()))
+			}
+		})
+		return m, nil
+	}
+	if err := apply(); err != nil {
+		m.appendBlock(errorBlock(err.Error()))
+	}
+	return m, nil
+}
+
+func (m *model) commandContext() (tea.Model, tea.Cmd) {
+	rows := []string{"Context: " + strings.Replace(m.meter(), "ctx ", "", 1), "Source: " + nonEmpty(m.usage.source)}
+	if report := m.usage.breakdown; report.EstimatedTokens > 0 {
+		rows = append(rows, fmt.Sprintf("Request estimate: ~%d tokens", report.EstimatedTokens))
+		for _, section := range report.Sections {
+			if section.EstimatedTokens > 0 {
+				rows = append(rows, fmt.Sprintf("  %s: ~%d", section.Name, section.EstimatedTokens))
+			}
+		}
+		rows = append(rows, "Largest tool schemas (estimates):")
+		for _, tool := range report.Tools[:min(5, len(report.Tools))] {
+			rows = append(rows, fmt.Sprintf("  %s: ~%d", tool.Name, tool.EstimatedTokens))
+		}
+		if report.BackendTokens > 0 {
+			kind := "measured"
+			if report.BackendEstimated {
+				kind = "estimated"
+			}
+			rows = append(rows, fmt.Sprintf("Backend prompt: %d (%s); cached: %d (still occupies context)", report.BackendTokens, kind, report.CachedTokens))
+		}
+	}
+	if !m.usage.at.IsZero() {
+		rows = append(rows, "Measured: "+m.usage.at.Format("15:04:05"))
+	}
+	if m.usage.last.Tokens > 0 {
+		kind := "reported"
+		if m.usage.last.Estimated {
+			kind = "estimated"
+		}
+		rows = append(rows, fmt.Sprintf("Last request: %s tokens (%s)", kTokens(m.usage.last.Tokens), kind))
+		rows = append(rows, "Request time: "+m.usage.last.At.Format("Jan 2 15:04:05"))
+	}
+	if m.usage.source == "Saved history estimate" {
+		rows = append(rows, "Estimate excludes tool schemas and images.")
+	}
+	rows = append(rows, "/compact is available for coding task history.")
+	m.openDialog("Context usage", rows)
+	return m, nil
 }

@@ -397,46 +397,7 @@ func (m *model) handleEvent(ev run.Event) {
 			m.limit = int(limit)
 		}
 	case "step":
-		m.usage.liveModel = true
-		m.progress.Phase = "tools"
-		m.steps++
-		// The enforced step budget rides the event: the meter reads that limit,
-		// never a second literal. Absent on old producers — keep ours.
-		if ms, ok := ev.Fields["max_steps"].(float64); ok && ms > 0 {
-			m.maxSteps = int(ms)
-		}
-		// The live buffer belongs to this response: clear it first so
-		// the authoritative blocks below never duplicate it. Queued text
-		// counts as part of it — a step that omits the reply adopts
-		// whatever arrived, revealed or not. A step with empty text but
-		// a non-empty buffer adopts the buffer (backend streamed text it
-		// then omitted); tool steps never adopt, calls are work.
-		live := m.live + m.liveQueue
-		m.resetLive()
-		// Reasoning above its reply: the collapsed
-		// think line introduces the answer it produced, causal order.
-		// Tool calls render as cards below, whatever prompted them.
-		reasoning, _ := ev.Fields["reasoning"].(string)
-		text, _ := ev.Fields["text"].(string)
-		if text == "" && live != "" {
-			if calls, _ := ev.Fields["tool_calls"].([]any); len(calls) == 0 {
-				text = live
-			}
-		}
-		for _, b := range assistantBlocks(text, reasoning) {
-			m.appendBlock(b)
-		}
-
-		if calls, _ := ev.Fields["tool_calls"].([]any); len(calls) > 0 {
-			for _, c := range calls {
-				call, _ := c.(map[string]any)
-				name, _ := call["name"].(string)
-				args, _ := call["args"].(string)
-				id, _ := call["id"].(string)
-				m.toolsUsed++
-				m.appendBlock(toolCardBlock(id, name+" "+args))
-			}
-		}
+		m.acceptStepEvent(ev)
 	case "user_input":
 		text, _ := ev.Fields["text"].(string)
 		var images []string
@@ -543,43 +504,7 @@ func (m *model) handleEvent(ev run.Event) {
 	case "_permission_preview":
 		m.gatePreview, _ = ev.Fields["text"].(string)
 	case "awaiting_input":
-		m.closeHeader()
-		kind, _ := ev.Fields["kind"].(string)
-		prompt, _ := ev.Fields["prompt"].(string)
-		m.gate = prompt
-		m.gateVP = viewport.New(viewport.WithWidth(max(m.termW, 1)), viewport.WithHeight(max(m.transcript.Viewport.Height(), 1)))
-		if m.sessions != nil {
-			m.closeSessions()
-		}
-		if m.dialog != nil {
-			m.closeDialog()
-		}
-		// The prompt lives in the transcript, not the bottom bar: the
-		// bar has a fixed 1-line budget (2 with the answer box), so the
-		// viewport math below always fits the terminal. A long question
-		// stays readable by scrolling instead of pushing layout around.
-		if prompt != "" {
-			m.appendBlock(gateBlock(prompt))
-		}
-		if kind == string(agent.SuspendPermission) {
-			m.state = stPermission
-			m.gstage = gsPermit
-			m.gateTool, _ = ev.Fields["tool"].(string)
-			m.gateResource, _ = ev.Fields["resource"].(string)
-			m.note.Blur()
-			m.note.SetValue("")
-			m.pushOverlay()
-			m.openGatePopup()
-		} else {
-			m.state = stAsk
-			m.gatePreview = ""
-			m.gateDraft = m.input.Value()
-			m.input.SetValue("")
-			m.input.Focus()
-			m.openGatePopup()
-		}
-		m.fitInput()
-		m.fitBottom()
+		m.acceptGateEvent(ev)
 	case "input_answered":
 		m.state = stRunning
 		m.gatePreview = ""
@@ -594,49 +519,7 @@ func (m *model) handleEvent(ev run.Event) {
 			m.appendBlock(answerBlock(report))
 		}
 	case "outcome":
-		m.filesTouched = map[string]bool{}
-		outcome, _ := ev.Fields["outcome"].(string)
-		var files []string
-		if values, ok := ev.Fields["files"].([]any); ok {
-			for _, value := range values {
-				if path, ok := value.(string); ok {
-					files = append(files, path)
-					m.filesTouched[path] = true
-				}
-			}
-		}
-		checks, _ := ev.Fields["verification"].(string)
-		if checks == "" {
-			checks = "no current command verdict"
-		}
-		resume, _ := ev.Fields["resume"].(string)
-		fileList := strings.Join(files, ", ")
-		if fileList == "" {
-			fileList = "none observed"
-		}
-		text := fmt.Sprintf("outcome: %s\nfiles: %s\nchecks: %s", outcome, fileList, checks)
-		for _, field := range []string{"summary", "warnings", "open_todos"} {
-			var values []string
-			switch value := ev.Fields[field].(type) {
-			case string:
-				values = []string{value}
-			case []string:
-				values = value
-			case []any:
-				for _, item := range value {
-					if s, ok := item.(string); ok {
-						values = append(values, s)
-					}
-				}
-			}
-			if value := strings.Join(values, "\n"); value != "" {
-				text += "\n" + field + ": " + value
-			}
-		}
-		if resume != "" {
-			text += "\nresume: gektor -tui -resume " + resume
-		}
-		m.appendBlock(block{role: roleReceipt, text: text, at: time.Now()})
+		m.acceptOutcomeEvent(ev)
 	case "reasoning":
 		m.usage.liveModel = true
 		m.progress.Phase = "reasoning"
@@ -675,4 +558,133 @@ func (m *model) handleEvent(ev run.Event) {
 			m.scheduleLiveFlush()
 		}
 	}
+}
+
+func (m *model) acceptStepEvent(ev run.Event) {
+	m.usage.liveModel = true
+	m.progress.Phase = "tools"
+	m.steps++
+	// The enforced step budget rides the event: the meter reads that limit,
+	// never a second literal. Absent on old producers — keep ours.
+	if ms, ok := ev.Fields["max_steps"].(float64); ok && ms > 0 {
+		m.maxSteps = int(ms)
+	}
+	// The live buffer belongs to this response: clear it first so
+	// the authoritative blocks below never duplicate it. Queued text
+	// counts as part of it — a step that omits the reply adopts
+	// whatever arrived, revealed or not. A step with empty text but
+	// a non-empty buffer adopts the buffer (backend streamed text it
+	// then omitted); tool steps never adopt, calls are work.
+	live := m.live + m.liveQueue
+	m.resetLive()
+	// Reasoning above its reply: the collapsed
+	// think line introduces the answer it produced, causal order.
+	// Tool calls render as cards below, whatever prompted them.
+	reasoning, _ := ev.Fields["reasoning"].(string)
+	text, _ := ev.Fields["text"].(string)
+	if text == "" && live != "" {
+		if calls, _ := ev.Fields["tool_calls"].([]any); len(calls) == 0 {
+			text = live
+		}
+	}
+	for _, b := range assistantBlocks(text, reasoning) {
+		m.appendBlock(b)
+	}
+
+	if calls, _ := ev.Fields["tool_calls"].([]any); len(calls) > 0 {
+		for _, c := range calls {
+			call, _ := c.(map[string]any)
+			name, _ := call["name"].(string)
+			args, _ := call["args"].(string)
+			id, _ := call["id"].(string)
+			m.toolsUsed++
+			m.appendBlock(toolCardBlock(id, name+" "+args))
+		}
+	}
+}
+
+func (m *model) acceptGateEvent(ev run.Event) {
+	m.closeHeader()
+	kind, _ := ev.Fields["kind"].(string)
+	prompt, _ := ev.Fields["prompt"].(string)
+	m.gate = prompt
+	m.gateVP = viewport.New(viewport.WithWidth(max(m.termW, 1)), viewport.WithHeight(max(m.transcript.Viewport.Height(), 1)))
+	if m.sessions != nil {
+		m.closeSessions()
+	}
+	if m.dialog != nil {
+		m.closeDialog()
+	}
+	// The prompt lives in the transcript, not the bottom bar: the
+	// bar has a fixed 1-line budget (2 with the answer box), so the
+	// viewport math below always fits the terminal. A long question
+	// stays readable by scrolling instead of pushing layout around.
+	if prompt != "" {
+		m.appendBlock(gateBlock(prompt))
+	}
+	if kind == string(agent.SuspendPermission) {
+		m.state = stPermission
+		m.gstage = gsPermit
+		m.gateTool, _ = ev.Fields["tool"].(string)
+		m.gateResource, _ = ev.Fields["resource"].(string)
+		m.note.Blur()
+		m.note.SetValue("")
+		m.pushOverlay()
+		m.openGatePopup()
+	} else {
+		m.state = stAsk
+		m.gatePreview = ""
+		m.gateDraft = m.input.Value()
+		m.input.SetValue("")
+		m.input.Focus()
+		m.openGatePopup()
+	}
+	m.fitInput()
+	m.fitBottom()
+}
+
+func (m *model) acceptOutcomeEvent(ev run.Event) {
+	m.filesTouched = map[string]bool{}
+	outcome, _ := ev.Fields["outcome"].(string)
+	var files []string
+	if values, ok := ev.Fields["files"].([]any); ok {
+		for _, value := range values {
+			if path, ok := value.(string); ok {
+				files = append(files, path)
+				m.filesTouched[path] = true
+			}
+		}
+	}
+	checks, _ := ev.Fields["verification"].(string)
+	if checks == "" {
+		checks = "no current command verdict"
+	}
+	resume, _ := ev.Fields["resume"].(string)
+	fileList := strings.Join(files, ", ")
+	if fileList == "" {
+		fileList = "none observed"
+	}
+	text := fmt.Sprintf("outcome: %s\nfiles: %s\nchecks: %s", outcome, fileList, checks)
+	for _, field := range []string{"summary", "warnings", "open_todos"} {
+		var values []string
+		switch value := ev.Fields[field].(type) {
+		case string:
+			values = []string{value}
+		case []string:
+			values = value
+		case []any:
+			for _, item := range value {
+				if s, ok := item.(string); ok {
+					values = append(values, s)
+				}
+			}
+		}
+		if value := strings.Join(values, "\n"); value != "" {
+			text += "\n" + field + ": " + value
+		}
+	}
+	if resume != "" {
+		text += "\nresume: gektor -tui -resume " + resume
+	}
+	m.appendBlock(block{role: roleReceipt, text: text, at: time.Now()})
 }

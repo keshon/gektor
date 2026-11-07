@@ -142,72 +142,83 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.sessionsKey(msg)
 	}
 	if m.dialog != nil {
-		if (msg.String() == "s" || msg.String() == "S") && m.dialog.save != nil {
-			if err := m.dialog.save(); err != nil {
-				m.dialog.lines = append(m.dialog.lines, "", "Could not save: "+err.Error())
-				m.dialog.offset = 0
-			} else {
-				m.closeDialog()
-			}
-			return m, nil
-		}
-		if (msg.String() == "r" || msg.String() == "R" || msg.String() == "e" || msg.String() == "E") && m.dialog.review != nil {
-			m.dialog.review()
-			return m, nil
-		}
-		// Takeover: the dialog eats every key but close and quit so
-		// typing can neither reach the input nor toggle state behind it.
-		// Close is esc/enter only: "q" must stay typable for dialogs
-		// with inputs tomorrow. Confirmations are answered above, before
-		// this branch; an info dialog has nothing to confirm.
-		switch msg.String() {
-		case "n", "N", "esc":
-			m.closeDialog()
-			return m, nil
-		case "enter":
-			m.closeDialog()
-			return m, nil
-		case "ctrl+c":
-			m.quit = true
-			m.cancel()
-			return m, tea.Quit
-		}
-		if !m.dialog.help {
-			switch msg.String() {
-			case "down":
-				m.scrollDialog(1)
-			case "up":
-				m.scrollDialog(-1)
-			case "pgdown":
-				m.scrollDialog(max(m.transcript.Viewport.Height()/2, 1))
-			case "pgup":
-				m.scrollDialog(-max(m.transcript.Viewport.Height()/2, 1))
-			}
-		}
-		if m.dialog.help {
-			switch msg.String() {
-			case "tab", "right":
-				m.dialog.page = (m.dialog.page + 1) % len(m.dialogHelpSections())
-				m.dialog.offset = 0
-			case "shift+tab", "left":
-				m.dialog.page = (m.dialog.page + len(m.dialogHelpSections()) - 1) % len(m.dialogHelpSections())
-				m.dialog.offset = 0
-			case "down":
-				m.scrollDialog(1)
-			case "up":
-				m.scrollDialog(-1)
-			case "pgdown":
-				m.scrollDialog(max(m.transcript.Viewport.Height()/2, 1))
-			case "pgup":
-				m.scrollDialog(-max(m.transcript.Viewport.Height()/2, 1))
-			}
-		}
-		return m, nil
+		return m.infoDialogKey(msg)
 	}
+
 	if msg.String() == "ctrl+g" {
 		return m.footerKey(tea.KeyPressMsg{Code: tea.KeyF3})
 	}
 
+	return m.conversationKey(msg)
+}
+
+func isMouseClick(msg tea.MouseMsg) bool { _, ok := msg.(tea.MouseClickMsg); return ok }
+
+func (m *model) infoDialogKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if (msg.String() == "s" || msg.String() == "S") && m.dialog.save != nil {
+		if err := m.dialog.save(); err != nil {
+			m.dialog.lines = append(m.dialog.lines, "", "Could not save: "+err.Error())
+			m.dialog.offset = 0
+		} else {
+			m.closeDialog()
+		}
+		return m, nil
+	}
+	if (msg.String() == "r" || msg.String() == "R" || msg.String() == "e" || msg.String() == "E") && m.dialog.review != nil {
+		m.dialog.review()
+		return m, nil
+	}
+	// Takeover: the dialog eats every key but close and quit so
+	// typing can neither reach the input nor toggle state behind it.
+	// Close is esc/enter only: "q" must stay typable for dialogs
+	// with inputs tomorrow. Confirmations are answered above, before
+	// this branch; an info dialog has nothing to confirm.
+	switch msg.String() {
+	case "n", "N", "esc":
+		m.closeDialog()
+		return m, nil
+	case "enter":
+		m.closeDialog()
+		return m, nil
+	case "ctrl+c":
+		m.quit = true
+		m.cancel()
+		return m, tea.Quit
+	}
+	if !m.dialog.help {
+		switch msg.String() {
+		case "down":
+			m.scrollDialog(1)
+		case "up":
+			m.scrollDialog(-1)
+		case "pgdown":
+			m.scrollDialog(max(m.transcript.Viewport.Height()/2, 1))
+		case "pgup":
+			m.scrollDialog(-max(m.transcript.Viewport.Height()/2, 1))
+		}
+	}
+	if m.dialog.help {
+		switch msg.String() {
+		case "tab", "right":
+			m.dialog.page = (m.dialog.page + 1) % len(m.dialogHelpSections())
+			m.dialog.offset = 0
+		case "shift+tab", "left":
+			m.dialog.page = (m.dialog.page + len(m.dialogHelpSections()) - 1) % len(m.dialogHelpSections())
+			m.dialog.offset = 0
+		case "down":
+			m.scrollDialog(1)
+		case "up":
+			m.scrollDialog(-1)
+		case "pgdown":
+			m.scrollDialog(max(m.transcript.Viewport.Height()/2, 1))
+		case "pgup":
+			m.scrollDialog(-max(m.transcript.Viewport.Height()/2, 1))
+		}
+	}
+	return m, nil
+}
+
+func (m *model) conversationKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.state {
 	case stPermission:
 		return m.gateKey(msg)
@@ -351,5 +362,3 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 }
-
-func isMouseClick(msg tea.MouseMsg) bool { _, ok := msg.(tea.MouseClickMsg); return ok }

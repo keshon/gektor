@@ -193,17 +193,17 @@ the CLI, agent and TUI. Keep automation in the current Go module.
 
 ## 8. Simplify TUI screens around shared controls
 
-- [ ] Review key, command and event routing. Extract substantial related actions;
+- [x] Review key, command and event routing. Extract substantial related actions;
   keep readable dispatch switches. Do not add a command framework.
-- [ ] Separate workflow actions, async results, canvas interaction and rendering.
+- [x] Separate workflow actions, async results, canvas interaction and rendering.
   Keep domain execution in the workflow service.
-- [ ] Review picker navigation and shared modal/list/form behavior. Remove old
+- [x] Review picker navigation and shared modal/list/form behavior. Remove old
   parallel implementations when an existing component already owns the job.
-- [ ] Check against tui-design.md and the FigCraft reference. Preserve uppercase
+- [x] Check against tui-design.md and the FigCraft reference. Preserve uppercase
   shortcut labels, gaps between shortcut items, compact footers and theme roles.
-- [ ] Keep components free of application effects. A control returns an intent;
+- [x] Keep components free of application effects. A control returns an intent;
   its screen performs the action.
-- [ ] Recheck graph interaction far from the origin, scrolling and hit regions.
+- [x] Recheck graph interaction far from the origin, scrolling and hit regions.
   Add targeted measurements only if performance changes or a regression appears.
 
 Done when shared controls behave consistently and screen code mainly connects
