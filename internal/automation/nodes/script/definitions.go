@@ -10,7 +10,7 @@ import (
 )
 
 func Definition() automation.Node {
-	return automation.Node{Name: "script_transform", RetrySafe: true, Version: 1, Description: "Transform explicit JSON input with JavaScript. No file, network, environment or module APIs. Returns JSON.", ReadOnly: true,
+	return automation.Node{Name: "script_transform", RetrySafe: true, Version: 1, Description: "Transform explicit JSON input with JavaScript. No file, network, environment or module APIs. Returns exactly the script value as JSON, without an output wrapper.", ReadOnly: true,
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"code":{"type":"string","minLength":1,"maxLength":65536},"input":{}},"required":["code","input"],"additionalProperties":false}`),
 		Resources: func(args json.RawMessage) ([]string, error) {
 			var r runtime.Request

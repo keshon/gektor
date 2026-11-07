@@ -21,6 +21,9 @@ func (m *model) workflowSetInspectorTab(tab int) {
 func (m *model) workflowInspectorTabs() (string, []int) {
 	w := m.workflows
 	labels := []string{"Properties", "Result", "Code"}
+	if m.workflowSelectedSchedule() != nil && w.run == nil {
+		labels = []string{"Schedule", "Inputs", "Service"}
+	}
 	var text strings.Builder
 	var ends []int
 	for i, label := range labels {

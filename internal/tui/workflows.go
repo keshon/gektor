@@ -44,6 +44,7 @@ type workflowWorkspace struct {
 	events                   chan tea.Msg
 	run                      *automation.Run
 	runID                    string
+	schedules                []store.Schedule
 }
 type workflowAction struct{ action, value string }
 type workflowResult struct {
@@ -51,6 +52,8 @@ type workflowResult struct {
 	err          error
 	source, path string
 	action       string
+	schedules    []store.Schedule
+	scheduleID   string
 }
 type workflowPermission struct {
 	tool, resource string
@@ -137,8 +140,18 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 		w.active = false
 		return nil
 	}
+	if m.workflowSelectedSchedule() != nil && (action == "behavior" || action == "connections" || action == "link") {
+		w.notice = "Schedule starts the whole recipe. Enter edits the trigger; connections are automatic."
+		return nil
+	}
 	fail := func(err error) { m.openDialog("Workflow", []string{err.Error()}) }
 	switch action {
+	case "schedule":
+		m.workflowSchedule()
+	case "schedule-add":
+		m.workflowScheduleStart(true)
+	case "schedule-refresh":
+		return m.workflowScheduleRefresh()
 	case "help":
 		_, cmd := m.workflowKey(tea.KeyPressMsg{Code: tea.KeyF1})
 		return cmd
@@ -202,30 +215,16 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 			return nil
 		})
 	case "add":
-		names := w.registry.Names()
-		if len(names) == 0 {
-			return nil
-		}
-		m.openForm("Add node", "Operations come from the workflow registry.", "Add", []formField{{Key: "type", Label: "Operation", Value: names[0]}, {Key: "id", Label: "Unique node ID", Value: fmt.Sprintf("step_%d", len(w.editor.Definition.Steps)+1)}}, func(v map[string]string) error {
-			id := strings.TrimSpace(v["id"])
-			if id == "" {
-				return fmt.Errorf("node ID is required")
+		names := append(w.registry.Names(), "Schedule trigger")
+		m.openForm("Add node", "Choose an operation or a Schedule trigger.", "Next", []formField{{Key: "type", Label: "Node type", Value: names[0]}}, func(v map[string]string) error {
+			if v["type"] == "Schedule trigger" {
+				m.queueWorkflow("schedule-add", "")
+				return nil
 			}
-			d := w.editor.Clone()
-			for _, s := range d.Steps {
-				if s.ID == id {
-					return fmt.Errorf("node ID already exists")
-				}
-			}
-			n, err := w.registry.Node(v["type"])
-			if err != nil {
+			if _, err := w.registry.Node(v["type"]); err != nil {
 				return err
 			}
-			d.Steps = append(d.Steps, automation.Step{ID: id, Tool: n.Name, NodeVersion: n.Version, Args: json.RawMessage(`{}`)})
-			w.editor.Replace(d)
-			w.graph.Selected = id
-			w.graph = w.editor.Graph(w.graph)
-			m.queueWorkflow("edit", "")
+			m.queueWorkflow("add-operation", v["type"])
 			return nil
 		})
 		m.dialog.form.Choices = map[string][]string{"type": names}
@@ -250,7 +249,7 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 				d := w.editor.Clone()
 				d.Steps[i] = changed
 				w.editor.Replace(d)
-				w.graph = w.editor.Graph(w.graph)
+				w.graph = m.workflowGraph(w.graph)
 				return nil
 			})
 			m.dialog.form.Choices = schema.Choices()
@@ -272,7 +271,7 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 				return err
 			}
 			w.editor.Replace(d)
-			w.graph = w.editor.Graph(w.graph)
+			w.graph = m.workflowGraph(w.graph)
 			return nil
 		})
 	case "link":
@@ -301,6 +300,10 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 		m.workflowConnections()
 
 	case "delete":
+		if schedule := m.workflowSelectedSchedule(); schedule != nil {
+			m.workflowDeleteSchedule(*schedule)
+			return nil
+		}
 		id := w.graph.Selected
 		m.openForm("Delete node", "References to this node must be repaired before validation succeeds.", "Delete", []formField{{Key: "id", Label: "Type node ID to delete"}}, func(v map[string]string) error {
 			if id == "" || v["id"] != id {
@@ -315,7 +318,7 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 			}
 			w.editor.Replace(d)
 			w.graph.Selected = ""
-			w.graph = w.editor.Graph(w.graph)
+			w.graph = m.workflowGraph(w.graph)
 			return nil
 		})
 	case "run-json", "validate-json":
@@ -387,25 +390,63 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 			w.notice = "Unlock node positions before auto-layout"
 			return nil
 		}
-		w.graph = w.editor.Graph(graph.Model{Selected: w.graph.Selected})
+		w.graph = m.workflowGraph(graph.Model{Selected: w.graph.Selected})
 		m.persistWorkflowLayout()
 	case "undo":
 		w.editor.Undo()
-		w.graph = w.editor.Graph(w.graph)
+		w.graph = m.workflowGraph(w.graph)
 	case "redo":
 		w.editor.Redo()
-		w.graph = w.editor.Graph(w.graph)
+		w.graph = m.workflowGraph(w.graph)
 	case "draft":
 		w.runID = ""
 		w.run = nil
-		w.graph = w.editor.Graph(graph.Model{})
+		w.graph = m.workflowGraph(graph.Model{})
 		w.offset = 0
 	}
 	return nil
 }
 
+func (m *model) workflowAddOperation(name string) {
+	w := m.workflows
+	if w.busy || w.run != nil {
+		return
+	}
+	n, err := w.registry.Node(name)
+	if err != nil {
+		w.notice = err.Error()
+		return
+	}
+	draft := w.editor.Source()
+	m.openForm("Add operation", name, "Add", []formField{{Key: "id", Label: "Unique node ID", Value: fmt.Sprintf("step_%d", len(w.editor.Definition.Steps)+1)}}, func(v map[string]string) error {
+		if w.busy || w.run != nil || w.editor.Source() != draft {
+			return fmt.Errorf("draft changed; add the node again")
+		}
+		id := strings.TrimSpace(v["id"])
+		if id == "" || strings.HasPrefix(id, "@") || strings.Contains(id, "/") {
+			return fmt.Errorf("enter a node ID without / or a leading @")
+		}
+		d := w.editor.Clone()
+		for _, s := range d.Steps {
+			if s.ID == id {
+				return fmt.Errorf("node ID already exists")
+			}
+		}
+		d.Steps = append(d.Steps, automation.Step{ID: id, Tool: n.Name, NodeVersion: n.Version, Args: json.RawMessage(`{}`)})
+		w.editor.Replace(d)
+		w.graph.Selected = id
+		w.graph = m.workflowGraph(w.graph)
+		m.queueWorkflow("edit", "")
+		return nil
+	})
+}
+
 func (m *model) workflowEdit() {
 	w := m.workflows
+	if m.workflowSelectedSchedule() != nil {
+		m.workflowSchedule()
+		return
+	}
 	idx := -1
 	for i, s := range w.editor.Definition.Steps {
 		if s.ID == w.graph.Selected {
@@ -438,7 +479,7 @@ func (m *model) workflowEdit() {
 		d := w.editor.Clone()
 		d.Steps[idx].Args = args
 		w.editor.Replace(d)
-		w.graph = w.editor.Graph(w.graph)
+		w.graph = m.workflowGraph(w.graph)
 		return nil
 	})
 	m.dialog.form.Choices = schema.Choices()
@@ -623,7 +664,7 @@ func (m *model) workflowScreen() string {
 	cw, ch := m.workflowCanvasSize()
 	m.workflowEnsureSelection()
 	if w.run == nil {
-		w.graph = w.editor.Graph(w.graph)
+		w.graph = m.workflowGraph(w.graph)
 	}
 	styles := popupSurface()
 	normal := styles.Normal.Background(lipgloss.Color(currentPalette().background))
@@ -665,6 +706,9 @@ func (m *model) workflowScreen() string {
 		tabs, _ := m.workflowInspectorTabs()
 		body := cellLine(tabs, max(1, width-2)) + "\n\n" + strings.Join(popup.ScrollRows(visible, max(1, width-2), w.offset, len(content), m.styles.dim), "\n")
 		heading := "Inspect / " + cleanText(w.graph.Selected)
+		if m.workflowSelectedSchedule() != nil && w.run == nil {
+			heading = "Inspect / Schedule"
+		}
 		if w.inspect {
 			heading += " [focused]"
 		}
@@ -836,6 +880,12 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		if !w.overview {
 			if id, port, output := canvas.PortHit(x, y); id != "" {
 				w.graph.Selected = id
+				if strings.HasPrefix(id, workflowSchedulePrefix) || strings.HasPrefix(w.connectFrom, workflowSchedulePrefix) {
+					w.connectFrom = ""
+					w.inspectorOpen = true
+					w.notice = "Schedule starts the whole recipe; its connections are automatic"
+					return m, nil
+				}
 				m.workflowFocusPort(port, output)
 				w.inspect = false
 				if w.run != nil || w.busy {

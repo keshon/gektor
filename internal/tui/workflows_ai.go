@@ -9,20 +9,21 @@ import (
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
 	editor "github.com/keshon/gektor/internal/tui/workflow"
+	"github.com/keshon/gektor/internal/workspace"
 	"strings"
 	"time"
 )
 
 // A small envelope works with strict remote schemas and local GBNF alike.
 // The contained recipe is checked against the registry before it can be applied.
-const workflowProposalSchema = `{"type":"object","properties":{"recipe_json":{"type":"string"}},"required":["recipe_json"],"additionalProperties":false}`
-const workflowProposalGrammar = `root ::= "{" ws "\"recipe_json\"" ws ":" ws string ws "}"
+const workflowProposalSchema = `{"type":"object","properties":{"recipe_json":{"type":"string"},"note":{"type":"string"}},"required":["recipe_json","note"],"additionalProperties":false}`
+const workflowProposalGrammar = `root ::= "{" ws "\"recipe_json\"" ws ":" ws string ws "," ws "\"note\"" ws ":" ws string ws "}"
 string ::= "\"" ([^"\\\x00-\x1F] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\""
 ws ::= [ \t\n\r]*`
 
 type workflowProposal struct {
-	before, source string
-	err            error
+	before, source, note string
+	err                  error
 }
 
 func (m *model) proposeWorkflow(prompt string) tea.Cmd {
@@ -41,6 +42,7 @@ func (m *model) proposeWorkflow(prompt string) tea.Cmd {
 		return nil
 	}
 	schema := string(s.DefinitionSchema())
+	contracts, _ := json.Marshal(w.registry.Contracts())
 	before := w.editor.Source()
 	w.busy = true
 	w.notice = "AI drafting a proposal · Esc cancels"
@@ -50,7 +52,7 @@ func (m *model) proposeWorkflow(prompt string) tea.Cmd {
 	if m.baseEnv.MaxTokens > 0 {
 		output = min(output, m.baseEnv.MaxTokens)
 	}
-	request := llm.ChatRequest{MaxTokens: output, Temperature: m.baseEnv.Temperature, Messages: []llm.Message{{Role: llm.RoleSystem, Content: prompts.WorkflowEdit}, {Role: llm.RoleUser, Content: "Definition schema:\n" + schema + "\nCurrent draft:\n" + before + "\nRequested change:\n" + prompt}}, JSONSchema: workflowProposalSchema, Grammar: workflowProposalGrammar}
+	request := llm.ChatRequest{MaxTokens: output, Temperature: m.baseEnv.Temperature, Messages: []llm.Message{{Role: llm.RoleSystem, Content: prompts.WorkflowEdit + "\n\n" + workspace.WorkflowGuide}, {Role: llm.RoleUser, Content: "Definition schema:\n" + schema + "\nOperation contracts:\n" + string(contracts) + "\nCurrent draft:\n" + before + "\nRequested change:\n" + prompt}}, JSONSchema: workflowProposalSchema, Grammar: workflowProposalGrammar}
 	limit := m.baseEnv.ContextLimit
 	return func() tea.Msg {
 		defer cancel()
@@ -60,6 +62,7 @@ func (m *model) proposeWorkflow(prompt string) tea.Cmd {
 		response, err := client.Chat(ctx, request)
 		var envelope struct {
 			Recipe string `json:"recipe_json"`
+			Note   string `json:"note"`
 		}
 		if err == nil {
 			err = json.Unmarshal([]byte(response.Message.Content), &envelope)
@@ -67,10 +70,10 @@ func (m *model) proposeWorkflow(prompt string) tea.Cmd {
 		if err == nil && (response.FinishReason == "length" || len(response.Message.ToolCalls) > 0) {
 			err = fmt.Errorf("model returned incomplete output or an unexpected tool call")
 		}
-		if len(envelope.Recipe) > 64<<10 {
+		if len(envelope.Recipe) > 64<<10 || len(envelope.Note) > 4096 {
 			err = fmt.Errorf("proposal exceeds 64 KiB")
 		}
-		return workflowProposal{before: before, source: envelope.Recipe, err: err}
+		return workflowProposal{before: before, source: envelope.Recipe, note: envelope.Note, err: err}
 	}
 
 }
@@ -95,6 +98,9 @@ func (m *model) acceptWorkflowProposal(p workflowProposal) {
 		return
 	}
 	lines := []string{"Proposal only · no files saved or operations executed.", "S apply to draft · Esc discard", ""}
+	if p.note != "" {
+		lines = append(lines, p.note, "")
+	}
 	old := map[string]string{}
 	for _, step := range w.editor.Definition.Steps {
 		b, _ := json.MarshalIndent(step, "", "  ")
@@ -123,7 +129,7 @@ func (m *model) acceptWorkflowProposal(p workflowProposal) {
 			return fmt.Errorf("draft changed since the request; ask for a fresh proposal")
 		}
 		w.editor.Replace(d)
-		w.graph = w.editor.Graph(w.graph)
+		w.graph = m.workflowGraph(w.graph)
 		w.notice = "Proposal applied to draft · Ctrl+S saves"
 		return nil
 	}

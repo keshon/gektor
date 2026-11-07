@@ -82,7 +82,7 @@ func TestSystemInfoReturnsValidSkillsAlongsideWarnings(t *testing.T) {
 	if err := json.Unmarshal([]byte(text), &page); err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Skills) != 1 || page.Skills[0].ID != "good" || len(page.Warnings) == 0 {
+	if len(page.Skills) != 2 || page.Skills[0].ID != "good" || len(page.Warnings) == 0 {
 		t.Fatal(text)
 	}
 }

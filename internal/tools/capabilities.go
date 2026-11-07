@@ -383,7 +383,14 @@ func (t DiscoverCapabilities) Run(ctx context.Context, args json.RawMessage) (st
 	}
 	result := []capabilityEntry{}
 	for _, entry := range t.Catalog.entries() {
-		if strings.Contains(strings.ToLower(entry.ID+" "+entry.Description), strings.ToLower(in.Query)) {
+		match := true
+		for _, term := range strings.Fields(strings.ToLower(in.Query)) {
+			if !strings.Contains(strings.ToLower(entry.ID+" "+entry.Description), term) {
+				match = false
+				break
+			}
+		}
+		if match {
 			result = append(result, entry)
 		}
 	}

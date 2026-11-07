@@ -62,6 +62,9 @@ func workflowPortLabel(n graph.Node, key string, output bool) string {
 }
 
 func (m *model) workflowDetailRows() []string {
+	if schedule := m.workflowSelectedSchedule(); schedule != nil && m.workflows.run == nil {
+		return m.workflowScheduleDetails(*schedule)
+	}
 	w := m.workflows
 	step := m.workflowSelectedStep()
 	rows := []string{"Inspect"}
@@ -318,7 +321,7 @@ func (m *model) workflowEditCode() {
 				args["code"], _ = json.Marshal(v["code"])
 				d.Steps[i].Args, _ = json.Marshal(args)
 				w.editor.Replace(d)
-				w.graph = w.editor.Graph(w.graph)
+				w.graph = m.workflowGraph(w.graph)
 				return nil
 			}
 		}

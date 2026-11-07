@@ -21,6 +21,13 @@ func BindWorkflowPolicy(c *Capabilities, ws *workspace.Workspace, policy permiss
 	authorize, output := workflowPolicy(ws, policy, gate)
 	for _, p := range c.Native {
 		for _, tool := range p.Tools {
+			if t, ok := tool.(*workflow.Status); ok {
+				t.StoreDir = storeDir
+			}
+			if t, ok := tool.(*workflow.Schedule); ok {
+				t.StoreDir = storeDir
+				t.Authorize = authorize
+			}
 			if t, ok := tool.(*workflow.Schema); ok {
 				t.StoreDir = storeDir
 			}

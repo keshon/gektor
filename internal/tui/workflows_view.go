@@ -30,6 +30,9 @@ func (m *model) workflowSteps() ([]automation.Step, error) {
 }
 
 func (m *model) workflowEnsureSelection() {
+	if m.workflowSelectedSchedule() != nil && m.workflows.run == nil {
+		return
+	}
 	steps, _ := m.workflowSteps()
 	for _, step := range steps {
 		if step.ID == m.workflows.graph.Selected {

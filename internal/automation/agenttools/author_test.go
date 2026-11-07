@@ -7,8 +7,50 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/keshon/gektor/internal/automation"
+
 	"github.com/keshon/gektor/internal/workspace"
 )
+
+func TestWorkflowContractsAndRunnableExample(t *testing.T) {
+	ws, err := workspace.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	base := t.TempDir()
+	out, err := (Schema{WS: ws, StoreDir: base}).Run(t.Context(), json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var catalog struct {
+		Contracts map[string]automation.Contract `json:"operation_contracts"`
+		Examples  []json.RawMessage              `json:"argument_examples"`
+	}
+	if err := json.Unmarshal([]byte(out), &catalog); err != nil {
+		t.Fatal(err)
+	}
+	script := catalog.Contracts["script_transform"]
+	if !strings.Contains(script.Description, "JavaScript") || !script.ReadOnly || !script.RetrySafe || string(script.OutputSchema) != "true" {
+		t.Fatal(script)
+	}
+	for _, name := range []string{"artifact_write", "artifact_read_text", "http_request", "model_generate", "record_read", "run_program", "image_inspect"} {
+		c := catalog.Contracts[name]
+		if len(c.OutputSchema) == 0 || string(c.OutputSchema) == "true" {
+			t.Fatal("missing output contract", name)
+		}
+	}
+	args := recipeArgs(t, ws, catalog.Examples[0])
+	for _, tc := range []struct {
+		args json.RawMessage
+		want string
+	}{{args, `"doubled":6`}, {json.RawMessage(`{"recipe_path":"recipe.json","inputs":{"count":11}}`), `"doubled":22`}} {
+		out, err := (Tool{WS: ws, StoreDir: base, Authorize: allow}).Run(t.Context(), tc.args)
+		if err != nil || !strings.Contains(out, tc.want) {
+			t.Fatal(out, err)
+		}
+	}
+}
 
 const draftRecipe = `{"version":3,"name":"Draft","inputs":{"exact":{"type":"integer","default":9007199254740993}},"steps":[{"id":"inspect","tool":"image_inspect","args":{"paths":["image.png"]}}]}`
 

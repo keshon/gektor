@@ -367,8 +367,32 @@ remain live resources; a snapshot does not freeze their contents.
 
 The optional [HTTP API](#http-api-and-webhooks) submits to this same queue.
 Named credentials reference environment values; they are not a secret vault.
-The TUI can edit recipes and inspect runs. Queue and schedule management use
-the CLI/service commands linked above.
+The TUI can edit recipes, inspect runs and manage a recipe's Schedule trigger.
+See [the TUI guide](tui.md#schedule-a-workflow) for timing, input values and
+service setup. Schedule cards describe triggers stored in the workspace's
+user data; they are not executable steps in recipe JSON. Existing CLI schedules
+for an opened recipe also appear as cards. Queue management uses the CLI/service
+commands linked above.
+
+The Agent can enable `native_workflows` and call `workflow_schema` to discover
+operation inputs, outputs and schedule triggers. The bundled `workflows` skill
+is available in every workspace. `workflow_schedule` creates, updates, pauses,
+resumes or removes a trigger; `workflow_schedules` lists settings and revisions. For example, after saving
+and validating a recipe, this schedules it every minute:
+
+```json
+{"action":"create","id":"uptime-minute","recipe_path":"uptime-checker-recipe.json","cron":"* * * * *","timezone":"UTC"}
+```
+
+Use `paused: true` when creating a trigger that should remain disabled.
+To update a trigger, first list it and pass its `expected_revision`. Omitted
+settings stay unchanged. Set `refresh_recipe: true` to replace its frozen recipe.
+Use `workflow_status` to find jobs and run IDs, then `workflow_inspect` to check
+actual outputs. A held worker lease shows queue ownership, not worker health.
+
+Creating a schedule does not start the service or execute the recipe.
+The service uses its own permission rules. These triggers use the same store
+as the TUI and CLI; they do not use the operating system's scheduler.
 
 ## HTTP API and webhooks
 

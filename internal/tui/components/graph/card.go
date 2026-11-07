@@ -37,11 +37,15 @@ func (m Model) card(n Node, normal, selected lipgloss.Style, incoming, outgoing 
 	}
 	top := border.Render(tl + strings.Repeat(h, inner) + tr)
 	bottom := border.Render(bl + strings.Repeat(h, inner) + br)
+	heading := n.Title
+	if heading == "" {
+		heading = n.ID
+	}
 	if m.Compact {
-		return []string{top, line(" "+clean(n.ID), title), bottom}
+		return []string{top, line(" "+clean(heading), title), bottom}
 	}
 	rule := border.Render(jl + strings.Repeat(h, inner) + jr)
-	rows := []string{top, line(" "+clean(n.ID), title), line(" "+clean(n.Label), normal), rule}
+	rows := []string{top, line(" "+clean(heading), title), line(" "+clean(n.Label), normal), rule}
 	inputs, outputs := portList(n.Inputs, false), portList(n.Outputs, true)
 	leftWidth := (inner - 2) / 2
 	rightWidth := inner - 2 - leftWidth

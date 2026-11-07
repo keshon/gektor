@@ -127,7 +127,9 @@ func TestWorkflowExecutionReviewAndSave(t *testing.T) {
 	if result.err != nil {
 		t.Fatal(result.err)
 	}
-	m.acceptWorkflowResult(result)
+	if cmd := m.acceptWorkflowResult(result); cmd != nil {
+		m.acceptWorkflowResult(cmd().(workflowResult))
+	}
 	if w.editor.Dirty() {
 		t.Fatal("save remained dirty")
 	}
@@ -223,6 +225,17 @@ func TestWorkflowAIProposalCannotApplyToChangedDraft(t *testing.T) {
 	w.editor.Definition.Name = "Changed elsewhere"
 	if err := m.dialog.save(); err == nil {
 		t.Fatal("stale proposal applied")
+	}
+}
+
+func TestWorkflowProposalShowsScheduleHandoff(t *testing.T) {
+	m := workflowTestModel(t)
+	m.workflows.editor.Replace(workflowRecipe())
+	before := m.workflows.editor.Source()
+	note := "Add a Schedule card to save the trigger. This proposal has not scheduled anything."
+	m.acceptWorkflowProposal(workflowProposal{before: before, source: before, note: note})
+	if m.dialog == nil || !strings.Contains(strings.Join(m.dialog.lines, "\n"), note) {
+		t.Fatal("missing handoff")
 	}
 }
 

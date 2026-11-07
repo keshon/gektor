@@ -15,8 +15,8 @@ type Port struct {
 	Key, Label string
 }
 type Node struct {
-	ID, Label, Detail string
-	Inputs, Outputs   []Port
+	ID, Title, Label, Detail string
+	Inputs, Outputs          []Port
 	Point
 }
 type Edge struct {
@@ -155,26 +155,19 @@ func (m Model) View(w, h int, normal, selected lipgloss.Style) string {
 			continue
 		}
 		incoming[[2]string{e.To, e.ToPort}], outgoing[[2]string{e.From, e.FromPort}] = true, true
-		path := m.routeEdge(a, b, e.FromPort, e.ToPort, used, &budget)
+		path := m.routeSegments(a, b, e.FromPort, e.ToPort, used, &budget)
 		if len(path) == 0 {
 			failed[[2]string{a.ID, e.FromPort}] = true
 		}
-		for i, p := range path {
+		visiblePath(path, m.Pan, w, h, func(p Point, mask int, arrow bool) {
 			stroke := strokes[p]
 			stroke.data = stroke.data || e.Data
 			stroke.focused = stroke.focused || e.From == m.Selected || e.To == m.Selected
-			if i == 0 {
-				stroke.mask |= west
-			} else {
-				stroke.mask |= direction(p, path[i-1])
-			}
-			if i == len(path)-1 {
-				stroke.mask |= east
-				stroke.arrow = true
-			} else {
-				stroke.mask |= direction(p, path[i+1])
-			}
+			stroke.mask |= mask
+			stroke.arrow = stroke.arrow || arrow
 			strokes[p] = stroke
+		})
+		for _, p := range path {
 			used[p] = true
 		}
 	}

@@ -26,14 +26,14 @@ func TestNestedSkillDiscoveryAndBoundedCatalog(t *testing.T) {
 	}
 	defer w.Close()
 	list, err := w.Skills()
-	if err != nil || len(list) != 80 {
+	if err != nil || len(list) != 81 {
 		t.Fatal(len(list), err)
 	}
 	if !strings.Contains(list[79].Path, "skill-79/") || !strings.Contains(list[79].Description, "description") {
 		t.Fatal(list[79])
 	}
 	got := w.Instructions()
-	if !strings.Contains(got, "80 workspace skills") || !strings.Contains(got, "group=skills") || strings.Contains(got, "PRIVATE GUIDE") || len(got) > 2048 {
+	if !strings.Contains(got, "81 workspace skills") || !strings.Contains(got, "group=skills") || strings.Contains(got, "PRIVATE GUIDE") || len(got) > 2048 {
 		t.Fatal(got)
 	}
 	// Discovery is live; the cached prompt remains stable.
@@ -41,7 +41,7 @@ func TestNestedSkillDiscoveryAndBoundedCatalog(t *testing.T) {
 		t.Fatal(err)
 	}
 	list, err = w.Skills()
-	if err != nil || len(list) != 79 || w.Instructions() != got {
+	if err != nil || len(list) != 80 || w.Instructions() != got {
 		t.Fatal(len(list), err)
 	}
 }
@@ -94,7 +94,7 @@ func TestCompactSkillCatalogRetainsFullSearchMetadata(t *testing.T) {
 		t.Fatal(w.Instructions())
 	}
 	entries, err := w.Skills()
-	if err != nil || len(entries) != 1 || entries[0].Description != description {
+	if err != nil || len(entries) != 2 || entries[0].Description != description {
 		t.Fatal(entries, err)
 	}
 	_, guide, _, err := w.LoadSkill("reader")

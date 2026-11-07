@@ -300,7 +300,7 @@ func portLabelForDisplay(pointer string) string {
 
 func (m *model) workflowConnectionChanged() {
 	w := m.workflows
-	w.graph = w.editor.Graph(w.graph)
+	w.graph = m.workflowGraph(w.graph)
 	w.notice = "Connection changed · V validates the draft"
 	// Required-argument errors are visible immediately, without running a node.
 	for _, s := range w.editor.Definition.Steps {

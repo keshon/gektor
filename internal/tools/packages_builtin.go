@@ -5,9 +5,13 @@ import (
 	workflow "github.com/keshon/gektor/internal/automation/agenttools"
 	"github.com/keshon/gektor/internal/integrations/pixelita"
 	imageagent "github.com/keshon/gektor/internal/integrations/pixelita/agenttools"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 func nativeInstructions(id string) string {
+	if id == "native_workflows" {
+		return workspace.WorkflowGuide
+	}
 	if id == "native_images" {
 		return "These native tools call Pixelita in-process; CLI setup/discovery is unnecessary. unsupported_metadata is a shared engine limitation: do not retry via CLI, keep or apply. Report the restriction and preserve profiles. Claim source preservation only from matching source hashes."
 	}
@@ -78,11 +82,14 @@ func builtinPackages() []packageDefinition {
 				return &imageagent.Tool{Operation: pixelita.Operation{WS: d.WS, Operation: "compare"}}
 			}, true},
 		}},
-		{"native_workflows", "Validate and run saved image/record recipes; inspect runs and structured records", Lazy, []toolEntry{
+		{"native_workflows", "Create, validate and run workflow recipes and nodes; native cron/schedule triggers, run inspection and structured records. Enable, then call workflow_schema.", Lazy, []toolEntry{
 			{func(d packageDependencies) agent.Tool { return &workflow.Schema{WS: d.WS} }, true},
 			{func(d packageDependencies) agent.Tool { return &workflow.Tool{WS: d.WS, ValidateOnly: true} }, true},
 			{func(d packageDependencies) agent.Tool { return &workflow.Tool{WS: d.WS} }, false},
 			{func(d packageDependencies) agent.Tool { return &workflow.Inspect{WS: d.WS} }, true},
+			{func(d packageDependencies) agent.Tool { return &workflow.Schedule{WS: d.WS, List: true} }, true},
+			{func(d packageDependencies) agent.Tool { return &workflow.Schedule{WS: d.WS} }, false},
+			{func(d packageDependencies) agent.Tool { return &workflow.Status{WS: d.WS} }, true},
 			{func(d packageDependencies) agent.Tool { return &workflow.Data{WS: d.WS} }, true},
 			{func(d packageDependencies) agent.Tool { return &workflow.Data{WS: d.WS, Write: true} }, false},
 		}},

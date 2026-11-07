@@ -21,7 +21,7 @@ var slots = make(chan struct{}, 1)
 
 func Definition(resolve Resolver) automation.Node {
 	schema := json.RawMessage(`{"type":"object","properties":{"profile":{"type":"string","minLength":1},"prompt":{"type":"string","minLength":1,"maxLength":32768},"input":{},"output_schema":{"type":"object"},"max_tokens":{"type":"integer","minimum":1,"maximum":8192},"timeout_seconds":{"type":"integer","minimum":1,"maximum":300}},"required":["profile","prompt"],"additionalProperties":false}`)
-	return automation.Node{Name: "model_generate", Version: 1, Description: "One bounded model call using a workspace profile, explicit prompt/input and optional output JSON schema. No tools or conversation history.", InputSchema: schema, Resources: func(raw json.RawMessage) ([]string, error) {
+	return automation.Node{Name: "model_generate", Version: 1, Description: "One bounded model call using a workspace profile, explicit prompt/input and optional output JSON schema. No tools or conversation history.", InputSchema: schema, OutputSchema: json.RawMessage(`{"type":"object","properties":{"text":{"type":"string"},"model":{"type":"string"},"usage":{"type":"object"},"data":{}},"required":["text","model","usage"]}`), Resources: func(raw json.RawMessage) ([]string, error) {
 		var in struct{ Profile string }
 		err := json.Unmarshal(raw, &in)
 		return []string{in.Profile}, err

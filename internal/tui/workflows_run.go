@@ -14,6 +14,7 @@ import (
 	editor "github.com/keshon/gektor/internal/tui/workflow"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -29,6 +30,11 @@ func (m *model) workflowAction(a workflowAction) tea.Cmd {
 		return nil
 	}
 	switch a.action {
+	case "add-operation":
+		m.workflowAddOperation(a.value)
+		return nil
+	case "schedule-save", "schedule-delete":
+		return m.workflowScheduleChange(a.action, a.value)
 	case "input-form", "invoke":
 		var in workflowInvocation
 		if json.Unmarshal([]byte(a.value), &in) != nil {
@@ -40,6 +46,10 @@ func (m *model) workflowAction(a workflowAction) tea.Cmd {
 		}
 		if a.action == "input-form" {
 			m.workflowInputForm(in)
+			return nil
+		}
+		if in.Action == "schedule" {
+			m.workflowScheduleForm(in)
 			return nil
 		}
 		if in.Action != "run" && in.Action != "validate" {
@@ -198,6 +208,21 @@ func (m *model) acceptWorkflowResult(r workflowResult) tea.Cmd {
 		m.openDialog("Workflow failed", rows)
 		return nil
 	}
+	if r.action == "schedule-save" || r.action == "schedule-delete" || r.action == "schedule-refresh" {
+		w.schedules = r.schedules
+		w.graph = m.workflowGraph(w.graph)
+		m.loadWorkflowLayout()
+		if r.action == "schedule-save" {
+			w.graph.Selected = workflowSchedulePrefix + r.scheduleID
+			w.notice = "Schedule saved. Keep the workflow service running."
+		} else if r.action == "schedule-delete" {
+			w.notice = "Schedule removed. Queued jobs and saved runs are kept."
+		} else {
+			w.notice = "Schedules refreshed"
+		}
+		m.persistWorkflowLayout()
+		return nil
+	}
 	if r.source != "" {
 		d, err := editor.Decode([]byte(r.source))
 		if err != nil {
@@ -208,7 +233,7 @@ func (m *model) acceptWorkflowResult(r workflowResult) tea.Cmd {
 		w.editor = &editor.Editor{Definition: d, Path: r.path}
 		w.editor.Saved = w.editor.Source()
 		w.run = nil
-		w.graph = w.editor.Graph(graph.Model{})
+		w.graph = m.workflowGraph(graph.Model{})
 		m.loadWorkflowLayout()
 	}
 	if r.path != "" && r.source == "" {
@@ -232,6 +257,9 @@ func (m *model) acceptWorkflowResult(r workflowResult) tea.Cmd {
 	}
 	if w.runID != "" {
 		return m.workflowPoll(w.runID, false)
+	}
+	if r.action == "open-path" || r.action == "save-path" {
+		return m.workflowScheduleRefresh()
 	}
 	return nil
 }
@@ -318,6 +346,14 @@ func (m *model) loadWorkflowLayout() {
 		}
 	}
 	m.workflows.positionsLocked = layout.Locked
+	hasTrigger := false
+	for _, n := range m.workflows.graph.Nodes {
+		if strings.HasPrefix(n.ID, workflowSchedulePrefix) {
+			if _, ok := layout.Positions[n.ID]; ok {
+				hasTrigger = true
+			}
+		}
+	}
 	for i, n := range m.workflows.graph.Nodes {
 		if p, ok := layout.Positions[n.ID]; ok && p.X >= 0 && p.Y >= 0 && p.X < 10000 && p.Y < 10000 {
 			// Earlier cards used 30x8 layout spacing. Make room for named ports
@@ -331,6 +367,9 @@ func (m *model) loadWorkflowLayout() {
 				}
 			}
 			m.workflows.graph.Nodes[i].Point = p
+			if !hasTrigger && len(m.workflowRecipeSchedules()) > 0 && !strings.HasPrefix(n.ID, workflowSchedulePrefix) {
+				m.workflows.graph.Nodes[i].X += graph.NodeWidth + 10
+			}
 		}
 	}
 }

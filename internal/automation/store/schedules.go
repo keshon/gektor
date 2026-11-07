@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"github.com/robfig/cron/v3"
 	"sort"
@@ -26,6 +27,16 @@ func nextSchedule(s Schedule, now time.Time) (time.Time, error) {
 	return next.UTC(), nil
 }
 func (s *Store) PutSchedule(ctx context.Context, v Schedule) error {
+	return s.putSchedule(ctx, v, nil)
+}
+
+// UpdateSchedule replaces a trigger atomically. Scheduler ticks may advance Next
+// while a form is open; edits by another operator must not be overwritten.
+func (s *Store) UpdateSchedule(ctx context.Context, v, expected Schedule) error {
+	return s.putSchedule(ctx, v, &expected)
+}
+
+func (s *Store) putSchedule(ctx context.Context, v Schedule, expected *Schedule) error {
 	if err := validateSnapshot(v.Source, v.Inputs); err != nil {
 		return err
 	}
@@ -50,12 +61,18 @@ func (s *Store) PutSchedule(ctx context.Context, v Schedule) error {
 	}
 	v.Next = next
 	return s.control(ctx, func(c *control) error {
-		if _, ok := c.Schedules[v.ID]; ok {
+		old, exists := c.Schedules[v.ID]
+		if expected != nil {
+			if !exists || !sameSchedule(old, *expected) {
+				return fmt.Errorf("schedule changed; refresh before editing")
+			}
+		} else if exists {
 			return fmt.Errorf("schedule exists; remove it before replacing")
 		}
-		if len(c.Schedules) >= 100 {
+		if !exists && len(c.Schedules) >= 100 {
 			return fmt.Errorf("schedule limit reached (100)")
 		}
+		v.Revision = c.nextScheduleRevision()
 		c.Schedules[v.ID] = v
 		return nil
 	})
@@ -78,6 +95,7 @@ func (s *Store) SetSchedulePaused(ctx context.Context, id string, paused bool) e
 			return fmt.Errorf("unknown schedule")
 		}
 		v.Paused = paused
+		v.Revision = c.nextScheduleRevision()
 		if !paused {
 			var err error
 			v.Next, err = nextSchedule(v, time.Now())
@@ -90,10 +108,31 @@ func (s *Store) SetSchedulePaused(ctx context.Context, id string, paused bool) e
 	})
 }
 func (s *Store) DeleteSchedule(ctx context.Context, id string) error {
+	return s.deleteSchedule(ctx, id, nil)
+}
+
+func (s *Store) DeleteScheduleIfUnchanged(ctx context.Context, expected Schedule) error {
+	return s.deleteSchedule(ctx, expected.ID, &expected)
+}
+
+func sameSchedule(a, b Schedule) bool {
+	a.Next, b.Next = time.Time{}, time.Time{}
+	x, _ := json.Marshal(a)
+	y, _ := json.Marshal(b)
+	return string(x) == string(y)
+}
+
+func (s *Store) deleteSchedule(ctx context.Context, id string, expected *Schedule) error {
 	return s.control(ctx, func(c *control) error {
-		if _, ok := c.Schedules[id]; !ok {
+		old, ok := c.Schedules[id]
+		if !ok {
 			return fmt.Errorf("unknown schedule")
 		}
+		if expected != nil && !sameSchedule(old, *expected) {
+			return fmt.Errorf("schedule changed; refresh before removing")
+		}
+		// Capture legacy revisions before deleting the last surviving trigger.
+		c.nextScheduleRevision()
 		delete(c.Schedules, id)
 		return nil
 	})
@@ -134,4 +173,15 @@ func (s *Store) Tick(ctx context.Context, now time.Time) error {
 		}
 		return nil
 	})
+}
+
+// Keep generations across deletion so a stale editor cannot modify a replacement trigger.
+func (c *control) nextScheduleRevision() uint64 {
+	for _, s := range c.Schedules {
+		if s.Revision > c.ScheduleRevision {
+			c.ScheduleRevision = s.Revision
+		}
+	}
+	c.ScheduleRevision++
+	return c.ScheduleRevision
 }

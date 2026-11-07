@@ -159,10 +159,12 @@ func (s *Store) Run(id string) (RunState, error) {
 }
 
 type RunSummary struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Status string `json:"status"`
-	Error  string `json:"error,omitempty"`
+	RecipePath string    `json:"recipe_path,omitempty"`
+	Started    time.Time `json:"started"`
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Status     string    `json:"status"`
+	Error      string    `json:"error,omitempty"`
 }
 
 func (s *Store) Runs() ([]RunSummary, error) {
@@ -188,7 +190,7 @@ func (s *Store) Runs() ([]RunSummary, error) {
 			out = append(out, RunSummary{ID: e.Name(), Status: "unreadable", Error: err.Error()})
 			continue
 		}
-		out = append(out, RunSummary{ID: e.Name(), Name: r.Record.Definition.Name, Status: r.Status})
+		out = append(out, RunSummary{ID: e.Name(), Name: r.Record.Definition.Name, Status: r.Status, RecipePath: r.Record.RecipePath, Started: r.Record.Started})
 	}
 	return out, nil
 }

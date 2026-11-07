@@ -15,7 +15,8 @@ import (
 func Definitions(ws *workspace.Workspace) []automation.Node {
 	return []automation.Node{
 		{Name: "artifact_import", Version: 1, Description: "Copy a regular workspace file into immutable run-owned storage (maximum 16 MiB). Returns artifact metadata; downstream nodes reference its id.",
-			InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","minLength":1}},"required":["path"],"additionalProperties":false}`),
+			OutputSchema: json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"},"run_id":{"type":"string"},"step_id":{"type":"string"},"name":{"type":"string"},"media_type":{"type":"string"},"sha256":{"type":"string"},"created":{"type":"string"},"size":{"type":"integer"}},"required":["id","run_id","step_id","name","media_type","size","sha256","created"]}`),
+			InputSchema:  json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","minLength":1}},"required":["path"],"additionalProperties":false}`),
 			Resources: func(raw json.RawMessage) ([]string, error) {
 				var in struct{ Path string }
 				if err := json.Unmarshal(raw, &in); err != nil {
@@ -55,7 +56,8 @@ func Definitions(ws *workspace.Workspace) []automation.Node {
 				return encode(meta, err)
 			}},
 		{Name: "artifact_write", Version: 1, Description: "Save explicit UTF-8 text as an immutable run artifact. Returns metadata, not a workspace path.",
-			InputSchema: json.RawMessage(`{"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":255},"text":{"type":"string","maxLength":65536}},"required":["name","text"],"additionalProperties":false}`),
+			OutputSchema: json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"},"run_id":{"type":"string"},"step_id":{"type":"string"},"name":{"type":"string"},"media_type":{"type":"string"},"sha256":{"type":"string"},"created":{"type":"string"},"size":{"type":"integer"}},"required":["id","run_id","step_id","name","media_type","size","sha256","created"]}`),
+			InputSchema:  json.RawMessage(`{"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":255},"text":{"type":"string","maxLength":65536}},"required":["name","text"],"additionalProperties":false}`),
 			Resources: func(raw json.RawMessage) ([]string, error) {
 				var in struct{ Name string }
 				err := json.Unmarshal(raw, &in)
@@ -74,7 +76,8 @@ func Definitions(ws *workspace.Workspace) []automation.Node {
 				return encode(meta, err)
 			}},
 		{Name: "artifact_read_text", Version: 1, ReadOnly: true, RetrySafe: true, Description: "Read up to 32 KiB of UTF-8 text from an artifact in this run. Rejects binary or larger files; returns text and metadata.",
-			InputSchema: json.RawMessage(`{"type":"object","properties":{"id":{"type":"string","minLength":1,"maxLength":64}},"required":["id"],"additionalProperties":false}`),
+			OutputSchema: json.RawMessage(`{"type":"object","properties":{"artifact":{"type":"object","properties":{"id":{"type":"string"},"run_id":{"type":"string"},"step_id":{"type":"string"},"name":{"type":"string"},"media_type":{"type":"string"},"sha256":{"type":"string"},"created":{"type":"string"},"size":{"type":"integer"}},"required":["id","run_id","step_id","name","media_type","size","sha256","created"]},"text":{"type":"string"}},"required":["artifact","text"]}`),
+			InputSchema:  json.RawMessage(`{"type":"object","properties":{"id":{"type":"string","minLength":1,"maxLength":64}},"required":["id"],"additionalProperties":false}`),
 			Resources: func(raw json.RawMessage) ([]string, error) {
 				var in struct{ ID string }
 				err := json.Unmarshal(raw, &in)

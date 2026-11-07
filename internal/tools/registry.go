@@ -55,6 +55,12 @@ func PathResources(ws *workspace.Workspace, tool string, args json.RawMessage) (
 		if err != nil {
 			return nil, err
 		}
+	case "workflow_schedule":
+		var err error
+		paths, err = workflow.ScheduleResources(args)
+		if err != nil {
+			return nil, err
+		}
 	case "workflow_run", "workflow_validate":
 		var err error
 		paths, err = workflow.Resources(args)

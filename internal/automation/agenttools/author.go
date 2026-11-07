@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/keshon/gektor/internal/automation"
 	"github.com/keshon/gektor/internal/automation/service"
 	"github.com/keshon/gektor/internal/automation/store"
 
@@ -19,7 +20,7 @@ type Schema struct {
 
 func (Schema) Name() string { return "workflow_schema" }
 func (Schema) Description() string {
-	return "Read the workflow format and allowed operation schemas. Optional record_kind reads that kind's registered data schema. Does not execute operations."
+	return "Read the current recipe format, operation schemas and native schedule-trigger instructions. Optional record_kind reads that kind's registered data schema. Does not execute operations."
 }
 func (Schema) Mode() agent.ToolMode { return agent.Concurrent }
 func (Schema) ReadOnly() bool       { return true }
@@ -57,14 +58,17 @@ func (s Schema) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	}
 	operations := registry.Schemas()
 	data, err := json.Marshal(struct {
-		Recipe     json.RawMessage            `json:"recipe"`
-		Operations map[string]json.RawMessage `json:"operations"`
-		References string                     `json:"references"`
-		Examples   []json.RawMessage          `json:"argument_examples"`
-	}{definitionTool{}.Schema(), operations, `v3 references are JSON objects, not strings. No interpolation or workspace prefix is needed. A variants item has its written workspace path in output. Validation needs values or defaults for referenced inputs. workflow_call uses a literal workspace recipe_path and explicit inputs; its output is the called recipe's declared outputs object. Calls share one run; nested review IDs are qualified, for example daily/save.`, []json.RawMessage{
+		Recipe     json.RawMessage                `json:"recipe"`
+		Operations map[string]json.RawMessage     `json:"operations"`
+		Contracts  map[string]automation.Contract `json:"operation_contracts"`
+		References string                         `json:"references"`
+		Examples   []json.RawMessage              `json:"argument_examples"`
+		Scheduling json.RawMessage                `json:"schedule_trigger"`
+	}{definitionTool{}.Schema(), operations, registry.Contracts(), `Use operation_contracts for descriptions, inputs, outputs and retry safety. output_schema=true means the return value depends on the operation arguments or script. script_transform runs bundled JavaScript and returns exactly its JSON value, without an /output wrapper. Recipe outputs are VALUES or references, not type declarations; steps have no outputs field. v3 references are JSON objects, not strings. No interpolation or workspace prefix is needed. Validation needs values or defaults for referenced inputs. workflow_call returns the called recipe's declared outputs object.`, []json.RawMessage{
+		json.RawMessage(`{"version":3,"name":"Double count","inputs":{"count":{"type":"integer","default":3}},"steps":[{"id":"double","tool":"script_transform","args":{"input":{"$input":"count"},"code":"return input * 2;"}}],"outputs":{"doubled":{"$step":"double"}}}`),
 		json.RawMessage(`{"paths":[{"$input":"source"}]}`),
 		json.RawMessage(`{"paths":[{"$input":"source"},{"$step":"write","pointer":"/items/1/output"}]}`),
-	}})
+	}, json.RawMessage(`{"kind":"schedule","tool":"workflow_schedule","list_tool":"workflow_schedules","status_tool":"workflow_status","storage":"workspace user store, outside recipe JSON","description":"Native cron triggers start saved recipes. Do not add a schedule operation to steps. They appear as Schedule cards in the TUI. No Windows Task Scheduler or system cron is needed.","service_required":true,"service_command":"gektor workflow serve -workspace <workspace>","snapshot":"Creating a schedule freezes the saved recipe and input values; later recipe edits do not update it. Update requires expected_revision from workflow_schedules; refresh_recipe=true explicitly replaces the frozen recipe. workflow_status shows worker ownership and job/run IDs.","example":{"action":"create","id":"uptime-minute","recipe_path":"uptime-checker-recipe.json","cron":"* * * * *","timezone":"UTC"}}`)})
 	return string(data), err
 }
 

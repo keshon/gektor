@@ -14,6 +14,7 @@ import (
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/tools"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 type authorValidation struct {
@@ -57,7 +58,7 @@ func WorkflowAuthor(e Env, recipePath, stateFile string) (*agent.Agent, error) {
 	}
 	cfg := e.agentConfig(prompts.WorkflowAuthor, "workflow", stateFile)
 	project, _ := e.WS.InstructionSections()
-	core := prompts.WorkflowAuthor + "\n\n" + prompts.Environment(e.WS.Root(), false)
+	core := prompts.WorkflowAuthor + "\n\n" + workspace.WorkflowGuide + "\n\n" + prompts.Environment(e.WS.Root(), false)
 	cfg.System = core + project + "\n\n" + e.Identity
 	cfg.SystemSections = []llm.PromptSection{{Name: "core_instructions", Text: core}, {Name: "project_instructions", Text: project}, {Name: "identity", Text: "\n\n" + e.Identity}}
 	save := &workflow.Save{WS: e.WS, Path: path}

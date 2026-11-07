@@ -29,6 +29,7 @@ type Job struct {
 	SubmissionHash string                     `json:"submission_hash,omitempty"`
 }
 type Schedule struct {
+	Revision   uint64                     `json:"revision"`
 	ID         string                     `json:"id"`
 	RecipePath string                     `json:"recipe_path"`
 	Source     json.RawMessage            `json:"source"`
@@ -41,8 +42,9 @@ type Schedule struct {
 	Overlap    string                     `json:"overlap"`
 }
 type control struct {
-	Jobs      map[string]Job      `json:"jobs"`
-	Schedules map[string]Schedule `json:"schedules"`
+	ScheduleRevision uint64              `json:"schedule_revision,omitempty"`
+	Jobs             map[string]Job      `json:"jobs"`
+	Schedules        map[string]Schedule `json:"schedules"`
 }
 
 func (s *Store) control(ctx context.Context, fn func(*control) error) error {
@@ -240,6 +242,18 @@ func (s *Store) recoverJobs(ctx context.Context, includeUnlinked bool) error {
 
 // DaemonLease prevents two local schedulers from claiming the same workspace.
 func (s *Store) DaemonLease() (*os.File, error) { return s.lock("daemon.lock") }
+
+// WorkerLeaseHeld reports ownership, not worker health or successful execution.
+func (s *Store) WorkerLeaseHeld() (bool, error) {
+	lease, err := s.DaemonLease()
+	if errors.Is(err, errLocked) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return false, lease.Close()
+}
 
 // Retain the newest 1000 jobs; active jobs are never evicted. Run records remain.
 func makeJobRoom(c *control) error {

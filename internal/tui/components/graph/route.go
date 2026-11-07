@@ -5,34 +5,47 @@ import (
 	"sort"
 )
 
-// Routes use world cells, so panning clips the same path instead of changing it.
-// Search is bounded to keep a dense or overlapping canvas responsive.
-func (m Model) route(from, to Node, used map[Point]bool, budget *int) []Point {
-	return m.routeEdge(from, to, "", "", used, budget)
-}
-func (m Model) routeEdge(from, to Node, fromPort, toPort string, used map[Point]bool, budget *int) []Point {
+// Search card boundaries and port lanes, not every empty world cell. Panning
+// does not change the route; the renderer clips segments before drawing cells.
+func (m Model) routeSegments(from, to Node, fromPort, toPort string, used map[Point]bool, budget *int) []Point {
 	start := Point{from.X + m.nodeWidth(), from.Y + m.portRow(from, fromPort, true)}
 	end := Point{to.X - 1, to.Y + m.portRow(to, toPort, false)}
-	blocked := func(p Point) bool {
+	clear := func(a, b Point) bool {
 		for _, n := range m.Nodes {
-			if p.X >= n.X && p.X < n.X+m.nodeWidth() && p.Y >= n.Y && p.Y < n.Y+m.height(n) {
-				return true
+			right, bottom := n.X+m.nodeWidth()-1, n.Y+m.height(n)-1
+			if a.Y == b.Y && a.Y >= n.Y && a.Y <= bottom && max(a.X, b.X) >= n.X && min(a.X, b.X) <= right {
+				return false
+			}
+			if a.X == b.X && a.X >= n.X && a.X <= right && max(a.Y, b.Y) >= n.Y && min(a.Y, b.Y) <= bottom {
+				return false
 			}
 		}
-		return false
+		return true
 	}
-	if blocked(start) || blocked(end) {
+	if !clear(start, start) || !clear(end, end) {
 		return nil
 	}
-	minX, maxX, minY, maxY := min(start.X, end.X)-4, max(start.X, end.X)+4, min(start.Y, end.Y)-4, max(start.Y, end.Y)+4
+	xset, yset := map[int]bool{start.X: true, end.X: true}, map[int]bool{start.Y: true, end.Y: true}
 	for _, n := range m.Nodes {
-		minX = min(minX, n.X-3)
-		maxX = max(maxX, n.X+m.nodeWidth()+3)
-		minY = min(minY, n.Y-3)
-		maxY = max(maxY, n.Y+m.height(n)+3)
+		xset[n.X-1], xset[n.X+m.nodeWidth()] = true, true
+		yset[n.Y-1], yset[n.Y+m.height(n)] = true, true
 	}
+	coordinates := func(set map[int]bool) ([]int, map[int]int) {
+		values := make([]int, 0, len(set))
+		for value := range set {
+			values = append(values, value)
+		}
+		sort.Ints(values)
+		indices := map[int]int{}
+		for i, value := range values {
+			indices[value] = i
+		}
+		return values, indices
+	}
+	xs, xi := coordinates(xset)
+	ys, yi := coordinates(yset)
 	distance := func(a, b Point) int { return abs(a.X-b.X) + abs(a.Y-b.Y) }
-	queue := routeQueue{{point: start, score: distance(start, end)}}
+	queue := routeQueue{{point: start, score: 10 * distance(start, end)}}
 	heap.Init(&queue)
 	cost := map[Point]int{start: 0}
 	parent := map[Point]Point{}
@@ -40,7 +53,7 @@ func (m Model) routeEdge(from, to Node, fromPort, toPort string, used map[Point]
 		if *budget <= 0 {
 			return nil
 		}
-		*budget -= 1
+		*budget--
 		item := heap.Pop(&queue).(routeItem)
 		p := item.point
 		if item.cost != cost[p] {
@@ -58,27 +71,67 @@ func (m Model) routeEdge(from, to Node, fromPort, toPort string, used map[Point]
 			return path
 		}
 		for _, delta := range []Point{{1, 0}, {0, 1}, {0, -1}, {-1, 0}} {
-			next := Point{p.X + delta.X, p.Y + delta.Y}
-			if next.X < minX || next.X > maxX || next.Y < minY || next.Y > maxY || blocked(next) {
+			x, y := xi[p.X]+delta.X, yi[p.Y]+delta.Y
+			if x < 0 || x >= len(xs) || y < 0 || y >= len(ys) {
 				continue
 			}
-			step := 10
-			if used[next] && next != end && next != start {
-				step += 20
+			next := Point{xs[x], ys[y]}
+			if !clear(p, next) {
+				continue
 			}
-			if prev, ok := parent[p]; ok && (p.X-prev.X != delta.X || p.Y-prev.Y != delta.Y) {
+			step := 10 * distance(p, next)
+			for cell := range used {
+				if cell != start && cell != end && cell.X >= min(p.X, next.X) && cell.X <= max(p.X, next.X) && cell.Y >= min(p.Y, next.Y) && cell.Y <= max(p.Y, next.Y) {
+					step += 20
+				}
+			}
+			if prev, ok := parent[p]; ok && direction(prev, p) != direction(p, next) {
 				step += 3
 			}
 			candidate := cost[p] + step
 			if old, ok := cost[next]; ok && old <= candidate {
 				continue
 			}
-			cost[next] = candidate
-			parent[next] = p
+			cost[next], parent[next] = candidate, p
 			heap.Push(&queue, routeItem{point: next, cost: candidate, score: candidate + 10*distance(next, end)})
 		}
 	}
 	return nil
+}
+
+func visiblePath(path []Point, pan Point, width, height int, draw func(Point, int, bool)) {
+	if len(path) == 1 {
+		p := path[0]
+		if p.X >= pan.X && p.X < pan.X+width && p.Y >= pan.Y && p.Y < pan.Y+height {
+			draw(p, west|east, true)
+		}
+	}
+	for i := 0; i+1 < len(path); i++ {
+		a, b := path[i], path[i+1]
+		loX, hiX := max(min(a.X, b.X), pan.X), min(max(a.X, b.X), pan.X+width-1)
+		loY, hiY := max(min(a.Y, b.Y), pan.Y), min(max(a.Y, b.Y), pan.Y+height-1)
+		for y := loY; y <= hiY; y++ {
+			for x := loX; x <= hiX; x++ {
+				p, mask, arrow := (Point{x, y}), 0, false
+				if p != a {
+					mask |= direction(p, a)
+				} else if i == 0 {
+					mask |= west
+				} else {
+					mask |= direction(p, path[i-1])
+				}
+				if p != b {
+					mask |= direction(p, b)
+				} else if i+1 == len(path)-1 {
+					mask |= east
+					arrow = true
+				} else {
+					mask |= direction(p, path[i+2])
+				}
+				draw(p, mask, arrow)
+			}
+		}
+	}
 }
 
 func abs(v int) int {

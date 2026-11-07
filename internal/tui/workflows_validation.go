@@ -66,7 +66,7 @@ func (m *model) workflowValidationRows(err error) []string {
 	rows := []string{}
 	if id != "" {
 		if w.run == nil {
-			w.graph = w.editor.Graph(w.graph)
+			w.graph = m.workflowGraph(w.graph)
 		}
 		w.graph.Selected = id
 		w.inspect = true

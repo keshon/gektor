@@ -46,6 +46,38 @@ func TestWorkflowCannotBypassNestedToolDeny(t *testing.T) {
 	}
 }
 
+func TestScheduleDiscoveryAndRecipeReadPermissions(t *testing.T) {
+	ws, err := workspace.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	c := &Capabilities{}
+	r, err := Compose(ws, nil, nil, nil, false, c, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Registry = r
+	BindWorkflowPolicy(c, ws, permission.Policy{Rules: []permission.Rule{{Tool: "read_file", Pattern: "*", Effect: permission.Deny}}}, nil, t.TempDir())
+	if _, err := c.Enable(t.Context(), "native_workflows", nil); err != nil {
+		t.Fatal(err)
+	}
+	if !r.Has("workflow_schedule") || !r.Has("workflow_schedules") {
+		t.Fatal("schedule tools not discovered")
+	}
+	if err := ws.WriteFile("recipe.json", []byte(`{"version":3,"name":"Denied","steps":[{"id":"calc","tool":"script_transform","args":{"code":"return 1;"}}]}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	args := json.RawMessage(`{"action":"create","id":"minute","recipe_path":"recipe.json","cron":"* * * * *"}`)
+	if _, err := r.Run(t.Context(), "workflow_schedule", args); err == nil {
+		t.Fatal("schedule bypassed recipe read deny")
+	}
+	paths, err := PathResources(ws, "workflow_schedule", args)
+	if err != nil || len(paths) != 1 || paths[0] != "recipe.json" {
+		t.Fatal("schedule resource scope missing", paths, err)
+	}
+}
+
 func TestGeneratedOutputFilenameCannotBypassPermission(t *testing.T) {
 	ws, err := workspace.New(t.TempDir())
 	if err != nil {

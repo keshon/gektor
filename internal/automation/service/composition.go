@@ -31,10 +31,11 @@ func (s Service) SnapshotRecipe(ctx context.Context, path string) ([]byte, error
 	if err != nil {
 		return nil, err
 	}
-	return s.freezeRecipe(ctx, raw, path)
+	return s.FreezeRecipe(ctx, raw, path)
 }
 
-func (s Service) freezeRecipe(ctx context.Context, raw []byte, path string) ([]byte, error) {
+// FreezeRecipe captures referenced recipes for an already loaded draft without executing it.
+func (s Service) FreezeRecipe(ctx context.Context, raw []byte, path string) ([]byte, error) {
 	b := recipeBundle{Root: raw, Recipes: map[string]json.RawMessage{}}
 	total := len(raw)
 	visitedSteps := 0
@@ -119,7 +120,7 @@ func (s Service) compileSource(ctx context.Context, source []byte, path string) 
 			return zero, nil, err
 		}
 	} else {
-		frozen, err := s.freezeRecipe(ctx, source, path)
+		frozen, err := s.FreezeRecipe(ctx, source, path)
 		if err != nil {
 			return zero, nil, err
 		}

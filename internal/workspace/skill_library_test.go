@@ -30,7 +30,7 @@ func TestMalformedSkillsDoNotHideValidLibraries(t *testing.T) {
 	}
 	defer w.Close()
 	entries, warning := w.Skills()
-	if len(entries) != 2 || warning == nil || !strings.Contains(warning.Error(), "a-bad") {
+	if len(entries) != 3 || warning == nil || !strings.Contains(warning.Error(), "a-bad") {
 		t.Fatalf("entries=%v warning=%v", entries, warning)
 	}
 	if _, text, _, err := w.LoadSkill("usable"); err != nil || !strings.Contains(text, "VALID") {
@@ -64,7 +64,7 @@ func TestSkillDescriptionLimitFromEnvironment(t *testing.T) {
 			}
 			defer w.Close()
 			entries, warning := w.Skills()
-			if len(entries) != tc.count || (warning != nil) != (tc.count == 0) {
+			if len(entries) != tc.count+1 || (warning != nil) != (tc.count == 0) {
 				t.Fatalf("count=%d warning=%v", len(entries), warning)
 			}
 		})
@@ -90,7 +90,7 @@ func TestDuplicateSkillDoesNotDisableUnrelatedSkill(t *testing.T) {
 	}
 	defer w.Close()
 	entries, warning := w.Skills()
-	if warning == nil || len(entries) != 1 || entries[0].ID != "valid" {
+	if warning == nil || len(entries) != 2 || entries[0].ID != "valid" {
 		t.Fatalf("entries=%v warning=%v", entries, warning)
 	}
 }
@@ -105,7 +105,7 @@ func TestSkillLibrariesPrecedenceAndResources(t *testing.T) {
 	}
 	defer w.Close()
 	entries, err := w.Skills()
-	if err != nil || len(entries) != 1 || entries[0].Description != "Ship: safely # exact" {
+	if err != nil || len(entries) != 2 || entries[0].Description != "Ship: safely # exact" {
 		t.Fatal(entries, err)
 	}
 	if strings.Contains(w.Instructions(), "LIBRARY_ONLY_BODY") {

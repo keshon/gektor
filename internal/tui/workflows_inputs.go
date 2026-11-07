@@ -12,6 +12,7 @@ import (
 type workflowInvocation struct {
 	Action, Draft, Mode string
 	Inputs              json.RawMessage
+	ScheduleID          string
 }
 
 func (m *model) queueInvocation(action string, in workflowInvocation) {
@@ -39,7 +40,7 @@ func (m *model) workflowInputForm(in workflowInvocation) {
 		w.notice = "Draft changed · reopen run inputs"
 		return
 	}
-	if in.Action != "run" && in.Action != "validate" {
+	if in.Action != "run" && in.Action != "validate" && in.Action != "schedule" {
 		return
 	}
 	specs := w.editor.Clone().Inputs
@@ -69,6 +70,10 @@ func (m *model) workflowInputForm(in workflowInvocation) {
 	}
 	schema := schemaform.Schema{Properties: map[string]schemaform.Property{}}
 	defaults := map[string]json.RawMessage{}
+	var scheduled map[string]json.RawMessage
+	if in.Action == "schedule" {
+		_ = json.Unmarshal(in.Inputs, &scheduled)
+	}
 	for name, spec := range specs {
 		kind, _ := json.Marshal(spec.Type)
 		property := schemaform.Property{Type: kind}
@@ -78,6 +83,9 @@ func (m *model) workflowInputForm(in workflowInvocation) {
 		schema.Properties[name] = property
 		if spec.Default != nil {
 			defaults[name] = spec.Default
+		}
+		if value, ok := scheduled[name]; ok {
+			defaults[name] = value
 		}
 	}
 	raw, _ := json.Marshal(defaults)
@@ -106,9 +114,9 @@ func (m *model) workflowInputForm(in workflowInvocation) {
 		if spec.Default == nil && !spec.Required {
 			field.Label += " / optional"
 		}
-		if spec.Type == "array" && spec.Default != nil {
+		if spec.Type == "array" && defaults[name] != nil {
 			var items []json.RawMessage
-			if json.Unmarshal(spec.Default, &items) == nil && items != nil {
+			if json.Unmarshal(defaults[name], &items) == nil && items != nil {
 				numeric := true
 				var values []string
 				for _, item := range items {
@@ -137,14 +145,22 @@ func (m *model) workflowInputForm(in workflowInvocation) {
 		title = "Check workflow"
 		primary = "Check"
 	}
-	m.openForm(title, "Defaults are filled in. Edit values for this run; lists accept comma-separated values.", primary, fields, func(v map[string]string) error {
+	if in.Action == "schedule" {
+		title = "Schedule / input values"
+		primary = "Next"
+	}
+	hint := "Defaults are filled in. Edit values for this run; lists accept comma-separated values."
+	if in.Action == "schedule" {
+		hint = "These values will be saved with the schedule and used for each scheduled run."
+	}
+	m.openForm(title, hint, primary, fields, func(v map[string]string) error {
 		values := map[string]json.RawMessage{}
 		for name, spec := range specs {
 			text := v["value:"+name]
-			if spec.Default != nil && text == initial[name] {
+			if spec.Default != nil && text == initial[name] && in.Action != "schedule" {
 				continue
 			}
-			if spec.Default == nil && !spec.Required && text == "" {
+			if spec.Default == nil && !spec.Required && text == "" && scheduled[name] == nil {
 				continue
 			}
 			value := json.RawMessage(text)

@@ -64,6 +64,29 @@ func (r *Registry) Schemas() map[string]json.RawMessage {
 	return out
 }
 
+// Contract is the authoring information shared by model and terminal clients.
+type Contract struct {
+	Version      int             `json:"version"`
+	Description  string          `json:"description"`
+	InputSchema  json.RawMessage `json:"input_schema"`
+	OutputSchema json.RawMessage `json:"output_schema"`
+	ReadOnly     bool            `json:"read_only"`
+	RetrySafe    bool            `json:"retry_safe"`
+}
+
+func (r *Registry) Contracts() map[string]Contract {
+	out := map[string]Contract{}
+	for _, name := range r.Names() {
+		n, _ := r.Node(name)
+		output := n.OutputSchema
+		if len(output) == 0 {
+			output = json.RawMessage(`true`)
+		}
+		out[name] = Contract{n.Version, n.Description, n.InputSchema, output, n.ReadOnly, n.RetrySafe}
+	}
+	return out
+}
+
 // TemplateSchema permits output references while retaining ordinary constraints.
 func TemplateSchema(raw json.RawMessage) json.RawMessage {
 	var schema map[string]any

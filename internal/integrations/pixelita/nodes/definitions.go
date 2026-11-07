@@ -31,7 +31,7 @@ func Definitions(ws *workspace.Workspace, output pixelita.OutputAuthorizer) []au
 			}
 			return paths, nil
 		}
-		nodes = append(nodes, automation.Node{Name: op.Name(), Version: 1, Description: op.Description(), InputSchema: op.Schema(), ReadOnly: op.ReadOnly(), Resources: resources, Execute: op.Run, Validate: func(args json.RawMessage) error { _, err := op.Validate(args); return err }, ValidateTemplate: func(args json.RawMessage) error { return literalPaths(ws, args) }})
+		nodes = append(nodes, automation.Node{Name: op.Name(), Version: 1, Description: op.Description(), InputSchema: op.Schema(), OutputSchema: json.RawMessage(`{"type":"object","properties":{"schema":{"type":"string"},"tool":{"type":"string"},"summary":{"type":"object","additionalProperties":{"type":"integer"}},"status":{"type":"string"},"sources":{"type":["array","null"],"items":{"type":"object"}},"items":{"type":["array","null"],"items":{"type":"object"}},"recovery":{"type":"string"},"error":{"type":"string"},"failure_stage":{"type":"string"}},"required":["schema","tool","summary","status","sources"]}`), ReadOnly: op.ReadOnly(), Resources: resources, Execute: op.Run, Validate: func(args json.RawMessage) error { _, err := op.Validate(args); return err }, ValidateTemplate: func(args json.RawMessage) error { return literalPaths(ws, args) }})
 	}
 	return nodes
 }

@@ -77,3 +77,34 @@ func TestOverlappingCardsShowUnroutableMarker(t *testing.T) {
 		t.Fatal("unroutable connection hidden", v)
 	}
 }
+
+// Expand the production router segments only for cell-by-cell obstacle assertions.
+func (m Model) route(from, to Node, used map[Point]bool, budget *int) []Point {
+	return m.routeEdge(from, to, "", "", used, budget)
+}
+func (m Model) routeEdge(from, to Node, fromPort, toPort string, used map[Point]bool, budget *int) []Point {
+	corners := m.routeSegments(from, to, fromPort, toPort, used, budget)
+	if len(corners) == 0 {
+		return nil
+	}
+	path := []Point{corners[0]}
+	for i := 1; i < len(corners); i++ {
+		p, end := corners[i-1], corners[i]
+		for p != end {
+			p.X += sign(end.X - p.X)
+			p.Y += sign(end.Y - p.Y)
+			path = append(path, p)
+		}
+	}
+	return path
+}
+
+func sign(v int) int {
+	if v < 0 {
+		return -1
+	}
+	if v > 0 {
+		return 1
+	}
+	return 0
+}

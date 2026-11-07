@@ -166,13 +166,13 @@ func (m *model) rawHeaderItems() []headerItem {
 			return nil
 		}
 		edit := idle && m.workflows.run == nil
-		return []headerItem{{"Add node…", "/workflows add", edit}, {"Edit arguments…", "/workflows edit", edit}, {"Behavior…", "/workflows behavior", edit}, {"Connections…", "/workflows connections", edit}, {"Connect nodes…", "/workflows link", edit}, {"", "", false}, {"Delete node…", "/workflows delete", edit}}
+		return []headerItem{{"Add node…", "/workflows add", edit}, {"Add schedule…", "/workflows schedule-add", edit}, {"Edit arguments…", "/workflows edit", edit}, {"Behavior…", "/workflows behavior", edit}, {"Connections…", "/workflows connections", edit}, {"Connect nodes…", "/workflows link", edit}, {"", "", false}, {"Delete node…", "/workflows delete", edit}}
 	case "workflow-execution":
 		if m.workflows == nil {
 			return nil
 		}
 		edit := idle && m.workflows.run == nil
-		return []headerItem{{"Validate…", "/workflows validate", edit}, {"Run…", "/workflows run", edit}, {"Cancel", "/workflows stop", m.workflows.busy}, {"", "", false}, {"Saved runs…", "/workflows runs", idle}, {"Review…", "/workflows review", idle && m.workflows.run != nil}, {"Return to draft", "/workflows draft", idle && m.workflows.run != nil}, {"", "", false}, {"Run with JSON…", "/workflows run-json", edit}}
+		return []headerItem{{"Validate…", "/workflows validate", edit}, {"Run…", "/workflows run", edit}, {"Schedule…", "/workflows schedule", edit}, {"Refresh schedules", "/workflows schedule-refresh", edit}, {"Cancel", "/workflows stop", m.workflows.busy}, {"", "", false}, {"Saved runs…", "/workflows runs", idle}, {"Review…", "/workflows review", idle && m.workflows.run != nil}, {"Return to draft", "/workflows draft", idle && m.workflows.run != nil}, {"", "", false}, {"Run with JSON…", "/workflows run-json", edit}}
 	case "session":
 		rows := []headerItem{{"New", "/new", idle}, {"Open…", "/sessions", true}, {"Compact history", "/compact", idle && m.stateFile != ""}, {"Rename…", "rename-current", idle && m.stateFile != ""}, {"Delete…", "delete-current", idle && m.stateFile != ""}}
 

@@ -162,7 +162,7 @@ The runner follows those steps instead of asking a model to choose each action.
 | **Recipe** | Instructions: steps, connections, inputs and outputs | A JSON file in the workspace |
 | **Run** | One execution with its input values and results | Saved separately in your GEKTOR user directory |
 | **Template** | A reusable starting point copied into a new recipe | No template library yet; copy a recipe manually |
-| **Schedule** | A trigger that starts a workflow at set times | CLI/service support; no TUI schedule screen |
+| **Schedule** | A trigger that starts a workflow at set times | Schedule card in the editor; executed by the workflow service |
 
 You can edit and run workflows without a model connection.
 AI change requests need a model. A model-generation node also needs its configured model.
@@ -287,6 +287,36 @@ Press Esc during execution to request cancellation.
 Completed writes and requests remain.
 A failed run stops the remaining work; inspect results before running again.
 
+### Schedule a workflow
+
+Save the recipe first. In **Node**, choose **Schedule trigger**.
+You can also press `A` and choose **Schedule trigger** from the node types.
+
+If the recipe has inputs, fill in the values to use for scheduled runs.
+Then choose **Every hour**, **Daily**, or **Cron**. For Daily, enter a time
+such as `09:00`. For Cron, enter a five-field expression such as `*/15 * * * *`.
+Set the time zone explicitly; the default is `UTC`.
+Choose **Save schedule** to enable it.
+
+A Schedule card appears on the canvas. It starts the whole recipe; its
+connections are automatic. Select it and press Enter to change the timing,
+input values or enabled setting. Delete removes the trigger without deleting
+queued jobs or saved runs. **Refresh schedules** in Run reloads CLI changes.
+
+Keep the workflow service running for this workspace:
+
+```powershell
+.\serve-gektor-workflows.cmd -workspace "D:\path\to\project"
+```
+
+The service uses its own permission rules. Closing the TUI is fine while the
+service stays running. The inspector's **Service** tab explains this setup.
+
+A schedule stores a copy of the recipe and input values. Saving later recipe
+edits does not change that copy. Edit and save the trigger again to update it.
+Schedules belong to the workspace and are stored in your user data, outside
+the recipe JSON. Copying a recipe to another workspace does not enable its schedule.
+
 ### Review and reopen a run
 
 Press `H`, or choose **Saved runs…** in Run, to open an earlier run.
@@ -335,8 +365,9 @@ Paths inside called recipes are also relative to the workspace,
 not the recipe's own folder.
 There is no automatic shared-template installation.
 
-Schedules, background queue management and webhook setup use the
-[CLI/service](cli.md#workflow-queue-and-service).
+Background queue management and webhook setup use the
+[CLI/service](cli.md#workflow-queue-and-service). Schedules can be managed
+from the editor or the CLI.
 Closing the TUI does not keep an ordinary foreground run alive.
 
 See the [workflow reference](workflows.md) for available operations,

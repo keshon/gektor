@@ -48,7 +48,7 @@ func (m *model) replaceWorkflowSetup(d automation.Definition, draft string) erro
 	}
 	if string(b) != draft {
 		w.editor.Replace(d)
-		w.graph = w.editor.Graph(w.graph)
+		w.graph = m.workflowGraph(w.graph)
 	}
 	w.notice = "Recipe updated · V validates the draft"
 	return nil

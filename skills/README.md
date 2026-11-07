@@ -41,8 +41,12 @@ More than one guide can apply; do not load the whole directory.
 - Build a large feature incrementally or decide whether to delegate:
   [large-build/SKILL.md](large-build/SKILL.md).
 - Inspect image assets, measure compression, resize, convert or compare:
-  [pixelita/SKILL.md](pixelita/SKILL.md). Uses the external pixelita CLI;
+  [pixelita/SKILL.md](pixelita/SKILL.md). Uses native Pixelita tools;
   measurements and optimization work with text-only models.
+- Create, connect, validate and schedule workflows: the bundled
+  [workflows guide](../internal/workspace/builtin/workflows/SKILL.md) is available
+  as `load_skill` ID `workflows` in every workspace. Capability activation also
+  provides this guide. Project or user workflow skills can override the catalog entry.
 - Create or edit UI mockups and export previews with the Figcraft CLI:
   [figcraft/SKILL.md](figcraft/SKILL.md).
 

@@ -45,7 +45,7 @@ func definition(resolve Resolver, transport http.RoundTripper) automation.Node {
 		}
 		return in, err
 	}
-	return automation.Node{Name: "http_request", Version: 1, Description: "One public HTTP request with explicit method, JSON body and optional origin-bound credential reference. No redirects or automatic retries. Returns status_code, selected response headers, body and parsed JSON data. status_as_data returns non-2xx responses without failing; network and response-read errors still fail.", InputSchema: schema,
+	return automation.Node{Name: "http_request", Version: 1, Description: "One public HTTP request with explicit method, JSON body and optional origin-bound credential reference. No redirects or automatic retries. Returns status_code, selected response headers, body and parsed JSON data. status_as_data returns non-2xx responses without failing; network and response-read errors still fail.", InputSchema: schema, OutputSchema: json.RawMessage(`{"type":"object","properties":{"status_code":{"type":"integer"},"headers":{"type":"object","additionalProperties":{"type":"string"}},"body":{"type":"string"},"data":{}},"required":["status_code","headers","body"]}`),
 		Validate: func(raw json.RawMessage) error { _, err := parse(raw); return err },
 		Resources: func(raw json.RawMessage) ([]string, error) {
 			in, err := parse(raw)
