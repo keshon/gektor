@@ -15,6 +15,9 @@ func (m *model) statusLine() string {
 			if m.dialog.table.model.Layout(m.tableProps()).Capacity == 0 {
 				return m.styles.status.Render("Enlarge the terminal   Esc close")
 			}
+			if m.dialog.table.model.MoreOpen {
+				return m.styles.status.Render("More actions · Esc back")
+			}
 			return m.styles.status.Render("/ filter   Tab controls   Esc back")
 		}
 		if m.dialog.form != nil {

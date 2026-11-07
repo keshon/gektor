@@ -15,8 +15,9 @@ import (
 )
 
 type Column struct {
-	Label string
-	Width int // Zero fills the remaining width.
+	Label      string
+	Width      int  // Zero fills the remaining width.
+	HideNarrow bool // Optional metadata yields in narrow tables.
 }
 
 type Row struct {
@@ -27,6 +28,7 @@ type Row struct {
 type Action struct {
 	ID, Label, Key       string
 	Enabled, Destructive bool
+	Overflow             bool
 }
 
 type Props struct {
@@ -44,7 +46,9 @@ type Model struct {
 	Rows   []Row
 	selection.Model
 	// Focus is zero for rows, one for the filter, then one per action.
-	Focus int
+	Focus    int
+	MoreOpen bool
+	moreRow  int
 }
 
 func New(styles textinput.Styles) *Model {
@@ -88,7 +92,7 @@ func (m *Model) SetRows(rows []Row) {
 }
 
 func (m *Model) SyncFocus(active bool) {
-	if active && m.Focus == 1 {
+	if active && m.Focus == 1 && !m.MoreOpen {
 		m.Search.Focus()
 	} else {
 		m.Search.Blur()
@@ -106,9 +110,25 @@ type Layout struct {
 	Hits                                 []Hit
 	Width, Capacity, BodyTop, BodyHeight int
 	Actions                              []Action
+	Menu                                 popup.MenuLayout
+	MenuActions                          []Action
 }
 
 func columns(cells []string, columns []Column, width int) string {
+	if width < 46 {
+		visible, values := []Column{}, []string{}
+		for i, column := range columns {
+			if !column.HideNarrow {
+				visible = append(visible, column)
+				value := ""
+				if i < len(cells) {
+					value = cells[i]
+				}
+				values = append(values, value)
+			}
+		}
+		columns, cells = visible, values
+	}
 	remaining := max(width-2*(len(columns)-1), 1)
 	widths := make([]int, len(columns))
 	for i, column := range columns {
@@ -138,18 +158,21 @@ func (m *Model) Layout(p Props) Layout {
 	width := popup.ModalWidth(p.Width)
 	inner := max(width-4, 1)
 	l := Layout{Width: width, Actions: p.Actions}
+	l.Actions, l.MenuActions = splitActions(p.Actions)
+	buttonRows, buttonHits := m.buttons(l.Actions, inner, p.Styles)
 	l.Rows = popup.Header(p.Title, inner, p.Styles.Title)
 	l.Hits = append(l.Hits, Hit{X0: max(inner-3, 0), X1: inner, Y: 0, Action: "close"})
 	if p.Description != "" {
 		lines := strings.Split(ansi.Wrap(p.Description, inner, ""), "\n")
-		count := 1
+		free := max(p.Height-9-len(buttonRows), 0)
+		count := min(1, free)
 		if p.Height >= 22 {
-			count = 3
+			count = min(3, free)
 		}
 		for _, line := range lines[:min(len(lines), count)] {
 			l.Rows = append(l.Rows, p.Styles.Muted.Render(cell.Line(line, inner)))
 		}
-		if p.Height >= 22 {
+		if p.Height >= 22 && free > count {
 			l.Rows = append(l.Rows, "")
 		}
 	}
@@ -161,7 +184,6 @@ func (m *Model) Layout(p Props) Layout {
 		labels = append(labels, column.Label)
 	}
 	l.Rows = append(l.Rows, p.Styles.Muted.Render("  "+columns(labels, p.Columns, inner-4)))
-	buttonRows, buttonHits := m.buttons(p.Actions, inner, p.Styles)
 	// Frame edges, footer divider/hint and action rows stay outside scrolling.
 	l.Capacity = max(p.Height-2-len(l.Rows)-2-len(buttonRows), 1)
 	if len(l.Rows)+l.Capacity+2+len(buttonRows)+2 > p.Height {
@@ -170,6 +192,7 @@ func (m *Model) Layout(p Props) Layout {
 		l.Rows = append(l.Rows, cell.Line("Enlarge the terminal to use this table.", inner))
 		l.Hits = l.Hits[:1]
 		l.Capacity = 0
+		m.MoreOpen = false
 		m.Focus = 2
 		m.SyncFocus(true)
 		buttonRows, buttonHits = m.buttons(l.Actions, inner, p.Styles)
@@ -196,25 +219,40 @@ func (m *Model) Layout(p Props) Layout {
 		l.BodyHeight = len(body)
 		l.Rows = append(l.Rows, popup.ScrollRows(body, inner, m.Offset, len(rows), p.Surface.Normal)...)
 	}
-	hint := "/ filter   Tab controls   Esc close"
+	shortcuts := []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "/", Action: "filter"}, {Key: "Tab", Action: "controls"}}
 	for _, action := range p.Actions {
-		if action.ID == p.DefaultAction {
-			hint = "/ filter   Tab controls   Enter " + strings.ToLower(action.Label) + "   Esc close"
+		if action.ID == p.DefaultAction && action.Enabled {
+			shortcuts = append([]popup.Shortcut{{Key: "Enter", Action: strings.ToLower(action.Label)}}, shortcuts...)
 			break
 		}
 	}
-	if inner < 50 {
-		hint = "/ filter   Tab controls   Esc close"
-	}
 	if l.Capacity == 0 {
-		hint = "Enter close   Esc close"
+		shortcuts = []popup.Shortcut{{Key: "Esc/Enter", Action: "close"}}
 	}
+	if m.MoreOpen {
+		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "back"}, {Key: "↑↓", Action: "choose"}, {Key: "Enter", Action: "select"}}
+	}
+	hint := popup.Shortcuts(inner, popup.ShortcutStyles{Key: p.Styles.Normal.Bold(true), Action: p.Styles.Muted}, shortcuts...)
 	l.Rows = append(l.Rows, popup.Footer(inner, hint, p.Styles.Muted)...)
 	for _, hit := range buttonHits {
 		hit.Y += len(l.Rows)
 		l.Hits = append(l.Hits, hit)
 	}
 	l.Rows = append(l.Rows, buttonRows...)
+	if m.MoreOpen && len(l.MenuActions) > 0 {
+		items := menuItems(l.MenuActions)
+		x, y := 0, 2
+		for _, hit := range l.Hits {
+			if hit.Action == "more" {
+				x, y = hit.X0, max(2, hit.Y-len(items)-2)
+			}
+		}
+		l.Menu = popup.Menu(items, popup.MenuProps{X: x, Y: y, ScreenWidth: inner, ScreenHeight: len(l.Rows), Selected: m.moreRow}, popup.MenuStyles{Surface: p.Surface, Disabled: p.Styles.Disabled.Inherit(p.Surface.Normal), Danger: p.Styles.Error.Inherit(p.Surface.Normal)})
+		for i := range l.Rows {
+			l.Rows[i] = cell.Line(l.Rows[i], inner)
+		}
+		l.Rows = strings.Split(popup.Overlay(strings.Join(l.Rows, "\n"), l.Menu.Rows, l.Menu.X, l.Menu.Y, l.Menu.Width, inner), "\n")
+	}
 	return l
 }
 
@@ -253,6 +291,9 @@ func (m *Model) buttons(actions []Action, width int, styles form.Styles) ([]stri
 // Update returns an action ID. Merely selecting or filtering never activates it.
 func (m *Model) Update(msg tea.Msg, p Props) (string, tea.Cmd) {
 	l := m.Layout(p)
+	if m.MoreOpen {
+		return m.menuKey(msg, l), nil
+	}
 	if l.Capacity == 0 {
 		if key, ok := msg.(tea.KeyPressMsg); ok && (key.String() == "esc" || key.String() == "enter" || key.String() == "space") {
 			return "close", nil
@@ -300,7 +341,7 @@ func (m *Model) Update(msg tea.Msg, p Props) (string, tea.Cmd) {
 			if m.Focus >= 2 && m.Focus-2 < len(l.Actions) {
 				action := l.Actions[m.Focus-2]
 				if action.Enabled {
-					return action.ID, nil
+					return m.activate(action.ID, p), nil
 				}
 				return "", nil
 			}
@@ -316,9 +357,12 @@ func (m *Model) Update(msg tea.Msg, p Props) (string, tea.Cmd) {
 			}
 		}
 		if m.Focus != 1 {
-			for _, action := range l.Actions {
+			if text == "m" && len(l.MenuActions) > 0 {
+				return m.activate("more", p), nil
+			}
+			for _, action := range p.Actions {
 				if text == action.Key && action.Enabled {
-					return action.ID, nil
+					return m.activate(action.ID, p), nil
 				}
 			}
 			return "", nil
@@ -341,6 +385,9 @@ func (m *Model) Mouse(msg tea.MouseMsg, p Props) string {
 	x := max((p.Width-l.Width)/2, 0) + 2
 	y := max((p.Height-len(l.Rows)-2)/2, 0) + 1
 	mouse := msg.Mouse()
+	if m.MoreOpen {
+		return m.menuMouse(msg, l, mouse.X-x, mouse.Y-y)
+	}
 	if mouse.X < x || mouse.X >= x+l.Width-4 || mouse.Y < y || mouse.Y >= y+len(l.Rows) {
 		return ""
 	}
@@ -386,7 +433,7 @@ func (m *Model) Mouse(msg tea.MouseMsg, p Props) string {
 		}
 		for _, action := range l.Actions {
 			if action.ID == hit.Action && action.Enabled {
-				return action.ID
+				return m.activate(action.ID, p)
 			}
 		}
 	}

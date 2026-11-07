@@ -10,6 +10,7 @@ import (
 type MenuItem struct {
 	Label, Shortcut                   string
 	Enabled, Checked, Separator, Info bool
+	Destructive                       bool
 }
 
 type MenuProps struct {
@@ -21,6 +22,7 @@ type MenuProps struct {
 type MenuStyles struct {
 	Surface  Styles
 	Disabled lipgloss.Style
+	Danger   lipgloss.Style
 }
 
 type MenuLayout struct {
@@ -60,6 +62,9 @@ func Menu(items []MenuItem, p MenuProps, styles MenuStyles) MenuLayout {
 			continue
 		}
 		style := styles.Surface.Normal
+		if item.Destructive {
+			style = styles.Danger
+		}
 		if !item.Enabled && !item.Info {
 			style = styles.Disabled
 		} else if i == selected {

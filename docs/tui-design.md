@@ -244,6 +244,12 @@ to the shared component, not each screen.
 Tabs use the same title and focus roles in both modes,
 with one blank row before their page content.
 
+Management tables keep frequent actions visible and put additional actions in
+an attached More menu. The menu preserves the selected row and filter. Escape
+returns to the table; clicking outside dismisses the menu without activating
+anything beneath it. Optional metadata yields before names and status in narrow
+tables, so management remains usable at 40 by 20 cells.
+
 ## Composed controls
 
 | Control | Required behavior |
@@ -426,8 +432,6 @@ Remaining migration work:
 
 - Check workflow input, recipe/run selection, confirmation and detail dialogs
   against the shared controls and fix any remaining differences.
-- Compare the MCP management screen with the editable mockup. This visual review
-  is still pending.
 - Review representative screens in all six themes and the sizes below, including
   both inspector layouts, node selection, status colors and resized dialogs.
 - Run the usability tasks and remove leftover drawing and input paths found

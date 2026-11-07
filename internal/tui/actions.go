@@ -37,8 +37,17 @@ func (m *model) legacyFooterActions() []footerAction {
 // The first three actions stay in place; the middle pair follows input ownership.
 func (m *model) footerActions() []footerAction {
 	if m.dialog != nil && m.dialog.table != nil {
-		usable := m.dialog.table.model.Layout(m.tableProps()).Capacity > 0
-		enter := footerAction{tea.KeyEnter, 0, "Enter", "Details", "View", m.dialog.table.model.Selected() != ""}
+		props := m.tableProps()
+		usable := m.dialog.table.model.Layout(props).Capacity > 0
+		enter := footerAction{tea.KeyEnter, 0, "Enter", "Choose", "Choose", false}
+		for _, action := range props.Actions {
+			if action.ID == props.DefaultAction {
+				enter.label, enter.short, enter.enabled = action.Label, action.Label, action.Enabled
+			}
+		}
+		if m.dialog.table.model.MoreOpen {
+			return []footerAction{{tea.KeyEnter, 0, "Enter", "Choose", "Choose", true}, {tea.KeyEscape, 0, "Esc", "Back", "Back", true}, {'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true}}
+		}
 		if !usable {
 			enter = footerAction{tea.KeyEnter, 0, "Enter", "Close", "Close", true}
 		}

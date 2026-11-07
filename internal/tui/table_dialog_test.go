@@ -66,6 +66,9 @@ func TestManagementTablesFitAllThemesAndSizes(t *testing.T) {
 				{Tool: "read_file", Pattern: "*.env", Effect: permission.Ask},
 				{Tool: "run_shell", Pattern: "rm -rf", Effect: permission.Ask}}
 			m.openPermissions()
+			if !strings.Contains(ansi.Strip(m.dialogView()), "Later matching rules") {
+				t.Fatal("permission precedence was hidden by compact layout", theme, size)
+			}
 			rows, width, height := m.dialogRows()
 			if len(rows)+2 > height {
 				t.Fatalf("%s %v: table exceeds pane", theme, size)

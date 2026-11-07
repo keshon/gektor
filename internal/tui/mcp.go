@@ -61,8 +61,8 @@ func (m *model) openMCP() {
 	view.SetRows(rows)
 	m.openDialog("MCP servers", nil)
 	d := &tableDialog{model: view,
-		columns:     []table.Column{{Label: "Server", Width: 20}, {Label: "Status", Width: 15}, {Label: "Tools", Width: 5}, {Label: "Description"}},
-		description: "Select a server to inspect it or manage its connection. Add and import save definitions; Connect starts a connection. Changes are available between agent turns.",
+		columns:     []table.Column{{Label: "Server", Width: 14}, {Label: "Status", Width: 15}, {Label: "Tools", Width: 5, HideNarrow: true}, {Label: "Description", HideNarrow: true}},
+		description: "More: Add, Paste JSON, Import file, Enable/Disable, Delete.",
 	}
 	d.actions = func() []table.Action {
 		selected := view.Selected()
@@ -80,11 +80,11 @@ func (m *model) openMCP() {
 			{ID: "details", Label: "Details", Key: "enter", Enabled: exists},
 			{ID: connection, Label: label, Key: "c", Enabled: exists && idle && (status.Enabled || status.Connected)},
 			{ID: "edit", Label: "Edit", Key: "e", Enabled: exists && idle},
-			{ID: toggle, Label: toggleLabel, Key: "t", Enabled: exists && idle},
-			{ID: "delete", Label: "Delete", Key: "delete", Enabled: exists && idle, Destructive: true},
-			{ID: "add", Label: "Add", Key: "a", Enabled: idle},
-			{ID: "import-json", Label: "Paste JSON", Key: "p", Enabled: idle},
-			{ID: "import", Label: "Import file", Key: "i", Enabled: idle},
+			{ID: toggle, Label: toggleLabel, Key: "t", Enabled: exists && idle, Overflow: true},
+			{ID: "delete", Label: "Delete", Key: "delete", Enabled: exists && idle, Destructive: true, Overflow: true},
+			{ID: "add", Label: "Add", Key: "a", Enabled: idle, Overflow: true},
+			{ID: "import-json", Label: "Paste JSON", Key: "p", Enabled: idle, Overflow: true},
+			{ID: "import", Label: "Import file", Key: "i", Enabled: idle, Overflow: true},
 			{ID: "close", Label: "Close", Key: "esc", Enabled: true},
 		}
 	}

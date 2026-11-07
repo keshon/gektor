@@ -19,6 +19,11 @@ func TestWorkflowRunTableFiltersByStableIDWithoutExecuting(t *testing.T) {
 	draft := w.editor.Source()
 	runs := []store.RunSummary{{ID: "older", Name: "Same recipe", Status: "completed", Started: time.Unix(1, 0)}, {ID: "newer", Name: "Same recipe", Status: "failed", Started: time.Unix(2, 0)}}
 	m.openWorkflowRuns(runs)
+	for _, action := range m.footerActions() {
+		if action.key == tea.KeyEnter && action.label != "Open run" {
+			t.Fatal("hotkey bar does not match the table action")
+		}
+	}
 	if m.dialog.table == nil || m.dialog.table.model.Selected() != "newer" || runs[0].ID != "older" {
 		t.Fatal("runs are not newest first or browsing changed the source list")
 	}

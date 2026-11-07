@@ -56,6 +56,19 @@ warning, error and success meanings stable across modes.
 Inspector and canvas footers use one text row without blank padding. Their outer
 panes stay aligned. The Agent composer has its own height for editable input.
 
+## MCP layout
+
+Keep the searchable table and separate status, tool count and description.
+Details, Connect/Disconnect and Edit stay visible. More contains Enable/Disable,
+Delete, Add, Paste JSON and Import file. Close appears once in the footer;
+the header close target and Escape work too.
+
+The narrow layout keeps server names and status, and hides optional metadata.
+Its standalone mockup has more list space than the running Agent screen, which
+also reserves rows for its header, composer and hotkey bar. The runtime list
+scrolls within the remaining space. These frames show static states; the More
+menu and its keyboard and mouse behavior are implemented in the shared table.
+
 ## Click-through review
 
 Start **Settings review / Dark** or **Settings review / Light** in FigCraft's
@@ -81,3 +94,9 @@ Other controls are static review states unless they have a prototype link.
 ![Workflow layout with a compact inspector footer](workflows-dark.webp)
 
 ![Agent layout with a compact inspector footer](agent-light.webp)
+
+![MCP server table in the dark palette](mcp-dark.webp)
+
+![MCP server table in the light palette](mcp-light.webp)
+
+![MCP table at 40 by 20 cells](mcp-narrow.webp)

@@ -74,8 +74,10 @@ reach its action buttons. Enter opens Details. Esc leaves the filter first,
 then closes the table.
 
 Connect starts a connection; Disconnect closes it. Edit changes the saved
-definition. Enable/Disable controls whether the server can be used. Delete
-asks for confirmation. These changes are available between agent turns.
+definition. **More…** opens an attached menu for Enable/Disable, Delete, Add,
+Paste JSON and Import file. Press `M` to open it, arrows to choose, and `Esc`
+to return to the same server. Direct shortcuts still work outside the filter.
+Delete asks for confirmation. Changes are available between agent turns.
 
 Add, Paste JSON and Import file save server definitions. Importing does not
 connect them. Closing a detail or edit dialog returns to the filtered list.
