@@ -278,48 +278,7 @@ func (f *Model) PickerKey(msg tea.KeyPressMsg, props Props) tea.Cmd {
 		p.Cursor = max(len(p.Filtered)-1, 0)
 		return nil
 	case "enter":
-		if p.Loading || (p.Err != "" && !p.Location) {
-			return nil
-		}
-		if p.Location {
-			if strings.TrimSpace(p.Search.Value()) == "" {
-				return nil
-			}
-			p.Location = false
-			p.Browser = true
-			return f.ScanDirectory(filepath.Clean(p.Search.Value()))
-		}
-		if p.Browser && len(p.Filtered) > 0 && strings.HasSuffix(p.Filtered[p.Cursor], string(os.PathSeparator)) {
-			return f.ScanDirectory(filepath.Clean(p.Filtered[p.Cursor]))
-		}
-		if len(p.Filtered) > 0 {
-			previous := f.Editor.Value()
-			value := p.Filtered[p.Cursor]
-			if p.Field == "app-workspace" {
-				value = filepath.Clean(value)
-			}
-			if p.Field == "load-profile" {
-				loaded, err := config.Load(value)
-				if err != nil {
-					p.Err = err.Error()
-					return nil
-				}
-				f.Workspace.LoadedPath = value
-				f.Workspace.Draft.Load(loaded)
-				f.Error = "Setup loaded; Apply uses its model and identity selection"
-			}
-			f.Editor.SetValue(value)
-			f.Fields[f.Index].Value = value
-			if p.Field == "kind" {
-				for i := range f.Fields {
-					if f.Fields[i].Key == "endpoint" {
-						f.Fields[i].Value = SuggestedBackendURL(f.Fields[i].Value, previous, value)
-					}
-				}
-			}
-			f.Picker = nil
-		}
-		return nil
+		return f.acceptPicker()
 	case "ctrl+s":
 		if p.Field == "app-workspace" && !p.Location && !p.Loading && p.Err == "" && p.Directory != "" {
 			f.Editor.SetValue(p.Directory)
@@ -328,26 +287,7 @@ func (f *Model) PickerKey(msg tea.KeyPressMsg, props Props) tea.Cmd {
 		}
 		return nil
 	case "ctrl+r":
-		if p.Field == "app-workspace" || p.FileConfig != nil {
-			return f.ScanDirectory(p.Directory)
-		}
-		if p.IsFiles() {
-			root, key := p.Directory, p.Field
-			p.Browser = false
-			p.ID = scanID.Add(1)
-			p.Loading = true
-			p.Search.SetValue("")
-			id := p.ID
-			return func() tea.Msg { items, err := CatalogFiles(root, key); return ScanMsg{id, items, err} }
-		}
-		if p.Browser {
-			for i := range f.Fields {
-				if f.Fields[i].Key == "model-root" {
-					f.Fields[i].Value = p.Directory
-				}
-			}
-		}
-		return f.OpenPicker(props)
+		return f.refreshPicker(props)
 	case "ctrl+b":
 		if !p.IsFiles() {
 			return nil
@@ -392,6 +332,76 @@ func (f *Model) PickerKey(msg tea.KeyPressMsg, props Props) tea.Cmd {
 		return nil
 	}
 	return p.UpdateInput(msg)
+}
+
+func (f *Model) acceptPicker() tea.Cmd {
+	p := f.Picker
+	if p.Loading || (p.Err != "" && !p.Location) {
+		return nil
+	}
+	if p.Location {
+		if strings.TrimSpace(p.Search.Value()) == "" {
+			return nil
+		}
+		p.Location = false
+		p.Browser = true
+		return f.ScanDirectory(filepath.Clean(p.Search.Value()))
+	}
+	if p.Browser && len(p.Filtered) > 0 && strings.HasSuffix(p.Filtered[p.Cursor], string(os.PathSeparator)) {
+		return f.ScanDirectory(filepath.Clean(p.Filtered[p.Cursor]))
+	}
+	if len(p.Filtered) > 0 {
+		previous := f.Editor.Value()
+		value := p.Filtered[p.Cursor]
+		if p.Field == "app-workspace" {
+			value = filepath.Clean(value)
+		}
+		if p.Field == "load-profile" {
+			loaded, err := config.Load(value)
+			if err != nil {
+				p.Err = err.Error()
+				return nil
+			}
+			f.Workspace.LoadedPath = value
+			f.Workspace.Draft.Load(loaded)
+			f.Error = "Setup loaded; Apply uses its model and identity selection"
+		}
+		f.Editor.SetValue(value)
+		f.Fields[f.Index].Value = value
+		if p.Field == "kind" {
+			for i := range f.Fields {
+				if f.Fields[i].Key == "endpoint" {
+					f.Fields[i].Value = SuggestedBackendURL(f.Fields[i].Value, previous, value)
+				}
+			}
+		}
+		f.Picker = nil
+	}
+	return nil
+}
+
+func (f *Model) refreshPicker(props Props) tea.Cmd {
+	p := f.Picker
+	if p.Field == "app-workspace" || p.FileConfig != nil {
+		return f.ScanDirectory(p.Directory)
+	}
+	if p.IsFiles() {
+		root, key := p.Directory, p.Field
+		p.Browser = false
+		p.ID = scanID.Add(1)
+		p.Loading = true
+		p.Search.SetValue("")
+		id := p.ID
+		return func() tea.Msg { items, err := CatalogFiles(root, key); return ScanMsg{id, items, err} }
+	}
+	if p.Browser {
+		for i := range f.Fields {
+			if f.Fields[i].Key == "model-root" {
+				f.Fields[i].Value = p.Directory
+			}
+		}
+	}
+	return f.OpenPicker(props)
 }
 
 func (p *Picker) UpdateInput(msg tea.Msg) tea.Cmd {
