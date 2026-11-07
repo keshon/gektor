@@ -130,17 +130,17 @@ decision, rather than a behavior-preserving code move.
 
 ## 5. Simplify launch and transport code
 
-- [ ] Split runAgentLaunch into configuration resolution, service construction,
+- [x] Split runAgentLaunch into configuration resolution, service construction,
   frontend selection and final reporting. Keep cleanup beside resource creation.
-- [ ] Check failure during partial startup: connections and background resources
+- [x] Check failure during partial startup: connections and background resources
   must be released even when a later setup step fails.
-- [ ] Compare CLI, TUI, RPC and eval construction. Remove duplicated rules that
+- [x] Compare CLI, TUI, RPC and eval construction. Remove duplicated rules that
   can drift; retain frontend-specific input and display handling.
 - [x] Split Chat Completions streaming into wire parsing, response accumulation
   and tool-call assembly where these have clear inputs and outputs.
 - [x] Preserve partial responses, replay data, usage, finish reasons and the
   rule that incomplete tool calls never execute.
-- [ ] Simplify eval main/runOnce by setup, execution and reporting. Keep probe
+- [x] Simplify eval main/runOnce by setup, execution and reporting. Keep probe
   criteria, scoring, backend-unavailable handling and results unchanged.
 
 Done when startup ownership is explicit and transport cleanup does not change

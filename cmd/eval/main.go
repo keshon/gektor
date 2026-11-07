@@ -469,24 +469,6 @@ func main() {
 	// requests — koboldcpp with --parallelrequests, llama-server with
 	// --parallel — and neither helps while the client sends one request
 	// at a time, which is what this loop used to do.
-	type job struct {
-		probe Probe
-		run   int
-	}
-	// Exclusive probes are only special when something else could run
-	// beside them. At one job everything is sequential already, and
-	// hoisting them to the front just scrambles the reading order.
-	concurrent := max(*jobsN, 1) > 1
-	var jobs, exclusive []job
-	for _, p := range probes {
-		for run := 1; run <= *runs; run++ {
-			if p.Exclusive && concurrent {
-				exclusive = append(exclusive, job{p, run})
-			} else {
-				jobs = append(jobs, job{p, run})
-			}
-		}
-	}
 
 	var (
 		mu  sync.Mutex
@@ -497,31 +479,12 @@ func main() {
 		defer mu.Unlock()
 		all = append(all, r)
 
-		line, _ := json.Marshal(r)
-		fmt.Fprintln(results, string(line))
-
-		status := "PASS"
-		switch {
-		case r.Skipped:
-			status = "SKIP"
-		case r.Errored:
-			status = "ERR "
-		case !r.Passed:
-			status = "FAIL"
-		}
-		fmt.Printf("  %s  %-22s run %d  %6.1fs  %2d steps  ctx %2d%%",
-			status, r.Probe, r.Run, r.Seconds, r.Steps, r.PeakContextPct)
-		if len(r.Failures) > 0 {
-			fmt.Printf("  %s", r.Failures[0])
-		} else if r.RunError != "" {
-			fmt.Printf("  (%s)", r.RunError)
-		}
-		fmt.Println()
+		writeProbeResult(results, r)
 	}
 
 	// minutes, and printing only on completion means a working run looks
 	// identical to a hung one — results.jsonl stays empty either way.
-	run1 := func(j job) {
+	run1 := func(j evalJob) {
 		mu.Lock()
 		fmt.Printf("  ....  %-22s run %d  started\n", j.probe.Name, j.run)
 		mu.Unlock()
@@ -529,28 +492,7 @@ func main() {
 			contextLimit, *maxTokens, *dry_, *apiKey, *apiKeyEnv, *deadlineAware))
 	}
 
-	// Exclusive probes first and alone: one that binds a fixed port
-	// cannot share the machine with another copy of itself.
-	for _, j := range exclusive {
-		run1(j)
-	}
-
-	sem := make(chan struct{}, max(*jobsN, 1))
-	var wg sync.WaitGroup
-	for _, j := range jobs {
-		if !concurrent {
-			run1(j)
-			continue
-		}
-		wg.Add(1)
-		go func(j job) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			run1(j)
-		}(j)
-	}
-	wg.Wait()
+	runProbeJobs(probes, *runs, *jobsN, run1)
 
 	// Concurrent completion order is not run order.
 	sort.Slice(all, func(i, k int) bool {
@@ -634,29 +576,9 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 		res.RunError = "mkdir workspace: " + err.Error()
 		return res
 	}
-	if p.Seed != "" {
-		if err := copyTree(p.Seed, work); err != nil {
-			res.RunError = "seed workspace: " + err.Error()
-			return res
-		}
-	}
-	if p.Generated != "" {
-		files, err := generatedFixture(p.Generated)
-		if err != nil {
-			res.RunError = err.Error()
-			return res
-		}
-		for path, data := range files {
-			target := filepath.Join(work, filepath.FromSlash(path))
-			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
-				res.RunError = err.Error()
-				return res
-			}
-			if err := os.WriteFile(target, data, 0600); err != nil {
-				res.RunError = err.Error()
-				return res
-			}
-		}
+	if err := seedProbeWorkspace(p, work); err != nil {
+		res.RunError = err.Error()
+		return res
 	}
 	ws, err := workspace.New(work)
 	if err != nil {
@@ -842,21 +764,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 	}
 	res.Failures = append(res.Failures, checkAnswer(p, answer)...)
 
-	res.PeakPromptTokens = int(atomic.LoadInt64(&counter.peakPrompt))
-	res.ModelCalls = atomic.LoadInt64(&counter.calls)
-	res.PromptTokens = atomic.LoadInt64(&counter.promptTokens)
-	res.CachedTokens = atomic.LoadInt64(&counter.cachedTokens)
-	res.CompletionTokens = atomic.LoadInt64(&counter.completionTokens)
-	res.FloorPromptTokens = int(atomic.LoadInt64(&counter.floorPrompt))
-	if contextLimit > 0 {
-		res.PeakContextPct = res.PeakPromptTokens * 100 / contextLimit
-	}
-	if len(calls) > 0 {
-		res.Tools = map[string]int{}
-		for _, c := range calls {
-			res.Tools[c.tool]++
-		}
-	}
+	recordProbeUsage(&res, counter, contextLimit, calls)
 	if p.MaxSteps > 0 && res.Steps > p.MaxSteps {
 		res.Failures = append(res.Failures,
 			fmt.Sprintf("took %d steps, probe allows %d", res.Steps, p.MaxSteps))
@@ -1272,4 +1180,115 @@ func firstLine(s string) string {
 		s = s[:i]
 	}
 	return strings.TrimSpace(s)
+}
+
+func seedProbeWorkspace(p Probe, work string) error {
+	if p.Seed != "" {
+		if err := copyTree(p.Seed, work); err != nil {
+			return fmt.Errorf("seed workspace: %w", err)
+		}
+	}
+	if p.Generated != "" {
+		files, err := generatedFixture(p.Generated)
+		if err != nil {
+			return err
+		}
+		for path, data := range files {
+			target := filepath.Join(work, filepath.FromSlash(path))
+			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+				return err
+			}
+			if err := os.WriteFile(target, data, 0600); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func recordProbeUsage(res *Result, counter *countingClient, contextLimit int, calls []call) {
+	res.PeakPromptTokens = int(atomic.LoadInt64(&counter.peakPrompt))
+	res.ModelCalls = atomic.LoadInt64(&counter.calls)
+	res.PromptTokens = atomic.LoadInt64(&counter.promptTokens)
+	res.CachedTokens = atomic.LoadInt64(&counter.cachedTokens)
+	res.CompletionTokens = atomic.LoadInt64(&counter.completionTokens)
+	res.FloorPromptTokens = int(atomic.LoadInt64(&counter.floorPrompt))
+	if contextLimit > 0 {
+		res.PeakContextPct = res.PeakPromptTokens * 100 / contextLimit
+	}
+	if len(calls) > 0 {
+		res.Tools = map[string]int{}
+		for _, c := range calls {
+			res.Tools[c.tool]++
+		}
+	}
+}
+
+func writeProbeResult(results io.Writer, r Result) {
+	line, _ := json.Marshal(r)
+	fmt.Fprintln(results, string(line))
+
+	status := "PASS"
+	switch {
+	case r.Skipped:
+		status = "SKIP"
+	case r.Errored:
+		status = "ERR "
+	case !r.Passed:
+		status = "FAIL"
+	}
+	fmt.Printf("  %s  %-22s run %d  %6.1fs  %2d steps  ctx %2d%%",
+		status, r.Probe, r.Run, r.Seconds, r.Steps, r.PeakContextPct)
+	if len(r.Failures) > 0 {
+		fmt.Printf("  %s", r.Failures[0])
+	} else if r.RunError != "" {
+		fmt.Printf("  (%s)", r.RunError)
+	}
+	fmt.Println()
+}
+
+type evalJob struct {
+	probe Probe
+	run   int
+}
+
+func runProbeJobs(probes []Probe, runs, workers int, run func(evalJob)) {
+	// Exclusive probes are only special when something else could run
+	// beside them. At one job everything is sequential already, and
+	// hoisting them to the front just scrambles the reading order.
+	concurrent := max(workers, 1) > 1
+	var jobs, exclusive []evalJob
+	for _, p := range probes {
+		for run := 1; run <= runs; run++ {
+			if p.Exclusive && concurrent {
+				exclusive = append(exclusive, evalJob{p, run})
+			} else {
+				jobs = append(jobs, evalJob{p, run})
+			}
+		}
+	}
+
+	// Exclusive probes first and alone: one that binds a fixed port
+	// cannot share the machine with another copy of itself.
+	for _, j := range exclusive {
+		run(j)
+	}
+
+	sem := make(chan struct{}, max(workers, 1))
+	var wg sync.WaitGroup
+	for _, j := range jobs {
+		if !concurrent {
+			run(j)
+			continue
+		}
+		wg.Add(1)
+		go func(j evalJob) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			run(j)
+		}(j)
+	}
+	wg.Wait()
+
 }
