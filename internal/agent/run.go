@@ -36,7 +36,8 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 		return "", err
 	}
 
-	for step := 0; step < a.cfg.MaxSteps; step++ {
+	for a.report.Steps < a.cfg.MaxSteps {
+		step := a.report.Steps
 		if err := workCtx.Err(); err != nil {
 			return "", err
 		}
@@ -144,7 +145,6 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 				var pending bool
 				history, pending = a.acceptCompletion(ctx, a.snapshot.Context(), &st)
 				if pending {
-					step++ // forceAnswer used an additional model round-trip.
 					continue
 				}
 			}

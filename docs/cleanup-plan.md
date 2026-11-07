@@ -103,7 +103,7 @@ they actually validate. Do not silence ordinary mistakes with baseline entries.
 - [x] Separate setup from model-turn execution. Keep ownership of deadlines,
   history and run state visible at the call site.
 - [x] Consolidate completion handling after the bug fix is covered.
-- [ ] Make step accounting easy to follow. Treat changes to counting and limits
+- [x] Make step accounting easy to follow. Treat changes to counting and limits
   as a separate change from moving code.
 - [ ] Review executeToolCalls by phase: validation and authorization, admission,
   execution, ordered result attachment and mutation observation. Keep exclusive
