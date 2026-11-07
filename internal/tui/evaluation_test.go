@@ -86,7 +86,7 @@ func TestLearnReviewSaveSkipEditAndUndo(t *testing.T) {
 				t.Fatal("proposal lacks reviewable evidence or save action")
 			}
 			entries, _ := m.ws.Skills()
-			if len(entries) != 1 {
+			if len(entries) != 2 {
 				t.Fatal("proposal saved before approval")
 			}
 			switch action {
@@ -114,11 +114,11 @@ func TestLearnReviewSaveSkipEditAndUndo(t *testing.T) {
 				t.Fatal(err)
 			}
 			if action == "skip" {
-				if len(entries) != 1 {
+				if len(entries) != 2 {
 					t.Fatal("skip saved a lesson")
 				}
 			} else {
-				if len(entries) != 2 {
+				if len(entries) != 3 {
 					t.Fatalf("expected one lesson: %+v", entries)
 				}
 				lessonID := ""
@@ -136,7 +136,7 @@ func TestLearnReviewSaveSkipEditAndUndo(t *testing.T) {
 				}
 				m.learn("undo")
 				entries, _ = m.ws.Skills()
-				if len(entries) != 1 {
+				if len(entries) != 2 {
 					t.Fatal("undo left active skill")
 				}
 			}
@@ -191,7 +191,7 @@ func TestLearnReopensProposalWithoutInference(t *testing.T) {
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	entries, _ := m.ws.Skills()
-	if len(entries) != 1 {
+	if len(entries) != 2 {
 		t.Fatal("Enter approved instead of skipping")
 	}
 }

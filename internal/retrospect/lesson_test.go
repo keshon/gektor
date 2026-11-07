@@ -33,7 +33,7 @@ func TestLessonApprovalDiscoveryDeduplicationAndRetirement(t *testing.T) {
 		t.Fatalf("approve: %+v %v", lesson, err)
 	}
 	entries, err := c.Workspace.Skills()
-	if err != nil || len(entries) != 2 || entries[0].Description != when {
+	if err != nil || len(entries) != 3 || entries[0].Description != when {
 		t.Fatalf("discovery: %+v %v", entries, err)
 	}
 	_, metadata := c.Workspace.InstructionSections()
@@ -97,7 +97,7 @@ func TestLessonRejectsChangedArchiveAndInvalidEvidence(t *testing.T) {
 				t.Fatal("accepted invalid lesson")
 			}
 			entries, err := c.Workspace.Skills()
-			if err != nil || len(entries) != 1 {
+			if err != nil || len(entries) != 2 {
 				t.Fatalf("failed approval published: %+v %v", entries, err)
 			}
 		})

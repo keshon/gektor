@@ -43,6 +43,8 @@ More than one guide can apply; do not load the whole directory.
 - Inspect image assets, measure compression, resize, convert or compare:
   [pixelita/SKILL.md](pixelita/SKILL.md). Uses native Pixelita tools;
   measurements and optimization work with text-only models.
+- Identify pictured objects or compare visual references: the bundled
+  `visual-investigation` skill covers attachment IDs, crops and browser evidence.
 - Create, connect, validate and schedule workflows: the bundled
   [workflows guide](../internal/workspace/builtin/workflows/SKILL.md) is available
   as `load_skill` ID `workflows` in every workspace. Capability activation also

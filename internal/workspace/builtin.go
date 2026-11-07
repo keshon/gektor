@@ -10,10 +10,17 @@ import (
 //go:embed builtin/workflows/SKILL.md
 var WorkflowGuide string
 
+//go:embed builtin/visual-investigation/SKILL.md
+var visualGuide string
+
 func workflowSkill() Skill {
-	meta, err := readSkillMetadataLimit(strings.NewReader(WorkflowGuide), defaultSkillDescriptionLimit)
+	return bundledSkill("workflows", WorkflowGuide)
+}
+
+func bundledSkill(id, guide string) Skill {
+	meta, err := readSkillMetadataLimit(strings.NewReader(guide), defaultSkillDescriptionLimit)
 	if err != nil {
 		panic("invalid bundled workflow guide: " + err.Error())
 	}
-	return Skill{ID: "workflows", Name: meta.Name, Description: meta.Description, Path: "builtin:workflows/SKILL.md", BaseDir: "builtin:workflows", Source: "builtin"}
+	return Skill{ID: id, Name: meta.Name, Description: meta.Description, Path: "builtin:" + id + "/SKILL.md", BaseDir: "builtin:" + id, Source: "builtin"}
 }

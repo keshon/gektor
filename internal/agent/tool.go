@@ -380,6 +380,7 @@ const maxToolImagesPerStep = 4
 //
 // Repeat detection compares calls and results: refreshed data is progress.
 func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, finishReason string, calls []llm.ToolCall, history []llm.Message) []llm.Message {
+	ctx = llm.WithAttachments(ctx, a.snapshot.History, history)
 	results := make([]callResult, len(calls))
 	if a.cfg.OnProgress != nil {
 		a.cfg.OnProgress(llm.Progress{Phase: "tools", Detail: fmt.Sprintf("executing %d tool calls", len(calls))})

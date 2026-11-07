@@ -10,11 +10,13 @@ import (
 	"fmt"
 	"image"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/keshon/gektor/internal/automation"
+	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/workspace"
 	imagekit "github.com/keshon/pixelita"
 )
@@ -39,7 +41,7 @@ func (t Operation) Description() string {
 	case "variants":
 		return "Write image width variants to a new output directory; sources and existing files are preserved."
 	default:
-		return "Compare two images with PSNR and SSIM; measurements do not replace visual review."
+		return "Pixel fidelity comparison (PSNR/SSIM), for aligned versions of an image. Cannot identify objects or establish semantic similarity."
 	}
 }
 func (t Operation) Schema() json.RawMessage {
@@ -76,11 +78,19 @@ func (t Operation) Validate(args json.RawMessage) (Arguments, error) {
 	if t.WS == nil {
 		return in, fmt.Errorf("workspace unavailable")
 	}
-	for _, path := range append(append([]string{}, in.Paths...), in.OutDir) {
+	for _, path := range in.Paths {
+		if llm.IsAttachment(path) {
+			continue
+		}
 		if path == "" {
 			continue
 		}
 		if _, err := t.WS.Relative(path); err != nil {
+			return in, err
+		}
+	}
+	if in.OutDir != "" {
+		if _, err := t.WS.Relative(in.OutDir); err != nil {
 			return in, err
 		}
 	}
@@ -120,7 +130,7 @@ func (t Operation) Run(ctx context.Context, args json.RawMessage) (string, error
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
-		f, err := t.WS.Open(path)
+		f, err := llm.OpenImage(ctx, path, t.WS.Open)
 		if err != nil {
 			return "", err
 		}
@@ -149,7 +159,11 @@ func (t Operation) Run(ctx context.Context, args json.RawMessage) (string, error
 		if err := os.Mkdir(sub, 0700); err != nil {
 			return "", err
 		}
-		staged := filepath.Join(sub, filepath.Base(path))
+		name := filepath.Base(path)
+		if llm.IsAttachment(path) {
+			name = fmt.Sprintf("attachment-%d", i+1) + llm.ImageExtension(http.DetectContentType(data))
+		}
+		staged := filepath.Join(sub, name)
 		if err := os.WriteFile(staged, data, 0600); err != nil {
 			return "", err
 		}
@@ -163,6 +177,9 @@ func (t Operation) Run(ctx context.Context, args json.RawMessage) (string, error
 		rep, err = imagekit.Inspect(imagekit.InspectRequest{Context: ctx, Paths: paths, Jobs: 1})
 	case "compare":
 		rep, err = imagekit.Compare(imagekit.CompareRequest{A: paths[0], B: paths[1]})
+		if rep != nil {
+			rep.Notes = append(rep.Notes, "Pixel comparison only; object identity and semantic similarity are not measured. Different dimensions are resampled; perspective, lighting and aspect-ratio changes make these metrics unsuitable for identification.")
+		}
 	case "preview", "variants":
 		rep, err = imagekit.Optimize(imagekit.OptimizeRequest{Context: ctx, Paths: paths, Widths: in.Widths, Format: in.Format, OutDir: filepath.Join(dir, "output"), Apply: t.Operation == "variants", Jobs: 1})
 	default:
@@ -174,7 +191,7 @@ func (t Operation) Run(ctx context.Context, args json.RawMessage) (string, error
 	var sourceErr error
 	for i := range sources {
 		s := &sources[i]
-		f, e := t.WS.Open(s.Path)
+		f, e := llm.OpenImage(ctx, s.Path, t.WS.Open)
 		if e == nil {
 			h := sha256.New()
 			var n int64

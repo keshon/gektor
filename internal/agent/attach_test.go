@@ -13,6 +13,29 @@ type pictureTool struct {
 	paths []string
 }
 
+type attachmentProbe struct{ got []llm.Attachment }
+
+func (*attachmentProbe) Name() string            { return "attachment_probe" }
+func (*attachmentProbe) Description() string     { return "inspect grants" }
+func (*attachmentProbe) Mode() ToolMode          { return Concurrent }
+func (*attachmentProbe) Schema() json.RawMessage { return json.RawMessage(`{"type":"object"}`) }
+func (p *attachmentProbe) Run(ctx context.Context, _ json.RawMessage) (string, error) {
+	p.got = llm.Attachments(ctx)
+	return "observed", nil
+}
+
+func TestToolAttachmentContextIncludesInputAndPriorToolPictures(t *testing.T) {
+	probe := &attachmentProbe{}
+	client := &stubClient{responses: []llm.ChatResponse{toolCallStep("read_picture"), toolCallStep("attachment_probe"), {Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}}}}
+	a := New(Config{Client: client, Tools: NewRegistry(pictureTool{paths: []string{"tool.png"}}, probe), System: "sys"})
+	if _, err := a.Run(t.Context(), "look", "input.png"); err != nil {
+		t.Fatal(err)
+	}
+	if len(probe.got) != 2 || probe.got[0].ID != "attachment:1" || probe.got[0].Name != "input.png" || probe.got[1].Name != "tool.png" {
+		t.Fatal(probe.got)
+	}
+}
+
 func (pictureTool) Name() string            { return "read_picture" }
 func (pictureTool) Description() string     { return "picture" }
 func (pictureTool) Mode() ToolMode          { return Concurrent }

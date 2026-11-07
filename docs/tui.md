@@ -401,6 +401,15 @@ the workspace. Typing a path or using a file tool keeps the workspace restrictio
 
 The composer accepts up to eight images, 20 MiB each and 40 MiB combined.
 Clipboard images also have a 32-megapixel limit.
+
+Pasted images and browser screenshots are saved in GEKTOR's image cache.
+The Agent can enable `native_images` and use `image_attachments` to list their
+session IDs. `image_view` shows an image or a cropped detail; `image_inspect`
+reads metadata. These tools accept the attachment ID without a workspace copy.
+`image_download` fetches a public reference image into that same cache and
+reports its source URL. Crop and view operations leave project files alone.
+Reusable workflow recipes still need workspace files; attachment IDs belong
+to one conversation.
 `Alt+1` through `Alt+8`, or `/detach N`, removes an attachment.
 `Ctrl+U` clears the draft and attachments.
 

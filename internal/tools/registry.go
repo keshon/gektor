@@ -8,6 +8,7 @@ import (
 	workflow "github.com/keshon/gektor/internal/automation/agenttools"
 	"github.com/keshon/gektor/internal/checks"
 	"github.com/keshon/gektor/internal/integrations/pixelita"
+	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -49,6 +50,14 @@ func PathResources(ws *workspace.Workspace, tool string, args json.RawMessage) (
 			return nil, err
 		}
 		paths = []string{in.From, in.To}
+	case "image_view":
+		if err := json.Unmarshal(args, &in); err != nil {
+			return nil, err
+		}
+		if llm.IsAttachment(in.Path) {
+			return []string{in.Path}, nil
+		}
+		paths = []string{in.Path}
 	case "image_inspect", "image_preview", "image_variants", "image_compare":
 		var err error
 		paths, err = pixelita.Resources(args)
@@ -71,6 +80,9 @@ func PathResources(ws *workspace.Workspace, tool string, args json.RawMessage) (
 		return nil, nil
 	}
 	for i, path := range paths {
+		if llm.IsAttachment(path) && (tool == "image_inspect" || tool == "image_preview" || tool == "image_compare" || tool == "image_variants") {
+			continue
+		}
 		rel, err := ws.Relative(path)
 		if err != nil {
 			return nil, err

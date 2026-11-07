@@ -224,7 +224,16 @@ func (t ReadFile) imageHeader(full, rel string, metadataOnly bool) (string, erro
 	if info.IsDir() {
 		return "", fmt.Errorf("%s is a directory", rel)
 	}
-	format := strings.TrimPrefix(strings.ToLower(filepath.Ext(full)), ".")
+	source, err := t.WS.Open(full)
+	if err != nil {
+		return "", err
+	}
+	defer source.Close()
+	mime, err := llm.ImageMIME(source)
+	if err != nil {
+		return "", err
+	}
+	format := strings.TrimPrefix(llm.ImageExtension(mime), ".")
 	var b strings.Builder
 	fmt.Fprintf(&b, "FILE\npath: %s\nsize: %d\nimage: true\nformat: %s\n", rel, info.Size(), format)
 	if !t.Vision {
@@ -232,11 +241,6 @@ func (t ReadFile) imageHeader(full, rel string, metadataOnly bool) (string, erro
 		b.WriteString("(this backend cannot process pictures, so the pixels are unavailable. Use a vision-capable backend for visual inspection; use browser DOM, console and functional checks for text-only verification.)")
 		return b.String(), nil
 	}
-	source, err := t.WS.Open(full)
-	if err != nil {
-		return "", err
-	}
-	defer source.Close()
 	if err := llm.ValidateImageFile(source, full); err != nil {
 		return "", err
 	}

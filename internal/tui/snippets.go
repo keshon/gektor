@@ -66,6 +66,15 @@ func toolSummary(text string) (name, action, target string) {
 		}
 	case "read_file":
 		action, target = "Read file", value("path")
+	case "image_view":
+		action, target = "View image", value("path")
+		if argument("crop") != "" {
+			target += " [crop]"
+		}
+	case "image_download":
+		action, target = "Download image", value("url")
+	case "image_attachments":
+		action, target = "List images", "session attachments"
 	case "write_file":
 		action, target = "Write file", value("path")
 	case "patch_file":

@@ -23,9 +23,7 @@ const MaxImageBytes = 20 << 20
 // window the meter says it has; overshooting only compacts a little early.
 const ImageEstimateTokens = 1024
 
-// imageMIME maps accepted extensions to wire MIME types. Deliberately
-// narrow: servers agree on these, and an exotic codec failing server-
-// side looks exactly like model blindness.
+// Accepted image extensions. The wire MIME is detected from the actual bytes.
 var imageMIME = map[string]string{
 	".png":  "image/png",
 	".jpg":  "image/jpeg",
@@ -79,10 +77,41 @@ func ValidateImageFile(f *os.File, path string) error {
 	if err != nil && err != io.EOF {
 		return err
 	}
-	if mime := http.DetectContentType(header[:n]); mime != imageMIME[ext] {
-		return fmt.Errorf("image %q: content type %s does not match %s", path, mime, imageMIME[ext])
+	mime := http.DetectContentType(header[:n])
+	if ImageExtension(mime) == "" {
+		return fmt.Errorf("image %q: unsupported content type %s", path, mime)
 	}
 	return nil
+}
+
+// ImageMIME reads the actual content type, regardless of a misleading extension.
+func ImageMIME(f *os.File) (string, error) {
+	header := make([]byte, 512)
+	n, err := f.ReadAt(header, 0)
+	if err != nil && err != io.EOF {
+		return "", err
+	}
+	mime := http.DetectContentType(header[:n])
+	if ImageExtension(mime) == "" {
+		return "", fmt.Errorf("unsupported image content type %s", mime)
+	}
+	return mime, nil
+}
+
+func ImageExtension(mime string) string {
+	switch mime {
+	case "image/png":
+		return ".png"
+	case "image/jpeg":
+		return ".jpg"
+	case "image/webp":
+		return ".webp"
+	case "image/gif":
+		return ".gif"
+	case "image/bmp":
+		return ".bmp"
+	}
+	return ""
 }
 
 // SnapshotImage freezes a tool image before it enters history. A subsequent
@@ -97,11 +126,16 @@ func SnapshotImage(path, dir string) (string, error) {
 }
 
 // SnapshotImageFile stores bytes from the confined file handle into the trusted
-// application cache. The original path is used only to select the image format.
+// application cache. The detected format determines the cache extension.
 func SnapshotImageFile(source *os.File, path, dir string) (string, error) {
 	if err := ValidateImageFile(source, path); err != nil {
 		return "", err
 	}
+	mime, err := ImageMIME(source)
+	if err != nil {
+		return "", err
+	}
+	path = strings.TrimSuffix(path, filepath.Ext(path)) + ImageExtension(mime)
 	if _, err := source.Seek(0, 0); err != nil {
 		return "", err
 	}
@@ -149,12 +183,15 @@ func EncodeImageFile(path string) (string, error) {
 	if err := ValidateImage(path); err != nil {
 		return "", err
 	}
-	mime := imageMIME[strings.ToLower(filepath.Ext(path))]
 	f, err := os.Open(path)
 	if err != nil {
 		return "", err
 	}
 	defer f.Close()
+	mime, err := ImageMIME(f)
+	if err != nil {
+		return "", err
+	}
 	raw, err := io.ReadAll(io.LimitReader(f, MaxImageBytes+1))
 	if err != nil {
 		return "", fmt.Errorf("image %q: %w", path, err)

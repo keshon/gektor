@@ -13,7 +13,7 @@ func nativeInstructions(id string) string {
 		return workspace.WorkflowGuide
 	}
 	if id == "native_images" {
-		return "These native tools call Pixelita in-process; CLI setup/discovery is unnecessary. unsupported_metadata is a shared engine limitation: do not retry via CLI, keep or apply. Report the restriction and preserve profiles. Claim source preservation only from matching source hashes."
+		return "Use image_attachments for session image IDs and image_view for pixels/crops. Load visual-investigation for identification or visual comparison. Pixelita is native; unsupported_metadata is a capability limitation, not a retry request."
 	}
 	return ""
 }
@@ -68,7 +68,10 @@ func builtinPackages() []packageDefinition {
 			{func(d packageDependencies) agent.Tool { return FetchRaw{} }, true},
 			{func(d packageDependencies) agent.Tool { return SearchWeb{WS: d.WS} }, true},
 		}},
-		{"native_images", "Inspect, preview, write separate image variants and compare fidelity", Lazy, []toolEntry{
+		{"native_images", "View, crop, download and inspect images or session attachments; compare pixel fidelity and write separate variants", Lazy, []toolEntry{
+			{func(d packageDependencies) agent.Tool { return ImageAttachments{} }, true},
+			{func(d packageDependencies) agent.Tool { return &ImageView{WS: d.WS, Vision: d.Vision} }, true},
+			{func(d packageDependencies) agent.Tool { return &ImageDownload{Vision: d.Vision} }, true},
 			{func(d packageDependencies) agent.Tool {
 				return &imageagent.Tool{Operation: pixelita.Operation{WS: d.WS, Operation: "inspect"}}
 			}, true},

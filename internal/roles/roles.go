@@ -244,7 +244,7 @@ func (e Env) agentConfig(system, label, stateFile string) agent.Config {
 			}
 			var parts []string
 			for _, path := range []string{in.Path, in.From, in.To} {
-				if path == "" {
+				if path == "" || llm.IsAttachment(path) {
 					continue
 				}
 				text, err := e.WS.ScopedInstructions(path)

@@ -14,10 +14,45 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
 func allowOutput(context.Context, string, json.RawMessage) error { return nil }
+
+func TestSessionAttachmentInspectAndPixelComparison(t *testing.T) {
+	ws, err := workspace.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	var data bytes.Buffer
+	if err := png.Encode(&data, image.NewNRGBA(image.Rect(0, 0, 20, 10))); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "clipboard.png")
+	if err := os.WriteFile(path, data.Bytes(), 0600); err != nil {
+		t.Fatal(err)
+	}
+	ctx := llm.WithAttachments(t.Context(), []llm.Message{{Role: llm.RoleUser, Images: []string{path}}})
+	args := json.RawMessage(`{"paths":["attachment:1"]}`)
+	out, err := (Operation{WS: ws, Operation: "inspect"}).Run(ctx, args)
+	if err != nil || !strings.Contains(out, `"format":"png"`) || !strings.Contains(out, `"unchanged":true`) {
+		t.Fatal(out, err)
+	}
+	args = json.RawMessage(`{"paths":["attachment:1","attachment:1"]}`)
+	out, err = (Operation{WS: ws, Operation: "compare"}).Run(ctx, args)
+	if err != nil || !strings.Contains(out, "semantic similarity are not measured") {
+		t.Fatal(out, err)
+	}
+	if _, err := (Operation{WS: ws, Operation: "inspect"}).Run(t.Context(), json.RawMessage(`{"paths":["attachment:1"]}`)); err == nil {
+		t.Fatal("attachment leaked into another session")
+	}
+	entries, _ := os.ReadDir(ws.Root())
+	if len(entries) != 0 {
+		t.Fatal("inspection wrote project files", entries)
+	}
+}
 
 func TestCancelledPublicationCreatesNothing(t *testing.T) {
 	ws, err := workspace.New(t.TempDir())
