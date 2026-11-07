@@ -10,8 +10,8 @@ import (
 	"unicode"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/keshon/gektor/internal/tui/components/completion"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
 // The picker itself — its items, its selection and its frame — lives in
@@ -162,8 +162,9 @@ func (m *model) suggestionKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		return nil, false
 	}
 	switch msg.String() {
-	case "up", "down", "esc":
-		s.Keypress(msg)
+	case "up", "down", "pgup", "pgdown", "esc":
+		layout, _, _ := m.suggestionLayout()
+		s.Keypress(msg, layout.BodyHeight)
 		return nil, true
 	case "tab":
 		m.acceptSuggestion()
@@ -223,18 +224,44 @@ func (m *model) acceptSuggestion() bool {
 	return true
 }
 
-// suggestionView draws the picker over the bottom of the transcript; the
-// composer and its caret stay put.
+// suggestionLayout shares the popup's frame and screen origin with mouse input.
+func (m *model) suggestionLayout() (completion.Layout, int, int) {
+	width, height := min(m.transcript.Viewport.Width(), 78), m.transcript.Viewport.Height()
+	l := m.suggestions.Layout(completion.Props{Width: width, Height: height, Surface: popupSurface(), Shortcuts: m.shortcutStyles(),
+		Runnable: func(item completion.Item) bool {
+			return !item.Directory && strings.HasPrefix(item.Value, "/") && m.runsOnEnter(item.Value)
+		}})
+	geometry := m.panelGeometry(m.mainWidth(), 2, false, true)
+	return l, geometry.Body.X, paneTop + height - len(l.Rows)
+}
+
+// suggestionView overlays the transcript while keeping the composer in place.
 func (m *model) suggestionView(body string) string {
-	width := min(m.transcript.Viewport.Width(), 78)
-	height := max(m.transcript.Viewport.Height(), lipgloss.Height(body))
-	rows := m.suggestions.View(width, height, popupSurface())
-	if len(rows) == 0 {
+	l, _, _ := m.suggestionLayout()
+	if len(l.Rows) == 0 {
 		return body
 	}
-	lines := strings.Split(cellFrame(body, m.transcript.Viewport.Width(), height), "\n")
-	if len(lines) < len(rows) {
-		return body
+	height := m.transcript.Viewport.Height()
+	return popup.Overlay(cellFrame(body, m.transcript.Viewport.Width(), height), l.Rows, 0, height-len(l.Rows), l.Width, m.transcript.Viewport.Width())
+}
+
+func (m *model) suggestionMouse(msg tea.MouseMsg) bool {
+	if m.activeInputOwner() != focusInput || !m.suggestions.Pending() || (m.state != stDone && m.state != stRunning) {
+		return false
 	}
-	return strings.Join(append(lines[:len(lines)-len(rows)], rows...), "\n")
+	l, x, y := m.suggestionLayout()
+	mouse := msg.Mouse()
+	mouse.X -= x
+	mouse.Y -= y
+	switch msg.(type) {
+	case tea.MouseClickMsg:
+		return m.suggestions.Mouse(tea.MouseClickMsg(mouse), l)
+	case tea.MouseWheelMsg:
+		return m.suggestions.Mouse(tea.MouseWheelMsg(mouse), l)
+	case tea.MouseMotionMsg:
+		return m.suggestions.Mouse(tea.MouseMotionMsg(mouse), l)
+	case tea.MouseReleaseMsg:
+		return m.suggestions.Mouse(tea.MouseReleaseMsg(mouse), l)
+	}
+	return false
 }

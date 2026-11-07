@@ -8,8 +8,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/gektor/internal/config"
-
-	"github.com/keshon/gektor/internal/tui/components/completion"
 )
 
 // command is one slash command.
@@ -123,13 +121,6 @@ func (m *model) runsOnEnter(value string) bool {
 		return false
 	}
 	return !m.busy() || runsImmediate(value)
-}
-
-func init() {
-	// The picker renders its own hint and needs the same answer, but the
-	// registry lives here. One lookup, injected, rather than a second list
-	// that could disagree about which commands take an argument.
-	completion.SetRunner(commandTakesArgument)
 }
 
 // Shared by help and command completion.

@@ -7,6 +7,9 @@ import (
 )
 
 func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if m.suggestions.Dragging() && m.suggestionMouse(msg) {
+		return m, nil
+	}
 	if m.workflowActive() && m.dialog == nil && (m.workflows.dragging || m.workflows.panning || m.workflows.thumb.active) {
 		return m.workflowMouse(msg)
 	}
@@ -60,6 +63,10 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.actionBarVisible() && msg.Mouse().Y == m.termH-1 && msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) {
 		return m.toolbarClick(msg.Mouse().X)
+	}
+
+	if m.suggestionMouse(msg) {
+		return m, nil
 	}
 
 	if m.dialog != nil {

@@ -423,7 +423,9 @@ Compare @"docs/design notes.txt" with @README.md
 Describe @screenshot.png
 ```
 
-Use arrows to choose a suggestion and Tab to insert it.
+Use arrows or click a row to choose a suggestion, then Tab to insert it.
+Page Up/Down and the scrollbar move through longer lists. Clicking a row
+does not insert text or run a command. Esc closes the list and keeps the draft.
 File suggestions insert a path; they do not send the message.
 
 Text files must be UTF-8, up to 32 KiB each and 64 KiB combined per message.

@@ -140,7 +140,8 @@ func TestSuggestionPopupHasBackgroundAndFits(t *testing.T) {
 		m.input.SetValue("/")
 		m.syncSuggestions()
 		body := m.suggestionView(m.transcript.Viewport.View())
-		if !strings.Contains(body, "╭─ Commands") || !strings.Contains(body, "Enter run") || !strings.Contains(body, "48;") {
+		plain := ansi.Strip(body)
+		if !strings.Contains(plain, "Commands") || !strings.Contains(plain, "Enter run") || !strings.Contains(body, "48;") {
 			t.Fatalf("missing popup chrome or background: %q", body)
 		}
 		if lipgloss.Height(body) != m.transcript.Viewport.Height() {
@@ -154,7 +155,7 @@ func TestSuggestionPopupHasBackgroundAndFits(t *testing.T) {
 	}
 }
 
-func TestPopupShowsSixSuggestionsAndMeetsDivider(t *testing.T) {
+func TestPopupShowsTwelveSuggestionsAndMeetsDivider(t *testing.T) {
 	for _, width := range []int{80, 140} {
 		m := completionModel(t)
 		m.Update(tea.WindowSizeMsg{Width: width, Height: 30})
@@ -163,18 +164,15 @@ func TestPopupShowsSixSuggestionsAndMeetsDivider(t *testing.T) {
 		m.syncSuggestions()
 		view := m.View()
 		lines := strings.Split(view.Content, "\n")
-		count, bottom := 0, -1
-		for i, line := range lines {
-			pane := string([]rune(ansi.Strip(line))[m.promptOffset():])
-			if strings.Contains(pane, "/") && strings.HasPrefix(pane, "│") {
-				count++
-			}
-			if strings.Contains(line, "╰") {
-				bottom = i
-			}
+		layout, _, top := m.suggestionLayout()
+		bottom := top + len(layout.Rows) - 1
+		if layout.BodyHeight != 12 || !strings.Contains(lines[bottom], "╰") {
+			t.Fatalf("%d columns: got %d suggestions", width, layout.BodyHeight)
 		}
-		if count != 12 || bottom < 0 {
-			t.Fatalf("%d columns: got %d suggestions", width, count)
+		for i := 0; i < layout.BodyHeight; i++ {
+			if !strings.Contains(ansi.Strip(lines[top+layout.BodyTop+i]), m.suggestions.Items[layout.Offset+i].Value) {
+				t.Fatal("suggestion row differs from its measured location")
+			}
 		}
 		if !strings.Contains(lines[bottom+1], "────") {
 			t.Fatal("popup must meet the divider without a blank row")
