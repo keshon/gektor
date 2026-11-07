@@ -599,13 +599,10 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 			res.RunError = "probe requires confirmed image support"
 			return res
 		}
-		for i, name := range p.Attachments {
-			target := filepath.Join(tempRoot, fmt.Sprintf("attachment-%d%s", i+1, filepath.Ext(name)))
-			if err := os.Rename(filepath.Join(work, filepath.FromSlash(name)), target); err != nil {
-				res.RunError = "prepare attachment: " + err.Error()
-				return res
-			}
-			images = append(images, target)
+		images, err = prepareProbeAttachments(p, work, tempRoot)
+		if err != nil {
+			res.RunError = err.Error()
+			return res
 		}
 	}
 
@@ -661,63 +658,18 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 	}
 
 	var answer string
-	// roles.Interactive is what cmd/gektor builds too, so the probe
-	// scores the agent that ships. This used to be a hand-copied
-	// config here and it had already drifted: no ask_user, no
-	// delegate_task, while two probes are specifically about whether
-	// those get reached for when they shouldn't be.
-	//
-	// The responder says plainly that nobody is there rather than
-	// faking an answer — dropping the tool would change the tool set,
-	// and inventing an answer would make the probe score the answer.
-	// Whether ask_user was called at all stays visible in the trace,
-	// which is what probe 12 measures.
 	env := evalEnv(modelClient, ws, procs, contextLimit, maxTokens, record, func(kind string) {
 		res.Nudges = append(res.Nudges, kind)
 	})
 	env.WorkflowDir = workflowStoreDir(ws)
 	env.Vision = len(images) > 0
-	env.OnResult = func(result agent.ToolResult) {
-		res.ToolSeconds += result.Duration.Seconds()
-		recordToolResult(calls, result)
-		if res.FirstToolSeconds == 0 {
-			res.FirstToolSeconds = time.Since(started).Seconds()
-		}
-		if result.Failed {
-			if res.ToolFailures == nil {
-				res.ToolFailures = map[string]int{}
-			}
-			res.ToolFailures[result.Status]++
-		}
-	}
+	env = observeProbeResults(env, &res, &calls, started)
 	if deadlineAware {
 		env.RunTimeout = timeout
 	}
-	env.OnPrompt = func(report llm.ContextReport) {
-		if report.Request == 1 {
-			res.StartupContext = report
-		}
-	}
-	replyIndex := 0
-	a := roles.Interactive(env, "", "", func(context.Context, string) (string, error) {
-		if replyIndex < len(p.Replies) {
-			reply := p.Replies[replyIndex]
-			replyIndex++
-			return reply, nil
-		}
-		return "This is an automated evaluation run; no human is available. " +
-			"State your assumption and proceed with the smallest reasonable action.", nil
-	}, nil)
-	runStarted := time.Now()
-	final, err := a.Run(runCtx, p.Task, images...)
-	res.RunSeconds = time.Since(runStarted).Seconds()
-	res.Warnings, res.Summary = a.Report().Warnings, a.Report().Summary
+	answer = executeProbeAgent(runCtx, p, env, images, &res)
 	res.Requests = counter.timings
 	res.Errored = !counter.reached() && !p.InjectOverflowOnce
-	answer = final
-	if err != nil {
-		res.RunError = firstLine(err.Error())
-	}
 
 	// The backend was never reached, so the workspace checks below would
 	// only be measuring the seed. Report it as an error rather than
@@ -741,28 +693,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 		res.Failures = append(res.Failures, "run did not complete: "+res.RunError)
 	}
 
-	checkStarted := time.Now()
-	res.ArtifactFailures = checkArtifacts(ctx, p, ws)
-	if len(images) > 0 {
-		files, _ := generatedFixture(p.Generated)
-		for i, path := range images {
-			data, err := os.ReadFile(path)
-			if err != nil || string(data) != string(files[p.Attachments[i]]) {
-				res.ArtifactFailures = append(res.ArtifactFailures, "original attachment changed")
-			}
-		}
-	}
-	artifactPassed := len(res.ArtifactFailures) == 0
-	res.ArtifactPassed = &artifactPassed
-	res.CheckSeconds = time.Since(checkStarted).Seconds()
-	res.Failures = append(res.Failures, res.ArtifactFailures...)
-	res.Failures = append(res.Failures, checkTrace(p, calls)...)
-	if p.Generated != "" {
-		if err := checkWorkflowTrace(calls, ws); err != nil {
-			res.Failures = append(res.Failures, err.Error())
-		}
-	}
-	res.Failures = append(res.Failures, checkAnswer(p, answer)...)
+	checkProbeOutcome(ctx, p, ws, images, calls, answer, &res)
 
 	recordProbeUsage(&res, counter, contextLimit, calls)
 	if p.MaxSteps > 0 && res.Steps > p.MaxSteps {
