@@ -35,6 +35,7 @@ func (c *authorClient) Chat(_ context.Context, req llm.ChatRequest) (llm.ChatRes
 		calls = []llm.ToolCall{
 			call("run_shell", `{"command":"echo escaped > owned.txt"}`),
 			call("workflow_run", `{"recipe_path":"recipe.json"}`),
+			call("download_file", `{"url":"https://example.com/file","path":"download.bin"}`),
 			call("enable_capability", `{"id":"external"}`),
 			call("image_variants", `{"paths":["image.png"],"widths":[8],"out_dir":"output"}`),
 		}
@@ -88,7 +89,7 @@ func TestWorkflowAuthorCannotExecuteOrRedirectWrites(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"image_inspect", "image_preview", "list_files", "read_file", "workflow_save", "workflow_schema", "workflow_validate"}
+	want := []string{"archive_list", "image_inspect", "image_preview", "list_files", "read_file", "workflow_save", "workflow_schema", "workflow_validate"}
 	if !reflect.DeepEqual(a.ToolNames(), want) {
 		t.Fatal(a.ToolNames())
 	}
@@ -101,7 +102,7 @@ func TestWorkflowAuthorCannotExecuteOrRedirectWrites(t *testing.T) {
 	if _, err := e.WS.Stat("recipe.json"); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"other.json", "owned.txt", "output", ".gektor/workflow-runs"} {
+	for _, path := range []string{"other.json", "owned.txt", "download.bin", "output", ".gektor/workflow-runs"} {
 		if _, err := e.WS.Stat(path); !os.IsNotExist(err) {
 			t.Fatal("author escaped its write scope", path, err)
 		}

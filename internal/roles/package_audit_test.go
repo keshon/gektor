@@ -1,10 +1,13 @@
 package roles
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -13,6 +16,61 @@ import (
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tools"
 )
+
+func TestPlannerCanInspectZIPButCannotDownload(t *testing.T) {
+	e := testEnv(t)
+	var data bytes.Buffer
+	w := zip.NewWriter(&data)
+	if _, err := w.Create("hello.txt"); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.WS.WriteFile("input.zip", data.Bytes(), 0600); err != nil {
+		t.Fatal(err)
+	}
+	e.Client = &seqStub{steps: []llm.ChatResponse{
+		extensionCall("enable", "enable_capability", `{"id":"native_files"}`),
+		extensionCall("list", "archive_list", `{"path":"input.zip"}`),
+		extensionCall("download", "download_file", `{"url":"https://example.com/file","path":"download.bin"}`), extensionAnswer(),
+	}}
+	var results []agent.ToolResult
+	e.OnResult = func(r agent.ToolResult) { results = append(results, r) }
+	if _, err := Planner(e, "", "", nil).Run(t.Context(), "Inspect ZIP without writing"); err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 3 || results[0].Failed || results[1].Failed || !results[2].Failed || !strings.Contains(results[1].Output, "hello.txt") {
+		t.Fatal(results)
+	}
+	if _, err := e.WS.Stat("download.bin"); !os.IsNotExist(err) {
+		t.Fatal("Plan wrote a download", err)
+	}
+}
+
+func TestInteractiveDownloadHonorsURLAndDestinationDenies(t *testing.T) {
+	for _, resource := range []string{"https://example.com/file", "download.bin"} {
+		t.Run(resource, func(t *testing.T) {
+			e := testEnv(t)
+			e.Policy = permission.Default().WithExtra([]permission.Rule{{Tool: "download_file", Pattern: resource, Effect: permission.Deny}})
+			e.Client = &seqStub{steps: []llm.ChatResponse{
+				extensionCall("enable", "enable_capability", `{"id":"native_files"}`),
+				extensionCall("download", "download_file", `{"url":"https://example.com/file#ignored","path":"download.bin"}`), extensionAnswer(),
+			}}
+			var results []agent.ToolResult
+			e.OnResult = func(r agent.ToolResult) { results = append(results, r) }
+			if _, err := Interactive(e, "", "", nil, nil).Run(t.Context(), "Try the download"); err != nil {
+				t.Fatal(err)
+			}
+			if len(results) != 2 || results[0].Failed || !results[1].Failed || !strings.Contains(results[1].Output, "blocked by policy") {
+				t.Fatal(results)
+			}
+			if _, err := e.WS.Stat("download.bin"); !os.IsNotExist(err) {
+				t.Fatal("denied call wrote output", err)
+			}
+		})
+	}
+}
 
 func TestFreshPlannerActivatesNativeWebOnly(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("fixture")) }))

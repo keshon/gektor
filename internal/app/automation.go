@@ -16,6 +16,7 @@ import (
 	"github.com/keshon/gektor/internal/automation/service"
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/gektor"
+	filenodes "github.com/keshon/gektor/internal/integrations/fileops/nodes"
 	"github.com/keshon/gektor/internal/integrations/pixelita"
 	imagenodes "github.com/keshon/gektor/internal/integrations/pixelita/nodes"
 	"github.com/keshon/gektor/internal/permission"
@@ -27,6 +28,7 @@ import (
 // AutomationRegistry composes operations without constructing a model client.
 func AutomationRegistry(ws *workspace.Workspace, store string, output pixelita.OutputAuthorizer) (*automation.Registry, error) {
 	nodes := imagenodes.Definitions(ws, output)
+	nodes = append(nodes, filenodes.Definitions(ws)...)
 	nodes = append(nodes, record.Definitions(ws, store)...)
 	nodes = append(nodes, artifactnodes.Definitions(ws)...)
 	nodes = append(nodes, processnode.Definition(ws))

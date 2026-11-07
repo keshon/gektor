@@ -7,6 +7,8 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	workflow "github.com/keshon/gektor/internal/automation/agenttools"
 	"github.com/keshon/gektor/internal/checks"
+	"github.com/keshon/gektor/internal/integrations/fileops"
+	"github.com/keshon/gektor/internal/integrations/fileops/adapters"
 	"github.com/keshon/gektor/internal/integrations/pixelita"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/workspace"
@@ -22,6 +24,8 @@ func PathResources(ws *workspace.Workspace, tool string, args json.RawMessage) (
 	var in struct{ Path, From, To string }
 	var paths []string
 	switch tool {
+	case "download_file", "archive_list":
+		return (adapters.Operation{Service: fileops.Service{WS: ws}, Kind: tool}).Resources(args)
 	case "workflow_schema":
 		var in struct {
 			Kind string `json:"record_kind"`

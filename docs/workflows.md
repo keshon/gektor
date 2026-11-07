@@ -25,6 +25,7 @@ Schedules start workflows at set times. They are managed through the
 | Transform data with JavaScript | `script_transform` |
 | Ask a model for text or structured data | `model_generate` |
 | Make an HTTP request | `http_request` |
+| Download a file or inspect a ZIP | `download_file`, `archive_list` |
 | Keep files or text with a run | `artifact_import`, `artifact_write`, `artifact_read_text` |
 | Run a local program | `run_program` |
 | Call another recipe | `workflow_call` |
@@ -41,8 +42,8 @@ not ask a model to decide what to do.
 ## Create and run from the command line
 
 Use `gektor workflow draft recipe.json [agent flags] "task"` for a constrained
-authoring session. It can inspect or preview sources and save only that recipe;
-it cannot execute the recipe, write image variants or launch processes. Schema
+authoring session. It can inspect or preview images, list ZIP contents and save
+only that recipe; it cannot execute the recipe, write image variants or launch processes. Schema
 details are loaded through `workflow_schema`, rather than added to every prompt.
 The author must actually save and successfully validate the selected recipe
 before its run can report success. Verification revalidates the current file
@@ -95,7 +96,8 @@ checks structure, supported operations, argument schemas, IDs and path scope.
 It does not predict whether future input files exist or encoding will succeed.
 The catalog includes these four image operations, `record_read`, `record_write`,
 `script_transform`, `model_generate`, `http_request`, `artifact_import`,
-`artifact_write`, `artifact_read_text`, `run_program` and `workflow_call`.
+`artifact_write`, `artifact_read_text`, `download_file`, `archive_list`,
+`run_program` and `workflow_call`.
 Image and record permissions match direct calls. It validates step templates and authorizes known arguments
 before starting. Output-dependent arguments are validated and authorized after
 resolution, immediately before that step. Earlier effects remain if a later
@@ -103,6 +105,43 @@ value or permission check fails.
 Execution reads and revalidates the current file; prior validation does not
 freeze it. Each run stores the exact source text, its SHA-256 hash and the parsed
 definition. The returned hash identifies the version actually executed.
+
+## File downloads and ZIP inspection
+
+These Go-native operations are also Agent tools in the optional `native_files`
+pack. Enable that pack for direct tool calls. Workflow execution uses the same
+implementation and does not need a separate capability activation.
+
+`download_file` accepts `url` and `path`. It downloads one public HTTP(S) URL
+into a new workspace file. The parent folder must exist. Existing files and
+links are never overwritten. Optional `max_bytes` can lower the 16 MiB limit;
+`timeout_seconds` is 1–120, with a default of 30. Redirects, automatic retries,
+credentials, recursive downloading and resume are not supported.
+
+The result contains `path`, `url`, `size`, `sha256` and `media_type`. Bytes are
+copied without text conversion and are not returned to the model. Hand the
+returned `path` to another file operation or `artifact_import` to keep a
+run-owned copy. Both the normalized URL and destination path are permission
+resources under `download_file`. Failed or cancelled transfers remove their
+new output file; downloading never executes its contents.
+
+`archive_list` accepts a workspace `path` to a ZIP file up to 16 MiB with at
+most 10,000 entries. Metadata reads are capped at 2 MiB to bound inspection
+work even for malformed archives. Optional `offset` starts at zero; `limit`
+defaults to 50 and accepts 1–100. Results contain `total`, `offset`, `more` and `entries`.
+An offset past the end returns an empty page. Each entry reports its name,
+declared size, compressed size, directory/link flags and `safe_path`.
+
+Listing does not decompress entries, check their contents or extract files.
+Names and sizes come from the archive and are untrusted. `safe_path` checks the
+name only; it does not mean that an entry is safe to extract. The ZIP source
+path is its permission resource under `archive_list`.
+
+For a download step named `get`, pass its saved path to a later listing step:
+
+```json
+{"id":"list","tool":"archive_list","args":{"path":{"$step":"get","pointer":"/path"}}}
+```
 
 ## First recipe
 

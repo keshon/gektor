@@ -139,7 +139,12 @@ definitions are checked against the current build before a resumed run; a
 mismatch requires compatible code or a fresh session. Other always-present
 native tools are reconstructed normally and are not saved as capability packs.
 
-Built-in `native_images` and `native_workflows` load on demand.
+Built-in `native_images`, `native_files` and `native_workflows` load on demand.
+`native_files` provides `download_file` and `archive_list` as ordinary agent
+tools. The same operations are available as workflow nodes. Downloading writes
+a new workspace file; ZIP listing is read-only. Neither needs an external
+program. See [file operations](workflows.md#file-downloads-and-zip-inspection)
+for inputs and limits.
 See [image workflows](workflows.md) for tools, limits and the recipe format.
 
 The prompt includes a bounded map of optional pack IDs and descriptions from

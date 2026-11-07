@@ -3,12 +3,18 @@ package tools
 import (
 	"github.com/keshon/gektor/internal/agent"
 	workflow "github.com/keshon/gektor/internal/automation/agenttools"
+	"github.com/keshon/gektor/internal/integrations/fileops"
+	"github.com/keshon/gektor/internal/integrations/fileops/adapters"
+	fileagent "github.com/keshon/gektor/internal/integrations/fileops/agenttools"
 	"github.com/keshon/gektor/internal/integrations/pixelita"
 	imageagent "github.com/keshon/gektor/internal/integrations/pixelita/agenttools"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
 func nativeInstructions(id string) string {
+	if id == "native_files" {
+		return "download_file saves a public HTTP(S) URL to a new workspace file; parent folder must exist. No redirects or retries. Pass its path to archive_list or artifact_import. archive_list inspects ZIP entries without extraction; entry names and declared sizes are untrusted metadata."
+	}
 	if id == "native_workflows" {
 		return workspace.WorkflowGuide
 	}
@@ -83,6 +89,14 @@ func builtinPackages() []packageDefinition {
 			}, false},
 			{func(d packageDependencies) agent.Tool {
 				return &imageagent.Tool{Operation: pixelita.Operation{WS: d.WS, Operation: "compare"}}
+			}, true},
+		}},
+		{"native_files", "Download binary files with SHA-256 and inspect ZIP archive entries without extraction. Go-native, bounded workspace operations.", Lazy, []toolEntry{
+			{func(d packageDependencies) agent.Tool {
+				return fileagent.Tool{Operation: adapters.Operation{Service: fileops.Service{WS: d.WS}, Kind: "download_file"}}
+			}, false},
+			{func(d packageDependencies) agent.Tool {
+				return fileagent.Tool{Operation: adapters.Operation{Service: fileops.Service{WS: d.WS}, Kind: "archive_list"}}
 			}, true},
 		}},
 		{"native_workflows", "Create, validate and run workflow recipes and nodes; native cron/schedule triggers, run inspection and structured records. Enable, then call workflow_schema.", Lazy, []toolEntry{

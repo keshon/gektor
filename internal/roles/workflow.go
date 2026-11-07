@@ -9,6 +9,9 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	workflow "github.com/keshon/gektor/internal/automation/agenttools"
 	"github.com/keshon/gektor/internal/gektor"
+	"github.com/keshon/gektor/internal/integrations/fileops"
+	"github.com/keshon/gektor/internal/integrations/fileops/adapters"
+	fileagent "github.com/keshon/gektor/internal/integrations/fileops/agenttools"
 	"github.com/keshon/gektor/internal/integrations/pixelita"
 	imageagent "github.com/keshon/gektor/internal/integrations/pixelita/agenttools"
 	"github.com/keshon/gektor/internal/llm"
@@ -72,6 +75,7 @@ func WorkflowAuthor(e Env, recipePath, stateFile string) (*agent.Agent, error) {
 		workflow.Schema{WS: e.WS, StoreDir: storeDir}, save,
 		validation,
 		tools.ReadFile{WS: e.WS}, tools.ListFiles{WS: e.WS},
+		fileagent.Tool{Operation: adapters.Operation{Service: fileops.Service{WS: e.WS}, Kind: "archive_list"}},
 		&imageagent.Tool{Operation: pixelita.Operation{WS: e.WS, Operation: "inspect"}}, &imageagent.Tool{Operation: pixelita.Operation{WS: e.WS, Operation: "preview"}},
 	)
 	cfg.Resources = func(name string, args json.RawMessage) ([]string, error) {

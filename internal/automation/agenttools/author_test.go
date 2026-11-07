@@ -140,7 +140,7 @@ func TestWorkflowSchemaAdvertisesOnlySupportedOperations(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
 		t.Fatal(err)
 	}
-	if len(result.Operations) != 14 || result.Operations["workflow_call"] == nil || result.Operations["workflow_bind"] != nil || result.Operations["run_program"] == nil || result.Operations["artifact_import"] == nil || result.Operations["image_variants"] == nil || result.Operations["run_shell"] != nil || !strings.Contains(string(result.Recipe), `"inputs"`) {
+	if len(result.Operations) != 16 || result.Operations["download_file"] == nil || result.Operations["archive_list"] == nil || result.Operations["workflow_call"] == nil || result.Operations["workflow_bind"] != nil || result.Operations["run_program"] == nil || result.Operations["artifact_import"] == nil || result.Operations["image_variants"] == nil || result.Operations["run_shell"] != nil || !strings.Contains(string(result.Recipe), `"inputs"`) {
 		t.Fatal(out)
 	}
 }
