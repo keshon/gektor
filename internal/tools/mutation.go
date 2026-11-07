@@ -4,33 +4,60 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
 	"github.com/keshon/gektor/internal/workspace"
 )
 
-// pathLocks serializes mutating tools per workspace path: two Exclusive
-// calls in one step already run in order, but Concurrent batches and
-// background workers can interleave a read with a write of the same file.
+type pathLock struct {
+	mu    sync.Mutex
+	users int // Includes callers waiting to acquire mu.
+}
+
+// Entries live only while a caller owns or waits for the path lock.
 var pathLocks = struct {
 	mu sync.Mutex
-	m  map[string]*sync.Mutex
-}{m: map[string]*sync.Mutex{}}
+	m  map[string]*pathLock
+}{m: map[string]*pathLock{}}
 
-// withPathLock runs fn holding the mutex for path.
+// withPathLock takes a validated absolute workspace path.
 func withPathLock(path string, fn func() (string, error)) (string, error) {
-	key := strings.ReplaceAll(strings.ToLower(path), "\\", "/")
+	key := mutationPathKey(path)
 	pathLocks.mu.Lock()
 	l, ok := pathLocks.m[key]
 	if !ok {
-		l = &sync.Mutex{}
+		l = &pathLock{}
 		pathLocks.m[key] = l
 	}
+	l.users++
 	pathLocks.mu.Unlock()
-	l.Lock()
-	defer l.Unlock()
+	l.mu.Lock()
+	defer func() {
+		l.mu.Unlock()
+		pathLocks.mu.Lock()
+		l.users--
+		if l.users == 0 {
+			delete(pathLocks.m, key)
+		}
+		pathLocks.mu.Unlock()
+	}()
 	return fn()
+}
+
+func mutationPathKey(path string) string {
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		path = resolved
+	} else if parent, err := filepath.EvalSymlinks(filepath.Dir(path)); err == nil {
+		path = filepath.Join(parent, filepath.Base(path))
+	}
+	path = filepath.Clean(path)
+	if runtime.GOOS == "windows" {
+		path = strings.ToLower(path)
+	}
+	return path
 }
 
 // normalizeContent strips a BOM and converts CRLF to LF for matching.

@@ -7,9 +7,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -197,5 +199,82 @@ func TestPatchFileStableAnchorsAndRefusalPreserveBytes(t *testing.T) {
 		if string(got) != string(current) {
 			t.Fatal("refused patch changed the file")
 		}
+	}
+}
+
+func TestMutationLocksUseResolvedWorkspaceTargets(t *testing.T) {
+	ws, root := testWS(t)
+	writeTmp(t, root, "file.txt", "one two")
+	full := filepath.Join(root, "file.txt")
+	held, release := make(chan struct{}), make(chan struct{})
+	ownerDone := make(chan struct{})
+	go func() {
+		defer close(ownerDone)
+		_, _ = withPathLock(full, func() (string, error) { close(held); <-release; return "", nil })
+	}()
+	<-held
+	results := make(chan error, 2)
+	for _, edit := range []struct{ path, old, next string }{{"./file.txt", "one", "ONE"}, {full, "two", "TWO"}} {
+		go func() {
+			raw, _ := json.Marshal(map[string]string{"path": edit.path, "old_content": edit.old, "new_content": edit.next})
+			_, err := (PatchFile{WS: ws}).Run(t.Context(), raw)
+			results <- err
+		}()
+	}
+	// Both patch operations must wait on the lock already held for this target.
+	deadline := time.Now().Add(2 * time.Second)
+	users := 0
+	for time.Now().Before(deadline) {
+		pathLocks.mu.Lock()
+		if entry := pathLocks.m[mutationPathKey(full)]; entry != nil {
+			users = entry.users
+		}
+		pathLocks.mu.Unlock()
+		if users == 3 {
+			break
+		}
+		runtime.Gosched()
+	}
+	close(release)
+	<-ownerDone
+	for range 2 {
+		if err := <-results; err != nil {
+			t.Error(err)
+		}
+	}
+	if users != 3 {
+		t.Errorf("aliases did not join the same lock: users=%d", users)
+	}
+	got, err := ws.ReadFile("file.txt")
+	if err != nil || string(got) != "ONE TWO" {
+		t.Fatalf("content=%q err=%v", got, err)
+	}
+	pathLocks.mu.Lock()
+	remaining := pathLocks.m[mutationPathKey(full)]
+	pathLocks.mu.Unlock()
+	if remaining != nil {
+		t.Fatal("unused lock retained")
+	}
+	_, otherRoot := testWS(t)
+	if mutationPathKey(full) == mutationPathKey(filepath.Join(otherRoot, "file.txt")) {
+		t.Fatal("unrelated workspaces share a lock")
+	}
+	if runtime.GOOS != "windows" && mutationPathKey(filepath.Join(root, "A.txt")) == mutationPathKey(filepath.Join(root, "a.txt")) {
+		t.Fatal("case-sensitive targets share a lock")
+	}
+}
+
+func TestMutationLockResolvesSymlinkParents(t *testing.T) {
+	root := t.TempDir()
+	target := filepath.Join(root, "target")
+	if err := os.Mkdir(target, 0700); err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(root, "alias")
+	if err := os.Symlink(target, alias); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if mutationPathKey(filepath.Join(target, "new.txt")) != mutationPathKey(filepath.Join(alias, "new.txt")) {
+		t.Fatal("new files through a symlink parent use separate locks")
 	}
 }

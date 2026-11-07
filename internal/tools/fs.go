@@ -505,7 +505,7 @@ func (t WriteFile) Run(_ context.Context, args json.RawMessage) (string, error) 
 	if err := t.WS.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 		return "", err
 	}
-	res, err := withPathLock(in.Path, func() (string, error) {
+	res, err := withPathLock(full, func() (string, error) {
 		if err := t.WS.WriteFile(full, []byte(in.Content), 0o644); err != nil {
 			return "", err
 		}

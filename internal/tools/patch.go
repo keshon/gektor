@@ -54,7 +54,7 @@ func (t PatchFile) Run(_ context.Context, args json.RawMessage) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	return withPathLock(in.Path, func() (string, error) {
+	return withPathLock(full, func() (string, error) {
 		data, err := t.WS.ReadFile(full)
 		if err != nil {
 			return "", err
