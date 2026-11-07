@@ -105,18 +105,28 @@ they actually validate. Do not silence ordinary mistakes with baseline entries.
 - [x] Consolidate completion handling after the bug fix is covered.
 - [x] Make step accounting easy to follow. Treat changes to counting and limits
   as a separate change from moving code.
-- [ ] Review executeToolCalls by phase: validation and authorization, admission,
+- [x] Review executeToolCalls by phase: validation and authorization, admission,
   execution, ordered result attachment and mutation observation. Keep exclusive
   barriers and cancellation behavior intact.
-- [ ] Review the 50-field Config and roles.Env together. Group fields only where
+- [x] Review the 50-field Config and roles.Env together. Group fields only where
   callers become simpler. Do not replace explicit callbacks with a generic
   hook registry or deeply nested configuration.
-- [ ] Investigate browser save/restore hooks. Move browser-specific wiring out
+- [x] Investigate browser save/restore hooks. Move browser-specific wiring out
   of the loop only if existing saved sessions and lazy activation still work
   through a small compatibility path. Otherwise document and defer this seam.
 
 Done when setup, turn execution and finalization can be read separately, and
 existing history, prefix, overflow, steering, timeout and ordering tests pass.
+
+Keep Config and roles.Env explicit for this pass. Role constructors already own
+the wiring; nested option groups would change many callers without removing a
+second owner. Tool validation and resource selection now have named helpers;
+admission, exclusive barriers and result ordering remain together.
+
+Defer browser snapshot migration. The saved profile exists even when the browser
+capability has never been activated. Capability records describe activated tool
+catalogs, so folding the profile into them needs a state-format and compatibility
+decision, rather than a behavior-preserving code move.
 
 ## 5. Simplify launch and transport code
 
