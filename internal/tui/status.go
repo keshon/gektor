@@ -12,6 +12,12 @@ func (m *model) statusLine() string {
 		return m.styles.status.Render("Search names and saved session text")
 	}
 	if m.dialog != nil {
+		if m.dialog.table != nil {
+			if m.dialog.table.model.Layout(m.tableProps()).Capacity == 0 {
+				return m.styles.status.Render("Enlarge the terminal   Esc close")
+			}
+			return m.styles.status.Render("/ filter   Tab controls   Esc back")
+		}
 		if m.dialog.form != nil {
 			return m.styles.status.Render("Tab fields/buttons · Ctrl+O newline · Esc cancel")
 		}

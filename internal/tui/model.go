@@ -19,6 +19,7 @@ import (
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/mcpmanager"
+	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/retrospect"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/run"
@@ -130,6 +131,7 @@ type model struct {
 	// overrides; sessionEnv layers those on per session.
 	mcp          *mcpmanager.Manager
 	mcpBusy      bool
+	mcpTable     *tableDialog
 	baseEnv      roles.Env
 	started      time.Time
 	elapsed      time.Duration
@@ -251,7 +253,7 @@ type model struct {
 	wsRoot        string
 	mcpCount      int
 	policyRules   int
-	policyDetails []string
+	policyDetails []permission.Rule
 }
 
 func gateEvent(name string, fields map[string]any) run.Event {
@@ -412,7 +414,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		})
 	}
 	for _, rule := range cfg.Env.Policy.Rules {
-		m.policyDetails = append(m.policyDetails, fmt.Sprintf("%s · %s · %s", rule.Effect, rule.Tool, rule.Pattern))
+		m.policyDetails = append(m.policyDetails, rule)
 	}
 	m.seedHistory = cfg.SeedHistory
 	if cfg.SessionDirectory != "" {

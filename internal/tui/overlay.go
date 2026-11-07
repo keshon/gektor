@@ -92,6 +92,9 @@ func (m *model) activeInputOwner() focusOwner {
 
 func (m *model) syncFocus() {
 	owner := m.activeInputOwner()
+	if m.dialog != nil && m.dialog.table != nil {
+		m.dialog.table.model.SyncFocus(owner == focusDialog)
+	}
 	if m.dialog != nil && m.dialog.form != nil {
 		m.dialog.form.SyncInputFocus(owner == focusDialog)
 	}

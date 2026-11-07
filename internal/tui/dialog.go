@@ -27,6 +27,7 @@ func wsRootOf(ws *workspace.Workspace) string {
 // A dialog carries lines or a form, never both. A lesson preview also offers
 // explicit save/edit actions; Enter still closes without saving.
 type infoDialog struct {
+	table   *tableDialog
 	hint    string
 	onClose func()
 	drag    scrollDrag
@@ -45,8 +46,10 @@ type infoDialog struct {
 // or run start.
 func (m *model) openDialog(title string, lines []string) {
 	m.cancelEvaluation()
+	if m.dialog == nil {
+		m.pushOverlay()
+	}
 	m.dialog = &infoDialog{title: title, lines: lines}
-	m.pushOverlay()
 	m.input.Blur()
 	m.fitBottom()
 }
@@ -87,6 +90,10 @@ func (m *model) overlayDialog(background string) string {
 }
 
 func (m *model) dialogRows() ([]string, int, int) {
+	if m.dialog.table != nil {
+		p := m.tableProps()
+		return m.dialog.table.model.Layout(p).Rows, p.Width, p.Height
+	}
 	layout := m.layoutDialog()
 	offset := min(max(m.dialog.offset, 0), max(len(layout.lines)-layout.capacity, 0))
 	rows := layout.rows
@@ -103,7 +110,7 @@ func (m *model) dialogRows() ([]string, int, int) {
 }
 
 func (m *model) scrollDialog(delta int) {
-	if m.dialog == nil || m.dialog.form != nil {
+	if m.dialog == nil || m.dialog.form != nil || m.dialog.table != nil {
 		return
 	}
 	layout := m.layoutDialog()

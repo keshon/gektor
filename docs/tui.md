@@ -63,6 +63,20 @@ Loading a profile stages its values; choose Apply to use them.
 Changing settings does not send a task to the model.
 See [profiles](cli.md#profiles) for the file format and command-line use.
 
+### MCP servers
+
+Open **Settings > MCP servers**, or use `/mcp`. The table shows each server's
+status and tool count. Use `/` to filter, arrows to select a row, and Tab to
+reach its action buttons. Enter opens Details. Esc leaves the filter first,
+then closes the table.
+
+Connect starts a connection; Disconnect closes it. Edit changes the saved
+definition. Enable/Disable controls whether the server can be used. Delete
+asks for confirmation. These changes are available between agent turns.
+
+Add, Paste JSON and Import file save server definitions. Importing does not
+connect them. Closing a detail or edit dialog returns to the filtered list.
+
 ## Agent
 
 Agent is the chat screen. You describe a task; the model chooses its next steps.
@@ -141,6 +155,11 @@ After a failed turn, `/retry` continues from the saved checkpoint.
 It does not roll back files. Read the error and check completed work first.
 
 ### Permissions
+
+Open Permissions in the Agent or Run menu, or use `/permissions`, to read policy rules.
+Use `/` to filter by decision, tool or pattern. Order numbers stay unchanged
+when filtering: later matching rules take precedence. Details shows the full
+pattern. This screen does not change rules or grant permission.
 
 A permission request shows the operation and its target.
 In Agent's permission prompt, `Y` allows once. `A` opens confirmation for

@@ -35,6 +35,16 @@ func (m *model) legacyFooterActions() []footerAction {
 
 // The first three actions stay in place; the middle pair follows input ownership.
 func (m *model) footerActions() []footerAction {
+	if m.dialog != nil && m.dialog.table != nil {
+		usable := m.dialog.table.model.Layout(m.tableProps()).Capacity > 0
+		enter := footerAction{tea.KeyEnter, 0, "Enter", "Details", "View", m.dialog.table.model.Selected() != ""}
+		if !usable {
+			enter = footerAction{tea.KeyEnter, 0, "Enter", "Close", "Close", true}
+		}
+		return []footerAction{{'/', 0, "/", "Filter", "Filter", usable}, {tea.KeyTab, 0, "Tab", "Controls", "Next", usable},
+			enter,
+			{tea.KeyEscape, 0, "Esc", "Back", "Back", true}, {'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true}}
+	}
 	if m.state == stPermission && m.dialog == nil && m.gstage == gsPermit {
 		actions := []footerAction{{'y', 0, "Y", "Allow once", "Allow", true}, {'n', 0, "N", "Deny", "Deny", true}, {'a', 0, "A", "This run", "Run", true}}
 		if m.gatePreview != "" {

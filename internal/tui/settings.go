@@ -28,6 +28,9 @@ type settingsForm struct {
 type formHit = form.Hit
 
 func (m *model) updateFormInput(msg tea.Msg) tea.Cmd {
+	if m.dialog != nil && m.dialog.table != nil {
+		return m.tableInput(msg)
+	}
 	if m.dialog == nil || m.dialog.form == nil {
 		return nil
 	}

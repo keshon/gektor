@@ -9,6 +9,9 @@ import (
 
 func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	defer m.syncFocus()
+	if m.dialog != nil && m.dialog.table != nil && msg.String() != "ctrl+c" && msg.String() != "ctrl+q" {
+		return m, m.tableInput(msg)
+	}
 	if m.dialog != nil && m.dialog.form != nil && msg.String() != "ctrl+c" && msg.String() != "ctrl+q" {
 		return m.formKey(msg)
 	}

@@ -353,9 +353,7 @@ func (m *model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.closeHeader()
 			switch item.command {
 			case "permissions-info":
-				lines := []string{"Plan exposes read-only tools. Act uses the configured policy and approval prompts.", "Settings changes do not approve tool execution.", "", "Policy rules (later rules take precedence)"}
-				lines = append(lines, m.policyDetails...)
-				m.openDialog("Permissions", lines)
+				m.openPermissions()
 				return m, nil
 			case "help-keys", "help-commands":
 				m.openHelp()

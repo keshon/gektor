@@ -344,6 +344,7 @@ clear and it has a real consumer.
 | [popup](../internal/tui/components/popup/popup.go) | Shared surface/layout rules, header/footer and overlay geometry |
 | [form](../internal/tui/components/form/form.go) | Typed controls, field groups, draft and focus behavior |
 | [selection](../internal/tui/components/selection/selection.go) | Shared selection, paging and visible-range behavior |
+| [table](../internal/tui/components/table/table.go) | Searchable rows, columns, direct actions and shared render/hit layout for management screens |
 | [schemaform](../internal/tui/components/schemaform/schemaform.go) | Convert schemas to those controls; preserve unsupported values for explicit JSON editing |
 | [composer](../internal/tui/components/composer/composer.go), [completion](../internal/tui/components/completion/completion.go), [gate](../internal/tui/components/gate/gate.go) | Use common styles and geometry while keeping their specific input contracts |
 | [transcript](../internal/tui/components/transcript/transcript.go) | History rendering and viewport behavior |

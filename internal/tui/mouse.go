@@ -13,6 +13,30 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if m.sessions != nil {
 		return m.browserMouse(msg)
 	}
+	if m.dialog != nil && m.dialog.table != nil {
+		if msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) && msg.Mouse().Y == m.termH-1 {
+			for _, cell := range m.footerCells() {
+				if msg.Mouse().X >= cell.start && msg.Mouse().X < cell.end && cell.action.enabled {
+					return m.handleKey(tea.KeyPressMsg{Code: cell.action.key, Mod: cell.action.mod})
+				}
+			}
+		}
+		left, top, _, _ := m.settingsArea()
+		mouse := msg.Mouse()
+		mouse.X -= left
+		mouse.Y -= top
+		var local tea.MouseMsg
+		switch msg.(type) {
+		case tea.MouseClickMsg:
+			local = tea.MouseClickMsg(mouse)
+		case tea.MouseWheelMsg:
+			local = tea.MouseWheelMsg(mouse)
+		default:
+			return m, nil
+		}
+		action := m.dialog.table.model.Mouse(local, m.tableProps())
+		return m, m.tableAction(action)
+	}
 	if m.dialog != nil && m.dialog.form != nil {
 		if msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) && msg.Mouse().Y == m.termH-1 {
 			for _, cell := range m.footerCells() {

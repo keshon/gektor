@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/gektor/internal/mcpmanager"
+	"github.com/keshon/gektor/internal/tui/components/table"
 )
 
 type mcpActionMsg struct{ action, id string }
@@ -31,60 +32,81 @@ func (m *model) openMCP() {
 		m.openDialog("MCP servers", []string{"Connecting…"})
 		return
 	}
-	options := []string{}
-	for _, s := range m.mcp.List() {
-		state := "disabled"
-		if s.Enabled {
-			state = "on demand"
-		}
-		if s.Enabled && s.Startup {
-			state = "at startup"
-		}
-		if s.Connected {
-			state = fmt.Sprintf("connected, %d tools", s.Tools)
-		}
-		if s.State == "connecting" {
-			state = "connecting"
-		}
-		if s.Error != "" {
-			state = "failed"
-		}
-		options = append(options, s.ID+" · "+state)
+	view := m.newTable()
+	if m.mcpTable != nil {
+		view = m.mcpTable.model
 	}
-	selected := ""
-	if len(options) > 0 {
-		selected = options[0]
-	}
-	action := "Add"
-	if len(options) > 0 {
-		action = "Details"
-	}
-	m.openForm("MCP servers", "Saved connections · changes are available between agent turns.", "Continue", []formField{{Key: "mcp-server", Label: "Server", Value: selected}, {Key: "mcp-action", Label: "Action", Value: action}}, func(v map[string]string) error {
-		id, _, _ := strings.Cut(v["mcp-server"], " · ")
-		a := strings.ToLower(v["mcp-action"])
-		switch a {
-		case "paste json":
-			a = "import-json"
-		case "import file":
-			a = "import"
+	statuses := map[string]mcpmanager.Status{}
+	rows := []table.Row{}
+	for _, server := range m.mcp.List() {
+		statuses[server.ID] = server
+		state := "Disabled"
+		if server.Enabled {
+			state = "On demand"
 		}
-		if a != "add" && a != "import" && a != "import-json" && id == "" {
-			return fmt.Errorf("select a server")
+		if server.Enabled && server.Startup {
+			state = "At startup"
 		}
-		m.queueMCP(a, id)
-		return nil
-	})
-	m.dialog.form.Choices = map[string][]string{"mcp-server": options, "mcp-action": {"Details", "Connect", "Disconnect", "Reconnect", "Enable", "Disable", "Edit", "Delete", "Add", "Paste JSON", "Import file"}}
+		if server.Connected {
+			state = "Connected"
+		}
+		if server.State == "connecting" {
+			state = "Connecting"
+		}
+		if server.Error != "" {
+			state = "Failed"
+		}
+		rows = append(rows, table.Row{ID: server.ID, Cells: []string{server.ID, state, fmt.Sprint(server.Tools), server.Description}})
+	}
+	view.SetRows(rows)
+	m.openDialog("MCP servers", nil)
+	d := &tableDialog{model: view,
+		columns:     []table.Column{{Label: "Server", Width: 20}, {Label: "Status", Width: 15}, {Label: "Tools", Width: 5}, {Label: "Description"}},
+		description: "Select a server to inspect it or manage its connection. Add and import save definitions; Connect starts a connection. Changes are available between agent turns.",
+	}
+	d.actions = func() []table.Action {
+		selected := view.Selected()
+		status, exists := statuses[selected]
+		idle := m.state == stDone && m.evaluation == nil && !m.mcpBusy
+		connection, label := "connect", "Connect"
+		if status.Connected {
+			connection, label = "disconnect", "Disconnect"
+		}
+		toggle, toggleLabel := "enable", "Enable"
+		if status.Enabled {
+			toggle, toggleLabel = "disable", "Disable"
+		}
+		return []table.Action{
+			{ID: "details", Label: "Details", Key: "enter", Enabled: exists},
+			{ID: connection, Label: label, Key: "c", Enabled: exists && idle && (status.Enabled || status.Connected)},
+			{ID: "edit", Label: "Edit", Key: "e", Enabled: exists && idle},
+			{ID: toggle, Label: toggleLabel, Key: "t", Enabled: exists && idle},
+			{ID: "delete", Label: "Delete", Key: "delete", Enabled: exists && idle, Destructive: true},
+			{ID: "add", Label: "Add", Key: "a", Enabled: idle},
+			{ID: "import-json", Label: "Paste JSON", Key: "p", Enabled: idle},
+			{ID: "import", Label: "Import file", Key: "i", Enabled: idle},
+			{ID: "close", Label: "Close", Key: "esc", Enabled: true},
+		}
+	}
+	d.activate = func(action, id string) tea.Cmd {
+		m.closeDialog()
+		return m.handleMCPAction(mcpActionMsg{action, id})
+	}
+	m.dialog.table, m.mcpTable = d, d
 }
+
 func (m *model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 	if m.mcp == nil {
+		return nil
+	}
+	if a.action == "list" && (m.dialog != nil || m.state == stPermission || m.state == stAsk) {
 		return nil
 	}
 	if m.mcpBusy {
 		m.openDialog("MCP servers", []string{"Wait for the connection attempt to finish."})
 		return nil
 	}
-	if a.action != "details" && (m.state != stDone || m.evaluation != nil) {
+	if a.action != "details" && a.action != "list" && (m.state != stDone || m.evaluation != nil) {
 		m.openDialog("MCP servers", []string{"Finish or stop the agent turn before changing connections."})
 		return nil
 	}
@@ -138,7 +160,6 @@ func (m *model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 			if e := m.mcp.Save(next); e != nil {
 				return e
 			}
-			m.queueMCP("list", "")
 			return nil
 		})
 		m.dialog.form.Choices = map[string][]string{"enabled": {"on", "off"}, "loading": {"on demand", "at startup"}}
@@ -163,7 +184,6 @@ func (m *model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 			if _, e := m.mcp.Import(raw, v["replace"] == "on"); e != nil {
 				return e
 			}
-			m.queueMCP("list", "")
 			return nil
 		})
 		m.dialog.form.Choices = map[string][]string{"replace": {"off", "on"}}
@@ -172,7 +192,6 @@ func (m *model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 			if e := m.mcp.Delete(a.id); e != nil {
 				return e
 			}
-			m.queueMCP("list", "")
 			return nil
 		})
 		m.dialog.form.Destructive = true
@@ -214,13 +233,30 @@ func (m *model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 	case "details":
 		for _, s := range m.mcp.List() {
 			if s.ID == a.id {
-				raw, _ := json.MarshalIndent(s, "", "  ")
-				m.openDialog("MCP / "+a.id, strings.Split(string(raw), "\n"))
+				lines := []string{"Server: " + s.ID, "Description: " + s.Description, "Connection: " + s.State,
+					fmt.Sprintf("Enabled: %t", s.Enabled), fmt.Sprintf("Tools: %d", s.Tools)}
+				if s.URL != "" {
+					lines = append(lines, "Endpoint: "+s.URL)
+				}
+				if len(s.Command) > 0 {
+					lines = append(lines, "Command: "+strings.Join(s.Command, " "))
+				}
+				if s.Error != "" {
+					lines = append(lines, "", "Connection error", s.Error)
+				}
+				if len(s.ToolNames) > 0 {
+					lines = append(lines, "", "Available tools")
+					lines = append(lines, s.ToolNames...)
+				}
+				m.openDialog("MCP / "+a.id, lines)
 				break
 			}
 		}
 	default:
 		fail(fmt.Errorf("unknown MCP action %q", a.action))
+	}
+	if a.action != "list" && m.dialog != nil && m.dialog.table == nil && !m.mcpBusy {
+		m.dialog.onClose = func() { m.queueMCP("list", a.id) }
 	}
 	return nil
 }

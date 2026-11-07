@@ -88,10 +88,16 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		return m, m.acceptWorkflowPoll(msg)
 	case mcpActionMsg:
 		return m, m.handleMCPAction(msg)
+	case permissionTableMsg:
+		if m.dialog == nil && m.state != stPermission && m.state != stAsk {
+			m.openPermissionTable(msg.view)
+		}
+		return m, nil
 	case mcpDoneMsg:
 		m.mcpBusy = false
 		if msg.err != nil {
 			m.openDialog("MCP / "+msg.id, []string{msg.err.Error()})
+			m.dialog.onClose = func() { m.queueMCP("list", msg.id) }
 		} else {
 			m.openMCP()
 		}

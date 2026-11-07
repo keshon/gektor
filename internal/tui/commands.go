@@ -310,9 +310,7 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		m.deleteActive()
 		return m, nil
 	case "permissions":
-		lines := []string{"Plan exposes read-only tools. Act uses the configured policy and approval prompts.", "Settings changes do not approve tool execution.", "", "Policy rules (later rules take precedence)"}
-		lines = append(lines, m.policyDetails...)
-		m.openDialog("Permissions", lines)
+		m.openPermissions()
 		return m, nil
 	case "model":
 		transport := "Request / response"
