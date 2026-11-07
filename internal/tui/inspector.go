@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/session"
 	"github.com/keshon/gektor/internal/tui/components/pane"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
 const inspectorSplitWidth = 100
@@ -191,10 +192,11 @@ func (m *model) composeInspector(content string) string {
 	if m.inspector.focused {
 		heading = "Inspect / " + name + " [focused]"
 	}
-	hint := "Esc close · Tab parent · ↑↓ scroll"
+	shortcuts := []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "Tab", Action: "parent"}, {Key: "↑↓", Action: "scroll"}}
 	if left == 0 {
-		hint = "Esc return to conversation · ↑↓ scroll"
+		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "return to conversation"}, {Key: "↑↓", Action: "scroll"}}
 	}
+	hint := m.inspectionHints(width, shortcuts...)
 	rows := m.inspectionRows(heading, hint, m.inspector.pane.View(), width, m.inspector.focused, true)
 	base := strings.Split(content, "\n")
 	for i, row := range rows {
@@ -214,7 +216,12 @@ func (m *model) composeInspector(content string) string {
 // inspectionRows uses the same frame and one-row footer for both inspectors.
 func (m *model) inspectionRows(heading, hint, body string, width int, focused, close bool) []string {
 	layout := m.panelGeometry(width, 1, close, false)
-	return pane.Render(layout, heading, body, []string{m.styles.dim.Render(hint)}, m.paneStyles(), focused && !m.header.focused)
+	return pane.Render(layout, heading, body, []string{hint}, m.paneStyles(), focused && !m.header.focused)
+}
+
+func (m *model) inspectionHints(width int, shortcuts ...popup.Shortcut) string {
+	inner := m.panelGeometry(width, 1, true, false).Footer.Width
+	return popup.Shortcuts(inner, m.shortcutStyles(), shortcuts...)
 }
 
 func (m *model) inspectorKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {

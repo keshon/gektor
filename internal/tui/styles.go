@@ -51,6 +51,13 @@ type styles struct {
 	warn     lipgloss.Style
 }
 
+func (m *model) shortcutStyles() popup.ShortcutStyles {
+	return popup.ShortcutStyles{
+		Key:    lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorPopupText))).Bold(true),
+		Action: m.styles.dim,
+	}
+}
+
 func defaultStyles() styles {
 	return styles{
 		title:    lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorWarning))).Bold(true),

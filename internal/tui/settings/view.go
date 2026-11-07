@@ -56,7 +56,7 @@ func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 		Label:        settingsLabel,
 		Display:      f.display,
 		Note:         f.note(),
-		Footer:       "Tab controls · Ctrl+S apply · Esc cancel",
+		Shortcuts:    []popup.Shortcut{{Key: "Esc", Action: "cancel"}, {Key: "Ctrl+S", Action: "apply"}, {Key: "Tab", Action: "controls"}},
 		// Nothing to save is nothing to apply. Offering a live Apply on an
 		// unchanged form invites a relaunch that changes nothing.
 		DisablePrimary: !f.Dirty(),

@@ -203,7 +203,8 @@ func TestLessonPreviewFitsTerminalAndScrolls(t *testing.T) {
 		r.Memory[0].Lesson = strings.Repeat("Run the focused tests before the full suite. ", 20)
 		m.reviewLesson(r)
 		layout := m.layoutDialog()
-		if !strings.Contains(layout.hint, "S save") || !strings.Contains(layout.hint, "E edit") || len(layout.lines) <= layout.capacity {
+		hint := ansi.Strip(layout.hint)
+		if !strings.Contains(hint, "S save") || !strings.Contains(hint, "E edit") || len(layout.lines) <= layout.capacity {
 			t.Fatal("missing actions or scrollable long proposal")
 		}
 		for _, row := range strings.Split(m.dialogView(), "\n") {

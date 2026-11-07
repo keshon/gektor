@@ -688,7 +688,7 @@ func (m *model) workflowScreen() string {
 	regions := m.screenPanes(w.inspectorOpen)
 	split := w.inspectorOpen && !regions.Covered
 	leftWidth := regions.Main.Width
-	rows := m.inspectionRows(mode+" / "+cleanText(title), cleanText(w.notice), left, leftWidth, !w.inspect, false)
+	rows := m.inspectionRows(mode+" / "+cleanText(title), m.styles.dim.Render(cleanText(w.notice)), left, leftWidth, !w.inspect, false)
 	if w.inspectorOpen {
 		width := regions.Side.Width
 		content := m.workflowInspectorContent()
@@ -708,13 +708,14 @@ func (m *model) workflowScreen() string {
 		if w.inspect {
 			heading += " [focused]"
 		}
-		hint := "Tab focuses inspector · 1–3 tabs"
+		shortcuts := []popup.Shortcut{{Key: "Tab", Action: "focus inspector"}, {Key: "1–3", Action: "tabs"}}
 		if w.inspect {
-			hint = "1–3 tabs · Esc close · Tab parent"
+			shortcuts = []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "Tab", Action: "parent"}, {Key: "1–3", Action: "tabs"}}
 		}
-		if w.inspect && w.run == nil && w.inspectorTab != 1 {
-			hint = "1–3 tabs · E edit · Esc close · Tab parent"
+		if w.inspect && w.run == nil && !w.busy && w.inspectorTab != 1 {
+			shortcuts = []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "Tab", Action: "parent"}, {Key: "E", Action: "edit"}, {Key: "1–3", Action: "tabs"}}
 		}
+		hint := m.inspectionHints(width, shortcuts...)
 		right := m.inspectionRows(heading, hint, body, width, w.inspect, true)
 		if split {
 			for i := range rows {

@@ -7,7 +7,22 @@ import (
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
+
+func TestFormHintsNameTheActionAndHideDisabledSubmission(t *testing.T) {
+	f := New([]Field{{Key: "path", Label: "Path"}}, textarea.New())
+	for _, disabled := range []bool{false, true} {
+		rows, _ := f.Rows(Props{Title: "Open", PrimaryLabel: "Open", Width: 40, Height: 24, DisablePrimary: disabled})
+		hint := ansi.Strip(rows[len(rows)-2])
+		if !strings.Contains(hint, "Esc cancel") || strings.ContainsAny(hint, "·…") {
+			t.Fatal("form lost its whole cancel hint", hint)
+		}
+		if disabled && strings.Contains(hint, "Ctrl+S") || !disabled && !strings.Contains(hint, "Ctrl+S open") {
+			t.Fatal("submission hint does not match action availability", hint)
+		}
+	}
+}
 
 func TestIndependentFormsAndVisibility(t *testing.T) {
 	fields := []Field{{Key: "hidden", Label: "Hidden", Value: "old"}, {Key: "body", Label: "Body", Value: "one\ntwo", Multiline: true}}

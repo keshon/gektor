@@ -107,7 +107,7 @@ func (m *model) dialogRows() ([]string, int, int) {
 	if len(layout.lines) > layout.capacity {
 		rows = append(rows, m.styles.dim.Render(strconv.Itoa(offset+1)+"–"+strconv.Itoa(min(offset+layout.capacity, len(layout.lines)))+" / "+strconv.Itoa(len(layout.lines))))
 	}
-	rows = append(rows, popup.Footer(layout.inner, layout.hint, m.styles.dim)...)
+	rows = append(rows, popup.Footer(layout.inner, layout.hint, lipgloss.NewStyle())...)
 	return rows, layout.width, layout.height
 }
 
@@ -132,18 +132,15 @@ func (m *model) layoutDialog() dialogLayout {
 	for _, line := range d.lines {
 		lines = append(lines, strings.Split(ansi.Wrap(cleanText(line), max(inner-1, 1), ""), "\n")...)
 	}
-	hint := "Esc / Enter close"
+	shortcuts := []popup.Shortcut{{Key: "Esc/Enter", Action: "close"}}
 	if d.review != nil {
-		hint = "R review lesson   Esc / Enter skip"
+		shortcuts = []popup.Shortcut{{Key: "Esc/Enter", Action: "skip"}, {Key: "R", Action: "review lesson"}}
 	}
 	if d.save != nil {
-		hint = "S save lesson   E edit   Esc / Enter skip"
-	}
-	if d.hint != "" {
-		hint = d.hint
+		shortcuts = []popup.Shortcut{{Key: "Esc/Enter", Action: "skip"}, {Key: "S", Action: "save lesson"}, {Key: "E", Action: "edit"}}
 	}
 	if m.evaluation != nil {
-		hint = "Esc / Enter cancel evaluation"
+		shortcuts = []popup.Shortcut{{Key: "Esc/Enter", Action: "cancel evaluation"}}
 	}
 	var tabs pane.TabLayout
 	if d.help {
@@ -162,10 +159,14 @@ func (m *model) layoutDialog() dialogLayout {
 			rows = append(rows, "")
 		}
 		lines = m.helpRows(sections[page], max(inner-1, 1))
-		hint = "Tab / ← → category   ↑ ↓ scroll   Esc close"
+		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "Tab/←→", Action: "category"}, {Key: "↑↓", Action: "scroll"}}
 		if len(sections) == 1 {
-			hint = "↑ ↓ scroll   Esc close"
+			shortcuts = []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "↑↓", Action: "scroll"}}
 		}
+	}
+	hint := popup.Shortcuts(inner, m.shortcutStyles(), shortcuts...)
+	if d.hint != "" && m.evaluation == nil && !d.help {
+		hint = m.styles.dim.Render(cellLine(d.hint, inner))
 	}
 	capacity := max(availH-2-len(rows)-3, 1)
 	// Reserve an extra row for the scroll-position indicator when needed.

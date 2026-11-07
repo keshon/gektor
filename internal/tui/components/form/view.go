@@ -43,8 +43,8 @@ type Props struct {
 	Display func(field Field, current string) (string, bool)
 	// Note is the line above the buttons when there is nothing wrong.
 	Note string
-	// Footer replaces the key hints at the bottom.
-	Footer string
+	// Shortcuts lists essential hints first; whole optional groups may be omitted.
+	Shortcuts []popup.Shortcut
 	// DisablePrimary greys the primary action out. Inverted so that the zero
 	// value keeps it enabled: a form that has nothing to save should not
 	// offer a button that saves nothing.
@@ -153,28 +153,44 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 	} else if props.Note != "" {
 		rows = append(rows, cell.Line(props.Note, inner))
 	}
-	footer := props.Footer
-	if footer == "" {
-		footer = "Tab fields · Ctrl+S apply · Esc cancel"
+	shortcuts := props.Shortcuts
+	if len(shortcuts) == 0 {
+		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "cancel"}, {Key: "Ctrl+S", Action: "apply"}, {Key: "Tab", Action: "fields"}}
 		for _, field := range f.Fields {
 			if field.Multiline {
-				footer = "Tab/Ctrl+↑↓ fields · Ctrl+S apply · Esc cancel"
+				shortcuts = append(shortcuts, popup.Shortcut{Key: "Ctrl+↑↓", Action: "fields"})
 				break
 			}
 		}
 		if len(f.Fields) == 0 {
-			footer = "Tab actions · Enter choose · Esc cancel"
+			shortcuts = []popup.Shortcut{{Key: "Esc", Action: "cancel"}, {Key: "Enter", Action: "choose"}, {Key: "Tab", Action: "actions"}}
 		}
 		if props.Destructive {
-			footer = "Tab selects · Enter confirms selection · Esc cancel"
+			shortcuts = []popup.Shortcut{{Key: "Esc", Action: "cancel"}, {Key: "Enter", Action: "choose"}, {Key: "Tab", Action: "actions"}}
 		}
 	}
 	if props.Options != nil && f.Index < len(f.Fields) && len(props.Options(f.Fields[f.Index])) > 0 {
-		footer = "Space/←→ change · Tab next · Ctrl+S apply · Esc cancel"
+		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "cancel"}, {Key: "Ctrl+S", Action: "apply"}, {Key: "Space/←→", Action: "change"}, {Key: "Tab", Action: "next"}}
+	}
+	if props.DisablePrimary {
+		enabled := make([]popup.Shortcut, 0, len(shortcuts))
+		for _, shortcut := range shortcuts {
+			if shortcut.Key != "Ctrl+S" {
+				enabled = append(enabled, shortcut)
+			}
+		}
+		shortcuts = enabled
+	}
+	shortcuts = append([]popup.Shortcut(nil), shortcuts...)
+	for i := range shortcuts {
+		if shortcuts[i].Key == "Ctrl+S" && props.PrimaryLabel != "" {
+			shortcuts[i].Action = strings.ToLower(props.PrimaryLabel)
+		}
 	}
 
 	// Derive button hit rows from the same footer used for rendering.
-	rows = append(rows, popup.Footer(inner, footer, props.Styles.Muted)...)
+	footer := popup.Shortcuts(inner, popup.ShortcutStyles{Key: props.Styles.Normal.Bold(true), Action: props.Styles.Muted}, shortcuts...)
+	rows = append(rows, popup.Footer(inner, footer, lipgloss.NewStyle())...)
 	action, actionHits := f.Actions(inner, len(rows), props.PrimaryLabel, !props.DisablePrimary, props.Destructive, props.Styles)
 	rows = append(rows, action)
 	hits = append(hits, actionHits...)

@@ -341,7 +341,7 @@ clear and it has a real consumer.
 | Existing home | Migration responsibility |
 |---|---|
 | [cell](../internal/tui/components/cell/cell.go) | Terminal-cell measurement, fitting and clipping |
-| [popup](../internal/tui/components/popup/popup.go) | Shared surface/layout rules, header/footer and overlay geometry |
+| [popup](../internal/tui/components/popup/popup.go) | Shared surface/layout rules, header/footer, shortcut groups and overlay geometry |
 | [pane](../internal/tui/components/pane/pane.go) | Main-panel frames, split regions, body/footer bounds, close targets and tab strips |
 | [form](../internal/tui/components/form/form.go) | Typed controls, field groups, draft and focus behavior |
 | [selection](../internal/tui/components/selection/selection.go) | Shared selection, paging and visible-range behavior |
