@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/keshon/gektor/internal/tui/components/pane"
 )
 
 type footerAction struct {
@@ -63,7 +64,11 @@ func (m *model) footerActions() []footerAction {
 			}
 			return []footerAction{{tea.KeyEnter, 0, "Enter", "Choose", "Choose", true}, {tea.KeyEscape, 0, "Esc", "Back", "Back", true}, {'b', tea.ModCtrl, "Ctrl+B", "Browse", "Browse", m.dialog.form.Picker.IsFiles()}, {'r', tea.ModCtrl, "Ctrl+R", "Refresh", "Refresh", true}, {'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true}}
 		}
-		apply := footerAction{'s', tea.ModCtrl, "Ctrl+S", "Apply", "Apply", true}
+		label := m.dialog.form.ApplyLabel
+		if label == "" {
+			label = "Apply"
+		}
+		apply := footerAction{'s', tea.ModCtrl, "Ctrl+S", label, label, m.dialog.form.Workspace == nil || m.dialog.form.Dirty()}
 		if m.dialog.form.Destructive {
 			apply = footerAction{tea.KeyEnter, 0, "Enter", "Choose", "Choose", true}
 		}
@@ -131,57 +136,45 @@ func (m *model) footerRows() int {
 	return m.actionBarRows() + 1
 }
 
-// Rendering and mouse clicks share button boundaries; gaps are not clickable.
+// Rendering and mouse clicks use the component's measured action cells.
+func (m *model) toolbarLayout() pane.ToolbarLayout {
+	var items []pane.ToolAction
+	for _, action := range m.footerActions() {
+		compactKey := ""
+		if strings.HasPrefix(action.name, "Ctrl+") {
+			compactKey = "^" + strings.TrimPrefix(action.name, "Ctrl+")
+		}
+		items = append(items, pane.ToolAction{Key: action.name, CompactKey: compactKey, Label: action.label, CompactLabel: action.short, Enabled: action.enabled})
+	}
+	style := func(fg, bg string) lipgloss.Style {
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(fg))).Background(lipgloss.Color(themeColor(bg)))
+	}
+	return pane.Toolbar(m.termW, items, pane.ToolbarStyles{
+		Key:           style(colorNumberText, colorNumberBackground).Bold(true),
+		Label:         style(colorSelectedText, colorActionBackground),
+		DisabledKey:   style(colorDisabledText, colorDisabledNumber),
+		DisabledLabel: style(colorDisabledText, colorDisabledLabel),
+		Gap:           lipgloss.NewStyle().Background(lipgloss.Color(currentPalette().background)),
+	})
+}
+
 func (m *model) footerCells() []footerCell {
 	actions := m.footerActions()
-	columns := (len(actions) + max(m.actionBarRows(), 1) - 1) / max(m.actionBarRows(), 1)
-	// The menu, frame and hotkey bar share the terminal's outer edges.
-	// Only transcript/composer content uses the frame's inner inset.
-	width := m.termW
-	cells := make([]footerCell, len(actions))
-	for i, action := range actions {
-		row, column := i/columns, i%columns
-		count := min(columns, len(actions)-row*columns)
-		contentWidth := width - (count - 1)
-		start := column*contentWidth/count + column
-		end := (column+1)*contentWidth/count + column
-		cells[i] = footerCell{action, row, start, end}
+	var cells []footerCell
+	for i, item := range m.toolbarLayout().Cells {
+		cells = append(cells, footerCell{action: actions[i], row: item.Bounds.Y, start: item.Bounds.X, end: item.Bounds.X + item.Bounds.Width})
 	}
 	return cells
 }
 
-func (m *model) actionBar() string {
-	var rows []string
-	row := ""
-	current := 0
-	gapStyle := lipgloss.NewStyle().Background(lipgloss.Color(currentPalette().background))
-	for _, cell := range m.footerCells() {
-		if cell.row != current {
-			rows = append(rows, row)
-			row = ""
-			current = cell.row
-		}
+func (m *model) actionBar() string { return m.toolbarLayout().Row }
 
-		label := cell.action.label
-		number := cell.action.name
-		if cell.end-cell.start < 14 && strings.HasPrefix(number, "Ctrl+") {
-			number = "^" + strings.TrimPrefix(number, "Ctrl+")
-		}
-		if cell.end-cell.start < lipgloss.Width(number)+2+lipgloss.Width(label) {
-			label = cell.action.short
-		}
-		numberStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorDisabledText))).Background(lipgloss.Color(themeColor(colorDisabledNumber)))
-		labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorDisabledText))).Background(lipgloss.Color(themeColor(colorDisabledLabel)))
-		if cell.action.enabled {
-			numberStyle = numberStyle.Foreground(lipgloss.Color(themeColor(colorNumberText))).Background(lipgloss.Color(themeColor(colorNumberBackground))).Bold(true)
-			labelStyle = labelStyle.Foreground(lipgloss.Color(themeColor(colorSelectedText))).Background(lipgloss.Color(themeColor(colorActionBackground)))
-		}
-		row += gapStyle.Render(strings.Repeat(" ", max(cell.start-lipgloss.Width(row), 0)))
-		numberWidth := min(lipgloss.Width(number)+2, cell.end-cell.start)
-		row += numberStyle.Render(cellLine(" "+number+" ", numberWidth)) + labelStyle.Render(cellLine(label, cell.end-cell.start-numberWidth))
+func (m *model) toolbarClick(x int) (tea.Model, tea.Cmd) {
+	if index := m.toolbarLayout().Hit(x, 0); index >= 0 {
+		action := m.footerActions()[index]
+		return m.handleKey(tea.KeyPressMsg{Code: action.key, Mod: action.mod})
 	}
-	row += gapStyle.Render(strings.Repeat(" ", max(m.termW-lipgloss.Width(row), 0)))
-	return strings.Join(append(rows, row), "\n")
+	return m, nil
 }
 
 func (m *model) footerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {

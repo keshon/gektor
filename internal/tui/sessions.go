@@ -561,6 +561,10 @@ func (s *sessionsState) replaceEntries(entries []sessionEntry) {
 }
 
 func (m *model) browserMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if m.actionBarVisible() && msg.Mouse().Y == m.termH-1 && msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) {
+		return m.toolbarClick(msg.Mouse().X)
+	}
+
 	s := m.sessions
 	g := m.searchGeometry()
 	mouse := msg.Mouse()

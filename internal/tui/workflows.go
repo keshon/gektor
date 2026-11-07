@@ -760,14 +760,10 @@ func (m *model) workflowDialog(content string) string {
 func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	w := m.workflows
 	mouse := msg.Mouse()
-	if mouse.Y == m.termH-1 && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
-		for _, cell := range m.footerCells() {
-			if mouse.X >= cell.start && mouse.X < cell.end && cell.action.enabled {
-				return m.handleKey(tea.KeyPressMsg{Code: cell.action.key, Mod: cell.action.mod})
-			}
-		}
-		return m, nil
+	if m.actionBarVisible() && mouse.Y == m.termH-1 && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
+		return m.toolbarClick(mouse.X)
 	}
+
 	cw, ch := m.workflowCanvasSize()
 	regions := m.screenPanes(w.inspectorOpen)
 	canvasLayout := m.panelGeometry(regions.Main.Width, 1, false, false)

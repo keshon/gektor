@@ -14,12 +14,8 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m.browserMouse(msg)
 	}
 	if m.dialog != nil && m.dialog.table != nil {
-		if msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) && msg.Mouse().Y == m.termH-1 {
-			for _, cell := range m.footerCells() {
-				if msg.Mouse().X >= cell.start && msg.Mouse().X < cell.end && cell.action.enabled {
-					return m.handleKey(tea.KeyPressMsg{Code: cell.action.key, Mod: cell.action.mod})
-				}
-			}
+		if m.actionBarVisible() && msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) && msg.Mouse().Y == m.termH-1 {
+			return m.toolbarClick(msg.Mouse().X)
 		}
 		left, top, _, _ := m.settingsArea()
 		mouse := msg.Mouse()
@@ -38,12 +34,8 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, m.tableAction(action)
 	}
 	if m.dialog != nil && m.dialog.form != nil {
-		if msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) && msg.Mouse().Y == m.termH-1 {
-			for _, cell := range m.footerCells() {
-				if msg.Mouse().X >= cell.start && msg.Mouse().X < cell.end {
-					return m.handleKey(tea.KeyPressMsg{Code: cell.action.key, Mod: cell.action.mod})
-				}
-			}
+		if m.actionBarVisible() && msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) && msg.Mouse().Y == m.termH-1 {
+			return m.toolbarClick(msg.Mouse().X)
 		}
 		return m, m.formMouse(msg)
 	}
@@ -66,17 +58,10 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 	}
-	if m.actionBarVisible() && msg.Mouse().Y >= m.termH-m.actionBarRows() && msg.Mouse().Y < m.termH && msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) {
-		for _, cell := range m.footerCells() {
-			if msg.Mouse().Y == m.termH-m.actionBarRows()+cell.row && msg.Mouse().X >= cell.start && msg.Mouse().X < cell.end {
-				if !cell.action.enabled {
-					return m, nil
-				}
-				return m.handleKey(tea.KeyPressMsg{Code: cell.action.key, Mod: cell.action.mod})
-			}
-		}
-		return m, nil
+	if m.actionBarVisible() && msg.Mouse().Y == m.termH-1 && msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) {
+		return m.toolbarClick(msg.Mouse().X)
 	}
+
 	if m.dialog != nil {
 		if m.dialog.form == nil && msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) {
 			rows, w, h := m.dialogRows()
