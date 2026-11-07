@@ -52,7 +52,7 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 		w.setNotice(pane.NoticeInfo, "Operation in progress · Esc stops it")
 		return nil
 	}
-	if w.run != nil && (action == "edit" || action == "add" || action == "link" || action == "connections" || action == "delete" || action == "recipe" || action == "name" || action == "inputs" || action == "outputs" || action == "ai" || action == "behavior" || action == "undo" || action == "redo" || action == "save" || action == "run" || action == "validate") {
+	if w.run != nil && workflowRequiresDraft(action) {
 		w.setNotice(pane.NoticeInfo, "Frozen run · D returns to the editable draft")
 		return nil
 	}
@@ -103,37 +103,9 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 		}
 		w.setNotice(pane.NoticeInfo, "Stopping…")
 	case "new", "open":
-		fields := []formField{{Key: "path", Label: "Recipe path (relative to workspace)", Value: w.editor.Path}}
-		if action == "new" {
-			fields[0].Value = "recipe.json"
-		}
-		if w.editor.Dirty() {
-			fields = append(fields, formField{Key: "discard", Label: "Unsaved changes: type discard to replace"})
-		}
-		m.openForm("Workflow / "+action, "Workspace: "+m.wsRoot, "Continue", fields, func(v map[string]string) error {
-			if w.editor.Dirty() && v["discard"] != "discard" {
-				return fmt.Errorf("save first, or type discard")
-			}
-			if strings.TrimSpace(v["path"]) == "" {
-				return fmt.Errorf("enter a recipe path")
-			}
-			if _, err := m.baseEnv.WS.Relative(v["path"]); err != nil {
-				return err
-			}
-			m.queueWorkflow(action+"-path", v["path"])
-			return nil
-		})
-		if action == "open" {
-			m.dialog.form.FileFields = map[string]settings.FilePicker{"path": {Root: m.wsRoot, Extensions: []string{".json"}}}
-		}
+		m.workflowRecipePath(action)
 	case "save":
-		m.openForm("Save workflow", "Writes the recipe; canvas positions stay in your user settings.", "Save", []formField{{Key: "path", Label: "Recipe path", Value: w.editor.Path}}, func(v map[string]string) error {
-			if strings.TrimSpace(v["path"]) == "" {
-				return fmt.Errorf("enter a path")
-			}
-			m.queueWorkflow("save-path", v["path"])
-			return nil
-		})
+		m.workflowSaveForm()
 	case "add":
 		names := append(w.registry.Names(), "Schedule trigger")
 		m.openForm("Add node", "Choose an operation or a Schedule trigger.", "Next", []formField{{Key: "type", Label: "Node type", Value: names[0]}}, func(v map[string]string) error {
@@ -307,6 +279,54 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 		w.offset = 0
 	}
 	return nil
+}
+
+// workflowRequiresDraft identifies actions unavailable while inspecting a frozen run.
+func workflowRequiresDraft(action string) bool {
+	switch action {
+	case "edit", "add", "link", "connections", "delete", "recipe", "name", "inputs", "outputs", "ai", "behavior", "undo", "redo", "save", "run", "validate":
+		return true
+	default:
+		return false
+	}
+}
+
+func (m *model) workflowRecipePath(action string) {
+	w := m.workflows
+	fields := []formField{{Key: "path", Label: "Recipe path (relative to workspace)", Value: w.editor.Path}}
+	if action == "new" {
+		fields[0].Value = "recipe.json"
+	}
+	if w.editor.Dirty() {
+		fields = append(fields, formField{Key: "discard", Label: "Unsaved changes: type discard to replace"})
+	}
+	m.openForm("Workflow / "+action, "Workspace: "+m.wsRoot, "Continue", fields, func(v map[string]string) error {
+		if w.editor.Dirty() && v["discard"] != "discard" {
+			return fmt.Errorf("save first, or type discard")
+		}
+		if strings.TrimSpace(v["path"]) == "" {
+			return fmt.Errorf("enter a recipe path")
+		}
+		if _, err := m.baseEnv.WS.Relative(v["path"]); err != nil {
+			return err
+		}
+		m.queueWorkflow(action+"-path", v["path"])
+		return nil
+	})
+	if action == "open" {
+		m.dialog.form.FileFields = map[string]settings.FilePicker{"path": {Root: m.wsRoot, Extensions: []string{".json"}}}
+	}
+}
+
+func (m *model) workflowSaveForm() {
+	w := m.workflows
+	m.openForm("Save workflow", "Writes the recipe; canvas positions stay in your user settings.", "Save", []formField{{Key: "path", Label: "Recipe path", Value: w.editor.Path}}, func(v map[string]string) error {
+		if strings.TrimSpace(v["path"]) == "" {
+			return fmt.Errorf("enter a path")
+		}
+		m.queueWorkflow("save-path", v["path"])
+		return nil
+	})
 }
 
 func (m *model) workflowAddOperation(name string) {
