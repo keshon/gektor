@@ -138,17 +138,18 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 			from := step - st.repeatCount + 1
 			a.report.Warnings = append(a.report.Warnings, fmt.Sprintf(
 				"steps %d-%d issued identical tool calls; answered without tools", from, step))
-			answer, err := a.forceAnswer(workCtx, &st, step, history, from)
-			if err == nil {
+			out := a.forceAnswer(workCtx, &st, step, history, from)
+			history = out.history
+			if out.err == nil {
 				// The tool-free answer is also an in-flight model request.
 				// It must observe the same completion boundary as normal answers.
 				var pending bool
-				history, pending = a.acceptCompletion(ctx, a.snapshot.Context(), &st)
+				history, pending = a.acceptCompletion(ctx, history, &st)
 				if pending {
 					continue
 				}
 			}
-			return answer, err
+			return out.answer, out.err
 		}
 	}
 

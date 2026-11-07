@@ -115,7 +115,7 @@ func (a *Agent) knownTools() map[string]bool {
 //
 // from and step bracket the run of identical steps that triggered it, for the
 // error text and the report warning.
-func (a *Agent) forceAnswer(ctx context.Context, st *runState, step int, history []llm.Message, from int) (string, error) {
+func (a *Agent) forceAnswer(ctx context.Context, st *runState, step int, history []llm.Message, from int) finishOutcome {
 	history = a.nudge(history, NudgeRepeating, prompts.RepeatingSteps)
 	a.saveState(history)
 	projected := a.reuseContext(history)
@@ -127,7 +127,7 @@ func (a *Agent) forceAnswer(ctx context.Context, st *runState, step int, history
 	// Steps honest for whoever reads the report.
 	a.report.Steps = step + 2
 	if err != nil {
-		return "", fmt.Errorf("steps %d-%d repeated identically, and the answer turn failed: %w", from, step, err)
+		return finishOutcome{done: true, history: history, err: fmt.Errorf("steps %d-%d repeated identically, and the answer turn failed: %w", from, step, err)}
 	}
 	// No tools were offered, but a model can still write a call as text. Strip
 	// it so what reaches the answer is prose; the recovered calls are dropped
@@ -149,8 +149,9 @@ func (a *Agent) forceAnswer(ctx context.Context, st *runState, step int, history
 	a.saveState(history)
 	out := a.handleFinish(st, resp, leaked, history)
 	if !out.done {
-		return "", fmt.Errorf("%w: steps %d-%d issued identical calls and the tool-free turn produced no answer",
+		out.done = true
+		out.err = fmt.Errorf("%w: steps %d-%d issued identical calls and the tool-free turn produced no answer",
 			ErrRepeatingSteps, from, step)
 	}
-	return out.answer, out.err
+	return out
 }

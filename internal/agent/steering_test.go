@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
@@ -156,31 +157,42 @@ func TestToolCompletionPreviewDoesNotWaitForSibling(t *testing.T) {
 }
 
 func TestSteeringAcceptedInputSurvivesCancellation(t *testing.T) {
-	inbox := &Inbox{}
-	inbox.SetSteering(true)
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	path := filepath.Join(t.TempDir(), "state.json")
-	client := inputClient(func(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
-		_ = inbox.Send("redirect after retry", "image.png")
-		return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: steeringCalls("echo")}}, nil
-	})
-	a := New(Config{Client: client, Inbox: inbox, Tools: NewRegistry(echoToolStub{}), StateFile: path,
-		OnResult: func(r ToolResult) {
-			if r.Status != "skipped_for_input" {
-				t.Fatal(r)
+	for _, persisted := range []bool{false, true} {
+		t.Run(fmt.Sprint(persisted), func(t *testing.T) {
+			inbox := &Inbox{}
+			inbox.SetSteering(true)
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			path := ""
+			if persisted {
+				path = filepath.Join(t.TempDir(), "state.json")
 			}
-			cancel()
-		}})
-	if _, err := a.Run(ctx, "task"); !errors.Is(err, context.Canceled) {
-		t.Fatal(err)
-	}
-	history, err := session.ReadHistory(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	last := history[len(history)-1]
-	if last.Content != "redirect after retry" || len(last.Images) != 1 || last.Images[0] != "image.png" {
-		t.Fatal(history)
+			client := inputClient(func(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
+				_ = inbox.Send("redirect after retry", "image.png")
+				return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: steeringCalls("echo")}}, nil
+			})
+			a := New(Config{Client: client, Inbox: inbox, Tools: NewRegistry(echoToolStub{}), StateFile: path,
+				OnResult: func(r ToolResult) {
+					if r.Status != "skipped_for_input" {
+						t.Fatal(r)
+					}
+					cancel()
+				}})
+			if _, err := a.Run(ctx, "task"); !errors.Is(err, context.Canceled) {
+				t.Fatal(err)
+			}
+			history := a.snapshot.History
+			if persisted {
+				var err error
+				history, err = session.ReadHistory(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			last := history[len(history)-1]
+			if last.Content != "redirect after retry" || len(last.Images) != 1 || last.Images[0] != "image.png" {
+				t.Fatal(history)
+			}
+		})
 	}
 }

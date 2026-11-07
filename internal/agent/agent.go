@@ -172,13 +172,13 @@ func SaveState(path string, history []llm.Message) error {
 	return session.WriteSnapshot(path, history)
 }
 
-// saveState is best-effort: a failed snapshot write should never abort a
-// run that's otherwise working fine.
+// saveState always updates runtime history. Disk persistence is best-effort.
 func (a *Agent) saveState(history []llm.Message) {
+	a.captureHistory(history)
 	if a.cfg.StateFile == "" {
 		return
 	}
-	if err := a.persistState(history); err != nil {
+	if err := a.persistState(); err != nil {
 		warning := "session persistence failed: " + err.Error()
 		if !containsStr(a.report.Warnings, warning) {
 			a.report.Warnings = append(a.report.Warnings, warning)
@@ -189,8 +189,7 @@ func (a *Agent) saveState(history []llm.Message) {
 	}
 }
 
-func (a *Agent) persistState(history []llm.Message) error {
-	a.captureHistory(history)
+func (a *Agent) persistState() error {
 	if a.cfg.SaveCapabilities != nil {
 		a.snapshot.Capabilities = a.cfg.SaveCapabilities()
 	}
