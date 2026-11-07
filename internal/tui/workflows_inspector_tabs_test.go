@@ -81,12 +81,9 @@ func TestInspectorTabsArePinnedAndClickableAtEveryWidth(t *testing.T) {
 			left = width / 2
 		}
 		for tab := 0; tab < 3; tab++ {
-			_, ends := m.workflowInspectorTabs()
-			start := 0
-			if tab > 0 {
-				start = ends[tab-1] + 2
-			}
-			m.handleMouse(tea.MouseClickMsg{X: left + 1 + start, Y: paneTop, Button: tea.MouseLeft})
+			tabs := m.workflowInspectorTabs()
+			hit := tabs.Hits[tab]
+			m.handleMouse(tea.MouseClickMsg{X: left + 1 + hit.X, Y: paneTop + hit.Y, Button: tea.MouseLeft})
 			if w.inspectorTab != tab || !w.inspect {
 				t.Fatal("tab click missed", width, tab)
 			}

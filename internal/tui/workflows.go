@@ -692,15 +692,18 @@ func (m *model) workflowScreen() string {
 	if w.inspectorOpen {
 		width := regions.Side.Width
 		content := m.workflowInspectorContent()
-		capacity := max(1, ch-2)
+		tabs := m.workflowInspectorTabs()
+		capacity := max(1, ch-len(tabs.Rows)-1)
 		w.offset = min(w.offset, max(0, len(content)-capacity))
 		visible := content[w.offset:min(len(content), w.offset+capacity)]
-		tabs, _ := m.workflowInspectorTabs()
 		inner := m.panelGeometry(width, 1, true, false).Body.Width
-		body := cellLine(tabs, inner) + "\n\n" + strings.Join(popup.ScrollRows(visible, inner, w.offset, len(content), m.styles.dim), "\n")
+		body := strings.Join(tabs.Rows, "\n") + "\n\n" + strings.Join(popup.ScrollRows(visible, inner, w.offset, len(content), m.styles.dim), "\n")
 		heading := "Inspect / " + cleanText(w.graph.Selected)
 		if m.workflowSelectedSchedule() != nil && w.run == nil {
 			heading = "Inspect / Schedule"
+		}
+		if w.rawDetails {
+			heading += " / Raw"
 		}
 		if w.inspect {
 			heading += " [focused]"
@@ -769,6 +772,7 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	canvasLayout := m.panelGeometry(regions.Main.Width, 1, false, false)
 	sideLayout := m.panelGeometry(regions.Side.Width, 1, true, false)
 	x, y := mouse.X-canvasLayout.Body.X, mouse.Y-regions.Main.Y-canvasLayout.Body.Y
+	inspectorHeader := len(m.workflowInspectorTabs().Rows) + 1
 	pane := w.inspectorOpen && regions.Side.Contains(mouse.X, mouse.Y)
 	if pane && sideLayout.CloseHit.Contains(mouse.X-regions.Side.X, mouse.Y-regions.Side.Y) && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
 		w.inspectorOpen, w.inspect = false, false
@@ -776,26 +780,21 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if w.thumb.active {
-		w.offset = popup.ScrollOffset(y-2, max(1, ch-2), len(m.workflowInspectorContent()), w.thumb.grab)
+		w.offset = popup.ScrollOffset(y-inspectorHeader, max(1, ch-inspectorHeader), len(m.workflowInspectorContent()), w.thumb.grab)
 		if _, ok := msg.(tea.MouseReleaseMsg); ok {
 			w.thumb = scrollDrag{}
 		}
 		return m, nil
 	}
-	if pane && y == 0 && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
-		left := regions.Side.X
-		_, ends := m.workflowInspectorTabs()
-		start := 0
-		for i, end := range ends {
-			if mouse.X >= left+sideLayout.Body.X+start && mouse.X < left+sideLayout.Body.X+end {
-				m.workflowSetInspectorTab(i)
-				w.inspect = true
-				break
-			}
-			start = end + 2
+	if pane && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
+		tabs := m.workflowInspectorTabs()
+		if tab := tabs.Hit(mouse.X-regions.Side.X-sideLayout.Body.X, y); tab >= 0 {
+			m.workflowSetInspectorTab(tab)
+			w.inspect = true
+			return m, nil
 		}
-		return m, nil
 	}
+
 	if _, ok := msg.(tea.MouseReleaseMsg); ok {
 		dragged := w.dragging
 		w.dragging = false
@@ -826,7 +825,9 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			delta = -3
 		}
 		if pane {
-			w.offset = max(0, w.offset+delta)
+			if y >= inspectorHeader {
+				w.offset = max(0, w.offset+delta)
+			}
 		} else if mouse.Button == tea.MouseWheelLeft || mouse.Button == tea.MouseWheelRight || mouse.Mod&tea.ModShift != 0 {
 			w.graph.Pan.X += delta
 		} else {
@@ -837,13 +838,13 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if pane {
 		if mouse.Button == tea.MouseLeft && isMouseClick(msg) {
 			w.inspect = true
-			if y > 1 && mouse.X == regions.Side.X+sideLayout.Body.X+sideLayout.Body.Width-1 {
+			if y >= inspectorHeader && y < ch && mouse.X == regions.Side.X+sideLayout.Body.X+sideLayout.Body.Width-1 {
 				total := len(m.workflowInspectorContent())
-				top, size := popup.ScrollThumb(max(1, ch-2), total, w.offset)
-				if y-2 >= top && y-2 < top+size {
-					w.thumb = scrollDrag{active: true, grab: y - 2 - top}
+				top, size := popup.ScrollThumb(max(1, ch-inspectorHeader), total, w.offset)
+				if y-inspectorHeader >= top && y-inspectorHeader < top+size {
+					w.thumb = scrollDrag{active: true, grab: y - inspectorHeader - top}
 				} else {
-					w.offset = popup.ScrollOffset(y-2, max(1, ch-2), total, 0)
+					w.offset = popup.ScrollOffset(y-inspectorHeader, max(1, ch-inspectorHeader), total, 0)
 				}
 			}
 		}

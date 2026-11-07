@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/keshon/gektor/internal/automation"
+	"github.com/keshon/gektor/internal/tui/components/pane"
 )
 
 func (m *model) workflowSetInspectorTab(tab int) {
@@ -18,28 +19,19 @@ func (m *model) workflowSetInspectorTab(tab int) {
 	w.thumb = scrollDrag{}
 }
 
-func (m *model) workflowInspectorTabs() (string, []int) {
+func (m *model) workflowInspectorTabs() pane.TabLayout {
 	w := m.workflows
 	labels := []string{"Properties", "Result", "Code"}
 	if m.workflowSelectedSchedule() != nil && w.run == nil {
 		labels = []string{"Schedule", "Inputs", "Service"}
 	}
-	var text strings.Builder
-	var ends []int
-	for i, label := range labels {
-		if i > 0 {
-			text.WriteString("  ")
-		}
-		if i == w.inspectorTab && !w.rawDetails {
-			label = "[" + label + "]"
-		}
-		text.WriteString(label)
-		ends = append(ends, text.Len())
-	}
+	active := w.inspectorTab
 	if w.rawDetails {
-		text.WriteString(" / Raw")
+		active = -1
 	}
-	return m.styles.hunk.Render(text.String()), ends
+	width := m.panelGeometry(m.screenPanes(true).Side.Width, 1, true, false).Body.Width
+	return pane.Tabs(labels, active, width, w.inspect && !m.header.focused,
+		pane.TabStyles{Normal: m.styles.dim, Active: m.styles.title, Focus: m.styles.focus})
 }
 
 func (m *model) workflowFocusPort(key string, output bool) {

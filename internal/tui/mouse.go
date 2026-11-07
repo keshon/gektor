@@ -88,6 +88,15 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 				m.closeDialog()
 				return m, nil
 			}
+			if m.dialog.help {
+				layout := m.layoutDialog()
+				if tab := layout.tabs.Hit(msg.Mouse().X-x, msg.Mouse().Y-y-2); tab >= 0 {
+					m.dialog.page = tab
+					m.dialog.offset = 0
+					m.dialog.drag = scrollDrag{}
+					return m, nil
+				}
+			}
 		}
 		if m.dialogScrollbarMouse(msg) {
 			return m, nil

@@ -261,6 +261,9 @@ Select a node and press `Ctrl+T`. The inspector has three tabs:
 Click a tab or press `1`, `2` or `3`.
 `Tab` moves focus between canvas and inspector.
 In the focused inspector, left/right changes tabs and up/down scrolls.
+Tabs stay above the scrolling content. The active tab has brackets;
+its color shows whether the inspector has focus. Help uses the same tabs,
+with mouse clicks or Tab and left/right to choose a category.
 
 Properties uses the same port names as the cards.
 Result needs a selected run; a draft alone has no recorded result.

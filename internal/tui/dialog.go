@@ -7,6 +7,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -69,6 +70,7 @@ func (m *model) closeDialog() {
 // are top-padded to center, the viewport clips the rest.
 type dialogLayout struct {
 	rows, lines                    []string
+	tabs                           pane.TabLayout
 	hint                           string
 	inner, capacity, width, height int
 }
@@ -143,22 +145,19 @@ func (m *model) layoutDialog() dialogLayout {
 	if m.evaluation != nil {
 		hint = "Esc / Enter cancel evaluation"
 	}
+	var tabs pane.TabLayout
 	if d.help {
 		sections := m.dialogHelpSections()
 		page := min(max(d.page, 0), len(sections)-1)
-		tabs := make([]string, len(sections))
+		labels := make([]string, len(sections))
 		for i, section := range sections {
-			label := section.title
-			if i == page {
-				label = m.styles.gate.Render("[" + label + "]")
-			} else {
-				label = m.styles.dim.Render(label)
-			}
-			tabs[i] = label
+			labels[i] = section.title
 		}
 		if len(sections) > 1 {
-			rows = append(rows, strings.Split(lipgloss.NewStyle().Width(inner).Render(strings.Join(tabs, "  ")), "\n")...)
+			tabs = pane.Tabs(labels, page, inner, true, pane.TabStyles{Normal: m.styles.dim, Active: m.styles.title, Focus: m.styles.focus})
+			rows = append(rows, tabs.Rows...)
 		}
+
 		if availH >= 10 {
 			rows = append(rows, "")
 		}
@@ -174,7 +173,7 @@ func (m *model) layoutDialog() dialogLayout {
 		capacity = max(capacity-1, 1)
 	}
 	return dialogLayout{rows: rows, lines: lines, hint: hint, inner: inner,
-		capacity: capacity, width: availW, height: availH}
+		capacity: capacity, width: availW, height: availH, tabs: tabs}
 }
 
 // renderBox centers rows in a bordered box: shared by the dialog and
