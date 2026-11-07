@@ -148,23 +148,32 @@ the requests or events visible to callers.
 
 ## 6. Clarify tools and integrations
 
-- [ ] Trace registration, activation, permission checks and cleanup for built-in,
+- [x] Trace registration, activation, permission checks and cleanup for built-in,
   browser and MCP tools. Give each lifecycle step one owner.
-- [ ] Review browser/MCP code alongside mcpmanager before proposing package moves.
+- [x] Review browser/MCP code alongside mcpmanager before proposing package moves.
   Separate transport from adapters only where it reduces coupling and does not
   introduce forwarding layers or import cycles.
-- [ ] Move the FxTwitter reader into integrations if the adapter and capability
+- [x] Move the FxTwitter reader into integrations if the adapter and capability
   registration remain small. Preserve on-demand activation, provider disclosure
   and configured replacement by ID.
-- [ ] Check existing file and image integrations for duplicated schemas, limits,
+- [x] Check existing file and image integrations for duplicated schemas, limits,
   path rules or permission logic. Keep shared operations below their agent and
   workflow adapters. Avoid a universal operation framework.
-- [ ] Check package-level maps/slices and panics individually. Keep lookup data,
+- [x] Check package-level maps/slices and panics individually. Keep lookup data,
   bounded synchronized caches and embedded-asset invariants when justified.
   Fix actual unsafe mutation or recoverable failures, not counts.
 
 Done when adding one integration has an obvious home and does not require
 editing agent internals or copying permission logic.
+
+Keep browser and MCP transport files in tools for this pass. Browser lifecycle,
+capability adapters and manager connections share concrete transport and registry
+contracts; moving them needs more than relocating files. Launch owners already
+close them, while each agent owns activation. The social provider is now separate
+from its thin tool adapter. File and image operations already share agent/node
+adapters rather than duplicating their schemas. The mutable schema cache is
+bounded and synchronized; the remaining reviewed tables are lookup data. Keep
+embedded-asset panics and the cryptographic-randomness invariant.
 
 ## 7. Separate workflow responsibilities
 
