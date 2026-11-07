@@ -60,6 +60,10 @@ func readConsoleEvents(t *testing.T, input io.Reader) []uv.Event {
 	defer cancel()
 	events := make(chan uv.Event, 64)
 	reader := uv.NewTerminalReader(input, "")
+	// Fixtures are finite packets, not human keystrokes. A scheduling pause
+	// between OneByteReader chunks must not trigger the human Escape timeout.
+	// EOF still flushes incomplete input, including a lone Escape.
+	reader.EscTimeout = time.Hour
 	done := make(chan error, 1)
 	go func() {
 		done <- reader.StreamEvents(ctx, events)

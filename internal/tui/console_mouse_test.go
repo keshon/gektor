@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"testing/iotest"
+	"time"
 	"unicode/utf16"
 
 	uv "github.com/charmbracelet/ultraviolet"
@@ -72,7 +73,7 @@ func TestUnmarkedVTKeysAndMouseDoNotBecomeText(t *testing.T) {
 	for _, input := range []io.Reader{strings.NewReader(r.buffer.String()), iotest.OneByteReader(strings.NewReader(r.buffer.String()))} {
 		events := readConsoleEvents(t, input)
 		if len(events) != 7 {
-			t.Fatalf("VT packets leaked into input: got %d events, want 7", len(events))
+			t.Fatalf("VT packets leaked into input (%T): got %d events, want 7: %#v", input, len(events), events)
 		}
 		if mouseKind(events[0]) != "click" || mouseKind(events[1]) != "release" {
 			t.Fatalf("mouse packets were not decoded: %#v", events[:2])
@@ -83,6 +84,43 @@ func TestUnmarkedVTKeysAndMouseDoNotBecomeText(t *testing.T) {
 				t.Fatalf("VT key %d: got %#v, want %s without text", i, events[i+2], want)
 			}
 		}
+	}
+}
+
+type pausedConsolePacket struct {
+	read int
+}
+
+func (p *pausedConsolePacket) Read(b []byte) (int, error) {
+	switch p.read {
+	case 0:
+		p.read++
+		return copy(b, "\x1b"), nil
+	case 1:
+		p.read++
+		time.Sleep(2 * uv.DefaultEscTimeout)
+		return copy(b, "OP"), nil
+	default:
+		return 0, io.EOF
+	}
+}
+
+func TestConsolePacketFixturesIgnoreSchedulingDelays(t *testing.T) {
+	events := readConsoleEvents(t, &pausedConsolePacket{})
+	if len(events) != 1 {
+		t.Fatalf("fragmented F1 became %#v", events)
+	}
+	key, ok := events[0].(uv.KeyPressEvent)
+	if !ok || key.String() != "f1" {
+		t.Fatalf("fragmented F1 became %#v", events[0])
+	}
+	events = readConsoleEvents(t, strings.NewReader("\x1b"))
+	if len(events) != 1 {
+		t.Fatalf("EOF did not flush Escape: %#v", events)
+	}
+	key, ok = events[0].(uv.KeyPressEvent)
+	if !ok || key.String() != "esc" {
+		t.Fatalf("EOF changed Escape: %#v", events[0])
 	}
 }
 
