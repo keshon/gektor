@@ -53,7 +53,7 @@ func TestQueueCanBeEditedCancelledAndSurvivesFailure(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.queued = "Queued task"
 	m.fitBottom()
-	if !strings.Contains(m.View().Content, "Ctrl+X cancel") {
+	if !strings.Contains(ansi.Strip(m.View().Content), "CTRL+X cancel") {
 		t.Fatal("queue controls missing")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})

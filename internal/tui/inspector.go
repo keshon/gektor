@@ -3,7 +3,6 @@ package tui
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
@@ -371,7 +370,7 @@ func (m *model) inspectorMouse(msg tea.MouseMsg) (bool, tea.Cmd) {
 func (m *model) inspectorHint() string {
 	if m.inspector.selecting && m.inspector.selected >= 0 && m.inspector.selected < len(m.transcript.blocks) {
 		name, _, _ := strings.Cut(m.transcript.blocks[m.inspector.selected].text, " ")
-		return fmt.Sprintf("Selected %s · ↑↓ tools · Enter inspect · Esc composer", name)
+		return m.controlHints(popup.Shortcut{Key: "Esc", Action: "composer"}, popup.Shortcut{Key: "Enter", Action: "inspect"}, popup.Shortcut{Key: "↑↓", Action: "tools"}) + "  Selected " + name
 	}
 	return ""
 }

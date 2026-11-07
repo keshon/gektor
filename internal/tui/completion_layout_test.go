@@ -5,9 +5,43 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/tui/components/completion"
 )
+
+func TestCompletionChromeKeepsSurfaceBackground(t *testing.T) {
+	defer setTheme("dark")
+	for _, theme := range config.ThemeNames() {
+		m := completionModel(t)
+		m.applyTheme(theme)
+		for _, value := range []string{"/help", "folder/"} {
+			s := completion.State{Items: []completion.Item{{Value: value}, {Value: value + "other"}}}
+			for _, height := range []int{4, 6, 7, 20} {
+				for _, width := range []int{40, 80, 120} {
+					l := s.Layout(completion.Props{Width: width, Height: height, Surface: popupSurface(), Title: m.styles.title, Shortcuts: m.shortcutStyles()})
+					screen := uv.NewScreenBuffer(width, len(l.Rows))
+					uv.NewStyledString(paintScreen(strings.Join(l.Rows, "\n"))).Draw(screen, uv.Rect(0, 0, width, len(l.Rows)))
+					if l.Close && !sameColor(screen.CellAt(2, 1).Style.Fg, themeColor(colorWarning)) {
+						t.Fatal("completion title does not use the shared title role", theme, width, height)
+					}
+					for y := 1; y < len(l.Rows)-1; y++ {
+						for x := 2; x < width-2; x++ {
+							want := themeColor(colorPopupBackground)
+							if y == l.BodyTop && (!l.Scrollbar || x < width-4) {
+								want = themeColor(colorSelectedBackground)
+							}
+							if c := screen.CellAt(x, y); c == nil || !sameColor(c.Style.Bg, want) {
+								t.Fatalf("background leak: theme=%s value=%s size=%dx%d cell=%d,%d", theme, value, width, height, x, y)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
 
 func TestCompletionMouseSelectsWithoutRunningAndClosePreservesDraft(t *testing.T) {
 	m := completionModel(t)

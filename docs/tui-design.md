@@ -381,6 +381,16 @@ The Bubble Tea loop remains the state owner. Components own their local
 selection, focus and editing state. Async services return messages; components
 do not open backend connections or save application preferences themselves.
 
+`popup.Frame` wraps rows that already have their styles. Render every content
+row with `popup.Row`, including title padding and shortcut footers. A foreground
+style alone leaves the canvas visible behind the text. Check cell backgrounds
+after ANSI rendering, including compact layouts and selected rows.
+
+Pass keyboard hints as `popup.Shortcut` values, including custom dialog actions
+and Agent status controls. The shared renderer formats keys and keeps each
+key/action pair together. Application code still owns message content, tool
+output formatting and workflow explanations.
+
 A layout calculation returns the rectangles used by rendering, clipping,
 caret placement and hit testing. Compute those from one set of inputs.
 Do not infer a divider from a string of line characters or derive list hit

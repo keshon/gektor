@@ -249,14 +249,14 @@ const gateTranscriptRows = 4
 func (m *model) gateBar() string {
 	switch m.gstage {
 	case gsAlways:
-		return m.styles.gate.Render(fmt.Sprintf(
-			"Enter confirm  Esc back  allow %s on %q for this run",
-			m.gateTool, truncate(m.gateResource, 80)))
+		return m.controlHints(popup.Shortcut{Key: "Esc", Action: "back"}, popup.Shortcut{Key: "Enter", Action: "confirm"}) + "  " + m.styles.gate.Render(fmt.Sprintf(
+			"Allow %s on %q for this run", m.gateTool, truncate(m.gateResource, 80)))
 	case gsReject:
-		return m.styles.dim.Render("reject with note (empty = plain deny)  [Esc] back") +
+		return m.controlHints(popup.Shortcut{Key: "Esc", Action: "back"}, popup.Shortcut{Key: "Enter", Action: "deny"}) +
 			"\n" + m.note.View()
 	default:
-		return m.styles.gate.Render("Y allow once  N deny with note  A allow this run  Esc deny")
+		return m.controlHints(popup.Shortcut{Key: "Esc", Action: "deny"}, popup.Shortcut{Key: "Y", Action: "allow once"},
+			popup.Shortcut{Key: "N", Action: "deny with note"}, popup.Shortcut{Key: "A", Action: "allow this run"})
 	}
 }
 

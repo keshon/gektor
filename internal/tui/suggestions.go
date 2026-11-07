@@ -227,7 +227,7 @@ func (m *model) acceptSuggestion() bool {
 // suggestionLayout shares the popup's frame and screen origin with mouse input.
 func (m *model) suggestionLayout() (completion.Layout, int, int) {
 	width, height := min(m.transcript.Viewport.Width(), 78), m.transcript.Viewport.Height()
-	l := m.suggestions.Layout(completion.Props{Width: width, Height: height, Surface: popupSurface(), Shortcuts: m.shortcutStyles(),
+	l := m.suggestions.Layout(completion.Props{Width: width, Height: height, Surface: popupSurface(), Title: m.styles.title, Shortcuts: m.shortcutStyles(),
 		Runnable: func(item completion.Item) bool {
 			return !item.Directory && strings.HasPrefix(item.Value, "/") && m.runsOnEnter(item.Value)
 		}})

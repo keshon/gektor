@@ -2,6 +2,7 @@ package tui
 
 import (
 	"github.com/keshon/gektor/internal/tui/components/composer"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 	"os"
 	"path/filepath"
 	"time"
@@ -76,19 +77,16 @@ func writeSavedMode(stateFile string, plan bool) error {
 }
 
 func (m *model) actionHint() string {
-
 	switch m.state {
 	case stPermission:
-		return "PgUp/PgDn preview  Ctrl+Q quit"
+		return m.controlHints(popup.Shortcut{Key: "Ctrl+Q", Action: "quit"}, popup.Shortcut{Key: "PgUp/PgDn", Action: "preview"})
 	case stAsk:
-		return "Enter answer  Ctrl+O newline  Esc stop"
+		return m.controlHints(popup.Shortcut{Key: "Esc", Action: "stop"}, popup.Shortcut{Key: "Enter", Action: "answer"}, popup.Shortcut{Key: "Ctrl+O", Action: "newline"})
 	case stRunning:
-		return "Enter queue  Ctrl+O newline  Esc stop"
+		return m.controlHints(popup.Shortcut{Key: "Esc", Action: "stop"}, popup.Shortcut{Key: "Enter", Action: "queue"}, popup.Shortcut{Key: "Ctrl+O", Action: "newline"})
 	case stStopping:
-		return "Stopping…  draft is preserved  Ctrl+C exit"
+		return m.controlHints(popup.Shortcut{Key: "Ctrl+C", Action: "exit"})
 	default:
-		hint := "Enter send  Ctrl+O newline"
-
-		return hint
+		return m.controlHints(popup.Shortcut{Key: "Enter", Action: "send"}, popup.Shortcut{Key: "Ctrl+O", Action: "newline"})
 	}
 }

@@ -2,8 +2,16 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 	"time"
+
+	"github.com/keshon/gektor/internal/tui/components/popup"
 )
+
+// controlHints shares the whole-group shortcut renderer with modal footers.
+func (m *model) controlHints(shortcuts ...popup.Shortcut) string {
+	return strings.TrimRight(popup.Shortcuts(m.transcript.Viewport.Width(), m.shortcutStyles(), shortcuts...), " ")
+}
 
 // statusLine describes the current input; run metrics belong in the header.
 func (m *model) statusLine() string {
@@ -13,21 +21,24 @@ func (m *model) statusLine() string {
 	if m.dialog != nil {
 		if m.dialog.table != nil {
 			if m.dialog.table.model.Layout(m.tableProps()).Capacity == 0 {
-				return m.styles.status.Render("Enlarge the terminal   Esc close")
+				return m.controlHints(popup.Shortcut{Key: "Esc", Action: "close"})
 			}
 			if m.dialog.table.model.MoreOpen {
-				return m.styles.status.Render("More actions · Esc back")
+				return m.controlHints(popup.Shortcut{Key: "Esc", Action: "back"})
 			}
-			return m.styles.status.Render("/ filter   Tab controls   Esc back")
+			return m.controlHints(popup.Shortcut{Key: "Esc", Action: "back"}, popup.Shortcut{Key: "/", Action: "filter"}, popup.Shortcut{Key: "Tab", Action: "controls"})
 		}
 		if m.dialog.form != nil {
-			return m.styles.status.Render("Tab fields/buttons · Ctrl+O newline · Esc cancel")
+			return m.controlHints(popup.Shortcut{Key: "Esc", Action: "cancel"}, popup.Shortcut{Key: "Tab", Action: "controls"}, popup.Shortcut{Key: "Ctrl+O", Action: "newline"})
 		}
-		return m.styles.status.Render("Esc close  ↑↓ scroll")
+		return m.controlHints(popup.Shortcut{Key: "Esc", Action: "close"}, popup.Shortcut{Key: "↑↓", Action: "scroll"})
 	}
 	hint := m.actionHint()
 	if m.state == stRunning && m.progress.Detail != "" && (m.progress.Phase == "waiting" || m.progress.Phase == "retry") {
-		hint = m.progress.Detail + " · " + formatElapsed(time.Since(m.progressStarted)) + " · Esc stop"
+		hint = m.controlHints(popup.Shortcut{Key: "Esc", Action: "stop"}) + "  " + m.progress.Detail + " · " + formatElapsed(time.Since(m.progressStarted))
+	}
+	if m.state == stStopping {
+		hint += "  Stopping… draft preserved"
 	}
 	if selected := m.inspectorHint(); selected != "" {
 		hint = selected

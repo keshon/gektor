@@ -263,12 +263,30 @@ permissions and catalog validation with executable and MCP adapters.
 
 Roots have the following precedence, from lowest to highest:
 
-1. `~/.agents/skills`
-2. `~/.gektor/skills`
-3. `skill_roots` in declaration order
-4. Workspace `skills/`
-5. Workspace `.agents/skills/`
-6. Workspace `.gektor/skills/`
+1. Built-in skills shipped with Gektor
+2. `~/.agents/skills`
+3. `~/.gektor/skills`
+4. `skill_roots` in declaration order
+5. Workspace `skills/`
+6. Workspace `.agents/skills/`
+7. Workspace `.gektor/skills/`
+
+Gektor ships `workflows` and `visual-investigation` in the executable. They work
+in any workspace, without copying files into the project or `~/.gektor`.
+Their source files live in `internal/workspace/builtin/` and are embedded at
+build time. They appear with source `builtin` and paths such as
+`builtin:workflows/SKILL.md`; these paths are identifiers, not files to open.
+Use `load_skill` to read them. A user or workspace skill with the same ID
+overrides the built-in guide for skill loading.
+
+The workflow capability and dedicated workflow author/editor also use the
+shipped guide as their tool reference. Overriding a skill does not replace that
+reference or change the engine's supported operations.
+
+The repository's top-level `skills/` contains development guides for working
+on Gektor. Those are project skills when this repository is the workspace;
+they are not bundled with the application. Skills under `eval/fixtures-*`
+are test data and are not discovered from the workspace root.
 
 Relative configured roots resolve against the configuration file's directory.
 Discovery is recursive and skips directory symlinks. Later roots override the

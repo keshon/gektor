@@ -115,7 +115,7 @@ func TestRunningInputSubmitsSeveralMessagesWithoutWaitingForCompletion(t *testin
 	if m.pendingInputCount() != 2 {
 		t.Fatalf("pending=%d", m.pendingInputCount())
 	}
-	if !strings.Contains(m.View().Content, "Pending 2") || !strings.Contains(m.View().Content, "second update") || !strings.Contains(m.View().Content, "Ctrl+E") {
+	if !strings.Contains(m.View().Content, "Pending 2") || !strings.Contains(m.View().Content, "second update") || !strings.Contains(m.View().Content, "CTRL+E") {
 		t.Fatal("pending messages have no visible feedback")
 	}
 }

@@ -28,18 +28,18 @@ func wsRootOf(ws *workspace.Workspace) string {
 // A dialog carries lines or a form, never both. A lesson preview also offers
 // explicit save/edit actions; Enter still closes without saving.
 type infoDialog struct {
-	table   *tableDialog
-	hint    string
-	onClose func()
-	drag    scrollDrag
-	review  func()
-	save    func() error
-	form    *settingsForm
-	title   string
-	lines   []string
-	help    bool
-	page    int
-	offset  int
+	table     *tableDialog
+	shortcuts []popup.Shortcut
+	onClose   func()
+	drag      scrollDrag
+	review    func()
+	save      func() error
+	form      *settingsForm
+	title     string
+	lines     []string
+	help      bool
+	page      int
+	offset    int
 }
 
 // openDialog pushes the overlay and shows an info dialog; closeDialog
@@ -165,8 +165,8 @@ func (m *model) layoutDialog() dialogLayout {
 		}
 	}
 	hint := popup.Shortcuts(inner, m.shortcutStyles(), shortcuts...)
-	if d.hint != "" && m.evaluation == nil && !d.help {
-		hint = m.styles.dim.Render(cellLine(d.hint, inner))
+	if len(d.shortcuts) > 0 && m.evaluation == nil && !d.help {
+		hint = popup.Shortcuts(inner, m.shortcutStyles(), d.shortcuts...)
 	}
 	capacity := max(availH-2-len(rows)-3, 1)
 	// Reserve an extra row for the scroll-position indicator when needed.

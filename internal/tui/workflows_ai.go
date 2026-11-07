@@ -9,6 +9,7 @@ import (
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/tui/components/pane"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 	editor "github.com/keshon/gektor/internal/tui/workflow"
 	"github.com/keshon/gektor/internal/workspace"
 	"strings"
@@ -98,7 +99,7 @@ func (m *model) acceptWorkflowProposal(p workflowProposal) {
 		m.openDialog("Invalid AI proposal", []string{err.Error(), p.source})
 		return
 	}
-	lines := []string{"Proposal only · no files saved or operations executed.", "S apply to draft · Esc discard", ""}
+	lines := []string{"Proposal only · no files saved or operations executed.", ""}
 	if p.note != "" {
 		lines = append(lines, p.note, "")
 	}
@@ -124,7 +125,7 @@ func (m *model) acceptWorkflowProposal(p workflowProposal) {
 	lines = append(lines, "", "Complete proposed recipe (including inputs/outputs):", p.source)
 	// Split multiline sections so the shared scrollbar measures actual rows.
 	m.openDialog("Review AI proposal", strings.Split(strings.Join(lines, "\n"), "\n"))
-	m.dialog.hint = "S apply to draft · Esc discard"
+	m.dialog.shortcuts = []popup.Shortcut{{Key: "Esc/Enter", Action: "discard"}, {Key: "S", Action: "apply to draft"}, {Key: "↑↓", Action: "scroll"}}
 	m.dialog.save = func() error {
 		if w.editor.Source() != p.before {
 			return fmt.Errorf("draft changed since the request; ask for a fresh proposal")

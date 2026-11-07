@@ -122,6 +122,7 @@ func (s *State) Current() Item {
 type Props struct {
 	Width, Height int
 	Surface       popup.Styles
+	Title         lipgloss.Style
 	Shortcuts     popup.ShortcutStyles
 	Runnable      func(Item) bool
 }
@@ -153,7 +154,8 @@ func (s *State) Layout(p Props) Layout {
 	if strings.HasPrefix(s.Items[0].Value, "/") {
 		title = "Commands"
 	}
-	rows := popup.Header(title, inner, p.Surface.Normal.Bold(true))
+	rows := popup.Header(title, inner, p.Title.Inherit(p.Surface.Normal).Bold(true))
+	rows[0] = popup.Row(p.Surface.Normal, rows[0], inner)
 	body := []string{}
 	valueW := valueWidth(s.Items[l.Offset:l.Offset+count], p.Width)
 	for i := l.Offset; i < l.Offset+count; i++ {
@@ -174,6 +176,7 @@ func (s *State) Layout(p Props) Layout {
 	hint := popup.Shortcuts(inner, p.Shortcuts,
 		popup.Shortcut{Key: "Esc", Action: "close"}, popup.Shortcut{Key: "Enter", Action: action},
 		popup.Shortcut{Key: "Tab", Action: "insert"}, popup.Shortcut{Key: "↑↓", Action: "select"}, popup.Shortcut{Key: "PgUp/PgDn", Action: "page"})
+	hint = popup.Row(p.Surface.Normal, hint, inner)
 	rows = append(rows, popup.Footer(inner, hint, lipgloss.NewStyle())...)
 	if l.Close {
 		l.Rows = popup.Frame(rows, p.Width, p.Surface)

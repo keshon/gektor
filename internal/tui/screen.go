@@ -8,6 +8,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/keshon/gektor/internal/tui/components/pane"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
 // screenContent keeps the composer inside the conversation column and the
@@ -53,7 +54,7 @@ func (m *model) screenContent() string {
 		}
 	}
 	if m.hasQueued() && m.dialog == nil && m.state != stPermission && m.state != stAsk {
-		bottom = cellLine("Queued  Ctrl+E edit  Ctrl+X cancel: "+m.queuedLabel(), m.transcript.Viewport.Width()) + "\n" + bottom
+		bottom = cellLine(m.controlHints(popup.Shortcut{Key: "Ctrl+E", Action: "edit"}, popup.Shortcut{Key: "Ctrl+X", Action: "cancel"})+"  Queued: "+m.queuedLabel(), m.transcript.Viewport.Width()) + "\n" + bottom
 	}
 	if m.sess != nil && m.dialog == nil && m.state != stPermission && m.state != stAsk {
 		msg, count, claimed := m.sess.InputPreview()
@@ -63,14 +64,14 @@ func (m *model) screenContent() string {
 				preview = fmt.Sprintf("[%d images] %s", len(msg.Images), preview)
 			}
 			label := fmt.Sprintf("Pending %d · latest: %s", count, preview)
-			hint := "Ctrl+E edit latest · Ctrl+X cancel latest"
+			hint := m.controlHints(popup.Shortcut{Key: "Ctrl+E", Action: "edit latest"}, popup.Shortcut{Key: "Ctrl+X", Action: "cancel latest"})
 			if claimed > 0 {
 				label = fmt.Sprintf("Accepted %d · waiting for active tools", claimed)
 				if count > claimed {
 					label += fmt.Sprintf(" · pending %d: %s", count-claimed, preview)
 				} else {
 					label += " · " + preview
-					hint = "Accepted input cannot be recalled · Esc stop"
+					hint = m.controlHints(popup.Shortcut{Key: "Esc", Action: "stop"}) + "  Accepted input cannot be recalled"
 				}
 			}
 			bottom = cellLine(label, m.transcript.Viewport.Width()) + "\n" + cellLine(hint, m.transcript.Viewport.Width()) + "\n" + bottom
