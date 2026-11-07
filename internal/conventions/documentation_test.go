@@ -76,13 +76,27 @@ func checkDocIdentifiers(t *testing.T, r *repo) {
 		}
 		names.add(f)
 	}
-	for _, doc := range []string{"ARCHITECTURE.md", "README.md", "docs/conventions.md"} {
-		for _, match := range docIdentifier.FindAllStringSubmatch(r.readPath(t, doc), -1) {
-			if !names.has(match[1]) {
-				t.Errorf("%s names undeclared Go name %q%s", doc, match[1], r.rule("doc-identifiers"))
-			}
+	for _, doc := range maintainedDocs(t, r) {
+		for _, name := range missingDocIdentifiers(names, r.readPath(t, doc)) {
+			t.Errorf("%s names undeclared Go name %q%s", doc, name, r.rule("doc-identifiers"))
 		}
 	}
+}
+
+func missingDocIdentifiers(names declarations, text string) []string {
+	var missing []string
+	for _, match := range docIdentifier.FindAllStringSubmatch(text, -1) {
+		name := match[1]
+		// Bare acronyms and key labels are not Go identifiers. Qualified names
+		// still include exported constants such as io.EOF.
+		if !strings.Contains(name, ".") && strings.ToUpper(name) == name {
+			continue
+		}
+		if !names.has(name) {
+			missing = append(missing, name)
+		}
+	}
+	return missing
 }
 
 func checkPackagePath(root, name string) error {
@@ -127,7 +141,9 @@ func maintainedDoc(path string) bool {
 		(strings.HasPrefix(path, "examples/") || strings.HasPrefix(path, "demos/")) && filepath.Base(path) == "README.md"
 }
 
-func checkDocPaths(t *testing.T, r *repo) {
+func maintainedDocs(t *testing.T, r *repo) []string {
+	t.Helper()
+	var docs []string
 	err := filepath.WalkDir(r.root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -143,14 +159,21 @@ func checkDocPaths(t *testing.T, r *repo) {
 			return nil
 		}
 		if maintainedDoc(rel) {
-			for _, missing := range missingDocPaths(r.root, r.read(t, path)) {
-				t.Errorf("%s names missing path %q%s", rel, missing, r.rule("doc-paths"))
-			}
+			docs = append(docs, rel)
 		}
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("walk documentation: %v", err)
+	}
+	return docs
+}
+
+func checkDocPaths(t *testing.T, r *repo) {
+	for _, doc := range maintainedDocs(t, r) {
+		for _, missing := range missingDocPaths(r.root, r.readPath(t, doc)) {
+			t.Errorf("%s names missing path %q%s", doc, missing, r.rule("doc-paths"))
+		}
 	}
 }
 
@@ -213,6 +236,31 @@ func TestMaintainedDocumentationScope(t *testing.T) {
 	for _, path := range []string{"docs/internal/history.md", "eval/results/old/README.md", "eval/prompts/task.md", "skills/go/SKILL.md", "sandbox/README.md"} {
 		if maintainedDoc(path) {
 			t.Errorf("non-guide %q included", path)
+		}
+	}
+}
+
+func TestMaintainedGuidesRejectUndeclaredGoNames(t *testing.T) {
+	root := t.TempDir()
+	paths := []string{"SECURITY.md", "docs/workflows.md", "docs/design/tui/README.md", "skills/README.md", "eval/README.md", "examples/workflows/README.md", "demos/README.md"}
+	for _, path := range paths {
+		full := filepath.Join(root, filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(full), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte("Undeclared Go name: `AbsentGoName`. JSON field: `\"mcpServers\"`. Key: `ENTER`."), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := &repo{root: root, cache: map[string]string{}}
+	docs := maintainedDocs(t, r)
+	if len(docs) != len(paths) {
+		t.Fatalf("maintained guides: %v", docs)
+	}
+	for _, doc := range docs {
+		missing := missingDocIdentifiers(declarations{}, r.readPath(t, doc))
+		if len(missing) != 1 || missing[0] != "AbsentGoName" {
+			t.Errorf("%s: undeclared name not rejected cleanly: %v", doc, missing)
 		}
 	}
 }

@@ -137,9 +137,11 @@ got worse.
 
 ## Documentation
 
-**[enforced: doc-identifiers]** Backticked Go names in `ARCHITECTURE.md`,
-`README.md` and `docs/conventions.md` are checked against parsed declarations.
+**[enforced: doc-identifiers]** Backticked Go names in root guides, maintained docs outside docs/internal,
+skills/README.md, eval/README.md and README files under examples and demos
+are checked against parsed declarations.
 The check recognizes mixed-case names and package-qualified exported names.
+Bare acronyms and key labels are excluded; JSON fields use quoted JSON notation.
 Bare names may match fields, methods or test declarations; qualified names
 must belong to the named package. Standard-library names use its exported
 declarations. This is an existence check, not a full Go type check.

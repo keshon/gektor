@@ -13,7 +13,7 @@ next turn; it does not call those tools. **At startup** connects at launch.
 Disable it to remove it from discovery. Existing session catalogs retain their
 original definitions; changed definitions may require a fresh session.
 
-The importer accepts `mcpServers` objects with `url` and `headers`, or `command`
+The importer accepts `{"mcpServers": {...}}` objects with `url` and `headers`, or `command`
 and `args`. Import rejects existing IDs unless replacement is explicitly selected.
 In the MCP servers form, choose **Paste JSON** to paste the configuration into
 a multiline field, or **Import file** to read it from a file. Choose **Import**
