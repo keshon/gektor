@@ -134,7 +134,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 		if a.cfg.Inbox.Len() > 0 {
 			continue
 		}
-		if st.repeatCount >= maxRepeatedSteps {
+		if st.repeatCount >= maxRepeatedSteps && a.report.Steps < a.cfg.MaxSteps {
 			from := step - st.repeatCount + 1
 			a.report.Warnings = append(a.report.Warnings, fmt.Sprintf(
 				"steps %d-%d issued identical tool calls; answered without tools", from, step))

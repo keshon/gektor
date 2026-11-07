@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -187,6 +188,33 @@ func TestRun_RepeatedStepsAnswerWithoutTools(t *testing.T) {
 	last := history[len(history)-1]
 	if last.Role != llm.RoleUser || !strings.HasPrefix(last.Content, harnessPrefix) {
 		t.Fatalf("answer turn history ends with %+v, want the marked harness line", last)
+	}
+}
+
+func TestRepeatRecoveryRespectsStepLimit(t *testing.T) {
+	for _, limit := range []int{1, 2, 3, 4} {
+		t.Run(fmt.Sprint(limit), func(t *testing.T) {
+			calls := 0
+			client := inputClient(func(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
+				calls++
+				if calls <= 3 {
+					return stepOf(llm.ToolCall{ID: fmt.Sprint(calls), Name: "echo", Arguments: json.RawMessage(`{}`)}), nil
+				}
+				return say("answer"), nil
+			})
+			a := New(Config{Client: client, Tools: NewRegistry(echoToolStub{}), MaxSteps: limit})
+			answer, err := a.Run(t.Context(), "task")
+			if calls != limit || a.Report().Steps != calls {
+				t.Fatalf("limit=%d calls=%d report=%+v", limit, calls, a.Report())
+			}
+			if limit < 4 {
+				if !errors.Is(err, ErrMaxSteps) || answer != "" {
+					t.Fatalf("answer=%q err=%v", answer, err)
+				}
+			} else if err != nil || answer != "answer" {
+				t.Fatalf("answer=%q err=%v", answer, err)
+			}
+		})
 	}
 }
 
