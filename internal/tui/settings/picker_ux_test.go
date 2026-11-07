@@ -1,6 +1,8 @@
 package settings
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,11 +31,11 @@ func TestWorkspacePickerNavigatesBeforeSelecting(t *testing.T) {
 	if !strings.Contains(text, "Parent folder") || !strings.HasPrefix(rows[2], "Current folder: ") || !strings.Contains(rows[2], "child") || f.Picker.Directory != child {
 		t.Fatal(rows)
 	}
-	if strings.Count(text, "Current folder:") != 1 || strings.Contains(text, root+string(os.PathSeparator)+"\n") || !strings.Contains(text, "Filter folders:") || !strings.Contains(text, "Select current folder") {
+	if strings.Count(text, "Current folder:") != 1 || strings.Contains(text, root+string(os.PathSeparator)+"\n") || !strings.Contains(text, "Filter folders:") || !strings.Contains(text, "Select folder") {
 		t.Fatal("folder picker does not distinguish location, filter and selection", text)
 	}
 	x, y := f.Origin(props)
-	_, cmd := f.Mouse(tea.MouseClickMsg{X: x + 2, Y: y + f.Picker.listTop(), Button: tea.MouseLeft}, props)
+	_, cmd := f.Mouse(tea.MouseClickMsg{X: x + 2, Y: y + f.layoutPicker(props).listTop, Button: tea.MouseLeft}, props)
 	if cmd == nil || f.Picker == nil || f.Editor.Value() != child {
 		t.Fatal("parent click selected path")
 	}
@@ -45,7 +47,7 @@ func TestWorkspacePickerNavigatesBeforeSelecting(t *testing.T) {
 	x, y = f.Origin(props)
 	for _, hit := range hits {
 		if hit.Index == -2 {
-			f.Mouse(tea.MouseClickMsg{X: x + 1, Y: y + hit.Y0, Button: tea.MouseLeft}, props)
+			f.Mouse(tea.MouseClickMsg{X: x + hit.X0 + 1, Y: y + hit.Y0, Button: tea.MouseLeft}, props)
 		}
 	}
 	if f.Picker != nil || f.Editor.Value() != root {
@@ -90,7 +92,7 @@ func TestExplicitPickerUsesSharedWidthAndStartsAtCurrentValue(t *testing.T) {
 		t.Fatal(text, width)
 	}
 	x, y := f.Origin(props)
-	f.Mouse(tea.MouseClickMsg{X: x + 2, Y: y + f.Picker.listTop(), Button: tea.MouseLeft}, props)
+	f.Mouse(tea.MouseClickMsg{X: x + 2, Y: y + f.layoutPicker(props).listTop, Button: tea.MouseLeft}, props)
 	if f.Picker == nil || f.Editor.Value() != "light" || f.Picker.Cursor != 0 {
 		t.Fatal("click must select without committing a choice")
 	}
@@ -116,7 +118,7 @@ func TestLongChoicePickerUsesStandardModalWidthAndMouseOrigin(t *testing.T) {
 			t.Fatal("wide chooser truncated a fitting name", rows)
 		}
 		x, y := f.Origin(props)
-		f.Mouse(tea.MouseClickMsg{X: x + 2, Y: y + f.Picker.listTop(), Button: tea.MouseLeft}, props)
+		f.Mouse(tea.MouseClickMsg{X: x + 2, Y: y + f.layoutPicker(props).listTop, Button: tea.MouseLeft}, props)
 		if f.Picker == nil || f.Editor.Value() != items[1] || f.Picker.Cursor != 0 {
 			t.Fatal("picker click committed before Select")
 		}
@@ -179,8 +181,107 @@ func TestConfiguredFilePickerFiltersNavigatesAndSelects(t *testing.T) {
 			f.Picker.Cursor = i
 		}
 	}
+	l := f.layoutPicker(props)
+	x, y := f.Origin(props)
+	for _, hit := range l.hits {
+		if hit.Index == -5 && hit.Option == f.Picker.Cursor+1 {
+			f.Mouse(tea.MouseClickMsg{X: x + hit.X0, Y: y + hit.Y0, Button: tea.MouseLeft}, props)
+			break
+		}
+	}
+	if f.Picker == nil || f.Editor.Value() != "" {
+		t.Fatal("file click accepted a choice without confirmation")
+	}
 	f.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, props)
 	if f.Picker != nil || f.Editor.Value() != filepath.Join(child, "recipe.JSON") {
 		t.Fatal("file not selected")
+	}
+}
+
+func TestPickerWheelOnlyMovesRowsAndPrimaryClickIgnoresCancelFocus(t *testing.T) {
+	f := NewModel([]form.Field{{Key: "run", Value: "item 00"}}, textarea.New())
+	items := []string{}
+	for i := 0; i < 50; i++ {
+		items = append(items, fmt.Sprintf("item %02d", i))
+	}
+	f.Choices = map[string][]string{"run": items}
+	f.Focus(0, nil)
+	props := Props{Width: 80, Height: 20}
+	f.OpenPicker(props)
+	l := f.layoutPicker(props)
+	x, y := f.Origin(props)
+	for _, point := range [][2]int{{x, y + len(l.rows) - 1}, {x, y + 2}, {x - 3, y + l.listTop}} {
+		f.Mouse(tea.MouseWheelMsg{X: point[0], Y: point[1], Button: tea.MouseWheelDown}, props)
+		if f.Picker.Cursor != 0 {
+			t.Fatal("wheel outside list moved its selection")
+		}
+	}
+	f.Mouse(tea.MouseWheelMsg{X: x, Y: y + l.listTop, Button: tea.MouseWheelDown}, props)
+	if f.Picker.Cursor != 1 {
+		t.Fatal("wheel over list did not move selection")
+	}
+	text := ansi.Strip(strings.Join(f.layoutPicker(props).rows, "\n"))
+	if !strings.Contains(text, "✓ item 00") || !strings.Contains(text, "›   item 01") {
+		t.Fatal("chosen value and navigation selection are not separate", text)
+	}
+	f.Picker.Control = 2
+	clickPickerSelect(t, &f, props)
+	if f.Picker != nil || f.Editor.Value() != "item 01" {
+		t.Fatal("primary click followed Cancel's keyboard focus")
+	}
+}
+
+func TestPickerLocationCancelRestoresFilterAndParentDraft(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"child-a", "child-b"} {
+		if err := os.Mkdir(filepath.Join(root, name), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f := NewModel([]form.Field{{Key: "app-workspace", Value: root}}, textarea.New())
+	f.Focus(0, nil)
+	props := Props{Width: 80, Height: 24}
+	f.AcceptScan(f.OpenPicker(props)().(ScanMsg))
+	f.Picker.Search.SetValue("child")
+	f.Picker.Filter()
+	f.Picker.Cursor = 1
+	f.Picker.Control = 2
+	f.PickerKey(tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl}, props)
+	if !f.Picker.Location || f.Picker.Control != 0 {
+		t.Fatal("path entry did not acquire focus")
+	}
+	f.Picker.Search.SetValue("")
+	if cmd := f.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, props); cmd != nil {
+		t.Fatal("blank path browsed the process working directory")
+	}
+	f.PickerKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl}, props)
+	if f.Picker == nil || f.Fields[0].Value != root {
+		t.Fatal("Select folder accepted while editing a path")
+	}
+	f.PickerKey(tea.KeyPressMsg{Code: tea.KeyEscape}, props)
+	if f.Picker == nil || f.Picker.Location || f.Picker.Search.Value() != "child" || f.Picker.Cursor != 1 {
+		t.Fatal("cancelled path entry lost list state")
+	}
+	f.PickerKey(tea.KeyPressMsg{Code: tea.KeyEscape}, props)
+	if f.Picker != nil || f.Editor.Value() != root || f.Fields[0].Value != root {
+		t.Fatal("picker cancellation changed parent draft")
+	}
+}
+
+func TestPickerSuccessClearsErrorAndStaleResultCannotReplaceIt(t *testing.T) {
+	f := NewModel([]form.Field{{Key: "run", Value: "old"}}, textarea.New())
+	f.Choices = map[string][]string{"run": {"old"}}
+	f.Focus(0, nil)
+	props := Props{Width: 80, Height: 24}
+	f.OpenPicker(props)
+	id := f.Picker.ID
+	f.AcceptScan(ScanMsg{ID: id, Err: errors.New("discovery failed")})
+	f.AcceptScan(ScanMsg{ID: id - 1, Items: []string{"stale"}})
+	if f.Picker.Err == "" || len(f.Picker.Filtered) != 0 {
+		t.Fatal("stale discovery replaced current failure")
+	}
+	f.AcceptScan(ScanMsg{ID: id, Items: []string{"new"}})
+	if f.Picker.Err != "" || len(f.Picker.Filtered) != 1 || f.Picker.Filtered[0] != "new" {
+		t.Fatal("successful retry retained the failure")
 	}
 }

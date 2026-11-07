@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"os"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -20,6 +21,12 @@ func (f *Model) Mouse(msg tea.MouseMsg, props Props) (Intent, tea.Cmd) {
 	}
 	if f.Picker != nil && (msg.Mouse().Button == tea.MouseWheelUp || msg.Mouse().Button == tea.MouseWheelDown) {
 		p := f.Picker
+		l := f.layoutPicker(props)
+		x, y := f.Origin(props)
+		mouse := msg.Mouse()
+		if mouse.X < x || mouse.X >= x+l.inner || mouse.Y < y+l.listTop || mouse.Y >= y+l.listTop+min(l.capacity, len(p.Filtered)) {
+			return Intent{}, nil
+		}
 		step := 1
 		if msg.Mouse().Button == tea.MouseWheelUp {
 			step = -1
@@ -44,15 +51,20 @@ func (f *Model) Mouse(msg tea.MouseMsg, props Props) (Intent, tea.Cmd) {
 	if f.Picker != nil {
 		p := f.Picker
 		for _, hit := range hits {
+			if hit.Index == -8 && mouse.Y == y+hit.Y0 && mouse.X >= x+hit.X0 && mouse.X < x+hit.X1 {
+				p.Control = 0
+				return Intent{}, nil
+			}
 			if hit.Index == -5 && mouse.Y == y+hit.Y0 && mouse.X >= x+hit.X0 && mouse.X < x+hit.X1 {
 				p.Control = 0
 				p.Cursor = hit.Option - 1
-				if p.Browser {
+				if p.Browser && strings.HasSuffix(p.Filtered[p.Cursor], string(os.PathSeparator)) {
 					return Intent{}, f.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, props)
 				}
 				return Intent{}, nil
 			}
 			if hit.Index == -7 && mouse.Y == y+hit.Y0 && mouse.X >= x+hit.X0 && mouse.X < x+hit.X1 && !p.Loading {
+				p.Control = 0
 				return Intent{}, f.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, props)
 			}
 			if hit.Index == -4 && mouse.Y == y+hit.Y0 && mouse.X >= x+hit.X0 && mouse.X < x+hit.X1 {
@@ -66,9 +78,10 @@ func (f *Model) Mouse(msg tea.MouseMsg, props Props) (Intent, tea.Cmd) {
 				return Intent{}, f.PickerKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl}, props)
 			}
 		}
-		row := mouse.Y - y - p.listTop()
-		capacity := p.capacity(props.Height)
-		if mouse.X == x+width-5 && row >= 0 && row < capacity && len(p.Filtered) > capacity {
+		l := f.layoutPicker(props)
+		row := mouse.Y - y - l.listTop
+		capacity := l.capacity
+		if mouse.X == x+l.inner-1 && row >= 0 && row < capacity && len(p.Filtered) > capacity {
 			p.Cursor = min(popup.ScrollOffset(row, capacity, len(p.Filtered), 0)+capacity/2, len(p.Filtered)-1)
 			return Intent{}, nil
 		}
