@@ -3,7 +3,9 @@ package worker
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +14,17 @@ import (
 func TestMain(m *testing.M) {
 	if len(os.Args) == 3 && os.Args[1] == "workflow" {
 		switch os.Args[2] {
+		case "test-limited":
+			if err := Limit(); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			data := make([]byte, 32<<20)
+			for i := 0; i < len(data); i += 4096 {
+				data[i] = 1
+			}
+			fmt.Fprintf(os.Stdout, `{"bytes":%d,"last_page":%d}`, len(data), data[len(data)-4096])
+			return
 		case "test-hang":
 			time.Sleep(time.Minute)
 			return
@@ -36,5 +49,15 @@ func TestWorkerDeadlineAndOutputLimits(t *testing.T) {
 	}
 	if _, err := Run(t.Context(), "test-invalid", nil, 5*time.Second, 1024); err == nil {
 		t.Fatal("accepted invalid worker output")
+	}
+}
+
+func TestLinuxAddressLimitAllowsRuntimeReservations(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux RLIMIT_AS accounts for reserved mappings; Windows uses a separate job memory limit")
+	}
+	out, err := Run(t.Context(), "test-limited", nil, 10*time.Second, 1024)
+	if err != nil || out != `{"bytes":33554432,"last_page":1}` {
+		t.Fatal(out, err)
 	}
 }
