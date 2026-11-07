@@ -13,8 +13,10 @@ under `~/.gektor/workflows/`, separated by workspace. See
 There is no shared template library yet. Copy a recipe into another workspace
 to use it as a starting point, then check its paths and profiles.
 
-Schedules start workflows at set times. They are managed through the
-[CLI and service](cli.md#workflow-queue-and-service), not the TUI editor.
+Schedules start workflows at set times. Manage them in the
+[TUI editor](tui.md#schedule-a-workflow), through agent tools or with the
+[CLI and service](cli.md#workflow-queue-and-service). The workflow service must
+be running for scheduled jobs to execute.
 
 ## Available operations
 

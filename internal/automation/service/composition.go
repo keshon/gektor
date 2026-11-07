@@ -110,212 +110,21 @@ func (s Service) FreezeRecipe(ctx context.Context, raw []byte, path string) ([]b
 
 func (s Service) compileSource(ctx context.Context, source []byte, path string) (automation.Definition, []byte, error) {
 	var zero automation.Definition
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(source, &fields); err != nil {
+	b, source, err := s.loadRecipeBundle(ctx, source, path)
+	if err != nil {
 		return zero, nil, err
 	}
-	b := recipeBundle{}
-	if fields["root"] != nil {
-		if err := decode(source, &b); err != nil {
-			return zero, nil, err
-		}
-	} else {
-		frozen, err := s.FreezeRecipe(ctx, source, path)
-		if err != nil {
-			return zero, nil, err
-		}
-		if bytes.Equal(frozen, source) {
-			b.Root = source
-			b.Recipes = map[string]json.RawMessage{}
-		} else {
-			if err := decode(frozen, &b); err != nil {
-				return zero, nil, err
-			}
-		}
-		source = frozen
+	// Ordinary recipes retain their exact execution definition and source digest.
+	if plain, ready, err := s.plainRecipe(b); err != nil {
+		return zero, nil, err
+	} else if ready {
+		return plain, source, nil
 	}
-	if len(source) > 64<<10 {
-		return zero, nil, fmt.Errorf("recipe bundle exceeds 64 KiB")
+	if err := s.authorizeRecipeBundle(ctx, b); err != nil {
+		return zero, nil, err
 	}
-	// Ordinary recipes keep their original execution definition and digest.
-	// Composition must not rewrite argument ordering or inferred graph edges
-	// for runs that do not use it (the evaluation verifier checks this binding).
-	if len(b.Recipes) == 0 {
-		if err := automation.ValidateJSON(b.Root, s.DefinitionSchema()); err != nil {
-			return zero, nil, err
-		}
-		var plain automation.Definition
-		if err := json.Unmarshal(b.Root, &plain); err != nil {
-			return zero, nil, err
-		}
-		calls := false
-		for _, step := range plain.Steps {
-			if strings.Contains(step.ID, "/") || strings.HasPrefix(step.ID, "@") {
-				return zero, nil, fmt.Errorf("step ID %q uses a reserved composition namespace", step.ID)
-			}
-			calls = calls || step.Tool == "workflow_call"
-		}
-		if !calls && len(plain.Outputs) == 0 {
-			return plain, source, nil
-		}
-	}
-	for p := range b.Recipes {
-		rel, err := s.WS.Relative(p)
-		if err != nil || filepath.ToSlash(rel) != p {
-			return zero, nil, fmt.Errorf("invalid bundled recipe path %q", p)
-		}
-		args, _ := json.Marshal(map[string]string{"path": p})
-		if s.Authorize == nil {
-			return zero, nil, fmt.Errorf("recipe read authorization unavailable")
-		}
-		if err := s.Authorize(ctx, "read_file", args); err != nil {
-			return zero, nil, err
-		}
-	}
-	count := 0
-	boundNames := map[string]map[string]bool{}
-	var expand func(json.RawMessage, string, string, string, int, map[string]bool) (automation.Definition, error)
-	expand = func(raw json.RawMessage, path, prefix, binding string, depth int, stack map[string]bool) (automation.Definition, error) {
-		if depth > maxCompositionDepth || stack[path] {
-			return zero, fmt.Errorf("subworkflow cycle or nesting exceeds %d at %s", maxCompositionDepth, path)
-		}
-		stack[path] = true
-		defer delete(stack, path)
-		if err := automation.ValidateJSON(raw, s.DefinitionSchema()); err != nil {
-			return zero, err
-		}
-		var d automation.Definition
-		if err := json.Unmarshal(raw, &d); err != nil {
-			return zero, err
-		}
-		ordered, err := recipe.Order(d.Steps)
-		if err != nil {
-			return zero, err
-		}
-		d.Steps = ordered
-		for _, step := range d.Steps {
-			if strings.Contains(step.ID, "/") || strings.HasPrefix(step.ID, "@") {
-				return zero, fmt.Errorf("step ID %q uses a reserved composition namespace", step.ID)
-			}
-		}
-		steps := []automation.Step{}
-		for _, step := range d.Steps {
-			id := prefix + step.ID
-			rewrite := func(raw json.RawMessage) (json.RawMessage, error) {
-				if binding != "" {
-					if err := checkBoundNames(raw, boundNames[binding]); err != nil {
-						return nil, err
-					}
-				}
-				return rewriteScope(raw, prefix, binding)
-			}
-			var err error
-			step.Args, err = rewrite(step.Args)
-			if err != nil {
-				return zero, err
-			}
-			if len(step.When) > 0 {
-				step.When, err = rewrite(step.When)
-				if err != nil {
-					return zero, err
-				}
-			}
-			if len(step.ForEach) > 0 {
-				step.ForEach, err = rewrite(step.ForEach)
-				if err != nil {
-					return zero, err
-				}
-			}
-			for i, dep := range step.DependsOn {
-				step.DependsOn[i] = prefix + dep
-			}
-			if binding != "" {
-				step.Gate = binding
-				step.DependsOn = append(step.DependsOn, binding)
-			}
-			step.ID = id
-			if step.Tool != "workflow_call" {
-				steps = append(steps, step)
-				count++
-			} else {
-				if len(step.ForEach) > 0 || step.Retry != nil {
-					return zero, fmt.Errorf("workflow_call %s does not support for_each or retry", id)
-				}
-				if step.NodeVersion > 1 {
-					return zero, fmt.Errorf("workflow_call version unavailable")
-				}
-				var in callInput
-				if err := decode(step.Args, &in); err != nil {
-					return zero, err
-				}
-				p, err := s.WS.Relative(in.Path)
-				if err != nil {
-					return zero, err
-				}
-				p = filepath.ToSlash(p)
-				child, ok := b.Recipes[p]
-				if !ok {
-					return zero, fmt.Errorf("missing bundled recipe %s", p)
-				}
-				var definition automation.Definition
-				if err := json.Unmarshal(child, &definition); err != nil {
-					return zero, err
-				}
-				if len(definition.Outputs) == 0 {
-					return zero, fmt.Errorf("called recipe %s must declare outputs", p)
-				}
-				bindID := id + "/@inputs"
-				if in.Inputs == nil {
-					in.Inputs = map[string]json.RawMessage{}
-				}
-				if definition.Inputs == nil {
-					definition.Inputs = map[string]automation.Input{}
-				}
-				boundNames[bindID] = map[string]bool{}
-				for name, spec := range definition.Inputs {
-					_, provided := in.Inputs[name]
-					boundNames[bindID][name] = provided || spec.Default != nil
-				}
-				args, _ := json.Marshal(map[string]any{"recipe_path": p, "specs": definition.Inputs, "values": in.Inputs})
-				gate := step
-				gate.ID = bindID
-				gate.Tool = "workflow_bind"
-				gate.Args = args
-				steps = append(steps, gate)
-				count++
-				expanded, err := expand(child, p, id+"/", bindID, depth+1, stack)
-				if err != nil {
-					return zero, err
-				}
-				steps = append(steps, expanded.Steps...)
-				deps := []string{bindID}
-				for _, s := range expanded.Steps {
-					deps = append(deps, s.ID)
-				}
-				values, _ := json.Marshal(expanded.Outputs)
-				steps = append(steps, automation.Step{ID: id, Tool: "workflow_value", Args: values, DependsOn: deps, Gate: bindID, CollectOutputs: true})
-				count++
-			}
-			if count > maxExpandedSteps {
-				return zero, fmt.Errorf("expanded workflow exceeds %d steps", maxExpandedSteps)
-			}
-		}
-		for key, raw := range d.Outputs {
-			if binding != "" {
-				if err := checkBoundNames(raw, boundNames[binding]); err != nil {
-					return zero, err
-				}
-			}
-			value, err := rewriteScope(raw, prefix, binding)
-			if err != nil {
-				return zero, err
-			}
-			d.Outputs[key] = value
-		}
-		d.Steps = steps
-		return d, nil
-	}
-	d, err := expand(b.Root, path, "", "", 0, map[string]bool{})
+	compiler := recipeCompiler{service: s, recipes: b.Recipes, boundNames: map[string]map[string]bool{}}
+	d, err := compiler.expand(b.Root, path, "", "", 0, map[string]bool{})
 	if err != nil {
 		return zero, nil, err
 	}
@@ -332,6 +141,245 @@ func (s Service) compileSource(ctx context.Context, source []byte, path string) 
 	}
 	d.Outputs = nil
 	return d, source, nil
+}
+
+func (s Service) loadRecipeBundle(ctx context.Context, source []byte, path string) (recipeBundle, []byte, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(source, &fields); err != nil {
+		return recipeBundle{}, nil, err
+	}
+	b := recipeBundle{}
+	if fields["root"] != nil {
+		if err := decode(source, &b); err != nil {
+			return recipeBundle{}, nil, err
+		}
+	} else {
+		frozen, err := s.FreezeRecipe(ctx, source, path)
+		if err != nil {
+			return recipeBundle{}, nil, err
+		}
+		if bytes.Equal(frozen, source) {
+			b.Root = source
+			b.Recipes = map[string]json.RawMessage{}
+		} else {
+			if err := decode(frozen, &b); err != nil {
+				return recipeBundle{}, nil, err
+			}
+		}
+		source = frozen
+	}
+	if len(source) > 64<<10 {
+		return recipeBundle{}, nil, fmt.Errorf("recipe bundle exceeds 64 KiB")
+	}
+	return b, source, nil
+}
+
+func (s Service) plainRecipe(b recipeBundle) (automation.Definition, bool, error) {
+	if len(b.Recipes) == 0 {
+		if err := automation.ValidateJSON(b.Root, s.DefinitionSchema()); err != nil {
+			return automation.Definition{}, false, err
+		}
+		var plain automation.Definition
+		if err := json.Unmarshal(b.Root, &plain); err != nil {
+			return automation.Definition{}, false, err
+		}
+		calls := false
+		for _, step := range plain.Steps {
+			if strings.Contains(step.ID, "/") || strings.HasPrefix(step.ID, "@") {
+				return automation.Definition{}, false, fmt.Errorf("step ID %q uses a reserved composition namespace", step.ID)
+			}
+			calls = calls || step.Tool == "workflow_call"
+		}
+		if !calls && len(plain.Outputs) == 0 {
+			return plain, true, nil
+		}
+	}
+	return automation.Definition{}, false, nil
+}
+
+func (s Service) authorizeRecipeBundle(ctx context.Context, b recipeBundle) error {
+	for p := range b.Recipes {
+		rel, err := s.WS.Relative(p)
+		if err != nil || filepath.ToSlash(rel) != p {
+			return fmt.Errorf("invalid bundled recipe path %q", p)
+		}
+		args, _ := json.Marshal(map[string]string{"path": p})
+		if s.Authorize == nil {
+			return fmt.Errorf("recipe read authorization unavailable")
+		}
+		if err := s.Authorize(ctx, "read_file", args); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type recipeCompiler struct {
+	service    Service
+	recipes    map[string]json.RawMessage
+	boundNames map[string]map[string]bool
+	steps      int
+}
+
+func (c *recipeCompiler) expand(raw json.RawMessage, path, prefix, binding string, depth int, stack map[string]bool) (automation.Definition, error) {
+	var zero automation.Definition
+	if depth > maxCompositionDepth || stack[path] {
+		return zero, fmt.Errorf("subworkflow cycle or nesting exceeds %d at %s", maxCompositionDepth, path)
+	}
+	stack[path] = true
+	defer delete(stack, path)
+	if err := automation.ValidateJSON(raw, c.service.DefinitionSchema()); err != nil {
+		return zero, err
+	}
+	var d automation.Definition
+	if err := json.Unmarshal(raw, &d); err != nil {
+		return zero, err
+	}
+	ordered, err := recipe.Order(d.Steps)
+	if err != nil {
+		return zero, err
+	}
+	d.Steps = ordered
+	for _, step := range d.Steps {
+		if strings.Contains(step.ID, "/") || strings.HasPrefix(step.ID, "@") {
+			return zero, fmt.Errorf("step ID %q uses a reserved composition namespace", step.ID)
+		}
+	}
+	steps := []automation.Step{}
+	for _, step := range d.Steps {
+		var err error
+		step, err = c.rewriteStep(step, prefix, binding)
+		if err != nil {
+			return zero, err
+		}
+		if step.Tool != "workflow_call" {
+			steps = append(steps, step)
+			c.steps++
+		} else {
+			expanded, err := c.expandCall(step, depth, stack)
+			if err != nil {
+				return zero, err
+			}
+			steps = append(steps, expanded...)
+		}
+		if c.steps > maxExpandedSteps {
+			return zero, fmt.Errorf("expanded workflow exceeds %d steps", maxExpandedSteps)
+		}
+	}
+	for key, raw := range d.Outputs {
+		if binding != "" {
+			if err := checkBoundNames(raw, c.boundNames[binding]); err != nil {
+				return zero, err
+			}
+		}
+		value, err := rewriteScope(raw, prefix, binding)
+		if err != nil {
+			return zero, err
+		}
+		d.Outputs[key] = value
+	}
+	d.Steps = steps
+	return d, nil
+}
+
+func (c *recipeCompiler) rewriteStep(step automation.Step, prefix, binding string) (automation.Step, error) {
+	rewrite := func(raw json.RawMessage) (json.RawMessage, error) {
+		if binding != "" {
+			if err := checkBoundNames(raw, c.boundNames[binding]); err != nil {
+				return nil, err
+			}
+		}
+		return rewriteScope(raw, prefix, binding)
+	}
+	var err error
+	step.Args, err = rewrite(step.Args)
+	if err != nil {
+		return step, err
+	}
+	if len(step.When) > 0 {
+		step.When, err = rewrite(step.When)
+		if err != nil {
+			return step, err
+		}
+	}
+	if len(step.ForEach) > 0 {
+		step.ForEach, err = rewrite(step.ForEach)
+		if err != nil {
+			return step, err
+		}
+	}
+	for i, dep := range step.DependsOn {
+		step.DependsOn[i] = prefix + dep
+	}
+	if binding != "" {
+		step.Gate = binding
+		step.DependsOn = append(step.DependsOn, binding)
+	}
+	step.ID = prefix + step.ID
+	return step, nil
+}
+
+func (c *recipeCompiler) expandCall(step automation.Step, depth int, stack map[string]bool) ([]automation.Step, error) {
+	id := step.ID
+	var steps []automation.Step
+	if len(step.ForEach) > 0 || step.Retry != nil {
+		return nil, fmt.Errorf("workflow_call %s does not support for_each or retry", id)
+	}
+	if step.NodeVersion > 1 {
+		return nil, fmt.Errorf("workflow_call version unavailable")
+	}
+	var in callInput
+	if err := decode(step.Args, &in); err != nil {
+		return nil, err
+	}
+	p, err := c.service.WS.Relative(in.Path)
+	if err != nil {
+		return nil, err
+	}
+	p = filepath.ToSlash(p)
+	child, ok := c.recipes[p]
+	if !ok {
+		return nil, fmt.Errorf("missing bundled recipe %s", p)
+	}
+	var definition automation.Definition
+	if err := json.Unmarshal(child, &definition); err != nil {
+		return nil, err
+	}
+	if len(definition.Outputs) == 0 {
+		return nil, fmt.Errorf("called recipe %s must declare outputs", p)
+	}
+	bindID := id + "/@inputs"
+	if in.Inputs == nil {
+		in.Inputs = map[string]json.RawMessage{}
+	}
+	if definition.Inputs == nil {
+		definition.Inputs = map[string]automation.Input{}
+	}
+	c.boundNames[bindID] = map[string]bool{}
+	for name, spec := range definition.Inputs {
+		_, provided := in.Inputs[name]
+		c.boundNames[bindID][name] = provided || spec.Default != nil
+	}
+	args, _ := json.Marshal(map[string]any{"recipe_path": p, "specs": definition.Inputs, "values": in.Inputs})
+	gate := step
+	gate.ID = bindID
+	gate.Tool = "workflow_bind"
+	gate.Args = args
+	steps = append(steps, gate)
+	c.steps++
+	expanded, err := c.expand(child, p, id+"/", bindID, depth+1, stack)
+	if err != nil {
+		return nil, err
+	}
+	steps = append(steps, expanded.Steps...)
+	deps := []string{bindID}
+	for _, s := range expanded.Steps {
+		deps = append(deps, s.ID)
+	}
+	values, _ := json.Marshal(expanded.Outputs)
+	steps = append(steps, automation.Step{ID: id, Tool: "workflow_value", Args: values, DependsOn: deps, Gate: bindID, CollectOutputs: true})
+	c.steps++
+	return steps, nil
 }
 
 func checkBoundNames(raw json.RawMessage, names map[string]bool) error {

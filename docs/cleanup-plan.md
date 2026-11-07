@@ -177,15 +177,15 @@ embedded-asset panics and the cryptographic-randomness invariant.
 
 ## 7. Separate workflow responsibilities
 
-- [ ] Review recipe composition in phases: loading, binding inputs, naming and
+- [x] Review recipe composition in phases: loading, binding inputs, naming and
   scope, dependency validation and frozen executable definition.
-- [ ] Keep execution in the engine, persistence in the store and orchestration
+- [x] Keep execution in the engine, persistence in the store and orchestration
   in the service. Check API, daemon, agent tools and TUI use these same owners.
-- [ ] Check schedule creation, daemon ownership and run records without adding
+- [x] Check schedule creation, daemon ownership and run records without adding
   a second scheduling mechanism.
-- [ ] Keep permission decisions consistent for direct and nested workflows,
+- [x] Keep permission decisions consistent for direct and nested workflows,
   retries and generated output paths.
-- [ ] Confirm recipe, run, template and schedule retain distinct meanings in
+- [x] Confirm recipe, run, template and schedule retain distinct meanings in
   code and docs. Document current support; do not add missing features here.
 
 Done when the same recipe has the same execution and permission rules through
