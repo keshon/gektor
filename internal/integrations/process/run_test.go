@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -35,6 +36,11 @@ func TestProcessHelper(t *testing.T) {
 		os.Exit(7)
 	case "wait":
 		fmt.Fprint(os.Stdout, "started")
+		if len(os.Args) > index+2 {
+			if err := os.WriteFile(os.Args[index+2], nil, 0600); err != nil {
+				os.Exit(1)
+			}
+		}
 		time.Sleep(30 * time.Second)
 	case "flood":
 		for {
@@ -86,11 +92,44 @@ func TestRunFailureTimeoutAndOutputBounds(t *testing.T) {
 	in.Timeout = 300 * time.Millisecond
 	start := time.Now()
 	r, err = Run(t.Context(), in)
-	if !errors.Is(err, context.DeadlineExceeded) || time.Since(start) > 8*time.Second || string(r.Stdout) != "started" {
+	// The deadline includes process startup; a loaded machine may stop the
+	// helper before it writes anything. Retention after readiness is tested below.
+	if !errors.Is(err, context.DeadlineExceeded) || time.Since(start) > 8*time.Second {
 		t.Fatal(r, err, time.Since(start))
 	}
 	r, err = Run(t.Context(), helperRequest(t, "flood"))
 	if err == nil || !r.Truncated || len(r.Stdout) != OutputLimit {
 		t.Fatal(len(r.Stdout), r.Truncated, err)
+	}
+}
+
+func TestCancellationRetainsOutputAfterProcessReadiness(t *testing.T) {
+	in := helperRequest(t, "wait")
+	ready := filepath.Join(in.Directory, "ready")
+	in.Args = append(in.Args, ready)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	type outcome struct {
+		result Result
+		err    error
+	}
+	done := make(chan outcome, 1)
+	go func() { result, err := Run(ctx, in); done <- outcome{result, err} }()
+	poll := time.NewTicker(5 * time.Millisecond)
+	defer poll.Stop()
+	for {
+		if _, err := os.Stat(ready); err == nil {
+			break
+		}
+		select {
+		case out := <-done:
+			t.Fatalf("process ended before readiness: %+v", out)
+		case <-poll.C:
+		}
+	}
+	cancel()
+	out := <-done
+	if !errors.Is(out.err, context.Canceled) || string(out.result.Stdout) != "started" {
+		t.Fatalf("result=%+v err=%v", out.result, out.err)
 	}
 }
