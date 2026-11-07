@@ -35,7 +35,7 @@ func TestFormsShareRightAlignedActionRowAndDivider(t *testing.T) {
 			if !strings.HasSuffix(line, "[ Cancel ]") {
 				t.Fatal("actions not right aligned", line)
 			}
-			if y < 1 || !strings.Contains(ansi.Strip(rows[y-1]), "────") || y != len(rows)-1 {
+			if y < 2 || !strings.Contains(ansi.Strip(rows[y-2]), "────") || y != len(rows)-1 {
 				t.Fatal("actions must sit in the footer beneath its divider")
 			}
 		}
@@ -133,7 +133,7 @@ func TestActionRowsFitNarrowWidths(t *testing.T) {
 	m := settingsModel(t)
 	m.openForm("Confirm", "", "A very long primary action", nil, func(map[string]string) error { return nil })
 	for _, width := range []int{12, 18, 24, 72} {
-		row, hits := m.dialog.form.Actions(width, 0, m.dialog.form.ApplyLabel, true, form.Styles{})
+		row, hits := m.dialog.form.Actions(width, 0, m.dialog.form.ApplyLabel, true, false, form.Styles{})
 		if ansi.StringWidth(row) != width || hits[1].X1 != width {
 			t.Fatal(width, ansi.Strip(row), hits)
 		}

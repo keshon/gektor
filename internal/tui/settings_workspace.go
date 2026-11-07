@@ -49,7 +49,7 @@ func (m *model) settingsProps() settings.Props {
 	return settings.Props{
 		Width: width, Height: height, Title: m.dialog.title,
 		Left: left, Top: top,
-		Styles:       settings.Styles{Muted: m.styles.dim, Focus: m.styles.gate, Error: m.styles.err, Selected: m.styles.hunk},
+		Styles:       settings.Styles{Title: m.styles.title, Disabled: m.styles.disabled, Muted: m.styles.dim, Focus: m.styles.focus, Error: m.styles.err, Selected: m.styles.hunk},
 		Surface:      popupSurface(),
 		SearchStyles: textInputStyles(textinput.New().Styles()),
 	}

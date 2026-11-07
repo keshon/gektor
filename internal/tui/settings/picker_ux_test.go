@@ -78,7 +78,7 @@ func TestWorkspacePickerCancelKeepsWorkspace(t *testing.T) {
 	}
 }
 
-func TestThemePickerIsCompactAndStartsAtCurrentValue(t *testing.T) {
+func TestExplicitPickerUsesSharedWidthAndStartsAtCurrentValue(t *testing.T) {
 	f := NewModel([]form.Field{{Key: "theme", Value: "light"}}, textarea.New())
 	f.Choices = map[string][]string{"theme": {"dark", "light"}}
 	f.Focus(0, nil)
@@ -86,11 +86,15 @@ func TestThemePickerIsCompactAndStartsAtCurrentValue(t *testing.T) {
 	f.OpenPicker(props)
 	rows, _, width, _ := f.PickerRows(props)
 	text := ansi.Strip(strings.Join(rows, "\n"))
-	if len(rows) > 8 || width > 52 || strings.Contains(text, "Search") || strings.Contains(text, "drives") || f.Picker.Filtered[f.Picker.Cursor] != "light" {
+	if len(rows) > 8 || width != props.Width || strings.Contains(text, "Search") || strings.Contains(text, "drives") || f.Picker.Filtered[f.Picker.Cursor] != "light" {
 		t.Fatal(text, width)
 	}
 	x, y := f.Origin(props)
 	f.Mouse(tea.MouseClickMsg{X: x + 2, Y: y + f.Picker.listTop(), Button: tea.MouseLeft}, props)
+	if f.Picker == nil || f.Editor.Value() != "light" || f.Picker.Cursor != 0 {
+		t.Fatal("click must select without committing a choice")
+	}
+	clickPickerSelect(t, &f, props)
 	if f.Picker != nil || f.Editor.Value() != "dark" {
 		t.Fatal("compact picker mouse coordinates diverged")
 	}
@@ -113,10 +117,30 @@ func TestLongChoicePickerUsesStandardModalWidthAndMouseOrigin(t *testing.T) {
 		}
 		x, y := f.Origin(props)
 		f.Mouse(tea.MouseClickMsg{X: x + 2, Y: y + f.Picker.listTop(), Button: tea.MouseLeft}, props)
+		if f.Picker == nil || f.Editor.Value() != items[1] || f.Picker.Cursor != 0 {
+			t.Fatal("picker click committed before Select")
+		}
+		clickPickerSelect(t, &f, props)
 		if f.Picker != nil || f.Editor.Value() != items[0] {
 			t.Fatal("wider picker click missed first choice")
 		}
 	}
+}
+
+func clickPickerSelect(t *testing.T, f *Model, props Props) {
+	t.Helper()
+	rows, hits, _, _ := f.PickerRows(props)
+	x, y := f.Origin(props)
+	for _, hit := range hits {
+		if hit.Index == -7 {
+			if !strings.Contains(ansi.Strip(rows[hit.Y0]), "Select") {
+				t.Fatal("Select target does not match its drawn button")
+			}
+			f.Mouse(tea.MouseClickMsg{X: x + hit.X0, Y: y + hit.Y0, Button: tea.MouseLeft}, props)
+			return
+		}
+	}
+	t.Fatal("missing Select button")
 }
 
 func TestConfiguredFilePickerFiltersNavigatesAndSelects(t *testing.T) {

@@ -59,12 +59,15 @@ func NewModel(fields []form.Field, editor textarea.Model) Model {
 
 func (f *Model) InputOwner() InputOwner {
 	if f.Picker != nil {
-		if f.Picker.Field == "theme" {
+		if f.Picker.Field == "theme" || f.Picker.Control > 0 {
 			return NoInput
 		}
 		return PickerInput
 	}
 	if f.Index >= 0 && f.Index < len(f.Fields) {
+		if len(f.Options(f.Fields[f.Index].Key)) > 0 {
+			return NoInput
+		}
 		return FieldInput
 	}
 	return NoInput
@@ -161,8 +164,15 @@ func (f *Model) Options(key string) []string {
 }
 func (f *Model) Focus(index int, visible func(int) bool) {
 	f.Model.Focus(index, visible)
+	if f.InputOwner() != FieldInput {
+		f.Editor.Blur()
+	}
 }
 func (f *Model) CycleChoice() {
+	f.cycleChoice(1)
+}
+
+func (f *Model) cycleChoice(step int) {
 	options := f.Options(f.Fields[f.Index].Key)
 	if len(options) == 0 {
 		return
@@ -171,10 +181,15 @@ func (f *Model) CycleChoice() {
 	next := options[0]
 	for i, value := range options {
 		if value == previous {
-			next = options[(i+1)%len(options)]
+			next = options[(i+step+len(options))%len(options)]
 			break
 		}
 	}
+	f.setChoice(next)
+}
+
+func (f *Model) setChoice(next string) {
+	previous := f.Editor.Value()
 	if f.Fields[f.Index].Key == "kind" {
 		for i := range f.Fields {
 			if f.Fields[i].Key == "endpoint" {
@@ -183,6 +198,28 @@ func (f *Model) CycleChoice() {
 		}
 	}
 	f.Editor.SetValue(next)
+	f.Fields[f.Index].Value = next
+}
+
+// Short, fixed choices stay in their form. Discovery and file lists keep their
+// searchable picker, regardless of how many results they currently contain.
+func (f *Model) inlineOptions(field form.Field) []form.Option {
+	if field.ReadOnly || f.PickerControl(field.Key) {
+		return nil
+	}
+	values := f.Options(field.Key)
+	if len(values) == 0 || (len(values) > 4 && field.Key != "theme") {
+		return nil
+	}
+	options := make([]form.Option, 0, len(values))
+	for _, value := range values {
+		label := ChoiceLabel(field.Key, value)
+		if len([]rune(label)) > 24 {
+			return nil
+		}
+		options = append(options, form.Option{Value: value, Label: label})
+	}
+	return options
 }
 
 func (f *Model) StorePage() { f.Sync(); f.Workspace.Draft.Store(f.Workspace.Section, f.Fields) }

@@ -48,6 +48,20 @@ func (h *Harness) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// ThemeNames lists the persisted theme identifiers in picker order.
+func ThemeNames() []string {
+	return []string{"dark", "light", "one-half-dark", "one-half-light", "solarized-dark", "solarized-light"}
+}
+
+func ValidTheme(name string) bool {
+	for _, theme := range ThemeNames() {
+		if name == theme {
+			return true
+		}
+	}
+	return false
+}
+
 func (p Preferences) Validate() error {
 	if err := p.Appearance.Validate(); err != nil {
 		return err
@@ -55,7 +69,7 @@ func (p Preferences) Validate() error {
 	if p.Mode != "" && p.Mode != "plan" && p.Mode != "act" {
 		return fmt.Errorf("unknown workflow mode %q", p.Mode)
 	}
-	if p.Theme != "" && p.Theme != "dark" && p.Theme != "light" {
+	if p.Theme != "" && !ValidTheme(p.Theme) {
 		return fmt.Errorf("unknown theme %q", p.Theme)
 	}
 	if p.Version != 1 {

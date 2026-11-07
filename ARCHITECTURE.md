@@ -197,6 +197,9 @@ components do not own backend services. The active input owner determines
 keyboard, paste, mouse and caret routing. Session scans return revision-tagged
 results; stale results cannot replace the current session list.
 
+The [TUI design reference](docs/tui-design.md) defines the target component
+contracts and migration plan for shared controls, layouts and interaction.
+
 Settled transcript blocks are cached by content and presentation settings.
 The viewport retains separate rendered parts and draws only visible lines.
 Colors live in `styles.go`; changing the theme invalidates cached rendering.

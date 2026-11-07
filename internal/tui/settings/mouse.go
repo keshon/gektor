@@ -9,6 +9,15 @@ import (
 )
 
 func (f *Model) Mouse(msg tea.MouseMsg, props Props) (Intent, tea.Cmd) {
+	if msg.Mouse().Button == tea.MouseWheelUp || msg.Mouse().Button == tea.MouseWheelDown {
+		x, y := f.Origin(props)
+		box := f.box(props)
+		width := cell.Width(strings.Join(box, "\n"))
+		mouse := msg.Mouse()
+		if mouse.X < x-2 || mouse.X >= x-2+width || mouse.Y < y-1 || mouse.Y >= y-1+len(box) {
+			return Intent{}, nil
+		}
+	}
 	if f.Picker != nil && (msg.Mouse().Button == tea.MouseWheelUp || msg.Mouse().Button == tea.MouseWheelDown) {
 		p := f.Picker
 		step := 1
@@ -35,6 +44,17 @@ func (f *Model) Mouse(msg tea.MouseMsg, props Props) (Intent, tea.Cmd) {
 	if f.Picker != nil {
 		p := f.Picker
 		for _, hit := range hits {
+			if hit.Index == -5 && mouse.Y == y+hit.Y0 && mouse.X >= x+hit.X0 && mouse.X < x+hit.X1 {
+				p.Control = 0
+				p.Cursor = hit.Option - 1
+				if p.Browser {
+					return Intent{}, f.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, props)
+				}
+				return Intent{}, nil
+			}
+			if hit.Index == -7 && mouse.Y == y+hit.Y0 && mouse.X >= x+hit.X0 && mouse.X < x+hit.X1 && !p.Loading {
+				return Intent{}, f.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, props)
+			}
 			if hit.Index == -4 && mouse.Y == y+hit.Y0 && mouse.X >= x+hit.X0 && mouse.X < x+hit.X1 {
 				f.Picker = nil
 				return Intent{}, nil
@@ -48,15 +68,9 @@ func (f *Model) Mouse(msg tea.MouseMsg, props Props) (Intent, tea.Cmd) {
 		}
 		row := mouse.Y - y - p.listTop()
 		capacity := p.capacity(props.Height)
-		start := max(min(p.Cursor-capacity/2, len(p.Filtered)-capacity), 0)
 		if mouse.X == x+width-5 && row >= 0 && row < capacity && len(p.Filtered) > capacity {
 			p.Cursor = min(popup.ScrollOffset(row, capacity, len(p.Filtered), 0)+capacity/2, len(p.Filtered)-1)
 			return Intent{}, nil
-		}
-		if mouse.X >= x-2 && mouse.X < x-2+width && row >= 0 && row < capacity && start+row < len(p.Filtered) {
-			p.Cursor = start + row
-			cmd := f.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, props)
-			return Intent{}, cmd
 		}
 		return Intent{}, nil
 	}
@@ -69,10 +83,21 @@ func (f *Model) Mouse(msg tea.MouseMsg, props Props) (Intent, tea.Cmd) {
 				continue
 			}
 			f.Focus(hit.Index, f.FieldVisible)
+			if hit.Option > 0 {
+				options := f.inlineOptions(f.Fields[hit.Index])
+				f.setChoice(options[hit.Option-1].Value)
+				return Intent{}, nil
+			}
 			if hit.Index < len(f.Fields) && mouse.Y > y+hit.Y0 && (len(f.Options(f.Fields[hit.Index].Key)) > 0 || f.PickerControl(f.Fields[hit.Index].Key)) {
+				if len(f.inlineOptions(f.Fields[hit.Index])) > 0 {
+					return Intent{}, nil
+				}
 				return Intent{}, f.OpenPicker(props)
 			}
 			if hit.Index == len(f.Fields) {
+				if !f.Dirty() {
+					return Intent{}, nil
+				}
 				return Intent{Action: Apply}, nil
 			} else if hit.Index == len(f.Fields)+1 {
 				return Intent{Action: Cancel}, nil

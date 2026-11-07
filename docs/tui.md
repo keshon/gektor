@@ -29,6 +29,16 @@ Opening a folder in the browser only browses it.
 
 Choose **Apply**, or press `Ctrl+S`, to save settings.
 **Cancel** discards the pending edits.
+Small choices stay in the form. Use Left/Right or Space to change them, or click
+an option. Checkboxes use Space to switch on or off. These changes wait for Apply.
+When space is tight, a choice shows its current value with previous/next arrows.
+
+Larger lists have a filter and Select/Cancel buttons. Click a row to select it;
+press Enter or Select to accept it. Page Up/Down move through results, and
+Ctrl+Home/End jump to the first/last result. Tab moves focus to the buttons.
+Folder browsing keeps its separate Open and Select current folder actions.
+In multiline form fields, Enter inserts a new line and Tab moves to the next control.
+
 Explicit command-line flags can override saved settings for a launch.
 Browser, debug and permission flags keep normal settings behavior.
 Workspace, profile, model, generation and identity overrides stay temporary
@@ -106,6 +116,11 @@ The **View** menu controls how history looks:
 
 `Ctrl+G` toggles full thinking. It does not shorten the normal reply.
 View choices and the theme are saved. Hidden content remains in saved history.
+
+Settings > Theme offers Dark, Light, One Half Dark, One Half Light, Solarized
+Dark and Solarized Light. Choose a theme and press Apply to save it.
+The `/theme <name>` command saves and applies it immediately; use `/theme` to
+list the names.
 
 ### Stop, retry and continue
 

@@ -3,6 +3,7 @@ package tui
 import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 	"os"
 	"path/filepath"
@@ -19,7 +20,7 @@ func TestModalCleanupPreview(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer setTheme("dark")
-	for _, theme := range []string{"light", "dark"} {
+	for _, theme := range config.ThemeNames() {
 		m := sizeModelTo(t, testModel(), 100, 32)
 		m.applyTheme(theme)
 		m.openTheme()

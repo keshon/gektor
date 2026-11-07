@@ -13,7 +13,7 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
-type Styles struct{ Muted, Focus, Error, Selected lipgloss.Style }
+type Styles struct{ Title, Muted, Focus, Disabled, Error, Selected lipgloss.Style }
 type Props struct {
 	Width, Height int
 	Left, Top     int
@@ -24,7 +24,7 @@ type Props struct {
 }
 
 func (p Props) formStyles() form.Styles {
-	return form.Styles{Muted: p.Styles.Muted, Focus: p.Styles.Focus, Error: p.Styles.Error, Scrollbar: p.Surface.Normal}
+	return form.Styles{Normal: p.Surface.Normal, Title: p.Styles.Title, Disabled: p.Styles.Disabled, Muted: p.Styles.Muted, Focus: p.Styles.Focus, Error: p.Styles.Error, Scrollbar: p.Surface.Normal}
 }
 
 // Rows draws the section's fields.
@@ -43,7 +43,7 @@ func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 		return f.PlainRows(props)
 	}
 	rows, hits := f.Model.Rows(form.Props{
-		Title:        props.Styles.Focus.Render("Settings / " + f.sectionLabel()),
+		Title:        "Settings / " + f.sectionLabel(),
 		Hint:         Hint(f.Workspace.Section),
 		Error:        f.Error,
 		PrimaryLabel: f.ApplyLabel,
@@ -51,6 +51,7 @@ func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 		Height:       props.Height,
 		Choice:       f.choice(),
 		Styles:       props.formStyles(),
+		Options:      f.inlineOptions,
 		Visible:      f.FieldVisible,
 		Label:        settingsLabel,
 		Display:      f.display,
@@ -154,7 +155,7 @@ func (f *Model) PlainRows(props Props) ([]string, []form.Hit, int, int) {
 	if f.Index < len(f.Fields) && len(f.Options(f.Fields[f.Index].Key)) > 0 {
 		choice = ChoiceLabel(f.Fields[f.Index].Key, f.Editor.Value())
 	}
-	rows, hits := f.Model.Rows(form.Props{Title: props.Title, Hint: f.Hint, Error: f.Error, PrimaryLabel: f.ApplyLabel, Width: w, Height: h, Destructive: f.Destructive, Choice: choice, Styles: props.formStyles()})
+	rows, hits := f.Model.Rows(form.Props{Title: props.Title, Hint: f.Hint, Error: f.Error, PrimaryLabel: f.ApplyLabel, Width: w, Height: h, Destructive: f.Destructive, Choice: choice, Styles: props.formStyles(), Options: f.inlineOptions})
 	return rows, hits, w, h
 }
 
@@ -168,7 +169,7 @@ func (f *Model) PlainRows(props Props) ([]string, []form.Hit, int, int) {
 // void that read as a failure to draw rather than as space.
 func (f *Model) box(props Props) []string {
 	rows, _, _, _ := f.Rows(props)
-	return popup.ModalBox(rows, f.modalWidth(props), props.Surface)
+	return popup.ModalBox(rows, props.Width, props.Surface)
 }
 
 // Origin is the screen position of the first content cell inside the frame:

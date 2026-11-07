@@ -162,6 +162,22 @@ func isDivider(row string) bool {
 	return strings.Contains(plain, "─") && strings.Trim(plain, "─ ") == ""
 }
 
+// Header keeps a modal title and its close target on one row. Callers may
+// insert a search field before the divider without changing the close target.
+func Header(title string, width int, style lipgloss.Style) []string {
+	return []string{TitleRow(style.Render(title), width), strings.Repeat("─", width)}
+}
+
+// Footer separates fixed controls from the scrolling body. Hints occupy their
+// own row; action rows supplied by the caller keep their full width.
+func Footer(width int, hint string, style lipgloss.Style, actions ...string) []string {
+	rows := []string{strings.Repeat("─", width)}
+	if hint != "" {
+		rows = append(rows, style.Render(cell.Line(hint, width)))
+	}
+	return append(rows, actions...)
+}
+
 // TitleRow reserves a fixed close target at the right of a modal heading.
 func TitleRow(title string, width int) string {
 	return cell.Line(title, max(width-3, 0)) + " × "

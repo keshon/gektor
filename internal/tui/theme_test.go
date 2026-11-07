@@ -8,11 +8,34 @@ import (
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/tui/settings"
 )
+
+func TestEveryThemeCanBeChosenSavedAndReopened(t *testing.T) {
+	defer setTheme("dark")
+	for _, theme := range config.ThemeNames() {
+		t.Run(theme, func(t *testing.T) {
+			m := settingsModel(t)
+			m.application = &Application{PreferencePath: filepath.Join(t.TempDir(), "application.json")}
+			m.command("/theme " + theme)
+			p, err := config.LoadPreferences(m.application.PreferencePath)
+			if err != nil || p.Theme != theme || currentPalette().name != theme {
+				t.Fatalf("command did not save and apply %s: %+v, %v", theme, p, err)
+			}
+			m.openTheme()
+			if m.dialog.form.Editor.Value() != theme {
+				t.Fatal("theme form lost the saved selection")
+			}
+			if settings.ChoiceLabel("theme", theme) == theme {
+				t.Fatal("picker exposes a storage identifier instead of a readable name")
+			}
+		})
+	}
+}
 
 func TestWindowFocusLeavesTerminalColorsAndDraftAlone(t *testing.T) {
 	defer setTheme("dark")
-	for _, theme := range []string{"light", "dark"} {
+	for _, theme := range config.ThemeNames() {
 		m := sizeModel(t, testModel())
 		m.state = stDone
 		m.applyTheme(theme)
@@ -60,9 +83,38 @@ func TestThemeChangesOnlyAppearanceAndPersists(t *testing.T) {
 	}
 }
 
+func TestInlineThemeChangesStayInDraftUntilApply(t *testing.T) {
+	defer setTheme("dark")
+	setTheme("dark")
+	m := settingsModel(t)
+	path := filepath.Join(t.TempDir(), "application.json")
+	p := config.Preferences{Version: 1, Theme: "dark"}
+	if err := config.SavePreferences(path, p); err != nil {
+		t.Fatal(err)
+	}
+	m.application = &Application{PreferencePath: path, Preferences: p}
+	m.openTheme()
+	m.formKey(tea.KeyPressMsg{Code: tea.KeyRight})
+	if m.dialog.form.Picker != nil || m.dialog.form.Editor.Value() != "light" || currentPalette().name != "dark" {
+		t.Fatal("inline choice opened another modal or applied before confirmation")
+	}
+	m.formKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+	saved, err := config.LoadPreferences(path)
+	if err != nil || saved.Theme != "dark" {
+		t.Fatal("cancel saved the pending theme")
+	}
+	m.openTheme()
+	m.formKey(tea.KeyPressMsg{Code: tea.KeyRight})
+	m.formKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	saved, err = config.LoadPreferences(path)
+	if err != nil || saved.Theme != "light" || currentPalette().name != "light" || m.dialog != nil {
+		t.Fatal("Apply did not save and apply the staged choice")
+	}
+}
+
 func TestTypingKeepsExplicitScreenColors(t *testing.T) {
 	defer setTheme("dark")
-	for _, theme := range []string{"light", "dark"} {
+	for _, theme := range config.ThemeNames() {
 		m := sizeModel(t, testModel())
 		m.state = stDone
 		m.applyTheme(theme)

@@ -20,6 +20,8 @@ import (
 func (p *Picker) IsFiles() bool { return p.FileConfig != nil || PickerFiles(p.Field) }
 
 type Picker struct {
+	// Control is 0 for search/results, 1 for Select/Open, 2 for Cancel.
+	Control            int
 	FileConfig         *FilePicker
 	Parent             string
 	DetailPath, Detail string
@@ -183,6 +185,32 @@ func (f *Model) AcceptScan(msg ScanMsg) {
 
 func (f *Model) PickerKey(msg tea.KeyPressMsg, props Props) tea.Cmd {
 	p := f.Picker
+	key := msg.String()
+	if key == "tab" || key == "shift+tab" {
+		step := 1
+		if key == "shift+tab" {
+			step = -1
+		}
+		p.Control = (p.Control + step + 3) % 3
+		return nil
+	}
+	if p.Control > 0 && (key == "left" || key == "right") {
+		p.Control = 3 - p.Control
+		return nil
+	}
+	if p.Control > 0 && (key == "enter" || key == "space") {
+		if p.Control == 2 {
+			f.Picker = nil
+			return nil
+		}
+		if p.Field == "app-workspace" {
+			return f.PickerKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl}, props)
+		}
+		msg = tea.KeyPressMsg{Code: tea.KeyEnter}
+	}
+	if key == "up" || key == "down" || key == "pgup" || key == "pgdown" {
+		p.Control = 0
+	}
 	switch msg.String() {
 	case "esc":
 		if p.Location {
@@ -199,7 +227,28 @@ func (f *Model) PickerKey(msg tea.KeyPressMsg, props Props) tea.Cmd {
 	case "down":
 		p.Move(1, len(p.Filtered), 1)
 		return nil
+	case "pgup":
+		p.Move(-p.capacity(props.Height), len(p.Filtered), p.capacity(props.Height))
+		return nil
+	case "pgdown":
+		p.Move(p.capacity(props.Height), len(p.Filtered), p.capacity(props.Height))
+		return nil
+	case "home", "ctrl+home":
+		if p.Location || (msg.String() == "home" && p.Field != "theme") {
+			return p.UpdateInput(msg)
+		}
+		p.Cursor = 0
+		return nil
+	case "end", "ctrl+end":
+		if p.Location || (msg.String() == "end" && p.Field != "theme") {
+			return p.UpdateInput(msg)
+		}
+		p.Cursor = max(len(p.Filtered)-1, 0)
+		return nil
 	case "enter":
+		if p.Loading {
+			return nil
+		}
 		if p.Location {
 			p.Location = false
 			p.Browser = true
@@ -299,7 +348,7 @@ func (f *Model) PickerKey(msg tea.KeyPressMsg, props Props) tea.Cmd {
 		}
 
 	}
-	if p.Field == "theme" {
+	if p.Field == "theme" || p.Control > 0 {
 		return nil
 	}
 	return p.UpdateInput(msg)
@@ -332,30 +381,20 @@ func (p *Picker) capacity(height int) int {
 	if p.Field == "app-workspace" {
 		return max(height-12-p.listTop(), 1)
 	}
-	return max(height-7-p.listTop(), 1)
-}
-
-func (f *Model) modalWidth(props Props) int {
-	if p := f.Picker; p != nil && !p.IsFiles() && len(p.Items) <= 12 {
-		compact := min(props.Width, 52)
-		inner := max(popup.ModalWidth(compact)-4, 1)
-		// Item count controls height, not whether labels fit. Long run IDs,
-		// connection descriptions and profile names need the normal modal.
-		for _, item := range p.Items {
-			if cell.Width(ChoiceLabel(p.Field, item))+3 > inner {
-				return props.Width
-			}
-		}
-		return compact
-	}
-	return props.Width
+	return max(height-9-p.listTop(), 1)
 }
 
 func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 	p := f.Picker
-	w, h := f.modalWidth(props), props.Height
+	w, h := props.Width, props.Height
 	inner := max(popup.ModalWidth(w)-4, 1)
 	title := p.Field
+	for _, field := range f.Fields {
+		if field.Key == p.Field && field.Label != "" {
+			title = field.Label
+			break
+		}
+	}
 	if title == "load-profile" {
 		title = "Profile / saved setup"
 	}
@@ -365,7 +404,7 @@ func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 	if p.Location {
 		title += " / Location"
 	}
-	rows := []string{popup.TitleRow(props.Styles.Focus.Render("Choose / "+title), inner), props.Styles.Muted.Render(strings.Repeat("─", inner))}
+	rows := popup.Header("Select "+title, inner, props.Styles.Title)
 	if p.IsFiles() {
 		location := p.Directory
 		if p.Field == "app-workspace" {
@@ -394,6 +433,7 @@ func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 	capacity := p.capacity(h)
 	start, end := p.Centered(len(p.Filtered), capacity)
 	body := []string{}
+	hits := []form.Hit{{Index: -3, Y0: 0, Y1: 1, X0: max(inner-3, 0), X1: inner}}
 	for i := start; i < end; i++ {
 		label := ChoiceLabel(p.Field, p.Filtered[i])
 		if p.IsFiles() {
@@ -405,12 +445,13 @@ func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 				label = filepath.Base(label)
 			}
 		}
-		style := props.Styles.Muted
+		style := props.Surface.Normal
 		prefix := "  "
 		if i == p.Cursor {
 			prefix = "› "
-			style = props.Styles.Focus
+			style = props.Surface.Selected
 		}
+		hits = append(hits, form.Hit{Index: -5, Option: i + 1, Y0: len(rows) + len(body), Y1: len(rows) + len(body) + 1, X1: max(inner-2, 1)})
 		body = append(body, style.Render(cell.Line(prefix+label, max(inner-1, 1))))
 	}
 	rows = append(rows, popup.ScrollRows(body, inner, start, len(p.Filtered), props.Surface.Normal)...)
@@ -430,7 +471,6 @@ func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 	} else if len(p.Filtered) == 0 {
 		rows = append(rows, props.Styles.Muted.Render("No matching folders"))
 	}
-	hits := []form.Hit{{Index: -3, Y0: 0, Y1: 1, X0: max(inner-3, 0), X1: inner}}
 	if p.Field == "app-workspace" {
 		rows = append(rows, "", props.Styles.Muted.Render(strings.Repeat("─", inner)))
 		button := "[ Select current folder ]"
@@ -447,7 +487,7 @@ func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 			rows = append(rows, cancel)
 		}
 	}
-	hint := "↑↓ choose · Enter select · Esc back"
+	hint := "↑↓ select · Enter accept · Esc cancel"
 	if p.IsFiles() {
 		hint = "Enter open · Esc back · Ctrl+L path · Ctrl+D drives"
 	}
@@ -458,12 +498,30 @@ func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 			rows[len(rows)-1] = props.Styles.Muted.Render(cell.Line("Enter open path   Esc back to folders", inner))
 		}
 	}
-	rows = append(rows, props.Styles.Muted.Render(cell.Line(hint, inner)))
+	if p.Field == "app-workspace" {
+		rows = append(rows, props.Styles.Muted.Render(cell.Line(hint, inner)))
+	} else {
+		rows = append(rows, popup.Footer(inner, hint, props.Styles.Muted)...)
+		primary := "Select"
+		if p.Browser {
+			primary = "Open"
+		}
+		buttons := f.Model
+		buttons.Index = -1
+		if p.Control > 0 {
+			buttons.Index = len(f.Fields) + p.Control - 1
+		}
+		actions, actionHits := buttons.Actions(inner, len(rows), primary, len(p.Filtered) > 0 && !p.Loading, false, props.formStyles())
+		actionHits[0].Index, actionHits[1].Index = -7, -4
+		hits = append(hits, actionHits...)
+		rows = append(rows, actions)
+	}
 	return rows, hits, w, h
 }
 
 func (f *Model) ScanDirectory(root string) tea.Cmd {
 	p := f.Picker
+	p.Control = 0
 	if absolute, err := filepath.Abs(root); err == nil {
 		root = absolute
 	}

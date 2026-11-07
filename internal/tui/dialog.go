@@ -95,11 +95,10 @@ func (m *model) dialogRows() ([]string, int, int) {
 		body = append(body, cellLine(line, layout.inner))
 	}
 	rows = append(rows, popup.ScrollRows(body, layout.inner, offset, len(layout.lines), popupSurface().Normal)...)
-	rows = append(rows, "")
 	if len(layout.lines) > layout.capacity {
 		rows = append(rows, m.styles.dim.Render(strconv.Itoa(offset+1)+"–"+strconv.Itoa(min(offset+layout.capacity, len(layout.lines)))+" / "+strconv.Itoa(len(layout.lines))))
 	}
-	rows = append(rows, m.styles.dim.Render(truncate(layout.hint, layout.inner)))
+	rows = append(rows, popup.Footer(layout.inner, layout.hint, m.styles.dim)...)
 	return rows, layout.width, layout.height
 }
 
@@ -119,7 +118,7 @@ func (m *model) layoutDialog() dialogLayout {
 	}
 	inner := max(popup.ModalWidth(availW)-4, 1)
 	// Info dialog: title, lines, close hint (with help tabs if applicable).
-	rows := []string{popup.TitleRow(m.styles.gate.Render(truncate(d.title, inner)), inner), strings.Repeat("─", inner)}
+	rows := popup.Header(truncate(d.title, inner), inner, m.styles.title)
 	lines := []string{}
 	for _, line := range d.lines {
 		lines = append(lines, strings.Split(ansi.Wrap(cleanText(line), max(inner-1, 1), ""), "\n")...)

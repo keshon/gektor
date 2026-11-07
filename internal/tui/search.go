@@ -54,7 +54,8 @@ func (m *model) searchView() string {
 		return popup.Row(style, text, inner)
 	}
 	rule := line(styles.Normal, strings.Repeat("─", inner))
-	rows := []string{line(styles.Normal, popup.TitleRow(m.styles.gate.Render("Open session"), inner)), line(styles.Normal, s.filter.View()), rule}
+	header := popup.Header("Open session", inner, m.styles.title)
+	rows := []string{line(styles.Normal, header[0]), line(styles.Normal, s.filter.View()), rule}
 	bodyStart := len(rows)
 	contentWidth := inner
 	if len(s.entries) > m.sessVisible() {
@@ -121,7 +122,9 @@ func (m *model) searchView() string {
 	if len(s.entries) > 0 {
 		hint += " · " + strconv.Itoa(s.Cursor+1) + "/" + strconv.Itoa(len(s.entries))
 	}
-	rows = append(rows, rule, line(styles.Normal, hint))
+	for _, row := range popup.Footer(inner, hint, m.styles.dim) {
+		rows = append(rows, line(styles.Normal, row))
+	}
 	return strings.Join(popup.Frame(rows, g.width, styles), "\n")
 }
 

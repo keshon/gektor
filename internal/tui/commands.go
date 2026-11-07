@@ -70,7 +70,7 @@ func commands() []command {
 		{name: "/about", immediate: true, summary: "About"},
 		{name: "/eval", immediate: true, summary: "Review last run; /eval session or /eval N [focus]"},
 		{name: "/learn", immediate: true, summary: "Learn from last run; N/session select, review reopens, undo disables"},
-		{name: "/theme", arg: "dark|light", choices: []string{"dark", "light"}, immediate: true, summary: "Switch theme"},
+		{name: "/theme", arg: "name", choices: config.ThemeNames(), immediate: true, summary: "Switch theme"},
 		{name: "/settings", immediate: true, summary: "Open settings"},
 		{name: "/status", immediate: true, summary: "Show current run facts"},
 		{name: "/retry", summary: "Retry the last failed turn"},
@@ -407,11 +407,11 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 	case "theme":
 		arg = strings.ToLower(strings.TrimSpace(arg))
 		if arg == "" {
-			m.appendBlock(markerBlock("Theme: dark or light · /theme dark|light"))
+			m.appendBlock(markerBlock("Themes: " + strings.Join(config.ThemeNames(), ", ") + ". Use /theme <name>."))
 			return m, nil
 		}
-		if arg != "dark" && arg != "light" {
-			m.appendBlock(errorBlock("Choose /theme dark or /theme light."))
+		if !config.ValidTheme(arg) {
+			m.appendBlock(errorBlock("Unknown theme. Use /theme to list available themes."))
 			return m, nil
 		}
 		if err := m.persistTheme(arg); err != nil {

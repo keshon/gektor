@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/tui/settings"
-	tea "charm.land/bubbletea/v2"
 )
 
 // Staged edits survive a category switch inside one dialog and land
@@ -105,7 +105,7 @@ func TestSettingsPasteRespectsNestedFocus(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("model")
 	for i, field := range m.dialog.form.Fields {
-		if field.Key == "kind" {
+		if field.Key == "model" {
 			m.focusForm(i)
 			break
 		}

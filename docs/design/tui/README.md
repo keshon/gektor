@@ -1,0 +1,83 @@
+# TUI mockups
+
+Open [gektor-ui.figcraft](gektor-ui.figcraft) in FigCraft. This is the editable
+project; text, shapes, components, variables and prototype links are native
+layers. The `.figcraft` format is FigCraft's native format. Its `.fig` export
+is experimental, so it is not the source file here.
+
+These are proposed screens for review. They do not change the running TUI.
+The [design reference](../../tui-design.md) defines behavior and the migration
+plan. Update it when a reviewed mockup changes an interaction rule.
+
+## Pages
+
+| Page | Contents |
+|---|---|
+| 00 Start here | Grid, typography, editing notes and review flow |
+| 01 Components | 22 reusable components and light/dark state sheets |
+| 02 Modal screens | Settings, model picker, MCP, permissions, Theme, sessions, errors, empty results and confirmation |
+| 03 Main layouts | Agent and Workflows with aligned inspectors; applied-settings state |
+| 04 Narrow and interaction | 40 by 20 layouts and a preserved-draft example |
+| 05 Themes | The same controls under the six theme modes |
+
+The component sheet includes buttons, text inputs, validation, read-only values,
+checkboxes, radio choices, list rows, tabs, status, shortcuts, progress and a
+multiline editor. Button instances have an editable **Label** property. Other
+text layers remain editable in their component or screen.
+
+## Grid and editing
+
+- A terminal cell is represented by 10 pixels horizontally and 20 vertically.
+- Text uses Liberation Mono, 16.66 pixels, with a 20-pixel line height. FigCraft
+  includes this family; the project does not require a separately installed font.
+- Modal screens use 80 by 24 cells. Main layouts use 120 by 40. Narrow checks use
+  40 by 20. Keep these frame dimensions while comparing designs.
+- Positions and spacing use the cell grid. Each screen has a hidden 10-pixel
+  base grid; one text row spans two grid steps. Toggle layout grids to inspect it.
+- Borders are editable vector strokes within the border-cell space. Verify
+  actual box-drawing glyphs, carets and font metrics in the later TUI preview.
+- Edit shared controls through their main components on page 01. Screen buttons
+  and state-sheet controls are instances, so shared changes reach their copies.
+- Save the native project after editing. Re-export the previews below when their
+  screens or palette values change. The images are previews, not editable sources.
+
+## Colors
+
+The **TUI palette** variable collection contains semantic color roles. Frames
+choose a mode and their nested components inherit it. Change role values there
+to explore a palette without repainting every layer.
+
+The theme set is Dark, Light, One Half Dark, One Half Light, Solarized Dark and
+Solarized Light. Dark and Light start from GEKTOR's current colors. One Half and
+Solarized are adaptations of the terminal-theme references. All six are available
+in Settings and through `/theme <name>`. Keep focus, selection,
+warning, error and success meanings stable across modes.
+
+Inspector and canvas footers use one text row without blank padding. Their outer
+panes stay aligned. The Agent composer has its own height for editable input.
+
+## Click-through review
+
+Start **Settings review / Dark** or **Settings review / Light** in FigCraft's
+prototype presenter:
+
+1. Choose Discover to open the model picker.
+2. Choose Select to see Settings with Qwen3.8 selected as a pending change.
+3. Choose Apply to see the Agent with that model in its header.
+
+Cancel in the picker returns to the unchanged form. Cancel in the changed form
+returns to the original Agent state. These links show a visual sequence; typing,
+filtering, mouse-wheel behavior, persistence and backend actions are not simulated.
+Other controls are static review states unless they have a prototype link.
+
+## Previews
+
+![Settings in the dark palette](settings-dark.webp)
+
+![Settings in the light palette](settings-light.webp)
+
+![Six palette studies using the same controls](palette-studies.webp)
+
+![Workflow layout with a compact inspector footer](workflows-dark.webp)
+
+![Agent layout with a compact inspector footer](agent-light.webp)

@@ -36,30 +36,36 @@ const (
 
 // Color choices and role styles live here. Renderers derive emphasis from them.
 type styles struct {
-	dim    lipgloss.Style
-	add    lipgloss.Style
-	del    lipgloss.Style
-	hunk   lipgloss.Style
-	gate   lipgloss.Style
-	status lipgloss.Style
-	user   lipgloss.Style
-	think  lipgloss.Style
-	err    lipgloss.Style
-	warn   lipgloss.Style
+	title    lipgloss.Style
+	focus    lipgloss.Style
+	disabled lipgloss.Style
+	dim      lipgloss.Style
+	add      lipgloss.Style
+	del      lipgloss.Style
+	hunk     lipgloss.Style
+	gate     lipgloss.Style
+	status   lipgloss.Style
+	user     lipgloss.Style
+	think    lipgloss.Style
+	err      lipgloss.Style
+	warn     lipgloss.Style
 }
 
 func defaultStyles() styles {
 	return styles{
-		dim:    lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorDim))),
-		add:    lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorSuccess))),
-		del:    lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorError))),
-		hunk:   lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorAccent))),
-		gate:   lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorWarning))).Bold(true),
-		status: lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorDim))),
-		user:   lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorUser))).Bold(true),
-		think:  lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorDim))).Italic(true),
-		err:    lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorError))).Bold(true),
-		warn:   lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorWarning))),
+		title:    lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorWarning))).Bold(true),
+		focus:    lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorAccent))).Bold(true),
+		disabled: lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorDisabledText))),
+		dim:      lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorDim))),
+		add:      lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorSuccess))),
+		del:      lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorError))),
+		hunk:     lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorAccent))),
+		gate:     lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorWarning))).Bold(true),
+		status:   lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorDim))),
+		user:     lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorUser))).Bold(true),
+		think:    lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorDim))).Italic(true),
+		err:      lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorError))).Bold(true),
+		warn:     lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorWarning))),
 	}
 }
 
@@ -80,6 +86,11 @@ type palette struct {
 var selectedPalette atomic.Pointer[palette]
 var defaultPalette = paletteFor("dark")
 
+type themeColors struct {
+	canvas, surface, text, secondary, border, accent             string
+	selection, selectionText, success, warning, danger, disabled string
+}
+
 func paletteFor(name string) *palette {
 	p := &palette{name: "dark", background: "#11161C", colors: map[string]string{
 		colorDim: "#8E9CA9", colorSecondaryText: "#8E9CA9", colorPopupText: "#D5DEE7", colorSelectedText: "#F1F4F8", colorNumberText: "#F1F4F8",
@@ -98,6 +109,34 @@ func paletteFor(name string) *palette {
 			colorDisabledText: "#63717D", colorDisabledNumber: "#D1D9E0", colorDisabledLabel: "#E0E7ED",
 		}
 	}
+	// Each theme maps every surface role; no control falls back to another
+	// theme's background or disabled colors.
+	var roles *themeColors
+	switch name {
+	case "one-half-dark":
+		roles = &themeColors{"#282C34", "#303640", "#DCDFE4", "#A2AAB6", "#788594", "#61AFEF", "#3E566E", "#FFFFFF", "#98C379", "#E5C07B", "#E98890", "#7E8795"}
+	case "one-half-light":
+		roles = &themeColors{"#FAFAFA", "#ECEFF2", "#30343B", "#5C6572", "#8492A1", "#196AA5", "#D6E6F4", "#1C3851", "#3B7342", "#80580B", "#AC353D", "#737D89"}
+	case "solarized-dark":
+		roles = &themeColors{"#002B36", "#073642", "#D0DDDC", "#9EAFB0", "#688889", "#59C7BB", "#134F5C", "#F3F5E8", "#A7BF70", "#E7B65C", "#F28B81", "#7F999D"}
+	case "solarized-light":
+		roles = &themeColors{"#FDF6E3", "#EEE8D5", "#43565B", "#5E7378", "#80958B", "#116D75", "#D5E4D4", "#274448", "#46712E", "#855500", "#AB3D35", "#73817C"}
+	}
+	if roles != nil {
+		p.name, p.background = name, roles.canvas
+		p.colors = map[string]string{
+			colorPopupBackground: roles.surface, colorPopupText: roles.text,
+			colorDim: roles.secondary, colorSecondaryText: roles.secondary, colorPopupBorder: roles.border,
+			colorAccent: roles.accent, colorUser: roles.accent, colorMode: roles.accent,
+			colorSelectedBackground: roles.selection, colorNumberBackground: roles.selection, colorActionBackground: roles.selection,
+			colorSelectedText: roles.selectionText, colorNumberText: roles.selectionText,
+			colorSuccess: roles.success, colorReady: roles.success,
+			colorWarning: roles.warning, colorBusy: roles.warning, colorSearchMatch: roles.warning,
+			colorError: roles.danger, colorFailed: roles.danger, colorPopupError: roles.danger,
+			colorDisabledText: roles.disabled, colorDisabledLabel: roles.surface, colorDisabledNumber: roles.canvas,
+		}
+	}
+
 	return p
 }
 func currentPalette() *palette {

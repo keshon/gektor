@@ -36,10 +36,27 @@ func (f *Model) UpdateKey(msg tea.KeyPressMsg, props Props) (Intent, tea.Cmd) {
 			return Intent{}, nil
 		}
 	}
+	if f.Index < len(f.Fields) && len(f.inlineOptions(f.Fields[f.Index])) > 0 {
+		switch msg.String() {
+		case "left":
+			f.cycleChoice(-1)
+			return Intent{}, nil
+		case "right", "space", "enter":
+			f.cycleChoice(1)
+			return Intent{}, nil
+		case "tab", "shift+tab", "up", "down", "ctrl+up", "ctrl+down", "ctrl+s", "esc":
+			// Form navigation and actions retain their usual keys.
+		default:
+			return Intent{}, nil
+		}
+	}
 	choice := f.Index < len(f.Fields) && (len(f.Options(f.Fields[f.Index].Key)) > 0 || f.PickerControl(f.Fields[f.Index].Key))
 	intent, cmd := f.Model.Update(msg, f.FieldVisible, choice, f.Destructive)
 	switch intent {
 	case form.Apply:
+		if !f.Dirty() {
+			return Intent{}, cmd
+		}
 		return Intent{Action: Apply}, cmd
 	case form.Cancel:
 		return Intent{Action: Cancel}, cmd

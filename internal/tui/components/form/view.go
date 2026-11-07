@@ -10,13 +10,18 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
-type Hit struct{ Index, Y0, Y1, X0, X1 int }
-type Styles struct{ Muted, Focus, Error, Scrollbar lipgloss.Style }
+type Hit struct {
+	Index, Y0, Y1, X0, X1 int
+	// Option is a one-based choice index; zero means a field or action hit.
+	Option int
+}
+type Styles struct{ Normal, Title, Muted, Focus, Disabled, Error, Scrollbar lipgloss.Style }
 type Props struct {
 	Title, Hint, Error, PrimaryLabel, Choice string
 	Width, Height                            int
 	Destructive                              bool
 	Styles                                   Styles
+	Options                                  func(Field) []Option
 
 	// Hooks for a form that needs more than plain fields. Every one is
 	// optional: a nil or zero value means the default, so a simple form
@@ -50,7 +55,8 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 	w, h := props.Width, props.Height
 	inner := max(popup.ModalWidth(w)-4, 1)
 	height := f.Editor.Height()
-	rows := []string{popup.TitleRow(props.Styles.Focus.Render(props.Title), inner), strings.Repeat("─", inner), props.Styles.Muted.Render(cell.Line(props.Hint, inner)), ""}
+	rows := popup.Header(props.Title, inner, props.Styles.Title)
+	rows = append(rows, props.Styles.Muted.Render(cell.Line(props.Hint, inner)), "")
 
 	// Window over the fields that are actually showing, not over all of
 	// them: a hidden field must not take a row or a scroll step.
@@ -66,7 +72,17 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 			position = p
 		}
 	}
-	capacity := max((h-9-height)/3, 1)
+	rowHeight := 3
+	choiceMaxRows := max(h-13, 1)
+	if props.Options != nil {
+		for _, i := range indexes {
+			if options := props.Options(f.Fields[i]); len(options) > 0 {
+				choiceRows, _ := ChoiceRows(options, f.Fields[i].Value, inner, choiceMaxRows, false, props.Styles)
+				rowHeight = max(rowHeight, len(choiceRows)+2)
+			}
+		}
+	}
+	capacity := max((h-10-height)/rowHeight, 1)
 	start := max(min(position-capacity/2, len(indexes)-capacity), 0)
 	end := min(start+capacity, len(indexes))
 
@@ -90,10 +106,24 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 			value = strings.ReplaceAll(f.Editor.Value(), "\n", " ↵ ")
 		}
 		editable := true
+		selected := value
 		if props.Display != nil {
 			value, editable = props.Display(field, value)
 		}
+		options := []Option(nil)
+		if props.Options != nil {
+			options = props.Options(field)
+		}
 		switch {
+		case len(options) > 0:
+			choiceRows, choiceHits := ChoiceRows(options, selected, inner, choiceMaxRows, i == f.Index, props.Styles)
+			for _, hit := range choiceHits {
+				hit.Index = i
+				hit.Y0 += len(rows)
+				hit.Y1 += len(rows)
+				hits = append(hits, hit)
+			}
+			rows = append(rows, choiceRows...)
 		case i == f.Index && props.Choice != "":
 			rows = append(rows, cell.Line("[ "+props.Choice+" ]  Enter to choose", inner))
 		case i == f.Index && editable:
@@ -101,7 +131,7 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 		default:
 			rows = append(rows, cell.Line(value, inner))
 		}
-		hits = append(hits, Hit{i, y, len(rows), 0, 0})
+		hits = append(hits, Hit{Index: i, Y0: y, Y1: len(rows)})
 		rows = append(rows, "")
 	}
 	if len(indexes) > capacity {
@@ -125,21 +155,32 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 	}
 	footer := props.Footer
 	if footer == "" {
-		footer = "↑↓/Tab fields · Ctrl+↑↓ multiline fields · Ctrl+S apply · Esc cancel"
+		footer = "Tab fields · Ctrl+S apply · Esc cancel"
+		for _, field := range f.Fields {
+			if field.Multiline {
+				footer = "Tab/Ctrl+↑↓ fields · Ctrl+S apply · Esc cancel"
+				break
+			}
+		}
+		if len(f.Fields) == 0 {
+			footer = "Tab actions · Enter choose · Esc cancel"
+		}
 		if props.Destructive {
 			footer = "Tab selects · Enter confirms selection · Esc cancel"
 		}
 	}
-	rows = append(rows, props.Styles.Muted.Render(strings.Repeat("─", inner)))
-	action, actionHits := f.Actions(inner, len(rows), props.PrimaryLabel, !props.DisablePrimary, props.Styles)
-	if gap := max(actionHits[0].X0-2, 0); gap >= 12 {
-		action = props.Styles.Muted.Render(cell.Line(footer, gap)) + "  " + ansi.Cut(action, actionHits[0].X0, inner)
+	if props.Options != nil && f.Index < len(f.Fields) && len(props.Options(f.Fields[f.Index])) > 0 {
+		footer = "Space/←→ change · Tab next · Ctrl+S apply · Esc cancel"
 	}
+
+	// Derive button hit rows from the same footer used for rendering.
+	rows = append(rows, popup.Footer(inner, footer, props.Styles.Muted)...)
+	action, actionHits := f.Actions(inner, len(rows), props.PrimaryLabel, !props.DisablePrimary, props.Destructive, props.Styles)
 	rows = append(rows, action)
 	hits = append(hits, actionHits...)
 	return rows, hits
 }
-func (f Model) Actions(width, y int, primary string, enabled bool, styles Styles) (string, []Hit) {
+func (f Model) Actions(width, y int, primary string, enabled, destructive bool, styles Styles) (string, []Hit) {
 	cancel := "[ Cancel ]"
 	if width < 20 {
 		cancel = "[Esc]"
@@ -161,12 +202,27 @@ func (f Model) Actions(width, y int, primary string, enabled bool, styles Styles
 			row += "  "
 		}
 		start := lipgloss.Width(row)
-		style := styles.Muted
-		if f.Index == len(f.Fields)+i && (i != 0 || enabled) {
-			style = styles.Focus
-		}
-		row += style.Render(text)
-		hits = append(hits, Hit{len(f.Fields) + i, y, y + 1, start, lipgloss.Width(row)})
+		row += Button(text, f.Index == len(f.Fields)+i, i != 0 || enabled, i == 0 && destructive, styles)
+		hits = append(hits, Hit{Index: len(f.Fields) + i, Y0: y, Y1: y + 1, X0: start, X1: lipgloss.Width(row)})
 	}
 	return cell.Line(row, width), hits
+}
+
+// Button keeps keyboard focus, availability and destructive intent distinct.
+// The parent owns the action and the hit region.
+func Button(text string, focused, enabled, destructive bool, styles Styles) string {
+	style := styles.Normal
+	if destructive {
+		style = styles.Error
+	}
+	if focused && enabled {
+		if !destructive {
+			style = styles.Focus
+		}
+		style = style.Background(style.GetForeground()).Foreground(styles.Normal.GetBackground()).Bold(true)
+	}
+	if !enabled {
+		style = styles.Disabled
+	}
+	return style.Render(text)
 }

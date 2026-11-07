@@ -6,12 +6,13 @@ import (
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/gektor/internal/config"
 )
 
-func TestWorkflowCardTitleAndSelectionInBothThemes(t *testing.T) {
+func TestWorkflowCardTitleAndSelectionInAllThemes(t *testing.T) {
 	previous := selectedPalette.Load()
 	defer selectedPalette.Store(previous)
-	for _, theme := range []string{"light", "dark"} {
+	for _, theme := range config.ThemeNames() {
 		m := workflowTestModel(t)
 		m.applyTheme(theme)
 		d := workflowRecipe()

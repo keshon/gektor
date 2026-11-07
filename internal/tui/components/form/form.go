@@ -71,13 +71,19 @@ func (m *Model) Update(msg tea.Msg, visible func(int) bool, choice bool, destruc
 		case "esc":
 			return Cancel, nil
 		case "ctrl+s":
-			if !destructive || m.Index == len(m.Fields) {
+			if !destructive {
 				return Apply, nil
 			}
 			return None, nil
 		case "space":
 			if choice {
 				return Pick, nil
+			}
+			if m.Index == len(m.Fields) {
+				return Apply, nil
+			}
+			if m.Index == len(m.Fields)+1 {
+				return Cancel, nil
 			}
 		case "left", "right":
 			if m.Index >= len(m.Fields) {
@@ -112,6 +118,9 @@ func (m *Model) Update(msg tea.Msg, visible func(int) bool, choice bool, destruc
 			}
 			if m.Index == len(m.Fields)+1 {
 				return Cancel, nil
+			}
+			if m.Fields[m.Index].Multiline && !m.Fields[m.Index].ReadOnly {
+				break
 			}
 			m.Focus(m.Index+1, visible)
 			return None, nil

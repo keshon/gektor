@@ -47,6 +47,10 @@ func TestDestructiveFormRequiresPrimarySelection(t *testing.T) {
 		t.Fatal("save bypassed destructive confirmation")
 	}
 	m.Focus(0, nil)
+	intent, _ = m.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl}, nil, false, true)
+	if intent != None {
+		t.Fatal("save shortcut confirmed a destructive action")
+	}
 	intent, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter}, nil, false, true)
 	if intent != Apply {
 		t.Fatal("confirmation did not apply")
@@ -54,7 +58,7 @@ func TestDestructiveFormRequiresPrimarySelection(t *testing.T) {
 }
 func TestRowsAndHitGeometryUseTerminalCells(t *testing.T) {
 	m := New(nil, textarea.New())
-	row, hits := m.Actions(30, 4, "保存", true, Styles{})
+	row, hits := m.Actions(30, 4, "保存", true, false, Styles{})
 	if lipgloss.Width(row) != 30 || len(hits) != 2 || hits[0].X1 > hits[1].X0 {
 		t.Fatal("invalid button geometry")
 	}
@@ -74,5 +78,20 @@ func TestReadOnlyFieldKeepsEvidence(t *testing.T) {
 	m.Update(tea.KeyPressMsg{Code: tea.KeyTab}, nil, false, false)
 	if m.Index != 1 {
 		t.Fatal("read-only field trapped focus")
+	}
+}
+
+func TestMultilineEnterEditsAndSpaceActivatesActions(t *testing.T) {
+	m := New([]Field{{Key: "body", Value: "one", Multiline: true}}, textarea.New())
+	m.Focus(0, nil)
+	m.Editor.CursorEnd()
+	intent, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter}, nil, false, false)
+	if intent != None || m.Index != 0 || m.Editor.Value() != "one\n" {
+		t.Fatal("Enter left the multiline editor instead of inserting a newline")
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyTab}, nil, false, false)
+	intent, _ = m.Update(tea.KeyPressMsg{Code: ' '}, nil, false, false)
+	if intent != Apply || m.Values()["body"] != "one\n" {
+		t.Fatal("Space did not activate the focused action or editing lost the newline")
 	}
 }

@@ -46,10 +46,10 @@ func (m *model) persistTheme(name string) error {
 }
 
 func (m *model) openTheme() {
-	m.openForm("Theme", "Applies immediately; session settings stay unchanged.", "Apply", []formField{{Key: "theme", Label: "Theme", Value: currentPalette().name, Multiline: false}}, func(v map[string]string) error {
+	m.openForm("Theme", "Apply saves this theme for future launches.", "Apply", []formField{{Key: "theme", Label: "Theme", Value: currentPalette().name, Multiline: false}}, func(v map[string]string) error {
 		name := v["theme"]
-		if name != "dark" && name != "light" {
-			return fmt.Errorf("choose Dark or Light")
+		if !config.ValidTheme(name) {
+			return fmt.Errorf("choose a theme from the list")
 		}
 		if err := m.persistTheme(name); err != nil {
 			return err
@@ -57,5 +57,5 @@ func (m *model) openTheme() {
 		m.applyTheme(name)
 		return nil
 	})
-	m.dialog.form.Choices = map[string][]string{"theme": {"dark", "light"}}
+	m.dialog.form.Choices = map[string][]string{"theme": config.ThemeNames()}
 }

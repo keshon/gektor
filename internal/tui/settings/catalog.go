@@ -63,6 +63,10 @@ func CatalogDetail(key, path string) string {
 
 func ChoiceLabel(key, value string) string {
 	switch key {
+	case "kind":
+		if descriptor, err := providers.Lookup(value); err == nil {
+			return descriptor.Label
+		}
 	case "reasoning-effort":
 		if value == "default" {
 			return "Model default"
@@ -78,10 +82,21 @@ func ChoiceLabel(key, value string) string {
 			return preset.Name
 		}
 	case "theme":
-		if value == "light" {
+		switch value {
+		case "dark":
+			return "Dark"
+		case "light":
 			return "Light"
+		case "one-half-dark":
+			return "One Half Dark"
+		case "one-half-light":
+			return "One Half Light"
+		case "solarized-dark":
+			return "Solarized Dark"
+		case "solarized-light":
+			return "Solarized Light"
 		}
-		return "Dark"
+		return value
 	}
 	return value
 }
