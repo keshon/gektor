@@ -16,15 +16,12 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/audit"
-	"github.com/keshon/gektor/internal/checks"
 	"github.com/keshon/gektor/internal/events"
 	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/mcpmanager"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/rules"
 	"github.com/keshon/gektor/internal/run"
 	"github.com/keshon/gektor/internal/session"
 	"github.com/keshon/gektor/internal/tools"
@@ -133,26 +130,9 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		note("ChatGPT account: %s", accountLabel)
 	}
 
-	contextLimit, err := backendContext(ctx, client, o)
+	facts, err := inspectLaunchBackend(ctx, client, o, emitter, note)
 	if err != nil {
 		return err
-	}
-	note("context limit: %d tokens", contextLimit)
-	emitter.Emit("context", map[string]any{"context_limit": contextLimit})
-	displayModel := o.model
-	if name, err := client.ModelName(ctx); err == nil && strings.TrimSpace(name) != "" {
-		displayModel = name
-	}
-	// Capability, not a flag: a text-only backend must not be offered a
-	// read_file that would attach pictures and fail the turn at the wire
-	// encoder. An unknown answer is treated as "no".
-	vision, err := client.SupportsVision(ctx)
-	visionKnown := err == nil
-	if err != nil {
-		vision = false
-	}
-	if vision {
-		note("vision: image files can be read by the agent")
 	}
 
 	verify := verificationCommand(o.verifyCmd, ws.Root())
@@ -163,13 +143,6 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	// should be checkable/stoppable from the other.
 	bgProcs := tools.NewBackgroundProcesses()
 	defer bgProcs.StopAll()
-
-	// Ctrl+C previously killed the agent and left whatever it had started
-	// running: a dev server, a watcher, a test process. The eval harness
-	// deferred StopAll and the binary people actually run did not, which
-	// is also why the process-tree kill exists on Windows and was never
-	// reached from here.
-	//
 
 	mcpTools, mcpClients := discoverMCP(ctx, o.mcp, ws.Root())
 	defer func() {
@@ -189,124 +162,20 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		note("browser: not connected (enable with -browser chrome or -browser msedge)")
 	}
 
-	// ask_user blocks on stdin inside the tool. State is snapshotted by
-	// the agent loop after the assistant message (with the unanswered tool
-	// call) and before tool execution — so Ctrl+C while waiting leaves a
-	// resumable state.json. Use -resume with -answer to continue.
-	askFn := agent.NewAsker(0).Ask(func(ctx context.Context, req agent.SuspendRequest) (agent.SuspendReply, error) {
-		return suspend(ctx, req)
-	}, func(question string) string {
-		return fmt.Sprintf("\n[paused — state saved at %s]\n"+
-			"[resume: gektor -resume %s -answer \"your answer\"]\n"+
-			"\n[agent asks] %s", stateFile, stateFile, question)
-	})
-
+	base := roles.Env{
+		Client: client, RefreshModelFacts: client.RefreshModelFacts, WS: ws, Procs: bgProcs,
+		ContextLimit: facts.contextLimit, Model: facts.model, Vision: facts.vision, VisionKnown: facts.visionKnown,
+		MCPTools: mcpTools, Browser: browser, Capabilities: capabilities, CapabilitySources: managedMCP.Sources,
+		GateContext: audit.ContextHook(o.auditPath, "cli", permissionGateContext(o.yes, suspend, ws)),
+	}
 	if o.serve {
-		// stdout is the protocol in serve mode regardless of -mode:
-		// human chatter always goes to stderr.
-		serveMain(ctx, serveDeps{
-			client:            client,
-			refreshModelFacts: client.RefreshModelFacts,
-			ws:                ws,
-			procs:             bgProcs,
-			maxTokens:         o.maxTokens,
-			maxSteps:          o.maxSteps,
-			runTimeout:        o.runTimeout,
-			contextLimit:      contextLimit,
-			vision:            vision,
-			logMax:            o.logMax,
-			verifyCmd:         o.verifyCmd,
-
-			autoDeny:          o.yes,
-			auditPath:         o.auditPath,
-			allow:             o.allow,
-			deny:              o.deny,
-			backendKind:       o.backendKind,
-			stream:            o.stream,
-			mcpTools:          mcpTools,
-			browser:           browser,
-			capabilities:      capabilities,
-			capabilitySources: managedMCP.Sources,
-		}, os.Stdin, os.Stdout, os.Stderr)
+		serveAgentLaunch(ctx, o, base)
 		return ctx.Err()
 	}
 
-	// Identity and response style come from the profile; the agent's own
-	// Plan/Act instructions are added on top and do not compete with it.
-	identity, warnings, err := app.Compile(app.IdentityOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), User: o.userName, System: o.systemPrompt, Post: o.postHistory, MaxTokens: o.maxTokens, ContextLimit: contextLimit, Temperature: o.temperature})
+	env, err := launchRoleEnvironment(o, base, emitter, note)
 	if err != nil {
 		return err
-	}
-	for _, warning := range warnings {
-		note("Identity warning: " + warning)
-	}
-	// What GEKTOR checks written files for. Secrets apply to every text
-	// file whatever the language; gofmt is one rule among them and lives
-	// outside internal/checks so that package stays language-neutral.
-	rules := append(checks.Secrets(), rules.All()...)
-	env := roles.Env{
-		Identity:          app.IdentityPrompt(identity),
-		IdentityName:      identity.Name,
-		UserName:          o.userName,
-		RefreshModelFacts: client.RefreshModelFacts,
-		Client:            client,
-		WS:                ws,
-		Procs:             bgProcs,
-		MaxTokens:         o.maxTokens,
-		Temperature:       o.temperature,
-		ContextLimit:      contextLimit,
-		MaxSteps:          o.maxSteps,
-		RunTimeout:        o.runTimeout,
-		Policy:            buildPolicy(o.allow, o.deny),
-		Vision:            vision,
-		VisionKnown:       visionKnown,
-		GateContext:       audit.ContextHook(o.auditPath, "cli", permissionGateContext(o.yes, suspend, ws)),
-		BackendKind:       o.backendKind,
-		Model:             displayModel,
-		Stream:            streamEnabled(o.stream, o.outputMode, o.tui),
-		MCPTools:          mcpTools,
-		Browser:           browser,
-		Capabilities:      capabilities,
-		CapabilitySources: managedMCP.Sources,
-		// Direct runs fund acknowledged todo work with extra steps;
-		// -serve leaves this off until its budget story is decided.
-		OnDelta: func(chunk string) { fmt.Print(chunk) },
-		OnStep:  stepPrinter(o.outputMode, emitter, o.logMax),
-		OnToolFinished: func(callID string) {
-			if emitter != nil {
-				events.EmitToolFinished(emitter, callID)
-			}
-		},
-		OnToolOutput: func(callID, text string) {
-			if o.outputMode == "json" {
-				events.EmitToolOutput(emitter, callID, text)
-			} else {
-				fmt.Print(text)
-			}
-		},
-		OnResult: func(result agent.ToolResult) {
-			if o.outputMode == "json" {
-				events.EmitToolResultStatus(emitter, result.CallID, result.Output, result.Failed, result.Status)
-			}
-		},
-		OnUsage: usagePrinter(o.outputMode, emitter),
-		OnPrompt: func(report llm.ContextReport) {
-			if o.outputMode == "json" {
-				emitter.Emit("prompt_budget", map[string]any{"report": report})
-				return
-			}
-			if report.Request == 1 && report.BackendTokens == 0 {
-				note("startup context: ~%d tokens (%d tool schemas); estimates exclude backend template/tokenization", report.EstimatedTokens, len(report.Tools))
-				for _, section := range report.Sections {
-					if section.EstimatedTokens > 0 {
-						note("  %s: ~%d", section.Name, section.EstimatedTokens)
-					}
-				}
-			}
-		},
-		Rules:   rules,
-		Checks:  checks.NewReporter(rules, findingSink(emitter, o.outputMode)),
-		OnNudge: nudgePrinter(o.outputMode),
 	}
 
 	if o.plan {
@@ -330,75 +199,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		}, note)
 	}
 
-	env = env.Refreshed(ctx)
-	var a *agent.Agent
-	if o.workflowRecipe != "" {
-		a, err = roles.WorkflowAuthor(env, o.workflowRecipe, stateFile)
-		if err != nil {
-			return err
-		}
-	} else if o.plan {
-		a = roles.Planner(env, "plan", stateFile, askFn)
-	} else {
-		a = roles.Interactive(env, "", stateFile, askFn, verify)
-	}
-
-	defer reportAgentRun(a, env, emitter, stateFile, o, note)
-
-	var result string
-	if o.resume != "" {
-		history, err := session.ReadHistory(o.resume)
-		if err != nil {
-			return fmt.Errorf("resume: %w", err)
-		}
-		note("resuming from %s (%d messages)", o.resume, len(history))
-
-		// The history is off disk and no agent exists yet, so the question is
-		// recognised by its argument shape rather than by a tool we could ask.
-		if callID, question, paused := agent.PausedOnQuestion(nil, history); paused {
-			ans := o.answer
-			if ans == "" {
-				var err error
-				ans, err = askFn(ctx, question)
-				if err != nil {
-					return fmt.Errorf("reading answer: %w", err)
-				}
-			}
-			result, err = a.ResumeWithAnswer(ctx, history, callID, ans)
-		} else {
-			result, err = a.Resume(ctx, history, prompts.Resume)
-		}
-		if err != nil {
-			return fmt.Errorf("agent failed: %w", err)
-		}
-	} else if len(forkHistory) > 0 {
-		var err error
-		note := strings.TrimSpace(task)
-		if note == "" {
-			note = prompts.Resume
-		}
-		result, err = a.Resume(ctx, forkHistory, note, images...)
-		if err != nil {
-			return fmt.Errorf("agent failed: %w", err)
-		}
-	} else {
-		var err error
-		result, err = a.Run(ctx, task, images...)
-		if err != nil && o.workflowRecipe == "" {
-			// A run that hit MaxSteps with work still open gets one more
-			// budget if the operator says yes. This used to exist only in
-			// the API session, so the primary CLI silently never offered it.
-			if ans, cerr, ok := agent.BudgetContinue(ctx, a, err, stateFile, suspend); ok {
-				result, err = ans, cerr
-			}
-		}
-		if err != nil {
-			return fmt.Errorf("agent failed: %w", err)
-		}
-	}
-	note("\n=== result ===")
-	fmt.Fprintln(noteW, result)
-	return nil
+	return runAgentCLI(ctx, o, run.Config{Env: env, Task: task, StateFile: stateFile, Images: images, Verify: verify, Answer: suspend}, forkHistory, emitter, noteW, note)
 }
 
 func verificationCommand(command, directory string) func(context.Context) (string, error) {
