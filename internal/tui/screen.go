@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"charm.land/lipgloss/v2"
+	"github.com/keshon/gektor/internal/tui/components/pane"
 )
 
 // screenContent keeps the composer inside the conversation column and the
@@ -78,49 +79,15 @@ func (m *model) screenContent() string {
 	bottom = cellFrame(bottom, m.transcript.Viewport.Width(), lipgloss.Height(bottom))
 	status := m.statusLine()
 	status = cellFrame(status, m.transcript.Viewport.Width(), lipgloss.Height(status))
-	conversation := body + "\n" + m.dividerLine() + "\n" + status + "\n" + bottom
-	conversation = cellFrame(conversation, m.transcript.Viewport.Width(), m.paneHeight())
-
-	innerWidth := m.paneWidth()
-	rule := strings.Repeat("─", innerWidth)
-	content := m.menuLine() + "\n" + m.styles.dim.Render(rule) + "\n" + paneHeader +
-		"\n" + m.styles.dim.Render(rule) + "\n" + conversation
+	footer := strings.Split(status+"\n"+bottom, "\n")
+	layout := m.panelGeometry(m.mainWidth(), len(footer), false, true)
+	focused := m.dialog == nil && m.sessions == nil && !m.header.focused && (!m.inspectorVisible() || !m.inspector.focused)
+	rows := pane.Render(layout, paneHeader, body, footer, m.paneStyles(), focused)
+	content := m.menuLine() + "\n" + strings.Join(rows, "\n")
 	if m.actionBarVisible() {
-		content += "\n" + m.styles.dim.Render(rule) + "\n" + m.actionBar()
+		content += "\n" + m.actionBar()
 	}
-	if m.termW >= 2 && m.actionBarVisible() && !m.minimal {
-		rows := strings.Split(content, "\n")
-		composerRule := paneTop + bodyHeight
-		for i := 1; i < len(rows)-1; i++ {
-			left, right := "│", "│"
-			if i == 1 {
-				left, right = "┌", "┐"
-			}
-			if i == 3 {
-				left, right = "├", "┤"
-			}
-			if i == composerRule {
-				left, right = "├", "┤"
-			}
-			if i == len(rows)-2 {
-				left, right = "└", "┘"
-			}
-			rows[i] = m.styles.dim.Render(left) + cellLine(rows[i], innerWidth) + m.styles.dim.Render(right)
-		}
-		content = strings.Join(rows, "\n")
-	}
-	if m.minimal && m.promptOffset() > 0 {
-		rows := strings.Split(content, "\n")
-		end := len(rows) - m.actionBarRows()
-		for i := 1; i < end; i++ {
-			if i == 1 || i == 3 || i == paneTop+bodyHeight || i == end-1 {
-				rows[i] = m.styles.dim.Render(strings.Repeat("─", m.mainWidth()))
-			} else {
-				rows[i] = " " + cellLine(rows[i], innerWidth)
-			}
-		}
-		content = strings.Join(rows, "\n")
-	}
+
 	content = cellFrame(content, max(m.termW, 0), max(m.termH, 0))
 	if m.sessions != nil {
 		content = m.overlaySearch(content)

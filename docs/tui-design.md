@@ -342,6 +342,7 @@ clear and it has a real consumer.
 |---|---|
 | [cell](../internal/tui/components/cell/cell.go) | Terminal-cell measurement, fitting and clipping |
 | [popup](../internal/tui/components/popup/popup.go) | Shared surface/layout rules, header/footer and overlay geometry |
+| [pane](../internal/tui/components/pane/pane.go) | Main-panel frames, split regions, body/footer bounds and close targets |
 | [form](../internal/tui/components/form/form.go) | Typed controls, field groups, draft and focus behavior |
 | [selection](../internal/tui/components/selection/selection.go) | Shared selection, paging and visible-range behavior |
 | [table](../internal/tui/components/table/table.go) | Searchable rows, columns, direct actions and shared render/hit layout for management screens |

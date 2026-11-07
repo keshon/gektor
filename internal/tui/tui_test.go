@@ -1532,7 +1532,8 @@ func TestDividerExactWidth(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.appendBlock(userBlock("hi"))
 	m.appendBlock(answerBlock("there"))
-	line := m.dividerLine()
+	rows := strings.Split(ansi.Strip(m.screenContent()), "\n")
+	line := ansi.Cut(rows[paneTop+m.transcript.Viewport.Height()], m.promptOffset(), m.promptOffset()+m.transcript.Viewport.Width())
 	if n := lipgloss.Width(line); n != m.transcript.Viewport.Width() {
 		t.Fatalf("divider %d cols, want viewport %d", n, m.transcript.Viewport.Width())
 	}

@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/run"
 	"github.com/keshon/gektor/internal/session"
@@ -240,9 +241,9 @@ func TestInspectorChildEventsStayOutOfParentAndReload(t *testing.T) {
 		t.Fatal("stale load overwrote child")
 	}
 }
-func TestInspectorRenderFitsBothThemesAndWidths(t *testing.T) {
+func TestInspectorRenderFitsAllThemesAndWidths(t *testing.T) {
 	defer setTheme("dark")
-	for _, theme := range []string{"dark", "light"} {
+	for _, theme := range config.ThemeNames() {
 		for _, width := range []int{60, 100, 160} {
 			setTheme(theme)
 			m := inspectorModel(t, width)
@@ -323,6 +324,12 @@ func TestInspectorSharesMenuAndFrame(t *testing.T) {
 					continue
 				}
 				if y == paneTop+m.transcript.Viewport.Height() {
+					continue
+				}
+				if y == m.termH-m.footerRows()-2 {
+					if cells[60] != '─' || cells[119] != '─' {
+						t.Fatal("inspector footer divider missing", rows[y])
+					}
 					continue
 				}
 				if cells[0] != ' ' || cells[60] != ' ' || cells[119] != ' ' {

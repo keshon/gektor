@@ -653,11 +653,9 @@ func (m *model) workflowKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 func (m *model) workflowCanvasSize() (int, int) {
-	width := m.termW
-	if m.workflows.inspectorOpen && m.termW >= inspectorSplitWidth {
-		width = m.termW / 2
-	}
-	return max(1, width-2), max(1, m.termH-7)
+	area := m.screenPanes(m.workflows.inspectorOpen).Main
+	layout := m.panelGeometry(area.Width, 1, false, false)
+	return max(layout.Body.Width, 1), max(layout.Body.Height, 1)
 }
 func (m *model) workflowScreen() string {
 	w := m.workflows
@@ -687,24 +685,19 @@ func (m *model) workflowScreen() string {
 	if w.positionsLocked {
 		mode += " [positions locked]"
 	}
-	split := w.inspectorOpen && m.termW >= inspectorSplitWidth
-	leftWidth := m.termW
-	if split {
-		leftWidth = m.termW / 2
-	}
-	rows := m.inspectionRows(mode+" / "+cleanText(title), cleanText(w.notice), left, leftWidth, ch)
-	rows[1] = m.workflowTitleRow(mode+" / "+cleanText(title), leftWidth)
+	regions := m.screenPanes(w.inspectorOpen)
+	split := w.inspectorOpen && !regions.Covered
+	leftWidth := regions.Main.Width
+	rows := m.inspectionRows(mode+" / "+cleanText(title), cleanText(w.notice), left, leftWidth, !w.inspect, false)
 	if w.inspectorOpen {
-		width := m.termW
-		if split {
-			width -= leftWidth
-		}
+		width := regions.Side.Width
 		content := m.workflowInspectorContent()
 		capacity := max(1, ch-2)
 		w.offset = min(w.offset, max(0, len(content)-capacity))
 		visible := content[w.offset:min(len(content), w.offset+capacity)]
 		tabs, _ := m.workflowInspectorTabs()
-		body := cellLine(tabs, max(1, width-2)) + "\n\n" + strings.Join(popup.ScrollRows(visible, max(1, width-2), w.offset, len(content), m.styles.dim), "\n")
+		inner := m.panelGeometry(width, 1, true, false).Body.Width
+		body := cellLine(tabs, inner) + "\n\n" + strings.Join(popup.ScrollRows(visible, inner, w.offset, len(content), m.styles.dim), "\n")
 		heading := "Inspect / " + cleanText(w.graph.Selected)
 		if m.workflowSelectedSchedule() != nil && w.run == nil {
 			heading = "Inspect / Schedule"
@@ -719,7 +712,7 @@ func (m *model) workflowScreen() string {
 		if w.inspect && w.run == nil && w.inspectorTab != 1 {
 			hint = "1–3 tabs · E edit · Esc close · Tab parent"
 		}
-		right := m.inspectionRows(heading, hint, body, width, ch)
+		right := m.inspectionRows(heading, hint, body, width, w.inspect, true)
 		if split {
 			for i := range rows {
 				rows[i] += right[i]
@@ -760,14 +753,6 @@ func (m *model) workflowDialog(content string) string {
 	}
 	return cellFrame(strings.Join(base, "\n"), m.termW, m.termH)
 }
-func (m *model) workflowTitleRow(title string, width int) string {
-	inner := max(1, width-2)
-	text := cellLine(m.styles.gate.Render(title), inner)
-	if !m.minimal {
-		return m.styles.dim.Render("│") + text + m.styles.dim.Render("│")
-	}
-	return " " + text + " "
-}
 func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	w := m.workflows
 	mouse := msg.Mouse()
@@ -780,9 +765,12 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	cw, ch := m.workflowCanvasSize()
-	x, y := mouse.X-1, mouse.Y-4
-	pane := w.inspectorOpen && (m.termW < inspectorSplitWidth || mouse.X >= m.termW/2)
-	if pane && mouse.Y == 2 && mouse.X >= m.termW-4 && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
+	regions := m.screenPanes(w.inspectorOpen)
+	canvasLayout := m.panelGeometry(regions.Main.Width, 1, false, false)
+	sideLayout := m.panelGeometry(regions.Side.Width, 1, true, false)
+	x, y := mouse.X-canvasLayout.Body.X, mouse.Y-regions.Main.Y-canvasLayout.Body.Y
+	pane := w.inspectorOpen && regions.Side.Contains(mouse.X, mouse.Y)
+	if pane && sideLayout.CloseHit.Contains(mouse.X-regions.Side.X, mouse.Y-regions.Side.Y) && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
 		w.inspectorOpen, w.inspect = false, false
 		w.thumb = scrollDrag{}
 		return m, nil
@@ -795,14 +783,11 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if pane && y == 0 && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
-		left := 0
-		if m.termW >= inspectorSplitWidth {
-			left = m.termW / 2
-		}
+		left := regions.Side.X
 		_, ends := m.workflowInspectorTabs()
 		start := 0
 		for i, end := range ends {
-			if mouse.X >= left+1+start && mouse.X < left+1+end {
+			if mouse.X >= left+sideLayout.Body.X+start && mouse.X < left+sideLayout.Body.X+end {
 				m.workflowSetInspectorTab(i)
 				w.inspect = true
 				break
@@ -852,7 +837,7 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if pane {
 		if mouse.Button == tea.MouseLeft && isMouseClick(msg) {
 			w.inspect = true
-			if y > 1 && x >= m.termW-4 {
+			if y > 1 && mouse.X == regions.Side.X+sideLayout.Body.X+sideLayout.Body.Width-1 {
 				total := len(m.workflowInspectorContent())
 				top, size := popup.ScrollThumb(max(1, ch-2), total, w.offset)
 				if y-2 >= top && y-2 < top+size {
@@ -943,11 +928,7 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 func (m *model) workflowInspectorContent() []string {
-	cw, _ := m.workflowCanvasSize()
-	width := cw
-	if m.termW >= inspectorSplitWidth {
-		width = m.termW - m.termW/2 - 2
-	}
+	width := m.panelGeometry(m.screenPanes(true).Side.Width, 1, true, false).Body.Width
 	var out []string
 	for _, line := range m.workflowDetailRows()[1:] {
 		out = append(out, strings.Split(ansi.Hardwrap(line, max(1, width-1), true), "\n")...)

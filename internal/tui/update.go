@@ -321,13 +321,7 @@ func (m *model) fitBottom() {
 	if oldWidth != m.transcript.Viewport.Width() {
 		m.refreshContent()
 	}
-	h := m.termH - 6 - lines
-	if m.actionBarVisible() {
-		h -= m.footerRows()
-	}
-	if h < 1 {
-		h = 1
-	}
+	h := max(m.panelGeometry(m.mainWidth(), lines+1, false, true).Body.Height, 1)
 	pinned := m.transcript.Follow && m.transcript.Viewport.AtBottom()
 	contentWidth := m.transcript.Viewport.ContentWidth()
 	m.transcript.Viewport.SetHeight(h)

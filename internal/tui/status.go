@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -95,13 +94,4 @@ func kTokens(n int) string {
 		return fmt.Sprintf("%.1fk", float64(n)/1000)
 	}
 	return fmt.Sprintf("%d", n)
-}
-
-// dividerLine splits history from the bottom zone with a dim rule.
-func (m *model) dividerLine() string {
-	w := max(m.transcript.Viewport.Width(), 0)
-	if w < minWrapWidth {
-		w = minWrapWidth
-	}
-	return m.styles.dim.Render(strings.Repeat("─", w))
 }

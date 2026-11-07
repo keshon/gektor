@@ -101,7 +101,7 @@ func TestWorkflowAndAgentInspectorFramesMatch(t *testing.T) {
 			if width >= inspectorSplitWidth {
 				left = width / 2
 			}
-			for _, y := range []int{1, 3, 28} {
+			for _, y := range []int{1, 3, 26, 28} {
 				if ansi.Cut(workflow[y], left, width) != ansi.Cut(chat[y], left, width) {
 					t.Fatalf("inspector frame mismatch width %d minimal %v row %d\n%q\n%q", width, minimal, y, workflow[y], chat[y])
 				}

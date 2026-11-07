@@ -86,7 +86,7 @@ func TestWorkflowMenuCanvasAndModalGeometry(t *testing.T) {
 	m.closeHeader()
 	m.workflowCommand("edit")
 	left, top, width, height := m.settingsArea()
-	if left != 1 || top != 4 || width != 118 || height != 23 {
+	if left != 1 || top != 4 || width != 118 || height != 22 {
 		t.Fatalf("geometry %d %d %d %d", left, top, width, height)
 	}
 	if !strings.Contains(ansi.Strip(m.screenContent()), "script_transform") {

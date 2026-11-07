@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/session"
+	"github.com/keshon/gektor/internal/tui/components/pane"
 )
 
 const inspectorSplitWidth = 100
@@ -27,10 +28,7 @@ func (m *model) inspectorVisible() bool {
 	return m.inspector.callID != "" && m.dialog == nil && m.sessions == nil && m.state != stPermission && m.state != stAsk
 }
 func (m *model) mainWidth() int {
-	if m.inspectorVisible() && m.termW >= inspectorSplitWidth {
-		return m.termW / 2
-	}
-	return m.termW
+	return m.screenPanes(m.inspectorVisible()).Main.Width
 }
 func (m *model) inspectorBlock() *block {
 	for i := len(m.transcript.blocks) - 1; i >= 0; i-- {
@@ -96,13 +94,11 @@ func (m *model) refreshInspector() {
 	if b == nil {
 		return
 	}
-	width := m.termW
-	if m.termW >= inspectorSplitWidth {
-		width = m.termW - m.termW/2
-	}
+	width := m.screenPanes(true).Side.Width
+	layout := m.panelGeometry(width, 1, true, false)
 	pane := &m.inspector.pane
-	pane.Viewport.SetWidth(max(width-2*m.promptOffset(), 1))
-	pane.Viewport.SetHeight(max(m.termH-m.footerRows()-5, 1))
+	pane.Viewport.SetWidth(max(layout.Body.Width, 1))
+	pane.Viewport.SetHeight(max(layout.Body.Height, 1))
 	pane.compact = false
 	pane.blocks = []block{resultBlock("Arguments\n" + prettyToolArguments(b.text))}
 	live, thinking := "", ""
@@ -189,24 +185,20 @@ func (m *model) composeInspector(content string) string {
 		return content
 	}
 	name, _, _ := strings.Cut(b.text, " ")
-	width := m.termW
-	left := 0
-	if m.termW >= inspectorSplitWidth {
-		left = m.mainWidth()
-		width = m.termW - left
-	}
-	heading := "Inspect · " + name
+	regions := m.screenPanes(true)
+	width, left := regions.Side.Width, regions.Side.X
+	heading := "Inspect / " + name
 	if m.inspector.focused {
-		heading = "Inspect · " + name + " [focused]"
+		heading = "Inspect / " + name + " [focused]"
 	}
 	hint := "Esc close · Tab parent · ↑↓ scroll"
 	if left == 0 {
 		hint = "Esc return to conversation · ↑↓ scroll"
 	}
-	rows := m.inspectionRows(heading, hint, m.inspector.pane.View(), width, m.inspector.pane.Viewport.Height())
+	rows := m.inspectionRows(heading, hint, m.inspector.pane.View(), width, m.inspector.focused, true)
 	base := strings.Split(content, "\n")
 	for i, row := range rows {
-		y := i + 1 // The menu belongs to the whole screen.
+		y := i + regions.Side.Y
 		if y >= len(base) {
 			break
 		}
@@ -219,40 +211,10 @@ func (m *model) composeInspector(content string) string {
 	return strings.Join(base, "\n")
 }
 
-// inspectionRows keeps chat and workflow panels aligned without sharing their content or state.
-func (m *model) inspectionRows(heading, hint, body string, width, bodyHeight int) []string {
-	inner := max(width-2*m.promptOffset(), 1)
-	rule := m.styles.dim.Render(strings.Repeat("─", inner))
-	rows := []string{rule, cellLine(m.styles.gate.Render(heading), max(inner-3, 0)) + " × ", rule}
-	rows = append(rows, strings.Split(cellFrame(body, inner, bodyHeight), "\n")...)
-	rows = append(rows, cellLine(m.styles.dim.Render(hint), inner))
-	if m.actionBarVisible() {
-		rows = append(rows, rule)
-	}
-	if m.promptOffset() > 0 && !m.minimal {
-		for i := range rows {
-			l, r := "│", "│"
-			switch i {
-			case 0:
-				l, r = "┌", "┐"
-			case 2:
-				l, r = "├", "┤"
-			case len(rows) - 1:
-				l, r = "└", "┘"
-			}
-			rows[i] = m.styles.dim.Render(l) + cellLine(rows[i], inner) + m.styles.dim.Render(r)
-		}
-	}
-	if m.minimal && m.promptOffset() > 0 {
-		for i := range rows {
-			if i == 0 || i == 2 || (m.actionBarVisible() && i == len(rows)-1) {
-				rows[i] = m.styles.dim.Render(strings.Repeat("─", width))
-			} else {
-				rows[i] = " " + cellLine(rows[i], inner) + " "
-			}
-		}
-	}
-	return rows
+// inspectionRows uses the same frame and one-row footer for both inspectors.
+func (m *model) inspectionRows(heading, hint, body string, width int, focused, close bool) []string {
+	layout := m.panelGeometry(width, 1, close, false)
+	return pane.Render(layout, heading, body, []string{m.styles.dim.Render(hint)}, m.paneStyles(), focused && !m.header.focused)
 }
 
 func (m *model) inspectorKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
@@ -350,17 +312,19 @@ func (m *model) selectTool(direction int) {
 	}
 }
 func (m *model) inspectorScrollbarMouse(msg tea.MouseMsg) bool {
-	return viewportScrollbarMouse(&m.inspector.pane.Viewport, &m.inspector.pane.Follow, &m.inspector.drag, m.termW-m.promptOffset()-1, paneTop, msg)
+	area := m.screenPanes(true).Side
+	layout := m.panelGeometry(area.Width, 1, true, false)
+	return viewportScrollbarMouse(&m.inspector.pane.Viewport, &m.inspector.pane.Follow, &m.inspector.drag,
+		area.X+layout.Body.X+layout.Body.Width-1, area.Y+layout.Body.Y, msg)
 }
 
 func (m *model) inspectorMouse(msg tea.MouseMsg) (bool, tea.Cmd) {
 	mouse := msg.Mouse()
-	if m.inspectorVisible() && (m.termW < inspectorSplitWidth || mouse.X >= m.mainWidth()) {
-		if mouse.Y < 1 || mouse.Y >= m.termH-m.actionBarRows() {
-			return false, nil
-		}
+	area := m.screenPanes(true).Side
+	layout := m.panelGeometry(area.Width, 1, true, false)
+	if m.inspectorVisible() && area.Contains(mouse.X, mouse.Y) {
 		if mouse.Button == tea.MouseLeft && isMouseClick(msg) {
-			if mouse.Y == 2 && mouse.X >= m.termW-m.promptOffset()-3 {
+			if layout.CloseHit.Contains(mouse.X-area.X, mouse.Y-area.Y) {
 				m.closeInspector()
 				return true, nil
 			}
@@ -370,7 +334,9 @@ func (m *model) inspectorMouse(msg tea.MouseMsg) (bool, tea.Cmd) {
 			return true, nil
 		}
 		if mouse.Button == tea.MouseWheelUp || mouse.Button == tea.MouseWheelDown {
-			return true, m.inspector.pane.Update(msg)
+			if layout.Body.Contains(mouse.X-area.X, mouse.Y-area.Y) {
+				return true, m.inspector.pane.Update(msg)
+			}
 		}
 		return true, nil
 	}
