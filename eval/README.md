@@ -1,6 +1,20 @@
 # Evals
 
-Frozen scenarios for a weak local model, scored by a program.
+Repeatable Agent tasks, scored from files, tool results and answers.
+Use them to compare models and catch regressions in tool use.
+
+## What belongs where
+
+| Place | Purpose |
+|---|---|
+| [Workflow examples](../examples/workflows/README.md) | Recipes people can copy and learn from |
+| [Demos](../demos/README.md) | Launch a few complete tasks with little setup |
+| `eval/` | Check whether the Agent discovers tools, uses them and reports evidence |
+| Go tests | Check engine behavior, permissions and exact results without a model |
+
+A public API or a model-written draft can be useful in a demo, but makes a poor
+fixed acceptance test. Evals use isolated fixtures. A demo finishing is not an
+eval pass, and a passing engine test says nothing about model decisions.
 
 - `prompts/` — the write-up for each scenario: what it stresses, what counts as
   a pass, what counts as a failure. Written for a human.
@@ -9,7 +23,33 @@ Frozen scenarios for a weak local model, scored by a program.
   written to.
 - `results/` — output, gitignored.
 
+The runner makes a fresh workspace for every attempt. Do not edit or reset the
+checked-in fixtures between runs. Old manual reset/repeat scripts are no longer
+needed. Number gaps are kept so old result IDs remain understandable.
+
 ## Running
+
+Run from the repository root. Windows users can replace `go run ./cmd/eval`
+with `scripts\eval-run.cmd`.
+
+| Suite | Coverage | Needs vision |
+|---|---|---|
+| `core` | Seven general Agent tasks, including unavailable browser reporting | No |
+| `workflows` | Four image-workflow tasks: creation, metadata refusal, invalid recipe, existing output | No |
+| `pipelines` | Child recipes with declared outputs; a paused hourly schedule and worker status | No |
+| `visual` | Pasted image discovery, a detail crop, misleading suffix and limits on identification | Yes |
+
+```text
+go run ./cmd/eval -dry
+go run ./cmd/eval -suite pipelines -runs 3 -jobs 1 -backend http://127.0.0.1:9931
+go run ./cmd/eval -suite visual -runs 3 -jobs 1 -backend http://127.0.0.1:9931
+```
+
+The visual probe uses generated shapes delivered outside the workspace, like a
+pasted image. Its bytes and delivery mode enter the input fingerprint. A backend
+without confirmed image support produces SKIP. No user photos or external image
+site is involved. See [visual criteria](prompts/visual.md) and
+[pipeline criteria](prompts/pipelines.md).
 
 For the fixed seven-scenario starting baseline:
 
@@ -146,7 +186,23 @@ A run that never reached the model is reported as `ERR` and excluded from the
 rate. A run the harness had to cut off is a failure, however the workspace
 happens to look.
 
-## Adding a probe
+## Other live checks
+
+Browser mechanics use a real Chrome instance and local fixture pages, with a
+fixed model driver. They check focused observations, screenshots and persisted
+changes. They do not score a live model's choice of browser actions.
+
+```powershell
+$env:GEKTOR_BROWSER_SMOKE = '1'
+go test ./internal/tools -run '^(TestBrowserMCPIntegration|TestBrowserTaskObservationsLive)$' -count=1 -v -timeout 5m
+Remove-Item Env:GEKTOR_BROWSER_SMOKE
+```
+
+The Ornith session also exposed problems covered by deterministic tests:
+attachment access after compaction/resume, actual image MIME, exact crop pixels,
+source preservation and pixel comparison limits. Those do not need repeated
+model inference. Open-ended object identification and visual design quality
+still need human review; answer regexes cannot establish either.
 
 ### Optional learned-skill comparison
 
@@ -212,6 +268,8 @@ reasoning quality. Run it separately from other model evals on a single-slot
 server. Existing skill probes accept either file reads or explicit skill loads
 and require the process text in the successful result.
 
+## Adding a probe
+
 Write the scenario in `prompts/` first, then mechanize it. Criteria come from
 the write-up — a threshold invented while writing the JSON is a number that
 will fail someday for no stated reason.
@@ -236,35 +294,7 @@ seed with a fixed commit. Probe 12 supplies a scripted clarification and
 requires an improvement note grounded in the fixture. `git` and `replies`
 configure these harness inputs.
 
-## Vacuity audit
-
-Every probe must be able to fail — a probe that passes on an empty run
-measures nothing. Rules are enforced two ways: `loadProbes` rejects a
-probe with nothing asserted, and the table below records why each probe
-cannot pass vacuously (criteria are maintained with the probe write-ups).
-
-| Probe | Why it cannot pass on an empty run |
-|---|---|
-| 01, 02 | `git log` required and the answer must identify the seeded commit |
-| 12 | `ask_user` required and a new note must mention the real fixture |
-| 03 | `list_files` required — no calls, no pass |
-| 04 | `goodbye.txt` content + `hello.txt` absence both require action; `move_file` required |
-| 05 | `v2` symbol must appear; `Greet()` presence pins the rest of the file |
-| 06 | `REPLACED` must appear; `read_file` required |
-| 07 | `notes.txt` is a new file; `write_file` required |
-| 08 | `read_file` required; mutating tools forbidden |
-| 09 | `return "hi"` must appear; `grep_files` required |
-| 10 | answer regex on the real size; `read_file` required |
-| 11 | `Bye()` symbols must appear; `delegate_task` forbidden |
-| 13 | `start_background` + `check_url` required |
-| 14 | three new files with contents; `write_file` required |
-| 15, 17 | new files with distinctive symbols |
-| 16 | shell runs the script and matches `42`; `oses: [windows]` (see below) |
-| 18 | answer + `read_file` required after surviving the injected overflow |
-
-Platform-bound probes declare `"oses"` (`windows`/`linux`/`darwin`) and
-report SKIP elsewhere — a skip is excluded from the rate like ERR. Today
-that is 16 (`findstr` pipeline). Probe 04 used to shell out to
-`if exist hello.txt`; it now uses the portable `file_absent` check type
-instead. Prefer portable checks over `oses`: a skip is honest, but every
-skip is a configuration the suite never exercises.
+Every probe must fail on an empty run. `loadProbes` rejects probes with no
+assertions; verifier tests also check rejection of empty or changed evidence.
+Declare platform requirements with `oses`; an unsupported platform reports
+SKIP. Prefer portable checks over shell commands.

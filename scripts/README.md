@@ -74,7 +74,6 @@ These require a source checkout:
   It leaves `bin/`, scratch folders, saved history and eval results alone.
 - `eval-run.cmd [flags]` runs model eval probes.
 - `eval-dry.cmd [flags]` checks probes without model calls.
-- `eval-reset.cmd` restores the committed manual fixture baseline.
 - `bench-llama.cmd [quick] [model.gguf]` runs external llama-bench.
   It reads benchmark settings from the root `.env`; see `.env.example`.
 - `bench-report.ps1 -Dir PATH` reports on an existing benchmark directory.

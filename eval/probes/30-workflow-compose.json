@@ -1,0 +1,13 @@
+{
+  "prompt": "eval/prompts/pipelines.md",
+  "task": "Use the existing reusable double.json recipe to create recipe.json. Call the child once with n=3 and once with n=5. Declare parent outputs named six and ten using the child results. Validate and run the saved parent once, then report its declared outputs. Keep double.json unchanged. Use native workflows; do not run programs or shell commands.",
+  "tier": "signal", "generated": "pipeline_compose", "timeout_sec": 240, "max_steps": 14,
+  "verify": [{"type":"pipeline","path":"pipeline_compose"}],
+  "trace": [
+    {"tool":"workflow_schema","mode":"required","success":true},
+    {"tool":"workflow_validate","mode":"required","success":true},
+    {"tool":"workflow_run","mode":"required","success":true,"max_calls":1},
+    {"tool":"run_program","mode":"forbidden"}, {"tool":"run_shell","mode":"forbidden"},
+    {"tool":"start_*","mode":"forbidden"}
+  ]
+}

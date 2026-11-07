@@ -114,7 +114,7 @@ func inputsDigest(probes []Probe) (string, error) {
 	for _, probe := range probes {
 		item := input{Name: probe.Name, Probe: probe, Files: map[string]string{}}
 		if probe.Generated != "" {
-			files, err := workflowFixture(probe.Generated)
+			files, err := generatedFixture(probe.Generated)
 			if err != nil {
 				return "", err
 			}

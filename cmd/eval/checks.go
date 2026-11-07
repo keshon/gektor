@@ -28,6 +28,11 @@ const checkShellTimeout = 120 * time.Second
 // ValidateCheck catches invalid frozen criteria before model calls.
 func ValidateCheck(c Check) error {
 	switch c.Type {
+	case "pipeline":
+		if c.Path != "pipeline_compose" && c.Path != "pipeline_schedule" {
+			return fmt.Errorf("unknown scenario %q", c.Path)
+		}
+		return nil
 	case "workflow":
 		_, err := workflowFixture(c.Path)
 		return err
@@ -71,6 +76,11 @@ func ValidateCheck(c Check) error {
 
 func RunCheck(ctx context.Context, c Check, ws *workspace.Workspace) (output string, ok bool) {
 	switch c.Type {
+	case "pipeline":
+		if err := checkPipeline(ctx, c.Path, ws); err != nil {
+			return err.Error(), false
+		}
+		return "pipeline record verified", true
 	case "workflow":
 		if err := checkWorkflow(c.Path, ws); err != nil {
 			return err.Error(), false

@@ -24,6 +24,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/automation/script"
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/roles"
@@ -60,10 +61,13 @@ type Probe struct {
 
 	// Seed is a directory copied in as the starting workspace, relative to
 	// the repo root. Empty means start from an empty directory.
-	Seed      string   `json:"seed"`
-	Generated string   `json:"generated,omitempty"`
-	Git       bool     `json:"git,omitempty"`
-	Replies   []string `json:"replies,omitempty"`
+	Seed      string `json:"seed"`
+	Generated string `json:"generated,omitempty"`
+	// Attachments are generated fixture keys delivered outside the workspace,
+	// like clipboard input. Their bytes still enter the input fingerprint.
+	Attachments []string `json:"attachments,omitempty"`
+	Git         bool     `json:"git,omitempty"`
+	Replies     []string `json:"replies,omitempty"`
 
 	// Verify is the workspace verdict. Every check must pass.
 	Verify []Check `json:"verify"`
@@ -324,13 +328,19 @@ type Result struct {
 const defaultTimeout = 15 * time.Minute
 
 func main() {
+	if len(os.Args) > 2 && os.Args[1] == "workflow" && os.Args[2] == "internal-script-worker" {
+		if err := script.Serve(os.Stdin, os.Stdout); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	provider := config.DefaultProfile().Provider
 	backend := flag.String("backend", provider.URL, "backend base URL: bare origin for a local "+
 		"server or API root for a hosted OpenAI-compatible provider")
 	model := flag.String("model", "local", "model name: ignored by most local servers, required for remote providers")
 	dir := flag.String("probes", "eval/probes", "directory of probe .json files")
 	only := flag.String("only", "", "run only probes whose name contains this substring")
-	suite := flag.String("suite", "", "named frozen subset: core or workflows")
+	suite := flag.String("suite", "", "named subset: core, workflows, pipelines or visual")
 	jobsN := flag.Int("jobs", 1, "how many probes to run at once. Both backends batch concurrent "+
 		"requests (koboldcpp --parallelrequests, llama-server --parallel) and neither helps unless "+
 		"the client sends them; raising this past what the server was started with just queues")
@@ -606,6 +616,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 	// backend call, no trace file. A skip is recorded, not scored.
 	if skip, reason := osSkipReason(p.Oses); skip {
 		res.Skipped = true
+		res.Errored = false
 		res.RunError = reason
 		return res
 	}
@@ -630,7 +641,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 		}
 	}
 	if p.Generated != "" {
-		files, err := workflowFixture(p.Generated)
+		files, err := generatedFixture(p.Generated)
 		if err != nil {
 			res.RunError = err.Error()
 			return res
@@ -657,6 +668,24 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 	kobold := newBackend(backendKind, backend, model, apiKey, apiKeyEnv)
 	kobold.SetDRY(drySampler)
 	client := kobold
+	var images []string
+	if len(p.Attachments) > 0 {
+		vision, err := kobold.SupportsVision(ctx)
+		if err != nil || !vision {
+			res.Skipped = true
+			res.Errored = false
+			res.RunError = "probe requires confirmed image support"
+			return res
+		}
+		for i, name := range p.Attachments {
+			target := filepath.Join(tempRoot, fmt.Sprintf("attachment-%d%s", i+1, filepath.Ext(name)))
+			if err := os.Rename(filepath.Join(work, filepath.FromSlash(name)), target); err != nil {
+				res.RunError = "prepare attachment: " + err.Error()
+				return res
+			}
+			images = append(images, target)
+		}
+	}
 
 	// Every model call, verbatim. When a probe regresses this is the only
 	// thing that says why — reading traces is how the three harness bugs
@@ -725,6 +754,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 		res.Nudges = append(res.Nudges, kind)
 	})
 	env.WorkflowDir = workflowStoreDir(ws)
+	env.Vision = len(images) > 0
 	env.OnResult = func(result agent.ToolResult) {
 		res.ToolSeconds += result.Duration.Seconds()
 		recordToolResult(calls, result)
@@ -757,7 +787,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 			"State your assumption and proceed with the smallest reasonable action.", nil
 	}, nil)
 	runStarted := time.Now()
-	final, err := a.Run(runCtx, p.Task)
+	final, err := a.Run(runCtx, p.Task, images...)
 	res.RunSeconds = time.Since(runStarted).Seconds()
 	res.Warnings, res.Summary = a.Report().Warnings, a.Report().Summary
 	res.Requests = counter.timings
@@ -791,6 +821,15 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 
 	checkStarted := time.Now()
 	res.ArtifactFailures = checkArtifacts(ctx, p, ws)
+	if len(images) > 0 {
+		files, _ := generatedFixture(p.Generated)
+		for i, path := range images {
+			data, err := os.ReadFile(path)
+			if err != nil || string(data) != string(files[p.Attachments[i]]) {
+				res.ArtifactFailures = append(res.ArtifactFailures, "original attachment changed")
+			}
+		}
+	}
 	artifactPassed := len(res.ArtifactFailures) == 0
 	res.ArtifactPassed = &artifactPassed
 	res.CheckSeconds = time.Since(checkStarted).Seconds()
@@ -1141,8 +1180,21 @@ func loadProbes(dir, only string) ([]Probe, error) {
 		// fields, and uncompilable regexes fail here, dry, instead of
 		// mid-run after model calls.
 		if p.Generated != "" {
-			if _, err := workflowFixture(p.Generated); err != nil {
+			if _, err := generatedFixture(p.Generated); err != nil {
 				return nil, fmt.Errorf("%s: %w", path, err)
+			}
+		}
+		if len(p.Attachments) > 0 {
+			files, err := generatedFixture(p.Generated)
+			if err != nil {
+				return nil, err
+			}
+			seen := map[string]bool{}
+			for _, name := range p.Attachments {
+				if _, ok := files[name]; !ok || seen[name] {
+					return nil, fmt.Errorf("%s: unknown or duplicate generated attachment %q", path, name)
+				}
+				seen[name] = true
 			}
 		}
 		for i, c := range p.Verify {

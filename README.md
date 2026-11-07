@@ -57,7 +57,8 @@ See [launcher examples](scripts/README.md) and
 
 Workflow recipes are workspace files. Each run has its own saved results.
 Most workflow operations do not need a model; AI changes and model-generation
-steps do. [Workflow reference and examples](docs/workflows.md).
+steps do. See the [workflow reference](docs/workflows.md) and
+[example list](examples/workflows/README.md).
 
 ## Working with code
 

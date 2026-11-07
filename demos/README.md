@@ -1,5 +1,9 @@
 # Demos
 
+These launchers show complete tasks. They reuse the maintained
+[workflow examples](../examples/workflows/README.md); they do not keep separate
+copies of recipes. Model reliability is checked by [evals](../eval/README.md).
+
 Run these from the checkout or a Windows release folder.
 Each demo creates a new workspace under `tmp/demos/` and prints its location.
 Existing example files are not edited.
@@ -23,6 +27,7 @@ to select another available model.
 .\demos\workflow-draft.cmd
 ```
 
+Use the review demo for a quick engine check without a model or network.
 The review demo automatically approves its known arithmetic step after checking
 that the run paused. It does not approve arbitrary recipes.
 

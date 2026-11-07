@@ -1,0 +1,15 @@
+{
+  "prompt": "eval/prompts/pipelines.md",
+  "task": "Set up double.json to run hourly at minute zero in UTC with n=7. Name the trigger double-hourly and leave it paused. Use GEKTOR's own scheduling. Do not execute the recipe, start a service or modify double.json. Check the saved trigger and worker status, then tell me what still needs to happen before it can run automatically.",
+  "tier": "signal", "generated": "pipeline_schedule", "timeout_sec": 180, "max_steps": 12,
+  "verify": [{"type":"pipeline","path":"pipeline_schedule"}],
+  "trace": [
+    {"tool":"workflow_schedule","mode":"required","success":true,"args_regex":"\"action\"\\s*:\\s*\"create\""},
+    {"tool":"workflow_schedules","mode":"required","success":true},
+    {"tool":"workflow_status","mode":"required","success":true},
+    {"tool":"workflow_run","mode":"forbidden"},
+    {"tool":"run_program","mode":"forbidden"}, {"tool":"run_shell","mode":"forbidden"},
+    {"tool":"start_*","mode":"forbidden"}, {"tool":"write_file","mode":"forbidden"}, {"tool":"patch_file","mode":"forbidden"}
+  ],
+  "answer": [{"regex":"service|worker|serve","mode":"required"},{"regex":"paused|resume|unpause","mode":"required"}]
+}

@@ -1,0 +1,19 @@
+{
+  "prompt": "eval/prompts/visual.md",
+  "task": "Look at this pasted image. Describe the large shape near the upper left, then inspect a cropped detail near the lower right and describe its shape and colour. Can the picture establish who made it? Separate what you see from what you cannot establish. Keep project files untouched; this is a pasted image, not a project file.",
+  "tier": "signal", "generated": "visual_attachment", "attachments": ["picture.jpg"],
+  "timeout_sec": 180, "max_steps": 12,
+  "trace": [
+    {"tool":"image_attachments","mode":"required","success":true},
+    {"tool":"image_view","mode":"required","success":true,"args_regex":"\"crop\"\\s*:"},
+    {"tool":"image_compare","mode":"forbidden","why":"pixel fidelity cannot establish authorship"},
+    {"tool":"write_file","mode":"forbidden"}, {"tool":"patch_file","mode":"forbidden"},
+    {"tool":"run_program","mode":"forbidden"}, {"tool":"run_shell","mode":"forbidden"}, {"tool":"start_*","mode":"forbidden"}
+  ],
+  "answer": [
+    {"regex":"red","mode":"required"}, {"regex":"circle|disc|disk","mode":"required"},
+    {"regex":"blue","mode":"required"}, {"regex":"square","mode":"required"},
+    {"regex":"cannot|can't|unknown|not possible|does not|doesn't|no evidence","mode":"required"},
+    {"regex":"[0-9]+\\s*%","mode":"forbidden","why":"no calibrated confidence measurement was made"}
+  ]
+}
