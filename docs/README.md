@@ -23,6 +23,7 @@ For developers:
 - [TUI design](tui-design.md): shared controls, layouts, interaction rules and migration plan.
 - [TUI mockups](design/tui/README.md): editable FigCraft components, screens and palette studies.
 - [Conventions](conventions.md): enforced checks and coding practices.
+- [Cleanup plan](cleanup-plan.md): current work to simplify code and clarify ownership.
 - [Eval guide](../eval/README.md): frozen probes and repeatable scoring.
 - [Agent skills](../skills/README.md): task-workspace guidance for the local model.
 
