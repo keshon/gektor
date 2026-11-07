@@ -28,7 +28,7 @@ func (a *Agent) handleFinish(st *runState, resp llm.ChatResponse, leaked bool, h
 			st.emptyFinishRetried = true
 			return finishOutcome{history: a.nudge(history, NudgeTruncated, "The response was empty. Return an answer or a tool call.")}
 		}
-		return finishOutcome{done: true, err: fmt.Errorf("empty response after retry")}
+		return finishOutcome{done: true, history: history, err: fmt.Errorf("empty response after retry")}
 	}
 	a.report.Final = resp.Message.Content
 	return finishOutcome{done: true, answer: resp.Message.Content, history: history}
