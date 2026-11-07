@@ -39,27 +39,9 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		return fmt.Errorf(`usage: gektor [flags] "task description"  (or  gektor -resume <state.json> [-answer "..."])`)
 	}
 
-	if err := buildPolicy(o.allow, o.deny).Validate(); err != nil {
+	capabilityConfig, err := loadAgentCapabilities(o)
+	if err != nil {
 		return err
-	}
-	if _, _, _, err := tools.ParseMCPFlag(o.mcp); err != nil {
-		return err
-	}
-	var capabilityConfig tools.CapabilityConfig
-	if o.capabilities != "" {
-		configPath, err := filepath.Abs(o.capabilities)
-		if err != nil {
-			return err
-		}
-		capabilityConfig, err = tools.LoadCapabilityConfig(configPath)
-		if err != nil {
-			return err
-		}
-	}
-	for _, pack := range capabilityConfig.Packs {
-		if pack.ID == "browser" && o.browser != "" {
-			return fmt.Errorf("capability ID browser is reserved while -browser is enabled")
-		}
 	}
 	skillRoots := append(workspace.DefaultSkillRoots(), capabilityConfig.SkillRoots...)
 	ws, wsErr := workspace.NewWithSkillRoots(o.workspace, skillRoots)
@@ -118,36 +100,9 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	// Every run snapshots its history to disk after each step, so a crash
 	// or hitting MaxSteps doesn't lose everything — see -resume. -fork
 	// loads a prior transcript but writes to a fresh id (a branch).
-	var stateFile string
-	var forkHistory []llm.Message
-	if o.resume != "" {
-		stateFile = o.resume
-		if info, err := os.Stat(stateFile); err == nil && info.IsDir() {
-			stateFile = filepath.Join(stateFile, "state.json")
-		}
-	} else if !o.serve && (!o.tui || task != "" || o.fork != "") {
-		sum := sha1.Sum([]byte(task + time.Now().String()))
-		taskID := hex.EncodeToString(sum[:])[:8]
-		taskDir := gektor.Sub("tasks", taskID)
-		stateFile = filepath.Join(taskDir, "state.json")
-		// The session title lives with the session (pi's session_info):
-		// written once here, rewritten on TUI rename, derived from
-		// history when absent. Display metadata, never load-bearing.
-		_ = workspace.WriteSessionTitle(taskDir, workspace.TitleLine(task))
-		if o.fork != "" {
-			var err error
-			forkHistory, err = session.ReadHistory(o.fork)
-			if err != nil {
-				return fmt.Errorf("fork: %w", err)
-			}
-			note("forked from %s (%d messages)", o.fork, len(forkHistory))
-		}
-
-		if o.workflowRecipe != "" {
-			note("workflow draft session: %s (history: %s)", taskID, stateFile)
-		} else {
-			note("task id: %s (resume with -resume %s)", taskID, stateFile)
-		}
+	stateFile, forkHistory, err := agentLaunchHistory(o, note)
+	if err != nil {
+		return err
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -359,75 +314,20 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	}
 	// Images resolve against the workspace (escape-checked like every
 	// file tool path) into absolute paths the backend layer reads.
-	var images []string
-	if strings.TrimSpace(o.images) != "" {
-		for _, p := range strings.Split(o.images, ",") {
-			p = strings.TrimSpace(p)
-			if p == "" {
-				continue
-			}
-			full, err := ws.Resolve(p)
-			if err != nil {
-				return fmt.Errorf("image: %w", err)
-			}
-			images = append(images, full)
-		}
+	images, err := agentLaunchImages(ws, o.images)
+	if err != nil {
+		return err
 	}
 
 	// All terminal modes share the configured environment and saved history.
 	if o.tui {
-		history := forkHistory
-		if o.resume != "" {
-			var err error
-			history, err = session.ReadHistory(o.resume)
-			if err != nil {
-				return fmt.Errorf("resume: %w", err)
-			}
-		}
-
-		// A launch without -profile still needs a services handle and an
-		// Application: Settings reads both, and with neither every row
-		// that needs them is disabled and the menus cannot be entered
-		// at all. Build the profile this launch would have loaded.
-		profile := o.selectedProfile
-		if profile.Version == 0 {
-			profile = launchProfile(o, contextLimit)
-			note("no -profile: using a generated one so Settings stays reachable")
-		}
-		if contextLimit > 0 {
-			profile.Generation.ContextLimit = contextLimit
-		}
-
-		prepared, err := app.ConfigureAgent(profile, filepath.Join(filepath.Dir(launch.preferencePath), "sessions"))
-		if err != nil {
-			return err
-		}
-		prepared.Client = client
-		services := prepared
-		app := applicationControl(launch, profile, o.profilePath, o.workspace)
-		answer, err := tui.Run(ctx, tui.Config{
-			StartScreen: o.tuiScreen,
-			MCP:         managedMCP, Application: app, Services: &services, SeedHistory: launch.history, InitialDraft: launch.draft, InitialImages: launch.images, SessionDirectory: launch.directory,
-			BackendURL:   o.backendURL,
-			AccountLabel: accountLabel,
-			Plan:         o.plan,
-			History:      history,
-			ResumeAnswer: o.answer,
-			AuditPath:    o.auditPath,
-			Env:          env,
-			Task:         task,
-			StateFile:    stateFile,
-			Verify:       verify,
-			Images:       images,
-		})
-		if err != nil {
-			return fmt.Errorf("agent failed: %w", err)
-		}
-		if strings.TrimSpace(answer) != "" {
-			fmt.Println("\n=== result ===")
-			fmt.Println(answer)
-		}
-		return nil
+		return runAgentTUI(ctx, launch, o, tui.Config{
+			StartScreen: o.tuiScreen, MCP: managedMCP, SeedHistory: launch.history,
+			InitialDraft: launch.draft, InitialImages: launch.images, SessionDirectory: launch.directory,
+			BackendURL: o.backendURL, AccountLabel: accountLabel, Plan: o.plan,
+			History: forkHistory, ResumeAnswer: o.answer, AuditPath: o.auditPath,
+			Env: env, Task: task, StateFile: stateFile, Verify: verify, Images: images,
+		}, note)
 	}
 
 	env = env.Refreshed(ctx)
@@ -443,30 +343,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		a = roles.Interactive(env, "", stateFile, askFn, verify)
 	}
 
-	defer func() {
-		r := a.Report()
-		if r.Summary != "" {
-			note("%s", r.Summary)
-		}
-		// Deep pass over everything the run changed, catching writes no
-		// tool reported: shell redirections, MCP, background jobs.
-		env.Sweep(r.MutatedPaths)
-		run.EmitOutcome(emitter, r, stateFile)
-		note("outcome: %s; changed files: %s", r.Outcome, strings.Join(r.MutatedPaths, ", "))
-		if r.Verification != "" {
-			note("checks: %s", r.Verification)
-		} else {
-			note("checks: no current command verdict")
-		}
-		for _, warning := range r.Warnings {
-			note("%s", warning)
-		}
-		if o.workflowRecipe != "" {
-			note("draft history: %s; workflow draft sessions do not support resume", stateFile)
-		} else {
-			note("resume: gektor -resume %s", stateFile)
-		}
-	}()
+	defer reportAgentRun(a, env, emitter, stateFile, o, note)
 
 	var result string
 	if o.resume != "" {
@@ -582,4 +459,152 @@ func backendContext(ctx context.Context, client interface {
 	MaxContextLength(context.Context) (int, error)
 }, o resolvedLaunch) (int, error) {
 	return app.ContextLimit(ctx, o.backendKind, o.backendURL, o.model, o.contextLimit, client)
+}
+
+func loadAgentCapabilities(o resolvedLaunch) (tools.CapabilityConfig, error) {
+	if err := buildPolicy(o.allow, o.deny).Validate(); err != nil {
+		return tools.CapabilityConfig{}, err
+	}
+	if _, _, _, err := tools.ParseMCPFlag(o.mcp); err != nil {
+		return tools.CapabilityConfig{}, err
+	}
+	var capabilityConfig tools.CapabilityConfig
+	if o.capabilities != "" {
+		configPath, err := filepath.Abs(o.capabilities)
+		if err != nil {
+			return tools.CapabilityConfig{}, err
+		}
+		capabilityConfig, err = tools.LoadCapabilityConfig(configPath)
+		if err != nil {
+			return tools.CapabilityConfig{}, err
+		}
+	}
+	for _, pack := range capabilityConfig.Packs {
+		if pack.ID == "browser" && o.browser != "" {
+			return tools.CapabilityConfig{}, fmt.Errorf("capability ID browser is reserved while -browser is enabled")
+		}
+	}
+	return capabilityConfig, nil
+}
+
+func agentLaunchHistory(o resolvedLaunch, note func(string, ...any)) (string, []llm.Message, error) {
+	var stateFile string
+	var forkHistory []llm.Message
+	if o.resume != "" {
+		stateFile = o.resume
+		if info, err := os.Stat(stateFile); err == nil && info.IsDir() {
+			stateFile = filepath.Join(stateFile, "state.json")
+		}
+	} else if !o.serve && (!o.tui || o.task != "" || o.fork != "") {
+		sum := sha1.Sum([]byte(o.task + time.Now().String()))
+		taskID := hex.EncodeToString(sum[:])[:8]
+		taskDir := gektor.Sub("tasks", taskID)
+		stateFile = filepath.Join(taskDir, "state.json")
+		// The session title lives with the session (pi's session_info):
+		// written once here, rewritten on TUI rename, derived from
+		// history when absent. Display metadata, never load-bearing.
+		_ = workspace.WriteSessionTitle(taskDir, workspace.TitleLine(o.task))
+		if o.fork != "" {
+			var err error
+			forkHistory, err = session.ReadHistory(o.fork)
+			if err != nil {
+				return "", nil, fmt.Errorf("fork: %w", err)
+			}
+			note("forked from %s (%d messages)", o.fork, len(forkHistory))
+		}
+
+		if o.workflowRecipe != "" {
+			note("workflow draft session: %s (history: %s)", taskID, stateFile)
+		} else {
+			note("task id: %s (resume with -resume %s)", taskID, stateFile)
+		}
+	}
+
+	return stateFile, forkHistory, nil
+}
+
+func agentLaunchImages(ws *workspace.Workspace, raw string) ([]string, error) {
+	var images []string
+	if strings.TrimSpace(raw) != "" {
+		for _, p := range strings.Split(raw, ",") {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			full, err := ws.Resolve(p)
+			if err != nil {
+				return nil, fmt.Errorf("image: %w", err)
+			}
+			images = append(images, full)
+		}
+	}
+
+	return images, nil
+}
+
+func runAgentTUI(ctx context.Context, launch launchRequest, o resolvedLaunch, cfg tui.Config, note func(string, ...any)) error {
+	history := cfg.History
+	if o.resume != "" {
+		var err error
+		history, err = session.ReadHistory(o.resume)
+		if err != nil {
+			return fmt.Errorf("resume: %w", err)
+		}
+	}
+
+	// A launch without -profile still needs a services handle and an
+	// Application: Settings reads both, and with neither every row
+	// that needs them is disabled and the menus cannot be entered
+	// at all. Build the profile this launch would have loaded.
+	profile := o.selectedProfile
+	if profile.Version == 0 {
+		profile = launchProfile(o, cfg.Env.ContextLimit)
+		note("no -profile: using a generated one so Settings stays reachable")
+	}
+	if cfg.Env.ContextLimit > 0 {
+		profile.Generation.ContextLimit = cfg.Env.ContextLimit
+	}
+
+	prepared, err := app.ConfigureAgent(profile, filepath.Join(filepath.Dir(launch.preferencePath), "sessions"))
+	if err != nil {
+		return err
+	}
+	prepared.Client = cfg.Env.Client
+	services := prepared
+	app := applicationControl(launch, profile, o.profilePath, o.workspace)
+	cfg.Application, cfg.Services, cfg.History = app, &services, history
+	answer, err := tui.Run(ctx, cfg)
+	if err != nil {
+		return fmt.Errorf("agent failed: %w", err)
+	}
+	if strings.TrimSpace(answer) != "" {
+		fmt.Println("\n=== result ===")
+		fmt.Println(answer)
+	}
+	return nil
+}
+
+func reportAgentRun(a *agent.Agent, env roles.Env, emitter *events.Emitter, stateFile string, o resolvedLaunch, note func(string, ...any)) {
+	r := a.Report()
+	if r.Summary != "" {
+		note("%s", r.Summary)
+	}
+	// Deep pass over everything the run changed, catching writes no
+	// tool reported: shell redirections, MCP, background jobs.
+	env.Sweep(r.MutatedPaths)
+	run.EmitOutcome(emitter, r, stateFile)
+	note("outcome: %s; changed files: %s", r.Outcome, strings.Join(r.MutatedPaths, ", "))
+	if r.Verification != "" {
+		note("checks: %s", r.Verification)
+	} else {
+		note("checks: no current command verdict")
+	}
+	for _, warning := range r.Warnings {
+		note("%s", warning)
+	}
+	if o.workflowRecipe != "" {
+		note("draft history: %s; workflow draft sessions do not support resume", stateFile)
+	} else {
+		note("resume: gektor -resume %s", stateFile)
+	}
 }
