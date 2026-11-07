@@ -21,6 +21,7 @@ var checks = map[string]func(*testing.T, *repo){
 	"prompt-registration": checkPromptRegistration,
 	"probe-prompts":       checkProbePrompts,
 	"doc-identifiers":     checkDocIdentifiers,
+	"doc-paths":           checkDocPaths,
 	"comment-dates":       checkCommentDates,
 	"cgo-free":            checkCgoFree,
 	"skill-paths":         checkSkillPaths,
@@ -78,11 +79,15 @@ func checkPackageLayers(t *testing.T, r *repo) {
 		"workspace":                {},
 		"permission":               {},
 		"events":                   {},
-		"harness":                  {},
 		"session":                  {"llm"},
-		"agent":                    {"llm", "prompts", "permission", "session", "harness"},
+		"agent":                    {"llm", "prompts", "permission", "session"},
 	}
 	for pkg, permitted := range allowed {
+		for _, name := range append([]string{pkg}, permitted...) {
+			if err := checkPackagePath(r.root, name); err != nil {
+				t.Errorf("package-layers: %v", err)
+			}
+		}
 		for _, f := range r.goFiles {
 			if strings.TrimPrefix(filepath.ToSlash(filepath.Dir(r.rel(f))), "internal/") != pkg || strings.HasSuffix(f, "_test.go") {
 				continue
@@ -157,33 +162,6 @@ func checkProbePrompts(t *testing.T, r *repo) {
 		if _, err := os.Stat(filepath.Join(r.root, filepath.FromSlash(probe.Prompt))); err != nil {
 			t.Errorf("eval/probes/%s points at %s, which does not exist\n%s",
 				e.Name(), probe.Prompt, r.rule("probe-prompts"))
-		}
-	}
-}
-
-// docIdentifier matches a backticked token that is unambiguously a Go
-// identifier: camelCase, PascalCase, or pkg.Identifier. Anything else in
-// backticks — a command, a flag, a path — is deliberately not checked, since
-// guessing at those produces failures nobody can act on.
-var docIdentifier = regexp.MustCompile("`([a-z][a-z0-9]*\\.[A-Z][A-Za-z0-9]*|[A-Za-z][A-Za-z0-9]*[A-Z][A-Za-z0-9]*)`")
-
-func checkDocIdentifiers(t *testing.T, r *repo) {
-	var code strings.Builder
-	for _, f := range r.goFiles {
-		code.WriteString(r.read(t, f))
-	}
-	haystack := code.String()
-
-	for _, doc := range []string{"ARCHITECTURE.md", "README.md", "docs/conventions.md"} {
-		for _, m := range docIdentifier.FindAllStringSubmatch(r.readPath(t, doc), -1) {
-			name := m[1]
-			if i := strings.LastIndex(name, "."); i >= 0 {
-				name = name[i+1:] // agent.New -> New
-			}
-			if !strings.Contains(haystack, name) {
-				t.Errorf("%s names `%s`, which does not exist in the code\n%s",
-					doc, m[1], r.rule("doc-identifiers"))
-			}
 		}
 	}
 }

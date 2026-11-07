@@ -125,8 +125,3 @@ func TestRetiredHarnessFieldsDropOnSave(t *testing.T) {
 		t.Fatalf("retired fields retained: %s", data)
 	}
 }
-
-// The nudge vocabulary has one declaration, in internal/harness, which both
-// the loop and this validator read. They used to keep separate lists, so a
-// rename had to be made twice and the validator could accept a value the loop
-// then rejected.

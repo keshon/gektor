@@ -79,18 +79,18 @@ from the finishing decision. Commit this behavior fix separately from refactors.
 
 ## 3. Repair documentation checks
 
-- [ ] Remove stale internal/harness references from the conventions, layer check
+- [x] Remove stale internal/harness references from the conventions, layer check
   and configuration-test comment. Do not recreate the deleted package.
-- [ ] Add native file capabilities to the architecture description.
-- [ ] Check explicit repository paths in maintained documentation. Cover root
+- [x] Add native file capabilities to the architecture description.
+- [x] Check explicit repository paths in maintained documentation. Cover root
   guides, docs, skills/README.md, eval/README.md and example/demo guides.
-- [ ] Handle globs, example workspace paths, generated paths and external paths
+- [x] Handle globs, example workspace paths, generated paths and external paths
   explicitly. Do not treat every backticked token as a repository filename.
-- [ ] Test that an obsolete package path fails the check.
-- [ ] Correct the identifier check's documented guarantees. If strengthened,
+- [x] Test that an obsolete package path fails the check.
+- [x] Correct the identifier check's documented guarantees. If strengthened,
   use parsed declarations for the forms it supports rather than substring
   matches across source text. Test false positives as well as missing names.
-- [ ] Make the layer check reject a rule naming a package that no longer exists.
+- [x] Make the layer check reject a rule naming a package that no longer exists.
 
 Done when checks catch the confirmed drift and their stated scope matches what
 they actually validate. Do not silence ordinary mistakes with baseline entries.

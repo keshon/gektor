@@ -32,11 +32,8 @@ Provider inspection packages (`llamacpp`, `koboldcpp`, `openaicompat`) import on
 `internal/providers/internal/probe`, whose HTTP helpers import no internal package.
 Request dialects format inference requests; inspection belongs to providers.
 `internal/session` imports only `internal/llm`.
-`internal/harness` imports nothing internal: it holds the vocabulary shared
-by the loop and the preferences file, so each can reach it without either
-reaching for the other.
 `internal/agent` imports only `internal/llm`, `internal/prompts`,
-`internal/permission`, `internal/session` and `internal/harness`. This is what
+`internal/permission` and `internal/session`. This is what
 lets `internal/tools` implement `agent.Tool` without an import cycle, and what
 keeps the loop testable against a stub client with no filesystem in sight.
 
@@ -137,10 +134,19 @@ got worse.
 
 ## Documentation
 
-**[enforced: doc-identifiers]** Every Go identifier written in backticks in
-`ARCHITECTURE.md` and `README.md` exists in the code. Documentation that names
-something removed three refactors ago is worse than documentation that omits
-it.
+**[enforced: doc-identifiers]** Backticked Go names in `ARCHITECTURE.md`,
+`README.md` and `docs/conventions.md` are checked against parsed declarations.
+The check recognizes mixed-case names and package-qualified exported names.
+Bare names may match fields, methods or test declarations; qualified names
+must belong to the named package. Standard-library names use its exported
+declarations. This is an existence check, not a full Go type check.
+
+**[enforced: doc-paths]** Backticked paths starting with internal/ or cmd/,
+and repository-relative filenames ending in .go, must exist. Globs must match
+at least one path. This covers root guides, maintained docs outside docs/internal,
+skills/README.md, eval/README.md and README files under examples and demos.
+Write repository paths from the root. Absolute paths, commands, placeholders
+and other workspace example paths are outside the check's scope.
 
 **[enforced: comment-dates]** Comments in non-test Go files do not cite dates.
 A comment saying a rule came from an incident on a particular day is

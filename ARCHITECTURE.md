@@ -111,7 +111,7 @@ task directory; it does not create a Git checkout.
 
 ## Tool composition
 
-`tools/packages_builtin.go` defines native package membership, per-agent
+`internal/tools/packages_builtin.go` defines native package membership, per-agent
 constructors and Plan eligibility. Base and ReadOnly use those same entries.
 Native tools enter the registry directly, retaining their streaming, image,
 checklist, question and context-reuse interfaces. Stateful tool instances belong
@@ -124,7 +124,7 @@ restore before eager preparation. Native definitions are checked immediately;
 external adapters still reconnect and validate on use. Eager native schemas can
 be previewed for context reports without publishing them or making network calls.
 Discovery and a bounded prompt map share one optional-package catalog.
-Built-in `native_images` and `native_workflows` packages load on demand.
+Built-in `native_images`, `native_workflows` and `native_files` packages load on demand.
 `integrations/pixelita` stages rooted inputs for the external Pixelita Go library;
 `automation/agenttools` adapts manual recipes to `internal/automation`. The runner has
 no model dependency and dispatches registered node descriptors. Model access is
@@ -202,7 +202,7 @@ contracts and migration plan for shared controls, layouts and interaction.
 
 Settled transcript blocks are cached by content and presentation settings.
 The viewport retains separate rendered parts and draws only visible lines.
-Colors live in `styles.go`; changing the theme invalidates cached rendering.
+Colors live in `internal/tui/styles.go`; changing the theme invalidates cached rendering.
 Width calculations use terminal cells, including frames, gutters and scrollbars.
 
 Applying settings returns ModeChange with saved preferences, history, draft
