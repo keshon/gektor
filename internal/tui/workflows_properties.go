@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/gektor/internal/tui/components/pane"
 	"strings"
 
 	"github.com/keshon/gektor/internal/automation"
@@ -297,13 +298,13 @@ func (m *model) workflowCodeRows(step automation.Step) []string {
 func (m *model) workflowEditCode() {
 	w := m.workflows
 	if w.run != nil || w.busy {
-		w.notice = "Recorded scripts are read-only"
+		w.setNotice(pane.NoticeWarning, "Recorded scripts are read-only")
 		return
 	}
 	step := m.workflowSelectedStep()
 	code, ok := workflowScript(step.Args)
 	if !ok {
-		w.notice = "No literal script to edit; use node arguments for references"
+		w.setNotice(pane.NoticeWarning, "No literal script to edit; use node arguments for references")
 		return
 	}
 	draft := w.editor.Source()

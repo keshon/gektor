@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"github.com/keshon/gektor/internal/tui/components/pane"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -128,7 +129,7 @@ func (m *model) workflowScheduleStart(create bool) {
 		return
 	}
 	if w.editor.Path == "" || w.editor.Dirty() {
-		w.notice = "Save the recipe before adding or editing a schedule"
+		w.setNotice(pane.NoticeWarning, "Save the recipe before adding or editing a schedule")
 		return
 	}
 	id := ""
@@ -152,12 +153,12 @@ func (m *model) workflowScheduleStart(create bool) {
 func (m *model) workflowScheduleForm(in workflowInvocation) {
 	w := m.workflows
 	if w.busy || w.run != nil || w.editor.Source() != in.Draft || w.editor.Dirty() || w.editor.Path == "" {
-		w.notice = "Recipe changed; save it and reopen Schedule"
+		w.setNotice(pane.NoticeWarning, "Recipe changed; save it and reopen Schedule")
 		return
 	}
 	path, err := m.baseEnv.WS.Relative(w.editor.Path)
 	if err != nil {
-		w.notice = err.Error()
+		w.setNotice(pane.NoticeError, err.Error())
 		return
 	}
 	s := store.Schedule{ID: fmt.Sprintf("recipe-%x", sha256.Sum256([]byte(filepath.ToSlash(path))))[:23], RecipePath: path, Cron: "0 * * * *", Timezone: "UTC", Overlap: "skip", Missed: "skip"}
@@ -184,7 +185,7 @@ func (m *model) workflowScheduleForm(in workflowInvocation) {
 			}
 		}
 		if expected == nil {
-			w.notice = "Schedule changed; refresh schedules first"
+			w.setNotice(pane.NoticeWarning, "Schedule changed; refresh schedules first")
 			return
 		}
 	}
@@ -246,7 +247,7 @@ func (m *model) workflowScheduleForm(in workflowInvocation) {
 func (m *model) workflowScheduleRefresh() tea.Cmd {
 	w := m.workflows
 	if w.run != nil {
-		w.notice = "Return to the draft before refreshing schedules"
+		w.setNotice(pane.NoticeWarning, "Return to the draft before refreshing schedules")
 		return nil
 	}
 	w.busy = true
@@ -269,12 +270,12 @@ func (m *model) workflowScheduleChange(action, payload string) tea.Cmd {
 	w := m.workflows
 	var edit workflowScheduleEdit
 	if err := json.Unmarshal([]byte(payload), &edit); err != nil || w.run != nil || w.editor.Dirty() || edit.Draft != w.editor.Source() {
-		w.notice = "Recipe changed; reopen Schedule"
+		w.setNotice(pane.NoticeWarning, "Recipe changed; reopen Schedule")
 		return nil
 	}
 	path, err := m.baseEnv.WS.Relative(w.editor.Path)
 	if err != nil || path != edit.Schedule.RecipePath {
-		w.notice = "Recipe path changed; reopen Schedule"
+		w.setNotice(pane.NoticeWarning, "Recipe path changed; reopen Schedule")
 		return nil
 	}
 	w.busy = true

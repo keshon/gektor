@@ -14,6 +14,7 @@ import (
 	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tui/components/graph"
+	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/tui/components/schemaform"
 	"github.com/keshon/gektor/internal/tui/settings"
@@ -37,6 +38,7 @@ type workflowWorkspace struct {
 	graph                    graph.Model
 	registry                 *automation.Registry
 	notice                   string
+	noticeLevel              pane.NoticeLevel
 	offset                   int
 	dragging                 bool
 	last                     graph.Point
@@ -46,6 +48,13 @@ type workflowWorkspace struct {
 	runID                    string
 	schedules                []store.Schedule
 }
+
+// setNotice replaces both text and severity; a later update must not inherit
+// the previous failure's presentation.
+func (w *workflowWorkspace) setNotice(level pane.NoticeLevel, text string) {
+	w.notice, w.noticeLevel = text, level
+}
+
 type workflowAction struct{ action, value string }
 type workflowResult struct {
 	text         string
@@ -129,11 +138,11 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 	}
 
 	if w.busy && action != "stop" {
-		w.notice = "Operation in progress · Esc stops it"
+		w.setNotice(pane.NoticeInfo, "Operation in progress · Esc stops it")
 		return nil
 	}
 	if w.run != nil && (action == "edit" || action == "add" || action == "link" || action == "connections" || action == "delete" || action == "recipe" || action == "name" || action == "inputs" || action == "outputs" || action == "ai" || action == "behavior" || action == "undo" || action == "redo" || action == "save" || action == "run" || action == "validate") {
-		w.notice = "Frozen run · D returns to the editable draft"
+		w.setNotice(pane.NoticeInfo, "Frozen run · D returns to the editable draft")
 		return nil
 	}
 	if action == "chat" {
@@ -141,7 +150,7 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 		return nil
 	}
 	if m.workflowSelectedSchedule() != nil && (action == "behavior" || action == "connections" || action == "link") {
-		w.notice = "Schedule starts the whole recipe. Enter edits the trigger; connections are automatic."
+		w.setNotice(pane.NoticeInfo, "Schedule starts the whole recipe. Enter edits the trigger; connections are automatic.")
 		return nil
 	}
 	fail := func(err error) { m.openDialog("Workflow", []string{err.Error()}) }
@@ -181,7 +190,7 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 		if w.cancel != nil {
 			w.cancel()
 		}
-		w.notice = "Stopping…"
+		w.setNotice(pane.NoticeInfo, "Stopping…")
 	case "new", "open":
 		fields := []formField{{Key: "path", Label: "Recipe path (relative to workspace)", Value: w.editor.Path}}
 		if action == "new" {
@@ -280,7 +289,7 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 			names = append(names, s.ID)
 		}
 		if len(names) < 2 {
-			w.notice = "Add at least two nodes first"
+			w.setNotice(pane.NoticeWarning, "Add at least two nodes first")
 			return nil
 		}
 		destination := names[0]
@@ -346,7 +355,7 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 			ids[label] = r.ID
 		}
 		if len(options) == 0 {
-			w.notice = "No runs in this workspace"
+			w.setNotice(pane.NoticeInfo, "No runs in this workspace")
 			return nil
 		}
 		m.openForm("Workflow runs", "Open an immutable execution record.", "Open", []formField{{Key: "run", Label: "Run", Value: options[len(options)-1]}}, func(v map[string]string) error {
@@ -360,7 +369,7 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 		m.dialog.form.Choices = map[string][]string{"run": options}
 	case "review":
 		if w.run == nil {
-			w.notice = "Open a run first"
+			w.setNotice(pane.NoticeWarning, "Open a run first")
 			return nil
 		}
 		pending := []string{}
@@ -370,7 +379,7 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 			}
 		}
 		if len(pending) == 0 {
-			w.notice = "No pending review"
+			w.setNotice(pane.NoticeInfo, "No pending review")
 			return nil
 		}
 		resolved := ""
@@ -387,7 +396,7 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 		m.dialog.form.Choices = map[string][]string{"decision": {"Reject", "Approve"}}
 	case "layout":
 		if w.positionsLocked {
-			w.notice = "Unlock node positions before auto-layout"
+			w.setNotice(pane.NoticeWarning, "Unlock node positions before auto-layout")
 			return nil
 		}
 		w.graph = m.workflowGraph(graph.Model{Selected: w.graph.Selected})
@@ -414,7 +423,7 @@ func (m *model) workflowAddOperation(name string) {
 	}
 	n, err := w.registry.Node(name)
 	if err != nil {
-		w.notice = err.Error()
+		w.setNotice(pane.NoticeError, err.Error())
 		return
 	}
 	draft := w.editor.Source()
@@ -518,7 +527,7 @@ func (m *model) workflowKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			action = "stop"
 		} else if w.connectFrom != "" {
 			w.connectFrom = ""
-			w.notice = "Connection cancelled"
+			w.setNotice(pane.NoticeInfo, "Connection cancelled")
 		} else if w.inspectorOpen && w.inspect {
 			w.inspectorOpen = false
 			w.inspect = false
@@ -645,7 +654,7 @@ func (m *model) workflowKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	if action != "" {
 		if w.run != nil && (action == "ai" || action == "edit" || action == "add" || action == "link" || action == "connections" || action == "delete" || action == "recipe") {
-			w.notice = "Viewing a frozen run · D returns to the editable draft"
+			w.setNotice(pane.NoticeInfo, "Viewing a frozen run · D returns to the editable draft")
 			return m, nil
 		}
 		return m, m.workflowCommand(action)
@@ -688,7 +697,8 @@ func (m *model) workflowScreen() string {
 	regions := m.screenPanes(w.inspectorOpen)
 	split := w.inspectorOpen && !regions.Covered
 	leftWidth := regions.Main.Width
-	rows := m.inspectionRows(mode+" / "+cleanText(title), m.styles.dim.Render(cleanText(w.notice)), left, leftWidth, !w.inspect, false)
+	footerWidth := m.panelGeometry(leftWidth, 1, false, false).Footer.Width
+	rows := m.inspectionRows(mode+" / "+cleanText(title), pane.NoticeRow(cleanText(w.notice), w.noticeLevel, footerWidth, m.noticeStyles()), left, leftWidth, !w.inspect, false)
 	if w.inspectorOpen {
 		width := regions.Side.Width
 		content := m.workflowInspectorContent()
@@ -770,8 +780,8 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	sideLayout := m.panelGeometry(regions.Side.Width, 1, true, false)
 	x, y := mouse.X-canvasLayout.Body.X, mouse.Y-regions.Main.Y-canvasLayout.Body.Y
 	inspectorHeader := len(m.workflowInspectorTabs().Rows) + 1
-	pane := w.inspectorOpen && regions.Side.Contains(mouse.X, mouse.Y)
-	if pane && sideLayout.CloseHit.Contains(mouse.X-regions.Side.X, mouse.Y-regions.Side.Y) && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
+	inInspector := w.inspectorOpen && regions.Side.Contains(mouse.X, mouse.Y)
+	if inInspector && sideLayout.CloseHit.Contains(mouse.X-regions.Side.X, mouse.Y-regions.Side.Y) && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
 		w.inspectorOpen, w.inspect = false, false
 		w.thumb = scrollDrag{}
 		return m, nil
@@ -783,7 +793,7 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	if pane && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
+	if inInspector && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
 		tabs := m.workflowInspectorTabs()
 		if tab := tabs.Hit(mouse.X-regions.Side.X-sideLayout.Body.X, y); tab >= 0 {
 			m.workflowSetInspectorTab(tab)
@@ -821,7 +831,7 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		if mouse.Button == tea.MouseWheelUp || mouse.Button == tea.MouseWheelLeft {
 			delta = -3
 		}
-		if pane {
+		if inInspector {
 			if y >= inspectorHeader {
 				w.offset = max(0, w.offset+delta)
 			}
@@ -832,7 +842,7 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	if pane {
+	if inInspector {
 		if mouse.Button == tea.MouseLeft && isMouseClick(msg) {
 			w.inspect = true
 			if y >= inspectorHeader && y < ch && mouse.X == regions.Side.X+sideLayout.Body.X+sideLayout.Body.Width-1 {
@@ -866,7 +876,7 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 				if strings.HasPrefix(id, workflowSchedulePrefix) || strings.HasPrefix(w.connectFrom, workflowSchedulePrefix) {
 					w.connectFrom = ""
 					w.inspectorOpen = true
-					w.notice = "Schedule starts the whole recipe; its connections are automatic"
+					w.setNotice(pane.NoticeInfo, "Schedule starts the whole recipe; its connections are automatic")
 					return m, nil
 				}
 				m.workflowFocusPort(port, output)
@@ -879,10 +889,10 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 				if output {
 					w.connectFrom = id
 					w.connectPort = port
-					w.notice = "Choose an input port · Esc cancels"
+					w.setNotice(pane.NoticeInfo, "Choose an input port · Esc cancels")
 				} else if w.connectFrom != "" {
 					if (port == "@order") != (w.connectPort == "@order") {
-						w.notice = "Connect data ports together, or then → after for execution order"
+						w.setNotice(pane.NoticeWarning, "Connect data ports together, or then → after for execution order")
 						return m, nil
 					}
 					edit := workflowConnectionEdit{From: w.connectFrom, To: id, Pointer: w.connectPort, FixedSource: true, Draft: w.editor.Source()}
@@ -900,13 +910,13 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 						edit.Field = "when"
 						edit.Path = strings.TrimPrefix(port, "when")
 					default:
-						w.notice = "Choose a named destination port"
+						w.setNotice(pane.NoticeWarning, "Choose a named destination port")
 						return m, nil
 					}
 					w.connectFrom = ""
 					m.workflowConnectionEdit(edit)
 				} else {
-					w.notice = "Choose an output port first · C connects by keyboard"
+					w.setNotice(pane.NoticeWarning, "Choose an output port first · C connects by keyboard")
 				}
 				return m, nil
 			}

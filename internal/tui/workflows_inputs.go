@@ -3,6 +3,7 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/keshon/gektor/internal/tui/components/pane"
 	"strings"
 
 	"github.com/keshon/gektor/internal/automation/recipe"
@@ -37,7 +38,7 @@ func (m *model) workflowInputForm(in workflowInvocation) {
 		return
 	}
 	if in.Draft != w.editor.Source() {
-		w.notice = "Draft changed · reopen run inputs"
+		w.setNotice(pane.NoticeWarning, "Draft changed · reopen run inputs")
 		return
 	}
 	if in.Action != "run" && in.Action != "validate" && in.Action != "schedule" {

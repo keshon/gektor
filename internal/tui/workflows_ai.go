@@ -8,6 +8,7 @@ import (
 	"github.com/keshon/gektor/internal/automation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
+	"github.com/keshon/gektor/internal/tui/components/pane"
 	editor "github.com/keshon/gektor/internal/tui/workflow"
 	"github.com/keshon/gektor/internal/workspace"
 	"strings"
@@ -33,19 +34,19 @@ func (m *model) proposeWorkflow(prompt string) tea.Cmd {
 	}
 	client := m.baseEnv.Client
 	if client == nil {
-		w.notice = "Connect a model to request an AI proposal"
+		w.setNotice(pane.NoticeWarning, "Connect a model to request an AI proposal")
 		return nil
 	}
 	s, err := m.workflowService(nil)
 	if err != nil {
-		w.notice = err.Error()
+		w.setNotice(pane.NoticeError, err.Error())
 		return nil
 	}
 	schema := string(s.DefinitionSchema())
 	contracts, _ := json.Marshal(w.registry.Contracts())
 	before := w.editor.Source()
 	w.busy = true
-	w.notice = "AI drafting a proposal · Esc cancels"
+	w.setNotice(pane.NoticeInfo, "AI drafting a proposal · Esc cancels")
 	ctx, cancel := context.WithTimeout(m.base, 2*time.Minute)
 	w.cancel = cancel
 	output := 8192
@@ -82,7 +83,7 @@ func (m *model) acceptWorkflowProposal(p workflowProposal) {
 	w.busy = false
 	w.cancel = nil
 	if p.err != nil {
-		w.notice = p.err.Error()
+		w.setNotice(pane.NoticeError, p.err.Error())
 		return
 	}
 	d, err := editor.Decode([]byte(p.source))
@@ -130,7 +131,7 @@ func (m *model) acceptWorkflowProposal(p workflowProposal) {
 		}
 		w.editor.Replace(d)
 		w.graph = m.workflowGraph(w.graph)
-		w.notice = "Proposal applied to draft · Ctrl+S saves"
+		w.setNotice(pane.NoticeSuccess, "Proposal applied to draft · Ctrl+S saves")
 		return nil
 	}
 }

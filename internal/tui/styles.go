@@ -4,6 +4,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"sync/atomic"
 
+	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
@@ -165,4 +166,8 @@ func themeColor(token string) string {
 // this package read the same as before.
 func popupRow(style lipgloss.Style, text string, width int) string {
 	return popup.Row(style, text, width)
+}
+
+func (m *model) noticeStyles() pane.NoticeStyles {
+	return pane.NoticeStyles{Info: m.styles.dim, Success: m.styles.add, Warning: m.styles.warn, Error: m.styles.err}
 }

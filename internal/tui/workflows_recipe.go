@@ -3,6 +3,7 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/keshon/gektor/internal/tui/components/pane"
 	"sort"
 	"strings"
 
@@ -50,7 +51,7 @@ func (m *model) replaceWorkflowSetup(d automation.Definition, draft string) erro
 		w.editor.Replace(d)
 		w.graph = m.workflowGraph(w.graph)
 	}
-	w.notice = "Recipe updated · V validates the draft"
+	w.setNotice(pane.NoticeSuccess, "Recipe updated · V validates the draft")
 	return nil
 }
 
@@ -107,7 +108,7 @@ func (m *model) workflowParameterEdit(edit workflowParameterEdit) {
 		return
 	}
 	if w.editor.Source() != edit.Draft {
-		w.notice = "Draft changed · reopen recipe settings"
+		w.setNotice(pane.NoticeWarning, "Draft changed · reopen recipe settings")
 		return
 	}
 	d := w.editor.Clone()

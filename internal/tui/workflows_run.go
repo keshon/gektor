@@ -11,6 +11,7 @@ import (
 	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tui/components/graph"
+	"github.com/keshon/gektor/internal/tui/components/pane"
 	editor "github.com/keshon/gektor/internal/tui/workflow"
 	"os"
 	"path/filepath"
@@ -41,7 +42,7 @@ func (m *model) workflowAction(a workflowAction) tea.Cmd {
 			return nil
 		}
 		if in.Draft != w.editor.Source() || w.run != nil {
-			w.notice = "Draft changed · reopen run inputs"
+			w.setNotice(pane.NoticeWarning, "Draft changed · reopen run inputs")
 			return nil
 		}
 		if a.action == "input-form" {
@@ -91,7 +92,7 @@ func (m *model) workflowAction(a workflowAction) tea.Cmd {
 		return nil
 	}
 	w.busy = true
-	w.notice = "Working…"
+	w.setNotice(pane.NoticeInfo, "Working…")
 	source, path := w.editor.Source(), w.editor.Path
 	ws, policy := m.baseEnv.WS, m.baseEnv.Policy
 	if path == "" {
@@ -188,7 +189,7 @@ func (m *model) acceptWorkflowResult(r workflowResult) tea.Cmd {
 	}
 	if r.err != nil {
 		if r.action == "open-path" {
-			w.notice = "Recipe was not opened · Ctrl+O choose a file"
+			w.setNotice(pane.NoticeWarning, "Recipe was not opened · Ctrl+O choose a file")
 			m.workflowCommand("open")
 			if m.dialog != nil && m.dialog.form != nil {
 				m.dialog.form.Editor.SetValue(r.path)
@@ -200,7 +201,7 @@ func (m *model) acceptWorkflowResult(r workflowResult) tea.Cmd {
 			}
 			return nil
 		}
-		w.notice = r.err.Error()
+		w.setNotice(pane.NoticeError, r.err.Error())
 		rows := m.workflowValidationRows(r.err)
 		if r.text != "" {
 			rows = append(rows, r.text)
@@ -214,11 +215,11 @@ func (m *model) acceptWorkflowResult(r workflowResult) tea.Cmd {
 		m.loadWorkflowLayout()
 		if r.action == "schedule-save" {
 			w.graph.Selected = workflowSchedulePrefix + r.scheduleID
-			w.notice = "Schedule saved. Keep the workflow service running."
+			w.setNotice(pane.NoticeSuccess, "Schedule saved. Keep the workflow service running.")
 		} else if r.action == "schedule-delete" {
-			w.notice = "Schedule removed. Queued jobs and saved runs are kept."
+			w.setNotice(pane.NoticeSuccess, "Schedule removed. Queued jobs and saved runs are kept.")
 		} else {
-			w.notice = "Schedules refreshed"
+			w.setNotice(pane.NoticeSuccess, "Schedules refreshed")
 		}
 		m.persistWorkflowLayout()
 		return nil
@@ -226,7 +227,7 @@ func (m *model) acceptWorkflowResult(r workflowResult) tea.Cmd {
 	if r.source != "" {
 		d, err := editor.Decode([]byte(r.source))
 		if err != nil {
-			w.notice = err.Error()
+			w.setNotice(pane.NoticeError, err.Error())
 			return nil
 		}
 		w.runID = ""
@@ -240,19 +241,28 @@ func (m *model) acceptWorkflowResult(r workflowResult) tea.Cmd {
 		w.editor.Path = r.path
 		w.editor.Saved = w.editor.Source()
 		if err := m.saveWorkflowLayout(); err != nil {
-			w.notice = "Recipe saved; layout: " + err.Error()
+			w.setNotice(pane.NoticeError, "Recipe saved; layout: "+err.Error())
 			return nil
 		}
 	}
-	w.notice = "Ready"
+	w.setNotice(pane.NoticeInfo, "Ready")
 	if r.text != "" {
 		var summary struct {
 			Status string `json:"status"`
 		}
 		if json.Unmarshal([]byte(r.text), &summary) == nil && summary.Status != "" {
-			w.notice = "Run: " + summary.Status + " / H opens saved runs"
+			level := pane.NoticeInfo
+			switch summary.Status {
+			case "completed":
+				level = pane.NoticeSuccess
+			case "failed":
+				level = pane.NoticeError
+			case "cancelled":
+				level = pane.NoticeWarning
+			}
+			w.setNotice(level, "Run: "+summary.Status+" / H opens saved runs")
 		} else {
-			w.notice = r.text
+			w.setNotice(pane.NoticeInfo, r.text)
 		}
 	}
 	if w.runID != "" {
@@ -288,7 +298,7 @@ func (m *model) acceptWorkflowPoll(p workflowPoll) tea.Cmd {
 		return nil
 	}
 	if p.err != nil {
-		w.notice = p.err.Error()
+		w.setNotice(pane.NoticeError, p.err.Error())
 		return nil
 	}
 	w.run = p.run
@@ -379,6 +389,6 @@ func (m *model) persistWorkflowLayout() {
 		return
 	}
 	if err := m.saveWorkflowLayout(); err != nil {
-		m.workflows.notice = "Could not save layout: " + err.Error()
+		m.workflows.setNotice(pane.NoticeError, "Could not save layout: "+err.Error())
 	}
 }

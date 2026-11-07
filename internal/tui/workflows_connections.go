@@ -3,6 +3,7 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/keshon/gektor/internal/tui/components/pane"
 	"sort"
 	"strconv"
 	"strings"
@@ -29,7 +30,7 @@ func (m *model) workflowConnections() {
 	w := m.workflows
 	links := w.editor.Connections(w.graph.Selected)
 	if len(links) == 0 {
-		w.notice = "No connections for this node · C creates one"
+		w.setNotice(pane.NoticeInfo, "No connections for this node · C creates one")
 		return
 	}
 	choices := make([]string, len(links))
@@ -76,7 +77,7 @@ func (m *model) workflowConnectionTarget(from, to string, old *editor.Connection
 	}
 	node, err := w.registry.Node(dest.Tool)
 	if err != nil {
-		w.notice = err.Error()
+		w.setNotice(pane.NoticeError, err.Error())
 		return
 	}
 	paths := map[string]editor.Connection{"Run after (no data)": {To: to, Field: "depends_on"}}
@@ -207,7 +208,7 @@ func (m *model) workflowConnectionEdit(edit workflowConnectionEdit) {
 		return
 	}
 	if edit.Draft != w.editor.Source() {
-		w.notice = "Draft changed · reopen connections"
+		w.setNotice(pane.NoticeWarning, "Draft changed · reopen connections")
 		return
 	}
 	if edit.Remove {
@@ -301,7 +302,7 @@ func portLabelForDisplay(pointer string) string {
 func (m *model) workflowConnectionChanged() {
 	w := m.workflows
 	w.graph = m.workflowGraph(w.graph)
-	w.notice = "Connection changed · V validates the draft"
+	w.setNotice(pane.NoticeSuccess, "Connection changed · V validates the draft")
 	// Required-argument errors are visible immediately, without running a node.
 	for _, s := range w.editor.Definition.Steps {
 		node, err := w.registry.Node(s.Tool)
@@ -309,7 +310,7 @@ func (m *model) workflowConnectionChanged() {
 			continue
 		}
 		if err := automation.ValidateJSON(s.Args, automation.TemplateSchema(node.InputSchema)); err != nil {
-			w.notice = s.ID + ": " + err.Error()
+			w.setNotice(pane.NoticeError, s.ID+": "+err.Error())
 			w.graph.Selected = s.ID
 			return
 		}

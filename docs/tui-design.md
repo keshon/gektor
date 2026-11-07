@@ -263,6 +263,11 @@ with one blank row before their page content.
 | Graph node | Shared title, ports, body and status areas; selection independent of execution state |
 | Canvas | Pan, viewport, node placement, connection rendering and hit testing within bounded visible work |
 
+Notices use the theme's secondary text, success, warning and error roles.
+Warnings and errors include a text label, so color is not their only signal.
+A status footer stays one row tall. Each new message replaces both the text
+and its severity; a normal update must not keep the previous error's color.
+
 Every list defines loading, empty, no-match and failed-load states. A failed
 request offers retry where useful and preserves the query. Loading does not
 replace the list with a successful-looking empty result. Async replies carry
@@ -347,7 +352,7 @@ clear and it has a real consumer.
 |---|---|
 | [cell](../internal/tui/components/cell/cell.go) | Terminal-cell measurement, fitting and clipping |
 | [popup](../internal/tui/components/popup/popup.go) | Shared surface/layout rules, header/footer, shortcut groups, attached menus and overlay geometry |
-| [pane](../internal/tui/components/pane/pane.go) | Main-panel frames, split regions, body/footer bounds, close targets, tab strips and action toolbars |
+| [pane](../internal/tui/components/pane/pane.go) | Main-panel frames, split regions, body/footer bounds, close targets, tab strips, action toolbars and notice rows |
 | [form](../internal/tui/components/form/form.go) | Typed controls, field groups, draft and focus behavior |
 | [selection](../internal/tui/components/selection/selection.go) | Shared selection, paging and visible-range behavior |
 | [table](../internal/tui/components/table/table.go) | Searchable rows, columns, direct actions and shared render/hit layout for management screens |

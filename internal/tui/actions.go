@@ -245,7 +245,7 @@ func (m *model) requestQuit() (tea.Model, tea.Cmd) {
 			if w.cancel != nil {
 				w.cancel()
 			}
-			w.notice = "Stopping workflow. Quit again once stopped."
+			w.setNotice(pane.NoticeInfo, "Stopping workflow. Quit again once stopped.")
 			return m, nil
 		}
 		if w.editor.Dirty() {
