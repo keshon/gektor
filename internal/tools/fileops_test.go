@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -38,6 +39,80 @@ func fileCapability(t *testing.T) (*workspace.Workspace, *Capabilities) {
 	return ws, c
 }
 
+func TestArchiveCreateAndExtractThroughAgentAndWorkflow(t *testing.T) {
+	ws, c := fileCapability(t)
+	BindWorkflowPolicy(c, ws, permission.Default(), nil, t.TempDir())
+	if _, err := c.Enable(t.Context(), "native_workflows", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := ws.WriteFile("source.bin", []byte{0, 255, 10, 128}, 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, call := range []struct{ name, args string }{
+		{"archive_create", `{"paths":["source.bin"],"path":"direct.zip"}`},
+		{"archive_extract", `{"path":"direct.zip","out_dir":"direct"}`},
+	} {
+		out, err := c.Registry.Run(t.Context(), call.name, json.RawMessage(call.args))
+		if err != nil {
+			t.Fatal(call.name, out, err)
+		}
+		reg, err := app.AutomationRegistry(ws, t.TempDir(), nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		node, _ := reg.Node(call.name)
+		if err := automation.ValidateJSON(json.RawMessage(out), node.OutputSchema); err != nil {
+			t.Fatal(err)
+		}
+	}
+	recipe := `{"version":3,"name":"ZIP roundtrip","steps":[{"id":"pack","tool":"archive_create","args":{"paths":["source.bin"],"path":"workflow.zip"}},{"id":"unpack","tool":"archive_extract","args":{"path":{"$step":"pack","pointer":"/path"},"out_dir":"workflow"}}],"outputs":{"result":{"$step":"unpack"}}}`
+	if err := ws.WriteFile("recipe.json", []byte(recipe), 0600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := c.Registry.Run(t.Context(), "workflow_run", json.RawMessage(`{"recipe_path":"recipe.json"}`))
+	if err != nil || !strings.Contains(out, `"files":1`) {
+		t.Fatal(out, err)
+	}
+	a, e1 := ws.ReadFile("direct/source.bin")
+	b, e2 := ws.ReadFile("workflow/source.bin")
+	if e1 != nil || e2 != nil || !bytes.Equal(a, b) || !bytes.Equal(a, []byte{0, 255, 10, 128}) {
+		t.Fatal(a, b, e1, e2)
+	}
+}
+
+func TestArchiveGeneratedOutputDenyAppliesBeforeAnyWrite(t *testing.T) {
+	for _, workflow := range []bool{false, true} {
+		t.Run(map[bool]string{false: "direct", true: "workflow"}[workflow], func(t *testing.T) {
+			ws, c := fileCapability(t)
+			if err := ws.WriteFile("source.txt", []byte("keep"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := c.Registry.Run(t.Context(), "archive_create", json.RawMessage(`{"paths":["source.txt"],"path":"input.zip"}`)); err != nil {
+				t.Fatal(err)
+			}
+			BindWorkflowPolicy(c, ws, permission.Policy{Rules: []permission.Rule{{Tool: "archive_extract", Pattern: "out/source.txt", Effect: permission.Deny}}}, nil, t.TempDir())
+			var err error
+			if workflow {
+				if _, err := c.Enable(t.Context(), "native_workflows", nil); err != nil {
+					t.Fatal(err)
+				}
+				if err := ws.WriteFile("recipe.json", []byte(`{"version":3,"name":"Denied ZIP","steps":[{"id":"unpack","tool":"archive_extract","args":{"path":"input.zip","out_dir":"out"}}]}`), 0600); err != nil {
+					t.Fatal(err)
+				}
+				_, err = c.Registry.Run(t.Context(), "workflow_run", json.RawMessage(`{"recipe_path":"recipe.json"}`))
+			} else {
+				_, err = c.Registry.Run(t.Context(), "archive_extract", json.RawMessage(`{"path":"input.zip","out_dir":"out"}`))
+			}
+			if err == nil || !strings.Contains(err.Error(), "blocked by policy") {
+				t.Fatal("generated output bypassed deny", err)
+			}
+			if _, err := ws.Stat("out"); !os.IsNotExist(err) {
+				t.Fatal("denied extraction created output", err)
+			}
+		})
+	}
+}
+
 func TestFilePackAndWorkflowShareContractsAndResults(t *testing.T) {
 	ws, c := fileCapability(t)
 	var data bytes.Buffer
@@ -55,7 +130,7 @@ func TestFilePackAndWorkflowShareContractsAndResults(t *testing.T) {
 	if err := ws.WriteFile("input.zip", data.Bytes(), 0600); err != nil {
 		t.Fatal(err)
 	}
-	reg, err := app.AutomationRegistry(ws, t.TempDir(), nil)
+	reg, err := app.AutomationRegistry(ws, t.TempDir(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,6 +182,14 @@ func TestFileOperationResourcesAreCanonicalAndWorkflowDenyApplies(t *testing.T) 
 		if tool.Name() == "download_file" {
 			args = json.RawMessage(`{"url":"https://example.com/file#ignored","path":"` + filepath.ToSlash(filepath.Join(ws.Root(), "blocked.zip")) + `"}`)
 			want = []string{"https://example.com/file", "blocked.zip"}
+		}
+		if tool.Name() == "archive_create" {
+			args = json.RawMessage(`{"paths":["source.txt"],"path":"blocked.zip"}`)
+			want = []string{"source.txt", "blocked.zip"}
+		}
+		if tool.Name() == "archive_extract" {
+			args = json.RawMessage(`{"path":"blocked.zip","out_dir":"out"}`)
+			want = []string{"blocked.zip", "out"}
 		}
 		got, err := tool.(interface {
 			Resources(json.RawMessage) ([]string, error)

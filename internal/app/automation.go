@@ -26,9 +26,9 @@ import (
 )
 
 // AutomationRegistry composes operations without constructing a model client.
-func AutomationRegistry(ws *workspace.Workspace, store string, output pixelita.OutputAuthorizer) (*automation.Registry, error) {
+func AutomationRegistry(ws *workspace.Workspace, store string, output pixelita.OutputAuthorizer, fileOutput func(context.Context, string, string, json.RawMessage) error) (*automation.Registry, error) {
 	nodes := imagenodes.Definitions(ws, output)
-	nodes = append(nodes, filenodes.Definitions(ws)...)
+	nodes = append(nodes, filenodes.Definitions(ws, fileOutput)...)
 	nodes = append(nodes, record.Definitions(ws, store)...)
 	nodes = append(nodes, artifactnodes.Definitions(ws)...)
 	nodes = append(nodes, processnode.Definition(ws))
@@ -93,10 +93,10 @@ func NewAutomation(ws *workspace.Workspace, directory string, policy permission.
 		}
 		return permission.Authorize(ctx, policy, gate, "image_variants", filepath.ToSlash(rel), args)
 	}
-	registry, err := AutomationRegistry(ws, directory, output)
 	resource := func(ctx context.Context, name, path string, args json.RawMessage) error {
 		return permission.Authorize(ctx, policy, gate, name, path, args)
 	}
+	registry, err := AutomationRegistry(ws, directory, output, resource)
 	read := func(ctx context.Context, name string, args json.RawMessage) error {
 		if name != "read_file" {
 			return fmt.Errorf("unsupported service access %s", name)

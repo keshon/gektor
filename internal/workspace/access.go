@@ -54,6 +54,23 @@ func (w *Workspace) Stat(name string) (os.FileInfo, error) {
 	}
 	return w.files.Stat(rel)
 }
+
+// OpenRoot keeps subsequent operations relative to an already-open directory.
+func (w *Workspace) OpenRoot(name string) (*os.Root, error) {
+	rel, err := w.Relative(name)
+	if err != nil {
+		return nil, err
+	}
+	return w.files.OpenRoot(rel)
+}
+
+func (w *Workspace) Lstat(name string) (os.FileInfo, error) {
+	rel, err := w.Relative(name)
+	if err != nil {
+		return nil, err
+	}
+	return w.files.Lstat(rel)
+}
 func (w *Workspace) ReadFile(name string) ([]byte, error) {
 	rel, err := w.Relative(name)
 	if err != nil {

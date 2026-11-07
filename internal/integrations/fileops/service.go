@@ -52,7 +52,7 @@ func (r *contextReaderAt) ReadAt(p []byte, offset int64) (int, error) {
 		return 0, err
 	}
 	if int64(len(p)) > r.remaining {
-		return 0, fmt.Errorf("ZIP metadata exceeds read budget of %d bytes", MaxZIPMetadataBytes)
+		return 0, fmt.Errorf("ZIP read budget exceeded")
 	}
 	r.remaining -= int64(len(p))
 	return r.r.ReadAt(p, offset)

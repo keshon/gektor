@@ -52,7 +52,7 @@ func (s Schema) Run(ctx context.Context, args json.RawMessage) (string, error) {
 		raw, err := store.RecordSchema(in.Kind)
 		return string(raw), err
 	}
-	registry, err := app.AutomationRegistry(s.WS, s.StoreDir, nil)
+	registry, err := app.AutomationRegistry(s.WS, s.StoreDir, nil, nil)
 	if err != nil {
 		return "", err
 	}
@@ -102,7 +102,7 @@ func (t *Save) Run(ctx context.Context, args json.RawMessage) (out string, err e
 		return "", err
 	}
 
-	registry, err := app.AutomationRegistry(t.WS, "", nil)
+	registry, err := app.AutomationRegistry(t.WS, "", nil, nil)
 	if err != nil {
 		return "", err
 	}

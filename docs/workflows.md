@@ -25,7 +25,7 @@ Schedules start workflows at set times. They are managed through the
 | Transform data with JavaScript | `script_transform` |
 | Ask a model for text or structured data | `model_generate` |
 | Make an HTTP request | `http_request` |
-| Download a file or inspect a ZIP | `download_file`, `archive_list` |
+| Download a file or work with ZIPs | `download_file`, `archive_list`, `archive_create`, `archive_extract` |
 | Keep files or text with a run | `artifact_import`, `artifact_write`, `artifact_read_text` |
 | Run a local program | `run_program` |
 | Call another recipe | `workflow_call` |
@@ -96,7 +96,7 @@ checks structure, supported operations, argument schemas, IDs and path scope.
 It does not predict whether future input files exist or encoding will succeed.
 The catalog includes these four image operations, `record_read`, `record_write`,
 `script_transform`, `model_generate`, `http_request`, `artifact_import`,
-`artifact_write`, `artifact_read_text`, `download_file`, `archive_list`,
+`artifact_write`, `artifact_read_text`, `download_file`, `archive_list`, `archive_create`, `archive_extract`,
 `run_program` and `workflow_call`.
 Image and record permissions match direct calls. It validates step templates and authorizes known arguments
 before starting. Output-dependent arguments are validated and authorized after
@@ -136,6 +136,34 @@ Listing does not decompress entries, check their contents or extract files.
 Names and sizes come from the archive and are untrusted. `safe_path` checks the
 name only; it does not mean that an entry is safe to extract. The ZIP source
 path is its permission resource under `archive_list`.
+
+`archive_create` accepts `paths`, a list of 1–128 explicit regular workspace
+files, and `path`, the new ZIP filename. It keeps workspace-relative names
+inside the ZIP. It does not scan directories or store source links. Input
+contents and the resulting ZIP are each limited to 16 MiB. The result contains
+`path`, `files`, `size` and `sha256`. Permissions cover every source path and
+the destination under `archive_create`.
+
+`archive_extract` accepts a ZIP `path` and a new `out_dir`. Both source and
+destination must be in the workspace; the destination's parent must exist.
+Optional `max_bytes` can lower the 16 MiB total expanded-data limit. It returns
+the source `path`, output `directory`, extracted `files` count and total `bytes`.
+
+Extraction checks all names and authorizes every generated file and directory
+before writing. It refuses traversal, drive and stream paths, device names,
+links, encrypted or special entries, duplicate names and file/directory or
+case collisions. Compression methods are Store and Deflate. Names are limited
+to 4,096 bytes and 64 path segments. Entries and implied directories together
+cannot exceed 10,000 paths inside the new folder. The existing ZIP and metadata
+read limits also apply.
+
+Directories use private permissions and files are written without executable
+bits. Existing outputs are never replaced. Failed or cancelled operations
+remove the files and directories they created; cleanup errors are reported.
+The source and output folder are permission resources under `archive_extract`;
+individual generated paths are checked under the same name. ZIP listing works
+in Plan mode; creation and extraction require Act mode. Creation and extraction
+are not marked retry-safe.
 
 For a download step named `get`, pass its saved path to a later listing step:
 

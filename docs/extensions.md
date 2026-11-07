@@ -140,9 +140,10 @@ mismatch requires compatible code or a fresh session. Other always-present
 native tools are reconstructed normally and are not saved as capability packs.
 
 Built-in `native_images`, `native_files` and `native_workflows` load on demand.
-`native_files` provides `download_file` and `archive_list` as ordinary agent
-tools. The same operations are available as workflow nodes. Downloading writes
-a new workspace file; ZIP listing is read-only. Neither needs an external
+`native_files` provides `download_file`, `archive_list`, `archive_create` and
+`archive_extract` as ordinary agent tools. The same operations are workflow
+nodes. ZIP listing is read-only; the other operations create new files or
+folders. Existing outputs are preserved. None needs an external
 program. See [file operations](workflows.md#file-downloads-and-zip-inspection)
 for inputs and limits.
 See [image workflows](workflows.md) for tools, limits and the recipe format.

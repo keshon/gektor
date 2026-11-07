@@ -7,6 +7,7 @@ import (
 
 	workflow "github.com/keshon/gektor/internal/automation/agenttools"
 	"github.com/keshon/gektor/internal/gektor"
+	fileagent "github.com/keshon/gektor/internal/integrations/fileops/agenttools"
 	"github.com/keshon/gektor/internal/integrations/pixelita"
 	imageagent "github.com/keshon/gektor/internal/integrations/pixelita/agenttools"
 	"github.com/keshon/gektor/internal/permission"
@@ -46,6 +47,11 @@ func BindWorkflowPolicy(c *Capabilities, ws *workspace.Workspace, policy permiss
 			}
 			if t, ok := tool.(*imageagent.Tool); ok {
 				t.AuthorizeOutput = output
+			}
+			if t, ok := tool.(*fileagent.Tool); ok {
+				t.AuthorizeOutput = func(ctx context.Context, name, path string, args json.RawMessage) error {
+					return permission.Authorize(ctx, policy, gate, name, path, args)
+				}
 			}
 		}
 	}

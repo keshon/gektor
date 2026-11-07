@@ -17,7 +17,7 @@ import (
 	"github.com/keshon/gektor/internal/tools"
 )
 
-func TestPlannerCanInspectZIPButCannotDownload(t *testing.T) {
+func TestPlannerCanInspectZIPButCannotWriteFiles(t *testing.T) {
 	e := testEnv(t)
 	var data bytes.Buffer
 	w := zip.NewWriter(&data)
@@ -33,18 +33,25 @@ func TestPlannerCanInspectZIPButCannotDownload(t *testing.T) {
 	e.Client = &seqStub{steps: []llm.ChatResponse{
 		extensionCall("enable", "enable_capability", `{"id":"native_files"}`),
 		extensionCall("list", "archive_list", `{"path":"input.zip"}`),
-		extensionCall("download", "download_file", `{"url":"https://example.com/file","path":"download.bin"}`), extensionAnswer(),
+		extensionCall("download", "download_file", `{"url":"https://example.com/file","path":"download.bin"}`),
+		extensionCall("create", "archive_create", `{"paths":["input.zip"],"path":"bundle.zip"}`),
+		extensionCall("extract", "archive_extract", `{"path":"input.zip","out_dir":"extracted"}`), extensionAnswer(),
 	}}
 	var results []agent.ToolResult
 	e.OnResult = func(r agent.ToolResult) { results = append(results, r) }
 	if _, err := Planner(e, "", "", nil).Run(t.Context(), "Inspect ZIP without writing"); err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 3 || results[0].Failed || results[1].Failed || !results[2].Failed || !strings.Contains(results[1].Output, "hello.txt") {
+	if len(results) != 5 || results[0].Failed || results[1].Failed || !results[2].Failed || !results[3].Failed || !results[4].Failed || !strings.Contains(results[1].Output, "hello.txt") {
 		t.Fatal(results)
 	}
 	if _, err := e.WS.Stat("download.bin"); !os.IsNotExist(err) {
 		t.Fatal("Plan wrote a download", err)
+	}
+	for _, path := range []string{"bundle.zip", "extracted"} {
+		if _, err := e.WS.Stat(path); !os.IsNotExist(err) {
+			t.Fatal("Plan wrote archive output", path, err)
+		}
 	}
 }
 

@@ -24,7 +24,7 @@ type Tool struct {
 }
 
 func (t Tool) service() (service.Service, error) {
-	registry, err := app.AutomationRegistry(t.WS, t.StoreDir, t.AuthorizeOutput)
+	registry, err := app.AutomationRegistry(t.WS, t.StoreDir, t.AuthorizeOutput, t.AuthorizeResource)
 	authorize := t.AuthorizeResource
 	return service.Service{WS: t.WS, StoreDir: t.StoreDir, ValidateOnly: t.ValidateOnly, Registry: registry, Authorize: t.Authorize, AuthorizeResource: authorize}, err
 }

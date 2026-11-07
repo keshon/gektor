@@ -168,7 +168,7 @@ func (t Schedule) Run(ctx context.Context, args json.RawMessage) (string, error)
 			if in.Missed != "" {
 				value.Missed = in.Missed
 			}
-			r, err := app.AutomationRegistry(t.WS, t.StoreDir, nil)
+			r, err := app.AutomationRegistry(t.WS, t.StoreDir, nil, nil)
 			if err != nil {
 				return "", err
 			}

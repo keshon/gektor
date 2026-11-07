@@ -86,7 +86,7 @@ func (m *model) openWorkflows() {
 			m.openDialog("Workflows", []string{"Select a workspace first."})
 			return
 		}
-		r, err := app.AutomationRegistry(m.baseEnv.WS, gektor.Sub("workflows"), nil)
+		r, err := app.AutomationRegistry(m.baseEnv.WS, gektor.Sub("workflows"), nil, nil)
 		if err != nil {
 			m.openDialog("Workflows", []string{err.Error()})
 			return

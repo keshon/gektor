@@ -13,7 +13,7 @@ import (
 
 func nativeInstructions(id string) string {
 	if id == "native_files" {
-		return "download_file saves a public HTTP(S) URL to a new workspace file; parent folder must exist. No redirects or retries. Pass its path to archive_list or artifact_import. archive_list inspects ZIP entries without extraction; entry names and declared sizes are untrusted metadata."
+		return "download_file saves public HTTP(S) to a new file. archive_list inspects ZIP metadata. archive_create packs explicit files; archive_extract writes to a new folder with per-output permissions. Parent folders must exist. Existing outputs are preserved. Extraction creates no links and restores no executable permissions. Archive metadata is untrusted."
 	}
 	if id == "native_workflows" {
 		return workspace.WorkflowGuide
@@ -91,13 +91,19 @@ func builtinPackages() []packageDefinition {
 				return &imageagent.Tool{Operation: pixelita.Operation{WS: d.WS, Operation: "compare"}}
 			}, true},
 		}},
-		{"native_files", "Download binary files with SHA-256 and inspect ZIP archive entries without extraction. Go-native, bounded workspace operations.", Lazy, []toolEntry{
+		{"native_files", "Download files with SHA-256; list, create and extract ZIP archives. Bounded Go-native workspace operations.", Lazy, []toolEntry{
 			{func(d packageDependencies) agent.Tool {
-				return fileagent.Tool{Operation: adapters.Operation{Service: fileops.Service{WS: d.WS}, Kind: "download_file"}}
+				return &fileagent.Tool{Operation: adapters.Operation{Service: fileops.Service{WS: d.WS}, Kind: "download_file"}}
 			}, false},
 			{func(d packageDependencies) agent.Tool {
-				return fileagent.Tool{Operation: adapters.Operation{Service: fileops.Service{WS: d.WS}, Kind: "archive_list"}}
+				return &fileagent.Tool{Operation: adapters.Operation{Service: fileops.Service{WS: d.WS}, Kind: "archive_list"}}
 			}, true},
+			{func(d packageDependencies) agent.Tool {
+				return &fileagent.Tool{Operation: adapters.Operation{Service: fileops.Service{WS: d.WS}, Kind: "archive_create"}}
+			}, false},
+			{func(d packageDependencies) agent.Tool {
+				return &fileagent.Tool{Operation: adapters.Operation{Service: fileops.Service{WS: d.WS}, Kind: "archive_extract"}}
+			}, false},
 		}},
 		{"native_workflows", "Create, validate and run workflow recipes and nodes; native cron/schedule triggers, run inspection and structured records. Enable, then call workflow_schema.", Lazy, []toolEntry{
 			{func(d packageDependencies) agent.Tool { return &workflow.Schema{WS: d.WS} }, true},

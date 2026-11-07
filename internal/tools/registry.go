@@ -24,7 +24,7 @@ func PathResources(ws *workspace.Workspace, tool string, args json.RawMessage) (
 	var in struct{ Path, From, To string }
 	var paths []string
 	switch tool {
-	case "download_file", "archive_list":
+	case "download_file", "archive_list", "archive_create", "archive_extract":
 		return (adapters.Operation{Service: fileops.Service{WS: ws}, Kind: tool}).Resources(args)
 	case "workflow_schema":
 		var in struct {
