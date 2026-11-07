@@ -12,9 +12,11 @@ import (
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
+	"github.com/keshon/gektor/internal/tui/components/table"
 	editor "github.com/keshon/gektor/internal/tui/workflow"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -154,6 +156,42 @@ func (m *model) workflowAction(a workflowAction) tea.Cmd {
 		events <- result
 	}()
 	return workflowWait(events)
+}
+
+func (m *model) openWorkflowRuns(runs []store.RunSummary) {
+	w := m.workflows
+	if len(runs) == 0 {
+		w.setNotice(pane.NoticeInfo, "No runs in this workspace")
+		return
+	}
+	runs = append([]store.RunSummary(nil), runs...)
+	sort.SliceStable(runs, func(i, j int) bool { return runs[i].Started.After(runs[j].Started) })
+	view := m.newTable()
+	rows := make([]table.Row, 0, len(runs))
+	for _, run := range runs {
+		started := "Unknown"
+		if !run.Started.IsZero() {
+			started = run.Started.Local().Format("2006-01-02 15:04")
+		}
+		rows = append(rows, table.Row{ID: run.ID, Cells: []string{cleanText(nonEmpty(run.Name)), cleanText(run.Status), started, run.ID, cleanText(run.RecipePath)}})
+	}
+	view.SetRows(rows)
+	m.openDialog("Workflow runs", nil)
+	m.dialog.table = &tableDialog{
+		model:       view,
+		columns:     []table.Column{{Label: "Recipe", Width: 14}, {Label: "Status", Width: 12}, {Label: "Started"}},
+		description: "Saved runs in this workspace, newest first. Search by recipe, status, date or run ID. Open inspects a saved record; it does not run the recipe.",
+		actions: func() []table.Action {
+			return []table.Action{{ID: "details", Label: "Open run", Key: "enter", Enabled: view.Selected() != "" && m.workflows == w && !w.busy}, {ID: "close", Label: "Close", Key: "esc", Enabled: true}}
+		},
+		activate: func(action, id string) tea.Cmd {
+			if action == "details" && id != "" && m.workflows == w && !w.busy {
+				m.closeDialog()
+				m.queueWorkflow("inspect-run", id)
+			}
+			return nil
+		},
+	}
 }
 func (m *model) acceptWorkflowPermission(p workflowPermission) tea.Cmd {
 	w := m.workflows

@@ -75,6 +75,9 @@ func TestConnectionFormsCreateEditRemoveAndUndo(t *testing.T) {
 		t.Fatal(err)
 	}
 	nextConnectionForm(t, m)
+	if f := m.dialog.form; !f.Destructive || f.Index != len(f.Fields)+1 {
+		t.Fatal("connection removal does not start on Cancel")
+	}
 	if err := m.dialog.form.apply(nil); err != nil {
 		t.Fatal(err)
 	}

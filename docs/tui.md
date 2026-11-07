@@ -359,7 +359,9 @@ the recipe JSON. Copying a recipe to another workspace does not enable its sched
 
 ### Review and reopen a run
 
-Press `H`, or choose **Saved runs…** in Run, to open an earlier run.
+Press `H`, or choose **Saved runs…** in Run, to browse saved runs, newest first.
+Press `/` to filter by recipe, status, date or run ID. Choose **Open run**, or
+press `Enter`, to inspect the selected record.
 It shows the recipe captured for that run and its recorded results.
 Editing the current recipe does not change that record.
 

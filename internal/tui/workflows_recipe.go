@@ -119,7 +119,7 @@ func (m *model) workflowParameterEdit(edit workflowParameterEdit) {
 		} else {
 			raw = d.Outputs[edit.Name]
 		}
-		m.openForm("Remove "+edit.Name, "References to this name are not rewritten. Validate the recipe after removal.", "Remove", []formField{{Key: "current", Label: "Current " + edit.Kind + " value", Value: cleanText(string(raw)), ReadOnly: true, Multiline: true}}, func(map[string]string) error {
+		m.openRemoval("Remove "+edit.Name, "References to this name are not rewritten. Validate the recipe after removal.", "Remove", []formField{{Key: "current", Label: "Current " + edit.Kind + " value", Value: cleanText(string(raw)), ReadOnly: true, Multiline: true}}, func(map[string]string) error {
 			if edit.Kind == "inputs" {
 				delete(d.Inputs, edit.Name)
 			} else {

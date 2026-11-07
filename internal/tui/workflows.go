@@ -313,7 +313,7 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 			return nil
 		}
 		id := w.graph.Selected
-		m.openForm("Delete node", "References to this node must be repaired before validation succeeds.", "Delete", []formField{{Key: "id", Label: "Type node ID to delete"}}, func(v map[string]string) error {
+		m.openForm("Delete node", "References to this node must be repaired before validation succeeds.", "Delete", []formField{{Key: "id", Label: "Type node ID to delete: " + id}}, func(v map[string]string) error {
 			if id == "" || v["id"] != id {
 				return fmt.Errorf("type %s", id)
 			}
@@ -329,6 +329,7 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 			w.graph = m.workflowGraph(w.graph)
 			return nil
 		})
+		m.dialog.form.Destructive = true
 	case "run-json", "validate-json":
 		base := strings.TrimSuffix(action, "-json")
 		m.workflowInputForm(workflowInvocation{Action: base, Draft: w.editor.Source(), Mode: "JSON"})
@@ -346,26 +347,7 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 			fail(err)
 			return nil
 		}
-		options := []string{}
-		ids := map[string]string{}
-		for _, r := range runs {
-			label := cleanText(r.Name) + " / " + r.Status + " / " + r.ID
-			options = append(options, label)
-			ids[label] = r.ID
-		}
-		if len(options) == 0 {
-			w.setNotice(pane.NoticeInfo, "No runs in this workspace")
-			return nil
-		}
-		m.openForm("Workflow runs", "Open an immutable execution record.", "Open", []formField{{Key: "run", Label: "Run", Value: options[len(options)-1]}}, func(v map[string]string) error {
-			id, ok := ids[v["run"]]
-			if !ok {
-				return fmt.Errorf("choose a saved run")
-			}
-			m.queueWorkflow("inspect-run", id)
-			return nil
-		})
-		m.dialog.form.Choices = map[string][]string{"run": options}
+		m.openWorkflowRuns(runs)
 	case "review":
 		if w.run == nil {
 			w.setNotice(pane.NoticeWarning, "Open a run first")

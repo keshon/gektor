@@ -335,6 +335,7 @@ func (m *model) workflowDeleteSchedule(s store.Schedule) {
 		m.queueWorkflow("schedule-delete", string(payload))
 		return nil
 	})
+	m.dialog.form.Destructive = true
 }
 
 func (m *model) workflowScheduleDetails(s store.Schedule) []string {

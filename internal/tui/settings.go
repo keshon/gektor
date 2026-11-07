@@ -55,6 +55,13 @@ func (m *model) focusForm(index int) {
 
 	m.resizeFormEditor()
 }
+
+// openRemoval keeps contextual read-only fields visible and starts on Cancel.
+func (m *model) openRemoval(title, hint, label string, fields []formField, apply func(map[string]string) error) {
+	m.openForm(title, hint, label, fields, apply)
+	m.dialog.form.Destructive = true
+	m.focusForm(len(fields) + 1)
+}
 func (m *model) applyForm() {
 	f := m.dialog.form
 	if f.Workspace != nil && !m.settingsDirty() {

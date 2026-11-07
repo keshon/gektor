@@ -217,7 +217,7 @@ func (m *model) workflowConnectionEdit(edit workflowConnectionEdit) {
 		}
 		c := *edit.Old
 		current := connectionValue(w.editor.Definition, c.To, c.Field, c.Path)
-		m.openForm("Remove connection", c.Label()+". Required values remain missing until repaired.", "Remove", []formField{{Key: "current", Label: "Current destination value", Value: cleanText(current), ReadOnly: true, Multiline: true}}, func(map[string]string) error {
+		m.openRemoval("Remove connection", c.Label()+". Required values remain missing until repaired.", "Remove", []formField{{Key: "current", Label: "Current destination value", Value: cleanText(current), ReadOnly: true, Multiline: true}}, func(map[string]string) error {
 			if w.editor.Source() != edit.Draft {
 				return fmt.Errorf("draft changed; reopen connections")
 			}

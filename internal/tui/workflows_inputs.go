@@ -56,8 +56,18 @@ func (m *model) workflowInputForm(in workflowInvocation) {
 		m.queueInvocation("invoke", in)
 		return nil
 	}
+	title := "Run workflow"
+	primary := "Run"
+	if in.Action == "validate" {
+		title = "Check workflow"
+		primary = "Check"
+	}
+	if in.Action == "schedule" {
+		title = "Schedule / input values"
+		primary = "Next"
+	}
 	if in.Mode == "JSON" {
-		m.openForm("Workflow / "+in.Action, "Input values are checked before execution; omitted keys use recipe defaults.", "Continue", []formField{{Key: "inputs", Label: "Input values (JSON object)", Value: "{}", Multiline: true}}, func(v map[string]string) error {
+		m.openForm(title+" / JSON", "Input values are checked before execution; omitted keys use recipe defaults.", primary, []formField{{Key: "inputs", Label: "Input values (JSON object)", Value: "{}", Multiline: true}}, func(v map[string]string) error {
 			var values map[string]json.RawMessage
 			if err := json.Unmarshal([]byte(v["inputs"]), &values); err != nil {
 				return err
@@ -139,16 +149,6 @@ func (m *model) workflowInputForm(in workflowInvocation) {
 				choices[field.Key] = []string{"", "false", "true"}
 			}
 		}
-	}
-	title := "Run workflow"
-	primary := "Run"
-	if in.Action == "validate" {
-		title = "Check workflow"
-		primary = "Check"
-	}
-	if in.Action == "schedule" {
-		title = "Schedule / input values"
-		primary = "Next"
 	}
 	hint := "Defaults are filled in. Edit values for this run; lists accept comma-separated values."
 	if in.Action == "schedule" {
