@@ -422,6 +422,17 @@ Update this checklist when a phase's acceptance criteria are met.
 
 ## Verification
 
+Remaining migration work:
+
+- Check workflow input, recipe/run selection, confirmation and detail dialogs
+  against the shared controls and fix any remaining differences.
+- Compare the MCP management screen with the editable mockup. This visual review
+  is still pending.
+- Review representative screens in all six themes and the sizes below, including
+  both inspector layouts, node selection, status colors and resized dialogs.
+- Run the usability tasks and remove leftover drawing and input paths found
+  during those checks.
+
 These are acceptance criteria for the migration, not claims about current test
 coverage. Existing tests cover parts of frame sizing, hit testing, focus,
 themes and draft preservation. A passing layout test does not establish usability.

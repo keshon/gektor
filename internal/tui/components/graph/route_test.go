@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -34,7 +33,7 @@ func TestRoutesAvoidCardsAndRerouteAfterMoving(t *testing.T) {
 	if edges := m.edges(); len(edges) != 1 || !edges[0].Data {
 		t.Fatal("duplicate control/data route", edges)
 	}
-	v := m.View(110, 28, lipgloss.NewStyle(), lipgloss.NewStyle())
+	v := m.View(110, 28, Styles{})
 	if !strings.Contains(v, "●") || !strings.ContainsAny(v, "┌┐└┘") {
 		t.Fatal(v)
 	}
@@ -73,7 +72,7 @@ func TestOverlappingCardsShowUnroutableMarker(t *testing.T) {
 	if path := m.route(m.Nodes[0], m.Nodes[1], nil, &budget); len(path) != 0 {
 		t.Fatal(path)
 	}
-	if v := m.View(60, 12, lipgloss.NewStyle(), lipgloss.NewStyle()); !strings.Contains(v, "!") {
+	if v := m.View(60, 12, Styles{}); !strings.Contains(v, "!") {
 		t.Fatal("unroutable connection hidden", v)
 	}
 }

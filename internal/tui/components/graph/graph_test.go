@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"strings"
 	"testing"
@@ -18,7 +17,7 @@ func TestClippingHitAndPan(t *testing.T) {
 		t.Fatal("selection not revealed")
 	}
 	for _, size := range []Point{{35, 12}, {5, 3}, {100, 20}} {
-		v := m.View(size.X, size.Y, lipgloss.NewStyle(), lipgloss.NewStyle())
+		v := m.View(size.X, size.Y, Styles{})
 		rows := strings.Split(v, "\n")
 		if len(rows) != size.Y {
 			t.Fatal("height")
@@ -40,7 +39,7 @@ func TestOverviewPreservesPositions(t *testing.T) {
 	if v.Hit(2, 1) != "a" {
 		t.Fatal("compact hit failed")
 	}
-	for _, line := range strings.Split(v.View(40, 10, lipgloss.NewStyle(), lipgloss.NewStyle()), "\n") {
+	for _, line := range strings.Split(v.View(40, 10, Styles{}), "\n") {
 		if ansi.StringWidth(line) != 40 {
 			t.Fatal(line)
 		}

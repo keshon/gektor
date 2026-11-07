@@ -7,6 +7,7 @@ import (
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/tui/components/graph"
 )
 
 func TestWorkflowCardTitleAndSelectionInAllThemes(t *testing.T) {
@@ -30,7 +31,11 @@ func TestWorkflowCardTitleAndSelectionInAllThemes(t *testing.T) {
 				t.Fatalf("%s: unreadable title for %s: %+v", theme, n.ID, title)
 			}
 			border := screen.CellAt(n.X+1, paneTop+n.Y)
-			if border == nil || !sameColor(border.Style.Fg, themeColor(colorPopupText)) {
+			borderColor := colorPopupText
+			if n.ID == m.workflows.graph.Selected {
+				borderColor = colorAccent
+			}
+			if border == nil || !sameColor(border.Style.Fg, themeColor(borderColor)) {
 				t.Fatalf("%s: frame uses title foreground on canvas", theme)
 			}
 			corner := "┌"
@@ -39,6 +44,46 @@ func TestWorkflowCardTitleAndSelectionInAllThemes(t *testing.T) {
 			}
 			if ansi.Cut(rows[paneTop+n.Y], n.X+1, n.X+2) != corner {
 				t.Fatalf("%s: selected frame not distinct", theme)
+			}
+		}
+	}
+}
+
+func TestWorkflowNodeStateColorsDoNotReplaceSelection(t *testing.T) {
+	defer setTheme("dark")
+	m := workflowTestModel(t)
+	for _, theme := range config.ThemeNames() {
+		m.applyTheme(theme)
+		for _, item := range []struct {
+			status, label, color string
+		}{
+			{"completed", "Completed", colorSuccess},
+			{"running", "Running", colorWarning},
+			{"failed", "Failed", colorError},
+			{"waiting_review", "Awaiting approval", colorWarning},
+			{"cancelled", "Cancelled", colorWarning},
+			{"interrupted", "Interrupted", colorWarning},
+			{"skipped", "Skipped", colorDisabledText},
+			{"Disabled / condition false", "Disabled", colorDisabledText},
+			{"pending", "Pending", colorPopupText},
+		} {
+			for _, selected := range []string{"", "step"} {
+				n := graph.Node{ID: "step", Detail: item.status}
+				g := graph.Model{Nodes: []graph.Node{n}, Selected: selected}
+				view := g.View(graph.NodeWidth, n.Height(), m.graphStyles())
+				screen := uv.NewScreenBuffer(graph.NodeWidth, n.Height())
+				uv.NewStyledString(view).Draw(screen, uv.Rect(0, 0, graph.NodeWidth, n.Height()))
+				status := screen.CellAt(2, n.Height()-2)
+				if status == nil || !sameColor(status.Style.Fg, themeColor(item.color)) || !sameColor(status.Style.Bg, currentPalette().background) {
+					t.Fatalf("%s %s selected=%s: wrong status colors", theme, item.status, selected)
+				}
+				corner := "┌"
+				if selected != "" {
+					corner = "╔"
+				}
+				if !strings.HasPrefix(ansi.Strip(view), corner) || !strings.Contains(ansi.Strip(view), item.label) {
+					t.Fatal("execution state replaced selection or lost its text", view)
+				}
 			}
 		}
 	}

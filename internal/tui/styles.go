@@ -4,6 +4,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"sync/atomic"
 
+	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 )
@@ -170,4 +171,15 @@ func popupRow(style lipgloss.Style, text string, width int) string {
 
 func (m *model) noticeStyles() pane.NoticeStyles {
 	return pane.NoticeStyles{Info: m.styles.dim, Success: m.styles.add, Warning: m.styles.warn, Error: m.styles.err}
+}
+
+func (m *model) graphStyles() graph.Styles {
+	surface := popupSurface()
+	background := lipgloss.Color(currentPalette().background)
+	return graph.Styles{
+		Normal: surface.Normal.Background(background), Title: surface.Selected,
+		Focus: m.styles.focus.Background(background), Success: m.styles.add.Background(background),
+		Warning: m.styles.warn.Background(background), Error: m.styles.err.Background(background),
+		Disabled: m.styles.disabled.Background(background),
+	}
 }

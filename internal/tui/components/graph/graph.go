@@ -32,6 +32,11 @@ type Model struct {
 	Pan      Point
 }
 
+// Styles are supplied by the host so graph drawing does not choose a palette.
+type Styles struct {
+	Normal, Title, Focus, Success, Warning, Error, Disabled lipgloss.Style
+}
+
 const NodeWidth = 32
 const NodeHeight = 8
 
@@ -127,7 +132,8 @@ func (m *Model) Move(dx, dy int) {
 		}
 	}
 }
-func (m Model) View(w, h int, normal, selected lipgloss.Style) string {
+func (m Model) View(w, h int, styles Styles) string {
+	normal := styles.Normal
 	w = max(1, w)
 	h = max(1, h)
 	grid := make([][]rune, h)
@@ -212,7 +218,7 @@ func (m Model) View(w, h int, normal, selected lipgloss.Style) string {
 		rows[y] = row.String()
 	}
 	for _, n := range m.Nodes {
-		box := m.card(n, normal, selected, incoming, outgoing, failed)
+		box := m.card(n, styles, incoming, outgoing, failed)
 		for j, s := range box {
 			y := n.Y + j - m.Pan.Y
 			x := n.X - m.Pan.X

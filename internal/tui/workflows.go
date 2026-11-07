@@ -2,7 +2,6 @@ package tui
 
 import (
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -673,13 +672,11 @@ func (m *model) workflowScreen() string {
 	if w.run == nil {
 		w.graph = m.workflowGraph(w.graph)
 	}
-	styles := popupSurface()
-	normal := styles.Normal.Background(lipgloss.Color(currentPalette().background))
 	canvas := w.graph
 	if w.overview {
 		canvas = w.graph.Overview(cw)
 	}
-	left := canvas.View(cw, ch, normal, styles.Selected)
+	left := canvas.View(cw, ch, m.graphStyles())
 	if len(canvas.Nodes) == 0 {
 		left = cellFrame("No workflow open.\nCtrl+O opens a recipe · H saved runs\nA adds a node · I requests an AI proposal", cw, ch)
 	}

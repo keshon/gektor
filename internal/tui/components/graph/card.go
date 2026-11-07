@@ -19,14 +19,15 @@ func portList(ports []Port, output bool) []Port {
 	return []Port{{Label: label}}
 }
 
-func (m Model) card(n Node, normal, selected lipgloss.Style, incoming, outgoing map[[2]string]bool, failed map[[2]string]bool) []string {
+func (m Model) card(n Node, styles Styles, incoming, outgoing map[[2]string]bool, failed map[[2]string]bool) []string {
+	normal := styles.Normal
 	width := m.nodeWidth()
 	inner := width - 2
 	// The title uses a foreground/background pair from the same theme surface.
-	border, title := normal, selected.Bold(true)
+	border, title := normal, styles.Title.Bold(true)
 	h, v, tl, tr, bl, br, jl, jr := "─", "│", "┌", "┐", "└", "┘", "├", "┤"
 	if n.ID == m.Selected {
-		border = normal.Bold(true)
+		border = styles.Focus.Bold(true)
 		h, v, tl, tr, bl, br, jl, jr = "═", "║", "╔", "╗", "╚", "╝", "╠", "╣"
 	}
 	clean := func(s string) string {
@@ -87,28 +88,42 @@ func (m Model) card(n Node, normal, selected lipgloss.Style, incoming, outgoing 
 		}
 		right = strings.TrimSpace(cell.Line(right, rightWidth-1))
 		right = strings.Repeat(" ", max(0, rightWidth-1-ansi.StringWidth(right))) + right + " "
-		rows = append(rows, border.Render(lmark)+normal.Render(cell.Line(left, leftWidth)+"  "+right)+border.Render(rmark))
+		portStyle := border
+		if i < len(outputs) && failed[[2]string{n.ID, outputs[i].Key}] {
+			portStyle = styles.Error
+		}
+		rows = append(rows, border.Render(lmark)+normal.Render(cell.Line(left, leftWidth)+"  "+right)+portStyle.Render(rmark))
 	}
 	status := n.Detail
+	statusStyle := normal
 	switch status {
 	case "":
 		status = "○ Not run"
 	case "completed":
 		status = "✓ Completed"
+		statusStyle = styles.Success
 	case "running":
 		status = "▶ Running"
+		statusStyle = styles.Warning
 	case "failed":
 		status = "× Failed"
+		statusStyle = styles.Error
 	case "skipped":
 		status = "− Skipped"
+		statusStyle = styles.Disabled
 	case "pending":
 		status = "○ Pending"
 	case "waiting_review", "Review before running":
 		status = "? Awaiting approval"
+		statusStyle = styles.Warning
 	case "cancelled":
 		status = "× Cancelled"
+		statusStyle = styles.Warning
 	case "interrupted":
 		status = "! Interrupted"
+		statusStyle = styles.Warning
+	case "Disabled / condition false":
+		statusStyle = styles.Disabled
 	}
-	return append(rows, rule, line(" "+clean(status), normal), bottom)
+	return append(rows, rule, line(" "+clean(status), statusStyle), bottom)
 }

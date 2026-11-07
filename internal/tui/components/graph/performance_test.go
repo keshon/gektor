@@ -16,7 +16,7 @@ func BenchmarkDistantNodeDrag(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				m.Nodes[1].Y = 9 + i%2
 				m.Pan = Point{distance - 60, i % 3}
-				m.View(100, 28, style, style)
+				m.View(100, 28, Styles{Normal: style, Title: style})
 			}
 		})
 	}

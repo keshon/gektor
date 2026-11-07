@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -28,7 +27,7 @@ func TestNamedPortsHaveDistinctRoutesAndHitTargets(t *testing.T) {
 	if id != "prepare" || key != "/label" || !output {
 		t.Fatal("wrong named port hit", id, key, output)
 	}
-	view := ansi.Strip(m.View(90, 15, lipgloss.NewStyle(), lipgloss.NewStyle()))
+	view := ansi.Strip(m.View(90, 15, Styles{}))
 	for _, text := range []string{"prepare", "JavaScript", "input.items", "input.label", "Not run"} {
 		if !strings.Contains(view, text) {
 			t.Fatal("missing card content", text, view)
@@ -47,7 +46,7 @@ func TestCardHeightAndHitIncludeAllPortRows(t *testing.T) {
 	if n.Height() != 11 || m.Hit(3, n.Y+n.Height()-1) != "many" || m.Hit(3, n.Y+n.Height()) != "" {
 		t.Fatal("card geometry disagrees with hit test")
 	}
-	rows := m.card(n, lipgloss.NewStyle(), lipgloss.NewStyle(), nil, nil, nil)
+	rows := m.card(n, Styles{}, nil, nil, nil)
 	if len(rows) != n.Height() {
 		t.Fatal("card footer clipped", len(rows), n.Height())
 	}
