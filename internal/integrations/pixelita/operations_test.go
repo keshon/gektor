@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"hash/crc32"
 	"image"
 	"image/color"
@@ -68,6 +69,87 @@ func TestCancelledPublicationCreatesNothing(t *testing.T) {
 	if _, err := ws.Stat("new"); !os.IsNotExist(err) {
 		t.Fatal("cancelled publication changed workspace")
 	}
+}
+
+func TestInspectionKeepsEqualBasenamesSeparate(t *testing.T) {
+	ws, err := workspace.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	for _, path := range []string{"first/input.png", "second/input.png"} {
+		writeTestImage(t, ws, path)
+	}
+	out, err := (Operation{WS: ws, Operation: "inspect"}).Run(t.Context(), json.RawMessage(`{"paths":["first/input.png","second/input.png"]}`))
+	if err != nil {
+		t.Fatal(out, err)
+	}
+	var result struct {
+		Items []struct{ Path string } `json:"items"`
+	}
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, item := range result.Items {
+		seen[item.Path] = true
+	}
+	if len(result.Items) != 2 || !seen["first/input.png"] || !seen["second/input.png"] {
+		t.Fatalf("sources with equal names were conflated: %s", out)
+	}
+}
+
+func TestEveryImageOutputIsAuthorizedBeforePublication(t *testing.T) {
+	ws, err := workspace.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	original := writeTestImage(t, ws, "input.png")
+	denied := errors.New("second destination denied")
+	var destinations []string
+	args := json.RawMessage(`{"paths":["input.png"],"widths":[8,16],"out_dir":"out"}`)
+	op := Operation{WS: ws, Operation: "variants", AuthorizeOutput: func(_ context.Context, path string, got json.RawMessage) error {
+		if !bytes.Equal(got, args) {
+			t.Fatal("authorization lost original arguments")
+		}
+		destinations = append(destinations, filepath.ToSlash(path))
+		if _, err := ws.Stat("out"); !os.IsNotExist(err) {
+			t.Fatal("publication began before all destinations were authorized")
+		}
+		if len(destinations) == 2 {
+			return denied
+		}
+		return nil
+	}}
+	if out, err := op.Run(t.Context(), args); !errors.Is(err, denied) || out != "" {
+		t.Fatalf("denied output: %q %v", out, err)
+	}
+	if len(destinations) != 2 || destinations[0] == destinations[1] || !strings.HasPrefix(destinations[0], "out/") || !strings.HasPrefix(destinations[1], "out/") {
+		t.Fatalf("destination authorization: %v", destinations)
+	}
+	if _, err := ws.Stat("out"); !os.IsNotExist(err) {
+		t.Fatal("denied batch published files")
+	}
+	after, err := ws.ReadFile("input.png")
+	if err != nil || !bytes.Equal(original, after) {
+		t.Fatal("denied batch changed its source", err)
+	}
+}
+
+func writeTestImage(t *testing.T, ws *workspace.Workspace, path string) []byte {
+	t.Helper()
+	var data bytes.Buffer
+	if err := png.Encode(&data, image.NewNRGBA(image.Rect(0, 0, 32, 24))); err != nil {
+		t.Fatal(err)
+	}
+	if err := ws.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := ws.WriteFile(path, data.Bytes(), 0600); err != nil {
+		t.Fatal(err)
+	}
+	return data.Bytes()
 }
 
 func TestUnsupportedProfileBlocksPreviewAndWrite(t *testing.T) {

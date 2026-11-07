@@ -317,6 +317,10 @@ runs while retaining run history; it does not run implicitly.
 
 Pixelita operations live under `integrations/pixelita`; its `agenttools` and
 `nodes` packages adapt the same operations for their respective callers.
+Image operations stage bounded scratch copies, process them and verify the
+original sources before publication. Every destination is authorized before
+workspace outputs are created. Reports distinguish processing restrictions from
+publication failures and retain source-verification evidence.
 JavaScript workers and bounded model nodes have explicit inputs and outputs;
 they do not inherit the parent agent conversation or tool registry.
 
