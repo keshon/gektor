@@ -441,13 +441,19 @@ func (m *model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *model) headerGeometry() (x, width, capacity, offset int) {
-	width = 24
-	for _, item := range m.rawHeaderItems() {
-		width = max(width, lipgloss.Width(item.text)+lipgloss.Width(menuShortcut(item.command))+7)
+func (m *model) headerMenuItems() []popup.MenuItem {
+	var items []popup.MenuItem
+	for _, item := range m.headerItems() {
+		_, checked := m.headerToggle(item.command)
+		items = append(items, popup.MenuItem{Label: item.text, Shortcut: menuShortcut(item.command),
+			Enabled: item.enabled && item.command != "", Checked: checked,
+			Separator: item.text == "" && item.command == "", Info: item.text != "" && item.command == ""})
 	}
-	width = min(width, min(58, m.termW))
-	x = 0
+	return items
+}
+
+func (m *model) headerMenuLayout() popup.MenuLayout {
+	x := 0
 	for _, b := range m.headerNavigation() {
 		if b.id == m.header.menu {
 			x = b.start
@@ -457,52 +463,25 @@ func (m *model) headerGeometry() (x, width, capacity, offset int) {
 			break
 		}
 	}
-	x = min(x, max(m.termW-width, 0))
-	capacity = max(min(len(m.headerItems()), m.termH-m.footerRows()-5), 1)
-	row := min(max(m.header.row, 0), max(len(m.headerItems())-1, 0))
-	offset = max(row-capacity+1, 0)
-	return
+	normal, border, selected := popupStyles()
+	return popup.Menu(m.headerMenuItems(), popup.MenuProps{X: x, Y: m.headerTop(), ScreenWidth: m.termW,
+		ScreenHeight: m.termH - m.actionBarRows(), MinWidth: 24, MaxWidth: 58,
+		MaxRows: max(m.termH-m.footerRows()-5, 1), Selected: m.header.row},
+		popup.MenuStyles{Surface: popup.Styles{Normal: normal, Border: border, Selected: selected},
+			Disabled: normal.Foreground(lipgloss.Color(themeColor(colorDisabledText)))})
 }
+
+func (m *model) headerGeometry() (x, width, capacity, offset int) {
+	l := m.headerMenuLayout()
+	return l.X, l.Width, l.Capacity, l.Offset
+}
+
 func (m *model) overlayHeader(background string) string {
-	x, width, capacity, offset := m.headerGeometry()
-	if width < 4 || m.termH < 6 {
+	l := m.headerMenuLayout()
+	if len(l.Rows) == 0 {
 		return background
 	}
-	normal, border, selected := popupStyles()
-	rows := []string{border.Render("╭" + strings.Repeat("─", width-2) + "╮")}
-	items := m.headerItems()
-	for i := offset; i < min(offset+capacity, len(items)); i++ {
-		style := normal
-		prefix := "  "
-		if items[i].command != "" {
-			prefix = "  "
-			if !items[i].enabled {
-				style = border
-			}
-		}
-		if i == m.header.row {
-			style = selected
-		}
-		if items[i].text == "" && items[i].command == "" {
-			rows = append(rows, border.Render("├"+strings.Repeat("─", width-2)+"┤"))
-			continue
-		}
-		// The tick lives in the label indent every row already carries,
-		// not in a column of its own. "✓ " and "  " are both two cells, so
-		// a toggle marks itself in space that was already reserved and no
-		// row grows by two cells for it.
-		if _, on := m.headerToggle(items[i].command); on {
-			prefix = "✓ "
-		}
-		label := prefix + items[i].text
-		shortcut := menuShortcut(items[i].command)
-		if shortcut != "" {
-			label += strings.Repeat(" ", max(1, width-2-lipgloss.Width(label)-lipgloss.Width(shortcut))) + shortcut
-		}
-		rows = append(rows, border.Render("│")+popupRow(style, label, width-2)+border.Render("│"))
-	}
-	rows = append(rows, border.Render("╰"+strings.Repeat("─", width-2)+"╯"))
-	return popup.Overlay(background, rows, x, m.headerTop(), width, m.termW)
+	return popup.Overlay(background, l.Rows, l.X, l.Y, l.Width, m.termW)
 }
 
 func (m *model) headerMouse(msg tea.MouseMsg) (bool, tea.Cmd) {
@@ -514,6 +493,7 @@ func (m *model) headerMouse(msg tea.MouseMsg) (bool, tea.Cmd) {
 					return true, nil
 				}
 				m.header = headerState{focused: true, global: true, index: i, menu: cell.action.name}
+				m.header.row = m.headerActionRow(0, 1)
 				return true, nil
 			}
 		}
@@ -527,24 +507,28 @@ func (m *model) headerMouse(msg tea.MouseMsg) (bool, tea.Cmd) {
 	}
 
 	if m.header.menu != "" {
-		x, w, capacity, offset := m.headerGeometry()
+		layout := m.headerMenuLayout()
 		if mouse.Button == tea.MouseLeft && isMouseClick(msg) {
-			if mouse.X >= x && mouse.X < x+w && mouse.Y >= m.headerTop()+1 && mouse.Y < m.headerTop()+1+capacity {
-				m.header.row = offset + mouse.Y - m.headerTop() - 1
+			if row := layout.Hit(mouse.X, mouse.Y); row >= 0 {
+				m.header.row = row
 				_, cmd := m.headerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 				return true, cmd
-			} else {
+			}
+			if !layout.Contains(mouse.X, mouse.Y) {
 				m.closeHeader()
 			}
 		}
-		if mouse.Button == tea.MouseWheelUp {
-			m.header.row = max(m.header.row-1, 0)
-		}
-		if mouse.Button == tea.MouseWheelDown {
-			m.header.row = min(m.header.row+1, len(m.headerItems())-1)
+		if layout.Contains(mouse.X, mouse.Y) {
+			if mouse.Button == tea.MouseWheelUp {
+				m.header.row = m.headerActionRow(m.header.row-1, -1)
+			}
+			if mouse.Button == tea.MouseWheelDown {
+				m.header.row = m.headerActionRow(m.header.row+1, 1)
+			}
 		}
 		return true, nil
 	}
+
 	if m.header.focused && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
 		m.closeHeader()
 		return true, nil
@@ -641,13 +625,7 @@ func (m *model) headerActionRow(start, delta int) int {
 	if !m.header.global {
 		return min(max(start, 0), len(items)-1)
 	}
-	for i := 0; i < len(items); i++ {
-		row := ((start+i*delta)%len(items) + len(items)) % len(items)
-		if items[row].enabled && items[row].command != "" {
-			return row
-		}
-	}
-	return 0
+	return popup.MenuNext(m.headerMenuItems(), start, delta)
 }
 
 // headerToggle reports whether a menu row is a checkable toggle, and

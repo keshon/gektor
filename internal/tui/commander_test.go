@@ -130,8 +130,7 @@ func TestGlobalDropdownNavigationAndSettings(t *testing.T) {
 		}
 	}
 	m.Update(tea.MouseClickMsg{X: settings.start, Y: 0, Button: tea.MouseLeft})
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.header.menu != "settings" || m.header.row != 0 {
+	if m.header.menu != "settings" || m.header.row != m.headerActionRow(0, 1) {
 		t.Fatal("settings page failed")
 	}
 }
