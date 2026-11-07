@@ -4,8 +4,38 @@ import (
 	"strings"
 	"testing"
 
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
+
+func TestToolbarPreservesSurfaceGapsWhenCompacting(t *testing.T) {
+	actions := []ToolAction{
+		{Key: "F1", Label: "Help", Enabled: true},
+		{Key: "Ctrl+P", CompactKey: "^P", Label: "Search", Enabled: true},
+		{Key: "Ctrl+Q", CompactKey: "^Q", Label: "Quit", Enabled: true},
+	}
+	styles := ToolbarStyles{
+		Key:   lipgloss.NewStyle().Background(lipgloss.Color("#385b76")),
+		Label: lipgloss.NewStyle().Background(lipgloss.Color("#385b76")),
+		Gap:   lipgloss.NewStyle().Background(lipgloss.Color("#10161c")),
+	}
+	for width := 3; width <= 120; width++ {
+		layout := Toolbar(width, actions, styles)
+		for i := 1; i < len(layout.Cells); i++ {
+			previous := layout.Cells[i-1].Bounds
+			gap := previous.X + previous.Width
+			if layout.Cells[i].Bounds.X-gap != 1 {
+				t.Fatalf("width %d: actions lost their one-column gap", width)
+			}
+			if got := ansi.Cut(layout.Row, gap, gap+1); ansi.Strip(got) != " " || !strings.Contains(got, styles.Gap.Render(" ")) {
+				t.Fatalf("width %d: gap does not use the surrounding surface: %q", width, got)
+			}
+			if layout.Hit(gap, 0) != -1 {
+				t.Fatalf("width %d: gap activates an action", width)
+			}
+		}
+	}
+}
 
 func TestToolbarFitsOneRowAndRejectsDisabledActionsAndGaps(t *testing.T) {
 	actions := []ToolAction{

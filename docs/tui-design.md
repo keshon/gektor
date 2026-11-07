@@ -236,7 +236,12 @@ independent toggles and radio marks for mutually exclusive choices.
 
 A toolbar is a group of direct actions. The global hotkey bar and modal
 shortcuts share key formatting, but do not duplicate commands that cannot run
-in the current context. Tabs use the same title and focus roles in both modes,
+in the current context. The hotkey bar keeps one blank terminal column between
+action blocks, using the surrounding surface color. The gap stays visible at
+narrow widths and never activates an action when clicked. This spacing belongs
+to the shared component, not each screen.
+
+Tabs use the same title and focus roles in both modes,
 with one blank row before their page content.
 
 ## Composed controls
