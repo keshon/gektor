@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -73,6 +74,44 @@ func TestGrepContextMergesWindowsAndKeepsMatchLabels(t *testing.T) {
 	want := "a.txt-2-two\na.txt:3:MATCH three\na.txt:4:MATCH four\na.txt-5-five\n--\na.txt-8-eight\na.txt:9:MATCH nine\na.txt-10-ten\n"
 	if out != want {
 		t.Fatalf("overlap duplicated context or mislabelled a match:\ngot: %s\nwant: %s", out, want)
+	}
+}
+
+func TestGrepContextSeparatesFilesAndSharesMatchLimit(t *testing.T) {
+	ws, dir := testWS(t)
+	writeTmp(t, dir, "a.txt", "before\nMATCH a\nafter\n")
+	writeTmp(t, dir, "b.txt", "before\nMATCH b\nafter\n")
+	out, err := (GrepFiles{WS: ws}).Run(t.Context(), json.RawMessage(`{"pattern":"MATCH","before_context":1,"after_context":1}`))
+	want := "a.txt-1-before\na.txt:2:MATCH a\na.txt-3-after\n--\nb.txt-1-before\nb.txt:2:MATCH b\nb.txt-3-after\n"
+	if err != nil || out != want {
+		t.Fatalf("file contexts merged: %q %v", out, err)
+	}
+	writeTmp(t, dir, "a.txt", strings.Repeat("MATCH\n", 150))
+	writeTmp(t, dir, "b.txt", strings.Repeat("MATCH\n", 150))
+	out, err = (GrepFiles{WS: ws}).Run(t.Context(), json.RawMessage(`{"pattern":"MATCH"}`))
+	if err != nil || strings.Count(out, "MATCH") != 200 || !strings.Contains(out, "b.txt:50:MATCH") || strings.Contains(out, "b.txt:51:") || !strings.Contains(out, "capped at 200 matches") {
+		t.Fatalf("match limit was not shared across files: %q %v", out, err)
+	}
+}
+
+func TestGrepIncludesIgnoredFilesWithoutExposingSensitiveContent(t *testing.T) {
+	ws, dir := testWS(t)
+	writeTmp(t, dir, ".env", "MATCH private-secret\n")
+	writeTmp(t, dir, "public.txt", "MATCH public-value\n")
+	out, err := (GrepFiles{WS: ws}).Run(t.Context(), json.RawMessage(`{"pattern":"MATCH","include_ignored":true}`))
+	if err != nil || strings.Contains(out, "private-secret") || !strings.Contains(out, "public-value") || !strings.Contains(out, "skipped 1 sensitive files") {
+		t.Fatalf("sensitive file bypassed search restrictions: %q %v", out, err)
+	}
+}
+
+func TestGrepCancellationPreservesErrorIdentity(t *testing.T) {
+	ws, dir := testWS(t)
+	writeTmp(t, dir, "a.txt", "MATCH\n")
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := (GrepFiles{WS: ws}).Run(ctx, json.RawMessage(`{"pattern":"MATCH","include_ignored":true}`))
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled search: %v", err)
 	}
 }
 
