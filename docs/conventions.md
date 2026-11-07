@@ -159,6 +159,12 @@ and may only decrease.
 
 **[practice]** Comments explain why, not what. The code already says what.
 
+**[practice]** Give state and resources one owner. Keep connection cleanup beside
+creation, and make cancellation behavior clear. Frontends call shared services;
+they do not copy execution or permission rules. Group code by responsibility
+before creating packages, interfaces or nested configuration. A short helper
+should name a useful operation; a line-count target is not a reason to split it.
+
 ## Testing
 
 **[enforced: doc-and-checks-agree]** Every `[enforced: x]` tag here has a check

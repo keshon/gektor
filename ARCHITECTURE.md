@@ -4,6 +4,44 @@ GEKTOR uses one coding-agent loop. Plan explores without changing anything; Act
 edits files, runs commands and delegates bounded subtasks. Print, JSON, TUI
 and stdio RPC use the same loop.
 
+## Package map
+
+Paths below are relative to the repository root.
+
+| Package | Responsibility |
+|---|---|
+| cmd/gektor | Resolve launch choices and own launch resources |
+| internal/app | Construct backend and workflow services |
+| internal/roles | Choose tools, budgets and policy for each agent role |
+| internal/agent | Request model turns, order tools and recover from failures |
+| internal/llm | Define messages and client contracts; subpackages handle protocols |
+| internal/providers | Describe providers, inspect models and manage accounts |
+| internal/run | Expose agent execution and operator gates to frontends |
+| internal/events | Serialize frontend events |
+| internal/session | Save conversation history, model context and run records |
+| internal/workspace and internal/permission | Resolve file access and authorize effects |
+| internal/tools and internal/integrations | Adapt operations and connect external services |
+| internal/automation | Validate, execute, store and schedule workflow runs |
+| internal/tui | Own screen state and connect controls to application actions |
+| internal/tui/components | Render reusable controls and handle their local interaction |
+
+## One agent turn
+
+1. Accept pending user input and background notifications.
+2. Prepare the model's context and tool definitions. Compact history if needed.
+3. Request one response through the selected protocol adapter.
+4. Save the response. Reject malformed or interrupted tool calls.
+5. Validate and authorize calls, execute them in the required order, then attach
+   their results. Continue with another model turn when needed.
+6. Before returning an answer, check for newly arrived work. Save accepted work
+   even if the step limit prevents another turn.
+7. At run end, verify if configured, observe workspace changes and persist the
+   outcome. Cancellation follows the same finalization path after initialization.
+
+The entry point is `internal/agent/run.go`; setup and finalization live in
+`internal/agent/run_lifecycle.go`. The run package exposes execution to callers;
+the session package owns its saved data. They do not implement separate loops.
+
 ## Composition
 
 cmd/gektor resolves flags, preferences and provider profiles. Each launch owns
@@ -124,11 +162,22 @@ restore before eager preparation. Native definitions are checked immediately;
 external adapters still reconnect and validate on use. Eager native schemas can
 be previewed for context reports without publishing them or making network calls.
 Discovery and a bounded prompt map share one optional-package catalog.
+
+### Integrations and workflow tools
+
 Built-in `native_images`, `native_workflows` and `native_files` packages load on demand.
 `integrations/pixelita` stages rooted inputs for the external Pixelita Go library;
 `automation/agenttools` adapts manual recipes to `internal/automation`. The runner has
 no model dependency and dispatches registered node descriptors. Model access is
 an explicit node with its own bounded context.
+
+Native file operations live in `internal/integrations/fileops`. Their agent and
+workflow adapters share operations, schemas and limits. The provider reader in
+`internal/integrations/social` handles FxTwitter responses; its tool adapter owns
+activation, network policy and timeout. Provider code does not import the agent.
+
+### Workflow execution
+
 Nested steps retain direct-call permissions. Runs and schema-validated records
 live in the workspace-scoped user store, outside task files. OS locks identify
 active runs and serialize record revision checks; interrupted runs never retry
@@ -137,6 +186,9 @@ Version-3 recipes bind typed inputs and dependency JSON outputs; resolved values
 are validated and authorized before their operation. `workflow validate/run`
 requires no LLM backend unless the recipe contains a model node. `roles.WorkflowAuthor` has a fixed tool set
 and can save only an operator-selected recipe; schema lookup is on demand.
+
+### Role permissions
+
 Main-only sources are excluded for children before loading; role constructors
 reject forbidden direct extras. Plan can activate native packages without IO,
 but external activation stays blocked. Every resulting call still goes through
@@ -156,6 +208,11 @@ model request and reconnects only on actual use, checking the configuration and
 catalog fingerprint before execution. Older archives migrate from successful
 activation results. The expanded catalog stays present across turns and Plan/Act
 switches. Activation can invalidate the backend's prompt cache once.
+
+Browser profile selection is saved separately from activated tool catalogs.
+A profile can be selected before the browser is enabled; restoring it must not
+connect a transport or activate tools. Older session snapshots retain this
+separate profile field.
 
 Explicit -mcp servers still connect at launch. Configured capability packs share
 the browser's deferred activation mechanism and support native Go, executable
@@ -239,6 +296,9 @@ boundaries. Neither package imports agent tools. `automation/store` owns durable
 runs, records, queue snapshots, schedules and immutable run artifacts. `automation/service` coordinates
 workspace access, catalog validation, resource authorization and persistence.
 CLI and agent adapters call the service. `app` assembles the built-in catalog.
+The TUI calls the same service. Composition loads frozen dependencies, authorizes
+recipe reads, rewrites scoped inputs and expands nested calls. A compiler owns
+its step count and input bindings for one compilation; these are not global state.
 
 `automation/api` provides optional authenticated HTTP ingress to the durable
 queue. Operator-configured routes freeze recipe dependencies at startup;

@@ -1,3 +1,5 @@
+// Package gektor locates user data. Callers create directories and own the
+// resources stored there; resolving a path has no filesystem effects.
 package gektor
 
 import (
@@ -15,9 +17,8 @@ const DirName = ".gektor"
 func Sub(parts ...string) string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		// No home means no user data. Callers fall back to whatever
-		// they were doing before; nothing here can silently scatter
-		// files into the working directory.
+		// Preserve the relative fallback. Callers that require storage in
+		// the user's home must reject a non-absolute result.
 		return filepath.Join(append([]string{DirName}, parts...)...)
 	}
 	root := filepath.Join(home, DirName)
