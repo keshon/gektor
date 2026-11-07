@@ -66,11 +66,11 @@ model or measure its quality. Recheck the baseline if the starting code changes.
 
 ## 2. Fix the completion bug
 
-- [ ] Add a permanent regression test for a notification arriving during the
+- [x] Add a permanent regression test for a notification arriving during the
   tool-free answer used after repeated tool calls.
-- [ ] Check the same boundary with pending operator input, with and without an
+- [x] Check the same boundary with pending operator input, with and without an
   inbox, and near the step limit.
-- [ ] Make normal and forced answers apply the same completion rules. Preserve
+- [x] Make normal and forced answers apply the same completion rules. Preserve
   accepted input and count each model request correctly.
 
 Done when the arriving notification is handled before completion, or retained

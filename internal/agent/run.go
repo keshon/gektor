@@ -229,14 +229,9 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 			history = out.history
 			if out.done {
 				if out.err == nil {
-					if next := a.acceptNotifications(ctx, history); len(next) > len(history) {
-						history = next
-						a.report.Final = ""
-						continue
-					}
-					if pending := a.cfg.Inbox.take(true); len(pending) > 0 {
-						history = a.acceptInputs(history, pending, &st)
-						a.report.Final = ""
+					var pending bool
+					history, pending = a.acceptCompletion(ctx, history, &st)
+					if pending {
 						continue
 					}
 				}
@@ -258,13 +253,12 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 			a.report.Warnings = append(a.report.Warnings, fmt.Sprintf(
 				"steps %d-%d issued identical tool calls; answered without tools", from, step))
 			answer, err := a.forceAnswer(workCtx, &st, step, history, from)
-			if err == nil && a.cfg.Inbox != nil {
+			if err == nil {
 				// The tool-free answer is also an in-flight model request.
 				// It must observe the same completion boundary as normal answers.
-				history = a.snapshot.Context()
-				if pending := a.cfg.Inbox.take(true); len(pending) > 0 {
-					history = a.acceptInputs(history, pending, &st)
-					a.report.Final = ""
+				var pending bool
+				history, pending = a.acceptCompletion(ctx, a.snapshot.Context(), &st)
+				if pending {
 					step++ // forceAnswer used an additional model round-trip.
 					continue
 				}
@@ -276,6 +270,21 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 	// LastRunMutations and report.MutatedPaths are set by the defer above,
 	// which owns them for every exit path.
 	return "", fmt.Errorf("%w (%d) without finishing", ErrMaxSteps, a.cfg.MaxSteps)
+}
+
+// acceptCompletion keeps accepted work even when no model steps remain.
+// Notifications take precedence so the inbox stays open until the next turn.
+func (a *Agent) acceptCompletion(ctx context.Context, history []llm.Message, st *runState) ([]llm.Message, bool) {
+	if next := a.acceptNotifications(ctx, history); len(next) > len(history) {
+		a.report.Final = ""
+		a.saveState(next)
+		return next, true
+	}
+	if pending := a.cfg.Inbox.take(true); len(pending) > 0 {
+		a.report.Final = ""
+		return a.acceptInputs(history, pending, st), true
+	}
+	return history, false
 }
 
 func (a *Agent) acceptNotifications(ctx context.Context, history []llm.Message) []llm.Message {
