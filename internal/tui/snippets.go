@@ -9,6 +9,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/gektor/internal/tui/components/transcript"
 )
 
 func compactToolText(text string) string {
@@ -166,35 +167,38 @@ func toolSummary(text string) (name, action, target string) {
 	return name, action, target
 }
 
+func toolState(b block) transcript.ActionState {
+	if b.open {
+		if b.returned {
+			return transcript.ActionReturned
+		}
+		return transcript.ActionRunning
+	}
+	if b.toolStatus == "skipped_for_input" {
+		return transcript.ActionSkipped
+	}
+	if b.failed {
+		return transcript.ActionFailed
+	}
+	return transcript.ActionCompleted
+}
+
+func toolActionStyles(st styles) transcript.ActionStyles {
+	return transcript.ActionStyles{Secondary: st.dim, Success: st.add, Warning: st.warn, Error: st.err}
+}
+
 func compactTool(b block, st styles, width int) string {
 	name, action, target := toolSummary(b.text)
-	glyph, right := st.add.Render("✓"), st.dim.Render(name)
-	if b.open {
-		glyph, right = st.dim.Render("…"), st.dim.Render(name+" │ Running")
-		if b.returned {
-			glyph, right = st.dim.Render("·"), st.dim.Render(name+" │ Returned")
-		}
-	} else if b.toolStatus == "skipped_for_input" {
-		glyph, right = st.dim.Render("–"), st.dim.Render(name+" │ Skipped for input")
-	} else if b.failed {
-		failure := "Failed"
+	failure := ""
+	if b.failed && !b.open {
 		for _, line := range strings.Split(b.result, "\n") {
 			if strings.HasPrefix(strings.TrimSpace(line), "error:") {
 				failure = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "error:"))
 				break
 			}
 		}
-		failure, _, _ = strings.Cut(failure, "\n")
-		if failure == "" {
-			failure = "Failed"
-		}
-		glyph, right = st.err.Render("×"), st.dim.Render(name+" │ ")+st.err.Render(ansi.Truncate(failure, min(32, max(width/3, 6)), "…"))
 	}
-	left := glyph + " " + action
-	if target != "" {
-		left += " " + st.dim.Render(target)
-	}
-	return snippetRow(left, right, max(width, 1))
+	return (transcript.ActionRow{Action: action, Target: target, Name: name, Failure: failure, State: toolState(b)}).View(width, toolActionStyles(st))
 }
 
 // receiptText changes presentation only; the original evidence stays in the block.

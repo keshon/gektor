@@ -10,8 +10,37 @@ import (
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/events"
 )
+
+func TestToolStatesAgreeAcrossPresentationsAndThemes(t *testing.T) {
+	defer setTheme("dark")
+	for _, theme := range config.ThemeNames() {
+		setTheme(theme)
+		for _, item := range []struct {
+			open, returned, failed bool
+			status, word, glyph    string
+		}{{true, false, false, "", "Running", "…"}, {true, true, false, "", "Returned", "·"}, {false, false, false, "", "Completed", "✓"}, {false, false, true, "", "Failed", "×"}, {false, false, false, "skipped_for_input", "Skipped", "–"}, {true, false, true, "", "Running", "…"}} {
+			b := toolCardBlock("c", `read_file {"path":"文件/long path.go"}`)
+			b.open, b.returned, b.failed, b.toolStatus = item.open, item.returned, item.failed, item.status
+			b.result = "error: HTTP 404\nPRIVATE_OUTPUT"
+			before := b
+			for _, width := range []int{20, 40, 80, 120} {
+				compact := ansi.Strip(compactTool(b, defaultStyles(), width))
+				if !strings.HasPrefix(compact, item.glyph+" ") || !strings.Contains(compact, item.word) || strings.Contains(compact, "PRIVATE_OUTPUT") {
+					t.Fatalf("%s %d: compact state or evidence boundary failed: %q", theme, width, compact)
+				}
+				if detail := ansi.Strip(renderToolCard(b, defaultStyles(), width)[0]); !strings.HasPrefix(detail, item.glyph+" ") {
+					t.Fatal("detailed and compact state markers disagree", detail)
+				}
+				if b != before {
+					t.Fatal("tool presentation changed stored evidence")
+				}
+			}
+		}
+	}
+}
 
 func TestCompactToolActionAndFailure(t *testing.T) {
 	for _, tc := range []struct{ call, action, target string }{
@@ -41,7 +70,7 @@ func TestCompactToolActionAndFailure(t *testing.T) {
 		b.failed, b.result = true, "error: HTTP 404\nPRIVATE_OUTPUT"
 		text := ansi.Strip(compactTool(b, defaultStyles(), 160))
 		name, _, _ := strings.Cut(tc.call, " ")
-		if !strings.Contains(text, "×") || !strings.HasSuffix(text, name+" │ HTTP 404") || strings.Contains(text, "PRIVATE_OUTPUT") {
+		if !strings.Contains(text, "×") || !strings.HasSuffix(text, name+" │ Failed: HTTP 404") || strings.Contains(text, "PRIVATE_OUTPUT") {
 			t.Fatal("failure hidden or result leaked", text)
 		}
 		b.open = true

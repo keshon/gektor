@@ -268,6 +268,11 @@ Warnings and errors include a text label, so color is not their only signal.
 A status footer stays one row tall. Each new message replaces both the text
 and its severity; a normal update must not keep the previous error's color.
 
+Tool rows share state markers between compact and detailed views. Compact rows
+keep the state word visible before optional technical names and long targets.
+Returned, skipped and failed calls must not look completed. Full arguments and
+output remain available in the detailed view.
+
 Every list defines loading, empty, no-match and failed-load states. A failed
 request offers retry where useful and preserves the query. Loading does not
 replace the list with a successful-looking empty result. Async replies carry

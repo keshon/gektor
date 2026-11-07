@@ -1926,7 +1926,7 @@ func TestToolCardFailedGlyph(t *testing.T) {
 	if !mm.transcript.blocks[0].failed {
 		t.Fatal("error-prefixed result must flag the card")
 	}
-	if view := mm.transcript.Viewport.View(); !strings.Contains(view, "✕") {
+	if view := mm.transcript.Viewport.View(); !strings.Contains(view, "×") {
 		t.Fatalf("failed card missing cross: %q", view)
 	}
 }

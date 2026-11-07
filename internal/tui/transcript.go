@@ -403,17 +403,7 @@ var toolRailWidth = lipgloss.Width(toolRail)
 // renderToolCard draws the complete call and output, wrapping arguments
 // without discarding them. Compact summaries use a separate renderer.
 func renderToolCard(b block, st styles, width int) []string {
-	glyph := st.add.Render("✓")
-	if b.open {
-		glyph = st.dim.Render("…")
-		if b.returned {
-			glyph = st.dim.Render("·")
-		}
-	} else if b.toolStatus == "skipped_for_input" {
-		glyph = st.dim.Render("–")
-	} else if b.failed {
-		glyph = st.err.Render("✕")
-	}
+	glyph := transcript.ActionGlyph(toolState(b), toolActionStyles(st))
 	var out []string
 	for i, call := range reflow(b.text, max(width-2, 1)) {
 		prefix := "  "
