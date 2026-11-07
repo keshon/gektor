@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/tui/components/cell"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 )
@@ -33,23 +34,26 @@ type State struct {
 	Options []Option
 	// Selected is the highlighted row.
 	Selected int
-	// offset is the first visible option for long lists.
-	offset int
 }
 
 // Open replaces the options and resets the selection.
 func (s *State) Open(title string, options []Option) {
-	s.Title, s.Options, s.Selected, s.offset = title, options, 0, 0
+	s.Title, s.Options, s.Selected = title, options, 0
 }
 
 // Close empties the popup.
-func (s *State) Close() { s.Options, s.Selected, s.offset = nil, 0, 0 }
+func (s *State) Close() { s.Options, s.Selected = nil, 0 }
 
 // Pending reports whether a gate popup is open.
 func (s *State) Pending() bool { return len(s.Options) > 0 }
 
 // Current is the selected option.
-func (s *State) Current() Option { return s.Options[min(s.Selected, len(s.Options)-1)] }
+func (s *State) Current() Option {
+	if !s.Pending() {
+		return Option{}
+	}
+	return s.Options[max(0, min(s.Selected, len(s.Options)-1))]
+}
 
 // Move shifts the selection, wrapping at both ends. Which rows are visible
 // is settled by View, which is the only place that knows the height; keeping
@@ -58,7 +62,8 @@ func (s *State) Move(delta int) {
 	if !s.Pending() {
 		return
 	}
-	s.Selected = (s.Selected + delta + len(s.Options)) % len(s.Options)
+	n := len(s.Options)
+	s.Selected = ((s.Selected+delta)%n + n) % n
 }
 
 // Keypress moves the selection. It reports whether the popup consumed
@@ -102,7 +107,13 @@ func (s *State) View(width, height int, question []string, hint string, note boo
 	// Two borders, one option and the hint are not negotiable; everything
 	// else is spent in order of what the reader needs: the note row, then
 	// the other options, then the question.
-	const base = 2 + 1 + 1
+	base := 2 + 1 + 1
+	// Keep compact terminals usable; add the shared footer divider only
+	// when it will not displace the permission choices.
+	divided := height >= 8
+	if divided {
+		base++
+	}
 	if height < base {
 		return nil
 	}
@@ -131,7 +142,8 @@ func (s *State) View(width, height int, question []string, hint string, note boo
 		more = popup.Row(styles.Normal,
 			fmt.Sprintf("  … %d more lines in the transcript above", len(question)-qrows), inner)
 	}
-	s.offset = min(max(s.Selected-count+1, 0), len(s.Options)-count)
+	selected := max(0, min(s.Selected, len(s.Options)-1))
+	offset := min(max(selected-count+1, 0), len(s.Options)-count)
 
 	rows := make([]string, 0, height)
 	for _, q := range question[:qrows] {
@@ -140,10 +152,10 @@ func (s *State) View(width, height int, question []string, hint string, note boo
 	if more != "" {
 		rows = append(rows, more)
 	}
-	for i := s.offset; i < s.offset+count; i++ {
+	for i := offset; i < offset+count; i++ {
 		opt := s.Options[i]
 		mark, style := "  ", styles.Normal
-		if i == s.Selected {
+		if i == selected {
 			mark, style = "› ", styles.Selected
 		}
 		label := mark + cell.Line(opt.Label, labelWidth(s.Options, width))
@@ -155,7 +167,11 @@ func (s *State) View(width, height int, question []string, hint string, note boo
 	if noteShown {
 		rows = append(rows, popup.Row(styles.Normal, "  note> type and press Enter", inner))
 	}
-	rows = append(rows, popup.Row(styles.Normal, "  "+hint, inner))
+	if divided {
+		rows = append(rows, popup.Footer(inner, hint, styles.Normal)...)
+	} else {
+		rows = append(rows, popup.Row(styles.Normal, hint, inner))
+	}
 	return popup.TitledFrame(s.Title, rows, width, styles)
 }
 
@@ -167,7 +183,7 @@ const maxVisible = 8
 func labelWidth(options []Option, width int) int {
 	w := 0
 	for _, opt := range options {
-		if n := len([]rune(opt.Label)); n > w {
+		if n := cell.Width(opt.Label); n > w {
 			w = n
 		}
 	}
@@ -176,13 +192,5 @@ func labelWidth(options []Option, width int) int {
 
 // Wrap splits prompt text to the popup width.
 func Wrap(prompt string, width int) []string {
-	var out []string
-	for _, line := range strings.Split(prompt, "\n") {
-		for len([]rune(line)) > width && width > 0 {
-			out = append(out, string([]rune(line)[:width]))
-			line = string([]rune(line)[width:])
-		}
-		out = append(out, line)
-	}
-	return out
+	return strings.Split(ansi.Hardwrap(prompt, max(width, 1), true), "\n")
 }

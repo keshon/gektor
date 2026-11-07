@@ -13,6 +13,7 @@ import (
 	"github.com/keshon/gektor/internal/run"
 	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/tui/components/gate"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -191,26 +192,27 @@ func (m *model) openGatePopup() {
 	}
 }
 
-// gateHint is the single footer row naming the popup keys.
-func (m *model) gateHint() string {
+// gateHint uses the shared key/action treatment. Essential actions come first
+// so narrow panes never show half a shortcut.
+func (m *model) gateHint(width int) string {
+	var hints []popup.Shortcut
 	switch m.state {
 	case stPermission:
 		switch m.gstage {
 		case gsAlways:
-			return "Enter confirm  Esc back"
+			hints = []popup.Shortcut{{Key: "Esc", Action: "back"}, {Key: "Enter", Action: "confirm"}}
 		case gsReject:
-			return "Enter deny with note  Esc back"
+			hints = []popup.Shortcut{{Key: "Esc", Action: "back"}, {Key: "Enter", Action: "deny with note"}}
 		default:
+			hints = []popup.Shortcut{{Key: "Esc", Action: "deny"}, {Key: "Enter", Action: "confirm"}, {Key: "↑↓", Action: "select"}}
 			if m.gatePreview != "" {
-				return "F4 full proposal  ↑↓ select  Y/A/N answer  Esc deny"
+				hints = append(hints, popup.Shortcut{Key: "F4", Action: "full proposal"})
 			}
-			return "↑↓ select  Y/A/N answer  Enter confirm  Esc deny"
 		}
 	case stAsk:
-		return "Type the answer and press Enter  Esc stop"
-	default:
-		return ""
+		hints = []popup.Shortcut{{Key: "Esc", Action: "stop"}, {Key: "Enter", Action: "send answer"}}
 	}
+	return popup.Shortcuts(width, m.shortcutStyles(), hints...)
 }
 
 // gateView draws the gate popup over the bottom of the transcript; the
@@ -227,7 +229,7 @@ func (m *model) gateView(body string) string {
 	lines := strings.Split(body, "\n")
 	height := max(len(lines)-gateTranscriptRows, 6)
 	question := gate.Wrap(m.gate, max(width-4, 1))
-	rows := m.gatePopup.View(width, height, question, m.gateHint(),
+	rows := m.gatePopup.View(width, height, question, m.gateHint(max(width-4, 1)),
 		m.gstage == gsReject, popupSurface())
 	if len(rows) == 0 {
 		return body

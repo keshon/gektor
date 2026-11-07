@@ -172,6 +172,44 @@ func TestCloseEmptiesThePopup(t *testing.T) {
 	}
 }
 
+func TestFooterDividerKeepsChoicesAndRenderingDoesNotChangeSelection(t *testing.T) {
+	s := &State{}
+	s.Open("Permission required", threeOptions())
+	s.Selected = 2
+	for _, width := range []int{24, 40, 60, 78} {
+		for height := 4; height <= 30; height++ {
+			rows := s.View(width, height, Wrap("Review 文件 before allowing this operation", width-4), "Esc deny", false, testStyles())
+			if len(rows) > height || len(rows) == 0 {
+				t.Fatalf("gate disappeared or overflowed at %dx%d", width, height)
+			}
+			for _, row := range rows {
+				if ansi.StringWidth(row) != width {
+					t.Fatalf("row escaped width %d: %q", width, row)
+				}
+			}
+			if s.Selected != 2 || s.Current().Value != "n" || !strings.Contains(strip(rows), "› Deny") {
+				t.Fatal("resizing or rendering changed the selected answer")
+			}
+			if height >= 8 && !strings.Contains(ansi.Strip(rows[len(rows)-3]), "├─") {
+				t.Fatal("roomy gate lost its shared footer divider")
+			}
+		}
+	}
+}
+
+func TestWrapUsesTerminalCellsAndPreservesPrompt(t *testing.T) {
+	prompt := "检查文件 before approval\n\nkeep this detail"
+	rows := Wrap(prompt, 8)
+	for _, row := range rows {
+		if ansi.StringWidth(row) > 8 {
+			t.Fatalf("wide prompt escaped its column budget: %q", row)
+		}
+	}
+	if strings.ReplaceAll(strings.Join(rows, ""), " ", "") != strings.ReplaceAll(strings.ReplaceAll(prompt, "\n", ""), " ", "") {
+		t.Fatal("wrapping lost prompt content")
+	}
+}
+
 func strip(rows []string) string {
 	out := make([]string, len(rows))
 	for i, r := range rows {
