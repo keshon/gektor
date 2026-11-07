@@ -41,6 +41,12 @@ References are JSON objects, never string interpolation. `{"$step":"double"}`
 uses the entire return value. Add `"pointer":"/total"` only if that value is
 an object with a `total` field. There is no automatic `/output` wrapper.
 For a script returning `{"total":6}`, that pointer selects `6`.
+Use `docx_read`, `xlsx_read` and `pdf_read` for document content; they are native
+read-only nodes. XLSX without `sheet` lists sheet names. Follow `next_offset`
+while `more` is true and report `truncated` results. No OCR or legacy DOC/XLS.
+Archive nodes support explicit `format`: zip (default), tar, tar.gz and gzip.
+GZIP is one file. No external runtime is needed.
+
 Paths are workspace-relative. Read a registered record schema with
 `workflow_schema(record_kind)` before using records; only the operator can
 register schemas. Do not invent record kinds. Artifacts store run outputs;

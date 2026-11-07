@@ -27,7 +27,8 @@ be running for scheduled jobs to execute.
 | Transform data with JavaScript | `script_transform` |
 | Ask a model for text or structured data | `model_generate` |
 | Make an HTTP request | `http_request` |
-| Download a file or work with ZIPs | `download_file`, `archive_list`, `archive_create`, `archive_extract` |
+| Download a file or work with archives | `download_file`, `archive_list`, `archive_create`, `archive_extract` |
+| Read DOCX, XLSX or PDF files | `docx_read`, `xlsx_read`, `pdf_read` |
 | Keep files or text with a run | `artifact_import`, `artifact_write`, `artifact_read_text` |
 | Run a local program | `run_program` |
 | Call another recipe | `workflow_call` |
@@ -44,8 +45,8 @@ not ask a model to decide what to do.
 ## Create and run from the command line
 
 Use `gektor workflow draft recipe.json [agent flags] "task"` for a constrained
-authoring session. It can inspect or preview images, list ZIP contents and save
-only that recipe; it cannot execute the recipe, write image variants or launch processes. Schema
+authoring session. It can read documents, inspect or preview images, list archive
+contents and save only that recipe; it cannot execute the recipe, write image variants or launch processes. Schema
 details are loaded through `workflow_schema`, rather than added to every prompt.
 The author must actually save and successfully validate the selected recipe
 before its run can report success. Verification revalidates the current file
@@ -98,7 +99,7 @@ checks structure, supported operations, argument schemas, IDs and path scope.
 It does not predict whether future input files exist or encoding will succeed.
 The catalog includes these four image operations, `record_read`, `record_write`,
 `script_transform`, `model_generate`, `http_request`, `artifact_import`,
-`artifact_write`, `artifact_read_text`, `download_file`, `archive_list`, `archive_create`, `archive_extract`,
+`artifact_write`, `artifact_read_text`, `docx_read`, `xlsx_read`, `pdf_read`, `download_file`, `archive_list`, `archive_create`, `archive_extract`,
 `run_program` and `workflow_call`.
 Image and record permissions match direct calls. It validates step templates and authorizes known arguments
 before starting. Output-dependent arguments are validated and authorized after
@@ -108,7 +109,7 @@ Execution reads and revalidates the current file; prior validation does not
 freeze it. Each run stores the exact source text, its SHA-256 hash and the parsed
 definition. The returned hash identifies the version actually executed.
 
-## File downloads and ZIP inspection
+## File downloads and archives
 
 These Go-native operations are also Agent tools in the optional `native_files`
 pack. Enable that pack for direct tool calls. Workflow execution uses the same
@@ -127,6 +128,10 @@ run-owned copy. Both the normalized URL and destination path are permission
 resources under `download_file`. Failed or cancelled transfers remove their
 new output file; downloading never executes its contents.
 
+All three archive operations accept an optional `format`: `zip` (the default),
+`tar`, `tar.gz` or `gzip`. The filename does not select the format. Existing ZIP
+recipes keep working. For a `.tgz` file, use `tar.gz`.
+
 `archive_list` accepts a workspace `path` to a ZIP file up to 16 MiB with at
 most 10,000 entries. Metadata reads are capped at 2 MiB to bound inspection
 work even for malformed archives. Optional `offset` starts at zero; `limit`
@@ -134,19 +139,27 @@ defaults to 50 and accepts 1–100. Results contain `total`, `offset`, `more` an
 An offset past the end returns an empty page. Each entry reports its name,
 declared size, compressed size, directory/link flags and `safe_path`.
 
-Listing does not decompress entries, check their contents or extract files.
+ZIP listing does not decompress entries, check their contents or extract files.
+TAR and GZIP listing must read the stream. They allow at most 16 MiB of payload
+and 2 MiB of headers and padding. Listing writes no files. TAR entries report
+`compressed_size: 0` because a per-entry compressed size is unavailable.
+GZIP holds one file: creation requires one source and keeps its basename.
+GZIP header names must fit Latin-1; use TAR.GZ for other names.
+Extraction uses the GZIP header name, or the input basename without `.gz` if
+that header is empty. Unsafe names, corrupt trailers and multiple GZIP members
+are rejected on extraction. Sparse TAR entries are unsupported.
 Names and sizes come from the archive and are untrusted. `safe_path` checks the
 name only; it does not mean that an entry is safe to extract. The ZIP source
 path is its permission resource under `archive_list`.
 
 `archive_create` accepts `paths`, a list of 1–128 explicit regular workspace
-files, and `path`, the new ZIP filename. It keeps workspace-relative names
-inside the ZIP. It does not scan directories or store source links. Input
-contents and the resulting ZIP are each limited to 16 MiB. The result contains
+files, and `path`, the new archive filename. It keeps workspace-relative names
+inside ZIP and TAR files. It does not scan directories or store source links. Input
+contents and the resulting archive are each limited to 16 MiB. The result contains
 `path`, `files`, `size` and `sha256`. Permissions cover every source path and
 the destination under `archive_create`.
 
-`archive_extract` accepts a ZIP `path` and a new `out_dir`. Both source and
+`archive_extract` accepts an archive `path` and a new `out_dir`. Both source and
 destination must be in the workspace; the destination's parent must exist.
 Optional `max_bytes` can lower the 16 MiB total expanded-data limit. It returns
 the source `path`, output `directory`, extracted `files` count and total `bytes`.
@@ -154,16 +167,15 @@ the source `path`, output `directory`, extracted `files` count and total `bytes`
 Extraction checks all names and authorizes every generated file and directory
 before writing. It refuses traversal, drive and stream paths, device names,
 links, encrypted or special entries, duplicate names and file/directory or
-case collisions. Compression methods are Store and Deflate. Names are limited
+case collisions. ZIP compression methods are Store and Deflate. Names are limited
 to 4,096 bytes and 64 path segments. Entries and implied directories together
-cannot exceed 10,000 paths inside the new folder. The existing ZIP and metadata
-read limits also apply.
+cannot exceed 10,000 paths inside the new folder. ZIP metadata reads have a separate 2 MiB budget.
 
 Directories use private permissions and files are written without executable
 bits. Existing outputs are never replaced. Failed or cancelled operations
 remove the files and directories they created; cleanup errors are reported.
 The source and output folder are permission resources under `archive_extract`;
-individual generated paths are checked under the same name. ZIP listing works
+individual generated paths are checked under the same name. Archive listing works
 in Plan mode; creation and extraction require Act mode. Creation and extraction
 are not marked retry-safe.
 
@@ -172,6 +184,53 @@ For a download step named `get`, pass its saved path to a later listing step:
 ```json
 {"id":"list","tool":"archive_list","args":{"path":{"$step":"get","pointer":"/path"}}}
 ```
+
+## Reading documents
+
+`docx_read`, `xlsx_read` and `pdf_read` read files inside the workspace. They
+are also Agent tools in the optional `native_documents` package. All three work
+in Plan mode. Their permission resource is the source path under the operation's
+name. A file is limited to 16 MiB. No Office suite, Python or PDF command is needed.
+
+| Operation | What comes back | Paging |
+|---|---|---|
+| `docx_read` | Body paragraphs and table rows in document order | `offset` counts blocks; `limit` defaults to 50, maximum 100 |
+| `xlsx_read` | Sheet names and visibility; add `sheet` to read its stored cells | `offset` counts stored cells; `limit` defaults to 50, maximum 100 |
+| `pdf_read` | Page text and common metadata fields | `offset` counts pages; `limit` defaults to 10, maximum 10 |
+
+Offsets start at zero. Pass the returned `next_offset` as the next request's
+`offset` while `more` is true. `total` counts blocks, stored cells or PDF pages.
+For XLSX, omit `sheet` to list names first, then pass an exact name.
+
+```json
+{"id":"read","tool":"xlsx_read","args":{"path":"sales.xlsx","sheet":"Sales","limit":50}}
+```
+
+Results contain at most 32 KiB of content text. DOCX text values and XLSX values
+or formulas are each limited to 4 KiB. A shortened block, cell or PDF page has
+`truncated: true`. Paging advances past that item; it does not recover the
+shortened part. PDF page numbers in results start at one.
+
+DOCX tables return rows with a `table` number and `cells`. Formatting, drawings,
+headers, footnotes and deleted revisions are omitted. Nested tables are refused.
+Merged cells are not expanded into a rectangular grid.
+
+XLSX cells keep their addresses, types and saved values. Empty gaps do not
+allocate rows or columns. Formulas are returned as text and are never evaluated;
+their cached values may be old or missing. Shared and array formula markers are
+kept without expanding formulas into other cells. Numbers remain raw numbers,
+including dates stored as numbers. Styles, merged ranges, charts, macros and
+external links are not read or executed.
+
+PDF text order can differ from the page layout. `no_text: true` means that no
+text was extracted from that page; it does not prove that the page is blank.
+Image-only pages need OCR, which is not included. Encrypted PDFs, legacy `.doc`
+and `.xls` files, document generation and media processing are not supported.
+
+Document readers use a separate Gektor process with a ten-second deadline and
+bounded output. It receives the already-opened file's bytes, not a filesystem
+path. Read Office XML parts share a 16 MiB expansion budget. Document contents
+are untrusted data, including text that looks like instructions.
 
 ## First recipe
 

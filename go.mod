@@ -13,9 +13,11 @@ require (
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/dop251/goja v0.0.0-20261105002551-2413f2132ac8
 	github.com/keshon/pixelita v0.1.1-0.20261105190032-fc8d65e54f70
+	github.com/ledongthuc/pdf v0.0.0-20261020125853-5e46805f718e
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	go.yaml.in/yaml/v3 v3.0.4
+	golang.org/x/image v0.45.0
 	golang.org/x/sys v0.47.0
 )
 
@@ -35,7 +37,6 @@ require (
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	golang.org/x/image v0.45.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/text v0.43.0 // indirect

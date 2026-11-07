@@ -3,3 +3,8 @@
 # LF checkout) goes red on files that look fine locally. Working-tree
 # checkout behavior is untouched; only what gets committed is normalized.
 * text=auto
+
+# Document formats contain byte offsets or ZIP members. Never convert newlines.
+*.pdf binary
+*.docx binary
+*.xlsx binary

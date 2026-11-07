@@ -35,7 +35,7 @@ func TestZIPExtractionSeparatesPayloadAndMetadataBudgets(t *testing.T) {
 	if err := s.WS.WriteFile("input.zip", data.Bytes(), 0600); err != nil {
 		t.Fatal(err)
 	}
-	result, err := s.ExtractZIP(t.Context(), ZIPExtractRequest{Path: "input.zip", OutDir: "out", MaxBytes: 4 << 20}, allowWrite)
+	result, err := s.ExtractArchive(t.Context(), ArchiveExtractRequest{Path: "input.zip", OutDir: "out", MaxBytes: 4 << 20}, allowWrite)
 	if err != nil || result.Bytes != int64(len(payload)) {
 		t.Fatal("payload was limited to metadata budget", result, err)
 	}
@@ -73,9 +73,9 @@ func TestZIPWritesRemoveOutputWhenCancelledAfterCreation(t *testing.T) {
 			}}
 			var err error
 			if extract {
-				_, err = s.ExtractZIP(ctx, ZIPExtractRequest{Path: "input.zip", OutDir: "out"}, allowWrite)
+				_, err = s.ExtractArchive(ctx, ArchiveExtractRequest{Path: "input.zip", OutDir: "out"}, allowWrite)
 			} else {
-				_, err = s.CreateZIP(ctx, ZIPCreateRequest{Paths: []string{"one"}, Path: "bundle.zip"})
+				_, err = s.CreateArchive(ctx, ArchiveCreateRequest{Paths: []string{"one"}, Path: "bundle.zip"})
 			}
 			if !errors.Is(err, context.Canceled) {
 				t.Fatal("ignored cancellation during writing", err)
@@ -99,8 +99,8 @@ func TestZIPCreateListExtractRoundTrip(t *testing.T) {
 	if err := s.WS.WriteFile("notes.txt", []byte("notes"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	request := ZIPCreateRequest{Paths: []string{"src/data.bin", "notes.txt"}, Path: "bundle.zip"}
-	created, err := s.CreateZIP(t.Context(), request)
+	request := ArchiveCreateRequest{Paths: []string{"src/data.bin", "notes.txt"}, Path: "bundle.zip"}
+	created, err := s.CreateArchive(t.Context(), request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,12 +111,12 @@ func TestZIPCreateListExtractRoundTrip(t *testing.T) {
 	if !reflect.DeepEqual(request.Paths, []string{"src/data.bin", "notes.txt"}) {
 		t.Fatal("mutated caller arguments")
 	}
-	listed, err := s.ListZIP(t.Context(), ZIPRequest{Path: created.Path})
+	listed, err := s.ListArchive(t.Context(), ArchiveListRequest{Path: created.Path})
 	if err != nil || listed.Total != 2 || listed.Entries[0].Name != "src/data.bin" {
 		t.Fatal(listed, err)
 	}
 	var authorized []string
-	extracted, err := s.ExtractZIP(t.Context(), ZIPExtractRequest{Path: "bundle.zip", OutDir: "out"}, func(_ context.Context, path string) error {
+	extracted, err := s.ExtractArchive(t.Context(), ArchiveExtractRequest{Path: "bundle.zip", OutDir: "out"}, func(_ context.Context, path string) error {
 		if _, err := s.WS.Stat("out"); !os.IsNotExist(err) {
 			t.Fatal("authorization happened after writing")
 		}
@@ -133,10 +133,10 @@ func TestZIPCreateListExtractRoundTrip(t *testing.T) {
 	if info, err := s.WS.Stat("out/src/data.bin"); err != nil || info.Mode().Perm()&0111 != 0 {
 		t.Fatal("executable mode restored", info, err)
 	}
-	if _, err := s.ExtractZIP(t.Context(), ZIPExtractRequest{Path: "bundle.zip", OutDir: "out"}, allowWrite); err == nil {
+	if _, err := s.ExtractArchive(t.Context(), ArchiveExtractRequest{Path: "bundle.zip", OutDir: "out"}, allowWrite); err == nil {
 		t.Fatal("overwrote existing output directory")
 	}
-	if _, err := s.CreateZIP(t.Context(), request); err == nil {
+	if _, err := s.CreateArchive(t.Context(), request); err == nil {
 		t.Fatal("overwrote existing ZIP")
 	}
 	still, _ := s.WS.ReadFile("bundle.zip")
@@ -154,7 +154,7 @@ func TestZIPCreateRejectsImplicitOrUnsafeSources(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, paths := range [][]string{nil, {"folder"}, {"../outside"}, {"one", "ONE"}, {"one", "one"}, {"bundle.zip"}, {"A/one", "a/two"}} {
-		if _, err := s.CreateZIP(t.Context(), ZIPCreateRequest{Paths: paths, Path: "bundle.zip"}); err == nil {
+		if _, err := s.CreateArchive(t.Context(), ArchiveCreateRequest{Paths: paths, Path: "bundle.zip"}); err == nil {
 			t.Fatal("accepted", paths)
 		}
 		if _, err := s.WS.Stat("bundle.zip"); !os.IsNotExist(err) {
@@ -163,14 +163,14 @@ func TestZIPCreateRejectsImplicitOrUnsafeSources(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := s.CreateZIP(ctx, ZIPCreateRequest{Paths: []string{"one"}, Path: "bundle.zip"}); err == nil {
+	if _, err := s.CreateArchive(ctx, ArchiveCreateRequest{Paths: []string{"one"}, Path: "bundle.zip"}); err == nil {
 		t.Fatal("ignored cancellation")
 	}
 	t.Run("source symlink", func(t *testing.T) {
 		if err := os.Symlink(filepath.Join(s.WS.Root(), "one"), filepath.Join(s.WS.Root(), "link")); err != nil {
 			t.Skip(err)
 		}
-		if _, err := s.CreateZIP(t.Context(), ZIPCreateRequest{Paths: []string{"link"}, Path: "bundle.zip"}); err == nil {
+		if _, err := s.CreateArchive(t.Context(), ArchiveCreateRequest{Paths: []string{"link"}, Path: "bundle.zip"}); err == nil {
 			t.Fatal("accepted source symlink")
 		}
 	})
@@ -183,7 +183,7 @@ func TestZIPExtractionCountsImplicitDirectoriesAndRejectsDestinationLinks(t *tes
 		names[i] = fmt.Sprintf("root%03d/", i) + strings.Repeat("d/", 55) + "file"
 	}
 	writeZIP(t, s, names...)
-	if _, err := s.ExtractZIP(t.Context(), ZIPExtractRequest{Path: "input.zip", OutDir: "out"}, allowWrite); err == nil || !strings.Contains(err.Error(), "output paths") {
+	if _, err := s.ExtractArchive(t.Context(), ArchiveExtractRequest{Path: "input.zip", OutDir: "out"}, allowWrite); err == nil || !strings.Contains(err.Error(), "output paths") {
 		t.Fatal("implicit directories bypassed count limit", err)
 	}
 	if _, err := s.WS.Stat("out"); !os.IsNotExist(err) {
@@ -196,7 +196,7 @@ func TestZIPExtractionCountsImplicitDirectoriesAndRejectsDestinationLinks(t *tes
 			t.Skip(err)
 		}
 		for _, dest := range []string{"link", "link/new"} {
-			if _, err := s.ExtractZIP(t.Context(), ZIPExtractRequest{Path: "input.zip", OutDir: dest}, allowWrite); err == nil {
+			if _, err := s.ExtractArchive(t.Context(), ArchiveExtractRequest{Path: "input.zip", OutDir: dest}, allowWrite); err == nil {
 				t.Fatal("followed destination link", dest)
 			}
 		}
@@ -220,7 +220,7 @@ func TestZIPCreateRejectsOversizeSourcesWithoutOutput(t *testing.T) {
 	if err := f.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.CreateZIP(t.Context(), ZIPCreateRequest{Paths: []string{"large.bin"}, Path: "bundle.zip"}); err == nil {
+	if _, err := s.CreateArchive(t.Context(), ArchiveCreateRequest{Paths: []string{"large.bin"}, Path: "bundle.zip"}); err == nil {
 		t.Fatal("oversize source accepted")
 	}
 	if _, err := s.WS.Stat("bundle.zip"); !os.IsNotExist(err) {
@@ -237,7 +237,7 @@ func TestZIPExtractionRejectsUnsafeEntriesBeforeWriting(t *testing.T) {
 			s := testService(t)
 			writeZIP(t, s, names...)
 			called := false
-			if _, err := s.ExtractZIP(t.Context(), ZIPExtractRequest{Path: "input.zip", OutDir: "out"}, func(context.Context, string) error { called = true; return nil }); err == nil {
+			if _, err := s.ExtractArchive(t.Context(), ArchiveExtractRequest{Path: "input.zip", OutDir: "out"}, func(context.Context, string) error { called = true; return nil }); err == nil {
 				t.Fatal("accepted dangerous archive", names)
 			}
 			if called {
@@ -266,7 +266,7 @@ func TestZIPExtractionRejectsSpecialAndEncryptedEntries(t *testing.T) {
 		if err := s.WS.WriteFile("input.zip", data.Bytes(), 0600); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := s.ExtractZIP(t.Context(), ZIPExtractRequest{Path: "input.zip", OutDir: "out"}, allowWrite); err == nil {
+		if _, err := s.ExtractArchive(t.Context(), ArchiveExtractRequest{Path: "input.zip", OutDir: "out"}, allowWrite); err == nil {
 			t.Fatal("accepted special entry", mode)
 		}
 	}
@@ -278,7 +278,7 @@ func TestZIPExtractionRejectsSpecialAndEncryptedEntries(t *testing.T) {
 	if err := s.WS.WriteFile("input.zip", data, 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.ExtractZIP(t.Context(), ZIPExtractRequest{Path: "input.zip", OutDir: "out"}, allowWrite); err == nil {
+	if _, err := s.ExtractArchive(t.Context(), ArchiveExtractRequest{Path: "input.zip", OutDir: "out"}, allowWrite); err == nil {
 		t.Fatal("accepted encrypted entry")
 	}
 }
@@ -286,13 +286,13 @@ func TestZIPExtractionRejectsSpecialAndEncryptedEntries(t *testing.T) {
 func TestZIPExtractionBoundsAndFailureCleanup(t *testing.T) {
 	s := testService(t)
 	writeZIP(t, s, "folder/one", "folder/two")
-	if _, err := s.ExtractZIP(t.Context(), ZIPExtractRequest{Path: "input.zip", OutDir: "out", MaxBytes: 7}, allowWrite); err == nil {
+	if _, err := s.ExtractArchive(t.Context(), ArchiveExtractRequest{Path: "input.zip", OutDir: "out", MaxBytes: 7}, allowWrite); err == nil {
 		t.Fatal("expanded byte budget ignored")
 	}
-	if _, err := s.ExtractZIP(t.Context(), ZIPExtractRequest{Path: "input.zip", OutDir: "out"}, nil); err == nil {
+	if _, err := s.ExtractArchive(t.Context(), ArchiveExtractRequest{Path: "input.zip", OutDir: "out"}, nil); err == nil {
 		t.Fatal("missing authorization accepted")
 	}
-	_, err := s.ExtractZIP(t.Context(), ZIPExtractRequest{Path: "input.zip", OutDir: "out"}, func(_ context.Context, path string) error {
+	_, err := s.ExtractArchive(t.Context(), ArchiveExtractRequest{Path: "input.zip", OutDir: "out"}, func(_ context.Context, path string) error {
 		if path == "out/folder/two" {
 			return fmt.Errorf("denied")
 		}
@@ -313,7 +313,7 @@ func TestZIPExtractionBoundsAndFailureCleanup(t *testing.T) {
 	if err := s.WS.WriteFile("input.zip", data, 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.ExtractZIP(t.Context(), ZIPExtractRequest{Path: "input.zip", OutDir: "out"}, allowWrite); err == nil {
+	if _, err := s.ExtractArchive(t.Context(), ArchiveExtractRequest{Path: "input.zip", OutDir: "out"}, allowWrite); err == nil {
 		t.Fatal("corrupted ZIP succeeded")
 	}
 	if _, err := s.WS.Stat("out"); !os.IsNotExist(err) {

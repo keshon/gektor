@@ -26,6 +26,7 @@ import (
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/automation/script"
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/integrations/documents"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/tools"
@@ -328,6 +329,13 @@ type Result struct {
 const defaultTimeout = 15 * time.Minute
 
 func main() {
+	if len(os.Args) > 2 && os.Args[1] == "workflow" && os.Args[2] == "internal-document-worker" {
+		if err := documents.Serve(os.Stdin, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) > 2 && os.Args[1] == "workflow" && os.Args[2] == "internal-script-worker" {
 		if err := script.Serve(os.Stdin, os.Stdout); err != nil {
 			log.Fatal(err)
@@ -340,7 +348,7 @@ func main() {
 	model := flag.String("model", "local", "model name: ignored by most local servers, required for remote providers")
 	dir := flag.String("probes", "eval/probes", "directory of probe .json files")
 	only := flag.String("only", "", "run only probes whose name contains this substring")
-	suite := flag.String("suite", "", "named subset: core, workflows, pipelines or visual")
+	suite := flag.String("suite", "", "named subset: core, workflows, pipelines, visual or documents")
 	jobsN := flag.Int("jobs", 1, "how many probes to run at once. Both backends batch concurrent "+
 		"requests (koboldcpp --parallelrequests, llama-server --parallel) and neither helps unless "+
 		"the client sends them; raising this past what the server was started with just queues")

@@ -38,6 +38,8 @@ lets `internal/tools` implement `agent.Tool` without an import cycle, and what
 keeps the loop testable against a stub client with no filesystem in sight.
 The social reader and shared integration HTTP transport import no internal
 packages. Native file operations import only workspace access and that transport.
+Document readers import only workspace access and the shared worker package.
+Worker process support imports no internal packages.
 Reusable TUI components may import other components, but no application packages.
 Workflow definitions import no internal packages. Recipe preparation imports only
 workflow definitions; the engine imports definitions and recipe preparation;

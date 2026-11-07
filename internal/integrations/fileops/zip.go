@@ -10,16 +10,17 @@ import (
 	"strings"
 )
 
-const MaxZIPEntries = 10000
-const MaxZIPMetadataBytes = 2 << 20
+const MaxArchiveEntries = 10000
+const MaxArchiveMetadataBytes = 2 << 20
 
-type ZIPRequest struct {
+type ArchiveListRequest struct {
 	Path   string `json:"path"`
 	Offset int    `json:"offset,omitempty"`
 	Limit  int    `json:"limit,omitempty"`
+	Format string `json:"format,omitempty"`
 }
 
-type ZIPEntry struct {
+type ArchiveEntry struct {
 	Name           string `json:"name"`
 	Size           uint64 `json:"size"`
 	CompressedSize uint64 `json:"compressed_size"`
@@ -28,16 +29,19 @@ type ZIPEntry struct {
 	SafePath       bool   `json:"safe_path"`
 }
 
-type ZIPResult struct {
-	Path    string     `json:"path"`
-	Total   int        `json:"total"`
-	Offset  int        `json:"offset"`
-	Entries []ZIPEntry `json:"entries"`
-	More    bool       `json:"more"`
+type ArchiveListResult struct {
+	Path    string         `json:"path"`
+	Total   int            `json:"total"`
+	Offset  int            `json:"offset"`
+	Entries []ArchiveEntry `json:"entries"`
+	More    bool           `json:"more"`
 }
 
-func (s Service) ValidateZIP(in ZIPRequest) (ZIPRequest, error) {
+func (s Service) ValidateArchiveList(in ArchiveListRequest) (ArchiveListRequest, error) {
 	var err error
+	if err = validateArchiveFormat(in.Format); err != nil {
+		return in, err
+	}
 	in.Path, err = s.path(in.Path)
 	if err != nil {
 		return in, err
@@ -51,16 +55,33 @@ func (s Service) ValidateZIP(in ZIPRequest) (ZIPRequest, error) {
 	return in, nil
 }
 
-// ListZIP reads the central directory only. It never opens or decompresses an
-// entry, and a safe_path flag is not a promise that an entry is safe to extract.
-func (s Service) ListZIP(ctx context.Context, in ZIPRequest) (ZIPResult, error) {
-	result := ZIPResult{Entries: []ZIPEntry{}}
-	in, err := s.ValidateZIP(in)
+// ListArchive reads ZIP metadata or scans a bounded TAR/GZIP stream. It writes
+// no files. A safe_path flag is not a promise that an entry is safe to extract.
+func (s Service) ListArchive(ctx context.Context, in ArchiveListRequest) (ArchiveListResult, error) {
+	result := ArchiveListResult{Entries: []ArchiveEntry{}}
+	in, err := s.ValidateArchiveList(in)
 	if err != nil {
 		return result, err
 	}
 	if err := ctx.Err(); err != nil {
 		return result, err
+	}
+	if in.Format != "" && in.Format != "zip" {
+		entries, size, err := s.readStreamArchive(ctx, in.Path, in.Format, MaxFileBytes)
+		if err != nil {
+			return result, err
+		}
+		result.Path, result.Total, result.Offset = in.Path, len(entries), min(in.Offset, len(entries))
+		end := result.Offset + min(in.Limit, len(entries)-result.Offset)
+		for _, e := range entries[result.Offset:end] {
+			compressed := uint64(0)
+			if in.Format == "gzip" {
+				compressed = uint64(size)
+			}
+			result.Entries = append(result.Entries, ArchiveEntry{Name: e.Name, Size: e.Size, CompressedSize: compressed, Directory: e.Directory, Symlink: e.Symlink, SafePath: safeArchiveName(strings.TrimSuffix(e.Name, "/"))})
+		}
+		result.More = end < len(entries)
+		return result, nil
 	}
 	f, z, err := s.openZIP(ctx, in.Path)
 	if err != nil {
@@ -77,9 +98,9 @@ func (s Service) ListZIP(ctx context.Context, in ZIPRequest) (ZIPResult, error) 
 		if len(entry.Name) > 4096 {
 			return result, fmt.Errorf("ZIP entry name exceeds 4096 bytes")
 		}
-		result.Entries = append(result.Entries, ZIPEntry{Name: entry.Name, Size: entry.UncompressedSize64, CompressedSize: entry.CompressedSize64,
+		result.Entries = append(result.Entries, ArchiveEntry{Name: entry.Name, Size: entry.UncompressedSize64, CompressedSize: entry.CompressedSize64,
 			Directory: entry.FileInfo().IsDir(), Symlink: entry.Mode()&fs.ModeSymlink != 0,
-			SafePath: safeZIPName(name)})
+			SafePath: safeArchiveName(name)})
 	}
 	result.More = end < len(z.File)
 	return result, nil
@@ -98,23 +119,23 @@ func (s Service) openZIP(ctx context.Context, path string) (*os.File, *zip.Reade
 	if !info.Mode().IsRegular() || info.Size() > MaxFileBytes {
 		return fail(fmt.Errorf("ZIP requires a regular file of at most %d bytes", MaxFileBytes))
 	}
-	reader := &contextReaderAt{ctx: ctx, r: f, remaining: MaxZIPMetadataBytes}
+	reader := &contextReaderAt{ctx: ctx, r: f, remaining: MaxArchiveMetadataBytes}
 	z, err := zip.NewReader(reader, info.Size())
 	if err != nil && !errors.Is(err, zip.ErrInsecurePath) {
 		return fail(fmt.Errorf("read ZIP: %w", err))
 	}
-	if len(z.File) > MaxZIPEntries {
-		return fail(fmt.Errorf("ZIP exceeds %d entries", MaxZIPEntries))
+	if len(z.File) > MaxArchiveEntries {
+		return fail(fmt.Errorf("ZIP exceeds %d entries", MaxArchiveEntries))
 	}
 	// File.Open retains this ReaderAt. Payload and local-header reads need a
 	// separate budget from central-directory discovery, shared across entries.
-	reader.remaining = MaxFileBytes + MaxZIPMetadataBytes
+	reader.remaining = MaxFileBytes + MaxArchiveMetadataBytes
 	return f, z, nil
 }
 
 // Use portable names so a ZIP created on one OS cannot gain drive, stream or
 // device semantics when extracted on another. Extraction never creates links.
-func safeZIPName(name string) bool {
+func safeArchiveName(name string) bool {
 	if len(name) > 4096 || !fs.ValidPath(name) || name == "." || strings.ContainsAny(name, "\\:*?\"<>|") {
 		return false
 	}

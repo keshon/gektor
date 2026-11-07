@@ -89,6 +89,8 @@ func checkPackageLayers(t *testing.T, r *repo) {
 		"automation/daemon":          {"automation/service", "automation/store"},
 		"integrations/social":        {},
 		"integrations/httptransport": {},
+		"worker":                     {},
+		"integrations/documents":     {"worker", "workspace"},
 		"integrations/fileops":       {"workspace", "integrations/httptransport"},
 	}
 	for pkg, permitted := range allowed {

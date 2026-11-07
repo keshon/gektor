@@ -1,0 +1,78 @@
+{
+  "prompt": "eval/prompts/documents.md",
+  "tier": "signal",
+  "seed": "eval/fixtures-documents",
+  "timeout_sec": 240,
+  "max_steps": 16,
+  "answer": [
+    {
+      "regex": "Cedar Works",
+      "mode": "required"
+    },
+    {
+      "regex": "INVOICE-73",
+      "mode": "required"
+    },
+    {
+      "regex": "1847",
+      "mode": "required"
+    },
+    {
+      "regex": "3694",
+      "mode": "required"
+    },
+    {
+      "regex": "ORBIT-52",
+      "mode": "required"
+    }
+  ],
+  "task": "Create recipe.json using native document reader nodes to read brief.docx, cells on the Sales sheet in sales.xlsx, and approval.pdf. Declare the three document results as recipe outputs. Validate and run it once, inspect the completed run, then report the client, invoice reference, amount, saved formula result and approval code. Do not run commands, install programs or change input files.",
+  "trace": [
+    {
+      "tool": "workflow_schema",
+      "mode": "required",
+      "success": true
+    },
+    {
+      "tool": "workflow_validate",
+      "mode": "required",
+      "success": true
+    },
+    {
+      "tool": "workflow_run",
+      "max_calls": 1,
+      "mode": "required",
+      "success": true
+    },
+    {
+      "tool": "workflow_inspect",
+      "mode": "required",
+      "success": true
+    },
+    {
+      "tool": "run_*",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "start_*",
+      "mode": "forbidden"
+    }
+  ],
+  "verify": [
+    {
+      "type": "content_contains",
+      "path": "recipe.json",
+      "contains": "docx_read"
+    },
+    {
+      "type": "content_contains",
+      "path": "recipe.json",
+      "contains": "xlsx_read"
+    },
+    {
+      "type": "content_contains",
+      "path": "recipe.json",
+      "contains": "pdf_read"
+    }
+  ]
+}

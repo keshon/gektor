@@ -32,6 +32,12 @@ func portLabel(key string) string {
 
 func operationLabel(tool string) string {
 	switch tool {
+	case "docx_read":
+		return "Read DOCX"
+	case "xlsx_read":
+		return "Read XLSX"
+	case "pdf_read":
+		return "Read PDF"
 	case "script_transform":
 		return "JavaScript"
 	case "artifact_write":

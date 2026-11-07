@@ -1,4 +1,4 @@
-package script
+package worker
 
 import (
 	"fmt"
@@ -11,8 +11,8 @@ import (
 // Keep the job handle alive for the worker's lifetime; the OS closes it at exit.
 var workerJob windows.Handle
 
-func configureWorker(cmd *exec.Cmd) { cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true} }
-func limitWorker() error {
+func Configure(cmd *exec.Cmd) { cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true} }
+func Limit() error {
 	job, err := windows.CreateJobObject(nil, nil)
 	if err != nil {
 		return err
@@ -26,7 +26,7 @@ func limitWorker() error {
 	}
 	if err = windows.AssignProcessToJobObject(job, windows.CurrentProcess()); err != nil {
 		windows.CloseHandle(job)
-		return fmt.Errorf("script memory limit: %w", err)
+		return fmt.Errorf("worker memory limit: %w", err)
 	}
 	workerJob = job
 	return nil

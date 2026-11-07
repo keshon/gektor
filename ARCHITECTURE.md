@@ -165,15 +165,21 @@ Discovery and a bounded prompt map share one optional-package catalog.
 
 ### Integrations and workflow tools
 
-Built-in `native_images`, `native_workflows` and `native_files` packages load on demand.
+Built-in `native_images`, `native_workflows`, `native_files` and `native_documents` packages load on demand.
 `integrations/pixelita` stages rooted inputs for the external Pixelita Go library;
 `automation/agenttools` adapts manual recipes to `internal/automation`. The runner has
 no model dependency and dispatches registered node descriptors. Model access is
 an explicit node with its own bounded context.
 
 Native file operations live in `internal/integrations/fileops`. Their agent and
-workflow adapters share operations, schemas and limits. The provider reader in
-`internal/integrations/social` handles FxTwitter responses; its tool adapter owns
+workflow adapters share operations, schemas and limits. ZIP and stream archives
+share extraction planning and rooted output publication. Document readers live
+in `internal/integrations/documents`, with the same adapter split. Its parsers
+receive bounded bytes through `internal/worker`, which also hosts script worker
+process support. The parent enforces deadlines and output size; the child sets
+platform memory limits. This is not an operating system sandbox.
+
+The provider reader in `internal/integrations/social` handles FxTwitter responses; its tool adapter owns
 activation, network policy and timeout. Provider code does not import the agent.
 
 ### Workflow execution

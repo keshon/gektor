@@ -9,6 +9,9 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	workflow "github.com/keshon/gektor/internal/automation/agenttools"
 	"github.com/keshon/gektor/internal/gektor"
+	"github.com/keshon/gektor/internal/integrations/documents"
+	documentadapter "github.com/keshon/gektor/internal/integrations/documents/adapters"
+	documentagent "github.com/keshon/gektor/internal/integrations/documents/agenttools"
 	"github.com/keshon/gektor/internal/integrations/fileops"
 	"github.com/keshon/gektor/internal/integrations/fileops/adapters"
 	fileagent "github.com/keshon/gektor/internal/integrations/fileops/agenttools"
@@ -75,6 +78,10 @@ func WorkflowAuthor(e Env, recipePath, stateFile string) (*agent.Agent, error) {
 		workflow.Schema{WS: e.WS, StoreDir: storeDir}, save,
 		validation,
 		tools.ReadFile{WS: e.WS}, tools.ListFiles{WS: e.WS},
+		documentagent.Tool{Operation: documentadapter.Operation{Service: documents.Service{WS: e.WS}, Kind: "docx_read"}},
+		documentagent.Tool{Operation: documentadapter.Operation{Service: documents.Service{WS: e.WS}, Kind: "xlsx_read"}},
+		documentagent.Tool{Operation: documentadapter.Operation{Service: documents.Service{WS: e.WS}, Kind: "pdf_read"}},
+
 		fileagent.Tool{Operation: adapters.Operation{Service: fileops.Service{WS: e.WS}, Kind: "archive_list"}},
 		&imageagent.Tool{Operation: pixelita.Operation{WS: e.WS, Operation: "inspect"}}, &imageagent.Tool{Operation: pixelita.Operation{WS: e.WS, Operation: "preview"}},
 	)

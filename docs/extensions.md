@@ -139,13 +139,19 @@ definitions are checked against the current build before a resumed run; a
 mismatch requires compatible code or a fresh session. Other always-present
 native tools are reconstructed normally and are not saved as capability packs.
 
-Built-in `native_images`, `native_files` and `native_workflows` load on demand.
+Built-in `native_images`, `native_files`, `native_documents` and `native_workflows` load on demand.
 `native_files` provides `download_file`, `archive_list`, `archive_create` and
 `archive_extract` as ordinary agent tools. The same operations are workflow
-nodes. ZIP listing is read-only; the other operations create new files or
-folders. Existing outputs are preserved. None needs an external
-program. See [file operations](workflows.md#file-downloads-and-zip-inspection)
+nodes. ZIP, TAR, TAR.GZ and GZIP are supported. Listing is read-only; the other
+operations create new files or folders. Existing outputs are preserved. None needs an external
+program. See [file operations](workflows.md#file-downloads-and-archives)
 for inputs and limits.
+
+`native_documents` provides `docx_read`, `xlsx_read` and `pdf_read` for bounded
+text, table, cell and metadata reading. The same read-only operations are
+workflow nodes. See [document readers](workflows.md#reading-documents) for paging
+and limits. No document generation, OCR or external programs are included.
+
 See [image workflows](workflows.md) for tools, limits and the recipe format.
 
 The prompt includes a bounded map of optional pack IDs and descriptions from

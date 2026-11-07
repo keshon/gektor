@@ -9,6 +9,7 @@ import (
 	"github.com/keshon/gektor/internal/automation/credentials"
 	"github.com/keshon/gektor/internal/automation/script"
 	"github.com/keshon/gektor/internal/automation/store"
+	"github.com/keshon/gektor/internal/integrations/documents"
 	"io"
 	"os"
 	"os/signal"
@@ -27,6 +28,9 @@ const workflowUsage = "usage: gektor workflow schema | artifacts|export-artifact
 func runWorkflow(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("%s", workflowUsage)
+	}
+	if args[0] == "internal-document-worker" {
+		return documents.Serve(os.Stdin, os.Stdout)
 	}
 	if args[0] == "internal-script-worker" {
 		return script.Serve(os.Stdin, os.Stdout)

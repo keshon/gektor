@@ -89,7 +89,7 @@ func TestWorkflowAuthorCannotExecuteOrRedirectWrites(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"archive_list", "image_inspect", "image_preview", "list_files", "read_file", "workflow_save", "workflow_schema", "workflow_validate"}
+	want := []string{"archive_list", "docx_read", "image_inspect", "image_preview", "list_files", "pdf_read", "read_file", "workflow_save", "workflow_schema", "workflow_validate", "xlsx_read"}
 	if !reflect.DeepEqual(a.ToolNames(), want) {
 		t.Fatal(a.ToolNames())
 	}

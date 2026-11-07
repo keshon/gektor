@@ -48,6 +48,8 @@ github.com/google/pprof v0.0.0-20230207041349-798e818bf904 h1:4/hN5RUoecvl+RmJRE
 github.com/google/pprof v0.0.0-20230207041349-798e818bf904/go.mod h1:uglQLonpP8qtYCYyzA+8c/9qtqgA3qsXGYqCPKARAFg=
 github.com/keshon/pixelita v0.1.1-0.20261105190032-fc8d65e54f70 h1:V32QXS27syA2/4VYfWyBilur5nMGW5MQO/0djT0lFkc=
 github.com/keshon/pixelita v0.1.1-0.20261105190032-fc8d65e54f70/go.mod h1:ddHV6un10Sp6XNwqdY9SExnZoDEP3ou8q0syq0ZqGi0=
+github.com/ledongthuc/pdf v0.0.0-20261020125853-5e46805f718e h1:U2Z+V2xqvjJg0azbxHnhOmz2DrpYq0WKpItMPKR6FhY=
+github.com/ledongthuc/pdf v0.0.0-20261020125853-5e46805f718e/go.mod h1:1fEHWurg7pvf5SG6XNE5Q8UZmOwex51Mkx3SLhrW5B4=
 github.com/lucasb-eyer/go-colorful v1.4.1 h1:1EO+WB73+EH8EVbzlrG3KLAfEypQWVHIBqlTf+2hNss=
 github.com/lucasb-eyer/go-colorful v1.4.1/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
 github.com/mattn/go-runewidth v0.0.27 h1:Feg/Oou5zI/wnpgDF6omIU0OokC9GxLC/WRknhVlIR0=

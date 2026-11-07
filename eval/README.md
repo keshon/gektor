@@ -37,19 +37,22 @@ with `scripts\eval-run.cmd`.
 | `core` | Seven general Agent tasks, including unavailable browser reporting | No |
 | `workflows` | Four image-workflow tasks: creation, metadata refusal, invalid recipe, existing output | No |
 | `pipelines` | Child recipes with declared outputs; a paused hourly schedule and worker status | No |
+| `documents` | Native DOCX, XLSX and PDF reading, directly and through a recipe | No |
 | `visual` | Pasted image discovery, a detail crop, misleading suffix and limits on identification | Yes |
 
 ```text
 go run ./cmd/eval -dry
 go run ./cmd/eval -suite pipelines -runs 3 -jobs 1 -backend http://127.0.0.1:9931
 go run ./cmd/eval -suite visual -runs 3 -jobs 1 -backend http://127.0.0.1:9931
+
+go run ./cmd/eval -suite documents -runs 3 -jobs 1 -backend http://127.0.0.1:9931
 ```
 
 The visual probe uses generated shapes delivered outside the workspace, like a
 pasted image. Its bytes and delivery mode enter the input fingerprint. A backend
 without confirmed image support produces SKIP. No user photos or external image
 site is involved. See [visual criteria](prompts/visual.md) and
-[pipeline criteria](prompts/pipelines.md).
+[pipeline criteria](prompts/pipelines.md) and [document criteria](prompts/documents.md).
 
 For the fixed seven-scenario starting baseline:
 

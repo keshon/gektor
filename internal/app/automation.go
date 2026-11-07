@@ -16,6 +16,7 @@ import (
 	"github.com/keshon/gektor/internal/automation/service"
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/gektor"
+	documentnodes "github.com/keshon/gektor/internal/integrations/documents/nodes"
 	filenodes "github.com/keshon/gektor/internal/integrations/fileops/nodes"
 	"github.com/keshon/gektor/internal/integrations/pixelita"
 	imagenodes "github.com/keshon/gektor/internal/integrations/pixelita/nodes"
@@ -29,6 +30,7 @@ import (
 func AutomationRegistry(ws *workspace.Workspace, store string, output pixelita.OutputAuthorizer, fileOutput func(context.Context, string, string, json.RawMessage) error) (*automation.Registry, error) {
 	nodes := imagenodes.Definitions(ws, output)
 	nodes = append(nodes, filenodes.Definitions(ws, fileOutput)...)
+	nodes = append(nodes, documentnodes.Definitions(ws)...)
 	nodes = append(nodes, record.Definitions(ws, store)...)
 	nodes = append(nodes, artifactnodes.Definitions(ws)...)
 	nodes = append(nodes, processnode.Definition(ws))

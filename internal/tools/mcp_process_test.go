@@ -3,6 +3,8 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"github.com/keshon/gektor/internal/integrations/documents"
 	"os"
 	"strings"
 	"testing"
@@ -13,6 +15,13 @@ import (
 const mcpHelperEnv = "GEKTOR_MCP_HELPER"
 
 func TestMain(m *testing.M) {
+	if len(os.Args) == 3 && os.Args[1] == "workflow" && os.Args[2] == "internal-document-worker" {
+		if err := documents.Serve(os.Stdin, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if os.Getenv("GEKTOR_EXEC_HELPER") == "1" {
 		writeLiteralExecutionArgs()
 		return

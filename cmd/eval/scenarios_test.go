@@ -14,10 +14,18 @@ import (
 
 	workflow "github.com/keshon/gektor/internal/automation/agenttools"
 	"github.com/keshon/gektor/internal/automation/script"
+	"github.com/keshon/gektor/internal/integrations/documents"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
 func TestMain(m *testing.M) {
+	if len(os.Args) > 2 && os.Args[1] == "workflow" && os.Args[2] == "internal-document-worker" {
+		if err := documents.Serve(os.Stdin, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) > 2 && os.Args[1] == "workflow" && os.Args[2] == "internal-script-worker" {
 		if err := script.Serve(os.Stdin, os.Stdout); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -104,7 +112,7 @@ func TestVisualFixtureAndProbeInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for suite, count := range map[string]int{"visual": 1, "pipelines": 2} {
+	for suite, count := range map[string]int{"visual": 1, "pipelines": 2, "documents": 2} {
 		selected, err := selectSuite(probes, suite)
 		if err != nil || len(selected) != count {
 			t.Fatal(suite, selected, err)

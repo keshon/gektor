@@ -40,12 +40,12 @@ func writeZIP(t *testing.T, s Service, names ...string) {
 
 func TestZIPListingBoundsArchiveAndMetadataWork(t *testing.T) {
 	s := testService(t)
-	names := make([]string, MaxZIPEntries+1)
+	names := make([]string, MaxArchiveEntries+1)
 	for i := range names {
 		names[i] = "entry"
 	}
 	writeZIP(t, s, names...)
-	if _, err := s.ListZIP(t.Context(), ZIPRequest{Path: "input.zip"}); err == nil || !strings.Contains(err.Error(), "entries") {
+	if _, err := s.ListArchive(t.Context(), ArchiveListRequest{Path: "input.zip"}); err == nil || !strings.Contains(err.Error(), "entries") {
 		t.Fatal("entry limit not enforced", err)
 	}
 	names = make([]string, 1100)
@@ -53,7 +53,7 @@ func TestZIPListingBoundsArchiveAndMetadataWork(t *testing.T) {
 		names[i] = strings.Repeat("a", 2100)
 	}
 	writeZIP(t, s, names...)
-	if _, err := s.ListZIP(t.Context(), ZIPRequest{Path: "input.zip"}); err == nil || !strings.Contains(err.Error(), "budget") {
+	if _, err := s.ListArchive(t.Context(), ArchiveListRequest{Path: "input.zip"}); err == nil || !strings.Contains(err.Error(), "budget") {
 		t.Fatal("metadata budget not enforced", err)
 	}
 	f, err := s.WS.CreateExclusive("large.zip", 0600)
@@ -67,7 +67,7 @@ func TestZIPListingBoundsArchiveAndMetadataWork(t *testing.T) {
 	if err := f.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.ListZIP(t.Context(), ZIPRequest{Path: "large.zip"}); err == nil || !strings.Contains(err.Error(), "regular file") {
+	if _, err := s.ListArchive(t.Context(), ArchiveListRequest{Path: "large.zip"}); err == nil || !strings.Contains(err.Error(), "regular file") {
 		t.Fatal("file size limit not enforced", err)
 	}
 }
@@ -76,7 +76,7 @@ func TestZIPListingPagesAndFlagsUntrustedNamesWithoutExtraction(t *testing.T) {
 	s := testService(t)
 	writeZIP(t, s, "good.txt", "../escape", "/absolute", "C:/drive", "back\\slash", "link", "folder/")
 	for _, offset := range []int{0, 3, 6, 100} {
-		result, err := s.ListZIP(t.Context(), ZIPRequest{Path: "input.zip", Offset: offset, Limit: 3})
+		result, err := s.ListArchive(t.Context(), ArchiveListRequest{Path: "input.zip", Offset: offset, Limit: 3})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -100,15 +100,15 @@ func TestZIPListingRejectsInvalidInputAndCancellation(t *testing.T) {
 	if err := s.WS.WriteFile("broken.zip", []byte("not a ZIP"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	for _, req := range []ZIPRequest{{Path: "broken.zip"}, {Path: "../outside"}, {Path: "broken.zip", Offset: -1}, {Path: "broken.zip", Limit: 101}} {
-		if _, err := s.ListZIP(t.Context(), req); err == nil {
+	for _, req := range []ArchiveListRequest{{Path: "broken.zip"}, {Path: "../outside"}, {Path: "broken.zip", Offset: -1}, {Path: "broken.zip", Limit: 101}} {
+		if _, err := s.ListArchive(t.Context(), req); err == nil {
 			t.Fatal("accepted", req)
 		}
 	}
 	writeZIP(t, s, "one")
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := s.ListZIP(ctx, ZIPRequest{Path: "input.zip"}); err == nil {
+	if _, err := s.ListArchive(ctx, ArchiveListRequest{Path: "input.zip"}); err == nil {
 		t.Fatal("ignored cancellation")
 	}
 	outside := filepath.Join(t.TempDir(), "outside.zip")
@@ -119,7 +119,7 @@ func TestZIPListingRejectsInvalidInputAndCancellation(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(s.WS.Root(), "link.zip")); err != nil {
 		t.Skip(err)
 	}
-	if _, err := s.ListZIP(t.Context(), ZIPRequest{Path: "link.zip"}); err == nil {
+	if _, err := s.ListArchive(t.Context(), ArchiveListRequest{Path: "link.zip"}); err == nil {
 		t.Fatal("read outside workspace")
 	}
 }

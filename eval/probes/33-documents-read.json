@@ -1,0 +1,67 @@
+{
+  "prompt": "eval/prompts/documents.md",
+  "tier": "signal",
+  "seed": "eval/fixtures-documents",
+  "timeout_sec": 240,
+  "max_steps": 16,
+  "answer": [
+    {
+      "regex": "Cedar Works",
+      "mode": "required"
+    },
+    {
+      "regex": "INVOICE-73",
+      "mode": "required"
+    },
+    {
+      "regex": "1847",
+      "mode": "required"
+    },
+    {
+      "regex": "3694",
+      "mode": "required"
+    },
+    {
+      "regex": "ORBIT-52",
+      "mode": "required"
+    }
+  ],
+  "task": "Read brief.docx, sales.xlsx and approval.pdf with native document tools. Report the client, invoice reference, amount, saved formula result and approval code. Do not change files, run commands or install anything.",
+  "trace": [
+    {
+      "tool": "docx_read",
+      "mode": "required",
+      "success": true
+    },
+    {
+      "tool": "xlsx_read",
+      "mode": "required",
+      "success": true
+    },
+    {
+      "tool": "pdf_read",
+      "mode": "required",
+      "success": true
+    },
+    {
+      "tool": "write_file",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "patch_file",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "archive_extract",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "run_*",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "start_*",
+      "mode": "forbidden"
+    }
+  ]
+}
