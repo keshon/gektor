@@ -136,9 +136,9 @@ decision, rather than a behavior-preserving code move.
   must be released even when a later setup step fails.
 - [ ] Compare CLI, TUI, RPC and eval construction. Remove duplicated rules that
   can drift; retain frontend-specific input and display handling.
-- [ ] Split Chat Completions streaming into wire parsing, response accumulation
+- [x] Split Chat Completions streaming into wire parsing, response accumulation
   and tool-call assembly where these have clear inputs and outputs.
-- [ ] Preserve partial responses, replay data, usage, finish reasons and the
+- [x] Preserve partial responses, replay data, usage, finish reasons and the
   rule that incomplete tool calls never execute.
 - [ ] Simplify eval main/runOnce by setup, execution and reporting. Keep probe
   criteria, scoring, backend-unavailable handling and results unchanged.
