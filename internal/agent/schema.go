@@ -9,9 +9,13 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-// Schemas are fixed for a registry's lifetime. Compile once, and never fetch
-// remote references while validating a model-generated call.
-var argumentSchemas sync.Map
+const maxArgumentSchemas = 128
+
+// Dynamic tool catalogs must not retain every historical schema indefinitely.
+var argumentSchemas = struct {
+	sync.Mutex
+	entries map[string]schemaResult
+}{entries: map[string]schemaResult{}}
 
 type schemaResult struct {
 	schema *jsonschema.Schema
@@ -53,9 +57,10 @@ func validateArguments(args, schema json.RawMessage) error {
 		return nil
 	}
 	key := string(schema)
-	cached, ok := argumentSchemas.Load(key)
+	argumentSchemas.Lock()
+	result, ok := argumentSchemas.entries[key]
+	argumentSchemas.Unlock()
 	if !ok {
-		result := schemaResult{}
 		var doc any
 		result.err = json.Unmarshal(schema, &doc)
 		if result.err == nil {
@@ -66,9 +71,13 @@ func validateArguments(args, schema json.RawMessage) error {
 				result.schema, result.err = c.Compile("urn:gektor:arguments")
 			}
 		}
-		cached, _ = argumentSchemas.LoadOrStore(key, result)
+		argumentSchemas.Lock()
+		if len(argumentSchemas.entries) >= maxArgumentSchemas {
+			clear(argumentSchemas.entries)
+		}
+		argumentSchemas.entries[key] = result
+		argumentSchemas.Unlock()
 	}
-	result := cached.(schemaResult)
 	if result.err != nil {
 		return fmt.Errorf("tool_schema_error: %w", result.err)
 	}
