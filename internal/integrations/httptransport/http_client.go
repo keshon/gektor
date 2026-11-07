@@ -1,3 +1,4 @@
+// Package httptransport constructs HTTP transports with explicit public or loopback network access.
 package httptransport
 
 import (

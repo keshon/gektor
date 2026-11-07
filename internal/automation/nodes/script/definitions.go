@@ -1,3 +1,4 @@
+// Package script adapts isolated JavaScript transforms to workflow nodes.
 package script
 
 import (

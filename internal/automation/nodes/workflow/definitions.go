@@ -1,3 +1,4 @@
+// Package workflow describes recipe-call nodes expanded before workflow execution.
 package workflow
 
 import (

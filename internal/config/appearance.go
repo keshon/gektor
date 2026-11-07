@@ -1,3 +1,4 @@
+// Package config loads and validates profiles, preferences and workspace setup.
 package config
 
 import "fmt"

@@ -1,3 +1,4 @@
+// Package process adapts native process execution to workflow nodes.
 package process
 
 import (

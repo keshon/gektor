@@ -1,3 +1,4 @@
+// Package model runs bounded model requests without agent tools or conversation history.
 package model
 
 import (

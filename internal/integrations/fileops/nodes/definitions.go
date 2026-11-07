@@ -1,3 +1,4 @@
+// Package nodes exposes native file operations as workflow nodes.
 package nodes
 
 import (

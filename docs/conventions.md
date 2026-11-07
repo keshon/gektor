@@ -39,6 +39,11 @@ keeps the loop testable against a stub client with no filesystem in sight.
 The social reader and shared integration HTTP transport import no internal
 packages. Native file operations import only workspace access and that transport.
 Reusable TUI components may import other components, but no application packages.
+Workflow definitions import no internal packages. Recipe preparation imports only
+workflow definitions; the engine imports definitions and recipe preparation;
+the store imports only definitions. The service coordinates these packages and
+workspace access. The daemon imports only the service and store. Node adapters
+and frontends stay outside these core workflow packages.
 
 **[invariant]** `internal/agent` never learns which backend it is talking to.
 A backend quirk handled inside the loop is a quirk that will be handled twice

@@ -1,3 +1,4 @@
+// Package artifact reads and writes immutable workflow artifacts.
 package artifact
 
 import (

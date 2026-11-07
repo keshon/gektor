@@ -1,3 +1,4 @@
+// Package recipe validates recipe structure, binds inputs and resolves data references.
 package recipe
 
 import (

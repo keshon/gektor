@@ -1,3 +1,4 @@
+// Package record adapts workspace record collections to workflow nodes.
 package record
 
 import (

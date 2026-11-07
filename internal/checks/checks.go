@@ -1,3 +1,4 @@
+// Package checks inspects changed content for language-independent findings.
 package checks
 
 import (

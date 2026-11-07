@@ -1,3 +1,4 @@
+// Package tui owns terminal screens and connects reusable controls to application actions.
 package tui
 
 import (

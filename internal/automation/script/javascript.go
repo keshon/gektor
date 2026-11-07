@@ -1,3 +1,4 @@
+// Package script executes bounded JavaScript transforms in a separate worker process.
 package script
 
 import (

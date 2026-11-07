@@ -1,3 +1,4 @@
+// Package probe shares HTTP model-inspection requests between provider adapters.
 package probe
 
 import (

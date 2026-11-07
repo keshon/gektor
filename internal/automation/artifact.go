@@ -1,3 +1,4 @@
+// Package automation defines workflow recipes, node contracts and persisted run records.
 package automation
 
 import (

@@ -1,3 +1,4 @@
+// Package agenttools exposes bounded image operations to the agent tool registry.
 package agenttools
 
 import (

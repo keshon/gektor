@@ -1,4 +1,5 @@
 // Package retrospect reviews archived executions without resuming the task.
+// Review and lesson creation are experimental.
 package retrospect
 
 import (

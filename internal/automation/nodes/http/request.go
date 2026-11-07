@@ -1,3 +1,4 @@
+// Package httpnode adapts bounded HTTP requests to workflow nodes.
 package httpnode
 
 import (

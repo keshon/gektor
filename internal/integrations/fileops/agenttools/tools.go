@@ -1,3 +1,4 @@
+// Package agenttools exposes native file operations to the agent tool registry.
 package agenttools
 
 import (

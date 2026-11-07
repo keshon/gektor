@@ -1,3 +1,4 @@
+// Package process runs bounded native processes and retains their measured output.
 package process
 
 import "strings"

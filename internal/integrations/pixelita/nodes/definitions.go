@@ -1,3 +1,4 @@
+// Package nodes exposes image operations as workflow nodes.
 package nodes
 
 import (
