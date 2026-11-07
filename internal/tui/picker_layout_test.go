@@ -38,7 +38,7 @@ func TestPickerFootersFitAcrossThemesAndTerminalSizes(t *testing.T) {
 				if len(rows)+2 > props.Height {
 					t.Fatal("picker hid its footer below available area", theme, size, field, len(rows), props.Height)
 				}
-				if len(rows) < 3 || !strings.Contains(ansi.Strip(rows[len(rows)-3]), "────") || !strings.Contains(ansi.Strip(rows[len(rows)-2]), "Esc ") {
+				if len(rows) < 3 || !strings.Contains(ansi.Strip(rows[len(rows)-3]), "────") || !strings.Contains(ansi.Strip(rows[len(rows)-2]), "ESC ") {
 					t.Fatal("picker lost shared footer", theme, size, field)
 				}
 				if strings.Contains(ansi.Strip(rows[len(rows)-2]), "…") {

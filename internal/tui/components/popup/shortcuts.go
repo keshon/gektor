@@ -10,6 +10,9 @@ import (
 type Shortcut struct{ Key, Action string }
 type ShortcutStyles struct{ Key, Action lipgloss.Style }
 
+// KeyLabel formats display text only; event bindings keep their original values.
+func KeyLabel(key string) string { return strings.ToUpper(strings.ReplaceAll(key, "\n", " ")) }
+
 // Shortcuts renders one hint row. Callers list essential groups first;
 // groups that cannot fit are omitted whole, never shortened into partial keys.
 // Hints describe keyboard actions and do not introduce mouse controls.
@@ -18,7 +21,7 @@ func Shortcuts(width int, styles ShortcutStyles, shortcuts ...Shortcut) string {
 	var groups []string
 	used := 0
 	for _, shortcut := range shortcuts {
-		key, action := strings.ReplaceAll(shortcut.Key, "\n", " "), strings.ReplaceAll(shortcut.Action, "\n", " ")
+		key, action := KeyLabel(shortcut.Key), strings.ReplaceAll(shortcut.Action, "\n", " ")
 		if key == "" || action == "" {
 			continue
 		}

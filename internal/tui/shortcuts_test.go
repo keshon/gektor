@@ -27,7 +27,7 @@ func TestInspectorShortcutRolesAndCompactFooterAcrossThemes(t *testing.T) {
 				t.Fatal("shortcut key and action roles differ from theme", theme, width)
 			}
 			row := ansi.Cut(strings.Split(ansi.Strip(view), "\n")[y], x, x+layout.Footer.Width)
-			if !strings.HasPrefix(row, "Esc ") || strings.ContainsAny(row, "·…") || layout.Footer.Height != 1 {
+			if !strings.HasPrefix(row, "ESC ") || strings.ContainsAny(row, "·…") || layout.Footer.Height != 1 {
 				t.Fatal("inspector footer lost its compact whole-group hints", theme, width, row)
 			}
 		}

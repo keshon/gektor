@@ -73,7 +73,7 @@ func TestActionBarCellsAndMouseShareGeometry(t *testing.T) {
 					if cell.end-cell.start < 14 && strings.HasPrefix(cell.action.name, "Ctrl+") {
 						return " ^" + strings.TrimPrefix(cell.action.name, "Ctrl+") + " "
 					}
-					return " " + cell.action.name + " "
+					return " " + strings.ToUpper(cell.action.name) + " "
 				}()) {
 					t.Fatalf("button moved at width %d: %q", width, bar)
 				}

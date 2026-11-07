@@ -51,11 +51,11 @@ func TestCompletionUsesInjectedActionWithoutSharedGlobalState(t *testing.T) {
 	s := State{}
 	s.Open([]Item{{Value: "/help"}}, "help")
 	p := completionProps(60, 12)
-	if !strings.Contains(ansi.Strip(strings.Join(s.Layout(p).Rows, "\n")), "Enter run") {
+	if !strings.Contains(ansi.Strip(strings.Join(s.Layout(p).Rows, "\n")), "ENTER run") {
 		t.Fatal("runnable command has wrong hint")
 	}
 	p.Runnable = func(Item) bool { return false }
-	if !strings.Contains(ansi.Strip(strings.Join(s.Layout(p).Rows, "\n")), "Enter insert") {
+	if !strings.Contains(ansi.Strip(strings.Join(s.Layout(p).Rows, "\n")), "ENTER insert") {
 		t.Fatal("insert-only command has wrong hint")
 	}
 	s.Close()

@@ -19,9 +19,9 @@ func TestGateHintsKeepTheCurrentStageAndFitEveryTheme(t *testing.T) {
 			m.gstage = stage
 			for _, width := range []int{20, 36, 74} {
 				hint := ansi.Strip(m.gateHint(width))
-				want := "Esc back"
+				want := "ESC back"
 				if stage == gsPermit {
-					want = "Esc deny"
+					want = "ESC deny"
 				}
 				if ansi.StringWidth(hint) != width || !strings.Contains(hint, want) {
 					t.Fatalf("%s stage %d width %d: missing complete cancellation hint: %q", theme, stage, width, hint)

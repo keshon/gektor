@@ -110,7 +110,7 @@ func (m *model) searchView() string {
 	}
 	switch s.mode {
 	case sessRename:
-		rows = append(rows, line(styles.Normal, "Rename session · Enter save · Esc back"), line(styles.Normal, m.note.View()))
+		rows = append(rows, line(styles.Normal, "Rename session · ENTER save · ESC back"), line(styles.Normal, m.note.View()))
 	case sessConfirm:
 		title := "session"
 		if len(s.entries) > 0 {
@@ -118,10 +118,19 @@ func (m *model) searchView() string {
 		}
 		rows = append(rows, line(styles.Normal, "Delete "+title+"? Y delete · N cancel"))
 	}
-	hint := "↑↓ select · Enter open · Esc close"
+	hintWidth, count := inner, ""
 	if len(s.entries) > 0 {
-		hint += " · " + strconv.Itoa(s.Cursor+1) + "/" + strconv.Itoa(len(s.entries))
+		count = "  " + strconv.Itoa(s.Cursor+1) + "/" + strconv.Itoa(len(s.entries))
+		hintWidth = max(inner-lipgloss.Width(count), 0)
 	}
+	shortcuts := []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "Enter", Action: "open"}, {Key: "↑↓", Action: "select"}}
+	switch s.mode {
+	case sessRename:
+		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "back"}, {Key: "Enter", Action: "save"}}
+	case sessConfirm:
+		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "back"}, {Key: "Y", Action: "delete"}, {Key: "N", Action: "cancel"}}
+	}
+	hint := popup.Shortcuts(hintWidth, m.shortcutStyles(), shortcuts...) + m.styles.dim.Render(count)
 	for _, row := range popup.Footer(inner, hint, m.styles.dim) {
 		rows = append(rows, line(styles.Normal, row))
 	}

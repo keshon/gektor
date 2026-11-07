@@ -141,7 +141,7 @@ func TestSuggestionPopupHasBackgroundAndFits(t *testing.T) {
 		m.syncSuggestions()
 		body := m.suggestionView(m.transcript.Viewport.View())
 		plain := ansi.Strip(body)
-		if !strings.Contains(plain, "Commands") || !strings.Contains(plain, "Enter run") || !strings.Contains(body, "48;") {
+		if !strings.Contains(plain, "Commands") || !strings.Contains(plain, "ENTER run") || !strings.Contains(body, "48;") {
 			t.Fatalf("missing popup chrome or background: %q", body)
 		}
 		if lipgloss.Height(body) != m.transcript.Viewport.Height() {

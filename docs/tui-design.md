@@ -236,7 +236,10 @@ independent toggles and radio marks for mutually exclusive choices.
 
 A toolbar is a group of direct actions. The global hotkey bar and modal
 shortcuts share key formatting, but do not duplicate commands that cannot run
-in the current context. The hotkey bar keeps one blank terminal column between
+in the current context. Display key labels in uppercase, including named keys
+and modifiers: `T`, `DELETE`, `ENTER`, `ESC`, `CTRL+S`. This affects presentation;
+the accepted key bindings stay unchanged. Action labels keep normal casing.
+The hotkey bar keeps one blank terminal column between
 action blocks, using the surrounding surface color. The gap stays visible at
 narrow widths and never activates an action when clicked. This spacing belongs
 to the shared component, not each screen.

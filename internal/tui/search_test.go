@@ -88,6 +88,28 @@ func TestSearchPopupGeometryAndDraftPreservation(t *testing.T) {
 	}
 }
 
+func TestSessionBrowserUsesSharedUppercaseFooter(t *testing.T) {
+	m := sizeModel(t, testModel())
+	m.sessions = &sessionsState{filter: newSearchInput(50), entries: []sessionEntry{{id: "a", title: "First session"}, {id: "b", title: "Second session"}}}
+	m.fitBottom()
+	text := ansi.Strip(m.searchView())
+	for _, want := range []string{"Open session", "ESC close", "ENTER open", "↑↓ select", "1/2"} {
+		if !strings.Contains(text, want) {
+			t.Fatal("session browser lost shared chrome or count", want, text)
+		}
+	}
+	for _, item := range []struct {
+		mode sessionsMode
+		hint string
+	}{{sessRename, "ENTER save"}, {sessConfirm, "Y delete"}} {
+		m.sessions.mode = item.mode
+		text := ansi.Strip(m.searchView())
+		if !strings.Contains(text, item.hint) || strings.Contains(text, "ENTER open") {
+			t.Fatal("session footer describes the wrong action", text)
+		}
+	}
+}
+
 func TestSearchHistoryMatchOpensAtMessage(t *testing.T) {
 	m := testModel()
 	m.state = stDone

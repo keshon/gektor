@@ -70,7 +70,7 @@ func TestToolbarCompactsControlKeysAndLabels(t *testing.T) {
 	if row := Toolbar(10, actions, ToolbarStyles{}).Row; row != " ^P Find  " {
 		t.Fatalf("compact action is unreadable: %q", row)
 	}
-	if row := Toolbar(24, actions, ToolbarStyles{}).Row; !strings.Contains(row, " Ctrl+P Search sessions") {
+	if row := Toolbar(24, actions, ToolbarStyles{}).Row; !strings.Contains(row, " CTRL+P Search sessions") {
 		t.Fatal("roomy toolbar shortened its action", row)
 	}
 }

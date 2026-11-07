@@ -5,6 +5,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/keshon/gektor/internal/tui/components/cell"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
 type ToolAction struct {
@@ -42,6 +43,7 @@ func Toolbar(width int, actions []ToolAction, styles ToolbarStyles) ToolbarLayou
 		if w < 14 && action.CompactKey != "" {
 			key = action.CompactKey
 		}
+		key = popup.KeyLabel(key)
 		if w < cell.Width(key)+2+cell.Width(label) && action.CompactLabel != "" {
 			label = action.CompactLabel
 		}

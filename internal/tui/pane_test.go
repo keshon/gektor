@@ -20,7 +20,7 @@ func TestInspectorFooterStaysOneRowWhenComposerGrows(t *testing.T) {
 	mainHeight := m.transcript.Viewport.Height()
 	inputHeight := m.input.Height()
 	rows := strings.Split(ansi.Strip(m.View().Content), "\n")
-	if !strings.Contains(ansi.Cut(rows[26], 60, 121), "────") || !strings.Contains(ansi.Cut(rows[27], 60, 121), "Esc") {
+	if !strings.Contains(ansi.Cut(rows[26], 60, 121), "────") || !strings.Contains(ansi.Cut(rows[27], 60, 121), "ESC") {
 		t.Fatal("inspector footer lacks a divider or occupies extra rows")
 	}
 	m.input.SetValue("one")

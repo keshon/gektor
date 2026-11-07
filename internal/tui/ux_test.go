@@ -212,7 +212,7 @@ func TestBrowserActionsRemainInsideTerminalFrame(t *testing.T) {
 	m.state = stDone
 	m.sessions = &sessionsState{filter: newSearchInput(80), entries: []sessionEntry{{id: "a", title: "Saved session"}}}
 	m.fitBottom()
-	if !strings.Contains(m.View().Content, "Open session") || !strings.Contains(m.View().Content, "Enter open") {
+	if !strings.Contains(m.View().Content, "Open session") || !strings.Contains(ansi.Strip(m.View().Content), "ENTER open") {
 		t.Fatal("search popup actions clipped")
 	}
 }

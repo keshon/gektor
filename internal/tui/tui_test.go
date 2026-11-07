@@ -699,7 +699,7 @@ func TestFollowUnfollowsOnScroll(t *testing.T) {
 	if mm.transcript.Follow {
 		t.Fatal("pgup must unfollow")
 	}
-	if !strings.Contains(ansi.Strip(mm.View().Content), "^End End") {
+	if !strings.Contains(ansi.Strip(mm.View().Content), "^END End") {
 		t.Fatal("unfollowed state must show jump hint")
 	}
 	updated, _ = mm.Update(tea.KeyPressMsg{Code: tea.KeyEnd, Mod: tea.ModCtrl})

@@ -78,9 +78,9 @@ func TestCompletionFitsAllThemesAndReportsTheCurrentRunAction(t *testing.T) {
 					}
 				}
 				if l.Close {
-					action := "Enter run"
+					action := "ENTER run"
 					if state == stRunning {
-						action = "Enter insert"
+						action = "ENTER insert"
 					}
 					if !strings.Contains(ansi.Strip(strings.Join(l.Rows, "\n")), action) {
 						t.Fatal("completion hint disagrees with execution", theme, size, state)

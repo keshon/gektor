@@ -39,7 +39,7 @@ func Menu(items []MenuItem, p MenuProps, styles MenuStyles) MenuLayout {
 	}
 	w := max(p.MinWidth, 4)
 	for _, item := range items {
-		w = max(w, cell.Width(item.Label)+cell.Width(item.Shortcut)+7)
+		w = max(w, cell.Width(item.Label)+cell.Width(KeyLabel(item.Shortcut))+7)
 	}
 	l.Width = min(w, p.ScreenWidth)
 	if p.MaxWidth > 0 {
@@ -75,9 +75,10 @@ func Menu(items []MenuItem, p MenuProps, styles MenuStyles) MenuLayout {
 			prefix = "✓ "
 		}
 		label := prefix + item.Label
-		shortcutWidth := cell.Width(item.Shortcut)
+		shortcut := KeyLabel(item.Shortcut)
+		shortcutWidth := cell.Width(shortcut)
 		if shortcutWidth > 0 && inner-shortcutWidth-1 >= 3 {
-			label = cell.Line(label, inner-shortcutWidth-1) + " " + item.Shortcut
+			label = cell.Line(label, inner-shortcutWidth-1) + " " + shortcut
 		}
 		l.Rows = append(l.Rows, styles.Surface.Border.Render("│")+Row(style, label, inner)+styles.Surface.Border.Render("│"))
 	}

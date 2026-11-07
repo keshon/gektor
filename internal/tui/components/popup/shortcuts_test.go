@@ -17,11 +17,11 @@ func TestShortcutsKeepWholeGroupsAndEssentialCloseHint(t *testing.T) {
 		if ansi.StringWidth(row) != width || strings.Contains(plain, "…") {
 			t.Fatal("shortcut row overflowed or truncated a group", width, plain)
 		}
-		if width >= 10 && !strings.HasPrefix(plain, "Esc cancel") {
+		if width >= 10 && !strings.HasPrefix(plain, "ESC cancel") {
 			t.Fatal("essential cancel hint disappeared", width, plain)
 		}
 		for _, group := range strings.Split(strings.TrimSpace(plain), "  ") {
-			if group != "" && group != "Esc cancel" && group != "Ctrl+S apply" && group != "Tab fields" {
+			if group != "" && group != "ESC cancel" && group != "CTRL+S apply" && group != "TAB fields" {
 				t.Fatal("partial shortcut", width, group)
 			}
 		}

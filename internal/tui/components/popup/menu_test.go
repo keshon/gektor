@@ -54,3 +54,17 @@ func TestMenuNavigationSkipsInformationSeparatorsAndDisabledRows(t *testing.T) {
 		}
 	}
 }
+
+func TestMenuUppercasesShortcutLabelsWithoutChangingBindings(t *testing.T) {
+	items := []MenuItem{{Label: "Delete", Shortcut: "delete", Enabled: true}, {Label: "Paste JSON", Shortcut: "p", Enabled: true}, {Label: "Save", Shortcut: "Ctrl+s", Enabled: true}}
+	l := Menu(items, MenuProps{ScreenWidth: 40, ScreenHeight: 10}, MenuStyles{})
+	text := ansi.Strip(strings.Join(l.Rows, "\n"))
+	for _, want := range []string{"Delete", "DELETE", "Paste JSON", " P", "CTRL+S"} {
+		if !strings.Contains(text, want) {
+			t.Fatal("menu lost key casing or action label", text)
+		}
+	}
+	if items[0].Shortcut != "delete" || items[1].Shortcut != "p" || l.Hit(l.X+2, l.Y+1) != 0 {
+		t.Fatal("display formatting changed source bindings or hit targets")
+	}
+}

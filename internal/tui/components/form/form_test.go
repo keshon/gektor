@@ -15,10 +15,10 @@ func TestFormHintsNameTheActionAndHideDisabledSubmission(t *testing.T) {
 	for _, disabled := range []bool{false, true} {
 		rows, _ := f.Rows(Props{Title: "Open", PrimaryLabel: "Open", Width: 40, Height: 24, DisablePrimary: disabled})
 		hint := ansi.Strip(rows[len(rows)-2])
-		if !strings.Contains(hint, "Esc cancel") || strings.ContainsAny(hint, "·…") {
+		if !strings.Contains(hint, "ESC cancel") || strings.ContainsAny(hint, "·…") {
 			t.Fatal("form lost its whole cancel hint", hint)
 		}
-		if disabled && strings.Contains(hint, "Ctrl+S") || !disabled && !strings.Contains(hint, "Ctrl+S open") {
+		if disabled && strings.Contains(hint, "CTRL+S") || !disabled && !strings.Contains(hint, "CTRL+S open") {
 			t.Fatal("submission hint does not match action availability", hint)
 		}
 	}
