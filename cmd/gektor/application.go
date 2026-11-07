@@ -12,16 +12,17 @@ import (
 )
 
 type launchRequest struct {
-	args           []string
-	preferences    config.Preferences
-	preferencePath string
-	profile        *config.Profile
-	options        *launchOptions
-	history        []llm.Message
-	draft          string
-	images         []string
-	directory      string
-	common         bool
+	args              []string
+	preferences       config.Preferences
+	preferencePath    string
+	profile           *config.Profile
+	options           *launchOptions
+	history           []llm.Message
+	draft             string
+	images            []string
+	directory         string
+	common            bool
+	reassignWorkspace bool
 }
 
 func runApplication(args []string) error {
@@ -66,7 +67,7 @@ func runApplication(args []string) error {
 			return err
 		}
 		next := relaunchOptions(o.launchOptions, prefs, change.KeepAct)
-		request = launchRequest{options: &next, preferences: prefs, preferencePath: path, profile: prefs.Profile, history: change.History, draft: change.Draft, images: change.Images, directory: change.Directory, common: true}
+		request = launchRequest{options: &next, preferences: prefs, preferencePath: path, profile: prefs.Profile, history: change.History, draft: change.Draft, images: change.Images, directory: change.Directory, reassignWorkspace: change.ReassignWorkspace, common: true}
 	}
 }
 

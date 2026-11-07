@@ -337,7 +337,7 @@ a dialog.
 | Workflows | Main panel with canvas; same split layout for node/run inspector; shared tabs and action controls |
 | Settings | Form in a task modal; staged edits, inline small choices and contextual hints |
 | Theme | Inline theme choices and Apply; copy must state when the change takes effect |
-| Open session | Searchable list in a task modal; title, date and preview have separate emphasis; rename/delete stay discoverable |
+| Open session | Searchable global list; each card separates title, workspace path and metadata/preview. Ctrl+F toggles all/current workspace; Ctrl+W reassigns with confirmation. Opening restores the saved workspace; missing or unassigned paths require explicit selection, never a silent fallback. Rename/delete remain available. |
 | Permissions | Read-only policy table with filtering, visible rule order and a fixed Close footer |
 | MCP servers | Server list with separate status column and direct Details, Connect/Disconnect and Edit actions; Add and Import are screen actions |
 | Workflow inputs | Typed form with useful labels and defaults; raw JSON is an explicit alternative |

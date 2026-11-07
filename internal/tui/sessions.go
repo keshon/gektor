@@ -37,9 +37,12 @@ const (
 	sessRename
 	// sessConfirm is a y/n delete confirmation over the selected row.
 	sessConfirm
+	// sessReassign confirms replacing the saved workspace with the current one.
+	sessReassign
 )
 
 type sessionEntry struct {
+	workspace    string
 	id           string
 	title        string
 	dir          string
@@ -55,10 +58,12 @@ type sessionEntry struct {
 }
 
 type sessionsState struct {
-	loading bool
-	entries []sessionEntry
-	all     []sessionEntry
-	filter  textinput.Model
+	currentWorkspace string
+	currentOnly      bool
+	loading          bool
+	entries          []sessionEntry
+	all              []sessionEntry
+	filter           textinput.Model
 	selection.Model
 	// offset is the first visible row: the list scrolls under a
 	// stationary viewport instead of clipping past it.
@@ -84,7 +89,7 @@ func (m *model) sessChrome() int {
 	}
 	if m.sessions.mode == sessRename {
 		chrome += 2
-	} else if m.sessions.mode == sessConfirm {
+	} else if m.sessions.mode == sessConfirm || m.sessions.mode == sessReassign {
 		chrome++
 	}
 	return chrome
@@ -121,7 +126,7 @@ func (m *model) openSessions() {
 	}
 	filter := newSearchInput(max(popup.ModalWidth(m.termW-2)-6, 1))
 	filter.Focus()
-	m.sessions = &sessionsState{entries: m.savedSessions, all: m.savedSessions, loading: m.sessionsLoading, root: m.sessionRoot(), filter: filter}
+	m.sessions = &sessionsState{currentWorkspace: m.wsRoot, entries: m.savedSessions, all: m.savedSessions, loading: m.sessionsLoading, root: m.sessionRoot(), filter: filter}
 	m.refreshSessions()
 	m.pushOverlay()
 	// Search overlays the existing panes without changing composer geometry.
@@ -174,10 +179,14 @@ func (m *model) sessionsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.note, cmd = m.note.Update(msg)
 		return m, cmd
 	}
-	if s.mode == sessConfirm {
+	if s.mode == sessConfirm || s.mode == sessReassign {
 		switch msg.String() {
 		case "y", "Y":
-			m.deleteSelected()
+			if s.mode == sessReassign {
+				m.reassignSelected()
+			} else {
+				m.deleteSelected()
+			}
 			return m, nil
 		case "n", "N", "esc":
 			s.mode = sessList
@@ -200,6 +209,21 @@ func (m *model) sessionsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		// Selection owns cursor and viewport bounds for keys and mouse.
 		s.Update(msg, len(s.entries), m.sessVisible())
+		return m, nil
+	case "ctrl+f":
+		s.currentOnly = !s.currentOnly
+		s.applyFilter()
+		return m, nil
+	case "ctrl+w":
+		if m.state != stDone {
+			s.flash = "stop the run first"
+			return m, nil
+		}
+		if len(s.entries) == 0 {
+			return m, nil
+		}
+		s.flash = ""
+		s.mode = sessReassign
 		return m, nil
 	case "ctrl+r":
 		if len(s.entries) == 0 {
@@ -226,6 +250,30 @@ func (m *model) sessionsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// reassignSelected is reached only after an explicit confirmation.
+func (m *model) reassignSelected() {
+	s := m.sessions
+	s.mode = sessList
+	if m.state != stDone || len(s.entries) == 0 {
+		return
+	}
+	path := filepath.Join(s.entries[s.Cursor].dir, "state.json")
+	snapshot, err := session.Load(path)
+	if err == nil {
+		snapshot.Workspace = m.wsRoot
+		_, err = snapshot.ResolveWorkspace()
+		if err == nil {
+			err = snapshot.Save(path)
+		}
+	}
+	if err != nil {
+		s.flash = err.Error()
+	} else {
+		s.flash = "Workspace assigned to " + m.wsRoot
+		m.refreshSessions()
+	}
+}
+
 // openSelected switches to the selected session: snapshot loads,
 // transcript rebuilds from history, follow-ups continue the
 // conversation via the normal Resume path. Only at rest: switching
@@ -245,6 +293,25 @@ func (m *model) openSelected() tea.Cmd {
 	if err != nil {
 		s.flash = "Cannot read saved history: " + err.Error()
 		return nil
+	}
+	root, err := snapshot.ResolveWorkspace()
+	if err != nil {
+		s.flash = "Workspace unavailable. Ctrl+W to assign."
+		if snapshot.Workspace == "" {
+			s.flash = "Workspace unassigned. Ctrl+W to assign."
+		}
+		return nil
+	}
+	if !sameWorkspace(root, m.wsRoot) {
+		if m.application == nil {
+			s.flash = "Reopen with -resume " + stateFile
+			return nil
+		}
+		p := m.application.Preferences
+		p.Workspace = root
+		m.saveDraft()
+		m.modeChange = &ModeChange{Preferences: p, History: snapshot.History, Directory: cur.dir, KeepAct: !m.plan}
+		return tea.Quit
 	}
 	history := snapshot.History
 	task := session.TitleFor(history)
@@ -519,6 +586,9 @@ func (s *sessionsState) applyFilter() {
 	var titles, history []sessionEntry
 	for _, original := range s.all {
 		e := original
+		if s.currentOnly && (e.workspace == "" || !sameWorkspace(e.workspace, s.currentWorkspace)) {
+			continue
+		}
 		e.historyMatch, e.matchText = false, ""
 		if query == "" || strings.Contains(strings.ToLower(e.title+" "+e.id), query) {
 			if query != "" {

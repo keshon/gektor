@@ -123,6 +123,7 @@ func TestSearchHistoryMatchOpensAtMessage(t *testing.T) {
 		history = append(history, llm.Message{Role: llm.RoleAssistant, Content: fmt.Sprintf("Later message %d", i)})
 	}
 	dir := writeSessionState(t, sessionsRootFor(t, m.wsRoot), "match", history)
+	assignSavedWorkspace(t, filepath.Join(dir, "state.json"), m.wsRoot)
 	m.newSession = func(string, string, []string) (*run.Session, error) { return &run.Session{}, nil }
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	m.openSessions()

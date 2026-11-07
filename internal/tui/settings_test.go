@@ -63,6 +63,7 @@ func settingsModel(t *testing.T) *model {
 	if err != nil {
 		t.Fatal(err)
 	}
+	m.wsRoot = ws.Root()
 	m.baseEnv = roles.Env{Client: client, WS: ws, MaxTokens: 100, ContextLimit: 1000}
 	m.newSession = func(task, stateFile string, images []string) (*run.Session, error) {
 		return run.New(run.Config{Env: m.sessionEnv(), Task: task, StateFile: stateFile, Plan: m.plan, Images: images})

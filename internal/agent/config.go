@@ -37,6 +37,7 @@ type Config struct {
 	MaxTokens     int
 	Temperature   float64
 	ContextLimit  int
+	Workspace     string
 	StateFile     string
 	MutatingTools []string
 	// ReadOnly names the only tools this role may run. The registry still

@@ -1,0 +1,390 @@
+[
+  {
+    "command": "node.set",
+    "params": {
+      "id": 238,
+      "characters": "Open session  /  All workspaces"
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 252,
+      "y": 160,
+      "height": 60
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 253,
+      "y": 160,
+      "characters": "\u203a Review browser observations"
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 254,
+      "y": 200,
+      "characters": "  Today 13:57     26 messages"
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 255,
+      "y": 240,
+      "characters": "  Prepare image workflow"
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 256,
+      "y": 280,
+      "characters": "  Today 13:03     85 messages"
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 257,
+      "y": 320,
+      "characters": "  Repository report"
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 258,
+      "y": 360,
+      "characters": "  Yesterday       42 messages"
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 241,
+      "y": 390
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 242,
+      "x": 40,
+      "y": 400,
+      "width": 700,
+      "characters": "Enter Open   ^F Scope   ^W Assign   Esc Close"
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 243,
+      "visible": false
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 244,
+      "visible": false
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 245,
+      "visible": false
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 246,
+      "visible": false
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 247,
+      "visible": false
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 248,
+      "visible": false
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 249,
+      "visible": false
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 259,
+      "y": 100,
+      "characters": "3 sessions  \u00b7  ^F: All / Current workspace"
+    }
+  },
+  {
+    "command": "text.create",
+    "params": {
+      "parent": 39,
+      "name": "Session workspace",
+      "text": "  D:\\Projects\\dev\\keshon\\gektor",
+      "x": 50,
+      "y": 180,
+      "width": 682,
+      "props": {
+        "height": 20,
+        "fontFamily": "Liberation Mono",
+        "fontSize": 16.66,
+        "lineHeight": 20,
+        "fill": "#F1F4F8",
+        "textAutoResize": "none"
+      }
+    }
+  },
+  {
+    "command": "text.create",
+    "params": {
+      "parent": 39,
+      "name": "Session workspace",
+      "text": "  D:\\Projects\\image-tools",
+      "x": 50,
+      "y": 260,
+      "width": 682,
+      "props": {
+        "height": 20,
+        "fontFamily": "Liberation Mono",
+        "fontSize": 16.66,
+        "lineHeight": 20,
+        "fill": "#9DABB7",
+        "textAutoResize": "none"
+      }
+    }
+  },
+  {
+    "command": "text.create",
+    "params": {
+      "parent": 39,
+      "name": "Session workspace",
+      "text": "  Unassigned workspace",
+      "x": 50,
+      "y": 340,
+      "width": 682,
+      "props": {
+        "height": 20,
+        "fontFamily": "Liberation Mono",
+        "fontSize": 16.66,
+        "lineHeight": 20,
+        "fill": "#9DABB7",
+        "textAutoResize": "none"
+      }
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 431,
+      "characters": "Open session  /  All workspaces"
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 445,
+      "y": 160,
+      "height": 60
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 446,
+      "y": 160,
+      "characters": "\u203a Review browser observations"
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 447,
+      "y": 200,
+      "characters": "  Today 13:57     26 messages"
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 448,
+      "y": 240,
+      "characters": "  Prepare image workflow"
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 449,
+      "y": 280,
+      "characters": "  Today 13:03     85 messages"
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 450,
+      "y": 320,
+      "characters": "  Repository report"
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 451,
+      "y": 360,
+      "characters": "  Yesterday       42 messages"
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 434,
+      "y": 390
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 435,
+      "x": 40,
+      "y": 400,
+      "width": 700,
+      "characters": "Enter Open   ^F Scope   ^W Assign   Esc Close"
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 436,
+      "visible": false
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 437,
+      "visible": false
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 438,
+      "visible": false
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 439,
+      "visible": false
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 440,
+      "visible": false
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 441,
+      "visible": false
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 442,
+      "visible": false
+    }
+  },
+  {
+    "command": "node.set",
+    "params": {
+      "id": 452,
+      "y": 100,
+      "characters": "3 sessions  \u00b7  ^F: All / Current workspace"
+    }
+  },
+  {
+    "command": "text.create",
+    "params": {
+      "parent": 40,
+      "name": "Session workspace",
+      "text": "  D:\\Projects\\dev\\keshon\\gektor",
+      "x": 50,
+      "y": 180,
+      "width": 682,
+      "props": {
+        "height": 20,
+        "fontFamily": "Liberation Mono",
+        "fontSize": 16.66,
+        "lineHeight": 20,
+        "fill": "#FFFFFF",
+        "textAutoResize": "none"
+      }
+    }
+  },
+  {
+    "command": "text.create",
+    "params": {
+      "parent": 40,
+      "name": "Session workspace",
+      "text": "  D:\\Projects\\image-tools",
+      "x": 50,
+      "y": 260,
+      "width": 682,
+      "props": {
+        "height": 20,
+        "fontFamily": "Liberation Mono",
+        "fontSize": 16.66,
+        "lineHeight": 20,
+        "fill": "#596A79",
+        "textAutoResize": "none"
+      }
+    }
+  },
+  {
+    "command": "text.create",
+    "params": {
+      "parent": 40,
+      "name": "Session workspace",
+      "text": "  Unassigned workspace",
+      "x": 50,
+      "y": 340,
+      "width": 682,
+      "props": {
+        "height": 20,
+        "fontFamily": "Liberation Mono",
+        "fontSize": 16.66,
+        "lineHeight": 20,
+        "fill": "#596A79",
+        "textAutoResize": "none"
+      }
+    }
+  }
+]

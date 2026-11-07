@@ -220,6 +220,7 @@ func (e Env) agentConfig(system, label, stateFile string) agent.Config {
 		Temperature:    e.Temperature,
 		ContextLimit:   e.ContextLimit,
 		StateFile:      e.statePath(stateFile),
+		Workspace:      e.WS.Root(),
 		OnStep:         e.onStep(label),
 		OnResult:       e.OnResult,
 		OnToolOutput:   e.OnToolOutput,

@@ -305,6 +305,8 @@ func TestSessions_EnterResumesWithHistory(t *testing.T) {
 	}
 	dir := writeSessionState(t, filepath.Join(".gektor", "tasks"), "aaa", history)
 	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
+	m.wsRoot = t.TempDir()
+	assignSavedWorkspace(t, filepath.Join(m.sessions.entries[0].dir, "state.json"), m.wsRoot)
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*model)
@@ -484,6 +486,8 @@ func TestSessions_ResumeShowsTop(t *testing.T) {
 	chdirSessions(t, tmp)
 	writeSessionState(t, filepath.Join(".gektor", "tasks"), "aaa", compactTestHistory(15))
 	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
+	m.wsRoot = t.TempDir()
+	assignSavedWorkspace(t, filepath.Join(m.sessions.entries[0].dir, "state.json"), m.wsRoot)
 	m.hideSYS, m.hideTools, m.hideNames, m.hideLabels, m.minimal = true, true, true, true, true
 	m.transcript.compact = false
 	appearance := m.currentAppearance()

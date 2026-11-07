@@ -54,7 +54,19 @@ func (m *model) searchView() string {
 		return popup.Row(style, text, inner)
 	}
 	rule := line(styles.Normal, strings.Repeat("─", inner))
-	header := popup.Header("Open session", inner, m.styles.title)
+	scope := "All workspaces"
+	if s.currentOnly {
+		scope = "Current workspace"
+	}
+	title := "Open session · " + scope + " · Ctrl+F filter"
+	if inner < 55 {
+		scope = "All"
+		if s.currentOnly {
+			scope = "Current"
+		}
+		title = "Sessions · " + scope + " · ^F"
+	}
+	header := popup.Header(title, inner, m.styles.title)
 	rows := []string{line(styles.Normal, header[0]), line(styles.Normal, s.filter.View()), rule}
 	bodyStart := len(rows)
 	contentWidth := inner
@@ -89,9 +101,13 @@ func (m *model) searchView() string {
 		if i != s.Cursor {
 			muted = muted.Foreground(lipgloss.Color(themeColor(colorSecondaryText)))
 		}
-		rows = append(rows, line(muted, "  "+metadata))
+		path := e.workspace
+		if path == "" {
+			path = "Unassigned workspace"
+		}
+		rows = append(rows, line(muted, "  "+path))
 
-		text := e.preview
+		text := metadata + " · " + e.preview
 		if e.matchText != "" {
 			text = e.matchText
 		}
@@ -111,6 +127,8 @@ func (m *model) searchView() string {
 	switch s.mode {
 	case sessRename:
 		rows = append(rows, line(styles.Normal, "Rename session · ENTER save · ESC back"), line(styles.Normal, m.note.View()))
+	case sessReassign:
+		rows = append(rows, line(styles.Normal, "Reassign to "+m.wsRoot+"? Y assign | N cancel"))
 	case sessConfirm:
 		title := "session"
 		if len(s.entries) > 0 {
@@ -124,9 +142,16 @@ func (m *model) searchView() string {
 		hintWidth = max(inner-lipgloss.Width(count), 0)
 	}
 	shortcuts := []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "Enter", Action: "open"}, {Key: "↑↓", Action: "select"}}
+	if hintWidth < 55 {
+		shortcuts = []popup.Shortcut{{Key: "^F", Action: "scope"}, {Key: "^W", Action: "assign"}, {Key: "Esc", Action: "close"}}
+	} else {
+		shortcuts = append(shortcuts, popup.Shortcut{Key: "^F", Action: "scope"}, popup.Shortcut{Key: "^W", Action: "assign"})
+	}
 	switch s.mode {
 	case sessRename:
 		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "back"}, {Key: "Enter", Action: "save"}}
+	case sessReassign:
+		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "back"}, {Key: "Y", Action: "assign"}, {Key: "N", Action: "cancel"}}
 	case sessConfirm:
 		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "back"}, {Key: "Y", Action: "delete"}, {Key: "N", Action: "cancel"}}
 	}

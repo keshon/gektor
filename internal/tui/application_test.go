@@ -193,6 +193,7 @@ func TestSessionScanRestoresPlanMode(t *testing.T) {
 	if len(entries) != 1 || entries[0].mode != "Plan" {
 		t.Fatalf("duplicated or wrong session mode: %+v", entries)
 	}
+	assignSavedWorkspace(t, m.stateFile, m.wsRoot)
 	m.sessions = &sessionsState{entries: entries}
 	m.state = stDone
 	m.openSelected()

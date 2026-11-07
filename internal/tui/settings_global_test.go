@@ -128,6 +128,7 @@ func TestOpeningAConversationIgnoresItsOldSettingsFile(t *testing.T) {
 	}
 
 	entry := sessionEntry{dir: dir, title: "plan"}
+	assignSavedWorkspace(t, m.stateFile, m.wsRoot)
 	m.sessions = &sessionsState{entries: []sessionEntry{entry}}
 	m.state = stDone
 	m.openSelected()

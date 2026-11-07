@@ -55,7 +55,7 @@ func scanSessions(root string, previous map[string]cachedSession, search bool) (
 	summaries, cache, err := scanSavedSessions(root, previous, search)
 	entries := make([]sessionEntry, 0, len(summaries))
 	for _, summary := range summaries {
-		e := sessionEntry{id: summary.ID, dir: summary.Dir, title: summary.Title, msgs: summary.Msgs, updated: summary.Updated, status: summary.Status, mode: summary.Mode, preview: summary.Preview}
+		e := sessionEntry{workspace: summary.Workspace, id: summary.ID, dir: summary.Dir, title: summary.Title, msgs: summary.Msgs, updated: summary.Updated, status: summary.Status, mode: summary.Mode, preview: summary.Preview}
 		for _, text := range summary.Search {
 			e.search = append(e.search, sessionText{text: text.Text, message: text.Message, lower: text.lower})
 		}

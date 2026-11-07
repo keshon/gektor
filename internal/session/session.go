@@ -18,6 +18,7 @@ import (
 // ContextStart is an index into History; zero means the entire conversation.
 type Snapshot struct {
 	Version        int             `json:"version"`
+	Workspace      string          `json:"workspace,omitempty"`
 	History        []llm.Message   `json:"history"`
 	ContextStart   int             `json:"context_start,omitempty"`
 	Summary        string          `json:"summary,omitempty"`

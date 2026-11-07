@@ -69,6 +69,22 @@ also reserves rows for its header, composer and hotkey bar. The runtime list
 scrolls within the remaining space. These frames show static states; the More
 menu and its keyboard and mouse behavior are implemented in the shared table.
 
+## Session workspaces
+
+The **Open session / Dark** and **Open session / Light** boards show a workspace
+path on each card, including **Unassigned workspace** for legacy conversations.
+The list remains global; Ctrl+F switches between all sessions and the current
+workspace. Enter restores the selected session's workspace. An unavailable or
+unassigned workspace blocks opening rather than falling back to the current one.
+Ctrl+W assigns the current workspace only after a Y/N confirmation; select a
+different current workspace in Settings first when relocating a conversation.
+These boards show the list state, not an interactive filesystem picker.
+
+`update-session-workspaces.py` generates the corresponding command JSON. The
+commands record this migration against the pre-workspace library's node IDs;
+they are not a complete project generator and should not be reapplied to the
+updated file (the workspace labels already exist).
+
 ## Click-through review
 
 Start **Settings review / Dark** or **Settings review / Light** in FigCraft's
@@ -100,3 +116,7 @@ Other controls are static review states unless they have a prototype link.
 ![MCP server table in the light palette](mcp-light.webp)
 
 ![MCP table at 40 by 20 cells](mcp-narrow.webp)
+
+![Sessions with workspace paths in the dark palette](sessions-dark.webp)
+
+![Sessions with workspace paths in the light palette](sessions-light.webp)

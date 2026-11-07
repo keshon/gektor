@@ -190,6 +190,7 @@ func (a *Agent) saveState(history []llm.Message) {
 }
 
 func (a *Agent) persistState() error {
+	a.snapshot.Workspace = a.cfg.Workspace
 	if a.cfg.SaveCapabilities != nil {
 		a.snapshot.Capabilities = a.cfg.SaveCapabilities()
 	}

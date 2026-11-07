@@ -18,6 +18,8 @@ func TestOpeningSessionRetainsContextEstimate(t *testing.T) {
 	root := t.TempDir()
 	writeSessionState(t, root, "chat", userHistory(strings.Repeat("context ", 100)))
 	m := sessionsTestModel(t, listSessionsIn(root))
+	m.wsRoot = t.TempDir()
+	assignSavedWorkspace(t, filepath.Join(m.sessions.entries[0].dir, "state.json"), m.wsRoot)
 	m.openSelected()
 	if m.tokens <= 0 || !m.tokensEst || m.usage.source != "Saved history estimate" {
 		t.Fatalf("restored context was reset: %d %+v", m.tokens, m.usage)

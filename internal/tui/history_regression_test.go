@@ -147,6 +147,7 @@ func TestApplicationHistorySearchUsesSameOpeningPath(t *testing.T) {
 	if err := agent.SaveState(path, history); err != nil {
 		t.Fatal(err)
 	}
+	assignSavedWorkspace(t, path, m.wsRoot)
 	m.sessions = &sessionsState{entries: []sessionEntry{{dir: filepath.Dir(path), title: "title", historyMatch: true, matchMessage: target}}}
 	m.openSelected()
 	if m.modeChange != nil || m.sess == nil || m.transcript.Follow || !strings.Contains(ansi.Strip(m.transcript.Viewport.View()), "UNIQUE_HISTORY_MATCH") {

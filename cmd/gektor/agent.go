@@ -36,6 +36,11 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		return fmt.Errorf(`usage: gektor [flags] "task description"  (or  gektor -resume <state.json> [-answer "..."])`)
 	}
 
+	root, err := resumeWorkspace(o)
+	if err != nil {
+		return err
+	}
+	o.workspace = root
 	capabilityConfig, err := loadAgentCapabilities(o)
 	if err != nil {
 		return err
@@ -200,6 +205,50 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	}
 
 	return runAgentCLI(ctx, o, run.Config{Env: env, Task: task, StateFile: stateFile, Images: images, Verify: verify, Answer: suspend}, forkHistory, emitter, noteW, note)
+}
+
+// resumeWorkspace resolves archive metadata before composing workspace services.
+func resumeWorkspace(o resolvedLaunch) (string, error) {
+	if o.resume != "" {
+		snapshot, err := session.Load(o.resume)
+		if err != nil {
+			return "", fmt.Errorf("resume: %w", err)
+		}
+		if o.explicitFlags["workspace"] {
+			snapshot.Workspace, err = filepath.Abs(o.workspace)
+			if err != nil {
+				return "", err
+			}
+		}
+		root, err := snapshot.ResolveWorkspace()
+		if err != nil {
+			return "", fmt.Errorf("resume: %w; use -workspace <directory> -resume <state.json> to reselect", err)
+		}
+		return root, nil
+	}
+	return o.workspace, nil
+}
+
+// Persist only after workspace and backend services have been composed successfully.
+func persistSwitchedWorkspace(launch launchRequest, root string) error {
+	if !launch.reassignWorkspace || launch.directory == "" {
+		return nil
+	}
+	path := filepath.Join(launch.directory, "state.json")
+	snapshot, err := session.Load(path)
+	if os.IsNotExist(err) {
+		// A fresh conversation can have a reserved directory but no archive yet.
+		// Its first persistence will record the newly composed workspace.
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	snapshot.Workspace = root
+	if _, err := snapshot.ResolveWorkspace(); err != nil {
+		return err
+	}
+	return snapshot.Save(path)
 }
 
 func verificationCommand(command, directory string) func(context.Context) (string, error) {
@@ -369,6 +418,9 @@ func runAgentTUI(ctx context.Context, launch launchRequest, o resolvedLaunch, cf
 	prepared, err := app.ConfigureAgent(profile, filepath.Join(filepath.Dir(launch.preferencePath), "sessions"))
 	if err != nil {
 		return err
+	}
+	if err := persistSwitchedWorkspace(launch, o.workspace); err != nil {
+		return fmt.Errorf("save session workspace: %w", err)
 	}
 	prepared.Client = cfg.Env.Client
 	services := prepared

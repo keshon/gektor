@@ -29,6 +29,7 @@ type savedText struct {
 // savedSummary is one row of the sessions list.
 type savedSummary struct {
 	ID, Dir, Title        string
+	Workspace             string
 	Msgs                  int
 	Updated               time.Time
 	Status, Mode, Preview string
@@ -90,6 +91,7 @@ func scanSavedSessions(root string, previous map[string]cachedSession, search bo
 					if snapshot, err := session.Load(state); err == nil {
 						history := snapshot.History
 						e := &current.savedSummary
+						e.Workspace = snapshot.Workspace
 						e.Status, e.Msgs = "Saved", len(history)
 						if search {
 							e.Search = conversationText(history)

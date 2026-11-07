@@ -26,6 +26,20 @@ argument. Run `go run ./cmd/gektor -h` for the binary's registered flags.
 Direct execution is the default. An empty task is allowed for `-tui`,
 `-serve` and resume/fork; ordinary print mode needs one.
 
+`-resume` restores the workspace recorded in the saved snapshot, even when
+launched from a different directory. An explicit `-workspace DIR` overrides that
+assignment. For example:
+
+```bash
+gektor -workspace /path/to/project -resume /path/to/session/state.json
+```
+
+If the saved workspace is missing or an older snapshot has no workspace metadata,
+resume stops rather than silently using the current directory. Restore the saved
+directory or pass `-workspace` explicitly. The selected workspace is recorded by
+the resumed agent when it saves; merely resolving a resume path does not rewrite
+the archive.
+
 ### Saved workflows
 
 For the TUI, `-tui-screen agent|workflows` chooses the initial screen and

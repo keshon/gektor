@@ -181,7 +181,18 @@ See [security](../SECURITY.md).
 Conversations are saved under `~/.gektor/sessions/` in the normal TUI launch.
 Choose **Open** in the Session menu, or press `Ctrl+P`, to search and reopen one.
 Opening a session does not send a new model request.
+The list searches session titles and saved message history across workspaces.
+Use `Ctrl+F` to toggle the current-workspace filter; each result shows its assigned
+workspace. Opening a session restores that workspace, not the current directory.
+If the saved directory is missing, or an older session has no workspace assigned,
+opening stops with an explanation. Choose the intended workspace in Settings,
+then press `Ctrl+W` on the session and confirm with `Y` to reassign it (`N` or
+`Esc` cancels). Reassignment changes metadata, not project files.
+
 Use `Ctrl+R` in the session list to rename it, or `Ctrl+D` to confirm deletion.
+An explicit workspace switch in Settings also updates the active saved session
+once the replacement services have been initialized, without needing another
+agent run. A failed initialization does not stamp the new workspace.
 
 Choose **New** in the Session menu, or press `Ctrl+N`, for a fresh conversation.
 Unsent drafts are kept while the app is open, but are not saved across exit.
