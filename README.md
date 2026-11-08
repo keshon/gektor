@@ -122,3 +122,6 @@ go run ./cmd/eval -dry
 
 On Windows, `build.cmd check` runs the local checks. Other development and
 CLI helper scripts live in `scripts/`. [MIT license](LICENSE).
+
+The landing page lives in [`website/`](website/README.md), with its own Node.js
+dependencies and GitHub Pages deployment workflow.

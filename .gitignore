@@ -41,3 +41,11 @@ run-serve.cmd
 # Public TUI preview used by the README.
 !/docs/images/gektor-demo.png
 /design/website
+
+# Landing page sources are tracked; dependencies, builds and previews are local.
+/website/node_modules/
+/website/dist/
+/website/.vite/
+/website/design/previews/
+/website/*.log
+!/website/design/sources/*.png
