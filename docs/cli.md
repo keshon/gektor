@@ -212,6 +212,60 @@ The parent can inspect full child messages with `read_history` and the report's
 `delegate_call_id`. This selects a child of the current session, not an arbitrary
 filesystem path. Normal history paging and search still apply.
 
+## Session history and context
+
+The Agent can search its saved conversation, including records removed from its
+working context by compaction. Retrieval runs locally without calling a model
+or a separate memory service. The Agent reads the tool result on its next turn.
+
+Two read-only tools answer different questions:
+
+| Tool | Use it for |
+|---|---|
+| `read_history` | Earlier user requests, decisions, messages and tool results in the saved archive |
+| `inspect_context` | Which archive records are included in the calling model request, its instructions, advertised tools and recorded system prompt versions |
+
+For example, `read_history` with `{"query":"queue","count":3}` finds matching
+records. Each result has a stable, one-based message ID. Open an original with
+`{"start":42,"count":1}`. To continue a search, keep `query` and pass `next_start`
+as `start`. For a long message, keep its ID and pass `offset` from `next_offset`
+with `count:1` and no `query`.
+Search is literal and case-insensitive, not semantic or a regular expression.
+Queries allow up to 256 characters. `count` defaults to 8 and allows at most 10
+messages. During an agent call, reading its own session stops before the calling
+response, so the search call cannot become its own match. Child archive reads
+use the child's saved history.
+
+Start context inspection with `{}`. The overview lists available instruction
+sections and included archive ID ranges. Use `{"view":"instructions","section":"identity"}`
+to read the current persona section, when present. Follow `next_offset` to read
+the rest. `{"view":"revisions"}` lists saved system versions;
+`{"view":"instructions","revision":1}` reads one. Instructions return at most
+2,000 characters per page; tool, skill and revision lists are paged too.
+The overview also pages its archive ranges and rewritten IDs with `next_offset`.
+Pass that value as `offset`, keeping the same view, section and revision.
+Offsets start at zero and count characters for instructions, items for lists.
+The `directive` and `summary` sections describe only the current request and
+cannot be combined with a historical `revision`.
+
+Archive presence does not prove current context inclusion. Included records may
+also have shorter reused tool results or rejected calls removed; the manifest
+marks those IDs as rewritten. Skill inspection lists retained successful load
+records, not every available skill or proof that full skill text remains.
+
+System prompt tracking starts with this feature. A prompt recovered from an old
+archive is marked `saved_archive`, with original delivery unknown. New versions
+are recorded before the provider call; a saved record alone does not confirm
+that the backend received it. These records show text, not how a
+settings change was applied. They do not expose provider templates, caches or
+private reasoning. The latest request manifest is saved; full request bodies are
+not duplicated on every step.
+
+Search stays within the current saved session, or its own child archive selected
+with `delegate_call_id`. A delegate gets its own archive. Cross-session search
+is not provided. Without a saved archive, `read_history` reports that limitation;
+`inspect_context` still works during an agent tool call.
+
 ## Authentication (remote providers)
 
 The key resolves as `-api-key`, then `-api-key-env`, then the first token

@@ -292,7 +292,9 @@ func Subagent(e Env, role string) *agent.Agent { return inspectedSubagent(e, rol
 
 func inspectedSubagent(e Env, role, callID, parentState string) *agent.Agent {
 	cfg := e.agentConfig(prompts.WithRole(role)+"\n\n"+prompts.SubagentScope+"\n\n"+prompts.PlatformLine(tools.ShellName()), "", "")
-	e.configureTools(&cfg, false, false, e.MCPTools...)
+	cfg.StateFile = session.ChildStatePath(parentState, callID)
+	extra := append([]agent.Tool{tools.ReadHistory{Path: cfg.StateFile}}, e.MCPTools...)
+	e.configureTools(&cfg, false, false, extra...)
 	steps := e.DelegateSteps
 	if steps <= 0 {
 		steps = subagentSteps
@@ -306,7 +308,6 @@ func inspectedSubagent(e Env, role, callID, parentState string) *agent.Agent {
 	cfg.OnProgress = nil
 	cfg.OnPrompt = nil
 	cfg.OnContext, cfg.OnLocal, cfg.Notifications = nil, nil, nil
-	cfg.StateFile = session.ChildStatePath(parentState, callID)
 	if callID != "" && e.OnChild != nil {
 		observeSubagent(&cfg, e, callID)
 	}

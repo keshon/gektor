@@ -17,15 +17,17 @@ import (
 // Snapshot keeps the archive independent of the model's working context.
 // ContextStart is an index into History; zero means the entire conversation.
 type Snapshot struct {
-	Version        int             `json:"version"`
-	Workspace      string          `json:"workspace,omitempty"`
-	History        []llm.Message   `json:"history"`
-	ContextStart   int             `json:"context_start,omitempty"`
-	Summary        string          `json:"summary,omitempty"`
-	SummaryRequest int             `json:"summary_request,omitempty"`
-	Runs           []Run           `json:"runs,omitempty"`
-	Capabilities   []Capability    `json:"capabilities,omitempty"`
-	Browser        *BrowserProfile `json:"browser,omitempty"`
+	Version        int              `json:"version"`
+	Workspace      string           `json:"workspace,omitempty"`
+	History        []llm.Message    `json:"history"`
+	ContextStart   int              `json:"context_start,omitempty"`
+	Summary        string           `json:"summary,omitempty"`
+	SummaryRequest int              `json:"summary_request,omitempty"`
+	Runs           []Run            `json:"runs,omitempty"`
+	Capabilities   []Capability     `json:"capabilities,omitempty"`
+	Browser        *BrowserProfile  `json:"browser,omitempty"`
+	Prompts        []PromptRevision `json:"prompt_revisions,omitempty"`
+	LastRequest    *RequestManifest `json:"last_request,omitempty"`
 }
 
 // BrowserProfile references browser-managed data outside the conversation.
@@ -108,6 +110,9 @@ func Decode(data []byte) (Snapshot, error) {
 		if run.Start < 1 || run.End < run.Start || run.End > len(s.History) {
 			return s, fmt.Errorf("invalid archived run range")
 		}
+	}
+	if err := s.validateInspection(); err != nil {
+		return Snapshot{}, err
 	}
 	return s, nil
 }

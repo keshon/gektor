@@ -24,6 +24,9 @@ func TestReadHistorySearchAndOriginalPaging(t *testing.T) {
 		}
 	}
 	out, err := tool.Run(t.Context(), json.RawMessage(`{"query":"failed","count":1}`))
+	if !strings.Contains(out, `"source":"saved_archive"`) {
+		t.Fatal("archive source missing", out)
+	}
 	var result struct {
 		Next     int                  `json:"next_start"`
 		Messages []session.HistoryRow `json:"messages"`

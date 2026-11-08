@@ -20,6 +20,7 @@ type toolBatch struct {
 // Adjacent reads overlap; mutations remain in model call order.
 func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, finishReason string, calls []llm.ToolCall, history []llm.Message) []llm.Message {
 	ctx = llm.WithAttachments(ctx, a.snapshot.History, history)
+	ctx = context.WithValue(ctx, contextInspectionKey{}, a.inspection)
 	batch := toolBatch{calls: calls, results: make([]callResult, len(calls))}
 	if a.cfg.OnProgress != nil {
 		a.cfg.OnProgress(llm.Progress{Phase: "tools", Detail: fmt.Sprintf("executing %d tool calls", len(calls))})

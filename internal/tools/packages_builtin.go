@@ -47,6 +47,7 @@ func builtinPackages() []packageDefinition {
 				return info
 			}, true},
 			{func(d packageDependencies) agent.Tool { return LoadSkill{WS: d.WS} }, true},
+			{func(d packageDependencies) agent.Tool { return InspectContext{} }, true},
 			{func(d packageDependencies) agent.Tool { return ReadOutput{} }, true},
 			{func(d packageDependencies) agent.Tool { return &Todo{} }, false},
 		}},

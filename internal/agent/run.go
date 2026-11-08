@@ -288,7 +288,9 @@ func (a *Agent) chat(ctx context.Context, req llm.ChatRequest) (response llm.Cha
 			}
 		}
 	}
-	a.saveState(req.Messages)
+	a.captureHistory(req.Messages)
+	a.recordInspection(req)
+	a.saveSnapshot()
 	req.Messages = llm.ModelMessages(req.Messages)
 	breakdown := llm.AnalyzeContext(req, a.cfg.SystemSections)
 	breakdown.Request = a.requests

@@ -143,6 +143,17 @@ checkpoint leaves the previous context intact. Explicit /compact uses the
 extractive transformation without a model call. A cooldown limits repeated
 automatic compaction; overflow recovery may compact immediately.
 
+Before each agent request, `internal/agent` records archive ID membership and
+captures instruction, tool and retained skill-load metadata for its tool batch.
+`inspect_context` reads that fixed view; it does not reconstruct a request from
+the archive or inspect backend internals. `internal/session` saves system prompt
+revisions and the latest request manifest. Changed results and calls are marked
+as rewritten; omitted messages are absent from the included ID ranges.
+`read_history` searches the original archive. For the agent's own session it
+stops before the calling response, so its own query cannot create a search hit.
+Reading a child archive uses that child's saved history instead.
+See [session context usage](docs/cli.md#session-history-and-context).
+
 Switching between plan and act appends a stance turn rather than rewriting the
 system prompt. The roles share the same tool definitions and enforce read-only
 access at execution. This preserves the prefix for backend cache reuse; actual

@@ -246,6 +246,14 @@ The full saved archive remains available to read and search.
 You can also use `/compact` while idle.
 A session is not a backup of project files.
 
+Ask the Agent to find an earlier decision or tool result, for example:
+"Find where we discussed the queue bug and quote the original message."
+It can search this session's saved archive even after compaction. It can also
+inspect which messages and instructions were in its current model request.
+Searching other sessions is not supported by these tools.
+See [session history and context](cli.md#session-history-and-context) for tool
+examples and the limits of prompt version records.
+
 ## Workflow workspace
 
 A workflow is a set of saved steps.

@@ -19,6 +19,7 @@ type Agent struct {
 	snapshot      session.Snapshot
 	checkpointLen int
 	requests      int
+	inspection    *ContextInspection
 
 	// allowed is the read-only allowlist, nil when unrestricted.
 	allowed map[string]bool
@@ -186,6 +187,10 @@ func SaveState(path string, history []llm.Message) error {
 // saveState always updates runtime history. Disk persistence is best-effort.
 func (a *Agent) saveState(history []llm.Message) {
 	a.captureHistory(history)
+	a.saveSnapshot()
+}
+
+func (a *Agent) saveSnapshot() {
 	if a.cfg.StateFile == "" {
 		return
 	}
@@ -222,6 +227,9 @@ func (a *Agent) restoreHistory(history []llm.Message) ([]llm.Message, error) {
 		}
 	}
 	history = a.snapshot.Context()
+	if a.snapshot.LastRequest != nil {
+		a.requests = max(a.requests, a.snapshot.LastRequest.Number)
+	}
 	if a.snapshot.ContextStart > 0 {
 		var err error
 		history, err = retainArchivedInstructions(a.snapshot, history)
@@ -255,6 +263,9 @@ func (a *Agent) captureHistory(history []llm.Message) {
 		a.snapshot.History = append(a.snapshot.History, history[a.checkpointLen:]...)
 	}
 	if len(history) > 0 && len(a.snapshot.History) > 0 {
+		if old := a.snapshot.History[0]; old.Role == llm.RoleSystem && old.Content != history[0].Content && len(a.snapshot.Prompts) == 0 {
+			a.snapshot.RecordPrompt(old.Content, nil, 0)
+		}
 		a.snapshot.History[0] = history[0]
 	}
 	for i, msg := range history {

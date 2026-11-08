@@ -12,6 +12,7 @@ Look up a specific task:
 
 - [Workflow reference](workflows.md): operations, data mappings, run records, schedules and API.
 - [CLI reference](cli.md): flags, backend examples, permissions and service commands.
+- [Session history and context](cli.md#session-history-and-context): archive search, current request inspection and prompt versions.
 - [Browser](browser.md): setup, persistent profiles, login and observation tools.
 - [Extensions](extensions.md): capability packs, executable adapters and skill libraries.
 - [Security](../SECURITY.md): permissions, workspace access and network behavior.

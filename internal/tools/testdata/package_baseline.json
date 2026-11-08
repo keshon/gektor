@@ -175,6 +175,37 @@
         }
       },
       {
+        "Name": "inspect_context",
+        "Description": "Inspect this call's model request, not backend internals. Default overview. Instructions: character offset; lists: item offset.",
+        "Parameters": {
+          "type": "object",
+          "properties": {
+            "view": {
+              "type": "string",
+              "enum": [
+                "overview",
+                "instructions",
+                "tools",
+                "skills",
+                "revisions"
+              ]
+            },
+            "section": {
+              "type": "string"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      {
         "Name": "list_files",
         "Description": "List files and directories under a path, non-recursively.",
         "Parameters": {
@@ -609,6 +640,7 @@
       "git_add": 1,
       "git_commit": 1,
       "grep_files": 0,
+      "inspect_context": 0,
       "list_files": 0,
       "load_skill": 0,
       "move_file": 1,
@@ -766,6 +798,37 @@
           "required": [
             "pattern"
           ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "Name": "inspect_context",
+        "Description": "Inspect this call's model request, not backend internals. Default overview. Instructions: character offset; lists: item offset.",
+        "Parameters": {
+          "type": "object",
+          "properties": {
+            "view": {
+              "type": "string",
+              "enum": [
+                "overview",
+                "instructions",
+                "tools",
+                "skills",
+                "revisions"
+              ]
+            },
+            "section": {
+              "type": "string"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
           "additionalProperties": false
         }
       },
@@ -1005,6 +1068,7 @@
       "fetch_raw": 0,
       "git": 0,
       "grep_files": 0,
+      "inspect_context": 0,
       "list_files": 0,
       "load_skill": 0,
       "read_file": 0,

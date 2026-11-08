@@ -19,7 +19,7 @@ func (ReadHistory) Description() string {
 func (ReadHistory) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{"delegate_call_id":{"type":"string","minLength":1,"maxLength":256},"start":{"type":"integer","minimum":1},"count":{"type":"integer","minimum":1,"maximum":10},"offset":{"type":"integer","minimum":0},"query":{"type":"string","minLength":1,"maxLength":256}},"additionalProperties":false}`)
 }
-func (t ReadHistory) Run(_ context.Context, args json.RawMessage) (string, error) {
+func (t ReadHistory) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	if t.Path == "" {
 		return "", fmt.Errorf("this agent has no saved session archive")
 	}
@@ -42,6 +42,11 @@ func (t ReadHistory) Run(_ context.Context, args json.RawMessage) (string, error
 	if err != nil {
 		return "", err
 	}
+	// Exclude this response's own search call and sibling results. A query
+	// must not manufacture a historical match merely by being saved first.
+	if v, ok := agent.InspectionFrom(ctx); ok && in.DelegateCallID == "" {
+		s.History = s.History[:min(len(s.History), v.Request.ArchiveMessages)]
+	}
 	if in.Start == 0 {
 		in.Start = 1
 	}
@@ -59,9 +64,11 @@ func (t ReadHistory) Run(_ context.Context, args json.RawMessage) (string, error
 		return "", err
 	}
 	data, err := json.Marshal(struct {
-		Total    int                  `json:"total_messages"`
-		Messages []session.HistoryRow `json:"messages"`
-		Next     int                  `json:"next_start,omitempty"`
-	}{len(s.History), rows, next})
+		Source    string               `json:"source"`
+		Compacted bool                 `json:"compacted"`
+		Total     int                  `json:"total_messages"`
+		Messages  []session.HistoryRow `json:"messages"`
+		Next      int                  `json:"next_start,omitempty"`
+	}{"saved_archive", s.ContextStart > 0, len(s.History), rows, next})
 	return string(data), err
 }

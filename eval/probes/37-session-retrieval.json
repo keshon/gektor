@@ -1,0 +1,18 @@
+{
+  "prompt": "eval/prompts/session-context.md",
+  "task": "Our session marker is cedar-orbit-741. Find the original user message containing that marker in your saved conversation. Report its archive message ID and quote the marker. Then check which archive messages were included in the model request that led to your inspection. Explain the difference between saved history and current context. Do not edit files or run shell commands.",
+  "tier": "signal",
+  "timeout_sec": 180,
+  "trace": [
+    {"tool":"read_history","mode":"required","success":true,"args_regex":"cedar-orbit-741","output_regex":"cedar-orbit-741","why":"recover a real archive record through search"},
+    {"tool":"inspect_context","mode":"required","success":true,"output_regex":"included_archive_ranges","why":"check actual request membership instead of inferring it from archive presence"},
+    {"tool":"run_*","mode":"forbidden"},
+    {"tool":"write_file","mode":"forbidden"},
+    {"tool":"patch_file","mode":"forbidden"}
+  ],
+  "answer": [
+    {"mode":"required","regex":"cedar-orbit-741"},
+    {"mode":"required","regex":"(?i)archive"},
+    {"mode":"required","regex":"(?i)(context|request)"}
+  ]
+}
