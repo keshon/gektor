@@ -12,8 +12,8 @@ import (
 	"github.com/keshon/gektor/internal/llm"
 )
 
-// Captured from main before replacing Base/ReadOnly; not generated from the
-// new definitions. Native Plan eligibility is the readonly fixture's name set.
+// Reviewed native schemas and modes. Update individual entries only for an
+// intentional interface change. Plan eligibility uses the readonly name set.
 func TestNativePackageBaseline(t *testing.T) {
 	var want map[string]struct {
 		Definitions []llm.ToolDef
@@ -39,7 +39,7 @@ func TestNativePackageBaseline(t *testing.T) {
 		a, _ := json.Marshal(expected.Definitions)
 		b, _ := json.Marshal(reg.Defs())
 		if string(a) != string(b) {
-			t.Fatalf("%s tool definitions differ from the pre-refactor baseline", name)
+			t.Fatalf("%s tool definitions differ from the reviewed baseline", name)
 		}
 		for tool, mode := range expected.Modes {
 			if reg.ModeOf(tool) != mode {

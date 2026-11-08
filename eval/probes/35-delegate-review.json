@@ -1,0 +1,10 @@
+{
+  "prompt": "eval/prompts/delegation.md",
+  "task": "This is a delegate-budget evaluation. Use delegate_task exactly once to review clamp.go without changing files. Supply the file path and requirements: Clamp must return low when value is below low, high when above high, and otherwise value; low <= high. Let the delegate use its default step allowance. Report the concrete defect with an example. Do not repair or retry the delegate.",
+  "tier": "signal",
+  "seed": "eval/fixtures-delegation",
+  "timeout_sec": 300,
+  "verify": [{"type":"content_contains","path":"clamp.go","contains":"if value < low {\n\t\treturn high"}],
+  "trace": [{"tool":"delegate_task","mode":"required","success":true,"output_regex":"(?s)mutations: 0.*termination: completed","why":"measure one focused delegate without file changes"},{"tool":"delegate_task","max_calls":1,"why":"count failed attempts too; no delegate retry"}],
+  "answer": [{"mode":"required","regex":"(?s)(below|less|lower).*low|low.*(below|less|lower)"},{"mode":"required","regex":"high"}]
+}

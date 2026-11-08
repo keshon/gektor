@@ -43,6 +43,8 @@ type serveDeps struct {
 	procs             *tools.BackgroundProcesses
 	maxTokens         int
 	maxSteps          int
+	delegateSteps     int
+	delegateMaxSteps  int
 	runTimeout        time.Duration
 	contextLimit      int
 	vision            bool
@@ -281,6 +283,8 @@ func serveRun(ctx context.Context, d serveDeps, hub *run.GateHub, emitter *event
 		Procs:             d.procs,
 		MaxTokens:         d.maxTokens,
 		MaxSteps:          d.maxSteps,
+		DelegateSteps:     d.delegateSteps,
+		DelegateMaxSteps:  d.delegateMaxSteps,
 		RunTimeout:        d.runTimeout,
 		ContextLimit:      d.contextLimit,
 		Vision:            d.vision,

@@ -201,6 +201,7 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 			m.appendBlock(errorBlock(err.Error()))
 			return m, nil
 		}
+		m.newTask()
 		if err := m.startFreshPrompt(clean, task, images); err != nil {
 			m.appendBlock(errorBlock("cannot start: " + err.Error()))
 			return m, nil

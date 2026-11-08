@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
@@ -58,7 +59,7 @@ func (m *model) searchView() string {
 	if s.currentOnly {
 		scope = "Current workspace"
 	}
-	title := "Open session · " + scope + " · Ctrl+F filter"
+	title := "Open session · " + scope + " · CTRL+F filter"
 	if inner < 55 {
 		scope = "All"
 		if s.currentOnly {
@@ -128,7 +129,14 @@ func (m *model) searchView() string {
 	case sessRename:
 		rows = append(rows, line(styles.Normal, "Rename session · ENTER save · ESC back"), line(styles.Normal, m.note.View()))
 	case sessReassign:
-		rows = append(rows, line(styles.Normal, "Reassign to "+m.wsRoot+"? Y assign | N cancel"))
+		destination := m.wsRoot
+		if s.reassign != nil {
+			destination = s.reassign.workspace
+		}
+		if extra := ansi.StringWidth(destination) - inner; extra > 0 {
+			destination = ansi.TruncateLeft(destination, extra+1, "…")
+		}
+		rows = append(rows, line(styles.Normal, "Assign saved workspace to:"), line(styles.Normal, destination))
 	case sessConfirm:
 		title := "session"
 		if len(s.entries) > 0 {
@@ -143,7 +151,9 @@ func (m *model) searchView() string {
 	}
 	shortcuts := []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "Enter", Action: "open"}, {Key: "↑↓", Action: "select"}}
 	if hintWidth < 55 {
-		shortcuts = []popup.Shortcut{{Key: "^F", Action: "scope"}, {Key: "^W", Action: "assign"}, {Key: "Esc", Action: "close"}}
+		// Scope remains in the title. Keep room for navigation before metadata.
+		hintWidth, count = inner, ""
+		shortcuts[2].Action = "move"
 	} else {
 		shortcuts = append(shortcuts, popup.Shortcut{Key: "^F", Action: "scope"}, popup.Shortcut{Key: "^W", Action: "assign"})
 	}

@@ -189,8 +189,28 @@ earlier command. Use explicit conditions when one command depends on another.
 | `-grammar` | `true` | Apply the backend's own content grammar (blocks a model writing its native tool-call tags as plain text on koboldcpp) |
 | `-max-tokens N` | `8192` | Generation budget per response. Too low truncates large outputs mid-JSON, which looks like a model failure |
 | `-context-report` | off | Print a fresh-run context breakdown as JSON and exit; no model, adapters or workspace writes. Lists estimated sections and tool costs |
-| `-max-steps N` | saved limit or 25 | Fixed per-run step limit; explicit `0` means unlimited. Todo cannot extend it. Subagents use 12 steps |
+| `-max-steps N` | saved limit or 25 | Fixed direct-run step limit; explicit `0` means unlimited. Todo cannot extend it. Delegates have separate finite limits |
+| `-delegate-steps N` | saved TUI setting or 12 | Default model requests per delegate, including its final answer; must be positive |
+| `-delegate-max-steps N` | saved TUI setting or delegate default | Maximum task-specific allowance accepted by `delegate_task`; must be at least the default |
 | `-run-timeout D` | disabled | Total duration such as `5m`. Reserves up to 30 seconds (20%) for a tool-free incomplete-work report. A timed-out task still fails; cancellation does not request a closing answer |
+
+The TUI saves delegate limits in `application.json`, under
+`harness.delegate_steps` and `harness.delegate_max_steps`. Omitted or zero saved
+values use the defaults; explicit CLI limits must be positive. For example,
+`-delegate-steps 12 -delegate-max-steps 24` lets a task request up to 24 steps.
+The model cannot raise this maximum. Increasing the direct-run limit does not
+increase delegate limits.
+
+When a delegate stops, its report includes the reason, used steps, elapsed time,
+available token counts, observed changed paths and recent tool-result references.
+Long reports are shortened; the archive retains full results. Model summaries
+are labelled separately. An exhausted delegate remains a failed tool call even
+if it changed files. The parent decides what to do next; the harness does not
+automatically restart the child.
+
+The parent can inspect full child messages with `read_history` and the report's
+`delegate_call_id`. This selects a child of the current session, not an arbitrary
+filesystem path. Normal history paging and search still apply.
 
 ## Authentication (remote providers)
 
@@ -247,11 +267,12 @@ fails closed. Rules are pattern tripwires, not process isolation. See
 
 ## State
 
-Task state belongs to the user's `.gektor` directory, under `tasks/<id>/`.
-Every run writes one file, `state.json`, rewritten atomically on each step.
-Session display title and Plan/Act metadata
-are saved alongside the history. Resume accepts a task
-directory or state file.
+CLI task history is stored under `~/.gektor/tasks/<id>/`; TUI Agent sessions
+use `~/.gektor/sessions/<id>/`. Each has a `state.json` snapshot, rewritten
+atomically as the agent progresses. Display titles, mode metadata, child
+archives and retained tool output can be stored alongside it. See
+[saved data](bootstrap.md#saved-data) for the storage locations.
+Resume accepts a task directory or state file.
 Fork loads a transcript into a fresh task; it does not create a Git branch or
 an isolated checkout. Ancestor/workspace AGENTS.md instructions are refreshed.
 
@@ -285,10 +306,13 @@ gektor.exe -profile profiles\llama-external.json -check-profile
 gektor.exe -profile profiles\llama-external.json -tui
 ```
 
-One profile ships with the repository: `llama-external.json`, which expects a
-server already listening on `http://127.0.0.1:8080`. Adjust the endpoint and
-context window to your own server, or point `-backend` and `-model` at a
-different one without a profile at all.
+The repository includes two profiles under `profiles/`:
+
+- `llama-external.json` connects to a server at `http://127.0.0.1:8080`.
+  Adjust its endpoint and context window to match your server.
+- `chatgpt.json` uses a ChatGPT account connection. Run `gektor auth login` first.
+
+You can also set `-backend` and `-model` without loading a profile.
 
 A profile carries three blocks. `provider` names the protocol, endpoint and
 model. `generation` sets the response budget, context window and
@@ -326,11 +350,11 @@ gektor.exe -profile profiles\llama-external.json -user-name Alex -system-prompt 
 
 ## Common terminal entry
 
-    .\\gektor.exe -tui
+    .\gektor.exe -tui
 
-First use selects the installed local profile (or the external one when its
-starter weights are absent) and opens in Plan. Models load only when a request
-needs them.
+First use opens in Plan and connects to the default external server described
+in [Setup](bootstrap.md#model-server). Later launches reuse saved settings.
+GEKTOR does not install model weights or manage the server.
 
 Run > Plan/Act switches execution mode; Run > Act enables tool calls under the
 existing permission gates. Settings > Workspace chooses the workspace.
@@ -342,9 +366,12 @@ new profile is composed into fresh services. The composer draft and the session
 directory carry across the restart.
 
 Choices and effective profile settings are saved under `~/.gektor/application.json`.
-Explicit command-line combinations remain supported as temporary launches; a
-change applied through the UI becomes the saved default. Direct API-key flags stay
-in memory across a restart and are never written to preferences.
+Explicit workspace, profile, connection, generation and identity flags override
+saved settings for that launch. Applying settings through the UI saves them.
+Runtime limits do not make a launch temporary: main-agent and delegate step
+limits carry across TUI relaunches and are saved with preferences.
+Direct API-key flags stay in memory across a restart and are never written
+to preferences.
 
 ## Editing and Git tools
 

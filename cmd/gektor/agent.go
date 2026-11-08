@@ -197,7 +197,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	if o.tui {
 		return runAgentTUI(ctx, launch, o, tui.Config{
 			StartScreen: o.tuiScreen, MCP: managedMCP, SeedHistory: launch.history,
-			InitialDraft: launch.draft, InitialImages: launch.images, SessionDirectory: launch.directory,
+			InitialDraft: launch.draft, InitialImages: launch.images, Drafts: launch.drafts, SessionDirectory: launch.directory,
 			BackendURL: o.backendURL, AccountLabel: accountLabel, Plan: o.plan,
 			History: forkHistory, ResumeAnswer: o.answer, AuditPath: o.auditPath,
 			Env: env, Task: task, StateFile: stateFile, Verify: verify, Images: images,

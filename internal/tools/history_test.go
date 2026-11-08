@@ -3,6 +3,7 @@ package tools
 import (
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/keshon/gektor/internal/llm"
@@ -32,5 +33,28 @@ func TestReadHistorySearchAndOriginalPaging(t *testing.T) {
 	}
 	if _, err := tool.Run(t.Context(), json.RawMessage(`{"query":"failed","offset":1}`)); err == nil {
 		t.Fatal("accepted query with offset")
+	}
+}
+
+func TestReadHistorySelectsOnlyOwnDelegateArchive(t *testing.T) {
+	dir := t.TempDir()
+	parent := filepath.Join(dir, "state.json")
+	child := session.ChildStatePath(parent, "call-1")
+	if err := session.New([]llm.Message{{Role: llm.RoleTool, ToolCallID: "check", Content: "exit_code: 1; actual failure"}}).Save(child); err != nil {
+		t.Fatal(err)
+	}
+	tool := ReadHistory{Path: parent}
+	out, err := tool.Run(t.Context(), json.RawMessage(`{"delegate_call_id":"call-1","query":"actual failure"}`))
+	if err != nil || !strings.Contains(out, "exit_code: 1") {
+		t.Fatal(out, err)
+	}
+	for _, args := range []string{`{"delegate_call_id":"../state.json"}`, `{"delegate_call_id":"call-1","query":"failure","offset":1}`} {
+		if out, err := tool.Run(t.Context(), json.RawMessage(args)); err == nil {
+			t.Fatalf("unexpected archive access: %s", out)
+		}
+	}
+	other := ReadHistory{Path: filepath.Join(dir, "other.json")}
+	if _, err := other.Run(t.Context(), json.RawMessage(`{"delegate_call_id":"call-1"}`)); err == nil {
+		t.Fatal("read another parent's child")
 	}
 }

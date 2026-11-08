@@ -20,8 +20,9 @@ For developers:
 
 - [RPC protocol](rpc.md): stdio requests, events, gates and client lifetime.
 - [Architecture](../ARCHITECTURE.md): packages, loop, role budgets and frontends.
-- [TUI design](tui-design.md): shared controls, layouts, interaction rules and migration plan.
+- [TUI design](tui-design.md): shared controls, layouts, interaction rules and verification.
 - [TUI mockups](design/tui/README.md): editable FigCraft components, screens and palette studies.
+- [TUI smoke check](tui-smoke.md): isolated session recovery checks in a real terminal.
 - [Conventions](conventions.md): enforced checks and coding practices.
 - [Eval guide](../eval/README.md): frozen probes and repeatable scoring.
 - [Agent skills](../skills/README.md): task-workspace guidance for the local model.

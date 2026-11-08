@@ -15,6 +15,15 @@ type draft struct {
 	recall               composer.Snapshot
 }
 
+// Drafts carries unsent UI state across a workspace or backend relaunch.
+// It is never submitted as conversation history or written into a session.
+type Drafts map[string]draft
+
+func (m *model) relaunchDrafts() Drafts {
+	m.saveDraft()
+	return m.drafts
+}
+
 func (m *model) saveDraft() {
 	if m.drafts == nil {
 		m.drafts = make(map[string]draft)

@@ -43,6 +43,7 @@ type Config struct {
 	SeedHistory      []llm.Message
 	InitialDraft     string
 	InitialImages    []string
+	Drafts           Drafts
 	BackendURL       string
 	AccountLabel     string
 	Plan             bool
@@ -239,7 +240,7 @@ type model struct {
 	// preferences write is skipped rather than fsynced again.
 	savedSettings   string
 	pendingCommands []tea.Cmd
-	drafts          map[string]draft
+	drafts          Drafts
 	plan            bool
 
 	gateVP viewport.Model
@@ -487,6 +488,10 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	}
 	m.input.SetValue(cfg.InitialDraft)
 	m.draftImages = append([]string(nil), cfg.InitialImages...)
+	m.drafts = cfg.Drafts
+	if _, ok := m.drafts[m.stateFile]; ok {
+		m.restoreDraft()
+	}
 	m.fitInput()
 	m.fitBottom()
 	if err := m.savePreferences(); err != nil {

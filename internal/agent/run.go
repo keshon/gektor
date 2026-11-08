@@ -15,6 +15,7 @@ import (
 // run requests a response, executes its tools and persists history until
 // the model answers, the operator cancels or the step limit is reached.
 func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, runErr error) {
+	a.report = RunReport{MaxSteps: a.cfg.MaxSteps, Archive: a.cfg.StateFile}
 	// Derive both deadlines from the enriched context: tools execute on workCtx,
 	// so enriching only the hard-deadline context loses vision/output metadata.
 	if a.cfg.ToolContext != nil {
@@ -296,6 +297,10 @@ func (a *Agent) chat(ctx context.Context, req llm.ChatRequest) (response llm.Cha
 		a.cfg.OnPrompt(breakdown)
 	}
 	defer func() {
+		a.report.Usage.PromptTokens += response.Usage.PromptTokens
+		a.report.Usage.CompletionTokens += response.Usage.CompletionTokens
+		a.report.Usage.CachedTokens += response.Usage.CachedTokens
+		a.report.Usage.Estimated = a.report.Usage.Estimated || response.Usage.Estimated
 		if response.Usage.PromptTokens > 0 {
 			breakdown.BackendTokens, breakdown.CachedTokens, breakdown.BackendEstimated = response.Usage.PromptTokens, response.Usage.CachedTokens, response.Usage.Estimated
 			a.report.Prompt = breakdown

@@ -103,6 +103,15 @@ func BudgetContinue(ctx context.Context, a *Agent, runErr error, stateFile strin
 	a.LastRunMutations += mutations
 	a.report.Steps += previous.Steps
 	a.report.MaxSteps += previous.MaxSteps
+	a.report.ToolsExecuted += previous.ToolsExecuted
+	a.report.RecentTools = append(slices.Clone(previous.RecentTools), a.report.RecentTools...)
+	if len(a.report.RecentTools) > 24 {
+		a.report.RecentTools = a.report.RecentTools[len(a.report.RecentTools)-24:]
+	}
+	a.report.Usage.PromptTokens += previous.Usage.PromptTokens
+	a.report.Usage.CompletionTokens += previous.Usage.CompletionTokens
+	a.report.Usage.CachedTokens += previous.Usage.CachedTokens
+	a.report.Usage.Estimated = a.report.Usage.Estimated || previous.Usage.Estimated
 	paths := slices.Clone(previous.MutatedPaths)
 	for _, path := range a.report.MutatedPaths {
 		if !slices.Contains(paths, path) {

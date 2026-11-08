@@ -19,28 +19,30 @@ import (
 )
 
 type evalMetadata struct {
-	DeadlineAware  bool   `json:"deadline_aware"`
-	Suite          string `json:"suite,omitempty"`
-	BackendKind    string `json:"backend_kind"`
-	Backend        string `json:"backend"`
-	Model          string `json:"model"`
-	ContextLimit   int    `json:"context_limit"`
-	Jobs           int    `json:"jobs"`
-	MaxTokens      int    `json:"max_tokens"`
-	Runs           int    `json:"runs"`
-	DrySampler     bool   `json:"dry_sampler"`
-	Started        string `json:"started"`
-	GoVersion      string `json:"go_version"`
-	OS             string `json:"os"`
-	Arch           string `json:"arch"`
-	SourceRevision string `json:"source_revision,omitempty"`
-	SourceModified *bool  `json:"source_modified,omitempty"`
-	SourceSHA256   string `json:"source_sha256,omitempty"`
-	BuildRevision  string `json:"build_revision,omitempty"`
-	BuildModified  *bool  `json:"build_modified,omitempty"`
-	BinarySHA256   string `json:"binary_sha256"`
-	PromptsSHA256  string `json:"prompts_sha256"`
-	InputsSHA256   string `json:"inputs_sha256"`
+	DelegateSteps    int    `json:"delegate_steps"`
+	DelegateMaxSteps int    `json:"delegate_max_steps"`
+	DeadlineAware    bool   `json:"deadline_aware"`
+	Suite            string `json:"suite,omitempty"`
+	BackendKind      string `json:"backend_kind"`
+	Backend          string `json:"backend"`
+	Model            string `json:"model"`
+	ContextLimit     int    `json:"context_limit"`
+	Jobs             int    `json:"jobs"`
+	MaxTokens        int    `json:"max_tokens"`
+	Runs             int    `json:"runs"`
+	DrySampler       bool   `json:"dry_sampler"`
+	Started          string `json:"started"`
+	GoVersion        string `json:"go_version"`
+	OS               string `json:"os"`
+	Arch             string `json:"arch"`
+	SourceRevision   string `json:"source_revision,omitempty"`
+	SourceModified   *bool  `json:"source_modified,omitempty"`
+	SourceSHA256     string `json:"source_sha256,omitempty"`
+	BuildRevision    string `json:"build_revision,omitempty"`
+	BuildModified    *bool  `json:"build_modified,omitempty"`
+	BinarySHA256     string `json:"binary_sha256"`
+	PromptsSHA256    string `json:"prompts_sha256"`
+	InputsSHA256     string `json:"inputs_sha256"`
 }
 
 // writeMeta fails before model execution if the experiment cannot be recorded.

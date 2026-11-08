@@ -6,7 +6,7 @@ layers. The `.figcraft` format is FigCraft's native format. Its `.fig` export
 is experimental, so it is not the source file here.
 
 These are proposed screens for review. They do not change the running TUI.
-The [design reference](../../tui-design.md) defines behavior and the migration
+The [design reference](../../tui-design.md) defines behavior and the verification
 plan. Update it when a reviewed mockup changes an interaction rule.
 
 ## Pages

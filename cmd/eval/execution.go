@@ -27,6 +27,16 @@ func prepareProbeAttachments(p Probe, work, tempRoot string) ([]string, error) {
 
 func observeProbeResults(env roles.Env, res *Result, calls *[]call, started time.Time) roles.Env {
 	env.OnResult = func(result agent.ToolResult) {
+		for i := len(*calls) - 1; i >= 0; i-- {
+			if (*calls)[i].id == result.CallID {
+				if (*calls)[i].tool == "delegate_task" {
+					if metric, ok := parseDelegateMetrics(result.Output); ok {
+						res.Delegates = append(res.Delegates, metric)
+					}
+				}
+				break
+			}
+		}
 		res.ToolSeconds += result.Duration.Seconds()
 		recordToolResult(*calls, result)
 		if res.FirstToolSeconds == 0 {
@@ -85,7 +95,11 @@ func checkProbeOutcome(ctx context.Context, p Probe, ws *workspace.Workspace, im
 // which is what probe 12 measures.
 func executeProbeAgent(ctx context.Context, p Probe, env roles.Env, images []string, res *Result) string {
 	replyIndex := 0
-	a := roles.Interactive(env, "", "", func(context.Context, string) (string, error) {
+	stateFile := ""
+	if res.Trace != "" {
+		stateFile = res.Trace + ".state.json"
+	}
+	a := roles.Interactive(env, "", stateFile, func(context.Context, string) (string, error) {
 		if replyIndex < len(p.Replies) {
 			reply := p.Replies[replyIndex]
 			replyIndex++

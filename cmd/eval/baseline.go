@@ -29,8 +29,10 @@ func selectSuite(probes []Probe, name string) ([]Probe, error) {
 		names = []string{"33-documents-read", "34-documents-workflow"}
 	} else if name == "visual" {
 		names = []string{"32-visual-attachment"}
+	} else if name == "delegation" {
+		names = []string{"35-delegate-review", "36-delegate-repair"}
 	} else if name != "core" {
-		return nil, fmt.Errorf("unknown suite %q; available: core, workflows, pipelines, visual, documents", name)
+		return nil, fmt.Errorf("unknown suite %q; available: core, workflows, pipelines, visual, documents, delegation", name)
 	}
 	selected := make([]Probe, 0, len(coreProbes))
 	for _, wanted := range names {

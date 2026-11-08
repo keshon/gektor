@@ -67,12 +67,19 @@ type sessionsState struct {
 	selection.Model
 	// offset is the first visible row: the list scrolls under a
 	// stationary viewport instead of clipping past it.
-	drag  scrollDrag
-	mode  sessionsMode
-	flash string
+	drag     scrollDrag
+	mode     sessionsMode
+	flash    string
+	reassign *sessionAssignment
 	// root is the tasks dir scanned at open; mutations re-scan it so
 	// the list always reflects disk, never a stale copy.
 	root string
+}
+
+type sessionAssignment struct {
+	directory string
+	workspace string
+	previous  string
 }
 
 // tasksRoot is where saved sessions live, under the user's GEKTOR
@@ -89,7 +96,9 @@ func (m *model) sessChrome() int {
 	}
 	if m.sessions.mode == sessRename {
 		chrome += 2
-	} else if m.sessions.mode == sessConfirm || m.sessions.mode == sessReassign {
+	} else if m.sessions.mode == sessReassign {
+		chrome += 2
+	} else if m.sessions.mode == sessConfirm {
 		chrome++
 	}
 	return chrome
@@ -190,6 +199,7 @@ func (m *model) sessionsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "n", "N", "esc":
 			s.mode = sessList
+			s.reassign = nil
 			s.flash = ""
 			return m, nil
 		}
@@ -223,6 +233,8 @@ func (m *model) sessionsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		s.flash = ""
+		cur := s.entries[s.Cursor]
+		s.reassign = &sessionAssignment{directory: cur.dir, workspace: m.wsRoot, previous: cur.workspace}
 		s.mode = sessReassign
 		return m, nil
 	case "ctrl+r":
@@ -254,22 +266,44 @@ func (m *model) sessionsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m *model) reassignSelected() {
 	s := m.sessions
 	s.mode = sessList
-	if m.state != stDone || len(s.entries) == 0 {
+	assignment := s.reassign
+	s.reassign = nil
+	if m.state != stDone || assignment == nil {
 		return
 	}
-	path := filepath.Join(s.entries[s.Cursor].dir, "state.json")
+	if !sameWorkspace(assignment.workspace, m.wsRoot) {
+		s.flash = "Workspace changed. Assign again."
+		return
+	}
+	found := false
+	for _, entry := range s.entries {
+		if entry.dir == assignment.directory {
+			found = true
+			break
+		}
+	}
+	if !found {
+		s.flash = "Session changed. Select it again."
+		return
+	}
+	path := filepath.Join(assignment.directory, "state.json")
 	snapshot, err := session.Load(path)
 	if err == nil {
-		snapshot.Workspace = m.wsRoot
+		if snapshot.Workspace != assignment.previous {
+			s.flash = "Session workspace changed. Assign again."
+			return
+		}
+		snapshot.Workspace = assignment.workspace
 		_, err = snapshot.ResolveWorkspace()
 		if err == nil {
 			err = snapshot.Save(path)
 		}
 	}
 	if err != nil {
-		s.flash = err.Error()
+		s.flash = "Cannot assign. ESC for details."
+		m.appendBlock(errorBlock("Cannot assign workspace: " + err.Error()))
 	} else {
-		s.flash = "Workspace assigned to " + m.wsRoot
+		s.flash = "Workspace assigned."
 		m.refreshSessions()
 	}
 }
@@ -296,9 +330,9 @@ func (m *model) openSelected() tea.Cmd {
 	}
 	root, err := snapshot.ResolveWorkspace()
 	if err != nil {
-		s.flash = "Workspace unavailable. Ctrl+W to assign."
+		s.flash = "Workspace missing; CTRL+W"
 		if snapshot.Workspace == "" {
-			s.flash = "Workspace unassigned. Ctrl+W to assign."
+			s.flash = "Workspace unassigned; CTRL+W"
 		}
 		return nil
 	}
@@ -309,8 +343,7 @@ func (m *model) openSelected() tea.Cmd {
 		}
 		p := m.application.Preferences
 		p.Workspace = root
-		m.saveDraft()
-		m.modeChange = &ModeChange{Preferences: p, History: snapshot.History, Directory: cur.dir, KeepAct: !m.plan}
+		m.modeChange = &ModeChange{Preferences: p, History: snapshot.History, Drafts: m.relaunchDrafts(), Directory: cur.dir, KeepAct: !m.plan}
 		return tea.Quit
 	}
 	history := snapshot.History

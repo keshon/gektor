@@ -23,6 +23,8 @@ type launchOptions struct {
 	grammar          bool
 	maxTokens        int
 	maxSteps         int
+	delegateSteps    int
+	delegateMaxSteps int
 	runTimeout       time.Duration
 	resume           string
 	answer           string
@@ -80,7 +82,9 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	flags.IntVar(&o.maxTokens, "max-tokens", 8192, "generation budget per response — too low truncates "+
 		"large outputs (e.g. a full HTML+CSS+JS file) mid-JSON")
 	flags.IntVar(&o.maxSteps, "max-steps", 0, "step budget per run — explicit 0 means no limit; omitted uses the saved limit or default (25). "+
-		"Applies to direct runs; subagents keep fixed budgets")
+		"Applies to direct runs; delegates use separate finite limits")
+	flags.IntVar(&o.delegateSteps, "delegate-steps", 0, "default model steps per delegate; omitted uses saved settings or 12")
+	flags.IntVar(&o.delegateMaxSteps, "delegate-max-steps", 0, "maximum task-specific delegate steps; omitted uses the delegate default")
 	flags.StringVar(&o.resume, "resume", "", "path to a .gektor/tasks/.../state.json snapshot to resume "+
 		"an interrupted run from, instead of starting a new task")
 	flags.DurationVar(&o.runTimeout, "run-timeout", 0, "total run duration, including a short tool-free closing phase (e.g. 5m); 0 disables")
@@ -181,6 +185,20 @@ func resolveLaunch(launch launchRequest) (resolvedLaunch, error) {
 	}
 	// Explicit flags override the saved per-run step limit.
 	h := launch.preferences.Harness
+	if !o.explicitFlags["delegate-steps"] {
+		o.delegateSteps = h.DelegateSteps
+	}
+	if !o.explicitFlags["delegate-max-steps"] {
+		o.delegateMaxSteps = h.DelegateMaxSteps
+	}
+	if (o.explicitFlags["delegate-steps"] && o.delegateSteps <= 0) || (o.explicitFlags["delegate-max-steps"] && o.delegateMaxSteps <= 0) {
+		return resolvedLaunch{}, fmt.Errorf("delegate limits must be positive")
+	}
+	var budgetErr error
+	o.delegateSteps, o.delegateMaxSteps, budgetErr = (config.Harness{DelegateSteps: o.delegateSteps, DelegateMaxSteps: o.delegateMaxSteps}).DelegateBudget()
+	if budgetErr != nil {
+		return resolvedLaunch{}, budgetErr
+	}
 	if !o.explicitFlags["max-steps"] && h.MaxSteps > 0 {
 		o.maxSteps = h.MaxSteps
 	}

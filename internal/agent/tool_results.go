@@ -45,12 +45,13 @@ func (a *Agent) recordToolBatch(ctx context.Context, st *runState, batch *toolBa
 					st.mutatingSucceeded++
 					st.addPaths(mutatedPathsFromCall(call.Arguments))
 				}
-				if call.Name == "delegate_task" {
-					mutations, paths := parseDelegateMutations(content)
-					st.mutatingSucceeded += mutations
-					st.addPaths(paths)
-				}
 			}
+		}
+		// A failed delegate may have changed files before it stopped.
+		if executed[i] && !withheld[i] && st.observeChanges == nil && call.Name == "delegate_task" {
+			mutations, paths := parseDelegateMutations(content)
+			st.mutatingSucceeded += mutations
+			st.addPaths(paths)
 		}
 		if withheld[i] {
 			content = "Not executed because new user input arrived. Reconsider this action using the updated instructions."
@@ -66,6 +67,13 @@ func (a *Agent) recordToolBatch(ctx context.Context, st *runState, batch *toolBa
 		}
 		fmt.Fprintf(&signature, "%s\x00%s\x00", callKey(call.Name, call.Arguments), content)
 		status := toolResultStatus(call, results[i], finishReason, executed[i], withheld[i])
+		if executed[i] && !withheld[i] {
+			a.report.ToolsExecuted++
+		}
+		a.report.RecentTools = append(a.report.RecentTools, ToolEvidence{CallID: call.ID, Name: call.Name, Status: status})
+		if len(a.report.RecentTools) > 24 {
+			a.report.RecentTools = a.report.RecentTools[len(a.report.RecentTools)-24:]
+		}
 		if !json.Valid(call.Arguments) || call.InputError != "" {
 			diagnostics = append(diagnostics, content)
 		} else {

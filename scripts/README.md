@@ -72,6 +72,8 @@ These require a source checkout:
 - `build.cmd vuln` runs govulncheck, installing it if needed.
 - `build.cmd clean` removes generated root executables only.
   It leaves `bin/`, scratch folders, saved history and eval results alone.
+- `scripts/tui-smoke.go` starts an isolated session-recovery check with a fake backend.
+  See the [terminal smoke procedure](../docs/tui-smoke.md) for build and run commands.
 - `eval-run.cmd [flags]` runs model eval probes.
 - `eval-dry.cmd [flags]` checks probes without model calls.
 - `bench-llama.cmd [quick] [model.gguf]` runs external llama-bench.

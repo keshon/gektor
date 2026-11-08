@@ -38,7 +38,12 @@ func (a *Agent) MutatedPaths() []string {
 
 // RunReport records the outcome, observed effects, and real check output.
 type RunReport struct {
-	Prompt llm.ContextReport
+	// RecentTools keeps bounded references to recorded results, never model claims.
+	ToolsExecuted int
+	RecentTools   []ToolEvidence
+	Usage         llm.Usage
+	Archive       string
+	Prompt        llm.ContextReport
 	// Summary describes incomplete work; it never represents successful completion.
 	Summary      string
 	Outcome      string
@@ -64,6 +69,12 @@ type RunReport struct {
 	// LastPromptTokens is the backend-reported prompt size of the last
 	// completed call — how full the context actually got.
 	LastPromptTokens int
+}
+
+type ToolEvidence struct {
+	CallID string
+	Name   string
+	Status string
 }
 
 // ToolNames returns the names of the tools this agent can call, sorted.

@@ -39,6 +39,7 @@ with `scripts\eval-run.cmd`.
 | `pipelines` | Child recipes with declared outputs; a paused hourly schedule and worker status | No |
 | `documents` | Native DOCX, XLSX and PDF reading, directly and through a recipe | No |
 | `visual` | Pasted image discovery, a detail crop, misleading suffix and limits on identification | Yes |
+| `delegation` | One focused child review and one small Go repair, with separate child measurements | No |
 
 ```text
 go run ./cmd/eval -dry
@@ -136,6 +137,17 @@ First-token timing appears only when incremental generation progress is reported
 backend-reported prompt/cached counts. Estimates do not include backend-specific
 chat-template/tokenizer differences; cached tokens still occupy context.
 `tool_seconds` sums tool execution durations; concurrent durations can overlap.
+
+For delegate budget comparisons, run `-suite delegation -delegate-steps N` with
+6, 12 and 24, at least three repeats each, and `-jobs 1`. Keep the same model,
+response budget and machine load. `-delegate-max-steps` sets the operator cap;
+when omitted it equals the default allowance. Metadata records both limits.
+Each result's `delegates` list records child termination, used and allowed steps,
+elapsed milliseconds, available tokens and recent tool-result statuses. Zero
+tokens can mean the backend supplied no usage. Model completion and artifact
+correctness remain separate checks. Child archives sit beside the parent trace;
+use their call IDs to inspect check commands and results. See
+[delegate criteria](prompts/delegation.md).
 
 Use `-deadline-aware` for a controlled comparison of the agent's completion
 budget. It reserves part of the existing probe timeout for a tool-free report;

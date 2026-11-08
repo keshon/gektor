@@ -32,6 +32,8 @@ func harnessModel(t *testing.T) (*model, string) {
 
 func TestMaxStepsSurvivesAReload(t *testing.T) {
 	m, path := harnessModel(t)
+	m.application.Preferences.Harness.DelegateSteps = 18
+	m.application.Preferences.Harness.DelegateMaxSteps = 30
 	m.command("/max-steps 42")
 	if m.maxStepsOverride != 42 {
 		t.Fatalf("not applied: %+v", m.maxStepsOverride)
@@ -42,6 +44,9 @@ func TestMaxStepsSurvivesAReload(t *testing.T) {
 	}
 	if saved.Harness.MaxSteps != 42 {
 		t.Fatalf("saved %d, want 42", saved.Harness.MaxSteps)
+	}
+	if saved.Harness.DelegateSteps != 18 || saved.Harness.DelegateMaxSteps != 30 {
+		t.Fatal("parent settings discarded delegate limits")
 	}
 }
 

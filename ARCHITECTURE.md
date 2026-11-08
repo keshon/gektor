@@ -50,8 +50,11 @@ CLI and first-run TUI settings use internal/config.DefaultProfile: llama.cpp
 at http://127.0.0.1:8080. The eval runner uses the same provider defaults.
 internal/app compiles identity and profile settings into Services.
 internal/roles builds Planner, Interactive and Subagent from Env. Subagents
-share the workspace and permission policy, have 12 steps and cannot delegate
-again or ask the operator. Their results return through the parent tool call.
+share the workspace and permission policy and cannot delegate again or ask the
+operator. Their finite step allowance defaults to 12; operators can configure a
+default and maximum, and a task can request an allowance within that maximum.
+Errors retain a bounded report with measured effects and child archive references.
+There is no automatic continuation after exhaustion.
 
 internal/run provides Session events and operator gates for TUI and RPC.
 The print CLI supplies console observers to the same role constructors.
@@ -113,7 +116,9 @@ semantics; native tools report the process exit code without shell parsing.
 The operator sets the step limit, default 25; explicit max-steps 0 is unlimited
 for the main agent. Todo is checklist data: it cannot
 grant steps or prevent an answer. On exhaustion, an operator may explicitly
-approve one 25-step continuation. There is no additional closing model call.
+approve one 25-step continuation. Step exhaustion does not request an extra
+closing model call. The separate run-time limit can reserve a tool-free closing
+request; see [runtime limits](docs/cli.md#backend).
 
 Repeat detection compares tool calls and their results. Three consecutive
 identical step signatures trigger one answer turn without tools. Potentially

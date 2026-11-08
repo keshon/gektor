@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -113,6 +114,7 @@ func TestAgent_DelegateMutations_CountTowardVerifyZeroWrites(t *testing.T) {
 type delegateStub struct {
 	mutations int
 	result    string
+	err       error
 }
 
 func (d delegateStub) Name() string            { return "delegate_task" }
@@ -120,7 +122,33 @@ func (d delegateStub) Description() string     { return "delegate" }
 func (d delegateStub) Mode() ToolMode          { return Concurrent }
 func (d delegateStub) Schema() json.RawMessage { return json.RawMessage(`{}`) }
 func (d delegateStub) Run(context.Context, json.RawMessage) (string, error) {
-	return fmt.Sprintf("DELEGATE\nmutations: %d\n----\n%s", d.mutations, d.result), nil
+	return fmt.Sprintf("DELEGATE\nmutations: %d\npaths: changed.txt\n----\n%s", d.mutations, d.result), d.err
+}
+
+func TestFailedDelegateRetainsEffectsAndFailure(t *testing.T) {
+	a := New(Config{MaxSteps: 2, Client: &stubClient{responses: []llm.ChatResponse{
+		{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "d", Name: "delegate_task", Arguments: json.RawMessage(`{"task":"edit"}`)}}}},
+		{Message: llm.Message{Role: llm.RoleAssistant, Content: "Incomplete."}},
+	}}, Tools: NewRegistry(delegateStub{mutations: 1, result: "partial evidence", err: ErrMaxSteps})})
+	var result ToolResult
+	a.cfg.OnResult = func(r ToolResult) { result = r }
+	if _, err := a.Run(t.Context(), "test"); err != nil {
+		t.Fatal(err)
+	}
+	if a.LastRunMutations != 1 || len(a.MutatedPaths()) != 1 || a.MutatedPaths()[0] != "changed.txt" || !result.Failed || !strings.Contains(result.Output, "partial evidence") {
+		t.Fatalf("report=%+v result=%+v", a.Report(), result)
+	}
+}
+
+func TestCancellationOnLastStepKeepsEffectsAndCorrectReason(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	client := &stubClient{responses: []llm.ChatResponse{{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "last", Name: "echo", Arguments: json.RawMessage(`{"path":"changed.txt"}`)}}}}}}
+	a := New(Config{Client: client, MaxSteps: 1, Tools: NewRegistry(echoToolStub{}), MutatingTools: []string{"echo"}, OnResult: func(ToolResult) { cancel() }})
+	_, err := a.Run(ctx, "test")
+	if !errors.Is(err, context.Canceled) || errors.Is(err, ErrMaxSteps) || client.calls != 1 || a.LastRunMutations != 1 || a.Report().Outcome != "cancelled" {
+		t.Fatalf("err=%v report=%+v", err, a.Report())
+	}
 }
 
 func TestParseDelegateMutations(t *testing.T) {

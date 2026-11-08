@@ -3,6 +3,7 @@ package roles
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -574,4 +575,58 @@ func TestSubagentKeepsOwnBudgetAndDoesNotConsumeParentSteering(t *testing.T) {
 			t.Fatal("subagent consumed parent inbox")
 		}
 	}
+}
+
+func TestDelegateEnforcesRequestedBudgetAndWarnsBeforeExhaustion(t *testing.T) {
+	env := testEnv(t)
+	env.DelegateSteps, env.DelegateMaxSteps = 3, 6
+	calls := 0
+	warnings := 0
+	env.OnChild = func(id, kind string, fields map[string]any) {
+		if msg, ok := fields["message"].(llm.Message); ok && strings.Contains(msg.Content, "2 model steps remain") {
+			warnings++
+		}
+	}
+	var result agent.ToolResult
+	var inspected agent.ToolResult
+	env.OnResult = func(r agent.ToolResult) {
+		if r.CallID == "child" {
+			result = r
+		}
+		if r.CallID == "inspect" {
+			inspected = r
+		}
+	}
+	env.Client = roleClientFunc(func(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
+		calls++
+		if calls == 1 {
+			return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "child", Name: "delegate_task", Arguments: json.RawMessage(`{"task":"inspect","max_steps":4}`)}}}}, nil
+		}
+		if calls <= 5 {
+			if !strings.Contains(req.Messages[0].Content, "Your budget is 4 model steps") {
+				t.Fatal("requested budget not applied")
+			}
+			args, _ := json.Marshal(map[string]string{"path": fmt.Sprintf("missing-%d", calls)})
+			return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: fmt.Sprint(calls), Name: "read_file", Arguments: args}}}}, nil
+		}
+		if calls == 6 {
+			return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "inspect", Name: "read_history", Arguments: json.RawMessage(`{"delegate_call_id":"child","query":"missing-"}`)}}}}, nil
+		}
+		return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: "Child stopped; work is incomplete."}}, nil
+	})
+	if _, err := Interactive(env, "", filepath.Join(t.TempDir(), "state.json"), nil, nil).Run(t.Context(), "test"); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 7 || warnings != 1 || !result.Failed || !strings.Contains(result.Output, "steps: 4/4") || !strings.Contains(result.Output, "termination: step_limit") || !strings.Contains(result.Output, "archive:") || !strings.Contains(result.Output, "delegate_call_id: child") {
+		t.Fatalf("calls=%d warnings=%d result=%+v", calls, warnings, result)
+	}
+	if inspected.Failed || !strings.Contains(inspected.Output, "missing-") {
+		t.Fatalf("parent could not inspect partial results: %+v", inspected)
+	}
+}
+
+type roleClientFunc func(context.Context, llm.ChatRequest) (llm.ChatResponse, error)
+
+func (f roleClientFunc) Chat(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
+	return f(ctx, req)
 }

@@ -20,6 +20,7 @@ type launchRequest struct {
 	history           []llm.Message
 	draft             string
 	images            []string
+	drafts            tui.Drafts
 	directory         string
 	common            bool
 	reassignWorkspace bool
@@ -57,6 +58,8 @@ func runApplication(args []string) error {
 			return err
 		}
 		request.preferences.Harness.MaxSteps = o.maxSteps
+		request.preferences.Harness.DelegateSteps = o.delegateSteps
+		request.preferences.Harness.DelegateMaxSteps = o.delegateMaxSteps
 		err = runResolved(request, o)
 		var change *tui.ModeChange
 		if !errors.As(err, &change) {
@@ -67,7 +70,7 @@ func runApplication(args []string) error {
 			return err
 		}
 		next := relaunchOptions(o.launchOptions, prefs, change.KeepAct)
-		request = launchRequest{options: &next, preferences: prefs, preferencePath: path, profile: prefs.Profile, history: change.History, draft: change.Draft, images: change.Images, directory: change.Directory, reassignWorkspace: change.ReassignWorkspace, common: true}
+		request = launchRequest{options: &next, preferences: prefs, preferencePath: path, profile: prefs.Profile, history: change.History, draft: change.Draft, images: change.Images, drafts: change.Drafts, directory: change.Directory, reassignWorkspace: change.ReassignWorkspace, common: true}
 	}
 }
 
@@ -79,6 +82,7 @@ func relaunchOptions(previous launchOptions, p config.Preferences, keepAct bool)
 	previous.task, previous.resume, previous.fork, previous.images, previous.answer = "", "", "", "", ""
 	previous.plan = !keepAct
 	previous.maxSteps = 0
+	previous.delegateSteps, previous.delegateMaxSteps = 0, 0
 	return previous
 }
 func initialTUILaunch(options launchOptions, p config.Preferences, path string) launchRequest {

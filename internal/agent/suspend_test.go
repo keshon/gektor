@@ -50,6 +50,9 @@ func TestBudgetContinuePreservesEffectsAndGrantsExactlyTheOfferedBudget(t *testi
 			client := &stubClient{responses: []llm.ChatResponse{say("done")}}
 			a := New(Config{Client: client, Tools: NewRegistry(), MaxSteps: base, StateFile: state})
 			a.report = RunReport{Steps: base, MaxSteps: base, MutatedPaths: []string{"a.txt"}, OpenTodos: []string{"work"}, Verification: "PASSED old", Warnings: []string{"old warning"}}
+			a.report.ToolsExecuted = 1
+			a.report.RecentTools = []ToolEvidence{{CallID: "old", Name: "write_file", Status: "success"}}
+			a.report.Usage = llm.Usage{PromptTokens: 10, CompletionTokens: 3, Estimated: true}
 			a.LastRunMutations = 1
 			if err := SaveState(state, []llm.Message{{Role: llm.RoleSystem, Content: ""}, {Role: llm.RoleUser, Content: "task"}}); err != nil {
 				t.Fatal(err)
@@ -63,6 +66,9 @@ func TestBudgetContinuePreservesEffectsAndGrantsExactlyTheOfferedBudget(t *testi
 				return SuspendReply{Answer: "yes"}, nil
 			})
 			r := a.Report()
+			if r.ToolsExecuted != 1 || len(r.RecentTools) != 1 || r.Usage.PromptTokens != 10 || r.Usage.CompletionTokens != 3 || !r.Usage.Estimated {
+				t.Fatalf("lost prior measurements: %+v", r)
+			}
 			if err != nil || !ok || ans != "done" {
 				t.Fatalf("result=%q err=%v ok=%v", ans, err, ok)
 			}

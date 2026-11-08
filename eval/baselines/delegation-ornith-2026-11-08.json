@@ -1,0 +1,458 @@
+{
+  "date": "2026-11-08",
+  "model": "Ornith-1.5-35B-Q5_K_M.gguf",
+  "backend": "llama-server",
+  "context_limit": 131072,
+  "max_tokens": 4096,
+  "jobs": 1,
+  "repeats_per_scenario": 3,
+  "timeout_seconds": 300,
+  "decision": "Keep the compatibility default of 12 steps and default maximum equal to that allowance. Higher limits require operator configuration.",
+  "limitations": [
+    "Two small tasks, one model and quantization; no universal limit is established.",
+    "Source changed between budget groups; digests are retained. Builds and tests also ran, so elapsed times are diagnostic, not a controlled latency comparison.",
+    "Probe scoring later added a separate cap counting failed delegate attempts. All collected runs have exactly one attempt and satisfy that cap."
+  ],
+  "sources": [
+    {
+      "budget": 12,
+      "source_sha256": "166afe96053fb40a4bfe7c95943e08d7b2f3728b334071249289472b49f20129",
+      "binary_sha256": "1ffae8ce44bd1a8722ec3a2d03370d5cfa560384f5ebdfe87523dce0a50ebb74",
+      "inputs_sha256": "d69463ccd359b37e5767af4f7b3332395dbae49003ed6849eef21f018af78dcb",
+      "prompts_sha256": "025d3f074a3b07dafbd71d19e9c356db8456f6072cc6487ecd4ccebc37227302",
+      "raw_results": "eval/results/delegate-budget-20261108-135914-12/20261108-140803/results.jsonl"
+    },
+    {
+      "budget": 24,
+      "source_sha256": "0bdc655d0854bdae4519ddf663646677f1efe232c310ab85dd9da5b2e852c9cd",
+      "binary_sha256": "e91f51b470f834e83e2050b452d23b1960ee29b386a9fd8c1266f41bb64718f5",
+      "inputs_sha256": "d69463ccd359b37e5767af4f7b3332395dbae49003ed6849eef21f018af78dcb",
+      "prompts_sha256": "025d3f074a3b07dafbd71d19e9c356db8456f6072cc6487ecd4ccebc37227302",
+      "raw_results": "eval/results/delegate-budget-20261108-135914-24/20261108-141752/results.jsonl"
+    },
+    {
+      "budget": 6,
+      "source_sha256": "6ef219ac38df4a13ead2705be87606e56dec5f34c6e48c935da60c34e662b8b9",
+      "binary_sha256": "433104331819ed785b85b001401548d4255e5eb030120294d8806b3c2437f2fa",
+      "inputs_sha256": "d69463ccd359b37e5767af4f7b3332395dbae49003ed6849eef21f018af78dcb",
+      "prompts_sha256": "025d3f074a3b07dafbd71d19e9c356db8456f6072cc6487ecd4ccebc37227302",
+      "raw_results": "eval/results/delegate-budget-20261108-135914-6/20261108-135915/results.jsonl"
+    }
+  ],
+  "runs": [
+    {
+      "budget": 12,
+      "probe": "35-delegate-review",
+      "run": 1,
+      "passed": true,
+      "delegate_calls": 1,
+      "child": {
+        "termination": "completed",
+        "steps": 4,
+        "max_steps": 12,
+        "elapsed_ms": 34352,
+        "prompt_tokens": 20910,
+        "completion_tokens": 796,
+        "cached_tokens": 15507,
+        "estimated": false,
+        "tool_results": [
+          "use7PXCTo7uUqeoRmlcTyC2pK2pxldA9 grep_files success",
+          "9mhM8G6SdGlqnA3A9UcKU4cdL657cSbG list_files success",
+          "wEiItxNuZaVZ3NKJLaHZKZktdkT0xixp read_file success"
+        ]
+      }
+    },
+    {
+      "budget": 6,
+      "probe": "36-delegate-repair",
+      "run": 1,
+      "passed": true,
+      "delegate_calls": 1,
+      "child": {
+        "termination": "completed",
+        "steps": 5,
+        "max_steps": 6,
+        "elapsed_ms": 46551,
+        "prompt_tokens": 29214,
+        "completion_tokens": 1128,
+        "cached_tokens": 22823,
+        "estimated": false,
+        "tool_results": [
+          "sDpXDlauJEJdJkpzSnxEJjBupIUl7mJj read_file success",
+          "NFunZ6vh3nGCHUCfcjJiz4tWccv0Rm3Q read_file success",
+          "aeZm5dCHsrLn1eQ29sEMzd76rQ2PRPul patch_file success",
+          "szngnZyE75LHZgEjoYSLSVHmbaAhzGxr write_file success",
+          "5iekmOi83nwqltNpRF1m8VI0z3IWVSh2 run_program success"
+        ]
+      }
+    },
+    {
+      "budget": 6,
+      "probe": "35-delegate-review",
+      "run": 3,
+      "passed": true,
+      "delegate_calls": 1,
+      "child": {
+        "termination": "completed",
+        "steps": 2,
+        "max_steps": 6,
+        "elapsed_ms": 29225,
+        "prompt_tokens": 10455,
+        "completion_tokens": 651,
+        "cached_tokens": 5150,
+        "estimated": false,
+        "tool_results": [
+          "YcMKNLybvfsNOz5tgBvME4lnZvNc7sbx read_file success"
+        ]
+      }
+    },
+    {
+      "budget": 6,
+      "probe": "35-delegate-review",
+      "run": 2,
+      "passed": true,
+      "delegate_calls": 1,
+      "child": {
+        "termination": "completed",
+        "steps": 2,
+        "max_steps": 6,
+        "elapsed_ms": 33318,
+        "prompt_tokens": 10531,
+        "completion_tokens": 785,
+        "cached_tokens": 5185,
+        "estimated": false,
+        "tool_results": [
+          "FKvmBQQD2sDcnhP0hq2BpAolwSYsIZfl read_file success"
+        ]
+      }
+    },
+    {
+      "budget": 6,
+      "probe": "35-delegate-review",
+      "run": 1,
+      "passed": true,
+      "delegate_calls": 1,
+      "child": {
+        "termination": "completed",
+        "steps": 2,
+        "max_steps": 6,
+        "elapsed_ms": 33076,
+        "prompt_tokens": 10455,
+        "completion_tokens": 782,
+        "cached_tokens": 5150,
+        "estimated": false,
+        "tool_results": [
+          "B3vFvbimok3cFzWGNwP2xKYFeeW6fM0I read_file success"
+        ]
+      }
+    },
+    {
+      "budget": 24,
+      "probe": "36-delegate-repair",
+      "run": 3,
+      "passed": true,
+      "delegate_calls": 1,
+      "child": {
+        "termination": "completed",
+        "steps": 9,
+        "max_steps": 24,
+        "elapsed_ms": 77023,
+        "prompt_tokens": 59801,
+        "completion_tokens": 2013,
+        "cached_tokens": 51604,
+        "estimated": false,
+        "tool_results": [
+          "dd1eftoO0PeG8u5L7Ox1FytFqvKojyxp list_files success",
+          "lvrq84c6JfEBvn6jNbFLu2hXgp0rB6Lo read_file success",
+          "tNn6KRF9n0nR0VakKWMGnYz66kIgyTFH patch_file success",
+          "RQWJOmJp8E8u321yofPud3kZiLBqs74j write_file success",
+          "xznjqjQUIDf2I9zUue5TsQtaLCGB1MaT run_program success",
+          "bQwPuVILRaXChhGvY7zEDqYgp3QNIQZh run_program execution_error",
+          "Ud2RxM5TGjyHTv4hDlIQl4jC9jLuRuo1 patch_file success",
+          "YlybR3J2xFGVuPNGrU0dordv1OEhbOta run_program success",
+          "p8dj7RxGROvHCSPpsuK2sQumPh2e3Ivo read_file success",
+          "u1Nuuc7YxGhOdDUI99pFnyT3a8ublgUX read_file success"
+        ]
+      }
+    },
+    {
+      "budget": 24,
+      "probe": "36-delegate-repair",
+      "run": 2,
+      "passed": true,
+      "delegate_calls": 1,
+      "child": {
+        "termination": "completed",
+        "steps": 4,
+        "max_steps": 24,
+        "elapsed_ms": 51059,
+        "prompt_tokens": 23969,
+        "completion_tokens": 1206,
+        "cached_tokens": 17370,
+        "estimated": false,
+        "tool_results": [
+          "w3yM07GKRdMtet9nMzosV4V6p5uTrKOI read_file success",
+          "v1jm7O3QnMUfbI3E8JxdXkiIc1pyXkOu read_file success",
+          "fUZLUpbP5ilxaaUF5Yw17pCHDrQ5Gzko patch_file success",
+          "k2fvgRYWnGincdKQGp2JmZCtrqUUou4Z write_file success",
+          "ymVhAkMSpGfPGPIAmAUaHwRxTW6kjn6I run_shell success"
+        ]
+      }
+    },
+    {
+      "budget": 24,
+      "probe": "36-delegate-repair",
+      "run": 1,
+      "passed": true,
+      "delegate_calls": 1,
+      "child": {
+        "termination": "completed",
+        "steps": 5,
+        "max_steps": 24,
+        "elapsed_ms": 82189,
+        "prompt_tokens": 29907,
+        "completion_tokens": 1410,
+        "cached_tokens": 23232,
+        "estimated": false,
+        "tool_results": [
+          "jksU7B0XZElZDkzqFVQIzdz7cpTLAGKl read_file success",
+          "MzrZBbS4Pv6B3KxaerUAYEkr6OBcMpI3 list_files success",
+          "KlxvKSXvofZ7MIuzNTIVBVil4h9HHNb0 patch_file success",
+          "bL8AB06S1W2cz4KRoakuYL1w4f1dUNsq write_file success",
+          "C9onv0AHtT2XfVCAqiRtyNl2UdlSheji run_program success",
+          "Kvbpd2kKgwqlKPM2cSQ6gJyArfuxdGiR run_program success"
+        ]
+      }
+    },
+    {
+      "budget": 24,
+      "probe": "35-delegate-review",
+      "run": 3,
+      "passed": true,
+      "delegate_calls": 1,
+      "child": {
+        "termination": "completed",
+        "steps": 2,
+        "max_steps": 24,
+        "elapsed_ms": 19255,
+        "prompt_tokens": 10350,
+        "completion_tokens": 573,
+        "cached_tokens": 9679,
+        "estimated": false,
+        "tool_results": [
+          "VO5GyhGJ8BCeEhpbL4gqhxP6RrlBqJhA read_file success"
+        ]
+      }
+    },
+    {
+      "budget": 24,
+      "probe": "35-delegate-review",
+      "run": 2,
+      "passed": true,
+      "delegate_calls": 1,
+      "child": {
+        "termination": "completed",
+        "steps": 2,
+        "max_steps": 24,
+        "elapsed_ms": 30572,
+        "prompt_tokens": 10336,
+        "completion_tokens": 661,
+        "cached_tokens": 5092,
+        "estimated": false,
+        "tool_results": [
+          "VJrOOdA6GbWAJ22j2MFYQFjFIDKfzaUz read_file success"
+        ]
+      }
+    },
+    {
+      "budget": 24,
+      "probe": "35-delegate-review",
+      "run": 1,
+      "passed": true,
+      "delegate_calls": 1,
+      "child": {
+        "termination": "completed",
+        "steps": 2,
+        "max_steps": 24,
+        "elapsed_ms": 27750,
+        "prompt_tokens": 10392,
+        "completion_tokens": 579,
+        "cached_tokens": 5119,
+        "estimated": false,
+        "tool_results": [
+          "MjtJVz3S4NRXWrg5PBSHY6H9S2OV0fWg read_file success"
+        ]
+      }
+    },
+    {
+      "budget": 12,
+      "probe": "36-delegate-repair",
+      "run": 3,
+      "passed": true,
+      "delegate_calls": 1,
+      "child": {
+        "termination": "completed",
+        "steps": 7,
+        "max_steps": 12,
+        "elapsed_ms": 61176,
+        "prompt_tokens": 42439,
+        "completion_tokens": 1485,
+        "cached_tokens": 35594,
+        "estimated": false,
+        "tool_results": [
+          "BBUlAaNTkXZhXovdhZKhZIZFSKeeq5WS list_files success",
+          "79s9FoHxZHprW01MifHbuxd72z5wvlEz read_file success",
+          "ysZmwocB0XCDtK42sGf2AjeS6Zn69p01 read_file success",
+          "RaWXWdxUDTAjrkePSUns5tsQjUK8sxtf patch_file success",
+          "oz3hQaPPuE7AUwFZCIipfrZgJQsOuc9d write_file success",
+          "byULUni7H5HzsdNfjrjFqeB9zyh3Z7NM run_program success",
+          "OAzJccMjYU2q9QLL3G1edbjZbICzMlBt run_shell success",
+          "D1sBqZXUXejsjgFtTcQynmboTyZcVLte read_file success"
+        ]
+      }
+    },
+    {
+      "budget": 12,
+      "probe": "36-delegate-repair",
+      "run": 2,
+      "passed": true,
+      "delegate_calls": 1,
+      "child": {
+        "termination": "completed",
+        "steps": 7,
+        "max_steps": 12,
+        "elapsed_ms": 75686,
+        "prompt_tokens": 42683,
+        "completion_tokens": 1429,
+        "cached_tokens": 35746,
+        "estimated": false,
+        "tool_results": [
+          "vjX91zgLZamDy7pfz5oc7ajEVLxWydyF list_files success",
+          "pWBB7czHloH95ahhQlcXvMvLPtMn6TL8 read_file success",
+          "VFUfnSUrKyVzzA8Igb36Xmtt7LIS0N9q read_file success",
+          "YmXTvUGtu7aLLXZu9pyL4BK41PkMRfIe patch_file success",
+          "bQwwDpOngh4dGJkacUzXit5V2Tf2VQAL write_file success",
+          "eXoeMPoa6VDmsRHIMCIfNc3kYoaw9sQj run_shell success",
+          "JdE8aclJkEpix42SplUfGDHxgP7AS6az read_file success"
+        ]
+      }
+    },
+    {
+      "budget": 12,
+      "probe": "36-delegate-repair",
+      "run": 1,
+      "passed": true,
+      "delegate_calls": 1,
+      "child": {
+        "termination": "completed",
+        "steps": 6,
+        "max_steps": 12,
+        "elapsed_ms": 56775,
+        "prompt_tokens": 36548,
+        "completion_tokens": 1324,
+        "cached_tokens": 29462,
+        "estimated": false,
+        "tool_results": [
+          "na7yQDe4iAZ7owuVZuJx6PkZhqtvwLz7 read_file success",
+          "9xdcbc2SLqyHRwuMTVELqxSoPSXqOUKM read_file success",
+          "gIs7AmXlzVSvx01yJ0fPvBKIbRaKcu0J patch_file success",
+          "u3I1PskWKAYDKdFlZRQhpVXnTxltuduO write_file success",
+          "Pht05iix0isgPxGS4861eVqvOzqolJaK run_program success",
+          "6YO5kvbSUySwo5Y4a3X7lmiGIzZEDBci run_program success"
+        ]
+      }
+    },
+    {
+      "budget": 12,
+      "probe": "35-delegate-review",
+      "run": 3,
+      "passed": true,
+      "delegate_calls": 1,
+      "child": {
+        "termination": "completed",
+        "steps": 2,
+        "max_steps": 12,
+        "elapsed_ms": 20878,
+        "prompt_tokens": 10301,
+        "completion_tokens": 616,
+        "cached_tokens": 9661,
+        "estimated": false,
+        "tool_results": [
+          "2hyX4KAULEmAgxt9KYXsjzdkjAYqJxx8 read_file success"
+        ]
+      }
+    },
+    {
+      "budget": 12,
+      "probe": "35-delegate-review",
+      "run": 2,
+      "passed": true,
+      "delegate_calls": 1,
+      "child": {
+        "termination": "completed",
+        "steps": 2,
+        "max_steps": 12,
+        "elapsed_ms": 40551,
+        "prompt_tokens": 10350,
+        "completion_tokens": 590,
+        "cached_tokens": 9661,
+        "estimated": false,
+        "tool_results": [
+          "PmCkzUBpSwq2kWh0NEHlA5x4KzxNXs12 read_file success"
+        ]
+      }
+    },
+    {
+      "budget": 6,
+      "probe": "36-delegate-repair",
+      "run": 2,
+      "passed": true,
+      "delegate_calls": 1,
+      "child": {
+        "termination": "completed",
+        "steps": 6,
+        "max_steps": 6,
+        "elapsed_ms": 47575,
+        "prompt_tokens": 36778,
+        "completion_tokens": 1069,
+        "cached_tokens": 29969,
+        "estimated": false,
+        "tool_results": [
+          "8mhmouOPAUVk1DIZM9vYNrVrYjysSLOl read_file success",
+          "GyKMrrS6KSNCUGmnC4wYRSyBg59eDeU1 list_files success",
+          "g4GREfOt9RnJ8xv52LS8nP4r1Du6kVTc patch_file success",
+          "DU9UBHcE31KWnih2BaJjIlGFRARKxd7N write_file success",
+          "y0kctzWa0E9EdizHkB6omGIFFc79zZAX run_program success",
+          "CGZY6v0WRZKe4RlEHv2374GWJ21eqEka read_file success",
+          "TKO7JpuPCCgzoUlbswl2aUm8oPOdwAYZ run_shell success"
+        ]
+      }
+    },
+    {
+      "budget": 6,
+      "probe": "36-delegate-repair",
+      "run": 3,
+      "passed": true,
+      "delegate_calls": 1,
+      "child": {
+        "termination": "completed",
+        "steps": 6,
+        "max_steps": 6,
+        "elapsed_ms": 60069,
+        "prompt_tokens": 35567,
+        "completion_tokens": 1265,
+        "cached_tokens": 28952,
+        "estimated": false,
+        "tool_results": [
+          "WyrrPTUOd0XmDT3FKunVADZWAJl5y9oJ list_files success",
+          "lO7C3Mtb4pMBDDaqpdWe7yNtUCQ6XO4h read_file success",
+          "Pp2PRVladm0qztPlQDYUODMR4yh7g4g3 read_file success",
+          "gxCgxUQjNfNcsqEufJwTjZ2mmiobNyVd patch_file success",
+          "z9merumWXZ1kK2dWhsX7SVuEs5cCoG1q write_file success",
+          "Q2BXf6BvYhGf6L2kOGG5dNr1PsoC8XTR run_program success",
+          "XAQvLk7mpkExhknQqpM8foi8Mx4OgYKi run_program success"
+        ]
+      }
+    }
+  ]
+}

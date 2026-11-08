@@ -25,18 +25,42 @@ const UnlimitedSteps = 999999
 
 // Harness stores operator preferences for execution, independently of the model.
 type Harness struct {
-	MaxSteps int  `json:"max_steps,omitempty"`
-	Steering bool `json:"steering,omitempty"`
+	MaxSteps         int  `json:"max_steps,omitempty"`
+	Steering         bool `json:"steering,omitempty"`
+	DelegateSteps    int  `json:"delegate_steps,omitempty"`
+	DelegateMaxSteps int  `json:"delegate_max_steps,omitempty"`
+}
+
+// Keep the existing allowance until model evals support a different default.
+const DefaultDelegateSteps = 12
+
+func (h Harness) DelegateBudget() (steps, maximum int, err error) {
+	if h.DelegateSteps < 0 || h.DelegateMaxSteps < 0 {
+		return 0, 0, fmt.Errorf("delegate step limits must be positive; omit them to use defaults")
+	}
+	steps, maximum = h.DelegateSteps, h.DelegateMaxSteps
+	if steps == 0 {
+		steps = DefaultDelegateSteps
+	}
+	if maximum == 0 {
+		maximum = steps
+	}
+	if steps > maximum {
+		return 0, 0, fmt.Errorf("delegate_steps (%d) exceeds delegate_max_steps (%d)", steps, maximum)
+	}
+	return steps, maximum, nil
 }
 
 // Retired advice settings are accepted when reading existing preferences;
 // the next save drops them. Other unknown keys still report an error.
 func (h *Harness) UnmarshalJSON(data []byte) error {
 	var saved struct {
-		Steering    bool            `json:"steering"`
-		MaxSteps    int             `json:"max_steps"`
-		Nudges      json.RawMessage `json:"nudges"`
-		ThinkBudget json.RawMessage `json:"think_budget"`
+		Steering         bool            `json:"steering"`
+		MaxSteps         int             `json:"max_steps"`
+		DelegateSteps    int             `json:"delegate_steps"`
+		DelegateMaxSteps int             `json:"delegate_max_steps"`
+		Nudges           json.RawMessage `json:"nudges"`
+		ThinkBudget      json.RawMessage `json:"think_budget"`
 	}
 	d := json.NewDecoder(bytes.NewReader(data))
 	d.DisallowUnknownFields()
@@ -45,6 +69,7 @@ func (h *Harness) UnmarshalJSON(data []byte) error {
 	}
 	h.MaxSteps = saved.MaxSteps
 	h.Steering = saved.Steering
+	h.DelegateSteps, h.DelegateMaxSteps = saved.DelegateSteps, saved.DelegateMaxSteps
 	return nil
 }
 
@@ -63,6 +88,9 @@ func ValidTheme(name string) bool {
 }
 
 func (p Preferences) Validate() error {
+	if _, _, err := p.Harness.DelegateBudget(); err != nil {
+		return err
+	}
 	if err := p.Appearance.Validate(); err != nil {
 		return err
 	}

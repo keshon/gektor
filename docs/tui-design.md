@@ -1,9 +1,10 @@
-# TUI design and component plan
+# TUI design and components
 
-This is the design reference and migration plan for GEKTOR's terminal UI.
+This is the design reference for GEKTOR's terminal UI.
 It covers Agent and Workflows, including their menus, dialogs and inspectors.
-The rules describe the target behavior. Existing screens follow them only in
-part; the migration checklist below records the remaining work.
+The component boundaries below describe the implementation. Verification lists
+the checks needed before accepting a screen; it does not claim every screen
+has passed them.
 
 For current shortcuts and everyday use, see the [terminal guide](tui.md).
 For the application's state and service boundaries, see
@@ -401,47 +402,20 @@ Keep repeated rendering work bounded by the visible area. Cache only with keys
 that include every presentation input that can change the result. A node far
 outside the viewport must not make dragging or repainting progressively slower.
 
-## Migration plan
+## Implementation status
 
-Each phase can contain several small commits. Move one real consumer at a time,
-keep unrelated behavior unchanged and remove its old drawing path once replaced.
-Update this checklist when a phase's acceptance criteria are met.
+The shared components listed above are implemented. They provide modal frames,
+forms, lists and tables, panel layouts, shortcuts and graph presentation.
+Settings, session search, MCP management and Permissions use these components.
 
-- [ ] **1. Shared styles and modal layout.** Separate title, focus, selection,
-  enabled and disabled styles. Move header, footer, spacing and hit regions into
-  the common layout. Migrate an information dialog, a form and session search.
-  Add the six named theme mappings and saved selection. Accept when all three
-  share chrome across the theme set, actions remain visible and
-  their drawn controls receive clicks at the same positions.
-- [ ] **2. Controls and forms.** Add shared buttons, text/search/multiline/number
-  inputs, read-only values, checkboxes and inline radios as their screens need
-  them. Add field-level errors and structured shortcuts. Migrate Theme and a
-  representative Settings page. Accept when enabled actions look enabled,
-  small choices stay inline, typing/paste reaches one owner and Cancel saves
-  nothing.
-- [ ] **3. Lists, pickers and file browsing.** Share row states, paging, search,
-  scrolling and acceptance. Replace the centered small-choice minimodals.
-  Migrate model/profile choices and workspace browsing. Accept when keyboard
-  and mouse agree, outside scrolling changes nothing, and cancelling a child
-  preserves its parent draft and position.
-- [ ] **4. Management and workflow dialogs.** Migrate MCP to a server list with
-  direct actions and Permissions to a filterable table. Adopt the controls in
-  workflow inputs, recipe/run selection, confirmation and detail dialogs.
-  Accept when actions have clear names, policy precedence remains visible and
-  the existing service and permission behavior is preserved.
-- [ ] **5. Main layouts and remaining surfaces.** Share the panel/split/inspector
-  layout between Agent and Workflows. Bring menus, tabs, hotkey bars, notices,
-  gates, transcript controls and graph nodes under the same style/state rules.
-  Accept when both modes align, narrow panes remain navigable and graph movement
-  remains responsive at distant coordinates.
-- [ ] **6. Usability check and cleanup.** Run the tasks below, fix observed
-  problems and remove superseded renderers, special-case coordinates and hints.
-  Accept when the owner and a reader unfamiliar with the UI can complete the
-  tasks without raw configuration edits or instructions from a developer.
+Component adoption and usability are separate checks. When changing a screen,
+use the existing components and run the relevant verification tasks below.
+Record a specific missing behavior when one is found, rather than treating an
+entire component family as unfinished.
 
 ## Verification
 
-Remaining migration work:
+Checks still needed for visual acceptance:
 
 - Check workflow input, recipe/run selection, confirmation and detail dialogs
   against the shared controls and fix any remaining differences.

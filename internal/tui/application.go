@@ -23,6 +23,7 @@ type ModeChange struct {
 	History           []llm.Message
 	Draft             string
 	Images            []string
+	Drafts            Drafts
 	Directory         string
 	KeepAct           bool
 	ReassignWorkspace bool
@@ -102,7 +103,7 @@ func (m *model) requestProfileChange(profile config.Profile) error {
 	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Workspace != nil && m.dialog.form.Workspace.LoadedPath != "" {
 		p.ProfilePath = m.dialog.form.Workspace.LoadedPath
 	}
-	m.modeChange = &ModeChange{ReassignWorkspace: !sameWorkspace(p.Workspace, m.wsRoot), Preferences: p, History: history, Draft: m.input.Value(), Images: append([]string(nil), m.draftImages...), Directory: m.sessionDirectory(), KeepAct: !m.plan}
+	m.modeChange = &ModeChange{ReassignWorkspace: !sameWorkspace(p.Workspace, m.wsRoot), Preferences: p, History: history, Draft: m.input.Value(), Images: append([]string(nil), m.draftImages...), Drafts: m.relaunchDrafts(), Directory: m.sessionDirectory(), KeepAct: !m.plan}
 	m.pendingCommands = append(m.pendingCommands, tea.Quit)
 	return nil
 }
@@ -172,10 +173,8 @@ func (m *model) saveHarness() (saveErr error) {
 	case m.maxStepsOverride > 0:
 		steps = m.maxStepsOverride
 	}
-	m.application.Preferences.Harness = config.Harness{
-		MaxSteps: steps,
-		Steering: m.steering,
-	}
+	m.application.Preferences.Harness.MaxSteps = steps
+	m.application.Preferences.Harness.Steering = m.steering
 	if m.application.Temporary {
 		p, err := config.LoadPreferences(m.application.PreferencePath)
 		if err != nil {

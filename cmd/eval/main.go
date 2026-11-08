@@ -321,9 +321,10 @@ type Result struct {
 	// of arguing about it.
 	Nudges []string `json:"nudges,omitempty"`
 
-	RunError string   `json:"run_error,omitempty"`
-	Failures []string `json:"failures,omitempty"`
-	Trace    string   `json:"trace_log,omitempty"`
+	RunError  string            `json:"run_error,omitempty"`
+	Delegates []delegateMetrics `json:"delegates,omitempty"`
+	Failures  []string          `json:"failures,omitempty"`
+	Trace     string            `json:"trace_log,omitempty"`
 }
 
 const defaultTimeout = 15 * time.Minute
@@ -348,7 +349,7 @@ func main() {
 	model := flag.String("model", "local", "model name: ignored by most local servers, required for remote providers")
 	dir := flag.String("probes", "eval/probes", "directory of probe .json files")
 	only := flag.String("only", "", "run only probes whose name contains this substring")
-	suite := flag.String("suite", "", "named subset: core, workflows, pipelines, visual or documents")
+	suite := flag.String("suite", "", "named subset: core, workflows, pipelines, visual, documents or delegation")
 	jobsN := flag.Int("jobs", 1, "how many probes to run at once. Both backends batch concurrent "+
 		"requests (koboldcpp --parallelrequests, llama-server --parallel) and neither helps unless "+
 		"the client sends them; raising this past what the server was started with just queues")
@@ -359,6 +360,8 @@ func main() {
 	outDir := flag.String("out", "eval/results", "directory for results.jsonl and per-run traces")
 	maxTokens := flag.Int("max-tokens", 8192, "generation budget per response")
 	deadlineAware := flag.Bool("deadline-aware", false, "reserve part of each probe timeout for a tool-free incomplete-work report")
+	delegateSteps := flag.Int("delegate-steps", 0, "default model steps per delegate (default 12)")
+	delegateMaxSteps := flag.Int("delegate-max-steps", 0, "maximum requested delegate steps (default equals delegate-steps)")
 	dry := flag.Bool("dry", false, "load and validate every probe, then exit — checking a probe "+
 		"should not cost a model round-trip")
 	dry_ := flag.Bool("dry-sampler", false, "enable the DRY sampler — off by default because it "+
@@ -375,6 +378,12 @@ func main() {
 	apiKeyEnv := flag.String("api-key-env", "", "env var holding the bearer token")
 	contextLimitFlag := flag.Int("context-limit", 0, "context window override; remote backends default to a per-model estimate")
 	flag.Parse()
+	delegateBudget := config.Harness{DelegateSteps: *delegateSteps, DelegateMaxSteps: *delegateMaxSteps}
+	steps, maximum, budgetErr := delegateBudget.DelegateBudget()
+	if budgetErr != nil {
+		log.Fatal(budgetErr)
+	}
+	delegateBudget.DelegateSteps, delegateBudget.DelegateMaxSteps = steps, maximum
 	if *runs < 1 || *jobsN < 1 {
 		log.Fatal("-runs and -jobs must be positive")
 	}
@@ -469,6 +478,7 @@ func main() {
 		Runs: *runs, DrySampler: *dry_,
 		DeadlineAware: *deadlineAware,
 		Suite:         *suite,
+		DelegateSteps: steps, DelegateMaxSteps: maximum,
 	}, probes); err != nil {
 		log.Fatalf("record experiment metadata: %v", err)
 	}
@@ -497,7 +507,7 @@ func main() {
 		fmt.Printf("  ....  %-22s run %d  started\n", j.probe.Name, j.run)
 		mu.Unlock()
 		record(runOnce(ctx, j.probe, j.run, runDir, *backendKind, *backend, *model,
-			contextLimit, *maxTokens, *dry_, *apiKey, *apiKeyEnv, *deadlineAware))
+			contextLimit, *maxTokens, *dry_, *apiKey, *apiKeyEnv, *deadlineAware, delegateBudget))
 	}
 
 	runProbeJobs(probes, *runs, *jobsN, run1)
@@ -556,7 +566,7 @@ func osSkipReason(oses []string) (bool, string) {
 }
 
 func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend, model string,
-	contextLimit, maxTokens int, drySampler bool, apiKey, apiKeyEnv string, deadlineAware bool) (res Result) {
+	contextLimit, maxTokens int, drySampler bool, apiKey, apiKeyEnv string, deadlineAware bool, budgets ...config.Harness) (res Result) {
 
 	res = Result{Probe: p.Name, Run: run, Errored: true}
 	started := time.Now()
@@ -670,6 +680,9 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 		res.Nudges = append(res.Nudges, kind)
 	})
 	env.WorkflowDir = workflowStoreDir(ws)
+	if len(budgets) > 0 {
+		env.DelegateSteps, env.DelegateMaxSteps = budgets[0].DelegateSteps, budgets[0].DelegateMaxSteps
+	}
 	env.Vision = len(images) > 0
 	env = observeProbeResults(env, &res, &calls, started)
 	if deadlineAware {

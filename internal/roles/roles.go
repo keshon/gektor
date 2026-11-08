@@ -19,6 +19,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/checks"
+	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/prompts"
@@ -30,7 +31,7 @@ import (
 const (
 	// subagentSteps bounds one delegated unit independently of the parent's
 	// limit, including when the parent has an unlimited budget.
-	subagentSteps = 12
+	subagentSteps = config.DefaultDelegateSteps
 )
 
 // Env is what every role needs regardless of what it does. Build one per
@@ -64,10 +65,12 @@ type Env struct {
 	Model  string
 	Stream bool
 
-	MaxSteps   int
-	RunTimeout time.Duration
-	Inbox      *agent.Inbox
-	OnInput    func(llm.Message)
+	MaxSteps         int
+	DelegateSteps    int
+	DelegateMaxSteps int
+	RunTimeout       time.Duration
+	Inbox            *agent.Inbox
+	OnInput          func(llm.Message)
 
 	// MCPTools are discovered MCP tools appended to the full tool set
 	// (Interactive, Subagent). Planner advertises them too, so that its
@@ -290,8 +293,12 @@ func Subagent(e Env, role string) *agent.Agent { return inspectedSubagent(e, rol
 func inspectedSubagent(e Env, role, callID, parentState string) *agent.Agent {
 	cfg := e.agentConfig(prompts.WithRole(role)+"\n\n"+prompts.SubagentScope+"\n\n"+prompts.PlatformLine(tools.ShellName()), "", "")
 	e.configureTools(&cfg, false, false, e.MCPTools...)
-	cfg.MaxSteps = subagentSteps
-	cfg.System += fmt.Sprintf("\n\nYour budget is %d model steps, including your final answer. Keep the subtask focused and report unfinished work honestly.", subagentSteps)
+	steps := e.DelegateSteps
+	if steps <= 0 {
+		steps = subagentSteps
+	}
+	cfg.MaxSteps = steps
+	cfg.System += fmt.Sprintf("\n\nYour budget is %d model steps, including your final answer. Keep the subtask focused and report unfinished work honestly.", steps)
 	cfg.Inbox, cfg.OnInput = nil, nil
 	cfg.OnStep, cfg.OnResult, cfg.OnUsage, cfg.OnNudge = nil, nil, nil, nil
 	cfg.OnToolOutput = nil
@@ -336,8 +343,10 @@ func (e Env) conversationConfig(label, stateFile string,
 	if e.Outputs == nil {
 		e.Outputs = tools.NewOutputStore(e.statePath(stateFile))
 	}
-	extra := []agent.Tool{&tools.Delegate{Spawn: func(ctx context.Context, role string) *agent.Agent {
-		return inspectedSubagent(e, role, agent.ToolCallID(ctx), e.statePath(stateFile))
+	extra := []agent.Tool{&tools.Delegate{DefaultSteps: e.DelegateSteps, MaxSteps: e.DelegateMaxSteps, Spawn: func(ctx context.Context, role string, steps int) *agent.Agent {
+		childEnv := e
+		childEnv.DelegateSteps = steps
+		return inspectedSubagent(childEnv, role, agent.ToolCallID(ctx), e.statePath(stateFile))
 	}}}
 	extra = append(extra, e.MCPTools...)
 	extra = append(extra, tools.ReadHistory{Path: e.statePath(stateFile)})

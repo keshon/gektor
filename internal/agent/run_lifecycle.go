@@ -23,8 +23,9 @@ func (a *Agent) finalizeRun(ctx, workCtx context.Context, st *runState, history 
 	if pending := a.cfg.Inbox.stop(); len(pending) > 0 {
 		history = a.acceptInputs(a.snapshot.Context(), pending, st)
 	}
-	if runErr == nil {
-		runErr = ctx.Err()
+	if ctxErr := ctx.Err(); ctxErr != nil && (runErr == nil || errors.Is(runErr, ErrMaxSteps)) {
+		// Cancellation during the last tool call is not step exhaustion.
+		runErr = ctxErr
 	}
 	if runErr == nil && a.cfg.Verify != nil {
 		out, err := a.cfg.Verify(ctx)
@@ -119,7 +120,7 @@ func (a *Agent) startRun(history []llm.Message) ([]llm.Message, int) {
 		runStart = n - 1
 	}
 	a.LastRunMutations = 0
-	a.report = RunReport{MaxSteps: a.cfg.MaxSteps}
+	a.report = RunReport{MaxSteps: a.cfg.MaxSteps, Archive: a.cfg.StateFile}
 	a.cfg.Inbox.start()
 	history = a.withDirective(history)
 	a.saveState(history)

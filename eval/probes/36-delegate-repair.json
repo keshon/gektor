@@ -1,0 +1,9 @@
+{
+  "prompt": "eval/prompts/delegation.md",
+  "task": "This is a delegate-budget evaluation. Use delegate_task exactly once to repair clamp.go and add useful tests. Supply these requirements: Clamp returns low below low, high above high, and value inside the inclusive bounds; callers provide low <= high. Keep the existing API. Have the delegate run go test ./... before its final answer and use its default step allowance. Inspect its evidence and report the result. Do not edit files yourself, restart, or retry the delegate.",
+  "tier": "signal",
+  "seed": "eval/fixtures-delegation",
+  "timeout_sec": 300,
+  "verify": [{"type":"go_acceptance","path":"eval/verifiers/clamp.gotest"},{"type":"file_exists","path":"clamp_test.go"}],
+  "trace": [{"tool":"delegate_task","mode":"required","success":true,"output_regex":"(?s)termination: completed.*tool_result: [^\\n]*run_(program|shell) success","why":"child must complete and record a real successful check"},{"tool":"delegate_task","max_calls":1,"why":"count failed attempts too; no delegate retry"},{"tool":"write_file","mode":"forbidden","why":"the child must own the repair"},{"tool":"patch_file","mode":"forbidden","why":"the child must own the repair"}]
+}
