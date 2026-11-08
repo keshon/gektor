@@ -23,9 +23,9 @@ a:focus-visible, button:focus-visible, [tabindex='0']:focus-visible { outline: 1
 /* Shade only the navigation and lower edge; leave the painted sky and city luminous. */
 .landscape__shade { background: linear-gradient(180deg, rgb(16 29 51 / 28%), transparent 16%, transparent 76%, rgb(10 25 39 / 55%)); }
 
-/* Navigation gets its own opaque surface: scenery cannot cut through the mark or links. */
-.masthead { position: fixed; z-index: 10; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: center; padding: 24px var(--gutter) 18px; background: var(--ground); border-bottom: 1px solid transparent; }
-.masthead--content { border-bottom-color: var(--line); }
+/* The artwork reserves clear sky behind the logo and navigation. */
+.masthead { position: fixed; z-index: 10; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: center; padding: 24px var(--gutter) 18px; background: transparent; border: 0; transition: background .25s; }
+.masthead--content { background: var(--ground); border-bottom: 1px solid var(--line); }
 .brand { display: flex; gap: 15px; align-items: center; }
 .brand__mark { width: 44px; height: 44px; stroke: currentColor; stroke-width: 1.9; }
 .brand__type { font-size: 19px; font-weight: 500; line-height: 1.1; letter-spacing: .2em; }
