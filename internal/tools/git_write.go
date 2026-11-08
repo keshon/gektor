@@ -42,12 +42,12 @@ func (t GitAdd) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	return runGit(ctx, t.WS, "add", "--", in.Path)
 }
 
-const gitAttribution = "Co-authored-by: Gektor <no-reply@keshon.ru>"
+const gitAttribution = "Co-authored-by: GEKTOR <no-reply@keshon.ru>"
 
 func (GitCommit) Name() string         { return "git_commit" }
 func (GitCommit) Mode() agent.ToolMode { return agent.Exclusive }
 func (GitCommit) Description() string {
-	return "Commit the already-staged changes with a message and Gektor co-author credit. Inspect the staged diff first; unrelated staged changes would be included. Requires the user's authorization to commit. Git author identity and hooks come from the repository configuration."
+	return "Commit the already-staged changes with a message and GEKTOR co-author credit. Inspect the staged diff first; unrelated staged changes would be included. Requires the user's authorization to commit. Git author identity and hooks come from the repository configuration."
 }
 func (GitCommit) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{"message":{"type":"string","minLength":1}},"required":["message"],"additionalProperties":false}`)

@@ -171,7 +171,7 @@ func TestXLSXRejectsBadReferencesAndDuplicateCells(t *testing.T) {
 }
 
 func pdfBytes(content string) []byte {
-	objects := []string{`<< /Type /Catalog /Pages 2 0 R >>`, `<< /Type /Pages /Kids [3 0 R] /Count 1 >>`, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>`, fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(content), content), `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>`, `<< /Title (Test report) /Author (Gektor) >>`}
+	objects := []string{`<< /Type /Catalog /Pages 2 0 R >>`, `<< /Type /Pages /Kids [3 0 R] /Count 1 >>`, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>`, fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(content), content), `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>`, `<< /Title (Test report) /Author (GEKTOR) >>`}
 	var b bytes.Buffer
 	b.WriteString("%PDF-1.4\n")
 	offsets := []int{0}

@@ -8,7 +8,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
@@ -23,10 +22,6 @@ type headerState struct {
 type headerBadge struct {
 	id, label  string
 	start, end int
-}
-type headerItem struct {
-	text, command string
-	enabled       bool
 }
 
 func (m *model) headerBadges() []headerBadge {
@@ -152,73 +147,20 @@ func (m *model) badgeLine() string {
 	return cellLine(strings.Join(out, ""), m.transcript.Viewport.Width())
 }
 
-func (m *model) rawHeaderItems() []headerItem {
-	info := func(s string) headerItem { return headerItem{text: s} }
+func (m *model) rawHeaderItems() []menuItem {
+	if items := m.menuItems(m.header.menu); items != nil {
+		return items
+	}
+	info := func(s string) menuItem { return menuItem{text: s} }
 	idle := m.state == stDone && (m.workflows == nil || !m.workflows.busy)
 	switch m.header.menu {
-	case "pipelines":
-		if m.workflowActive() {
-			return []headerItem{{"New…", "/workflows new", idle}, {"Open…", "/workflows open", idle}, {"Save…", "/workflows save", idle && m.workflows.run == nil}, {"", "", false}, {"Edit workflow…", "/workflows setup", idle && m.workflows.run == nil}, {"", "", false}, {"Return to chat", "/workflows chat", idle}}
-		}
-		return []headerItem{{"Open workflows", "/workflows", idle}, {"Open recipe…", "/workflows open", idle}, {"New recipe…", "/workflows new", idle}, {"Saved runs…", "/workflows runs", idle}}
-	case "workflow-node":
-		if m.workflows == nil {
-			return nil
-		}
-		edit := idle && m.workflows.run == nil
-		return []headerItem{{"Add node…", "/workflows add", edit}, {"Add schedule…", "/workflows schedule-add", edit}, {"Edit arguments…", "/workflows edit", edit}, {"Behavior…", "/workflows behavior", edit}, {"Connections…", "/workflows connections", edit}, {"Connect nodes…", "/workflows link", edit}, {"", "", false}, {"Delete node…", "/workflows delete", edit}}
-	case "workflow-execution":
-		if m.workflows == nil {
-			return nil
-		}
-		edit := idle && m.workflows.run == nil
-		return []headerItem{{"Validate…", "/workflows validate", edit}, {"Run…", "/workflows run", edit}, {"Schedule…", "/workflows schedule", edit}, {"Refresh schedules", "/workflows schedule-refresh", edit}, {"Cancel", "/workflows stop", m.workflows.busy}, {"", "", false}, {"Saved runs…", "/workflows runs", idle}, {"Review…", "/workflows review", idle && m.workflows.run != nil}, {"Return to draft", "/workflows draft", idle && m.workflows.run != nil}, {"", "", false}, {"Run with JSON…", "/workflows run-json", edit}}
-	case "session":
-		rows := []headerItem{{"New", "/new", idle}, {"Open…", "/sessions", true}, {"Compact history", "/compact", idle && m.stateFile != ""}, {"Rename…", "rename-current", idle && m.stateFile != ""}, {"Delete…", "delete-current", idle && m.stateFile != ""}}
-
-		return append(rows, headerItem{"", "", false}, headerItem{"Quit", "quit", true})
-	case "workflow":
-		return []headerItem{{"Plan", "/mode plan", idle}, {"Act", "/mode act", idle}, {"Stop run", "stop", m.state == stRunning}, {"Retry", "/retry", idle && m.runErr != nil && m.retryRun != nil}, {"Permissions…", "permissions-info", true}}
-	case "view":
-		if m.workflowActive() {
-			rows := []headerItem{{"Inspector", "/workflows inspector", true}, {"Raw inspection data", "/workflows raw-details", true}, {"", "", false}, {"Lock node positions", "/workflows lock-positions", true}, {"Auto-layout", "/workflows layout", idle && !m.workflows.positionsLocked}, {"", "", false}, {"Outlined frame", "toggle-outline", true}, {"Select Theme…", "theme", true}}
-			return rows
-		}
-		// Two zones: what the reader has chosen to hide, then what they
-		// can do. The separator exists because a filtered transcript and
-		// a scroll action are not the same kind of thing, and listing
-		// them as one flat list hid that.
-		return []headerItem{
-			{"Agent thinking", "toggle-details", true},
-			{"Agent tools", "toggle-tools", true},
-			{"System messages", "toggle-sys", true},
-			{"Speaker names", "toggle-names", true},
-			{"Message labels", "toggle-labels", true},
-			{"Outlined frame", "toggle-outline", true},
-			{"", "", false},
-			{"Jump to latest", "latest", true},
-			{"Select Theme…", "theme", true},
-		}
-	case "settings":
-		editable := idle && m.config != nil
-		rows := []headerItem{{"Model…", "edit:model", editable}, {"Generation…", "edit:generation", editable}, {"Profiles…", "edit:profiles", editable}, {"Workspace…", "application", idle && m.application != nil}}
-		if m.config != nil {
-			rows = append(rows, headerItem{"You…", "edit:you", editable}, headerItem{"Prompts…", "edit:prompts", editable}, headerItem{"Prompt preview…", "prompt-info", true})
-		}
-		rows = append(rows, headerItem{"Steering", "toggle-steering", true}, headerItem{"MCP servers…", "/mcp", true})
-		return rows
-	case "help":
-		if m.workflowActive() {
-			return []headerItem{{"Workflow keys", "/workflows help", true}, {"About", "about", true}}
-		}
-		return []headerItem{{"Keyboard shortcuts", "help-keys", true}, {"Commands", "help-commands", true}, {"About", "about", true}}
 
 	case "steering":
-		return []headerItem{{"Steering", "toggle-steering", true}}
+		return []menuItem{{"Steering", "toggle-steering", true}}
 	case "mode":
-		return []headerItem{{"ACT   Execute changes with tools", "/mode act", idle}, {"PLAN  Read-only exploration and planning", "/mode plan", idle}}
+		return []menuItem{{"ACT   Execute changes with tools", "/mode act", idle}, {"PLAN  Read-only exploration and planning", "/mode plan", idle}}
 	case "activity":
-		rows := []headerItem{info("State: " + m.statusWord()), info("Elapsed: " + formatElapsed(m.elapsed)), info(m.stepLine())}
+		rows := []menuItem{info("State: " + m.statusWord()), info("Elapsed: " + formatElapsed(m.elapsed)), info(m.stepLine())}
 		if m.progress.PromptTokens > 0 {
 			rows = append(rows, info(fmt.Sprintf("Input: %s   Generated: %s", kTokens(m.progress.PromptTokens), kTokens(m.progress.CompletionTokens))))
 			if m.progress.CachedTokens > 0 {
@@ -227,10 +169,10 @@ func (m *model) rawHeaderItems() []headerItem {
 		}
 		rows = append(rows, m.contextItems()...)
 		if m.runErr != nil {
-			rows = append(rows, info("Error: "+m.runErr.Error()), headerItem{"Retry failed turn", "/retry", idle && m.retryRun != nil})
+			rows = append(rows, info("Error: "+m.runErr.Error()), menuItem{"Retry failed turn", "/retry", idle && m.retryRun != nil})
 		}
 		if m.busy() {
-			rows = append(rows, headerItem{"Stop run", "stop", m.state == stRunning})
+			rows = append(rows, menuItem{"Stop run", "stop", m.state == stRunning})
 		}
 		return rows
 	case "model":
@@ -238,7 +180,7 @@ func (m *model) rawHeaderItems() []headerItem {
 		if m.streaming {
 			transport = "Streaming"
 		}
-		rows := []headerItem{info("Model: " + nonEmpty(m.displayedModel())), info("Backend: " + nonEmpty(m.backendKind)), info("Endpoint: " + nonEmpty(m.backendURL)), info("Transport: " + transport), info(fmt.Sprintf("Context window: %d tokens", m.limit)), info(fmt.Sprintf("Response budget: %d tokens", m.responseCap))}
+		rows := []menuItem{info("Model: " + nonEmpty(m.displayedModel())), info("Backend: " + nonEmpty(m.backendKind)), info("Endpoint: " + nonEmpty(m.backendURL)), info("Transport: " + transport), info(fmt.Sprintf("Context window: %d tokens", m.limit)), info(fmt.Sprintf("Response budget: %d tokens", m.responseCap))}
 		if !m.usage.liveModel && m.usage.historical {
 			rows = append(rows, info("Current backend model: "+nonEmpty(m.modelName)))
 		}
@@ -246,7 +188,7 @@ func (m *model) rawHeaderItems() []headerItem {
 	case "context":
 		return m.contextItems()
 	case "run":
-		rows := []headerItem{info(m.stepLine()), info("Elapsed: " + formatElapsed(m.elapsed)), info(fmt.Sprintf("Tools: %d   Files: %d", m.toolsUsed, len(m.filesTouched)))}
+		rows := []menuItem{info(m.stepLine()), info("Elapsed: " + formatElapsed(m.elapsed)), info(fmt.Sprintf("Tools: %d   Files: %d", m.toolsUsed, len(m.filesTouched)))}
 		if !m.firstToken.IsZero() {
 			rows = append(rows, info("First token: "+formatElapsed(m.firstToken.Sub(m.started))))
 		}
@@ -255,10 +197,10 @@ func (m *model) rawHeaderItems() []headerItem {
 	return nil
 }
 
-func (m *model) contextItems() []headerItem {
-	info := func(s string) headerItem { return headerItem{text: s} }
+func (m *model) contextItems() []menuItem {
+	info := func(s string) menuItem { return menuItem{text: s} }
 	idle := m.state == stDone
-	rows := []headerItem{info("Context: " + strings.Replace(m.meter(), "ctx ", "", 1)), info("Source: " + nonEmpty(m.usage.source))}
+	rows := []menuItem{info("Context: " + strings.Replace(m.meter(), "ctx ", "", 1)), info("Source: " + nonEmpty(m.usage.source))}
 	if !m.usage.at.IsZero() {
 		rows = append(rows, info("Updated: "+m.usage.at.Format("15:04:05")))
 	}
@@ -272,12 +214,12 @@ func (m *model) contextItems() []headerItem {
 	if m.usage.source == "Saved history estimate" {
 		rows = append(rows, info("History estimate includes images; tool schemas are excluded."))
 	}
-	return append(rows, headerItem{"Compact saved history", "/compact", idle && m.stateFile != ""})
+	return append(rows, menuItem{"Compact saved history…", "compact-session", idle && m.stateFile != ""})
 }
 
 // Wrap informational rows so full model names, endpoints, and errors remain accessible.
-func (m *model) headerItems() []headerItem {
-	var rows []headerItem
+func (m *model) headerItems() []menuItem {
+	var rows []menuItem
 	items := m.rawHeaderItems()
 	labelWidth := 0
 	for _, item := range items {
@@ -294,7 +236,7 @@ func (m *model) headerItems() []headerItem {
 			continue
 		}
 		for _, text := range strings.Split(ansi.Wrap(item.text, max(min(58, m.termW)-4, 1), ""), "\n") {
-			rows = append(rows, headerItem{text: text})
+			rows = append(rows, menuItem{text: text})
 		}
 	}
 	return rows
@@ -350,92 +292,7 @@ func (m *model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		item := items[m.header.row]
 		if item.enabled && item.command != "" {
 
-			m.closeHeader()
-			switch item.command {
-			case "permissions-info":
-				m.openPermissions()
-				return m, nil
-			case "help-keys", "help-commands":
-				m.openHelp()
-				m.dialog.title = "Keyboard shortcuts"
-				if item.command == "help-commands" {
-					m.dialog.title = "Commands"
-				}
-				return m, nil
-			case "theme":
-				m.openTheme()
-				return m, nil
-			case "about":
-				return m.command("/about")
-			case "application":
-				m.openApplication()
-				return m, nil
-			case "prompt-info":
-				m.inspectPrompt()
-				return m, nil
-			case "rename-current":
-				m.renameActive()
-				return m, nil
-			case "delete-current":
-				m.deleteActive()
-				return m, nil
-			case "connection-info":
-				m.inspectConnection()
-				return m, nil
-			case "context-info":
-				m.openDialog("Context usage", []string{m.meter(), "Measurement source: " + nonEmpty(m.usage.source), "/compact is available for coding task history."})
-				return m, nil
-			case "quit":
-				return m.requestQuit()
-			case "toggle-steering":
-				value := "on"
-				if m.steering {
-					value = "off"
-				}
-				return m.command("/steering " + value)
-			case "toggle-details":
-				return m.handleKey(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
-			case "toggle-sys":
-				return m.command("sys")
-			case "toggle-labels":
-				if err := m.changeAppearance(func(a *config.Appearance) { a.HideLabels = !m.hideLabels }); err != nil {
-					m.openDialog("Appearance", []string{err.Error()})
-				}
-				return m, nil
-			case "toggle-names", "toggle-outline", "toggle-tools":
-				err := m.changeAppearance(func(a *config.Appearance) {
-					switch item.command {
-					case "toggle-names":
-						a.HideNames = !m.hideNames
-					case "toggle-outline":
-						if m.minimal {
-							a.Frame = "outlined"
-						} else {
-							a.Frame = "minimal"
-						}
-					case "toggle-tools":
-						a.HideTools = !m.hideTools
-					}
-				})
-				if err != nil {
-					m.openDialog("Appearance", []string{err.Error()})
-				}
-				return m, nil
-			case "latest":
-				return m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnd, Mod: tea.ModCtrl})
-			}
-			if strings.HasPrefix(item.command, "edit:") {
-				m.editSettings(strings.TrimPrefix(item.command, "edit:"))
-				return m, nil
-			}
-			if item.command == "stop" {
-				m.interrupted = true
-				m.cancel()
-				m.state = stStopping
-				m.fitBottom()
-				return m, nil
-			}
-			return m.command(item.command)
+			return m.activateMenuAction(item.command)
 		}
 	}
 	return m, nil
@@ -444,7 +301,7 @@ func (m *model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m *model) headerMenuItems() []popup.MenuItem {
 	var items []popup.MenuItem
 	for _, item := range m.headerItems() {
-		_, checked := m.headerToggle(item.command)
+		_, checked := m.menuToggle(item.command)
 		items = append(items, popup.MenuItem{Label: item.text, Shortcut: menuShortcut(item.command),
 			Enabled: item.enabled && item.command != "", Checked: checked,
 			Separator: item.text == "" && item.command == "", Info: item.text != "" && item.command == ""})
@@ -455,7 +312,7 @@ func (m *model) headerMenuItems() []popup.MenuItem {
 func (m *model) headerMenuLayout() popup.MenuLayout {
 	x := 0
 	for _, b := range m.headerNavigation() {
-		if b.id == m.header.menu {
+		if b.id == m.header.menu || b.id == "overflow" {
 			x = b.start
 			if !m.header.global {
 				x += m.promptOffset()
@@ -545,21 +402,12 @@ func (m *model) menuCells() []footerCell {
 	enabled := m.dialog == nil && m.sessions == nil && m.state != stPermission && m.state != stAsk
 	x := 1
 	var cells []footerCell
-	menus := []struct{ id, label string }{{"session", "Session"}, {"workflow", "Run"}, {"pipelines", "Workflows"}, {"view", "View"}, {"settings", "Settings"}, {"help", "Help"}}
-	if m.workflowActive() {
-		menus = []struct{ id, label string }{{"pipelines", "Workflow"}, {"workflow-node", "Node"}, {"workflow-execution", "Run"}, {"view", "View"}, {"settings", "Settings"}, {"help", "Help"}}
-
-	}
+	menus := m.visibleMenus()
 	for _, menu := range menus {
 		if x >= m.termW-1 {
 			break
 		}
-		if menu.id == "workflow" {
-			if m.application != nil {
-				menu.label = "Agent"
-			}
-		}
-		end := min(x+len(menu.label)+2, m.termW-1)
+		end := min(x+lipgloss.Width(menu.label)+2, m.termW-1)
 		cells = append(cells, footerCell{action: footerAction{name: menu.id, label: menu.label, enabled: enabled}, start: x, end: end})
 		x = end + 1
 	}
@@ -626,106 +474,4 @@ func (m *model) headerActionRow(start, delta int) int {
 		return min(max(start, 0), len(items)-1)
 	}
 	return popup.MenuNext(m.headerMenuItems(), start, delta)
-}
-
-// headerToggle reports whether a menu row is a checkable toggle, and
-// whether the state its label names is currently on.
-//
-// The checkmark sits in the label indent every menu row already carries,
-// so it replaces an idle cell rather than adding one. A separate column
-// cost two cells of the popup's width on every row to hold a mark that
-// is blank on most of them.
-//
-// on is the state the label names, not the state a toggle flips to: the
-// mark on "System messages" means scaffolding history is visible.
-func (m *model) headerToggle(command string) (toggle, on bool) {
-	switch command {
-	case "/workflows raw-details":
-		return m.workflows != nil, m.workflows != nil && m.workflows.rawDetails
-	case "/workflows lock-positions":
-		return m.workflows != nil, m.workflows != nil && m.workflows.positionsLocked
-	case "/workflows inspector":
-		return m.workflows != nil, m.workflows != nil && m.workflows.inspectorOpen
-	case "/workflows overview":
-		return m.workflows != nil, m.workflows != nil && m.workflows.overview
-	case "toggle-steering":
-		return true, m.steering
-	case "toggle-details":
-		return true, !m.transcript.compact
-	case "toggle-sys":
-		return true, !m.hideSYS
-	case "toggle-labels":
-		return true, !m.hideLabels
-	case "toggle-names":
-		return true, !m.hideNames
-	case "toggle-outline":
-		return true, !m.minimal
-	case "toggle-tools":
-		return true, !m.hideTools
-	case "/mode plan":
-		return true, m.plan
-	case "/mode act":
-		return true, !m.plan
-	}
-	return false, false
-}
-
-// menuShortcut names the key that reaches a menu row without opening
-// the menu. A row with no shortcut still works by click.
-func menuShortcut(command string) string {
-	switch command {
-	case "/workflows raw-details":
-		return "Ctrl+J"
-	case "/workflows lock-positions":
-		return "G"
-	case "/workflows new":
-		return "Ctrl+N"
-	case "/workflows open":
-		return "Ctrl+O"
-	case "/workflows save":
-		return "Ctrl+S"
-	case "/workflows add":
-		return "A"
-	case "/workflows edit":
-		return "Enter"
-	case "/workflows behavior":
-		return "E"
-	case "/workflows connections":
-		return "B"
-	case "/workflows link":
-		return "C"
-	case "/workflows delete":
-		return "Delete"
-	case "/workflows validate":
-		return "V"
-	case "/workflows run":
-		return "R"
-	case "/workflows runs":
-		return "H"
-	case "/workflows review":
-		return "P"
-	case "/workflows draft":
-		return "D"
-	case "/workflows inspector":
-		return "Ctrl+T"
-	case "/workflows overview":
-		return "F"
-	case "/workflows layout":
-		return "L"
-	case "/workflows chat":
-		return "Esc"
-	case "/new":
-		return "Ctrl+N"
-	case "quit":
-		return "Ctrl+Q"
-	case "toggle-details":
-		return "Ctrl+G"
-	case "latest":
-		return "Ctrl+End"
-	case "stop":
-		return "Esc"
-	case "/help", "help-keys":
-		return "F1"
-	}
-	return ""
 }

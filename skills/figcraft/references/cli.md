@@ -7,7 +7,7 @@ first. This recipe was exercised on Windows; Linux execution has not been tested
 
 ## Tool calls and discovery
 
-Gektor `run_program` arguments (no shell quoting inside the strings):
+GEKTOR `run_program` arguments (no shell quoting inside the strings):
 
 ```json
 {"program":"figcraft-cli","args":["--help"]}

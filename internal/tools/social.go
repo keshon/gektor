@@ -11,7 +11,7 @@ import (
 	"github.com/keshon/gektor/internal/integrations/social"
 )
 
-// SocialReadPost is compiled into Gektor; its schema is exposed only on activation.
+// SocialReadPost is compiled into GEKTOR; its schema is exposed only on activation.
 type SocialReadPost struct {
 	client   *http.Client
 	endpoint string

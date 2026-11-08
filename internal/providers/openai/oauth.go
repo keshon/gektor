@@ -107,7 +107,7 @@ func (m *Manager) Login(ctx context.Context, open func(string) error, newAccount
 	}
 	query := url.Values{"client_id": {clientID}, "ext_agent_host_id": {host}, "response_type": {"code"}, "redirect_uri": {callback}, "scope": {scopes}, "resource": {API}, "state": {state}, "nonce": {nonce}, "code_challenge_method": {"S256"}, "code_challenge": {base64.RawURLEncoding.EncodeToString(digest[:])}}
 	if newRegistration {
-		query.Set("agent_name_hint", "Gektor")
+		query.Set("agent_name_hint", "GEKTOR")
 	}
 	returned := make(chan url.Values, 1)
 	mux := http.NewServeMux()
@@ -120,7 +120,7 @@ func (m *Manager) Login(ctx context.Context, open func(string) error, newAccount
 		}
 		select {
 		case returned <- r.URL.Query():
-			fmt.Fprint(w, "Return to Gektor to check the sign-in result.")
+			fmt.Fprint(w, "Return to GEKTOR to check the sign-in result.")
 		default:
 			http.Error(w, "Sign-in callback already received.", http.StatusConflict)
 		}

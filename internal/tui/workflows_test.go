@@ -80,7 +80,7 @@ func TestWorkflowMenuCanvasAndModalGeometry(t *testing.T) {
 	sizeModelTo(t, m, 120, 30)
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF9})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.header.menu != "pipelines" {
+	if m.header.menu != "app" {
 		t.Fatal("canvas swallowed menu keys")
 	}
 	m.closeHeader()

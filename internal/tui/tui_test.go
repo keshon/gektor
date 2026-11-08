@@ -2388,7 +2388,7 @@ func TestHeaderDetailsShowFirstToken(t *testing.T) {
 	}
 }
 
-func headerText(items []headerItem) string {
+func headerText(items []menuItem) string {
 	var b strings.Builder
 	for _, item := range items {
 		b.WriteString(item.text + "\n")
@@ -2454,7 +2454,7 @@ func TestFirstTokenStampedAndReset(t *testing.T) {
 
 // Brand + clock ride the header: animated letter while running,
 // solid amber word at rest.
-func TestStatusBrand_RightAligned(t *testing.T) {
+func TestMenuBrandAndHeaderWidth(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stRunning
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 160, Height: 24})
@@ -2479,7 +2479,7 @@ func TestStatusBrand_RightAligned(t *testing.T) {
 	mm.state = stDone
 	updated, _ = mm.Update(tea.WindowSizeMsg{Width: 160, Height: 24})
 	// Brand owns GEKTOR alone: exactly one occurrence on the row.
-	if view := updated.(*model).View().Content; strings.Count(view, "GEKTOR") != 0 {
+	if view := strings.Split(updated.(*model).View().Content, "\n")[0]; strings.Count(view, "GEKTOR") != 1 {
 		t.Fatalf("done header must show one brand: %q", view)
 	}
 }

@@ -66,15 +66,7 @@ func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 
 // sectionLabel names the section for the title line.
 func (f *Model) sectionLabel() string {
-	if f.Workspace.Section == "application" {
-		return "Workspace"
-	}
-	for _, c := range categories {
-		if c.ID == f.Workspace.Section {
-			return c.Label
-		}
-	}
-	return ""
+	return SectionTitle(f.Workspace.Section)
 }
 
 // choice is the label of the focused field's fixed options, if it has any.

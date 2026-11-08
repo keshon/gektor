@@ -356,6 +356,25 @@ they do. Settings changes remain a draft until Apply. MCP actions execute when
 explicitly chosen. Merely highlighting a row or navigating a folder has no
 external effect.
 
+## Menu ownership
+
+The [terminal guide](tui.md#menus) lists the menus and their user-facing roles.
+GEKTOR owns mode switching, workspace selection and application exit. Session
+and Recipe own saved content. Run owns execution. View owns visibility and
+navigation. Settings owns configuration; Appearance owns theme and panel frame.
+Help owns instructions and diagnostics. Node is specific to the workflow editor.
+
+Menu definitions and their command metadata live in
+[menus.go](../internal/tui/menus.go). Action dispatch lives in
+[menu_actions.go](../internal/tui/menu_actions.go). The header handles layout,
+focus and input, using the shared popup component. Both keyboard and mouse
+activation use the same enabled-state checks and dispatcher. At narrow widths,
+More exposes menus that would otherwise be clipped.
+
+Settings sections use one title catalog for tabs and form headings. Internal
+provider and profile fields retain their domain names; changing a display label
+does not change the stored profile format or existing slash commands.
+
 ## Implementation boundaries
 
 Build on [the existing components](../internal/tui/components). Prefer plain Go

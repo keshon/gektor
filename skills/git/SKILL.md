@@ -17,7 +17,7 @@ description: Inspect Git changes and history, stage requested paths and make aut
    scope before committing; never silently include or unstage it.
 5. Use a concise imperative subject and repository conventions; explain reasons
    or tradeoffs in the body when useful. git_commit adds
-   `Co-authored-by: Gektor <no-reply@keshon.ru>`; preserve the user's Git author
+   `Co-authored-by: GEKTOR <no-reply@keshon.ru>`; preserve the user's Git author
    configuration and hooks.
 6. Diagnose actual failures; avoid cosmetic retries. Claim commit/push success
    only after successful results. Plan/read-only workers have inspection tools,

@@ -78,7 +78,7 @@ Inputs are explicit files, up to 16 per call, 64 MiB and 40 million pixels each.
 explicit, up to eight per call. Formats are `keep` and `webp`. The output directory
 must not exist. Source replacement, deletion and destination overwrite are not
 exposed. Image operations use staged copies; workspace access goes through
-Gektor's rooted file API. Results distinguish inspected, previewed, written,
+GEKTOR's rooted file API. Results distinguish inspected, previewed, written,
 blocked and failed outcomes. Each result includes source SHA-256 hashes before
 and after processing; `unchanged: true` means the bytes matched. An unavailable
 after-hash is reported as an error, not evidence of preservation. These checks
@@ -227,14 +227,14 @@ text was extracted from that page; it does not prove that the page is blank.
 Image-only pages need OCR, which is not included. Encrypted PDFs, legacy `.doc`
 and `.xls` files, document generation and media processing are not supported.
 
-Document readers use a separate Gektor process with a ten-second deadline and
+Document readers use a separate GEKTOR process with a ten-second deadline and
 bounded output. It receives the already-opened file's bytes, not a filesystem
 path. Read Office XML parts share a 16 MiB expansion budget. Document contents
 are untrusted data, including text that looks like instructions.
 
 ## First recipe
 
-Ask Gektor:
+Ask GEKTOR:
 
 > Create a recipe for input.png: inspect it, preview 320px and 800px variants,
 > then write those variants to a new directory called web-images. Save the
@@ -274,7 +274,7 @@ the runner does not replay interrupted effects automatically. Earlier completed 
 remain if a later step fails. Each rerun needs fresh output directories.
 
 The tool response contains step outcomes, item results and source hashes; full
-outputs and recipe source remain in the run record. Start a fresh Gektor session
+outputs and recipe source remain in the run record. Start a fresh GEKTOR session
 when an update changes tool schemas: old saved activations may be incompatible.
 
 ## Inputs and data flow
@@ -528,7 +528,7 @@ as the TUI and CLI; they do not use the operating system's scheduler.
 worker and a loopback HTTP listener together. The normal `-workspace`, `-allow`
 and `-deny` flags apply. Omitting both HTTP flags keeps the queue-only service.
 The listener accepts literal loopback addresses only. Remote access requires a
-separately configured TLS reverse proxy; Gektor does not configure one.
+separately configured TLS reverse proxy; GEKTOR does not configure one.
 
 Configuration names recipes and environment variables containing bearer tokens:
 
@@ -745,4 +745,4 @@ See [the reusable report example](../examples/workflows/subworkflow/README.md).
 
 ## TUI editor
 
-The [workflow workspace](tui.md#workflow-workspace) opens from `/workflows` or the Workflows menu. It edits the same version 3 recipes used by the CLI and uses the same execution, permission and review services. Canvas layout is user-local metadata, not part of the executable recipe.
+The [workflow workspace](tui.md#workflow-workspace) opens from `/workflows` or GEKTOR, Workflows. It edits the same version 3 recipes used by the CLI and uses the same execution, permission and review services. Canvas layout is user-local metadata, not part of the executable recipe.

@@ -28,7 +28,7 @@ func TestResponsesRequestReplaysStateWithoutUnsupportedFields(t *testing.T) {
 	if err := json.Unmarshal(encoded, &restored); err != nil {
 		t.Fatal(err)
 	}
-	req := llm.ChatRequest{Messages: []llm.Message{{Role: llm.RoleSystem, Content: "Use Gektor tools"}, {Role: llm.RoleUser, Content: "Read"}, restored, {Role: llm.RoleTool, ToolCallID: "call_1", Content: "file contents"}}, Tools: []llm.ToolDef{{Name: "read_file", Parameters: json.RawMessage(`{"type":"object"}`)}}, MaxTokens: 100, Temperature: 0.7}
+	req := llm.ChatRequest{Messages: []llm.Message{{Role: llm.RoleSystem, Content: "Use GEKTOR tools"}, {Role: llm.RoleUser, Content: "Read"}, restored, {Role: llm.RoleTool, ToolCallID: "call_1", Content: "file contents"}}, Tools: []llm.ToolDef{{Name: "read_file", Parameters: json.RawMessage(`{"type":"object"}`)}}, MaxTokens: 100, Temperature: 0.7}
 	raw, err := c.responseRequest(req)
 	if err != nil {
 		t.Fatal(err)

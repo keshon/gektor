@@ -41,7 +41,7 @@ func TestCommanderMenuClickPreservesDraftAndGate(t *testing.T) {
 	m.input.SetValue("unfinished draft")
 	cell := m.menuCells()[0]
 	m.Update(tea.MouseClickMsg{X: cell.start, Y: 0, Button: tea.MouseLeft})
-	if m.header.menu != "session" || !m.header.global || m.input.Value() != "unfinished draft" {
+	if m.header.menu != "app" || !m.header.global || m.input.Value() != "unfinished draft" {
 		t.Fatal("menu failed to open or lost draft")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
@@ -79,7 +79,7 @@ func TestCommanderPreview(t *testing.T) {
 		name string
 		w, h int
 	}{{"wide", 120, 30}, {"narrow", 80, 24}} {
-		m := sizeModel(t, testModel())
+		m := settingsModel(t)
 		m.state = stDone
 		m.modelName = "Qwen3.5-9B"
 		m.tokens = 4100
@@ -94,7 +94,7 @@ func TestCommanderPreview(t *testing.T) {
 			t.Fatal(err)
 		}
 		if size.name == "wide" {
-			m.header = headerState{focused: true, global: true, index: 3, menu: "settings"}
+			m.header = headerState{focused: true, global: true, index: 4, menu: "settings"}
 			if err := os.WriteFile(filepath.Join(dir, "settings.txt"), []byte(ansi.Strip(m.View().Content)), 0600); err != nil {
 				t.Fatal(err)
 			}
@@ -106,16 +106,17 @@ func TestGlobalDropdownNavigationAndSettings(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	line := ansi.Strip(m.menuLine())
-	if strings.Contains(line, "GEKTOR") || strings.Contains(line, "F1") || !strings.Contains(line, "Settings") {
+	if strings.Count(line, "GEKTOR") != 1 || strings.Contains(line, "F1") || !strings.Contains(line, "Settings") {
 		t.Fatal(line)
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF9})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.header.menu != "session" {
+	if m.header.menu != "app" {
 		t.Fatal(m.header)
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyRight})
-	if m.header.menu != "workflow" {
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyRight})
+	if m.header.menu != "execution" {
 		t.Fatal("left/right failed to switch dropdown")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})

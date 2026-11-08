@@ -4,12 +4,12 @@
 
 Start an inference server independently and wait for the model to load.
 GEKTOR defaults to llama.cpp at `http://127.0.0.1:8080` in both CLI and the
-first-run TUI profile. Configure other addresses under Model in Settings, or with
+first-run TUI profile. Configure other addresses under Model connection in Settings, or with
 `-backend`; use `-backend-kind openai` for an OpenAI-compatible API.
 KoboldCPP remains available through `-backend-kind kobold`.
 
 For a ChatGPT account connection, run `gektor auth login` and select ChatGPT
-in Model settings. See [authentication](cli.md#authentication-remote-providers).
+in Model connection settings. See [authentication](cli.md#authentication-remote-providers).
 
 GEKTOR does not install models or start, stop or supervise inference servers.
 Readiness, server logs and recovery belong to your server setup. A lost

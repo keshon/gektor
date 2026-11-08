@@ -116,7 +116,7 @@
       },
       {
         "Name": "git_commit",
-        "Description": "Commit the already-staged changes with a message and Gektor co-author credit. Inspect the staged diff first; unrelated staged changes would be included. Requires the user's authorization to commit. Git author identity and hooks come from the repository configuration.",
+        "Description": "Commit the already-staged changes with a message and GEKTOR co-author credit. Inspect the staged diff first; unrelated staged changes would be included. Requires the user's authorization to commit. Git author identity and hooks come from the repository configuration.",
         "Parameters": {
           "type": "object",
           "properties": {

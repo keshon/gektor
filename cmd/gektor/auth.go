@@ -28,7 +28,7 @@ func runAuth(args []string) error {
 		if len(args) > 2 || (len(args) == 2 && args[1] != "--new") {
 			return fmt.Errorf("usage: gektor auth login [--new]")
 		}
-		fmt.Println("Continue with ChatGPT in the browser. Gektor will request permission to use your ChatGPT plan.")
+		fmt.Println("Continue with ChatGPT in the browser. GEKTOR will request permission to use your ChatGPT plan.")
 		if err := m.Login(ctx, func(url string) error {
 			fmt.Println(url)
 			if err := openAuthBrowser(url); err != nil {
@@ -87,7 +87,7 @@ func runAuth(args []string) error {
 		if err != nil {
 			return err
 		}
-		response, err := client.Stream(ctx, llm.ChatRequest{Messages: []llm.Message{{Role: llm.RoleUser, Content: "Reply exactly: Gektor connection works."}}}, nil, func(s string) { fmt.Print(s) })
+		response, err := client.Stream(ctx, llm.ChatRequest{Messages: []llm.Message{{Role: llm.RoleUser, Content: "Reply exactly: GEKTOR connection works."}}}, nil, func(s string) { fmt.Print(s) })
 		if err != nil {
 			return err
 		}

@@ -80,7 +80,7 @@ func (m *model) customProfileTarget() (dir, source string, ok bool) {
 	ws := m.dialog.form.Workspace
 	changed := ws.PersistCurrent
 	for _, section := range ws.Draft.ChangedSections() {
-		if section != "profiles" && section != "application" {
+		if section != "profiles" && section != "workspace" {
 			changed = true
 			break
 		}

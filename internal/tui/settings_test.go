@@ -279,7 +279,7 @@ func TestEveryIdleSettingsRowOpens(t *testing.T) {
 }
 func TestCommonMenusHaveNoRedirects(t *testing.T) {
 	m := settingsModel(t)
-	for _, category := range []string{"session", "workflow", "view", "settings", "help"} {
+	for _, category := range []string{"session", "execution", "view", "settings", "help"} {
 		m.header.menu = category
 		for _, item := range m.rawHeaderItems() {
 			if strings.HasPrefix(item.command, "open:") {
@@ -296,13 +296,13 @@ func TestCommonMenusHaveNoRedirects(t *testing.T) {
 	}
 	m.header.global = true
 	m.header.focused = true
-	m.header.menu = "workflow"
+	m.header.menu = "execution"
 	m.header.row = 0
 	// While a run is in flight, Plan and Act are disabled, so the first
-	// row the arrow key can land on is "Stop run" at index 2.
+	// row the arrow key can land on is "Stop run" at index 3.
 	m.state = stRunning
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyDown})
-	if m.header.row != 2 {
+	if m.header.row != 3 {
 		t.Fatal("keyboard did not skip disabled actions")
 	}
 }

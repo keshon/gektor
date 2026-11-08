@@ -129,7 +129,7 @@ ID token, nonce and the granted plan-usage scope. Tokens never enter profiles,
 transcripts or debug output.
 
 This backend uses Responses with streaming and client-maintained history.
-Gektor still executes tools under its normal permissions. Opaque reasoning state
+GEKTOR still executes tools under its normal permissions. Opaque reasoning state
 is retained with assistant messages for session resume and is replayed only to
 this backend with the same model. Visible reasoning is a provider summary,
 when supplied. Image input support comes from the account model catalog's
@@ -139,7 +139,7 @@ images before inference.
 
 Sampling and `max_output_tokens` are unsupported on this OAuth route.
 Use `-reasoning-effort high` to select an effort level, or leave it unset for
-the model default. Settings > Generation lists levels from the selected
+the model default. Settings > Response settings lists levels from the selected
 account's model catalog. Unsupported levels fail before inference.
 Enable `-reasoning-summary` to request a visible thinking summary; Ctrl+G
 expands the THINK block. This is a provider summary, not raw hidden reasoning.
@@ -158,7 +158,7 @@ and [route limitations](https://developers.openai.com/siwc/token-sharing-open-so
 ## Skill metadata
 
 `GEKTOR_SKILL_DESCRIPTION_LIMIT` sets the maximum skill description length in
-Unicode characters (default: 1024). Set it before launching Gektor; it must be
+Unicode characters (default: 1024). Set it before launching GEKTOR; it must be
 a positive integer. The separate 16 KiB frontmatter limit still applies.
 Malformed skills are skipped without hiding valid skills. Discovery warnings
 appear in the skill catalog and `system_info` with `group=skills`.
@@ -356,9 +356,10 @@ First use opens in Plan and connects to the default external server described
 in [Setup](bootstrap.md#model-server). Later launches reuse saved settings.
 GEKTOR does not install model weights or manage the server.
 
-Run > Plan/Act switches execution mode; Run > Act enables tool calls under the
-existing permission gates. Settings > Workspace chooses the workspace.
-Settings > Profiles loads or saves presets; Settings > Model selects the model.
+Run > Plan / Act switches execution mode; Act enables tool calls under the
+existing permission gates. GEKTOR > Change workspace chooses the workspace.
+Settings > Setup profiles loads or saves setups; Settings > Model connection
+selects the connection and model. GEKTOR also switches between Agent and Workflows.
 Enter opens shared pickers.
 
 Applying settings restarts the launch rather than reconfiguring in place, so the
@@ -403,7 +404,7 @@ results are limited to 50 commits; all output is byte-bounded.
 
 `git_add` stages a literal workspace-relative path. `git_commit` commits the
 already-staged changes using the supplied message and appends
-`Co-authored-by: Gektor <no-reply@keshon.ru>`. It keeps the configured author
+`Co-authored-by: GEKTOR <no-reply@keshon.ru>`. It keeps the configured author
 and runs normal repository hooks. These two tools are unavailable for
 execution in Plan and read-only workers. Inspect staged changes and obtain
 user authorization before committing; a commit includes unrelated changes
@@ -471,7 +472,7 @@ is connected again. Local model facts are refreshed before each run, while one
 run and its delegated agents share a consistent model/capability snapshot.
 
 Saved ChatGPT native state is reused only for a matching integration, model,
-account, and unchanged message. Otherwise Gektor sends the normal transcript.
+account, and unchanged message. Otherwise GEKTOR sends the normal transcript.
 Old saved sessions remain readable; legacy native state without identity metadata
 is not replayed. Interrupted output is retained as incomplete history.
 

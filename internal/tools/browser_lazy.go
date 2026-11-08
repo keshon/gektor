@@ -55,7 +55,7 @@ func (b *Browser) load(ctx context.Context, note func(string)) ([]agent.Tool, er
 		}
 		release, lockErr := lockBrowserProfile(profileDir)
 		if lockErr != nil {
-			return nil, fmt.Errorf("browser profile %s/%s is unavailable: %w; close the other Gektor using it or choose -browser-profile NAME", ref.Channel, ref.Profile, lockErr)
+			return nil, fmt.Errorf("browser profile %s/%s is unavailable: %w; close the other GEKTOR using it or choose -browser-profile NAME", ref.Channel, ref.Profile, lockErr)
 		}
 		if note != nil {
 			note(fmt.Sprintf("browser: profile %s/%s (headless=%t)", ref.Channel, ref.Profile, b.Headless))

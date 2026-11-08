@@ -119,7 +119,7 @@ func (c *Client) buildRequest(req llm.ChatRequest) ([]byte, bool, error) {
 		for _, tool := range req.Tools {
 			tools = append(tools, map[string]any{"type": "function", "name": tool.Name, "description": tool.Description, "parameters": tool.Parameters, "strict": false})
 		}
-		wire["tools"] = []any{map[string]any{"type": "namespace", "name": "gektor", "description": "Gektor tools, executed locally under its permission policy.", "tools": tools}}
+		wire["tools"] = []any{map[string]any{"type": "namespace", "name": "gektor", "description": "GEKTOR tools, executed locally under its permission policy.", "tools": tools}}
 	}
 	if req.JSONSchema != "" {
 		if !json.Valid([]byte(req.JSONSchema)) {

@@ -30,9 +30,9 @@ type ModeChange struct {
 }
 
 func (m *ModeChange) Error() string { return "application settings changed" }
-func (m *model) openApplication() {
+func (m *model) openWorkspace() {
 	if m.application != nil && m.state == stDone {
-		m.editSettings("application")
+		m.editSettings("workspace")
 	}
 }
 
@@ -53,7 +53,7 @@ func (m *model) requestProfileChange(profile config.Profile) error {
 		p.ProfilePath = m.dialog.form.Workspace.LoadedPath
 	}
 	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Workspace != nil {
-		fields, _ := m.dialog.form.Workspace.Draft.Fields("application")
+		fields, _ := m.dialog.form.Workspace.Draft.Fields("workspace")
 		for _, field := range fields {
 			if field.Key == "app-workspace" {
 				p.Workspace = strings.TrimSpace(field.Value)

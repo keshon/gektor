@@ -23,7 +23,7 @@ func TestHeaderMenusPreserveDraftAndFrame(t *testing.T) {
 		m.fitBottom()
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyF9})
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-		if m.header.menu != "session" {
+		if m.header.menu != "app" {
 			t.Fatal("session menu not opened")
 		}
 		for _, row := range strings.Split(m.View().Content, "\n") {
@@ -227,7 +227,7 @@ func TestViewMenuZonesAndItems(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 80, 30)
 	m.header.menu = "view"
 	items := m.headerItems()
-	want := []string{"Agent thinking", "Agent tools", "System messages", "Speaker names", "Message labels", "Outlined frame", "", "Jump to latest", "Select Theme…"}
+	want := []string{"Thinking", "Tool calls", "System messages", "Speaker names", "Message labels", "", "Jump to latest"}
 	if len(items) != len(want) {
 		t.Fatalf("view menu has %d rows, want %d: %+v", len(items), len(want), items)
 	}
@@ -243,10 +243,10 @@ func TestViewMenuZonesAndItems(t *testing.T) {
 			sep = i
 		}
 	}
-	if sep != 6 {
-		t.Fatalf("separator at row %d, want 6", sep)
+	if sep != 5 {
+		t.Fatalf("separator at row %d, want 5", sep)
 	}
-	cmds := []string{"toggle-details", "toggle-tools", "toggle-sys", "toggle-names", "toggle-labels", "toggle-outline", "", "latest", "theme"}
+	cmds := []string{"toggle-details", "toggle-tools", "toggle-sys", "toggle-names", "toggle-labels", "", "latest"}
 	for i, c := range cmds {
 		if items[i].command != c {
 			t.Fatalf("row %d command = %q, want %q", i, items[i].command, c)
@@ -268,7 +268,7 @@ func TestViewMenuCheckmarksFollowState(t *testing.T) {
 		hideSYS, labels bool
 		want            string
 	}{
-		{"default", false, false, "│  Agent thinking"},
+		{"default", false, false, "│  Thinking"},
 		{"sys shown", false, false, "│✓ System messages"},
 		{"sys hidden", true, false, "│  System messages"},
 		{"labels hidden", false, true, "│  Message labels"},
@@ -308,7 +308,7 @@ func TestCheckmarkUsesTheLabelIndent(t *testing.T) {
 		set  func(*model)
 	}{
 		{"view", func(m *model) { m.transcript.compact = true }},
-		{"workflow", func(m *model) { m.plan = false }},
+		{"execution", func(m *model) { m.plan = false }},
 	} {
 		m := sizeModelTo(t, testModel(), 80, 30)
 		tc.set(m)
@@ -417,7 +417,7 @@ func TestAboutMenuAndCommandShareContent(t *testing.T) {
 	m.closeDialog()
 	m.header.focused = true
 	m.header.menu = "help"
-	m.header.row = 2
+	m.header.row = headerRowFor(m, "about")
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.dialog == nil || m.dialog.title != "GEKTOR" || strings.Join(m.dialog.lines, "\n") != expected {
 		t.Fatalf("About menu and command disagree: %+v", m.dialog)

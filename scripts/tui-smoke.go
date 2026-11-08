@@ -18,7 +18,7 @@ import (
 )
 
 func main() {
-	binary := flag.String("binary", "bin/gektor.exe", "built Gektor executable")
+	binary := flag.String("binary", "bin/gektor.exe", "built GEKTOR executable")
 	keep := flag.Bool("keep", false, "keep temporary fixtures after closing")
 	flag.Parse()
 	if err := smoke(*binary, *keep); err != nil {

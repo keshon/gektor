@@ -19,11 +19,11 @@ Source checkouts rebuild through the Windows launcher; release archives use
 the supplied binary.
 
 For a local model, start its server first and wait for it to load.
-Open **Settings**, then **Model**, to set the protocol, address and model.
+Open **Settings**, then **Model connection**, to set the protocol, address and model.
 For the ChatGPT connection, run `gektor auth login` first.
 See [setup](bootstrap.md) and [connection options](cli.md).
 
-Choose your project folder under **Workspace** in Settings.
+Choose your project folder under **GEKTOR**, **Change workspace…**.
 In the folder browser, **Select folder** selects the displayed current folder.
 Opening a folder in the browser only browses it.
 
@@ -51,16 +51,40 @@ extra flags are supplied; `-plan=false` explicitly starts in Act.
 Click the top menus, or press `F9` and use the arrow keys.
 The bottom row shows actions for the current screen. Press `F1` for help.
 
+### Menus
+
+The GEKTOR menu switches between Agent and Workflows, changes the workspace,
+and quits the application. A checkmark shows the active mode.
+
+| Menu | Agent | Workflows |
+|---|---|---|
+| Session / Recipe | New, open, rename and delete sessions; compact saved history | New, open and save recipes; edit recipe settings |
+| Node | | Add, edit, connect and delete nodes; add schedule triggers |
+| Run | Plan or Act, stop, retry and message steering | Validate, run, stop, inspect run history and set up schedules |
+| View | Show transcript details and jump to the latest message | Show the inspector and arrange the canvas |
+| Settings | Model connection, response settings, setup profiles, your details, agent instructions, permissions, MCP and appearance | The same shared settings |
+| Help | Keyboard shortcuts, commands, agent instruction preview and About | Keyboard shortcuts for Workflows, commands, agent instruction preview and About |
+
+At narrow widths, More opens the menus that do not fit on the top row.
+Keyboard and mouse reach the same actions. Disabled actions cannot run.
+
+Appearance groups theme and panel frame choices. Apply saves them together;
+Cancel discards the draft. The View toggles control which details are visible.
+The agent instruction preview shows identity instructions, not the full model
+request or its tool definitions.
+
+The Compact history menu action asks for confirmation before changing saved
+history. The `/compact` command remains a direct action.
+
 ### Other settings
 
 | Section | What it changes |
 |---|---|
-| Model | Connection and model selection |
-| Generation | Response limits and sampling settings supported by that connection |
-| Profiles | Load or save a group of settings |
-| Workspace | Project folder |
-| You | Your displayed name and persona |
-| Prompts | Response style and base instructions |
+| Model connection | Connection and model selection |
+| Response settings | Response limits and sampling settings supported by that connection |
+| Setup profiles | Load or save a group of settings |
+| Your details | Your displayed name and persona |
+| Agent instructions | Response style and base instructions |
 
 Loading a profile stages its values; choose Apply to use them.
 Changing settings does not send a task to the model.
@@ -151,7 +175,7 @@ It waits for a model/tool boundary and does not interrupt a running tool.
 `Ctrl+E` brings the latest pending message back to an empty draft.
 `Ctrl+X` removes the latest pending message.
 
-The **Steering** setting, or `/steering on|off`, controls delivery.
+**Apply new messages during run** in Run, or `/steering on|off`, controls delivery.
 With steering enabled, new input can withhold tools that have not started.
 With it disabled, the current tool batch finishes first.
 A new message never grants permission.
@@ -224,7 +248,7 @@ In the **Workflows** menu:
 
 - **Open recipe…** opens a workspace recipe.
 - **New recipe…** starts one.
-- **Open workflows**, or `/workflows`, enters the editor.
+- **GEKTOR**, **Workflows**, or `/workflows`, enters the editor.
 
 The editor has **Workflow / Node / Run / View / Settings / Help** menus.
 Choose a recipe path inside the workspace.
@@ -329,7 +353,7 @@ List fields accept a JSON array such as `[2, 3, 5]`,
 or comma-separated JSON values such as `2, 3, 5`.
 Other complex values use JSON. Recipes without inputs skip the form.
 
-**Run with JSON…** in Run is an advanced option for entering the complete input
+**Run with JSON inputs…** in Run is an advanced option for entering the complete input
 object. It is not needed for ordinary runs.
 
 Validation checks the recipe and input types.
@@ -342,7 +366,7 @@ A failed run stops the remaining work; inspect results before running again.
 
 ### Schedule a workflow
 
-Save the recipe first. In **Node**, choose **Schedule trigger**.
+Save the recipe first. In **Node**, choose **Add schedule trigger…**.
 You can also press `A` and choose **Schedule trigger** from the node types.
 
 If the recipe has inputs, fill in the values to use for scheduled runs.
@@ -354,7 +378,7 @@ Choose **Save schedule** to enable it.
 A Schedule card appears on the canvas. It starts the whole recipe; its
 connections are automatic. Select it and press Enter to change the timing,
 input values or enabled setting. Delete removes the trigger without deleting
-queued jobs or saved runs. **Refresh schedules** in Run reloads CLI changes.
+queued jobs or saved runs. **Refresh schedule status** in Run reloads CLI changes.
 
 Keep the workflow service running for this workspace:
 
@@ -372,19 +396,19 @@ the recipe JSON. Copying a recipe to another workspace does not enable its sched
 
 ### Review and reopen a run
 
-Press `H`, or choose **Saved runs…** in Run, to browse saved runs, newest first.
+Press `H`, or choose **Run history…** in Run, to browse saved runs, newest first.
 Press `/` to filter by recipe, status, date or run ID. Choose **Open run**, or
 press `Enter`, to inspect the selected record.
 It shows the recipe captured for that run and its recorded results.
 Editing the current recipe does not change that record.
 
 A step may pause for review before it executes.
-Press `P`, or choose **Review…** in Run, to approve or reject it.
+Press `P`, or choose **Review run…** in Run, to approve or reject it.
 Approval continues that saved run without repeating completed steps.
 Permissions still apply.
 
 Saved runs are read-only.
-Press `D`, or choose **Return to draft** in Run, to edit the draft again.
+Press `D`, or choose **Return to recipe** in Run, to edit the draft again.
 There is no general “resume any failed step” action.
 
 ### Try a small example
@@ -410,7 +434,7 @@ project files. You do not need to change its script to try different numbers.
 Card positions and the position lock are stored separately in your user directory.
 Moving a card does not change execution.
 
-Choose **Return to chat** in Workflow, or press Esc on the canvas, to return
+Choose **Agent** in GEKTOR, or press Esc on the canvas, to return
 to Agent. The draft stays in memory while the app is open.
 Save before quitting; this in-memory draft is not crash recovery.
 

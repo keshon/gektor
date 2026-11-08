@@ -356,7 +356,7 @@ func (m *model) workflowScheduleDetails(s store.Schedule) []string {
 		}
 	case 2:
 		rows = append(rows, "Keep the workflow service running:", "gektor workflow serve -workspace \""+m.wsRoot+"\"", "", "The service uses its own permission rules.", "Closing the TUI does not stop the service.", "", "If the previous run is still active: "+s.Overlap,
-			"If the service missed a scheduled time: "+s.Missed, "", "Scheduled runs are available under Run, Saved runs.")
+			"If the service missed a scheduled time: "+s.Missed, "", "Scheduled runs are available under Run, Run history.")
 	default:
 		rows = append(rows, scheduleTiming(s.Cron), "Time zone: "+s.Timezone)
 		if s.Paused {

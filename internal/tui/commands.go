@@ -351,7 +351,7 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 			m.appendBlock(errorBlock("no settings available"))
 			return m, nil
 		}
-		m.editSettings("application")
+		m.editSettings("workspace")
 		return m, nil
 	case "mode":
 		return m.commandMode(arg)

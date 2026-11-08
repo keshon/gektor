@@ -115,7 +115,7 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	flags.StringVar(&o.mcp, "mcp", "", "MCP servers: \"name=cmd args...;name2=https://host/mcp\" (stdio JSON-RPC or Streamable HTTP, tools appear as mcp__name__tool)")
 	flags.StringVar(&o.capabilities, "capabilities", "", "path to a versioned JSON capability configuration (lazy MCP packs, JSON executables and extra skill roots; see docs/extensions.md)")
 	flags.StringVar(&o.browser, "browser", "", "make visible chrome or msedge available through enable_browser; load Playwright MCP only when needed (see docs/browser.md)")
-	flags.StringVar(&o.browserProfile, "browser-profile", "default", "named persistent Gektor browser profile; explicit selection overrides the session's saved profile")
+	flags.StringVar(&o.browserProfile, "browser-profile", "default", "named persistent GEKTOR browser profile; explicit selection overrides the session's saved profile")
 	flags.BoolVar(&o.browserHeadless, "browser-headless", false, "hide the browser window for unattended checks")
 	flags.StringVar(&o.fork, "fork", "", "history file to branch from: loads its transcript but writes to a fresh task id")
 	flags.BoolVar(&o.plan, "plan", false, "plan mode: read-only tools, propose a plan and change nothing")

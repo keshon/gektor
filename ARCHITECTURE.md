@@ -90,7 +90,7 @@ local UI notices; local notices are excluded from model context.
 
 ChatGPT sign-in and credential renewal live under `internal/providers/openai`.
 The Responses adapter implements the same LLM client boundary as local servers;
-Gektor owns tool execution, permissions and compaction for every backend.
+GEKTOR owns tool execution, permissions and compaction for every backend.
 OAuth credentials stay in the protected user store. Each client binds one account
 registration and verified identity; changing the selected account cannot redirect
 an existing connection. Token renewal remains serialized across processes.

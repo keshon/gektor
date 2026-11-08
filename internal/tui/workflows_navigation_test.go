@@ -117,11 +117,11 @@ func TestWorkflowPortsOpenMappingAndMenusExposeAdd(t *testing.T) {
 		t.Fatal("ports did not open mapping form")
 	}
 	m.dialog = nil
-	m.header.menu = "pipelines"
+	m.header.menu = "recipe"
 	if len(m.rawHeaderItems()) > 7 {
 		t.Fatal("workflow menu remains overloaded")
 	}
-	m.header.menu = "workflow-node"
+	m.header.menu = "node"
 	found := false
 	for _, item := range m.rawHeaderItems() {
 		if item.command == "/workflows add" && item.enabled {

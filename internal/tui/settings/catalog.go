@@ -107,10 +107,10 @@ func Hint(section string) string {
 		return "Profiles save your setup, including the identity it speaks with."
 	case "you":
 		return "Your name and persona are used by the compiled prompts."
-	case "application":
+	case "workspace":
 		return "The workspace tasks run in."
 	case "model":
-		return "Choose the thinking model."
+		return "Choose the provider, server address and model."
 	case "generation":
 		return "Response budget and context window for one turn."
 	case "prompts":

@@ -87,13 +87,24 @@ func TestPreferenceRestartHelper(t *testing.T) {
 		}
 		return
 	}
-	for _, command := range []string{"toggle-details", "toggle-tools", "toggle-sys", "toggle-names", "toggle-labels", "toggle-outline"} {
+	for _, command := range []string{"toggle-details", "toggle-tools", "toggle-sys", "toggle-names", "toggle-labels"} {
 		m.header = headerState{global: true, focused: true, menu: "view"}
 		m.header.row = headerRowFor(m, command)
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 		if m.dialog != nil {
 			t.Fatal("View save failed", m.dialog.lines)
 		}
+	}
+	m.openAppearance()
+	frame := "minimal"
+	if m.minimal {
+		frame = "outlined"
+	}
+	focusSetting(m, "frame")
+	m.dialog.form.Editor.SetValue(frame)
+	m.applyForm()
+	if m.dialog != nil {
+		t.Fatal("Appearance save failed", m.dialog.form.Error)
 	}
 	if phase == "reset" {
 		m.command("theme dark")
@@ -107,7 +118,7 @@ func TestPreferenceRestartHelper(t *testing.T) {
 		{"generation", "temperature", "0.42"}, {"generation", "max", "1536"}, {"generation", "context", "12288"},
 		{"you", "user", "Operator"}, {"you", "persona", "Precise"},
 		{"prompts", "prompt-preset", "custom"}, {"prompts", "system", "BASE_RULES"}, {"prompts", "post", "POST_RULES"},
-		{"application", "app-workspace", filepath.Join(filepath.Dir(path), "workspace")},
+		{"workspace", "app-workspace", filepath.Join(filepath.Dir(path), "workspace")},
 	} {
 		m.editSettings(edit[0])
 		if edit[1] == "key-env" {

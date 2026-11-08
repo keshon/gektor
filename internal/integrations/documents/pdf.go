@@ -24,7 +24,7 @@ type PDFResult struct {
 	Pages      []PDFPage         `json:"pages"`
 }
 
-// This parser runs only in a memory-limited, time-limited Gektor worker.
+// This parser runs only in a memory-limited, time-limited GEKTOR worker.
 // It reads the existing text layer; it does not render pages or run PDF actions.
 func readPDF(data []byte, in Request) (PDFResult, error) {
 	result := PDFResult{Path: in.Path, Metadata: map[string]string{}, Pages: []PDFPage{}}

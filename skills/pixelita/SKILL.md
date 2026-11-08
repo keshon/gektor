@@ -1,6 +1,6 @@
 ---
 name: pixelita
-description: Inspect, preview, resize and compare images with Gektor's native Pixelita tools; save reusable image recipes.
+description: Inspect, preview, resize and compare images with GEKTOR's native Pixelita tools; save reusable image recipes.
 ---
 
 # Native image tools

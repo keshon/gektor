@@ -22,7 +22,7 @@ func TestEveryCategoryHasAHint(t *testing.T) {
 // emitted a key nothing reads would let a draft stage values that silently
 // vanish on apply.
 func TestWorkspacePageEmitsOnlyTheWorkspace(t *testing.T) {
-	_, fields := PageFields(config.Profile{Version: 1}, "application", config.Preferences{Workspace: "D:/work"})
+	_, fields := PageFields(config.Profile{Version: 1}, "workspace", config.Preferences{Workspace: "D:/work"})
 	want := []string{"app-workspace"}
 	if len(fields) != len(want) {
 		t.Fatalf("fields = %d, want %d", len(fields), len(want))

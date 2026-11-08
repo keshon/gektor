@@ -78,7 +78,7 @@ func TestWorkspacePageRetainsStagedModelAndSession(t *testing.T) {
 	m.editSettings("model")
 	focusSetting(m, "model")
 	m.dialog.form.Editor.SetValue("selected-model")
-	m.editSettings("application")
+	m.editSettings("workspace")
 	focusSetting(m, "app-workspace")
 	m.dialog.form.Editor.SetValue(t.TempDir())
 	m.applyForm()
@@ -100,7 +100,7 @@ func TestWorkspacePageRetainsStagedModelAndSession(t *testing.T) {
 // a directory that exists rather than at whatever the editor string said.
 func TestWorkspacePageRejectsAMissingWorkspace(t *testing.T) {
 	m := settingsModel(t)
-	m.editSettings("application")
+	m.editSettings("workspace")
 	focusSetting(m, "app-workspace")
 	m.dialog.form.Editor.SetValue(filepath.Join(t.TempDir(), "does-not-exist"))
 	m.applyForm()
@@ -120,7 +120,7 @@ func TestApplicationPreview(t *testing.T) {
 	os.MkdirAll(dir, 0700)
 	m := settingsModel(t)
 	m.width(tea.WindowSizeMsg{Width: 120, Height: 30})
-	m.openApplication()
+	m.openWorkspace()
 	if err := os.WriteFile(filepath.Join(dir, "application-mode.txt"), []byte(ansi.Strip(m.View().Content)), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestSharedSettingsPreview(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := settingsModel(t)
-	for _, page := range []string{"model", "application", "profiles"} {
+	for _, page := range []string{"model", "workspace", "profiles"} {
 		m.editSettings(page)
 		if err := os.WriteFile(filepath.Join(dir, "shared-"+page+".txt"), []byte(ansi.Strip(m.View().Content)), 0600); err != nil {
 			t.Fatal(err)

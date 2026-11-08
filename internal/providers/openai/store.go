@@ -1,4 +1,4 @@
-// Package openai manages Gektor's own ChatGPT OAuth registration.
+// Package openai manages GEKTOR's own ChatGPT OAuth registration.
 package openai
 
 import (

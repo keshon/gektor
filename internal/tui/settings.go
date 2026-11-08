@@ -199,7 +199,7 @@ func (m *model) inspectConnection() {
 	m.openDialog("Model connection", []string{"Model: " + nonEmpty(m.modelName), "Protocol: " + nonEmpty(m.backendKind), "Endpoint: " + nonEmpty(m.backendURL), fmt.Sprintf("Context: %d tokens · response: %d tokens", m.limit, m.responseCap), "Coding connection changes currently require restarting the application."})
 }
 
-func (m *model) inspectPrompt() {
+func (m *model) inspectAgentInstructions() {
 	if m.config == nil {
 		return
 	}
@@ -219,7 +219,7 @@ func (m *model) inspectPrompt() {
 		"This is the identity the profile contributes; the agent's Plan/Act operational instructions are added on top and are not shown here.",
 	}
 	lines = append(lines, m.config.Warnings...)
-	m.openDialog("Effective identity prompt", lines)
+	m.openDialog("Agent instructions preview", lines)
 }
 
 func (m *model) resizeFormEditor() {
@@ -249,4 +249,15 @@ func remoteReasoningChoices(kind, endpoint, model string) (providers.ReasoningOp
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return app.DiscoverReasoning(ctx, app.BackendOptions{Kind: kind, URL: endpoint, Model: model})
+}
+
+func (m *model) confirmCompact() {
+	m.openForm("Compact history", "Replaces older tool details with a short record and keeps recent steps. This changes the saved history used by the model.", "Compact", nil, func(map[string]string) error {
+		_, cmd := m.compactNow()
+		if cmd != nil {
+			m.pendingCommands = append(m.pendingCommands, cmd)
+		}
+		return nil
+	})
+	m.focusForm(1)
 }

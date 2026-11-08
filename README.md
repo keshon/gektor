@@ -21,7 +21,7 @@ On Windows, run `start-gektor-agent.cmd`. On Linux:
 ./gektor -tui
 ```
 
-Open **Settings**, then **Model**, to change the connection. Saved settings are reused.
+Open **Settings**, then **Model connection**, to change the connection. Saved settings are reused.
 To select a workspace and server explicitly:
 
 ```powershell

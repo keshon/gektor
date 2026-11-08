@@ -12,7 +12,7 @@ go run scripts/tui-smoke.go -binary bin/gektor.exe
 
 On Linux or macOS, build `bin/gektor` and pass that path instead. Add `-keep`
 to retain the printed temporary directory for inspection. Otherwise the helper
-removes its fixtures after closing Gektor.
+removes its fixtures after closing GEKTOR.
 
 1. Open `/sessions`. Open B and type an unsent draft.
 2. Open A. Confirm the header changes to workspace A and B's draft is absent.

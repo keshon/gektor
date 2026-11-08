@@ -18,7 +18,7 @@ import (
 // A narrow terminal is the only place this shows, so every size is tried.
 func TestNoFormRowIsWiderThanItsPane(t *testing.T) {
 	for _, size := range [][2]int{{40, 20}, {44, 26}, {60, 24}, {80, 30}, {120, 40}} {
-		for _, section := range []string{"model", "generation", "prompts", "you", "application"} {
+		for _, section := range []string{"model", "generation", "prompts", "you", "workspace"} {
 			m := settingsModel(t)
 			m.width(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 			m.editSettings(section)
@@ -34,7 +34,7 @@ func TestNoFormRowIsWiderThanItsPane(t *testing.T) {
 }
 
 func TestSettingsModalIsDrawnByTheSharedForm(t *testing.T) {
-	for _, section := range []string{"model", "generation", "prompts", "you", "application"} {
+	for _, section := range []string{"model", "generation", "prompts", "you", "workspace"} {
 		m := settingsModel(t)
 		m.width(tea.WindowSizeMsg{Width: 100, Height: 30})
 		m.editSettings(section)
@@ -154,7 +154,7 @@ func applyColour(t *testing.T, m *model) string {
 func TestChooserFieldsShowWhatPressingThemDoes(t *testing.T) {
 	m := settingsModel(t)
 	m.width(tea.WindowSizeMsg{Width: 100, Height: 30})
-	m.editSettings("application")
+	m.editSettings("workspace")
 	got := ansi.Strip(strings.Join(formRowsOf(t, m), "\n"))
 	if !strings.Contains(got, "[ Choose… ]") {
 		t.Fatalf("the workspace field does not say it opens a chooser:\n%s", got)

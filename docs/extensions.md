@@ -220,7 +220,7 @@ Every actual call is authorized again under the current policy.
 
 ## Executable protocol
 
-Gektor starts `command[0]` with the remaining elements as literal arguments,
+GEKTOR starts `command[0]` with the remaining elements as literal arguments,
 using the task workspace as its working directory. Relative script arguments
 are relative to that workspace; use absolute paths for shared adapters.
 Arguments are never interpolated into shell source.
@@ -247,7 +247,7 @@ inherit the same credential-scrubbed environment as native process tools.
 
 ## Built-in social reader
 
-The `social` capability is compiled into Gektor. It needs no extra executable
+The `social` capability is compiled into GEKTOR. It needs no extra executable
 or configuration file. Discover it, enable `social`, then call
 `cap__social__read_post` with an HTTPS X/Twitter post URL. Discovery and
 activation make no network requests. Until activation, its tool schema and
@@ -275,7 +275,7 @@ permissions and catalog validation with executable and MCP adapters.
 
 Roots have the following precedence, from lowest to highest:
 
-1. Built-in skills shipped with Gektor
+1. Built-in skills shipped with GEKTOR
 2. `~/.agents/skills`
 3. `~/.gektor/skills`
 4. `skill_roots` in declaration order
@@ -283,7 +283,7 @@ Roots have the following precedence, from lowest to highest:
 6. Workspace `.agents/skills/`
 7. Workspace `.gektor/skills/`
 
-Gektor ships `workflows` and `visual-investigation` in the executable. They work
+GEKTOR ships `workflows` and `visual-investigation` in the executable. They work
 in any workspace, without copying files into the project or `~/.gektor`.
 Their source files live in `internal/workspace/builtin/` and are embedded at
 build time. They appear with source `builtin` and paths such as
@@ -296,7 +296,7 @@ shipped guide as their tool reference. Overriding a skill does not replace that
 reference or change the engine's supported operations.
 
 The repository's top-level `skills/` contains development guides for working
-on Gektor. Those are project skills when this repository is the workspace;
+on GEKTOR. Those are project skills when this repository is the workspace;
 they are not bundled with the application. Skills under `eval/fixtures-*`
 are test data and are not discovered from the workspace root.
 

@@ -33,14 +33,14 @@ func TestInspectorRemainsVisibleBehindMainMenu(t *testing.T) {
 			m.inspector.pane.Viewport.SetYOffset(10)
 			beforeWidth := m.mainWidth()
 			beforeOffset := m.inspector.pane.Viewport.YOffset()
-			for _, menu := range []string{"session", "workflow", "view", "settings", "help"} {
+			for _, menu := range []string{"session", "execution", "view", "settings", "help"} {
 				m.header = headerState{focused: true, global: true, menu: menu}
 				m.fitBottom()
 				view := ansi.Strip(m.View().Content)
 				if !m.inspectorVisible() || m.mainWidth() != beforeWidth || !strings.Contains(view, "line of output") {
 					t.Fatalf("menu %s hid inspector or changed layout: width=%d minimal=%v", menu, width, minimal)
 				}
-				if menu == "settings" && !strings.Contains(view, "Steering") {
+				if menu == "settings" && !strings.Contains(view, "Appearance") {
 					t.Fatal("inspector painted over menu")
 				}
 				m.handleKey(tea.KeyPressMsg{Code: tea.KeyDown})

@@ -92,7 +92,7 @@ func TestSettingsModalIsNotTwoColumns(t *testing.T) {
 		}
 	}
 	// The section it does show, and its fields.
-	if !strings.Contains(view, "Generation") {
+	if !strings.Contains(view, "Response settings") {
 		t.Fatalf("the modal does not say which section it is:\n%s", view)
 	}
 	if !strings.Contains(view, "Temperature") {
@@ -104,7 +104,7 @@ func TestPromptDialogNormalizesWindowsLineEndings(t *testing.T) {
 	m := settingsModel(t)
 	m.width(tea.WindowSizeMsg{Width: 140, Height: 40})
 	m.config.Identity.System = "Before\r\nWindows line\r\nAfter\rLone return"
-	m.inspectPrompt()
+	m.inspectAgentInstructions()
 	view := m.View().Content
 	if strings.ContainsRune(view, '\r') {
 		t.Fatal("dialog emitted a carriage return that can overwrite its frame")

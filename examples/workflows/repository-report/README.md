@@ -19,7 +19,7 @@ fails with a revision conflict; supply a new `record_id` through `-inputs` for
 another report. GitHub rate limits and network failures surface as failed steps.
 Requests are not retried automatically.
 
-For a model-assisted version, put a Gektor provider profile at `profile.json`
+For a model-assisted version, put a GEKTOR provider profile at `profile.json`
 in this example directory, use `with-model.json`, and add
 `model_generate=profile.json` to the run permission list. The model receives only
 the normalized record; its summary is added without changing numeric facts.
