@@ -89,7 +89,7 @@ documented in [Workflows](workflows.md).
 Local llama-server example:
 
 ```bash
-./gektor.exe -tui -backend-kind llama -backend http://127.0.0.1:8080 -stream
+./gektor.exe -tui -backend-kind llama -backend http://127.0.0.1:9931 -stream
 ```
 
 For LM Studio or a hosted OpenAI-compatible service, use the `openai` dialect
@@ -182,7 +182,7 @@ earlier command. Use explicit conditions when one command depends on another.
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `-backend URL` | `http://127.0.0.1:8080` | Backend base URL: bare origin for a local server, API root for an OpenAI-compatible provider |
+| `-backend URL` | `http://127.0.0.1:9931` | Backend base URL: bare origin for a local server, API root for an OpenAI-compatible provider |
 | `-backend-kind KIND` | `llama` | `llama`, `openai`, `kobold`, or `chatgpt`. Select the protocol; `chatgpt` uses browser OAuth and Responses |
 | `-model NAME` | `local` | Model name. Ignored by most local servers (they serve whatever weights they started with); required for remote providers |
 | `-context-limit N` | `0` | Remote context window or local fallback. A reported local server window takes precedence; remote backends fall back to a per-model estimate unless set |
@@ -362,7 +362,7 @@ gektor.exe -profile profiles\llama-external.json -tui
 
 The repository includes two profiles under `profiles/`:
 
-- `llama-external.json` connects to a server at `http://127.0.0.1:8080`.
+- `llama-external.json` connects to a server at `http://127.0.0.1:9931`.
   Adjust its endpoint and context window to match your server.
 - `chatgpt.json` uses a ChatGPT account connection. Run `gektor auth login` first.
 

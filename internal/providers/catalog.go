@@ -41,7 +41,7 @@ type Descriptor struct {
 }
 
 var catalog = []Descriptor{
-	{ID: "llama", Inspection: LlamaInspection, Dialect: "llama", Label: "llama.cpp", DefaultURL: "http://127.0.0.1:8080", Protocol: ChatCompletions, Auth: Bearer, Discovery: LocalProbe, Sampling: true, OutputLimit: true},
+	{ID: "llama", Inspection: LlamaInspection, Dialect: "llama", Label: "llama.cpp", DefaultURL: "http://127.0.0.1:9931", Protocol: ChatCompletions, Auth: Bearer, Discovery: LocalProbe, Sampling: true, OutputLimit: true},
 	{ID: "kobold", Inspection: KoboldInspection, Dialect: "kobold", Label: "KoboldCpp", DefaultURL: "http://127.0.0.1:5001", Protocol: ChatCompletions, Auth: Bearer, Discovery: LocalProbe, Sampling: true, OutputLimit: true},
 	{ID: "openai", Inspection: CompatibleInspection, Dialect: "openai", Label: "OpenAI-compatible", DefaultURL: "http://127.0.0.1:8080/v1", Protocol: ChatCompletions, Auth: Bearer, Discovery: ModelList, Sampling: true, OutputLimit: true, SelectModel: true},
 	{ID: "chatgpt", Reasoning: true, DefaultContext: 32768, Label: "ChatGPT", DefaultURL: "https://api.openai.com/v1", FixedURL: "https://api.openai.com/v1", Protocol: Responses, Auth: ChatGPTAccount, Discovery: AccountModels, SelectModel: true},

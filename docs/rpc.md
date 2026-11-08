@@ -106,7 +106,7 @@ process cleanup has finished. Wait for the run response before starting again.
 ```bash
 printf '%s\n' \
   '{"id":1,"method":"run","params":{"task":"what files are here?"}}' |
-  go run ./cmd/gektor -serve -backend-kind llama -backend http://127.0.0.1:8080 -workspace ./site |
+  go run ./cmd/gektor -serve -backend-kind llama -backend http://127.0.0.1:9931 -workspace ./site |
   while IFS= read -r line; do echo "$line" | jq -c '{event, id, result}'; done
 ```
 
@@ -114,7 +114,7 @@ PowerShell one-shot (read-only, no interactive replies):
 
 ```powershell
 '{"id":1,"method":"run","params":{"task":"what files are here?"}}' |
-  go run ./cmd/gektor -serve -backend-kind llama -backend http://127.0.0.1:8080 -workspace .
+  go run ./cmd/gektor -serve -backend-kind llama -backend http://127.0.0.1:9931 -workspace .
 ```
 
 One-shot EOF denies future gates; use a persistent client for interactive runs.

@@ -238,7 +238,7 @@ func TestFirstRunProfileAndWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if o.backendKind != "llama" || o.backendURL != "http://127.0.0.1:8080" || o.workspace != "." || !o.plan {
+	if o.backendKind != "llama" || o.backendURL != "http://127.0.0.1:9931" || o.workspace != "." || !o.plan {
 		t.Fatalf("bad bootstrap: %+v", o)
 	}
 }

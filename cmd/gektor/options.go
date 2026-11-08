@@ -68,7 +68,7 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	provider := config.DefaultProfile().Provider
 	flags := flag.NewFlagSet("gektor", flag.ContinueOnError)
 	flags.StringVar(&o.backendURL, "backend", provider.URL, "backend base URL: bare origin for a local server ("+
-		"http://127.0.0.1:8080) or API root for a hosted OpenAI-compatible provider "+
+		"http://127.0.0.1:9931) or API root for a hosted OpenAI-compatible provider "+
 		"(https://api.openai.com/v1, https://openrouter.ai/api/v1)")
 	flags.StringVar(&o.model, "model", "local", "model name: ignored by most local servers (they serve "+
 		"whatever weights they started with), required for remote providers")

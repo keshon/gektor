@@ -10,7 +10,7 @@ Run commands from the GEKTOR checkout root.
 
 1. Build the current code: `go build -o gektor.exe ./cmd/gektor`.
 2. Edit `model.json` in this folder to match your model server.
-   The supplied profile uses llama.cpp at `http://127.0.0.1:8080`.
+   The supplied profile uses llama.cpp at `http://127.0.0.1:9931`.
    This workflow reads that file; it does not use your TUI model settings.
 3. Register the state schema once for this workspace:
 

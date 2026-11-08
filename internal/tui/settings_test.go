@@ -394,9 +394,10 @@ func TestFormArrowNavigationPreservesValues(t *testing.T) {
 
 func TestProtocolSwitchSuggestsOnlyLocalDefaults(t *testing.T) {
 	for _, tc := range []struct{ endpoint, previous, next, want string }{
-		{"http://127.0.0.1:8080", "llama", "kobold", "http://127.0.0.1:5001"},
+		{"http://127.0.0.1:9931", "llama", "kobold", "http://127.0.0.1:5001"},
 		{"http://localhost:5001/", "kobold", "openai", "http://localhost:8080/v1"},
-		{"http://localhost:8080/v1", "openai", "llama", "http://localhost:8080"},
+		{"http://localhost:8080/v1", "openai", "llama", "http://localhost:9931"},
+		{"http://127.0.0.1:8080", "llama", "kobold", "http://127.0.0.1:8080"},
 		{"http://localhost:9000", "llama", "kobold", "http://localhost:9000"},
 		{"https://events.openai.com/v1", "openai", "llama", "https://events.openai.com/v1"},
 		{"http://localhost:8080/custom", "llama", "kobold", "http://localhost:8080/custom"},
@@ -406,7 +407,7 @@ func TestProtocolSwitchSuggestsOnlyLocalDefaults(t *testing.T) {
 		}
 	}
 	m := settingsModel(t)
-	m.openForm("Connection", "", "Apply", []formField{{Key: "kind", Label: "Protocol", Value: "llama", Multiline: false}, {Key: "endpoint", Label: "URL", Value: "http://127.0.0.1:8080", Multiline: false}}, func(map[string]string) error { return nil })
+	m.openForm("Connection", "", "Apply", []formField{{Key: "kind", Label: "Protocol", Value: "llama", Multiline: false}, {Key: "endpoint", Label: "URL", Value: "http://127.0.0.1:9931", Multiline: false}}, func(map[string]string) error { return nil })
 	m.dialog.form.CycleChoice()
 	m.focusForm(1)
 	if m.dialog.form.Editor.Value() != "http://127.0.0.1:5001" {

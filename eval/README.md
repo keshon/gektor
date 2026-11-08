@@ -158,7 +158,7 @@ it does not extend the timeout. Metadata records this switch. Repeated-observati
 warnings are diagnostics and do not stop execution or add model turns.
 
 CLI, TUI first-run settings and this runner default to llama.cpp at
-`http://127.0.0.1:8080`. On Windows, `scripts\eval-run.cmd` forwards flags to
+`http://127.0.0.1:9931`. On Windows, `scripts\eval-run.cmd` forwards flags to
 `go run ./cmd/eval`; it does not read `.env`. For another endpoint, pass
 `-backend http://127.0.0.1:9931`. Select another protocol with `-backend-kind`.
 

@@ -12,7 +12,7 @@ is also available.
 ## Quick start
 
 Start a model server separately. GEKTOR defaults to **llama.cpp at
-`http://127.0.0.1:8080`**. The model must support tool calls.
+`http://127.0.0.1:9931`**. The model must support tool calls.
 
 Download and extract a [release](https://github.com/keshon/gektor/releases).
 On Windows, run `start-gektor-agent.cmd`. On Linux:

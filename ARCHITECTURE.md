@@ -47,7 +47,7 @@ the session package owns its saved data. They do not implement separate loops.
 cmd/gektor resolves flags, preferences and provider profiles. Each launch owns
 its backend client, MCP connections and background-process registry.
 CLI and first-run TUI settings use internal/config.DefaultProfile: llama.cpp
-at http://127.0.0.1:8080. The eval runner uses the same provider defaults.
+at http://127.0.0.1:9931. The eval runner uses the same provider defaults.
 internal/app compiles identity and profile settings into Services.
 internal/roles builds Planner, Interactive and Subagent from Env. Subagents
 share the workspace and permission policy and cannot delegate again or ask the
