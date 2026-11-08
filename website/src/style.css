@@ -23,8 +23,9 @@ a:focus-visible, button:focus-visible, [tabindex='0']:focus-visible { outline: 1
 /* Shade only the navigation and lower edge; leave the painted sky and city luminous. */
 .landscape__shade { background: linear-gradient(180deg, rgb(16 29 51 / 28%), transparent 16%, transparent 76%, rgb(10 25 39 / 55%)); }
 
-.masthead { position: fixed; z-index: 10; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: flex-start; padding: 30px var(--gutter) 22px; transition: background .25s; background: linear-gradient(180deg, rgb(16 29 51 / 20%), transparent); }
-.masthead--content { background: rgb(20 38 50 / 97%); border-bottom: 1px solid var(--line); }
+/* Navigation gets its own opaque surface: scenery cannot cut through the mark or links. */
+.masthead { position: fixed; z-index: 10; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: center; padding: 24px var(--gutter) 18px; background: var(--ground); border-bottom: 1px solid transparent; }
+.masthead--content { border-bottom-color: var(--line); }
 .brand { display: flex; gap: 15px; align-items: center; }
 .brand__mark { width: 44px; height: 44px; stroke: currentColor; stroke-width: 1.9; }
 .brand__type { font-size: 19px; font-weight: 500; line-height: 1.1; letter-spacing: .2em; }
@@ -56,10 +57,10 @@ h1 { margin: 0; font-family: var(--display); font-size: clamp(52px, 5.6vw, 84px)
 .docs-link { display: inline-flex; align-items: center; gap: 14px; min-height: 44px; font-size: 14px; color: #cbd5dd; }
 .hero__platforms { margin: 15px 0 0; font-size: 12px; letter-spacing: .06em; color: var(--hero-ink); }
 .hero__platforms span { padding: 0 7px; }
-.scroll-cue { position: absolute; right: var(--gutter); bottom: 105px; display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 10px 0 0 20px; color: var(--paper); text-shadow: 0 1px 5px #142632; }
-.scroll-cue > span { writing-mode: vertical-rl; font-size: 14px; letter-spacing: .14em; }
-.scroll-cue > i { height: 55px; width: 1px; background: rgb(222 226 211 / 45%); }
-.scroll-cue svg { width: 13px; height: 20px; stroke: currentColor; stroke-width: .9; }
+.scroll-cue { position: absolute; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 9px 16px; background: var(--ground); color: var(--paper); }
+.scroll-cue:hover { color: var(--amber); }
+.scroll-cue > span { white-space: nowrap; font-size: 12px; letter-spacing: .1em; }
+.scroll-cue svg { width: 12px; height: 19px; stroke: currentColor; stroke-width: 1.2; }
 
 /* Rules belong to the section cap, mode rows, launch panel and footer only. */
 .project-file { position: relative; padding: 40px var(--gutter) 0; background: var(--ground); border-top: 1px solid #466171; box-shadow: 0 -40px 90px rgb(9 22 36 / 12%); }
@@ -146,9 +147,6 @@ h1 { margin: 0; font-family: var(--display); font-size: clamp(52px, 5.6vw, 84px)
   .download-link svg { width: 13px; height: 13px; }
   .docs-link { font-size: 14px; gap: 7px; }
   .hero__platforms { font-size: 12px; margin-top: 13px; }
-  .scroll-cue { bottom: 119px; gap: 13px; padding-left: 10px; }
-  .scroll-cue > span { font-size: 14px; }
-  .scroll-cue > i { height: 35px; }
   .project-file { padding-top: 28px; }
   .section-index { font-size: 12px; }
   .section-index > span:last-child { text-align: right; max-width: 160px; }
@@ -192,6 +190,5 @@ h1 { margin: 0; font-family: var(--display); font-size: clamp(52px, 5.6vw, 84px)
   .hero__description { margin: 12px auto; }
   h1 { font-size: 38px; }
   .hero__platforms { display: none; }
-  .scroll-cue { bottom: 75px; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { transition: none !important; } }
