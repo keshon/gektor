@@ -260,6 +260,9 @@ func imageSuffix(images []string) string {
 // fresh context: an interrupted run's cancelled context must never leak
 // into the next turn.
 func (m *model) startRun(run func(ctx context.Context) (string, error)) {
+	if m.titleJob != nil && m.titleJob.cancel != nil {
+		m.cancelSessionTitle()
+	}
 	m.cancelEvaluation()
 	m.cancel()
 	// A run takes over: an open dialog — or sessions screen — would
@@ -338,6 +341,7 @@ func (m *model) startInitial(task string, images []string) error {
 	}
 	m.sess = sess
 	m.sessionTitle = workspace.TitleLine(task)
+	m.prepareSessionTitle(task)
 	if err := m.saveMode(); err != nil {
 		return err
 	}
@@ -352,6 +356,7 @@ func (m *model) startInitial(task string, images []string) error {
 // last-turn state go, the next submitted line starts a fresh run
 // through the sess==nil path in followUp. Bare /new.
 func (m *model) newTask() {
+	m.cancelSessionTitle()
 	if m.workflows != nil {
 		if m.workflows.busy {
 			return
@@ -478,6 +483,11 @@ func (m *model) startFreshPrompt(task, display string, images []string) error {
 	m.draftImages = nil
 	m.attachmentEpoch++
 	m.fitBottom()
+	if len(seed) == 0 {
+		m.prepareSessionTitle(display)
+	} else {
+		m.cancelSessionTitle()
+	}
 	m.startRun(func(runCtx context.Context) (string, error) {
 		if len(seed) > 0 {
 			return sess.Resume(runCtx, seed, task, images...)

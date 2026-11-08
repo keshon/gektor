@@ -52,6 +52,7 @@ func read(name string) string {
 }
 
 var (
+	SessionTitle      = read("session_title.txt")
 	WorkflowEdit      = read("workflow_edit.txt")
 	System            = read("system.txt")
 	Evaluation        = read("evaluation.txt")

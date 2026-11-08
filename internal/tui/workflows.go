@@ -77,6 +77,7 @@ func (m *model) openWorkflows() {
 		m.openDialog("Workflows", []string{"Finish or stop the agent turn before opening the editor."})
 		return
 	}
+	m.cancelSessionTitle()
 	if m.workflows == nil {
 		if m.baseEnv.WS == nil {
 			m.openDialog("Workflows", []string{"Select a workspace first."})

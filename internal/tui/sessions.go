@@ -361,6 +361,7 @@ func (m *model) openSelected() tea.Cmd {
 		return nil
 	}
 	m.saveDraft()
+	m.cancelSessionTitle()
 	m.sess = sess
 	m.stateFile = stateFile
 	m.sessionTitle = cur.title
@@ -741,6 +742,9 @@ func withoutSession(entries []sessionEntry, dir string) []sessionEntry {
 	return out
 }
 func (m *model) updateSessionTitle(dir, title string) {
+	if m.titleJob != nil && filepath.Dir(m.titleJob.stateFile) == dir {
+		m.cancelSessionTitle()
+	}
 	for i := range m.savedSessions {
 		if m.savedSessions[i].dir == dir {
 			m.savedSessions[i].title = title

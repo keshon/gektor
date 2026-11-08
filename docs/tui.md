@@ -234,6 +234,14 @@ then press `Ctrl+W` on the session and confirm with `Y` to reassign it (`N` or
 `Esc` cancels). Reassignment changes metadata, not project files.
 
 Use `Ctrl+R` in the session list to rename it, or `Ctrl+D` to confirm deletion.
+
+New Agent conversations first use the opening message as a title. After the
+first answer, GEKTOR asks the selected backend once for a short title in the
+user's language. This runs separately from the conversation, with no tools or
+history. A failed or cancelled request keeps the original title; manual renames
+always take precedence. Starting another turn cancels a title request in progress.
+Existing sessions and forks keep their titles.
+
 An explicit workspace switch in Settings also updates the active saved session
 once the replacement services have been initialized, without needing another
 agent run. A failed initialization does not stamp the new workspace.

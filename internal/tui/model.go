@@ -151,6 +151,7 @@ type model struct {
 	// stateFile locates the saved transcript for follow-ups.
 	stateFile    string
 	sessionTitle string
+	titleJob     *sessionTitleJob
 	// ws resolves @file paths against the workspace, escape-checked
 	// like every file tool path. Stored, not rebuilt per turn.
 	ws *workspace.Workspace
@@ -381,6 +382,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		policyRules:  len(cfg.Env.Policy.Rules),
 	}
 	defer m.cancel()
+	defer m.cancelSessionTitle()
 	if cfg.Env.MaxSteps == unlimitedSteps {
 		m.maxStepsOverride = noStepLimit
 	}

@@ -8,8 +8,8 @@ import (
 
 // SessionTitleFile stores a session's display title inside its own
 // dir (pi's session_info pattern): written once at creation, rewritten
-// on rename. It travels with the session — delete removes it, so titles
-// can never orphan or drift like a separate index.
+// after automatic naming or a manual rename. It travels with the session:
+// deleting a session removes its title, without a separate index.
 const SessionTitleFile = "title"
 
 // titleCap bounds titles: display-ready, one line.

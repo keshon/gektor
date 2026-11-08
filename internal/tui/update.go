@@ -215,7 +215,14 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 				return m, tea.Batch(cmd, waitEvents(m))
 			}
 		}
-		return m, waitEvents(m)
+		var titleCmd tea.Cmd
+		if msg.err == nil && !wasInterrupted && strings.TrimSpace(msg.answer) != "" {
+			titleCmd = m.generateSessionTitle()
+		}
+		return m, tea.Batch(titleCmd, waitEvents(m))
+	case sessionTitleMsg:
+		m.acceptSessionTitle(msg)
+		return m, nil
 	case tea.MouseMsg:
 		return m.handleMouse(msg)
 	case tea.KeyPressMsg:

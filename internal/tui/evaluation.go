@@ -65,6 +65,7 @@ func (m *model) evaluate(arg string) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	selection, focus, _ := strings.Cut(strings.TrimSpace(arg), " ")
+	m.cancelSessionTitle()
 	base := m.base
 	if base == nil {
 		base = context.Background()
