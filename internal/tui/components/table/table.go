@@ -21,8 +21,9 @@ type Column struct {
 }
 
 type Row struct {
-	ID    string
-	Cells []string
+	ID     string
+	Cells  []string
+	Detail string
 }
 
 type Action struct {
@@ -33,12 +34,15 @@ type Action struct {
 
 type Props struct {
 	Title, Description string
+	EmptyMessage       string
 	DefaultAction      string
 	Width, Height      int
-	Columns            []Column
-	Actions            []Action
-	Styles             form.Styles
-	Surface            popup.Styles
+	// List shows compact cards with a detail row and direct shortcut actions.
+	List    bool
+	Columns []Column
+	Actions []Action
+	Styles  form.Styles
+	Surface popup.Styles
 }
 
 type Model struct {
@@ -159,7 +163,7 @@ func (m *Model) Layout(p Props) Layout {
 	inner := max(width-4, 1)
 	l := Layout{Width: width, Actions: p.Actions}
 	l.Actions, l.MenuActions = splitActions(p.Actions)
-	buttonRows, buttonHits := m.buttons(l.Actions, inner, p.Styles)
+	buttonRows, buttonHits := m.actionRows(l.Actions, inner, p)
 	l.Rows = popup.Header(p.Title, inner, p.Styles.Title)
 	l.Hits = append(l.Hits, Hit{X0: max(inner-3, 0), X1: inner, Y: 0, Action: "close"})
 	if p.Description != "" {
@@ -176,17 +180,23 @@ func (m *Model) Layout(p Props) Layout {
 			l.Rows = append(l.Rows, "")
 		}
 	}
-	m.Search.SetWidth(max(inner-cell.Width(m.Search.Prompt)-2, 1))
-	l.Hits = append(l.Hits, Hit{Y: len(l.Rows), X1: inner, Action: "filter"})
-	l.Rows = append(l.Rows, cell.Line(m.Search.View(), inner))
-	labels := []string{}
-	for _, column := range p.Columns {
-		labels = append(labels, column.Label)
+	if !p.List {
+		m.Search.SetWidth(max(inner-cell.Width(m.Search.Prompt)-2, 1))
+		l.Hits = append(l.Hits, Hit{Y: len(l.Rows), X1: inner, Action: "filter"})
+		l.Rows = append(l.Rows, cell.Line(m.Search.View(), inner))
+		labels := []string{}
+		for _, column := range p.Columns {
+			labels = append(labels, column.Label)
+		}
+		l.Rows = append(l.Rows, p.Styles.Muted.Render("  "+columns(labels, p.Columns, inner-4)))
 	}
-	l.Rows = append(l.Rows, p.Styles.Muted.Render("  "+columns(labels, p.Columns, inner-4)))
 	// Frame edges, footer divider/hint and action rows stay outside scrolling.
-	l.Capacity = max(p.Height-2-len(l.Rows)-2-len(buttonRows), 1)
-	if len(l.Rows)+l.Capacity+2+len(buttonRows)+2 > p.Height {
+	footerRows, rowHeight, trailingGap := 2, 1, 0
+	if p.List {
+		footerRows, rowHeight, trailingGap = 1, 3, 1
+	}
+	l.Capacity = max((p.Height-2-len(l.Rows)-footerRows-len(buttonRows)+trailingGap)/rowHeight, 1)
+	if len(l.Rows)+l.Capacity*rowHeight-trailingGap+footerRows+len(buttonRows)+2 > p.Height {
 		l.Actions = []Action{{ID: "close", Label: "Close", Key: "esc", Enabled: true}}
 		l.Rows = popup.Header(p.Title, inner, p.Styles.Title)
 		l.Rows = append(l.Rows, cell.Line("Enlarge the terminal to use this table.", inner))
@@ -195,7 +205,7 @@ func (m *Model) Layout(p Props) Layout {
 		m.MoreOpen = false
 		m.Focus = 2
 		m.SyncFocus(true)
-		buttonRows, buttonHits = m.buttons(l.Actions, inner, p.Styles)
+		buttonRows, buttonHits = m.actionRows(l.Actions, inner, p)
 	} else {
 		l.BodyTop = len(l.Rows)
 		rows := m.filtered()
@@ -208,16 +218,26 @@ func (m *Model) Layout(p Props) Layout {
 			}
 			l.Hits = append(l.Hits, Hit{X1: max(inner-2, 1), Y: len(l.Rows) + len(body), Row: i, Action: "row"})
 			body = append(body, style.Render(cell.Line(mark+columns(rows[i].Cells, p.Columns, inner-4), max(inner-2, 1))))
+			if p.List {
+				l.Hits = append(l.Hits, Hit{X1: max(inner-2, 1), Y: len(l.Rows) + len(body), Row: i, Action: "row"})
+				body = append(body, style.Render(cell.Line("   "+rows[i].Detail, inner-2)))
+				if i+1 < min(m.Offset+l.Capacity, len(rows)) {
+					body = append(body, cell.Line("", inner-2))
+				}
+			}
 		}
 		if len(rows) == 0 {
-			message := "No items"
+			message := p.EmptyMessage
+			if message == "" {
+				message = "No items"
+			}
 			if m.Search.Value() != "" {
 				message = "No matches"
 			}
 			body = append(body, p.Styles.Muted.Render(cell.Line(message, inner-2)))
 		}
 		l.BodyHeight = len(body)
-		l.Rows = append(l.Rows, popup.ScrollRows(body, inner, m.Offset, len(rows), p.Surface.Normal)...)
+		l.Rows = append(l.Rows, popup.ScrollRows(body, inner, m.Offset*rowHeight, max(len(rows)*rowHeight-trailingGap, 0), p.Surface.Normal)...)
 	}
 	shortcuts := []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "/", Action: "filter"}, {Key: "Tab", Action: "controls"}}
 	for _, action := range p.Actions {
@@ -233,7 +253,11 @@ func (m *Model) Layout(p Props) Layout {
 		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "back"}, {Key: "↑↓", Action: "choose"}, {Key: "Enter", Action: "select"}}
 	}
 	hint := popup.Shortcuts(inner, popup.ShortcutStyles{Key: p.Styles.Normal.Bold(true), Action: p.Styles.Muted}, shortcuts...)
-	l.Rows = append(l.Rows, popup.Footer(inner, hint, p.Styles.Muted)...)
+	if p.List {
+		l.Rows = append(l.Rows, strings.Repeat("─", inner))
+	} else {
+		l.Rows = append(l.Rows, popup.Footer(inner, hint, p.Styles.Muted)...)
+	}
 	for _, hit := range buttonHits {
 		hit.Y += len(l.Rows)
 		l.Hits = append(l.Hits, hit)
@@ -254,6 +278,41 @@ func (m *Model) Layout(p Props) Layout {
 		l.Rows = strings.Split(popup.Overlay(strings.Join(l.Rows, "\n"), l.Menu.Rows, l.Menu.X, l.Menu.Y, l.Menu.Width, inner), "\n")
 	}
 	return l
+}
+
+// actionRows uses the same actions for keyboard and pointer controls.
+func (m *Model) actionRows(actions []Action, width int, p Props) ([]string, []Hit) {
+	if !p.List {
+		return m.buttons(actions, width, p.Styles)
+	}
+	rows, hits := []string{}, []Hit{}
+	row, x := "", 0
+	for i, action := range actions {
+		key := popup.KeyLabel(action.Key)
+		if key == "DELETE" {
+			key = "DEL"
+		}
+		label := key + " " + action.Label
+		length := cell.Width(label)
+		if x > 0 && x+2+length > width {
+			rows = append(rows, cell.Line(row, width))
+			row, x = "", 0
+		}
+		if x > 0 {
+			row += "  "
+			x += 2
+		}
+		style := p.Styles.Normal
+		if !action.Enabled {
+			style = p.Styles.Disabled
+		} else if m.Focus == i+2 {
+			style = p.Styles.Focus
+		}
+		row += popup.Shortcuts(min(length, width), popup.ShortcutStyles{Key: style.Bold(true), Action: style}, popup.Shortcut{Key: key, Action: action.Label})
+		hits = append(hits, Hit{X0: x, X1: min(x+length, width), Y: len(rows), Action: action.ID})
+		x += length
+	}
+	return append(rows, cell.Line(row, width)), hits
 }
 
 func (m *Model) buttons(actions []Action, width int, styles form.Styles) ([]string, []Hit) {
@@ -316,10 +375,13 @@ func (m *Model) Update(msg tea.Msg, p Props) (string, tea.Cmd) {
 				step = -1
 			}
 			m.Focus = (m.Focus + step + len(l.Actions) + 2) % (len(l.Actions) + 2)
+			if p.List && m.Focus == 1 {
+				m.Focus = (m.Focus + step + len(l.Actions) + 2) % (len(l.Actions) + 2)
+			}
 			m.SyncFocus(true)
 			return "", nil
 		case "/":
-			if m.Focus != 1 {
+			if !p.List && m.Focus != 1 {
 				m.Focus = 1
 				m.SyncFocus(true)
 				return "", nil
@@ -405,8 +467,16 @@ func (m *Model) Mouse(msg tea.MouseMsg, p Props) string {
 		return ""
 	}
 	row := mouse.Y - y - l.BodyTop
-	if l.Capacity > 0 && mouse.X == x+l.Width-5 && row >= 0 && row < l.Capacity && len(m.filtered()) > l.Capacity {
-		top, size := popup.ScrollThumb(l.Capacity, len(m.filtered()), m.Offset)
+	rowHeight := 1
+	if p.List {
+		rowHeight = 3
+	}
+	if l.Capacity > 0 && mouse.X == x+l.Width-5 && row >= 0 && row < l.BodyHeight && len(m.filtered()) > l.Capacity {
+		total := len(m.filtered()) * rowHeight
+		if p.List {
+			total--
+		}
+		top, size := popup.ScrollThumb(l.BodyHeight, total, m.Offset*rowHeight)
 		if row < top {
 			m.Move(-l.Capacity, len(m.filtered()), l.Capacity)
 		}

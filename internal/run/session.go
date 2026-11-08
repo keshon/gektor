@@ -347,3 +347,8 @@ func (s *Session) RecallInput() (llm.Message, bool)           { return s.inbox.R
 // SetSteering controls tool admission without restarting the session.
 func (s *Session) SetSteering(enabled bool)              { s.inbox.SetSteering(enabled) }
 func (s *Session) InputPreview() (llm.Message, int, int) { return s.inbox.Preview() }
+
+// PendingInputs snapshots the queue without transferring attachment ownership.
+func (s *Session) PendingInputs() []agent.QueuedInput     { return s.inbox.Inputs() }
+func (s *Session) EditInput(id uint64, text string) error { return s.inbox.EditInput(id, text) }
+func (s *Session) RemoveInput(id uint64) error            { return s.inbox.RemoveInput(id) }

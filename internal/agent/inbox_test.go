@@ -205,3 +205,78 @@ func TestInboxAcceptsImagesWithoutText(t *testing.T) {
 		t.Fatal("accepted empty input")
 	}
 }
+
+func TestInboxEditsByIdentityAndKeepsOrder(t *testing.T) {
+	var inbox Inbox
+	for _, text := range []string{"first", "second", "third"} {
+		if err := inbox.Send(text, "shot.png"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	snapshot := inbox.Inputs()
+	snapshot[1].Message.Images[0] = "changed.png"
+	if err := inbox.EditInput(snapshot[1].ID, "edited"); err != nil {
+		t.Fatal(err)
+	}
+	if err := inbox.RemoveInput(snapshot[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	after := inbox.Inputs()
+	if len(after) != 2 || after[0].ID != snapshot[1].ID || after[0].Message.Content != "edited" || after[0].Message.Images[0] != "shot.png" || after[1].Message.Content != "third" {
+		t.Fatalf("bad queue: %+v", after)
+	}
+	if err := inbox.RemoveInput(snapshot[0].ID); !errors.Is(err, ErrInputMissing) {
+		t.Fatal(err)
+	}
+	inbox.take(false)
+	inbox.Send("new")
+	if err := inbox.EditInput(snapshot[1].ID, "stale"); !errors.Is(err, ErrInputMissing) {
+		t.Fatal(err)
+	}
+	if inbox.Inputs()[0].Message.Content != "new" {
+		t.Fatal("stale edit changed another message")
+	}
+}
+
+func TestInboxEditAndRemoveRaceReceipt(t *testing.T) {
+	for _, remove := range []bool{false, true} {
+		for range 100 {
+			var inbox Inbox
+			inbox.SetSteering(true)
+			inbox.Send("original", "image.png")
+			id := inbox.Inputs()[0].ID
+			done := make(chan struct{})
+			go func() { yielded := false; inbox.admit(&yielded); close(done) }()
+			var err error
+			if remove {
+				err = inbox.RemoveInput(id)
+			} else {
+				err = inbox.EditInput(id, "edited")
+			}
+			<-done
+			inputs := inbox.Inputs()
+			if err != nil && !errors.Is(err, ErrInputReceived) {
+				t.Fatal(err)
+			}
+			if errors.Is(err, ErrInputReceived) {
+				if len(inputs) != 1 || !inputs[0].Received || inputs[0].Message.Content != "original" {
+					t.Fatalf("changed received input: %+v", inputs)
+				}
+			} else if remove {
+				if len(inputs) != 0 {
+					t.Fatal("remove was not atomic")
+				}
+			} else if inputs[0].Message.Content != "edited" || inputs[0].Message.Images[0] != "image.png" {
+				t.Fatal("edit lost data")
+			}
+			if len(inputs) > 0 {
+				if err := inbox.EditInput(id, "late"); !errors.Is(err, ErrInputReceived) {
+					t.Fatal(err)
+				}
+				if err := inbox.RemoveInput(id); !errors.Is(err, ErrInputReceived) {
+					t.Fatal(err)
+				}
+			}
+		}
+	}
+}

@@ -28,7 +28,11 @@ func TestCommanderFrameAtSupportedSizes(t *testing.T) {
 			if strings.Contains(ansi.Strip(rows[2]), "SESSIONS") {
 				t.Fatal("removed session pane still visible")
 			}
-			if m.transcript.Viewport.Height() != 21 {
+			want := 21
+			if state == stRunning {
+				want++
+			}
+			if m.transcript.Viewport.Height() != want {
 				t.Fatalf("lost transcript rows: %d", m.transcript.Viewport.Height())
 			}
 		}

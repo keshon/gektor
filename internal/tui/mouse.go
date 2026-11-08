@@ -65,6 +65,9 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m.toolbarClick(msg.Mouse().X)
 	}
 
+	if m.composerQueueMouse(msg) {
+		return m, nil
+	}
 	if m.suggestionMouse(msg) {
 		return m, nil
 	}

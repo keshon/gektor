@@ -36,6 +36,7 @@ func (m *model) restoreDraft() {
 	m.attachmentEpoch++
 	d := m.drafts[m.stateFile]
 	m.input.SetValue(d.text)
+	m.queuedVersion++
 	m.queued = d.queued
 	m.draftImages = append([]string(nil), d.images...)
 	m.queuedImages = append([]string(nil), d.queuedImages...)
@@ -92,7 +93,7 @@ func (m *model) actionHint() string {
 	case stAsk:
 		return m.controlHints(popup.Shortcut{Key: "Esc", Action: "stop"}, popup.Shortcut{Key: "Enter", Action: "answer"}, popup.Shortcut{Key: "Ctrl+O", Action: "newline"})
 	case stRunning:
-		return m.controlHints(popup.Shortcut{Key: "Esc", Action: "stop"}, popup.Shortcut{Key: "Enter", Action: "queue"}, popup.Shortcut{Key: "Ctrl+O", Action: "newline"})
+		return m.controlHints(popup.Shortcut{Key: "Esc", Action: "stop"}, popup.Shortcut{Key: "Enter", Action: "send"}, popup.Shortcut{Key: "Alt+Q", Action: "Queue"}, popup.Shortcut{Key: "Ctrl+O", Action: "newline"})
 	case stStopping:
 		return m.controlHints(popup.Shortcut{Key: "Ctrl+C", Action: "exit"})
 	default:

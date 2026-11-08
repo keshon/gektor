@@ -172,8 +172,28 @@ If a popup is open, Esc may close it first.
 
 You can send another message while Agent is working.
 It waits for a model/tool boundary and does not interrupt a running tool.
-`Ctrl+E` brings the latest pending message back to an empty draft.
-`Ctrl+X` removes the latest pending message.
+The line above the draft shows how many messages are queued and previews the
+latest one. Click the count or press `Alt+Q` to open **Message queue**.
+The Queue shortcut stays visible during a run, including when nothing is waiting.
+You can also open it from Run > Message queue.
+Messages appear oldest first. Select any message, then use:
+
+- `Enter` to read its full text and image names.
+- `Ctrl+E` to edit it in a separate window. Save keeps its position and images.
+- `Delete` to remove it.
+
+Your current draft and its images stay intact. Cancel leaves the queued message
+unchanged. Delivery does not wait for you to open the queue: a quick reply can
+leave little time to edit. Once the agent receives a message, it is read only.
+A row marked **No longer queued** is also read only; its disappearance alone does
+not prove receipt. Closing the list drops these old rows. If it is received while you are
+editing, Save explains what happened and keeps your edit visible so you can copy
+it. If a permission request or question interrupts the editor, `Alt+Q` reopens
+it after you answer.
+
+The latest-message shortcuts still work in the composer: `Ctrl+E` brings the
+latest queued message back to an empty draft; `Ctrl+X` removes it.
+A follow-up marked **Next run** will start after the current turn ends.
 
 **Apply new messages during run** in Run, or `/steering on|off`, controls delivery.
 With steering enabled, new input can withhold tools that have not started.

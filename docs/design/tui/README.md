@@ -5,7 +5,8 @@ project; text, shapes, components, variables and prototype links are native
 layers. The `.figcraft` format is FigCraft's native format. Its `.fig` export
 is experimental, so it is not the source file here.
 
-These are proposed screens for review. They do not change the running TUI.
+These screens are an editable design reference. Editing the project does not
+change the running TUI.
 The [design reference](../../tui-design.md) defines behavior and the verification
 plan. Update it when a reviewed mockup changes an interaction rule.
 
@@ -19,6 +20,7 @@ plan. Update it when a reviewed mockup changes an interaction rule.
 | 03 Main layouts | Agent and Workflows with aligned inspectors; applied-settings state |
 | 04 Narrow and interaction | 40 by 20 layouts and a preserved-draft example |
 | 05 Themes | The same controls under the six theme modes |
+| 06 Composer review | Queue, received-message and draft states; wide/narrow layouts and a before/after comparison |
 
 The component sheet includes buttons, text inputs, validation, read-only values,
 checkboxes, radio choices, list rows, tabs, status, shortcuts, progress and a
@@ -39,7 +41,8 @@ text layers remain editable in their component or screen.
 - Edit shared controls through their main components on page 01. Screen buttons
   and state-sheet controls are instances, so shared changes reach their copies.
 - Save the native project after editing. Re-export the previews below when their
-  screens or palette values change. The images are previews, not editable sources.
+  screens or palette values change. Keep linked previews as WebP. Put temporary
+  exports in `tmp/`. The images are previews, not editable sources.
 
 ## Colors
 
@@ -77,13 +80,66 @@ The list remains global; Ctrl+F switches between all sessions and the current
 workspace. Enter restores the selected session's workspace. An unavailable or
 unassigned workspace blocks opening rather than falling back to the current one.
 Ctrl+W assigns the current workspace only after a Y/N confirmation; select a
-different current workspace in Settings first when relocating a conversation.
+different current workspace under GEKTOR, Change workspace first when relocating a conversation.
 These boards show the list state, not an interactive filesystem picker.
 
 `update-session-workspaces.py` generates the corresponding command JSON. The
 commands record this migration against the pre-workspace library's node IDs;
 they are not a complete project generator and should not be reapplied to the
 updated file (the workspace labels already exist).
+
+## Composer and message queue
+
+Page **06 Composer review** records the busy Agent composer and message queue.
+The application uses these layouts with the shared toolbar, table and form components.
+
+The summary counts all queued messages and previews only the latest. Click the
+count or use ALT+Q, Queue, to open the complete list. At 40 columns the bar
+keeps Stop, Send and Queue visible, even when the queue is empty. CTRL+K keeps its text-editing action. The
+composer draft stays separate; shortcuts appear once in the bottom bar, with
+gaps between groups.
+
+The queue is oldest first. Each row shows its text, state and image count.
+Read opens the full selected message and attachment names. Edit opens a separate
+editor; Save updates that message in place and Cancel keeps its original content.
+The composer draft remains intact. Remove affects only the selected queued
+message. Received messages can be read, but cannot be edited or removed.
+
+The implementation uses stable message IDs and checks state atomically for
+edit/remove. A queue refresh keeps the selected message. Rows that leave the
+inbox remain readable until the window closes, labeled No longer queued unless
+receipt was observed. If a message is received during
+editing, Save keeps the editor text and explains why it cannot update that entry.
+Displayed row numbers indicate order, not identity.
+
+The narrow queue uses two footer rows so Read, Edit, Remove and Close remain
+readable. F1 Help and CTRL+O newline remain available in the composer even when
+the bar shows Queue. The native components and frames inherit the TUI palette.
+Application frames use 80 by 24 or 40 by 20 terminal grids; the comparison and
+notes are annotated review boards.
+
+For the click-through, present **Composer / Queued / Light**. Click Queued 3 or
+Queue (ALT+Q), then read, edit or remove the selected first message. Save leads
+to the edited-list example; Remove leads to the two-message example. The
+received-message example has disabled Edit and Remove actions. Other row
+selection and text entry are illustrative, not live. Dark and narrow layouts
+support queue opening/closing; their detailed flows are not wired.
+
+`update-composer.py` regenerates only this page. It replaces manual edits on
+that page when explicitly run. Other pages are preserved. For example:
+
+```text
+python docs/design/tui/update-composer.py --output tmp/composer-review.figcraft
+```
+
+Use `--cli PATH` if the FigCraft CLI is not installed at the detected location.
+Export changed frames with the same `--no-system-fonts` setting.
+
+![Busy composer before and updated layout](composer-review-light.webp)
+
+![Queue with three individually managed messages](message-queue-light.webp)
+
+![Message queue at 40 columns](message-queue-narrow.webp)
 
 ## Click-through review
 

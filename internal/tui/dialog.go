@@ -31,6 +31,8 @@ type infoDialog struct {
 	table     *tableDialog
 	shortcuts []popup.Shortcut
 	onClose   func()
+	// onSuspend preserves an unsaved editor when an agent gate takes focus.
+	onSuspend func()
 	drag      scrollDrag
 	review    func()
 	save      func() error
@@ -221,6 +223,7 @@ func helpSections() []helpSection {
 			{"Ctrl+U", "Clear the draft"},
 			{"/ or @", "Suggest commands or workspace paths"},
 			{"Enter / Tab / Esc", "Run a command, insert a suggestion, or dismiss the picker"},
+			{"Alt+Q", "Read, edit or remove a specific queued message"},
 			{"Ctrl+E", "Return the latest pending message to the draft"},
 			{"Ctrl+X", "Cancel the latest pending message"},
 			{"@\"image path\"", "Attach a workspace file or image; quote paths with spaces"},

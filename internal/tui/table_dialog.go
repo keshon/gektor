@@ -10,18 +10,24 @@ import (
 )
 
 type tableDialog struct {
-	model       *table.Model
-	columns     []table.Column
-	description string
-	actions     func() []table.Action
-	activate    func(action, id string) tea.Cmd
+	model        *table.Model
+	list         bool
+	refresh      func()
+	columns      []table.Column
+	description  string
+	emptyMessage string
+	actions      func() []table.Action
+	activate     func(action, id string) tea.Cmd
 }
 
 func (m *model) tableProps() table.Props {
 	d := m.dialog.table
+	if d.refresh != nil {
+		d.refresh()
+	}
 	d.model.Search.SetStyles(textInputStyles(d.model.Search.Styles()))
 	_, _, width, height := m.settingsArea()
-	return table.Props{Title: m.dialog.title, Description: d.description, Width: width, Height: height, DefaultAction: "details",
+	return table.Props{Title: m.dialog.title, Description: d.description, EmptyMessage: d.emptyMessage, Width: width, Height: height, DefaultAction: "details", List: d.list,
 		Columns: d.columns, Actions: d.actions(), Surface: popupSurface(),
 		Styles: form.Styles{Normal: popupSurface().Normal, Title: m.styles.title, Muted: m.styles.dim,
 			Focus: m.styles.focus, Disabled: m.styles.disabled, Error: m.styles.err}}

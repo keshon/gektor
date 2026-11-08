@@ -79,7 +79,7 @@ func TestBothFramesAndMeasuredPrefillFit(t *testing.T) {
 			if m.transcript.Follow && !m.transcript.Viewport.AtBottom() {
 				t.Fatal("progress resize lost latest content")
 			}
-			if size[0] >= 40 && (!strings.Contains(text, "Session") || !strings.Contains(text, "F1")) {
+			if size[0] >= 40 && (!strings.Contains(text, "Session") || !strings.Contains(text, "ALT+Q Queue")) {
 				t.Fatal("menu/hotkeys lost", frame, size, text)
 			}
 			for _, line := range strings.Split(text, "\n") {

@@ -460,6 +460,7 @@ func (m *model) startFreshPrompt(task, display string, images []string) error {
 		m.clearContext()
 	}
 	m.input.Restore(composer.Snapshot{History: []string{display}, Index: 1})
+	m.queuedVersion++
 	m.queued = ""
 	m.queuedImages = nil
 	m.transcript.blocks = nil

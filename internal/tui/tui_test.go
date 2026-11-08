@@ -661,6 +661,7 @@ func TestNativeUnderlineCaretTracksComposerAndHidesOnHelp(t *testing.T) {
 func TestTranscriptMeetsDividerWithoutReservedBlankRow(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
+	m.fitBottom()
 	for _, b := range renderHistory(compactTestHistory(15)) {
 		m.appendBlock(b)
 	}
@@ -699,7 +700,7 @@ func TestFollowUnfollowsOnScroll(t *testing.T) {
 	if mm.transcript.Follow {
 		t.Fatal("pgup must unfollow")
 	}
-	if !strings.Contains(ansi.Strip(mm.View().Content), "^END End") {
+	if !strings.Contains(ansi.Strip(mm.View().Content), "CTRL+END Latest") {
 		t.Fatal("unfollowed state must show jump hint")
 	}
 	updated, _ = mm.Update(tea.KeyPressMsg{Code: tea.KeyEnd, Mod: tea.ModCtrl})
@@ -1549,8 +1550,8 @@ func TestBottomZoneHeights(t *testing.T) {
 	mm := updated.(*model)
 	mm.state = stRunning
 	updated, _ = mm.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	if mm := updated.(*model); mm.transcript.Viewport.Height() != 15 {
-		t.Fatalf("running viewport height = %d, want 15", mm.transcript.Viewport.Height())
+	if mm := updated.(*model); mm.transcript.Viewport.Height() != 16 {
+		t.Fatalf("running viewport height = %d, want 16", mm.transcript.Viewport.Height())
 	}
 	// Composing keeps the same budget: the hint stays put, so the
 	// layout never shifts while typing (user call: always visible).

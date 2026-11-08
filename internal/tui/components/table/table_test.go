@@ -107,3 +107,44 @@ func TestTableResizePreservesDraftAndClosePath(t *testing.T) {
 		t.Fatal("compact size message left a hidden filter active")
 	}
 }
+
+func TestListCardsUseMeasuredRowsAndWrapActions(t *testing.T) {
+	m, p := fixture()
+	p.List = true
+	p.Width, p.Height = 40, 20
+	p.Description = "Oldest first"
+	p.Columns = []Column{{Label: "Message"}}
+	p.Actions = []Action{{ID: "details", Label: "Read", Key: "enter", Enabled: true}, {ID: "edit", Label: "Edit", Key: "ctrl+e", Enabled: true}, {ID: "remove", Label: "Remove", Key: "delete", Enabled: true}, {ID: "close", Label: "Close", Key: "esc", Enabled: true}}
+	for n := range m.Rows {
+		m.Rows[n].Detail = "Queued · 1 image"
+	}
+	l := m.Layout(p)
+	body := ansi.Strip(strings.Join(l.Rows, "\n"))
+	if strings.Contains(body, "Filter:") || strings.Contains(body, "Message\n") {
+		t.Fatal("list has table controls")
+	}
+	for _, label := range []string{"ENTER Read", "CTRL+E Edit", "DEL Remove", "ESC Close"} {
+		if !strings.Contains(body, label) {
+			t.Fatal("action clipped", body)
+		}
+	}
+	x, y := max((p.Width-l.Width)/2, 0)+2, max((p.Height-len(l.Rows)-2)/2, 0)+1
+	for _, hit := range l.Hits {
+		if hit.Action == "row" && hit.Row == 1 {
+			m.Mouse(tea.MouseClickMsg{X: x + hit.X0, Y: y + hit.Y, Button: tea.MouseLeft}, p)
+			if m.Selected() != "1" {
+				t.Fatal("card detail hit selected wrong row")
+			}
+		}
+	}
+	// A click below the thumb pages even on the final physical row of a card.
+	m.Cursor, m.Offset = 0, 0
+	m.Mouse(tea.MouseClickMsg{X: x + l.Width - 5, Y: y + l.BodyTop + l.BodyHeight - 1, Button: tea.MouseLeft}, p)
+	if m.Cursor != l.Capacity {
+		t.Fatal("list track did not page", m.Cursor, l.Capacity)
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyTab}, p)
+	if m.Focus == 1 || m.Search.Focused() {
+		t.Fatal("Tab focused hidden search")
+	}
+}

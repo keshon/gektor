@@ -69,6 +69,7 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	defer m.syncSuggestions()
 	defer m.syncFocus()
 	defer m.queueSettingsDetail()
+	defer m.syncComposerHeight()
 	switch msg := msg.(type) {
 	case workflowQuit:
 		return m.requestQuit()
@@ -88,6 +89,11 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		return m, m.acceptWorkflowPoll(msg)
 	case mcpActionMsg:
 		return m, m.handleMCPAction(msg)
+	case inputQueueReturn:
+		if m.dialog == nil && m.state != stPermission && m.state != stAsk && m.sess == msg.queue.session && m.stateFile == msg.queue.stateFile {
+			m.showInputQueue(msg.queue)
+		}
+		return m, nil
 	case permissionTableMsg:
 		if m.dialog == nil && m.state != stPermission && m.state != stAsk {
 			m.openPermissionTable(msg.view)
@@ -201,6 +207,7 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		if m.hasQueued() {
 			queued := m.queued
 			if m.runErr == nil && !wasInterrupted && strings.TrimSpace(m.input.Value()) == "" && len(m.draftImages) == 0 {
+				m.queuedVersion++
 				m.queued = ""
 				m.input.SetValue(queued)
 				m.draftImages, m.queuedImages = m.queuedImages, nil
@@ -278,6 +285,10 @@ func (m *model) fitInput() {
 		// DynamicHeight counts wrapped rows and clamps the scroll offset when
 		// the composer grows, keeping earlier lines visible after a newline.
 		m.input.SetWidth(max(m.mainWidth()-m.promptOffset()-5, 1))
+		m.input.Placeholder = ""
+		if m.state == stRunning {
+			m.input.Placeholder = "Send another message…"
+		}
 	}
 }
 
@@ -289,39 +300,14 @@ func (m *model) fitBottom() {
 		return
 	}
 	defer m.refreshInspector()
-	m.input.SetWidth(max(m.mainWidth()-m.promptOffset()-5, 1))
-	// Input hints live in the status row; error details live in history.
-	lines := 1
-	// The reject stage shows label + input: two bottom lines.
-	if m.state == stPermission && m.gstage == gsReject {
-		lines = 2
-	}
-	if m.state == stAsk || m.state == stDone || m.state == stRunning || m.state == stStopping {
-		lines += m.input.Height() - 1
-	}
-	// Fixed rows cover the menu, pane header/rules, status and divider.
-	// `lines` adds per-state extras (done hint, reject label, input growth).
-	// A takeover overlay owns the bottom bar (one slim line), so it
-	// budgets nothing extra: the input hides with it.
-	if m.hasQueued() && m.state != stPermission && m.state != stAsk {
-		lines++
-	}
-	if m.pendingInputCount() > 0 && m.state != stPermission && m.state != stAsk {
-		lines += 2
-	}
-	if (len(m.draftImages) > 0 || m.clipboardBusy) && m.state != stPermission && m.state != stAsk {
-		lines++
-	}
-	if m.dialog != nil {
-		lines = 1
-	}
+	m.fitInput()
 	oldWidth := m.transcript.Viewport.Width()
 	m.fitColumns()
 	m.note.SetWidth(max(m.transcript.Viewport.Width()-10, 1))
 	if oldWidth != m.transcript.Viewport.Width() {
 		m.refreshContent()
 	}
-	h := max(m.panelGeometry(m.mainWidth(), lines+1, false, true).Body.Height, 1)
+	h := max(m.panelGeometry(m.mainWidth(), len(m.composerRows()), false, true).Body.Height, 1)
 	pinned := m.transcript.Follow && m.transcript.Viewport.AtBottom()
 	contentWidth := m.transcript.Viewport.ContentWidth()
 	m.transcript.Viewport.SetHeight(h)
@@ -613,6 +599,9 @@ func (m *model) acceptGateEvent(ev run.Event) {
 		m.closeSessions()
 	}
 	if m.dialog != nil {
+		if m.dialog.onSuspend != nil {
+			m.dialog.onSuspend()
+		}
 		m.closeDialog()
 	}
 	// The prompt lives in the transcript, not the bottom bar: the

@@ -17,6 +17,9 @@ func (m *model) activateMenuAction(command string) (tea.Model, tea.Cmd) {
 	}
 	m.closeHeader()
 	switch command {
+	case "message-queue":
+		m.openInputQueue()
+		return m, nil
 	case "permissions-info":
 		m.openPermissions()
 		return m, nil

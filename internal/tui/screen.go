@@ -8,7 +8,6 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/keshon/gektor/internal/tui/components/pane"
-	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
 // screenContent keeps the composer inside the conversation column and the
@@ -41,46 +40,7 @@ func (m *model) screenContent() string {
 	}
 	bodyHeight := m.transcript.Viewport.Height()
 	body = cellFrame(body, m.transcript.Viewport.Width(), bodyHeight)
-	var bottom string
-	switch {
-	case m.dialog != nil:
-		bottom = m.styles.dim.Render("Draft preserved")
-	case m.state == stPermission:
-		bottom = m.gateBar()
-	default:
-		bottom = m.input.View()
-		if (len(m.draftImages) > 0 || m.clipboardBusy) && m.state != stAsk {
-			bottom = cellLine(m.attachmentLine(), m.transcript.Viewport.Width()) + "\n" + bottom
-		}
-	}
-	if m.hasQueued() && m.dialog == nil && m.state != stPermission && m.state != stAsk {
-		bottom = cellLine(m.controlHints(popup.Shortcut{Key: "Ctrl+E", Action: "edit"}, popup.Shortcut{Key: "Ctrl+X", Action: "cancel"})+"  Queued: "+m.queuedLabel(), m.transcript.Viewport.Width()) + "\n" + bottom
-	}
-	if m.sess != nil && m.dialog == nil && m.state != stPermission && m.state != stAsk {
-		msg, count, claimed := m.sess.InputPreview()
-		if count > 0 {
-			preview := strings.Join(strings.Fields(msg.Content), " ")
-			if len(msg.Images) > 0 {
-				preview = fmt.Sprintf("[%d images] %s", len(msg.Images), preview)
-			}
-			label := fmt.Sprintf("Pending %d · latest: %s", count, preview)
-			hint := m.controlHints(popup.Shortcut{Key: "Ctrl+E", Action: "edit latest"}, popup.Shortcut{Key: "Ctrl+X", Action: "cancel latest"})
-			if claimed > 0 {
-				label = fmt.Sprintf("Accepted %d · waiting for active tools", claimed)
-				if count > claimed {
-					label += fmt.Sprintf(" · pending %d: %s", count-claimed, preview)
-				} else {
-					label += " · " + preview
-					hint = m.controlHints(popup.Shortcut{Key: "Esc", Action: "stop"}) + "  Accepted input cannot be recalled"
-				}
-			}
-			bottom = cellLine(label, m.transcript.Viewport.Width()) + "\n" + cellLine(hint, m.transcript.Viewport.Width()) + "\n" + bottom
-		}
-	}
-	bottom = cellFrame(bottom, m.transcript.Viewport.Width(), lipgloss.Height(bottom))
-	status := m.statusLine()
-	status = cellFrame(status, m.transcript.Viewport.Width(), lipgloss.Height(status))
-	footer := strings.Split(status+"\n"+bottom, "\n")
+	footer := m.composerRows()
 	layout := m.panelGeometry(m.mainWidth(), len(footer), false, true)
 	focused := m.dialog == nil && m.sessions == nil && !m.header.focused && (!m.inspectorVisible() || !m.inspector.focused)
 	rows := pane.Render(layout, paneHeader, body, footer, m.paneStyles(), focused)

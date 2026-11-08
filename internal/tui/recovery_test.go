@@ -44,7 +44,8 @@ func TestRunFailureAppearsOnceAndDoesNotShrinkComposer(t *testing.T) {
 	if strings.Count(view, "summary limit reached") != 1 || !strings.Contains(view, "try the summary again") {
 		t.Fatal(view)
 	}
-	if m.transcript.Viewport.Height() != height || m.input.Value() != "preserved draft" {
+	// Idle adds its normal shortcut row; the error itself stays in history.
+	if m.transcript.Viewport.Height() != height-1 || m.input.Value() != "preserved draft" {
 		t.Fatal("failure changed composer layout or draft")
 	}
 	if !strings.Contains(ansi.Strip(m.badgeLine()), "ERROR") {

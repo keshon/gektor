@@ -37,7 +37,7 @@ func TestClipboardDraftAccumulatesAndRemovesImages(t *testing.T) {
 	if err != nil || text != "compare" || len(images) != 2 || images[0] != one || images[1] != two {
 		t.Fatalf("%s %v %v", text, images, err)
 	}
-	if !strings.Contains(ansi.Strip(m.View().Content), "Alt+N remove") {
+	if !strings.Contains(ansi.Strip(m.View().Content), "ALT+N remove") {
 		t.Fatal("attachments missing from composer")
 	}
 	m.detachImage("1")

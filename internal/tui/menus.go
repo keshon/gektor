@@ -88,7 +88,7 @@ func (m *model) menuItems(menu string) []menuItem {
 		if !m.workflowActive() {
 			return []menuItem{{"Plan — read-only", "/mode plan", idle}, {"Act — allow changes", "/mode act", idle}, sep,
 				{"Stop run", "stop", m.state == stRunning}, {"Retry failed turn", "/retry", idle && m.runErr != nil && m.retryRun != nil}, sep,
-				{"Apply new messages during run", "toggle-steering", true}}
+				{"Message queue…", "message-queue", true}, {"Apply new messages during run", "toggle-steering", true}}
 		}
 		edit := idle && m.workflows.run == nil
 		return []menuItem{{"Validate recipe…", "/workflows validate", edit}, {"Run recipe…", "/workflows run", edit},
@@ -217,6 +217,8 @@ func menuShortcut(command string) string {
 		return "Ctrl+G"
 	case "latest":
 		return "Ctrl+End"
+	case "message-queue":
+		return "Alt+Q"
 	case "stop", "/workflows stop":
 		return "Esc"
 	case "/help", "help-keys":

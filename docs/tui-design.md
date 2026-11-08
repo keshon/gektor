@@ -168,6 +168,23 @@ the terminal guide and must not leak into ordinary multiline form fields.
 
 ## Shared layouts
 
+### Agent composer and message queue
+
+During a run, show one summary row above the draft: queued count, received count
+when present, and the latest message preview. The count and ALT+Q open the queue.
+The running toolbar keeps Stop, Send and Queue visible at 40 columns, even when
+the queue is empty. Run > Message queue provides the same entry point. Help and
+Newline stay available by keyboard. Do not repeat those shortcuts above the input.
+
+The queue uses the table component's list layout: main text, a detail row and
+space between messages. Its actions wrap to a second footer row when needed.
+Read shows full text and image names. Edit uses a separate form and preserves
+the composer draft. Save updates the message in place; Cancel leaves it unchanged.
+Received messages are read only. A vanished row is labeled No longer queued
+unless receipt was observed; removing a message must not imply delivery.
+Selection follows stable IDs. Edit and Remove
+check receipt atomically; a failed Save keeps the editor text visible.
+
 ### Modal
 
 A task modal has a header, a scrollable body and a fixed footer.
@@ -389,7 +406,7 @@ clear and it has a real consumer.
 | [pane](../internal/tui/components/pane/pane.go) | Main-panel frames, split regions, body/footer bounds, close targets, tab strips, action toolbars and notice rows |
 | [form](../internal/tui/components/form/form.go) | Typed controls, field groups, draft and focus behavior |
 | [selection](../internal/tui/components/selection/selection.go) | Shared selection, paging and visible-range behavior |
-| [table](../internal/tui/components/table/table.go) | Searchable rows, columns, direct actions and shared render/hit layout for management screens |
+| [table](../internal/tui/components/table/table.go) | Searchable tables or two-line list cards, direct actions and shared render/hit layout |
 | [schemaform](../internal/tui/components/schemaform/schemaform.go) | Convert schemas to those controls; preserve unsupported values for explicit JSON editing |
 | [composer](../internal/tui/components/composer/composer.go), [completion](../internal/tui/components/completion/completion.go), [gate](../internal/tui/components/gate/gate.go) | Use common styles and geometry while keeping their specific input contracts |
 | [transcript](../internal/tui/components/transcript/transcript.go) | History rendering and viewport behavior |

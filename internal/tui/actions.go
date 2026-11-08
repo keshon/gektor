@@ -34,10 +34,11 @@ func (m *model) legacyFooterActions() []footerAction {
 	}
 }
 
-// The first three actions stay in place; the middle pair follows input ownership.
+// Footer actions follow input ownership; the running composer keeps Queue visible.
 func (m *model) footerActions() []footerAction {
 	if m.dialog != nil && m.dialog.table != nil {
 		props := m.tableProps()
+
 		usable := m.dialog.table.model.Layout(props).Capacity > 0
 		enter := footerAction{tea.KeyEnter, 0, "Enter", "Choose", "Choose", false}
 		for _, action := range props.Actions {
@@ -50,6 +51,9 @@ func (m *model) footerActions() []footerAction {
 		}
 		if !usable {
 			enter = footerAction{tea.KeyEnter, 0, "Enter", "Close", "Close", true}
+		}
+		if props.List {
+			return []footerAction{enter, {tea.KeyEscape, 0, "Esc", "Close", "Close", true}}
 		}
 		return []footerAction{{'/', 0, "/", "Filter", "Filter", usable}, {tea.KeyTab, 0, "Tab", "Controls", "Next", usable},
 			enter,
@@ -93,10 +97,22 @@ func (m *model) footerActions() []footerAction {
 			}
 			return actions
 		}
+		if m.termW < 64 {
+			return []footerAction{apply, {tea.KeyEscape, 0, "Esc", "Cancel", "Cancel", true}}
+		}
 		return []footerAction{{tea.KeyTab, 0, "Tab", "Next", "Next", true}, apply, {tea.KeyEscape, 0, "Esc", "Cancel", "Cancel", true}, {'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true}}
 	}
 	if m.workflowActive() && m.dialog == nil && m.sessions == nil && !m.header.focused {
 		return m.workflowFooterActions()
+	}
+	if m.state == stRunning && m.activeInputOwner() == focusInput {
+		actions := []footerAction{{tea.KeyEscape, 0, "Esc", "Stop", "Stop", true}, {tea.KeyEnter, 0, "Enter", "Send", "Send", true}, {'q', tea.ModAlt, "Alt+Q", "Queue", "Queue", true}}
+		if m.termW >= 64 && !m.transcript.Follow {
+			actions = append(actions, footerAction{tea.KeyEnd, tea.ModCtrl, "Ctrl+End", "Latest", "End", true})
+		} else if m.termW >= 64 || len(actions) < 3 {
+			actions = append(actions, footerAction{tea.KeyF1, 0, "F1", "Help", "Help", true})
+		}
+		return actions
 	}
 	legacy := m.legacyFooterActions()
 	actions := []footerAction{

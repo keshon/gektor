@@ -20,6 +20,9 @@ func (m *model) statusLine() string {
 	}
 	if m.dialog != nil {
 		if m.dialog.table != nil {
+			if m.dialog.table.list {
+				return m.controlHints(popup.Shortcut{Key: "↑↓", Action: "select"}, popup.Shortcut{Key: "Esc", Action: "close"})
+			}
 			if m.dialog.table.model.Layout(m.tableProps()).Capacity == 0 {
 				return m.controlHints(popup.Shortcut{Key: "Esc", Action: "close"})
 			}

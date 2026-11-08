@@ -62,6 +62,11 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		switch msg.String() {
+		case "alt+q":
+			if m.state != stAsk {
+				m.openInputQueue()
+			}
+			return m, nil
 		case "ctrl+v", "ctrl+alt+v":
 			if m.state != stAsk {
 				return m, m.pasteClipboard(msg.String() == "ctrl+alt+v")
@@ -87,6 +92,7 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				}
 			}
 			if m.hasQueued() {
+				m.queuedVersion++
 				m.queued = ""
 				m.queuedImages = nil
 				m.fitBottom()
@@ -116,6 +122,7 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				}
 				m.input.SetValue(m.queued)
 				m.draftImages, m.queuedImages = m.queuedImages, nil
+				m.queuedVersion++
 				m.queued = ""
 				m.fitInput()
 				m.fitBottom()
@@ -343,6 +350,7 @@ func (m *model) conversationKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				m.appendBlock(errorBlock("wait for clipboard capture to finish"))
 				return m, nil
 			}
+			m.queuedVersion++
 			m.queued = text
 			m.queuedImages, m.draftImages = m.draftImages, nil
 			m.input.SetValue("")

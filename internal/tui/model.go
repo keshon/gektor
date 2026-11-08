@@ -106,6 +106,8 @@ type model struct {
 	suggestions               completion.State
 	gatePopup                 gate.State
 	queued                    string
+	queuedVersion             uint64
+	suspendedInputEdit        *inputQueueEdit
 	draftImages, queuedImages []string
 	clipboardBusy             bool
 	attachmentEpoch           uint64

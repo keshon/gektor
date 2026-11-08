@@ -151,7 +151,7 @@ func (m *model) attachmentLine() string {
 	for i := range m.draftImages {
 		labels = append(labels, fmt.Sprintf("[%d]", i+1))
 	}
-	return "Images " + strings.Join(labels, " ") + "  Alt+N remove"
+	return "Images " + strings.Join(labels, " ") + "  ALT+N remove"
 }
 
 func (m *model) hasQueued() bool { return m.queued != "" || len(m.queuedImages) > 0 }

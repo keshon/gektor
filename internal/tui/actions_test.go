@@ -189,7 +189,7 @@ func TestToolbarContextAndQuitProtection(t *testing.T) {
 	}
 	m.closeSessions()
 	m.state = stRunning
-	if m.footerActions()[3].label != "Stop" {
+	if m.footerActions()[0].label != "Stop" {
 		t.Fatal("run actions")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: 'q', Mod: tea.ModCtrl})
