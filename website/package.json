@@ -11,11 +11,9 @@
     "check": "node --check src/main.js && node --check scripts/prepare-assets.mjs"
   },
   "dependencies": {
-    "@fontsource/barlow-condensed": "^5.3.0",
     "@fontsource/ibm-plex-mono": "^5.3.0"
   },
   "devDependencies": {
-    "sharp": "^0.35.5",
     "vite": "^8.3.6"
   }
 }

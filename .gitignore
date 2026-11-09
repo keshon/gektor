@@ -47,5 +47,5 @@ run-serve.cmd
 /website/dist/
 /website/.vite/
 /website/design/previews/
+/website/prototypes/
 /website/*.log
-!/website/design/sources/*.png

@@ -1,10 +1,3 @@
-const header = document.querySelector('.masthead');
-const hero = document.querySelector('.hero');
-const observer = new IntersectionObserver(([entry]) => {
-  header.classList.toggle('masthead--content', !entry.isIntersecting);
-}, { rootMargin: '-110px 0px 0px 0px' });
-observer.observe(hero);
-
 const tabs = [...document.querySelectorAll('[role="tab"]')];
 let platform = 'windows';
 function selectPlatform(next, focus = false) {
@@ -41,5 +34,3 @@ document.querySelector('#copy-command').addEventListener('click', async () => {
     status.textContent = 'Could not copy. Select the command and copy it manually.';
   }
 });
-
-if (import.meta.hot) import.meta.hot.dispose(() => observer.disconnect());

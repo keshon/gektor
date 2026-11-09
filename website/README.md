@@ -45,16 +45,20 @@ npm --prefix website run build
 npm --prefix website run preview
 ```
 
-## Artwork and copy
+## Screenshot and copy
 
-Runtime WebP files are in `public/images/`. Approved desktop and portrait PNG
-sources and generation prompts are in `design/`. Regenerate WebP files with
-`npm --prefix website run assets`. Sources are exported at native size and quality 94,
-without sharpening or added grain. Portrait viewports below 1000px use the separate
-portrait composition. The scene is static; reduced motion disables smooth scrolling.
+The page uses a system sans-serif font. IBM Plex Mono is bundled for the logo
+and command examples, with its license notice in `public/licenses/`.
 
-Barlow Condensed and IBM Plex Mono are bundled with their license notices in
-`public/licenses/`.
+The terminal screenshot source is `../docs/images/gektor-demo.webp`.
+Run `npm --prefix website run assets` after replacing it. The script copies the
+WebP unchanged into `public/images/gektor-terminal.webp` and updates its cache
+version in `index.html`. If its dimensions or contents change, update the image's
+`width`, `height`, alt text and caption in `index.html` as appropriate.
+
+Local design experiments and archived artwork live in `prototypes/`, which is
+ignored by Git and excluded from the production build. Local review screenshots
+in `design/previews/` are also ignored.
 
 Copy is checked against GEKTOR's README, terminal and workflow guides, provider
 catalog, CLI flags, and Windows launcher. Recheck claims and connection defaults

@@ -1,15 +1,21 @@
-import sharp from 'sharp';
-import { mkdir } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 
-await mkdir(new URL('../public/images/', import.meta.url), { recursive: true });
-for (const [source, name, quality] of [
-  ['city-dusk-source.png', 'city-dusk', 84],
-  ['city-dusk-mobile-source.png', 'city-dusk-mobile', 94],
-]) {
-  // Export the approved desktop and portrait compositions at their native sizes.
-  // No sharpening or grain is added. Quality is tuned for each composition.
-  await sharp(fileURLToPath(new URL(`../design/sources/${source}`, import.meta.url)))
-    .webp({ quality, effort: 6, smartSubsample: true })
-    .toFile(fileURLToPath(new URL(`../public/images/${name}.webp`, import.meta.url)));
+// The source is the actual terminal screenshot, already exported as WebP.
+// Copy its bytes unchanged so asset preparation cannot restore an older image.
+const source = new URL('../../docs/images/gektor-demo.webp', import.meta.url);
+const target = new URL('../public/images/gektor-terminal.webp', import.meta.url);
+const bytes = await readFile(source);
+if (bytes.toString('ascii', 0, 4) !== 'RIFF' || bytes.toString('ascii', 8, 12) !== 'WEBP') {
+  throw new Error('docs/images/gektor-demo.webp must be a WebP image');
 }
+await mkdir(new URL('../public/images/', import.meta.url), { recursive: true });
+await copyFile(source, target);
+
+const version = createHash('sha256').update(bytes).digest('hex').slice(0, 12);
+const index = new URL('../index.html', import.meta.url);
+const html = await readFile(index, 'utf8');
+const updated = html.replace(/images\/gektor-terminal\.webp(?:\?v=[a-f0-9]+)?/g,
+  `images/gektor-terminal.webp?v=${version}`);
+if (updated !== html) await writeFile(index, updated);
+console.log(`Terminal screenshot copied unchanged (${bytes.length} bytes).`);
