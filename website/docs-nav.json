@@ -3,210 +3,249 @@
     "source": "docs/README.md",
     "title": "Documentation",
     "section": "Get started",
-    "route": "/docs/"
+    "route": "/docs/",
+    "description": "Find GEKTOR setup instructions, task guides, CLI and workflow references, runnable examples and contributor documentation."
   },
   {
     "source": "docs/start.md",
     "title": "Your first run",
     "section": "Get started",
-    "route": "/docs/start/"
+    "route": "/docs/start/",
+    "description": "Download GEKTOR, choose a workspace and run your first Agent task or a saved workflow that needs no model connection."
   },
   {
     "source": "docs/guide/agent.md",
     "title": "Work on a project with Agent",
     "section": "Guides",
-    "route": "/docs/guides/agent/"
+    "route": "/docs/guides/agent/",
+    "description": "Plan a coding task, allow edits, inspect tool results and manage follow-up messages in the GEKTOR Agent. Learn how stopping and retrying affect your work."
   },
   {
     "source": "docs/guide/workflows.md",
     "title": "Run and edit a workflow",
     "section": "Guides",
-    "route": "/docs/guides/workflows/"
+    "route": "/docs/guides/workflows/",
+    "description": "Open, edit, validate and run a GEKTOR workflow recipe. Supply inputs, review paused steps and inspect saved results without needing a model for every operation."
   },
   {
     "source": "docs/guide/models.md",
     "title": "Connect a model",
     "section": "Guides",
-    "route": "/docs/guides/models/"
+    "route": "/docs/guides/models/",
+    "description": "Configure a local model server, an OpenAI-compatible API or a ChatGPT account for GEKTOR. Check connection settings and context budgets.",
+    "seoTitle": "Connect llama.cpp, LM Studio or ChatGPT to GEKTOR"
   },
   {
     "source": "docs/guide/sessions.md",
     "title": "Reopen a conversation and manage context",
     "section": "Guides",
-    "route": "/docs/guides/sessions/"
+    "route": "/docs/guides/sessions/",
+    "description": "Reopen a GEKTOR conversation, restore its workspace and manage long context. Learn what compaction preserves and how the Agent searches saved history."
   },
   {
     "source": "docs/guide/files-and-images.md",
     "title": "Read documents and attach files",
     "section": "Guides",
-    "route": "/docs/guides/files-and-images/"
+    "route": "/docs/guides/files-and-images/",
+    "description": "Attach text files and images to GEKTOR or read DOCX, XLSX and PDF documents with native tools. Check attachment limits, vision requirements and text continuation.",
+    "seoTitle": "Read documents and attach files or images in GEKTOR"
   },
   {
     "source": "docs/guide/browser.md",
     "title": "Check an app in a browser",
     "section": "Guides",
-    "route": "/docs/guides/browser/"
+    "route": "/docs/guides/browser/",
+    "description": "Enable Chrome or Edge in GEKTOR to check a running app. Set up browser dependencies, use a dedicated profile, complete manual login and inspect page results.",
+    "seoTitle": "Check an app with Chrome or Edge in GEKTOR"
   },
   {
     "source": "docs/guide/extensions.md",
     "title": "Connect tools and skill libraries",
     "section": "Guides",
-    "route": "/docs/guides/extensions/"
+    "route": "/docs/guides/extensions/",
+    "description": "Connect MCP servers and use skill libraries in GEKTOR. Manage saved connections, discover optional tools and understand skill loading and permissions."
   },
   {
     "source": "docs/guide/automation.md",
     "title": "Schedule and queue workflows",
     "section": "Guides",
-    "route": "/docs/guides/automation/"
+    "route": "/docs/guides/automation/",
+    "description": "Schedule GEKTOR workflows and process queued jobs with a local worker. Configure triggers, inspect snapshots and handle reviews under the service permission rules."
   },
   {
     "source": "docs/guide/permissions.md",
     "title": "Review permissions and changes",
     "section": "Guides",
-    "route": "/docs/guides/permissions/"
+    "route": "/docs/guides/permissions/",
+    "description": "Review GEKTOR permission requests and policy rules before allowing an action. Understand run-scoped approvals and the limits of the workspace boundary."
   },
   {
     "source": "docs/guide/troubleshooting.md",
     "title": "Diagnose a failed task",
     "section": "Guides",
-    "route": "/docs/guides/troubleshooting/"
+    "route": "/docs/guides/troubleshooting/",
+    "description": "Diagnose GEKTOR connection failures, failed tools and workflow editor problems. Find detailed errors and diagnostics before retrying completed work."
   },
   {
     "source": "docs/reference/cli.md",
     "title": "CLI reference",
     "section": "Reference",
-    "route": "/docs/reference/cli/"
+    "route": "/docs/reference/cli/",
+    "description": "Look up GEKTOR command syntax, flags, profiles and Windows launchers. Run Agent tasks, manage saved workflows and operate the workflow service."
   },
   {
     "source": "docs/reference/configuration.md",
     "title": "Configuration and stored data",
     "section": "Reference",
-    "route": "/docs/reference/configuration/"
+    "route": "/docs/reference/configuration/",
+    "description": "Look up GEKTOR configuration precedence, profile files, stored data and capability-file formats, including executable adapter protocols."
   },
   {
     "source": "docs/reference/terminal.md",
     "title": "Terminal controls",
     "section": "Reference",
-    "route": "/docs/reference/terminal/"
+    "route": "/docs/reference/terminal/",
+    "description": "Find GEKTOR terminal menus, keyboard shortcuts, local commands and settings controls for Agent and Workflows."
   },
   {
     "source": "docs/reference/recipes.md",
     "title": "Recipe format and execution",
     "section": "Reference",
-    "route": "/docs/reference/recipes/"
+    "route": "/docs/reference/recipes/",
+    "description": "Define GEKTOR workflow recipes with typed inputs, data mappings, conditions, iteration, reviews, retries and reusable subworkflow calls."
   },
   {
     "source": "docs/reference/operations.md",
     "title": "Operations and tool limits",
     "section": "Reference",
-    "route": "/docs/reference/operations/"
+    "route": "/docs/reference/operations/",
+    "description": "Look up GEKTOR native tool and workflow operation contracts, including document readers, images, archives, HTTP requests, artifacts and local programs."
   },
   {
     "source": "docs/reference/http-api.md",
     "title": "Workflow HTTP API",
     "section": "Reference",
-    "route": "/docs/reference/http-api/"
+    "route": "/docs/reference/http-api/",
+    "description": "Configure GEKTOR workflow HTTP submission and webhook routes. Look up authentication, request limits, error responses and idempotent delivery."
   },
   {
     "source": "docs/reference/rpc.md",
     "title": "Agent stdio RPC",
     "section": "Reference",
-    "route": "/docs/reference/rpc/"
+    "route": "/docs/reference/rpc/",
+    "description": "Integrate GEKTOR Agent through its stdio RPC protocol. Look up run, respond and cancel requests, event handling, permission gates and client lifecycle.",
+    "seoTitle": "GEKTOR Agent stdio RPC reference"
   },
   {
     "source": "docs/development/README.md",
     "title": "Build and contribute",
     "section": "Development",
-    "route": "/docs/development/"
+    "route": "/docs/development/",
+    "description": "Build GEKTOR from source and find contributor guidance for architecture, conventions, testing, terminal components, documentation and release packaging."
   },
   {
     "source": "docs/development/conventions.md",
     "title": "Project conventions",
     "section": "Development",
-    "route": "/docs/development/conventions/"
+    "route": "/docs/development/conventions/",
+    "description": "Read GEKTOR project conventions, including enforced dependency boundaries, code practices, CLI documentation coverage and the checks that maintain them."
   },
   {
     "source": "docs/development/testing.md",
     "title": "Test and verify a change",
     "section": "Development",
-    "route": "/docs/development/testing/"
+    "route": "/docs/development/testing/",
+    "description": "Run GEKTOR project checks and verify session recovery in a real terminal. Find opt-in browser integration checks and links to the model eval runner."
   },
   {
     "source": "docs/development/tui.md",
     "title": "Terminal architecture and interaction contracts",
     "section": "Development",
-    "route": "/docs/development/tui/"
+    "route": "/docs/development/tui/",
+    "description": "Understand GEKTOR terminal component ownership and interaction contracts for layouts, forms, menus, selection, inspectors and workflow graphs."
   },
   {
     "source": "docs/development/writing.md",
     "title": "Write and maintain documentation",
     "section": "Development",
-    "route": "/docs/development/writing/"
+    "route": "/docs/development/writing/",
+    "description": "Maintain human-first GEKTOR documentation with clear article ownership, readable technical prose, compatible links and checked website publication."
   },
   {
     "source": "ARCHITECTURE.md",
     "title": "Architecture",
     "section": "Development",
-    "route": "/docs/development/architecture/"
+    "route": "/docs/development/architecture/",
+    "description": "Explore GEKTOR runtime ownership across the Agent loop, model providers, tools, sessions, permissions, terminal UI and workflow engine."
   },
   {
     "source": "SECURITY.md",
     "title": "Security policy",
     "section": "Development",
-    "route": "/docs/development/security/"
+    "route": "/docs/development/security/",
+    "description": "Read the GEKTOR security policy and trust boundaries for workspace access, processes, network tools, credentials and external integrations."
   },
   {
     "source": "eval/README.md",
     "title": "Eval runner",
     "section": "Development",
-    "route": "/docs/development/evals/"
+    "route": "/docs/development/evals/",
+    "description": "Run and interpret GEKTOR model evals using isolated fixtures and scored results. Compare tool use, task outcomes, budgets and available usage measurements."
   },
   {
     "source": "examples/workflows/README.md",
     "title": "Workflow examples",
     "section": "Examples",
-    "route": "/examples/"
+    "route": "/examples/",
+    "description": "Choose a runnable GEKTOR workflow example by task and requirements, from model-free transforms and log reports to webhooks and model-assisted drafts."
   },
   {
     "source": "examples/workflows/transform-and-review/README.md",
     "title": "Transform and review",
     "section": "Examples",
-    "route": "/examples/transform-and-review/"
+    "route": "/examples/transform-and-review/",
+    "description": "Try a GEKTOR workflow that doubles a list of numbers and pauses for approval. Validate, run and review the recipe without a model or network connection."
   },
   {
     "source": "examples/workflows/log-report/README.md",
     "title": "Log error report",
     "section": "Examples",
-    "route": "/examples/log-report/"
+    "route": "/examples/log-report/",
+    "description": "Run a model-free GEKTOR workflow that captures a log, extracts error lines and pauses before saving a Markdown report artifact."
   },
   {
     "source": "examples/workflows/subworkflow/README.md",
     "title": "Reusable report workflow",
     "section": "Examples",
-    "route": "/examples/subworkflow/"
+    "route": "/examples/subworkflow/",
+    "description": "Call a reusable GEKTOR report recipe and return named outputs. Follow nested reviews and inspect the saved parent run without a model connection."
   },
   {
     "source": "examples/workflows/process-report/README.md",
     "title": "Local program report",
     "section": "Examples",
-    "route": "/examples/process-report/"
+    "route": "/examples/process-report/",
+    "description": "Use a GEKTOR workflow to send captured data to a local Python program and retain its output and diagnostics in the run record."
   },
   {
     "source": "examples/workflows/repository-report/README.md",
     "title": "Repository report",
     "section": "Examples",
-    "route": "/examples/repository-report/"
+    "route": "/examples/repository-report/",
+    "description": "Fetch public GitHub repository data with a GEKTOR workflow, review a report and save revision-checked records. A model-assisted version is optional."
   },
   {
     "source": "examples/workflows/webhook-note/README.md",
     "title": "Webhook note",
     "section": "Examples",
-    "route": "/examples/webhook-note/"
+    "route": "/examples/webhook-note/",
+    "description": "Submit note jobs to a local GEKTOR workflow service with authenticated routes and idempotency keys. Inspect jobs and stored results without a model."
   },
   {
     "source": "examples/workflows/moltbook-draft/README.md",
     "title": "Read a feed and save a draft",
     "section": "Examples",
-    "route": "/examples/moltbook-draft/"
+    "route": "/examples/moltbook-draft/",
+    "description": "Combine a public Moltbook feed, model output and saved state in a GEKTOR workflow. Review the example requirements and keep the generated draft local."
   }
 ]

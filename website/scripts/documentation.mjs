@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { Marked, Renderer } from 'marked';
 import GithubSlugger from 'github-slugger';
 import navigation from '../docs-nav.json' with { type: 'json' };
+import { escape, homepage, injectHomepageMetadata, renderMetadata, renderRobots, renderSitemap, site } from './site-metadata.mjs';
 
 export const root = fileURLToPath(new URL('../../', import.meta.url));
 export const pages = navigation;
@@ -21,7 +22,47 @@ for (const page of pages) {
 export const revision = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
 const localChanges = execFileSync('git', ['status', '--porcelain', '--', 'docs', 'examples/workflows', 'ARCHITECTURE.md', 'SECURITY.md', 'eval/README.md'], { cwd: root, encoding: 'utf8' }).trim() !== '';
 const repository = 'https://github.com/keshon/gektor';
-export const escape = text => String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+export { escape };
+export const markdownRoute = page => page.route + 'index.md';
+
+export function renderLLMs() {
+  const groups = [...new Set(pages.map(page => page.section))];
+  return `# GEKTOR\n\n> ${homepage.description}\n\nThese pages describe the current development source. Release archives include documentation from their own revision. Follow individual links as needed.\n\n${groups.map(group => `## ${group}\n\n${pages.filter(page => page.section === group).map(page => `- [${page.title}](${site.origin}${markdownRoute(page)}): ${page.description}`).join('\n')}`).join('\n\n')}\n`;
+}
+
+// Preserve the source prose and code; only link destinations change for publication.
+export function renderMarkdown(page) {
+  const source = fs.readFileSync(path.join(root, page.source), 'utf8');
+  return publishMarkdown(page.source, source);
+}
+
+export function publishMarkdown(sourcePath, source) {
+  source = source.replaceAll('\r\n', '\n');
+  const marked = new Marked();
+  const edits = [];
+  let cursor = 0;
+  marked.walkTokens(marked.lexer(source), token => {
+    if (!['link', 'image', 'code', 'codespan', 'html'].includes(token.type)) return;
+    const start = source.indexOf(token.raw, cursor);
+    if (start < 0) throw new Error(`Cannot locate Markdown token in ${sourcePath}`);
+    cursor = start + token.raw.length;
+    if (token.type !== 'link' && token.type !== 'image') return;
+    const target = localTarget(sourcePath, token.href);
+    if (!target) return;
+    const published = bySource.get(target.file);
+    const href = published
+      ? site.origin + markdownRoute(published) + (target.fragment ? `#${encodeURIComponent(target.fragment)}` : '')
+      : new URL(siteLink(sourcePath, token.href), site.origin).href;
+    // Reference-style links are expanded, so their definitions need no rewriting.
+    const inlineEnd = token.raw.indexOf('](');
+    const referenceEnd = token.raw.lastIndexOf('][');
+    const labelEnd = inlineEnd >= 0 ? inlineEnd : referenceEnd >= 0 ? referenceEnd : token.raw.lastIndexOf(']');
+    const title = token.title ? ` "${token.title.replaceAll('"', '&quot;')}"` : '';
+    edits.push({ start, end: cursor, text: `${token.raw.slice(0, labelEnd + 1)}(<${href}>${title})` });
+  });
+  for (const edit of edits.reverse()) source = source.slice(0, edit.start) + edit.text + source.slice(edit.end);
+  return source;
+}
 export function basePath(value = '/') {
   return `/${value.split('/').filter(Boolean).join('/')}${value.split('/').filter(Boolean).length ? '/' : ''}`;
 }
@@ -81,7 +122,7 @@ export function renderPage(page, base = '/') {
   const navigation = groups.map(group => `<section><h2>${escape(group)}</h2><ul>${pages.filter(p => p.section === group).map(p => `<li><a href="${base + p.route.slice(1)}"${p === page ? ' aria-current="page"' : ''}>${escape(p.title)}</a></li>`).join('')}</ul></section>`).join('');
   const index = pages.indexOf(page), previous = pages[index - 1], next = pages[index + 1];
   const adjacent = (p, label) => p && p.section === page.section ? `<a href="${base + p.route.slice(1)}">${label}: ${escape(p.title)}</a>` : '<span></span>';
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark"><title>${escape(page.title)} · GEKTOR</title><link rel="icon" href="${base}favicon.svg"><link rel="stylesheet" href="${base}docs.css"><script src="${base}docs.js" defer></script></head><body>
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark">${renderMetadata(page)}<link rel="icon" href="${base}favicon.svg"><link rel="stylesheet" href="${base}docs.css"><script src="${base}docs.js" defer></script></head><body>
 <a class="skip-link" href="#content">Skip to content</a>
 <header class="docs-header"><a class="wordmark" href="${base}">GEKTOR</a><nav aria-label="Main navigation"><a href="${base}docs/start/">Get started</a><a href="${base}docs/">Docs</a><a href="${base}examples/">Examples</a><a href="${repository}">GitHub</a></nav></header>
 <div class="docs-layout"><details class="docs-navigation" open><summary>Documentation menu</summary><nav aria-label="Documentation">${navigation}</nav></details>
@@ -94,8 +135,18 @@ export function documentationPlugin() {
   return {
     name: 'gektor-documentation',
     configResolved(config) { base = basePath(config.base); },
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html, context) { return context.path === '/index.html' ? injectHomepageMetadata(html) : html; },
+    },
     generateBundle() {
-      for (const page of pages) this.emitFile({ type: 'asset', fileName: page.route.slice(1) + 'index.html', source: renderPage(page, base) });
+      for (const page of pages) {
+        this.emitFile({ type: 'asset', fileName: page.route.slice(1) + 'index.html', source: renderPage(page, base) });
+        this.emitFile({ type: 'asset', fileName: markdownRoute(page).slice(1), source: renderMarkdown(page) });
+      }
+      this.emitFile({ type: 'asset', fileName: 'llms.txt', source: renderLLMs() });
+      this.emitFile({ type: 'asset', fileName: 'sitemap.xml', source: renderSitemap(pages) });
+      this.emitFile({ type: 'asset', fileName: 'robots.txt', source: renderRobots() });
       for (const name of ['docs.css', 'docs.js']) this.emitFile({ type: 'asset', fileName: name, source: fs.readFileSync(path.join(root, 'website/src', name)) });
       for (const name of fs.readdirSync(path.join(root, 'docs/images'))) {
         const source = `docs/images/${name}`;
@@ -107,7 +158,18 @@ export function documentationPlugin() {
         const url = new URL(req.url, 'http://localhost').pathname;
         const page = pages.find(p => base + p.route.slice(1) === url);
         if (page) { res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(renderPage(page, base)); return; }
+        const markdownPage = pages.find(p => base + markdownRoute(p).slice(1) === url);
+        if (markdownPage || url === base + 'llms.txt') {
+          res.setHeader('Content-Type', markdownPage ? 'text/markdown; charset=utf-8' : 'text/plain; charset=utf-8');
+          res.end(markdownPage ? renderMarkdown(markdownPage) : renderLLMs());
+          return;
+        }
         const name = url.slice(base.length);
+        if (name === 'sitemap.xml' || name === 'robots.txt') {
+          res.setHeader('Content-Type', name === 'sitemap.xml' ? 'application/xml; charset=utf-8' : 'text/plain; charset=utf-8');
+          res.end(name === 'sitemap.xml' ? renderSitemap(pages) : renderRobots());
+          return;
+        }
         let file;
         if (['docs.css', 'docs.js'].includes(name)) file = path.join(root, 'website/src', name);
         if (name.startsWith('doc-assets/docs/images/') && !name.includes('..')) file = path.join(root, name.slice('doc-assets/'.length));

@@ -87,3 +87,61 @@ not implemented.
 checks every generated HTML link, anchor and asset after Vite finishes. Test both
 `SITE_BASE_PATH=/` and a project path such as `/gektor/` when changing publication.
 The Website workflow watches docs and examples as well as website sources.
+
+## Search metadata and crawler files
+
+Each `docs-nav.json` article has a required, human-written `description` and an
+optional `seoTitle`. The ordinary `title` remains its navigation label. Descriptions
+should explain what that page helps a reader do; keep them accurate and distinct.
+
+`scripts/site-metadata.mjs` owns the production origin, homepage metadata and
+shared social-preview image. The documentation renderer uses it for article
+heads. The Vite HTML hook replaces the single `site-metadata` marker in
+`index.html` with the homepage head tags. Metadata is present in the initial
+HTML response; no client-side script inserts it.
+
+Canonical and social URLs identify `https://gektor.keshon.ru` even in a local
+`SITE_BASE_PATH=/gektor/` preview. The base path changes served navigation and
+assets, not production identity. A different production domain or hosting path
+requires an explicit metadata configuration change.
+
+The plugin generates `sitemap.xml` from the publication list plus the homepage.
+It includes only canonical page routes, with no fabricated modification times.
+`robots.txt` uses policy A: public crawling is allowed and the production sitemap
+is advertised. No new training-specific restrictions are added. Search and
+training crawler policies can be changed separately after an explicit decision.
+
+Both files are generated for production builds and served in local development.
+Production uses the custom domain's root `/robots.txt`; a project-path preview's
+`/gektor/robots.txt` does not control crawling for that host's root.
+
+The existing WebP terminal screenshot is the shared social image. Asset
+preparation still updates the landing page's image cache version; social tags
+use the stable public image URL. No per-page image generator is involved.
+
+`npm run check` verifies metadata inputs, escaping, publication and crawler rules.
+`npm run build` also checks titles, descriptions, canonicals and social tags in
+every generated HTML head, and verifies sitemap membership and robots policy.
+Run builds at `/` and `/gektor/` after changing URL behavior. Account verification,
+analytics, structured data and tutorial expansion are separate follow-ups.
+
+## Agent documentation access
+
+The same plugin generates `/llms.txt` from the publication list, using its section
+names, titles and descriptions. Each entry links to an article's `index.md`, for
+example `/docs/start/index.md`. These are generated from the canonical sources;
+there are no separately maintained article copies or combined full-site dump.
+
+Markdown exports retain the source prose and code examples. Published article
+links point to their Markdown versions; images use public asset URLs and omitted
+sources use revision-pinned GitHub links. Destinations are absolute production
+URLs, including in project-path previews. HTML heads advertise the index through
+`rel="describedby"` and each article's Markdown through `rel="alternate"`.
+
+Both production and development serve the agent files. The checks verify index
+membership, generated destinations and anchors, discovery tags, and preservation
+of article content and code examples. New Markdown link forms must pass those
+checks before publication. Internal plans, prompts and skills remain excluded.
+
+`llms.txt` is an optional entry point for tools that support it. It is not a
+search-crawler permission file and does not promise better search rankings.
