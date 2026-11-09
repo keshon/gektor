@@ -40,13 +40,16 @@ func TestStatusReportsOwnershipAndLinkedRunsWithoutExecuting(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer writer.Close()
-	if err := writer.Save(automation.Run{Status: "completed", RecipePath: "recipe.json", Started: time.Now(), Definition: automation.Definition{Name: "Test"}}); err != nil {
+	if err := writer.Save(automation.Run{Status: "completed", RecipePath: "recipe.json", Started: time.Now(), Definition: automation.Definition{Name: "Test"}, Steps: []automation.StepResult{{ID: "@outputs", Status: "completed", Output: `{"status":"stale"}`}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.UpdateJob(t.Context(), jobs[0].ID, func(j *store.Job) error { j.Status = "completed"; j.RunID = writer.ID(); return nil }); err != nil {
 		t.Fatal(err)
 	}
-	tool := Status{WS: ws, StoreDir: base}
+	if err := ws.WriteFile("recipe.json", trigger.Source, 0600); err != nil {
+		t.Fatal(err)
+	}
+	tool := Status{WS: ws, StoreDir: base, CheckSource: allow}
 	check := func(held bool, schedule string, count int) {
 		t.Helper()
 		out, err := tool.Run(t.Context(), json.RawMessage(`{"schedule_id":"`+schedule+`","limit":1}`))
@@ -71,6 +74,10 @@ func TestStatusReportsOwnershipAndLinkedRunsWithoutExecuting(t *testing.T) {
 		if count > 0 && (status.Jobs[0].RunID != writer.ID() || status.Runs[0].ID != writer.ID()) {
 			t.Fatal(out)
 		}
+	}
+	out, err := tool.Run(t.Context(), json.RawMessage(`{"schedule_id":"minute"}`))
+	if err != nil || !strings.Contains(out, `"snapshot":{"state":"unchanged"}`) || !strings.Contains(out, `"outputs":{"value":{"status":"stale"}`) || !strings.Contains(out, `"scheduled_for"`) {
+		t.Fatal(out, err)
 	}
 	check(false, "minute", 1)
 	lease, err := db.DaemonLease()

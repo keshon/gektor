@@ -13,6 +13,7 @@ import (
 // ExecuteJob shares cancellation and final persistence with operator continuation.
 func (s Service) ExecuteJob(ctx context.Context, db *store.Store, job store.Job) error {
 	current := s
+	current.ScheduleID, current.ScheduledFor = job.Schedule, job.ScheduledFor
 	current.OnRun = func(id string) error {
 		return db.UpdateJob(ctx, job.ID, func(j *store.Job) error { j.RunID = id; return nil })
 	}

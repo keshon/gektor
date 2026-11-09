@@ -260,7 +260,24 @@ the workspace. `record_path` is absolute; `run_id` is the inspection handle.
 
 Use `gektor workflow runs -workspace .` to list runs, and
 `gektor workflow inspect -workspace . <run-id>` for the full record. The model
-can use `workflow_inspect` with `{"run_id":"..."}`. Inspection reports
+can use `workflow_inspect` with `{"run_id":"..."}` for a compact summary.
+The summary includes execution status, timing, step counts, failures and declared
+outputs. A recipe's output, such as `status: stale`, keeps its own meaning;
+`completed` only describes execution.
+
+Use `view: "steps"` for a step list, or `view: "step"` with `step_id` for one
+step's resolved arguments and output. `view: "full"` returns the full stored
+record. Summary and step values use `{value, bytes, omitted}`: `value` contains
+the JSON value when present; values over 8 KiB are omitted with their byte size.
+Use `pointer` to select a small field before that limit is applied. In summary
+view it selects inside the declared outputs; in step view it selects inside
+that step's output. For example:
+
+```json
+{"run_id":"...","pointer":"/summary/status"}
+```
+
+Inspection reports
 `interrupted` when a persisted running run no longer holds its OS process lock;
 the recorded status remains unchanged. A crash can leave partial step effects.
 Each completed step is saved before the next step is prepared. If saving fails,
@@ -515,8 +532,25 @@ and validating a recipe, this schedules it every minute:
 Use `paused: true` when creating a trigger that should remain disabled.
 To update a trigger, first list it and pass its `expected_revision`. Omitted
 settings stay unchanged. Set `refresh_recipe: true` to replace its frozen recipe.
-Use `workflow_status` to find jobs and run IDs, then `workflow_inspect` to check
-actual outputs. A held worker lease shows queue ownership, not worker health.
+Use `workflow_status` with `schedule_id` for schedule settings, next due time,
+the latest job, the latest run with declared outputs, and snapshot changes.
+A queued job can be newer than the last run; both are shown separately. Use
+`workflow_inspect` when you need more detail. A held worker lease shows queue
+ownership, not worker health. These are saved observations, not an atomic health
+check.
+
+Both `workflow_status` and `workflow_schedules` report snapshot state as
+`unchanged`, `changed` or `unavailable`. Comparison covers the saved root and
+called recipes, ignoring JSON spacing and object key order. A changed parent
+also signals changes to its dependency list. Unreadable or missing files are
+reported separately; inspection never asks for additional file access or
+refreshes a snapshot. Use `refresh_recipe: true` explicitly after reviewing changes.
+
+New scheduled jobs and their run records save `schedule_id` (named `schedule`
+in the full job record) and `scheduled_for`, the intended trigger time. The job's
+`created` time and the run's `started` time describe later stages. Manual jobs
+and older records have no intended trigger time. This metadata is for inspection;
+recipes do not gain a new `$run` reference.
 
 Creating a schedule does not start the service or execute the recipe.
 The service uses its own permission rules. These triggers use the same store

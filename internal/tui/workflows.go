@@ -42,6 +42,8 @@ type workflowWorkspace struct {
 	run                      *automation.Run
 	runID                    string
 	schedules                []store.Schedule
+	scheduleStatus           []service.ScheduleInspection
+	workerLeaseHeld          bool
 }
 
 // setNotice replaces both text and severity; a later update must not inherit
@@ -52,12 +54,14 @@ func (w *workflowWorkspace) setNotice(level pane.NoticeLevel, text string) {
 
 type workflowAction struct{ action, value string }
 type workflowResult struct {
-	text         string
-	err          error
-	source, path string
-	action       string
-	schedules    []store.Schedule
-	scheduleID   string
+	text            string
+	err             error
+	source, path    string
+	action          string
+	schedules       []store.Schedule
+	scheduleStatus  []service.ScheduleInspection
+	workerLeaseHeld bool
+	scheduleID      string
 }
 type workflowPermission struct {
 	tool, resource string

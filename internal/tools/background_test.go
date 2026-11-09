@@ -64,6 +64,9 @@ func TestBackgroundProcesses_StartCheckStop(t *testing.T) {
 	if id == "" {
 		t.Fatalf("could not parse id from: %q", out)
 	}
+	if info, _, err := procs.Inspect(id); err != nil || info.Command != longRunningCommand {
+		t.Fatal("lost original shell command", info, err)
+	}
 
 	check := CheckBackground{Procs: procs}
 	cArgs, _ := json.Marshal(map[string]any{"id": id, "cursor": 0})

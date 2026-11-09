@@ -52,6 +52,8 @@ type StepResult struct {
 	Error  string          `json:"error,omitempty"`
 }
 type Run struct {
+	ScheduleID   string                     `json:"schedule_id,omitempty"`
+	ScheduledFor *time.Time                 `json:"scheduled_for,omitempty"`
 	Approved     map[string]bool            `json:"approved,omitempty"`
 	RunID        string                     `json:"run_id,omitempty"`
 	Workspace    string                     `json:"workspace,omitempty"`

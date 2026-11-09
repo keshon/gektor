@@ -88,14 +88,14 @@ func (m *model) menuItems(menu string) []menuItem {
 		if !m.workflowActive() {
 			return []menuItem{{"Plan — read-only", "/mode plan", idle}, {"Act — allow changes", "/mode act", idle}, sep,
 				{"Stop run", "stop", m.state == stRunning}, {"Retry failed turn", "/retry", idle && m.runErr != nil && m.retryRun != nil}, sep,
-				{"Message queue…", "message-queue", true}, {"Apply new messages during run", "toggle-steering", true}}
+				{"Message queue…", "message-queue", true}, {"Background processes…", "/processes", true}, {"Apply new messages during run", "toggle-steering", true}}
 		}
 		edit := idle && m.workflows.run == nil
 		return []menuItem{{"Validate recipe…", "/workflows validate", edit}, {"Run recipe…", "/workflows run", edit},
 			{"Stop run", "/workflows stop", m.workflows.busy}, sep, {"Run history…", "/workflows runs", idle},
 			{"Review run…", "/workflows review", idle && m.workflows.run != nil}, {"Return to recipe", "/workflows draft", idle && m.workflows.run != nil}, sep,
 			{"Set up schedule…", "/workflows schedule", edit}, {"Refresh schedule status", "/workflows schedule-refresh", idle}, sep,
-			{"Run with JSON inputs…", "/workflows run-json", edit}}
+			{"Run with JSON inputs…", "/workflows run-json", edit}, sep, {"Background processes…", "/processes", true}}
 	case "view":
 		if m.workflowActive() {
 			return []menuItem{{"Inspector", "/workflows inspector", true}, {"Raw inspection data", "/workflows raw-details", true}, sep,

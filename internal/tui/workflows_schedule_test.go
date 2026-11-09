@@ -145,6 +145,10 @@ func TestScheduleTriggerRunsSavedInputsAndCanPauseAndRemove(t *testing.T) {
 		t.Fatal(r.err)
 	}
 	m.acceptWorkflowResult(r)
+	details := strings.Join(m.workflowScheduleDetails(w.schedules[0]), "\n")
+	if !strings.Contains(details, "Last job: completed") || !strings.Contains(details, "Last run: completed") || !strings.Contains(details, "Scheduled for:") {
+		t.Fatal(details)
+	}
 	if w.graph.Nodes[0].Point != (graph.Point{X: 4, Y: 12}) {
 		t.Fatal("trigger position lost", w.graph.Nodes)
 	}
@@ -294,7 +298,13 @@ func TestScheduleFreezesCalledRecipe(t *testing.T) {
 		t.Fatal("called recipe was not frozen", w.schedules)
 	}
 	w.graph.Selected = workflowSchedulePrefix + w.schedules[0].ID
-	if strings.Contains(strings.Join(m.workflowScheduleDetails(w.schedules[0]), "\n"), "older recipe snapshot") {
-		t.Fatal("bundle root was not compared with the draft")
+	r := m.workflowScheduleRefresh()().(workflowResult)
+	if r.err != nil {
+		t.Fatal(r.err)
+	}
+	m.acceptWorkflowResult(r)
+	details := strings.Join(m.workflowScheduleDetails(w.schedules[0]), "\n")
+	if !strings.Contains(details, "Snapshot: changed") || !strings.Contains(details, "Changed: child.json") || strings.Contains(details, "current draft differs") {
+		t.Fatal(details)
 	}
 }

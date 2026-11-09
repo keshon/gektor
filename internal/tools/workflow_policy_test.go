@@ -2,10 +2,13 @@ package tools
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"github.com/keshon/gektor/internal/automation/store"
 	"image"
 	"image/png"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/keshon/gektor/internal/permission"
@@ -115,5 +118,58 @@ func TestGeneratedOutputFilenameCannotBypassPermission(t *testing.T) {
 	}
 	if _, err := ws.Stat("out"); !os.IsNotExist(err) {
 		t.Fatal("denied outputs created a directory")
+	}
+}
+
+func TestScheduleStatusSourceComparisonNeverOpensApprovalGate(t *testing.T) {
+	ws, err := workspace.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	c := &Capabilities{}
+	r, err := Compose(ws, nil, nil, nil, false, c, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Registry = r
+	base := t.TempDir()
+	db, err := store.OpenStore(base, ws.Root())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	source := json.RawMessage(`{"version":3,"name":"Saved","steps":[]}`)
+	if err := ws.WriteFile("recipe.json", source, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.PutSchedule(t.Context(), store.Schedule{ID: "minute", RecipePath: "recipe.json", Source: source, Cron: "* * * * *", Timezone: "UTC"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, effect := range []permission.Effect{permission.Allow, permission.Ask, permission.Deny} {
+		gates := 0
+		BindWorkflowPolicy(c, ws, permission.Policy{Rules: []permission.Rule{{Tool: "read_file", Pattern: "*", Effect: effect}}}, func(context.Context, string, string, json.RawMessage) (permission.Effect, error) {
+			gates++
+			return permission.Allow, nil
+		}, base)
+		if _, err := c.Enable(t.Context(), "native_workflows", nil); err != nil {
+			t.Fatal(err)
+		}
+		for _, name := range []string{"workflow_status", "workflow_schedules"} {
+			out, err := r.Run(t.Context(), name, json.RawMessage(`{}`))
+			if err != nil {
+				t.Fatal(out, err)
+			}
+			expected := "unavailable"
+			if effect == permission.Allow {
+				expected = "unchanged"
+			}
+			if !strings.Contains(out, `"snapshot":{"state":"`+expected+`"`) {
+				t.Fatal(effect, name, out)
+			}
+		}
+		if gates != 0 {
+			t.Fatal("status asked for additional access", gates)
+		}
 	}
 }

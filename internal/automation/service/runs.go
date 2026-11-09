@@ -12,12 +12,15 @@ import (
 	"github.com/keshon/gektor/internal/automation/store"
 	"io"
 	"path/filepath"
+	"time"
 
 	"github.com/keshon/gektor/internal/automation"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
 type Service struct {
+	ScheduleID        string
+	ScheduledFor      *time.Time
 	OnRun             func(string) error
 	WS                *workspace.Workspace
 	StoreDir          string
@@ -318,6 +321,7 @@ func (t Service) RunSource(ctx context.Context, source []byte, path string, inpu
 		}
 	}
 	save := func(r automation.Run) error {
+		r.ScheduleID, r.ScheduledFor = t.ScheduleID, t.ScheduledFor
 		r.RecipePath = path
 		r.RecipeSHA256 = digest
 		r.RecipeSource = string(source)
@@ -345,14 +349,15 @@ func (t Service) RunSource(ctx context.Context, source []byte, path string, inpu
 		Status  string          `json:"status"`
 		SHA256  string          `json:"recipe_sha256"`
 		Steps   []stepSummary   `json:"steps"`
-	}{runOutputs(r), w.ID(), filepath.ToSlash(w.Path()), r.Status, digest, steps})
+	}{DeclaredOutputs(r), w.ID(), filepath.ToSlash(w.Path()), r.Status, digest, steps})
 	if marshalErr != nil {
 		return "", marshalErr
 	}
 	return string(data), err
 }
 
-func runOutputs(r automation.Run) json.RawMessage {
+// DeclaredOutputs returns the compiler-collected, completed recipe outputs.
+func DeclaredOutputs(r automation.Run) json.RawMessage {
 	for _, s := range r.Steps {
 		if s.ID == "@outputs" && s.Status == "completed" {
 			return json.RawMessage(s.Output)

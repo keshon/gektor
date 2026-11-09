@@ -58,6 +58,9 @@ fulfills the request. When execution is authorized, call `workflow_run`, inspect
 its actual declared outputs with `workflow_inspect`, and compare them with a
 known expected result. For this example test count 3 and a different count.
 When execution is forbidden, report that result correctness remains unverified.
+`workflow_inspect` defaults to a compact summary. Use `view:"steps"`, then
+`view:"step"` with `step_id` for details. `pointer` selects within declared outputs
+or a step output before the 8 KiB value limit; `view:"full"` returns the full record.
 Use `workflow_status` to find recent jobs and run IDs, then inspect failures.
 Do not repeat effectful steps merely to diagnose an error. Retries require
 the operation's retry-safe contract.
@@ -72,7 +75,12 @@ recipes and inputs. For an update, first list schedules and pass its
 `expected_revision`; choose explicitly whether to refresh the saved recipe.
 
 The operator must keep `gektor workflow serve -workspace <workspace>` running.
-Its own permission rules govern execution. Use `workflow_status` to distinguish
+Its own permission rules govern execution. Filter `workflow_status` by
+`schedule_id` for settings, latest job/run, outputs and snapshot changes.
+`changed` requires an explicit snapshot refresh; `unavailable` means source
+comparison could not finish. Inspection does not request more file access.
+Execution success and the meaning of declared outputs are separate.
+Use `workflow_status` to distinguish
 a saved trigger, a held worker lease, a queued job and a completed run. A held
 lease means a worker process owns the queue; it does not prove that the worker
 is healthy or that a recipe succeeded. Do not substitute an OS scheduler.

@@ -203,6 +203,24 @@ A new message never grants permission.
 After a failed turn, `/retry` continues from the saved checkpoint.
 It does not roll back files. Read the error and check completed work first.
 
+### Background processes
+
+Open **Run > Background processes…**, or use `/processes`, in Agent or Workflows.
+The searchable table shows processes started by this GEKTOR launch, including
+their managed ID, status, PID, session and command. It does not list arbitrary
+system processes or reconnect to processes from an earlier launch.
+
+Press `Enter` for exact arguments, workspace, owning session and captured output.
+Output is a bounded snapshot; reopen it for newer output. Reading it does not
+consume the Agent's output cursor or completion notifications. `R` refreshes the
+list. `S` asks to stop the selected process and its children; confirmation starts
+on Cancel. Stopping runs asynchronously. Exited entries remain available for
+inspection, with Stop disabled.
+
+Background processes can outlive an Agent turn. Closing GEKTOR or restarting it
+to apply settings stops the processes owned by that launch. A saved workflow
+schedule remains saved, but needs a running workflow service to execute.
+
 ### Permissions
 
 Open Permissions in the Agent or Run menu, or use `/permissions`, to read policy rules.
@@ -414,7 +432,9 @@ Choose **Save schedule** to enable it.
 A Schedule card appears on the canvas. It starts the whole recipe; its
 connections are automatic. Select it and press Enter to change the timing,
 input values or enabled setting. Delete removes the trigger without deleting
-queued jobs or saved runs. **Refresh schedule status** in Run reloads CLI changes.
+queued jobs or saved runs. **Refresh schedule status** in Run reloads CLI changes
+and updates the inspector's saved observations: worker ownership, latest job,
+latest run and declared outputs. Worker ownership does not prove health or success.
 
 Keep the workflow service running for this workspace:
 
@@ -422,11 +442,16 @@ Keep the workflow service running for this workspace:
 .\serve-gektor-workflows.cmd -workspace "D:\path\to\project"
 ```
 
-The service uses its own permission rules. Closing the TUI is fine while the
-service stays running. The inspector's **Service** tab explains this setup.
+The service uses its own permission rules. Start it outside GEKTOR if it must
+continue after the TUI closes. Processes launched by the Agent belong to that
+GEKTOR launch and stop when it closes. The inspector's **Service** tab explains
+service setup.
 
 A schedule stores a copy of the recipe and input values. Saving later recipe
-edits does not change that copy. Edit and save the trigger again to update it.
+edits does not change that copy. The inspector reports snapshot changes in the
+root and called recipes after a status refresh. It reports unavailable files
+separately and does not request additional read access. Edit and save the trigger
+again to update its snapshot.
 Schedules belong to the workspace and are stored in your user data, outside
 the recipe JSON. Copying a recipe to another workspace does not enable its schedule.
 
@@ -556,6 +581,7 @@ For example, `Ctrl+O` inserts a new line in Agent but opens a recipe in Workflow
 | Retry failed turn | /retry |
 | Compact context | /compact |
 | Show current run facts | /status |
+| Background processes | /processes |
 | Quit | Ctrl+Q |
 
 Type `/` for local commands.

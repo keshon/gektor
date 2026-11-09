@@ -8,18 +8,20 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/automation/service"
 	"github.com/keshon/gektor/internal/automation/store"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
 type Status struct {
-	WS       *workspace.Workspace
-	StoreDir string
+	WS          *workspace.Workspace
+	StoreDir    string
+	CheckSource func(context.Context, string, json.RawMessage) error
 }
 
 func (Status) Name() string { return "workflow_status" }
 func (Status) Description() string {
-	return "Read workflow worker ownership, recent jobs and run IDs in this workspace. Filter by schedule_id to trace scheduled runs, then use workflow_inspect for outputs. A held worker lease proves ownership, not health or success. Does not start a service, reconcile jobs or execute recipes."
+	return "Read workflow worker ownership, schedule settings, snapshot changes, latest declared outputs, recent jobs and run IDs in this workspace. Filter by schedule_id to trace scheduled runs, then use workflow_inspect for outputs. A held worker lease proves ownership, not health or success. Does not start a service, reconcile jobs or execute recipes."
 }
 func (Status) ReadOnly() bool       { return true }
 func (Status) Mode() agent.ToolMode { return agent.Concurrent }
@@ -60,16 +62,7 @@ func (t Status) Run(ctx context.Context, args json.RawMessage) (string, error) {
 		return "", err
 	}
 	sort.Slice(jobs, func(i, j int) bool { return jobs[i].Created.After(jobs[j].Created) })
-	type job struct {
-		ID       string    `json:"id"`
-		Schedule string    `json:"schedule_id,omitempty"`
-		Recipe   string    `json:"recipe_path"`
-		Status   string    `json:"status"`
-		RunID    string    `json:"run_id,omitempty"`
-		Created  time.Time `json:"created"`
-		Error    string    `json:"error,omitempty"`
-	}
-	out := []job{}
+	out := []service.JobInspection{}
 	linked := map[string]bool{}
 	for _, j := range jobs {
 		if in.Schedule != "" && j.Schedule != in.Schedule {
@@ -78,8 +71,27 @@ func (t Status) Run(ctx context.Context, args json.RawMessage) (string, error) {
 		if len(out) >= in.Limit {
 			break
 		}
-		out = append(out, job{j.ID, j.Schedule, j.RecipePath, j.Status, j.RunID, j.Created, j.Error})
+		out = append(out, service.InspectJob(j))
 		linked[j.RunID] = true
+	}
+	schedules, err := db.Schedules(ctx)
+	if err != nil {
+		return "", err
+	}
+	selected := []store.Schedule{}
+	for _, schedule := range schedules {
+		if in.Schedule != "" && schedule.ID != in.Schedule {
+			continue
+		}
+		if len(selected) >= in.Limit {
+			break
+		}
+		selected = append(selected, schedule)
+	}
+	svc := service.Service{WS: t.WS, Authorize: t.CheckSource}
+	summaries, err := svc.InspectSchedules(ctx, db, selected, jobs)
+	if err != nil {
+		return "", err
 	}
 	runs, err := db.Runs()
 	if err != nil {
@@ -105,10 +117,11 @@ func (t Status) Run(ctx context.Context, args json.RawMessage) (string, error) {
 		recent = append(recent, run{r.ID, r.Name, r.RecipePath, r.Status, r.Started, r.Error})
 	}
 	b, err := json.Marshal(struct {
-		WorkerLeaseHeld bool   `json:"worker_lease_held"`
-		Jobs            []job  `json:"jobs"`
-		Runs            []run  `json:"runs"`
-		Note            string `json:"note"`
-	}{held, out, recent, "Worker ownership is not a health check. Jobs are saved observations; inspect run outputs before claiming success. No worker lease means no workflow service currently owns this workspace queue."})
+		WorkerLeaseHeld bool                         `json:"worker_lease_held"`
+		Jobs            []service.JobInspection      `json:"jobs"`
+		Runs            []run                        `json:"runs"`
+		Schedules       []service.ScheduleInspection `json:"schedules"`
+		Note            string                       `json:"note"`
+	}{held, out, recent, summaries, "Worker ownership is not a health check. Jobs are saved observations; inspect run outputs before claiming success. No worker lease means no workflow service currently owns this workspace queue."})
 	return string(b), err
 }

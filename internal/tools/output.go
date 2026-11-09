@@ -24,17 +24,19 @@ const outputSessionLimit = 128 * 1024 * 1024
 
 type OutputStore struct {
 	dir      string
+	session  string
 	mu       sync.Mutex
 	reserved int64
 }
 type outputContextKey struct{}
 
 func NewOutputStore(session string) *OutputStore {
+	owner := session
 	if session == "" {
 		session = randomOutputID()
 	}
 	sum := sha256.Sum256([]byte(session))
-	return &OutputStore{dir: filepath.Join(gektor.Sub("output"), hex.EncodeToString(sum[:12]))}
+	return &OutputStore{dir: filepath.Join(gektor.Sub("output"), hex.EncodeToString(sum[:12])), session: owner}
 }
 func (s *OutputStore) Context(ctx context.Context) context.Context {
 	return context.WithValue(ctx, outputContextKey{}, s)

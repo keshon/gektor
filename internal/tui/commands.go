@@ -49,6 +49,7 @@ func commands() []command {
 		{name: "/sessions", immediate: true, summary: "Browse saved sessions"},
 		{name: "/workflows", immediate: true, summary: "Open workflow canvas"},
 		{name: "/mcp", immediate: true, summary: "Manage MCP servers"},
+		{name: "/processes", immediate: true, summary: "Inspect and stop managed background processes"},
 		{name: "/new", arg: "[task]", summary: "Start a fresh task; omit task for an empty session"},
 		{name: "/mode", arg: "plan|act", choices: []string{"plan", "act"}, summary: "Preview changes or execute them"},
 		{name: "/max-steps", arg: "N", summary: "Step budget (0 = no limit)"},
@@ -265,6 +266,9 @@ func (m *model) command(text string) (tea.Model, tea.Cmd) {
 		m.state = stStopping
 		m.appendBlock(markerBlock("Stopping run..."))
 		m.fitBottom()
+		return m, nil
+	case "processes":
+		m.openProcesses(nil)
 		return m, nil
 	case "rename":
 		m.renameActive()

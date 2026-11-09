@@ -84,6 +84,8 @@ func (s *syncBuffer) since(cursor int, final bool) (string, int, error) {
 }
 
 type bgProc struct {
+	info     BackgroundProcess
+	stopMu   sync.Mutex
 	cmd      *exec.Cmd
 	group    *processGroup
 	output   *syncBuffer
@@ -115,8 +117,10 @@ func NewBackgroundProcesses() *BackgroundProcesses {
 func (p *BackgroundProcesses) start(ctx context.Context, cmd *exec.Cmd) (id string, output *syncBuffer) {
 	buf := &syncBuffer{}
 	scope := ""
+	owner := ""
 	if store := outputStore(ctx); store != nil {
 		scope = store.dir
+		owner = store.session
 		if file, err := store.create(); err == nil {
 			buf.file = file
 		} else {
@@ -149,6 +153,7 @@ func (p *BackgroundProcesses) start(ctx context.Context, cmd *exec.Cmd) (id stri
 	p.next++
 	id = fmt.Sprintf("bg%d", p.next)
 	proc := &bgProc{cmd: cmd, group: group, output: buf, done: make(chan struct{}), scope: scope}
+	proc.info = BackgroundProcess{ID: id, Args: append([]string(nil), cmd.Args...), Command: strings.Join(cmd.Args, " "), Directory: cmd.Dir, Session: owner, Started: time.Now()}
 	p.procs[id] = proc
 	p.mu.Unlock()
 
@@ -165,6 +170,9 @@ func (p *BackgroundProcesses) start(ctx context.Context, cmd *exec.Cmd) (id stri
 	// A failure to adopt the process is not fatal — the tree kill falls
 	// back to walking PIDs, which is what it did before job objects.
 	_ = group.afterStart(cmd)
+	p.mu.Lock()
+	proc.info.PID = cmd.Process.Pid
+	p.mu.Unlock()
 
 	go func() {
 		err := cmd.Wait()
@@ -228,6 +236,15 @@ func (p *BackgroundProcesses) stop(id string) error {
 	p.mu.Unlock()
 	if !ok {
 		return fmt.Errorf("unknown background process id %q", id)
+	}
+	proc.stopMu.Lock()
+	defer proc.stopMu.Unlock()
+	p.mu.Lock()
+	exited := proc.exited
+	pid := proc.info.PID
+	p.mu.Unlock()
+	if !exited && pid == 0 {
+		return fmt.Errorf("process %q is still starting", id)
 	}
 	if proc.cmd.Process == nil {
 		return fmt.Errorf("process %q never started", id)

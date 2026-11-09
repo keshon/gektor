@@ -71,6 +71,23 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	defer m.queueSettingsDetail()
 	defer m.syncComposerHeight()
 	switch msg := msg.(type) {
+	case processListMsg:
+		if m.dialog == nil && m.sessions == nil && m.state != stPermission && m.state != stAsk {
+			m.openProcesses(msg.view)
+		}
+		return m, nil
+	case processStopMsg:
+		return m, m.stopProcess(msg)
+	case processStoppedMsg:
+		if m.dialog == msg.dialog {
+			if msg.err != nil {
+				m.openDialog("Cannot stop background process / "+msg.id, []string{msg.err.Error()})
+				m.dialog.onClose = func() { m.returnToProcesses(msg.view) }
+			} else {
+				m.openProcesses(msg.view)
+			}
+		}
+		return m, nil
 	case workflowQuit:
 		return m.requestQuit()
 	case workflowProposal:

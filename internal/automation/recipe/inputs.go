@@ -256,33 +256,50 @@ func ResolveOutputs(args json.RawMessage, outputs map[string]string) (json.RawMe
 		if !ok {
 			return nil, fmt.Errorf("output %q unavailable", name)
 		}
-		value, err := jsonValue([]byte(raw), MaxOutput)
+		value, err := outputAt([]byte(raw), pointer)
 		if err != nil {
 			return nil, fmt.Errorf("output %s: %w", name, err)
 		}
-		parts, err := pointerParts(pointer)
-		if err != nil {
-			return nil, err
-		}
-		for _, part := range parts {
-			switch node := value.(type) {
-			case map[string]any:
-				value, ok = node[part]
-			case []any:
-				i, e := strconv.Atoi(part)
-				ok = e == nil && i >= 0 && i < len(node) && strconv.Itoa(i) == part
-				if ok {
-					value = node[i]
-				}
-			default:
-				ok = false
-			}
-			if !ok {
-				return nil, fmt.Errorf("output %s has no value at %q", name, pointer)
-			}
-		}
 		return value, nil
 	})
+}
+
+// OutputAt selects a recorded output using the same JSON Pointer rules as
+// recipe references, without imposing the smaller step-argument size limit.
+func OutputAt(raw []byte, pointer string) (json.RawMessage, error) {
+	value, err := outputAt(raw, pointer)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(value)
+}
+
+func outputAt(raw []byte, pointer string) (any, error) {
+	value, err := jsonValue(raw, MaxOutput)
+	if err != nil {
+		return nil, err
+	}
+	parts, err := pointerParts(pointer)
+	if err != nil {
+		return nil, err
+	}
+	for _, part := range parts {
+		ok := false
+		switch node := value.(type) {
+		case map[string]any:
+			value, ok = node[part]
+		case []any:
+			i, err := strconv.Atoi(part)
+			ok = err == nil && i >= 0 && i < len(node) && strconv.Itoa(i) == part
+			if ok {
+				value = node[i]
+			}
+		}
+		if !ok {
+			return nil, fmt.Errorf("no value at %q", pointer)
+		}
+	}
+	return value, nil
 }
 
 // BindInputs validates a concrete invocation against its declared typed inputs.

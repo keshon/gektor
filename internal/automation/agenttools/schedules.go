@@ -2,11 +2,9 @@ package agenttools
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
-	"time"
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
@@ -17,10 +15,11 @@ import (
 
 // Schedule manages triggers in the same workspace store used by the editor and service.
 type Schedule struct {
-	WS        *workspace.Workspace
-	StoreDir  string
-	List      bool
-	Authorize func(context.Context, string, json.RawMessage) error
+	WS          *workspace.Workspace
+	StoreDir    string
+	List        bool
+	Authorize   func(context.Context, string, json.RawMessage) error
+	CheckSource func(context.Context, string, json.RawMessage) error
 }
 
 func (t Schedule) Name() string {
@@ -210,27 +209,19 @@ func (t Schedule) Run(ctx context.Context, args json.RawMessage) (string, error)
 	if err != nil {
 		return "", err
 	}
-	type summary struct {
-		ID             string                     `json:"id"`
-		Path           string                     `json:"recipe_path"`
-		Cron           string                     `json:"cron"`
-		Timezone       string                     `json:"timezone"`
-		Paused         bool                       `json:"paused"`
-		Next           time.Time                  `json:"next_due"`
-		Revision       uint64                     `json:"revision"`
-		Inputs         map[string]json.RawMessage `json:"inputs"`
-		Overlap        string                     `json:"overlap"`
-		Missed         string                     `json:"missed"`
-		SnapshotSHA256 string                     `json:"snapshot_sha256"`
+	jobs, err := db.Jobs(ctx)
+	if err != nil {
+		return "", err
 	}
-	items := []summary{}
-	for _, s := range all {
-		items = append(items, summary{s.ID, s.RecipePath, s.Cron, s.Timezone, s.Paused, s.Next, s.Revision, s.Inputs, s.Overlap, s.Missed, fmt.Sprintf("%x", sha256.Sum256(s.Source))})
+	svc := service.Service{WS: t.WS, Authorize: t.CheckSource}
+	items, err := svc.InspectSchedules(ctx, db, all, jobs)
+	if err != nil {
+		return "", err
 	}
 	b, err := json.Marshal(struct {
-		Schedules       []summary `json:"schedules"`
-		ServiceRequired bool      `json:"service_required"`
-		Note            string    `json:"note"`
+		Schedules       []service.ScheduleInspection `json:"schedules"`
+		ServiceRequired bool                         `json:"service_required"`
+		Note            string                       `json:"note"`
 	}{items, true, "The workflow service must run separately for this workspace. Saving a schedule does not start it. Recipes and inputs are snapshotted; service permissions still apply."})
 	return string(b), err
 }

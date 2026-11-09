@@ -20,14 +20,19 @@ func BindWorkflowPolicy(c *Capabilities, ws *workspace.Workspace, policy permiss
 		storeDir = gektor.Sub("workflows")
 	}
 	authorize, output := workflowPolicy(ws, policy, gate)
+	// Inspection may compare sources only when policy already allows the read.
+	// It never opens a gate while gathering optional status information.
+	checkSource, _ := workflowPolicy(ws, policy, nil)
 	for _, p := range c.Native {
 		for _, tool := range p.Tools {
 			if t, ok := tool.(*workflow.Status); ok {
 				t.StoreDir = storeDir
+				t.CheckSource = checkSource
 			}
 			if t, ok := tool.(*workflow.Schedule); ok {
 				t.StoreDir = storeDir
 				t.Authorize = authorize
+				t.CheckSource = checkSource
 			}
 			if t, ok := tool.(*workflow.Schema); ok {
 				t.StoreDir = storeDir

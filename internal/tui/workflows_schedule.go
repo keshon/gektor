@@ -12,6 +12,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/keshon/gektor/internal/automation/service"
 	"github.com/keshon/gektor/internal/automation/store"
 	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/tui/components/graph"
@@ -202,7 +203,7 @@ func (m *model) workflowScheduleForm(in workflowInvocation) {
 	fields := []formField{{Key: "timing", Label: "When", Value: mode}, {Key: "time", Label: "Time (daily only, HH:MM)", Value: clock},
 		{Key: "cron", Label: "Cron (Cron only, minute hour day month weekday)", Value: s.Cron},
 		{Key: "timezone", Label: "Time zone", Value: s.Timezone}, {Key: "enabled", Label: "Enabled", Value: enabled}}
-	m.openForm("Schedule trigger", "Saves this recipe and its input values as a schedule. Keep the workflow service running; closing the TUI is fine.", "Save schedule", fields, func(v map[string]string) error {
+	m.openForm("Schedule trigger", "Saves this recipe and its input values as a schedule. Keep the workflow service running separately.", "Save schedule", fields, func(v map[string]string) error {
 		current, err := m.baseEnv.WS.Relative(w.editor.Path)
 		if err != nil || current != path || w.run != nil || w.busy || w.editor.Dirty() || w.editor.Source() != in.Draft {
 			return fmt.Errorf("recipe changed; reopen Schedule")
@@ -254,13 +255,17 @@ func (m *model) workflowScheduleRefresh() tea.Cmd {
 	ctx, cancel := context.WithCancel(m.base)
 	w.cancel = cancel
 	root, base := m.wsRoot, gektor.Sub("workflows")
+	svc, serviceErr := m.workflowService(nil)
 	return func() tea.Msg {
 		defer cancel()
+		if serviceErr != nil {
+			return workflowResult{action: "schedule-refresh", err: serviceErr}
+		}
 		s, err := store.OpenStore(base, root)
 		result := workflowResult{action: "schedule-refresh", err: err}
 		if err == nil {
 			defer s.Close()
-			result.schedules, result.err = s.Schedules(ctx)
+			loadScheduleInspection(ctx, s, svc, &result)
 		}
 		return result
 	}
@@ -319,10 +324,28 @@ func (m *model) workflowScheduleChange(action, payload string) tea.Cmd {
 			result.err = s.PutSchedule(ctx, edit.Schedule)
 		}
 		if result.err == nil {
-			result.schedules, result.err = s.Schedules(ctx)
+			loadScheduleInspection(ctx, s, svc, &result)
 		}
 		return result
 	}
+}
+
+// Called by commands, never during rendering; source reads use no approval gate.
+func loadScheduleInspection(ctx context.Context, db *store.Store, svc service.Service, result *workflowResult) {
+	result.schedules, result.err = db.Schedules(ctx)
+	if result.err != nil {
+		return
+	}
+	result.workerLeaseHeld, result.err = db.WorkerLeaseHeld()
+	if result.err != nil {
+		return
+	}
+	jobs, err := db.Jobs(ctx)
+	if err != nil {
+		result.err = err
+		return
+	}
+	result.scheduleStatus, result.err = svc.InspectSchedules(ctx, db, result.schedules, jobs)
 }
 
 func (m *model) workflowDeleteSchedule(s store.Schedule) {
@@ -355,7 +378,7 @@ func (m *model) workflowScheduleDetails(s store.Schedule) []string {
 			rows = append(rows, workflowValues(b)...)
 		}
 	case 2:
-		rows = append(rows, "Keep the workflow service running:", "gektor workflow serve -workspace \""+m.wsRoot+"\"", "", "The service uses its own permission rules.", "Closing the TUI does not stop the service.", "", "If the previous run is still active: "+s.Overlap,
+		rows = append(rows, "Keep the workflow service running:", "gektor workflow serve -workspace \""+m.wsRoot+"\"", "", "The service uses its own permission rules.", "Start it outside GEKTOR if it must outlive the TUI.", "", "If the previous run is still active: "+s.Overlap,
 			"If the service missed a scheduled time: "+s.Missed, "", "Scheduled runs are available under Run, Run history.")
 	default:
 		rows = append(rows, scheduleTiming(s.Cron), "Time zone: "+s.Timezone)
@@ -369,6 +392,52 @@ func (m *model) workflowScheduleDetails(s store.Schedule) []string {
 			rows = append(rows, "Status: Enabled", "Next due: "+s.Next.In(zone).Format("2006-01-02 15:04 MST"))
 		}
 		rows = append(rows, "", "Starts the whole recipe.", "The workflow service must be running.", "", "Schedule ID: "+s.ID, "Cron: "+s.Cron)
+		if w.workerLeaseHeld {
+			rows = append(rows, "", "Worker: queue owned (health not checked)")
+		} else {
+			rows = append(rows, "", "Worker: no queue owner at last refresh")
+		}
+		for _, status := range w.scheduleStatus {
+			if status.ID != s.ID {
+				continue
+			}
+			rows = append(rows, "Snapshot: "+status.Snapshot.State)
+			for _, path := range status.Snapshot.ChangedFiles {
+				rows = append(rows, "Changed: "+cleanText(path))
+			}
+			for _, path := range status.Snapshot.UnavailableFiles {
+				rows = append(rows, "Could not check: "+cleanText(path))
+			}
+			if status.Snapshot.State == "changed" {
+				rows = append(rows, "Edit and save the trigger to refresh its snapshot.")
+			}
+			if status.LatestJob != nil {
+				rows = append(rows, "Last job: "+status.LatestJob.Status)
+				if status.LatestJob.Error != "" {
+					rows = append(rows, "Job error: "+cleanText(status.LatestJob.Error))
+				}
+				if status.LatestJob.ScheduledFor != nil {
+					rows = append(rows, "Scheduled for: "+status.LatestJob.ScheduledFor.Format(time.RFC3339))
+				}
+			}
+			if status.LatestRun != nil {
+				run := status.LatestRun
+				rows = append(rows, "Last run: "+run.Status, "Run ID: "+run.ID, "Started: "+run.Started.Format(time.RFC3339))
+				if run.Outputs.Omitted {
+					rows = append(rows, fmt.Sprintf("Outputs: %d bytes; inspect the saved run for details", run.Outputs.Bytes))
+				} else if len(run.Outputs.Value) > 0 {
+					rows = append(rows, "Outputs:")
+					rows = append(rows, workflowValues(run.Outputs.Value)...)
+				}
+				for _, failure := range run.Errors {
+					rows = append(rows, cleanText(failure.ID+": "+failure.Error))
+				}
+			}
+			if status.RunError != "" {
+				rows = append(rows, "Run unavailable: "+cleanText(status.RunError))
+			}
+		}
+		rows = append(rows, "Refresh schedules to update these observations.")
 		root := s.Source
 		var bundle struct {
 			Root json.RawMessage `json:"root"`
@@ -377,7 +446,7 @@ func (m *model) workflowScheduleDetails(s store.Schedule) []string {
 			root = bundle.Root
 		}
 		if saved, err := editor.Decode(root); err == nil && (&editor.Editor{Definition: saved}).Source() != w.editor.Source() {
-			rows = append(rows, "", "This schedule uses an older recipe snapshot.", "Edit and save the trigger to use the current recipe.")
+			rows = append(rows, "", "The current draft differs from this schedule snapshot.", "Edit and save the trigger to use the current recipe.")
 		}
 		rows = append(rows, "", "Enter edits timing and input values.", "Delete removes this trigger.")
 	}

@@ -58,7 +58,7 @@ func (t StartBackground) Run(ctx context.Context, args json.RawMessage) (string,
 
 	// Deliberately context.Background(), not the tool call's ctx — this
 	// process must outlive the call that started it.
-	return startBackgroundProcess(ctx, t.Procs, shellCommand(context.Background(), in.Command), dir, t.SettleTime)
+	return startBackgroundProcess(ctx, t.Procs, shellCommand(context.Background(), in.Command), dir, t.SettleTime, in.Command)
 }
 
 // StartProgram is the direct-exec counterpart of StartBackground. It exists
@@ -102,16 +102,21 @@ func (t StartProgram) Run(ctx context.Context, args json.RawMessage) (string, er
 	if err != nil {
 		return "", err
 	}
-	return startBackgroundProcess(ctx, t.Procs, cmd, dir, t.SettleTime)
+	return startBackgroundProcess(ctx, t.Procs, cmd, dir, t.SettleTime, "")
 }
 
-func startBackgroundProcess(ctx context.Context, procs *BackgroundProcesses, cmd *exec.Cmd, dir string, settle time.Duration) (string, error) {
+func startBackgroundProcess(ctx context.Context, procs *BackgroundProcesses, cmd *exec.Cmd, dir string, settle time.Duration, command string) (string, error) {
 	if procs == nil {
 		return "", fmt.Errorf("no background process manager")
 	}
 	cmd.Dir = dir
 	cmd.Env = scrubEnv(os.Environ())
 	id, _ := procs.start(ctx, cmd)
+	if command != "" {
+		procs.mu.Lock()
+		procs.procs[id].info.Command = command
+		procs.mu.Unlock()
+	}
 
 	if settle == 0 {
 		settle = 1500 * time.Millisecond

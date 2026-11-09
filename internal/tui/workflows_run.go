@@ -249,6 +249,7 @@ func (m *model) acceptWorkflowResult(r workflowResult) tea.Cmd {
 	}
 	if r.action == "schedule-save" || r.action == "schedule-delete" || r.action == "schedule-refresh" {
 		w.schedules = r.schedules
+		w.scheduleStatus, w.workerLeaseHeld = r.scheduleStatus, r.workerLeaseHeld
 		w.graph = m.workflowGraph(w.graph)
 		m.loadWorkflowLayout()
 		if r.action == "schedule-save" {

@@ -168,7 +168,8 @@ func (s *Store) Tick(ctx context.Context, now time.Time) error {
 			if err := makeJobRoom(c); err != nil {
 				return err
 			}
-			j := Job{ID: rand.Text(), RecipePath: v.RecipePath, Source: v.Source, Inputs: v.Inputs, Status: "queued", Created: now.UTC(), Schedule: id}
+			due = due.UTC()
+			j := Job{ID: rand.Text(), RecipePath: v.RecipePath, Source: v.Source, Inputs: v.Inputs, Status: "queued", Created: now.UTC(), Schedule: id, ScheduledFor: &due}
 			c.Jobs[j.ID] = j
 		}
 		return nil

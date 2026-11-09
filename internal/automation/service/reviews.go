@@ -79,7 +79,7 @@ func (s Service) Review(ctx context.Context, id, step string, approve bool) (str
 			runErr = w.Save(r)
 		}
 		summary := map[string]any{"run_id": id, "status": r.Status}
-		if outputs := runOutputs(r); outputs != nil {
+		if outputs := DeclaredOutputs(r); outputs != nil {
 			summary["outputs"] = outputs
 		}
 		result, _ := json.Marshal(summary)

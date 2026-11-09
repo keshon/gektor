@@ -15,6 +15,7 @@ import (
 )
 
 type Job struct {
+	ScheduledFor   *time.Time                 `json:"scheduled_for,omitempty"`
 	ID             string                     `json:"id"`
 	RecipePath     string                     `json:"recipe_path"`
 	Source         json.RawMessage            `json:"source"`
