@@ -12,7 +12,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/gektor"
-	"github.com/keshon/gektor/internal/integrations/httptransport"
+	"github.com/keshon/gektor/internal/httptransport"
 	"github.com/keshon/gektor/internal/llm"
 )
 

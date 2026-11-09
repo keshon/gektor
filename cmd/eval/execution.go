@@ -9,6 +9,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -109,7 +110,22 @@ func executeProbeAgent(ctx context.Context, p Probe, env roles.Env, images []str
 			"State your assumption and proceed with the smallest reasonable action.", nil
 	}, nil)
 	runStarted := time.Now()
-	final, err := a.Run(ctx, p.Task, images...)
+	var final string
+	var err error
+	if len(p.Continuation) == 0 {
+		final, err = a.Run(ctx, p.Task, images...)
+	} else {
+		// Recorded turns follow an already-started Act run. Retain its mode
+		// notice here so resumption does not append a fresh directive after
+		// the fixture and inadvertently frame completed work as a new task.
+		history := []llm.Message{
+			{Role: llm.RoleSystem},
+			{Role: llm.RoleUser, Content: p.Task, Images: images},
+			{Role: llm.RoleUser, Harness: "notice", Content: "[harness] " + prompts.ActMode},
+		}
+		history = append(history, p.Continuation...)
+		final, err = a.Resume(ctx, history, "")
+	}
 	res.RunSeconds = time.Since(runStarted).Seconds()
 	res.Warnings, res.Summary = a.Report().Warnings, a.Report().Summary
 	if err != nil {

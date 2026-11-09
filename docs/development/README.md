@@ -20,6 +20,7 @@ steps run without one.
 
 - [Architecture](../../ARCHITECTURE.md) explains runtime ownership and common change paths.
 - [Conventions](conventions.md) contains enforced project rules.
+- [Built-in capabilities](capabilities.md) defines service, adapter and support-package boundaries.
 - [Testing](testing.md) covers automated checks and terminal recovery verification.
 - [Terminal architecture](tui.md) covers components and interaction contracts.
 - [Eval runner](../../eval/README.md) explains model scenarios and scoring.

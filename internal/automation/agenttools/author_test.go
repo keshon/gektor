@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/automation"
-
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -140,7 +139,12 @@ func TestWorkflowSchemaAdvertisesOnlySupportedOperations(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
 		t.Fatal(err)
 	}
-	if len(result.Operations) != 21 || result.Operations["docx_read"] == nil || result.Operations["xlsx_read"] == nil || result.Operations["pdf_read"] == nil || result.Operations["archive_create"] == nil || result.Operations["archive_extract"] == nil || result.Operations["download_file"] == nil || result.Operations["archive_list"] == nil || result.Operations["workflow_call"] == nil || result.Operations["workflow_bind"] != nil || result.Operations["run_program"] == nil || result.Operations["artifact_import"] == nil || result.Operations["image_variants"] == nil || result.Operations["run_shell"] != nil || !strings.Contains(string(result.Recipe), `"inputs"`) {
+	for _, name := range []string{"media_status", "video_info", "video_transcript", "video_download", "media_inspect", "media_convert", "media_clip", "media_frame", "media_merge"} {
+		if result.Operations[name] == nil {
+			t.Fatal("missing media operation", name)
+		}
+	}
+	if len(result.Operations) != 31 || result.Operations["docx_read"] == nil || result.Operations["xlsx_read"] == nil || result.Operations["pdf_read"] == nil || result.Operations["archive_create"] == nil || result.Operations["archive_extract"] == nil || result.Operations["download_file"] == nil || result.Operations["archive_list"] == nil || result.Operations["workflow_call"] == nil || result.Operations["workflow_bind"] != nil || result.Operations["run_program"] == nil || result.Operations["artifact_import"] == nil || result.Operations["image_variants"] == nil || result.Operations["run_shell"] != nil || !strings.Contains(string(result.Recipe), `"inputs"`) {
 		t.Fatal(out)
 	}
 }

@@ -6,12 +6,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/automation/service"
-	"github.com/keshon/gektor/internal/integrations/pixelita"
+	imagecontract "github.com/keshon/gektor/internal/capabilities/images/contract"
 	"github.com/keshon/gektor/internal/workspace"
-	"io"
 )
 
 type Tool struct {
@@ -20,7 +21,7 @@ type Tool struct {
 	ValidateOnly      bool
 	Authorize         func(context.Context, string, json.RawMessage) error
 	AuthorizeResource func(context.Context, string, string, json.RawMessage) error
-	AuthorizeOutput   pixelita.OutputAuthorizer
+	AuthorizeOutput   imagecontract.OutputAuthorizer
 }
 
 func (t Tool) service() (service.Service, error) {

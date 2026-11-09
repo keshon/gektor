@@ -1,0 +1,58 @@
+{
+  "prompt": "eval/prompts/media.md",
+  "tier": "signal",
+  "timeout_sec": 900,
+  "max_steps": 20,
+  "task": "Create recipe.json to convert tone.wav to converted.flac using a native workflow node. Declare the conversion result as a recipe output. Validate it, run it once, inspect the completed run, then use the media inspection tool directly to inspect the actual output file and report its codec. Do not create or run another recipe for inspection. Keep the input file. Do not run commands or install programs.",
+  "trace": [
+    {
+      "tool": "workflow_schema",
+      "mode": "required",
+      "success": true
+    },
+    {
+      "tool": "workflow_validate",
+      "mode": "required",
+      "success": true
+    },
+    {
+      "tool": "workflow_run",
+      "mode": "required",
+      "success": true,
+      "max_calls": 1
+    },
+    {
+      "tool": "workflow_inspect",
+      "mode": "required",
+      "success": true
+    },
+    {
+      "tool": "media_inspect",
+      "mode": "required",
+      "success": true,
+      "output_regex": "flac"
+    },
+    {
+      "tool": "run_*",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "start_*",
+      "mode": "forbidden"
+    }
+  ],
+  "seed": "eval/fixtures-media",
+  "verify": [
+    {
+      "type": "content_contains",
+      "path": "recipe.json",
+      "contains": "media_convert"
+    }
+  ],
+  "answer": [
+    {
+      "regex": "flac",
+      "mode": "required"
+    }
+  ]
+}

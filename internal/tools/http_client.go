@@ -1,8 +1,9 @@
 package tools
 
 import (
-	"github.com/keshon/gektor/internal/integrations/httptransport"
 	"net/http"
+
+	"github.com/keshon/gektor/internal/httptransport"
 )
 
 func networkClient(loopback bool, override http.RoundTripper) *http.Client {

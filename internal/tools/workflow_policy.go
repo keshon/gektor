@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 
 	workflow "github.com/keshon/gektor/internal/automation/agenttools"
+	filetools "github.com/keshon/gektor/internal/capabilities/files/tools"
+	imagecontract "github.com/keshon/gektor/internal/capabilities/images/contract"
+	imagetools "github.com/keshon/gektor/internal/capabilities/images/tools"
 	"github.com/keshon/gektor/internal/gektor"
-	fileagent "github.com/keshon/gektor/internal/integrations/fileops/agenttools"
-	"github.com/keshon/gektor/internal/integrations/pixelita"
-	imageagent "github.com/keshon/gektor/internal/integrations/pixelita/agenttools"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -50,10 +50,10 @@ func BindWorkflowPolicy(c *Capabilities, ws *workspace.Workspace, policy permiss
 				}
 				t.StoreDir = storeDir
 			}
-			if t, ok := tool.(*imageagent.Tool); ok {
+			if t, ok := tool.(*imagetools.Tool); ok {
 				t.AuthorizeOutput = output
 			}
-			if t, ok := tool.(*fileagent.Tool); ok {
+			if t, ok := tool.(*filetools.Tool); ok {
 				t.AuthorizeOutput = func(ctx context.Context, name, path string, args json.RawMessage) error {
 					return permission.Authorize(ctx, policy, gate, name, path, args)
 				}
@@ -71,7 +71,7 @@ func NewWorkflow(ws *workspace.Workspace, validateOnly bool, policy permission.P
 	}}
 }
 
-func workflowPolicy(ws *workspace.Workspace, policy permission.Policy, gate permission.Gate) (func(context.Context, string, json.RawMessage) error, pixelita.OutputAuthorizer) {
+func workflowPolicy(ws *workspace.Workspace, policy permission.Policy, gate permission.Gate) (func(context.Context, string, json.RawMessage) error, imagecontract.OutputAuthorizer) {
 	output := func(ctx context.Context, path string, args json.RawMessage) error {
 		rel, err := ws.Relative(path)
 		if err != nil {

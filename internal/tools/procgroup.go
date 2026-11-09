@@ -1,8 +1,9 @@
 package tools
 
 import (
-	"github.com/keshon/gektor/internal/integrations/process"
 	"os/exec"
+
+	"github.com/keshon/gektor/internal/process"
 )
 
 type processGroup struct{ *process.Group }

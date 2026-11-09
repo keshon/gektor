@@ -8,15 +8,14 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	workflow "github.com/keshon/gektor/internal/automation/agenttools"
+	"github.com/keshon/gektor/internal/capabilities/documents"
+	doccontract "github.com/keshon/gektor/internal/capabilities/documents/contract"
+	doctools "github.com/keshon/gektor/internal/capabilities/documents/tools"
+	"github.com/keshon/gektor/internal/capabilities/files"
+	filecontract "github.com/keshon/gektor/internal/capabilities/files/contract"
+	filetools "github.com/keshon/gektor/internal/capabilities/files/tools"
+	imagetools "github.com/keshon/gektor/internal/capabilities/images/tools"
 	"github.com/keshon/gektor/internal/gektor"
-	"github.com/keshon/gektor/internal/integrations/documents"
-	documentadapter "github.com/keshon/gektor/internal/integrations/documents/adapters"
-	documentagent "github.com/keshon/gektor/internal/integrations/documents/agenttools"
-	"github.com/keshon/gektor/internal/integrations/fileops"
-	"github.com/keshon/gektor/internal/integrations/fileops/adapters"
-	fileagent "github.com/keshon/gektor/internal/integrations/fileops/agenttools"
-	"github.com/keshon/gektor/internal/integrations/pixelita"
-	imageagent "github.com/keshon/gektor/internal/integrations/pixelita/agenttools"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/tools"
@@ -78,12 +77,12 @@ func WorkflowAuthor(e Env, recipePath, stateFile string) (*agent.Agent, error) {
 		workflow.Schema{WS: e.WS, StoreDir: storeDir}, save,
 		validation,
 		tools.ReadFile{WS: e.WS}, tools.ListFiles{WS: e.WS},
-		documentagent.Tool{Operation: documentadapter.Operation{Service: documents.Service{WS: e.WS}, Kind: "docx_read"}},
-		documentagent.Tool{Operation: documentadapter.Operation{Service: documents.Service{WS: e.WS}, Kind: "xlsx_read"}},
-		documentagent.Tool{Operation: documentadapter.Operation{Service: documents.Service{WS: e.WS}, Kind: "pdf_read"}},
+		doctools.Tool{Operation: doccontract.Operation{Service: documents.Service{WS: e.WS}, Kind: "docx_read"}},
+		doctools.Tool{Operation: doccontract.Operation{Service: documents.Service{WS: e.WS}, Kind: "xlsx_read"}},
+		doctools.Tool{Operation: doccontract.Operation{Service: documents.Service{WS: e.WS}, Kind: "pdf_read"}},
 
-		fileagent.Tool{Operation: adapters.Operation{Service: fileops.Service{WS: e.WS}, Kind: "archive_list"}},
-		&imageagent.Tool{Operation: pixelita.Operation{WS: e.WS, Operation: "inspect"}}, &imageagent.Tool{Operation: pixelita.Operation{WS: e.WS, Operation: "preview"}},
+		filetools.Tool{Operation: filecontract.Operation{Service: files.Service{WS: e.WS}, Kind: "archive_list"}},
+		imagetools.NewTool(e.WS, "inspect"), imagetools.NewTool(e.WS, "preview"),
 	)
 	cfg.Resources = func(name string, args json.RawMessage) ([]string, error) {
 		if name == "workflow_save" {

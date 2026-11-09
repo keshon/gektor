@@ -3,15 +3,19 @@ package tools
 import (
 	"encoding/json"
 	"path/filepath"
+	"strings"
 
 	"github.com/keshon/gektor/internal/agent"
 	workflow "github.com/keshon/gektor/internal/automation/agenttools"
+	"github.com/keshon/gektor/internal/capabilities/documents"
+	doccontract "github.com/keshon/gektor/internal/capabilities/documents/contract"
+	"github.com/keshon/gektor/internal/capabilities/files"
+	filecontract "github.com/keshon/gektor/internal/capabilities/files/contract"
+	imagetools "github.com/keshon/gektor/internal/capabilities/images/tools"
+	"github.com/keshon/gektor/internal/capabilities/media"
+	mediacontract "github.com/keshon/gektor/internal/capabilities/media/contract"
+	socialcontract "github.com/keshon/gektor/internal/capabilities/social/contract"
 	"github.com/keshon/gektor/internal/checks"
-	"github.com/keshon/gektor/internal/integrations/documents"
-	documentadapter "github.com/keshon/gektor/internal/integrations/documents/adapters"
-	"github.com/keshon/gektor/internal/integrations/fileops"
-	"github.com/keshon/gektor/internal/integrations/fileops/adapters"
-	"github.com/keshon/gektor/internal/integrations/pixelita"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -26,10 +30,15 @@ func PathResources(ws *workspace.Workspace, tool string, args json.RawMessage) (
 	var in struct{ Path, From, To string }
 	var paths []string
 	switch tool {
+	case socialcontract.AgentName:
+		return (socialcontract.Operation{}).Resources(args)
+	case "media_status", "video_info", "video_transcript", "video_download", "media_inspect", "media_convert", "media_clip", "media_frame", "media_merge":
+		return (mediacontract.Operation{Service: &media.Service{WS: ws}, Kind: tool}).Resources(args)
+
 	case "docx_read", "xlsx_read", "pdf_read":
-		return (documentadapter.Operation{Service: documents.Service{WS: ws}, Kind: tool}).Resources(args)
+		return (doccontract.Operation{Service: documents.Service{WS: ws}, Kind: tool}).Resources(args)
 	case "download_file", "archive_list", "archive_create", "archive_extract":
-		return (adapters.Operation{Service: fileops.Service{WS: ws}, Kind: tool}).Resources(args)
+		return (filecontract.Operation{Service: files.Service{WS: ws}, Kind: tool}).Resources(args)
 	case "workflow_schema":
 		var in struct {
 			Kind string `json:"record_kind"`
@@ -68,7 +77,7 @@ func PathResources(ws *workspace.Workspace, tool string, args json.RawMessage) (
 		paths = []string{in.Path}
 	case "image_inspect", "image_preview", "image_variants", "image_compare":
 		var err error
-		paths, err = pixelita.Resources(args)
+		paths, err = imagetools.NewTool(ws, strings.TrimPrefix(tool, "image_")).Resources(args)
 		if err != nil {
 			return nil, err
 		}
@@ -107,7 +116,7 @@ func PathResources(ws *workspace.Workspace, tool string, args json.RawMessage) (
 // vision enables reading pictures through read_file; it must come from a
 // backend capability probe, not a guess.
 func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSink, rules []checks.Rule, vision bool, extra ...agent.Tool) *agent.Registry {
-	return agent.NewRegistry(nativeTools(packageDependencies{ws, procs, report, rules, vision, extra}, false)...)
+	return agent.NewRegistry(nativeTools(packageDependencies{WS: ws, Procs: procs, Report: report, Rules: rules, Vision: vision, Extra: extra}, false)...)
 }
 
 // ReadOnly returns a tool set that can inspect the workspace and running

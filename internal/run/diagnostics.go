@@ -48,7 +48,20 @@ func (s *Session) diagnostics() func() {
 			return
 		}
 		if kind == "progress" {
-			signature, _ := json.Marshal(fields)
+			// Keep phase boundaries and final counts without a disk write for
+			// every generated token. Prefill samples are grouped by 1024 tokens.
+			boundary := make(map[string]any, len(fields))
+			for key, value := range fields {
+				if key != "completion" && key != "processed" {
+					boundary[key] = value
+				}
+			}
+			if fields["phase"] == "prefill" {
+				if processed, ok := fields["processed"].(int); ok {
+					boundary["processed_bucket"] = processed / 1024
+				}
+			}
+			signature, _ := json.Marshal(boundary)
 			if string(signature) == lastProgress {
 				return
 			}
@@ -107,7 +120,9 @@ func diagnosticFields(ev events.Event) map[string]any {
 	var keys []string
 	switch ev.Name {
 	case "progress":
-		keys = []string{"phase", "subphase", "request", "attempt", "request_id", "http_status", "duration_ms", "outcome"}
+		keys = []string{"phase", "subphase", "request", "attempt", "request_id", "http_status", "duration_ms", "outcome", "prompt", "completion", "cached", "cache_known", "processed", "estimated"}
+	case "usage":
+		keys = []string{"step", "prompt", "completion", "cached", "estimated"}
 	case "tool_result":
 		keys = []string{"call_id", "failed"}
 	case "outcome":

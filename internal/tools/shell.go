@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/keshon/gektor/internal/integrations/process"
 	"os/exec"
 	"runtime"
 	"strings"
 	"time"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/process"
 	"github.com/keshon/gektor/internal/workspace"
 )
 

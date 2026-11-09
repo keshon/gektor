@@ -14,7 +14,7 @@ import (
 
 	workflow "github.com/keshon/gektor/internal/automation/agenttools"
 	"github.com/keshon/gektor/internal/automation/script"
-	"github.com/keshon/gektor/internal/integrations/documents"
+	"github.com/keshon/gektor/internal/capabilities/documents"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -112,7 +112,7 @@ func TestVisualFixtureAndProbeInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for suite, count := range map[string]int{"visual": 1, "pipelines": 2, "documents": 3, "delegation": 2, "memory": 2} {
+	for suite, count := range map[string]int{"workflows": 5, "visual": 1, "pipelines": 2, "documents": 3, "delegation": 2, "memory": 3, "media": 4} {
 		selected, err := selectSuite(probes, suite)
 		if err != nil || len(selected) != count {
 			t.Fatal(suite, selected, err)

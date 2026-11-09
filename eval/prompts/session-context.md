@@ -20,3 +20,5 @@ archive records, prompt changes on resume, unknown legacy delivery, Unicode
 paging and tool activation during the inspecting batch. These deterministic
 checks do not establish model reliability. Run repeated live probes with the
 same backend before comparing models.
+
+`45-assistant-role` replays a saved download report with an assistant message phrased like a user request. The model must report one actual user request, keep its own message attributed to itself, and finish without starting new work. The report exists in the seeded workspace and is read through an eager tool. No media capability is required and this probe performs no download.

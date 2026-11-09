@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"path/filepath"
+
 	"github.com/keshon/gektor/internal/automation"
 	"github.com/keshon/gektor/internal/automation/credentials"
 	artifactnodes "github.com/keshon/gektor/internal/automation/nodes/artifact"
@@ -14,23 +17,28 @@ import (
 	scriptnode "github.com/keshon/gektor/internal/automation/nodes/script"
 	workflownodes "github.com/keshon/gektor/internal/automation/nodes/workflow"
 	"github.com/keshon/gektor/internal/automation/service"
+	docnodes "github.com/keshon/gektor/internal/capabilities/documents/nodes"
+	filenodes "github.com/keshon/gektor/internal/capabilities/files/nodes"
+	imagecontract "github.com/keshon/gektor/internal/capabilities/images/contract"
+	imagenodes "github.com/keshon/gektor/internal/capabilities/images/nodes"
+	"github.com/keshon/gektor/internal/capabilities/media"
+	medianodes "github.com/keshon/gektor/internal/capabilities/media/nodes"
+	"github.com/keshon/gektor/internal/capabilities/social"
+	socialnodes "github.com/keshon/gektor/internal/capabilities/social/nodes"
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/gektor"
-	documentnodes "github.com/keshon/gektor/internal/integrations/documents/nodes"
-	filenodes "github.com/keshon/gektor/internal/integrations/fileops/nodes"
-	"github.com/keshon/gektor/internal/integrations/pixelita"
-	imagenodes "github.com/keshon/gektor/internal/integrations/pixelita/nodes"
 	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/programs"
 	"github.com/keshon/gektor/internal/workspace"
-	"io"
-	"path/filepath"
 )
 
 // AutomationRegistry composes operations without constructing a model client.
-func AutomationRegistry(ws *workspace.Workspace, store string, output pixelita.OutputAuthorizer, fileOutput func(context.Context, string, string, json.RawMessage) error) (*automation.Registry, error) {
+func AutomationRegistry(ws *workspace.Workspace, store string, output imagecontract.OutputAuthorizer, fileOutput func(context.Context, string, string, json.RawMessage) error) (*automation.Registry, error) {
 	nodes := imagenodes.Definitions(ws, output)
+	nodes = append(nodes, socialnodes.Definitions(social.New())...)
 	nodes = append(nodes, filenodes.Definitions(ws, fileOutput)...)
-	nodes = append(nodes, documentnodes.Definitions(ws)...)
+	nodes = append(nodes, medianodes.Definitions(media.New(ws, programs.New(gektor.Sub("applications.json"))))...)
+	nodes = append(nodes, docnodes.Definitions(ws)...)
 	nodes = append(nodes, record.Definitions(ws, store)...)
 	nodes = append(nodes, artifactnodes.Definitions(ws)...)
 	nodes = append(nodes, processnode.Definition(ws))

@@ -25,8 +25,8 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/automation/script"
+	"github.com/keshon/gektor/internal/capabilities/documents"
 	"github.com/keshon/gektor/internal/config"
-	"github.com/keshon/gektor/internal/integrations/documents"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/tools"
@@ -69,6 +69,9 @@ type Probe struct {
 	Attachments []string `json:"attachments,omitempty"`
 	Git         bool     `json:"git,omitempty"`
 	Replies     []string `json:"replies,omitempty"`
+	// Continuation replays recorded assistant/tool turns after Task, then
+	// resumes without inventing a new user message.
+	Continuation []llm.Message `json:"continuation,omitempty"`
 
 	// Verify is the workspace verdict. Every check must pass.
 	Verify []Check `json:"verify"`
@@ -349,7 +352,7 @@ func main() {
 	model := flag.String("model", "local", "model name: ignored by most local servers, required for remote providers")
 	dir := flag.String("probes", "eval/probes", "directory of probe .json files")
 	only := flag.String("only", "", "run only probes whose name contains this substring")
-	suite := flag.String("suite", "", "named subset: core, workflows, pipelines, visual, documents, delegation or memory")
+	suite := flag.String("suite", "", "named subset: core, workflows, pipelines, visual, documents, delegation, memory or media")
 	jobsN := flag.Int("jobs", 1, "how many probes to run at once. Both backends batch concurrent "+
 		"requests (koboldcpp --parallelrequests, llama-server --parallel) and neither helps unless "+
 		"the client sends them; raising this past what the server was started with just queues")
@@ -1018,6 +1021,11 @@ func loadProbes(dir, only string) ([]Probe, error) {
 		}
 		if strings.TrimSpace(p.Task) == "" {
 			return nil, fmt.Errorf("%s: task is empty", path)
+		}
+		for _, message := range p.Continuation {
+			if message.Role != llm.RoleAssistant && message.Role != llm.RoleTool {
+				return nil, fmt.Errorf("%s: continuation accepts assistant and tool messages only", path)
+			}
 		}
 		// A probe with nothing to assert passes unconditionally, which is
 		// worse than not having the probe at all.

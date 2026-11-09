@@ -191,7 +191,11 @@ func (c *Capabilities) Map() string {
 	}
 	text := "\nOptional capabilities (enable_capability accepts a known ID):"
 	for _, entry := range entries {
-		line := "\n" + entry.ID + ": " + strings.Join(strings.Fields(entry.Description), " ")
+		description := []rune(strings.Join(strings.Fields(entry.Description), " "))
+		if len(description) > 96 {
+			description = append(description[:93], []rune("...")...)
+		}
+		line := "\n" + entry.ID + ": " + string(description)
 		if len([]rune(text+line)) > 900 {
 			text += "\nUse discover_capabilities to find more available packs."
 			break

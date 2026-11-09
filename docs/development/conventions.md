@@ -43,10 +43,17 @@ Request dialects format inference requests; inspection belongs to providers.
 lets `internal/tools` implement `agent.Tool` without an import cycle, and what
 keeps the loop testable against a stub client with no filesystem in sight.
 
-The social reader and shared integration HTTP transport import no internal
-packages. Native file operations import only workspace access and that transport.
-Document readers import only workspace access and the shared worker package.
-Worker process support imports no internal packages.
+Capability services do not import Agent or workflow execution. Image services
+import only workspace access; attachment grants are resolved by their Agent
+adapter. Document readers import workspace access and the shared worker package.
+File services import workspace access and HTTP transport. Social readers import
+HTTP transport. Media services import workspace access, HTTP transport, process
+execution and program discovery.
+
+Shared HTTP transport and process support import no internal packages. Program
+discovery imports process support. Worker support imports no internal packages.
+Every capability package has an explicit import rule, including its contract,
+tool and node adapters; adding an unregistered capability package fails the check.
 
 Reusable TUI components may import other components, but no application packages.
 
@@ -68,6 +75,13 @@ complaint. Sending one encoding leaves the other backend generating free text
 that happens to be asked for JSON, which fails later and somewhere else.
 
 ## Dependencies
+
+**[practice]** Built-in capabilities follow the
+[capability development pattern](capabilities.md): execution stays in a shared
+service, JSON contracts stay in its adapter, and Agent and workflow wrappers
+connect those contracts to their callers. Shared HTTP, process and application
+support are separate responsibilities. Existing package differences need review;
+matching directory names alone does not establish a shared boundary.
 
 **[enforced: cgo-free]** No package imports `C`. cgo turns a single `go build`
 into a toolchain problem, breaks cross-compilation, and is not worth it for a

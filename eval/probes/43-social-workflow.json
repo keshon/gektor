@@ -1,0 +1,68 @@
+{
+  "prompt": "eval/prompts/workflows.md",
+  "tier": "signal",
+  "timeout_sec": 600,
+  "max_steps": 16,
+  "task": "Create post.json: a reusable workflow that reads the public post at https://x.com/example/status/20 using the dedicated native public-post reader. Declare its result as a recipe output. Discover the node contract and validate the saved recipe only. Do not run the recipe, request the post, use network tools, execute commands, install anything or delegate the task. Report whether validation succeeded.",
+  "verify": [
+    {
+      "type": "content_contains",
+      "path": "post.json",
+      "contains": "social_read_post"
+    },
+    {
+      "type": "content_contains",
+      "path": "post.json",
+      "contains": "https://x.com/example/status/20"
+    },
+    {
+      "type": "content_contains",
+      "path": "post.json",
+      "contains": "$step"
+    }
+  ],
+  "trace": [
+    {
+      "tool": "workflow_schema",
+      "mode": "required",
+      "success": true
+    },
+    {
+      "tool": "workflow_validate",
+      "mode": "required",
+      "success": true
+    },
+    {
+      "tool": "workflow_run",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "cap__social__read_post",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "webfetch",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "fetch_raw",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "search_web",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "run_*",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "start_*",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "delegate_task",
+      "mode": "forbidden"
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "prompt": "eval/prompts/media.md",
+  "tier": "signal",
+  "timeout_sec": 600,
+  "max_steps": 12,
+  "task": "Download https://www.youtube.com/watch?v=X-9PWNlfNYg as downloaded.mp4 with video and audio, up to 720p and 64 MiB. Prefer native YouTube. If it fails, explicitly try yt-dlp. Use merged mode so the download itself produces the requested MP4. Inspect the actual output and report its path, backend, container, video and audio codecs. Do not run commands, re-encode the download or create extra files.",
+  "verify": [
+    {
+      "type": "file_exists",
+      "path": "downloaded.mp4"
+    }
+  ],
+  "trace": [
+    {
+      "tool": "media_status",
+      "mode": "required",
+      "success": true
+    },
+    {
+      "tool": "video_download",
+      "mode": "required",
+      "success": true,
+      "args_regex": "downloaded\\.mp4",
+      "output_regex": "\"container\":\"mp4\""
+    },
+    {
+      "tool": "video_download",
+      "max_calls": 2
+    },
+    {
+      "tool": "media_inspect",
+      "mode": "required",
+      "success": true,
+      "args_regex": "downloaded\\.mp4",
+      "output_regex": "\"format_name\":\"[^\"]*mp4"
+    },
+    {
+      "tool": "media_inspect",
+      "mode": "required",
+      "success": true,
+      "output_regex": "\"codec_type\":\"video\""
+    },
+    {
+      "tool": "media_inspect",
+      "mode": "required",
+      "success": true,
+      "output_regex": "\"codec_type\":\"audio\""
+    },
+    {
+      "tool": "media_convert",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "media_clip",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "media_merge",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "run_*",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "start_*",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "write_file",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "patch_file",
+      "mode": "forbidden"
+    }
+  ],
+  "answer": [
+    {
+      "mode": "required",
+      "regex": "downloaded\\.mp4"
+    },
+    {
+      "mode": "required",
+      "regex": "mp4"
+    }
+  ]
+}
