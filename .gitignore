@@ -49,3 +49,4 @@ run-serve.cmd
 /website/design/previews/
 /website/prototypes/
 /website/*.log
+/.VSCodeCounter
