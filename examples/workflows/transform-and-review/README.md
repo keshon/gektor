@@ -1,9 +1,16 @@
 # Transform and review
 
-From the repository root, build the current branch and select the example workspace:
+## Before running
+
+The commands use PowerShell from the extracted application folder or a
+[built source checkout](../../../docs/development/README.md). On Linux, use
+`./gektor` in place of `.\gektor.exe` and equivalent shell syntax.
+Copy this folder before editing and select that copy with `-workspace`.
+Each run creates a separate saved record.
+
+From the application folder, select the example workspace:
 
 ```powershell
-go build -o gektor.exe ./cmd/gektor
 .\gektor.exe workflow validate -workspace examples/workflows/transform-and-review recipe.json
 .\gektor.exe workflow run -workspace examples/workflows/transform-and-review -yes -allow "workflow_run=*,script_transform=*" recipe.json
 .\gektor.exe workflow inspect -workspace examples/workflows/transform-and-review <run-id>

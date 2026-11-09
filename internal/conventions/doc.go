@@ -1,4 +1,4 @@
-// Package conventions turns the checkable half of docs/conventions.md into a
+// Package conventions turns the checkable half of docs/development/conventions.md into a
 // test, so the document's claims are facts rather than intentions. It has no
 // runtime role and nothing imports it.
 //

@@ -1,0 +1,212 @@
+[
+  {
+    "source": "docs/README.md",
+    "title": "Documentation",
+    "section": "Get started",
+    "route": "/docs/"
+  },
+  {
+    "source": "docs/start.md",
+    "title": "Your first run",
+    "section": "Get started",
+    "route": "/docs/start/"
+  },
+  {
+    "source": "docs/guide/agent.md",
+    "title": "Work on a project with Agent",
+    "section": "Guides",
+    "route": "/docs/guides/agent/"
+  },
+  {
+    "source": "docs/guide/workflows.md",
+    "title": "Run and edit a workflow",
+    "section": "Guides",
+    "route": "/docs/guides/workflows/"
+  },
+  {
+    "source": "docs/guide/models.md",
+    "title": "Connect a model",
+    "section": "Guides",
+    "route": "/docs/guides/models/"
+  },
+  {
+    "source": "docs/guide/sessions.md",
+    "title": "Reopen a conversation and manage context",
+    "section": "Guides",
+    "route": "/docs/guides/sessions/"
+  },
+  {
+    "source": "docs/guide/files-and-images.md",
+    "title": "Read documents and attach files",
+    "section": "Guides",
+    "route": "/docs/guides/files-and-images/"
+  },
+  {
+    "source": "docs/guide/browser.md",
+    "title": "Check an app in a browser",
+    "section": "Guides",
+    "route": "/docs/guides/browser/"
+  },
+  {
+    "source": "docs/guide/extensions.md",
+    "title": "Connect tools and skill libraries",
+    "section": "Guides",
+    "route": "/docs/guides/extensions/"
+  },
+  {
+    "source": "docs/guide/automation.md",
+    "title": "Schedule and queue workflows",
+    "section": "Guides",
+    "route": "/docs/guides/automation/"
+  },
+  {
+    "source": "docs/guide/permissions.md",
+    "title": "Review permissions and changes",
+    "section": "Guides",
+    "route": "/docs/guides/permissions/"
+  },
+  {
+    "source": "docs/guide/troubleshooting.md",
+    "title": "Diagnose a failed task",
+    "section": "Guides",
+    "route": "/docs/guides/troubleshooting/"
+  },
+  {
+    "source": "docs/reference/cli.md",
+    "title": "CLI reference",
+    "section": "Reference",
+    "route": "/docs/reference/cli/"
+  },
+  {
+    "source": "docs/reference/configuration.md",
+    "title": "Configuration and stored data",
+    "section": "Reference",
+    "route": "/docs/reference/configuration/"
+  },
+  {
+    "source": "docs/reference/terminal.md",
+    "title": "Terminal controls",
+    "section": "Reference",
+    "route": "/docs/reference/terminal/"
+  },
+  {
+    "source": "docs/reference/recipes.md",
+    "title": "Recipe format and execution",
+    "section": "Reference",
+    "route": "/docs/reference/recipes/"
+  },
+  {
+    "source": "docs/reference/operations.md",
+    "title": "Operations and tool limits",
+    "section": "Reference",
+    "route": "/docs/reference/operations/"
+  },
+  {
+    "source": "docs/reference/http-api.md",
+    "title": "Workflow HTTP API",
+    "section": "Reference",
+    "route": "/docs/reference/http-api/"
+  },
+  {
+    "source": "docs/reference/rpc.md",
+    "title": "Agent stdio RPC",
+    "section": "Reference",
+    "route": "/docs/reference/rpc/"
+  },
+  {
+    "source": "docs/development/README.md",
+    "title": "Build and contribute",
+    "section": "Development",
+    "route": "/docs/development/"
+  },
+  {
+    "source": "docs/development/conventions.md",
+    "title": "Project conventions",
+    "section": "Development",
+    "route": "/docs/development/conventions/"
+  },
+  {
+    "source": "docs/development/testing.md",
+    "title": "Test and verify a change",
+    "section": "Development",
+    "route": "/docs/development/testing/"
+  },
+  {
+    "source": "docs/development/tui.md",
+    "title": "Terminal architecture and interaction contracts",
+    "section": "Development",
+    "route": "/docs/development/tui/"
+  },
+  {
+    "source": "docs/development/writing.md",
+    "title": "Write and maintain documentation",
+    "section": "Development",
+    "route": "/docs/development/writing/"
+  },
+  {
+    "source": "ARCHITECTURE.md",
+    "title": "Architecture",
+    "section": "Development",
+    "route": "/docs/development/architecture/"
+  },
+  {
+    "source": "SECURITY.md",
+    "title": "Security policy",
+    "section": "Development",
+    "route": "/docs/development/security/"
+  },
+  {
+    "source": "eval/README.md",
+    "title": "Eval runner",
+    "section": "Development",
+    "route": "/docs/development/evals/"
+  },
+  {
+    "source": "examples/workflows/README.md",
+    "title": "Workflow examples",
+    "section": "Examples",
+    "route": "/examples/"
+  },
+  {
+    "source": "examples/workflows/transform-and-review/README.md",
+    "title": "Transform and review",
+    "section": "Examples",
+    "route": "/examples/transform-and-review/"
+  },
+  {
+    "source": "examples/workflows/log-report/README.md",
+    "title": "Log error report",
+    "section": "Examples",
+    "route": "/examples/log-report/"
+  },
+  {
+    "source": "examples/workflows/subworkflow/README.md",
+    "title": "Reusable report workflow",
+    "section": "Examples",
+    "route": "/examples/subworkflow/"
+  },
+  {
+    "source": "examples/workflows/process-report/README.md",
+    "title": "Local program report",
+    "section": "Examples",
+    "route": "/examples/process-report/"
+  },
+  {
+    "source": "examples/workflows/repository-report/README.md",
+    "title": "Repository report",
+    "section": "Examples",
+    "route": "/examples/repository-report/"
+  },
+  {
+    "source": "examples/workflows/webhook-note/README.md",
+    "title": "Webhook note",
+    "section": "Examples",
+    "route": "/examples/webhook-note/"
+  },
+  {
+    "source": "examples/workflows/moltbook-draft/README.md",
+    "title": "Read a feed and save a draft",
+    "section": "Examples",
+    "route": "/examples/moltbook-draft/"
+  }
+]

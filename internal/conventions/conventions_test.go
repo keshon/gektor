@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-// checks maps an [enforced: name] tag in docs/conventions.md to the function
+// checks maps an [enforced: name] tag in docs/development/conventions.md to the function
 // that enforces it. TestDocumentAndChecksAgree fails if this map and the
 // document's tags ever disagree.
 var checks = map[string]func(*testing.T, *repo){
@@ -50,12 +50,12 @@ func TestDocumentAndChecksAgree(t *testing.T) {
 			continue
 		}
 		if _, ok := checks[tag]; !ok {
-			t.Errorf("docs/conventions.md claims [enforced: %s] but no check is registered", tag)
+			t.Errorf("docs/development/conventions.md claims [enforced: %s] but no check is registered", tag)
 		}
 	}
 	for _, name := range sortedKeys(checks) {
 		if _, ok := r.rules[name]; !ok {
-			t.Errorf("check %q runs but docs/conventions.md never states the rule", name)
+			t.Errorf("check %q runs but docs/development/conventions.md never states the rule", name)
 		}
 	}
 }
@@ -241,7 +241,7 @@ func load(t *testing.T) *repo {
 	t.Helper()
 	root := repoRoot(t)
 	r := &repo{root: root, cache: map[string]string{}}
-	r.doc = r.readPath(t, "docs/conventions.md")
+	r.doc = r.readPath(t, "docs/development/conventions.md")
 	r.rules = parseRules(r.doc)
 	r.goFiles = goFiles(t, root)
 	return r
@@ -282,9 +282,9 @@ func parseRules(doc string) map[string]string {
 func (r *repo) rule(tag string) string {
 	text, ok := r.rules[tag]
 	if !ok {
-		return fmt.Sprintf("(docs/conventions.md states no rule for %q)", tag)
+		return fmt.Sprintf("(docs/development/conventions.md states no rule for %q)", tag)
 	}
-	return "\ndocs/conventions.md says:\n" + indent(text)
+	return "\ndocs/development/conventions.md says:\n" + indent(text)
 }
 
 func indent(s string) string {
@@ -409,7 +409,7 @@ func checkCgoFree(t *testing.T, r *repo) {
 // flag.String("backend", ...) or flags.StringVar(&value, "backend", ...).
 var flagDecl = regexp.MustCompile(`\bflags?\.(?:String|Bool|Int|Float64|Duration)(?:Var\([^,]+,\s*|\()"([a-z0-9-]+)"`)
 
-// checkCliFlags keeps docs/cli.md complete: every flag cmd/gektor
+// checkCliFlags keeps docs/reference/cli.md complete: every flag cmd/gektor
 // registers must be named there (as `-name`), or the reference rots one
 // flag at a time — which is how five flags went undocumented unnoticed.
 // The check reads names, not help text: wording stays a human judgment.
@@ -423,10 +423,10 @@ func checkCliFlags(t *testing.T, r *repo) {
 	if len(flagDecl.FindAllStringSubmatch(src, -1)) == 0 {
 		t.Fatal("no CLI flag declarations found")
 	}
-	cli := r.readPath(t, "docs/cli.md")
+	cli := r.readPath(t, "docs/reference/cli.md")
 	for _, m := range flagDecl.FindAllStringSubmatch(src, -1) {
 		if !strings.Contains(cli, "`-"+m[1]+"`") && !strings.Contains(cli, "`-"+m[1]+" ") {
-			t.Errorf("docs/cli.md never names -%s\n%s", m[1], r.rule("cli-flags"))
+			t.Errorf("docs/reference/cli.md never names -%s\n%s", m[1], r.rule("cli-flags"))
 		}
 	}
 }

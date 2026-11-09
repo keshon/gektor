@@ -22,4 +22,4 @@ engine; the feed example is a local draft, not a publishing bot.
 [Demos](../../demos/README.md) launch selected examples in fresh workspaces.
 [Evals](../../eval/README.md) test the Agent with isolated fixtures and scored
 results. Engine behavior is tested in Go, without depending on a model or public
-API. Use the [workflow reference](../../docs/workflows.md) for recipe fields.
+API. Use the [workflow reference](../../docs/reference/recipes.md) for recipe fields.

@@ -1,6 +1,14 @@
 # Webhook note
 
-Run from the repository root in PowerShell. No model or external service is needed.
+## Before running
+
+The commands use PowerShell from the extracted application folder or a
+[built source checkout](../../../docs/development/README.md). On Linux, use
+`./gektor` in place of `.\gektor.exe` and equivalent shell syntax.
+Copy this folder before editing and select that copy with `-workspace`.
+Each run creates a separate saved record.
+
+Run from the application folder in PowerShell. No model or external service is needed.
 The recipe writes the supplied text to a run artifact.
 
 Generate two tokens in the first terminal:

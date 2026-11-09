@@ -105,7 +105,7 @@ func TestGeneratedProfileCarriesAnIdentity(t *testing.T) {
 	}
 }
 
-// The launch docs/tui.md shows has no -profile, and it still has to be
+// The launch docs/reference/terminal.md shows has no -profile, and it still has to be
 // configurable: without a profile the services handle and the Application
 // both came back nil, which disabled every Settings row with nothing on
 // screen saying why.

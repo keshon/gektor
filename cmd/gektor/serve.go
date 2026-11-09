@@ -2,7 +2,7 @@ package main
 
 // The stdio JSON-RPC server behind -serve: methods run/respond/cancel on
 // stdin, event lines plus id-responses on stdout. The protocol is
-// documented in docs/rpc.md; the shape below is the whole of it.
+// documented in docs/reference/rpc.md; the shape below is the whole of it.
 //
 // Concurrency is deliberately single-flight: one run at a time, one
 // pending gate at a time. The agent loop is single-threaded per run, so

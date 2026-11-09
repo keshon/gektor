@@ -1,11 +1,18 @@
 # Repository report
 
+## Before running
+
+The commands use PowerShell from the extracted application folder or a
+[built source checkout](../../../docs/development/README.md). On Linux, use
+`./gektor` in place of `.\gektor.exe` and equivalent shell syntax.
+Copy this folder before editing and select that copy with `-workspace`.
+Each run creates a separate saved record.
+
 This pipeline fetches public repository metadata, transforms it into a small
 record, pauses for review, then saves it. No credential or model is required.
-From the repository root:
+From the application folder:
 
 ```powershell
-go build -o gektor.exe ./cmd/gektor
 .\gektor.exe workflow register-schema -workspace examples/workflows/repository-report repository_reports report.schema.json
 .\gektor.exe workflow validate -workspace examples/workflows/repository-report recipe.json
 .\gektor.exe workflow run -workspace examples/workflows/repository-report -yes -allow "workflow_run=*,http_request=GET https://api.github.com/repos/keshon/gektor,script_transform=*,record_write=repository_reports/*" recipe.json

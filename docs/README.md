@@ -1,33 +1,36 @@
-# Documentation
+# GEKTOR documentation
 
-Start here:
+[Get started](start.md) takes you from an extracted release to a first Agent task
+or a workflow that needs no model. Choose the path that fits your task.
 
-- [Quick start](../README.md): purpose, requirements and first launch.
-- [Setup](bootstrap.md): external server setup, saved data and release contents.
-- [Terminal guide](tui.md): using Agent and Workflows, with steps for everyday tasks.
-- [Demos](../demos/README.md): launch complete tasks in fresh workspaces.
-- [Workflow examples](../examples/workflows/README.md): recipes to copy, with their purpose and requirements.
+## Guides
 
-Look up a specific task:
+- [Work on a project with Agent](guide/agent.md)
+- [Schedule and queue workflows](guide/automation.md)
+- [Check an app in a browser](guide/browser.md)
+- [Connect tools and skill libraries](guide/extensions.md)
+- [Read documents and attach files](guide/files-and-images.md)
+- [Connect a model](guide/models.md)
+- [Review permissions and changes](guide/permissions.md)
+- [Reopen a conversation and manage context](guide/sessions.md)
+- [Diagnose a failed task](guide/troubleshooting.md)
+- [Run and edit a workflow](guide/workflows.md)
 
-- [Workflow reference](workflows.md): operations, data mappings, run records, schedules and API.
-- [CLI reference](cli.md): flags, backend examples, permissions and service commands.
-- [Session history and context](cli.md#session-history-and-context): archive search, current request inspection and prompt versions.
-- [Browser](browser.md): setup, persistent profiles, login and observation tools.
-- [Extensions](extensions.md): capability packs, executable adapters and skill libraries.
-- [Security](../SECURITY.md): permissions, workspace access and network behavior.
+## Reference
 
-For developers:
+- [CLI reference](reference/cli.md)
+- [Configuration and stored data](reference/configuration.md)
+- [Workflow HTTP API](reference/http-api.md)
+- [Operations and tool limits](reference/operations.md)
+- [Recipe format and execution](reference/recipes.md)
+- [Agent stdio RPC](reference/rpc.md)
+- [Terminal controls](reference/terminal.md)
 
-- [RPC protocol](rpc.md): stdio requests, events, gates and client lifetime.
-- [Architecture](../ARCHITECTURE.md): packages, loop, role budgets and frontends.
-- [TUI design](tui-design.md): shared controls, layouts, interaction rules and verification.
-- [TUI mockups](design/tui/README.md): editable FigCraft components, screens and palette studies.
-- [TUI smoke check](tui-smoke.md): isolated session recovery checks in a real terminal.
-- [Conventions](conventions.md): enforced checks and coding practices.
-- [Eval guide](../eval/README.md): frozen probes and repeatable scoring.
-- [Agent skills](../skills/README.md): task-workspace guidance for the local model.
+## Examples and development
 
-The code is authoritative for behavior. Documentation checks cover registered
-CLI flags, referenced identifiers and convention tags; they do not prove that
-an example works or that every description remains semantically current.
+Try a [workflow example](../examples/workflows/README.md); each recipe keeps its
+instructions beside its files. To change GEKTOR itself, start with
+[Build and contribute](development/README.md).
+
+The [security policy](../SECURITY.md) and [architecture](../ARCHITECTURE.md) stay at
+the repository root. Internal plans and historical records are not user guides.

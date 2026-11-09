@@ -1,13 +1,49 @@
 """Build Windows/Linux amd64 archives: python scripts/release.py vMAJOR.MINOR.PATCH."""
 
 import hashlib
+import io
 import os
 from pathlib import Path
+import posixpath
 import re
 import subprocess
 import sys
 import tarfile
 import zipfile
+
+
+def runtime_files(tracked):
+    """Select the runtime kit without local secrets or internal work records."""
+    roots = {"README.md", "LICENSE", "SECURITY.md", "ARCHITECTURE.md", ".env.example"}
+    adjacent = {
+        "eval/README.md", "demos/README.md", "scripts/README.md",
+        # Frozen skills/README.md links to this embedded guide's source.
+        "internal/workspace/builtin/workflows/SKILL.md",
+    }
+    return sorted(name for name in tracked if (
+        name in roots or name in adjacent
+        or name.startswith(("skills/", "profiles/", "examples/workflows/", "docs/images/"))
+        or name.startswith("docs/") and name.endswith(".md")
+        and not name.startswith(("docs/internal/", "docs/design/"))
+    ))
+
+
+def release_bytes(root, name, included, revision):
+    """Keep offline article links local; point omitted contributor sources to GitHub."""
+    data = (root / name).read_bytes()
+    if not name.endswith(".md") or name.startswith("skills/") or name.endswith("/SKILL.md"):
+        return data
+    def link(match):
+        href = match.group(1)
+        if re.match(r"[a-zA-Z][a-zA-Z0-9+.-]*:|//", href):
+            return match.group(0)
+        location, separator, fragment = href.partition("#")
+        target = posixpath.normpath(posixpath.join(posixpath.dirname(name), location)) if location else name
+        if target in included:
+            return match.group(0)
+        return f"](https://github.com/keshon/gektor/blob/{revision}/{target}{separator}{fragment})"
+    text = re.sub(r"\]\(([^\s)]+)\)", link, data.decode("utf-8"))
+    return text.encode("utf-8")
 
 
 def main():
@@ -19,12 +55,10 @@ def main():
     out = root / "tmp" / f"release-{version}"
     out.mkdir(parents=True, exist_ok=True)
     # Explicit runtime kit. Never glob local files: .env can contain credentials.
-    common = ["README.md", "LICENSE", "SECURITY.md", "ARCHITECTURE.md", ".env.example"]
-    common += subprocess.check_output(
-        ["git", "ls-files", "--cached",
-         "docs", "skills", "profiles", "examples/workflows", "eval/README.md",
-         "demos/README.md", "scripts/README.md"], text=True
-    ).splitlines()
+    common = runtime_files(subprocess.check_output(
+        ["git", "ls-files", "--cached"], text=True
+    ).splitlines())
+    revision = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
     windows = [
         "start-gektor-agent.cmd", "start-gektor-workflows.cmd",
         "run-gektor-agent.cmd", "run-gektor-workflow.cmd", "serve-gektor-workflows.cmd",
@@ -45,13 +79,14 @@ def main():
             env=env, check=True,
         )
         files = common + (windows if platform == "windows" else [])
+        contents = {name: release_bytes(root, name, set(files), revision) for name in files}
         suffix = ".zip" if platform == "windows" else ".tar.gz"
         archive = out / f"gektor-{version}-{platform}-amd64{suffix}"
         if platform == "windows":
             with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
                 bundle.write(out / binary, binary)
                 for name in files:
-                    bundle.write(root / name, name)
+                    bundle.writestr(name, contents[name])
             with zipfile.ZipFile(archive) as bundle:
                 assert bundle.testzip() is None
                 assert set(files + [binary]) == set(bundle.namelist())
@@ -62,7 +97,9 @@ def main():
                 with (out / binary).open("rb") as stream:
                     bundle.addfile(info, stream)
                 for name in files:
-                    bundle.add(root / name, arcname=name)
+                    info = bundle.gettarinfo(str(root / name), arcname=name)
+                    info.size = len(contents[name])
+                    bundle.addfile(info, io.BytesIO(contents[name]))
             with tarfile.open(archive) as bundle:
                 assert bundle.getmember(binary).mode == 0o755
                 assert set(files + [binary]) == set(bundle.getnames())

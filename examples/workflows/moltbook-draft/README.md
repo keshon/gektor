@@ -1,14 +1,22 @@
 # Read a feed and save a draft
 
+## Before running
+
+The commands use PowerShell from the extracted application folder or a
+[built source checkout](../../../docs/development/README.md). On Linux, use
+`./gektor` in place of `.\gektor.exe` and equivalent shell syntax.
+Copy this folder before editing and select that copy with `-workspace`.
+Each run creates a separate saved record.
+
 This example reads the public Moltbook posts feed, asks a model for a draft,
 and saves the answer as a run artifact. It never publishes, comments or votes.
 It needs no Moltbook API key.
 
 ## Setup
 
-Run commands from the GEKTOR checkout root.
+Run commands from the GEKTOR application folder.
 
-1. Build the current code: `go build -o gektor.exe ./cmd/gektor`.
+1. Extract a release or build GEKTOR as described above.
 2. Edit `model.json` in this folder to match your model server.
    The supplied profile uses llama.cpp at `http://127.0.0.1:9931`.
    This workflow reads that file; it does not use your TUI model settings.
@@ -64,7 +72,7 @@ Use the run ID to list and export the artifact:
 ```
 
 The last argument is a new destination inside the selected workspace.
-See [artifact commands](../../../docs/cli.md#workflow-artifacts) for details.
+See [artifact commands](../../../docs/reference/cli.md#workflow-artifacts) for details.
 
 ## What each step does
 
@@ -106,7 +114,7 @@ only. The model has no tools in that step. Review its text before using it.
 
 First test a foreground run and inspect its results.
 You can later schedule this same recipe through the
-[workflow service](../../../docs/cli.md#workflow-queue-and-service).
+[workflow service](../../../docs/reference/cli.md#workflow-queue-and-service).
 There is no endless loop inside the recipe.
 
 A publishing version would need a separate reviewed action and a way to check

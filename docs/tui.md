@@ -1,639 +1,103 @@
 # Terminal guide
 
-GEKTOR has two ways to work:
-
-| Mode | Use it when | What you save |
-|---|---|---|
-| **Agent** | You want to discuss a task, explore a project or ask the model to do work | A conversation session |
-| **Workflows** | You want to define steps and run them again with different inputs | A recipe and a separate record of each run |
-
-Both use the selected workspace: the folder GEKTOR works in.
-Agent's **Plan / Act** choice is separate from these two modes.
+This page has moved. Start with [Terminal controls](reference/terminal.md).
 
 ## Start and choose a workspace
 
-On Windows, run `start-gektor-agent.cmd`, or `start-gektor-workflows.cmd`
-to open Workflows directly. On other systems, run `gektor -tui`;
-add `-tui-screen workflows` to open Workflows.
-Source checkouts rebuild through the Windows launcher; release archives use
-the supplied binary.
+See [Start and choose a workspace](reference/terminal.md#start-and-choose-a-workspace).
 
-For a local model, start its server first and wait for it to load.
-Open **Settings**, then **Model connection**, to set the protocol, address and model.
-For the ChatGPT connection, run `gektor auth login` first.
-See [setup](bootstrap.md) and [connection options](cli.md).
+## Menus
 
-Choose your project folder under **GEKTOR**, **Change workspace…**.
-In the folder browser, **Select folder** selects the displayed current folder.
-Opening a folder in the browser only browses it.
+See [Menus](reference/terminal.md#menus).
 
-Choose **Apply**, or press `Ctrl+S`, to save settings.
-**Cancel** discards the pending edits.
-Small choices stay in the form. Use Left/Right or Space to change them, or click
-an option. Checkboxes use Space to switch on or off. These changes wait for Apply.
-When space is tight, a choice shows its current value with previous/next arrows.
+## Other settings
 
-Larger lists have a filter and Select/Cancel buttons. Click a row to select it;
-press Enter or Select to accept it. Page Up/Down move through results, and
-Ctrl+Home/End jump to the first/last result. Tab moves focus to the buttons.
-A checkmark identifies the form's current value; the highlighted row is the
-choice you are browsing. Scrolling over the footer does not move the list.
-Folder browsing keeps its separate Open and Select folder actions.
-Use `Ctrl+L` to enter a path. `Esc` returns to the previous filter and selection.
-In multiline form fields, Enter inserts a new line and Tab moves to the next control.
+See [Other settings](reference/terminal.md#other-settings).
 
-Explicit command-line flags can override saved settings for a launch.
-Browser, debug and permission flags keep normal settings behavior.
-Workspace, profile, model, generation and identity overrides stay temporary
-until you apply them in Settings. A new installation starts in Plan even when
-extra flags are supplied; `-plan=false` explicitly starts in Act.
+## MCP servers
 
-Click the top menus, or press `F9` and use the arrow keys.
-The bottom row shows actions for the current screen. Press `F1` for help.
-
-### Menus
-
-The GEKTOR menu switches between Agent and Workflows, changes the workspace,
-and quits the application. A checkmark shows the active mode.
-
-| Menu | Agent | Workflows |
-|---|---|---|
-| Session / Recipe | New, open, rename and delete sessions; compact saved history | New, open and save recipes; edit recipe settings |
-| Node | | Add, edit, connect and delete nodes; add schedule triggers |
-| Run | Plan or Act, stop, retry and message steering | Validate, run, stop, inspect run history and set up schedules |
-| View | Show transcript details and jump to the latest message | Show the inspector and arrange the canvas |
-| Settings | Model connection, response settings, setup profiles, your details, agent instructions, permissions, MCP and appearance | The same shared settings |
-| Help | Keyboard shortcuts, commands, agent instruction preview and About | Keyboard shortcuts for Workflows, commands, agent instruction preview and About |
-
-At narrow widths, More opens the menus that do not fit on the top row.
-Keyboard and mouse reach the same actions. Disabled actions cannot run.
-
-Appearance groups theme and panel frame choices. Apply saves them together;
-Cancel discards the draft. The View toggles control which details are visible.
-The agent instruction preview shows identity instructions, not the full model
-request or its tool definitions.
-
-The Compact history menu action asks for confirmation before changing saved
-history. The `/compact` command remains a direct action.
-
-### Other settings
-
-| Section | What it changes |
-|---|---|
-| Model connection | Connection and model selection |
-| Response settings | Response limits and sampling settings supported by that connection |
-| Setup profiles | Load or save a group of settings |
-| Your details | Your displayed name and persona |
-| Agent instructions | Response style and base instructions |
-
-Loading a profile stages its values; choose Apply to use them.
-Changing settings does not send a task to the model.
-See [profiles](cli.md#profiles) for the file format and command-line use.
-
-### MCP servers
-
-Open **Settings > MCP servers**, or use `/mcp`. The table shows each server's
-status and tool count. Use `/` to filter, arrows to select a row, and Tab to
-reach its action buttons. Enter opens Details. Esc leaves the filter first,
-then closes the table.
-
-Connect starts a connection; Disconnect closes it. Edit changes the saved
-definition. **More…** opens an attached menu for Enable/Disable, Delete, Add,
-Paste JSON and Import file. Press `M` to open it, arrows to choose, and `Esc`
-to return to the same server. Direct shortcuts still work outside the filter.
-Delete asks for confirmation. Changes are available between agent turns.
-
-Add, Paste JSON and Import file save server definitions. Importing does not
-connect them. Closing a detail or edit dialog returns to the filtered list.
+See [MCP servers](reference/terminal.md#mcp-servers).
 
 ## Agent
 
-Agent is the chat screen. You describe a task; the model chooses its next steps.
+See [Agent](guide/agent.md).
 
-### Do a task
+## Do a task
 
-1. Check the workspace and model in the header.
-2. Choose **Plan** in the Agent menu to discuss and inspect, or **Act** to allow changes.
-   Some launch paths call this menu **Run**.
-3. Type your request and press `Enter`. Use `Ctrl+O` for a new line.
-4. Read the reply and tool summaries. Answer questions or permission requests.
-5. Review the result. Send a follow-up in the same conversation if needed.
+See [Do a task](guide/agent.md#do-a-task).
 
-Plan uses read-only tools. Act allows changes under the current permissions.
-Switching between them keeps the conversation.
+## Read history and tool results
 
-For example, start with:
+See [Read history and tool results](guide/agent.md#read-history-and-tool-results).
 
-> Find where this app saves settings. Explain what happens when saving fails.
+## Stop, retry and continue
 
-After reviewing the answer, switch to Act and ask:
+See [Stop, retry and continue](guide/agent.md#stop-retry-and-continue).
 
-> Fix that failure path and run the relevant tests.
+## Background processes
 
-### Read history and tool results
+See [Background processes](guide/agent.md#background-processes).
 
-History contains messages, replies, thinking, tool calls and system notices.
-A successful tool call does not mean the whole task has been verified.
+## Permissions
 
-Compact tool rows show the action and its target.
-Click the tool name to inspect its arguments and output.
-From the keyboard, use `Ctrl+T`, select a call and press `Enter`.
+See [Permissions](guide/permissions.md#permissions).
 
-The inspector opens beside history, or fills the screen in a narrow terminal.
-`Tab` changes focus. Arrow keys, page keys and the mouse wheel scroll it.
-`Esc` closes the focused inspector; its close button works too.
+## Save and reopen a conversation
 
-Scrolling up lets you read without following new messages.
-`Ctrl+End` or `F7` returns to the latest message.
-
-The **View** menu controls how history looks:
-
-| Option | When checked |
-|---|---|
-| Agent thinking | Show full thinking; otherwise show a one-line summary |
-| Agent tools | Show tool details; otherwise show compact rows |
-| System messages | Show system notices |
-| Speaker names | Show participant names |
-| Message labels | Show tags such as THINKING and RESPONSE |
-| Outlined frame | Show pane borders |
-
-`Ctrl+G` toggles full thinking. It does not shorten the normal reply.
-View choices and the theme are saved. Hidden content remains in saved history.
-
-Settings > Theme offers Dark, Light, One Half Dark, One Half Light, Solarized
-Dark and Solarized Light. Choose a theme and press Apply to save it.
-The `/theme <name>` command saves and applies it immediately; use `/theme` to
-list the names.
-
-### Stop, retry and continue
-
-Press `Esc` to stop an active turn. Stopping does not undo completed changes.
-If a popup is open, Esc may close it first.
-
-You can send another message while Agent is working.
-It waits for a model/tool boundary and does not interrupt a running tool.
-The line above the draft shows how many messages are queued and previews the
-latest one. Click the count or press `Alt+Q` to open **Message queue**.
-The Queue shortcut stays visible during a run, including when nothing is waiting.
-You can also open it from Run > Message queue.
-Messages appear oldest first. Select any message, then use:
-
-- `Enter` to read its full text and image names.
-- `Ctrl+E` to edit it in a separate window. Save keeps its position and images.
-- `Delete` to remove it.
-
-Your current draft and its images stay intact. Cancel leaves the queued message
-unchanged. Delivery does not wait for you to open the queue: a quick reply can
-leave little time to edit. Once the agent receives a message, it is read only.
-A row marked **No longer queued** is also read only; its disappearance alone does
-not prove receipt. Closing the list drops these old rows. If it is received while you are
-editing, Save explains what happened and keeps your edit visible so you can copy
-it. If a permission request or question interrupts the editor, `Alt+Q` reopens
-it after you answer.
-
-The latest-message shortcuts still work in the composer: `Ctrl+E` brings the
-latest queued message back to an empty draft; `Ctrl+X` removes it.
-A follow-up marked **Next run** will start after the current turn ends.
-
-**Apply new messages during run** in Run, or `/steering on|off`, controls delivery.
-With steering enabled, new input can withhold tools that have not started.
-With it disabled, the current tool batch finishes first.
-A new message never grants permission.
-
-After a failed turn, `/retry` continues from the saved checkpoint.
-It does not roll back files. Read the error and check completed work first.
-
-### Background processes
-
-Open **Run > Background processes…**, or use `/processes`, in Agent or Workflows.
-The searchable table shows processes started by this GEKTOR launch, including
-their managed ID, status, PID, session and command. It does not list arbitrary
-system processes or reconnect to processes from an earlier launch.
-
-Press `Enter` for exact arguments, workspace, owning session and captured output.
-Output is a bounded snapshot; reopen it for newer output. Reading it does not
-consume the Agent's output cursor or completion notifications. `R` refreshes the
-list. `S` asks to stop the selected process and its children; confirmation starts
-on Cancel. Stopping runs asynchronously. Exited entries remain available for
-inspection, with Stop disabled.
-
-Background processes can outlive an Agent turn. Closing GEKTOR or restarting it
-to apply settings stops the processes owned by that launch. A saved workflow
-schedule remains saved, but needs a running workflow service to execute.
-
-### Permissions
-
-Open Permissions in the Agent or Run menu, or use `/permissions`, to read policy rules.
-Use `/` to filter by decision, tool or pattern. Order numbers stay unchanged
-when filtering: later matching rules take precedence. Details shows the full
-pattern. This screen does not change rules or grant permission.
-
-A permission request shows the operation and its target.
-In Agent's permission prompt, `Y` allows once. `A` opens confirmation for
-allowing the same tool and target for this run. `N` lets you add a redirect
-note. Esc at the first prompt denies the request.
-An explicit deny rule cannot be overridden here.
-
-Shell commands, Git commands and external tools run with your account's
-permissions. The workspace folder is not a sandbox for those programs.
-See [security](../SECURITY.md).
-
-### Save and reopen a conversation
-
-Conversations are saved under `~/.gektor/sessions/` in the normal TUI launch.
-Choose **Open** in the Session menu, or press `Ctrl+P`, to search and reopen one.
-Opening a session does not send a new model request.
-The list searches session titles and saved message history across workspaces.
-Use `Ctrl+F` to toggle the current-workspace filter; each result shows its assigned
-workspace. Opening a session restores that workspace, not the current directory.
-If the saved directory is missing, or an older session has no workspace assigned,
-opening stops with an explanation. Choose the intended workspace in Settings,
-then press `Ctrl+W` on the session and confirm with `Y` to reassign it (`N` or
-`Esc` cancels). Reassignment changes metadata, not project files.
-
-Use `Ctrl+R` in the session list to rename it, or `Ctrl+D` to confirm deletion.
-
-New Agent conversations first use the opening message as a title. After the
-first answer, GEKTOR asks the selected backend once for a short title in the
-user's language. This runs separately from the conversation, with no tools or
-history. A failed or cancelled request keeps the original title; manual renames
-always take precedence. Starting another turn cancels a title request in progress.
-Existing sessions and forks keep their titles.
-
-An explicit workspace switch in Settings also updates the active saved session
-once the replacement services have been initialized, without needing another
-agent run. A failed initialization does not stamp the new workspace.
-
-Choose **New** in the Session menu, or press `Ctrl+N`, for a fresh conversation.
-Unsent drafts are kept while the app is open, but are not saved across exit.
-
-Long conversations may be compacted to fit the model's context window.
-The full saved archive remains available to read and search.
-You can also use `/compact` while idle.
-A session is not a backup of project files.
-
-Ask the Agent to find an earlier decision or tool result, for example:
-"Find where we discussed the queue bug and quote the original message."
-It can search this session's saved archive even after compaction. It can also
-inspect which messages and instructions were in its current model request.
-Searching other sessions is not supported by these tools.
-See [session history and context](cli.md#session-history-and-context) for tool
-examples and the limits of prompt version records.
+See [Save and reopen a conversation](guide/sessions.md#save-and-reopen-a-conversation).
 
 ## Workflow workspace
 
-A workflow is a set of saved steps.
-The runner follows those steps instead of asking a model to choose each action.
+See [Workflow workspace](guide/workflows.md#recipes-and-runs).
 
-| Term | Meaning | Available today |
-|---|---|---|
-| **Recipe** | Instructions: steps, connections, inputs and outputs | A JSON file in the workspace |
-| **Run** | One execution with its input values and results | Saved separately in your GEKTOR user directory |
-| **Template** | A reusable starting point copied into a new recipe | No template library yet; copy a recipe manually |
-| **Schedule** | A trigger that starts a workflow at set times | Schedule card in the editor; executed by the workflow service |
+## Open or create a recipe
 
-You can edit and run workflows without a model connection.
-AI change requests need a model. A model-generation node also needs its configured model.
+See [Open or create a recipe](guide/workflows.md#open-or-create-a-recipe).
 
-### Open or create a recipe
+## Read the nodes and connections
 
-Finish or stop the active Agent turn first.
-In the **Workflows** menu:
+See [Read the nodes and connections](guide/workflows.md#read-the-nodes-and-connections).
 
-- **Open recipe…** opens a workspace recipe.
-- **New recipe…** starts one.
-- **GEKTOR**, **Workflows**, or `/workflows`, enters the editor.
+## Inspect a step
 
-The editor has **Workflow / Node / Run / View / Settings / Help** menus.
-Choose a recipe path inside the workspace.
-For example, `workflows/image-report.json` is a useful convention,
-not a required folder.
-There is no automatic recipe library or shared user-directory recipe lookup yet.
+See [Inspect a step](guide/workflows.md#inspect-a-step).
 
-In the editor, `Ctrl+O` opens, `Ctrl+N` creates and `Ctrl+S` saves.
-Save before replacing a draft.
-New/Open asks before discarding unsaved changes.
+## Change a recipe
 
-### Read the nodes and connections
+See [Change a recipe](guide/workflows.md#change-a-recipe).
 
-Each card shows its name, operation, input and output ports, and status.
-The selected card has a double border.
+## Validate and run
 
-- Inputs are on the left. They receive values.
-- Outputs are on the right. They pass results to other steps.
-- Solid lines carry data, such as text from one step to another.
-- Dashed lines set order. The diamond ports **then** and **after**
-  mean “wait for this step,” without passing a value.
-- Filled ports are connected; empty ports are not.
-- A crossing is not a connection.
-  A `!` at an output means the wire could not be drawn.
-  The recipe still keeps the connection.
+See [Validate and run](guide/workflows.md#validate-and-run).
 
-**Not run** means there is no run result on that card.
-It does not mean the recipe has passed validation.
-Steps execute one at a time, even when the graph branches.
+## Schedule a workflow
 
-Click a card or use the arrow keys to select it.
-Drag empty space to pan. Use `Shift+wheel` for horizontal movement,
-or `Alt+arrows` to pan with the keyboard.
+See [Schedule a workflow](guide/automation.md#schedule-a-workflow).
 
-**Lock node positions** in View (`G`) prevents accidental card movement.
-You can still pan, inspect and edit.
-When unlocked, drag cards or use `Shift+arrows` to move them.
-`L` arranges them automatically; `F` shows an overview.
+## Review and reopen a run
 
-### Inspect a step
+See [Review and reopen a run](guide/workflows.md#review-and-reopen-a-run).
 
-Select a node and press `Ctrl+T`. The inspector has three tabs:
+## Try a small example
 
-| Tab | What it answers |
-|---|---|
-| **Properties** | What values does this step use? Where do they come from? Who uses its outputs? |
-| **Result** | What happened in the selected run? What values and errors were recorded? |
-| **Code** | What script does this step use, if it has one? |
+See [Try a small example](guide/workflows.md#try-a-small-example).
 
-Click a tab or press `1`, `2` or `3`.
-`Tab` moves focus between canvas and inspector.
-In the focused inspector, left/right changes tabs and up/down scrolls.
-Tabs stay above the scrolling content. The active tab has brackets;
-its color shows whether the inspector has focus. Help uses the same tabs,
-with mouse clicks or Tab and left/right to choose a category.
+## Save, leave and reuse
 
-Properties uses the same port names as the cards.
-Result needs a selected run; a draft alone has no recorded result.
-`Ctrl+J` shows raw data when you need the full record.
-Close the inspector with its close button or focused `Esc`.
-
-### Change a recipe
-
-1. Press `A`, or choose **Add node…** in Node, to select an operation.
-2. Press `Enter` on a draft node to edit its arguments.
-3. Click an output port, then an input port, to set their connection.
-   Review the mapping in the form before applying.
-4. Choose **Behavior…** in Node (`E` on the canvas) for conditions,
-   repeat-for-each, ordering, review and retry settings.
-5. Choose **Edit workflow…** in Workflow to change its name, inputs or outputs.
-6. Save with `Ctrl+S`.
-
-`B` opens connections for editing or removal. `C` opens a connection form.
-`Delete` removes a node. `Ctrl+Z` undoes a recipe change; `Ctrl+Y` redoes it.
-These controls do not undo an executed operation.
-
-In the focused inspector, `E` edits Properties or Code instead of node behavior.
-Code has a separate script editor. Complex values may still need JSON.
-`J` on the canvas opens the full recipe JSON.
-
-Press `I` to describe a change to the model.
-Review its proposed changes before applying them with `S`.
-Esc discards the proposal.
-Applying changes updates the draft; it does not save or run it.
-Save and validate after reviewing it.
-
-### Validate and run
-
-1. Press `V`, or choose **Validate…** in Run, to check the recipe.
-   Supply input values if asked. Fix any reported errors.
-2. Press `R`, or choose **Run…** in Run, to execute it.
-3. If it declares inputs, a form shows their defaults.
-   Change the values for this run, then continue.
-4. Read and answer any permission requests or step reviews.
-5. Select a node and open **Result** to inspect what happened.
-
-Inputs are values the recipe expects from you, such as a folder, a label
-or a list of numbers.
-They let you reuse the same steps with different data.
-Text fields take plain text.
-List fields accept a JSON array such as `[2, 3, 5]`,
-or comma-separated JSON values such as `2, 3, 5`.
-Other complex values use JSON. Recipes without inputs skip the form.
-
-**Run with JSON inputs…** in Run is an advanced option for entering the complete input
-object. It is not needed for ordinary runs.
-
-Validation checks the recipe and input types.
-It does not prove that a later file, server request or model call will succeed.
-The TUI runs the current draft; save it to reopen those edits later.
-
-Press Esc during execution to request cancellation.
-Completed writes and requests remain.
-A failed run stops the remaining work; inspect results before running again.
-
-### Schedule a workflow
-
-Save the recipe first. In **Node**, choose **Add schedule trigger…**.
-You can also press `A` and choose **Schedule trigger** from the node types.
-
-If the recipe has inputs, fill in the values to use for scheduled runs.
-Then choose **Every hour**, **Daily**, or **Cron**. For Daily, enter a time
-such as `09:00`. For Cron, enter a five-field expression such as `*/15 * * * *`.
-Set the time zone explicitly; the default is `UTC`.
-Choose **Save schedule** to enable it.
-
-A Schedule card appears on the canvas. It starts the whole recipe; its
-connections are automatic. Select it and press Enter to change the timing,
-input values or enabled setting. Delete removes the trigger without deleting
-queued jobs or saved runs. **Refresh schedule status** in Run reloads CLI changes
-and updates the inspector's saved observations: worker ownership, latest job,
-latest run and declared outputs. Worker ownership does not prove health or success.
-
-Keep the workflow service running for this workspace:
-
-```powershell
-.\serve-gektor-workflows.cmd -workspace "D:\path\to\project"
-```
-
-The service uses its own permission rules. Start it outside GEKTOR if it must
-continue after the TUI closes. Processes launched by the Agent belong to that
-GEKTOR launch and stop when it closes. The inspector's **Service** tab explains
-service setup.
-
-A schedule stores a copy of the recipe and input values. Saving later recipe
-edits does not change that copy. The inspector reports snapshot changes in the
-root and called recipes after a status refresh. It reports unavailable files
-separately and does not request additional read access. Edit and save the trigger
-again to update its snapshot.
-Schedules belong to the workspace and are stored in your user data, outside
-the recipe JSON. Copying a recipe to another workspace does not enable its schedule.
-
-### Review and reopen a run
-
-Press `H`, or choose **Run history…** in Run, to browse saved runs, newest first.
-Press `/` to filter by recipe, status, date or run ID. Choose **Open run**, or
-press `Enter`, to inspect the selected record.
-It shows the recipe captured for that run and its recorded results.
-Editing the current recipe does not change that record.
-
-A step may pause for review before it executes.
-Press `P`, or choose **Review run…** in Run, to approve or reject it.
-Approval continues that saved run without repeating completed steps.
-Permissions still apply.
-
-Saved runs are read-only.
-Press `D`, or choose **Return to recipe** in Run, to edit the draft again.
-There is no general “resume any failed step” action.
-
-### Try a small example
-
-In a source checkout, the [transform-and-review example](../examples/workflows/transform-and-review/README.md)
-lets you try a run without a model call:
-
-1. Set the workspace to `examples/workflows/transform-and-review` in the checkout.
-2. Open `recipe.json` in Workflows.
-3. Press `V` to validate and keep the default numbers.
-4. Press `R` to run, again keeping the defaults. Answer permission requests if shown.
-5. The run pauses before the **double** step. Press `P` to review it and approve.
-6. Select **double**, open the inspector and choose Result.
-   Its output contains the doubled numbers: `4, 6, 10`.
-7. Press `D` to return to the draft. Run it again with different input numbers.
-
-This example changes data in memory and stores run results; it does not edit
-project files. You do not need to change its script to try different numbers.
-
-### Save, leave and reuse
-
-`Ctrl+S` saves the recipe file.
-Card positions and the position lock are stored separately in your user directory.
-Moving a card does not change execution.
-
-Choose **Agent** in GEKTOR, or press Esc on the canvas, to return
-to Agent. The draft stays in memory while the app is open.
-Save before quitting; this in-memory draft is not crash recovery.
-
-To reuse a recipe in another project, copy it into that workspace.
-Check its paths and required profiles.
-Paths inside called recipes are also relative to the workspace,
-not the recipe's own folder.
-There is no automatic shared-template installation.
-
-Background queue management and webhook setup use the
-[CLI/service](cli.md#workflow-queue-and-service). Schedules can be managed
-from the editor or the CLI.
-Closing the TUI does not keep an ordinary foreground run alive.
-
-See the [workflow reference](workflows.md) for available operations,
-data mappings, execution rules and examples.
+See [Save, leave and reuse](guide/workflows.md#save-leave-and-reuse).
 
 ## Attach files and images
 
-Type `@` to browse workspace files. For example:
-
-```text
-Review @README.md
-Compare @"docs/design notes.txt" with @README.md
-Describe @screenshot.png
-```
-
-Use arrows or click a row to choose a suggestion, then Tab to insert it.
-Page Up/Down and the scrollbar move through longer lists. Clicking a row
-does not insert text or run a command. Esc closes the list and keeps the draft.
-File suggestions insert a path; they do not send the message.
-
-Text files must be UTF-8, up to 32 KiB each and 64 KiB combined per message.
-Invalid, binary, missing or out-of-workspace file references stop submission
-and keep the draft. A repeated reference attaches one copy.
-The model receives file snapshots.
-Queued references are read when their turn begins; retries reuse that turn's snapshot.
-Attach only content you intend to send to the selected backend.
-
-On Windows, copy a screenshot and press `Ctrl+Alt+V`, or use `/paste-image`.
-Ctrl+V also works when the terminal forwards it.
-Some terminals paste an image path instead.
-A single pasted absolute image path can be imported, including from outside
-the workspace. Typing a path or using a file tool keeps the workspace restrictions.
-
-The composer accepts up to eight images, 20 MiB each and 40 MiB combined.
-Clipboard images also have a 32-megapixel limit.
-
-Pasted images and browser screenshots are saved in GEKTOR's image cache.
-The Agent can enable `native_images` and use `image_attachments` to list their
-session IDs. `image_view` shows an image or a cropped detail; `image_inspect`
-reads metadata. These tools accept the attachment ID without a workspace copy.
-`image_download` fetches a public reference image into that same cache and
-reports its source URL. Crop and view operations leave project files alone.
-Reusable workflow recipes still need workspace files; attachment IDs belong
-to one conversation.
-`Alt+1` through `Alt+8`, or `/detach N`, removes an attachment.
-`Ctrl+U` clears the draft and attachments.
-
-Image understanding needs a vision-capable model and backend.
-ChatGPT accepts PNG, JPEG, WebP and non-animated GIF; convert BMP to PNG first.
-llama.cpp vision also needs its vision projector.
-GEKTOR's KoboldCPP connection currently rejects image attachments.
+See [Attach files and images](guide/files-and-images.md#attach-files-and-images).
 
 ## Useful keys and commands
 
-Shortcuts depend on the active screen.
-For example, `Ctrl+O` inserts a new line in Agent but opens a recipe in Workflows.
-
-| Agent action | Key or command |
-|---|---|
-| Send | Enter |
-| New line | Ctrl+O |
-| Clear draft | Ctrl+U |
-| Recall submitted input | Alt+Up / Alt+Down |
-| New session | Ctrl+N |
-| Open sessions | Ctrl+P |
-| Switch Plan / Act | F5 in a direct run, or the Agent menu |
-| Inspect tools | Ctrl+T |
-| Show full thinking | Ctrl+G |
-| Latest message | Ctrl+End |
-| Help / menus | F1 / F9 |
-| Retry failed turn | /retry |
-| Compact context | /compact |
-| Show current run facts | /status |
-| Background processes | /processes |
-| Quit | Ctrl+Q |
-
-Type `/` for local commands.
-Unknown commands show an error; they are not sent as model requests.
-Ctrl+Q stops an active run first; press again after stopping to quit.
-Ctrl+C aborts and quits immediately.
+See [Useful keys and commands](reference/terminal.md#useful-keys-and-commands).
 
 ## Learning from a task
 
-These Agent commands are experimental:
-
-- `/eval` asks a model to review the last task's saved history.
-- `/learn` asks it to propose one reusable lesson.
-- Add `N` to select an execution, or `session` for the full conversation.
-  For example, `/learn session`.
-- `/learn review` reopens the latest proposal or saved review diagnostic.
-
-The reviewer reads saved history. It cannot inspect current files or run tests.
-Its report is a model assessment, not a fresh verification.
-Keep the review dialog open to receive the result; Esc cancels it.
-
-For a lesson, `S` saves, `E` edits first, and Esc/Enter skips.
-Saved lessons become workspace `skills/learned-<id>/SKILL.md` files with
-`evidence.json` beside them. Review both before sharing through Git.
-They can guide later tasks but grant no extra permissions.
-
-`/learn undo` retires the latest lesson saved in this app instance and workspace
-if its guide has not been edited.
-To retire an older one, rename its `SKILL.md` to `SKILL.retired.md`.
-Start a new session to exclude guidance already loaded into the conversation.
-
-These commands are separate from the developer's [eval runner](../eval/README.md).
+See [Learning from a task](guide/sessions.md#learning-from-a-task).
 
 ## Troubleshooting
 
-| Problem | What to check |
-|---|---|
-| Cannot connect to a local model | Is the server loaded? Do protocol and address in Model settings match it? |
-| Mouse does nothing | Check that the terminal sends mouse events; in ConEmu, check its mouse settings |
-| Ctrl+V does not attach a screenshot | Use Ctrl+Alt+V or /paste-image |
-| Cannot edit a workflow node | Are you viewing a saved run? Return to draft with D |
-| Cannot move nodes | Turn off Lock node positions in View |
-| A workflow input asks for JSON | Use the expected type; lists can use comma-separated values |
-| Need full failure details | Open the step's Result tab or the Agent tool inspector |
-
-Agent sessions keep `diagnostics.jsonl` beside `state.json`.
-It records request phases and tool boundaries, without message bodies or tool
-arguments/results. It rotates at 2 MiB and retains one previous file.
-
-Terminal margins belong to the terminal application.
-For matching margins, use background `#F2F4F6` for the light theme or
-`#11161C` for the dark theme in your terminal profile.
-
-See [setup and saved data](bootstrap.md), [workflow reference](workflows.md)
-and [security](../SECURITY.md) for more detail.
+See [Troubleshooting](guide/troubleshooting.md#troubleshooting).

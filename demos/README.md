@@ -4,7 +4,9 @@ These launchers show complete tasks. They reuse the maintained
 [workflow examples](../examples/workflows/README.md); they do not keep separate
 copies of recipes. Model reliability is checked by [evals](../eval/README.md).
 
-Run these from the checkout or a Windows release folder.
+These launchers require Windows. Run them from the extracted release folder
+or a built source checkout. For a model-neutral first Agent task, use
+[Get started](../docs/start.md).
 Each demo creates a new workspace under `tmp/demos/` and prints its location.
 Existing example files are not edited.
 Demo windows wait at the end so you can read the result. Add `--no-pause`
@@ -41,4 +43,4 @@ Settings, and open its `recipe.json`.
 The workflow demos print their run ID so you can reopen their saved results.
 
 See [launchers](../scripts/README.md) for general commands and
-[the terminal guide](../docs/tui.md) for using Agent and Workflows.
+[the terminal guide](../docs/reference/terminal.md) for using Agent and Workflows.

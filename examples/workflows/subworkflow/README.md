@@ -1,10 +1,18 @@
 # Reusable report workflow
 
+## Before running
+
+The commands use PowerShell from the extracted application folder or a
+[built source checkout](../../../docs/development/README.md). On Linux, use
+`./gektor` in place of `.\gektor.exe` and equivalent shell syntax.
+Copy this folder before editing and select that copy with `-workspace`.
+Each run creates a separate saved record.
+
 `recipe.json` invokes `report.json` twice with different typed inputs. Each call
 returns only its declared `artifact` output. Both reports belong to the same run;
 their producing steps are `daily/save` and `handoff/save`.
 
-Run in **PowerShell** from the repository root:
+Run in **PowerShell** from the application folder:
 
 ```powershell
 $workspace = 'examples/workflows/subworkflow'

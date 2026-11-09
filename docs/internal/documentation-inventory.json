@@ -1,0 +1,1943 @@
+{
+  "baseline": "17d7d4d1f4c08b12b3e8c9400aefef6c2eec78fb",
+  "scope": "Tracked Markdown and text files; landing HTML recorded separately in the proposal. Fixture contents, runtime prompts and third-party licenses are classified, not editorial rewrite targets.",
+  "counts": {
+    "human-documentation": 28,
+    "development-history": 2,
+    "eval-fixture": 7,
+    "eval-specification": 27,
+    "runtime-prompt": 23,
+    "runtime-skill": 2,
+    "project-agent-guide": 10,
+    "third-party-license": 1
+  },
+  "files": [
+    {
+      "path": "ARCHITECTURE.md",
+      "category": "human-documentation",
+      "lines": 374,
+      "words": 3066,
+      "headings": [
+        "Architecture",
+        "Package map",
+        "One agent turn",
+        "Composition",
+        "Execution and limits",
+        "Context and persistence",
+        "Tool composition",
+        "Integrations and workflow tools",
+        "Workflow execution",
+        "Role permissions",
+        "Optional browser",
+        "Effects and verification",
+        "UI and settings",
+        "Evaluation and boundaries",
+        "Automation boundaries"
+      ],
+      "links": [
+        "docs/cli.md#backend",
+        "docs/cli.md#session-history-and-context",
+        "docs/extensions.md",
+        "docs/tui-design.md",
+        "SECURITY.md",
+        "README.md",
+        "docs/cli.md",
+        "docs/conventions.md"
+      ],
+      "proposed_destinations": [
+        "ARCHITECTURE.md"
+      ],
+      "treatment": "Keep canonical contributor reference; reorganize ownership and common change paths.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "README.md",
+      "category": "human-documentation",
+      "lines": 127,
+      "words": 724,
+      "headings": [
+        "GEKTOR",
+        "Quick start",
+        "Choose how to work",
+        "Working with code",
+        "Servers and limits",
+        "Documentation and development"
+      ],
+      "links": [
+        "docs/images/gektor-demo.png",
+        "https://github.com/keshon/gektor/releases",
+        "docs/tui.md",
+        "scripts/README.md",
+        "demos/README.md",
+        "docs/workflows.md",
+        "examples/workflows/README.md",
+        "docs/tui.md#learning-from-a-task",
+        "docs/browser.md",
+        "docs/cli.md",
+        "SECURITY.md",
+        "eval/README.md",
+        "docs/tui.md",
+        "docs/cli.md",
+        "docs/bootstrap.md",
+        "ARCHITECTURE.md",
+        "docs/README.md",
+        "LICENSE",
+        "website/README.md"
+      ],
+      "proposed_destinations": [
+        "README.md",
+        "docs/start.md"
+      ],
+      "treatment": "Rewrite the short project entry point; move setup detail to start.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "SECURITY.md",
+      "category": "human-documentation",
+      "lines": 112,
+      "words": 904,
+      "headings": [
+        "Security Policy",
+        "User attachments and approvals",
+        "Network probes",
+        "Out of scope"
+      ],
+      "links": [
+        "docs/extensions.md"
+      ],
+      "proposed_destinations": [
+        "SECURITY.md",
+        "docs/guide/permissions.md"
+      ],
+      "treatment": "Keep canonical policy; extract task guidance without duplicating policy.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "demos/README.md",
+      "category": "human-documentation",
+      "lines": 44,
+      "words": 300,
+      "headings": [
+        "Demos"
+      ],
+      "links": [
+        "../examples/workflows/README.md",
+        "../eval/README.md",
+        "../scripts/README.md",
+        "../docs/tui.md"
+      ],
+      "proposed_destinations": [
+        "demos/README.md"
+      ],
+      "treatment": "Keep alongside launchers; clarify OS/model requirements and link tutorials.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "docs/README.md",
+      "category": "human-documentation",
+      "lines": 33,
+      "words": 226,
+      "headings": [
+        "Documentation"
+      ],
+      "links": [
+        "../README.md",
+        "bootstrap.md",
+        "tui.md",
+        "../demos/README.md",
+        "../examples/workflows/README.md",
+        "workflows.md",
+        "cli.md",
+        "cli.md#session-history-and-context",
+        "browser.md",
+        "extensions.md",
+        "../SECURITY.md",
+        "rpc.md",
+        "../ARCHITECTURE.md",
+        "tui-design.md",
+        "design/tui/README.md",
+        "tui-smoke.md",
+        "conventions.md",
+        "../eval/README.md",
+        "../skills/README.md"
+      ],
+      "proposed_destinations": [
+        "docs/README.md"
+      ],
+      "treatment": "Replace file catalog with reader paths and section entry points.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "docs/bootstrap.md",
+      "category": "human-documentation",
+      "lines": 79,
+      "words": 547,
+      "headings": [
+        "Setup and saved data",
+        "Model server",
+        "Windows launchers",
+        "Configuration",
+        "Saved data",
+        "Distribution"
+      ],
+      "links": [
+        "cli.md#authentication-remote-providers",
+        "../scripts/README.md",
+        "../demos/README.md",
+        "cli.md#authentication-remote-providers",
+        "cli.md#workflow-queue-and-service",
+        "tui.md",
+        "browser.md"
+      ],
+      "proposed_destinations": [
+        "docs/start.md",
+        "docs/guide/models.md",
+        "docs/reference/configuration.md"
+      ],
+      "treatment": "Consolidate setup, model connection and saved-data ownership; reconcile schedule wording.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "docs/browser.md",
+      "category": "human-documentation",
+      "lines": 154,
+      "words": 1282,
+      "headings": [
+        "Browser checks",
+        "Page observations",
+        "Profiles and manual login",
+        "Custom MCP"
+      ],
+      "links": [
+        "https://github.com/microsoft/playwright-mcp"
+      ],
+      "proposed_destinations": [
+        "docs/guide/browser.md",
+        "docs/reference/configuration.md",
+        "docs/development/testing.md",
+        "eval/README.md"
+      ],
+      "treatment": "Separate operator setup/login from adapter mechanics and live testing.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "docs/cli.md",
+      "category": "human-documentation",
+      "lines": 606,
+      "words": 4986,
+      "headings": [
+        "CLI reference",
+        "Invocation",
+        "Saved workflows",
+        "ChatGPT account",
+        "Skill metadata",
+        "Command execution",
+        "Backend",
+        "Session history and context",
+        "Authentication (remote providers)",
+        "Task and modes",
+        "Safety and permissions",
+        "Output and debugging",
+        "State",
+        "Mode-specific limits",
+        "Profiles",
+        "Identity flags",
+        "Common terminal entry",
+        "Editing and Git tools",
+        "Search context and process output",
+        "Connection ownership",
+        "Workflow queue and service",
+        "Workflow credential references",
+        "Workflow artifacts"
+      ],
+      "links": [
+        "extensions.md",
+        "workflows.md",
+        "tui.md",
+        "https://developers.openai.com/siwc/token-sharing-open-source/sign-in",
+        "https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations",
+        "../SECURITY.md",
+        "extensions.md",
+        "browser.md",
+        "bootstrap.md#saved-data",
+        "rpc.md",
+        "bootstrap.md#model-server",
+        "workflows.md#http-api-and-webhooks",
+        "workflows.md#reusable-subworkflows"
+      ],
+      "proposed_destinations": [
+        "docs/reference/cli.md",
+        "docs/reference/configuration.md",
+        "docs/reference/operations.md",
+        "docs/guide/models.md",
+        "docs/guide/sessions.md"
+      ],
+      "treatment": "Keep all flags/subcommands in CLI reference; redistribute non-CLI material.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "docs/conventions.md",
+      "category": "human-documentation",
+      "lines": 183,
+      "words": 1403,
+      "headings": [
+        "Conventions",
+        "How to read this",
+        "Package layers",
+        "Dependencies",
+        "Building agents",
+        "Verification",
+        "Prompts",
+        "Evals",
+        "Documentation",
+        "Testing"
+      ],
+      "links": [
+        "../ARCHITECTURE.md",
+        "../README.md"
+      ],
+      "proposed_destinations": [
+        "docs/development/conventions.md"
+      ],
+      "treatment": "Move with enforced tags and update all code consumers atomically.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "docs/design/tui/README.md",
+      "category": "human-documentation",
+      "lines": 178,
+      "words": 1346,
+      "headings": [
+        "TUI mockups",
+        "Pages",
+        "Grid and editing",
+        "Colors",
+        "MCP layout",
+        "Session workspaces",
+        "Composer and message queue",
+        "Click-through review",
+        "Previews"
+      ],
+      "links": [
+        "gektor-ui.figcraft",
+        "../../tui-design.md",
+        "composer-review-light.webp",
+        "message-queue-light.webp",
+        "message-queue-narrow.webp",
+        "settings-dark.webp",
+        "settings-light.webp",
+        "palette-studies.webp",
+        "workflows-dark.webp",
+        "agent-light.webp",
+        "mcp-dark.webp",
+        "mcp-light.webp",
+        "mcp-narrow.webp",
+        "sessions-dark.webp",
+        "sessions-light.webp"
+      ],
+      "proposed_destinations": [
+        "docs/design/tui/README.md"
+      ],
+      "treatment": "Keep beside native assets; link from contributor docs; exclude assets from public article collection.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "docs/extensions.md",
+      "category": "human-documentation",
+      "lines": 347,
+      "words": 2201,
+      "headings": [
+        "Extensions and skills",
+        "Saved MCP servers",
+        "Loading tools",
+        "Executable protocol",
+        "Built-in social reader",
+        "Skill libraries",
+        "Role availability"
+      ],
+      "links": [
+        "workflows.md#file-downloads-and-archives",
+        "workflows.md#reading-documents",
+        "workflows.md",
+        "https://github.com/FxEmbed/FxEmbed/wiki/Status-Fetch-API"
+      ],
+      "proposed_destinations": [
+        "docs/guide/extensions.md",
+        "docs/reference/configuration.md"
+      ],
+      "treatment": "Split operator use from pack/protocol/credential reference; reconcile skill distribution wording.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "docs/internal/document-read-continuation-plan.md",
+      "category": "development-history",
+      "lines": 325,
+      "words": 2398,
+      "headings": [
+        "Resumable document reads",
+        "Decision",
+        "Current behavior and cause",
+        "Proposed public contract",
+        "Request",
+        "Response",
+        "Structured items",
+        "One content budget",
+        "Affected files and entities",
+        "Reader implementation: four existing files, one small helper",
+        "Public contract and instructions: four existing files",
+        "Verification: two existing test files, one helper test file",
+        "Reused without redesign",
+        "Compatibility and deliberate limits",
+        "Implementation sequence",
+        "Context-window guard",
+        "Acceptance checks",
+        "Approved evaluation addition",
+        "Validation record (2026-11-09)",
+        "Additional repetitions and instruction correction",
+        "Final validation after clarification"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "docs/internal/document-read-continuation-plan.md"
+      ],
+      "treatment": "Keep historical evidence; exclude from public nav/site article list and proposed end-user release docs.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "docs/internal/harness-friction.md",
+      "category": "development-history",
+      "lines": 37,
+      "words": 280,
+      "headings": [
+        "Harness work record",
+        "Why the work was needed",
+        "Terminal validation"
+      ],
+      "links": [
+        "../cli.md",
+        "../../ARCHITECTURE.md",
+        "../../eval/prompts/delegation.md",
+        "../tui-smoke.md"
+      ],
+      "proposed_destinations": [
+        "docs/internal/harness-friction.md"
+      ],
+      "treatment": "Keep historical evidence; exclude from public nav/site article list and proposed end-user release docs.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "docs/rpc.md",
+      "category": "human-documentation",
+      "lines": 143,
+      "words": 1108,
+      "headings": [
+        "RPC over stdio (`-serve`)",
+        "Methods",
+        "Events (no id)",
+        "Client behavior",
+        "Example"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "docs/reference/rpc.md"
+      ],
+      "treatment": "Move canonical protocol reference; preserve messages, fields and guarantees.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "docs/tui-design.md",
+      "category": "human-documentation",
+      "lines": 503,
+      "words": 4614,
+      "headings": [
+        "TUI design and components",
+        "Scope and ownership",
+        "Visual language",
+        "Color and emphasis",
+        "Theme set",
+        "Geometry and spacing",
+        "Control states",
+        "Primitive catalog",
+        "Shared layouts",
+        "Agent composer and message queue",
+        "Modal",
+        "Panel and split pane",
+        "Scroll area",
+        "Form and action footer",
+        "Menus, tabs and toolbars",
+        "Composed controls",
+        "Keyboard, mouse and focus",
+        "Applying the library to screens",
+        "Menu ownership",
+        "Implementation boundaries",
+        "Implementation status",
+        "Verification"
+      ],
+      "links": [
+        "tui.md",
+        "../ARCHITECTURE.md#ui-and-settings",
+        "design/tui/README.md",
+        "tui.md#menus",
+        "../internal/tui/menus.go",
+        "../internal/tui/menu_actions.go",
+        "../internal/tui/components",
+        "../internal/tui/components/cell/cell.go",
+        "../internal/tui/components/popup/popup.go",
+        "../internal/tui/components/pane/pane.go",
+        "../internal/tui/components/form/form.go",
+        "../internal/tui/components/selection/selection.go",
+        "../internal/tui/components/table/table.go",
+        "../internal/tui/components/schemaform/schemaform.go",
+        "../internal/tui/components/composer/composer.go",
+        "../internal/tui/components/completion/completion.go",
+        "../internal/tui/components/gate/gate.go",
+        "../internal/tui/components/transcript/transcript.go",
+        "../internal/tui/components/graph/graph.go",
+        "../internal/tui/settings/model.go",
+        "../internal/tui/styles.go"
+      ],
+      "proposed_destinations": [
+        "docs/development/tui.md",
+        "docs/internal/"
+      ],
+      "treatment": "Move current component contracts; label/archive migration history separately.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "docs/tui-smoke.md",
+      "category": "human-documentation",
+      "lines": 37,
+      "words": 316,
+      "headings": [
+        "Session recovery smoke check"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "docs/development/testing.md"
+      ],
+      "treatment": "Consolidate the terminal checklist into the contributor test map.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "docs/tui.md",
+      "category": "human-documentation",
+      "lines": 639,
+      "words": 4941,
+      "headings": [
+        "Terminal guide",
+        "Start and choose a workspace",
+        "Menus",
+        "Other settings",
+        "MCP servers",
+        "Agent",
+        "Do a task",
+        "Read history and tool results",
+        "Stop, retry and continue",
+        "Background processes",
+        "Permissions",
+        "Save and reopen a conversation",
+        "Workflow workspace",
+        "Open or create a recipe",
+        "Read the nodes and connections",
+        "Inspect a step",
+        "Change a recipe",
+        "Validate and run",
+        "Schedule a workflow",
+        "Review and reopen a run",
+        "Try a small example",
+        "Save, leave and reuse",
+        "Attach files and images",
+        "Useful keys and commands",
+        "Learning from a task",
+        "Troubleshooting"
+      ],
+      "links": [
+        "bootstrap.md",
+        "cli.md",
+        "cli.md#profiles",
+        "../SECURITY.md",
+        "cli.md#session-history-and-context",
+        "../examples/workflows/transform-and-review/README.md",
+        "cli.md#workflow-queue-and-service",
+        "workflows.md",
+        "../eval/README.md",
+        "bootstrap.md",
+        "workflows.md",
+        "../SECURITY.md"
+      ],
+      "proposed_destinations": [
+        "docs/guide/agent.md",
+        "docs/guide/workflows.md",
+        "docs/guide/sessions.md",
+        "docs/guide/files-and-images.md",
+        "docs/guide/automation.md",
+        "docs/guide/permissions.md",
+        "docs/guide/troubleshooting.md",
+        "docs/reference/terminal.md"
+      ],
+      "treatment": "Split by task; place complete menu/shortcut tables in terminal reference.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "docs/workflows.md",
+      "category": "human-documentation",
+      "lines": 811,
+      "words": 6263,
+      "headings": [
+        "Workflow reference",
+        "Available operations",
+        "Create and run from the command line",
+        "Image tools",
+        "File downloads and archives",
+        "Reading documents",
+        "First recipe",
+        "Inputs and data flow",
+        "Structured records",
+        "Run a record recipe without AI",
+        "Graphs, iteration and reviews",
+        "JavaScript",
+        "Model nodes",
+        "Background execution",
+        "HTTP API and webhooks",
+        "HTTP requests",
+        "CLI review guidance",
+        "Run artifacts",
+        "Local programs",
+        "Reusable subworkflows",
+        "TUI editor"
+      ],
+      "links": [
+        "tui.md#workflow-workspace",
+        "bootstrap.md#saved-data",
+        "tui.md#schedule-a-workflow",
+        "cli.md#workflow-queue-and-service",
+        "#graphs-iteration-and-reviews",
+        "cli.md#saved-workflows",
+        "https://github.com/LostRuins/koboldcpp/releases/tag/v1.90.2",
+        "cli.md#workflow-queue-and-service",
+        "#http-api-and-webhooks",
+        "tui.md#schedule-a-workflow",
+        "../examples/workflows/webhook-note/README.md",
+        "../examples/workflows/moltbook-draft/README.md",
+        "../examples/workflows/repository-report/README.md",
+        "../examples/workflows/log-report/README.md",
+        "../examples/workflows/process-report/README.md",
+        "../examples/workflows/subworkflow/README.md",
+        "tui.md#workflow-workspace"
+      ],
+      "proposed_destinations": [
+        "docs/guide/workflows.md",
+        "docs/guide/automation.md",
+        "docs/reference/recipes.md",
+        "docs/reference/operations.md",
+        "docs/reference/http-api.md"
+      ],
+      "treatment": "Separate tutorial, operation contracts, recipe semantics and service/API use.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/README.md",
+      "category": "human-documentation",
+      "lines": 318,
+      "words": 2407,
+      "headings": [
+        "Evals",
+        "What belongs where",
+        "Running",
+        "How a probe is scored",
+        "Other live checks",
+        "Optional learned-skill comparison",
+        "Optional extension continuity test",
+        "Adding a probe",
+        "Coverage"
+      ],
+      "links": [
+        "../examples/workflows/README.md",
+        "../demos/README.md",
+        "prompts/visual.md",
+        "prompts/pipelines.md",
+        "prompts/documents.md",
+        "prompts/session-context.md",
+        "prompts/workflows.md",
+        "prompts/delegation.md"
+      ],
+      "proposed_destinations": [
+        "eval/README.md"
+      ],
+      "treatment": "Keep canonical runner/scoring documentation beside the runner; link from development/testing.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/fixtures-scoped/service/AGENTS.md",
+      "category": "eval-fixture",
+      "lines": 1,
+      "words": 19,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "eval/fixtures-scoped/service/AGENTS.md"
+      ],
+      "treatment": "Preserve fixture content and path exactly; not an editorial target.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "eval/fixtures-skills-nested/skills/library/engineering/release/SKILL.md",
+      "category": "eval-fixture",
+      "lines": 7,
+      "words": 44,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "eval/fixtures-skills-nested/skills/library/engineering/release/SKILL.md"
+      ],
+      "treatment": "Preserve fixture content and path exactly; not an editorial target.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "eval/fixtures-skills/skills/release/SKILL.md",
+      "category": "eval-fixture",
+      "lines": 7,
+      "words": 49,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "eval/fixtures-skills/skills/release/SKILL.md"
+      ],
+      "treatment": "Preserve fixture content and path exactly; not an editorial target.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "eval/fixtures/README.md",
+      "category": "eval-fixture",
+      "lines": 15,
+      "words": 118,
+      "headings": [
+        "Eval seed workspace"
+      ],
+      "links": [
+        "../README.md"
+      ],
+      "proposed_destinations": [
+        "eval/fixtures/README.md"
+      ],
+      "treatment": "Preserve fixture content and path exactly; not an editorial target.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "eval/fixtures/big.txt",
+      "category": "eval-fixture",
+      "lines": 2632,
+      "words": 2632,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "eval/fixtures/big.txt"
+      ],
+      "treatment": "Preserve fixture content and path exactly; not an editorial target.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "eval/fixtures/dup.txt",
+      "category": "eval-fixture",
+      "lines": 4,
+      "words": 10,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "eval/fixtures/dup.txt"
+      ],
+      "treatment": "Preserve fixture content and path exactly; not an editorial target.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "eval/fixtures/hello.txt",
+      "category": "eval-fixture",
+      "lines": 2,
+      "words": 12,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "eval/fixtures/hello.txt"
+      ],
+      "treatment": "Preserve fixture content and path exactly; not an editorial target.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "eval/prompts/01-git-ambiguous.md",
+      "category": "eval-specification",
+      "lines": 25,
+      "words": 143,
+      "headings": [
+        "01 — Git ambiguous wording"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/01-git-ambiguous.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/02-git-clean.md",
+      "category": "eval-specification",
+      "lines": 23,
+      "words": 99,
+      "headings": [
+        "02 — Git clean (control)"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/02-git-clean.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/03-list-not-ls.md",
+      "category": "eval-specification",
+      "lines": 24,
+      "words": 117,
+      "headings": [
+        "03 — List directory, not ls"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/03-list-not-ls.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/04-rename-move-file.md",
+      "category": "eval-specification",
+      "lines": 30,
+      "words": 122,
+      "headings": [
+        "04 — Rename via move_file"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/04-rename-move-file.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/05-patch-unique.md",
+      "category": "eval-specification",
+      "lines": 25,
+      "words": 121,
+      "headings": [
+        "05 — Patch unique match"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/05-patch-unique.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/06-patch-ambiguous.md",
+      "category": "eval-specification",
+      "lines": 27,
+      "words": 151,
+      "headings": [
+        "06 — Patch ambiguous match"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/06-patch-ambiguous.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/07-fake-save.md",
+      "category": "eval-specification",
+      "lines": 26,
+      "words": 124,
+      "headings": [
+        "07 — Fake save trap"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/07-fake-save.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/08-read-only-explain.md",
+      "category": "eval-specification",
+      "lines": 26,
+      "words": 129,
+      "headings": [
+        "08 — Read-only explain"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/08-read-only-explain.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/09-grep-then-edit.md",
+      "category": "eval-specification",
+      "lines": 25,
+      "words": 125,
+      "headings": [
+        "09 — Grep then edit"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/09-grep-then-edit.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/10-large-read.md",
+      "category": "eval-specification",
+      "lines": 31,
+      "words": 212,
+      "headings": [
+        "10 — Large read truncation"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/10-large-read.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/11-delegate-trap.md",
+      "category": "eval-specification",
+      "lines": 14,
+      "words": 96,
+      "headings": [
+        "11 - Delegate restraint"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/11-delegate-trap.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/12-ask-user.md",
+      "category": "eval-specification",
+      "lines": 19,
+      "words": 115,
+      "headings": [
+        "12 — ask_user ambiguity"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/12-ask-user.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/13-dev-server-trap.md",
+      "category": "eval-specification",
+      "lines": 24,
+      "words": 131,
+      "headings": [
+        "13 — Dev server trap"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/13-dev-server-trap.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/14-multi-file-parallel.md",
+      "category": "eval-specification",
+      "lines": 30,
+      "words": 162,
+      "headings": [
+        "14 — Multi-file completion (legacy filename: parallel)"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/14-multi-file-parallel.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/18-overflow-recovery.md",
+      "category": "eval-specification",
+      "lines": 29,
+      "words": 166,
+      "headings": [
+        "18 — Overflow recovery"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/18-overflow-recovery.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/20-scoped-instructions.md",
+      "category": "eval-specification",
+      "lines": 1,
+      "words": 40,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/20-scoped-instructions.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/21-windows-inline.md",
+      "category": "eval-specification",
+      "lines": 1,
+      "words": 42,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/21-windows-inline.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/22-skill-discovery.md",
+      "category": "eval-specification",
+      "lines": 1,
+      "words": 44,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/22-skill-discovery.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/23-browser-unavailable.md",
+      "category": "eval-specification",
+      "lines": 10,
+      "words": 78,
+      "headings": [
+        "Missing browser capability"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/23-browser-unavailable.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/24-nested-skills.md",
+      "category": "eval-specification",
+      "lines": 8,
+      "words": 66,
+      "headings": [
+        "Nested skill discovery"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/24-nested-skills.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/25-ledger-repair.md",
+      "category": "eval-specification",
+      "lines": 14,
+      "words": 114,
+      "headings": [
+        "Repair a small Go CLI"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/25-ledger-repair.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/delegation.md",
+      "category": "eval-specification",
+      "lines": 45,
+      "words": 377,
+      "headings": [
+        "Delegate budgets",
+        "Ornith calibration, 2026-11-08"
+      ],
+      "links": [
+        "../baselines/delegation-ornith-2026-11-08.json"
+      ],
+      "proposed_destinations": [
+        "eval/prompts/delegation.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/documents.md",
+      "category": "eval-specification",
+      "lines": 36,
+      "words": 316,
+      "headings": [
+        "Native document readers"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/documents.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/pipelines.md",
+      "category": "eval-specification",
+      "lines": 22,
+      "words": 196,
+      "headings": [
+        "Agent use of pipelines"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/pipelines.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/session-context.md",
+      "category": "eval-specification",
+      "lines": 22,
+      "words": 173,
+      "headings": [
+        "Session context evidence"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/session-context.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/visual.md",
+      "category": "eval-specification",
+      "lines": 21,
+      "words": 190,
+      "headings": [
+        "Pasted image inspection"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/visual.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "eval/prompts/workflows.md",
+      "category": "eval-specification",
+      "lines": 19,
+      "words": 175,
+      "headings": [
+        "Native image workflows"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "eval/prompts/workflows.md"
+      ],
+      "treatment": "Preserve path and scoring meaning; allow prose cleanup only after criteria are checked; keep measurements dated.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "examples/workflows/README.md",
+      "category": "human-documentation",
+      "lines": 25,
+      "words": 250,
+      "headings": [
+        "Workflow examples"
+      ],
+      "links": [
+        "transform-and-review/README.md",
+        "log-report/README.md",
+        "subworkflow/README.md",
+        "process-report/README.md",
+        "repository-report/README.md",
+        "webhook-note/README.md",
+        "moltbook-draft/README.md",
+        "../../demos/README.md",
+        "../../eval/README.md",
+        "../../docs/workflows.md"
+      ],
+      "proposed_destinations": [
+        "examples/workflows/README.md"
+      ],
+      "treatment": "Keep task-oriented example catalog; render from same source on website.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "examples/workflows/log-report/README.md",
+      "category": "human-documentation",
+      "lines": 26,
+      "words": 179,
+      "headings": [
+        "Log error report"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "examples/workflows/log-report/README.md"
+      ],
+      "treatment": "Keep beside recipe; normalize requirements, working directory, run steps, expected output and repeat effects.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "examples/workflows/moltbook-draft/README.md",
+      "category": "human-documentation",
+      "lines": 113,
+      "words": 733,
+      "headings": [
+        "Read a feed and save a draft",
+        "Setup",
+        "Try it in the TUI",
+        "What each step does",
+        "Errors and repeat runs",
+        "Background use"
+      ],
+      "links": [
+        "../../../docs/cli.md#workflow-artifacts",
+        "../../../docs/cli.md#workflow-queue-and-service"
+      ],
+      "proposed_destinations": [
+        "examples/workflows/moltbook-draft/README.md"
+      ],
+      "treatment": "Keep beside recipe; normalize requirements, working directory, run steps, expected output and repeat effects.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "examples/workflows/process-report/README.md",
+      "category": "human-documentation",
+      "lines": 25,
+      "words": 164,
+      "headings": [
+        "Local program report"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "examples/workflows/process-report/README.md"
+      ],
+      "treatment": "Keep beside recipe; normalize requirements, working directory, run steps, expected output and repeat effects.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "examples/workflows/repository-report/README.md",
+      "category": "human-documentation",
+      "lines": 26,
+      "words": 174,
+      "headings": [
+        "Repository report"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "examples/workflows/repository-report/README.md"
+      ],
+      "treatment": "Keep beside recipe; normalize requirements, working directory, run steps, expected output and repeat effects.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "examples/workflows/subworkflow/README.md",
+      "category": "human-documentation",
+      "lines": 24,
+      "words": 164,
+      "headings": [
+        "Reusable report workflow"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "examples/workflows/subworkflow/README.md"
+      ],
+      "treatment": "Keep beside recipe; normalize requirements, working directory, run steps, expected output and repeat effects.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "examples/workflows/transform-and-review/README.md",
+      "category": "human-documentation",
+      "lines": 17,
+      "words": 109,
+      "headings": [
+        "Transform and review"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "examples/workflows/transform-and-review/README.md"
+      ],
+      "treatment": "Keep beside recipe; normalize requirements, working directory, run steps, expected output and repeat effects.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "examples/workflows/webhook-note/README.md",
+      "category": "human-documentation",
+      "lines": 35,
+      "words": 183,
+      "headings": [
+        "Webhook note"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "examples/workflows/webhook-note/README.md"
+      ],
+      "treatment": "Keep beside recipe; normalize requirements, working directory, run steps, expected output and repeat effects.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "internal/prompts/text/act_mode.txt",
+      "category": "runtime-prompt",
+      "lines": 1,
+      "words": 16,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/act_mode.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/budget_continue.txt",
+      "category": "runtime-prompt",
+      "lines": 3,
+      "words": 18,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/budget_continue.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/checkpoint.txt",
+      "category": "runtime-prompt",
+      "lines": 1,
+      "words": 86,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/checkpoint.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/compact_notice.txt",
+      "category": "runtime-prompt",
+      "lines": 1,
+      "words": 89,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/compact_notice.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/evaluation.txt",
+      "category": "runtime-prompt",
+      "lines": 11,
+      "words": 358,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/evaluation.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/leak_detected.txt",
+      "category": "runtime-prompt",
+      "lines": 1,
+      "words": 49,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/leak_detected.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/overflow_recovered.txt",
+      "category": "runtime-prompt",
+      "lines": 1,
+      "words": 51,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/overflow_recovered.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/plan_mode.txt",
+      "category": "runtime-prompt",
+      "lines": 1,
+      "words": 39,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/plan_mode.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/preset-coding.txt",
+      "category": "runtime-prompt",
+      "lines": 1,
+      "words": 26,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/preset-coding.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/preset-concise.txt",
+      "category": "runtime-prompt",
+      "lines": 1,
+      "words": 19,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/preset-concise.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/preset-conversation.txt",
+      "category": "runtime-prompt",
+      "lines": 1,
+      "words": 22,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/preset-conversation.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/preset-explanation.txt",
+      "category": "runtime-prompt",
+      "lines": 1,
+      "words": 29,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/preset-explanation.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/preset-investigation.txt",
+      "category": "runtime-prompt",
+      "lines": 1,
+      "words": 28,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/preset-investigation.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/repeating_steps.txt",
+      "category": "runtime-prompt",
+      "lines": 1,
+      "words": 42,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/repeating_steps.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/resume.txt",
+      "category": "runtime-prompt",
+      "lines": 1,
+      "words": 47,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/resume.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/role_addendum.txt",
+      "category": "runtime-prompt",
+      "lines": 1,
+      "words": 25,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/role_addendum.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/session_title.txt",
+      "category": "runtime-prompt",
+      "lines": 1,
+      "words": 44,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/session_title.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/subagent_scope.txt",
+      "category": "runtime-prompt",
+      "lines": 1,
+      "words": 61,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/subagent_scope.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/system.txt",
+      "category": "runtime-prompt",
+      "lines": 21,
+      "words": 371,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/system.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/truncated.txt",
+      "category": "runtime-prompt",
+      "lines": 1,
+      "words": 50,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/truncated.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/workflow_author.txt",
+      "category": "runtime-prompt",
+      "lines": 3,
+      "words": 141,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/workflow_author.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/workflow_edit.txt",
+      "category": "runtime-prompt",
+      "lines": 2,
+      "words": 142,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/workflow_edit.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/prompts/text/write_hint.txt",
+      "category": "runtime-prompt",
+      "lines": 1,
+      "words": 40,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "internal/prompts/text/write_hint.txt"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/workspace/builtin/visual-investigation/SKILL.md",
+      "category": "runtime-skill",
+      "lines": 39,
+      "words": 312,
+      "headings": [
+        "Visual investigation"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "internal/workspace/builtin/visual-investigation/SKILL.md"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "internal/workspace/builtin/workflows/SKILL.md",
+      "category": "runtime-skill",
+      "lines": 98,
+      "words": 780,
+      "headings": [
+        "GEKTOR workflows"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "internal/workspace/builtin/workflows/SKILL.md"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "scripts/README.md",
+      "category": "human-documentation",
+      "lines": 88,
+      "words": 535,
+      "headings": [
+        "Launchers and helper scripts",
+        "Windows entry points",
+        "Existing names",
+        "Development helpers"
+      ],
+      "links": [
+        "../docs/cli.md#profiles",
+        "../demos/README.md",
+        "../docs/tui-smoke.md"
+      ],
+      "proposed_destinations": [
+        "scripts/README.md",
+        "docs/reference/cli.md"
+      ],
+      "treatment": "Keep developer helpers; consolidate end-user launcher syntax in CLI reference.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "skills/README.md",
+      "category": "human-documentation",
+      "lines": 56,
+      "words": 377,
+      "headings": [
+        "skills/",
+        "Choose a guide"
+      ],
+      "links": [
+        "../docs/extensions.md#skill-libraries",
+        "code-navigation/SKILL.md",
+        "go/SKILL.md",
+        "typescript/SKILL.md",
+        "git/SKILL.md",
+        "browser/SKILL.md",
+        "dev-server/SKILL.md",
+        "large-build/SKILL.md",
+        "pixelita/SKILL.md",
+        "../internal/workspace/builtin/workflows/SKILL.md",
+        "figcraft/SKILL.md"
+      ],
+      "proposed_destinations": [
+        "skills/README.md",
+        "docs/guide/extensions.md"
+      ],
+      "treatment": "Keep agent catalog; put human skill-setup instructions in guide/extensions.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "skills/browser/SKILL.md",
+      "category": "project-agent-guide",
+      "lines": 37,
+      "words": 310,
+      "headings": [
+        "Browser"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "skills/browser/SKILL.md"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "skills/code-navigation/SKILL.md",
+      "category": "project-agent-guide",
+      "lines": 43,
+      "words": 289,
+      "headings": [
+        "Code navigation"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "skills/code-navigation/SKILL.md"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "skills/dev-server/SKILL.md",
+      "category": "project-agent-guide",
+      "lines": 19,
+      "words": 144,
+      "headings": [
+        "Development servers"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "skills/dev-server/SKILL.md"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "skills/figcraft/SKILL.md",
+      "category": "project-agent-guide",
+      "lines": 54,
+      "words": 522,
+      "headings": [
+        "Figcraft mockups"
+      ],
+      "links": [
+        "references/cli.md"
+      ],
+      "proposed_destinations": [
+        "skills/figcraft/SKILL.md"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "skills/figcraft/references/cli.md",
+      "category": "project-agent-guide",
+      "lines": 132,
+      "words": 595,
+      "headings": [
+        "Tested CLI recipe",
+        "Tool calls and discovery",
+        "Pass 1: create frames and obtain IDs",
+        "Pass 2: add the design to the saved document",
+        "Shell fallbacks and errors"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "skills/figcraft/references/cli.md"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "skills/git/SKILL.md",
+      "category": "project-agent-guide",
+      "lines": 24,
+      "words": 166,
+      "headings": [
+        "Git"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "skills/git/SKILL.md"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "skills/go/SKILL.md",
+      "category": "project-agent-guide",
+      "lines": 19,
+      "words": 133,
+      "headings": [
+        "Go"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "skills/go/SKILL.md"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "skills/large-build/SKILL.md",
+      "category": "project-agent-guide",
+      "lines": 18,
+      "words": 136,
+      "headings": [
+        "Large builds"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "skills/large-build/SKILL.md"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "skills/pixelita/SKILL.md",
+      "category": "project-agent-guide",
+      "lines": 24,
+      "words": 198,
+      "headings": [
+        "Native image tools"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "skills/pixelita/SKILL.md"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "skills/typescript/SKILL.md",
+      "category": "project-agent-guide",
+      "lines": 18,
+      "words": 118,
+      "headings": [
+        "TypeScript"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "skills/typescript/SKILL.md"
+      ],
+      "treatment": "Keep operational location and behavior; not a human-docs prose rewrite target. Update moved human-doc links only where necessary.",
+      "review": "classified for scope and preservation"
+    },
+    {
+      "path": "website/README.md",
+      "category": "human-documentation",
+      "lines": 65,
+      "words": 359,
+      "headings": [
+        "GEKTOR website",
+        "Local development",
+        "GitHub Pages",
+        "Screenshot and copy"
+      ],
+      "links": [],
+      "proposed_destinations": [
+        "website/README.md"
+      ],
+      "treatment": "Keep site maintenance/deployment instructions and document publication sources.",
+      "review": "prose and structure reviewed"
+    },
+    {
+      "path": "website/public/licenses/ibm-plex-mono.txt",
+      "category": "third-party-license",
+      "lines": 93,
+      "words": 775,
+      "headings": [],
+      "links": [],
+      "proposed_destinations": [
+        "website/public/licenses/ibm-plex-mono.txt"
+      ],
+      "treatment": "Preserve third-party legal notice.",
+      "review": "classified for scope and preservation"
+    }
+  ],
+  "local_link_review": [],
+  "additional_surfaces": [
+    {
+      "path": "website/index.html",
+      "treatment": "Align product description and first-run links; publish only after destination routes exist."
+    },
+    {
+      "path": "website/README.md",
+      "treatment": "Already in maintained guide inventory; site publication setup was inspected too."
+    },
+    {
+      "path": "internal/tui/dialog.go",
+      "treatment": "In-product help inspected; reconcile labels with terminal reference, preserve behavior."
+    },
+    {
+      "path": "cmd/gektor/options.go",
+      "treatment": "CLI help strings with documentation paths must move with their targets."
+    },
+    {
+      "path": ".env.example",
+      "treatment": "Preserve environment variable names/values; update documentation reference."
+    },
+    {
+      "path": "LICENSE",
+      "treatment": "Preserve first-party MIT license."
+    },
+    {
+      "path": "scripts/release.py",
+      "treatment": "Document actual skill distribution; make end-user documentation selection explicit during migration."
+    },
+    {
+      "path": ".github/workflows/website.yml",
+      "treatment": "Add triggers for published Markdown sources when rendering docs on the site."
+    }
+  ],
+  "implementation": {
+    "date": "2026-11-09",
+    "constraints": "Repository skills, all SKILL.md files, runtime prompts, embedded builtin guides and eval prompts remain frozen. Existing source statistics describe the original baseline.",
+    "canonical_pages": [
+      "docs/start.md",
+      "docs/README.md",
+      "docs/guide/agent.md",
+      "docs/guide/automation.md",
+      "docs/guide/browser.md",
+      "docs/guide/extensions.md",
+      "docs/guide/files-and-images.md",
+      "docs/guide/models.md",
+      "docs/guide/permissions.md",
+      "docs/guide/sessions.md",
+      "docs/guide/troubleshooting.md",
+      "docs/guide/workflows.md",
+      "docs/reference/cli.md",
+      "docs/reference/configuration.md",
+      "docs/reference/http-api.md",
+      "docs/reference/operations.md",
+      "docs/reference/recipes.md",
+      "docs/reference/rpc.md",
+      "docs/reference/terminal.md",
+      "docs/development/conventions.md",
+      "docs/development/README.md",
+      "docs/development/testing.md",
+      "docs/development/tui.md",
+      "docs/development/writing.md"
+    ],
+    "publication_manifest": "website/docs-nav.json",
+    "compatibility": "Old public Markdown paths retain original section headings and link to canonical pages.",
+    "checks": "See documentation-migration.md for performed checks and limits."
+  }
+}

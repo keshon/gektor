@@ -118,7 +118,7 @@ for the main agent. Todo is checklist data: it cannot
 grant steps or prevent an answer. On exhaustion, an operator may explicitly
 approve one 25-step continuation. Step exhaustion does not request an extra
 closing model call. The separate run-time limit can reserve a tool-free closing
-request; see [runtime limits](docs/cli.md#backend).
+request; see [runtime limits](docs/reference/cli.md#backend).
 
 Repeat detection compares tool calls and their results. Three consecutive
 identical step signatures trigger one answer turn without tools. Potentially
@@ -152,7 +152,7 @@ as rewritten; omitted messages are absent from the included ID ranges.
 `read_history` searches the original archive. For the agent's own session it
 stops before the calling response, so its own query cannot create a search hit.
 Reading a child archive uses that child's saved history instead.
-See [session context usage](docs/cli.md#session-history-and-context).
+See [session context usage](docs/guide/sessions.md#session-history-and-context).
 
 Switching between plan and act appends a stance turn rather than rewriting the
 system prompt. The roles share the same tool definitions and enforce read-only
@@ -240,7 +240,7 @@ Explicit -mcp servers still connect at launch. Configured capability packs share
 the browser's deferred activation mechanism and support native Go, executable
 JSON and MCP adapters. Environment details and skill metadata are queried through
 system_info; load_skill reads guides and supporting resources from configured
-libraries or project skill directories. See [Extensions](docs/extensions.md).
+libraries or project skill directories. See [Extensions](docs/guide/extensions.md).
 
 ## Effects and verification
 
@@ -276,7 +276,7 @@ components do not own backend services. The active input owner determines
 keyboard, paste, mouse and caret routing. Session scans return revision-tagged
 results; stale results cannot replace the current session list.
 
-The [TUI design reference](docs/tui-design.md) defines the target component
+The [TUI design reference](docs/development/tui.md) defines the target component
 contracts and migration plan for shared controls, layouts and interaction.
 
 Settled transcript blocks are cached by content and presentation settings.
@@ -306,8 +306,8 @@ and the general usefulness of a lesson are not independently verified.
 
 File tools validate paths and edits. Shell and MCP run with the user's process
 permissions; the workspace is not a process sandbox. See [SECURITY.md](SECURITY.md).
-Usage and flags live in [README.md](README.md) and [docs/cli.md](docs/cli.md).
-House rules are enforced by tests described in [docs/conventions.md](docs/conventions.md).
+Usage and flags live in [README.md](README.md) and [docs/cli.md](docs/reference/cli.md).
+House rules are enforced by tests described in [docs/conventions.md](docs/development/conventions.md).
 
 ### Automation boundaries
 

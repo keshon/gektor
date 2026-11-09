@@ -1,12 +1,19 @@
 # Log error report
 
+## Before running
+
+The commands use PowerShell from the extracted application folder or a
+[built source checkout](../../../docs/development/README.md). On Linux, use
+`./gektor` in place of `.\gektor.exe` and equivalent shell syntax.
+Copy this folder before editing and select that copy with `-workspace`.
+Each run creates a separate saved record.
+
 No model or network required. The recipe captures a workspace log, reads the
 snapshot, extracts ERROR lines with JavaScript and pauses before saving a Markdown
 artifact. The original log can change without altering the captured evidence.
 
-Run this in **PowerShell**, from the repository root. Variables capture the actual
-IDs; nothing needs to be substituted manually. Build first with
-`go build -o gektor.exe ./cmd/gektor` if needed.
+Run this in **PowerShell**, from the application folder. Variables capture the actual
+IDs; nothing needs to be substituted manually.
 
 ```powershell
 $workspace = 'examples/workflows/log-report'

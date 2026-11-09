@@ -1,11 +1,19 @@
 # Local program report
 
+## Before running
+
+The commands use PowerShell from the extracted application folder or a
+[built source checkout](../../../docs/development/README.md). On Linux, use
+`./gektor` in place of `.\gektor.exe` and equivalent shell syntax.
+Copy this folder before editing and select that copy with `-workspace`.
+Each run creates a separate saved record.
+
 Requires Python on PATH as `python`. No model or network needed. A captured JSON
 file goes to Python through stdin; stdout becomes a report artifact. Execution
 pauses for review before starting Python. The script itself is a live workspace
 file, not part of the captured input.
 
-Run in **PowerShell** from the repository root:
+Run in **PowerShell** from the application folder:
 
 ```powershell
 $workspace = 'examples/workflows/process-report'

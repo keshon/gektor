@@ -24,7 +24,7 @@ Skill libraries are additional read roots. `load_skill` reads discovered guides
 and supporting files inside the selected package through its own `os.Root`;
 it does not widen ordinary workspace file tools. The CLI includes user skill
 directories and project directories; extra roots come from explicit capability
-configuration. See [Extensions](docs/extensions.md) for precedence.
+configuration. See [Extensions](docs/guide/extensions.md) for precedence.
 
 The default permission tripwires ask before process-kill commands such as
 `taskkill`, `Stop-Process`, `pkill` and `killall`, including direct program/args

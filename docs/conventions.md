@@ -1,183 +1,39 @@
 # Conventions
 
-> How the system works is in [ARCHITECTURE.md](../ARCHITECTURE.md). Usage is in
-> [README.md](../README.md). This document is the house rules.
+This page has moved. Start with [Project conventions](development/conventions.md).
 
 ## How to read this
 
-Every rule carries an enforcement tier:
-
-- **[enforced: &lt;name&gt;]** — a check fails, and the name says which one.
-  `internal/conventions` is an ordinary Go test, so `go test ./...` runs it
-  with everything else. `TestDocumentAndChecksAgree` checks that the tags here
-  match the registered checks.
-- **[invariant]** — nothing checks it, and violating it breaks something
-  nameable. Each states the failure it prevents.
-- **[practice]** — how things are done here. Nothing breaks if you deviate.
-
-`internal/conventions` reads this file during tests. Update the documentation
-and registered check together when changing an enforced rule.
-
-**Adding a rule.** Give it a tier. If it would be [enforced], write the check
-first and let it fail, then record the baseline.
+See [How to read this](development/conventions.md#how-to-read-this).
 
 ## Package layers
 
-**[enforced: package-layers]** `internal/llm`, `internal/prompts`,
-`internal/workspace`, `internal/permission` and `internal/events` import no other
-internal package. The `internal/llm/chatcompletions` and `internal/llm/responses`
-protocol packages import only `internal/llm`. The `internal/providers` catalog
-and `internal/providers/openai` account package import no other internal package.
-Provider inspection packages (`llamacpp`, `koboldcpp`, `openaicompat`) import only
-`internal/providers/internal/probe`, whose HTTP helpers import no internal package.
-Request dialects format inference requests; inspection belongs to providers.
-`internal/session` imports only `internal/llm`.
-`internal/agent` imports only `internal/llm`, `internal/prompts`,
-`internal/permission` and `internal/session`. This is what
-lets `internal/tools` implement `agent.Tool` without an import cycle, and what
-keeps the loop testable against a stub client with no filesystem in sight.
-The social reader and shared integration HTTP transport import no internal
-packages. Native file operations import only workspace access and that transport.
-Document readers import only workspace access and the shared worker package.
-Worker process support imports no internal packages.
-Reusable TUI components may import other components, but no application packages.
-Workflow definitions import no internal packages. Recipe preparation imports only
-workflow definitions; the engine imports definitions and recipe preparation;
-the store imports only definitions. The service coordinates these packages and
-workspace access. The daemon imports only the service and store. Node adapters
-and frontends stay outside these core workflow packages.
-
-**[invariant]** `internal/agent` never learns which backend it is talking to.
-A backend quirk handled inside the loop is a quirk that will be handled twice
-the next time a backend is added, and inconsistently the second time.
-
-**[enforced: structured-output]** A constrained `llm.ChatRequest` sets both
-`Grammar` and `JSONSchema`. The two are one contract in two encodings, and each
-backend reads only one of them: koboldcpp takes GBNF on the chat endpoint,
-llama-server takes `response_format` and ignores a grammar field there without
-complaint. Sending one encoding leaves the other backend generating free text
-that happens to be asked for JSON, which fails later and somewhere else.
+See [Package layers](development/conventions.md#package-layers).
 
 ## Dependencies
 
-**[enforced: cgo-free]** No package imports `C`. cgo turns a single `go build`
-into a toolchain problem, breaks cross-compilation, and is not worth it for a
-tool whose whole job is to run somewhere unattended.
-
-**[practice]** The standard library first. A third-party package is considered
-only if it is cgo-free, widely used, and earns its weight — `golang.org/x/sys`
-qualifies because Windows job objects have no standard-library equivalent and
-without them a stopped dev server can survive, still holding its port. The
-Charm terminal stack (Bubble Tea v2, Lipgloss v2, Bubbles v2,
-and their input/ANSI helpers) qualifies for `-tui`
-only: writing a fullscreen renderer on raw ANSI escapes is a second project,
-and the agent loop and model transports do not import the terminal stack.
-Process cleanup in the tools package uses the Windows system dependency.
+See [Dependencies](development/conventions.md#dependencies).
 
 ## Building agents
 
-**[enforced: agent-construction]** Only `internal/roles` calls `agent.New`.
-Agent roles were once configured at their call sites, and they
-drifted — one harness ended up without `ask_user` and `delegate_task` while the
-shipping CLI had both, so it was scoring a different agent than the one under
-test. One answer per role, in one place.
-
-**[invariant]** A capability is removed by the harness, never by asking the
-model not to use it. The plan role keeps the acting role's system prompt and
-tool list — a narrower one would change the prompt prefix, so a backend that
-caches prompts would re-read the whole conversation on every mode switch — and
-refuses every call outside the read-only set before it runs. A subagent gets a
-registry without delegation, so delegation cannot recurse.
+See [Building agents](development/conventions.md#building-agents).
 
 ## Verification
 
-**[invariant]** File effects and verification results are measured, never inferred
-from answer wording. An explicit verify command supplies mechanical evidence.
-Verification records a real command verdict without requesting a model self-check.
-
-**[invariant]** Reads are always refreshed: an editor or background process can
-change their result without an agent mutation. Three consecutive steps with the
-same calls and results trigger a final tool-free answer. Changed results are
-progress. The step budget still bounds execution.
-
-**[invariant]** Invalid arguments are never executed or replaced by a fake empty
-object. Keep original input as archive text and send an explicit diagnostic to
-the model. SYSTEM displays model-facing harness messages and their request
-delivery; local UI statuses are labelled STATUS. Hiding SYSTEM changes display
-only.
+See [Verification](development/conventions.md#verification).
 
 ## Prompts
 
-**[enforced: prompt-registration]** Every `internal/prompts/text/*.txt` is
-referenced by `internal/prompts/prompts.go`. An orphaned prompt file is either
-dead weight or a prompt someone forgot to wire up, and both look the same from
-outside.
-
-**[enforced: skill-paths]** Every `skills/.../SKILL.md` a prompt names exists in the
-repository, and every prompt that names one says "if it exists". A model told
-to read a file that is not there spends a turn reasoning about the
-contradiction — live, one concluded the instruction itself was an error — and
-the agent's workspace is often not this repository.
-
-**[practice]** Prompts live as `.txt`, not Go string constants. A one-sentence
-wording change should be a one-line diff, not a change buried in a
-multi-line concatenation.
+See [Prompts](development/conventions.md#prompts).
 
 ## Evals
 
-**[enforced: probe-prompts]** Every probe's `prompt` field names a file that
-exists in `eval/prompts/`. A probe whose write-up has been renamed or deleted
-is a criterion nobody can check the intent of.
-
-**[enforced: cli-flags]** Every flag `cmd/gektor` registers is named in
-`docs/cli.md` (as `` `-name` ``). A reference that rots one flag at a time
-is how five flags went undocumented unnoticed.
-
-**[invariant]** A probe's pass criteria come from its write-up in
-`eval/prompts/`, not from what seems reasonable while writing the JSON. A
-criterion invented at the probe is a number the harness will one day fail on
-for no stated reason.
-
-**[invariant]** A run that never reached the model is not scored. A dead
-backend produces failed workspace checks that look exactly like a model that
-got worse.
+See [Evals](development/conventions.md#evals).
 
 ## Documentation
 
-**[enforced: doc-identifiers]** Backticked Go names in root guides, maintained docs outside docs/internal,
-skills/README.md, eval/README.md, scripts/README.md and README files under examples and demos
-are checked against parsed declarations.
-The check recognizes mixed-case names and package-qualified exported names.
-Bare acronyms and key labels are excluded; JSON fields use quoted JSON notation.
-Bare names may match fields, methods or test declarations; qualified names
-must belong to the named package. Standard-library names use its exported
-declarations. This is an existence check, not a full Go type check.
-
-**[enforced: doc-paths]** Backticked paths starting with internal/ or cmd/,
-and repository-relative filenames ending in .go, must exist. Globs must match
-at least one path. This covers root guides, maintained docs outside docs/internal,
-skills/README.md, eval/README.md, scripts/README.md and README files under examples and demos.
-Write repository paths from the root. Absolute paths, commands, placeholders
-and other workspace example paths are outside the check's scope.
-
-**[enforced: comment-dates]** Comments in non-test Go files do not cite dates.
-A comment saying a rule came from an incident on a particular day is
-unverifiable to every reader who was not there. Keep the rule; the incident
-belongs in a test name. Existing occurrences are recorded in `baseline.json`
-and may only decrease.
-
-**[practice]** Comments explain why, not what. The code already says what.
-
-**[practice]** Give state and resources one owner. Keep connection cleanup beside
-creation, and make cancellation behavior clear. Frontends call shared services;
-they do not copy execution or permission rules. Group code by responsibility
-before creating packages, interfaces or nested configuration. A short helper
-should name a useful operation; a line-count target is not a reason to split it.
+See [Documentation](development/conventions.md#documentation).
 
 ## Testing
 
-**[enforced: doc-and-checks-agree]** Every `[enforced: x]` tag here has a check
-in `internal/conventions`, and every check has a tag here.
-
-**[practice]** A bug found in a live run gets a test named after its shape
-before it gets a fix. The test name is where that history belongs.
+See [Testing](development/conventions.md#testing).

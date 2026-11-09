@@ -3,30 +3,6 @@
 Repeatable Agent tasks, scored from files, tool results and answers.
 Use them to compare models and catch regressions in tool use.
 
-## What belongs where
-
-| Place | Purpose |
-|---|---|
-| [Workflow examples](../examples/workflows/README.md) | Recipes people can copy and learn from |
-| [Demos](../demos/README.md) | Launch a few complete tasks with little setup |
-| `eval/` | Check whether the Agent discovers tools, uses them and reports evidence |
-| Go tests | Check engine behavior, permissions and exact results without a model |
-
-A public API or a model-written draft can be useful in a demo, but makes a poor
-fixed acceptance test. Evals use isolated fixtures. A demo finishing is not an
-eval pass, and a passing engine test says nothing about model decisions.
-
-- `prompts/` — the write-up for each scenario: what it stresses, what counts as
-  a pass, what counts as a failure. Written for a human.
-- `probes/` — the machine-checkable form of those criteria.
-- `fixtures/` — the seed workspace probes start from. Copied per run, never
-  written to.
-- `results/` — output, gitignored.
-
-The runner makes a fresh workspace for every attempt. Do not edit or reset the
-checked-in fixtures between runs. Old manual reset/repeat scripts are no longer
-needed. Number gaps are kept so old result IDs remain understandable.
-
 ## Running
 
 Run from the repository root. Windows users can replace `go run ./cmd/eval`
@@ -181,6 +157,31 @@ are available with `go run ./cmd/eval -h`.
 evidence. Step counts are recorded for every run whether or not the probe
 scores them — the difference between passing in 4 steps and passing in 13 is
 usually the thing worth reading.
+
+## What belongs where
+
+| Place | Purpose |
+|---|---|
+| [Workflow examples](../examples/workflows/README.md) | Recipes people can copy and learn from |
+| [Demos](../demos/README.md) | Launch a few complete tasks with little setup |
+| `eval/` | Check whether the Agent discovers tools, uses them and reports evidence |
+| Go tests | Check engine behavior, permissions and exact results without a model |
+
+A public API or a model-written draft can be useful in a demo, but makes a poor
+fixed acceptance test. Evals use isolated fixtures. A demo finishing is not an
+eval pass, and a passing engine test says nothing about model decisions.
+
+- `prompts/` — the write-up for each scenario: what it stresses, what counts as
+  a pass, what counts as a failure. Written for a human.
+- `probes/` — the machine-checkable form of those criteria.
+- `fixtures/` — the seed workspace probes start from. Copied per run, never
+  written to.
+- `results/` — output, gitignored.
+
+The runner makes a fresh workspace for every attempt. Do not edit or reset the
+checked-in fixtures between runs. Old manual reset/repeat scripts are no longer
+needed. Number gaps are kept so old result IDs remain understandable.
+
 
 ## How a probe is scored
 

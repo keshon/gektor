@@ -7,7 +7,7 @@ is experimental, so it is not the source file here.
 
 These screens are an editable design reference. Editing the project does not
 change the running TUI.
-The [design reference](../../tui-design.md) defines behavior and the verification
+The [design reference](../../development/tui.md) defines behavior and the verification
 plan. Update it when a reviewed mockup changes an interaction rule.
 
 ## Pages

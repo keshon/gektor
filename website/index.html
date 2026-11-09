@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#fafbfc" />
-    <meta name="description" content="GEKTOR is an open-source coding agent and workflow runner for your terminal. Read and edit files, run commands, and save workflows. For Windows and Linux." />
+    <meta name="description" content="GEKTOR is a terminal app for working on code with an AI agent and running saved workflows. For Windows and Linux." />
     <meta property="og:title" content="GEKTOR — A coding agent and workflow runner" />
     <meta property="og:description" content="Work with an agent in your project, or define steps you can run again. Open source for Windows and Linux." />
     <meta property="og:type" content="website" />
@@ -28,14 +28,16 @@
           <span class="brand__type">GEKTOR<span class="brand__caption">CODING AGENT</span></span>
         </a>
         <nav aria-label="Main navigation">
-          <a href="https://github.com/keshon/gektor/blob/main/docs/README.md">Documentation</a>
+          <a href="%BASE_URL%docs/start/">Get started</a>
+          <a href="%BASE_URL%docs/">Docs</a>
+          <a href="%BASE_URL%examples/">Examples</a>
           <a href="https://github.com/keshon/gektor">GitHub <span aria-hidden="true">↗</span></a>
         </nav>
       </header>
       <main>
         <section class="hero" aria-labelledby="hero-title">
           <h1 id="hero-title">A coding agent and workflow runner for the terminal.</h1>
-          <p class="hero__description">Agent mode reads and edits project files, runs commands, and saves conversations. Workflows run predefined steps with different inputs.</p>
+          <p class="hero__description">GEKTOR is a terminal app for working on code with an AI agent and running saved workflows. Connect a local model server, an API, or an eligible ChatGPT account.</p>
           <div class="hero__links">
             <a class="button" href="https://github.com/keshon/gektor/releases">Download GEKTOR</a>
             <a class="inline-link" href="#quick-start">How to get started <span aria-hidden="true">↓</span></a>
@@ -43,10 +45,10 @@
           <p class="availability">Windows and Linux. Open source under the MIT license.</p>
         </section>
         <figure class="terminal-preview">
-          <a href="/images/gektor-terminal.webp?v=459051e2f983" target="_blank" rel="noopener noreferrer" aria-label="Open full-size screenshot of the GEKTOR terminal interface">
+          <a href="%BASE_URL%images/gektor-terminal.webp?v=459051e2f983" target="_blank" rel="noopener noreferrer" aria-label="Open full-size screenshot of the GEKTOR terminal interface">
             <img src="/images/gektor-terminal.webp?v=459051e2f983" width="1730" height="1120" loading="lazy" decoding="async" alt="GEKTOR Agent reading a log and workflow recipe, then summarizing errors, workflow steps, and the approval gate." />
           </a>
-          <figcaption><span>Agent reading a log and its workflow recipe, then explaining the errors and review gate.</span><a href="/images/gektor-terminal.webp?v=459051e2f983" target="_blank" rel="noopener noreferrer">View full size <span aria-hidden="true">↗</span></a></figcaption>
+          <figcaption><span>Agent reading a log and its workflow recipe, then explaining the errors and review gate.</span><a href="%BASE_URL%images/gektor-terminal.webp?v=459051e2f983" target="_blank" rel="noopener noreferrer">View full size <span aria-hidden="true">↗</span></a></figcaption>
         </figure>
         <section class="overview" id="project" aria-labelledby="project-title">
           <h2 id="project-title">Two ways to work</h2>
@@ -56,13 +58,13 @@
               <h3>Agent</h3>
               <p>Describe a task and let the model choose the tools. Use Plan mode to inspect the project, then switch to Act for edits and commands.</p>
               <p>Saved sessions let you pick up the conversation later.</p>
-              <a class="inline-link" href="https://github.com/keshon/gektor/blob/main/docs/tui.md">Read the Agent guide <span aria-hidden="true">↗</span></a>
+              <a class="inline-link" href="%BASE_URL%docs/guides/agent/">Read the Agent guide <span aria-hidden="true">↗</span></a>
               </div>
               <div class="mode-example">
                 <h4>Example: read a file in Plan mode</h4>
-                <p>The Agent demo reads <code>note.txt</code> and returns the code stored inside. The launcher checks that the answer contains the code and the original file is unchanged.</p>
-                <p class="example-requirement">Requires a signed-in ChatGPT account.</p>
-                <a class="inline-link" href="https://github.com/keshon/gektor/blob/main/demos/README.md">Agent demo instructions <span aria-hidden="true">↗</span></a>
+                <p>Start with a small request: read the README and find where your project saves settings. Inspect the tool results before asking for an edit.</p>
+                <p class="example-requirement">Requires a tool-calling model: local server, API or ChatGPT.</p>
+                <a class="inline-link" href="%BASE_URL%docs/start/#run-your-first-agent-task">Try your first Agent task <span aria-hidden="true">↗</span></a>
               </div>
             </article>
             <article>
@@ -70,13 +72,13 @@
               <h3>Workflows</h3>
               <p>Define the steps and inputs in a saved recipe. Run it again with different inputs and inspect the output of each step.</p>
               <p>Only steps that use a model need a model connection.</p>
-              <a class="inline-link" href="https://github.com/keshon/gektor/blob/main/docs/workflows.md">Read the workflow guide <span aria-hidden="true">↗</span></a>
+              <a class="inline-link" href="%BASE_URL%docs/guides/workflows/">Read the workflow guide <span aria-hidden="true">↗</span></a>
               </div>
               <div class="mode-example">
                 <h4>Example: turn a log into an error report</h4>
                 <p>The log-report recipe captures a log file, extracts its error lines, and pauses for approval before saving a Markdown report.</p>
                 <p class="example-requirement">Runs without a model or network connection.</p>
-                <a class="inline-link" href="https://github.com/keshon/gektor/blob/main/examples/workflows/log-report/README.md">Log report recipe and instructions <span aria-hidden="true">↗</span></a>
+                <a class="inline-link" href="%BASE_URL%examples/log-report/">Log report recipe and instructions <span aria-hidden="true">↗</span></a>
               </div>
             </article>
           </div>
@@ -85,27 +87,27 @@
           <h2 id="capabilities-title">Tools and automation</h2>
           <ul class="capability-list">
             <li>
-              <h3><a href="https://github.com/keshon/gektor/blob/main/docs/extensions.md#loading-tools">Tools loaded on demand</a></h3>
+              <h3><a href="%BASE_URL%docs/guides/extensions/#loading-tools">Tools loaded on demand</a></h3>
               <p>Optional toolsets are discovered and enabled as needed. Unused tool definitions stay out of the model context.</p>
             </li>
             <li>
-              <h3><a href="https://github.com/keshon/gektor/blob/main/docs/workflows.md#available-operations">Native file and media tools</a></h3>
+              <h3><a href="%BASE_URL%docs/reference/operations/#available-operations">Native file and media tools</a></h3>
               <p>Read DOCX, XLSX, and PDF files, process images, and work with archives using built-in operations shared by Agent and Workflows.</p>
             </li>
             <li>
-              <h3><a href="https://github.com/keshon/gektor/blob/main/docs/workflows.md#inputs-and-data-flow">Reusable JSON recipes</a></h3>
+              <h3><a href="%BASE_URL%docs/reference/recipes/#inputs-and-data-flow">Reusable JSON recipes</a></h3>
               <p>Define inputs, dependencies, conditions, and iteration in a workspace file. Recipes can call other recipes and return named outputs.</p>
             </li>
             <li>
-              <h3><a href="https://github.com/keshon/gektor/blob/main/docs/workflows.md#model-nodes">Explicit model steps</a></h3>
+              <h3><a href="%BASE_URL%docs/reference/operations/#model-nodes">Explicit model steps</a></h3>
               <p>Add model-generation steps where needed. Workflows without model steps run without an agent session or model connection.</p>
             </li>
             <li>
-              <h3><a href="https://github.com/keshon/gektor/blob/main/docs/workflows.md#graphs-iteration-and-reviews">Review, then continue</a></h3>
+              <h3><a href="%BASE_URL%docs/reference/recipes/#graphs-iteration-and-reviews">Review, then continue</a></h3>
               <p>Pause before a selected operation and inspect its inputs. Approval continues the saved run without repeating completed steps.</p>
             </li>
             <li>
-              <h3><a href="https://github.com/keshon/gektor/blob/main/docs/workflows.md#background-execution">Schedules and webhooks</a></h3>
+              <h3><a href="%BASE_URL%docs/guides/automation/#background-execution">Schedules and webhooks</a></h3>
               <p>Submit recipes through cron schedules, an HTTP API, or authenticated webhooks. A running workflow service executes the queued jobs.</p>
             </li>
           </ul>
