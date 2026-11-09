@@ -26,7 +26,7 @@ func selectSuite(probes []Probe, name string) ([]Probe, error) {
 	} else if name == "pipelines" {
 		names = []string{"30-workflow-compose", "31-workflow-schedule"}
 	} else if name == "documents" {
-		names = []string{"33-documents-read", "34-documents-workflow"}
+		names = []string{"33-documents-read", "34-documents-workflow", "39-documents-continuation"}
 	} else if name == "visual" {
 		names = []string{"32-visual-attachment"}
 	} else if name == "delegation" {

@@ -37,7 +37,7 @@ with `scripts\eval-run.cmd`.
 | `core` | Seven general Agent tasks, including unavailable browser reporting | No |
 | `workflows` | Four image-workflow tasks: creation, metadata refusal, invalid recipe, existing output | No |
 | `pipelines` | Child recipes with declared outputs; a paused hourly schedule and worker status | No |
-| `documents` | Native DOCX, XLSX and PDF reading, directly and through a recipe | No |
+| `documents` | Native DOCX, XLSX and PDF reading, recipe use and long-item continuation | No |
 | `visual` | Pasted image discovery, a detail crop, misleading suffix and limits on identification | Yes |
 | `delegation` | One focused child review and one small Go repair, with separate child measurements | No |
 | `memory` | Session archive search, current request inspection and limits of prompt revision evidence | No |

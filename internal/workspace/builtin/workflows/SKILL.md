@@ -43,7 +43,15 @@ an object with a `total` field. There is no automatic `/output` wrapper.
 For a script returning `{"total":6}`, that pointer selects `6`.
 Use `docx_read`, `xlsx_read` and `pdf_read` for document content; they are native
 read-only nodes. XLSX without `sheet` lists sheet names. Follow `next_offset`
-while `more` is true and report `truncated` results. No OCR or legacy DOC/XLS.
+while `more` is true. Finish every item with `next_text_offset` too, even when
+`more` is false: repeat its zero-based item `offset` with `text_offset` copied
+from `next_text_offset`; `limit` defaults to 1 and must be 1. Text positions count
+Unicode code points. Append chunks to the same fields/cell positions; keep the
+source unchanged. Empty or omitted fields in a truncated item may still be
+unread; finish continuation before claiming absence. XLSX cell type describes
+the stored value, not formula presence. Reads are bounded and never fetch continuations automatically.
+Read only needed content and retain useful findings during long scans. No OCR or
+legacy DOC/XLS.
 Archive nodes support explicit `format`: zip (default), tar, tar.gz and gzip.
 GZIP is one file. No external runtime is needed.
 

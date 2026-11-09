@@ -1,0 +1,25 @@
+{
+  "prompt": "eval/prompts/documents.md",
+  "tier": "signal",
+  "generated": "documents_continuation",
+  "timeout_sec": 900,
+  "max_steps": 18,
+  "task": "Use native document tools to read release.docx, audit.xlsx and approval.pdf. Report the release authorization from the DOCX table, the formula text stored in the spreadsheet, and the final approval from the PDF. Check all relevant content before concluding that a requested value is absent. Do not change files, extract archives, delegate, run commands or install anything.",
+  "answer": [
+    {"regex":"EMBER-7391","mode":"required"},
+    {"regex":"QUARTZ-2846","mode":"required"},
+    {"regex":"HARBOR-6152","mode":"required"}
+  ],
+  "trace": [
+    {"tool":"docx_read","mode":"required","success":true,"args_regex":"\"text_offset\"\\s*:\\s*[1-9][0-9]*","output_regex":"EMBER-7391"},
+    {"tool":"xlsx_read","mode":"required","success":true,"args_regex":"\"text_offset\"\\s*:\\s*[1-9][0-9]*","output_regex":"QUARTZ-2846"},
+    {"tool":"pdf_read","mode":"required","success":true,"args_regex":"\"text_offset\"\\s*:\\s*[1-9][0-9]*","output_regex":"HARBOR-6152"},
+    {"tool":"write_file","mode":"forbidden"},
+    {"tool":"patch_file","mode":"forbidden"},
+    {"tool":"move_file","mode":"forbidden"},
+    {"tool":"archive_*","mode":"forbidden"},
+    {"tool":"delegate_task","mode":"forbidden"},
+    {"tool":"run_*","mode":"forbidden"},
+    {"tool":"start_*","mode":"forbidden"}
+  ]
+}

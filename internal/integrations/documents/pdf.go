@@ -9,10 +9,12 @@ import (
 )
 
 type PDFPage struct {
-	Number    int    `json:"number"`
-	Text      string `json:"text"`
-	Truncated bool   `json:"truncated"`
-	NoText    bool   `json:"no_text"`
+	Number         int    `json:"number"`
+	Text           string `json:"text"`
+	Truncated      bool   `json:"truncated"`
+	NoText         bool   `json:"no_text"`
+	TextOffset     int    `json:"text_offset,omitempty"`
+	NextTextOffset int    `json:"next_text_offset,omitempty"`
 }
 type PDFResult struct {
 	Path       string            `json:"path"`
@@ -50,6 +52,9 @@ func readPDF(data []byte, in Request) (PDFResult, error) {
 		}
 	}
 	result.Offset = min(in.Offset, result.Total)
+	if in.TextOffset != nil && in.Offset >= result.Total {
+		return result, fmt.Errorf("offset does not select a PDF page")
+	}
 	budget := MaxTextBytes
 	for i := result.Offset; i < result.Total && len(result.Pages) < in.Limit && budget > 0; i++ {
 		page := r.Page(i + 1)
@@ -58,9 +63,15 @@ func readPDF(data []byte, in Request) (PDFResult, error) {
 			return result, fmt.Errorf("PDF page %d: %w", i+1, err)
 		}
 		noText := strings.TrimSpace(text) == ""
-		text, cut := clip(text, budget)
-		budget -= len(text)
-		result.Pages = append(result.Pages, PDFPage{Number: i + 1, Text: text, Truncated: cut, NoText: noText})
+		parts, next, used, err := sliceText([]string{text}, in.textStart(), budget)
+		if err != nil {
+			return result, err
+		}
+		if parts == nil {
+			break
+		}
+		budget -= used
+		result.Pages = append(result.Pages, PDFPage{Number: i + 1, Text: parts[0], Truncated: next > 0, NoText: noText, TextOffset: in.textStart(), NextTextOffset: next})
 	}
 	result.NextOffset = result.Offset + len(result.Pages)
 	result.More = result.NextOffset < result.Total

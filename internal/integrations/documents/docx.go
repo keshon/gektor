@@ -9,11 +9,13 @@ import (
 )
 
 type Block struct {
-	Kind      string   `json:"kind"`
-	Text      string   `json:"text,omitempty"`
-	Cells     []string `json:"cells,omitempty"`
-	Table     int      `json:"table,omitempty"`
-	Truncated bool     `json:"truncated"`
+	Kind           string   `json:"kind"`
+	Text           string   `json:"text,omitempty"`
+	Cells          []string `json:"cells,omitempty"`
+	Table          int      `json:"table,omitempty"`
+	Truncated      bool     `json:"truncated"`
+	TextOffset     int      `json:"text_offset,omitempty"`
+	NextTextOffset int      `json:"next_text_offset,omitempty"`
 }
 
 type DOCXResult struct {
@@ -44,6 +46,7 @@ func (p *office) docx(in Request) (DOCXResult, error) {
 	validBody, rootSeen := false, false
 	total, budget := 0, MaxTextBytes
 	stopped := false
+	var sliceErr error
 	add := func(block Block) {
 		index := total
 		total++
@@ -54,16 +57,27 @@ func (p *office) docx(in Request) (DOCXResult, error) {
 			stopped = true
 			return
 		}
-		text, cut := clip(block.Text, min(MaxValueBytes, budget))
-		block.Text = text
-		budget -= len(text)
-		block.Truncated = cut
-		for i, s := range block.Cells {
-			v, c := clip(s, min(MaxValueBytes, budget))
-			block.Cells[i] = v
-			budget -= len(v)
-			block.Truncated = block.Truncated || c
+		parts := block.Cells
+		if block.Kind == "paragraph" {
+			parts = []string{block.Text}
 		}
+		parts, next, used, err := sliceText(parts, in.textStart(), budget)
+		if err != nil {
+			sliceErr, stopped = err, true
+			return
+		}
+		if parts == nil {
+			stopped = true
+			return
+		}
+		if block.Kind == "paragraph" {
+			block.Text = parts[0]
+		} else {
+			block.Cells = parts
+		}
+		budget -= used
+		block.TextOffset, block.NextTextOffset = in.textStart(), next
+		block.Truncated = next > 0
 		result.Blocks = append(result.Blocks, block)
 	}
 	for {
@@ -160,6 +174,12 @@ func (p *office) docx(in Request) (DOCXResult, error) {
 	}
 	if !validBody {
 		return result, fmt.Errorf("DOCX body is missing")
+	}
+	if sliceErr != nil {
+		return result, sliceErr
+	}
+	if in.TextOffset != nil && in.Offset >= total {
+		return result, fmt.Errorf("offset does not select a DOCX block")
 	}
 	result.Total = total
 	result.Offset = min(in.Offset, total)

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -99,7 +100,7 @@ func TestDOCXBoundsAndMalformedParts(t *testing.T) {
 	total := 0
 	for _, b := range got.Blocks {
 		total += len(b.Text)
-		if !b.Truncated || !utf8.ValidString(b.Text) {
+		if b.Truncated != (b.NextTextOffset > 0) || !utf8.ValidString(b.Text) {
 			t.Fatal("unmarked or broken truncation")
 		}
 	}
@@ -248,5 +249,167 @@ func TestDocumentWorkerReadsBytesAndContainsMalformedPDF(t *testing.T) {
 		if _, err := s.Read(t.Context(), "pdf_read", req); err == nil {
 			t.Fatal("accepted", req)
 		}
+	}
+}
+
+func TestDocumentContinuationReconstructsStructuredItems(t *testing.T) {
+	long := strings.Repeat("aЖ🙂e\u0301", 6000)
+	formula := strings.Repeat("X+", 19000) + "1"
+	pdfText := strings.Repeat("p", MaxTextBytes*2) + "PDF-END"
+	cases := []struct {
+		name, kind string
+		data       []byte
+		want       []string
+	}{
+		{"paragraph", "docx_read", officeBytes(t, map[string]string{"word/document.xml": wordHeader + `<w:p><w:r><w:t>` + long + `</w:t></w:r></w:p>` + wordFooter}), []string{long}},
+		{"row", "docx_read", officeBytes(t, map[string]string{"word/document.xml": wordHeader + `<w:tbl><w:tr><w:tc><w:p/></w:tc><w:tc><w:p><w:r><w:t>` + long + `</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>` + long + `</w:t></w:r></w:p></w:tc><w:tc><w:p/></w:tc></w:tr></w:tbl>` + wordFooter}), []string{"", long, long, ""}},
+		{"cell", "xlsx_read", officeBytes(t, spreadsheetParts(`<row><c r="C7" t="str"><f t="normal">`+formula+`</f><v>`+long+`</v></c></row>`)), []string{long, formula}},
+		{"page", "pdf_read", pdfBytes("BT /F1 12 Tf 20 100 Td (" + pdfText + ") Tj ET"), []string{"\n" + pdfText}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := Request{Path: "input", Limit: 1}
+			if tc.kind == "xlsx_read" {
+				req.Sheet = "Data"
+			}
+			got := make([]string, len(tc.want))
+			for calls := 0; ; calls++ {
+				result, err := parse(workerRequest{Kind: tc.kind, Request: req, Data: tc.data})
+				if err != nil || calls > 20 {
+					t.Fatal(result, err, calls)
+				}
+				var parts []string
+				var next, start int
+				var truncated bool
+				switch r := result.(type) {
+				case DOCXResult:
+					if r.Total != 1 || r.More || r.NextOffset != 1 || len(r.Blocks) != 1 {
+						t.Fatal(r)
+					}
+					b := r.Blocks[0]
+					parts = b.Cells
+					if b.Kind == "paragraph" {
+						parts = []string{b.Text}
+					} else if b.Table != 1 {
+						t.Fatal(b)
+					}
+					next, start, truncated = b.NextTextOffset, b.TextOffset, b.Truncated
+				case XLSXResult:
+					if r.Total != 1 || r.More || r.NextOffset != 1 || len(r.Cells) != 1 {
+						t.Fatal(r)
+					}
+					c := r.Cells[0]
+					if c.Address != "C7" || c.Type != "string" || c.FormulaType != "normal" {
+						t.Fatal(c)
+					}
+					parts = []string{c.Value, c.Formula}
+					next, start, truncated = c.NextTextOffset, c.TextOffset, c.Truncated
+				case PDFResult:
+					if r.Total != 1 || r.More || r.NextOffset != 1 || len(r.Pages) != 1 || r.Pages[0].NoText || r.Pages[0].Number != 1 {
+						t.Fatal(r)
+					}
+					p := r.Pages[0]
+					parts = []string{p.Text}
+					next, start, truncated = p.NextTextOffset, p.TextOffset, p.Truncated
+				}
+				if len(parts) != len(got) || start != req.textStart() || truncated != (next > 0) {
+					t.Fatal(parts, start, next)
+				}
+				used := 0
+				for i, part := range parts {
+					got[i] += part
+					used += len(part)
+				}
+				if used > MaxTextBytes {
+					t.Fatal("text budget exceeded", used)
+				}
+				if next == 0 {
+					if calls == 0 {
+						t.Fatal("fixture did not exercise continuation")
+					}
+					break
+				}
+				if next <= start {
+					t.Fatal("continuation stalled", start, next)
+				}
+				req.TextOffset = &next
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("reconstructed fields differ: lengths %v versus %v, prefix %q suffix %q", textLengths(got), textLengths(tc.want), got[0][:min(10, len(got[0]))], got[0][max(0, len(got[0])-12):])
+			}
+			end := 0
+			for _, part := range tc.want {
+				end += utf8.RuneCountInString(part)
+			}
+			req.TextOffset = &end
+			if _, err := parse(workerRequest{Kind: tc.kind, Request: req, Data: tc.data}); err != nil {
+				t.Fatal("exact end rejected", err)
+			}
+			end++
+			if _, err := parse(workerRequest{Kind: tc.kind, Request: req, Data: tc.data}); err == nil {
+				t.Fatal("accepted text position beyond end")
+			}
+			end = 0
+			req.Offset = 1
+			if _, err := parse(workerRequest{Kind: tc.kind, Request: req, Data: tc.data}); err == nil {
+				t.Fatal("accepted missing item")
+			}
+		})
+	}
+}
+
+func textLengths(parts []string) []int {
+	var lengths []int
+	for _, part := range parts {
+		lengths = append(lengths, len(part))
+	}
+	return lengths
+}
+
+func TestDocumentContinuationDefaultsAndValidation(t *testing.T) {
+	zero, negative := 0, -1
+	for _, kind := range []string{"docx_read", "xlsx_read", "pdf_read"} {
+		in := Request{Sheet: "", TextOffset: &zero}
+		if kind == "xlsx_read" {
+			in.Sheet = "Data"
+		}
+		if err := validate(kind, &in); err != nil || in.Limit != 1 {
+			t.Fatal(kind, in, err)
+		}
+		in.Limit = 2
+		if err := validate(kind, &in); err == nil {
+			t.Fatal("accepted continuation over multiple items", kind)
+		}
+		in.Limit, in.TextOffset = 1, &negative
+		if err := validate(kind, &in); err == nil {
+			t.Fatal("accepted negative text position", kind)
+		}
+	}
+	in := Request{TextOffset: &zero}
+	if err := validate("xlsx_read", &in); err == nil {
+		t.Fatal("accepted continuation without sheet")
+	}
+}
+
+func TestDOCXContinuationFromRemainingBudget(t *testing.T) {
+	first := strings.Repeat("x", MaxTextBytes-3)
+	xml := wordHeader + `<w:p><w:r><w:t>` + first + `</w:t></w:r></w:p><w:p><w:r><w:t>Ж🙂end</w:t></w:r></w:p>` + wordFooter
+	p, _ := openOffice(officeBytes(t, map[string]string{"word/document.xml": xml}))
+	r, err := p.docx(Request{Limit: 10})
+	if err != nil || r.More || len(r.Blocks) != 2 || r.Blocks[1].Text != "Ж" || r.Blocks[1].NextTextOffset != 1 {
+		t.Fatal(r, err)
+	}
+	offset := r.Blocks[1].NextTextOffset
+	p, _ = openOffice(officeBytes(t, map[string]string{"word/document.xml": xml}))
+	r, err = p.docx(Request{Offset: 1, Limit: 1, TextOffset: &offset})
+	if err != nil || r.Blocks[0].Text != "🙂end" || r.Blocks[0].Truncated {
+		t.Fatal(r, err)
+	}
+	// One residual byte cannot hold the next character: defer the whole item.
+	xml = strings.Replace(xml, first, first+"xx", 1)
+	p, _ = openOffice(officeBytes(t, map[string]string{"word/document.xml": xml}))
+	r, err = p.docx(Request{Limit: 10})
+	if err != nil || !r.More || len(r.Blocks) != 1 || r.NextOffset != 1 {
+		t.Fatal(r, err)
 	}
 }

@@ -19,10 +19,11 @@ const MaxTextBytes = 32 << 10
 const MaxValueBytes = 4096
 
 type Request struct {
-	Path   string `json:"path"`
-	Sheet  string `json:"sheet,omitempty"`
-	Offset int    `json:"offset,omitempty"`
-	Limit  int    `json:"limit,omitempty"`
+	Path       string `json:"path"`
+	Sheet      string `json:"sheet,omitempty"`
+	Offset     int    `json:"offset,omitempty"`
+	Limit      int    `json:"limit,omitempty"`
+	TextOffset *int   `json:"text_offset,omitempty"`
 }
 
 type Service struct{ WS *workspace.Workspace }
@@ -61,6 +62,17 @@ func validate(kind string, in *Request) error {
 	}
 	if in.Limit == 0 {
 		in.Limit = min(50, maximum)
+		if in.TextOffset != nil {
+			in.Limit = 1
+		}
+	}
+	if in.TextOffset != nil {
+		if *in.TextOffset < 0 || in.Limit != 1 {
+			return fmt.Errorf("text_offset must be nonnegative and requires limit=1")
+		}
+		if kind == "xlsx_read" && in.Sheet == "" {
+			return fmt.Errorf("text_offset requires an exact XLSX sheet")
+		}
 	}
 	if in.Offset < 0 || in.Limit < 1 || in.Limit > maximum {
 		return fmt.Errorf("offset must be nonnegative and limit must be 1–%d", maximum)

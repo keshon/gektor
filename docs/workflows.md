@@ -206,10 +206,39 @@ For XLSX, omit `sheet` to list names first, then pass an exact name.
 {"id":"read","tool":"xlsx_read","args":{"path":"sales.xlsx","sheet":"Sales","limit":50}}
 ```
 
-Results contain at most 32 KiB of content text. DOCX text values and XLSX values
-or formulas are each limited to 4 KiB. A shortened block, cell or PDF page has
-`truncated: true`. Paging advances past that item; it does not recover the
-shortened part. PDF page numbers in results start at one.
+Results contain at most 32 KiB of content text. A shortened block, cell or PDF
+page has `truncated: true` and `next_text_offset`. To finish that item, repeat
+its zero-based item `offset` with `text_offset` copied from `next_text_offset`:
+
+```json
+{"path":"report.docx","offset":7,"text_offset":32768}
+```
+
+`text_offset` counts Unicode code points, not bytes. When present, `limit`
+defaults to 1 and must be 1; XLSX also requires an exact `sheet`. Each returned
+item reports `text_offset` when nonzero and `next_text_offset` only while text
+remains. Copy returned positions rather than calculating them. Positions beyond
+the selected item's text, or selecting a missing item, are errors; a position
+exactly at the text end returns an empty completed slice.
+
+Continuation traverses paragraph/page `text`, DOCX row `cells` in order, or XLSX
+`value` then `formula`, without adding separators. Each slice stays in its
+original field; row cell positions and item metadata are preserved. Consumed or
+not-yet-reached fields are empty. Append slices to each corresponding field or
+cell to reconstruct it. Empty or omitted fields in a truncated item may still
+be unread; finish continuation before claiming their content is absent. XLSX
+cell type describes the stored value, not whether a formula exists: a string
+cell can have a formula returned only after its value is fully read.
+PDF `no_text` describes the full page, not its slice.
+PDF page numbers in results start at one.
+
+Finish item text continuations before following the original page's
+`next_offset`. Top-level `more` counts remaining items: even `more: false` can
+contain an incomplete last item. Sources must stay unchanged across reads;
+restart after edits. There are no automatic continuation reads or snapshots.
+The normal agent output limiter and context compaction also apply, so an entire
+document need not remain in active model context. Read only needed content and
+retain useful findings while processing a long document.
 
 DOCX tables return rows with a `table` number and `cells`. Formatting, drawings,
 headers, footnotes and deleted revisions are omitted. Nested tables are refused.

@@ -80,3 +80,93 @@ func TestDocumentEvalFixturesThroughAgentAndWorkflow(t *testing.T) {
 		}
 	}
 }
+
+func TestContinuationEvalRequiresHiddenEvidence(t *testing.T) {
+	files, err := generatedFixture("documents_continuation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := generatedFixture("documents_continuation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws, err := workspace.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	for name, data := range files {
+		if string(data) != string(again[name]) {
+			t.Fatal("fixture is not deterministic", name)
+		}
+		if err := ws.WriteFile(name, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	nodes, err := app.AutomationRegistry(ws, t.TempDir(), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ tool, path, key, marker string }{
+		{"docx_read", "release.docx", "blocks", "EMBER-7391"},
+		{"xlsx_read", "audit.xlsx", "cells", "QUARTZ-2846"},
+		{"pdf_read", "approval.pdf", "pages", "HARBOR-6152"},
+	} {
+		t.Run(tc.tool, func(t *testing.T) {
+			node, _ := nodes.Node(tc.tool)
+			args := map[string]any{"path": tc.path}
+			if tc.tool == "xlsx_read" {
+				args["sheet"] = "Audit"
+			}
+			call, _ := json.Marshal(args)
+			out, err := node.Execute(t.Context(), call)
+			if err != nil || strings.Contains(out, tc.marker) {
+				t.Fatal("evidence must be absent from initial page", err)
+			}
+			if err := automation.ValidateJSON(json.RawMessage(out), node.OutputSchema); err != nil {
+				t.Fatal(err)
+			}
+			var result map[string]any
+			if err := json.Unmarshal([]byte(out), &result); err != nil {
+				t.Fatal(err)
+			}
+			if result["more"] != false {
+				t.Fatal("fixture must exercise more=false")
+			}
+			items := result[tc.key].([]any)
+			if len(items) != 1 {
+				t.Fatal("expected exactly one item")
+			}
+			next := items[0].(map[string]any)["next_text_offset"]
+			if next == nil {
+				t.Fatal("fixture did not require continuation")
+			}
+			args["offset"], args["text_offset"] = 0, next
+			call, _ = json.Marshal(args)
+			if err := automation.ValidateJSON(call, node.InputSchema); err != nil {
+				t.Fatal(err)
+			}
+			out, err = node.Execute(t.Context(), call)
+			if err != nil || !strings.Contains(out, tc.marker) {
+				t.Fatal("continuation lost hidden evidence", err)
+			}
+			if err := automation.ValidateJSON(json.RawMessage(out), node.OutputSchema); err != nil {
+				t.Fatal(err)
+			}
+			after, err := ws.ReadFile(tc.path)
+			if err != nil || string(after) != string(files[tc.path]) {
+				t.Fatal("source changed", err)
+			}
+		})
+	}
+	// Correct prose without continuation calls must fail the frozen trace criteria.
+	root, _ := filepath.Abs("../..")
+	t.Chdir(root)
+	probes, err := loadProbes(filepath.Join(root, "eval/probes"), "39-documents-continuation")
+	if err != nil || len(probes) != 1 {
+		t.Fatal(probes, err)
+	}
+	if failures := checkTrace(probes[0], nil); len(failures) != 3 {
+		t.Fatal("missing continuation calls were not rejected", failures)
+	}
+}

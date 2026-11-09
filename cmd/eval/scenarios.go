@@ -15,6 +15,8 @@ import (
 
 func generatedFixture(kind string) (map[string][]byte, error) {
 	switch kind {
+	case "documents_continuation":
+		return documentContinuationFixture()
 	case "pipeline_compose", "pipeline_schedule":
 		return map[string][]byte{"double.json": []byte(doubleRecipe)}, nil
 	case "visual_attachment":

@@ -16,13 +16,14 @@ type Operation struct {
 
 func (o Operation) Name() string { return o.Kind }
 func (o Operation) Description() string {
+	const paging = " Item offset is zero-based. For an item's next_text_offset, repeat its item offset with text_offset (Unicode code points); limit defaults to 1 and must be 1. Finish item continuations even when more=false. Empty or omitted fields in a truncated item may still be unread; finish it before claiming content is absent. 32 KiB content budget. Keep the file unchanged."
 	switch o.Kind {
 	case "docx_read":
-		return "Read DOCX body paragraphs and table rows in order, with offset/limit paging (default 50, maximum 100 blocks). Returns next_offset, more and explicit truncation flags. Text only: no rendering, headers, footnotes, nested tables or legacy .doc."
+		return "Read DOCX body paragraphs and table rows in order, with offset/limit paging (default 50, maximum 100 blocks). Text continuation traverses paragraph text or row cells in order, retaining cell positions. No rendering, headers, footnotes, nested tables or legacy .doc." + paging
 	case "xlsx_read":
-		return "Read XLSX sheet names; set sheet to an exact name to read stored cells with offset/limit paging (default 50, maximum 100). Cells keep addresses and types; formulas and cached values are returned without recalculation. Numeric dates remain raw numbers. No macros, external links, formatting or legacy .xls."
+		return "Read XLSX sheet names; set sheet to an exact name to read stored cells with offset/limit paging (default 50, maximum 100). Text continuation requires sheet and traverses value then formula. Append chunks to their same fields. Cell type describes the stored value, not formula presence: even a string cell can have a formula, returned only after its value is fully read. No recalculation; dates remain raw numbers. No macros, external links, formatting or legacy .xls." + paging
 	default:
-		return "Read PDF metadata and text pages, with zero-based offset and limit (default/maximum 10 pages). Returns one-based page numbers, next_offset, more and truncation flags. no_text means no text was extracted; scanned pages may need OCR, which is unavailable. Text order may differ from visual layout. No encrypted PDFs."
+		return "Read PDF metadata and text pages, with offset/limit paging (default/maximum 10 pages) and one-based page numbers. no_text describes the full extracted page, not its current slice. No OCR or encrypted PDFs; text order may differ from visual layout." + paging
 	}
 }
 func (o Operation) Schema() json.RawMessage {
@@ -32,6 +33,7 @@ func (o Operation) Schema() json.RawMessage {
 		maximum = 10
 	}
 	props["limit"] = map[string]any{"type": "integer", "minimum": 1, "maximum": maximum}
+	props["text_offset"] = map[string]any{"type": "integer", "minimum": 0, "description": "Continue one item at this Unicode code-point offset; copy next_text_offset. Requires limit=1 (default when present)."}
 	if o.Kind == "xlsx_read" {
 		props["sheet"] = map[string]any{"type": "string", "minLength": 1, "maxLength": 255}
 	}
@@ -50,6 +52,16 @@ func (o Operation) OutputSchema() json.RawMessage {
 	}
 	var props map[string]any
 	_ = json.Unmarshal([]byte(schema), &props)
+	itemsKey := "blocks"
+	if o.Kind == "xlsx_read" {
+		itemsKey = "cells"
+	} else if o.Kind == "pdf_read" {
+		itemsKey = "pages"
+	}
+	itemProps := props[itemsKey].(map[string]any)["items"].(map[string]any)["properties"].(map[string]any)
+	for _, name := range []string{"text_offset", "next_text_offset"} {
+		itemProps[name] = map[string]any{"type": "integer", "minimum": 0}
+	}
 	props["path"] = map[string]any{"type": "string"}
 	for _, name := range []string{"total", "offset", "next_offset"} {
 		props[name] = map[string]any{"type": "integer"}

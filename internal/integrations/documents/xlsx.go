@@ -23,6 +23,8 @@ type Cell struct {
 	FormulaRange       string `json:"formula_range,omitempty"`
 	FormulaSharedIndex string `json:"formula_shared_index,omitempty"`
 	Truncated          bool   `json:"truncated"`
+	TextOffset         int    `json:"text_offset,omitempty"`
+	NextTextOffset     int    `json:"next_text_offset,omitempty"`
 }
 type XLSXResult struct {
 	Path       string  `json:"path"`
@@ -235,16 +237,25 @@ func (p *office) xlsx(in Request) (XLSXResult, error) {
 			stopped = true
 			continue
 		}
-		c.Value, c.Truncated = clip(c.Value, min(MaxValueBytes, budget))
-		budget -= len(c.Value)
-		formula, cut := clip(c.Formula, min(MaxValueBytes, budget))
-		c.Formula = formula
-		c.Truncated = c.Truncated || cut
-		budget -= len(formula)
+		parts, next, used, err := sliceText([]string{c.Value, c.Formula}, in.textStart(), budget)
+		if err != nil {
+			return result, err
+		}
+		if parts == nil {
+			stopped = true
+			continue
+		}
+		c.Value, c.Formula = parts[0], parts[1]
+		c.TextOffset, c.NextTextOffset = in.textStart(), next
+		c.Truncated = next > 0
+		budget -= used
 		result.Cells = append(result.Cells, c)
 	}
 	if !validRoot {
 		return result, fmt.Errorf("invalid worksheet XML")
+	}
+	if in.TextOffset != nil && in.Offset >= result.Total {
+		return result, fmt.Errorf("offset does not select an XLSX cell")
 	}
 	result.Offset = min(in.Offset, result.Total)
 	result.NextOffset = result.Offset + len(result.Cells)
