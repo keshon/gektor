@@ -196,12 +196,22 @@ Paths inside child recipes remain relative to the workspace, not the child file'
 directory. Validation never executes a child. Static inputs are type-checked before
 execution; values from earlier steps are checked at the call boundary.
 
-Limits: four nested calls, 16 authored steps per recipe, 128 expanded steps including
-call boundaries, and a 64 KiB serialized recipe bundle. Recursive calls are rejected.
+Call limits:
+
+- Four nested calls.
+- 16 authored steps per recipe.
+- 128 expanded steps, including call boundaries.
+- A 64 KiB serialized recipe bundle.
+- No recursive calls.
+
 Step IDs cannot contain `/` or begin with `@`; those namespaces belong to composition.
-Qualified IDs still have the 64-byte limit. A call cannot use `for_each` or `retry`;
+Qualified IDs still have the 64-byte limit.
+
+A call cannot use `for_each` or `retry`;
 ordinary nodes inside a child retain their iteration and retry rules. Declare each
-call explicitly when invoking the same recipe more than once. Every declared output
+call explicitly when invoking the same recipe more than once.
+
+Every declared output
 must resolve; an output referring to a skipped step fails collection.
 Constant and input-only outputs are still collected when all effect steps skip.
 A skipped call does not collect its child's outputs.

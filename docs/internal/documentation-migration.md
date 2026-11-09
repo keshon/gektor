@@ -60,3 +60,24 @@ revalidated. The site still has no search service or multi-version selector.
 These checks were performed locally before commit and publication.
 The final image cleanup uses the existing WebP in the root README and removes
 the redundant PNG; website and packaging checks passed after that change.
+
+## Readability follow-up — 2026-11-09
+
+The published RPC page still combined gate handling, findings, notices, streaming
+and configuration in one paragraph. Moving it into Reference had preserved the
+contract, but left its reading structure unfinished.
+
+Screened all 35 published sources for long paragraphs that combined different
+concerns. Revised 14 pages: RPC now separates protocol topics; the sessions guide
+starts with reopening a conversation; other dense guide, reference and contributor
+passages have explicit topic boundaries. Commands and fenced code examples were
+preserved. The writing guide now calls for inspecting long rendered sections,
+not just article openings. No paragraph-length lint or new runtime behavior was added.
+
+A mobile check also found that the shared table layout could squeeze labels into
+single-character lines. The first column now has a minimum width, and its code
+labels stay intact. All seven reference pages were checked at 390px with no
+horizontal page overflow; the revised RPC section was also inspected at desktop size.
+
+Website checks/build, local paths and anchors, conventions tests and packaging
+tests passed. All 67 frozen files remained unchanged. The follow-up was approved for commit and push after local review.

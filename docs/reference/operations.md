@@ -146,11 +146,18 @@ Enable `native_images` through `enable_capability` to load these schemas:
 | `image_variants` | Create explicit width variants | New output directory |
 | `image_compare` | PSNR and SSIM for two images | None |
 
-Inputs are explicit files, up to 16 per call, 64 MiB and 40 million pixels each. Variant widths are
-explicit, up to eight per call. Formats are `keep` and `webp`. The output directory
-must not exist. Source replacement, deletion and destination overwrite are not
-exposed. Image operations use staged copies; workspace access goes through
-GEKTOR's rooted file API. Results distinguish inspected, previewed, written,
+Image inputs and outputs have these limits:
+
+- Up to 16 explicit input files per call, each at most 64 MiB and 40 million pixels.
+- Up to eight explicit variant widths per call.
+- Output format: `keep` or `webp`.
+- A new output directory. Source replacement, deletion and destination overwrite
+  are not exposed.
+
+Image operations use staged copies; workspace access goes through
+GEKTOR's rooted file API.
+
+Results distinguish inspected, previewed, written,
 blocked and failed outcomes. Each result includes source SHA-256 hashes before
 and after processing; `unchanged: true` means the bytes matched. An unavailable
 after-hash is reported as an error, not evidence of preservation. These checks
@@ -166,13 +173,17 @@ Enable `native_workflows` for schema lookup, validation, execution, run inspecti
 and structured records. `workflow_validate` and `workflow_run` accept
 `{"recipe_path":"recipe.json"}` with an optional typed `inputs` object. Only recipe version 3 is supported.
 They read that saved workspace file, up to
-64 KiB, and reject unknown fields. Validation
+64 KiB, and reject unknown fields.
+
+Validation
 checks structure, supported operations, argument schemas, IDs and path scope.
 It does not predict whether future input files exist or encoding will succeed.
+
 The catalog includes these four image operations, `record_read`, `record_write`,
 `script_transform`, `model_generate`, `http_request`, `artifact_import`,
 `artifact_write`, `artifact_read_text`, `docx_read`, `xlsx_read`, `pdf_read`, `download_file`, `archive_list`, `archive_create`, `archive_extract`,
 `run_program` and `workflow_call`.
+
 Image and record permissions match direct calls. It validates step templates and authorizes known arguments
 before starting. Output-dependent arguments are validated and authorized after
 resolution, immediately before that step. Earlier effects remain if a later
@@ -212,14 +223,17 @@ An offset past the end returns an empty page. Each entry reports its name,
 declared size, compressed size, directory/link flags and `safe_path`.
 
 ZIP listing does not decompress entries, check their contents or extract files.
+
 TAR and GZIP listing must read the stream. They allow at most 16 MiB of payload
 and 2 MiB of headers and padding. Listing writes no files. TAR entries report
 `compressed_size: 0` because a per-entry compressed size is unavailable.
+
 GZIP holds one file: creation requires one source and keeps its basename.
 GZIP header names must fit Latin-1; use TAR.GZ for other names.
 Extraction uses the GZIP header name, or the input basename without `.gz` if
 that header is empty. Unsafe names, corrupt trailers and multiple GZIP members
 are rejected on extraction. Sparse TAR entries are unsupported.
+
 Names and sizes come from the archive and are untrusted. `safe_path` checks the
 name only; it does not mean that an entry is safe to extract. The ZIP source
 path is its permission resource under `archive_list`.
@@ -297,10 +311,15 @@ Continuation traverses paragraph/page `text`, DOCX row `cells` in order, or XLSX
 `value` then `formula`, without adding separators. Each slice stays in its
 original field; row cell positions and item metadata are preserved. Consumed or
 not-yet-reached fields are empty. Append slices to each corresponding field or
-cell to reconstruct it. Empty or omitted fields in a truncated item may still
-be unread; finish continuation before claiming their content is absent. XLSX
+cell to reconstruct it.
+
+Empty or omitted fields in a truncated item may still
+be unread; finish continuation before claiming their content is absent.
+
+XLSX
 cell type describes the stored value, not whether a formula exists: a string
 cell can have a formula returned only after its value is fully read.
+
 PDF `no_text` describes the full page, not its slice.
 PDF page numbers in results start at one.
 

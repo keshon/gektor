@@ -62,24 +62,33 @@ and exit nonzero on failure. A failed run can still print its saved record path.
 
 For validate/run, put flags before the recipe path. `-inputs` selects a JSON
 object file inside the workspace, up to 64 KiB. Its read is permission-checked.
+
 These commands support `-workspace`, `-allow`, `-deny`, `-yes` and
 `-run-timeout` (default 5m, 0 disables). `-yes` denies Ask-gated operations;
 it does not grant permission. Cancellation is cooperative during image encoding.
 Model flags, profiles, browser and external adapters do not apply to execution.
+
 Runs are stored outside the workspace under `~/.gektor/workflows`, scoped to
 the workspace's canonical path. Inspect by run ID; `record_path` is absolute.
+
 `runs`, `inspect` and `record` support `-workspace`. `record <kind> <id>`
-reads a stored entry, including its revision and schema hash, without a model. `register-schema` takes a kind and a
+reads a stored entry, including its revision and schema hash, without a model.
+
+`register-schema` takes a kind and a
 workspace schema file after its `-workspace` flag; existing schemas cannot change.
 
 For draft, put the destination immediately after `draft`, followed by ordinary
 agent flags and the task. It uses the selected model/profile but a restricted
 role: read files, inspect/preview images, fetch workflow schemas, validate and
-save only the selected recipe. There is no shell, delegation, external adapter
+save only the selected recipe.
+
+There is no shell, delegation, external adapter
 activation, image writing or workflow execution. The model budget is at most
 16 steps. It cannot resume/fork sessions or use TUI/serve/Plan mode, attached
 images, browser/MCP/capability flags, verification commands or inspection-only
-startup flags. Its history is saved, but resuming it as a generic coding session
+startup flags.
+
+Its history is saved, but resuming it as a generic coding session
 does not preserve these restrictions. Use `workflow draft` again to revise it.
 
 Saved definitions, input binding, supported operations and execution limits are
@@ -336,9 +345,11 @@ Use `gektor workflow draft recipe.json [agent flags] "task"` for a constrained
 authoring session. It can read documents, inspect or preview images, list archive
 contents and save only that recipe; it cannot execute the recipe, write image variants or launch processes. Schema
 details are loaded through `workflow_schema`, rather than added to every prompt.
+
 The author must actually save and successfully validate the selected recipe
 before its run can report success. Verification revalidates the current file
 with the same input arguments, so a later edit cannot reuse stale validation.
+
 A save alone checks only the definition's structure. Validation does not establish
 image compatibility or execute any operation. A draft needing unknown input
 values remains available on disk but cannot pass verification yet.

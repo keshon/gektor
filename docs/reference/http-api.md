@@ -57,8 +57,11 @@ or `queue_unavailable`. Request logs go to stderr with that ID, the endpoint,
 configured route name, status, outcome code, elapsed time and accepted job ID.
 Job start/finish logs link the job to its run ID and status. These logs omit raw
 errors, request bodies, headers and idempotency keys. No incoming request ID is trusted.
+
 To diagnose a failed accepted job, use `workflow job` and `workflow inspect`;
-those local records contain the detailed error. For rejected inputs, reproduce
+those local records contain the detailed error.
+
+For rejected inputs, reproduce
 with `workflow validate -inputs inputs.json recipe.json` under the same workspace
 and policy. HTTP validation errors deliberately do not echo submitted values.
 

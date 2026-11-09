@@ -26,6 +26,17 @@ Remove inflated claims, staged introductions, repeated conclusions, chat residue
 and emphasis that serves no purpose. Use current menu names and concrete actions.
 Neutral technical prose needs neither invented personality nor arbitrary variation.
 
+Give each paragraph one concern. When a section changes from a procedure to
+limits, failure behavior or implementation detail, make that transition visible.
+Use a heading for a topic someone may need to find directly; use lists or tables
+for parallel rules. In guides, put the user's task before tool and storage
+internals. Moving dense prose into Reference does not make it readable.
+
+Inspect rendered long sections, not only the opening viewport. Check that the
+page outline exposes the topics a reader would look for. Paragraph length can
+flag a passage for review, but it is not a writing rule or a reason to split a
+coherent explanation at an arbitrary word count.
+
 Preserve useful limits, failure behavior and permission effects. Keep commands,
 code, identifiers, metadata and data unchanged during prose editing. Relocation
 and link updates are separate work. Do not use banned-word counts as a quality score.

@@ -75,8 +75,11 @@ Messages appear oldest first. Select any message, then use:
 Your current draft and its images stay intact. Cancel leaves the queued message
 unchanged. Delivery does not wait for you to open the queue: a quick reply can
 leave little time to edit. Once the agent receives a message, it is read only.
+
 A row marked **No longer queued** is also read only; its disappearance alone does
-not prove receipt. Closing the list drops these old rows. If it is received while you are
+not prove receipt. Closing the list drops these old rows.
+
+If it is received while you are
 editing, Save explains what happened and keeps your edit visible so you can copy
 it. If a permission request or question interrupts the editor, `Alt+Q` reopens
 it after you answer.

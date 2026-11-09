@@ -7,11 +7,15 @@ container or VM.
 GEKTOR treats the local user account and files writable by that account as
 inside the same trust boundary as the agent process. Deny rules are terminal;
 Ask rules fail closed when no approval handler exists. Approvals marked
-Always last only for the current run. `internal/workspace`
+Always last only for the current run.
+
+`internal/workspace`
 confines built-in file reads, writes, patches, moves, search and previews
 through `os.Root`, including symlink/junction traversal checks at the operation.
 Relative and in-workspace absolute paths share normalized relative permission resources;
-moves apply the configured permission rules to both endpoints. The process
+moves apply the configured permission rules to both endpoints.
+
+The process
 tools set a working directory and nothing else, and child processes inherit a
 scrubbed environment (no `*_API_KEY`/`*_SECRET`).
 
@@ -77,12 +81,16 @@ for the current run only. These grants are not saved with the session.
 `check_url`, `webfetch`, `fetch_raw`, and `search_web` use GET requests and send no credentials: no
 `Authorization`, `Cookie`, or `Proxy-Authorization` header leaves the
 process (asserted by `TestHealthProbes_SendNoCredentials`), and the child
-environment is scrubbed before any shell runs. `webfetch` and `fetch_raw` refuse
+environment is scrubbed before any shell runs.
+
+`webfetch` and `fetch_raw` refuse
 non-public URLs before dialing (loopback, intranet names, non-global IPs
 including legacy `inet_aton` spellings). It validates redirects and every
 resolved address, then connects to a validated literal IP to prevent DNS
 rebinding. Web search uses the same public-destination transport.
-Environment proxies are disabled. `check_url` permits loopback
+Environment proxies are disabled.
+
+`check_url` permits loopback
 because probing a just-started dev server is its job, and returns only a
 status plus a 512-byte prefix. A health probe must never become a
 credential or intranet oracle: any new network tool keeps these rules.

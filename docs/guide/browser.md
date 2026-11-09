@@ -114,7 +114,10 @@ For a custom MCP command, use `--browser msedge` for installed Edge. Omit `--hea
 separate browser window. `--isolated` avoids using your personal profile and
 discards its state on close. Custom MCP commands manage their own profiles;
 GEKTOR's named-profile selection and lock apply to the built-in `-browser` path.
-The server runs in the task workspace. The example omits inline images to keep
+
+The server runs in the task workspace.
+
+The example omits inline images to keep
 DOM-based work cheap. With a vision-capable backend, `--image-responses allow`
 also permits validated MCP image attachments. Saved screenshot links remain
 references; read their workspace files with `read_file` to load the pixels.

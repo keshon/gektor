@@ -34,17 +34,22 @@ protocol packages import only `internal/llm`. The `internal/providers` catalog
 and `internal/providers/openai` account package import no other internal package.
 Provider inspection packages (`llamacpp`, `koboldcpp`, `openaicompat`) import only
 `internal/providers/internal/probe`, whose HTTP helpers import no internal package.
+
 Request dialects format inference requests; inspection belongs to providers.
+
 `internal/session` imports only `internal/llm`.
 `internal/agent` imports only `internal/llm`, `internal/prompts`,
 `internal/permission` and `internal/session`. This is what
 lets `internal/tools` implement `agent.Tool` without an import cycle, and what
 keeps the loop testable against a stub client with no filesystem in sight.
+
 The social reader and shared integration HTTP transport import no internal
 packages. Native file operations import only workspace access and that transport.
 Document readers import only workspace access and the shared worker package.
 Worker process support imports no internal packages.
+
 Reusable TUI components may import other components, but no application packages.
+
 Workflow definitions import no internal packages. Recipe preparation imports only
 workflow definitions; the engine imports definitions and recipe preparation;
 the store imports only definitions. The service coordinates these packages and
@@ -71,8 +76,9 @@ tool whose whole job is to run somewhere unattended.
 **[practice]** The standard library first. A third-party package is considered
 only if it is cgo-free, widely used, and earns its weight — `golang.org/x/sys`
 qualifies because Windows job objects have no standard-library equivalent and
-without them a stopped dev server can survive, still holding its port. The
-Charm terminal stack (Bubble Tea v2, Lipgloss v2, Bubbles v2,
+without them a stopped dev server can survive, still holding its port.
+
+The Charm terminal stack (Bubble Tea v2, Lipgloss v2, Bubbles v2,
 and their input/ANSI helpers) qualifies for `-tui`
 only: writing a fullscreen renderer on raw ANSI escapes is a second project,
 and the agent loop and model transports do not import the terminal stack.

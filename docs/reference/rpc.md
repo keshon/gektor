@@ -1,18 +1,30 @@
 # Agent stdio RPC
 
-Use this protocol to run Agent through another program. Workflow HTTP ingress has a [separate reference](http-api.md).
+Use `gektor -serve` to run Agent from another program. Keep stdin open, send a
+`run` request, and read events until that request receives its result or error.
+If a gate asks for input, answer it with `respond`.
+
+This page covers request methods, event handling and client lifecycle.
+Workflow HTTP ingress has a [separate reference](http-api.md).
 
 ## RPC over stdio (`-serve`)
 
-`gektor -serve` speaks line-delimited JSON-RPC on stdin and writes event
-lines plus id-responses on stdout. Human chatter always goes to stderr,
-so stdout parses cleanly. Single-flight: one run and one pending gate at
-a time; overlapping run/gate requests report an error instead of queueing.
-This is GEKTOR's compact JSON-RPC-style envelope, not a full JSON-RPC 2.0
-implementation: requests use id/method/params without a required jsonrpc
-field, and errors carry message rather than a standard numeric code.
+Send one JSON request per line on stdin. GEKTOR writes events and responses on
+stdout; human-readable messages go to stderr, regardless of `-mode`.
+
+Only one run and one pending gate are allowed at a time. Overlapping run or gate
+requests return an error instead of entering a queue.
+
+The envelope is JSON-RPC-style, with these differences from full JSON-RPC 2.0:
+
+- Requests use `id`, `method` and `params`; `jsonrpc` is not required.
+- Errors contain `message` rather than a standard numeric code.
+- Malformed lines receive `{"id": null, "error": ...}`.
 
 ## Methods
+
+These lines show the three request shapes. Send `respond` only after a gate asks
+for input; send `cancel` when you intend to stop the active run.
 
 ```json
 {"id": 1, "method": "run", "params": {"task": "add Bye() to sample.go"}}
@@ -20,31 +32,39 @@ field, and errors carry message rather than a standard numeric code.
 {"id": 3, "method": "cancel"}
 ```
 
-- `run` starts an agent run. `"images": ["shot.png"]` attaches workspace-relative
-  pictures like CLI `-image`. Each run gets a fresh task dir, like
-  the CLI. Answers arrive as `{"id": 1, "result": {"answer": "..."}}`
-  or `{"id": 1, "error": {"message": "..."}}`. The request
-  supports task/images only; it does not resume an existing session.
-- `respond` answers the currently suspended gate with raw text. The
-  permission and approve/reject mappings live server-side. For permissions,
-  `"y"`, `"yes"`, `"a"`, and `"always"` allow the pending call; other replies
-  deny it. `"a"` and `"always"` also allow the same tool/resource pair for the
-  rest of that run.
-- `cancel` aborts the in-flight run. A second `run` while one is active
-  is refused; `respond` with no gate pending is refused.
+### Start a run
 
-Malformed lines answer `{"id": null, "error": ...}`. Stdin EOF drains
-the in-flight run before exiting (a piped one-shot closes stdin right
-after its request), unless the run is suspended on a gate — its answer
-was going to arrive on the stdin that just closed, so the run is
-cancelled instead of hanging. Future gates fail closed after EOF; an
-already-submitted answer is preserved. Ctrl+C cancels the run and drains
-process cleanup before exit. Human chatter
-always goes to stderr in serve mode, whatever `-mode` says.
+`run` accepts `task` and optional `images`. For example, `"images": ["shot.png"]`
+attaches workspace-relative pictures, like CLI `-image`.
+
+Each run creates a fresh task directory. The request does not resume a session.
+Its response is either `{"id": 1, "result": {"answer": "..."}}` or
+`{"id": 1, "error": {"message": "..."}}`.
+
+### Answer a gate
+
+`respond` sends raw answer text to the currently suspended gate. The server
+interprets permission and approve/reject answers. A reply with no pending gate
+is refused.
+
+For permission requests:
+
+| Answer | Effect |
+|---|---|
+| `y` or `yes` | Allow the pending call |
+| `a` or `always` | Allow the pending call and the same tool/resource pair for the rest of this run |
+| `n: <note>` | Deny and attach the operator's redirect note to the refusal the model sees |
+| Other text | Deny |
+
+### Cancel a run
+
+`cancel` aborts the active run. Its acknowledgement does not mean cleanup has
+finished. Wait for the original `run` response before starting another run.
 
 ## Events (no id)
 
-The same vocabulary as `-mode json`, so one parser serves both:
+Events share the vocabulary used by CLI `-mode json`, so a client can use the
+same parser for both. These are representative event lines:
 
 ```json
 {"seq": 1, "event": "run_start", "task": "..."}
@@ -60,52 +80,127 @@ The same vocabulary as `-mode json`, so one parser serves both:
 {"seq": 12, "event": "reasoning", "text": "partial deliberation..."}
 ```
 
-Direct runs also emit `outcome` with `completed`, `failed` or `cancelled`,
-observed `files`, current `verification`, persistence `warnings`, open todos
-and the `resume` target. Tool results carry a boolean `failed` independently
-of their text; older producers may omit it.
+Use the sections below to decide which events update the display, require an
+answer or carry the final result. Events are separate from the response to the
+original request ID.
 
-`kind` is `ask_user`, `permission`, or `budget`. Permission gates
-also carry `tool`, `resource`, and the operator-facing `prompt` (ask
-gates carry `prompt` only), so a client can name the gated call
-without keeping gate state. A `respond` answer of `n: <note>` denies
-with the note attached: the refusal the model sees carries the
-operator's redirect. Deterministic post-write checks surface as
-`finding` events (`scope` per-edit or session-end); they are
-report-only, never gates. Both scopes are produced by every frontend
-that reports findings — TUI, print and json — and one run's
-scopes share a dedupe cache, so a file dirty throughout a run is
-reported once rather than once per pass. `per-edit` scans content a
-tool addressed by `path`; `session-end` re-reads every path the run
-changed, which is the only pass that sees shell redirections, MCP
-writes and background jobs. Loop-generated harness notices surface as
-`nudge` events (`kind` overflow/truncated/leak/compact/repeating/verification): the same `[harness]`-marked text the model
-saw, so observers can audit every intervention. A `nudge` means the message is
-queued; `context` confirms its inclusion in a request and carries `text`,
-`role`, `request`, and `kind`. Local persistence warnings use `local_warning`
-and are not model messages. Rejected malformed calls retain `raw_arguments`
-in the archive; they are omitted from replayed tool_calls and replaced by an
-explicit model-facing diagnostic. Streamed content
-chunks surface as `delta` events, and streamed deliberation as
-`reasoning` events (display-only; the step event carries the
-authoritative text and replaces whatever was live). A thinking model
-emits `reasoning` before `delta`, so a client can render deliberation
-finishing before the answer starts. Serve mode shares backend/authentication/context configuration, workspace,
-permissions, MCP discovery, response and step budgets, streaming, audit logging,
-and verification settings with the CLI. `-yes` auto-denies permission Ask
-requests. `-plan`, `-resume`, `-fork`, initial CLI task/images, session browsing,
-slash commands and inline `@` expansion are not RPC request features. Images
-come from each request. Stdout remains protocol output regardless of `-mode`.
+## Permissions and questions
+
+`awaiting_input` pauses for an answer. Its `kind` is `ask_user`, `permission` or
+`budget`. `input_answered` reports that an answer was supplied.
+
+Permission gates carry `tool`, `resource` and the operator-facing `prompt`, so
+the client can show the requested action without reconstructing gate state.
+Ask gates carry `prompt` only. Send the answer through `respond`.
+
+## Post-write findings
+
+`finding` reports a deterministic check after a write. Findings are reports,
+never approval gates.
+
+| `scope` | Content checked |
+|---|---|
+| `per-edit` | Content a tool addressed by `path` |
+| `session-end` | Every path changed by the run, including changes from shell redirections, MCP writes and background jobs |
+
+Both scopes are produced by every frontend that reports findings: TUI, print
+and json. They share a deduplication cache within a run. A file that stays dirty
+is reported once rather than once per pass.
+
+## Harness notices and saved history
+
+`nudge` reports a queued harness notice. Its `kind` is `overflow`, `truncated`,
+`leak`, `compact`, `repeating` or `verification`. The text includes the same
+`[harness]` marker used in the model-facing notice.
+
+A queued notice is not proof that a request included it. The `context` event
+confirms inclusion and carries `text`, `role`, `request` and `kind`.
+
+Local persistence warnings use `local_warning`. They are not model messages.
+
+Rejected malformed calls retain `raw_arguments` in the archive. They are omitted
+from replayed tool_calls and replaced by an explicit model-facing diagnostic.
+
+## Streaming and tool lifecycle
+
+Treat streamed chunks as previews. Replace them with authoritative content when
+it arrives:
+
+| Event | Client action |
+|---|---|
+| `reasoning` | Display streamed deliberation; thinking models emit it before `delta` |
+| `delta` | Display streamed answer text |
+| `step` | Replace live reasoning/answer previews with the authoritative text |
+| `tool_output` | Append a foreground shell output preview to the pending call identified by `call_id` |
+| `tool_finished` | Mark execution as returned; this is not a success verdict |
+| `tool_result` | Replace that call's preview with its authoritative result |
+
+`tool_output` carries a UTF-8 chunk in `text`. Previews are capped at 48 KiB per
+call, followed by a limit notice if needed. They are not added to model history.
+Output buffered by a child process appears only when that process flushes it.
+
+`tool_finished` carries `call_id` before ordered result processing. The later
+`tool_result` carries `status` and a boolean `failed` independent of its text;
+older producers may omit `failed`. A status of `skipped_for_input` means new
+user input prevented the tool from starting (`failed: false`).
+
+Direct runs also emit `outcome`: `completed`, `failed` or `cancelled`, with
+observed `files`, current `verification`, persistence `warnings`, open todos and
+the `resume` target.
+
+## Context budgets
+
+`prompt_budget` carries a `report` before each request. It contains
+character-based section/tool estimates, followed by backend prompt/cached counts
+when available. Reports contain sizes and names, not instruction or conversation
+contents.
+
+Backend tokenization can differ from these estimates. Cached tokens still
+occupy context.
+
+## Launch configuration
+
+Serve mode shares the CLI's backend, authentication, context configuration,
+workspace, permissions, MCP discovery, response/step budgets, streaming, audit
+logging and verification settings. `-yes` auto-denies permission Ask requests.
+
+RPC requests do not provide `-plan`, `-resume`, `-fork`, initial CLI task/images,
+session browsing, slash commands or inline `@` expansion. Images come from each
+`run` request. Stdout remains protocol output regardless of `-mode`.
 
 ## Client behavior
 
-Keep stdin open when a run can ask for permission, clarification, or budget
-approval. Respond only after awaiting_input, and continue reading until the
-original run ID receives its result/error. Respond and cancel requests get
-separate `{"ok": true}` results; a cancel acknowledgement does not mean
-process cleanup has finished. Wait for the run response before starting again.
+For interactive runs:
+
+1. Keep stdin open while GEKTOR may ask for permission, clarification or budget approval.
+2. Send `run` and read the event stream.
+3. Answer only after `awaiting_input`. A `respond` request receives its own
+   `{"ok": true}` result.
+4. To stop, send `cancel`. It also receives a separate `{"ok": true}` result.
+5. Continue reading until the original run ID receives its result or error.
+   Only then start another run.
+
+### EOF and process shutdown
+
+When stdin closes, GEKTOR drains the active run before exiting. If the run is
+already suspended on a gate, it is cancelled because its answer can no longer
+arrive. Future gates fail closed; an already-submitted answer is preserved.
+
+Ctrl+C cancels the run and drains process cleanup before exit.
+
+### In-process steering
+
+In-process sessions accept steering through `Session.Submit(text, images...)`.
+A `user_input` event acknowledges insertion into saved history and carries
+`text` and `images`. Inputs never split tool calls from their results.
+
+The stdio RPC API does not expose a submit operation.
 
 ## Example
+
+These one-shot examples require a source checkout and a running local model.
+They close stdin after one request, so future gates are denied. Use a persistent
+client for interactive runs.
 
 ```bash
 printf '%s\n' \
@@ -120,28 +215,3 @@ PowerShell one-shot (read-only, no interactive replies):
 '{"id":1,"method":"run","params":{"task":"what files are here?"}}' |
   go run ./cmd/gektor -serve -backend-kind llama -backend http://127.0.0.1:9931 -workspace .
 ```
-
-One-shot EOF denies future gates; use a persistent client for interactive runs.
-
-Foreground shell commands emit `tool_output` events as output arrives, with
-`call_id` and `text` containing a UTF-8 text chunk. These are display-only
-previews, capped at 48 KiB per call, followed by a limit notice if needed.
-Append chunks to the matching pending call; replace them with the authoritative
-`tool_result` when it arrives. Previews are not appended to model history.
-Output buffered inside a child process becomes visible only when it flushes.
-
-`tool_finished` carries `call_id` when execution returns, before ordered result
-processing. It is a display signal, not a success verdict. The authoritative
-`tool_result` includes `status`; `skipped_for_input` means new user input
-prevented the tool from starting (`failed: false`).
-
-`prompt_budget` events contain `report`: character-based section/tool estimates
-before each request, then backend prompt/cached counts when returned. The
-report contains sizes and names, not instruction or conversation contents.
-Backend tokenization can differ from the estimates. Cached tokens remain part
-of the occupied context.
-
-In-process sessions accept steering through `Session.Submit(text, images...)`.
-A `user_input` event acknowledges insertion into saved history and carries
-`text` and `images`. Inputs never split tool calls from their results. The
-stdio RPC API is unchanged; it does not yet expose a submit operation.

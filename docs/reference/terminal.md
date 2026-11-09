@@ -54,10 +54,13 @@ When space is tight, a choice shows its current value with previous/next arrows.
 Larger lists have a filter and Select/Cancel buttons. Click a row to select it;
 press Enter or Select to accept it. Page Up/Down move through results, and
 Ctrl+Home/End jump to the first/last result. Tab moves focus to the buttons.
+
 A checkmark identifies the form's current value; the highlighted row is the
 choice you are browsing. Scrolling over the footer does not move the list.
+
 Folder browsing keeps its separate Open and Select folder actions.
 Use `Ctrl+L` to enter a path. `Esc` returns to the previous filter and selection.
+
 In multiline form fields, Enter inserts a new line and Tab moves to the next control.
 
 Explicit command-line flags can override saved settings for a launch.

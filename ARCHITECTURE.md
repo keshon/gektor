@@ -48,8 +48,11 @@ cmd/gektor resolves flags, preferences and provider profiles. Each launch owns
 its backend client, MCP connections and background-process registry.
 CLI and first-run TUI settings use internal/config.DefaultProfile: llama.cpp
 at http://127.0.0.1:9931. The eval runner uses the same provider defaults.
+
 internal/app compiles identity and profile settings into Services.
-internal/roles builds Planner, Interactive and Subagent from Env. Subagents
+internal/roles builds Planner, Interactive and Subagent from Env.
+
+Subagents
 share the workspace and permission policy and cannot delegate again or ask the
 operator. Their finite step allowance defaults to 12; operators can configure a
 default and maximum, and a task can request an allowance within that maximum.
@@ -149,6 +152,7 @@ captures instruction, tool and retained skill-load metadata for its tool batch.
 the archive or inspect backend internals. `internal/session` saves system prompt
 revisions and the latest request manifest. Changed results and calls are marked
 as rewritten; omitted messages are absent from the included ID ranges.
+
 `read_history` searches the original archive. For the agent's own session it
 stops before the calling response, so its own query cannot create a search hit.
 Reading a child archive uses that child's saved history instead.
@@ -317,8 +321,11 @@ House rules are enforced by tests described in [docs/conventions.md](docs/develo
 boundaries. Neither package imports agent tools. `automation/store` owns durable
 runs, records, queue snapshots, schedules and immutable run artifacts. `automation/service` coordinates
 workspace access, catalog validation, resource authorization and persistence.
+
 CLI and agent adapters call the service. `app` assembles the built-in catalog.
-The TUI calls the same service. Composition loads frozen dependencies, authorizes
+The TUI calls the same service.
+
+Composition loads frozen dependencies, authorizes
 recipe reads, rewrites scoped inputs and expands nested calls. A compiler owns
 its step count and input bindings for one compilation; these are not global state.
 
@@ -369,6 +376,7 @@ the engine's gate dependency remains separate from `merge: any` branch semantics
 Compiler-owned output collectors wait for dependencies without inheriting branch
 skip rules; a child's collector still requires its call gate. Missing referenced
 outputs fail collection rather than silently disappearing from the result.
+
 Nested calls share the parent run lease, review decisions, cancellation and artifact
 store. No second worker or child-run lifecycle is created. Queues persist the source
 bundle; review continuation uses the saved compiled definition.

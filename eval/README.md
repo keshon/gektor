@@ -121,10 +121,13 @@ For delegate budget comparisons, run `-suite delegation -delegate-steps N` with
 6, 12 and 24, at least three repeats each, and `-jobs 1`. Keep the same model,
 response budget and machine load. `-delegate-max-steps` sets the operator cap;
 when omitted it equals the default allowance. Metadata records both limits.
+
 Each result's `delegates` list records child termination, used and allowed steps,
 elapsed milliseconds, available tokens and recent tool-result statuses. Zero
 tokens can mean the backend supplied no usage. Model completion and artifact
-correctness remain separate checks. Child archives sit beside the parent trace;
+correctness remain separate checks.
+
+Child archives sit beside the parent trace;
 use their call IDs to inspect check commands and results. See
 [delegate criteria](prompts/delegation.md).
 
@@ -255,10 +258,12 @@ inspect `passed` in each result. Report discovery, success, steps, failed tools,
 latency and tokens separately. Ten pairs give an initial estimate for this lesson
 and task family, not proof of general learning gains or small reliability changes.
 This comparison excludes the cost of generating and reviewing the original lesson.
+
 To measure a fresh retrospective separately, set `GEKTOR_LIVE_LEARNING_REVIEW=1`,
 `GEKTOR_LIVE_REVIEW_SOURCE` to the original session's `state.json`, and
 `GEKTOR_LIVE_OUTPUT` to another fresh directory; run
 `go test ./internal/retrospect -run '^TestLiveLearningReviewCost$' -count=1 -v -timeout 5m`.
+
 This copies the source archive, records inference time and tokens in `cost.json`,
 and never approves the new proposal. It does not measure human review time.
 `GEKTOR_LIVE_REVIEW_SCOPE` selects `last` (default), `session`, or a run number;
