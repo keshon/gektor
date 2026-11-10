@@ -13,16 +13,17 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/screen"
-
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/service"
 	"github.com/keshon/gektor/internal/workflow/store"
 )
 
+// Model owns one workflow screen and its background operations.
+// All mutable screen state is confined to the Bubble Tea update loop.
 type Model struct {
 	dialogs                  screen.Host
-	presentation             func() Surface
+	presentation             func() screen.Surface
 	config                   Config
 	ctx                      context.Context
 	shutdown                 context.CancelFunc
@@ -57,8 +58,8 @@ type Model struct {
 
 // setNotice replaces both text and severity; a later update must not inherit
 // the previous failure's presentation.
-func (w *Model) setNotice(level pane.NoticeLevel, text string) {
-	w.notice, w.noticeLevel = text, level
+func (m *Model) setNotice(level pane.NoticeLevel, text string) {
+	m.notice, m.noticeLevel = text, level
 }
 
 type workflowAction struct{ action, value string }
@@ -91,26 +92,25 @@ func (m *Model) service(gate permission.Gate) (service.Service, error) {
 	return app.NewWorkflow(m.config.WS, userdirs.Sub("workflows"), m.config.Policy, gate)
 }
 func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	w := m
 	m.ensureSelection()
 	key := msg.String()
-	if w.inspectorOpen && (key == "1" || key == "2" || key == "3") {
+	if m.inspectorOpen && (key == "1" || key == "2" || key == "3") {
 		m.setInspectorTab(int(key[0] - '1'))
-		w.inspect = true
+		m.inspect = true
 		return m, nil
 	}
-	if w.inspectorOpen && w.inspect {
+	if m.inspectorOpen && m.inspect {
 		switch key {
 		case "left":
-			m.setInspectorTab((w.inspectorTab + 2) % 3)
+			m.setInspectorTab((m.inspectorTab + 2) % 3)
 			return m, nil
 		case "right":
-			m.setInspectorTab((w.inspectorTab + 1) % 3)
+			m.setInspectorTab((m.inspectorTab + 1) % 3)
 			return m, nil
 		case "e", "enter":
-			if w.inspectorTab == 2 {
+			if m.inspectorTab == 2 {
 				m.editCode()
-			} else if w.inspectorTab == 0 && w.run == nil && !w.busy {
+			} else if m.inspectorTab == 0 && m.run == nil && !m.busy {
 				m.edit()
 			}
 			return m, nil
@@ -119,15 +119,15 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	action := ""
 	switch key {
 	case "esc":
-		if w.busy {
+		if m.busy {
 			action = "stop"
-		} else if w.connectFrom != "" {
-			w.connectFrom = ""
-			w.setNotice(pane.NoticeInfo, "Connection cancelled")
-		} else if w.inspectorOpen && w.inspect {
-			w.inspectorOpen = false
-			w.inspect = false
-			w.thumb = scrollDrag{}
+		} else if m.connectFrom != "" {
+			m.connectFrom = ""
+			m.setNotice(pane.NoticeInfo, "Connection cancelled")
+		} else if m.inspectorOpen && m.inspect {
+			m.inspectorOpen = false
+			m.inspect = false
+			m.thumb = scrollDrag{}
 		} else {
 			action = "chat"
 		}
@@ -144,9 +144,9 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "a":
 		action = "add"
 	case "enter":
-		if w.run != nil {
-			w.inspectorOpen = true
-			w.inspect = true
+		if m.run != nil {
+			m.inspectorOpen = true
+			m.inspect = true
 			m.setInspectorTab(1)
 			return m, nil
 		}
@@ -182,7 +182,7 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "d":
 		action = "draft"
 	case "f":
-		w.overview = !w.overview
+		m.overview = !m.overview
 	case "l":
 		action = "layout"
 	case "ctrl+z":
@@ -190,51 +190,51 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+y":
 		action = "redo"
 	case "tab":
-		if w.inspectorOpen {
-			w.inspect = !w.inspect
+		if m.inspectorOpen {
+			m.inspect = !m.inspect
 		}
 	case "up", "down", "left", "right":
 		delta := 1
 		if key == "up" || key == "left" {
 			delta = -1
 		}
-		if w.inspect {
-			w.offset = max(0, w.offset+delta)
+		if m.inspect {
+			m.offset = max(0, m.offset+delta)
 		} else {
-			w.portSelected = false
-			w.offset = 0
-			w.graph.SelectNext(delta)
+			m.portSelected = false
+			m.offset = 0
+			m.graph.SelectNext(delta)
 			cw, ch := m.canvasSize()
-			w.graph.Reveal(cw, ch)
+			m.graph.Reveal(cw, ch)
 		}
 	case "shift+left":
-		if w.positionsLocked {
+		if m.positionsLocked {
 			break
 		}
-		w.graph.Move(-2, 0)
+		m.graph.Move(-2, 0)
 	case "shift+right":
-		if w.positionsLocked {
+		if m.positionsLocked {
 			break
 		}
-		w.graph.Move(2, 0)
+		m.graph.Move(2, 0)
 	case "shift+up":
-		if w.positionsLocked {
+		if m.positionsLocked {
 			break
 		}
-		w.graph.Move(0, -1)
+		m.graph.Move(0, -1)
 	case "shift+down":
-		if w.positionsLocked {
+		if m.positionsLocked {
 			break
 		}
-		w.graph.Move(0, 1)
+		m.graph.Move(0, 1)
 	case "alt+left":
-		w.graph.Pan.X -= 8
+		m.graph.Pan.X -= 8
 	case "alt+right":
-		w.graph.Pan.X += 8
+		m.graph.Pan.X += 8
 	case "alt+up":
-		w.graph.Pan.Y -= 4
+		m.graph.Pan.Y -= 4
 	case "alt+down":
-		w.graph.Pan.Y += 4
+		m.graph.Pan.Y += 4
 	case "pgup", "pgdown", "home", "end":
 		m.page(key)
 	case "f1":
@@ -245,8 +245,8 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.persistLayout()
 	}
 	if action != "" {
-		if w.run != nil && (action == "ai" || action == "edit" || action == "add" || action == "link" || action == "connections" || action == "delete" || action == "recipe") {
-			w.setNotice(pane.NoticeInfo, "Viewing a frozen run · D returns to the editable draft")
+		if m.run != nil && (action == "ai" || action == "edit" || action == "add" || action == "link" || action == "connections" || action == "delete" || action == "recipe") {
+			m.setNotice(pane.NoticeInfo, "Viewing a frozen run · D returns to the editable draft")
 			return m, nil
 		}
 		return m, m.command(action)
@@ -264,28 +264,38 @@ func (m *Model) inspectorContent() []string {
 }
 
 func (m *Model) footerActions() []screen.Action {
-	w := m
-	edit := !w.busy && w.run == nil
+	edit := !m.busy && m.run == nil
 	label := "Edit"
-	if w.run != nil {
+	if m.run != nil {
 		label = "Inspect"
 	}
 	back := "Chat"
-	if w.busy {
+	if m.busy {
 		back = "Stop"
-	} else if w.connectFrom != "" {
+	} else if m.connectFrom != "" {
 		back = "Cancel"
-	} else if w.inspectorOpen && w.inspect {
+	} else if m.inspectorOpen && m.inspect {
 		back = "Close"
 	}
-	actions := []screen.Action{{tea.KeyF1, 0, "F1", "Help", "Help", true}, {'a', 0, "A", "Add node", "Add", edit}, {tea.KeyEnter, 0, "Enter", label, label, !w.busy}, {'c', 0, "C", "Connect", "Link", edit}, {'r', 0, "R", "Run", "Run", edit}, {'t', tea.ModCtrl, "Ctrl+T", "Inspector", "Inspect", true}, {'s', tea.ModCtrl, "Ctrl+S", "Save", "Save", edit}, {tea.KeyEscape, 0, "Esc", back, back, true}}
+	actions := []screen.Action{
+		{Key: tea.KeyF1, Name: "F1", Label: "Help", Short: "Help", Enabled: true},
+		{Key: 'a', Name: "A", Label: "Add node", Short: "Add", Enabled: edit},
+		{Key: tea.KeyEnter, Name: "Enter", Label: label, Short: label, Enabled: !m.busy},
+		{Key: 'c', Name: "C", Label: "Connect", Short: "Link", Enabled: edit},
+		{Key: 'r', Name: "R", Label: "Run", Short: "Run", Enabled: edit},
+		{Key: 't', Mod: tea.ModCtrl, Name: "Ctrl+T", Label: "Inspector", Short: "Inspect", Enabled: true},
+		{Key: 's', Mod: tea.ModCtrl, Name: "Ctrl+S", Label: "Save", Short: "Save", Enabled: edit},
+		{Key: tea.KeyEscape, Name: "Esc", Label: back, Short: back, Enabled: true},
+	}
 	if m.presentation().Area.Width < 80 {
 		return []screen.Action{actions[0], actions[1], actions[5], actions[7]}
 	}
 	return actions
 }
 
-func NewScreen(ctx context.Context, cfg Config, dialogs screen.Host, presentation func() Surface) (*Model, error) {
+// NewScreen constructs an inactive screen and takes ownership of cfg.Draft.
+// Call Close when the terminal launch ends to cancel its operations.
+func NewScreen(ctx context.Context, cfg Config, dialogs screen.Host, presentation func() screen.Surface) (*Model, error) {
 	r, err := app.WorkflowRegistry(cfg.WS, userdirs.Sub("workflows"), nil, nil)
 	if err != nil {
 		return nil, err
@@ -301,6 +311,8 @@ func NewScreen(ctx context.Context, cfg Config, dialogs screen.Host, presentatio
 		events: make(chan tea.Msg, 16),
 	}, nil
 }
+
+// Close cancels screen operations and releases its launch context.
 func (m *Model) Close() {
 	if m.cancel != nil {
 		m.cancel()
@@ -310,6 +322,9 @@ func (m *Model) Close() {
 func (m *Model) Init() tea.Cmd  { return nil }
 func (m *Model) View() tea.View { return tea.NewView(m.content()) }
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.ctx.Err() != nil {
+		return m, nil
+	}
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		return m.key(msg)
@@ -325,7 +340,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.acceptResult(msg)
 	case workflowRunID:
 		m.runID = string(msg)
-		return m, tea.Batch(workflowWait(m.events), m.poll(string(msg), false))
+		return m, tea.Batch(m.wait(), m.poll(string(msg), false))
 	case workflowPoll:
 		return m, m.acceptPoll(msg)
 	}

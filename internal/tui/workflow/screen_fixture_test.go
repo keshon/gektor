@@ -1,16 +1,18 @@
 package workflow
 
 import (
+	"context"
+	"strings"
+	"testing"
+
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
-	"context"
+
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/settings"
 	"github.com/keshon/gektor/internal/workspace"
-	"strings"
-	"testing"
 )
 
 // model is a headless overlay host. Feature tests use real form controls without
@@ -114,8 +116,8 @@ func (m *model) closeDialog() {
 	}
 	m.dialog = nil
 }
-func (m *model) surface() Surface {
-	return Surface{Area: pane.Rect{Y: 1, Width: m.termW, Height: max(m.termH-2, 1)}, Inset: 1, SplitWidth: 100, Outlined: !m.minimal, BottomEdge: true}
+func (m *model) surface() screen.Surface {
+	return screen.Surface{Area: pane.Rect{Y: 1, Width: m.termW, Height: max(m.termH-2, 1)}, Inset: 1, SplitWidth: 100, Outlined: !m.minimal, BottomEdge: true}
 }
 func (m *model) screenPanes(open bool) pane.SplitLayout { return m.surface().Panes(open) }
 func (m *model) panelGeometry(width, footer int, close, conversation bool) pane.Layout {

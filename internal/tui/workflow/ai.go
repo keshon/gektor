@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"strings"
 	"time"
 
@@ -14,7 +13,7 @@ import (
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/popup"
-
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -32,27 +31,26 @@ type workflowProposal struct {
 }
 
 func (m *Model) propose(prompt string) tea.Cmd {
-	w := m
-	if w.busy {
+	if m.busy {
 		return nil
 	}
 	client := m.config.Client
 	if client == nil {
-		w.setNotice(pane.NoticeWarning, "Connect a model to request an AI proposal")
+		m.setNotice(pane.NoticeWarning, "Connect a model to request an AI proposal")
 		return nil
 	}
 	s, err := m.service(nil)
 	if err != nil {
-		w.setNotice(pane.NoticeError, err.Error())
+		m.setNotice(pane.NoticeError, err.Error())
 		return nil
 	}
 	schema := string(s.DefinitionSchema())
-	contracts, _ := json.Marshal(w.registry.Contracts())
-	before := w.editor.Source()
-	w.busy = true
-	w.setNotice(pane.NoticeInfo, "AI drafting a proposal · Esc cancels")
+	contracts, _ := json.Marshal(m.registry.Contracts())
+	before := m.editor.Source()
+	m.busy = true
+	m.setNotice(pane.NoticeInfo, "AI drafting a proposal · Esc cancels")
 	ctx, cancel := context.WithTimeout(m.ctx, 2*time.Minute)
-	w.cancel = cancel
+	m.cancel = cancel
 	output := 8192
 	if m.config.MaxTokens > 0 {
 		output = min(output, m.config.MaxTokens)
@@ -83,11 +81,10 @@ func (m *Model) propose(prompt string) tea.Cmd {
 
 }
 func (m *Model) acceptProposal(p workflowProposal) {
-	w := m
-	w.busy = false
-	w.cancel = nil
+	m.busy = false
+	m.cancel = nil
 	if p.err != nil {
-		w.setNotice(pane.NoticeError, p.err.Error())
+		m.setNotice(pane.NoticeError, p.err.Error())
 		return
 	}
 	d, err := Decode([]byte(p.source))
@@ -107,7 +104,7 @@ func (m *Model) acceptProposal(p workflowProposal) {
 		lines = append(lines, p.note, "")
 	}
 	old := map[string]string{}
-	for _, step := range w.editor.Definition.Steps {
+	for _, step := range m.editor.Definition.Steps {
 		b, _ := json.MarshalIndent(step, "", "  ")
 		old[step.ID] = string(b)
 	}
@@ -130,12 +127,12 @@ func (m *Model) acceptProposal(p workflowProposal) {
 	m.dialogs.OpenDialog(screen.Dialog{Title: "Review AI proposal", Lines: strings.Split(strings.Join(lines, "\n"), "\n"),
 		Shortcuts: []popup.Shortcut{{Key: "Esc/Enter", Action: "discard"}, {Key: "S", Action: "apply to draft"}, {Key: "↑↓", Action: "scroll"}},
 		Save: func() error {
-			if w.editor.Source() != p.before {
+			if m.editor.Source() != p.before {
 				return fmt.Errorf("draft changed since the request; ask for a fresh proposal")
 			}
-			w.editor.Replace(d)
-			w.graph = m.buildGraph(w.graph)
-			w.setNotice(pane.NoticeSuccess, "Proposal applied to draft · Ctrl+S saves")
+			m.editor.Replace(d)
+			m.graph = m.buildGraph(m.graph)
+			m.setNotice(pane.NoticeSuccess, "Proposal applied to draft · Ctrl+S saves")
 			return nil
 		},
 	})

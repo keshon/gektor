@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -16,7 +15,7 @@ import (
 
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
-
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workflow/service"
 	"github.com/keshon/gektor/internal/workflow/store"
@@ -127,12 +126,11 @@ func (m *Model) schedule() {
 }
 
 func (m *Model) scheduleStart(create bool) {
-	w := m
-	if w.run != nil || w.busy {
+	if m.run != nil || m.busy {
 		return
 	}
-	if w.editor.Path == "" || w.editor.Dirty() {
-		w.setNotice(pane.NoticeWarning, "Save the recipe before adding or editing a schedule")
+	if m.editor.Path == "" || m.editor.Dirty() {
+		m.setNotice(pane.NoticeWarning, "Save the recipe before adding or editing a schedule")
 		return
 	}
 	id := ""
@@ -143,10 +141,10 @@ func (m *Model) scheduleStart(create bool) {
 	} else if schedules := m.recipeSchedules(); len(schedules) > 0 && !create {
 		id = schedules[0].ID
 		inputs, _ = json.Marshal(schedules[0].Inputs)
-		w.graph.Selected = workflowSchedulePrefix + id
+		m.graph.Selected = workflowSchedulePrefix + id
 	}
-	in := workflowInvocation{Action: "schedule", Draft: w.editor.Source(), Mode: "Simple", Inputs: inputs, ScheduleID: id}
-	if len(w.editor.Definition.Inputs) == 0 {
+	in := workflowInvocation{Action: "schedule", Draft: m.editor.Source(), Mode: "Simple", Inputs: inputs, ScheduleID: id}
+	if len(m.editor.Definition.Inputs) == 0 {
 		m.scheduleForm(in)
 		return
 	}
@@ -154,21 +152,20 @@ func (m *Model) scheduleStart(create bool) {
 }
 
 func (m *Model) scheduleForm(in workflowInvocation) {
-	w := m
-	if w.busy || w.run != nil || w.editor.Source() != in.Draft || w.editor.Dirty() || w.editor.Path == "" {
-		w.setNotice(pane.NoticeWarning, "Recipe changed; save it and reopen Schedule")
+	if m.busy || m.run != nil || m.editor.Source() != in.Draft || m.editor.Dirty() || m.editor.Path == "" {
+		m.setNotice(pane.NoticeWarning, "Recipe changed; save it and reopen Schedule")
 		return
 	}
-	path, err := m.config.WS.Relative(w.editor.Path)
+	path, err := m.config.WS.Relative(m.editor.Path)
 	if err != nil {
-		w.setNotice(pane.NoticeError, err.Error())
+		m.setNotice(pane.NoticeError, err.Error())
 		return
 	}
 	s := store.Schedule{ID: fmt.Sprintf("recipe-%x", sha256.Sum256([]byte(filepath.ToSlash(path))))[:23], RecipePath: path, Cron: "0 * * * *", Timezone: "UTC", Overlap: "skip", Missed: "skip"}
 	baseID := s.ID
 	for suffix := 2; ; suffix++ {
 		used := false
-		for _, saved := range w.schedules {
+		for _, saved := range m.schedules {
 			if saved.ID == s.ID {
 				used = true
 				break
@@ -181,14 +178,14 @@ func (m *Model) scheduleForm(in workflowInvocation) {
 	}
 	var expected *store.Schedule
 	if in.ScheduleID != "" {
-		for _, saved := range w.schedules {
+		for _, saved := range m.schedules {
 			if saved.ID == in.ScheduleID {
 				s, expected = saved, &saved
 				break
 			}
 		}
 		if expected == nil {
-			w.setNotice(pane.NoticeWarning, "Schedule changed; refresh schedules first")
+			m.setNotice(pane.NoticeWarning, "Schedule changed; refresh schedules first")
 			return
 		}
 	}
@@ -211,8 +208,8 @@ func (m *Model) scheduleForm(in workflowInvocation) {
 		ApplyLabel: "Save schedule",
 		Fields:     fields,
 		Apply: func(v map[string]string) error {
-			current, err := m.config.WS.Relative(w.editor.Path)
-			if err != nil || current != path || w.run != nil || w.busy || w.editor.Dirty() || w.editor.Source() != in.Draft {
+			current, err := m.config.WS.Relative(m.editor.Path)
+			if err != nil || current != path || m.run != nil || m.busy || m.editor.Dirty() || m.editor.Source() != in.Draft {
 				return fmt.Errorf("recipe changed; reopen Schedule")
 			}
 			expression := strings.TrimSpace(v["cron"])
@@ -255,14 +252,13 @@ func (m *Model) scheduleForm(in workflowInvocation) {
 }
 
 func (m *Model) scheduleRefresh() tea.Cmd {
-	w := m
-	if w.run != nil {
-		w.setNotice(pane.NoticeWarning, "Return to the draft before refreshing schedules")
+	if m.run != nil {
+		m.setNotice(pane.NoticeWarning, "Return to the draft before refreshing schedules")
 		return nil
 	}
-	w.busy = true
+	m.busy = true
 	ctx, cancel := context.WithCancel(m.ctx)
-	w.cancel = cancel
+	m.cancel = cancel
 	root, base := m.config.WS.Root(), userdirs.Sub("workflows")
 	svc, serviceErr := m.service(nil)
 	return func() tea.Msg {
@@ -281,20 +277,19 @@ func (m *Model) scheduleRefresh() tea.Cmd {
 }
 
 func (m *Model) scheduleChange(action, payload string) tea.Cmd {
-	w := m
 	var edit workflowScheduleEdit
-	if err := json.Unmarshal([]byte(payload), &edit); err != nil || w.run != nil || w.editor.Dirty() || edit.Draft != w.editor.Source() {
-		w.setNotice(pane.NoticeWarning, "Recipe changed; reopen Schedule")
+	if err := json.Unmarshal([]byte(payload), &edit); err != nil || m.run != nil || m.editor.Dirty() || edit.Draft != m.editor.Source() {
+		m.setNotice(pane.NoticeWarning, "Recipe changed; reopen Schedule")
 		return nil
 	}
-	path, err := m.config.WS.Relative(w.editor.Path)
+	path, err := m.config.WS.Relative(m.editor.Path)
 	if err != nil || path != edit.Schedule.RecipePath {
-		w.setNotice(pane.NoticeWarning, "Recipe path changed; reopen Schedule")
+		m.setNotice(pane.NoticeWarning, "Recipe path changed; reopen Schedule")
 		return nil
 	}
-	w.busy = true
+	m.busy = true
 	ctx, cancel := context.WithCancel(m.ctx)
-	w.cancel = cancel
+	m.cancel = cancel
 	root, base := m.config.WS.Root(), userdirs.Sub("workflows")
 	svc, serviceErr := m.service(nil)
 	return func() tea.Msg {
@@ -378,13 +373,12 @@ func (m *Model) deleteSchedule(s store.Schedule) {
 }
 
 func (m *Model) scheduleDetails(s store.Schedule) []string {
-	w := m
 	rows := []string{"Inspect", m.presentation().Styles.Accent.Render("Schedule trigger"), ""}
-	if w.rawDetails {
+	if m.rawDetails {
 		b, _ := json.MarshalIndent(s, "", "  ")
 		return append(rows, strings.Split(cleanText(string(b)), "\n")...)
 	}
-	switch w.inspectorTab {
+	switch m.inspectorTab {
 	case 1:
 		rows = append(rows, "Values used for each scheduled run:", "")
 		if len(s.Inputs) == 0 {
@@ -408,12 +402,12 @@ func (m *Model) scheduleDetails(s store.Schedule) []string {
 			rows = append(rows, "Status: Enabled", "Next due: "+s.Next.In(zone).Format("2006-01-02 15:04 MST"))
 		}
 		rows = append(rows, "", "Starts the whole recipe.", "The workflow service must be running.", "", "Schedule ID: "+s.ID, "Cron: "+s.Cron)
-		if w.workerLeaseHeld {
+		if m.workerLeaseHeld {
 			rows = append(rows, "", "Worker: queue owned (health not checked)")
 		} else {
 			rows = append(rows, "", "Worker: no queue owner at last refresh")
 		}
-		for _, status := range w.scheduleStatus {
+		for _, status := range m.scheduleStatus {
 			if status.ID != s.ID {
 				continue
 			}
@@ -461,7 +455,7 @@ func (m *Model) scheduleDetails(s store.Schedule) []string {
 		if json.Unmarshal(s.Source, &bundle) == nil && bundle.Root != nil {
 			root = bundle.Root
 		}
-		if saved, err := Decode(root); err == nil && (&Editor{Definition: saved}).Source() != w.editor.Source() {
+		if saved, err := Decode(root); err == nil && (&Editor{Definition: saved}).Source() != m.editor.Source() {
 			rows = append(rows, "", "The current draft differs from this schedule snapshot.", "Edit and save the trigger to use the current recipe.")
 		}
 		rows = append(rows, "", "Enter edits timing and input values.", "Delete removes this trigger.")

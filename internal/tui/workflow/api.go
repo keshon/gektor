@@ -2,6 +2,7 @@ package workflow
 
 import (
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tui/components/pane"
@@ -20,15 +21,9 @@ type Config struct {
 	Draft                   *Editor
 }
 
-// State is the shell's read-only view of navigation and available actions.
-type State struct {
-	Active, Busy, InspectingRun                          bool
-	PositionsLocked, RawDetails, InspectorOpen, Overview bool
-	MouseCaptured                                        bool
-}
-
-func (m *Model) State() State {
-	return State{
+// State returns navigation flags without serializing the recipe.
+func (m *Model) State() screen.WorkflowState {
+	return screen.WorkflowState{
 		Active: m.active, Busy: m.busy, InspectingRun: m.run != nil,
 		PositionsLocked: m.positionsLocked, RawDetails: m.rawDetails, InspectorOpen: m.inspectorOpen, Overview: m.overview,
 		MouseCaptured: m.dragging || m.panning || m.thumb.active,
@@ -37,7 +32,9 @@ func (m *Model) State() State {
 
 // Activate returns to the retained draft or inspected run without starting work.
 func (m *Model) Activate() { m.active = true }
-func (m *Model) Hide()     { m.active = false }
+
+// Hide returns input ownership to Agent while retaining the draft and run.
+func (m *Model) Hide() { m.active = false }
 
 // PrepareQuit stops active work before the shell asks about an unsaved draft.
 func (m *Model) PrepareQuit() bool {
@@ -51,11 +48,23 @@ func (m *Model) PrepareQuit() bool {
 	return false
 }
 
-// Command handles an operator action. Effects return as Messages through Update.
-func (m *Model) Command(action string) tea.Cmd { return m.command(action) }
-func (m *Model) Content() string               { return m.content() }
-func (m *Model) CanvasSize() (int, int)        { return m.canvasSize() }
-func (m *Model) Actions() []screen.Action      { return m.footerActions() }
+// Command handles an operator action. Effects return as screen.WorkflowMessage
+// values through Update.
+func (m *Model) Command(action string) tea.Cmd {
+	if m.ctx.Err() != nil {
+		return nil
+	}
+	return m.command(action)
+}
+
+// Content renders panes within the supplied surface, without application chrome.
+func (m *Model) Content() string { return m.content() }
+
+// CanvasSize returns the usable canvas dimensions in terminal cells.
+func (m *Model) CanvasSize() (int, int) { return m.canvasSize() }
+
+// Actions supplies the shortcuts for the shared application toolbar.
+func (m *Model) Actions() []screen.Action { return m.footerActions() }
 
 // TakeCommands transfers queued effects to the shell exactly once.
 func (m *Model) TakeCommands() []tea.Cmd {
@@ -64,15 +73,12 @@ func (m *Model) TakeCommands() []tea.Cmd {
 	return commands
 }
 
-// Message identifies asynchronous workflow results without exposing their payloads.
-type Message interface{ workflowMessage() }
-
-func (workflowAction) workflowMessage()     {}
-func (workflowProposal) workflowMessage()   {}
-func (workflowPermission) workflowMessage() {}
-func (workflowResult) workflowMessage()     {}
-func (workflowRunID) workflowMessage()      {}
-func (workflowPoll) workflowMessage()       {}
+func (workflowAction) WorkflowMessage()     {}
+func (workflowProposal) WorkflowMessage()   {}
+func (workflowPermission) WorkflowMessage() {}
+func (workflowResult) WorkflowMessage()     {}
+func (workflowRunID) WorkflowMessage()      {}
+func (workflowPoll) WorkflowMessage()       {}
 
 // Dirty reports whether the retained recipe has unsaved edits.
 func (m *Model) Dirty() bool { return m.editor.Dirty() }

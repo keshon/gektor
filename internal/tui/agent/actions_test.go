@@ -1,0 +1,273 @@
+package agent
+
+import (
+	"strings"
+	"testing"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
+)
+
+func TestFooterActionsKeepDraftAndToggleScreens(t *testing.T) {
+	m := sizeModel(t, testModel())
+	m.state = stDone
+	m.input.SetValue("draft\nsecond line")
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF1})
+	if m.dialog == nil || m.dialog.title != "Help" {
+		t.Fatal("help did not open")
+	}
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF1})
+	if m.dialog != nil || m.input.Value() != "draft\nsecond line" {
+		t.Fatal("help lost draft")
+	}
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF2})
+	if m.sessions == nil {
+		t.Fatal("sessions did not open")
+	}
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF2})
+	if m.sessions != nil || m.input.Value() != "draft\nsecond line" {
+		t.Fatal("sessions lost draft")
+	}
+	before := m.transcript.compact
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF3})
+	if m.transcript.compact == before {
+		t.Fatal("details did not toggle")
+	}
+}
+
+func TestFooterActionsCannotHidePendingPrompts(t *testing.T) {
+	for _, state := range []runState{stPermission, stAsk} {
+		m := sizeModel(t, testModel())
+		m.state = state
+		before := m.transcript.compact
+		for _, key := range []rune{tea.KeyF1, tea.KeyF2, tea.KeyF3, tea.KeyF4, tea.KeyF5, tea.KeyF6, tea.KeyF7} {
+			m.handleKey(tea.KeyPressMsg{Code: key})
+		}
+		if m.dialog != nil || m.sessions != nil || m.state != state || m.transcript.compact != before {
+			t.Fatal("function key hid prompt")
+		}
+		m.handleKey(tea.KeyPressMsg{Code: tea.KeyF10})
+		if m.quit || m.state != stStopping {
+			t.Fatal("quit must first stop the active run")
+		}
+	}
+}
+
+func TestActionBarCellsAndMouseShareGeometry(t *testing.T) {
+	for _, minimal := range []bool{false, true} {
+		for _, width := range []int{40, 80, 120} {
+			m := sizeModel(t, testModel())
+			m.minimal = minimal
+			m.state = stDone
+			m.width(tea.WindowSizeMsg{Width: width, Height: 24})
+			rows := strings.Split(ansi.Strip(m.View().Content), "\n")
+			top := len(rows) - m.actionBarRows()
+			cells := m.footerCells()
+			if cells[0].start != 0 || cells[len(cells)-1].end != m.termW {
+				t.Fatal("footer edges do not align with outer frame")
+			}
+			for _, cell := range cells {
+				bar := rows[top+cell.row]
+				if !strings.HasPrefix(string([]rune(bar)[cell.start:]), func() string {
+					if cell.end-cell.start < 14 && strings.HasPrefix(cell.action.name, "Ctrl+") {
+						return " ^" + strings.TrimPrefix(cell.action.name, "Ctrl+") + " "
+					}
+					return " " + strings.ToUpper(cell.action.name) + " "
+				}()) {
+					t.Fatalf("button moved at width %d: %q", width, bar)
+				}
+				if cell.start > 0 && []rune(bar)[cell.start-1] != ' ' {
+					t.Fatal("button separator missing")
+				}
+				if cell.action.key == 'p' {
+					m.Update(tea.MouseClickMsg{X: cell.start, Y: top + cell.row, Button: tea.MouseLeft})
+					if m.sessions == nil {
+						t.Fatalf("transcript button click missed at width %d", width)
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestFocusAndMetricsHaveDedicatedPlaces(t *testing.T) {
+	m := sizeModel(t, testModel())
+	m.state = stDone
+	m.width(tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.steps, m.maxSteps = 7, 25
+	if strings.Contains(m.statusLine(), "step") || !strings.Contains(m.View().Content, "STEP 7/25") {
+		t.Fatal("metrics mixed with key hints")
+	}
+	rows := strings.Split(ansi.Strip(m.View().Content), "\n")
+	if !strings.Contains(rows[2], "STEP 7/25") || strings.Count(strings.Join(rows, "\n"), "STEP 7/25") != 1 {
+		t.Fatal("run metrics must appear once in the top status row")
+	}
+	if strings.Contains(ansi.Strip(m.identityLine()), "HISTORY") {
+		t.Fatal("obsolete pane label remains")
+	}
+
+	m.Update(tea.MouseClickMsg{X: 60, Y: 5, Button: tea.MouseLeft})
+	if !m.input.Focused() {
+		t.Fatal("click did not return focus to input")
+	}
+}
+
+func TestHeaderPrioritizesRunMetricsOnNarrowTerminals(t *testing.T) {
+	m := sizeModel(t, testModel())
+	m.state = stRunning
+	m.steps, m.maxSteps = 2, 25
+	m.tokens, m.limit = 4100, 16400
+	m.elapsed = 32 * time.Second
+	m.toolsUsed = 1
+	m.modelName = "Qwen3.5-9B-Q4_K_M"
+	for _, width := range []int{80, 120} {
+		m.width(tea.WindowSizeMsg{Width: width, Height: 30})
+		line := ansi.Strip(m.identityLine())
+		for _, fact := range []string{"STEP 2/25", "4.1k/16.4k", "00:32"} {
+			if !strings.Contains(line, fact) {
+				t.Fatalf("header at width %d lost %q: %q", width, fact, line)
+			}
+		}
+		if strings.Contains(line, "context ") {
+			t.Fatal("context limit duplicated beside run metrics")
+		}
+	}
+}
+
+func TestHelpKeepsFooterOnLastRowAndHidesComposer(t *testing.T) {
+	m := sizeModel(t, testModel())
+	m.state = stDone
+	m.input.SetValue("first\nsecond\nthird")
+	m.fitInput()
+	m.fitBottom()
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF1})
+	rows := strings.Split(ansi.Strip(m.View().Content), "\n")
+	if !strings.Contains(rows[len(rows)-1], "^Q Quit") || strings.Contains(ansi.Strip(m.View().Content), "first") || !strings.Contains(m.View().Content, "Draft preserved") {
+		t.Fatal("help moved footer or exposed active composer")
+	}
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF1})
+	if m.input.Value() != "first\nsecond\nthird" || m.input.Height() != 3 || !m.input.Focused() {
+		t.Fatal("help did not restore composer")
+	}
+}
+
+func TestFooterModeAndNewPreserveDraft(t *testing.T) {
+	m := sizeModel(t, testModel())
+	m.state = stDone
+	m.input.SetValue("unsent task")
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF5})
+	if !m.plan || m.input.Value() != "unsent task" {
+		t.Fatal("mode change lost draft")
+	}
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF5})
+	if m.plan {
+		t.Fatal("mode did not toggle back")
+	}
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF4})
+	if m.input.Value() != "unsent task" {
+		t.Fatal("new on unsaved session lost draft")
+	}
+}
+
+func TestToolbarContextAndQuitProtection(t *testing.T) {
+	m := sizeModel(t, testModel())
+	m.state = stDone
+	m.transcript.Follow = true
+	actions := m.footerActions()
+	if actions[0].label != "Help" || actions[1].label != "Search" || actions[2].label != "New" || actions[3].label != "Send" || actions[4].label != "Newline" {
+		t.Fatal("composer actions")
+	}
+	m.input.SetValue("draft")
+	m.handleKey(tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
+	if !strings.Contains(m.input.Value(), "\n") {
+		t.Fatal("toolbar newline shortcut")
+	}
+	m.openSessions()
+	if m.footerActions()[3].label != "Rename" {
+		t.Fatal("navigator actions")
+	}
+	m.closeSessions()
+	m.state = stRunning
+	if m.footerActions()[0].label != "Stop" {
+		t.Fatal("run actions")
+	}
+	m.handleKey(tea.KeyPressMsg{Code: 'q', Mod: tea.ModCtrl})
+	if m.quit || m.state != stStopping {
+		t.Fatal("active run quit without stopping")
+	}
+	m.handleKey(tea.KeyPressMsg{Code: 'q', Mod: tea.ModCtrl})
+	if m.quit {
+		t.Fatal("quit before stop completed")
+	}
+	m.state = stDone
+	m.handleKey(tea.KeyPressMsg{Code: 'q', Mod: tea.ModCtrl})
+	if !m.quit {
+		t.Fatal("idle quit")
+	}
+}
+
+func TestSearchToolbarShortcutClosesPopup(t *testing.T) {
+	m := sizeModel(t, testModel())
+	m.state = stDone
+	key := tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl}
+	m.handleKey(key)
+	if m.sessions == nil {
+		t.Fatal("search shortcut did not open")
+	}
+	m.handleKey(key)
+	if m.sessions != nil {
+		t.Fatal("search shortcut did not close")
+	}
+}
+
+func TestDetailsToolbarRemainsVisibleAndClickable(t *testing.T) {
+	m := sizeModel(t, testModel())
+	m.state = stDone
+	m.width(tea.WindowSizeMsg{Width: 160, Height: 30})
+	for _, compact := range []bool{true, false} {
+		m.transcript.compact = compact
+		label := "Thinking"
+		found := false
+		for _, cell := range m.footerCells() {
+			if cell.action.key != 'g' {
+				continue
+			}
+			found = true
+			if cell.action.label != label || !cell.action.enabled {
+				t.Fatal("incorrect details action")
+			}
+			m.Update(tea.MouseClickMsg{X: cell.start, Y: m.termH - m.actionBarRows() + cell.row, Button: tea.MouseLeft})
+			if m.transcript.compact == compact {
+				t.Fatal("details click did not toggle")
+			}
+		}
+		if !found {
+			t.Fatal("details action missing")
+		}
+	}
+}
+
+func TestSlashQuitWaitsForRunCompletion(t *testing.T) {
+	for _, command := range []string{"/quit", "/q"} {
+		t.Run(command, func(t *testing.T) {
+			m := sizeModel(t, testModel())
+			m.state = stRunning
+			cancelled := false
+			m.cancel = func() { cancelled = true }
+			m.command(command)
+			if !cancelled || m.quit || m.state != stStopping {
+				t.Fatal("quit did not wait for cancellation")
+			}
+			m.command(command)
+			if m.quit {
+				t.Fatal("quit while worker still running")
+			}
+			m.Update(doneMsg{})
+			_, cmd := m.command(command)
+			if !m.quit || cmd == nil {
+				t.Fatal("completed worker prevented quit")
+			}
+		})
+	}
+}

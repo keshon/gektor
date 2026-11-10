@@ -109,7 +109,7 @@ func TestWorkflowInspectorCloseAndResponsiveLayout(t *testing.T) {
 	}
 }
 
-func TestWorkflowPortsOpenMappingAndMenusExposeAdd(t *testing.T) {
+func TestWorkflowPortsOpenMapping(t *testing.T) {
 	m := workflowTestModel(t)
 	w := m.workflows
 	d := workflowRecipe()

@@ -58,23 +58,22 @@ func workflowErrorPointer(parts []string) string {
 }
 
 func (m *Model) validationRows(err error) []string {
-	w := m
-	d := w.editor.Definition
-	if w.run != nil {
-		d = w.run.Definition
+	d := m.editor.Definition
+	if m.run != nil {
+		d = m.run.Definition
 	}
 	id, path := workflowErrorLocation(err, d)
 	rows := []string{}
 	if id != "" {
-		if w.run == nil {
-			w.graph = m.buildGraph(w.graph)
+		if m.run == nil {
+			m.graph = m.buildGraph(m.graph)
 		}
-		w.graph.Selected = id
-		w.inspect = true
-		w.inspectorOpen = true
-		w.offset = 0
+		m.graph.Selected = id
+		m.inspect = true
+		m.inspectorOpen = true
+		m.offset = 0
 		width, height := m.canvasSize()
-		w.graph.Reveal(width, height)
+		m.graph.Reveal(width, height)
 		rows = append(rows, "Node: "+id)
 		if path != "" {
 			rows = append(rows, "Value: "+path)

@@ -1,0 +1,264 @@
+package agent
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/conversation"
+	"github.com/keshon/gektor/internal/prompts"
+	"github.com/keshon/gektor/internal/providers"
+	"github.com/keshon/gektor/internal/tui/components/form"
+	"github.com/keshon/gektor/internal/tui/components/popup"
+	"github.com/keshon/gektor/internal/tui/settings"
+)
+
+type formField = form.Field
+
+type settingsForm struct {
+	settings.Model
+	apply func(map[string]string) error
+}
+type formHit = form.Hit
+
+func (m *Model) updateFormInput(msg tea.Msg) tea.Cmd {
+	if m.dialog != nil && m.dialog.table != nil {
+		return m.tableInput(msg)
+	}
+	if m.dialog == nil || m.dialog.form == nil {
+		return nil
+	}
+	return m.dialog.form.UpdateInput(msg)
+}
+
+func (m *Model) openForm(title, hint, applyLabel string, fields []formField, apply func(map[string]string) error) {
+	m.openDialog(title, nil)
+	f := &settingsForm{Model: settings.NewModel(fields, newInput().Model), apply: apply}
+	f.Hint, f.ApplyLabel = hint, applyLabel
+	f.HasApplication = m.application != nil
+	f.Editor.SetVirtualCursor(true)
+	f.Editor.DynamicHeight = false
+	f.Editor.Prompt = ""
+	f.Editor.CharLimit = 65536
+	m.dialog.form = f
+	m.focusForm(0)
+}
+func (m *Model) focusForm(index int) {
+	f := m.dialog.form
+	f.Focus(index, m.settingsFieldVisible)
+
+	m.resizeFormEditor()
+}
+
+// openRemoval keeps contextual read-only fields visible and starts on Cancel.
+func (m *Model) openRemoval(title, hint, label string, fields []formField, apply func(map[string]string) error) {
+	m.openForm(title, hint, label, fields, apply)
+	m.dialog.form.Destructive = true
+	m.focusForm(len(fields) + 1)
+}
+func (m *Model) applyForm() {
+	f := m.dialog.form
+	if f.EditSession != nil && !m.settingsDirty() {
+		return
+	}
+	values := f.Values()
+	if err := f.apply(values); err != nil {
+		f.Error = err.Error()
+		return
+	}
+	m.closeDialog()
+}
+func (m *Model) formKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	intent, cmd := m.dialog.form.UpdateKey(msg, m.settingsProps())
+	m.resizeFormEditor()
+	return m, tea.Batch(cmd, m.handleSettingsIntent(intent))
+}
+func (m *Model) handleSettingsIntent(intent settings.Intent) tea.Cmd {
+	switch intent.Action {
+	case settings.Apply:
+		m.applyForm()
+	case settings.Cancel:
+		m.closeDialog()
+	case settings.SaveCopy:
+		m.saveSettingsCopy()
+	}
+	return nil
+}
+
+// formView draws the open form. Every form goes through the one path in the
+// settings package, which frames and centres it - the section editor, the
+// confirmation and the file chooser are the same surface with different rows,
+// and the caller used to have a second way of drawing the first two.
+func (m *Model) formView() string {
+	return m.dialog.form.View(m.settingsProps())
+}
+func (m *Model) formMouse(msg tea.MouseMsg) tea.Cmd {
+	intent, cmd := m.dialog.form.Mouse(msg, m.settingsProps())
+	m.resizeFormEditor()
+	return tea.Batch(cmd, m.handleSettingsIntent(intent))
+}
+func (m *Model) editSettings(section string) {
+	currentSettings := m.config
+	if currentSettings == nil {
+		return
+	}
+	var ws *settingsWorkspace
+	if m.dialog != nil && m.dialog.form != nil {
+		ws = m.dialog.form.EditSession
+		if ws != nil {
+			m.storeSettingsPage()
+		}
+	}
+	if ws == nil {
+		ws = &settingsWorkspace{Draft: settings.New(currentSettings.Profile), PersistCurrent: m.application != nil && m.application.Temporary}
+	}
+	ws.Section = section
+	ws.AccountLabel = m.accountLabel
+	profile := ws.Draft.Base()
+	if section != "model" {
+		if modelFields, ok := ws.Draft.Fields("model"); ok {
+			for _, field := range modelFields {
+				if field.Key == "kind" {
+					profile.Provider.Kind = field.Value
+				}
+			}
+		}
+	}
+	preferences := config.Preferences{}
+	if m.application != nil {
+		preferences = m.application.Preferences
+	}
+	title, fields := settings.PageFields(profile, section, preferences)
+
+	if m.dialog != nil {
+		m.closeDialog()
+	}
+	m.openForm(title, "GEKTOR restarts to apply these. The conversation and draft are preserved.", "Apply", fields, func(_ map[string]string) error {
+		m.storeSettingsPage()
+		profile, err := ws.Draft.Resolve()
+		if err != nil {
+			return err
+		}
+
+		// Applying settings restarts the launch so the new profile is composed
+		// into fresh services. Nothing is applied in place: the session that
+		// reads the old one must not keep running against the new.
+		return m.requestProfileChange(profile)
+	})
+	m.dialog.form.EditSession = ws
+	m.dialog.form.DiscoverModels = remoteModelChoices
+	m.dialog.form.DiscoverReasoning = remoteReasoningChoices
+	saved := ws.Draft.Visit(section, fields)
+	m.dialog.form.Fields = saved
+	m.dialog.form.Index = len(saved)
+	m.focusForm(0)
+	m.dialog.title = "Settings"
+}
+
+func (m *Model) renameActive() {
+	dir, title := filepath.Dir(m.stateFile), m.activeSessionTitle()
+	m.openForm("Rename session", "Changes the title only; history stays intact.", "Rename", []formField{{Key: "title", Label: "Session title", Value: title, Multiline: false}}, func(values map[string]string) error {
+		title := conversation.TitleLine(values["title"])
+		if title == "" {
+			return fmt.Errorf("title cannot be blank")
+		}
+		if err := conversation.WriteSessionTitle(dir, title); err != nil {
+			return err
+		}
+		m.updateSessionTitle(dir, title)
+		m.refreshSessions()
+		return nil
+	})
+}
+func (m *Model) deleteActive() {
+	target, err := filepath.Abs(filepath.Dir(m.stateFile))
+	root, rootErr := filepath.Abs(m.sessionRoot())
+	if err != nil || rootErr != nil || !strings.EqualFold(filepath.Dir(target), root) {
+		m.openDialog("Cannot delete", []string{"Session is outside the configured session store."})
+		return
+	}
+	m.openForm("Delete session", "Permanently removes this saved session.", "Delete", nil, func(map[string]string) error {
+		if err := os.RemoveAll(target); err != nil {
+			return err
+		}
+		m.newTask()
+		m.refreshSessions()
+		return nil
+	})
+	m.dialog.form.Destructive = true
+	// Destructive confirmation starts on Cancel.
+	m.focusForm(1)
+}
+func (m *Model) inspectConnection() {
+	m.openDialog("Model connection", []string{"Model: " + nonEmpty(m.modelName), "Protocol: " + nonEmpty(m.backendKind), "Endpoint: " + nonEmpty(m.backendURL), fmt.Sprintf("Context: %d tokens · response: %d tokens", m.limit, m.responseCap), "Coding connection changes currently require restarting the application."})
+}
+
+func (m *Model) inspectAgentInstructions() {
+	if m.config == nil {
+		return
+	}
+	s := m.config.Identity
+	selected := ""
+	if m.config.Profile.Identity != nil {
+		selected = m.config.Profile.Identity.PromptPreset
+	}
+	preset, _ := prompts.ResponsePreset(selected)
+	lines := []string{
+		"Prompt preset: " + preset.Name,
+		"Preset adds response style to the profile's own identity.",
+		"Leading identity instruction",
+		s.System,
+		"Post-history system directive",
+		s.PostHistory,
+		"This is the identity the profile contributes; the agent's Plan/Act operational instructions are added on top and are not shown here.",
+	}
+	lines = append(lines, m.config.Warnings...)
+	m.openDialog("Agent instructions preview", lines)
+}
+
+func (m *Model) resizeFormEditor() {
+	if m.dialog == nil || m.dialog.form == nil {
+		return
+	}
+	f := m.dialog.form
+	f.Editor.SetWidth(max(popup.ModalWidth(m.transcript.Viewport.Width())-5, 1))
+	height := 1
+	if f.Index < len(f.Fields) && f.Fields[f.Index].Multiline {
+		height = min(3, max(m.transcript.Viewport.Height()-10, 1))
+	}
+	f.Editor.SetHeight(height)
+}
+
+func remoteModelChoices(kind, endpoint, keyEnv string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	items, err := app.DiscoverModels(ctx, app.BackendOptions{Kind: kind, URL: endpoint, APIKeyEnv: keyEnv})
+	if err != nil {
+		return nil, fmt.Errorf("%w; Esc returns to manual entry", err)
+	}
+	return items, nil
+}
+
+func remoteReasoningChoices(kind, endpoint, model string) (providers.ReasoningOptions, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return app.DiscoverReasoning(ctx, app.BackendOptions{Kind: kind, URL: endpoint, Model: model})
+}
+
+func (m *Model) confirmCompact() {
+	m.openForm("Compact history", "Replaces older tool details with a short record and keeps recent steps. This changes the saved history used by the model.", "Compact", nil, func(map[string]string) error {
+		_, cmd := m.compactNow()
+		if cmd != nil {
+			m.pendingCommands = append(m.pendingCommands, cmd)
+		}
+		return nil
+	})
+	m.focusForm(1)
+}

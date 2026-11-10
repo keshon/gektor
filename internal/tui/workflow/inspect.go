@@ -13,38 +13,35 @@ import (
 )
 
 func (m *Model) setInspectorTab(tab int) {
-	w := m
-	w.inspectorTab = max(0, min(2, tab))
-	w.rawDetails = false
-	w.offset = 0
-	w.thumb = scrollDrag{}
+	m.inspectorTab = max(0, min(2, tab))
+	m.rawDetails = false
+	m.offset = 0
+	m.thumb = scrollDrag{}
 }
 
 func (m *Model) inspectorTabs() pane.TabLayout {
-	w := m
 	labels := []string{"Properties", "Result", "Code"}
-	if m.selectedSchedule() != nil && w.run == nil {
+	if m.selectedSchedule() != nil && m.run == nil {
 		labels = []string{"Schedule", "Inputs", "Service"}
 	}
-	active := w.inspectorTab
-	if w.rawDetails {
+	active := m.inspectorTab
+	if m.rawDetails {
 		active = -1
 	}
 	view := m.presentation()
 	width := view.Layout(view.Panes(true).Side.Width, true).Body.Width
-	return pane.Tabs(labels, active, width, w.inspect && !view.HeaderFocused,
+	return pane.Tabs(labels, active, width, m.inspect && !view.HeaderFocused,
 		pane.TabStyles{Normal: view.Styles.Muted, Active: view.Styles.Panels.Title, Focus: view.Styles.Panels.Focus})
 }
 
 func (m *Model) focusPort(key string, output bool) {
-	w := m
-	w.inspectorTab = 0
-	w.rawDetails = false
-	w.portFocus, w.portOutput, w.portSelected = key, output, true
-	w.offset = 0
+	m.inspectorTab = 0
+	m.rawDetails = false
+	m.portFocus, m.portOutput, m.portSelected = key, output, true
+	m.offset = 0
 	for i, row := range m.inspectorContent() {
 		if strings.HasPrefix(ansi.Strip(row), "› ") {
-			w.offset = max(0, i-2)
+			m.offset = max(0, i-2)
 			break
 		}
 	}

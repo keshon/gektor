@@ -84,14 +84,14 @@ internal/app constructs connections, binds credentials, and orchestrates discove
 internal/tools supplies tools; internal/workspace resolves paths and measures
 file changes; internal/permission authorizes each tool call.
 
-The concrete workflowScreen owns the terminal workflow editor's state, message
-dispatch, queued commands, rendering and asynchronous operations. The root TUI
-opens/closes that screen, handles app navigation and supplies shared dialogs.
-Workflow pane geometry and rendering live in internal/tui/workflow, using a
-Surface snapshot of terminal bounds and theme. Form requests carry named fields,
-choices and completion callbacks together. The screen has its own context and a bounded workflow configuration;
-it receives no parent model or agent/transcript state. Graph controls render
-supplied detail text and tones; workflow status interpretation stays in the screen.
+The terminal connector in internal/tui wires independent Agent and Workflow
+models. internal/tui/agent owns the Agent session and shared application controls.
+internal/tui/workflow owns recipe editing, graph interaction, run inspection,
+message dispatch, queued commands and asynchronous workflow execution. Its
+screen.Workflow contract exposes navigation state and operations; the host does
+not reach into the recipe or run state. screen.Host supplies shared dialogs and
+screen.Surface supplies current geometry and styles. Workflow receives execution
+services and owns its cancellation; it has no access to Agent or transcript state.
 
 The model server is external. GEKTOR does not install or supervise it.
 API-compatible providers share the Chat Completions transport; local dialects handle
@@ -310,7 +310,7 @@ formatting; selecting a backend does not select a different behavioral prompt.
 Profile identity and response presets are composed separately from capabilities.
 
 The Bubble Tea update loop owns UI state. Components own local interactions;
-the root routes focus, messages and effects. Workers return messages rather
+the terminal host routes focus, messages and effects. Workers return messages rather
 than changing the live model.
 
 Reusable geometry, popup, form, composer, selection and transcript models live
@@ -324,7 +324,7 @@ contracts and migration plan for shared controls, layouts and interaction.
 
 Settled transcript blocks are cached by content and presentation settings.
 The viewport retains separate rendered parts and draws only visible lines.
-Colors live in `internal/tui/styles.go`; changing the theme invalidates cached rendering.
+Colors live in `internal/tui/agent/styles.go`; changing the theme invalidates cached rendering.
 Width calculations use terminal cells, including frames, gutters and scrollbars.
 
 Applying settings returns ModeChange with saved preferences, history, draft

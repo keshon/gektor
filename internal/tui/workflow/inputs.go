@@ -3,11 +3,11 @@ package workflow
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"strings"
 
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/schemaform"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow/recipe"
 )
 
@@ -23,9 +23,8 @@ func (m *Model) queueInvocation(action string, in workflowInvocation) {
 }
 
 func (m *Model) runInputs(action string) {
-	w := m
-	in := workflowInvocation{Action: action, Draft: w.editor.Source(), Mode: "Simple"}
-	if len(w.editor.Definition.Inputs) == 0 {
+	in := workflowInvocation{Action: action, Draft: m.editor.Source(), Mode: "Simple"}
+	if len(m.editor.Definition.Inputs) == 0 {
 		in.Inputs = json.RawMessage(`{}`)
 		m.queueInvocation("invoke", in)
 		return
@@ -34,20 +33,19 @@ func (m *Model) runInputs(action string) {
 }
 
 func (m *Model) inputForm(in workflowInvocation) {
-	w := m
-	if w.busy || w.run != nil {
+	if m.busy || m.run != nil {
 		return
 	}
-	if in.Draft != w.editor.Source() {
-		w.setNotice(pane.NoticeWarning, "Draft changed · reopen run inputs")
+	if in.Draft != m.editor.Source() {
+		m.setNotice(pane.NoticeWarning, "Draft changed · reopen run inputs")
 		return
 	}
 	if in.Action != "run" && in.Action != "validate" && in.Action != "schedule" {
 		return
 	}
-	specs := w.editor.Clone().Inputs
+	specs := m.editor.Clone().Inputs
 	submit := func(values map[string]json.RawMessage) error {
-		if w.busy || w.run != nil || w.editor.Source() != in.Draft {
+		if m.busy || m.run != nil || m.editor.Source() != in.Draft {
 			return fmt.Errorf("draft changed; reopen run inputs")
 		}
 		if _, err := recipe.BindInputs(specs, values); err != nil {

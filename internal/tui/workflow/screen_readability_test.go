@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/tui/components/graph"
-
 	"github.com/keshon/gektor/internal/workflow"
 )
 

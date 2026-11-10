@@ -3,7 +3,6 @@ package workflow
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -11,6 +10,7 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/schemaform"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/settings"
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workflow"
@@ -21,46 +21,45 @@ func (m *Model) command(action string) tea.Cmd {
 	if !m.active {
 		return nil
 	}
-	w := m
 	if action == "inspector" {
-		w.inspectorOpen = !w.inspectorOpen
-		w.inspect = w.inspectorOpen
-		w.thumb = scrollDrag{}
+		m.inspectorOpen = !m.inspectorOpen
+		m.inspect = m.inspectorOpen
+		m.thumb = scrollDrag{}
 		return nil
 	}
 	if action == "lock-positions" {
-		w.positionsLocked = !w.positionsLocked
-		w.dragging = false
+		m.positionsLocked = !m.positionsLocked
+		m.dragging = false
 		m.persistLayout()
 		return nil
 	}
 	if action == "raw-details" {
-		w.rawDetails = !w.rawDetails
-		w.offset = 0
+		m.rawDetails = !m.rawDetails
+		m.offset = 0
 		return nil
 	}
 	if action == "overview" {
-		w.overview = !w.overview
+		m.overview = !m.overview
 		return nil
 	}
 	if action == "" {
 		return nil
 	}
 
-	if w.busy && action != "stop" {
-		w.setNotice(pane.NoticeInfo, "Operation in progress · Esc stops it")
+	if m.busy && action != "stop" {
+		m.setNotice(pane.NoticeInfo, "Operation in progress · Esc stops it")
 		return nil
 	}
-	if w.run != nil && workflowRequiresDraft(action) {
-		w.setNotice(pane.NoticeInfo, "Frozen run · D returns to the editable draft")
+	if m.run != nil && workflowRequiresDraft(action) {
+		m.setNotice(pane.NoticeInfo, "Frozen run · D returns to the editable draft")
 		return nil
 	}
 	if action == "chat" {
-		w.active = false
+		m.active = false
 		return nil
 	}
 	if m.selectedSchedule() != nil && (action == "behavior" || action == "connections" || action == "link") {
-		w.setNotice(pane.NoticeInfo, "Schedule starts the whole recipe. Enter edits the trigger; connections are automatic.")
+		m.setNotice(pane.NoticeInfo, "Schedule starts the whole recipe. Enter edits the trigger; connections are automatic.")
 		return nil
 	}
 	fail := func(err error) {
@@ -80,18 +79,18 @@ func (m *Model) command(action string) tea.Cmd {
 		return m.setupForm()
 
 	case "name":
-		if w.run == nil {
+		if m.run == nil {
 			m.recipeName()
 		}
 	case "inputs", "outputs":
-		if w.run == nil {
+		if m.run == nil {
 			m.parameters(action)
 		}
 	case "stop":
-		if w.cancel != nil {
-			w.cancel()
+		if m.cancel != nil {
+			m.cancel()
 		}
-		w.setNotice(pane.NoticeInfo, "Stopping…")
+		m.setNotice(pane.NoticeInfo, "Stopping…")
 	case "new", "open":
 		m.recipePath(action)
 	case "save":
@@ -121,7 +120,7 @@ func (m *Model) command(action string) tea.Cmd {
 
 	case "run-json", "validate-json":
 		base := strings.TrimSuffix(action, "-json")
-		m.inputForm(workflowInvocation{Action: base, Draft: w.editor.Source(), Mode: "JSON"})
+		m.inputForm(workflowInvocation{Action: base, Draft: m.editor.Source(), Mode: "JSON"})
 	case "validate", "run":
 		m.runInputs(action)
 	case "runs":
@@ -141,23 +140,23 @@ func (m *Model) command(action string) tea.Cmd {
 		return m.reviewForm()
 
 	case "layout":
-		if w.positionsLocked {
-			w.setNotice(pane.NoticeWarning, "Unlock node positions before auto-layout")
+		if m.positionsLocked {
+			m.setNotice(pane.NoticeWarning, "Unlock node positions before auto-layout")
 			return nil
 		}
-		w.graph = m.buildGraph(graph.Model{Selected: w.graph.Selected})
+		m.graph = m.buildGraph(graph.Model{Selected: m.graph.Selected})
 		m.persistLayout()
 	case "undo":
-		w.editor.Undo()
-		w.graph = m.buildGraph(w.graph)
+		m.editor.Undo()
+		m.graph = m.buildGraph(m.graph)
 	case "redo":
-		w.editor.Redo()
-		w.graph = m.buildGraph(w.graph)
+		m.editor.Redo()
+		m.graph = m.buildGraph(m.graph)
 	case "draft":
-		w.runID = ""
-		w.run = nil
-		w.graph = m.buildGraph(graph.Model{})
-		w.offset = 0
+		m.runID = ""
+		m.run = nil
+		m.graph = m.buildGraph(graph.Model{})
+		m.offset = 0
 	}
 	return nil
 }
@@ -173,8 +172,7 @@ func workflowRequiresDraft(action string) bool {
 }
 
 func (m *Model) recipePath(action string) *settings.Model {
-	w := m
-	fields := []formField{{Key: "path", Label: "Recipe path (relative to workspace)", Value: w.editor.Path}}
+	fields := []formField{{Key: "path", Label: "Recipe path (relative to workspace)", Value: m.editor.Path}}
 	var fileFields map[string]settings.FilePicker
 	if action == "open" {
 		fileFields = map[string]settings.FilePicker{"path": {Root: m.config.WS.Root(), Extensions: []string{".json"}}}
@@ -182,7 +180,7 @@ func (m *Model) recipePath(action string) *settings.Model {
 	if action == "new" {
 		fields[0].Value = "recipe.json"
 	}
-	if w.editor.Dirty() {
+	if m.editor.Dirty() {
 		fields = append(fields, formField{Key: "discard", Label: "Unsaved changes: type discard to replace"})
 	}
 	return m.dialogs.OpenForm(screen.Form{
@@ -192,7 +190,7 @@ func (m *Model) recipePath(action string) *settings.Model {
 		Fields:     fields,
 		FileFields: fileFields,
 		Apply: func(v map[string]string) error {
-			if w.editor.Dirty() && v["discard"] != "discard" {
+			if m.editor.Dirty() && v["discard"] != "discard" {
 				return fmt.Errorf("save first, or type discard")
 			}
 			if strings.TrimSpace(v["path"]) == "" {
@@ -208,12 +206,11 @@ func (m *Model) recipePath(action string) *settings.Model {
 }
 
 func (m *Model) saveForm() {
-	w := m
 	m.dialogs.OpenForm(screen.Form{
 		Title:      "Save workflow",
 		Hint:       "Writes the recipe; canvas positions stay in your user settings.",
 		ApplyLabel: "Save",
-		Fields:     []formField{{Key: "path", Label: "Recipe path", Value: w.editor.Path}},
+		Fields:     []formField{{Key: "path", Label: "Recipe path", Value: m.editor.Path}},
 		Apply: func(v map[string]string) error {
 			if strings.TrimSpace(v["path"]) == "" {
 				return fmt.Errorf("enter a path")
@@ -225,39 +222,38 @@ func (m *Model) saveForm() {
 }
 
 func (m *Model) addOperation(name string) {
-	w := m
-	if w.busy || w.run != nil {
+	if m.busy || m.run != nil {
 		return
 	}
-	n, err := w.registry.Node(name)
+	n, err := m.registry.Node(name)
 	if err != nil {
-		w.setNotice(pane.NoticeError, err.Error())
+		m.setNotice(pane.NoticeError, err.Error())
 		return
 	}
-	draft := w.editor.Source()
+	draft := m.editor.Source()
 	m.dialogs.OpenForm(screen.Form{
 		Title:      "Add operation",
 		Hint:       name,
 		ApplyLabel: "Add",
-		Fields:     []formField{{Key: "id", Label: "Unique node ID", Value: fmt.Sprintf("step_%d", len(w.editor.Definition.Steps)+1)}},
+		Fields:     []formField{{Key: "id", Label: "Unique node ID", Value: fmt.Sprintf("step_%d", len(m.editor.Definition.Steps)+1)}},
 		Apply: func(v map[string]string) error {
-			if w.busy || w.run != nil || w.editor.Source() != draft {
+			if m.busy || m.run != nil || m.editor.Source() != draft {
 				return fmt.Errorf("draft changed; add the node again")
 			}
 			id := strings.TrimSpace(v["id"])
 			if id == "" || strings.HasPrefix(id, "@") || strings.Contains(id, "/") {
 				return fmt.Errorf("enter a node ID without / or a leading @")
 			}
-			d := w.editor.Clone()
+			d := m.editor.Clone()
 			for _, s := range d.Steps {
 				if s.ID == id {
 					return fmt.Errorf("node ID already exists")
 				}
 			}
 			d.Steps = append(d.Steps, workflow.Step{ID: id, Tool: n.Name, NodeVersion: n.Version, Args: json.RawMessage(`{}`)})
-			w.editor.Replace(d)
-			w.graph.Selected = id
-			w.graph = m.buildGraph(w.graph)
+			m.editor.Replace(d)
+			m.graph.Selected = id
+			m.graph = m.buildGraph(m.graph)
 			m.queueAction("edit", "")
 			return nil
 		},
@@ -265,14 +261,13 @@ func (m *Model) addOperation(name string) {
 }
 
 func (m *Model) edit() {
-	w := m
 	if m.selectedSchedule() != nil {
 		m.schedule()
 		return
 	}
 	idx := -1
-	for i, s := range w.editor.Definition.Steps {
-		if s.ID == w.graph.Selected {
+	for i, s := range m.editor.Definition.Steps {
+		if s.ID == m.graph.Selected {
 			idx = i
 			break
 		}
@@ -280,34 +275,34 @@ func (m *Model) edit() {
 	if idx < 0 {
 		return
 	}
-	s := w.editor.Definition.Steps[idx]
-	n, err := w.registry.Node(s.Tool)
+	s := m.editor.Definition.Steps[idx]
+	n, err := m.registry.Node(s.Tool)
 	if err != nil {
 		m.dialogs.OpenDialog(screen.Dialog{Title: "Node", Lines: []string{err.Error()}})
 		return
 	}
 	schema := schemaform.Parse(n.InputSchema)
-	if w.inspectorOpen && w.inspect && w.inspectorTab == 0 {
+	if m.inspectorOpen && m.inspect && m.inspectorTab == 0 {
 		delete(schema.Properties, "code")
 	}
-	draft := w.editor.Source()
+	draft := m.editor.Source()
 	m.dialogs.OpenForm(screen.Form{
 		Title:      s.ID + " / " + s.Tool,
 		Hint:       n.Description + " · * required. Use JSON objects for references.",
 		ApplyLabel: "Apply",
 		Fields:     schema.Fields(s.Args),
 		Apply: func(v map[string]string) error {
-			if w.run != nil || w.busy || w.editor.Source() != draft {
+			if m.run != nil || m.busy || m.editor.Source() != draft {
 				return fmt.Errorf("draft changed; reopen node arguments")
 			}
 			args, err := schema.Values(s.Args, v)
 			if err != nil {
 				return err
 			}
-			d := w.editor.Clone()
+			d := m.editor.Clone()
 			d.Steps[idx].Args = args
-			w.editor.Replace(d)
-			w.graph = m.buildGraph(w.graph)
+			m.editor.Replace(d)
+			m.graph = m.buildGraph(m.graph)
 			return nil
 		},
 		Choices: schema.Choices(),

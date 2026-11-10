@@ -41,21 +41,23 @@ display models or sessions. Their application actions remain separate.
 A component reports an intent such as accept, cancel or activate; its owner
 decides whether that saves settings, opens a session or starts a connection.
 
-The concrete `workflowScreen` in `internal/tui/workflows*.go` owns the workflow
-draft, graph, run state, message dispatch and asynchronous operations. The root
-model delegates input and workflow messages, and owns navigation and shared
-forms/dialogs. `internal/tui/workflow_navigation.go` connects those shared controls
-through named form requests and dialog operations. It also supplies a current
-`Surface` value for workflow layout and styles. Menu, quit and toolbar routing
-stay in the root; the screen has no access to the agent or conversation.
-Its context is closed when the terminal launch ends. Settings changes restart
-the launch, constructing a screen with the new client and policy.
+`internal/tui/tui.go` connects the terminal host to the concrete Workflow
+screen. `internal/tui/agent` owns the Agent model, transcript, composer, session
+execution, and shared application controls: menus, dialogs, preferences, and
+navigation. Its workflow adapter consumes `screen.Workflow`; it does not import
+the Workflow implementation package.
 
-`internal/tui/workflow` owns the recipe editor, graph mapping and pane presentation.
-Its surface uses the same geometry for rendering and hit testing, without root-model
-callbacks. The stateful screen and shared-dialog integration remain in the root TUI package.
-The generic graph component renders supplied labels and tones; workflow status
-names and their presentation belong to the screen.
+`internal/tui/workflow` owns its own model, recipe editor, graph, inspector,
+run state, message dispatch, permissions, and asynchronous operations. It receives
+execution services, shared dialog operations, and a function supplying the current
+`screen.Surface`. That snapshot gives rendering and hit testing the same geometry
+and styles without exposing Agent or transcript state. `screen.Host` carries
+named form and dialog requests. The generic graph component renders supplied
+labels and tones; workflow status names and presentation belong to Workflow.
+
+Each screen owns its cancellation and cleanup. The terminal host closes Workflow
+when the launch ends. Settings changes restart the launch with the new client
+and policy. Returning to Agent retains the workflow draft and the Agent composer.
 
 ## Visual language
 
@@ -402,8 +404,8 @@ navigation. Settings owns configuration; Appearance owns theme and panel frame.
 Help owns instructions and diagnostics. Node is specific to the workflow editor.
 
 Menu definitions and their command metadata live in
-[menus.go](../../internal/tui/menus.go). Action dispatch lives in
-[menu_actions.go](../../internal/tui/menu_actions.go). The header handles layout,
+[menus.go](../../internal/tui/agent/menus.go). Action dispatch lives in
+[menu_actions.go](../../internal/tui/agent/menu_actions.go). The header handles layout,
 focus and input, using the shared popup component. Both keyboard and mouse
 activation use the same enabled-state checks and dispatcher. At narrow widths,
 More exposes menus that would otherwise be clipped.
@@ -432,7 +434,7 @@ clear and it has a real consumer.
 | [transcript](../../internal/tui/components/transcript/transcript.go) | History rendering and viewport behavior |
 | [graph](../../internal/tui/components/graph/graph.go) | Node/canvas presentation and graph interactions, independent of workflow execution |
 | [settings](../../internal/tui/settings/model.go) | Settings values, discovery and intents; move reusable presentation into the components it uses |
-| [styles.go](../../internal/tui/styles.go) | Semantic styles and theme mappings, supplied to components |
+| [styles.go](../../internal/tui/agent/styles.go) | Semantic styles and theme mappings, supplied to components |
 
 The Bubble Tea loop remains the state owner. Components own their local
 selection, focus and editing state. Async services return messages; components

@@ -9,7 +9,7 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/popup"
-
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/recipe"
 )
@@ -72,37 +72,36 @@ func workflowValue(raw json.RawMessage) string {
 }
 
 func (m *Model) page(key string) {
-	w := m
 	_, height := m.canvasSize()
-	if w.inspect {
+	if m.inspect {
 		height = max(1, height-2)
 		switch key {
 		case "home":
-			w.offset = 0
+			m.offset = 0
 		case "end":
-			w.offset = max(0, len(m.inspectorContent())-height)
+			m.offset = max(0, len(m.inspectorContent())-height)
 		case "pgup":
-			w.offset = max(0, w.offset-height)
+			m.offset = max(0, m.offset-height)
 		case "pgdown":
-			w.offset += height
+			m.offset += height
 		}
 		return
 	}
-	if len(w.graph.Nodes) == 0 {
+	if len(m.graph.Nodes) == 0 {
 		return
 	}
 	switch key {
 	case "home":
-		w.graph.Selected = w.graph.Nodes[0].ID
+		m.graph.Selected = m.graph.Nodes[0].ID
 	case "end":
-		w.graph.Selected = w.graph.Nodes[len(w.graph.Nodes)-1].ID
+		m.graph.Selected = m.graph.Nodes[len(m.graph.Nodes)-1].ID
 	case "pgup":
-		w.graph.SelectNext(-1)
+		m.graph.SelectNext(-1)
 	case "pgdown":
-		w.graph.SelectNext(1)
+		m.graph.SelectNext(1)
 	}
 	width, height := m.canvasSize()
-	w.graph.Reveal(width, height)
+	m.graph.Reveal(width, height)
 }
 
 func (m *Model) canvasSize() (int, int) {
@@ -113,16 +112,15 @@ func (m *Model) canvasSize() (int, int) {
 }
 
 func (m *Model) content() string {
-	w := m
 	view := m.presentation()
 	cw, ch := m.canvasSize()
 	m.ensureSelection()
-	if w.run == nil {
-		w.graph = m.buildGraph(w.graph)
+	if m.run == nil {
+		m.graph = m.buildGraph(m.graph)
 	}
-	canvas := w.graph
-	if w.overview {
-		canvas = w.graph.Overview(cw)
+	canvas := m.graph
+	if m.overview {
+		canvas = m.graph.Overview(cw)
 	}
 	canvas.Nodes = append([]graph.Node(nil), canvas.Nodes...)
 	for i := range canvas.Nodes {
@@ -132,55 +130,55 @@ func (m *Model) content() string {
 	if len(canvas.Nodes) == 0 {
 		left = cellFrame("No workflow open.\nCtrl+O opens a recipe · H saved runs\nA adds a node · I requests an AI proposal", cw, ch)
 	}
-	title := w.editor.Definition.Name
-	if w.editor.Dirty() {
+	title := m.editor.Definition.Name
+	if m.editor.Dirty() {
 		title += " *"
 	}
-	if w.run != nil {
-		title = w.run.Definition.Name + " / " + w.run.Status
+	if m.run != nil {
+		title = m.run.Definition.Name + " / " + m.run.Status
 	}
 	mode := "Workflow"
-	if w.positionsLocked {
+	if m.positionsLocked {
 		mode += " [positions locked]"
 	}
-	regions := view.Panes(w.inspectorOpen)
-	split := w.inspectorOpen && !regions.Covered
+	regions := view.Panes(m.inspectorOpen)
+	split := m.inspectorOpen && !regions.Covered
 	leftWidth := regions.Main.Width
 	footerWidth := view.Layout(leftWidth, false).Footer.Width
-	rows := view.Render(Panel{
+	rows := view.Render(screen.Panel{
 		Title: mode + " / " + cleanText(title),
-		Hint:  pane.NoticeRow(cleanText(w.notice), w.noticeLevel, footerWidth, view.Styles.Notice),
-		Body:  left, Width: leftWidth, Focused: !w.inspect,
+		Hint:  pane.NoticeRow(cleanText(m.notice), m.noticeLevel, footerWidth, view.Styles.Notice),
+		Body:  left, Width: leftWidth, Focused: !m.inspect,
 	})
-	if w.inspectorOpen {
+	if m.inspectorOpen {
 		width := regions.Side.Width
 		content := m.inspectorContent()
 		tabs := m.inspectorTabs()
 		capacity := max(1, ch-len(tabs.Rows)-1)
-		w.offset = min(w.offset, max(0, len(content)-capacity))
-		visible := content[w.offset:min(len(content), w.offset+capacity)]
+		m.offset = min(m.offset, max(0, len(content)-capacity))
+		visible := content[m.offset:min(len(content), m.offset+capacity)]
 		inner := view.Layout(width, true).Body.Width
-		body := strings.Join(tabs.Rows, "\n") + "\n\n" + strings.Join(popup.ScrollRows(visible, inner, w.offset, len(content), view.Styles.Muted), "\n")
-		heading := "Inspect / " + cleanText(w.graph.Selected)
-		if m.selectedSchedule() != nil && w.run == nil {
+		body := strings.Join(tabs.Rows, "\n") + "\n\n" + strings.Join(popup.ScrollRows(visible, inner, m.offset, len(content), view.Styles.Muted), "\n")
+		heading := "Inspect / " + cleanText(m.graph.Selected)
+		if m.selectedSchedule() != nil && m.run == nil {
 			heading = "Inspect / Schedule"
 		}
-		if w.rawDetails {
+		if m.rawDetails {
 			heading += " / Raw"
 		}
-		if w.inspect {
+		if m.inspect {
 			heading += " [focused]"
 		}
 		shortcuts := []popup.Shortcut{{Key: "Tab", Action: "focus inspector"}, {Key: "1–3", Action: "tabs"}}
-		if w.inspect {
+		if m.inspect {
 			shortcuts = []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "Tab", Action: "parent"}, {Key: "1–3", Action: "tabs"}}
 		}
-		if w.inspect && w.run == nil && !w.busy && w.inspectorTab != 1 {
+		if m.inspect && m.run == nil && !m.busy && m.inspectorTab != 1 {
 			shortcuts = []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "Tab", Action: "parent"}, {Key: "E", Action: "edit"}, {Key: "1–3", Action: "tabs"}}
 		}
-		right := view.Render(Panel{
+		right := view.Render(screen.Panel{
 			Title: heading, Hint: view.Hints(width, shortcuts...), Body: body,
-			Width: width, Focused: w.inspect, Close: true,
+			Width: width, Focused: m.inspect, Close: true,
 		})
 		if split {
 			for i := range rows {
@@ -194,26 +192,25 @@ func (m *Model) content() string {
 }
 
 func (m *Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	w := m
 	mouse := msg.Mouse()
 	view := m.presentation()
 
 	cw, ch := m.canvasSize()
-	regions := view.Panes(w.inspectorOpen)
+	regions := view.Panes(m.inspectorOpen)
 	canvasLayout := view.Layout(regions.Main.Width, false)
 	sideLayout := view.Layout(regions.Side.Width, true)
 	x, y := mouse.X-canvasLayout.Body.X, mouse.Y-regions.Main.Y-canvasLayout.Body.Y
 	inspectorHeader := len(m.inspectorTabs().Rows) + 1
-	inInspector := w.inspectorOpen && regions.Side.Contains(mouse.X, mouse.Y)
+	inInspector := m.inspectorOpen && regions.Side.Contains(mouse.X, mouse.Y)
 	if inInspector && sideLayout.CloseHit.Contains(mouse.X-regions.Side.X, mouse.Y-regions.Side.Y) && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
-		w.inspectorOpen, w.inspect = false, false
-		w.thumb = scrollDrag{}
+		m.inspectorOpen, m.inspect = false, false
+		m.thumb = scrollDrag{}
 		return m, nil
 	}
-	if w.thumb.active {
-		w.offset = popup.ScrollOffset(y-inspectorHeader, max(1, ch-inspectorHeader), len(m.inspectorContent()), w.thumb.grab)
+	if m.thumb.active {
+		m.offset = popup.ScrollOffset(y-inspectorHeader, max(1, ch-inspectorHeader), len(m.inspectorContent()), m.thumb.grab)
 		if _, ok := msg.(tea.MouseReleaseMsg); ok {
-			w.thumb = scrollDrag{}
+			m.thumb = scrollDrag{}
 		}
 		return m, nil
 	}
@@ -221,29 +218,29 @@ func (m *Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		tabs := m.inspectorTabs()
 		if tab := tabs.Hit(mouse.X-regions.Side.X-sideLayout.Body.X, y); tab >= 0 {
 			m.setInspectorTab(tab)
-			w.inspect = true
+			m.inspect = true
 			return m, nil
 		}
 	}
 
 	if _, ok := msg.(tea.MouseReleaseMsg); ok {
-		dragged := w.dragging
-		w.dragging = false
-		w.panning = false
+		dragged := m.dragging
+		m.dragging = false
+		m.panning = false
 		if dragged {
 			m.persistLayout()
 		}
 		return m, nil
 	}
-	if w.panning {
-		w.graph.Pan.X -= x - w.last.X
-		w.graph.Pan.Y -= y - w.last.Y
-		w.last = graph.Point{X: x, Y: y}
+	if m.panning {
+		m.graph.Pan.X -= x - m.last.X
+		m.graph.Pan.Y -= y - m.last.Y
+		m.last = graph.Point{X: x, Y: y}
 		return m, nil
 	}
-	if w.dragging {
-		w.graph.Move(x-w.last.X, y-w.last.Y)
-		w.last = graph.Point{X: x, Y: y}
+	if m.dragging {
+		m.graph.Move(x-m.last.X, y-m.last.Y)
+		m.last = graph.Point{X: x, Y: y}
 		return m, nil
 	}
 	if y < 0 || y >= ch {
@@ -257,25 +254,25 @@ func (m *Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		if inInspector {
 			if y >= inspectorHeader {
-				w.offset = max(0, w.offset+delta)
+				m.offset = max(0, m.offset+delta)
 			}
 		} else if mouse.Button == tea.MouseWheelLeft || mouse.Button == tea.MouseWheelRight || mouse.Mod&tea.ModShift != 0 {
-			w.graph.Pan.X += delta
+			m.graph.Pan.X += delta
 		} else {
-			w.graph.Pan.Y += delta
+			m.graph.Pan.Y += delta
 		}
 		return m, nil
 	}
 	if inInspector {
 		if mouse.Button == tea.MouseLeft && isMouseClick(msg) {
-			w.inspect = true
+			m.inspect = true
 			if y >= inspectorHeader && y < ch && mouse.X == regions.Side.X+sideLayout.Body.X+sideLayout.Body.Width-1 {
 				total := len(m.inspectorContent())
-				top, size := popup.ScrollThumb(max(1, ch-inspectorHeader), total, w.offset)
+				top, size := popup.ScrollThumb(max(1, ch-inspectorHeader), total, m.offset)
 				if y-inspectorHeader >= top && y-inspectorHeader < top+size {
-					w.thumb = scrollDrag{active: true, grab: y - inspectorHeader - top}
+					m.thumb = scrollDrag{active: true, grab: y - inspectorHeader - top}
 				} else {
-					w.offset = popup.ScrollOffset(y-inspectorHeader, max(1, ch-inspectorHeader), total, 0)
+					m.offset = popup.ScrollOffset(y-inspectorHeader, max(1, ch-inspectorHeader), total, 0)
 				}
 			}
 		}
@@ -285,41 +282,41 @@ func (m *Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if mouse.Button == tea.MouseMiddle && isMouseClick(msg) {
-		w.panning = true
-		w.last = graph.Point{X: x, Y: y}
+		m.panning = true
+		m.last = graph.Point{X: x, Y: y}
 		return m, nil
 	}
 	if mouse.Button == tea.MouseLeft && isMouseClick(msg) {
-		canvas := w.graph
-		if w.overview {
-			canvas = w.graph.Overview(cw)
+		canvas := m.graph
+		if m.overview {
+			canvas = m.graph.Overview(cw)
 		}
-		if !w.overview {
+		if !m.overview {
 			if id, port, output := canvas.PortHit(x, y); id != "" {
-				w.graph.Selected = id
-				if strings.HasPrefix(id, workflowSchedulePrefix) || strings.HasPrefix(w.connectFrom, workflowSchedulePrefix) {
-					w.connectFrom = ""
-					w.inspectorOpen = true
-					w.setNotice(pane.NoticeInfo, "Schedule starts the whole recipe; its connections are automatic")
+				m.graph.Selected = id
+				if strings.HasPrefix(id, workflowSchedulePrefix) || strings.HasPrefix(m.connectFrom, workflowSchedulePrefix) {
+					m.connectFrom = ""
+					m.inspectorOpen = true
+					m.setNotice(pane.NoticeInfo, "Schedule starts the whole recipe; its connections are automatic")
 					return m, nil
 				}
 				m.focusPort(port, output)
-				w.inspect = false
-				if w.run != nil || w.busy {
-					w.inspectorOpen = true
-					w.inspect = true
+				m.inspect = false
+				if m.run != nil || m.busy {
+					m.inspectorOpen = true
+					m.inspect = true
 					return m, nil
 				}
 				if output {
-					w.connectFrom = id
-					w.connectPort = port
-					w.setNotice(pane.NoticeInfo, "Choose an input port · Esc cancels")
-				} else if w.connectFrom != "" {
-					if (port == "@order") != (w.connectPort == "@order") {
-						w.setNotice(pane.NoticeWarning, "Connect data ports together, or then → after for execution order")
+					m.connectFrom = id
+					m.connectPort = port
+					m.setNotice(pane.NoticeInfo, "Choose an input port · Esc cancels")
+				} else if m.connectFrom != "" {
+					if (port == "@order") != (m.connectPort == "@order") {
+						m.setNotice(pane.NoticeWarning, "Connect data ports together, or then → after for execution order")
 						return m, nil
 					}
-					edit := workflowConnectionEdit{From: w.connectFrom, To: id, Pointer: w.connectPort, FixedSource: true, Draft: w.editor.Source()}
+					edit := workflowConnectionEdit{From: m.connectFrom, To: id, Pointer: m.connectPort, FixedSource: true, Draft: m.editor.Source()}
 					switch {
 					case port == "@order":
 						edit.Field = "depends_on"
@@ -334,28 +331,28 @@ func (m *Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 						edit.Field = "when"
 						edit.Path = strings.TrimPrefix(port, "when")
 					default:
-						w.setNotice(pane.NoticeWarning, "Choose a named destination port")
+						m.setNotice(pane.NoticeWarning, "Choose a named destination port")
 						return m, nil
 					}
-					w.connectFrom = ""
+					m.connectFrom = ""
 					m.connectionEdit(edit)
 				} else {
-					w.setNotice(pane.NoticeWarning, "Choose an output port first · C connects by keyboard")
+					m.setNotice(pane.NoticeWarning, "Choose an output port first · C connects by keyboard")
 				}
 				return m, nil
 			}
 		}
 		id := canvas.Hit(x, y)
-		w.inspect = false
+		m.inspect = false
 		if id != "" {
-			w.graph.Selected = id
-			w.portSelected = false
-			w.offset = 0
-			w.dragging = !w.overview && !w.positionsLocked
+			m.graph.Selected = id
+			m.portSelected = false
+			m.offset = 0
+			m.dragging = !m.overview && !m.positionsLocked
 		} else {
-			w.panning = !w.overview
+			m.panning = !m.overview
 		}
-		w.last = graph.Point{X: x, Y: y}
+		m.last = graph.Point{X: x, Y: y}
 	}
 	return m, nil
 }

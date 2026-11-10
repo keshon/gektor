@@ -1,9 +1,10 @@
 package workflow
 
 import (
-	"github.com/keshon/gektor/internal/workflow/script"
 	"os"
 	"testing"
+
+	"github.com/keshon/gektor/internal/workflow/script"
 )
 
 func TestMain(m *testing.M) {

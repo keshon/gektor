@@ -1,0 +1,118 @@
+package agent
+
+// Overlay frames remember the underlying pane for teardown. Message routing
+// uses activeInputOwner rather than trusting a widget's cached focus flag.
+
+// focusOwner identifies the zone that receives input.
+type focusOwner int
+
+const (
+	focusViewport focusOwner = iota
+	focusInput
+	focusNote
+	focusSearch
+	focusHeader
+	focusDialog
+	focusInspector
+)
+
+type overlayFrame struct {
+	focus focusOwner
+}
+
+// pushOverlay records the current focus owner and opens an overlay.
+// popOverlay closes the top overlay and restores its focus. An
+// unbalanced pop is a no-op, so event-driven teardown (resolve,
+// quit, cancel) can never underflow the stack.
+func (m *Model) pushOverlay() {
+	focus := focusViewport
+	switch {
+	case m.note.Focused():
+		focus = focusNote
+	case m.input.Focused():
+		focus = focusInput
+	}
+	m.overlays = append(m.overlays, overlayFrame{focus: focus})
+}
+
+func (m *Model) popOverlay() {
+	if len(m.overlays) == 0 {
+		return
+	}
+	top := m.overlays[len(m.overlays)-1]
+	m.overlays = m.overlays[:len(m.overlays)-1]
+	m.applyFocus(top.focus)
+}
+
+func (m *Model) applyFocus(f focusOwner) {
+	m.input.Blur()
+	m.note.Blur()
+	switch f {
+	case focusInput:
+		m.input.Focus()
+	case focusNote:
+		m.note.Focus()
+	}
+}
+
+// activeInputOwner is the single authority for keyboard, clipboard and caret routing.
+func (m *Model) activeInputOwner() focusOwner {
+	if m.state == stPermission {
+		if m.gstage == gsReject {
+			return focusNote
+		}
+		return focusViewport
+	}
+	if m.state == stAsk {
+		return focusInput
+	}
+	if m.dialog != nil {
+		return focusDialog
+	}
+	if m.sessions != nil {
+		switch m.sessions.mode {
+		case sessRename:
+			return focusNote
+		case sessList:
+			return focusSearch
+		}
+		return focusViewport
+	}
+	if m.header.focused {
+		return focusHeader
+	}
+	if m.inspectorVisible() && (m.inspector.focused || m.termW < inspectorSplitWidth) {
+		return focusInspector
+	}
+	if m.inspector.selecting {
+		return focusViewport
+	}
+	return focusInput
+}
+
+func (m *Model) syncFocus() {
+	owner := m.activeInputOwner()
+	if m.dialog != nil && m.dialog.table != nil {
+		m.dialog.table.model.SyncFocus(owner == focusDialog)
+	}
+	if m.dialog != nil && m.dialog.form != nil {
+		m.dialog.form.SyncInputFocus(owner == focusDialog)
+	}
+	if owner != focusInput {
+		m.input.Blur()
+	} else if !m.input.Focused() {
+		m.input.Focus()
+	}
+	if owner != focusNote {
+		m.note.Blur()
+	} else if !m.note.Focused() {
+		m.note.Focus()
+	}
+	if m.sessions != nil {
+		if owner != focusSearch {
+			m.sessions.filter.Blur()
+		} else if !m.sessions.filter.Focused() {
+			m.sessions.filter.Focus()
+		}
+	}
+}

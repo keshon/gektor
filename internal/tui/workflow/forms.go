@@ -3,20 +3,18 @@ package workflow
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/schemaform"
-
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow"
 )
 
 func (m *Model) setupForm() tea.Cmd {
-	w := m
-	if w.run != nil {
+	if m.run != nil {
 		return nil
 	}
 	m.dialogs.OpenForm(screen.Form{
@@ -40,8 +38,7 @@ func (m *Model) setupForm() tea.Cmd {
 }
 
 func (m *Model) addNodeForm() tea.Cmd {
-	w := m
-	names := append(w.registry.Names(), "Schedule trigger")
+	names := append(m.registry.Names(), "Schedule trigger")
 	m.dialogs.OpenForm(screen.Form{
 		Title:      "Add node",
 		Hint:       "Choose an operation or a Schedule trigger.",
@@ -52,7 +49,7 @@ func (m *Model) addNodeForm() tea.Cmd {
 				m.queueAction("schedule-add", "")
 				return nil
 			}
-			if _, err := w.registry.Node(v["type"]); err != nil {
+			if _, err := m.registry.Node(v["type"]); err != nil {
 				return err
 			}
 			m.queueAction("add-operation", v["type"])
@@ -65,9 +62,8 @@ func (m *Model) addNodeForm() tea.Cmd {
 }
 
 func (m *Model) behaviorForm() tea.Cmd {
-	w := m
-	for i, step := range w.editor.Definition.Steps {
-		if step.ID != w.graph.Selected {
+	for i, step := range m.editor.Definition.Steps {
+		if step.ID != m.graph.Selected {
 			continue
 		}
 		original, _ := json.Marshal(step)
@@ -86,10 +82,10 @@ func (m *Model) behaviorForm() tea.Cmd {
 				if err := json.Unmarshal(raw, &changed); err != nil {
 					return err
 				}
-				d := w.editor.Clone()
+				d := m.editor.Clone()
 				d.Steps[i] = changed
-				w.editor.Replace(d)
-				w.graph = m.buildGraph(w.graph)
+				m.editor.Replace(d)
+				m.graph = m.buildGraph(m.graph)
 				return nil
 			},
 			Choices: schema.Choices(),
@@ -118,19 +114,18 @@ func (m *Model) proposalForm() tea.Cmd {
 }
 
 func (m *Model) sourceForm() tea.Cmd {
-	w := m
 	m.dialogs.OpenForm(screen.Form{
 		Title:      "Recipe JSON",
 		Hint:       "Inputs, outputs, conditions, iteration and retry are preserved here.",
 		ApplyLabel: "Apply",
-		Fields:     []formField{{Key: "source", Label: "Recipe", Value: w.editor.Source(), Multiline: true}},
+		Fields:     []formField{{Key: "source", Label: "Recipe", Value: m.editor.Source(), Multiline: true}},
 		Apply: func(v map[string]string) error {
 			d, err := Decode([]byte(v["source"]))
 			if err != nil {
 				return err
 			}
-			w.editor.Replace(d)
-			w.graph = m.buildGraph(w.graph)
+			m.editor.Replace(d)
+			m.graph = m.buildGraph(m.graph)
 			return nil
 		},
 	})
@@ -138,24 +133,23 @@ func (m *Model) sourceForm() tea.Cmd {
 }
 
 func (m *Model) connectForm() tea.Cmd {
-	w := m
 	names := []string{}
-	for _, s := range w.editor.Definition.Steps {
+	for _, s := range m.editor.Definition.Steps {
 		names = append(names, s.ID)
 	}
 	if len(names) < 2 {
-		w.setNotice(pane.NoticeWarning, "Add at least two nodes first")
+		m.setNotice(pane.NoticeWarning, "Add at least two nodes first")
 		return nil
 	}
 	destination := names[0]
-	if destination == w.graph.Selected {
+	if destination == m.graph.Selected {
 		destination = names[1]
 	}
 	m.dialogs.OpenForm(screen.Form{
 		Title:      "Connect nodes",
 		Hint:       "Choose the source and destination, then map their data.",
 		ApplyLabel: "Next",
-		Fields:     []formField{{Key: "from", Label: "Source node", Value: w.graph.Selected}, {Key: "to", Label: "Destination node", Value: destination}},
+		Fields:     []formField{{Key: "from", Label: "Source node", Value: m.graph.Selected}, {Key: "to", Label: "Destination node", Value: destination}},
 		Apply: func(v map[string]string) error {
 			if v["from"] == v["to"] {
 				return fmt.Errorf("choose different nodes")
@@ -171,12 +165,11 @@ func (m *Model) connectForm() tea.Cmd {
 }
 
 func (m *Model) deleteNodeForm() tea.Cmd {
-	w := m
 	if schedule := m.selectedSchedule(); schedule != nil {
 		m.deleteSchedule(*schedule)
 		return nil
 	}
-	id := w.graph.Selected
+	id := m.graph.Selected
 	m.dialogs.OpenForm(screen.Form{
 		Title:      "Delete node",
 		Hint:       "References to this node must be repaired before validation succeeds.",
@@ -186,16 +179,16 @@ func (m *Model) deleteNodeForm() tea.Cmd {
 			if id == "" || v["id"] != id {
 				return fmt.Errorf("type %s", id)
 			}
-			d := w.editor.Clone()
+			d := m.editor.Clone()
 			for i, s := range d.Steps {
 				if s.ID == id {
 					d.Steps = append(d.Steps[:i], d.Steps[i+1:]...)
 					break
 				}
 			}
-			w.editor.Replace(d)
-			w.graph.Selected = ""
-			w.graph = m.buildGraph(w.graph)
+			m.editor.Replace(d)
+			m.graph.Selected = ""
+			m.graph = m.buildGraph(m.graph)
 			return nil
 		},
 		Destructive: true,
@@ -205,23 +198,22 @@ func (m *Model) deleteNodeForm() tea.Cmd {
 }
 
 func (m *Model) reviewForm() tea.Cmd {
-	w := m
-	if w.run == nil {
-		w.setNotice(pane.NoticeWarning, "Open a run first")
+	if m.run == nil {
+		m.setNotice(pane.NoticeWarning, "Open a run first")
 		return nil
 	}
 	pending := []string{}
-	for _, s := range w.run.Steps {
+	for _, s := range m.run.Steps {
 		if s.Status == "waiting_review" {
 			pending = append(pending, s.ID)
 		}
 	}
 	if len(pending) == 0 {
-		w.setNotice(pane.NoticeInfo, "No pending review")
+		m.setNotice(pane.NoticeInfo, "No pending review")
 		return nil
 	}
 	resolved := ""
-	for _, step := range w.run.Steps {
+	for _, step := range m.run.Steps {
 		if step.ID == pending[0] {
 			resolved = prettyToolArguments(string(step.Args))
 			break

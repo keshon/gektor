@@ -2,11 +2,13 @@ package workflow
 
 import (
 	"bytes"
-	tea "charm.land/bubbletea/v2"
 	"encoding/json"
+	"strings"
+
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/tui/components/cell"
 	"github.com/keshon/gektor/internal/tui/components/form"
-	"strings"
 )
 
 type formField = form.Field

@@ -3,14 +3,13 @@ package workflow
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/schemaform"
-
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow"
 )
 
@@ -28,24 +27,23 @@ func (m *Model) queueConnection(edit workflowConnectionEdit) {
 }
 
 func (m *Model) connections() {
-	w := m
-	links := w.editor.Connections(w.graph.Selected)
+	links := m.editor.Connections(m.graph.Selected)
 	if len(links) == 0 {
-		w.setNotice(pane.NoticeInfo, "No connections for this node · C creates one")
+		m.setNotice(pane.NoticeInfo, "No connections for this node · C creates one")
 		return
 	}
 	choices := make([]string, len(links))
 	for i, c := range links {
 		choices[i] = strconv.Itoa(i+1) + ". " + c.Label()
 	}
-	draft := w.editor.Source()
+	draft := m.editor.Source()
 	m.dialogs.OpenForm(screen.Form{
-		Title:      "Connections / " + w.graph.Selected,
+		Title:      "Connections / " + m.graph.Selected,
 		Hint:       "Incoming and outgoing connections. Choose one to edit or remove.",
 		ApplyLabel: "Next",
 		Fields:     []formField{{Key: "connection", Label: "Connection", Value: choices[0]}, {Key: "action", Label: "Action", Value: "Edit"}},
 		Apply: func(v map[string]string) error {
-			if w.editor.Source() != draft {
+			if m.editor.Source() != draft {
 				return fmt.Errorf("draft changed; reopen connections")
 			}
 			for i, label := range choices {
@@ -67,13 +65,12 @@ func (m *Model) connections() {
 }
 
 func (m *Model) connectionTarget(from, to string, old *Connection) {
-	w := m
-	if w.run != nil || w.busy {
+	if m.run != nil || m.busy {
 		return
 	}
 	var dest workflow.Step
 	var names []string
-	for _, s := range w.editor.Definition.Steps {
+	for _, s := range m.editor.Definition.Steps {
 		names = append(names, s.ID)
 		if s.ID == to {
 			dest = s
@@ -82,9 +79,9 @@ func (m *Model) connectionTarget(from, to string, old *Connection) {
 	if dest.ID == "" {
 		return
 	}
-	node, err := w.registry.Node(dest.Tool)
+	node, err := m.registry.Node(dest.Tool)
 	if err != nil {
-		w.setNotice(pane.NoticeError, err.Error())
+		m.setNotice(pane.NoticeError, err.Error())
 		return
 	}
 	paths := map[string]Connection{"Run after (no data)": {To: to, Field: "depends_on"}}
@@ -110,14 +107,14 @@ func (m *Model) connectionTarget(from, to string, old *Connection) {
 			options = append(options, selected)
 		}
 	}
-	draft := w.editor.Source()
+	draft := m.editor.Source()
 	m.dialogs.OpenForm(screen.Form{
 		Title:      "Connect to " + to,
 		Hint:       "Choose the source and destination value. The next screen shows the current value.",
 		ApplyLabel: "Next",
 		Fields:     []formField{{Key: "from", Label: "Source node", Value: from}, {Key: "arg", Label: "Destination", Value: selected}},
 		Apply: func(v map[string]string) error {
-			if w.editor.Source() != draft {
+			if m.editor.Source() != draft {
 				return fmt.Errorf("draft changed; reopen connections")
 			}
 			c, ok := paths[v["arg"]]
@@ -216,12 +213,11 @@ func workflowOutputPointers(raw json.RawMessage) []string {
 }
 
 func (m *Model) connectionEdit(edit workflowConnectionEdit) {
-	w := m
-	if w.busy || w.run != nil {
+	if m.busy || m.run != nil {
 		return
 	}
-	if edit.Draft != w.editor.Source() {
-		w.setNotice(pane.NoticeWarning, "Draft changed · reopen connections")
+	if edit.Draft != m.editor.Source() {
+		m.setNotice(pane.NoticeWarning, "Draft changed · reopen connections")
 		return
 	}
 	if edit.Remove {
@@ -229,17 +225,17 @@ func (m *Model) connectionEdit(edit workflowConnectionEdit) {
 			return
 		}
 		c := *edit.Old
-		current := connectionValue(w.editor.Definition, c.To, c.Field, c.Path)
+		current := connectionValue(m.editor.Definition, c.To, c.Field, c.Path)
 		m.dialogs.OpenForm(screen.Form{
 			Title:      "Remove connection",
 			Hint:       c.Label() + ". Required values remain missing until repaired.",
 			ApplyLabel: "Remove",
 			Fields:     []formField{{Key: "current", Label: "Current destination value", Value: cleanText(current), ReadOnly: true, Multiline: true}},
 			Apply: func(map[string]string) error {
-				if w.editor.Source() != edit.Draft {
+				if m.editor.Source() != edit.Draft {
 					return fmt.Errorf("draft changed; reopen connections")
 				}
-				if err := w.editor.ChangeConnection(&c, nil); err != nil {
+				if err := m.editor.ChangeConnection(&c, nil); err != nil {
 					return err
 				}
 				m.connectionChanged()
@@ -265,9 +261,9 @@ func (m *Model) connectionEdit(edit workflowConnectionEdit) {
 		fields = append(fields, formField{Key: "source", Label: "Source", Value: c.From + " / " + portLabelForDisplay(pointer), ReadOnly: true})
 	} else if c.Field != "depends_on" {
 		var hints []string
-		for _, s := range w.editor.Definition.Steps {
+		for _, s := range m.editor.Definition.Steps {
 			if s.ID == c.From {
-				if node, err := w.registry.Node(s.Tool); err == nil {
+				if node, err := m.registry.Node(s.Tool); err == nil {
 					hints = workflowOutputPointers(node.OutputSchema)
 				}
 			}
@@ -278,7 +274,7 @@ func (m *Model) connectionEdit(edit workflowConnectionEdit) {
 		}
 		fields = append(fields, formField{Key: "pointer", Label: "Manual JSON pointer (empty = whole output)", Value: pointer})
 	}
-	current := connectionValue(w.editor.Definition, c.To, c.Field, c.Path)
+	current := connectionValue(m.editor.Definition, c.To, c.Field, c.Path)
 	fields = append([]formField{{Key: "current", Label: "Current destination: " + c.Field + c.Path, Value: cleanText(current), ReadOnly: true, Multiline: true}}, fields...)
 	m.dialogs.OpenForm(screen.Form{
 		Title:      "Map " + c.From + " → " + c.To,
@@ -286,7 +282,7 @@ func (m *Model) connectionEdit(edit workflowConnectionEdit) {
 		ApplyLabel: "Apply",
 		Fields:     fields,
 		Apply: func(v map[string]string) error {
-			if w.editor.Source() != edit.Draft {
+			if m.editor.Source() != edit.Draft {
 				return fmt.Errorf("draft changed; reopen connections")
 			}
 			c.Pointer = v["pointer"]
@@ -309,7 +305,7 @@ func (m *Model) connectionEdit(edit workflowConnectionEdit) {
 					c.Pointer = hint
 				}
 			}
-			if err := w.editor.ChangeConnection(edit.Old, &c); err != nil {
+			if err := m.editor.ChangeConnection(edit.Old, &c); err != nil {
 				return err
 			}
 			m.connectionChanged()
@@ -328,18 +324,17 @@ func portLabelForDisplay(pointer string) string {
 }
 
 func (m *Model) connectionChanged() {
-	w := m
-	w.graph = m.buildGraph(w.graph)
-	w.setNotice(pane.NoticeSuccess, "Connection changed · V validates the draft")
+	m.graph = m.buildGraph(m.graph)
+	m.setNotice(pane.NoticeSuccess, "Connection changed · V validates the draft")
 	// Required-argument errors are visible immediately, without running a node.
-	for _, s := range w.editor.Definition.Steps {
-		node, err := w.registry.Node(s.Tool)
+	for _, s := range m.editor.Definition.Steps {
+		node, err := m.registry.Node(s.Tool)
 		if err != nil {
 			continue
 		}
 		if err := workflow.ValidateJSON(s.Args, workflow.TemplateSchema(node.InputSchema)); err != nil {
-			w.setNotice(pane.NoticeError, s.ID+": "+err.Error())
-			w.graph.Selected = s.ID
+			m.setNotice(pane.NoticeError, s.ID+": "+err.Error())
+			m.graph.Selected = s.ID
 			return
 		}
 	}

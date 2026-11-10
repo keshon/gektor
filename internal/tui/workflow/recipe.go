@@ -3,12 +3,12 @@ package workflow
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"sort"
 	"strings"
 
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/schemaform"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/recipe"
 )
@@ -21,18 +21,17 @@ type workflowParameterEdit struct {
 const workflowInputSchema = `{"type":"object","properties":{"type":{"type":"string","enum":["string","integer","number","boolean","array","object"]},"required":{"type":"boolean","enum":[false,true]},"default":{}},"required":["type"],"additionalProperties":false}`
 
 func (m *Model) recipeName() {
-	w := m
-	draft := w.editor.Source()
+	draft := m.editor.Source()
 	m.dialogs.OpenForm(screen.Form{
 		Title:      "Recipe name",
 		Hint:       "This name identifies the recipe in saved runs.",
 		ApplyLabel: "Apply",
-		Fields:     []formField{{Key: "name", Label: "Name", Value: w.editor.Definition.Name}},
+		Fields:     []formField{{Key: "name", Label: "Name", Value: m.editor.Definition.Name}},
 		Apply: func(v map[string]string) error {
 			if strings.TrimSpace(v["name"]) == "" || len(v["name"]) > 120 {
 				return fmt.Errorf("name must contain 1–120 bytes")
 			}
-			d := w.editor.Clone()
+			d := m.editor.Clone()
 			d.Name = v["name"]
 			return m.replaceRecipe(d, draft)
 		},
@@ -40,11 +39,10 @@ func (m *Model) recipeName() {
 }
 
 func (m *Model) replaceRecipe(d workflow.Definition, draft string) error {
-	w := m
-	if w.busy || w.run != nil {
+	if m.busy || m.run != nil {
 		return fmt.Errorf("return to an idle editable draft first")
 	}
-	if w.editor.Source() != draft {
+	if m.editor.Source() != draft {
 		return fmt.Errorf("draft changed; reopen recipe settings")
 	}
 	b, err := json.MarshalIndent(d, "", "  ")
@@ -55,22 +53,21 @@ func (m *Model) replaceRecipe(d workflow.Definition, draft string) error {
 		return fmt.Errorf("recipe exceeds 64 KiB")
 	}
 	if string(b) != draft {
-		w.editor.Replace(d)
-		w.graph = m.buildGraph(w.graph)
+		m.editor.Replace(d)
+		m.graph = m.buildGraph(m.graph)
 	}
-	w.setNotice(pane.NoticeSuccess, "Recipe updated · V validates the draft")
+	m.setNotice(pane.NoticeSuccess, "Recipe updated · V validates the draft")
 	return nil
 }
 
 func (m *Model) parameters(kind string) {
-	w := m
 	var names []string
 	if kind == "inputs" {
-		for name := range w.editor.Definition.Inputs {
+		for name := range m.editor.Definition.Inputs {
 			names = append(names, name)
 		}
 	} else {
-		for name := range w.editor.Definition.Outputs {
+		for name := range m.editor.Definition.Outputs {
 			names = append(names, name)
 		}
 	}
@@ -82,14 +79,14 @@ func (m *Model) parameters(kind string) {
 		options = append(options, label)
 		mapping[label] = name
 	}
-	draft := w.editor.Source()
+	draft := m.editor.Source()
 	m.dialogs.OpenForm(screen.Form{
 		Title:      "Recipe / " + kind,
 		Hint:       "Add, edit or remove one named value. Existing names stay fixed; references are not rewritten.",
 		ApplyLabel: "Next",
 		Fields:     []formField{{Key: "entry", Label: "Entry", Value: options[0]}, {Key: "action", Label: "Action", Value: "Edit"}},
 		Apply: func(v map[string]string) error {
-			if w.editor.Source() != draft {
+			if m.editor.Source() != draft {
 				return fmt.Errorf("draft changed; reopen recipe settings")
 			}
 			name, exists := mapping[v["entry"]]
@@ -113,18 +110,17 @@ func (m *Model) parameters(kind string) {
 }
 
 func (m *Model) parameterEdit(edit workflowParameterEdit) {
-	w := m
-	if w.busy || w.run != nil {
+	if m.busy || m.run != nil {
 		return
 	}
 	if edit.Kind != "inputs" && edit.Kind != "outputs" {
 		return
 	}
-	if w.editor.Source() != edit.Draft {
-		w.setNotice(pane.NoticeWarning, "Draft changed · reopen recipe settings")
+	if m.editor.Source() != edit.Draft {
+		m.setNotice(pane.NoticeWarning, "Draft changed · reopen recipe settings")
 		return
 	}
-	d := w.editor.Clone()
+	d := m.editor.Clone()
 	if edit.Remove {
 		var raw []byte
 		if edit.Kind == "inputs" {
@@ -180,7 +176,7 @@ func (m *Model) parameterEdit(edit workflowParameterEdit) {
 		Fields:     fields,
 		Choices:    choices,
 		Apply: func(v map[string]string) error {
-			d := w.editor.Clone()
+			d := m.editor.Clone()
 			name := v["name"]
 			if edit.Name != "" {
 				name = edit.Name

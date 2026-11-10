@@ -1,5 +1,6 @@
-// Package workflow owns editable recipes and workflow pane presentation.
-// Execution and application overlays live in the terminal adapter.
+// Package workflow owns the workflow editor, graph, execution, and run inspection.
+// Shared terminal controls are supplied through screen.Host; NewScreen is the
+// stateful entry point, while New constructs a standalone recipe Editor.
 package workflow
 
 import (

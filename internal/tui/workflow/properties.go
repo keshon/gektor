@@ -3,14 +3,13 @@ package workflow
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
-
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow"
 )
 
@@ -68,16 +67,15 @@ func (m *Model) detailRows() []string {
 	if schedule := m.selectedSchedule(); schedule != nil && m.run == nil {
 		return m.scheduleDetails(*schedule)
 	}
-	w := m
 	step := m.selectedStep()
 	rows := []string{"Inspect"}
 	if step.ID == "" {
 		return append(rows, "Select a node to inspect it.")
 	}
-	if w.rawDetails {
+	if m.rawDetails {
 		var raw []byte
-		if w.run != nil {
-			for _, r := range w.run.Steps {
+		if m.run != nil {
+			for _, r := range m.run.Steps {
 				if r.ID == step.ID || strings.HasPrefix(r.ID, step.ID+"/") {
 					b, _ := json.MarshalIndent(r, "", "  ")
 					raw = append(raw, b...)
@@ -89,15 +87,15 @@ func (m *Model) detailRows() []string {
 		}
 		return append(rows, strings.Split(cleanText(string(raw)), "\n")...)
 	}
-	if w.inspectorTab == 1 {
+	if m.inspectorTab == 1 {
 		return append(rows, m.resultRows(step)...)
 	}
-	if w.inspectorTab == 2 {
+	if m.inspectorTab == 2 {
 		return append(rows, m.codeRows(step)...)
 	}
 	e := &Editor{Definition: m.definition()}
 	nodes := map[string]graph.Node{}
-	for _, n := range e.Graph(w.graph).Nodes {
+	for _, n := range e.Graph(m.graph).Nodes {
 		nodes[n.ID] = n
 	}
 	n := nodes[step.ID]
@@ -106,19 +104,19 @@ func (m *Model) detailRows() []string {
 		operation = step.Tool
 	}
 	status := "Not run"
-	if w.run != nil {
-		status = workflowStepStatus(w.run, step.ID)
+	if m.run != nil {
+		status = workflowStepStatus(m.run, step.ID)
 	}
 	rows = append(rows, operation+" / "+status)
-	if w.run != nil {
-		rows = append(rows, "Frozen recipe / "+w.run.RunID)
+	if m.run != nil {
+		rows = append(rows, "Frozen recipe / "+m.run.RunID)
 	} else {
 		rows = append(rows, "Draft properties")
 	}
 	section := func(title string) { rows = append(rows, "", m.presentation().Styles.Accent.Render(title)) }
 	valueRow := func(key, label, value string, output bool) {
 		prefix := "  "
-		if w.portSelected && w.portFocus == key && w.portOutput == output && (key != "" || output) {
+		if m.portSelected && m.portFocus == key && m.portOutput == output && (key != "" || output) {
 			prefix = "› "
 		}
 		row := prefix + label + strings.Repeat(" ", max(2, 18-ansi.StringWidth(label))) + cleanText(value)
@@ -223,12 +221,11 @@ func withoutWorkflowCode(raw json.RawMessage) json.RawMessage {
 }
 
 func (m *Model) resultRows(step workflow.Step) []string {
-	w := m
-	if w.run == nil {
+	if m.run == nil {
 		return []string{"No recorded result for this draft.", "", "H opens saved runs."}
 	}
-	rows := []string{"Recorded run: " + w.run.RunID, "Recipe: " + w.run.RecipePath, "Status: " + workflowStepStatus(w.run, step.ID)}
-	for _, r := range w.run.Steps {
+	rows := []string{"Recorded run: " + m.run.RunID, "Recipe: " + m.run.RecipePath, "Status: " + workflowStepStatus(m.run, step.ID)}
+	for _, r := range m.run.Steps {
 		if r.ID != step.ID && !strings.HasPrefix(r.ID, step.ID+"/") {
 			continue
 		}
@@ -298,28 +295,27 @@ func (m *Model) codeRows(step workflow.Step) []string {
 }
 
 func (m *Model) editCode() {
-	w := m
-	if w.run != nil || w.busy {
-		w.setNotice(pane.NoticeWarning, "Recorded scripts are read-only")
+	if m.run != nil || m.busy {
+		m.setNotice(pane.NoticeWarning, "Recorded scripts are read-only")
 		return
 	}
 	step := m.selectedStep()
 	code, ok := workflowScript(step.Args)
 	if !ok {
-		w.setNotice(pane.NoticeWarning, "No literal script to edit; use node arguments for references")
+		m.setNotice(pane.NoticeWarning, "No literal script to edit; use node arguments for references")
 		return
 	}
-	draft := w.editor.Source()
+	draft := m.editor.Source()
 	m.dialogs.OpenForm(screen.Form{
 		Title:      "Code / " + step.ID,
 		Hint:       "Edits the draft script. Run and validation remain separate actions.",
 		ApplyLabel: "Apply",
 		Fields:     []formField{{Key: "code", Label: "JavaScript", Value: code, Multiline: true}},
 		Apply: func(v map[string]string) error {
-			if w.run != nil || w.busy || w.editor.Source() != draft {
+			if m.run != nil || m.busy || m.editor.Source() != draft {
 				return fmt.Errorf("draft changed; reopen the script")
 			}
-			d := w.editor.Clone()
+			d := m.editor.Clone()
 			for i := range d.Steps {
 				if d.Steps[i].ID == step.ID {
 					var args map[string]json.RawMessage
@@ -328,8 +324,8 @@ func (m *Model) editCode() {
 					}
 					args["code"], _ = json.Marshal(v["code"])
 					d.Steps[i].Args, _ = json.Marshal(args)
-					w.editor.Replace(d)
-					w.graph = m.buildGraph(w.graph)
+					m.editor.Replace(d)
+					m.graph = m.buildGraph(m.graph)
 					return nil
 				}
 			}

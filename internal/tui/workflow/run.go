@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"github.com/keshon/gektor/internal/tui/screen"
 	"os"
 	"path/filepath"
 	"sort"
@@ -20,18 +19,27 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/table"
-
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workflow/store"
 )
 
-func workflowWait(ch <-chan tea.Msg) tea.Cmd { return func() tea.Msg { return <-ch } }
+func (m *Model) wait() tea.Cmd {
+	ctx, events := m.ctx, m.events
+	return func() tea.Msg {
+		select {
+		case msg := <-events:
+			return msg
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
 func (m *Model) action(a workflowAction) tea.Cmd {
-	if m == nil {
+	if m.ctx.Err() != nil {
 		return nil
 	}
-	w := m
-	if w.busy {
+	if m.busy {
 		return nil
 	}
 	switch a.action {
@@ -45,8 +53,8 @@ func (m *Model) action(a workflowAction) tea.Cmd {
 		if json.Unmarshal([]byte(a.value), &in) != nil {
 			return nil
 		}
-		if in.Draft != w.editor.Source() || w.run != nil {
-			w.setNotice(pane.NoticeWarning, "Draft changed · reopen run inputs")
+		if in.Draft != m.editor.Source() || m.run != nil {
+			m.setNotice(pane.NoticeWarning, "Draft changed · reopen run inputs")
 			return nil
 		}
 		if a.action == "input-form" {
@@ -79,33 +87,34 @@ func (m *Model) action(a workflowAction) tea.Cmd {
 	case "ai-prompt":
 		return m.propose(a.value)
 	case "new-path":
-		w.runID = ""
-		w.editor = New()
-		w.editor.Path = a.value
-		w.graph = graph.Model{}
-		w.run = nil
+		m.runID = ""
+		m.editor = New()
+		m.editor.Path = a.value
+		m.graph = graph.Model{}
+		m.run = nil
 		return nil
 	case "inspect-run":
-		w.runID = a.value
+		m.runID = a.value
 		return m.poll(a.value, false)
 	case "open-path", "save-path", "validate-inputs", "run-inputs", "review-approve", "review-reject":
 	default:
 		return m.command(a.action)
 	}
-	if w.busy {
+	if m.busy {
 		return nil
 	}
-	w.busy = true
-	w.setNotice(pane.NoticeInfo, "Working…")
-	source, path := w.editor.Source(), w.editor.Path
+	m.busy = true
+	m.setNotice(pane.NoticeInfo, "Working…")
+	source, path := m.editor.Source(), m.editor.Path
 	ws, policy := m.config.WS, m.config.Policy
 	if path == "" {
 		path = "recipe.json"
 	}
 	ctx, cancel := context.WithCancel(m.ctx)
-	w.cancel = cancel
-	events := w.events
-	runID := w.runID
+	m.cancel = cancel
+	events := m.events
+	screenCtx := m.ctx
+	runID := m.runID
 	go func() {
 		defer cancel()
 		gate := func(ctx context.Context, tool, resource string, args json.RawMessage) (permission.Effect, error) {
@@ -128,7 +137,14 @@ func (m *Model) action(a workflowAction) tea.Cmd {
 		}
 		result := workflowResult{action: a.action}
 		if err == nil {
-			s.OnRun = func(id string) error { events <- workflowRunID(id); return nil }
+			s.OnRun = func(id string) error {
+				select {
+				case events <- workflowRunID(id):
+					return nil
+				case <-screenCtx.Done():
+					return screenCtx.Err()
+				}
+			}
 			switch a.action {
 			case "open-path":
 				var b []byte
@@ -155,15 +171,17 @@ func (m *Model) action(a workflowAction) tea.Cmd {
 			}
 		}
 		result.err = err
-		events <- result
+		select {
+		case events <- result:
+		case <-screenCtx.Done():
+		}
 	}()
-	return workflowWait(events)
+	return m.wait()
 }
 
 func (m *Model) openRuns(runs []store.RunSummary) {
-	w := m
 	if len(runs) == 0 {
-		w.setNotice(pane.NoticeInfo, "No runs in this workspace")
+		m.setNotice(pane.NoticeInfo, "No runs in this workspace")
 		return
 	}
 	runs = append([]store.RunSummary(nil), runs...)
@@ -184,10 +202,10 @@ func (m *Model) openRuns(runs []store.RunSummary) {
 			Columns:     []table.Column{{Label: "Recipe", Width: 14}, {Label: "Status", Width: 12}, {Label: "Started"}},
 			Description: "Saved runs in this workspace, newest first. Search by recipe, status, date or run ID. Open inspects a saved record; it does not run the recipe.",
 			Actions: func() []table.Action {
-				return []table.Action{{ID: "details", Label: "Open run", Key: "enter", Enabled: view.Selected() != "" && m == w && !w.busy}, {ID: "close", Label: "Close", Key: "esc", Enabled: true}}
+				return []table.Action{{ID: "details", Label: "Open run", Key: "enter", Enabled: view.Selected() != "" && m.ctx.Err() == nil && !m.busy}, {ID: "close", Label: "Close", Key: "esc", Enabled: true}}
 			},
 			Activate: func(action, id string) tea.Cmd {
-				if action == "details" && id != "" && m == w && !w.busy {
+				if action == "details" && id != "" && m.ctx.Err() == nil && !m.busy {
 					m.dialogs.CloseDialog()
 					m.queueAction("inspect-run", id)
 				}
@@ -198,7 +216,6 @@ func (m *Model) openRuns(runs []store.RunSummary) {
 
 }
 func (m *Model) acceptPermission(p workflowPermission) tea.Cmd {
-	w := m
 	m.dialogs.OpenForm(screen.Form{
 		Title:      "Allow operation?",
 		Hint:       p.tool + " on " + p.resource,
@@ -224,20 +241,19 @@ func (m *Model) acceptPermission(p workflowPermission) tea.Cmd {
 		},
 	})
 
-	return workflowWait(w.events)
+	return m.wait()
 }
 func (m *Model) acceptResult(r workflowResult) tea.Cmd {
-	w := m
-	if w == nil {
+	if m.ctx.Err() != nil {
 		return nil
 	}
-	w.busy = false
-	w.cancel = nil
+	m.busy = false
+	m.cancel = nil
 	m.dialogs.FinishOperation()
 	if r.err != nil {
 		if r.action == "open-path" {
-			w.setNotice(pane.NoticeWarning, "Recipe was not opened · Ctrl+O choose a file")
-			if w.active {
+			m.setNotice(pane.NoticeWarning, "Recipe was not opened · Ctrl+O choose a file")
+			if m.active {
 				form := m.recipePath("open")
 				form.Editor.SetValue(r.path)
 				message := "Could not open recipe: " + r.err.Error()
@@ -248,7 +264,7 @@ func (m *Model) acceptResult(r workflowResult) tea.Cmd {
 			}
 			return nil
 		}
-		w.setNotice(pane.NoticeError, r.err.Error())
+		m.setNotice(pane.NoticeError, r.err.Error())
 		rows := m.validationRows(r.err)
 		if r.text != "" {
 			rows = append(rows, r.text)
@@ -257,17 +273,17 @@ func (m *Model) acceptResult(r workflowResult) tea.Cmd {
 		return nil
 	}
 	if r.action == "schedule-save" || r.action == "schedule-delete" || r.action == "schedule-refresh" {
-		w.schedules = r.schedules
-		w.scheduleStatus, w.workerLeaseHeld = r.scheduleStatus, r.workerLeaseHeld
-		w.graph = m.buildGraph(w.graph)
+		m.schedules = r.schedules
+		m.scheduleStatus, m.workerLeaseHeld = r.scheduleStatus, r.workerLeaseHeld
+		m.graph = m.buildGraph(m.graph)
 		m.loadLayout()
 		if r.action == "schedule-save" {
-			w.graph.Selected = workflowSchedulePrefix + r.scheduleID
-			w.setNotice(pane.NoticeSuccess, "Schedule saved. Keep the workflow service running.")
+			m.graph.Selected = workflowSchedulePrefix + r.scheduleID
+			m.setNotice(pane.NoticeSuccess, "Schedule saved. Keep the workflow service running.")
 		} else if r.action == "schedule-delete" {
-			w.setNotice(pane.NoticeSuccess, "Schedule removed. Queued jobs and saved runs are kept.")
+			m.setNotice(pane.NoticeSuccess, "Schedule removed. Queued jobs and saved runs are kept.")
 		} else {
-			w.setNotice(pane.NoticeSuccess, "Schedules refreshed")
+			m.setNotice(pane.NoticeSuccess, "Schedules refreshed")
 		}
 		m.persistLayout()
 		return nil
@@ -275,25 +291,25 @@ func (m *Model) acceptResult(r workflowResult) tea.Cmd {
 	if r.source != "" {
 		d, err := Decode([]byte(r.source))
 		if err != nil {
-			w.setNotice(pane.NoticeError, err.Error())
+			m.setNotice(pane.NoticeError, err.Error())
 			return nil
 		}
-		w.runID = ""
-		w.editor = &Editor{Definition: d, Path: r.path}
-		w.editor.Saved = w.editor.Source()
-		w.run = nil
-		w.graph = m.buildGraph(graph.Model{})
+		m.runID = ""
+		m.editor = &Editor{Definition: d, Path: r.path}
+		m.editor.Saved = m.editor.Source()
+		m.run = nil
+		m.graph = m.buildGraph(graph.Model{})
 		m.loadLayout()
 	}
 	if r.path != "" && r.source == "" {
-		w.editor.Path = r.path
-		w.editor.Saved = w.editor.Source()
+		m.editor.Path = r.path
+		m.editor.Saved = m.editor.Source()
 		if err := m.saveLayout(); err != nil {
-			w.setNotice(pane.NoticeError, "Recipe saved; layout: "+err.Error())
+			m.setNotice(pane.NoticeError, "Recipe saved; layout: "+err.Error())
 			return nil
 		}
 	}
-	w.setNotice(pane.NoticeInfo, "Ready")
+	m.setNotice(pane.NoticeInfo, "Ready")
 	if r.text != "" {
 		var summary struct {
 			Status string `json:"status"`
@@ -308,13 +324,13 @@ func (m *Model) acceptResult(r workflowResult) tea.Cmd {
 			case "cancelled":
 				level = pane.NoticeWarning
 			}
-			w.setNotice(level, "Run: "+summary.Status+" / H opens saved runs")
+			m.setNotice(level, "Run: "+summary.Status+" / H opens saved runs")
 		} else {
-			w.setNotice(pane.NoticeInfo, r.text)
+			m.setNotice(pane.NoticeInfo, r.text)
 		}
 	}
-	if w.runID != "" {
-		return m.poll(w.runID, false)
+	if m.runID != "" {
+		return m.poll(m.runID, false)
 	}
 	if r.action == "open-path" || r.action == "save-path" {
 		return m.scheduleRefresh()
@@ -341,25 +357,24 @@ func (m *Model) poll(id string, delay bool) tea.Cmd {
 	}
 }
 func (m *Model) acceptPoll(p workflowPoll) tea.Cmd {
-	w := m
-	if w == nil || w.runID != p.id {
+	if m.ctx.Err() != nil || m.runID != p.id {
 		return nil
 	}
 	if p.err != nil {
-		w.setNotice(pane.NoticeError, p.err.Error())
+		m.setNotice(pane.NoticeError, p.err.Error())
 		return nil
 	}
-	w.run = p.run
+	m.run = p.run
 	e := &Editor{Definition: m.definition()}
-	w.graph = e.Graph(w.graph)
-	for i := range w.graph.Nodes {
+	m.graph = e.Graph(m.graph)
+	for i := range m.graph.Nodes {
 		for _, s := range p.run.Steps {
-			if w.graph.Nodes[i].ID == s.ID {
-				w.graph.Nodes[i].Detail = s.Status
+			if m.graph.Nodes[i].ID == s.ID {
+				m.graph.Nodes[i].Detail = s.Status
 			}
 		}
 	}
-	if w.busy {
+	if m.busy {
 		return m.poll(p.id, true)
 	}
 	return nil
