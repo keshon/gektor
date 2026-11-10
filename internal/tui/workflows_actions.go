@@ -62,7 +62,7 @@ func (m *workflowScreen) command(action string) tea.Cmd {
 		w.setNotice(pane.NoticeInfo, "Schedule starts the whole recipe. Enter edits the trigger; connections are automatic.")
 		return nil
 	}
-	fail := func(err error) { m.ui.openDialog("Workflow", []string{err.Error()}) }
+	fail := func(err error) { m.dialogs.openDialog("Workflow", []string{err.Error()}) }
 	switch action {
 	case "schedule":
 		m.schedule()
@@ -172,38 +172,52 @@ func workflowRequiresDraft(action string) bool {
 func (m *workflowScreen) recipePath(action string) {
 	w := m
 	fields := []formField{{Key: "path", Label: "Recipe path (relative to workspace)", Value: w.editor.Path}}
+	var fileFields map[string]settings.FilePicker
+	if action == "open" {
+		fileFields = map[string]settings.FilePicker{"path": {Root: m.config.WS.Root(), Extensions: []string{".json"}}}
+	}
 	if action == "new" {
 		fields[0].Value = "recipe.json"
 	}
 	if w.editor.Dirty() {
 		fields = append(fields, formField{Key: "discard", Label: "Unsaved changes: type discard to replace"})
 	}
-	m.ui.openForm("Workflow / "+action, "Workspace: "+m.config.WS.Root(), "Continue", fields, func(v map[string]string) error {
-		if w.editor.Dirty() && v["discard"] != "discard" {
-			return fmt.Errorf("save first, or type discard")
-		}
-		if strings.TrimSpace(v["path"]) == "" {
-			return fmt.Errorf("enter a recipe path")
-		}
-		if _, err := m.config.WS.Relative(v["path"]); err != nil {
-			return err
-		}
-		m.queueAction(action+"-path", v["path"])
-		return nil
+	m.dialogs.openForm(workflowForm{
+		Title:      "Workflow / " + action,
+		Hint:       "Workspace: " + m.config.WS.Root(),
+		ApplyLabel: "Continue",
+		Fields:     fields,
+		FileFields: fileFields,
+		Apply: func(v map[string]string) error {
+			if w.editor.Dirty() && v["discard"] != "discard" {
+				return fmt.Errorf("save first, or type discard")
+			}
+			if strings.TrimSpace(v["path"]) == "" {
+				return fmt.Errorf("enter a recipe path")
+			}
+			if _, err := m.config.WS.Relative(v["path"]); err != nil {
+				return err
+			}
+			m.queueAction(action+"-path", v["path"])
+			return nil
+		},
 	})
-	if action == "open" {
-		m.ui.dialog().form.FileFields = map[string]settings.FilePicker{"path": {Root: m.config.WS.Root(), Extensions: []string{".json"}}}
-	}
 }
 
 func (m *workflowScreen) saveForm() {
 	w := m
-	m.ui.openForm("Save workflow", "Writes the recipe; canvas positions stay in your user settings.", "Save", []formField{{Key: "path", Label: "Recipe path", Value: w.editor.Path}}, func(v map[string]string) error {
-		if strings.TrimSpace(v["path"]) == "" {
-			return fmt.Errorf("enter a path")
-		}
-		m.queueAction("save-path", v["path"])
-		return nil
+	m.dialogs.openForm(workflowForm{
+		Title:      "Save workflow",
+		Hint:       "Writes the recipe; canvas positions stay in your user settings.",
+		ApplyLabel: "Save",
+		Fields:     []formField{{Key: "path", Label: "Recipe path", Value: w.editor.Path}},
+		Apply: func(v map[string]string) error {
+			if strings.TrimSpace(v["path"]) == "" {
+				return fmt.Errorf("enter a path")
+			}
+			m.queueAction("save-path", v["path"])
+			return nil
+		},
 	})
 }
 
@@ -218,26 +232,32 @@ func (m *workflowScreen) addOperation(name string) {
 		return
 	}
 	draft := w.editor.Source()
-	m.ui.openForm("Add operation", name, "Add", []formField{{Key: "id", Label: "Unique node ID", Value: fmt.Sprintf("step_%d", len(w.editor.Definition.Steps)+1)}}, func(v map[string]string) error {
-		if w.busy || w.run != nil || w.editor.Source() != draft {
-			return fmt.Errorf("draft changed; add the node again")
-		}
-		id := strings.TrimSpace(v["id"])
-		if id == "" || strings.HasPrefix(id, "@") || strings.Contains(id, "/") {
-			return fmt.Errorf("enter a node ID without / or a leading @")
-		}
-		d := w.editor.Clone()
-		for _, s := range d.Steps {
-			if s.ID == id {
-				return fmt.Errorf("node ID already exists")
+	m.dialogs.openForm(workflowForm{
+		Title:      "Add operation",
+		Hint:       name,
+		ApplyLabel: "Add",
+		Fields:     []formField{{Key: "id", Label: "Unique node ID", Value: fmt.Sprintf("step_%d", len(w.editor.Definition.Steps)+1)}},
+		Apply: func(v map[string]string) error {
+			if w.busy || w.run != nil || w.editor.Source() != draft {
+				return fmt.Errorf("draft changed; add the node again")
 			}
-		}
-		d.Steps = append(d.Steps, workflow.Step{ID: id, Tool: n.Name, NodeVersion: n.Version, Args: json.RawMessage(`{}`)})
-		w.editor.Replace(d)
-		w.graph.Selected = id
-		w.graph = m.buildGraph(w.graph)
-		m.queueAction("edit", "")
-		return nil
+			id := strings.TrimSpace(v["id"])
+			if id == "" || strings.HasPrefix(id, "@") || strings.Contains(id, "/") {
+				return fmt.Errorf("enter a node ID without / or a leading @")
+			}
+			d := w.editor.Clone()
+			for _, s := range d.Steps {
+				if s.ID == id {
+					return fmt.Errorf("node ID already exists")
+				}
+			}
+			d.Steps = append(d.Steps, workflow.Step{ID: id, Tool: n.Name, NodeVersion: n.Version, Args: json.RawMessage(`{}`)})
+			w.editor.Replace(d)
+			w.graph.Selected = id
+			w.graph = m.buildGraph(w.graph)
+			m.queueAction("edit", "")
+			return nil
+		},
 	})
 }
 
@@ -260,7 +280,7 @@ func (m *workflowScreen) edit() {
 	s := w.editor.Definition.Steps[idx]
 	n, err := w.registry.Node(s.Tool)
 	if err != nil {
-		m.ui.openDialog("Node", []string{err.Error()})
+		m.dialogs.openDialog("Node", []string{err.Error()})
 		return
 	}
 	schema := schemaform.Parse(n.InputSchema)
@@ -268,21 +288,28 @@ func (m *workflowScreen) edit() {
 		delete(schema.Properties, "code")
 	}
 	draft := w.editor.Source()
-	m.ui.openForm(s.ID+" / "+s.Tool, n.Description+" · * required. Use JSON objects for references.", "Apply", schema.Fields(s.Args), func(v map[string]string) error {
-		if w.run != nil || w.busy || w.editor.Source() != draft {
-			return fmt.Errorf("draft changed; reopen node arguments")
-		}
-		args, err := schema.Values(s.Args, v)
-		if err != nil {
-			return err
-		}
-		d := w.editor.Clone()
-		d.Steps[idx].Args = args
-		w.editor.Replace(d)
-		w.graph = m.buildGraph(w.graph)
-		return nil
+	m.dialogs.openForm(workflowForm{
+		Title:      s.ID + " / " + s.Tool,
+		Hint:       n.Description + " · * required. Use JSON objects for references.",
+		ApplyLabel: "Apply",
+		Fields:     schema.Fields(s.Args),
+		Apply: func(v map[string]string) error {
+			if w.run != nil || w.busy || w.editor.Source() != draft {
+				return fmt.Errorf("draft changed; reopen node arguments")
+			}
+			args, err := schema.Values(s.Args, v)
+			if err != nil {
+				return err
+			}
+			d := w.editor.Clone()
+			d.Steps[idx].Args = args
+			w.editor.Replace(d)
+			w.graph = m.buildGraph(w.graph)
+			return nil
+		},
+		Choices: schema.Choices(),
 	})
-	m.ui.dialog().form.Choices = schema.Choices()
+
 }
 
 // workflowLinkTarget resolves the destination schema after both nodes are chosen.

@@ -1,4 +1,5 @@
-// Package workflow owns editable recipes; rendering and execution live in adapters.
+// Package workflow owns editable recipes and workflow pane presentation.
+// Execution and application overlays live in the terminal adapter.
 package workflow
 
 import (

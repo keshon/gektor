@@ -44,12 +44,16 @@ decides whether that saves settings, opens a session or starts a connection.
 The concrete `workflowScreen` in `internal/tui/workflows*.go` owns the workflow
 draft, graph, run state, message dispatch and asynchronous operations. The root
 model delegates input and workflow messages, and owns navigation and shared
-forms/dialogs. `internal/tui/workflow_navigation.go` connects those shared controls through
-concrete callbacks; the screen has no access to the agent or conversation.
+forms/dialogs. `internal/tui/workflow_navigation.go` connects those shared controls
+through named form requests and dialog operations. It also supplies a current
+`Surface` value for workflow layout and styles. Menu, quit and toolbar routing
+stay in the root; the screen has no access to the agent or conversation.
 Its context is closed when the terminal launch ends. Settings changes restart
 the launch, constructing a screen with the new client and policy.
 
-`internal/tui/workflow` remains the pure recipe editor and graph mapping.
+`internal/tui/workflow` owns the recipe editor, graph mapping and pane presentation.
+Its surface uses the same geometry for rendering and hit testing, without root-model
+callbacks. The stateful screen and shared-dialog integration remain in the root TUI package.
 The generic graph component renders supplied labels and tones; workflow status
 names and their presentation belong to the screen.
 

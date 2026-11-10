@@ -20,7 +20,8 @@ import (
 )
 
 type workflowScreen struct {
-	ui                       workflowUI
+	dialogs                  workflowDialogs
+	presentation             func() editor.Surface
 	config                   workflowScreenConfig
 	ctx                      context.Context
 	shutdown                 context.CancelFunc
@@ -236,12 +237,8 @@ func (m *workflowScreen) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "pgup", "pgdown", "home", "end":
 		m.page(key)
 	case "f1":
-		m.ui.openDialog("Workflow keys", strings.Split("Ctrl+O open · Ctrl+N new · Ctrl+S save\nA add · Enter edit/inspect · Delete delete\nC connect · B connections · E node behavior · J complete recipe JSON\nM recipe name · U inputs · O outputs\nArrows select · Shift+arrows move · G locks positions · Alt+arrows pan\nDrag background to pan · Shift+wheel horizontal\nClick output then input to connect · Ctrl+T inspector\nTab pane focus · 1/2/3 inspector tabs · Ctrl+J raw data\nInspector E edits properties/code · Esc closes focused inspector\nF compact overview · L auto-layout · Ctrl+Z undo · Ctrl+Y redo\nV validate · R run · H saved runs · P review\nD editable draft · I AI proposal\nEsc chat (draft retained) / stop active operation\nF9 main menu · Ctrl+Q quit", "\n"))
+		m.dialogs.openDialog("Workflow keys", strings.Split("Ctrl+O open · Ctrl+N new · Ctrl+S save\nA add · Enter edit/inspect · Delete delete\nC connect · B connections · E node behavior · J complete recipe JSON\nM recipe name · U inputs · O outputs\nArrows select · Shift+arrows move · G locks positions · Alt+arrows pan\nDrag background to pan · Shift+wheel horizontal\nClick output then input to connect · Ctrl+T inspector\nTab pane focus · 1/2/3 inspector tabs · Ctrl+J raw data\nInspector E edits properties/code · Esc closes focused inspector\nF compact overview · L auto-layout · Ctrl+Z undo · Ctrl+Y redo\nV validate · R run · H saved runs · P review\nD editable draft · I AI proposal\nEsc chat (draft retained) / stop active operation\nF9 main menu · Ctrl+Q quit", "\n"))
 		return m, nil
-	case "f9":
-		return m.ui.footerKey(msg)
-	case "f10":
-		return m.ui.requestQuit()
 	}
 	if strings.HasPrefix(key, "shift+") {
 		m.persistLayout()
@@ -256,7 +253,8 @@ func (m *workflowScreen) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 func (m *workflowScreen) inspectorContent() []string {
-	width := m.ui.panelGeometry(m.ui.screenPanes(true).Side.Width, 1, true, false).Body.Width
+	view := m.presentation()
+	width := view.Layout(view.Panes(true).Side.Width, true).Body.Width
 	var out []string
 	for _, line := range m.detailRows()[1:] {
 		out = append(out, strings.Split(ansi.Hardwrap(line, max(1, width-1), true), "\n")...)
@@ -280,19 +278,23 @@ func (m *workflowScreen) footerActions() []footerAction {
 		back = "Close"
 	}
 	actions := []footerAction{{tea.KeyF1, 0, "F1", "Help", "Help", true}, {'a', 0, "A", "Add node", "Add", edit}, {tea.KeyEnter, 0, "Enter", label, label, !w.busy}, {'c', 0, "C", "Connect", "Link", edit}, {'r', 0, "R", "Run", "Run", edit}, {'t', tea.ModCtrl, "Ctrl+T", "Inspector", "Inspect", true}, {'s', tea.ModCtrl, "Ctrl+S", "Save", "Save", edit}, {tea.KeyEscape, 0, "Esc", back, back, true}}
-	if m.ui.width() < 80 {
+	if m.presentation().Area.Width < 80 {
 		return []footerAction{actions[0], actions[1], actions[5], actions[7]}
 	}
 	return actions
 }
 
-func newWorkflowScreen(ctx context.Context, cfg workflowScreenConfig, ui workflowUI) (*workflowScreen, error) {
+func newWorkflowScreen(ctx context.Context, cfg workflowScreenConfig, dialogs workflowDialogs, presentation func() editor.Surface) (*workflowScreen, error) {
 	r, err := app.WorkflowRegistry(cfg.WS, userdirs.Sub("workflows"), nil, nil)
 	if err != nil {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(ctx)
-	return &workflowScreen{ui: ui, config: cfg, ctx: ctx, shutdown: cancel, editor: editor.New(), registry: r, events: make(chan tea.Msg, 16)}, nil
+	return &workflowScreen{
+		dialogs: dialogs, presentation: presentation, config: cfg,
+		ctx: ctx, shutdown: cancel, editor: editor.New(), registry: r,
+		events: make(chan tea.Msg, 16),
+	}, nil
 }
 func (m *workflowScreen) Close() {
 	if m.cancel != nil {

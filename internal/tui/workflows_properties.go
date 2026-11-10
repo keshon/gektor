@@ -114,7 +114,7 @@ func (m *workflowScreen) detailRows() []string {
 	} else {
 		rows = append(rows, "Draft properties")
 	}
-	section := func(title string) { rows = append(rows, "", m.ui.styles().hunk.Render(title)) }
+	section := func(title string) { rows = append(rows, "", m.presentation().Styles.Accent.Render(title)) }
 	valueRow := func(key, label, value string, output bool) {
 		prefix := "  "
 		if w.portSelected && w.portFocus == key && w.portOutput == output && (key != "" || output) {
@@ -122,7 +122,7 @@ func (m *workflowScreen) detailRows() []string {
 		}
 		row := prefix + label + strings.Repeat(" ", max(2, 18-ansi.StringWidth(label))) + cleanText(value)
 		if prefix == "› " {
-			row = m.ui.styles().hunk.Bold(true).Render(row)
+			row = m.presentation().Styles.Accent.Bold(true).Render(row)
 		}
 		rows = append(rows, row)
 	}
@@ -235,18 +235,18 @@ func (m *workflowScreen) resultRows(step workflow.Step) []string {
 			rows = append(rows, "", r.ID+" / "+r.Status)
 		}
 		if r.Error != "" {
-			rows = append(rows, "", m.ui.styles().err.Render("ERROR"), cleanText(r.Error))
+			rows = append(rows, "", m.presentation().Styles.Error.Render("ERROR"), cleanText(r.Error))
 		}
 		if len(r.Args) > 0 {
-			rows = append(rows, "", m.ui.styles().hunk.Render("RESOLVED INPUTS"))
+			rows = append(rows, "", m.presentation().Styles.Accent.Render("RESOLVED INPUTS"))
 			rows = append(rows, workflowValues(withoutWorkflowCode(r.Args))...)
 		}
 		if r.Output != "" {
-			rows = append(rows, "", m.ui.styles().hunk.Render("OUTPUT"))
+			rows = append(rows, "", m.presentation().Styles.Accent.Render("OUTPUT"))
 			rows = append(rows, workflowValues(json.RawMessage(r.Output))...)
 		}
 		if len(r.Iterations) > 0 {
-			rows = append(rows, "", m.ui.styles().hunk.Render("REPEATED ITEMS"))
+			rows = append(rows, "", m.presentation().Styles.Accent.Render("REPEATED ITEMS"))
 			for i, item := range r.Iterations {
 				rows = append(rows, fmt.Sprintf("%d  %s", i+1, item.Status))
 				if item.Error != "" {
@@ -309,24 +309,30 @@ func (m *workflowScreen) editCode() {
 		return
 	}
 	draft := w.editor.Source()
-	m.ui.openForm("Code / "+step.ID, "Edits the draft script. Run and validation remain separate actions.", "Apply", []formField{{Key: "code", Label: "JavaScript", Value: code, Multiline: true}}, func(v map[string]string) error {
-		if w.run != nil || w.busy || w.editor.Source() != draft {
-			return fmt.Errorf("draft changed; reopen the script")
-		}
-		d := w.editor.Clone()
-		for i := range d.Steps {
-			if d.Steps[i].ID == step.ID {
-				var args map[string]json.RawMessage
-				if err := json.Unmarshal(d.Steps[i].Args, &args); err != nil {
-					return err
-				}
-				args["code"], _ = json.Marshal(v["code"])
-				d.Steps[i].Args, _ = json.Marshal(args)
-				w.editor.Replace(d)
-				w.graph = m.buildGraph(w.graph)
-				return nil
+	m.dialogs.openForm(workflowForm{
+		Title:      "Code / " + step.ID,
+		Hint:       "Edits the draft script. Run and validation remain separate actions.",
+		ApplyLabel: "Apply",
+		Fields:     []formField{{Key: "code", Label: "JavaScript", Value: code, Multiline: true}},
+		Apply: func(v map[string]string) error {
+			if w.run != nil || w.busy || w.editor.Source() != draft {
+				return fmt.Errorf("draft changed; reopen the script")
 			}
-		}
-		return fmt.Errorf("node no longer exists")
+			d := w.editor.Clone()
+			for i := range d.Steps {
+				if d.Steps[i].ID == step.ID {
+					var args map[string]json.RawMessage
+					if err := json.Unmarshal(d.Steps[i].Args, &args); err != nil {
+						return err
+					}
+					args["code"], _ = json.Marshal(v["code"])
+					d.Steps[i].Args, _ = json.Marshal(args)
+					w.editor.Replace(d)
+					w.graph = m.buildGraph(w.graph)
+					return nil
+				}
+			}
+			return fmt.Errorf("node no longer exists")
+		},
 	})
 }

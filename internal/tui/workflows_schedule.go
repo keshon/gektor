@@ -204,46 +204,53 @@ func (m *workflowScreen) scheduleForm(in workflowInvocation) {
 	fields := []formField{{Key: "timing", Label: "When", Value: mode}, {Key: "time", Label: "Time (daily only, HH:MM)", Value: clock},
 		{Key: "cron", Label: "Cron (Cron only, minute hour day month weekday)", Value: s.Cron},
 		{Key: "timezone", Label: "Time zone", Value: s.Timezone}, {Key: "enabled", Label: "Enabled", Value: enabled}}
-	m.ui.openForm("Schedule trigger", "Saves this recipe and its input values as a schedule. Keep the workflow service running separately.", "Save schedule", fields, func(v map[string]string) error {
-		current, err := m.config.WS.Relative(w.editor.Path)
-		if err != nil || current != path || w.run != nil || w.busy || w.editor.Dirty() || w.editor.Source() != in.Draft {
-			return fmt.Errorf("recipe changed; reopen Schedule")
-		}
-		expression := strings.TrimSpace(v["cron"])
-		switch v["timing"] {
-		case "Every hour":
-			expression = "0 * * * *"
-		case "Daily":
-			clock, err := time.Parse("15:04", v["time"])
-			if err != nil {
-				return fmt.Errorf("enter a time such as 09:00")
+	m.dialogs.openForm(workflowForm{
+		Title:      "Schedule trigger",
+		Hint:       "Saves this recipe and its input values as a schedule. Keep the workflow service running separately.",
+		ApplyLabel: "Save schedule",
+		Fields:     fields,
+		Apply: func(v map[string]string) error {
+			current, err := m.config.WS.Relative(w.editor.Path)
+			if err != nil || current != path || w.run != nil || w.busy || w.editor.Dirty() || w.editor.Source() != in.Draft {
+				return fmt.Errorf("recipe changed; reopen Schedule")
 			}
-			expression = fmt.Sprintf("%d %d * * *", clock.Minute(), clock.Hour())
-		case "Cron":
-		default:
-			return fmt.Errorf("choose Every hour, Daily or Cron")
-		}
-		if _, err := cron.ParseStandard(expression); err != nil {
-			return fmt.Errorf("cron: %w", err)
-		}
-		zone := strings.TrimSpace(v["timezone"])
-		if _, err := time.LoadLocation(zone); err != nil {
-			return fmt.Errorf("use a time zone such as Europe/Moscow or UTC")
-		}
-		if v["enabled"] != "Yes" && v["enabled"] != "No" {
-			return fmt.Errorf("choose Yes or No")
-		}
-		changed := s
-		changed.Cron, changed.Timezone, changed.Paused, changed.Source = expression, zone, v["enabled"] == "No", json.RawMessage(in.Draft)
-		changed.Inputs = nil
-		if err := json.Unmarshal(in.Inputs, &changed.Inputs); err != nil {
-			return err
-		}
-		payload, _ := json.Marshal(workflowScheduleEdit{Draft: in.Draft, Schedule: changed, Expected: expected})
-		m.queueAction("schedule-save", string(payload))
-		return nil
+			expression := strings.TrimSpace(v["cron"])
+			switch v["timing"] {
+			case "Every hour":
+				expression = "0 * * * *"
+			case "Daily":
+				clock, err := time.Parse("15:04", v["time"])
+				if err != nil {
+					return fmt.Errorf("enter a time such as 09:00")
+				}
+				expression = fmt.Sprintf("%d %d * * *", clock.Minute(), clock.Hour())
+			case "Cron":
+			default:
+				return fmt.Errorf("choose Every hour, Daily or Cron")
+			}
+			if _, err := cron.ParseStandard(expression); err != nil {
+				return fmt.Errorf("cron: %w", err)
+			}
+			zone := strings.TrimSpace(v["timezone"])
+			if _, err := time.LoadLocation(zone); err != nil {
+				return fmt.Errorf("use a time zone such as Europe/Moscow or UTC")
+			}
+			if v["enabled"] != "Yes" && v["enabled"] != "No" {
+				return fmt.Errorf("choose Yes or No")
+			}
+			changed := s
+			changed.Cron, changed.Timezone, changed.Paused, changed.Source = expression, zone, v["enabled"] == "No", json.RawMessage(in.Draft)
+			changed.Inputs = nil
+			if err := json.Unmarshal(in.Inputs, &changed.Inputs); err != nil {
+				return err
+			}
+			payload, _ := json.Marshal(workflowScheduleEdit{Draft: in.Draft, Schedule: changed, Expected: expected})
+			m.queueAction("schedule-save", string(payload))
+			return nil
+		},
+		Choices: map[string][]string{"timing": {"Every hour", "Daily", "Cron"}, "enabled": {"Yes", "No"}},
 	})
-	m.ui.dialog().form.Choices = map[string][]string{"timing": {"Every hour", "Daily", "Cron"}, "enabled": {"Yes", "No"}}
+
 }
 
 func (m *workflowScreen) scheduleRefresh() tea.Cmd {
@@ -351,20 +358,27 @@ func loadScheduleInspection(ctx context.Context, db *store.Store, svc service.Se
 
 func (m *workflowScreen) deleteSchedule(s store.Schedule) {
 	draft := m.editor.Source()
-	m.ui.openForm("Remove schedule", "Stops future triggers. Existing runs and queued jobs are kept.", "Remove", []formField{{Key: "id", Label: "Type schedule ID to remove: " + s.ID}}, func(v map[string]string) error {
-		if v["id"] != s.ID {
-			return fmt.Errorf("type %s", s.ID)
-		}
-		payload, _ := json.Marshal(workflowScheduleEdit{Draft: draft, Schedule: s, Expected: &s})
-		m.queueAction("schedule-delete", string(payload))
-		return nil
+	m.dialogs.openForm(workflowForm{
+		Title:      "Remove schedule",
+		Hint:       "Stops future triggers. Existing runs and queued jobs are kept.",
+		ApplyLabel: "Remove",
+		Fields:     []formField{{Key: "id", Label: "Type schedule ID to remove: " + s.ID}},
+		Apply: func(v map[string]string) error {
+			if v["id"] != s.ID {
+				return fmt.Errorf("type %s", s.ID)
+			}
+			payload, _ := json.Marshal(workflowScheduleEdit{Draft: draft, Schedule: s, Expected: &s})
+			m.queueAction("schedule-delete", string(payload))
+			return nil
+		},
+		Destructive: true,
 	})
-	m.ui.dialog().form.Destructive = true
+
 }
 
 func (m *workflowScreen) scheduleDetails(s store.Schedule) []string {
 	w := m
-	rows := []string{"Inspect", m.ui.styles().hunk.Render("Schedule trigger"), ""}
+	rows := []string{"Inspect", m.presentation().Styles.Accent.Render("Schedule trigger"), ""}
 	if w.rawDetails {
 		b, _ := json.MarshalIndent(s, "", "  ")
 		return append(rows, strings.Split(cleanText(string(b)), "\n")...)

@@ -9,7 +9,7 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/popup"
-	editor "github.com/keshon/gektor/internal/tui/workflow"
+	workflowui "github.com/keshon/gektor/internal/tui/workflow"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/recipe"
 )
@@ -18,7 +18,7 @@ func (m *workflowScreen) definition() workflow.Definition {
 	if m.run != nil {
 		// The execution definition contains compiler bookkeeping. Orientation uses
 		// the frozen authoring snapshot, never the current workspace file.
-		if d, err := editor.Decode([]byte(m.run.RecipeSource)); err == nil {
+		if d, err := workflowui.Decode([]byte(m.run.RecipeSource)); err == nil {
 			return d
 		}
 		return m.run.Definition
@@ -106,13 +106,15 @@ func (m *workflowScreen) page(key string) {
 }
 
 func (m *workflowScreen) canvasSize() (int, int) {
-	area := m.ui.screenPanes(m.inspectorOpen).Main
-	layout := m.ui.panelGeometry(area.Width, 1, false, false)
+	view := m.presentation()
+	area := view.Panes(m.inspectorOpen).Main
+	layout := view.Layout(area.Width, false)
 	return max(layout.Body.Width, 1), max(layout.Body.Height, 1)
 }
 
 func (m *workflowScreen) content() string {
 	w := m
+	view := m.presentation()
 	cw, ch := m.canvasSize()
 	m.ensureSelection()
 	if w.run == nil {
@@ -126,7 +128,7 @@ func (m *workflowScreen) content() string {
 	for i := range canvas.Nodes {
 		canvas.Nodes[i].Detail, canvas.Nodes[i].DetailTone = workflowCardDetail(canvas.Nodes[i].Detail)
 	}
-	left := canvas.View(cw, ch, m.ui.graphStyles())
+	left := canvas.View(cw, ch, view.Styles.Graph)
 	if len(canvas.Nodes) == 0 {
 		left = cellFrame("No workflow open.\nCtrl+O opens a recipe · H saved runs\nA adds a node · I requests an AI proposal", cw, ch)
 	}
@@ -141,11 +143,15 @@ func (m *workflowScreen) content() string {
 	if w.positionsLocked {
 		mode += " [positions locked]"
 	}
-	regions := m.ui.screenPanes(w.inspectorOpen)
+	regions := view.Panes(w.inspectorOpen)
 	split := w.inspectorOpen && !regions.Covered
 	leftWidth := regions.Main.Width
-	footerWidth := m.ui.panelGeometry(leftWidth, 1, false, false).Footer.Width
-	rows := m.ui.inspectionRows(mode+" / "+cleanText(title), pane.NoticeRow(cleanText(w.notice), w.noticeLevel, footerWidth, m.ui.noticeStyles()), left, leftWidth, !w.inspect, false)
+	footerWidth := view.Layout(leftWidth, false).Footer.Width
+	rows := view.Render(workflowui.Panel{
+		Title: mode + " / " + cleanText(title),
+		Hint:  pane.NoticeRow(cleanText(w.notice), w.noticeLevel, footerWidth, view.Styles.Notice),
+		Body:  left, Width: leftWidth, Focused: !w.inspect,
+	})
 	if w.inspectorOpen {
 		width := regions.Side.Width
 		content := m.inspectorContent()
@@ -153,8 +159,8 @@ func (m *workflowScreen) content() string {
 		capacity := max(1, ch-len(tabs.Rows)-1)
 		w.offset = min(w.offset, max(0, len(content)-capacity))
 		visible := content[w.offset:min(len(content), w.offset+capacity)]
-		inner := m.ui.panelGeometry(width, 1, true, false).Body.Width
-		body := strings.Join(tabs.Rows, "\n") + "\n\n" + strings.Join(popup.ScrollRows(visible, inner, w.offset, len(content), m.ui.styles().dim), "\n")
+		inner := view.Layout(width, true).Body.Width
+		body := strings.Join(tabs.Rows, "\n") + "\n\n" + strings.Join(popup.ScrollRows(visible, inner, w.offset, len(content), view.Styles.Muted), "\n")
 		heading := "Inspect / " + cleanText(w.graph.Selected)
 		if m.selectedSchedule() != nil && w.run == nil {
 			heading = "Inspect / Schedule"
@@ -172,8 +178,10 @@ func (m *workflowScreen) content() string {
 		if w.inspect && w.run == nil && !w.busy && w.inspectorTab != 1 {
 			shortcuts = []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "Tab", Action: "parent"}, {Key: "E", Action: "edit"}, {Key: "1–3", Action: "tabs"}}
 		}
-		hint := m.ui.inspectionHints(width, shortcuts...)
-		right := m.ui.inspectionRows(heading, hint, body, width, w.inspect, true)
+		right := view.Render(workflowui.Panel{
+			Title: heading, Hint: view.Hints(width, shortcuts...), Body: body,
+			Width: width, Focused: w.inspect, Close: true,
+		})
 		if split {
 			for i := range rows {
 				rows[i] += right[i]
@@ -188,14 +196,12 @@ func (m *workflowScreen) content() string {
 func (m *workflowScreen) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	w := m
 	mouse := msg.Mouse()
-	if m.ui.actionBarVisible() && mouse.Y == m.ui.height()-1 && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
-		return m.ui.toolbarClick(mouse.X)
-	}
+	view := m.presentation()
 
 	cw, ch := m.canvasSize()
-	regions := m.ui.screenPanes(w.inspectorOpen)
-	canvasLayout := m.ui.panelGeometry(regions.Main.Width, 1, false, false)
-	sideLayout := m.ui.panelGeometry(regions.Side.Width, 1, true, false)
+	regions := view.Panes(w.inspectorOpen)
+	canvasLayout := view.Layout(regions.Main.Width, false)
+	sideLayout := view.Layout(regions.Side.Width, true)
 	x, y := mouse.X-canvasLayout.Body.X, mouse.Y-regions.Main.Y-canvasLayout.Body.Y
 	inspectorHeader := len(m.inspectorTabs().Rows) + 1
 	inInspector := w.inspectorOpen && regions.Side.Contains(mouse.X, mouse.Y)

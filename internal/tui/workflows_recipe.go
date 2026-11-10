@@ -22,13 +22,19 @@ const workflowInputSchema = `{"type":"object","properties":{"type":{"type":"stri
 func (m *workflowScreen) recipeName() {
 	w := m
 	draft := w.editor.Source()
-	m.ui.openForm("Recipe name", "This name identifies the recipe in saved runs.", "Apply", []formField{{Key: "name", Label: "Name", Value: w.editor.Definition.Name}}, func(v map[string]string) error {
-		if strings.TrimSpace(v["name"]) == "" || len(v["name"]) > 120 {
-			return fmt.Errorf("name must contain 1–120 bytes")
-		}
-		d := w.editor.Clone()
-		d.Name = v["name"]
-		return m.replaceRecipe(d, draft)
+	m.dialogs.openForm(workflowForm{
+		Title:      "Recipe name",
+		Hint:       "This name identifies the recipe in saved runs.",
+		ApplyLabel: "Apply",
+		Fields:     []formField{{Key: "name", Label: "Name", Value: w.editor.Definition.Name}},
+		Apply: func(v map[string]string) error {
+			if strings.TrimSpace(v["name"]) == "" || len(v["name"]) > 120 {
+				return fmt.Errorf("name must contain 1–120 bytes")
+			}
+			d := w.editor.Clone()
+			d.Name = v["name"]
+			return m.replaceRecipe(d, draft)
+		},
 	})
 }
 
@@ -76,8 +82,12 @@ func (m *workflowScreen) parameters(kind string) {
 		mapping[label] = name
 	}
 	draft := w.editor.Source()
-	m.ui.openForm("Recipe / "+kind, "Add, edit or remove one named value. Existing names stay fixed; references are not rewritten.", "Next",
-		[]formField{{Key: "entry", Label: "Entry", Value: options[0]}, {Key: "action", Label: "Action", Value: "Edit"}}, func(v map[string]string) error {
+	m.dialogs.openForm(workflowForm{
+		Title:      "Recipe / " + kind,
+		Hint:       "Add, edit or remove one named value. Existing names stay fixed; references are not rewritten.",
+		ApplyLabel: "Next",
+		Fields:     []formField{{Key: "entry", Label: "Entry", Value: options[0]}, {Key: "action", Label: "Action", Value: "Edit"}},
+		Apply: func(v map[string]string) error {
 			if w.editor.Source() != draft {
 				return fmt.Errorf("draft changed; reopen recipe settings")
 			}
@@ -95,8 +105,10 @@ func (m *workflowScreen) parameters(kind string) {
 			b, _ := json.Marshal(edit)
 			m.queueAction("parameter-edit", string(b))
 			return nil
-		})
-	m.ui.dialog().form.Choices = map[string][]string{"entry": options, "action": {"Edit", "Remove"}}
+		},
+		Choices: map[string][]string{"entry": options, "action": {"Edit", "Remove"}},
+	})
+
 }
 
 func (m *workflowScreen) parameterEdit(edit workflowParameterEdit) {
@@ -119,20 +131,30 @@ func (m *workflowScreen) parameterEdit(edit workflowParameterEdit) {
 		} else {
 			raw = d.Outputs[edit.Name]
 		}
-		m.ui.openRemoval("Remove "+edit.Name, "References to this name are not rewritten. Validate the recipe after removal.", "Remove", []formField{{Key: "current", Label: "Current " + edit.Kind + " value", Value: cleanText(string(raw)), ReadOnly: true, Multiline: true}}, func(map[string]string) error {
-			if edit.Kind == "inputs" {
-				delete(d.Inputs, edit.Name)
-			} else {
-				delete(d.Outputs, edit.Name)
-			}
-			return m.replaceRecipe(d, edit.Draft)
+		m.dialogs.openForm(workflowForm{
+			Title:      "Remove " + edit.Name,
+			Hint:       "References to this name are not rewritten. Validate the recipe after removal.",
+			ApplyLabel: "Remove",
+			Fields:     []formField{{Key: "current", Label: "Current " + edit.Kind + " value", Value: cleanText(string(raw)), ReadOnly: true, Multiline: true}},
+			Apply: func(map[string]string) error {
+				if edit.Kind == "inputs" {
+					delete(d.Inputs, edit.Name)
+				} else {
+					delete(d.Outputs, edit.Name)
+				}
+				return m.replaceRecipe(d, edit.Draft)
+			},
+			Destructive:   true,
+			StartOnCancel: true,
 		})
 		return
 	}
 	fields := []formField{{Key: "name", Label: "Name", Value: edit.Name, ReadOnly: edit.Name != ""}}
 	schema := schemaform.Parse(json.RawMessage(workflowInputSchema))
 	var original json.RawMessage
+	var choices map[string][]string
 	if edit.Kind == "inputs" {
+		choices = schema.Choices()
 		input := workflow.Input{Type: "string"}
 		if edit.Name != "" {
 			input = d.Inputs[edit.Name]
@@ -150,60 +172,64 @@ func (m *workflowScreen) parameterEdit(edit workflowParameterEdit) {
 	if edit.Kind == "outputs" {
 		hint = `Use a JSON value or reference, e.g. {"$step":"save","pointer":"/result"}. V validates referenced names.`
 	}
-	m.ui.openForm("Recipe / "+edit.Kind, hint, "Apply", fields, func(v map[string]string) error {
-		d := w.editor.Clone()
-		name := v["name"]
-		if edit.Name != "" {
-			name = edit.Name
-		}
-		if strings.TrimSpace(name) == "" || len(name) > 64 {
-			return fmt.Errorf("name must contain 1–64 bytes")
-		}
-		if edit.Kind == "inputs" {
-			if _, exists := d.Inputs[name]; exists && edit.Name == "" {
-				return fmt.Errorf("input name already exists")
+	m.dialogs.openForm(workflowForm{
+		Title:      "Recipe / " + edit.Kind,
+		Hint:       hint,
+		ApplyLabel: "Apply",
+		Fields:     fields,
+		Choices:    choices,
+		Apply: func(v map[string]string) error {
+			d := w.editor.Clone()
+			name := v["name"]
+			if edit.Name != "" {
+				name = edit.Name
 			}
-			raw, err := schema.Values(original, v)
-			if err != nil {
-				return err
+			if strings.TrimSpace(name) == "" || len(name) > 64 {
+				return fmt.Errorf("name must contain 1–64 bytes")
 			}
-			if err := workflow.ValidateJSON(raw, json.RawMessage(workflowInputSchema)); err != nil {
-				return err
-			}
-			var input workflow.Input
-			if err := json.Unmarshal(raw, &input); err != nil {
-				return err
-			}
-			if input.Default != nil {
-				if err := recipe.CheckInput(input.Default, input.Type); err != nil {
-					return fmt.Errorf("default: %w", err)
+			if edit.Kind == "inputs" {
+				if _, exists := d.Inputs[name]; exists && edit.Name == "" {
+					return fmt.Errorf("input name already exists")
 				}
+				raw, err := schema.Values(original, v)
+				if err != nil {
+					return err
+				}
+				if err := workflow.ValidateJSON(raw, json.RawMessage(workflowInputSchema)); err != nil {
+					return err
+				}
+				var input workflow.Input
+				if err := json.Unmarshal(raw, &input); err != nil {
+					return err
+				}
+				if input.Default != nil {
+					if err := recipe.CheckInput(input.Default, input.Type); err != nil {
+						return fmt.Errorf("default: %w", err)
+					}
+				}
+				if d.Inputs == nil {
+					d.Inputs = map[string]workflow.Input{}
+				}
+				if edit.Name == "" && len(d.Inputs) >= 32 {
+					return fmt.Errorf("recipe permits at most 32 inputs")
+				}
+				d.Inputs[name] = input
+			} else {
+				if _, exists := d.Outputs[name]; exists && edit.Name == "" {
+					return fmt.Errorf("output name already exists")
+				}
+				if !json.Valid([]byte(v["value"])) {
+					return fmt.Errorf("output value must be valid JSON")
+				}
+				if d.Outputs == nil {
+					d.Outputs = map[string]json.RawMessage{}
+				}
+				if edit.Name == "" && len(d.Outputs) >= 32 {
+					return fmt.Errorf("recipe permits at most 32 outputs")
+				}
+				d.Outputs[name] = json.RawMessage(v["value"])
 			}
-			if d.Inputs == nil {
-				d.Inputs = map[string]workflow.Input{}
-			}
-			if edit.Name == "" && len(d.Inputs) >= 32 {
-				return fmt.Errorf("recipe permits at most 32 inputs")
-			}
-			d.Inputs[name] = input
-		} else {
-			if _, exists := d.Outputs[name]; exists && edit.Name == "" {
-				return fmt.Errorf("output name already exists")
-			}
-			if !json.Valid([]byte(v["value"])) {
-				return fmt.Errorf("output value must be valid JSON")
-			}
-			if d.Outputs == nil {
-				d.Outputs = map[string]json.RawMessage{}
-			}
-			if edit.Name == "" && len(d.Outputs) >= 32 {
-				return fmt.Errorf("recipe permits at most 32 outputs")
-			}
-			d.Outputs[name] = json.RawMessage(v["value"])
-		}
-		return m.replaceRecipe(d, edit.Draft)
+			return m.replaceRecipe(d, edit.Draft)
+		},
 	})
-	if edit.Kind == "inputs" {
-		m.ui.dialog().form.Choices = schema.Choices()
-	}
 }

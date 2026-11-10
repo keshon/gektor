@@ -38,8 +38,12 @@ func (m *workflowScreen) connections() {
 		choices[i] = strconv.Itoa(i+1) + ". " + c.Label()
 	}
 	draft := w.editor.Source()
-	m.ui.openForm("Connections / "+w.graph.Selected, "Incoming and outgoing connections. Choose one to edit or remove.", "Next",
-		[]formField{{Key: "connection", Label: "Connection", Value: choices[0]}, {Key: "action", Label: "Action", Value: "Edit"}}, func(v map[string]string) error {
+	m.dialogs.openForm(workflowForm{
+		Title:      "Connections / " + w.graph.Selected,
+		Hint:       "Incoming and outgoing connections. Choose one to edit or remove.",
+		ApplyLabel: "Next",
+		Fields:     []formField{{Key: "connection", Label: "Connection", Value: choices[0]}, {Key: "action", Label: "Action", Value: "Edit"}},
+		Apply: func(v map[string]string) error {
 			if w.editor.Source() != draft {
 				return fmt.Errorf("draft changed; reopen connections")
 			}
@@ -55,8 +59,10 @@ func (m *workflowScreen) connections() {
 				return nil
 			}
 			return fmt.Errorf("choose a connection")
-		})
-	m.ui.dialog().form.Choices = map[string][]string{"connection": choices, "action": {"Edit", "Remove"}}
+		},
+		Choices: map[string][]string{"connection": choices, "action": {"Edit", "Remove"}},
+	})
+
 }
 
 func (m *workflowScreen) connectionTarget(from, to string, old *editor.Connection) {
@@ -104,8 +110,12 @@ func (m *workflowScreen) connectionTarget(from, to string, old *editor.Connectio
 		}
 	}
 	draft := w.editor.Source()
-	m.ui.openForm("Connect to "+to, "Choose the source and destination value. The next screen shows the current value.", "Next",
-		[]formField{{Key: "from", Label: "Source node", Value: from}, {Key: "arg", Label: "Destination", Value: selected}}, func(v map[string]string) error {
+	m.dialogs.openForm(workflowForm{
+		Title:      "Connect to " + to,
+		Hint:       "Choose the source and destination value. The next screen shows the current value.",
+		ApplyLabel: "Next",
+		Fields:     []formField{{Key: "from", Label: "Source node", Value: from}, {Key: "arg", Label: "Destination", Value: selected}},
+		Apply: func(v map[string]string) error {
 			if w.editor.Source() != draft {
 				return fmt.Errorf("draft changed; reopen connections")
 			}
@@ -124,8 +134,10 @@ func (m *workflowScreen) connectionTarget(from, to string, old *editor.Connectio
 			}
 			m.queueConnection(workflowConnectionEdit{From: v["from"], To: to, Field: c.Field, Path: c.Path, Old: old, Draft: draft})
 			return nil
-		})
-	m.ui.dialog().form.Choices = map[string][]string{"from": names, "arg": options}
+		},
+		Choices: map[string][]string{"from": names, "arg": options},
+	})
+
 }
 
 func connectionValue(d workflow.Definition, to, field, path string) string {
@@ -217,15 +229,23 @@ func (m *workflowScreen) connectionEdit(edit workflowConnectionEdit) {
 		}
 		c := *edit.Old
 		current := connectionValue(w.editor.Definition, c.To, c.Field, c.Path)
-		m.ui.openRemoval("Remove connection", c.Label()+". Required values remain missing until repaired.", "Remove", []formField{{Key: "current", Label: "Current destination value", Value: cleanText(current), ReadOnly: true, Multiline: true}}, func(map[string]string) error {
-			if w.editor.Source() != edit.Draft {
-				return fmt.Errorf("draft changed; reopen connections")
-			}
-			if err := w.editor.ChangeConnection(&c, nil); err != nil {
-				return err
-			}
-			m.connectionChanged()
-			return nil
+		m.dialogs.openForm(workflowForm{
+			Title:      "Remove connection",
+			Hint:       c.Label() + ". Required values remain missing until repaired.",
+			ApplyLabel: "Remove",
+			Fields:     []formField{{Key: "current", Label: "Current destination value", Value: cleanText(current), ReadOnly: true, Multiline: true}},
+			Apply: func(map[string]string) error {
+				if w.editor.Source() != edit.Draft {
+					return fmt.Errorf("draft changed; reopen connections")
+				}
+				if err := w.editor.ChangeConnection(&c, nil); err != nil {
+					return err
+				}
+				m.connectionChanged()
+				return nil
+			},
+			Destructive:   true,
+			StartOnCancel: true,
 		})
 		return
 	}
@@ -259,37 +279,44 @@ func (m *workflowScreen) connectionEdit(edit workflowConnectionEdit) {
 	}
 	current := connectionValue(w.editor.Definition, c.To, c.Field, c.Path)
 	fields = append([]formField{{Key: "current", Label: "Current destination: " + c.Field + c.Path, Value: cleanText(current), ReadOnly: true, Multiline: true}}, fields...)
-	m.ui.openForm("Map "+c.From+" → "+c.To, "Schema fields are hints. Manual pointers support dynamic outputs.", "Apply", fields, func(v map[string]string) error {
-		if w.editor.Source() != edit.Draft {
-			return fmt.Errorf("draft changed; reopen connections")
-		}
-		c.Pointer = v["pointer"]
-		if edit.FixedSource {
-			c.Pointer = edit.Pointer
-		}
-		if hint := v["source_field"]; hint != "" && hint != "Manual JSON pointer" {
-			valid := false
-			for _, option := range choices["source_field"] {
-				if option == hint {
-					valid = true
+	m.dialogs.openForm(workflowForm{
+		Title:      "Map " + c.From + " → " + c.To,
+		Hint:       "Schema fields are hints. Manual pointers support dynamic outputs.",
+		ApplyLabel: "Apply",
+		Fields:     fields,
+		Apply: func(v map[string]string) error {
+			if w.editor.Source() != edit.Draft {
+				return fmt.Errorf("draft changed; reopen connections")
+			}
+			c.Pointer = v["pointer"]
+			if edit.FixedSource {
+				c.Pointer = edit.Pointer
+			}
+			if hint := v["source_field"]; hint != "" && hint != "Manual JSON pointer" {
+				valid := false
+				for _, option := range choices["source_field"] {
+					if option == hint {
+						valid = true
+					}
+				}
+				if !valid {
+					return fmt.Errorf("choose a source field")
+				}
+				if hint == "Whole output" {
+					c.Pointer = ""
+				} else {
+					c.Pointer = hint
 				}
 			}
-			if !valid {
-				return fmt.Errorf("choose a source field")
+			if err := w.editor.ChangeConnection(edit.Old, &c); err != nil {
+				return err
 			}
-			if hint == "Whole output" {
-				c.Pointer = ""
-			} else {
-				c.Pointer = hint
-			}
-		}
-		if err := w.editor.ChangeConnection(edit.Old, &c); err != nil {
-			return err
-		}
-		m.connectionChanged()
-		return nil
+			m.connectionChanged()
+			return nil
+		},
+		Choices: choices,
 	})
-	m.ui.dialog().form.Choices = choices
+
 }
 
 func portLabelForDisplay(pointer string) string {

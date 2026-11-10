@@ -30,9 +30,10 @@ func (m *workflowScreen) inspectorTabs() pane.TabLayout {
 	if w.rawDetails {
 		active = -1
 	}
-	width := m.ui.panelGeometry(m.ui.screenPanes(true).Side.Width, 1, true, false).Body.Width
-	return pane.Tabs(labels, active, width, w.inspect && !m.ui.headerFocused(),
-		pane.TabStyles{Normal: m.ui.styles().dim, Active: m.ui.styles().title, Focus: m.ui.styles().focus})
+	view := m.presentation()
+	width := view.Layout(view.Panes(true).Side.Width, true).Body.Width
+	return pane.Tabs(labels, active, width, w.inspect && !view.HeaderFocused,
+		pane.TabStyles{Normal: view.Styles.Muted, Active: view.Styles.Panels.Title, Focus: view.Styles.Panels.Focus})
 }
 
 func (m *workflowScreen) focusPort(key string, output bool) {

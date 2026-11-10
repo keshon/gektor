@@ -168,7 +168,7 @@ func (m *workflowScreen) openRuns(runs []store.RunSummary) {
 	}
 	runs = append([]store.RunSummary(nil), runs...)
 	sort.SliceStable(runs, func(i, j int) bool { return runs[i].Started.After(runs[j].Started) })
-	view := m.ui.newTable()
+	view := m.dialogs.newTable()
 	rows := make([]table.Row, 0, len(runs))
 	for _, run := range runs {
 		started := "Unknown"
@@ -178,8 +178,8 @@ func (m *workflowScreen) openRuns(runs []store.RunSummary) {
 		rows = append(rows, table.Row{ID: run.ID, Cells: []string{cleanText(nonEmpty(run.Name)), cleanText(run.Status), started, run.ID, cleanText(run.RecipePath)}})
 	}
 	view.SetRows(rows)
-	m.ui.openDialog("Workflow runs", nil)
-	m.ui.dialog().table = &tableDialog{
+	m.dialogs.openDialog("Workflow runs", nil)
+	m.dialogs.dialog().table = &tableDialog{
 		model:       view,
 		columns:     []table.Column{{Label: "Recipe", Width: 14}, {Label: "Status", Width: 12}, {Label: "Started"}},
 		description: "Saved runs in this workspace, newest first. Search by recipe, status, date or run ID. Open inspects a saved record; it does not run the recipe.",
@@ -188,7 +188,7 @@ func (m *workflowScreen) openRuns(runs []store.RunSummary) {
 		},
 		activate: func(action, id string) tea.Cmd {
 			if action == "details" && id != "" && m == w && !w.busy {
-				m.ui.closeDialog()
+				m.dialogs.closeDialog()
 				m.queueAction("inspect-run", id)
 			}
 			return nil
@@ -197,24 +197,31 @@ func (m *workflowScreen) openRuns(runs []store.RunSummary) {
 }
 func (m *workflowScreen) acceptPermission(p workflowPermission) tea.Cmd {
 	w := m
-	m.ui.openForm("Allow operation?", p.tool+" on "+p.resource, "Decide", []formField{{Key: "decision", Label: "Permission", Value: "Deny"}, {Key: "args", Label: "Resolved arguments", Value: prettyToolArguments(string(p.args)), Multiline: true, ReadOnly: true}}, func(v map[string]string) error {
-		eff := permission.Deny
-		if v["decision"] == "Allow once" {
-			eff = permission.Allow
-		}
-		select {
-		case p.reply <- eff:
-		default:
-		}
-		return nil
+	m.dialogs.openForm(workflowForm{
+		Title:      "Allow operation?",
+		Hint:       p.tool + " on " + p.resource,
+		ApplyLabel: "Decide",
+		Fields:     []formField{{Key: "decision", Label: "Permission", Value: "Deny"}, {Key: "args", Label: "Resolved arguments", Value: prettyToolArguments(string(p.args)), Multiline: true, ReadOnly: true}},
+		Apply: func(v map[string]string) error {
+			eff := permission.Deny
+			if v["decision"] == "Allow once" {
+				eff = permission.Allow
+			}
+			select {
+			case p.reply <- eff:
+			default:
+			}
+			return nil
+		},
+		Choices: map[string][]string{"decision": {"Deny", "Allow once"}},
+		OnClose: func() {
+			select {
+			case p.reply <- permission.Deny:
+			default:
+			}
+		},
 	})
-	m.ui.dialog().form.Choices = map[string][]string{"decision": {"Deny", "Allow once"}}
-	m.ui.dialog().onClose = func() {
-		select {
-		case p.reply <- permission.Deny:
-		default:
-		}
-	}
+
 	return workflowWait(w.events)
 }
 func (m *workflowScreen) acceptResult(r workflowResult) tea.Cmd {
@@ -224,20 +231,20 @@ func (m *workflowScreen) acceptResult(r workflowResult) tea.Cmd {
 	}
 	w.busy = false
 	w.cancel = nil
-	if m.ui.dialog() != nil && m.ui.dialog().onClose != nil {
-		m.ui.closeDialog()
+	if m.dialogs.dialog() != nil && m.dialogs.dialog().onClose != nil {
+		m.dialogs.closeDialog()
 	}
 	if r.err != nil {
 		if r.action == "open-path" {
 			w.setNotice(pane.NoticeWarning, "Recipe was not opened · Ctrl+O choose a file")
 			m.command("open")
-			if m.ui.dialog() != nil && m.ui.dialog().form != nil {
-				m.ui.dialog().form.Editor.SetValue(r.path)
+			if m.dialogs.dialog() != nil && m.dialogs.dialog().form != nil {
+				m.dialogs.dialog().form.Editor.SetValue(r.path)
 				message := "Could not open recipe: " + r.err.Error()
 				if os.IsNotExist(r.err) {
 					message = "Recipe not found: " + r.path + ". Enter an existing path, or Esc then Ctrl+N to create one."
 				}
-				m.ui.dialog().form.Error = message
+				m.dialogs.dialog().form.Error = message
 			}
 			return nil
 		}
@@ -246,7 +253,7 @@ func (m *workflowScreen) acceptResult(r workflowResult) tea.Cmd {
 		if r.text != "" {
 			rows = append(rows, r.text)
 		}
-		m.ui.openDialog("Workflow failed", rows)
+		m.dialogs.openDialog("Workflow failed", rows)
 		return nil
 	}
 	if r.action == "schedule-save" || r.action == "schedule-delete" || r.action == "schedule-refresh" {

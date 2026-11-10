@@ -67,15 +67,21 @@ func (m *workflowScreen) inputForm(in workflowInvocation) {
 		primary = "Next"
 	}
 	if in.Mode == "JSON" {
-		m.ui.openForm(title+" / JSON", "Input values are checked before execution; omitted keys use recipe defaults.", primary, []formField{{Key: "inputs", Label: "Input values (JSON object)", Value: "{}", Multiline: true}}, func(v map[string]string) error {
-			var values map[string]json.RawMessage
-			if err := json.Unmarshal([]byte(v["inputs"]), &values); err != nil {
-				return err
-			}
-			if values == nil {
-				return fmt.Errorf("inputs must be an object")
-			}
-			return submit(values)
+		m.dialogs.openForm(workflowForm{
+			Title:      title + " / JSON",
+			Hint:       "Input values are checked before execution; omitted keys use recipe defaults.",
+			ApplyLabel: primary,
+			Fields:     []formField{{Key: "inputs", Label: "Input values (JSON object)", Value: "{}", Multiline: true}},
+			Apply: func(v map[string]string) error {
+				var values map[string]json.RawMessage
+				if err := json.Unmarshal([]byte(v["inputs"]), &values); err != nil {
+					return err
+				}
+				if values == nil {
+					return fmt.Errorf("inputs must be an object")
+				}
+				return submit(values)
+			},
 		})
 		return
 	}
@@ -154,29 +160,36 @@ func (m *workflowScreen) inputForm(in workflowInvocation) {
 	if in.Action == "schedule" {
 		hint = "These values will be saved with the schedule and used for each scheduled run."
 	}
-	m.ui.openForm(title, hint, primary, fields, func(v map[string]string) error {
-		values := map[string]json.RawMessage{}
-		for name, spec := range specs {
-			text := v["value:"+name]
-			if spec.Default != nil && text == initial[name] && in.Action != "schedule" {
-				continue
+	m.dialogs.openForm(workflowForm{
+		Title:      title,
+		Hint:       hint,
+		ApplyLabel: primary,
+		Fields:     fields,
+		Apply: func(v map[string]string) error {
+			values := map[string]json.RawMessage{}
+			for name, spec := range specs {
+				text := v["value:"+name]
+				if spec.Default != nil && text == initial[name] && in.Action != "schedule" {
+					continue
+				}
+				if spec.Default == nil && !spec.Required && text == "" && scheduled[name] == nil {
+					continue
+				}
+				value := json.RawMessage(text)
+				if spec.Type == "string" {
+					value, _ = json.Marshal(text)
+				}
+				if spec.Type == "array" && !strings.HasPrefix(strings.TrimSpace(text), "[") {
+					value = json.RawMessage("[" + text + "]")
+				}
+				if err := recipe.CheckInput(value, spec.Type); err != nil {
+					return fmt.Errorf("%s: %w", name, err)
+				}
+				values[name] = value
 			}
-			if spec.Default == nil && !spec.Required && text == "" && scheduled[name] == nil {
-				continue
-			}
-			value := json.RawMessage(text)
-			if spec.Type == "string" {
-				value, _ = json.Marshal(text)
-			}
-			if spec.Type == "array" && !strings.HasPrefix(strings.TrimSpace(text), "[") {
-				value = json.RawMessage("[" + text + "]")
-			}
-			if err := recipe.CheckInput(value, spec.Type); err != nil {
-				return fmt.Errorf("%s: %w", name, err)
-			}
-			values[name] = value
-		}
-		return submit(values)
+			return submit(values)
+		},
+		Choices: choices,
 	})
-	m.ui.dialog().form.Choices = choices
+
 }

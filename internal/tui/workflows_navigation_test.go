@@ -11,6 +11,30 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/graph"
 )
 
+func TestWorkflowGlobalNavigationStaysWithRoot(t *testing.T) {
+	m := workflowTestModel(t)
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF9})
+	if !m.header.focused {
+		t.Fatal("workflow swallowed the application menu key")
+	}
+	m.closeHeader()
+	m.workflows.editor.Replace(workflowRecipe())
+	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF10})
+	if m.dialog == nil || m.dialog.title != "Quit with unsaved workflow?" || m.quit {
+		t.Fatal("workflow bypassed the root's unsaved-draft protection")
+	}
+}
+
+func TestWorkflowFormRequestsPreserveRemovalFocus(t *testing.T) {
+	m := workflowTestModel(t)
+	m.workflows.editor.Replace(workflowRecipe())
+	m.workflows.graph.Selected = "transform"
+	m.workflowCommand("delete")
+	if !m.dialog.form.Destructive || m.dialog.form.Index != 0 {
+		t.Fatal("typed confirmation no longer starts at its input")
+	}
+}
+
 func TestWorkflowCanvasPanAndNodeDragStaySeparate(t *testing.T) {
 	m := workflowTestModel(t)
 	w := m.workflows

@@ -8,35 +8,31 @@ import (
 
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/tui/components/graph"
-	"github.com/keshon/gektor/internal/tui/components/pane"
-	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/tui/components/table"
+	"github.com/keshon/gektor/internal/tui/settings"
+	workflowui "github.com/keshon/gektor/internal/tui/workflow"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
-// workflowUI supplies shared terminal presentation and navigation, without access
-// to the parent agent, transcript, session factory or application state.
-type workflowUI struct {
-	openForm         func(string, string, string, []formField, func(map[string]string) error)
-	openRemoval      func(string, string, string, []formField, func(map[string]string) error)
-	openDialog       func(string, []string)
-	closeDialog      func()
-	dialog           func() *infoDialog
-	newTable         func() *table.Model
-	screenPanes      func(bool) pane.SplitLayout
-	panelGeometry    func(int, int, bool, bool) pane.Layout
-	inspectionRows   func(string, string, string, int, bool, bool) []string
-	inspectionHints  func(int, ...popup.Shortcut) string
-	graphStyles      func() graph.Styles
-	noticeStyles     func() pane.NoticeStyles
-	styles           func() styles
-	headerFocused    func() bool
-	width, height    func() int
-	actionBarVisible func() bool
-	toolbarClick     func(int) (tea.Model, tea.Cmd)
-	footerKey        func(tea.KeyPressMsg) (tea.Model, tea.Cmd)
-	requestQuit      func() (tea.Model, tea.Cmd)
+// workflowDialogs connects workflow actions to the terminal's shared overlays.
+// Geometry, rendering and global navigation do not belong to this connection.
+type workflowDialogs struct {
+	openForm    func(workflowForm)
+	openDialog  func(string, []string)
+	closeDialog func()
+	dialog      func() *infoDialog
+	newTable    func() *table.Model
+}
+
+type workflowForm struct {
+	Title, Hint, ApplyLabel string
+	Fields                  []formField
+	Apply                   func(map[string]string) error
+	Destructive             bool
+	StartOnCancel           bool
+	Choices                 map[string][]string
+	FileFields              map[string]settings.FilePicker
+	OnClose                 func()
 }
 type workflowScreenConfig struct {
 	WS                      *workspace.Workspace
@@ -46,7 +42,44 @@ type workflowScreenConfig struct {
 	Temperature             float64
 }
 
+func (m *model) workflowSurface() workflowui.Surface {
+	return workflowui.Surface{
+		Area:  m.screenPanes(false).Main,
+		Inset: m.promptOffset(), SplitWidth: inspectorSplitWidth,
+		Outlined: !m.minimal && m.promptOffset() > 0, BottomEdge: m.actionBarVisible(),
+		HeaderFocused: m.header.focused,
+		Styles: workflowui.SurfaceStyles{
+			Panels: m.paneStyles(), Shortcuts: m.shortcutStyles(),
+			Graph: m.graphStyles(), Notice: m.noticeStyles(),
+			Muted:  m.styles.dim,
+			Accent: m.styles.hunk, Error: m.styles.err,
+		},
+	}
+}
+
+func (m *model) openWorkflowForm(f workflowForm) {
+	if f.StartOnCancel {
+		m.openRemoval(f.Title, f.Hint, f.ApplyLabel, f.Fields, f.Apply)
+	} else {
+		m.openForm(f.Title, f.Hint, f.ApplyLabel, f.Fields, f.Apply)
+	}
+	m.dialog.form.Destructive = f.Destructive
+	m.dialog.form.Choices = f.Choices
+	m.dialog.form.FileFields = f.FileFields
+	m.dialog.onClose = f.OnClose
+}
+
 func (m *model) workflowActive() bool { return m.workflows != nil && m.workflows.active }
+
+func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	mouse := msg.Mouse()
+	if m.actionBarVisible() && mouse.Y == m.termH-1 && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
+		return m.toolbarClick(mouse.X)
+	}
+	_, cmd := m.workflows.mouse(msg)
+	return m, cmd
+}
+
 func (m *model) openWorkflows() {
 	if m.state != stDone {
 		m.openDialog("Workflows", []string{"Finish or stop the agent turn before opening the editor."})
@@ -58,13 +91,16 @@ func (m *model) openWorkflows() {
 			m.openDialog("Workflows", []string{"Select a workspace first."})
 			return
 		}
-		ui := workflowUI{openForm: m.openForm, openRemoval: m.openRemoval, openDialog: m.openDialog, closeDialog: m.closeDialog,
-			dialog: func() *infoDialog { return m.dialog }, newTable: m.newTable, screenPanes: m.screenPanes, panelGeometry: m.panelGeometry,
-			inspectionRows: m.inspectionRows, inspectionHints: m.inspectionHints, graphStyles: m.graphStyles, noticeStyles: m.noticeStyles,
-			styles: func() styles { return m.styles }, headerFocused: func() bool { return m.header.focused }, width: func() int { return m.termW }, height: func() int { return m.termH },
-			actionBarVisible: m.actionBarVisible, toolbarClick: m.toolbarClick, footerKey: m.footerKey, requestQuit: m.requestQuit}
-		cfg := workflowScreenConfig{WS: m.baseEnv.WS, Client: m.baseEnv.Client, Policy: m.baseEnv.Policy, MaxTokens: m.baseEnv.MaxTokens, ContextLimit: m.baseEnv.ContextLimit, Temperature: m.baseEnv.Temperature}
-		screen, err := newWorkflowScreen(m.base, cfg, ui)
+		dialogs := workflowDialogs{
+			openForm: m.openWorkflowForm, openDialog: m.openDialog, closeDialog: m.closeDialog,
+			dialog: func() *infoDialog { return m.dialog }, newTable: m.newTable,
+		}
+		cfg := workflowScreenConfig{
+			WS: m.baseEnv.WS, Client: m.baseEnv.Client, Policy: m.baseEnv.Policy,
+			MaxTokens: m.baseEnv.MaxTokens, ContextLimit: m.baseEnv.ContextLimit,
+			Temperature: m.baseEnv.Temperature,
+		}
+		screen, err := newWorkflowScreen(m.base, cfg, dialogs, m.workflowSurface)
 		if err != nil {
 			m.openDialog("Workflows", []string{err.Error()})
 			return

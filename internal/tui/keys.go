@@ -21,6 +21,13 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.requestQuit()
 	}
 	if m.workflowActive() && m.dialog == nil && !m.header.focused && m.sessions == nil && m.header.menu == "" && msg.String() != "ctrl+c" {
+		// App navigation stays with the root; the workflow handles its own keys.
+		switch msg.String() {
+		case "f9":
+			return m.footerKey(msg)
+		case "f10":
+			return m.requestQuit()
+		}
 		_, cmd := m.workflows.key(msg)
 		return m, cmd
 	}

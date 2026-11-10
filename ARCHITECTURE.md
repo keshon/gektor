@@ -86,8 +86,10 @@ file changes; internal/permission authorizes each tool call.
 
 The concrete workflowScreen owns the terminal workflow editor's state, message
 dispatch, queued commands, rendering and asynchronous operations. The root TUI
-opens/closes that screen and supplies shared dialog, layout and navigation
-callbacks. The screen has its own context and a bounded workflow configuration;
+opens/closes that screen, handles app navigation and supplies shared dialogs.
+Workflow pane geometry and rendering live in internal/tui/workflow, using a
+Surface snapshot of terminal bounds and theme. Form requests carry named fields,
+choices and completion callbacks together. The screen has its own context and a bounded workflow configuration;
 it receives no parent model or agent/transcript state. Graph controls render
 supplied detail text and tones; workflow status interpretation stays in the screen.
 
