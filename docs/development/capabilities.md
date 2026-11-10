@@ -84,7 +84,8 @@ Schemas still consume context after activation. Appending them to the leading
 tool list would invalidate the conversation prefix just as inserting them does.
 
 The [media session findings](../internal/media-session-findings.md) record the
-prefill measurements, proposed dispatcher and unresolved model regression.
+prefill measurements, implemented dispatcher, completed decision evals and
+accepted model limitations. Earlier pending items there are historical.
 
 ## Validation and permissions
 
