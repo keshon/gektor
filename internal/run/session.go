@@ -1,7 +1,6 @@
 // Package run is the programmatic way to run the agent: a Session that
 // emits the same events -mode json prints, and answers gates through a
-// Suspender instead of stdin. The TUI and the stdio JSON-RPC server both
-// build on it; neither touches the loop directly.
+// Suspender instead of stdin. CLI, TUI and stdio RPC all build on it.
 //
 // Schema parity is structural, not promised: Session reuses the events
 // package to serialize, and parses the JSONL back, so -mode json output
@@ -24,17 +23,19 @@ import (
 // not have to import the wire package for one type; events owns it.
 type Event = events.Event
 
-// Config wires a direct-mode run. Everything the harness needs comes
+// Config wires one session. Everything the harness needs comes
 // from Env (client, workspace, tools, policy, budgets); Session adds
 // the task, the event sink, and the gate transport.
 type Config struct {
 	Env roles.Env
 
-	ResumeAnswer string
-	Plan         bool
-	Task         string
-	StateFile    string
-	Verify       func(ctx context.Context) (output string, err error)
+	ResumeAnswer   string
+	WorkflowRecipe string
+	AskPrompt      func(string) string
+	Plan           bool
+	Task           string
+	StateFile      string
+	Verify         func(ctx context.Context) (output string, err error)
 
 	// Images attaches pictures (absolute paths) to the opening user
 	// message for vision-capable backends. CLI -image and TUI @paths
@@ -54,18 +55,19 @@ type Session struct {
 	cfg         Config
 	askerBudget *agent.Asker
 	inbox       agent.Inbox
+	lastReport  agent.RunReport
 }
 
 // New validates the config without running anything.
 func New(cfg Config) (*Session, error) {
-	if strings.TrimSpace(cfg.Task) == "" && len(cfg.Images) == 0 {
-		return nil, fmt.Errorf("run: task is empty")
-	}
 	if cfg.Env.Client == nil {
 		return nil, fmt.Errorf("run: Env.Client is nil")
 	}
 	if cfg.Env.WS == nil {
 		return nil, fmt.Errorf("run: Env.WS is nil")
+	}
+	if cfg.WorkflowRecipe != "" && cfg.Plan {
+		return nil, fmt.Errorf("workflow authoring cannot use plan mode")
 	}
 	if cfg.Answer == nil {
 		cfg.Answer = agent.ClosedSuspender("run session without operator")
@@ -77,7 +79,7 @@ func New(cfg Config) (*Session, error) {
 // Framing (run start/end) is the caller's job: in-process callers have
 // call boundaries, and wire transports add their own. Session streams
 // step events only.
-func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, roles.Env) {
+func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, roles.Env, error) {
 	emitter := events.New(events.EventWriter(s.cfg.OnEvent))
 
 	askFn := s.asker()
@@ -192,34 +194,42 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, rol
 			prevOnReasoning(chunk)
 		}
 	}
-	// Findings go to the wire. The caller's own reporter is replaced
-	// rather than chained: the TUI, the only caller, stubs hooks and
-	// reads the event stream instead. The rule set is the caller's, so a
-	// session over a non-Go project still reports secrets and nothing
-	// that cannot parse.
+	// Each session owns its reporter and routes findings through its event sink.
 	env.Checks = checks.NewReporter(env.Rules, func(scope checks.Scope, f checks.Finding) {
 		events.EmitFinding(emitter, string(scope), f.Rule, f.Path, f.Line, f.Summary)
 	})
-	if s.cfg.Plan {
+	if s.cfg.WorkflowRecipe != "" {
+		var err error
+		a, err = roles.WorkflowAuthor(env, s.cfg.WorkflowRecipe, s.cfg.StateFile)
+		if err != nil {
+			return nil, emitter, env, err
+		}
+	} else if s.cfg.Plan {
+		emitter.Emit("plan_mode", map[string]any{"read_only": true})
 		a = roles.Planner(env, "plan", s.cfg.StateFile, askFn)
 	} else {
 		a = roles.Interactive(env, "", s.cfg.StateFile, askFn, s.cfg.Verify)
 	}
-	return a, emitter, env
+	return a, emitter, env, nil
 }
 
 func (s *Session) Run(ctx context.Context) (string, error) {
 	closeDiagnostics := s.diagnostics()
 	defer closeDiagnostics()
-	a, emitter, env := s.build(ctx)
-	ans, err := a.Run(ctx, s.cfg.Task, s.cfg.Images...)
+	if strings.TrimSpace(s.cfg.Task) == "" && len(s.cfg.Images) == 0 {
+		return "", fmt.Errorf("run: task is empty")
+	}
+	a, emitter, env, err := s.build(ctx)
 	if err != nil {
+		return "", err
+	}
+	defer s.finish(a, emitter, env)
+	ans, err := a.Run(ctx, s.cfg.Task, s.cfg.Images...)
+	if err != nil && s.cfg.WorkflowRecipe == "" {
 		if resAns, resErr, ok := agent.BudgetContinue(ctx, a, err, s.cfg.StateFile, s.cfg.Answer); ok {
 			ans, err = resAns, resErr
 		}
 	}
-	env.Sweep(a.MutatedPaths())
-	s.report(a, emitter)
 	return ans, err
 }
 
@@ -228,20 +238,40 @@ func (s *Session) Run(ctx context.Context) (string, error) {
 // used to refuse all questions; a follow-up that needs clarification
 // should ask like any other turn.
 func (s *Session) asker() func(context.Context, string) (string, error) {
-	return s.askerBudget.Ask(s.cfg.Answer, nil)
+	return s.askerBudget.Ask(s.cfg.Answer, s.cfg.AskPrompt)
 }
 
-// Resume continues from saved history with a note, mirroring Agent.Resume.
+// Resume recovers an interrupted run. A pending question is answered through
+// ResumeAnswer or the operator gate before generation continues.
 func (s *Session) Resume(ctx context.Context, history []llm.Message, note string, images ...string) (string, error) {
+	return s.resume(ctx, history, note, images, true)
+}
+
+// Continue starts a new user turn from history, including a fork. Outstanding
+// tool calls are closed without prompting; note and images reach the new turn.
+func (s *Session) Continue(ctx context.Context, history []llm.Message, note string, images ...string) (string, error) {
+	return s.resume(ctx, history, note, images, false)
+}
+
+func (s *Session) resume(ctx context.Context, history []llm.Message, note string, images []string, answerPendingQuestion bool) (string, error) {
 	closeDiagnostics := s.diagnostics()
 	defer closeDiagnostics()
-	a, emitter, env := s.build(ctx)
+	if s.cfg.WorkflowRecipe != "" {
+		return "", fmt.Errorf("workflow draft sessions do not support resume")
+	}
+	a, emitter, env, err := s.build(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer s.finish(a, emitter, env)
 	var ans string
-	var err error
-	if callID, question, paused := agent.PausedOnQuestion(a.Tools(), history); paused {
+	if callID, question, paused := agent.PausedOnQuestion(a.Tools(), history); answerPendingQuestion && paused {
 		reply := agent.SuspendReply{Answer: s.cfg.ResumeAnswer}
 		var rerr error
 		if s.cfg.ResumeAnswer == "" {
+			if s.cfg.AskPrompt != nil {
+				question = s.cfg.AskPrompt(question)
+			}
 			reply, rerr = s.cfg.Answer(ctx, agent.SuspendRequest{Kind: agent.SuspendAsk, Prompt: question})
 		}
 		if rerr != nil {
@@ -256,17 +286,17 @@ func (s *Session) Resume(ctx context.Context, history []llm.Message, note string
 			ans, err = resAns, resErr
 		}
 	}
-	env.Sweep(a.MutatedPaths())
-	s.report(a, emitter)
 	return ans, err
 }
 
-func (s *Session) report(a *agent.Agent, e *events.Emitter) {
-	if s.cfg.OnEvent == nil {
-		return
-	}
-	EmitOutcome(e, a.Report(), s.cfg.StateFile)
+func (s *Session) finish(a *agent.Agent, e *events.Emitter, env roles.Env) {
+	env.Sweep(a.MutatedPaths())
+	s.lastReport = a.Report()
+	EmitOutcome(e, s.lastReport, s.cfg.StateFile)
 }
+
+// Report returns the measured outcome of the most recent run or continuation.
+func (s *Session) Report() agent.RunReport { return s.lastReport }
 
 // EmitOutcome reports measured effects and check output in every frontend.
 func EmitOutcome(e *events.Emitter, r agent.RunReport, stateFile string) {

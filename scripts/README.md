@@ -22,6 +22,9 @@ their inputs and permission flags.
 These require a source checkout:
 
 - `build.cmd` builds packages and writes `gektor.exe` at the project root.
+- `build.cmd dist` stages a runnable Windows package under `dist/windows-amd64/`.
+- `build.cmd release vMAJOR.MINOR.PATCH` builds Windows/Linux archives and checksums
+  from the same staged payloads under `dist/`. It requires a clean checkout.
 - `build.cmd test [flags]` runs tests.
 - `build.cmd check` runs vet, builds, race tests, conventions and dry eval probes.
 - `build.cmd fmt` lists files that gofmt would change; `fmt fix` formats them.
@@ -35,9 +38,11 @@ These require a source checkout:
 - `bench-llama.cmd [quick] [model.gguf]` runs external llama-bench.
   It reads benchmark settings from the root `.env`; see `.env.example`.
 - `bench-report.ps1 -Dir PATH` reports on an existing benchmark directory.
-- `release.py vMAJOR.MINOR.PATCH` builds Windows/Linux archives and checksums
-  under `tmp/`. It does not publish them.
-- `python scripts/release_test.py` checks documentation selection and offline-link rewriting.
+- `go run ./cmd/release dist` stages a package for the host OS; use
+  `-target windows-amd64` or `-target linux-amd64` before `dist` to choose a target.
+- `go run ./cmd/release vMAJOR.MINOR.PATCH` builds both release archives and
+  `SHA256SUMS.txt`. It packages files; publishing to GitHub is a separate action.
+- `go test ./internal/release` checks payload selection, offline links and archives.
 
 Invoke helpers under `scripts/` as `scripts/NAME.cmd`.
 `ensure-build.cmd` builds in the application folder without changing the caller's

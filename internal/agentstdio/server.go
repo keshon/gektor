@@ -1,14 +1,12 @@
-package main
+// Package agentstdio adapts prepared run sessions to the stdio RPC protocol.
+package agentstdio
 
 // The stdio JSON-RPC server behind -serve: methods run/respond/cancel on
 // stdin, event lines plus id-responses on stdout. The protocol is
 // documented in docs/reference/rpc.md; the shape below is the whole of it.
 //
-// Concurrency is deliberately single-flight: one run at a time, one
-// pending gate at a time. The agent loop is single-threaded per run, so
-// a second gate cannot exist while one is open — the invariant is
-// asserted, not assumed, and violations report errors instead of
-// deadlocking.
+// One run and one gate may be active at a time. Overlapping requests return
+// protocol errors; EOF drains a running task or cancels an unanswered gate.
 
 import (
 	"bufio"
@@ -24,43 +22,17 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/agent"
-	"github.com/keshon/gektor/internal/audit"
 	"github.com/keshon/gektor/internal/events"
-	"github.com/keshon/gektor/internal/gektor"
-	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/roles"
+	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/run"
-	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
-// serveDeps is everything a run needs, assembled once in main. Per-run
-// values (task dir, cancellation) are created per request.
-type serveDeps struct {
-	client            llm.Client
-	refreshModelFacts func(context.Context) llm.ModelFacts
-	ws                *workspace.Workspace
-	procs             *tools.BackgroundProcesses
-	maxTokens         int
-	maxSteps          int
-	delegateSteps     int
-	delegateMaxSteps  int
-	runTimeout        time.Duration
-	contextLimit      int
-	vision            bool
-	logMax            int
-	verifyCmd         string
-
-	autoDeny          bool
-	auditPath         string
-	allow             string
-	deny              string
-	backendKind       string
-	stream            bool
-	mcpTools          []agent.Tool
-	browser           *tools.Browser
-	capabilitySources func() []*tools.Capability
-	capabilities      []*tools.Capability
+// Config carries one prepared launch. Each request copies the complete run config.
+type Config struct {
+	Run        run.Config
+	Directory  string
+	Permission func(agent.Suspender) permission.Gate
 }
 
 type rpcRequest struct {
@@ -79,9 +51,12 @@ type rpcRespondParams struct {
 	Answer string `json:"answer"`
 }
 
-// serveMain runs the request loop until stdin closes. out carries events
+// Serve runs the request loop until stdin closes. out carries events
 // and id-responses; notes (human chatter) go to noteW, never to out.
-func serveMain(ctx context.Context, d serveDeps, in io.Reader, out io.Writer, noteW io.Writer) {
+func Serve(ctx context.Context, d Config, in io.Reader, out io.Writer) error {
+	if d.Run.Env.Client == nil || d.Run.Env.WS == nil || d.Directory == "" {
+		return fmt.Errorf("stdio RPC requires a prepared environment and task directory")
+	}
 	var wmu sync.Mutex
 	write := func(v any) {
 		data, err := json.Marshal(v)
@@ -154,6 +129,7 @@ func serveMain(ctx context.Context, d serveDeps, in io.Reader, out io.Writer, no
 	if closer, ok := in.(io.Closer); ok {
 		defer closer.Close()
 	}
+	inputClosed := false
 readLoop:
 	for {
 		var line []byte
@@ -162,6 +138,7 @@ readLoop:
 			break readLoop
 		case value, ok := <-lines:
 			if !ok {
+				inputClosed = true
 				break readLoop
 			}
 			line = value
@@ -190,10 +167,11 @@ readLoop:
 			wg.Add(1)
 			go func(id json.RawMessage, params rpcRunParams) {
 				defer wg.Done()
-				defer setCancel(nil)
-				answer, err := serveRun(runCtx, d, hub, emitter, noteW, func(ev run.Event) {
+				defer cancelFn()
+				answer, err := serveRun(runCtx, d, hub, emitter, func(ev run.Event) {
 					emitter.Emit(ev.Name, ev.Fields)
 				}, params.Task, params.Images)
+				setCancel(nil)
 				if err != nil {
 					respond(id, nil, err)
 					return
@@ -242,6 +220,13 @@ readLoop:
 		runMu.Unlock()
 	}
 	wg.Wait()
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if inputClosed {
+		return sc.Err()
+	}
+	return nil
 }
 
 type lockedWriter struct {
@@ -255,7 +240,7 @@ func (l *lockedWriter) Write(p []byte) (int, error) {
 	return l.w.Write(p)
 }
 
-func serveRun(ctx context.Context, d serveDeps, hub *run.GateHub, emitter *events.Emitter, noteW io.Writer, onEvent func(run.Event), task string, imagePaths []string) (string, error) {
+func serveRun(ctx context.Context, d Config, hub *run.GateHub, emitter *events.Emitter, onEvent func(run.Event), task string, imagePaths []string) (string, error) {
 	if task == "" {
 		return "", fmt.Errorf("run needs a task")
 	}
@@ -263,7 +248,7 @@ func serveRun(ctx context.Context, d serveDeps, hub *run.GateHub, emitter *event
 	// a bad path fails the run here, not mid-turn at the backend.
 	var images []string
 	for _, p := range imagePaths {
-		full, err := d.ws.Resolve(p)
+		full, err := d.Run.Env.WS.Resolve(p)
 		if err != nil {
 			return "", fmt.Errorf("image: %w", err)
 		}
@@ -271,42 +256,18 @@ func serveRun(ctx context.Context, d serveDeps, hub *run.GateHub, emitter *event
 	}
 	sum := sha1.Sum([]byte(task + time.Now().String()))
 	taskID := hex.EncodeToString(sum[:])[:8]
-	taskDir := gektor.Sub("tasks", taskID)
+	taskDir := filepath.Join(d.Directory, taskID)
 	stateFile := filepath.Join(taskDir, "state.json")
 	_ = workspace.WriteSessionTitle(taskDir, workspace.TitleLine(task))
 
-	suspend := hub.Suspender()
-	env := roles.Env{
-		Client:            d.client,
-		RefreshModelFacts: d.refreshModelFacts,
-		WS:                d.ws,
-		Procs:             d.procs,
-		MaxTokens:         d.maxTokens,
-		MaxSteps:          d.maxSteps,
-		DelegateSteps:     d.delegateSteps,
-		DelegateMaxSteps:  d.delegateMaxSteps,
-		RunTimeout:        d.runTimeout,
-		ContextLimit:      d.contextLimit,
-		Vision:            d.vision,
-		Policy:            buildPolicy(d.allow, d.deny),
-		GateContext:       audit.ContextHook(d.auditPath, "serve", permissionGateContext(d.autoDeny, suspend, d.ws)),
-		BackendKind:       d.backendKind,
-		Stream:            d.stream,
-		MCPTools:          d.mcpTools,
-		Browser:           d.browser,
-		Capabilities:      d.capabilities,
-		CapabilitySources: d.capabilitySources,
+	cfg := d.Run
+	cfg.Task, cfg.StateFile, cfg.Images = task, stateFile, images
+	cfg.Answer, cfg.OnEvent = hub.Suspender(), onEvent
+	if d.Permission != nil {
+		cfg.Env.GateContext = d.Permission(cfg.Answer)
 	}
 	emitter.Emit("run_start", map[string]any{"task": task})
-	sess, err := run.New(run.Config{
-		Env:       env,
-		Task:      task,
-		StateFile: stateFile,
-		Verify:    verificationCommand(d.verifyCmd, d.ws.Root()),
-		Images:    images,
-		Answer:    suspend,
-		OnEvent:   onEvent,
-	})
+	sess, err := run.New(cfg)
 	if err != nil {
 		return "", err
 	}

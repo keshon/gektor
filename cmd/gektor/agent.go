@@ -22,7 +22,6 @@ import (
 	"github.com/keshon/gektor/internal/mcpmanager"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/run"
 	"github.com/keshon/gektor/internal/session"
 	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/tui"
@@ -88,7 +87,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	}
 
 	var emitter *events.Emitter
-	if o.outputMode == "json" {
+	if o.outputMode == "json" && !o.serve && !o.tui {
 		emitter = events.New(os.Stdout)
 		emitter.Emit("run_start", map[string]any{
 			"task": task, "backend": o.backendKind, "model": o.model,
@@ -96,8 +95,6 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		})
 		defer emitter.Emit("run_end", nil)
 	}
-
-	suspend := stdioSuspender(noteW, emitter)
 
 	// Every run snapshots its history to disk after each step, so a crash
 	// or hitting MaxSteps doesn't lose everything — see -resume. -fork
@@ -140,8 +137,6 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		return err
 	}
 
-	verify := verificationCommand(o.verifyCmd, ws.Root())
-
 	// Shared across both tool sets so a subagent's start_background and
 	// the parent's check_background/stop_background see the same
 	// processes — a process started by one half of the conversation
@@ -171,20 +166,15 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 		Client: client, RefreshModelFacts: client.RefreshModelFacts, WS: ws, Procs: bgProcs,
 		ContextLimit: facts.contextLimit, Model: facts.model, Vision: facts.vision, VisionKnown: facts.visionKnown,
 		MCPTools: mcpTools, Browser: browser, Capabilities: capabilities, CapabilitySources: managedMCP.Sources,
-		GateContext: audit.ContextHook(o.auditPath, "cli", permissionGateContext(o.yes, suspend, ws)),
 	}
-	if o.serve {
-		serveAgentLaunch(ctx, o, base)
-		return ctx.Err()
-	}
-
-	env, err := launchRoleEnvironment(o, base, emitter, note)
+	cfg, err := launchRunConfiguration(o, base, note)
 	if err != nil {
 		return err
 	}
 
-	if o.plan {
-		emitter.Emit("plan_mode", map[string]any{"read_only": true})
+	cfg.StateFile = stateFile
+	if o.serve {
+		return serveAgentLaunch(ctx, o, cfg)
 	}
 	// Images resolve against the workspace (escape-checked like every
 	// file tool path) into absolute paths the backend layer reads.
@@ -195,16 +185,15 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 
 	// All terminal modes share the configured environment and saved history.
 	if o.tui {
-		return runAgentTUI(ctx, launch, o, tui.Config{
-			StartScreen: o.tuiScreen, MCP: managedMCP, SeedHistory: launch.history,
-			InitialDraft: launch.draft, InitialImages: launch.images, Drafts: launch.drafts, SessionDirectory: launch.directory,
-			BackendURL: o.backendURL, AccountLabel: accountLabel, Plan: o.plan,
-			History: forkHistory, ResumeAnswer: o.answer, AuditPath: o.auditPath,
-			Env: env, Task: task, StateFile: stateFile, Verify: verify, Images: images,
-		}, note)
+		cfg.Images = images
+		tuiCfg := tuiConfiguration(launch, o, cfg, forkHistory)
+		tuiCfg.MCP, tuiCfg.AccountLabel = managedMCP, accountLabel
+		return runAgentTUI(ctx, launch, o, tuiCfg, note)
 	}
 
-	return runAgentCLI(ctx, o, run.Config{Env: env, Task: task, StateFile: stateFile, Images: images, Verify: verify, Answer: suspend}, forkHistory, emitter, noteW, note)
+	cfg.Images, cfg.Answer = images, stdioSuspender(noteW, emitter)
+	cfg.Env.GateContext = audit.ContextHook(o.auditPath, "cli", permissionGateContext(o.yes, cfg.Answer, ws))
+	return runAgentCLI(ctx, o, cfg, forkHistory, emitter, noteW, note)
 }
 
 // resumeWorkspace resolves archive metadata before composing workspace services.
@@ -294,14 +283,6 @@ func parseRuleSpecs(spec string, eff permission.Effect) []permission.Rule {
 		out = append(out, permission.Rule{Tool: tool, Pattern: pattern, Effect: eff})
 	}
 	return out
-}
-
-// streamEnabled decides whether model responses stream token by
-// token: explicit -stream, or the fullscreen TUI. Backends share the SSE
-// reader; a backend may still buffer a turn before sending its chunks.
-// Never in -mode json (chunks would corrupt the JSONL stream).
-func streamEnabled(streamFlag bool, modeFlag string, tuiFlag bool) bool {
-	return (streamFlag || tuiFlag) && modeFlag != "json"
 }
 
 // Local servers own their actual window; configured limits are fallbacks.
@@ -437,15 +418,10 @@ func runAgentTUI(ctx context.Context, launch launchRequest, o resolvedLaunch, cf
 	return nil
 }
 
-func reportAgentRun(a *agent.Agent, env roles.Env, emitter *events.Emitter, stateFile string, o resolvedLaunch, note func(string, ...any)) {
-	r := a.Report()
+func reportAgentRun(r agent.RunReport, stateFile string, o resolvedLaunch, note func(string, ...any)) {
 	if r.Summary != "" {
 		note("%s", r.Summary)
 	}
-	// Deep pass over everything the run changed, catching writes no
-	// tool reported: shell redirections, MCP, background jobs.
-	env.Sweep(r.MutatedPaths)
-	run.EmitOutcome(emitter, r, stateFile)
 	note("outcome: %s; changed files: %s", r.Outcome, strings.Join(r.MutatedPaths, ", "))
 	if r.Verification != "" {
 		note("checks: %s", r.Verification)

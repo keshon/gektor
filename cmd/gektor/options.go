@@ -149,6 +149,16 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 		o.explicitFlags[f.Name] = true
 	})
 	o.task = strings.Join(flags.Args(), " ")
+	if o.serve {
+		if o.tui || o.task != "" {
+			return o, fmt.Errorf("-serve receives tasks over RPC and cannot be combined with -tui or an inline task")
+		}
+		for _, name := range []string{"resume", "fork", "answer", "image"} {
+			if o.explicitFlags[name] {
+				return o, fmt.Errorf("-serve does not support -%s; run requests create fresh sessions", name)
+			}
+		}
+	}
 	if o.tuiScreen != "agent" && o.tuiScreen != "workflows" {
 		return o, fmt.Errorf("-tui-screen must be agent or workflows")
 	}

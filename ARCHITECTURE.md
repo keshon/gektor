@@ -17,6 +17,7 @@ Paths below are relative to the repository root.
 | internal/llm | Define messages and client contracts; subpackages handle protocols |
 | internal/providers | Describe providers, inspect models and manage accounts |
 | internal/run | Expose agent execution and operator gates to frontends |
+| internal/agentstdio | Frame stdio RPC requests and own per-request lifetime |
 | internal/events | Serialize frontend events |
 | internal/session | Save conversation history, model context and run records |
 | internal/workspace and internal/permission | Resolve file access and authorize effects |
@@ -26,6 +27,7 @@ Paths below are relative to the repository root.
 | internal/automation | Validate, execute, store and schedule workflow runs |
 | internal/tui | Own screen state and connect controls to application actions |
 | internal/tui/components | Render reusable controls and handle their local interaction |
+| cmd/release and internal/release | Adapt packaging arguments and stage/verify release payloads |
 
 ## One agent turn
 
@@ -48,6 +50,12 @@ the session package owns its saved data. They do not implement separate loops.
 
 cmd/gektor resolves flags, preferences and provider profiles. Each launch owns
 its backend client, MCP connections and background-process registry.
+One prepared run configuration carries identity, generation settings, checks,
+permissions and role selection into CLI, TUI and RPC. Frontends attach their own
+event and gate transports. They do not reconstruct subsets of the role environment.
+All three use internal/run.Session for execution, resume, budget continuation,
+mutation checks and final reporting. Workflow authoring is an explicit Session
+configuration; its restricted tools and resume policy stay with that role.
 CLI and first-run TUI settings use internal/config.DefaultProfile: llama.cpp
 at http://127.0.0.1:9931. The eval runner uses the same provider defaults.
 

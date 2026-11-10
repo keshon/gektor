@@ -1479,17 +1479,6 @@ func TestStatusLinesPlainLanguage(t *testing.T) {
 	}
 }
 
-func TestWithoutPrintHooks_Silent(t *testing.T) {
-	env := withoutPrintHooks(roles.Env{OnToolOutput: func(string, string) { t.Error("CLI hook leaked into TUI") }})
-	// Callable with dummy args: silence by construction, never a
-	// nil dereference whatever the loop passes.
-	env.OnStep("l", 1, llm.Message{Content: "x"})
-	env.OnResult(agent.ToolResult{})
-	env.OnToolOutput("call", "live output")
-	env.OnUsage(1, llm.Usage{})
-	env.OnDelta("z")
-}
-
 func TestDialogFitsViewport(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.openDialog("status", m.statusLines())

@@ -1,6 +1,6 @@
-// Command agent runs coding tasks and tool-free conversations against an LLM backend.
+// Command gektor runs Agent, Workflows and their terminal or stdio frontends.
 //
-//	agent "create a snake game in plain JS under ./game"
+//	gektor "create a snake game in plain JS under ./game"
 //	gektor -debug "..."   # also writes agent-debug.log with raw request/response JSON
 package main
 

@@ -15,6 +15,12 @@ stdout; human-readable messages go to stderr, regardless of `-mode`.
 Only one run and one pending gate are allowed at a time. Overlapping run or gate
 requests return an error instead of entering a queue.
 
+Launch settings apply to every RPC run: profile identity, generation settings,
+permission rules, deterministic checks and `-plan`. Plan mode enforces read-only
+tools just as it does in CLI and TUI. `-tui`, inline tasks, `-resume`, `-fork`,
+`-answer` and `-image` are rejected with `-serve`: tasks and images arrive in run
+requests, and answers arrive through `respond`.
+
 The envelope is JSON-RPC-style, with these differences from full JSON-RPC 2.0:
 
 - Requests use `id`, `method` and `params`; `jsonrpc` is not required.

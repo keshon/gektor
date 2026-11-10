@@ -17,6 +17,7 @@ eval/log/
 # Benchmark output. bench-llama.cmd stamps a fresh directory per run.
 bench-results/
 tmp/
+/dist/
 # Local environment (machine-specific paths and keys) — never committed.
 .env
 # Local launchers holding live API keys are never committed.

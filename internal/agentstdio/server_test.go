@@ -1,9 +1,10 @@
-package main
+package agentstdio
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"sync"
@@ -11,9 +12,51 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/roles"
+	"github.com/keshon/gektor/internal/run"
 	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/workspace"
 )
+
+type failingReader struct{ err error }
+
+func (r failingReader) Read([]byte) (int, error) { return 0, r.err }
+
+func TestServeReportsInputFailure(t *testing.T) {
+	errInput := errors.New("input failed")
+	deps := testServerConfig(t, &stubChat{})
+	if err := Serve(t.Context(), deps, failingReader{errInput}, io.Discard); !errors.Is(err, errInput) {
+		t.Fatal(err)
+	}
+}
+
+func TestServeAcceptsNextRunAfterCompletionResponse(t *testing.T) {
+	deps := testServerConfig(t, &stubChat{responses: []llm.ChatResponse{{Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}}}})
+	in, writer := io.Pipe()
+	out := &outLines{ch: make(chan string, 256)}
+	done := make(chan error, 1)
+	go func() { done <- Serve(context.Background(), deps, in, out) }()
+	t.Cleanup(func() {
+		_ = writer.Close()
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Error(err)
+			}
+		case <-time.After(10 * time.Second):
+			t.Error("server did not drain")
+		}
+	})
+	for id := 1; id <= 4; id++ {
+		if _, err := fmt.Fprintf(writer, "{\"id\":%d,\"method\":\"run\",\"params\":{\"task\":\"next\"}}\n", id); err != nil {
+			t.Fatal(err)
+		}
+		reply := out.waitFor(t, 5*time.Second, func(record map[string]any) bool { return record["id"] == float64(id) })
+		if reply["error"] != nil || reply["result"] == nil {
+			t.Fatal("completed run still occupied the server", reply)
+		}
+	}
+}
 
 type stubChat struct {
 	mu        sync.Mutex
@@ -29,7 +72,7 @@ func (s *stubChat) Chat(_ context.Context, _ llm.ChatRequest) (llm.ChatResponse,
 	return r, nil
 }
 
-func testServeDeps(t *testing.T, client llm.Client) serveDeps {
+func testServerConfig(t *testing.T, client llm.Client) Config {
 	t.Helper()
 	ws, err := workspace.New(t.TempDir())
 	if ws != nil {
@@ -38,12 +81,10 @@ func testServeDeps(t *testing.T, client llm.Client) serveDeps {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return serveDeps{
-		client: client, ws: ws, procs: tools.NewBackgroundProcesses(),
-	}
+	return Config{Run: run.Config{Env: roles.Env{Client: client, WS: ws, Procs: tools.NewBackgroundProcesses()}}, Directory: t.TempDir()}
 }
 
-// outLines collects stdout lines from a serveMain under test.
+// outLines collects stdout lines from a Serve under test.
 type outLines struct {
 	mu    sync.Mutex
 	lines []string
@@ -90,22 +131,21 @@ func (o *outLines) waitFor(t *testing.T, timeout time.Duration, match func(map[s
 	}
 }
 
-func runServe(t *testing.T, deps serveDeps, script []string) *outLines {
+func runServe(t *testing.T, deps Config, script []string) *outLines {
 	t.Helper()
 	inR, inW := io.Pipe()
 	out := &outLines{ch: make(chan string, 256)}
-	var notes bytes.Buffer
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		serveMain(context.Background(), deps, inR, out, &notes)
+		Serve(context.Background(), deps, inR, out)
 	}()
 	t.Cleanup(func() {
 		_ = inW.Close()
 		select {
 		case <-done:
 		case <-time.After(10 * time.Second):
-			t.Fatal("serveMain did not exit on stdin EOF")
+			t.Fatal("Serve did not exit on stdin EOF")
 		}
 	})
 	for _, line := range script {
@@ -120,7 +160,7 @@ func TestServe_RunEndToEnd(t *testing.T) {
 	stub := &stubChat{responses: []llm.ChatResponse{
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}},
 	}}
-	out := runServe(t, testServeDeps(t, stub),
+	out := runServe(t, testServerConfig(t, stub),
 		[]string{`{"id":1,"method":"run","params":{"task":"hi"}}`})
 
 	rec := out.waitFor(t, 10*time.Second, func(rec map[string]any) bool {
@@ -151,18 +191,17 @@ func TestServe_RespondAnswersGate(t *testing.T) {
 	}}
 	inR, inW := io.Pipe()
 	out := &outLines{ch: make(chan string, 256)}
-	var notes bytes.Buffer
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		serveMain(context.Background(), testServeDeps(t, stub), inR, out, &notes)
+		Serve(context.Background(), testServerConfig(t, stub), inR, out)
 	}()
 	defer func() {
 		_ = inW.Close()
 		select {
 		case <-done:
 		case <-time.After(10 * time.Second):
-			t.Fatal("serveMain did not exit on stdin EOF")
+			t.Fatal("Serve did not exit on stdin EOF")
 		}
 	}()
 
@@ -197,18 +236,17 @@ func TestServe_RejectsSecondRun(t *testing.T) {
 	hanging := &hangForever{}
 	inR, inW := io.Pipe()
 	out := &outLines{ch: make(chan string, 256)}
-	var notes bytes.Buffer
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		serveMain(context.Background(), testServeDeps(t, hanging), inR, out, &notes)
+		Serve(context.Background(), testServerConfig(t, hanging), inR, out)
 	}()
 	defer func() {
 		_ = inW.Close()
 		select {
 		case <-done:
 		case <-time.After(10 * time.Second):
-			t.Fatal("serveMain did not exit on stdin EOF")
+			t.Fatal("Serve did not exit on stdin EOF")
 		}
 	}()
 
@@ -268,11 +306,10 @@ func TestServe_EOFCancelsGatedRun(t *testing.T) {
 	}}
 	inR, inW := io.Pipe()
 	out := &outLines{ch: make(chan string, 256)}
-	var notes bytes.Buffer
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		serveMain(context.Background(), testServeDeps(t, stub), inR, out, &notes)
+		Serve(context.Background(), testServerConfig(t, stub), inR, out)
 	}()
 
 	if _, err := io.WriteString(inW, "{\"id\":1,\"method\":\"run\",\"params\":{\"task\":\"hi\"}}\n"); err != nil {
@@ -287,7 +324,7 @@ func TestServe_EOFCancelsGatedRun(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(15 * time.Second):
-		t.Fatal("serveMain hung on EOF with a gated run")
+		t.Fatal("Serve hung on EOF with a gated run")
 	}
 	// The run must have failed (cancelled), not vanished: its id-response
 	// carries the error.
@@ -303,7 +340,7 @@ func TestServeEventSequenceIsMonotonic(t *testing.T) {
 		{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "q", Name: "ask_user", Arguments: json.RawMessage(`{"question":"which?"}`)}}}},
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}},
 	}}
-	out := runServe(t, testServeDeps(t, stub), []string{`{"id":1,"method":"run","params":{"task":"ask"}}`})
+	out := runServe(t, testServerConfig(t, stub), []string{`{"id":1,"method":"run","params":{"task":"ask"}}`})
 	out.waitFor(t, 5*time.Second, func(rec map[string]any) bool { return rec["event"] == "awaiting_input" })
 	out.mu.Lock()
 	defer out.mu.Unlock()

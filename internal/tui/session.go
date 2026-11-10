@@ -89,7 +89,7 @@ func (m *model) followUp() (tea.Model, tea.Cmd) {
 	// loop can replace m.sess before this body is entered.
 	sess := m.sess
 	m.startRun(func(runCtx context.Context) (string, error) {
-		return sess.Resume(runCtx, history, text, images...)
+		return sess.Continue(runCtx, history, text, images...)
 	})
 	return m, nil
 }
@@ -490,7 +490,7 @@ func (m *model) startFreshPrompt(task, display string, images []string) error {
 	}
 	m.startRun(func(runCtx context.Context) (string, error) {
 		if len(seed) > 0 {
-			return sess.Resume(runCtx, seed, task, images...)
+			return sess.Continue(runCtx, seed, task, images...)
 		}
 		return sess.Run(runCtx)
 	})

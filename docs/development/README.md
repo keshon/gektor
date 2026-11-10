@@ -35,9 +35,22 @@ Run the checks in [Testing](testing.md) before submitting a change. On Windows,
 `build.cmd check` runs the local suite. Browser smoke checks and model evals are
 opt-in and require their documented dependencies.
 
-`python scripts/release.py vMAJOR.MINOR.PATCH` builds Windows and Linux archives
-under `tmp/` and checks their contents. It does not publish a release. Packaging
-uses tracked files, so new documentation must be tracked before a release build.
+`build.cmd dist` stages a runnable Windows distribution under `dist/windows-amd64/`.
+The cross-platform equivalent is `go run ./cmd/release dist`; choose another target
+with `go run ./cmd/release -target linux-amd64 dist`.
+
+`build.cmd release vMAJOR.MINOR.PATCH` (or `go run ./cmd/release vMAJOR.MINOR.PATCH`)
+builds Windows and Linux archives plus `SHA256SUMS.txt` under `dist/`. Both archives
+are verified against the staged directories, including contents and executable
+permissions. Packaging does not publish a release. Versioned builds require a
+clean checkout and use committed payload bytes, independent of checkout line
+endings. Go and Git are the only build requirements. Packaging uses tracked files,
+so new documentation must be tracked before a release build.
 Internal work records and native design assets are excluded. Links to omitted
 contributor sources point to the packaged revision on GitHub; guides and reference
 links remain local. Frozen skill files are copied without rewriting.
+
+Development distributions permit tracked working-tree changes; untracked files
+are excluded. Commit new runtime files before expecting them in a package.
+Each build replaces only its owned `dist/windows-amd64` or `dist/linux-amd64`
+directory after staging succeeds. `build.cmd clean` still cleans root binaries only.

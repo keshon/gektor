@@ -3,6 +3,8 @@ rem ---------------------------------------------------------------------------
 rem  GEKTOR build helper.
 rem
 rem    build            build every package, then gektor.exe
+rem    build dist       stage a runnable Windows distribution under dist
+rem    build release vX.Y.Z  build Windows/Linux archives and checksums
 rem    build test       run the unit tests (extra args pass through)
 rem    build check      full local CI: vet, build, race tests, conventions,
 rem                      eval probes -dry
@@ -48,6 +50,8 @@ if errorlevel 1 (
 )
 
 if /i "%MODE%"=="build" goto :build
+if /i "%MODE%"=="dist" goto :dist
+if /i "%MODE%"=="release" goto :release
 if /i "%MODE%"=="test" goto :test
 if /i "%MODE%"=="check" goto :check
 if /i "%MODE%"=="fmt" goto :fmt
@@ -79,6 +83,18 @@ if errorlevel 1 (
 
 echo Done: gektor.exe
 exit /b 0
+
+:dist
+go run ./cmd/release dist
+exit /b %errorlevel%
+
+:release
+if "%~2"=="" (
+    echo ERROR: specify a version: build release vMAJOR.MINOR.PATCH
+    exit /b 1
+)
+go run ./cmd/release "%~2"
+exit /b %errorlevel%
 
 rem ---------------------------------------------------------------------------
 rem  Unit tests. Extra arguments pass through, so these work:
@@ -224,6 +240,8 @@ rem ---------------------------------------------------------------------------
 echo GEKTOR build helper. Usage: build [mode] [args]
 echo.
 echo   build            build every package, then gektor.exe
+echo   build dist       stage a runnable Windows distribution under dist
+echo   build release vX.Y.Z  build Windows/Linux archives and checksums
 echo   build test       run the unit tests (extra args pass through)
 echo   build check      full local CI: vet, build, race tests, conventions,
 echo                    eval probes -dry

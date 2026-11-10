@@ -42,7 +42,7 @@ func testEnv(t *testing.T, client llm.Client, record func(string, int, llm.Messa
 
 func TestNew_Validates(t *testing.T) {
 	if _, err := New(Config{}); err == nil {
-		t.Fatal("empty task must fail")
+		t.Fatal("missing dependencies must fail")
 	}
 	ws, _ := workspace.New(t.TempDir())
 	if ws != nil {
@@ -53,6 +53,13 @@ func TestNew_Validates(t *testing.T) {
 	}
 	if _, err := New(Config{Task: "x", Env: roles.Env{Client: stubOK{}, WS: ws}}); err != nil {
 		t.Fatalf("valid config: %v", err)
+	}
+	sess, err := New(Config{Env: roles.Env{Client: stubOK{}, WS: ws}})
+	if err != nil {
+		t.Fatal("resume session must not require an opening task", err)
+	}
+	if _, err := sess.Run(t.Context()); err == nil {
+		t.Fatal("Run accepted an empty opening task")
 	}
 }
 
@@ -103,7 +110,10 @@ func TestLocalBackendWindowAndModelRefreshBetweenTurns(t *testing.T) {
 			}
 			for _, size := range []int64{8192, 16384} {
 				window.Store(size)
-				_, _, refreshed := s.build(t.Context())
+				_, _, refreshed, err := s.build(t.Context())
+				if err != nil {
+					t.Fatal(err)
+				}
 				if refreshed.Vision != (kind == "llama" && size == 16384) {
 					t.Fatalf("stale vision capability: %t", refreshed.Vision)
 				}

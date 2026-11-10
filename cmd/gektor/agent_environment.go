@@ -2,17 +2,16 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"strings"
 
-	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/checks"
 	"github.com/keshon/gektor/internal/events"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/rules"
+	"github.com/keshon/gektor/internal/run"
+	"github.com/keshon/gektor/internal/tui"
 )
 
 type launchModelFacts struct {
@@ -47,113 +46,32 @@ func inspectLaunchBackend(ctx context.Context, client *app.Backend, o resolvedLa
 	return launchModelFacts{contextLimit, displayModel, vision, visionKnown}, nil
 }
 
-func serveAgentLaunch(ctx context.Context, o resolvedLaunch, base roles.Env) {
-	serveMain(ctx, serveDeps{
-		client:            base.Client,
-		refreshModelFacts: base.RefreshModelFacts,
-		ws:                base.WS,
-		procs:             base.Procs,
-		maxTokens:         o.maxTokens,
-		maxSteps:          o.maxSteps,
-		delegateSteps:     o.delegateSteps,
-		delegateMaxSteps:  o.delegateMaxSteps,
-		runTimeout:        o.runTimeout,
-		contextLimit:      base.ContextLimit,
-		vision:            base.Vision,
-		logMax:            o.logMax,
-		verifyCmd:         o.verifyCmd,
-
-		autoDeny:          o.yes,
-		auditPath:         o.auditPath,
-		allow:             o.allow,
-		deny:              o.deny,
-		backendKind:       o.backendKind,
-		stream:            o.stream,
-		mcpTools:          base.MCPTools,
-		browser:           base.Browser,
-		capabilities:      base.Capabilities,
-		capabilitySources: base.CapabilitySources,
-	}, os.Stdin, os.Stdout, os.Stderr)
-}
-
-func launchRoleEnvironment(o resolvedLaunch, base roles.Env, emitter *events.Emitter, note func(string, ...any)) (roles.Env, error) {
-	// Identity and response style come from the profile; the agent's own
-	// Plan/Act instructions are added on top and do not compete with it.
+// launchRunConfiguration prepares settings before choosing a frontend.
+func launchRunConfiguration(o resolvedLaunch, base roles.Env, note func(string, ...any)) (run.Config, error) {
 	identity, warnings, err := app.Compile(app.IdentityOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), User: o.userName, System: o.systemPrompt, Post: o.postHistory, MaxTokens: o.maxTokens, ContextLimit: base.ContextLimit, Temperature: o.temperature})
 	if err != nil {
-		return roles.Env{}, err
+		return run.Config{}, err
 	}
 	for _, warning := range warnings {
 		note("Identity warning: " + warning)
 	}
-	// What GEKTOR checks written files for. Secrets apply to every text
-	// file whatever the language; gofmt is one rule among them and lives
-	// outside internal/checks so that package stays language-neutral.
-	rules := append(checks.Secrets(), rules.All()...)
-	env := roles.Env{
-		Identity:          app.IdentityPrompt(identity),
-		IdentityName:      identity.Name,
-		UserName:          o.userName,
-		RefreshModelFacts: base.RefreshModelFacts,
-		Client:            base.Client,
-		WS:                base.WS,
-		Procs:             base.Procs,
-		MaxTokens:         o.maxTokens,
-		Temperature:       o.temperature,
-		ContextLimit:      base.ContextLimit,
-		MaxSteps:          o.maxSteps,
-		DelegateSteps:     o.delegateSteps,
-		DelegateMaxSteps:  o.delegateMaxSteps,
-		RunTimeout:        o.runTimeout,
-		Policy:            buildPolicy(o.allow, o.deny),
-		Vision:            base.Vision,
-		VisionKnown:       base.VisionKnown,
-		GateContext:       base.GateContext,
-		BackendKind:       o.backendKind,
-		Model:             base.Model,
-		Stream:            streamEnabled(o.stream, o.outputMode, o.tui),
-		MCPTools:          base.MCPTools,
-		Browser:           base.Browser,
-		Capabilities:      base.Capabilities,
-		CapabilitySources: base.CapabilitySources,
-		OnDelta:           func(chunk string) { fmt.Print(chunk) },
-		OnStep:            stepPrinter(o.outputMode, emitter, o.logMax),
-		OnToolFinished: func(callID string) {
-			if emitter != nil {
-				events.EmitToolFinished(emitter, callID)
-			}
-		},
-		OnToolOutput: func(callID, text string) {
-			if o.outputMode == "json" {
-				events.EmitToolOutput(emitter, callID, text)
-			} else {
-				fmt.Print(text)
-			}
-		},
-		OnResult: func(result agent.ToolResult) {
-			if o.outputMode == "json" {
-				events.EmitToolResultStatus(emitter, result.CallID, result.Output, result.Failed, result.Status)
-			}
-		},
-		OnUsage: usagePrinter(o.outputMode, emitter),
-		OnPrompt: func(report llm.ContextReport) {
-			if o.outputMode == "json" {
-				emitter.Emit("prompt_budget", map[string]any{"report": report})
-				return
-			}
-			if report.Request == 1 && report.BackendTokens == 0 {
-				note("startup context: ~%d tokens (%d tool schemas); estimates exclude backend template/tokenization", report.EstimatedTokens, len(report.Tools))
-				for _, section := range report.Sections {
-					if section.EstimatedTokens > 0 {
-						note("  %s: ~%d", section.Name, section.EstimatedTokens)
-					}
-				}
-			}
-		},
-		Rules:   rules,
-		Checks:  checks.NewReporter(rules, findingSink(emitter, o.outputMode)),
-		OnNudge: nudgePrinter(o.outputMode),
-	}
+	env := base
+	env.Identity, env.IdentityName, env.UserName = app.IdentityPrompt(identity), identity.Name, o.userName
+	env.MaxTokens, env.Temperature = o.maxTokens, o.temperature
+	env.MaxSteps, env.DelegateSteps, env.DelegateMaxSteps = o.maxSteps, o.delegateSteps, o.delegateMaxSteps
+	env.RunTimeout, env.Policy = o.runTimeout, buildPolicy(o.allow, o.deny)
+	env.BackendKind = o.backendKind
+	env.Stream = o.stream || o.tui
+	env.Rules = append(checks.Secrets(), rules.All()...)
+	return run.Config{Env: env, Task: o.task, Plan: o.plan, WorkflowRecipe: o.workflowRecipe, Verify: verificationCommand(o.verifyCmd, o.workspace), ResumeAnswer: o.answer}, nil
+}
 
-	return env, nil
+func tuiConfiguration(launch launchRequest, o resolvedLaunch, cfg run.Config, history []llm.Message) tui.Config {
+	return tui.Config{
+		StartScreen: o.tuiScreen, SeedHistory: launch.history,
+		InitialDraft: launch.draft, InitialImages: launch.images, Drafts: launch.drafts, SessionDirectory: launch.directory,
+		BackendURL: o.backendURL, Plan: cfg.Plan, Fork: o.fork != "",
+		History: history, ResumeAnswer: cfg.ResumeAnswer, AuditPath: o.auditPath,
+		Env: cfg.Env, Task: cfg.Task, StateFile: cfg.StateFile, Verify: cfg.Verify, Images: cfg.Images,
+	}
 }

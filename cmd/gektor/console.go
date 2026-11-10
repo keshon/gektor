@@ -11,11 +11,9 @@ import (
 	"sync"
 
 	"github.com/keshon/gektor/internal/agent"
-	"github.com/keshon/gektor/internal/checks"
 	"github.com/keshon/gektor/internal/events"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/run"
 	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -112,39 +110,6 @@ func stdioSuspender(noteW io.Writer, emitter *events.Emitter) agent.Suspender {
 			}
 			return agent.SuspendReply{Answer: strings.TrimSpace(rep.line)}, nil
 		}
-	}
-}
-
-func stepPrinter(mode string, emitter *events.Emitter, logMax int) func(string, int, llm.Message) {
-	if mode == "json" && emitter != nil {
-		return func(label string, step int, msg llm.Message) {
-			run.EmitStep(emitter, label, step, msg, false, 0)
-		}
-	}
-	return func(label string, step int, msg llm.Message) { printStep(label, step, msg, logMax) }
-}
-
-// usagePrinter mirrors stepPrinter for token counts: JSON events in
-// json mode, nothing in print mode (the debug log already records them).
-func usagePrinter(mode string, emitter *events.Emitter) func(int, llm.Usage) {
-	if mode == "json" && emitter != nil {
-		return func(step int, usage llm.Usage) { run.EmitUsage(emitter, step, usage) }
-	}
-	return nil
-}
-
-// findingSink shows deterministic check findings: JSON finding events in
-// json mode, one plain line otherwise. It used to return nil for json,
-// which disabled scanning outright: a nil sink means no reporter, and no
-// reporter means the file tools are never wrapped.
-func findingSink(emitter *events.Emitter, mode string) func(checks.Scope, checks.Finding) {
-	if mode == "json" && emitter != nil {
-		return func(scope checks.Scope, f checks.Finding) {
-			events.EmitFinding(emitter, string(scope), f.Rule, f.Path, f.Line, f.Summary)
-		}
-	}
-	return func(_ checks.Scope, f checks.Finding) {
-		fmt.Printf("check %s %s:%d %s\n", f.Rule, f.Path, f.Line, f.Summary)
 	}
 }
 

@@ -157,11 +157,8 @@ func (c *liveStreamClient) Stream(_ context.Context, _ llm.ChatRequest, _, onCon
 	}, nil
 }
 
-// The two halves of live streaming were each tested alone: that the model
-// reveals delta events it is handed, and that a session emits them. What
-// was never tested is the join — that a session configured the way the TUI
-// configures it, with OnDelta already stubbed to a no-op by
-// withoutPrintHooks, still reaches the model's live buffer.
+// Session deltas must reach the live buffer through OnEvent without any
+// frontend print callbacks. This checks the join between Session and Update.
 //
 // A silent break here shows as a finished reply with nothing before it,
 // which is exactly what a lost reveal looks like.
@@ -178,12 +175,6 @@ func TestSessionDeltasReachTheLiveBuffer(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stRunning
 
-	// The stub the TUI installs before handing the env to a session.
-	stubbed := withoutPrintHooks(roles.Env{})
-	if stubbed.OnDelta == nil {
-		t.Fatal("withoutPrintHooks must leave a callable OnDelta behind")
-	}
-
 	client := &liveStreamClient{}
 	seen := map[string]int{}
 	// The step event resets the live buffer, and the reveal only happens
@@ -197,8 +188,6 @@ func TestSessionDeltasReachTheLiveBuffer(t *testing.T) {
 			WS:     ws,
 			Procs:  tools.NewBackgroundProcesses(),
 			Stream: true,
-			// Exactly what the TUI passes: print hooks already stubbed.
-			OnDelta: stubbed.OnDelta,
 		},
 		OnEvent: func(ev events.Event) {
 			seen[ev.Name]++

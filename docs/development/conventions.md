@@ -42,6 +42,11 @@ Request dialects format inference requests; inspection belongs to providers.
 `internal/permission` and `internal/session`. This is what
 lets `internal/tools` implement `agent.Tool` without an import cycle, and what
 keeps the loop testable against a stub client with no filesystem in sight.
+`internal/run` owns role selection, run/resume, checks and reporting for every
+frontend. It imports only agent, checks, events, LLM contracts and roles.
+`internal/agentstdio` owns RPC framing and request lifetime; it imports only
+agent, events, permission, run and workspace. Frontends pass a complete prepared
+run configuration instead of rebuilding a subset of the role environment.
 
 Capability services do not import Agent or workflow execution. Image services
 import only workspace access; attachment grants are resolved by their Agent
@@ -52,6 +57,8 @@ execution and program discovery.
 
 Shared HTTP transport and process support import no internal packages. Program
 discovery imports process support. Worker support imports no internal packages.
+Release packaging imports no internal runtime packages; its command only adapts
+arguments to the standard-library packager and the installed Go and Git tools.
 Every capability package has an explicit import rule, including its contract,
 tool and node adapters; adding an unregistered capability package fails the check.
 Agent tool adapters do not import workflow node adapters. Application composition

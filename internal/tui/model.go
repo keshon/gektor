@@ -48,6 +48,7 @@ type Config struct {
 	AccountLabel     string
 	Plan             bool
 	History          []llm.Message
+	Fork             bool // History seeds a new turn instead of recovering a paused run.
 	ResumeAnswer     string
 
 	Env       roles.Env
@@ -270,25 +271,6 @@ func gateEvent(name string, fields map[string]any) run.Event {
 	}}
 }
 
-// withoutPrintHooks strips the CLI print hooks from Env for fullscreen
-// runs: stepPrinter-style callbacks (steps, findings, nudges) write to
-// stdout, racing the alt-screen renderer (stale status rows plus leaked
-// "[step N]" lines that heal only on resize). The TUI reads the event
-// stream, never the hooks; no-ops keep every call site safe without
-// auditing each one.
-func withoutPrintHooks(env roles.Env) roles.Env {
-	env.OnDelta = func(string) {}
-	env.OnStep = func(string, int, llm.Message) {}
-	env.OnResult = func(agent.ToolResult) {}
-	env.OnToolOutput = func(string, string) {}
-	env.OnToolFinished = nil
-	env.OnUsage = func(int, llm.Usage) {}
-	env.OnNudge = nil
-	env.OnPrompt = nil
-	env.OnInput = nil
-	return env
-}
-
 // envMaxSteps mirrors the loop default: Env.MaxSteps set by -max-steps,
 // otherwise the agent default. Display only — like the other status
 // facts it is snapshotted once; the live meter follows max_steps events.
@@ -332,11 +314,8 @@ func (m *model) stepLine() string {
 	return "Steps: " + strconv.Itoa(m.steps) + "/" + m.stepBudget()
 }
 
-// Run executes the task under the TUI and returns the final answer.
-// The terminal is restored on return, however the run ends.
-func Run(ctx context.Context, cfg Config) (string, error) {
-	uiCtx, cancelUI := context.WithCancel(ctx)
-	defer cancelUI()
+// newModel assembles the terminal state and its production session factory.
+func newModel(uiCtx context.Context, cfg Config) *model {
 	eventsCh := make(chan run.Event, 256)
 	hub := run.NewGateHub(func(name string, fields map[string]any) {
 		select {
@@ -381,8 +360,6 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		mcpCount:     len(cfg.Env.MCPTools),
 		policyRules:  len(cfg.Env.Policy.Rules),
 	}
-	defer m.cancel()
-	defer m.cancelSessionTitle()
 	if cfg.Env.MaxSteps == unlimitedSteps {
 		m.maxStepsOverride = noStepLimit
 	}
@@ -390,7 +367,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	m.config = cfg.Services
 	m.refreshSessions()
 	m.input = newInput()
-	env := withoutPrintHooks(cfg.Env)
+	env := cfg.Env
 	env.Gate = nil
 	env.GateContext = audit.ContextHook(cfg.AuditPath, "tui", m.contextGate(hub, cfg.Env.WS))
 	m.baseEnv = env
@@ -423,6 +400,17 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		m.policyDetails = append(m.policyDetails, rule)
 	}
 	m.seedHistory = cfg.SeedHistory
+	return m
+}
+
+// Run executes the task under the TUI and restores the terminal on return.
+func Run(ctx context.Context, cfg Config) (string, error) {
+	uiCtx, cancelUI := context.WithCancel(ctx)
+	defer cancelUI()
+	m := newModel(uiCtx, cfg)
+	defer func() { m.cancel() }()
+	defer m.cancelSessionTitle()
+	eventsCh := m.events
 	if cfg.SessionDirectory != "" {
 		if info, err := os.Stat(cfg.SessionDirectory); err != nil || !info.IsDir() {
 			return "", fmt.Errorf("cannot open session directory %s", cfg.SessionDirectory)
@@ -464,6 +452,9 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		}
 		m.restoreContext(cfg.History)
 		m.startRun(func(runCtx context.Context) (string, error) {
+			if cfg.Fork {
+				return sess.Continue(runCtx, cfg.History, task, cfg.Images...)
+			}
 			return sess.Resume(runCtx, cfg.History, task, cfg.Images...)
 		})
 	case strings.TrimSpace(cfg.Task) != "":
@@ -503,7 +494,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	}
 	final, err := prog.Run()
 	if err != nil {
-		cancel()
+		m.cancel()
 		return "", err
 	}
 	fm, ok := final.(*model)
@@ -511,14 +502,14 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		return "", fmt.Errorf("tui: unexpected final model")
 	}
 	if fm.modeChange != nil {
-		cancel()
+		m.cancel()
 		return "", fm.modeChange
 	}
 	if err := fm.saveApplication(); err != nil {
 		return "", err
 	}
 	if fm.quit {
-		cancel()
+		m.cancel()
 		return "", nil
 	}
 	return fm.answer, fm.runErr
