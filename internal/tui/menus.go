@@ -63,8 +63,6 @@ func (m *model) menuItems(menu string) []menuItem {
 	case "app":
 		return []menuItem{{"Agent", "screen:agent", idle}, {"Workflows", "screen:workflows", idle}, sep,
 			{"Change workspace…", "workspace", idle && m.application != nil}, sep, {"Quit", "quit", true}}
-	case "session-info":
-		return m.sessionCopyItems()
 	case "session":
 		saved := idle && m.stateFile != ""
 		return append([]menuItem{{"New session", "/new", idle}, {"Open session…", "/sessions", true},

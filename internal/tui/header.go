@@ -312,7 +312,7 @@ func (m *model) headerMenuItems() []popup.MenuItem {
 func (m *model) headerMenuLayout() popup.MenuLayout {
 	x := 0
 	for _, b := range m.headerNavigation() {
-		if b.id == m.header.menu || (b.id == "overflow" && m.header.menu != "session-info") {
+		if b.id == m.header.menu || b.id == "overflow" {
 			x = b.start
 			if !m.header.global {
 				x += m.promptOffset()
@@ -344,12 +344,12 @@ func (m *model) overlayHeader(background string) string {
 func (m *model) headerMouse(msg tea.MouseMsg) (bool, tea.Cmd) {
 	mouse := msg.Mouse()
 	if mouse.Button == tea.MouseLeft && isMouseClick(msg) && mouse.Y == 0 {
-		for i, cell := range m.headerNavigationForMenus() {
+		for i, cell := range m.menuCells() {
 			if mouse.X >= cell.start && mouse.X < cell.end {
-				if m.dialog != nil || m.sessions != nil || m.state == stAsk || m.state == stPermission {
+				if !cell.action.enabled {
 					return true, nil
 				}
-				m.header = headerState{focused: true, global: true, index: i, menu: cell.id}
+				m.header = headerState{focused: true, global: true, index: i, menu: cell.action.name}
 				m.header.row = m.headerActionRow(0, 1)
 				return true, nil
 			}
@@ -417,16 +417,9 @@ func (m *model) headerNavigation() []headerBadge {
 	if !m.header.global {
 		return m.headerBadges()
 	}
-	return m.headerNavigationForMenus()
-}
-
-func (m *model) headerNavigationForMenus() []headerBadge {
 	var badges []headerBadge
 	for _, cell := range m.menuCells() {
 		badges = append(badges, headerBadge{id: cell.action.name, label: cell.action.label, start: cell.start, end: cell.end})
-	}
-	if b := m.sessionIdentityBadge(); b.id != "" {
-		badges = append(badges, b)
 	}
 	return badges
 }
@@ -445,45 +438,24 @@ func (m *model) menuLine() string {
 		}
 		line += label
 	}
-	if b := m.sessionIdentityBadge(); b.label != "" {
-		line += normal.Render(strings.Repeat(" ", max(b.start-lipgloss.Width(line), 0)))
-		style := normal.Foreground(lipgloss.Color(themeColor(colorSecondaryText)))
-		if b.id != "" {
-			style = style.Underline(true)
-			if m.header.focused && m.header.global && m.headerNavigation()[min(m.header.index, len(m.headerNavigation())-1)].id == b.id {
-				style = selected
-			}
-		}
-		line += style.Render(b.label)
-	}
-	return line + normal.Render(strings.Repeat(" ", max(m.termW-lipgloss.Width(line), 0)))
-}
-
-// sessionIdentityBadge shares visible geometry between rendering and mouse hits.
-func (m *model) sessionIdentityBadge() headerBadge {
-	used := 0
-	for _, cell := range m.menuCells() {
-		used = cell.end
-	}
-	available := m.termW - used - 3
-	if available < 12 {
-		return headerBadge{}
-	}
+	// Session identity lives opposite the menus, leaving run metrics intact.
 	identity := m.activeSessionTitle()
-	id := ""
 	if m.stateFile != "" {
 		identity = filepath.Base(filepath.Dir(m.stateFile)) + " · " + identity
-		id = "session-info"
 	}
 	if m.ws != nil {
 		identity = filepath.Base(m.ws.Root()) + " · " + identity
 	}
 	if m.workflowActive() {
-		identity, id = filepath.Base(m.wsRoot), ""
+		identity = filepath.Base(m.wsRoot)
 	}
-	identity = strings.TrimSpace(cellLine(identity, available))
-	end := m.termW - 1
-	return headerBadge{id: id, label: identity, start: end - lipgloss.Width(identity), end: end}
+	available := m.termW - lipgloss.Width(line) - 3
+	if available >= 12 {
+		identity = strings.TrimSpace(cellLine(identity, available))
+		line += normal.Render(strings.Repeat(" ", max(m.termW-lipgloss.Width(line)-lipgloss.Width(identity)-1, 0)))
+		line += normal.Foreground(lipgloss.Color(themeColor(colorSecondaryText))).Render(identity)
+	}
+	return line + normal.Render(strings.Repeat(" ", max(m.termW-lipgloss.Width(line), 0)))
 }
 
 func (m *model) headerTop() int {

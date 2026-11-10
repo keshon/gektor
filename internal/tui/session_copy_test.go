@@ -13,15 +13,12 @@ func TestSessionCopyNavigation(t *testing.T) {
 	m.stateFile = filepath.Join(t.TempDir(), "106db964", "state.json")
 	m.sessionTitle = "Download music"
 	m.state = stRunning
-	b := m.sessionIdentityBadge()
-	m.handleMouse(tea.MouseClickMsg{X: b.start, Y: 0, Button: tea.MouseLeft})
-	if m.header.menu != "session-info" || !m.header.global {
-		t.Fatal("session label did not open its menu during a run")
+	m.handleMouse(tea.MouseClickMsg{X: m.termW - 3, Y: 0, Button: tea.MouseLeft})
+	if m.header.focused || m.header.menu != "" {
+		t.Fatal("session label opened a menu")
 	}
-	items := m.headerItems()
-	if len(items) != 2 || items[0].command != "copy-session-id" || items[1].command != "copy-session-path" {
-		t.Fatal("copy menu actions differ", items)
-	}
+	m.header = headerState{focused: true, global: true, menu: "session"}
+	items := m.sessionCopyItems()
 	for _, item := range items {
 		if !item.enabled {
 			t.Fatal("copy is disabled during a run")
@@ -36,17 +33,9 @@ func TestSessionCopyNavigation(t *testing.T) {
 			t.Fatal("Session menu lacks keyboard access to", item.command)
 		}
 	}
-	l := m.headerMenuLayout()
-	if l.X < 0 || l.X+l.Width > m.termW {
-		t.Fatal("right-aligned popup escaped terminal")
-	}
 	m.headerKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if m.header.focused || m.header.menu != "" {
-		t.Fatal("ESC did not dismiss copy menu")
-	}
-	m.width(tea.WindowSizeMsg{Width: 40, Height: 30})
-	if m.sessionIdentityBadge().id != "" {
-		t.Fatal("hidden session identity retained a hit target")
+		t.Fatal("ESC did not dismiss Session menu")
 	}
 	m.stateFile = ""
 	if m.copySession("copy-session-id") != nil {
