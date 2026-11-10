@@ -13,8 +13,8 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
-	"github.com/keshon/gektor/internal/automation"
 	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -25,7 +25,7 @@ func TestDocumentsLazyDiscoveryAgentWorkflowAndResources(t *testing.T) {
 	}
 	defer ws.Close()
 	c := &Capabilities{}
-	reg, err := Compose(ws, nil, nil, nil, false, c, nil)
+	reg, err := Compose(Dependencies{WS: ws, Vision: false}, c, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestDocumentsLazyDiscoveryAgentWorkflowAndResources(t *testing.T) {
 	if err := ws.WriteFile("input.docx", archive.Bytes(), 0600); err != nil {
 		t.Fatal(err)
 	}
-	nodes, err := app.AutomationRegistry(ws, t.TempDir(), nil, nil)
+	nodes, err := app.WorkflowRegistry(ws, t.TempDir(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,10 +74,11 @@ func TestDocumentsLazyDiscoveryAgentWorkflowAndResources(t *testing.T) {
 	if err != nil || direct != fromNode || !strings.Contains(direct, "Invoice 73") {
 		t.Fatal(direct, fromNode, err)
 	}
-	if err := automation.ValidateJSON(json.RawMessage(direct), node.OutputSchema); err != nil {
+	if err := workflow.ValidateJSON(json.RawMessage(direct), node.OutputSchema); err != nil {
 		t.Fatal(err)
 	}
-	BindWorkflowPolicy(c, ws, permission.Default(), nil, t.TempDir())
+	c = policyCatalog(t, Dependencies{WS: ws, Policy: permission.Default(), Gate: nil, StoreDir: t.TempDir()})
+	reg = c.Registry
 	if _, err := c.Enable(t.Context(), "native_workflows", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +90,8 @@ func TestDocumentsLazyDiscoveryAgentWorkflowAndResources(t *testing.T) {
 	if err != nil || !strings.Contains(out, "Invoice 73") {
 		t.Fatal(out, err)
 	}
-	BindWorkflowPolicy(c, ws, permission.Policy{Rules: []permission.Rule{{Tool: "docx_read", Pattern: "input.docx", Effect: permission.Deny}}}, nil, t.TempDir())
+	c = policyCatalog(t, Dependencies{WS: ws, Policy: permission.Policy{Rules: []permission.Rule{{Tool: "docx_read", Pattern: "input.docx", Effect: permission.Deny}}}, Gate: nil, StoreDir: t.TempDir()})
+	reg = c.Registry
 	_, err = reg.Run(t.Context(), "workflow_run", json.RawMessage(`{"recipe_path":"recipe.json"}`))
 	if err == nil || !strings.Contains(err.Error(), "blocked by policy") {
 		t.Fatal("document node bypassed permission", err)
@@ -114,7 +116,7 @@ func TestDocumentsContinuationAcrossAgentWorkflowAndOutputLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := &Capabilities{}
-	reg, err := Compose(ws, nil, nil, nil, false, c, nil)
+	reg, err := Compose(Dependencies{WS: ws, Vision: false}, c, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,13 +174,13 @@ func TestDocumentsContinuationAcrossAgentWorkflowAndOutputLimit(t *testing.T) {
 	if recovered.String() != first {
 		t.Fatal("output limiter lost document JSON")
 	}
-	nodes, err := app.AutomationRegistry(ws, t.TempDir(), nil, nil)
+	nodes, err := app.WorkflowRegistry(ws, t.TempDir(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	node, _ := nodes.Node("docx_read")
 	args, _ := json.Marshal(map[string]any{"path": "long.docx", "offset": 0, "text_offset": page.Blocks[0].Next})
-	if err := automation.ValidateJSON(args, node.InputSchema); err != nil {
+	if err := workflow.ValidateJSON(args, node.InputSchema); err != nil {
 		t.Fatal(err)
 	}
 	tail, err := reg.Run(ctx, "docx_read", args)
@@ -190,7 +192,7 @@ func TestDocumentsContinuationAcrossAgentWorkflowAndOutputLimit(t *testing.T) {
 		t.Fatal("agent/node contract differs", err)
 	}
 	for _, out := range []string{first, tail} {
-		if err := automation.ValidateJSON(json.RawMessage(out), node.OutputSchema); err != nil {
+		if err := workflow.ValidateJSON(json.RawMessage(out), node.OutputSchema); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -203,7 +205,8 @@ func TestDocumentsContinuationAcrossAgentWorkflowAndOutputLimit(t *testing.T) {
 	if err := json.Unmarshal([]byte(tail), &last); err != nil || len(last.Blocks) != 1 || last.Blocks[0].Next != 0 || page.Blocks[0].Text+last.Blocks[0].Text != want {
 		t.Fatal("reconstruction failed", err)
 	}
-	BindWorkflowPolicy(c, ws, permission.Default(), nil, t.TempDir())
+	c = policyCatalog(t, Dependencies{WS: ws, Policy: permission.Default(), Gate: nil, StoreDir: t.TempDir()})
+	reg = c.Registry
 	if _, err := c.Enable(ctx, "native_workflows", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +223,8 @@ func TestDocumentsContinuationAcrossAgentWorkflowAndOutputLimit(t *testing.T) {
 	if err := ws.WriteFile("denied.json", []byte(recipe), 0600); err != nil {
 		t.Fatal(err)
 	}
-	BindWorkflowPolicy(c, ws, permission.Policy{Rules: []permission.Rule{{Tool: "docx_read", Pattern: "long.docx", Effect: permission.Deny}}}, nil, t.TempDir())
+	c = policyCatalog(t, Dependencies{WS: ws, Policy: permission.Policy{Rules: []permission.Rule{{Tool: "docx_read", Pattern: "long.docx", Effect: permission.Deny}}}, Gate: nil, StoreDir: t.TempDir()})
+	reg = c.Registry
 	if _, err := reg.Run(ctx, "workflow_run", json.RawMessage(`{"recipe_path":"denied.json"}`)); err == nil || !strings.Contains(err.Error(), "blocked by policy") {
 		t.Fatal("continuation bypassed policy", err)
 	}

@@ -1,27 +1,26 @@
 package tui
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"encoding/json"
 	"fmt"
-	"github.com/keshon/gektor/internal/automation"
-	"github.com/keshon/gektor/internal/automation/store"
-	"github.com/keshon/gektor/internal/gektor"
+	"strings"
+
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/schemaform"
 	"github.com/keshon/gektor/internal/tui/settings"
-	"strings"
+	"github.com/keshon/gektor/internal/userdirs"
+	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/internal/workflow/store"
 )
 
-func (m *model) workflowCommand(action string) tea.Cmd {
-	if !m.workflowActive() {
-		m.openWorkflows()
-	}
-	if !m.workflowActive() {
+func (m *workflowScreen) command(action string) tea.Cmd {
+	if !m.active {
 		return nil
 	}
-	w := m.workflows
+	w := m
 	if action == "inspector" {
 		w.inspectorOpen = !w.inspectorOpen
 		w.inspect = w.inspectorOpen
@@ -31,7 +30,7 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 	if action == "lock-positions" {
 		w.positionsLocked = !w.positionsLocked
 		w.dragging = false
-		m.persistWorkflowLayout()
+		m.persistLayout()
 		return nil
 	}
 	if action == "raw-details" {
@@ -59,31 +58,31 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 		w.active = false
 		return nil
 	}
-	if m.workflowSelectedSchedule() != nil && (action == "behavior" || action == "connections" || action == "link") {
+	if m.selectedSchedule() != nil && (action == "behavior" || action == "connections" || action == "link") {
 		w.setNotice(pane.NoticeInfo, "Schedule starts the whole recipe. Enter edits the trigger; connections are automatic.")
 		return nil
 	}
-	fail := func(err error) { m.openDialog("Workflow", []string{err.Error()}) }
+	fail := func(err error) { m.ui.openDialog("Workflow", []string{err.Error()}) }
 	switch action {
 	case "schedule":
-		m.workflowSchedule()
+		m.schedule()
 	case "schedule-add":
-		m.workflowScheduleStart(true)
+		m.scheduleStart(true)
 	case "schedule-refresh":
-		return m.workflowScheduleRefresh()
+		return m.scheduleRefresh()
 	case "help":
-		_, cmd := m.workflowKey(tea.KeyPressMsg{Code: tea.KeyF1})
+		_, cmd := m.key(tea.KeyPressMsg{Code: tea.KeyF1})
 		return cmd
 	case "setup":
-		return m.workflowSetupForm()
+		return m.setupForm()
 
 	case "name":
 		if w.run == nil {
-			m.workflowRecipeName()
+			m.recipeName()
 		}
 	case "inputs", "outputs":
 		if w.run == nil {
-			m.workflowParameters(action)
+			m.parameters(action)
 		}
 	case "stop":
 		if w.cancel != nil {
@@ -91,39 +90,39 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 		}
 		w.setNotice(pane.NoticeInfo, "Stopping…")
 	case "new", "open":
-		m.workflowRecipePath(action)
+		m.recipePath(action)
 	case "save":
-		m.workflowSaveForm()
+		m.saveForm()
 	case "add":
-		return m.workflowAddNodeForm()
+		return m.addNodeForm()
 
 	case "edit":
-		m.workflowEdit()
+		m.edit()
 	case "behavior":
-		return m.workflowBehaviorForm()
+		return m.behaviorForm()
 
 	case "ai":
-		return m.workflowProposalForm()
+		return m.proposalForm()
 
 	case "recipe":
-		return m.workflowSourceForm()
+		return m.sourceForm()
 
 	case "link":
-		return m.workflowConnectForm()
+		return m.connectForm()
 
 	case "connections":
-		m.workflowConnections()
+		m.connections()
 
 	case "delete":
-		return m.workflowDeleteNodeForm()
+		return m.deleteNodeForm()
 
 	case "run-json", "validate-json":
 		base := strings.TrimSuffix(action, "-json")
-		m.workflowInputForm(workflowInvocation{Action: base, Draft: w.editor.Source(), Mode: "JSON"})
+		m.inputForm(workflowInvocation{Action: base, Draft: w.editor.Source(), Mode: "JSON"})
 	case "validate", "run":
-		m.workflowRunInputs(action)
+		m.runInputs(action)
 	case "runs":
-		s, err := store.OpenStore(gektor.Sub("workflows"), m.wsRoot)
+		s, err := store.OpenStore(userdirs.Sub("workflows"), m.config.WS.Root())
 		if err != nil {
 			fail(err)
 			return nil
@@ -134,27 +133,27 @@ func (m *model) workflowCommand(action string) tea.Cmd {
 			fail(err)
 			return nil
 		}
-		m.openWorkflowRuns(runs)
+		m.openRuns(runs)
 	case "review":
-		return m.workflowReviewForm()
+		return m.reviewForm()
 
 	case "layout":
 		if w.positionsLocked {
 			w.setNotice(pane.NoticeWarning, "Unlock node positions before auto-layout")
 			return nil
 		}
-		w.graph = m.workflowGraph(graph.Model{Selected: w.graph.Selected})
-		m.persistWorkflowLayout()
+		w.graph = m.buildGraph(graph.Model{Selected: w.graph.Selected})
+		m.persistLayout()
 	case "undo":
 		w.editor.Undo()
-		w.graph = m.workflowGraph(w.graph)
+		w.graph = m.buildGraph(w.graph)
 	case "redo":
 		w.editor.Redo()
-		w.graph = m.workflowGraph(w.graph)
+		w.graph = m.buildGraph(w.graph)
 	case "draft":
 		w.runID = ""
 		w.run = nil
-		w.graph = m.workflowGraph(graph.Model{})
+		w.graph = m.buildGraph(graph.Model{})
 		w.offset = 0
 	}
 	return nil
@@ -170,8 +169,8 @@ func workflowRequiresDraft(action string) bool {
 	}
 }
 
-func (m *model) workflowRecipePath(action string) {
-	w := m.workflows
+func (m *workflowScreen) recipePath(action string) {
+	w := m
 	fields := []formField{{Key: "path", Label: "Recipe path (relative to workspace)", Value: w.editor.Path}}
 	if action == "new" {
 		fields[0].Value = "recipe.json"
@@ -179,37 +178,37 @@ func (m *model) workflowRecipePath(action string) {
 	if w.editor.Dirty() {
 		fields = append(fields, formField{Key: "discard", Label: "Unsaved changes: type discard to replace"})
 	}
-	m.openForm("Workflow / "+action, "Workspace: "+m.wsRoot, "Continue", fields, func(v map[string]string) error {
+	m.ui.openForm("Workflow / "+action, "Workspace: "+m.config.WS.Root(), "Continue", fields, func(v map[string]string) error {
 		if w.editor.Dirty() && v["discard"] != "discard" {
 			return fmt.Errorf("save first, or type discard")
 		}
 		if strings.TrimSpace(v["path"]) == "" {
 			return fmt.Errorf("enter a recipe path")
 		}
-		if _, err := m.baseEnv.WS.Relative(v["path"]); err != nil {
+		if _, err := m.config.WS.Relative(v["path"]); err != nil {
 			return err
 		}
-		m.queueWorkflow(action+"-path", v["path"])
+		m.queueAction(action+"-path", v["path"])
 		return nil
 	})
 	if action == "open" {
-		m.dialog.form.FileFields = map[string]settings.FilePicker{"path": {Root: m.wsRoot, Extensions: []string{".json"}}}
+		m.ui.dialog().form.FileFields = map[string]settings.FilePicker{"path": {Root: m.config.WS.Root(), Extensions: []string{".json"}}}
 	}
 }
 
-func (m *model) workflowSaveForm() {
-	w := m.workflows
-	m.openForm("Save workflow", "Writes the recipe; canvas positions stay in your user settings.", "Save", []formField{{Key: "path", Label: "Recipe path", Value: w.editor.Path}}, func(v map[string]string) error {
+func (m *workflowScreen) saveForm() {
+	w := m
+	m.ui.openForm("Save workflow", "Writes the recipe; canvas positions stay in your user settings.", "Save", []formField{{Key: "path", Label: "Recipe path", Value: w.editor.Path}}, func(v map[string]string) error {
 		if strings.TrimSpace(v["path"]) == "" {
 			return fmt.Errorf("enter a path")
 		}
-		m.queueWorkflow("save-path", v["path"])
+		m.queueAction("save-path", v["path"])
 		return nil
 	})
 }
 
-func (m *model) workflowAddOperation(name string) {
-	w := m.workflows
+func (m *workflowScreen) addOperation(name string) {
+	w := m
 	if w.busy || w.run != nil {
 		return
 	}
@@ -219,7 +218,7 @@ func (m *model) workflowAddOperation(name string) {
 		return
 	}
 	draft := w.editor.Source()
-	m.openForm("Add operation", name, "Add", []formField{{Key: "id", Label: "Unique node ID", Value: fmt.Sprintf("step_%d", len(w.editor.Definition.Steps)+1)}}, func(v map[string]string) error {
+	m.ui.openForm("Add operation", name, "Add", []formField{{Key: "id", Label: "Unique node ID", Value: fmt.Sprintf("step_%d", len(w.editor.Definition.Steps)+1)}}, func(v map[string]string) error {
 		if w.busy || w.run != nil || w.editor.Source() != draft {
 			return fmt.Errorf("draft changed; add the node again")
 		}
@@ -233,19 +232,19 @@ func (m *model) workflowAddOperation(name string) {
 				return fmt.Errorf("node ID already exists")
 			}
 		}
-		d.Steps = append(d.Steps, automation.Step{ID: id, Tool: n.Name, NodeVersion: n.Version, Args: json.RawMessage(`{}`)})
+		d.Steps = append(d.Steps, workflow.Step{ID: id, Tool: n.Name, NodeVersion: n.Version, Args: json.RawMessage(`{}`)})
 		w.editor.Replace(d)
 		w.graph.Selected = id
-		w.graph = m.workflowGraph(w.graph)
-		m.queueWorkflow("edit", "")
+		w.graph = m.buildGraph(w.graph)
+		m.queueAction("edit", "")
 		return nil
 	})
 }
 
-func (m *model) workflowEdit() {
-	w := m.workflows
-	if m.workflowSelectedSchedule() != nil {
-		m.workflowSchedule()
+func (m *workflowScreen) edit() {
+	w := m
+	if m.selectedSchedule() != nil {
+		m.schedule()
 		return
 	}
 	idx := -1
@@ -261,7 +260,7 @@ func (m *model) workflowEdit() {
 	s := w.editor.Definition.Steps[idx]
 	n, err := w.registry.Node(s.Tool)
 	if err != nil {
-		m.openDialog("Node", []string{err.Error()})
+		m.ui.openDialog("Node", []string{err.Error()})
 		return
 	}
 	schema := schemaform.Parse(n.InputSchema)
@@ -269,7 +268,7 @@ func (m *model) workflowEdit() {
 		delete(schema.Properties, "code")
 	}
 	draft := w.editor.Source()
-	m.openForm(s.ID+" / "+s.Tool, n.Description+" · * required. Use JSON objects for references.", "Apply", schema.Fields(s.Args), func(v map[string]string) error {
+	m.ui.openForm(s.ID+" / "+s.Tool, n.Description+" · * required. Use JSON objects for references.", "Apply", schema.Fields(s.Args), func(v map[string]string) error {
 		if w.run != nil || w.busy || w.editor.Source() != draft {
 			return fmt.Errorf("draft changed; reopen node arguments")
 		}
@@ -280,17 +279,17 @@ func (m *model) workflowEdit() {
 		d := w.editor.Clone()
 		d.Steps[idx].Args = args
 		w.editor.Replace(d)
-		w.graph = m.workflowGraph(w.graph)
+		w.graph = m.buildGraph(w.graph)
 		return nil
 	})
-	m.dialog.form.Choices = schema.Choices()
+	m.ui.dialog().form.Choices = schema.Choices()
 }
 
 // workflowLinkTarget resolves the destination schema after both nodes are chosen.
-func (m *model) workflowLinkTarget(value string) {
+func (m *workflowScreen) linkTarget(value string) {
 	var pair []string
 	if json.Unmarshal([]byte(value), &pair) != nil || len(pair) != 2 {
 		return
 	}
-	m.workflowConnectionTarget(pair[0], pair[1], nil)
+	m.connectionTarget(pair[0], pair[1], nil)
 }

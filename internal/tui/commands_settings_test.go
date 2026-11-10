@@ -5,8 +5,9 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/run"
 )
 
 // /max-steps, /budget-think and /nudges all set a model field and rebuild the
@@ -37,12 +38,12 @@ func sessionModel(t *testing.T) (*model, *[]roles.Env) {
 	t.Helper()
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	m.sess = &run.Session{}
+	m.sess = &harness.Session{}
 	m.limit = 16384
 	var built []roles.Env
-	m.newSession = func(task, stateFile string, images []string) (*run.Session, error) {
+	m.newSession = func(task, stateFile string, images []string) (*harness.Session, error) {
 		built = append(built, m.sessionEnv())
-		return &run.Session{}, nil
+		return &harness.Session{}, nil
 	}
 	return m, &built
 }

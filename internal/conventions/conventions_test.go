@@ -78,19 +78,22 @@ func checkPackageLayers(t *testing.T, r *repo) {
 		"prompts":                  {},
 		"workspace":                {},
 		"permission":               {},
+		"permissionlog":            {"permission"},
+		"checks":                   {"workspace"},
 		"events":                   {},
-		"session":                  {"llm"},
-		"agent":                    {"llm", "prompts", "permission", "session"},
-		"agentstdio":               {"agent", "events", "permission", "run", "workspace"},
-		"run":                      {"agent", "checks", "events", "llm", "roles"},
-		"automation":               {},
-		"automation/recipe":        {"automation"},
-		"automation/engine":        {"automation", "automation/recipe"},
-		"automation/store":         {"automation"},
-		"automation/records":       {"automation", "automation/store", "workspace"},
-		"automation/nodes/record":  {"automation", "automation/records", "workspace"},
-		"automation/service":       {"automation", "automation/engine", "automation/recipe", "automation/store", "workspace"},
-		"automation/daemon":        {"automation/service", "automation/store"},
+		"conversation":             {"llm"},
+		"agent":                    {"llm", "prompts", "permission", "conversation"},
+		"agentrpc":                 {"agent", "events", "permission", "harness", "workspace", "conversation"},
+		"harness":                  {"agent", "checks", "events", "llm", "roles"},
+		"workflow":                 {},
+		"workflow/recipe":          {"workflow"},
+		"workflow/engine":          {"workflow", "workflow/recipe"},
+		"workflow/store":           {"workflow"},
+		"workflow/records":         {"workflow", "workflow/store", "workspace"},
+		"workflow/nodes/record":    {"workflow", "workflow/records", "workspace"},
+		"workflow/service":         {"workflow", "workflow/engine", "workflow/recipe", "workflow/store", "workspace"},
+		"workflow/daemon":          {"workflow/service", "workflow/store"},
+		"workflow/agenttools":      {"agent", "workflow/recipe", "workflow", "workflow/service", "workflow/store", "workflow/records", "workspace", "capabilities/images/contract"},
 		"capabilities/social":      {"httptransport"},
 		"httptransport":            {},
 		"release":                  {},
@@ -99,25 +102,24 @@ func checkPackageLayers(t *testing.T, r *repo) {
 		"capabilities/files":       {"workspace", "httptransport"},
 	}
 	allowed["capabilities/images"] = []string{"workspace"}
-	allowed["capabilities/media"] = []string{"workspace", "programs", "process", "httptransport"}
-	allowed["programs"] = []string{"process"}
+	allowed["capabilities/media"] = []string{"workspace", "executables", "process", "httptransport"}
+	allowed["executables"] = []string{"process"}
 	allowed["process"] = nil
 	for _, feature := range []string{"documents", "files", "images", "media", "social"} {
 		base := "capabilities/" + feature
-		allowed[base+"/contract"] = []string{"automation", base}
-		allowed[base+"/tools"] = []string{"agent", base + "/contract"}
-		allowed[base+"/nodes"] = []string{"automation", base, base + "/contract", "workspace"}
+		allowed[base+"/contract"] = []string{"workflow", base}
+		allowed["capabilities/nodes"] = append(allowed["capabilities/nodes"], base, base+"/contract")
 	}
-	allowed["capabilities/images/tools"] = []string{"agent", "capabilities/images", "capabilities/images/contract", "llm", "workspace"}
+	allowed["capabilities/nodes"] = append(allowed["capabilities/nodes"], "workflow", "workspace")
 
 	for _, f := range r.goFiles {
 		pkg := strings.TrimPrefix(filepath.ToSlash(filepath.Dir(r.rel(f))), "internal/")
 		agentAdapter := pkg == "tools" || strings.HasPrefix(pkg, "tools/") ||
-			pkg == "automation/agenttools" || strings.HasPrefix(pkg, "automation/agenttools/") ||
+			pkg == "workflow/agenttools" || strings.HasPrefix(pkg, "workflow/agenttools/") ||
 			strings.HasPrefix(pkg, "capabilities/") && strings.Contains("/"+pkg+"/", "/tools/")
 		if agentAdapter && !strings.HasSuffix(f, "_test.go") {
 			for _, imp := range internalImports(r.read(t, f)) {
-				if strings.HasPrefix(imp, "automation/nodes/") || strings.HasPrefix(imp, "capabilities/") && strings.Contains("/"+imp+"/", "/nodes/") {
+				if strings.HasPrefix(imp, "workflow/nodes/") || strings.HasPrefix(imp, "capabilities/") && strings.Contains("/"+imp+"/", "/nodes/") {
 					t.Errorf("%s imports workflow node adapter internal/%s\n%s", r.rel(f), imp, r.rule("package-layers"))
 				}
 			}

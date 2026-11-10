@@ -181,11 +181,11 @@ func TestChat_StructuredRequestUsesTheFormEachBackendAccepts(t *testing.T) {
 
 	for _, tc := range []struct {
 		name                  string
-		newClient             func(string) *Server
+		newClient             func(string) *Client
 		wantGrammar, wantForm bool
 	}{
-		{"kobold takes GBNF", func(u string) *Server { return NewKoboldClient(u, "local") }, true, false},
-		{"llama takes response_format", func(u string) *Server { return NewLlamaClient(u, "local") }, false, true},
+		{"kobold takes GBNF", func(u string) *Client { return NewKoboldClient(u, "local") }, true, false},
+		{"llama takes response_format", func(u string) *Client { return NewLlamaClient(u, "local") }, false, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var captured []byte
@@ -237,9 +237,9 @@ func TestChat_OneEncodingAloneLeavesABackendUnconstrained(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var constrained int
-			for _, newClient := range []func(string) *Server{
-				func(u string) *Server { return NewKoboldClient(u, "local") },
-				func(u string) *Server { return NewLlamaClient(u, "local") },
+			for _, newClient := range []func(string) *Client{
+				func(u string) *Client { return NewKoboldClient(u, "local") },
+				func(u string) *Client { return NewLlamaClient(u, "local") },
 			} {
 				var captured []byte
 				srv := captureServer(t, &captured)

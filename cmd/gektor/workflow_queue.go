@@ -11,9 +11,9 @@ import (
 	"os"
 
 	"github.com/keshon/gektor/internal/app"
-	"github.com/keshon/gektor/internal/automation/api"
-	"github.com/keshon/gektor/internal/automation/daemon"
-	"github.com/keshon/gektor/internal/automation/store"
+	"github.com/keshon/gektor/internal/workflow/api"
+	"github.com/keshon/gektor/internal/workflow/daemon"
+	"github.com/keshon/gektor/internal/workflow/store"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -95,7 +95,7 @@ func workflowQueue(ctx context.Context, args []string, out io.Writer, directory 
 	}
 	// Unattended execution rejects prompts. The operator's policy still determines
 	// default access; -allow does not turn it into an allowlist.
-	svc, err := app.NewAutomation(ws, directory, policy, permissionGateContext(true, nil, nil))
+	svc, err := app.NewWorkflow(ws, directory, policy, permissionGateContext(true, nil, nil))
 	if err != nil {
 		return err
 	}

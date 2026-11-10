@@ -3,11 +3,11 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/keshon/gektor/internal/tui/components/pane"
 	"strings"
 
-	"github.com/keshon/gektor/internal/automation/recipe"
+	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/schemaform"
+	"github.com/keshon/gektor/internal/workflow/recipe"
 )
 
 type workflowInvocation struct {
@@ -16,24 +16,24 @@ type workflowInvocation struct {
 	ScheduleID          string
 }
 
-func (m *model) queueInvocation(action string, in workflowInvocation) {
+func (m *workflowScreen) queueInvocation(action string, in workflowInvocation) {
 	b, _ := json.Marshal(in)
-	m.queueWorkflow(action, string(b))
+	m.queueAction(action, string(b))
 }
 
-func (m *model) workflowRunInputs(action string) {
-	w := m.workflows
+func (m *workflowScreen) runInputs(action string) {
+	w := m
 	in := workflowInvocation{Action: action, Draft: w.editor.Source(), Mode: "Simple"}
 	if len(w.editor.Definition.Inputs) == 0 {
 		in.Inputs = json.RawMessage(`{}`)
 		m.queueInvocation("invoke", in)
 		return
 	}
-	m.workflowInputForm(in)
+	m.inputForm(in)
 }
 
-func (m *model) workflowInputForm(in workflowInvocation) {
-	w := m.workflows
+func (m *workflowScreen) inputForm(in workflowInvocation) {
+	w := m
 	if w.busy || w.run != nil {
 		return
 	}
@@ -67,7 +67,7 @@ func (m *model) workflowInputForm(in workflowInvocation) {
 		primary = "Next"
 	}
 	if in.Mode == "JSON" {
-		m.openForm(title+" / JSON", "Input values are checked before execution; omitted keys use recipe defaults.", primary, []formField{{Key: "inputs", Label: "Input values (JSON object)", Value: "{}", Multiline: true}}, func(v map[string]string) error {
+		m.ui.openForm(title+" / JSON", "Input values are checked before execution; omitted keys use recipe defaults.", primary, []formField{{Key: "inputs", Label: "Input values (JSON object)", Value: "{}", Multiline: true}}, func(v map[string]string) error {
 			var values map[string]json.RawMessage
 			if err := json.Unmarshal([]byte(v["inputs"]), &values); err != nil {
 				return err
@@ -154,7 +154,7 @@ func (m *model) workflowInputForm(in workflowInvocation) {
 	if in.Action == "schedule" {
 		hint = "These values will be saved with the schedule and used for each scheduled run."
 	}
-	m.openForm(title, hint, primary, fields, func(v map[string]string) error {
+	m.ui.openForm(title, hint, primary, fields, func(v map[string]string) error {
 		values := map[string]json.RawMessage{}
 		for name, spec := range specs {
 			text := v["value:"+name]
@@ -178,5 +178,5 @@ func (m *model) workflowInputForm(in workflowInvocation) {
 		}
 		return submit(values)
 	})
-	m.dialog.form.Choices = choices
+	m.ui.dialog().form.Choices = choices
 }

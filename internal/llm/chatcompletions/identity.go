@@ -10,7 +10,7 @@ import (
 // Local templates may render tool results as user turns. A transient footer
 // repeats the actual operator request, never assistant prose, without rewriting
 // stored history or the cached prefix. Native provider replay is unchanged.
-func (c *Server) encodeRequestMessages(messages []llm.Message, allowImages bool, request string, userCount int, directive string) ([]wireMessage, error) {
+func (c *Client) encodeRequestMessages(messages []llm.Message, allowImages bool, request string, userCount int, directive string) ([]wireMessage, error) {
 	if _, local := c.dialect.(llamaDialect); !local {
 		return encodeMessages(messages, allowImages)
 	}

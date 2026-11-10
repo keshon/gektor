@@ -39,8 +39,6 @@ type stubRule struct {
 	line    int    // 0 means line 1
 }
 
-func (s stubRule) Name() string { return s.name }
-
 func (s stubRule) Check(path string, _ []byte) []Finding {
 	if s.onlyFor != "" && !strings.HasSuffix(path, s.onlyFor) {
 		return nil
@@ -70,13 +68,5 @@ func TestSecrets_ProseIsClean(t *testing.T) {
 	src := "the secret sauce is patience\napi_key = placeholder\n"
 	if out := Scan(Secrets(), "notes.md", []byte(src)); len(out) != 0 {
 		t.Fatalf("prose flagged: %+v", out)
-	}
-}
-
-func TestClamp_CountsDropped(t *testing.T) {
-	in := []Finding{{Rule: "a"}, {Rule: "b"}, {Rule: "c"}}
-	out, dropped := Clamp(in, 2)
-	if len(out) != 2 || dropped != 1 {
-		t.Fatalf("clamp = %d findings, %d dropped", len(out), dropped)
 	}
 }

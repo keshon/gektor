@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
-	"github.com/keshon/gektor/internal/session"
 )
 
 // compactHistory drops older assistant-led step groups from history while
@@ -192,7 +192,7 @@ const defaultCompactAtPercent = 85
 // back: it was already decoded here, and the /compact path read the same
 // file a second time purely to get it.
 func CompactFile(stateFile string, keepSteps int) (before, after int, history []llm.Message, err error) {
-	snapshot, loadErr := session.Load(stateFile)
+	snapshot, loadErr := conversation.Load(stateFile)
 	err = loadErr
 	if err != nil {
 		return 0, 0, nil, err

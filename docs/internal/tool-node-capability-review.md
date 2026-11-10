@@ -39,16 +39,16 @@ validation.
 
 Documents, files, images, media and social provide 21 shared operations under
 `internal/capabilities`. Application records add two operations shared in
-[`automation/records`](../../internal/automation/records/operation.go). Records
+[`workflow/records`](../../internal/workflow/records/operation.go). Records
 belong to the workflow user store, so this package uses that existing storage
 boundary directly. Its location is deliberate, not a migration stage toward a
 new persistence abstraction.
 
 Evidence: [development pattern](../development/capabilities.md),
 [Agent contract](../../internal/agent/tool.go),
-[node descriptor](../../internal/automation/node.go),
+[node descriptor](../../internal/workflow/node.go),
 [Agent composition](../../internal/tools/packages.go),
-[workflow composition](../../internal/app/automation.go).
+[workflow composition](../../internal/app/workflow.go).
 
 ## Resolved findings
 
@@ -60,8 +60,8 @@ already diverged around `allow_missing`.
 
 The shared operation now owns names, descriptions, input/output schemas,
 read-only and retry declarations, execution and resource derivation. Both
-[Agent](../../internal/automation/agenttools/records.go) and
-[node](../../internal/automation/nodes/record/definitions.go) adapters delegate to
+[Agent](../../internal/workflow/agenttools/records.go) and
+[node](../../internal/workflow/nodes/record/definitions.go) adapters delegate to
 it. Permission routing calls the same resource helper. The former implementation
 and test files were moved out of the node package; no aliases remain there.
 
@@ -122,7 +122,7 @@ extract one shared contract and execution boundary first:
 - Workspace editing must retain rooted access, encoding/newline handling,
   locking and permissions. Immutable workflow artifacts have different ownership.
 - Structured transforms must reuse the existing isolated
-  [script execution service](../../internal/automation/script/worker.go).
+  [script execution service](../../internal/workflow/script/worker.go).
 
 These are extension rules, not outstanding work. There is no universal Capability
 interface, generic repository layer or broad migration required by this review.
@@ -135,7 +135,7 @@ Passed `go test -p 1 ./internal/... ./cmd/...`, targeted `go vet -p 1` across
 the changed packages, Go formatting checks and `git diff --check`.
 The tests cover services, frontends, role integration and import boundaries.
 New behavior checks are in
-[record adapter tests](../../internal/automation/agenttools/records_test.go),
-[shared record tests](../../internal/automation/records/operation_test.go) and the
+[record adapter tests](../../internal/workflow/agenttools/records_test.go),
+[shared record tests](../../internal/workflow/records/operation_test.go) and the
 permission/parity tests linked above. No live model evals are required for this
 ownership refactor; no model eval was launched.

@@ -9,9 +9,9 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/session"
 )
 
 type steeringTool struct {
@@ -184,7 +184,7 @@ func TestSteeringAcceptedInputSurvivesCancellation(t *testing.T) {
 			history := a.snapshot.History
 			if persisted {
 				var err error
-				history, err = session.ReadHistory(path)
+				history, err = conversation.ReadHistory(path)
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -9,14 +9,14 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
-	"github.com/keshon/gektor/internal/session"
 )
 
 type Agent struct {
 	cfg           Config
-	snapshot      session.Snapshot
+	snapshot      conversation.Snapshot
 	checkpointLen int
 	requests      int
 	inspection    *ContextInspection
@@ -108,7 +108,7 @@ func (a *Agent) Run(ctx context.Context, task string, images ...string) (string,
 		{Role: llm.RoleSystem, Content: a.cfg.System},
 		{Role: llm.RoleUser, Content: task, Images: images},
 	}
-	a.snapshot, a.checkpointLen = session.New(history), len(history)
+	a.snapshot, a.checkpointLen = conversation.New(history), len(history)
 	return a.run(ctx, history)
 }
 
@@ -176,12 +176,12 @@ func (a *Agent) ResumeWithAnswer(ctx context.Context, history []llm.Message, cal
 
 // LoadState reads a history previously written via Config.StateFile.
 func LoadState(path string) ([]llm.Message, error) {
-	return session.ReadContext(path)
+	return conversation.ReadContext(path)
 }
 
 // SaveState writes a checkpoint atomically without running an agent.
 func SaveState(path string, history []llm.Message) error {
-	return session.WriteSnapshot(path, history)
+	return conversation.WriteSnapshot(path, history)
 }
 
 // saveState always updates runtime history. Disk persistence is best-effort.
@@ -217,9 +217,9 @@ func (a *Agent) persistState() error {
 }
 
 func (a *Agent) restoreHistory(history []llm.Message) ([]llm.Message, error) {
-	a.snapshot = session.New(history)
+	a.snapshot = conversation.New(history)
 	if a.cfg.StateFile != "" {
-		s, err := session.Load(a.cfg.StateFile)
+		s, err := conversation.Load(a.cfg.StateFile)
 		if err == nil && (sameHistory(history, s.History) || sameHistory(history, s.Context())) {
 			a.snapshot = s
 		} else if err != nil && !os.IsNotExist(err) {
@@ -255,7 +255,7 @@ func sameHistory(a, b []llm.Message) bool {
 
 func (a *Agent) captureHistory(history []llm.Message) {
 	if a.snapshot.Version == 0 {
-		a.snapshot = session.New(history)
+		a.snapshot = conversation.New(history)
 		a.checkpointLen = len(history)
 		return
 	}

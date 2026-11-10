@@ -1,12 +1,13 @@
 package tui
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"encoding/json"
-	"github.com/charmbracelet/x/ansi"
 	"os"
 	"strings"
 	"testing"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestWorkflowPositionLockDoesNotDisableEditingOrPanning(t *testing.T) {
@@ -18,7 +19,7 @@ func TestWorkflowPositionLockDoesNotDisableEditingOrPanning(t *testing.T) {
 	before := w.editor.Source()
 	point := w.graph.Nodes[0].Point
 	m.workflowCommand("lock-positions")
-	m.workflowKey(tea.KeyPressMsg{Code: tea.KeyRight, Mod: tea.ModShift})
+	m.workflows.key(tea.KeyPressMsg{Code: tea.KeyRight, Mod: tea.ModShift})
 	n := w.graph.Nodes[0]
 	m.handleMouse(tea.MouseClickMsg{X: n.X + 3, Y: n.Y + 5, Button: tea.MouseLeft})
 	m.handleMouse(tea.MouseMotionMsg{X: n.X + 8, Y: n.Y + 7, Button: tea.MouseLeft})
@@ -36,18 +37,18 @@ func TestWorkflowPositionLockDoesNotDisableEditingOrPanning(t *testing.T) {
 	if w.graph.Pan.X != 10 {
 		t.Fatal("locking disabled panning")
 	}
-	m.workflowKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.workflows.key(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.dialog == nil || m.dialog.form == nil {
 		t.Fatal("locking disabled argument editing")
 	}
 	m.dialog = nil
 	w.positionsLocked = false
-	m.loadWorkflowLayout()
+	m.workflows.loadLayout()
 	if !w.positionsLocked {
 		t.Fatal("lock was not saved")
 	}
-	m.workflowKey(tea.KeyPressMsg{Code: 'g'})
-	m.workflowKey(tea.KeyPressMsg{Code: tea.KeyRight, Mod: tea.ModShift})
+	m.workflows.key(tea.KeyPressMsg{Code: 'g'})
+	m.workflows.key(tea.KeyPressMsg{Code: tea.KeyRight, Mod: tea.ModShift})
 	if w.graph.Nodes[0].X != point.X+2 {
 		t.Fatal("unlock did not restore movement")
 	}
@@ -61,7 +62,7 @@ func TestWorkflowPositionLockDoesNotDisableEditingOrPanning(t *testing.T) {
 	}
 }
 
-func TestWorkflowLoadsLegacyLayout(t *testing.T) {
+func TestWorkflowIgnoresUnsupportedLayout(t *testing.T) {
 	m := workflowTestModel(t)
 	w := m.workflows
 	d := workflowRecipe()
@@ -69,18 +70,19 @@ func TestWorkflowLoadsLegacyLayout(t *testing.T) {
 	w.editor.Replace(d)
 	w.editor.Path = "recipe.json"
 	m.workflowScreen()
-	if err := m.saveWorkflowLayout(); err != nil {
+	if err := m.workflows.saveLayout(); err != nil {
 		t.Fatal(err)
 	}
-	legacy := map[string]any{"locked": map[string]int{"x": 17, "y": 9}}
-	b, _ := json.Marshal(legacy)
-	if err := os.WriteFile(m.workflowLayoutPath(), b, 0600); err != nil {
+	before := w.graph.Nodes[0].Point
+	unsupported := map[string]any{"locked": map[string]int{"x": 17, "y": 9}}
+	b, _ := json.Marshal(unsupported)
+	if err := os.WriteFile(m.workflows.layoutPath(), b, 0600); err != nil {
 		t.Fatal(err)
 	}
 	w.positionsLocked = true
-	m.loadWorkflowLayout()
-	if w.positionsLocked || w.graph.Nodes[0].X != 23 || w.graph.Nodes[0].Y != 15 {
-		t.Fatal("legacy layout not restored")
+	m.workflows.loadLayout()
+	if w.positionsLocked || w.graph.Nodes[0].Point != before {
+		t.Fatal("unsupported layout changed the screen")
 	}
 }
 
@@ -111,7 +113,7 @@ func TestWorkflowAndAgentInspectorFramesMatch(t *testing.T) {
 					t.Fatal("width overflow", row)
 				}
 			}
-			m.workflowMouse(tea.MouseClickMsg{X: width - 4, Y: 2, Button: tea.MouseLeft})
+			m.workflows.mouse(tea.MouseClickMsg{X: width - 4, Y: 2, Button: tea.MouseLeft})
 			if m.workflows.inspectorOpen || !m.workflows.active {
 				t.Fatal("close left workflow mode")
 			}

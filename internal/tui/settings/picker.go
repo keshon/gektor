@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/tui/components/cell"
 	"github.com/keshon/gektor/internal/tui/components/form"
@@ -89,8 +90,8 @@ func (f *Model) OpenPicker(props Props) tea.Cmd {
 	if key == "reasoning-effort" {
 		p.Loading = true
 		id, discover := p.ID, f.DiscoverReasoning
-		profile := f.Workspace.Draft.Base()
-		if fields, ok := f.Workspace.Draft.Fields("model"); ok {
+		profile := f.EditSession.Draft.Base()
+		if fields, ok := f.EditSession.Draft.Fields("model"); ok {
 			values := map[string]string{}
 			for _, field := range fields {
 				values[field.Key] = field.Value
@@ -362,8 +363,8 @@ func (f *Model) acceptPicker() tea.Cmd {
 				p.Err = err.Error()
 				return nil
 			}
-			f.Workspace.LoadedPath = value
-			f.Workspace.Draft.Load(loaded)
+			f.EditSession.LoadedPath = value
+			f.EditSession.Draft.Load(loaded)
 			f.Error = "Setup loaded; Apply uses its model and identity selection"
 		}
 		f.Editor.SetValue(value)

@@ -85,7 +85,7 @@ func TestResolveLaunchClonesHandoffProfile(t *testing.T) {
 	}
 }
 
-// The generated profile must carry an identity. ConfigureAgent
+// The generated profile must carry an identity. PrepareProfile
 // substitutes one when it is missing but never writes it back, so a
 // profile that omitted it reached the You page empty.
 func TestGeneratedProfileCarriesAnIdentity(t *testing.T) {

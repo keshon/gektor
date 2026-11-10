@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/gektor/internal/automation"
-	"github.com/keshon/gektor/internal/automation/store"
 	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/internal/workflow/store"
 )
 
 func TestWorkflowArtifactsAcrossReviewAndExport(t *testing.T) {
@@ -52,11 +52,11 @@ func TestWorkflowArtifactsAcrossReviewAndExport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var artifacts []automation.Artifact
+	var artifacts []workflow.Artifact
 	if err := json.Unmarshal(out.Bytes(), &artifacts); err != nil || len(artifacts) != 2 {
 		t.Fatal(out.String(), err)
 	}
-	var saved automation.Artifact
+	var saved workflow.Artifact
 	for _, a := range artifacts {
 		if a.StepID == "save" {
 			saved = a

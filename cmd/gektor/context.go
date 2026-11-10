@@ -36,7 +36,7 @@ func inspectStartup(o resolvedLaunch, out io.Writer) error {
 	defer ws.Close()
 	sources, close := tools.BuildCapabilities(config, ws.Root())
 	defer close()
-	identity, warnings, err := app.Compile(app.IdentityOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), User: o.userName, System: o.systemPrompt, Post: o.postHistory, MaxTokens: o.maxTokens, ContextLimit: o.contextLimit, Temperature: o.temperature})
+	identity, warnings, err := app.CompileIdentity(app.IdentityOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), User: o.userName, System: o.systemPrompt, Post: o.postHistory, MaxTokens: o.maxTokens, ContextLimit: o.contextLimit, Temperature: o.temperature})
 	if err != nil {
 		return err
 	}

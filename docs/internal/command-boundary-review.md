@@ -1,20 +1,21 @@
 # Application command boundary review
 
 Date: 2026-11-10. Reviewed baseline: `50b2a41`.
-Status: accepted cleanup implemented. Packaging and application changes are local.
+Status: baseline cleanup committed as `154f232`. The subsequent naming and
+architecture cleanup is tracked in [the implementation record](internal-cleanup-plan.md).
 
 ## Current design
 
 `cmd/gektor` resolves flags and preferences, owns launch resources and connects
-frontends. It prepares one `run.Config` before selecting CLI, TUI or RPC.
+frontends. It prepares one `harness.Config` before selecting CLI, TUI or RPC.
 
 ```mermaid
 flowchart TD
-    CLI[Flags and saved preferences] --> CONFIG[Prepared run.Config]
+    CLI[Flags and saved preferences] --> CONFIG[Prepared harness.Config]
     CONFIG --> PRINT[CLI presentation]
     CONFIG --> TUI[Terminal UI]
     CONFIG --> RPC[Stdio RPC]
-    PRINT --> SESSION[run.Session]
+    PRINT --> SESSION[harness.Session]
     TUI --> SESSION
     RPC --> SESSION
     SESSION --> ROLE[Planner / Interactive / WorkflowAuthor]
@@ -37,10 +38,10 @@ command or introducing a generic application framework.
 - RPC retains identity, temperature, backend facts and deterministic check rules.
   Act-mode writes emit findings through the configured frontend event sink.
 - The protocol server and its lifecycle tests moved from `cmd/gektor` to
-  [`internal/agentstdio`](../../internal/agentstdio/server.go). The command only
+  [`internal/agentrpc`](../../internal/agentrpc/server.go). The command only
   binds standard streams, task storage and the permission/audit transport.
 - CLI run, resume, fork continuation and workflow authoring now use
-  [`internal/run.Session`](../../internal/run/session.go). It owns role selection,
+  [`internal/harness.Session`](../../internal/harness/session.go). It owns role selection,
   saved-question handling, budget continuation, mutation sweeps and reporting.
 - Interrupted-run recovery uses `Session.Resume`, which answers a saved question.
   Forks and new user turns use `Session.Continue`, which closes outstanding calls
@@ -70,7 +71,7 @@ shared path, not relying on each frontend to recreate them.
 
 Keep flag parsing, stdout/stderr selection, terminal presentation and resource
 assembly in the command. Keep execution in Session and protocol framing in
-agentstdio. `internal/app` remains provider/service composition; it cannot absorb
+agentrpc. `internal/app` remains provider/service composition; it cannot absorb
 role/TUI orchestration without reversing dependencies.
 
 This follows [Go's module layout guidance](https://go.dev/doc/modules/layout):
@@ -100,7 +101,7 @@ cover workflow authoring, forks, budget gates, TUI streaming, request overlap,
 cancellation, EOF and event ordering.
 
 Passed production-package tests and vet (`./cmd/... ./internal/...`), race tests
-for run, agentstdio, command and TUI packages, and all 44 dry eval probes. Windows
+for harness, agentrpc, command and TUI packages, and all 44 dry eval probes. Windows
 and Linux development distributions were rebuilt from the final implementation.
 
 The local `go test ./...` walk encounters copied Go source under ignored historic

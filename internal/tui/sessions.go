@@ -6,15 +6,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/keshon/gektor/internal/tui/components/popup"
-	"github.com/keshon/gektor/internal/tui/components/selection"
-
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/gektor/internal/gektor"
+
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
-	"github.com/keshon/gektor/internal/workspace"
+	"github.com/keshon/gektor/internal/tui/components/popup"
+	"github.com/keshon/gektor/internal/tui/components/selection"
+	"github.com/keshon/gektor/internal/userdirs"
 )
 
 // Session search: a centered popup over the transcript with open,
@@ -85,7 +84,7 @@ type sessionAssignment struct {
 // tasksRoot is where saved sessions live, under the user's GEKTOR
 // directory. A var rather than a bare call so tests can point it
 // somewhere temporary instead of writing to the real home directory.
-var tasksRoot = func() string { return gektor.Sub("tasks") }
+var tasksRoot = func() string { return userdirs.Sub("tasks") }
 
 // sessChrome counts border title, search, gap, hint and bottom border,
 // plus mutation prompts. Each result has a title and an excerpt.
@@ -287,7 +286,7 @@ func (m *model) reassignSelected() {
 		return
 	}
 	path := filepath.Join(assignment.directory, "state.json")
-	snapshot, err := session.Load(path)
+	snapshot, err := conversation.Load(path)
 	if err == nil {
 		if snapshot.Workspace != assignment.previous {
 			s.flash = "Session workspace changed. Assign again."
@@ -323,7 +322,7 @@ func (m *model) openSelected() tea.Cmd {
 	}
 	cur := s.entries[s.Cursor]
 	stateFile := filepath.Join(cur.dir, "state.json")
-	snapshot, err := session.Load(stateFile)
+	snapshot, err := conversation.Load(stateFile)
 	if err != nil {
 		s.flash = "Cannot read saved history: " + err.Error()
 		return nil
@@ -347,7 +346,7 @@ func (m *model) openSelected() tea.Cmd {
 		return tea.Quit
 	}
 	history := snapshot.History
-	task := session.TitleFor(history)
+	task := conversation.TitleFor(history)
 	if task == "" {
 		task = cur.title
 	}
@@ -484,7 +483,7 @@ func (m *model) commitRename() {
 		s.mode = sessList
 		return
 	}
-	name := workspace.TitleLine(m.note.Value())
+	name := conversation.TitleLine(m.note.Value())
 	m.resetNote()
 	s.mode = sessList
 	cur := &s.entries[s.Cursor]
@@ -493,19 +492,19 @@ func (m *model) commitRename() {
 		// the derived text live, tracking history instead of a stale
 		// copy of it.
 		load := func() ([]llm.Message, error) {
-			return session.ReadHistory(filepath.Join(cur.dir, "state.json"))
+			return conversation.ReadHistory(filepath.Join(cur.dir, "state.json"))
 		}
 		if history, err := load(); err == nil {
-			name = session.TitleFor(history)
+			name = conversation.TitleFor(history)
 		}
 		if name == "" {
 			name = cur.id
 		}
-		if err := workspace.WriteSessionTitle(cur.dir, ""); err != nil {
+		if err := conversation.WriteSessionTitle(cur.dir, ""); err != nil {
 			s.flash = "rename failed: " + err.Error()
 			return
 		}
-	} else if err := workspace.WriteSessionTitle(cur.dir, name); err != nil {
+	} else if err := conversation.WriteSessionTitle(cur.dir, name); err != nil {
 		s.flash = "rename failed: " + err.Error()
 		return
 	}
@@ -783,7 +782,7 @@ func historyMatchBlock(blocks []block, boundary []int, message int) int {
 	return prefix
 }
 
-func (m *model) appendSavedRun(snapshot session.Snapshot) {
+func (m *model) appendSavedRun(snapshot conversation.Snapshot) {
 	if len(snapshot.Runs) > 0 {
 		last := snapshot.Runs[len(snapshot.Runs)-1]
 		text := "Last run: " + last.Outcome

@@ -16,7 +16,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/keshon/gektor/internal/agent"
-	"github.com/keshon/gektor/internal/gektor"
+	"github.com/keshon/gektor/internal/userdirs"
 )
 
 const outputFileLimit = 16 * 1024 * 1024
@@ -36,7 +36,7 @@ func NewOutputStore(session string) *OutputStore {
 		session = randomOutputID()
 	}
 	sum := sha256.Sum256([]byte(session))
-	return &OutputStore{dir: filepath.Join(gektor.Sub("output"), hex.EncodeToString(sum[:12])), session: owner}
+	return &OutputStore{dir: filepath.Join(userdirs.Sub("output"), hex.EncodeToString(sum[:12])), session: owner}
 }
 func (s *OutputStore) Context(ctx context.Context) context.Context {
 	return context.WithValue(ctx, outputContextKey{}, s)

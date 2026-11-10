@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 )
@@ -47,7 +48,7 @@ func TestWorkflowTabGapAndWheelDoNotChangePage(t *testing.T) {
 	m.workflows.editor.Replace(workflowRecipe())
 	m.workflowScreen()
 	m.workflowCommand("inspector")
-	tabs := m.workflowInspectorTabs()
+	tabs := m.workflows.inspectorTabs()
 	area := m.screenPanes(true).Side
 	layout := m.panelGeometry(area.Width, 1, true, false)
 	x, y := area.X+layout.Body.X, area.Y+layout.Body.Y

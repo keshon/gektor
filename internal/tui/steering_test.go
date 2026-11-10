@@ -5,16 +5,17 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/run"
 )
 
 func TestSteeringCommandPersistsAndHeaderOnlyShowsEnabled(t *testing.T) {
 	m, path := harnessModel(t)
 	m.application.Preferences.Harness.MaxSteps = 42
 	m.state = stRunning
-	m.sess = &run.Session{}
+	m.sess = &harness.Session{}
 	for _, enabled := range []bool{true, false} {
 		value := "off"
 		if enabled {
@@ -56,11 +57,11 @@ func TestSkippedToolDisplayMatchesSavedHistory(t *testing.T) {
 	call := llm.ToolCall{ID: "write", Name: "write_file"}
 	history := []llm.Message{{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{call}}}
 	m.transcript.blocks = renderHistory(history)
-	m.handleEvent(run.Event{Name: "tool_finished", Fields: map[string]any{"call_id": "write"}})
+	m.handleEvent(harness.Event{Name: "tool_finished", Fields: map[string]any{"call_id": "write"}})
 	if !m.transcript.blocks[0].returned || !m.transcript.blocks[0].open {
 		t.Fatal("preview closed authoritative result")
 	}
-	m.handleEvent(run.Event{Name: "tool_result", Fields: map[string]any{"call_id": "write", "text": "Not executed", "failed": false, "status": "skipped_for_input"}})
+	m.handleEvent(harness.Event{Name: "tool_result", Fields: map[string]any{"call_id": "write", "text": "Not executed", "failed": false, "status": "skipped_for_input"}})
 	failed := false
 	history = append(history, llm.Message{Role: llm.RoleTool, ToolCallID: "write", Content: "Not executed", ToolFailed: &failed, ToolStatus: "skipped_for_input"})
 	restored := renderHistory(history)

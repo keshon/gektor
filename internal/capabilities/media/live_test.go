@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/keshon/gektor/internal/gektor"
+	"github.com/keshon/gektor/internal/executables"
 	"github.com/keshon/gektor/internal/process"
-	"github.com/keshon/gektor/internal/programs"
+	"github.com/keshon/gektor/internal/userdirs"
 )
 
 // Opt-in smoke checks use installed applications and public YouTube requests.
@@ -24,7 +24,7 @@ func TestLiveMedia(t *testing.T) {
 		t.Skip("set GEKTOR_MEDIA_LIVE=1 for live compatibility checks")
 	}
 	s := testService(t)
-	s.Apps = programs.New(gektor.Sub("applications.json"))
+	s.Apps = executables.New(userdirs.Sub("applications.json"))
 	t.Run("applications", func(t *testing.T) {
 		value, err := s.Status(t.Context(), true)
 		if err != nil {
@@ -127,7 +127,7 @@ func TestLiveDownload(t *testing.T) {
 		t.Skip("set GEKTOR_MEDIA_LIVE_DOWNLOAD=1 for short video download checks")
 	}
 	s := testService(t)
-	s.Apps = programs.New(gektor.Sub("applications.json"))
+	s.Apps = executables.New(userdirs.Sub("applications.json"))
 	for _, backend := range []string{"native", "yt-dlp"} {
 		t.Run(backend, func(t *testing.T) {
 			out, err := s.Run(t.Context(), "video_download", Request{URL: "https://www.youtube.com/watch?v=rFejpH_tAHM", Backend: backend, Mode: "audio", Path: backend + ".webm", MaxBytes: 16 << 20, TimeoutSeconds: 60})

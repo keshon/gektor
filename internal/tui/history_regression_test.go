@@ -1,22 +1,24 @@
 package tui
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"context"
 	"errors"
 	"fmt"
-	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/gektor/internal/agent"
-	"github.com/keshon/gektor/internal/events"
-	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/run"
-	"github.com/keshon/gektor/internal/session"
-	"github.com/keshon/gektor/internal/workspace"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/conversation"
+	"github.com/keshon/gektor/internal/events"
+	"github.com/keshon/gektor/internal/harness"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/roles"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 func TestHistoryAuditToolFailureSurvivesReopen(t *testing.T) {
@@ -43,8 +45,8 @@ func TestHistoryAuditFinalStepKeepsFullStreamedResponse(t *testing.T) {
 	m.handleEvent(events.Event{Name: "delta", Fields: map[string]any{"text": body[:8500]}})
 	m.handleEvent(events.Event{Name: "delta", Fields: map[string]any{"text": body[8500:]}})
 	m.Update(liveFlushMsg{})
-	emitter := events.New(events.EventWriter(func(ev events.Event) { m.handleEvent(ev) }))
-	run.EmitStep(emitter, "", 0, llm.Message{Role: llm.RoleAssistant, Content: body}, false, 25)
+	emitter := events.NewSink(func(ev events.Event) { m.handleEvent(ev) })
+	harness.EmitStep(emitter, "", 0, llm.Message{Role: llm.RoleAssistant, Content: body}, false, 25)
 	if len(m.transcript.blocks) != 1 || m.transcript.blocks[0].text != body {
 		t.Fatal("complete streamed response replaced by truncated final step")
 	}
@@ -83,8 +85,8 @@ func TestRetryUsesCheckpointAfterSuccessfulToolAndBackendFailure(t *testing.T) {
 	})
 	m := sizeModel(t, testModel())
 	m.stateFile = filepath.Join(t.TempDir(), "state.json")
-	m.newSession = func(task, path string, _ []string) (*run.Session, error) {
-		return run.New(run.Config{Task: task, StateFile: path, Env: roles.Env{Client: client, WS: ws}})
+	m.newSession = func(task, path string, _ []string) (*harness.Session, error) {
+		return harness.New(harness.Config{Task: task, StateFile: path, Env: roles.Env{Client: client, WS: ws}})
 	}
 	done := make(chan doneMsg, 1)
 	m.send = func(msg tea.Msg) {
@@ -115,7 +117,7 @@ func TestRetryUsesCheckpointAfterSuccessfulToolAndBackendFailure(t *testing.T) {
 	if recovered.err != nil || recovered.answer != "done" {
 		t.Fatalf("retry failed: %+v", recovered)
 	}
-	archive, err := session.ReadHistory(m.stateFile)
+	archive, err := conversation.ReadHistory(m.stateFile)
 	if err != nil {
 		t.Fatal(err)
 	}

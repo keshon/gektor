@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/events"
 	"github.com/keshon/gektor/internal/llm"
@@ -71,7 +72,7 @@ func TestBothFramesAndMeasuredPrefillFit(t *testing.T) {
 			m.appendBlock(toolCardBlock("read", `read_file {"path":"config.go"}`))
 			m.attachResult("read", "configuration loaded", false)
 			m.appendBlock(block{role: roleStatus, text: "processing"})
-			m.handleEvent(events.Event{Name: "progress", Fields: map[string]any{"phase": "prefill", "prompt": float64(12288), "processed": float64(8897)}})
+			m.handleEvent(events.Event{Name: "progress", Fields: map[string]any{"phase": "prefill", "prompt": 12288, "processed": 8897}})
 			text := ansi.Strip(m.View().Content)
 			if frame == "minimal" && m.transcript.Viewport.Scrollable() && m.scrollbarX() != size[0]-1-m.promptOffset() {
 				t.Fatal("scrollbar is not inside the right margin", size)
@@ -134,7 +135,7 @@ func TestOutcomeReceiptPreservesMeasuredStates(t *testing.T) {
 		m := sizeModel(t, testModel())
 		m.hideNames = true
 		m.hideLabels = true
-		m.handleEvent(events.Event{Name: "outcome", Fields: map[string]any{"outcome": outcome, "files": []any{"main.go"}, "verification": "checks failed: assertion X", "resume": "session-1"}})
+		m.handleEvent(events.Event{Name: "outcome", Fields: map[string]any{"outcome": outcome, "files": []string{"main.go"}, "verification": "checks failed: assertion X", "resume": "session-1"}})
 		b := m.transcript.blocks[len(m.transcript.blocks)-1]
 		if b.role != roleReceipt || b.contextText != "" {
 			t.Fatal("receipt changed delivery metadata", b)

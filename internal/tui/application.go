@@ -8,9 +8,10 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
 )
 
 type Application struct {
@@ -49,11 +50,11 @@ func (m *model) requestProfileChange(profile config.Profile) error {
 
 	p := m.application.Preferences
 	p.Profile = &profile
-	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Workspace != nil && m.dialog.form.Workspace.LoadedPath != "" {
-		p.ProfilePath = m.dialog.form.Workspace.LoadedPath
+	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.EditSession != nil && m.dialog.form.EditSession.LoadedPath != "" {
+		p.ProfilePath = m.dialog.form.EditSession.LoadedPath
 	}
-	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Workspace != nil {
-		fields, _ := m.dialog.form.Workspace.Draft.Fields("workspace")
+	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.EditSession != nil {
+		fields, _ := m.dialog.form.EditSession.Draft.Fields("workspace")
 		for _, field := range fields {
 			if field.Key == "app-workspace" {
 				p.Workspace = strings.TrimSpace(field.Value)
@@ -91,7 +92,7 @@ func (m *model) requestProfileChange(profile config.Profile) error {
 	// at it as though the apply had landed.
 	history := append([]llm.Message(nil), m.seedHistory...)
 	if m.stateFile != "" {
-		loaded, err := session.ReadHistory(m.stateFile)
+		loaded, err := conversation.ReadHistory(m.stateFile)
 		if err != nil {
 			return err
 		}
@@ -100,8 +101,8 @@ func (m *model) requestProfileChange(profile config.Profile) error {
 	if err := m.saveCustomSettings(profile); err != nil {
 		return err
 	}
-	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Workspace != nil && m.dialog.form.Workspace.LoadedPath != "" {
-		p.ProfilePath = m.dialog.form.Workspace.LoadedPath
+	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.EditSession != nil && m.dialog.form.EditSession.LoadedPath != "" {
+		p.ProfilePath = m.dialog.form.EditSession.LoadedPath
 	}
 	m.modeChange = &ModeChange{ReassignWorkspace: !sameWorkspace(p.Workspace, m.wsRoot), Preferences: p, History: history, Draft: m.input.Value(), Images: append([]string(nil), m.draftImages...), Drafts: m.relaunchDrafts(), Directory: m.sessionDirectory(), KeepAct: !m.plan}
 	m.pendingCommands = append(m.pendingCommands, tea.Quit)

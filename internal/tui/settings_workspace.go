@@ -2,10 +2,11 @@ package tui
 
 import (
 	"charm.land/bubbles/v2/textinput"
+
 	"github.com/keshon/gektor/internal/tui/settings"
 )
 
-type settingsWorkspace = settings.Workspace
+type settingsWorkspace = settings.EditSession
 type settingsScanMsg = settings.ScanMsg
 
 func (m *model) storeSettingsPage() {
@@ -25,7 +26,7 @@ func (m *model) formRows() ([]string, []formHit, int, int) {
 // hit-test could be reading a different region than the one it was drawn into.
 func (m *model) settingsArea() (left, top, width, height int) {
 	if m.workflowActive() {
-		_, h := m.workflowCanvasSize()
+		_, h := m.workflows.canvasSize()
 		return 1, paneTop, max(1, m.termW-2), h
 	}
 	return m.promptOffset(), paneTop, m.transcript.Viewport.Width(), m.transcript.Viewport.Height()

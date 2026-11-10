@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/tui/components/graph"
 )
 
@@ -56,20 +57,20 @@ func TestWorkflowInspectorCloseAndResponsiveLayout(t *testing.T) {
 	long := strings.Repeat("abcdefghij", 40)
 	d.Steps[0].Args = json.RawMessage(`{"code":"` + long + `","input":2}`)
 	w.editor.Replace(d)
-	full, _ := m.workflowCanvasSize()
+	full, _ := m.workflows.canvasSize()
 	m.workflowCommand("inspector")
-	split, _ := m.workflowCanvasSize()
+	split, _ := m.workflows.canvasSize()
 	if split >= full || !w.inspectorOpen || !w.inspect {
 		t.Fatal("inspector did not open")
 	}
-	m.workflowKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m.workflows.key(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if w.inspectorOpen || !w.active {
 		t.Fatal("Esc left workflow instead of closing inspector")
 	}
 	for _, width := range []int{120, 80, 40} {
 		sizeModelTo(t, m, width, 24)
 		m.workflowCommand("inspector")
-		m.workflowSetInspectorTab(2)
+		m.workflows.setInspectorTab(2)
 		rows := strings.Split(ansi.Strip(m.screenContent()), "\n")
 		if len(rows) != 24 {
 			t.Fatal("height")
@@ -80,7 +81,7 @@ func TestWorkflowInspectorCloseAndResponsiveLayout(t *testing.T) {
 			}
 		}
 		if width < inspectorSplitWidth {
-			cw, _ := m.workflowCanvasSize()
+			cw, _ := m.workflows.canvasSize()
 			if cw != width-2 {
 				t.Fatal("narrow inspector shrank canvas")
 			}
@@ -88,7 +89,7 @@ func TestWorkflowInspectorCloseAndResponsiveLayout(t *testing.T) {
 		if !strings.Contains(rows[2], "×") {
 			t.Fatal("close control missing", rows[2])
 		}
-		if !strings.Contains(strings.Join(m.workflowInspectorContent(), ""), long) {
+		if !strings.Contains(strings.Join(m.workflows.inspectorContent(), ""), long) {
 			t.Fatal("inspector truncated a long value")
 		}
 		m.handleMouse(tea.MouseClickMsg{X: width - 4, Y: 2, Button: tea.MouseLeft})
@@ -134,7 +135,7 @@ func TestWorkflowPortsOpenMappingAndMenusExposeAdd(t *testing.T) {
 	for _, width := range []int{40, 120} {
 		sizeModelTo(t, m, width, 24)
 		found = false
-		for _, action := range m.workflowFooterActions() {
+		for _, action := range m.workflows.footerActions() {
 			if action.key == 'a' && action.enabled {
 				found = true
 			}

@@ -189,7 +189,7 @@ func TestRelaunchProfileFallbacksUnchanged(t *testing.T) {
 
 func TestAgentServiceConfigurationSupportsTextOnlyProfile(t *testing.T) {
 	p := config.Profile{Version: 1, Provider: config.Provider{Kind: "llama", URL: "http://127.0.0.1:8080", Model: "local"}, Generation: config.Generation{MaxTokens: 100, ContextLimit: 1000}}
-	cfg, err := app.ConfigureAgent(p, t.TempDir())
+	cfg, err := app.PrepareProfile(p, t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

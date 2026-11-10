@@ -6,26 +6,26 @@ import (
 	"io"
 	"strings"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/events"
+	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
-	"github.com/keshon/gektor/internal/run"
-	"github.com/keshon/gektor/internal/session"
 )
 
-func runAgentCLI(ctx context.Context, o resolvedLaunch, cfg run.Config, forkHistory []llm.Message, emitter *events.Emitter, noteW io.Writer, note func(string, ...any)) error {
+func runAgentCLI(ctx context.Context, o resolvedLaunch, cfg harness.Config, forkHistory []llm.Message, emitter *events.Emitter, noteW io.Writer, note func(string, ...any)) error {
 	cfg.AskPrompt = func(question string) string {
 		return fmt.Sprintf("\n[paused — state saved at %s]\n[resume: gektor -resume %s -answer \"%s\"]\n\n[agent asks] %s", cfg.StateFile, cfg.StateFile, "your answer", question)
 	}
 	observeAgentCLI(&cfg, o, emitter, noteW, note)
-	sess, err := run.New(cfg)
+	sess, err := harness.New(cfg)
 	if err != nil {
 		return err
 	}
 	defer func() { reportAgentRun(sess.Report(), cfg.StateFile, o, note) }()
 	var result string
 	if o.resume != "" {
-		history, err := session.ReadHistory(o.resume)
+		history, err := conversation.ReadHistory(o.resume)
 		if err != nil {
 			return fmt.Errorf("resume: %w", err)
 		}
@@ -51,8 +51,8 @@ func runAgentCLI(ctx context.Context, o resolvedLaunch, cfg run.Config, forkHist
 	return err
 }
 
-func observeAgentCLI(cfg *run.Config, o resolvedLaunch, emitter *events.Emitter, output io.Writer, note func(string, ...any)) {
-	cfg.OnEvent = func(ev run.Event) {
+func observeAgentCLI(cfg *harness.Config, o resolvedLaunch, emitter *events.Emitter, output io.Writer, note func(string, ...any)) {
+	cfg.OnEvent = func(ev harness.Event) {
 		if o.outputMode == "json" {
 			emitter.Emit(ev.Name, ev.Fields)
 			return

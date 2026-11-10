@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/keshon/gektor/internal/app"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -13,9 +12,10 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/session"
 	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -201,7 +201,7 @@ func TestLiveExtensionsAcrossTurns(t *testing.T) {
 				if index == 0 {
 					answer, runErr = a.Run(ctx, prompt)
 				} else {
-					saved, err := session.Load(state)
+					saved, err := conversation.Load(state)
 					if err != nil {
 						cancel()
 						closeSources()

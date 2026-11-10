@@ -7,7 +7,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/gektor/internal/run"
+
+	"github.com/keshon/gektor/internal/harness"
 )
 
 // A session-restarting command used to push an overlay that drew nothing,
@@ -20,7 +21,7 @@ func restartModel(t *testing.T) *model {
 	t.Helper()
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	m.sess = &run.Session{}
+	m.sess = &harness.Session{}
 	return m
 }
 

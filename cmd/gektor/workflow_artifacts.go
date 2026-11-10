@@ -9,7 +9,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/keshon/gektor/internal/automation/store"
+	"github.com/keshon/gektor/internal/workflow/store"
 	"github.com/keshon/gektor/internal/workspace"
 )
 

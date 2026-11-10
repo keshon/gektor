@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/gektor/internal/automation"
-	"github.com/keshon/gektor/internal/automation/store"
+	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/internal/workflow/store"
 )
 
 func TestWorkflowReviewGuidance(t *testing.T) {
@@ -21,7 +21,7 @@ func TestWorkflowReviewGuidance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := w.Save(automation.Run{Status: "waiting_review", Steps: []automation.StepResult{{ID: "save", Status: "waiting_review"}}}); err != nil {
+	if err := w.Save(workflow.Run{Status: "waiting_review", Steps: []workflow.StepResult{{ID: "save", Status: "waiting_review"}}}); err != nil {
 		t.Fatal(err)
 	}
 	id := w.ID()

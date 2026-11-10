@@ -10,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/events"
 )
@@ -57,7 +58,7 @@ func TestPrefillAndSystemRailMatchHistoryInBothThemes(t *testing.T) {
 			m.appendBlock(userBlock("Trace the browser lifecycle before proposing a change."))
 			m.appendBlock(answerBlock("I’ll inspect launch, activation and profile cleanup."))
 			before := append([]block(nil), m.transcript.blocks...)
-			m.handleEvent(events.Event{Name: "progress", Fields: map[string]any{"phase": "prefill", "prompt": float64(12288), "processed": float64(8897)}})
+			m.handleEvent(events.Event{Name: "progress", Fields: map[string]any{"phase": "prefill", "prompt": 12288, "processed": 8897}})
 			view := m.View().Content
 			rows := strings.Split(ansi.Strip(view), "\n")
 			progressRow := -1

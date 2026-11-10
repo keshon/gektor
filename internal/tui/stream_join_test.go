@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/events"
+	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/llm/chatcompletions"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/run"
 	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -70,8 +70,8 @@ func TestHTTPStreamShowsThinkingBeforeResponseFinishes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue := make(chan run.Event, 32)
-	sess, err := run.New(run.Config{Task: "say hello", Plan: true, Env: roles.Env{Client: chatcompletions.NewLlamaClient(srv.URL, "local"), WS: ws, BackendKind: "llama", Stream: true}, OnEvent: func(ev run.Event) { queue <- ev }})
+	queue := make(chan harness.Event, 32)
+	sess, err := harness.New(harness.Config{Task: "say hello", Plan: true, Env: roles.Env{Client: chatcompletions.NewLlamaClient(srv.URL, "local"), WS: ws, BackendKind: "llama", Stream: true}, OnEvent: func(ev harness.Event) { queue <- ev }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestSessionDeltasReachTheLiveBuffer(t *testing.T) {
 	// on a frame tick, so what matters is that each delta is queued as it
 	// arrives rather than that anything survives to the end of the run.
 	var queuedAfterDelta []string
-	sess, err := run.New(run.Config{
+	sess, err := harness.New(harness.Config{
 		Task: "task",
 		Env: roles.Env{
 			Client: client,

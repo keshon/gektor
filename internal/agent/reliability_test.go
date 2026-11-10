@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/session"
 )
 
 func TestAllPathResourcesAreAuthorizedBeforeMutation(t *testing.T) {
@@ -88,7 +88,7 @@ func TestRejectedRawInputSurvivesWithoutFakeWireCall(t *testing.T) {
 	if len(delivered) != 1 || delivered[0].Request != 2 || !strings.Contains(delivered[0].Content, raw) || !strings.Contains(delivered[0].Content, "not omitted") {
 		t.Fatalf("wrong diagnostic delivery: %+v", delivered)
 	}
-	s, err := session.Load(path)
+	s, err := conversation.Load(path)
 	if err != nil {
 		t.Fatal(err)
 	}

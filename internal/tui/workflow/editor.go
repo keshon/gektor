@@ -5,24 +5,25 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/keshon/gektor/internal/automation"
 	"io"
+
+	"github.com/keshon/gektor/internal/workflow"
 )
 
 type Editor struct {
-	Definition automation.Definition
+	Definition workflow.Definition
 	Path       string
 	Saved      string
 	undo, redo []string
 }
 
 func New() *Editor {
-	e := &Editor{Definition: automation.Definition{Version: 3, Name: "Untitled workflow", Steps: []automation.Step{}}}
+	e := &Editor{Definition: workflow.Definition{Version: 3, Name: "Untitled workflow", Steps: []workflow.Step{}}}
 	e.Saved = e.Source()
 	return e
 }
-func Decode(source []byte) (automation.Definition, error) {
-	var d automation.Definition
+func Decode(source []byte) (workflow.Definition, error) {
+	var d workflow.Definition
 	dec := json.NewDecoder(bytes.NewReader(source))
 	dec.DisallowUnknownFields()
 	err := dec.Decode(&d)
@@ -42,7 +43,7 @@ func (e *Editor) Source() string {
 	return string(b)
 }
 func (e *Editor) Dirty() bool { return e.Source() != e.Saved }
-func (e *Editor) Replace(d automation.Definition) {
+func (e *Editor) Replace(d workflow.Definition) {
 	e.undo = append(e.undo, e.Source())
 	if len(e.undo) > 100 {
 		e.undo = e.undo[1:]
@@ -68,7 +69,7 @@ func (e *Editor) Redo() {
 	e.Definition, _ = Decode([]byte(e.redo[len(e.redo)-1]))
 	e.redo = e.redo[:len(e.redo)-1]
 }
-func (e *Editor) Clone() automation.Definition { d, _ := Decode([]byte(e.Source())); return d }
+func (e *Editor) Clone() workflow.Definition { d, _ := Decode([]byte(e.Source())); return d }
 func (e *Editor) Link(from, to, arg, pointer string) error {
 	c := Connection{From: from, To: to, Field: "depends_on", Pointer: pointer}
 	if arg != "" {

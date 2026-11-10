@@ -14,7 +14,6 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/capabilities/social"
 	socialcontract "github.com/keshon/gektor/internal/capabilities/social/contract"
-	socialtools "github.com/keshon/gektor/internal/capabilities/social/tools"
 )
 
 func TestReaderNormalizesAccessAndProtocolResults(t *testing.T) {
@@ -39,7 +38,7 @@ func TestReaderNormalizesAccessAndProtocolResults(t *testing.T) {
 				fmt.Fprint(w, tc.body)
 			}))
 			defer server.Close()
-			tool := socialtools.Tool{Operation: socialcontract.Operation{Service: social.Service{Client: server.Client(), Endpoint: server.URL}}}
+			tool := SocialOperation{Operation: socialcontract.Operation{Service: social.Service{Client: server.Client(), Endpoint: server.URL}}}
 			out, err := tool.Run(t.Context(), json.RawMessage(`{"url":"https://x.com/test/status/20"}`))
 			var result social.Post
 			if json.Unmarshal([]byte(out), &result) != nil || result.Status != tc.want {
@@ -95,7 +94,7 @@ func TestNativeSocialLive(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
 	defer cancel()
-	output, err := (socialtools.Tool{Operation: socialcontract.Operation{Service: social.New()}}).Run(ctx, json.RawMessage(`{"url":"https://x.com/jack/status/20"}`))
+	output, err := (SocialOperation{Operation: socialcontract.Operation{Service: social.New()}}).Run(ctx, json.RawMessage(`{"url":"https://x.com/jack/status/20"}`))
 	if err != nil {
 		t.Fatal(output, err)
 	}

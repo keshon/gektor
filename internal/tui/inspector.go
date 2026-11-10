@@ -8,7 +8,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/gektor/internal/session"
+
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 )
@@ -69,14 +70,14 @@ func (m *model) openInspector(index int) tea.Cmd {
 		return nil
 	}
 	parent, id, revision := m.stateFile, b.callID, child.revision
-	path := session.ChildStatePath(parent, id)
+	path := conversation.ChildStatePath(parent, id)
 	if path == "" {
 		child.notice = "No saved child history for this call."
 		m.refreshInspector()
 		return nil
 	}
 	return func() tea.Msg {
-		snapshot, err := session.Load(path)
+		snapshot, err := conversation.Load(path)
 		return childLoadedMsg{parent: parent, callID: id, revision: revision, snapshot: snapshot, err: err}
 	}
 }

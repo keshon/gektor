@@ -365,8 +365,7 @@ func (a *Agent) chat(ctx context.Context, req llm.ChatRequest) (response llm.Cha
 			case !shown && len(resp.Message.ToolCalls) == 0 && (errors.Is(err, llm.ErrIncompleteStream) || llm.IsRetryableTransport(err)):
 				// Nothing reached the screen, so a unary retry is safe.
 			case !shown && isRetryableAPI(err):
-				// An HTTP error status arrives before any SSE data, so
-				// nothing streamed and there is nothing to duplicate.
+				return llm.RetryChat(ctx, a.cfg.Client, req, llm.DefaultRetryPolicy(), err)
 			default:
 				return resp, err
 			}

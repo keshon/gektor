@@ -12,8 +12,8 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
 	"github.com/keshon/gektor/internal/tools"
 )
 
@@ -32,7 +32,7 @@ func TestNativeWebActivationCompactResumeAndPlan(t *testing.T) {
 	if _, err := a.Run(t.Context(), "Check the fixture URL"); err != nil {
 		t.Fatal(err)
 	}
-	saved, err := session.Load(state)
+	saved, err := conversation.Load(state)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestNativeWebActivationCompactResumeAndPlan(t *testing.T) {
 	if _, _, _, err := agent.CompactFile(state, 1); err != nil {
 		t.Fatal(err)
 	}
-	saved, err = session.Load(state)
+	saved, err = conversation.Load(state)
 	if err != nil {
 		t.Fatal(err)
 	}

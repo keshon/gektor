@@ -10,6 +10,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -166,14 +168,14 @@ func TestSessionIndexCachesUnchangedHistoryAndLoadsSearchOnDemand(t *testing.T) 
 	if entries[0].preview != "cached marker" {
 		t.Fatal("unchanged history was reloaded")
 	}
-	if err := workspace.WriteSessionTitle(dir, "renamed"); err != nil {
+	if err := conversation.WriteSessionTitle(dir, "renamed"); err != nil {
 		t.Fatal(err)
 	}
 	entries, cache, _ = scanSessions(root, cache, true)
 	if entries[0].title != "renamed" {
 		t.Fatal("rename not reflected")
 	}
-	if err := workspace.WriteSessionTitle(dir, ""); err != nil {
+	if err := conversation.WriteSessionTitle(dir, ""); err != nil {
 		t.Fatal(err)
 	}
 	entries, _, _ = scanSessions(root, cache, true)

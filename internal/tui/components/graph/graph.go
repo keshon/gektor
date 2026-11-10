@@ -2,9 +2,10 @@
 package graph
 
 import (
+	"strings"
+
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"strings"
 )
 
 type Point struct {
@@ -16,9 +17,22 @@ type Port struct {
 }
 type Node struct {
 	ID, Title, Label, Detail string
+	DetailTone               Tone
 	Inputs, Outputs          []Port
 	Point
 }
+
+// Tone selects a presentation style without interpreting domain state.
+type Tone uint8
+
+const (
+	ToneNormal Tone = iota
+	ToneSuccess
+	ToneWarning
+	ToneError
+	ToneDisabled
+)
+
 type Edge struct {
 	From, To         string
 	FromPort, ToPort string

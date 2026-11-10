@@ -2,6 +2,7 @@ package settings
 
 import (
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/tui/components/form"
 )
 
@@ -24,7 +25,7 @@ func (f *Model) UpdateKey(msg tea.KeyPressMsg, props Props) (Intent, tea.Cmd) {
 	if f.Picker != nil {
 		return Intent{}, f.PickerKey(msg, props)
 	}
-	if ws := f.Workspace; ws != nil {
+	if ws := f.EditSession; ws != nil {
 		switch msg.String() {
 		case "ctrl+d":
 			if ws.Section == "profiles" {

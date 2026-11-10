@@ -38,6 +38,16 @@ func (p RetryPolicy) withDefaults() RetryPolicy {
 // computed delay. Aborts and overflows never retry: the first must surface
 // immediately, the second needs compaction, not another attempt.
 func ChatWithRetry(ctx context.Context, c Client, req ChatRequest, policy RetryPolicy) (ChatResponse, error) {
+	return chatWithRetry(ctx, c, req, policy, nil)
+}
+
+// RetryChat continues after a failed attempt, including its backoff and retry
+// budget. It is used when an untouched stream can safely retry as unary.
+func RetryChat(ctx context.Context, c Client, req ChatRequest, policy RetryPolicy, cause error) (ChatResponse, error) {
+	return chatWithRetry(ctx, c, req, policy, cause)
+}
+
+func chatWithRetry(ctx context.Context, c Client, req ChatRequest, policy RetryPolicy, cause error) (ChatResponse, error) {
 	policy = policy.withDefaults()
 	delay := policy.Initial
 	var err error
@@ -46,7 +56,11 @@ func ChatWithRetry(ctx context.Context, c Client, req ChatRequest, policy RetryP
 		if ctx.Err() != nil {
 			return ChatResponse{}, ctx.Err()
 		}
-		resp, err = c.Chat(ctx, req)
+		if attempt == 0 && cause != nil {
+			err = cause
+		} else {
+			resp, err = c.Chat(ctx, req)
+		}
 		if err == nil {
 			return resp, nil
 		}

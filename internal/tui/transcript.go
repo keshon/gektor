@@ -27,7 +27,7 @@ const (
 	roleGate
 	roleMarker
 	roleError
-	// roleWarning is a deterministic-check finding (gofmt, secrets):
+	// roleWarning is a language-independent content finding:
 	// report-only signal, never an error, so it takes the warning's
 	// unbold yellow rather than the error's bold red.
 	roleWarning

@@ -1,19 +1,21 @@
 package tui
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/keshon/gektor/internal/automation"
+	"strings"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 	editor "github.com/keshon/gektor/internal/tui/workflow"
+	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workspace"
-	"strings"
-	"time"
 )
 
 // A small envelope works with strict remote schemas and local GBNF alike.
@@ -28,17 +30,17 @@ type workflowProposal struct {
 	err                  error
 }
 
-func (m *model) proposeWorkflow(prompt string) tea.Cmd {
-	w := m.workflows
+func (m *workflowScreen) propose(prompt string) tea.Cmd {
+	w := m
 	if w.busy {
 		return nil
 	}
-	client := m.baseEnv.Client
+	client := m.config.Client
 	if client == nil {
 		w.setNotice(pane.NoticeWarning, "Connect a model to request an AI proposal")
 		return nil
 	}
-	s, err := m.workflowService(nil)
+	s, err := m.service(nil)
 	if err != nil {
 		w.setNotice(pane.NoticeError, err.Error())
 		return nil
@@ -48,14 +50,14 @@ func (m *model) proposeWorkflow(prompt string) tea.Cmd {
 	before := w.editor.Source()
 	w.busy = true
 	w.setNotice(pane.NoticeInfo, "AI drafting a proposal · Esc cancels")
-	ctx, cancel := context.WithTimeout(m.base, 2*time.Minute)
+	ctx, cancel := context.WithTimeout(m.ctx, 2*time.Minute)
 	w.cancel = cancel
 	output := 8192
-	if m.baseEnv.MaxTokens > 0 {
-		output = min(output, m.baseEnv.MaxTokens)
+	if m.config.MaxTokens > 0 {
+		output = min(output, m.config.MaxTokens)
 	}
-	request := llm.ChatRequest{MaxTokens: output, Temperature: m.baseEnv.Temperature, Messages: []llm.Message{{Role: llm.RoleSystem, Content: prompts.WorkflowEdit + "\n\n" + workspace.WorkflowGuide}, {Role: llm.RoleUser, Content: "Definition schema:\n" + schema + "\nOperation contracts:\n" + string(contracts) + "\nCurrent draft:\n" + before + "\nRequested change:\n" + prompt}}, JSONSchema: workflowProposalSchema, Grammar: workflowProposalGrammar}
-	limit := m.baseEnv.ContextLimit
+	request := llm.ChatRequest{MaxTokens: output, Temperature: m.config.Temperature, Messages: []llm.Message{{Role: llm.RoleSystem, Content: prompts.WorkflowEdit + "\n\n" + workspace.WorkflowGuide}, {Role: llm.RoleUser, Content: "Definition schema:\n" + schema + "\nOperation contracts:\n" + string(contracts) + "\nCurrent draft:\n" + before + "\nRequested change:\n" + prompt}}, JSONSchema: workflowProposalSchema, Grammar: workflowProposalGrammar}
+	limit := m.config.ContextLimit
 	return func() tea.Msg {
 		defer cancel()
 		if limit > 0 && llm.EstimatePromptTokens(request)+output > limit {
@@ -79,8 +81,8 @@ func (m *model) proposeWorkflow(prompt string) tea.Cmd {
 	}
 
 }
-func (m *model) acceptWorkflowProposal(p workflowProposal) {
-	w := m.workflows
+func (m *workflowScreen) acceptProposal(p workflowProposal) {
+	w := m
 	w.busy = false
 	w.cancel = nil
 	if p.err != nil {
@@ -89,14 +91,14 @@ func (m *model) acceptWorkflowProposal(p workflowProposal) {
 	}
 	d, err := editor.Decode([]byte(p.source))
 	if err == nil {
-		s, e := m.workflowService(nil)
+		s, e := m.service(nil)
 		err = e
 		if err == nil {
-			err = automation.ValidateJSON([]byte(p.source), s.DefinitionSchema())
+			err = workflow.ValidateJSON([]byte(p.source), s.DefinitionSchema())
 		}
 	}
 	if err != nil {
-		m.openDialog("Invalid AI proposal", []string{err.Error(), p.source})
+		m.ui.openDialog("Invalid AI proposal", []string{err.Error(), p.source})
 		return
 	}
 	lines := []string{"Proposal only · no files saved or operations executed.", ""}
@@ -124,14 +126,14 @@ func (m *model) acceptWorkflowProposal(p workflowProposal) {
 	}
 	lines = append(lines, "", "Complete proposed recipe (including inputs/outputs):", p.source)
 	// Split multiline sections so the shared scrollbar measures actual rows.
-	m.openDialog("Review AI proposal", strings.Split(strings.Join(lines, "\n"), "\n"))
-	m.dialog.shortcuts = []popup.Shortcut{{Key: "Esc/Enter", Action: "discard"}, {Key: "S", Action: "apply to draft"}, {Key: "↑↓", Action: "scroll"}}
-	m.dialog.save = func() error {
+	m.ui.openDialog("Review AI proposal", strings.Split(strings.Join(lines, "\n"), "\n"))
+	m.ui.dialog().shortcuts = []popup.Shortcut{{Key: "Esc/Enter", Action: "discard"}, {Key: "S", Action: "apply to draft"}, {Key: "↑↓", Action: "scroll"}}
+	m.ui.dialog().save = func() error {
 		if w.editor.Source() != p.before {
 			return fmt.Errorf("draft changed since the request; ask for a fresh proposal")
 		}
 		w.editor.Replace(d)
-		w.graph = m.workflowGraph(w.graph)
+		w.graph = m.buildGraph(w.graph)
 		w.setNotice(pane.NoticeSuccess, "Proposal applied to draft · Ctrl+S saves")
 		return nil
 	}

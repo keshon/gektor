@@ -3,44 +3,45 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/charmbracelet/x/ansi"
 	"sort"
 	"strings"
 
-	"github.com/keshon/gektor/internal/automation"
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/tui/components/pane"
+	"github.com/keshon/gektor/internal/workflow"
 )
 
-func (m *model) workflowSetInspectorTab(tab int) {
-	w := m.workflows
+func (m *workflowScreen) setInspectorTab(tab int) {
+	w := m
 	w.inspectorTab = max(0, min(2, tab))
 	w.rawDetails = false
 	w.offset = 0
 	w.thumb = scrollDrag{}
 }
 
-func (m *model) workflowInspectorTabs() pane.TabLayout {
-	w := m.workflows
+func (m *workflowScreen) inspectorTabs() pane.TabLayout {
+	w := m
 	labels := []string{"Properties", "Result", "Code"}
-	if m.workflowSelectedSchedule() != nil && w.run == nil {
+	if m.selectedSchedule() != nil && w.run == nil {
 		labels = []string{"Schedule", "Inputs", "Service"}
 	}
 	active := w.inspectorTab
 	if w.rawDetails {
 		active = -1
 	}
-	width := m.panelGeometry(m.screenPanes(true).Side.Width, 1, true, false).Body.Width
-	return pane.Tabs(labels, active, width, w.inspect && !m.header.focused,
-		pane.TabStyles{Normal: m.styles.dim, Active: m.styles.title, Focus: m.styles.focus})
+	width := m.ui.panelGeometry(m.ui.screenPanes(true).Side.Width, 1, true, false).Body.Width
+	return pane.Tabs(labels, active, width, w.inspect && !m.ui.headerFocused(),
+		pane.TabStyles{Normal: m.ui.styles().dim, Active: m.ui.styles().title, Focus: m.ui.styles().focus})
 }
 
-func (m *model) workflowFocusPort(key string, output bool) {
-	w := m.workflows
+func (m *workflowScreen) focusPort(key string, output bool) {
+	w := m
 	w.inspectorTab = 0
 	w.rawDetails = false
 	w.portFocus, w.portOutput, w.portSelected = key, output, true
 	w.offset = 0
-	for i, row := range m.workflowInspectorContent() {
+	for i, row := range m.inspectorContent() {
 		if strings.HasPrefix(ansi.Strip(row), "› ") {
 			w.offset = max(0, i-2)
 			break
@@ -118,7 +119,7 @@ func workflowValues(raw json.RawMessage) []string {
 	return lines
 }
 
-func workflowStepStatus(run *automation.Run, id string) string {
+func workflowStepStatus(run *workflow.Run, id string) string {
 	var statuses []string
 	for _, s := range run.Steps {
 		if s.ID == id {

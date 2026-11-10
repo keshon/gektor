@@ -7,9 +7,9 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
-	"github.com/keshon/gektor/internal/automation/store"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/workflow/store"
 )
 
 func TestRecordsDenySameResourceInAgentAndWorkflow(t *testing.T) {
@@ -44,7 +44,7 @@ func TestRecordsDenySameResourceInAgentAndWorkflow(t *testing.T) {
 	if !blocked {
 		t.Fatal("Agent did not deny record_write on notes/state")
 	}
-	svc, err := app.NewAutomation(e.WS, e.WorkflowDir, e.Policy, nil)
+	svc, err := app.NewWorkflow(e.WS, e.WorkflowDir, e.Policy, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

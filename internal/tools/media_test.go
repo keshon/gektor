@@ -21,7 +21,7 @@ func TestMediaLazyToolsShareWorkflowContractsAndResources(t *testing.T) {
 	}
 	defer ws.Close()
 	c := &Capabilities{}
-	r, err := Compose(ws, nil, nil, nil, false, c, nil)
+	r, err := Compose(Dependencies{WS: ws, Vision: false}, c, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func TestMediaLazyToolsShareWorkflowContractsAndResources(t *testing.T) {
 	if err != nil || !strings.Contains(activated, "native YouTube") {
 		t.Fatal(activated, err)
 	}
-	registry, err := app.AutomationRegistry(ws, t.TempDir(), nil, nil)
+	registry, err := app.WorkflowRegistry(ws, t.TempDir(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestMediaWorkflowValidationDoesNotProbeAndExecutionHonorsDeny(t *testing.T)
 		t.Fatal(err)
 	}
 	defer ws.Close()
-	svc, err := app.NewAutomation(ws, t.TempDir(), permission.Policy{Rules: []permission.Rule{{Tool: "media_convert", Pattern: "*", Effect: permission.Deny}}}, nil)
+	svc, err := app.NewWorkflow(ws, t.TempDir(), permission.Policy{Rules: []permission.Rule{{Tool: "media_convert", Pattern: "*", Effect: permission.Deny}}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -14,7 +14,7 @@ import (
 func TestDialects_UseTheirOwnSamplerSpelling(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
-		newClient  func(string, string) *Server
+		newClient  func(string, string) *Client
 		want, deny string
 	}{
 		{"kobold", NewKoboldClient, `"rep_pen"`, `"repeat_penalty"`},
@@ -50,7 +50,7 @@ func TestDialects_UseTheirOwnSamplerSpelling(t *testing.T) {
 func TestDialects_ContentGrammarIsBackendSpecific(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
-		newClient func(string, string) *Server
+		newClient func(string, string) *Client
 		wantGuard bool
 	}{
 		{"kobold", NewKoboldClient, true},
@@ -98,7 +98,7 @@ func TestServer_RequestGrammarWinsOverTheBackendDefault(t *testing.T) {
 // two do not agree — a backend comparison would have been partly a
 // comparison of sampler presets.
 func TestChat_SendsTopPAndTopKOnBothBackends(t *testing.T) {
-	for _, newClient := range []func(string, string) *Server{NewKoboldClient, NewLlamaClient} {
+	for _, newClient := range []func(string, string) *Client{NewKoboldClient, NewLlamaClient} {
 		var captured []byte
 		srv := captureServer(t, &captured)
 

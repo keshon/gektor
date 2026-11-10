@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -112,7 +113,20 @@ func Load(path string) (Profile, error) {
 		return p, err
 	}
 	defer f.Close()
-	d := json.NewDecoder(io.LimitReader(f, 1<<20))
+	return Decode(f)
+}
+
+// Decode reads one strict profile from a caller-owned source.
+func Decode(r io.Reader) (Profile, error) {
+	var p Profile
+	data, err := io.ReadAll(io.LimitReader(r, (1<<20)+1))
+	if err != nil {
+		return p, err
+	}
+	if len(data) > 1<<20 {
+		return p, fmt.Errorf("profile: exceeds 1 MiB")
+	}
+	d := json.NewDecoder(bytes.NewReader(data))
 	d.DisallowUnknownFields()
 	if err := d.Decode(&p); err != nil {
 		return p, fmt.Errorf("profile: %w", err)

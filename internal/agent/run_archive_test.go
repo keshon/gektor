@@ -4,14 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/keshon/gektor/internal/llm/responses"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
+	"github.com/keshon/gektor/internal/llm/responses"
 )
 
 type failedArchiveClient struct{}
@@ -28,7 +28,7 @@ func TestRunArchivePersistsTerminalFailure(t *testing.T) {
 	if !errors.As(err, &api) {
 		t.Fatal(err)
 	}
-	s, err := session.Load(path)
+	s, err := conversation.Load(path)
 	if err != nil || len(s.Runs) != 1 || s.Runs[0].Error != "Backend HTTP 401; response body omitted from saved diagnostics" {
 		t.Fatalf("%+v %v", s.Runs, err)
 	}
@@ -41,21 +41,21 @@ func TestRunArchiveSeparatesTasksAndKeepsRetryScope(t *testing.T) {
 	if _, err := a.Run(t.Context(), "first task"); err != nil {
 		t.Fatal(err)
 	}
-	s, err := session.Load(path)
+	s, err := conversation.Load(path)
 	if err != nil || len(s.Runs) != 1 || s.Runs[0].Start != 1 || s.Runs[0].End != 3 {
 		t.Fatalf("first range: %+v %v", s.Runs, err)
 	}
 	if _, err := a.Resume(t.Context(), s.Context(), "second task"); err != nil {
 		t.Fatal(err)
 	}
-	s, _ = session.Load(path)
+	s, _ = conversation.Load(path)
 	if len(s.Runs) != 2 || s.Runs[1].Start != 3 || s.Runs[1].End != 5 {
 		t.Fatalf("second task range: %+v", s.Runs)
 	}
 	if _, err := a.Resume(t.Context(), s.Context(), ""); err != nil {
 		t.Fatal(err)
 	}
-	s, _ = session.Load(path)
+	s, _ = conversation.Load(path)
 	if len(s.Runs) != 3 || s.Runs[2].Start != 3 || s.Runs[2].End != 6 || s.Runs[2].Steps != 1 {
 		t.Fatalf("retry lost original task: %+v", s.Runs)
 	}
@@ -63,21 +63,21 @@ func TestRunArchiveSeparatesTasksAndKeepsRetryScope(t *testing.T) {
 
 func TestRunArchiveQuestionContinuationKeepsTask(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
-	s := session.New([]llm.Message{
+	s := conversation.New([]llm.Message{
 		{Role: llm.RoleSystem, Content: "sys"},
 		{Role: llm.RoleUser, Content: "original task"},
 		{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "ask", Name: "ask_user"}}},
 	})
-	s.Runs = []session.Run{{Start: 1, End: 3, Outcome: "failed", Steps: 1}}
+	s.Runs = []conversation.Run{{Start: 1, End: 3, Outcome: "failed", Steps: 1}}
 	if err := s.Save(path); err != nil {
 		t.Fatal(err)
 	}
-	s, _ = session.Load(path)
+	s, _ = conversation.Load(path)
 	a := New(Config{Client: &stubClient{responses: []llm.ChatResponse{say("done")}}, Tools: NewRegistry(), StateFile: path, System: "sys"})
 	if _, err := a.ResumeWithAnswer(t.Context(), s.Context(), "ask", "yes"); err != nil {
 		t.Fatal(err)
 	}
-	s, err := session.Load(path)
+	s, err := conversation.Load(path)
 	if err != nil || len(s.Runs) != 2 || s.Runs[1].Start != 1 || s.Runs[1].End != 5 {
 		t.Fatalf("question continuation lost task: %+v %v", s.Runs, err)
 	}
@@ -97,7 +97,7 @@ func TestResponsesPartialOutputReachesArchive(t *testing.T) {
 			if _, err := a.Run(t.Context(), "task"); err == nil {
 				t.Fatal("interruption succeeded")
 			}
-			state, err := session.Load(path)
+			state, err := conversation.Load(path)
 			if err != nil {
 				t.Fatal(err)
 			}

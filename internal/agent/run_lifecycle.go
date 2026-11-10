@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
 )
 
 // finalizeRun retains accepted work before verification and outcome persistence.
@@ -68,7 +68,7 @@ func (a *Agent) finalizeRun(ctx, workCtx context.Context, st *runState, history 
 		a.report.Outcome = "incomplete"
 	}
 	if a.cfg.StateFile != "" {
-		a.snapshot.Runs = append(a.snapshot.Runs, session.Run{Start: runStart, End: len(a.snapshot.History), Outcome: a.report.Outcome, Steps: a.report.Steps, Verification: a.report.Verification, Error: session.FailureText(runErr)})
+		a.snapshot.Runs = append(a.snapshot.Runs, conversation.Run{Start: runStart, End: len(a.snapshot.History), Outcome: a.report.Outcome, Steps: a.report.Steps, Verification: a.report.Verification, Error: conversation.FailureText(runErr)})
 		if err := a.snapshot.Save(a.cfg.StateFile); err != nil {
 			a.report.Warnings = append(a.report.Warnings, "run boundary persistence failed: "+err.Error())
 		}
@@ -138,14 +138,6 @@ func (a *Agent) prepareRun(ctx, workCtx context.Context, st *runState, history [
 	}
 	// Restore the task checklist when resuming a saved conversation.
 	a.rehydrateTodo(ctx, history)
-	if a.cfg.RestoreTools != nil {
-		if err := a.cfg.RestoreTools(workCtx, a.snapshot.History); err != nil {
-			if ctx.Err() != nil {
-				return history, ctx.Err()
-			}
-			history = a.nudge(history, NudgeRecovery, "Optional session tools unavailable: "+err.Error()+". Continue with available tools or explicitly retry activation.")
-		}
-	}
 
 	if a.cfg.PrepareTools != nil {
 		if err := a.cfg.PrepareTools(workCtx); err != nil {

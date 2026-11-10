@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/keshon/gektor/internal/executables"
 	"github.com/keshon/gektor/internal/httptransport"
 	"github.com/keshon/gektor/internal/process"
-	"github.com/keshon/gektor/internal/programs"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -43,8 +43,8 @@ type Request struct {
 	Copy            bool     `json:"copy,omitempty"`
 }
 type ApplicationResolver interface {
-	Probe(context.Context, string, bool) (programs.Status, error)
-	Require(context.Context, string) (programs.Status, error)
+	Probe(context.Context, string, bool) (executables.Status, error)
+	Require(context.Context, string) (executables.Status, error)
 }
 
 type Service struct {
@@ -208,7 +208,7 @@ type OperationStatus struct {
 }
 
 func (s *Service) Status(ctx context.Context, refresh bool) (any, error) {
-	apps := []programs.Status{}
+	apps := []executables.Status{}
 	states := map[string]string{}
 	for _, name := range []string{"yt-dlp", "ffmpeg", "ffprobe", "deno", "node"} {
 		v, err := s.Apps.Probe(ctx, name, refresh)
@@ -242,11 +242,11 @@ func (s *Service) Status(ctx context.Context, refresh bool) (any, error) {
 		operations[2].Missing = []string{"deno or node for full YouTube support"}
 	}
 	return struct {
-		Native       bool              `json:"native_youtube"`
-		Preferred    string            `json:"youtube_preferred_backend"`
-		Applications []programs.Status `json:"applications"`
-		Operations   []OperationStatus `json:"operations"`
-		Note         string            `json:"note"`
+		Native       bool                 `json:"native_youtube"`
+		Preferred    string               `json:"youtube_preferred_backend"`
+		Applications []executables.Status `json:"applications"`
+		Operations   []OperationStatus    `json:"operations"`
+		Note         string               `json:"note"`
 	}{true, "native", apps, operations, "Local requirements only, not execution permission or a remote/codec compatibility test. yt-dlp's EJS component is bundled or separately installed; its presence is not verified here. No installation or hidden fallback."}, nil
 }
 func (s *Service) command(ctx context.Context, app string, args []string, dir string, limit int64) (process.Result, error) {

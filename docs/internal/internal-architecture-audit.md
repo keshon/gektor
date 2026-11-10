@@ -1,5 +1,12 @@
 # Internal architecture audit
 
+This report records the independent review of baseline `154f232`; paths and
+package counts below describe that snapshot. The accepted findings are addressed
+on `codex/internal-architecture-cleanup`. See the
+[implementation record](internal-cleanup-plan.md) for current ownership, names,
+resolution details and validation. Keep this baseline evidence separate from the
+current architecture described in `ARCHITECTURE.md`.
+
 2026-11-10. Independent skeptical review of the current working tree, including untracked `agentstdio` and `release` source. This is a package-by-package architecture review with representative execution-path inspection, not a claim that every statement or possible behavior has been verified.
 
 ## Findings first

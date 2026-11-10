@@ -6,6 +6,7 @@ import (
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/tui/components/graph"
 )
@@ -68,7 +69,8 @@ func TestWorkflowNodeStateColorsDoNotReplaceSelection(t *testing.T) {
 			{"pending", "Pending", colorPopupText},
 		} {
 			for _, selected := range []string{"", "step"} {
-				n := graph.Node{ID: "step", Detail: item.status}
+				n := graph.Node{ID: "step"}
+				n.Detail, n.DetailTone = workflowCardDetail(item.status)
 				g := graph.Model{Nodes: []graph.Node{n}, Selected: selected}
 				view := g.View(graph.NodeWidth, n.Height(), m.graphStyles())
 				screen := uv.NewScreenBuffer(graph.NodeWidth, n.Height())

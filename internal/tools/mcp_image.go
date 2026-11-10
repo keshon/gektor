@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/userdirs"
 )
 
 type visionContextKey struct{}
@@ -43,5 +43,5 @@ func saveMCPImage(ctx context.Context, encoded, mime string) (string, error) {
 	if closeErr != nil {
 		return "", closeErr
 	}
-	return llm.SnapshotImage(f.Name(), gektor.Sub("images"))
+	return llm.SnapshotImage(f.Name(), userdirs.Sub("images"))
 }

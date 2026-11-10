@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/checks"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/session"
 )
 
 func TestComposedSkillReusePreservesArchive(t *testing.T) {
@@ -50,7 +50,7 @@ func TestComposedSkillReusePreservesArchive(t *testing.T) {
 	if _, err := Interactive(e, "", state, nil, nil).Run(t.Context(), "Load the guide twice"); err != nil {
 		t.Fatal(err)
 	}
-	saved, err := session.Load(state)
+	saved, err := conversation.Load(state)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestComposedSkillReusePreservesArchive(t *testing.T) {
 func TestComposedQuestionRecovery(t *testing.T) {
 	e := testEnv(t)
 	state := filepath.Join(t.TempDir(), "state.json")
-	s := session.New([]llm.Message{{Role: llm.RoleSystem, Content: "old"}, {Role: llm.RoleUser, Content: "original task"}, extensionCall("question", "ask_user", `{"question":"Proceed?"}`).Message})
+	s := conversation.New([]llm.Message{{Role: llm.RoleSystem, Content: "old"}, {Role: llm.RoleUser, Content: "original task"}, extensionCall("question", "ask_user", `{"question":"Proceed?"}`).Message})
 	if err := s.Save(state); err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,6 @@ func TestComposedQuestionRecovery(t *testing.T) {
 
 type packageCheck struct{}
 
-func (packageCheck) Name() string { return "fixture-check" }
 func (packageCheck) Check(path string, data []byte) []checks.Finding {
 	if string(data) == "CHECK_ME" {
 		return []checks.Finding{{Rule: "fixture-check", Path: path, Line: 1, Summary: "fixture finding"}}

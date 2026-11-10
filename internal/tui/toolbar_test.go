@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
+
 	"github.com/keshon/gektor/internal/config"
 )
 
@@ -46,7 +47,7 @@ func TestSettingsToolbarDisabledApplyIsVisibleAndCannotRun(t *testing.T) {
 		m := settingsModel(t)
 		m.applyTheme(theme)
 		m.editSettings("generation")
-		m.dialog.form.Workspace.PersistCurrent = false
+		m.dialog.form.EditSession.PersistCurrent = false
 		if m.dialog.form.Dirty() {
 			t.Fatal("unchanged settings fixture is dirty")
 		}

@@ -11,11 +11,11 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/agent"
-	"github.com/keshon/gektor/internal/agentstdio"
+	"github.com/keshon/gektor/internal/agentrpc"
 	"github.com/keshon/gektor/internal/events"
+	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/run"
 	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -91,7 +91,7 @@ func TestLaunchConfigurationAndBehaviorMatchAcrossFrontends(t *testing.T) {
 				case "rpc":
 					server := rpcConfiguration(o, cfg)
 					server.Directory = t.TempDir()
-					err = agentstdio.Serve(t.Context(), server, strings.NewReader("{\"id\":1,\"method\":\"run\",\"params\":{\"task\":\"write a note\"}}\n"), &wire)
+					err = agentrpc.Serve(t.Context(), server, strings.NewReader("{\"id\":1,\"method\":\"run\",\"params\":{\"task\":\"write a note\"}}\n"), &wire)
 				}
 				if err != nil {
 					t.Fatal(err, wire.String())
@@ -196,7 +196,7 @@ func TestCLIForkOfPausedQuestionPreservesNewTurn(t *testing.T) {
 	defer ws.Close()
 	client := &forkClient{}
 	image := filepath.Join(ws.Root(), "new.png")
-	cfg := run.Config{
+	cfg := harness.Config{
 		Env:  roles.Env{Client: client, WS: ws, Vision: true},
 		Task: "NEW FORK INSTRUCTION", Images: []string{image}, StateFile: filepath.Join(t.TempDir(), "state.json"),
 		ResumeAnswer: "must not answer the old question",

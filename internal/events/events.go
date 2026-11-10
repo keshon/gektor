@@ -1,7 +1,5 @@
-// Package events emits one JSON object per line (JSONL) so a run can be
-// consumed by tooling instead of scraped from console text. Nothing here
-// is required for the agent to work: it is observability, and it is
-// written to stderr-free stdout so a caller can pipe it.
+// Package events delivers ordered run observations to in-process consumers or
+// a JSONL writer at a wire boundary.
 package events
 
 import (
@@ -11,26 +9,40 @@ import (
 	"sync"
 )
 
-// Emitter writes JSONL events to a writer. Nil-safe: a zero Emitter drops
+// Emitter delivers events to a sink or JSONL writer. A zero Emitter drops
 // everything, so callers never branch on whether output is enabled.
 type Emitter struct {
-	mu  sync.Mutex
-	w   io.Writer
-	seq int
+	mu   sync.Mutex
+	w    io.Writer
+	sink func(Event)
+	seq  int
 }
 
 // New returns an Emitter writing to w.
 func New(w io.Writer) *Emitter { return &Emitter{w: w} }
 
-// Emit writes one event with an auto-incrementing seq. Errors are
-// dropped: a broken pipe on stdout must not abort a run.
+// NewSink delivers immutable event values directly in process. Publishers must
+// not mutate nested payloads after emitting them; Emit copies the fields map.
+func NewSink(sink func(Event)) *Emitter { return &Emitter{sink: sink} }
+
+// Emit delivers one event with an auto-incrementing seq. Writer errors are
+// dropped: a broken pipe must not abort a run. Sinks run synchronously in order
+// and must not call back into this emitter.
 func (e *Emitter) Emit(kind string, fields map[string]any) {
-	if e == nil || e.w == nil {
+	if e == nil || e.w == nil && e.sink == nil {
 		return
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.seq++
+	if e.sink != nil {
+		payload := make(map[string]any, len(fields))
+		for key, value := range fields {
+			payload[key] = value
+		}
+		e.sink(Event{Name: kind, Seq: e.seq, Fields: payload})
+		return
+	}
 	rec := map[string]any{"seq": e.seq, "event": kind}
 	for k, v := range fields {
 		rec[k] = v

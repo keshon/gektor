@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/keshon/gektor/internal/agent"
-	"github.com/keshon/gektor/internal/session"
+	"github.com/keshon/gektor/internal/conversation"
 )
 
 type InspectContext struct{}
@@ -140,11 +140,11 @@ func (InspectContext) Run(ctx context.Context, args json.RawMessage) (string, er
 			return "", err
 		}
 		type revision struct {
-			ID           int                     `json:"id"`
-			FirstRequest int                     `json:"first_request,omitempty"`
-			Source       string                  `json:"source"`
-			SHA256       string                  `json:"sha256"`
-			Sections     []session.PromptSection `json:"sections,omitempty"`
+			ID           int                          `json:"id"`
+			FirstRequest int                          `json:"first_request,omitempty"`
+			Source       string                       `json:"source"`
+			SHA256       string                       `json:"sha256"`
+			Sections     []conversation.PromptSection `json:"sections,omitempty"`
 		}
 		rows := []revision{}
 		for _, p := range v.Prompts[in.Offset:end] {

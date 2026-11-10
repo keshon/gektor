@@ -165,7 +165,7 @@ func TestImageDownloadDetectsContentAndRejectsInvalidDestinations(t *testing.T) 
 func TestImageToolsStayLazy(t *testing.T) {
 	ws, _, _ := imageViewFixture(t)
 	catalog := &Capabilities{}
-	reg, err := Compose(ws, nil, nil, nil, true, catalog, nil)
+	reg, err := Compose(Dependencies{WS: ws, Vision: true}, catalog, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -5,23 +5,23 @@ import (
 	"os"
 
 	"github.com/keshon/gektor/internal/agent"
-	"github.com/keshon/gektor/internal/agentstdio"
-	"github.com/keshon/gektor/internal/audit"
-	"github.com/keshon/gektor/internal/gektor"
+	"github.com/keshon/gektor/internal/agentrpc"
+	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/run"
+	"github.com/keshon/gektor/internal/permissionlog"
+	"github.com/keshon/gektor/internal/userdirs"
 )
 
-func serveAgentLaunch(ctx context.Context, o resolvedLaunch, cfg run.Config) error {
-	return agentstdio.Serve(ctx, rpcConfiguration(o, cfg), os.Stdin, os.Stdout)
+func serveAgentLaunch(ctx context.Context, o resolvedLaunch, cfg harness.Config) error {
+	return agentrpc.Serve(ctx, rpcConfiguration(o, cfg), os.Stdin, os.Stdout)
 }
 
-func rpcConfiguration(o resolvedLaunch, cfg run.Config) agentstdio.Config {
-	return agentstdio.Config{
+func rpcConfiguration(o resolvedLaunch, cfg harness.Config) agentrpc.Config {
+	return agentrpc.Config{
 		Run:       cfg,
-		Directory: gektor.Sub("tasks"),
+		Directory: userdirs.Sub("tasks"),
 		Permission: func(answer agent.Suspender) permission.Gate {
-			return audit.ContextHook(o.auditPath, "serve", permissionGateContext(o.yes, answer, cfg.Env.WS))
+			return permissionlog.WrapGate(o.auditPath, "serve", permissionGateContext(o.yes, answer, cfg.Env.WS))
 		},
 	}
 }

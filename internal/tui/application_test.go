@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/config"
@@ -39,7 +40,7 @@ func TestSettingsApplyQueuesRestartWithContextAndDraft(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.editSettings("model")
-	if m.dialog == nil || m.dialog.form.Workspace.Section != "model" {
+	if m.dialog == nil || m.dialog.form.EditSession.Section != "model" {
 		t.Fatal("model editor unavailable")
 	}
 	focusSetting(m, "model")
@@ -163,7 +164,7 @@ func TestAgentTaskKeepsTheDirectoryItAlreadyHas(t *testing.T) {
 	}
 	m.ws = ws
 	m.application = &Application{Preferences: config.Preferences{Version: 1, Workspace: root}}
-	m.config = &app.Services{Directory: root, Profile: config.Profile{Version: 1}}
+	m.config = &app.PreparedProfile{Directory: root, Profile: config.Profile{Version: 1}}
 
 	m.stateFile = ""
 	if got, want := m.taskDirectory("abcd1234"), filepath.Join(m.sessionRoot(), "abcd1234"); got != want {

@@ -14,17 +14,18 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
-	"github.com/keshon/gektor/internal/audit"
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/conversation"
+	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/mcpmanager"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/retrospect"
+	"github.com/keshon/gektor/internal/permissionlog"
+	"github.com/keshon/gektor/internal/retrospective"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/run"
-	"github.com/keshon/gektor/internal/session"
 	"github.com/keshon/gektor/internal/tui/components/completion"
 	"github.com/keshon/gektor/internal/tui/components/composer"
 	"github.com/keshon/gektor/internal/tui/components/gate"
@@ -39,7 +40,7 @@ type Config struct {
 	MCP              *mcpmanager.Manager
 	SessionDirectory string
 	Application      *Application
-	Services         *app.Services
+	PreparedProfile  *app.PreparedProfile
 	SeedHistory      []llm.Message
 	InitialDraft     string
 	InitialImages    []string
@@ -78,7 +79,7 @@ const (
 	unlimitedSteps = config.UnlimitedSteps
 )
 
-type eventMsg run.Event
+type eventMsg harness.Event
 type doneMsg struct {
 	answer string
 	err    error
@@ -87,7 +88,7 @@ type tickMsg time.Time
 type liveFlushMsg struct{}
 type model struct {
 	startWorkflows   bool
-	workflows        *workflowWorkspace
+	workflows        *workflowScreen
 	steering         bool
 	inspector        toolInspector
 	liveFlushPending bool
@@ -98,7 +99,7 @@ type model struct {
 	// config is the service set this launch was composed with. It is the
 	// only route to the profile, so a nil value means "not configurable"
 	// rather than "defaulted".
-	config      *app.Services
+	config      *app.PreparedProfile
 	modeChange  *ModeChange
 	seedHistory []llm.Message
 
@@ -115,13 +116,13 @@ type model struct {
 	progressStarted           time.Time
 	evaluation                *evaluationJob
 	gateDraft                 string
-	events                    chan run.Event
-	hub                       *run.GateHub
+	events                    chan harness.Event
+	hub                       *harness.GateHub
 	cancel                    context.CancelFunc
 	// base spawns one context per run: an interrupted run's cancelled
 	// context must never leak into the next turn.
 	base  context.Context
-	sess  *run.Session
+	sess  *harness.Session
 	state runState
 	gate  string
 	steps int
@@ -158,7 +159,7 @@ type model struct {
 	ws *workspace.Workspace
 	// newSession builds a session for a fresh task (first run and
 	// /new). Follow-ups reuse the running session via Resume.
-	newSession func(task, stateFile string, images []string) (*run.Session, error)
+	newSession func(task, stateFile string, images []string) (*harness.Session, error)
 	// retryRun restarts the last turn on the update loop, taking fresh service
 	// snapshots before starting workers. Set by startRun, gated by runErr.
 	retryRun func()
@@ -219,7 +220,7 @@ type model struct {
 	alwaysMu     sync.Mutex
 	always       map[[2]string]bool
 	dialog       *infoDialog
-	lastLesson   retrospect.Lesson
+	lastLesson   retrospective.Lesson
 	lessonRoot   string
 	// scrollDrag tracks a scrollbar thumb grab: active while the pointer
 	// is held on the bar, grab is the pointer's row inside the thumb so
@@ -262,11 +263,11 @@ type model struct {
 	policyDetails []permission.Rule
 }
 
-func gateEvent(name string, fields map[string]any) run.Event {
+func gateEvent(name string, fields map[string]any) harness.Event {
 	prompt, _ := fields["prompt"].(string)
 	tool, _ := fields["tool"].(string)
 	resource, _ := fields["resource"].(string)
-	return run.Event{Name: name, Fields: map[string]any{
+	return harness.Event{Name: name, Fields: map[string]any{
 		"kind": fields["kind"], "prompt": prompt, "tool": tool, "resource": resource,
 	}}
 }
@@ -316,8 +317,8 @@ func (m *model) stepLine() string {
 
 // newModel assembles the terminal state and its production session factory.
 func newModel(uiCtx context.Context, cfg Config) *model {
-	eventsCh := make(chan run.Event, 256)
-	hub := run.NewGateHub(func(name string, fields map[string]any) {
+	eventsCh := make(chan harness.Event, 256)
+	hub := harness.NewGateHub(func(name string, fields map[string]any) {
 		select {
 		case eventsCh <- gateEvent(name, fields):
 		case <-uiCtx.Done():
@@ -364,12 +365,11 @@ func newModel(uiCtx context.Context, cfg Config) *model {
 		m.maxStepsOverride = noStepLimit
 	}
 	m.application = cfg.Application
-	m.config = cfg.Services
+	m.config = cfg.PreparedProfile
 	m.refreshSessions()
 	m.input = newInput()
 	env := cfg.Env
-	env.Gate = nil
-	env.GateContext = audit.ContextHook(cfg.AuditPath, "tui", m.contextGate(hub, cfg.Env.WS))
+	env.Gate = permissionlog.WrapGate(cfg.AuditPath, "tui", m.contextGate(hub, cfg.Env.WS))
 	m.baseEnv = env
 	m.mcp = cfg.MCP
 	if cfg.Application != nil {
@@ -378,8 +378,8 @@ func newModel(uiCtx context.Context, cfg Config) *model {
 	} else {
 		m.applyAppearance(config.Appearance{})
 	}
-	m.newSession = func(task, stateFile string, images []string) (*run.Session, error) {
-		return run.New(run.Config{
+	m.newSession = func(task, stateFile string, images []string) (*harness.Session, error) {
+		return harness.New(harness.Config{
 			Env:          m.sessionEnv(),
 			Task:         task,
 			Plan:         m.plan,
@@ -388,7 +388,7 @@ func newModel(uiCtx context.Context, cfg Config) *model {
 			Images:       images,
 			Answer:       hub.Suspender(),
 			ResumeAnswer: cfg.ResumeAnswer,
-			OnEvent: func(ev run.Event) {
+			OnEvent: func(ev harness.Event) {
 				select {
 				case eventsCh <- ev:
 				case <-uiCtx.Done():
@@ -408,6 +408,11 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	uiCtx, cancelUI := context.WithCancel(ctx)
 	defer cancelUI()
 	m := newModel(uiCtx, cfg)
+	defer func() {
+		if m.workflows != nil {
+			m.workflows.Close()
+		}
+	}()
 	defer func() { m.cancel() }()
 	defer m.cancelSessionTitle()
 	eventsCh := m.events
@@ -416,7 +421,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 			return "", fmt.Errorf("cannot open session directory %s", cfg.SessionDirectory)
 		}
 		m.stateFile = filepath.Join(cfg.SessionDirectory, "state.json")
-		m.sessionTitle = workspace.ReadSessionTitle(cfg.SessionDirectory)
+		m.sessionTitle = conversation.ReadSessionTitle(cfg.SessionDirectory)
 	}
 
 	inputOptions, restoreInput, err := consoleInput(uiCtx)
@@ -428,7 +433,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	m.send = func(msg tea.Msg) {
 		if done, ok := msg.(doneMsg); ok {
 			select {
-			case eventsCh <- run.Event{Name: "_done", Fields: map[string]any{"answer": done.answer, "error": done.err}}:
+			case eventsCh <- harness.Event{Name: "_done", Fields: map[string]any{"answer": done.answer, "error": done.err}}:
 			case <-uiCtx.Done():
 			}
 			return
@@ -447,7 +452,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		}
 		m.sess = sess
 		m.transcript.blocks = append(m.transcript.blocks, renderHistory(cfg.History)...)
-		if snapshot, err := session.Load(m.stateFile); err == nil {
+		if snapshot, err := conversation.Load(m.stateFile); err == nil {
 			m.appendSavedRun(snapshot)
 		}
 		m.restoreContext(cfg.History)
@@ -472,7 +477,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 			m.stateFile = filepath.Join(cfg.SessionDirectory, "state.json")
 		}
 		m.transcript.blocks = renderHistory(cfg.SeedHistory)
-		if snapshot, err := session.Load(m.stateFile); err == nil {
+		if snapshot, err := conversation.Load(m.stateFile); err == nil {
 			m.appendSavedRun(snapshot)
 		}
 		m.restoreContext(cfg.SeedHistory)

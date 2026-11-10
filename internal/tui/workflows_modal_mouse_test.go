@@ -38,7 +38,7 @@ func TestWorkflowFormButtonsMatchRenderedScreen(t *testing.T) {
 			m.workflowCommand("open")
 			m.dialog.form.Editor.SetValue("recipe.json")
 			clickWorkflowText(t, m, "Continue")
-			if m.dialog != nil || len(m.pendingCommands) == 0 {
+			if m.dialog != nil || len(m.workflows.commands) == 0 {
 				t.Fatalf("continue missed at width %d inspector %v", width, inspect)
 			}
 			m.workflowCommand("open")

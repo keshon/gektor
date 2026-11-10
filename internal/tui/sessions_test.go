@@ -10,9 +10,11 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/conversation"
+	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/run"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -24,7 +26,7 @@ func writeSessionState(t testing.TB, root, id string, history []llm.Message) str
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	raw, err := json.Marshal(history)
+	raw, err := json.Marshal(conversation.New(history))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,8 +158,8 @@ func sessionsTestModel(t *testing.T, entries []sessionEntry) *model {
 	// Resume needs a session object for follow-ups; run.New validates
 	// a full Env, so tests stub the constructor (production always
 	// wires the real one in Run).
-	m.newSession = func(task, stateFile string, images []string) (*run.Session, error) {
-		return &run.Session{}, nil
+	m.newSession = func(task, stateFile string, images []string) (*harness.Session, error) {
+		return &harness.Session{}, nil
 	}
 	return m
 }
@@ -249,7 +251,7 @@ func TestSessions_DeleteActiveUnloadsFirst(t *testing.T) {
 	dir := writeSessionState(t, filepath.Join(".gektor", "tasks"), "aaa", userHistory("live"))
 	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
 	m.stateFile = filepath.Join(dir, "state.json")
-	m.sess = &run.Session{}
+	m.sess = &harness.Session{}
 	m.transcript.blocks = []block{answerBlock("old transcript")}
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})

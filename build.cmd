@@ -68,7 +68,7 @@ rem  the executable used by the root launchers.
 rem ---------------------------------------------------------------------------
 :build
 echo Building packages...
-go build ./...
+go build ./cmd/... ./internal/...
 if errorlevel 1 (
     echo ERROR: build failed.
     exit /b 1
@@ -115,7 +115,7 @@ shift
 goto :collect
 
 :run_test
-go test ./... %EXTRAS%
+go test ./cmd/... ./internal/... %EXTRAS%
 exit /b %errorlevel%
 
 rem ---------------------------------------------------------------------------
@@ -152,17 +152,17 @@ rem  says what broke.
 rem ---------------------------------------------------------------------------
 :check
 echo == vet
-go vet ./...
+go vet ./cmd/... ./internal/...
 if errorlevel 1 exit /b 1
 
 echo == build
-go build ./...
+go build ./cmd/... ./internal/...
 if errorlevel 1 exit /b 1
 
 echo == test -race
 call :sandbox
 if errorlevel 1 exit /b 1
-go test -race ./...
+go test -race ./cmd/... ./internal/...
 if errorlevel 1 exit /b 1
 
 echo == conventions

@@ -13,13 +13,13 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/keshon/gektor/internal/gektor"
-	"github.com/keshon/gektor/internal/session"
-	"github.com/keshon/gektor/internal/tui/components/composer"
-
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/tui/components/composer"
+	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -67,7 +67,7 @@ func (m *model) followUp() (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	history, err := session.ReadHistory(m.stateFile)
+	history, err := conversation.ReadHistory(m.stateFile)
 	if err != nil {
 		m.input.SetValue(original)
 		m.fitInput()
@@ -94,8 +94,8 @@ func (m *model) followUp() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-const referenceStart = session.ReferenceStart
-const referenceEnd = session.ReferenceEnd
+const referenceStart = conversation.ReferenceStart
+const referenceEnd = conversation.ReferenceEnd
 
 const maxReferenceBytes = 32 * 1024
 const maxTurnReferenceBytes = 64 * 1024
@@ -144,7 +144,7 @@ func splitAttachments(ws *workspace.Workspace, text string) (string, []string, e
 				if err != nil {
 					return "", nil, err
 				}
-				snapshot, err := llm.SnapshotImageFile(source, full, gektor.Sub("images"))
+				snapshot, err := llm.SnapshotImageFile(source, full, userdirs.Sub("images"))
 				source.Close()
 				if err != nil {
 					return "", nil, err
@@ -200,7 +200,7 @@ func splitAttachments(ws *workspace.Workspace, text string) (string, []string, e
 }
 
 // Keep snapshots in model history without dumping their contents into the UI.
-func displayInputContent(text string) string { return session.DisplayInput(text) }
+func displayInputContent(text string) string { return conversation.DisplayInput(text) }
 
 // References and built-in tools use the same rooted filesystem contract.
 func referencePath(ws *workspace.Workspace, path string) (string, error) {
@@ -285,7 +285,7 @@ func (m *model) startRun(run func(ctx context.Context) (string, error)) {
 			m.startRun(run)
 			return
 		}
-		history, err := session.ReadHistory(m.stateFile)
+		history, err := conversation.ReadHistory(m.stateFile)
 		if err != nil {
 			m.appendBlock(errorBlock("cannot retry saved task: " + err.Error()))
 			return
@@ -340,7 +340,7 @@ func (m *model) startInitial(task string, images []string) error {
 		return err
 	}
 	m.sess = sess
-	m.sessionTitle = workspace.TitleLine(task)
+	m.sessionTitle = conversation.TitleLine(task)
 	m.prepareSessionTitle(task)
 	if err := m.saveMode(); err != nil {
 		return err
@@ -446,11 +446,11 @@ func (m *model) startFreshPrompt(task, display string, images []string) error {
 	if err := writeSavedMode(stateFile, m.plan); err != nil {
 		return err
 	}
-	title := workspace.TitleLine(display)
+	title := conversation.TitleLine(display)
 	if len(m.seedHistory) > 0 && m.sessionTitle != "" {
 		title = m.sessionTitle
 	}
-	if err := workspace.WriteSessionTitle(taskDir, title); err != nil {
+	if err := conversation.WriteSessionTitle(taskDir, title); err != nil {
 		return err
 	}
 	m.saveDraft()

@@ -269,7 +269,7 @@ func TestSystemNoticesShareConversationLayout(t *testing.T) {
 		{markerBlock("— new task —"), "STATUS"},
 		{markerBlock("[harness] " + strings.Repeat("review this carefully ", 20)), "HARNESS"},
 		{errorBlock("Cannot resume\nTry again"), "ERROR"},
-		{findingBlock("gofmt", "a.go", 3, "format required"), "WARNING"},
+		{findingBlock("secret-aws", "a.go", 3, "possible secret"), "WARNING"},
 		{gateBlock("Allow this tool?"), "QUESTION"},
 	} {
 		for _, width := range []int{30, 80, 120} {
@@ -321,12 +321,12 @@ func TestSystemVisibilityCoversAllScaffoldingHistory(t *testing.T) {
 		answerBlock("answer"),
 		markerBlock("[harness] harness nudge"),
 		errorBlock("run failed"),
-		findingBlock("gofmt", "a.go", 3, "not formatted"),
+		findingBlock("secret-aws", "a.go", 3, "possible secret"),
 		gateBlock("Allow this tool?"),
 	}
 	m.refreshContent()
 	full := ansi.Strip(m.transcript.Viewport.View())
-	for _, want := range []string{"harness nudge", "run failed", "not formatted", "Allow this tool?"} {
+	for _, want := range []string{"harness nudge", "run failed", "possible secret", "Allow this tool?"} {
 		if !strings.Contains(full, want) {
 			t.Fatalf("unfiltered transcript missing %q: %q", want, full)
 		}
@@ -337,7 +337,7 @@ func TestSystemVisibilityCoversAllScaffoldingHistory(t *testing.T) {
 	if strings.Contains(hidden, "harness nudge") {
 		t.Fatalf("harness notice survived the SYS filter: %q", hidden)
 	}
-	for _, want := range []string{"run failed", "not formatted", "Allow this tool?", "[ERROR]", "[WARNING]", "[QUESTION]"} {
+	for _, want := range []string{"run failed", "possible secret", "Allow this tool?", "[ERROR]", "[WARNING]", "[QUESTION]"} {
 		if strings.Contains(hidden, want) {
 			t.Fatalf("system history survived filter: %q", want)
 		}

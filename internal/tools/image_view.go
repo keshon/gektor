@@ -18,8 +18,8 @@ import (
 	_ "golang.org/x/image/webp"
 
 	"github.com/keshon/gektor/internal/agent"
-	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -138,7 +138,7 @@ func (t *ImageView) Run(ctx context.Context, args json.RawMessage) (string, erro
 		if !llm.IsImagePath(name) {
 			name = "view" + llm.ImageExtension(mime)
 		}
-		saved, err = llm.SnapshotImageFile(source, name, gektor.Sub("images"))
+		saved, err = llm.SnapshotImageFile(source, name, userdirs.Sub("images"))
 		if err != nil {
 			return "", err
 		}
@@ -167,10 +167,10 @@ func (t *ImageView) Run(ctx context.Context, args json.RawMessage) (string, erro
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
-		if err := os.MkdirAll(gektor.Sub("images"), 0700); err != nil {
+		if err := os.MkdirAll(userdirs.Sub("images"), 0700); err != nil {
 			return "", err
 		}
-		f, err := os.CreateTemp(gektor.Sub("images"), ".view-*.png")
+		f, err := os.CreateTemp(userdirs.Sub("images"), ".view-*.png")
 		if err != nil {
 			return "", err
 		}
@@ -179,7 +179,7 @@ func (t *ImageView) Run(ctx context.Context, args json.RawMessage) (string, erro
 		if err := png.Encode(f, view); err != nil {
 			return "", err
 		}
-		saved, err = llm.SnapshotImageFile(f, "view.png", gektor.Sub("images"))
+		saved, err = llm.SnapshotImageFile(f, "view.png", userdirs.Sub("images"))
 		if err != nil {
 			return "", err
 		}

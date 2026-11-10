@@ -41,6 +41,18 @@ display models or sessions. Their application actions remain separate.
 A component reports an intent such as accept, cancel or activate; its owner
 decides whether that saves settings, opens a session or starts a connection.
 
+The concrete `workflowScreen` in `internal/tui/workflows*.go` owns the workflow
+draft, graph, run state, message dispatch and asynchronous operations. The root
+model delegates input and workflow messages, and owns navigation and shared
+forms/dialogs. `internal/tui/workflow_navigation.go` connects those shared controls through
+concrete callbacks; the screen has no access to the agent or conversation.
+Its context is closed when the terminal launch ends. Settings changes restart
+the launch, constructing a screen with the new client and policy.
+
+`internal/tui/workflow` remains the pure recipe editor and graph mapping.
+The generic graph component renders supplied labels and tones; workflow status
+names and their presentation belong to the screen.
+
 ## Visual language
 
 ### Color and emphasis

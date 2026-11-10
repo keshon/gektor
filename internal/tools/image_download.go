@@ -11,9 +11,9 @@ import (
 	"sync"
 
 	"github.com/keshon/gektor/internal/agent"
-	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/httptransport"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/userdirs"
 )
 
 type ImageDownload struct {
@@ -61,7 +61,7 @@ func (t *ImageDownload) Run(ctx context.Context, args json.RawMessage) (string, 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return "", fmt.Errorf("image download: HTTP %d", resp.StatusCode)
 	}
-	dir := gektor.Sub("images")
+	dir := userdirs.Sub("images")
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return "", err
 	}

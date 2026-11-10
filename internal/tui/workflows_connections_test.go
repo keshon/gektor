@@ -6,17 +6,18 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/gektor/internal/automation"
+
+	"github.com/keshon/gektor/internal/workflow"
 )
 
 func nextConnectionForm(t *testing.T, m *model) {
 	t.Helper()
-	if len(m.pendingCommands) == 0 {
+	if len(m.workflows.commands) == 0 {
 		t.Fatal("no queued form")
 	}
-	action := m.pendingCommands[len(m.pendingCommands)-1]()
+	action := m.workflows.commands[len(m.workflows.commands)-1]()
 	m.dialog = nil
-	m.workflowAction(action.(workflowAction))
+	m.workflows.action(action.(workflowAction))
 	if m.dialog == nil || m.dialog.form == nil {
 		t.Fatal("missing connection form")
 	}
@@ -32,7 +33,7 @@ func TestConnectionFormsCreateEditRemoveAndUndo(t *testing.T) {
 	w.editor.Replace(d)
 	w.graph.Selected = "second"
 	before := w.editor.Source()
-	m.workflowLinkTarget(`["transform","second"]`)
+	m.workflows.linkTarget(`["transform","second"]`)
 	if err := m.dialog.form.apply(map[string]string{"from": "transform", "arg": "Argument: input"}); err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +100,7 @@ func TestConnectionFormsProtectFrozenAndStaleDrafts(t *testing.T) {
 	m := workflowTestModel(t)
 	w := m.workflows
 	w.editor.Replace(workflowRecipe())
-	w.run = &automation.Run{}
+	w.run = &workflow.Run{}
 	m.workflowCommand("connections")
 	if m.dialog != nil {
 		t.Fatal("frozen run opened edit form")
@@ -109,7 +110,7 @@ func TestConnectionFormsProtectFrozenAndStaleDrafts(t *testing.T) {
 	d := w.editor.Clone()
 	d.Name = "Changed"
 	w.editor.Replace(d)
-	m.workflowConnectionEdit(edit)
+	m.workflows.connectionEdit(edit)
 	if m.dialog != nil || !strings.Contains(w.notice, "Draft changed") {
 		t.Fatal(w.notice)
 	}
@@ -134,7 +135,7 @@ func TestConnectionPreviewFitsResizedForms(t *testing.T) {
 	w.editor.Replace(d)
 	for _, theme := range []string{"light", "dark"} {
 		setTheme(theme)
-		m.workflowConnectionEdit(workflowConnectionEdit{From: "transform", To: "second", Field: "args", Path: "/input", Draft: w.editor.Source()})
+		m.workflows.connectionEdit(workflowConnectionEdit{From: "transform", To: "second", Field: "args", Path: "/input", Draft: w.editor.Source()})
 		for _, size := range [][2]int{{120, 30}, {80, 24}, {40, 15}} {
 			sizeModelTo(t, m, size[0], size[1])
 			rows := strings.Split(ansi.Strip(m.screenContent()), "\n")

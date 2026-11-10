@@ -83,7 +83,7 @@ filtering and reassigning saved sessions should make none; sending a message
 should increase it. This counter does not include model-list discovery.
 
 Automated coverage in `internal/tui/session_workspace_test.go` checks 40- and
-80-column rendering, scope filters, missing and legacy roots, draft transfer,
+80-column rendering, scope filters, missing and unassigned roots, draft transfer,
 confirmation cancellation, and a refresh that removes or reorders a session.
 These tests exercise state and layout, not native terminal input.
 

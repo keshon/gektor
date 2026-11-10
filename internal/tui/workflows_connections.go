@@ -3,14 +3,14 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/keshon/gektor/internal/tui/components/pane"
 	"sort"
 	"strconv"
 	"strings"
 
-	"github.com/keshon/gektor/internal/automation"
+	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/schemaform"
 	editor "github.com/keshon/gektor/internal/tui/workflow"
+	"github.com/keshon/gektor/internal/workflow"
 )
 
 type workflowConnectionEdit struct {
@@ -21,13 +21,13 @@ type workflowConnectionEdit struct {
 	Remove                       bool
 }
 
-func (m *model) queueConnection(edit workflowConnectionEdit) {
+func (m *workflowScreen) queueConnection(edit workflowConnectionEdit) {
 	b, _ := json.Marshal(edit)
-	m.queueWorkflow("connection-edit", string(b))
+	m.queueAction("connection-edit", string(b))
 }
 
-func (m *model) workflowConnections() {
-	w := m.workflows
+func (m *workflowScreen) connections() {
+	w := m
 	links := w.editor.Connections(w.graph.Selected)
 	if len(links) == 0 {
 		w.setNotice(pane.NoticeInfo, "No connections for this node · C creates one")
@@ -38,7 +38,7 @@ func (m *model) workflowConnections() {
 		choices[i] = strconv.Itoa(i+1) + ". " + c.Label()
 	}
 	draft := w.editor.Source()
-	m.openForm("Connections / "+w.graph.Selected, "Incoming and outgoing connections. Choose one to edit or remove.", "Next",
+	m.ui.openForm("Connections / "+w.graph.Selected, "Incoming and outgoing connections. Choose one to edit or remove.", "Next",
 		[]formField{{Key: "connection", Label: "Connection", Value: choices[0]}, {Key: "action", Label: "Action", Value: "Edit"}}, func(v map[string]string) error {
 			if w.editor.Source() != draft {
 				return fmt.Errorf("draft changed; reopen connections")
@@ -56,15 +56,15 @@ func (m *model) workflowConnections() {
 			}
 			return fmt.Errorf("choose a connection")
 		})
-	m.dialog.form.Choices = map[string][]string{"connection": choices, "action": {"Edit", "Remove"}}
+	m.ui.dialog().form.Choices = map[string][]string{"connection": choices, "action": {"Edit", "Remove"}}
 }
 
-func (m *model) workflowConnectionTarget(from, to string, old *editor.Connection) {
-	w := m.workflows
+func (m *workflowScreen) connectionTarget(from, to string, old *editor.Connection) {
+	w := m
 	if w.run != nil || w.busy {
 		return
 	}
-	var dest automation.Step
+	var dest workflow.Step
 	var names []string
 	for _, s := range w.editor.Definition.Steps {
 		names = append(names, s.ID)
@@ -104,7 +104,7 @@ func (m *model) workflowConnectionTarget(from, to string, old *editor.Connection
 		}
 	}
 	draft := w.editor.Source()
-	m.openForm("Connect to "+to, "Choose the source and destination value. The next screen shows the current value.", "Next",
+	m.ui.openForm("Connect to "+to, "Choose the source and destination value. The next screen shows the current value.", "Next",
 		[]formField{{Key: "from", Label: "Source node", Value: from}, {Key: "arg", Label: "Destination", Value: selected}}, func(v map[string]string) error {
 			if w.editor.Source() != draft {
 				return fmt.Errorf("draft changed; reopen connections")
@@ -125,10 +125,10 @@ func (m *model) workflowConnectionTarget(from, to string, old *editor.Connection
 			m.queueConnection(workflowConnectionEdit{From: v["from"], To: to, Field: c.Field, Path: c.Path, Old: old, Draft: draft})
 			return nil
 		})
-	m.dialog.form.Choices = map[string][]string{"from": names, "arg": options}
+	m.ui.dialog().form.Choices = map[string][]string{"from": names, "arg": options}
 }
 
-func connectionValue(d automation.Definition, to, field, path string) string {
+func connectionValue(d workflow.Definition, to, field, path string) string {
 	for _, s := range d.Steps {
 		if s.ID != to {
 			continue
@@ -202,8 +202,8 @@ func workflowOutputPointers(raw json.RawMessage) []string {
 	return out
 }
 
-func (m *model) workflowConnectionEdit(edit workflowConnectionEdit) {
-	w := m.workflows
+func (m *workflowScreen) connectionEdit(edit workflowConnectionEdit) {
+	w := m
 	if w.busy || w.run != nil {
 		return
 	}
@@ -217,20 +217,20 @@ func (m *model) workflowConnectionEdit(edit workflowConnectionEdit) {
 		}
 		c := *edit.Old
 		current := connectionValue(w.editor.Definition, c.To, c.Field, c.Path)
-		m.openRemoval("Remove connection", c.Label()+". Required values remain missing until repaired.", "Remove", []formField{{Key: "current", Label: "Current destination value", Value: cleanText(current), ReadOnly: true, Multiline: true}}, func(map[string]string) error {
+		m.ui.openRemoval("Remove connection", c.Label()+". Required values remain missing until repaired.", "Remove", []formField{{Key: "current", Label: "Current destination value", Value: cleanText(current), ReadOnly: true, Multiline: true}}, func(map[string]string) error {
 			if w.editor.Source() != edit.Draft {
 				return fmt.Errorf("draft changed; reopen connections")
 			}
 			if err := w.editor.ChangeConnection(&c, nil); err != nil {
 				return err
 			}
-			m.workflowConnectionChanged()
+			m.connectionChanged()
 			return nil
 		})
 		return
 	}
 	if edit.Field == "" {
-		m.workflowConnectionTarget(edit.From, edit.To, edit.Old)
+		m.connectionTarget(edit.From, edit.To, edit.Old)
 		return
 	}
 	c := editor.Connection{From: edit.From, To: edit.To, Field: edit.Field, Path: edit.Path}
@@ -259,7 +259,7 @@ func (m *model) workflowConnectionEdit(edit workflowConnectionEdit) {
 	}
 	current := connectionValue(w.editor.Definition, c.To, c.Field, c.Path)
 	fields = append([]formField{{Key: "current", Label: "Current destination: " + c.Field + c.Path, Value: cleanText(current), ReadOnly: true, Multiline: true}}, fields...)
-	m.openForm("Map "+c.From+" → "+c.To, "Schema fields are hints. Manual pointers support dynamic outputs.", "Apply", fields, func(v map[string]string) error {
+	m.ui.openForm("Map "+c.From+" → "+c.To, "Schema fields are hints. Manual pointers support dynamic outputs.", "Apply", fields, func(v map[string]string) error {
 		if w.editor.Source() != edit.Draft {
 			return fmt.Errorf("draft changed; reopen connections")
 		}
@@ -286,10 +286,10 @@ func (m *model) workflowConnectionEdit(edit workflowConnectionEdit) {
 		if err := w.editor.ChangeConnection(edit.Old, &c); err != nil {
 			return err
 		}
-		m.workflowConnectionChanged()
+		m.connectionChanged()
 		return nil
 	})
-	m.dialog.form.Choices = choices
+	m.ui.dialog().form.Choices = choices
 }
 
 func portLabelForDisplay(pointer string) string {
@@ -299,9 +299,9 @@ func portLabelForDisplay(pointer string) string {
 	return strings.TrimPrefix(pointer, "/")
 }
 
-func (m *model) workflowConnectionChanged() {
-	w := m.workflows
-	w.graph = m.workflowGraph(w.graph)
+func (m *workflowScreen) connectionChanged() {
+	w := m
+	w.graph = m.buildGraph(w.graph)
 	w.setNotice(pane.NoticeSuccess, "Connection changed · V validates the draft")
 	// Required-argument errors are visible immediately, without running a node.
 	for _, s := range w.editor.Definition.Steps {
@@ -309,7 +309,7 @@ func (m *model) workflowConnectionChanged() {
 		if err != nil {
 			continue
 		}
-		if err := automation.ValidateJSON(s.Args, automation.TemplateSchema(node.InputSchema)); err != nil {
+		if err := workflow.ValidateJSON(s.Args, workflow.TemplateSchema(node.InputSchema)); err != nil {
 			w.setNotice(pane.NoticeError, s.ID+": "+err.Error())
 			w.graph.Selected = s.ID
 			return

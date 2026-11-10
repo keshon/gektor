@@ -112,9 +112,6 @@ func (t PatchFile) Run(_ context.Context, args json.RawMessage) (string, error) 
 		}
 
 		out := "ok: " + summary + "\n" + unifiedDiff(in.Path, content, newContent)
-		if note := gofmtNote(t.WS, full); note != "" {
-			out += "\n" + note
-		}
 		return out, nil
 	})
 }

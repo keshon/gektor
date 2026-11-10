@@ -20,10 +20,10 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/checks"
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/prompts"
-	"github.com/keshon/gektor/internal/session"
 	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -88,11 +88,9 @@ type Env struct {
 	OnDelta     func(chunk string)
 	OnReasoning func(chunk string)
 
-	// Gate, if set, prompts the operator for Ask-gated calls. Nil means
-	// Ask degrades to Deny.
-	Gate func(tool, resource string, args json.RawMessage) (permission.Effect, error)
-	// GateContext receives the active run context. Preferred over Gate.
-	GateContext func(context.Context, string, string, json.RawMessage) (permission.Effect, error)
+	// Gate receives the active context for operator permission decisions.
+	// Nil denies calls that require an operator answer.
+	Gate permission.Gate
 
 	// OnStep, if set, receives every step of every agent built from this
 	// Env, tagged with that agent's label ("explore", "review", a subtask
@@ -105,8 +103,7 @@ type Env struct {
 	OnToolOutput   func(callID, text string)
 
 	// Rules are the deterministic checks this run applies to written
-	// files. Language rules live in internal/rules; checks.Secrets covers
-	// every language. Which set to use is the frontend's call.
+	// files. Project-specific validation uses the configured verify command.
 	Rules []checks.Rule
 
 	// Checks collects the run's findings: post-write scans from wrapped
@@ -149,18 +146,6 @@ func (e Env) onStep(label string) func(int, llm.Message) {
 func (e Env) Sweep(paths []string) {
 	if e.Checks != nil {
 		e.Checks.Sweep(e.WS, paths)
-	}
-}
-
-func (e Env) ResolveGate() permission.Gate {
-	if e.GateContext != nil {
-		return e.GateContext
-	}
-	if e.Gate == nil {
-		return nil
-	}
-	return func(_ context.Context, tool, resource string, args json.RawMessage) (permission.Effect, error) {
-		return e.Gate(tool, resource, args)
 	}
 }
 
@@ -265,7 +250,7 @@ func (e Env) agentConfig(system, label, stateFile string) agent.Config {
 		Resources: func(name string, args json.RawMessage) ([]string, error) {
 			return tools.PathResources(e.WS, name, args)
 		},
-		BeforeToolCall: e.ResolveGate(),
+		BeforeToolCall: e.Gate,
 	}
 }
 
@@ -292,7 +277,7 @@ func Subagent(e Env, role string) *agent.Agent { return inspectedSubagent(e, rol
 
 func inspectedSubagent(e Env, role, callID, parentState string) *agent.Agent {
 	cfg := e.agentConfig(prompts.WithRole(role)+"\n\n"+prompts.SubagentScope+"\n\n"+prompts.PlatformLine(tools.ShellName()), "", "")
-	cfg.StateFile = session.ChildStatePath(parentState, callID)
+	cfg.StateFile = conversation.ChildStatePath(parentState, callID)
 	extra := append([]agent.Tool{tools.ReadHistory{Path: cfg.StateFile}}, e.MCPTools...)
 	e.configureTools(&cfg, false, false, extra...)
 	steps := e.DelegateSteps
@@ -401,7 +386,7 @@ func (e Env) configureTools(cfg *agent.Config, mainAgent, allowQuestions bool, e
 	// Native optional packs exist even without external capability sources.
 	extra = append(extra, tools.DiscoverCapabilities{Catalog: catalog}, tools.EnableCapability{Catalog: catalog}, agent.InvokeTool{})
 	var composeErr error
-	cfg.Tools, composeErr = tools.Compose(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.Vision, catalog, e.NativeExposure, extra...)
+	cfg.Tools, composeErr = tools.Compose(tools.Dependencies{WS: e.WS, Procs: e.Procs, Checks: e.Checks, Vision: e.Vision, Extra: extra, StoreDir: e.WorkflowDir, Policy: e.policy(), Gate: e.Gate}, catalog, e.NativeExposure)
 	if composeErr != nil {
 		cfg.Tools = agent.NewRegistry()
 	}
@@ -416,18 +401,13 @@ func (e Env) configureTools(cfg *agent.Config, mainAgent, allowQuestions bool, e
 		cfg.System += catalog.Map()
 	}
 	catalog.Registry = cfg.Tools
-	tools.BindWorkflowPolicy(catalog, e.WS, e.policy(), e.ResolveGate(), e.WorkflowDir)
 	cfg.SaveCapabilities = catalog.Save
-	cfg.RestoreCapabilities = func(ctx context.Context, states []session.Capability) error {
+	cfg.RestoreCapabilities = func(ctx context.Context, states []conversation.Capability) error {
 		if composeErr != nil {
 			return composeErr
 		}
-		if e.Browser != nil {
-			states = e.Browser.UpgradeCatalog(states)
-		}
 		return catalog.Restore(ctx, states)
 	}
-	cfg.RestoreTools = catalog.RestoreArchive
 	if browser != nil {
 		browser.Registry = cfg.Tools
 	}

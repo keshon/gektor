@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/app"
-	"github.com/keshon/gektor/internal/automation"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tools"
+	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -32,7 +32,7 @@ func TestDocumentEvalFixturesThroughAgentAndWorkflow(t *testing.T) {
 		}
 	}
 	capabilities := &tools.Capabilities{}
-	registry, err := tools.Compose(ws, nil, nil, nil, false, capabilities, nil)
+	registry, err := tools.Compose(tools.Dependencies{WS: ws, Vision: false}, capabilities, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func TestDocumentEvalFixturesThroughAgentAndWorkflow(t *testing.T) {
 	if _, err := capabilities.Enable(t.Context(), "native_documents", nil); err != nil {
 		t.Fatal(err)
 	}
-	nodes, err := app.AutomationRegistry(ws, t.TempDir(), nil, nil)
+	nodes, err := app.WorkflowRegistry(ws, t.TempDir(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestDocumentEvalFixturesThroughAgentAndWorkflow(t *testing.T) {
 			t.Fatal(call.tool, out, err)
 		}
 		node, _ := nodes.Node(call.tool)
-		if err := automation.ValidateJSON(json.RawMessage(out), node.OutputSchema); err != nil {
+		if err := workflow.ValidateJSON(json.RawMessage(out), node.OutputSchema); err != nil {
 			t.Fatal(call.tool, err)
 		}
 	}
@@ -62,7 +62,7 @@ func TestDocumentEvalFixturesThroughAgentAndWorkflow(t *testing.T) {
 	if err := ws.WriteFile("recipe.json", []byte(recipe), 0600); err != nil {
 		t.Fatal(err)
 	}
-	tool := tools.NewWorkflow(ws, false, permission.Default(), nil)
+	tool := tools.NewWorkflow(tools.Dependencies{WS: ws, Policy: permission.Default()}, false)
 	tool.StoreDir = t.TempDir()
 	out, err := tool.Run(t.Context(), json.RawMessage(`{"recipe_path":"recipe.json"}`))
 	if err != nil {
@@ -103,7 +103,7 @@ func TestContinuationEvalRequiresHiddenEvidence(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	nodes, err := app.AutomationRegistry(ws, t.TempDir(), nil, nil)
+	nodes, err := app.WorkflowRegistry(ws, t.TempDir(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ func TestContinuationEvalRequiresHiddenEvidence(t *testing.T) {
 			if err != nil || strings.Contains(out, tc.marker) {
 				t.Fatal("evidence must be absent from initial page", err)
 			}
-			if err := automation.ValidateJSON(json.RawMessage(out), node.OutputSchema); err != nil {
+			if err := workflow.ValidateJSON(json.RawMessage(out), node.OutputSchema); err != nil {
 				t.Fatal(err)
 			}
 			var result map[string]any
@@ -143,14 +143,14 @@ func TestContinuationEvalRequiresHiddenEvidence(t *testing.T) {
 			}
 			args["offset"], args["text_offset"] = 0, next
 			call, _ = json.Marshal(args)
-			if err := automation.ValidateJSON(call, node.InputSchema); err != nil {
+			if err := workflow.ValidateJSON(call, node.InputSchema); err != nil {
 				t.Fatal(err)
 			}
 			out, err = node.Execute(t.Context(), call)
 			if err != nil || !strings.Contains(out, tc.marker) {
 				t.Fatal("continuation lost hidden evidence", err)
 			}
-			if err := automation.ValidateJSON(json.RawMessage(out), node.OutputSchema); err != nil {
+			if err := workflow.ValidateJSON(json.RawMessage(out), node.OutputSchema); err != nil {
 				t.Fatal(err)
 			}
 			after, err := ws.ReadFile(tc.path)

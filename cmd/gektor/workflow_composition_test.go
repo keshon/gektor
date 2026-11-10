@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/app"
-	"github.com/keshon/gektor/internal/automation"
-	"github.com/keshon/gektor/internal/automation/store"
+	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/internal/workflow/store"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -104,8 +104,8 @@ func TestSubworkflowReviewsOutputsAndFrozenRecipes(t *testing.T) {
 		}
 	}
 	var summary struct {
-		Status  string                         `json:"status"`
-		Outputs map[string]automation.Artifact `json:"outputs"`
+		Status  string                       `json:"status"`
+		Outputs map[string]workflow.Artifact `json:"outputs"`
 	}
 	if err := json.Unmarshal(out.Bytes(), &summary); err != nil || summary.Status != "completed" || len(summary.Outputs) != 2 {
 		t.Fatal(out.String(), err)
@@ -154,7 +154,7 @@ func TestQueuedSubworkflowSnapshotsChildren(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ws.Close()
-	svc, err := app.NewAutomation(ws, home, buildPolicy("", ""), permissionGateContext(true, nil, nil))
+	svc, err := app.NewWorkflow(ws, home, buildPolicy("", ""), permissionGateContext(true, nil, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,8 +264,8 @@ func TestNestedSubworkflowInputAndOutputScopes(t *testing.T) {
 		t.Fatal(out.String(), err)
 	}
 	var result struct {
-		Status  string                         `json:"status"`
-		Outputs map[string]automation.Artifact `json:"outputs"`
+		Status  string                       `json:"status"`
+		Outputs map[string]workflow.Artifact `json:"outputs"`
 	}
 	if err := json.Unmarshal(out.Bytes(), &result); err != nil || result.Status != "completed" || result.Outputs["first"].StepID != "first/inner/save" || result.Outputs["second"].StepID != "second/inner/save" {
 		t.Fatal(out.String(), err)

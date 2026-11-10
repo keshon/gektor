@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
 )
 
 type inspectionClient struct {
@@ -119,7 +119,7 @@ func TestInspectOverviewPagesSparseArchiveMembership(t *testing.T) {
 		t.Fatal(err)
 	}
 	var first, tail struct {
-		Manifest session.RequestManifest
+		Manifest conversation.RequestManifest
 		Next     int `json:"next_offset"`
 	}
 	if err := json.Unmarshal([]byte(results["first"].Output), &first); err != nil {

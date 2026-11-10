@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/gektor/internal/automation"
 	"github.com/keshon/gektor/internal/tui/components/graph"
-	"github.com/keshon/gektor/internal/tui/workflow"
+	editor "github.com/keshon/gektor/internal/tui/workflow"
+	"github.com/keshon/gektor/internal/workflow"
 )
 
 func TestWorkflowInspectionDistinguishesNullFromEmptyText(t *testing.T) {
@@ -25,7 +25,7 @@ func TestWorkflowInspectionDistinguishesNullFromEmptyText(t *testing.T) {
 func TestRunUsesOnePrefilledFormAndSimpleLists(t *testing.T) {
 	m := workflowTestModel(t)
 	d := workflowRecipe()
-	d.Inputs = map[string]automation.Input{"numbers": {Type: "array", Default: json.RawMessage(`[2,3,5]`)}, "label": {Type: "string", Default: json.RawMessage(`"agent-smoke"`)}}
+	d.Inputs = map[string]workflow.Input{"numbers": {Type: "array", Default: json.RawMessage(`[2,3,5]`)}, "label": {Type: "string", Default: json.RawMessage(`"agent-smoke"`)}}
 	m.workflows.editor.Replace(d)
 	m.workflowCommand("run")
 	if m.dialog == nil || m.dialog.title != "Run workflow" {
@@ -87,12 +87,12 @@ func TestSavedDiagramUsesFrozenRecipeWithoutCollectorLinks(t *testing.T) {
 	second.Args = json.RawMessage(`{"input":{"$step":"transform"},"code":"return input"}`)
 	d.Steps = append(d.Steps, second)
 	source, _ := json.Marshal(d)
-	before := (&workflow.Editor{Definition: d}).Graph(graph.Model{})
+	before := (&editor.Editor{Definition: d}).Graph(graph.Model{})
 	compiled := d
-	compiled.Steps = append(append([]automation.Step(nil), d.Steps...), automation.Step{ID: "@outputs", Tool: "workflow_value", CollectOutputs: true, DependsOn: []string{"transform", "second"}, Args: json.RawMessage(`{}`)})
+	compiled.Steps = append(append([]workflow.Step(nil), d.Steps...), workflow.Step{ID: "@outputs", Tool: "workflow_value", CollectOutputs: true, DependsOn: []string{"transform", "second"}, Args: json.RawMessage(`{}`)})
 	w.runID = "saved"
-	w.run = &automation.Run{RunID: "saved", Definition: compiled, RecipeSource: string(source), Steps: []automation.StepResult{{ID: "transform", Status: "completed"}, {ID: "second", Status: "completed"}}}
-	m.acceptWorkflowPoll(workflowPoll{id: "saved", run: w.run})
+	w.run = &workflow.Run{RunID: "saved", Definition: compiled, RecipeSource: string(source), Steps: []workflow.StepResult{{ID: "transform", Status: "completed"}, {ID: "second", Status: "completed"}}}
+	m.workflows.acceptPoll(workflowPoll{id: "saved", run: w.run})
 	if len(w.graph.Nodes) != len(before.Nodes) || len(w.graph.Edges) != len(before.Edges) {
 		t.Fatal("bookkeeping changed diagram", w.graph)
 	}
@@ -111,17 +111,17 @@ func TestWorkflowInspectorSeparatesValuesReferencesAndCode(t *testing.T) {
 	d := workflowRecipe()
 	d.Steps[0].Args = json.RawMessage(`{"input":{"numbers":{"$input":"numbers"}},"code":"return input.numbers;"}`)
 	m.workflows.editor.Replace(d)
-	m.workflowEnsureSelection()
-	text := strings.Join(m.workflowDetailRows(), "\n")
+	m.workflows.ensureSelection()
+	text := strings.Join(m.workflows.detailRows(), "\n")
 	if !strings.Contains(text, "input.numbers") || !strings.Contains(text, "← Workflow input numbers") || strings.Contains(text, "return input.numbers;") || strings.Contains(text, `"$input"`) {
 		t.Fatal(text)
 	}
-	m.workflowSetInspectorTab(2)
-	if !strings.Contains(strings.Join(m.workflowDetailRows(), "\n"), "return input.numbers;") {
+	m.workflows.setInspectorTab(2)
+	if !strings.Contains(strings.Join(m.workflows.detailRows(), "\n"), "return input.numbers;") {
 		t.Fatal("script missing from Code tab")
 	}
 	m.workflowCommand("raw-details")
-	raw := strings.Join(m.workflowDetailRows(), "\n")
+	raw := strings.Join(m.workflows.detailRows(), "\n")
 	if !strings.Contains(raw, `"$input"`) || !strings.Contains(raw, `"code"`) {
 		t.Fatal("lost exact raw data", raw)
 	}

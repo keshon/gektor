@@ -1,18 +1,20 @@
 package tui
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"context"
 	"encoding/json"
-	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/gektor/internal/automation"
-	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/workspace"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 func workflowTestModel(t *testing.T) *model {
@@ -34,10 +36,25 @@ func workflowTestModel(t *testing.T) *model {
 	if m.workflows == nil {
 		t.Fatal("workspace unavailable")
 	}
+	t.Cleanup(m.workflows.Close)
 	return m
 }
-func workflowRecipe() automation.Definition {
-	return automation.Definition{Version: 3, Name: "Test", Steps: []automation.Step{{ID: "transform", Tool: "script_transform", NodeVersion: 1, Args: json.RawMessage(`{"code":"return input + 1;","input":2}`)}}}
+
+func TestWorkflowScreenCloseCancelsItsOperation(t *testing.T) {
+	m := workflowTestModel(t)
+	w := m.workflows
+	operation, cancel := context.WithCancel(w.ctx)
+	w.cancel = cancel
+	w.Close()
+	if operation.Err() != context.Canceled || w.ctx.Err() != context.Canceled {
+		t.Fatal("closing the screen left its operation or context active")
+	}
+	if m.base.Err() != nil {
+		t.Fatal("closing the workflow screen canceled the root context")
+	}
+}
+func workflowRecipe() workflow.Definition {
+	return workflow.Definition{Version: 3, Name: "Test", Steps: []workflow.Step{{ID: "transform", Tool: "script_transform", NodeVersion: 1, Args: json.RawMessage(`{"code":"return input + 1;","input":2}`)}}}
 }
 
 func TestWorkflowStartupOpensEditorWithoutStartingRun(t *testing.T) {
@@ -123,12 +140,12 @@ func TestWorkflowExecutionReviewAndSave(t *testing.T) {
 			}
 		}
 	}
-	result := drain(m.workflowAction(workflowAction{"save-path", "recipe.json"}))
+	result := drain(m.workflows.action(workflowAction{"save-path", "recipe.json"}))
 	if result.err != nil {
 		t.Fatal(result.err)
 	}
-	if cmd := m.acceptWorkflowResult(result); cmd != nil {
-		m.acceptWorkflowResult(cmd().(workflowResult))
+	if cmd := m.workflows.acceptResult(result); cmd != nil {
+		m.workflows.acceptResult(cmd().(workflowResult))
 	}
 	if w.editor.Dirty() {
 		t.Fatal("save remained dirty")
@@ -136,15 +153,15 @@ func TestWorkflowExecutionReviewAndSave(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(m.wsRoot, "recipe.json")); err != nil {
 		t.Fatal(err)
 	}
-	result = drain(m.workflowAction(workflowAction{"run-inputs", "{}"}))
+	result = drain(m.workflows.action(workflowAction{"run-inputs", "{}"}))
 	if result.err != nil {
 		t.Fatal(result.err)
 	}
 	if !strings.Contains(result.text, "waiting_review") {
 		t.Fatal(result.text)
 	}
-	m.acceptWorkflowResult(result)
-	result = drain(m.workflowAction(workflowAction{"review-approve", "transform"}))
+	m.workflows.acceptResult(result)
+	result = drain(m.workflows.action(workflowAction{"review-approve", "transform"}))
 	if result.err != nil {
 		t.Fatal(result.err)
 	}
@@ -155,7 +172,7 @@ func TestWorkflowExecutionReviewAndSave(t *testing.T) {
 func TestWorkflowPermissionDismissalDenies(t *testing.T) {
 	m := workflowTestModel(t)
 	reply := make(chan permission.Effect, 1)
-	m.acceptWorkflowPermission(workflowPermission{tool: "run_program", reply: reply})
+	m.workflows.acceptPermission(workflowPermission{tool: "run_program", reply: reply})
 	m.closeDialog()
 	select {
 	case eff := <-reply:
@@ -171,7 +188,7 @@ func TestWorkflowFrozenRunCannotEditAndDraftSurvives(t *testing.T) {
 	w := m.workflows
 	w.editor.Definition = workflowRecipe()
 	source := w.editor.Source()
-	w.run = &automation.Run{RunID: "run", Definition: workflowRecipe()}
+	w.run = &workflow.Run{RunID: "run", Definition: workflowRecipe()}
 	m.workflowCommand("add")
 	if m.dialog != nil {
 		t.Fatal("frozen run editable")
@@ -187,8 +204,8 @@ func TestWorkflowNestedPermissionDenialAndCancellation(t *testing.T) {
 	w := m.workflows
 	w.editor.Definition = workflowRecipe()
 	w.editor.Path = "recipe.json"
-	m.baseEnv.Policy = permission.Policy{Rules: []permission.Rule{{Tool: "workflow_run", Pattern: "*", Effect: permission.Allow}, {Tool: "script_transform", Pattern: "*", Effect: permission.Ask}}}
-	cmd := m.workflowAction(workflowAction{"run-inputs", "{}"})
+	m.workflows.config.Policy = permission.Policy{Rules: []permission.Rule{{Tool: "workflow_run", Pattern: "*", Effect: permission.Allow}, {Tool: "script_transform", Pattern: "*", Effect: permission.Ask}}}
+	cmd := m.workflows.action(workflowAction{"run-inputs", "{}"})
 	msg := cmd()
 	seen := false
 	for {
@@ -218,7 +235,7 @@ func TestWorkflowAIProposalCannotApplyToChangedDraft(t *testing.T) {
 	w := m.workflows
 	w.editor.Definition = workflowRecipe()
 	before := w.editor.Source()
-	m.acceptWorkflowProposal(workflowProposal{before: before, source: before})
+	m.workflows.acceptProposal(workflowProposal{before: before, source: before})
 	if m.dialog == nil || m.dialog.save == nil {
 		t.Fatal("missing proposal review")
 	}
@@ -233,7 +250,7 @@ func TestWorkflowProposalShowsScheduleHandoff(t *testing.T) {
 	m.workflows.editor.Replace(workflowRecipe())
 	before := m.workflows.editor.Source()
 	note := "Add a Schedule card to save the trigger. This proposal has not scheduled anything."
-	m.acceptWorkflowProposal(workflowProposal{before: before, source: before, note: note})
+	m.workflows.acceptProposal(workflowProposal{before: before, source: before, note: note})
 	if m.dialog == nil || !strings.Contains(strings.Join(m.dialog.lines, "\n"), note) {
 		t.Fatal("missing handoff")
 	}
@@ -244,7 +261,7 @@ func TestWorkflowOutlineJoins(t *testing.T) {
 	for _, minimal := range []bool{false, true} {
 		m.minimal = minimal
 		m.workflows.inspectorOpen = true
-		_, _ = m.workflowCanvasSize()
+		_, _ = m.workflows.canvasSize()
 		rows := strings.Split(ansi.Strip(m.screenContent()), "\n")
 		if len(rows) != m.termH {
 			t.Fatal("wrong height")
@@ -271,12 +288,12 @@ func TestMissingWorkflowKeepsDraftAndOffersPathCorrection(t *testing.T) {
 	w := m.workflows
 	w.editor.Definition = workflowRecipe()
 	before := w.editor.Source()
-	cmd := m.workflowAction(workflowAction{"open-path", "missing.json"})
+	cmd := m.workflows.action(workflowAction{"open-path", "missing.json"})
 	result, ok := cmd().(workflowResult)
 	if !ok || result.err == nil {
 		t.Fatalf("expected missing recipe: %+v", result)
 	}
-	m.acceptWorkflowResult(result)
+	m.workflows.acceptResult(result)
 	if w.editor.Source() != before {
 		t.Fatal("failed open replaced draft")
 	}
@@ -298,7 +315,7 @@ func TestWorkflowConnectionUsesDestinationSchema(t *testing.T) {
 	second.ID = "second"
 	d.Steps = append(d.Steps, second)
 	m.workflows.editor.Replace(d)
-	m.workflowLinkTarget(`["transform","second"]`)
+	m.workflows.linkTarget(`["transform","second"]`)
 	if m.dialog == nil || m.dialog.form == nil {
 		t.Fatal("missing mapping form")
 	}
@@ -317,8 +334,8 @@ func TestWorkflowConnectionUsesDestinationSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.dialog = nil
-	action := m.pendingCommands[len(m.pendingCommands)-1]()
-	m.workflowAction(action.(workflowAction))
+	action := m.workflows.commands[len(m.workflows.commands)-1]()
+	m.workflows.action(action.(workflowAction))
 	f = m.dialog.form
 	if err := f.apply(map[string]string{"pointer": "/result"}); err != nil {
 		t.Fatal(err)

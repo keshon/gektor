@@ -80,7 +80,7 @@ same parser for both. These are representative event lines:
 {"seq": 5, "event": "awaiting_input", "kind": "permission", "id": "", "tool": "read_file", "resource": ".env", "prompt": "[permission] read_file on \".env\""}
 {"seq": 6, "event": "input_answered", "kind": "permission", "id": ""}
 {"seq": 8, "event": "result", "answer": "..."}
-{"seq": 9, "event": "finding", "scope": "per-edit", "rule": "gofmt", "path": "a.go", "line": 3, "summary": "not gofmt-clean"}
+{"seq": 9, "event": "finding", "scope": "per-edit", "rule": "secret-aws", "path": "settings.txt", "line": 3, "summary": "possible secret (secret-aws)"}
 {"seq": 10, "event": "nudge", "kind": "truncated", "text": "[harness] ..."}
 {"seq": 11, "event": "delta", "text": "partial answer..."}
 {"seq": 12, "event": "reasoning", "text": "partial deliberation..."}

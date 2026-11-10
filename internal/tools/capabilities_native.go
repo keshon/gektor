@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
 )
 
 // NativePackage binds definitions to one agent's concrete tool instances.
@@ -23,7 +23,7 @@ type NativePackage struct {
 	ReadOnly                               []string
 }
 
-func (p *NativePackage) state() session.Capability {
+func (p *NativePackage) state() conversation.Capability {
 	registry := agent.NewRegistry(p.Tools...)
 	defs := registry.Defs()
 	modes := make([]agent.ToolMode, 0, len(defs))
@@ -38,7 +38,7 @@ func (p *NativePackage) state() session.Capability {
 		ReadOnly                  []string
 		Modes                     []agent.ToolMode
 	}{p.ID, p.Version, p.Instructions, defs, readOnly, modes})
-	return session.Capability{ID: p.ID, Version: p.Version, Instructions: p.Instructions, Tools: defs, Fingerprint: fmt.Sprintf("%x", sha256.Sum256(data))}
+	return conversation.Capability{ID: p.ID, Version: p.Version, Instructions: p.Instructions, Tools: defs, Fingerprint: fmt.Sprintf("%x", sha256.Sum256(data))}
 }
 
 func (c *Capabilities) native(id string) *NativePackage {
@@ -50,14 +50,14 @@ func (c *Capabilities) native(id string) *NativePackage {
 	return nil
 }
 
-func sameCapability(a, b session.Capability) bool {
+func sameCapability(a, b conversation.Capability) bool {
 	// JSON round trips can alter whitespace in RawMessage schemas.
 	x, ex := json.Marshal(a)
 	y, ey := json.Marshal(b)
 	return ex == nil && ey == nil && string(x) == string(y)
 }
 
-func (c *Capabilities) publish(ctx context.Context, state session.Capability, list []agent.Tool) error {
+func (c *Capabilities) publish(ctx context.Context, state conversation.Capability, list []agent.Tool) error {
 	for _, t := range list {
 		if slices.Contains(c.ForbiddenTools, t.Name()) {
 			return fmt.Errorf("tool %q is unavailable to this role", t.Name())
@@ -77,7 +77,7 @@ func (c *Capabilities) publish(ctx context.Context, state session.Capability, li
 		return err
 	}
 	if c.active == nil {
-		c.active = map[string]session.Capability{}
+		c.active = map[string]conversation.Capability{}
 	}
 	c.active[state.ID] = state
 	return nil

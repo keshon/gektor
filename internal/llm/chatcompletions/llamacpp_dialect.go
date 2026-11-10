@@ -16,8 +16,8 @@ import "encoding/json"
 // arguments with a grammar derived from the tool's JSON schema. That is
 // the same job the DefaultGrammar blocklist here does badly, done
 // properly and per model.
-func NewLlamaClient(baseURL, model string) *Server {
-	return newServer(baseURL, model, llamaDialect{})
+func NewLlamaClient(baseURL, model string) *Client {
+	return newClient(baseURL, model, llamaDialect{})
 }
 
 type llamaDialect struct{}

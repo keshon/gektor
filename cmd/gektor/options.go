@@ -95,7 +95,7 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	flags.IntVar(&o.logMax, "log-max", 300, "max characters per line in step console output; "+
 		"long text is truncated in the middle (head ... tail). 0 = no limit")
 	flags.BoolVar(&o.yes, "yes", false, "deny permission prompts in unattended runs")
-	flags.StringVar(&o.auditPath, "audit", "", "append gate decisions as JSONL to this file (off when empty)")
+	flags.StringVar(&o.auditPath, "audit", "", "append operator gate decisions as JSONL to this file (off when empty)")
 	flags.StringVar(&o.backendKind, "backend-kind", provider.Kind, "which server: "+
 		strings.Join(providers.Kinds(), ", ")+". kobold/llama are local; openai is any hosted "+
 		"OpenAI-compatible API (OpenAI, OpenRouter, DeepSeek, Groq, Together, Mistral, xAI); chatgpt uses browser sign-in (gektor auth login). "+

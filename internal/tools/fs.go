@@ -15,8 +15,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/keshon/gektor/internal/agent"
-	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -81,7 +81,7 @@ func (t ReadFile) Attach(args json.RawMessage) ([]string, error) {
 		return nil, err
 	}
 	defer source.Close()
-	snapshot, err := llm.SnapshotImageFile(source, full, gektor.Sub("images"))
+	snapshot, err := llm.SnapshotImageFile(source, full, userdirs.Sub("images"))
 	if err != nil {
 		return nil, err
 	}
@@ -513,9 +513,6 @@ func (t WriteFile) Run(_ context.Context, args json.RawMessage) (string, error) 
 	})
 	if err != nil {
 		return "", err
-	}
-	if note := gofmtNote(t.WS, full); note != "" {
-		res += "\n" + note
 	}
 	return res, nil
 }

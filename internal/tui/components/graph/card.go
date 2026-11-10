@@ -5,6 +5,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/tui/components/cell"
 )
 
@@ -94,36 +95,16 @@ func (m Model) card(n Node, styles Styles, incoming, outgoing map[[2]string]bool
 		}
 		rows = append(rows, border.Render(lmark)+normal.Render(cell.Line(left, leftWidth)+"  "+right)+portStyle.Render(rmark))
 	}
-	status := n.Detail
 	statusStyle := normal
-	switch status {
-	case "":
-		status = "○ Not run"
-	case "completed":
-		status = "✓ Completed"
+	switch n.DetailTone {
+	case ToneSuccess:
 		statusStyle = styles.Success
-	case "running":
-		status = "▶ Running"
+	case ToneWarning:
 		statusStyle = styles.Warning
-	case "failed":
-		status = "× Failed"
+	case ToneError:
 		statusStyle = styles.Error
-	case "skipped":
-		status = "− Skipped"
-		statusStyle = styles.Disabled
-	case "pending":
-		status = "○ Pending"
-	case "waiting_review", "Review before running":
-		status = "? Awaiting approval"
-		statusStyle = styles.Warning
-	case "cancelled":
-		status = "× Cancelled"
-		statusStyle = styles.Warning
-	case "interrupted":
-		status = "! Interrupted"
-		statusStyle = styles.Warning
-	case "Disabled / condition false":
+	case ToneDisabled:
 		statusStyle = styles.Disabled
 	}
-	return append(rows, rule, line(" "+clean(status), statusStyle), bottom)
+	return append(rows, rule, line(" "+clean(n.Detail), statusStyle), bottom)
 }

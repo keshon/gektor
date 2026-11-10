@@ -2,14 +2,15 @@ package workflow
 
 import (
 	"encoding/json"
-	"github.com/keshon/gektor/internal/automation"
-	"github.com/keshon/gektor/internal/tui/components/graph"
 	"testing"
+
+	"github.com/keshon/gektor/internal/tui/components/graph"
+	"github.com/keshon/gektor/internal/workflow"
 )
 
 func TestConnectionsUndoAndGeometry(t *testing.T) {
 	e := New()
-	e.Definition.Steps = []automation.Step{{ID: "a", Tool: "x", Args: json.RawMessage(`{}`)}, {ID: "b", Tool: "x", Args: json.RawMessage(`{}`)}}
+	e.Definition.Steps = []workflow.Step{{ID: "a", Tool: "x", Args: json.RawMessage(`{}`)}, {ID: "b", Tool: "x", Args: json.RawMessage(`{}`)}}
 	e.Saved = e.Source()
 	if err := e.Link("a", "b", "input", "/data"); err != nil {
 		t.Fatal(err)

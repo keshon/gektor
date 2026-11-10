@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/keshon/gektor/internal/automation"
-	"github.com/keshon/gektor/internal/automation/recipe"
+	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/internal/workflow/recipe"
 )
 
 // Path locates the reference within Field, separately from its source Pointer.
@@ -134,12 +134,12 @@ func (e *Editor) ChangeConnection(old, next *Connection) error {
 	return nil
 }
 
-func source(d automation.Definition) string {
+func source(d workflow.Definition) string {
 	b, _ := json.MarshalIndent(d, "", "  ")
 	return string(b)
 }
 
-func changeConnection(d *automation.Definition, c Connection, remove bool) error {
+func changeConnection(d *workflow.Definition, c Connection, remove bool) error {
 	if !remove {
 		if _, err := pointerParts(c.Pointer); err != nil {
 			return err

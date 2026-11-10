@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/gektor/internal/automation"
+	"github.com/keshon/gektor/internal/workflow"
 )
 
 func TestRecipeSetupFormsPreserveDataAndUndo(t *testing.T) {
@@ -83,7 +83,7 @@ func TestRecipeSetupRejectsInvalidValuesAndStaleForms(t *testing.T) {
 	w := m.workflows
 	w.editor.Replace(workflowRecipe())
 	before := w.editor.Source()
-	m.workflowParameterEdit(workflowParameterEdit{Kind: "inputs", Draft: before})
+	m.workflows.parameterEdit(workflowParameterEdit{Kind: "inputs", Draft: before})
 	f := m.dialog.form
 	for _, v := range []map[string]string{
 		{"name": "wrong", "type": "integer", "default": "1.5"},
@@ -98,7 +98,7 @@ func TestRecipeSetupRejectsInvalidValuesAndStaleForms(t *testing.T) {
 			t.Fatal("failed form mutated recipe")
 		}
 	}
-	m.workflowParameterEdit(workflowParameterEdit{Kind: "outputs", Draft: before})
+	m.workflows.parameterEdit(workflowParameterEdit{Kind: "outputs", Draft: before})
 	if err := m.dialog.form.apply(map[string]string{"name": "out", "value": "{} {}"}); err == nil {
 		t.Fatal("accepted trailing JSON")
 	}
@@ -110,7 +110,7 @@ func TestRecipeSetupRejectsInvalidValuesAndStaleForms(t *testing.T) {
 	if err := f.apply(map[string]string{"name": "Old"}); err == nil || !strings.Contains(err.Error(), "draft changed") {
 		t.Fatal("stale overwrite", err)
 	}
-	w.run = &automation.Run{}
+	w.run = &workflow.Run{}
 	m.dialog = nil
 	for _, action := range []string{"name", "inputs", "outputs"} {
 		m.workflowCommand(action)
@@ -124,9 +124,9 @@ func TestRecipeSetupEditsCanClearDefaults(t *testing.T) {
 	m := workflowTestModel(t)
 	w := m.workflows
 	d := workflowRecipe()
-	d.Inputs = map[string]automation.Input{"text": {Type: "string", Default: json.RawMessage(`"old"`)}}
+	d.Inputs = map[string]workflow.Input{"text": {Type: "string", Default: json.RawMessage(`"old"`)}}
 	w.editor.Replace(d)
-	m.workflowParameterEdit(workflowParameterEdit{Kind: "inputs", Name: "text", Draft: w.editor.Source()})
+	m.workflows.parameterEdit(workflowParameterEdit{Kind: "inputs", Name: "text", Draft: w.editor.Source()})
 	if err := m.dialog.form.apply(map[string]string{"type": "string", "required": "false", "default": ""}); err != nil {
 		t.Fatal(err)
 	}

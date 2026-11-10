@@ -10,15 +10,15 @@ import (
 )
 
 type Inspector struct {
-	baseURL, model string
-	http           *http.Client
+	baseURL string
+	http    *http.Client
 }
 
-func New(baseURL, model string, client *http.Client) *Inspector {
+func New(baseURL, _ string, client *http.Client) *Inspector {
 	if client == nil {
 		client = http.DefaultClient
 	}
-	return &Inspector{baseURL: baseURL, model: model, http: client}
+	return &Inspector{baseURL: baseURL, http: client}
 }
 func (p *Inspector) MaxContextLength(ctx context.Context) (int, error) {
 	var out struct {

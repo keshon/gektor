@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/session"
 )
 
 type dispatchedTool struct{ ran *bool }
@@ -75,7 +75,7 @@ func TestDispatchedReadsRemainConcurrentAndAvailableInPlan(t *testing.T) {
 
 func TestRequestIdentitySurvivesCompactionAndExcludesToolImages(t *testing.T) {
 	a := New(Config{Tools: NewRegistry(), Directive: "Plan mode"})
-	a.snapshot = session.New([]llm.Message{
+	a.snapshot = conversation.New([]llm.Message{
 		{Role: llm.RoleSystem, Content: "system"},
 		{Role: llm.RoleUser, Content: "initial task"},
 		{Role: llm.RoleAssistant, Content: "Download something"},
@@ -190,8 +190,8 @@ func TestCatalogRestorationUsesTrustedMetadata(t *testing.T) {
 	if err := reg.AddOptional(dispatchedTool{&ran}); err != nil {
 		t.Fatal(err)
 	}
-	state := session.Capability{ID: "fixture", Fingerprint: "fingerprint", Tools: NewRegistry(dispatchedTool{&ran}).Defs()}
-	a := New(Config{Tools: reg, SaveCapabilities: func() []session.Capability { return []session.Capability{state} }})
+	state := conversation.Capability{ID: "fixture", Fingerprint: "fingerprint", Tools: NewRegistry(dispatchedTool{&ran}).Defs()}
+	a := New(Config{Tools: reg, SaveCapabilities: func() []conversation.Capability { return []conversation.Capability{state} }})
 	history := []llm.Message{{Role: llm.RoleSystem, Content: "system"}, {Role: llm.RoleUser, Content: CapabilityCatalog(state)}}
 	restored := a.withCapabilityInstructions(history)
 	if len(restored) != 3 || restored[2].Harness != "capability_catalog:fingerprint" || !strings.Contains(restored[2].Content, `"parameters"`) {

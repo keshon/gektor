@@ -10,12 +10,13 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/run"
 	"github.com/keshon/gektor/internal/tui/settings"
 	workspaces "github.com/keshon/gektor/internal/workspace"
 )
@@ -65,14 +66,14 @@ func settingsModel(t *testing.T) *model {
 	}
 	m.wsRoot = ws.Root()
 	m.baseEnv = roles.Env{Client: client, WS: ws, MaxTokens: 100, ContextLimit: 1000}
-	m.newSession = func(task, stateFile string, images []string) (*run.Session, error) {
-		return run.New(run.Config{Env: m.sessionEnv(), Task: task, StateFile: stateFile, Plan: m.plan, Images: images})
+	m.newSession = func(task, stateFile string, images []string) (*harness.Session, error) {
+		return harness.New(harness.Config{Env: m.sessionEnv(), Task: task, StateFile: stateFile, Plan: m.plan, Images: images})
 	}
-	id, _, err := app.Compile(app.IdentityOptions{Preset: profile.Identity.PromptPreset, Name: profile.Identity.Name, Persona: profile.Identity.UserPersona, User: profile.Identity.UserName, System: profile.Identity.SystemPrompt, Post: profile.Identity.PostHistory, MaxTokens: profile.Generation.MaxTokens, ContextLimit: profile.Generation.ContextLimit, Temperature: profile.Generation.Temperature})
+	id, _, err := app.CompileIdentity(app.IdentityOptions{Preset: profile.Identity.PromptPreset, Name: profile.Identity.Name, Persona: profile.Identity.UserPersona, User: profile.Identity.UserName, System: profile.Identity.SystemPrompt, Post: profile.Identity.PostHistory, MaxTokens: profile.Generation.MaxTokens, ContextLimit: profile.Generation.ContextLimit, Temperature: profile.Generation.Temperature})
 	if err != nil {
 		t.Fatal(err)
 	}
-	m.config = &app.Services{Client: client, Identity: id, Directory: sessions, Profile: profile}
+	m.config = &app.PreparedProfile{Identity: id, Directory: sessions, Profile: profile}
 	m.application = &Application{
 		Preferences:    config.Preferences{Version: 1, Workspace: workspace},
 		PreferencePath: filepath.Join(t.TempDir(), "application.json"),

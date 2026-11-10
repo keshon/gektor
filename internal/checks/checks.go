@@ -6,16 +6,6 @@ import (
 	"strings"
 )
 
-// Package checks runs deterministic checks over files an agent just
-// wrote, and reports each finding once. No LLM, no network, stdlib only.
-// Findings are report-only data; the loop decides what to do with them
-// (report, never repair as a side effect).
-//
-// Nothing here knows a language. Rules come from internal/rules, one
-// language per file, each registering itself. Adding a formatter is a
-// new file and no change to this package, which used to switch on a
-// ".go" suffix and import go/format.
-
 // Finding is one deterministic check result.
 type Finding struct {
 	Rule    string
@@ -24,12 +14,8 @@ type Finding struct {
 	Summary string
 }
 
-// Rule is one check over a file's bytes. Name appears in findings so a
-// reader can tell which rule fired; Check returns nothing when the file
-// is clean. A rule decides for itself whether it applies -- by extension,
-// by content, by anything -- so this package never has to know.
+// Rule checks complete file content. Each finding carries its own rule name.
 type Rule interface {
-	Name() string
 	Check(path string, src []byte) []Finding
 }
 
@@ -50,8 +36,6 @@ func Scan(rules []Rule, path string, src []byte) []Finding {
 // (those flag prose). Curated, not exhaustive -- a tripwire, not a vault
 // audit.
 type secretRule struct{}
-
-func (secretRule) Name() string { return "secrets" }
 
 var secretPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`AKIA[0-9A-Z]{16}`),

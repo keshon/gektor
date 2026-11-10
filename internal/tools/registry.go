@@ -6,18 +6,17 @@ import (
 	"strings"
 
 	"github.com/keshon/gektor/internal/agent"
-	workflow "github.com/keshon/gektor/internal/automation/agenttools"
-	"github.com/keshon/gektor/internal/automation/records"
 	"github.com/keshon/gektor/internal/capabilities/documents"
 	doccontract "github.com/keshon/gektor/internal/capabilities/documents/contract"
 	"github.com/keshon/gektor/internal/capabilities/files"
 	filecontract "github.com/keshon/gektor/internal/capabilities/files/contract"
-	imagetools "github.com/keshon/gektor/internal/capabilities/images/tools"
 	"github.com/keshon/gektor/internal/capabilities/media"
 	mediacontract "github.com/keshon/gektor/internal/capabilities/media/contract"
 	socialcontract "github.com/keshon/gektor/internal/capabilities/social/contract"
 	"github.com/keshon/gektor/internal/checks"
 	"github.com/keshon/gektor/internal/llm"
+	workflow "github.com/keshon/gektor/internal/workflow/agenttools"
+	"github.com/keshon/gektor/internal/workflow/records"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -78,7 +77,7 @@ func PathResources(ws *workspace.Workspace, tool string, args json.RawMessage) (
 		paths = []string{in.Path}
 	case "image_inspect", "image_preview", "image_variants", "image_compare":
 		var err error
-		paths, err = imagetools.NewTool(ws, strings.TrimPrefix(tool, "image_")).Resources(args)
+		paths, err = NewImageOperation(ws, strings.TrimPrefix(tool, "image_")).Resources(args)
 		if err != nil {
 			return nil, err
 		}
@@ -113,11 +112,11 @@ func PathResources(ws *workspace.Workspace, tool string, args json.RawMessage) (
 // Base returns the standard tool set shared by the main agent and
 // subagents. Pass extra tools (ask_user, delegate_task, read_history) for the main
 // agent only. File-mutating tools run post-write deterministic checks
-// from rules, reporting to sink; a nil sink or no rules builds unwrapped.
+// through the supplied reporter; a nil reporter builds unwrapped.
 // vision enables reading pictures through read_file; it must come from a
 // backend capability probe, not a guess.
-func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSink, rules []checks.Rule, vision bool, extra ...agent.Tool) *agent.Registry {
-	return agent.NewRegistry(nativeTools(packageDependencies{WS: ws, Procs: procs, Report: report, Rules: rules, Vision: vision, Extra: extra}, false)...)
+func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report *checks.Reporter, vision bool, extra ...agent.Tool) *agent.Registry {
+	return agent.NewRegistry(nativeTools(Dependencies{WS: ws, Procs: procs, Checks: report, Vision: vision, Extra: extra}, false)...)
 }
 
 // ReadOnly returns a tool set that can inspect the workspace and running
@@ -126,5 +125,5 @@ func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSin
 // final review): removing the mutating tools entirely beats prompting a
 // weak model not to use them.
 func ReadOnly(ws *workspace.Workspace, procs *BackgroundProcesses, vision bool) *agent.Registry {
-	return agent.NewRegistry(nativeTools(packageDependencies{WS: ws, Procs: procs, Vision: vision}, true)...)
+	return agent.NewRegistry(nativeTools(Dependencies{WS: ws, Procs: procs, Vision: vision}, true)...)
 }

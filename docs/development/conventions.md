@@ -37,16 +37,22 @@ Provider inspection packages (`llamacpp`, `koboldcpp`, `openaicompat`) import on
 
 Request dialects format inference requests; inspection belongs to providers.
 
-`internal/session` imports only `internal/llm`.
+`internal/conversation` imports only `internal/llm`.
 `internal/agent` imports only `internal/llm`, `internal/prompts`,
-`internal/permission` and `internal/session`. This is what
+`internal/permission` and `internal/conversation`. This is what
 lets `internal/tools` implement `agent.Tool` without an import cycle, and what
 keeps the loop testable against a stub client with no filesystem in sight.
-`internal/run` owns role selection, run/resume, checks and reporting for every
+`internal/harness` owns role selection, run/resume, checks and reporting for every
 frontend. It imports only agent, checks, events, LLM contracts and roles.
-`internal/agentstdio` owns RPC framing and request lifetime; it imports only
-agent, events, permission, run and workspace. Frontends pass a complete prepared
+`internal/agentrpc` owns RPC framing and request lifetime; it imports only
+agent, events, permission, harness, workspace and conversation. Frontends pass a complete prepared
 run configuration instead of rebuilding a subset of the role environment.
+
+`internal/checks` owns language-independent content findings and bounded file
+scanning. It imports only workspace access. Do not add built-in language checks,
+formatter selection or language discovery; projects configure their verification
+command. `internal/permissionlog` imports only permission contracts and observes
+operator decisions without changing them.
 
 Capability services do not import Agent or workflow execution. Image services
 import only workspace access; attachment grants are resolved by their Agent
@@ -59,12 +65,16 @@ Shared HTTP transport and process support import no internal packages. Program
 discovery imports process support. Worker support imports no internal packages.
 Release packaging imports no internal runtime packages; its command only adapts
 arguments to the standard-library packager and the installed Go and Git tools.
-Every capability package has an explicit import rule, including its contract,
-tool and node adapters; adding an unregistered capability package fails the check.
+Every capability service and contract has an explicit import rule. Workflow
+adapters share `internal/capabilities/nodes`; agent adapters live in
+`internal/tools`. Adding an unregistered capability package fails the check.
 Agent tool adapters do not import workflow node adapters. Application composition
-assembles both. Shared record operations live in `automation/records`, which
+assembles both. Shared record operations live in `workflow/records`, which
 imports only workflow definitions, record storage and workspace access; the record
 node adapter imports only definitions, shared records and workspace access.
+Workflow agent adapters receive the operation registry factory from composition;
+they do not import `internal/app` or reconstruct application services themselves.
+Tool factories receive policy, gates and store dependencies at construction.
 
 Reusable TUI components may import other components, but no application packages.
 

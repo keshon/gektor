@@ -8,9 +8,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/gektor/internal/automation"
-	"github.com/keshon/gektor/internal/automation/store"
+
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/internal/workflow/store"
 )
 
 func TestWorkflowRunTableFiltersByStableIDWithoutExecuting(t *testing.T) {
@@ -18,7 +19,7 @@ func TestWorkflowRunTableFiltersByStableIDWithoutExecuting(t *testing.T) {
 	w := m.workflows
 	draft := w.editor.Source()
 	runs := []store.RunSummary{{ID: "older", Name: "Same recipe", Status: "completed", Started: time.Unix(1, 0)}, {ID: "newer", Name: "Same recipe", Status: "failed", Started: time.Unix(2, 0)}}
-	m.openWorkflowRuns(runs)
+	m.workflows.openRuns(runs)
 	for _, action := range m.footerActions() {
 		if action.key == tea.KeyEnter && action.label != "Open run" {
 			t.Fatal("hotkey bar does not match the table action")
@@ -30,18 +31,18 @@ func TestWorkflowRunTableFiltersByStableIDWithoutExecuting(t *testing.T) {
 	m.handleKey(tea.KeyPressMsg{Code: '/'})
 	m.Update(tea.PasteMsg{Content: "no match"})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.dialog == nil || len(m.pendingCommands) != 0 {
+	if m.dialog == nil || len(m.workflows.commands) != 0 {
 		t.Fatal("empty search activated a run")
 	}
 	m.closeDialog()
-	m.openWorkflowRuns(runs)
+	m.workflows.openRuns(runs)
 	m.handleKey(tea.KeyPressMsg{Code: '/'})
 	m.Update(tea.PasteMsg{Content: "older"})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.dialog != nil || len(m.pendingCommands) != 1 || w.busy || w.run != nil || w.editor.Source() != draft {
+	if m.dialog != nil || len(m.workflows.commands) != 1 || w.busy || w.run != nil || w.editor.Source() != draft {
 		t.Fatal("opening a saved record started execution or changed the draft")
 	}
-	if action := m.pendingCommands[0]().(workflowAction); action.action != "inspect-run" || action.value != "older" {
+	if action := m.workflows.commands[0]().(workflowAction); action.action != "inspect-run" || action.value != "older" {
 		t.Fatal("run identity was confused with its display label", action)
 	}
 }
@@ -53,7 +54,7 @@ func TestWorkflowRunTableFitsEveryThemeAndSize(t *testing.T) {
 		m.applyTheme(theme)
 		for _, size := range [][2]int{{40, 20}, {80, 24}, {120, 40}, {160, 50}} {
 			sizeModelTo(t, m, size[0], size[1])
-			m.openWorkflowRuns([]store.RunSummary{{ID: "run-id", Name: "文件 recipe with a long name", Status: "failed", Started: time.Unix(1, 0)}})
+			m.workflows.openRuns([]store.RunSummary{{ID: "run-id", Name: "文件 recipe with a long name", Status: "failed", Started: time.Unix(1, 0)}})
 			rows, width, height := m.dialogRows()
 			if len(rows)+2 > height {
 				t.Fatal("run table exceeded dialog height", theme, size)
@@ -75,12 +76,12 @@ func TestWorkflowValueRemovalStartsOnCancelAndRequiresExplicitAction(t *testing.
 		m := workflowTestModel(t)
 		w := m.workflows
 		d := workflowRecipe()
-		d.Inputs = map[string]automation.Input{"value": {Type: "string"}}
+		d.Inputs = map[string]workflow.Input{"value": {Type: "string"}}
 		d.Outputs = map[string]json.RawMessage{"value": json.RawMessage(`"result"`)}
 		w.editor.Replace(d)
 		before := w.editor.Source()
 		open := func() {
-			m.workflowParameterEdit(workflowParameterEdit{Kind: kind, Name: "value", Draft: before, Remove: true})
+			m.workflows.parameterEdit(workflowParameterEdit{Kind: kind, Name: "value", Draft: before, Remove: true})
 		}
 		open()
 		f := m.dialog.form
@@ -111,7 +112,7 @@ func TestWorkflowValueRemovalStartsOnCancelAndRequiresExplicitAction(t *testing.
 func TestWorkflowJSONInputsNameTheirActualAction(t *testing.T) {
 	m := workflowTestModel(t)
 	for _, item := range []struct{ action, label string }{{"run", "Run"}, {"validate", "Check"}, {"schedule", "Next"}} {
-		m.workflowInputForm(workflowInvocation{Action: item.action, Mode: "JSON", Draft: m.workflows.editor.Source()})
+		m.workflows.inputForm(workflowInvocation{Action: item.action, Mode: "JSON", Draft: m.workflows.editor.Source()})
 		if m.dialog.form.ApplyLabel != item.label || !strings.Contains(m.dialog.title, "JSON") {
 			t.Fatal("JSON form does not name what its primary action does")
 		}

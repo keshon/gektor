@@ -5,70 +5,17 @@ import (
 	"encoding/json"
 	"path/filepath"
 
-	workflow "github.com/keshon/gektor/internal/automation/agenttools"
-	filetools "github.com/keshon/gektor/internal/capabilities/files/tools"
 	imagecontract "github.com/keshon/gektor/internal/capabilities/images/contract"
-	imagetools "github.com/keshon/gektor/internal/capabilities/images/tools"
-	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/permission"
+	workflow "github.com/keshon/gektor/internal/workflow/agenttools"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
-// BindWorkflowPolicy gives nested steps the same permission gate as direct calls.
-func BindWorkflowPolicy(c *Capabilities, ws *workspace.Workspace, policy permission.Policy, gate func(context.Context, string, string, json.RawMessage) (permission.Effect, error), storeDir string) {
-	if storeDir == "" {
-		storeDir = gektor.Sub("workflows")
-	}
-	authorize, output := workflowPolicy(ws, policy, gate)
-	// Inspection may compare sources only when policy already allows the read.
-	// It never opens a gate while gathering optional status information.
-	checkSource, _ := workflowPolicy(ws, policy, nil)
-	for _, p := range c.Native {
-		for _, tool := range p.Tools {
-			if t, ok := tool.(*workflow.Status); ok {
-				t.StoreDir = storeDir
-				t.CheckSource = checkSource
-			}
-			if t, ok := tool.(*workflow.Schedule); ok {
-				t.StoreDir = storeDir
-				t.Authorize = authorize
-				t.CheckSource = checkSource
-			}
-			if t, ok := tool.(*workflow.Schema); ok {
-				t.StoreDir = storeDir
-			}
-			if t, ok := tool.(*workflow.Data); ok {
-				t.StoreDir = storeDir
-			}
-			if t, ok := tool.(*workflow.Inspect); ok {
-				t.StoreDir = storeDir
-			}
-			if t, ok := tool.(*workflow.Tool); ok {
-				t.AuthorizeOutput, t.Authorize = output, authorize
-				t.AuthorizeResource = func(ctx context.Context, name, resource string, args json.RawMessage) error {
-					return permission.Authorize(ctx, policy, gate, name, resource, args)
-				}
-				t.StoreDir = storeDir
-			}
-			if t, ok := tool.(*imagetools.Tool); ok {
-				t.AuthorizeOutput = output
-			}
-			if t, ok := tool.(*filetools.Tool); ok {
-				t.AuthorizeOutput = func(ctx context.Context, name, path string, args json.RawMessage) error {
-					return permission.Authorize(ctx, policy, gate, name, path, args)
-				}
-			}
-		}
-	}
-}
-
 // NewWorkflow wires the same nested permissions for model-free CLI execution.
 // Its caller must also authorize the outer workflow call.
-func NewWorkflow(ws *workspace.Workspace, validateOnly bool, policy permission.Policy, gate permission.Gate) *workflow.Tool {
-	authorize, output := workflowPolicy(ws, policy, gate)
-	return &workflow.Tool{WS: ws, StoreDir: gektor.Sub("workflows"), ValidateOnly: validateOnly, Authorize: authorize, AuthorizeOutput: output, AuthorizeResource: func(ctx context.Context, name, resource string, args json.RawMessage) error {
-		return permission.Authorize(ctx, policy, gate, name, resource, args)
-	}}
+func NewWorkflow(d Dependencies, validateOnly bool) *workflow.Tool {
+	d = d.prepared()
+	return d.workflowTool(validateOnly)
 }
 
 func workflowPolicy(ws *workspace.Workspace, policy permission.Policy, gate permission.Gate) (func(context.Context, string, json.RawMessage) error, imagecontract.OutputAuthorizer) {

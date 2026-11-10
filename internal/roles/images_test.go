@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
 )
 
 func TestInteractiveViewsScopedAttachmentAndRestoresAfterCompaction(t *testing.T) {
@@ -54,7 +54,7 @@ func TestInteractiveViewsScopedAttachmentAndRestoresAfterCompaction(t *testing.T
 	if _, _, _, err := agent.CompactFile(state, 1); err != nil {
 		t.Fatal(err)
 	}
-	saved, err := session.Load(state)
+	saved, err := conversation.Load(state)
 	if err != nil {
 		t.Fatal(err)
 	}

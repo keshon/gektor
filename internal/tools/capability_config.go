@@ -13,7 +13,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/credentials"
-	"github.com/keshon/gektor/internal/gektor"
+	"github.com/keshon/gektor/internal/userdirs"
 )
 
 // CapabilityConfig is explicitly selected by -capabilities. Workspace files
@@ -225,7 +225,7 @@ func BuildCapabilities(config CapabilityConfig, dir string) ([]*Capability, func
 				var client *httpMCPClient
 				credentialDir := pack.CredentialDirectory
 				if credentialDir == "" {
-					credentialDir = gektor.Sub("credentials")
+					credentialDir = userdirs.Sub("credentials")
 				}
 				headers := map[string]string{}
 				for name, ref := range pack.HeaderRefs {

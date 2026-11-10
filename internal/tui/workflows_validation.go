@@ -5,13 +5,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/keshon/gektor/internal/automation"
 	"github.com/santhosh-tekuri/jsonschema/v6"
+
+	"github.com/keshon/gektor/internal/workflow"
 )
 
 // Error messages are hints for navigation, never an authority to edit recipes.
 // Prefer structured schema locations; match only explicit step identifiers.
-func workflowErrorLocation(err error, d automation.Definition) (string, string) {
+func workflowErrorLocation(err error, d workflow.Definition) (string, string) {
 	var validation *jsonschema.ValidationError
 	var location []string
 	if errors.As(err, &validation) {
@@ -56,8 +57,8 @@ func workflowErrorPointer(parts []string) string {
 	return path
 }
 
-func (m *model) workflowValidationRows(err error) []string {
-	w := m.workflows
+func (m *workflowScreen) validationRows(err error) []string {
+	w := m
 	d := w.editor.Definition
 	if w.run != nil {
 		d = w.run.Definition
@@ -66,13 +67,13 @@ func (m *model) workflowValidationRows(err error) []string {
 	rows := []string{}
 	if id != "" {
 		if w.run == nil {
-			w.graph = m.workflowGraph(w.graph)
+			w.graph = m.buildGraph(w.graph)
 		}
 		w.graph.Selected = id
 		w.inspect = true
 		w.inspectorOpen = true
 		w.offset = 0
-		width, height := m.workflowCanvasSize()
+		width, height := m.canvasSize()
 		w.graph.Reveal(width, height)
 		rows = append(rows, "Node: "+id)
 		if path != "" {

@@ -15,16 +15,16 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
-	"github.com/keshon/gektor/internal/audit"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/events"
-	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/mcpmanager"
 	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/permissionlog"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/session"
 	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/tui"
+	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -68,7 +68,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	if o.browser != "" {
 		reserved = append(reserved, "browser")
 	}
-	managedMCP, err := mcpmanager.New(gektor.Sub("mcp"), ws.Root(), gektor.Sub("credentials"), reserved)
+	managedMCP, err := mcpmanager.New(userdirs.Sub("mcp"), ws.Root(), userdirs.Sub("credentials"), reserved)
 	if err != nil {
 		return err
 	}
@@ -192,14 +192,14 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	}
 
 	cfg.Images, cfg.Answer = images, stdioSuspender(noteW, emitter)
-	cfg.Env.GateContext = audit.ContextHook(o.auditPath, "cli", permissionGateContext(o.yes, cfg.Answer, ws))
+	cfg.Env.Gate = permissionlog.WrapGate(o.auditPath, "cli", permissionGateContext(o.yes, cfg.Answer, ws))
 	return runAgentCLI(ctx, o, cfg, forkHistory, emitter, noteW, note)
 }
 
 // resumeWorkspace resolves archive metadata before composing workspace services.
 func resumeWorkspace(o resolvedLaunch) (string, error) {
 	if o.resume != "" {
-		snapshot, err := session.Load(o.resume)
+		snapshot, err := conversation.Load(o.resume)
 		if err != nil {
 			return "", fmt.Errorf("resume: %w", err)
 		}
@@ -224,7 +224,7 @@ func persistSwitchedWorkspace(launch launchRequest, root string) error {
 		return nil
 	}
 	path := filepath.Join(launch.directory, "state.json")
-	snapshot, err := session.Load(path)
+	snapshot, err := conversation.Load(path)
 	if os.IsNotExist(err) {
 		// A fresh conversation can have a reserved directory but no archive yet.
 		// Its first persistence will record the newly composed workspace.
@@ -329,15 +329,15 @@ func agentLaunchHistory(o resolvedLaunch, note func(string, ...any)) (string, []
 	} else if !o.serve && (!o.tui || o.task != "" || o.fork != "") {
 		sum := sha1.Sum([]byte(o.task + time.Now().String()))
 		taskID := hex.EncodeToString(sum[:])[:8]
-		taskDir := gektor.Sub("tasks", taskID)
+		taskDir := userdirs.Sub("tasks", taskID)
 		stateFile = filepath.Join(taskDir, "state.json")
 		// The session title lives with the session (pi's session_info):
 		// written once here, rewritten on TUI rename, derived from
 		// history when absent. Display metadata, never load-bearing.
-		_ = workspace.WriteSessionTitle(taskDir, workspace.TitleLine(o.task))
+		_ = conversation.WriteSessionTitle(taskDir, conversation.TitleLine(o.task))
 		if o.fork != "" {
 			var err error
-			forkHistory, err = session.ReadHistory(o.fork)
+			forkHistory, err = conversation.ReadHistory(o.fork)
 			if err != nil {
 				return "", nil, fmt.Errorf("fork: %w", err)
 			}
@@ -377,7 +377,7 @@ func runAgentTUI(ctx context.Context, launch launchRequest, o resolvedLaunch, cf
 	history := cfg.History
 	if o.resume != "" {
 		var err error
-		history, err = session.ReadHistory(o.resume)
+		history, err = conversation.ReadHistory(o.resume)
 		if err != nil {
 			return fmt.Errorf("resume: %w", err)
 		}
@@ -396,17 +396,16 @@ func runAgentTUI(ctx context.Context, launch launchRequest, o resolvedLaunch, cf
 		profile.Generation.ContextLimit = cfg.Env.ContextLimit
 	}
 
-	prepared, err := app.ConfigureAgent(profile, filepath.Join(filepath.Dir(launch.preferencePath), "sessions"))
+	prepared, err := app.PrepareProfile(profile, filepath.Join(filepath.Dir(launch.preferencePath), "sessions"))
 	if err != nil {
 		return err
 	}
 	if err := persistSwitchedWorkspace(launch, o.workspace); err != nil {
 		return fmt.Errorf("save session workspace: %w", err)
 	}
-	prepared.Client = cfg.Env.Client
 	services := prepared
 	app := applicationControl(launch, profile, o.profilePath, o.workspace)
-	cfg.Application, cfg.Services, cfg.History = app, &services, history
+	cfg.Application, cfg.PreparedProfile, cfg.History = app, &services, history
 	answer, err := tui.Run(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("agent failed: %w", err)

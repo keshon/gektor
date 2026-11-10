@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/keshon/gektor/internal/automation/store"
+	"github.com/keshon/gektor/internal/workflow/store"
 )
 
 var workflowCommandName = regexp.MustCompile(`^[a-zA-Z0-9_./\\:-]+$`)

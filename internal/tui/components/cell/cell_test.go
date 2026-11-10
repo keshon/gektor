@@ -101,3 +101,18 @@ func TestTruncateDoesNotPad(t *testing.T) {
 		t.Fatalf("Truncate = %q, want a marker", got)
 	}
 }
+
+func TestTruncateUsesTerminalCells(t *testing.T) {
+	for _, text := range []string{"日本語", "\x1b[31m日本語\x1b[0m", "abcdef"} {
+		got := Truncate(text, 4)
+		if width := lipgloss.Width(got); width > 4 {
+			t.Fatalf("Truncate(%q) = %q, width %d exceeds 4", text, got, width)
+		}
+		if !strings.HasSuffix(strings.TrimSuffix(got, "\x1b[0m"), "…") {
+			t.Fatalf("Truncate(%q) = %q, missing marker", text, got)
+		}
+	}
+	if got := Truncate("abc", 0); got != "" {
+		t.Fatalf("Truncate at zero width = %q", got)
+	}
+}

@@ -1,11 +1,12 @@
 package tui
 
 import (
-	"github.com/keshon/gektor/internal/run"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/keshon/gektor/internal/harness"
 )
 
 // A command either acts on the run or it does not, and the registry is the
@@ -104,7 +105,7 @@ func (m *model) handleEnter() {
 
 func TestRunningInputSubmitsSeveralMessagesWithoutWaitingForCompletion(t *testing.T) {
 	m := runningModel(t)
-	m.sess = &run.Session{}
+	m.sess = &harness.Session{}
 	for _, text := range []string{"first update", "second update"} {
 		m.input.SetValue(text)
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -122,7 +123,7 @@ func TestRunningInputSubmitsSeveralMessagesWithoutWaitingForCompletion(t *testin
 
 func TestPendingInputRecallPreservesDraftAndImages(t *testing.T) {
 	m := runningModel(t)
-	m.sess = &run.Session{}
+	m.sess = &harness.Session{}
 	if err := m.sess.Submit("first"); err != nil {
 		t.Fatal(err)
 	}

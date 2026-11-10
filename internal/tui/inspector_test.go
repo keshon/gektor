@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,10 +8,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/conversation"
+	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/run"
-	"github.com/keshon/gektor/internal/session"
 )
 
 func inspectorModel(t *testing.T, width int) *model {
@@ -212,10 +212,7 @@ func TestInspectorChildEventsStayOutOfParentAndReload(t *testing.T) {
 	parentCount := len(m.transcript.blocks)
 	m.tokens = 123
 	msg := llm.Message{Role: llm.RoleAssistant, Content: "child answer", Reasoning: "child summary"}
-	raw, _ := json.Marshal(msg)
-	var decoded any
-	_ = json.Unmarshal(raw, &decoded)
-	m.handleEvent(run.Event{Name: "child", Fields: map[string]any{"call_id": "child-1", "kind": "message", "fields": map[string]any{"message": decoded}}})
+	m.handleEvent(harness.Event{Name: "child", Fields: map[string]any{"call_id": "child-1", "kind": "message", "fields": map[string]any{"message": msg}}})
 	if len(m.transcript.blocks) != parentCount || m.tokens != 123 {
 		t.Fatal("child corrupted parent")
 	}
@@ -223,8 +220,8 @@ func TestInspectorChildEventsStayOutOfParentAndReload(t *testing.T) {
 	if !strings.Contains(ansi.Strip(m.View().Content), "child answer") {
 		t.Fatal("child missing from inspector")
 	}
-	saved := session.New([]llm.Message{{Role: llm.RoleSystem, Content: "system"}, {Role: llm.RoleUser, Content: "check code"}, msg})
-	if err := saved.Save(session.ChildStatePath(m.stateFile, "child-1")); err != nil {
+	saved := conversation.New([]llm.Message{{Role: llm.RoleSystem, Content: "system"}, {Role: llm.RoleUser, Content: "check code"}, msg})
+	if err := saved.Save(conversation.ChildStatePath(m.stateFile, "child-1")); err != nil {
 		t.Fatal(err)
 	}
 	m.inspector = toolInspector{}
@@ -236,7 +233,7 @@ func TestInspectorChildEventsStayOutOfParentAndReload(t *testing.T) {
 	if !strings.Contains(ansi.Strip(m.View().Content), "child answer") {
 		t.Fatal("saved child missing")
 	}
-	m.acceptChildHistory(childLoadedMsg{parent: "other session", callID: "child-1", snapshot: session.New(nil)})
+	m.acceptChildHistory(childLoadedMsg{parent: "other session", callID: "child-1", snapshot: conversation.New(nil)})
 	if len(m.child("child-1").history) == 0 {
 		t.Fatal("stale load overwrote child")
 	}

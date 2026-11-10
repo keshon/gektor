@@ -172,7 +172,7 @@ found under `GEKTOR_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`,
 | `-workspace DIR` | `.` | Workspace root the agent may read and write |
 | `-plan` | `false` | Plan mode: proposes a plan and changes nothing; mutating tool calls are refused |
 | `-yes` | `false` | Print/RPC permission Ask calls are denied instead of prompting. TUI permissions remain interactive |
-| `-audit PATH` | - | Append gate decisions as JSONL to PATH (off when empty) |
+| `-audit PATH` | - | Append operator gate decisions as JSONL to PATH (off when empty) |
 | `-verify-cmd CMD` | — | Final command; record output and fail on a command error without another model call |
 | `-resume PATH` | — | Continue an interrupted run from its saved state |
 | `-fork PATH` | — | Branch from a prior transcript file but write to a fresh task id |
@@ -211,8 +211,8 @@ fails closed. Rules are pattern tripwires, not process isolation. See
 
 The TUI honors Act/Plan/resume/fork modes. Slash commands and inline
 text-file references are UI features, not special syntax in print mode.
-Streaming is automatic in the TUI, opt-in with `-stream` in print/RPC mode,
-and disabled in direct JSON output. Server support is still required.
+Streaming is automatic in the TUI and opt-in with `-stream` in print, JSON and RPC
+modes. JSON/RPC carry streamed chunks as events. Server support is still required.
 
 The RPC server takes tasks and images from each request.
 It does not expose session browsing, resume/fork, Plan/Act switching, or local

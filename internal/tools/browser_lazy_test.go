@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
 )
 
 type browserTestClient func(llm.ChatRequest) llm.ChatResponse
@@ -35,6 +35,7 @@ func browserRegistry(browser *Browser) (*agent.Registry, *EnableBrowser) {
 	tool := &EnableBrowser{Browser: browser}
 	reg := agent.NewRegistry(tool)
 	tool.Registry = reg
+	tool.Catalog = &Capabilities{Registry: reg, Sources: []*Capability{browser.Capability()}}
 	return reg, tool
 }
 
@@ -73,7 +74,7 @@ func TestBrowserLoadsOnceAndRestoresAfterCompaction(t *testing.T) {
 		}
 		return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: name, Name: name, Arguments: json.RawMessage(args)}}}, FinishReason: "tool_calls"}
 	})
-	a := agent.New(agent.Config{Client: client, Tools: reg, RestoreTools: enable.Restore, System: "stable system", StateFile: state})
+	a := agent.New(agent.Config{Client: client, Tools: reg, SaveCapabilities: enable.Catalog.Save, RestoreCapabilities: enable.Catalog.Restore, System: "stable system", StateFile: state})
 	if _, err := a.Run(t.Context(), "check page"); err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +82,7 @@ func TestBrowserLoadsOnceAndRestoresAfterCompaction(t *testing.T) {
 		t.Fatal("activation not idempotent", err, connects)
 	}
 
-	saved, err := session.Load(state)
+	saved, err := conversation.Load(state)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,17 +98,19 @@ func TestBrowserLoadsOnceAndRestoresAfterCompaction(t *testing.T) {
 	defer reopened.Close()
 	reopenedReg, reopenedEnable := browserRegistry(reopened)
 	resume := browserTestClient(func(req llm.ChatRequest) llm.ChatResponse {
-		if !reflect.DeepEqual(expanded, req.Tools) {
+		want, _ := json.Marshal(expanded)
+		got, _ := json.Marshal(req.Tools)
+		if string(want) != string(got) {
 			t.Fatal("resume lost browser schemas")
 		}
 		return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}}
 	})
-	a = agent.New(agent.Config{Client: resume, Tools: reopenedReg, RestoreTools: reopenedEnable.Restore, System: "stable system", StateFile: state})
+	a = agent.New(agent.Config{Client: resume, Tools: reopenedReg, SaveCapabilities: reopenedEnable.Catalog.Save, RestoreCapabilities: reopenedEnable.Catalog.Restore, System: "stable system", StateFile: state})
 	if _, err := a.Resume(t.Context(), saved.Context(), "continue"); err != nil {
 		t.Fatal(err)
 	}
-	if connects != 2 || actions != 1 {
-		t.Fatal("resume replayed an action", connects, actions)
+	if connects != 1 || actions != 1 {
+		t.Fatal("catalog restore reconnected or replayed an action", connects, actions)
 	}
 	newReg, _ := browserRegistry(reopened)
 	if len(newReg.Defs()) != 1 {
@@ -118,16 +121,8 @@ func TestBrowserLoadsOnceAndRestoresAfterCompaction(t *testing.T) {
 func TestBrowserActivationFailuresDoNotEnableTools(t *testing.T) {
 	connects, actions := 0, 0
 	browser := fakeBrowser(&connects, &actions)
-	reg, enable := browserRegistry(browser)
-	failed := true
-	archive := []llm.Message{{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "activate", Name: "enable_browser", Arguments: json.RawMessage(`{}`)}}}}
-	if err := enable.Restore(t.Context(), archive); err != nil || connects != 0 {
-		t.Fatal("interrupted activation was replayed", err)
-	}
-	archive = append(archive, llm.Message{Role: llm.RoleTool, ToolCallID: "activate", ToolFailed: &failed})
-	if err := enable.Restore(t.Context(), archive); err != nil || connects != 0 {
-		t.Fatal("failed activation was replayed", err)
-	}
+	reg, _ := browserRegistry(browser)
+
 	browser.connect = func(context.Context, func(string)) ([]agent.Tool, *MCPClient, error) {
 		return nil, nil, errors.New("Node missing")
 	}

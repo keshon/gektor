@@ -18,5 +18,5 @@ Budget: 12 steps, 180 seconds.
 These budgets allow discovery, schema reading, file preparation and verification.
 They limit unproductive retries; they are not latency targets.
 Revision conflicts, review recovery, overlap, service restarts and queue execution
-remain deterministic integration tests in internal/automation. These probes do
+remain deterministic integration tests in internal/workflow. These probes do
 not establish scheduling reliability or general recipe correctness.

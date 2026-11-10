@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/keshon/gektor/internal/automation/store"
 	"image"
 	"image/png"
 	"io"
@@ -14,7 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/gektor/internal/automation"
+	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/internal/workflow/store"
 )
 
 func workflowWorkspace(t *testing.T) string {
@@ -233,7 +233,7 @@ func TestWorkflowCLIRecordsAcrossRuns(t *testing.T) {
 	if err := workflowHistory(t.Context(), []string{"record", "-workspace", dir, "notes", "first"}, &out, base); err != nil {
 		t.Fatal(err)
 	}
-	var entry automation.Entry
+	var entry workflow.Entry
 	if err := json.Unmarshal(out.Bytes(), &entry); err != nil || entry.Revision != 1 || string(entry.Data) != `{"value":42}` {
 		t.Fatal(entry, err)
 	}

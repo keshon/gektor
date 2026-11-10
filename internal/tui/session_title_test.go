@@ -9,10 +9,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/keshon/gektor/internal/conversation"
+	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/run"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -20,7 +21,7 @@ func titleModel(t *testing.T) *model {
 	t.Helper()
 	root := sessionsRootFor(t, t.TempDir())
 	dir := writeSessionState(t, root, "title-test", userHistory("Please fix the queue bug"))
-	if err := workspace.WriteSessionTitle(dir, "Please fix the queue bug"); err != nil {
+	if err := conversation.WriteSessionTitle(dir, "Please fix the queue bug"); err != nil {
 		t.Fatal(err)
 	}
 	m := sizeModel(t, testModel())
@@ -44,7 +45,7 @@ func TestSessionTitlePersistsWithoutChangingHistory(t *testing.T) {
 	}
 	msg := cmd().(sessionTitleMsg)
 	m.Update(msg)
-	if m.sessionTitle != "Message queue bug" || workspace.ReadSessionTitle(filepath.Dir(m.stateFile)) != m.sessionTitle {
+	if m.sessionTitle != "Message queue bug" || conversation.ReadSessionTitle(filepath.Dir(m.stateFile)) != m.sessionTitle {
 		t.Fatal(m.sessionTitle)
 	}
 	after, err := os.ReadFile(m.stateFile)
@@ -66,7 +67,7 @@ func TestSessionTitlePreservesManualChangesAndDeletedSessions(t *testing.T) {
 			switch action {
 			case "rename":
 				want = "My title"
-				if err := workspace.WriteSessionTitle(dir, want); err != nil {
+				if err := conversation.WriteSessionTitle(dir, want); err != nil {
 					t.Fatal(err)
 				}
 				m.updateSessionTitle(dir, want)
@@ -74,13 +75,13 @@ func TestSessionTitlePreservesManualChangesAndDeletedSessions(t *testing.T) {
 				m.updateSessionTitle(dir, want)
 			case "clear":
 				want = ""
-				if err := workspace.WriteSessionTitle(dir, ""); err != nil {
+				if err := conversation.WriteSessionTitle(dir, ""); err != nil {
 					t.Fatal(err)
 				}
 				m.updateSessionTitle(dir, "Please fix the queue bug")
 			case "external rename":
 				want = "External title"
-				if err := workspace.WriteSessionTitle(dir, want); err != nil {
+				if err := conversation.WriteSessionTitle(dir, want); err != nil {
 					t.Fatal(err)
 				}
 			case "delete":
@@ -94,7 +95,7 @@ func TestSessionTitlePreservesManualChangesAndDeletedSessions(t *testing.T) {
 				msg.title = ""
 			}
 			m.acceptSessionTitle(msg)
-			if got := workspace.ReadSessionTitle(dir); got != want {
+			if got := conversation.ReadSessionTitle(dir); got != want {
 				t.Fatal(action, got, want)
 			}
 			if action == "delete" {
@@ -172,12 +173,12 @@ func TestManualRenameCancelsInFlightTitle(t *testing.T) {
 	go func() { finished <- cmd().(sessionTitleMsg) }()
 	<-started
 	dir := filepath.Dir(m.stateFile)
-	if err := workspace.WriteSessionTitle(dir, "My title"); err != nil {
+	if err := conversation.WriteSessionTitle(dir, "My title"); err != nil {
 		t.Fatal(err)
 	}
 	m.updateSessionTitle(dir, "My title")
 	m.acceptSessionTitle(<-finished)
-	if workspace.ReadSessionTitle(dir) != "My title" || m.sessionTitle != "My title" {
+	if conversation.ReadSessionTitle(dir) != "My title" || m.sessionTitle != "My title" {
 		t.Fatal("late result replaced manual title")
 	}
 }
@@ -201,7 +202,7 @@ func TestTitleGenerationSkipsFailedInterruptedAndActiveTurns(t *testing.T) {
 			case "active":
 				m.state = stRunning
 			case "externally renamed":
-				if err := workspace.WriteSessionTitle(filepath.Dir(m.stateFile), "My title"); err != nil {
+				if err := conversation.WriteSessionTitle(filepath.Dir(m.stateFile), "My title"); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -251,8 +252,8 @@ func TestFreshSessionSchedulesTitleButForkKeepsItsName(t *testing.T) {
 				}
 				return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: "Here is the answer"}}, nil
 			})}
-			m.newSession = func(task, stateFile string, images []string) (*run.Session, error) {
-				return run.New(run.Config{Env: m.baseEnv, Task: task, StateFile: stateFile, Images: images})
+			m.newSession = func(task, stateFile string, images []string) (*harness.Session, error) {
+				return harness.New(harness.Config{Env: m.baseEnv, Task: task, StateFile: stateFile, Images: images})
 			}
 			if fork {
 				m.seedHistory = []llm.Message{{Role: llm.RoleSystem, Content: "system"}, {Role: llm.RoleUser, Content: "Original request"}, {Role: llm.RoleAssistant, Content: "Original answer"}}
@@ -269,7 +270,7 @@ func TestFreshSessionSchedulesTitleButForkKeepsItsName(t *testing.T) {
 				t.Fatal(done.err)
 			}
 			if fork {
-				if m.titleJob != nil || workspace.ReadSessionTitle(filepath.Dir(m.stateFile)) != "Original title" {
+				if m.titleJob != nil || conversation.ReadSessionTitle(filepath.Dir(m.stateFile)) != "Original title" {
 					t.Fatal("fork scheduled automatic renaming")
 				}
 				return

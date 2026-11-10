@@ -2,8 +2,8 @@
 package chatcompletions
 
 // NewKoboldClient talks to a koboldcpp server.
-func NewKoboldClient(baseURL, model string) *Server {
-	return newServer(baseURL, model, koboldDialect{})
+func NewKoboldClient(baseURL, model string) *Client {
+	return newClient(baseURL, model, koboldDialect{})
 }
 
 // DefaultGrammar forbids a response from starting with '<' or '[' —

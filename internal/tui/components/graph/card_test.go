@@ -8,7 +8,7 @@ import (
 )
 
 func TestNamedPortsHaveDistinctRoutesAndHitTargets(t *testing.T) {
-	a := Node{ID: "prepare", Label: "JavaScript", Point: Point{2, 1}, Inputs: []Port{}, Outputs: []Port{{Key: "/items", Label: "items"}, {Key: "/label", Label: "label"}}}
+	a := Node{ID: "prepare", Label: "JavaScript", Detail: "Idle", Point: Point{2, 1}, Inputs: []Port{}, Outputs: []Port{{Key: "/items", Label: "items"}, {Key: "/label", Label: "label"}}}
 	b := Node{ID: "report", Label: "JavaScript", Point: Point{55, 1}, Inputs: []Port{{Key: "args/input/items", Label: "input.items"}, {Key: "args/input/label", Label: "input.label"}}, Outputs: []Port{{Label: "result"}}}
 	m := Model{Nodes: []Node{a, b}, Selected: "prepare", Edges: []Edge{{From: "prepare", To: "report", FromPort: "/items", ToPort: "args/input/items", Data: true}, {From: "prepare", To: "report", FromPort: "/label", ToPort: "args/input/label", Data: true}}}
 	if len(m.edges()) != 2 {
@@ -28,7 +28,7 @@ func TestNamedPortsHaveDistinctRoutesAndHitTargets(t *testing.T) {
 		t.Fatal("wrong named port hit", id, key, output)
 	}
 	view := ansi.Strip(m.View(90, 15, Styles{}))
-	for _, text := range []string{"prepare", "JavaScript", "input.items", "input.label", "Not run"} {
+	for _, text := range []string{"prepare", "JavaScript", "input.items", "input.label", "Idle"} {
 		if !strings.Contains(view, text) {
 			t.Fatal("missing card content", text, view)
 		}

@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/keshon/gektor/internal/agent"
-	"github.com/keshon/gektor/internal/session"
+	"github.com/keshon/gektor/internal/conversation"
 )
 
 type ReadHistory struct{ Path string }
@@ -36,9 +36,9 @@ func (t ReadHistory) Run(ctx context.Context, args json.RawMessage) (string, err
 	}
 	path := t.Path
 	if in.DelegateCallID != "" {
-		path = session.ChildStatePath(t.Path, in.DelegateCallID)
+		path = conversation.ChildStatePath(t.Path, in.DelegateCallID)
 	}
-	s, err := session.Load(path)
+	s, err := conversation.Load(path)
 	if err != nil {
 		return "", err
 	}
@@ -50,25 +50,25 @@ func (t ReadHistory) Run(ctx context.Context, args json.RawMessage) (string, err
 	if in.Start == 0 {
 		in.Start = 1
 	}
-	var rows []session.HistoryRow
+	var rows []conversation.HistoryRow
 	var next int
 	if in.Query != "" {
 		if in.Offset != 0 {
 			return "", fmt.Errorf("query cannot be combined with offset")
 		}
-		rows, next, err = session.SearchHistory(s, in.Query, in.Start, in.Count)
+		rows, next, err = conversation.SearchHistory(s, in.Query, in.Start, in.Count)
 	} else {
-		rows, err = session.PageHistory(s, in.Start, in.Count, in.Offset)
+		rows, err = conversation.PageHistory(s, in.Start, in.Count, in.Offset)
 	}
 	if err != nil {
 		return "", err
 	}
 	data, err := json.Marshal(struct {
-		Source    string               `json:"source"`
-		Compacted bool                 `json:"compacted"`
-		Total     int                  `json:"total_messages"`
-		Messages  []session.HistoryRow `json:"messages"`
-		Next      int                  `json:"next_start,omitempty"`
+		Source    string                    `json:"source"`
+		Compacted bool                      `json:"compacted"`
+		Total     int                       `json:"total_messages"`
+		Messages  []conversation.HistoryRow `json:"messages"`
+		Next      int                       `json:"next_start,omitempty"`
 	}{"saved_archive", s.ContextStart > 0, len(s.History), rows, next})
 	return string(data), err
 }

@@ -9,7 +9,6 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/checks"
-	"github.com/keshon/gektor/internal/rules"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -40,34 +39,45 @@ func checkedWS(t *testing.T) *workspace.Workspace {
 	return ws
 }
 
-// checkedRules is a Go project's rule set. The wrapper no longer knows
-// what a .go file is, so a test that wants a gofmt finding has to supply
-// the rule that produces one.
-func checkedRules() []checks.Rule { return append(checks.Secrets(), rules.All()...) }
-
-func TestChecked_FiresOnDirtyWrite(t *testing.T) {
+func TestChecked_FiresOnSecretWrite(t *testing.T) {
 	ws := checkedWS(t)
 	var got []string
-	sink := func(rule, path string, line int, summary string) {
-		got = append(got, rule+" "+path)
+	sink := func(_ checks.Scope, f checks.Finding) {
+		got = append(got, f.Rule+" "+f.Path)
 	}
-	tool := Checked(WriteFile{WS: ws}, ws, sink, checkedRules())
-	out, err := tool.Run(context.Background(), json.RawMessage(`{"path":"a.go","content":"package a\n\nfunc A()  {}\n"}`))
+	tool := Checked(WriteFile{WS: ws}, ws, checks.NewReporter(checks.Secrets(), sink))
+	out, err := tool.Run(context.Background(), json.RawMessage(`{"path":"a.go","content":"AKIAIOSFODNN7EXAMPLE\n"}`))
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
 	if !strings.Contains(out, "wrote a.go") {
 		t.Fatalf("result altered: %q", out)
 	}
-	if len(got) != 1 || got[0] != "gofmt a.go" {
+	if len(got) != 1 || got[0] != "secret-aws a.go" {
 		t.Fatalf("findings = %v", got)
+	}
+}
+
+func TestCheckedDoesNotChooseLanguageChecks(t *testing.T) {
+	ws := checkedWS(t)
+	t.Setenv("PATH", "")
+	reporter := checks.NewReporter(checks.Secrets(), func(checks.Scope, checks.Finding) {
+		t.Fatal("language syntax produced a built-in finding")
+	})
+	tool := Checked(WriteFile{WS: ws}, ws, reporter)
+	for _, path := range []string{"broken.go", "broken.py", "broken.rs"} {
+		args, _ := json.Marshal(map[string]string{"path": path, "content": "invalid source {{{"})
+		out, err := tool.Run(t.Context(), args)
+		if err != nil || out != "wrote "+path+" (18 bytes)" {
+			t.Fatalf("unexpected language-specific result: %q, %v", out, err)
+		}
 	}
 }
 
 func TestChecked_CleanIsSilent(t *testing.T) {
 	ws := checkedWS(t)
 	fired := false
-	tool := Checked(WriteFile{WS: ws}, ws, func(string, string, int, string) { fired = true }, checkedRules())
+	tool := Checked(WriteFile{WS: ws}, ws, checks.NewReporter(checks.Secrets(), func(checks.Scope, checks.Finding) { fired = true }))
 	if _, err := tool.Run(context.Background(), json.RawMessage(`{"path":"a.go","content":"package a\n"}`)); err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -79,14 +89,14 @@ func TestChecked_CleanIsSilent(t *testing.T) {
 func TestChecked_FailOpen(t *testing.T) {
 	ws := checkedWS(t)
 	fired := false
-	sink := func(string, string, int, string) { fired = true }
+	sink := func(checks.Scope, checks.Finding) { fired = true }
 	// Tool error: result passes through, no scan.
-	broken := Checked(stubWrite{err: errCheckedBoom}, ws, sink, checkedRules())
+	broken := Checked(stubWrite{err: errCheckedBoom}, ws, checks.NewReporter(checks.Secrets(), sink))
 	if _, err := broken.Run(context.Background(), json.RawMessage(`{"path":"a.go"}`)); err == nil {
 		t.Fatal("inner error must pass through")
 	}
 	// Unparseable args: passthrough.
-	ok := Checked(stubWrite{out: "ok"}, ws, sink, checkedRules())
+	ok := Checked(stubWrite{out: "ok"}, ws, checks.NewReporter(checks.Secrets(), sink))
 	if _, err := ok.Run(context.Background(), json.RawMessage(`{oops`)); err != nil {
 		t.Fatalf("bad args must pass through: %v", err)
 	}
@@ -95,7 +105,7 @@ func TestChecked_FailOpen(t *testing.T) {
 		t.Fatalf("missing file must pass through: %v", err)
 	}
 	// Nil sink or workspace: unwrapped behavior, no scan possible.
-	plain := Checked(stubWrite{out: "ok"}, ws, nil, checkedRules())
+	plain := Checked(stubWrite{out: "ok"}, ws, nil)
 	if out, err := plain.Run(context.Background(), json.RawMessage(`{}`)); out != "ok" || err != nil {
 		t.Fatalf("nil sink changed behavior: %q %v", out, err)
 	}

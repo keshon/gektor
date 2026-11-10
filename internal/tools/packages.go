@@ -1,14 +1,20 @@
 package tools
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/app"
+	imagecontract "github.com/keshon/gektor/internal/capabilities/images/contract"
 	"github.com/keshon/gektor/internal/capabilities/media"
 	"github.com/keshon/gektor/internal/checks"
-	"github.com/keshon/gektor/internal/gektor"
-	"github.com/keshon/gektor/internal/programs"
+	"github.com/keshon/gektor/internal/executables"
+	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/userdirs"
+	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -23,18 +29,25 @@ const (
 
 const NativeWeb = "native_web"
 
-type packageDependencies struct {
-	WS     *workspace.Workspace
-	Procs  *BackgroundProcesses
-	Report FindingSink
-	Rules  []checks.Rule
-	Vision bool
-	Extra  []agent.Tool
-	Media  *media.Service
+// Dependencies are the services and policy required to build complete tools.
+type Dependencies struct {
+	StoreDir          string
+	Policy            permission.Policy
+	Gate              permission.Gate
+	authorize         func(context.Context, string, json.RawMessage) error
+	authorizeOutput   imagecontract.OutputAuthorizer
+	authorizeResource func(context.Context, string, string, json.RawMessage) error
+	checkSource       func(context.Context, string, json.RawMessage) error
+	WS                *workspace.Workspace
+	Procs             *BackgroundProcesses
+	Checks            *checks.Reporter
+	Vision            bool
+	Extra             []agent.Tool
+	Media             *media.Service
 }
 
 type toolEntry struct {
-	build    func(packageDependencies) agent.Tool
+	build    func(Dependencies) agent.Tool
 	readOnly bool
 }
 
@@ -44,8 +57,8 @@ type packageDefinition struct {
 	entries         []toolEntry
 }
 
-func nativeTools(d packageDependencies, readOnly bool) []agent.Tool {
-	d.Media = media.New(d.WS, programs.New(gektor.Sub("applications.json")))
+func nativeTools(d Dependencies, readOnly bool) []agent.Tool {
+	d = d.prepared()
 	var list []agent.Tool
 	for _, p := range builtinPackages() {
 		if p.exposure == Lazy {
@@ -68,8 +81,8 @@ func nativeTools(d packageDependencies, readOnly bool) []agent.Tool {
 // Compose constructs one agent's native instances. Optional native packages
 // are published during preparation, after saved activations have been restored.
 // Overrides are internal experiment inputs; shipping callers leave them nil.
-func Compose(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSink, rules []checks.Rule, vision bool, catalog *Capabilities, overrides map[string]Exposure, extra ...agent.Tool) (*agent.Registry, error) {
-	d := packageDependencies{WS: ws, Procs: procs, Report: report, Rules: rules, Vision: vision, Extra: extra, Media: media.New(ws, programs.New(gektor.Sub("applications.json")))}
+func Compose(d Dependencies, catalog *Capabilities, overrides map[string]Exposure) (*agent.Registry, error) {
+	d = d.prepared()
 	definitions := builtinPackages()
 	for id, exposure := range overrides {
 		optional := false
@@ -108,7 +121,7 @@ func Compose(ws *workspace.Workspace, procs *BackgroundProcesses, report Finding
 		}
 		catalog.Native = append(catalog.Native, &NativePackage{ID: p.id, Description: p.description, Instructions: nativeInstructions(p.id), Version: "1", Exposure: exposure, Tools: list, ReadOnly: readOnly})
 	}
-	all = append(all, extra...)
+	all = append(all, d.Extra...)
 	for _, tool := range all {
 		if slices.Contains(catalog.ForbiddenTools, tool.Name()) {
 			return nil, fmt.Errorf("tool %q is unavailable to this role", tool.Name())
@@ -117,5 +130,27 @@ func Compose(ws *workspace.Workspace, procs *BackgroundProcesses, report Finding
 	if err := agent.NewRegistry(all...).Err(); err != nil {
 		return nil, err
 	}
-	return agent.NewRegistry(append(baseline, extra...)...), nil
+	return agent.NewRegistry(append(baseline, d.Extra...)...), nil
+}
+
+func (d Dependencies) prepared() Dependencies {
+	if d.StoreDir == "" {
+		d.StoreDir = userdirs.Sub("workflows")
+	}
+	if len(d.Policy.Rules) == 0 {
+		d.Policy = permission.Default()
+	}
+	d.authorize, d.authorizeOutput = workflowPolicy(d.WS, d.Policy, d.Gate)
+	d.checkSource, _ = workflowPolicy(d.WS, d.Policy, nil)
+	d.authorizeResource = func(ctx context.Context, name, resource string, args json.RawMessage) error {
+		return permission.Authorize(ctx, d.Policy, d.Gate, name, resource, args)
+	}
+	if d.Media == nil {
+		d.Media = media.New(d.WS, executables.New(userdirs.Sub("applications.json")))
+	}
+	return d
+}
+
+func (d Dependencies) registry() (*workflow.Registry, error) {
+	return app.WorkflowRegistry(d.WS, d.StoreDir, d.authorizeOutput, d.authorizeResource)
 }

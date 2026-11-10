@@ -3,22 +3,23 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/gektor/internal/tui/components/pane"
 	"strings"
 
-	"github.com/keshon/gektor/internal/automation"
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/tui/components/graph"
+	"github.com/keshon/gektor/internal/tui/components/pane"
 	editor "github.com/keshon/gektor/internal/tui/workflow"
+	"github.com/keshon/gektor/internal/workflow"
 )
 
-func (m *model) workflowSelectedStep() automation.Step {
-	for _, s := range m.workflowDefinition().Steps {
-		if s.ID == m.workflows.graph.Selected {
+func (m *workflowScreen) selectedStep() workflow.Step {
+	for _, s := range m.definition().Steps {
+		if s.ID == m.graph.Selected {
 			return s
 		}
 	}
-	return automation.Step{}
+	return workflow.Step{}
 }
 
 func propertyValue(raw json.RawMessage) string {
@@ -62,12 +63,12 @@ func workflowPortLabel(n graph.Node, key string, output bool) string {
 	return key
 }
 
-func (m *model) workflowDetailRows() []string {
-	if schedule := m.workflowSelectedSchedule(); schedule != nil && m.workflows.run == nil {
-		return m.workflowScheduleDetails(*schedule)
+func (m *workflowScreen) detailRows() []string {
+	if schedule := m.selectedSchedule(); schedule != nil && m.run == nil {
+		return m.scheduleDetails(*schedule)
 	}
-	w := m.workflows
-	step := m.workflowSelectedStep()
+	w := m
+	step := m.selectedStep()
 	rows := []string{"Inspect"}
 	if step.ID == "" {
 		return append(rows, "Select a node to inspect it.")
@@ -88,12 +89,12 @@ func (m *model) workflowDetailRows() []string {
 		return append(rows, strings.Split(cleanText(string(raw)), "\n")...)
 	}
 	if w.inspectorTab == 1 {
-		return append(rows, m.workflowResultRows(step)...)
+		return append(rows, m.resultRows(step)...)
 	}
 	if w.inspectorTab == 2 {
-		return append(rows, m.workflowCodeRows(step)...)
+		return append(rows, m.codeRows(step)...)
 	}
-	e := &editor.Editor{Definition: m.workflowDefinition()}
+	e := &editor.Editor{Definition: m.definition()}
 	nodes := map[string]graph.Node{}
 	for _, n := range e.Graph(w.graph).Nodes {
 		nodes[n.ID] = n
@@ -113,7 +114,7 @@ func (m *model) workflowDetailRows() []string {
 	} else {
 		rows = append(rows, "Draft properties")
 	}
-	section := func(title string) { rows = append(rows, "", m.styles.hunk.Render(title)) }
+	section := func(title string) { rows = append(rows, "", m.ui.styles().hunk.Render(title)) }
 	valueRow := func(key, label, value string, output bool) {
 		prefix := "  "
 		if w.portSelected && w.portFocus == key && w.portOutput == output && (key != "" || output) {
@@ -121,7 +122,7 @@ func (m *model) workflowDetailRows() []string {
 		}
 		row := prefix + label + strings.Repeat(" ", max(2, 18-ansi.StringWidth(label))) + cleanText(value)
 		if prefix == "› " {
-			row = m.styles.hunk.Bold(true).Render(row)
+			row = m.ui.styles().hunk.Bold(true).Render(row)
 		}
 		rows = append(rows, row)
 	}
@@ -139,7 +140,7 @@ func (m *model) workflowDetailRows() []string {
 			field = name
 			path = "/" + rest
 		}
-		value := connectionValue(m.workflowDefinition(), step.ID, field, path)
+		value := connectionValue(m.definition(), step.ID, field, path)
 		valueRow(p.Key, p.Label, propertyValue(json.RawMessage(value)), false)
 		count++
 	}
@@ -220,8 +221,8 @@ func withoutWorkflowCode(raw json.RawMessage) json.RawMessage {
 	return b
 }
 
-func (m *model) workflowResultRows(step automation.Step) []string {
-	w := m.workflows
+func (m *workflowScreen) resultRows(step workflow.Step) []string {
+	w := m
 	if w.run == nil {
 		return []string{"No recorded result for this draft.", "", "H opens saved runs."}
 	}
@@ -234,18 +235,18 @@ func (m *model) workflowResultRows(step automation.Step) []string {
 			rows = append(rows, "", r.ID+" / "+r.Status)
 		}
 		if r.Error != "" {
-			rows = append(rows, "", m.styles.err.Render("ERROR"), cleanText(r.Error))
+			rows = append(rows, "", m.ui.styles().err.Render("ERROR"), cleanText(r.Error))
 		}
 		if len(r.Args) > 0 {
-			rows = append(rows, "", m.styles.hunk.Render("RESOLVED INPUTS"))
+			rows = append(rows, "", m.ui.styles().hunk.Render("RESOLVED INPUTS"))
 			rows = append(rows, workflowValues(withoutWorkflowCode(r.Args))...)
 		}
 		if r.Output != "" {
-			rows = append(rows, "", m.styles.hunk.Render("OUTPUT"))
+			rows = append(rows, "", m.ui.styles().hunk.Render("OUTPUT"))
 			rows = append(rows, workflowValues(json.RawMessage(r.Output))...)
 		}
 		if len(r.Iterations) > 0 {
-			rows = append(rows, "", m.styles.hunk.Render("REPEATED ITEMS"))
+			rows = append(rows, "", m.ui.styles().hunk.Render("REPEATED ITEMS"))
 			for i, item := range r.Iterations {
 				rows = append(rows, fmt.Sprintf("%d  %s", i+1, item.Status))
 				if item.Error != "" {
@@ -273,16 +274,16 @@ func workflowScript(raw json.RawMessage) (string, bool) {
 	return code, true
 }
 
-func (m *model) workflowCodeRows(step automation.Step) []string {
+func (m *workflowScreen) codeRows(step workflow.Step) []string {
 	args := step.Args
 	label := "Draft script / E edits"
-	if m.workflows.run != nil {
+	if m.run != nil {
 		label = "Frozen recipe script / read-only"
-		for _, r := range m.workflows.run.Steps {
+		for _, r := range m.run.Steps {
 			if r.ID == step.ID {
 				if _, ok := workflowScript(r.Args); ok {
 					args = r.Args
-					label = "Recorded script / " + m.workflows.run.RunID
+					label = "Recorded script / " + m.run.RunID
 				}
 				break
 			}
@@ -295,20 +296,20 @@ func (m *model) workflowCodeRows(step automation.Step) []string {
 	return append([]string{label, ""}, strings.Split(cleanText(code), "\n")...)
 }
 
-func (m *model) workflowEditCode() {
-	w := m.workflows
+func (m *workflowScreen) editCode() {
+	w := m
 	if w.run != nil || w.busy {
 		w.setNotice(pane.NoticeWarning, "Recorded scripts are read-only")
 		return
 	}
-	step := m.workflowSelectedStep()
+	step := m.selectedStep()
 	code, ok := workflowScript(step.Args)
 	if !ok {
 		w.setNotice(pane.NoticeWarning, "No literal script to edit; use node arguments for references")
 		return
 	}
 	draft := w.editor.Source()
-	m.openForm("Code / "+step.ID, "Edits the draft script. Run and validation remain separate actions.", "Apply", []formField{{Key: "code", Label: "JavaScript", Value: code, Multiline: true}}, func(v map[string]string) error {
+	m.ui.openForm("Code / "+step.ID, "Edits the draft script. Run and validation remain separate actions.", "Apply", []formField{{Key: "code", Label: "JavaScript", Value: code, Multiline: true}}, func(v map[string]string) error {
 		if w.run != nil || w.busy || w.editor.Source() != draft {
 			return fmt.Errorf("draft changed; reopen the script")
 		}
@@ -322,7 +323,7 @@ func (m *model) workflowEditCode() {
 				args["code"], _ = json.Marshal(v["code"])
 				d.Steps[i].Args, _ = json.Marshal(args)
 				w.editor.Replace(d)
-				w.graph = m.workflowGraph(w.graph)
+				w.graph = m.buildGraph(w.graph)
 				return nil
 			}
 		}

@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/keshon/gektor/internal/automation"
 	"github.com/keshon/gektor/internal/capabilities/documents"
+	"github.com/keshon/gektor/internal/workflow"
 )
 
 type Operation struct {
@@ -86,7 +86,7 @@ func (o Operation) OutputSchema() json.RawMessage {
 }
 func (o Operation) parse(args json.RawMessage) (documents.Request, error) {
 	var in documents.Request
-	if err := automation.ValidateJSON(args, o.Schema()); err != nil {
+	if err := workflow.ValidateJSON(args, o.Schema()); err != nil {
 		return in, err
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
@@ -114,7 +114,7 @@ func Names() []string            { return []string{"docx_read", "xlsx_read", "pd
 func (Operation) ReadOnly() bool { return true }
 
 func (o Operation) ValidateTemplate(raw json.RawMessage) error {
-	return automation.ValidateLiteralPaths(raw, []string{"path"}, func(path string) error {
+	return workflow.ValidateLiteralPaths(raw, []string{"path"}, func(path string) error {
 		if o.Service.WS == nil {
 			return fmt.Errorf("workspace unavailable")
 		}

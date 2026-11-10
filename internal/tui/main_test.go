@@ -1,9 +1,10 @@
 package tui
 
 import (
-	"github.com/keshon/gektor/internal/automation/script"
 	"os"
 	"testing"
+
+	"github.com/keshon/gektor/internal/workflow/script"
 )
 
 // Sessions and task directories live in the user's home directory. A test

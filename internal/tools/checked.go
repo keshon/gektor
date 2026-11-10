@@ -9,41 +9,24 @@ import (
 	"github.com/keshon/gektor/internal/workspace"
 )
 
-// FindingSink receives deterministic post-write findings. Nil disables
-// scanning. Primitive signature keeps roles/session/cli free of new
-// imports: detectors live here, delivery lives with the caller.
-type FindingSink func(rule, path string, line int, summary string)
-
-// checked decorates a file-mutating tool with post-write deterministic
-// checks (gofmt, secret scan). Report-only: findings ride the sink,
-// the tool result is untouched, and every failure mode (tool error,
-// unparseable args, missing path, unreadable file) returns the inner
-// result unchanged — fail open, never block the run on the check.
+// checked observes successful path-based writes. Reporter owns reading, limits,
+// checks and deduplication; observation never changes the tool's result.
 type checked struct {
 	inner  agent.Tool
 	ws     *workspace.Workspace
-	rules  []checks.Rule
-	report FindingSink
+	report *checks.Reporter
 }
 
-// Checked wraps inner with post-write scans, or returns it unchanged
-// when there is nowhere to report to (nil sink), nothing to scan with
-// (no rules), or nothing to resolve against (nil workspace). Zero
-// behavior change unless configured.
-func Checked(inner agent.Tool, ws *workspace.Workspace, report FindingSink, rules []checks.Rule) agent.Tool {
-	if report == nil || ws == nil || len(rules) == 0 {
+func Checked(inner agent.Tool, ws *workspace.Workspace, report *checks.Reporter) agent.Tool {
+	if report == nil || ws == nil {
 		return inner
 	}
-	return &checked{inner: inner, ws: ws, report: report, rules: rules}
+	return &checked{inner: inner, ws: ws, report: report}
 }
-
-func (c *checked) Name() string        { return c.inner.Name() }
-func (c *checked) Description() string { return c.inner.Description() }
-func (c *checked) Schema() json.RawMessage {
-	return c.inner.Schema()
-}
-func (c *checked) Mode() agent.ToolMode { return c.inner.Mode() }
-
+func (c *checked) Name() string            { return c.inner.Name() }
+func (c *checked) Description() string     { return c.inner.Description() }
+func (c *checked) Schema() json.RawMessage { return c.inner.Schema() }
+func (c *checked) Mode() agent.ToolMode    { return c.inner.Mode() }
 func (c *checked) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	out, err := c.inner.Run(ctx, args)
 	if err != nil {
@@ -52,22 +35,8 @@ func (c *checked) Run(ctx context.Context, args json.RawMessage) (string, error)
 	var in struct {
 		Path string `json:"path"`
 	}
-	if jerr := json.Unmarshal(args, &in); jerr != nil || in.Path == "" {
-		return out, err
-	}
-	full, rerr := c.ws.Resolve(in.Path)
-	if rerr != nil {
-		return out, err
-	}
-	data, rerr := c.ws.ReadFile(full)
-	if rerr != nil {
-		return out, err
-	}
-	// Shell redirections, MCP writes, and background jobs bypass this:
-	// only tool-written content addressed by "path" is scanned. The
-	// session-end sweep covers side-effect files by path instead.
-	for _, f := range checks.Scan(c.rules, in.Path, data) {
-		c.report(f.Rule, f.Path, f.Line, f.Summary)
+	if json.Unmarshal(args, &in) == nil && in.Path != "" {
+		c.report.Check(c.ws, in.Path)
 	}
 	return out, err
 }

@@ -2,6 +2,7 @@ package tui
 
 import (
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/tui/components/transcript"
 )
@@ -11,7 +12,8 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.workflowActive() && m.dialog == nil && (m.workflows.dragging || m.workflows.panning || m.workflows.thumb.active) {
-		return m.workflowMouse(msg)
+		_, cmd := m.workflows.mouse(msg)
+		return m, cmd
 	}
 	if m.sessions != nil {
 		return m.browserMouse(msg)
@@ -54,7 +56,8 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 	if m.workflowActive() && m.dialog == nil {
-		return m.workflowMouse(msg)
+		_, cmd := m.workflows.mouse(msg)
+		return m, cmd
 	}
 	if m.inspectorVisible() && (m.termW < inspectorSplitWidth || msg.Mouse().X >= m.mainWidth()) && msg.Mouse().Y >= 1 && msg.Mouse().Y < m.termH-m.actionBarRows() {
 		if handled, cmd := m.inspectorMouse(msg); handled {

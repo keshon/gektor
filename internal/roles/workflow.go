@@ -7,18 +7,15 @@ import (
 	"path/filepath"
 
 	"github.com/keshon/gektor/internal/agent"
-	workflow "github.com/keshon/gektor/internal/automation/agenttools"
 	"github.com/keshon/gektor/internal/capabilities/documents"
 	doccontract "github.com/keshon/gektor/internal/capabilities/documents/contract"
-	doctools "github.com/keshon/gektor/internal/capabilities/documents/tools"
 	"github.com/keshon/gektor/internal/capabilities/files"
 	filecontract "github.com/keshon/gektor/internal/capabilities/files/contract"
-	filetools "github.com/keshon/gektor/internal/capabilities/files/tools"
-	imagetools "github.com/keshon/gektor/internal/capabilities/images/tools"
-	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/tools"
+	"github.com/keshon/gektor/internal/userdirs"
+	workflow "github.com/keshon/gektor/internal/workflow/agenttools"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -66,23 +63,23 @@ func WorkflowAuthor(e Env, recipePath, stateFile string) (*agent.Agent, error) {
 	core := prompts.WorkflowAuthor + "\n\n" + workspace.WorkflowGuide + "\n\n" + prompts.Environment(e.WS.Root(), false)
 	cfg.System = core + project + "\n\n" + e.Identity
 	cfg.SystemSections = []llm.PromptSection{{Name: "core_instructions", Text: core}, {Name: "project_instructions", Text: project}, {Name: "identity", Text: "\n\n" + e.Identity}}
-	save := &workflow.Save{WS: e.WS, Path: path}
-	validation := &authorValidation{Tool: tools.NewWorkflow(e.WS, true, e.policy(), e.ResolveGate()), path: path}
 	storeDir := e.WorkflowDir
 	if storeDir == "" {
-		storeDir = gektor.Sub("workflows")
+		storeDir = userdirs.Sub("workflows")
 	}
-	validation.StoreDir = storeDir
+	validation := &authorValidation{Tool: tools.NewWorkflow(tools.Dependencies{WS: e.WS, Policy: e.policy(), Gate: e.Gate, StoreDir: storeDir}, true), path: path}
+	registry := validation.Registry
+	save := &workflow.Save{WS: e.WS, Path: path, Registry: registry}
 	cfg.Tools = agent.NewRegistry(
-		workflow.Schema{WS: e.WS, StoreDir: storeDir}, save,
+		workflow.Schema{WS: e.WS, StoreDir: storeDir, Registry: registry}, save,
 		validation,
 		tools.ReadFile{WS: e.WS}, tools.ListFiles{WS: e.WS},
-		doctools.Tool{Operation: doccontract.Operation{Service: documents.Service{WS: e.WS}, Kind: "docx_read"}},
-		doctools.Tool{Operation: doccontract.Operation{Service: documents.Service{WS: e.WS}, Kind: "xlsx_read"}},
-		doctools.Tool{Operation: doccontract.Operation{Service: documents.Service{WS: e.WS}, Kind: "pdf_read"}},
+		tools.DocumentOperation{Operation: doccontract.Operation{Service: documents.Service{WS: e.WS}, Kind: "docx_read"}},
+		tools.DocumentOperation{Operation: doccontract.Operation{Service: documents.Service{WS: e.WS}, Kind: "xlsx_read"}},
+		tools.DocumentOperation{Operation: doccontract.Operation{Service: documents.Service{WS: e.WS}, Kind: "pdf_read"}},
 
-		filetools.Tool{Operation: filecontract.Operation{Service: files.Service{WS: e.WS}, Kind: "archive_list"}},
-		imagetools.NewTool(e.WS, "inspect"), imagetools.NewTool(e.WS, "preview"),
+		tools.FileOperation{Operation: filecontract.Operation{Service: files.Service{WS: e.WS}, Kind: "archive_list"}},
+		tools.NewImageOperation(e.WS, "inspect"), tools.NewImageOperation(e.WS, "preview"),
 	)
 	cfg.Resources = func(name string, args json.RawMessage) ([]string, error) {
 		if name == "workflow_save" {

@@ -9,14 +9,15 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/gektor/internal/run"
+
+	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
 func TestSendingMessageRestoresHistoryFollow(t *testing.T) {
 	m := scrollModel(t, 120, 30)
 	m.state = stRunning
-	m.sess = &run.Session{}
+	m.sess = &harness.Session{}
 	m.transcript.Follow = false
 	m.transcript.Viewport.GotoTop()
 	m.input.SetValue("Continue with these requirements")

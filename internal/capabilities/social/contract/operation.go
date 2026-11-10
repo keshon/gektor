@@ -5,8 +5,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/keshon/gektor/internal/automation"
 	"github.com/keshon/gektor/internal/capabilities/social"
+	"github.com/keshon/gektor/internal/workflow"
 )
 
 const Name = "social_read_post"
@@ -31,7 +31,7 @@ func (Operation) OutputSchema() json.RawMessage {
 }
 func (o Operation) parse(raw json.RawMessage) (social.Request, error) {
 	var in social.Request
-	if err := automation.ValidateJSON(raw, o.Schema()); err != nil {
+	if err := workflow.ValidateJSON(raw, o.Schema()); err != nil {
 		return in, err
 	}
 	if err := json.Unmarshal(raw, &in); err != nil {

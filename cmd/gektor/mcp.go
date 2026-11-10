@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/mcpmanager"
+	"github.com/keshon/gektor/internal/userdirs"
 )
 
 func runMCP(args []string) error {
@@ -20,7 +20,7 @@ func runMCP(args []string) error {
 	if e != nil {
 		return e
 	}
-	m, e := mcpmanager.New(gektor.Sub("mcp"), workspace, gektor.Sub("credentials"), nil)
+	m, e := mcpmanager.New(userdirs.Sub("mcp"), workspace, userdirs.Sub("credentials"), nil)
 	if e != nil {
 		return e
 	}

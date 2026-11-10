@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/keshon/gektor/internal/automation"
 	"github.com/keshon/gektor/internal/capabilities/images"
+	"github.com/keshon/gektor/internal/workflow"
 )
 
 type OutputAuthorizer func(context.Context, string, json.RawMessage) error
@@ -56,7 +56,7 @@ func (o Operation) Schema() json.RawMessage {
 
 func (o Operation) parse(raw json.RawMessage) (images.Request, error) {
 	var in images.Request
-	if err := automation.ValidateJSON(raw, o.Schema()); err != nil {
+	if err := workflow.ValidateJSON(raw, o.Schema()); err != nil {
 		return in, err
 	}
 	if err := json.Unmarshal(raw, &in); err != nil {
@@ -94,7 +94,7 @@ func (o Operation) OutputSchema() json.RawMessage {
 func Names() []string { return []string{"inspect", "preview", "variants", "compare"} }
 
 func (o Operation) ValidateTemplate(raw json.RawMessage) error {
-	return automation.ValidateLiteralPaths(raw, []string{"paths", "out_dir"}, func(path string) error {
+	return workflow.ValidateLiteralPaths(raw, []string{"paths", "out_dir"}, func(path string) error {
 		if o.Service.WS == nil {
 			return fmt.Errorf("workspace unavailable")
 		}

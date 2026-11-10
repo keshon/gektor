@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
-	"github.com/keshon/gektor/internal/session"
 )
 
 type largeRead struct{}
@@ -45,7 +45,7 @@ func TestAutoCompactIncludesNewestToolOutput(t *testing.T) {
 			t.Fatal("sent old history after the newest result crossed the threshold")
 		}
 	}
-	saved, err := session.Load(path)
+	saved, err := conversation.Load(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestCompactFile_ShrinksSnapshot(t *testing.T) {
 	for i := 0; i < 15; i++ {
 		history = append(history, assistantStep("c")...)
 	}
-	raw, err := json.MarshalIndent(history, "", "  ")
+	raw, err := json.MarshalIndent(conversation.New(history), "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestCompactFile_MissingSnapshotErrors(t *testing.T) {
 // session.
 func TestCompactFile_CorruptSnapshotErrors(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
-	if err := session.WriteSnapshot(path, []llm.Message{{Role: llm.RoleUser, Content: "task"}}); err != nil {
+	if err := conversation.WriteSnapshot(path, []llm.Message{{Role: llm.RoleUser, Content: "task"}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, []byte("broken"), 0600); err != nil {
@@ -150,7 +150,7 @@ func TestCompactFile_ShrinksASnapshot(t *testing.T) {
 	for i := 0; i < 15; i++ {
 		history = append(history, assistantStep("c")...)
 	}
-	if err := session.WriteSnapshot(path, history); err != nil {
+	if err := conversation.WriteSnapshot(path, history); err != nil {
 		t.Fatal(err)
 	}
 

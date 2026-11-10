@@ -7,6 +7,7 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/lipgloss/v2"
+
 	"github.com/keshon/gektor/internal/providers"
 	"github.com/keshon/gektor/internal/tui/components/cell"
 	"github.com/keshon/gektor/internal/tui/components/form"
@@ -39,12 +40,12 @@ func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 	if f.Picker != nil {
 		return f.PickerRows(props)
 	}
-	if f.Workspace == nil {
+	if f.EditSession == nil {
 		return f.PlainRows(props)
 	}
 	rows, hits := f.Model.Rows(form.Props{
 		Title:        "Settings / " + f.sectionLabel(),
-		Hint:         Hint(f.Workspace.Section),
+		Hint:         Hint(f.EditSession.Section),
 		Error:        f.Error,
 		PrimaryLabel: f.ApplyLabel,
 		Width:        props.Width,
@@ -66,7 +67,7 @@ func (f *Model) Rows(props Props) ([]string, []form.Hit, int, int) {
 
 // sectionLabel names the section for the title line.
 func (f *Model) sectionLabel() string {
-	return SectionTitle(f.Workspace.Section)
+	return SectionTitle(f.EditSession.Section)
 }
 
 // choice is the label of the focused field's fixed options, if it has any.
@@ -80,12 +81,12 @@ func (f *Model) choice() string {
 // note is the line above the buttons when nothing has gone wrong.
 func (f *Model) note() string {
 	if d, err := providers.Lookup(f.providerKind()); err == nil && d.Auth == providers.ChatGPTAccount {
-		if f.Workspace.Section == "generation" {
+		if f.EditSession.Section == "generation" {
 			return "Effort choices come from this model; thinking shows a summary when available"
 		}
-		if f.Workspace.Section == "model" {
-			if f.Workspace.AccountLabel != "" {
-				return "Account: " + f.Workspace.AccountLabel + " | gektor auth login/logout"
+		if f.EditSession.Section == "model" {
+			if f.EditSession.AccountLabel != "" {
+				return "Account: " + f.EditSession.AccountLabel + " | gektor auth login/logout"
 			}
 			return "Connect: gektor auth login | Account: gektor auth status"
 		}
@@ -93,11 +94,11 @@ func (f *Model) note() string {
 	switch {
 	case f.Error != "":
 		return ""
-	case f.Workspace.Section == "generation":
+	case f.EditSession.Section == "generation":
 		return "Temperature: default uses " + strconv.FormatFloat(DefaultTemperature, 'g', -1, 64)
-	case f.Workspace.Section == "profiles":
+	case f.EditSession.Section == "profiles":
 		return "Ctrl+D saves a copy · Apply uses the loaded profile in this session"
-	case f.Workspace.PersistCurrent:
+	case f.EditSession.PersistCurrent:
 		return "Apply saves the current launch settings"
 	case f.Dirty():
 		return "Apply saves a custom profile"

@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
 	"github.com/keshon/gektor/internal/tools"
 )
 
@@ -26,7 +26,7 @@ func TestConversationRestoresBrowserReferenceWithoutStartingBrowser(t *testing.T
 	if _, err := a.Run(t.Context(), "task"); err != nil {
 		t.Fatal(err)
 	}
-	saved, err := session.Load(path)
+	saved, err := conversation.Load(path)
 	if err != nil || saved.Browser == nil || saved.Browser.Profile != "work" || len(saved.Capabilities) != 1 || saved.Capabilities[0].ID != tools.NativeWeb {
 		t.Fatal(saved, err)
 	}

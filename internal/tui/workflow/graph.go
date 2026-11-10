@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/keshon/gektor/internal/automation/recipe"
 	"github.com/keshon/gektor/internal/tui/components/graph"
+	"github.com/keshon/gektor/internal/workflow/recipe"
 )
 
 func inputPort(c Connection) string {

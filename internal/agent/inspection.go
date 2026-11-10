@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
 )
 
 type contextInspectionKey struct{}
@@ -26,8 +26,8 @@ type ContextSkill struct {
 // ContextInspection is captured before one model request. Tool batches share
 // this immutable view, including when another call activates new tools.
 type ContextInspection struct {
-	Request   session.RequestManifest
-	Prompts   []session.PromptRevision
+	Request   conversation.RequestManifest
+	Prompts   []conversation.PromptRevision
 	Tools     []ContextTool
 	Skills    []ContextSkill
 	Directive string
@@ -43,7 +43,7 @@ func InspectionFrom(ctx context.Context) (*ContextInspection, bool) {
 
 func (a *Agent) recordInspection(req llm.ChatRequest) {
 	v := &ContextInspection{}
-	r := session.RequestManifest{Number: a.requests, ArchiveMessages: len(a.snapshot.History), Compacted: a.snapshot.ContextStart > 0, Included: []session.MessageRange{}}
+	r := conversation.RequestManifest{Number: a.requests, ArchiveMessages: len(a.snapshot.History), Compacted: a.snapshot.ContextStart > 0, Included: []conversation.MessageRange{}}
 	system := ""
 	calls := map[string]llm.ToolCall{}
 	seenSkills := map[string]bool{}
@@ -77,7 +77,7 @@ func (a *Agent) recordInspection(req llm.ChatRequest) {
 		if n := len(r.Included); n > 0 && r.Included[n-1].End+1 == id {
 			r.Included[n-1].End = id
 		} else {
-			r.Included = append(r.Included, session.MessageRange{Start: id, End: id})
+			r.Included = append(r.Included, conversation.MessageRange{Start: id, End: id})
 		}
 		if id <= len(a.snapshot.History) {
 			original := a.snapshot.History[id-1]
@@ -104,6 +104,6 @@ func (a *Agent) recordInspection(req llm.ChatRequest) {
 	slices.SortFunc(v.Tools, func(a, b ContextTool) int {
 		return strings.Compare(a.Name, b.Name)
 	})
-	v.Request, v.Prompts = r, append([]session.PromptRevision(nil), a.snapshot.Prompts...)
+	v.Request, v.Prompts = r, append([]conversation.PromptRevision(nil), a.snapshot.Prompts...)
 	a.snapshot.LastRequest, a.inspection = &r, v
 }

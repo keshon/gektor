@@ -10,9 +10,9 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/session"
 	"github.com/keshon/gektor/internal/tools"
 )
 
@@ -69,14 +69,14 @@ func TestExtensionResumeCompactionAndCurrentPermissions(t *testing.T) {
 	if _, err := Interactive(e, "", state, nil, nil).Run(t.Context(), "Look up alpha"); err != nil {
 		t.Fatal(err)
 	}
-	saved, err := session.Load(state)
+	saved, err := conversation.Load(state)
 	if err != nil || len(saved.Capabilities) != 2 || calls != 1 {
 		t.Fatal(saved.Capabilities, err, calls)
 	}
 	if _, _, _, err := agent.CompactFile(state, 1); err != nil {
 		t.Fatal(err)
 	}
-	saved, err = session.Load(state)
+	saved, err = conversation.Load(state)
 	if err != nil || len(saved.Capabilities) != 2 {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func TestExtensionResumeCompactionAndCurrentPermissions(t *testing.T) {
 		t.Fatal("resume connected optional adapter", err, loads)
 	}
 	for _, deny := range []bool{true, false} {
-		saved, err = session.Load(state)
+		saved, err = conversation.Load(state)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -123,7 +123,7 @@ func TestExtensionResumeCompactionAndCurrentPermissions(t *testing.T) {
 	}
 }
 
-func TestUnavailableLegacyExtensionDoesNotAbortCodingConversation(t *testing.T) {
+func TestTranscriptDoesNotRestoreUnpersistedCapabilities(t *testing.T) {
 	e := testEnv(t)
 	loads, calls := 0, 0
 	e.Capabilities = []*tools.Capability{fixtureCapability(&loads, &calls, true)}
@@ -131,7 +131,7 @@ func TestUnavailableLegacyExtensionDoesNotAbortCodingConversation(t *testing.T) 
 	failed := false
 	history := []llm.Message{{Role: llm.RoleSystem, Content: "system"}, {Role: llm.RoleUser, Content: "task"}, extensionCall("enable", "enable_capability", `{"id":"fixture"}`).Message, {Role: llm.RoleTool, ToolCallID: "enable", Content: "enabled", ToolFailed: &failed}, extensionAnswer().Message}
 	state := filepath.Join(t.TempDir(), "state.json")
-	if err := session.WriteSnapshot(state, history); err != nil {
+	if err := conversation.WriteSnapshot(state, history); err != nil {
 		t.Fatal(err)
 	}
 	warned := false
@@ -140,7 +140,7 @@ func TestUnavailableLegacyExtensionDoesNotAbortCodingConversation(t *testing.T) 
 			warned = true
 		}
 	}
-	if _, err := Interactive(e, "", state, nil, nil).Resume(t.Context(), history, "Continue explaining the code"); err != nil || !warned || loads != 1 {
+	if _, err := Interactive(e, "", state, nil, nil).Resume(t.Context(), history, "Continue explaining the code"); err != nil || warned || loads != 0 {
 		t.Fatal(err, warned, loads)
 	}
 }

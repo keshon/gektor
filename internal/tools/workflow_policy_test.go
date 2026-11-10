@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/keshon/gektor/internal/automation/store"
 	"image"
 	"image/png"
 	"os"
@@ -12,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/workflow/store"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -22,7 +22,7 @@ func TestWorkflowCannotBypassNestedToolDeny(t *testing.T) {
 	}
 	defer ws.Close()
 	c := &Capabilities{}
-	r, err := Compose(ws, nil, nil, nil, false, c, nil)
+	r, err := Compose(Dependencies{WS: ws, Vision: false}, c, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,8 @@ func TestWorkflowCannotBypassNestedToolDeny(t *testing.T) {
 	if r.Has("image_inspect") || r.Has("workflow_run") {
 		t.Fatal("optional schemas loaded eagerly")
 	}
-	BindWorkflowPolicy(c, ws, permission.Policy{Rules: []permission.Rule{{Tool: "image_inspect", Pattern: "*", Effect: permission.Deny}}}, nil, t.TempDir())
+	c = policyCatalog(t, Dependencies{WS: ws, Policy: permission.Policy{Rules: []permission.Rule{{Tool: "image_inspect", Pattern: "*", Effect: permission.Deny}}}, Gate: nil, StoreDir: t.TempDir()})
+	r = c.Registry
 	if _, err := c.Enable(t.Context(), "native_workflows", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -56,12 +57,13 @@ func TestScheduleDiscoveryAndRecipeReadPermissions(t *testing.T) {
 	}
 	defer ws.Close()
 	c := &Capabilities{}
-	r, err := Compose(ws, nil, nil, nil, false, c, nil)
+	r, err := Compose(Dependencies{WS: ws, Vision: false}, c, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	c.Registry = r
-	BindWorkflowPolicy(c, ws, permission.Policy{Rules: []permission.Rule{{Tool: "read_file", Pattern: "*", Effect: permission.Deny}}}, nil, t.TempDir())
+	c = policyCatalog(t, Dependencies{WS: ws, Policy: permission.Policy{Rules: []permission.Rule{{Tool: "read_file", Pattern: "*", Effect: permission.Deny}}}, Gate: nil, StoreDir: t.TempDir()})
+	r = c.Registry
 	if _, err := c.Enable(t.Context(), "native_workflows", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -95,12 +97,13 @@ func TestGeneratedOutputFilenameCannotBypassPermission(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := &Capabilities{}
-	r, err := Compose(ws, nil, nil, nil, false, c, nil)
+	r, err := Compose(Dependencies{WS: ws, Vision: false}, c, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	c.Registry = r
-	BindWorkflowPolicy(c, ws, permission.Policy{Rules: []permission.Rule{{Tool: "image_variants", Pattern: "out/input-8w.png", Effect: permission.Deny}}}, nil, t.TempDir())
+	c = policyCatalog(t, Dependencies{WS: ws, Policy: permission.Policy{Rules: []permission.Rule{{Tool: "image_variants", Pattern: "out/input-8w.png", Effect: permission.Deny}}}, Gate: nil, StoreDir: t.TempDir()})
+	r = c.Registry
 	for _, id := range []string{"native_images", "native_workflows"} {
 		if _, err := c.Enable(t.Context(), id, nil); err != nil {
 			t.Fatal(err)
@@ -128,7 +131,7 @@ func TestScheduleStatusSourceComparisonNeverOpensApprovalGate(t *testing.T) {
 	}
 	defer ws.Close()
 	c := &Capabilities{}
-	r, err := Compose(ws, nil, nil, nil, false, c, nil)
+	r, err := Compose(Dependencies{WS: ws, Vision: false}, c, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,10 +151,11 @@ func TestScheduleStatusSourceComparisonNeverOpensApprovalGate(t *testing.T) {
 	}
 	for _, effect := range []permission.Effect{permission.Allow, permission.Ask, permission.Deny} {
 		gates := 0
-		BindWorkflowPolicy(c, ws, permission.Policy{Rules: []permission.Rule{{Tool: "read_file", Pattern: "*", Effect: effect}}}, func(context.Context, string, string, json.RawMessage) (permission.Effect, error) {
+		c = policyCatalog(t, Dependencies{WS: ws, Policy: permission.Policy{Rules: []permission.Rule{{Tool: "read_file", Pattern: "*", Effect: effect}}}, Gate: func(context.Context, string, string, json.RawMessage) (permission.Effect, error) {
 			gates++
 			return permission.Allow, nil
-		}, base)
+		}, StoreDir: base})
+		r = c.Registry
 		if _, err := c.Enable(t.Context(), "native_workflows", nil); err != nil {
 			t.Fatal(err)
 		}

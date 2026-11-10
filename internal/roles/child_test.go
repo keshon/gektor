@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
 )
 
 func TestDelegatedRunHasSeparateEventsAndSavedHistory(t *testing.T) {
@@ -36,7 +36,7 @@ func TestDelegatedRunHasSeparateEventsAndSavedHistory(t *testing.T) {
 	if len(parent) != 2 || len(child) != 1 || child[0].Content != "child evidence" {
 		t.Fatal(parent, child)
 	}
-	snapshot, err := session.Load(session.ChildStatePath(path, "delegate-1"))
+	snapshot, err := conversation.Load(conversation.ChildStatePath(path, "delegate-1"))
 	if err != nil || len(snapshot.History) < 3 {
 		t.Fatal(snapshot, err)
 	}

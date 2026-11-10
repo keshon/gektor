@@ -6,13 +6,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
 )
 
 func TestReadHistorySearchAndOriginalPaging(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
-	s := session.New([]llm.Message{{Role: llm.RoleUser, Content: "task"}, {Role: llm.RoleTool, Content: "verification FAILED"}, {Role: llm.RoleAssistant, Content: "failed to finish"}})
+	s := conversation.New([]llm.Message{{Role: llm.RoleUser, Content: "task"}, {Role: llm.RoleTool, Content: "verification FAILED"}, {Role: llm.RoleAssistant, Content: "failed to finish"}})
 	if err := s.Save(path); err != nil {
 		t.Fatal(err)
 	}
@@ -28,8 +28,8 @@ func TestReadHistorySearchAndOriginalPaging(t *testing.T) {
 		t.Fatal("archive source missing", out)
 	}
 	var result struct {
-		Next     int                  `json:"next_start"`
-		Messages []session.HistoryRow `json:"messages"`
+		Next     int                       `json:"next_start"`
+		Messages []conversation.HistoryRow `json:"messages"`
 	}
 	if json.Unmarshal([]byte(out), &result) != nil || err != nil || result.Next != 3 || result.Messages[0].ID != 2 {
 		t.Fatal(out, err)
@@ -42,8 +42,8 @@ func TestReadHistorySearchAndOriginalPaging(t *testing.T) {
 func TestReadHistorySelectsOnlyOwnDelegateArchive(t *testing.T) {
 	dir := t.TempDir()
 	parent := filepath.Join(dir, "state.json")
-	child := session.ChildStatePath(parent, "call-1")
-	if err := session.New([]llm.Message{{Role: llm.RoleTool, ToolCallID: "check", Content: "exit_code: 1; actual failure"}}).Save(child); err != nil {
+	child := conversation.ChildStatePath(parent, "call-1")
+	if err := conversation.New([]llm.Message{{Role: llm.RoleTool, ToolCallID: "check", Content: "exit_code: 1; actual failure"}}).Save(child); err != nil {
 		t.Fatal(err)
 	}
 	tool := ReadHistory{Path: parent}

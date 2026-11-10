@@ -9,14 +9,15 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/providers"
 	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/tui/settings"
-	"github.com/keshon/gektor/internal/workspace"
 )
 
 type formField = form.Field
@@ -64,7 +65,7 @@ func (m *model) openRemoval(title, hint, label string, fields []formField, apply
 }
 func (m *model) applyForm() {
 	f := m.dialog.form
-	if f.Workspace != nil && !m.settingsDirty() {
+	if f.EditSession != nil && !m.settingsDirty() {
 		return
 	}
 	values := f.Values()
@@ -110,7 +111,7 @@ func (m *model) editSettings(section string) {
 	}
 	var ws *settingsWorkspace
 	if m.dialog != nil && m.dialog.form != nil {
-		ws = m.dialog.form.Workspace
+		ws = m.dialog.form.EditSession
 		if ws != nil {
 			m.storeSettingsPage()
 		}
@@ -151,7 +152,7 @@ func (m *model) editSettings(section string) {
 		// reads the old one must not keep running against the new.
 		return m.requestProfileChange(profile)
 	})
-	m.dialog.form.Workspace = ws
+	m.dialog.form.EditSession = ws
 	m.dialog.form.DiscoverModels = remoteModelChoices
 	m.dialog.form.DiscoverReasoning = remoteReasoningChoices
 	saved := ws.Draft.Visit(section, fields)
@@ -164,11 +165,11 @@ func (m *model) editSettings(section string) {
 func (m *model) renameActive() {
 	dir, title := filepath.Dir(m.stateFile), m.activeSessionTitle()
 	m.openForm("Rename session", "Changes the title only; history stays intact.", "Rename", []formField{{Key: "title", Label: "Session title", Value: title, Multiline: false}}, func(values map[string]string) error {
-		title := workspace.TitleLine(values["title"])
+		title := conversation.TitleLine(values["title"])
 		if title == "" {
 			return fmt.Errorf("title cannot be blank")
 		}
-		if err := workspace.WriteSessionTitle(dir, title); err != nil {
+		if err := conversation.WriteSessionTitle(dir, title); err != nil {
 			return err
 		}
 		m.updateSessionTitle(dir, title)

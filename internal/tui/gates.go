@@ -8,9 +8,10 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/run"
 	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/tui/components/gate"
 	"github.com/keshon/gektor/internal/tui/components/popup"
@@ -260,7 +261,7 @@ func (m *model) gateBar() string {
 	}
 }
 
-func (m *model) contextGate(hub *run.GateHub, ws *workspace.Workspace) func(context.Context, string, string, json.RawMessage) (permission.Effect, error) {
+func (m *model) contextGate(hub *harness.GateHub, ws *workspace.Workspace) func(context.Context, string, string, json.RawMessage) (permission.Effect, error) {
 	return func(runCtx context.Context, tool, resource string, args json.RawMessage) (permission.Effect, error) {
 		key := [2]string{tool, resource}
 		m.alwaysMu.Lock()
@@ -274,7 +275,7 @@ func (m *model) contextGate(hub *run.GateHub, ws *workspace.Workspace) func(cont
 			evidence := tools.FullApproval(ws, tool, args)
 			// This private UI event bypasses the run/archive event publisher.
 			select {
-			case m.events <- run.Event{Name: "_permission_preview", Fields: map[string]any{"text": evidence.Text}}:
+			case m.events <- harness.Event{Name: "_permission_preview", Fields: map[string]any{"text": evidence.Text}}:
 			case <-runCtx.Done():
 				return permission.Deny, runCtx.Err()
 			}

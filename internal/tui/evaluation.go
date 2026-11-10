@@ -11,7 +11,8 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/keshon/gektor/internal/retrospect"
+
+	"github.com/keshon/gektor/internal/retrospective"
 )
 
 // A review owns only its dialog and context. It cannot replace the task's
@@ -21,10 +22,10 @@ type evaluationJob struct {
 	cancel   context.CancelFunc
 	started  time.Time
 	mu       sync.Mutex
-	progress retrospect.Progress
+	progress retrospective.Progress
 }
 
-func (j *evaluationJob) update(progress retrospect.Progress) {
+func (j *evaluationJob) update(progress retrospective.Progress) {
 	j.mu.Lock()
 	j.progress = progress
 	j.mu.Unlock()
@@ -51,7 +52,7 @@ func (m *model) refreshEvaluation() {
 
 type evaluationDoneMsg struct {
 	job    *evaluationJob
-	result retrospect.Result
+	result retrospective.Result
 	err    error
 }
 
@@ -71,14 +72,14 @@ func (m *model) evaluate(arg string) (tea.Model, tea.Cmd) {
 		base = context.Background()
 	}
 	ctx, cancel := context.WithCancel(base)
-	job := &evaluationJob{cancel: cancel, started: time.Now(), progress: retrospect.Progress{Stage: "Loading saved archive", Steps: 12}}
-	config := retrospect.Config{Client: m.baseEnv.Client, Workspace: m.ws, StateFile: m.stateFile, Scope: selection, Focus: strings.TrimSpace(focus), ContextLimit: m.limit, MaxTokens: m.baseEnv.MaxTokens}
+	job := &evaluationJob{cancel: cancel, started: time.Now(), progress: retrospective.Progress{Stage: "Loading saved archive", Steps: 12}}
+	config := retrospective.Config{Client: m.baseEnv.Client, Workspace: m.ws, StateFile: m.stateFile, Scope: selection, Focus: strings.TrimSpace(focus), ContextLimit: m.limit, MaxTokens: m.baseEnv.MaxTokens}
 	m.openDialog("Session evaluation", []string{"Reviewing the saved archive in a separate context…", "", "Keep this window open until the evaluation finishes.", "Closing it cancels the evaluation. The original task remains unchanged."})
 	m.evaluation = job
 	config.OnProgress = job.update
 	m.refreshEvaluation()
 	return m, func() tea.Msg {
-		result, err := retrospect.Evaluate(ctx, config)
+		result, err := retrospective.Evaluate(ctx, config)
 		return evaluationDoneMsg{job: job, result: result, err: err}
 	}
 }
@@ -148,7 +149,7 @@ func (m *model) learn(arg string) (tea.Model, tea.Cmd) {
 		}
 		failureData, failureErr := os.ReadFile(filepath.Join(filepath.Dir(m.stateFile), "evaluation-failure.json"))
 		if failureErr == nil {
-			var failure retrospect.Failure
+			var failure retrospective.Failure
 			if err := json.Unmarshal(failureData, &failure); err != nil {
 				m.openDialog("Cannot read review diagnostics", []string{err.Error()})
 			} else {
@@ -160,7 +161,7 @@ func (m *model) learn(arg string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		data, err := os.ReadFile(filepath.Join(filepath.Dir(m.stateFile), "evaluation.json"))
-		var r retrospect.Result
+		var r retrospective.Result
 		if err == nil {
 			err = json.Unmarshal(data, &r)
 		}
@@ -182,12 +183,12 @@ func (m *model) learn(arg string) (tea.Model, tea.Cmd) {
 			m.appendBlock(markerBlock("No newly saved lesson to undo in this workspace."))
 			return m, nil
 		}
-		if err := retrospect.Undo(m.lessonRoot, m.lastLesson); err != nil {
+		if err := retrospective.Undo(m.lessonRoot, m.lastLesson); err != nil {
 			m.appendBlock(errorBlock(err.Error()))
 			return m, nil
 		}
 		m.appendBlock(markerBlock("Lesson disabled for future discovery. Evidence retained. Start a new session if it was already loaded into this conversation."))
-		m.lastLesson = retrospect.Lesson{}
+		m.lastLesson = retrospective.Lesson{}
 		return m, nil
 	}
 	next, cmd := m.evaluate(arg)
@@ -197,7 +198,7 @@ func (m *model) learn(arg string) (tea.Model, tea.Cmd) {
 	return next, cmd
 }
 
-func (m *model) reviewLesson(r retrospect.Result) {
+func (m *model) reviewLesson(r retrospective.Result) {
 	if m.dialog != nil {
 		m.closeDialog()
 	}
@@ -212,7 +213,7 @@ func (m *model) reviewLesson(r retrospect.Result) {
 	m.dialog.review = func() { m.editLesson(r) }
 }
 
-func (m *model) editLesson(r retrospect.Result) {
+func (m *model) editLesson(r retrospective.Result) {
 	if m.dialog != nil {
 		m.closeDialog()
 	}
@@ -225,13 +226,13 @@ func (m *model) editLesson(r retrospect.Result) {
 	})
 }
 
-func (m *model) saveLesson(r retrospect.Result, when, procedure string) error {
+func (m *model) saveLesson(r retrospective.Result, when, procedure string) error {
 	root, stateFile := m.ws.Root(), m.stateFile
 	ctx := m.base
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	lesson, err := retrospect.Approve(ctx, root, stateFile, r, when, procedure)
+	lesson, err := retrospective.Approve(ctx, root, stateFile, r, when, procedure)
 	if err != nil {
 		return err
 	}

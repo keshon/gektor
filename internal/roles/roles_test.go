@@ -76,7 +76,7 @@ func TestProcessKillCommandsRequireApprovalInBothExecutionModes(t *testing.T) {
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: "Blocked."}},
 	}}
 	asked, blocked := 0, 0
-	e.GateContext = func(_ context.Context, tool, resource string, _ json.RawMessage) (permission.Effect, error) {
+	e.Gate = func(_ context.Context, tool, resource string, _ json.RawMessage) (permission.Effect, error) {
 		asked++
 		if !strings.Contains(resource, "taskkill") {
 			t.Fatalf("command arguments absent from permission resource: %s", resource)
@@ -213,7 +213,7 @@ func TestSubagent_ObserverHooksStaySilent(t *testing.T) {
 func TestRoleSystemToolsResolve(t *testing.T) {
 	e := testEnv(t)
 	universe := map[string]bool{"ask_user": true, "delegate_task": true}
-	for _, n := range tools.Base(e.WS, e.Procs, nil, nil, false).Names() {
+	for _, n := range tools.Base(e.WS, e.Procs, nil, false).Names() {
 		universe[n] = true
 	}
 	for _, n := range tools.ReadOnly(e.WS, e.Procs, false).Names() {

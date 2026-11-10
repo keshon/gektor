@@ -1,73 +1,19 @@
 package events
 
-import (
-	"bytes"
-	"encoding/json"
-	"io"
-)
-
 // The wire vocabulary. Every JSONL event that needs nothing but strings
 // is declared here beside the Emitter that writes it, so a new event kind
 // and its schema cannot land in different packages.
 //
-// These used to live in internal/api, which put the wire format on the far
-// side of the run driver from the emitter that writes it. EmitStep and
-// EmitUsage stayed with the run: they take llm types, and this package is
-// a leaf by an enforced invariant (docs/conventions.md, package-layers).
+// EmitStep and EmitUsage live in harness because they use llm types; this
+// package remains independent of execution and provider contracts.
 
-// Event is one decoded JSONL event: the name plus its fields, including
-// any emitted alongside it.
+// Event carries native Go values in process. Wire adapters serialize the same
+// name, sequence and fields as JSONL. Published nested payloads are immutable.
 type Event struct {
 	Name   string
 	Seq    int
 	Fields map[string]any
 }
-
-// callbackWriter decodes each JSONL line back into an onEvent call,
-// preserving the emitter-assigned sequence numbers. Serializing through
-// the emitter's own encoding keeps -mode json output and in-process
-// events on one schema by construction: they cannot drift apart.
-type callbackWriter struct {
-	buf     bytes.Buffer
-	onEvent func(Event)
-}
-
-func (w *callbackWriter) Write(p []byte) (int, error) {
-	n, err := w.buf.Write(p)
-	if err != nil {
-		return n, err
-	}
-	for {
-		line, err := w.buf.ReadString('\n')
-		if err != nil {
-			break
-		}
-		var rec map[string]any
-		if jerr := json.Unmarshal([]byte(line), &rec); jerr != nil {
-			continue
-		}
-		name, _ := rec["event"].(string)
-		ev := Event{Name: name, Fields: map[string]any{}}
-		for k, v := range rec {
-			switch k {
-			case "event":
-			case "seq":
-				if f, ok := v.(float64); ok {
-					ev.Seq = int(f)
-				}
-			default:
-				ev.Fields[k] = v
-			}
-		}
-		if w.onEvent != nil {
-			w.onEvent(ev)
-		}
-	}
-	return n, nil
-}
-
-// EventWriter adapts the shared JSONL emitter to an in-process event sink.
-func EventWriter(onEvent func(Event)) io.Writer { return &callbackWriter{onEvent: onEvent} }
 
 // EmitFinding writes one deterministic-check finding. Scope is "per-edit"
 // (post-write scan) or "session-end" (deep sweep).

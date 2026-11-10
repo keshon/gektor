@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 )
@@ -13,12 +14,12 @@ import (
 func TestWorkflowUpdatesReplaceNoticeSeverity(t *testing.T) {
 	m := workflowTestModel(t)
 	w := m.workflows
-	m.acceptWorkflowResult(workflowResult{err: errors.New("cannot save recipe")})
+	m.workflows.acceptResult(workflowResult{err: errors.New("cannot save recipe")})
 	if w.noticeLevel != pane.NoticeError || w.notice != "cannot save recipe" || m.dialog == nil {
 		t.Fatal("failure lost its error notice or details dialog")
 	}
 	m.closeDialog()
-	m.acceptWorkflowResult(workflowResult{})
+	m.workflows.acceptResult(workflowResult{})
 	if w.noticeLevel != pane.NoticeInfo || w.notice != "Ready" {
 		t.Fatal("normal update inherited the previous failure")
 	}
@@ -26,7 +27,7 @@ func TestWorkflowUpdatesReplaceNoticeSeverity(t *testing.T) {
 		status string
 		level  pane.NoticeLevel
 	}{{"completed", pane.NoticeSuccess}, {"failed", pane.NoticeError}, {"cancelled", pane.NoticeWarning}, {"running", pane.NoticeInfo}} {
-		m.acceptWorkflowResult(workflowResult{text: `{"status":"` + item.status + `"}`})
+		m.workflows.acceptResult(workflowResult{text: `{"status":"` + item.status + `"}`})
 		if w.noticeLevel != item.level || !strings.Contains(w.notice, item.status) {
 			t.Fatalf("run status %s has the wrong notice: %s (%d)", item.status, w.notice, w.noticeLevel)
 		}
@@ -41,7 +42,7 @@ func TestWorkflowErrorFooterFitsEveryTheme(t *testing.T) {
 		m.applyTheme(theme)
 		for _, size := range [][2]int{{40, 20}, {80, 24}, {120, 40}, {160, 50}} {
 			sizeModelTo(t, m, size[0], size[1])
-			m.acceptWorkflowResult(workflowResult{text: `{"status":"failed"}`})
+			m.workflows.acceptResult(workflowResult{text: `{"status":"failed"}`})
 			view := ansi.Strip(m.View().Content)
 			if !strings.Contains(view, "Error: Run: failed") {
 				t.Fatalf("%s %v: workflow failure is missing", theme, size)

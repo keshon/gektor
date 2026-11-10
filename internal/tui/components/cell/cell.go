@@ -53,12 +53,5 @@ func Width(text string) int {
 // Truncate shortens text to n cells with a marker. Unlike Line it does not
 // pad, so it is for values rather than columns.
 func Truncate(text string, n int) string {
-	count := 0
-	for i := range text {
-		if count >= max(n, 0) {
-			return text[:i] + "…"
-		}
-		count++
-	}
-	return text
+	return ansi.Truncate(text, max(n, 0), "…")
 }

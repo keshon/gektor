@@ -10,8 +10,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/keshon/gektor/internal/automation"
-	workflow "github.com/keshon/gektor/internal/automation/agenttools"
+	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/workflow"
+	workflowtools "github.com/keshon/gektor/internal/workflow/agenttools"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -51,7 +52,10 @@ func TestWorkflowVerifierAcceptsRealRunsAndRejectsTampering(t *testing.T) {
 				}
 			}
 			allow := func(context.Context, string, json.RawMessage) error { return nil }
-			tool := workflow.Tool{WS: ws, StoreDir: workflowStoreDir(ws), ValidateOnly: kind == "workflow_invalid", Authorize: allow, AuthorizeOutput: allow}
+			tool := workflowtools.Tool{WS: ws, StoreDir: workflowStoreDir(ws), ValidateOnly: kind == "workflow_invalid", Authorize: allow, AuthorizeOutput: allow, Registry: func() (*workflow.Registry, error) {
+				return app.WorkflowRegistry(ws, workflowStoreDir(ws), allow, nil)
+			},
+			}
 			output, runErr := tool.Run(t.Context(), json.RawMessage(`{"recipe_path":"recipe.json"}`))
 			if (runErr == nil) != (kind == "workflow_success") {
 				t.Fatalf("unexpected operation result: %v", runErr)
@@ -75,7 +79,7 @@ func TestWorkflowVerifierAcceptsRealRunsAndRejectsTampering(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					var r automation.Run
+					var r workflow.Run
 					if err := json.Unmarshal(data, &r); err != nil {
 						t.Fatal(err)
 					}
@@ -161,7 +165,10 @@ func TestWorkflowVerifierAcceptsParameterizedRecipeAndChecksCompiledRecord(t *te
 		t.Fatal(err)
 	}
 	allow := func(context.Context, string, json.RawMessage) error { return nil }
-	tool := workflow.Tool{WS: ws, StoreDir: workflowStoreDir(ws), Authorize: allow, AuthorizeOutput: allow}
+	tool := workflowtools.Tool{WS: ws, StoreDir: workflowStoreDir(ws), Authorize: allow, AuthorizeOutput: allow, Registry: func() (*workflow.Registry, error) {
+		return app.WorkflowRegistry(ws, workflowStoreDir(ws), allow, nil)
+	},
+	}
 	out, err := tool.Run(t.Context(), json.RawMessage(`{"recipe_path":"recipe.json"}`))
 	if err != nil {
 		t.Fatal(out, err)
@@ -179,7 +186,7 @@ func TestWorkflowVerifierAcceptsParameterizedRecipeAndChecksCompiledRecord(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	var record automation.Run
+	var record workflow.Run
 	if err := json.Unmarshal(data, &record); err != nil {
 		t.Fatal(err)
 	}

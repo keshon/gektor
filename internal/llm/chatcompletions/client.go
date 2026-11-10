@@ -4,7 +4,6 @@
 package chatcompletions
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -17,7 +16,7 @@ import (
 	"github.com/keshon/gektor/internal/llm"
 )
 
-type Server struct {
+type Client struct {
 	baseURL string
 	model   string
 	dialect dialect
@@ -64,7 +63,7 @@ type Server struct {
 }
 
 // UsageTotals returns cumulative tokens across all Chat/Stream calls.
-func (c *Server) UsageTotals() (prompt, generated, calls int) {
+func (c *Client) UsageTotals() (prompt, generated, calls int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.totalPrompt, c.totalGen, c.totalCalls
@@ -72,13 +71,13 @@ func (c *Server) UsageTotals() (prompt, generated, calls int) {
 
 // CachedTotal returns cumulative prefix-cached prompt tokens. Zero on
 // backends that do not report them.
-func (c *Server) CachedTotal() int {
+func (c *Client) CachedTotal() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.totalCached
 }
 
-func (c *Server) recordUsage(promptTokens, completionTokens, cachedTokens int) {
+func (c *Client) recordUsage(promptTokens, completionTokens, cachedTokens int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.totalPrompt += promptTokens
@@ -123,8 +122,8 @@ const (
 	defaultDRYAllowed  = 2
 )
 
-func newServer(baseURL, model string, d dialect) *Server {
-	return &Server{
+func newClient(baseURL, model string, d dialect) *Client {
+	return &Client{
 		baseURL: baseURL,
 		model:   model,
 		dialect: d,
@@ -135,11 +134,11 @@ func newServer(baseURL, model string, d dialect) *Server {
 }
 
 // Backend names the server this client talks to, for recorded results.
-func (c *Server) Backend() string { return c.dialect.name() }
+func (c *Client) Backend() string { return c.dialect.name() }
 
 // WithAPIKey attaches a bearer token to every chat request and returns
 // the same client for chaining.
-func (c *Server) WithAPIKey(key string) *Server {
+func (c *Client) WithAPIKey(key string) *Client {
 	c.APIKey = key
 	return c
 }
@@ -148,7 +147,7 @@ func (c *Server) WithAPIKey(key string) *Server {
 // servers are configured as a bare origin ("http://localhost:5001") while
 // hosted APIs hand out a root that already ends in /v1, so accept both
 // plus a fully qualified path for gateways with deeper prefixes.
-func (c *Server) chatURL() string {
+func (c *Client) chatURL() string {
 	base := strings.TrimRight(c.baseURL, "/")
 	if len(base) >= len("/chat/completions") && base[len(base)-len("/chat/completions"):] == "/chat/completions" {
 		return base
@@ -283,7 +282,7 @@ type wireResponse struct {
 // running instead of only after it exits.
 type debugSyncer interface{ Sync() error }
 
-func (c *Server) logDebug(format string, args ...any) {
+func (c *Client) logDebug(format string, args ...any) {
 	if c.Debug == nil {
 		return
 	}
@@ -293,71 +292,10 @@ func (c *Server) logDebug(format string, args ...any) {
 	}
 }
 
-func (c *Server) Chat(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
-	// Precedence: a per-request grammar (the structured plan and verdict
-	// calls, which are schema constraints and correct on either backend)
-	// wins, then an explicit client override, then whatever this backend
-	// wants for ordinary responses.
-	structured := req.Grammar != "" || req.JSONSchema != ""
-	grammar := c.Grammar
-	if grammar == "" && !c.NoGrammar {
-		grammar = c.dialect.contentGrammar()
-	}
-	temperature := req.Temperature
-	if temperature <= 0 {
-		temperature = defaultTemperature
-	}
-	wreq := wireRequest{
-		Model:       c.model,
-		MaxTokens:   req.MaxTokens,
-		Temperature: temperature,
-		TopP:        defaultTopP,
-		TopK:        defaultTopK,
-	}
-	if structured {
-		c.dialect.applyStructured(&wreq, req.Grammar, req.JSONSchema)
-	} else if grammar != "" {
-		c.dialect.applyStructured(&wreq, grammar, "")
-	}
-	c.dialect.applySampling(&wreq, c.DRY)
-
-	// koboldcpp serves the same endpoint shape but cannot process
-	// pictures: attaching there fails here, loudly, instead of sending
-	// a request the backend silently misunderstands.
-	_, kobold := c.dialect.(koboldDialect)
-	msgs, err := c.encodeRequestMessages(req.Messages, !kobold, req.UserRequest, req.UserRequestCount, req.RunDirective)
+func (c *Client) Chat(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
+	httpReq, err := c.request(ctx, req, false)
 	if err != nil {
 		return llm.ChatResponse{}, err
-	}
-	wreq.Messages = msgs
-
-	for _, t := range req.Tools {
-		wt := wireTool{Type: "function"}
-		wt.Function.Name = t.Name
-		wt.Function.Description = t.Description
-		wt.Function.Parameters = t.Parameters
-		wreq.Tools = append(wreq.Tools, wt)
-	}
-
-	body, err := json.Marshal(wreq)
-	if err != nil {
-		return llm.ChatResponse{}, fmt.Errorf("marshal request: %w", err)
-	}
-	c.logDebug("[%s] --- request ---\n%s\n\n", time.Now().Format(time.RFC3339), body)
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		c.chatURL(), bytes.NewReader(body))
-	if err != nil {
-		return llm.ChatResponse{}, fmt.Errorf("build request: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	if c.APIKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+c.APIKey)
-	}
-	for k, v := range c.ExtraHeaders {
-		if k != "" && v != "" {
-			httpReq.Header.Set(k, v)
-		}
 	}
 
 	resp, err := c.http.Do(httpReq)
@@ -367,24 +305,7 @@ func (c *Server) Chat(ctx context.Context, req llm.ChatRequest) (llm.ChatRespons
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-		snippet := string(raw)
-		if len(snippet) > 500 {
-			snippet = snippet[:500] + "...(truncated)"
-		}
-		api := &llm.APIError{Status: resp.StatusCode, StatusText: resp.Status, Body: snippet}
-		if v := resp.Header.Get("Retry-After"); v != "" {
-			api.RetryAfter = llm.ParseRetryAfter(v)
-		}
-		if v := resp.Header.Get("retry-after-ms"); v != "" {
-			if d := llm.ParseRetryAfterMs(v); d > 0 {
-				api.RetryAfter = d
-			}
-		}
-		if resp.StatusCode == http.StatusBadRequest && llm.IsOverflow(fmt.Errorf("%s", snippet)) {
-			api.Overflow = true
-		}
-		return llm.ChatResponse{}, api
+		return llm.ChatResponse{}, responseError(resp)
 	}
 
 	bodyBytes, err := io.ReadAll(resp.Body)
@@ -462,4 +383,4 @@ func encodeArguments(args json.RawMessage) json.RawMessage {
 }
 
 // WithHTTPClient installs the application-owned connection transport.
-func (c *Server) WithHTTPClient(client *http.Client) { c.http = client }
+func (c *Client) WithHTTPClient(client *http.Client) { c.http = client }

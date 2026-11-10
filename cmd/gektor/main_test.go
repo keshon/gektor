@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
-	"github.com/keshon/gektor/internal/session"
 )
 
 // Task state and spilled output live in the user's GEKTOR directory. A test
@@ -35,7 +35,7 @@ func TestMain(m *testing.M) {
 func TestCLIForkUsesTheSubmittedTask(t *testing.T) {
 	source := filepath.Join(t.TempDir(), "state.json")
 	history := []llm.Message{{Role: llm.RoleSystem, Content: "sys"}, {Role: llm.RoleUser, Content: "old task"}, {Role: llm.RoleAssistant, Content: "old answer"}}
-	if err := session.WriteSnapshot(source, history); err != nil {
+	if err := conversation.WriteSnapshot(source, history); err != nil {
 		t.Fatal(err)
 	}
 	for _, task := range []string{"new task", ""} {

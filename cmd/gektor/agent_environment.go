@@ -7,10 +7,9 @@ import (
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/checks"
 	"github.com/keshon/gektor/internal/events"
+	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/rules"
-	"github.com/keshon/gektor/internal/run"
 	"github.com/keshon/gektor/internal/tui"
 )
 
@@ -47,10 +46,10 @@ func inspectLaunchBackend(ctx context.Context, client *app.Backend, o resolvedLa
 }
 
 // launchRunConfiguration prepares settings before choosing a frontend.
-func launchRunConfiguration(o resolvedLaunch, base roles.Env, note func(string, ...any)) (run.Config, error) {
-	identity, warnings, err := app.Compile(app.IdentityOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), User: o.userName, System: o.systemPrompt, Post: o.postHistory, MaxTokens: o.maxTokens, ContextLimit: base.ContextLimit, Temperature: o.temperature})
+func launchRunConfiguration(o resolvedLaunch, base roles.Env, note func(string, ...any)) (harness.Config, error) {
+	identity, warnings, err := app.CompileIdentity(app.IdentityOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), User: o.userName, System: o.systemPrompt, Post: o.postHistory, MaxTokens: o.maxTokens, ContextLimit: base.ContextLimit, Temperature: o.temperature})
 	if err != nil {
-		return run.Config{}, err
+		return harness.Config{}, err
 	}
 	for _, warning := range warnings {
 		note("Identity warning: " + warning)
@@ -62,11 +61,11 @@ func launchRunConfiguration(o resolvedLaunch, base roles.Env, note func(string, 
 	env.RunTimeout, env.Policy = o.runTimeout, buildPolicy(o.allow, o.deny)
 	env.BackendKind = o.backendKind
 	env.Stream = o.stream || o.tui
-	env.Rules = append(checks.Secrets(), rules.All()...)
-	return run.Config{Env: env, Task: o.task, Plan: o.plan, WorkflowRecipe: o.workflowRecipe, Verify: verificationCommand(o.verifyCmd, o.workspace), ResumeAnswer: o.answer}, nil
+	env.Rules = checks.Secrets()
+	return harness.Config{Env: env, Task: o.task, Plan: o.plan, WorkflowRecipe: o.workflowRecipe, Verify: verificationCommand(o.verifyCmd, o.workspace), ResumeAnswer: o.answer}, nil
 }
 
-func tuiConfiguration(launch launchRequest, o resolvedLaunch, cfg run.Config, history []llm.Message) tui.Config {
+func tuiConfiguration(launch launchRequest, o resolvedLaunch, cfg harness.Config, history []llm.Message) tui.Config {
 	return tui.Config{
 		StartScreen: o.tuiScreen, SeedHistory: launch.history,
 		InitialDraft: launch.draft, InitialImages: launch.images, Drafts: launch.drafts, SessionDirectory: launch.directory,

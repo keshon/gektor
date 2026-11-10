@@ -26,7 +26,7 @@ func TestNativePackageBaseline(t *testing.T) {
 	if err := json.Unmarshal(data, &want); err != nil {
 		t.Fatal(err)
 	}
-	for name, reg := range map[string]*agent.Registry{"base": Base(nil, nil, nil, nil, false), "readonly": ReadOnly(nil, nil, false)} {
+	for name, reg := range map[string]*agent.Registry{"base": Base(nil, nil, nil, false), "readonly": ReadOnly(nil, nil, false)} {
 		expected := want[name]
 		for i := range expected.Definitions {
 			d := &expected.Definitions[i]
@@ -52,7 +52,7 @@ func TestNativePackageBaseline(t *testing.T) {
 func composed(t *testing.T, exposure Exposure) *Capabilities {
 	t.Helper()
 	c := &Capabilities{}
-	r, err := Compose(nil, nil, nil, nil, false, c, map[string]Exposure{NativeWeb: exposure})
+	r, err := Compose(Dependencies{WS: nil, Vision: false}, c, map[string]Exposure{NativeWeb: exposure})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestCompositionKeepsNativeInterfacesAndSessionState(t *testing.T) {
 	// The package publishes concrete instances; optional interfaces are intact.
 	for _, p := range builtinPackages() {
 		for _, entry := range p.entries {
-			tool := entry.build(packageDependencies{})
+			tool := entry.build(Dependencies{})
 			if tool.Name() == "load_skill" {
 				if _, ok := tool.(agent.ContextReuser); !ok {
 					t.Fatal("skill reuse lost")
@@ -91,7 +91,7 @@ func TestCompositionKeepsNativeInterfacesAndSessionState(t *testing.T) {
 	if err := a.Prepare(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(a.Registry.Defs(), Base(nil, nil, nil, nil, false).Defs()) {
+	if !reflect.DeepEqual(a.Registry.Defs(), Base(nil, nil, nil, false).Defs()) {
 		t.Fatal("prepared default catalog changed")
 	}
 	if b.Registry.Has("webfetch") || len(b.Save()) != 0 {

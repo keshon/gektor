@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 
 	"github.com/keshon/gektor/internal/config"
-	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/tui"
+	"github.com/keshon/gektor/internal/userdirs"
 )
 
 type launchRequest struct {
@@ -43,7 +43,7 @@ func runApplication(args []string) error {
 	if err != nil {
 		return err
 	}
-	path := gektor.Sub("application.json")
+	path := userdirs.Sub("application.json")
 	if !options.tui {
 		return runConfigured(launchRequest{options: &options, preferencePath: path})
 	}
@@ -134,7 +134,7 @@ func launchProfile(o resolvedLaunch, contextLimit int) config.Profile {
 			APIKeyEnv: o.apiKeyEnv,
 		},
 		Generation: generation,
-		// Written rather than left nil for ConfigureAgent to substitute:
+		// Written rather than left nil for PrepareProfile to substitute:
 		// the substitution never reached the profile, so the You page
 		// opened empty against defaults nobody had chosen.
 		Identity: &config.Identity{

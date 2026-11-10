@@ -37,7 +37,7 @@ type IdentityOptions struct {
 // they are interpolated into the preset text, so a profile that sets one
 // without the other produces a prompt that reads half-finished rather than
 // one that quietly drops half of itself.
-func Compile(o IdentityOptions) (Identity, []string, error) {
+func CompileIdentity(o IdentityOptions) (Identity, []string, error) {
 	preset, err := prompts.ResponsePreset(o.Preset)
 	if err != nil {
 		return Identity{}, nil, err

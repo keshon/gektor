@@ -1,16 +1,18 @@
 package tui
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"errors"
-	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/gektor/internal/run"
 	"image"
 	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/keshon/gektor/internal/harness"
 )
 
 func attachmentFixture(t *testing.T) string {
@@ -54,7 +56,7 @@ func TestClipboardDraftSurvivesFailureAndSessionSwitch(t *testing.T) {
 	m.state = stDone
 	m.draftImages = []string{attachmentFixture(t)}
 	m.input.SetValue("look")
-	m.newSession = func(string, string, []string) (*run.Session, error) { return nil, errors.New("unavailable") }
+	m.newSession = func(string, string, []string) (*harness.Session, error) { return nil, errors.New("unavailable") }
 	m.followUp()
 	if m.input.Value() != "look" || len(m.draftImages) != 1 {
 		t.Fatal("failure lost draft")

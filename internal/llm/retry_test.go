@@ -65,6 +65,21 @@ func TestChatWithRetry_AbortSurfaces(t *testing.T) {
 	}
 }
 
+func TestRetryChatCountsInitialFailureAndHonorsCancellation(t *testing.T) {
+	c := &flakyClient{failures: 5, err: &APIError{Status: 429}}
+	_, err := RetryChat(t.Context(), c, ChatRequest{}, RetryPolicy{MaxRetries: 1, Initial: time.Millisecond, MaxDelay: time.Millisecond}, c.err)
+	if err == nil || c.calls != 1 {
+		t.Fatalf("seeded failure did not consume retry budget: %d %v", c.calls, err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
+	defer cancel()
+	c.calls = 0
+	_, err = RetryChat(ctx, c, ChatRequest{}, DefaultRetryPolicy(), &APIError{Status: 429, RetryAfter: time.Second})
+	if !errors.Is(err, context.DeadlineExceeded) || c.calls != 0 {
+		t.Fatal("retry ignored cancellation/delay", c.calls, err)
+	}
+}
+
 func TestAPIError_Retryable(t *testing.T) {
 	if !(&APIError{Status: 429}).Retryable() {
 		t.Error("429 must retry")

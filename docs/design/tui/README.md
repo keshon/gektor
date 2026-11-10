@@ -75,7 +75,7 @@ menu and its keyboard and mouse behavior are implemented in the shared table.
 ## Session workspaces
 
 The **Open session / Dark** and **Open session / Light** boards show a workspace
-path on each card, including **Unassigned workspace** for legacy conversations.
+path on each card, including **Unassigned workspace** for conversations without an assigned workspace.
 The list remains global; Ctrl+F switches between all sessions and the current
 workspace. Enter restores the selected session's workspace. An unavailable or
 unassigned workspace blocks opening rather than falling back to the current one.

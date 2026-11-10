@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/agent"
-	"github.com/keshon/gektor/internal/session"
+	"github.com/keshon/gektor/internal/conversation"
 )
 
 func TestNativeEagerLazyAndResume(t *testing.T) {
@@ -57,7 +57,7 @@ func TestNativeEagerLazyAndResume(t *testing.T) {
 		}
 	}
 	raw, _ := json.Marshal(lazy.Save())
-	var saved []session.Capability
+	var saved []conversation.Capability
 	if err := json.Unmarshal(raw, &saved); err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestCapabilityRoleExclusionAndDiscoveryBudget(t *testing.T) {
 		t.Fatal("role exclusion bypassed")
 	}
 	state := capabilityState(c.Sources[0], []agent.Tool{AskUser{}})
-	if err := c.Restore(t.Context(), []session.Capability{state}); err == nil {
+	if err := c.Restore(t.Context(), []conversation.Capability{state}); err == nil {
 		t.Fatal("role exclusion bypassed by restore")
 	}
 	c = composed(t, Lazy)

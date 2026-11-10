@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/keshon/gektor/internal/automation"
 	"github.com/keshon/gektor/internal/capabilities/media"
+	"github.com/keshon/gektor/internal/workflow"
 )
 
 func Names() []string {
@@ -128,7 +128,7 @@ func (o Operation) parse(raw json.RawMessage) (media.Request, error) {
 	if !known {
 		return in, fmt.Errorf("unknown media operation %q", o.Kind)
 	}
-	if err := automation.ValidateJSON(raw, o.Schema()); err != nil {
+	if err := workflow.ValidateJSON(raw, o.Schema()); err != nil {
 		return in, err
 	}
 	if err := json.Unmarshal(raw, &in); err != nil {
@@ -213,7 +213,7 @@ func (o Operation) OutputSchema() json.RawMessage {
 }
 
 func (o Operation) ValidateTemplate(raw json.RawMessage) error {
-	return automation.ValidateLiteralPaths(raw, []string{"path", "inputs"}, func(path string) error {
+	return workflow.ValidateLiteralPaths(raw, []string{"path", "inputs"}, func(path string) error {
 		if o.Service.WS == nil {
 			return fmt.Errorf("workspace unavailable")
 		}

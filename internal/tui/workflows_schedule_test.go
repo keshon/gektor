@@ -9,11 +9,12 @@ import (
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/gektor/internal/automation"
-	"github.com/keshon/gektor/internal/automation/store"
-	"github.com/keshon/gektor/internal/gektor"
+
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tui/components/graph"
+	"github.com/keshon/gektor/internal/userdirs"
+	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/internal/workflow/store"
 )
 
 func scheduleFormValues(m *model) map[string]string {
@@ -26,8 +27,8 @@ func scheduleFormValues(m *model) map[string]string {
 
 func applyScheduleAction(t *testing.T, m *model) {
 	t.Helper()
-	a := m.pendingCommands[len(m.pendingCommands)-1]().(workflowAction)
-	cmd := m.workflowAction(a)
+	a := m.workflows.commands[len(m.workflows.commands)-1]().(workflowAction)
+	cmd := m.workflows.action(a)
 	if cmd == nil {
 		t.Fatal("no schedule operation", a.action, m.workflows.notice)
 	}
@@ -35,7 +36,7 @@ func applyScheduleAction(t *testing.T, m *model) {
 	if r.err != nil {
 		t.Fatal(r.err)
 	}
-	m.acceptWorkflowResult(r)
+	m.workflows.acceptResult(r)
 }
 
 func TestAddScheduleCreatesSecondTriggerAndSelectsIt(t *testing.T) {
@@ -49,7 +50,7 @@ func TestAddScheduleCreatesSecondTriggerAndSelectsIt(t *testing.T) {
 	}
 	ids := []string{}
 	for i := 0; i < 2; i++ {
-		m.workflowScheduleStart(true)
+		m.workflows.scheduleStart(true)
 		if m.dialog == nil || m.dialog.form == nil {
 			t.Fatal("missing schedule form")
 		}
@@ -57,7 +58,7 @@ func TestAddScheduleCreatesSecondTriggerAndSelectsIt(t *testing.T) {
 			t.Fatal(err)
 		}
 		applyScheduleAction(t, m)
-		selected := m.workflowSelectedSchedule()
+		selected := m.workflows.selectedSchedule()
 		if selected == nil {
 			t.Fatal("new trigger not selected")
 		}
@@ -72,7 +73,7 @@ func TestScheduleTriggerRunsSavedInputsAndCanPauseAndRemove(t *testing.T) {
 	m := workflowTestModel(t)
 	w := m.workflows
 	d := workflowRecipe()
-	d.Inputs = map[string]automation.Input{"count": {Type: "integer", Default: json.RawMessage(`4`)}}
+	d.Inputs = map[string]workflow.Input{"count": {Type: "integer", Default: json.RawMessage(`4`)}}
 	d.Steps[0].Args = json.RawMessage(`{"code":"return input + 1;","input":{"$input":"count"}}`)
 	w.editor.Replace(d)
 	w.editor.Path = "recipe.json"
@@ -90,7 +91,7 @@ func TestScheduleTriggerRunsSavedInputsAndCanPauseAndRemove(t *testing.T) {
 	if err := m.dialog.form.apply(values); err != nil {
 		t.Fatal(err)
 	}
-	m.workflowAction(m.pendingCommands[len(m.pendingCommands)-1]().(workflowAction))
+	m.workflows.action(m.workflows.commands[len(m.workflows.commands)-1]().(workflowAction))
 	values = scheduleFormValues(m)
 	values["timing"], values["time"], values["timezone"] = "Daily", "07:15", "Europe/Moscow"
 	if err := m.dialog.form.apply(values); err != nil {
@@ -104,16 +105,16 @@ func TestScheduleTriggerRunsSavedInputsAndCanPauseAndRemove(t *testing.T) {
 	if w.editor.Source() != before || strings.Contains(string(scheduled.Source), workflowSchedulePrefix) {
 		t.Fatal("trigger leaked into executable steps")
 	}
-	w.graph = m.workflowGraph(w.graph)
-	m.workflowEnsureSelection()
-	if m.workflowSelectedSchedule() == nil || len(w.graph.Nodes) != 2 || len(w.graph.Edges) != 1 {
+	w.graph = m.workflows.buildGraph(w.graph)
+	m.workflows.ensureSelection()
+	if m.workflows.selectedSchedule() == nil || len(w.graph.Nodes) != 2 || len(w.graph.Edges) != 1 {
 		t.Fatal("missing trigger selection or edge", w.graph)
 	}
-	if !strings.Contains(ansi.Strip(strings.Join(m.workflowDetailRows(), "\n")), "Next due:") {
+	if !strings.Contains(ansi.Strip(strings.Join(m.workflows.detailRows(), "\n")), "Next due:") {
 		t.Fatal("next due missing")
 	}
 	// The real queue and execution service consume the trigger created through the TUI.
-	s, err := store.OpenStore(gektor.Sub("workflows"), m.wsRoot)
+	s, err := store.OpenStore(userdirs.Sub("workflows"), m.wsRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,8 +126,8 @@ func TestScheduleTriggerRunsSavedInputsAndCanPauseAndRemove(t *testing.T) {
 	if err != nil || !ok || string(job.Inputs["count"]) != "7" {
 		t.Fatal(job, ok, err)
 	}
-	m.baseEnv.Policy = permission.Policy{Rules: []permission.Rule{{Tool: "workflow_run", Pattern: "*", Effect: permission.Allow}, {Tool: "script_transform", Pattern: "*", Effect: permission.Allow}}}
-	svc, err := m.workflowService(nil)
+	m.workflows.config.Policy = permission.Policy{Rules: []permission.Rule{{Tool: "workflow_run", Pattern: "*", Effect: permission.Allow}, {Tool: "script_transform", Pattern: "*", Effect: permission.Allow}}}
+	svc, err := m.workflows.service(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,13 +140,13 @@ func TestScheduleTriggerRunsSavedInputsAndCanPauseAndRemove(t *testing.T) {
 	}
 	// Reopen through the same refresh used for saved recipes, preserving its card position.
 	w.graph.Nodes[0].Point = graph.Point{X: 4, Y: 12}
-	m.persistWorkflowLayout()
-	r := m.workflowScheduleRefresh()().(workflowResult)
+	m.workflows.persistLayout()
+	r := m.workflows.scheduleRefresh()().(workflowResult)
 	if r.err != nil {
 		t.Fatal(r.err)
 	}
-	m.acceptWorkflowResult(r)
-	details := strings.Join(m.workflowScheduleDetails(w.schedules[0]), "\n")
+	m.workflows.acceptResult(r)
+	details := strings.Join(m.workflows.scheduleDetails(w.schedules[0]), "\n")
 	if !strings.Contains(details, "Last job: completed") || !strings.Contains(details, "Last run: completed") || !strings.Contains(details, "Scheduled for:") {
 		t.Fatal(details)
 	}
@@ -161,7 +162,7 @@ func TestScheduleTriggerRunsSavedInputsAndCanPauseAndRemove(t *testing.T) {
 	if err := m.dialog.form.apply(values); err != nil {
 		t.Fatal(err)
 	}
-	m.workflowAction(m.pendingCommands[len(m.pendingCommands)-1]().(workflowAction))
+	m.workflows.action(m.workflows.commands[len(m.workflows.commands)-1]().(workflowAction))
 	values = scheduleFormValues(m)
 	values["enabled"] = "No"
 	if err := m.dialog.form.apply(values); err != nil {
@@ -223,11 +224,11 @@ func TestScheduleTriggerGuardsAndTimingValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	w.editor.Definition.Name = "changed while form open"
-	if cmd := m.workflowAction(m.pendingCommands[len(m.pendingCommands)-1]().(workflowAction)); cmd != nil {
+	if cmd := m.workflows.action(m.workflows.commands[len(m.workflows.commands)-1]().(workflowAction)); cmd != nil {
 		t.Fatal("stale schedule executed")
 	}
 	m.closeDialog()
-	w.run = &automation.Run{Definition: workflowRecipe()}
+	w.run = &workflow.Run{Definition: workflowRecipe()}
 	m.workflowCommand("schedule")
 	if m.dialog != nil {
 		t.Fatal("frozen run offered schedule editing")
@@ -243,27 +244,27 @@ func TestScheduleCardsFollowRecipeAndDoNotAccumulateOnRedraw(t *testing.T) {
 		{ID: "from-cli", RecipePath: "./recipe.json", Cron: "0 * * * *", Timezone: "UTC"},
 		{ID: "other", RecipePath: "other.json", Cron: "0 9 * * *", Timezone: "UTC"},
 	}
-	w.graph = m.workflowGraph(graph.Model{})
+	w.graph = m.workflows.buildGraph(graph.Model{})
 	position := w.graph.Nodes[1].Point
 	w.graph.Selected = workflowSchedulePrefix + "from-cli"
 	for i := 0; i < 3; i++ {
-		w.graph = m.workflowGraph(w.graph)
-		m.workflowEnsureSelection()
-		if len(w.graph.Nodes) != 2 || len(w.graph.Edges) != 1 || w.graph.Nodes[1].Point != position || m.workflowSelectedSchedule() == nil {
+		w.graph = m.workflows.buildGraph(w.graph)
+		m.workflows.ensureSelection()
+		if len(w.graph.Nodes) != 2 || len(w.graph.Edges) != 1 || w.graph.Nodes[1].Point != position || m.workflows.selectedSchedule() == nil {
 			t.Fatal("redraw duplicated a trigger or moved the recipe", w.graph)
 		}
 	}
 	w.editor.Path = "other.json"
-	m.workflowEnsureSelection()
-	if m.workflowSelectedSchedule() != nil {
+	m.workflows.ensureSelection()
+	if m.workflows.selectedSchedule() != nil {
 		t.Fatal("selection retained a different recipe's trigger")
 	}
-	w.graph = m.workflowGraph(graph.Model{})
+	w.graph = m.workflows.buildGraph(graph.Model{})
 	if len(w.graph.Nodes) != 2 || w.graph.Nodes[0].ID != workflowSchedulePrefix+"other" {
 		t.Fatal("CLI schedule not attached to its recipe", w.graph)
 	}
-	w.run = &automation.Run{Definition: workflowRecipe()}
-	w.graph = m.workflowGraph(graph.Model{})
+	w.run = &workflow.Run{Definition: workflowRecipe()}
+	w.graph = m.workflows.buildGraph(graph.Model{})
 	if len(w.graph.Nodes) != 1 {
 		t.Fatal("live trigger leaked into a frozen run")
 	}
@@ -298,12 +299,12 @@ func TestScheduleFreezesCalledRecipe(t *testing.T) {
 		t.Fatal("called recipe was not frozen", w.schedules)
 	}
 	w.graph.Selected = workflowSchedulePrefix + w.schedules[0].ID
-	r := m.workflowScheduleRefresh()().(workflowResult)
+	r := m.workflows.scheduleRefresh()().(workflowResult)
 	if r.err != nil {
 		t.Fatal(r.err)
 	}
-	m.acceptWorkflowResult(r)
-	details := strings.Join(m.workflowScheduleDetails(w.schedules[0]), "\n")
+	m.workflows.acceptResult(r)
+	details := strings.Join(m.workflows.scheduleDetails(w.schedules[0]), "\n")
 	if !strings.Contains(details, "Snapshot: changed") || !strings.Contains(details, "Changed: child.json") || strings.Contains(details, "current draft differs") {
 		t.Fatal(details)
 	}

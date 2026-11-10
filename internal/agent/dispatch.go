@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
 )
 
 // InvokeTool is only a model-facing envelope. The Agent resolves it before
@@ -85,7 +85,7 @@ func (r *Registry) ObservedMessage(msg llm.Message) llm.Message {
 	return msg
 }
 
-func CapabilityCatalog(state session.Capability) string {
+func CapabilityCatalog(state conversation.Capability) string {
 	type definition struct {
 		Name        string          `json:"name"`
 		Description string          `json:"description"`

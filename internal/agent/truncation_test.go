@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
-	"github.com/keshon/gektor/internal/session"
 )
 
 // Live failure shape (Qwen3.6 run, 2026-07-11): the backend cut generation
@@ -197,7 +197,7 @@ func TestAgent_InvalidArgsRemainPersistableAndReplayable(t *testing.T) {
 							t.Fatalf("display message cannot be encoded: %v", err)
 						}
 						if step == 1 {
-							snapshot, err := session.Load(state)
+							snapshot, err := conversation.Load(state)
 							if err != nil {
 								t.Fatal(err)
 							}
@@ -222,7 +222,7 @@ func TestAgent_InvalidArgsRemainPersistableAndReplayable(t *testing.T) {
 				if _, err := json.Marshal(client.lastHistory); err != nil {
 					t.Fatalf("next request cannot be encoded: %v", err)
 				}
-				if _, err := session.Load(state); err != nil {
+				if _, err := conversation.Load(state); err != nil {
 					t.Fatal(err)
 				}
 				if len(a.report.Warnings) != 0 {

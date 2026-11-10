@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/keshon/gektor/internal/automation"
 	"github.com/keshon/gektor/internal/capabilities/files"
+	"github.com/keshon/gektor/internal/workflow"
 )
 
 type Operation struct {
@@ -76,7 +76,7 @@ func (o Operation) parse(args json.RawMessage) (arguments, error) {
 	if o.Kind != "download_file" && o.Kind != "archive_list" && o.Kind != "archive_create" && o.Kind != "archive_extract" {
 		return in, fmt.Errorf("unknown file operation %q", o.Kind)
 	}
-	if err := automation.ValidateJSON(args, o.Schema()); err != nil {
+	if err := workflow.ValidateJSON(args, o.Schema()); err != nil {
 		return in, err
 	}
 	var err error
@@ -156,7 +156,7 @@ func Names() []string {
 }
 
 func (o Operation) ValidateTemplate(raw json.RawMessage) error {
-	return automation.ValidateLiteralPaths(raw, []string{"path", "out_dir", "paths"}, func(path string) error {
+	return workflow.ValidateLiteralPaths(raw, []string{"path", "out_dir", "paths"}, func(path string) error {
 		if o.Service.WS == nil {
 			return fmt.Errorf("workspace unavailable")
 		}

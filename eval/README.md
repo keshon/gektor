@@ -237,7 +237,7 @@ still need human review; answer regexes cannot establish either.
 
 ### Optional learned-skill comparison
 
-`TestLiveLearnedImageSkill` in `internal/retrospect` compares an already approved
+`TestLiveLearnedImageSkill` in `internal/retrospective` compares an already approved
 image-inspection lesson with no lesson, using the production Interactive role.
 It runs ten paired local-image tasks and five paired search/edit controls based
 on probe 09, serially, with fresh workspaces and balanced image-arm order.
@@ -250,7 +250,7 @@ $env:GEKTOR_LIVE_LEARNING = '1'
 $env:GEKTOR_LIVE_BACKEND = 'http://127.0.0.1:9931'
 $env:GEKTOR_LIVE_LESSON = 'D:/project/skills/learned-ID/SKILL.md'
 $env:GEKTOR_LIVE_OUTPUT = 'D:/tmp/gektor-learning-comparison'
-go test ./internal/retrospect -run '^TestLiveLearnedImageSkill$' -count=1 -v -timeout 100m
+go test ./internal/retrospective -run '^TestLiveLearnedImageSkill$' -count=1 -v -timeout 100m
 ```
 
 The output directory must not exist; its parent must exist. The server must
@@ -271,7 +271,7 @@ This comparison excludes the cost of generating and reviewing the original lesso
 To measure a fresh retrospective separately, set `GEKTOR_LIVE_LEARNING_REVIEW=1`,
 `GEKTOR_LIVE_REVIEW_SOURCE` to the original session's `state.json`, and
 `GEKTOR_LIVE_OUTPUT` to another fresh directory; run
-`go test ./internal/retrospect -run '^TestLiveLearningReviewCost$' -count=1 -v -timeout 5m`.
+`go test ./internal/retrospective -run '^TestLiveLearningReviewCost$' -count=1 -v -timeout 5m`.
 
 This copies the source archive, records inference time and tokens in `cost.json`,
 and never approves the new proposal. It does not measure human review time.

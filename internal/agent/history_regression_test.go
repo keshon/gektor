@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
 )
 
 type auditFailedChat struct{}
@@ -77,7 +77,7 @@ func TestCompactionAndResumeKeepOneCompleteArchive(t *testing.T) {
 	if len(c.lastHistory) != after+1 {
 		t.Fatalf("sent %d messages, expected compact context %d", len(c.lastHistory), after+1)
 	}
-	archive, err := session.ReadHistory(path)
+	archive, err := conversation.ReadHistory(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func TestOverflowCompactionPreservesTheArchive(t *testing.T) {
 	if _, err := a.Resume(t.Context(), history, "continue"); err != nil {
 		t.Fatal(err)
 	}
-	saved, err := session.Load(path)
+	saved, err := conversation.Load(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestOverflowCompactionPreservesTheArchive(t *testing.T) {
 	if _, err := a.Resume(t.Context(), saved.History, "next task"); err != nil {
 		t.Fatal(err)
 	}
-	after, err := session.ReadHistory(path)
+	after, err := conversation.ReadHistory(path)
 	if err != nil || len(after) != len(saved.History)+2 || !reflect.DeepEqual(after[:len(saved.History)], saved.History) {
 		t.Fatalf("repeated compact/resume changed archive: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestRetryReceivesPersistedVerificationFailure(t *testing.T) {
 	if _, err := a.Run(t.Context(), "task"); err == nil || len(c.reqs) != 1 {
 		t.Fatalf("verification failure triggered an automatic turn or was lost: %v", err)
 	}
-	history, err := session.ReadHistory(path)
+	history, err := conversation.ReadHistory(path)
 	if err != nil {
 		t.Fatal(err)
 	}

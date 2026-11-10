@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
-	"github.com/keshon/gektor/internal/session"
 )
 
 const checkpointSchema = `{"type":"object","properties":{"goal":{"type":"string"},"decisions":{"type":"array","items":{"type":"string"}},"completed":{"type":"array","items":{"type":"string"}},"remaining":{"type":"array","items":{"type":"string"}},"evidence":{"type":"array","items":{"type":"string"}}},"required":["goal","decisions","completed","remaining","evidence"],"additionalProperties":false}`
@@ -174,7 +174,7 @@ func (a *Agent) fitCheckpoint(projection []llm.Message, budget int) ([]llm.Messa
 // Rebuild protected user instructions from the original archive, including
 // sessions compacted by older releases. Attached file snapshots stay available
 // through read_history and do not crowd out the operator's instructions.
-func retainArchivedInstructions(snapshot session.Snapshot, projection []llm.Message) ([]llm.Message, error) {
+func retainArchivedInstructions(snapshot conversation.Snapshot, projection []llm.Message) ([]llm.Message, error) {
 	if len(projection) < 3 {
 		return projection, nil
 	}
@@ -191,7 +191,7 @@ func retainArchivedInstructions(snapshot session.Snapshot, projection []llm.Mess
 		if msg.Role != llm.RoleUser || msg.Harness != "" {
 			continue
 		}
-		if text := droppedAsk(session.DisplayInput(msg.Content)); text != "" {
+		if text := droppedAsk(conversation.DisplayInput(msg.Content)); text != "" {
 			facts.asks = append(facts.asks, text)
 		}
 	}

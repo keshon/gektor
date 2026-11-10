@@ -19,7 +19,7 @@ func TestCapabilityToolsAndNodesShareContractsAndResources(t *testing.T) {
 	}
 	defer ws.Close()
 	c := &Capabilities{Sources: WithBuiltinCapabilities(nil)}
-	r, err := Compose(ws, nil, nil, nil, false, c, nil)
+	r, err := Compose(Dependencies{WS: ws, Vision: false}, c, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestCapabilityToolsAndNodesShareContractsAndResources(t *testing.T) {
 		toolSchemas[def.Name] = def.Parameters
 		descriptions[def.Name] = def.Description
 	}
-	nodes, err := app.AutomationRegistry(ws, t.TempDir(), nil, nil)
+	nodes, err := app.WorkflowRegistry(ws, t.TempDir(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +112,7 @@ func TestSocialNodeHonorsExistingAgentPermissionName(t *testing.T) {
 	}
 	defer ws.Close()
 	policy := permission.Policy{Rules: []permission.Rule{{Tool: "cap__social__read_post", Pattern: "*", Effect: permission.Deny}}}
-	svc, err := app.NewAutomation(ws, t.TempDir(), policy, nil)
+	svc, err := app.NewWorkflow(ws, t.TempDir(), policy, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

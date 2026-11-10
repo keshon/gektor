@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+
 	"github.com/keshon/gektor/internal/tui/components/pane"
 )
 
@@ -21,7 +22,7 @@ type footerCell struct {
 	row, start, end int
 }
 
-func (m *model) legacyFooterActions() []footerAction {
+func (m *model) functionKeyActions() []footerAction {
 	gated := m.state == stPermission || m.state == stAsk
 	free := !gated && m.dialog == nil && m.sessions == nil && !m.header.focused
 	idle := free && m.state == stDone
@@ -83,11 +84,11 @@ func (m *model) footerActions() []footerAction {
 		if label == "" {
 			label = "Apply"
 		}
-		apply := footerAction{'s', tea.ModCtrl, "Ctrl+S", label, label, m.dialog.form.Workspace == nil || m.dialog.form.Dirty()}
+		apply := footerAction{'s', tea.ModCtrl, "Ctrl+S", label, label, m.dialog.form.EditSession == nil || m.dialog.form.Dirty()}
 		if m.dialog.form.Destructive {
 			apply = footerAction{tea.KeyEnter, 0, "Enter", "Choose", "Choose", true}
 		}
-		if ws := m.dialog.form.Workspace; ws != nil {
+		if ws := m.dialog.form.EditSession; ws != nil {
 			// F6 was the in-form category switch. With one section per
 			// modal there is nothing for it to switch, and a footer entry
 			// that does nothing is worse than no entry.
@@ -103,7 +104,7 @@ func (m *model) footerActions() []footerAction {
 		return []footerAction{{tea.KeyTab, 0, "Tab", "Next", "Next", true}, apply, {tea.KeyEscape, 0, "Esc", "Cancel", "Cancel", true}, {'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true}}
 	}
 	if m.workflowActive() && m.dialog == nil && m.sessions == nil && !m.header.focused {
-		return m.workflowFooterActions()
+		return m.workflows.footerActions()
 	}
 	if m.state == stRunning && m.activeInputOwner() == focusInput {
 		actions := []footerAction{{tea.KeyEscape, 0, "Esc", "Stop", "Stop", true}, {tea.KeyEnter, 0, "Enter", "Send", "Send", true}, {'q', tea.ModAlt, "Alt+Q", "Queue", "Queue", true}}
@@ -114,11 +115,11 @@ func (m *model) footerActions() []footerAction {
 		}
 		return actions
 	}
-	legacy := m.legacyFooterActions()
+	functionKeys := m.functionKeyActions()
 	actions := []footerAction{
-		{tea.KeyF1, 0, "F1", "Help", "Help", legacy[0].enabled},
-		{'p', tea.ModCtrl, "Ctrl+P", "Search", "Find", legacy[1].enabled},
-		{'n', tea.ModCtrl, "Ctrl+N", "New", "New", legacy[3].enabled},
+		{tea.KeyF1, 0, "F1", "Help", "Help", functionKeys[0].enabled},
+		{'p', tea.ModCtrl, "Ctrl+P", "Search", "Find", functionKeys[1].enabled},
+		{'n', tea.ModCtrl, "Ctrl+N", "New", "New", functionKeys[3].enabled},
 	}
 	switch m.activeInputOwner() {
 	case focusSearch:
@@ -138,7 +139,7 @@ func (m *model) footerActions() []footerAction {
 	}
 	details := "Thinking"
 	actions = append(actions,
-		footerAction{'g', tea.ModCtrl, "Ctrl+G", details, "View", legacy[2].enabled},
+		footerAction{'g', tea.ModCtrl, "Ctrl+G", details, "View", functionKeys[2].enabled},
 		footerAction{'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true})
 	if m.termW < 64 {
 		return []footerAction{actions[0], actions[1], actions[3], actions[4], actions[len(actions)-1]}
@@ -205,7 +206,7 @@ func (m *model) toolbarClick(x int) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) footerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	for _, action := range m.legacyFooterActions() {
+	for _, action := range m.functionKeyActions() {
 		if action.key == msg.Code && !action.enabled {
 			return m, nil
 		}
@@ -278,6 +279,7 @@ func (m *model) requestQuit() (tea.Model, tea.Cmd) {
 				if v["decision"] != "discard" {
 					return fmt.Errorf("type discard, or Esc to keep editing")
 				}
+				m.workflows.Close()
 				m.workflows = nil
 				m.pendingCommands = append(m.pendingCommands, func() tea.Msg { return workflowQuit{} })
 				return nil

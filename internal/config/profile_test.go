@@ -1,11 +1,30 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestDecodeRejectsExtraDocumentsAndOversizedInput(t *testing.T) {
+	data, err := json.Marshal(valid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{
+		"second document":        string(data) + `{}`,
+		"trailing garbage":       string(data) + `invalid`,
+		"oversized valid prefix": string(data) + strings.Repeat(" ", 1<<20),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := Decode(strings.NewReader(body)); err == nil {
+				t.Fatal("accepted invalid profile input")
+			}
+		})
+	}
+}
 
 // Decoding is strict, which makes it a trap for the profiles this repository
 // ships: nothing exercises them at build time, so a field deleted from

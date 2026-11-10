@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/gektor/internal/session"
+	"github.com/keshon/gektor/internal/conversation"
 )
 
 func TestResumeWorkspaceSelection(t *testing.T) {
@@ -19,7 +19,7 @@ func TestResumeWorkspaceSelection(t *testing.T) {
 		{name: "legacy override", explicit: override, want: override},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			snapshot := session.New(nil)
+			snapshot := conversation.New(nil)
 			snapshot.Workspace = tc.workspace
 			if err := snapshot.Save(path); err != nil {
 				t.Fatal(err)
@@ -37,7 +37,7 @@ func TestResumeWorkspaceSelection(t *testing.T) {
 			} else if err != nil || got != tc.want {
 				t.Fatalf("got %q, %v; want %q", got, err, tc.want)
 			}
-			unchanged, err := session.Load(path)
+			unchanged, err := conversation.Load(path)
 			if err != nil || unchanged.Workspace != tc.workspace {
 				t.Fatalf("resolution stamped archive: %+v, %v", unchanged, err)
 			}
@@ -52,7 +52,7 @@ func TestPersistExplicitSettingsWorkspaceSwitch(t *testing.T) {
 	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "state.json")
-	snapshot := session.New(nil)
+	snapshot := conversation.New(nil)
 	snapshot.Workspace = old
 	if err := snapshot.Save(path); err != nil {
 		t.Fatal(err)
@@ -61,7 +61,7 @@ func TestPersistExplicitSettingsWorkspaceSwitch(t *testing.T) {
 	if err := persistSwitchedWorkspace(launch, next); err != nil {
 		t.Fatal(err)
 	}
-	loaded, _ := session.Load(path)
+	loaded, _ := conversation.Load(path)
 	if loaded.Workspace != old {
 		t.Fatal("non-settings relaunch stamped archive")
 	}
@@ -69,14 +69,14 @@ func TestPersistExplicitSettingsWorkspaceSwitch(t *testing.T) {
 	if err := persistSwitchedWorkspace(launch, filepath.Join(next, "missing")); err == nil {
 		t.Fatal("accepted missing workspace")
 	}
-	loaded, _ = session.Load(path)
+	loaded, _ = conversation.Load(path)
 	if loaded.Workspace != old {
 		t.Fatal("failed switch stamped archive")
 	}
 	if err := persistSwitchedWorkspace(launch, next); err != nil {
 		t.Fatal(err)
 	}
-	loaded, _ = session.Load(path)
+	loaded, _ = conversation.Load(path)
 	if loaded.Workspace != next {
 		t.Fatal("successful switch not persisted")
 	}

@@ -16,9 +16,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/retrospect"
-	"github.com/keshon/gektor/internal/session"
+	"github.com/keshon/gektor/internal/retrospective"
 )
 
 func TestEvaluationProgressIsIsolatedAndSafeDuringTicks(t *testing.T) {
@@ -30,7 +30,7 @@ func TestEvaluationProgressIsIsolatedAndSafeDuringTicks(t *testing.T) {
 	var worker sync.WaitGroup
 	worker.Go(func() {
 		for range 100 {
-			job.update(retrospect.Progress{Stage: "Waiting for model response", Step: 2, Steps: 12, Read: 4, Total: 8})
+			job.update(retrospective.Progress{Stage: "Waiting for model response", Step: 2, Steps: 12, Read: 4, Total: 8})
 		}
 	})
 	for range 100 {
@@ -47,19 +47,19 @@ func TestEvaluationProgressIsIsolatedAndSafeDuringTicks(t *testing.T) {
 	}
 	m.closeDialog()
 	m.openDialog("Other dialog", []string{"keep"})
-	job.update(retrospect.Progress{Stage: "stale update"})
+	job.update(retrospective.Progress{Stage: "stale update"})
 	m.refreshEvaluation()
 	if strings.Join(m.dialog.lines, "") != "keep" {
 		t.Fatal("cancelled evaluation changed another dialog")
 	}
 }
 
-func lessonModel(t *testing.T) (*model, retrospect.Result) {
+func lessonModel(t *testing.T) (*model, retrospective.Result) {
 	t.Helper()
 	m := settingsModel(t)
 	m.ws = m.baseEnv.WS
 	failed := false
-	snapshot := session.New([]llm.Message{
+	snapshot := conversation.New([]llm.Message{
 		{Role: llm.RoleSystem, Content: "system"},
 		{Role: llm.RoleTool, ToolFailed: &failed, Content: "PASS module tests"},
 	})
@@ -70,7 +70,7 @@ func lessonModel(t *testing.T) (*model, retrospect.Result) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := retrospect.Result{Start: 2, End: 2, SourceSHA256: fmt.Sprintf("%x", sha256.Sum256(data)), Memory: []retrospect.Memory{{When: "API changes", Lesson: "Run tests inside the API module.", Evidence: []int{2}, Quote: "PASS module tests"}}}
+	r := retrospective.Result{Start: 2, End: 2, SourceSHA256: fmt.Sprintf("%x", sha256.Sum256(data)), Memory: []retrospective.Memory{{When: "API changes", Lesson: "Run tests inside the API module.", Evidence: []int{2}, Quote: "PASS module tests"}}}
 	return m, r
 }
 
@@ -166,7 +166,7 @@ func TestLearnWithoutCandidateNeedsNoApproval(t *testing.T) {
 	m := settingsModel(t)
 	job := &evaluationJob{learn: true, cancel: func() {}}
 	m.evaluation = job
-	m.acceptEvaluation(evaluationDoneMsg{job: job, result: retrospect.Result{Summary: "Routine task."}})
+	m.acceptEvaluation(evaluationDoneMsg{job: job, result: retrospective.Result{Summary: "Routine task."}})
 	if m.dialog == nil || m.dialog.title != "No lesson to save" || m.dialog.save != nil {
 		t.Fatal("empty review offered approval")
 	}
@@ -288,7 +288,7 @@ func TestEvaluationCompletionPreservesRunCounters(t *testing.T) {
 	_, cancel := context.WithCancel(t.Context())
 	job := &evaluationJob{cancel: cancel}
 	m.evaluation = job
-	m.acceptEvaluation(evaluationDoneMsg{job: job, result: retrospect.Result{Scope: "run 1", Start: 2, End: 5, Read: 4, Summary: "Historical assessment."}})
+	m.acceptEvaluation(evaluationDoneMsg{job: job, result: retrospective.Result{Scope: "run 1", Start: 2, End: 5, Read: 4, Summary: "Historical assessment."}})
 	if m.evaluation != nil || m.dialog == nil || m.steps != 9 || m.tokens != 4321 || m.input.Value() != "unfinished draft" {
 		t.Fatal("review completion replaced task facts")
 	}

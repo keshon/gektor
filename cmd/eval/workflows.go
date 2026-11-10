@@ -17,9 +17,9 @@ import (
 	"strings"
 
 	"github.com/keshon/gektor/internal/app"
-	"github.com/keshon/gektor/internal/automation"
-	"github.com/keshon/gektor/internal/automation/store"
 	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/internal/workflow/store"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -102,7 +102,7 @@ func checkWorkflow(kind string, ws *workspace.Workspace) error {
 		}
 		return nil
 	}
-	var records []automation.Run
+	var records []workflow.Run
 	for _, entry := range entries {
 		r, err := store.Run(entry.ID)
 		if err != nil {
@@ -121,7 +121,7 @@ func checkWorkflow(kind string, ws *workspace.Workspace) error {
 	if r.RecipeSource != string(source) || r.RecipeSHA256 != fmt.Sprintf("%x", sha256.Sum256(source)) {
 		return fmt.Errorf("record differs from saved recipe")
 	}
-	compiler, err := app.NewAutomation(ws, workflowStoreDir(ws), permission.Policy{}, nil)
+	compiler, err := app.NewWorkflow(ws, workflowStoreDir(ws), permission.Policy{}, nil)
 	if err != nil {
 		return err
 	}
@@ -147,8 +147,8 @@ func checkWorkflow(kind string, ws *workspace.Workspace) error {
 	if len(r.Steps) != len(r.Definition.Steps) {
 		return fmt.Errorf("execution record has an incomplete step list")
 	}
-	var publicSteps []automation.StepResult
-	var publicDefinition []automation.Step
+	var publicSteps []workflow.StepResult
+	var publicDefinition []workflow.Step
 	for i, step := range r.Definition.Steps {
 		if r.Steps[i].ID != step.ID {
 			return fmt.Errorf("execution step ID differs from its definition")

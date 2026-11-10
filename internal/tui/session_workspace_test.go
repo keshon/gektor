@@ -9,9 +9,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/config"
-	"github.com/keshon/gektor/internal/run"
-	"github.com/keshon/gektor/internal/session"
+	"github.com/keshon/gektor/internal/conversation"
+	"github.com/keshon/gektor/internal/harness"
 )
 
 func TestWorkspaceFilterKeepsGlobalEntries(t *testing.T) {
@@ -47,12 +48,12 @@ func TestWorkspaceReassignmentStaysPinnedAcrossRefresh(t *testing.T) {
 				assignSavedWorkspace(t, filepath.Join(a, "state.json"), t.TempDir())
 			}
 			m.sessionsKey(keyRunes('y'))
-			saved, err := session.Load(filepath.Join(b, "state.json"))
+			saved, err := conversation.Load(filepath.Join(b, "state.json"))
 			if err != nil || saved.Workspace != "" {
 				t.Fatalf("confirmation reassigned B: %+v %v", saved, err)
 			}
 			if changed == "reordered" {
-				saved, err = session.Load(filepath.Join(a, "state.json"))
+				saved, err = conversation.Load(filepath.Join(a, "state.json"))
 				if err != nil || saved.Workspace != m.wsRoot {
 					t.Fatal("did not reassign pinned session", err)
 				}
@@ -147,7 +148,7 @@ func TestExplicitNewTaskAfterRelaunchDoesNotReuseSavedSession(t *testing.T) {
 	m.sess = nil
 	m.seedHistory = userHistory("old conversation")
 	var destination string
-	m.newSession = func(task, path string, images []string) (*run.Session, error) {
+	m.newSession = func(task, path string, images []string) (*harness.Session, error) {
 		destination = path
 		return nil, errors.New("stop before model")
 	}
@@ -164,7 +165,7 @@ func TestExplicitNewTaskAfterRelaunchDoesNotReuseSavedSession(t *testing.T) {
 func TestOpenSessionRestoresWorkspaceOrReportsMissing(t *testing.T) {
 	m := settingsModel(t)
 	root := t.TempDir()
-	snapshot := session.New(userHistory("saved task"))
+	snapshot := conversation.New(userHistory("saved task"))
 	snapshot.Workspace = root
 	dir := t.TempDir()
 	if err := snapshot.Save(filepath.Join(dir, "state.json")); err != nil {
@@ -193,7 +194,7 @@ func TestWorkspaceReassignmentRequiresConfirmation(t *testing.T) {
 	old := t.TempDir()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "state.json")
-	snapshot := session.New(userHistory("saved"))
+	snapshot := conversation.New(userHistory("saved"))
 	snapshot.Workspace = old
 	if err := snapshot.Save(path); err != nil {
 		t.Fatal(err)
@@ -201,7 +202,7 @@ func TestWorkspaceReassignmentRequiresConfirmation(t *testing.T) {
 	m.sessions = &sessionsState{entries: []sessionEntry{{dir: dir, workspace: old}}}
 	check := func(want string) {
 		t.Helper()
-		saved, err := session.Load(path)
+		saved, err := conversation.Load(path)
 		if err != nil || saved.Workspace != want || len(saved.History) != len(snapshot.History) {
 			t.Fatalf("saved session: %+v, %v; want workspace %q", saved, err, want)
 		}
@@ -231,7 +232,7 @@ func TestLegacySessionDoesNotOpenInCurrentWorkspace(t *testing.T) {
 // fixtures remain unassigned so migration behavior stays testable.
 func assignSavedWorkspace(t *testing.T, path, root string) {
 	t.Helper()
-	snapshot, err := session.Load(path)
+	snapshot, err := conversation.Load(path)
 	if err != nil {
 		t.Fatal(err)
 	}

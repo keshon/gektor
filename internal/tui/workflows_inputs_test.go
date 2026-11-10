@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/keshon/gektor/internal/automation"
+	"github.com/keshon/gektor/internal/workflow"
 )
 
 func queuedInvocation(t *testing.T, m *model) workflowInvocation {
 	t.Helper()
-	action := m.pendingCommands[len(m.pendingCommands)-1]().(workflowAction)
+	action := m.workflows.commands[len(m.workflows.commands)-1]().(workflowAction)
 	if action.action != "invoke" {
 		t.Fatal(action.action)
 	}
@@ -27,7 +27,7 @@ func TestDeclaredRunInputsPreserveTypesDefaultsAndOmissions(t *testing.T) {
 	m := workflowTestModel(t)
 	w := m.workflows
 	d := workflowRecipe()
-	d.Inputs = map[string]automation.Input{
+	d.Inputs = map[string]workflow.Input{
 		"count": {Type: "integer", Default: json.RawMessage(`9007199254740993`)},
 		"text":  {Type: "string", Required: true},
 		"empty": {Type: "string", Default: json.RawMessage(`"old"`)},
@@ -78,8 +78,8 @@ func TestDeclaredRunInputsPreserveTypesDefaultsAndOmissions(t *testing.T) {
 	}
 	d.Name = "Changed"
 	w.editor.Replace(d)
-	action := m.pendingCommands[len(m.pendingCommands)-1]().(workflowAction)
-	if cmd := m.workflowAction(action); cmd != nil || w.busy || !strings.Contains(w.notice, "Draft changed") {
+	action := m.workflows.commands[len(m.workflows.commands)-1]().(workflowAction)
+	if cmd := m.workflows.action(action); cmd != nil || w.busy || !strings.Contains(w.notice, "Draft changed") {
 		t.Fatal("stale invocation executed")
 	}
 }
@@ -88,9 +88,9 @@ func TestJSONRunInputsValidateBeforeSubmission(t *testing.T) {
 	m := workflowTestModel(t)
 	w := m.workflows
 	d := workflowRecipe()
-	d.Inputs = map[string]automation.Input{"count": {Type: "integer", Required: true}}
+	d.Inputs = map[string]workflow.Input{"count": {Type: "integer", Required: true}}
 	w.editor.Replace(d)
-	m.workflowInputForm(workflowInvocation{Action: "validate", Draft: w.editor.Source(), Mode: "JSON"})
+	m.workflows.inputForm(workflowInvocation{Action: "validate", Draft: w.editor.Source(), Mode: "JSON"})
 	f := m.dialog.form
 	for _, raw := range []string{`null`, `{} {}`, `{"count":"wrong"}`, `{"unknown":1}`, `{}`} {
 		if err := f.apply(map[string]string{"inputs": raw}); err == nil {
@@ -114,13 +114,13 @@ func TestWorkflowValidationFocusesNodeAndArgument(t *testing.T) {
 	second.ID = "second"
 	d.Steps = append(d.Steps, second)
 	w.editor.Replace(d)
-	err := automation.ValidateJSON(json.RawMessage(`{"input":3}`), json.RawMessage(`{"type":"object","properties":{"input":{"type":"string"}}}`))
+	err := workflow.ValidateJSON(json.RawMessage(`{"input":3}`), json.RawMessage(`{"type":"object","properties":{"input":{"type":"string"}}}`))
 	if err == nil {
 		t.Fatal("expected validation error")
 	}
 	err = fmt.Errorf("step second: %w", err)
 	before := w.editor.Source()
-	rows := m.workflowValidationRows(err)
+	rows := m.workflows.validationRows(err)
 	if w.graph.Selected != "second" || !w.inspect || !strings.Contains(strings.Join(rows, "\n"), "Value: /input") {
 		t.Fatal(rows, w.graph.Selected)
 	}
@@ -135,7 +135,7 @@ func TestWorkflowValidationFocusesNodeAndArgument(t *testing.T) {
 	if id != "" {
 		t.Fatal("invented node", id)
 	}
-	m.acceptWorkflowResult(workflowResult{action: "validate-inputs", err: err})
+	m.workflows.acceptResult(workflowResult{action: "validate-inputs", err: err})
 	if m.dialog == nil || w.graph.Selected != "second" {
 		t.Fatal("result did not focus error")
 	}
@@ -146,7 +146,7 @@ func TestRecipeSchemaErrorLocationFindsIndexedNode(t *testing.T) {
 	second := d.Steps[0]
 	second.ID = "second"
 	d.Steps = append(d.Steps, second)
-	err := automation.ValidateJSON(json.RawMessage(`{"steps":[{"args":{"value":"ok"}},{"args":{"value":3}}]}`), json.RawMessage(`{"type":"object","properties":{"steps":{"type":"array","items":{"type":"object","properties":{"args":{"type":"object","properties":{"value":{"type":"string"}}}}}}}}`))
+	err := workflow.ValidateJSON(json.RawMessage(`{"steps":[{"args":{"value":"ok"}},{"args":{"value":3}}]}`), json.RawMessage(`{"type":"object","properties":{"steps":{"type":"array","items":{"type":"object","properties":{"args":{"type":"object","properties":{"value":{"type":"string"}}}}}}}}`))
 	if err == nil {
 		t.Fatal("expected validation error")
 	}
@@ -164,16 +164,16 @@ func TestGeneratedInputInvocationExecutesBoundRecipe(t *testing.T) {
 	m := workflowTestModel(t)
 	w := m.workflows
 	d := workflowRecipe()
-	d.Inputs = map[string]automation.Input{"number": {Type: "integer", Required: true}}
+	d.Inputs = map[string]workflow.Input{"number": {Type: "integer", Required: true}}
 	d.Steps[0].Args = json.RawMessage(`{"code":"return input + 1;","input":{"$input":"number"}}`)
 	w.editor.Replace(d)
-	m.workflowInputForm(workflowInvocation{Action: "run", Mode: "Fields", Draft: w.editor.Source()})
+	m.workflows.inputForm(workflowInvocation{Action: "run", Mode: "Fields", Draft: w.editor.Source()})
 	if err := m.dialog.form.apply(map[string]string{"value:number": "7"}); err != nil {
 		t.Fatal(err)
 	}
-	action := m.pendingCommands[len(m.pendingCommands)-1]().(workflowAction)
+	action := m.workflows.commands[len(m.workflows.commands)-1]().(workflowAction)
 	m.dialog = nil
-	cmd := m.workflowAction(action)
+	cmd := m.workflows.action(action)
 	if cmd == nil {
 		t.Fatal("invocation not started")
 	}

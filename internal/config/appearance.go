@@ -5,9 +5,7 @@ import "fmt"
 
 // Appearance changes rendering only, independently of session/model settings.
 type Appearance struct {
-	Frame string `json:"frame,omitempty"`
-	// Retired setting, accepted when loading older preferences.
-	Density        string `json:"density,omitempty"`
+	Frame          string `json:"frame,omitempty"`
 	HideNames      bool   `json:"hide_names,omitempty"`
 	HideLabels     bool   `json:"hide_labels,omitempty"`
 	HideSystem     bool   `json:"hide_system,omitempty"`
@@ -18,9 +16,6 @@ type Appearance struct {
 func (a Appearance) Validate() error {
 	if a.Frame != "" && a.Frame != "minimal" && a.Frame != "outlined" {
 		return fmt.Errorf("unknown frame style %q", a.Frame)
-	}
-	if a.Density != "" && a.Density != "compact" && a.Density != "comfortable" {
-		return fmt.Errorf("unknown transcript density %q", a.Density)
 	}
 	return nil
 }

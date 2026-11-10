@@ -1,7 +1,6 @@
 package config
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -49,28 +48,6 @@ func (h Harness) DelegateBudget() (steps, maximum int, err error) {
 		return 0, 0, fmt.Errorf("delegate_steps (%d) exceeds delegate_max_steps (%d)", steps, maximum)
 	}
 	return steps, maximum, nil
-}
-
-// Retired advice settings are accepted when reading existing preferences;
-// the next save drops them. Other unknown keys still report an error.
-func (h *Harness) UnmarshalJSON(data []byte) error {
-	var saved struct {
-		Steering         bool            `json:"steering"`
-		MaxSteps         int             `json:"max_steps"`
-		DelegateSteps    int             `json:"delegate_steps"`
-		DelegateMaxSteps int             `json:"delegate_max_steps"`
-		Nudges           json.RawMessage `json:"nudges"`
-		ThinkBudget      json.RawMessage `json:"think_budget"`
-	}
-	d := json.NewDecoder(bytes.NewReader(data))
-	d.DisallowUnknownFields()
-	if err := d.Decode(&saved); err != nil {
-		return err
-	}
-	h.MaxSteps = saved.MaxSteps
-	h.Steering = saved.Steering
-	h.DelegateSteps, h.DelegateMaxSteps = saved.DelegateSteps, saved.DelegateMaxSteps
-	return nil
 }
 
 // ThemeNames lists the persisted theme identifiers in picker order.

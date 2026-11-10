@@ -11,9 +11,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/run"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -26,7 +27,7 @@ func TestApprovalInspectionAndStaleReapproval(t *testing.T) {
 func testApprovalInspection(t *testing.T, frame string) {
 	m := sizeModel(t, testModel())
 	m.applyAppearance(config.Appearance{Frame: frame, HideNames: true})
-	m.hub = run.NewGateHub(func(name string, fields map[string]any) { m.events <- run.Event{Name: name, Fields: fields} })
+	m.hub = harness.NewGateHub(func(name string, fields map[string]any) { m.events <- harness.Event{Name: name, Fields: fields} })
 	root := t.TempDir()
 	ws, err := workspace.New(root)
 	if err != nil {

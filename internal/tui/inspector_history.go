@@ -1,12 +1,12 @@
 package tui
 
 import (
-	"encoding/json"
-	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/run"
-	"github.com/keshon/gektor/internal/session"
 	"os"
 	"strings"
+
+	"github.com/keshon/gektor/internal/conversation"
+	"github.com/keshon/gektor/internal/harness"
+	"github.com/keshon/gektor/internal/llm"
 )
 
 type childTranscript struct {
@@ -22,7 +22,7 @@ type childTranscript struct {
 type childLoadedMsg struct {
 	parent, callID string
 	revision       uint64
-	snapshot       session.Snapshot
+	snapshot       conversation.Snapshot
 	err            error
 }
 
@@ -56,7 +56,7 @@ func (m *model) acceptChildHistory(msg childLoadedMsg) {
 	}
 	m.refreshInspector()
 }
-func (m *model) acceptChildEvent(ev run.Event) {
+func (m *model) acceptChildEvent(ev harness.Event) {
 	id, _ := ev.Fields["call_id"].(string)
 	kind, _ := ev.Fields["kind"].(string)
 	fields, _ := ev.Fields["fields"].(map[string]any)
@@ -77,12 +77,8 @@ func (m *model) acceptChildEvent(ev run.Event) {
 	case "notice":
 		child.history = append(child.history, llm.Message{Role: llm.RoleUser, Content: "[harness] " + text})
 	case "message":
-		raw, err := json.Marshal(fields["message"])
-		if err != nil {
-			return
-		}
-		var msg llm.Message
-		if json.Unmarshal(raw, &msg) != nil {
+		msg, ok := fields["message"].(llm.Message)
+		if !ok {
 			return
 		}
 		child.history = append(child.history, msg)

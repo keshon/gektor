@@ -33,10 +33,10 @@ func Kinds() []string {
 }
 
 // ClientFor builds a wire client using the selected request dialect.
-func ClientFor(kind, baseURL, model string) (*Server, error) {
+func ClientFor(kind, baseURL, model string) (*Client, error) {
 	for _, k := range kinds {
 		if k.kind == kind {
-			return newServer(baseURL, model, k.dialect), nil
+			return newClient(baseURL, model, k.dialect), nil
 		}
 	}
 	return nil, fmt.Errorf("unknown backend kind %q, want one of %s",

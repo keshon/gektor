@@ -12,14 +12,15 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/app"
-	workflow "github.com/keshon/gektor/internal/automation/agenttools"
-	"github.com/keshon/gektor/internal/automation/credentials"
-	"github.com/keshon/gektor/internal/automation/script"
-	"github.com/keshon/gektor/internal/automation/store"
 	"github.com/keshon/gektor/internal/capabilities/documents"
-	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tools"
+	"github.com/keshon/gektor/internal/userdirs"
+	workflowcore "github.com/keshon/gektor/internal/workflow"
+	workflow "github.com/keshon/gektor/internal/workflow/agenttools"
+	"github.com/keshon/gektor/internal/workflow/credentials"
+	"github.com/keshon/gektor/internal/workflow/script"
+	"github.com/keshon/gektor/internal/workflow/store"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -47,7 +48,7 @@ func runWorkflow(args []string) error {
 		if f.NArg() != 1 {
 			return fmt.Errorf("register-credential requires one name")
 		}
-		return (credentials.Store{Directory: gektor.Sub("credentials")}).Register(f.Arg(0), credentials.Config{Origin: *origin, Env: *env, Header: *header, Prefix: *prefix})
+		return (credentials.Store{Directory: userdirs.Sub("credentials")}).Register(f.Arg(0), credentials.Config{Origin: *origin, Env: *env, Header: *header, Prefix: *prefix})
 	}
 	if args[0] == "draft" {
 		o, err := workflowDraftOptions(args[1:])
@@ -57,27 +58,27 @@ func runWorkflow(args []string) error {
 		if err != nil {
 			return err
 		}
-		return runConfigured(launchRequest{options: &o, preferencePath: gektor.Sub("application.json")})
+		return runConfigured(launchRequest{options: &o, preferencePath: userdirs.Sub("application.json")})
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	switch args[0] {
 	case "artifacts", "export-artifact", "prune-artifacts":
-		return workflowArtifacts(ctx, args, os.Stdout, gektor.Sub("workflows"))
+		return workflowArtifacts(ctx, args, os.Stdout, userdirs.Sub("workflows"))
 	case "review", "serve", "submit", "jobs", "job", "cancel", "schedules", "schedule", "pause", "resume", "unschedule":
-		return workflowQueue(ctx, args, os.Stdout, gektor.Sub("workflows"))
+		return workflowQueue(ctx, args, os.Stdout, userdirs.Sub("workflows"))
 	}
 	if args[0] == "register-schema" {
-		return workflowRegisterSchema(ctx, args[1:], os.Stdout, gektor.Sub("workflows"))
+		return workflowRegisterSchema(ctx, args[1:], os.Stdout, userdirs.Sub("workflows"))
 	}
 	if args[0] == "runs" || args[0] == "inspect" || args[0] == "record" {
-		return workflowHistory(ctx, args, os.Stdout, gektor.Sub("workflows"))
+		return workflowHistory(ctx, args, os.Stdout, userdirs.Sub("workflows"))
 	}
 	if args[0] == "schema" {
 		if len(args) != 1 {
 			return fmt.Errorf("%s", workflowUsage)
 		}
-		out, err := (workflow.Schema{}).Run(ctx, json.RawMessage(`{}`))
+		out, err := (workflow.Schema{Registry: func() (*workflowcore.Registry, error) { return app.WorkflowRegistry(nil, "", nil, nil) }}).Run(ctx, json.RawMessage(`{}`))
 		if err != nil {
 			return err
 		}
@@ -288,7 +289,7 @@ func executeWorkflow(ctx context.Context, o workflowOptions, out io.Writer, gate
 	if err != nil {
 		return err
 	}
-	t, err := app.NewAutomation(ws, o.storeDir, policy, gate)
+	t, err := app.NewWorkflow(ws, o.storeDir, policy, gate)
 	if err != nil {
 		return err
 	}
@@ -303,7 +304,7 @@ func executeWorkflow(ctx context.Context, o workflowOptions, out io.Writer, gate
 		}
 		directory := o.storeDir
 		if directory == "" {
-			directory = gektor.Sub("workflows")
+			directory = userdirs.Sub("workflows")
 		}
 		workflowGuidance(os.Stderr, result, directory, o.workspace, o.allow, o.deny)
 	}

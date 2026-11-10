@@ -10,9 +10,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/keshon/gektor/internal/conversation"
+	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/run"
-	"github.com/keshon/gektor/internal/workspace"
 )
 
 func TestSearchIndexesConversationAndRanksTitles(t *testing.T) {
@@ -124,7 +125,7 @@ func TestSearchHistoryMatchOpensAtMessage(t *testing.T) {
 	}
 	dir := writeSessionState(t, sessionsRootFor(t, m.wsRoot), "match", history)
 	assignSavedWorkspace(t, filepath.Join(dir, "state.json"), m.wsRoot)
-	m.newSession = func(string, string, []string) (*run.Session, error) { return &run.Session{}, nil }
+	m.newSession = func(string, string, []string) (*harness.Session, error) { return &harness.Session{}, nil }
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	m.openSessions()
 	finishSessionRefresh(t, m)
@@ -153,7 +154,7 @@ func TestSessionRenameAndDeleteKeepModalOpen(t *testing.T) {
 	}
 	m.note.SetValue("Renamed")
 	m.sessionsKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.sessions == nil || m.sessions.mode != sessList || workspace.ReadSessionTitle(dir) != "Renamed" {
+	if m.sessions == nil || m.sessions.mode != sessList || conversation.ReadSessionTitle(dir) != "Renamed" {
 		t.Fatal("rename did not return to pane")
 	}
 	m.sessionsKey(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})

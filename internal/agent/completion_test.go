@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
 )
 
 func TestCompletionRetainsArrivingNotificationsAndInput(t *testing.T) {
@@ -96,7 +96,7 @@ func TestCompletionRetainsArrivingNotificationsAndInput(t *testing.T) {
 						history := a.snapshot.History
 						if persisted {
 							var err error
-							history, err = session.ReadHistory(path)
+							history, err = conversation.ReadHistory(path)
 							if err != nil {
 								t.Fatal(err)
 							}

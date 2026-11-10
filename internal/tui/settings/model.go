@@ -5,11 +5,12 @@ import (
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/providers"
 	"github.com/keshon/gektor/internal/tui/components/form"
 )
 
-type Workspace struct {
+type EditSession struct {
 	Draft               *Draft
 	Section, LoadedPath string
 	Advanced            bool
@@ -36,7 +37,7 @@ type Model struct {
 	Destructive             bool
 	Choices                 map[string][]string
 	FileFields              map[string]FilePicker
-	Workspace               *Workspace
+	EditSession             *EditSession
 	Picker                  *Picker
 	HasApplication          bool
 }
@@ -102,7 +103,7 @@ func (f *Model) SyncInputFocus(active bool) {
 }
 
 func (f *Model) FieldVisible(index int) bool {
-	if index >= 0 && index < len(f.Fields) && f.Workspace != nil {
+	if index >= 0 && index < len(f.Fields) && f.EditSession != nil {
 		if d, err := providers.Lookup(f.providerKind()); err == nil {
 			switch f.Fields[index].Key {
 			case "reasoning-effort", "reasoning-summary":
@@ -126,34 +127,34 @@ func (f *Model) FieldVisible(index int) bool {
 			}
 		}
 	}
-	if index >= len(f.Fields) || f.Workspace == nil || f.Workspace.Section != "model" {
+	if index >= len(f.Fields) || f.EditSession == nil || f.EditSession.Section != "model" {
 		return true
 	}
 	if f.Fields[index].Key == "key-env" {
-		return f.Workspace.Advanced
+		return f.EditSession.Advanced
 	}
 	return true
 }
 
 func (f *Model) providerKind() string {
-	if f.Workspace == nil {
+	if f.EditSession == nil {
 		return ""
 	}
-	if f.Workspace.Section == "model" {
+	if f.EditSession.Section == "model" {
 		for _, field := range f.Fields {
 			if field.Key == "kind" {
 				return field.Value
 			}
 		}
 	}
-	if fields, ok := f.Workspace.Draft.Fields("model"); ok {
+	if fields, ok := f.EditSession.Draft.Fields("model"); ok {
 		for _, field := range fields {
 			if field.Key == "kind" {
 				return field.Value
 			}
 		}
 	}
-	return f.Workspace.Draft.Base().Provider.Kind
+	return f.EditSession.Draft.Base().Provider.Kind
 }
 
 func (f *Model) FirstVisibleField() int {
@@ -231,16 +232,16 @@ func (f *Model) inlineOptions(field form.Field) []form.Option {
 	return options
 }
 
-func (f *Model) StorePage() { f.Sync(); f.Workspace.Draft.Store(f.Workspace.Section, f.Fields) }
+func (f *Model) StorePage() { f.Sync(); f.EditSession.Draft.Store(f.EditSession.Section, f.Fields) }
 func (f *Model) Dirty() bool {
-	if f.Workspace == nil {
+	if f.EditSession == nil {
 		return true
 	}
 	fields := slices.Clone(f.Fields)
 	if f.Index >= 0 && f.Index < len(fields) {
 		fields[f.Index].Value = f.Editor.Value()
 	}
-	return f.Workspace.PersistCurrent || f.Workspace.Draft.Dirty(f.Workspace.Section, fields)
+	return f.EditSession.PersistCurrent || f.EditSession.Draft.Dirty(f.EditSession.Section, fields)
 }
 func (f *Model) UpdateInput(msg tea.Msg) tea.Cmd {
 	switch f.InputOwner() {

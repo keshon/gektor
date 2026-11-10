@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
 )
 
 func TestInspectionMapsCompactedRequestAndRetainsArchive(t *testing.T) {
@@ -21,7 +21,7 @@ func TestInspectionMapsCompactedRequestAndRetainsArchive(t *testing.T) {
 		{Role: llm.RoleUser, Content: "latest"},
 	}
 	a := New(Config{Tools: NewRegistry()})
-	a.snapshot = session.New(history)
+	a.snapshot = conversation.New(history)
 	a.snapshot.ContextStart, a.snapshot.Summary = 3, "checkpoint"
 	req := llm.ChatRequest{Messages: a.snapshot.Context()}
 	req.Messages[4].Content = "guide reuse marker"
@@ -31,13 +31,13 @@ func TestInspectionMapsCompactedRequestAndRetainsArchive(t *testing.T) {
 	if v.Request.MessageCount != len(llm.ModelMessages(req.Messages)) || !v.Request.HasSummary || v.Summary != "checkpoint" {
 		t.Fatal(v)
 	}
-	if !reflect.DeepEqual(v.Request.Included, []session.MessageRange{{Start: 1, End: 2}, {Start: 4, End: 5}, {Start: 7, End: 7}}) || !reflect.DeepEqual(v.Request.Rewritten, []int{5}) {
+	if !reflect.DeepEqual(v.Request.Included, []conversation.MessageRange{{Start: 1, End: 2}, {Start: 4, End: 5}, {Start: 7, End: 7}}) || !reflect.DeepEqual(v.Request.Rewritten, []int{5}) {
 		t.Fatal(v.Request)
 	}
 	if len(v.Skills) != 1 || v.Skills[0].ID != "go" || v.Skills[0].ArchiveID != 5 {
 		t.Fatal(v.Skills)
 	}
-	rows, _, err := session.SearchHistory(a.snapshot, "old exact decision", 1, 1)
+	rows, _, err := conversation.SearchHistory(a.snapshot, "old exact decision", 1, 1)
 	if err != nil || len(rows) != 1 || rows[0].ID != 3 || a.snapshot.History[4].Content != "full guide" {
 		t.Fatal(rows, err)
 	}
@@ -53,7 +53,7 @@ func TestInspectionMapsCompactedRequestAndRetainsArchive(t *testing.T) {
 
 func TestInspectionPreservesLegacyPromptOnResume(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
-	s := session.New([]llm.Message{{Role: llm.RoleSystem, Content: "Be be honest"}, {Role: llm.RoleUser, Content: "task"}, {Role: llm.RoleAssistant, Content: "done"}})
+	s := conversation.New([]llm.Message{{Role: llm.RoleSystem, Content: "Be be honest"}, {Role: llm.RoleUser, Content: "task"}, {Role: llm.RoleAssistant, Content: "done"}})
 	if err := s.Save(path); err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestInspectionPreservesLegacyPromptOnResume(t *testing.T) {
 	if _, err := New(cfg).Resume(t.Context(), s.Context(), "compare"); err != nil {
 		t.Fatal(err)
 	}
-	s, err := session.Load(path)
+	s, err := conversation.Load(path)
 	if err != nil || len(s.Prompts) != 2 || s.Prompts[0].Text != "Be be honest" || s.Prompts[0].Source != "saved_archive" || s.Prompts[1].Text != "Be honest" {
 		t.Fatal(s.Prompts, err)
 	}
@@ -71,7 +71,7 @@ func TestInspectionPreservesLegacyPromptOnResume(t *testing.T) {
 	if _, err := New(cfg).Resume(t.Context(), s.Context(), "again"); err != nil {
 		t.Fatal(err)
 	}
-	s, err = session.Load(path)
+	s, err = conversation.Load(path)
 	if err != nil || len(s.Prompts) != 2 || s.LastRequest.Number <= first {
 		t.Fatal(s.LastRequest, s.Prompts, err)
 	}
@@ -80,7 +80,7 @@ func TestInspectionPreservesLegacyPromptOnResume(t *testing.T) {
 func TestInspectionUsesProjectedCallsAndRoleAllowance(t *testing.T) {
 	history := []llm.Message{{Role: llm.RoleSystem, Content: "system"}, {Role: llm.RoleUser, Content: "task"}, {Role: llm.RoleAssistant, Content: "retained text", ToolCalls: []llm.ToolCall{{ID: "bad", Name: "load_skill", InputError: "invalid"}}}}
 	a := New(Config{Tools: NewRegistry(), ReadOnly: []string{"inspect_context"}, Directive: "not actually included"})
-	a.snapshot, a.requests = session.New(history), 1
+	a.snapshot, a.requests = conversation.New(history), 1
 	a.recordInspection(llm.ChatRequest{Messages: history, Tools: []llm.ToolDef{{Name: "write_file"}, {Name: "inspect_context"}}})
 	v := a.inspection
 	if v.Directive != "" || len(v.Request.Rewritten) != 1 || v.Request.Rewritten[0] != 3 || v.Request.MessageCount != 3 {

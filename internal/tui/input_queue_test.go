@@ -11,15 +11,16 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/config"
-	"github.com/keshon/gektor/internal/run"
+	"github.com/keshon/gektor/internal/harness"
 )
 
 func queuedModel(t *testing.T) *model {
 	t.Helper()
 	m := runningModel(t)
-	m.sess = &run.Session{}
+	m.sess = &harness.Session{}
 	for _, text := range []string{"Compare these screenshots", "Check the inspector spacing", "Check the light theme too"} {
 		if err := m.sess.Submit(text, "shot.png"); err != nil {
 			t.Fatal(err)
@@ -106,7 +107,7 @@ func TestQueueStaleEditorKeepsTextAndCannotChangeAnotherMessage(t *testing.T) {
 	if m.sess.PendingInputs()[2].Message.Content != "replacement" {
 		t.Fatal("stale save changed replacement")
 	}
-	m.sess = &run.Session{}
+	m.sess = &harness.Session{}
 	m.applyForm()
 	if !strings.Contains(m.dialog.form.Error, "session has changed") {
 		t.Fatal("editor crossed sessions")
@@ -212,7 +213,7 @@ func TestQueueEditorSurvivesAgentGate(t *testing.T) {
 	m.openInputQueue()
 	m.handleKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
 	m.dialog.form.Editor.SetValue("unsaved edit")
-	m.acceptGateEvent(run.Event{Name: "gate", Fields: map[string]any{"kind": string(agent.SuspendPermission), "prompt": "Allow this tool?"}})
+	m.acceptGateEvent(harness.Event{Name: "gate", Fields: map[string]any{"kind": string(agent.SuspendPermission), "prompt": "Allow this tool?"}})
 	if m.dialog != nil || m.suspendedInputEdit == nil || m.input.Value() != "unfinished draft" {
 		t.Fatal("gate lost editor or main draft")
 	}
@@ -281,7 +282,7 @@ func TestRunningPlaceholderClearsWhenTurnFinishes(t *testing.T) {
 func TestQueueEntryPointSurvivesEmptyInboxAndModalClose(t *testing.T) {
 	for _, width := range []int{40, 80, 120} {
 		m := runningModel(t)
-		m.sess = &run.Session{}
+		m.sess = &harness.Session{}
 		m.width(tea.WindowSizeMsg{Width: width, Height: 24})
 		check := func() {
 			t.Helper()

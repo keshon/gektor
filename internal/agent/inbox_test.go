@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
 )
 
 type inputClient func(context.Context, llm.ChatRequest) (llm.ChatResponse, error)
@@ -84,7 +84,7 @@ func TestInputWaitsForCompleteToolGroupAndKeepsAttachments(t *testing.T) {
 	if err := inbox.Send("late"); !errors.Is(err, ErrInputClosed) {
 		t.Fatalf("late input=%v", err)
 	}
-	history, err := session.ReadHistory(state)
+	history, err := conversation.ReadHistory(state)
 	if err != nil || history[len(history)-2].Content != "second message" {
 		t.Fatalf("saved input missing: %+v %v", history, err)
 	}
@@ -128,7 +128,7 @@ func TestInputIsSavedWhenCurrentRequestIsCancelled(t *testing.T) {
 	if _, err := a.Run(ctx, "task"); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancel=%v", err)
 	}
-	history, err := session.ReadHistory(state)
+	history, err := conversation.ReadHistory(state)
 	if err != nil || history[len(history)-1].Content != "do not lose this" {
 		t.Fatalf("lost input: %+v %v", history, err)
 	}

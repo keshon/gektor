@@ -3,10 +3,11 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/keshon/gektor/internal/automation/store"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/keshon/gektor/internal/workflow/store"
 )
 
 func TestWorkflowQueueSnapshotsAndCommands(t *testing.T) {

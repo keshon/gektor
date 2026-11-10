@@ -24,13 +24,13 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
-	"github.com/keshon/gektor/internal/automation"
-	"github.com/keshon/gektor/internal/automation/script"
 	"github.com/keshon/gektor/internal/capabilities/documents"
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/tools"
+	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/internal/workflow/script"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -840,7 +840,7 @@ func checkAnswer(p Probe, answer string) []string {
 	if len(p.AnswerSchema) > 0 {
 		if err := validateAnswerJSON(answer); err != nil {
 			out = append(out, "answer JSON: "+err.Error())
-		} else if err := automation.ValidateJSON(json.RawMessage(answer), p.AnswerSchema); err != nil {
+		} else if err := workflow.ValidateJSON(json.RawMessage(answer), p.AnswerSchema); err != nil {
 			out = append(out, "answer schema: "+err.Error())
 		}
 	}
@@ -1059,7 +1059,7 @@ func loadProbes(dir, only string) ([]Probe, error) {
 		// fields, and uncompilable regexes fail here, dry, instead of
 		// mid-run after model calls.
 		if len(p.AnswerSchema) > 0 {
-			if _, err := automation.CompileSchema(p.AnswerSchema); err != nil {
+			if _, err := workflow.CompileSchema(p.AnswerSchema); err != nil {
 				return nil, fmt.Errorf("%s: answer_schema: %w", path, err)
 			}
 		}

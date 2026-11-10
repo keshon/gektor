@@ -16,15 +16,15 @@ Paths below are relative to the repository root.
 | internal/agent | Request model turns, order tools and recover from failures |
 | internal/llm | Define messages and client contracts; subpackages handle protocols |
 | internal/providers | Describe providers, inspect models and manage accounts |
-| internal/run | Expose agent execution and operator gates to frontends |
-| internal/agentstdio | Frame stdio RPC requests and own per-request lifetime |
+| internal/harness | Expose agent execution and operator gates to frontends |
+| internal/agentrpc | Frame stdio RPC requests and own per-request lifetime |
 | internal/events | Serialize frontend events |
-| internal/session | Save conversation history, model context and run records |
+| internal/conversation | Save conversation history, model context and run records |
 | internal/workspace and internal/permission | Resolve file access and authorize effects |
 | internal/tools | Compose Agent tools and session capability discovery |
 | internal/capabilities | Implement shared feature services and their tool/node contracts |
-| internal/httptransport, internal/process and internal/programs | Own network policy, process lifetime and executable discovery |
-| internal/automation | Validate, execute, store and schedule workflow runs |
+| internal/httptransport, internal/process and internal/executables | Own network policy, process lifetime and executable discovery |
+| internal/workflow | Validate, execute, store and schedule workflow runs |
 | internal/tui | Own screen state and connect controls to application actions |
 | internal/tui/components | Render reusable controls and handle their local interaction |
 | cmd/release and internal/release | Adapt packaging arguments and stage/verify release payloads |
@@ -53,13 +53,14 @@ its backend client, MCP connections and background-process registry.
 One prepared run configuration carries identity, generation settings, checks,
 permissions and role selection into CLI, TUI and RPC. Frontends attach their own
 event and gate transports. They do not reconstruct subsets of the role environment.
-All three use internal/run.Session for execution, resume, budget continuation,
+All three use internal/harness.Session for execution, resume, budget continuation,
 mutation checks and final reporting. Workflow authoring is an explicit Session
 configuration; its restricted tools and resume policy stay with that role.
 CLI and first-run TUI settings use internal/config.DefaultProfile: llama.cpp
 at http://127.0.0.1:9931. The eval runner uses the same provider defaults.
 
-internal/app compiles identity and profile settings into Services.
+internal/app prepares validated profiles and compiled identity as PreparedProfile.
+Runtime clients remain in the composed Backend and role environment.
 internal/roles builds Planner, Interactive and Subagent from Env.
 
 Subagents
@@ -69,8 +70,10 @@ default and maximum, and a task can request an allowance within that maximum.
 Errors retain a bounded report with measured effects and child archive references.
 There is no automatic continuation after exhaustion.
 
-internal/run provides Session events and operator gates for TUI and RPC.
-The print CLI supplies console observers to the same role constructors.
+internal/harness provides execution, events and operator gates for CLI, TUI and RPC.
+Events retain their Go values in process; JSON serialization happens only at the
+CLI/RPC boundary. The same event sequence and fields define the wire projection.
+Conversation snapshots and title files belong to internal/conversation.
 internal/llm defines provider-neutral messages, replay envelopes, errors and retries.
 internal/llm/chatcompletions owns Chat Completions transport and request-format dialects;
 internal/llm/responses owns the current ChatGPT Responses integration.
@@ -80,6 +83,13 @@ they depend only on a shared internal HTTP probe helper, never protocol clients.
 internal/app constructs connections, binds credentials, and orchestrates discovery.
 internal/tools supplies tools; internal/workspace resolves paths and measures
 file changes; internal/permission authorizes each tool call.
+
+The concrete workflowScreen owns the terminal workflow editor's state, message
+dispatch, queued commands, rendering and asynchronous operations. The root TUI
+opens/closes that screen and supplies shared dialog, layout and navigation
+callbacks. The screen has its own context and a bounded workflow configuration;
+it receives no parent model or agent/transcript state. Graph controls render
+supplied detail text and tones; workflow status interpretation stays in the screen.
 
 The model server is external. GEKTOR does not install or supervise it.
 API-compatible providers share the Chat Completions transport; local dialects handle
@@ -110,7 +120,7 @@ an existing connection. Token renewal remains serialized across processes.
 
 Responses replay preserves ordered native items separately from display text.
 The envelope is replayed only when its integration, model, account scope, and
-canonical message projection match. Mutation or incompatible legacy state falls
+canonical message projection match. Mutation or incompatible native state falls
 back to the normal transcript without restoring removed calls. Interrupted output
 is archived as partial text/reasoning, never as executable tool calls.
 
@@ -159,7 +169,7 @@ automatic compaction; overflow recovery may compact immediately.
 Before each agent request, `internal/agent` records archive ID membership and
 captures instruction, tool and retained skill-load metadata for its tool batch.
 `inspect_context` reads that fixed view; it does not reconstruct a request from
-the archive or inspect backend internals. `internal/session` saves system prompt
+the archive or inspect backend internals. `internal/conversation` saves system prompt
 revisions and the latest request manifest. Changed results and calls are marked
 as rewritten; omitted messages are absent from the included ID ranges.
 
@@ -206,7 +216,7 @@ and `native_media` packages load on demand. The
 [capability development pattern](docs/development/capabilities.md) defines the
 service and adapter boundaries for additions and changes.
 `capabilities/images` stages rooted inputs for the external Pixelita Go library;
-`automation/agenttools` adapts manual recipes to `internal/automation`. The runner has
+`workflow/agenttools` adapts manual recipes to `internal/workflow`. The runner has
 no model dependency and dispatches registered node descriptors. Model access is
 an explicit node with its own bounded context.
 
@@ -278,8 +288,15 @@ the previous digest. This records observed file changes, not backups or rollback
 An optional verify command runs once after a completed model answer. Its real
 output and error determine the recorded verdict, without another model call.
 The final workspace comparison follows verification, including files generated
-by that command. internal/checks collects report-only findings from file edits
-and a final pass over changed paths; internal/rules supplies language checks.
+by that command. `internal/checks` collects language-independent, report-only
+findings from file edits and a final pass over changed paths. Both passes skip
+files over 256 KiB with an explicit notice and cap findings at 20 plus a limit
+notice. GEKTOR does not choose language-specific checks or formatters; projects
+supply their own verification command.
+
+`internal/permissionlog` observes operator gate decisions when `-audit` is set.
+It preserves gate context and results; logging failures never block execution.
+Automatic policy decisions are outside this operator log.
 
 ## UI and settings
 
@@ -319,7 +336,7 @@ a fixed seven-scenario baseline. Frozen criteria check workspace contents,
 tool usage and answers independently of the model checklist.
 
 The experimental TUI /eval command is a separate retrospective, implemented in
-internal/retrospect. Session snapshots retain execution ranges alongside the full
+internal/retrospective. Session snapshots retain execution ranges alongside the full
 archive; compaction changes only the working projection. The Retrospective role
 has archive-reading and structured-submission tools, without task capabilities.
 Reports remain proposals until the user saves a lesson through `/learn` or the

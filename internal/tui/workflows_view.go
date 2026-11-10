@@ -1,32 +1,33 @@
 package tui
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"encoding/json"
-	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/gektor/internal/automation"
-	"github.com/keshon/gektor/internal/automation/recipe"
+	"strings"
+
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 	editor "github.com/keshon/gektor/internal/tui/workflow"
-	"strings"
+	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/internal/workflow/recipe"
 )
 
-func (m *model) workflowDefinition() automation.Definition {
-	if m.workflows.run != nil {
+func (m *workflowScreen) definition() workflow.Definition {
+	if m.run != nil {
 		// The execution definition contains compiler bookkeeping. Orientation uses
 		// the frozen authoring snapshot, never the current workspace file.
-		if d, err := editor.Decode([]byte(m.workflows.run.RecipeSource)); err == nil {
+		if d, err := editor.Decode([]byte(m.run.RecipeSource)); err == nil {
 			return d
 		}
-		return m.workflows.run.Definition
+		return m.run.Definition
 	}
-	return m.workflows.editor.Definition
+	return m.editor.Definition
 }
 
-func (m *model) workflowSteps() ([]automation.Step, error) {
-	d := m.workflowDefinition()
+func (m *workflowScreen) steps() ([]workflow.Step, error) {
+	d := m.definition()
 	steps, err := recipe.Order(d.Steps)
 	if err != nil {
 		return d.Steps, err
@@ -34,22 +35,22 @@ func (m *model) workflowSteps() ([]automation.Step, error) {
 	return steps, nil
 }
 
-func (m *model) workflowEnsureSelection() {
-	if m.workflowSelectedSchedule() != nil && m.workflows.run == nil {
+func (m *workflowScreen) ensureSelection() {
+	if m.selectedSchedule() != nil && m.run == nil {
 		return
 	}
-	steps, _ := m.workflowSteps()
+	steps, _ := m.steps()
 	for _, step := range steps {
-		if step.ID == m.workflows.graph.Selected {
+		if step.ID == m.graph.Selected {
 			return
 		}
 	}
-	m.workflows.graph.Selected = ""
-	m.workflows.portSelected = false
+	m.graph.Selected = ""
+	m.portSelected = false
 	if len(steps) > 0 {
-		m.workflows.graph.Selected = steps[0].ID
+		m.graph.Selected = steps[0].ID
 	}
-	m.workflows.offset = 0
+	m.offset = 0
 }
 
 func workflowValue(raw json.RawMessage) string {
@@ -70,16 +71,16 @@ func workflowValue(raw json.RawMessage) string {
 	return string(raw)
 }
 
-func (m *model) workflowPage(key string) {
-	w := m.workflows
-	_, height := m.workflowCanvasSize()
+func (m *workflowScreen) page(key string) {
+	w := m
+	_, height := m.canvasSize()
 	if w.inspect {
 		height = max(1, height-2)
 		switch key {
 		case "home":
 			w.offset = 0
 		case "end":
-			w.offset = max(0, len(m.workflowInspectorContent())-height)
+			w.offset = max(0, len(m.inspectorContent())-height)
 		case "pgup":
 			w.offset = max(0, w.offset-height)
 		case "pgdown":
@@ -100,28 +101,32 @@ func (m *model) workflowPage(key string) {
 	case "pgdown":
 		w.graph.SelectNext(1)
 	}
-	width, height := m.workflowCanvasSize()
+	width, height := m.canvasSize()
 	w.graph.Reveal(width, height)
 }
 
-func (m *model) workflowCanvasSize() (int, int) {
-	area := m.screenPanes(m.workflows.inspectorOpen).Main
-	layout := m.panelGeometry(area.Width, 1, false, false)
+func (m *workflowScreen) canvasSize() (int, int) {
+	area := m.ui.screenPanes(m.inspectorOpen).Main
+	layout := m.ui.panelGeometry(area.Width, 1, false, false)
 	return max(layout.Body.Width, 1), max(layout.Body.Height, 1)
 }
 
-func (m *model) workflowScreen() string {
-	w := m.workflows
-	cw, ch := m.workflowCanvasSize()
-	m.workflowEnsureSelection()
+func (m *workflowScreen) content() string {
+	w := m
+	cw, ch := m.canvasSize()
+	m.ensureSelection()
 	if w.run == nil {
-		w.graph = m.workflowGraph(w.graph)
+		w.graph = m.buildGraph(w.graph)
 	}
 	canvas := w.graph
 	if w.overview {
 		canvas = w.graph.Overview(cw)
 	}
-	left := canvas.View(cw, ch, m.graphStyles())
+	canvas.Nodes = append([]graph.Node(nil), canvas.Nodes...)
+	for i := range canvas.Nodes {
+		canvas.Nodes[i].Detail, canvas.Nodes[i].DetailTone = workflowCardDetail(canvas.Nodes[i].Detail)
+	}
+	left := canvas.View(cw, ch, m.ui.graphStyles())
 	if len(canvas.Nodes) == 0 {
 		left = cellFrame("No workflow open.\nCtrl+O opens a recipe · H saved runs\nA adds a node · I requests an AI proposal", cw, ch)
 	}
@@ -136,22 +141,22 @@ func (m *model) workflowScreen() string {
 	if w.positionsLocked {
 		mode += " [positions locked]"
 	}
-	regions := m.screenPanes(w.inspectorOpen)
+	regions := m.ui.screenPanes(w.inspectorOpen)
 	split := w.inspectorOpen && !regions.Covered
 	leftWidth := regions.Main.Width
-	footerWidth := m.panelGeometry(leftWidth, 1, false, false).Footer.Width
-	rows := m.inspectionRows(mode+" / "+cleanText(title), pane.NoticeRow(cleanText(w.notice), w.noticeLevel, footerWidth, m.noticeStyles()), left, leftWidth, !w.inspect, false)
+	footerWidth := m.ui.panelGeometry(leftWidth, 1, false, false).Footer.Width
+	rows := m.ui.inspectionRows(mode+" / "+cleanText(title), pane.NoticeRow(cleanText(w.notice), w.noticeLevel, footerWidth, m.ui.noticeStyles()), left, leftWidth, !w.inspect, false)
 	if w.inspectorOpen {
 		width := regions.Side.Width
-		content := m.workflowInspectorContent()
-		tabs := m.workflowInspectorTabs()
+		content := m.inspectorContent()
+		tabs := m.inspectorTabs()
 		capacity := max(1, ch-len(tabs.Rows)-1)
 		w.offset = min(w.offset, max(0, len(content)-capacity))
 		visible := content[w.offset:min(len(content), w.offset+capacity)]
-		inner := m.panelGeometry(width, 1, true, false).Body.Width
-		body := strings.Join(tabs.Rows, "\n") + "\n\n" + strings.Join(popup.ScrollRows(visible, inner, w.offset, len(content), m.styles.dim), "\n")
+		inner := m.ui.panelGeometry(width, 1, true, false).Body.Width
+		body := strings.Join(tabs.Rows, "\n") + "\n\n" + strings.Join(popup.ScrollRows(visible, inner, w.offset, len(content), m.ui.styles().dim), "\n")
 		heading := "Inspect / " + cleanText(w.graph.Selected)
-		if m.workflowSelectedSchedule() != nil && w.run == nil {
+		if m.selectedSchedule() != nil && w.run == nil {
 			heading = "Inspect / Schedule"
 		}
 		if w.rawDetails {
@@ -167,8 +172,8 @@ func (m *model) workflowScreen() string {
 		if w.inspect && w.run == nil && !w.busy && w.inspectorTab != 1 {
 			shortcuts = []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "Tab", Action: "parent"}, {Key: "E", Action: "edit"}, {Key: "1–3", Action: "tabs"}}
 		}
-		hint := m.inspectionHints(width, shortcuts...)
-		right := m.inspectionRows(heading, hint, body, width, w.inspect, true)
+		hint := m.ui.inspectionHints(width, shortcuts...)
+		right := m.ui.inspectionRows(heading, hint, body, width, w.inspect, true)
 		if split {
 			for i := range rows {
 				rows[i] += right[i]
@@ -177,52 +182,22 @@ func (m *model) workflowScreen() string {
 			rows = right
 		}
 	}
-	content := cellLine(m.menuLine(), m.termW) + "\n" + strings.Join(rows, "\n") + "\n" + m.actionBar()
-	content = cellFrame(content, m.termW, m.termH)
-	if m.dialog != nil {
-		content = m.workflowDialog(content)
-	}
-	if m.header.menu != "" {
-		content = m.overlayHeader(content)
-	}
-	return content
+	return strings.Join(rows, "\n")
 }
 
-// Shared dialogs overlay pane-local content; their hit tests add settingsArea's
-// screen origin. Keep that same origin when composing the workflow's full screen.
-func (m *model) workflowDialog(content string) string {
-	left, top, width, height := m.settingsArea()
-	base := strings.Split(content, "\n")
-	pane := make([]string, height)
-	for i := range pane {
-		if top+i < len(base) {
-			pane[i] = cellLine(ansi.Cut(base[top+i], left, left+width), width)
-		}
-	}
-	rows := strings.Split(m.overlayDialog(strings.Join(pane, "\n")), "\n")
-	for i, row := range rows {
-		y := top + i
-		if y >= len(base) || i >= height {
-			break
-		}
-		base[y] = cellLine(ansi.Cut(base[y], 0, left), left) + cellLine(row, width) + ansi.Cut(base[y], left+width, m.termW)
-	}
-	return cellFrame(strings.Join(base, "\n"), m.termW, m.termH)
-}
-
-func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	w := m.workflows
+func (m *workflowScreen) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	w := m
 	mouse := msg.Mouse()
-	if m.actionBarVisible() && mouse.Y == m.termH-1 && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
-		return m.toolbarClick(mouse.X)
+	if m.ui.actionBarVisible() && mouse.Y == m.ui.height()-1 && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
+		return m.ui.toolbarClick(mouse.X)
 	}
 
-	cw, ch := m.workflowCanvasSize()
-	regions := m.screenPanes(w.inspectorOpen)
-	canvasLayout := m.panelGeometry(regions.Main.Width, 1, false, false)
-	sideLayout := m.panelGeometry(regions.Side.Width, 1, true, false)
+	cw, ch := m.canvasSize()
+	regions := m.ui.screenPanes(w.inspectorOpen)
+	canvasLayout := m.ui.panelGeometry(regions.Main.Width, 1, false, false)
+	sideLayout := m.ui.panelGeometry(regions.Side.Width, 1, true, false)
 	x, y := mouse.X-canvasLayout.Body.X, mouse.Y-regions.Main.Y-canvasLayout.Body.Y
-	inspectorHeader := len(m.workflowInspectorTabs().Rows) + 1
+	inspectorHeader := len(m.inspectorTabs().Rows) + 1
 	inInspector := w.inspectorOpen && regions.Side.Contains(mouse.X, mouse.Y)
 	if inInspector && sideLayout.CloseHit.Contains(mouse.X-regions.Side.X, mouse.Y-regions.Side.Y) && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
 		w.inspectorOpen, w.inspect = false, false
@@ -230,16 +205,16 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if w.thumb.active {
-		w.offset = popup.ScrollOffset(y-inspectorHeader, max(1, ch-inspectorHeader), len(m.workflowInspectorContent()), w.thumb.grab)
+		w.offset = popup.ScrollOffset(y-inspectorHeader, max(1, ch-inspectorHeader), len(m.inspectorContent()), w.thumb.grab)
 		if _, ok := msg.(tea.MouseReleaseMsg); ok {
 			w.thumb = scrollDrag{}
 		}
 		return m, nil
 	}
 	if inInspector && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
-		tabs := m.workflowInspectorTabs()
+		tabs := m.inspectorTabs()
 		if tab := tabs.Hit(mouse.X-regions.Side.X-sideLayout.Body.X, y); tab >= 0 {
-			m.workflowSetInspectorTab(tab)
+			m.setInspectorTab(tab)
 			w.inspect = true
 			return m, nil
 		}
@@ -250,7 +225,7 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		w.dragging = false
 		w.panning = false
 		if dragged {
-			m.persistWorkflowLayout()
+			m.persistLayout()
 		}
 		return m, nil
 	}
@@ -289,7 +264,7 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		if mouse.Button == tea.MouseLeft && isMouseClick(msg) {
 			w.inspect = true
 			if y >= inspectorHeader && y < ch && mouse.X == regions.Side.X+sideLayout.Body.X+sideLayout.Body.Width-1 {
-				total := len(m.workflowInspectorContent())
+				total := len(m.inspectorContent())
 				top, size := popup.ScrollThumb(max(1, ch-inspectorHeader), total, w.offset)
 				if y-inspectorHeader >= top && y-inspectorHeader < top+size {
 					w.thumb = scrollDrag{active: true, grab: y - inspectorHeader - top}
@@ -322,7 +297,7 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 					w.setNotice(pane.NoticeInfo, "Schedule starts the whole recipe; its connections are automatic")
 					return m, nil
 				}
-				m.workflowFocusPort(port, output)
+				m.focusPort(port, output)
 				w.inspect = false
 				if w.run != nil || w.busy {
 					w.inspectorOpen = true
@@ -357,7 +332,7 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 						return m, nil
 					}
 					w.connectFrom = ""
-					m.workflowConnectionEdit(edit)
+					m.connectionEdit(edit)
 				} else {
 					w.setNotice(pane.NoticeWarning, "Choose an output port first · C connects by keyboard")
 				}
@@ -377,4 +352,38 @@ func (m *model) workflowMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		w.last = graph.Point{X: x, Y: y}
 	}
 	return m, nil
+}
+
+func workflowCardDetail(status string) (string, graph.Tone) {
+	tone := graph.ToneNormal
+	switch status {
+	case "":
+		status = "○ Not run"
+	case "completed":
+		status = "✓ Completed"
+		tone = graph.ToneSuccess
+	case "running":
+		status = "▶ Running"
+		tone = graph.ToneWarning
+	case "failed":
+		status = "× Failed"
+		tone = graph.ToneError
+	case "skipped":
+		status = "− Skipped"
+		tone = graph.ToneDisabled
+	case "pending":
+		status = "○ Pending"
+	case "waiting_review", "Review before running":
+		status = "? Awaiting approval"
+		tone = graph.ToneWarning
+	case "cancelled":
+		status = "× Cancelled"
+		tone = graph.ToneWarning
+	case "interrupted":
+		status = "! Interrupted"
+		tone = graph.ToneWarning
+	case "Disabled / condition false":
+		tone = graph.ToneDisabled
+	}
+	return status, tone
 }

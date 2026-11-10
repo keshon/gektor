@@ -12,9 +12,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	workflow "github.com/keshon/gektor/internal/automation/agenttools"
-	"github.com/keshon/gektor/internal/automation/script"
+	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/capabilities/documents"
+	workflowcore "github.com/keshon/gektor/internal/workflow"
+	workflow "github.com/keshon/gektor/internal/workflow/agenttools"
+	"github.com/keshon/gektor/internal/workflow/script"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -56,7 +58,10 @@ func TestPipelineCriteriaRejectEmptyAndAcceptRealOperations(t *testing.T) {
 			}
 			allow := func(context.Context, string, json.RawMessage) error { return nil }
 			if kind == "pipeline_schedule" {
-				tool := workflow.Schedule{WS: ws, StoreDir: workflowStoreDir(ws), Authorize: allow}
+				tool := workflow.Schedule{WS: ws, StoreDir: workflowStoreDir(ws), Authorize: allow, Registry: func() (*workflowcore.Registry, error) {
+					return app.WorkflowRegistry(ws, workflowStoreDir(ws), nil, nil)
+				},
+				}
 				args := json.RawMessage(`{"action":"create","id":"double-hourly","recipe_path":"double.json","cron":"0 * * * *","timezone":"UTC","inputs":{"n":7},"paused":true}`)
 				if _, err := tool.Run(t.Context(), args); err != nil {
 					t.Fatal(err)
@@ -66,7 +71,10 @@ func TestPipelineCriteriaRejectEmptyAndAcceptRealOperations(t *testing.T) {
 				if err := ws.WriteFile("recipe.json", []byte(parent), 0600); err != nil {
 					t.Fatal(err)
 				}
-				tool := workflow.Tool{WS: ws, StoreDir: workflowStoreDir(ws), Authorize: allow}
+				tool := workflow.Tool{WS: ws, StoreDir: workflowStoreDir(ws), Authorize: allow, Registry: func() (*workflowcore.Registry, error) {
+					return app.WorkflowRegistry(ws, workflowStoreDir(ws), nil, nil)
+				},
+				}
 				out, err := tool.Run(t.Context(), json.RawMessage(`{"recipe_path":"recipe.json"}`))
 				if err != nil {
 					t.Fatal(out, err)

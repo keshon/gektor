@@ -5,6 +5,7 @@ import (
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/config"
 )
 
@@ -12,8 +13,8 @@ func TestScreenEmitsApplicationIntentsWithoutChangingProfile(t *testing.T) {
 	p := profile()
 	_, fields := PageFields(p, "generation", config.Preferences{})
 	m := NewModel(fields, textarea.New())
-	m.Workspace = &Workspace{Draft: New(p), Section: "generation"}
-	m.Workspace.Draft.Visit("generation", fields)
+	m.EditSession = &EditSession{Draft: New(p), Section: "generation"}
+	m.EditSession.Draft.Visit("generation", fields)
 	m.Focus(0, m.FieldVisible)
 	m.Editor.SetValue("0.8")
 	intent, _ := m.UpdateKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl}, Props{})

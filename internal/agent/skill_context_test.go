@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
 	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -78,7 +78,7 @@ func TestSkillProjectionUsesOnlyCompleteDeliveredGuides(t *testing.T) {
 				if reminders != 2 || bodies != 1 {
 					t.Fatalf("delivered bodies=%d reminders=%d", bodies, reminders)
 				}
-				original, err := session.Load(state)
+				original, err := conversation.Load(state)
 				if err != nil {
 					t.Fatal(err)
 				}

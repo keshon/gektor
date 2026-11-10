@@ -8,8 +8,8 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
 	"github.com/keshon/gektor/internal/tui/components/transcript"
 )
 
@@ -77,7 +77,7 @@ func TestCompactFileReturnsTheHistoryItWrote(t *testing.T) {
 			llm.Message{Role: llm.RoleTool, ToolCallID: "c", Content: "contents"},
 		)
 	}
-	if err := session.WriteSnapshot(state, history); err != nil {
+	if err := conversation.WriteSnapshot(state, history); err != nil {
 		t.Fatal(err)
 	}
 
@@ -93,7 +93,7 @@ func TestCompactFileReturnsTheHistoryItWrote(t *testing.T) {
 	}
 	// What it returns must be what is on disk, or the transcript and the
 	// saved context disagree about what was dropped.
-	stored, err := session.ReadContext(state)
+	stored, err := conversation.ReadContext(state)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/keshon/gektor/internal/llm"
 )
@@ -14,6 +15,18 @@ type failStreamClient struct {
 	streamErr   error
 	streamCalls int
 	chatCalls   int
+}
+
+func TestStreamRateLimitWaitsBeforeUnaryFallback(t *testing.T) {
+	client := &failStreamClient{streamErr: &llm.APIError{Status: 429, RetryAfter: 30 * time.Millisecond}}
+	a := New(Config{Client: client, Tools: NewRegistry(), System: "sys", Stream: true})
+	started := time.Now()
+	if _, err := a.Run(t.Context(), "task"); err != nil {
+		t.Fatal(err)
+	}
+	if time.Since(started) < 30*time.Millisecond || client.chatCalls != 1 {
+		t.Fatal("stream retry skipped requested delay", client.chatCalls)
+	}
 }
 
 func (c *failStreamClient) Chat(_ context.Context, _ llm.ChatRequest) (llm.ChatResponse, error) {

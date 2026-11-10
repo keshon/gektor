@@ -16,13 +16,15 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/agent"
-	"github.com/keshon/gektor/internal/audit"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/events"
+	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/permissionlog"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/run"
 	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -30,7 +32,7 @@ import (
 func testModel() *model {
 	m := &model{
 		events:     make(chan events.Event, 16),
-		hub:        run.NewGateHub(nil),
+		hub:        harness.NewGateHub(nil),
 		cancel:     func() {},
 		started:    time.Now(),
 		styles:     defaultStyles(),
@@ -223,7 +225,7 @@ func TestFollowUpResumes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sess, err := run.New(run.Config{
+	sess, err := harness.New(harness.Config{
 		Task: "task",
 		Env: roles.Env{
 			Client: stubDone{},
@@ -296,8 +298,8 @@ func TestSeededContinuationKeepsHistoricalHeaderUntilResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.modelName = "/new/model.gguf"
-	m.newSession = func(task, stateFile string, _ []string) (*run.Session, error) {
-		return run.New(run.Config{Task: task, StateFile: stateFile, Env: roles.Env{Client: stubDone{}, WS: ws}})
+	m.newSession = func(task, stateFile string, _ []string) (*harness.Session, error) {
+		return harness.New(harness.Config{Task: task, StateFile: stateFile, Env: roles.Env{Client: stubDone{}, WS: ws}})
 	}
 	done := make(chan tea.Msg, 1)
 	m.send = func(msg tea.Msg) { done <- msg }
@@ -322,7 +324,7 @@ func TestMeter_UsageAndUnknown(t *testing.T) {
 	}
 	updated, _ := m.Update(eventMsg(events.Event{
 		Name:   "usage",
-		Fields: map[string]any{"prompt": float64(12400)},
+		Fields: map[string]any{"prompt": 12400},
 	}))
 	mm := updated.(*model)
 	if got := mm.meter(); got != "ctx 12.4k/131.1k (9%)" {
@@ -335,7 +337,7 @@ func TestMeter_Estimated(t *testing.T) {
 	m.limit = 131072
 	updated, _ := m.Update(eventMsg(events.Event{
 		Name:   "usage",
-		Fields: map[string]any{"prompt": float64(12400), "estimated": true},
+		Fields: map[string]any{"prompt": 12400, "estimated": true},
 	}))
 	mm := updated.(*model)
 	if got := mm.meter(); got != "~ctx 12.4k/131.1k (9%)" {
@@ -409,9 +411,9 @@ func TestFollowUp_AttachesImages(t *testing.T) {
 	m.ws = ws
 	var gotTask string
 	var gotImages []string
-	m.newSession = func(task, stateFile string, images []string) (*run.Session, error) {
+	m.newSession = func(task, stateFile string, images []string) (*harness.Session, error) {
 		gotTask, gotImages = task, images
-		return run.New(run.Config{
+		return harness.New(harness.Config{
 			Task: task,
 			Env: roles.Env{
 				Client: stubDone{},
@@ -449,14 +451,14 @@ func TestCommand_NewStartsFresh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m.newSession = func(task, stateFile string, images []string) (*run.Session, error) {
+	m.newSession = func(task, stateFile string, images []string) (*harness.Session, error) {
 		if task != "second" {
 			t.Errorf("task = %q", task)
 		}
 		if stateFile == "" || !strings.HasSuffix(stateFile, "state.json") {
 			t.Errorf("stateFile = %q", stateFile)
 		}
-		return run.New(run.Config{
+		return harness.New(harness.Config{
 			Task: task,
 			Env: roles.Env{
 				Client: stubDone{},
@@ -496,7 +498,7 @@ func seedHistory(t *testing.T, path string) {
 		{Role: llm.RoleUser, Content: "task"},
 		{Role: llm.RoleAssistant, Content: "done"},
 	}
-	data, err := json.Marshal(history)
+	data, err := json.Marshal(conversation.New(history))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -856,8 +858,8 @@ func TestEmptyStart_SubmitBegins(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m.newSession = func(task, stateFile string, images []string) (*run.Session, error) {
-		return run.New(run.Config{
+	m.newSession = func(task, stateFile string, images []string) (*harness.Session, error) {
+		return harness.New(harness.Config{
 			Task: task,
 			Env: roles.Env{
 				Client: stubDone{},
@@ -1060,7 +1062,7 @@ func openPermissionGate(t *testing.T) (*model, chan agent.SuspendReply) {
 	return mm, answered
 }
 
-func waitPending(t *testing.T, hub *run.GateHub) {
+func waitPending(t *testing.T, hub *harness.GateHub) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
 	for !hub.HasPending() && time.Now().Before(deadline) {
@@ -1177,16 +1179,11 @@ func TestGateHook_AuditsDecisions(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(t.TempDir(), "audit.jsonl")
-	// audit.Hook takes the contextless signature; contextGate is the only
-	// production gate and it is context-aware.
-	gate := m.contextGate(m.hub, ws)
-	hook := audit.Hook(path, "tui", func(tool, resource string, args json.RawMessage) (permission.Effect, error) {
-		return gate(context.Background(), tool, resource, args)
-	})
+	hook := permissionlog.WrapGate(path, "tui", m.contextGate(m.hub, ws))
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		_, _ = hook("read_file", "a.txt", json.RawMessage(`{}`))
+		_, _ = hook(context.Background(), "read_file", "a.txt", json.RawMessage(`{}`))
 	}()
 	waitPending(t, m.hub)
 	if err := m.hub.Respond("y"); err != nil {
@@ -1320,8 +1317,8 @@ func TestInitialTaskEchoedAsUser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m.newSession = func(task, stateFile string, images []string) (*run.Session, error) {
-		return run.New(run.Config{
+	m.newSession = func(task, stateFile string, images []string) (*harness.Session, error) {
+		return harness.New(harness.Config{
 			Task: task,
 			Env: roles.Env{
 				Client: stubDone{},
@@ -1352,7 +1349,7 @@ func TestLongStepFlowsUncut(t *testing.T) {
 	reason := strings.Repeat("deliberation — ", 100)
 	var buf bytes.Buffer
 	em := events.New(&buf)
-	run.EmitStep(em, "run", 1, llm.Message{Content: text, Reasoning: reason}, false, 0)
+	harness.EmitStep(em, "run", 1, llm.Message{Content: text, Reasoning: reason}, false, 0)
 	var rec map[string]any
 	if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &rec); err != nil {
 		t.Fatalf("not json: %v", err)
@@ -1510,7 +1507,7 @@ func TestStartRunClosesDialog(t *testing.T) {
 }
 
 func TestTruncateRuneSafe(t *testing.T) {
-	if got := truncate(strings.Repeat("—", 10), 8); got != strings.Repeat("—", 8)+"…" {
+	if got := truncate(strings.Repeat("—", 10), 8); got != strings.Repeat("—", 7)+"…" {
 		t.Fatalf("truncate = %q", got)
 	}
 	if truncate("abc", 8) != "abc" {
@@ -1926,8 +1923,8 @@ func TestFindingRendersWarning(t *testing.T) {
 	updated, _ := m.Update(eventMsg(events.Event{
 		Name: "finding",
 		Fields: map[string]any{
-			"scope": "per-edit", "rule": "gofmt", "path": "a.go",
-			"line": float64(3), "summary": "not gofmt-clean",
+			"scope": "per-edit", "rule": "secret-aws", "path": "a.go",
+			"line": 3, "summary": "possible secret (secret-aws)",
 		},
 	}))
 	mm := updated.(*model)
@@ -2400,7 +2397,7 @@ func TestStepEventUpdatesStepBudget(t *testing.T) {
 	m.maxSteps = 25
 	updated, _ := m.Update(eventMsg(events.Event{
 		Name:   "step",
-		Fields: map[string]any{"max_steps": float64(37), "text": "hi"},
+		Fields: map[string]any{"max_steps": 37, "text": "hi"},
 	}))
 	if mm := updated.(*model); mm.maxSteps != 37 {
 		t.Fatalf("maxSteps = %d, want 37", mm.maxSteps)
@@ -2537,7 +2534,7 @@ func TestStartRunResetsClock(t *testing.T) {
 func TestOutcomeUsesObservedChanges(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.handleEvent(events.Event{Name: "step", Fields: map[string]any{"tool_calls": []any{map[string]any{"id": "read", "name": "read_file", "args": `{"path":"read-only.go"}`}}}})
-	m.handleEvent(events.Event{Name: "outcome", Fields: map[string]any{"outcome": "completed", "files": []any{"changed.go"}}})
+	m.handleEvent(events.Event{Name: "outcome", Fields: map[string]any{"outcome": "completed", "files": []string{"changed.go"}}})
 	if len(m.filesTouched) != 1 || !m.filesTouched["changed.go"] {
 		t.Fatalf("counter must use observed effects: %v", m.filesTouched)
 	}

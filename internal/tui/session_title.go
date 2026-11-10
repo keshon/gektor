@@ -6,8 +6,9 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/app"
-	"github.com/keshon/gektor/internal/workspace"
+	"github.com/keshon/gektor/internal/conversation"
 )
 
 type sessionTitleJob struct {
@@ -26,7 +27,7 @@ func (m *model) prepareSessionTitle(request string) {
 		return
 	}
 	dir := filepath.Dir(m.stateFile)
-	if workspace.ReadSessionTitle(dir) != m.sessionTitle {
+	if conversation.ReadSessionTitle(dir) != m.sessionTitle {
 		return
 	}
 	m.titleJob = &sessionTitleJob{stateFile: m.stateFile, request: request, fallback: m.sessionTitle}
@@ -44,7 +45,7 @@ func (m *model) generateSessionTitle() tea.Cmd {
 	if j == nil || j.cancel != nil || m.state != stDone {
 		return nil
 	}
-	if j.stateFile != m.stateFile || m.sessionTitle != j.fallback || workspace.ReadSessionTitle(filepath.Dir(j.stateFile)) != j.fallback {
+	if j.stateFile != m.stateFile || m.sessionTitle != j.fallback || conversation.ReadSessionTitle(filepath.Dir(j.stateFile)) != j.fallback {
 		m.cancelSessionTitle()
 		return nil
 	}
@@ -74,10 +75,10 @@ func (m *model) acceptSessionTitle(msg sessionTitleMsg) {
 	dir := filepath.Dir(j.stateFile)
 	// Read the existing file only; never recreate a deleted session or replace
 	// a title changed outside this UI while the request was in flight.
-	if workspace.ReadSessionTitle(dir) != j.fallback {
+	if conversation.ReadSessionTitle(dir) != j.fallback {
 		return
 	}
-	if err := workspace.WriteSessionTitle(dir, msg.title); err != nil {
+	if err := conversation.WriteSessionTitle(dir, msg.title); err != nil {
 		return
 	}
 	m.updateSessionTitle(dir, msg.title)

@@ -9,9 +9,8 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
-	"github.com/keshon/gektor/internal/workspace"
 )
 
 // savedText is one searchable message and its index in the source history.
@@ -67,7 +66,7 @@ func scanSavedSessions(root string, previous map[string]cachedSession, search bo
 			continue
 		}
 		dir := filepath.Join(root, d.Name())
-		title, mode := workspace.ReadSessionTitle(dir), readSavedMode(dir)
+		title, mode := conversation.ReadSessionTitle(dir), readSavedMode(dir)
 		state := filepath.Join(dir, "state.json")
 		fi, stateErr := os.Stat(state)
 		current := cachedSession{state: state, hasSnapshot: stateErr == nil, storedTitle: title,
@@ -88,7 +87,7 @@ func scanSavedSessions(root string, previous map[string]cachedSession, search bo
 				current.Status = "Unreadable"
 				current.Updated = fi.ModTime()
 				if fi.Size() < 64<<20 {
-					if snapshot, err := session.Load(state); err == nil {
+					if snapshot, err := conversation.Load(state); err == nil {
 						history := snapshot.History
 						e := &current.savedSummary
 						e.Workspace = snapshot.Workspace
@@ -108,7 +107,7 @@ func scanSavedSessions(root string, previous map[string]cachedSession, search bo
 							}
 						}
 						if e.Title == "" {
-							e.Title = session.TitleFor(history)
+							e.Title = conversation.TitleFor(history)
 						}
 						if len(snapshot.Runs) > 0 && e.Status != "Needs input" {
 							last := snapshot.Runs[len(snapshot.Runs)-1]
@@ -169,7 +168,7 @@ func conversationText(history []llm.Message) []savedText {
 			if strings.HasPrefix(text, "[harness] ") {
 				continue
 			}
-			text = session.DisplayInput(text)
+			text = conversation.DisplayInput(text)
 		case llm.RoleAssistant:
 			regions := llm.ThinkRegions(text)
 			var visible strings.Builder

@@ -10,8 +10,8 @@ import (
 	"sync"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
 )
 
 // Capability owns a launch's adapter. Activation belongs to each session.
@@ -86,9 +86,9 @@ func (c *Capability) load(ctx context.Context, note func(string)) (result []agen
 	return list, nil
 }
 
-func capabilityState(c *Capability, list []agent.Tool) session.Capability {
+func capabilityState(c *Capability, list []agent.Tool) conversation.Capability {
 	defs := agent.NewRegistry(list...).Defs()
-	return session.Capability{ID: c.ID, Version: c.Version, Fingerprint: catalogFingerprint(c, defs), Tools: defs, Instructions: c.Instructions}
+	return conversation.Capability{ID: c.ID, Version: c.Version, Fingerprint: catalogFingerprint(c, defs), Tools: defs, Instructions: c.Instructions}
 }
 
 func catalogFingerprint(c *Capability, defs []llm.ToolDef) string {
@@ -109,7 +109,7 @@ type Capabilities struct {
 	Native         []*NativePackage
 	ForbiddenTools []string
 	mu             sync.Mutex
-	active         map[string]session.Capability
+	active         map[string]conversation.Capability
 }
 
 func (c *Capabilities) source(id string) *Capability {
@@ -164,11 +164,11 @@ func (c *Capabilities) Enable(ctx context.Context, id string, note func(string))
 	return activationText(state), nil
 }
 
-func activationText(state session.Capability) string {
+func activationText(state conversation.Capability) string {
 	return agent.CapabilityCatalog(state)
 }
 
-func (c *Capabilities) install(ctx context.Context, source *Capability, state session.Capability) error {
+func (c *Capabilities) install(ctx context.Context, source *Capability, state conversation.Capability) error {
 	list := make([]agent.Tool, 0, len(state.Tools))
 	for _, def := range state.Tools {
 		list = append(list, &capabilityTool{source: source, state: state, def: def})
@@ -176,10 +176,10 @@ func (c *Capabilities) install(ctx context.Context, source *Capability, state se
 	return c.publish(ctx, state, list)
 }
 
-func (c *Capabilities) Save() []session.Capability {
+func (c *Capabilities) Save() []conversation.Capability {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	out := make([]session.Capability, 0, len(c.active))
+	out := make([]conversation.Capability, 0, len(c.active))
 	for _, state := range c.active {
 		out = append(out, state)
 	}
@@ -187,7 +187,7 @@ func (c *Capabilities) Save() []session.Capability {
 	return out
 }
 
-func (c *Capabilities) Restore(ctx context.Context, states []session.Capability) error {
+func (c *Capabilities) Restore(ctx context.Context, states []conversation.Capability) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if err := c.validateSources(); err != nil {
@@ -231,45 +231,9 @@ func (c *Capabilities) Restore(ctx context.Context, states []session.Capability)
 	return nil
 }
 
-// RestoreArchive migrates transcripts saved before catalogs were persisted.
-func (c *Capabilities) RestoreArchive(ctx context.Context, archive []llm.Message) error {
-	calls := map[string]string{}
-	var failures []string
-	for _, m := range archive {
-		if m.Role == llm.RoleAssistant {
-			for _, call := range m.ToolCalls {
-				if call.InputError != "" {
-					continue
-				}
-				if call.Name == "enable_browser" || strings.HasPrefix(call.Name, "mcp__browser__browser_") {
-					calls[call.ID] = "browser"
-				}
-				if call.Name == "enable_capability" {
-					var in struct {
-						ID string `json:"id"`
-					}
-					if json.Unmarshal(call.Arguments, &in) == nil {
-						calls[call.ID] = in.ID
-					}
-				}
-			}
-		}
-		if id := calls[m.ToolCallID]; m.Role == llm.RoleTool && id != "" && m.ToolFailed != nil && !*m.ToolFailed {
-			delete(calls, m.ToolCallID)
-			if _, err := c.Enable(ctx, id, nil); err != nil {
-				failures = append(failures, err.Error())
-			}
-		}
-	}
-	if len(failures) > 0 {
-		return fmt.Errorf("%s", strings.Join(failures, "; "))
-	}
-	return nil
-}
-
 type capabilityTool struct {
 	source *Capability
-	state  session.Capability
+	state  conversation.Capability
 	def    llm.ToolDef
 }
 

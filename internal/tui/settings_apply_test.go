@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/llm"
@@ -21,7 +22,7 @@ func TestRunFailsOnUnwritableSessionDirectory(t *testing.T) {
 	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	cfg := Config{Services: &app.Services{Client: &settingsClient{}, Directory: t.TempDir()}, SessionDirectory: blocker}
+	cfg := Config{PreparedProfile: &app.PreparedProfile{Directory: t.TempDir()}, SessionDirectory: blocker}
 	if _, err := Run(context.Background(), cfg); err == nil {
 		t.Fatal("unwritable session directory accepted")
 	}

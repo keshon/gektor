@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
 )
 
 // stubSubClient returns a fixed answer with no tool calls, so spawned
@@ -120,7 +120,7 @@ func TestDelegateFailedCheckHasArchiveReference(t *testing.T) {
 	if !errors.Is(err, agent.ErrMaxSteps) || !strings.Contains(out, "tool_result: go-test run_program execution_error") || !strings.Contains(out, "archive: "+archive) {
 		t.Fatalf("%s %v", out, err)
 	}
-	saved, loadErr := session.Load(archive)
+	saved, loadErr := conversation.Load(archive)
 	if loadErr != nil {
 		t.Fatal(loadErr)
 	}

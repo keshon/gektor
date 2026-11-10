@@ -10,8 +10,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/userdirs"
 )
 
 const browserObservationMax = 16 * 1024
@@ -70,7 +70,7 @@ func browserArtifacts(ctx context.Context, workspace, tool, output string, pictu
 		if image {
 			if enabled, _ := ctx.Value(visionContextKey{}).(bool); !enabled {
 				output += "\n[visual observation unavailable: model has no vision capability; screenshot was saved but its pixels were not delivered]"
-			} else if saved, saveErr := llm.SnapshotImageFile(file, path, gektor.Sub("images")); saveErr != nil {
+			} else if saved, saveErr := llm.SnapshotImageFile(file, path, userdirs.Sub("images")); saveErr != nil {
 				output += "\n[visual observation unavailable: screenshot could not be validated]"
 			} else {
 				pictures = append(pictures, saved)

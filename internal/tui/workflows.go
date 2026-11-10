@@ -1,23 +1,30 @@
 package tui
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"context"
 	"encoding/json"
+	"strings"
+
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/app"
-	"github.com/keshon/gektor/internal/automation"
-	"github.com/keshon/gektor/internal/automation/service"
-	"github.com/keshon/gektor/internal/automation/store"
-	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	editor "github.com/keshon/gektor/internal/tui/workflow"
-	"strings"
+	"github.com/keshon/gektor/internal/userdirs"
+	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/internal/workflow/service"
+	"github.com/keshon/gektor/internal/workflow/store"
 )
 
-type workflowWorkspace struct {
+type workflowScreen struct {
+	ui                       workflowUI
+	config                   workflowScreenConfig
+	ctx                      context.Context
+	shutdown                 context.CancelFunc
+	commands                 []tea.Cmd
 	thumb                    scrollDrag
 	active, busy, inspect    bool
 	overview                 bool
@@ -31,7 +38,7 @@ type workflowWorkspace struct {
 	connectPort              string
 	editor                   *editor.Editor
 	graph                    graph.Model
-	registry                 *automation.Registry
+	registry                 *workflow.Registry
 	notice                   string
 	noticeLevel              pane.NoticeLevel
 	offset                   int
@@ -39,7 +46,7 @@ type workflowWorkspace struct {
 	last                     graph.Point
 	cancel                   context.CancelFunc
 	events                   chan tea.Msg
-	run                      *automation.Run
+	run                      *workflow.Run
 	runID                    string
 	schedules                []store.Schedule
 	scheduleStatus           []service.ScheduleInspection
@@ -48,7 +55,7 @@ type workflowWorkspace struct {
 
 // setNotice replaces both text and severity; a later update must not inherit
 // the previous failure's presentation.
-func (w *workflowWorkspace) setNotice(level pane.NoticeLevel, text string) {
+func (w *workflowScreen) setNotice(level pane.NoticeLevel, text string) {
 	w.notice, w.noticeLevel = text, level
 }
 
@@ -71,61 +78,38 @@ type workflowPermission struct {
 type workflowRunID string
 type workflowPoll struct {
 	id  string
-	run *automation.Run
+	run *workflow.Run
 	err error
 }
 
-func (m *model) workflowActive() bool { return m.workflows != nil && m.workflows.active }
-func (m *model) openWorkflows() {
-	if m.state != stDone {
-		m.openDialog("Workflows", []string{"Finish or stop the agent turn before opening the editor."})
-		return
-	}
-	m.cancelSessionTitle()
-	if m.workflows == nil {
-		if m.baseEnv.WS == nil {
-			m.openDialog("Workflows", []string{"Select a workspace first."})
-			return
-		}
-		r, err := app.AutomationRegistry(m.baseEnv.WS, gektor.Sub("workflows"), nil, nil)
-		if err != nil {
-			m.openDialog("Workflows", []string{err.Error()})
-			return
-		}
-		m.workflows = &workflowWorkspace{editor: editor.New(), registry: r, events: make(chan tea.Msg, 16)}
-	}
-	m.workflows.active = true
-	m.inspector = toolInspector{}
-	m.fitBottom()
+func (m *workflowScreen) queueAction(action, value string) {
+	m.commands = append(m.commands, func() tea.Msg { return workflowAction{action, value} })
 }
-func (m *model) queueWorkflow(action, value string) {
-	m.pendingCommands = append(m.pendingCommands, func() tea.Msg { return workflowAction{action, value} })
+func (m *workflowScreen) service(gate permission.Gate) (service.Service, error) {
+	return app.NewWorkflow(m.config.WS, userdirs.Sub("workflows"), m.config.Policy, gate)
 }
-func (m *model) workflowService(gate permission.Gate) (service.Service, error) {
-	return app.NewAutomation(m.baseEnv.WS, gektor.Sub("workflows"), m.baseEnv.Policy, gate)
-}
-func (m *model) workflowKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	w := m.workflows
-	m.workflowEnsureSelection()
+func (m *workflowScreen) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	w := m
+	m.ensureSelection()
 	key := msg.String()
 	if w.inspectorOpen && (key == "1" || key == "2" || key == "3") {
-		m.workflowSetInspectorTab(int(key[0] - '1'))
+		m.setInspectorTab(int(key[0] - '1'))
 		w.inspect = true
 		return m, nil
 	}
 	if w.inspectorOpen && w.inspect {
 		switch key {
 		case "left":
-			m.workflowSetInspectorTab((w.inspectorTab + 2) % 3)
+			m.setInspectorTab((w.inspectorTab + 2) % 3)
 			return m, nil
 		case "right":
-			m.workflowSetInspectorTab((w.inspectorTab + 1) % 3)
+			m.setInspectorTab((w.inspectorTab + 1) % 3)
 			return m, nil
 		case "e", "enter":
 			if w.inspectorTab == 2 {
-				m.workflowEditCode()
+				m.editCode()
 			} else if w.inspectorTab == 0 && w.run == nil && !w.busy {
-				m.workflowEdit()
+				m.edit()
 			}
 			return m, nil
 		}
@@ -161,7 +145,7 @@ func (m *model) workflowKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if w.run != nil {
 			w.inspectorOpen = true
 			w.inspect = true
-			m.workflowSetInspectorTab(1)
+			m.setInspectorTab(1)
 			return m, nil
 		}
 		action = "edit"
@@ -218,7 +202,7 @@ func (m *model) workflowKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			w.portSelected = false
 			w.offset = 0
 			w.graph.SelectNext(delta)
-			cw, ch := m.workflowCanvasSize()
+			cw, ch := m.canvasSize()
 			w.graph.Reveal(cw, ch)
 		}
 	case "shift+left":
@@ -250,38 +234,38 @@ func (m *model) workflowKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "alt+down":
 		w.graph.Pan.Y += 4
 	case "pgup", "pgdown", "home", "end":
-		m.workflowPage(key)
+		m.page(key)
 	case "f1":
-		m.openDialog("Workflow keys", strings.Split("Ctrl+O open · Ctrl+N new · Ctrl+S save\nA add · Enter edit/inspect · Delete delete\nC connect · B connections · E node behavior · J complete recipe JSON\nM recipe name · U inputs · O outputs\nArrows select · Shift+arrows move · G locks positions · Alt+arrows pan\nDrag background to pan · Shift+wheel horizontal\nClick output then input to connect · Ctrl+T inspector\nTab pane focus · 1/2/3 inspector tabs · Ctrl+J raw data\nInspector E edits properties/code · Esc closes focused inspector\nF compact overview · L auto-layout · Ctrl+Z undo · Ctrl+Y redo\nV validate · R run · H saved runs · P review\nD editable draft · I AI proposal\nEsc chat (draft retained) / stop active operation\nF9 main menu · Ctrl+Q quit", "\n"))
+		m.ui.openDialog("Workflow keys", strings.Split("Ctrl+O open · Ctrl+N new · Ctrl+S save\nA add · Enter edit/inspect · Delete delete\nC connect · B connections · E node behavior · J complete recipe JSON\nM recipe name · U inputs · O outputs\nArrows select · Shift+arrows move · G locks positions · Alt+arrows pan\nDrag background to pan · Shift+wheel horizontal\nClick output then input to connect · Ctrl+T inspector\nTab pane focus · 1/2/3 inspector tabs · Ctrl+J raw data\nInspector E edits properties/code · Esc closes focused inspector\nF compact overview · L auto-layout · Ctrl+Z undo · Ctrl+Y redo\nV validate · R run · H saved runs · P review\nD editable draft · I AI proposal\nEsc chat (draft retained) / stop active operation\nF9 main menu · Ctrl+Q quit", "\n"))
 		return m, nil
 	case "f9":
-		return m.footerKey(msg)
+		return m.ui.footerKey(msg)
 	case "f10":
-		return m.requestQuit()
+		return m.ui.requestQuit()
 	}
 	if strings.HasPrefix(key, "shift+") {
-		m.persistWorkflowLayout()
+		m.persistLayout()
 	}
 	if action != "" {
 		if w.run != nil && (action == "ai" || action == "edit" || action == "add" || action == "link" || action == "connections" || action == "delete" || action == "recipe") {
 			w.setNotice(pane.NoticeInfo, "Viewing a frozen run · D returns to the editable draft")
 			return m, nil
 		}
-		return m, m.workflowCommand(action)
+		return m, m.command(action)
 	}
 	return m, nil
 }
-func (m *model) workflowInspectorContent() []string {
-	width := m.panelGeometry(m.screenPanes(true).Side.Width, 1, true, false).Body.Width
+func (m *workflowScreen) inspectorContent() []string {
+	width := m.ui.panelGeometry(m.ui.screenPanes(true).Side.Width, 1, true, false).Body.Width
 	var out []string
-	for _, line := range m.workflowDetailRows()[1:] {
+	for _, line := range m.detailRows()[1:] {
 		out = append(out, strings.Split(ansi.Hardwrap(line, max(1, width-1), true), "\n")...)
 	}
 	return out
 }
 
-func (m *model) workflowFooterActions() []footerAction {
-	w := m.workflows
+func (m *workflowScreen) footerActions() []footerAction {
+	w := m
 	edit := !w.busy && w.run == nil
 	label := "Edit"
 	if w.run != nil {
@@ -296,8 +280,47 @@ func (m *model) workflowFooterActions() []footerAction {
 		back = "Close"
 	}
 	actions := []footerAction{{tea.KeyF1, 0, "F1", "Help", "Help", true}, {'a', 0, "A", "Add node", "Add", edit}, {tea.KeyEnter, 0, "Enter", label, label, !w.busy}, {'c', 0, "C", "Connect", "Link", edit}, {'r', 0, "R", "Run", "Run", edit}, {'t', tea.ModCtrl, "Ctrl+T", "Inspector", "Inspect", true}, {'s', tea.ModCtrl, "Ctrl+S", "Save", "Save", edit}, {tea.KeyEscape, 0, "Esc", back, back, true}}
-	if m.termW < 80 {
+	if m.ui.width() < 80 {
 		return []footerAction{actions[0], actions[1], actions[5], actions[7]}
 	}
 	return actions
+}
+
+func newWorkflowScreen(ctx context.Context, cfg workflowScreenConfig, ui workflowUI) (*workflowScreen, error) {
+	r, err := app.WorkflowRegistry(cfg.WS, userdirs.Sub("workflows"), nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	return &workflowScreen{ui: ui, config: cfg, ctx: ctx, shutdown: cancel, editor: editor.New(), registry: r, events: make(chan tea.Msg, 16)}, nil
+}
+func (m *workflowScreen) Close() {
+	if m.cancel != nil {
+		m.cancel()
+	}
+	m.shutdown()
+}
+func (m *workflowScreen) Init() tea.Cmd  { return nil }
+func (m *workflowScreen) View() tea.View { return tea.NewView(m.content()) }
+func (m *workflowScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyPressMsg:
+		return m.key(msg)
+	case tea.MouseMsg:
+		return m.mouse(msg)
+	case workflowProposal:
+		m.acceptProposal(msg)
+	case workflowAction:
+		return m, m.action(msg)
+	case workflowPermission:
+		return m, m.acceptPermission(msg)
+	case workflowResult:
+		return m, m.acceptResult(msg)
+	case workflowRunID:
+		m.runID = string(msg)
+		return m, tea.Batch(workflowWait(m.events), m.poll(string(msg), false))
+	case workflowPoll:
+		return m, m.acceptPoll(msg)
+	}
+	return m, nil
 }

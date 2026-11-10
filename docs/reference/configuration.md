@@ -26,8 +26,14 @@ run and its delegated agents share a consistent model/capability snapshot.
 
 Saved ChatGPT native state is reused only for a matching integration, model,
 account, and unchanged message. Otherwise GEKTOR sends the normal transcript.
-Old saved sessions remain readable; legacy native state without identity metadata
-is not replayed. Interrupted output is retained as incomplete history.
+Only current versioned conversation snapshots are supported. Retired array
+snapshots and catalog migrations are not read or rewritten. Incompatible native
+replay state is discarded in favor of the normalized transcript. Interrupted
+output is retained as incomplete history.
+
+Profiles use the same strict decoder in CLI and workflow model operations:
+unknown keys and additional JSON documents are errors. Retired preference keys
+(`nudges`, `think_budget`, and `density`) are rejected rather than migrated.
 
 
 

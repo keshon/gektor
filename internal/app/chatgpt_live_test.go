@@ -14,9 +14,9 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/providers/openai"
-	"github.com/keshon/gektor/internal/session"
 )
 
 // Opt-in: uses the signed-in account and its plan usage. All tool IO and saved
@@ -60,9 +60,9 @@ func TestChatGPTLiveAcceptance(t *testing.T) {
 	newConfig := func(path string, tools *agent.Registry) agent.Config {
 		return agent.Config{Client: client, Tools: tools, System: "Follow the user's acceptance-test instructions precisely. Keep replies short unless asked otherwise.", StateFile: path, MaxSteps: 4, ContextLimit: 32768, Stream: true}
 	}
-	load := func(path string) session.Snapshot {
+	load := func(path string) conversation.Snapshot {
 		t.Helper()
-		s, err := session.Load(path)
+		s, err := conversation.Load(path)
 		if err != nil {
 			t.Fatal(err)
 		}

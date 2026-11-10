@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -10,9 +9,10 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/run"
 	"github.com/keshon/gektor/internal/tui/components/transcript"
 )
 
@@ -101,20 +101,12 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		return m, nil
 	case workflowQuit:
 		return m.requestQuit()
-	case workflowProposal:
-		m.acceptWorkflowProposal(msg)
-		return m, nil
-	case workflowAction:
-		return m, m.workflowAction(msg)
-	case workflowPermission:
-		return m, m.acceptWorkflowPermission(msg)
-	case workflowResult:
-		return m, m.acceptWorkflowResult(msg)
-	case workflowRunID:
-		m.workflows.runID = string(msg)
-		return m, tea.Batch(workflowWait(m.workflows.events), m.workflowPoll(string(msg), false))
-	case workflowPoll:
-		return m, m.acceptWorkflowPoll(msg)
+	case workflowProposal, workflowAction, workflowPermission, workflowResult, workflowRunID, workflowPoll:
+		if m.workflows == nil {
+			return m, nil
+		}
+		_, cmd := m.workflows.Update(msg)
+		return m, cmd
 	case mcpActionMsg:
 		return m, m.handleMCPAction(msg)
 	case inputQueueReturn:
@@ -189,7 +181,7 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		return m, nil
 	case eventMsg:
 		if m.state != stStopping || msg.Name == "child" || msg.Name == "tool_finished" || msg.Name == "tool_result" || msg.Name == "tool_output" || msg.Name == "user_input" || msg.Name == "outcome" || msg.Name == "usage" || msg.Name == "finding" {
-			m.handleEvent(run.Event(msg))
+			m.handleEvent(harness.Event(msg))
 		}
 		return m, waitEvents(m)
 	case doneMsg:
@@ -375,7 +367,7 @@ func (m *model) scrollViewport(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	return m, m.transcript.Update(msg)
 }
-func (m *model) handleEvent(ev run.Event) {
+func (m *model) handleEvent(ev harness.Event) {
 	m.beginTranscriptUpdate()
 	defer m.endTranscriptUpdate()
 	defer m.refreshInspector()
@@ -392,7 +384,7 @@ func (m *model) handleEvent(ev run.Event) {
 	case "progress":
 		m.progressStarted = time.Now()
 		phase, _ := ev.Fields["phase"].(string)
-		number := func(key string) int { n, _ := ev.Fields[key].(float64); return int(n) }
+		number := func(key string) int { n, _ := ev.Fields[key].(int); return int(n) }
 		estimated, _ := ev.Fields["estimated"].(bool)
 		m.progress = llm.Progress{Phase: phase, PromptTokens: number("prompt"), CompletionTokens: number("completion"), CachedTokens: number("cached"), ProcessedTokens: number("processed"), Estimated: estimated}
 		m.progress.CacheKnown, _ = ev.Fields["cache_known"].(bool)
@@ -414,20 +406,14 @@ func (m *model) handleEvent(ev run.Event) {
 		if name, _ := ev.Fields["model"].(string); name != "" {
 			m.modelName = name
 		}
-		if limit, _ := ev.Fields["context_limit"].(float64); limit > 0 {
+		if limit, _ := ev.Fields["context_limit"].(int); limit > 0 {
 			m.limit = int(limit)
 		}
 	case "step":
 		m.acceptStepEvent(ev)
 	case "user_input":
 		text, _ := ev.Fields["text"].(string)
-		var images []string
-		imageValues, _ := ev.Fields["images"].([]any)
-		for _, raw := range imageValues {
-			if path, ok := raw.(string); ok {
-				images = append(images, path)
-			}
-		}
+		images, _ := ev.Fields["images"].([]string)
 		m.appendBlock(userBlock(displayInputContent(text) + imageSuffix(images)))
 		m.fitBottom()
 	case "tool_output":
@@ -468,7 +454,7 @@ func (m *model) handleEvent(ev run.Event) {
 	case "finding":
 		rule, _ := ev.Fields["rule"].(string)
 		path, _ := ev.Fields["path"].(string)
-		line, _ := ev.Fields["line"].(float64)
+		line, _ := ev.Fields["line"].(int)
 		summary, _ := ev.Fields["summary"].(string)
 		if rule != "" {
 			m.appendBlock(findingBlock(rule, path, int(line), summary))
@@ -486,7 +472,7 @@ func (m *model) handleEvent(ev run.Event) {
 	case "context":
 		text, _ := ev.Fields["text"].(string)
 		role, _ := ev.Fields["role"].(string)
-		request, _ := ev.Fields["request"].(float64)
+		request, _ := ev.Fields["request"].(int)
 		found := false
 		for i := len(m.transcript.blocks) - 1; i >= 0; i-- {
 			if m.transcript.blocks[i].contextText != "" && m.transcript.blocks[i].contextText == text {
@@ -502,14 +488,12 @@ func (m *model) handleEvent(ev run.Event) {
 		}
 		m.refreshContent()
 	case "prompt_budget":
-		data, err := json.Marshal(ev.Fields["report"])
-		var report llm.ContextReport
-		if err == nil && json.Unmarshal(data, &report) == nil {
+		if report, ok := ev.Fields["report"].(llm.ContextReport); ok {
 			m.usage.breakdown = report
 		}
 	case "usage":
-		if p, ok := ev.Fields["prompt"].(float64); ok && int(p) > 0 {
-			completion, _ := ev.Fields["completion"].(float64)
+		if p, ok := ev.Fields["prompt"].(int); ok && int(p) > 0 {
+			completion, _ := ev.Fields["completion"].(int)
 			m.tokens = int(p) + int(completion)
 			m.tokensEst, _ = ev.Fields["estimated"].(bool)
 			m.usage.source = "Last request context"
@@ -581,13 +565,13 @@ func (m *model) handleEvent(ev run.Event) {
 	}
 }
 
-func (m *model) acceptStepEvent(ev run.Event) {
+func (m *model) acceptStepEvent(ev harness.Event) {
 	m.usage.liveModel = true
 	m.progress.Phase = "tools"
 	m.steps++
 	// The enforced step budget rides the event: the meter reads that limit,
 	// never a second literal. Absent on old producers — keep ours.
-	if ms, ok := ev.Fields["max_steps"].(float64); ok && ms > 0 {
+	if ms, ok := ev.Fields["max_steps"].(int); ok && ms > 0 {
 		m.maxSteps = int(ms)
 	}
 	// The live buffer belongs to this response: clear it first so
@@ -624,7 +608,7 @@ func (m *model) acceptStepEvent(ev run.Event) {
 	}
 }
 
-func (m *model) acceptGateEvent(ev run.Event) {
+func (m *model) acceptGateEvent(ev harness.Event) {
 	m.closeHeader()
 	kind, _ := ev.Fields["kind"].(string)
 	prompt, _ := ev.Fields["prompt"].(string)
@@ -667,13 +651,13 @@ func (m *model) acceptGateEvent(ev run.Event) {
 	m.fitBottom()
 }
 
-func (m *model) acceptOutcomeEvent(ev run.Event) {
+func (m *model) acceptOutcomeEvent(ev harness.Event) {
 	m.filesTouched = map[string]bool{}
 	outcome, _ := ev.Fields["outcome"].(string)
 	var files []string
-	if values, ok := ev.Fields["files"].([]any); ok {
+	if values, ok := ev.Fields["files"].([]string); ok {
 		for _, value := range values {
-			if path, ok := value.(string); ok {
+			if path := value; path != "" {
 				files = append(files, path)
 				m.filesTouched[path] = true
 			}
@@ -696,12 +680,7 @@ func (m *model) acceptOutcomeEvent(ev run.Event) {
 			values = []string{value}
 		case []string:
 			values = value
-		case []any:
-			for _, item := range value {
-				if s, ok := item.(string); ok {
-					values = append(values, s)
-				}
-			}
+
 		}
 		if value := strings.Join(values, "\n"); value != "" {
 			text += "\n" + field + ": " + value

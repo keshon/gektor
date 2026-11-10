@@ -105,23 +105,14 @@ func TestPreferencesRoundTripKeepsTheHarness(t *testing.T) {
 	}
 }
 
-func TestRetiredHarnessFieldsDropOnSave(t *testing.T) {
+func TestRetiredHarnessFieldsAreRejected(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "application.json")
-	if err := os.WriteFile(path, []byte(`{"version":1,"harness":{"max_steps":42,"nudges":"recovery","think_budget":6000}}`), 0600); err != nil {
-		t.Fatal(err)
-	}
-	p, err := LoadPreferences(path)
-	if err != nil || p.Harness.MaxSteps != 42 {
-		t.Fatalf("prefs=%+v err=%v", p, err)
-	}
-	if err := SavePreferences(path, p); err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(data), "nudges") || strings.Contains(string(data), "think_budget") {
-		t.Fatalf("retired fields retained: %s", data)
+	for _, body := range []string{`{"version":1,"harness":{"nudges":"recovery"}}`, `{"version":1,"harness":{"think_budget":6000}}`, `{"version":1,"appearance":{"density":"compact"}}`} {
+		if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := LoadPreferences(path); err == nil {
+			t.Fatal("accepted retired preferences", body)
+		}
 	}
 }

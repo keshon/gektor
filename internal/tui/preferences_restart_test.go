@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/config"
 )
 
@@ -20,7 +21,7 @@ func TestPreferencesSurviveProcessRestart(t *testing.T) {
 	profile := config.DefaultProfile()
 	profile.Provider.Kind = "openai"
 	path := filepath.Join(root, "application.json")
-	if err := config.SavePreferences(path, config.Preferences{Version: 1, Profile: &profile, Workspace: workspace, Mode: "act", Appearance: config.Appearance{Density: "compact"}}); err != nil {
+	if err := config.SavePreferences(path, config.Preferences{Version: 1, Profile: &profile, Workspace: workspace, Mode: "act", Appearance: config.Appearance{}}); err != nil {
 		t.Fatal(err)
 	}
 	exe, err := os.Executable()
@@ -57,9 +58,6 @@ func TestPreferenceRestartHelper(t *testing.T) {
 		on := phase == "verify"
 		if m.transcript.compact == on || m.hideTools != on || m.hideSYS != on || m.hideNames != on || m.hideLabels != on || m.minimal == on {
 			t.Fatal("View choices lost on restart", p.Appearance)
-		}
-		if p.Appearance.Density != "" {
-			t.Fatal("retired density setting was saved again")
 		}
 		wantTheme := "light"
 		if !on {

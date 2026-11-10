@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/session"
 )
 
 type usageState struct {
@@ -48,7 +48,7 @@ func (m *model) restoreContext(history []llm.Message) {
 	m.clearContext()
 	if len(history) > 0 {
 		if m.stateFile != "" {
-			if active, err := session.ReadContext(m.stateFile); err == nil {
+			if active, err := conversation.ReadContext(m.stateFile); err == nil {
 				history = active
 			}
 		}

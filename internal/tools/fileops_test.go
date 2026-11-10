@@ -12,8 +12,8 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
-	"github.com/keshon/gektor/internal/automation"
 	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -25,7 +25,7 @@ func fileCapability(t *testing.T) (*workspace.Workspace, *Capabilities) {
 	}
 	t.Cleanup(func() { _ = ws.Close() })
 	c := &Capabilities{}
-	r, err := Compose(ws, nil, nil, nil, false, c, nil)
+	r, err := Compose(Dependencies{WS: ws, Vision: false}, c, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func fileCapability(t *testing.T) (*workspace.Workspace, *Capabilities) {
 
 func TestArchiveCreateAndExtractThroughAgentAndWorkflow(t *testing.T) {
 	ws, c := fileCapability(t)
-	BindWorkflowPolicy(c, ws, permission.Default(), nil, t.TempDir())
+	c = policyCatalog(t, Dependencies{WS: ws, Policy: permission.Default(), Gate: nil, StoreDir: t.TempDir()})
 	if _, err := c.Enable(t.Context(), "native_workflows", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -56,12 +56,12 @@ func TestArchiveCreateAndExtractThroughAgentAndWorkflow(t *testing.T) {
 		if err != nil {
 			t.Fatal(call.name, out, err)
 		}
-		reg, err := app.AutomationRegistry(ws, t.TempDir(), nil, nil)
+		reg, err := app.WorkflowRegistry(ws, t.TempDir(), nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		node, _ := reg.Node(call.name)
-		if err := automation.ValidateJSON(json.RawMessage(out), node.OutputSchema); err != nil {
+		if err := workflow.ValidateJSON(json.RawMessage(out), node.OutputSchema); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -90,7 +90,7 @@ func TestArchiveGeneratedOutputDenyAppliesBeforeAnyWrite(t *testing.T) {
 			if _, err := c.Registry.Run(t.Context(), "archive_create", json.RawMessage(`{"paths":["source.txt"],"path":"input.zip"}`)); err != nil {
 				t.Fatal(err)
 			}
-			BindWorkflowPolicy(c, ws, permission.Policy{Rules: []permission.Rule{{Tool: "archive_extract", Pattern: "out/source.txt", Effect: permission.Deny}}}, nil, t.TempDir())
+			c = policyCatalog(t, Dependencies{WS: ws, Policy: permission.Policy{Rules: []permission.Rule{{Tool: "archive_extract", Pattern: "out/source.txt", Effect: permission.Deny}}}, Gate: nil, StoreDir: t.TempDir()})
 			var err error
 			if workflow {
 				if _, err := c.Enable(t.Context(), "native_workflows", nil); err != nil {
@@ -130,7 +130,7 @@ func TestFilePackAndWorkflowShareContractsAndResults(t *testing.T) {
 	if err := ws.WriteFile("input.zip", data.Bytes(), 0600); err != nil {
 		t.Fatal(err)
 	}
-	reg, err := app.AutomationRegistry(ws, t.TempDir(), nil, nil)
+	reg, err := app.WorkflowRegistry(ws, t.TempDir(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func TestFilePackAndWorkflowShareContractsAndResults(t *testing.T) {
 	if err != nil || fromNode != direct {
 		t.Fatal("agent/node result drift", direct, fromNode, err)
 	}
-	if err := automation.ValidateJSON(json.RawMessage(direct), node.OutputSchema); err != nil {
+	if err := workflow.ValidateJSON(json.RawMessage(direct), node.OutputSchema); err != nil {
 		t.Fatal(err)
 	}
 	if c.Registry.ModeOf("download_file") != agent.Exclusive || c.Registry.ModeOf("archive_list") != agent.Concurrent {
@@ -161,7 +161,7 @@ func TestFilePackAndWorkflowShareContractsAndResults(t *testing.T) {
 	}
 	// The actual workflow service must also execute the operation, not just
 	// advertise its schema or expose a callable node.
-	BindWorkflowPolicy(c, ws, permission.Default(), nil, t.TempDir())
+	c = policyCatalog(t, Dependencies{WS: ws, Policy: permission.Default(), Gate: nil, StoreDir: t.TempDir()})
 	if _, err := c.Enable(t.Context(), "native_workflows", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +202,7 @@ func TestFileOperationResourcesAreCanonicalAndWorkflowDenyApplies(t *testing.T) 
 			t.Fatal("missing fallback resources", fallback, err)
 		}
 	}
-	BindWorkflowPolicy(c, ws, permission.Policy{Rules: []permission.Rule{{Tool: "download_file", Pattern: "blocked.zip", Effect: permission.Deny}}}, nil, t.TempDir())
+	c = policyCatalog(t, Dependencies{WS: ws, Policy: permission.Policy{Rules: []permission.Rule{{Tool: "download_file", Pattern: "blocked.zip", Effect: permission.Deny}}}, Gate: nil, StoreDir: t.TempDir()})
 	if _, err := c.Enable(t.Context(), "native_workflows", nil); err != nil {
 		t.Fatal(err)
 	}

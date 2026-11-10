@@ -23,11 +23,16 @@ are separate facts.
 |---|---|---|
 | Root package | Typed requests, validation, execution, results and resource cleanup | Agent loops, workflow execution or UI |
 | `contract` | Operation names, descriptions, JSON contracts, argument decoding and permission resources | A second implementation of the operation |
-| `tools` | The Agent tool interface and concurrency mode | Parsing, provider selection or file publication |
-| `nodes` | Workflow descriptors, template validation, versions and retry declarations | Parsing, provider selection or file publication |
+| `internal/tools/*_operation.go` | The Agent tool interface, attachment access and concurrency mode | Parsing, provider selection or file publication |
+| `internal/capabilities/nodes` | Workflow descriptors, template validation, versions and retry declarations | Parsing, provider selection or file publication |
+
+Each feature keeps its typed service and shared `contract` together. The small
+frontend adapters share the locations above; they do not create another package
+for each feature/frontend pair. Composition supplies store and authorization
+dependencies before any tool is registered, including derived output paths.
 
 Shared support lives in `internal/httptransport`, `internal/process` and
-`internal/programs`. Program configuration keeps its existing applications.json
+`internal/executables`. Program configuration keeps its existing applications.json
 filename. The capability package names are documents, files, images, media and
 social. Provider names stay inside their implementations.
 
@@ -35,9 +40,9 @@ A provider-only reader may expose a typed function instead of a service. Do not
 add empty adapter packages for a frontend that does not use it. When another
 frontend needs the operation, give both callers the same contract.
 
-Application-record operations are shared in `internal/automation/records` because
+Application-record operations are shared in `internal/workflow/records` because
 they belong to the workflow user store. That package owns the operation contract
-and execution; `automation/agenttools` and `automation/nodes/record` only adapt it.
+and execution; `workflow/agenttools` and `workflow/nodes/record` only adapt it.
 Permission-resource routing uses the same shared operation package. This is the
 current ownership boundary, not a second implementation or forwarding layer.
 
@@ -148,8 +153,8 @@ every format. Keep operating-system suffixes on platform implementations.
 The file-operation package provides naming examples for a
 [service](../../internal/capabilities/files/service.go),
 [shared JSON contract](../../internal/capabilities/files/contract/operation.go),
-[tool wrapper](../../internal/capabilities/files/tools/tools.go) and
-[workflow descriptors](../../internal/capabilities/files/nodes/definitions.go).
+[tool wrapper](../../internal/tools/files_operation.go) and
+[workflow descriptors](../../internal/capabilities/nodes/files.go).
 Use these roles when they exist. Split further only when a file has distinct
 responsibilities. Avoid unrelated names such as helpers or common.
 

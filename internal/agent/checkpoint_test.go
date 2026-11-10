@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/llm/chatcompletions"
-	"github.com/keshon/gektor/internal/session"
 )
 
 func TestCheckpointsRecoverEvidenceAcrossCompactionAndResume(t *testing.T) {
@@ -23,7 +23,7 @@ func TestCheckpointsRecoverEvidenceAcrossCompactionAndResume(t *testing.T) {
 	}
 	h := []llm.Message{{Role: llm.RoleSystem, Content: "sys"}, {Role: llm.RoleUser, Content: "Build server"}}
 	a := New(Config{Client: c, Tools: NewRegistry(), ContextLimit: 8192, MaxTokens: 2048})
-	a.snapshot = session.New(h)
+	a.snapshot = conversation.New(h)
 	a.checkpointLen = len(h)
 	path := filepath.Join(t.TempDir(), "state.json")
 	failed, succeeded := true, false
@@ -69,7 +69,7 @@ func TestCheckpointsRecoverEvidenceAcrossCompactionAndResume(t *testing.T) {
 			if _, err := fmt.Sscanf(entry, "archive #%d:", &id); err != nil {
 				t.Fatal(entry, err)
 			}
-			rows, err := session.PageHistory(a.snapshot, id, 1, 0)
+			rows, err := conversation.PageHistory(a.snapshot, id, 1, 0)
 			if err != nil || rows[0].Role != llm.RoleTool || !strings.Contains(entry, rows[0].Text) {
 				t.Fatal("invalid evidence reference", entry, rows, err)
 			}
@@ -84,7 +84,7 @@ func TestCheckpointsRecoverEvidenceAcrossCompactionAndResume(t *testing.T) {
 		if err := a.snapshot.Save(path); err != nil {
 			t.Fatal(err)
 		}
-		a.snapshot, err = session.Load(path)
+		a.snapshot, err = conversation.Load(path)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -92,7 +92,7 @@ func TestCheckpointsRecoverEvidenceAcrossCompactionAndResume(t *testing.T) {
 		a.checkpointLen = len(h)
 	}
 	// Even evidence evicted from the six-result ledger remains recoverable.
-	rows, _, err := session.SearchHistory(a.snapshot, "unique-diagnostic-0", 1, 1)
+	rows, _, err := conversation.SearchHistory(a.snapshot, "unique-diagnostic-0", 1, 1)
 	if err != nil || len(rows) != 1 || rows[0].ID != 4 || rows[0].Failed == nil || !*rows[0].Failed {
 		t.Fatal(rows, err)
 	}
@@ -114,7 +114,7 @@ func TestCheckpointContinuityLive(t *testing.T) {
 	}
 	a := New(Config{Client: chatcompletions.NewLlamaClient(endpoint, "local"), Tools: NewRegistry(), ContextLimit: 16384, MaxTokens: 1536})
 	h := []llm.Message{{Role: llm.RoleSystem, Content: "Coding assistant"}, {Role: llm.RoleUser, Content: "Build a Postgres server"}}
-	a.snapshot, a.checkpointLen = session.New(h), len(h)
+	a.snapshot, a.checkpointLen = conversation.New(h), len(h)
 	failed := true
 	for pass, target := range []string{"SQLite", "JSON file"} {
 		id := fmt.Sprintf("verify-%d", pass)

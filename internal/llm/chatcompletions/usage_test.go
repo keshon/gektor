@@ -3,7 +3,7 @@ package chatcompletions
 import "testing"
 
 func TestServer_UsageTotalsAccumulate(t *testing.T) {
-	s := &Server{}
+	s := &Client{}
 	if p, g, n := s.UsageTotals(); p != 0 || g != 0 || n != 0 {
 		t.Fatalf("fresh totals = %d/%d/%d, want 0/0/0", p, g, n)
 	}

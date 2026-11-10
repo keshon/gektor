@@ -10,9 +10,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	textclipboard "github.com/atotto/clipboard"
+
 	imageclipboard "github.com/keshon/gektor/internal/clipboard"
-	"github.com/keshon/gektor/internal/gektor"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/userdirs"
 )
 
 const maxDraftImages = 8
@@ -52,7 +53,7 @@ func (m *model) pasteClipboard(imageOnly bool) tea.Cmd {
 			}
 			return out
 		}
-		dir := gektor.Sub("images")
+		dir := userdirs.Sub("images")
 		if err = os.MkdirAll(dir, 0700); err != nil {
 			out.err = err
 			return out
@@ -180,7 +181,7 @@ func importPastedImage(msg clipboardMsg) clipboardMsg {
 	if path == "" {
 		return msg
 	}
-	msg.path, msg.err = llm.SnapshotImage(path, gektor.Sub("images"))
+	msg.path, msg.err = llm.SnapshotImage(path, userdirs.Sub("images"))
 	msg.text = ""
 	return msg
 }

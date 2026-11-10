@@ -10,11 +10,12 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/events"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/retrospect"
-	"github.com/keshon/gektor/internal/session"
+	"github.com/keshon/gektor/internal/retrospective"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -56,7 +57,7 @@ func TestRunFailureAppearsOnceAndDoesNotShrinkComposer(t *testing.T) {
 func TestReceiptShowsRunnerWarningsAndRemainingWork(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.handleEvent(events.Event{Name: "outcome", Fields: map[string]any{
-		"outcome": "incomplete", "warnings": []any{"boundary save failed"}, "open_todos": []any{"verify changes"}, "summary": "Budget expired after editing",
+		"outcome": "incomplete", "warnings": []string{"boundary save failed"}, "open_todos": []string{"verify changes"}, "summary": "Budget expired after editing",
 	}})
 	b := m.transcript.blocks[len(m.transcript.blocks)-1]
 	text := ansi.Strip(strings.Join(receiptText(b.text, defaultStyles(), 80), "\n"))
@@ -147,7 +148,7 @@ func TestLearnReviewReopensFailureWithoutInference(t *testing.T) {
 	})
 	dir := t.TempDir()
 	m.stateFile = filepath.Join(dir, "state.json")
-	f := retrospect.Failure{Cause: "budget exhausted", LastValidation: "read message 4 before citing it", Progress: retrospect.Progress{Scope: "run 3", Step: 12, Steps: 12}}
+	f := retrospective.Failure{Cause: "budget exhausted", LastValidation: "read message 4 before citing it", Progress: retrospective.Progress{Scope: "run 3", Step: 12, Steps: 12}}
 	data, _ := json.Marshal(f)
 	if err := os.WriteFile(filepath.Join(dir, "evaluation-failure.json"), data, 0600); err != nil {
 		t.Fatal(err)
@@ -164,8 +165,8 @@ func TestSavedRunFailureAppearsInSessionIndex(t *testing.T) {
 	if err := os.Mkdir(dir, 0700); err != nil {
 		t.Fatal(err)
 	}
-	s := session.New([]llm.Message{{Role: llm.RoleSystem, Content: "sys"}, {Role: llm.RoleUser, Content: "task"}})
-	s.Runs = []session.Run{{Start: 1, End: 2, Outcome: "failed", Error: "backend disconnected"}}
+	s := conversation.New([]llm.Message{{Role: llm.RoleSystem, Content: "sys"}, {Role: llm.RoleUser, Content: "task"}})
+	s.Runs = []conversation.Run{{Start: 1, End: 2, Outcome: "failed", Error: "backend disconnected"}}
 	if err := s.Save(filepath.Join(dir, "state.json")); err != nil {
 		t.Fatal(err)
 	}

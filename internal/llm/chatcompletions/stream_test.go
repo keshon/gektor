@@ -310,7 +310,7 @@ func TestStream_KeepsMeasuredUsage(t *testing.T) {
 }
 
 func TestStreamRejectsIncompleteAndMalformedFrames(t *testing.T) {
-	for _, newClient := range []func(string, string) *Server{NewLlamaClient, NewKoboldClient} {
+	for _, newClient := range []func(string, string) *Client{NewLlamaClient, NewKoboldClient} {
 		for _, body := range []string{
 			`data: {"choices":[{"delta":{"content":"partial"}}]}` + "\n\n",
 			"data: invalid\n\ndata: [DONE]\n\n",

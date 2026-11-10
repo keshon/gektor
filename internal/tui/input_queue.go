@@ -7,21 +7,22 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/run"
 	"github.com/keshon/gektor/internal/tui/components/table"
 )
 
 // A queue window belongs to one session. Its rows keep their identity even
 // after consumption; those rows remain readable until the window closes.
 type inputQueue struct {
-	session       *run.Session
-	legacyVersion uint64
-	view          *table.Model
-	stateFile     string
-	entries       map[string]queueEntry
-	order         []string
+	session        *harness.Session
+	nextRunVersion uint64
+	view           *table.Model
+	stateFile      string
+	entries        map[string]queueEntry
+	order          []string
 }
 
 // Missing rows remain inspectable, but disappearance alone does not prove receipt.
@@ -34,7 +35,7 @@ func (e queueEntry) readOnly() bool { return e.Received || e.missing }
 
 type inputQueueReturn struct{ queue *inputQueue }
 type inputQueueEdit struct {
-	session   *run.Session
+	session   *harness.Session
 	stateFile string
 	dialog    *infoDialog
 }
@@ -78,7 +79,7 @@ func (m *model) openInputQueue() {
 			return
 		}
 	}
-	q := &inputQueue{session: m.sess, stateFile: m.stateFile, legacyVersion: m.queuedVersion, view: m.newTable(), entries: map[string]queueEntry{}}
+	q := &inputQueue{session: m.sess, stateFile: m.stateFile, nextRunVersion: m.queuedVersion, view: m.newTable(), entries: map[string]queueEntry{}}
 	m.showInputQueue(q)
 }
 func (m *model) showInputQueue(q *inputQueue) {
@@ -94,7 +95,7 @@ func (m *model) showInputQueue(q *inputQueue) {
 				ids = append(ids, id)
 			}
 		}
-		if m.sess == q.session && m.stateFile == q.stateFile && m.queuedVersion == q.legacyVersion && m.hasQueued() {
+		if m.sess == q.session && m.stateFile == q.stateFile && m.queuedVersion == q.nextRunVersion && m.hasQueued() {
 			active["next"] = queueEntry{QueuedInput: agent.QueuedInput{Message: llm.Message{Content: m.queued, Images: append([]string(nil), m.queuedImages...)}}}
 		}
 		for _, id := range q.order {
@@ -225,7 +226,7 @@ func (m *model) changeQueuedInput(q *inputQueue, id string, value *string) error
 		return fmt.Errorf("this session has changed; copy your edit before closing")
 	}
 	if id == "next" {
-		if m.queuedVersion != q.legacyVersion || !m.hasQueued() {
+		if m.queuedVersion != q.nextRunVersion || !m.hasQueued() {
 			return agent.ErrInputMissing
 		}
 		if value == nil {

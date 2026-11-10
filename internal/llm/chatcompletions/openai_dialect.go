@@ -3,7 +3,7 @@
 // One dialect covers every hosted provider that speaks the OpenAI chat
 // format: OpenAI itself, OpenRouter, DeepSeek, Groq, Together, Mistral,
 // xAI, Ollama/LM Studio reached over a network, and similar gateways.
-// The wire shape is already what Server sends; what differs from the
+// The wire shape is already what Client sends; what differs from the
 // local dialects is what must NOT be sent: no GBNF grammar, no
 // koboldcpp/llama-server sampler spellings, no top_k (not an OpenAI
 // field). Authentication is a bearer token on every request.
@@ -15,8 +15,8 @@ import "encoding/json"
 // baseURL is the API root with or without a trailing /v1, e.g.
 // "https://api.openai.com/v1" or "https://openrouter.ai/api/v1".
 // Use WithAPIKey to attach the bearer token.
-func NewOpenAIClient(baseURL, model string) *Server {
-	return newServer(baseURL, model, openaiDialect{})
+func NewOpenAIClient(baseURL, model string) *Client {
+	return newClient(baseURL, model, openaiDialect{})
 }
 
 type openaiDialect struct{}

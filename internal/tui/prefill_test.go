@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/events"
 	"github.com/keshon/gektor/internal/llm"
 )
@@ -12,7 +13,7 @@ import (
 func TestCompactionProgressAppearsAndClears(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 120, 34)
 	m.state = stRunning
-	for _, generated := range []float64{0, 42} {
+	for _, generated := range []int{0, 42} {
 		m.handleEvent(events.Event{Name: "progress", Fields: map[string]any{"phase": "checkpoint", "completion": generated}})
 		view := ansi.Strip(m.View().Content)
 		if !strings.Contains(view, "COMPACT") || !strings.Contains(view, "Summarizing earlier steps") {

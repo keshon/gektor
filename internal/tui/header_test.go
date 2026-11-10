@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/events"
 	"github.com/keshon/gektor/internal/llm"
 )
@@ -59,7 +60,7 @@ func TestHeaderContextPersistsAndRestoresEstimate(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.modelName = "test-model"
 	m.stateFile = filepath.Join(t.TempDir(), "state.json")
-	m.handleEvent(events.Event{Name: "usage", Fields: map[string]any{"prompt": float64(4100)}})
+	m.handleEvent(events.Event{Name: "usage", Fields: map[string]any{"prompt": 4100}})
 	if m.tokens != 4100 || !m.usage.thisRun {
 		t.Fatal("usage not captured")
 	}
@@ -124,7 +125,7 @@ func TestHistoricalModelAndContextBecomeLiveIndependently(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.stateFile = filepath.Join(t.TempDir(), "state.json")
 	m.modelName = `D:\models\one\two\old.gguf`
-	m.handleEvent(events.Event{Name: "usage", Fields: map[string]any{"prompt": float64(4100)}})
+	m.handleEvent(events.Event{Name: "usage", Fields: map[string]any{"prompt": 4100}})
 	m.persistUsage()
 	m.modelName = "/models/new/current.gguf"
 	m.restoreContext([]llm.Message{{Role: llm.RoleUser, Content: "previous task"}})
@@ -135,7 +136,7 @@ func TestHistoricalModelAndContextBecomeLiveIndependently(t *testing.T) {
 	if modelLabel(m.displayedModel()) != "current.gguf" || !m.usage.historical {
 		t.Fatal("model should be live while context awaits fresh usage")
 	}
-	m.handleEvent(events.Event{Name: "usage", Fields: map[string]any{"prompt": float64(5200)}})
+	m.handleEvent(events.Event{Name: "usage", Fields: map[string]any{"prompt": 5200}})
 	if m.usage.historical || m.tokens != 5200 || m.usage.last.Model != m.modelName {
 		t.Fatal("fresh usage did not replace historical values")
 	}

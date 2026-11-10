@@ -12,7 +12,7 @@ import (
 
 func (m *model) stagedSettings() (config.Profile, error) {
 	m.storeSettingsPage()
-	return m.dialog.form.Workspace.Draft.Resolve()
+	return m.dialog.form.EditSession.Draft.Resolve()
 }
 func (m *model) saveSettingsCopy() {
 	p, err := m.stagedSettings()
@@ -66,7 +66,7 @@ func (m *model) saveCustomSettings(profile config.Profile) error {
 	if err != nil {
 		return fmt.Errorf("save custom profile: %w", err)
 	}
-	ws := m.dialog.form.Workspace
+	ws := m.dialog.form.EditSession
 	ws.LoadedPath = path
 	return nil
 }
@@ -74,10 +74,10 @@ func (m *model) saveCustomSettings(profile config.Profile) error {
 // customProfileTarget reports where a changed form should be saved: the
 // custom directory, and the currently loaded profile to reuse its name.
 func (m *model) customProfileTarget() (dir, source string, ok bool) {
-	if m.application == nil || m.application.PreferencePath == "" || m.dialog == nil || m.dialog.form == nil || m.dialog.form.Workspace == nil {
+	if m.application == nil || m.application.PreferencePath == "" || m.dialog == nil || m.dialog.form == nil || m.dialog.form.EditSession == nil {
 		return "", "", false
 	}
-	ws := m.dialog.form.Workspace
+	ws := m.dialog.form.EditSession
 	changed := ws.PersistCurrent
 	for _, section := range ws.Draft.ChangedSections() {
 		if section != "profiles" && section != "workspace" {

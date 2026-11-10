@@ -1,10 +1,12 @@
 package tui
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"errors"
-	"github.com/keshon/gektor/internal/agent"
 	"strings"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/keshon/gektor/internal/agent"
 )
 
 func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -19,7 +21,8 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.requestQuit()
 	}
 	if m.workflowActive() && m.dialog == nil && !m.header.focused && m.sessions == nil && m.header.menu == "" && msg.String() != "ctrl+c" {
-		return m.workflowKey(msg)
+		_, cmd := m.workflows.key(msg)
+		return m, cmd
 	}
 	if m.state == stPermission && m.dialog == nil && msg.String() == "f4" && m.gatePreview != "" {
 		return m.gateKey(msg)

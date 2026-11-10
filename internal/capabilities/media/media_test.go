@@ -11,11 +11,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/gektor/internal/process"
-	"github.com/keshon/gektor/internal/programs"
-	"github.com/keshon/gektor/internal/workspace"
-
 	"github.com/kkdai/youtube/v2"
+
+	"github.com/keshon/gektor/internal/executables"
+	"github.com/keshon/gektor/internal/process"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 type roundTrip func(*http.Request) (*http.Response, error)
@@ -28,8 +28,8 @@ func testService(t *testing.T) *Service {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { ws.Close() })
-	s := New(ws, programs.New(filepath.Join(t.TempDir(), "applications.json")))
-	s.Apps.(*programs.Resolver).ConfigPath = filepath.Join(t.TempDir(), "applications.json")
+	s := New(ws, executables.New(filepath.Join(t.TempDir(), "applications.json")))
+	s.Apps.(*executables.Resolver).ConfigPath = filepath.Join(t.TempDir(), "applications.json")
 	return s
 }
 func response(code int, raw string) *http.Response {
@@ -143,14 +143,14 @@ func TestNativeFailureDoesNotFallbackAndPathsAreBounded(t *testing.T) {
 
 type availableApps struct{}
 
-func (availableApps) Probe(_ context.Context, name string, _ bool) (programs.Status, error) {
+func (availableApps) Probe(_ context.Context, name string, _ bool) (executables.Status, error) {
 	state := "ready"
 	if name == "node" || name == "deno" {
 		state = "disabled"
 	}
-	return programs.Status{Name: name, State: state, Path: os.Args[0], Version: "fixture"}, nil
+	return executables.Status{Name: name, State: state, Path: os.Args[0], Version: "fixture"}, nil
 }
-func (a availableApps) Require(ctx context.Context, name string) (programs.Status, error) {
+func (a availableApps) Require(ctx context.Context, name string) (executables.Status, error) {
 	return a.Probe(ctx, name, true)
 }
 func TestExternalTypedArgumentsAndFailedOutputCleanup(t *testing.T) {

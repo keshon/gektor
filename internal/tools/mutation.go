@@ -1,15 +1,11 @@
 package tools
 
 import (
-	"bytes"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
-
-	"github.com/keshon/gektor/internal/workspace"
 )
 
 type pathLock struct {
@@ -161,30 +157,4 @@ func unifiedDiff(path, before, after string) string {
 		line(" ", oldLines, n, oldNL)
 	}
 	return b.String()
-}
-
-// gofmtNote runs gofmt -l on a .go file after an edit. Best-effort: empty
-// when gofmt is missing, the file isn't Go, or it's already formatted.
-func gofmtNote(ws *workspace.Workspace, full string) string {
-	if !strings.HasSuffix(strings.ToLower(full), ".go") {
-		return ""
-	}
-	gofmt, err := exec.LookPath("gofmt")
-	if err != nil {
-		return ""
-	}
-	data, err := ws.ReadFile(full)
-	if err != nil {
-		return ""
-	}
-	cmd := exec.Command(gofmt, "-l")
-	cmd.Stdin = bytes.NewReader(data)
-	out, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-	if len(strings.TrimSpace(string(out))) > 0 {
-		return "note: gofmt would reformat this file — run gofmt -w " + full
-	}
-	return ""
 }

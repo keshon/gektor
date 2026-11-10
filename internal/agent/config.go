@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/session"
 )
 
 // Config supplies capabilities, limits and observers for one run.
@@ -17,17 +17,14 @@ type Config struct {
 	Inbox        *Inbox
 	OnInput      func(llm.Message)
 	Tools        *Registry
-	// RestoreTools restores optional capabilities from the complete archive
-	// before the first request, including when their activation was compacted.
-	RestoreTools func(context.Context, []llm.Message) error
-	// PrepareTools publishes eager packages after saved and legacy restoration.
+	// PrepareTools publishes eager packages after saved capability restoration.
 	PrepareTools func(context.Context) error
 	// PreviewTools reports pending eager schemas without IO or registry mutation.
 	PreviewTools        func() []llm.ToolDef
-	SaveCapabilities    func() []session.Capability
-	RestoreCapabilities func(context.Context, []session.Capability) error
-	SaveBrowser         func() *session.BrowserProfile
-	RestoreBrowser      func(*session.BrowserProfile) error
+	SaveCapabilities    func() []conversation.Capability
+	RestoreCapabilities func(context.Context, []conversation.Capability) error
+	SaveBrowser         func() *conversation.BrowserProfile
+	RestoreBrowser      func(*conversation.BrowserProfile) error
 	System              string
 	SystemSections      []llm.PromptSection
 	OnPrompt            func(llm.ContextReport)
