@@ -10,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/events"
 )
@@ -209,7 +210,7 @@ func TestCompletionUsesPageBackground(t *testing.T) {
 		uv.NewStyledString(panel).Draw(screen, uv.Rect(0, 0, 80, height))
 		for y := 0; y < height; y++ {
 			for x := 0; x < 80; x++ {
-				if c := screen.CellAt(x, y); c == nil || !sameColor(c.Style.Bg, currentPalette().background) {
+				if c := screen.CellAt(x, y); c == nil || !sameColor(c.Style.Bg, currentPalette().Background) {
 					t.Fatalf("completion introduced a separate background: %s (%d,%d)", theme, x, y)
 				}
 			}

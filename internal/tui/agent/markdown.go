@@ -244,11 +244,11 @@ type spanState struct{ bold, code, italic bool }
 func baseStyle(r role, st styles) lipgloss.Style {
 	switch r {
 	case roleUser:
-		return st.user
+		return st.User
 	case roleThink:
-		return st.think
+		return st.Think
 	case roleMarker:
-		return st.dim
+		return st.Dim
 	default:
 		return lipgloss.Style{}
 	}

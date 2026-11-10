@@ -11,27 +11,16 @@ import (
 
 func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	defer m.syncFocus()
-	if m.dialog != nil && m.dialog.table != nil && msg.String() != "ctrl+c" && msg.String() != "ctrl+q" {
+	if m.chrome.Dialog != nil && m.chrome.Dialog.Table != nil && msg.String() != "ctrl+c" && msg.String() != "ctrl+q" {
 		return m, m.tableInput(msg)
 	}
-	if m.dialog != nil && m.dialog.form != nil && msg.String() != "ctrl+c" && msg.String() != "ctrl+q" {
+	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil && msg.String() != "ctrl+c" && msg.String() != "ctrl+q" {
 		return m.formKey(msg)
 	}
 	if msg.String() == "ctrl+q" {
 		return m.requestQuit()
 	}
-	if m.workflowActive() && m.dialog == nil && !m.header.focused && m.sessions == nil && m.header.menu == "" && msg.String() != "ctrl+c" {
-		// App navigation stays with the root; the workflow handles its own keys.
-		switch msg.String() {
-		case "f9":
-			return m.footerKey(msg)
-		case "f10":
-			return m.requestQuit()
-		}
-		_, cmd := m.workflows.Update(msg)
-		return m, cmd
-	}
-	if m.state == stPermission && m.dialog == nil && msg.String() == "f4" && m.gatePreview != "" {
+	if m.state == stPermission && m.chrome.Dialog == nil && msg.String() == "f4" && m.gatePreview != "" {
 		return m.gateKey(msg)
 	}
 	switch msg.String() {
@@ -55,7 +44,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.cancel()
 		return m, tea.Quit
 	}
-	if m.dialog == nil && (m.state == stPermission || m.state == stAsk) {
+	if m.chrome.Dialog == nil && (m.state == stPermission || m.state == stAsk) {
 		if msg.String() == "pgup" || msg.String() == "pgdown" || msg.String() == "ctrl+end" {
 			var cmd tea.Cmd
 			if msg.String() == "ctrl+end" {
@@ -158,7 +147,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		// answers must never land in a list.
 		return m.sessionsKey(msg)
 	}
-	if m.dialog != nil {
+	if m.chrome.Dialog != nil {
 		return m.infoDialogKey(msg)
 	}
 
@@ -172,67 +161,13 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func isMouseClick(msg tea.MouseMsg) bool { _, ok := msg.(tea.MouseClickMsg); return ok }
 
 func (m *Model) infoDialogKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if (msg.String() == "s" || msg.String() == "S") && m.dialog.save != nil {
-		if err := m.dialog.save(); err != nil {
-			m.dialog.lines = append(m.dialog.lines, "", "Could not save: "+err.Error())
-			m.dialog.offset = 0
-		} else {
-			m.closeDialog()
-		}
-		return m, nil
-	}
-	if (msg.String() == "r" || msg.String() == "R" || msg.String() == "e" || msg.String() == "E") && m.dialog.review != nil {
-		m.dialog.review()
-		return m, nil
-	}
-	// Takeover: the dialog eats every key but close and quit so
-	// typing can neither reach the input nor toggle state behind it.
-	// Close is esc/enter only: "q" must stay typable for dialogs
-	// with inputs tomorrow. Confirmations are answered above, before
-	// this branch; an info dialog has nothing to confirm.
-	switch msg.String() {
-	case "n", "N", "esc":
-		m.closeDialog()
-		return m, nil
-	case "enter":
-		m.closeDialog()
-		return m, nil
-	case "ctrl+c":
+	m.syncControls()
+	if msg.String() == "ctrl+c" {
 		m.quit = true
 		m.cancel()
 		return m, tea.Quit
 	}
-	if !m.dialog.help {
-		switch msg.String() {
-		case "down":
-			m.scrollDialog(1)
-		case "up":
-			m.scrollDialog(-1)
-		case "pgdown":
-			m.scrollDialog(max(m.transcript.Viewport.Height()/2, 1))
-		case "pgup":
-			m.scrollDialog(-max(m.transcript.Viewport.Height()/2, 1))
-		}
-	}
-	if m.dialog.help {
-		switch msg.String() {
-		case "tab", "right":
-			m.dialog.page = (m.dialog.page + 1) % len(m.dialogHelpSections())
-			m.dialog.offset = 0
-		case "shift+tab", "left":
-			m.dialog.page = (m.dialog.page + len(m.dialogHelpSections()) - 1) % len(m.dialogHelpSections())
-			m.dialog.offset = 0
-		case "down":
-			m.scrollDialog(1)
-		case "up":
-			m.scrollDialog(-1)
-		case "pgdown":
-			m.scrollDialog(max(m.transcript.Viewport.Height()/2, 1))
-		case "pgup":
-			m.scrollDialog(-max(m.transcript.Viewport.Height()/2, 1))
-		}
-	}
-	return m, nil
+	return m, m.chrome.InfoKey(msg)
 }
 
 func (m *Model) conversationKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -266,7 +201,6 @@ func (m *Model) conversationKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.quit = true
 			m.cancel()
 			return m, tea.Quit
-
 		}
 		var cmd tea.Cmd
 		m.input, cmd = m.input.Update(msg)
@@ -289,7 +223,6 @@ func (m *Model) conversationKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.quit = true
 			m.cancel()
 			return m, tea.Quit
-
 		}
 		var cmd tea.Cmd
 		m.input, cmd = m.input.Update(msg)

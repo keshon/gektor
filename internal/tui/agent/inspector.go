@@ -26,7 +26,7 @@ type toolInspector struct {
 }
 
 func (m *Model) inspectorVisible() bool {
-	return m.inspector.callID != "" && m.dialog == nil && m.sessions == nil && m.state != stPermission && m.state != stAsk
+	return m.inspector.callID != "" && m.chrome.Dialog == nil && m.sessions == nil && m.state != stPermission && m.state != stAsk
 }
 func (m *Model) mainWidth() int {
 	return m.screenPanes(m.inspectorVisible()).Main.Width
@@ -216,7 +216,7 @@ func (m *Model) composeInspector(content string) string {
 // inspectionRows uses the same frame and one-row footer for both inspectors.
 func (m *Model) inspectionRows(heading, hint, body string, width int, focused, close bool) []string {
 	layout := m.panelGeometry(width, 1, close, false)
-	return pane.Render(layout, heading, body, []string{hint}, m.paneStyles(), focused && !m.header.focused)
+	return pane.Render(layout, heading, body, []string{hint}, m.paneStyles(), focused && !m.chrome.Header.Focused)
 }
 
 func (m *Model) inspectionHints(width int, shortcuts ...popup.Shortcut) string {
@@ -225,7 +225,7 @@ func (m *Model) inspectionHints(width int, shortcuts ...popup.Shortcut) string {
 }
 
 func (m *Model) inspectorKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
-	if m.dialog != nil || m.sessions != nil || m.header.menu != "" || m.header.focused || m.state == stPermission || m.state == stAsk {
+	if m.chrome.Dialog != nil || m.sessions != nil || m.chrome.Header.Menu != "" || m.chrome.Header.Focused || m.state == stPermission || m.state == stAsk {
 		return false, nil
 	}
 	key := msg.String()

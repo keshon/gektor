@@ -89,7 +89,7 @@ func TestUnifiedHeaderKeepsActivityAndContext(t *testing.T) {
 			t.Fatal(width, text)
 		}
 		for _, b := range m.headerBadges() {
-			if b.id == "context" {
+			if b.ID == "context" {
 				t.Fatal("duplicate context badge")
 			}
 		}

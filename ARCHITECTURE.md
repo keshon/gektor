@@ -84,14 +84,17 @@ internal/app constructs connections, binds credentials, and orchestrates discove
 internal/tools supplies tools; internal/workspace resolves paths and measures
 file changes; internal/permission authorizes each tool call.
 
-The terminal connector in internal/tui wires separate Agent and Workflow models.
-internal/tui/agent owns the Agent session and shared application controls.
+The application model in internal/tui owns screen selection, shared controls,
+terminal input, and the lifetime and quit policy of its peer screens.
+internal/tui/agent owns the Agent conversation, composer, inspector, sessions,
+and Agent execution. It reports navigation and quit intents to the parent.
 internal/tui/workflow owns recipe editing, graph interaction, run inspection,
 message dispatch, queued commands and asynchronous workflow execution. Its
 public API exposes navigation state and operations; the host does not reach into
 the recipe or run state. Workflow also supplies its menu commands,
 availability rules, toggles, and shortcuts. screen.Host supplies shared dialogs and
-screen.Surface supplies current geometry and styles. Workflow receives execution
+screen.Surface supplies current geometry and styles. The shared screen package
+also owns menu and overlay state, rendering, interaction, and theme mappings. Workflow receives execution
 services and owns its cancellation; it has no access to Agent or transcript state.
 
 The model server is external. GEKTOR does not install or supervise it.
@@ -325,7 +328,7 @@ contracts and migration plan for shared controls, layouts and interaction.
 
 Settled transcript blocks are cached by content and presentation settings.
 The viewport retains separate rendered parts and draws only visible lines.
-Colors live in `internal/tui/agent/styles.go`; changing the theme invalidates cached rendering.
+Colors live in `internal/tui/screen/styles.go`; changing the theme invalidates cached rendering.
 Width calculations use terminal cells, including frames, gutters and scrollbars.
 
 Applying settings returns ModeChange with saved preferences, history, draft

@@ -58,3 +58,20 @@ func (s Surface) Render(p Panel) []string {
 func (s Surface) Hints(width int, shortcuts ...popup.Shortcut) string {
 	return popup.Shortcuts(s.Layout(width, true).Footer.Width, s.Styles.Shortcuts, shortcuts...)
 }
+
+// SidePaneWidth is the minimum width for placing an inspector beside its canvas.
+const SidePaneWidth = 100
+
+// DefaultSurfaceStyles supplies the shared theme's pane and graph roles.
+func DefaultSurfaceStyles() SurfaceStyles {
+	s := DefaultStyles()
+	surface := PopupSurface()
+	background := lipgloss.Color(CurrentPalette().Background)
+	return SurfaceStyles{
+		Panels:    pane.Styles{Border: lipgloss.NewStyle().Foreground(lipgloss.Color(Color(ColorPopupBorder))), Title: s.Title, Focus: s.Focus},
+		Shortcuts: popup.ShortcutStyles{Key: lipgloss.NewStyle().Foreground(lipgloss.Color(Color(ColorPopupText))).Bold(true), Action: s.Dim},
+		Graph:     graph.Styles{Normal: surface.Normal.Background(background), Title: surface.Selected, Focus: s.Focus.Background(background), Success: s.Add.Background(background), Warning: s.Warn.Background(background), Error: s.Err.Background(background), Disabled: s.Disabled.Background(background)},
+		Notice:    pane.NoticeStyles{Info: s.Dim, Success: s.Add, Warning: s.Warn, Error: s.Err},
+		Muted:     s.Dim, Accent: s.Hunk, Error: s.Err,
+	}
+}

@@ -50,11 +50,11 @@ func (m *Model) requestProfileChange(profile config.Profile) error {
 
 	p := m.application.Preferences
 	p.Profile = &profile
-	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.EditSession != nil && m.dialog.form.EditSession.LoadedPath != "" {
-		p.ProfilePath = m.dialog.form.EditSession.LoadedPath
+	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil && m.chrome.Dialog.Form.EditSession != nil && m.chrome.Dialog.Form.EditSession.LoadedPath != "" {
+		p.ProfilePath = m.chrome.Dialog.Form.EditSession.LoadedPath
 	}
-	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.EditSession != nil {
-		fields, _ := m.dialog.form.EditSession.Draft.Fields("workspace")
+	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil && m.chrome.Dialog.Form.EditSession != nil {
+		fields, _ := m.chrome.Dialog.Form.EditSession.Draft.Fields("workspace")
 		for _, field := range fields {
 			if field.Key == "app-workspace" {
 				p.Workspace = strings.TrimSpace(field.Value)
@@ -101,8 +101,8 @@ func (m *Model) requestProfileChange(profile config.Profile) error {
 	if err := m.saveCustomSettings(profile); err != nil {
 		return err
 	}
-	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.EditSession != nil && m.dialog.form.EditSession.LoadedPath != "" {
-		p.ProfilePath = m.dialog.form.EditSession.LoadedPath
+	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil && m.chrome.Dialog.Form.EditSession != nil && m.chrome.Dialog.Form.EditSession.LoadedPath != "" {
+		p.ProfilePath = m.chrome.Dialog.Form.EditSession.LoadedPath
 	}
 	m.modeChange = &ModeChange{ReassignWorkspace: !sameWorkspace(p.Workspace, m.wsRoot), Preferences: p, History: history, Draft: m.input.Value(), Images: append([]string(nil), m.draftImages...), Drafts: m.relaunchDrafts(), Directory: m.sessionDirectory(), KeepAct: !m.plan}
 	m.pendingCommands = append(m.pendingCommands, tea.Quit)

@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/tui/settings"
 )
@@ -22,7 +23,7 @@ func TestPickerFootersFitAcrossThemesAndTerminalSizes(t *testing.T) {
 				m := sizeModelTo(t, testModel(), size[0], size[1])
 				m.applyTheme(theme)
 				m.openForm("Choose", "", "Apply", []formField{{Key: field, Value: root}}, func(map[string]string) error { return nil })
-				f, props := m.dialog.form, m.settingsProps()
+				f, props := m.chrome.Dialog.Form, m.settingsProps()
 				f.Choices = map[string][]string{"run": {"first", "second"}}
 				f.Focus(0, nil)
 				f.OpenPicker(props)
@@ -64,19 +65,19 @@ func TestPickerFootersFitAcrossThemesAndTerminalSizes(t *testing.T) {
 func TestPickerToolbarEnterMatchesFocusedCancel(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 120, 30)
 	m.openForm("Choose run", "", "Apply", []formField{{Key: "run", Value: "old"}}, func(map[string]string) error { return nil })
-	f := m.dialog.form
+	f := m.chrome.Dialog.Form
 	f.Choices = map[string][]string{"run": {"old", "new"}}
 	f.Focus(0, nil)
 	f.OpenPicker(m.settingsProps())
 	f.Picker.Cursor, f.Picker.Control = 1, 2
 	for i, action := range m.footerActions() {
-		if action.key == tea.KeyEnter {
-			if action.label != "Cancel" || !action.enabled {
+		if action.Key == tea.KeyEnter {
+			if action.Label != "Cancel" || !action.Enabled {
 				t.Fatal("toolbar describes the wrong Enter action")
 			}
 			hit := m.toolbarLayout().Cells[i].Bounds
 			m.handleMouse(tea.MouseClickMsg{X: hit.X, Y: m.termH - 1, Button: tea.MouseLeft})
-			if m.dialog == nil || f.Picker != nil || f.Editor.Value() != "old" {
+			if m.chrome.Dialog == nil || f.Picker != nil || f.Editor.Value() != "old" {
 				t.Fatal("toolbar Enter did not cancel just the picker")
 			}
 			return

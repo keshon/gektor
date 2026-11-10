@@ -250,7 +250,7 @@ const gateTranscriptRows = 4
 func (m *Model) gateBar() string {
 	switch m.gstage {
 	case gsAlways:
-		return m.controlHints(popup.Shortcut{Key: "Esc", Action: "back"}, popup.Shortcut{Key: "Enter", Action: "confirm"}) + "  " + m.styles.gate.Render(fmt.Sprintf(
+		return m.controlHints(popup.Shortcut{Key: "Esc", Action: "back"}, popup.Shortcut{Key: "Enter", Action: "confirm"}) + "  " + m.styles.Gate.Render(fmt.Sprintf(
 			"Allow %s on %q for this run", m.gateTool, truncate(m.gateResource, 80)))
 	case gsReject:
 		return m.controlHints(popup.Shortcut{Key: "Esc", Action: "back"}, popup.Shortcut{Key: "Enter", Action: "deny"}) +
@@ -329,7 +329,7 @@ func (m *Model) refreshGate() {
 	case m.state == stAsk:
 		title = "Answer required"
 	}
-	rows := []string{m.styles.gate.Render(title), ""}
+	rows := []string{m.styles.Gate.Render(title), ""}
 	for _, line := range strings.Split(m.gate, "\n") {
 		rows = append(rows, reflow(line, max(m.gateVP.Width()-1, 1))...)
 	}

@@ -4,9 +4,10 @@ import (
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
+
 	"github.com/keshon/gektor/internal/tui/components/cell"
 	"github.com/keshon/gektor/internal/tui/components/composer"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 // truncate shortens display strings with a marker. Rune-based:
@@ -33,29 +34,5 @@ func newInput() composer.Model {
 	return composer.New(ta)
 }
 
-// inputStyles paints the composer.
-//
-// Cursor.Color is not decoration. An unset cursor colour is not "inherit
-// the theme": the renderer emits a cursor-colour reset and hands the cell
-// back to the terminal, so the block you are typing into is painted in
-// whatever the terminal defaults to. It only shows up once the field has
-// focus, which is exactly when someone is typing - hence a composer that
-// looks themed until the first keystroke and then does not.
-func inputStyles(styles textarea.Styles) textarea.Styles {
-	base := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorPopupText))).Background(lipgloss.Color(currentPalette().background))
-	state := textarea.StyleState{Base: base, Text: base, CursorLine: base, Prompt: lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorAccent))), Placeholder: lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorDim))), EndOfBuffer: base}
-	_, _, selected := popupStyles()
-	state.Selection = selected
-	styles.Focused = state
-	styles.Blurred = state
-	styles.Cursor.Color = lipgloss.Color(themeColor(colorAccent))
-	return styles
-}
-
-func textInputStyles(styles textinput.Styles) textinput.Styles {
-	state := textinput.StyleState{Text: lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorPopupText))), Prompt: lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorAccent))), Placeholder: lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorDim))), Suggestion: lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorDim)))}
-	styles.Focused = state
-	styles.Blurred = state
-	styles.Cursor.Color = lipgloss.Color(themeColor(colorAccent))
-	return styles
-}
+func inputStyles(s textarea.Styles) textarea.Styles       { return screen.InputStyles(s) }
+func textInputStyles(s textinput.Styles) textinput.Styles { return screen.TextInputStyles(s) }

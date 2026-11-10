@@ -14,21 +14,26 @@ import (
 	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/tui/components/transcript"
-	workflowui "github.com/keshon/gektor/internal/tui/workflow"
 )
 
 func (m *Model) Init() tea.Cmd {
-	if m.startWorkflows {
-		m.startWorkflows = false
-		m.openWorkflows()
-	}
 	// The terminal owns the native caret's blink and shape.
 	return tea.Batch(waitEvents(m), tick(false, m.busy()), m.takeCommands())
 }
 func waitEvents(m *Model) tea.Cmd {
 	return func() tea.Msg {
-		ev, ok := <-m.events
-		if !ok {
+		var stopped <-chan struct{}
+		if m.base != nil {
+			stopped = m.base.Done()
+		}
+		var ev harness.Event
+		select {
+		case value, ok := <-m.events:
+			if !ok {
+				return nil
+			}
+			ev = value
+		case <-stopped:
 			return nil
 		}
 		if ev.Name == "_done" {
@@ -73,7 +78,7 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	defer m.syncComposerHeight()
 	switch msg := msg.(type) {
 	case sessionCopiedMsg:
-		if m.dialog == nil && m.sessions == nil && m.state != stAsk && m.state != stPermission {
+		if m.chrome.Dialog == nil && m.sessions == nil && m.state != stAsk && m.state != stPermission {
 			if msg.err != nil {
 				m.openDialog("Cannot copy session", []string{msg.err.Error()})
 			} else {
@@ -84,39 +89,31 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		}
 		return m, nil
 	case processListMsg:
-		if m.dialog == nil && m.sessions == nil && m.state != stPermission && m.state != stAsk {
+		if m.chrome.Dialog == nil && m.sessions == nil && m.state != stPermission && m.state != stAsk {
 			m.openProcesses(msg.view)
 		}
 		return m, nil
 	case processStopMsg:
 		return m, m.stopProcess(msg)
 	case processStoppedMsg:
-		if m.dialog == msg.dialog {
+		if m.chrome.Dialog == msg.dialog {
 			if msg.err != nil {
 				m.openDialog("Cannot stop background process / "+msg.id, []string{msg.err.Error()})
-				m.dialog.onClose = func() { m.returnToProcesses(msg.view) }
+				m.chrome.Dialog.OnClose = func() { m.returnToProcesses(msg.view) }
 			} else {
 				m.openProcesses(msg.view)
 			}
 		}
 		return m, nil
-	case workflowQuit:
-		return m.requestQuit()
-	case workflowui.Message:
-		if m.workflows == nil {
-			return m, nil
-		}
-		_, cmd := m.workflows.Update(msg)
-		return m, cmd
 	case mcpActionMsg:
 		return m, m.handleMCPAction(msg)
 	case inputQueueReturn:
-		if m.dialog == nil && m.state != stPermission && m.state != stAsk && m.sess == msg.queue.session && m.stateFile == msg.queue.stateFile {
+		if m.chrome.Dialog == nil && m.state != stPermission && m.state != stAsk && m.sess == msg.queue.session && m.stateFile == msg.queue.stateFile {
 			m.showInputQueue(msg.queue)
 		}
 		return m, nil
 	case permissionTableMsg:
-		if m.dialog == nil && m.state != stPermission && m.state != stAsk {
+		if m.chrome.Dialog == nil && m.state != stPermission && m.state != stAsk {
 			m.openPermissionTable(msg.view)
 		}
 		return m, nil
@@ -124,7 +121,7 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		m.mcpBusy = false
 		if msg.err != nil {
 			m.openDialog("MCP / "+msg.id, []string{msg.err.Error()})
-			m.dialog.onClose = func() { m.queueMCP("list", msg.id) }
+			m.chrome.Dialog.OnClose = func() { m.queueMCP("list", msg.id) }
 		} else {
 			m.openMCP()
 		}
@@ -268,7 +265,6 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 			m.fitBottom()
 			return m, cmd
 		}
-
 	}
 	return m, nil
 }
@@ -618,9 +614,9 @@ func (m *Model) acceptGateEvent(ev harness.Event) {
 	if m.sessions != nil {
 		m.closeSessions()
 	}
-	if m.dialog != nil {
-		if m.dialog.onSuspend != nil {
-			m.dialog.onSuspend()
+	if m.chrome.Dialog != nil {
+		if m.chrome.Dialog.OnSuspend != nil {
+			m.chrome.Dialog.OnSuspend()
 		}
 		m.closeDialog()
 	}
@@ -681,7 +677,6 @@ func (m *Model) acceptOutcomeEvent(ev harness.Event) {
 			values = []string{value}
 		case []string:
 			values = value
-
 		}
 		if value := strings.Join(values, "\n"); value != "" {
 			text += "\n" + field + ": " + value

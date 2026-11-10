@@ -96,15 +96,15 @@ func TestApplyIsGreyedUntilSomethingChanges(t *testing.T) {
 	m := settingsModel(t)
 	m.width(tea.WindowSizeMsg{Width: 100, Height: 30})
 	m.editSettings("generation")
-	if m.dialog.form.Dirty() {
+	if m.chrome.Dialog.Form.Dirty() {
 		t.Fatal("a freshly opened section is already dirty")
 	}
 	clean := focusApply(t, m)
 
 	// The first field is the temperature, focused on open.
-	m.dialog.form.Focus(0, m.dialog.form.FieldVisible)
-	m.dialog.form.Editor.SetValue("0.9")
-	if !m.dialog.form.Dirty() {
+	m.chrome.Dialog.Form.Focus(0, m.chrome.Dialog.Form.FieldVisible)
+	m.chrome.Dialog.Form.Editor.SetValue("0.9")
+	if !m.chrome.Dialog.Form.Dirty() {
 		t.Fatal("an edit did not make the form dirty")
 	}
 	dirty := focusApply(t, m)
@@ -121,10 +121,10 @@ func TestApplyIsGreyedUntilSomethingChanges(t *testing.T) {
 // drawn in.
 func focusApply(t *testing.T, m *Model) string {
 	t.Helper()
-	apply := len(m.dialog.form.Fields)
-	m.dialog.form.Focus(apply, m.dialog.form.FieldVisible)
-	if m.dialog.form.Index != apply {
-		t.Fatalf("could not focus Apply; index is %d", m.dialog.form.Index)
+	apply := len(m.chrome.Dialog.Form.Fields)
+	m.chrome.Dialog.Form.Focus(apply, m.chrome.Dialog.Form.FieldVisible)
+	if m.chrome.Dialog.Form.Index != apply {
+		t.Fatalf("could not focus Apply; index is %d", m.chrome.Dialog.Form.Index)
 	}
 	return applyColour(t, m)
 }

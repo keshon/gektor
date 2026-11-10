@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/tui/components/form"
 )
 
@@ -46,28 +47,28 @@ func TestCompactDialogMouseAndHorizontalKeys(t *testing.T) {
 	m := settingsModel(t)
 	calls := 0
 	m.openForm("Confirm", "", "Delete", nil, func(map[string]string) error { calls++; return nil })
-	m.dialog.form.Destructive = true
+	m.chrome.Dialog.Form.Destructive = true
 	m.focusForm(1)
 	m.formKey(tea.KeyPressMsg{Code: tea.KeyLeft})
-	if m.dialog.form.Index != 0 {
+	if m.chrome.Dialog.Form.Index != 0 {
 		t.Fatal("left did not select primary")
 	}
 	m.formKey(tea.KeyPressMsg{Code: tea.KeyRight})
-	if m.dialog.form.Index != 1 {
+	if m.chrome.Dialog.Form.Index != 1 {
 		t.Fatal("right did not select cancel")
 	}
 	// Click where Cancel is drawn. Working the position out here duplicated
 	// the layout maths, which made it a second opinion about where the
 	// renderer put the button rather than a check that it did.
 	clickVisible(t, m, "[ Cancel ]")
-	if m.dialog != nil || calls != 0 {
+	if m.chrome.Dialog != nil || calls != 0 {
 		t.Fatal("cancel mouse hit missed")
 	}
 }
 
 // Track SGR background state at a rendered cell, including nested resets.
 func backgroundAt(line string, column int) string {
-	r, g, b, _ := lipgloss.Color(currentPalette().background).RGBA()
+	r, g, b, _ := lipgloss.Color(currentPalette().Background).RGBA()
 	fallback := fmt.Sprintf("%d;%d;%d", r>>8, g>>8, b>>8)
 	background := fallback
 	sgr := regexp.MustCompile(`^\x1b\[([0-9;]*)m`)
@@ -133,7 +134,7 @@ func TestActionRowsFitNarrowWidths(t *testing.T) {
 	m := settingsModel(t)
 	m.openForm("Confirm", "", "A very long primary action", nil, func(map[string]string) error { return nil })
 	for _, width := range []int{12, 18, 24, 72} {
-		row, hits := m.dialog.form.Actions(width, 0, m.dialog.form.ApplyLabel, true, false, form.Styles{})
+		row, hits := m.chrome.Dialog.Form.Actions(width, 0, m.chrome.Dialog.Form.ApplyLabel, true, false, form.Styles{})
 		if ansi.StringWidth(row) != width || hits[1].X1 != width {
 			t.Fatal(width, ansi.Strip(row), hits)
 		}

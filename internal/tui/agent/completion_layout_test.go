@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/tui/components/completion"
 )
@@ -20,7 +21,7 @@ func TestCompletionChromeKeepsSurfaceBackground(t *testing.T) {
 			s := completion.State{Items: []completion.Item{{Value: value}, {Value: value + "other"}}}
 			for _, height := range []int{4, 6, 7, 20} {
 				for _, width := range []int{40, 80, 120} {
-					l := s.Layout(completion.Props{Width: width, Height: height, Surface: popupSurface(), Title: m.styles.title, Shortcuts: m.shortcutStyles()})
+					l := s.Layout(completion.Props{Width: width, Height: height, Surface: popupSurface(), Title: m.styles.Title, Shortcuts: m.shortcutStyles()})
 					screen := uv.NewScreenBuffer(width, len(l.Rows))
 					uv.NewStyledString(paintScreen(strings.Join(l.Rows, "\n"))).Draw(screen, uv.Rect(0, 0, width, len(l.Rows)))
 					if l.Close && !sameColor(screen.CellAt(2, 1).Style.Fg, themeColor(colorWarning)) {
@@ -49,7 +50,7 @@ func TestCompletionMouseSelectsWithoutRunningAndClosePreservesDraft(t *testing.T
 	m.syncSuggestions()
 	l, x, y := m.suggestionLayout()
 	m.handleMouse(tea.MouseClickMsg{X: x + 2, Y: y + l.BodyTop + 1, Button: tea.MouseLeft})
-	if m.suggestions.Selected != 1 || m.dialog != nil || m.sessions != nil || m.input.Value() != "/" {
+	if m.suggestions.Selected != 1 || m.chrome.Dialog != nil || m.sessions != nil || m.input.Value() != "/" {
 		t.Fatal("completion click executed or inserted a command")
 	}
 	selected, offset := m.suggestions.Selected, m.transcript.Viewport.YOffset()

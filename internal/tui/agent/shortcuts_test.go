@@ -6,6 +6,7 @@ import (
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 )
@@ -40,10 +41,10 @@ func TestAgentControlsUseSharedShortcutRoles(t *testing.T) {
 func TestCustomDialogShortcutsKeepWholeActions(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.openDialog("Review proposal", []string{"Proposed changes"})
-	m.dialog.shortcuts = []popup.Shortcut{{Key: "Esc/Enter", Action: "discard"}, {Key: "S", Action: "apply to draft"}}
+	m.chrome.Dialog.Shortcuts = []popup.Shortcut{{Key: "Esc/Enter", Action: "discard"}, {Key: "S", Action: "apply to draft"}}
 	for _, width := range []int{40, 80} {
 		sizeModelTo(t, m, width, 24)
-		hint := ansi.Strip(m.layoutDialog().hint)
+		hint := ansi.Strip(m.layoutDialog().Hint)
 		if !strings.Contains(hint, "ESC/ENTER discard") || strings.Contains(hint, "save lesson") || strings.ContainsAny(hint, "…·") {
 			t.Fatal("custom dialog hint bypassed shared renderer", width, hint)
 		}

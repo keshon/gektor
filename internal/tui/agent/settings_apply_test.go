@@ -15,15 +15,14 @@ import (
 
 // A startup failure must surface rather than starting a program. The
 // failure is forced with a SessionDirectory that is a file rather than a
-// directory: Run writes the task state before it starts the program, so
-// this returns an error without ever reaching the terminal.
-func TestRunFailsOnUnwritableSessionDirectory(t *testing.T) {
+// directory. The Agent constructor validates it before starting a run.
+func TestNewFailsOnUnwritableSessionDirectory(t *testing.T) {
 	blocker := filepath.Join(t.TempDir(), "not-a-directory")
 	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cfg := Config{PreparedProfile: &app.PreparedProfile{Directory: t.TempDir()}, SessionDirectory: blocker}
-	if _, err := Run(context.Background(), cfg); err == nil {
+	if _, err := New(context.Background(), cfg); err == nil {
 		t.Fatal("unwritable session directory accepted")
 	}
 }
@@ -81,14 +80,14 @@ func TestLoadedProfileIsCommittedOnApply(t *testing.T) {
 	}
 	m.editSettings("profiles")
 	focusSetting(m, "load-profile")
-	m.dialog.form.OpenPicker(m.settingsProps())
-	picker := m.dialog.form.Picker
+	m.chrome.Dialog.Form.OpenPicker(m.settingsProps())
+	picker := m.chrome.Dialog.Form.Picker
 	m.acceptSettingsScan(settingsScanMsg{ID: picker.ID, Items: []string{path}})
-	m.dialog.form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m.settingsProps())
+	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m.settingsProps())
 	m.editSettings("generation")
 	m.applyForm()
-	if m.dialog != nil {
-		t.Fatalf("apply refused: %q", m.dialog.form.Error)
+	if m.chrome.Dialog != nil {
+		t.Fatalf("apply refused: %q", m.chrome.Dialog.Form.Error)
 	}
 	if m.modeChange == nil {
 		t.Fatal("apply did not queue a restart")
@@ -145,12 +144,12 @@ func TestRefusedApplyLeavesFilesAndRuntimeAlone(t *testing.T) {
 	delete(before, custom)
 	m.editSettings("generation")
 	focusSetting(m, "max")
-	m.dialog.form.Editor.SetValue("200")
+	m.chrome.Dialog.Form.Editor.SetValue("200")
 	m.applyForm()
 	if m.modeChange != nil {
 		t.Fatal("a refused apply queued a restart")
 	}
-	if m.dialog == nil || m.dialog.form.Error == "" {
+	if m.chrome.Dialog == nil || m.chrome.Dialog.Form.Error == "" {
 		t.Fatal("a refused apply closed the form without reporting the failure")
 	}
 	for path, want := range before {
@@ -171,9 +170,9 @@ func TestInvalidCandidateKeepsTheDraftOpen(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("generation")
 	focusSetting(m, "temperature")
-	m.dialog.form.Editor.SetValue("not-a-number")
+	m.chrome.Dialog.Form.Editor.SetValue("not-a-number")
 	m.applyForm()
-	if m.dialog == nil || m.dialog.form.Error == "" {
+	if m.chrome.Dialog == nil || m.chrome.Dialog.Form.Error == "" {
 		t.Fatal("invalid candidate closed the form or applied silently")
 	}
 	if m.modeChange != nil {

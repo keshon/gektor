@@ -4,6 +4,7 @@ package screen
 
 import (
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/tui/components/table"
@@ -56,3 +57,9 @@ type Action struct {
 	Name, Label, Short string
 	Enabled            bool
 }
+
+// Navigate requests an application screen change, optionally with a screen action.
+type Navigate struct{ Screen, Action string }
+
+// QuitRequest asks the application to apply its complete quit policy.
+type QuitRequest struct{}

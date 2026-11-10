@@ -38,10 +38,10 @@ func TestScrollbarDragMovesTheDocument(t *testing.T) {
 	thumbTop, _ := m.transcript.Viewport.ThumbRange(h)
 	y := paneTop + thumbTop
 	m.handleMouse(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
-	if !m.scrollDrag.active {
+	if !m.scrollDrag.Active {
 		t.Fatal("press on the thumb did not grab the scrollbar")
 	}
-	grab := m.scrollDrag.grab
+	grab := m.scrollDrag.Grab
 	target := h - 1
 	m.handleMouse(tea.MouseMotionMsg{X: x, Y: paneTop + target, Button: tea.MouseLeft})
 	want := m.transcript.Viewport.DragOffset(target, h, grab)
@@ -52,7 +52,7 @@ func TestScrollbarDragMovesTheDocument(t *testing.T) {
 		t.Fatal("follow stickiness diverged from the viewport after a drag")
 	}
 	m.handleMouse(tea.MouseReleaseMsg{X: x, Y: paneTop + target, Button: tea.MouseLeft})
-	if m.scrollDrag.active {
+	if m.scrollDrag.Active {
 		t.Fatal("release did not end the drag")
 	}
 }
@@ -74,7 +74,7 @@ func TestScrollbarTrackClickPages(t *testing.T) {
 	if got := m.transcript.Viewport.YOffset(); got <= before {
 		t.Fatalf("track click below the thumb did not page down (offset %d -> %d)", before, got)
 	}
-	if m.scrollDrag.active {
+	if m.scrollDrag.Active {
 		t.Fatal("a click left a drag behind")
 	}
 }
@@ -100,7 +100,7 @@ func TestScrollbarIgnoresUnscrollableDocument(t *testing.T) {
 		t.Fatal("one line should not scroll")
 	}
 	m.handleMouse(tea.MouseClickMsg{X: 10, Y: paneTop, Button: tea.MouseLeft})
-	if m.scrollDrag.active {
+	if m.scrollDrag.Active {
 		t.Fatal("an unscrollable document grabbed the scrollbar")
 	}
 }
@@ -111,7 +111,7 @@ func TestScrollbarDragEndsOffBar(t *testing.T) {
 	thumbTop, _ := m.transcript.Viewport.ThumbRange(h)
 	m.handleMouse(tea.MouseClickMsg{X: x, Y: paneTop + thumbTop, Button: tea.MouseLeft})
 	m.handleMouse(tea.MouseReleaseMsg{X: 1, Y: paneTop, Button: tea.MouseLeft})
-	if m.scrollDrag.active {
+	if m.scrollDrag.Active {
 		t.Fatal("release off the bar left the drag stuck")
 	}
 }
@@ -128,7 +128,7 @@ func TestScrollbarGrabUsesDrawnColumnWithAndWithoutSidebar(t *testing.T) {
 			row := []rune(strings.Split(ansi.Strip(m.View().Content), "\n")[paneTop])
 			x := len(row) - 2
 			m.Update(tea.MouseClickMsg{X: x, Y: paneTop, Button: tea.MouseLeft})
-			if !m.scrollDrag.active {
+			if !m.scrollDrag.Active {
 				t.Fatalf("drawn bar at x=%d did not grab", x)
 			}
 			m.Update(tea.MouseMotionMsg{X: x - 3, Y: paneTop + 8, Button: tea.MouseLeft})
@@ -147,7 +147,7 @@ func TestScrollbarGrabUsesDrawnColumnWithAndWithoutSidebar(t *testing.T) {
 				t.Fatal("drag failed to clamp above the pane")
 			}
 			m.Update(tea.MouseReleaseMsg{X: 3, Y: paneTop + 1, Button: tea.MouseLeft})
-			if m.scrollDrag.active {
+			if m.scrollDrag.Active {
 				t.Fatal("sidebar intercepted release")
 			}
 		})

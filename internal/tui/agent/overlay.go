@@ -66,7 +66,7 @@ func (m *Model) activeInputOwner() focusOwner {
 	if m.state == stAsk {
 		return focusInput
 	}
-	if m.dialog != nil {
+	if m.chrome.Dialog != nil {
 		return focusDialog
 	}
 	if m.sessions != nil {
@@ -78,7 +78,7 @@ func (m *Model) activeInputOwner() focusOwner {
 		}
 		return focusViewport
 	}
-	if m.header.focused {
+	if m.chrome.Header.Focused {
 		return focusHeader
 	}
 	if m.inspectorVisible() && (m.inspector.focused || m.termW < inspectorSplitWidth) {
@@ -92,11 +92,11 @@ func (m *Model) activeInputOwner() focusOwner {
 
 func (m *Model) syncFocus() {
 	owner := m.activeInputOwner()
-	if m.dialog != nil && m.dialog.table != nil {
-		m.dialog.table.model.SyncFocus(owner == focusDialog)
+	if m.chrome.Dialog != nil && m.chrome.Dialog.Table != nil {
+		m.chrome.Dialog.Table.Model.SyncFocus(owner == focusDialog)
 	}
-	if m.dialog != nil && m.dialog.form != nil {
-		m.dialog.form.SyncInputFocus(owner == focusDialog)
+	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil {
+		m.chrome.Dialog.Form.SyncInputFocus(owner == focusDialog)
 	}
 	if owner != focusInput {
 		m.input.Blur()

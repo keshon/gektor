@@ -9,6 +9,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/mcpmanager"
 	"github.com/keshon/gektor/internal/tui/components/table"
 )
@@ -34,7 +35,7 @@ func (m *Model) openMCP() {
 	}
 	view := m.newTable()
 	if m.mcpTable != nil {
-		view = m.mcpTable.model
+		view = m.mcpTable.Model
 	}
 	statuses := map[string]mcpmanager.Status{}
 	rows := []table.Row{}
@@ -60,11 +61,11 @@ func (m *Model) openMCP() {
 	}
 	view.SetRows(rows)
 	m.openDialog("MCP servers", nil)
-	d := &tableDialog{model: view,
-		columns:     []table.Column{{Label: "Server", Width: 14}, {Label: "Status", Width: 15}, {Label: "Tools", Width: 5, HideNarrow: true}, {Label: "Description", HideNarrow: true}},
-		description: "More: Add, Paste JSON, Import file, Enable/Disable, Delete.",
+	d := &tableDialog{Model: view,
+		Columns:     []table.Column{{Label: "Server", Width: 14}, {Label: "Status", Width: 15}, {Label: "Tools", Width: 5, HideNarrow: true}, {Label: "Description", HideNarrow: true}},
+		Description: "More: Add, Paste JSON, Import file, Enable/Disable, Delete.",
 	}
-	d.actions = func() []table.Action {
+	d.Actions = func() []table.Action {
 		selected := view.Selected()
 		status, exists := statuses[selected]
 		idle := m.state == stDone && m.evaluation == nil && !m.mcpBusy
@@ -88,18 +89,18 @@ func (m *Model) openMCP() {
 			{ID: "close", Label: "Close", Key: "esc", Enabled: true},
 		}
 	}
-	d.activate = func(action, id string) tea.Cmd {
+	d.Activate = func(action, id string) tea.Cmd {
 		m.closeDialog()
 		return m.handleMCPAction(mcpActionMsg{action, id})
 	}
-	m.dialog.table, m.mcpTable = d, d
+	m.chrome.Dialog.Table, m.mcpTable = d, d
 }
 
 func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 	if m.mcp == nil {
 		return nil
 	}
-	if a.action == "list" && (m.dialog != nil || m.state == stPermission || m.state == stAsk) {
+	if a.action == "list" && (m.chrome.Dialog != nil || m.state == stPermission || m.state == stAsk) {
 		return nil
 	}
 	if m.mcpBusy {
@@ -162,7 +163,7 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 			}
 			return nil
 		})
-		m.dialog.form.Choices = map[string][]string{"enabled": {"on", "off"}, "loading": {"on demand", "at startup"}}
+		m.chrome.Dialog.Form.Choices = map[string][]string{"enabled": {"on", "off"}, "loading": {"on demand", "at startup"}}
 	case "import", "import-json":
 		title := "Import MCP file"
 		hint := "Select a JSON file containing mcpServers. Credentials are stored separately."
@@ -186,7 +187,7 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 			}
 			return nil
 		})
-		m.dialog.form.Choices = map[string][]string{"replace": {"off", "on"}}
+		m.chrome.Dialog.Form.Choices = map[string][]string{"replace": {"off", "on"}}
 	case "delete":
 		m.openForm("Delete MCP / "+a.id, "Remove this saved server and disconnect it.", "Delete", nil, func(map[string]string) error {
 			if e := m.mcp.Delete(a.id); e != nil {
@@ -194,7 +195,7 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 			}
 			return nil
 		})
-		m.dialog.form.Destructive = true
+		m.chrome.Dialog.Form.Destructive = true
 		m.focusForm(1)
 	case "enable", "disable":
 		s, e := m.mcp.Get(a.id)
@@ -255,8 +256,8 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 	default:
 		fail(fmt.Errorf("unknown MCP action %q", a.action))
 	}
-	if a.action != "list" && m.dialog != nil && m.dialog.table == nil && !m.mcpBusy {
-		m.dialog.onClose = func() { m.queueMCP("list", a.id) }
+	if a.action != "list" && m.chrome.Dialog != nil && m.chrome.Dialog.Table == nil && !m.mcpBusy {
+		m.chrome.Dialog.OnClose = func() { m.queueMCP("list", a.id) }
 	}
 	return nil
 }

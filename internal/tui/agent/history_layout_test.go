@@ -119,7 +119,7 @@ func TestOutlinedChromeKeepsOuterBoundsOnResize(t *testing.T) {
 			}
 		}
 		cells := m.footerCells()
-		if cells[0].start != 0 || cells[len(cells)-1].end != width || m.promptOffset() != 1 || m.paneWidth() != width-2 {
+		if cells[0].Start != 0 || cells[len(cells)-1].End != width || m.promptOffset() != 1 || m.paneWidth() != width-2 {
 			t.Fatal("outer controls and inner content share the wrong inset", width, cells)
 		}
 		if !strings.HasPrefix(rows[len(rows)-1], " ESC ") {

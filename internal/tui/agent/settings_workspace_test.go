@@ -11,6 +11,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/tui/settings"
 )
 
@@ -25,17 +26,17 @@ func TestSettingsAcrossCategoriesApplyTogether(t *testing.T) {
 	}
 	draft := m.input.Value()
 	m.editSettings("generation")
-	m.dialog.form.Editor.SetValue("0.8")
+	m.chrome.Dialog.Form.Editor.SetValue("0.8")
 	m.editSettings("you")
 	m.focusForm(0)
-	m.dialog.form.Editor.SetValue("Alex")
+	m.chrome.Dialog.Form.Editor.SetValue("Alex")
 	m.editSettings("generation")
-	if m.dialog.form.Editor.Value() != "0.8" {
+	if m.chrome.Dialog.Form.Editor.Value() != "0.8" {
 		t.Fatal("category switch lost staged edit")
 	}
 	m.applyForm()
-	if m.dialog != nil {
-		t.Fatalf("apply refused: %q", m.dialog.form.Error)
+	if m.chrome.Dialog != nil {
+		t.Fatalf("apply refused: %q", m.chrome.Dialog.Form.Error)
 	}
 	if m.modeChange == nil {
 		t.Fatal("apply queued no restart")
@@ -61,10 +62,10 @@ func TestSettingsCancelAllCategories(t *testing.T) {
 	configured := m.config
 	profile := m.config.Profile
 	m.editSettings("generation")
-	m.dialog.form.Editor.SetValue("0.9")
+	m.chrome.Dialog.Form.Editor.SetValue("0.9")
 	m.editSettings("you")
 	m.focusForm(0)
-	m.dialog.form.Editor.SetValue("Changed")
+	m.chrome.Dialog.Form.Editor.SetValue("Changed")
 	m.closeDialog()
 	if m.config != configured || m.config.Profile.Identity.UserName != profile.Identity.UserName || m.config.Identity.Temperature != 0 {
 		t.Fatal("cancel applied staged values")
@@ -76,27 +77,27 @@ func TestSettingsCancelAllCategories(t *testing.T) {
 func TestPickerSearchBackAndStaleScan(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("profiles")
-	for i, f := range m.dialog.form.Fields {
+	for i, f := range m.chrome.Dialog.Form.Fields {
 		if f.Key == "load-profile" {
 			m.focusForm(i)
 			break
 		}
 	}
-	m.dialog.form.OpenPicker(m.settingsProps())
-	p := m.dialog.form.Picker
+	m.chrome.Dialog.Form.OpenPicker(m.settingsProps())
+	p := m.chrome.Dialog.Form.Picker
 	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{"C:/profiles/qwen.json", "C:/profiles/chronos.json"}})
-	m.dialog.form.PickerKey(tea.KeyPressMsg{Code: 'c', Text: "c"}, m.settingsProps())
-	m.dialog.form.PickerKey(tea.KeyPressMsg{Code: 'h', Text: "h"}, m.settingsProps())
+	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: 'c', Text: "c"}, m.settingsProps())
+	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: 'h', Text: "h"}, m.settingsProps())
 	if len(p.Filtered) != 1 || !strings.Contains(p.Filtered[0], "chronos") {
 		t.Fatal("search did not narrow profiles")
 	}
-	previous := m.dialog.form.Editor.Value()
-	m.dialog.form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEscape}, m.settingsProps())
-	if m.dialog.form.Editor.Value() != previous || m.dialog.form.Picker != nil {
+	previous := m.chrome.Dialog.Form.Editor.Value()
+	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEscape}, m.settingsProps())
+	if m.chrome.Dialog.Form.Editor.Value() != previous || m.chrome.Dialog.Form.Picker != nil {
 		t.Fatal("picker cancel changed the field")
 	}
 	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{"late.json"}})
-	if m.dialog.form.Picker != nil {
+	if m.chrome.Dialog.Form.Picker != nil {
 		t.Fatal("late scan reopened picker")
 	}
 }
@@ -104,15 +105,15 @@ func TestPickerSearchBackAndStaleScan(t *testing.T) {
 func TestSettingsPasteRespectsNestedFocus(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("model")
-	for i, field := range m.dialog.form.Fields {
+	for i, field := range m.chrome.Dialog.Form.Fields {
 		if field.Key == "model" {
 			m.focusForm(i)
 			break
 		}
 	}
-	f := m.dialog.form
+	f := m.chrome.Dialog.Form
 	before := f.Editor.Value()
-	m.dialog.form.OpenPicker(m.settingsProps())
+	m.chrome.Dialog.Form.OpenPicker(m.settingsProps())
 	p := f.Picker
 	p.Items = []string{"llama", "openai", "kobold"}
 	p.Filter()
@@ -206,9 +207,9 @@ func TestUnreadableTaskStopsApplyBeforeWriting(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.editSettings("generation")
-	m.dialog.form.Editor.SetValue("0.9")
+	m.chrome.Dialog.Form.Editor.SetValue("0.9")
 	m.applyForm()
-	if m.dialog == nil || m.dialog.form.Error == "" {
+	if m.chrome.Dialog == nil || m.chrome.Dialog.Form.Error == "" {
 		t.Fatal("an unreadable task did not stop the apply")
 	}
 	if m.modeChange != nil {
@@ -256,14 +257,14 @@ func TestPromptPresetIsStagedNotApplied(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("prompts")
 	focusSetting(m, "prompt-preset")
-	if m.dialog.form.Editor.Value() != "custom" {
+	if m.chrome.Dialog.Form.Editor.Value() != "custom" {
 		t.Fatal("existing behavior not preserved")
 	}
-	options := m.dialog.form.Options("prompt-preset")
+	options := m.chrome.Dialog.Form.Options("prompt-preset")
 	if len(options) < 5 || settings.ChoiceLabel("prompt-preset", "coding") != "Coding" || !strings.Contains(settings.CatalogDetail("prompt-preset", "coding"), "maintainable") {
 		t.Fatal(options)
 	}
-	m.dialog.form.Editor.SetValue("coding")
+	m.chrome.Dialog.Form.Editor.SetValue("coding")
 	staged, err := m.stagedSettings()
 	if err != nil || staged.Identity.PromptPreset != "coding" || m.config.Profile.Identity.PromptPreset != "" {
 		t.Fatal("preset not staged independently", staged, err)

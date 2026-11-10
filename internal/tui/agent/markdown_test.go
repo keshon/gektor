@@ -138,7 +138,7 @@ func TestMarkdownTableBordersAreDim(t *testing.T) {
 			if strings.Contains(row, "─") {
 				continue
 			}
-			withoutBorders := strings.ReplaceAll(row, st.dim.Render("|"), "")
+			withoutBorders := strings.ReplaceAll(row, st.Dim.Render("|"), "")
 			if strings.Contains(ansi.Strip(withoutBorders), "|") {
 				t.Fatalf("width %d: bright table separator in %q", width, row)
 			}

@@ -73,7 +73,7 @@ func (m *Model) openInputQueue() {
 		m.suspendedInputEdit = nil
 		if edit.session == m.sess && edit.stateFile == m.stateFile {
 			m.openDialog("Edit queued message", nil)
-			m.dialog = edit.dialog
+			m.chrome.Dialog = edit.dialog
 			m.resizeFormEditor()
 			m.fitBottom()
 			return
@@ -84,8 +84,8 @@ func (m *Model) openInputQueue() {
 }
 func (m *Model) showInputQueue(q *inputQueue) {
 	m.openDialog("Message queue", nil)
-	d := &tableDialog{model: q.view, list: true, emptyMessage: "No messages waiting", columns: []table.Column{{Label: "Message"}}}
-	d.refresh = func() {
+	d := &tableDialog{Model: q.view, List: true, EmptyMessage: "No messages waiting", Columns: []table.Column{{Label: "Message"}}}
+	d.Refresh = func() {
 		active := map[string]queueEntry{}
 		ids := []string{}
 		if m.sess == q.session && m.stateFile == q.stateFile && q.session != nil {
@@ -142,20 +142,20 @@ func (m *Model) showInputQueue(q *inputQueue) {
 			}
 			rows = append(rows, table.Row{ID: id, Cells: []string{fmt.Sprintf("%d  %s", n+1, text)}, Detail: status})
 		}
-		d.description = fmt.Sprintf("%d queued · oldest first", queued)
+		d.Description = fmt.Sprintf("%d queued · oldest first", queued)
 		if queued == 0 && received+missing > 0 {
-			d.description = "No messages waiting. These rows are read only."
+			d.Description = "No messages waiting. These rows are read only."
 		}
 		if received > 0 && queued > 0 {
-			d.description += fmt.Sprintf(" · %d received", received)
+			d.Description += fmt.Sprintf(" · %d received", received)
 		}
 		q.view.SetRows(rows)
 	}
-	d.actions = func() []table.Action {
+	d.Actions = func() []table.Action {
 		input, ok := q.entries[q.view.Selected()]
 		return []table.Action{{ID: "details", Label: "Read", Key: "enter", Enabled: ok}, {ID: "edit", Label: "Edit", Key: "ctrl+e", Enabled: ok && !input.readOnly()}, {ID: "remove", Label: "Remove", Key: "delete", Enabled: ok && !input.readOnly(), Destructive: true}, {ID: "close", Label: "Close", Key: "esc", Enabled: true}}
 	}
-	d.activate = func(action, id string) tea.Cmd {
+	d.Activate = func(action, id string) tea.Cmd {
 		input, ok := q.entries[id]
 		if !ok {
 			return nil
@@ -171,9 +171,9 @@ func (m *Model) showInputQueue(q *inputQueue) {
 			}
 			m.openDialog("Queued message", lines)
 			if input.Received {
-				m.dialog.title = "Received message"
+				m.chrome.Dialog.Title = "Received message"
 			} else if input.missing {
-				m.dialog.title = "Message no longer queued"
+				m.chrome.Dialog.Title = "Message no longer queued"
 			}
 			m.returnToInputQueue(q)
 		case "edit":
@@ -193,9 +193,9 @@ func (m *Model) showInputQueue(q *inputQueue) {
 				return m.changeQueuedInput(q, id, &text)
 			})
 			m.returnToInputQueue(q)
-			editor := m.dialog
-			editor.onSuspend = func() {
-				editor.form.Sync()
+			editor := m.chrome.Dialog
+			editor.OnSuspend = func() {
+				editor.Form.Sync()
 				m.suspendedInputEdit = &inputQueueEdit{session: q.session, stateFile: m.stateFile, dialog: editor}
 			}
 		case "remove":
@@ -211,13 +211,13 @@ func (m *Model) showInputQueue(q *inputQueue) {
 					break
 				}
 			}
-			d.refresh()
+			d.Refresh()
 			m.fitBottom()
 		}
 		return nil
 	}
-	m.dialog.table = d
-	d.refresh()
+	m.chrome.Dialog.Table = d
+	d.Refresh()
 	m.fitBottom()
 }
 
@@ -254,5 +254,5 @@ func (m *Model) changeQueuedInput(q *inputQueue, id string, value *string) error
 	return nil
 }
 func (m *Model) returnToInputQueue(q *inputQueue) {
-	m.dialog.onClose = func() { m.pendingCommands = append(m.pendingCommands, func() tea.Msg { return inputQueueReturn{q} }) }
+	m.chrome.Dialog.OnClose = func() { m.pendingCommands = append(m.pendingCommands, func() tea.Msg { return inputQueueReturn{q} }) }
 }

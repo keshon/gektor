@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/mcpmanager"
 )
@@ -43,16 +44,16 @@ func TestMCPReviewLayouts(t *testing.T) {
 			m.applyTheme(theme)
 			m.openMCP()
 			p := m.tableProps()
-			layout := m.dialog.table.model.Layout(p)
+			layout := m.chrome.Dialog.Table.Model.Layout(p)
 			if len(layout.Rows)+2 > p.Height || layout.Capacity < 1 {
 				t.Fatal("MCP controls exceed available height", theme, size)
 			}
-			selected := m.dialog.table.model.Selected()
+			selected := m.chrome.Dialog.Table.Model.Selected()
 			m.handleKey(tea.KeyPressMsg{Code: 'm', Text: "m"})
-			if !m.dialog.table.model.MoreOpen {
+			if !m.chrome.Dialog.Table.Model.MoreOpen {
 				t.Fatal("MCP More menu is unavailable", theme, size)
 			}
-			menu := m.dialog.table.model.Layout(m.tableProps()).Menu
+			menu := m.chrome.Dialog.Table.Model.Layout(m.tableProps()).Menu
 			screen := uv.NewScreenBuffer(menu.Width, len(menu.Rows))
 			uv.NewStyledString(strings.Join(menu.Rows, "\n")).Draw(screen, uv.Rect(0, 0, menu.Width, len(menu.Rows)))
 			for row, text := range menu.Rows {
@@ -70,7 +71,7 @@ func TestMCPReviewLayouts(t *testing.T) {
 				}
 			}
 			m.handleKey(tea.KeyPressMsg{Code: tea.KeyEsc})
-			if m.dialog == nil || m.dialog.table.model.MoreOpen || m.dialog.table.model.Selected() != selected {
+			if m.chrome.Dialog == nil || m.chrome.Dialog.Table.Model.MoreOpen || m.chrome.Dialog.Table.Model.Selected() != selected {
 				t.Fatal("returning from More lost the server list")
 			}
 			for _, row := range layout.Rows {

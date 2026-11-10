@@ -81,27 +81,27 @@ func testApprovalInspection(t *testing.T, frame string) {
 	}
 	before := len(m.transcript.blocks)
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF4})
-	if m.dialog == nil || !m.hub.HasPending() || len(m.transcript.blocks) != before {
+	if m.chrome.Dialog == nil || !m.hub.HasPending() || len(m.transcript.blocks) != before {
 		t.Fatal("inspection answered gate or changed context")
 	}
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 34})
 	export("proposal")
 	m.handleMouse(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
-	if m.dialog.offset == 0 {
+	if m.chrome.Dialog.Offset == 0 {
 		t.Fatal("wheel ignored proposal")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyPgDown})
-	if m.dialog.offset < 2 {
+	if m.chrome.Dialog.Offset < 2 {
 		t.Fatal("page down ignored proposal")
 	}
 	for i := 0; i < 80; i++ {
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyDown})
 	}
-	if m.dialog.offset == 0 {
+	if m.chrome.Dialog.Offset == 0 {
 		t.Fatal("full proposal does not scroll")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
-	if m.dialog != nil || m.state != stPermission || !m.hub.HasPending() {
+	if m.chrome.Dialog != nil || m.state != stPermission || !m.hub.HasPending() {
 		t.Fatal("closing inspection lost gate")
 	}
 	if err := os.WriteFile(filepath.Join(root, "new.txt"), []byte("external edit"), 0600); err != nil {

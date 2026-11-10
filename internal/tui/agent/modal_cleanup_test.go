@@ -1,14 +1,16 @@
 package agent
 
 import (
-	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/gektor/internal/config"
-	"github.com/keshon/gektor/internal/tui/components/popup"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
 func TestModalCleanupPreview(t *testing.T) {
@@ -28,7 +30,7 @@ func TestModalCleanupPreview(t *testing.T) {
 			t.Fatal(err)
 		}
 		m.focusForm(0)
-		m.dialog.form.OpenPicker(m.settingsProps())
+		m.chrome.Dialog.Form.OpenPicker(m.settingsProps())
 		if err := os.WriteFile(filepath.Join(dir, "modal-picker-"+theme+".ansi"), []byte(m.View().Content), 0600); err != nil {
 			t.Fatal(err)
 		}
@@ -45,17 +47,17 @@ func TestDialogScrollbarMatchesDrawnTrack(t *testing.T) {
 	m.openDialog("Long content", []string{strings.Repeat("line\n", 100)})
 	l := m.layoutDialog()
 	rows, _, _ := m.dialogRows()
-	x := m.promptOffset() + max((l.width-popup.ModalWidth(l.width))/2, 0) + 2 + l.inner - 1
-	y := paneTop + max((l.height-len(rows)-2)/2, 0) + 1 + len(l.rows)
+	x := m.promptOffset() + max((l.Width-popup.ModalWidth(l.Width))/2, 0) + 2 + l.Inner - 1
+	y := paneTop + max((l.Height-len(rows)-2)/2, 0) + 1 + len(l.Rows)
 	view := strings.Split(ansi.Strip(m.View().Content), "\n")
 	if []rune(view[y])[x] != '█' {
 		t.Fatal("thumb and hit target disagree", view[y])
 	}
 	m.handleMouse(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
-	m.handleMouse(tea.MouseMotionMsg{X: x, Y: y + l.capacity, Button: tea.MouseLeft})
-	m.handleMouse(tea.MouseReleaseMsg{X: x, Y: y + l.capacity, Button: tea.MouseLeft})
-	if m.dialog.offset != len(l.lines)-l.capacity || m.dialog.drag.active {
-		t.Fatal(m.dialog.offset)
+	m.handleMouse(tea.MouseMotionMsg{X: x, Y: y + l.Capacity, Button: tea.MouseLeft})
+	m.handleMouse(tea.MouseReleaseMsg{X: x, Y: y + l.Capacity, Button: tea.MouseLeft})
+	if m.chrome.Dialog.Offset != len(l.Lines)-l.Capacity || m.chrome.Dialog.Drag.Active {
+		t.Fatal(m.chrome.Dialog.Offset)
 	}
 }
 
@@ -64,14 +66,14 @@ func TestModalCloseButtonCancelsWithoutApplying(t *testing.T) {
 	applied := false
 	m.openForm("Edit", "", "Apply", []formField{{Key: "value", Label: "Value", Value: "old"}}, func(map[string]string) error { applied = true; return nil })
 	m.focusForm(0)
-	m.dialog.form.Editor.SetValue("unsaved")
+	m.chrome.Dialog.Form.Editor.SetValue("unsaved")
 	clickVisible(t, m, "×")
-	if m.dialog != nil || applied {
+	if m.chrome.Dialog != nil || applied {
 		t.Fatal("close applied changes")
 	}
 	m.openDialog("Info", []string{"body"})
 	clickVisible(t, m, "×")
-	if m.dialog != nil {
+	if m.chrome.Dialog != nil {
 		t.Fatal("info close missed")
 	}
 }

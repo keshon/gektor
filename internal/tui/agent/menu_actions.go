@@ -4,15 +4,16 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 // activateMenuAction is shared by keyboard and mouse menu activation.
 func (m *Model) activateMenuAction(command string) (tea.Model, tea.Cmd) {
-
 	if strings.HasPrefix(command, "menu:") {
-		m.header.menu = strings.TrimPrefix(command, "menu:")
-		m.header.row = m.headerActionRow(0, 1)
+		m.chrome.Header.Menu = strings.TrimPrefix(command, "menu:")
+		m.chrome.Header.Row = m.headerActionRow(0, 1)
 		return m, nil
 	}
 	m.closeHeader()
@@ -26,13 +27,11 @@ func (m *Model) activateMenuAction(command string) (tea.Model, tea.Cmd) {
 		m.openPermissions()
 		return m, nil
 	case "help-keys", "help-commands":
-		if command == "help-keys" && m.workflowActive() {
-			return m.command("/workflows help")
-		}
+
 		m.openHelp()
-		m.dialog.title = "Keyboard shortcuts"
+		m.chrome.Dialog.Title = "Keyboard shortcuts"
 		if command == "help-commands" {
-			m.dialog.title = "Commands"
+			m.chrome.Dialog.Title = "Commands"
 		}
 		return m, nil
 	case "appearance":
@@ -42,15 +41,9 @@ func (m *Model) activateMenuAction(command string) (tea.Model, tea.Cmd) {
 		m.confirmCompact()
 		return m, nil
 	case "screen:agent":
-		if m.workflowActive() {
-			return m.command("/workflows chat")
-		}
-		return m, nil
+		return m, m.request(screen.Navigate{Screen: "agent"})
 	case "screen:workflows":
-		if !m.workflowActive() {
-			return m.command("/workflows")
-		}
-		return m, nil
+		return m, m.request(screen.Navigate{Screen: "workflow"})
 	case "about":
 		return m.command("/about")
 	case "workspace":

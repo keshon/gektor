@@ -2,6 +2,7 @@ package agent
 
 import (
 	"charm.land/lipgloss/v2"
+
 	"github.com/keshon/gektor/internal/tui/components/cell"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 )
@@ -35,7 +36,7 @@ func (m *Model) panelGeometry(width, footerHeight int, close, conversation bool)
 }
 
 func (m *Model) paneStyles() pane.Styles {
-	return pane.Styles{Border: lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorPopupBorder))), Title: m.styles.title, Focus: m.styles.focus}
+	return pane.Styles{Border: lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorPopupBorder))), Title: m.styles.Title, Focus: m.styles.Focus}
 }
 
 const paneTop = 4

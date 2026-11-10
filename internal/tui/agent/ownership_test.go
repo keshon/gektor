@@ -97,19 +97,19 @@ func TestViewDoesNotChangeSelectionOrFocus(t *testing.T) {
 	m.state = stDone
 	m.width(tea.WindowSizeMsg{Width: 120, Height: 30})
 	m.savedSessions = []sessionEntry{{title: "session", updated: time.Now()}}
-	m.header = headerState{focused: true, index: 99, menu: "model", row: 99}
-	beforeHeader := m.header
+	m.chrome.Header = headerState{Focused: true, Index: 99, Menu: "model", Row: 99}
+	beforeHeader := m.chrome.Header
 	beforeFocused := m.input.Focused()
 	m.View()
 	m.View()
-	if !reflect.DeepEqual(m.header, beforeHeader) || m.input.Focused() != beforeFocused {
+	if !reflect.DeepEqual(m.chrome.Header, beforeHeader) || m.input.Focused() != beforeFocused {
 		t.Fatal("render changed UI state")
 	}
-	m.header = headerState{}
+	m.chrome.Header = headerState{}
 	m.openHelp()
-	m.dialog.offset = 999
+	m.chrome.Dialog.Offset = 999
 	m.View()
-	if m.dialog.offset != 999 {
+	if m.chrome.Dialog.Offset != 999 {
 		t.Fatal("Help rendering changed scroll state")
 	}
 }

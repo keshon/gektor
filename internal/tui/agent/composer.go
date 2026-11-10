@@ -17,8 +17,8 @@ func (m *Model) composerRows() []string {
 	if status != "" {
 		rows = append(rows, cellLine(status, width))
 	}
-	if m.dialog != nil {
-		return append(rows, cellLine(m.styles.dim.Render("Draft preserved"), width))
+	if m.chrome.Dialog != nil {
+		return append(rows, cellLine(m.styles.Dim.Render("Draft preserved"), width))
 	}
 	if m.state == stPermission {
 		return append(rows, strings.Split(cellFrame(m.gateBar(), width, lipgloss.Height(m.gateBar())), "\n")...)
@@ -37,22 +37,22 @@ func (m *Model) composerRows() []string {
 // Queue receipt can happen between UI events. Refit only when the measured
 // footer changes height; ordinary clock ticks should not rebuild the inspector.
 func (m *Model) syncComposerHeight() {
-	if m.ready && !m.workflowActive() && m.transcript.Viewport.Height() != max(m.panelGeometry(m.mainWidth(), len(m.composerRows()), false, true).Body.Height, 1) {
+	if m.ready && m.transcript.Viewport.Height() != max(m.panelGeometry(m.mainWidth(), len(m.composerRows()), false, true).Body.Height, 1) {
 		m.fitBottom()
 	}
 }
 
 func (m *Model) composerStatus() string {
-	if m.state == stRunning && m.dialog == nil && m.sessions == nil && m.actionBarVisible() {
+	if m.state == stRunning && m.chrome.Dialog == nil && m.sessions == nil && m.actionBarVisible() {
 		if m.progress.Detail != "" && (m.progress.Phase == "waiting" || m.progress.Phase == "retry") {
-			return m.styles.dim.Render(m.progress.Detail + " · " + formatElapsed(time.Since(m.progressStarted)))
+			return m.styles.Dim.Render(m.progress.Detail + " · " + formatElapsed(time.Since(m.progressStarted)))
 		}
 		return ""
 	}
 	return m.statusLine()
 }
 func (m *Model) composerQueueMouse(msg tea.MouseMsg) bool {
-	if m.dialog != nil || m.state == stPermission || m.state == stAsk || m.queueSummary() == "" || !isMouseClick(msg) || msg.Mouse().Button != tea.MouseLeft {
+	if m.chrome.Dialog != nil || m.state == stPermission || m.state == stAsk || m.queueSummary() == "" || !isMouseClick(msg) || msg.Mouse().Button != tea.MouseLeft {
 		return false
 	}
 	layout := m.panelGeometry(m.mainWidth(), len(m.composerRows()), false, true)

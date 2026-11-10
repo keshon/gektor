@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 // command is one slash command.
@@ -154,7 +156,7 @@ func (m *Model) confirmRestart(action func()) {
 			return nil
 		},
 	)
-	m.dialog.form.Destructive = true
+	m.chrome.Dialog.Form.Destructive = true
 	// Never open a destructive choice on the destructive one.
 	m.focusForm(1)
 }
@@ -168,7 +170,7 @@ func (m *Model) command(text string) (tea.Model, tea.Cmd) {
 	}
 	switch strings.ToLower(name) {
 	case "workflows":
-		return m, m.workflowCommand(strings.TrimSpace(arg))
+		return m, m.request(screen.Navigate{Screen: "workflow", Action: strings.TrimSpace(arg)})
 	case "mcp":
 		action, id, _ := strings.Cut(strings.TrimSpace(arg), " ")
 		if action == "" {
@@ -320,15 +322,15 @@ func (m *Model) command(text string) (tea.Model, tea.Cmd) {
 		m.openDialog("GEKTOR", []string{
 			"Terminal coding agent written in Go.",
 			"",
-			m.styles.gate.Render("Capabilities"),
+			m.styles.Gate.Render("Capabilities"),
 			"Read, search and edit files, run commands and tests, and resume saved sessions.",
 			"Plan before changes or work directly in Act mode; tool permissions stay visible.",
 			"",
-			m.styles.gate.Render("Model backends"),
+			m.styles.Gate.Render("Model backends"),
 			"llama.cpp · KoboldCPP · OpenAI-compatible APIs",
 			"Models and inference servers are supplied separately.",
 			"",
-			m.styles.gate.Render("Repository"),
+			m.styles.Gate.Render("Repository"),
 			"https://github.com/keshon/gektor",
 			"Go " + strings.TrimPrefix(runtime.Version(), "go") + " · Bubble Tea · " + runtime.GOOS + "/" + runtime.GOARCH,
 		})

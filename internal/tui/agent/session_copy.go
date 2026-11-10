@@ -14,7 +14,7 @@ type sessionCopiedMsg struct {
 
 func (m *Model) sessionCopyItems() []menuItem {
 	enabled := m.stateFile != ""
-	return []menuItem{{"Copy session ID", "copy-session-id", enabled}, {"Copy session path", "copy-session-path", enabled}}
+	return []menuItem{{Text: "Copy session ID", Command: "copy-session-id", Enabled: enabled}, {Text: "Copy session path", Command: "copy-session-path", Enabled: enabled}}
 }
 
 func (m *Model) sessionCopyValue(command string) (label, text string) {

@@ -1,8 +1,6 @@
 package workflow
 
 import (
-	"context"
-
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/llm"
@@ -22,10 +20,6 @@ type Config struct {
 	Temperature             float64
 	Draft                   *Editor
 }
-
-// Factory constructs a workflow screen using the supplied shared controls and
-// current presentation. The application connector supplies NewScreen as its factory.
-type Factory func(context.Context, Config, screen.Host, func() screen.Surface) (*Model, error)
 
 // State describes the retained screen without exposing its mutable editor or run.
 // Reading it must not serialize the recipe or perform I/O.

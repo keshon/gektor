@@ -11,6 +11,14 @@ go run ./cmd/eval -dry
 
 On Windows, `build.cmd check` runs the local suite. See the [eval runner](../../eval/README.md) for model-backed scenarios and scoring. The CLI flag-coverage check reads [the canonical reference](../reference/cli.md); update it when adding a flag.
 
+## Terminal screen checks
+
+`go test ./internal/tui/...` covers the parent application, Agent, Workflow,
+and shared controls. Parent integration tests exercise screen switching, retained
+drafts, shared overlays and menus, terminal modes, run completion, and quit
+protection. Native console decoding tests live beside the terminal runtime in
+`internal/tui`; screen-local interactions remain in their feature packages.
+
 ## Browser integration checks
 
 `GEKTOR_BROWSER_SMOKE=1 go test ./internal/tools -run

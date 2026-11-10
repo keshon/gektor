@@ -12,12 +12,12 @@ import (
 )
 
 func TestPaletteLivesInStyles(t *testing.T) {
-	files, err := filepath.Glob("*.go")
+	files, err := filepath.Glob("../*/*.go")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range files {
-		if name == "styles.go" || strings.HasSuffix(name, "_test.go") {
+		if filepath.Clean(name) == filepath.Clean("../screen/styles.go") || strings.HasSuffix(name, "_test.go") {
 			continue
 		}
 		file, err := parser.ParseFile(token.NewFileSet(), name, nil, 0)

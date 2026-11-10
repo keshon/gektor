@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/gektor/internal/tui/components/pane"
+
 	"github.com/keshon/gektor/internal/tui/components/popup"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -27,160 +27,51 @@ func wsRootOf(ws *workspace.Workspace) string {
 //
 // A dialog carries lines or a form, never both. A lesson preview also offers
 // explicit save/edit actions; Enter still closes without saving.
-type infoDialog struct {
-	table     *tableDialog
-	shortcuts []popup.Shortcut
-	onClose   func()
-	// onSuspend preserves an unsaved editor when an agent gate takes focus.
-	onSuspend func()
-	drag      scrollDrag
-	review    func()
-	save      func() error
-	form      *settingsForm
-	title     string
-	lines     []string
-	help      bool
-	page      int
-	offset    int
-}
+type infoDialog = screen.DialogState
 
 // openDialog pushes the overlay and shows an info dialog; closeDialog
 // pops it. Balanced by construction: every open path pairs with esc/enter
 // or run start.
 func (m *Model) openDialog(title string, lines []string) {
-	m.cancelEvaluation()
-	if m.dialog == nil {
-		m.pushOverlay()
-	}
-	m.dialog = &infoDialog{title: title, lines: lines}
-	m.input.Blur()
-	m.fitBottom()
+	m.syncControls()
+	m.chrome.Open(title, lines)
 }
 
 func (m *Model) closeDialog() {
-	if m.dialog != nil && m.dialog.onClose != nil {
-		m.dialog.onClose()
-	}
-	m.cancelEvaluation()
-	m.dialog = nil
-	m.popOverlay()
-	m.fitBottom()
+	m.syncControls()
+	m.chrome.Close()
 }
 
 // dialogView renders the open dialog centered in the viewport area:
 // title, body, close hint. Widths are clamped to the viewport; heights
 // are top-padded to center, the viewport clips the rest.
-type dialogLayout struct {
-	rows, lines                    []string
-	tabs                           pane.TabLayout
-	hint                           string
-	inner, capacity, width, height int
-}
+type dialogLayout = screen.DialogLayout
 
 func (m *Model) dialogView() string {
-	if m.dialog.form != nil {
-		return m.formView()
-	}
-	rows, width, height := m.dialogRows()
-	return renderBox(rows, width, height)
+	m.syncControls()
+	return m.chrome.DialogView()
 }
 
 func (m *Model) overlayDialog(background string) string {
-	if m.dialog.form != nil {
-		return m.dialog.form.Overlay(background, m.settingsProps())
-	}
-	rows, width, height := m.dialogRows()
-	return popup.OverlayBox(background, rows, width, height, popupSurface())
+	m.syncControls()
+	return m.chrome.OverlayDialog(background)
 }
 
 func (m *Model) dialogRows() ([]string, int, int) {
-	if m.dialog.table != nil {
-		p := m.tableProps()
-		return m.dialog.table.model.Layout(p).Rows, p.Width, p.Height
-	}
-	layout := m.layoutDialog()
-	offset := min(max(m.dialog.offset, 0), max(len(layout.lines)-layout.capacity, 0))
-	rows := layout.rows
-	body := []string{}
-	for _, line := range layout.lines[offset:min(offset+layout.capacity, len(layout.lines))] {
-		body = append(body, cellLine(line, layout.inner))
-	}
-	rows = append(rows, popup.ScrollRows(body, layout.inner, offset, len(layout.lines), popupSurface().Normal)...)
-	if len(layout.lines) > layout.capacity {
-		rows = append(rows, m.styles.dim.Render(strconv.Itoa(offset+1)+"–"+strconv.Itoa(min(offset+layout.capacity, len(layout.lines)))+" / "+strconv.Itoa(len(layout.lines))))
-	}
-	rows = append(rows, popup.Footer(layout.inner, layout.hint, lipgloss.NewStyle())...)
-	return rows, layout.width, layout.height
+	m.syncControls()
+	return m.chrome.DialogRows()
 }
 
 func (m *Model) scrollDialog(delta int) {
-	if m.dialog == nil || m.dialog.form != nil || m.dialog.table != nil {
-		return
-	}
-	layout := m.layoutDialog()
-	m.dialog.offset = min(max(m.dialog.offset+delta, 0), max(len(layout.lines)-layout.capacity, 0))
+	m.syncControls()
+	m.chrome.ScrollDialog(delta)
 }
 
 func (m *Model) layoutDialog() dialogLayout {
-	d := m.dialog
-	availW, availH := m.termW, m.termH-3
-	if m.ready {
-		_, _, availW, availH = m.settingsArea()
-	}
-	inner := max(popup.ModalWidth(availW)-4, 1)
-	// Info dialog: title, lines, close hint (with help tabs if applicable).
-	rows := popup.Header(truncate(d.title, inner), inner, m.styles.title)
-	lines := []string{}
-	for _, line := range d.lines {
-		lines = append(lines, strings.Split(ansi.Wrap(cleanText(line), max(inner-1, 1), ""), "\n")...)
-	}
-	shortcuts := []popup.Shortcut{{Key: "Esc/Enter", Action: "close"}}
-	if d.review != nil {
-		shortcuts = []popup.Shortcut{{Key: "Esc/Enter", Action: "skip"}, {Key: "R", Action: "review lesson"}}
-	}
-	if d.save != nil {
-		shortcuts = []popup.Shortcut{{Key: "Esc/Enter", Action: "skip"}, {Key: "S", Action: "save lesson"}, {Key: "E", Action: "edit"}}
-	}
-	if m.evaluation != nil {
-		shortcuts = []popup.Shortcut{{Key: "Esc/Enter", Action: "cancel evaluation"}}
-	}
-	var tabs pane.TabLayout
-	if d.help {
-		sections := m.dialogHelpSections()
-		page := min(max(d.page, 0), len(sections)-1)
-		labels := make([]string, len(sections))
-		for i, section := range sections {
-			labels[i] = section.title
-		}
-		if len(sections) > 1 {
-			tabs = pane.Tabs(labels, page, inner, true, pane.TabStyles{Normal: m.styles.dim, Active: m.styles.title, Focus: m.styles.focus})
-			rows = append(rows, tabs.Rows...)
-		}
-
-		if availH >= 10 {
-			rows = append(rows, "")
-		}
-		lines = m.helpRows(sections[page], max(inner-1, 1))
-		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "Tab/←→", Action: "category"}, {Key: "↑↓", Action: "scroll"}}
-		if len(sections) == 1 {
-			shortcuts = []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "↑↓", Action: "scroll"}}
-		}
-	}
-	hint := popup.Shortcuts(inner, m.shortcutStyles(), shortcuts...)
-	if len(d.shortcuts) > 0 && m.evaluation == nil && !d.help {
-		hint = popup.Shortcuts(inner, m.shortcutStyles(), d.shortcuts...)
-	}
-	capacity := max(availH-2-len(rows)-3, 1)
-	// Reserve an extra row for the scroll-position indicator when needed.
-	if len(lines) > capacity {
-		capacity = max(capacity-1, 1)
-	}
-	return dialogLayout{rows: rows, lines: lines, hint: hint, inner: inner,
-		capacity: capacity, width: availW, height: availH, tabs: tabs}
+	m.syncControls()
+	return m.chrome.LayoutDialog()
 }
 
-// renderBox centers rows in a bordered box: shared by the dialog and
-// the sessions screen, so overlay chrome can never drift in two.
 // renderBox centers a standalone bordered dialog for previews. The frame
 // itself is components/popup, shared with the completion list, the session
 // search and the header menus so their chrome cannot drift.
@@ -205,7 +96,7 @@ type helpSection struct {
 
 func (m *Model) openHelp() {
 	m.openDialog("Help", nil)
-	m.dialog.help = true
+	m.chrome.Dialog.Help = true
 }
 
 func helpSections() []helpSection {
@@ -254,32 +145,10 @@ func helpSections() []helpSection {
 
 // Keep descriptions complete: narrow terminals stack them below the keys.
 func (m *Model) helpRows(section helpSection, width int) []string {
-	keyWidth := 0
-	for _, row := range section.rows {
-		keyWidth = max(keyWidth, lipgloss.Width(row[0]))
-	}
-	var rows []string
-	for _, row := range section.rows {
-		if width-keyWidth-3 < 24 {
-			rows = append(rows, m.styles.gate.Render(row[0]))
-			for _, line := range strings.Split(lipgloss.NewStyle().Width(max(width-2, 1)).Render(row[1]), "\n") {
-				rows = append(rows, "  "+line)
-			}
-		} else {
-			description := strings.Split(lipgloss.NewStyle().Width(width-keyWidth-3).Render(row[1]), "\n")
-			rows = append(rows, m.styles.gate.Render(cellLine(row[0], keyWidth))+"   "+description[0])
-			for _, line := range description[1:] {
-				rows = append(rows, strings.Repeat(" ", keyWidth+3)+line)
-			}
-		}
-		rows = append(rows, "")
-	}
-	return rows[:max(len(rows)-1, 0)]
+	m.syncControls()
+	return m.chrome.HelpRows(screen.HelpSection{Title: section.title, Rows: section.rows}, width)
 }
 
-// statusLines snapshots run facts for the /status dialog. Everything
-// shown is model state or construction facts; the TUI never re-reads
-// Env, so nothing here can disagree with the run.
 func (m *Model) statusLines() []string {
 	taskDir := "—"
 	if m.stateFile != "" {
@@ -362,12 +231,12 @@ func kvRows(rows []string) []string {
 // dialogHelpSections is shared by category navigation and rendering.
 func (m *Model) dialogHelpSections() []helpSection {
 	sections := m.helpSections()
-	if m.dialog.title != "Keyboard shortcuts" && m.dialog.title != "Commands" {
+	if m.chrome.Dialog.Title != "Keyboard shortcuts" && m.chrome.Dialog.Title != "Commands" {
 		return sections
 	}
 	filtered := make([]helpSection, 0, len(sections))
 	for _, section := range sections {
-		if (section.title == "Commands") == (m.dialog.title == "Commands") {
+		if (section.title == "Commands") == (m.chrome.Dialog.Title == "Commands") {
 			filtered = append(filtered, section)
 		}
 	}

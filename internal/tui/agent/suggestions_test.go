@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -73,7 +74,7 @@ func TestEnterRunsSelectedCommand(t *testing.T) {
 		m.input.SetValue(prefix)
 		m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 		m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-		if m.dialog == nil || !m.dialog.help || m.input.Value() != "" {
+		if m.chrome.Dialog == nil || !m.chrome.Dialog.Help || m.input.Value() != "" {
 			t.Fatalf("Enter on %q must execute selected help", prefix)
 		}
 		for _, block := range m.transcript.blocks {
@@ -87,7 +88,7 @@ func TestEnterRunsSelectedCommand(t *testing.T) {
 	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.sessions == nil || m.dialog != nil {
+	if m.sessions == nil || m.chrome.Dialog != nil {
 		t.Fatal("Enter must execute the highlighted Sessions command")
 	}
 }
@@ -116,7 +117,7 @@ func TestEnterCompletesFileWithoutSubmittingAndRespectsTheRunDuringARun(t *testi
 	m.input.SetValue("/ne")
 	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.queued != "/new" || m.dialog != nil {
+	if m.queued != "/new" || m.chrome.Dialog != nil {
 		t.Fatalf("a run-affecting command must queue during a run: %q", m.queued)
 	}
 
@@ -127,9 +128,9 @@ func TestEnterCompletesFileWithoutSubmittingAndRespectsTheRunDuringARun(t *testi
 	m.input.SetValue("/he")
 	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.queued != "" || m.dialog == nil {
+	if m.queued != "" || m.chrome.Dialog == nil {
 		t.Fatalf("a view command must run during a run: queued %q, dialog %v",
-			m.queued, m.dialog != nil)
+			m.queued, m.chrome.Dialog != nil)
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/llm"
 )
@@ -76,10 +77,10 @@ func historyProgressText(p llm.Progress, st styles, width, frame int) string {
 	}
 	span := max(width/8, 1)
 	position := (width - span) * frame / max(len(activityFrames)-1, 1)
-	bar := st.dim.Render(strings.Repeat("─", position)) +
+	bar := st.Dim.Render(strings.Repeat("─", position)) +
 		lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorMode))).Render(strings.Repeat("━", span)) +
-		st.dim.Render(strings.Repeat("─", width-position-span))
-	return heading + "\n" + st.dim.Render(strings.Join(reflow(label, width), "\n")) + "\n" + bar
+		st.Dim.Render(strings.Repeat("─", width-position-span))
+	return heading + "\n" + st.Dim.Render(strings.Join(reflow(label, width), "\n")) + "\n" + bar
 }
 
 func prefillText(p llm.Progress, st styles, width int) string {
@@ -105,14 +106,14 @@ func prefillText(p llm.Progress, st styles, width int) string {
 	} else if total > 0 {
 		filled = int(float64(processed) * float64(width) / float64(total))
 	}
-	bar := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorMode))).Render(strings.Repeat("━", filled)) + st.dim.Render(strings.Repeat("─", width-filled))
-	return st.dim.Render(cellLine(label, width)) + "\n" + bar
+	bar := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorMode))).Render(strings.Repeat("━", filled)) + st.Dim.Render(strings.Repeat("─", width-filled))
+	return st.Dim.Render(cellLine(label, width)) + "\n" + bar
 }
 
 // openAppearance stages presentation choices and saves them together on Apply.
 func (m *Model) openAppearance() {
 	m.openForm("Appearance", "Apply saves these choices for future launches.", "Apply", []formField{
-		{Key: "theme", Label: "Theme", Value: currentPalette().name},
+		{Key: "theme", Label: "Theme", Value: currentPalette().Name},
 		{Key: "frame", Label: "Panel frame", Value: m.currentAppearance().Frame},
 	}, func(values map[string]string) error {
 		theme, frame := values["theme"], values["frame"]
@@ -139,5 +140,5 @@ func (m *Model) openAppearance() {
 		m.applyTheme(theme)
 		return nil
 	})
-	m.dialog.form.Choices = map[string][]string{"theme": config.ThemeNames(), "frame": {"outlined", "minimal"}}
+	m.chrome.Dialog.Form.Choices = map[string][]string{"theme": config.ThemeNames(), "frame": {"outlined", "minimal"}}
 }

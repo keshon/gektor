@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/config"
 )
 
@@ -16,7 +17,7 @@ import (
 func TestUnsetTemperatureShowsTheNumberThatWillBeUsed(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("generation")
-	got := m.dialog.form.Editor.Value()
+	got := m.chrome.Dialog.Form.Editor.Value()
 	if !strings.Contains(got, "default") {
 		t.Fatalf("unset temperature shows as %q", got)
 	}
@@ -30,7 +31,7 @@ func TestExplicitTemperatureShowsAsItself(t *testing.T) {
 	m := settingsModel(t)
 	m.config.Profile.Generation.Temperature = 0.9
 	m.editSettings("generation")
-	got := m.dialog.form.Editor.Value()
+	got := m.chrome.Dialog.Form.Editor.Value()
 	if strings.Contains(got, "default") || !strings.Contains(got, "0.9") {
 		t.Fatalf("an explicit temperature shows as %q", got)
 	}
@@ -74,7 +75,7 @@ func TestSettingsButtonsAreClickableWhereTheyAreDrawn(t *testing.T) {
 		// itself failed on the change without anything being wrong, and had
 		// been agreeing with a genuinely misplaced renderer when it was.
 		clickVisible(t, m, "[ Cancel ]")
-		if m.dialog != nil {
+		if m.chrome.Dialog != nil {
 			t.Fatalf("width %d: clicking Cancel at its drawn position did nothing", width)
 		}
 	}

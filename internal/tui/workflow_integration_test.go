@@ -1,7 +1,6 @@
-package agent
+package tui
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -9,33 +8,18 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/keshon/gektor/internal/permission"
 	workflowui "github.com/keshon/gektor/internal/tui/workflow"
 	"github.com/keshon/gektor/internal/workflow"
-	"github.com/keshon/gektor/internal/workspace"
 )
 
 func workflowTestModel(t *testing.T) *Model {
 	t.Helper()
-	t.Setenv("USERPROFILE", t.TempDir())
-	t.Setenv("HOME", t.TempDir())
-	m := sizeModelTo(t, testModel(), 120, 30)
-	m.state = stDone
-	m.base = context.Background()
-	ws, err := workspace.New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { ws.Close() })
-	m.baseEnv.WS = ws
-	m.wsRoot = ws.Root()
-	m.baseEnv.Policy = permission.Default()
-	m.newWorkflow = workflowui.NewScreen
+	m := shellTestModel(t, Config{})
 	m.openWorkflows()
+	m.syncPresentation()
 	if m.workflows == nil {
 		t.Fatal("workspace unavailable")
 	}
-	t.Cleanup(m.workflows.Close)
 	return m
 }
 
@@ -44,20 +28,16 @@ func workflowRecipe() workflow.Definition {
 }
 
 func TestWorkflowStartupOpensEditorWithoutStartingRun(t *testing.T) {
-	m := workflowTestModel(t)
-	m.workflows = nil
-	m.startWorkflows = true
 	draft := "unsent Agent text"
-	m.input.SetValue(draft)
+	m := shellTestModel(t, Config{StartScreen: "workflows", AgentConfig: AgentConfig{InitialDraft: draft}})
 	m.Init()
-	if !m.workflowActive() || m.workflows.State().Busy || m.workflows.State().InspectingRun || m.state != stDone || m.input.Value() != draft {
+	if !m.workflowActive() || m.workflows.State().Busy || m.workflows.State().InspectingRun || !m.agent.Status().Idle {
 		t.Fatal("startup did not open an idle workflow editor")
 	}
-	// Init should not reopen Workflows after returning to Agent.
-	m.workflows.Hide()
+	m.showAgent()
 	m.Init()
-	if m.workflowActive() {
-		t.Fatal("startup action repeated")
+	if m.workflowActive() || !strings.Contains(ansi.Strip(m.View().Content), draft) {
+		t.Fatal("startup action repeated or Agent draft lost")
 	}
 }
 
@@ -83,7 +63,7 @@ func TestWorkflowMenuCanvasAndModalGeometry(t *testing.T) {
 	sizeModelTo(t, m, 120, 30)
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF9})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.header.menu != "app" {
+	if m.chrome.Header.Menu != "app" {
 		t.Fatal("canvas swallowed menu keys")
 	}
 	m.closeHeader()
@@ -100,7 +80,7 @@ func TestWorkflowMenuCanvasAndModalGeometry(t *testing.T) {
 func TestWorkflowOutlineJoins(t *testing.T) {
 	m := workflowTestModel(t)
 	for _, minimal := range []bool{false, true} {
-		m.minimal = minimal
+		setMinimal(t, m, minimal)
 		if !m.workflows.State().InspectorOpen {
 			m.workflowCommand("inspector")
 		}
@@ -130,13 +110,13 @@ func TestWorkflowOutlineJoins(t *testing.T) {
 func TestWorkflowGlobalNavigationStaysWithRoot(t *testing.T) {
 	m := workflowTestModel(t)
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF9})
-	if !m.header.focused {
+	if !m.chrome.Header.Focused {
 		t.Fatal("workflow swallowed the application menu key")
 	}
 	m.closeHeader()
 	seedWorkflow(t, m, workflowRecipe())
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF10})
-	if m.dialog == nil || m.dialog.title != "Quit with unsaved workflow?" || m.quit {
+	if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "Quit with unsaved workflow?" || m.quit {
 		t.Fatal("workflow bypassed the root's unsaved-draft protection")
 	}
 }
@@ -146,13 +126,12 @@ func TestWorkflowAndAgentInspectorFramesMatch(t *testing.T) {
 		for _, minimal := range []bool{false, true} {
 			m := workflowTestModel(t)
 			sizeModelTo(t, m, width, 30)
-			m.minimal = minimal
+			setMinimal(t, m, minimal)
 			seedWorkflow(t, m, workflowRecipe())
 			m.workflowCommand("inspector")
 			workflow := strings.Split(ansi.Strip(m.workflowScreen()), "\n")
-			agent := inspectorModel(t, width)
-			agent.minimal = minimal
-			agent.openInspector(len(agent.transcript.blocks) - 1)
+			agent := shellInspectorModel(t, width)
+			setMinimal(t, agent, minimal)
 			chat := strings.Split(ansi.Strip(agent.screenContent()), "\n")
 			left := 0
 			if width >= inspectorSplitWidth {
@@ -184,25 +163,27 @@ func seedWorkflow(t *testing.T, m *Model, d workflow.Definition) *workflowui.Edi
 	draft := workflowui.New()
 	draft.Replace(d)
 	var err error
-	m.workflows, err = workflowui.NewScreen(m.base, workflowui.Config{WS: m.baseEnv.WS, Policy: m.baseEnv.Policy, Draft: draft}, m.screenHost(), m.workflowSurface)
+	m.workflows, err = workflowui.NewScreen(m.base, workflowui.Config{WS: m.config.Env.WS, Policy: m.config.Env.Policy, Draft: draft}, m.chrome.Host(), m.workflowSurface)
 	if err != nil {
 		t.Fatal(err)
 	}
 	m.workflows.Activate()
+	m.active = workflowScreen
+	m.syncPresentation()
 	t.Cleanup(m.workflows.Close)
 	return draft
 }
 
 func TestWorkflowMenusAndToolbarKeepNodeCreationVisible(t *testing.T) {
 	m := workflowTestModel(t)
-	m.header.menu = "recipe"
+	m.chrome.Header.Menu = "recipe"
 	if len(m.rawHeaderItems()) > 7 {
 		t.Fatal("recipe menu remains overloaded")
 	}
-	m.header.menu = "node"
+	m.chrome.Header.Menu = "node"
 	found := false
 	for _, item := range m.rawHeaderItems() {
-		if item.command == "/workflows add" && item.enabled {
+		if item.Command == "/workflows add" && item.Enabled {
 			found = true
 		}
 	}

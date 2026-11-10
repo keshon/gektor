@@ -25,7 +25,7 @@ func TestSteeringCommandPersistsAndHeaderOnlyShowsEnabled(t *testing.T) {
 		if m.steering != enabled || strings.Contains(ansi.Strip(m.badgeLine()), "STEER") != enabled {
 			t.Fatal("header does not reflect steering", m.badgeLine())
 		}
-		if m.dialog != nil || m.queued != "" {
+		if m.chrome.Dialog != nil || m.queued != "" {
 			t.Fatal("steering requested a restart or queued")
 		}
 		p, err := config.LoadPreferences(path)
@@ -44,10 +44,10 @@ func TestSteeringBadgeDoesNotOverlapMetrics(t *testing.T) {
 		m.steering = true
 		end := 0
 		for _, b := range m.headerBadges() {
-			if b.start < end || b.end > m.transcript.Viewport.Width() {
+			if b.Start < end || b.End > m.transcript.Viewport.Width() {
 				t.Fatal(b)
 			}
-			end = b.end
+			end = b.End
 		}
 	}
 }

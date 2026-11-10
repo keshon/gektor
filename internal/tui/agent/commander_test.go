@@ -1,13 +1,14 @@
 package agent
 
 import (
-	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestCommanderFrameAtSupportedSizes(t *testing.T) {
@@ -44,15 +45,15 @@ func TestCommanderMenuClickPreservesDraftAndGate(t *testing.T) {
 	m.state = stDone
 	m.input.SetValue("unfinished draft")
 	cell := m.menuCells()[0]
-	m.Update(tea.MouseClickMsg{X: cell.start, Y: 0, Button: tea.MouseLeft})
-	if m.header.menu != "app" || !m.header.global || m.input.Value() != "unfinished draft" {
+	m.Update(tea.MouseClickMsg{X: cell.Start, Y: 0, Button: tea.MouseLeft})
+	if m.chrome.Header.Menu != "app" || !m.chrome.Header.Global || m.input.Value() != "unfinished draft" {
 		t.Fatal("menu failed to open or lost draft")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 	m.state = stPermission
-	m.Update(tea.MouseClickMsg{X: cell.start, Y: 0, Button: tea.MouseLeft})
-	if m.header.focused || m.state != stPermission {
+	m.Update(tea.MouseClickMsg{X: cell.Start, Y: 0, Button: tea.MouseLeft})
+	if m.chrome.Header.Focused || m.state != stPermission {
 		t.Fatal("menu hid approval")
 	}
 }
@@ -98,7 +99,7 @@ func TestCommanderPreview(t *testing.T) {
 			t.Fatal(err)
 		}
 		if size.name == "wide" {
-			m.header = headerState{focused: true, global: true, index: 4, menu: "settings"}
+			m.chrome.Header = headerState{Focused: true, Global: true, Index: 4, Menu: "settings"}
 			if err := os.WriteFile(filepath.Join(dir, "settings.txt"), []byte(ansi.Strip(m.View().Content)), 0600); err != nil {
 				t.Fatal(err)
 			}
@@ -115,27 +116,27 @@ func TestGlobalDropdownNavigationAndSettings(t *testing.T) {
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF9})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.header.menu != "app" {
-		t.Fatal(m.header)
+	if m.chrome.Header.Menu != "app" {
+		t.Fatal(m.chrome.Header)
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyRight})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyRight})
-	if m.header.menu != "execution" {
+	if m.chrome.Header.Menu != "execution" {
 		t.Fatal("left/right failed to switch dropdown")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if !m.plan || m.header.focused {
+	if !m.plan || m.chrome.Header.Focused {
 		t.Fatal("Plan selection failed")
 	}
 	var settings footerCell
 	for _, c := range m.menuCells() {
-		if c.action.name == "settings" {
+		if c.Action.Name == "settings" {
 			settings = c
 			break
 		}
 	}
-	m.Update(tea.MouseClickMsg{X: settings.start, Y: 0, Button: tea.MouseLeft})
-	if m.header.menu != "settings" || m.header.row != m.headerActionRow(0, 1) {
+	m.Update(tea.MouseClickMsg{X: settings.Start, Y: 0, Button: tea.MouseLeft})
+	if m.chrome.Header.Menu != "settings" || m.chrome.Header.Row != m.headerActionRow(0, 1) {
 		t.Fatal("settings page failed")
 	}
 }

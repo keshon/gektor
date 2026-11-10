@@ -14,11 +14,11 @@ func TestFooterActionsKeepDraftAndToggleScreens(t *testing.T) {
 	m.state = stDone
 	m.input.SetValue("draft\nsecond line")
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF1})
-	if m.dialog == nil || m.dialog.title != "Help" {
+	if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "Help" {
 		t.Fatal("help did not open")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF1})
-	if m.dialog != nil || m.input.Value() != "draft\nsecond line" {
+	if m.chrome.Dialog != nil || m.input.Value() != "draft\nsecond line" {
 		t.Fatal("help lost draft")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF2})
@@ -44,7 +44,7 @@ func TestFooterActionsCannotHidePendingPrompts(t *testing.T) {
 		for _, key := range []rune{tea.KeyF1, tea.KeyF2, tea.KeyF3, tea.KeyF4, tea.KeyF5, tea.KeyF6, tea.KeyF7} {
 			m.handleKey(tea.KeyPressMsg{Code: key})
 		}
-		if m.dialog != nil || m.sessions != nil || m.state != state || m.transcript.compact != before {
+		if m.chrome.Dialog != nil || m.sessions != nil || m.state != state || m.transcript.compact != before {
 			t.Fatal("function key hid prompt")
 		}
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyF10})
@@ -64,24 +64,24 @@ func TestActionBarCellsAndMouseShareGeometry(t *testing.T) {
 			rows := strings.Split(ansi.Strip(m.View().Content), "\n")
 			top := len(rows) - m.actionBarRows()
 			cells := m.footerCells()
-			if cells[0].start != 0 || cells[len(cells)-1].end != m.termW {
+			if cells[0].Start != 0 || cells[len(cells)-1].End != m.termW {
 				t.Fatal("footer edges do not align with outer frame")
 			}
 			for _, cell := range cells {
-				bar := rows[top+cell.row]
-				if !strings.HasPrefix(string([]rune(bar)[cell.start:]), func() string {
-					if cell.end-cell.start < 14 && strings.HasPrefix(cell.action.name, "Ctrl+") {
-						return " ^" + strings.TrimPrefix(cell.action.name, "Ctrl+") + " "
+				bar := rows[top+cell.Row]
+				if !strings.HasPrefix(string([]rune(bar)[cell.Start:]), func() string {
+					if cell.End-cell.Start < 14 && strings.HasPrefix(cell.Action.Name, "Ctrl+") {
+						return " ^" + strings.TrimPrefix(cell.Action.Name, "Ctrl+") + " "
 					}
-					return " " + strings.ToUpper(cell.action.name) + " "
+					return " " + strings.ToUpper(cell.Action.Name) + " "
 				}()) {
 					t.Fatalf("button moved at width %d: %q", width, bar)
 				}
-				if cell.start > 0 && []rune(bar)[cell.start-1] != ' ' {
+				if cell.Start > 0 && []rune(bar)[cell.Start-1] != ' ' {
 					t.Fatal("button separator missing")
 				}
-				if cell.action.key == 'p' {
-					m.Update(tea.MouseClickMsg{X: cell.start, Y: top + cell.row, Button: tea.MouseLeft})
+				if cell.Action.Key == 'p' {
+					m.Update(tea.MouseClickMsg{X: cell.Start, Y: top + cell.Row, Button: tea.MouseLeft})
 					if m.sessions == nil {
 						t.Fatalf("transcript button click missed at width %d", width)
 					}
@@ -175,7 +175,7 @@ func TestToolbarContextAndQuitProtection(t *testing.T) {
 	m.state = stDone
 	m.transcript.Follow = true
 	actions := m.footerActions()
-	if actions[0].label != "Help" || actions[1].label != "Search" || actions[2].label != "New" || actions[3].label != "Send" || actions[4].label != "Newline" {
+	if actions[0].Label != "Help" || actions[1].Label != "Search" || actions[2].Label != "New" || actions[3].Label != "Send" || actions[4].Label != "Newline" {
 		t.Fatal("composer actions")
 	}
 	m.input.SetValue("draft")
@@ -184,12 +184,12 @@ func TestToolbarContextAndQuitProtection(t *testing.T) {
 		t.Fatal("toolbar newline shortcut")
 	}
 	m.openSessions()
-	if m.footerActions()[3].label != "Rename" {
+	if m.footerActions()[3].Label != "Rename" {
 		t.Fatal("navigator actions")
 	}
 	m.closeSessions()
 	m.state = stRunning
-	if m.footerActions()[0].label != "Stop" {
+	if m.footerActions()[0].Label != "Stop" {
 		t.Fatal("run actions")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: 'q', Mod: tea.ModCtrl})
@@ -230,14 +230,14 @@ func TestDetailsToolbarRemainsVisibleAndClickable(t *testing.T) {
 		label := "Thinking"
 		found := false
 		for _, cell := range m.footerCells() {
-			if cell.action.key != 'g' {
+			if cell.Action.Key != 'g' {
 				continue
 			}
 			found = true
-			if cell.action.label != label || !cell.action.enabled {
+			if cell.Action.Label != label || !cell.Action.Enabled {
 				t.Fatal("incorrect details action")
 			}
-			m.Update(tea.MouseClickMsg{X: cell.start, Y: m.termH - m.actionBarRows() + cell.row, Button: tea.MouseLeft})
+			m.Update(tea.MouseClickMsg{X: cell.Start, Y: m.termH - m.actionBarRows() + cell.Row, Button: tea.MouseLeft})
 			if m.transcript.compact == compact {
 				t.Fatal("details click did not toggle")
 			}

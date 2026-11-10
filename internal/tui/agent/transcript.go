@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/keshon/gektor/internal/tui/components/transcript"
-
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/tui/components/transcript"
 )
 
 // role names the kind of a transcript block. Every role maps to one
@@ -228,11 +228,11 @@ func speakerLabel(b block, props transcriptProps) string {
 func speakerStyle(r role, st styles) lipgloss.Style {
 	switch r {
 	case roleUser:
-		return st.user
+		return st.User
 	case roleAnswer, roleThink, roleTool, roleResult:
-		return st.gate
+		return st.Gate
 	default:
-		return st.dim
+		return st.Dim
 	}
 }
 
@@ -290,13 +290,13 @@ func renderBlock(b block, st styles, opts renderOpts, width int) string {
 	var body []string
 	switch {
 	case b.role == roleThink && !opts.expand:
-		body = []string{st.think.Render(raw)}
+		body = []string{st.Think.Render(raw)}
 	case b.role == roleTool && opts.hideTools:
 		body = []string{compactTool(b, st, width)}
 	case b.role == roleReceipt:
 		body = receiptText(raw, st, width)
 	case b.role == roleResult && opts.hideTools:
-		body = []string{st.dim.Render(cellLine(fmt.Sprintf("Tool result · %d bytes", len(b.text)), width))}
+		body = []string{st.Dim.Render(cellLine(fmt.Sprintf("Tool result · %d bytes", len(b.text)), width))}
 	case b.role == roleTool:
 		body = renderToolCard(b, st, width)
 	case isMdRole(b.role):
@@ -314,7 +314,7 @@ func renderBlock(b block, st styles, opts renderOpts, width int) string {
 // timestamp flush right. The body owns no label column, so this row is
 // the block's only chrome and has the full width to work with.
 func labelRow(label string, at time.Time, st styles, width int) string {
-	line := st.dim.Render("[" + label + "]")
+	line := st.Dim.Render("[" + label + "]")
 	// A narrow terminal cannot hold both. The tag is structure and the
 	// time is decoration, so chrome yields rather than pushing past the
 	// edge or shredding the label into two wrapped rows.
@@ -410,7 +410,7 @@ func renderToolCard(b block, st styles, width int) []string {
 		if i == 0 {
 			prefix = glyph + " "
 		}
-		out = append(out, prefix+st.dim.Render(call))
+		out = append(out, prefix+st.Dim.Render(call))
 	}
 	// Before the first chunk, show a pending row. Once output arrives the
 	// same card renders it while retaining its running glyph.
@@ -431,9 +431,9 @@ func renderToolCard(b block, st styles, width int) []string {
 		}
 	}
 	for i, f := range frags {
-		out = append(out, st.dim.Render(toolRail)+resultLineStyle(orig[i], f, st))
+		out = append(out, st.Dim.Render(toolRail)+resultLineStyle(orig[i], f, st))
 	}
-	out = append(out, st.dim.Render(toolClose))
+	out = append(out, st.Dim.Render(toolClose))
 	return out
 }
 
@@ -456,7 +456,7 @@ func renderMdBlock(b block, raw string, st styles, width int) []string {
 		for _, f := range reflow(ml.text, max(width, 1)) {
 			var body string
 			if ml.fence {
-				style := st.dim
+				style := st.Dim
 				if b.role == roleThink {
 					style = base
 				}
@@ -478,7 +478,7 @@ func renderMdBlock(b block, raw string, st styles, width int) []string {
 						}
 						cells[i] = renderSpans(cell, bb, bb.Bold(true), code, span)
 					}
-					body = strings.Join(cells, st.dim.Render("|"))
+					body = strings.Join(cells, st.Dim.Render("|"))
 				} else {
 					body = renderSpans(f, bb, bb.Bold(true), code, span)
 				}
@@ -496,7 +496,7 @@ const stampWidth = 8
 // left, time as a clean right column. Padding sits between content and
 // stamp, so no line ever ends in whitespace.
 func alignStamp(line string, st styles, at time.Time, width int) string {
-	stamp := st.dim.Render(" [" + at.Format("15:04") + "]")
+	stamp := st.Dim.Render(" [" + at.Format("15:04") + "]")
 	pad := width - lipgloss.Width(line) - stampWidth
 	if pad < 1 {
 		pad = 1
@@ -509,22 +509,22 @@ func alignStamp(line string, st styles, at time.Time, width int) string {
 func applyRoleStyle(r role, origLine, frag string, st styles) string {
 	switch r {
 	case roleTool:
-		return st.dim.Render(frag)
+		return st.Dim.Render(frag)
 	case roleResult:
 		return resultLineStyle(origLine, frag, st)
 	case roleGate:
-		return st.gate.Render(frag)
+		return st.Gate.Render(frag)
 	case roleMarker, roleStatus:
-		return st.dim.Render(frag)
+		return st.Dim.Render(frag)
 	case roleError:
-		return st.err.Render(frag)
+		return st.Err.Render(frag)
 	case roleWarning:
-		return st.warn.Render(frag)
+		return st.Warn.Render(frag)
 	case roleReceipt:
 		if strings.HasPrefix(origLine, "outcome:") {
-			return st.gate.Bold(true).Render(frag)
+			return st.Gate.Bold(true).Render(frag)
 		}
-		return st.dim.Render(frag)
+		return st.Dim.Render(frag)
 	default:
 		return frag
 	}
@@ -534,13 +534,13 @@ func applyRoleStyle(r role, origLine, frag string, st styles) string {
 func resultLineStyle(origLine, frag string, st styles) string {
 	switch {
 	case strings.HasPrefix(origLine, "+") && !strings.HasPrefix(origLine, "++"):
-		return st.add.Render(frag)
+		return st.Add.Render(frag)
 	case strings.HasPrefix(origLine, "-") && !strings.HasPrefix(origLine, "--"):
-		return st.del.Render(frag)
+		return st.Del.Render(frag)
 	case strings.HasPrefix(origLine, "@@"):
-		return st.hunk.Render(frag)
+		return st.Hunk.Render(frag)
 	default:
-		return st.dim.Render(frag)
+		return st.Dim.Render(frag)
 	}
 }
 
@@ -783,7 +783,7 @@ type transcriptProps struct {
 // emitted here because it depends on the previous block, which a per-block
 // cache keyed on the block value cannot know.
 func (t *transcriptState) refresh(props transcriptProps) {
-	t.Viewport.SetScrollbarStyle(props.styles.dim, props.styles.dim)
+	t.Viewport.SetScrollbarStyle(props.styles.Dim, props.styles.Dim)
 	width := t.Viewport.ContentWidth()
 	opts := renderOpts{expand: !t.compact, labels: props.labels, hideTools: props.hideTools}
 	parts := make([]string, 0, len(t.blocks))

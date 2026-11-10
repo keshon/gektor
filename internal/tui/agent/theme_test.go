@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
+
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/tui/settings"
 )
@@ -19,11 +20,11 @@ func TestEveryThemeCanBeChosenSavedAndReopened(t *testing.T) {
 			m.application = &Application{PreferencePath: filepath.Join(t.TempDir(), "application.json")}
 			m.command("/theme " + theme)
 			p, err := config.LoadPreferences(m.application.PreferencePath)
-			if err != nil || p.Theme != theme || currentPalette().name != theme {
+			if err != nil || p.Theme != theme || currentPalette().Name != theme {
 				t.Fatalf("command did not save and apply %s: %+v, %v", theme, p, err)
 			}
 			m.openTheme()
-			if m.dialog.form.Editor.Value() != theme {
+			if m.chrome.Dialog.Form.Editor.Value() != theme {
 				t.Fatal("theme form lost the saved selection")
 			}
 			if settings.ChoiceLabel("theme", theme) == theme {
@@ -41,9 +42,6 @@ func TestWindowFocusLeavesTerminalColorsAndDraftAlone(t *testing.T) {
 		m.applyTheme(theme)
 		m.input.SetValue("unfinished\nsecond line")
 		m.pendingCommands = nil
-		if !m.View().ReportFocus {
-			t.Fatal("terminal focus reports are disabled")
-		}
 		m.Update(tea.BlurMsg{})
 		_, cmd := m.Update(tea.FocusMsg{})
 		if cmd != nil {
@@ -71,11 +69,11 @@ func TestThemeChangesOnlyAppearanceAndPersists(t *testing.T) {
 	}
 	draft := m.input.Value()
 	m.openTheme()
-	m.dialog.form.Editor.SetValue("light")
+	m.chrome.Dialog.Form.Editor.SetValue("light")
 	m.applyForm()
 	p, err := config.LoadPreferences(path)
 	after, err2 := os.ReadFile(m.stateFile)
-	if err != nil || err2 != nil || p.Theme != "light" || currentPalette().name != "light" || m.modeChange != nil || m.input.Value() != draft || string(before) != string(after) {
+	if err != nil || err2 != nil || p.Theme != "light" || currentPalette().Name != "light" || m.modeChange != nil || m.input.Value() != draft || string(before) != string(after) {
 		t.Fatal("theme changed the session or did not persist")
 	}
 	if themeColor(colorAccent) != themeColor(colorUser) || themeColor(colorDim) != themeColor(colorSecondaryText) {
@@ -95,7 +93,7 @@ func TestInlineThemeChangesStayInDraftUntilApply(t *testing.T) {
 	m.application = &Application{PreferencePath: path, Preferences: p}
 	m.openTheme()
 	m.formKey(tea.KeyPressMsg{Code: tea.KeyRight})
-	if m.dialog.form.Picker != nil || m.dialog.form.Editor.Value() != "light" || currentPalette().name != "dark" {
+	if m.chrome.Dialog.Form.Picker != nil || m.chrome.Dialog.Form.Editor.Value() != "light" || currentPalette().Name != "dark" {
 		t.Fatal("inline choice opened another modal or applied before confirmation")
 	}
 	m.formKey(tea.KeyPressMsg{Code: tea.KeyEscape})
@@ -107,7 +105,7 @@ func TestInlineThemeChangesStayInDraftUntilApply(t *testing.T) {
 	m.formKey(tea.KeyPressMsg{Code: tea.KeyRight})
 	m.formKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 	saved, err = config.LoadPreferences(path)
-	if err != nil || saved.Theme != "light" || currentPalette().name != "light" || m.dialog != nil {
+	if err != nil || saved.Theme != "light" || currentPalette().Name != "light" || m.chrome.Dialog != nil {
 		t.Fatal("Apply did not save and apply the staged choice")
 	}
 }
@@ -135,7 +133,7 @@ func TestTypingKeepsExplicitScreenColors(t *testing.T) {
 					}
 				}
 			}
-			if currentPalette().name != theme {
+			if currentPalette().Name != theme {
 				t.Fatal("input changed theme")
 			}
 		}
@@ -149,7 +147,7 @@ func TestScreenPaintPreservesPopupAndSemanticColors(t *testing.T) {
 	screen := uv.NewScreenBuffer(4, 1)
 	uv.NewStyledString(paintScreen(input)).Draw(screen, uv.Rect(0, 0, 4, 1))
 	line := []uv.Cell{*screen.CellAt(0, 0), *screen.CellAt(1, 0), *screen.CellAt(2, 0), *screen.CellAt(3, 0)}
-	if !sameColor(line[1].Style.Bg, currentPalette().background) || !sameColor(line[3].Style.Bg, currentPalette().background) {
+	if !sameColor(line[1].Style.Bg, currentPalette().Background) || !sameColor(line[3].Style.Bg, currentPalette().Background) {
 		t.Fatal("reset did not restore screen background")
 	}
 	if !sameColor(line[2].Style.Bg, "#010203") || sameColor(line[0].Style.Fg, themeColor(colorPopupText)) {

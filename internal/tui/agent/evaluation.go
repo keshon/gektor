@@ -33,13 +33,13 @@ func (j *evaluationJob) update(progress retrospective.Progress) {
 
 func (m *Model) refreshEvaluation() {
 	j := m.evaluation
-	if j == nil || m.dialog == nil {
+	if j == nil || m.chrome.Dialog == nil {
 		return
 	}
 	j.mu.Lock()
 	p := j.progress
 	j.mu.Unlock()
-	m.dialog.lines = []string{
+	m.chrome.Dialog.Lines = []string{
 		"Scope: " + p.Scope,
 		p.Request,
 		p.Stage,
@@ -133,7 +133,7 @@ func (m *Model) acceptEvaluation(msg evaluationDoneMsg) {
 	}
 	m.openDialog("Session evaluation", rows)
 	if len(r.Memory) == 1 {
-		m.dialog.review = func() { m.reviewLesson(r) }
+		m.chrome.Dialog.Review = func() { m.reviewLesson(r) }
 	}
 }
 
@@ -199,7 +199,7 @@ func (m *Model) learn(arg string) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) reviewLesson(r retrospective.Result) {
-	if m.dialog != nil {
+	if m.chrome.Dialog != nil {
 		m.closeDialog()
 	}
 	memory := r.Memory[0]
@@ -209,12 +209,12 @@ func (m *Model) reviewLesson(r retrospective.Result) {
 		rows = append(rows, "Some archive messages were only partially read.")
 	}
 	m.openDialog("Remember a repository lesson", rows)
-	m.dialog.save = func() error { return m.saveLesson(r, memory.When, memory.Lesson) }
-	m.dialog.review = func() { m.editLesson(r) }
+	m.chrome.Dialog.Save = func() error { return m.saveLesson(r, memory.When, memory.Lesson) }
+	m.chrome.Dialog.Review = func() { m.editLesson(r) }
 }
 
 func (m *Model) editLesson(r retrospective.Result) {
-	if m.dialog != nil {
+	if m.chrome.Dialog != nil {
 		m.closeDialog()
 	}
 	memory := r.Memory[0]

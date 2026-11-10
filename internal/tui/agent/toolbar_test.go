@@ -15,7 +15,7 @@ func TestSessionToolbarClickReturnsToExistingDraft(t *testing.T) {
 	m.input.SetValue("unfinished message")
 	m.openSessions()
 	for i, action := range m.footerActions() {
-		if action.key == 'p' {
+		if action.Key == 'p' {
 			hit := m.toolbarLayout().Cells[i].Bounds
 			m.handleMouse(tea.MouseClickMsg{X: hit.X, Y: m.termH - 1, Button: tea.MouseLeft})
 			if m.sessions != nil || m.input.Value() != "unfinished message" || !m.input.Focused() {
@@ -31,8 +31,8 @@ func TestFormToolbarUsesTheFormsPrimaryAction(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.openForm("Open recipe", "", "Open", nil, func(map[string]string) error { return nil })
 	for _, action := range m.footerActions() {
-		if action.key == 's' {
-			if action.label != "Open" || !action.enabled {
+		if action.Key == 's' {
+			if action.Label != "Open" || !action.Enabled {
 				t.Fatal("toolbar disagrees with the form action")
 			}
 			return
@@ -47,15 +47,15 @@ func TestSettingsToolbarDisabledApplyIsVisibleAndCannotRun(t *testing.T) {
 		m := settingsModel(t)
 		m.applyTheme(theme)
 		m.editSettings("generation")
-		m.dialog.form.EditSession.PersistCurrent = false
-		if m.dialog.form.Dirty() {
+		m.chrome.Dialog.Form.EditSession.PersistCurrent = false
+		if m.chrome.Dialog.Form.Dirty() {
 			t.Fatal("unchanged settings fixture is dirty")
 		}
 		for i, action := range m.footerActions() {
-			if action.key != 's' {
+			if action.Key != 's' {
 				continue
 			}
-			if action.enabled {
+			if action.Enabled {
 				t.Fatal("toolbar offers Apply for unchanged settings")
 			}
 			hit := m.toolbarLayout().Cells[i].Bounds
@@ -64,9 +64,9 @@ func TestSettingsToolbarDisabledApplyIsVisibleAndCannotRun(t *testing.T) {
 			if c := screen.CellAt(hit.X, 0); c == nil || !sameColor(c.Style.Fg, themeColor(colorDisabledText)) {
 				t.Fatal("disabled action uses enabled styling", theme)
 			}
-			before := m.dialog
+			before := m.chrome.Dialog
 			_, cmd := m.handleMouse(tea.MouseClickMsg{X: hit.X, Y: m.termH - 1, Button: tea.MouseLeft})
-			if cmd != nil || m.dialog != before {
+			if cmd != nil || m.chrome.Dialog != before {
 				t.Fatal("disabled Apply executed")
 			}
 		}

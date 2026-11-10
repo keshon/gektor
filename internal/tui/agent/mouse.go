@@ -3,59 +3,34 @@ package agent
 import (
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/tui/components/transcript"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if m.suggestions.Dragging() && m.suggestionMouse(msg) {
 		return m, nil
 	}
-	if m.workflowActive() && m.dialog == nil && m.workflows.State().MouseCaptured {
-		return m.workflowMouse(msg)
-	}
 	if m.sessions != nil {
 		return m.browserMouse(msg)
 	}
-	if m.dialog != nil && m.dialog.table != nil {
+	if m.chrome.Dialog != nil {
 		if m.actionBarVisible() && msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) && msg.Mouse().Y == m.termH-1 {
 			return m.toolbarClick(msg.Mouse().X)
 		}
-		left, top, _, _ := m.settingsArea()
-		mouse := msg.Mouse()
-		mouse.X -= left
-		mouse.Y -= top
-		var local tea.MouseMsg
-		switch msg.(type) {
-		case tea.MouseClickMsg:
-			local = tea.MouseClickMsg(mouse)
-		case tea.MouseWheelMsg:
-			local = tea.MouseWheelMsg(mouse)
-		default:
-			return m, nil
-		}
-		action := m.dialog.table.model.Mouse(local, m.tableProps())
-		return m, m.tableAction(action)
+		m.syncControls()
+		return m, m.chrome.DialogMouse(msg)
 	}
-	if m.dialog != nil && m.dialog.form != nil {
-		if m.actionBarVisible() && msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) && msg.Mouse().Y == m.termH-1 {
-			return m.toolbarClick(msg.Mouse().X)
-		}
-		return m, m.formMouse(msg)
-	}
-	if m.inspectorVisible() && m.header.menu == "" && m.inspector.drag.active && m.inspectorScrollbarMouse(msg) {
+	if m.inspectorVisible() && m.chrome.Header.Menu == "" && m.inspector.drag.Active && m.inspectorScrollbarMouse(msg) {
 		return m, nil
 	}
 	// A grabbed thumb owns motion and release until the button is released,
 	// including over the footer and outside the scrollbar column.
-	if m.scrollDrag.active && m.dialog == nil && m.sessions == nil && m.header.menu == "" && m.scrollbarMouse(msg) {
+	if m.scrollDrag.Active && m.chrome.Dialog == nil && m.sessions == nil && m.chrome.Header.Menu == "" && m.scrollbarMouse(msg) {
 		return m, nil
 	}
 	if handled, cmd := m.headerMouse(msg); handled {
 		return m, cmd
-	}
-	if m.workflowActive() && m.dialog == nil {
-		return m.workflowMouse(msg)
 	}
 	if m.inspectorVisible() && (m.termW < inspectorSplitWidth || msg.Mouse().X >= m.mainWidth()) && msg.Mouse().Y >= 1 && msg.Mouse().Y < m.termH-m.actionBarRows() {
 		if handled, cmd := m.inspectorMouse(msg); handled {
@@ -73,38 +48,6 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.dialog != nil {
-		if m.dialog.form == nil && msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) {
-			rows, w, h := m.dialogRows()
-			inner := popup.ModalWidth(w) - 4
-			left, _, _, _ := m.settingsArea()
-			x := left + max((w-popup.ModalWidth(w))/2, 0) + 2
-			y := paneTop + max((h-len(rows)-2)/2, 0) + 1
-			if msg.Mouse().Y == y && msg.Mouse().X >= x+inner-3 && msg.Mouse().X < x+inner {
-				m.closeDialog()
-				return m, nil
-			}
-			if m.dialog.help {
-				layout := m.layoutDialog()
-				if tab := layout.tabs.Hit(msg.Mouse().X-x, msg.Mouse().Y-y-2); tab >= 0 {
-					m.dialog.page = tab
-					m.dialog.offset = 0
-					m.dialog.drag = scrollDrag{}
-					return m, nil
-				}
-			}
-		}
-		if m.dialogScrollbarMouse(msg) {
-			return m, nil
-		}
-		switch msg.Mouse().Button {
-		case tea.MouseWheelDown:
-			m.scrollDialog(1)
-		case tea.MouseWheelUp:
-			m.scrollDialog(-1)
-		}
-		return m, nil
-	}
 	if m.state == stPermission || m.state == stAsk {
 		mouse := msg.Mouse()
 		if mouse.X < m.promptOffset() || mouse.Y < paneTop || mouse.Y >= paneTop+m.transcript.Viewport.Height() {
@@ -138,49 +81,13 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) dialogScrollbarMouse(msg tea.MouseMsg) bool {
-	d := m.dialog
-	if d == nil || d.form != nil {
-		return false
-	}
-	l := m.layoutDialog()
-	if len(l.lines) <= l.capacity {
-		return false
-	}
-	rows, _, _ := m.dialogRows()
-	left, _, _, _ := m.settingsArea()
-	x := left + max((l.width-popup.ModalWidth(l.width))/2, 0) + 2 + l.inner - 1
-	y := paneTop + max((l.height-len(rows)-2)/2, 0) + 1 + len(l.rows)
-	mouse := msg.Mouse()
-	if d.drag.active {
-		switch msg.(type) {
-		case tea.MouseMotionMsg, tea.MouseReleaseMsg:
-			d.offset = popup.ScrollOffset(mouse.Y-y, l.capacity, len(l.lines), d.drag.grab)
-			if _, ok := msg.(tea.MouseReleaseMsg); ok {
-				d.drag = scrollDrag{}
-			}
-			return true
-		}
-	}
-	if mouse.X != x || mouse.Y < y || mouse.Y >= y+l.capacity || mouse.Button != tea.MouseLeft || !isMouseClick(msg) {
-		return false
-	}
-	top, size := popup.ScrollThumb(l.capacity, len(l.lines), d.offset)
-	row := mouse.Y - y
-	if row >= top && row < top+size {
-		d.drag = scrollDrag{active: true, grab: row - top}
-	} else {
-		m.scrollDialog(map[bool]int{true: -l.capacity, false: l.capacity}[row < top])
-	}
-	return true
+	m.syncControls()
+	return m.chrome.DialogScrollbarMouse(msg)
 }
 
 // scrollDrag is a scrollbar thumb grab: which row of the thumb the
 // pointer holds, and whether it has moved since the grab.
-type scrollDrag struct {
-	active bool
-	grab   int
-	moved  bool
-}
+type scrollDrag = screen.Drag
 
 // scrollbarMouse handles press, motion and release on the transcript
 // scrollbar. A grab on the thumb drags it; a click on the track pages.
@@ -197,21 +104,21 @@ func viewportScrollbarMouse(v *transcript.Viewport, follow *bool, drag *scrollDr
 	mouse := msg.Mouse()
 	switch msg.(type) {
 	case tea.MouseMotionMsg:
-		if !drag.active {
+		if !drag.Active {
 			return false
 		}
 		row := min(max(mouse.Y-paneY, 0), v.Height()-1)
-		drag.moved = true
-		v.SetYOffset(v.DragOffset(row, v.Height(), drag.grab))
+		drag.Moved = true
+		v.SetYOffset(v.DragOffset(row, v.Height(), drag.Grab))
 		*follow = v.AtBottom()
 		return true
 	case tea.MouseReleaseMsg:
-		if !drag.active {
+		if !drag.Active {
 			return false
 		}
 		previous := *drag
 		*drag = scrollDrag{}
-		if !previous.moved && mouse.Button == tea.MouseLeft {
+		if !previous.Moved && mouse.Button == tea.MouseLeft {
 			// A press-and-release without motion is a click: thumb
 			// holds position, track pages toward the pointer.
 			top, size := v.ThumbRange(v.Height())
@@ -237,7 +144,7 @@ func viewportScrollbarMouse(v *transcript.Viewport, follow *bool, drag *scrollDr
 		return false
 	}
 	top, _ := v.ThumbRange(v.Height())
-	*drag = scrollDrag{active: true, grab: max(row-top, 0)}
+	*drag = scrollDrag{Active: true, Grab: max(row-top, 0)}
 	return true
 }
 

@@ -1,27 +1,54 @@
-// Package tui connects the Agent terminal host to the Workflow screen.
+// Package tui owns the terminal application shell and coordinates peer screens.
 package tui
 
 import (
 	"context"
+	"fmt"
+
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/tui/agent"
-	"github.com/keshon/gektor/internal/tui/workflow"
 )
 
-// Config configures one terminal run.
-type Config = agent.Config
+// AgentConfig configures the conversation screen and its execution services.
+type AgentConfig = agent.Config
 
-// Application holds the launch configuration and persisted terminal preferences.
+// Config separates initial application navigation from Agent launch settings.
+type Config struct {
+	AgentConfig
+	StartScreen string
+}
+
+// Application holds persisted launch settings and terminal preferences.
 type Application = agent.Application
 
-// ModeChange requests a new launch with changed application settings.
+// ModeChange carries settings and retained conversation state into a new launch.
 type ModeChange = agent.ModeChange
 
 // Drafts retains unsent input across application relaunches.
 type Drafts = agent.Drafts
 
-// Run executes the task under the TUI and restores the terminal on return.
+// Run owns the terminal runtime and closes both screens before restoring input.
 func Run(ctx context.Context, cfg Config) (string, error) {
-	cfg.NewWorkflow = workflow.NewScreen
-	return agent.Run(ctx, cfg)
+	uiCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	options, restore, err := consoleInput(uiCtx)
+	if err != nil {
+		return "", err
+	}
+	defer restore()
+	model, err := newModel(uiCtx, cfg)
+	if err != nil {
+		return "", err
+	}
+	defer model.Close()
+	final, err := tea.NewProgram(model, append(options, tea.WithContext(uiCtx))...).Run()
+	if err != nil {
+		return "", err
+	}
+	app, ok := final.(*Model)
+	if !ok {
+		return "", fmt.Errorf("tui: unexpected final model")
+	}
+	return app.agent.Finish(app.quit)
 }

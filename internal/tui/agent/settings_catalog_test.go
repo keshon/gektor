@@ -7,11 +7,12 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/config"
 )
 
 func focusSetting(m *Model, key string) {
-	for i, f := range m.dialog.form.Fields {
+	for i, f := range m.chrome.Dialog.Form.Fields {
 		if f.Key == key {
 			m.focusForm(i)
 			return
@@ -36,20 +37,20 @@ func TestLoadedProfileStagedUntilApply(t *testing.T) {
 	id := m.stateFile
 	m.editSettings("profiles")
 	focusSetting(m, "load-profile")
-	m.dialog.form.OpenPicker(m.settingsProps())
-	picker := m.dialog.form.Picker
+	m.chrome.Dialog.Form.OpenPicker(m.settingsProps())
+	picker := m.chrome.Dialog.Form.Picker
 	m.acceptSettingsScan(settingsScanMsg{ID: picker.ID, Items: []string{path}})
-	m.dialog.form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m.settingsProps())
+	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m.settingsProps())
 	if m.config.Profile.Identity.UserName != "User" {
 		t.Fatal("load applied without Apply")
 	}
 	m.editSettings("generation")
-	if m.dialog.form.Editor.Value() != "0.8" {
+	if m.chrome.Dialog.Form.Editor.Value() != "0.8" {
 		t.Fatal("loaded settings not shown")
 	}
 	m.applyForm()
-	if m.dialog != nil {
-		t.Fatalf("apply refused: %q", m.dialog.form.Error)
+	if m.chrome.Dialog != nil {
+		t.Fatalf("apply refused: %q", m.chrome.Dialog.Form.Error)
 	}
 	if m.modeChange == nil || m.stateFile != id {
 		t.Fatal("profile load lost the session")
@@ -77,11 +78,11 @@ func TestSettingsLibrariesPreview(t *testing.T) {
 	}
 	m.editSettings("profiles")
 	focusSetting(m, "load-profile")
-	m.dialog.form.OpenPicker(m.settingsProps())
-	p := m.dialog.form.Picker
+	m.chrome.Dialog.Form.OpenPicker(m.settingsProps())
+	p := m.chrome.Dialog.Form.Picker
 	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{filepath.Join(dir, "custom.json")}})
 	write("profile-picker")
-	m.dialog.form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEscape}, m.settingsProps())
+	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEscape}, m.settingsProps())
 	m.editSettings("prompts")
 	write("prompts-page")
 }
@@ -100,10 +101,10 @@ func TestApplyAutomaticallySavesReusableCustomProfile(t *testing.T) {
 	before, _ := os.ReadFile(builtin)
 	m.application = &Application{PreferencePath: filepath.Join(root, "var", "application.json"), Preferences: config.Preferences{Version: 1, ProfilePath: builtin, Profile: &original}}
 	m.editSettings("you")
-	m.dialog.form.Editor.SetValue("Alex")
+	m.chrome.Dialog.Form.Editor.SetValue("Alex")
 	m.applyForm()
-	if m.dialog != nil {
-		t.Fatal("apply did not finish", m.dialog.form.Error)
+	if m.chrome.Dialog != nil {
+		t.Fatal("apply did not finish", m.chrome.Dialog.Form.Error)
 	}
 	if m.modeChange == nil {
 		t.Fatal("apply queued no restart")
@@ -125,10 +126,10 @@ func TestApplyAutomaticallySavesReusableCustomProfile(t *testing.T) {
 	m.modeChange = nil
 	m.application.Preferences.ProfilePath = custom
 	m.editSettings("generation")
-	m.dialog.form.Editor.SetValue("0.8")
+	m.chrome.Dialog.Form.Editor.SetValue("0.8")
 	m.applyForm()
-	if m.dialog != nil {
-		t.Fatalf("apply did not finish: %q", m.dialog.form.Error)
+	if m.chrome.Dialog != nil {
+		t.Fatalf("apply did not finish: %q", m.chrome.Dialog.Form.Error)
 	}
 	if m.modeChange == nil || m.modeChange.Preferences.ProfilePath != custom {
 		t.Fatalf("custom profile not reused: %+v", m.modeChange)
@@ -142,10 +143,10 @@ func TestApplyAutomaticallySavesReusableCustomProfile(t *testing.T) {
 	m.application.Preferences.ProfilePath = custom
 	m.editSettings("prompts")
 	focusSetting(m, "prompt-preset")
-	m.dialog.form.Editor.SetValue("coding")
+	m.chrome.Dialog.Form.Editor.SetValue("coding")
 	m.applyForm()
 	saved, err = config.Load(custom)
-	if m.dialog != nil || err != nil || saved.Identity.PromptPreset != "coding" {
+	if m.chrome.Dialog != nil || err != nil || saved.Identity.PromptPreset != "coding" {
 		t.Fatal("preset was not saved in custom setup", saved, err)
 	}
 	after, _ := os.ReadFile(builtin)

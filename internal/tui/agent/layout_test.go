@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+
 	"github.com/keshon/gektor/internal/events"
 )
 
@@ -137,7 +138,7 @@ func TestNestedComposerCompletesFilesAndCommands(t *testing.T) {
 	m.Update(tea.PasteMsg{Content: "/hel"})
 	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.dialog == nil || !m.dialog.help || m.input.Value() != "" {
+	if m.chrome.Dialog == nil || !m.chrome.Dialog.Help || m.input.Value() != "" {
 		t.Fatal("command completion did not open help")
 	}
 	m.closeDialog()

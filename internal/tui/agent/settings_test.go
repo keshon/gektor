@@ -25,7 +25,7 @@ import (
 // without depending on how many rows sit above it.
 func headerRowFor(m *Model, command string) int {
 	for i, item := range m.headerItems() {
-		if item.command == command {
+		if item.Command == command {
 			return i
 		}
 	}
@@ -96,19 +96,19 @@ func settingsModel(t *testing.T) *Model {
 func TestSettingsDirectEditorCancelAndFocus(t *testing.T) {
 	m := settingsModel(t)
 	configured := m.config
-	m.header.global = true
-	m.header.focused = true
-	m.header.menu = "settings"
+	m.chrome.Header.Global = true
+	m.chrome.Header.Focused = true
+	m.chrome.Header.Menu = "settings"
 	// Resolve the row by command: the menu loses and gains rows whenever a
 	// category is added or removed, and a hardcoded index silently selects
 	// the wrong one.
-	m.header.row = headerRowFor(m, "edit:you")
+	m.chrome.Header.Row = headerRowFor(m, "edit:you")
 	m.headerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.dialog == nil || m.dialog.form == nil || m.header.focused || m.dialog.title != "Settings" {
+	if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil || m.chrome.Header.Focused || m.chrome.Dialog.Title != "Settings" {
 		t.Fatal("settings redirected instead of opening editor")
 	}
 	m.focusForm(0)
-	if m.dialog.form.Editor.Value() != "User" {
+	if m.chrome.Dialog.Form.Editor.Value() != "User" {
 		t.Fatal("initial field lost")
 	}
 	m.Update(tea.PasteMsg{Content: "Alex"})
@@ -118,7 +118,7 @@ func TestSettingsDirectEditorCancelAndFocus(t *testing.T) {
 		t.Fatal("form input leaked into session actions")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
-	if m.dialog != nil || m.config != configured || m.input.Value() != "unfinished draft" || m.config.Profile.Identity.UserName != "User" {
+	if m.chrome.Dialog != nil || m.config != configured || m.input.Value() != "unfinished draft" || m.config.Profile.Identity.UserName != "User" {
 		t.Fatal("cancel mutated configuration or draft")
 	}
 }
@@ -133,19 +133,19 @@ func TestSettingsValidateThenApplyLeavesTheSavedTaskAlone(t *testing.T) {
 	m.editSettings("generation")
 	// An unset temperature reads as the number that will actually be used,
 	// not as a bare 0 that looks like deterministic sampling.
-	if got := m.dialog.form.Editor.Value(); !strings.Contains(got, "default") {
+	if got := m.chrome.Dialog.Form.Editor.Value(); !strings.Contains(got, "default") {
 		t.Fatalf("unset temperature shows as %q", got)
 	}
-	m.dialog.form.Editor.SetValue("bad")
+	m.chrome.Dialog.Form.Editor.SetValue("bad")
 	m.handleKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
-	if m.dialog == nil || m.dialog.form.Error == "" || m.modeChange != nil {
+	if m.chrome.Dialog == nil || m.chrome.Dialog.Form.Error == "" || m.modeChange != nil {
 		t.Fatal("invalid settings applied")
 	}
-	m.dialog.form.Editor.SetValue("0.8")
+	m.chrome.Dialog.Form.Editor.SetValue("0.8")
 	m.handleKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 	after, _ := os.ReadFile(path)
-	if m.dialog != nil {
-		t.Fatalf("apply refused: %q", m.dialog.form.Error)
+	if m.chrome.Dialog != nil {
+		t.Fatalf("apply refused: %q", m.chrome.Dialog.Form.Error)
 	}
 	if m.modeChange == nil {
 		t.Fatal("apply queued no restart")
@@ -164,14 +164,14 @@ func TestDirectRenameAndDeleteDefaultCancel(t *testing.T) {
 	m := settingsModel(t)
 	path := m.stateFile
 	m.renameActive()
-	m.dialog.form.Editor.SetValue("New title")
+	m.chrome.Dialog.Form.Editor.SetValue("New title")
 	m.handleKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
-	if m.dialog != nil || m.sessionTitle != "New title" {
+	if m.chrome.Dialog != nil || m.sessionTitle != "New title" {
 		t.Fatal("rename failed")
 	}
 	m.deleteActive()
 	m.handleKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
-	if m.dialog == nil {
+	if m.chrome.Dialog == nil {
 		t.Fatal("delete bypassed default cancel")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -198,7 +198,7 @@ func TestSettingsFormMouseAndFrame(t *testing.T) {
 		// Every drawn row fills the screen, and Cancel is where it is
 		// drawn - not where a second copy of the layout maths says.
 		clickVisible(t, m, "[ Cancel ]")
-		if m.dialog != nil || m.input.Value() != "unfinished draft" {
+		if m.chrome.Dialog != nil || m.input.Value() != "unfinished draft" {
 			t.Fatal("mouse cancel missed or lost draft")
 		}
 	}
@@ -218,11 +218,11 @@ func TestSettingsMouseResizesMultilineEditor(t *testing.T) {
 		{"user", 1},
 	} {
 		clickHit(t, m, fieldHit(t, m, c.key))
-		if m.dialog.form.Editor.Height() != c.want {
+		if m.chrome.Dialog.Form.Editor.Height() != c.want {
 			t.Fatalf("clicking %q left the editor at height %d, want %d",
-				c.key, m.dialog.form.Editor.Height(), c.want)
+				c.key, m.chrome.Dialog.Form.Editor.Height(), c.want)
 		}
-		if m.dialog.form.Fields[fieldHit(t, m, c.key)].Key != c.key {
+		if m.chrome.Dialog.Form.Fields[fieldHit(t, m, c.key)].Key != c.key {
 			t.Fatalf("the click did not focus %q", c.key)
 		}
 	}
@@ -233,17 +233,17 @@ func TestSettingsMouseResizesMultilineEditor(t *testing.T) {
 // whole menu at once and left no hint of which part was missing.
 func TestIdleSettingsMenuIsFullyEnabled(t *testing.T) {
 	m := settingsModel(t)
-	m.header.menu = "settings"
+	m.chrome.Header.Menu = "settings"
 	rows := m.rawHeaderItems()
 	if len(rows) == 0 {
 		t.Fatal("settings menu is empty")
 	}
 	for _, item := range rows {
-		if item.text == "" && item.command == "" {
+		if item.Text == "" && item.Command == "" {
 			continue
 		}
-		if !item.enabled {
-			t.Fatalf("idle Settings row disabled: %q (%s)", item.text, item.command)
+		if !item.Enabled {
+			t.Fatalf("idle Settings row disabled: %q (%s)", item.Text, item.Command)
 		}
 	}
 }
@@ -253,57 +253,57 @@ func TestIdleSettingsMenuIsFullyEnabled(t *testing.T) {
 // editSettings guards on the same services handle the menu did.
 func TestEveryIdleSettingsRowOpens(t *testing.T) {
 	m := settingsModel(t)
-	m.header.menu = "settings"
+	m.chrome.Header.Menu = "settings"
 	for _, item := range m.rawHeaderItems() {
-		if item.text == "" || !item.enabled {
+		if item.Text == "" || !item.Enabled {
 			continue
 		}
 		m.closeDialog()
-		m.header.focused, m.header.global, m.header.menu = true, true, "settings"
-		m.header.row = 0
+		m.chrome.Header.Focused, m.chrome.Header.Global, m.chrome.Header.Menu = true, true, "settings"
+		m.chrome.Header.Row = 0
 		for i, candidate := range m.headerItems() {
-			if candidate.command == item.command {
-				m.header.row = i
+			if candidate.Command == item.Command {
+				m.chrome.Header.Row = i
 			}
 		}
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-		if item.command == "toggle-steering" {
+		if item.Command == "toggle-steering" {
 			if !m.steering {
 				t.Fatal("steering toggle did nothing")
 			}
 			continue
 		}
-		if m.dialog == nil {
-			t.Fatalf("Settings row %q (%s) opened nothing", item.text, item.command)
+		if m.chrome.Dialog == nil {
+			t.Fatalf("Settings row %q (%s) opened nothing", item.Text, item.Command)
 		}
 	}
 }
 func TestCommonMenusHaveNoRedirects(t *testing.T) {
 	m := settingsModel(t)
 	for _, category := range []string{"session", "execution", "view", "settings", "help"} {
-		m.header.menu = category
+		m.chrome.Header.Menu = category
 		for _, item := range m.rawHeaderItems() {
-			if strings.HasPrefix(item.command, "open:") {
+			if strings.HasPrefix(item.Command, "open:") {
 				t.Fatal("menu redirects")
 			}
 		}
 	}
 	m.state = stRunning
-	m.header.menu = "settings"
+	m.chrome.Header.Menu = "settings"
 	for _, item := range m.rawHeaderItems() {
-		if strings.HasPrefix(item.command, "edit:") && item.enabled {
+		if strings.HasPrefix(item.Command, "edit:") && item.Enabled {
 			t.Fatal("settings editable during response")
 		}
 	}
-	m.header.global = true
-	m.header.focused = true
-	m.header.menu = "execution"
-	m.header.row = 0
+	m.chrome.Header.Global = true
+	m.chrome.Header.Focused = true
+	m.chrome.Header.Menu = "execution"
+	m.chrome.Header.Row = 0
 	// While a run is in flight, Plan and Act are disabled, so the first
 	// row the arrow key can land on is "Stop run" at index 3.
 	m.state = stRunning
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyDown})
-	if m.header.row != 3 {
+	if m.chrome.Header.Row != 3 {
 		t.Fatal("keyboard did not skip disabled actions")
 	}
 }
@@ -318,9 +318,9 @@ func TestMenuSettingsPreview(t *testing.T) {
 		m.width(tea.WindowSizeMsg{Width: 100, Height: 28})
 		switch name {
 		case "menu":
-			m.header.global = true
-			m.header.focused = true
-			m.header.menu = "settings"
+			m.chrome.Header.Global = true
+			m.chrome.Header.Focused = true
+			m.chrome.Header.Menu = "settings"
 		case "delete":
 			m.deleteActive()
 		default:
@@ -335,25 +335,25 @@ func TestMenuSettingsPreview(t *testing.T) {
 func TestFormFooterMatchesActionsAndViewIsPure(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("generation")
-	before := m.dialog.form.Editor.Value()
-	cursor := m.dialog.form.Editor.Column()
+	before := m.chrome.Dialog.Form.Editor.Value()
+	cursor := m.chrome.Dialog.Form.Editor.Column()
 	first := m.View().Content
 	second := m.View().Content
-	if first != second || m.dialog.form.Editor.Value() != before || m.dialog.form.Editor.Column() != cursor {
+	if first != second || m.chrome.Dialog.Form.Editor.Value() != before || m.chrome.Dialog.Form.Editor.Column() != cursor {
 		t.Fatal("render mutated form")
 	}
 	for _, action := range m.footerActions() {
-		if action.name == "F1" {
+		if action.Name == "F1" {
 			t.Fatal("footer advertises unrelated help action")
 		}
 	}
 	for _, cell := range m.footerCells() {
-		if cell.action.name == "Esc" {
-			m.Update(tea.MouseClickMsg{X: cell.start, Y: m.termH - 1, Button: tea.MouseLeft})
+		if cell.Action.Name == "Esc" {
+			m.Update(tea.MouseClickMsg{X: cell.Start, Y: m.termH - 1, Button: tea.MouseLeft})
 			break
 		}
 	}
-	if m.dialog != nil {
+	if m.chrome.Dialog != nil {
 		t.Fatal("footer cancel click failed")
 	}
 }
@@ -364,13 +364,13 @@ func TestPromptSwitchCanToggleWithoutTypingBoolean(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("prompts")
 	focusSetting(m, "prompt-preset")
-	if m.dialog.form.Editor.Value() != "custom" {
+	if m.chrome.Dialog.Form.Editor.Value() != "custom" {
 		t.Fatal("wrong initial switch")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
-	m.dialog.form.PickerKey(tea.KeyPressMsg{Code: tea.KeyDown}, m.settingsProps())
-	m.dialog.form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m.settingsProps())
-	if m.dialog.form.Editor.Value() == "custom" {
+	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: tea.KeyDown}, m.settingsProps())
+	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m.settingsProps())
+	if m.chrome.Dialog.Form.Editor.Value() == "custom" {
 		t.Fatal("space did not toggle prompt switch")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
@@ -382,13 +382,13 @@ func TestPromptSwitchCanToggleWithoutTypingBoolean(t *testing.T) {
 func TestFormArrowNavigationPreservesValues(t *testing.T) {
 	m := settingsModel(t)
 	m.openForm("Settings", "", "Apply", []formField{{Key: "one", Label: "First", Value: "one", Multiline: false}, {Key: "two", Label: "Second", Value: "two", Multiline: false}}, func(map[string]string) error { return nil })
-	m.dialog.form.Editor.SetValue("edited")
+	m.chrome.Dialog.Form.Editor.SetValue("edited")
 	m.formKey(tea.KeyPressMsg{Code: tea.KeyDown})
-	if m.dialog.form.Index != 1 || m.dialog.form.Fields[0].Value != "edited" {
+	if m.chrome.Dialog.Form.Index != 1 || m.chrome.Dialog.Form.Fields[0].Value != "edited" {
 		t.Fatal("down lost value or focus")
 	}
 	m.formKey(tea.KeyPressMsg{Code: tea.KeyUp})
-	if m.dialog.form.Index != 0 || m.dialog.form.Editor.Value() != "edited" {
+	if m.chrome.Dialog.Form.Index != 0 || m.chrome.Dialog.Form.Editor.Value() != "edited" {
 		t.Fatal("up lost value or focus")
 	}
 }
@@ -409,16 +409,16 @@ func TestProtocolSwitchSuggestsOnlyLocalDefaults(t *testing.T) {
 	}
 	m := settingsModel(t)
 	m.openForm("Connection", "", "Apply", []formField{{Key: "kind", Label: "Protocol", Value: "llama", Multiline: false}, {Key: "endpoint", Label: "URL", Value: "http://127.0.0.1:9931", Multiline: false}}, func(map[string]string) error { return nil })
-	m.dialog.form.CycleChoice()
+	m.chrome.Dialog.Form.CycleChoice()
 	m.focusForm(1)
-	if m.dialog.form.Editor.Value() != "http://127.0.0.1:5001" {
+	if m.chrome.Dialog.Form.Editor.Value() != "http://127.0.0.1:5001" {
 		t.Fatal("suggested URL not visible in editor")
 	}
-	m.dialog.form.Editor.SetValue("http://localhost:9000")
+	m.chrome.Dialog.Form.Editor.SetValue("http://localhost:9000")
 	m.focusForm(0)
-	m.dialog.form.CycleChoice()
+	m.chrome.Dialog.Form.CycleChoice()
 	m.focusForm(1)
-	if m.dialog.form.Editor.Value() != "http://localhost:9000" {
+	if m.chrome.Dialog.Form.Editor.Value() != "http://localhost:9000" {
 		t.Fatal("custom URL overwritten")
 	}
 }

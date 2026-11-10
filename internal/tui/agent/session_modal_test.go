@@ -30,7 +30,7 @@ func TestSessionModalScrollbarAndClose(t *testing.T) {
 		m.handleMouse(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
 		m.handleMouse(tea.MouseMotionMsg{X: x + 5, Y: y + 40, Button: tea.MouseLeft})
 		m.handleMouse(tea.MouseReleaseMsg{X: x + 5, Y: y + 40, Button: tea.MouseLeft})
-		if m.sessions.Offset != len(m.sessions.entries)-m.sessVisible() || m.sessions.drag.active {
+		if m.sessions.Offset != len(m.sessions.entries)-m.sessVisible() || m.sessions.drag.Active {
 			t.Fatal("thumb did not reach bottom or release", m.sessions.Offset)
 		}
 		if dir := os.Getenv("GEKTOR_TUI_PREVIEW_DIR"); dir != "" {

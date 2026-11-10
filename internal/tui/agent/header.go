@@ -2,27 +2,18 @@ package agent
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/tui/components/popup"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
-type headerState struct {
-	global  bool
-	focused bool
-	index   int
-	menu    string
-	row     int
-}
+type headerState = screen.MenuState
 
-type headerBadge struct {
-	id, label  string
-	start, end int
-}
+type headerBadge = screen.Badge
 
 func (m *Model) headerBadges() []headerBadge {
 	mode, activity := "ACT", "READY"
@@ -69,33 +60,33 @@ func (m *Model) headerBadges() []headerBadge {
 		ctx += "/" + kTokens(m.limit)
 	}
 	width := m.transcript.Viewport.Width()
-	candidates := []headerBadge{{id: "mode", label: mode}, {id: "activity", label: activity + "  " + ctx}}
+	candidates := []headerBadge{{ID: "mode", Label: mode}, {ID: "activity", Label: activity + "  " + ctx}}
 	leftWidth := lipgloss.Width(mode) + lipgloss.Width(activity+"  "+ctx) + 4
 	if m.steering {
-		candidates = append(candidates, headerBadge{id: "steering", label: "STEER"})
+		candidates = append(candidates, headerBadge{ID: "steering", Label: "STEER"})
 		leftWidth += 7
 	}
-	run := headerBadge{id: "run", label: fmt.Sprintf("STEP %d/%s  %s", m.steps, m.stepBudget(), formatElapsed(m.elapsed))}
-	runWidth := lipgloss.Width(run.label) + 2
+	run := headerBadge{ID: "run", Label: fmt.Sprintf("STEP %d/%s  %s", m.steps, m.stepBudget(), formatElapsed(m.elapsed))}
+	runWidth := lipgloss.Width(run.Label) + 2
 	showRun := leftWidth+runWidth <= width
 	available := width - leftWidth - 2
 	if showRun {
 		available -= runWidth
 	}
 	if available >= 6 {
-		candidates = append(candidates, headerBadge{id: "model", label: strings.TrimSpace(cellLine(modelLabel(m.displayedModel()), available))})
+		candidates = append(candidates, headerBadge{ID: "model", Label: strings.TrimSpace(cellLine(modelLabel(m.displayedModel()), available))})
 	}
 	if showRun {
 		candidates = append(candidates, run)
 	}
 	x := 0
 	for i := range candidates {
-		if candidates[i].id == "run" {
+		if candidates[i].ID == "run" {
 			x = width - runWidth
 		}
-		candidates[i].start = x
-		candidates[i].end = min(x+lipgloss.Width(candidates[i].label)+2, width)
-		x = candidates[i].end
+		candidates[i].Start = x
+		candidates[i].End = min(x+lipgloss.Width(candidates[i].Label)+2, width)
+		x = candidates[i].End
 	}
 	return candidates
 }
@@ -106,16 +97,16 @@ func (m *Model) badgeLine() string {
 	var out []string
 	x := 0
 	for _, b := range badges {
-		out = append(out, strings.Repeat(" ", max(b.start-x, 0)))
-		x = b.end
+		out = append(out, strings.Repeat(" ", max(b.Start-x, 0)))
+		x = b.End
 		style := normal
-		switch b.id {
+		switch b.ID {
 		case "model":
 			if !m.usage.liveModel && (m.usage.last.Model != "" || m.usage.historical) {
-				style = m.styles.dim
+				style = m.styles.Dim
 			}
 		case "steering":
-			style = m.styles.dim
+			style = m.styles.Dim
 		case "mode":
 			style = style.Foreground(lipgloss.Color(themeColor(colorMode)))
 		case "activity":
@@ -127,38 +118,39 @@ func (m *Model) badgeLine() string {
 				color = colorFailed
 			}
 			style = style.Foreground(lipgloss.Color(themeColor(color)))
-
 		}
-		if b.id == "activity" {
-			phase, context, _ := strings.Cut(b.label, "  ")
+		if b.ID == "activity" {
+			phase, context, _ := strings.Cut(b.Label, "  ")
 			contextStyle := normal
 			if m.usage.historical {
-				contextStyle = m.styles.dim
+				contextStyle = m.styles.Dim
 			} else if m.limit > 0 && float64(m.tokens)/float64(m.limit) >= 0.95 {
-				contextStyle = m.styles.err
+				contextStyle = m.styles.Err
 			} else if m.limit > 0 && float64(m.tokens)/float64(m.limit) >= 0.85 {
-				contextStyle = m.styles.warn
+				contextStyle = m.styles.Warn
 			}
-			out = append(out, style.Render(" "+phase)+m.styles.dim.Render("  ")+contextStyle.Render(context+" "))
+			out = append(out, style.Render(" "+phase)+m.styles.Dim.Render("  ")+contextStyle.Render(context+" "))
 			continue
 		}
-		out = append(out, style.Render(" "+b.label+" "))
+		out = append(out, style.Render(" "+b.Label+" "))
 	}
 	return cellLine(strings.Join(out, ""), m.transcript.Viewport.Width())
 }
 
 func (m *Model) rawHeaderItems() []menuItem {
-	if items := m.menuItems(m.header.menu); items != nil {
+	if items := m.menuItems(m.chrome.Header.Menu); items != nil {
 		return items
 	}
-	info := func(s string) menuItem { return menuItem{text: s} }
-	idle := m.state == stDone && (m.workflows == nil || !m.workflows.State().Busy)
-	switch m.header.menu {
-
+	return m.badgeItems(m.chrome.Header.Menu)
+}
+func (m *Model) badgeItems(menu string) []menuItem {
+	info := func(s string) menuItem { return menuItem{Text: s} }
+	idle := m.state == stDone
+	switch menu {
 	case "steering":
-		return []menuItem{{"Steering", "toggle-steering", true}}
+		return []menuItem{{Text: "Steering", Command: "toggle-steering", Enabled: true}}
 	case "mode":
-		return []menuItem{{"ACT   Execute changes with tools", "/mode act", idle}, {"PLAN  Read-only exploration and planning", "/mode plan", idle}}
+		return []menuItem{{Text: "ACT   Execute changes with tools", Command: "/mode act", Enabled: idle}, {Text: "PLAN  Read-only exploration and planning", Command: "/mode plan", Enabled: idle}}
 	case "activity":
 		rows := []menuItem{info("State: " + m.statusWord()), info("Elapsed: " + formatElapsed(m.elapsed)), info(m.stepLine())}
 		if m.progress.PromptTokens > 0 {
@@ -169,10 +161,10 @@ func (m *Model) rawHeaderItems() []menuItem {
 		}
 		rows = append(rows, m.contextItems()...)
 		if m.runErr != nil {
-			rows = append(rows, info("Error: "+m.runErr.Error()), menuItem{"Retry failed turn", "/retry", idle && m.retryRun != nil})
+			rows = append(rows, info("Error: "+m.runErr.Error()), menuItem{Text: "Retry failed turn", Command: "/retry", Enabled: idle && m.retryRun != nil})
 		}
 		if m.busy() {
-			rows = append(rows, menuItem{"Stop run", "stop", m.state == stRunning})
+			rows = append(rows, menuItem{Text: "Stop run", Command: "stop", Enabled: m.state == stRunning})
 		}
 		return rows
 	case "model":
@@ -198,7 +190,7 @@ func (m *Model) rawHeaderItems() []menuItem {
 }
 
 func (m *Model) contextItems() []menuItem {
-	info := func(s string) menuItem { return menuItem{text: s} }
+	info := func(s string) menuItem { return menuItem{Text: s} }
 	idle := m.state == stDone
 	rows := []menuItem{info("Context: " + strings.Replace(m.meter(), "ctx ", "", 1)), info("Source: " + nonEmpty(m.usage.source))}
 	if !m.usage.at.IsZero() {
@@ -214,264 +206,90 @@ func (m *Model) contextItems() []menuItem {
 	if m.usage.source == "Saved history estimate" {
 		rows = append(rows, info("History estimate includes images; tool schemas are excluded."))
 	}
-	return append(rows, menuItem{"Compact saved history…", "compact-session", idle && m.stateFile != ""})
+	return append(rows, menuItem{Text: "Compact saved history…", Command: "compact-session", Enabled: idle && m.stateFile != ""})
 }
 
 // Wrap informational rows so full model names, endpoints, and errors remain accessible.
 func (m *Model) headerItems() []menuItem {
-	var rows []menuItem
-	items := m.rawHeaderItems()
-	labelWidth := 0
-	for _, item := range items {
-		if label, _, ok := strings.Cut(item.text, ": "); ok && item.command == "" {
-			labelWidth = max(labelWidth, lipgloss.Width(label+":"))
-		}
-	}
-	for _, item := range items {
-		if label, value, ok := strings.Cut(item.text, ": "); ok && item.command == "" {
-			item.text = cellLine(label+":", labelWidth) + "  " + value
-		}
-		if item.command != "" {
-			rows = append(rows, item)
-			continue
-		}
-		for _, text := range strings.Split(ansi.Wrap(item.text, max(min(58, m.termW)-4, 1), ""), "\n") {
-			rows = append(rows, menuItem{text: text})
-		}
-	}
-	return rows
+	m.syncMenus()
+	return m.chrome.HeaderItems()
 }
 
-func (m *Model) closeHeader() { m.header.focused = false; m.header.menu = ""; m.header.global = false }
+func (m *Model) closeHeader() {
+	m.syncMenus()
+	m.chrome.CloseHeader()
+}
 func (m *Model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	m.normalizeHeader()
-	switch msg.String() {
-	case "ctrl+q", "f10":
+	m.syncMenus()
+	command := m.chrome.HeaderKey(msg)
+	if command == "quit" {
 		return m.requestQuit()
-	case "ctrl+c":
+	}
+	if command == "interrupt" {
 		m.quit = true
 		m.cancel()
 		return m, tea.Quit
-	case "esc":
-		m.closeHeader()
-		return m, nil
-	case "f9":
-		m.closeHeader()
-		return m, nil
-	case "left", "right":
-		delta := 1
-		if msg.String() == "left" {
-			delta = -1
-		}
-		badges := m.headerNavigation()
-		m.header.index = (m.header.index + delta + len(badges)) % len(badges)
-		if m.header.menu != "" {
-			m.header.menu = badges[m.header.index].id
-			m.header.row = m.headerActionRow(0, 1)
-		}
-	case "up", "down":
-		delta := 1
-		if msg.String() == "up" {
-			delta = -1
-		}
-		if m.header.global {
-			m.header.row = m.headerActionRow(m.header.row+delta, delta)
-		} else {
-			m.header.row = min(max(m.header.row+delta, 0), max(len(m.headerItems())-1, 0))
-		}
-	case "enter":
-		if m.header.menu == "" {
-			m.header.menu = m.headerNavigation()[min(m.header.index, len(m.headerNavigation())-1)].id
-			m.header.row = m.headerActionRow(0, 1)
-			return m, nil
-		}
-		items := m.headerItems()
-		if m.header.row >= len(items) {
-			return m, nil
-		}
-		item := items[m.header.row]
-		if item.enabled && item.command != "" {
-
-			return m.activateMenuAction(item.command)
-		}
+	}
+	if command != "" {
+		return m.activateMenuAction(command)
 	}
 	return m, nil
 }
 
 func (m *Model) headerMenuItems() []popup.MenuItem {
-	var items []popup.MenuItem
-	for _, item := range m.headerItems() {
-		_, checked := m.menuToggle(item.command)
-		items = append(items, popup.MenuItem{Label: item.text, Shortcut: menuShortcut(item.command),
-			Enabled: item.enabled && item.command != "", Checked: checked,
-			Separator: item.text == "" && item.command == "", Info: item.text != "" && item.command == ""})
-	}
-	return items
+	m.syncMenus()
+	return m.chrome.HeaderMenuItems()
 }
 
 func (m *Model) headerMenuLayout() popup.MenuLayout {
-	x := 0
-	for _, b := range m.headerNavigation() {
-		if b.id == m.header.menu || b.id == "overflow" {
-			x = b.start
-			if !m.header.global {
-				x += m.promptOffset()
-			}
-			break
-		}
-	}
-	normal, border, selected := popupStyles()
-	return popup.Menu(m.headerMenuItems(), popup.MenuProps{X: x, Y: m.headerTop(), ScreenWidth: m.termW,
-		ScreenHeight: m.termH - m.actionBarRows(), MinWidth: 24, MaxWidth: 58,
-		MaxRows: max(m.termH-m.footerRows()-5, 1), Selected: m.header.row},
-		popup.MenuStyles{Surface: popup.Styles{Normal: normal, Border: border, Selected: selected},
-			Disabled: normal.Foreground(lipgloss.Color(themeColor(colorDisabledText)))})
+	m.syncMenus()
+	return m.chrome.HeaderMenuLayout()
 }
 
 func (m *Model) headerGeometry() (x, width, capacity, offset int) {
-	l := m.headerMenuLayout()
-	return l.X, l.Width, l.Capacity, l.Offset
+	m.syncMenus()
+	return m.chrome.HeaderGeometry()
 }
 
 func (m *Model) overlayHeader(background string) string {
-	l := m.headerMenuLayout()
-	if len(l.Rows) == 0 {
-		return background
-	}
-	return popup.Overlay(background, l.Rows, l.X, l.Y, l.Width, m.termW)
+	m.syncMenus()
+	return m.chrome.OverlayHeader(background)
 }
 
 func (m *Model) headerMouse(msg tea.MouseMsg) (bool, tea.Cmd) {
-	mouse := msg.Mouse()
-	if mouse.Button == tea.MouseLeft && isMouseClick(msg) && mouse.Y == 0 {
-		for i, cell := range m.menuCells() {
-			if mouse.X >= cell.start && mouse.X < cell.end {
-				if !cell.action.enabled {
-					return true, nil
-				}
-				m.header = headerState{focused: true, global: true, index: i, menu: cell.action.name}
-				m.header.row = m.headerActionRow(0, 1)
-				return true, nil
-			}
-		}
+	m.syncMenus()
+	handled, command := m.chrome.HeaderMouse(msg)
+	if command != "" {
+		_, cmd := m.activateMenuAction(command)
+		return handled, cmd
 	}
-
-	if m.dialog != nil || m.sessions != nil || m.state == stAsk || m.state == stPermission {
-		return false, nil
-	}
-	if m.actionBarVisible() && mouse.Y >= m.termH-m.actionBarRows() {
-		return false, nil
-	}
-
-	if m.header.menu != "" {
-		layout := m.headerMenuLayout()
-		if mouse.Button == tea.MouseLeft && isMouseClick(msg) {
-			if row := layout.Hit(mouse.X, mouse.Y); row >= 0 {
-				m.header.row = row
-				_, cmd := m.headerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-				return true, cmd
-			}
-			if !layout.Contains(mouse.X, mouse.Y) {
-				m.closeHeader()
-			}
-		}
-		if layout.Contains(mouse.X, mouse.Y) {
-			if mouse.Button == tea.MouseWheelUp {
-				m.header.row = m.headerActionRow(m.header.row-1, -1)
-			}
-			if mouse.Button == tea.MouseWheelDown {
-				m.header.row = m.headerActionRow(m.header.row+1, 1)
-			}
-		}
-		return true, nil
-	}
-
-	if m.header.focused && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
-		m.closeHeader()
-		return true, nil
-	}
-	return false, nil
+	return handled, nil
 }
 
 func (m *Model) normalizeHeader() {
-	m.header.index = min(max(m.header.index, 0), len(m.headerNavigation())-1)
-	m.header.row = min(max(m.header.row, 0), max(len(m.headerItems())-1, 0))
+	m.syncMenus()
+	m.chrome.NormalizeHeader()
 }
 
 func (m *Model) menuCells() []footerCell {
-	enabled := m.dialog == nil && m.sessions == nil && m.state != stPermission && m.state != stAsk
-	x := 1
-	var cells []footerCell
-	menus := m.visibleMenus()
-	for _, menu := range menus {
-		if x >= m.termW-1 {
-			break
-		}
-		end := min(x+lipgloss.Width(menu.label)+2, m.termW-1)
-		cells = append(cells, footerCell{action: footerAction{name: menu.id, label: menu.label, enabled: enabled}, start: x, end: end})
-		x = end + 1
-	}
-	return cells
+	m.syncMenus()
+	return m.chrome.MenuCells()
 }
 func (m *Model) headerNavigation() []headerBadge {
-	if !m.header.global {
-		return m.headerBadges()
-	}
-	var badges []headerBadge
-	for _, cell := range m.menuCells() {
-		badges = append(badges, headerBadge{id: cell.action.name, label: cell.action.label, start: cell.start, end: cell.end})
-	}
-	return badges
+	m.syncMenus()
+	return m.chrome.HeaderNavigation()
 }
 func (m *Model) menuLine() string {
-	normal, _, selected := popupStyles()
-	line := ""
-	for i, cell := range m.menuCells() {
-		line += normal.Render(strings.Repeat(" ", max(cell.start-lipgloss.Width(line), 0)))
-		label := cellLine(" "+cell.action.label, cell.end-cell.start)
-		if !cell.action.enabled {
-			label = normal.Foreground(lipgloss.Color(themeColor(colorDisabledText))).Render(label)
-		} else if m.header.focused && m.header.global && m.header.index == i {
-			label = selected.Render(label)
-		} else {
-			label = normal.Render(label)
-		}
-		line += label
-	}
-	// Session identity lives opposite the menus, leaving run metrics intact.
-	identity := m.activeSessionTitle()
-	if m.stateFile != "" {
-		identity = filepath.Base(filepath.Dir(m.stateFile)) + " · " + identity
-	}
-	if m.ws != nil {
-		identity = filepath.Base(m.ws.Root()) + " · " + identity
-	}
-	if m.workflowActive() {
-		identity = filepath.Base(m.wsRoot)
-	}
-	available := m.termW - lipgloss.Width(line) - 3
-	if available >= 12 {
-		identity = strings.TrimSpace(cellLine(identity, available))
-		line += normal.Render(strings.Repeat(" ", max(m.termW-lipgloss.Width(line)-lipgloss.Width(identity)-1, 0)))
-		line += normal.Foreground(lipgloss.Color(themeColor(colorSecondaryText))).Render(identity)
-	}
-	return line + normal.Render(strings.Repeat(" ", max(m.termW-lipgloss.Width(line), 0)))
+	m.syncMenus()
+	return m.chrome.MenuLine()
 }
 
 func (m *Model) headerTop() int {
-	if m.header.global {
-		return 1
-	}
-	return 3
+	m.syncMenus()
+	return m.chrome.HeaderTop()
 }
 
 func (m *Model) headerActionRow(start, delta int) int {
-	items := m.headerItems()
-	if len(items) == 0 {
-		return 0
-	}
-	if !m.header.global {
-		return min(max(start, 0), len(items)-1)
-	}
-	return popup.MenuNext(m.headerMenuItems(), start, delta)
+	m.syncMenus()
+	return m.chrome.HeaderActionRow(start, delta)
 }

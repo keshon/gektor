@@ -12,22 +12,22 @@ import (
 
 func (m *Model) stagedSettings() (config.Profile, error) {
 	m.storeSettingsPage()
-	return m.dialog.form.EditSession.Draft.Resolve()
+	return m.chrome.Dialog.Form.EditSession.Draft.Resolve()
 }
 func (m *Model) saveSettingsCopy() {
 	p, err := m.stagedSettings()
 	if err != nil {
-		m.dialog.form.Error = err.Error()
+		m.chrome.Dialog.Form.Error = err.Error()
 		return
 	}
 	name := "custom"
-	for _, field := range m.dialog.form.Fields {
+	for _, field := range m.chrome.Dialog.Form.Fields {
 		if field.Key == "profile-name" {
 			name = strings.TrimSpace(field.Value)
 		}
 	}
 	if name == "" || strings.ContainsAny(name, "/\\:") || name == "." || name == ".." {
-		m.dialog.form.Error = "Use a profile name without directory separators"
+		m.chrome.Dialog.Form.Error = "Use a profile name without directory separators"
 		return
 	}
 	if !strings.HasSuffix(strings.ToLower(name), ".json") {
@@ -37,24 +37,24 @@ func (m *Model) saveSettingsCopy() {
 	root := filepath.Join(filepath.Dir(exe), "profiles")
 	path := filepath.Join(root, name)
 	if err := config.SaveCopy(p, path); err != nil {
-		m.dialog.form.Error = err.Error()
+		m.chrome.Dialog.Form.Error = err.Error()
 		return
 	}
-	m.dialog.form.Error = "Saved copy: " + path
+	m.chrome.Dialog.Form.Error = "Saved copy: " + path
 }
 
 type settingsDetailMsg = settings.DetailMsg
 
 func (m *Model) queueSettingsDetail() {
-	if m.dialog != nil && m.dialog.form != nil {
-		if cmd := m.dialog.form.DetailCommand(); cmd != nil {
+	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil {
+		if cmd := m.chrome.Dialog.Form.DetailCommand(); cmd != nil {
 			m.pendingCommands = append(m.pendingCommands, cmd)
 		}
 	}
 }
 func (m *Model) acceptSettingsDetail(msg settingsDetailMsg) {
-	if m.dialog != nil && m.dialog.form != nil {
-		m.dialog.form.AcceptDetail(msg)
+	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil {
+		m.chrome.Dialog.Form.AcceptDetail(msg)
 	}
 }
 func (m *Model) saveCustomSettings(profile config.Profile) error {
@@ -66,7 +66,7 @@ func (m *Model) saveCustomSettings(profile config.Profile) error {
 	if err != nil {
 		return fmt.Errorf("save custom profile: %w", err)
 	}
-	ws := m.dialog.form.EditSession
+	ws := m.chrome.Dialog.Form.EditSession
 	ws.LoadedPath = path
 	return nil
 }
@@ -74,10 +74,10 @@ func (m *Model) saveCustomSettings(profile config.Profile) error {
 // customProfileTarget reports where a changed form should be saved: the
 // custom directory, and the currently loaded profile to reuse its name.
 func (m *Model) customProfileTarget() (dir, source string, ok bool) {
-	if m.application == nil || m.application.PreferencePath == "" || m.dialog == nil || m.dialog.form == nil || m.dialog.form.EditSession == nil {
+	if m.application == nil || m.application.PreferencePath == "" || m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil || m.chrome.Dialog.Form.EditSession == nil {
 		return "", "", false
 	}
-	ws := m.dialog.form.EditSession
+	ws := m.chrome.Dialog.Form.EditSession
 	changed := ws.PersistCurrent
 	for _, section := range ws.Draft.ChangedSections() {
 		if section != "profiles" && section != "workspace" {

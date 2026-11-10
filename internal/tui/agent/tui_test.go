@@ -26,11 +26,13 @@ import (
 	"github.com/keshon/gektor/internal/permissionlog"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/tools"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
 func testModel() *Model {
 	m := &Model{
+		chrome:     &screen.Controls{},
 		events:     make(chan events.Event, 16),
 		hub:        harness.NewGateHub(nil),
 		cancel:     func() {},
@@ -43,6 +45,7 @@ func testModel() *Model {
 	m.input = newInput()
 	m.input.Prompt = "> "
 	m.input.Focus()
+	m.bindControls()
 	return m
 }
 
@@ -364,10 +367,10 @@ func TestCommand_HelpAndUnknown(t *testing.T) {
 	if mm.quit || mm.state != stDone {
 		t.Fatalf("help must not quit or resume: quit=%v state=%v", mm.quit, mm.state)
 	}
-	if mm.dialog == nil || !mm.dialog.help {
+	if mm.chrome.Dialog == nil || !mm.chrome.Dialog.Help {
 		t.Fatal("/help must open the shared help modal")
 	}
-	mm.dialog.page = 3
+	mm.chrome.Dialog.Page = 3
 	for _, want := range []string{"/help", "/sessions"} {
 		if !strings.Contains(mm.dialogView(), want) {
 			t.Fatalf("help missing %q", want)
@@ -758,7 +761,7 @@ func TestDialogQDoesNotClose(t *testing.T) {
 	m.state = stDone
 	m.openDialog("help", helpText())
 	updated, _ := m.Update(keyRunes('q'))
-	if mm := updated.(*Model); mm.dialog == nil {
+	if mm := updated.(*Model); mm.chrome.Dialog == nil {
 		t.Fatal("q must not close the dialog")
 	}
 }
@@ -817,8 +820,8 @@ func TestActivityBadgeAnimatesOnlyWhileRunning(t *testing.T) {
 	m := sizeModel(t, testModel())
 	activity := func() string {
 		for _, b := range m.headerBadges() {
-			if b.id == "activity" {
-				return b.label
+			if b.ID == "activity" {
+				return b.Label
 			}
 		}
 		return ""
@@ -1025,7 +1028,7 @@ func TestHelpMentionsThinkKey(t *testing.T) {
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	updated, _ = updated.(*Model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*Model)
-	mm.dialog.page = 1
+	mm.chrome.Dialog.Page = 1
 	if !strings.Contains(mm.dialogView(), "Ctrl+G") {
 		t.Fatal("help must document the think key")
 	}
@@ -1438,7 +1441,7 @@ func TestStatusPostsToHistory(t *testing.T) {
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	updated, _ = updated.(*Model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*Model)
-	if mm.dialog != nil {
+	if mm.chrome.Dialog != nil {
 		t.Fatal("status must post to history, not a modal")
 	}
 	view := mm.transcript.Viewport.View()
@@ -1501,7 +1504,7 @@ func TestStartRunClosesDialog(t *testing.T) {
 		t.Fatal("setup: dialog must push")
 	}
 	m.startRun(func(ctx context.Context) (string, error) { return "done", nil })
-	if m.dialog != nil || len(m.overlays) != 0 {
+	if m.chrome.Dialog != nil || len(m.overlays) != 0 {
 		t.Fatal("run start must close the dialog")
 	}
 }
@@ -2353,7 +2356,7 @@ func TestHeaderDetailsShowStepBudget(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.steps = 7
 	m.maxSteps = 40
-	m.header.menu = "run"
+	m.chrome.Header.Menu = "run"
 	if joined := headerText(m.headerItems()); !strings.Contains(joined, "7/40") {
 		t.Fatalf("header details missing step budget: %q", joined)
 	}
@@ -2365,7 +2368,7 @@ func TestHeaderDetailsShowFirstToken(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stRunning
 	m.started = time.Now().Add(-100 * time.Second)
-	m.header.menu = "run"
+	m.chrome.Header.Menu = "run"
 	if got := headerText(m.headerItems()); strings.Contains(got, "First token") {
 		t.Fatalf("details show a first token before one arrived: %q", got)
 	}
@@ -2378,7 +2381,7 @@ func TestHeaderDetailsShowFirstToken(t *testing.T) {
 func headerText(items []menuItem) string {
 	var b strings.Builder
 	for _, item := range items {
-		b.WriteString(item.text + "\n")
+		b.WriteString(item.Text + "\n")
 	}
 	return b.String()
 }

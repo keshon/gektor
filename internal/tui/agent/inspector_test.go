@@ -34,7 +34,7 @@ func TestInspectorRemainsVisibleBehindMainMenu(t *testing.T) {
 			beforeWidth := m.mainWidth()
 			beforeOffset := m.inspector.pane.Viewport.YOffset()
 			for _, menu := range []string{"session", "execution", "view", "settings", "help"} {
-				m.header = headerState{focused: true, global: true, menu: menu}
+				m.chrome.Header = headerState{Focused: true, Global: true, Menu: menu}
 				m.fitBottom()
 				view := ansi.Strip(m.View().Content)
 				if !m.inspectorVisible() || m.mainWidth() != beforeWidth || !strings.Contains(view, "line of output") {
@@ -84,7 +84,7 @@ func TestInspectorScrollbarMouseMatchesBothLayouts(t *testing.T) {
 				t.Fatal("drag outside pane did not reach bottom")
 			}
 			m.handleMouse(tea.MouseReleaseMsg{X: 0, Y: m.termH + 4, Button: tea.MouseLeft})
-			if m.inspector.drag.active || m.transcript.Viewport.YOffset() != parent {
+			if m.inspector.drag.Active || m.transcript.Viewport.YOffset() != parent {
 				t.Fatal("drag leaked into parent")
 			}
 		}
@@ -275,7 +275,7 @@ func TestInspectorMouseUsesRenderedToolRowsAndCloseButton(t *testing.T) {
 		t.Fatal("tool click did not open inspector")
 	}
 	m.Update(tea.MouseClickMsg{X: 118, Y: 2, Button: tea.MouseLeft})
-	if m.inspectorVisible() || m.header.menu != "" {
+	if m.inspectorVisible() || m.chrome.Header.Menu != "" {
 		t.Fatal("close click reached header")
 	}
 }

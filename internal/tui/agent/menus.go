@@ -1,108 +1,74 @@
 package agent
 
 import (
-	"charm.land/lipgloss/v2"
-
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/settings"
-	workflowui "github.com/keshon/gektor/internal/tui/workflow"
 )
 
-type menuItem struct {
-	text, command string
-	enabled       bool
-}
+type menuItem = screen.MenuItem
 
-type menuDefinition struct{ id, label string }
+type menuDefinition = screen.Menu
 
 // menuDefinitions describes application navigation independently of header layout.
 func (m *Model) menuDefinitions() []menuDefinition {
-	menus := []menuDefinition{{"app", "GEKTOR"}}
-	if m.workflowActive() {
-		for _, menu := range workflowui.Menus() {
-			menus = append(menus, menuDefinition{id: menu.ID, label: menu.Label})
-		}
-	} else {
-		menus = append(menus, menuDefinition{"session", "Session"})
-	}
-	return append(menus, menuDefinition{"execution", "Run"}, menuDefinition{"view", "View"}, menuDefinition{"settings", "Settings"}, menuDefinition{"help", "Help"})
+	menus := []menuDefinition{{ID: "app", Label: "GEKTOR"}}
+	menus = append(menus, menuDefinition{ID: "session", Label: "Session"})
+	return append(menus, menuDefinition{ID: "execution", Label: "Run"}, menuDefinition{ID: "view", Label: "View"}, menuDefinition{ID: "settings", Label: "Settings"}, menuDefinition{ID: "help", Label: "Help"})
 }
 
 // A narrow terminal keeps every menu reachable through More rather than clipping it.
 func (m *Model) visibleMenus() []menuDefinition {
-	menus := m.menuDefinitions()
-	width := 1
-	for _, menu := range menus {
-		width += lipgloss.Width(menu.label) + 3
-	}
-	if width <= m.termW {
-		return menus
-	}
-	used, count := 1, 0
-	for _, menu := range menus {
-		if used+lipgloss.Width(menu.label)+3+lipgloss.Width("More…")+3 > m.termW {
-			break
-		}
-		used += lipgloss.Width(menu.label) + 3
-		count++
-	}
-	return append(menus[:count:count], menuDefinition{"overflow", "More…"})
+	m.syncMenus()
+	return m.chrome.VisibleMenus()
 }
 
 func (m *Model) menuItems(menu string) []menuItem {
-	if m.workflows != nil && (m.workflowActive() || menu == "recipe" || menu == "node") {
-		if items := m.workflows.MenuItems(menu, m.state == stDone); items != nil {
-			rows := make([]menuItem, 0, len(items))
-			for _, item := range items {
-				rows = append(rows, menuItem{text: item.Text, command: item.Command, enabled: item.Enabled})
-			}
-			return rows
-		}
-	}
-
-	idle := m.state == stDone && (m.workflows == nil || !m.workflows.State().Busy)
+	idle := m.state == stDone
 	sep := menuItem{}
 	switch menu {
 	case "overflow":
 		visible := map[string]bool{}
 		for _, item := range m.visibleMenus() {
-			visible[item.id] = true
+			visible[item.ID] = true
 		}
 		var rows []menuItem
 		for _, item := range m.menuDefinitions() {
-			if !visible[item.id] {
-				rows = append(rows, menuItem{item.label, "menu:" + item.id, true})
+			if !visible[item.ID] {
+				rows = append(rows, menuItem{Text: item.Label, Command: "menu:" + item.ID, Enabled: true})
 			}
 		}
 		return rows
 	case "app":
-		return []menuItem{{"Agent", "screen:agent", idle}, {"Workflows", "screen:workflows", idle}, sep,
-			{"Change workspace…", "workspace", idle && m.application != nil}, sep, {"Quit", "quit", true}}
+		return []menuItem{{Text: "Agent", Command: "screen:agent", Enabled: idle}, {Text: "Workflows", Command: "screen:workflows", Enabled: idle}, sep,
+			{Text: "Change workspace…", Command: "workspace", Enabled: idle && m.application != nil}, sep, {Text: "Quit", Command: "quit", Enabled: true}}
 	case "session":
 		saved := idle && m.stateFile != ""
-		return append([]menuItem{{"New session", "/new", idle}, {"Open session…", "/sessions", true},
-			{"Rename session…", "rename-current", saved}, {"Delete session…", "delete-current", saved}, sep,
-			{"Compact history…", "compact-session", saved}, sep}, m.sessionCopyItems()...)
+		return append([]menuItem{{Text: "New session", Command: "/new", Enabled: idle}, {Text: "Open session…", Command: "/sessions", Enabled: true},
+			{Text: "Rename session…", Command: "rename-current", Enabled: saved}, {Text: "Delete session…", Command: "delete-current", Enabled: saved}, sep,
+			{Text: "Compact history…", Command: "compact-session", Enabled: saved}, sep}, m.sessionCopyItems()...)
 	case "execution":
-		return []menuItem{{"Plan — read-only", "/mode plan", idle}, {"Act — allow changes", "/mode act", idle}, sep,
-			{"Stop run", "stop", m.state == stRunning}, {"Retry failed turn", "/retry", idle && m.runErr != nil && m.retryRun != nil}, sep,
-			{"Message queue…", "message-queue", true}, {"Background processes…", "/processes", true}, {"Apply new messages during run", "toggle-steering", true}}
+		return []menuItem{{Text: "Plan — read-only", Command: "/mode plan", Enabled: idle}, {Text: "Act — allow changes", Command: "/mode act", Enabled: idle}, sep,
+			{Text: "Stop run", Command: "stop", Enabled: m.state == stRunning}, {Text: "Retry failed turn", Command: "/retry", Enabled: idle && m.runErr != nil && m.retryRun != nil}, sep,
+			{Text: "Message queue…", Command: "message-queue", Enabled: true}, {Text: "Background processes…", Command: "/processes", Enabled: true}, {Text: "Apply new messages during run", Command: "toggle-steering", Enabled: true}}
 	case "view":
-		return []menuItem{{"Thinking", "toggle-details", true}, {"Tool calls", "toggle-tools", true}, {"System messages", "toggle-sys", true},
-			{"Speaker names", "toggle-names", true}, {"Message labels", "toggle-labels", true}, sep, {"Jump to latest", "latest", true}}
+		return []menuItem{{Text: "Thinking", Command: "toggle-details", Enabled: true}, {Text: "Tool calls", Command: "toggle-tools", Enabled: true}, {Text: "System messages", Command: "toggle-sys", Enabled: true},
+			{Text: "Speaker names", Command: "toggle-names", Enabled: true}, {Text: "Message labels", Command: "toggle-labels", Enabled: true}, sep, {Text: "Jump to latest", Command: "latest", Enabled: true}}
 	case "settings":
 		editable := idle && m.config != nil
-		section := func(id string) menuItem { return menuItem{settings.SectionTitle(id) + "…", "edit:" + id, editable} }
+		section := func(id string) menuItem {
+			return menuItem{Text: settings.SectionTitle(id) + "…", Command: "edit:" + id, Enabled: editable}
+		}
 		rows := []menuItem{section("model"), section("generation"), section("profiles")}
 		if m.config != nil {
 			rows = append(rows, sep, section("you"), section("prompts"))
 		}
-		return append(rows, sep, menuItem{"Permissions…", "permissions-info", true}, menuItem{"MCP servers…", "/mcp", true}, sep, menuItem{"Appearance…", "appearance", true})
+		return append(rows, sep, menuItem{Text: "Permissions…", Command: "permissions-info", Enabled: true}, menuItem{Text: "MCP servers…", Command: "/mcp", Enabled: true}, sep, menuItem{Text: "Appearance…", Command: "appearance", Enabled: true})
 	case "help":
-		rows := []menuItem{{"Keyboard shortcuts", "help-keys", true}, {"Commands", "help-commands", true}}
+		rows := []menuItem{{Text: "Keyboard shortcuts", Command: "help-keys", Enabled: true}, {Text: "Commands", Command: "help-commands", Enabled: true}}
 		if m.config != nil {
-			rows = append(rows, menuItem{"Inspect agent instructions…", "prompt-info", true})
+			rows = append(rows, menuItem{Text: "Inspect agent instructions…", Command: "prompt-info", Enabled: true})
 		}
-		return append(rows, sep, menuItem{"About GEKTOR", "about", true})
+		return append(rows, sep, menuItem{Text: "About GEKTOR", Command: "about", Enabled: true})
 	}
 	return nil
 }
@@ -118,12 +84,6 @@ func (m *Model) menuItems(menu string) []menuItem {
 // on is the state the label names, not the state a toggle flips to: the
 // mark on "System messages" means scaffolding history is visible.
 func (m *Model) menuToggle(command string) (toggle, on bool) {
-	if m.workflows != nil {
-		if toggle, on := m.workflows.MenuToggle(command); toggle {
-			return toggle, on
-		}
-	}
-
 	switch command {
 	case "toggle-steering":
 		return true, m.steering
@@ -138,9 +98,9 @@ func (m *Model) menuToggle(command string) (toggle, on bool) {
 	case "toggle-tools":
 		return true, !m.hideTools
 	case "screen:agent":
-		return true, !m.workflowActive()
+		return true, true
 	case "screen:workflows":
-		return true, m.workflowActive()
+		return true, false
 	case "/mode plan":
 		return true, m.plan
 	case "/mode act":
@@ -152,10 +112,6 @@ func (m *Model) menuToggle(command string) (toggle, on bool) {
 // menuShortcut names the key that reaches a menu row without opening
 // the menu. A row with no shortcut still works by click.
 func menuShortcut(command string) string {
-	if key := workflowui.MenuShortcut(command); key != "" {
-		return key
-	}
-
 	switch command {
 	case "screen:agent":
 		return ""

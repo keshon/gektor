@@ -9,6 +9,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/tui/components/transcript"
 )
 
@@ -184,7 +185,7 @@ func toolState(b block) transcript.ActionState {
 }
 
 func toolActionStyles(st styles) transcript.ActionStyles {
-	return transcript.ActionStyles{Secondary: st.dim, Success: st.add, Warning: st.warn, Error: st.err}
+	return transcript.ActionStyles{Secondary: st.Dim, Success: st.Add, Warning: st.Warn, Error: st.Err}
 }
 
 func compactTool(b block, st styles, width int) string {
@@ -221,16 +222,16 @@ func receiptText(raw string, st styles, width int) []string {
 	}
 	style := lipgloss.NewStyle()
 	if outcome == "failed" {
-		style = st.err
+		style = st.Err
 	} else if outcome == "cancelled" || outcome == "incomplete" {
-		style = st.warn
+		style = st.Warn
 	}
 	checks := fields["checks"]
 	meta := "Verification recorded"
 	if checks == "" || checks == "no current command verdict" {
 		meta = "No verification result"
 	}
-	rows := []string{snippetRow(style.Render(title), st.dim.Render(meta), width), ""}
+	rows := []string{snippetRow(style.Render(title), st.Dim.Render(meta), width), ""}
 	details := []string{}
 	for _, field := range []struct{ key, label string }{{"summary", "Progress"}, {"warnings", "Warning"}, {"open_todos", "Remaining"}} {
 		if value := fields[field.key]; value != "" {
@@ -254,7 +255,7 @@ func receiptText(raw string, st styles, width int) []string {
 	for _, detail := range details {
 		for _, line := range strings.Split(detail, "\n") {
 			for _, fragment := range reflow(line, max(width, 1)) {
-				rows = append(rows, st.dim.Render(fragment))
+				rows = append(rows, st.Dim.Render(fragment))
 			}
 		}
 	}

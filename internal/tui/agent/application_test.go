@@ -40,14 +40,14 @@ func TestSettingsApplyQueuesRestartWithContextAndDraft(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.editSettings("model")
-	if m.dialog == nil || m.dialog.form.EditSession.Section != "model" {
+	if m.chrome.Dialog == nil || m.chrome.Dialog.Form.EditSession.Section != "model" {
 		t.Fatal("model editor unavailable")
 	}
 	focusSetting(m, "model")
-	m.dialog.form.Editor.SetValue("another-model")
+	m.chrome.Dialog.Form.Editor.SetValue("another-model")
 	m.applyForm()
-	if m.dialog != nil {
-		t.Fatalf("apply refused: %q", m.dialog.form.Error)
+	if m.chrome.Dialog != nil {
+		t.Fatalf("apply refused: %q", m.chrome.Dialog.Form.Error)
 	}
 	if m.modeChange == nil {
 		t.Fatal("apply did not queue a restart")
@@ -78,13 +78,13 @@ func TestWorkspacePageRetainsStagedModelAndSession(t *testing.T) {
 	m.application.Preferences.Workspace = original
 	m.editSettings("model")
 	focusSetting(m, "model")
-	m.dialog.form.Editor.SetValue("selected-model")
+	m.chrome.Dialog.Form.Editor.SetValue("selected-model")
 	m.editSettings("workspace")
 	focusSetting(m, "app-workspace")
-	m.dialog.form.Editor.SetValue(t.TempDir())
+	m.chrome.Dialog.Form.Editor.SetValue(t.TempDir())
 	m.applyForm()
-	if m.dialog != nil {
-		t.Fatalf("apply refused: %q", m.dialog.form.Error)
+	if m.chrome.Dialog != nil {
+		t.Fatalf("apply refused: %q", m.chrome.Dialog.Form.Error)
 	}
 	if m.modeChange == nil {
 		t.Fatal("apply did not queue a restart")
@@ -103,9 +103,9 @@ func TestWorkspacePageRejectsAMissingWorkspace(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("workspace")
 	focusSetting(m, "app-workspace")
-	m.dialog.form.Editor.SetValue(filepath.Join(t.TempDir(), "does-not-exist"))
+	m.chrome.Dialog.Form.Editor.SetValue(filepath.Join(t.TempDir(), "does-not-exist"))
 	m.applyForm()
-	if m.dialog == nil || m.dialog.form.Error == "" {
+	if m.chrome.Dialog == nil || m.chrome.Dialog.Form.Error == "" {
 		t.Fatal("a missing workspace was accepted")
 	}
 	if m.modeChange != nil {
@@ -143,7 +143,7 @@ func TestSharedSettingsPreview(t *testing.T) {
 		}
 	}
 	m.closeDialog()
-	m.header = headerState{global: true, focused: true, menu: "settings"}
+	m.chrome.Header = headerState{Global: true, Focused: true, Menu: "settings"}
 	if err := os.WriteFile(filepath.Join(dir, "shared-agent-menu.txt"), []byte(ansi.Strip(m.View().Content)), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +217,7 @@ func TestUnchangedSettingsDoNotRestart(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("model")
 	m.applyForm()
-	if m.modeChange != nil || m.dialog == nil {
+	if m.modeChange != nil || m.chrome.Dialog == nil {
 		t.Fatal("an unchanged draft restarted the launch")
 	}
 }

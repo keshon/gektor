@@ -24,7 +24,7 @@ func TestHeaderMenusPreserveDraftAndFrame(t *testing.T) {
 		m.fitBottom()
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyF9})
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-		if m.header.menu != "app" {
+		if m.chrome.Header.Menu != "app" {
 			t.Fatal("session menu not opened")
 		}
 		for _, row := range strings.Split(m.View().Content, "\n") {
@@ -35,7 +35,7 @@ func TestHeaderMenusPreserveDraftAndFrame(t *testing.T) {
 		m.handleKey(tea.KeyPressMsg{Code: 'x', Text: "x"})
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
-		if m.header.focused || m.input.Value() != "draft\nsecond line" {
+		if m.chrome.Header.Focused || m.input.Value() != "draft\nsecond line" {
 			t.Fatal("header altered draft or retained focus")
 		}
 	}
@@ -44,14 +44,14 @@ func TestHeaderMenusPreserveDraftAndFrame(t *testing.T) {
 func TestHeaderMouseActionsAndGateIsolation(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	m.Update(tea.MouseClickMsg{X: m.promptOffset() + m.headerBadges()[0].start + 1, Y: 2, Button: tea.MouseLeft})
-	if m.header.menu != "" || m.header.focused {
+	m.Update(tea.MouseClickMsg{X: m.promptOffset() + m.headerBadges()[0].Start + 1, Y: 2, Button: tea.MouseLeft})
+	if m.chrome.Header.Menu != "" || m.chrome.Header.Focused {
 		t.Fatal("status labels opened a dropdown")
 	}
 	m.state = stPermission
-	m.Update(tea.MouseClickMsg{X: m.promptOffset() + m.headerBadges()[0].start + 1, Y: 2, Button: tea.MouseLeft})
+	m.Update(tea.MouseClickMsg{X: m.promptOffset() + m.headerBadges()[0].Start + 1, Y: 2, Button: tea.MouseLeft})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF9})
-	if m.header.focused {
+	if m.chrome.Header.Focused {
 		t.Fatal("header hid permission prompt")
 	}
 }
@@ -110,11 +110,11 @@ func TestHeaderModelUsesSpaceAndRunIsRightAligned(t *testing.T) {
 		}
 		previousEnd := 0
 		for _, b := range m.headerBadges() {
-			if b.start < previousEnd || b.end > m.transcript.Viewport.Width() {
+			if b.Start < previousEnd || b.End > m.transcript.Viewport.Width() {
 				t.Fatalf("overlapping or overflowing badge: %+v", b)
 			}
-			previousEnd = b.end
-			if b.id == "run" && (b.end != m.transcript.Viewport.Width() || !strings.HasSuffix(line, b.label+" ")) {
+			previousEnd = b.End
+			if b.ID == "run" && (b.End != m.transcript.Viewport.Width() || !strings.HasSuffix(line, b.Label+" ")) {
 				t.Fatalf("run not right aligned: %q %+v", line, b)
 			}
 		}
@@ -154,18 +154,18 @@ func TestHeaderEndpointSanitizationAndLongDetails(t *testing.T) {
 	}
 	m := sizeModel(t, testModel())
 	m.width(tea.WindowSizeMsg{Width: 40, Height: 14})
-	m.header.menu = "model"
+	m.chrome.Header.Menu = "model"
 	m.modelName = strings.Repeat("long-model-", 10)
-	m.header.focused = true
+	m.chrome.Header.Focused = true
 	items := m.headerItems()
 	var joined string
 	for _, item := range items {
-		joined += item.text
+		joined += item.Text
 	}
 	if !strings.Contains(joined, m.modelName) {
 		t.Fatal("long model lost from details")
 	}
-	m.header.row = len(items) - 1
+	m.chrome.Header.Row = len(items) - 1
 	rows := strings.Split(m.overlayHeader(m.View().Content), "\n")
 	if len(rows) != 14 {
 		t.Fatal("menu changed frame height")
@@ -177,17 +177,17 @@ func TestHeaderStopWorksFromSessionPaneAndGateClosesMenu(t *testing.T) {
 	m.state = stRunning
 	cancelled := false
 	m.cancel = func() { cancelled = true }
-	m.header.focused = true
-	m.header.menu = "activity"
-	m.header.row = len(m.headerItems()) - 1
+	m.chrome.Header.Focused = true
+	m.chrome.Header.Menu = "activity"
+	m.chrome.Header.Row = len(m.headerItems()) - 1
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if !cancelled || m.state != stStopping || !m.interrupted {
 		t.Fatal("Stop action was routed to the session pane")
 	}
-	m.header.focused = true
-	m.header.menu = "model"
+	m.chrome.Header.Focused = true
+	m.chrome.Header.Menu = "model"
 	m.handleEvent(events.Event{Name: "awaiting_input", Fields: map[string]any{"kind": "ask", "prompt": "Confirm?"}})
-	if m.header.focused || m.header.menu != "" {
+	if m.chrome.Header.Focused || m.chrome.Header.Menu != "" {
 		t.Fatal("menu obscured new gate")
 	}
 }
@@ -195,28 +195,28 @@ func TestHeaderStopWorksFromSessionPaneAndGateClosesMenu(t *testing.T) {
 func TestHeaderDetailColumns(t *testing.T) {
 	m := sizeModel(t, testModel())
 	for _, menu := range []string{"activity", "model", "context", "run"} {
-		m.header.menu = menu
+		m.chrome.Header.Menu = menu
 		column := -1
 		for _, item := range m.headerItems() {
-			colon := strings.Index(item.text, ":")
-			if colon < 0 || item.command != "" {
+			colon := strings.Index(item.Text, ":")
+			if colon < 0 || item.Command != "" {
 				continue
 			}
 			value := colon + 1
-			for value < len(item.text) && item.text[value] == ' ' {
+			for value < len(item.Text) && item.Text[value] == ' ' {
 				value++
 			}
 			if column < 0 {
 				column = value
 			}
 			if value != column {
-				t.Fatalf("%s: uneven value column: %q", menu, item.text)
+				t.Fatalf("%s: uneven value column: %q", menu, item.Text)
 			}
 		}
 	}
-	m.header.menu = "context"
+	m.chrome.Header.Menu = "context"
 	m.tokens, m.limit, m.tokensEst = 100, 1000, true
-	if got := m.headerItems()[0].text; !strings.HasPrefix(got, "Context:") || strings.Contains(got, "ctx") {
+	if got := m.headerItems()[0].Text; !strings.HasPrefix(got, "Context:") || strings.Contains(got, "ctx") {
 		t.Fatalf("context label: %q", got)
 	}
 }
@@ -226,21 +226,21 @@ func TestHeaderDetailColumns(t *testing.T) {
 // different kinds of thing.
 func TestViewMenuZonesAndItems(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 80, 30)
-	m.header.menu = "view"
+	m.chrome.Header.Menu = "view"
 	items := m.headerItems()
 	want := []string{"Thinking", "Tool calls", "System messages", "Speaker names", "Message labels", "", "Jump to latest"}
 	if len(items) != len(want) {
 		t.Fatalf("view menu has %d rows, want %d: %+v", len(items), len(want), items)
 	}
 	for i, w := range want {
-		if items[i].text != w {
-			t.Fatalf("row %d = %q, want %q", i, items[i].text, w)
+		if items[i].Text != w {
+			t.Fatalf("row %d = %q, want %q", i, items[i].Text, w)
 		}
 	}
 	// Exactly one separator, between the toggles and the commands.
 	sep := -1
 	for i, item := range items {
-		if item.text == "" && item.command == "" {
+		if item.Text == "" && item.Command == "" {
 			sep = i
 		}
 	}
@@ -249,8 +249,8 @@ func TestViewMenuZonesAndItems(t *testing.T) {
 	}
 	cmds := []string{"toggle-details", "toggle-tools", "toggle-sys", "toggle-names", "toggle-labels", "", "latest"}
 	for i, c := range cmds {
-		if items[i].command != c {
-			t.Fatalf("row %d command = %q, want %q", i, items[i].command, c)
+		if items[i].Command != c {
+			t.Fatalf("row %d command = %q, want %q", i, items[i].Command, c)
 		}
 	}
 }
@@ -260,7 +260,7 @@ func TestViewMenuZonesAndItems(t *testing.T) {
 // the opposite of the truth.
 func TestViewMenuCheckmarksFollowState(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 80, 30)
-	m.header.menu = "view"
+	m.chrome.Header.Menu = "view"
 	if m.transcript.compact != true {
 		t.Fatal("precondition: transcript starts truncated")
 	}
@@ -313,7 +313,7 @@ func TestCheckmarkUsesTheLabelIndent(t *testing.T) {
 	} {
 		m := sizeModelTo(t, testModel(), 80, 30)
 		tc.set(m)
-		m.header.menu = tc.menu
+		m.chrome.Header.Menu = tc.menu
 		rows := popupRows(t, m)
 		marks, labels := 0, 0
 		for _, row := range rows {
@@ -350,7 +350,7 @@ func TestCheckmarkUsesTheLabelIndent(t *testing.T) {
 // frame. A reserved mark column would make it 32 instead of 30.
 func TestMarkCostsNoWidth(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 80, 30)
-	m.header.menu = "view"
+	m.chrome.Header.Menu = "view"
 	m.hideSYS = false
 	_, plain, _, _ := m.headerGeometry()
 	m.hideSYS = true
@@ -368,7 +368,7 @@ func TestMarkCostsNoWidth(t *testing.T) {
 func TestMenusWithoutTogglesDrawNoMark(t *testing.T) {
 	for _, menu := range []string{"help", "session", "model"} {
 		m := sizeModelTo(t, testModel(), 80, 30)
-		m.header.menu = menu
+		m.chrome.Header.Menu = menu
 		for _, row := range popupRows(t, m) {
 			if strings.Contains(row, "✓") {
 				t.Fatalf("%s drew a mark it has no toggle for: %q", menu, row)
@@ -380,7 +380,7 @@ func TestMenusWithoutTogglesDrawNoMark(t *testing.T) {
 // Plan/Act moved from an inline tick to the shared indent.
 func TestModeMenuUsesSharedCheckmarkIndent(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 80, 30)
-	m.header.menu = "mode"
+	m.chrome.Header.Menu = "mode"
 	m.plan = false
 	rows := strings.Join(popupRows(t, m), "\n")
 	if !strings.Contains(rows, "✓ ACT") || strings.Contains(rows, "✓  ACT") {
@@ -399,28 +399,28 @@ func TestKeyboardNavigationSkipsViewSeparator(t *testing.T) {
 	// 110 columns is where the Sessions pane exists, so the sidebar
 	// toggle is enabled and reachable by keyboard.
 	m := sizeModelTo(t, testModel(), 120, 30)
-	m.header.focused = true
-	m.header.global = true
-	m.header.menu = "view"
-	m.header.row = m.headerActionRow(0, 1)
+	m.chrome.Header.Focused = true
+	m.chrome.Header.Global = true
+	m.chrome.Header.Menu = "view"
+	m.chrome.Header.Row = m.headerActionRow(0, 1)
 	for _, want := range []string{"toggle-details", "toggle-tools", "toggle-sys"} {
-		if got := m.headerItems()[m.header.row].command; got != want {
+		if got := m.headerItems()[m.chrome.Header.Row].Command; got != want {
 			t.Fatalf("row = %q, want %q", got, want)
 		}
-		m.header.row = m.headerActionRow(m.header.row+1, 1)
+		m.chrome.Header.Row = m.headerActionRow(m.chrome.Header.Row+1, 1)
 	}
 }
 
 func TestAboutMenuAndCommandShareContent(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.command("/about")
-	expected := strings.Join(m.dialog.lines, "\n")
+	expected := strings.Join(m.chrome.Dialog.Lines, "\n")
 	m.closeDialog()
-	m.header.focused = true
-	m.header.menu = "help"
-	m.header.row = headerRowFor(m, "about")
+	m.chrome.Header.Focused = true
+	m.chrome.Header.Menu = "help"
+	m.chrome.Header.Row = headerRowFor(m, "about")
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.dialog == nil || m.dialog.title != "GEKTOR" || strings.Join(m.dialog.lines, "\n") != expected {
-		t.Fatalf("About menu and command disagree: %+v", m.dialog)
+	if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "GEKTOR" || strings.Join(m.chrome.Dialog.Lines, "\n") != expected {
+		t.Fatalf("About menu and command disagree: %+v", m.chrome.Dialog)
 	}
 }

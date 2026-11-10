@@ -22,7 +22,7 @@ func runSlash(t *testing.T, m *Model, text string) *Model {
 	t.Helper()
 	updated, _ := m.command(text)
 	m = updated.(*Model)
-	if m.dialog != nil && m.dialog.form != nil && m.dialog.form.Destructive {
+	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil && m.chrome.Dialog.Form.Destructive {
 		// The restart confirmation is a destructive form: pick Restart,
 		// then commit it.
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyUp})
@@ -110,7 +110,7 @@ func TestModeSwitchRebuildsWithoutConfirmation(t *testing.T) {
 	m, built := sessionModel(t)
 	updated, _ := m.command("/mode plan")
 	m = updated.(*Model)
-	if m.dialog != nil {
+	if m.chrome.Dialog != nil {
 		t.Fatal("/mode still asks to restart")
 	}
 	if !m.plan {
@@ -137,7 +137,7 @@ func TestModeSwitchDuringARunStillConfirms(t *testing.T) {
 	m.state = stRunning
 	updated, _ := m.command("/mode plan")
 	m = updated.(*Model)
-	if m.dialog == nil || m.dialog.form == nil || !m.dialog.form.Destructive {
+	if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil || !m.chrome.Dialog.Form.Destructive {
 		t.Fatal("a mode switch that replaces a running session must confirm")
 	}
 }

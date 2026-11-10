@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/events"
 )
 
@@ -95,12 +96,12 @@ func TestWheelScrollsTheDialogNotTheTranscript(t *testing.T) {
 	}
 	m.openDialog("long", rows)
 	m.View() // the offset is clamped against the visible capacity at render
-	if m.dialog.offset != 0 {
+	if m.chrome.Dialog.Offset != 0 {
 		t.Fatal("a dialog longer than the pane does not start at the top")
 	}
 	_, _ = m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown, X: 60, Y: 10})
-	if m.dialog.offset != 1 {
-		t.Fatalf("the dialog did not scroll: offset=%d", m.dialog.offset)
+	if m.chrome.Dialog.Offset != 1 {
+		t.Fatalf("the dialog did not scroll: offset=%d", m.chrome.Dialog.Offset)
 	}
 	if got := m.transcript.Viewport.YOffset(); got != before {
 		t.Fatalf("the transcript moved behind the overlay: %d -> %d", before, got)
@@ -128,9 +129,9 @@ func TestDialogOverscrollRespondsToTheFirstReverseStep(t *testing.T) {
 		m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
 	}
 	before := m.View().Content
-	bottom := m.dialog.offset
+	bottom := m.chrome.Dialog.Offset
 	m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
-	if m.dialog.offset != bottom-1 || m.View().Content == before {
+	if m.chrome.Dialog.Offset != bottom-1 || m.View().Content == before {
 		t.Fatal("reverse wheel was swallowed by an invisible overscroll")
 	}
 	for range 200 {
@@ -149,13 +150,13 @@ func TestHelpCategoriesStayWithinVisibleSections(t *testing.T) {
 		t.Run(title, func(t *testing.T) {
 			m := sizeModel(t, testModel())
 			m.openDialog(title, nil)
-			m.dialog.help = true
+			m.chrome.Dialog.Help = true
 			count := len(m.dialogHelpSections())
 			for _, key := range []rune{tea.KeyRight, tea.KeyLeft, tea.KeyTab} {
 				for range 12 {
 					m.Update(tea.KeyPressMsg{Code: key})
-					if m.dialog.page < 0 || m.dialog.page >= count {
-						t.Fatalf("category %d outside %d sections", m.dialog.page, count)
+					if m.chrome.Dialog.Page < 0 || m.chrome.Dialog.Page >= count {
+						t.Fatalf("category %d outside %d sections", m.chrome.Dialog.Page, count)
 					}
 					m.View()
 					m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})

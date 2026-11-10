@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/events"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/workspace"
@@ -427,22 +428,22 @@ func TestViewMenuCommandsDriveTheTranscript(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 80, 30)
 	m.transcript.blocks = []block{answerBlock("answer"), markerBlock("[harness] harness nudge")}
 	m.refreshContent()
-	m.header.focused = true
-	m.header.global = true
-	m.header.menu = "view"
+	m.chrome.Header.Focused = true
+	m.chrome.Header.Global = true
+	m.chrome.Header.Menu = "view"
 	for _, command := range []string{"toggle-labels", "toggle-sys"} {
 		// Enter closes the menu, so each action reopens it.
-		m.header.menu, m.header.focused = "view", true
+		m.chrome.Header.Menu, m.chrome.Header.Focused = "view", true
 		row := -1
 		for i, item := range m.headerItems() {
-			if item.command == command {
+			if item.Command == command {
 				row = i
 			}
 		}
 		if row < 0 {
 			t.Fatalf("%s missing from View menu", command)
 		}
-		m.header.row = row
+		m.chrome.Header.Row = row
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	}
 	if !m.hideLabels || !m.hideSYS {

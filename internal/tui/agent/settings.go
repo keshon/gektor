@@ -16,80 +16,47 @@ import (
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/providers"
 	"github.com/keshon/gektor/internal/tui/components/form"
-	"github.com/keshon/gektor/internal/tui/components/popup"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/settings"
 )
 
 type formField = form.Field
 
-type settingsForm struct {
-	settings.Model
-	apply func(map[string]string) error
-}
+type settingsForm = screen.FormState
 type formHit = form.Hit
 
 func (m *Model) updateFormInput(msg tea.Msg) tea.Cmd {
-	if m.dialog != nil && m.dialog.table != nil {
-		return m.tableInput(msg)
-	}
-	if m.dialog == nil || m.dialog.form == nil {
-		return nil
-	}
-	return m.dialog.form.UpdateInput(msg)
+	m.syncControls()
+	return m.chrome.UpdateFormInput(msg)
 }
 
 func (m *Model) openForm(title, hint, applyLabel string, fields []formField, apply func(map[string]string) error) {
-	m.openDialog(title, nil)
-	f := &settingsForm{Model: settings.NewModel(fields, newInput().Model), apply: apply}
-	f.Hint, f.ApplyLabel = hint, applyLabel
-	f.HasApplication = m.application != nil
-	f.Editor.SetVirtualCursor(true)
-	f.Editor.DynamicHeight = false
-	f.Editor.Prompt = ""
-	f.Editor.CharLimit = 65536
-	m.dialog.form = f
-	m.focusForm(0)
+	m.syncControls()
+	m.chrome.OpenForm(title, hint, applyLabel, fields, apply)
+	m.chrome.Dialog.Form.SaveCopy = m.saveSettingsCopy
 }
 func (m *Model) focusForm(index int) {
-	f := m.dialog.form
-	f.Focus(index, m.settingsFieldVisible)
-
-	m.resizeFormEditor()
+	m.syncControls()
+	m.chrome.FocusForm(index)
 }
 
 // openRemoval keeps contextual read-only fields visible and starts on Cancel.
 func (m *Model) openRemoval(title, hint, label string, fields []formField, apply func(map[string]string) error) {
-	m.openForm(title, hint, label, fields, apply)
-	m.dialog.form.Destructive = true
-	m.focusForm(len(fields) + 1)
+	m.syncControls()
+	m.chrome.OpenRemoval(title, hint, label, fields, apply)
+	m.chrome.Dialog.Form.SaveCopy = m.saveSettingsCopy
 }
 func (m *Model) applyForm() {
-	f := m.dialog.form
-	if f.EditSession != nil && !m.settingsDirty() {
-		return
-	}
-	values := f.Values()
-	if err := f.apply(values); err != nil {
-		f.Error = err.Error()
-		return
-	}
-	m.closeDialog()
+	m.syncControls()
+	m.chrome.ApplyForm()
 }
 func (m *Model) formKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	intent, cmd := m.dialog.form.UpdateKey(msg, m.settingsProps())
-	m.resizeFormEditor()
-	return m, tea.Batch(cmd, m.handleSettingsIntent(intent))
+	m.syncControls()
+	return m, m.chrome.FormKey(msg)
 }
 func (m *Model) handleSettingsIntent(intent settings.Intent) tea.Cmd {
-	switch intent.Action {
-	case settings.Apply:
-		m.applyForm()
-	case settings.Cancel:
-		m.closeDialog()
-	case settings.SaveCopy:
-		m.saveSettingsCopy()
-	}
-	return nil
+	m.syncControls()
+	return m.chrome.HandleIntent(intent)
 }
 
 // formView draws the open form. Every form goes through the one path in the
@@ -97,12 +64,12 @@ func (m *Model) handleSettingsIntent(intent settings.Intent) tea.Cmd {
 // confirmation and the file chooser are the same surface with different rows,
 // and the caller used to have a second way of drawing the first two.
 func (m *Model) formView() string {
-	return m.dialog.form.View(m.settingsProps())
+	m.syncControls()
+	return m.chrome.FormView()
 }
 func (m *Model) formMouse(msg tea.MouseMsg) tea.Cmd {
-	intent, cmd := m.dialog.form.Mouse(msg, m.settingsProps())
-	m.resizeFormEditor()
-	return tea.Batch(cmd, m.handleSettingsIntent(intent))
+	m.syncControls()
+	return m.chrome.FormMouse(msg)
 }
 func (m *Model) editSettings(section string) {
 	currentSettings := m.config
@@ -110,8 +77,8 @@ func (m *Model) editSettings(section string) {
 		return
 	}
 	var ws *settingsWorkspace
-	if m.dialog != nil && m.dialog.form != nil {
-		ws = m.dialog.form.EditSession
+	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil {
+		ws = m.chrome.Dialog.Form.EditSession
 		if ws != nil {
 			m.storeSettingsPage()
 		}
@@ -137,7 +104,7 @@ func (m *Model) editSettings(section string) {
 	}
 	title, fields := settings.PageFields(profile, section, preferences)
 
-	if m.dialog != nil {
+	if m.chrome.Dialog != nil {
 		m.closeDialog()
 	}
 	m.openForm(title, "GEKTOR restarts to apply these. The conversation and draft are preserved.", "Apply", fields, func(_ map[string]string) error {
@@ -152,14 +119,14 @@ func (m *Model) editSettings(section string) {
 		// reads the old one must not keep running against the new.
 		return m.requestProfileChange(profile)
 	})
-	m.dialog.form.EditSession = ws
-	m.dialog.form.DiscoverModels = remoteModelChoices
-	m.dialog.form.DiscoverReasoning = remoteReasoningChoices
+	m.chrome.Dialog.Form.EditSession = ws
+	m.chrome.Dialog.Form.DiscoverModels = remoteModelChoices
+	m.chrome.Dialog.Form.DiscoverReasoning = remoteReasoningChoices
 	saved := ws.Draft.Visit(section, fields)
-	m.dialog.form.Fields = saved
-	m.dialog.form.Index = len(saved)
+	m.chrome.Dialog.Form.Fields = saved
+	m.chrome.Dialog.Form.Index = len(saved)
 	m.focusForm(0)
-	m.dialog.title = "Settings"
+	m.chrome.Dialog.Title = "Settings"
 }
 
 func (m *Model) renameActive() {
@@ -192,7 +159,7 @@ func (m *Model) deleteActive() {
 		m.refreshSessions()
 		return nil
 	})
-	m.dialog.form.Destructive = true
+	m.chrome.Dialog.Form.Destructive = true
 	// Destructive confirmation starts on Cancel.
 	m.focusForm(1)
 }
@@ -224,16 +191,8 @@ func (m *Model) inspectAgentInstructions() {
 }
 
 func (m *Model) resizeFormEditor() {
-	if m.dialog == nil || m.dialog.form == nil {
-		return
-	}
-	f := m.dialog.form
-	f.Editor.SetWidth(max(popup.ModalWidth(m.transcript.Viewport.Width())-5, 1))
-	height := 1
-	if f.Index < len(f.Fields) && f.Fields[f.Index].Multiline {
-		height = min(3, max(m.transcript.Viewport.Height()-10, 1))
-	}
-	f.Editor.SetHeight(height)
+	m.syncControls()
+	m.chrome.ResizeFormEditor()
 }
 
 func remoteModelChoices(kind, endpoint, keyEnv string) ([]string, error) {

@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/mcpmanager"
 	"github.com/keshon/gektor/internal/permission"
@@ -23,7 +24,7 @@ func TestPermissionsFilterKeepsRuleOrderAndFullDetails(t *testing.T) {
 	m.openPermissions()
 	m.handleKey(tea.KeyPressMsg{Code: '/'})
 	m.Update(tea.PasteMsg{Content: "read_file"})
-	view := m.dialog.table.model
+	view := m.chrome.Dialog.Table.Model
 	if view.Selected() != "1" || len(view.Rows) != 3 {
 		t.Fatal("filter reordered or changed policy rules")
 	}
@@ -32,13 +33,13 @@ func TestPermissionsFilterKeepsRuleOrderAndFullDetails(t *testing.T) {
 		t.Fatal("precedence or filtered rule missing")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.dialog.table != nil || !strings.Contains(strings.Join(m.dialog.lines, "\n"), "*.env · keep this full pattern") {
+	if m.chrome.Dialog.Table != nil || !strings.Contains(strings.Join(m.chrome.Dialog.Lines, "\n"), "*.env · keep this full pattern") {
 		t.Fatal("Details lost the full rule")
 	}
 	m.closeDialog()
 	msg := m.pendingCommands[len(m.pendingCommands)-1]()
 	m.Update(msg)
-	if m.dialog.table == nil || m.dialog.table.model.Search.Value() != "read_file" || m.dialog.table.model.Selected() != "1" {
+	if m.chrome.Dialog.Table == nil || m.chrome.Dialog.Table.Model.Search.Value() != "read_file" || m.chrome.Dialog.Table.Model.Selected() != "1" {
 		t.Fatal("returning from Details lost table state")
 	}
 	m.closeDialog()
@@ -83,7 +84,7 @@ func TestManagementTablesFitAllThemesAndSizes(t *testing.T) {
 				}
 			}
 			p := m.tableProps()
-			l := m.dialog.table.model.Layout(p)
+			l := m.chrome.Dialog.Table.Model.Layout(p)
 			left, top, _, _ := m.settingsArea()
 			for _, hit := range l.Hits {
 				if hit.Action == "close" {
@@ -92,7 +93,7 @@ func TestManagementTablesFitAllThemesAndSizes(t *testing.T) {
 					break
 				}
 			}
-			if m.dialog != nil {
+			if m.chrome.Dialog != nil {
 				t.Fatal("table trapped focus")
 			}
 			m.mcp, m.state = manager, stDone
@@ -102,7 +103,7 @@ func TestManagementTablesFitAllThemesAndSizes(t *testing.T) {
 				t.Fatalf("%s %v: MCP table exceeds pane", theme, size)
 			}
 			m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
-			if m.dialog != nil {
+			if m.chrome.Dialog != nil {
 				t.Fatal("MCP table trapped focus")
 			}
 		}
@@ -132,7 +133,7 @@ func TestReturningToTableDoesNotReplaceAnotherDialog(t *testing.T) {
 	msg := m.pendingCommands[len(m.pendingCommands)-1]()
 	m.openDialog("Another dialog", nil)
 	m.Update(msg)
-	if m.dialog.title != "Another dialog" {
+	if m.chrome.Dialog.Title != "Another dialog" {
 		t.Fatal("late table return replaced a newer dialog")
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/mcpmanager"
 )
@@ -22,11 +23,11 @@ func TestMCPManagementUsesSharedFormsAndGuardsRunningTurns(t *testing.T) {
 	m.mcp = manager
 	m.state = stDone
 	m.openMCP()
-	if m.dialog == nil || m.dialog.table == nil {
+	if m.chrome.Dialog == nil || m.chrome.Dialog.Table == nil {
 		t.Fatal("manager did not use the shared table")
 	}
 	m.handleMCPAction(mcpActionMsg{"add", ""})
-	if m.dialog.form == nil || len(m.dialog.form.Fields) < 3 {
+	if m.chrome.Dialog.Form == nil || len(m.chrome.Dialog.Form.Fields) < 3 {
 		t.Fatal("add form missing")
 	}
 	m.state = stRunning
@@ -47,17 +48,17 @@ func TestMCPPasteImportFromEmptyManager(t *testing.T) {
 	m.mcp, m.state = manager, stDone
 	m.openMCP()
 	m.tableInput(tea.KeyPressMsg{Code: 'p', Text: "p"})
-	if !m.dialog.form.Fields[0].Multiline {
+	if !m.chrome.Dialog.Form.Fields[0].Multiline {
 		t.Fatal("JSON field does not accept multiple lines")
 	}
 	raw := "{\n  \"mcpServers\": {\n    \"reference\": {\"url\": \"https://example.com/mcp\"}\n  }\n}"
 	m.Update(tea.PasteMsg{Content: raw})
-	if m.dialog.form.Values()["json"] != raw {
+	if m.chrome.Dialog.Form.Values()["json"] != raw {
 		t.Fatal("paste changed the configuration")
 	}
 	m.applyForm()
-	if m.dialog != nil {
-		t.Fatal("import failed:", m.dialog.form.Error)
+	if m.chrome.Dialog != nil {
+		t.Fatal("import failed:", m.chrome.Dialog.Form.Error)
 	}
 	saved, err := manager.Get("reference")
 	if err != nil || saved.URL != "https://example.com/mcp" {
@@ -89,7 +90,7 @@ func TestMCPImportValidationAndExplicitReplacement(t *testing.T) {
 			defer manager.Close()
 			m.mcp, m.state = manager, stDone
 			m.handleMCPAction(mcpActionMsg{action, ""})
-			apply := m.dialog.form.apply
+			apply := m.chrome.Dialog.Form.Apply
 			values := map[string]string{"json": "{", "replace": "off"}
 			if action == "import" {
 				values["path"] = filepath.Join(root, "config.json")
@@ -175,18 +176,18 @@ func TestMCPTableKeepsSelectionAndGuardsDirectActions(t *testing.T) {
 	m.mcp, m.state = manager, stRunning
 	m.openMCP()
 	m.handleKey(tea.KeyPressMsg{Code: 'c', Text: "c"})
-	if m.mcpBusy || m.dialog.table == nil {
+	if m.mcpBusy || m.chrome.Dialog.Table == nil {
 		t.Fatal("Connect activated while a turn was running")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: '/'})
 	m.Update(tea.PasteMsg{Content: "reference"})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.dialog.table != nil || !strings.Contains(strings.Join(m.dialog.lines, "\n"), "Server: reference") {
+	if m.chrome.Dialog.Table != nil || !strings.Contains(strings.Join(m.chrome.Dialog.Lines, "\n"), "Server: reference") {
 		t.Fatal("Details did not open for the selected server")
 	}
 	m.closeDialog()
 	m.Update(m.pendingCommands[len(m.pendingCommands)-1]())
-	if m.dialog.table == nil || m.dialog.table.model.Search.Value() != "reference" {
+	if m.chrome.Dialog.Table == nil || m.chrome.Dialog.Table.Model.Search.Value() != "reference" {
 		t.Fatal("Details lost the parent filter")
 	}
 	m.state = stDone
@@ -195,11 +196,11 @@ func TestMCPTableKeepsSelectionAndGuardsDirectActions(t *testing.T) {
 	if err != nil || saved.Enabled || manager.List()[0].Connected {
 		t.Fatal("Disable did not update exactly the selected server", err)
 	}
-	if m.dialog.table == nil || m.dialog.table.model.Selected() != "reference" {
+	if m.chrome.Dialog.Table == nil || m.chrome.Dialog.Table.Model.Selected() != "reference" {
 		t.Fatal("refresh lost selected server")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyDelete})
-	if m.dialog.form == nil || !m.dialog.form.Destructive || m.dialog.form.Index != 1 {
+	if m.chrome.Dialog.Form == nil || !m.chrome.Dialog.Form.Destructive || m.chrome.Dialog.Form.Index != 1 {
 		t.Fatal("Delete bypassed the safe confirmation")
 	}
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})

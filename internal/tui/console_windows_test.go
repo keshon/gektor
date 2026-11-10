@@ -1,6 +1,6 @@
 //go:build windows
 
-package agent
+package tui
 
 import (
 	"bytes"
@@ -18,6 +18,9 @@ import (
 	uv "github.com/charmbracelet/ultraviolet"
 	xwindows "github.com/charmbracelet/x/windows"
 	"golang.org/x/sys/windows"
+
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/roles"
 )
 
 func nativeKeyRecord(vk, char uint16, modifiers uint32) xwindows.InputRecord {
@@ -93,21 +96,22 @@ func TestNativeConsoleShiftEnterPreservesModifier(t *testing.T) {
 	if len(events) != 4 {
 		t.Fatalf("wrong event count: %#v", events)
 	}
-	m := sizeModel(t, testModel())
-	m.state = stRunning
+	requests := make(chan llm.ChatRequest, 1)
+	m := shellTestModel(t, Config{AgentConfig: AgentConfig{Env: roles.Env{Client: recordingClient{requests: requests}}}})
 	for i, event := range events {
 		key, ok := event.(uv.KeyPressEvent)
 		if !ok {
 			t.Fatalf("unexpected console event: %#v", event)
 		}
 		m.Update(tea.KeyPressMsg(key))
-		if i == 2 && (m.input.Value() != "f\ns" || m.queued != "") {
+		if i == 2 && (!m.agent.Status().Idle || !strings.Contains(m.View().Content, "s")) {
 			t.Fatal("native Shift+Enter submitted instead of inserting a newline")
 		}
 	}
-	if m.queued != "f\ns" {
+	if m.agent.Status().Idle {
 		t.Fatal("native plain Enter did not submit")
 	}
+	assertSubmittedText(t, requests, "f\ns")
 }
 
 func TestNativeConsoleDecodesPastedSurrogatePair(t *testing.T) {
@@ -300,33 +304,33 @@ func TestNativeConsoleMultilinePasteWaitsForExplicitEnter(t *testing.T) {
 		r.encode(nativeKeyRecord(0, unit, 0))
 	}
 	events := decodeConsoleEvents(t, r.buffer.String())
-	for _, state := range []runState{stDone, stRunning, stAsk} {
-		m := sizeModel(t, testModel())
-		m.state = state
-		pastes := 0
-		for _, event := range events {
-			switch e := event.(type) {
-			case uv.PasteEvent:
-				pastes++
-				m.Update(tea.PasteMsg(e))
-			case uv.PasteStartEvent:
-				m.Update(tea.PasteStartMsg(e))
-			case uv.PasteEndEvent:
-				m.Update(tea.PasteEndMsg(e))
-			default:
-				t.Fatalf("paste escaped as ordinary input: %#v", event)
+	requests := make(chan llm.ChatRequest, 1)
+	m := shellTestModel(t, Config{AgentConfig: AgentConfig{Env: roles.Env{Client: recordingClient{requests: requests}}}})
+	pastes := 0
+	for _, event := range events {
+		switch e := event.(type) {
+		case uv.PasteEvent:
+			pastes++
+			if e.Content != text {
+				t.Fatal("paste content changed")
 			}
-		}
-		if pastes != 1 || m.input.Value() != text || m.state != state || m.queued != "" || m.quit {
-			t.Fatalf("paste submitted or changed task in state %d: %q", state, m.input.Value())
-		}
-		if state == stRunning {
-			m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-			if m.input.Value() != "" || m.queued != strings.TrimSpace(text) {
-				t.Fatal("explicit Enter did not submit the pasted draft")
-			}
+			m.Update(tea.PasteMsg(e))
+		case uv.PasteStartEvent:
+			m.Update(tea.PasteStartMsg(e))
+		case uv.PasteEndEvent:
+			m.Update(tea.PasteEndMsg(e))
+		default:
+			t.Fatalf("paste escaped as ordinary input: %#v", event)
 		}
 	}
+	if pastes != 1 || !m.agent.Status().Idle || m.quit {
+		t.Fatal("paste executed a command or started a turn")
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if m.agent.Status().Idle {
+		t.Fatal("explicit Enter did not submit the pasted draft")
+	}
+	assertSubmittedText(t, requests, strings.TrimSpace(text))
 }
 
 func TestConsoleReaderCancellation(t *testing.T) {

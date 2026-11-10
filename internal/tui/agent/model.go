@@ -1,4 +1,4 @@
-// Package agent owns the interactive Agent session and hosts shared terminal controls.
+// Package agent owns the Agent conversation screen, its input, and execution.
 package agent
 
 import (
@@ -29,16 +29,15 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/completion"
 	"github.com/keshon/gektor/internal/tui/components/composer"
 	"github.com/keshon/gektor/internal/tui/components/gate"
-	workflowui "github.com/keshon/gektor/internal/tui/workflow"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
-// Config wires one TUI run. Env carries the full harness (client,
+// Config wires one Agent screen. Env carries the full harness (client,
 // workspace, tools, policy, budgets); gate behavior comes from the TUI,
 // so Env.Gate is overridden, never read.
 type Config struct {
-	StartScreen      string
-	NewWorkflow      workflowui.Factory
+	Controls         *screen.Controls // Shell-owned controls; nil creates screen-local controls.
 	MCP              *mcpmanager.Manager
 	SessionDirectory string
 	Application      *Application
@@ -89,12 +88,13 @@ type doneMsg struct {
 type tickMsg time.Time
 type liveFlushMsg struct{}
 
-// Model owns Agent state, its update loop, and the shared terminal controls.
-// Workflow is supplied by the application connector through Config.NewWorkflow.
+// Model owns the conversation, composer, inspector, and Agent execution.
+// Shared menu and overlay models are supplied by the application shell.
 type Model struct {
-	newWorkflow      workflowui.Factory
-	startWorkflows   bool
-	workflows        *workflowui.Model
+	shutdown         context.CancelFunc
+	requests         []tea.Msg
+	externalControls bool
+	chrome           *screen.Controls
 	steering         bool
 	inspector        toolInspector
 	liveFlushPending bool
@@ -169,8 +169,8 @@ type Model struct {
 	// retryRun restarts the last turn on the update loop, taking fresh service
 	// snapshots before starting workers. Set by startRun, gated by runErr.
 	retryRun func()
-	// send delivers out-of-band messages (run completion) to the
-	// program from worker goroutines. Set by Run once tea exists.
+	// send queues run completion after prior harness events. New binds it
+	// before any worker starts; workers never access the UI model.
 	send func(tea.Msg)
 	// termW/termH are the last reported terminal dimensions, kept so
 	// state transitions can resize the viewport to fit the bottom bar.
@@ -187,7 +187,6 @@ type Model struct {
 	// as measurements.
 	tokensEst bool
 	usage     usageState
-	header    headerState
 
 	// live is the streamed reply already revealed to the transcript;
 	// liveQueue holds deltas received but not yet revealed, so a reply
@@ -225,7 +224,6 @@ type Model struct {
 	note         textinput.Model
 	alwaysMu     sync.Mutex
 	always       map[[2]string]bool
-	dialog       *infoDialog
 	lastLesson   retrospective.Lesson
 	lessonRoot   string
 	// scrollDrag tracks a scrollbar thumb grab: active while the pointer
@@ -337,21 +335,25 @@ func newModel(uiCtx context.Context, cfg Config) *Model {
 	if cfg.Application != nil {
 		setTheme(cfg.Application.Preferences.Theme)
 	}
+	controls := cfg.Controls
+	if controls == nil {
+		controls = &screen.Controls{}
+	}
 	m := &Model{
-		startWorkflows: cfg.StartScreen == "workflows",
-		newWorkflow:    cfg.NewWorkflow,
-		identityName:   cfg.Env.IdentityName,
-		identityUser:   cfg.Env.UserName,
-		events:         eventsCh,
-		hub:            hub,
-		cancel:         cancel,
-		base:           uiCtx,
-		started:        time.Now(),
-		styles:         defaultStyles(),
-		limit:          cfg.Env.ContextLimit,
-		maxSteps:       envMaxSteps(cfg.Env),
-		transcript:     newTranscript(),
-		plan:           cfg.Plan,
+		chrome:           controls,
+		externalControls: cfg.Controls != nil,
+		identityName:     cfg.Env.IdentityName,
+		identityUser:     cfg.Env.UserName,
+		events:           eventsCh,
+		hub:              hub,
+		cancel:           cancel,
+		base:             uiCtx,
+		started:          time.Now(),
+		styles:           defaultStyles(),
+		limit:            cfg.Env.ContextLimit,
+		maxSteps:         envMaxSteps(cfg.Env),
+		transcript:       newTranscript(),
+		plan:             cfg.Plan,
 
 		stateFile: cfg.StateFile,
 		note:      newNote(),
@@ -375,6 +377,7 @@ func newModel(uiCtx context.Context, cfg Config) *Model {
 	m.config = cfg.PreparedProfile
 	m.refreshSessions()
 	m.input = newInput()
+	m.bindControls()
 	env := cfg.Env
 	env.Gate = permissionlog.WrapGate(cfg.AuditPath, "tui", m.contextGate(hub, cfg.Env.WS))
 	m.baseEnv = env
@@ -410,42 +413,32 @@ func newModel(uiCtx context.Context, cfg Config) *Model {
 	return m
 }
 
-// Run executes the task under the TUI and restores the terminal on return.
-func Run(ctx context.Context, cfg Config) (string, error) {
-	uiCtx, cancelUI := context.WithCancel(ctx)
-	defer cancelUI()
+// New constructs the Agent screen and restores its conversation and draft.
+// The caller owns the launch context, shared controls, and terminal runtime.
+func New(ctx context.Context, cfg Config) (model *Model, err error) {
+	uiCtx, shutdown := context.WithCancel(ctx)
 	m := newModel(uiCtx, cfg)
+	m.shutdown = shutdown
 	defer func() {
-		if m.workflows != nil {
-			m.workflows.Close()
+		if err != nil {
+			m.Close()
 		}
 	}()
-	defer func() { m.cancel() }()
-	defer m.cancelSessionTitle()
-	eventsCh := m.events
 	if cfg.SessionDirectory != "" {
 		if info, err := os.Stat(cfg.SessionDirectory); err != nil || !info.IsDir() {
-			return "", fmt.Errorf("cannot open session directory %s", cfg.SessionDirectory)
+			return nil, fmt.Errorf("cannot open session directory %s", cfg.SessionDirectory)
 		}
 		m.stateFile = filepath.Join(cfg.SessionDirectory, "state.json")
 		m.sessionTitle = conversation.ReadSessionTitle(cfg.SessionDirectory)
 	}
-
-	inputOptions, restoreInput, err := consoleInput(uiCtx)
-	if err != nil {
-		return "", err
-	}
-	defer restoreInput()
-	prog := tea.NewProgram(m, append(inputOptions, tea.WithContext(uiCtx))...)
+	events := m.events
 	m.send = func(msg tea.Msg) {
 		if done, ok := msg.(doneMsg); ok {
 			select {
-			case eventsCh <- harness.Event{Name: "_done", Fields: map[string]any{"answer": done.answer, "error": done.err}}:
+			case events <- harness.Event{Name: "_done", Fields: map[string]any{"answer": done.answer, "error": done.err}}:
 			case <-uiCtx.Done():
 			}
-			return
 		}
-		prog.Send(msg)
 	}
 	switch {
 	case len(cfg.History) > 0:
@@ -455,7 +448,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		}
 		sess, err := m.newSession(task, m.stateFile, cfg.Images)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		m.sess = sess
 		m.transcript.blocks = append(m.transcript.blocks, renderHistory(cfg.History)...)
@@ -471,7 +464,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		})
 	case strings.TrimSpace(cfg.Task) != "":
 		if err := m.startInitial(cfg.Task, cfg.Images); err != nil {
-			return "", err
+			return nil, err
 		}
 	default:
 		m.state = stDone
@@ -502,27 +495,33 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	m.fitInput()
 	m.fitBottom()
 	if err := m.savePreferences(); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// Close cancels screen operations, including title generation and evaluation.
+func (m *Model) Close() {
+	if m.shutdown != nil {
+		m.shutdown()
+	}
+	if m.cancel != nil {
+		m.cancel()
+	}
+	m.cancelSessionTitle()
+	m.cancelEvaluation()
+}
+
+// Finish persists local preferences and returns the completed run or relaunch request.
+func (m *Model) Finish(quit bool) (string, error) {
+	if m.modeChange != nil {
+		return "", m.modeChange
+	}
+	if err := m.saveApplication(); err != nil {
 		return "", err
 	}
-	final, err := prog.Run()
-	if err != nil {
-		m.cancel()
-		return "", err
-	}
-	fm, ok := final.(*Model)
-	if !ok {
-		return "", fmt.Errorf("tui: unexpected final model")
-	}
-	if fm.modeChange != nil {
-		m.cancel()
-		return "", fm.modeChange
-	}
-	if err := fm.saveApplication(); err != nil {
-		return "", err
-	}
-	if fm.quit {
-		m.cancel()
+	if quit || m.quit {
 		return "", nil
 	}
-	return fm.answer, fm.runErr
+	return m.answer, m.runErr
 }

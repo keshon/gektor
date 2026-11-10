@@ -46,7 +46,7 @@ func (m *Model) persistTheme(name string) error {
 }
 
 func (m *Model) openTheme() {
-	m.openForm("Theme", "Apply saves this theme for future launches.", "Apply", []formField{{Key: "theme", Label: "Theme", Value: currentPalette().name, Multiline: false}}, func(v map[string]string) error {
+	m.openForm("Theme", "Apply saves this theme for future launches.", "Apply", []formField{{Key: "theme", Label: "Theme", Value: currentPalette().Name, Multiline: false}}, func(v map[string]string) error {
 		name := v["theme"]
 		if !config.ValidTheme(name) {
 			return fmt.Errorf("choose a theme from the list")
@@ -57,5 +57,5 @@ func (m *Model) openTheme() {
 		m.applyTheme(name)
 		return nil
 	})
-	m.dialog.form.Choices = map[string][]string{"theme": config.ThemeNames()}
+	m.chrome.Dialog.Form.Choices = map[string][]string{"theme": config.ThemeNames()}
 }

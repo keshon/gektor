@@ -1,13 +1,12 @@
 package agent
 
 import (
-	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
-	"charm.land/lipgloss/v2"
 	"github.com/keshon/gektor/internal/tui/components/pane"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 // screenContent keeps the composer inside the conversation column and the
@@ -15,9 +14,6 @@ import (
 func (m *Model) screenContent() string {
 	if !m.ready {
 		return "starting..."
-	}
-	if m.workflowActive() && m.sessions == nil {
-		return m.workflowScreen()
 	}
 	// A settings section used to short-circuit here and build its own screen:
 	// a menu line, a form and an action bar, framed as bare content. No
@@ -35,14 +31,14 @@ func (m *Model) screenContent() string {
 	} else if m.state == stPermission || m.state == stAsk {
 		body = m.gateVP.View()
 	}
-	if m.dialog != nil {
+	if m.chrome.Dialog != nil {
 		body = m.overlayDialog(body)
 	}
 	bodyHeight := m.transcript.Viewport.Height()
 	body = cellFrame(body, m.transcript.Viewport.Width(), bodyHeight)
 	footer := m.composerRows()
 	layout := m.panelGeometry(m.mainWidth(), len(footer), false, true)
-	focused := m.dialog == nil && m.sessions == nil && !m.header.focused && (!m.inspectorVisible() || !m.inspector.focused)
+	focused := m.chrome.Dialog == nil && m.sessions == nil && !m.chrome.Header.Focused && (!m.inspectorVisible() || !m.inspector.focused)
 	rows := pane.Render(layout, paneHeader, body, footer, m.paneStyles(), focused)
 	content := m.menuLine() + "\n" + strings.Join(rows, "\n")
 	if m.actionBarVisible() {
@@ -54,7 +50,7 @@ func (m *Model) screenContent() string {
 		content = m.overlaySearch(content)
 	}
 	content = m.composeInspector(content)
-	if m.header.menu != "" {
+	if m.chrome.Header.Menu != "" {
 		content = m.overlayHeader(content)
 	}
 	return content
@@ -63,11 +59,8 @@ func (m *Model) screenContent() string {
 func (m *Model) View() tea.View {
 	v := tea.NewView(paintScreen(m.screenContent()))
 	// Theme only the character grid; terminal defaults and margins belong to the host.
-	v.AltScreen = true
-	v.MouseMode = tea.MouseModeCellMotion
-	v.ReportFocus = true
 	owner := m.activeInputOwner()
-	if !m.ready || owner == focusDialog || owner == focusHeader || m.workflowActive() {
+	if !m.ready || owner == focusDialog || owner == focusHeader {
 		return v
 	}
 	if m.sessions != nil {
@@ -106,19 +99,4 @@ func (m *Model) View() tea.View {
 // Paint every cell explicitly. Terminal default colors (OSC 10/11) are not
 // reliable across native cursor and input repaints in all Windows hosts.
 // Restore only reset colors, preserving semantic text and popup surfaces.
-func paintScreen(content string) string {
-	sequence := func(code int, color string) string {
-		r, g, b, _ := lipgloss.Color(color).RGBA()
-		return fmt.Sprintf("\x1b[%d;2;%d;%d;%dm", code, r>>8, g>>8, b>>8)
-	}
-	fg := sequence(38, themeColor(colorPopupText))
-	bg := sequence(48, currentPalette().background)
-	reset := fg + bg
-	restore := strings.NewReplacer(
-		"\x1b[m", "\x1b[m"+reset,
-		"\x1b[0m", "\x1b[0m"+reset,
-		"\x1b[39m", fg,
-		"\x1b[49m", bg,
-	)
-	return reset + restore.Replace(content) + "\x1b[m"
-}
+func paintScreen(content string) string { return screen.Paint(content) }

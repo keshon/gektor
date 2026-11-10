@@ -41,12 +41,12 @@ display models or sessions. Their application actions remain separate.
 A component reports an intent such as accept, cancel or activate; its owner
 decides whether that saves settings, opens a session or starts a connection.
 
-`internal/tui/tui.go` connects the terminal host to the concrete Workflow
-screen. `internal/tui/agent` owns the Agent model, transcript, composer, session
-execution, and shared application controls: menus, dialogs, preferences, and
-navigation. Its workflow adapter calls the concrete Workflow model's public API.
-The root connector supplies `workflow.NewScreen` directly; there is one Workflow
-configuration type and no parallel host-side service configuration.
+`internal/tui` owns the application model and terminal runtime. It selects the
+active screen, routes input and results, constructs both screens, and coordinates
+quit protection across active runs and retained Workflow drafts.
+`internal/tui/agent` owns its conversation, transcript, composer, inspector,
+sessions, preferences, and Agent execution. Agent emits navigation and quit
+intents to the parent; it does not import Workflow.
 
 `internal/tui/workflow` owns its own model, recipe editor, graph, inspector,
 run state, menu commands and availability, message dispatch, permissions, and
@@ -54,8 +54,11 @@ asynchronous operations. It receives execution services, shared dialog operation
 and a function supplying the current
 `screen.Surface`. That snapshot gives rendering and hit testing the same geometry
 and styles without exposing Agent or transcript state. `screen.Host` carries
-named form and dialog requests. The shared `screen` package contains overlay
-requests, layout/style values, and menu/shortcut data. Feature-specific state,
+named form and dialog requests. The shared `screen` package owns menu selection, overlays, shared control
+interaction and rendering, theme mappings, and layout/style values. The parent
+owns one `screen.Controls` instance, supplied to both screens. Each feature
+opens forms and tables with callbacks for its own operations; execution state
+stays in that feature. Feature-specific state,
 configuration, and message types stay in their feature package.
 The generic graph component renders supplied labels and tones; workflow status
 names and presentation belong to Workflow.
@@ -409,8 +412,10 @@ navigation. Settings owns configuration; Appearance owns theme and panel frame.
 Help owns instructions and diagnostics. Node is specific to the workflow editor.
 
 Menu definitions and their command metadata live in
-[menus.go](../../internal/tui/agent/menus.go). Action dispatch lives in
-[menu_actions.go](../../internal/tui/agent/menu_actions.go). The header handles layout,
+[presentation.go](../../internal/tui/presentation.go), with Agent actions in
+[menus.go](../../internal/tui/agent/menus.go) and Workflow actions in its own
+package. Application navigation dispatch lives in
+[update.go](../../internal/tui/update.go). The shared header handles layout,
 focus and input, using the shared popup component. Both keyboard and mouse
 activation use the same enabled-state checks and dispatcher. At narrow widths,
 More exposes menus that would otherwise be clipped.
@@ -439,7 +444,7 @@ clear and it has a real consumer.
 | [transcript](../../internal/tui/components/transcript/transcript.go) | History rendering and viewport behavior |
 | [graph](../../internal/tui/components/graph/graph.go) | Node/canvas presentation and graph interactions, independent of workflow execution |
 | [settings](../../internal/tui/settings/model.go) | Settings values, discovery and intents; move reusable presentation into the components it uses |
-| [styles.go](../../internal/tui/agent/styles.go) | Semantic styles and theme mappings, supplied to components |
+| [styles.go](../../internal/tui/screen/styles.go) | Semantic styles and theme mappings, supplied to components |
 
 The Bubble Tea loop remains the state owner. Components own their local
 selection, focus and editing state. Async services return messages; components

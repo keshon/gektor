@@ -67,10 +67,24 @@ func launchRunConfiguration(o resolvedLaunch, base roles.Env, note func(string, 
 
 func tuiConfiguration(launch launchRequest, o resolvedLaunch, cfg harness.Config, history []llm.Message) tui.Config {
 	return tui.Config{
-		StartScreen: o.tuiScreen, SeedHistory: launch.history,
-		InitialDraft: launch.draft, InitialImages: launch.images, Drafts: launch.drafts, SessionDirectory: launch.directory,
-		BackendURL: o.backendURL, Plan: cfg.Plan, Fork: o.fork != "",
-		History: history, ResumeAnswer: cfg.ResumeAnswer, AuditPath: o.auditPath,
-		Env: cfg.Env, Task: cfg.Task, StateFile: cfg.StateFile, Verify: cfg.Verify, Images: cfg.Images,
+		StartScreen: o.tuiScreen,
+		AgentConfig: tui.AgentConfig{
+			SeedHistory:      launch.history,
+			InitialDraft:     launch.draft,
+			InitialImages:    launch.images,
+			Drafts:           launch.drafts,
+			SessionDirectory: launch.directory,
+			BackendURL:       o.backendURL,
+			Plan:             cfg.Plan,
+			Fork:             o.fork != "",
+			History:          history,
+			ResumeAnswer:     cfg.ResumeAnswer,
+			AuditPath:        o.auditPath,
+			Env:              cfg.Env,
+			Task:             cfg.Task,
+			StateFile:        cfg.StateFile,
+			Verify:           cfg.Verify,
+			Images:           cfg.Images,
+		},
 	}
 }

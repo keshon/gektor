@@ -16,22 +16,22 @@ func (m *Model) controlHints(shortcuts ...popup.Shortcut) string {
 // statusLine describes the current input; run metrics belong in the header.
 func (m *Model) statusLine() string {
 	if m.sessions != nil {
-		return m.styles.status.Render("Search names and saved session text")
+		return m.styles.Status.Render("Search names and saved session text")
 	}
-	if m.dialog != nil {
-		if m.dialog.table != nil {
-			if m.dialog.table.list {
+	if m.chrome.Dialog != nil {
+		if m.chrome.Dialog.Table != nil {
+			if m.chrome.Dialog.Table.List {
 				return m.controlHints(popup.Shortcut{Key: "↑↓", Action: "select"}, popup.Shortcut{Key: "Esc", Action: "close"})
 			}
-			if m.dialog.table.model.Layout(m.tableProps()).Capacity == 0 {
+			if m.chrome.Dialog.Table.Model.Layout(m.tableProps()).Capacity == 0 {
 				return m.controlHints(popup.Shortcut{Key: "Esc", Action: "close"})
 			}
-			if m.dialog.table.model.MoreOpen {
+			if m.chrome.Dialog.Table.Model.MoreOpen {
 				return m.controlHints(popup.Shortcut{Key: "Esc", Action: "back"})
 			}
 			return m.controlHints(popup.Shortcut{Key: "Esc", Action: "back"}, popup.Shortcut{Key: "/", Action: "filter"}, popup.Shortcut{Key: "Tab", Action: "controls"})
 		}
-		if m.dialog.form != nil {
+		if m.chrome.Dialog.Form != nil {
 			return m.controlHints(popup.Shortcut{Key: "Esc", Action: "cancel"}, popup.Shortcut{Key: "Tab", Action: "controls"}, popup.Shortcut{Key: "Ctrl+O", Action: "newline"})
 		}
 		return m.controlHints(popup.Shortcut{Key: "Esc", Action: "close"}, popup.Shortcut{Key: "↑↓", Action: "scroll"})
@@ -49,7 +49,7 @@ func (m *Model) statusLine() string {
 	if !m.transcript.Follow && m.state == stDone {
 		hint += "  Scrolled up"
 	}
-	return m.styles.status.Render(hint)
+	return m.styles.Status.Render(hint)
 }
 
 func (m *Model) statusWord() string {

@@ -267,7 +267,7 @@ func (m *Model) startRun(run func(ctx context.Context) (string, error)) {
 	m.cancel()
 	// A run takes over: an open dialog — or sessions screen — would
 	// shadow a transcript that is suddenly live again.
-	if m.dialog != nil {
+	if m.chrome.Dialog != nil {
 		m.closeDialog()
 	}
 	if m.sessions != nil {
@@ -324,7 +324,7 @@ func (m *Model) startRun(run func(ctx context.Context) (string, error)) {
 	m.steps = 0
 	m.progress = llm.Progress{Phase: "waiting"}
 	m.usage.thisRun = false
-	m.header.focused, m.header.menu = false, ""
+	m.chrome.Header.Focused, m.chrome.Header.Menu = false, ""
 	go func() {
 		answer, err := run(runCtx)
 		m.send(doneMsg{answer: answer, err: err})
@@ -357,12 +357,6 @@ func (m *Model) startInitial(task string, images []string) error {
 // through the sess==nil path in followUp. Bare /new.
 func (m *Model) newTask() {
 	m.cancelSessionTitle()
-	if m.workflows != nil {
-		if m.workflows.State().Busy {
-			return
-		}
-		m.workflows.Hide()
-	}
 	m.attachmentEpoch++
 	m.seedHistory = nil
 	if m.stateFile == "" && m.sess == nil {

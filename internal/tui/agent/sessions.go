@@ -126,12 +126,6 @@ func (m *Model) clampOffset() {
 // tears it down with focus restored. Balanced by construction: every
 // open pairs with esc/enter or run start.
 func (m *Model) openSessions() {
-	if m.workflows != nil {
-		if m.workflows.State().Busy {
-			return
-		}
-		m.workflows.Hide()
-	}
 	filter := newSearchInput(max(popup.ModalWidth(m.termW-2)-6, 1))
 	filter.Focus()
 	m.sessions = &sessionsState{currentWorkspace: m.wsRoot, entries: m.savedSessions, all: m.savedSessions, loading: m.sessionsLoading, root: m.sessionRoot(), filter: filter}
@@ -819,10 +813,10 @@ func (m *Model) sessionsScrollbarMouse(msg tea.MouseMsg) bool {
 		s.Offset = min(max(offset, 0), len(s.entries)-visible)
 		s.Cursor = min(max(s.Cursor, s.Offset), s.Offset+visible-1)
 	}
-	if s.drag.active {
+	if s.drag.Active {
 		switch msg.(type) {
 		case tea.MouseMotionMsg, tea.MouseReleaseMsg:
-			move((popup.ScrollOffset(row, height, total, s.drag.grab) + 2) / 4)
+			move((popup.ScrollOffset(row, height, total, s.drag.Grab) + 2) / 4)
 			if _, ok := msg.(tea.MouseReleaseMsg); ok {
 				s.drag = scrollDrag{}
 			}
@@ -834,7 +828,7 @@ func (m *Model) sessionsScrollbarMouse(msg tea.MouseMsg) bool {
 	}
 	top, size := popup.ScrollThumb(height, total, s.Offset*4)
 	if row >= top && row < top+size {
-		s.drag = scrollDrag{active: true, grab: row - top}
+		s.drag = scrollDrag{Active: true, Grab: row - top}
 	} else if row < top {
 		move(s.Offset - visible)
 	} else {

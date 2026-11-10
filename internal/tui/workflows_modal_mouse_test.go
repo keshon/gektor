@@ -1,4 +1,4 @@
-package agent
+package tui
 
 import (
 	"strings"
@@ -34,18 +34,18 @@ func TestWorkflowFormButtonsMatchRenderedScreen(t *testing.T) {
 			}
 			m.workflowCommand("open")
 			clickWorkflowText(t, m, "Cancel")
-			if m.dialog != nil {
+			if m.chrome.Dialog != nil {
 				t.Fatalf("cancel missed at width %d inspector %v", width, inspect)
 			}
 			m.workflowCommand("open")
-			m.dialog.form.Editor.SetValue("recipe.json")
+			m.chrome.Dialog.Form.Editor.SetValue("recipe.json")
 			clickWorkflowText(t, m, "Continue")
-			if m.dialog != nil || len(m.workflows.TakeCommands()) == 0 {
+			if m.chrome.Dialog != nil || len(m.workflows.TakeCommands()) == 0 {
 				t.Fatalf("continue missed at width %d inspector %v", width, inspect)
 			}
 			m.workflowCommand("open")
 			clickWorkflowText(t, m, "×")
-			if m.dialog != nil {
+			if m.chrome.Dialog != nil {
 				t.Fatalf("close missed width %d inspector %v\n%s", width, inspect, ansi.Strip(m.screenContent()))
 			}
 		}

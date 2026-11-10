@@ -14,27 +14,27 @@ func TestSessionCopyNavigation(t *testing.T) {
 	m.sessionTitle = "Download music"
 	m.state = stRunning
 	m.handleMouse(tea.MouseClickMsg{X: m.termW - 3, Y: 0, Button: tea.MouseLeft})
-	if m.header.focused || m.header.menu != "" {
+	if m.chrome.Header.Focused || m.chrome.Header.Menu != "" {
 		t.Fatal("session label opened a menu")
 	}
-	m.header = headerState{focused: true, global: true, menu: "session"}
+	m.chrome.Header = headerState{Focused: true, Global: true, Menu: "session"}
 	items := m.sessionCopyItems()
 	for _, item := range items {
-		if !item.enabled {
+		if !item.Enabled {
 			t.Fatal("copy is disabled during a run")
 		}
 		found := false
 		for _, row := range m.menuItems("session") {
-			if row.command == item.command && row.enabled {
+			if row.Command == item.Command && row.Enabled {
 				found = true
 			}
 		}
 		if !found {
-			t.Fatal("Session menu lacks keyboard access to", item.command)
+			t.Fatal("Session menu lacks keyboard access to", item.Command)
 		}
 	}
 	m.headerKey(tea.KeyPressMsg{Code: tea.KeyEscape})
-	if m.header.focused || m.header.menu != "" {
+	if m.chrome.Header.Focused || m.chrome.Header.Menu != "" {
 		t.Fatal("ESC did not dismiss Session menu")
 	}
 	m.stateFile = ""
@@ -42,7 +42,7 @@ func TestSessionCopyNavigation(t *testing.T) {
 		t.Fatal("unsaved session produced a copy command")
 	}
 	for _, row := range m.sessionCopyItems() {
-		if row.enabled {
+		if row.Enabled {
 			t.Fatal("unsaved session has an enabled copy action")
 		}
 	}

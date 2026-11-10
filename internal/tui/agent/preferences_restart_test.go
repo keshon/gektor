@@ -63,7 +63,7 @@ func TestPreferenceRestartHelper(t *testing.T) {
 		if !on {
 			wantTheme = "dark"
 		}
-		if currentPalette().name != wantTheme || !m.plan || p.Harness.MaxSteps != 42 {
+		if currentPalette().Name != wantTheme || !m.plan || p.Harness.MaxSteps != 42 {
 			t.Fatal("theme/mode/step limit lost", p.Theme, p.Mode, p.Harness)
 		}
 		profile := p.Profile
@@ -86,11 +86,11 @@ func TestPreferenceRestartHelper(t *testing.T) {
 		return
 	}
 	for _, command := range []string{"toggle-details", "toggle-tools", "toggle-sys", "toggle-names", "toggle-labels"} {
-		m.header = headerState{global: true, focused: true, menu: "view"}
-		m.header.row = headerRowFor(m, command)
+		m.chrome.Header = headerState{Global: true, Focused: true, Menu: "view"}
+		m.chrome.Header.Row = headerRowFor(m, command)
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-		if m.dialog != nil {
-			t.Fatal("View save failed", m.dialog.lines)
+		if m.chrome.Dialog != nil {
+			t.Fatal("View save failed", m.chrome.Dialog.Lines)
 		}
 	}
 	m.openAppearance()
@@ -99,10 +99,10 @@ func TestPreferenceRestartHelper(t *testing.T) {
 		frame = "outlined"
 	}
 	focusSetting(m, "frame")
-	m.dialog.form.Editor.SetValue(frame)
+	m.chrome.Dialog.Form.Editor.SetValue(frame)
 	m.applyForm()
-	if m.dialog != nil {
-		t.Fatal("Appearance save failed", m.dialog.form.Error)
+	if m.chrome.Dialog != nil {
+		t.Fatal("Appearance save failed", m.chrome.Dialog.Form.Error)
 	}
 	if phase == "reset" {
 		m.command("theme dark")
@@ -123,11 +123,11 @@ func TestPreferenceRestartHelper(t *testing.T) {
 			m.formKey(tea.KeyPressMsg{Code: tea.KeyF4})
 		}
 		focusSetting(m, edit[1])
-		m.dialog.form.Editor.SetValue(edit[2])
+		m.chrome.Dialog.Form.Editor.SetValue(edit[2])
 	}
 	m.applyForm()
 	if m.modeChange == nil {
-		t.Fatal("Settings Apply failed", m.dialog)
+		t.Fatal("Settings Apply failed", m.chrome.Dialog)
 	}
 	// The application loop persists this payload before replacing services.
 	if err := config.SavePreferences(path, m.modeChange.Preferences); err != nil {

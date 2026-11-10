@@ -10,6 +10,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
@@ -67,7 +68,7 @@ func (m *Model) searchView() string {
 		}
 		title = "Sessions · " + scope + " · ^F"
 	}
-	header := popup.Header(title, inner, m.styles.title)
+	header := popup.Header(title, inner, m.styles.Title)
 	rows := []string{line(styles.Normal, header[0]), line(styles.Normal, s.filter.View()), rule}
 	bodyStart := len(rows)
 	contentWidth := inner
@@ -165,8 +166,8 @@ func (m *Model) searchView() string {
 	case sessConfirm:
 		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "back"}, {Key: "Y", Action: "delete"}, {Key: "N", Action: "cancel"}}
 	}
-	hint := popup.Shortcuts(hintWidth, m.shortcutStyles(), shortcuts...) + m.styles.dim.Render(count)
-	for _, row := range popup.Footer(inner, hint, m.styles.dim) {
+	hint := popup.Shortcuts(hintWidth, m.shortcutStyles(), shortcuts...) + m.styles.Dim.Render(count)
+	for _, row := range popup.Footer(inner, hint, m.styles.Dim) {
 		rows = append(rows, line(styles.Normal, row))
 	}
 	return strings.Join(popup.Frame(rows, g.width, styles), "\n")

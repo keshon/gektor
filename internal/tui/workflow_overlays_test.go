@@ -1,4 +1,4 @@
-package agent
+package tui
 
 import (
 	"strings"
@@ -16,7 +16,7 @@ import (
 
 func seedWorkflowRuns(t *testing.T, m *Model) (older, newer string) {
 	t.Helper()
-	s, err := store.OpenStore(userdirs.Sub("workflows"), m.wsRoot)
+	s, err := store.OpenStore(userdirs.Sub("workflows"), m.config.Env.WS.Root())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,18 +73,18 @@ func TestWorkflowRunTableFiltersByStableIDWithoutExecuting(t *testing.T) {
 	before := draft.Source()
 	older, newer := seedWorkflowRuns(t, m)
 	m.workflowCommand("runs")
-	if m.dialog.table == nil || m.dialog.table.model.Selected() != newer {
+	if m.chrome.Dialog.Table == nil || m.chrome.Dialog.Table.Model.Selected() != newer {
 		t.Fatal("runs are not newest first")
 	}
 	for _, a := range m.footerActions() {
-		if a.key == tea.KeyEnter && a.label != "Open run" {
+		if a.Key == tea.KeyEnter && a.Label != "Open run" {
 			t.Fatal("footer disagrees with table")
 		}
 	}
 	m.handleKey(tea.KeyPressMsg{Code: '/'})
 	m.Update(tea.PasteMsg{Content: "no match"})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.dialog == nil || len(m.workflows.TakeCommands()) != 0 {
+	if m.chrome.Dialog == nil || len(m.workflows.TakeCommands()) != 0 {
 		t.Fatal("empty search activated a run")
 	}
 	m.closeDialog()
@@ -92,7 +92,7 @@ func TestWorkflowRunTableFiltersByStableIDWithoutExecuting(t *testing.T) {
 	m.handleKey(tea.KeyPressMsg{Code: '/'})
 	m.Update(tea.PasteMsg{Content: older})
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.dialog != nil || len(m.workflows.TakeCommands()) != 1 || m.workflows.State().Busy || m.workflows.State().InspectingRun || draft.Source() != before {
+	if m.chrome.Dialog != nil || len(m.workflows.TakeCommands()) != 1 || m.workflows.State().Busy || m.workflows.State().InspectingRun || draft.Source() != before {
 		t.Fatal("browsing started execution or changed the recipe")
 	}
 }
@@ -129,12 +129,12 @@ func TestConnectionPreviewFitsResizedForms(t *testing.T) {
 	d.Steps = append(d.Steps, second)
 	seedWorkflow(t, m, d)
 	m.workflowCommand("link")
-	if err := m.dialog.form.apply(map[string]string{"from": "transform", "to": "second"}); err != nil {
+	if err := m.chrome.Dialog.Form.Apply(map[string]string{"from": "transform", "to": "second"}); err != nil {
 		t.Fatal(err)
 	}
 	m.closeDialog()
 	driveWorkflow(t, m)
-	if err := m.dialog.form.apply(map[string]string{"from": "transform", "arg": "Argument: input"}); err != nil {
+	if err := m.chrome.Dialog.Form.Apply(map[string]string{"from": "transform", "arg": "Argument: input"}); err != nil {
 		t.Fatal(err)
 	}
 	m.closeDialog()
@@ -164,7 +164,7 @@ func TestWorkflowErrorFooterFitsEveryTheme(t *testing.T) {
 	seedWorkflow(t, m, d)
 	m.workflowCommand("validate")
 	driveWorkflow(t, m)
-	if m.dialog == nil {
+	if m.chrome.Dialog == nil {
 		t.Fatal("invalid recipe did not report its validation failure")
 	}
 	m.closeDialog()

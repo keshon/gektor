@@ -1,4 +1,4 @@
-package agent
+package tui
 
 import (
 	"strings"
@@ -13,8 +13,8 @@ import (
 )
 
 func TestWorkflowCardTitleAndSelectionInAllThemes(t *testing.T) {
-	previous := selectedPalette.Load()
-	defer selectedPalette.Store(previous)
+	previous := currentPalette().Name
+	defer setTheme(previous)
 	for _, theme := range config.ThemeNames() {
 		m := workflowTestModel(t)
 		m.applyTheme(theme)
@@ -77,7 +77,7 @@ func TestWorkflowNodeStateColorsDoNotReplaceSelection(t *testing.T) {
 				screen := uv.NewScreenBuffer(graph.NodeWidth, n.Height())
 				uv.NewStyledString(view).Draw(screen, uv.Rect(0, 0, graph.NodeWidth, n.Height()))
 				status := screen.CellAt(2, n.Height()-2)
-				if status == nil || !sameColor(status.Style.Fg, themeColor(item.color)) || !sameColor(status.Style.Bg, currentPalette().background) {
+				if status == nil || !sameColor(status.Style.Fg, themeColor(item.color)) || !sameColor(status.Style.Bg, currentPalette().Background) {
 					t.Fatalf("%s %s selected=%s: wrong status colors", theme, item.status, selected)
 				}
 				corner := "┌"

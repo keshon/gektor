@@ -27,9 +27,6 @@ func (m *Model) refreshSessions() {
 }
 func (m *Model) takeCommands() tea.Cmd {
 	commands := m.pendingCommands
-	if m.workflows != nil {
-		commands = append(commands, m.workflows.TakeCommands()...)
-	}
 	m.pendingCommands = nil
 	return tea.Batch(commands...)
 }
