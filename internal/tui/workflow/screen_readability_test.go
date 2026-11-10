@@ -1,4 +1,4 @@
-package tui
+package workflow
 
 import (
 	"encoding/json"
@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/tui/components/graph"
-	editor "github.com/keshon/gektor/internal/tui/workflow"
+
 	"github.com/keshon/gektor/internal/workflow"
 )
 
@@ -87,7 +87,7 @@ func TestSavedDiagramUsesFrozenRecipeWithoutCollectorLinks(t *testing.T) {
 	second.Args = json.RawMessage(`{"input":{"$step":"transform"},"code":"return input"}`)
 	d.Steps = append(d.Steps, second)
 	source, _ := json.Marshal(d)
-	before := (&editor.Editor{Definition: d}).Graph(graph.Model{})
+	before := (&Editor{Definition: d}).Graph(graph.Model{})
 	compiled := d
 	compiled.Steps = append(append([]workflow.Step(nil), d.Steps...), workflow.Step{ID: "@outputs", Tool: "workflow_value", CollectOutputs: true, DependsOn: []string{"transform", "second"}, Args: json.RawMessage(`{}`)})
 	w.runID = "saved"

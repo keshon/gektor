@@ -45,7 +45,7 @@ func (m *model) visibleMenus() []menuDefinition {
 }
 
 func (m *model) menuItems(menu string) []menuItem {
-	idle := m.state == stDone && (m.workflows == nil || !m.workflows.busy)
+	idle := m.state == stDone && (m.workflows == nil || !m.workflows.State().Busy)
 	sep := menuItem{}
 	switch menu {
 	case "overflow":
@@ -72,14 +72,14 @@ func (m *model) menuItems(menu string) []menuItem {
 		if m.workflows == nil {
 			return nil
 		}
-		edit := idle && m.workflows.run == nil
+		edit := idle && !m.workflows.State().InspectingRun
 		return []menuItem{{"New recipe…", "/workflows new", idle}, {"Open recipe…", "/workflows open", idle},
 			{"Save recipe…", "/workflows save", edit}, sep, {"Recipe settings…", "/workflows setup", edit}}
 	case "node":
 		if m.workflows == nil {
 			return nil
 		}
-		edit := idle && m.workflows.run == nil
+		edit := idle && !m.workflows.State().InspectingRun
 		return []menuItem{{"Add node…", "/workflows add", edit}, {"Add schedule trigger…", "/workflows schedule-add", edit}, sep,
 			{"Edit arguments…", "/workflows edit", edit}, {"Behavior…", "/workflows behavior", edit},
 			{"Connections…", "/workflows connections", edit}, {"Connect nodes…", "/workflows link", edit}, sep,
@@ -90,16 +90,16 @@ func (m *model) menuItems(menu string) []menuItem {
 				{"Stop run", "stop", m.state == stRunning}, {"Retry failed turn", "/retry", idle && m.runErr != nil && m.retryRun != nil}, sep,
 				{"Message queue…", "message-queue", true}, {"Background processes…", "/processes", true}, {"Apply new messages during run", "toggle-steering", true}}
 		}
-		edit := idle && m.workflows.run == nil
+		edit := idle && !m.workflows.State().InspectingRun
 		return []menuItem{{"Validate recipe…", "/workflows validate", edit}, {"Run recipe…", "/workflows run", edit},
-			{"Stop run", "/workflows stop", m.workflows.busy}, sep, {"Run history…", "/workflows runs", idle},
-			{"Review run…", "/workflows review", idle && m.workflows.run != nil}, {"Return to recipe", "/workflows draft", idle && m.workflows.run != nil}, sep,
+			{"Stop run", "/workflows stop", m.workflows.State().Busy}, sep, {"Run history…", "/workflows runs", idle},
+			{"Review run…", "/workflows review", idle && m.workflows.State().InspectingRun}, {"Return to recipe", "/workflows draft", idle && m.workflows.State().InspectingRun}, sep,
 			{"Set up schedule…", "/workflows schedule", edit}, {"Refresh schedule status", "/workflows schedule-refresh", idle}, sep,
 			{"Run with JSON inputs…", "/workflows run-json", edit}, sep, {"Background processes…", "/processes", true}}
 	case "view":
 		if m.workflowActive() {
 			return []menuItem{{"Inspector", "/workflows inspector", true}, {"Raw inspection data", "/workflows raw-details", true}, sep,
-				{"Lock node positions", "/workflows lock-positions", true}, {"Auto-layout", "/workflows layout", idle && !m.workflows.positionsLocked}}
+				{"Lock node positions", "/workflows lock-positions", true}, {"Auto-layout", "/workflows layout", idle && !m.workflows.State().PositionsLocked}}
 		}
 		return []menuItem{{"Thinking", "toggle-details", true}, {"Tool calls", "toggle-tools", true}, {"System messages", "toggle-sys", true},
 			{"Speaker names", "toggle-names", true}, {"Message labels", "toggle-labels", true}, sep, {"Jump to latest", "latest", true}}
@@ -134,13 +134,13 @@ func (m *model) menuItems(menu string) []menuItem {
 func (m *model) menuToggle(command string) (toggle, on bool) {
 	switch command {
 	case "/workflows raw-details":
-		return m.workflows != nil, m.workflows != nil && m.workflows.rawDetails
+		return m.workflows != nil, m.workflows != nil && m.workflows.State().RawDetails
 	case "/workflows lock-positions":
-		return m.workflows != nil, m.workflows != nil && m.workflows.positionsLocked
+		return m.workflows != nil, m.workflows != nil && m.workflows.State().PositionsLocked
 	case "/workflows inspector":
-		return m.workflows != nil, m.workflows != nil && m.workflows.inspectorOpen
+		return m.workflows != nil, m.workflows != nil && m.workflows.State().InspectorOpen
 	case "/workflows overview":
-		return m.workflows != nil, m.workflows != nil && m.workflows.overview
+		return m.workflows != nil, m.workflows != nil && m.workflows.State().Overview
 	case "toggle-steering":
 		return true, m.steering
 	case "toggle-details":

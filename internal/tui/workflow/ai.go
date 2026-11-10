@@ -1,9 +1,10 @@
-package tui
+package workflow
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"strings"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/popup"
-	editor "github.com/keshon/gektor/internal/tui/workflow"
+
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -30,7 +31,7 @@ type workflowProposal struct {
 	err                  error
 }
 
-func (m *workflowScreen) propose(prompt string) tea.Cmd {
+func (m *Model) propose(prompt string) tea.Cmd {
 	w := m
 	if w.busy {
 		return nil
@@ -81,7 +82,7 @@ func (m *workflowScreen) propose(prompt string) tea.Cmd {
 	}
 
 }
-func (m *workflowScreen) acceptProposal(p workflowProposal) {
+func (m *Model) acceptProposal(p workflowProposal) {
 	w := m
 	w.busy = false
 	w.cancel = nil
@@ -89,7 +90,7 @@ func (m *workflowScreen) acceptProposal(p workflowProposal) {
 		w.setNotice(pane.NoticeError, p.err.Error())
 		return
 	}
-	d, err := editor.Decode([]byte(p.source))
+	d, err := Decode([]byte(p.source))
 	if err == nil {
 		s, e := m.service(nil)
 		err = e
@@ -98,7 +99,7 @@ func (m *workflowScreen) acceptProposal(p workflowProposal) {
 		}
 	}
 	if err != nil {
-		m.dialogs.openDialog("Invalid AI proposal", []string{err.Error(), p.source})
+		m.dialogs.OpenDialog(screen.Dialog{Title: "Invalid AI proposal", Lines: []string{err.Error(), p.source}})
 		return
 	}
 	lines := []string{"Proposal only · no files saved or operations executed.", ""}
@@ -126,15 +127,17 @@ func (m *workflowScreen) acceptProposal(p workflowProposal) {
 	}
 	lines = append(lines, "", "Complete proposed recipe (including inputs/outputs):", p.source)
 	// Split multiline sections so the shared scrollbar measures actual rows.
-	m.dialogs.openDialog("Review AI proposal", strings.Split(strings.Join(lines, "\n"), "\n"))
-	m.dialogs.dialog().shortcuts = []popup.Shortcut{{Key: "Esc/Enter", Action: "discard"}, {Key: "S", Action: "apply to draft"}, {Key: "↑↓", Action: "scroll"}}
-	m.dialogs.dialog().save = func() error {
-		if w.editor.Source() != p.before {
-			return fmt.Errorf("draft changed since the request; ask for a fresh proposal")
-		}
-		w.editor.Replace(d)
-		w.graph = m.buildGraph(w.graph)
-		w.setNotice(pane.NoticeSuccess, "Proposal applied to draft · Ctrl+S saves")
-		return nil
-	}
+	m.dialogs.OpenDialog(screen.Dialog{Title: "Review AI proposal", Lines: strings.Split(strings.Join(lines, "\n"), "\n"),
+		Shortcuts: []popup.Shortcut{{Key: "Esc/Enter", Action: "discard"}, {Key: "S", Action: "apply to draft"}, {Key: "↑↓", Action: "scroll"}},
+		Save: func() error {
+			if w.editor.Source() != p.before {
+				return fmt.Errorf("draft changed since the request; ask for a fresh proposal")
+			}
+			w.editor.Replace(d)
+			w.graph = m.buildGraph(w.graph)
+			w.setNotice(pane.NoticeSuccess, "Proposal applied to draft · Ctrl+S saves")
+			return nil
+		},
+	})
+
 }

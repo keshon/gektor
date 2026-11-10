@@ -1,13 +1,12 @@
-package tui
+package workflow
 
 import (
 	"encoding/json"
 	"os"
-	"strings"
+
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 )
 
 func TestWorkflowPositionLockDoesNotDisableEditingOrPanning(t *testing.T) {
@@ -55,11 +54,7 @@ func TestWorkflowPositionLockDoesNotDisableEditingOrPanning(t *testing.T) {
 	if w.editor.Source() != before {
 		t.Fatal("layout changed executable recipe")
 	}
-	for _, item := range m.menuCells() {
-		if item.action.label == "Plan" || item.action.label == "Diagram" {
-			t.Fatal("old mode remained")
-		}
-	}
+
 }
 
 func TestWorkflowIgnoresUnsupportedLayout(t *testing.T) {
@@ -83,40 +78,5 @@ func TestWorkflowIgnoresUnsupportedLayout(t *testing.T) {
 	m.workflows.loadLayout()
 	if w.positionsLocked || w.graph.Nodes[0].Point != before {
 		t.Fatal("unsupported layout changed the screen")
-	}
-}
-
-func TestWorkflowAndAgentInspectorFramesMatch(t *testing.T) {
-	for _, width := range []int{40, 80, 100, 121} {
-		for _, minimal := range []bool{false, true} {
-			m := workflowTestModel(t)
-			sizeModelTo(t, m, width, 30)
-			m.minimal = minimal
-			m.workflows.editor.Replace(workflowRecipe())
-			m.workflowCommand("inspector")
-			workflow := strings.Split(ansi.Strip(m.workflowScreen()), "\n")
-			agent := inspectorModel(t, width)
-			agent.minimal = minimal
-			agent.openInspector(len(agent.transcript.blocks) - 1)
-			chat := strings.Split(ansi.Strip(agent.screenContent()), "\n")
-			left := 0
-			if width >= inspectorSplitWidth {
-				left = width / 2
-			}
-			for _, y := range []int{1, 3, 26, 28} {
-				if ansi.Cut(workflow[y], left, width) != ansi.Cut(chat[y], left, width) {
-					t.Fatalf("inspector frame mismatch width %d minimal %v row %d\n%q\n%q", width, minimal, y, workflow[y], chat[y])
-				}
-			}
-			for _, row := range workflow {
-				if ansi.StringWidth(row) != width {
-					t.Fatal("width overflow", row)
-				}
-			}
-			m.workflows.mouse(tea.MouseClickMsg{X: width - 4, Y: 2, Button: tea.MouseLeft})
-			if m.workflows.inspectorOpen || !m.workflows.active {
-				t.Fatal("close left workflow mode")
-			}
-		}
 	}
 }

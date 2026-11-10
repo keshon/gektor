@@ -1,4 +1,4 @@
-package tui
+package workflow
 
 import (
 	"encoding/json"
@@ -9,16 +9,16 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/popup"
-	workflowui "github.com/keshon/gektor/internal/tui/workflow"
+
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/recipe"
 )
 
-func (m *workflowScreen) definition() workflow.Definition {
+func (m *Model) definition() workflow.Definition {
 	if m.run != nil {
 		// The execution definition contains compiler bookkeeping. Orientation uses
 		// the frozen authoring snapshot, never the current workspace file.
-		if d, err := workflowui.Decode([]byte(m.run.RecipeSource)); err == nil {
+		if d, err := Decode([]byte(m.run.RecipeSource)); err == nil {
 			return d
 		}
 		return m.run.Definition
@@ -26,7 +26,7 @@ func (m *workflowScreen) definition() workflow.Definition {
 	return m.editor.Definition
 }
 
-func (m *workflowScreen) steps() ([]workflow.Step, error) {
+func (m *Model) steps() ([]workflow.Step, error) {
 	d := m.definition()
 	steps, err := recipe.Order(d.Steps)
 	if err != nil {
@@ -35,7 +35,7 @@ func (m *workflowScreen) steps() ([]workflow.Step, error) {
 	return steps, nil
 }
 
-func (m *workflowScreen) ensureSelection() {
+func (m *Model) ensureSelection() {
 	if m.selectedSchedule() != nil && m.run == nil {
 		return
 	}
@@ -71,7 +71,7 @@ func workflowValue(raw json.RawMessage) string {
 	return string(raw)
 }
 
-func (m *workflowScreen) page(key string) {
+func (m *Model) page(key string) {
 	w := m
 	_, height := m.canvasSize()
 	if w.inspect {
@@ -105,14 +105,14 @@ func (m *workflowScreen) page(key string) {
 	w.graph.Reveal(width, height)
 }
 
-func (m *workflowScreen) canvasSize() (int, int) {
+func (m *Model) canvasSize() (int, int) {
 	view := m.presentation()
 	area := view.Panes(m.inspectorOpen).Main
 	layout := view.Layout(area.Width, false)
 	return max(layout.Body.Width, 1), max(layout.Body.Height, 1)
 }
 
-func (m *workflowScreen) content() string {
+func (m *Model) content() string {
 	w := m
 	view := m.presentation()
 	cw, ch := m.canvasSize()
@@ -126,7 +126,7 @@ func (m *workflowScreen) content() string {
 	}
 	canvas.Nodes = append([]graph.Node(nil), canvas.Nodes...)
 	for i := range canvas.Nodes {
-		canvas.Nodes[i].Detail, canvas.Nodes[i].DetailTone = workflowCardDetail(canvas.Nodes[i].Detail)
+		canvas.Nodes[i].Detail, canvas.Nodes[i].DetailTone = CardDetail(canvas.Nodes[i].Detail)
 	}
 	left := canvas.View(cw, ch, view.Styles.Graph)
 	if len(canvas.Nodes) == 0 {
@@ -147,7 +147,7 @@ func (m *workflowScreen) content() string {
 	split := w.inspectorOpen && !regions.Covered
 	leftWidth := regions.Main.Width
 	footerWidth := view.Layout(leftWidth, false).Footer.Width
-	rows := view.Render(workflowui.Panel{
+	rows := view.Render(Panel{
 		Title: mode + " / " + cleanText(title),
 		Hint:  pane.NoticeRow(cleanText(w.notice), w.noticeLevel, footerWidth, view.Styles.Notice),
 		Body:  left, Width: leftWidth, Focused: !w.inspect,
@@ -178,7 +178,7 @@ func (m *workflowScreen) content() string {
 		if w.inspect && w.run == nil && !w.busy && w.inspectorTab != 1 {
 			shortcuts = []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "Tab", Action: "parent"}, {Key: "E", Action: "edit"}, {Key: "1–3", Action: "tabs"}}
 		}
-		right := view.Render(workflowui.Panel{
+		right := view.Render(Panel{
 			Title: heading, Hint: view.Hints(width, shortcuts...), Body: body,
 			Width: width, Focused: w.inspect, Close: true,
 		})
@@ -193,7 +193,7 @@ func (m *workflowScreen) content() string {
 	return strings.Join(rows, "\n")
 }
 
-func (m *workflowScreen) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+func (m *Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	w := m
 	mouse := msg.Mouse()
 	view := m.presentation()
@@ -360,7 +360,8 @@ func (m *workflowScreen) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func workflowCardDetail(status string) (string, graph.Tone) {
+// CardDetail presents an execution status without changing selection styling.
+func CardDetail(status string) (string, graph.Tone) {
 	tone := graph.ToneNormal
 	switch status {
 	case "":

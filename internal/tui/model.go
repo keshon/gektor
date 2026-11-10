@@ -29,6 +29,7 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/completion"
 	"github.com/keshon/gektor/internal/tui/components/composer"
 	"github.com/keshon/gektor/internal/tui/components/gate"
+	workflowui "github.com/keshon/gektor/internal/tui/workflow"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -88,7 +89,7 @@ type tickMsg time.Time
 type liveFlushMsg struct{}
 type model struct {
 	startWorkflows   bool
-	workflows        *workflowScreen
+	workflows        *workflowui.Model
 	steering         bool
 	inspector        toolInspector
 	liveFlushPending bool

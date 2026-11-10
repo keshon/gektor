@@ -1,24 +1,25 @@
-package tui
+package workflow
 
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/schemaform"
-	editor "github.com/keshon/gektor/internal/tui/workflow"
+
 	"github.com/keshon/gektor/internal/workflow"
 )
 
-func (m *workflowScreen) setupForm() tea.Cmd {
+func (m *Model) setupForm() tea.Cmd {
 	w := m
 	if w.run != nil {
 		return nil
 	}
-	m.dialogs.openForm(workflowForm{
+	m.dialogs.OpenForm(screen.Form{
 		Title:      "Edit workflow",
 		Hint:       "Choose what to change. AI proposals are reviewed before applying.",
 		ApplyLabel: "Open",
@@ -38,10 +39,10 @@ func (m *workflowScreen) setupForm() tea.Cmd {
 	return nil
 }
 
-func (m *workflowScreen) addNodeForm() tea.Cmd {
+func (m *Model) addNodeForm() tea.Cmd {
 	w := m
 	names := append(w.registry.Names(), "Schedule trigger")
-	m.dialogs.openForm(workflowForm{
+	m.dialogs.OpenForm(screen.Form{
 		Title:      "Add node",
 		Hint:       "Choose an operation or a Schedule trigger.",
 		ApplyLabel: "Next",
@@ -63,7 +64,7 @@ func (m *workflowScreen) addNodeForm() tea.Cmd {
 	return nil
 }
 
-func (m *workflowScreen) behaviorForm() tea.Cmd {
+func (m *Model) behaviorForm() tea.Cmd {
 	w := m
 	for i, step := range w.editor.Definition.Steps {
 		if step.ID != w.graph.Selected {
@@ -71,7 +72,7 @@ func (m *workflowScreen) behaviorForm() tea.Cmd {
 		}
 		original, _ := json.Marshal(step)
 		schema := schemaform.Parse(json.RawMessage(`{"properties":{"review":{"type":"boolean","enum":[true,false]},"depends_on":{"type":"array"},"when":{},"for_each":{},"merge":{"type":"string","enum":["all","any"]},"retry":{"type":"object"}}}`))
-		m.dialogs.openForm(workflowForm{
+		m.dialogs.OpenForm(screen.Form{
 			Title:      step.ID + " / behavior",
 			Hint:       "Conditions and references use JSON. Retries require a retry-safe operation.",
 			ApplyLabel: "Apply",
@@ -99,8 +100,8 @@ func (m *workflowScreen) behaviorForm() tea.Cmd {
 	return nil
 }
 
-func (m *workflowScreen) proposalForm() tea.Cmd {
-	m.dialogs.openForm(workflowForm{
+func (m *Model) proposalForm() tea.Cmd {
+	m.dialogs.OpenForm(screen.Form{
 		Title:      "AI workflow proposal",
 		Hint:       "The model proposes recipe edits only. You review before applying.",
 		ApplyLabel: "Propose",
@@ -116,15 +117,15 @@ func (m *workflowScreen) proposalForm() tea.Cmd {
 	return nil
 }
 
-func (m *workflowScreen) sourceForm() tea.Cmd {
+func (m *Model) sourceForm() tea.Cmd {
 	w := m
-	m.dialogs.openForm(workflowForm{
+	m.dialogs.OpenForm(screen.Form{
 		Title:      "Recipe JSON",
 		Hint:       "Inputs, outputs, conditions, iteration and retry are preserved here.",
 		ApplyLabel: "Apply",
 		Fields:     []formField{{Key: "source", Label: "Recipe", Value: w.editor.Source(), Multiline: true}},
 		Apply: func(v map[string]string) error {
-			d, err := editor.Decode([]byte(v["source"]))
+			d, err := Decode([]byte(v["source"]))
 			if err != nil {
 				return err
 			}
@@ -136,7 +137,7 @@ func (m *workflowScreen) sourceForm() tea.Cmd {
 	return nil
 }
 
-func (m *workflowScreen) connectForm() tea.Cmd {
+func (m *Model) connectForm() tea.Cmd {
 	w := m
 	names := []string{}
 	for _, s := range w.editor.Definition.Steps {
@@ -150,7 +151,7 @@ func (m *workflowScreen) connectForm() tea.Cmd {
 	if destination == w.graph.Selected {
 		destination = names[1]
 	}
-	m.dialogs.openForm(workflowForm{
+	m.dialogs.OpenForm(screen.Form{
 		Title:      "Connect nodes",
 		Hint:       "Choose the source and destination, then map their data.",
 		ApplyLabel: "Next",
@@ -169,14 +170,14 @@ func (m *workflowScreen) connectForm() tea.Cmd {
 	return nil
 }
 
-func (m *workflowScreen) deleteNodeForm() tea.Cmd {
+func (m *Model) deleteNodeForm() tea.Cmd {
 	w := m
 	if schedule := m.selectedSchedule(); schedule != nil {
 		m.deleteSchedule(*schedule)
 		return nil
 	}
 	id := w.graph.Selected
-	m.dialogs.openForm(workflowForm{
+	m.dialogs.OpenForm(screen.Form{
 		Title:      "Delete node",
 		Hint:       "References to this node must be repaired before validation succeeds.",
 		ApplyLabel: "Delete",
@@ -203,7 +204,7 @@ func (m *workflowScreen) deleteNodeForm() tea.Cmd {
 	return nil
 }
 
-func (m *workflowScreen) reviewForm() tea.Cmd {
+func (m *Model) reviewForm() tea.Cmd {
 	w := m
 	if w.run == nil {
 		w.setNotice(pane.NoticeWarning, "Open a run first")
@@ -226,7 +227,7 @@ func (m *workflowScreen) reviewForm() tea.Cmd {
 			break
 		}
 	}
-	m.dialogs.openForm(workflowForm{
+	m.dialogs.OpenForm(screen.Form{
 		Title:      "Review operation",
 		Hint:       "Approval executes this resolved operation. Completed operations are not repeated.",
 		ApplyLabel: "Continue",

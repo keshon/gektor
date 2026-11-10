@@ -104,7 +104,7 @@ func (m *model) footerActions() []footerAction {
 		return []footerAction{{tea.KeyTab, 0, "Tab", "Next", "Next", true}, apply, {tea.KeyEscape, 0, "Esc", "Cancel", "Cancel", true}, {'q', tea.ModCtrl, "Ctrl+Q", "Quit", "Quit", true}}
 	}
 	if m.workflowActive() && m.dialog == nil && m.sessions == nil && !m.header.focused {
-		return m.workflows.footerActions()
+		return m.workflowActions()
 	}
 	if m.state == stRunning && m.activeInputOwner() == focusInput {
 		actions := []footerAction{{tea.KeyEscape, 0, "Esc", "Stop", "Stop", true}, {tea.KeyEnter, 0, "Enter", "Send", "Send", true}, {'q', tea.ModAlt, "Alt+Q", "Queue", "Queue", true}}
@@ -267,14 +267,10 @@ func (m *model) footerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // A normal quit first stops an active run. Ctrl+C remains the immediate exit.
 func (m *model) requestQuit() (tea.Model, tea.Cmd) {
 	if w := m.workflows; w != nil {
-		if w.busy {
-			if w.cancel != nil {
-				w.cancel()
-			}
-			w.setNotice(pane.NoticeInfo, "Stopping workflow. Quit again once stopped.")
+		if !w.PrepareQuit() {
 			return m, nil
 		}
-		if w.editor.Dirty() {
+		if w.Dirty() {
 			m.openForm("Quit with unsaved workflow?", "Return to Workflows and save, or discard the draft.", "Quit", []formField{{Key: "decision", Label: "Type discard to quit"}}, func(v map[string]string) error {
 				if v["decision"] != "discard" {
 					return fmt.Errorf("type discard, or Esc to keep editing")

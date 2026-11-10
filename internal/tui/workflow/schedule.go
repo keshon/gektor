@@ -1,10 +1,11 @@
-package tui
+package workflow
 
 import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -15,7 +16,7 @@ import (
 
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
-	editor "github.com/keshon/gektor/internal/tui/workflow"
+
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workflow/service"
 	"github.com/keshon/gektor/internal/workflow/store"
@@ -29,7 +30,7 @@ type workflowScheduleEdit struct {
 	Expected *store.Schedule
 }
 
-func (m *workflowScreen) selectedSchedule() *store.Schedule {
+func (m *Model) selectedSchedule() *store.Schedule {
 	for _, s := range m.recipeSchedules() {
 		if workflowSchedulePrefix+s.ID == m.graph.Selected {
 			return &s
@@ -38,7 +39,7 @@ func (m *workflowScreen) selectedSchedule() *store.Schedule {
 	return nil
 }
 
-func (m *workflowScreen) recipeSchedules() []store.Schedule {
+func (m *Model) recipeSchedules() []store.Schedule {
 	if m.config.WS == nil || m.editor.Path == "" {
 		return nil
 	}
@@ -58,7 +59,7 @@ func (m *workflowScreen) recipeSchedules() []store.Schedule {
 
 // Triggers start the recipe, not individual operations. These edges describe
 // that relationship without adding executable steps or dependencies to JSON.
-func (m *workflowScreen) buildGraph(old graph.Model) graph.Model {
+func (m *Model) buildGraph(old graph.Model) graph.Model {
 	g := m.editor.Graph(old)
 	if m.run != nil {
 		return g
@@ -121,11 +122,11 @@ func scheduleTiming(expression string) string {
 	return "Cron: " + expression
 }
 
-func (m *workflowScreen) schedule() {
+func (m *Model) schedule() {
 	m.scheduleStart(false)
 }
 
-func (m *workflowScreen) scheduleStart(create bool) {
+func (m *Model) scheduleStart(create bool) {
 	w := m
 	if w.run != nil || w.busy {
 		return
@@ -152,7 +153,7 @@ func (m *workflowScreen) scheduleStart(create bool) {
 	m.inputForm(in)
 }
 
-func (m *workflowScreen) scheduleForm(in workflowInvocation) {
+func (m *Model) scheduleForm(in workflowInvocation) {
 	w := m
 	if w.busy || w.run != nil || w.editor.Source() != in.Draft || w.editor.Dirty() || w.editor.Path == "" {
 		w.setNotice(pane.NoticeWarning, "Recipe changed; save it and reopen Schedule")
@@ -204,7 +205,7 @@ func (m *workflowScreen) scheduleForm(in workflowInvocation) {
 	fields := []formField{{Key: "timing", Label: "When", Value: mode}, {Key: "time", Label: "Time (daily only, HH:MM)", Value: clock},
 		{Key: "cron", Label: "Cron (Cron only, minute hour day month weekday)", Value: s.Cron},
 		{Key: "timezone", Label: "Time zone", Value: s.Timezone}, {Key: "enabled", Label: "Enabled", Value: enabled}}
-	m.dialogs.openForm(workflowForm{
+	m.dialogs.OpenForm(screen.Form{
 		Title:      "Schedule trigger",
 		Hint:       "Saves this recipe and its input values as a schedule. Keep the workflow service running separately.",
 		ApplyLabel: "Save schedule",
@@ -253,7 +254,7 @@ func (m *workflowScreen) scheduleForm(in workflowInvocation) {
 
 }
 
-func (m *workflowScreen) scheduleRefresh() tea.Cmd {
+func (m *Model) scheduleRefresh() tea.Cmd {
 	w := m
 	if w.run != nil {
 		w.setNotice(pane.NoticeWarning, "Return to the draft before refreshing schedules")
@@ -279,7 +280,7 @@ func (m *workflowScreen) scheduleRefresh() tea.Cmd {
 	}
 }
 
-func (m *workflowScreen) scheduleChange(action, payload string) tea.Cmd {
+func (m *Model) scheduleChange(action, payload string) tea.Cmd {
 	w := m
 	var edit workflowScheduleEdit
 	if err := json.Unmarshal([]byte(payload), &edit); err != nil || w.run != nil || w.editor.Dirty() || edit.Draft != w.editor.Source() {
@@ -356,9 +357,9 @@ func loadScheduleInspection(ctx context.Context, db *store.Store, svc service.Se
 	result.scheduleStatus, result.err = svc.InspectSchedules(ctx, db, result.schedules, jobs)
 }
 
-func (m *workflowScreen) deleteSchedule(s store.Schedule) {
+func (m *Model) deleteSchedule(s store.Schedule) {
 	draft := m.editor.Source()
-	m.dialogs.openForm(workflowForm{
+	m.dialogs.OpenForm(screen.Form{
 		Title:      "Remove schedule",
 		Hint:       "Stops future triggers. Existing runs and queued jobs are kept.",
 		ApplyLabel: "Remove",
@@ -376,7 +377,7 @@ func (m *workflowScreen) deleteSchedule(s store.Schedule) {
 
 }
 
-func (m *workflowScreen) scheduleDetails(s store.Schedule) []string {
+func (m *Model) scheduleDetails(s store.Schedule) []string {
 	w := m
 	rows := []string{"Inspect", m.presentation().Styles.Accent.Render("Schedule trigger"), ""}
 	if w.rawDetails {
@@ -460,7 +461,7 @@ func (m *workflowScreen) scheduleDetails(s store.Schedule) []string {
 		if json.Unmarshal(s.Source, &bundle) == nil && bundle.Root != nil {
 			root = bundle.Root
 		}
-		if saved, err := editor.Decode(root); err == nil && (&editor.Editor{Definition: saved}).Source() != w.editor.Source() {
+		if saved, err := Decode(root); err == nil && (&Editor{Definition: saved}).Source() != w.editor.Source() {
 			rows = append(rows, "", "The current draft differs from this schedule snapshot.", "Edit and save the trigger to use the current recipe.")
 		}
 		rows = append(rows, "", "Enter edits timing and input values.", "Delete removes this trigger.")

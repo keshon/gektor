@@ -127,10 +127,10 @@ func (m *model) clampOffset() {
 // open pairs with esc/enter or run start.
 func (m *model) openSessions() {
 	if m.workflows != nil {
-		if m.workflows.busy {
+		if m.workflows.State().Busy {
 			return
 		}
-		m.workflows.active = false
+		m.workflows.Hide()
 	}
 	filter := newSearchInput(max(popup.ModalWidth(m.termW-2)-6, 1))
 	filter.Focus()

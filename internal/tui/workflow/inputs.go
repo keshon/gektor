@@ -1,8 +1,9 @@
-package tui
+package workflow
 
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"strings"
 
 	"github.com/keshon/gektor/internal/tui/components/pane"
@@ -16,12 +17,12 @@ type workflowInvocation struct {
 	ScheduleID          string
 }
 
-func (m *workflowScreen) queueInvocation(action string, in workflowInvocation) {
+func (m *Model) queueInvocation(action string, in workflowInvocation) {
 	b, _ := json.Marshal(in)
 	m.queueAction(action, string(b))
 }
 
-func (m *workflowScreen) runInputs(action string) {
+func (m *Model) runInputs(action string) {
 	w := m
 	in := workflowInvocation{Action: action, Draft: w.editor.Source(), Mode: "Simple"}
 	if len(w.editor.Definition.Inputs) == 0 {
@@ -32,7 +33,7 @@ func (m *workflowScreen) runInputs(action string) {
 	m.inputForm(in)
 }
 
-func (m *workflowScreen) inputForm(in workflowInvocation) {
+func (m *Model) inputForm(in workflowInvocation) {
 	w := m
 	if w.busy || w.run != nil {
 		return
@@ -67,7 +68,7 @@ func (m *workflowScreen) inputForm(in workflowInvocation) {
 		primary = "Next"
 	}
 	if in.Mode == "JSON" {
-		m.dialogs.openForm(workflowForm{
+		m.dialogs.OpenForm(screen.Form{
 			Title:      title + " / JSON",
 			Hint:       "Input values are checked before execution; omitted keys use recipe defaults.",
 			ApplyLabel: primary,
@@ -160,7 +161,7 @@ func (m *workflowScreen) inputForm(in workflowInvocation) {
 	if in.Action == "schedule" {
 		hint = "These values will be saved with the schedule and used for each scheduled run."
 	}
-	m.dialogs.openForm(workflowForm{
+	m.dialogs.OpenForm(screen.Form{
 		Title:      title,
 		Hint:       hint,
 		ApplyLabel: primary,

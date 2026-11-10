@@ -1,4 +1,4 @@
-package tui
+package workflow
 
 import (
 	"context"
@@ -12,17 +12,18 @@ import (
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
-	editor "github.com/keshon/gektor/internal/tui/workflow"
+	"github.com/keshon/gektor/internal/tui/screen"
+
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/service"
 	"github.com/keshon/gektor/internal/workflow/store"
 )
 
-type workflowScreen struct {
-	dialogs                  workflowDialogs
-	presentation             func() editor.Surface
-	config                   workflowScreenConfig
+type Model struct {
+	dialogs                  screen.Host
+	presentation             func() Surface
+	config                   Config
 	ctx                      context.Context
 	shutdown                 context.CancelFunc
 	commands                 []tea.Cmd
@@ -37,7 +38,7 @@ type workflowScreen struct {
 	inspectorOpen, panning   bool
 	connectFrom              string
 	connectPort              string
-	editor                   *editor.Editor
+	editor                   *Editor
 	graph                    graph.Model
 	registry                 *workflow.Registry
 	notice                   string
@@ -56,7 +57,7 @@ type workflowScreen struct {
 
 // setNotice replaces both text and severity; a later update must not inherit
 // the previous failure's presentation.
-func (w *workflowScreen) setNotice(level pane.NoticeLevel, text string) {
+func (w *Model) setNotice(level pane.NoticeLevel, text string) {
 	w.notice, w.noticeLevel = text, level
 }
 
@@ -83,13 +84,13 @@ type workflowPoll struct {
 	err error
 }
 
-func (m *workflowScreen) queueAction(action, value string) {
+func (m *Model) queueAction(action, value string) {
 	m.commands = append(m.commands, func() tea.Msg { return workflowAction{action, value} })
 }
-func (m *workflowScreen) service(gate permission.Gate) (service.Service, error) {
+func (m *Model) service(gate permission.Gate) (service.Service, error) {
 	return app.NewWorkflow(m.config.WS, userdirs.Sub("workflows"), m.config.Policy, gate)
 }
-func (m *workflowScreen) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	w := m
 	m.ensureSelection()
 	key := msg.String()
@@ -237,7 +238,7 @@ func (m *workflowScreen) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "pgup", "pgdown", "home", "end":
 		m.page(key)
 	case "f1":
-		m.dialogs.openDialog("Workflow keys", strings.Split("Ctrl+O open · Ctrl+N new · Ctrl+S save\nA add · Enter edit/inspect · Delete delete\nC connect · B connections · E node behavior · J complete recipe JSON\nM recipe name · U inputs · O outputs\nArrows select · Shift+arrows move · G locks positions · Alt+arrows pan\nDrag background to pan · Shift+wheel horizontal\nClick output then input to connect · Ctrl+T inspector\nTab pane focus · 1/2/3 inspector tabs · Ctrl+J raw data\nInspector E edits properties/code · Esc closes focused inspector\nF compact overview · L auto-layout · Ctrl+Z undo · Ctrl+Y redo\nV validate · R run · H saved runs · P review\nD editable draft · I AI proposal\nEsc chat (draft retained) / stop active operation\nF9 main menu · Ctrl+Q quit", "\n"))
+		m.dialogs.OpenDialog(screen.Dialog{Title: "Workflow keys", Lines: strings.Split("Ctrl+O open · Ctrl+N new · Ctrl+S save\nA add · Enter edit/inspect · Delete delete\nC connect · B connections · E node behavior · J complete recipe JSON\nM recipe name · U inputs · O outputs\nArrows select · Shift+arrows move · G locks positions · Alt+arrows pan\nDrag background to pan · Shift+wheel horizontal\nClick output then input to connect · Ctrl+T inspector\nTab pane focus · 1/2/3 inspector tabs · Ctrl+J raw data\nInspector E edits properties/code · Esc closes focused inspector\nF compact overview · L auto-layout · Ctrl+Z undo · Ctrl+Y redo\nV validate · R run · H saved runs · P review\nD editable draft · I AI proposal\nEsc chat (draft retained) / stop active operation\nF9 main menu · Ctrl+Q quit", "\n")})
 		return m, nil
 	}
 	if strings.HasPrefix(key, "shift+") {
@@ -252,7 +253,7 @@ func (m *workflowScreen) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
-func (m *workflowScreen) inspectorContent() []string {
+func (m *Model) inspectorContent() []string {
 	view := m.presentation()
 	width := view.Layout(view.Panes(true).Side.Width, true).Body.Width
 	var out []string
@@ -262,7 +263,7 @@ func (m *workflowScreen) inspectorContent() []string {
 	return out
 }
 
-func (m *workflowScreen) footerActions() []footerAction {
+func (m *Model) footerActions() []screen.Action {
 	w := m
 	edit := !w.busy && w.run == nil
 	label := "Edit"
@@ -277,34 +278,38 @@ func (m *workflowScreen) footerActions() []footerAction {
 	} else if w.inspectorOpen && w.inspect {
 		back = "Close"
 	}
-	actions := []footerAction{{tea.KeyF1, 0, "F1", "Help", "Help", true}, {'a', 0, "A", "Add node", "Add", edit}, {tea.KeyEnter, 0, "Enter", label, label, !w.busy}, {'c', 0, "C", "Connect", "Link", edit}, {'r', 0, "R", "Run", "Run", edit}, {'t', tea.ModCtrl, "Ctrl+T", "Inspector", "Inspect", true}, {'s', tea.ModCtrl, "Ctrl+S", "Save", "Save", edit}, {tea.KeyEscape, 0, "Esc", back, back, true}}
+	actions := []screen.Action{{tea.KeyF1, 0, "F1", "Help", "Help", true}, {'a', 0, "A", "Add node", "Add", edit}, {tea.KeyEnter, 0, "Enter", label, label, !w.busy}, {'c', 0, "C", "Connect", "Link", edit}, {'r', 0, "R", "Run", "Run", edit}, {'t', tea.ModCtrl, "Ctrl+T", "Inspector", "Inspect", true}, {'s', tea.ModCtrl, "Ctrl+S", "Save", "Save", edit}, {tea.KeyEscape, 0, "Esc", back, back, true}}
 	if m.presentation().Area.Width < 80 {
-		return []footerAction{actions[0], actions[1], actions[5], actions[7]}
+		return []screen.Action{actions[0], actions[1], actions[5], actions[7]}
 	}
 	return actions
 }
 
-func newWorkflowScreen(ctx context.Context, cfg workflowScreenConfig, dialogs workflowDialogs, presentation func() editor.Surface) (*workflowScreen, error) {
+func NewScreen(ctx context.Context, cfg Config, dialogs screen.Host, presentation func() Surface) (*Model, error) {
 	r, err := app.WorkflowRegistry(cfg.WS, userdirs.Sub("workflows"), nil, nil)
 	if err != nil {
 		return nil, err
 	}
+	draft := cfg.Draft
+	if draft == nil {
+		draft = New()
+	}
 	ctx, cancel := context.WithCancel(ctx)
-	return &workflowScreen{
+	return &Model{
 		dialogs: dialogs, presentation: presentation, config: cfg,
-		ctx: ctx, shutdown: cancel, editor: editor.New(), registry: r,
+		ctx: ctx, shutdown: cancel, editor: draft, registry: r,
 		events: make(chan tea.Msg, 16),
 	}, nil
 }
-func (m *workflowScreen) Close() {
+func (m *Model) Close() {
 	if m.cancel != nil {
 		m.cancel()
 	}
 	m.shutdown()
 }
-func (m *workflowScreen) Init() tea.Cmd  { return nil }
-func (m *workflowScreen) View() tea.View { return tea.NewView(m.content()) }
-func (m *workflowScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) Init() tea.Cmd  { return nil }
+func (m *Model) View() tea.View { return tea.NewView(m.content()) }
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		return m.key(msg)

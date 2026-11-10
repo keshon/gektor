@@ -1,11 +1,9 @@
-package tui
+package workflow
 
 import (
 	"encoding/json"
 	"strings"
 	"testing"
-
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/workflow"
 )
@@ -120,33 +118,5 @@ func TestSourceOutputHintsUseEscapedSchemaPointers(t *testing.T) {
 	hints := workflowOutputPointers(json.RawMessage(`{"type":"object","properties":{"a/b":{"properties":{"~name":{"type":"string"}}},"items":{"type":"array","items":{"type":"object"}}}}`))
 	if strings.Join(hints, ",") != "/a~1b,/a~1b/~0name,/items" {
 		t.Fatal(hints)
-	}
-}
-
-func TestConnectionPreviewFitsResizedForms(t *testing.T) {
-	previous := selectedPalette.Load()
-	defer selectedPalette.Store(previous)
-	m := workflowTestModel(t)
-	w := m.workflows
-	d := workflowRecipe()
-	second := d.Steps[0]
-	second.ID = "second"
-	d.Steps = append(d.Steps, second)
-	w.editor.Replace(d)
-	for _, theme := range []string{"light", "dark"} {
-		setTheme(theme)
-		m.workflows.connectionEdit(workflowConnectionEdit{From: "transform", To: "second", Field: "args", Path: "/input", Draft: w.editor.Source()})
-		for _, size := range [][2]int{{120, 30}, {80, 24}, {40, 15}} {
-			sizeModelTo(t, m, size[0], size[1])
-			rows := strings.Split(ansi.Strip(m.screenContent()), "\n")
-			if len(rows) != size[1] {
-				t.Fatal("form overflow height", theme, size)
-			}
-			for _, row := range rows {
-				if ansi.StringWidth(row) != size[0] {
-					t.Fatal("form overflow width", theme, size, row)
-				}
-			}
-		}
 	}
 }

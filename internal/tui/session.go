@@ -358,10 +358,10 @@ func (m *model) startInitial(task string, images []string) error {
 func (m *model) newTask() {
 	m.cancelSessionTitle()
 	if m.workflows != nil {
-		if m.workflows.busy {
+		if m.workflows.State().Busy {
 			return
 		}
-		m.workflows.active = false
+		m.workflows.Hide()
 	}
 	m.attachmentEpoch++
 	m.seedHistory = nil

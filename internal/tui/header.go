@@ -152,7 +152,7 @@ func (m *model) rawHeaderItems() []menuItem {
 		return items
 	}
 	info := func(s string) menuItem { return menuItem{text: s} }
-	idle := m.state == stDone && (m.workflows == nil || !m.workflows.busy)
+	idle := m.state == stDone && (m.workflows == nil || !m.workflows.State().Busy)
 	switch m.header.menu {
 
 	case "steering":

@@ -1,19 +1,20 @@
-package tui
+package workflow
 
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
-	editor "github.com/keshon/gektor/internal/tui/workflow"
+
 	"github.com/keshon/gektor/internal/workflow"
 )
 
-func (m *workflowScreen) selectedStep() workflow.Step {
+func (m *Model) selectedStep() workflow.Step {
 	for _, s := range m.definition().Steps {
 		if s.ID == m.graph.Selected {
 			return s
@@ -63,7 +64,7 @@ func workflowPortLabel(n graph.Node, key string, output bool) string {
 	return key
 }
 
-func (m *workflowScreen) detailRows() []string {
+func (m *Model) detailRows() []string {
 	if schedule := m.selectedSchedule(); schedule != nil && m.run == nil {
 		return m.scheduleDetails(*schedule)
 	}
@@ -94,7 +95,7 @@ func (m *workflowScreen) detailRows() []string {
 	if w.inspectorTab == 2 {
 		return append(rows, m.codeRows(step)...)
 	}
-	e := &editor.Editor{Definition: m.definition()}
+	e := &Editor{Definition: m.definition()}
 	nodes := map[string]graph.Node{}
 	for _, n := range e.Graph(w.graph).Nodes {
 		nodes[n.ID] = n
@@ -221,7 +222,7 @@ func withoutWorkflowCode(raw json.RawMessage) json.RawMessage {
 	return b
 }
 
-func (m *workflowScreen) resultRows(step workflow.Step) []string {
+func (m *Model) resultRows(step workflow.Step) []string {
 	w := m
 	if w.run == nil {
 		return []string{"No recorded result for this draft.", "", "H opens saved runs."}
@@ -274,7 +275,7 @@ func workflowScript(raw json.RawMessage) (string, bool) {
 	return code, true
 }
 
-func (m *workflowScreen) codeRows(step workflow.Step) []string {
+func (m *Model) codeRows(step workflow.Step) []string {
 	args := step.Args
 	label := "Draft script / E edits"
 	if m.run != nil {
@@ -296,7 +297,7 @@ func (m *workflowScreen) codeRows(step workflow.Step) []string {
 	return append([]string{label, ""}, strings.Split(cleanText(code), "\n")...)
 }
 
-func (m *workflowScreen) editCode() {
+func (m *Model) editCode() {
 	w := m
 	if w.run != nil || w.busy {
 		w.setNotice(pane.NoticeWarning, "Recorded scripts are read-only")
@@ -309,7 +310,7 @@ func (m *workflowScreen) editCode() {
 		return
 	}
 	draft := w.editor.Source()
-	m.dialogs.openForm(workflowForm{
+	m.dialogs.OpenForm(screen.Form{
 		Title:      "Code / " + step.ID,
 		Hint:       "Edits the draft script. Run and validation remain separate actions.",
 		ApplyLabel: "Apply",

@@ -11,7 +11,7 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if m.suggestions.Dragging() && m.suggestionMouse(msg) {
 		return m, nil
 	}
-	if m.workflowActive() && m.dialog == nil && (m.workflows.dragging || m.workflows.panning || m.workflows.thumb.active) {
+	if m.workflowActive() && m.dialog == nil && m.workflows.State().MouseCaptured {
 		return m.workflowMouse(msg)
 	}
 	if m.sessions != nil {

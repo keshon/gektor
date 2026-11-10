@@ -28,7 +28,7 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case "f10":
 			return m.requestQuit()
 		}
-		_, cmd := m.workflows.key(msg)
+		_, cmd := m.workflows.Update(msg)
 		return m, cmd
 	}
 	if m.state == stPermission && m.dialog == nil && msg.String() == "f4" && m.gatePreview != "" {

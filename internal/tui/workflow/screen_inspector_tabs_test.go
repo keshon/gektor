@@ -1,4 +1,4 @@
-package tui
+package workflow
 
 import (
 	"encoding/json"
@@ -78,7 +78,7 @@ func TestInspectorTabsArePinnedAndClickableAtEveryWidth(t *testing.T) {
 		m.workflowScreen()
 		m.workflowCommand("inspector")
 		left := 0
-		if width >= inspectorSplitWidth {
+		if width >= 100 {
 			left = width / 2
 		}
 		for tab := 0; tab < 3; tab++ {

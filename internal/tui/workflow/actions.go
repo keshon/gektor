@@ -1,8 +1,9 @@
-package tui
+package workflow
 
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -16,7 +17,7 @@ import (
 	"github.com/keshon/gektor/internal/workflow/store"
 )
 
-func (m *workflowScreen) command(action string) tea.Cmd {
+func (m *Model) command(action string) tea.Cmd {
 	if !m.active {
 		return nil
 	}
@@ -62,7 +63,9 @@ func (m *workflowScreen) command(action string) tea.Cmd {
 		w.setNotice(pane.NoticeInfo, "Schedule starts the whole recipe. Enter edits the trigger; connections are automatic.")
 		return nil
 	}
-	fail := func(err error) { m.dialogs.openDialog("Workflow", []string{err.Error()}) }
+	fail := func(err error) {
+		m.dialogs.OpenDialog(screen.Dialog{Title: "Workflow", Lines: []string{err.Error()}})
+	}
 	switch action {
 	case "schedule":
 		m.schedule()
@@ -169,7 +172,7 @@ func workflowRequiresDraft(action string) bool {
 	}
 }
 
-func (m *workflowScreen) recipePath(action string) {
+func (m *Model) recipePath(action string) *settings.Model {
 	w := m
 	fields := []formField{{Key: "path", Label: "Recipe path (relative to workspace)", Value: w.editor.Path}}
 	var fileFields map[string]settings.FilePicker
@@ -182,7 +185,7 @@ func (m *workflowScreen) recipePath(action string) {
 	if w.editor.Dirty() {
 		fields = append(fields, formField{Key: "discard", Label: "Unsaved changes: type discard to replace"})
 	}
-	m.dialogs.openForm(workflowForm{
+	return m.dialogs.OpenForm(screen.Form{
 		Title:      "Workflow / " + action,
 		Hint:       "Workspace: " + m.config.WS.Root(),
 		ApplyLabel: "Continue",
@@ -204,9 +207,9 @@ func (m *workflowScreen) recipePath(action string) {
 	})
 }
 
-func (m *workflowScreen) saveForm() {
+func (m *Model) saveForm() {
 	w := m
-	m.dialogs.openForm(workflowForm{
+	m.dialogs.OpenForm(screen.Form{
 		Title:      "Save workflow",
 		Hint:       "Writes the recipe; canvas positions stay in your user settings.",
 		ApplyLabel: "Save",
@@ -221,7 +224,7 @@ func (m *workflowScreen) saveForm() {
 	})
 }
 
-func (m *workflowScreen) addOperation(name string) {
+func (m *Model) addOperation(name string) {
 	w := m
 	if w.busy || w.run != nil {
 		return
@@ -232,7 +235,7 @@ func (m *workflowScreen) addOperation(name string) {
 		return
 	}
 	draft := w.editor.Source()
-	m.dialogs.openForm(workflowForm{
+	m.dialogs.OpenForm(screen.Form{
 		Title:      "Add operation",
 		Hint:       name,
 		ApplyLabel: "Add",
@@ -261,7 +264,7 @@ func (m *workflowScreen) addOperation(name string) {
 	})
 }
 
-func (m *workflowScreen) edit() {
+func (m *Model) edit() {
 	w := m
 	if m.selectedSchedule() != nil {
 		m.schedule()
@@ -280,7 +283,7 @@ func (m *workflowScreen) edit() {
 	s := w.editor.Definition.Steps[idx]
 	n, err := w.registry.Node(s.Tool)
 	if err != nil {
-		m.dialogs.openDialog("Node", []string{err.Error()})
+		m.dialogs.OpenDialog(screen.Dialog{Title: "Node", Lines: []string{err.Error()}})
 		return
 	}
 	schema := schemaform.Parse(n.InputSchema)
@@ -288,7 +291,7 @@ func (m *workflowScreen) edit() {
 		delete(schema.Properties, "code")
 	}
 	draft := w.editor.Source()
-	m.dialogs.openForm(workflowForm{
+	m.dialogs.OpenForm(screen.Form{
 		Title:      s.ID + " / " + s.Tool,
 		Hint:       n.Description + " · * required. Use JSON objects for references.",
 		ApplyLabel: "Apply",
@@ -313,7 +316,7 @@ func (m *workflowScreen) edit() {
 }
 
 // workflowLinkTarget resolves the destination schema after both nodes are chosen.
-func (m *workflowScreen) linkTarget(value string) {
+func (m *Model) linkTarget(value string) {
 	var pair []string
 	if json.Unmarshal([]byte(value), &pair) != nil || len(pair) != 2 {
 		return

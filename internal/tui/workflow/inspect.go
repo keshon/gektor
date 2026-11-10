@@ -1,4 +1,4 @@
-package tui
+package workflow
 
 import (
 	"encoding/json"
@@ -12,7 +12,7 @@ import (
 	"github.com/keshon/gektor/internal/workflow"
 )
 
-func (m *workflowScreen) setInspectorTab(tab int) {
+func (m *Model) setInspectorTab(tab int) {
 	w := m
 	w.inspectorTab = max(0, min(2, tab))
 	w.rawDetails = false
@@ -20,7 +20,7 @@ func (m *workflowScreen) setInspectorTab(tab int) {
 	w.thumb = scrollDrag{}
 }
 
-func (m *workflowScreen) inspectorTabs() pane.TabLayout {
+func (m *Model) inspectorTabs() pane.TabLayout {
 	w := m
 	labels := []string{"Properties", "Result", "Code"}
 	if m.selectedSchedule() != nil && w.run == nil {
@@ -36,7 +36,7 @@ func (m *workflowScreen) inspectorTabs() pane.TabLayout {
 		pane.TabStyles{Normal: view.Styles.Muted, Active: view.Styles.Panels.Title, Focus: view.Styles.Panels.Focus})
 }
 
-func (m *workflowScreen) focusPort(key string, output bool) {
+func (m *Model) focusPort(key string, output bool) {
 	w := m
 	w.inspectorTab = 0
 	w.rawDetails = false

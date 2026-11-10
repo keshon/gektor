@@ -1,4 +1,4 @@
-package tui
+package workflow
 
 import (
 	"context"
@@ -10,35 +10,10 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/workflow"
-	"github.com/keshon/gektor/internal/workspace"
 )
-
-func workflowTestModel(t *testing.T) *model {
-	t.Helper()
-	t.Setenv("USERPROFILE", t.TempDir())
-	t.Setenv("HOME", t.TempDir())
-	m := sizeModelTo(t, testModel(), 120, 30)
-	m.state = stDone
-	m.base = context.Background()
-	ws, err := workspace.New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { ws.Close() })
-	m.baseEnv.WS = ws
-	m.wsRoot = ws.Root()
-	m.baseEnv.Policy = permission.Default()
-	m.openWorkflows()
-	if m.workflows == nil {
-		t.Fatal("workspace unavailable")
-	}
-	t.Cleanup(m.workflows.Close)
-	return m
-}
 
 func TestWorkflowScreenCloseCancelsItsOperation(t *testing.T) {
 	m := workflowTestModel(t)
@@ -57,59 +32,6 @@ func workflowRecipe() workflow.Definition {
 	return workflow.Definition{Version: 3, Name: "Test", Steps: []workflow.Step{{ID: "transform", Tool: "script_transform", NodeVersion: 1, Args: json.RawMessage(`{"code":"return input + 1;","input":2}`)}}}
 }
 
-func TestWorkflowStartupOpensEditorWithoutStartingRun(t *testing.T) {
-	m := workflowTestModel(t)
-	m.workflows = nil
-	m.startWorkflows = true
-	draft := "unsent Agent text"
-	m.input.SetValue(draft)
-	m.Init()
-	if !m.workflowActive() || m.workflows.busy || m.workflows.run != nil || m.state != stDone || m.input.Value() != draft {
-		t.Fatal("startup did not open an idle workflow editor")
-	}
-	// Init should not reopen Workflows after returning to Agent.
-	m.workflows.active = false
-	m.Init()
-	if m.workflowActive() {
-		t.Fatal("startup action repeated")
-	}
-}
-func TestWorkflowMenuCanvasAndModalGeometry(t *testing.T) {
-	m := workflowTestModel(t)
-	w := m.workflows
-	w.editor.Definition = workflowRecipe()
-	for _, size := range [][2]int{{120, 30}, {80, 24}, {40, 15}} {
-		sizeModelTo(t, m, size[0], size[1])
-		v := ansi.Strip(m.screenContent())
-		rows := strings.Split(v, "\n")
-		if len(rows) != size[1] {
-			t.Fatal("height")
-		}
-		for _, row := range rows {
-			if ansi.StringWidth(row) != size[0] {
-				t.Fatalf("bad row: %q", row)
-			}
-		}
-		if !strings.Contains(v, "transform") {
-			t.Fatal(v)
-		}
-	}
-	sizeModelTo(t, m, 120, 30)
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF9})
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.header.menu != "app" {
-		t.Fatal("canvas swallowed menu keys")
-	}
-	m.closeHeader()
-	m.workflowCommand("edit")
-	left, top, width, height := m.settingsArea()
-	if left != 1 || top != 4 || width != 118 || height != 22 {
-		t.Fatalf("geometry %d %d %d %d", left, top, width, height)
-	}
-	if !strings.Contains(ansi.Strip(m.screenContent()), "script_transform") {
-		t.Fatal("modal missing")
-	}
-}
 func TestWorkflowExecutionReviewAndSave(t *testing.T) {
 	m := workflowTestModel(t)
 	w := m.workflows
@@ -256,33 +178,6 @@ func TestWorkflowProposalShowsScheduleHandoff(t *testing.T) {
 	}
 }
 
-func TestWorkflowOutlineJoins(t *testing.T) {
-	m := workflowTestModel(t)
-	for _, minimal := range []bool{false, true} {
-		m.minimal = minimal
-		m.workflows.inspectorOpen = true
-		_, _ = m.workflows.canvasSize()
-		rows := strings.Split(ansi.Strip(m.screenContent()), "\n")
-		if len(rows) != m.termH {
-			t.Fatal("wrong height")
-		}
-		for _, row := range rows {
-			if ansi.StringWidth(row) != m.termW {
-				t.Fatal("wrong width")
-			}
-		}
-		if minimal {
-			if strings.Contains(rows[3], "┬") {
-				t.Fatal("outline leaked into minimal mode")
-			}
-			continue
-		}
-		at := func(y, x int) rune { return []rune(rows[y])[x] }
-		if at(1, 0) != '┌' || at(1, m.termW-1) != '┐' || at(2, 0) != '│' || at(1, m.termW/2) != '┌' || at(3, m.termW/2) != '├' || at(m.termH-2, m.termW/2) != '└' || at(m.termH-3, 0) != '│' || at(m.termH-2, 0) != '└' {
-			t.Fatal(strings.Join(rows, "\n"))
-		}
-	}
-}
 func TestMissingWorkflowKeepsDraftAndOffersPathCorrection(t *testing.T) {
 	m := workflowTestModel(t)
 	w := m.workflows

@@ -1,4 +1,4 @@
-package tui
+package workflow
 
 import (
 	"encoding/json"

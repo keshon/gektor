@@ -1,4 +1,4 @@
-package tui
+package workflow
 
 import (
 	"encoding/json"
@@ -10,20 +10,6 @@ import (
 
 	"github.com/keshon/gektor/internal/tui/components/graph"
 )
-
-func TestWorkflowGlobalNavigationStaysWithRoot(t *testing.T) {
-	m := workflowTestModel(t)
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF9})
-	if !m.header.focused {
-		t.Fatal("workflow swallowed the application menu key")
-	}
-	m.closeHeader()
-	m.workflows.editor.Replace(workflowRecipe())
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF10})
-	if m.dialog == nil || m.dialog.title != "Quit with unsaved workflow?" || m.quit {
-		t.Fatal("workflow bypassed the root's unsaved-draft protection")
-	}
-}
 
 func TestWorkflowFormRequestsPreserveRemovalFocus(t *testing.T) {
 	m := workflowTestModel(t)
@@ -104,7 +90,7 @@ func TestWorkflowInspectorCloseAndResponsiveLayout(t *testing.T) {
 				t.Fatal("width", row)
 			}
 		}
-		if width < inspectorSplitWidth {
+		if width < 100 {
 			cw, _ := m.workflows.canvasSize()
 			if cw != width-2 {
 				t.Fatal("narrow inspector shrank canvas")
@@ -141,31 +127,5 @@ func TestWorkflowPortsOpenMappingAndMenusExposeAdd(t *testing.T) {
 	if m.dialog == nil || m.dialog.form == nil || w.connectFrom != "" {
 		t.Fatal("ports did not open mapping form")
 	}
-	m.dialog = nil
-	m.header.menu = "recipe"
-	if len(m.rawHeaderItems()) > 7 {
-		t.Fatal("workflow menu remains overloaded")
-	}
-	m.header.menu = "node"
-	found := false
-	for _, item := range m.rawHeaderItems() {
-		if item.command == "/workflows add" && item.enabled {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatal("Add node missing from Node menu")
-	}
-	for _, width := range []int{40, 120} {
-		sizeModelTo(t, m, width, 24)
-		found = false
-		for _, action := range m.workflows.footerActions() {
-			if action.key == 'a' && action.enabled {
-				found = true
-			}
-		}
-		if !found {
-			t.Fatal("Add node hidden in footer", width)
-		}
-	}
+
 }

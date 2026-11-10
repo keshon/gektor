@@ -1,4 +1,4 @@
-package tui
+package workflow
 
 import (
 	"errors"
@@ -57,7 +57,7 @@ func workflowErrorPointer(parts []string) string {
 	return path
 }
 
-func (m *workflowScreen) validationRows(err error) []string {
+func (m *Model) validationRows(err error) []string {
 	w := m
 	d := w.editor.Definition
 	if w.run != nil {

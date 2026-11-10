@@ -1,16 +1,18 @@
-package tui
+package workflow
 
 import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
+	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/app"
@@ -18,15 +20,13 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/table"
-	editor "github.com/keshon/gektor/internal/tui/workflow"
+
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workflow/store"
 )
 
-type workflowQuit struct{}
-
 func workflowWait(ch <-chan tea.Msg) tea.Cmd { return func() tea.Msg { return <-ch } }
-func (m *workflowScreen) action(a workflowAction) tea.Cmd {
+func (m *Model) action(a workflowAction) tea.Cmd {
 	if m == nil {
 		return nil
 	}
@@ -80,7 +80,7 @@ func (m *workflowScreen) action(a workflowAction) tea.Cmd {
 		return m.propose(a.value)
 	case "new-path":
 		w.runID = ""
-		w.editor = editor.New()
+		w.editor = New()
 		w.editor.Path = a.value
 		w.graph = graph.Model{}
 		w.run = nil
@@ -134,7 +134,7 @@ func (m *workflowScreen) action(a workflowAction) tea.Cmd {
 				var b []byte
 				b, err = s.Snapshot(ctx, a.value)
 				if err == nil {
-					_, err = editor.Decode(b)
+					_, err = Decode(b)
 				}
 				result.source, result.path = string(b), a.value
 			case "save-path":
@@ -160,7 +160,7 @@ func (m *workflowScreen) action(a workflowAction) tea.Cmd {
 	return workflowWait(events)
 }
 
-func (m *workflowScreen) openRuns(runs []store.RunSummary) {
+func (m *Model) openRuns(runs []store.RunSummary) {
 	w := m
 	if len(runs) == 0 {
 		w.setNotice(pane.NoticeInfo, "No runs in this workspace")
@@ -168,7 +168,7 @@ func (m *workflowScreen) openRuns(runs []store.RunSummary) {
 	}
 	runs = append([]store.RunSummary(nil), runs...)
 	sort.SliceStable(runs, func(i, j int) bool { return runs[i].Started.After(runs[j].Started) })
-	view := m.dialogs.newTable()
+	view := table.New(textinput.New().Styles())
 	rows := make([]table.Row, 0, len(runs))
 	for _, run := range runs {
 		started := "Unknown"
@@ -178,26 +178,28 @@ func (m *workflowScreen) openRuns(runs []store.RunSummary) {
 		rows = append(rows, table.Row{ID: run.ID, Cells: []string{cleanText(nonEmpty(run.Name)), cleanText(run.Status), started, run.ID, cleanText(run.RecipePath)}})
 	}
 	view.SetRows(rows)
-	m.dialogs.openDialog("Workflow runs", nil)
-	m.dialogs.dialog().table = &tableDialog{
-		model:       view,
-		columns:     []table.Column{{Label: "Recipe", Width: 14}, {Label: "Status", Width: 12}, {Label: "Started"}},
-		description: "Saved runs in this workspace, newest first. Search by recipe, status, date or run ID. Open inspects a saved record; it does not run the recipe.",
-		actions: func() []table.Action {
-			return []table.Action{{ID: "details", Label: "Open run", Key: "enter", Enabled: view.Selected() != "" && m == w && !w.busy}, {ID: "close", Label: "Close", Key: "esc", Enabled: true}}
+	m.dialogs.OpenDialog(screen.Dialog{Title: "Workflow runs", Lines: nil,
+		Table: &screen.Table{
+			Model:       view,
+			Columns:     []table.Column{{Label: "Recipe", Width: 14}, {Label: "Status", Width: 12}, {Label: "Started"}},
+			Description: "Saved runs in this workspace, newest first. Search by recipe, status, date or run ID. Open inspects a saved record; it does not run the recipe.",
+			Actions: func() []table.Action {
+				return []table.Action{{ID: "details", Label: "Open run", Key: "enter", Enabled: view.Selected() != "" && m == w && !w.busy}, {ID: "close", Label: "Close", Key: "esc", Enabled: true}}
+			},
+			Activate: func(action, id string) tea.Cmd {
+				if action == "details" && id != "" && m == w && !w.busy {
+					m.dialogs.CloseDialog()
+					m.queueAction("inspect-run", id)
+				}
+				return nil
+			},
 		},
-		activate: func(action, id string) tea.Cmd {
-			if action == "details" && id != "" && m == w && !w.busy {
-				m.dialogs.closeDialog()
-				m.queueAction("inspect-run", id)
-			}
-			return nil
-		},
-	}
+	})
+
 }
-func (m *workflowScreen) acceptPermission(p workflowPermission) tea.Cmd {
+func (m *Model) acceptPermission(p workflowPermission) tea.Cmd {
 	w := m
-	m.dialogs.openForm(workflowForm{
+	m.dialogs.OpenForm(screen.Form{
 		Title:      "Allow operation?",
 		Hint:       p.tool + " on " + p.resource,
 		ApplyLabel: "Decide",
@@ -224,27 +226,25 @@ func (m *workflowScreen) acceptPermission(p workflowPermission) tea.Cmd {
 
 	return workflowWait(w.events)
 }
-func (m *workflowScreen) acceptResult(r workflowResult) tea.Cmd {
+func (m *Model) acceptResult(r workflowResult) tea.Cmd {
 	w := m
 	if w == nil {
 		return nil
 	}
 	w.busy = false
 	w.cancel = nil
-	if m.dialogs.dialog() != nil && m.dialogs.dialog().onClose != nil {
-		m.dialogs.closeDialog()
-	}
+	m.dialogs.FinishOperation()
 	if r.err != nil {
 		if r.action == "open-path" {
 			w.setNotice(pane.NoticeWarning, "Recipe was not opened · Ctrl+O choose a file")
-			m.command("open")
-			if m.dialogs.dialog() != nil && m.dialogs.dialog().form != nil {
-				m.dialogs.dialog().form.Editor.SetValue(r.path)
+			if w.active {
+				form := m.recipePath("open")
+				form.Editor.SetValue(r.path)
 				message := "Could not open recipe: " + r.err.Error()
 				if os.IsNotExist(r.err) {
 					message = "Recipe not found: " + r.path + ". Enter an existing path, or Esc then Ctrl+N to create one."
 				}
-				m.dialogs.dialog().form.Error = message
+				form.Error = message
 			}
 			return nil
 		}
@@ -253,7 +253,7 @@ func (m *workflowScreen) acceptResult(r workflowResult) tea.Cmd {
 		if r.text != "" {
 			rows = append(rows, r.text)
 		}
-		m.dialogs.openDialog("Workflow failed", rows)
+		m.dialogs.OpenDialog(screen.Dialog{Title: "Workflow failed", Lines: rows})
 		return nil
 	}
 	if r.action == "schedule-save" || r.action == "schedule-delete" || r.action == "schedule-refresh" {
@@ -273,13 +273,13 @@ func (m *workflowScreen) acceptResult(r workflowResult) tea.Cmd {
 		return nil
 	}
 	if r.source != "" {
-		d, err := editor.Decode([]byte(r.source))
+		d, err := Decode([]byte(r.source))
 		if err != nil {
 			w.setNotice(pane.NoticeError, err.Error())
 			return nil
 		}
 		w.runID = ""
-		w.editor = &editor.Editor{Definition: d, Path: r.path}
+		w.editor = &Editor{Definition: d, Path: r.path}
 		w.editor.Saved = w.editor.Source()
 		w.run = nil
 		w.graph = m.buildGraph(graph.Model{})
@@ -321,7 +321,7 @@ func (m *workflowScreen) acceptResult(r workflowResult) tea.Cmd {
 	}
 	return nil
 }
-func (m *workflowScreen) poll(id string, delay bool) tea.Cmd {
+func (m *Model) poll(id string, delay bool) tea.Cmd {
 	root := m.config.WS.Root()
 	return func() tea.Msg {
 		if delay {
@@ -340,7 +340,7 @@ func (m *workflowScreen) poll(id string, delay bool) tea.Cmd {
 		return workflowPoll{id: id, run: &r.Record}
 	}
 }
-func (m *workflowScreen) acceptPoll(p workflowPoll) tea.Cmd {
+func (m *Model) acceptPoll(p workflowPoll) tea.Cmd {
 	w := m
 	if w == nil || w.runID != p.id {
 		return nil
@@ -350,7 +350,7 @@ func (m *workflowScreen) acceptPoll(p workflowPoll) tea.Cmd {
 		return nil
 	}
 	w.run = p.run
-	e := &editor.Editor{Definition: m.definition()}
+	e := &Editor{Definition: m.definition()}
 	w.graph = e.Graph(w.graph)
 	for i := range w.graph.Nodes {
 		for _, s := range p.run.Steps {
@@ -364,7 +364,7 @@ func (m *workflowScreen) acceptPoll(p workflowPoll) tea.Cmd {
 	}
 	return nil
 }
-func (m *workflowScreen) layoutPath() string {
+func (m *Model) layoutPath() string {
 	key := fmt.Sprintf("%x", sha256.Sum256([]byte(m.config.WS.Root()+"\x00"+m.editor.Path)))
 	return filepath.Join(userdirs.Sub("workflow-layouts"), key+".json")
 }
@@ -375,7 +375,7 @@ type workflowLayout struct {
 	Locked    bool                   `json:"locked"`
 }
 
-func (m *workflowScreen) saveLayout() error {
+func (m *Model) saveLayout() error {
 	p := m.layoutPath()
 	if err := os.MkdirAll(filepath.Dir(p), 0700); err != nil {
 		return err
@@ -390,7 +390,7 @@ func (m *workflowScreen) saveLayout() error {
 	}
 	return os.WriteFile(p, b, 0600)
 }
-func (m *workflowScreen) loadLayout() {
+func (m *Model) loadLayout() {
 	m.positionsLocked = false
 	b, err := os.ReadFile(m.layoutPath())
 	if err != nil {
@@ -420,7 +420,7 @@ func (m *workflowScreen) loadLayout() {
 	}
 }
 
-func (m *workflowScreen) persistLayout() {
+func (m *Model) persistLayout() {
 	if m.run != nil || m.editor.Path == "" {
 		return
 	}

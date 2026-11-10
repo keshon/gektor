@@ -29,7 +29,9 @@ func TestWorkflowFormButtonsMatchRenderedScreen(t *testing.T) {
 		for _, inspect := range []bool{false, true} {
 			m := workflowTestModel(t)
 			sizeModelTo(t, m, width, 30)
-			m.workflows.inspectorOpen = inspect
+			if inspect {
+				m.workflowCommand("inspector")
+			}
 			m.workflowCommand("open")
 			clickWorkflowText(t, m, "Cancel")
 			if m.dialog != nil {
@@ -38,7 +40,7 @@ func TestWorkflowFormButtonsMatchRenderedScreen(t *testing.T) {
 			m.workflowCommand("open")
 			m.dialog.form.Editor.SetValue("recipe.json")
 			clickWorkflowText(t, m, "Continue")
-			if m.dialog != nil || len(m.workflows.commands) == 0 {
+			if m.dialog != nil || len(m.workflows.TakeCommands()) == 0 {
 				t.Fatalf("continue missed at width %d inspector %v", width, inspect)
 			}
 			m.workflowCommand("open")

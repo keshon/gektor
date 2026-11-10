@@ -1,8 +1,9 @@
-package tui
+package workflow
 
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"sort"
 	"strings"
 
@@ -19,10 +20,10 @@ type workflowParameterEdit struct {
 
 const workflowInputSchema = `{"type":"object","properties":{"type":{"type":"string","enum":["string","integer","number","boolean","array","object"]},"required":{"type":"boolean","enum":[false,true]},"default":{}},"required":["type"],"additionalProperties":false}`
 
-func (m *workflowScreen) recipeName() {
+func (m *Model) recipeName() {
 	w := m
 	draft := w.editor.Source()
-	m.dialogs.openForm(workflowForm{
+	m.dialogs.OpenForm(screen.Form{
 		Title:      "Recipe name",
 		Hint:       "This name identifies the recipe in saved runs.",
 		ApplyLabel: "Apply",
@@ -38,7 +39,7 @@ func (m *workflowScreen) recipeName() {
 	})
 }
 
-func (m *workflowScreen) replaceRecipe(d workflow.Definition, draft string) error {
+func (m *Model) replaceRecipe(d workflow.Definition, draft string) error {
 	w := m
 	if w.busy || w.run != nil {
 		return fmt.Errorf("return to an idle editable draft first")
@@ -61,7 +62,7 @@ func (m *workflowScreen) replaceRecipe(d workflow.Definition, draft string) erro
 	return nil
 }
 
-func (m *workflowScreen) parameters(kind string) {
+func (m *Model) parameters(kind string) {
 	w := m
 	var names []string
 	if kind == "inputs" {
@@ -82,7 +83,7 @@ func (m *workflowScreen) parameters(kind string) {
 		mapping[label] = name
 	}
 	draft := w.editor.Source()
-	m.dialogs.openForm(workflowForm{
+	m.dialogs.OpenForm(screen.Form{
 		Title:      "Recipe / " + kind,
 		Hint:       "Add, edit or remove one named value. Existing names stay fixed; references are not rewritten.",
 		ApplyLabel: "Next",
@@ -111,7 +112,7 @@ func (m *workflowScreen) parameters(kind string) {
 
 }
 
-func (m *workflowScreen) parameterEdit(edit workflowParameterEdit) {
+func (m *Model) parameterEdit(edit workflowParameterEdit) {
 	w := m
 	if w.busy || w.run != nil {
 		return
@@ -131,7 +132,7 @@ func (m *workflowScreen) parameterEdit(edit workflowParameterEdit) {
 		} else {
 			raw = d.Outputs[edit.Name]
 		}
-		m.dialogs.openForm(workflowForm{
+		m.dialogs.OpenForm(screen.Form{
 			Title:      "Remove " + edit.Name,
 			Hint:       "References to this name are not rewritten. Validate the recipe after removal.",
 			ApplyLabel: "Remove",
@@ -172,7 +173,7 @@ func (m *workflowScreen) parameterEdit(edit workflowParameterEdit) {
 	if edit.Kind == "outputs" {
 		hint = `Use a JSON value or reference, e.g. {"$step":"save","pointer":"/result"}. V validates referenced names.`
 	}
-	m.dialogs.openForm(workflowForm{
+	m.dialogs.OpenForm(screen.Form{
 		Title:      "Recipe / " + edit.Kind,
 		Hint:       hint,
 		ApplyLabel: "Apply",
