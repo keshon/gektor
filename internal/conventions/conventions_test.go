@@ -66,33 +66,54 @@ func TestDocumentAndChecksAgree(t *testing.T) {
 // than by noticing a cycle once the compiler refuses to build.
 func checkPackageLayers(t *testing.T, r *repo) {
 	allowed := map[string][]string{
-		"llm":                        {},
-		"llm/chatcompletions":        {"llm"},
-		"llm/responses":              {"llm"},
-		"providers":                  {},
-		"providers/openai":           {},
-		"providers/llamacpp":         {"providers/internal/probe"},
-		"providers/koboldcpp":        {"providers/internal/probe"},
-		"providers/openaicompat":     {"providers/internal/probe"},
-		"providers/internal/probe":   {},
-		"prompts":                    {},
-		"workspace":                  {},
-		"permission":                 {},
-		"events":                     {},
-		"session":                    {"llm"},
-		"agent":                      {"llm", "prompts", "permission", "session"},
-		"automation":                 {},
-		"automation/recipe":          {"automation"},
-		"automation/engine":          {"automation", "automation/recipe"},
-		"automation/store":           {"automation"},
-		"automation/service":         {"automation", "automation/engine", "automation/recipe", "automation/store", "workspace"},
-		"automation/daemon":          {"automation/service", "automation/store"},
-		"integrations/social":        {},
-		"integrations/httptransport": {},
-		"worker":                     {},
-		"integrations/documents":     {"worker", "workspace"},
-		"integrations/fileops":       {"workspace", "integrations/httptransport"},
+		"llm":                      {},
+		"llm/chatcompletions":      {"llm"},
+		"llm/responses":            {"llm"},
+		"providers":                {},
+		"providers/openai":         {},
+		"providers/llamacpp":       {"providers/internal/probe"},
+		"providers/koboldcpp":      {"providers/internal/probe"},
+		"providers/openaicompat":   {"providers/internal/probe"},
+		"providers/internal/probe": {},
+		"prompts":                  {},
+		"workspace":                {},
+		"permission":               {},
+		"events":                   {},
+		"session":                  {"llm"},
+		"agent":                    {"llm", "prompts", "permission", "session"},
+		"automation":               {},
+		"automation/recipe":        {"automation"},
+		"automation/engine":        {"automation", "automation/recipe"},
+		"automation/store":         {"automation"},
+		"automation/service":       {"automation", "automation/engine", "automation/recipe", "automation/store", "workspace"},
+		"automation/daemon":        {"automation/service", "automation/store"},
+		"capabilities/social":      {"httptransport"},
+		"httptransport":            {},
+		"worker":                   {},
+		"capabilities/documents":   {"worker", "workspace"},
+		"capabilities/files":       {"workspace", "httptransport"},
 	}
+	allowed["capabilities/images"] = []string{"workspace"}
+	allowed["capabilities/media"] = []string{"workspace", "programs", "process", "httptransport"}
+	allowed["programs"] = []string{"process"}
+	allowed["process"] = nil
+	for _, feature := range []string{"documents", "files", "images", "media", "social"} {
+		base := "capabilities/" + feature
+		allowed[base+"/contract"] = []string{"automation", base}
+		allowed[base+"/tools"] = []string{"agent", base + "/contract"}
+		allowed[base+"/nodes"] = []string{"automation", base, base + "/contract", "workspace"}
+	}
+	allowed["capabilities/images/tools"] = []string{"agent", "capabilities/images", "capabilities/images/contract", "llm", "workspace"}
+
+	for _, f := range r.goFiles {
+		pkg := strings.TrimPrefix(filepath.ToSlash(filepath.Dir(r.rel(f))), "internal/")
+		if strings.HasPrefix(pkg, "capabilities/") && !strings.HasSuffix(f, "_test.go") {
+			if _, ok := allowed[pkg]; !ok {
+				t.Errorf("capability package %s has no import-boundary rule", pkg)
+			}
+		}
+	}
+
 	for pkg, permitted := range allowed {
 		for _, name := range append([]string{pkg}, permitted...) {
 			if err := checkPackagePath(r.root, name); err != nil {

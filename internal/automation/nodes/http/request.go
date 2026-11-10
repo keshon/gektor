@@ -5,13 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/keshon/gektor/internal/automation"
-	"github.com/keshon/gektor/internal/automation/credentials"
-	"github.com/keshon/gektor/internal/integrations/httptransport"
 	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/keshon/gektor/internal/automation"
+	"github.com/keshon/gektor/internal/automation/credentials"
+	"github.com/keshon/gektor/internal/httptransport"
 )
 
 type Resolver func(name, origin string) (header, value, secret string, err error)

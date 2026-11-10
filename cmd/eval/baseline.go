@@ -22,7 +22,7 @@ func selectSuite(probes []Probe, name string) ([]Probe, error) {
 	}
 	names := coreProbes
 	if name == "workflows" {
-		names = []string{"26-workflow-success", "27-workflow-icc", "28-workflow-invalid", "29-workflow-existing"}
+		names = []string{"26-workflow-success", "27-workflow-icc", "28-workflow-invalid", "29-workflow-existing", "43-social-workflow"}
 	} else if name == "pipelines" {
 		names = []string{"30-workflow-compose", "31-workflow-schedule"}
 	} else if name == "documents" {
@@ -31,10 +31,12 @@ func selectSuite(probes []Probe, name string) ([]Probe, error) {
 		names = []string{"32-visual-attachment"}
 	} else if name == "delegation" {
 		names = []string{"35-delegate-review", "36-delegate-repair"}
+	} else if name == "media" {
+		names = []string{"40-media-status", "41-media-transcript", "42-media-workflow", "44-media-download"}
 	} else if name == "memory" {
-		names = []string{"37-session-retrieval", "38-prompt-evidence"}
+		names = []string{"37-session-retrieval", "38-prompt-evidence", "45-assistant-role"}
 	} else if name != "core" {
-		return nil, fmt.Errorf("unknown suite %q; available: core, workflows, pipelines, visual, documents, delegation, memory", name)
+		return nil, fmt.Errorf("unknown suite %q; available: core, workflows, pipelines, visual, documents, delegation, memory, media", name)
 	}
 	selected := make([]Probe, 0, len(coreProbes))
 	for _, wanted := range names {

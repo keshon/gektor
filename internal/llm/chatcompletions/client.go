@@ -325,7 +325,7 @@ func (c *Server) Chat(ctx context.Context, req llm.ChatRequest) (llm.ChatRespons
 	// pictures: attaching there fails here, loudly, instead of sending
 	// a request the backend silently misunderstands.
 	_, kobold := c.dialect.(koboldDialect)
-	msgs, err := encodeMessages(req.Messages, !kobold)
+	msgs, err := c.encodeRequestMessages(req.Messages, !kobold, req.UserRequest, req.UserRequestCount, req.RunDirective)
 	if err != nil {
 		return llm.ChatResponse{}, err
 	}

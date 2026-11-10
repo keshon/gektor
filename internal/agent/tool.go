@@ -82,9 +82,10 @@ type ContextReuser interface {
 
 // Registry holds tools looked up by name. An exclusive tool may add capabilities.
 type Registry struct {
-	mu    sync.RWMutex
-	tools map[string]Tool
-	err   error
+	mu       sync.RWMutex
+	tools    map[string]Tool
+	optional map[string]bool
+	err      error
 }
 
 func NewRegistry(tools ...Tool) *Registry {
@@ -152,6 +153,16 @@ func (r *Registry) Defs() []llm.ToolDef {
 
 // Add installs a complete batch atomically. Existing names cannot be replaced.
 func (r *Registry) Add(tools ...Tool) error {
+	return r.add(false, tools...)
+}
+
+// AddOptional installs callable targets without changing the model's leading
+// tool definitions. Their schemas are delivered in the activation result.
+func (r *Registry) AddOptional(tools ...Tool) error {
+	return r.add(true, tools...)
+}
+
+func (r *Registry) add(optional bool, tools ...Tool) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.err != nil {
@@ -172,6 +183,12 @@ func (r *Registry) Add(tools ...Tool) error {
 	}
 	for _, t := range tools {
 		r.tools[t.Name()] = t
+		if optional {
+			if r.optional == nil {
+				r.optional = map[string]bool{}
+			}
+			r.optional[t.Name()] = true
+		}
 	}
 	return nil
 }

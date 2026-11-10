@@ -1,0 +1,60 @@
+{
+  "prompt": "eval/prompts/media.md",
+  "tier": "signal",
+  "timeout_sec": 900,
+  "max_steps": 20,
+  "task": "Report which built-in video and audio operations are available, which local applications they need, and which of those applications are installed here. Check actual status. Do not run commands, install anything, access remote videos, download media or create files.",
+  "trace": [
+    {
+      "tool": "media_status",
+      "mode": "required",
+      "success": true
+    },
+    {
+      "tool": "run_*",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "start_*",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "video_*",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "media_convert",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "media_clip",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "media_frame",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "media_merge",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "write_file",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "patch_file",
+      "mode": "forbidden"
+    }
+  ],
+  "answer": [
+    {
+      "regex": "native",
+      "mode": "required"
+    },
+    {
+      "regex": "ffmpeg",
+      "mode": "required"
+    }
+  ]
+}

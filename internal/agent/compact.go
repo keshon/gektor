@@ -274,7 +274,7 @@ func (a *Agent) maybeCompact(history *[]llm.Message, usage llm.Usage, st *runSta
 	if a.cfg.ContextLimit >= 2048 {
 		inputBudget = a.cfg.ContextLimit - min(a.cfg.MaxTokens, max(1024, a.cfg.ContextLimit/4)) - 512
 	}
-	for keep := a.cfg.CompactKeepSteps / 2; keep > 0 && llm.EstimatePromptTokens(llm.ChatRequest{Messages: compacted, Tools: a.cfg.Tools.Defs()}) > inputBudget; keep /= 2 {
+	for keep := a.cfg.CompactKeepSteps / 2; keep > 0 && llm.EstimatePromptTokens(a.modelRequest(compacted)) > inputBudget; keep /= 2 {
 		compacted = compactHistory(*history, keep)
 	}
 	if len(compacted) >= len(*history) {

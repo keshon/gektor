@@ -20,7 +20,9 @@ Paths below are relative to the repository root.
 | internal/events | Serialize frontend events |
 | internal/session | Save conversation history, model context and run records |
 | internal/workspace and internal/permission | Resolve file access and authorize effects |
-| internal/tools and internal/integrations | Adapt operations and connect external services |
+| internal/tools | Compose Agent tools and session capability discovery |
+| internal/capabilities | Implement shared feature services and their tool/node contracts |
+| internal/httptransport, internal/process and internal/programs | Own network policy, process lifetime and executable discovery |
 | internal/automation | Validate, execute, store and schedule workflow runs |
 | internal/tui | Own screen state and connect controls to application actions |
 | internal/tui/components | Render reusable controls and handle their local interaction |
@@ -182,25 +184,35 @@ restore before eager preparation. Native definitions are checked immediately;
 external adapters still reconnect and validate on use. Eager native schemas can
 be previewed for context reports without publishing them or making network calls.
 Discovery and a bounded prompt map share one optional-package catalog.
+Optional targets use a fixed `invoke_tool` envelope. Their schemas enter history
+on activation rather than changing the leading tool list. The Agent resolves
+the target before permission checks and scheduling; archives retain the original
+model call. Saved catalogs restore the exact schemas after compaction.
+Llama-server requests also carry a transient attribution footer derived from the
+saved operator messages and current run mode. It is not a new archived user turn.
 
-### Integrations and workflow tools
+### Capabilities and workflow tools
 
-Built-in `native_images`, `native_workflows`, `native_files` and `native_documents` packages load on demand.
-`integrations/pixelita` stages rooted inputs for the external Pixelita Go library;
+Built-in `native_images`, `native_workflows`, `native_files`, `native_documents`
+and `native_media` packages load on demand. The
+[capability development pattern](docs/development/capabilities.md) defines the
+service and adapter boundaries for additions and changes.
+`capabilities/images` stages rooted inputs for the external Pixelita Go library;
 `automation/agenttools` adapts manual recipes to `internal/automation`. The runner has
 no model dependency and dispatches registered node descriptors. Model access is
 an explicit node with its own bounded context.
 
-Native file operations live in `internal/integrations/fileops`. Their agent and
+Native file operations live in `internal/capabilities/files`. Their agent and
 workflow adapters share operations, schemas and limits. ZIP and stream archives
 share extraction planning and rooted output publication. Document readers live
-in `internal/integrations/documents`, with the same adapter split. Its parsers
+in `internal/capabilities/documents`, with the same adapter split. Its parsers
 receive bounded bytes through `internal/worker`, which also hosts script worker
 process support. The parent enforces deadlines and output size; the child sets
 platform memory limits. This is not an operating system sandbox.
 
-The provider reader in `internal/integrations/social` handles FxTwitter responses; its tool adapter owns
-activation, network policy and timeout. Provider code does not import the agent.
+The service in `internal/capabilities/social` handles bounded FxTwitter requests
+for both Agent and Workflows. Its contract owns JSON and resource handling;
+Agent activation stays in tool composition. Provider code does not import Agent.
 
 ### Workflow execution
 
@@ -344,7 +356,7 @@ and uses the run lease for export and retention. Artifact IDs travel through the
 existing step-output references. Operator pruning removes payloads from old terminal
 runs while retaining run history; it does not run implicitly.
 
-Pixelita operations live under `integrations/pixelita`; its `agenttools` and
+Pixelita operations live under `capabilities/images`; its `tools` and
 `nodes` packages adapt the same operations for their respective callers.
 Image operations stage bounded scratch copies, process them and verify the
 original sources before publication. Every destination is authorized before
@@ -357,13 +369,13 @@ Adding a node means providing a descriptor (version, schemas, resources,
 validation and execution), registering it in composition, and testing its
 contract. Execution and recipe schemas do not maintain separate name switches.
 
-HTTP nodes and native network tools share `integrations/httptransport`, including
+HTTP nodes and native network tools share `httptransport`, including
 public-address validation and DNS checks. `automation/credentials` stores only
 origin-bound environment references. The HTTP node has no dependency on agent
 tools. Queued starts and operator continuations share one service execution
 lifecycle for cancellation and final status persistence; recovery respects run leases.
 
-`integrations/process` owns shared process-group cleanup and environment scrubbing.
+`process` owns shared process-group cleanup and environment scrubbing.
 Native agent tools and the automation `run_program` node use those primitives.
 The workflow node supplies its workspace directory and optional artifact stdin,
 enforces a finite deadline and output bounds, and persists stdout/stderr artifacts

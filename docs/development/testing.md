@@ -28,6 +28,26 @@ successful and deliberately dropped saves, simulated operator login handoff,
 and screenshot delivery through the agent loop. These use real Chrome with a
 deterministic model driver; they test the harness, not an LLM success rate.
 
+## Media compatibility checks
+
+Media unit tests are offline. Optional checks exercise installed applications
+and current YouTube behavior. Set these variables with your shell's syntax:
+
+```text
+GEKTOR_MEDIA_LIVE=1 go test ./internal/capabilities/media -run TestLiveMedia -v
+```
+
+This checks application discovery, ffprobe inspection and FFmpeg conversion,
+clipping, frame extraction and merging using temporary generated fixtures.
+Add `GEKTOR_MEDIA_LIVE_NETWORK=1` to check metadata and captions through native
+YouTube and yt-dlp. Set `GEKTOR_MEDIA_LIVE_DOWNLOAD=1` and run
+`TestLiveDownload` to download bounded audio through both backends. These
+network checks can fail when upstream access or formats change. They do not
+measure an LLM's ability to select tools.
+
+Use `go run ./cmd/eval -suite media -runs 3 -jobs 1 -backend-kind llama -backend http://127.0.0.1:9931` for model-backed checks. See [media eval criteria](../../eval/prompts/media.md) for network and application requirements.
+
+Session diagnostics retain per-request prompt/cache/processed counts and final usage, with `estimated` and `cache_known` flags. Prefill samples are grouped by 1024 tokens; generation logs phase boundaries rather than every token. A missing cache count is not evidence of a cache miss.
 
 ## Session recovery smoke check
 
@@ -66,3 +86,20 @@ Automated coverage in `internal/tui/session_workspace_test.go` checks 40- and
 80-column rendering, scope filters, missing and legacy roots, draft transfer,
 confirmation cancellation, and a refresh that removes or reorders a session.
 These tests exercise state and layout, not native terminal input.
+
+## Lazy calls and request attribution
+
+`invoke_tool` must preserve target validation, permissions, concurrency,
+attachments and mutation evidence. Test malformed nested arguments, inactive
+and recursive targets, Plan-mode writes, catalog restoration and wire-prefix
+stability. The leading definitions must not change after activation.
+
+For llama-server, a transient request footer repeats at most 2048 characters of
+the latest real user message, the host's user-message count and the current run
+directive. It is not saved as a user turn. Test attribution after compaction,
+exclude tool images and notices, and preserve earlier wire messages. The footer
+uses a bounded context allowance; native provider replay is unchanged.
+
+Run `45-assistant-role` against the actual local model. Explicit role labels
+alone did not fix the Ornith failure. The footer passed two targeted runs;
+these are calibration results, not a guarantee across models and tasks.

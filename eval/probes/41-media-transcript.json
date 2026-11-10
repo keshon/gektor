@@ -1,0 +1,40 @@
+{
+  "prompt": "eval/prompts/media.md",
+  "tier": "signal",
+  "timeout_sec": 900,
+  "max_steps": 20,
+  "task": "Identify this video and quote its first six timestamped caption segments: https://www.youtube.com/watch?v=rFejpH_tAHM . Read captions in pages of at most three segments. Use the built-in native YouTube support. Do not download video or audio, run commands, install programs or create files.",
+  "trace": [
+    {
+      "tool": "video_info",
+      "mode": "required",
+      "success": true,
+      "output_regex": "native"
+    },
+    {
+      "tool": "video_transcript",
+      "mode": "required",
+      "success": true,
+      "args_regex": "\"offset\"\\s*:\\s*3",
+      "output_regex": "native"
+    },
+    {
+      "tool": "run_*",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "start_*",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "video_download",
+      "mode": "forbidden"
+    }
+  ],
+  "answer": [
+    {
+      "regex": "Simplicity",
+      "mode": "required"
+    }
+  ]
+}

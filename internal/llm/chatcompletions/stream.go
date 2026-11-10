@@ -95,7 +95,7 @@ func (c *Server) streamRequest(ctx context.Context, req llm.ChatRequest) (*http.
 	c.dialect.applySampling(&wreq, c.DRY)
 	// Preserve the same image capability policy as unary requests.
 	_, kobold := c.dialect.(koboldDialect)
-	msgs, err := encodeMessages(req.Messages, !kobold)
+	msgs, err := c.encodeRequestMessages(req.Messages, !kobold, req.UserRequest, req.UserRequestCount, req.RunDirective)
 	if err != nil {
 		return nil, err
 	}

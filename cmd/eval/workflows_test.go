@@ -131,10 +131,67 @@ func TestGeneratedWorkflowFingerprintAndSuite(t *testing.T) {
 		t.Fatal("unknown generator accepted")
 	}
 	var probes []Probe
-	for _, name := range []string{"26-workflow-success", "27-workflow-icc", "28-workflow-invalid", "29-workflow-existing"} {
+	for _, name := range []string{"26-workflow-success", "27-workflow-icc", "28-workflow-invalid", "29-workflow-existing", "43-social-workflow"} {
 		probes = append(probes, Probe{Name: name})
 	}
-	if selected, err := selectSuite(probes, "workflows"); err != nil || len(selected) != 4 {
+	if selected, err := selectSuite(probes, "workflows"); err != nil || len(selected) != 5 {
 		t.Fatal(selected, err)
+	}
+}
+
+func TestWorkflowVerifierAcceptsParameterizedRecipeAndChecksCompiledRecord(t *testing.T) {
+	files, err := workflowFixture("workflow_success")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(t.TempDir(), "workspace")
+	if err := os.Mkdir(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	ws, err := workspace.New(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	if err := ws.WriteFile("image.png", files["image.png"], 0600); err != nil {
+		t.Fatal(err)
+	}
+	source := []byte(`{"version":3,"name":"Reusable images","inputs":{"source":{"type":"string","default":"image.png"}},"steps":[{"id":"inspect","tool":"image_inspect","args":{"paths":[{"$input":"source"}]}},{"id":"preview","tool":"image_preview","args":{"paths":[{"$input":"source"}],"widths":[320,800]}},{"id":"write","tool":"image_variants","args":{"paths":[{"$input":"source"}],"widths":[320,800],"out_dir":"output"}},{"id":"compare","tool":"image_compare","args":{"paths":[{"$input":"source"},{"$step":"write","pointer":"/items/1/output"}]}}],"outputs":{"variants":{"$step":"write"}}}`)
+	if err := ws.WriteFile("recipe.json", source, 0600); err != nil {
+		t.Fatal(err)
+	}
+	allow := func(context.Context, string, json.RawMessage) error { return nil }
+	tool := workflow.Tool{WS: ws, StoreDir: workflowStoreDir(ws), Authorize: allow, AuthorizeOutput: allow}
+	out, err := tool.Run(t.Context(), json.RawMessage(`{"recipe_path":"recipe.json"}`))
+	if err != nil {
+		t.Fatal(out, err)
+	}
+	if err := checkWorkflow("workflow_success", ws); err != nil {
+		t.Fatal("valid parameterized recipe rejected", err)
+	}
+	var result struct {
+		Path string `json:"record_path"`
+	}
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(result.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var record automation.Run
+	if err := json.Unmarshal(data, &record); err != nil {
+		t.Fatal(err)
+	}
+	record.Definition.Steps[2].Args = json.RawMessage(`{"paths":["image.png"],"widths":[320,800],"out_dir":"elsewhere"}`)
+	data, err = json.Marshal(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(result.Path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkWorkflow("workflow_success", ws); err == nil {
+		t.Fatal("tampered execution definition accepted")
 	}
 }

@@ -11,12 +11,13 @@ with `scripts\eval-run.cmd`.
 | Suite | Coverage | Needs vision |
 |---|---|---|
 | `core` | Seven general Agent tasks, including unavailable browser reporting | No |
-| `workflows` | Four image-workflow tasks: creation, metadata refusal, invalid recipe, existing output | No |
+| `workflows` | Image workflows: creation, refusal, validation and preserved outputs; public-post recipe authoring | No |
 | `pipelines` | Child recipes with declared outputs; a paused hourly schedule and worker status | No |
 | `documents` | Native DOCX, XLSX and PDF reading, recipe use and long-item continuation | No |
 | `visual` | Pasted image discovery, a detail crop, misleading suffix and limits on identification | Yes |
 | `delegation` | One focused child review and one small Go repair, with separate child measurements | No |
-| `memory` | Session archive search, current request inspection and limits of prompt revision evidence | No |
+| `media` | Lazy discovery, native YouTube captions, a merged download and a real FFmpeg workflow | No |
+| `memory` | Session archive search, prompt evidence and assistant/user attribution | No |
 
 ```text
 go run ./cmd/eval -dry
@@ -322,3 +323,7 @@ Every probe must fail on an empty run. `loadProbes` rejects probes with no
 assertions; verifier tests also check rejection of empty or changed evidence.
 Declare platform requirements with `oses`; an unsupported platform reports
 SKIP. Prefer portable checks over shell commands.
+
+Run media checks with `go run ./cmd/eval -suite media -runs 3 -jobs 1 -backend-kind llama -backend http://127.0.0.1:9931 -require-model Ornith`. See [media criteria](prompts/media.md) for application and network requirements.
+
+A probe may supply `continuation`, an array of recorded assistant/tool messages after its opening task and initial Act notice. The harness resumes that conversation without adding a user message. This supports role-boundary regressions; fixture turns are included in the input fingerprint and are not counted as executed tools.

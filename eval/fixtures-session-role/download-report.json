@@ -1,0 +1,12 @@
+{
+  "status": "completed",
+  "backend": "yt-dlp+ffmpeg",
+  "path": "downloaded.mp4",
+  "container": "mp4",
+  "video_codec": "h264",
+  "audio_codec": "aac",
+  "width": 1280,
+  "height": 720,
+  "duration_seconds": 255.303,
+  "size": 43710912
+}

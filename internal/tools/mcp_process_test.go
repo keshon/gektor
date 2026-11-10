@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/keshon/gektor/internal/integrations/documents"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/keshon/gektor/internal/capabilities/documents"
 )
 
 // mcpHelperEnv marks a re-executed copy of this binary as the MCP server.

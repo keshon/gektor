@@ -165,11 +165,7 @@ func (c *Capabilities) Enable(ctx context.Context, id string, note func(string))
 }
 
 func activationText(state session.Capability) string {
-	names := make([]string, 0, len(state.Tools))
-	for _, def := range state.Tools {
-		names = append(names, def.Name)
-	}
-	return fmt.Sprintf("Capability %s enabled for this session. Tools: %s.\n%s", state.ID, strings.Join(names, ", "), state.Instructions)
+	return agent.CapabilityCatalog(state)
 }
 
 func (c *Capabilities) install(ctx context.Context, source *Capability, state session.Capability) error {

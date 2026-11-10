@@ -69,6 +69,12 @@ type ToolDef struct {
 }
 
 type ChatRequest struct {
+	// UserRequest is host attribution metadata, not a new conversation turn.
+	// Local backends may repeat a bounded excerpt in a transient wire footer.
+	UserRequest      string
+	UserRequestCount int
+	RunDirective     string
+
 	// OnProgress observes this request without changing its wire payload.
 	OnProgress func(Progress)
 	Messages   []Message
@@ -144,6 +150,14 @@ func ModelMessages(history []Message) []Message {
 // content, tool schemas and images; out-of-band Reasoning is never replayed.
 func EstimatePromptTokens(req ChatRequest) int {
 	chars, tokens := 0, 0
+	if req.UserRequest != "" {
+		for _, message := range req.Messages {
+			if message.Role == RoleAssistant {
+				chars += min(utf8.RuneCountInString(req.UserRequest), 2048) + utf8.RuneCountInString(req.RunDirective) + 300
+				break
+			}
+		}
+	}
 	for _, m := range req.Messages {
 		if m.ProviderState.Matches(m) {
 			tokens += m.ProviderState.AdditionalTokens

@@ -14,6 +14,24 @@ func (a *Agent) withCapabilityInstructions(history []llm.Message) []llm.Message 
 		return history
 	}
 	for _, state := range a.cfg.SaveCapabilities() {
+		optional := false
+		for _, def := range state.Tools {
+			optional = optional || a.cfg.Tools.isOptional(def.Name)
+		}
+		if optional {
+			marker := "capability_catalog:" + state.Fingerprint
+			present := false
+			for _, message := range history {
+				if message.Harness == marker {
+					present = true
+					break
+				}
+			}
+			if !present {
+				history = append(history, llm.Message{Role: llm.RoleUser, Harness: marker, Content: harnessPrefix + CapabilityCatalog(state)})
+			}
+			continue
+		}
 		if strings.TrimSpace(state.Instructions) == "" {
 			continue
 		}

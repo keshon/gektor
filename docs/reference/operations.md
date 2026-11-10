@@ -12,6 +12,9 @@ Look up native operation names, arguments, results and limits. Agent enables opt
 | Ask a model for text or structured data | `model_generate` |
 | Make an HTTP request | `http_request` |
 | Download a file or work with archives | `download_file`, `archive_list`, `archive_create`, `archive_extract` |
+| Read video metadata, captions or download media | `video_info`, `video_transcript`, `video_download` |
+| Inspect and process local audio/video | `media_inspect`, `media_convert`, `media_clip`, `media_frame`, `media_merge` |
+| Check media applications and requirements | `media_status` |
 | Read DOCX, XLSX or PDF files | `docx_read`, `xlsx_read`, `pdf_read` |
 | Keep files or text with a run | `artifact_import`, `artifact_write`, `artifact_read_text` |
 | Run a local program | `run_program` |
@@ -182,7 +185,7 @@ It does not predict whether future input files exist or encoding will succeed.
 The catalog includes these four image operations, `record_read`, `record_write`,
 `script_transform`, `model_generate`, `http_request`, `artifact_import`,
 `artifact_write`, `artifact_read_text`, `docx_read`, `xlsx_read`, `pdf_read`, `download_file`, `archive_list`, `archive_create`, `archive_extract`,
-`run_program` and `workflow_call`.
+`run_program`, `workflow_call` and the [media operations](#video-and-audio).
 
 Image and record permissions match direct calls. It validates step templates and authorizes known arguments
 before starting. Output-dependent arguments are validated and authorized after
@@ -345,12 +348,106 @@ external links are not read or executed.
 PDF text order can differ from the page layout. `no_text: true` means that no
 text was extracted from that page; it does not prove that the page is blank.
 Image-only pages need OCR, which is not included. Encrypted PDFs, legacy `.doc`
-and `.xls` files, document generation and media processing are not supported.
+and `.xls` files and document generation are not supported by these readers.
 
 Document readers use a separate GEKTOR process with a ten-second deadline and
 bounded output. It receives the already-opened file's bytes, not a filesystem
 path. Read Office XML parts share a 16 MiB expansion budget. Document contents
 are untrusted data, including text that looks like instructions.
+
+## Video and audio
+
+Enable `native_media` for direct Agent calls. The same operations are workflow
+nodes and use the same service. Enabling the pack exposes schemas; it does not
+install programs or grant permission. Its short description appears in the
+bounded capability map. Detailed instructions and tool schemas appear after activation.
+
+`backend: "auto"` is the default for video operations. It uses the bundled
+`kkdai/youtube` library for YouTube and yt-dlp for other public HTTP(S) sites.
+Choose `backend: "native"` or `backend: "yt-dlp"` explicitly when needed.
+Failures do not switch providers automatically. Results record the backend used.
+Native merged downloads use FFmpeg after fetching the separate streams.
+
+| Operation | Main arguments | Result |
+|---|---|---|
+| `media_status` | Optional `refresh` | Application paths, versions, local readiness and operation requirements |
+| `video_info` | `url`, optional `backend` | Title, author, duration, languages and up to 64 formats |
+| `video_transcript` | `url`, optional `backend`, `language`, `offset`, `limit`, `start_seconds`, `duration_seconds` | Timestamped caption segments, `next_offset`, `more` |
+| `video_download` | `url`, `path`, optional `backend`, `mode`, `max_height`, `max_bytes` | New file, actual container, size, SHA-256 and backend |
+| `media_inspect` | `inputs: ["file"]` | ffprobe stream and container metadata |
+| `media_convert` | `inputs: ["file"]`, `path`, `format` | New re-encoded file; optional `copy: true` remuxes MP4/MKV/WebM |
+| `media_clip` | `inputs: ["file"]`, `path`, `format`, `duration_seconds`, optional `start_seconds` | New re-encoded clip |
+| `media_frame` | `inputs: ["video"]`, `path`, `format: "png"` or `"jpg"`, optional `start_seconds` | One frame for image tools such as Pixelita |
+| `media_merge` | `inputs: ["video", "audio"]`, `path`, `format` | Video from the first input and audio from the second, merged without re-encoding |
+
+Download modes are `combined` (default, one stream with video and audio),
+`audio`, `video` and `merged`. Native selection uses formats with a known size
+that fit the requested limits. `max_height` is an upper bound, not a minimum
+quality promise. The output path needs a container extension. Single-stream
+selection matches that extension; merged downloads copy streams into the
+requested MP4, MKV or WebM container without re-encoding. Incompatible codecs
+fail without publishing a file. Tools reject a filename/container mismatch;
+they never rename the requested output silently. `media_convert` and `media_clip` accept `mp4`, `mkv`, `webm`,
+`mp3`, `m4a`, `wav` and `flac`; merge accepts `mp4`, `mkv` and `webm`.
+Output extensions must match `format`. Conversion and clipping re-encode:
+MP4/MKV use H.264 video and AAC audio. `media_convert` with `copy: true` copies
+the first video and audio streams into MP4, MKV or WebM without re-encoding.
+That changes the container without another lossy encode; incompatible codecs
+fail. Installed codecs and container compatibility can still limit these operations.
+
+Caption text is not audio transcription. Each page contains at most 100 segments
+(default 50) and 32 KiB of text. Continue from `next_offset` while `more` is true.
+Time ranges are in seconds and include overlapping caption segments. Native
+language selection prefers English when advertised, otherwise the first track;
+yt-dlp defaults to English. An explicit language never falls back to another.
+yt-dlp captions must be available in json3 format. Metadata and captions are
+untrusted source content.
+
+Inputs and outputs are limited to 256 MiB per file. `max_bytes` can lower the
+output limit. `timeout_seconds` defaults to 120 and is limited to 600. Existing
+outputs are preserved, parent directories must exist, and failed work is not
+published. External work runs in a temporary directory; inputs are copied there
+through workspace access. Temporary size checks are periodic and can briefly
+overshoot their limit. Local media operations refuse network protocols and
+playlist demuxers. External programs are not an OS sandbox, and remote
+extractors make their own network requests.
+
+### External media applications
+
+`media_status` probes FFmpeg, ffprobe, yt-dlp, Deno and Node with short version
+commands. Native YouTube works without those executables. Missing dependencies
+only affect operations that need them. A ready application is a local observation;
+it does not prove remote access, a codec or an extractor will succeed. yt-dlp's
+EJS component is bundled or installed separately; status does not verify it.
+
+GEKTOR first reads explicit executable paths from
+`~/.gektor/applications.json`, then uses PATH for applications without a configured
+path. Configured paths must be absolute. For example:
+
+```json
+{
+  "applications": {
+    "ffmpeg": {"path": "C:\\Programs\\ffmpeg-6.1\\bin\\ffmpeg.exe"},
+    "ffprobe": {"path": "C:\\Programs\\ffmpeg-6.1\\bin\\ffprobe.exe"},
+    "yt-dlp": {"path": "C:\\Programs\\yt-dlp\\yt-dlp.exe"},
+    "node": {"path": "C:\\Program Files\\nodejs\\node.exe"},
+    "deno": {"disabled": true}
+  }
+}
+```
+
+Probes are cached for up to a minute. Pass `refresh: true` to probe again.
+Execution rechecks required programs in the process that runs the operation,
+including a workflow worker. yt-dlp merging currently requires FFmpeg and ffprobe
+in the same directory. Ordinary downloads disable FFmpeg post-processing.
+User yt-dlp configuration, plugins and remote component downloads are disabled.
+No arbitrary CLI arguments, installation, automatic updates, cookies, playlist
+batches or live recording are exposed.
+
+Recipes keep operation names and backend choices; machine-specific executable
+locations stay in user settings. Permissions use each operation's own name and
+its source URL, input files and output path. Third-party execution is allowed
+through that bounded operation, without granting general `run_program` access.
 
 ## Structured records
 
@@ -536,3 +633,16 @@ No automatic retries are allowed: a failed process may already have changed file
 or contacted a service. Stdout/stderr are artifacts; other generated workspace files
 can be captured by a subsequent `artifact_import` step after successful execution.
 See [the local program example](../../examples/workflows/process-report/README.md).
+
+## Public posts
+
+Agent's built-in social pack and the social_read_post workflow node use the same
+public X/Twitter reader. Pass a single HTTPS post URL as "url". Results include
+status, author, handle, text, dates, media URLs and source. Restricted, unavailable,
+transient and truncated responses retain their status and fail the operation.
+Content is untrusted source data. No private posts, full threads or replies are
+fetched. The reader sends the post ID to FxTwitter.
+
+The node uses the existing Agent permission identity cap__social__read_post and
+the requested URL as its resource. Existing deny rules therefore apply to both.
+The built-in node does not use a configured replacement for Agent's social pack.

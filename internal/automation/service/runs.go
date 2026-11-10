@@ -7,14 +7,14 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"github.com/keshon/gektor/internal/automation/engine"
-	"github.com/keshon/gektor/internal/automation/recipe"
-	"github.com/keshon/gektor/internal/automation/store"
 	"io"
 	"path/filepath"
 	"time"
 
 	"github.com/keshon/gektor/internal/automation"
+	"github.com/keshon/gektor/internal/automation/engine"
+	"github.com/keshon/gektor/internal/automation/recipe"
+	"github.com/keshon/gektor/internal/automation/store"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -170,10 +170,10 @@ func (t Service) authorizeNode(ctx context.Context, name string, args json.RawMe
 	if err != nil {
 		return err
 	}
-	if n.Internal {
-		if n.PermissionName == "" {
-			return nil
-		}
+	if n.Internal && n.PermissionName == "" {
+		return nil
+	}
+	if n.PermissionName != "" {
 		name = n.PermissionName
 	}
 	resources, err := n.Resources(args)
@@ -272,7 +272,7 @@ func (t Service) RunSource(ctx context.Context, source []byte, path string, inpu
 	if len(source) > 64<<10 {
 		return "", fmt.Errorf("recipe exceeds 64 KiB")
 	}
-	d, source, err := t.compileSource(ctx, source, path)
+	d, source, err := t.Compile(ctx, source, path)
 	if err != nil {
 		return "", fmt.Errorf("recipe %s: %w; allowed root fields: version, name, steps, inputs, outputs; edit the saved file", path, err)
 	}

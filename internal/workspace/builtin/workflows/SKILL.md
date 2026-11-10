@@ -60,7 +60,10 @@ Paths are workspace-relative. Read a registered record schema with
 register schemas. Do not invent record kinds. Artifacts store run outputs;
 they are not ordinary workspace files.
 
-Save the recipe, then call `workflow_validate` with required input values.
+For recipe tasks, inspect sources as needed, then save the recipe and call
+`workflow_validate` with required input values. Produce outputs through
+`workflow_run`; do not perform the same writes directly first. Manual runs
+need no worker service.
 Validation checks structure, types and references; it does not prove the recipe
 fulfills the request. When execution is authorized, call `workflow_run`, inspect
 its actual declared outputs with `workflow_inspect`, and compare them with a

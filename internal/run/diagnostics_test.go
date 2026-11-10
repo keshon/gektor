@@ -1,11 +1,13 @@
 package run
 
 import (
-	"github.com/keshon/gektor/internal/events"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/keshon/gektor/internal/events"
 )
 
 func TestDiagnosticsPersistsBoundariesWithoutContent(t *testing.T) {
@@ -33,6 +35,48 @@ func TestDiagnosticsPersistsBoundariesWithoutContent(t *testing.T) {
 	s.cfg.OnEvent(events.Event{})
 	if seen != 4 {
 		t.Fatal("sink not restored")
+	}
+}
+
+func TestDiagnosticsRetainsCacheCountsWithoutPerTokenWrites(t *testing.T) {
+	dir := t.TempDir()
+	s := &Session{cfg: Config{StateFile: filepath.Join(dir, "state.json")}}
+	closeLog := s.diagnostics()
+	for i := range 3000 {
+		s.cfg.OnEvent(events.Event{Name: "progress", Fields: map[string]any{
+			"phase": "prefill", "request": 5, "prompt": 12000,
+			"cached": 8000, "cache_known": true, "processed": 8000 + i,
+			"completion": 0, "estimated": false, "detail": "SECRET",
+		}})
+	}
+	for i := range 1000 {
+		s.cfg.OnEvent(events.Event{Name: "progress", Fields: map[string]any{
+			"phase": "generating", "request": 5, "prompt": 12000,
+			"cached": 8000, "cache_known": true, "processed": 12000,
+			"completion": i, "estimated": false,
+		}})
+	}
+	s.cfg.OnEvent(events.Event{Name: "usage", Fields: map[string]any{
+		"step": 4, "prompt": 12000, "completion": 1000, "cached": 8000, "estimated": false,
+	}})
+	closeLog()
+	raw, err := os.ReadFile(filepath.Join(dir, "diagnostics.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	if len(lines) > 9 || strings.Contains(string(raw), "SECRET") {
+		t.Fatal("unbounded or sensitive diagnostics", string(raw))
+	}
+	var usage map[string]any
+	if err := json.Unmarshal([]byte(lines[len(lines)-2]), &usage); err != nil {
+		t.Fatal(err)
+	}
+	if usage["event"] != "usage" || usage["cached"] != float64(8000) || usage["completion"] != float64(1000) {
+		t.Fatal(usage)
+	}
+	if !strings.Contains(string(raw), `"cache_known":true`) || !strings.Contains(string(raw), `"processed":`) {
+		t.Fatal("missing cache telemetry", string(raw))
 	}
 }
 

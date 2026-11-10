@@ -486,7 +486,7 @@ func TestModeSwitchWirePrefixAcrossProviders(t *testing.T) {
 				if err := json.Unmarshal(requests[i].Messages[len(requests[i].Messages)-1], &last); err != nil {
 					t.Fatal(err)
 				}
-				if last.Content != "[harness] "+directive {
+				if last.Content != "[harness] "+directive && !(kind == "llama" && strings.HasPrefix(last.Content, "[harness] Attribution reminder") && strings.Contains(last.Content, directive)) {
 					t.Fatalf("stale stance: %q", last.Content)
 				}
 				if i > 0 {
@@ -494,6 +494,9 @@ func TestModeSwitchWirePrefixAcrossProviders(t *testing.T) {
 						t.Fatal("wire tool definitions changed")
 					}
 					for j, msg := range requests[i-1].Messages {
+						if kind == "llama" && j == len(requests[i-1].Messages)-1 && strings.Contains(string(msg), "Attribution reminder") {
+							continue
+						}
 						if string(msg) != string(requests[i].Messages[j]) {
 							t.Fatalf("wire prefix changed at message %d", j)
 						}

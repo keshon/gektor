@@ -1,12 +1,39 @@
 {
   "prompt": "eval/prompts/workflows.md",
-  "task": "Prepare image.png for the web with a reusable native image workflow: inspect, preview widths 320 and 800, write to output, and compare the 800px version with the original. Save the recipe as recipe.json and run it. Preserve the source and report the results and evidence.",
-  "tier": "signal", "generated": "workflow_success", "timeout_sec": 240, "max_steps": 14,
-  "verify": [{"type":"workflow","path":"workflow_success"}],
+  "task": "Prepare image.png for the web with a reusable native image workflow: inspect it, preview widths 320 and 800, write both variants into the directory named output, and compare the 800px variant with the original. Save recipe.json, validate it and run it once. Preserve the source and report measured results. Do not run commands, install programs, or write variants outside the recipe.",
+  "tier": "signal",
+  "generated": "workflow_success",
+  "timeout_sec": 240,
+  "max_steps": 14,
+  "verify": [
+    {
+      "type": "workflow",
+      "path": "workflow_success"
+    }
+  ],
   "trace": [
-    {"tool":"workflow_validate","mode":"required","success":true},
-    {"tool":"workflow_run","mode":"required","success":true,"max_calls":1},
-    {"tool":"run_program","mode":"forbidden"}, {"tool":"run_shell","mode":"forbidden"},
-    {"tool":"start_*","mode":"forbidden"}
+    {
+      "tool": "workflow_validate",
+      "mode": "required",
+      "success": true
+    },
+    {
+      "tool": "workflow_run",
+      "mode": "required",
+      "success": true,
+      "max_calls": 1
+    },
+    {
+      "tool": "run_program",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "run_shell",
+      "mode": "forbidden"
+    },
+    {
+      "tool": "start_*",
+      "mode": "forbidden"
+    }
   ]
 }

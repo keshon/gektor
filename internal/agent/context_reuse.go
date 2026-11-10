@@ -20,6 +20,10 @@ func (a *Agent) reuseContext(history []llm.Message) []llm.Message {
 		if !ok || call.InputError != "" {
 			continue
 		}
+		call, err := a.cfg.Tools.ResolveCall(call)
+		if err != nil {
+			continue
+		}
 		if tool, ok := a.cfg.Tools.lookup(call.Name); ok {
 			if reuser, ok := tool.(ContextReuser); ok {
 				out[i].Content = reuser.ReuseInContext(call.Arguments, msg.Content, out[:i])

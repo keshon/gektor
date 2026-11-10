@@ -113,31 +113,31 @@ item pagination normally.
 
 ### Reader implementation: four existing files, one small helper
 
-- `internal/integrations/documents/service.go`
+- `internal/capabilities/documents/service.go`
   - `Request`: add `TextOffset *int` to distinguish absence from explicit zero.
   - `validate`: apply continuation defaults and validate single-item requests.
   - `Service.Read`, `workerRequest`, `Serve`: existing JSON transport carries the
     new request automatically; keep their worker and file-access boundaries.
-- `internal/integrations/documents/text.go` (new)
+- `internal/capabilities/documents/text.go` (new)
   - One unexported helper for slicing ordered string parts by character position
     under a byte budget; return structured parts and the next text position.
   - No interfaces, registries, configurable chunk sizes, or cross-package API.
-- `internal/integrations/documents/docx.go`
+- `internal/capabilities/documents/docx.go`
   - `Block`: add the two optional text-position fields.
   - `office.docx`: use the helper before appending an item; retain row cell slots.
-- `internal/integrations/documents/xlsx.go`
+- `internal/capabilities/documents/xlsx.go`
   - `Cell`: add the same fields.
   - `office.xlsx`: slice value/formula in order and preserve existing cell metadata.
-- `internal/integrations/documents/pdf.go`
+- `internal/capabilities/documents/pdf.go`
   - `PDFPage`: add the same fields.
   - `readPDF`: slice the extracted text; preserve full-page `no_text` semantics.
-- `internal/integrations/documents/office.go`
+- `internal/capabilities/documents/office.go`
   - No expected edit. Keep `clip` for bounded PDF metadata; new body pagination
     belongs in `text.go`, since PDF and Office readers both use it.
 
 ### Public contract and instructions: four existing files
 
-- `internal/integrations/documents/adapters/operation.go`
+- `internal/capabilities/documents/contract/operation.go`
   - `Operation.Schema`, `OutputSchema`, `Description`: describe the new optional
     input and item metadata, consistent across all three operations.
   - Keep the same operation names and permission resources.
@@ -151,9 +151,9 @@ item pagination normally.
 
 ### Verification: two existing test files, one helper test file
 
-- `internal/integrations/documents/text_test.go` (new)
+- `internal/capabilities/documents/text_test.go` (new)
   - Exercise the shared slicing algorithm with Unicode and field boundaries.
-- `internal/integrations/documents/documents_test.go`
+- `internal/capabilities/documents/documents_test.go`
   - Add reconstruction regressions for all three formats and revise the old
     test that specifically assumes 4 KiB body clipping.
 - `internal/tools/documents_test.go`
@@ -258,7 +258,7 @@ defect, record it separately before expanding this scope.
 Suggested implementation validation commands:
 
 ```powershell
-go test ./internal/integrations/documents/...
+go test ./internal/capabilities/documents/...
 go test ./internal/tools -run '^TestDocumentsLazyDiscoveryAgentWorkflowAndResources$'
 go test ./cmd/eval -run '^TestDocumentEvalFixturesThroughAgentAndWorkflow$'
 go test ./internal/conventions

@@ -108,7 +108,8 @@ func (s Service) FreezeRecipe(ctx context.Context, raw []byte, path string) ([]b
 	return data, err
 }
 
-func (s Service) compileSource(ctx context.Context, source []byte, path string) (automation.Definition, []byte, error) {
+// Compile validates and expands saved recipe source without executing nodes.
+func (s Service) Compile(ctx context.Context, source []byte, path string) (automation.Definition, []byte, error) {
 	var zero automation.Definition
 	b, source, err := s.loadRecipeBundle(ctx, source, path)
 	if err != nil {

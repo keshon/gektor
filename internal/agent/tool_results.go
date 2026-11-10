@@ -77,7 +77,15 @@ func (a *Agent) recordToolBatch(ctx context.Context, st *runState, batch *toolBa
 		if !json.Valid(call.Arguments) || call.InputError != "" {
 			diagnostics = append(diagnostics, content)
 		} else {
-			history = append(history, llm.Message{Role: llm.RoleTool, ToolCallID: call.ID, Content: content, ToolFailed: &failed, ToolStatus: status})
+			message := llm.Message{Role: llm.RoleTool, ToolCallID: call.ID, Content: content, ToolFailed: &failed, ToolStatus: status}
+			if executed[i] && !failed && a.cfg.SaveCapabilities != nil && (call.Name == "enable_capability" || call.Name == "enable_browser") {
+				for _, state := range a.cfg.SaveCapabilities() {
+					if content == CapabilityCatalog(state) {
+						message.Harness = "capability_catalog:" + state.Fingerprint
+					}
+				}
+			}
+			history = append(history, message)
 		}
 
 		if a.cfg.OnResult != nil {
@@ -100,6 +108,7 @@ func (a *Agent) recordToolBatch(ctx context.Context, st *runState, batch *toolBa
 		// model does not mistake harness output for fresh user input.
 		history = append(history, llm.Message{
 			Role:    llm.RoleUser,
+			Harness: "tool_images",
 			Content: pictureNote(pictures),
 			Images:  pictures,
 		})

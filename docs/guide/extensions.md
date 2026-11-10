@@ -74,7 +74,10 @@ failures are reported and leave the server available for a later retry.
 
 The agent searches `discover_capabilities` by ID or description, then calls
 `enable_capability` with the selected ID. Discovery returns metadata only.
-Activation registers tool definitions and returns the pack's instructions.
+Activation installs the tools and returns their schemas and instructions.
+The agent calls optional tools through `invoke_tool` with the tool name and
+arguments. This keeps the leading tool list stable; permission checks still
+use the actual tool and its resources.
 It does not execute a requested tool action. Executable activation starts no
 process; MCP activation connects to discover the remote catalog.
 
@@ -92,7 +95,8 @@ definitions are checked against the current build before a resumed run; a
 mismatch requires compatible code or a fresh session. Other always-present
 native tools are reconstructed normally and are not saved as capability packs.
 
-Built-in `native_images`, `native_files`, `native_documents` and `native_workflows` load on demand.
+Built-in `native_images`, `native_files`, `native_documents`, `native_media` and
+`native_workflows` load on demand.
 `native_files` provides `download_file`, `archive_list`, `archive_create` and
 `archive_extract` as ordinary agent tools. The same operations are workflow
 nodes. ZIP, TAR, TAR.GZ and GZIP are supported. Listing is read-only; the other
@@ -105,17 +109,25 @@ text, table, cell and metadata reading. The same read-only operations are
 workflow nodes. See [document readers](../reference/operations.md#reading-documents) for paging
 and limits. No document generation, OCR or external programs are included.
 
+`native_media` provides video metadata, captions and downloads, plus local media
+inspection, conversion, clips, frames and merging. YouTube prefers the bundled
+Go library; yt-dlp, FFmpeg and ffprobe are optional external applications.
+Use `media_status` after activation to see what is available. See
+[video and audio](../reference/operations.md#video-and-audio) for arguments,
+backend selection, executable paths and limits.
+
 See [image workflows](../reference/recipes.md) for tools, limits and the recipe format.
 
 The prompt includes a bounded map of optional pack IDs and descriptions from
-the discovery catalog. A known ID can be enabled without a preceding search.
+the discovery catalog. Each initial description is limited to 96 characters;
+discovery returns the complete description. A known ID can be enabled without a preceding search.
 
 Activated catalogs persist through compaction. For adapter packs, resume restores schemas without
 connecting. The first tool call reconnects and compares the current configuration
 and catalog with the saved fingerprint. A changed catalog requires a new session.
 A missing adapter fails its tool call; other work can continue. Older transcripts
 without saved catalogs migrate from successful activation results on resume.
-Missing operational instruction blocks are appended again after compaction;
+Missing catalogs and operational instructions are appended again after compaction;
 the system prompt remains stable.
 
 `read_only` and `concurrent` default to false. These are declarations made by

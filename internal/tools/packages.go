@@ -5,7 +5,10 @@ import (
 	"slices"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/capabilities/media"
 	"github.com/keshon/gektor/internal/checks"
+	"github.com/keshon/gektor/internal/gektor"
+	"github.com/keshon/gektor/internal/programs"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -27,6 +30,7 @@ type packageDependencies struct {
 	Rules  []checks.Rule
 	Vision bool
 	Extra  []agent.Tool
+	Media  *media.Service
 }
 
 type toolEntry struct {
@@ -41,6 +45,7 @@ type packageDefinition struct {
 }
 
 func nativeTools(d packageDependencies, readOnly bool) []agent.Tool {
+	d.Media = media.New(d.WS, programs.New(gektor.Sub("applications.json")))
 	var list []agent.Tool
 	for _, p := range builtinPackages() {
 		if p.exposure == Lazy {
@@ -64,7 +69,7 @@ func nativeTools(d packageDependencies, readOnly bool) []agent.Tool {
 // are published during preparation, after saved activations have been restored.
 // Overrides are internal experiment inputs; shipping callers leave them nil.
 func Compose(ws *workspace.Workspace, procs *BackgroundProcesses, report FindingSink, rules []checks.Rule, vision bool, catalog *Capabilities, overrides map[string]Exposure, extra ...agent.Tool) (*agent.Registry, error) {
-	d := packageDependencies{ws, procs, report, rules, vision, extra}
+	d := packageDependencies{WS: ws, Procs: procs, Report: report, Rules: rules, Vision: vision, Extra: extra, Media: media.New(ws, programs.New(gektor.Sub("applications.json")))}
 	definitions := builtinPackages()
 	for id, exposure := range overrides {
 		optional := false

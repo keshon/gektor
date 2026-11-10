@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/automation"
-	runner "github.com/keshon/gektor/internal/integrations/process"
+	runner "github.com/keshon/gektor/internal/process"
 	"github.com/keshon/gektor/internal/workspace"
 )
 

@@ -3,11 +3,11 @@ package main
 import (
 	"bytes"
 	"compress/zlib"
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"github.com/keshon/gektor/internal/automation/store"
 	"hash/crc32"
 	"image"
 	"image/color"
@@ -16,7 +16,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/automation"
+	"github.com/keshon/gektor/internal/automation/store"
+	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -118,20 +121,50 @@ func checkWorkflow(kind string, ws *workspace.Workspace) error {
 	if r.RecipeSource != string(source) || r.RecipeSHA256 != fmt.Sprintf("%x", sha256.Sum256(source)) {
 		return fmt.Errorf("record differs from saved recipe")
 	}
-	var d automation.Definition
-	decoder := json.NewDecoder(bytes.NewReader(source))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&d); err != nil {
+	compiler, err := app.NewAutomation(ws, workflowStoreDir(ws), permission.Policy{}, nil)
+	if err != nil {
+		return err
+	}
+	expected, _, err := compiler.Compile(context.Background(), source, r.RecipePath)
+	if err != nil {
 		return fmt.Errorf("invalid saved recipe: %w", err)
 	}
-	a, _ := json.Marshal(d)
+	a, _ := json.Marshal(expected)
 	b, _ := json.Marshal(r.Definition)
-	if !bytes.Equal(a, b) {
+	canonical := func(raw []byte) []byte {
+		var value any
+		d := json.NewDecoder(bytes.NewReader(raw))
+		d.UseNumber()
+		if d.Decode(&value) != nil {
+			return nil
+		}
+		out, _ := json.Marshal(value)
+		return out
+	}
+	if !bytes.Equal(canonical(a), canonical(b)) {
 		return fmt.Errorf("executed definition differs from file")
 	}
+	if len(r.Steps) != len(r.Definition.Steps) {
+		return fmt.Errorf("execution record has an incomplete step list")
+	}
+	var publicSteps []automation.StepResult
+	var publicDefinition []automation.Step
+	for i, step := range r.Definition.Steps {
+		if r.Steps[i].ID != step.ID {
+			return fmt.Errorf("execution step ID differs from its definition")
+		}
+		node, err := compiler.Registry.Node(step.Tool)
+		if err != nil {
+			return err
+		}
+		if !node.Internal {
+			publicSteps = append(publicSteps, r.Steps[i])
+			publicDefinition = append(publicDefinition, step)
+		}
+	}
 	if kind == "workflow_success" {
-		if r.Status != "completed" || len(r.Steps) != 4 {
-			return fmt.Errorf("expected four completed steps, got %s (%d)", r.Status, len(r.Steps))
+		if r.Status != "completed" || len(publicSteps) != 4 {
+			return fmt.Errorf("expected four completed steps, got %s (%d)", r.Status, len(publicSteps))
 		}
 		for _, s := range r.Steps {
 			if s.Status != "completed" {
@@ -139,7 +172,7 @@ func checkWorkflow(kind string, ws *workspace.Workspace) error {
 			}
 		}
 		for i, want := range []string{"image_inspect", "image_preview", "image_variants", "image_compare"} {
-			if r.Definition.Steps[i].Tool != want {
+			if publicDefinition[i].Tool != want {
 				return fmt.Errorf("wrong operation in step %d", i)
 			}
 		}
@@ -157,19 +190,19 @@ func checkWorkflow(kind string, ws *workspace.Workspace) error {
 			}
 		}
 	} else if kind == "workflow_icc" {
-		if r.Status != "failed" || len(r.Steps) != 3 || r.Steps[0].Status != "completed" || r.Steps[1].Status != "failed" || !strings.Contains(r.Steps[1].Error, "unsupported_metadata") || r.Steps[2].Status != "skipped" {
+		if r.Status != "failed" || len(publicSteps) != 3 || publicSteps[0].Status != "completed" || publicSteps[1].Status != "failed" || !strings.Contains(publicSteps[1].Error, "unsupported_metadata") || publicSteps[2].Status != "skipped" {
 			return fmt.Errorf("ICC recipe did not stop at preview")
 		}
 		if _, err := ws.Stat("output"); !os.IsNotExist(err) {
 			return fmt.Errorf("ICC recipe created output directory")
 		}
 		for i, want := range []string{"image_inspect", "image_preview", "image_variants"} {
-			if r.Definition.Steps[i].Tool != want {
+			if publicDefinition[i].Tool != want {
 				return fmt.Errorf("wrong ICC operation in step %d", i)
 			}
 		}
 	} else {
-		if r.Status != "failed" || len(r.Steps) != 1 || !strings.Contains(r.Steps[0].Error, "reserve new output directory") {
+		if r.Status != "failed" || len(publicSteps) != 1 || !strings.Contains(publicSteps[0].Error, "reserve new output directory") {
 			return fmt.Errorf("existing destination was not rejected")
 		}
 		entries, err := ws.ReadDir("output")
@@ -181,7 +214,7 @@ func checkWorkflow(kind string, ws *workspace.Workspace) error {
 		}
 	}
 	// Match the returned hashes to independently generated source bytes.
-	for _, s := range r.Steps {
+	for _, s := range publicSteps {
 		if s.Output == "" {
 			continue
 		}
