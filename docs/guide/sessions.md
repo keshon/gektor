@@ -8,6 +8,12 @@ Conversations are saved under `~/.gektor/sessions/` in the normal TUI launch.
 Choose **Open session…** in the Session menu, or press `Ctrl+P`, to search and reopen one.
 Opening a session does not send a new model request.
 
+Choose **Copy session ID** or **Copy session path** in the Session menu to copy
+a reference to the current conversation. The path is the full session folder
+path, containing `state.json` and its logs. Clicking the underlined session
+label in the header opens the same actions. They also work during a run.
+On narrow terminals, use the Session menu (under **More…** when needed).
+
 The list searches session titles and saved message history across workspaces.
 Use `Ctrl+F` to toggle the current-workspace filter; each result shows its assigned
 workspace. Opening a session restores that workspace, not the current directory.

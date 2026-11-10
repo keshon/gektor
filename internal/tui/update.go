@@ -71,6 +71,17 @@ func (m *model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	defer m.queueSettingsDetail()
 	defer m.syncComposerHeight()
 	switch msg := msg.(type) {
+	case sessionCopiedMsg:
+		if m.dialog == nil && m.sessions == nil && m.state != stAsk && m.state != stPermission {
+			if msg.err != nil {
+				m.openDialog("Cannot copy session", []string{msg.err.Error()})
+			} else {
+				m.openDialog(msg.label+" copied", []string{msg.text})
+			}
+		} else if msg.err != nil {
+			m.appendBlock(errorBlock("Cannot copy session: " + msg.err.Error()))
+		}
+		return m, nil
 	case processListMsg:
 		if m.dialog == nil && m.sessions == nil && m.state != stPermission && m.state != stAsk {
 			m.openProcesses(msg.view)

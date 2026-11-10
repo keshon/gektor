@@ -63,11 +63,13 @@ func (m *model) menuItems(menu string) []menuItem {
 	case "app":
 		return []menuItem{{"Agent", "screen:agent", idle}, {"Workflows", "screen:workflows", idle}, sep,
 			{"Change workspace…", "workspace", idle && m.application != nil}, sep, {"Quit", "quit", true}}
+	case "session-info":
+		return m.sessionCopyItems()
 	case "session":
 		saved := idle && m.stateFile != ""
-		return []menuItem{{"New session", "/new", idle}, {"Open session…", "/sessions", true},
+		return append([]menuItem{{"New session", "/new", idle}, {"Open session…", "/sessions", true},
 			{"Rename session…", "rename-current", saved}, {"Delete session…", "delete-current", saved}, sep,
-			{"Compact history…", "compact-session", saved}}
+			{"Compact history…", "compact-session", saved}, sep}, m.sessionCopyItems()...)
 	case "recipe":
 		if m.workflows == nil {
 			return nil

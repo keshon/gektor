@@ -17,6 +17,8 @@ func (m *model) activateMenuAction(command string) (tea.Model, tea.Cmd) {
 	}
 	m.closeHeader()
 	switch command {
+	case "copy-session-id", "copy-session-path":
+		return m, m.copySession(command)
 	case "message-queue":
 		m.openInputQueue()
 		return m, nil

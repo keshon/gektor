@@ -211,3 +211,48 @@ Full Go tests, vet and targeted Agent, Chat Completions and tools race checks
 passed. Regression tests cover denied and malformed targets, Plan-mode writes,
 concurrent reads, image grants, trusted catalog restoration, archive identity,
 current mode and unchanged wire history before the transient footer.
+
+
+## Session 106db964 follow-up (2026-11-10)
+
+Reviewed the saved history and diagnostics from a music download followed by
+recommendations. These are observations from this session, not a model-wide
+success rate.
+
+The dispatcher was used throughout optional media calls. Activation retained
+the earlier prompt prefix: request 3 had 7,834 prompt tokens; request 4, after
+activation, had 9,102 with 7,729 cached. Later requests also reused most of their
+prefix. There is no full-context restart at activation in this trace. Corrected
+user input cancelled an unstarted video-info call before execution.
+
+The first result was the wrong source, not a truncated download. The agent
+selected an upload by Maggie Jaliskilla whose metadata explicitly reported
+61 seconds. A second candidate was also 60 seconds. It nevertheless downloaded
+and converted the first, reporting completion. After the user complained, it
+searched for the official title, selected Harry Styles' official audio, and
+verified the resulting MP3 with ffprobe: 341.916735 seconds, 5,471,013 bytes.
+Duration verifies length; it does not establish by listening that the music
+starts at the expected point.
+
+Additional friction:
+
+- The agent requested an MP3 directly from native audio downloading. Native
+  streams did not match; yt-dlp also failed that request. Native M4A followed by
+  FFmpeg conversion worked. Separate source stream selection from conversion
+  when an output codec is not offered by the source.
+- Two native downloads hit a CDN TLS handshake timeout. Explicit retries
+  succeeded. This trace does not establish the cause or justify hidden backend
+  fallback.
+- An unnecessary host-program scan preceded the more useful media_status.
+- Cleanup used a compound PowerShell command with a malformed calculated
+  property. Parsing failed, so its intermediate-file deletion did not run.
+  The agent recovered with simpler commands but retained the M4A files.
+- Recommendation links were found using search. The final claim that all were
+  verified official uploads exceeded the evidence; no video_info checks were
+  made on those recommendations. Do not equate search titles with verification.
+
+Next behavioral checks should cover source selection (title, uploader, duration),
+source-stream versus requested output format, and evidence-qualified link
+claims. Put any task-specific guidance in discovered media instructions or a
+skill, keeping the base prompt short. Prefer deterministic fixture evals for
+selection and claim discipline; keep live downloads as separate network probes.
