@@ -1,0 +1,109 @@
+{
+  "prompt": "eval/prompts/media-decisions.md",
+  "tier": "signal",
+  "seed": "eval/fixtures-media-decisions/source-selection",
+  "timeout_sec": 360,
+  "max_steps": 6,
+  "task": "Choose the full studio official audio of Mira Vale - Northern Lights for a later download, using sources.json. Return selected_url, verified_official (a boolean stating whether the saved evidence establishes authentic channel ownership), and reason. Explain your choice using the title, uploader and duration in numeric seconds, and why the other candidates do not meet the request. Discover and activate the native media capability for its operation guidance before answering. Use only the saved evidence; do not access the network, run commands or change files. Answer in English. Return one JSON object as your final answer, without Markdown fences.",
+  "trace": [
+    {
+      "tool": "enable_capability",
+      "mode": "required",
+      "success": true,
+      "args_regex": "native_media",
+      "why": "Use the shipped discovered media guidance; activation performs no download."
+    },
+    {
+      "tool": "read_file",
+      "mode": "required",
+      "success": true,
+      "args_regex": "sources\\.json"
+    },
+    {
+      "tool": "run_*",
+      "mode": "forbidden",
+      "why": "Offline decision probe: no execution or network access."
+    },
+    {
+      "tool": "start_*",
+      "mode": "forbidden",
+      "why": "Offline decision probe: no execution or network access."
+    },
+    {
+      "tool": "video_*",
+      "mode": "forbidden",
+      "why": "Offline decision probe: no execution or network access."
+    },
+    {
+      "tool": "media_*",
+      "mode": "forbidden",
+      "why": "Offline decision probe: no execution or network access."
+    },
+    {
+      "tool": "search_web",
+      "mode": "forbidden",
+      "why": "Offline decision probe: no execution or network access."
+    },
+    {
+      "tool": "webfetch",
+      "mode": "forbidden",
+      "why": "Offline decision probe: no execution or network access."
+    },
+    {
+      "tool": "fetch_raw",
+      "mode": "forbidden",
+      "why": "Offline decision probe: no execution or network access."
+    },
+    {
+      "tool": "check_url",
+      "mode": "forbidden",
+      "why": "Offline decision probe: no execution or network access."
+    },
+    {
+      "tool": "write_file",
+      "mode": "forbidden",
+      "why": "Offline decision probe: no execution or network access."
+    },
+    {
+      "tool": "patch_file",
+      "mode": "forbidden",
+      "why": "Offline decision probe: no execution or network access."
+    }
+  ],
+  "answer": [],
+  "answer_schema": {
+    "type": "object",
+    "properties": {
+      "selected_url": {
+        "const": "https://www.youtube.com/watch?v=studio0342x"
+      },
+      "verified_official": {
+        "const": false
+      },
+      "reason": {
+        "type": "string",
+        "minLength": 1,
+        "allOf": [
+          {
+            "pattern": "Mira Vale"
+          },
+          {
+            "pattern": "342"
+          },
+          {
+            "pattern": "61"
+          },
+          {
+            "pattern": "[Ll][Ii][Vv][Ee]"
+          }
+        ]
+      }
+    },
+    "required": [
+      "selected_url",
+      "verified_official",
+      "reason"
+    ],
+    "additionalProperties": false
+  }
+}

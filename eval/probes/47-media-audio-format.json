@@ -1,0 +1,112 @@
+{
+  "prompt": "eval/prompts/media-decisions.md",
+  "tier": "signal",
+  "seed": "eval/fixtures-media-decisions/audio-format",
+  "timeout_sec": 360,
+  "max_steps": 6,
+  "task": "Plan how to obtain song.mp3 from the source described in formats.json. Choose the M4A source stream for this task. Include inspection of the final MP3 after conversion. Do not execute the plan. Return download_path, download_mode, convert_format, stream_copy, operations (an ordered array of operation names), and reason. Use the actual media operation names. Discover and activate the native media capability for its operation guidance before answering. Use only the saved evidence; do not access the network, run commands or change files. Answer in English. Return one JSON object as your final answer, without Markdown fences.",
+  "trace": [
+    {
+      "tool": "enable_capability",
+      "mode": "required",
+      "success": true,
+      "args_regex": "native_media",
+      "why": "Use the shipped discovered media guidance; activation performs no download."
+    },
+    {
+      "tool": "read_file",
+      "mode": "required",
+      "success": true,
+      "args_regex": "formats\\.json"
+    },
+    {
+      "tool": "run_*",
+      "mode": "forbidden",
+      "why": "Offline decision probe: no execution or network access."
+    },
+    {
+      "tool": "start_*",
+      "mode": "forbidden",
+      "why": "Offline decision probe: no execution or network access."
+    },
+    {
+      "tool": "video_*",
+      "mode": "forbidden",
+      "why": "Offline decision probe: no execution or network access."
+    },
+    {
+      "tool": "media_*",
+      "mode": "forbidden",
+      "why": "Offline decision probe: no execution or network access."
+    },
+    {
+      "tool": "search_web",
+      "mode": "forbidden",
+      "why": "Offline decision probe: no execution or network access."
+    },
+    {
+      "tool": "webfetch",
+      "mode": "forbidden",
+      "why": "Offline decision probe: no execution or network access."
+    },
+    {
+      "tool": "fetch_raw",
+      "mode": "forbidden",
+      "why": "Offline decision probe: no execution or network access."
+    },
+    {
+      "tool": "check_url",
+      "mode": "forbidden",
+      "why": "Offline decision probe: no execution or network access."
+    },
+    {
+      "tool": "write_file",
+      "mode": "forbidden",
+      "why": "Offline decision probe: no execution or network access."
+    },
+    {
+      "tool": "patch_file",
+      "mode": "forbidden",
+      "why": "Offline decision probe: no execution or network access."
+    }
+  ],
+  "answer": [],
+  "answer_schema": {
+    "type": "object",
+    "properties": {
+      "download_path": {
+        "type": "string",
+        "pattern": "\\.m4a$"
+      },
+      "download_mode": {
+        "const": "audio"
+      },
+      "convert_format": {
+        "const": "mp3"
+      },
+      "stream_copy": {
+        "const": false
+      },
+      "operations": {
+        "const": [
+          "video_download",
+          "media_convert",
+          "media_inspect"
+        ]
+      },
+      "reason": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "download_path",
+      "download_mode",
+      "convert_format",
+      "stream_copy",
+      "operations",
+      "reason"
+    ],
+    "additionalProperties": false
+  }
+}

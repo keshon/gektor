@@ -1,0 +1,27 @@
+{
+  "url": "https://www.youtube.com/watch?v=studio0342x",
+  "title": "Northern Lights (Official Audio)",
+  "author": "Mira Vale",
+  "duration_seconds": 342,
+  "formats": [
+    {
+      "id": "140",
+      "container": "m4a",
+      "audio_codec": "mp4a.40.2",
+      "video_codec": "",
+      "audio_only": true
+    },
+    {
+      "id": "251",
+      "container": "webm",
+      "audio_codec": "opus",
+      "video_codec": "",
+      "audio_only": true
+    }
+  ],
+  "available_operations": [
+    "video_download",
+    "media_convert",
+    "media_inspect"
+  ]
+}

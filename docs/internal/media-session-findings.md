@@ -1,5 +1,22 @@
 # Media session and lazy-tool findings
 
+Status: completed on 2026-11-10. The media decision-eval and guidance iteration
+is implemented, validated and accepted for delivery. No implementation or
+validation task remains open within this iteration.
+
+Delivered: three isolated decision probes, whole-answer JSON Schema scoring
+with duplicate-key rejection, calibrated time allowances, and optional media
+guidance covering source selection, source/output formats and evidence-qualified
+claims. The latest Tiel runs passed all three probes individually; relevant Go
+tests, vet, dry validation and the startup-prompt budget check passed.
+
+The sections below retain the investigation history, including superseded
+proposals and failed experiments. Their pending-work language describes the
+state at that time. Residual explanatory overstatements are accepted model
+limitations outside this iteration's implementation scope, not release blockers
+or unfinished feature work. This completion does not claim universal model
+reliability. See [the final acceptance record](#final-acceptance-record).
+
 Recorded on 2026-11-09. Source session: `12cebbcc`, using Ornith 1.5
 35B-A3B Q5_K_M through llama-server on port 9931, with a 131072-token window.
 
@@ -251,8 +268,220 @@ Additional friction:
   verified official uploads exceeded the evidence; no video_info checks were
   made on those recommendations. Do not equate search titles with verification.
 
-Next behavioral checks should cover source selection (title, uploader, duration),
-source-stream versus requested output format, and evidence-qualified link
-claims. Put any task-specific guidance in discovered media instructions or a
-skill, keeping the base prompt short. Prefer deterministic fixture evals for
-selection and claim discipline; keep live downloads as separate network probes.
+These observations led to the completed decision-eval and optional media-guidance
+iteration recorded below: source selection, source-stream versus output format,
+and evidence-qualified link claims. Fixed evidence isolates those decisions;
+live downloads remain separate network probes. The base prompt was unchanged.
+
+## Offline decision baseline (2026-11-10)
+
+Added probes `46-media-source-selection`, `47-media-audio-format` and
+`48-media-claim-evidence` to the media suite, with an offline-only
+`media-decisions` subset. Synthetic saved metadata exercises the decisions
+without YouTube or search availability. The Agent activates the shipped media
+guidance, reads fixtures and returns a structured decision; no media action is
+executed. Criteria and limits are in [the probe write-up](../../eval/prompts/media-decisions.md).
+
+Baseline: Cyber-Tiel-Coder-35B-A3B UD-Q4_K_M, llama-server on port 9931,
+98,304-token context, 8,192 response tokens, default sampler, one job and three
+runs per probe. Results: `eval/results/20261110-104327/`. These ignored local
+results include full traces, fingerprints and a snapshot of the original probe
+definitions in `probes/`; they are not distributed with the repository.
+
+- Source selection: 2/3 scored passes. All three selected the intended studio
+  candidate; one failed because it called `media_status` during saved-evidence
+  review. The guidance's unconditional status instruction is a candidate cause,
+  not a demonstrated causal result. The original wrong-source choice was not
+  reproduced by this simpler case.
+- Audio planning: 0/3 under the initial task. Run 1 timed out at 180 seconds
+  before answering. Run 2 returned `download_path: song.mp3` despite describing
+  an M4A download followed by conversion. Both completed answers omitted final
+  inspection. Run 3 otherwise had the correct M4A/AAC-to-MP3 plan.
+- Search claim discipline: 3/3 scored passes; all declined to label search
+  candidates verified official uploads. This constrained task did not reproduce
+  the original recommendation overclaim.
+
+The initial audio task did not explicitly request final inspection although
+the scorer required it. Its 0/3 must not be presented as three wrong codec
+decisions. The task now explicitly requests inspection; the assertions,
+fixtures, runtime instructions, model and budgets remain unchanged. Fresh
+repetitions are recorded separately rather than replacing the initial results.
+
+Manual review found a remaining scoring gap: source-selection answers promoted
+the saved uploader name into official ownership; two called it a verified artist
+or verified artist channel. No channel-verification evidence was provided.
+Probe 46 checks selection and rationale, while probe 48 checks a structured
+verification decision on search results. Neither establishes truthfulness across
+all source-selection prose. Metadata inspection alone also does not prove channel
+ownership. These observations motivated the typed ownership decision and scoring
+corrections implemented below. External identity verification and grading all
+unrestricted prose are outside this iteration's accepted scope.
+
+These results support a focused review of optional media guidance: when status
+is necessary, source container versus converted output, and the evidence needed
+for official-source claims. They do not establish a prompt fix or justify an
+engine redesign. No runtime instructions changed during this baseline, and no
+live-network media probes were run as part of it.
+
+### Explicit-inspection repetitions
+
+The clarified audio probe ran three times under the same model, response budget,
+sampler and 180-second timeout. All three were incomplete: two timed out while
+waiting for the third model response; the last returned no completed model step.
+Results: `eval/results/20261110-110331/`. There is no completed format decision
+to score semantically in this batch. The original path mismatch remains the
+concrete completed-answer failure; these timeouts do not reproduce it.
+
+A host observation at the end found about 593 MiB of free physical memory on a
+machine with about 31.9 GiB usable RAM. Memory pressure is a possible latency
+confound, not a proven cause of the timeouts. Local Go validation also overlapped
+parts of the experiments. Do not interpret the elapsed times as a controlled
+model-performance comparison or relax criteria to hide the failures. This led to
+the 65k calibration and individually inspected Tiel runs recorded below.
+
+Validation: evaluator and conventions tests, evaluator vet and the 44-probe dry
+validation passed. Scorer regressions reject short/live source substitutions,
+direct-MP3 download paths, stream-copy conversion, unsupported verification and
+execution during offline review. At this baseline, runtime instructions were
+unchanged and no commit, push or live-network probe had been performed.
+
+## 65k context and bounded tuning (2026-11-10)
+
+The relaunched server reports the same Cyber-Tiel-Coder-35B-A3B UD-Q4_K_M
+weights with a 65,536-token context. A calibration of the clarified audio task
+passed in 163.9 seconds, three model steps, with no tool failures. Results:
+`eval/results/20261110-111832/`. It used the earlier regex-based scoring and
+is not directly comparable with the stricter baseline below.
+
+### Evaluator corrections
+
+Optional `answer_schema` now validates the whole final answer using the existing
+operation JSON Schema validator. It rejects extra prose, Markdown fences,
+missing fields and wrong typed decisions. A token-level JSON check rejects
+duplicate keys before validation; otherwise the existing JSON parser retained
+only the last contradictory value. Schemas compile during dry validation.
+Existing prose probes keep their regex behavior unless they opt into a schema.
+
+The three media-decision probes use schemas. The source probe now asks for
+`verified_official` separately from the preferred candidate URL, exposing the
+ownership claim that earlier source scoring missed. Candidate-link ordering
+does not affect the search decision, and escaped quotation marks do not end
+source-rationale checks. These are changes to the experiment; earlier saved
+results remain unchanged and their aggregate rates must not be compared directly.
+Free-text explanations still require manual review for unsupported claims.
+
+### Baseline with the corrected probes
+
+Results: `eval/results/20261110-112711/`, with snapshots of probe definitions
+and the original media instructions/descriptions. The original executable
+finished the entire batch before the revised executable was started.
+
+- Source selection: 0/3 scored passes. Two completed answers selected the
+  intended candidate but claimed verified ownership; the third timed out.
+- Audio planning: 1/3 scored passes. One timed out. Both completed answers
+  produced the correct format plan, but one unnecessarily called `media_status`
+  during offline planning and failed the tool-use criterion.
+- Search claim discipline: 3/3 passed under whole-answer schema validation.
+- Overall: 4/9. There were no failed tool results; timeouts and forbidden
+  successful calls remain separate failure categories.
+
+Physical-memory observations ranged from about 2 GiB free at startup to about
+0.55 GiB during the batch. After the user freed memory, about 3 GiB was available
+and subsequent audio/search runs completed. This is a confounded latency
+observation, not proof that memory pressure caused every timeout. The completed
+unsupported-ownership answers and unnecessary status call are direct behavioral
+evidence regardless of timeout interpretation.
+
+### Bounded implementation
+
+The optional media instructions now make application-status checks conditional
+on execution needs, compare requested recordings against source metadata,
+distinguish downloaded source paths from converted outputs, and require evidence
+before claiming official ownership. Shared `video_info` and `video_download`
+descriptions clarify metadata provenance and the absence of transcoding during
+download. Single-stream source constraints remain distinct from merged remuxing.
+
+No execution code, permission policy, provider, fallback, compaction or base-prompt
+changes were made. The startup budget guard still passes. Evaluator, tool, media and
+conventions tests, focused role/startup tests and relevant vet checks passed.
+
+### Interrupted comparison and Tiel calibration
+
+The revised Cyber-Tiel batch is saved in `eval/results/20261110-115017/`.
+Source selection scored 1/3: one run skipped activation and overclaimed ownership,
+one timed out, and one passed the typed criteria after activating the guidance.
+Manual review of the passing answer still found an unsupported assertion of artist
+ownership in its rationale, followed by a correct ownership disclaimer. Its
+`video_metadata_fetched` claim also borrowed a field from the unrelated search
+fixture. A schema pass does not establish the truth or consistency of free text.
+
+The backend was stopped before the remaining audio/search runs could proceed.
+All six saved attempts report connection refusal. Preserve those records but
+exclude them from claims about model decisions; the batch is not a completed
+before/after comparison.
+
+The next server reports Tiel-Coder-35B-A3B UD-Q4_K_XL, text-only, with a
+131,072-token context. This differs from Cyber-Tiel and is a separate experiment.
+No old eval process remained. Runs now start one probe at a time, with a single
+attempt and trace review before the next invocation.
+
+The first Tiel source run, `eval/results/20261110-123547/`, activated media guidance
+but timed out at 186.2 seconds while awaiting its fourth model response. There
+is no final decision to grade. It also read all three files in the formerly shared
+seed. Each probe now has its own seed containing only the relevant evidence.
+The time allowance is 360 seconds; task, answer criteria, sampler and response
+budget are unchanged. Earlier inputs are snapshotted in that run's `inputs/`.
+Neither this budget change nor fixture isolation is evidence of a model fix.
+
+### Individually inspected Tiel runs
+
+With isolated evidence and the 360-second allowance, source selection completed
+in 191.0 seconds but failed because it called `media_status`. Its JSON declined
+to verify ownership, while the rationale still asserted that the uploader was
+the artist. Results: `eval/results/20261110-123946/`. The revised media instructions
+were present in the activation result; this was not a delivery failure.
+
+The `media_status` operation description now explicitly excludes saved-evidence
+review and planning without execution. The optional guide also asks for a
+consistent ownership qualification throughout the rationale and distinguishes
+reported duration from proof of recording identity/completeness. No execution
+implementation or operation argument schema changed. Fixture-isolation tests
+prevent other probes' evidence from being copied into the same workspace.
+
+Each following invocation selected exactly one probe with one attempt. Its
+result and final answer were reviewed before the next invocation started:
+
+- Source selection passed in 119.9 seconds, three steps, without a status call:
+  `eval/results/20261110-124436/`. It selected the intended candidate and declined
+  to verify ownership. Manual review still found its claim that the reported
+  duration establishes a full-length recording too strong.
+- Audio planning passed in 122.7 seconds, three steps:
+  `eval/results/20261110-124742/`. It chose an M4A download path, MP3 re-encoding
+  with stream copy disabled, then inspection. Its explanation incorrectly called
+  all planned steps local-only, although the future remote download needs network
+  access. No media operation was actually executed during this offline task.
+- Search claim discipline passed in 68.6 seconds, three steps:
+  `eval/results/20261110-125058/`. Both links remained unverified search candidates;
+  no extra commands, network calls or status probe were made.
+
+All three had zero failed tool results. These are single-run calibrations,
+not a reliability estimate or a controlled latency benchmark. Earlier failures
+are preserved. Automated field/tool checks improved, but they do not establish
+truthful unrestricted prose. Duration and plan/execution overstatements are
+recorded model limitations, outside the accepted implementation scope. They do
+not leave an implementation task open in this completed iteration.
+
+## Final acceptance record
+
+The user accepted the bounded feature as sufficient and authorized documentation
+closure, commit and push to `main` on 2026-11-10.
+
+Acceptance covers the three probes and isolated fixtures, strict structured
+scoring, optional media guidance and operation descriptions, and the completed
+code checks and individual model calibrations. Latest model evidence is the
+three passing Tiel runs listed above, one attempt per probe; it is not a
+reliability estimate or a direct Cyber-Tiel comparison.
+
+Historical failures, interrupted-backend attempts and manual prose observations
+remain evidence. They are not pending acceptance checks. No further model run,
+engine redesign or implementation change is required to deliver this iteration.

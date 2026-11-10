@@ -24,6 +24,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/automation"
 	"github.com/keshon/gektor/internal/automation/script"
 	"github.com/keshon/gektor/internal/capabilities/documents"
 	"github.com/keshon/gektor/internal/config"
@@ -84,6 +85,9 @@ type Probe struct {
 	// ~150000 bytes", "correct commit list in the final answer" — and a
 	// read-only probe has no workspace change to assert on at all.
 	Answer []AnswerCheck `json:"answer"`
+	// AnswerSchema optionally validates the complete final answer as JSON.
+	// It reuses the operation schema validator; no JSON is extracted from prose.
+	AnswerSchema json.RawMessage `json:"answer_schema,omitempty"`
 
 	// MaxSteps fails a run that took more round-trips than the probe
 	// considers reasonable. Zero disables the limit. Finishing correctly
@@ -352,7 +356,7 @@ func main() {
 	model := flag.String("model", "local", "model name: ignored by most local servers, required for remote providers")
 	dir := flag.String("probes", "eval/probes", "directory of probe .json files")
 	only := flag.String("only", "", "run only probes whose name contains this substring")
-	suite := flag.String("suite", "", "named subset: core, workflows, pipelines, visual, documents, delegation, memory or media")
+	suite := flag.String("suite", "", "named subset: core, workflows, pipelines, visual, documents, delegation, memory, media or media-decisions")
 	jobsN := flag.Int("jobs", 1, "how many probes to run at once. Both backends batch concurrent "+
 		"requests (koboldcpp --parallelrequests, llama-server --parallel) and neither helps unless "+
 		"the client sends them; raising this past what the server was started with just queues")
@@ -406,8 +410,8 @@ func main() {
 		selected := keepTier(probes, *tier)
 		for _, p := range selected {
 			mode := "agent"
-			fmt.Printf("  %-22s %-7s %-7s %d verify, %d trace, %d answer\n",
-				p.Name, p.Tier, mode, len(p.Verify), len(p.Trace), len(p.Answer))
+			fmt.Printf("  %-22s %-7s %-7s %d verify, %d trace, %d answer, JSON schema=%t\n",
+				p.Name, p.Tier, mode, len(p.Verify), len(p.Trace), len(p.Answer), len(p.AnswerSchema) > 0)
 		}
 		fmt.Printf("%d probes OK; %d selected\n", validated, len(selected))
 		return
@@ -833,6 +837,13 @@ func checkTrace(p Probe, calls []call) []string {
 
 func checkAnswer(p Probe, answer string) []string {
 	var out []string
+	if len(p.AnswerSchema) > 0 {
+		if err := validateAnswerJSON(answer); err != nil {
+			out = append(out, "answer JSON: "+err.Error())
+		} else if err := automation.ValidateJSON(json.RawMessage(answer), p.AnswerSchema); err != nil {
+			out = append(out, "answer schema: "+err.Error())
+		}
+	}
 	for _, ac := range p.Answer {
 		// Case-insensitive by default: these assert on prose a model
 		// wrote, and "150000 Bytes" is the same answer as "150000 bytes".
@@ -1029,7 +1040,7 @@ func loadProbes(dir, only string) ([]Probe, error) {
 		}
 		// A probe with nothing to assert passes unconditionally, which is
 		// worse than not having the probe at all.
-		if len(p.Verify) == 0 && len(p.Trace) == 0 && len(p.Answer) == 0 && p.MaxSteps == 0 {
+		if len(p.Verify) == 0 && len(p.Trace) == 0 && len(p.Answer) == 0 && len(p.AnswerSchema) == 0 && p.MaxSteps == 0 {
 			return nil, fmt.Errorf("%s: nothing asserted — it would score itself", path)
 		}
 		switch p.Tier {
@@ -1047,6 +1058,11 @@ func loadProbes(dir, only string) ([]Probe, error) {
 		// Selftest before spend: unknown check types, missing check
 		// fields, and uncompilable regexes fail here, dry, instead of
 		// mid-run after model calls.
+		if len(p.AnswerSchema) > 0 {
+			if _, err := automation.CompileSchema(p.AnswerSchema); err != nil {
+				return nil, fmt.Errorf("%s: answer_schema: %w", path, err)
+			}
+		}
 		if p.Generated != "" {
 			if _, err := generatedFixture(p.Generated); err != nil {
 				return nil, fmt.Errorf("%s: %w", path, err)

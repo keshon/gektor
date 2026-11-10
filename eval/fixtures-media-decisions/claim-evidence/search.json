@@ -1,0 +1,17 @@
+{
+  "query": "Mira Vale official audio recommendations",
+  "results": [
+    {
+      "url": "https://www.youtube.com/watch?v=recommend01",
+      "title": "Mira Vale - Glass River (Official Audio)",
+      "snippet": "Listen to Glass River. Official audio."
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=recommend02",
+      "title": "Mira Vale - Pale Sun (Official Video)",
+      "snippet": "Official music video."
+    }
+  ],
+  "evidence_type": "search_results",
+  "video_metadata_fetched": false
+}

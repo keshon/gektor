@@ -16,7 +16,8 @@ with `scripts\eval-run.cmd`.
 | `documents` | Native DOCX, XLSX and PDF reading, recipe use and long-item continuation | No |
 | `visual` | Pasted image discovery, a detail crop, misleading suffix and limits on identification | Yes |
 | `delegation` | One focused child review and one small Go repair, with separate child measurements | No |
-| `media` | Lazy discovery, native YouTube captions, a merged download and a real FFmpeg workflow | No |
+| `media` | Lazy discovery, native YouTube captions, a merged download, a real FFmpeg workflow and offline media decisions | No |
+| `media-decisions` | Offline source selection, audio conversion planning and evidence-qualified recommendation claims | No |
 | `memory` | Session archive search, prompt evidence and assistant/user attribution | No |
 
 ```text
@@ -26,6 +27,7 @@ go run ./cmd/eval -suite visual -runs 3 -jobs 1 -backend http://127.0.0.1:9931
 
 go run ./cmd/eval -suite documents -runs 3 -jobs 1 -backend http://127.0.0.1:9931
 go run ./cmd/eval -suite memory -runs 3 -jobs 1 -backend http://127.0.0.1:9931
+go run ./cmd/eval -suite media-decisions -runs 3 -jobs 1 -backend http://127.0.0.1:9931
 ```
 
 The visual probe uses generated shapes delivered outside the workspace, like a
@@ -202,6 +204,12 @@ Three independent verdicts, all of which must hold:
 | `verify` | what the workspace contains afterwards, using the evaluator’s Check type |
 | `trace` | which tools were called, with `mode`, `args_regex` and `max_calls` |
 | `answer` | what the run reported, by regex |
+
+Optional `answer_schema` validates the entire final answer as one JSON value
+against a JSON Schema, using the existing operation validator. Extra prose,
+Markdown fences, duplicate keys and invalid values fail; JSON is not extracted
+from a longer answer. Schemas are validated during the dry run. Existing prose
+probes can keep `answer` regex checks; both apply when both are supplied.
 
 Plus `max_steps`, but only where the write-up states a limit.
 

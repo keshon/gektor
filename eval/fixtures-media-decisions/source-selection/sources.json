@@ -1,0 +1,23 @@
+{
+  "query": "Mira Vale - Northern Lights full official audio",
+  "candidates": [
+    {
+      "url": "https://www.youtube.com/watch?v=preview0061",
+      "title": "Mira Vale - Northern Lights Official Audio",
+      "author": "Daily Music Clips",
+      "duration_seconds": 61
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=concert0342",
+      "title": "Mira Vale - Northern Lights live in Oslo",
+      "author": "Mira Vale",
+      "duration_seconds": 342
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=studio0342x",
+      "title": "Northern Lights (Official Audio)",
+      "author": "Mira Vale",
+      "duration_seconds": 342
+    }
+  ]
+}

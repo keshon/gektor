@@ -2,6 +2,10 @@
 
 These probes check model decisions with the real lazy media tools.
 
+The media suite also includes three offline [decision probes](media-decisions.md).
+Run those alone with `-suite media-decisions`; they require the model server but
+no public network or local media applications.
+
 - `40-media-status` checks discovery and actual application status without commands or media writes.
 - `41-media-transcript` reads metadata and two caption pages through native YouTube. A successful second page must use offset 3.
 - `44-media-download` reproduces the session download: native first, explicit yt-dlp recovery if needed, merged MP4 and actual container/codecs checked with ffprobe. Re-encoding and shell work are forbidden.
