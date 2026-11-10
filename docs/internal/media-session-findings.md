@@ -3,9 +3,8 @@
 Recorded on 2026-11-09. Source session: `12cebbcc`, using Ornith 1.5
 35B-A3B Q5_K_M through llama-server on port 9931, with a 131072-token window.
 
-The media contract fixes are implemented. Avoiding history reprocessing during
-lazy activation is investigated but not implemented. Assistant/user attribution
-remains unreliable in the model-backed regression.
+This section records the initial audit. The 2026-11-10 follow-up below records
+the implemented dispatcher and request-attribution changes and their validation.
 
 Current operation behavior belongs in the [operation reference](../reference/operations.md#video-and-audio).
 Package boundaries belong in the [capability guide](../development/capabilities.md).
@@ -112,7 +111,7 @@ uses a report file present in its seeded workspace and an eager `read_file`
 result, avoiding a dependency on an unactivated media catalog. These fixture
 revisions are separate experiments, not repeated measurements of one scenario.
 
-The final `45-assistant-role` run still failed. Despite a user request to review
+The final 2026-11-09 `45-assistant-role` run still failed. Despite a user request to review
 the report without commands or network access, Ornith tried to use yt-dlp in
 response to its own imperative text. The run timed out after 60.1 seconds and
 four model steps, with two tool failures. A short system-text clarification
@@ -135,5 +134,80 @@ providers, container selection and refusal to publish mismatched outputs.
 YouTube download has not run. Earlier status, caption and workflow eval passes
 do not cover that new scenario or establish reliability after these changes.
 
-Remaining work is to run that download probe, investigate the role-attribution
-failure, and evaluate the dispatcher design before changing lazy exposure.
+At the end of the initial audit, the download probe, role-attribution fix and
+dispatcher implementation were still pending.
+
+## Follow-up: 2026-11-10
+
+### Stable optional-tool handling
+
+The dispatcher is implemented. Eager tools stay in the leading tool list;
+optional schemas arrive in their activation result. `invoke_tool` resolves to
+the registered target before validation, permissions, read-only admission,
+scheduling, attachments, output limiting and mutation tracking. Observers see
+the effective target; saved model calls retain the original envelope.
+
+Trusted catalog markers and saved fingerprints restore missing schemas after
+compaction or resume. Budget estimates include restored catalogs. Inactive and
+recursive targets are rejected. Plan-mode restrictions apply to the target,
+including read-only extensions; the dispatcher itself cannot grant write access.
+Legacy registries without a dispatcher retain direct exposure.
+
+The startup catalog map now uses at most 700 characters and 48-character
+summaries. Full descriptions remain available through discovery. The existing
+5000-token startup estimate check passes without raising its limit.
+
+Live evidence from `eval/results/20261110-085106`:
+
+- All five leading tool arrays in the media-status run were identical.
+- The request before activation contained 7317 prompt tokens.
+- The request after activation reused 7177 cached tokens and processed 1963
+  new tokens, including the newly appended catalog. Prompt processing took
+  about 4.9 seconds. It did not reprocess the earlier conversation in full.
+- All four media probes passed: status, caption paging, workflow conversion
+  and the newly added merged-download case. These runs are calibration,
+  not a controlled latency comparison with the old implementation.
+
+The download case encountered a native CDN TLS handshake timeout and explicitly
+selected yt-dlp. It produced a real MP4 with AV1 video and Opus audio at 720p,
+23810359 bytes, and 255.321 seconds. No conversion was needed. The model called
+all media operations through the dispatcher; ffprobe checked the actual file.
+
+### Request identity
+
+Explicit content labels for assistant and tool messages did not fix the local
+model failure and were removed. A transient footer now repeats the latest real
+user request, the host's user-message count and the current run directive.
+The request comes from saved archive roles and metadata, not assistant prose
+or a generated summary. Tool images are marked as harness input and excluded.
+
+The footer is used by the llama-server serializer after assistant turns. It
+copies at most 2048 Unicode characters of the request and explicitly identifies
+an excerpt when shortened. Earlier complete instructions remain in history.
+The current Plan/Act directive still applies. The footer is not persisted as
+another user message; only this short suffix is replaced on later requests.
+Native provider replay is unchanged. Context estimates reserve its bounded cost.
+
+A Russian answer matcher also rejected a correct response containing Markdown
+emphasis and “1 реальный пользовательский запрос”. The matcher now handles that
+wording and Unicode letters. The required count remains one; the forbidden tool
+checks are unchanged. Do not count the initial scorer rejection as a model
+attribution failure or silently rewrite its saved result.
+
+The text-only reminder reduced the failure but did not eliminate it: one run
+still counted its own imperative as a second request. After adding the host's
+actual count, both targeted runs passed, in 23.5 and 34.3 seconds, with one model
+step and no tool failures (`eval/results/20261110-084831`). Final checks with
+current-mode metadata also passed twice, in 10.3 and 10.4 seconds, with no
+commands, network access or tool failures (`eval/results/20261110-090150`). An
+intermediate correctly counted answer was rejected by the matcher when the
+number followed a Markdown heading; scorer regression tests now cover both
+valid formatting and rejection of counts 2, 11 and 21. Previous results remain
+unchanged. Repeated model-backed
+checks remain necessary; this does not guarantee correct attribution for every
+model or conversation.
+
+Full Go tests, vet and targeted Agent, Chat Completions and tools race checks
+passed. Regression tests cover denied and malformed targets, Plan-mode writes,
+concurrent reads, image grants, trusted catalog restoration, archive identity,
+current mode and unchanged wire history before the transient footer.

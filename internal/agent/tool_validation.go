@@ -14,6 +14,10 @@ func (a *Agent) validateToolCalls(calls []llm.ToolCall, finishReason string, his
 	skipped := make([]bool, len(calls))
 	var newInstructions []string
 	for i, call := range calls {
+		if results[i].err != nil {
+			skipped[i] = true
+			continue
+		}
 		// Truncated arguments (generation cut off mid-call) are stumps, not
 		// calls: executing them fails arg parsing here and 500s backends that
 		// parse server-side. Refuse with reissue-smaller guidance instead.

@@ -143,12 +143,13 @@ func checkpointEvidence(history []llm.Message) []string {
 // Summarization adds content too. Trim whole retained groups after it, without
 // another summary call, so the main model still has a useful output allowance.
 func (a *Agent) fitCheckpoint(projection []llm.Message, budget int) ([]llm.Message, error) {
+	projection = a.withCapabilityInstructions(projection)
 	facts, ok := parseFacts(strings.TrimPrefix(projection[2].Content, harnessPrefix))
 	if !ok {
 		return nil, fmt.Errorf("invalid checkpoint projection")
 	}
 	groups := stepGroups(projection[3:])
-	for llm.EstimatePromptTokens(llm.ChatRequest{Messages: projection, Tools: a.cfg.Tools.Defs()}) > budget && len(groups) > 1 {
+	for llm.EstimatePromptTokens(a.modelRequest(projection)) > budget && len(groups) > 1 {
 		facts.add(groups[:1])
 		groups = groups[1:]
 		next := append([]llm.Message(nil), projection[:2]...)
@@ -161,9 +162,10 @@ func (a *Agent) fitCheckpoint(projection []llm.Message, budget int) ([]llm.Messa
 		if err != nil {
 			return nil, err
 		}
+		projection = a.withCapabilityInstructions(projection)
 		facts, _ = parseFacts(strings.TrimPrefix(projection[2].Content, harnessPrefix))
 	}
-	if llm.EstimatePromptTokens(llm.ChatRequest{Messages: projection, Tools: a.cfg.Tools.Defs()}) > budget {
+	if llm.EstimatePromptTokens(a.modelRequest(projection)) > budget {
 		return nil, fmt.Errorf("checkpoint, protected instructions and tools leave insufficient generation room; use a larger context")
 	}
 	return projection, nil

@@ -69,7 +69,11 @@ func (c *Capabilities) publish(ctx context.Context, state session.Capability, li
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := c.Registry.Add(list...); err != nil {
+	add := c.Registry.AddOptional
+	if p := c.native(state.ID); (p != nil && p.Exposure == Eager) || (p == nil && c.source(state.ID).Eager) || !c.Registry.Has("invoke_tool") {
+		add = c.Registry.Add
+	}
+	if err := add(list...); err != nil {
 		return err
 	}
 	if c.active == nil {
@@ -152,7 +156,7 @@ func (c *Capabilities) validateSources() error {
 func (c *Capabilities) PreviewDefs() []llm.ToolDef {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	defs := c.Registry.Defs()
+	defs := c.Registry.ModelDefs()
 	for _, p := range c.Native {
 		if _, active := c.active[p.ID]; !active && p.Exposure == Eager {
 			defs = append(defs, p.state().Tools...)
@@ -189,14 +193,14 @@ func (c *Capabilities) Map() string {
 	if len(entries) == 0 {
 		return ""
 	}
-	text := "\nOptional capabilities (enable_capability accepts a known ID):"
+	text := "\nOptional capabilities:"
 	for _, entry := range entries {
 		description := []rune(strings.Join(strings.Fields(entry.Description), " "))
-		if len(description) > 96 {
-			description = append(description[:93], []rune("...")...)
+		if len(description) > 48 {
+			description = append(description[:45], []rune("...")...)
 		}
 		line := "\n" + entry.ID + ": " + string(description)
-		if len([]rune(text+line)) > 900 {
+		if len([]rune(text+line)) > 700 {
 			text += "\nUse discover_capabilities to find more available packs."
 			break
 		}

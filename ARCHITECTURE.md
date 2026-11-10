@@ -184,6 +184,12 @@ restore before eager preparation. Native definitions are checked immediately;
 external adapters still reconnect and validate on use. Eager native schemas can
 be previewed for context reports without publishing them or making network calls.
 Discovery and a bounded prompt map share one optional-package catalog.
+Optional targets use a fixed `invoke_tool` envelope. Their schemas enter history
+on activation rather than changing the leading tool list. The Agent resolves
+the target before permission checks and scheduling; archives retain the original
+model call. Saved catalogs restore the exact schemas after compaction.
+Llama-server requests also carry a transient attribution footer derived from the
+saved operator messages and current run mode. It is not a new archived user turn.
 
 ### Capabilities and workflow tools
 

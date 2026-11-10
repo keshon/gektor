@@ -95,7 +95,7 @@ func builtinPackages() []packageDefinition {
 		{"native_files", "Download files with SHA-256; list, create and extract ZIP, TAR, TAR.GZ and GZIP archives. Bounded Go-native workspace operations.", Lazy, operationEntries(filecontract.Names(), func(d packageDependencies, name string) agent.Tool {
 			return &filetools.Tool{Operation: filecontract.Operation{Service: files.Service{WS: d.WS}, Kind: name}}
 		}, func(name string) bool { return (filecontract.Operation{Kind: name}).ReadOnly() })},
-		{"native_media", "Video/audio: media_status checks apps. Native YouTube info, captions, downloads; optional yt-dlp. FFmpeg inspect, convert, clip, frame, merge.", Lazy, operationEntries(mediacontract.Names(), func(d packageDependencies, name string) agent.Tool {
+		{"native_media", "YouTube info, captions and downloads; FFmpeg media processing; optional yt-dlp for other sites.", Lazy, operationEntries(mediacontract.Names(), func(d packageDependencies, name string) agent.Tool {
 			return &mediatools.Tool{Operation: mediacontract.Operation{Service: d.Media, Kind: name}}
 		}, func(name string) bool { return (mediacontract.Operation{Kind: name}).ReadOnly() })},
 		{"native_documents", "Read DOCX text and tables, XLSX sheets and cells, PDF text and metadata. Go native; no OCR or document generation.", Lazy, operationEntries(doccontract.Names(), func(d packageDependencies, name string) agent.Tool {

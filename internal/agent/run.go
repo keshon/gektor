@@ -45,10 +45,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 		history = a.acceptInputs(history, a.cfg.Inbox.take(false), &st)
 		history = a.acceptNotifications(ctx, history)
 		history = a.withCapabilityInstructions(history)
-		req := llm.ChatRequest{
-			Messages: a.reuseContext(history),
-			Tools:    a.cfg.Tools.Defs(),
-		}
+		req := a.modelRequest(history)
 		estimate := llm.EstimatePromptTokens(req)
 		promptTokens := st.projectPrompt(estimate)
 		if a.maybeCompact(&history, llm.Usage{PromptTokens: promptTokens}, &st, workCtx) {
@@ -75,7 +72,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 				resp.Message.FinishReason = resp.FinishReason
 				message := recordableMessage(resp.Message)
 				if a.cfg.OnStep != nil {
-					a.cfg.OnStep(step, message)
+					a.cfg.OnStep(step, a.cfg.Tools.ObservedMessage(message))
 				}
 				history = append(history, message)
 				if len(resp.Message.ToolCalls) > 0 {
@@ -96,7 +93,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 		resp.Message.FinishReason = resp.FinishReason
 		message := recordableMessage(resp.Message)
 		if a.cfg.OnStep != nil {
-			a.cfg.OnStep(step, message)
+			a.cfg.OnStep(step, a.cfg.Tools.ObservedMessage(message))
 		}
 		if a.cfg.OnUsage != nil {
 			a.cfg.OnUsage(step, resp.Usage)
@@ -292,6 +289,7 @@ func (a *Agent) chat(ctx context.Context, req llm.ChatRequest) (response llm.Cha
 	a.recordInspection(req)
 	a.saveSnapshot()
 	req.Messages = llm.ModelMessages(req.Messages)
+	a.requestIdentity(&req)
 	breakdown := llm.AnalyzeContext(req, a.cfg.SystemSections)
 	breakdown.Request = a.requests
 	a.report.Prompt = breakdown

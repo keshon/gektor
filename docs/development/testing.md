@@ -86,3 +86,20 @@ Automated coverage in `internal/tui/session_workspace_test.go` checks 40- and
 80-column rendering, scope filters, missing and legacy roots, draft transfer,
 confirmation cancellation, and a refresh that removes or reorders a session.
 These tests exercise state and layout, not native terminal input.
+
+## Lazy calls and request attribution
+
+`invoke_tool` must preserve target validation, permissions, concurrency,
+attachments and mutation evidence. Test malformed nested arguments, inactive
+and recursive targets, Plan-mode writes, catalog restoration and wire-prefix
+stability. The leading definitions must not change after activation.
+
+For llama-server, a transient request footer repeats at most 2048 characters of
+the latest real user message, the host's user-message count and the current run
+directive. It is not saved as a user turn. Test attribution after compaction,
+exclude tool images and notices, and preserve earlier wire messages. The footer
+uses a bounded context allowance; native provider replay is unchanged.
+
+Run `45-assistant-role` against the actual local model. Explicit role labels
+alone did not fix the Ornith failure. The footer passed two targeted runs;
+these are calibration results, not a guarantee across models and tasks.

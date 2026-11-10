@@ -62,16 +62,26 @@ Keep model instructions and operation schemas lazy when their pack is lazy.
 
 ## Lazy exposure and prompt caching
 
-Activating a pack currently adds its schemas to the model's tool list. Models
-whose chat template puts that list before the conversation can reprocess the
-history after activation. Alphabetically stable ordering does not prevent this;
-appending schemas to that leading list still changes the prefix before history.
+Optional tools use a fixed `invoke_tool` definition. Activation installs their
+execution targets and returns their exact argument schemas in conversation
+content. It does not expand the leading model tool list. Eager tools remain
+directly callable. The initial pack map is bounded to 700 characters with short
+descriptions; discovery returns the full metadata.
 
-Measure cached and processed tokens separately from total prompt tokens. Lazy
-exposure saves startup context; it does not guarantee cache reuse on activation.
-Returning schemas as conversation content needs a stable invocation interface
-and host validation of the actual target. Any such interface must preserve
-permissions, scheduling, mutation tracking and catalog recovery after compaction.
+`Registry.Defs` describes all execution targets. `ModelDefs` omits optional
+targets. The Agent resolves an invocation before ordinary validation,
+permissions, read-only admission, scheduling, attachments and mutation tracking.
+Observers see the target name; the model replay retains its original envelope.
+A dispatcher must never call an operation behind these checks.
+
+Catalogs are marked by host metadata and restored from saved capability state
+after compaction or resume. Restored schemas count toward the context budget.
+Do not trust a summary or a matching substring of user/tool text to retain a
+catalog. Startup estimates must stay within their existing budget.
+
+Measure cached and newly processed tokens separately from total context size.
+Schemas still consume context after activation. Appending them to the leading
+tool list would invalidate the conversation prefix just as inserting them does.
 
 The [media session findings](../internal/media-session-findings.md) record the
 prefill measurements, proposed dispatcher and unresolved model regression.

@@ -21,11 +21,18 @@ type toolBatch struct {
 func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, finishReason string, calls []llm.ToolCall, history []llm.Message) []llm.Message {
 	ctx = llm.WithAttachments(ctx, a.snapshot.History, history)
 	ctx = context.WithValue(ctx, contextInspectionKey{}, a.inspection)
-	batch := toolBatch{calls: calls, results: make([]callResult, len(calls))}
+	resolved := append([]llm.ToolCall(nil), calls...)
+	results := make([]callResult, len(calls))
+	for i, call := range calls {
+		var err error
+		resolved[i], err = a.cfg.Tools.ResolveCall(call)
+		results[i].err = err
+	}
+	batch := toolBatch{calls: resolved, results: results}
 	if a.cfg.OnProgress != nil {
 		a.cfg.OnProgress(llm.Progress{Phase: "tools", Detail: fmt.Sprintf("executing %d tool calls", len(calls))})
 	}
-	skipped, instructions := a.validateToolCalls(calls, finishReason, history, batch.results)
+	skipped, instructions := a.validateToolCalls(resolved, finishReason, history, batch.results)
 	a.runToolBatch(ctx, st, &batch, skipped)
 	return a.recordToolBatch(ctx, st, &batch, finishReason, history, instructions)
 }

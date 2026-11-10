@@ -74,7 +74,10 @@ failures are reported and leave the server available for a later retry.
 
 The agent searches `discover_capabilities` by ID or description, then calls
 `enable_capability` with the selected ID. Discovery returns metadata only.
-Activation registers tool definitions and returns the pack's instructions.
+Activation installs the tools and returns their schemas and instructions.
+The agent calls optional tools through `invoke_tool` with the tool name and
+arguments. This keeps the leading tool list stable; permission checks still
+use the actual tool and its resources.
 It does not execute a requested tool action. Executable activation starts no
 process; MCP activation connects to discover the remote catalog.
 
@@ -124,7 +127,7 @@ connecting. The first tool call reconnects and compares the current configuratio
 and catalog with the saved fingerprint. A changed catalog requires a new session.
 A missing adapter fails its tool call; other work can continue. Older transcripts
 without saved catalogs migrate from successful activation results on resume.
-Missing operational instruction blocks are appended again after compaction;
+Missing catalogs and operational instructions are appended again after compaction;
 the system prompt remains stable.
 
 `read_only` and `concurrent` default to false. These are declarations made by

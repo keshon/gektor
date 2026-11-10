@@ -399,7 +399,7 @@ func (e Env) configureTools(cfg *agent.Config, mainAgent, allowQuestions bool, e
 		extra = append(extra, browser)
 	}
 	// Native optional packs exist even without external capability sources.
-	extra = append(extra, tools.DiscoverCapabilities{Catalog: catalog}, tools.EnableCapability{Catalog: catalog})
+	extra = append(extra, tools.DiscoverCapabilities{Catalog: catalog}, tools.EnableCapability{Catalog: catalog}, agent.InvokeTool{})
 	var composeErr error
 	cfg.Tools, composeErr = tools.Compose(e.WS, e.Procs, e.Checks.PerEdit, e.Rules, e.Vision, catalog, e.NativeExposure, extra...)
 	if composeErr != nil {
