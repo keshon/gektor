@@ -44,16 +44,21 @@ decides whether that saves settings, opens a session or starts a connection.
 `internal/tui/tui.go` connects the terminal host to the concrete Workflow
 screen. `internal/tui/agent` owns the Agent model, transcript, composer, session
 execution, and shared application controls: menus, dialogs, preferences, and
-navigation. Its workflow adapter consumes `screen.Workflow`; it does not import
-the Workflow implementation package.
+navigation. Its workflow adapter calls the concrete Workflow model's public API.
+The root connector supplies `workflow.NewScreen` directly; there is one Workflow
+configuration type and no parallel host-side service configuration.
 
 `internal/tui/workflow` owns its own model, recipe editor, graph, inspector,
-run state, message dispatch, permissions, and asynchronous operations. It receives
-execution services, shared dialog operations, and a function supplying the current
+run state, menu commands and availability, message dispatch, permissions, and
+asynchronous operations. It receives execution services, shared dialog operations,
+and a function supplying the current
 `screen.Surface`. That snapshot gives rendering and hit testing the same geometry
 and styles without exposing Agent or transcript state. `screen.Host` carries
-named form and dialog requests. The generic graph component renders supplied
-labels and tones; workflow status names and presentation belong to Workflow.
+named form and dialog requests. The shared `screen` package contains overlay
+requests, layout/style values, and menu/shortcut data. Feature-specific state,
+configuration, and message types stay in their feature package.
+The generic graph component renders supplied labels and tones; workflow status
+names and presentation belong to Workflow.
 
 Each screen owns its cancellation and cleanup. The terminal host closes Workflow
 when the launch ends. Settings changes restart the launch with the new client

@@ -1,4 +1,5 @@
-// Package screen defines requests exchanged between terminal screens and their shell.
+// Package screen defines shared presentation data and overlay requests for
+// terminal screens and their application host.
 package screen
 
 import (

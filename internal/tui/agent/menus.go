@@ -2,7 +2,9 @@ package agent
 
 import (
 	"charm.land/lipgloss/v2"
+
 	"github.com/keshon/gektor/internal/tui/settings"
+	workflowui "github.com/keshon/gektor/internal/tui/workflow"
 )
 
 type menuItem struct {
@@ -16,7 +18,9 @@ type menuDefinition struct{ id, label string }
 func (m *Model) menuDefinitions() []menuDefinition {
 	menus := []menuDefinition{{"app", "GEKTOR"}}
 	if m.workflowActive() {
-		menus = append(menus, menuDefinition{"recipe", "Recipe"}, menuDefinition{"node", "Node"})
+		for _, menu := range workflowui.Menus() {
+			menus = append(menus, menuDefinition{id: menu.ID, label: menu.Label})
+		}
 	} else {
 		menus = append(menus, menuDefinition{"session", "Session"})
 	}
@@ -45,6 +49,16 @@ func (m *Model) visibleMenus() []menuDefinition {
 }
 
 func (m *Model) menuItems(menu string) []menuItem {
+	if m.workflows != nil && (m.workflowActive() || menu == "recipe" || menu == "node") {
+		if items := m.workflows.MenuItems(menu, m.state == stDone); items != nil {
+			rows := make([]menuItem, 0, len(items))
+			for _, item := range items {
+				rows = append(rows, menuItem{text: item.Text, command: item.Command, enabled: item.Enabled})
+			}
+			return rows
+		}
+	}
+
 	idle := m.state == stDone && (m.workflows == nil || !m.workflows.State().Busy)
 	sep := menuItem{}
 	switch menu {
@@ -68,39 +82,11 @@ func (m *Model) menuItems(menu string) []menuItem {
 		return append([]menuItem{{"New session", "/new", idle}, {"Open session…", "/sessions", true},
 			{"Rename session…", "rename-current", saved}, {"Delete session…", "delete-current", saved}, sep,
 			{"Compact history…", "compact-session", saved}, sep}, m.sessionCopyItems()...)
-	case "recipe":
-		if m.workflows == nil {
-			return nil
-		}
-		edit := idle && !m.workflows.State().InspectingRun
-		return []menuItem{{"New recipe…", "/workflows new", idle}, {"Open recipe…", "/workflows open", idle},
-			{"Save recipe…", "/workflows save", edit}, sep, {"Recipe settings…", "/workflows setup", edit}}
-	case "node":
-		if m.workflows == nil {
-			return nil
-		}
-		edit := idle && !m.workflows.State().InspectingRun
-		return []menuItem{{"Add node…", "/workflows add", edit}, {"Add schedule trigger…", "/workflows schedule-add", edit}, sep,
-			{"Edit arguments…", "/workflows edit", edit}, {"Behavior…", "/workflows behavior", edit},
-			{"Connections…", "/workflows connections", edit}, {"Connect nodes…", "/workflows link", edit}, sep,
-			{"Delete node…", "/workflows delete", edit}}
 	case "execution":
-		if !m.workflowActive() {
-			return []menuItem{{"Plan — read-only", "/mode plan", idle}, {"Act — allow changes", "/mode act", idle}, sep,
-				{"Stop run", "stop", m.state == stRunning}, {"Retry failed turn", "/retry", idle && m.runErr != nil && m.retryRun != nil}, sep,
-				{"Message queue…", "message-queue", true}, {"Background processes…", "/processes", true}, {"Apply new messages during run", "toggle-steering", true}}
-		}
-		edit := idle && !m.workflows.State().InspectingRun
-		return []menuItem{{"Validate recipe…", "/workflows validate", edit}, {"Run recipe…", "/workflows run", edit},
-			{"Stop run", "/workflows stop", m.workflows.State().Busy}, sep, {"Run history…", "/workflows runs", idle},
-			{"Review run…", "/workflows review", idle && m.workflows.State().InspectingRun}, {"Return to recipe", "/workflows draft", idle && m.workflows.State().InspectingRun}, sep,
-			{"Set up schedule…", "/workflows schedule", edit}, {"Refresh schedule status", "/workflows schedule-refresh", idle}, sep,
-			{"Run with JSON inputs…", "/workflows run-json", edit}, sep, {"Background processes…", "/processes", true}}
+		return []menuItem{{"Plan — read-only", "/mode plan", idle}, {"Act — allow changes", "/mode act", idle}, sep,
+			{"Stop run", "stop", m.state == stRunning}, {"Retry failed turn", "/retry", idle && m.runErr != nil && m.retryRun != nil}, sep,
+			{"Message queue…", "message-queue", true}, {"Background processes…", "/processes", true}, {"Apply new messages during run", "toggle-steering", true}}
 	case "view":
-		if m.workflowActive() {
-			return []menuItem{{"Inspector", "/workflows inspector", true}, {"Raw inspection data", "/workflows raw-details", true}, sep,
-				{"Lock node positions", "/workflows lock-positions", true}, {"Auto-layout", "/workflows layout", idle && !m.workflows.State().PositionsLocked}}
-		}
 		return []menuItem{{"Thinking", "toggle-details", true}, {"Tool calls", "toggle-tools", true}, {"System messages", "toggle-sys", true},
 			{"Speaker names", "toggle-names", true}, {"Message labels", "toggle-labels", true}, sep, {"Jump to latest", "latest", true}}
 	case "settings":
@@ -132,15 +118,13 @@ func (m *Model) menuItems(menu string) []menuItem {
 // on is the state the label names, not the state a toggle flips to: the
 // mark on "System messages" means scaffolding history is visible.
 func (m *Model) menuToggle(command string) (toggle, on bool) {
+	if m.workflows != nil {
+		if toggle, on := m.workflows.MenuToggle(command); toggle {
+			return toggle, on
+		}
+	}
+
 	switch command {
-	case "/workflows raw-details":
-		return m.workflows != nil, m.workflows != nil && m.workflows.State().RawDetails
-	case "/workflows lock-positions":
-		return m.workflows != nil, m.workflows != nil && m.workflows.State().PositionsLocked
-	case "/workflows inspector":
-		return m.workflows != nil, m.workflows != nil && m.workflows.State().InspectorOpen
-	case "/workflows overview":
-		return m.workflows != nil, m.workflows != nil && m.workflows.State().Overview
 	case "toggle-steering":
 		return true, m.steering
 	case "toggle-details":
@@ -168,45 +152,11 @@ func (m *Model) menuToggle(command string) (toggle, on bool) {
 // menuShortcut names the key that reaches a menu row without opening
 // the menu. A row with no shortcut still works by click.
 func menuShortcut(command string) string {
+	if key := workflowui.MenuShortcut(command); key != "" {
+		return key
+	}
+
 	switch command {
-	case "/workflows raw-details":
-		return "Ctrl+J"
-	case "/workflows lock-positions":
-		return "G"
-	case "/workflows new":
-		return "Ctrl+N"
-	case "/workflows open":
-		return "Ctrl+O"
-	case "/workflows save":
-		return "Ctrl+S"
-	case "/workflows add":
-		return "A"
-	case "/workflows edit":
-		return "Enter"
-	case "/workflows behavior":
-		return "E"
-	case "/workflows connections":
-		return "B"
-	case "/workflows link":
-		return "C"
-	case "/workflows delete":
-		return "Delete"
-	case "/workflows validate":
-		return "V"
-	case "/workflows run":
-		return "R"
-	case "/workflows runs":
-		return "H"
-	case "/workflows review":
-		return "P"
-	case "/workflows draft":
-		return "D"
-	case "/workflows inspector":
-		return "Ctrl+T"
-	case "/workflows overview":
-		return "F"
-	case "/workflows layout":
-		return "L"
 	case "screen:agent":
 		return ""
 	case "/new":
@@ -219,7 +169,7 @@ func menuShortcut(command string) string {
 		return "Ctrl+End"
 	case "message-queue":
 		return "Alt+Q"
-	case "stop", "/workflows stop":
+	case "stop":
 		return "Esc"
 	case "/help", "help-keys":
 		return "F1"

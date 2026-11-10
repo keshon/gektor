@@ -14,7 +14,7 @@ import (
 	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/tui/components/transcript"
-	"github.com/keshon/gektor/internal/tui/screen"
+	workflowui "github.com/keshon/gektor/internal/tui/workflow"
 )
 
 func (m *Model) Init() tea.Cmd {
@@ -102,7 +102,7 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		return m, nil
 	case workflowQuit:
 		return m.requestQuit()
-	case screen.WorkflowMessage:
+	case workflowui.Message:
 		if m.workflows == nil {
 			return m, nil
 		}

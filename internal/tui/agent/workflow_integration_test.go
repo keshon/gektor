@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/tui/screen"
 	workflowui "github.com/keshon/gektor/internal/tui/workflow"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workspace"
@@ -31,7 +30,7 @@ func workflowTestModel(t *testing.T) *Model {
 	m.baseEnv.WS = ws
 	m.wsRoot = ws.Root()
 	m.baseEnv.Policy = permission.Default()
-	m.workflowFactory = testWorkflowFactory
+	m.newWorkflow = workflowui.NewScreen
 	m.openWorkflows()
 	if m.workflows == nil {
 		t.Fatal("workspace unavailable")
@@ -192,10 +191,6 @@ func seedWorkflow(t *testing.T, m *Model, d workflow.Definition) *workflowui.Edi
 	m.workflows.Activate()
 	t.Cleanup(m.workflows.Close)
 	return draft
-}
-
-func testWorkflowFactory(ctx context.Context, cfg screen.WorkflowServices, host screen.Host, surface func() screen.Surface) (screen.Workflow, error) {
-	return workflowui.NewScreen(ctx, workflowui.Config{WS: cfg.WS, Client: cfg.Client, Policy: cfg.Policy, MaxTokens: cfg.MaxTokens, ContextLimit: cfg.ContextLimit, Temperature: cfg.Temperature}, host, surface)
 }
 
 func TestWorkflowMenusAndToolbarKeepNodeCreationVisible(t *testing.T) {

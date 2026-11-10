@@ -1,6 +1,8 @@
 package workflow
 
 import (
+	"context"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/llm"
@@ -21,11 +23,24 @@ type Config struct {
 	Draft                   *Editor
 }
 
+// Factory constructs a workflow screen using the supplied shared controls and
+// current presentation. The application connector supplies NewScreen as its factory.
+type Factory func(context.Context, Config, screen.Host, func() screen.Surface) (*Model, error)
+
+// State describes the retained screen without exposing its mutable editor or run.
+// Reading it must not serialize the recipe or perform I/O.
+type State struct {
+	Active, Busy, InspectingRun  bool
+	InspectorOpen, MouseCaptured bool
+}
+
 // State returns navigation flags without serializing the recipe.
-func (m *Model) State() screen.WorkflowState {
-	return screen.WorkflowState{
-		Active: m.active, Busy: m.busy, InspectingRun: m.run != nil,
-		PositionsLocked: m.positionsLocked, RawDetails: m.rawDetails, InspectorOpen: m.inspectorOpen, Overview: m.overview,
+func (m *Model) State() State {
+	return State{
+		Active:        m.active,
+		Busy:          m.busy,
+		InspectingRun: m.run != nil,
+		InspectorOpen: m.inspectorOpen,
 		MouseCaptured: m.dragging || m.panning || m.thumb.active,
 	}
 }
@@ -48,7 +63,7 @@ func (m *Model) PrepareQuit() bool {
 	return false
 }
 
-// Command handles an operator action. Effects return as screen.WorkflowMessage
+// Command handles an operator action. Effects return as Message
 // values through Update.
 func (m *Model) Command(action string) tea.Cmd {
 	if m.ctx.Err() != nil {
@@ -73,12 +88,15 @@ func (m *Model) TakeCommands() []tea.Cmd {
 	return commands
 }
 
-func (workflowAction) WorkflowMessage()     {}
-func (workflowProposal) WorkflowMessage()   {}
-func (workflowPermission) WorkflowMessage() {}
-func (workflowResult) WorkflowMessage()     {}
-func (workflowRunID) WorkflowMessage()      {}
-func (workflowPoll) WorkflowMessage()       {}
+// Message identifies asynchronous workflow results without exposing their payloads.
+type Message interface{ workflowMessage() }
+
+func (workflowAction) workflowMessage()     {}
+func (workflowProposal) workflowMessage()   {}
+func (workflowPermission) workflowMessage() {}
+func (workflowResult) workflowMessage()     {}
+func (workflowRunID) workflowMessage()      {}
+func (workflowPoll) workflowMessage()       {}
 
 // Dirty reports whether the retained recipe has unsaved edits.
 func (m *Model) Dirty() bool { return m.editor.Dirty() }

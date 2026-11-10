@@ -1,4 +1,4 @@
-package tui
+package workflow_test
 
 import (
 	"context"
@@ -7,10 +7,11 @@ import (
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/internal/tui/workflow"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
-func TestWorkflowConnectorUsesCurrentSurface(t *testing.T) {
+func TestScreenUsesCurrentSurfaceAndSharedDialogs(t *testing.T) {
 	t.Setenv("USERPROFILE", t.TempDir())
 	t.Setenv("HOME", t.TempDir())
 	ws, err := workspace.New(t.TempDir())
@@ -21,7 +22,7 @@ func TestWorkflowConnectorUsesCurrentSurface(t *testing.T) {
 	surface := screen.Surface{Area: pane.Rect{Y: 1, Width: 120, Height: 28}, Inset: 1, SplitWidth: 100}
 	var title string
 	host := screen.Host{OpenDialog: func(d screen.Dialog) { title = d.Title }}
-	child, err := newWorkflow(context.Background(), screen.WorkflowServices{WS: ws, Policy: permission.Default()}, host, func() screen.Surface { return surface })
+	child, err := workflow.NewScreen(context.Background(), workflow.Config{WS: ws, Policy: permission.Default()}, host, func() screen.Surface { return surface })
 	if err != nil {
 		t.Fatal(err)
 	}

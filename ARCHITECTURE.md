@@ -84,12 +84,13 @@ internal/app constructs connections, binds credentials, and orchestrates discove
 internal/tools supplies tools; internal/workspace resolves paths and measures
 file changes; internal/permission authorizes each tool call.
 
-The terminal connector in internal/tui wires independent Agent and Workflow
-models. internal/tui/agent owns the Agent session and shared application controls.
+The terminal connector in internal/tui wires separate Agent and Workflow models.
+internal/tui/agent owns the Agent session and shared application controls.
 internal/tui/workflow owns recipe editing, graph interaction, run inspection,
 message dispatch, queued commands and asynchronous workflow execution. Its
-screen.Workflow contract exposes navigation state and operations; the host does
-not reach into the recipe or run state. screen.Host supplies shared dialogs and
+public API exposes navigation state and operations; the host does not reach into
+the recipe or run state. Workflow also supplies its menu commands,
+availability rules, toggles, and shortcuts. screen.Host supplies shared dialogs and
 screen.Surface supplies current geometry and styles. Workflow receives execution
 services and owns its cancellation; it has no access to Agent or transcript state.
 

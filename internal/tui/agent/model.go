@@ -29,7 +29,7 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/completion"
 	"github.com/keshon/gektor/internal/tui/components/composer"
 	"github.com/keshon/gektor/internal/tui/components/gate"
-	"github.com/keshon/gektor/internal/tui/screen"
+	workflowui "github.com/keshon/gektor/internal/tui/workflow"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -38,7 +38,7 @@ import (
 // so Env.Gate is overridden, never read.
 type Config struct {
 	StartScreen      string
-	WorkflowFactory  screen.WorkflowFactory
+	NewWorkflow      workflowui.Factory
 	MCP              *mcpmanager.Manager
 	SessionDirectory string
 	Application      *Application
@@ -90,11 +90,11 @@ type tickMsg time.Time
 type liveFlushMsg struct{}
 
 // Model owns Agent state, its update loop, and the shared terminal controls.
-// Workflow is supplied by the application connector through WorkflowFactory.
+// Workflow is supplied by the application connector through Config.NewWorkflow.
 type Model struct {
-	workflowFactory  screen.WorkflowFactory
+	newWorkflow      workflowui.Factory
 	startWorkflows   bool
-	workflows        screen.Workflow
+	workflows        *workflowui.Model
 	steering         bool
 	inspector        toolInspector
 	liveFlushPending bool
@@ -338,20 +338,20 @@ func newModel(uiCtx context.Context, cfg Config) *Model {
 		setTheme(cfg.Application.Preferences.Theme)
 	}
 	m := &Model{
-		startWorkflows:  cfg.StartScreen == "workflows",
-		workflowFactory: cfg.WorkflowFactory,
-		identityName:    cfg.Env.IdentityName,
-		identityUser:    cfg.Env.UserName,
-		events:          eventsCh,
-		hub:             hub,
-		cancel:          cancel,
-		base:            uiCtx,
-		started:         time.Now(),
-		styles:          defaultStyles(),
-		limit:           cfg.Env.ContextLimit,
-		maxSteps:        envMaxSteps(cfg.Env),
-		transcript:      newTranscript(),
-		plan:            cfg.Plan,
+		startWorkflows: cfg.StartScreen == "workflows",
+		newWorkflow:    cfg.NewWorkflow,
+		identityName:   cfg.Env.IdentityName,
+		identityUser:   cfg.Env.UserName,
+		events:         eventsCh,
+		hub:            hub,
+		cancel:         cancel,
+		base:           uiCtx,
+		started:        time.Now(),
+		styles:         defaultStyles(),
+		limit:          cfg.Env.ContextLimit,
+		maxSteps:       envMaxSteps(cfg.Env),
+		transcript:     newTranscript(),
+		plan:           cfg.Plan,
 
 		stateFile: cfg.StateFile,
 		note:      newNote(),

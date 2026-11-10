@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/tui/screen"
+	workflowui "github.com/keshon/gektor/internal/tui/workflow"
 )
 
 type workflowQuit struct{}
@@ -57,16 +58,16 @@ func (m *Model) openWorkflows() {
 			return
 		}
 		dialogs := m.screenHost()
-		cfg := screen.WorkflowServices{
+		cfg := workflowui.Config{
 			WS: m.baseEnv.WS, Client: m.baseEnv.Client, Policy: m.baseEnv.Policy,
 			MaxTokens: m.baseEnv.MaxTokens, ContextLimit: m.baseEnv.ContextLimit,
 			Temperature: m.baseEnv.Temperature,
 		}
-		if m.workflowFactory == nil {
+		if m.newWorkflow == nil {
 			m.openDialog("Workflows", []string{"Workflow screen is unavailable."})
 			return
 		}
-		child, err := m.workflowFactory(m.base, cfg, dialogs, m.workflowSurface)
+		child, err := m.newWorkflow(m.base, cfg, dialogs, m.workflowSurface)
 		if err != nil {
 			m.openDialog("Workflows", []string{err.Error()})
 			return
