@@ -16,6 +16,10 @@ type Operation struct {
 }
 
 func (o Operation) Name() string { return o.Kind }
+
+// RetrySafe declares whether a failed attempt may be repeated automatically.
+func (Operation) RetrySafe() bool { return true }
+
 func (o Operation) Description() string {
 	const paging = " Item offset is zero-based. For an item's next_text_offset, repeat its item offset with text_offset (Unicode code points); limit defaults to 1 and must be 1. Finish item continuations even when more=false. Empty or omitted fields in a truncated item may still be unread; finish it before claiming content is absent. 32 KiB content budget. Keep the file unchanged."
 	switch o.Kind {

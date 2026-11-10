@@ -25,26 +25,47 @@ func TestCapabilityToolsAndNodesShareContractsAndResources(t *testing.T) {
 	}
 	c.Registry = r
 	toolSchemas := map[string]json.RawMessage{}
-	for _, id := range []string{"native_documents", "native_files", "native_images", "native_media", "social"} {
+	descriptions := map[string]string{}
+	for _, id := range []string{"native_documents", "native_files", "native_images", "native_media", "social", "native_workflows"} {
 		if _, err := c.Enable(t.Context(), id, nil); err != nil {
 			t.Fatal(id, err)
 		}
 	}
 	for _, def := range r.Defs() {
 		toolSchemas[def.Name] = def.Parameters
+		descriptions[def.Name] = def.Description
 	}
 	nodes, err := app.AutomationRegistry(ws, t.TempDir(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, tc := range []struct{ name, args string }{
-		{"docx_read", `{"path":"input.docx"}`}, {"xlsx_read", `{"path":"input.xlsx"}`}, {"pdf_read", `{"path":"input.pdf"}`},
-		{"download_file", `{"url":"https://example.com/file","path":"download.bin"}`},
-		{"archive_list", `{"path":"input.zip"}`}, {"archive_create", `{"paths":["input.txt"],"path":"out.zip"}`}, {"archive_extract", `{"path":"input.zip","out_dir":"out"}`},
-		{"image_inspect", `{"paths":["input.png"]}`}, {"image_preview", `{"paths":["input.png"]}`}, {"image_compare", `{"paths":["a.png","b.png"]}`}, {"image_variants", `{"paths":["input.png"],"widths":[8],"out_dir":"out"}`},
-		{"media_status", `{}`}, {"video_info", `{"url":"https://youtu.be/abcdefghijk"}`}, {"video_transcript", `{"url":"https://youtu.be/abcdefghijk"}`}, {"video_download", `{"url":"https://youtu.be/abcdefghijk","path":"video.webm"}`},
-		{"media_inspect", `{"inputs":["input.wav"]}`}, {"media_convert", `{"inputs":["input.wav"],"path":"out.flac","format":"flac"}`}, {"media_clip", `{"inputs":["input.wav"],"path":"out.wav","format":"wav","duration_seconds":1}`}, {"media_frame", `{"inputs":["input.mp4"],"path":"frame.png","format":"png"}`}, {"media_merge", `{"inputs":["video.mp4","audio.wav"],"path":"out.mkv","format":"mkv"}`},
-		{"social_read_post", `{"url":"https://x.com/test/status/20"}`},
+	for _, tc := range []struct {
+		name, args                      string
+		readOnly, concurrent, retrySafe bool
+	}{
+		{"docx_read", `{"path":"input.docx"}`, true, true, true},
+		{"xlsx_read", `{"path":"input.xlsx"}`, true, true, true},
+		{"pdf_read", `{"path":"input.pdf"}`, true, true, true},
+		{"download_file", `{"url":"https://example.com/file","path":"download.bin"}`, false, false, false},
+		{"archive_list", `{"path":"input.zip"}`, true, true, true},
+		{"archive_create", `{"paths":["input.txt"],"path":"out.zip"}`, false, false, false},
+		{"archive_extract", `{"path":"input.zip","out_dir":"out"}`, false, false, false},
+		{"image_inspect", `{"paths":["input.png"]}`, true, true, true},
+		{"image_preview", `{"paths":["input.png"]}`, true, true, true},
+		{"image_compare", `{"paths":["a.png","b.png"]}`, true, true, true},
+		{"image_variants", `{"paths":["input.png"],"widths":[8],"out_dir":"out"}`, false, false, false},
+		{"media_status", `{}`, true, true, true},
+		{"video_info", `{"url":"https://youtu.be/abcdefghijk"}`, true, true, true},
+		{"video_transcript", `{"url":"https://youtu.be/abcdefghijk"}`, true, true, true},
+		{"video_download", `{"url":"https://youtu.be/abcdefghijk","path":"video.webm"}`, false, false, false},
+		{"media_inspect", `{"inputs":["input.wav"]}`, true, true, true},
+		{"media_convert", `{"inputs":["input.wav"],"path":"out.flac","format":"flac"}`, false, false, false},
+		{"media_clip", `{"inputs":["input.wav"],"path":"out.wav","format":"wav","duration_seconds":1}`, false, false, false},
+		{"media_frame", `{"inputs":["input.mp4"],"path":"frame.png","format":"png"}`, false, false, false},
+		{"media_merge", `{"inputs":["video.mp4","audio.wav"],"path":"out.mkv","format":"mkv"}`, false, false, false},
+		{"social_read_post", `{"url":"https://x.com/test/status/20"}`, true, true, true},
+		{"record_read", `{"kind":"notes","id":"state","allow_missing":true}`, true, true, true},
+		{"record_write", `{"kind":"notes","id":"state","expected_revision":0,"data":{}}`, false, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			node, err := nodes.Node(tc.name)
@@ -65,11 +86,11 @@ func TestCapabilityToolsAndNodesShareContractsAndResources(t *testing.T) {
 			if !reflect.DeepEqual(toolSchema, nodeSchema) {
 				t.Fatal("tool and node argument contracts differ")
 			}
-			if (r.ModeOf(toolName) == agent.Concurrent) != node.ReadOnly {
-				t.Fatal("read-only mode differs")
+			if descriptions[toolName] != node.Description {
+				t.Fatal("tool and node descriptions differ")
 			}
-			if node.ReadOnly && !node.RetrySafe {
-				t.Fatal("read-only operation lost retry safety")
+			if (r.ModeOf(toolName) == agent.Concurrent) != tc.concurrent || node.ReadOnly != tc.readOnly || node.RetrySafe != tc.retrySafe {
+				t.Fatalf("execution policy differs: mode=%s readOnly=%v retrySafe=%v", r.ModeOf(toolName), node.ReadOnly, node.RetrySafe)
 			}
 			raw := json.RawMessage(tc.args)
 			direct, err := PathResources(ws, toolName, raw)

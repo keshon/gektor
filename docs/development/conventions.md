@@ -54,6 +54,10 @@ Shared HTTP transport and process support import no internal packages. Program
 discovery imports process support. Worker support imports no internal packages.
 Every capability package has an explicit import rule, including its contract,
 tool and node adapters; adding an unregistered capability package fails the check.
+Agent tool adapters do not import workflow node adapters. Application composition
+assembles both. Shared record operations live in `automation/records`, which
+imports only workflow definitions, record storage and workspace access; the record
+node adapter imports only definitions, shared records and workspace access.
 
 Reusable TUI components may import other components, but no application packages.
 

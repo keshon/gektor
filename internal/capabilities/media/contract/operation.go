@@ -23,6 +23,17 @@ func (o Operation) Name() string { return o.Kind }
 func (o Operation) ReadOnly() bool {
 	return o.Kind == "media_status" || o.Kind == "video_info" || o.Kind == "video_transcript" || o.Kind == "media_inspect"
 }
+
+// RetrySafe declares whether a failed attempt may be repeated automatically.
+func (o Operation) RetrySafe() bool {
+	switch o.Kind {
+	case "media_status", "video_info", "video_transcript", "media_inspect":
+		return true
+	default:
+		return false
+	}
+}
+
 func (o Operation) Description() string {
 	switch o.Kind {
 	case "media_status":

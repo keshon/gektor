@@ -1,17 +1,18 @@
-package record
+// Package records owns the shared application-record operation contract.
+package records
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/keshon/gektor/internal/automation/store"
 
 	"github.com/keshon/gektor/internal/automation"
+	"github.com/keshon/gektor/internal/automation/store"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
-// Data reads or updates schema-validated application records in the user store.
+// Operation reads or updates schema-validated application records in the user store.
 // Schema registration is deliberately unavailable to the agent.
 type Operation struct {
 	WS       *workspace.Workspace
@@ -32,6 +33,13 @@ func (t Operation) Description() string {
 	return "Read a record by kind and id, including data and revision. allow_missing returns found:false, revision:0 and data:null for a missing record. The kind must still have a registered schema."
 }
 func (t Operation) ReadOnly() bool { return !t.Write }
+
+// RetrySafe excludes writes because a successful commit followed by a lost
+// response cannot be transparently repeated with the same revision.
+func (t Operation) RetrySafe() bool { return !t.Write }
+func (Operation) OutputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"kind":{"type":"string"},"id":{"type":"string"},"revision":{"type":"integer"},"data":{"type":["object","null"]},"found":{"type":"boolean"},"schema_sha256":{"type":"string"},"updated":{"type":"string"}},"required":["kind","id","revision","data"]}`)
+}
 func (t Operation) Schema() json.RawMessage {
 	properties := `"kind":{"type":"string","pattern":"^[a-z0-9_-]{1,64}$"},"id":{"type":"string","pattern":"^[a-z0-9_-]{1,64}$"}`
 	required := `"kind","id"`
@@ -95,7 +103,7 @@ func (t Operation) Run(ctx context.Context, args json.RawMessage) (string, error
 	return string(b), err
 }
 
-func RecordResources(args json.RawMessage) ([]string, error) {
+func Resources(args json.RawMessage) ([]string, error) {
 	var in struct{ Kind, ID string }
 	if err := json.Unmarshal(args, &in); err != nil {
 		return nil, err

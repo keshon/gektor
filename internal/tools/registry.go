@@ -7,6 +7,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	workflow "github.com/keshon/gektor/internal/automation/agenttools"
+	"github.com/keshon/gektor/internal/automation/records"
 	"github.com/keshon/gektor/internal/capabilities/documents"
 	doccontract "github.com/keshon/gektor/internal/capabilities/documents/contract"
 	"github.com/keshon/gektor/internal/capabilities/files"
@@ -48,7 +49,7 @@ func PathResources(ws *workspace.Workspace, tool string, args json.RawMessage) (
 		}
 		return []string{in.Kind}, nil
 	case "record_read", "record_write":
-		return workflow.RecordResources(args)
+		return records.Resources(args)
 	case "workflow_inspect":
 		var in struct {
 			ID string `json:"run_id"`

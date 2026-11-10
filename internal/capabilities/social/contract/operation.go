@@ -16,6 +16,10 @@ type Operation struct{ Service social.Service }
 
 func (Operation) Name() string   { return Name }
 func (Operation) ReadOnly() bool { return true }
+
+// RetrySafe declares whether a failed attempt may be repeated automatically.
+func (Operation) RetrySafe() bool { return true }
+
 func (Operation) Description() string {
 	return "Read one public X/Twitter post by HTTPS URL. Returns author, text, dates, media references and explicit access status."
 }

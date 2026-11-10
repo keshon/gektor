@@ -20,6 +20,12 @@ type Operation struct {
 func (o Operation) ReadOnly() bool { return o.Kind != "variants" }
 
 func (o Operation) Name() string { return "image_" + o.Kind }
+
+// RetrySafe declares whether a failed attempt may be repeated automatically.
+func (o Operation) RetrySafe() bool {
+	return o.Kind == "inspect" || o.Kind == "preview" || o.Kind == "compare"
+}
+
 func (o Operation) Description() string {
 	switch o.Kind {
 	case "inspect":

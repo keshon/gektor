@@ -10,7 +10,7 @@ func Definitions(svc *media.Service) []automation.Node {
 	result := []automation.Node{}
 	for _, name := range contract.Names() {
 		op := contract.Operation{Service: svc, Kind: name}
-		result = append(result, automation.Node{Name: name, Version: 1, Description: op.Description(), InputSchema: op.Schema(), OutputSchema: op.OutputSchema(), ReadOnly: op.ReadOnly(), RetrySafe: op.ReadOnly(), Resources: op.Resources, Validate: op.Validate, Execute: op.Run,
+		result = append(result, automation.Node{Name: name, Version: 1, Description: op.Description(), InputSchema: op.Schema(), OutputSchema: op.OutputSchema(), ReadOnly: op.ReadOnly(), RetrySafe: op.RetrySafe(), Resources: op.Resources, Validate: op.Validate, Execute: op.Run,
 			ValidateTemplate: op.ValidateTemplate,
 		})
 	}

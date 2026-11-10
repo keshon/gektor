@@ -35,6 +35,12 @@ A provider-only reader may expose a typed function instead of a service. Do not
 add empty adapter packages for a frontend that does not use it. When another
 frontend needs the operation, give both callers the same contract.
 
+Application-record operations are shared in `internal/automation/records` because
+they belong to the workflow user store. That package owns the operation contract
+and execution; `automation/agenttools` and `automation/nodes/record` only adapt it.
+Permission-resource routing uses the same shared operation package. This is the
+current ownership boundary, not a second implementation or forwarding layer.
+
 The root package must not import Agent, tool registries, workflow execution or
 model protocols. Resolve session attachment grants at the adapter boundary and
 pass explicit input access to the service. Document parsers may return worker
@@ -128,6 +134,9 @@ Read-only, concurrent and retry-safe are separate declarations. A read-only
 operation can still use mutable service state. A mutating operation may have
 effects before failure. Declare each property from actual behavior and use the
 same read-only decision in both frontends.
+Shared operation contracts declare `RetrySafe` explicitly; node adapters consume
+that declaration rather than deriving retries from `ReadOnly`. Contract parity
+checks assert expected concurrency, read-only and retry policies separately.
 
 ## Files and names
 
@@ -189,9 +198,12 @@ pixels, questions, history and live background jobs. A workflow does not inherit
 those objects. An equivalent node needs explicit inputs and lifetime ownership.
 Artifact, review, record and scheduling operations also retain their workflow
 ownership where it matters.
+Records already share one contract and execution across both frontends. Their
+schema registration and persistence remain owned by the workflow store.
 
-The next useful service extractions are workspace text/file operations,
-structured HTTP requests and isolated data transforms. Their existing Agent or
-workflow adapters own some execution logic today. Extract the shared operation
-before exposing its second frontend; preserve permissions, credentials and output
-bounds. Do not implement a second version behind a matching name.
+Workspace text/file operations, structured HTTP requests and isolated data
+transforms need a shared contract when a second frontend is introduced. This is
+an extension rule, not missing implementation in the current feature set.
+Extract the shared operation before exposing that frontend; preserve permissions,
+credentials and output bounds. Do not implement a second version behind a
+matching name.

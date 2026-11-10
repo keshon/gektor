@@ -3,13 +3,89 @@ package agenttools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/keshon/gektor/internal/automation/store"
 	"strings"
 	"testing"
 
+	"github.com/keshon/gektor/internal/automation"
+	"github.com/keshon/gektor/internal/automation/nodes/record"
+	"github.com/keshon/gektor/internal/automation/store"
 	"github.com/keshon/gektor/internal/workspace"
 )
+
+func TestRecordAdaptersShareStateAndFailureSemantics(t *testing.T) {
+	ws, err := workspace.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	base := t.TempDir()
+	s, err := store.OpenStore(base, ws.Root())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if _, err := s.RegisterSchema(t.Context(), "notes", []byte(`{"type":"object"}`)); err != nil {
+		t.Fatal(err)
+	}
+	nodes := record.Definitions(ws, base)
+	read, write := Data{WS: ws, StoreDir: base}, Data{WS: ws, StoreDir: base, Write: true}
+	missing := json.RawMessage(`{"kind":"notes","id":"state","allow_missing":true}`)
+	fromTool, err := read.Run(t.Context(), missing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fromNode, err := nodes[0].Execute(t.Context(), missing)
+	if err != nil || fromTool != fromNode || !strings.Contains(fromTool, `"found":false`) {
+		t.Fatalf("missing record differs: tool=%s node=%s error=%v", fromTool, fromNode, err)
+	}
+	create := json.RawMessage(`{"kind":"notes","id":"state","expected_revision":0,"data":{"value":7}}`)
+	if out, err := write.Run(t.Context(), create); err != nil {
+		t.Fatal(out, err)
+	} else if err := automation.ValidateJSON(json.RawMessage(out), nodes[1].OutputSchema); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := nodes[1].Execute(t.Context(), create); !errors.Is(err, store.ErrConflict) {
+		t.Fatal("node did not preserve optimistic revision conflict", err)
+	}
+	fromTool, err = read.Run(t.Context(), missing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fromNode, err = nodes[0].Execute(t.Context(), missing)
+	if err != nil || fromTool != fromNode || !strings.Contains(fromNode, `"found":true`) {
+		t.Fatalf("stored record differs: tool=%s node=%s error=%v", fromTool, fromNode, err)
+	}
+	if err := automation.ValidateJSON(json.RawMessage(fromNode), nodes[0].OutputSchema); err != nil {
+		t.Fatal(err)
+	}
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+	update := json.RawMessage(`{"kind":"notes","id":"state","expected_revision":1,"data":{"value":8}}`)
+	for name, run := range map[string]func(context.Context, json.RawMessage) (string, error){"tool": write.Run, "node": nodes[1].Execute} {
+		if _, err := run(cancelled, update); !errors.Is(err, context.Canceled) {
+			t.Fatalf("%s ignored cancellation: %v", name, err)
+		}
+	}
+	entry, err := s.Entry("notes", "state")
+	if err != nil || entry.Revision != 1 || string(entry.Data) != `{"value":7}` {
+		t.Fatal("failed operations changed record", entry, err)
+	}
+	other, err := workspace.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Close()
+	for name, run := range map[string]func(context.Context, json.RawMessage) (string, error){
+		"tool": (Data{WS: other, StoreDir: base}).Run,
+		"node": record.Definitions(other, base)[0].Execute,
+	} {
+		if out, err := run(t.Context(), missing); err == nil {
+			t.Fatalf("%s accessed another workspace's record schema: %s", name, out)
+		}
+	}
+}
 
 func TestRecordWorkflowReferencesRevisionsAndInspection(t *testing.T) {
 	ws, err := workspace.New(t.TempDir())

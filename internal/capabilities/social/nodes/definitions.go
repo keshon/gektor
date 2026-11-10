@@ -9,5 +9,5 @@ import (
 
 func Definitions(s social.Service) []automation.Node {
 	op := contract.Operation{Service: s}
-	return []automation.Node{{Name: op.Name(), PermissionName: contract.AgentName, Version: 1, Description: op.Description(), ReadOnly: true, RetrySafe: true, InputSchema: op.Schema(), OutputSchema: op.OutputSchema(), Validate: op.Validate, Resources: op.Resources, Execute: op.Run}}
+	return []automation.Node{{Name: op.Name(), PermissionName: contract.AgentName, Version: 1, Description: op.Description(), ReadOnly: op.ReadOnly(), RetrySafe: op.RetrySafe(), InputSchema: op.Schema(), OutputSchema: op.OutputSchema(), Validate: op.Validate, Resources: op.Resources, Execute: op.Run}}
 }

@@ -21,6 +21,10 @@ type OutputAuthorizer func(context.Context, string, string, json.RawMessage) err
 
 func (o Operation) Name() string   { return o.Kind }
 func (o Operation) ReadOnly() bool { return o.Kind == "archive_list" }
+
+// RetrySafe declares whether a failed attempt may be repeated automatically.
+func (o Operation) RetrySafe() bool { return o.Kind == "archive_list" }
+
 func (o Operation) Description() string {
 	switch o.Kind {
 	case "archive_create":

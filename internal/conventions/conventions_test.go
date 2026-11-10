@@ -85,6 +85,8 @@ func checkPackageLayers(t *testing.T, r *repo) {
 		"automation/recipe":        {"automation"},
 		"automation/engine":        {"automation", "automation/recipe"},
 		"automation/store":         {"automation"},
+		"automation/records":       {"automation", "automation/store", "workspace"},
+		"automation/nodes/record":  {"automation", "automation/records", "workspace"},
 		"automation/service":       {"automation", "automation/engine", "automation/recipe", "automation/store", "workspace"},
 		"automation/daemon":        {"automation/service", "automation/store"},
 		"capabilities/social":      {"httptransport"},
@@ -107,6 +109,16 @@ func checkPackageLayers(t *testing.T, r *repo) {
 
 	for _, f := range r.goFiles {
 		pkg := strings.TrimPrefix(filepath.ToSlash(filepath.Dir(r.rel(f))), "internal/")
+		agentAdapter := pkg == "tools" || strings.HasPrefix(pkg, "tools/") ||
+			pkg == "automation/agenttools" || strings.HasPrefix(pkg, "automation/agenttools/") ||
+			strings.HasPrefix(pkg, "capabilities/") && strings.Contains("/"+pkg+"/", "/tools/")
+		if agentAdapter && !strings.HasSuffix(f, "_test.go") {
+			for _, imp := range internalImports(r.read(t, f)) {
+				if strings.HasPrefix(imp, "automation/nodes/") || strings.HasPrefix(imp, "capabilities/") && strings.Contains("/"+imp+"/", "/nodes/") {
+					t.Errorf("%s imports workflow node adapter internal/%s\n%s", r.rel(f), imp, r.rule("package-layers"))
+				}
+			}
+		}
 		if strings.HasPrefix(pkg, "capabilities/") && !strings.HasSuffix(f, "_test.go") {
 			if _, ok := allowed[pkg]; !ok {
 				t.Errorf("capability package %s has no import-boundary rule", pkg)

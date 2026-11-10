@@ -13,7 +13,7 @@ func Definitions(ws *workspace.Workspace, authorize contract.OutputAuthorizer) [
 	for _, name := range contract.Names() {
 		op := contract.Operation{Service: files.Service{WS: ws}, Kind: name, AuthorizeOutput: authorize}
 		result = append(result, automation.Node{Name: op.Name(), Version: 1, Description: op.Description(),
-			InputSchema: op.Schema(), OutputSchema: op.OutputSchema(), ReadOnly: op.ReadOnly(), RetrySafe: op.ReadOnly(),
+			InputSchema: op.Schema(), OutputSchema: op.OutputSchema(), ReadOnly: op.ReadOnly(), RetrySafe: op.RetrySafe(),
 			Resources: op.Resources, Validate: op.Validate, Execute: op.Run,
 			ValidateTemplate: op.ValidateTemplate})
 	}
