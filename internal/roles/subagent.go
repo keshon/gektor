@@ -24,13 +24,15 @@ const (
 // Parent observation hooks remain muted: child steps and usage must never
 // appear as parent evidence. Interactive delegation adds a separate child event
 // route and archive. Gates and workspace findings still constrain shared work.
-func Subagent(e Env, role string) *agent.Agent { return inspectedSubagent(e, role, "", "") }
+func Subagent(e Env, role string) (*agent.Agent, error) { return inspectedSubagent(e, role, "", "") }
 
-func inspectedSubagent(e Env, role, callID, parentState string) *agent.Agent {
+func inspectedSubagent(e Env, role, callID, parentState string) (*agent.Agent, error) {
 	cfg := e.agentConfig(prompts.WithRole(role)+"\n\n"+prompts.SubagentScope+"\n\n"+prompts.PlatformLine(tools.ShellName()), "", "")
 	cfg.StateFile = conversation.ChildStatePath(parentState, callID)
 	extra := append([]agent.Tool{tools.ReadHistory{Path: cfg.StateFile}}, e.MCPTools...)
-	e.configureTools(&cfg, false, false, extra...)
+	if err := e.configureTools(&cfg, false, false, extra...); err != nil {
+		return nil, err
+	}
 	steps := e.DelegateSteps
 	if steps <= 0 {
 		steps = subagentSteps
@@ -47,5 +49,5 @@ func inspectedSubagent(e Env, role, callID, parentState string) *agent.Agent {
 	if callID != "" && e.OnChild != nil {
 		observeSubagent(&cfg, e, callID)
 	}
-	return agent.New(cfg)
+	return agent.New(cfg), nil
 }

@@ -25,7 +25,10 @@ func TestNativeWebActivationCompactResumeAndPlan(t *testing.T) {
 	args, _ := json.Marshal(map[string]string{"url": server.URL})
 	e.Client = &seqStub{steps: []llm.ChatResponse{extensionCall("enable", "enable_capability", `{"id":"native_web"}`), extensionCall("read", "check_url", string(args)), extensionAnswer()}}
 	state := filepath.Join(t.TempDir(), "state.json")
-	a := Interactive(e, "", state, nil, nil)
+	a, aErr := Interactive(e, "", state, nil, nil)
+	if aErr != nil {
+		t.Fatal(aErr)
+	}
 	if hasTool(a, "check_url") {
 		t.Fatal("lazy tools visible before activation")
 	}
@@ -51,7 +54,11 @@ func TestNativeWebActivationCompactResumeAndPlan(t *testing.T) {
 	var failures []bool
 	e.OnResult = func(r agent.ToolResult) { failures = append(failures, r.Failed) }
 	e.Client = &seqStub{steps: []llm.ChatResponse{extensionCall("read-again", "check_url", string(args)), extensionCall("write", "write_file", `{"path":"forbidden.txt","content":"no"}`), extensionAnswer()}}
-	if _, err := Planner(e, "", state, nil).Resume(t.Context(), saved.Context(), "Inspect only"); err != nil {
+	plannerAgent, plannerAgentErr := Planner(e, "", state, nil)
+	if plannerAgentErr != nil {
+		t.Fatal(plannerAgentErr)
+	}
+	if _, err := plannerAgent.Resume(t.Context(), saved.Context(), "Inspect only"); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(failures, []bool{false, true}) {
@@ -62,7 +69,11 @@ func TestNativeWebActivationCompactResumeAndPlan(t *testing.T) {
 	}
 	// A fresh child does not inherit the parent's lazy activation.
 	e.NativeExposure = map[string]tools.Exposure{tools.NativeWeb: tools.Lazy}
-	if hasTool(Subagent(e, "explore"), "check_url") {
+	subagentAgent, subagentAgentErr := Subagent(e, "explore")
+	if subagentAgentErr != nil {
+		t.Fatal(subagentAgentErr)
+	}
+	if hasTool(subagentAgent, "check_url") {
 		t.Fatal("child inherited active web")
 	}
 }
@@ -70,11 +81,21 @@ func TestNativeWebActivationCompactResumeAndPlan(t *testing.T) {
 func TestRolePackageCompositionAndExcludedActivation(t *testing.T) {
 	e := testEnv(t)
 	ask := func(context.Context, string) (string, error) { return "ok", nil }
-	act, plan := Interactive(e, "", "", ask, nil), Planner(e, "", "", ask)
+	act, actErr := Interactive(e, "", "", ask, nil)
+	if actErr != nil {
+		t.Fatal(actErr)
+	}
+	plan, planErr := Planner(e, "", "", ask)
+	if planErr != nil {
+		t.Fatal(planErr)
+	}
 	if !reflect.DeepEqual(act.ToolNames(), plan.ToolNames()) {
 		t.Fatal("Plan/Act catalogs diverged")
 	}
-	child := Subagent(e, "explore")
+	child, childErr := Subagent(e, "explore")
+	if childErr != nil {
+		t.Fatal(childErr)
+	}
 	if hasTool(child, "ask_user") || hasTool(child, "delegate_task") || !hasTool(child, "todo") {
 		t.Fatal("child role changed")
 	}
@@ -91,7 +112,11 @@ func TestRolePackageCompositionAndExcludedActivation(t *testing.T) {
 		}
 		return extensionAnswer()
 	})
-	if _, err := Subagent(e, "explore").Run(t.Context(), "Try the configured pack"); err != nil {
+	subagentAgent, subagentAgentErr := Subagent(e, "explore")
+	if subagentAgentErr != nil {
+		t.Fatal(subagentAgentErr)
+	}
+	if _, err := subagentAgent.Run(t.Context(), "Try the configured pack"); err != nil {
 		t.Fatal(err)
 	}
 	for _, def := range got.Tools {

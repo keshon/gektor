@@ -18,6 +18,23 @@ type ChangeObserver interface {
 	Observe(context.Context) ([]string, error)
 }
 
+// ToolCatalog owns dynamic tool activation and its persisted capability state.
+// PreviewDefs must not perform IO or mutate the registry. Restore precedes Prepare.
+// A catalog belongs to one agent and is used sequentially.
+type ToolCatalog interface {
+	Prepare(context.Context) error
+	PreviewDefs() []llm.ToolDef
+	Save() []conversation.Capability
+	Restore(context.Context, []conversation.Capability) error
+}
+
+// BrowserSelection owns the selected browser profile across saved runs.
+// SelectProfile restores selection without activating browser tools.
+type BrowserSelection interface {
+	Reference() *conversation.BrowserProfile
+	SelectProfile(*conversation.BrowserProfile) error
+}
+
 // Config supplies services, limits, and observers for an Agent's sequential runs.
 type Config struct {
 	// Changes owns a baseline per run and must not be shared by concurrent agents.
@@ -26,18 +43,13 @@ type Config struct {
 	Inbox   *Inbox
 	OnInput func(llm.Message)
 	Tools   *Registry
-	// PrepareTools publishes eager packages after saved capability restoration.
-	PrepareTools func(context.Context) error
-	// PreviewTools reports pending eager schemas without IO or registry mutation.
-	PreviewTools        func() []llm.ToolDef
-	SaveCapabilities    func() []conversation.Capability
-	RestoreCapabilities func(context.Context, []conversation.Capability) error
-	SaveBrowser         func() *conversation.BrowserProfile
-	RestoreBrowser      func(*conversation.BrowserProfile) error
-	System              string
-	SystemSections      []llm.PromptSection
-	OnPrompt            func(llm.ContextReport)
-	MaxSteps            int
+	// Catalog manages dynamic tools in Tools. Nil leaves a static registry.
+	Catalog        ToolCatalog
+	Browser        BrowserSelection
+	System         string
+	SystemSections []llm.PromptSection
+	OnPrompt       func(llm.ContextReport)
+	MaxSteps       int
 	// RunTimeout includes work and a short tool-free closing phase. Zero disables it.
 	RunTimeout    time.Duration
 	MaxTokens     int

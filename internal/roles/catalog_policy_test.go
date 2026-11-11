@@ -39,7 +39,11 @@ func TestPlannerCanInspectZIPButCannotWriteFiles(t *testing.T) {
 	}}
 	var results []agent.ToolResult
 	e.OnResult = func(r agent.ToolResult) { results = append(results, r) }
-	if _, err := Planner(e, "", "", nil).Run(t.Context(), "Inspect ZIP without writing"); err != nil {
+	plannerAgent, plannerAgentErr := Planner(e, "", "", nil)
+	if plannerAgentErr != nil {
+		t.Fatal(plannerAgentErr)
+	}
+	if _, err := plannerAgent.Run(t.Context(), "Inspect ZIP without writing"); err != nil {
 		t.Fatal(err)
 	}
 	if len(results) != 5 || results[0].Failed || results[1].Failed || !results[2].Failed || !results[3].Failed || !results[4].Failed || !strings.Contains(results[1].Output, "hello.txt") {
@@ -66,7 +70,11 @@ func TestInteractiveDownloadHonorsURLAndDestinationDenies(t *testing.T) {
 			}}
 			var results []agent.ToolResult
 			e.OnResult = func(r agent.ToolResult) { results = append(results, r) }
-			if _, err := Interactive(e, "", "", nil, nil).Run(t.Context(), "Try the download"); err != nil {
+			interactiveAgent, interactiveAgentErr := Interactive(e, "", "", nil, nil)
+			if interactiveAgentErr != nil {
+				t.Fatal(interactiveAgentErr)
+			}
+			if _, err := interactiveAgent.Run(t.Context(), "Try the download"); err != nil {
 				t.Fatal(err)
 			}
 			if len(results) != 2 || results[0].Failed || !results[1].Failed || !strings.Contains(results[1].Output, "blocked by policy") {
@@ -103,7 +111,10 @@ func TestFreshPlannerActivatesNativeWebOnly(t *testing.T) {
 		}}
 		var failed []bool
 		e.OnResult = func(r agent.ToolResult) { failed = append(failed, r.Failed) }
-		a := Planner(e, "", "", nil)
+		a, aErr := Planner(e, "", "", nil)
+		if aErr != nil {
+			t.Fatal(aErr)
+		}
 		if _, err := a.Run(t.Context(), "Inspect the URL"); err != nil {
 			t.Fatal(err)
 		}
@@ -119,8 +130,8 @@ func TestRolePolicyRejectsForbiddenDirectExtras(t *testing.T) {
 		e.MCPTools = []agent.Tool{tool}
 		called := false
 		e.Client = extensionInspectClient(func(llm.ChatRequest) llm.ChatResponse { called = true; return extensionAnswer() })
-		_, err := Subagent(e, "explore").Run(t.Context(), "inspect")
-		if err == nil || !strings.Contains(err.Error(), "unavailable to this role") || called {
+		a, err := Subagent(e, "explore")
+		if a != nil || err == nil || !strings.Contains(err.Error(), "unavailable to this role") || called {
 			t.Fatal("forbidden extra accepted", tool.Name(), err, called)
 		}
 	}
@@ -152,10 +163,40 @@ func TestMainOnlyPackIsAbsentFromChildCatalog(t *testing.T) {
 		}
 		return extensionAnswer()
 	})
-	if _, err := Subagent(e, "explore").Run(t.Context(), "inspect packs"); err != nil {
+	subagentAgent, subagentAgentErr := Subagent(e, "explore")
+	if subagentAgentErr != nil {
+		t.Fatal(subagentAgentErr)
+	}
+	if _, err := subagentAgent.Run(t.Context(), "inspect packs"); err != nil {
 		t.Fatal(err)
 	}
 	if loads != 0 {
 		t.Fatal("role-excluded loader ran")
+	}
+}
+
+func TestRoleConstructionRejectsCompositionBeforeActivation(t *testing.T) {
+	for _, role := range []string{"interactive", "planner", "subagent"} {
+		t.Run(role, func(t *testing.T) {
+			e := testEnv(t)
+			loads := 0
+			e.Capabilities = []*tools.Capability{{ID: "external", Load: func(context.Context, func(string)) ([]agent.Tool, error) { loads++; return nil, nil }}}
+			e.NativeExposure = map[string]tools.Exposure{"unknown-package": tools.Eager}
+			called := false
+			e.Client = extensionInspectClient(func(llm.ChatRequest) llm.ChatResponse { called = true; return extensionAnswer() })
+			var a *agent.Agent
+			var err error
+			switch role {
+			case "interactive":
+				a, err = Interactive(e, "", "", nil, nil)
+			case "planner":
+				a, err = Planner(e, "", "", nil)
+			case "subagent":
+				a, err = Subagent(e, "inspect")
+			}
+			if a != nil || err == nil || !strings.Contains(err.Error(), "unsupported native exposure") || loads != 0 || called {
+				t.Fatalf("agent=%v error=%v loads=%d model=%v", a, err, loads, called)
+			}
+		})
 	}
 }

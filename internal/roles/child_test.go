@@ -28,7 +28,10 @@ func TestDelegatedRunHasSeparateEventsAndSavedHistory(t *testing.T) {
 		}
 	}
 	path := filepath.Join(t.TempDir(), "state.json")
-	a := Interactive(e, "", path, nil, nil)
+	a, aErr := Interactive(e, "", path, nil, nil)
+	if aErr != nil {
+		t.Fatal(aErr)
+	}
 	answer, err := a.Run(t.Context(), "delegate this")
 	if err != nil || answer != "parent done" {
 		t.Fatal(answer, err)
@@ -87,7 +90,11 @@ func TestChildStreamsOnlyToChildObserver(t *testing.T) {
 			childReason += fields["text"].(string)
 		}
 	}
-	_, err := Interactive(e, "", "", nil, nil).Run(t.Context(), "delegate")
+	interactiveAgent, interactiveAgentErr := Interactive(e, "", "", nil, nil)
+	if interactiveAgentErr != nil {
+		t.Fatal(interactiveAgentErr)
+	}
+	_, err := interactiveAgent.Run(t.Context(), "delegate")
 	if err != nil || parentText != "parent final" || childText != "child final" || childReason != "child reasoning" {
 		t.Fatal(err, parentText, childText, childReason)
 	}

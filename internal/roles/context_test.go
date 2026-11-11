@@ -23,7 +23,10 @@ func TestStartupContextMatchesRequest(t *testing.T) {
 	e.Client = c
 	var reports []llm.ContextReport
 	e.OnPrompt = func(r llm.ContextReport) { reports = append(reports, r) }
-	a := Interactive(e, "", "", func(context.Context, string) (string, error) { return "", nil }, nil)
+	a, aErr := Interactive(e, "", "", func(context.Context, string) (string, error) { return "", nil }, nil)
+	if aErr != nil {
+		t.Fatal(aErr)
+	}
 	before := a.StartupContext("Explain this project")
 	if _, err := a.Run(t.Context(), "Explain this project"); err != nil {
 		t.Fatal(err)
@@ -39,7 +42,10 @@ func TestStartupContextMatchesRequest(t *testing.T) {
 func TestBrowserEnabledStartupStaysWithinPromptBudget(t *testing.T) {
 	e := testEnv(t)
 	e.Browser = &tools.Browser{Channel: "chrome", Dir: e.WS.Root()}
-	a := Interactive(e, "", "", func(context.Context, string) (string, error) { return "", nil }, nil)
+	a, aErr := Interactive(e, "", "", func(context.Context, string) (string, error) { return "", nil }, nil)
+	if aErr != nil {
+		t.Fatal(aErr)
+	}
 	report := a.StartupContext("Explain this project")
 	if report.EstimatedTokens > 5000 {
 		t.Fatalf("startup estimate %d exceeds 5000; keep instructions dense and optional tools deferred", report.EstimatedTokens)
@@ -63,7 +69,10 @@ func TestInactiveCatalogMapHasBoundedStartupCost(t *testing.T) {
 				return nil, fmt.Errorf("must not run")
 			}})
 		}
-		a := Interactive(e, "", "", nil, nil)
+		a, aErr := Interactive(e, "", "", nil, nil)
+		if aErr != nil {
+			t.Fatal(aErr)
+		}
 		report := a.StartupContext("explain")
 		if count == 1 {
 			baseline = report.EstimatedTokens
@@ -98,7 +107,10 @@ func TestStartupContextLive(t *testing.T) {
 	defer ws.Close()
 	c := &recordingClient{}
 	e := Env{WS: ws, Procs: tools.NewBackgroundProcesses(), Client: c, Identity: "You are a helpful assistant."}
-	a := Interactive(e, "", "", func(context.Context, string) (string, error) { return "", nil }, nil)
+	a, aErr := Interactive(e, "", "", func(context.Context, string) (string, error) { return "", nil }, nil)
+	if aErr != nil {
+		t.Fatal(aErr)
+	}
 	if _, err := a.Run(t.Context(), "Explain this project"); err != nil {
 		t.Fatal(err)
 	}

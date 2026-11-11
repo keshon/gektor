@@ -100,7 +100,7 @@ func executeProbeAgent(ctx context.Context, p Probe, env roles.Env, images []str
 	if res.Trace != "" {
 		stateFile = res.Trace + ".state.json"
 	}
-	a := roles.Interactive(env, "", stateFile, func(context.Context, string) (string, error) {
+	a, err := roles.Interactive(env, "", stateFile, func(context.Context, string) (string, error) {
 		if replyIndex < len(p.Replies) {
 			reply := p.Replies[replyIndex]
 			replyIndex++
@@ -109,9 +109,12 @@ func executeProbeAgent(ctx context.Context, p Probe, env roles.Env, images []str
 		return "This is an automated evaluation run; no human is available. " +
 			"State your assumption and proceed with the smallest reasonable action.", nil
 	}, nil)
+	if err != nil {
+		res.RunError = firstLine(err.Error())
+		return ""
+	}
 	runStarted := time.Now()
 	var final string
-	var err error
 	if len(p.Continuation) == 0 {
 		final, err = a.Run(ctx, p.Task, images...)
 	} else {

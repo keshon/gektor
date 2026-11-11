@@ -1,8 +1,8 @@
 # Direct execution and contract consistency plan
 
 Date: 2026-11-11
-Status: Approved; stages 1–2 implemented for the first review checkpoint.
-Stages 3–6 remain planned.
+Status: Approved; stages 1–3 implemented and verified.
+Stages 4–6 remain planned.
 Baseline: `267065c`.
 
 ## Goal
@@ -29,7 +29,7 @@ call it directly. The function-returning-function API is removed. Tests cover
 repeated runs, cancellation, failed scans retaining the baseline, and observation
 failures preventing successful Agent outcomes.
 
-Review these two changes before expanding into catalog lifecycle and observers.
+The first checkpoint was committed and pushed as `f6d32fa`.
 
 Checkpoint verification passed: source tests (`./cmd/... ./internal/...`), race
 tests for Workspace, Agent, roles, and Workflow service, source vet/build, and
@@ -127,6 +127,31 @@ Do not expose filesystem inventory or move workspace access into the loop.
 
 Acceptance: no stored observation closure, and tests still prove actual effects
 and final observation after cancellation.
+
+## Second checkpoint
+
+Agent now receives the existing dynamic catalog through `Config.Catalog` and
+the browser selection owner through `Config.Browser`. Static registries still
+use only `Config.Tools`. Restore, prepare, preview, activation evidence, and
+checkpoint persistence call those owners directly. No extra runtime model or
+adapter package was introduced.
+
+Planner, Interactive, and Subagent return composition errors at construction.
+CLI inspection, sessions, eval execution, and delegated child construction handle
+those errors before execution. Evals retain construction failures in `RunError`.
+Capability loaders remain deferred until the existing activation/preparation
+paths; source validation during composition does not connect integrations.
+
+Regression coverage includes rejected role composition before activation/model
+work, forbidden child tools rejected at construction, delegated construction
+failure, eval failure recording, and restoration/persistence when eager
+preparation fails. Existing browser, catalog, prompt-parity, and child tests
+continue through the real role constructors.
+
+Checkpoint verification passed: full source tests and race tests
+(`./cmd/... ./internal/...`), source vet/build, and all 44 dry eval probes.
+The final affected-package rerun passed after test setup cleanup. No live model
+requests were made.
 
 ## Stage 3: Give catalog/browser lifecycle explicit ownership
 

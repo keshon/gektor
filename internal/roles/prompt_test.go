@@ -24,9 +24,15 @@ func TestPlanAndActUseProfileIdentity(t *testing.T) {
 		e.Identity = "Assistant name: Ada"
 		e.IdentityName = "Ada"
 
-		a := Interactive(e, "", "", nil, nil)
+		a, aErr := Interactive(e, "", "", nil, nil)
+		if aErr != nil {
+			t.Fatal(aErr)
+		}
 		if plan {
-			a = Planner(e, "", "", nil)
+			a, aErr = Planner(e, "", "", nil)
+			if aErr != nil {
+				t.Fatal(aErr)
+			}
 		}
 		if _, err := a.Run(context.Background(), "Hello"); err != nil {
 			t.Fatal(err)
@@ -43,7 +49,11 @@ func TestConversationPromptDoesNotDependOnBackendKind(t *testing.T) {
 	for _, kind := range []string{"llama", "kobold", "openai"} {
 		client := &recordingClient{}
 		e.Client, e.BackendKind = client, kind
-		if _, err := Interactive(e, "", "", nil, nil).Run(t.Context(), "task"); err != nil {
+		interactiveAgent, interactiveAgentErr := Interactive(e, "", "", nil, nil)
+		if interactiveAgentErr != nil {
+			t.Fatal(interactiveAgentErr)
+		}
+		if _, err := interactiveAgent.Run(t.Context(), "task"); err != nil {
 			t.Fatal(err)
 		}
 		request := client.reqs[0]
@@ -79,11 +89,19 @@ func TestPlanAndActSendTheSamePrefix(t *testing.T) {
 
 	planRec := &recordingClient{}
 	e.Client = planRec
-	plan := run(Planner(e, "plan", "", ask), planRec)
+	plannerAgent, plannerAgentErr := Planner(e, "plan", "", ask)
+	if plannerAgentErr != nil {
+		t.Fatal(plannerAgentErr)
+	}
+	plan := run(plannerAgent, planRec)
 
 	actRec := &recordingClient{}
 	e.Client = actRec
-	act := run(Interactive(e, "", "", ask, nil), actRec)
+	interactiveAgent, interactiveAgentErr := Interactive(e, "", "", ask, nil)
+	if interactiveAgentErr != nil {
+		t.Fatal(interactiveAgentErr)
+	}
+	act := run(interactiveAgent, actRec)
 
 	if plan.Messages[0].Content != act.Messages[0].Content {
 		t.Fatal("plan and act send different system prompts; a mode switch would re-read the whole conversation")
@@ -108,10 +126,16 @@ func TestPlanActPlanKeepsLatestModeAndPrefix(t *testing.T) {
 	e.Client = c
 	var history []llm.Message
 	for i, plan := range []bool{true, false, true, false, true} {
-		a := Interactive(e, "", "", nil, nil)
+		a, aErr := Interactive(e, "", "", nil, nil)
+		if aErr != nil {
+			t.Fatal(aErr)
+		}
 		directive := prompts.ActMode
 		if plan {
-			a = Planner(e, "", "", nil)
+			a, aErr = Planner(e, "", "", nil)
+			if aErr != nil {
+				t.Fatal(aErr)
+			}
 			directive = prompts.PlanMode
 		}
 		var err error
@@ -166,10 +190,16 @@ func TestModeSwitchWirePrefixAcrossProviders(t *testing.T) {
 			state := filepath.Join(t.TempDir(), "state.json")
 			var history []llm.Message
 			for i, plan := range []bool{true, false, true} {
-				a := Interactive(e, "", state, nil, nil)
+				a, aErr := Interactive(e, "", state, nil, nil)
+				if aErr != nil {
+					t.Fatal(aErr)
+				}
 				directive := prompts.ActMode
 				if plan {
-					a = Planner(e, "", state, nil)
+					a, aErr = Planner(e, "", state, nil)
+					if aErr != nil {
+						t.Fatal(aErr)
+					}
 					directive = prompts.PlanMode
 				}
 				if i == 0 {

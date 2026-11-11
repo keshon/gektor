@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/keshon/gektor/internal/llm"
@@ -44,5 +45,18 @@ func TestContinuationPreservesRolesWithoutNewUserTurn(t *testing.T) {
 	env := evalEnv(continuationClient{t}, ws, procs, 131072, 2048, func(int, llm.Message) {}, func(string) {})
 	if got := executeProbeAgent(t.Context(), p, env, nil, &result); got != "done" || result.RunError != "" {
 		t.Fatal(got, result.RunError)
+	}
+}
+
+func TestProbeRetainsConstructionFailure(t *testing.T) {
+	ws := checkWorkspaceForTest(t)
+	procs := tools.NewBackgroundProcesses()
+	defer procs.StopAll()
+	env := evalEnv(continuationClient{t}, ws, procs, 131072, 2048, func(int, llm.Message) {}, func(string) {})
+	env.NativeExposure = map[string]tools.Exposure{"unknown-package": tools.Eager}
+	var result Result
+	answer := executeProbeAgent(t.Context(), Probe{Task: "inspect"}, env, nil, &result)
+	if answer != "" || !strings.Contains(result.RunError, "unsupported native exposure") {
+		t.Fatal(answer, result.RunError)
 	}
 }

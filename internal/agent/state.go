@@ -43,11 +43,11 @@ func (a *Agent) saveSnapshot() {
 
 func (a *Agent) persistState() error {
 	a.snapshot.Workspace = a.cfg.Workspace
-	if a.cfg.SaveCapabilities != nil {
-		a.snapshot.Capabilities = a.cfg.SaveCapabilities()
+	if a.cfg.Catalog != nil {
+		a.snapshot.Capabilities = a.cfg.Catalog.Save()
 	}
-	if a.cfg.SaveBrowser != nil {
-		a.snapshot.Browser = a.cfg.SaveBrowser()
+	if a.cfg.Browser != nil {
+		a.snapshot.Browser = a.cfg.Browser.Reference()
 	}
 	return a.snapshot.Save(a.cfg.StateFile)
 }

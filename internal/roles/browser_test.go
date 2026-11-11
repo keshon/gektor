@@ -14,7 +14,19 @@ func TestBrowserIsLazyAcrossRoles(t *testing.T) {
 	client := &subagentBudgetClient{}
 	env.Client = client
 	var system string
-	for _, a := range []*agent.Agent{Interactive(env, "", "", nil, nil), Planner(env, "", "", nil), Subagent(env, "")} {
+	interactiveAgent, interactiveAgentErr := Interactive(env, "", "", nil, nil)
+	if interactiveAgentErr != nil {
+		t.Fatal(interactiveAgentErr)
+	}
+	plannerAgent, plannerAgentErr := Planner(env, "", "", nil)
+	if plannerAgentErr != nil {
+		t.Fatal(plannerAgentErr)
+	}
+	childAgent, childAgentErr := Subagent(env, "")
+	if childAgentErr != nil {
+		t.Fatal(childAgentErr)
+	}
+	for _, a := range []*agent.Agent{interactiveAgent, plannerAgent, childAgent} {
 		if !hasTool(a, "enable_browser") || len(tools.BrowserToolNames(env.MCPTools)) != 0 {
 			t.Fatal("browser entry point missing")
 		}

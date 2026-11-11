@@ -37,7 +37,11 @@ func TestInteractiveViewsScopedAttachmentAndRestoresAfterCompaction(t *testing.T
 		extensionCall("unknown", "image_view", `{"path":"attachment:99"}`), extensionAnswer(),
 	}}
 	state := filepath.Join(t.TempDir(), "state.json")
-	if _, err := Interactive(e, "", state, nil, nil).Run(t.Context(), "Inspect this picture", path); err != nil {
+	interactiveAgent, interactiveAgentErr := Interactive(e, "", state, nil, nil)
+	if interactiveAgentErr != nil {
+		t.Fatal(interactiveAgentErr)
+	}
+	if _, err := interactiveAgent.Run(t.Context(), "Inspect this picture", path); err != nil {
 		t.Fatal(err)
 	}
 	if len(results) != 5 {
@@ -60,7 +64,11 @@ func TestInteractiveViewsScopedAttachmentAndRestoresAfterCompaction(t *testing.T
 	}
 	results = nil
 	e.Client = &seqStub{steps: []llm.ChatResponse{extensionCall("again", "image_view", `{"path":"attachment:1","width":8}`), extensionAnswer()}}
-	if _, err := Interactive(e, "", state, nil, nil).Resume(t.Context(), saved.Context(), "Look at the same image again"); err != nil {
+	interactiveAgent2, interactiveAgent2Err := Interactive(e, "", state, nil, nil)
+	if interactiveAgent2Err != nil {
+		t.Fatal(interactiveAgent2Err)
+	}
+	if _, err := interactiveAgent2.Resume(t.Context(), saved.Context(), "Look at the same image again"); err != nil {
 		t.Fatal(err)
 	}
 	if len(results) != 1 || results[0].Failed || !strings.Contains(results[0].Output, `"view_width":8`) {

@@ -22,7 +22,10 @@ func TestConversationRestoresBrowserReferenceWithoutStartingBrowser(t *testing.T
 	e.Client = browserProfileClient{}
 	e.Browser = &tools.Browser{Channel: "chrome", Profile: "work"}
 	path := filepath.Join(t.TempDir(), "state.json")
-	a := Interactive(e, "", path, nil, nil)
+	a, aErr := Interactive(e, "", path, nil, nil)
+	if aErr != nil {
+		t.Fatal(aErr)
+	}
 	if _, err := a.Run(t.Context(), "task"); err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +42,10 @@ func TestConversationRestoresBrowserReferenceWithoutStartingBrowser(t *testing.T
 		t.Fatal(err)
 	}
 	e.Browser = &tools.Browser{Channel: "chrome"}
-	a = Interactive(e, "", path, nil, nil)
+	a, aErr = Interactive(e, "", path, nil, nil)
+	if aErr != nil {
+		t.Fatal(aErr)
+	}
 	if _, err := a.Resume(t.Context(), saved.Context(), "continue"); err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +53,10 @@ func TestConversationRestoresBrowserReferenceWithoutStartingBrowser(t *testing.T
 		t.Fatal(e.Browser.Reference())
 	}
 	// Reusing the launch environment for a new conversation resets selection.
-	fresh := Interactive(e, "", filepath.Join(t.TempDir(), "fresh.json"), nil, nil)
+	fresh, freshErr := Interactive(e, "", filepath.Join(t.TempDir(), "fresh.json"), nil, nil)
+	if freshErr != nil {
+		t.Fatal(freshErr)
+	}
 	if _, err := fresh.Run(t.Context(), "new task"); err != nil {
 		t.Fatal(err)
 	}

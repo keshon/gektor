@@ -25,7 +25,7 @@ type Delegate struct {
 	// Spawn typically shares the same Client and Workspace but a smaller,
 	// task-specific tool set — in particular, without Delegate itself, so
 	// a task can't recurse into subagents forever.
-	Spawn        func(ctx context.Context, role string, steps int) *agent.Agent
+	Spawn        func(ctx context.Context, role string, steps int) (*agent.Agent, error)
 	DefaultSteps int
 	MaxSteps     int
 }
@@ -84,7 +84,10 @@ func (d *Delegate) Run(ctx context.Context, args json.RawMessage) (string, error
 	}
 
 	started := time.Now()
-	sub := d.Spawn(ctx, in.Role, steps)
+	sub, err := d.Spawn(ctx, in.Role, steps)
+	if err != nil {
+		return "", fmt.Errorf("create subagent: %w", err)
+	}
 	result, err := sub.Run(ctx, in.Task)
 	if err == nil && strings.TrimSpace(result) == "" {
 		err = fmt.Errorf("subagent returned empty result")

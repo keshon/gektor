@@ -129,6 +129,12 @@ drifted — one harness ended up without `ask_user` and `delegate_task` while th
 shipping CLI had both, so it was scoring a different agent than the one under
 test. One answer per role, in one place.
 
+Role constructors return composition errors directly. Callers must handle them
+before preview or execution; do not defer a captured setup error into a lifecycle
+callback. Dynamic tool catalogs own activation, preview, and persisted state;
+Agent consumes their lifecycle contract. Static registries need no catalog.
+Construction and preview must not connect optional integrations.
+
 **[invariant]** A capability is removed by the harness, never by asking the
 model not to use it. The plan role keeps the acting role's system prompt and
 tool list — a narrower one would change the prompt prefix, so a backend that

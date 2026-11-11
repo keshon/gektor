@@ -39,7 +39,11 @@ func TestProcessKillCommandsRequireApprovalInBothExecutionModes(t *testing.T) {
 			blocked++
 		}
 	}
-	if _, err := Interactive(e, "", "", nil, nil).Run(t.Context(), "test process ownership"); err != nil {
+	interactiveAgent, interactiveAgentErr := Interactive(e, "", "", nil, nil)
+	if interactiveAgentErr != nil {
+		t.Fatal(interactiveAgentErr)
+	}
+	if _, err := interactiveAgent.Run(t.Context(), "test process ownership"); err != nil {
 		t.Fatal(err)
 	}
 	if asked != 4 || blocked != 4 {
@@ -58,7 +62,10 @@ func TestPlannerRejectsGitMutationsBeforeExecution(t *testing.T) {
 	}}
 	var results []agent.ToolResult
 	e.OnResult = func(r agent.ToolResult) { results = append(results, r) }
-	a := Planner(e, "planner", "", nil)
+	a, aErr := Planner(e, "planner", "", nil)
+	if aErr != nil {
+		t.Fatal(aErr)
+	}
 	for _, name := range []string{"git_add", "git_commit"} {
 		if !hasTool(a, name) {
 			t.Fatalf("%s missing from the common schema; switching mode would change the prefix", name)

@@ -1,10 +1,7 @@
 package roles
 
 import (
-	"context"
-
 	"github.com/keshon/gektor/internal/agent"
-	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/tools"
 )
 
@@ -18,7 +15,7 @@ func (e Env) browserContext() string {
 	return tools.BrowserContext(e.MCPTools)
 }
 
-func (e Env) configureTools(cfg *agent.Config, mainAgent, allowQuestions bool, extra ...agent.Tool) {
+func (e Env) configureTools(cfg *agent.Config, mainAgent, allowQuestions bool, extra ...agent.Tool) error {
 	configured := append([]*tools.Capability(nil), e.Capabilities...)
 	if e.CapabilitySources != nil {
 		configured = append(configured, e.CapabilitySources()...)
@@ -41,30 +38,25 @@ func (e Env) configureTools(cfg *agent.Config, mainAgent, allowQuestions bool, e
 	}
 	// Native optional packs exist even without external capability sources.
 	extra = append(extra, tools.DiscoverCapabilities{Catalog: catalog}, tools.EnableCapability{Catalog: catalog}, agent.InvokeTool{})
-	var composeErr error
-	cfg.Tools, composeErr = tools.Compose(tools.Dependencies{WS: e.WS, Procs: e.Procs, Checks: e.Checks, Vision: e.Vision, Extra: extra, StoreDir: e.WorkflowDir, Policy: e.policy(), Gate: e.Gate}, catalog, e.NativeExposure)
-	if composeErr != nil {
-		cfg.Tools = agent.NewRegistry()
-	}
-	cfg.PrepareTools = func(ctx context.Context) error {
-		if composeErr != nil {
-			return composeErr
-		}
-		return catalog.Prepare(ctx)
-	}
-	if composeErr == nil {
-		cfg.PreviewTools = catalog.PreviewDefs
-		cfg.System += catalog.Map()
+	var err error
+	cfg.Tools, err = tools.Compose(tools.Dependencies{
+		WS:       e.WS,
+		Procs:    e.Procs,
+		Checks:   e.Checks,
+		Vision:   e.Vision,
+		Extra:    extra,
+		StoreDir: e.WorkflowDir,
+		Policy:   e.policy(),
+		Gate:     e.Gate,
+	}, catalog, e.NativeExposure)
+	if err != nil {
+		return err
 	}
 	catalog.Registry = cfg.Tools
-	cfg.SaveCapabilities = catalog.Save
-	cfg.RestoreCapabilities = func(ctx context.Context, states []conversation.Capability) error {
-		if composeErr != nil {
-			return composeErr
-		}
-		return catalog.Restore(ctx, states)
-	}
+	cfg.Catalog = catalog
+	cfg.System += catalog.Map()
 	if browser != nil {
 		browser.Registry = cfg.Tools
 	}
+	return nil
 }

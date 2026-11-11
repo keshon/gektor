@@ -38,7 +38,11 @@ func TestRecordsDenySameResourceInAgentAndWorkflow(t *testing.T) {
 			blocked = result.Failed && strings.Contains(result.Output, "blocked by policy")
 		}
 	}
-	if _, err := Interactive(e, "", "", nil, nil).Run(t.Context(), "write the test record"); err != nil {
+	interactiveAgent, interactiveAgentErr := Interactive(e, "", "", nil, nil)
+	if interactiveAgentErr != nil {
+		t.Fatal(interactiveAgentErr)
+	}
+	if _, err := interactiveAgent.Run(t.Context(), "write the test record"); err != nil {
 		t.Fatal(err)
 	}
 	if !blocked {

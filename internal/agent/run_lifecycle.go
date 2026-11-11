@@ -84,13 +84,13 @@ func (a *Agent) restoreRun(ctx context.Context) error {
 	if err := a.cfg.Policy.Validate(); err != nil {
 		return err
 	}
-	if a.cfg.RestoreBrowser != nil {
-		if err := a.cfg.RestoreBrowser(a.snapshot.Browser); err != nil {
+	if a.cfg.Browser != nil {
+		if err := a.cfg.Browser.SelectProfile(a.snapshot.Browser); err != nil {
 			return fmt.Errorf("restore browser profile: %w", err)
 		}
 	}
-	if a.cfg.RestoreCapabilities != nil {
-		if err := a.cfg.RestoreCapabilities(ctx, a.snapshot.Capabilities); err != nil {
+	if a.cfg.Catalog != nil {
+		if err := a.cfg.Catalog.Restore(ctx, a.snapshot.Capabilities); err != nil {
 			return fmt.Errorf("restore capabilities: %w", err)
 		}
 	}
@@ -138,8 +138,8 @@ func (a *Agent) prepareRun(ctx, workCtx context.Context, st *runState, history [
 	// Restore the task checklist when resuming a saved conversation.
 	a.rehydrateTodo(ctx, history)
 
-	if a.cfg.PrepareTools != nil {
-		if err := a.cfg.PrepareTools(workCtx); err != nil {
+	if a.cfg.Catalog != nil {
+		if err := a.cfg.Catalog.Prepare(workCtx); err != nil {
 			return history, fmt.Errorf("prepare tools: %w", err)
 		}
 	}

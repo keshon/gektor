@@ -191,7 +191,7 @@ func TestCatalogRestorationUsesTrustedMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	state := conversation.Capability{ID: "fixture", Fingerprint: "fingerprint", Tools: NewRegistry(dispatchedTool{&ran}).Defs()}
-	a := New(Config{Tools: reg, SaveCapabilities: func() []conversation.Capability { return []conversation.Capability{state} }})
+	a := New(Config{Tools: reg, Catalog: &savedCatalog{states: []conversation.Capability{state}}})
 	history := []llm.Message{{Role: llm.RoleSystem, Content: "system"}, {Role: llm.RoleUser, Content: CapabilityCatalog(state)}}
 	restored := a.withCapabilityInstructions(history)
 	if len(restored) != 3 || restored[2].Harness != "capability_catalog:fingerprint" || !strings.Contains(restored[2].Content, `"parameters"`) {
@@ -205,3 +205,11 @@ func TestCatalogRestorationUsesTrustedMetadata(t *testing.T) {
 		t.Fatal("catalog lost after compaction")
 	}
 }
+
+// savedCatalog supplies persisted activation state for result attachment tests.
+type savedCatalog struct{ states []conversation.Capability }
+
+func (*savedCatalog) Prepare(context.Context) error                            { return nil }
+func (*savedCatalog) PreviewDefs() []llm.ToolDef                               { return nil }
+func (c *savedCatalog) Save() []conversation.Capability                        { return c.states }
+func (*savedCatalog) Restore(context.Context, []conversation.Capability) error { return nil }

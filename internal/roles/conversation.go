@@ -15,13 +15,16 @@ import (
 // removed where it is used - the loop refuses every call outside
 // tools.ReadOnly - rather than by asking the model to hold back, so nothing
 // can write in this role whatever the model decides to try.
-func Planner(e Env, label, stateFile string, ask func(ctx context.Context, question string) (string, error)) *agent.Agent {
-	cfg := e.conversationConfig(label, stateFile, ask, nil)
+func Planner(e Env, label, stateFile string, ask func(ctx context.Context, question string) (string, error)) (*agent.Agent, error) {
+	cfg, err := e.conversationConfig(label, stateFile, ask, nil)
+	if err != nil {
+		return nil, err
+	}
 	cfg.ReadOnly = tools.ReadOnly(e.WS, e.Procs, e.Vision).Names()
 	cfg.AllowReadOnlyExtensions = true
 	cfg.Directive = prompts.PlanMode
 	cfg.Supersedes = prompts.ActMode
-	return agent.New(cfg)
+	return agent.New(cfg), nil
 }
 
 // Interactive is the top-level agent a person talks to: the full tool set
@@ -37,11 +40,14 @@ func Planner(e Env, label, stateFile string, ask func(ctx context.Context, quest
 // verify, if set, runs the final build/test command without another model turn.
 func Interactive(e Env, label, stateFile string,
 	ask func(ctx context.Context, question string) (string, error),
-	verify func(ctx context.Context) (string, error)) *agent.Agent {
-	cfg := e.conversationConfig(label, stateFile, ask, verify)
+	verify func(ctx context.Context) (string, error)) (*agent.Agent, error) {
+	cfg, err := e.conversationConfig(label, stateFile, ask, verify)
+	if err != nil {
+		return nil, err
+	}
 	cfg.Directive = prompts.ActMode
 	cfg.Supersedes = prompts.PlanMode
-	return agent.New(cfg)
+	return agent.New(cfg), nil
 }
 
 // conversationConfig is everything Interactive and Planner share, which is
@@ -50,11 +56,11 @@ func Interactive(e Env, label, stateFile string,
 // is invisible until the operator pays for a full re-read.
 func (e Env) conversationConfig(label, stateFile string,
 	ask func(ctx context.Context, question string) (string, error),
-	verify func(ctx context.Context) (string, error)) agent.Config {
+	verify func(ctx context.Context) (string, error)) (agent.Config, error) {
 	if e.Outputs == nil {
 		e.Outputs = tools.NewOutputStore(e.statePath(stateFile))
 	}
-	extra := []agent.Tool{&tools.Delegate{DefaultSteps: e.DelegateSteps, MaxSteps: e.DelegateMaxSteps, Spawn: func(ctx context.Context, role string, steps int) *agent.Agent {
+	extra := []agent.Tool{&tools.Delegate{DefaultSteps: e.DelegateSteps, MaxSteps: e.DelegateMaxSteps, Spawn: func(ctx context.Context, role string, steps int) (*agent.Agent, error) {
 		childEnv := e
 		childEnv.DelegateSteps = steps
 		return inspectedSubagent(childEnv, role, agent.ToolCallID(ctx), e.statePath(stateFile))
@@ -65,14 +71,15 @@ func (e Env) conversationConfig(label, stateFile string,
 		extra = append(extra, tools.AskUser{AskFn: ask})
 	}
 	cfg := e.agentConfig(prompts.System+"\n\n"+prompts.PlatformLine(tools.ShellName()), label, stateFile)
-	e.configureTools(&cfg, true, ask != nil, extra...)
+	if err := e.configureTools(&cfg, true, ask != nil, extra...); err != nil {
+		return agent.Config{}, err
+	}
 	cfg.MaxSteps = e.MaxSteps
 	if e.Browser != nil {
-		cfg.SaveBrowser = e.Browser.Reference
-		cfg.RestoreBrowser = e.Browser.SelectProfile
+		cfg.Browser = e.Browser
 	}
 	cfg.RunTimeout = e.RunTimeout
 	cfg.Verify = verify
 	cfg.Stream, cfg.OnDelta, cfg.OnReasoning = e.Stream, e.OnDelta, e.OnReasoning
-	return cfg
+	return cfg, nil
 }

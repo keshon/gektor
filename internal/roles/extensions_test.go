@@ -66,7 +66,11 @@ func TestExtensionResumeCompactionAndCurrentPermissions(t *testing.T) {
 	e.Capabilities = []*tools.Capability{fixtureCapability(&loads, &calls, false)}
 	state := filepath.Join(t.TempDir(), "state.json")
 	e.Client = &seqStub{steps: []llm.ChatResponse{extensionCall("enable", "enable_capability", `{"id":"fixture"}`), extensionCall("lookup", "cap__fixture__lookup", `{"key":"alpha"}`), extensionAnswer()}}
-	if _, err := Interactive(e, "", state, nil, nil).Run(t.Context(), "Look up alpha"); err != nil {
+	interactiveAgent, interactiveAgentErr := Interactive(e, "", state, nil, nil)
+	if interactiveAgentErr != nil {
+		t.Fatal(interactiveAgentErr)
+	}
+	if _, err := interactiveAgent.Run(t.Context(), "Look up alpha"); err != nil {
 		t.Fatal(err)
 	}
 	saved, err := conversation.Load(state)
@@ -94,7 +98,11 @@ func TestExtensionResumeCompactionAndCurrentPermissions(t *testing.T) {
 		}
 		return extensionAnswer()
 	})
-	if _, err := Interactive(e, "", state, nil, nil).Resume(t.Context(), saved.Context(), "Explain the task"); err != nil || loads != 1 {
+	interactiveAgent2, interactiveAgent2Err := Interactive(e, "", state, nil, nil)
+	if interactiveAgent2Err != nil {
+		t.Fatal(interactiveAgent2Err)
+	}
+	if _, err := interactiveAgent2.Resume(t.Context(), saved.Context(), "Explain the task"); err != nil || loads != 1 {
 		t.Fatal("resume connected optional adapter", err, loads)
 	}
 	for _, deny := range []bool{true, false} {
@@ -111,7 +119,11 @@ func TestExtensionResumeCompactionAndCurrentPermissions(t *testing.T) {
 		failed := false
 		e.OnResult = func(result agent.ToolResult) { failed = result.Failed }
 		before := calls
-		if _, err := Planner(e, "", state, nil).Resume(t.Context(), saved.Context(), "Read beta in Plan"); err != nil {
+		plannerAgent, plannerAgentErr := Planner(e, "", state, nil)
+		if plannerAgentErr != nil {
+			t.Fatal(plannerAgentErr)
+		}
+		if _, err := plannerAgent.Resume(t.Context(), saved.Context(), "Read beta in Plan"); err != nil {
 			t.Fatal(err)
 		}
 		if deny && (calls != before || !failed) {
@@ -140,7 +152,11 @@ func TestTranscriptDoesNotRestoreUnpersistedCapabilities(t *testing.T) {
 			warned = true
 		}
 	}
-	if _, err := Interactive(e, "", state, nil, nil).Resume(t.Context(), history, "Continue explaining the code"); err != nil || warned || loads != 0 {
+	interactiveAgent, interactiveAgentErr := Interactive(e, "", state, nil, nil)
+	if interactiveAgentErr != nil {
+		t.Fatal(interactiveAgentErr)
+	}
+	if _, err := interactiveAgent.Resume(t.Context(), history, "Continue explaining the code"); err != nil || warned || loads != 0 {
 		t.Fatal(err, warned, loads)
 	}
 }

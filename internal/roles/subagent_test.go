@@ -17,7 +17,10 @@ import (
 // one that could ask would block the process on a human watching the
 // parent.
 func TestSubagent_CannotDelegateOrAsk(t *testing.T) {
-	a := Subagent(testEnv(t), "reviewer")
+	a, aErr := Subagent(testEnv(t), "reviewer")
+	if aErr != nil {
+		t.Fatal(aErr)
+	}
 	for _, forbidden := range []string{"delegate_task", "ask_user"} {
 		if hasTool(a, forbidden) {
 			t.Errorf("subagent can call %s — got %v", forbidden, a.ToolNames())
@@ -44,7 +47,10 @@ func TestSubagent_ObserverHooksStaySilent(t *testing.T) {
 		{Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}},
 	}}
 	e.Client = client
-	sub := Subagent(e, "")
+	sub, subErr := Subagent(e, "")
+	if subErr != nil {
+		t.Fatal(subErr)
+	}
 
 	out, err := sub.Run(context.Background(), "task")
 	if err != nil {
@@ -69,7 +75,10 @@ func TestSubagentKeepsOwnBudgetAndDoesNotConsumeParentSteering(t *testing.T) {
 		t.Fatal(err)
 	}
 	env.OnInput = func(llm.Message) { t.Error("subagent inherited parent input hook") }
-	sub := Subagent(env, "")
+	sub, subErr := Subagent(env, "")
+	if subErr != nil {
+		t.Fatal(subErr)
+	}
 	if _, err := sub.Run(t.Context(), "subtask"); err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +132,11 @@ func TestDelegateEnforcesRequestedBudgetAndWarnsBeforeExhaustion(t *testing.T) {
 		}
 		return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: "Child stopped; work is incomplete."}}, nil
 	})
-	if _, err := Interactive(env, "", filepath.Join(t.TempDir(), "state.json"), nil, nil).Run(t.Context(), "test"); err != nil {
+	interactiveAgent, interactiveAgentErr := Interactive(env, "", filepath.Join(t.TempDir(), "state.json"), nil, nil)
+	if interactiveAgentErr != nil {
+		t.Fatal(interactiveAgentErr)
+	}
+	if _, err := interactiveAgent.Run(t.Context(), "test"); err != nil {
 		t.Fatal(err)
 	}
 	if calls != 7 || warnings != 1 || !result.Failed || !strings.Contains(result.Output, "steps: 4/4") || !strings.Contains(result.Output, "termination: step_limit") || !strings.Contains(result.Output, "archive:") || !strings.Contains(result.Output, "delegate_call_id: child") {

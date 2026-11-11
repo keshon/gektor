@@ -188,10 +188,14 @@ func TestLiveExtensionsAcrossTurns(t *testing.T) {
 					},
 				}
 				var a *agent.Agent
+				var buildErr error
 				if phase.plan {
-					a = Planner(e, "live", state, nil)
+					a, buildErr = Planner(e, "live", state, nil)
 				} else {
-					a = Interactive(e, "live", state, nil, nil)
+					a, buildErr = Interactive(e, "live", state, nil, nil)
+				}
+				if buildErr != nil {
+					t.Fatal(buildErr)
 				}
 				prompt := fmt.Sprintf("Use the fixture skill and available capability to retrieve key %s. Inspect the actual tool result. If lookup is unavailable, answer UNAVAILABLE and do not guess. Do not modify files. Keep the final answer to one line.", phase.key)
 				ctx, cancel := context.WithTimeout(t.Context(), 300*time.Second)

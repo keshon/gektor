@@ -74,7 +74,7 @@ func TestBrowserLoadsOnceAndRestoresAfterCompaction(t *testing.T) {
 		}
 		return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: name, Name: name, Arguments: json.RawMessage(args)}}}, FinishReason: "tool_calls"}
 	})
-	a := agent.New(agent.Config{Client: client, Tools: reg, SaveCapabilities: enable.Catalog.Save, RestoreCapabilities: enable.Catalog.Restore, System: "stable system", StateFile: state})
+	a := agent.New(agent.Config{Client: client, Tools: reg, Catalog: enable.Catalog, System: "stable system", StateFile: state})
 	if _, err := a.Run(t.Context(), "check page"); err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestBrowserLoadsOnceAndRestoresAfterCompaction(t *testing.T) {
 		}
 		return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}}
 	})
-	a = agent.New(agent.Config{Client: resume, Tools: reopenedReg, SaveCapabilities: reopenedEnable.Catalog.Save, RestoreCapabilities: reopenedEnable.Catalog.Restore, System: "stable system", StateFile: state})
+	a = agent.New(agent.Config{Client: resume, Tools: reopenedReg, Catalog: reopenedEnable.Catalog, System: "stable system", StateFile: state})
 	if _, err := a.Resume(t.Context(), saved.Context(), "continue"); err != nil {
 		t.Fatal(err)
 	}

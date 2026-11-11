@@ -206,9 +206,12 @@ func TestLiveLearnedImageSkill(t *testing.T) {
 					res.Expected = wants[pair]
 				}
 				liveWrite(t, filepath.Join(dir, "task.txt"), []byte(task))
-				a := roles.Interactive(e, "", filepath.Join(dir, "state.json"), func(context.Context, string) (string, error) {
+				a, err := roles.Interactive(e, "", filepath.Join(dir, "state.json"), func(context.Context, string) (string, error) {
 					return "No human is available. Use the task instructions and report any blocker honestly.", nil
 				}, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
 				runCtx, stop := context.WithTimeout(t.Context(), 180*time.Second)
 				started := time.Now()
 				res.Answer, err = a.Run(runCtx, task)

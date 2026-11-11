@@ -47,7 +47,11 @@ func TestComposedSkillReusePreservesArchive(t *testing.T) {
 		return extensionAnswer()
 	})
 	state := filepath.Join(t.TempDir(), "state.json")
-	if _, err := Interactive(e, "", state, nil, nil).Run(t.Context(), "Load the guide twice"); err != nil {
+	interactiveAgent, interactiveAgentErr := Interactive(e, "", state, nil, nil)
+	if interactiveAgentErr != nil {
+		t.Fatal(interactiveAgentErr)
+	}
+	if _, err := interactiveAgent.Run(t.Context(), "Load the guide twice"); err != nil {
 		t.Fatal(err)
 	}
 	saved, err := conversation.Load(state)
@@ -86,7 +90,11 @@ func TestComposedQuestionRecovery(t *testing.T) {
 		}
 		return extensionAnswer()
 	})
-	if _, err := Interactive(e, "", state, ask, nil).ResumeWithAnswer(t.Context(), s.Context(), "question", "yes"); err != nil {
+	interactiveAgent, interactiveAgentErr := Interactive(e, "", state, ask, nil)
+	if interactiveAgentErr != nil {
+		t.Fatal(interactiveAgentErr)
+	}
+	if _, err := interactiveAgent.ResumeWithAnswer(t.Context(), s.Context(), "question", "yes"); err != nil {
 		t.Fatal(err)
 	}
 	if called {
@@ -117,7 +125,11 @@ func TestComposedWritesKeepChecksAndPathPermissions(t *testing.T) {
 	blocked, _ := json.Marshal(map[string]string{"path": filepath.Join(e.WS.Root(), "blocked.txt"), "content": "blocked"})
 	move, _ := json.Marshal(map[string]string{"from": "allowed.txt", "to": filepath.Join(e.WS.Root(), "destination.txt")})
 	e.Client = &seqStub{steps: []llm.ChatResponse{extensionCall("write", "write_file", string(write)), extensionCall("blocked", "write_file", string(blocked)), extensionCall("move", "move_file", string(move)), extensionAnswer()}}
-	if _, err := Interactive(e, "", "", nil, nil).Run(t.Context(), "Exercise writes"); err != nil {
+	interactiveAgent, interactiveAgentErr := Interactive(e, "", "", nil, nil)
+	if interactiveAgentErr != nil {
+		t.Fatal(interactiveAgentErr)
+	}
+	if _, err := interactiveAgent.Run(t.Context(), "Exercise writes"); err != nil {
 		t.Fatal(err)
 	}
 	if reports != 1 {

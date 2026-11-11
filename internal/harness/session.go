@@ -197,17 +197,17 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, rol
 	env.Checks = checks.NewReporter(env.Rules, func(scope checks.Scope, f checks.Finding) {
 		events.EmitFinding(emitter, string(scope), f.Rule, f.Path, f.Line, f.Summary)
 	})
+	var err error
 	if s.cfg.WorkflowRecipe != "" {
-		var err error
 		a, err = roles.WorkflowAuthor(env, s.cfg.WorkflowRecipe, s.cfg.StateFile)
-		if err != nil {
-			return nil, emitter, env, err
-		}
 	} else if s.cfg.Plan {
 		emitter.Emit("plan_mode", map[string]any{"read_only": true})
-		a = roles.Planner(env, "plan", s.cfg.StateFile, askFn)
+		a, err = roles.Planner(env, "plan", s.cfg.StateFile, askFn)
 	} else {
-		a = roles.Interactive(env, "", s.cfg.StateFile, askFn, s.cfg.Verify)
+		a, err = roles.Interactive(env, "", s.cfg.StateFile, askFn, s.cfg.Verify)
+	}
+	if err != nil {
+		return nil, emitter, env, err
 	}
 	return a, emitter, env, nil
 }

@@ -14,8 +14,8 @@ func (a *Agent) StartupContext(task string) llm.ContextReport {
 }
 
 func (a *Agent) previewTools() []llm.ToolDef {
-	if a.cfg.PreviewTools != nil {
-		return a.cfg.PreviewTools()
+	if a.cfg.Catalog != nil {
+		return a.cfg.Catalog.PreviewDefs()
 	}
 	return a.cfg.Tools.ModelDefs()
 }

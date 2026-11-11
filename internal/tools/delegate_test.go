@@ -32,7 +32,7 @@ func TestDelegatePartialEvidenceOnEveryExit(t *testing.T) {
 		t.Run(stop, func(t *testing.T) {
 			calls := 0
 			archive := filepath.Join(t.TempDir(), "state.json")
-			d := &Delegate{DefaultSteps: 1, Spawn: func(ctx context.Context, role string, steps int) *agent.Agent {
+			d := &Delegate{DefaultSteps: 1, Spawn: func(ctx context.Context, role string, steps int) (*agent.Agent, error) {
 				limit := steps
 				if stop != "step_limit" {
 					limit = 2
@@ -50,7 +50,7 @@ func TestDelegatePartialEvidenceOnEveryExit(t *testing.T) {
 					default:
 						return llm.ChatResponse{}, errors.New("backend failed")
 					}
-				})})
+				})}), nil
 			}}
 			out, err := d.Run(t.Context(), json.RawMessage(`{"task":"edit"}`))
 			if err == nil {
@@ -86,9 +86,9 @@ func TestDelegateBudgetBoundsBeforeSpawn(t *testing.T) {
 	} {
 		t.Run(tc.args, func(t *testing.T) {
 			got := 0
-			d := &Delegate{DefaultSteps: 4, MaxSteps: 8, Spawn: func(ctx context.Context, role string, steps int) *agent.Agent {
+			d := &Delegate{DefaultSteps: 4, MaxSteps: 8, Spawn: func(ctx context.Context, role string, steps int) (*agent.Agent, error) {
 				got = steps
-				return agent.New(agent.Config{MaxSteps: steps, Client: stubSubClient{answer: "done"}, Tools: agent.NewRegistry()})
+				return agent.New(agent.Config{MaxSteps: steps, Client: stubSubClient{answer: "done"}, Tools: agent.NewRegistry()}), nil
 			}}
 			out, err := d.Run(t.Context(), json.RawMessage(tc.args))
 			if got != tc.want || (err != nil) != (tc.want == 0) {
@@ -102,8 +102,8 @@ func TestDelegateBudgetBoundsBeforeSpawn(t *testing.T) {
 }
 
 func TestDelegateReportDoesNotHideToolFailure(t *testing.T) {
-	d := &Delegate{Spawn: func(ctx context.Context, role string, steps int) *agent.Agent {
-		return agent.New(agent.Config{MaxSteps: 1, Tools: agent.NewRegistry(), Client: &stubClientSequence{responses: []llm.ChatResponse{{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "check", Name: "missing_check", Arguments: json.RawMessage(`{}`)}}}}}}})
+	d := &Delegate{Spawn: func(ctx context.Context, role string, steps int) (*agent.Agent, error) {
+		return agent.New(agent.Config{MaxSteps: 1, Tools: agent.NewRegistry(), Client: &stubClientSequence{responses: []llm.ChatResponse{{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "check", Name: "missing_check", Arguments: json.RawMessage(`{}`)}}}}}}}), nil
 	}}
 	out, err := d.Run(t.Context(), json.RawMessage(`{"task":"check"}`))
 	if !errors.Is(err, agent.ErrMaxSteps) || !strings.Contains(out, "tool_result: check missing_check rejected") || strings.Contains(out, "termination: completed") {
@@ -113,8 +113,8 @@ func TestDelegateReportDoesNotHideToolFailure(t *testing.T) {
 
 func TestDelegateFailedCheckHasArchiveReference(t *testing.T) {
 	archive := filepath.Join(t.TempDir(), "state.json")
-	d := &Delegate{Spawn: func(ctx context.Context, role string, steps int) *agent.Agent {
-		return agent.New(agent.Config{MaxSteps: 1, StateFile: archive, Tools: agent.NewRegistry(delegateFailedCheck{}), Client: &stubClientSequence{responses: []llm.ChatResponse{{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "go-test", Name: "run_program", Arguments: json.RawMessage(`{}`)}}}}}}})
+	d := &Delegate{Spawn: func(ctx context.Context, role string, steps int) (*agent.Agent, error) {
+		return agent.New(agent.Config{MaxSteps: 1, StateFile: archive, Tools: agent.NewRegistry(delegateFailedCheck{}), Client: &stubClientSequence{responses: []llm.ChatResponse{{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "go-test", Name: "run_program", Arguments: json.RawMessage(`{}`)}}}}}}}), nil
 	}}
 	out, err := d.Run(t.Context(), json.RawMessage(`{"task":"test"}`))
 	if !errors.Is(err, agent.ErrMaxSteps) || !strings.Contains(out, "tool_result: go-test run_program execution_error") || !strings.Contains(out, "archive: "+archive) {
@@ -159,13 +159,13 @@ func TestDelegateEnvelopeIsBounded(t *testing.T) {
 func TestDelegate_PassesRoleToSpawn(t *testing.T) {
 	var gotRole string
 	d := &Delegate{
-		Spawn: func(ctx context.Context, role string, steps int) *agent.Agent {
+		Spawn: func(ctx context.Context, role string, steps int) (*agent.Agent, error) {
 			gotRole = role
 			return agent.New(agent.Config{
 				Client: stubSubClient{answer: "done"},
 				Tools:  agent.NewRegistry(),
 				System: "base",
-			})
+			}), nil
 		},
 	}
 
@@ -192,14 +192,14 @@ func TestDelegate_EmptyRoleIsFine(t *testing.T) {
 	var gotRole string
 	called := false
 	d := &Delegate{
-		Spawn: func(ctx context.Context, role string, steps int) *agent.Agent {
+		Spawn: func(ctx context.Context, role string, steps int) (*agent.Agent, error) {
 			called = true
 			gotRole = role
 			return agent.New(agent.Config{
 				Client: stubSubClient{answer: "done"},
 				Tools:  agent.NewRegistry(),
 				System: "base",
-			})
+			}), nil
 		},
 	}
 
@@ -228,12 +228,12 @@ func TestDelegate_IsExclusiveSoTheLoopSerialisesIt(t *testing.T) {
 
 func TestDelegate_EmptyResultErrors(t *testing.T) {
 	d := &Delegate{
-		Spawn: func(ctx context.Context, role string, steps int) *agent.Agent {
+		Spawn: func(ctx context.Context, role string, steps int) (*agent.Agent, error) {
 			return agent.New(agent.Config{
 				Client: stubSubClient{answer: "   "},
 				Tools:  agent.NewRegistry(),
 				System: "base",
-			})
+			}), nil
 		},
 	}
 	args, _ := json.Marshal(map[string]string{"task": "work"})
@@ -245,7 +245,7 @@ func TestDelegate_EmptyResultErrors(t *testing.T) {
 func TestDelegate_ReportsSubagentMutations(t *testing.T) {
 	writeArgs, _ := json.Marshal(map[string]string{"path": "x.txt", "content": "hi"})
 	d := &Delegate{
-		Spawn: func(ctx context.Context, role string, steps int) *agent.Agent {
+		Spawn: func(ctx context.Context, role string, steps int) (*agent.Agent, error) {
 			return agent.New(agent.Config{
 				Client: &stubClientSequence{
 					responses: []llm.ChatResponse{
@@ -257,7 +257,7 @@ func TestDelegate_ReportsSubagentMutations(t *testing.T) {
 				},
 				Tools:  agent.NewRegistry(echoWriteStub{}),
 				System: "base",
-			})
+			}), nil
 		},
 	}
 	args, _ := json.Marshal(map[string]string{"task": "write x.txt"})
@@ -289,4 +289,13 @@ func (c *stubClientSequence) Chat(_ context.Context, _ llm.ChatRequest) (llm.Cha
 	resp := c.responses[c.calls]
 	c.calls++
 	return resp, nil
+}
+
+func TestDelegateConstructionFailure(t *testing.T) {
+	failure := errors.New("invalid child tool composition")
+	d := &Delegate{Spawn: func(context.Context, string, int) (*agent.Agent, error) { return nil, failure }}
+	out, err := d.Run(t.Context(), json.RawMessage(`{"task":"inspect"}`))
+	if !errors.Is(err, failure) || !strings.Contains(err.Error(), "create subagent") || out != "" {
+		t.Fatalf("output=%q error=%v", out, err)
+	}
 }

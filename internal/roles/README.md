@@ -23,6 +23,10 @@ availability, instructions, permissions, and execution limits agree.
 
 ## Contracts to preserve
 
+- Task constructors return `(*agent.Agent, error)`. Handle tool-composition
+  errors before starting or inspecting an agent. Construction and preview do not
+  activate integrations. The composed catalog and browser selection are passed
+  directly to Agent through its consumer contracts; they retain their own state.
 - Planner and Interactive share the conversation prompt/tool prefix. Planner's
   execution allowlist enforces read-only behavior; instructions alone do not.
 - Subagents cannot delegate or ask the parent's operator. Their budget and inbox

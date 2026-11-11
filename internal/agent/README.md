@@ -45,6 +45,12 @@ in `internal/retrospective`. Frontends coordinate sessions through these owners.
 - `Config.Changes` supplies a stateful change observer. Agent calls `Begin` at
   run preparation and `Observe` during finalization and budget closing. The
   observer owns its baseline and must support bounded scans after cancellation.
+- A static registry needs only `Config.Tools`. Dynamic catalogs additionally
+  supply `Config.Catalog`: the existing catalog owns activation and saved state.
+  Startup restores browser selection, restores capabilities, establishes the run,
+  then prepares eager tools. Preview must not activate or connect integrations.
+  `Config.Browser` owns selection only; persistence captures both owners at
+  checkpoints, including failed runs.
 - Role restrictions apply at execution, including dynamically activated tools.
   Keep concrete tool decisions outside the loop and use its supplied contracts.
 - Keep related runtime state private. File organization provides reading paths;

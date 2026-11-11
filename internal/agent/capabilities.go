@@ -10,10 +10,10 @@ import (
 // A compacted catalog still needs its operational instructions. Append only
 // missing blocks, preserving the system prefix and ordinary append-only turns.
 func (a *Agent) withCapabilityInstructions(history []llm.Message) []llm.Message {
-	if a.cfg.SaveCapabilities == nil {
+	if a.cfg.Catalog == nil {
 		return history
 	}
-	for _, state := range a.cfg.SaveCapabilities() {
+	for _, state := range a.cfg.Catalog.Save() {
 		optional := false
 		for _, def := range state.Tools {
 			optional = optional || a.cfg.Tools.isOptional(def.Name)

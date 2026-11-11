@@ -46,9 +46,12 @@ func inspectStartup(o resolvedLaunch, out io.Writer) error {
 	}
 	var a *agent.Agent
 	if o.plan {
-		a = roles.Planner(env, "", "", func(context.Context, string) (string, error) { return "", nil })
+		a, err = roles.Planner(env, "", "", func(context.Context, string) (string, error) { return "", nil })
 	} else {
-		a = roles.Interactive(env, "", "", func(context.Context, string) (string, error) { return "", nil }, nil)
+		a, err = roles.Interactive(env, "", "", func(context.Context, string) (string, error) { return "", nil }, nil)
+	}
+	if err != nil {
+		return err
 	}
 	report := a.StartupContext(o.task)
 	report.Notes = append(report.Notes, warnings...)
