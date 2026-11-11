@@ -44,7 +44,7 @@ func TestWorkflowCannotBypassNestedToolDeny(t *testing.T) {
 	if _, err := ws.Stat(".gektor/workflow-runs"); !os.IsNotExist(err) {
 		t.Fatal("denied workflow had effects")
 	}
-	paths, err := PathResources(ws, "workflow_run", json.RawMessage(`{"recipe_path":"recipe.json"}`))
+	paths, err := (WorkspacePaths{WS: ws}).Resources("workflow_run", json.RawMessage(`{"recipe_path":"recipe.json"}`))
 	if err != nil || len(paths) != 1 || paths[0] != "recipe.json" {
 		t.Fatalf("missing nested resources: %v %v", paths, err)
 	}
@@ -77,7 +77,7 @@ func TestScheduleDiscoveryAndRecipeReadPermissions(t *testing.T) {
 	if _, err := r.Run(t.Context(), "workflow_schedule", args); err == nil {
 		t.Fatal("schedule bypassed recipe read deny")
 	}
-	paths, err := PathResources(ws, "workflow_schedule", args)
+	paths, err := (WorkspacePaths{WS: ws}).Resources("workflow_schedule", args)
 	if err != nil || len(paths) != 1 || paths[0] != "recipe.json" {
 		t.Fatal("schedule resource scope missing", paths, err)
 	}

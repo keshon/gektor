@@ -51,6 +51,17 @@ in `internal/retrospective`. Frontends coordinate sessions through these owners.
   then prepares eager tools. Preview must not activate or connect integrations.
   `Config.Browser` owns selection only; persistence captures both owners at
   checkpoints, including failed runs.
+- `Config.Paths` supplies workspace argument interpretation. Tool-specific
+  resources win; the fallback must authorize both ends of a move. Scoped
+  instructions arrive before a mutation is admitted.
+- `Config.Outputs` binds the same store to tool execution and result retention.
+  Bind it before deriving run deadlines and preserve attachment grants and call
+  identity. `Config.Notifications` polls an existing background owner; Agent
+  limits the returned text and records it in history.
+- `Verify` is one supplied execution operation. Its measured result is recorded
+  after the final answer, including failure output, without another model turn.
+  `ToolContext` remains a small adapter for context metadata such as probed vision.
+  Neither operation needs a function-wrapping interface.
 - Role restrictions apply at execution, including dynamically activated tools.
   Keep concrete tool decisions outside the loop and use its supplied contracts.
 - Keep related runtime state private. File organization provides reading paths;

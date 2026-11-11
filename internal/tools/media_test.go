@@ -63,11 +63,11 @@ func TestMediaLazyToolsShareWorkflowContractsAndResources(t *testing.T) {
 			}
 		}
 	}
-	paths, err := PathResources(ws, "video_download", json.RawMessage(`{"url":"https://youtu.be/abcdefghijk","path":"saved.mp4"}`))
+	paths, err := (WorkspacePaths{WS: ws}).Resources("video_download", json.RawMessage(`{"url":"https://youtu.be/abcdefghijk","path":"saved.mp4"}`))
 	if err != nil || len(paths) != 2 || paths[1] != "saved.mp4" {
 		t.Fatal(paths, err)
 	}
-	if _, err := PathResources(ws, "media_convert", json.RawMessage(`{"inputs":["../secret.wav"],"path":"out.mp3","format":"mp3"}`)); err == nil {
+	if _, err := (WorkspacePaths{WS: ws}).Resources("media_convert", json.RawMessage(`{"inputs":["../secret.wav"],"path":"out.mp3","format":"mp3"}`)); err == nil {
 		t.Fatal("outside path authorized")
 	}
 	if _, err := r.Run(t.Context(), "media_convert", json.RawMessage(`{"inputs":["in.wav"],"path":"out.mp3","format":"mp3","args":["-anything"]}`)); err == nil {

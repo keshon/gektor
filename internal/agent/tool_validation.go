@@ -47,8 +47,8 @@ func (a *Agent) validateToolCalls(calls []llm.ToolCall, finishReason string, his
 			continue
 		}
 
-		if a.cfg.Instructions != nil && !skipped[i] {
-			text, err := a.cfg.Instructions(call.Arguments)
+		if a.cfg.Paths != nil && !skipped[i] {
+			text, err := a.cfg.Paths.Instructions(call.Arguments)
 			if err != nil {
 				skipped[i] = true
 				results[i].err = fmt.Errorf("load scoped instructions: %w", err)
@@ -91,9 +91,9 @@ func (a *Agent) callResources(call llm.ToolCall) ([]string, error) {
 			}
 		}
 	}
-	if len(resources) == 0 && a.cfg.Resources != nil {
+	if len(resources) == 0 && a.cfg.Paths != nil {
 		var err error
-		resources, err = a.cfg.Resources(call.Name, call.Arguments)
+		resources, err = a.cfg.Paths.Resources(call.Name, call.Arguments)
 		if err != nil {
 			return nil, err
 		}

@@ -11,7 +11,7 @@ func TestOutputCanBePagedOnlyByItsSession(t *testing.T) {
 	store := &OutputStore{dir: t.TempDir()}
 	ctx := store.Context(t.Context())
 	original := strings.Repeat("head\n", 5000) + "UNIQUE MIDDLE\n" + strings.Repeat("tail\n", 5000)
-	preview := LimitOutput(ctx, "test", original, 2048)
+	preview := LimitOutput(ctx, original, 2048)
 	if !strings.Contains(preview, "read_output") || len(preview) > 2048 {
 		t.Fatal("missing bounded output handle", len(preview))
 	}

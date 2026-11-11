@@ -2,10 +2,7 @@ package roles
 
 import (
 	"context"
-	"encoding/json"
 	"path/filepath"
-	"slices"
-	"strings"
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
@@ -42,39 +39,13 @@ func (e Env) agentConfig(system, label, stateFile string) agent.Config {
 		OnProgress:     e.OnProgress,
 		OnNudge:        e.OnNudge,
 		OnContext:      e.OnContext,
-		ToolContext:    func(ctx context.Context) context.Context { return tools.VisionContext(store.Context(ctx), e.Vision) },
-		LimitOutput:    tools.LimitOutput,
-		Notifications:  e.Procs.Notifications,
+		ToolContext:    e.visionContext,
+		Outputs:        store,
+		Notifications:  e.Procs,
 		Summarize:      true,
 		OnLocal:        e.OnLocal,
-		Instructions: func(args json.RawMessage) (string, error) {
-			var in struct {
-				Path string `json:"path"`
-				From string `json:"from"`
-				To   string `json:"to"`
-			}
-			if json.Unmarshal(args, &in) != nil || e.WS == nil {
-				return "", nil
-			}
-			var parts []string
-			for _, path := range []string{in.Path, in.From, in.To} {
-				if path == "" || llm.IsAttachment(path) {
-					continue
-				}
-				text, err := e.WS.ScopedInstructions(path)
-				if err != nil {
-					return "", err
-				}
-				if text != "" && !slices.Contains(parts, text) {
-					parts = append(parts, text)
-				}
-			}
-			return strings.Join(parts, "\n"), nil
-		},
-		Policy: e.policy(),
-		Resources: func(name string, args json.RawMessage) ([]string, error) {
-			return tools.PathResources(e.WS, name, args)
-		},
+		Paths:          tools.WorkspacePaths{WS: e.WS},
+		Policy:         e.policy(),
 		BeforeToolCall: e.Gate,
 	}
 }
@@ -88,4 +59,9 @@ func (e Env) statePath(name string) string {
 	default:
 		return filepath.Join(e.StateDir, name)
 	}
+}
+
+// visionContext supplies the probed model capability to image-producing adapters.
+func (e Env) visionContext(ctx context.Context) context.Context {
+	return tools.VisionContext(ctx, e.Vision)
 }

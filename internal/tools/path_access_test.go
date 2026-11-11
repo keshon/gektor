@@ -89,12 +89,12 @@ func TestAbsoluteFilePathsShareRelativeAccessAndPermissions(t *testing.T) {
 	if data, err := ws.ReadFile("calculator.html"); err != nil || string(data) != "calculator" {
 		t.Fatal("absolute write did not use the workspace", err)
 	}
-	resources, err := PathResources(ws, "write_file", args)
+	resources, err := (WorkspacePaths{WS: ws}).Resources("write_file", args)
 	if err != nil || !reflect.DeepEqual(resources, []string{"calculator.html"}) {
 		t.Fatal("absolute path bypasses relative permission rules", resources, err)
 	}
 	args, _ = json.Marshal(map[string]string{"from": path, "to": filepath.Join(root, "private", "target.html")})
-	resources, err = PathResources(ws, "move_file", args)
+	resources, err = (WorkspacePaths{WS: ws}).Resources("move_file", args)
 	if err != nil || !reflect.DeepEqual(resources, []string{"calculator.html", "private/target.html"}) {
 		t.Fatal("move permissions omit a path", resources, err)
 	}

@@ -98,7 +98,7 @@ func TestImageViewCropsAttachmentWithoutWorkspaceCopy(t *testing.T) {
 	if _, err := (&ImageView{WS: ws}).Run(ctx, args); err == nil {
 		t.Fatal("allowed view without vision")
 	}
-	resources, err := PathResources(ws, "image_view", args)
+	resources, err := (WorkspacePaths{WS: ws}).Resources("image_view", args)
 	if err != nil || len(resources) != 1 || resources[0] != "attachment:1" {
 		t.Fatal(resources, err)
 	}

@@ -118,12 +118,20 @@ func (f *outputFile) close() string {
 	}
 	return note
 }
-func LimitOutput(ctx context.Context, tool, text string, limit int) string {
+
+// LimitOutput uses the store bound to ctx for adapter-produced results.
+func LimitOutput(ctx context.Context, text string, limit int) string {
+	return outputStore(ctx).Limit(text, limit)
+}
+
+// Limit retains oversized output and returns a bounded model-facing preview.
+// A nil store returns a preview with an explicit unavailable-storage notice.
+func (s *OutputStore) Limit(text string, limit int) string {
 	if len(text) <= limit {
 		return text
 	}
 	note := "Full output unavailable: no session output store."
-	if s := outputStore(ctx); s != nil {
+	if s != nil {
 		if f, err := s.create(); err == nil {
 			_, _ = f.Write([]byte(text))
 			note = f.close()

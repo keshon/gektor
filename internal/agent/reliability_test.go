@@ -20,8 +20,8 @@ func TestAllPathResourcesAreAuthorizedBeforeMutation(t *testing.T) {
 		{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "move", Name: "required_tool", Arguments: json.RawMessage(`{"path":"source"}`)}}}}, say("blocked"),
 	}}
 	a := New(Config{Client: c, Tools: NewRegistry(requiredTool{&runs}), System: "sys",
-		Resources: func(string, json.RawMessage) ([]string, error) { return []string{"source", "protected"}, nil },
-		Policy:    permission.Policy{Rules: []permission.Rule{{Tool: "required_tool", Pattern: "protected", Effect: permission.Deny}}},
+		Paths:  fixedToolPaths{resources: []string{"source", "protected"}},
+		Policy: permission.Policy{Rules: []permission.Rule{{Tool: "required_tool", Pattern: "protected", Effect: permission.Deny}}},
 	})
 	if _, err := a.Run(t.Context(), "task"); err != nil {
 		t.Fatal(err)
@@ -131,7 +131,7 @@ func TestScopedRulesArriveBeforeMutation(t *testing.T) {
 		stepOf(llm.ToolCall{ID: "first", Name: "required_tool", Arguments: json.RawMessage(`{"path":"nested/a.go"}`)}),
 		stepOf(llm.ToolCall{ID: "retry", Name: "required_tool", Arguments: json.RawMessage(`{"path":"nested/a.go"}`)}), say("done"),
 	}}
-	a := New(Config{Client: c, Tools: NewRegistry(requiredTool{&runs}), Instructions: func(json.RawMessage) (string, error) { return "Applies only to nested/: preserve exports", nil }, OnStep: func(step int, _ llm.Message) {
+	a := New(Config{Client: c, Tools: NewRegistry(requiredTool{&runs}), Paths: fixedToolPaths{instructions: "Applies only to nested/: preserve exports"}, OnStep: func(step int, _ llm.Message) {
 		if step == 1 && runs != 0 {
 			t.Fatal("mutation happened before model received scoped rules")
 		}
@@ -194,3 +194,12 @@ func TestCheckpointKeepsVerbatimRequirements(t *testing.T) {
 		t.Fatal("requirements or checkpoint lost", facts)
 	}
 }
+
+// fixedToolPaths supplies workspace lookup results at the Agent boundary.
+type fixedToolPaths struct {
+	resources    []string
+	instructions string
+}
+
+func (p fixedToolPaths) Resources(string, json.RawMessage) ([]string, error) { return p.resources, nil }
+func (p fixedToolPaths) Instructions(json.RawMessage) (string, error)        { return p.instructions, nil }

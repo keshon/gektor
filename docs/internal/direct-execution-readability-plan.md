@@ -1,8 +1,8 @@
 # Direct execution and contract consistency plan
 
 Date: 2026-11-11
-Status: Approved; stages 1–3 implemented and verified.
-Stages 4–6 remain planned.
+Status: Approved; stages 1–4 implemented and verified.
+Stages 5–6 remain planned.
 Baseline: `267065c`.
 
 ## Goal
@@ -201,6 +201,36 @@ ends of a move. Keep notification polling separate from mutation of history.
 
 Acceptance: each changed operation is easier to follow from construction to its
 call site; there is no replacement universal environment or forwarding layer.
+
+## Third checkpoint
+
+Workspace argument interpretation now lives in `tools.WorkspacePaths`, supplied
+as `Config.Paths`. It keeps scoped instruction loading and canonical permission
+resources together. The Workflow save tool supplies its fixed destination through
+its own resource contract, removing the role-level exception.
+
+`Config.Outputs` receives the existing OutputStore, which binds the run context
+and retains oversized tool results. Adapters obtain that same store from context.
+The unused tool-name argument to the adapter output limiter is removed.
+`Config.Notifications` receives BackgroundProcesses directly; polling still
+consumes session-local completion notices, and Agent alone appends their history.
+
+Verification remains a supplied operation: configured command execution and
+Workflow completion validation have different ownership and no paired lifecycle.
+The Workflow check is now the named `authorValidation.verifySaved` operation
+over its saved-recipe state. The small context-enrichment callback remains for
+probed vision metadata; output lifetime is no longer hidden in that callback.
+No generic execution host or function-wrapper type was added.
+
+Regressions cover both move scopes, instruction deduplication and attachment
+skipping, output-context binding before vision enrichment and deadlines, tool
+call identity, and result limiting. Existing permission, Workflow authoring,
+output paging/isolation, and completion-arrival tests retain their assertions.
+
+Checkpoint verification passed: full source tests and race tests
+(`./cmd/... ./internal/...`), source vet/build, all 44 dry eval probes, and the
+final notification-arrival fixture rerun under the race detector. No live model
+requests were made.
 
 ## Stage 5: Simplify observer wiring without changing delivery
 

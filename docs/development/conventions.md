@@ -135,6 +135,12 @@ callback. Dynamic tool catalogs own activation, preview, and persisted state;
 Agent consumes their lifecycle contract. Static registries need no catalog.
 Construction and preview must not connect optional integrations.
 
+Pass the output store and background owner directly to Agent. The output store
+binds execution context and retains oversized results for the same session.
+Workspace path interpretation owns scoped instruction lookup and canonical
+permission resources; tool-specific resource contracts still take precedence.
+Keep verification as measured execution, separate from result observers.
+
 **[invariant]** A capability is removed by the harness, never by asking the
 model not to use it. The plan role keeps the acting role's system prompt and
 tool list — a narrower one would change the prompt prefix, so a backend that

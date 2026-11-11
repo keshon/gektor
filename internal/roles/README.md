@@ -11,7 +11,9 @@ availability, instructions, permissions, and execution limits agree.
 - `config.go`: common Agent configuration, prompt sections, scoped instructions,
   resource authorization, output handling, and transcript paths.
   It constructs a Workspace change observer for the Agent; the loop starts and
-  samples that observer through its small consumer contract.
+  samples that observer through its small consumer contract. Workspace argument
+  lookup lives in `tools.WorkspacePaths`; output retention and background polling
+  use the existing OutputStore and BackgroundProcesses owners.
 - `conversation.go`: Interactive and Planner construction, questions, delegation,
   verification, and mode-specific directives.
 - `subagent.go` and `child.go`: delegated execution limits, parent-input isolation,
@@ -19,7 +21,8 @@ availability, instructions, permissions, and execution limits agree.
 - `tools.go`: capability catalog composition, activation, restoration, and browser
   availability. Tool implementations remain in their feature packages.
 - `workflow.go`: restricted Workflow authoring and validation of the selected
-  recipe before accepting the author's result.
+  recipe before accepting the author's result. `authorValidation.verifySaved`
+  repeats validation at completion; the save tool owns its permission destination.
 
 ## Contracts to preserve
 

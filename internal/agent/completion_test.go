@@ -34,15 +34,15 @@ func TestCompletionRetainsArrivingNotificationsAndInput(t *testing.T) {
 						if limit {
 							maxSteps = finishCall
 						}
-						calls, delivered := 0, 0
-						pending := false
+						calls := 0
+						notifications := &completionNotifications{}
 						client := inputClient(func(_ context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
 							calls++
 							if calls < finishCall {
 								return stepOf(llm.ToolCall{ID: fmt.Sprint(calls), Name: "echo", Arguments: json.RawMessage(`{}`)}), nil
 							}
 							if calls == finishCall {
-								pending = wantNote
+								notifications.pending = wantNote
 								if wantInput {
 									if err := inbox.Send("new direction"); err != nil {
 										t.Fatal(err)
@@ -74,14 +74,7 @@ func TestCompletionRetainsArrivingNotificationsAndInput(t *testing.T) {
 							path = filepath.Join(t.TempDir(), "state.json")
 						}
 						a := New(Config{Client: client, Tools: NewRegistry(echoToolStub{}), Inbox: inbox, MaxSteps: maxSteps, StateFile: path,
-							Notifications: func(context.Context) []string {
-								if !pending {
-									return nil
-								}
-								pending = false
-								delivered++
-								return []string{"background finished"}
-							},
+							Notifications: notifications,
 						})
 						answer, err := a.Run(t.Context(), "task")
 						if limit {
@@ -91,8 +84,8 @@ func TestCompletionRetainsArrivingNotificationsAndInput(t *testing.T) {
 						} else if err != nil || answer != "updated answer" || calls != finishCall+1 {
 							t.Fatalf("answer=%q err=%v calls=%d", answer, err, calls)
 						}
-						if a.Report().Steps != calls || pending || (wantNote && delivered != 1) {
-							t.Fatalf("calls=%d delivered=%d pending=%v report=%+v", calls, delivered, pending, a.Report())
+						if a.Report().Steps != calls || notifications.pending || (wantNote && notifications.delivered != 1) {
+							t.Fatalf("calls=%d delivered=%d pending=%v report=%+v", calls, notifications.delivered, notifications.pending, a.Report())
 						}
 						history := a.snapshot.History
 						if persisted {
@@ -328,4 +321,19 @@ func TestAgent_VerifyHook_SkippedWhenNotOK(t *testing.T) {
 			t.Fatalf("unexpected verify output when Verify reported ok=false: %q", m.Content)
 		}
 	}
+}
+
+// completionNotifications consumes a result that arrives with the final answer.
+type completionNotifications struct {
+	pending   bool
+	delivered int
+}
+
+func (n *completionNotifications) Notifications(context.Context) []string {
+	if !n.pending {
+		return nil
+	}
+	n.pending = false
+	n.delivered++
+	return []string{"background finished"}
 }

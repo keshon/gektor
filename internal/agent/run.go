@@ -18,6 +18,9 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 	a.report = RunReport{MaxSteps: a.cfg.MaxSteps, Archive: a.cfg.StateFile}
 	// Derive both deadlines from the enriched context: tools execute on workCtx,
 	// so enriching only the hard-deadline context loses vision/output metadata.
+	if a.cfg.Outputs != nil {
+		ctx = a.cfg.Outputs.Context(ctx)
+	}
 	if a.cfg.ToolContext != nil {
 		ctx = a.cfg.ToolContext(ctx)
 	}
@@ -175,9 +178,9 @@ func (a *Agent) acceptNotifications(ctx context.Context, history []llm.Message) 
 	if a.cfg.Notifications == nil {
 		return history
 	}
-	for _, note := range a.cfg.Notifications(ctx) {
-		if a.cfg.LimitOutput != nil {
-			note = a.cfg.LimitOutput(ctx, "background", note, 8192)
+	for _, note := range a.cfg.Notifications.Notifications(ctx) {
+		if a.cfg.Outputs != nil {
+			note = a.cfg.Outputs.Limit(note, 8192)
 		}
 		history = a.nudge(history, "background", note)
 	}

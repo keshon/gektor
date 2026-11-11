@@ -93,7 +93,7 @@ func TestCapabilityToolsAndNodesShareContractsAndResources(t *testing.T) {
 				t.Fatalf("execution policy differs: mode=%s readOnly=%v retrySafe=%v", r.ModeOf(toolName), node.ReadOnly, node.RetrySafe)
 			}
 			raw := json.RawMessage(tc.args)
-			direct, err := PathResources(ws, toolName, raw)
+			direct, err := (WorkspacePaths{WS: ws}).Resources(toolName, raw)
 			if err != nil {
 				t.Fatal(err)
 			}

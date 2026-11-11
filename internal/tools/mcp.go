@@ -686,7 +686,7 @@ func (t *MCPTool) Run(ctx context.Context, args json.RawMessage) (output string,
 		// Structured output reduces; prose truncates. A blind middle-cut
 		// through a JSON array leaves half an element to parse, so try
 		// the reducer first and fall back to truncation for non-JSON.
-		out = LimitOutput(ctx, t.Name(), out, mcpResultMax)
+		out = LimitOutput(ctx, out, mcpResultMax)
 	}
 	if out == "" {
 		return "(empty result)", nil

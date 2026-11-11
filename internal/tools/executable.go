@@ -95,7 +95,7 @@ func (t *ExecutableTool) Run(ctx context.Context, args json.RawMessage) (result 
 	if bytes.HasPrefix(bytes.TrimSpace(response.Output), []byte(`"`)) && json.Unmarshal(response.Output, &text) == nil {
 		output = text
 	}
-	output = LimitOutput(ctx, t.Name(), output, 48*1024)
+	output = LimitOutput(ctx, output, 48*1024)
 	if response.Error != "" {
 		return output, fmt.Errorf("executable %s: %s", t.Pack.ID, response.Error)
 	}

@@ -197,7 +197,7 @@ func TestFileOperationResourcesAreCanonicalAndWorkflowDenyApplies(t *testing.T) 
 		if err != nil || !reflect.DeepEqual(got, want) {
 			t.Fatal("missing direct resources", got, err)
 		}
-		fallback, err := PathResources(ws, tool.Name(), args)
+		fallback, err := (WorkspacePaths{WS: ws}).Resources(tool.Name(), args)
 		if err != nil || !reflect.DeepEqual(fallback, want) {
 			t.Fatal("missing fallback resources", fallback, err)
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/workflow"
@@ -82,6 +83,15 @@ type Save struct {
 	WS       *workspace.Workspace
 	Path     string
 	Saved    bool
+}
+
+// Resources identifies the operator-selected destination for permission checks.
+func (t Save) Resources(json.RawMessage) ([]string, error) {
+	path, err := t.WS.Relative(t.Path)
+	if err != nil {
+		return nil, err
+	}
+	return []string{filepath.ToSlash(path)}, nil
 }
 
 func (Save) Name() string { return "workflow_save" }

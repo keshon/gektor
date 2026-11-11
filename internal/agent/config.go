@@ -35,6 +35,29 @@ type BrowserSelection interface {
 	SelectProfile(*conversation.BrowserProfile) error
 }
 
+// ToolPaths resolves workspace instructions and canonical permission resources.
+// Tool-specific resources take precedence over this workspace fallback. Empty
+// resources use the ordinary command/URL; lookup errors prevent execution.
+// Instruction lookup runs before admission and may withhold a mutation.
+type ToolPaths interface {
+	Instructions(json.RawMessage) (string, error)
+	Resources(string, json.RawMessage) ([]string, error)
+}
+
+// OutputStore binds a run to retained tool output and bounds model-facing results.
+// Context must preserve cancellation and existing values. Limit retains oversized
+// output in the same store used by tools; it is called serially by Agent.
+type OutputStore interface {
+	Context(context.Context) context.Context
+	Limit(string, int) string
+}
+
+// NotificationSource polls completed background work for the current tool context.
+// Polling consumes pending notifications; Agent alone appends them to history.
+type NotificationSource interface {
+	Notifications(context.Context) []string
+}
+
 // Config supplies services, limits, and observers for an Agent's sequential runs.
 type Config struct {
 	// Changes owns a baseline per run and must not be shared by concurrent agents.
@@ -78,35 +101,33 @@ type Config struct {
 	// the role has no stance turn at all.
 	Directive  string
 	Supersedes string
-	// Verify runs the configured command once after the final answer.
+	// Verify performs configured verification once after the final answer.
 	// Its output is recorded without another model call.
 	Verify           func(context.Context) (output string, err error)
 	CompactKeepSteps int
 	CompactAtPercent int
 	Policy           permission.Policy
 	BeforeToolCall   func(context.Context, string, string, json.RawMessage) (permission.Effect, error)
-	// Resources canonicalizes file paths and includes both ends of a move.
-	// Nil results use the ordinary command/URL resource.
-	Resources  func(string, json.RawMessage) ([]string, error)
-	ToolHint   func(string) string
-	Stream     bool
-	OnStep     func(int, llm.Message)
-	OnUsage    func(int, llm.Usage)
-	OnProgress func(llm.Progress)
-	OnResult   func(ToolResult)
+	Paths            ToolPaths
+	ToolHint         func(string) string
+	Stream           bool
+	OnStep           func(int, llm.Message)
+	OnUsage          func(int, llm.Usage)
+	OnProgress       func(llm.Progress)
+	OnResult         func(ToolResult)
 	// OnToolFinished is a transient execution-complete signal. OnResult follows
 	// after ordered attachment and history processing. Called serially.
 	OnToolFinished func(callID string)
 	// OnToolOutput receives transient preview chunks, never model history.
-	OnToolOutput  func(callID, text string)
-	OnDelta       func(string)
-	OnReasoning   func(string)
-	OnNudge       func(kind, text string)
-	OnContext     func(llm.Message)
+	OnToolOutput func(callID, text string)
+	OnDelta      func(string)
+	OnReasoning  func(string)
+	OnNudge      func(kind, text string)
+	OnContext    func(llm.Message)
+	// ToolContext adds adapter metadata after output binding, before run deadlines.
 	ToolContext   func(context.Context) context.Context
-	LimitOutput   func(context.Context, string, string, int) string
-	Instructions  func(json.RawMessage) (string, error)
-	Notifications func(context.Context) []string
+	Outputs       OutputStore
+	Notifications NotificationSource
 	Summarize     bool
 	OnLocal       func(string)
 }

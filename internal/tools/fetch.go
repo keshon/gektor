@@ -101,7 +101,7 @@ func fetch(ctx context.Context, in fetchArgs, spec fetchSpec) (string, error) {
 	}
 	b.WriteString("----\n")
 	if len(text) > limit {
-		b.WriteString(LimitOutput(ctx, spec.tool, text, limit))
+		b.WriteString(LimitOutput(ctx, text, limit))
 	} else {
 		b.WriteString(text)
 	}

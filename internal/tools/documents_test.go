@@ -59,7 +59,7 @@ func TestDocumentsLazyDiscoveryAgentWorkflowAndResources(t *testing.T) {
 			t.Fatal("contract drift", tool.Name())
 		}
 		args, _ := json.Marshal(map[string]string{"path": filepath.ToSlash(filepath.Join(ws.Root(), "input.docx"))})
-		paths, err := PathResources(ws, tool.Name(), args)
+		paths, err := (WorkspacePaths{WS: ws}).Resources(tool.Name(), args)
 		if err != nil || !reflect.DeepEqual(paths, []string{"input.docx"}) {
 			t.Fatal(paths, err)
 		}
@@ -141,7 +141,7 @@ func TestDocumentsContinuationAcrossAgentWorkflowAndOutputLimit(t *testing.T) {
 	// The 48 KiB batch budget gives each of two concurrent calls 24 KiB.
 	store := &OutputStore{dir: t.TempDir()}
 	ctx := store.Context(t.Context())
-	preview := LimitOutput(ctx, "docx_read", first, 24*1024)
+	preview := LimitOutput(ctx, first, 24*1024)
 	if !strings.Contains(preview, "read_output") || len(preview) > 24*1024 {
 		t.Fatal("missing bounded recovery reference")
 	}

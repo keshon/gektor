@@ -241,7 +241,7 @@ func executeWorkflow(ctx context.Context, o workflowOptions, out io.Writer, gate
 		return err
 	}
 	authorize := func(name string, args json.RawMessage) error {
-		paths, err := tools.PathResources(ws, name, args)
+		paths, err := (tools.WorkspacePaths{WS: ws}).Resources(name, args)
 		if err != nil {
 			return err
 		}

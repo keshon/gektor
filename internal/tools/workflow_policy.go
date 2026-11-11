@@ -27,7 +27,7 @@ func workflowPolicy(ws *workspace.Workspace, policy permission.Policy, gate perm
 		return permission.Authorize(ctx, policy, gate, "image_variants", filepath.ToSlash(rel), args)
 	}
 	authorize := func(ctx context.Context, name string, args json.RawMessage) error {
-		paths, err := PathResources(ws, name, args)
+		paths, err := (WorkspacePaths{WS: ws}).Resources(name, args)
 		if err != nil {
 			return err
 		}

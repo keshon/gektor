@@ -56,8 +56,8 @@ func (a *Agent) recordToolBatch(ctx context.Context, st *runState, batch *toolBa
 		if withheld[i] {
 			content = "Not executed because new user input arrived. Reconsider this action using the updated instructions."
 		}
-		if a.cfg.LimitOutput != nil {
-			content = a.cfg.LimitOutput(ctx, call.Name, content, max(1, 48*1024/len(calls)))
+		if a.cfg.Outputs != nil {
+			content = a.cfg.Outputs.Limit(content, max(1, 48*1024/len(calls)))
 		} else {
 			content = TruncateMiddle(content, max(1, 48*1024/len(calls)))
 		}

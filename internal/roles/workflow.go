@@ -21,7 +21,7 @@ import (
 
 type authorValidation struct {
 	*workflow.Tool
-	path string
+	save *workflow.Save
 	args json.RawMessage
 }
 
@@ -34,7 +34,7 @@ func (v *authorValidation) Run(ctx context.Context, args json.RawMessage) (strin
 		}
 		if json.Unmarshal(args, &in) == nil {
 			path, e := v.WS.Relative(in.Path)
-			if e == nil && path == v.path {
+			if e == nil && path == v.save.Path {
 				v.args = append(json.RawMessage(nil), args...)
 			}
 		}
@@ -67,9 +67,10 @@ func WorkflowAuthor(e Env, recipePath, stateFile string) (*agent.Agent, error) {
 	if storeDir == "" {
 		storeDir = userdirs.Sub("workflows")
 	}
-	validation := &authorValidation{Tool: tools.NewWorkflow(tools.Dependencies{WS: e.WS, Policy: e.policy(), Gate: e.Gate, StoreDir: storeDir}, true), path: path}
+	validation := &authorValidation{Tool: tools.NewWorkflow(tools.Dependencies{WS: e.WS, Policy: e.policy(), Gate: e.Gate, StoreDir: storeDir}, true)}
 	registry := validation.Registry
 	save := &workflow.Save{WS: e.WS, Path: path, Registry: registry}
+	validation.save = save
 	cfg.Tools = agent.NewRegistry(
 		workflow.Schema{WS: e.WS, StoreDir: storeDir, Registry: registry}, save,
 		validation,
@@ -81,25 +82,8 @@ func WorkflowAuthor(e Env, recipePath, stateFile string) (*agent.Agent, error) {
 		tools.FileOperation{Operation: filecontract.Operation{Service: files.Service{WS: e.WS}, Kind: "archive_list"}},
 		tools.NewImageOperation(e.WS, "inspect"), tools.NewImageOperation(e.WS, "preview"),
 	)
-	cfg.Resources = func(name string, args json.RawMessage) ([]string, error) {
-		if name == "workflow_save" {
-			return []string{filepath.ToSlash(path)}, nil
-		}
-		return tools.PathResources(e.WS, name, args)
-	}
 	cfg.MutatingTools = []string{"workflow_save"}
-	cfg.Verify = func(ctx context.Context) (string, error) {
-		if !save.Saved {
-			return "", fmt.Errorf("workflow author did not save a recipe")
-		}
-		if validation.args == nil {
-			return "saved recipe: " + filepath.ToSlash(path), fmt.Errorf("saved workflow has not passed validation")
-		}
-		if _, err := validation.Tool.Run(ctx, validation.args); err != nil {
-			return "saved recipe: " + filepath.ToSlash(path), fmt.Errorf("saved workflow no longer validates: %w", err)
-		}
-		return "validated saved recipe: " + filepath.ToSlash(path), nil
-	}
+	cfg.Verify = validation.verifySaved
 	cfg.MaxSteps = e.MaxSteps
 	if cfg.MaxSteps <= 0 || cfg.MaxSteps > 16 {
 		cfg.MaxSteps = 16
@@ -107,4 +91,18 @@ func WorkflowAuthor(e Env, recipePath, stateFile string) (*agent.Agent, error) {
 	cfg.RunTimeout = e.RunTimeout
 	cfg.Stream, cfg.OnDelta, cfg.OnReasoning = e.Stream, e.OnDelta, e.OnReasoning
 	return agent.New(cfg), nil
+}
+
+// verifySaved checks the selected recipe again after the author finishes.
+func (v *authorValidation) verifySaved(ctx context.Context) (string, error) {
+	if !v.save.Saved {
+		return "", fmt.Errorf("workflow author did not save a recipe")
+	}
+	if v.args == nil {
+		return "saved recipe: " + filepath.ToSlash(v.save.Path), fmt.Errorf("saved workflow has not passed validation")
+	}
+	if _, err := v.Tool.Run(ctx, v.args); err != nil {
+		return "saved recipe: " + filepath.ToSlash(v.save.Path), fmt.Errorf("saved workflow no longer validates: %w", err)
+	}
+	return "validated saved recipe: " + filepath.ToSlash(v.save.Path), nil
 }

@@ -55,9 +55,7 @@ func TestSkillProjectionUsesOnlyCompleteDeliveredGuides(t *testing.T) {
 			state := filepath.Join(t.TempDir(), "state.json")
 			cfg := agent.Config{Client: client, Tools: agent.NewRegistry(tools.LoadSkill{WS: ws}), System: "system", StateFile: state}
 			if variant == "offloaded" {
-				cfg.LimitOutput = func(context.Context, string, string, int) string {
-					return "result stored externally; read_file to retrieve"
-				}
+				cfg.Outputs = offloadedSkillOutput{}
 			}
 			if _, err := agent.New(cfg).Run(t.Context(), "load guide repeatedly"); err != nil {
 				t.Fatal(err)
@@ -135,4 +133,12 @@ func TestSkillProjectionUsesOnlyCompleteDeliveredGuides(t *testing.T) {
 			}
 		})
 	}
+}
+
+// offloadedSkillOutput models a guide retained outside model context.
+type offloadedSkillOutput struct{}
+
+func (offloadedSkillOutput) Context(ctx context.Context) context.Context { return ctx }
+func (offloadedSkillOutput) Limit(string, int) string {
+	return "result stored externally; read_file to retrieve"
 }
