@@ -10,33 +10,52 @@ import (
 
 func TestVersionedBuildRequiresCleanSource(t *testing.T) {
 	root := t.TempDir()
-	runGit := func(args ...string) {
-		t.Helper()
-		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			t.Fatal(string(output), err)
-		}
-	}
-	runGit("init", "--quiet")
-	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module github.com/keshon/gektor\n"), 0644); err != nil {
+	runTestGit(t, root, "init", "--quiet")
+	modulePath := filepath.Join(root, "go.mod")
+	module := []byte("module github.com/keshon/gektor\n")
+	err := os.WriteFile(modulePath, module, 0644)
+	if err != nil {
 		t.Fatal(err)
 	}
-	runGit("add", "go.mod")
-	runGit("-c", "user.name=Packaging Test", "-c", "user.email=packaging@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "fixture")
-	if _, err := readSource(t.Context(), root, true); err != nil {
+	runTestGit(t, root, "add", "go.mod")
+	runTestGit(t, root, "-c", "user.name=Packaging Test", "-c", "user.email=packaging@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "fixture")
+
+	_, err = readSource(t.Context(), root, true)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "untracked.txt"), []byte("unpublished"), 0644); err != nil {
+
+	untracked := filepath.Join(root, "untracked.txt")
+	err = os.WriteFile(untracked, []byte("unpublished"), 0644)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Build(t.Context(), Options{Root: root, Version: "v1.2.3"}); err == nil || !strings.Contains(err.Error(), "clean checkout") {
+	options := Options{Root: root, Version: "v1.2.3"}
+	_, err = Build(t.Context(), options)
+	if err == nil || !strings.Contains(err.Error(), "clean checkout") {
 		t.Fatal("dirty versioned build accepted", err)
 	}
-	if _, err := os.Stat(filepath.Join(root, "dist")); !os.IsNotExist(err) {
+
+	output := filepath.Join(root, "dist")
+	_, err = os.Stat(output)
+	if !os.IsNotExist(err) {
 		t.Fatal("rejected build touched output directory", err)
 	}
+
 	src, err := readSource(t.Context(), root, false)
 	if err != nil || !src.dirty {
 		t.Fatal("development source rejected", err)
+	}
+}
+
+// runTestGit configures isolated fixture repositories, never the working checkout.
+func runTestGit(t *testing.T, root string, args ...string) {
+	t.Helper()
+
+	commandArgs := append([]string{"-C", root}, args...)
+	cmd := exec.CommandContext(t.Context(), "git", commandArgs...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatal(string(output), err)
 	}
 }

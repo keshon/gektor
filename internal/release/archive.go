@@ -4,13 +4,11 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
-	"crypto/sha256"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 )
@@ -19,21 +17,30 @@ func payloadMode(name string) fs.FileMode {
 	if name == "gektor" || name == "gektor.exe" {
 		return 0755
 	}
+
 	return 0644
 }
 
-// writeArchive reads the staged payload, then verifies every archived byte
-// against that payload before publishing the archive's final filename.
+// writeArchive verifies every archived byte before publishing the final name.
+// It owns the temporary file and leaves the caller's file list unchanged.
 func writeArchive(name, directory string, files []string, timestamp time.Time) error {
-	files = append([]string(nil), files...)
-	sort.Strings(files)
-	temporary, err := os.CreateTemp(filepath.Dir(name), ".archive-")
+	members := slices.Clone(files)
+	slices.Sort(members)
+	parent := filepath.Dir(name)
+	temporary, err := os.CreateTemp(parent, ".archive-")
 	if err != nil {
 		return err
 	}
-	defer os.Remove(temporary.Name())
+	temporaryName := temporary.Name()
+	// Failed archives are disposable; rename removes this temporary path on success.
+	defer os.Remove(temporaryName)
+
 	zipFormat := strings.HasSuffix(name, ".zip")
-	err = archivePayload(temporary, zipFormat, directory, files, timestamp)
+	if zipFormat {
+		err = writeZip(temporary, directory, members, timestamp)
+	} else {
+		err = writeTarGzip(temporary, directory, members, timestamp)
+	}
 	closeErr := temporary.Close()
 	if err != nil {
 		return err
@@ -41,145 +48,106 @@ func writeArchive(name, directory string, files []string, timestamp time.Time) e
 	if closeErr != nil {
 		return closeErr
 	}
-	if err := verifyArchive(temporary.Name(), zipFormat, directory, files); err != nil {
+
+	err = verifyArchive(temporaryName, zipFormat, directory, members)
+	if err != nil {
 		return err
 	}
-	return os.Rename(temporary.Name(), name)
+
+	return os.Rename(temporaryName, name)
 }
 
-func archivePayload(output io.Writer, zipFormat bool, directory string, files []string, timestamp time.Time) error {
-	var add func(string) (io.Writer, error)
-	var finish func() error
-	if zipFormat {
-		bundle := zip.NewWriter(output)
-		add = func(name string) (io.Writer, error) {
-			header := &zip.FileHeader{Name: name, Method: zip.Deflate}
-			header.SetMode(payloadMode(name))
-			header.SetModTime(timestamp)
-			return bundle.CreateHeader(header)
-		}
-		finish = bundle.Close
-	} else {
-		compressed := gzip.NewWriter(output)
-		bundle := tar.NewWriter(compressed)
-		add = func(name string) (io.Writer, error) {
-			info, err := os.Stat(filepath.Join(directory, filepath.FromSlash(name)))
-			if err != nil {
-				return nil, err
-			}
-			err = bundle.WriteHeader(&tar.Header{Name: name, Mode: int64(payloadMode(name)), Size: info.Size(), ModTime: timestamp, Format: tar.FormatUSTAR})
-			return bundle, err
-		}
-		finish = func() error {
-			err := bundle.Close()
-			compressedErr := compressed.Close()
-			if err != nil {
-				return err
-			}
-			return compressedErr
-		}
+func writeZip(output io.Writer, directory string, files []string, timestamp time.Time) error {
+	bundle := zip.NewWriter(output)
+	err := writeZipMembers(bundle, directory, files, timestamp)
+	closeErr := bundle.Close()
+	if err != nil {
+		return err
 	}
-	for _, name := range files {
-		writer, err := add(name)
-		if err != nil {
-			_ = finish()
-			return err
-		}
-		input, err := os.Open(filepath.Join(directory, filepath.FromSlash(name)))
-		if err != nil {
-			_ = finish()
-			return err
-		}
-		_, err = io.Copy(writer, input)
-		closeErr := input.Close()
-		if err != nil || closeErr != nil {
-			_ = finish()
-			if err != nil {
-				return err
-			}
-			return closeErr
-		}
-	}
-	return finish()
+
+	return closeErr
 }
 
-func verifyArchive(name string, zipFormat bool, directory string, files []string) error {
-	expected := make(map[string]bool, len(files))
+func writeZipMembers(bundle *zip.Writer, directory string, files []string, timestamp time.Time) error {
 	for _, name := range files {
-		expected[name] = true
-	}
-	check := func(name string, mode fs.FileMode, reader io.Reader) error {
-		if !expected[name] {
-			return fmt.Errorf("unexpected or duplicate archive member %s", name)
-		}
-		if !mode.IsRegular() || mode.Perm() != payloadMode(name) {
-			return fmt.Errorf("incorrect archive mode for %s: %s", name, mode)
-		}
-		want, err := fileDigest(filepath.Join(directory, filepath.FromSlash(name)))
+		header := &zip.FileHeader{Name: name, Method: zip.Deflate}
+		mode := payloadMode(name)
+		header.SetMode(mode)
+		header.SetModTime(timestamp)
+		writer, err := bundle.CreateHeader(header)
 		if err != nil {
 			return err
 		}
-		hash := sha256.New()
-		if _, err := io.Copy(hash, reader); err != nil {
-			return err
-		}
-		if want != [sha256.Size]byte(hash.Sum(nil)) {
-			return fmt.Errorf("archive content differs from staged file %s", name)
-		}
-		delete(expected, name)
-		return nil
-	}
-	if zipFormat {
-		bundle, err := zip.OpenReader(name)
+
+		err = copyMember(writer, directory, name)
 		if err != nil {
 			return err
 		}
-		defer bundle.Close()
-		for _, member := range bundle.File {
-			reader, err := member.Open()
-			if err != nil {
-				return err
-			}
-			err = check(member.Name, member.Mode(), reader)
-			closeErr := reader.Close()
-			if err != nil {
-				return err
-			}
-			if closeErr != nil {
-				return closeErr
-			}
-		}
-	} else {
-		file, err := os.Open(name)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-		compressed, err := gzip.NewReader(file)
-		if err != nil {
-			return err
-		}
-		defer compressed.Close()
-		bundle := tar.NewReader(compressed)
-		for {
-			member, err := bundle.Next()
-			if err == io.EOF {
-				// Consume the gzip footer too, so truncated or corrupt streams fail.
-				if _, err := io.Copy(io.Discard, compressed); err != nil {
-					return err
-				}
-				break
-			}
-			if err != nil {
-				return err
-			}
-			if err := check(member.Name, member.FileInfo().Mode(), bundle); err != nil {
-				return err
-			}
-		}
 	}
-	if len(expected) != 0 {
-		return fmt.Errorf("archive is missing %d staged files", len(expected))
-	}
+
 	return nil
+}
+
+func writeTarGzip(output io.Writer, directory string, files []string, timestamp time.Time) error {
+	compressed := gzip.NewWriter(output)
+	bundle := tar.NewWriter(compressed)
+	err := writeTarMembers(bundle, directory, files, timestamp)
+	tarErr := bundle.Close()
+	gzipErr := compressed.Close()
+	if err != nil {
+		return err
+	}
+	if tarErr != nil {
+		return tarErr
+	}
+
+	return gzipErr
+}
+
+func writeTarMembers(bundle *tar.Writer, directory string, files []string, timestamp time.Time) error {
+	for _, name := range files {
+		relative := filepath.FromSlash(name)
+		path := filepath.Join(directory, relative)
+		info, err := os.Stat(path)
+		if err != nil {
+			return err
+		}
+
+		mode := payloadMode(name)
+		header := &tar.Header{
+			Name:    name,
+			Mode:    int64(mode),
+			Size:    info.Size(),
+			ModTime: timestamp,
+			Format:  tar.FormatUSTAR,
+		}
+		err = bundle.WriteHeader(header)
+		if err != nil {
+			return err
+		}
+
+		err = copyMember(bundle, directory, name)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func copyMember(writer io.Writer, directory, name string) error {
+	relative := filepath.FromSlash(name)
+	path := filepath.Join(directory, relative)
+	input, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(writer, input)
+	closeErr := input.Close()
+	if err != nil {
+		return err
+	}
+
+	return closeErr
 }

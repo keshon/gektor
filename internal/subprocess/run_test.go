@@ -13,9 +13,12 @@ import (
 
 func TestMain(m *testing.M) {
 	if len(os.Args) == 3 && os.Args[1] == "workflow" {
+		// The parent may close fixture pipes while enforcing limits. These dummy
+		// workers intentionally ignore output errors and let Run report the verdict.
 		switch os.Args[2] {
 		case "test-limited":
-			if err := Limit(); err != nil {
+			err := Limit()
+			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}
@@ -44,10 +47,12 @@ func TestWorkerDeadlineAndOutputLimits(t *testing.T) {
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatal("worker deadline was lost", err)
 	}
-	if _, err := Run(t.Context(), "test-large", nil, 5*time.Second, 1024); err == nil {
+	_, err = Run(t.Context(), "test-large", nil, 5*time.Second, 1024)
+	if err == nil {
 		t.Fatal("accepted oversized worker output")
 	}
-	if _, err := Run(t.Context(), "test-invalid", nil, 5*time.Second, 1024); err == nil {
+	_, err = Run(t.Context(), "test-invalid", nil, 5*time.Second, 1024)
+	if err == nil {
 		t.Fatal("accepted invalid worker output")
 	}
 }

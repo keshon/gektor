@@ -2,11 +2,11 @@ package release
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"path"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -44,6 +44,8 @@ func TestOfflineLinksAndFrozenSkills(t *testing.T) {
 }
 
 func TestCurrentArticlesKeepRemainingLinksInsideDistribution(t *testing.T) {
+	markdownLink := regexp.MustCompile(markdownLinkPattern)
+	absoluteLink := regexp.MustCompile(absoluteLinkPattern)
 	root, err := filepath.Abs("../..")
 	if err != nil {
 		t.Fatal(err)
@@ -53,7 +55,9 @@ func TestCurrentArticlesKeepRemainingLinksInsideDistribution(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, target := range []string{"windows-amd64", "linux-amd64"} {
-		files := runtimeFiles(strings.Split(strings.TrimSuffix(string(names), "\x00"), "\x00"), target)
+		trackedText := strings.TrimSuffix(string(names), "\x00")
+		tracked := strings.Split(trackedText, "\x00")
+		files := runtimeFiles(tracked, target)
 		included := map[string]bool{binaryName(target): true}
 		for _, name := range files {
 			included[name] = true
@@ -62,11 +66,15 @@ func TestCurrentArticlesKeepRemainingLinksInsideDistribution(t *testing.T) {
 			if !strings.HasSuffix(name, ".md") {
 				continue
 			}
-			data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(name)))
-			if err != nil {
-				t.Fatal(err)
+			relative := filepath.FromSlash(name)
+			filename := filepath.Join(root, relative)
+			data, readErr := os.ReadFile(filename)
+			if readErr != nil {
+				t.Fatal(readErr)
 			}
-			for _, match := range markdownLink.FindAllSubmatch(releaseBytes(name, data, included, "test-revision"), -1) {
+			payload := releaseBytes(name, data, included, "test-revision")
+			matches := markdownLink.FindAllSubmatch(payload, -1)
+			for _, match := range matches {
 				href := string(match[1])
 				if absoluteLink.MatchString(href) || strings.HasPrefix(name, "skills/") || strings.HasSuffix(name, "/SKILL.md") {
 					continue
@@ -74,7 +82,9 @@ func TestCurrentArticlesKeepRemainingLinksInsideDistribution(t *testing.T) {
 				location, _, _ := strings.Cut(href, "#")
 				destination := name
 				if location != "" {
-					destination = path.Clean(path.Join(path.Dir(name), location))
+					directory := path.Dir(name)
+					joined := path.Join(directory, location)
+					destination = path.Clean(joined)
 				}
 				if !included[destination] {
 					t.Fatalf("%s: %s points outside %s payload", name, href, target)
@@ -90,7 +100,8 @@ func TestBuildRejectsInvalidVersionAndTargetBeforeWriting(t *testing.T) {
 		{Version: "v1.2.3", Target: "windows-amd64"},
 	} {
 		options.Root = t.TempDir()
-		if _, err := Build(context.Background(), options); err == nil {
+		_, err := Build(t.Context(), options)
+		if err == nil {
 			t.Fatal("accepted invalid options", options)
 		}
 	}

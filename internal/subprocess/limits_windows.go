@@ -9,29 +9,41 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// Keep the job handle alive for the worker's lifetime; the OS closes it at exit.
-var workerJob windows.Handle
-
-func configure(cmd *exec.Cmd) { cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true} }
+func configure(cmd *exec.Cmd) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+}
 
 // Limit applies the platform memory limit to the calling worker process.
 // Call it once at worker startup, before reading or processing requests.
+// On success the worker retains an open kernel job handle until process exit;
+// the OS releases it then. Failed setup closes the handle immediately.
 func Limit() error {
 	job, err := windows.CreateJobObject(nil, nil)
 	if err != nil {
 		return err
 	}
+
 	limits := windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION{}
 	limits.BasicLimitInformation.LimitFlags = windows.JOB_OBJECT_LIMIT_PROCESS_MEMORY
 	limits.ProcessMemoryLimit = 256 << 20
-	if _, err = windows.SetInformationJobObject(job, windows.JobObjectExtendedLimitInformation, uintptr(unsafe.Pointer(&limits)), uint32(unsafe.Sizeof(limits))); err != nil {
-		windows.CloseHandle(job)
+	size := uint32(unsafe.Sizeof(limits))
+	// Keep the unsafe conversion in the syscall argument, preserving pointer lifetime.
+	_, err = windows.SetInformationJobObject(job, windows.JobObjectExtendedLimitInformation, uintptr(unsafe.Pointer(&limits)), size)
+	if err != nil {
+		// Preserve the setup failure if best-effort handle cleanup also fails.
+		_ = windows.CloseHandle(job)
 		return err
 	}
-	if err = windows.AssignProcessToJobObject(job, windows.CurrentProcess()); err != nil {
-		windows.CloseHandle(job)
+
+	process := windows.CurrentProcess()
+	err = windows.AssignProcessToJobObject(job, process)
+	if err != nil {
+		// Preserve the assignment failure if best-effort handle cleanup also fails.
+		_ = windows.CloseHandle(job)
 		return fmt.Errorf("worker memory limit: %w", err)
 	}
-	workerJob = job
+
+	// Windows handles have no Go finalizer. Keeping this handle open needs no
+	// package-level reference; the job stays alive until process exit.
 	return nil
 }

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -20,15 +19,20 @@ func TestBuildReleaseFromCleanRepository(t *testing.T) {
 		"README.md":          "[Source](cmd/gektor/main.go)\n",
 		"skills/SKILL.md":    "Frozen\n",
 	}
-	for _, name := range windowsFiles {
+	for _, name := range windowsFiles() {
 		contents[name] = "@echo off\r\n"
 	}
 	for name, data := range contents {
-		filename := filepath.Join(root, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+		relative := filepath.FromSlash(name)
+		filename := filepath.Join(root, relative)
+		parent := filepath.Dir(filename)
+		err := os.MkdirAll(parent, 0755)
+		if err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filename, []byte(data), 0644); err != nil {
+		content := []byte(data)
+		err = os.WriteFile(filename, content, 0644)
+		if err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -36,10 +40,7 @@ func TestBuildReleaseFromCleanRepository(t *testing.T) {
 		{"init", "--quiet"}, {"add", "--all"},
 		{"-c", "user.name=Packaging Test", "-c", "user.email=packaging@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "fixture"},
 	} {
-		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			t.Fatal(string(output), err)
-		}
+		runTestGit(t, root, args...)
 	}
 	outputs, err := Build(t.Context(), Options{Root: root, Version: "v1.2.3", Log: io.Discard})
 	if err != nil {
@@ -48,29 +49,40 @@ func TestBuildReleaseFromCleanRepository(t *testing.T) {
 	if len(outputs) != 5 {
 		t.Fatal(outputs)
 	}
-	sums, err := os.ReadFile(filepath.Join(root, "dist", "SHA256SUMS.txt"))
+	checksumPath := filepath.Join(root, "dist", "SHA256SUMS.txt")
+	sums, err := os.ReadFile(checksumPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, suffix := range []string{"windows-amd64.zip", "linux-amd64.tar.gz"} {
 		name := "gektor-v1.2.3-" + suffix
-		digest, err := fileDigest(filepath.Join(root, "dist", name))
-		if err != nil || !strings.Contains(string(sums), fmt.Sprintf("%x  %s\n", digest, name)) {
-			t.Fatal("checksum differs", name, err)
+		archivePath := filepath.Join(root, "dist", name)
+		digest, digestErr := fileDigest(archivePath)
+		if digestErr != nil {
+			t.Fatal(digestErr)
+		}
+		expected := fmt.Sprintf("%x  %s\n", digest, name)
+		if !strings.Contains(string(sums), expected) {
+			t.Fatal("checksum differs", name, digestErr)
 		}
 	}
 	for target, magic := range map[string]string{"windows-amd64": "MZ", "linux-amd64": "\x7fELF"} {
 		directory := filepath.Join(root, "dist", target)
-		binary, err := os.ReadFile(filepath.Join(directory, binaryName(target)))
-		if err != nil || !strings.HasPrefix(string(binary), magic) {
-			t.Fatal("incorrect executable target", target, err)
+		executable := binaryName(target)
+		binaryPath := filepath.Join(directory, executable)
+		binary, binaryErr := os.ReadFile(binaryPath)
+		if binaryErr != nil || !strings.HasPrefix(string(binary), magic) {
+			t.Fatal("incorrect executable target", target, binaryErr)
 		}
-		if _, err := os.Stat(filepath.Join(directory, ".env")); !os.IsNotExist(err) {
-			t.Fatal("secret included in payload", err)
+		secret := filepath.Join(directory, ".env")
+		_, statErr := os.Stat(secret)
+		if !os.IsNotExist(statErr) {
+			t.Fatal("secret included in payload", statErr)
 		}
-		frozen, err := os.ReadFile(filepath.Join(directory, "skills", "SKILL.md"))
-		if err != nil || string(frozen) != "Frozen\n" {
-			t.Fatal("frozen skill bytes differ", err)
+		skillPath := filepath.Join(directory, "skills", "SKILL.md")
+		frozen, skillErr := os.ReadFile(skillPath)
+		if skillErr != nil || string(frozen) != "Frozen\n" {
+			t.Fatal("frozen skill bytes differ", skillErr)
 		}
 	}
 }

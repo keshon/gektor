@@ -1,23 +1,35 @@
 package userdirs
 
 import (
+	"fmt"
 	"os"
 	"testing"
 )
 
-// Every path this package produces lives in the user's home directory. A
-// test that runs against the real one leaves a .gektor behind on the
-// developer's machine, and the next run reads it back as though it were
-// theirs. Redirect the home for the package instead.
+// Package tests own an isolated home. No test may read or leave data in the
+// developer's real GEKTOR directory. TestMain removes it before os.Exit.
 func TestMain(m *testing.M) {
-	home, err := os.MkdirTemp("", "gektor-home")
+	directory, err := os.MkdirTemp("", "gektor-home")
 	if err != nil {
 		panic(err)
 	}
+
 	// os.UserHomeDir reads USERPROFILE on Windows and HOME elsewhere.
-	os.Setenv("USERPROFILE", home)
-	os.Setenv("HOME", home)
+	for _, variable := range []string{"USERPROFILE", "HOME"} {
+		err = os.Setenv(variable, directory)
+		if err != nil {
+			// Preserve the setup failure; cleanup is best effort on this exit.
+			_ = os.RemoveAll(directory)
+			panic(err)
+		}
+	}
+
 	code := m.Run()
-	os.RemoveAll(home)
+	err = os.RemoveAll(directory)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		code = 1
+	}
+
 	os.Exit(code)
 }

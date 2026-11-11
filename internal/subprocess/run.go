@@ -17,42 +17,53 @@ type boundedBuffer struct {
 	limit  int
 }
 
-func (b *boundedBuffer) Write(p []byte) (int, error) {
-	if b.buffer.Len()+len(p) > b.limit {
+func (b *boundedBuffer) Write(data []byte) (int, error) {
+	if b.buffer.Len()+len(data) > b.limit {
 		return 0, fmt.Errorf("worker output exceeds limit")
 	}
-	return b.buffer.Write(p)
+
+	return b.buffer.Write(data)
 }
 
 // Run starts this executable with "workflow <mode>" and sends data on stdin.
 // The executable must dispatch that mode to a worker that writes one JSON value
 // to stdout. Output is bounded by maxOutput bytes and diagnostics by 4 KiB.
 // Run supplies GOMEMLIMIT=128MiB instead of inheriting the parent's environment.
-// Cancellation or timeout terminates the child; Run waits for its exit.
-// Workers call Limit themselves before processing their input.
+// Cancellation or timeout terminates the child; Run waits for its exit and
+// releases its process resources. Workers call Limit before processing input.
 func Run(ctx context.Context, mode string, data []byte, timeout time.Duration, maxOutput int) (string, error) {
-	exe, err := os.Executable()
+	executable, err := os.Executable()
 	if err != nil {
 		return "", err
 	}
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+
+	workerCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, exe, "workflow", mode)
+
+	output := &boundedBuffer{limit: maxOutput}
+	diagnostic := &boundedBuffer{limit: 4096}
+	cmd := exec.CommandContext(workerCtx, executable, "workflow", mode)
 	configure(cmd)
 	cmd.Env = []string{"GOMEMLIMIT=128MiB"}
 	cmd.Stdin = bytes.NewReader(data)
-	output := &boundedBuffer{limit: maxOutput}
-	diagnostic := &boundedBuffer{limit: 4096}
 	cmd.Stdout = output
 	cmd.Stderr = diagnostic
-	if err := cmd.Run(); err != nil {
-		if ctx.Err() != nil {
-			return "", fmt.Errorf("%s: %w", mode, ctx.Err())
+
+	err = cmd.Run()
+	if err != nil {
+		contextErr := workerCtx.Err()
+		if contextErr != nil {
+			return "", fmt.Errorf("%s: %w", mode, contextErr)
 		}
-		return "", fmt.Errorf("%s: %w: %s", mode, err, diagnostic.buffer.String())
+
+		diagnostics := diagnostic.buffer.String()
+		return "", fmt.Errorf("%s: %w: %s", mode, err, diagnostics)
 	}
-	if !json.Valid(output.buffer.Bytes()) {
+
+	result := output.buffer.Bytes()
+	if !json.Valid(result) {
 		return "", fmt.Errorf("worker returned invalid JSON")
 	}
-	return output.buffer.String(), nil
+
+	return string(result), nil
 }
