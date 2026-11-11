@@ -14,7 +14,6 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/events"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/permissionlog"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -222,7 +221,7 @@ func TestGateHook_AuditsDecisions(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(t.TempDir(), "audit.jsonl")
-	hook := permissionlog.WrapGate(path, "tui", m.contextGate(m.hub, ws))
+	hook := permission.LogGate(path, "tui", m.contextGate(m.hub, ws))
 	done := make(chan struct{})
 	go func() {
 		defer close(done)

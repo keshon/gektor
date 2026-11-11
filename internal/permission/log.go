@@ -1,5 +1,4 @@
-// Package permissionlog records operator gate decisions as best-effort JSONL.
-package permissionlog
+package permission
 
 import (
 	"context"
@@ -7,12 +6,10 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	"github.com/keshon/gektor/internal/permission"
 )
 
-// Record is one gate decision.
-type Record struct {
+// GateRecord is one operator gate answer in the optional JSONL log.
+type GateRecord struct {
 	TS       string `json:"ts"`
 	Front    string `json:"front"`
 	Tool     string `json:"tool"`
@@ -21,17 +18,18 @@ type Record struct {
 	Note     string `json:"note,omitempty"`
 }
 
-// WrapGate records each operator gate decision. An empty
-// path disables logging (passthrough). The operator note rides the
-// "blocked by operator: ..." denial text; any other error is recorded
-// whole as the decision's reason.
-func WrapGate(path, front string, inner permission.Gate) permission.Gate {
+// LogGate appends operator gate answers to path as best-effort JSONL.
+// It does not observe automatic policy decisions. An empty path returns inner
+// unchanged. Logging failures never replace the gate's effect or error.
+// Operator denial notes are extracted from "blocked by operator: ..." errors;
+// other errors are recorded as the decision's reason.
+func LogGate(path, front string, inner Gate) Gate {
 	if path == "" {
 		return inner
 	}
-	return func(ctx context.Context, tool, resource string, args json.RawMessage) (permission.Effect, error) {
+	return func(ctx context.Context, tool, resource string, args json.RawMessage) (Effect, error) {
 		eff, err := inner(ctx, tool, resource, args)
-		rec := Record{
+		rec := GateRecord{
 			TS:       time.Now().UTC().Format(time.RFC3339),
 			Front:    front,
 			Tool:     tool,

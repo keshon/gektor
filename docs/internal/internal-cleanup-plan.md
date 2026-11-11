@@ -106,7 +106,7 @@ ships no language-specific source validation or formatter selection. `rules` and
 the separate post-edit `gofmt` subprocess are removed. Projects provide their
 own verification command; generic content findings remain separate from it.
 
-`permissionlog.WrapGate` is the single context-aware observer of operator gate
+`permission.LogGate` is the single context-aware observer of operator gate
 decisions. It preserves the decision, error and context, and remains best-effort.
 The `-audit` option and JSONL fields retain their current names and meaning;
 automatic policy decisions do not pass through the operator gate.
@@ -121,5 +121,5 @@ removed. Focused regressions cover the exact read limit, oversized files, both
 finding caps, deduplication, lack of automatic language checks and gate context.
 
 Follow-up verification passed: the full production test suite, vet, package and
-documentation boundary checks, race tests for checks/permissionlog/tools/roles/
+documentation boundary checks, race tests for checks/permission/tools/roles/
 TUI/harness/CLI, and all 44 dry eval probes. No live model evaluations ran.

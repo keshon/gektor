@@ -1,8 +1,9 @@
 // Package permission decides whether a tool call may run.
 //
-// It is a leaf: no internal imports, so the agent loop can depend on it
-// without creating a cycle. Policy is last-match-wins over wildcard
-// patterns, mirroring pi/opencode: explicit deny beats broad allow.
+// Policy uses ordered wildcard rules: the last matching rule wins, regardless
+// of effect. Authorize combines policy with an optional operator Gate; LogGate
+// records gate answers without changing them. The package imports no other
+// internal package.
 package permission
 
 import (
@@ -52,8 +53,8 @@ type Policy struct {
 // destructiveShell are command-line substrings that ask first.
 // Tripwire, not sandbox: substring matching is obfuscatable
 // (`r\m\ -\rf` sails through), which is why these Ask for operator
-// judgment instead of Denying. The workspace guardrail (Resolve) and
-// real containment (container/VM) are separate layers; see the
+// judgment instead of Denying. Rooted workspace file access and process
+// isolation (container/VM) are separate layers; see the
 // workspace package header on what each layer promises.
 var destructiveShell = []string{
 	"rm -rf", "del /s", "del /q", "rd /s", "format ", "mkfs", "dd if=", ":(){",
@@ -159,9 +160,7 @@ func baseName(s string) string {
 type Gate func(ctx context.Context, tool, resource string, args json.RawMessage) (Effect, error)
 
 // Authorize makes the whole decision for a call: the policy, then Gate for
-// anything marked Ask, then a block on anything but Allow. It lived inline
-// in the agent loop and again in the mission check runner, and the two
-// copies could drift; there is one answer now.
+// anything marked Ask, then a block on anything but Allow.
 //
 // The zero Policy allows everything, matching Policy's own zero value.
 func Authorize(ctx context.Context, p Policy, gate Gate, tool, resource string, args json.RawMessage) error {

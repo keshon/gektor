@@ -12,7 +12,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// Group ties a background command's whole descendant tree to a
+// Group ties a command's descendant tree to a
 // Windows job object, the analogue of setpgid on Unix.
 //
 // taskkill /T alone is not enough. It walks the tree from a PID, so once
@@ -25,12 +25,12 @@ type Group struct {
 	job windows.Handle
 }
 
+// NewGroup allocates a process-tree owner. Call Release after the command ends.
+// If job creation fails, Kill still attempts a taskkill tree sweep.
 func NewGroup() *Group {
 	job, err := windows.CreateJobObject(nil, nil)
 	if err != nil {
-		// Without a job the tree kill degrades to taskkill, which is what
-		// this package did before. Worth continuing rather than refusing
-		// to start a process.
+		// Retain taskkill fallback when job ownership is unavailable.
 		return &Group{}
 	}
 	// KILL_ON_JOB_CLOSE means the tree also dies if this process exits
@@ -70,6 +70,8 @@ func (g *Group) AfterStart(cmd *exec.Cmd) error {
 	return windows.AssignProcessToJobObject(g.job, h)
 }
 
+// Kill terminates the owned job and attempts a PID-based tree sweep.
+// It returns the job termination error; taskkill failures are best-effort.
 func (g *Group) Kill(cmd *exec.Cmd) error {
 	var jobErr error
 	if g.job != 0 {
@@ -88,6 +90,8 @@ func (g *Group) Kill(cmd *exec.Cmd) error {
 	return jobErr
 }
 
+// Release closes the job handle, terminating remaining owned descendants.
+// Repeated calls have no effect.
 func (g *Group) Release() {
 	if g.job != 0 {
 		windows.CloseHandle(g.job)

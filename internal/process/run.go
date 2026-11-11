@@ -14,8 +14,12 @@ import (
 	"time"
 )
 
-const OutputLimit = 1 << 20 // per stream
+// OutputLimit bounds each captured stdout and stderr stream in bytes.
+const OutputLimit = 1 << 20
 
+// Request describes a finite native invocation. Args are passed literally;
+// Directory is the caller-selected working directory and Stdin may be nil.
+// Timeout must be positive and at most ten minutes.
 type Request struct {
 	Program   string
 	Args      []string
@@ -23,6 +27,10 @@ type Request struct {
 	Stdin     io.Reader
 	Timeout   time.Duration
 }
+
+// Result retains bounded output even when execution fails. ExitCode is -1
+// before an exit status is available; Truncated means an output limit stopped
+// execution. Stdout and Stderr each contain at most OutputLimit bytes.
 type Result struct {
 	ExitCode       int
 	Stdout, Stderr []byte
@@ -31,6 +39,9 @@ type Result struct {
 
 // Run starts a finite native process. The caller owns authorization and directory
 // selection. It is not an OS sandbox; explicit interpreters remain executable.
+// Run filters the inherited environment with ScrubEnv and waits for the child.
+// Cancellation, timeout, or output overflow stops the process tree; descendants
+// are also stopped after the direct child exits.
 func Run(ctx context.Context, in Request) (Result, error) {
 	result := Result{ExitCode: -1}
 	if strings.TrimSpace(in.Program) == "" || in.Timeout <= 0 || in.Timeout > 10*time.Minute {

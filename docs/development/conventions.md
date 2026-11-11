@@ -51,8 +51,8 @@ run configuration instead of rebuilding a subset of the role environment.
 `internal/checks` owns language-independent content findings and bounded file
 scanning. It imports only workspace access. Do not add built-in language checks,
 formatter selection or language discovery; projects configure their verification
-command. `internal/permissionlog` imports only permission contracts and observes
-operator decisions without changing them.
+command. `internal/permission` also provides optional best-effort gate logging
+through `LogGate`; logging preserves the operator's decision and error.
 
 Capability services do not import Agent or workflow execution. Image services
 import only workspace access; attachment grants are resolved by their Agent
@@ -121,7 +121,9 @@ Process cleanup in the tools package uses the Windows system dependency.
 
 ## Building agents
 
-**[enforced: agent-construction]** Only `internal/roles` calls `agent.New`.
+**[enforced: agent-construction]** `internal/roles` constructs task agents;
+`internal/retrospective` constructs its isolated archived-session reviewer.
+Only these owning packages call `agent.New`; frontends call their entry points.
 Agent roles were once configured at their call sites, and they
 drifted — one harness ended up without `ask_user` and `delegate_task` while the
 shipping CLI had both, so it was scoring a different agent than the one under

@@ -20,7 +20,6 @@ import (
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/mcpmanager"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/permissionlog"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/tui"
@@ -192,7 +191,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	}
 
 	cfg.Images, cfg.Answer = images, stdioSuspender(noteW, emitter)
-	cfg.Env.Gate = permissionlog.WrapGate(o.auditPath, "cli", permissionGateContext(o.yes, cfg.Answer, ws))
+	cfg.Env.Gate = permission.LogGate(o.auditPath, "cli", permissionGateContext(o.yes, cfg.Answer, ws))
 	return runAgentCLI(ctx, o, cfg, forkHistory, emitter, noteW, note)
 }
 

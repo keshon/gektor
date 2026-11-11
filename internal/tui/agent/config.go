@@ -16,7 +16,7 @@ import (
 	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/mcpmanager"
-	"github.com/keshon/gektor/internal/permissionlog"
+	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/settings"
@@ -109,7 +109,7 @@ func newModel(uiCtx context.Context, cfg Config) *Model {
 	m.input = newInput()
 
 	env := cfg.Env
-	env.Gate = permissionlog.WrapGate(cfg.AuditPath, "tui", m.contextGate(hub, cfg.Env.WS))
+	env.Gate = permission.LogGate(cfg.AuditPath, "tui", m.contextGate(hub, cfg.Env.WS))
 	m.baseEnv = env
 	m.mcp = cfg.MCP
 	if cfg.Application != nil {

@@ -1,6 +1,8 @@
 package retrospective
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -125,5 +127,19 @@ func TestLessonPreservesUserEdits(t *testing.T) {
 	data, _ := os.ReadFile(path)
 	if string(data) != "My corrected lesson" {
 		t.Fatal("lost user edits")
+	}
+}
+
+func TestSaveMemoryCancelledLeavesNoFiles(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	root := t.TempDir()
+	_, err := Approve(ctx, root, "", Result{}, "", "")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	entries, _ := os.ReadDir(root)
+	if len(entries) != 0 {
+		t.Fatal("cancelled review wrote files")
 	}
 }

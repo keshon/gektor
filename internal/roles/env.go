@@ -1,0 +1,153 @@
+package roles
+
+import (
+	"context"
+	"time"
+
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/checks"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/tools"
+	"github.com/keshon/gektor/internal/workspace"
+)
+
+// Env supplies shared launch dependencies, limits, and observers to task-role
+// constructors. Callers own its services and build a snapshot for each run.
+type Env struct {
+	// OnChild routes child activity separately from parent transcript and usage.
+	OnChild           func(callID, kind string, fields map[string]any)
+	RefreshModelFacts func(context.Context) llm.ModelFacts
+	Identity          string
+	IdentityName      string
+	UserName          string
+	Client            llm.Client
+	WS                *workspace.Workspace
+	Procs             *tools.BackgroundProcesses
+	Outputs           *tools.OutputStore
+	MaxTokens         int
+	Temperature       float64
+	ContextLimit      int
+	Policy            permission.Policy
+	BackendKind       string
+
+	// Vision reports that the backend can process pictures, so read_file
+	// may attach an image instead of returning binary metadata. It comes
+	// from application model discovery, never from a guess.
+	Vision      bool
+	VisionKnown bool
+
+	// Model names the backend model for display (status, logs). Local
+	// servers ignore it on the wire (they serve one model); it still
+	// answers "what am I talking to". Empty renders as a dash.
+	Model  string
+	Stream bool
+
+	MaxSteps         int
+	DelegateSteps    int
+	DelegateMaxSteps int
+	RunTimeout       time.Duration
+	Inbox            *agent.Inbox
+	OnInput          func(llm.Message)
+
+	// MCPTools are discovered MCP tools appended to the full tool set
+	// (Interactive, Subagent). Planner advertises them too, so that its
+	// prompt matches Interactive's, but refuses to run them: a mode switch
+	// must not change the prompt prefix.
+	MCPTools          []agent.Tool
+	Browser           *tools.Browser
+	CapabilitySources func() []*tools.Capability
+	Capabilities      []*tools.Capability
+	// NativeExposure is an internal eval override; nil preserves eager web tools.
+	NativeExposure map[string]tools.Exposure
+
+	// OnDelta receives streamed answer text for live display. OnReasoning
+	// receives streamed deliberation, which arrives first.
+	OnDelta     func(chunk string)
+	OnReasoning func(chunk string)
+
+	// Gate receives the active context for operator permission decisions.
+	// Nil denies calls that require an operator answer.
+	Gate permission.Gate
+
+	// OnStep, if set, receives every step of every agent built from this
+	// Env, tagged with that agent's label ("explore", "review", a subtask
+	// id).
+	OnStep func(label string, step int, msg llm.Message)
+
+	OnResult       func(agent.ToolResult)
+	OnToolFinished func(callID string)
+	OnToolOutput   func(callID, text string)
+
+	// Rules are the deterministic checks this run applies to written
+	// files. Project-specific validation uses the configured verify command.
+	Rules []checks.Rule
+
+	// Checks collects the run's findings: post-write scans from wrapped
+	// file tools, plus the deep session-end sweep. Nil disables both, and
+	// tools then run unwrapped, identical to uninstrumented.
+	Checks *checks.Reporter
+
+	// OnUsage, if set, receives backend token counts per step.
+	// See agent.Config.OnUsage.
+	OnUsage    func(step int, usage llm.Usage)
+	OnProgress func(llm.Progress)
+	OnPrompt   func(llm.ContextReport)
+
+	// OnNudge receives loop-generated harness text (verify rounds,
+	// refusals, leak notices, wrap-ups, stuck escalations) tagged by
+	// kind. Nil disables reporting; the [harness] prefix applies
+	// regardless, so provenance never depends on observers.
+	OnNudge   func(kind, text string)
+	OnContext func(llm.Message)
+	OnLocal   func(string)
+
+	// StateDir, when set, is where transcripts go; a role's stateFile
+	// argument is resolved against it. Empty means the caller passes
+	// whole paths, or none at all.
+	StateDir string
+	// WorkflowDir overrides the user workflow store for isolated evaluations.
+	WorkflowDir string
+}
+
+func (e Env) onStep(label string) func(int, llm.Message) {
+	if e.OnStep == nil {
+		return nil
+	}
+	return func(step int, msg llm.Message) { e.OnStep(label, step, msg) }
+}
+
+// Sweep runs the deep session-end pass over the paths a run changed,
+// catching writes that no tool reported as a post-write edit. Call it
+// once per run, after the last turn, with every path the run mutated.
+func (e Env) Sweep(paths []string) {
+	if e.Checks != nil {
+		e.Checks.Sweep(e.WS, paths)
+	}
+}
+
+func (e Env) policy() permission.Policy {
+	if len(e.Policy.Rules) == 0 {
+		return permission.Default()
+	}
+	return e.Policy
+}
+
+// Refreshed returns one run's snapshot; subagents inherit it without probing.
+func (e Env) Refreshed(ctx context.Context) Env {
+	if e.RefreshModelFacts == nil {
+		return e
+	}
+	facts := e.RefreshModelFacts(ctx)
+	if facts.ContextKnown && facts.ContextLimit > 0 {
+		e.ContextLimit = facts.ContextLimit
+	}
+	if facts.ModelKnown {
+		e.Model = facts.Model
+	}
+	if facts.VisionKnown {
+		e.Vision = facts.Vision
+		e.VisionKnown = true
+	}
+	return e
+}

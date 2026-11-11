@@ -78,7 +78,7 @@ func checkPackageLayers(t *testing.T, r *repo) {
 		"prompts":                  {},
 		"workspace":                {},
 		"permission":               {},
-		"permissionlog":            {"permission"},
+		"retrospective":            {"agent", "conversation", "llm", "prompts", "workspace"},
 		"checks":                   {"workspace"},
 		"events":                   {},
 		"conversation":             {"llm"},
@@ -162,11 +162,12 @@ func checkPackageLayers(t *testing.T, r *repo) {
 	}
 }
 
-// checkAgentConstruction is the whole point of internal/roles: one answer to
-// "what is this kind of agent allowed to do", not one per call site.
+// checkAgentConstruction keeps task-agent construction in roles and isolated
+// archive-review construction in retrospective, rather than in their callers.
 func checkAgentConstruction(t *testing.T, r *repo) {
 	for _, f := range r.goFiles {
-		if strings.HasSuffix(f, "_test.go") || strings.Contains(r.rel(f), "internal/roles") {
+		owner := filepath.ToSlash(filepath.Dir(r.rel(f)))
+		if strings.HasSuffix(f, "_test.go") || owner == "internal/roles" || owner == "internal/retrospective" {
 			continue
 		}
 		if strings.Contains(r.read(t, f), "agent.New(") {

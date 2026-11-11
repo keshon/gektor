@@ -8,7 +8,6 @@ import (
 	"github.com/keshon/gektor/internal/agentrpc"
 	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/permissionlog"
 	"github.com/keshon/gektor/internal/userdirs"
 )
 
@@ -21,7 +20,7 @@ func rpcConfiguration(o resolvedLaunch, cfg harness.Config) agentrpc.Config {
 		Run:       cfg,
 		Directory: userdirs.Sub("tasks"),
 		Permission: func(answer agent.Suspender) permission.Gate {
-			return permissionlog.WrapGate(o.auditPath, "serve", permissionGateContext(o.yes, answer, cfg.Env.WS))
+			return permission.LogGate(o.auditPath, "serve", permissionGateContext(o.yes, answer, cfg.Env.WS))
 		},
 	}
 }

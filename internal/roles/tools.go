@@ -1,0 +1,70 @@
+package roles
+
+import (
+	"context"
+
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/conversation"
+	"github.com/keshon/gektor/internal/tools"
+)
+
+func (e Env) browserContext() string {
+	if e.Browser != nil {
+		return "\nBrowser automation: available on request through enable_browser. Call it when browser work is needed. If browser tools are already present, use them directly."
+	}
+	if len(e.Capabilities) > 0 && len(tools.BrowserToolNames(e.MCPTools)) == 0 {
+		return "\nBrowser automation: search discover_capabilities for a configured browser integration when needed. Use browser tools only after activation succeeds; if none are configured, report browser checks as unverified."
+	}
+	return tools.BrowserContext(e.MCPTools)
+}
+
+func (e Env) configureTools(cfg *agent.Config, mainAgent, allowQuestions bool, extra ...agent.Tool) {
+	configured := append([]*tools.Capability(nil), e.Capabilities...)
+	if e.CapabilitySources != nil {
+		configured = append(configured, e.CapabilitySources()...)
+	}
+	sources := tools.WithBuiltinCapabilities(configured)
+	if e.Browser != nil {
+		sources = append(sources, e.Browser.Capability())
+	}
+	catalog := &tools.Capabilities{Sources: sources, Subagent: !mainAgent}
+	if !mainAgent {
+		catalog.ForbiddenTools = append(catalog.ForbiddenTools, "delegate_task")
+	}
+	if !allowQuestions {
+		catalog.ForbiddenTools = append(catalog.ForbiddenTools, "ask_user")
+	}
+	var browser *tools.EnableBrowser
+	if e.Browser != nil {
+		browser = &tools.EnableBrowser{Browser: e.Browser, Catalog: catalog}
+		extra = append(extra, browser)
+	}
+	// Native optional packs exist even without external capability sources.
+	extra = append(extra, tools.DiscoverCapabilities{Catalog: catalog}, tools.EnableCapability{Catalog: catalog}, agent.InvokeTool{})
+	var composeErr error
+	cfg.Tools, composeErr = tools.Compose(tools.Dependencies{WS: e.WS, Procs: e.Procs, Checks: e.Checks, Vision: e.Vision, Extra: extra, StoreDir: e.WorkflowDir, Policy: e.policy(), Gate: e.Gate}, catalog, e.NativeExposure)
+	if composeErr != nil {
+		cfg.Tools = agent.NewRegistry()
+	}
+	cfg.PrepareTools = func(ctx context.Context) error {
+		if composeErr != nil {
+			return composeErr
+		}
+		return catalog.Prepare(ctx)
+	}
+	if composeErr == nil {
+		cfg.PreviewTools = catalog.PreviewDefs
+		cfg.System += catalog.Map()
+	}
+	catalog.Registry = cfg.Tools
+	cfg.SaveCapabilities = catalog.Save
+	cfg.RestoreCapabilities = func(ctx context.Context, states []conversation.Capability) error {
+		if composeErr != nil {
+			return composeErr
+		}
+		return catalog.Restore(ctx, states)
+	}
+	if browser != nil {
+		browser.Registry = cfg.Tools
+	}
+}

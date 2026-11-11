@@ -1,8 +1,13 @@
 // Package process runs bounded native processes and retains their measured output.
+// Callers own authorization and working-directory selection. This package also
+// provides process-tree lifecycle helpers for background commands. GEKTOR's
+// same-executable JSON workers use the separate subprocess package.
 package process
 
 import "strings"
 
+// ScrubEnv copies env without variables whose names contain credential markers.
+// Filtering is case-insensitive and heuristic; it does not inspect values.
 func ScrubEnv(env []string) []string {
 	out := make([]string, 0, len(env))
 	for _, kv := range env {
