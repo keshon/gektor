@@ -135,6 +135,18 @@ universally idiomatic. Honor the requested scope and existing behavior contracts
   navigation and shared lifecycle through the parent; keep feature-local tests
   near their model. Build integration fixtures through real constructors and
   messages rather than exporting internals or recreating the former parent.
+- Keep test hosts small and reuse production components for behavior outside
+  the test's subject. Reimplementing forms, dialogs, or input handling in a fixture
+  creates a second implementation that can pass while the real path fails.
+  Use fakes at actual dependency boundaries, not as copies of owned behavior.
+- Name test files for the behavior they cover and split catch-all files when
+  distinct responsibilities become hard to find. A parent integration test may
+  name a child feature when it exercises their composition; its name alone is
+  not a reason to move it into the child package.
+- Finish asynchronous work before test cleanup. Cancellation requests do not
+  prove completion. Where the contract involves an event loop, deliver pending
+  results through its real update path and wait for owned work to stop before
+  releasing temporary files or other resources.
 - Preserve assertions when migrating tests. Split transport decoding, feature
   behavior, and parent routing coverage where their owners differ; do not replace
   an exact draft or submitted-value check with a loose rendering assertion.

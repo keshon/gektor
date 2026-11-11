@@ -294,10 +294,14 @@ func executeWorkflow(ctx context.Context, o workflowOptions, out io.Writer, gate
 		return err
 	}
 	t.ValidateOnly = o.validateOnly
-	if err := authorize(t.Name(), args); err != nil {
+	operation := "workflow_run"
+	if o.validateOnly {
+		operation = "workflow_validate"
+	}
+	if err := authorize(operation, args); err != nil {
 		return err
 	}
-	result, runErr := t.Run(ctx, args)
+	result, runErr := t.Run(ctx, o.recipe, values)
 	if result != "" {
 		if _, err := fmt.Fprintln(out, result); err != nil {
 			return errors.Join(runErr, err)

@@ -12,7 +12,7 @@ import (
 const DirName = ".gektor"
 
 // Sub returns a path inside the user's GEKTOR directory without creating
-// anything: gektor.Sub("tasks", id) is the task directory for id. Callers
+// anything: userdirs.Sub("tasks", id) is the task directory for id. Callers
 // that write there create it themselves.
 func Sub(parts ...string) string {
 	home, err := os.UserHomeDir()

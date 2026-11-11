@@ -7,11 +7,11 @@ import (
 	"io"
 	"time"
 
-	"github.com/keshon/gektor/internal/worker"
+	"github.com/keshon/gektor/internal/subprocess"
 )
 
 func Serve(in io.Reader, out io.Writer) error {
-	if err := worker.Limit(); err != nil {
+	if err := subprocess.Limit(); err != nil {
 		return err
 	}
 	raw, err := io.ReadAll(io.LimitReader(in, (128<<10)+1))
@@ -43,5 +43,5 @@ func Execute(ctx context.Context, r Request) (string, error) {
 	if len(data) > 128<<10 {
 		return "", fmt.Errorf("script request too large")
 	}
-	return worker.Run(ctx, "internal-script-worker", data, 5*time.Second, 1<<20)
+	return subprocess.Run(ctx, "internal-script-worker", data, 5*time.Second, 1<<20)
 }

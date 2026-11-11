@@ -11,6 +11,32 @@ import (
 	"github.com/keshon/gektor/internal/workspace"
 )
 
+func TestRunRejectsInvalidInputsBeforeReadingRecipe(t *testing.T) {
+	tooMany := make(map[string]json.RawMessage)
+	for i := range 33 {
+		tooMany[fmt.Sprint(i)] = json.RawMessage(`null`)
+	}
+	for _, tc := range []struct {
+		name   string
+		path   string
+		inputs map[string]json.RawMessage
+		want   string
+	}{
+		{name: "empty path", want: "recipe_path"},
+		{name: "too many inputs", path: "recipe.json", inputs: tooMany, want: "32 properties"},
+		{name: "oversized input", path: "recipe.json", inputs: map[string]json.RawMessage{"value": json.RawMessage(`"` + strings.Repeat("x", 64<<10) + `"`)}, want: "64 KiB"},
+		{name: "invalid JSON value", path: "recipe.json", inputs: map[string]json.RawMessage{"value": json.RawMessage(`invalid`)}, want: "invalid character"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// No workspace is supplied: argument rejection must precede file access.
+			_, err := (Service{}).Run(t.Context(), tc.path, tc.inputs)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("got %v; want %q", err, tc.want)
+			}
+		})
+	}
+}
+
 func TestCustomNodeNeedsNoCentralDispatchChanges(t *testing.T) {
 	ws, err := workspace.New(t.TempDir())
 	if err != nil {
@@ -41,13 +67,13 @@ func TestCustomNodeNeedsNoCentralDispatchChanges(t *testing.T) {
 	if !strings.Contains(string(svc.DefinitionSchema()), "custom.echo") {
 		t.Fatal("schema omitted registered node")
 	}
-	out, err := svc.Run(t.Context(), json.RawMessage(`{"recipe_path":"recipe.json"}`))
+	out, err := svc.Run(t.Context(), "recipe.json", nil)
 	if err != nil || calls != 2 || checked != 2 || !strings.Contains(out, `"status":"completed"`) {
 		t.Fatal(out, err, calls, checked)
 	}
 	calls = 0
 	svc.AuthorizeResource = func(context.Context, string, string, json.RawMessage) error { return fmt.Errorf("denied") }
-	if _, err := svc.Run(t.Context(), json.RawMessage(`{"recipe_path":"recipe.json"}`)); err == nil || calls != 0 {
+	if _, err := svc.Run(t.Context(), "recipe.json", nil); err == nil || calls != 0 {
 		t.Fatal("permission bypass")
 	}
 }

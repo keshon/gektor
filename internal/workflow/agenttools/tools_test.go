@@ -26,6 +26,29 @@ func recipeArgs(t *testing.T, ws *workspace.Workspace, source []byte) json.RawMe
 }
 func allow(context.Context, string, json.RawMessage) error { return nil }
 
+func TestRunRejectsMalformedArgumentsBeforeAuthorization(t *testing.T) {
+	tool := Tool{
+		Registry: func() (*workflow.Registry, error) { return workflow.NewRegistry() },
+		Authorize: func(context.Context, string, json.RawMessage) error {
+			t.Fatal("invalid arguments reached authorization")
+			return nil
+		},
+	}
+	for _, args := range []string{
+		`{}`,
+		`{"recipe_path":""}`,
+		`{"recipe_path":"recipe.json","unknown":true}`,
+		`{"recipe_path":"recipe.json","inputs":null}`,
+		`{"recipe_path":"recipe.json"} {}`,
+		`{"recipe_path":"recipe.json","inputs":{"value":"` + strings.Repeat("x", 64<<10) + `"}}`,
+	} {
+		_, err := tool.Run(t.Context(), json.RawMessage(args))
+		if err == nil || strings.Contains(err.Error(), "workspace unavailable") {
+			t.Fatalf("expected argument rejection, got %v", err)
+		}
+	}
+}
+
 func TestVersionTwoBindsInputsAndImageOutput(t *testing.T) {
 	ws, err := workspace.New(t.TempDir())
 	if err != nil {

@@ -97,8 +97,8 @@ func checkPackageLayers(t *testing.T, r *repo) {
 		"capabilities/social":      {"httptransport"},
 		"httptransport":            {},
 		"release":                  {},
-		"worker":                   {},
-		"capabilities/documents":   {"worker", "workspace"},
+		"subprocess":               {},
+		"capabilities/documents":   {"subprocess", "workspace"},
 		"capabilities/files":       {"workspace", "httptransport"},
 	}
 	allowed["capabilities/images"] = []string{"workspace"}

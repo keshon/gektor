@@ -31,22 +31,21 @@ func TestNestedInstructionsStayInTheirScope(t *testing.T) {
 	}
 }
 
-func TestSkillCatalogUnderstandsMultilineDescription(t *testing.T) {
-	for _, style := range []string{">-", "|-"} {
-		root := t.TempDir()
-		dir := filepath.Join(root, "skills", "test")
-		_ = os.MkdirAll(dir, 0700)
-		_ = os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("---\nname: test\ndescription: "+style+"\n  Read the actual browser DOM.\n  Check console errors.\n---\nFULL_BODY_MUST_STAY_UNLOADED"), 0600)
-		w, err := New(root)
-		if w != nil {
-			t.Cleanup(func() { w.Close() })
-		}
-		if err != nil {
-			t.Fatal(err)
-		}
-		text := w.Instructions()
-		if !strings.Contains(text, "Read the actual browser DOM. Check console errors.") || strings.Contains(text, "FULL_BODY_MUST_STAY_UNLOADED") {
-			t.Fatal(text)
-		}
+func TestInstructionsLoadAncestorsBeforeRoot(t *testing.T) {
+	parent := t.TempDir()
+	root := filepath.Join(parent, "project")
+	os.MkdirAll(root, 0755)
+	os.WriteFile(filepath.Join(parent, "AGENTS.md"), []byte("outer rule"), 0600)
+	os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte("inner rule"), 0600)
+	ws, err := New(root)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := ws.Instructions()
+	if !strings.Contains(text, "outer rule") || strings.Index(text, "inner rule") < strings.Index(text, "outer rule") {
+		t.Fatal(text)
 	}
 }

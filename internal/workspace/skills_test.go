@@ -102,3 +102,23 @@ func TestCompactSkillCatalogRetainsFullSearchMetadata(t *testing.T) {
 		t.Fatal(guide, err)
 	}
 }
+
+func TestSkillCatalogUnderstandsMultilineDescription(t *testing.T) {
+	for _, style := range []string{">-", "|-"} {
+		root := t.TempDir()
+		dir := filepath.Join(root, "skills", "test")
+		_ = os.MkdirAll(dir, 0700)
+		_ = os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("---\nname: test\ndescription: "+style+"\n  Read the actual browser DOM.\n  Check console errors.\n---\nFULL_BODY_MUST_STAY_UNLOADED"), 0600)
+		w, err := New(root)
+		if w != nil {
+			t.Cleanup(func() { w.Close() })
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := w.Instructions()
+		if !strings.Contains(text, "Read the actual browser DOM. Check console errors.") || strings.Contains(text, "FULL_BODY_MUST_STAY_UNLOADED") {
+			t.Fatal(text)
+		}
+	}
+}

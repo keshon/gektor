@@ -230,7 +230,7 @@ Native file operations live in `internal/capabilities/files`. Their agent and
 workflow adapters share operations, schemas and limits. ZIP and stream archives
 share extraction planning and rooted output publication. Document readers live
 in `internal/capabilities/documents`, with the same adapter split. Its parsers
-receive bounded bytes through `internal/worker`, which also hosts script worker
+receive bounded bytes through `internal/subprocess`, which also hosts script worker
 process support. The parent enforces deadlines and output size; the child sets
 platform memory limits. This is not an operating system sandbox.
 

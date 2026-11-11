@@ -1,6 +1,6 @@
 //go:build !windows
 
-package worker
+package subprocess
 
 import (
 	"fmt"
@@ -14,7 +14,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func Configure(cmd *exec.Cmd) {}
+func configure(cmd *exec.Cmd) {}
+
+// Limit applies the platform memory limit to the calling worker process.
+// Call it once at worker startup, before reading or processing requests.
 func Limit() error {
 	limit := uint64(2 << 30)
 	if runtime.GOOS == "linux" {

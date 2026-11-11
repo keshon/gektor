@@ -297,7 +297,7 @@ Ledger sizes use the same physical-line metric, excluding `_test.go`. Consumers 
 
 86. **`internal/tui/workflow` — 540 lines.** Pure recipe edit/undo, connection mutations and graph mapping. Consumers: `internal/tui`. **Verdict:** Keep and grow into complete workflow screen ownership D2, preserving pure editor helpers.
 
-87. **`internal/worker` — 131 lines.** Current-executable JSON worker process and platform memory/resource limits. Consumers: `internal/automation/script`, `internal/capabilities/documents`. **Verdict:** Keep; parser/script worker contract differs from general native process results.
+87. **`internal/subprocess` — 131 lines.** Current-executable JSON worker process and platform memory/resource limits. Consumers: `internal/automation/script`, `internal/capabilities/documents`. **Verdict:** Keep; parser/script worker contract differs from general native process results.
 
 88. **`internal/workspace` — 881 lines.** Rooted file access, instruction/skill discovery and observed workspace changes. Consumers: `cmd/eval`, `cmd/gektor`, `internal/agentstdio`, `internal/app` and 19 other production package(s). **Verdict:** Keep; move conversation title persistence to session D6; no need to fragment rooted access into utility packages.
 

@@ -1,17 +1,21 @@
-package worker
+package subprocess
 
 import (
 	"fmt"
-	"golang.org/x/sys/windows"
 	"os/exec"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 // Keep the job handle alive for the worker's lifetime; the OS closes it at exit.
 var workerJob windows.Handle
 
-func Configure(cmd *exec.Cmd) { cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true} }
+func configure(cmd *exec.Cmd) { cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true} }
+
+// Limit applies the platform memory limit to the calling worker process.
+// Call it once at worker startup, before reading or processing requests.
 func Limit() error {
 	job, err := windows.CreateJobObject(nil, nil)
 	if err != nil {

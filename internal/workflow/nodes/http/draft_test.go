@@ -121,7 +121,7 @@ func TestMoltbookDraftRecipe(t *testing.T) {
 			}
 			runID := ""
 			svc := service.Service{WS: ws, StoreDir: directory, Registry: registry, OnRun: func(id string) error { runID = id; return nil }, Authorize: func(context.Context, string, json.RawMessage) error { return nil }}
-			out, err := svc.Run(t.Context(), json.RawMessage(`{"recipe_path":"recipe.json"}`))
+			out, err := svc.Run(t.Context(), "recipe.json", nil)
 			if (err != nil) != (scenario.outcome == "") {
 				t.Fatal(out, err)
 			}
@@ -183,7 +183,7 @@ func TestMoltbookDraftRecipe(t *testing.T) {
 				if len(state.Seen) != 1 || state.Seen[0] != "post-1" {
 					t.Fatal(state.Seen)
 				}
-				if _, err := svc.Run(t.Context(), json.RawMessage(`{"recipe_path":"recipe.json"}`)); err != nil {
+				if _, err := svc.Run(t.Context(), "recipe.json", nil); err != nil {
 					t.Fatal(err)
 				}
 				entry, err = db.Entry("feed_state", "moltbook")

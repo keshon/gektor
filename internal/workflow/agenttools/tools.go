@@ -44,27 +44,46 @@ func (t Tool) Mode() agent.ToolMode {
 	return agent.Exclusive
 }
 func (t Tool) Description() string {
-	return (service.Service{ValidateOnly: t.ValidateOnly}).Description()
+	if t.ValidateOnly {
+		return "Validate saved recipe_path with optional typed inputs. Recipes support typed JSON input/output references. Use workflow_schema for format and operation schemas. Record data schemas and output-dependent values are checked during execution."
+	}
+	return "Read and revalidate recipe_path, then execute that saved recipe once; stop on failed or blocked steps. Returns run record path and evidence. Scheduling is managed by the local service; retry and review behavior comes from the recipe."
 }
-func (t Tool) Schema() json.RawMessage { return (service.Service{}).Schema() }
+func (t Tool) Schema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"recipe_path":{"type":"string","minLength":1},"inputs":{"type":"object","maxProperties":32}},"required":["recipe_path"],"additionalProperties":false}`)
+}
+
 func (t Tool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	s, err := t.service()
 	if err != nil {
 		return "", err
 	}
-	return s.Run(ctx, args)
-}
-
-type definitionTool struct{ Tool }
-
-func (t definitionTool) Schema() json.RawMessage {
-	s, err := t.service()
-	if err != nil {
-		return json.RawMessage(`false`)
+	if len(args) > 64<<10 {
+		return "", fmt.Errorf("workflow arguments exceed 64 KiB")
 	}
-	return s.DefinitionSchema()
+	if err := workflow.ValidateJSON(args, t.Schema()); err != nil {
+		return "", err
+	}
+	var in struct {
+		RecipePath string                     `json:"recipe_path"`
+		Inputs     map[string]json.RawMessage `json:"inputs"`
+	}
+	if err := decode(args, &in); err != nil {
+		return "", err
+	}
+	return s.Run(ctx, in.RecipePath, in.Inputs)
 }
-func Resources(args json.RawMessage) ([]string, error) { return service.Resources(args) }
+
+func Resources(args json.RawMessage) ([]string, error) {
+	var in struct {
+		RecipePath string                     `json:"recipe_path"`
+		Inputs     map[string]json.RawMessage `json:"inputs"`
+	}
+	if err := decode(args, &in); err != nil {
+		return nil, err
+	}
+	return []string{in.RecipePath}, nil
+}
 func decode(data []byte, out any) error {
 	d := json.NewDecoder(bytes.NewReader(data))
 	d.DisallowUnknownFields()

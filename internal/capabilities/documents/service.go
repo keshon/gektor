@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/keshon/gektor/internal/worker"
+	"github.com/keshon/gektor/internal/subprocess"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -117,13 +117,13 @@ func (s Service) Read(ctx context.Context, kind string, in Request) (string, err
 	if err != nil {
 		return "", err
 	}
-	return worker.Run(ctx, "internal-document-worker", raw, 10*time.Second, 1<<20)
+	return subprocess.Run(ctx, "internal-document-worker", raw, 10*time.Second, 1<<20)
 }
 
 // Serve receives bytes, not paths: the worker cannot reopen a different file
 // after the caller's workspace and permission checks.
 func Serve(in io.Reader, out io.Writer) error {
-	if err := worker.Limit(); err != nil {
+	if err := subprocess.Limit(); err != nil {
 		return err
 	}
 	raw, err := io.ReadAll(io.LimitReader(in, (24<<20)+1))
