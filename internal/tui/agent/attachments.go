@@ -11,8 +11,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	textclipboard "github.com/atotto/clipboard"
 
-	imageclipboard "github.com/keshon/gektor/internal/clipboard"
 	"github.com/keshon/gektor/internal/llm"
+	imageclipboard "github.com/keshon/gektor/internal/tui/clipboard"
 	"github.com/keshon/gektor/internal/userdirs"
 )
 

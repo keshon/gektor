@@ -16,7 +16,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/keshon/gektor/internal/credentials"
+	"github.com/keshon/gektor/internal/mcpmanager/credentials"
 	"github.com/keshon/gektor/internal/tools"
 )
 

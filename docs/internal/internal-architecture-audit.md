@@ -211,13 +211,13 @@ Ledger sizes use the same physical-line metric, excluding `_test.go`. Consumers 
 
 43. **`internal/checks` — 248 lines.** Report-only deterministic findings, deduplication and bounded changed-file sweep. Consumers: `cmd/gektor`, `internal/roles`, `internal/rules`, `internal/run` and 1 other production package(s). **Verdict:** Keep; shared rules/reporting owner rather than loop self-verification.
 
-44. **`internal/clipboard` — 183 lines.** Windows clipboard image acquisition and bounded PNG/DIB normalization. Consumers: `internal/tui`. **Verdict:** Keep; OS-specific adapter with a clear non-Windows result.
+44. **`internal/tui/clipboard` — 183 lines.** Windows clipboard image acquisition and bounded PNG/DIB normalization. Consumers: `internal/tui`. **Verdict:** Keep; OS-specific adapter with a clear non-Windows result.
 
 45. **`internal/config` — 533 lines.** Strict profiles, preferences, editing and atomic save behavior. Consumers: `cmd/eval`, `cmd/gektor`, `internal/app`, `internal/roles` and 3 other production package(s). **Verdict:** Simplify B1/D7; one strict decoder, remove retired keys if no migration outcome is required.
 
 46. **`internal/conventions` — 12 lines.** Test-only enforcement of documentation/package/build rules; production doc stub. Consumers: no production importer (test organization). **Verdict:** Keep as test organization; do not count it as an application service.
 
-47. **`internal/credentials` — 143 lines.** Opaque origin/header-bound MCP secrets with Windows DPAPI protection. Consumers: `internal/mcpmanager`, `internal/tools`. **Verdict:** Keep; not the same contract as automation environment references or OAuth rotating accounts.
+47. **`internal/mcpmanager/credentials` — 143 lines.** Opaque origin/header-bound MCP secrets with Windows DPAPI protection. Consumers: `internal/mcpmanager`, `internal/tools`. **Verdict:** Keep; not the same contract as automation environment references or OAuth rotating accounts.
 
 48. **`internal/events` — 193 lines.** JSONL vocabulary, sequence owner and in-process event adaptation. Consumers: `cmd/gektor`, `internal/agentstdio`, `internal/run`. **Verdict:** Simplify D1; keep wire ownership, remove serialization as internal dispatch mechanism.
 

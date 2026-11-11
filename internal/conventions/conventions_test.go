@@ -78,6 +78,8 @@ func checkPackageLayers(t *testing.T, r *repo) {
 		"prompts":                  {},
 		"workspace":                {},
 		"permission":               {},
+		"mcpmanager/credentials":   {},
+		"tui/clipboard":            {},
 		"retrospective":            {"agent", "conversation", "llm", "prompts", "workspace"},
 		"checks":                   {"workspace"},
 		"events":                   {},

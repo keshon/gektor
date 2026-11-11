@@ -1,4 +1,6 @@
-// Package credentials stores opaque secrets separately from application configuration.
+// Package credentials stores origin/header-bound MCP secrets separately from
+// application configuration. MCP management and capability configuration share
+// this store; workflow environment references and provider accounts are separate.
 package credentials
 
 import (

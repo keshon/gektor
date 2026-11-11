@@ -20,6 +20,8 @@ changing their implementation or boundaries.
   persistence. Application decisions about applying settings stay in `tui`.
 - **`components`:** reusable terminal controls and layouts, with their own local
   state and interaction.
+- **`clipboard`:** desktop image acquisition and bounded PNG/DIB normalization
+  for user-requested attachments, including platform-specific clipboard access.
 
 Agent and Workflow do not import each other. Coordinate cross-screen behavior
 through the parent. Share behavior when its semantics agree; equivalent screen

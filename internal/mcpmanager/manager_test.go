@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/gektor/internal/credentials"
+	"github.com/keshon/gektor/internal/mcpmanager/credentials"
 )
 
 func TestImportPersistsReferencesAndLifecycle(t *testing.T) {

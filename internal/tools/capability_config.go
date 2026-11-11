@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/agent"
-	"github.com/keshon/gektor/internal/credentials"
+	"github.com/keshon/gektor/internal/mcpmanager/credentials"
 	"github.com/keshon/gektor/internal/userdirs"
 )
 
