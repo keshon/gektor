@@ -1,8 +1,7 @@
 # Direct execution and contract consistency plan
 
 Date: 2026-11-11
-Status: Approved; stages 1–4 implemented and verified.
-Stages 5–6 remain planned.
+Status: Complete; stages 1–6 implemented and verified.
 Baseline: `267065c`.
 
 ## Goal
@@ -12,7 +11,9 @@ state ownership. Reduce callbacks that hide orchestration or pair operations
 that must stay together. Improve schema readability and behavioral consistency
 without another package reorganization.
 
-Use the [Readable Go skill](../../.agents/skills/go-readable/SKILL.md).
+Use the updated [Readable Go skill](../../.agents/skills/go-readable-keshon/SKILL.md).
+Apply its preferences within each stage; completed stages and unrelated code do
+not need a full style retrofit.
 Rclone's useful reference is explicit contracts and reusable behavioral tests,
 not its exact directory layout, configuration style, or compatibility machinery.
 
@@ -263,6 +264,39 @@ shape on all nodes/tools. Test declared guarantees and their enforcement.
 
 Acceptance: shared tests detect a violated common promise in multiple real
 implementations. They do not merely check struct fields or file organization.
+
+## Final checkpoint
+
+Frontend delivery now uses `events.Sink.Handle` on the existing event vocabulary.
+CLI presentation, the existing cancellable TUI queue, RPC emission, diagnostics,
+and child routing use concrete sinks. No event bus, extra delivery goroutine,
+generic observer base, or replacement event model was introduced.
+
+`harness.sessionObserver` owns translation, previous-observer ordering, and the
+one-shot attribution of replies to nudges. `roles.childObserver` owns the parent
+call ID and emits only child envelopes. Low-level Agent hooks remain at these
+adapters; replacing every hook with a large interface would require unrelated
+methods on consumers and expand the stage. Test-only visitors retain specific
+event assertions without adding a production function-wrapper type.
+
+`diagnosticLog` owns the file, rotation state, coalescing signature, downstream
+sink, and explicit Close. It preserves metadata-only persistence, best-effort
+failure handling, and sink restoration after the run.
+
+Stage 6 adds one shared test-only cancellation contract for real Chat Completions
+and Responses clients. Each protocol has explicit local HTTP fixture setup; the
+same checks cover pre-cancellation, body cancellation, cancellation error identity,
+no retry after cancellation, and completion of client/handler work in both chat
+and streaming modes. Protocol-specific replay, streaming, and image tests remain.
+
+Targeted race regressions passed for output/finished/result ordering, chained
+observers, child-only streaming, screen-queue cancellation, diagnostics, and both
+protocol cancellation contracts. Observer presence/absence is also checked with
+both allowed and denied tool calls; admission and measured outcomes agree.
+
+Final verification passed: full source tests and race tests
+(`./cmd/... ./internal/...`), source vet/build, all 44 dry eval probes, and focused
+race reruns after final fixture/CLI cleanup. No live model requests were made.
 
 ## Migration and verification
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/checks"
+	"github.com/keshon/gektor/internal/events"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tools"
@@ -15,8 +16,9 @@ import (
 // Env supplies shared launch dependencies, limits, and observers to task-role
 // constructors. Callers own its services and build a snapshot for each run.
 type Env struct {
-	// OnChild routes child activity separately from parent transcript and usage.
-	OnChild           func(callID, kind string, fields map[string]any)
+	// ChildEvents borrows a sink for child envelopes (call_id, kind, fields).
+	// Child activity stays separate from parent transcript and usage.
+	ChildEvents       events.Sink
 	RefreshModelFacts func(context.Context) llm.ModelFacts
 	Identity          string
 	IdentityName      string
@@ -70,9 +72,8 @@ type Env struct {
 	// Nil denies calls that require an operator answer.
 	Gate permission.Gate
 
-	// OnStep, if set, receives every step of every agent built from this
-	// Env, tagged with that agent's label ("explore", "review", a subtask
-	// id).
+	// OnStep receives parent-run steps tagged with the role label. Delegated
+	// steps use ChildEvents and never invoke this parent hook.
 	OnStep func(label string, step int, msg llm.Message)
 
 	OnResult       func(agent.ToolResult)

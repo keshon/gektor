@@ -45,8 +45,8 @@ type Config struct {
 	// headless runs fail closed instead of hanging on stdin.
 	Answer agent.Suspender
 
-	// OnEvent receives every event in order. Nil drops them.
-	OnEvent func(Event)
+	// Events receives every event synchronously in order. Nil drops them.
+	Events events.Sink
 }
 
 // Session runs one task. Create per run; it holds no global state.
@@ -79,124 +79,24 @@ func New(cfg Config) (*Session, error) {
 // call boundaries, and wire transports add their own. Session streams
 // step events only.
 func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, roles.Env, error) {
-	emitter := events.NewSink(s.cfg.OnEvent)
+	emitter := events.NewSink(s.cfg.Events)
 
 	askFn := s.asker()
 
 	env := s.cfg.Env
-	previousChild := env.OnChild
-	env.OnChild = func(callID, kind string, fields map[string]any) {
-		emitter.Emit("child", map[string]any{"call_id": callID, "kind": kind, "fields": fields})
-		if previousChild != nil {
-			previousChild(callID, kind, fields)
-		}
-	}
+	observer := &sessionObserver{emitter: emitter, previous: env}
+	env = observer.observe(env)
 	env.Inbox = &s.inbox
-	previousFinished := env.OnToolFinished
-	env.OnToolFinished = func(callID string) {
-		events.EmitToolFinished(emitter, callID)
-		if previousFinished != nil {
-			previousFinished(callID)
-		}
-	}
-	previousInput := env.OnInput
-	env.OnInput = func(input llm.Message) {
-		emitter.Emit("user_input", map[string]any{"text": input.Content, "images": input.Images})
-		if previousInput != nil {
-			previousInput(input)
-		}
-	}
-	// A local server may load different weights between turns. Probe before
-	// building the agent so the display and enforced budget use the same facts.
+
+	// Refresh once before construction so display and execution share model facts.
 	if env.RefreshModelFacts != nil {
 		env = env.Refreshed(ctx)
 		emitter.Emit("backend", map[string]any{"model": env.Model, "context_limit": env.ContextLimit})
 	}
-	prevOnStep := env.OnStep
-	prevTypedResult := env.OnResult
-	prevOnUsage := env.OnUsage
-	prevOnProgress := env.OnProgress
-	prevOnPrompt := env.OnPrompt
-	env.OnPrompt = func(report llm.ContextReport) {
-		emitter.Emit("prompt_budget", map[string]any{"report": report})
-		if prevOnPrompt != nil {
-			prevOnPrompt(report)
-		}
-	}
-	env.OnProgress = func(p llm.Progress) {
-		emitter.Emit("progress", map[string]any{"phase": p.Phase, "subphase": p.Subphase, "prompt": p.PromptTokens, "completion": p.CompletionTokens, "cached": p.CachedTokens, "cache_known": p.CacheKnown, "processed": p.ProcessedTokens, "estimated": p.Estimated, "detail": p.Detail, "request": p.Request, "attempt": p.Attempt, "request_id": p.RequestID, "http_status": p.HTTPStatus, "duration_ms": p.DurationMS, "outcome": p.Outcome})
-		if prevOnProgress != nil {
-			prevOnProgress(p)
-		}
-	}
-	// expectReply marks the next text-only step as harness-caused: a
-	// nudge was just delivered, so the following bare answer reacts to
-	// the harness, not the operator. One-shot and text-only: tool calls
-	// are work, whatever prompted them.
-	expectReply := false
-	var a *agent.Agent
-	env.OnStep = func(label string, step int, msg llm.Message) {
-		hr := expectReply && len(msg.ToolCalls) == 0
-		expectReply = false
-		EmitStep(emitter, label, step, msg, hr, a.Report().MaxSteps)
-		if prevOnStep != nil {
-			prevOnStep(label, step, msg)
-		}
-	}
-	env.OnResult = func(result agent.ToolResult) {
-		events.EmitToolResultStatus(emitter, result.CallID, result.Output, result.Failed, result.Status)
-		if prevTypedResult != nil {
-			prevTypedResult(result)
-		}
-	}
-	env.OnUsage = func(step int, usage llm.Usage) {
-		EmitUsage(emitter, step, usage)
-		if prevOnUsage != nil {
-			prevOnUsage(step, usage)
-		}
-	}
-	prevOnNudge := env.OnNudge
-	env.OnNudge = func(kind, text string) {
 
-		events.EmitNudge(emitter, kind, text)
-		expectReply = true
-		if prevOnNudge != nil {
-			prevOnNudge(kind, text)
-		}
-	}
-	previousOutput := env.OnToolOutput
-	previousContext := env.OnContext
-	env.OnLocal = func(text string) { emitter.Emit("local_warning", map[string]any{"text": text}) }
-	env.OnContext = func(m llm.Message) {
-		emitter.Emit("context", map[string]any{"text": m.Content, "role": string(m.Role), "request": m.Request, "kind": m.Harness})
-		if previousContext != nil {
-			previousContext(m)
-		}
-	}
-	env.OnToolOutput = func(callID, text string) {
-		events.EmitToolOutput(emitter, callID, text)
-		if previousOutput != nil {
-			previousOutput(callID, text)
-		}
-	}
-	prevOnDelta := env.OnDelta
-	env.OnDelta = func(chunk string) {
-		events.EmitDelta(emitter, chunk)
-		if prevOnDelta != nil {
-			prevOnDelta(chunk)
-		}
-	}
-	prevOnReasoning := env.OnReasoning
-	env.OnReasoning = func(chunk string) {
-		events.EmitReasoning(emitter, chunk)
-		if prevOnReasoning != nil {
-			prevOnReasoning(chunk)
-		}
-	}
+	var a *agent.Agent
 	// Each session owns its reporter and routes findings through its event sink.
-	env.Checks = checks.NewReporter(env.Rules, func(scope checks.Scope, f checks.Finding) {
-		events.EmitFinding(emitter, string(scope), f.Rule, f.Path, f.Line, f.Summary)
-	})
+	env.Checks = checks.NewReporter(env.Rules, observer.finding)
 	var err error
 	if s.cfg.WorkflowRecipe != "" {
 		a, err = roles.WorkflowAuthor(env, s.cfg.WorkflowRecipe, s.cfg.StateFile)
@@ -209,12 +109,14 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, rol
 	if err != nil {
 		return nil, emitter, env, err
 	}
+	observer.agent = a
+
 	return a, emitter, env, nil
 }
 
 func (s *Session) Run(ctx context.Context) (string, error) {
-	closeDiagnostics := s.diagnostics()
-	defer closeDiagnostics()
+	diagnostics := s.diagnostics()
+	defer diagnostics.Close()
 	if strings.TrimSpace(s.cfg.Task) == "" && len(s.cfg.Images) == 0 {
 		return "", fmt.Errorf("run: task is empty")
 	}
@@ -253,8 +155,8 @@ func (s *Session) Continue(ctx context.Context, history []llm.Message, note stri
 }
 
 func (s *Session) resume(ctx context.Context, history []llm.Message, note string, images []string, answerPendingQuestion bool) (string, error) {
-	closeDiagnostics := s.diagnostics()
-	defer closeDiagnostics()
+	diagnostics := s.diagnostics()
+	defer diagnostics.Close()
 	if s.cfg.WorkflowRecipe != "" {
 		return "", fmt.Errorf("workflow draft sessions do not support resume")
 	}

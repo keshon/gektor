@@ -7,9 +7,10 @@ import (
 )
 
 func TestEmitFinding_Fields(t *testing.T) {
-	var got []Event
-	e := NewSink(func(ev Event) { got = append(got, ev) })
+	recorder := &recordedEvents{}
+	e := NewSink(recorder)
 	EmitFinding(e, "per-edit", "secret-aws", "a.go", 3, "possible secret (secret-aws)")
+	got := recorder.events
 	if len(got) != 1 || got[0].Name != "finding" {
 		t.Fatalf("events = %+v", got)
 	}
@@ -21,9 +22,10 @@ func TestEmitFinding_Fields(t *testing.T) {
 }
 
 func TestEmitNudge_Fields(t *testing.T) {
-	var got []Event
-	e := NewSink(func(ev Event) { got = append(got, ev) })
+	recorder := &recordedEvents{}
+	e := NewSink(recorder)
 	EmitNudge(e, "verify", "[harness] check your work")
+	got := recorder.events
 	if len(got) != 1 || got[0].Name != "nudge" {
 		t.Fatalf("events = %+v", got)
 	}
@@ -34,9 +36,10 @@ func TestEmitNudge_Fields(t *testing.T) {
 }
 
 func TestEmitDelta_Fields(t *testing.T) {
-	var got []Event
-	e := NewSink(func(ev Event) { got = append(got, ev) })
+	recorder := &recordedEvents{}
+	e := NewSink(recorder)
 	EmitDelta(e, "hel")
+	got := recorder.events
 	if len(got) != 1 || got[0].Name != "delta" {
 		t.Fatalf("events = %+v", got)
 	}
@@ -47,15 +50,18 @@ func TestEmitDelta_Fields(t *testing.T) {
 }
 
 func TestSinkAndWireShareEventProjection(t *testing.T) {
-	var ev Event
+	recorder := &recordedEvents{}
+	emitter := NewSink(recorder)
 	fields := map[string]any{"processed": 1024, "paths": []string{"a"}}
-	NewSink(func(e Event) { ev = e }).Emit("progress", fields)
+	emitter.Emit("progress", fields)
+	ev := recorder.events[0]
 	fields["processed"] = 2048
 	if ev.Fields["processed"] != 1024 {
 		t.Fatal("sink changed native values or retained mutable field map")
 	}
 	var wire bytes.Buffer
-	New(&wire).Emit(ev.Name, ev.Fields)
+	wireEmitter := New(&wire)
+	wireEmitter.Emit(ev.Name, ev.Fields)
 	var got map[string]any
 	if err := json.Unmarshal(wire.Bytes(), &got); err != nil {
 		t.Fatal(err)

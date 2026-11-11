@@ -52,12 +52,12 @@ func TestSessionDiagnosticsKeepsPrefillBuckets(t *testing.T) {
 func TestDiagnosticsPersistsBoundariesWithoutContent(t *testing.T) {
 	dir := t.TempDir()
 	seen := 0
-	s := &Session{cfg: Config{StateFile: filepath.Join(dir, "state.json"), OnEvent: func(events.Event) { seen++ }}}
-	closeLog := s.diagnostics()
-	s.cfg.OnEvent(events.Event{Name: "progress", Fields: map[string]any{"phase": "waiting", "subphase": "headers", "request": 2, "detail": "SECRET"}})
-	s.cfg.OnEvent(events.Event{Name: "step", Fields: map[string]any{"text": "SECRET", "tool_calls": []any{map[string]any{"id": "call1", "name": "enable_browser", "args": "SECRET"}}}})
-	s.cfg.OnEvent(events.Event{Name: "tool_result", Fields: map[string]any{"call_id": "call1", "failed": false, "text": "SECRET"}})
-	closeLog()
+	s := &Session{cfg: Config{StateFile: filepath.Join(dir, "state.json"), Events: eventVisitor(func(events.Event) { seen++ })}}
+	log := s.diagnostics()
+	s.cfg.Events.Handle(events.Event{Name: "progress", Fields: map[string]any{"phase": "waiting", "subphase": "headers", "request": 2, "detail": "SECRET"}})
+	s.cfg.Events.Handle(events.Event{Name: "step", Fields: map[string]any{"text": "SECRET", "tool_calls": []any{map[string]any{"id": "call1", "name": "enable_browser", "args": "SECRET"}}}})
+	s.cfg.Events.Handle(events.Event{Name: "tool_result", Fields: map[string]any{"call_id": "call1", "failed": false, "text": "SECRET"}})
+	log.Close()
 	raw, err := os.ReadFile(filepath.Join(dir, "diagnostics.jsonl"))
 	if err != nil {
 		t.Fatal(err)
@@ -71,7 +71,7 @@ func TestDiagnosticsPersistsBoundariesWithoutContent(t *testing.T) {
 			t.Fatal("missing", want, text)
 		}
 	}
-	s.cfg.OnEvent(events.Event{})
+	s.cfg.Events.Handle(events.Event{})
 	if seen != 4 {
 		t.Fatal("sink not restored")
 	}
@@ -80,25 +80,25 @@ func TestDiagnosticsPersistsBoundariesWithoutContent(t *testing.T) {
 func TestDiagnosticsRetainsCacheCountsWithoutPerTokenWrites(t *testing.T) {
 	dir := t.TempDir()
 	s := &Session{cfg: Config{StateFile: filepath.Join(dir, "state.json")}}
-	closeLog := s.diagnostics()
+	log := s.diagnostics()
 	for i := range 3000 {
-		s.cfg.OnEvent(events.Event{Name: "progress", Fields: map[string]any{
+		s.cfg.Events.Handle(events.Event{Name: "progress", Fields: map[string]any{
 			"phase": "prefill", "request": 5, "prompt": 12000,
 			"cached": 8000, "cache_known": true, "processed": 8000 + i,
 			"completion": 0, "estimated": false, "detail": "SECRET",
 		}})
 	}
 	for i := range 1000 {
-		s.cfg.OnEvent(events.Event{Name: "progress", Fields: map[string]any{
+		s.cfg.Events.Handle(events.Event{Name: "progress", Fields: map[string]any{
 			"phase": "generating", "request": 5, "prompt": 12000,
 			"cached": 8000, "cache_known": true, "processed": 12000,
 			"completion": i, "estimated": false,
 		}})
 	}
-	s.cfg.OnEvent(events.Event{Name: "usage", Fields: map[string]any{
+	s.cfg.Events.Handle(events.Event{Name: "usage", Fields: map[string]any{
 		"step": 4, "prompt": 12000, "completion": 1000, "cached": 8000, "estimated": false,
 	}})
-	closeLog()
+	log.Close()
 	raw, err := os.ReadFile(filepath.Join(dir, "diagnostics.jsonl"))
 	if err != nil {
 		t.Fatal(err)
@@ -126,11 +126,11 @@ func TestDiagnosticsRotatesAndCoalescesProgress(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := &Session{cfg: Config{StateFile: filepath.Join(dir, "state.json")}}
-	closeLog := s.diagnostics()
+	log := s.diagnostics()
 	for range 100 {
-		s.cfg.OnEvent(events.Event{Name: "progress", Fields: map[string]any{"phase": "prefill", "request": 1}})
+		s.cfg.Events.Handle(events.Event{Name: "progress", Fields: map[string]any{"phase": "prefill", "request": 1}})
 	}
-	closeLog()
+	log.Close()
 	if _, err := os.Stat(path + ".1"); err != nil {
 		t.Fatal(err)
 	}

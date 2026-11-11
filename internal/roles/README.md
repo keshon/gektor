@@ -34,7 +34,9 @@ availability, instructions, permissions, and execution limits agree.
   execution allowlist enforces read-only behavior; instructions alone do not.
 - Subagents cannot delegate or ask the parent's operator. Their budget and inbox
   are independent of the parent, and their activity is not parent evidence.
-  Child observers and archives provide a separate route for that activity.
+  `ChildEvents` receives child envelopes through `events.Sink`; `childObserver`
+  binds the parent call ID without invoking parent stream/usage hooks. Child
+  archives provide a separate evidence route.
 - Permission policy, context-aware gates, resource extraction, and changed-file
   checks must reach the actual composed tools, including activated capabilities.
 - Model facts are refreshed for a run; children inherit the snapshot without
@@ -52,4 +54,4 @@ an individual tool implementation. Live extension tests remain separate.
 
 From the repository root, run `go test ./internal/roles`; use
 `go test -race ./internal/roles` for observer, delegation, or lifetime changes.
-Follow the [Readable Go skill](../../.agents/skills/go-readable/SKILL.md).
+Follow the [Readable Go skill](../../.agents/skills/go-readable-keshon/SKILL.md).

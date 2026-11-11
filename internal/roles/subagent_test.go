@@ -100,11 +100,11 @@ func TestDelegateEnforcesRequestedBudgetAndWarnsBeforeExhaustion(t *testing.T) {
 	env.DelegateSteps, env.DelegateMaxSteps = 3, 6
 	calls := 0
 	warnings := 0
-	env.OnChild = func(id, kind string, fields map[string]any) {
+	env.ChildEvents = childEventVisitor(func(id, kind string, fields map[string]any) {
 		if msg, ok := fields["message"].(llm.Message); ok && strings.Contains(msg.Content, "2 model steps remain") {
 			warnings++
 		}
-	}
+	})
 	var result agent.ToolResult
 	var inspected agent.ToolResult
 	env.OnResult = func(r agent.ToolResult) {

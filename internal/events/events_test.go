@@ -35,3 +35,10 @@ func TestNilEmitter_Drops(t *testing.T) {
 	var e *Emitter
 	e.Emit("x", nil) // must not panic
 }
+
+// recordedEvents owns observations retained by emitter tests.
+type recordedEvents struct{ events []Event }
+
+func (r *recordedEvents) Handle(event Event) {
+	r.events = append(r.events, event)
+}

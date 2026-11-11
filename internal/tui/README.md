@@ -1,7 +1,7 @@
 # Working on the TUI
 
 The `tui` package coordinates two peer screens: Agent and Workflow.
-Use the [Readable Go skill](../../.agents/skills/go-readable/SKILL.md) when
+Use the [Readable Go skill](../../.agents/skills/go-readable-keshon/SKILL.md) when
 changing their implementation or boundaries.
 
 ## Ownership
@@ -55,6 +55,9 @@ responsibilities have matching file names, without requiring identical APIs.
 - Service-changing settings require both screens to be idle. Relaunch preserves
   conversation history and drafts; retained unsaved Workflow work blocks it.
   Appearance does not require relaunch. Workspace changes remain explicit.
+- Agent sessions publish through `agent.sessionEventQueue`, an `events.Sink`
+  over the existing screen queue. The screen owns its cancellation; closing a
+  screen must release blocked publishers without closing a caller-owned queue.
 - Trace startup, completion, cancellation, and close together when changing
   execution or lifetime ownership.
 

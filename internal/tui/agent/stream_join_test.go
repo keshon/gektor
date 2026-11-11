@@ -71,7 +71,7 @@ func TestHTTPStreamShowsThinkingBeforeResponseFinishes(t *testing.T) {
 		t.Fatal(err)
 	}
 	queue := make(chan harness.Event, 32)
-	sess, err := harness.New(harness.Config{Task: "say hello", Plan: true, Env: roles.Env{Client: chatcompletions.NewLlamaClient(srv.URL, "local"), WS: ws, BackendKind: "llama", Stream: true}, OnEvent: func(ev harness.Event) { queue <- ev }})
+	sess, err := harness.New(harness.Config{Task: "say hello", Plan: true, Env: roles.Env{Client: chatcompletions.NewLlamaClient(srv.URL, "local"), WS: ws, BackendKind: "llama", Stream: true}, Events: eventVisitor(func(ev harness.Event) { queue <- ev })})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func (c *liveStreamClient) Stream(_ context.Context, _ llm.ChatRequest, _, onCon
 	}, nil
 }
 
-// Session deltas must reach the live buffer through OnEvent without any
+// Session deltas must reach the live buffer through the session sink without any
 // frontend print callbacks. This checks the join between Session and Update.
 //
 // A silent break here shows as a finished reply with nothing before it,
@@ -189,7 +189,7 @@ func TestSessionDeltasReachTheLiveBuffer(t *testing.T) {
 			Procs:  tools.NewBackgroundProcesses(),
 			Stream: true,
 		},
-		OnEvent: func(ev events.Event) {
+		Events: eventVisitor(func(ev events.Event) {
 			seen[ev.Name]++
 			// bubbletea Update is value semantics: the returned model is
 			// the one carrying the state, exactly as the real loop keeps it.
@@ -200,7 +200,7 @@ func TestSessionDeltasReachTheLiveBuffer(t *testing.T) {
 			if ev.Name == "delta" {
 				queuedAfterDelta = append(queuedAfterDelta, m.live+m.liveQueue)
 			}
-		},
+		}),
 	})
 	if err != nil {
 		t.Fatal(err)

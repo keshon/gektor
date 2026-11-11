@@ -60,11 +60,11 @@ func TestSession_StreamsWhenConfigured(t *testing.T) {
 			Procs:  tools.NewBackgroundProcesses(),
 			Stream: true,
 		},
-		OnEvent: func(ev Event) {
+		Events: eventVisitor(func(ev Event) {
 			if ev.Name == "delta" {
 				streamed = append(streamed, ev.Fields["text"].(string))
 			}
-		},
+		}),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -76,7 +76,7 @@ func TestSession_StreamsWhenConfigured(t *testing.T) {
 		t.Fatal("Stream was never called")
 	}
 	if len(streamed) == 0 {
-		t.Fatal("no delta events reached OnEvent")
+		t.Fatal("no delta events reached the session sink")
 	}
 	if got := strings.Join(streamed, ""); got != "one two three" {
 		t.Fatalf("streamed text = %q", got)
@@ -101,11 +101,11 @@ func TestSession_UnaryWhenNotConfiguredToStream(t *testing.T) {
 			WS:     ws,
 			Procs:  tools.NewBackgroundProcesses(),
 		},
-		OnEvent: func(ev Event) {
+		Events: eventVisitor(func(ev Event) {
 			if ev.Name == "delta" {
 				streamed++
 			}
-		},
+		}),
 	})
 	if err != nil {
 		t.Fatal(err)

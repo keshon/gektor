@@ -45,7 +45,7 @@ func TestHistoryAuditFinalStepKeepsFullStreamedResponse(t *testing.T) {
 	m.handleEvent(events.Event{Name: "delta", Fields: map[string]any{"text": body[:8500]}})
 	m.handleEvent(events.Event{Name: "delta", Fields: map[string]any{"text": body[8500:]}})
 	m.testUpdate(liveFlushMsg{})
-	emitter := events.NewSink(func(ev events.Event) { m.handleEvent(ev) })
+	emitter := events.NewSink(eventVisitor(func(ev events.Event) { m.handleEvent(ev) }))
 	harness.EmitStep(emitter, "", 0, llm.Message{Role: llm.RoleAssistant, Content: body}, false, 25)
 	if len(m.transcript.blocks) != 1 || m.transcript.blocks[0].text != body {
 		t.Fatal("complete streamed response replaced by truncated final step")

@@ -64,6 +64,10 @@ in `internal/retrospective`. Frontends coordinate sessions through these owners.
   Neither operation needs a function-wrapping interface.
 - Role restrictions apply at execution, including dynamically activated tools.
   Keep concrete tool decisions outside the loop and use its supplied contracts.
+- Low-level observation hooks are adapted in `harness.sessionObserver` and
+  `roles.childObserver`. Frontends receive the existing `events.Event` vocabulary
+  through concrete sinks. Keep preview output, execution-finished, and recorded
+  results distinct and ordered; observers must not alter execution outcomes.
 - Keep related runtime state private. File organization provides reading paths;
   it does not require subpackages, exported internals, or forwarding layers.
 
@@ -85,4 +89,4 @@ go test ./cmd/... ./internal/...
 
 Changes to public contracts also require checking roles, tools, harness, and
 frontend callers. Follow the
-[Readable Go skill](../../.agents/skills/go-readable/SKILL.md).
+[Readable Go skill](../../.agents/skills/go-readable-keshon/SKILL.md).

@@ -20,6 +20,7 @@ import (
 	"github.com/keshon/gektor/internal/checks"
 	"github.com/keshon/gektor/internal/events"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/workspace"
@@ -100,11 +101,11 @@ func TestLocalBackendWindowAndModelRefreshBetweenTurns(t *testing.T) {
 			env.RefreshModelFacts = client.RefreshModelFacts
 			env.BackendKind, env.Model, env.ContextLimit, env.MaxTokens = kind, "stale", 1024, 8192
 			var metadata []Event
-			s, err := New(Config{Task: "say done", Env: env, OnEvent: func(ev Event) {
+			s, err := New(Config{Task: "say done", Env: env, Events: eventVisitor(func(ev Event) {
 				if ev.Name == "backend" {
 					metadata = append(metadata, ev)
 				}
-			}})
+			})})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -160,9 +161,9 @@ func TestSession_RunEmitsSameSchemaAsEmitter(t *testing.T) {
 	s, err := New(Config{
 		Task: "task",
 		Env:  testEnv(t, &writeThenDone{}, nil),
-		OnEvent: func(ev Event) {
+		Events: eventVisitor(func(ev Event) {
 			events = append(events, ev)
-		},
+		}),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -310,9 +311,9 @@ func TestSession_HarnessReplyFlaggedAfterNudge(t *testing.T) {
 	s, err := New(Config{
 		Task: "task",
 		Env:  testEnv(t, &seqClient{steps: []llm.ChatResponse{{Message: llm.Message{Role: llm.RoleAssistant, Content: "partial"}, FinishReason: "length"}, budgetSay("done")}}, nil),
-		OnEvent: func(ev Event) {
+		Events: eventVisitor(func(ev Event) {
 			events = append(events, ev)
-		},
+		}),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -455,11 +456,11 @@ func TestSessionSweepUsesTheEventReporter(t *testing.T) {
 			env.Rules = checks.Secrets()
 			old, wire := 0, 0
 			env.Checks = checks.NewReporter(env.Rules, func(checks.Scope, checks.Finding) { old++ })
-			s, err := New(Config{Task: "task", Env: env, OnEvent: func(e Event) {
+			s, err := New(Config{Task: "task", Env: env, Events: eventVisitor(func(e Event) {
 				if e.Name == "finding" {
 					wire++
 				}
-			}})
+			})})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -503,16 +504,30 @@ func TestSessionStreamsToolPreviewBeforeFinalResult(t *testing.T) {
 	env := testEnv(t, &previewClient{}, nil)
 	env.MCPTools = []agent.Tool{sessionPreviewTool{}}
 	var previous []string
-	env.OnToolOutput = func(id, text string) { previous = append(previous, id+":"+text) }
+	var order []string
+	env.OnToolOutput = func(id, text string) {
+		previous = append(previous, id+":"+text)
+		order = append(order, "previous:output")
+	}
+	env.OnToolFinished = func(string) { order = append(order, "previous:finished") }
+	env.OnResult = func(agent.ToolResult) { order = append(order, "previous:result") }
 	var observed []string
-	s, err := New(Config{Task: "task", Env: env, OnEvent: func(ev Event) {
+	s, err := New(Config{Task: "task", Env: env, Events: eventVisitor(func(ev Event) {
+		switch ev.Name {
+		case "tool_output":
+			order = append(order, "event:output")
+		case "tool_finished":
+			order = append(order, "event:finished")
+		case "tool_result":
+			order = append(order, "event:result")
+		}
 		if ev.Name == "tool_output" || ev.Name == "tool_result" {
 			if ev.Fields["call_id"] != "live" {
 				t.Errorf("wrong ID: %+v", ev)
 			}
 			observed = append(observed, ev.Name+":"+ev.Fields["text"].(string))
 		}
-	}})
+	})})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -521,6 +536,10 @@ func TestSessionStreamsToolPreviewBeforeFinalResult(t *testing.T) {
 	}
 	if strings.Join(observed, "|") != "tool_output:live output|tool_result:final output" || strings.Join(previous, "|") != "live:live output" {
 		t.Fatalf("events=%v previous=%v", observed, previous)
+	}
+	wantOrder := "event:output|previous:output|event:finished|previous:finished|event:result|previous:result"
+	if strings.Join(order, "|") != wantOrder {
+		t.Fatal("observer delivery order changed", order)
 	}
 }
 
@@ -549,11 +568,11 @@ func TestSessionAcceptsMessagesDuringActiveModelRequest(t *testing.T) {
 	defer cancel()
 	client := &steeringClient{started: make(chan struct{}), release: make(chan struct{})}
 	var received []string
-	s, err := New(Config{Task: "task", Env: testEnv(t, client, nil), OnEvent: func(ev Event) {
+	s, err := New(Config{Task: "task", Env: testEnv(t, client, nil), Events: eventVisitor(func(ev Event) {
 		if ev.Name == "user_input" {
 			received = append(received, ev.Fields["text"].(string))
 		}
-	}})
+	})})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -638,5 +657,61 @@ func TestNewAcceptsImageOnlyTask(t *testing.T) {
 	}
 	if _, err := New(Config{}); err == nil {
 		t.Fatal("accepted empty task")
+	}
+}
+
+// eventVisitor lets assertions inspect each synchronous event in a test.
+// Production frontends use concrete sinks with their own presentation state.
+type eventVisitor func(Event)
+
+func (visit eventVisitor) Handle(event Event) {
+	visit(event)
+}
+
+func TestSessionObservationDoesNotChangeToolAdmission(t *testing.T) {
+	cases := []struct {
+		name     string
+		observed bool
+		denied   bool
+	}{
+		{name: "allowed without observer"},
+		{name: "allowed with observer", observed: true},
+		{name: "denied without observer", denied: true},
+		{name: "denied with observer", observed: true, denied: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := testEnv(t, &previewClient{}, nil)
+			env.MCPTools = []agent.Tool{sessionPreviewTool{}}
+			if tc.denied {
+				env.Policy = permission.Policy{Rules: []permission.Rule{{Tool: "stream_test", Pattern: "*", Effect: permission.Deny}}}
+			}
+
+			cfg := Config{Task: "inspect", Env: env}
+			seen := 0
+			if tc.observed {
+				cfg.Events = eventVisitor(func(Event) { seen++ })
+			}
+			session, err := New(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			answer, err := session.Run(t.Context())
+			if err != nil || answer != "done" {
+				t.Fatal(answer, err)
+			}
+			wantExecuted := 1
+			if tc.denied {
+				wantExecuted = 0
+			}
+			report := session.Report()
+			if report.Outcome != "completed" || report.ToolsExecuted != wantExecuted {
+				t.Fatalf("observer changed tool admission: %+v", report)
+			}
+			if tc.observed && seen == 0 {
+				t.Fatal("observer did not receive run events")
+			}
+		})
 	}
 }

@@ -263,3 +263,10 @@ func settingsModel(t *testing.T) *Model {
 	}
 	return m
 }
+
+// eventVisitor supplies per-event assertions at the test boundary.
+type eventVisitor func(events.Event)
+
+func (visit eventVisitor) Handle(event events.Event) {
+	visit(event)
+}

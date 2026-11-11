@@ -141,6 +141,16 @@ Workspace path interpretation owns scoped instruction lookup and canonical
 permission resources; tool-specific resource contracts still take precedence.
 Keep verification as measured execution, separate from result observers.
 
+Session frontends implement `events.Sink.Handle` over the existing event vocabulary.
+Delivery is synchronous and ordered; publishers must not mutate nested payloads
+after emission. Harness and child adapters own event translation and identities;
+the TUI alone bridges to its existing cancellable screen queue. Diagnostics owns
+its log lifetime and must not change execution outcomes.
+
+Shared provider contract tests in `internal/llm/provider_contract_test.go` exercise
+both real protocols against local HTTP fixtures. They test normalized cancellation
+without imposing identical provider-specific replay or response formats.
+
 **[invariant]** A capability is removed by the harness, never by asking the
 model not to use it. The plan role keeps the acting role's system prompt and
 tool list — a narrower one would change the prompt prefix, so a backend that

@@ -128,12 +128,7 @@ func newModel(uiCtx context.Context, cfg Config) *Model {
 			Images:       images,
 			Answer:       hub.Suspender(),
 			ResumeAnswer: cfg.ResumeAnswer,
-			OnEvent: func(ev harness.Event) {
-				select {
-				case eventsCh <- ev:
-				case <-uiCtx.Done():
-				}
-			},
+			Events:       sessionEventQueue{ctx: uiCtx, queue: eventsCh},
 		})
 	}
 	for _, rule := range cfg.Env.Policy.Rules {

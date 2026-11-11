@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/conversation"
+	"github.com/keshon/gektor/internal/events"
 	"github.com/keshon/gektor/internal/llm"
 )
 
@@ -19,14 +20,14 @@ func TestDelegatedRunHasSeparateEventsAndSavedHistory(t *testing.T) {
 	}}
 	var parent, child []llm.Message
 	e.OnStep = func(_ string, _ int, msg llm.Message) { parent = append(parent, msg) }
-	e.OnChild = func(id, kind string, fields map[string]any) {
+	e.ChildEvents = childEventVisitor(func(id, kind string, fields map[string]any) {
 		if id != "delegate-1" {
 			t.Errorf("wrong parent call %q", id)
 		}
 		if kind == "message" {
 			child = append(child, fields["message"].(llm.Message))
 		}
-	}
+	})
 	path := filepath.Join(t.TempDir(), "state.json")
 	a, aErr := Interactive(e, "", path, nil, nil)
 	if aErr != nil {
@@ -82,14 +83,14 @@ func TestChildStreamsOnlyToChildObserver(t *testing.T) {
 	parentText, childText, childReason := "", "", ""
 	e.OnDelta = func(s string) { parentText += s }
 	e.OnReasoning = func(s string) { t.Error("child reasoning leaked", s) }
-	e.OnChild = func(id, kind string, fields map[string]any) {
+	e.ChildEvents = childEventVisitor(func(id, kind string, fields map[string]any) {
 		if kind == "delta" {
 			childText += fields["text"].(string)
 		}
 		if kind == "reasoning" {
 			childReason += fields["text"].(string)
 		}
-	}
+	})
 	interactiveAgent, interactiveAgentErr := Interactive(e, "", "", nil, nil)
 	if interactiveAgentErr != nil {
 		t.Fatal(interactiveAgentErr)
@@ -98,4 +99,11 @@ func TestChildStreamsOnlyToChildObserver(t *testing.T) {
 	if err != nil || parentText != "parent final" || childText != "child final" || childReason != "child reasoning" {
 		t.Fatal(err, parentText, childText, childReason)
 	}
+}
+
+// childEventVisitor retains the existing per-field assertions in role tests.
+type childEventVisitor func(string, string, map[string]any)
+
+func (visit childEventVisitor) Handle(event events.Event) {
+	visit(event.Fields["call_id"].(string), event.Fields["kind"].(string), event.Fields["fields"].(map[string]any))
 }

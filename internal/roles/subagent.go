@@ -46,7 +46,7 @@ func inspectedSubagent(e Env, role, callID, parentState string) (*agent.Agent, e
 	cfg.OnProgress = nil
 	cfg.OnPrompt = nil
 	cfg.OnContext, cfg.OnLocal, cfg.Notifications = nil, nil, nil
-	if callID != "" && e.OnChild != nil {
+	if callID != "" && e.ChildEvents != nil {
 		observeSubagent(&cfg, e, callID)
 	}
 	return agent.New(cfg), nil

@@ -52,33 +52,73 @@ func runAgentCLI(ctx context.Context, o resolvedLaunch, cfg harness.Config, fork
 }
 
 func observeAgentCLI(cfg *harness.Config, o resolvedLaunch, emitter *events.Emitter, output io.Writer, note func(string, ...any)) {
-	cfg.OnEvent = func(ev harness.Event) {
-		if o.outputMode == "json" {
-			emitter.Emit(ev.Name, ev.Fields)
-			return
-		}
-		switch ev.Name {
-		case "finding":
-			fmt.Fprintf(output, "check %v %v:%v %v\n", ev.Fields["rule"], ev.Fields["path"], ev.Fields["line"], ev.Fields["summary"])
-		case "local_warning":
-			note("%v", ev.Fields["text"])
-		}
+	observer := &cliObserver{
+		outputMode: o.outputMode,
+		logMax:     o.logMax,
+		emitter:    emitter,
+		output:     output,
+		note:       note,
 	}
+	cfg.Events = observer
 	if o.outputMode == "json" {
 		return
 	}
-	cfg.Env.OnStep = func(label string, step int, msg llm.Message) { printStep(label, step, msg, o.logMax) }
-	cfg.Env.OnDelta = func(chunk string) { fmt.Fprint(output, chunk) }
-	cfg.Env.OnToolOutput = func(_ string, text string) { fmt.Fprint(output, text) }
-	cfg.Env.OnNudge = nudgePrinter(o.outputMode)
-	cfg.Env.OnPrompt = func(report llm.ContextReport) {
-		if report.Request == 1 && report.BackendTokens == 0 {
-			note("startup context: ~%d tokens (%d tool schemas); estimates exclude backend template/tokenization", report.EstimatedTokens, len(report.Tools))
-			for _, section := range report.Sections {
-				if section.EstimatedTokens > 0 {
-					note("  %s: ~%d", section.Name, section.EstimatedTokens)
-				}
-			}
+
+	cfg.Env.OnStep = observer.step
+	cfg.Env.OnDelta = observer.delta
+	cfg.Env.OnToolOutput = observer.toolOutput
+	cfg.Env.OnNudge = observer.nudge
+	cfg.Env.OnPrompt = observer.prompt
+}
+
+// cliObserver presents session events and plain-terminal streaming output.
+type cliObserver struct {
+	outputMode string
+	logMax     int
+	emitter    *events.Emitter
+	output     io.Writer
+	note       func(string, ...any)
+}
+
+func (o *cliObserver) Handle(event events.Event) {
+	if o.outputMode == "json" {
+		o.emitter.Handle(event)
+		return
+	}
+
+	switch event.Name {
+	case "finding":
+		fmt.Fprintf(o.output, "check %v %v:%v %v\n", event.Fields["rule"], event.Fields["path"], event.Fields["line"], event.Fields["summary"])
+	case "local_warning":
+		o.note("%v", event.Fields["text"])
+	}
+}
+
+func (o *cliObserver) step(label string, step int, message llm.Message) {
+	printStep(label, step, message, o.logMax)
+}
+
+func (o *cliObserver) delta(text string) {
+	fmt.Fprint(o.output, text)
+}
+
+func (o *cliObserver) toolOutput(_ string, text string) {
+	fmt.Fprint(o.output, text)
+}
+
+func (o *cliObserver) nudge(kind, text string) {
+	fmt.Printf("nudge [%s] %s\n", kind, text)
+}
+
+func (o *cliObserver) prompt(report llm.ContextReport) {
+	if report.Request != 1 || report.BackendTokens != 0 {
+		return
+	}
+
+	o.note("startup context: ~%d tokens (%d tool schemas); estimates exclude backend template/tokenization", report.EstimatedTokens, len(report.Tools))
+	for _, section := range report.Sections {
+		if section.EstimatedTokens > 0 {
+			o.note("  %s: ~%d", section.Name, section.EstimatedTokens)
 		}
 	}
 }

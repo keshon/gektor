@@ -115,15 +115,6 @@ func stdioSuspender(noteW io.Writer, emitter *events.Emitter) agent.Suspender {
 
 // nudgePrinter shows loop-generated harness notices in print mode;
 // json mode carries them as nudge events via the session emitter.
-func nudgePrinter(mode string) func(kind, text string) {
-	if mode == "json" {
-		return nil
-	}
-	return func(kind, text string) {
-		fmt.Printf("nudge [%s] %s\n", kind, text)
-	}
-}
-
 func printStep(label string, step int, msg llm.Message, logMax int) {
 	prefix := fmt.Sprintf("[step %d]", step)
 	if label != "" {

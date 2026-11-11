@@ -168,9 +168,7 @@ readLoop:
 			go func(id json.RawMessage, params rpcRunParams) {
 				defer wg.Done()
 				defer cancelFn()
-				answer, err := serveRun(runCtx, d, hub, emitter, func(ev harness.Event) {
-					emitter.Emit(ev.Name, ev.Fields)
-				}, params.Task, params.Images)
+				answer, err := serveRun(runCtx, d, hub, emitter, params.Task, params.Images)
 				setCancel(nil)
 				if err != nil {
 					respond(id, nil, err)
@@ -240,7 +238,7 @@ func (l *lockedWriter) Write(p []byte) (int, error) {
 	return l.w.Write(p)
 }
 
-func serveRun(ctx context.Context, d Config, hub *harness.GateHub, emitter *events.Emitter, onEvent func(harness.Event), task string, imagePaths []string) (string, error) {
+func serveRun(ctx context.Context, d Config, hub *harness.GateHub, emitter *events.Emitter, task string, imagePaths []string) (string, error) {
 	if task == "" {
 		return "", fmt.Errorf("run needs a task")
 	}
@@ -262,7 +260,8 @@ func serveRun(ctx context.Context, d Config, hub *harness.GateHub, emitter *even
 
 	cfg := d.Run
 	cfg.Task, cfg.StateFile, cfg.Images = task, stateFile, images
-	cfg.Answer, cfg.OnEvent = hub.Suspender(), onEvent
+	cfg.Answer = hub.Suspender()
+	cfg.Events = emitter
 	if d.Permission != nil {
 		cfg.Env.Gate = d.Permission(cfg.Answer)
 	}

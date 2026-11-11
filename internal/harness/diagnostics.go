@@ -10,108 +10,171 @@ import (
 	"github.com/keshon/gektor/internal/events"
 )
 
-// Diagnostics stores a bounded metadata-only timeline beside session state.
-// Never persist event text, tool arguments, outputs, URLs or backend error bodies.
-func (s *Session) diagnostics() func() {
+// diagnosticLog owns the metadata log for one run and forwards original events.
+// The mutex guards the file, size, progress signature, and disabled state.
+// Session closes it after execution has stopped publishing events.
+type diagnosticLog struct {
+	mu           sync.Mutex
+	file         *os.File
+	path         string
+	size         int64
+	lastProgress string
+	disabled     bool
+	started      time.Time
+	runID        string
+	session      *Session
+	next         events.Sink
+}
+
+func (s *Session) diagnostics() *diagnosticLog {
 	if s.cfg.StateFile == "" {
-		return func() {}
+		return nil
 	}
+
 	path := filepath.Join(filepath.Dir(s.cfg.StateFile), "diagnostics.jsonl")
-	_ = os.MkdirAll(filepath.Dir(path), 0700)
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
-	previous := s.cfg.OnEvent
+	err := os.MkdirAll(filepath.Dir(path), 0700)
 	if err != nil {
-		if previous != nil {
-			previous(events.Event{Name: "local_warning", Fields: map[string]any{"text": "Session diagnostics could not be opened"}})
-		}
-		return func() {}
+		diagnosticWarning(s.cfg.Events, "Session diagnostics could not be opened")
+		return nil
 	}
-	var mu sync.Mutex
-	var size int64
-	if info, err := file.Stat(); err == nil {
-		size = info.Size()
+
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		diagnosticWarning(s.cfg.Events, "Session diagnostics could not be opened")
+		return nil
 	}
-	lastProgress := ""
-	disabled := false
-	disable := func() {
-		disabled = true
-		if previous != nil {
-			previous(events.Event{Name: "local_warning", Fields: map[string]any{"text": "Session diagnostics stopped: log could not be written"}})
-		}
-	}
+
 	started := time.Now()
-	runID := started.UTC().Format("20060102T150405.000000000Z")
-	write := func(kind string, fields map[string]any) {
-		mu.Lock()
-		defer mu.Unlock()
-		if disabled {
-			return
-		}
-		if kind == "progress" {
-			// Keep phase boundaries and final counts without a disk write for
-			// every generated token. Prefill samples are grouped by 1024 tokens.
-			boundary := make(map[string]any, len(fields))
-			for key, value := range fields {
-				if key != "completion" && key != "processed" {
-					boundary[key] = value
-				}
+	log := &diagnosticLog{
+		file:    file,
+		path:    path,
+		started: started,
+		runID:   started.UTC().Format("20060102T150405.000000000Z"),
+		session: s,
+		next:    s.cfg.Events,
+	}
+	info, err := file.Stat()
+	if err == nil {
+		log.size = info.Size()
+	}
+	// A failed stat leaves size unknown; writes still report their own failures.
+
+	log.write("run_start", nil)
+	s.cfg.Events = log
+
+	return log
+}
+
+func diagnosticWarning(sink events.Sink, text string) {
+	if sink == nil {
+		return
+	}
+
+	event := events.Event{Name: "local_warning", Fields: map[string]any{"text": text}}
+	sink.Handle(event)
+}
+
+func (d *diagnosticLog) disable() {
+	d.disabled = true
+	diagnosticWarning(d.next, "Session diagnostics stopped: log could not be written")
+}
+
+func (d *diagnosticLog) Handle(event events.Event) {
+	fields := diagnosticFields(event)
+	if fields != nil {
+		d.write(event.Name, fields)
+	}
+
+	if d.next != nil {
+		d.next.Handle(event)
+	}
+}
+
+func (d *diagnosticLog) write(kind string, fields map[string]any) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if d.disabled {
+		return
+	}
+
+	if kind == "progress" {
+		// Keep phase boundaries and final counts, grouping prefill by 1024 tokens.
+		boundary := make(map[string]any, len(fields))
+		for key, value := range fields {
+			if key != "completion" && key != "processed" {
+				boundary[key] = value
 			}
-			if fields["phase"] == "prefill" {
-				if processed, ok := fields["processed"].(int); ok {
-					boundary["processed_bucket"] = processed / 1024
-				}
-			}
-			signature, _ := json.Marshal(boundary)
-			if string(signature) == lastProgress {
-				return
-			}
-			lastProgress = string(signature)
 		}
-		record := map[string]any{"time": time.Now().UTC().Format(time.RFC3339Nano), "elapsed_ms": time.Since(started).Milliseconds(), "run": runID, "event": kind}
-		for k, v := range fields {
-			record[k] = v
+		if fields["phase"] == "prefill" {
+			processed, ok := fields["processed"].(int)
+			if ok {
+				boundary["processed_bucket"] = processed / 1024
+			}
 		}
-		data, err := json.Marshal(record)
+
+		signature, err := json.Marshal(boundary)
 		if err != nil {
 			return
 		}
-		if size+int64(len(data)+1) > 2<<20 {
-			_ = file.Close()
-			_ = os.Remove(path + ".1")
-			if err := os.Rename(path, path+".1"); err != nil {
-				disable()
-				return
-			}
-			file, err = os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
-			if err != nil {
-				disable()
-				return
-			}
-			size = 0
+		if string(signature) == d.lastProgress {
+			return
 		}
-		if file != nil {
-			n, err := file.Write(append(data, '\n'))
-			if err != nil {
-				disable()
-			}
-			size += int64(n)
-		}
+		d.lastProgress = string(signature)
 	}
-	write("run_start", nil)
-	s.cfg.OnEvent = func(ev events.Event) {
-		if fields := diagnosticFields(ev); fields != nil {
-			write(ev.Name, fields)
-		}
-		if previous != nil {
-			previous(ev)
-		}
+
+	record := map[string]any{
+		"time":       time.Now().UTC().Format(time.RFC3339Nano),
+		"elapsed_ms": time.Since(d.started).Milliseconds(),
+		"run":        d.runID,
+		"event":      kind,
 	}
-	return func() {
-		write("run_end", nil)
-		s.cfg.OnEvent = previous
-		if file != nil {
-			_ = file.Close()
+	for key, value := range fields {
+		record[key] = value
+	}
+	data, err := json.Marshal(record)
+	if err != nil {
+		return
+	}
+
+	if d.size+int64(len(data)+1) > 2<<20 {
+		// Rotation is best effort. Rename/open failures disable diagnostics only.
+		_ = d.file.Close()
+		_ = os.Remove(d.path + ".1")
+		err = os.Rename(d.path, d.path+".1")
+		if err != nil {
+			d.disable()
+			return
 		}
+		d.file, err = os.OpenFile(d.path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+		if err != nil {
+			d.disable()
+			return
+		}
+		d.size = 0
+	}
+
+	n, err := d.file.Write(append(data, '\n'))
+	if err != nil {
+		d.disable()
+	}
+	d.size += int64(n)
+}
+
+// Close restores the frontend sink and ends this run's best-effort log.
+func (d *diagnosticLog) Close() {
+	if d == nil {
+		return
+	}
+
+	d.write("run_end", nil)
+	d.session.cfg.Events = d.next
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	// Diagnostics must never replace the measured execution outcome.
+	if d.file != nil {
+		_ = d.file.Close()
 	}
 }
 

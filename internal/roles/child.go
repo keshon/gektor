@@ -2,24 +2,78 @@ package roles
 
 import (
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/events"
 	"github.com/keshon/gektor/internal/llm"
 )
 
-// Child observations never invoke the parent's step, usage, or stream hooks.
-func observeSubagent(cfg *agent.Config, e Env, callID string) {
-	emit := func(kind string, fields map[string]any) { e.OnChild(callID, kind, fields) }
-	cfg.OnStep = func(step int, msg llm.Message) { emit("message", map[string]any{"message": msg}) }
-	cfg.OnResult = func(result agent.ToolResult) {
-		failed := result.Failed
-		emit("message", map[string]any{"message": llm.Message{Role: llm.RoleTool, ToolCallID: result.CallID, Content: result.Output, ToolFailed: &failed}})
+// childObserver binds one parent call ID to child-only observations. It borrows
+// the destination sink; the parent owns that sink's lifetime and serialization.
+type childObserver struct {
+	callID string
+	sink   events.Sink
+}
+
+func observeSubagent(cfg *agent.Config, env Env, callID string) {
+	observer := &childObserver{callID: callID, sink: env.ChildEvents}
+	cfg.OnStep = observer.step
+	cfg.OnResult = observer.result
+	cfg.OnToolOutput = observer.toolOutput
+	cfg.OnNudge = observer.nudge
+	cfg.OnProgress = observer.progress
+	cfg.OnLocal = observer.local
+	cfg.Stream = env.Stream
+	cfg.OnDelta = observer.delta
+	cfg.OnReasoning = observer.reasoning
+}
+
+func (o *childObserver) emit(kind string, fields map[string]any) {
+	event := events.Event{
+		Name: "child",
+		Fields: map[string]any{
+			"call_id": o.callID,
+			"kind":    kind,
+			"fields":  fields,
+		},
 	}
-	cfg.OnToolOutput = func(id, text string) { emit("tool_output", map[string]any{"tool_call_id": id, "text": text}) }
-	cfg.OnNudge = func(kind, text string) {
-		emit("message", map[string]any{"message": llm.Message{Role: llm.RoleUser, Content: "[harness] " + text}})
+	o.sink.Handle(event)
+}
+
+func (o *childObserver) step(_ int, message llm.Message) {
+	o.emit("message", map[string]any{"message": message})
+}
+
+func (o *childObserver) result(result agent.ToolResult) {
+	failed := result.Failed
+	message := llm.Message{
+		Role:       llm.RoleTool,
+		ToolCallID: result.CallID,
+		Content:    result.Output,
+		ToolFailed: &failed,
 	}
-	cfg.OnProgress = func(p llm.Progress) { emit("progress", map[string]any{"phase": p.Phase, "detail": p.Detail}) }
-	cfg.OnLocal = func(text string) { emit("notice", map[string]any{"text": text}) }
-	cfg.Stream = e.Stream
-	cfg.OnDelta = func(text string) { emit("delta", map[string]any{"text": text}) }
-	cfg.OnReasoning = func(text string) { emit("reasoning", map[string]any{"text": text}) }
+	o.emit("message", map[string]any{"message": message})
+}
+
+func (o *childObserver) toolOutput(callID, text string) {
+	o.emit("tool_output", map[string]any{"tool_call_id": callID, "text": text})
+}
+
+func (o *childObserver) nudge(_ string, text string) {
+	message := llm.Message{Role: llm.RoleUser, Content: "[harness] " + text}
+	o.emit("message", map[string]any{"message": message})
+}
+
+func (o *childObserver) progress(progress llm.Progress) {
+	o.emit("progress", map[string]any{"phase": progress.Phase, "detail": progress.Detail})
+}
+
+func (o *childObserver) local(text string) {
+	o.emit("notice", map[string]any{"text": text})
+}
+
+func (o *childObserver) delta(text string) {
+	o.emit("delta", map[string]any{"text": text})
+}
+
+func (o *childObserver) reasoning(text string) {
+	o.emit("reasoning", map[string]any{"text": text})
 }
