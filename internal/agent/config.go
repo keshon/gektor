@@ -10,13 +10,22 @@ import (
 	"github.com/keshon/gektor/internal/permission"
 )
 
-// Config supplies capabilities, limits and observers for one run.
+// ChangeObserver captures a run baseline and reports its measured file effects.
+// Begin is called per run; Observe must support finalization after cancellation.
+// Implementations own their scan state and are used sequentially.
+type ChangeObserver interface {
+	Begin(context.Context) error
+	Observe(context.Context) ([]string, error)
+}
+
+// Config supplies services, limits, and observers for an Agent's sequential runs.
 type Config struct {
-	BeginChanges func(context.Context) (func() ([]string, error), error)
-	Client       llm.Client
-	Inbox        *Inbox
-	OnInput      func(llm.Message)
-	Tools        *Registry
+	// Changes owns a baseline per run and must not be shared by concurrent agents.
+	Changes ChangeObserver
+	Client  llm.Client
+	Inbox   *Inbox
+	OnInput func(llm.Message)
+	Tools   *Registry
 	// PrepareTools publishes eager packages after saved capability restoration.
 	PrepareTools func(context.Context) error
 	// PreviewTools reports pending eager schemas without IO or registry mutation.

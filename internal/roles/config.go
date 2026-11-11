@@ -22,7 +22,7 @@ func (e Env) agentConfig(system, label, stateFile string) agent.Config {
 	project, skills := e.WS.InstructionSections()
 	core := system + "\n\n" + prompts.Environment(e.WS.Root(), e.Vision) + e.browserContext()
 	return agent.Config{
-		BeginChanges:   e.WS.ChangeObserver,
+		Changes:        e.WS.NewChangeObserver(),
 		Client:         e.Client,
 		Inbox:          e.Inbox,
 		OnInput:        e.OnInput,

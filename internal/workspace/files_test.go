@@ -57,14 +57,15 @@ func TestStateDirectoriesStayOutOfGitInventory(t *testing.T) {
 	if err != nil || len(files) != 0 {
 		t.Fatalf("state included: %v %v", files, err)
 	}
-	observe, err := ws.ChangeObserver(t.Context())
+	observe := ws.NewChangeObserver()
+	err = observe.Begin(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(path, "history.json"), []byte("changed"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if paths, err := observe(); err != nil || len(paths) != 0 {
+	if paths, err := observe.Observe(t.Context()); err != nil || len(paths) != 0 {
 		t.Fatalf("state effects: %v %v", paths, err)
 	}
 }

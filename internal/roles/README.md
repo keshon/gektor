@@ -10,6 +10,8 @@ availability, instructions, permissions, and execution limits agree.
   refresh, and the final changed-file sweep.
 - `config.go`: common Agent configuration, prompt sections, scoped instructions,
   resource authorization, output handling, and transcript paths.
+  It constructs a Workspace change observer for the Agent; the loop starts and
+  samples that observer through its small consumer contract.
 - `conversation.go`: Interactive and Planner construction, questions, delegation,
   verification, and mode-specific directives.
 - `subagent.go` and `child.go`: delegated execution limits, parent-input isolation,

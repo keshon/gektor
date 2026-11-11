@@ -19,7 +19,7 @@ type Agent struct {
 	allowed map[string]bool
 
 	// LastRunMutations counts changed paths. Embedders without
-	// BeginChanges fall back to successful mutating tool calls.
+	// Changes fall back to successful mutating tool calls.
 	LastRunMutations int
 
 	report RunReport

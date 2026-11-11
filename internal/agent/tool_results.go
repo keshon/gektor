@@ -39,7 +39,7 @@ func (a *Agent) recordToolBatch(ctx context.Context, st *runState, batch *toolBa
 			}
 			content += "error: " + results[i].err.Error()
 		} else if !withheld[i] {
-			if st.observeChanges == nil {
+			if !st.observing {
 				// Embedders may omit the workspace observer.
 				if containsStr(a.cfg.MutatingTools, call.Name) {
 					st.mutatingSucceeded++
@@ -48,7 +48,7 @@ func (a *Agent) recordToolBatch(ctx context.Context, st *runState, batch *toolBa
 			}
 		}
 		// A failed delegate may have changed files before it stopped.
-		if executed[i] && !withheld[i] && st.observeChanges == nil && call.Name == "delegate_task" {
+		if executed[i] && !withheld[i] && !st.observing && call.Name == "delegate_task" {
 			mutations, paths := parseDelegateMutations(content)
 			st.mutatingSucceeded += mutations
 			st.addPaths(paths)

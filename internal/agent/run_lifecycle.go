@@ -41,7 +41,7 @@ func (a *Agent) finalizeRun(ctx, workCtx context.Context, st *runState, history 
 			}
 		}
 	}
-	a.observeWorkspace(st)
+	a.observeWorkspace(ctx, st)
 	if runErr == nil {
 		runErr = ctx.Err()
 	}
@@ -129,12 +129,11 @@ func (a *Agent) startRun(history []llm.Message) ([]llm.Message, int) {
 
 // prepareRun may fail after initialization; finalization still owns that exit.
 func (a *Agent) prepareRun(ctx, workCtx context.Context, st *runState, history []llm.Message) ([]llm.Message, error) {
-	if a.cfg.BeginChanges != nil {
-		var err error
-		st.observeChanges, err = a.cfg.BeginChanges(workCtx)
-		if err != nil {
+	if a.cfg.Changes != nil {
+		if err := a.cfg.Changes.Begin(workCtx); err != nil {
 			return history, fmt.Errorf("observe workspace: %w", err)
 		}
+		st.observing = true
 	}
 	// Restore the task checklist when resuming a saved conversation.
 	a.rehydrateTodo(ctx, history)
@@ -148,7 +147,7 @@ func (a *Agent) prepareRun(ctx, workCtx context.Context, st *runState, history [
 }
 
 type runState struct {
-	observeChanges                                         func() ([]string, error)
+	observing                                              bool
 	observationErr                                         error
 	mutatingSucceeded, lastPromptTokens, lastCompactTokens int
 	emptyFinishRetried, overflowRetried                    bool
@@ -176,12 +175,13 @@ func (st *runState) addPaths(paths []string) {
 	}
 }
 
-// A single end-of-run comparison also catches shell, MCP and failed-tool effects.
-func (a *Agent) observeWorkspace(st *runState) {
-	if st.observeChanges == nil {
+// observeWorkspace measures effects during budget closing and finalization,
+// including changes made by shell, MCP, or failed tool calls.
+func (a *Agent) observeWorkspace(ctx context.Context, st *runState) {
+	if !st.observing {
 		return
 	}
-	paths, err := st.observeChanges()
+	paths, err := a.cfg.Changes.Observe(ctx)
 	if err != nil {
 		st.observationErr = err
 		return

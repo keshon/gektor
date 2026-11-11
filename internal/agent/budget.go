@@ -24,7 +24,7 @@ func runBudget(ctx context.Context, limit time.Duration) (context.Context, conte
 }
 
 func (a *Agent) closeBudget(ctx context.Context, st *runState, history []llm.Message) {
-	a.observeWorkspace(st)
+	a.observeWorkspace(ctx, st)
 	_, open := a.cfg.Tools.TodoProgress()
 	a.report.Summary = fmt.Sprintf("Time budget exhausted; task incomplete. Observed changed paths: %v. Open tasks: %v. Resume to continue; completion has not been verified.", st.mutatedPaths, open)
 	a.report.Warnings = append(a.report.Warnings, ErrRunBudget.Error())

@@ -13,6 +13,8 @@ and close it when its caller's work ends.
 - `skills.go`: discovery, routing metadata, lazy guide/resource loading, and
   library precedence. `builtin.go` supplies embedded skills.
 - `files.go` and `changes.go`: Git-aware inventory and observation of changes.
+  `NewChangeObserver` creates an observation owner; call `Begin` for each run,
+  then `Observe` to measure effects. Successful scans advance the baseline.
 
 Keep these responsibilities in this package while they share the rooted access
 and project-context contract. Feature consumers decide what to do with the files

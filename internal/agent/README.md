@@ -42,6 +42,9 @@ in `internal/retrospective`. Frontends coordinate sessions through these owners.
   changing one of these limits.
 - Cancellation and budget exhaustion retain accepted input and observed effects.
   Partial model responses and failed tool calls must not become false success.
+- `Config.Changes` supplies a stateful change observer. Agent calls `Begin` at
+  run preparation and `Observe` during finalization and budget closing. The
+  observer owns its baseline and must support bounded scans after cancellation.
 - Role restrictions apply at execution, including dynamically activated tools.
   Keep concrete tool decisions outside the loop and use its supplied contracts.
 - Keep related runtime state private. File organization provides reading paths;

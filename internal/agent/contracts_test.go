@@ -142,11 +142,9 @@ func TestRepeatedReadsAndWritesExecuteNormally(t *testing.T) {
 func TestWorkspaceObservedOnlyAtRunBoundaries(t *testing.T) {
 	for _, cancelled := range []bool{false, true} {
 		ctx, cancel := context.WithCancel(t.Context())
-		observations := 0
+		observation := &changeObserverStub{}
 		c := &stubClient{responses: []llm.ChatResponse{readStep("1", "a"), readStep("2", "a"), say("done")}}
-		a := New(Config{Client: c, Tools: NewRegistry(echoToolStub{"read_file"}), BeginChanges: func(context.Context) (func() ([]string, error), error) {
-			return func() ([]string, error) { observations++; return []string{"shell.txt"}, nil }, nil
-		}})
+		a := New(Config{Client: c, Tools: NewRegistry(echoToolStub{"read_file"}), Changes: observation})
 		if cancelled {
 			a.cfg.OnStep = func(step int, _ llm.Message) {
 				if step == 1 {
@@ -156,8 +154,8 @@ func TestWorkspaceObservedOnlyAtRunBoundaries(t *testing.T) {
 		}
 		_, _ = a.Run(ctx, "task")
 		cancel()
-		if observations != 1 || len(a.MutatedPaths()) != 1 {
-			t.Fatalf("observations=%d report=%+v", observations, a.Report())
+		if observation.observations != 1 || len(a.MutatedPaths()) != 1 {
+			t.Fatalf("observations=%d report=%+v", observation.observations, a.Report())
 		}
 	}
 }
@@ -263,4 +261,38 @@ func (s countingStub) Run(context.Context, json.RawMessage) (string, error) {
 func patchCall(id, tool, path string) llm.ChatResponse {
 	return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{
 		{ID: id, Name: tool, Arguments: json.RawMessage(`{"path":"` + path + `","content":"x"}`)}}}}
+}
+
+type changeObserverStub struct {
+	observations         int
+	beginErr, observeErr error
+}
+
+func (o *changeObserverStub) Begin(context.Context) error { return o.beginErr }
+func (o *changeObserverStub) Observe(context.Context) ([]string, error) {
+	o.observations++
+	return []string{"shell.txt"}, o.observeErr
+}
+
+func TestWorkspaceObservationFailureCannotReportSuccess(t *testing.T) {
+	failure := errors.New("workspace scan failed")
+	for _, atBegin := range []bool{true, false} {
+		observation := &changeObserverStub{}
+		client := &stubClient{responses: []llm.ChatResponse{say("done")}}
+		wantCalls, wantObservations := 1, 1
+		if atBegin {
+			observation.beginErr = failure
+			wantCalls, wantObservations = 0, 0
+		} else {
+			observation.observeErr = failure
+		}
+		a := New(Config{Client: client, Tools: NewRegistry(), Changes: observation})
+		answer, err := a.Run(t.Context(), "task")
+		if !errors.Is(err, failure) || answer != "" || a.Report().Outcome != "failed" {
+			t.Fatalf("observation failure reported success: %q %v %+v", answer, err, a.Report())
+		}
+		if client.calls != wantCalls || observation.observations != wantObservations {
+			t.Fatalf("begin=%v model calls=%d observations=%d", atBegin, client.calls, observation.observations)
+		}
+	}
 }
