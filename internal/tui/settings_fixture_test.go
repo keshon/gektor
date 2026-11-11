@@ -96,8 +96,7 @@ func (m *Model) formRows() ([]string, []form.Hit, int, int) {
 	m.syncPresentation()
 	return m.chrome.FormRows()
 }
-func (m *Model) settingsProps() settings.Props        { m.syncPresentation(); return m.chrome.SettingsProps() }
-func (m *Model) currentAppearance() config.Appearance { return m.agent.Appearance() }
+func (m *Model) settingsProps() settings.Props { m.syncPresentation(); return m.chrome.SettingsProps() }
 
 // clickVisible clicks the first drawn occurrence of label.
 //
@@ -151,4 +150,13 @@ func fieldHit(t *testing.T, m *Model, key string) int {
 	}
 	t.Fatalf("no field %q", key)
 	return -1
+}
+
+func focusSetting(m *Model, key string) {
+	for i, f := range m.chrome.Dialog.Form.Fields {
+		if f.Key == key {
+			m.focusForm(i)
+			return
+		}
+	}
 }

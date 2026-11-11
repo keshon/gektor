@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -68,6 +67,7 @@ func TestRunningAgentCannotOpenSettings(t *testing.T) {
 	if m.chrome.Dialog != nil || m.modeChange != nil {
 		t.Fatal("settings interrupted the active Agent turn")
 	}
+	finishAgentTurn(t, m)
 }
 
 func TestPeerMenusAndOverflow(t *testing.T) {
@@ -91,7 +91,7 @@ func TestPeerMenusAndOverflow(t *testing.T) {
 		}
 		want := []string{"GEKTOR", "Session", "Run", "View", "Settings", "Help"}
 		if active == "screen:workflows" {
-			want = []string{"GEKTOR", "Recipe", "Node", "Run", "View", "Help"}
+			want = []string{"GEKTOR", "Recipe", "Node", "Run", "View", "Settings", "Help"}
 		}
 		if !reflect.DeepEqual(labels, want) {
 			t.Fatal(labels)
@@ -169,33 +169,47 @@ func TestQuitChecksRetainedWorkflowFromAgent(t *testing.T) {
 	}
 }
 
-func TestWorkflowMenusExcludeAgentSettings(t *testing.T) {
-	m := workflowTestModel(t)
-	for _, group := range m.chrome.Props.Menus {
-		if group.ID == "settings" || group.ID == "session" {
-			t.Fatalf("Agent menu in Workflow: %s", group.ID)
+func TestSettingsMenusAreIdenticalAcrossModes(t *testing.T) {
+	m := settingsModel(t)
+	settingsItems := func() []screen.MenuItem {
+		for _, menu := range m.chrome.Props.Menus {
+			if menu.ID == "settings" {
+				return menu.Items
+			}
 		}
-		for _, item := range group.Items {
-			if strings.HasPrefix(item.Command, "edit:") || item.Command == "/processes" || item.Command == "prompt-info" || item.Command == "help-commands" {
-				t.Fatalf("Agent command in Workflow: %s", item.Command)
+		return nil
+	}
+	agentItems := append([]screen.MenuItem(nil), settingsItems()...)
+	m.openWorkflows()
+	m.syncPresentation()
+	if len(agentItems) == 0 || !reflect.DeepEqual(agentItems, settingsItems()) {
+		t.Fatal("Settings changed with the active mode")
+	}
+	for _, menu := range m.chrome.Props.Menus {
+		if menu.ID == "session" {
+			t.Fatal("Agent session menu exposed in Workflow")
+		}
+		for _, item := range menu.Items {
+			if item.Command == "/processes" || item.Command == "prompt-info" || item.Command == "help-commands" {
+				t.Fatalf("Agent execution command in Workflow: %s", item.Command)
 			}
 		}
 	}
-	m.runAction("edit:model")
-	if m.chrome.Dialog != nil {
-		t.Fatal("Agent settings opened in Workflow")
-	}
-	m.runAction("screen:agent")
-	m.syncPresentation()
-	found := false
-	for _, group := range m.chrome.Props.Menus {
-		if group.ID == "settings" {
-			found = true
+	for _, section := range []string{"model", "generation", "profiles", "you", "prompts"} {
+		m.runAction("edit:" + section)
+		if m.chrome.Dialog == nil || m.chrome.Dialog.Form.EditSession.Section != section {
+			t.Fatalf("settings %s unavailable in Workflow", section)
+		}
+		m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+		if !m.workflowActive() || draftOf(m) != "unfinished draft" {
+			t.Fatal("settings cancellation changed mode or draft")
 		}
 	}
-	if !found {
-		t.Fatal("Agent settings not restored")
+	m.runAction("appearance")
+	if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "Appearance" {
+		t.Fatal("global appearance unavailable in Workflow")
 	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 }
 
 func TestWorkflowWorkspacePickerHasNoAgentSettings(t *testing.T) {
@@ -213,6 +227,50 @@ func TestWorkflowWorkspacePickerHasNoAgentSettings(t *testing.T) {
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if !m.workflowActive() || draftOf(m) != "unfinished draft" {
 		t.Fatal("workspace cancellation changed screen or Agent draft")
+	}
+}
+
+func TestWorkflowAppearanceUpdatesBothScreensWithoutRelaunch(t *testing.T) {
+	defer setTheme("dark")
+	m := settingsModel(t)
+	m.openWorkflows()
+	draft := seedWorkflow(t, m, workflowRecipe())
+	before := draft.Source()
+	m.syncPresentation()
+	m.runAction("appearance")
+	values := m.chrome.Dialog.Form.Values()
+	values["theme"], values["frame"] = "light", "outlined"
+	if err := m.chrome.Dialog.Form.Apply(values); err != nil {
+		t.Fatal(err)
+	}
+	m.closeDialog()
+	if !m.workflowActive() || !m.workflowSurface().Outlined || currentPalette().Name != "light" {
+		t.Fatal("appearance did not immediately update Workflow")
+	}
+	if m.modeChange != nil || draft.Source() != before || !m.workflows.Dirty() {
+		t.Fatal("appearance relaunched the application or changed the recipe")
+	}
+	m.showAgent()
+	m.syncPresentation()
+	if m.agent.Appearance().Frame != "outlined" || draftOf(m) != "unfinished draft" {
+		t.Fatal("appearance did not preserve the Agent draft and update its frame")
+	}
+}
+
+func TestWorkflowSharedModelApplyPreservesConversation(t *testing.T) {
+	m := settingsModel(t)
+	before := snapshotOf(m)
+	m.openWorkflows()
+	m.syncPresentation()
+	m.runAction("edit:generation")
+	m.chrome.Dialog.Form.Editor.SetValue("0.7")
+	m.applyForm()
+	change := m.modeChange
+	if change == nil || change.Preferences.Profile.Generation.Temperature != 0.7 {
+		t.Fatal("shared model settings did not queue the new application configuration")
+	}
+	if change.Draft != before.Draft || change.Directory != before.Directory || !reflect.DeepEqual(change.History, before.History) {
+		t.Fatal("settings changed existing conversation data")
 	}
 }
 
@@ -252,39 +310,7 @@ func TestShellDeliversCompletionAfterStopBeforeQuit(t *testing.T) {
 	}
 	// Run the real Bubble Tea effects and route their results through the parent.
 	// Completion is delivered by the child's event queue, without Program.Send.
-	results := make(chan tea.Msg, 64)
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	var launch func(tea.Cmd)
-	launch = func(cmd tea.Cmd) {
-		if cmd == nil {
-			return
-		}
-		go func() {
-			msg := cmd()
-			if batch, ok := msg.(tea.BatchMsg); ok {
-				for _, child := range batch {
-					launch(child)
-				}
-				return
-			}
-			select {
-			case results <- msg:
-			case <-ctx.Done():
-			}
-		}()
-	}
-	launch(m.Init())
-	deadline := time.After(5 * time.Second)
-	for !m.agent.Status().Idle {
-		select {
-		case msg := <-results:
-			_, cmd := m.Update(msg)
-			launch(cmd)
-		case <-deadline:
-			t.Fatal("run completion did not reach the application")
-		}
-	}
+	finishAgentTurn(t, m)
 	m.Update(tea.KeyPressMsg{Code: 'q', Mod: tea.ModCtrl})
 	if !m.quit {
 		t.Fatal("second quit did not exit")

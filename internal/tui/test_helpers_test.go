@@ -15,7 +15,6 @@ import (
 
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow/script"
 	"github.com/keshon/gektor/internal/workspace"
@@ -165,4 +164,43 @@ func (m *Model) rawHeaderItems() []screen.MenuItem {
 	m.syncPresentation()
 	return m.chrome.RawHeaderItems()
 }
-func (m *Model) graphStyles() graph.Styles { return screen.DefaultSurfaceStyles().Graph }
+
+// finishAgentTurn delivers real effects until the running turn has completed.
+func finishAgentTurn(t *testing.T, m *Model) {
+	t.Helper()
+	results := make(chan tea.Msg, 64)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	var launch func(tea.Cmd)
+	launch = func(cmd tea.Cmd) {
+		if cmd == nil {
+			return
+		}
+		go func() {
+			msg := cmd()
+			if batch, ok := msg.(tea.BatchMsg); ok {
+				for _, child := range batch {
+					launch(child)
+				}
+				return
+			}
+			select {
+			case results <- msg:
+			case <-ctx.Done():
+			}
+		}()
+	}
+	launch(m.Init())
+	deadline := time.After(5 * time.Second)
+	for !m.agent.Status().Idle {
+		select {
+		case msg := <-results:
+			_, cmd := m.Update(msg)
+			if !m.agent.Status().Idle {
+				launch(cmd)
+			}
+		case <-deadline:
+			t.Fatal("run completion did not reach the application")
+		}
+	}
+}

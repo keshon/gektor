@@ -97,7 +97,7 @@ func (f *Model) note() string {
 	case f.EditSession.Section == "generation":
 		return "Temperature: default uses " + strconv.FormatFloat(DefaultTemperature, 'g', -1, 64)
 	case f.EditSession.Section == "profiles":
-		return "Ctrl+D saves a copy · Apply uses the loaded profile in this session"
+		return "Ctrl+D saves a copy · Apply selects this profile for subsequent requests and launches"
 	case f.EditSession.PersistCurrent:
 		return "Apply saves the current launch settings"
 	case f.Dirty():

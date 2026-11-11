@@ -12,7 +12,7 @@ import (
 )
 
 func (m *Model) editSettings(section string) {
-	if !m.agent.Status().Idle {
+	if !m.agent.Status().Idle || (m.workflows != nil && m.workflows.State().Busy) {
 		return
 	}
 	currentSettings := m.profile
@@ -50,7 +50,7 @@ func (m *Model) editSettings(section string) {
 	if m.chrome.Dialog != nil {
 		m.chrome.Close()
 	}
-	m.chrome.OpenForm(title, "GEKTOR restarts to apply these. The conversation and draft are preserved.", "Apply", fields, func(_ map[string]string) error {
+	m.chrome.OpenForm(title, settings.Hint(section), "Apply", fields, func(_ map[string]string) error {
 		m.chrome.Dialog.Form.StorePage()
 		profile, err := ws.Draft.Resolve()
 		if err != nil {

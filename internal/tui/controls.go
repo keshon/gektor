@@ -56,11 +56,13 @@ func (m *Model) applicationMenus(idle bool) []screen.Menu {
 	section := func(id string) screen.MenuItem {
 		return screen.MenuItem{Text: settings.SectionTitle(id) + "…", Command: "edit:" + id, Enabled: editable}
 	}
-	menu := screen.Menu{ID: "settings", Label: "Settings", Items: []screen.MenuItem{section("model"), section("generation"), section("profiles")}}
-	if m.profile != nil {
-		menu.Items = append(menu.Items, screen.MenuItem{}, section("you"), section("prompts"))
-	}
-	menu.Items = append(menu.Items, screen.MenuItem{}, screen.MenuItem{Text: "Permissions…", Command: "permissions-info", Enabled: true}, screen.MenuItem{Text: "MCP servers…", Command: "/mcp", Enabled: true}, screen.MenuItem{}, screen.MenuItem{Text: "Appearance…", Command: "appearance", Enabled: true})
+	menu := screen.Menu{ID: "settings", Label: "Settings", Items: []screen.MenuItem{
+		{Text: "Appearance…", Command: "appearance", Enabled: true},
+		{},
+		section("model"), section("generation"), section("profiles"),
+		{},
+		section("you"), section("prompts"),
+	}}
 	help := screen.Menu{ID: "help", Label: "Help", Items: []screen.MenuItem{{Text: "Keyboard shortcuts", Command: "help-keys", Enabled: true}}}
 	if !m.workflowActive() {
 		help.Items = append(help.Items, screen.MenuItem{Text: "Commands", Command: "help-commands", Enabled: true})
@@ -69,8 +71,5 @@ func (m *Model) applicationMenus(idle bool) []screen.Menu {
 		}
 	}
 	help.Items = append(help.Items, screen.MenuItem{}, screen.MenuItem{Text: "About GEKTOR", Command: "about", Enabled: true})
-	if m.workflowActive() {
-		return []screen.Menu{help}
-	}
 	return []screen.Menu{menu, help}
 }

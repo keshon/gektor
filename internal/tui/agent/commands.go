@@ -322,7 +322,7 @@ func (m *Model) command(text string) (tea.Model, tea.Cmd) {
 	case "theme":
 		return m, m.request(screen.ApplicationCommand{Command: "/theme " + arg})
 	case "settings":
-		return m, m.request(screen.ApplicationCommand{Command: "edit:workspace"})
+		return m, m.request(screen.ApplicationCommand{Command: "settings"})
 	case "mode":
 		return m.commandMode(arg)
 	case "retry":

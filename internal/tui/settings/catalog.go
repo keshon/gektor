@@ -101,22 +101,21 @@ func ChoiceLabel(key, value string) string {
 	return value
 }
 
+// Hint explains what each section changes and when it takes effect.
 func Hint(section string) string {
 	switch section {
-	case "profiles":
-		return "Profiles save your setup, including the identity it speaks with."
-	case "you":
-		return "Your name and persona are used by the compiled prompts."
+	case "you", "prompts":
+		return "Applies to the next Agent turn and future launches. Existing messages remain unchanged."
 	case "workspace":
-		return "The workspace tasks run in."
+		return "Changes the working directory for subsequent operations. The conversation and draft are preserved."
+	case "profiles":
+		return "Selects the model and Agent configuration for subsequent requests and future launches. Existing messages and recipes remain unchanged."
 	case "model":
-		return "Choose the provider, server address and model."
+		return "Connection used by Agent and Workflow AI drafting. Applies to subsequent requests and future launches. Recipe node settings remain unchanged."
 	case "generation":
-		return "Response budget and context window for one turn."
-	case "prompts":
-		return "Preset adds response style to the compiled instruction."
+		return "Request limits used by Agent and Workflow AI drafting. Applies to subsequent requests and future launches. Recipe node settings remain unchanged."
 	}
-	return "Changes apply to this session; history stays intact."
+	return "Changes apply to subsequent requests and future launches."
 }
 
 func Choices(key string) []string {

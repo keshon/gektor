@@ -8,7 +8,6 @@ import (
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 // Status exposes only facts needed by the application shell's routing policy.
@@ -17,22 +16,6 @@ type Status struct{ Idle, Gated, BrowserOpen bool }
 // Status returns routing flags without exposing the conversation or run.
 func (m *Model) Status() Status {
 	return Status{Idle: m.state == stDone, Gated: m.state == stAsk || m.state == stPermission, BrowserOpen: m.sessions != nil}
-}
-
-// Presentation supplies current menu data, screen identity, and overlay bounds.
-// Selection and overlay state belong to the injected application controls.
-func (m *Model) Presentation() screen.ControlProps {
-	props := m.controlProps()
-	for _, group := range m.menuDefinitions() {
-		group.Items = m.decorateMenu(m.menuItems(group.ID))
-		props.Menus = append(props.Menus, group)
-	}
-	props.Badges = m.headerBadges()
-	for _, id := range []string{"mode", "activity", "model", "context", "run", "steering"} {
-		props.BadgeMenus = append(props.BadgeMenus, screen.Menu{ID: id, Items: m.decorateMenu(m.badgeItems(id))})
-	}
-	props.Actions = m.footerActions()
-	return props
 }
 
 // Action handles an Agent command chosen by application controls.

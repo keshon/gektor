@@ -19,10 +19,6 @@ func (m *Model) openWorkspace() {
 	if m.workflows != nil && m.workflows.State().Busy {
 		return
 	}
-	if !m.workflowActive() {
-		m.editSettings("workspace")
-		return
-	}
 	fields := []form.Field{{
 		Key: "app-workspace", Label: "Workspace", Value: m.application.Preferences.Workspace,
 	}}

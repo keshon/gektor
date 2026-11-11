@@ -14,7 +14,7 @@ import (
 func (m *Model) persistTheme(name string) error { return m.application.SaveTheme(name) }
 
 func (m *Model) openTheme() {
-	m.chrome.OpenForm("Theme", "Apply saves this theme for future launches.", "Apply", []form.Field{{Key: "theme", Label: "Theme", Value: screen.CurrentPalette().Name, Multiline: false}}, func(v map[string]string) error {
+	m.chrome.OpenForm("Theme", "Applies immediately to both modes and is remembered for future launches.", "Apply", []form.Field{{Key: "theme", Label: "Theme", Value: screen.CurrentPalette().Name, Multiline: false}}, func(v map[string]string) error {
 		name := v["theme"]
 		if !config.ValidTheme(name) {
 			return fmt.Errorf("choose a theme from the list")
@@ -30,7 +30,7 @@ func (m *Model) openTheme() {
 
 // openAppearance stages presentation choices and saves them together on Apply.
 func (m *Model) openAppearance() {
-	m.chrome.OpenForm("Appearance", "Apply saves these choices for future launches.", "Apply", []form.Field{
+	m.chrome.OpenForm("Appearance", "Applies immediately to both modes and is remembered for future launches.", "Apply", []form.Field{
 		{Key: "theme", Label: "Theme", Value: screen.CurrentPalette().Name},
 		{Key: "frame", Label: "Panel frame", Value: m.agent.Appearance().Frame},
 	}, func(values map[string]string) error {
@@ -62,15 +62,17 @@ func (m *Model) applyTheme(name string) {
 
 func (m *Model) applicationAction(command string) bool {
 	switch {
+	case command == "settings" || command == "/settings":
+		m.chrome.Header = screen.MenuState{Global: true, Focused: true, Menu: "settings"}
+		m.chrome.Header.Row = m.chrome.HeaderActionRow(0, 1)
+		return true
 	case command == "about" || command == "/about":
 		m.chrome.CloseHeader()
 		m.openAbout()
 		return true
 	case strings.HasPrefix(command, "edit:"):
-		if !m.workflowActive() {
-			m.chrome.CloseHeader()
-			m.editSettings(strings.TrimPrefix(command, "edit:"))
-		}
+		m.chrome.CloseHeader()
+		m.editSettings(strings.TrimPrefix(command, "edit:"))
 		return true
 	case command == "workspace":
 		m.chrome.CloseHeader()

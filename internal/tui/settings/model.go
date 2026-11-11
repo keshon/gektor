@@ -43,7 +43,7 @@ type Model struct {
 }
 type Category struct{ ID, Label string }
 
-var categories = []Category{{"model", "Model connection"}, {"generation", "Response settings"}, {"profiles", "Setup profiles"}, {"workspace", "Workspace"}, {"you", "Your details"}, {"prompts", "Agent instructions"}}
+var categories = []Category{{"model", "Model connection"}, {"generation", "Response settings"}, {"profiles", "Launch profiles"}, {"workspace", "Workspace"}, {"you", "Identity and persona"}, {"prompts", "Agent instructions"}}
 
 func SectionTitle(id string) string {
 	for _, category := range categories {

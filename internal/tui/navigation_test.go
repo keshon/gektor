@@ -13,6 +13,27 @@ import (
 	"github.com/keshon/gektor/internal/tui/screen"
 )
 
+func TestSettingsMenuRowsAreActionable(t *testing.T) {
+	for _, mode := range []string{"screen:agent", "screen:workflows"} {
+		for _, width := range []int{40, 80, 120} {
+			m := settingsModel(t)
+			m.runAction(mode)
+			sizeModelTo(t, m, width, 30)
+			m.runAction("settings")
+			m.syncPresentation()
+			for _, item := range m.chrome.HeaderItems() {
+				if item.Text != "" && item.Command == "" {
+					t.Fatalf("non-actionable Settings row looks like a menu item: %q", item.Text)
+				}
+			}
+			clickVisible(t, m, "Appearance…")
+			if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "Appearance" {
+				t.Fatalf("Appearance click failed in %s at width %d", mode, width)
+			}
+		}
+	}
+}
+
 func TestMenuStructureAndActionOwnership(t *testing.T) {
 	m := settingsModel(t)
 
@@ -37,7 +58,7 @@ func TestMenuStructureAndActionOwnership(t *testing.T) {
 			owners[item.Command] = menu.ID
 		}
 	}
-	for command, owner := range map[string]string{"workspace": "app", "quit": "app", "appearance": "settings", "permissions-info": "settings", "prompt-info": "help"} {
+	for command, owner := range map[string]string{"workspace": "app", "quit": "app", "appearance": "settings", "permissions-info": "execution", "prompt-info": "help"} {
 		// This fixture has no model configuration.
 		if command == "prompt-info" && m.profile == nil {
 			continue

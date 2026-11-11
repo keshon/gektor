@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -145,29 +144,6 @@ func TestSettingsPasteRespectsNestedFocus(t *testing.T) {
 	if f.Editor.Value() == before || !f.Editor.Focused() {
 		t.Fatal("pasting after a picker did not reach the field")
 	}
-}
-
-func TestSettingsWorkspacePreview(t *testing.T) {
-	dir := os.Getenv("GEKTOR_TUI_PREVIEW_DIR")
-	if dir == "" {
-		t.Skip("preview opt-in")
-	}
-	os.MkdirAll(dir, 0700)
-	m := settingsModel(t)
-	m.profile.Profile.Provider.URL = "http://127.0.0.1:8080"
-	m.Update(tea.WindowSizeMsg{Width: 120, Height: 34})
-	m.editSettings("model")
-	write := func(name string) {
-		t.Helper()
-		if err := os.WriteFile(filepath.Join(dir, name+".txt"), []byte(ansi.Strip(m.View().Content)), 0600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	write("model-page")
-	m.editSettings("generation")
-	write("generation-workspace")
-	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	write("settings-narrow")
 }
 
 func TestRemoteModelsDiscovery(t *testing.T) {

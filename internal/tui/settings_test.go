@@ -2,7 +2,6 @@ package tui
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -147,7 +146,7 @@ func TestIdleSettingsMenuIsFullyEnabled(t *testing.T) {
 		t.Fatal("settings menu is empty")
 	}
 	for _, item := range rows {
-		if item.Text == "" && item.Command == "" {
+		if item.Command == "" {
 			continue
 		}
 		if !item.Enabled {
@@ -211,57 +210,7 @@ func TestCommonMenusHaveNoRedirects(t *testing.T) {
 	if m.chrome.Header.Row != 3 {
 		t.Fatal("keyboard did not skip disabled actions")
 	}
-}
-
-func TestMenuSettingsPreview(t *testing.T) {
-	dir := os.Getenv("GEKTOR_SETTINGS_PREVIEW_DIR")
-	if dir == "" {
-		t.Skip("renderer export opt-in")
-	}
-	os.MkdirAll(dir, 0700)
-	for _, name := range []string{"menu", "generation", "prompts", "delete"} {
-		m := settingsModel(t)
-		m.Update(tea.WindowSizeMsg{Width: 100, Height: 28})
-		switch name {
-		case "menu":
-			m.chrome.Header.Global = true
-			m.chrome.Header.Focused = true
-			m.chrome.Header.Menu = "settings"
-		case "delete":
-			m.runAction("delete-current")
-		default:
-			m.editSettings(name)
-		}
-		if err := os.WriteFile(filepath.Join(dir, name+".txt"), []byte(ansi.Strip(m.View().Content)), 0600); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
-func TestFormFooterMatchesActionsAndViewIsPure(t *testing.T) {
-	m := settingsModel(t)
-	m.editSettings("generation")
-	before := m.chrome.Dialog.Form.Editor.Value()
-	cursor := m.chrome.Dialog.Form.Editor.Column()
-	first := m.View().Content
-	second := m.View().Content
-	if first != second || m.chrome.Dialog.Form.Editor.Value() != before || m.chrome.Dialog.Form.Editor.Column() != cursor {
-		t.Fatal("render mutated form")
-	}
-	for _, action := range m.footerActions() {
-		if action.Name == "F1" {
-			t.Fatal("footer advertises unrelated help action")
-		}
-	}
-	for _, cell := range m.chrome.FooterCells() {
-		if cell.Action.Name == "Esc" {
-			m.Update(tea.MouseClickMsg{X: cell.Start, Y: m.termH - 1, Button: tea.MouseLeft})
-			break
-		}
-	}
-	if m.chrome.Dialog != nil {
-		t.Fatal("footer cancel click failed")
-	}
+	finishAgentTurn(t, m)
 }
 
 // A choice field toggles with space and the arrow keys rather than

@@ -33,6 +33,7 @@ func (m *Model) menuItems(menu string) []screen.MenuItem {
 	case "execution":
 		return []screen.MenuItem{{Text: "Plan — read-only", Command: "/mode plan", Enabled: idle}, {Text: "Act — allow changes", Command: "/mode act", Enabled: idle}, sep,
 			{Text: "Stop run", Command: "stop", Enabled: m.state == stRunning}, {Text: "Retry failed turn", Command: "/retry", Enabled: idle && m.runErr != nil && m.retryRun != nil}, sep,
+			{Text: "Permissions…", Command: "permissions-info", Enabled: true}, {Text: "MCP servers…", Command: "/mcp", Enabled: true}, sep,
 			{Text: "Message queue…", Command: "message-queue", Enabled: true}, {Text: "Background processes…", Command: "/processes", Enabled: true}, {Text: "Apply new messages during run", Command: "toggle-steering", Enabled: true}}
 	case "view":
 		return []screen.MenuItem{{Text: "Thinking", Command: "toggle-details", Enabled: true}, {Text: "Tool calls", Command: "toggle-tools", Enabled: true}, {Text: "System messages", Command: "toggle-sys", Enabled: true},

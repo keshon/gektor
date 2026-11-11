@@ -80,3 +80,23 @@ func TestOnlyVisiblePartsAreSplit(t *testing.T) {
 		t.Fatalf("a part below the window was drawn:\n%s", view)
 	}
 }
+
+func TestSetPartsPreservesIdenticalContentAndAcceptsChangedTail(t *testing.T) {
+	m := New()
+	m.Viewport.SetWidth(40)
+	m.Viewport.SetHeight(10)
+	parts := []string{"alpha", "beta"}
+	m.SetParts(parts, "")
+	first := m.Viewport.View()
+
+	// A different slice holding equal strings is still an identical frame.
+	m.SetParts([]string{"alpha", "beta"}, "")
+	if m.Viewport.View() != first {
+		t.Fatal("a repeated frame changed the viewport")
+	}
+
+	m.SetParts(parts, "tail")
+	if !strings.Contains(m.Viewport.View(), "tail") {
+		t.Fatal("a real change was skipped")
+	}
+}

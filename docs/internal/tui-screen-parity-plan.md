@@ -1,15 +1,85 @@
 # TUI screen ownership and parity plan
 
 Date: 2026-11-11
-Status: In progress on the existing branch; scope is `internal/tui` and this plan.
+Status: Complete on `codex/tui-screen-split`; scope is `internal/tui` and this document.
 Baseline: `49f4a39` on `codex/tui-screen-split`.
 
-This is an internal implementation plan. The maintained description of the
-current terminal architecture lives in [Terminal architecture](../development/tui.md).
+This document records the completed ownership cleanup and settings decisions.
+The broader terminal guide lives in [Terminal architecture](../development/tui.md).
 Apply the project's [Readable Go skill](../../.agents/skills/go-readable/SKILL.md)
 when implementing this plan.
 
-## Problem
+## Completed ownership and settings behavior
+
+The parent owns navigation, settings transactions, overlay lifecycle, terminal
+modes, and final composition. Agent and Workflow each provide their own view,
+presentation data, commands, and cleanup. Workflow no longer derives its
+presentation from Agent. Equivalent construction, update, keyboard, and rendering
+responsibilities have matching file homes; shared-control forwarding layers and
+the `externalControls` arrangement have been removed.
+
+Settings is available identically in both modes:
+
+- Application: Appearance.
+- Shared model: Model connection, Response settings, and Launch profiles.
+- Agent configuration: Identity and persona, and Agent instructions.
+
+These are conceptual groups, separated by menu rules. The menu has no inert
+heading rows that resemble clickable items.
+
+Session and Recipe retain their current-object scope. View contains local screen
+display controls. Change workspace remains explicit application navigation.
+Agent's Run menu exposes permission and MCP inspection alongside its other
+execution controls.
+
+There is one active application configuration, remembered across launches.
+Appearance applies immediately to both screens. Model settings apply to subsequent
+requests, including Workflow AI drafting; Agent identity and instructions apply to
+subsequent Agent turns. Existing messages and explicit recipe node settings are
+not rewritten. Reopening a conversation uses its saved history with the current
+configuration, rather than restoring a separate configuration snapshot.
+
+Configuration changes requiring new services are accepted only when both screens
+are idle. The existing relaunch path retains conversation history, unsent input,
+attachments, and saved-session identity. Unsaved Workflow drafts block relaunch;
+Appearance can still change without losing either draft. History is read before
+writing a custom profile, preserving failure ordering. Delayed Agent UI results
+cannot take over Workflow input or overlays.
+
+## File and test ownership
+
+Agent and Workflow both use `presentation.go` for their presentation data and
+`mouse.go` for pointer interaction, alongside the existing matching `model.go`,
+`config.go`, `api.go`, `update.go`, `keys.go`, `view.go`, `menus.go`, and `actions.go`.
+Feature-specific files remain different where responsibilities differ.
+
+Tests follow the same ownership boundaries:
+
+- Parent tests cover navigation, composed frames, application settings, relaunch,
+  and shared overlay/input routing. `workflow_integration_test.go` stays here
+  because it exercises the assembled application, including both screen types.
+- Screen tests cover local behavior. The Workflow test host now uses production
+  `screen.Controls`, including its forms, input handling, and close callbacks.
+  It no longer implements a second form/dialog system.
+- Component tests live beside their components. Popup overlay regressions and
+  transcript repeat-update behavior were moved out of Agent.
+- Preference-write caching is tested beside `settings.Application`; package
+  dependency checks live at the TUI root.
+
+Agent's catch-all `tui_test.go` was redistributed into feature test files, and
+Workflow's extraction-era `screen_*_test.go` files now use feature names.
+Optional parent render exports are collected in `previews_test.go`. Unused
+fixture helpers were removed.
+
+Three source-shape checks tied to palette filenames and a hardcoded list of
+rendering method names were removed. Behavioral rendering tests and dependency
+checks remain. The compaction regression now drives the Agent compaction action,
+checking reduced context and preserved archive; the transcript repeat-update
+test describes its actual content-preservation guarantee. A failing temporary
+directory cleanup exposed two tests that left turns running; they now deliver
+completion through the real parent update loop before cleanup.
+
+## Baseline problem
 
 Agent and Workflow have separate execution models, but their application
 integration remains asymmetric:
@@ -44,7 +114,7 @@ interface, parallel configuration types, or a callback bundle that mirrors the
 old Agent implementation. Screens can retain different APIs where their behavior
 requires it; parity does not require a common interface.
 
-## Implementation sequence
+## Original implementation sequence (completed)
 
 ### Scoped construction sketch
 
@@ -125,10 +195,8 @@ resize and mouse geometry, settings relaunch, and completion after cancellation.
 Preserve permissions, event ordering, cleanup on construction failure, and
 cancellation of blocked receivers.
 
-Update [Architecture](../../ARCHITECTURE.md),
-[Terminal architecture](../development/tui.md), and affected testing guidance
-to describe the completed implementation. Keep this document marked as a plan
-until the work is complete.
+The completion record above documents the scoped changes. Broader architecture
+and development guides were left outside this task's authorized file scope.
 
 ## Acceptance and verification
 
@@ -138,17 +206,22 @@ homes, and no broad forwarding layer conceals the former structure. Review the
 reader's path as well as the dependency direction; passing tests alone does not
 establish readability.
 
-Run focused checks during the work, then verify the completed change from the
-repository root:
+Verification completed from the repository root:
 
 ```sh
-go test ./...
-go vet ./...
-go build ./...
-go test -race ./...
+go test ./cmd/... ./internal/...
+go vet ./cmd/... ./internal/...
+go build ./cmd/... ./internal/...
+go test -race ./cmd/... ./internal/...
 go run ./cmd/eval -dry
 ```
 
-Inspect the final diff for unrelated changes and report any skipped verification.
-Commit the completed pass on the existing branch. Preserve the user's skill-file
-move and reinforcement; avoid unrelated documentation or skill changes.
+The source-package checks passed, and the dry evaluation catalog validated all
+44 probes without model requests. Repository-wide `./...` discovery also includes
+saved inputs under `eval/results` that import removed packages; those result files
+were left untouched. The subsequent settings-menu changes were checked with TUI
+race tests and source-package vet/build checks.
+
+The ownership cleanup was committed as `b8e8f16` before the approved settings
+navigation changes. All changes remain on the existing branch and within
+`internal/tui` plus this completion record.
