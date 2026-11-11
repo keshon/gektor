@@ -19,6 +19,10 @@ universally idiomatic. Honor the requested scope and existing behavior contracts
   explain the feature; do not automatically turn those words into packages.
 - Match established good patterns. Existing complexity is evidence to examine,
   not a convention to reproduce. A local task does not authorize a general rewrite.
+- Before a package extraction, sketch its entry type, construction, dependencies,
+  results, and cleanup. Trace an ordinary call across that proposed boundary.
+  If the caller still needs most of the old state, reconsider ownership before
+  performing the mechanical move.
 
 ## Give related work a home
 
@@ -28,6 +32,10 @@ universally idiomatic. Honor the requested scope and existing behavior contracts
 - Move related state and behavior together. Keep locks with the data they guard
   and cleanup with the lifetime it controls. A root UI model coordinates screens;
   each screen or component should own its local state and interaction.
+- Treat peer features as peers: one screen should not host another screen or own
+  its navigation and shutdown policy. Put application coordination in their parent.
+  Symmetry means comparable ownership, not identical filenames, method sets, or
+  an interface imposed on features with different needs.
 - Extract a package when it hides a coherent implementation behind a useful,
   smaller surface. Keep helpers local when a separate package would expose their
   internals, require callbacks in both directions, or force callers to understand
@@ -37,6 +45,14 @@ universally idiomatic. Honor the requested scope and existing behavior contracts
   split rules. Do not create one package per type or arbitrary architecture layers.
 - Evaluate the reader's route through the code. A move that adds exported fields,
   forwarding types, or a large host interface without hiding decisions is unfinished.
+- Keep feature configuration, messages, command availability, and domain decisions
+  with the feature. Shared packages should contain behavior with shared semantics,
+  not switch on feature names or collect types solely to avoid import cycles.
+  A parent can combine feature-supplied menu data without knowing execution details.
+- Export operations and the facts callers actually need. Do not export execution
+  state to make a move compile or to preserve old test fixtures. Public presentation
+  values are reasonable when another package really renders or handles them;
+  that does not justify exposing the feature's mutable model.
 
 ## Write steps a person can follow
 
@@ -59,6 +75,10 @@ universally idiomatic. Honor the requested scope and existing behavior contracts
   methods deserves a boundary review, not automatic conversion to an interface.
 - Prefer a named config struct over functional options for ordinary internal
   construction. Use options when the API's actual consumers benefit from them.
+- Keep construction readable too: use keyed fields, usually one per line for a
+  substantial literal. Separate callback bodies or nested setup when they obscure
+  the operation. Avoid parallel configuration structs copied field by field, and
+  review aliases and forwarding methods for an actual caller need.
 - Accept modest duplication when sharing would require mode flags, callbacks,
   type assertions, or configuration unrelated to a caller. Share behavior whose
   semantics really agree. Generics and dependencies must earn their complexity
@@ -102,6 +122,28 @@ universally idiomatic. Honor the requested scope and existing behavior contracts
 - Preserve existing wire formats and user-visible behavior during a refactor.
   Do not add compatibility wrappers for internal renames unless actual callers
   or a compatibility promise require them.
+- When moving an event loop or resource owner, trace startup, completion, stop,
+  and close together. Preserve ordering between progress and completion, release
+  blocked receivers on cancellation, and retain cleanup on construction failure.
+  In interactive code, distinguish asynchronous results from user input: hidden
+  features may still receive results, but must not consume another screen's paste
+  or keystrokes. Shared overlays need an explicit input owner.
+
+## Refactor through the real callers
+
+- Move behavioral tests with the responsibility they exercise. Test application
+  navigation and shared lifecycle through the parent; keep feature-local tests
+  near their model. Build integration fixtures through real constructors and
+  messages rather than exporting internals or recreating the former parent.
+- Preserve assertions when migrating tests. Split transport decoding, feature
+  behavior, and parent routing coverage where their owners differ; do not replace
+  an exact draft or submitted-value check with a loose rendering assertion.
+  Cover the crossings most likely to regress, such as returning to a retained
+  draft, closing with hidden unsaved work, or receiving completion after stop.
+- For broad renames, prefer symbol-aware edits. When scripted text changes are
+  useful, keep them narrow and inspect literals, comments, imports, and tests.
+  Compilation cannot detect a changed label, weakened assertion, or stale comment.
+  Avoid mixing unrelated formatting cleanup into an ownership refactor.
 
 ## Finish with evidence
 
