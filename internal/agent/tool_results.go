@@ -151,3 +151,46 @@ func toolResultStatus(call llm.ToolCall, result callResult, finishReason string,
 
 	return status
 }
+
+// Keep refused calls in the transcript without letting malformed RawMessage
+// bytes break persistence or the next backend request. Execution checks the
+// original arguments; the paired error result explains this placeholder.
+func recordableMessage(msg llm.Message) llm.Message {
+	for i, call := range msg.ToolCalls {
+		if !json.Valid(call.Arguments) || call.InputError != "" {
+			msg.ToolCalls = append([]llm.ToolCall(nil), msg.ToolCalls...)
+			for j := i; j < len(msg.ToolCalls); j++ {
+				if !json.Valid(msg.ToolCalls[j].Arguments) || msg.ToolCalls[j].InputError != "" {
+					msg.ToolCalls[j].RawArguments = string(msg.ToolCalls[j].Arguments)
+					if msg.ToolCalls[j].InputError == "" {
+						msg.ToolCalls[j].InputError = "invalid_json"
+					}
+					msg.ToolCalls[j].Arguments = nil
+				}
+			}
+			break
+		}
+	}
+	return msg
+}
+
+// maxToolImagesPerStep caps the pictures one assistant step may pull into
+// the conversation. A model that reads a directory of screenshots would
+// otherwise pay the vision-encoder cost for every one of them in a single
+// turn, and the estimate used by the context meter deliberately
+// undercounts that cost. Four is enough for a screenshot and its
+// reference; more is usually the model losing track of what it asked for.
+const maxToolImagesPerStep = 4
+
+// pictureNote labels attached pictures as tool output. The model must not
+// read them as a new instruction from the operator; the paths let it
+// connect each picture to the read_file result it requested.
+func pictureNote(paths []string) string {
+	var b strings.Builder
+	b.WriteString("Pictures returned by tools (tool output, not a new user request):\n")
+	for _, p := range paths {
+		fmt.Fprintf(&b, "- %s\n", p)
+	}
+	b.WriteString("Use what you see to continue the task.")
+	return b.String()
+}

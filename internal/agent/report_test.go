@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/keshon/gektor/internal/llm"
@@ -158,4 +160,69 @@ func (c *repeatingToolClient) Chat(context.Context, llm.ChatRequest) (llm.ChatRe
 			{ID: "r", Name: "write_file", Arguments: c.args},
 		},
 	}}, nil
+}
+
+func TestAgent_DelegateMutations_CountTowardVerifyZeroWrites(t *testing.T) {
+	delegateArgs, _ := json.Marshal(map[string]string{"task": "write file"})
+	client := &stubClient{responses: []llm.ChatResponse{
+		{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{
+			{ID: "d", Name: "delegate_task", Arguments: delegateArgs},
+		}}},
+		{Message: llm.Message{Role: llm.RoleAssistant, Content: "delegated"}},
+		{Message: llm.Message{Role: llm.RoleAssistant, Content: "confirmed"}},
+	}}
+	delegateTool := delegateStub{mutations: 1, result: "sub done"}
+	a := New(Config{
+		Client: client,
+		Tools:  NewRegistry(delegateTool),
+		System: "sys",
+	})
+
+	if _, err := a.Run(context.Background(), "task"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	for _, m := range client.lastHistory {
+		if strings.Contains(m.Content, "Concrete fact: 0 file-writing") {
+			t.Fatalf("delegate mutations should prevent zero-writes fact: %q", m.Content)
+		}
+	}
+}
+
+func TestFailedDelegateRetainsEffectsAndFailure(t *testing.T) {
+	a := New(Config{MaxSteps: 2, Client: &stubClient{responses: []llm.ChatResponse{
+		{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "d", Name: "delegate_task", Arguments: json.RawMessage(`{"task":"edit"}`)}}}},
+		{Message: llm.Message{Role: llm.RoleAssistant, Content: "Incomplete."}},
+	}}, Tools: NewRegistry(delegateStub{mutations: 1, result: "partial evidence", err: ErrMaxSteps})})
+	var result ToolResult
+	a.cfg.OnResult = func(r ToolResult) { result = r }
+	if _, err := a.Run(t.Context(), "test"); err != nil {
+		t.Fatal(err)
+	}
+	if a.LastRunMutations != 1 || len(a.MutatedPaths()) != 1 || a.MutatedPaths()[0] != "changed.txt" || !result.Failed || !strings.Contains(result.Output, "partial evidence") {
+		t.Fatalf("report=%+v result=%+v", a.Report(), result)
+	}
+}
+
+func TestCancellationOnLastStepKeepsEffectsAndCorrectReason(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	client := &stubClient{responses: []llm.ChatResponse{{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "last", Name: "echo", Arguments: json.RawMessage(`{"path":"changed.txt"}`)}}}}}}
+	a := New(Config{Client: client, MaxSteps: 1, Tools: NewRegistry(echoToolStub{}), MutatingTools: []string{"echo"}, OnResult: func(ToolResult) { cancel() }})
+	_, err := a.Run(ctx, "test")
+	if !errors.Is(err, context.Canceled) || errors.Is(err, ErrMaxSteps) || client.calls != 1 || a.LastRunMutations != 1 || a.Report().Outcome != "cancelled" {
+		t.Fatalf("err=%v report=%+v", err, a.Report())
+	}
+}
+
+func TestParseDelegateMutations(t *testing.T) {
+	got, paths := parseDelegateMutations("DELEGATE\nmutations: 2\npaths: a.txt\npaths: b.txt\n----\nsub result")
+	if got != 2 {
+		t.Fatalf("parseDelegateMutations = %d, want 2", got)
+	}
+	if len(paths) != 2 || paths[0] != "a.txt" || paths[1] != "b.txt" {
+		t.Fatalf("paths = %v", paths)
+	}
+	if got, paths := parseDelegateMutations("plain text"); got != 0 || paths != nil {
+		t.Fatalf("unstructured content = %d %v, want 0 nil", got, paths)
+	}
 }

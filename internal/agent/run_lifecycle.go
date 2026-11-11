@@ -146,3 +146,46 @@ func (a *Agent) prepareRun(ctx, workCtx context.Context, st *runState, history [
 	}
 	return history, nil
 }
+
+type runState struct {
+	observeChanges                                         func() ([]string, error)
+	observationErr                                         error
+	mutatingSucceeded, lastPromptTokens, lastCompactTokens int
+	emptyFinishRetried, overflowRetried                    bool
+	mutatedPaths                                           []string
+
+	// repeatSignature is the previous step's call signature and repeatCount
+	// is how many consecutive steps have now issued it. A model that stops
+	// learning keeps asking the same question, so the loop stops handing it
+	// tools after maxRepeatedSteps. Cleared on mutation: repeating a call
+	// across a write is work, not a spin.
+	repeatSignature    string
+	repeatCount        int
+	observations       [][32]byte
+	observationWarning bool
+
+	lastPromptEstimate int
+	compactErr         error
+}
+
+func (st *runState) addPaths(paths []string) {
+	for _, p := range paths {
+		if !containsStr(st.mutatedPaths, p) {
+			st.mutatedPaths = append(st.mutatedPaths, p)
+		}
+	}
+}
+
+// A single end-of-run comparison also catches shell, MCP and failed-tool effects.
+func (a *Agent) observeWorkspace(st *runState) {
+	if st.observeChanges == nil {
+		return
+	}
+	paths, err := st.observeChanges()
+	if err != nil {
+		st.observationErr = err
+		return
+	}
+	st.addPaths(paths)
+	st.mutatingSucceeded = len(paths)
+}

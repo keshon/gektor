@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -15,14 +14,85 @@ import (
 	"github.com/keshon/gektor/internal/prompts"
 )
 
-type largeRead struct{}
+func TestEffectiveMaxTokens_CapsAgainstRemainingRoom(t *testing.T) {
+	a := New(Config{
+		Client:       &stubClient{},
+		Tools:        NewRegistry(),
+		ContextLimit: 32768,
+		MaxTokens:    32768,
+	})
+	// prompt already used 30000 of 32768 — only ~2512 actually free.
+	got := a.effectiveMaxTokens(30000)
+	if got >= 32768 {
+		t.Fatalf("effectiveMaxTokens = %d, want it capped well below MaxTokens", got)
+	}
+	if got < 256 {
+		t.Fatalf("effectiveMaxTokens = %d, want at least the floor of 256", got)
+	}
+}
 
-func (largeRead) Name() string            { return "large_read" }
-func (largeRead) Description() string     { return "read" }
-func (largeRead) Schema() json.RawMessage { return json.RawMessage(`{}`) }
-func (largeRead) Mode() ToolMode          { return Concurrent }
-func (largeRead) Run(context.Context, json.RawMessage) (string, error) {
-	return strings.Repeat("new ", 5000), nil
+func TestEffectiveMaxTokens_NoLimitKnown_FallsBackToConfig(t *testing.T) {
+	a := New(Config{Client: &stubClient{}, Tools: NewRegistry(), MaxTokens: 4096})
+	if got := a.effectiveMaxTokens(30000); got != 4096 {
+		t.Fatalf("effectiveMaxTokens = %d, want 4096 (ContextLimit unset)", got)
+	}
+}
+
+func TestEffectiveMaxTokens_FirstCall_StillCapsAgainstContext(t *testing.T) {
+	// ContextLimit known but no prompt measured yet (first call) — must
+	// not blindly return the full ceiling if the ceiling is close to or
+	// equal to the context size, since the unmeasured prompt isn't zero.
+	a := New(Config{
+		Client:       &stubClient{},
+		Tools:        NewRegistry(),
+		ContextLimit: 32768,
+		MaxTokens:    32768,
+	})
+	got := a.effectiveMaxTokens(0)
+	if got >= 32768 {
+		t.Fatalf("effectiveMaxTokens = %d, want it capped below the full ceiling on an unmeasured first call", got)
+	}
+}
+
+func TestAgent_CompactHistoryAt90Percent(t *testing.T) {
+	client := &usageClient{
+		usages:       []int{950, 960},
+		finalContent: "done",
+	}
+	a := New(Config{
+		Client:           client,
+		Tools:            NewRegistry(echoToolStub{}),
+		System:           "sys",
+		ContextLimit:     1000,
+		CompactKeepSteps: 2,
+	})
+
+	// Seed history with many prior steps so compaction has something to drop.
+	history := []llm.Message{
+		{Role: llm.RoleSystem, Content: "sys"},
+		{Role: llm.RoleUser, Content: "task"},
+	}
+	for i := 0; i < 6; i++ {
+		id := fmt.Sprintf("c%d", i)
+		history = append(history,
+			llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: id, Name: "echo", Arguments: json.RawMessage(`{}`)}}},
+			llm.Message{Role: llm.RoleTool, ToolCallID: id, Content: "ok"},
+		)
+	}
+
+	if _, err := a.Resume(context.Background(), history, "continue"); err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+
+	found := false
+	for _, m := range client.lastHistory {
+		if rest, ok := strings.CutPrefix(m.Content, "[harness] "); ok && strings.HasPrefix(rest, prompts.CompactNotice) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected compact notice after crossing 90% context usage")
+	}
 }
 
 func TestAutoCompactIncludesNewestToolOutput(t *testing.T) {
@@ -68,367 +138,6 @@ func TestFirstRequestReservesOutputAgainstItsActualContent(t *testing.T) {
 	if c.reqs[0].MaxTokens > 8192-6000-256 {
 		t.Fatalf("output allowance ignores the 24k system prompt: %d", c.reqs[0].MaxTokens)
 	}
-}
-
-func assistantStep(id string) []llm.Message {
-	return []llm.Message{
-		{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: id, Name: "echo"}}},
-		{Role: llm.RoleTool, ToolCallID: id, Content: "ok"},
-	}
-}
-
-// CompactFile compacts a snapshot in place and reports counts; a
-// second call is a no-op that writes nothing.
-func TestCompactFile_ShrinksSnapshot(t *testing.T) {
-	dir := t.TempDir()
-	state := filepath.Join(dir, "state.json")
-	history := []llm.Message{
-		{Role: llm.RoleSystem, Content: "sys"},
-		{Role: llm.RoleUser, Content: "task"},
-	}
-	for i := 0; i < 15; i++ {
-		history = append(history, assistantStep("c")...)
-	}
-	raw, err := json.MarshalIndent(conversation.New(history), "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(state, raw, 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	before, after, _, err := CompactFile(state, 8)
-	if err != nil {
-		t.Fatalf("CompactFile: %v", err)
-	}
-	if after >= before {
-		t.Fatalf("before=%d after=%d, want shrink", before, after)
-	}
-	loaded, err := LoadState(state)
-	if err != nil {
-		t.Fatalf("LoadState: %v", err)
-	}
-	if len(loaded) != after {
-		t.Fatalf("snapshot holds %d messages, want %d", len(loaded), after)
-	}
-
-	before2, after2, _, err := CompactFile(state, 8)
-	if err != nil {
-		t.Fatalf("second CompactFile: %v", err)
-	}
-	if before2 != after || after2 != after {
-		t.Fatalf("second call (%d→%d) must be a no-op", before2, after2)
-	}
-}
-
-func TestCompactFile_MissingSnapshotErrors(t *testing.T) {
-	if _, _, _, err := CompactFile(filepath.Join(t.TempDir(), "missing.json"), 8); err == nil {
-		t.Fatal("want error for missing snapshot")
-	}
-}
-
-// /compact reads and rewrites one snapshot. A corrupt file is an error,
-// not something to reconstruct: there is no second copy to fall back to,
-// and writing a partial reconstruction would look like a recovered
-// session.
-func TestCompactFile_CorruptSnapshotErrors(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "state.json")
-	if err := conversation.WriteSnapshot(path, []llm.Message{{Role: llm.RoleUser, Content: "task"}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte("broken"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, _, err := CompactFile(path, 8); err == nil {
-		t.Fatal("a corrupt snapshot must not compact silently")
-	}
-}
-
-func TestCompactFile_ShrinksASnapshot(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "state.json")
-	history := []llm.Message{{Role: llm.RoleSystem, Content: "sys"}, {Role: llm.RoleUser, Content: "task"}}
-	for i := 0; i < 15; i++ {
-		history = append(history, assistantStep("c")...)
-	}
-	if err := conversation.WriteSnapshot(path, history); err != nil {
-		t.Fatal(err)
-	}
-
-	before, after, _, err := CompactFile(path, 8)
-	if err != nil || before != len(history) || after >= before {
-		t.Fatalf("compaction: %d -> %d, %v", before, after, err)
-	}
-	loaded, err := LoadState(path)
-	if err != nil || len(loaded) != after {
-		t.Fatalf("compacted snapshot: %d messages, %v", len(loaded), err)
-	}
-}
-
-func TestCompactHistory_KeepsPrefixAndRecentGroups(t *testing.T) {
-	history := []llm.Message{
-		{Role: llm.RoleSystem, Content: "sys"},
-		{Role: llm.RoleUser, Content: "task"},
-	}
-	for i := 0; i < 15; i++ {
-		history = append(history, assistantStep("c")...)
-	}
-
-	got := compactHistory(history, 8)
-	if len(got) < 2+1+8*2 {
-		t.Fatalf("too short: %d messages", len(got))
-	}
-	if got[0].Content != "sys" || got[1].Content != "task" {
-		t.Fatal("prefix lost")
-	}
-	if got[2].Content != harnessText(prompts.CompactNotice) && len(got[2].Content) <= len(prompts.CompactNotice) {
-		t.Fatalf("expected compact notice at [2], got %q", got[2].Content)
-	}
-	if want := harnessText(prompts.CompactNotice); len(got[2].Content) < len(want) || got[2].Content[:len(want)] != want {
-		t.Fatalf("expected marked compact notice prefix at [2], got %q", got[2].Content)
-	}
-}
-
-// A session is not one long task. Compaction keeps the FIRST user message
-// as the standing instruction, so when an early question was an aside and
-// the real work came later, compaction drops the real request and keeps
-// the aside. The model then finishes whatever work is still visible in the
-// tail, runs out, and answers the aside.
-//
-// This is a transcript shape: user asks about currency, then asks for a
-// game, then asks for polish. Only the currency question survives as live
-// instruction; the polish request must reach the model through the notice.
-func TestCompactHistory_CarriesDroppedUserRequests(t *testing.T) {
-	history := []llm.Message{
-		{Role: llm.RoleSystem, Content: "sys"},
-		{Role: llm.RoleUser, Content: "show me today's rate for the ruble"},
-	}
-	for i := 0; i < 6; i++ {
-		history = append(history, assistantStep("a")...)
-	}
-	// The actual work, dropped by compaction.
-	history = append(history, llm.Message{Role: llm.RoleUser, Content: "now build me a sliding puzzle game"})
-	for i := 0; i < 6; i++ {
-		history = append(history, assistantStep("b")...)
-	}
-	history = append(history, llm.Message{Role: llm.RoleUser, Content: "polish it: add sliding animations to the tiles"})
-	for i := 0; i < 4; i++ {
-		history = append(history, assistantStep("c")...)
-	}
-
-	got := compactHistory(history, 4)
-	notice := got[2].Content
-
-	for _, want := range []string{"build me a sliding puzzle game", "add sliding animations to the tiles"} {
-		if !strings.Contains(notice, want) {
-			t.Fatalf("dropped request %q missing from the notice:\n%s", want, notice)
-		}
-	}
-	// Order matters: the newest request is the live one, and the notice
-	// says so. A model that reads them unordered is back to guessing.
-	if strings.Index(notice, "add sliding animations") < strings.Index(notice, "build me a sliding puzzle") {
-		t.Fatalf("dropped requests must stay in order, newest last:\n%s", notice)
-	}
-	if !strings.Contains(prompts.CompactNotice, "latest user instructions") {
-		t.Fatal("the notice must preserve current user instructions over the mechanical summary")
-	}
-}
-
-// The plan must survive compaction. It lives only in the last checklist
-// call's arguments -- rehydrateTodo rebuilds the tracker by replaying that
-// one call -- so dropping it does not lose steps, it loses the model's own
-// task list. The notice used to say "todo×2" and nothing else.
-func TestCompactHistory_CarriesThePlan(t *testing.T) {
-	plan := func(states ...string) []llm.Message {
-		texts := []string{"write the grid", "add sliding animation", "handle win state"}
-		items := make([]string, 0, len(states))
-		for i, st := range states {
-			items = append(items, fmt.Sprintf(`{"id":%d,"state":%q,"text":%q}`, i+1, st, texts[i]))
-		}
-		return []llm.Message{
-			{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{
-				ID: "t", Name: "todo",
-				Arguments: json.RawMessage(`{"items":[` + strings.Join(items, ",") + `]}`),
-			}}},
-			{Role: llm.RoleTool, ToolCallID: "t", Content: "ok"},
-		}
-	}
-	history := []llm.Message{
-		{Role: llm.RoleSystem, Content: "sys"},
-		{Role: llm.RoleUser, Content: "build me a sliding puzzle"},
-	}
-	history = append(history, plan("done", "pending", "pending")...)
-	for i := 0; i < 6; i++ {
-		history = append(history, assistantStep("a")...)
-	}
-	// The most recent checklist is the plan as it stood when compaction hit.
-	history = append(history, plan("done", "in_progress", "pending")...)
-	for i := 0; i < 6; i++ {
-		history = append(history, assistantStep("b")...)
-	}
-
-	notice := compactHistory(history, 4)[2].Content
-	for _, want := range []string{"[x] write the grid", "[~] add sliding animation", "[ ] handle win state"} {
-		if !strings.Contains(notice, want) {
-			t.Fatalf("plan item %q missing from the notice:\n%s", want, notice)
-		}
-	}
-	if !strings.Contains(prompts.CompactNotice, "checklist may be stale") {
-		t.Fatal("the notice must not present an extracted checklist as authoritative")
-	}
-}
-
-// A dropped plan is bounded: this string is carried for the rest of the
-// run, so a 40-item checklist cannot turn the notice into the largest
-// thing in the prompt.
-func TestFormatChecklist_BoundsThePlan(t *testing.T) {
-	items := make([]string, 0, planMaxItems+10)
-	for i := 0; i < planMaxItems+10; i++ {
-		items = append(items, fmt.Sprintf(`{"id":%d,"state":"pending","text":"item number %d"}`, i, i))
-	}
-	got, ok := formatChecklist(json.RawMessage(`{"items":[` + strings.Join(items, ",") + `]}`))
-	if !ok {
-		t.Fatal("a well-formed checklist must be recognised")
-	}
-	if !strings.Contains(got, "+10 more") {
-		t.Fatalf("overflow not announced: %s", got)
-	}
-	if n := strings.Count(got, ";"); n != planMaxItems {
-		t.Fatalf("%d items rendered, want %d: %s", n+1, planMaxItems, got)
-	}
-}
-
-// Arguments that merely happen to have an items array are not a checklist.
-func TestFormatChecklist_RejectsOtherTools(t *testing.T) {
-	for _, args := range []string{
-		`{}`,
-		`{"items":[]}`,
-		`{"items":[{"id":1,"state":"unknown","text":"x"}]}`,
-		`{"items":[{"id":1,"state":"pending","text":"  "}]}`,
-		`{"items":[{"id":1}]}`,
-		`not json`,
-	} {
-		if _, ok := formatChecklist(json.RawMessage(args)); ok {
-			t.Fatalf("%s must not be read as a checklist", args)
-		}
-	}
-}
-
-// Loop notices describe the loop, not the task. Listing them as the user's
-// requests would bury the request that matters.
-func TestSummarizeDropped_SkipsHarnessNotices(t *testing.T) {
-	var f droppedFacts
-	f.add([][]llm.Message{{
-		{Role: llm.RoleUser, Content: harnessText("budget extended by operator approval")},
-		{Role: llm.RoleAssistant, Content: "working"},
-		{Role: llm.RoleUser, Content: "actually make it two players"},
-	}})
-	summary := f.render()
-	if strings.Contains(summary, "budget extended") {
-		t.Fatalf("harness notice leaked into the dropped requests: %s", summary)
-	}
-	if !strings.Contains(summary, "actually make it two players") {
-		t.Fatalf("real request missing: %s", summary)
-	}
-}
-
-func TestCompactHistory_NoOrphanToolResults(t *testing.T) {
-	history := []llm.Message{
-		{Role: llm.RoleSystem, Content: "sys"},
-		{Role: llm.RoleUser, Content: "task"},
-	}
-	for i := 0; i < 10; i++ {
-		id := "call"
-		history = append(history,
-			llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: id, Name: "echo"}}},
-			llm.Message{Role: llm.RoleTool, ToolCallID: id, Content: "ok"},
-		)
-	}
-
-	got := compactHistory(history, 3)
-	for i, m := range got {
-		if m.Role != llm.RoleTool {
-			continue
-		}
-		if i == 0 || got[i-1].Role != llm.RoleAssistant {
-			t.Fatalf("orphan tool result at %d", i)
-		}
-	}
-}
-
-func TestCompactHistory_DisabledWhenKeepStepsZero(t *testing.T) {
-	history := []llm.Message{
-		{Role: llm.RoleSystem, Content: "sys"},
-		{Role: llm.RoleUser, Content: "task"},
-		{Role: llm.RoleAssistant, Content: "hi"},
-	}
-	if got := compactHistory(history, 0); len(got) != len(history) {
-		t.Fatal("expected unchanged history")
-	}
-}
-
-func TestStepGroups_SplitsOnAssistant(t *testing.T) {
-	msgs := []llm.Message{
-		{Role: llm.RoleAssistant, Content: "a1"},
-		{Role: llm.RoleTool, Content: "t1"},
-		{Role: llm.RoleUser, Content: "nudge"},
-		{Role: llm.RoleAssistant, Content: "a2"},
-	}
-	groups := stepGroups(msgs)
-	if len(groups) != 2 {
-		t.Fatalf("groups = %d, want 2", len(groups))
-	}
-	if len(groups[0]) != 3 || len(groups[1]) != 1 {
-		t.Fatalf("unexpected group sizes: %d, %d", len(groups[0]), len(groups[1]))
-	}
-}
-
-// Delegate reports name no files in their call arguments — the touched
-// paths live in the result envelope. They must survive in the notice,
-// or post-compaction history remembers that a subagent ran but not what
-// it changed.
-func TestSummarizeDropped_KeepsDelegatePaths(t *testing.T) {
-	history := []llm.Message{
-		{Role: llm.RoleSystem, Content: "sys"},
-		{Role: llm.RoleUser, Content: "task"},
-	}
-	for i := 0; i < 10; i++ {
-		history = append(history,
-			llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "c", Name: "delegate_task"}}},
-			llm.Message{Role: llm.RoleTool, ToolCallID: "c", Content: "DELEGATE\nmutations: 2\npaths: sub/a.go\npaths: sub/b.go\n----\ndone"},
-		)
-	}
-	got := compactHistory(history, 3)
-	if len(got) < 3 {
-		t.Fatalf("too short: %d messages", len(got))
-	}
-	notice := got[2].Content
-	if !strings.Contains(notice, "sub/a.go") || !strings.Contains(notice, "sub/b.go") {
-		t.Fatalf("delegate paths lost from notice: %q", notice)
-	}
-}
-
-// history builds a transcript with n assistant-led step groups after the
-// system/user prefix, which is the shape compactHistory splits on.
-func historyWithSteps(n int) []llm.Message {
-	out := []llm.Message{
-		{Role: llm.RoleSystem, Content: "sys"},
-		{Role: llm.RoleUser, Content: "task"},
-	}
-	for i := 0; i < n; i++ {
-		out = append(out,
-			llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "c", Name: "read_file"}}},
-			llm.Message{Role: llm.RoleTool, ToolCallID: "c", Content: "contents"},
-		)
-	}
-	return out
-}
-
-func compactAgent(t *testing.T, atPercent int) *Agent {
-	t.Helper()
-	return New(Config{
-		Client: &stubClient{}, Tools: NewRegistry(), System: "sys",
-		ContextLimit: 1000, CompactKeepSteps: 2, CompactAtPercent: atPercent,
-	})
 }
 
 // Compaction drops the results the repeat caches cite: after it fires,

@@ -120,3 +120,9 @@ func (a *Agent) runToolBatch(ctx context.Context, st *runState, group *toolBatch
 
 	group.executed, group.withheld, group.yielded = executed, withheld, yielded
 }
+
+type callResult struct {
+	duration time.Duration
+	content  string
+	err      error
+}

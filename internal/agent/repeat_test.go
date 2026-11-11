@@ -334,3 +334,27 @@ func TestRun_RepeatedStepsWithNoAnswerFail(t *testing.T) {
 		t.Fatal("a repeated-signature stop must not be reported as a step-budget stop")
 	}
 }
+
+func TestAgent_DistinctSuccessfulCalls_NeverNudged(t *testing.T) {
+	// Control case: genuinely different successful calls each step must
+	// never be mistaken for a stuck loop.
+	client := &varyingArgsClient{steps: 5, finalContent: "done"}
+	a := New(Config{
+		Client: client,
+		Tools:  NewRegistry(echoToolStub{}),
+		System: "sys",
+	})
+
+	out, err := a.Run(context.Background(), "task")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if out != "done" {
+		t.Fatalf("result = %q, want %q", out, "done")
+	}
+	for _, m := range client.lastHistory {
+		if m.Role == llm.RoleUser && strings.Contains(m.Content, "Stop repeating") {
+			t.Fatalf("unexpected nudge for genuinely distinct calls: %q", m.Content)
+		}
+	}
+}

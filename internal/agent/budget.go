@@ -55,3 +55,9 @@ func (a *Agent) closeBudget(ctx context.Context, st *runState, history []llm.Mes
 		a.cfg.OnUsage(a.report.Steps-1, resp.Usage)
 	}
 }
+
+// ErrMaxSteps marks a run that did real work but ran out of step budget,
+// as opposed to infrastructure failure where none happened. Retry loops
+// must separate them: a budget death can converge, a dead backend just
+// burns retries on connection errors.
+var ErrMaxSteps = errors.New("reached max steps")
