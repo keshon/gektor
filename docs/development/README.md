@@ -5,7 +5,7 @@ binary and need no Go installation.
 
 ## Build
 
-Install Go 1.26.10 or newer. From the repository root:
+Install Go 1.26.11 or newer. From the repository root:
 
 ```powershell
 go build -o gektor.exe ./cmd/gektor

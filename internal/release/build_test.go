@@ -12,7 +12,7 @@ import (
 func TestBuildReleaseFromCleanRepository(t *testing.T) {
 	root := t.TempDir()
 	contents := map[string]string{
-		"go.mod":             "module github.com/keshon/gektor\n\ngo 1.26.10\n",
+		"go.mod":             "module github.com/keshon/gektor\n\ngo 1.26.11\n",
 		"cmd/gektor/main.go": "package main\nfunc main() {}\n",
 		".gitignore":         "/dist/\n",
 		".env":               "SECRET=not-for-distribution\n",
