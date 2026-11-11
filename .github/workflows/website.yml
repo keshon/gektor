@@ -3,9 +3,9 @@ name: Website
 on:
   push:
     branches: [main]
-    paths: ['website/**', 'docs/**', 'examples/workflows/**', 'README.md', 'ARCHITECTURE.md', 'SECURITY.md', 'eval/README.md', 'skills/**/*.md', 'scripts/README.md', 'demos/README.md', '.github/workflows/website.yml']
+    paths: ['website/**', 'docs/**', 'examples/**', 'README.md', 'ARCHITECTURE.md', 'SECURITY.md', 'eval/README.md', 'skills/**/*.md', 'scripts/README.md', '.github/workflows/website.yml']
   pull_request:
-    paths: ['website/**', 'docs/**', 'examples/workflows/**', 'README.md', 'ARCHITECTURE.md', 'SECURITY.md', 'eval/README.md', 'skills/**/*.md', 'scripts/README.md', 'demos/README.md', '.github/workflows/website.yml']
+    paths: ['website/**', 'docs/**', 'examples/**', 'README.md', 'ARCHITECTURE.md', 'SECURITY.md', 'eval/README.md', 'skills/**/*.md', 'scripts/README.md', '.github/workflows/website.yml']
   workflow_dispatch:
 
 permissions:

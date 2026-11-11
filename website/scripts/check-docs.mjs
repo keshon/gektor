@@ -6,7 +6,7 @@ import { article, localTarget, pages, root } from './documentation.mjs';
 const tracked = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], { cwd: root, encoding: 'utf8' }).trim().split('\n');
 const sources = tracked.filter(p => p.endsWith('.md') && !p.startsWith('docs/internal/') && (
   !p.includes('/') || p.startsWith('docs/') || p.startsWith('skills/') ||
-  p.startsWith('examples/workflows/') || ['demos/README.md', 'eval/README.md', 'scripts/README.md', 'website/README.md'].includes(p)
+  p.startsWith('examples/') || ['eval/README.md', 'scripts/README.md', 'website/README.md'].includes(p)
 ));
 const parsed = new Map();
 const read = source => {

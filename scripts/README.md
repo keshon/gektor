@@ -14,7 +14,7 @@ The older CLI helpers still work:
 - `scripts/run-plan.cmd` runs an Agent task with `-plan`.
 - `scripts/run-resume.cmd [id or path]` lists saved CLI tasks or resumes one.
 
-Use [the demos](../demos/README.md) to try complete examples without remembering
+Use [the demos](../examples/demos/README.md) to try complete examples without remembering
 their inputs and permission flags.
 
 ## Development helpers

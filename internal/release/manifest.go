@@ -14,7 +14,7 @@ func windowsFiles() []string {
 		"start-gektor-agent.cmd", "start-gektor-workflows.cmd",
 		"run-gektor-agent.cmd", "run-gektor-workflow.cmd", "serve-gektor-workflows.cmd",
 		"scripts/run-task.cmd", "scripts/run-plan.cmd", "scripts/run-resume.cmd", "scripts/ensure-build.cmd",
-		"demos/agent-task.cmd", "demos/workflow-draft.cmd", "demos/workflow-review.cmd", "demos/demo.ps1",
+		"examples/demos/agent-task.cmd", "examples/demos/workflow-draft.cmd", "examples/demos/workflow-review.cmd", "examples/demos/demo.ps1",
 	}
 }
 
@@ -23,7 +23,7 @@ func runtimeFiles(tracked []string, target string) []string {
 	for _, name := range tracked {
 		switch name {
 		case "README.md", "LICENSE", "SECURITY.md", "ARCHITECTURE.md", ".env.example",
-			"eval/README.md", "demos/README.md", "scripts/README.md", "internal/workspace/builtin/workflows/SKILL.md":
+			"eval/README.md", "examples/README.md", "examples/demos/README.md", "scripts/README.md", "internal/workspace/builtin/workflows/SKILL.md":
 			selected[name] = true
 		default:
 			runtimeAsset := strings.HasPrefix(name, "skills/") ||

@@ -169,7 +169,7 @@ usually the thing worth reading.
 | Place | Purpose |
 |---|---|
 | [Workflow examples](../examples/workflows/README.md) | Recipes people can copy and learn from |
-| [Demos](../demos/README.md) | Launch a few complete tasks with little setup |
+| [Demos](../examples/demos/README.md) | Launch a few complete tasks with little setup |
 | `eval/` | Check whether the Agent discovers tools, uses them and reports evidence |
 | Go tests | Check engine behavior, permissions and exact results without a model |
 

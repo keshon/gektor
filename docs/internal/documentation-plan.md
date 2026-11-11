@@ -1,5 +1,8 @@
 # Documentation proposal
 
+The demo launchers now live in [`examples/demos`](../../examples/demos/README.md);
+paths below describe the original documentation baseline.
+
 Proposed on 2026-11-09 against `17d7d4d`. This is a content and navigation plan;
 approved for implementation on 2026-11-09. The audit below describes the original baseline.
 

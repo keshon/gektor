@@ -138,7 +138,7 @@ func maintainedDoc(path string) bool {
 		return true
 	}
 	return path == "skills/README.md" || path == "eval/README.md" || path == "scripts/README.md" ||
-		(strings.HasPrefix(path, "examples/") || strings.HasPrefix(path, "demos/")) && filepath.Base(path) == "README.md"
+		strings.HasPrefix(path, "examples/") && filepath.Base(path) == "README.md"
 }
 
 func maintainedDocs(t *testing.T, r *repo) []string {
@@ -150,7 +150,7 @@ func maintainedDocs(t *testing.T, r *repo) []string {
 		}
 		rel := r.rel(path)
 		if entry.IsDir() {
-			if rel != "." && !strings.Contains(rel, "/") && rel != "docs" && rel != "skills" && rel != "eval" && rel != "examples" && rel != "demos" && rel != "scripts" {
+			if rel != "." && !strings.Contains(rel, "/") && rel != "docs" && rel != "skills" && rel != "eval" && rel != "examples" && rel != "scripts" {
 				return filepath.SkipDir
 			}
 			if rel == "docs/internal" || rel == "eval/results" {
@@ -228,7 +228,7 @@ func ActualFunction() {}
 }
 
 func TestMaintainedDocumentationScope(t *testing.T) {
-	for _, path := range []string{"README.md", "SECURITY.md", "docs/design/tui/README.md", "docs/development/conventions.md", "docs/reference/cli.md", "docs/guide/agent.md", "skills/README.md", "eval/README.md", "scripts/README.md", "examples/workflows/README.md", "demos/README.md"} {
+	for _, path := range []string{"README.md", "SECURITY.md", "docs/design/tui/README.md", "docs/development/conventions.md", "docs/reference/cli.md", "docs/guide/agent.md", "skills/README.md", "eval/README.md", "scripts/README.md", "examples/workflows/README.md", "examples/demos/README.md"} {
 		if !maintainedDoc(path) {
 			t.Errorf("guide %q excluded", path)
 		}
@@ -242,7 +242,7 @@ func TestMaintainedDocumentationScope(t *testing.T) {
 
 func TestMaintainedGuidesRejectUndeclaredGoNames(t *testing.T) {
 	root := t.TempDir()
-	paths := []string{"SECURITY.md", "docs/reference/recipes.md", "docs/design/tui/README.md", "skills/README.md", "eval/README.md", "scripts/README.md", "examples/workflows/README.md", "demos/README.md"}
+	paths := []string{"SECURITY.md", "docs/reference/recipes.md", "docs/design/tui/README.md", "skills/README.md", "eval/README.md", "scripts/README.md", "examples/workflows/README.md", "examples/demos/README.md"}
 	for _, path := range paths {
 		full := filepath.Join(root, filepath.FromSlash(path))
 		if err := os.MkdirAll(filepath.Dir(full), 0700); err != nil {

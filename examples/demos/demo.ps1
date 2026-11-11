@@ -5,7 +5,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$root = Split-Path -Parent $PSScriptRoot
+$examplesRoot = Split-Path -Parent $PSScriptRoot
+$root = Split-Path -Parent $examplesRoot
 $binary = Join-Path $root 'gektor.exe'
 
 function Invoke-Checked {

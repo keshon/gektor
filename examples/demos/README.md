@@ -1,12 +1,12 @@
 # Demos
 
 These launchers show complete tasks. They reuse the maintained
-[workflow examples](../examples/workflows/README.md); they do not keep separate
-copies of recipes. Model reliability is checked by [evals](../eval/README.md).
+[workflow examples](../workflows/README.md); they do not keep separate
+copies of recipes. Model reliability is checked by [evals](../../eval/README.md).
 
 These launchers require Windows. Run them from the extracted release folder
 or a built source checkout. For a model-neutral first Agent task, use
-[Get started](../docs/start.md).
+[Get started](../../docs/start.md).
 Each demo creates a new workspace under `tmp/demos/` and prints its location.
 Existing example files are not edited.
 Demo windows wait at the end so you can read the result. Add `--no-pause`
@@ -24,9 +24,9 @@ They use `gpt-6.1-sol`; edit `profiles/chatgpt.json` for the Agent demo or
 to select another available model.
 
 ```powershell
-.\demos\agent-task.cmd
-.\demos\workflow-review.cmd
-.\demos\workflow-draft.cmd
+.\examples\demos\agent-task.cmd
+.\examples\demos\workflow-review.cmd
+.\examples\demos\workflow-draft.cmd
 ```
 
 Use the review demo for a quick engine check without a model or network.
@@ -42,5 +42,5 @@ Open Workflows with `start-gektor-workflows.cmd`, select a demo workspace in
 Settings, and open its `recipe.json`.
 The workflow demos print their run ID so you can reopen their saved results.
 
-See [launchers](../scripts/README.md) for general commands and
-[the terminal guide](../docs/reference/terminal.md) for using Agent and Workflows.
+See [launchers](../../scripts/README.md) for general commands and
+[the terminal guide](../../docs/reference/terminal.md) for using Agent and Workflows.

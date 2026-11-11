@@ -214,7 +214,7 @@ got worse.
 ## Documentation
 
 **[enforced: doc-identifiers]** Backticked Go names in root guides, maintained docs outside docs/internal,
-skills/README.md, eval/README.md, scripts/README.md and README files under examples and demos
+skills/README.md, eval/README.md, scripts/README.md and README files under examples
 are checked against parsed declarations.
 The check recognizes mixed-case names and package-qualified exported names.
 Bare acronyms and key labels are excluded; JSON fields use quoted JSON notation.
@@ -225,7 +225,7 @@ declarations. This is an existence check, not a full Go type check.
 **[enforced: doc-paths]** Backticked paths starting with internal/ or cmd/,
 and repository-relative filenames ending in .go, must exist. Globs must match
 at least one path. This covers root guides, maintained docs outside docs/internal,
-skills/README.md, eval/README.md, scripts/README.md and README files under examples and demos.
+skills/README.md, eval/README.md, scripts/README.md and README files under examples.
 Write repository paths from the root. Absolute paths, commands, placeholders
 and other workspace example paths are outside the check's scope.
 

@@ -376,7 +376,7 @@ included executable without requiring Go.
 
 The root also has `run-gektor-agent.cmd`, `run-gektor-workflow.cmd` and
 `serve-gektor-workflows.cmd` for CLI use. Relative paths use the caller's folder.
-See [launchers and helpers](../../scripts/README.md) and [demos](../../demos/README.md).
+See [launchers and helpers](../../scripts/README.md) and [demos](../../examples/demos/README.md).
 No backend launchers are included.
 
 | Launcher | Purpose |
