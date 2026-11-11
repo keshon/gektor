@@ -35,15 +35,15 @@ func queuedModel(t *testing.T) *Model {
 func TestQueueEditKeepsDraftAttachmentsAndOrder(t *testing.T) {
 	m := queuedModel(t)
 	before := m.sess.PendingInputs()
-	m.handleKey(tea.KeyPressMsg{Code: 'q', Mod: tea.ModAlt})
+	m.testKey(tea.KeyPressMsg{Code: 'q', Mod: tea.ModAlt})
 	if m.chrome.Dialog == nil || m.chrome.Dialog.Table == nil {
 		t.Fatal("queue did not open")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyDown})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyDown})
 	if m.chrome.Dialog.Table.Model.Selected() != fmt.Sprint(before[1].ID) {
 		t.Fatal("wrong selected message")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	m.testKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
 	if m.chrome.Dialog.Form == nil {
 		t.Fatal("editor did not open")
 	}
@@ -51,7 +51,7 @@ func TestQueueEditKeepsDraftAttachmentsAndOrder(t *testing.T) {
 		t.Fatal("editor has no attachment evidence")
 	}
 	m.chrome.Dialog.Form.Editor.SetValue("edited middle")
-	m.applyForm()
+	m.testControls().ApplyForm()
 	after := m.sess.PendingInputs()
 	if len(after) != 3 || after[0].ID != before[0].ID || after[1].ID != before[1].ID || after[1].Message.Content != "edited middle" || after[1].Message.Images[0] != "shot.png" || after[2].ID != before[2].ID {
 		t.Fatalf("wrong edited queue: %+v", after)
@@ -60,9 +60,9 @@ func TestQueueEditKeepsDraftAttachmentsAndOrder(t *testing.T) {
 		t.Fatal("editor changed composer draft")
 	}
 	m.openInputQueue()
-	m.handleKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	m.testKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
 	m.chrome.Dialog.Form.Editor.SetValue("cancelled edit")
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if m.sess.PendingInputs()[0].Message.Content != before[0].Message.Content {
 		t.Fatal("cancel applied changes")
 	}
@@ -70,10 +70,10 @@ func TestQueueEditKeepsDraftAttachmentsAndOrder(t *testing.T) {
 func TestQueueRefreshKeepsIdentityAndDoesNotInventReceipt(t *testing.T) {
 	m := queuedModel(t)
 	m.openInputQueue()
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnd})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnd})
 	selected := m.chrome.Dialog.Table.Model.Selected()
 	m.sess.RecallInput() // Recall removes it without delivering it to the agent.
-	props := m.tableProps()
+	props := m.testControls().TableProps()
 	if m.chrome.Dialog.Table.Model.Selected() != selected {
 		t.Fatal("refresh moved selection to a different message")
 	}
@@ -83,11 +83,11 @@ func TestQueueRefreshKeepsIdentityAndDoesNotInventReceipt(t *testing.T) {
 	if !props.Actions[0].Enabled || props.Actions[1].Enabled || props.Actions[2].Enabled {
 		t.Fatal("received input is editable")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyDelete})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyDelete})
 	if m.sess.PendingInputCount() != 2 {
 		t.Fatal("delete affected another message")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.chrome.Dialog.Title != "Message no longer queued" || !strings.Contains(strings.Join(m.chrome.Dialog.Lines, " "), "shot.png") {
 		t.Fatal("read lost message or image name")
 	}
@@ -95,12 +95,12 @@ func TestQueueRefreshKeepsIdentityAndDoesNotInventReceipt(t *testing.T) {
 func TestQueueStaleEditorKeepsTextAndCannotChangeAnotherMessage(t *testing.T) {
 	m := queuedModel(t)
 	m.openInputQueue()
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnd})
-	m.handleKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnd})
+	m.testKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
 	m.chrome.Dialog.Form.Editor.SetValue("keep this edit")
 	m.sess.RecallInput()
 	m.sess.Submit("replacement")
-	m.applyForm()
+	m.testControls().ApplyForm()
 	if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil || m.chrome.Dialog.Form.Editor.Value() != "keep this edit" || m.chrome.Dialog.Form.Error == "" {
 		t.Fatal("failed save lost edit or explanation")
 	}
@@ -108,7 +108,7 @@ func TestQueueStaleEditorKeepsTextAndCannotChangeAnotherMessage(t *testing.T) {
 		t.Fatal("stale save changed replacement")
 	}
 	m.sess = &harness.Session{}
-	m.applyForm()
+	m.testControls().ApplyForm()
 	if !strings.Contains(m.chrome.Dialog.Form.Error, "session has changed") {
 		t.Fatal("editor crossed sessions")
 	}
@@ -117,8 +117,8 @@ func TestQueueRemoveOnlySelectedAndLegacyIdentity(t *testing.T) {
 	m := queuedModel(t)
 	before := m.sess.PendingInputs()
 	m.openInputQueue()
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyDown})
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyDelete})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyDown})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyDelete})
 	after := m.sess.PendingInputs()
 	if len(after) != 2 || after[0].ID != before[0].ID || after[1].ID != before[2].ID {
 		t.Fatal("wrong message removed")
@@ -126,16 +126,16 @@ func TestQueueRemoveOnlySelectedAndLegacyIdentity(t *testing.T) {
 	if m.input.Value() != "unfinished draft" {
 		t.Fatal("remove changed draft")
 	}
-	m.closeDialog()
+	m.testControls().Close()
 	m.queued = "next run"
 	m.queuedVersion++
 	m.openInputQueue()
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnd})
-	m.handleKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnd})
+	m.testKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
 	m.chrome.Dialog.Form.Editor.SetValue("stale")
 	m.queued = "replacement"
 	m.queuedVersion++
-	m.applyForm()
+	m.testControls().ApplyForm()
 	if m.queued != "replacement" || m.chrome.Dialog.Form.Error == "" {
 		t.Fatal("stale fallback save succeeded")
 	}
@@ -144,7 +144,7 @@ func TestComposerQueueLayoutAndMouse(t *testing.T) {
 	for _, width := range []int{40, 80, 120} {
 		m := queuedModel(t)
 		m.width(tea.WindowSizeMsg{Width: width, Height: 24})
-		rows := strings.Split(ansi.Strip(m.View().Content), "\n")
+		rows := strings.Split(ansi.Strip(m.testView().Content), "\n")
 		if len(rows) != 24 {
 			t.Fatal("wrong screen height")
 		}
@@ -160,7 +160,7 @@ func TestComposerQueueLayoutAndMouse(t *testing.T) {
 		if !strings.Contains(rows[len(rows)-1], "ALT+Q Queue") {
 			t.Fatal("queue action clipped", rows[len(rows)-1])
 		}
-		if m.View().Cursor == nil || m.View().Cursor.Y != m.termH-m.footerRows()-m.input.Height() {
+		if m.testView().Cursor == nil || m.testView().Cursor.Y != m.termH-m.footerRows()-m.input.Height() {
 			t.Fatal("composer caret moved")
 		}
 		layout := m.panelGeometry(m.mainWidth(), len(m.composerRows()), false, true)
@@ -168,7 +168,7 @@ func TestComposerQueueLayoutAndMouse(t *testing.T) {
 		if m.chrome.Dialog == nil || m.chrome.Dialog.Table == nil {
 			t.Fatal("summary count did not open queue")
 		}
-		props := m.tableProps()
+		props := m.testControls().TableProps()
 		l := m.chrome.Dialog.Table.Model.Layout(props)
 		contents := ansi.Strip(strings.Join(l.Rows, "\n"))
 		for _, key := range []string{"ENTER Read", "CTRL+E Edit", "DEL Remove", "ESC Close"} {
@@ -196,14 +196,14 @@ func TestQueuePreview(t *testing.T) {
 		m.width(tea.WindowSizeMsg{Width: width, Height: 24})
 		save := func(name string) {
 			t.Helper()
-			if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("%s-%d.ansi", name, width)), []byte(m.View().Content), 0600); err != nil {
+			if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("%s-%d.ansi", name, width)), []byte(m.testView().Content), 0600); err != nil {
 				t.Fatal(err)
 			}
 		}
 		save("composer")
 		m.openInputQueue()
 		save("queue")
-		m.handleKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+		m.testKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
 		save("queue-editor")
 	}
 }
@@ -211,7 +211,7 @@ func TestQueuePreview(t *testing.T) {
 func TestQueueEditorSurvivesAgentGate(t *testing.T) {
 	m := queuedModel(t)
 	m.openInputQueue()
-	m.handleKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	m.testKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
 	m.chrome.Dialog.Form.Editor.SetValue("unsaved edit")
 	m.acceptGateEvent(harness.Event{Name: "gate", Fields: map[string]any{"kind": string(agent.SuspendPermission), "prompt": "Allow this tool?"}})
 	if m.chrome.Dialog != nil || m.suspendedInputEdit == nil || m.input.Value() != "unfinished draft" {
@@ -223,7 +223,7 @@ func TestQueueEditorSurvivesAgentGate(t *testing.T) {
 	if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil || m.chrome.Dialog.Form.Editor.Value() != "unsaved edit" {
 		t.Fatal("editor was not restored")
 	}
-	m.applyForm()
+	m.testControls().ApplyForm()
 	if m.sess.PendingInputs()[0].Message.Content != "unsaved edit" {
 		t.Fatal("restored editor could not save")
 	}
@@ -236,7 +236,7 @@ func TestQueueAcrossThemesAndSmallTerminals(t *testing.T) {
 			m.applyTheme(theme)
 			m.width(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 			m.openInputQueue()
-			rows := strings.Split(m.View().Content, "\n")
+			rows := strings.Split(m.testView().Content, "\n")
 			if len(rows) != size[1] {
 				t.Fatal("queue height", theme, size)
 			}
@@ -245,7 +245,7 @@ func TestQueueAcrossThemesAndSmallTerminals(t *testing.T) {
 					t.Fatal("queue width", theme, size)
 				}
 			}
-			m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+			m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 			if m.chrome.Dialog != nil || m.input.Value() != "unfinished draft" {
 				t.Fatal("queue close lost draft", theme, size)
 			}
@@ -257,11 +257,11 @@ func TestQueueShortcutLeavesTextareaDeleteBindingAlone(t *testing.T) {
 	m := queuedModel(t)
 	m.input.SetValue("keep remove")
 	m.input.CursorStart()
-	m.handleKey(tea.KeyPressMsg{Code: 'k', Mod: tea.ModCtrl})
+	m.testKey(tea.KeyPressMsg{Code: 'k', Mod: tea.ModCtrl})
 	if m.chrome.Dialog != nil || m.input.Value() != "" || m.sess.PendingInputCount() != 3 {
 		t.Fatal("CTRL+K stopped being a text edit")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: 'q', Mod: tea.ModAlt})
+	m.testKey(tea.KeyPressMsg{Code: 'q', Mod: tea.ModAlt})
 	if m.chrome.Dialog == nil || m.chrome.Dialog.Table == nil {
 		t.Fatal("ALT+Q did not open queue")
 	}
@@ -273,7 +273,7 @@ func TestRunningPlaceholderClearsWhenTurnFinishes(t *testing.T) {
 	if m.input.Placeholder != "Send another message…" {
 		t.Fatal("running placeholder missing")
 	}
-	m.Update(doneMsg{answer: "done"})
+	m.testUpdate(doneMsg{answer: "done"})
 	if m.input.Placeholder != "" {
 		t.Fatal("idle composer kept running placeholder")
 	}
@@ -286,25 +286,25 @@ func TestQueueEntryPointSurvivesEmptyInboxAndModalClose(t *testing.T) {
 		m.width(tea.WindowSizeMsg{Width: width, Height: 24})
 		check := func() {
 			t.Helper()
-			if !strings.Contains(ansi.Strip(m.actionBar()), "ALT+Q Queue") {
-				t.Fatal("empty inbox hid Queue", width, m.actionBar())
+			if !strings.Contains(ansi.Strip(m.testControls().ActionBar()), "ALT+Q Queue") {
+				t.Fatal("empty inbox hid Queue", width, m.testControls().ActionBar())
 			}
 		}
 		check()
-		m.handleKey(tea.KeyPressMsg{Code: 'q', Mod: tea.ModAlt})
-		if m.chrome.Dialog == nil || !strings.Contains(ansi.Strip(m.dialogView()), "No messages waiting") {
+		m.testKey(tea.KeyPressMsg{Code: 'q', Mod: tea.ModAlt})
+		if m.chrome.Dialog == nil || !strings.Contains(ansi.Strip(m.testControls().DialogView()), "No messages waiting") {
 			t.Fatal("empty queue has no explanation")
 		}
-		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+		m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 		check()
 		m.sess.Submit("temporary")
 		m.openInputQueue()
 		m.sess.RecallInput()
-		m.tableProps()
-		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+		m.testControls().TableProps()
+		m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 		check()
-		m.handleKey(tea.KeyPressMsg{Code: 'q', Mod: tea.ModAlt})
-		if !strings.Contains(ansi.Strip(m.dialogView()), "No messages waiting") {
+		m.testKey(tea.KeyPressMsg{Code: 'q', Mod: tea.ModAlt})
+		if !strings.Contains(ansi.Strip(m.testControls().DialogView()), "No messages waiting") {
 			t.Fatal("reopening displayed stale queued data")
 		}
 	}
@@ -328,9 +328,9 @@ func TestQueueIsReachableFromRunMenuWhenIdle(t *testing.T) {
 }
 func TestQueueRetainsKnownReceiptWithoutAllowingEdits(t *testing.T) {
 	m := runningModel(t)
-	q := &inputQueue{session: m.sess, stateFile: m.stateFile, view: m.newTable(), entries: map[string]queueEntry{"1": {QueuedInput: agent.QueuedInput{ID: 1, Received: true}}}, order: []string{"1"}}
+	q := &inputQueue{session: m.sess, stateFile: m.stateFile, view: m.testControls().NewTable(), entries: map[string]queueEntry{"1": {QueuedInput: agent.QueuedInput{ID: 1, Received: true}}}, order: []string{"1"}}
 	m.showInputQueue(q)
-	p := m.tableProps()
+	p := m.testControls().TableProps()
 	if p.Actions[1].Enabled || p.Actions[2].Enabled || !strings.Contains(q.view.Rows[0].Detail, "Received by agent") {
 		t.Fatal("known receipt was lost or became editable")
 	}

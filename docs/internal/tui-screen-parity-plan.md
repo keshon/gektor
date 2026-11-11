@@ -1,7 +1,7 @@
 # TUI screen ownership and parity plan
 
 Date: 2026-11-11
-Status: Planned; implementation has not started.
+Status: In progress on the existing branch; scope is `internal/tui` and this plan.
 Baseline: `49f4a39` on `codex/tui-screen-split`.
 
 This is an internal implementation plan. The maintained description of the
@@ -45,6 +45,21 @@ old Agent implementation. Screens can retain different APIs where their behavior
 requires it; parity does not require a common interface.
 
 ## Implementation sequence
+
+### Scoped construction sketch
+
+Keep `tui.Model` as the concrete parent of Agent and Workflow. It owns the
+application settings editor, profile-change transaction and shared-control
+lifecycle. `settings.Application` owns preference persistence; Agent supplies a
+relaunch snapshot and applies display changes to its own render caches. The
+existing relaunch payload remains the caller-facing handoff contract.
+
+Both feature views supply content/cursor information. One shared controls
+composition operation adds menus, toolbar, overlays and painting in the parent.
+Workflow retains its editor, cancellation and result admission. Agent retains
+its conversation, gates, sessions and task execution. No screen interface or
+host callback bundle is added. Equivalent state/config/update/key/mouse/view
+files are aligned within the existing packages.
 
 ### 1. Verify the proposed boundary
 

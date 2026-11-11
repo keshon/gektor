@@ -22,19 +22,19 @@ func TestHeaderMenusPreserveDraftAndFrame(t *testing.T) {
 		m.input.SetValue("draft\nsecond line")
 		m.fitInput()
 		m.fitBottom()
-		m.handleKey(tea.KeyPressMsg{Code: tea.KeyF9})
-		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-		if m.chrome.Header.Menu != "app" {
+		m.testKey(tea.KeyPressMsg{Code: tea.KeyF9})
+		m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+		if m.chrome.Header.Menu != "session" {
 			t.Fatal("session menu not opened")
 		}
-		for _, row := range strings.Split(m.View().Content, "\n") {
+		for _, row := range strings.Split(m.testView().Content, "\n") {
 			if lipgloss.Width(row) != width {
 				t.Fatalf("frame width %d: %q", width, ansi.Strip(row))
 			}
 		}
-		m.handleKey(tea.KeyPressMsg{Code: 'x', Text: "x"})
-		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
-		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+		m.testKey(tea.KeyPressMsg{Code: 'x', Text: "x"})
+		m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+		m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 		if m.chrome.Header.Focused || m.input.Value() != "draft\nsecond line" {
 			t.Fatal("header altered draft or retained focus")
 		}
@@ -44,13 +44,13 @@ func TestHeaderMenusPreserveDraftAndFrame(t *testing.T) {
 func TestHeaderMouseActionsAndGateIsolation(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	m.Update(tea.MouseClickMsg{X: m.promptOffset() + m.headerBadges()[0].Start + 1, Y: 2, Button: tea.MouseLeft})
+	m.testUpdate(tea.MouseClickMsg{X: m.promptOffset() + m.headerBadges()[0].Start + 1, Y: 2, Button: tea.MouseLeft})
 	if m.chrome.Header.Menu != "" || m.chrome.Header.Focused {
 		t.Fatal("status labels opened a dropdown")
 	}
 	m.state = stPermission
-	m.Update(tea.MouseClickMsg{X: m.promptOffset() + m.headerBadges()[0].Start + 1, Y: 2, Button: tea.MouseLeft})
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF9})
+	m.testUpdate(tea.MouseClickMsg{X: m.promptOffset() + m.headerBadges()[0].Start + 1, Y: 2, Button: tea.MouseLeft})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyF9})
 	if m.chrome.Header.Focused {
 		t.Fatal("header hid permission prompt")
 	}
@@ -157,7 +157,7 @@ func TestHeaderEndpointSanitizationAndLongDetails(t *testing.T) {
 	m.chrome.Header.Menu = "model"
 	m.modelName = strings.Repeat("long-model-", 10)
 	m.chrome.Header.Focused = true
-	items := m.headerItems()
+	items := m.testControls().HeaderItems()
 	var joined string
 	for _, item := range items {
 		joined += item.Text
@@ -166,7 +166,7 @@ func TestHeaderEndpointSanitizationAndLongDetails(t *testing.T) {
 		t.Fatal("long model lost from details")
 	}
 	m.chrome.Header.Row = len(items) - 1
-	rows := strings.Split(m.overlayHeader(m.View().Content), "\n")
+	rows := strings.Split(m.testControls().OverlayHeader(m.testView().Content), "\n")
 	if len(rows) != 14 {
 		t.Fatal("menu changed frame height")
 	}
@@ -179,8 +179,8 @@ func TestHeaderStopWorksFromSessionPaneAndGateClosesMenu(t *testing.T) {
 	m.cancel = func() { cancelled = true }
 	m.chrome.Header.Focused = true
 	m.chrome.Header.Menu = "activity"
-	m.chrome.Header.Row = len(m.headerItems()) - 1
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.chrome.Header.Row = len(m.testControls().HeaderItems()) - 1
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if !cancelled || m.state != stStopping || !m.interrupted {
 		t.Fatal("Stop action was routed to the session pane")
 	}
@@ -197,7 +197,7 @@ func TestHeaderDetailColumns(t *testing.T) {
 	for _, menu := range []string{"activity", "model", "context", "run"} {
 		m.chrome.Header.Menu = menu
 		column := -1
-		for _, item := range m.headerItems() {
+		for _, item := range m.testControls().HeaderItems() {
 			colon := strings.Index(item.Text, ":")
 			if colon < 0 || item.Command != "" {
 				continue
@@ -216,7 +216,7 @@ func TestHeaderDetailColumns(t *testing.T) {
 	}
 	m.chrome.Header.Menu = "context"
 	m.tokens, m.limit, m.tokensEst = 100, 1000, true
-	if got := m.headerItems()[0].Text; !strings.HasPrefix(got, "Context:") || strings.Contains(got, "ctx") {
+	if got := m.testControls().HeaderItems()[0].Text; !strings.HasPrefix(got, "Context:") || strings.Contains(got, "ctx") {
 		t.Fatalf("context label: %q", got)
 	}
 }
@@ -227,7 +227,7 @@ func TestHeaderDetailColumns(t *testing.T) {
 func TestViewMenuZonesAndItems(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 80, 30)
 	m.chrome.Header.Menu = "view"
-	items := m.headerItems()
+	items := m.testControls().HeaderItems()
 	want := []string{"Thinking", "Tool calls", "System messages", "Speaker names", "Message labels", "", "Jump to latest"}
 	if len(items) != len(want) {
 		t.Fatalf("view menu has %d rows, want %d: %+v", len(items), len(want), items)
@@ -286,9 +286,9 @@ func TestViewMenuCheckmarksFollowState(t *testing.T) {
 // full-screen frame the overlay draws them over.
 func popupRows(t *testing.T, m *Model) []string {
 	t.Helper()
-	x, width, _, _ := m.headerGeometry()
+	x, width, _, _ := m.testControls().HeaderGeometry()
 	var out []string
-	for _, row := range strings.Split(ansi.Strip(m.overlayHeader(m.View().Content)), "\n") {
+	for _, row := range strings.Split(ansi.Strip(m.testControls().OverlayHeader(m.testView().Content)), "\n") {
 		runes := []rune(row)
 		if x+width > len(runes) {
 			continue
@@ -352,9 +352,9 @@ func TestMarkCostsNoWidth(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 80, 30)
 	m.chrome.Header.Menu = "view"
 	m.hideSYS = false
-	_, plain, _, _ := m.headerGeometry()
+	_, plain, _, _ := m.testControls().HeaderGeometry()
 	m.hideSYS = true
-	_, ticked, _, _ := m.headerGeometry()
+	_, ticked, _, _ := m.testControls().HeaderGeometry()
 	if plain != ticked {
 		t.Fatalf("ticking rows changed menu width: %d -> %d", plain, ticked)
 	}
@@ -402,25 +402,11 @@ func TestKeyboardNavigationSkipsViewSeparator(t *testing.T) {
 	m.chrome.Header.Focused = true
 	m.chrome.Header.Global = true
 	m.chrome.Header.Menu = "view"
-	m.chrome.Header.Row = m.headerActionRow(0, 1)
+	m.chrome.Header.Row = m.testControls().HeaderActionRow(0, 1)
 	for _, want := range []string{"toggle-details", "toggle-tools", "toggle-sys"} {
-		if got := m.headerItems()[m.chrome.Header.Row].Command; got != want {
+		if got := m.testControls().HeaderItems()[m.chrome.Header.Row].Command; got != want {
 			t.Fatalf("row = %q, want %q", got, want)
 		}
-		m.chrome.Header.Row = m.headerActionRow(m.chrome.Header.Row+1, 1)
-	}
-}
-
-func TestAboutMenuAndCommandShareContent(t *testing.T) {
-	m := sizeModel(t, testModel())
-	m.command("/about")
-	expected := strings.Join(m.chrome.Dialog.Lines, "\n")
-	m.closeDialog()
-	m.chrome.Header.Focused = true
-	m.chrome.Header.Menu = "help"
-	m.chrome.Header.Row = headerRowFor(m, "about")
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "GEKTOR" || strings.Join(m.chrome.Dialog.Lines, "\n") != expected {
-		t.Fatalf("About menu and command disagree: %+v", m.chrome.Dialog)
+		m.chrome.Header.Row = m.testControls().HeaderActionRow(m.chrome.Header.Row+1, 1)
 	}
 }

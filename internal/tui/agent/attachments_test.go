@@ -39,7 +39,7 @@ func TestClipboardDraftAccumulatesAndRemovesImages(t *testing.T) {
 	if err != nil || text != "compare" || len(images) != 2 || images[0] != one || images[1] != two {
 		t.Fatalf("%s %v %v", text, images, err)
 	}
-	if !strings.Contains(ansi.Strip(m.View().Content), "ALT+N remove") {
+	if !strings.Contains(ansi.Strip(m.testView().Content), "ALT+N remove") {
 		t.Fatal("attachments missing from composer")
 	}
 	m.detachImage("1")
@@ -82,7 +82,7 @@ func TestClipboardCaptureRejectsStaleOrUnfocusedResult(t *testing.T) {
 	if len(m.draftImages) != 0 {
 		t.Fatal("stale image attached")
 	}
-	m.Update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
+	m.testUpdate(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	m.acceptClipboard(clipboardMsg{path: path})
 	if len(m.draftImages) != 0 {
 		t.Fatal("cleared capture reappeared")
@@ -116,11 +116,11 @@ func TestAttachmentLimitAndQueueEditing(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stRunning
 	m.draftImages = []string{attachmentFixture(t)}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if !m.hasQueued() || len(m.queuedImages) != 1 || len(m.draftImages) != 0 {
 		t.Fatal("image-only draft not queued")
 	}
-	m.Update(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	m.testUpdate(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
 	if m.queued != "" || len(m.draftImages) != 1 || len(m.queuedImages) != 0 {
 		t.Fatal("queue edit lost images")
 	}
@@ -136,7 +136,7 @@ func TestAttachmentRenderSizes(t *testing.T) {
 		m.draftImages = []string{attachmentFixture(t), attachmentFixture(t)}
 		m.input.SetValue("Compare these screenshots")
 		m.fitBottom()
-		view := ansi.Strip(m.View().Content)
+		view := ansi.Strip(m.testView().Content)
 		if !strings.Contains(view, "[1]") || !strings.Contains(view, "Compare") {
 			t.Fatalf("composer missing at %d: %s", width, view)
 		}
@@ -151,7 +151,7 @@ func TestTerminalPastedImageImportsOutsideWorkspace(t *testing.T) {
 	m.state = stDone
 	source := attachmentFixture(t)
 	m.input.SetValue("describe ")
-	_, cmd := m.Update(tea.PasteMsg{Content: "\"" + source + "\""})
+	_, cmd := m.testUpdate(tea.PasteMsg{Content: "\"" + source + "\""})
 	if cmd == nil {
 		t.Fatal("no import command")
 	}
@@ -159,7 +159,7 @@ func TestTerminalPastedImageImportsOutsideWorkspace(t *testing.T) {
 	if !ok {
 		t.Fatal("unexpected paste command")
 	}
-	m.Update(msg)
+	m.testUpdate(msg)
 	if len(m.draftImages) != 1 || m.draftImages[0] == source || m.input.Value() != "describe " {
 		t.Fatalf("draft: %v %q", m.draftImages, m.input.Value())
 	}

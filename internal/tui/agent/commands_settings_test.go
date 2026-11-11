@@ -25,8 +25,8 @@ func runSlash(t *testing.T, m *Model, text string) *Model {
 	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil && m.chrome.Dialog.Form.Destructive {
 		// The restart confirmation is a destructive form: pick Restart,
 		// then commit it.
-		m.handleKey(tea.KeyPressMsg{Code: tea.KeyUp})
-		next, _ := m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+		m.testKey(tea.KeyPressMsg{Code: tea.KeyUp})
+		next, _ := m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 		m = next.(*Model)
 	}
 	return m

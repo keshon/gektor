@@ -160,10 +160,10 @@ func seedWorkflow(t *testing.T, m *Model, d workflow.Definition) *workflowui.Edi
 	if m.workflows != nil {
 		m.workflows.Close()
 	}
-	draft := workflowui.New()
+	draft := workflowui.NewEditor()
 	draft.Replace(d)
 	var err error
-	m.workflows, err = workflowui.NewScreen(m.base, workflowui.Config{WS: m.config.Env.WS, Policy: m.config.Env.Policy, Draft: draft}, m.chrome.Host(), m.workflowSurface)
+	m.workflows, err = workflowui.New(m.base, workflowui.Config{WS: m.launch.Env.WS, Policy: m.launch.Env.Policy, Draft: draft}, m.chrome.Host(), m.workflowSurface)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +194,7 @@ func TestWorkflowMenusAndToolbarKeepNodeCreationVisible(t *testing.T) {
 	for _, width := range []int{40, 120} {
 		sizeModelTo(t, m, width, 24)
 		found = false
-		for _, action := range m.workflows.Actions() {
+		for _, action := range m.workflows.Presentation().Actions {
 			if action.Key == 'a' && action.Enabled {
 				found = true
 			}

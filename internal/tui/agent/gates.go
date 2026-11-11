@@ -53,7 +53,7 @@ func newNote() textinput.Model {
 func (m *Model) gateKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	defer m.fitBottom()
 	if msg.String() == "f4" && m.gatePreview != "" {
-		m.openDialog("Full proposal · Esc returns to approval", strings.Split(m.gatePreview, "\n"))
+		m.chrome.Open("Full proposal · Esc returns to approval", strings.Split(m.gatePreview, "\n"))
 		return m, nil
 	}
 	if msg.String() == "ctrl+q" {

@@ -16,7 +16,7 @@ import (
 
 func seedWorkflowRuns(t *testing.T, m *Model) (older, newer string) {
 	t.Helper()
-	s, err := store.OpenStore(userdirs.Sub("workflows"), m.config.Env.WS.Root())
+	s, err := store.OpenStore(userdirs.Sub("workflows"), m.launch.Env.WS.Root())
 	if err != nil {
 		t.Fatal(err)
 	}

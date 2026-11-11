@@ -22,27 +22,27 @@ func TestPermissionsFilterKeepsRuleOrderAndFullDetails(t *testing.T) {
 		{Tool: "read_file", Pattern: "*.env · keep this full pattern", Effect: permission.Ask},
 		{Tool: "run_shell", Pattern: "rm -rf", Effect: permission.Ask}}
 	m.openPermissions()
-	m.handleKey(tea.KeyPressMsg{Code: '/'})
-	m.Update(tea.PasteMsg{Content: "read_file"})
+	m.testKey(tea.KeyPressMsg{Code: '/'})
+	m.testUpdate(tea.PasteMsg{Content: "read_file"})
 	view := m.chrome.Dialog.Table.Model
 	if view.Selected() != "1" || len(view.Rows) != 3 {
 		t.Fatal("filter reordered or changed policy rules")
 	}
-	text := ansi.Strip(m.View().Content)
+	text := ansi.Strip(m.testView().Content)
 	if !strings.Contains(text, "Later matching rules take precedence") || !strings.Contains(text, "read_file") {
 		t.Fatal("precedence or filtered rule missing")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.chrome.Dialog.Table != nil || !strings.Contains(strings.Join(m.chrome.Dialog.Lines, "\n"), "*.env · keep this full pattern") {
 		t.Fatal("Details lost the full rule")
 	}
-	m.closeDialog()
+	m.testControls().Close()
 	msg := m.pendingCommands[len(m.pendingCommands)-1]()
-	m.Update(msg)
+	m.testUpdate(msg)
 	if m.chrome.Dialog.Table == nil || m.chrome.Dialog.Table.Model.Search.Value() != "read_file" || m.chrome.Dialog.Table.Model.Selected() != "1" {
 		t.Fatal("returning from Details lost table state")
 	}
-	m.closeDialog()
+	m.testControls().Close()
 	if m.input.Value() != "unfinished draft" || len(m.overlays) != 0 {
 		t.Fatal("table navigation lost conversation draft or leaked overlays")
 	}
@@ -67,25 +67,25 @@ func TestManagementTablesFitAllThemesAndSizes(t *testing.T) {
 				{Tool: "read_file", Pattern: "*.env", Effect: permission.Ask},
 				{Tool: "run_shell", Pattern: "rm -rf", Effect: permission.Ask}}
 			m.openPermissions()
-			if !strings.Contains(ansi.Strip(m.dialogView()), "Later matching rules") {
+			if !strings.Contains(ansi.Strip(m.testControls().DialogView()), "Later matching rules") {
 				t.Fatal("permission precedence was hidden by compact layout", theme, size)
 			}
-			rows, width, height := m.dialogRows()
+			rows, width, height := m.testControls().DialogRows()
 			if len(rows)+2 > height {
 				t.Fatalf("%s %v: table exceeds pane", theme, size)
 			}
-			checkModalWidth(t, m.dialogView(), min(80, width-2))
+			checkModalWidth(t, m.testControls().DialogView(), min(80, width-2))
 			if dir := os.Getenv("GEKTOR_TUI_PREVIEW_DIR"); dir != "" && size[0] == 120 {
 				if err := os.MkdirAll(dir, 0700); err != nil {
 					t.Fatal(err)
 				}
-				if err := os.WriteFile(filepath.Join(dir, "permissions-"+theme+".ansi"), []byte(m.View().Content), 0600); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "permissions-"+theme+".ansi"), []byte(m.testView().Content), 0600); err != nil {
 					t.Fatal(err)
 				}
 			}
-			p := m.tableProps()
+			p := m.testControls().TableProps()
 			l := m.chrome.Dialog.Table.Model.Layout(p)
-			left, top, _, _ := m.settingsArea()
+			left, top, _, _ := m.dialogArea()
 			for _, hit := range l.Hits {
 				if hit.Action == "close" {
 					m.handleMouse(tea.MouseClickMsg{X: left + max((p.Width-l.Width)/2, 0) + 2 + hit.X0,
@@ -98,11 +98,11 @@ func TestManagementTablesFitAllThemesAndSizes(t *testing.T) {
 			}
 			m.mcp, m.state = manager, stDone
 			m.openMCP()
-			rows, _, height = m.dialogRows()
+			rows, _, height = m.testControls().DialogRows()
 			if len(rows)+2 > height {
 				t.Fatalf("%s %v: MCP table exceeds pane", theme, size)
 			}
-			m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+			m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 			if m.chrome.Dialog != nil {
 				t.Fatal("MCP table trapped focus")
 			}
@@ -112,12 +112,12 @@ func TestManagementTablesFitAllThemesAndSizes(t *testing.T) {
 
 func TestReplacingDialogReusesOverlayFrame(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 100, 34)
-	m.openDialog("Connecting", nil)
-	m.openDialog("Connected", nil)
+	m.testControls().Open("Connecting", nil)
+	m.testControls().Open("Connected", nil)
 	if len(m.overlays) != 1 {
 		t.Fatal("replacing a modal stacked an invisible overlay")
 	}
-	m.closeDialog()
+	m.testControls().Close()
 	if len(m.overlays) != 0 {
 		t.Fatal("close did not release overlay")
 	}
@@ -128,11 +128,11 @@ func TestReturningToTableDoesNotReplaceAnotherDialog(t *testing.T) {
 	m.state = stDone
 	m.policyDetails = []permission.Rule{{Tool: "*", Pattern: "*", Effect: permission.Allow}}
 	m.openPermissions()
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	m.closeDialog()
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.testControls().Close()
 	msg := m.pendingCommands[len(m.pendingCommands)-1]()
-	m.openDialog("Another dialog", nil)
-	m.Update(msg)
+	m.testControls().Open("Another dialog", nil)
+	m.testUpdate(msg)
 	if m.chrome.Dialog.Title != "Another dialog" {
 		t.Fatal("late table return replaced a newer dialog")
 	}

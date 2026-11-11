@@ -13,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/retrospective"
+	"github.com/keshon/gektor/internal/tui/components/form"
 )
 
 // A review owns only its dialog and context. It cannot replace the task's
@@ -74,7 +75,7 @@ func (m *Model) evaluate(arg string) (tea.Model, tea.Cmd) {
 	ctx, cancel := context.WithCancel(base)
 	job := &evaluationJob{cancel: cancel, started: time.Now(), progress: retrospective.Progress{Stage: "Loading saved archive", Steps: 12}}
 	config := retrospective.Config{Client: m.baseEnv.Client, Workspace: m.ws, StateFile: m.stateFile, Scope: selection, Focus: strings.TrimSpace(focus), ContextLimit: m.limit, MaxTokens: m.baseEnv.MaxTokens}
-	m.openDialog("Session evaluation", []string{"Reviewing the saved archive in a separate context…", "", "Keep this window open until the evaluation finishes.", "Closing it cancels the evaluation. The original task remains unchanged."})
+	m.chrome.Open("Session evaluation", []string{"Reviewing the saved archive in a separate context…", "", "Keep this window open until the evaluation finishes.", "Closing it cancels the evaluation. The original task remains unchanged."})
 	m.evaluation = job
 	config.OnProgress = job.update
 	m.refreshEvaluation()
@@ -96,9 +97,9 @@ func (m *Model) acceptEvaluation(msg evaluationDoneMsg) {
 		return
 	}
 	m.cancelEvaluation()
-	m.closeDialog()
+	m.chrome.Close()
 	if msg.err != nil {
-		m.openDialog("Evaluation failed", []string{msg.err.Error()})
+		m.chrome.Open("Evaluation failed", []string{msg.err.Error()})
 		return
 	}
 	r := msg.result
@@ -107,7 +108,7 @@ func (m *Model) acceptEvaluation(msg evaluationDoneMsg) {
 		return
 	}
 	if msg.job.learn && len(r.Memory) == 0 {
-		m.openDialog("No lesson to save", []string{"Nothing reusable was supported by this review. No project files changed.", "", r.Summary})
+		m.chrome.Open("No lesson to save", []string{"Nothing reusable was supported by this review. No project files changed.", "", r.Summary})
 		return
 	}
 	rows := []string{r.Scope, fmt.Sprintf("Archive: messages %d–%d · inspected %d of %d", r.Start, r.End, r.Read, r.End-r.Start+1), "", "MODEL ASSESSMENT", r.Summary}
@@ -131,7 +132,7 @@ func (m *Model) acceptEvaluation(msg evaluationDoneMsg) {
 	if r.Warning != "" {
 		rows = append(rows, "", r.Warning)
 	}
-	m.openDialog("Session evaluation", rows)
+	m.chrome.Open("Session evaluation", rows)
 	if len(r.Memory) == 1 {
 		m.chrome.Dialog.Review = func() { m.reviewLesson(r) }
 	}
@@ -151,13 +152,13 @@ func (m *Model) learn(arg string) (tea.Model, tea.Cmd) {
 		if failureErr == nil {
 			var failure retrospective.Failure
 			if err := json.Unmarshal(failureData, &failure); err != nil {
-				m.openDialog("Cannot read review diagnostics", []string{err.Error()})
+				m.chrome.Open("Cannot read review diagnostics", []string{err.Error()})
 			} else {
-				m.openDialog("Last review failed", strings.Split(failure.Error(), "\n"))
+				m.chrome.Open("Last review failed", strings.Split(failure.Error(), "\n"))
 			}
 			return m, nil
 		} else if !os.IsNotExist(failureErr) {
-			m.openDialog("Cannot read review diagnostics", []string{failureErr.Error()})
+			m.chrome.Open("Cannot read review diagnostics", []string{failureErr.Error()})
 			return m, nil
 		}
 		data, err := os.ReadFile(filepath.Join(filepath.Dir(m.stateFile), "evaluation.json"))
@@ -166,9 +167,9 @@ func (m *Model) learn(arg string) (tea.Model, tea.Cmd) {
 			err = json.Unmarshal(data, &r)
 		}
 		if err != nil {
-			m.openDialog("No saved review", []string{"Run /learn to review a completed task first.", err.Error()})
+			m.chrome.Open("No saved review", []string{"Run /learn to review a completed task first.", err.Error()})
 		} else if len(r.Memory) != 1 {
-			m.openDialog("No lesson to save", []string{"The saved review has no single reusable lesson. Run /learn for a fresh review."})
+			m.chrome.Open("No lesson to save", []string{"The saved review has no single reusable lesson. Run /learn for a fresh review."})
 		} else {
 			m.reviewLesson(r)
 		}
@@ -200,7 +201,7 @@ func (m *Model) learn(arg string) (tea.Model, tea.Cmd) {
 
 func (m *Model) reviewLesson(r retrospective.Result) {
 	if m.chrome.Dialog != nil {
-		m.closeDialog()
+		m.chrome.Close()
 	}
 	memory := r.Memory[0]
 	rows := []string{"WHEN", memory.When, "", "PROCEDURE", memory.Lesson, "", "EVIDENCE", fmt.Sprintf("Messages %v: %s", memory.Evidence, memory.Quote), "", "Historical evidence, not independent verification. Save only if useful for future tasks in this repository. The quoted evidence is saved with the lesson."}
@@ -208,17 +209,17 @@ func (m *Model) reviewLesson(r retrospective.Result) {
 	if r.Partial > 0 {
 		rows = append(rows, "Some archive messages were only partially read.")
 	}
-	m.openDialog("Remember a repository lesson", rows)
+	m.chrome.Open("Remember a repository lesson", rows)
 	m.chrome.Dialog.Save = func() error { return m.saveLesson(r, memory.When, memory.Lesson) }
 	m.chrome.Dialog.Review = func() { m.editLesson(r) }
 }
 
 func (m *Model) editLesson(r retrospective.Result) {
 	if m.chrome.Dialog != nil {
-		m.closeDialog()
+		m.chrome.Close()
 	}
 	memory := r.Memory[0]
-	m.openForm("Edit repository lesson", "Save for this repository. Historical guidance; check current files before use.", "Save lesson", []formField{
+	m.chrome.OpenForm("Edit repository lesson", "Save for this repository. Historical guidance; check current files before use.", "Save lesson", []form.Field{
 		{Key: "when", Label: "When to use", Value: memory.When},
 		{Key: "procedure", Label: "Procedure", Value: memory.Lesson, Multiline: true},
 	}, func(values map[string]string) error {

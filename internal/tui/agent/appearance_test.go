@@ -15,12 +15,13 @@ import (
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/events"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/tui/settings"
 )
 
 func TestAppearancePersistsWithoutChangingHistory(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	m.application = &Application{PreferencePath: filepath.Join(t.TempDir(), "application.json"), Preferences: config.Preferences{Version: 1}, Temporary: true}
+	m.application = &settings.Application{PreferencePath: filepath.Join(t.TempDir(), "application.json"), Preferences: config.Preferences{Version: 1}, Temporary: true}
 	m.appendBlock(userBlock("request"))
 	m.appendBlock(markerBlock("harness instruction"))
 	m.appendBlock(block{role: roleStatus, text: "local notice"})
@@ -73,7 +74,7 @@ func TestBothFramesAndMeasuredPrefillFit(t *testing.T) {
 			m.attachResult("read", "configuration loaded", false)
 			m.appendBlock(block{role: roleStatus, text: "processing"})
 			m.handleEvent(events.Event{Name: "progress", Fields: map[string]any{"phase": "prefill", "prompt": 12288, "processed": 8897}})
-			text := ansi.Strip(m.View().Content)
+			text := ansi.Strip(m.testView().Content)
 			if frame == "minimal" && m.transcript.Viewport.Scrollable() && m.scrollbarX() != size[0]-1-m.promptOffset() {
 				t.Fatal("scrollbar is not inside the right margin", size)
 			}
@@ -117,15 +118,15 @@ func TestBothFramesAndMeasuredPrefillFit(t *testing.T) {
 			}
 			m.progress = llm.Progress{Phase: "reasoning"}
 			m.fitBottom()
-			if strings.Contains(ansi.Strip(m.View().Content), "prompt processing") {
+			if strings.Contains(ansi.Strip(m.testView().Content), "prompt processing") {
 				t.Fatal("stale progress")
 			}
-			m.openDialog("Inspect", []string{"evidence"})
+			m.testControls().Open("Inspect", []string{"evidence"})
 			if m.prefillActive() {
 				t.Fatal("progress behind dialog")
 			}
-			m.closeDialog()
-			m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+			m.testControls().Close()
+			m.testUpdate(tea.WindowSizeMsg{Width: 80, Height: 24})
 		}
 	}
 }

@@ -318,3 +318,33 @@ func (m *Model) linkTarget(value string) {
 	}
 	m.connectionTarget(pair[0], pair[1], nil)
 }
+
+func (m *Model) footerActions() []screen.Action {
+	edit := !m.busy && m.run == nil
+	label := "Edit"
+	if m.run != nil {
+		label = "Inspect"
+	}
+	back := "Chat"
+	if m.busy {
+		back = "Stop"
+	} else if m.connectFrom != "" {
+		back = "Cancel"
+	} else if m.inspectorOpen && m.inspect {
+		back = "Close"
+	}
+	actions := []screen.Action{
+		{Key: tea.KeyF1, Name: "F1", Label: "Help", Short: "Help", Enabled: true},
+		{Key: 'a', Name: "A", Label: "Add node", Short: "Add", Enabled: edit},
+		{Key: tea.KeyEnter, Name: "Enter", Label: label, Short: label, Enabled: !m.busy},
+		{Key: 'c', Name: "C", Label: "Connect", Short: "Link", Enabled: edit},
+		{Key: 'r', Name: "R", Label: "Run", Short: "Run", Enabled: edit},
+		{Key: 't', Mod: tea.ModCtrl, Name: "Ctrl+T", Label: "Inspector", Short: "Inspect", Enabled: true},
+		{Key: 's', Mod: tea.ModCtrl, Name: "Ctrl+S", Label: "Save", Short: "Save", Enabled: edit},
+		{Key: tea.KeyEscape, Name: "Esc", Label: back, Short: back, Enabled: true},
+	}
+	if m.presentation().Area.Width < 80 {
+		return []screen.Action{actions[0], actions[1], actions[5], actions[7]}
+	}
+	return actions
+}

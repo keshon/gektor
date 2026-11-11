@@ -15,7 +15,7 @@ func TestCompactionProgressAppearsAndClears(t *testing.T) {
 	m.state = stRunning
 	for _, generated := range []int{0, 42} {
 		m.handleEvent(events.Event{Name: "progress", Fields: map[string]any{"phase": "checkpoint", "completion": generated}})
-		view := ansi.Strip(m.View().Content)
+		view := ansi.Strip(m.testView().Content)
 		if !strings.Contains(view, "COMPACT") || !strings.Contains(view, "Summarizing earlier steps") {
 			t.Fatal(view)
 		}
@@ -28,12 +28,12 @@ func TestCompactionProgressAppearsAndClears(t *testing.T) {
 	}
 	m.hideSYS = true
 	m.refreshContent()
-	if strings.Contains(ansi.Strip(m.View().Content), "Summarizing earlier steps") {
+	if strings.Contains(ansi.Strip(m.testView().Content), "Summarizing earlier steps") {
 		t.Fatal("system toggle did not hide compaction")
 	}
 	m.hideSYS = false
 	m.handleEvent(events.Event{Name: "progress", Fields: map[string]any{"phase": "generating"}})
-	if strings.Contains(ansi.Strip(m.View().Content), "Summarizing earlier steps") {
+	if strings.Contains(ansi.Strip(m.testView().Content), "Summarizing earlier steps") {
 		t.Fatal("compaction message survived phase change")
 	}
 }

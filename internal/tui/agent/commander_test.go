@@ -9,6 +9,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/keshon/gektor/internal/tui/components/form"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 func TestCommanderFrameAtSupportedSizes(t *testing.T) {
@@ -17,8 +20,8 @@ func TestCommanderFrameAtSupportedSizes(t *testing.T) {
 			m := sizeModel(t, testModel())
 			m.state = state
 			m.width(tea.WindowSizeMsg{Width: width, Height: 30})
-			rows := strings.Split(m.View().Content, "\n")
-			if len(rows) != 30 || m.footerRows() != 2 || len(strings.Split(m.menuLine(), "\n")) != 1 {
+			rows := strings.Split(m.testView().Content, "\n")
+			if len(rows) != 30 || m.footerRows() != 2 || len(strings.Split(m.testControls().MenuLine(), "\n")) != 1 {
 				t.Fatalf("%d state %d: bad row budget", width, state)
 			}
 			for _, row := range rows {
@@ -44,15 +47,15 @@ func TestCommanderMenuClickPreservesDraftAndGate(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.input.SetValue("unfinished draft")
-	cell := m.menuCells()[0]
-	m.Update(tea.MouseClickMsg{X: cell.Start, Y: 0, Button: tea.MouseLeft})
-	if m.chrome.Header.Menu != "app" || !m.chrome.Header.Global || m.input.Value() != "unfinished draft" {
+	cell := m.testControls().MenuCells()[0]
+	m.testUpdate(tea.MouseClickMsg{X: cell.Start, Y: 0, Button: tea.MouseLeft})
+	if m.chrome.Header.Menu != "session" || !m.chrome.Header.Global || m.input.Value() != "unfinished draft" {
 		t.Fatal("menu failed to open or lost draft")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 	m.state = stPermission
-	m.Update(tea.MouseClickMsg{X: cell.Start, Y: 0, Button: tea.MouseLeft})
+	m.testUpdate(tea.MouseClickMsg{X: cell.Start, Y: 0, Button: tea.MouseLeft})
 	if m.chrome.Header.Focused || m.state != stPermission {
 		t.Fatal("menu hid approval")
 	}
@@ -69,14 +72,14 @@ func TestCommanderPreview(t *testing.T) {
 	}
 	preview := settingsModel(t)
 	preview.width(tea.WindowSizeMsg{Width: 120, Height: 34})
-	preview.openForm("Model", "Choose the thinking model.", "Apply", []formField{{Key: "kind", Label: "Protocol", Value: "llama", Multiline: false}, {Key: "endpoint", Label: "Backend URL", Value: "http://127.0.0.1:8080", Multiline: false}, {Key: "model", Label: "Model identifier", Value: "qwen3-1.7b", Multiline: false}}, func(map[string]string) error { return nil })
-	if err := os.WriteFile(filepath.Join(dir, "model-form.txt"), []byte(ansi.Strip(preview.View().Content)), 0600); err != nil {
+	preview.testControls().OpenForm("Model", "Choose the thinking model.", "Apply", []form.Field{{Key: "kind", Label: "Protocol", Value: "llama", Multiline: false}, {Key: "endpoint", Label: "Backend URL", Value: "http://127.0.0.1:8080", Multiline: false}, {Key: "model", Label: "Model identifier", Value: "qwen3-1.7b", Multiline: false}}, func(map[string]string) error { return nil })
+	if err := os.WriteFile(filepath.Join(dir, "model-form.txt"), []byte(ansi.Strip(preview.testView().Content)), 0600); err != nil {
 		t.Fatal(err)
 	}
-	preview.closeDialog()
+	preview.testControls().Close()
 	preview.live = "<think>Consider the question carefully.</think>Hello **User**. How are you today?"
 	preview.refreshContent()
-	if err := os.WriteFile(filepath.Join(dir, "streaming.txt"), []byte(ansi.Strip(preview.View().Content)), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "streaming.txt"), []byte(ansi.Strip(preview.testView().Content)), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -95,56 +98,22 @@ func TestCommanderPreview(t *testing.T) {
 		m.input.SetValue("Show me the launcher")
 		m.fitInput()
 		m.fitBottom()
-		if err := os.WriteFile(filepath.Join(dir, size.name+".txt"), []byte(ansi.Strip(m.View().Content)), 0600); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, size.name+".txt"), []byte(ansi.Strip(m.testView().Content)), 0600); err != nil {
 			t.Fatal(err)
 		}
 		if size.name == "wide" {
-			m.chrome.Header = headerState{Focused: true, Global: true, Index: 4, Menu: "settings"}
-			if err := os.WriteFile(filepath.Join(dir, "settings.txt"), []byte(ansi.Strip(m.View().Content)), 0600); err != nil {
+			m.chrome.Header = screen.MenuState{Focused: true, Global: true, Index: 4, Menu: "session"}
+			if err := os.WriteFile(filepath.Join(dir, "settings.txt"), []byte(ansi.Strip(m.testView().Content)), 0600); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}
 }
 
-func TestGlobalDropdownNavigationAndSettings(t *testing.T) {
-	m := sizeModel(t, testModel())
-	m.state = stDone
-	line := ansi.Strip(m.menuLine())
-	if strings.Count(line, "GEKTOR") != 1 || strings.Contains(line, "F1") || !strings.Contains(line, "Settings") {
-		t.Fatal(line)
-	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF9})
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.chrome.Header.Menu != "app" {
-		t.Fatal(m.chrome.Header)
-	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyRight})
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyRight})
-	if m.chrome.Header.Menu != "execution" {
-		t.Fatal("left/right failed to switch dropdown")
-	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if !m.plan || m.chrome.Header.Focused {
-		t.Fatal("Plan selection failed")
-	}
-	var settings footerCell
-	for _, c := range m.menuCells() {
-		if c.Action.Name == "settings" {
-			settings = c
-			break
-		}
-	}
-	m.Update(tea.MouseClickMsg{X: settings.Start, Y: 0, Button: tea.MouseLeft})
-	if m.chrome.Header.Menu != "settings" || m.chrome.Header.Row != m.headerActionRow(0, 1) {
-		t.Fatal("settings page failed")
-	}
-}
-
 func TestCommanderOutlinesCloseOnBothSides(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.width(tea.WindowSizeMsg{Width: 120, Height: 30})
-	rows := strings.Split(ansi.Strip(m.View().Content), "\n")
+	rows := strings.Split(ansi.Strip(m.testView().Content), "\n")
 	if !strings.HasPrefix(rows[1], "┌") || !strings.HasSuffix(rows[1], "┐") || strings.Contains(rows[1], "┬") {
 		t.Fatal("top outline is open")
 	}

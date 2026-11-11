@@ -78,8 +78,8 @@ func TestProcessManagerConfirmationAndAsynchronousStop(t *testing.T) {
 	m.pendingCommands = nil
 	m.openProcesses(view)
 	m.confirmStopProcess(id, view)
-	m.focusForm(0)
-	m.applyForm()
+	m.testControls().FocusForm(0)
+	m.testControls().ApplyForm()
 	if m.chrome.Dialog != nil {
 		t.Fatal("confirmation did not close")
 	}
@@ -93,7 +93,7 @@ func TestProcessManagerConfirmationAndAsynchronousStop(t *testing.T) {
 	if result.err != nil {
 		t.Fatal(result.err)
 	}
-	m.Update(result)
+	m.testUpdate(result)
 	if p, _, _ := m.baseEnv.Procs.Inspect(id); !p.Exited || !p.Stopped {
 		t.Fatal(p)
 	}
@@ -115,17 +115,17 @@ func TestProcessManagerOutputReturnAndLateCompletion(t *testing.T) {
 	if text := strings.Join(m.chrome.Dialog.Lines, "\n"); !strings.Contains(text, "Workspace:") || !strings.Contains(text, "managed output marker") {
 		t.Fatal(m.chrome.Dialog.Lines)
 	}
-	m.closeDialog()
-	m.Update(processListMsg{view})
+	m.testControls().Close()
+	m.testUpdate(processListMsg{view})
 	if m.chrome.Dialog.Table == nil || m.chrome.Dialog.Table.Model.Selected() != id {
 		t.Fatal("return lost process selection")
 	}
 	m.chrome.Dialog = nil
 	cmd := m.stopProcess(processStopMsg{id, view})
-	m.closeDialog()
-	m.openDialog("Another dialog", []string{"keep this"})
+	m.testControls().Close()
+	m.testControls().Open("Another dialog", []string{"keep this"})
 	other := m.chrome.Dialog
-	m.Update(cmd())
+	m.testUpdate(cmd())
 	if m.chrome.Dialog != other {
 		t.Fatal("late stop completion stole focus")
 	}
@@ -149,7 +149,7 @@ func TestProcessManagerEmptyAndMenus(t *testing.T) {
 	}
 	for _, width := range []int{40, 80, 120} {
 		sizeModelTo(t, m, width, 24)
-		if m.dialogView() == "" {
+		if m.testControls().DialogView() == "" {
 			t.Fatal("empty modal")
 		}
 	}

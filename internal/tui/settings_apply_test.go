@@ -1,31 +1,16 @@
-package agent
+package tui
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/tui/settings"
 )
-
-// A startup failure must surface rather than starting a program. The
-// failure is forced with a SessionDirectory that is a file rather than a
-// directory. The Agent constructor validates it before starting a run.
-func TestNewFailsOnUnwritableSessionDirectory(t *testing.T) {
-	blocker := filepath.Join(t.TempDir(), "not-a-directory")
-	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	cfg := Config{PreparedProfile: &app.PreparedProfile{Directory: t.TempDir()}, SessionDirectory: blocker}
-	if _, err := New(context.Background(), cfg); err == nil {
-		t.Fatal("unwritable session directory accepted")
-	}
-}
 
 type settingsClient struct {
 	llm.Client
@@ -35,7 +20,7 @@ func TestApplyUneditedLaunchOverridePersistsCurrentProtocol(t *testing.T) {
 	m := settingsModel(t)
 	m.application.Temporary = true
 	saved := m.application.Preferences
-	profile := m.config.Profile.Clone()
+	profile := m.profile.Profile.Clone()
 	profile.Provider.Kind = "kobold"
 	saved.Profile = &profile
 	if err := config.SavePreferences(m.application.PreferencePath, saved); err != nil {
@@ -72,7 +57,7 @@ func TestApplyUneditedLaunchOverridePersistsCurrentProtocol(t *testing.T) {
 func TestLoadedProfileIsCommittedOnApply(t *testing.T) {
 	m := settingsModel(t)
 	root := t.TempDir()
-	p := m.config.Profile.Clone()
+	p := m.profile.Profile.Clone()
 	p.Identity.UserName = "Alex"
 	path := filepath.Join(root, "custom.json")
 	if err := config.SaveCopy(p, path); err != nil {
@@ -82,7 +67,7 @@ func TestLoadedProfileIsCommittedOnApply(t *testing.T) {
 	focusSetting(m, "load-profile")
 	m.chrome.Dialog.Form.OpenPicker(m.settingsProps())
 	picker := m.chrome.Dialog.Form.Picker
-	m.acceptSettingsScan(settingsScanMsg{ID: picker.ID, Items: []string{path}})
+	m.Update(settings.ScanMsg{ID: picker.ID, Items: []string{path}})
 	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m.settingsProps())
 	m.editSettings("generation")
 	m.applyForm()
@@ -105,7 +90,7 @@ func TestLoadedProfileIsCommittedOnApply(t *testing.T) {
 func TestRefusedApplyLeavesFilesAndRuntimeAlone(t *testing.T) {
 	m := settingsModel(t)
 	root := t.TempDir()
-	profile := m.config.Profile.Clone()
+	profile := m.profile.Profile.Clone()
 	custom := filepath.Join(root, "profiles", "custom", "custom-test.json")
 	if err := os.MkdirAll(filepath.Dir(custom), 0o755); err != nil {
 		t.Fatal(err)
@@ -119,11 +104,11 @@ func TestRefusedApplyLeavesFilesAndRuntimeAlone(t *testing.T) {
 	}
 	m.application.Preferences.ProfilePath = custom
 	m.application.Preferences.Profile = &profile
-	if err := m.savePreferences(); err != nil {
+	if _, err := m.agent.Finish(false); err != nil {
 		t.Fatal(err)
 	}
 	before := map[string][]byte{}
-	for _, path := range []string{custom, m.stateFile, m.application.PreferencePath} {
+	for _, path := range []string{custom, stateFileOf(m), m.application.PreferencePath} {
 		data, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("fixture missing %s: %v", path, err)

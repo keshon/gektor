@@ -40,3 +40,7 @@ func (m *Model) paneStyles() pane.Styles {
 }
 
 const paneTop = 4
+
+func (m *Model) dialogArea() (left, top, width, height int) {
+	return m.promptOffset(), paneTop, m.transcript.Viewport.Width(), m.transcript.Viewport.Height()
+}

@@ -15,7 +15,7 @@ import (
 func TestEnterRunsACommandThatTakesNoArgument(t *testing.T) {
 	m := completionModel(t)
 	m.input.SetValue("/hel")
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "Help" {
 		t.Fatalf("Enter did not run /help; dialog = %+v", m.chrome.Dialog)
 	}
@@ -27,7 +27,7 @@ func TestEnterRunsACommandThatTakesNoArgument(t *testing.T) {
 func TestEnterHandsACommandThatTakesAnArgumentToTheComposer(t *testing.T) {
 	m := completionModel(t)
 	m.input.SetValue("/max-steps")
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	// The "N" in help is a placeholder, not text to type.
 	if m.input.Value() != "/max-steps " {
 		t.Fatalf("Enter did not complete the command: %q", m.input.Value())
@@ -42,7 +42,7 @@ func TestEnterHandsACommandThatTakesAnArgumentToTheComposer(t *testing.T) {
 func TestTabAlwaysInserts(t *testing.T) {
 	m := completionModel(t)
 	m.input.SetValue("/help")
-	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
 	if m.chrome.Dialog != nil {
 		t.Fatal("Tab ran the command")
 	}

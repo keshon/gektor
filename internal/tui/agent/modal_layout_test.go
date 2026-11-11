@@ -10,7 +10,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
@@ -26,12 +28,12 @@ func TestModalsShareFrameAndPreserveFullWidthDraft(t *testing.T) {
 			if m.transcript.Viewport.Width() != width-2 {
 				t.Fatal("conversation does not use the full width")
 			}
-			m.openDialog("About", []string{"GEKTOR"})
-			checkModalWidth(t, m.dialogView(), popup.ModalWidth(width-2))
-			m.closeDialog()
-			m.openForm("Rename session", "Change the title.", "Rename", []formField{{Key: "title", Label: "Title", Value: "Task"}}, func(map[string]string) error { return nil })
-			checkModalWidth(t, m.formView(), popup.ModalWidth(width-2))
-			m.closeDialog()
+			m.testControls().Open("About", []string{"GEKTOR"})
+			checkModalWidth(t, m.testControls().DialogView(), popup.ModalWidth(width-2))
+			m.testControls().Close()
+			m.testControls().OpenForm("Rename session", "Change the title.", "Rename", []form.Field{{Key: "title", Label: "Title", Value: "Task"}}, func(map[string]string) error { return nil })
+			checkModalWidth(t, m.testControls().FormView(), popup.ModalWidth(width-2))
+			m.testControls().Close()
 			m.openSessions()
 			m.sessions.entries = []sessionEntry{{title: "Repair startup", updated: time.Now().Add(-49 * time.Hour), msgs: 12, preview: "Check cancellation and process ownership"}, {title: "Review changes", updated: time.Now(), msgs: 3}}
 			m.fitBottom()
@@ -53,15 +55,15 @@ func TestModalsShareFrameAndPreserveFullWidthDraft(t *testing.T) {
 				t.Fatal("second session could not be selected")
 			}
 			if dir := os.Getenv("GEKTOR_TUI_PREVIEW_DIR"); dir != "" && width == 120 {
-				if err := os.WriteFile(filepath.Join(dir, "open-session.txt"), []byte(ansi.Strip(m.View().Content)), 0600); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "open-session.txt"), []byte(ansi.Strip(m.testView().Content)), 0600); err != nil {
 					t.Fatal(err)
 				}
 			}
 			m.sessionsKey(tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
 			m.syncFocus()
 			g = m.searchGeometry()
-			rows := strings.Split(ansi.Strip(m.View().Content), "\n")
-			if cursor := m.View().Cursor; cursor == nil || cursor.Y != g.noteRow || !strings.Contains(rows[g.noteRow], "name>") {
+			rows := strings.Split(ansi.Strip(m.testView().Content), "\n")
+			if cursor := m.testView().Cursor; cursor == nil || cursor.Y != g.noteRow || !strings.Contains(rows[g.noteRow], "name>") {
 				t.Fatal("rename caret does not match the rendered input")
 			}
 			m.closeSessions()

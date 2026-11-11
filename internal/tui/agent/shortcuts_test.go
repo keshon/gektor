@@ -40,11 +40,11 @@ func TestAgentControlsUseSharedShortcutRoles(t *testing.T) {
 
 func TestCustomDialogShortcutsKeepWholeActions(t *testing.T) {
 	m := sizeModel(t, testModel())
-	m.openDialog("Review proposal", []string{"Proposed changes"})
+	m.testControls().Open("Review proposal", []string{"Proposed changes"})
 	m.chrome.Dialog.Shortcuts = []popup.Shortcut{{Key: "Esc/Enter", Action: "discard"}, {Key: "S", Action: "apply to draft"}}
 	for _, width := range []int{40, 80} {
 		sizeModelTo(t, m, width, 24)
-		hint := ansi.Strip(m.layoutDialog().Hint)
+		hint := ansi.Strip(m.testControls().LayoutDialog().Hint)
 		if !strings.Contains(hint, "ESC/ENTER discard") || strings.Contains(hint, "save lesson") || strings.ContainsAny(hint, "…·") {
 			t.Fatal("custom dialog hint bypassed shared renderer", width, hint)
 		}
@@ -61,7 +61,7 @@ func TestInspectorShortcutRolesAndCompactFooterAcrossThemes(t *testing.T) {
 			m := inspectorModel(t, width)
 			m.applyTheme(theme)
 			m.openInspector(len(m.transcript.blocks) - 1)
-			view := m.View().Content
+			view := m.testView().Content
 			area := m.screenPanes(true).Side
 			layout := m.panelGeometry(area.Width, 1, true, false)
 			x, y := area.X+layout.Footer.X, area.Y+layout.Footer.Y

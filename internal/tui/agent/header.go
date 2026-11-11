@@ -7,15 +7,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/tui/screen"
 )
 
-type headerState = screen.MenuState
-
-type headerBadge = screen.Badge
-
-func (m *Model) headerBadges() []headerBadge {
+func (m *Model) headerBadges() []screen.Badge {
 	mode, activity := "ACT", "READY"
 	if m.plan {
 		mode = "PLAN"
@@ -60,13 +55,13 @@ func (m *Model) headerBadges() []headerBadge {
 		ctx += "/" + kTokens(m.limit)
 	}
 	width := m.transcript.Viewport.Width()
-	candidates := []headerBadge{{ID: "mode", Label: mode}, {ID: "activity", Label: activity + "  " + ctx}}
+	candidates := []screen.Badge{{ID: "mode", Label: mode}, {ID: "activity", Label: activity + "  " + ctx}}
 	leftWidth := lipgloss.Width(mode) + lipgloss.Width(activity+"  "+ctx) + 4
 	if m.steering {
-		candidates = append(candidates, headerBadge{ID: "steering", Label: "STEER"})
+		candidates = append(candidates, screen.Badge{ID: "steering", Label: "STEER"})
 		leftWidth += 7
 	}
-	run := headerBadge{ID: "run", Label: fmt.Sprintf("STEP %d/%s  %s", m.steps, m.stepBudget(), formatElapsed(m.elapsed))}
+	run := screen.Badge{ID: "run", Label: fmt.Sprintf("STEP %d/%s  %s", m.steps, m.stepBudget(), formatElapsed(m.elapsed))}
 	runWidth := lipgloss.Width(run.Label) + 2
 	showRun := leftWidth+runWidth <= width
 	available := width - leftWidth - 2
@@ -74,7 +69,7 @@ func (m *Model) headerBadges() []headerBadge {
 		available -= runWidth
 	}
 	if available >= 6 {
-		candidates = append(candidates, headerBadge{ID: "model", Label: strings.TrimSpace(cellLine(modelLabel(m.displayedModel()), available))})
+		candidates = append(candidates, screen.Badge{ID: "model", Label: strings.TrimSpace(cellLine(modelLabel(m.displayedModel()), available))})
 	}
 	if showRun {
 		candidates = append(candidates, run)
@@ -137,22 +132,23 @@ func (m *Model) badgeLine() string {
 	return cellLine(strings.Join(out, ""), m.transcript.Viewport.Width())
 }
 
-func (m *Model) rawHeaderItems() []menuItem {
+func (m *Model) rawHeaderItems() []screen.MenuItem {
 	if items := m.menuItems(m.chrome.Header.Menu); items != nil {
 		return items
 	}
 	return m.badgeItems(m.chrome.Header.Menu)
 }
-func (m *Model) badgeItems(menu string) []menuItem {
-	info := func(s string) menuItem { return menuItem{Text: s} }
+
+func (m *Model) badgeItems(menu string) []screen.MenuItem {
+	info := func(s string) screen.MenuItem { return screen.MenuItem{Text: s} }
 	idle := m.state == stDone
 	switch menu {
 	case "steering":
-		return []menuItem{{Text: "Steering", Command: "toggle-steering", Enabled: true}}
+		return []screen.MenuItem{{Text: "Steering", Command: "toggle-steering", Enabled: true}}
 	case "mode":
-		return []menuItem{{Text: "ACT   Execute changes with tools", Command: "/mode act", Enabled: idle}, {Text: "PLAN  Read-only exploration and planning", Command: "/mode plan", Enabled: idle}}
+		return []screen.MenuItem{{Text: "ACT   Execute changes with tools", Command: "/mode act", Enabled: idle}, {Text: "PLAN  Read-only exploration and planning", Command: "/mode plan", Enabled: idle}}
 	case "activity":
-		rows := []menuItem{info("State: " + m.statusWord()), info("Elapsed: " + formatElapsed(m.elapsed)), info(m.stepLine())}
+		rows := []screen.MenuItem{info("State: " + m.statusWord()), info("Elapsed: " + formatElapsed(m.elapsed)), info(m.stepLine())}
 		if m.progress.PromptTokens > 0 {
 			rows = append(rows, info(fmt.Sprintf("Input: %s   Generated: %s", kTokens(m.progress.PromptTokens), kTokens(m.progress.CompletionTokens))))
 			if m.progress.CachedTokens > 0 {
@@ -161,10 +157,10 @@ func (m *Model) badgeItems(menu string) []menuItem {
 		}
 		rows = append(rows, m.contextItems()...)
 		if m.runErr != nil {
-			rows = append(rows, info("Error: "+m.runErr.Error()), menuItem{Text: "Retry failed turn", Command: "/retry", Enabled: idle && m.retryRun != nil})
+			rows = append(rows, info("Error: "+m.runErr.Error()), screen.MenuItem{Text: "Retry failed turn", Command: "/retry", Enabled: idle && m.retryRun != nil})
 		}
 		if m.busy() {
-			rows = append(rows, menuItem{Text: "Stop run", Command: "stop", Enabled: m.state == stRunning})
+			rows = append(rows, screen.MenuItem{Text: "Stop run", Command: "stop", Enabled: m.state == stRunning})
 		}
 		return rows
 	case "model":
@@ -172,7 +168,7 @@ func (m *Model) badgeItems(menu string) []menuItem {
 		if m.streaming {
 			transport = "Streaming"
 		}
-		rows := []menuItem{info("Model: " + nonEmpty(m.displayedModel())), info("Backend: " + nonEmpty(m.backendKind)), info("Endpoint: " + nonEmpty(m.backendURL)), info("Transport: " + transport), info(fmt.Sprintf("Context window: %d tokens", m.limit)), info(fmt.Sprintf("Response budget: %d tokens", m.responseCap))}
+		rows := []screen.MenuItem{info("Model: " + nonEmpty(m.displayedModel())), info("Backend: " + nonEmpty(m.backendKind)), info("Endpoint: " + nonEmpty(m.backendURL)), info("Transport: " + transport), info(fmt.Sprintf("Context window: %d tokens", m.limit)), info(fmt.Sprintf("Response budget: %d tokens", m.responseCap))}
 		if !m.usage.liveModel && m.usage.historical {
 			rows = append(rows, info("Current backend model: "+nonEmpty(m.modelName)))
 		}
@@ -180,7 +176,7 @@ func (m *Model) badgeItems(menu string) []menuItem {
 	case "context":
 		return m.contextItems()
 	case "run":
-		rows := []menuItem{info(m.stepLine()), info("Elapsed: " + formatElapsed(m.elapsed)), info(fmt.Sprintf("Tools: %d   Files: %d", m.toolsUsed, len(m.filesTouched)))}
+		rows := []screen.MenuItem{info(m.stepLine()), info("Elapsed: " + formatElapsed(m.elapsed)), info(fmt.Sprintf("Tools: %d   Files: %d", m.toolsUsed, len(m.filesTouched)))}
 		if !m.firstToken.IsZero() {
 			rows = append(rows, info("First token: "+formatElapsed(m.firstToken.Sub(m.started))))
 		}
@@ -189,10 +185,10 @@ func (m *Model) badgeItems(menu string) []menuItem {
 	return nil
 }
 
-func (m *Model) contextItems() []menuItem {
-	info := func(s string) menuItem { return menuItem{Text: s} }
+func (m *Model) contextItems() []screen.MenuItem {
+	info := func(s string) screen.MenuItem { return screen.MenuItem{Text: s} }
 	idle := m.state == stDone
-	rows := []menuItem{info("Context: " + strings.Replace(m.meter(), "ctx ", "", 1)), info("Source: " + nonEmpty(m.usage.source))}
+	rows := []screen.MenuItem{info("Context: " + strings.Replace(m.meter(), "ctx ", "", 1)), info("Source: " + nonEmpty(m.usage.source))}
 	if !m.usage.at.IsZero() {
 		rows = append(rows, info("Updated: "+m.usage.at.Format("15:04:05")))
 	}
@@ -206,21 +202,10 @@ func (m *Model) contextItems() []menuItem {
 	if m.usage.source == "Saved history estimate" {
 		rows = append(rows, info("History estimate includes images; tool schemas are excluded."))
 	}
-	return append(rows, menuItem{Text: "Compact saved history…", Command: "compact-session", Enabled: idle && m.stateFile != ""})
+	return append(rows, screen.MenuItem{Text: "Compact saved history…", Command: "compact-session", Enabled: idle && m.stateFile != ""})
 }
 
-// Wrap informational rows so full model names, endpoints, and errors remain accessible.
-func (m *Model) headerItems() []menuItem {
-	m.syncMenus()
-	return m.chrome.HeaderItems()
-}
-
-func (m *Model) closeHeader() {
-	m.syncMenus()
-	m.chrome.CloseHeader()
-}
 func (m *Model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	m.syncMenus()
 	command := m.chrome.HeaderKey(msg)
 	if command == "quit" {
 		return m.requestQuit()
@@ -236,60 +221,11 @@ func (m *Model) headerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) headerMenuItems() []popup.MenuItem {
-	m.syncMenus()
-	return m.chrome.HeaderMenuItems()
-}
-
-func (m *Model) headerMenuLayout() popup.MenuLayout {
-	m.syncMenus()
-	return m.chrome.HeaderMenuLayout()
-}
-
-func (m *Model) headerGeometry() (x, width, capacity, offset int) {
-	m.syncMenus()
-	return m.chrome.HeaderGeometry()
-}
-
-func (m *Model) overlayHeader(background string) string {
-	m.syncMenus()
-	return m.chrome.OverlayHeader(background)
-}
-
 func (m *Model) headerMouse(msg tea.MouseMsg) (bool, tea.Cmd) {
-	m.syncMenus()
 	handled, command := m.chrome.HeaderMouse(msg)
 	if command != "" {
 		_, cmd := m.activateMenuAction(command)
 		return handled, cmd
 	}
 	return handled, nil
-}
-
-func (m *Model) normalizeHeader() {
-	m.syncMenus()
-	m.chrome.NormalizeHeader()
-}
-
-func (m *Model) menuCells() []footerCell {
-	m.syncMenus()
-	return m.chrome.MenuCells()
-}
-func (m *Model) headerNavigation() []headerBadge {
-	m.syncMenus()
-	return m.chrome.HeaderNavigation()
-}
-func (m *Model) menuLine() string {
-	m.syncMenus()
-	return m.chrome.MenuLine()
-}
-
-func (m *Model) headerTop() int {
-	m.syncMenus()
-	return m.chrome.HeaderTop()
-}
-
-func (m *Model) headerActionRow(start, delta int) int {
-	m.syncMenus()
-	return m.chrome.HeaderActionRow(start, delta)
 }

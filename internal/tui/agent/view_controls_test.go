@@ -59,7 +59,7 @@ func TestPrefillAndSystemRailMatchHistoryInBothThemes(t *testing.T) {
 			m.appendBlock(answerBlock("I’ll inspect launch, activation and profile cleanup."))
 			before := append([]block(nil), m.transcript.blocks...)
 			m.handleEvent(events.Event{Name: "progress", Fields: map[string]any{"phase": "prefill", "prompt": 12288, "processed": 8897}})
-			view := m.View().Content
+			view := m.testView().Content
 			rows := strings.Split(ansi.Strip(view), "\n")
 			progressRow := -1
 			for y, line := range rows {
@@ -89,13 +89,13 @@ func TestPrefillAndSystemRailMatchHistoryInBothThemes(t *testing.T) {
 				}
 			}
 			m.handleEvent(events.Event{Name: "progress", Fields: map[string]any{"phase": "generating"}})
-			if strings.Contains(ansi.Strip(m.View().Content), "prompt processing") {
+			if strings.Contains(ansi.Strip(m.testView().Content), "prompt processing") {
 				t.Fatal("stale progress remained in history")
 			}
 			m.appendBlock(block{role: roleStatus, text: "SYSTEM_NOTICE"})
 			m.hideSYS = true
 			m.refreshContent()
-			if strings.Contains(ansi.Strip(m.View().Content), "SYSTEM_NOTICE") {
+			if strings.Contains(ansi.Strip(m.testView().Content), "SYSTEM_NOTICE") {
 				t.Fatal("system toggle did not filter local notices")
 			}
 		}
@@ -106,17 +106,17 @@ func TestGektorDefaultAttributionAndCommandsHeading(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 120, 34)
 	m.identityName = "Assistant"
 	m.appendBlock(answerBlock("reply"))
-	if text := ansi.Strip(m.View().Content); !strings.Contains(text, "GEKTOR") || strings.Contains(text, "ASSISTANT") {
+	if text := ansi.Strip(m.testView().Content); !strings.Contains(text, "GEKTOR") || strings.Contains(text, "ASSISTANT") {
 		t.Fatal("legacy default speaker remains", text)
 	}
 	m.identityName = "Reviewer"
 	m.refreshContent()
-	if !strings.Contains(ansi.Strip(m.View().Content), "REVIEWER") {
+	if !strings.Contains(ansi.Strip(m.testView().Content), "REVIEWER") {
 		t.Fatal("custom identity was overwritten")
 	}
 	m.openHelp()
 	m.chrome.Dialog.Title = "Commands"
-	text := ansi.Strip(m.dialogView())
+	text := ansi.Strip(m.testControls().DialogView())
 	if strings.Contains(text, "[Commands]") || strings.Count(text, "Commands") != 1 {
 		t.Fatal("duplicate Commands heading", text)
 	}

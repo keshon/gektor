@@ -11,7 +11,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/mcpmanager"
+	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/components/table"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 type mcpActionMsg struct{ action, id string }
@@ -26,14 +28,14 @@ func (m *Model) queueMCP(action, id string) {
 }
 func (m *Model) openMCP() {
 	if m.mcp == nil {
-		m.openDialog("MCP servers", []string{"MCP management is unavailable in this launch."})
+		m.chrome.Open("MCP servers", []string{"MCP management is unavailable in this launch."})
 		return
 	}
 	if m.mcpBusy {
-		m.openDialog("MCP servers", []string{"Connecting…"})
+		m.chrome.Open("MCP servers", []string{"Connecting…"})
 		return
 	}
-	view := m.newTable()
+	view := m.chrome.NewTable()
 	if m.mcpTable != nil {
 		view = m.mcpTable.Model
 	}
@@ -60,8 +62,8 @@ func (m *Model) openMCP() {
 		rows = append(rows, table.Row{ID: server.ID, Cells: []string{server.ID, state, fmt.Sprint(server.Tools), server.Description}})
 	}
 	view.SetRows(rows)
-	m.openDialog("MCP servers", nil)
-	d := &tableDialog{Model: view,
+	m.chrome.Open("MCP servers", nil)
+	d := &screen.TableState{Model: view,
 		Columns:     []table.Column{{Label: "Server", Width: 14}, {Label: "Status", Width: 15}, {Label: "Tools", Width: 5, HideNarrow: true}, {Label: "Description", HideNarrow: true}},
 		Description: "More: Add, Paste JSON, Import file, Enable/Disable, Delete.",
 	}
@@ -90,7 +92,7 @@ func (m *Model) openMCP() {
 		}
 	}
 	d.Activate = func(action, id string) tea.Cmd {
-		m.closeDialog()
+		m.chrome.Close()
 		return m.handleMCPAction(mcpActionMsg{action, id})
 	}
 	m.chrome.Dialog.Table, m.mcpTable = d, d
@@ -104,14 +106,14 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 		return nil
 	}
 	if m.mcpBusy {
-		m.openDialog("MCP servers", []string{"Wait for the connection attempt to finish."})
+		m.chrome.Open("MCP servers", []string{"Wait for the connection attempt to finish."})
 		return nil
 	}
 	if a.action != "details" && a.action != "list" && (m.state != stDone || m.evaluation != nil) {
-		m.openDialog("MCP servers", []string{"Finish or stop the agent turn before changing connections."})
+		m.chrome.Open("MCP servers", []string{"Finish or stop the agent turn before changing connections."})
 		return nil
 	}
-	fail := func(e error) { m.openDialog("MCP servers", []string{e.Error()}) }
+	fail := func(e error) { m.chrome.Open("MCP servers", []string{e.Error()}) }
 	switch a.action {
 	case "list":
 		m.openMCP()
@@ -134,7 +136,7 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 		if s.Startup {
 			loading = "at startup"
 		}
-		m.openForm("MCP / "+a.action, "Use a URL or a command array. Import JSON to add HTTP credentials.", "Save", []formField{{Key: "id", Label: "ID", Value: s.ID}, {Key: "description", Label: "Description", Value: s.Description}, {Key: "url", Label: "HTTP endpoint", Value: s.URL}, {Key: "command", Label: "Command and arguments (JSON array)", Value: string(command)}, {Key: "envrefs", Label: "Environment references (JSON object)", Value: string(refs)}, {Key: "enabled", Label: "Enabled", Value: enabled}, {Key: "loading", Label: "Loading", Value: loading}}, func(v map[string]string) error {
+		m.chrome.OpenForm("MCP / "+a.action, "Use a URL or a command array. Import JSON to add HTTP credentials.", "Save", []form.Field{{Key: "id", Label: "ID", Value: s.ID}, {Key: "description", Label: "Description", Value: s.Description}, {Key: "url", Label: "HTTP endpoint", Value: s.URL}, {Key: "command", Label: "Command and arguments (JSON array)", Value: string(command)}, {Key: "envrefs", Label: "Environment references (JSON object)", Value: string(refs)}, {Key: "enabled", Label: "Enabled", Value: enabled}, {Key: "loading", Label: "Loading", Value: loading}}, func(v map[string]string) error {
 			if a.action == "edit" && v["id"] != s.ID {
 				return fmt.Errorf("server IDs cannot be renamed; add a new server")
 			}
@@ -167,13 +169,13 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 	case "import", "import-json":
 		title := "Import MCP file"
 		hint := "Select a JSON file containing mcpServers. Credentials are stored separately."
-		field := formField{Key: "path", Label: "Configuration file"}
+		field := form.Field{Key: "path", Label: "Configuration file"}
 		if a.action == "import-json" {
 			title = "Paste MCP configuration"
 			hint = "Paste the JSON object containing mcpServers. Credentials are stored separately."
-			field = formField{Key: "json", Label: "JSON configuration", Multiline: true}
+			field = form.Field{Key: "json", Label: "JSON configuration", Multiline: true}
 		}
-		m.openForm(title, hint, "Import", []formField{field, {Key: "replace", Label: "Replace existing servers", Value: "off"}}, func(v map[string]string) error {
+		m.chrome.OpenForm(title, hint, "Import", []form.Field{field, {Key: "replace", Label: "Replace existing servers", Value: "off"}}, func(v map[string]string) error {
 			raw := []byte(v["json"])
 			if a.action == "import" {
 				var e error
@@ -189,14 +191,14 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 		})
 		m.chrome.Dialog.Form.Choices = map[string][]string{"replace": {"off", "on"}}
 	case "delete":
-		m.openForm("Delete MCP / "+a.id, "Remove this saved server and disconnect it.", "Delete", nil, func(map[string]string) error {
+		m.chrome.OpenForm("Delete MCP / "+a.id, "Remove this saved server and disconnect it.", "Delete", nil, func(map[string]string) error {
 			if e := m.mcp.Delete(a.id); e != nil {
 				return e
 			}
 			return nil
 		})
 		m.chrome.Dialog.Form.Destructive = true
-		m.focusForm(1)
+		m.chrome.FocusForm(1)
 	case "enable", "disable":
 		s, e := m.mcp.Get(a.id)
 		if e != nil {
@@ -223,7 +225,7 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 			}
 		}
 		m.mcpBusy = true
-		m.openDialog("MCP / "+a.id, []string{"Connecting and discovering tools…"})
+		m.chrome.Open("MCP / "+a.id, []string{"Connecting and discovering tools…"})
 		manager, base, id := m.mcp, m.base, a.id
 		return func() tea.Msg {
 			ctx, cancel := context.WithTimeout(base, 20*time.Second)
@@ -249,7 +251,7 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 					lines = append(lines, "", "Available tools")
 					lines = append(lines, s.ToolNames...)
 				}
-				m.openDialog("MCP / "+a.id, lines)
+				m.chrome.Open("MCP / "+a.id, lines)
 				break
 			}
 		}

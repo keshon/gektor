@@ -33,7 +33,7 @@ func TestHistoryAuditStoppingAcceptsFinalToolResult(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stStopping
 	m.transcript.blocks = []block{toolCardBlock("c1", "run_shell go test")}
-	m.Update(eventMsg(events.Event{Name: "tool_result", Fields: map[string]any{"call_id": "c1", "text": "cancelled", "failed": true}}))
+	m.testUpdate(eventMsg(events.Event{Name: "tool_result", Fields: map[string]any{"call_id": "c1", "text": "cancelled", "failed": true}}))
 	if m.transcript.blocks[0].open || !m.transcript.blocks[0].failed {
 		t.Fatal("final result dropped; cancelled tool card remains running")
 	}
@@ -44,7 +44,7 @@ func TestHistoryAuditFinalStepKeepsFullStreamedResponse(t *testing.T) {
 	body := strings.Repeat("x", 17000)
 	m.handleEvent(events.Event{Name: "delta", Fields: map[string]any{"text": body[:8500]}})
 	m.handleEvent(events.Event{Name: "delta", Fields: map[string]any{"text": body[8500:]}})
-	m.Update(liveFlushMsg{})
+	m.testUpdate(liveFlushMsg{})
 	emitter := events.NewSink(func(ev events.Event) { m.handleEvent(ev) })
 	harness.EmitStep(emitter, "", 0, llm.Message{Role: llm.RoleAssistant, Content: body}, false, 25)
 	if len(m.transcript.blocks) != 1 || m.transcript.blocks[0].text != body {
@@ -111,7 +111,7 @@ func TestRetryUsesCheckpointAfterSuccessfulToolAndBackendFailure(t *testing.T) {
 	if failed.err == nil {
 		t.Fatal("expected second-call backend failure")
 	}
-	m.Update(failed)
+	m.testUpdate(failed)
 	m.command("/retry")
 	recovered := await()
 	if recovered.err != nil || recovered.answer != "done" {
@@ -178,7 +178,7 @@ func TestToolPreviewUpdatesPendingCardAndIsReplacedOnCompletion(t *testing.T) {
 		if !first.open || first.result != "first line\nsecond line" || m.transcript.blocks[1].result != "" {
 			t.Fatalf("preview attached incorrectly: %+v", m.transcript.blocks)
 		}
-		if !strings.Contains(ansi.Strip(m.View().Content), "second line") {
+		if !strings.Contains(ansi.Strip(m.testView().Content), "second line") {
 			t.Fatal("pending output not visible")
 		}
 		m.handleEvent(events.Event{Name: "tool_result", Fields: map[string]any{"call_id": "call", "text": "authoritative result", "failed": true}})

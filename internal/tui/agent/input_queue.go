@@ -11,7 +11,9 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/components/table"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 // A queue window belongs to one session. Its rows keep their identity even
@@ -37,7 +39,7 @@ type inputQueueReturn struct{ queue *inputQueue }
 type inputQueueEdit struct {
 	session   *harness.Session
 	stateFile string
-	dialog    *infoDialog
+	dialog    *screen.DialogState
 }
 
 func (m *Model) queueSummary() string {
@@ -72,19 +74,19 @@ func (m *Model) openInputQueue() {
 	if edit := m.suspendedInputEdit; edit != nil {
 		m.suspendedInputEdit = nil
 		if edit.session == m.sess && edit.stateFile == m.stateFile {
-			m.openDialog("Edit queued message", nil)
+			m.chrome.Open("Edit queued message", nil)
 			m.chrome.Dialog = edit.dialog
-			m.resizeFormEditor()
+			m.chrome.ResizeFormEditor()
 			m.fitBottom()
 			return
 		}
 	}
-	q := &inputQueue{session: m.sess, stateFile: m.stateFile, nextRunVersion: m.queuedVersion, view: m.newTable(), entries: map[string]queueEntry{}}
+	q := &inputQueue{session: m.sess, stateFile: m.stateFile, nextRunVersion: m.queuedVersion, view: m.chrome.NewTable(), entries: map[string]queueEntry{}}
 	m.showInputQueue(q)
 }
 func (m *Model) showInputQueue(q *inputQueue) {
-	m.openDialog("Message queue", nil)
-	d := &tableDialog{Model: q.view, List: true, EmptyMessage: "No messages waiting", Columns: []table.Column{{Label: "Message"}}}
+	m.chrome.Open("Message queue", nil)
+	d := &screen.TableState{Model: q.view, List: true, EmptyMessage: "No messages waiting", Columns: []table.Column{{Label: "Message"}}}
 	d.Refresh = func() {
 		active := map[string]queueEntry{}
 		ids := []string{}
@@ -169,7 +171,7 @@ func (m *Model) showInputQueue(q *inputQueue) {
 					lines = append(lines, filepath.Base(image))
 				}
 			}
-			m.openDialog("Queued message", lines)
+			m.chrome.Open("Queued message", lines)
 			if input.Received {
 				m.chrome.Dialog.Title = "Received message"
 			} else if input.missing {
@@ -180,15 +182,15 @@ func (m *Model) showInputQueue(q *inputQueue) {
 			if input.readOnly() {
 				return nil
 			}
-			fields := []formField{{Key: "message", Label: "Message", Value: input.Message.Content, Multiline: true}}
+			fields := []form.Field{{Key: "message", Label: "Message", Value: input.Message.Content, Multiline: true}}
 			if len(input.Message.Images) > 0 {
 				names := make([]string, len(input.Message.Images))
 				for n, image := range input.Message.Images {
 					names[n] = filepath.Base(image)
 				}
-				fields = append(fields, formField{Key: "images", Label: "Images", Value: strings.Join(names, "\n"), Multiline: true, ReadOnly: true})
+				fields = append(fields, form.Field{Key: "images", Label: "Images", Value: strings.Join(names, "\n"), Multiline: true, ReadOnly: true})
 			}
-			m.openForm("Edit queued message", "Save keeps its place and images.", "Save", fields, func(v map[string]string) error {
+			m.chrome.OpenForm("Edit queued message", "Save keeps its place and images.", "Save", fields, func(v map[string]string) error {
 				text := v["message"]
 				return m.changeQueuedInput(q, id, &text)
 			})
@@ -200,7 +202,7 @@ func (m *Model) showInputQueue(q *inputQueue) {
 			}
 		case "remove":
 			if err := m.changeQueuedInput(q, id, nil); err != nil {
-				m.openDialog("Cannot remove message", []string{err.Error()})
+				m.chrome.Open("Cannot remove message", []string{err.Error()})
 				m.returnToInputQueue(q)
 				return nil
 			}

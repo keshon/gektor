@@ -13,6 +13,7 @@ import (
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 func inspectorModel(t *testing.T, width int) *Model {
@@ -33,21 +34,21 @@ func TestInspectorRemainsVisibleBehindMainMenu(t *testing.T) {
 			m.inspector.pane.Viewport.SetYOffset(10)
 			beforeWidth := m.mainWidth()
 			beforeOffset := m.inspector.pane.Viewport.YOffset()
-			for _, menu := range []string{"session", "execution", "view", "settings", "help"} {
-				m.chrome.Header = headerState{Focused: true, Global: true, Menu: menu}
+			for _, menu := range []string{"session", "execution", "view"} {
+				m.chrome.Header = screen.MenuState{Focused: true, Global: true, Menu: menu}
 				m.fitBottom()
-				view := ansi.Strip(m.View().Content)
+				view := ansi.Strip(m.testView().Content)
 				if !m.inspectorVisible() || m.mainWidth() != beforeWidth || !strings.Contains(view, "line of output") {
 					t.Fatalf("menu %s hid inspector or changed layout: width=%d minimal=%v", menu, width, minimal)
 				}
-				if menu == "settings" && !strings.Contains(view, "Appearance") {
+				if menu == "view" && !strings.Contains(view, "Thinking") {
 					t.Fatal("inspector painted over menu")
 				}
-				m.handleKey(tea.KeyPressMsg{Code: tea.KeyDown})
+				m.testKey(tea.KeyPressMsg{Code: tea.KeyDown})
 				if m.inspector.pane.Viewport.YOffset() != beforeOffset {
 					t.Fatal("menu navigation scrolled inspector")
 				}
-				m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+				m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 				if !m.inspectorVisible() || m.inspector.callID != "read-1" {
 					t.Fatal("closing menu closed inspector")
 				}
@@ -66,7 +67,7 @@ func TestInspectorScrollbarMouseMatchesBothLayouts(t *testing.T) {
 			v.GotoTop()
 			m.inspector.pane.Follow = false
 			x := m.termW - m.promptOffset() - 1
-			rows := strings.Split(ansi.Strip(m.View().Content), "\n")
+			rows := strings.Split(ansi.Strip(m.testView().Content), "\n")
 			if !strings.HasSuffix(ansi.Truncate(rows[paneTop], x+1, ""), "█") {
 				t.Fatal("hit target differs from thumb", width, minimal, rows[paneTop])
 			}
@@ -142,30 +143,30 @@ func TestInspectorSplitKeepsComposerAndScrollIndependent(t *testing.T) {
 	if m.mainWidth() != 60 || m.activeInputOwner() != focusInspector {
 		t.Fatal("split/focus", m.mainWidth(), m.activeInputOwner())
 	}
-	view := ansi.Strip(m.View().Content)
+	view := ansi.Strip(m.testView().Content)
 	if !strings.Contains(view, "Inspect") || !strings.Contains(view, "parent draft") {
 		t.Fatal(view)
 	}
 	parentOffset := m.transcript.Viewport.YOffset()
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyHome})
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyDown})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyHome})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyDown})
 	if m.inspector.pane.Viewport.YOffset() != 1 || m.transcript.Viewport.YOffset() != parentOffset {
 		t.Fatal("scroll leaked")
 	}
-	m.Update(tea.PasteMsg{Content: "must not edit"})
+	m.testUpdate(tea.PasteMsg{Content: "must not edit"})
 	if m.input.Value() != "parent draft" {
 		t.Fatal("inspector accepted input")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyTab})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyTab})
 	if m.activeInputOwner() != focusInput {
 		t.Fatal("cannot return to parent")
 	}
-	m.Update(tea.PasteMsg{Content: " more"})
+	m.testUpdate(tea.PasteMsg{Content: " more"})
 	if !strings.Contains(m.input.Value(), "more") {
 		t.Fatal("composer stopped accepting input")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyTab})
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyTab})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if m.inspectorVisible() || m.mainWidth() != 120 {
 		t.Fatal("inspector did not close")
 	}
@@ -174,11 +175,11 @@ func TestInspectorNarrowAndGateOwnership(t *testing.T) {
 	m := inspectorModel(t, 70)
 	m.openInspector(len(m.transcript.blocks) - 1)
 	m.syncFocus()
-	view := ansi.Strip(m.View().Content)
+	view := ansi.Strip(m.testView().Content)
 	if strings.Contains(view, "parent draft") || !strings.Contains(view, "Inspect") {
 		t.Fatal(view)
 	}
-	if m.View().Cursor != nil {
+	if m.testView().Cursor != nil {
 		t.Fatal("composer cursor leaked into inspector")
 	}
 	m.state = stPermission
@@ -188,19 +189,19 @@ func TestInspectorNarrowAndGateOwnership(t *testing.T) {
 	}
 	m.state = stDone
 	m.fitBottom()
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if m.input.Value() != "parent draft" {
 		t.Fatal("draft lost")
 	}
 }
 func TestInspectorKeyboardSelectsToolAndDoesNotSubmit(t *testing.T) {
 	m := inspectorModel(t, 120)
-	m.handleKey(tea.KeyPressMsg{Code: 't', Mod: tea.ModCtrl})
+	m.testKey(tea.KeyPressMsg{Code: 't', Mod: tea.ModCtrl})
 	m.syncFocus()
 	if !m.inspector.selecting || m.activeInputOwner() != focusViewport {
 		t.Fatal("selection not focused")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if !m.inspectorVisible() || m.input.Value() != "parent draft" {
 		t.Fatal("enter submitted instead of inspecting")
 	}
@@ -217,7 +218,7 @@ func TestInspectorChildEventsStayOutOfParentAndReload(t *testing.T) {
 		t.Fatal("child corrupted parent")
 	}
 	m.openInspector(parentCount - 1)
-	if !strings.Contains(ansi.Strip(m.View().Content), "child answer") {
+	if !strings.Contains(ansi.Strip(m.testView().Content), "child answer") {
 		t.Fatal("child missing from inspector")
 	}
 	saved := conversation.New([]llm.Message{{Role: llm.RoleSystem, Content: "system"}, {Role: llm.RoleUser, Content: "check code"}, msg})
@@ -229,8 +230,8 @@ func TestInspectorChildEventsStayOutOfParentAndReload(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("no history load")
 	}
-	m.Update(cmd())
-	if !strings.Contains(ansi.Strip(m.View().Content), "child answer") {
+	m.testUpdate(cmd())
+	if !strings.Contains(ansi.Strip(m.testView().Content), "child answer") {
 		t.Fatal("saved child missing")
 	}
 	m.acceptChildHistory(childLoadedMsg{parent: "other session", callID: "child-1", snapshot: conversation.New(nil)})
@@ -245,7 +246,7 @@ func TestInspectorRenderFitsAllThemesAndWidths(t *testing.T) {
 			setTheme(theme)
 			m := inspectorModel(t, width)
 			m.openInspector(len(m.transcript.blocks) - 1)
-			view := m.View().Content
+			view := m.testView().Content
 			if lipgloss.Height(view) != 30 {
 				t.Fatalf("height %d", lipgloss.Height(view))
 			}
@@ -270,11 +271,11 @@ func TestInspectorMouseUsesRenderedToolRowsAndCloseButton(t *testing.T) {
 			break
 		}
 	}
-	m.Update(tea.MouseClickMsg{X: 5, Y: y, Button: tea.MouseLeft})
+	m.testUpdate(tea.MouseClickMsg{X: 5, Y: y, Button: tea.MouseLeft})
 	if !m.inspectorVisible() {
 		t.Fatal("tool click did not open inspector")
 	}
-	m.Update(tea.MouseClickMsg{X: 118, Y: 2, Button: tea.MouseLeft})
+	m.testUpdate(tea.MouseClickMsg{X: 118, Y: 2, Button: tea.MouseLeft})
 	if m.inspectorVisible() || m.chrome.Header.Menu != "" {
 		t.Fatal("close click reached header")
 	}
@@ -292,9 +293,9 @@ func TestInspectorSharesMenuAndFrame(t *testing.T) {
 		m := inspectorModel(t, 120)
 		m.minimal = minimal
 		m.fitBottom()
-		menu := ansi.Strip(m.menuLine())
+		menu := ansi.Strip(m.testControls().MenuLine())
 		m.openInspector(len(m.transcript.blocks) - 1)
-		rows := strings.Split(ansi.Strip(m.View().Content), "\n")
+		rows := strings.Split(ansi.Strip(m.testView().Content), "\n")
 		if strings.TrimSpace(rows[0]) != strings.TrimSpace(menu) {
 			t.Fatal("menu changed", rows[0])
 		}

@@ -21,57 +21,6 @@ func wsRootOf(ws *workspace.Workspace) string {
 	return ws.Root()
 }
 
-// infoDialog is a centered modal over the transcript: title, body lines
-// and optional help tabs. Its frame overlays the document without clearing
-// the surrounding history or changing the underlying reading position.
-//
-// A dialog carries lines or a form, never both. A lesson preview also offers
-// explicit save/edit actions; Enter still closes without saving.
-type infoDialog = screen.DialogState
-
-// openDialog pushes the overlay and shows an info dialog; closeDialog
-// pops it. Balanced by construction: every open path pairs with esc/enter
-// or run start.
-func (m *Model) openDialog(title string, lines []string) {
-	m.syncControls()
-	m.chrome.Open(title, lines)
-}
-
-func (m *Model) closeDialog() {
-	m.syncControls()
-	m.chrome.Close()
-}
-
-// dialogView renders the open dialog centered in the viewport area:
-// title, body, close hint. Widths are clamped to the viewport; heights
-// are top-padded to center, the viewport clips the rest.
-type dialogLayout = screen.DialogLayout
-
-func (m *Model) dialogView() string {
-	m.syncControls()
-	return m.chrome.DialogView()
-}
-
-func (m *Model) overlayDialog(background string) string {
-	m.syncControls()
-	return m.chrome.OverlayDialog(background)
-}
-
-func (m *Model) dialogRows() ([]string, int, int) {
-	m.syncControls()
-	return m.chrome.DialogRows()
-}
-
-func (m *Model) scrollDialog(delta int) {
-	m.syncControls()
-	m.chrome.ScrollDialog(delta)
-}
-
-func (m *Model) layoutDialog() dialogLayout {
-	m.syncControls()
-	return m.chrome.LayoutDialog()
-}
-
 // renderBox centers a standalone bordered dialog for previews. The frame
 // itself is components/popup, shared with the completion list, the session
 // search and the header menus so their chrome cannot drift.
@@ -95,7 +44,7 @@ type helpSection struct {
 }
 
 func (m *Model) openHelp() {
-	m.openDialog("Help", nil)
+	m.chrome.Open("Help", nil)
 	m.chrome.Dialog.Help = true
 }
 
@@ -145,7 +94,6 @@ func helpSections() []helpSection {
 
 // Keep descriptions complete: narrow terminals stack them below the keys.
 func (m *Model) helpRows(section helpSection, width int) []string {
-	m.syncControls()
 	return m.chrome.HelpRows(screen.HelpSection{Title: section.title, Rows: section.rows}, width)
 }
 

@@ -17,14 +17,14 @@ import (
 // had been hidden because the copied maths happened to agree with it.
 func clickVisible(t *testing.T, m *Model, label string) {
 	t.Helper()
-	lines := strings.Split(ansi.Strip(m.View().Content), "\n")
+	lines := strings.Split(ansi.Strip(m.testView().Content), "\n")
 	for y, line := range lines {
 		at := strings.Index(line, label)
 		if at < 0 {
 			continue
 		}
 		x := len([]rune(line[:at])) + 1
-		m.Update(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+		m.testUpdate(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
 		return
 	}
 	t.Fatalf("no %q on screen:\n%s", label, strings.Join(lines, "\n"))
@@ -37,13 +37,13 @@ func clickVisible(t *testing.T, m *Model, label string) {
 // something was.
 func clickHit(t *testing.T, m *Model, index int) {
 	t.Helper()
-	_, hits, _, _ := m.formRows()
-	x, y := m.chrome.Dialog.Form.Origin(m.settingsProps())
+	_, hits, _, _ := m.testControls().FormRows()
+	x, y := m.chrome.Dialog.Form.Origin(m.testControls().SettingsProps())
 	for _, hit := range hits {
 		if hit.Index != index {
 			continue
 		}
-		m.Update(tea.MouseClickMsg{X: x + hit.X0, Y: y + hit.Y0, Button: tea.MouseLeft})
+		m.testUpdate(tea.MouseClickMsg{X: x + hit.X0, Y: y + hit.Y0, Button: tea.MouseLeft})
 		return
 	}
 	t.Fatalf("no hit for index %d in %+v", index, hits)

@@ -1,4 +1,4 @@
-package agent
+package tui
 
 import (
 	"path/filepath"
@@ -20,7 +20,7 @@ func TestNoFormRowIsWiderThanItsPane(t *testing.T) {
 	for _, size := range [][2]int{{40, 20}, {44, 26}, {60, 24}, {80, 30}, {120, 40}} {
 		for _, section := range []string{"model", "generation", "prompts", "you", "workspace"} {
 			m := settingsModel(t)
-			m.width(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 			m.editSettings(section)
 			_, _, pane, _ := m.formRows()
 			for i, row := range formRowsOf(t, m) {
@@ -36,7 +36,7 @@ func TestNoFormRowIsWiderThanItsPane(t *testing.T) {
 func TestSettingsModalIsDrawnByTheSharedForm(t *testing.T) {
 	for _, section := range []string{"model", "generation", "prompts", "you", "workspace"} {
 		m := settingsModel(t)
-		m.width(tea.WindowSizeMsg{Width: 100, Height: 30})
+		m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 		m.editSettings(section)
 		got := ansi.Strip(strings.Join(formRowsOf(t, m), "\n"))
 
@@ -60,19 +60,16 @@ func TestSettingsModalIsDrawnByTheSharedForm(t *testing.T) {
 // same renderer, or "looks alien to the rest" is still true.
 func TestSettingsAndConfirmationsShareTheFormSkeleton(t *testing.T) {
 	m := settingsModel(t)
-	m.width(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	m.editSettings("generation")
 	settings := ansi.Strip(strings.Join(formRowsOf(t, m), "\n"))
 
 	// A destructive confirmation goes through the same renderer.
-	m2 := restartModel(t)
-	m2.width(tea.WindowSizeMsg{Width: 100, Height: 30})
-	m2.confirmRestart(func() {})
+	m2 := settingsModel(t)
+	m2.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m2.runAction("delete-current")
 	confirm := ansi.Strip(strings.Join(formRowsOf(t, m2), "\n"))
 
-	for _, want := range []string{"[ Apply ]", "[ Cancel ]"} {
-		_ = want
-	}
 	if !strings.Contains(settings, "[ Cancel ]") || !strings.Contains(confirm, "[ Cancel ]") {
 		t.Fatal("a form is missing its Cancel button")
 	}
@@ -81,7 +78,7 @@ func TestSettingsAndConfirmationsShareTheFormSkeleton(t *testing.T) {
 		if strings.Index(settings, shape) < strings.Index(settings, "Settings /") {
 			t.Fatal("settings draws its actions above its title")
 		}
-		if strings.Index(confirm, shape) < strings.Index(confirm, "Restart agent") {
+		if strings.Index(confirm, shape) < strings.Index(confirm, "Delete session") {
 			t.Fatal("a confirmation draws its actions above its title")
 		}
 	}
@@ -94,7 +91,7 @@ func TestSettingsAndConfirmationsShareTheFormSkeleton(t *testing.T) {
 // highlighted.
 func TestApplyIsGreyedUntilSomethingChanges(t *testing.T) {
 	m := settingsModel(t)
-	m.width(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	m.editSettings("generation")
 	if m.chrome.Dialog.Form.Dirty() {
 		t.Fatal("a freshly opened section is already dirty")
@@ -153,7 +150,7 @@ func applyColour(t *testing.T, m *Model) string {
 // row while focused - and it has to say what pressing it does.
 func TestChooserFieldsShowWhatPressingThemDoes(t *testing.T) {
 	m := settingsModel(t)
-	m.width(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	m.editSettings("workspace")
 	got := ansi.Strip(strings.Join(formRowsOf(t, m), "\n"))
 	if !strings.Contains(got, "[ Choose… ]") {
@@ -169,7 +166,7 @@ func TestChooserFieldsShowWhatPressingThemDoes(t *testing.T) {
 // A field with fixed options shows its current one, not an editor.
 func TestOptionFieldsShowTheCurrentChoice(t *testing.T) {
 	m := settingsModel(t)
-	m.width(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	m.editSettings("model")
 	got := ansi.Strip(strings.Join(formRowsOf(t, m), "\n"))
 	if !strings.Contains(got, "llama") {
@@ -184,7 +181,7 @@ func TestOptionFieldsShowTheCurrentChoice(t *testing.T) {
 // cost a row or a scroll step to the fields around it.
 func TestHiddenFieldsTakeNoRoom(t *testing.T) {
 	m := settingsModel(t)
-	m.width(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	m.editSettings("model")
 	off := len(formRowsOf(t, m))
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF4})

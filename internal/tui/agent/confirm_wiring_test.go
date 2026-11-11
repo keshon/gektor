@@ -43,7 +43,7 @@ func TestRestartCommandOpensADestructiveConfirmation(t *testing.T) {
 		t.Fatalf("focus starts at %d, want Cancel (1)", got)
 	}
 
-	view := m.screenContent()
+	view := m.testView().Content
 	want := []string{"Restart agent", "[ Restart ]", "[ Cancel ]"}
 	for _, w := range want {
 		if !strings.Contains(view, w) {
@@ -57,7 +57,7 @@ func TestConfirmationEnterOnCancelDoesNotRestart(t *testing.T) {
 	ran := false
 	m.confirmRestart(func() { ran = true })
 
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if ran {
 		t.Fatal("Enter on Cancel ran the restart")
 	}
@@ -72,11 +72,11 @@ func TestConfirmationSelectsThenConfirms(t *testing.T) {
 	m.confirmRestart(func() { ran = true })
 
 	// Move from Cancel to Restart, then commit.
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyUp})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyUp})
 	if m.chrome.Dialog == nil || m.chrome.Dialog.Form.Index != 0 {
 		t.Fatal("did not move onto the Restart button")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if !ran {
 		t.Fatal("Enter on Restart did not run it")
 	}
@@ -90,7 +90,7 @@ func TestConfirmationEscapeCancelsWithoutRunning(t *testing.T) {
 	ran := false
 	m.confirmRestart(func() { ran = true })
 
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEsc})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if ran {
 		t.Fatal("Esc ran the restart")
 	}
@@ -109,7 +109,7 @@ func TestConfirmationSwallowsTyping(t *testing.T) {
 	ran := false
 	m.confirmRestart(func() { ran = true })
 
-	m.handleKey(tea.KeyPressMsg{Code: 'q', Text: "q"})
+	m.testKey(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	if ran {
 		t.Fatal("an unrelated key answered the confirmation")
 	}
@@ -128,7 +128,7 @@ func TestConfirmationRendersAsOneAlignedFrame(t *testing.T) {
 	m := restartModel(t)
 	m.confirmRestart(func() {})
 
-	lines := strings.Split(m.dialogView(), "\n")
+	lines := strings.Split(m.testControls().DialogView(), "\n")
 	var box []string
 	for _, l := range lines {
 		if strings.Contains(ansi.Strip(l), "╭") || strings.Contains(ansi.Strip(l), "│") || strings.Contains(ansi.Strip(l), "╰") {

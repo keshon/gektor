@@ -17,7 +17,7 @@ func TestBrowserSearchUsesWorkspace(t *testing.T) {
 	root := sessionsRootFor(t, m.wsRoot)
 	writeSessionState(t, root, "aaa", userHistory("repair login"))
 	writeSessionState(t, root, "bbb", userHistory("speed up search"))
-	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.testUpdate(tea.WindowSizeMsg{Width: 120, Height: 30})
 	m.openSessions()
 	finishSessionRefresh(t, m)
 	m.sessionsKey(tea.KeyPressMsg{Text: string("repair")})
@@ -40,7 +40,7 @@ func TestBrowserSearchUsesWorkspace(t *testing.T) {
 
 func TestNavigatorCannotSwitchDuringRun(t *testing.T) {
 	m := testModel()
-	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.testUpdate(tea.WindowSizeMsg{Width: 120, Height: 30})
 	m.savedSessions = []sessionEntry{{id: "aaa", title: "Saved task", dir: "aaa"}}
 	m.stateFile = "active/state.json"
 	m.openSessions()
@@ -64,7 +64,7 @@ func TestFramesFitTerminalCells(t *testing.T) {
 			m := testModel()
 			m.state = stDone
 			m.wsRoot = t.TempDir()
-			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+			m.testUpdate(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 			m.appendBlock(userBlock(strings.Repeat("Wide 界 🚀 text ", 20)))
 			m.input.SetValue("first line\nsecond line")
 			m.fitInput()
@@ -73,7 +73,7 @@ func TestFramesFitTerminalCells(t *testing.T) {
 				m.openSessions()
 				finishSessionRefresh(t, m)
 			}
-			lines := strings.Split(m.View().Content, "\n")
+			lines := strings.Split(m.testView().Content, "\n")
 			if len(lines) != size[1] {
 				t.Fatalf("size %v: %d rows", size, len(lines))
 			}
@@ -101,15 +101,15 @@ func TestReflowPreservesWideCharacters(t *testing.T) {
 
 func TestConversationComposerWrapsWithinPane(t *testing.T) {
 	m := completionModel(t)
-	m.Update(tea.WindowSizeMsg{Width: 110, Height: 30})
-	m.Update(tea.PasteMsg{Content: strings.Repeat("text ", 30)})
+	m.testUpdate(tea.WindowSizeMsg{Width: 110, Height: 30})
+	m.testUpdate(tea.PasteMsg{Content: strings.Repeat("text ", 30)})
 	if m.input.Height() < 2 {
 		t.Fatal("draft wrapped against terminal width instead of Identity width")
 	}
 	for _, state := range []runState{stDone, stRunning, stAsk, stPermission} {
 		m.state = state
 		m.fitBottom()
-		view := m.View()
+		view := m.testView()
 		if lipgloss.Height(view.Content) != m.termH {
 			t.Fatalf("state %d changed frame height", state)
 		}
@@ -121,34 +121,34 @@ func TestConversationComposerWrapsWithinPane(t *testing.T) {
 
 func TestNestedComposerCompletesFilesAndCommands(t *testing.T) {
 	m := completionModel(t)
-	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.testUpdate(tea.WindowSizeMsg{Width: 120, Height: 30})
 	writeReference(t, m, "notes.txt", []byte("workspace notes"))
-	m.Update(tea.PasteMsg{Content: "first line"})
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModShift})
-	m.Update(tea.PasteMsg{Content: "read @no"})
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.testUpdate(tea.PasteMsg{Content: "first line"})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModShift})
+	m.testUpdate(tea.PasteMsg{Content: "read @no"})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.input.Value() != "first line\nread @notes.txt " || m.input.Height() != 2 || m.state != stDone {
 		t.Fatal("file completion submitted or lost the multiline draft")
 	}
-	view := m.View()
+	view := m.testView()
 	if view.Cursor == nil || view.Cursor.X < m.promptOffset() || view.Cursor.Y != m.termH-m.footerRows()-1 {
 		t.Fatalf("file completion misplaced the caret: %+v", view.Cursor)
 	}
-	m.Update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
-	m.Update(tea.PasteMsg{Content: "/hel"})
-	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.testUpdate(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
+	m.testUpdate(tea.PasteMsg{Content: "/hel"})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.chrome.Dialog == nil || !m.chrome.Dialog.Help || m.input.Value() != "" {
 		t.Fatal("command completion did not open help")
 	}
-	m.closeDialog()
+	m.testControls().Close()
 	m.state = stPermission
 	m.gstage = gsReject
 	m.input.Blur()
 	m.note.Focus()
 	m.note.SetValue("use another command")
 	m.fitBottom()
-	view = m.View()
+	view = m.testView()
 	if view.Cursor == nil || view.Cursor.X < m.promptOffset() || view.Cursor.Y != m.termH-m.footerRows()-1 {
 		t.Fatalf("permission note misplaced the caret: %+v", view.Cursor)
 	}

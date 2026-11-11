@@ -26,7 +26,7 @@ func TestPermissionDecisionAlwaysHasVisibleContext(t *testing.T) {
 	m.transcript.Viewport.GotoTop()
 	m.transcript.Follow = false
 	m.handleEvent(events.Event{Name: "awaiting_input", Fields: map[string]any{"kind": "permission", "prompt": "TARGET_SCOPE\n" + strings.Repeat("preview line\n", 40)}})
-	view := m.View().Content
+	view := m.testView().Content
 	// The popup pins the question head with the options; the full
 	// prompt lives in the transcript behind it.
 	for _, want := range []string{"TARGET_SCOPE", "Permission required", "Allow once", "Allow this run", "Deny with note"} {
@@ -38,15 +38,15 @@ func TestPermissionDecisionAlwaysHasVisibleContext(t *testing.T) {
 	if !strings.Contains(view, "History 0") && !strings.Contains(view, "History 29") {
 		t.Fatal("gate popup replaced the transcript instead of overlaying it")
 	}
-	m.handleKey(tea.KeyPressMsg{Text: string("n")})
-	if !strings.Contains(m.View().Content, "note>") {
+	m.testKey(tea.KeyPressMsg{Text: string("n")})
+	if !strings.Contains(m.testView().Content, "note>") {
 		t.Fatal("rejection input clipped")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEsc})
-	if m.gstage != gsPermit || strings.Contains(m.View().Content, "note>") {
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEsc})
+	if m.gstage != gsPermit || strings.Contains(m.testView().Content, "note>") {
 		t.Fatal("rejection did not close")
 	}
-	if len(strings.Split(m.View().Content, "\n")) > m.termH {
+	if len(strings.Split(m.testView().Content, "\n")) > m.termH {
 		t.Fatal("gate overflowed terminal")
 	}
 }
@@ -54,20 +54,20 @@ func TestQueueCanBeEditedCancelledAndSurvivesFailure(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.queued = "Queued task"
 	m.fitBottom()
-	if !strings.Contains(ansi.Strip(m.View().Content), "ALT+Q Queue") {
+	if !strings.Contains(ansi.Strip(m.testView().Content), "ALT+Q Queue") {
 		t.Fatal("queue controls missing")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	m.testKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
 	if m.input.Value() != "Queued task" || m.queued != "" {
 		t.Fatal("queue not editable")
 	}
 	m.queued = "Another task"
-	m.handleKey(tea.KeyPressMsg{Code: 'x', Mod: tea.ModCtrl})
+	m.testKey(tea.KeyPressMsg{Code: 'x', Mod: tea.ModCtrl})
 	if m.queued != "" || m.input.Value() != "Queued task" {
 		t.Fatal("queue cancel changed draft")
 	}
 	m.queued = "Keep me"
-	m.Update(doneMsg{err: errors.New("backend down")})
+	m.testUpdate(doneMsg{err: errors.New("backend down")})
 	if m.queued != "Keep me" || m.input.Value() != "Queued task" {
 		t.Fatal("failure overwrote queued work or draft")
 	}
@@ -78,7 +78,7 @@ func TestGlobalQuitWorksInEveryPermissionStage(t *testing.T) {
 		m := sizeModel(t, testModel())
 		m.state = stPermission
 		m.gstage = stage
-		m.handleKey(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+		m.testKey(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 		if !m.quit {
 			t.Fatalf("quit ignored in stage %d", stage)
 		}
@@ -90,7 +90,7 @@ func TestSessionBrowserMouseSelects(t *testing.T) {
 	m.state = stDone
 	m.sessions = &sessionsState{filter: newSearchInput(80), entries: []sessionEntry{{id: "a"}, {id: "b"}}}
 	g := m.searchGeometry()
-	m.Update(tea.MouseClickMsg{X: g.x + 2, Y: g.y + 8, Button: tea.MouseLeft})
+	m.testUpdate(tea.MouseClickMsg{X: g.x + 2, Y: g.y + 8, Button: tea.MouseLeft})
 	if m.sessions.Cursor != 1 {
 		t.Fatal("click ignored")
 	}
@@ -115,7 +115,7 @@ func TestJumpToLatestWorksWhenIdle(t *testing.T) {
 	}
 	m.transcript.Viewport.GotoTop()
 	m.transcript.Follow = false
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnd, Mod: tea.ModCtrl})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnd, Mod: tea.ModCtrl})
 	if !m.transcript.Follow || !m.transcript.Viewport.AtBottom() {
 		t.Fatal("jump ignored")
 	}
@@ -138,7 +138,7 @@ func TestQuestionHasScrollablePreviewAndPreservesDraftOnStop(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.input.SetValue("Original draft")
 	m.handleEvent(events.Event{Name: "awaiting_input", Fields: map[string]any{"kind": "question", "prompt": "QUESTION_SCOPE\n" + strings.Repeat("question detail\n", 40)}})
-	view := m.View().Content
+	view := m.testView().Content
 	// The popup pins the question head; the full prompt lives in the
 	// transcript behind it, which keeps scrolling underneath.
 	for _, want := range []string{"QUESTION_SCOPE", "Answer required"} {
@@ -146,13 +146,13 @@ func TestQuestionHasScrollablePreviewAndPreservesDraftOnStop(t *testing.T) {
 			t.Fatalf("question popup missing %q", want)
 		}
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyPgDown})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyPgDown})
 	if m.transcript.Viewport.YOffset() == 0 {
 		t.Fatal("transcript behind the question cannot scroll")
 	}
 	m.input.SetValue("Partial answer")
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEsc})
-	m.Update(doneMsg{})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEsc})
+	m.testUpdate(doneMsg{})
 	if m.input.Value() != "Original draft\nPartial answer" {
 		t.Fatalf("lost draft: %q", m.input.Value())
 	}
@@ -162,11 +162,11 @@ func TestQueueHeldWhenSuccessfulRunHasAnotherDraft(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.queued = "Next task"
 	m.input.SetValue("Still composing")
-	m.Update(doneMsg{})
+	m.testUpdate(doneMsg{})
 	if m.state != stDone || m.queued != "Next task" || m.input.Value() != "Still composing" {
 		t.Fatal("queue ran over draft")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	m.testKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
 	if m.input.Value() != "Still composing" || m.queued != "Next task" {
 		t.Fatal("queue editing overwrote draft")
 	}
@@ -198,7 +198,7 @@ func TestPromptTransitionsFitWideAndNarrowTerminals(t *testing.T) {
 		m.handleEvent(events.Event{Name: "awaiting_input", Fields: map[string]any{"kind": "permission", "prompt": "Review target"}})
 		m.gstage = gsReject
 		m.fitBottom()
-		if !strings.Contains(m.View().Content, "note>") {
+		if !strings.Contains(m.testView().Content, "note>") {
 			t.Fatalf("note hidden at width %d", width)
 		}
 		m.handleEvent(events.Event{Name: "input_answered"})
@@ -213,7 +213,7 @@ func TestBrowserActionsRemainInsideTerminalFrame(t *testing.T) {
 	m.state = stDone
 	m.sessions = &sessionsState{filter: newSearchInput(80), entries: []sessionEntry{{id: "a", title: "Saved session"}}}
 	m.fitBottom()
-	if !strings.Contains(m.View().Content, "Open session") || !strings.Contains(ansi.Strip(m.View().Content), "ENTER open") {
+	if !strings.Contains(m.testView().Content, "Open session") || !strings.Contains(ansi.Strip(m.testView().Content), "ENTER open") {
 		t.Fatal("search popup actions clipped")
 	}
 }
@@ -231,7 +231,7 @@ func TestInlineThinkingUsesThinkingBlockLiveAndOnReopen(t *testing.T) {
 			t.Fatalf("content changed: %+v", blocks)
 		}
 	}
-	if strings.Contains(m.View().Content, "<think>") || !strings.Contains(m.View().Content, "[THINKING]") {
+	if strings.Contains(m.testView().Content, "<think>") || !strings.Contains(m.testView().Content, "[THINKING]") {
 		t.Fatal("raw thinking shown as response")
 	}
 }
@@ -435,7 +435,7 @@ func TestViewMenuCommandsDriveTheTranscript(t *testing.T) {
 		// Enter closes the menu, so each action reopens it.
 		m.chrome.Header.Menu, m.chrome.Header.Focused = "view", true
 		row := -1
-		for i, item := range m.headerItems() {
+		for i, item := range m.testControls().HeaderItems() {
 			if item.Command == command {
 				row = i
 			}
@@ -444,7 +444,7 @@ func TestViewMenuCommandsDriveTheTranscript(t *testing.T) {
 			t.Fatalf("%s missing from View menu", command)
 		}
 		m.chrome.Header.Row = row
-		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+		m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	}
 	if !m.hideLabels || !m.hideSYS {
 		t.Fatalf("menu did not set the filters: labels=%v sys=%v", m.hideLabels, m.hideSYS)

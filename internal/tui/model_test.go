@@ -45,6 +45,31 @@ func TestWorkflowPasteCannotChangeHiddenAgentDraft(t *testing.T) {
 	}
 }
 
+func TestWorkflowEscapeRestoresAgentInput(t *testing.T) {
+	m := shellTestModel(t, Config{AgentConfig: AgentConfig{InitialDraft: "retained"}})
+	m.runAction("screen:workflows")
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if m.workflowActive() || m.View().Cursor == nil {
+		t.Fatal("Escape did not restore Agent input focus")
+	}
+	m.Update(tea.PasteMsg{Content: " text"})
+	if draftOf(m) != "retained text" {
+		t.Fatal("returning to Agent lost or blocked the retained draft")
+	}
+}
+
+func TestRunningAgentCannotOpenSettings(t *testing.T) {
+	m := settingsModel(t)
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if m.agent.Status().Idle {
+		t.Fatal("fixture did not start an Agent turn")
+	}
+	m.runAction("edit:model")
+	if m.chrome.Dialog != nil || m.modeChange != nil {
+		t.Fatal("settings interrupted the active Agent turn")
+	}
+}
+
 func TestPeerMenusAndOverflow(t *testing.T) {
 	for _, active := range []string{"screen:agent", "screen:workflows"} {
 		m := shellTestModel(t, Config{})
@@ -66,7 +91,7 @@ func TestPeerMenusAndOverflow(t *testing.T) {
 		}
 		want := []string{"GEKTOR", "Session", "Run", "View", "Settings", "Help"}
 		if active == "screen:workflows" {
-			want = []string{"GEKTOR", "Recipe", "Node", "Run", "View", "Settings", "Help"}
+			want = []string{"GEKTOR", "Recipe", "Node", "Run", "View", "Help"}
 		}
 		if !reflect.DeepEqual(labels, want) {
 			t.Fatal(labels)
@@ -144,29 +169,68 @@ func TestQuitChecksRetainedWorkflowFromAgent(t *testing.T) {
 	}
 }
 
-func TestWorkflowCanOpenSharedProcessManager(t *testing.T) {
+func TestWorkflowMenusExcludeAgentSettings(t *testing.T) {
 	m := workflowTestModel(t)
-	found := false
 	for _, group := range m.chrome.Props.Menus {
+		if group.ID == "settings" || group.ID == "session" {
+			t.Fatalf("Agent menu in Workflow: %s", group.ID)
+		}
 		for _, item := range group.Items {
-			if group.ID == "execution" && item.Command == "/processes" && item.Enabled {
-				found = true
+			if strings.HasPrefix(item.Command, "edit:") || item.Command == "/processes" || item.Command == "prompt-info" || item.Command == "help-commands" {
+				t.Fatalf("Agent command in Workflow: %s", item.Command)
 			}
 		}
 	}
-	if !found {
-		t.Fatal("process manager missing from Workflow Run menu")
+	m.runAction("edit:model")
+	if m.chrome.Dialog != nil {
+		t.Fatal("Agent settings opened in Workflow")
 	}
-	m.runAction("/processes")
+	m.runAction("screen:agent")
 	m.syncPresentation()
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Table == nil || len(m.chrome.Dialog.Table.Model.Rows) != 0 {
-		t.Fatal("empty process manager did not open")
-	}
-	for _, width := range []int{40, 80, 120} {
-		sizeModelTo(t, m, width, 24)
-		if m.dialogView() == "" {
-			t.Fatal("empty dialog")
+	found := false
+	for _, group := range m.chrome.Props.Menus {
+		if group.ID == "settings" {
+			found = true
 		}
+	}
+	if !found {
+		t.Fatal("Agent settings not restored")
+	}
+}
+
+func TestWorkflowWorkspacePickerHasNoAgentSettings(t *testing.T) {
+	m := settingsModel(t)
+	m.openWorkflows()
+	m.syncPresentation()
+	m.runAction("workspace")
+	if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "Workspace" {
+		t.Fatal("workspace picker did not open")
+	}
+	f := m.chrome.Dialog.Form
+	if f.EditSession != nil || len(f.Fields) != 1 || f.Fields[0].Key != "app-workspace" {
+		t.Fatal("workspace picker exposed Agent settings")
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if !m.workflowActive() || draftOf(m) != "unfinished draft" {
+		t.Fatal("workspace cancellation changed screen or Agent draft")
+	}
+}
+
+func TestSettingsRelaunchProtectsRetainedWorkflow(t *testing.T) {
+	m := settingsModel(t)
+	m.openWorkflows()
+	draft := seedWorkflow(t, m, workflowRecipe())
+	before := draft.Source()
+	m.showAgent()
+	m.syncPresentation()
+	m.editSettings("generation")
+	m.chrome.Dialog.Form.Editor.SetValue("0.8")
+	m.applyForm()
+	if m.modeChange != nil || m.chrome.Dialog == nil || m.chrome.Dialog.Form.Error == "" {
+		t.Fatal("settings discarded a retained unsaved workflow")
+	}
+	if draft.Source() != before || !m.workflows.Dirty() || draftOf(m) != "unfinished draft" {
+		t.Fatal("failed settings apply changed a retained draft")
 	}
 }
 

@@ -1,4 +1,4 @@
-package agent
+package tui
 
 import (
 	"fmt"
@@ -7,13 +7,13 @@ import (
 	"strings"
 
 	"github.com/keshon/gektor/internal/config"
-	"github.com/keshon/gektor/internal/tui/settings"
 )
 
 func (m *Model) stagedSettings() (config.Profile, error) {
-	m.storeSettingsPage()
+	m.chrome.Dialog.Form.StorePage()
 	return m.chrome.Dialog.Form.EditSession.Draft.Resolve()
 }
+
 func (m *Model) saveSettingsCopy() {
 	p, err := m.stagedSettings()
 	if err != nil {
@@ -43,20 +43,6 @@ func (m *Model) saveSettingsCopy() {
 	m.chrome.Dialog.Form.Error = "Saved copy: " + path
 }
 
-type settingsDetailMsg = settings.DetailMsg
-
-func (m *Model) queueSettingsDetail() {
-	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil {
-		if cmd := m.chrome.Dialog.Form.DetailCommand(); cmd != nil {
-			m.pendingCommands = append(m.pendingCommands, cmd)
-		}
-	}
-}
-func (m *Model) acceptSettingsDetail(msg settingsDetailMsg) {
-	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil {
-		m.chrome.Dialog.Form.AcceptDetail(msg)
-	}
-}
 func (m *Model) saveCustomSettings(profile config.Profile) error {
 	dir, source, ok := m.customProfileTarget()
 	if !ok {
@@ -98,5 +84,3 @@ func (m *Model) customProfileTarget() (dir, source string, ok bool) {
 	}
 	return filepath.Join(root, "profiles", "custom"), source, true
 }
-
-var pickerFiles = settings.PickerFiles

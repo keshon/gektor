@@ -15,12 +15,6 @@ func (m *Model) screenContent() string {
 	if !m.ready {
 		return "starting..."
 	}
-	// A settings section used to short-circuit here and build its own screen:
-	// a menu line, a form and an action bar, framed as bare content. No
-	// header, no rules, no side borders - so the one screen you open to change
-	// how the app looks was the only one that did not look like the app. It
-	// takes the normal path now, where a form is drawn the way every other
-	// dialog is drawn: inside the pane, on the shared surface.
 	paneHeader := cellLine(m.identityLine(), m.transcript.Viewport.Width())
 
 	gated := (m.state == stPermission || m.state == stAsk) && m.gatePopup.Pending()
@@ -31,33 +25,26 @@ func (m *Model) screenContent() string {
 	} else if m.state == stPermission || m.state == stAsk {
 		body = m.gateVP.View()
 	}
-	if m.chrome.Dialog != nil {
-		body = m.overlayDialog(body)
-	}
+
 	bodyHeight := m.transcript.Viewport.Height()
 	body = cellFrame(body, m.transcript.Viewport.Width(), bodyHeight)
 	footer := m.composerRows()
 	layout := m.panelGeometry(m.mainWidth(), len(footer), false, true)
 	focused := m.chrome.Dialog == nil && m.sessions == nil && !m.chrome.Header.Focused && (!m.inspectorVisible() || !m.inspector.focused)
 	rows := pane.Render(layout, paneHeader, body, footer, m.paneStyles(), focused)
-	content := m.menuLine() + "\n" + strings.Join(rows, "\n")
-	if m.actionBarVisible() {
-		content += "\n" + m.actionBar()
-	}
+	content := "\n" + strings.Join(rows, "\n")
 
 	content = cellFrame(content, max(m.termW, 0), max(m.termH, 0))
 	if m.sessions != nil {
 		content = m.overlaySearch(content)
 	}
 	content = m.composeInspector(content)
-	if m.chrome.Header.Menu != "" {
-		content = m.overlayHeader(content)
-	}
+
 	return content
 }
 
 func (m *Model) View() tea.View {
-	v := tea.NewView(paintScreen(m.screenContent()))
+	v := tea.NewView(m.screenContent())
 	// Theme only the character grid; terminal defaults and margins belong to the host.
 	owner := m.activeInputOwner()
 	if !m.ready || owner == focusDialog || owner == focusHeader {

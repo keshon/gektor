@@ -6,9 +6,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/keshon/gektor/internal/app"
 	agentui "github.com/keshon/gektor/internal/tui/agent"
 	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/internal/tui/settings"
 	"github.com/keshon/gektor/internal/tui/workflow"
 )
 
@@ -22,18 +24,27 @@ const (
 // Model owns application navigation, shared controls, and the lifetime of its
 // Agent and Workflow screens. It never reaches into either screen's private state.
 type Model struct {
+	profile           *app.PreparedProfile
+	application       *settings.Application
+	modeChange        *ModeChange
+	overlayScreen     activeScreen
+	commands          []tea.Cmd
 	agent             *agentui.Model
 	workflows         *workflow.Model
 	chrome            *screen.Controls
 	active            activeScreen
-	config            Config
+	launch            Config
 	base              context.Context
 	startWorkflows    bool
 	termW, termH      int
+	outlined          bool
 	quit, pendingQuit bool
 }
 
 func newModel(ctx context.Context, cfg Config) (*Model, error) {
+	if cfg.Application != nil {
+		screen.SetTheme(cfg.Application.Preferences.Theme)
+	}
 	controls := &screen.Controls{}
 	agentCfg := cfg.AgentConfig
 	agentCfg.Controls = controls
@@ -44,10 +55,14 @@ func newModel(ctx context.Context, cfg Config) (*Model, error) {
 	m := &Model{
 		agent:          conversation,
 		chrome:         controls,
-		config:         cfg,
+		launch:         cfg,
+		profile:        cfg.PreparedProfile,
+		application:    cfg.Application,
 		base:           ctx,
+		outlined:       conversation.Appearance().Frame == "outlined",
 		startWorkflows: cfg.StartScreen == "workflows",
 	}
+	m.bindControls()
 	m.syncPresentation()
 	return m, nil
 }
@@ -77,7 +92,7 @@ func (m *Model) openWorkflows() {
 		return
 	}
 	if m.workflows == nil {
-		env := m.config.AgentConfig.Env
+		env := m.launch.AgentConfig.Env
 		if env.WS == nil {
 			m.chrome.Open("Workflows", []string{"Select a workspace first."})
 			return
@@ -90,7 +105,7 @@ func (m *Model) openWorkflows() {
 			ContextLimit: env.ContextLimit,
 			Temperature:  env.Temperature,
 		}
-		child, err := workflow.NewScreen(m.base, cfg, m.chrome.Host(), m.workflowSurface)
+		child, err := workflow.New(m.base, cfg, m.chrome.Host(), m.workflowSurface)
 		if err != nil {
 			m.chrome.Open("Workflows", []string{err.Error()})
 			return
@@ -109,6 +124,7 @@ func (m *Model) showAgent() {
 		m.workflows.Hide()
 	}
 	m.active = agentScreen
+	m.agent.Activate()
 }
 func (m *Model) workflowCommand(action string) tea.Cmd {
 	if !m.workflowActive() {
@@ -145,7 +161,11 @@ func (m *Model) requestQuit() (tea.Model, tea.Cmd) {
 	return m, tea.Quit
 }
 func (m *Model) takeCommands() tea.Cmd {
-	commands := []tea.Cmd{m.agent.Refresh()}
+	commands := append(m.commands, m.settingsCommands()...)
+	m.commands = nil
+	if !m.workflowActive() {
+		commands = append(commands, m.agent.Refresh())
+	}
 	if m.workflows != nil {
 		commands = append(commands, m.workflows.TakeCommands()...)
 	}

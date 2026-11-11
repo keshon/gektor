@@ -21,6 +21,7 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/table"
 	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/userdirs"
+	"github.com/keshon/gektor/internal/workflow/service"
 	"github.com/keshon/gektor/internal/workflow/store"
 )
 
@@ -88,7 +89,7 @@ func (m *Model) action(a workflowAction) tea.Cmd {
 		return m.propose(a.value)
 	case "new-path":
 		m.runID = ""
-		m.editor = New()
+		m.editor = NewEditor()
 		m.editor.Path = a.value
 		m.graph = graph.Model{}
 		m.run = nil
@@ -442,4 +443,8 @@ func (m *Model) persistLayout() {
 	if err := m.saveLayout(); err != nil {
 		m.setNotice(pane.NoticeError, "Could not save layout: "+err.Error())
 	}
+}
+
+func (m *Model) service(gate permission.Gate) (service.Service, error) {
+	return app.NewWorkflow(m.config.WS, userdirs.Sub("workflows"), m.config.Policy, gate)
 }

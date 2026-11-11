@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
@@ -390,4 +391,16 @@ func CardDetail(status string) (string, graph.Tone) {
 		tone = graph.ToneDisabled
 	}
 	return status, tone
+}
+
+func (m *Model) View() tea.View { return tea.NewView("\n" + m.content()) }
+
+func (m *Model) inspectorContent() []string {
+	view := m.presentation()
+	width := view.Layout(view.Panes(true).Side.Width, true).Body.Width
+	var out []string
+	for _, line := range m.detailRows()[1:] {
+		out = append(out, strings.Split(ansi.Hardwrap(line, max(1, width-1), true), "\n")...)
+	}
+	return out
 }

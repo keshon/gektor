@@ -13,6 +13,7 @@ import (
 
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -37,7 +38,7 @@ func TestPastedSearchRecomputesResults(t *testing.T) {
 	writeSessionState(t, root, "beta", userHistory("beta"))
 	m.openSessions()
 	finishSessionRefresh(t, m)
-	m.Update(tea.PasteMsg{Content: "alpha"})
+	m.testUpdate(tea.PasteMsg{Content: "alpha"})
 	if m.sessions.filter.Value() != "alpha" || len(m.sessions.entries) != 1 || m.sessions.entries[0].id != "alpha" {
 		t.Fatal("paste changed query without filtering")
 	}
@@ -48,15 +49,15 @@ func TestCompletionAndPasteRespectHelpOwner(t *testing.T) {
 	m.state = stRunning
 	m.input.SetValue("unsent draft")
 	m.openHelp()
-	m.Update(doneMsg{answer: "done"})
+	m.testUpdate(doneMsg{answer: "done"})
 	if m.activeInputOwner() != focusDialog || m.input.Focused() {
 		t.Fatal("completion focused hidden input")
 	}
-	m.Update(tea.PasteMsg{Content: "hidden paste"})
+	m.testUpdate(tea.PasteMsg{Content: "hidden paste"})
 	if m.input.Value() != "unsent draft" {
 		t.Fatal("Help allowed clipboard into composer")
 	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if !m.input.Focused() {
 		t.Fatal("closing Help failed to restore input")
 	}
@@ -97,18 +98,18 @@ func TestViewDoesNotChangeSelectionOrFocus(t *testing.T) {
 	m.state = stDone
 	m.width(tea.WindowSizeMsg{Width: 120, Height: 30})
 	m.savedSessions = []sessionEntry{{title: "session", updated: time.Now()}}
-	m.chrome.Header = headerState{Focused: true, Index: 99, Menu: "model", Row: 99}
+	m.chrome.Header = screen.MenuState{Focused: true, Index: 99, Menu: "model", Row: 99}
 	beforeHeader := m.chrome.Header
 	beforeFocused := m.input.Focused()
-	m.View()
-	m.View()
+	m.testView()
+	m.testView()
 	if !reflect.DeepEqual(m.chrome.Header, beforeHeader) || m.input.Focused() != beforeFocused {
 		t.Fatal("render changed UI state")
 	}
-	m.chrome.Header = headerState{}
+	m.chrome.Header = screen.MenuState{}
 	m.openHelp()
 	m.chrome.Dialog.Offset = 999
-	m.View()
+	m.testView()
 	if m.chrome.Dialog.Offset != 999 {
 		t.Fatal("Help rendering changed scroll state")
 	}
@@ -136,14 +137,14 @@ func TestSessionScanRunsOutsideUpdateAndRejectsStaleResults(t *testing.T) {
 	}
 	old := first().(sessionsLoadedMsg)
 	m.refreshSessions()
-	_, next := m.Update(old)
+	_, next := m.testUpdate(old)
 	if len(m.savedSessions) != 0 {
 		t.Fatal("stale scan replaced current state")
 	}
 	if next == nil {
 		t.Fatal("latest scan command missing")
 	}
-	m.Update(next())
+	m.testUpdate(next())
 	if len(m.savedSessions) != 1 {
 		t.Fatal("current scan not applied")
 	}
@@ -231,7 +232,7 @@ func TestCompletionClosesCancelledPermissionOverlay(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stPermission
 	m.pushOverlay()
-	m.Update(doneMsg{})
+	m.testUpdate(doneMsg{})
 	if len(m.overlays) != 0 || m.activeInputOwner() != focusInput {
 		t.Fatal("finished gate retained overlay ownership")
 	}

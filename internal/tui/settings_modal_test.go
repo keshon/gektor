@@ -1,4 +1,4 @@
-package agent
+package tui
 
 import (
 	"strings"
@@ -21,7 +21,7 @@ func TestUnsetTemperatureShowsTheNumberThatWillBeUsed(t *testing.T) {
 	if !strings.Contains(got, "default") {
 		t.Fatalf("unset temperature shows as %q", got)
 	}
-	if !strings.Contains(ansi.Strip(m.formView()), "0.4") {
+	if !strings.Contains(ansi.Strip(m.chrome.FormView()), "0.4") {
 		t.Fatalf("unset temperature does not name the value that will be used")
 	}
 }
@@ -29,7 +29,7 @@ func TestUnsetTemperatureShowsTheNumberThatWillBeUsed(t *testing.T) {
 // An explicit value shows as itself, and does not read as unset.
 func TestExplicitTemperatureShowsAsItself(t *testing.T) {
 	m := settingsModel(t)
-	m.config.Profile.Generation.Temperature = 0.9
+	m.profile.Profile.Generation.Temperature = 0.9
 	m.editSettings("generation")
 	got := m.chrome.Dialog.Form.Editor.Value()
 	if strings.Contains(got, "default") || !strings.Contains(got, "0.9") {
@@ -59,7 +59,7 @@ func TestTemperatureAcceptsDefaultAsAWord(t *testing.T) {
 func TestSettingsButtonsAreClickableWhereTheyAreDrawn(t *testing.T) {
 	for _, width := range []int{40, 80, 120} {
 		m := settingsModel(t)
-		m.width(tea.WindowSizeMsg{Width: width, Height: 24})
+		m.Update(tea.WindowSizeMsg{Width: width, Height: 24})
 		m.editSettings("generation")
 		_, hits, _, _ := m.formRows()
 		if len(hits) == 0 {
@@ -84,7 +84,7 @@ func TestSettingsButtonsAreClickableWhereTheyAreDrawn(t *testing.T) {
 // One section per screen: no rail, and the whole width is content.
 func TestSettingsModalIsNotTwoColumns(t *testing.T) {
 	m := settingsModel(t)
-	m.width(tea.WindowSizeMsg{Width: 120, Height: 24})
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 24})
 	m.editSettings("generation")
 	view := ansi.Strip(m.View().Content)
 	for _, other := range []string{"Workspace", "Profiles", "Prompts"} {
@@ -103,9 +103,9 @@ func TestSettingsModalIsNotTwoColumns(t *testing.T) {
 
 func TestPromptDialogNormalizesWindowsLineEndings(t *testing.T) {
 	m := settingsModel(t)
-	m.width(tea.WindowSizeMsg{Width: 140, Height: 40})
-	m.config.Identity.System = "Before\r\nWindows line\r\nAfter\rLone return"
-	m.inspectAgentInstructions()
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m.profile.Identity.System = "Before\r\nWindows line\r\nAfter\rLone return"
+	m.runAction("prompt-info")
 	view := m.View().Content
 	if strings.ContainsRune(view, '\r') {
 		t.Fatal("dialog emitted a carriage return that can overwrite its frame")

@@ -11,6 +11,7 @@ import (
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/tui/components/transcript"
+	"github.com/keshon/gektor/internal/tui/settings"
 )
 
 // savePreferences runs at both ends of every turn and fsyncs. An
@@ -21,7 +22,7 @@ func TestPreferencesSkipAnUnchangedWrite(t *testing.T) {
 	dir := t.TempDir()
 	m := sizeModel(t, testModel())
 	path := filepath.Join(dir, "application.json")
-	m.application = &Application{
+	m.application = &settings.Application{
 		PreferencePath: path,
 		Preferences:    config.Preferences{Version: 1},
 	}
@@ -29,8 +30,11 @@ func TestPreferencesSkipAnUnchangedWrite(t *testing.T) {
 	if err := m.savePreferences(); err != nil {
 		t.Fatal(err)
 	}
-	first := m.savedSettings
-	if first == "" {
+	first, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first) == 0 {
 		t.Fatal("first write did not record what it stored")
 	}
 	before, err := os.Stat(path)
@@ -53,7 +57,11 @@ func TestPreferencesSkipAnUnchangedWrite(t *testing.T) {
 	if err := m.savePreferences(); err != nil {
 		t.Fatal(err)
 	}
-	if m.savedSettings == first {
+	changed, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(changed) == string(first) {
 		t.Fatal("a real change was skipped")
 	}
 	if _, err := os.Stat(path); err != nil {

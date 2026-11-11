@@ -24,7 +24,7 @@ import (
 func TestEvaluationProgressIsIsolatedAndSafeDuringTicks(t *testing.T) {
 	m := settingsModel(t)
 	m.steps, m.tokens = 7, 1234
-	m.openDialog("Session evaluation", nil)
+	m.testControls().Open("Session evaluation", nil)
 	job := &evaluationJob{cancel: func() {}, started: time.Now().Add(-3 * time.Second)}
 	m.evaluation = job
 	var worker sync.WaitGroup
@@ -45,8 +45,8 @@ func TestEvaluationProgressIsIsolatedAndSafeDuringTicks(t *testing.T) {
 	if m.steps != 7 || m.tokens != 1234 || m.input.Value() != "unfinished draft" {
 		t.Fatal("evaluation progress changed original task")
 	}
-	m.closeDialog()
-	m.openDialog("Other dialog", []string{"keep"})
+	m.testControls().Close()
+	m.testControls().Open("Other dialog", []string{"keep"})
 	job.update(retrospective.Progress{Stage: "stale update"})
 	m.refreshEvaluation()
 	if strings.Join(m.chrome.Dialog.Lines, "") != "keep" {
@@ -91,17 +91,17 @@ func TestLearnReviewSaveSkipEditAndUndo(t *testing.T) {
 			}
 			switch action {
 			case "skip":
-				m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+				m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 			case "save":
-				m.handleKey(tea.KeyPressMsg{Code: 's', Text: "s"})
+				m.testKey(tea.KeyPressMsg{Code: 's', Text: "s"})
 			case "edit":
-				m.handleKey(tea.KeyPressMsg{Code: 'e', Text: "e"})
+				m.testKey(tea.KeyPressMsg{Code: 'e', Text: "e"})
 				if m.chrome.Dialog.Form == nil {
 					t.Fatal("edit did not open form")
 				}
-				m.focusForm(1)
+				m.testControls().FocusForm(1)
 				m.chrome.Dialog.Form.Editor.SetValue("Run the focused API tests first.")
-				m.applyForm()
+				m.testControls().ApplyForm()
 			}
 			if m.chrome.Dialog != nil {
 				t.Fatal("action did not close dialog")
@@ -153,7 +153,7 @@ func TestLearnFailureKeepsReviewOpen(t *testing.T) {
 	if err := os.WriteFile(m.stateFile, []byte("changed"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	m.handleKey(tea.KeyPressMsg{Code: 's', Text: "s"})
+	m.testKey(tea.KeyPressMsg{Code: 's', Text: "s"})
 	if m.chrome.Dialog == nil || !strings.Contains(strings.Join(m.chrome.Dialog.Lines, "\n"), "session changed") {
 		t.Fatal("lost actionable save error")
 	}
@@ -189,7 +189,7 @@ func TestLearnReopensProposalWithoutInference(t *testing.T) {
 	if cmd != nil || m.chrome.Dialog == nil || m.chrome.Dialog.Save == nil {
 		t.Fatal("saved proposal not reopened locally")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	entries, _ := m.ws.Skills()
 	if len(entries) != 2 {
 		t.Fatal("Enter approved instead of skipping")
@@ -199,25 +199,25 @@ func TestLearnReopensProposalWithoutInference(t *testing.T) {
 func TestLessonPreviewFitsTerminalAndScrolls(t *testing.T) {
 	for _, width := range []int{48, 80, 120} {
 		m, r := lessonModel(t)
-		m.Update(tea.WindowSizeMsg{Width: width, Height: 24})
+		m.testUpdate(tea.WindowSizeMsg{Width: width, Height: 24})
 		r.Memory[0].Lesson = strings.Repeat("Run the focused tests before the full suite. ", 20)
 		m.reviewLesson(r)
-		layout := m.layoutDialog()
+		layout := m.testControls().LayoutDialog()
 		hint := ansi.Strip(layout.Hint)
 		if !strings.Contains(hint, "S save") || !strings.Contains(hint, "E edit") || len(layout.Lines) <= layout.Capacity {
 			t.Fatal("missing actions or scrollable long proposal")
 		}
-		for _, row := range strings.Split(m.dialogView(), "\n") {
+		for _, row := range strings.Split(m.testControls().DialogView(), "\n") {
 			if ansi.StringWidth(row) > width {
 				t.Fatalf("preview exceeds %d columns: %q", width, row)
 			}
 		}
-		m.scrollDialog(len(layout.Lines))
+		m.testControls().ScrollDialog(len(layout.Lines))
 		if m.chrome.Dialog.Offset != len(layout.Lines)-layout.Capacity {
 			t.Fatal("cannot reach final evidence and caveats")
 		}
-		m.handleKey(tea.KeyPressMsg{Code: 'e', Text: "e"})
-		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+		m.testKey(tea.KeyPressMsg{Code: 'e', Text: "e"})
+		m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 		if len(m.overlays) != 0 {
 			t.Fatal("edit cancellation leaked focus overlay")
 		}
@@ -239,7 +239,7 @@ func TestEvaluationDoesNotReplaceTaskAndClosesOnEscape(t *testing.T) {
 		t.Fatal("evaluation did not open a cancellable dialog")
 	}
 	job := m.evaluation
-	m.closeDialog()
+	m.testControls().Close()
 	if m.evaluation != nil {
 		t.Fatal("closing dialog left evaluation running")
 	}

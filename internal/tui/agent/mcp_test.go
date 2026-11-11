@@ -47,16 +47,16 @@ func TestMCPPasteImportFromEmptyManager(t *testing.T) {
 	defer manager.Close()
 	m.mcp, m.state = manager, stDone
 	m.openMCP()
-	m.tableInput(tea.KeyPressMsg{Code: 'p', Text: "p"})
+	m.testControls().TableInput(tea.KeyPressMsg{Code: 'p', Text: "p"})
 	if !m.chrome.Dialog.Form.Fields[0].Multiline {
 		t.Fatal("JSON field does not accept multiple lines")
 	}
 	raw := "{\n  \"mcpServers\": {\n    \"reference\": {\"url\": \"https://example.com/mcp\"}\n  }\n}"
-	m.Update(tea.PasteMsg{Content: raw})
+	m.testUpdate(tea.PasteMsg{Content: raw})
 	if m.chrome.Dialog.Form.Values()["json"] != raw {
 		t.Fatal("paste changed the configuration")
 	}
-	m.applyForm()
+	m.testControls().ApplyForm()
 	if m.chrome.Dialog != nil {
 		t.Fatal("import failed:", m.chrome.Dialog.Form.Error)
 	}
@@ -156,7 +156,7 @@ func TestMCPModalPreview(t *testing.T) {
 		m.mcp = manager
 		m.state = stDone
 		m.openMCP()
-		if e = os.WriteFile(filepath.Join(dir, "mcp-"+theme+".ansi"), []byte(m.View().Content), 0600); e != nil {
+		if e = os.WriteFile(filepath.Join(dir, "mcp-"+theme+".ansi"), []byte(m.testView().Content), 0600); e != nil {
 			t.Fatal(e)
 		}
 	}
@@ -175,23 +175,23 @@ func TestMCPTableKeepsSelectionAndGuardsDirectActions(t *testing.T) {
 	}
 	m.mcp, m.state = manager, stRunning
 	m.openMCP()
-	m.handleKey(tea.KeyPressMsg{Code: 'c', Text: "c"})
+	m.testKey(tea.KeyPressMsg{Code: 'c', Text: "c"})
 	if m.mcpBusy || m.chrome.Dialog.Table == nil {
 		t.Fatal("Connect activated while a turn was running")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: '/'})
-	m.Update(tea.PasteMsg{Content: "reference"})
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.testKey(tea.KeyPressMsg{Code: '/'})
+	m.testUpdate(tea.PasteMsg{Content: "reference"})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.chrome.Dialog.Table != nil || !strings.Contains(strings.Join(m.chrome.Dialog.Lines, "\n"), "Server: reference") {
 		t.Fatal("Details did not open for the selected server")
 	}
-	m.closeDialog()
-	m.Update(m.pendingCommands[len(m.pendingCommands)-1]())
+	m.testControls().Close()
+	m.testUpdate(m.pendingCommands[len(m.pendingCommands)-1]())
 	if m.chrome.Dialog.Table == nil || m.chrome.Dialog.Table.Model.Search.Value() != "reference" {
 		t.Fatal("Details lost the parent filter")
 	}
 	m.state = stDone
-	m.handleKey(tea.KeyPressMsg{Code: 't', Text: "t"})
+	m.testKey(tea.KeyPressMsg{Code: 't', Text: "t"})
 	saved, err := manager.Get("reference")
 	if err != nil || saved.Enabled || manager.List()[0].Connected {
 		t.Fatal("Disable did not update exactly the selected server", err)
@@ -199,11 +199,11 @@ func TestMCPTableKeepsSelectionAndGuardsDirectActions(t *testing.T) {
 	if m.chrome.Dialog.Table == nil || m.chrome.Dialog.Table.Model.Selected() != "reference" {
 		t.Fatal("refresh lost selected server")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyDelete})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyDelete})
 	if m.chrome.Dialog.Form == nil || !m.chrome.Dialog.Form.Destructive || m.chrome.Dialog.Form.Index != 1 {
 		t.Fatal("Delete bypassed the safe confirmation")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if _, err := manager.Get("reference"); err != nil {
 		t.Fatal("Cancel deleted the server")
 	}

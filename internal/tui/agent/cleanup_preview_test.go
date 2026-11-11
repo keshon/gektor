@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/llm"
 )
 
@@ -27,7 +28,7 @@ func TestCompactToolsWithInspectorThemes(t *testing.T) {
 			m.openInspector(0)
 			m.inspector.pane.Viewport.GotoTop()
 			m.transcript.Viewport.GotoTop()
-			view := m.View().Content
+			view := m.testView().Content
 			for _, line := range strings.Split(view, "\n") {
 				if ansi.StringWidth(line) > 120 {
 					t.Fatal("pane overflow", theme, minimal)

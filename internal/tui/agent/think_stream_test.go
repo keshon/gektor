@@ -1,12 +1,13 @@
 package agent
 
 import (
-	tea "charm.land/bubbletea/v2"
-	uv "github.com/charmbracelet/ultraviolet"
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/events"
 )
 
@@ -65,22 +66,22 @@ func TestCtrlGExpandsThinkingWhileItIsStillStreaming(t *testing.T) {
 			if inline {
 				name, text = "delta", "<think>"+thought
 			}
-			m.Update(eventMsg(events.Event{Name: name, Fields: map[string]any{"text": text}}))
-			m.Update(liveFlushMsg{})
-			if strings.Contains(ansi.Strip(m.View().Content), "EXPANDED_THINKING_TAIL") {
+			m.testUpdate(eventMsg(events.Event{Name: name, Fields: map[string]any{"text": text}}))
+			m.testUpdate(liveFlushMsg{})
+			if strings.Contains(ansi.Strip(m.testView().Content), "EXPANDED_THINKING_TAIL") {
 				t.Fatal("thinking should start collapsed")
 			}
-			m.Update(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
-			if m.transcript.compact || !strings.Contains(ansi.Strip(m.View().Content), "EXPANDED_THINKING_TAIL") {
+			m.testUpdate(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
+			if m.transcript.compact || !strings.Contains(ansi.Strip(m.testView().Content), "EXPANDED_THINKING_TAIL") {
 				t.Fatal("Ctrl+G did not expand live thinking")
 			}
-			m.Update(eventMsg(events.Event{Name: name, Fields: map[string]any{"text": " NEXT_THINKING_CHUNK"}}))
-			m.Update(liveFlushMsg{})
-			if !strings.Contains(ansi.Strip(m.View().Content), "NEXT_THINKING_CHUNK") {
+			m.testUpdate(eventMsg(events.Event{Name: name, Fields: map[string]any{"text": " NEXT_THINKING_CHUNK"}}))
+			m.testUpdate(liveFlushMsg{})
+			if !strings.Contains(ansi.Strip(m.testView().Content), "NEXT_THINKING_CHUNK") {
 				t.Fatal("next streaming frame lost expanded state")
 			}
-			m.Update(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
-			if !m.transcript.compact || strings.Contains(ansi.Strip(m.View().Content), "NEXT_THINKING_CHUNK") {
+			m.testUpdate(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
+			if !m.transcript.compact || strings.Contains(ansi.Strip(m.testView().Content), "NEXT_THINKING_CHUNK") {
 				t.Fatal("Ctrl+G did not collapse live thinking again")
 			}
 		})
@@ -99,7 +100,7 @@ func TestThinkStreamsBeforeResponse(t *testing.T) {
 	m.state = stRunning
 
 	for _, chunk := range []string{"checking ", "the ", "parser"} {
-		updated, _ := m.Update(eventMsg(events.Event{Name: "reasoning", Fields: map[string]any{"text": chunk}}))
+		updated, _ := m.testUpdate(eventMsg(events.Event{Name: "reasoning", Fields: map[string]any{"text": chunk}}))
 		m = updated.(*Model)
 	}
 	m = advanceFrames(t, m)
@@ -113,13 +114,13 @@ func TestThinkStreamsBeforeResponse(t *testing.T) {
 	if !strings.Contains(m.liveThink, "parser") {
 		t.Fatalf("think block = %q", m.liveThink)
 	}
-	if !strings.Contains(ansi.Strip(m.View().Content), "parser") {
+	if !strings.Contains(ansi.Strip(m.testView().Content), "parser") {
 		t.Fatal("thinking was buffered but not visible before response")
 	}
 
 	// The answer now starts, with the reasoning still held above it.
 	for _, chunk := range []string{"Here ", "is ", "the fix"} {
-		updated, _ := m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": chunk}}))
+		updated, _ := m.testUpdate(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": chunk}}))
 		m = updated.(*Model)
 	}
 	m = advanceFrames(t, m)
@@ -132,7 +133,7 @@ func TestThinkStreamsBeforeResponse(t *testing.T) {
 	}
 
 	// Rendered, THINK sits above RESPONSE in one live turn.
-	view := ansi.Strip(m.View().Content)
+	view := ansi.Strip(m.testView().Content)
 	thinkAt := strings.Index(view, "parser")
 	answerAt := strings.Index(view, "the fix")
 	if thinkAt < 0 || answerAt < 0 {
@@ -148,19 +149,19 @@ func TestInlineThinkingStreamsAcrossSplitTags(t *testing.T) {
 	m.state = stRunning
 	for _, chunk := range []string{"<thi", "nk>checking parser", "</thi"} {
 		m.handleEvent(events.Event{Name: "delta", Fields: map[string]any{"text": chunk}})
-		m.Update(liveFlushMsg{})
-		view := ansi.Strip(m.View().Content)
+		m.testUpdate(liveFlushMsg{})
+		view := ansi.Strip(m.testView().Content)
 		if strings.Contains(view, "<thi") || strings.Contains(view, "</thi") {
 			t.Fatalf("split tag leaked: %q", view)
 		}
 	}
-	view := ansi.Strip(m.View().Content)
+	view := ansi.Strip(m.testView().Content)
 	if !strings.Contains(view, "checking parser") || strings.Contains(view, "[RESPONSE]") {
 		t.Fatalf("thinking hidden or misclassified: %q", view)
 	}
 	m.handleEvent(events.Event{Name: "delta", Fields: map[string]any{"text": "nk>fixed"}})
-	m.Update(liveFlushMsg{})
-	view = ansi.Strip(m.View().Content)
+	m.testUpdate(liveFlushMsg{})
+	view = ansi.Strip(m.testView().Content)
 	if !strings.Contains(view, "checking parser") || !strings.Contains(view, "fixed") {
 		t.Fatalf("thinking/response lost: %q", view)
 	}
@@ -170,8 +171,8 @@ func TestInlineThinkingStreamsAcrossSplitTags(t *testing.T) {
 func TestThinkAndResponseStaySeparate(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stRunning
-	m.Update(eventMsg(events.Event{Name: "reasoning", Fields: map[string]any{"text": "pondering"}}))
-	m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "answering"}}))
+	m.testUpdate(eventMsg(events.Event{Name: "reasoning", Fields: map[string]any{"text": "pondering"}}))
+	m.testUpdate(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "answering"}}))
 	m = advanceFrames(t, m)
 
 	if strings.Contains(m.live, "pondering") {
@@ -186,9 +187,9 @@ func TestThinkAndResponseStaySeparate(t *testing.T) {
 func TestResetLiveClearsThink(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stRunning
-	updated, _ := m.Update(eventMsg(events.Event{Name: "reasoning", Fields: map[string]any{"text": "old thought"}}))
+	updated, _ := m.testUpdate(eventMsg(events.Event{Name: "reasoning", Fields: map[string]any{"text": "old thought"}}))
 	m = updated.(*Model)
-	updated, _ = m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "old answer"}}))
+	updated, _ = m.testUpdate(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "old answer"}}))
 	m = updated.(*Model)
 	m = advanceFrames(t, m)
 

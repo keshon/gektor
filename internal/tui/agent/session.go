@@ -268,7 +268,7 @@ func (m *Model) startRun(run func(ctx context.Context) (string, error)) {
 	// A run takes over: an open dialog — or sessions screen — would
 	// shadow a transcript that is suddenly live again.
 	if m.chrome.Dialog != nil {
-		m.closeDialog()
+		m.chrome.Close()
 	}
 	if m.sessions != nil {
 		m.closeSessions()

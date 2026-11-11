@@ -5,6 +5,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/atotto/clipboard"
+
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 type sessionCopiedMsg struct {
@@ -12,9 +14,9 @@ type sessionCopiedMsg struct {
 	err         error
 }
 
-func (m *Model) sessionCopyItems() []menuItem {
+func (m *Model) sessionCopyItems() []screen.MenuItem {
 	enabled := m.stateFile != ""
-	return []menuItem{{Text: "Copy session ID", Command: "copy-session-id", Enabled: enabled}, {Text: "Copy session path", Command: "copy-session-path", Enabled: enabled}}
+	return []screen.MenuItem{{Text: "Copy session ID", Command: "copy-session-id", Enabled: enabled}, {Text: "Copy session path", Command: "copy-session-path", Enabled: enabled}}
 }
 
 func (m *Model) sessionCopyValue(command string) (label, text string) {

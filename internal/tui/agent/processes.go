@@ -12,6 +12,7 @@ import (
 
 	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/tui/components/table"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 type processListMsg struct{ view *table.Model }
@@ -20,7 +21,7 @@ type processStopMsg struct {
 	view *table.Model
 }
 type processStoppedMsg struct {
-	dialog *infoDialog
+	dialog *screen.DialogState
 	view   *table.Model
 	id     string
 	err    error
@@ -44,10 +45,10 @@ func processStatus(p tools.BackgroundProcess) string {
 
 func (m *Model) openProcesses(view *table.Model) {
 	if view == nil {
-		view = m.newTable()
+		view = m.chrome.NewTable()
 	}
-	m.openDialog("Background processes", nil)
-	d := &tableDialog{Model: view,
+	m.chrome.Open("Background processes", nil)
+	d := &screen.TableState{Model: view,
 		Columns:      []table.Column{{Label: "ID", Width: 6}, {Label: "Status", Width: 10}, {Label: "PID", Width: 7, HideNarrow: true}, {Label: "Session", Width: 10, HideNarrow: true}, {Label: "Command"}},
 		Description:  "This GEKTOR launch only. Closing GEKTOR or applying settings stops these processes. Details include workspace and captured output.",
 		EmptyMessage: "No managed background processes in this launch.",
@@ -96,7 +97,7 @@ func (m *Model) returnToProcesses(view *table.Model) {
 func (m *Model) inspectProcess(id string, view *table.Model) {
 	p, output, err := m.baseEnv.Procs.Inspect(id)
 	if err != nil {
-		m.openDialog("Background process", []string{err.Error()})
+		m.chrome.Open("Background process", []string{err.Error()})
 	} else {
 		args, _ := json.Marshal(p.Args)
 		command, _ := json.Marshal(p.Command)
@@ -105,7 +106,7 @@ func (m *Model) inspectProcess(id string, view *table.Model) {
 			lines = append(lines, "Exit: "+p.Error)
 		}
 		lines = append(lines, "", "Captured output (snapshot; reopen to refresh):", ansi.Strip(output))
-		m.openDialog("Background process / "+id, strings.Split(strings.Join(lines, "\n"), "\n"))
+		m.chrome.Open("Background process / "+id, strings.Split(strings.Join(lines, "\n"), "\n"))
 	}
 	m.chrome.Dialog.OnClose = func() { m.returnToProcesses(view) }
 }
@@ -116,21 +117,21 @@ func (m *Model) confirmStopProcess(id string, view *table.Model) {
 		m.openProcesses(view)
 		return
 	}
-	m.openForm("Stop background process / "+id, fmt.Sprintf("Stop this process and its children?\nPID: %d\nWorkspace: %s\n%s", p.PID, p.Directory, ansi.Strip(p.Command)), "Stop", nil, func(map[string]string) error {
+	m.chrome.OpenForm("Stop background process / "+id, fmt.Sprintf("Stop this process and its children?\nPID: %d\nWorkspace: %s\n%s", p.PID, p.Directory, ansi.Strip(p.Command)), "Stop", nil, func(map[string]string) error {
 		m.chrome.Dialog.OnClose = nil
 		m.pendingCommands = append(m.pendingCommands, func() tea.Msg { return processStopMsg{id, view} })
 		return nil
 	})
 	m.chrome.Dialog.OnClose = func() { m.returnToProcesses(view) }
 	m.chrome.Dialog.Form.Destructive = true
-	m.focusForm(1)
+	m.chrome.FocusForm(1)
 }
 
 func (m *Model) stopProcess(msg processStopMsg) tea.Cmd {
 	if m.chrome.Dialog != nil || m.state == stPermission || m.state == stAsk {
 		return nil
 	}
-	m.openDialog("Stopping background process / "+msg.id, []string{"Waiting for the process and its children to exit…"})
+	m.chrome.Open("Stopping background process / "+msg.id, []string{"Waiting for the process and its children to exit…"})
 	dialog, procs := m.chrome.Dialog, m.baseEnv.Procs
 	return func() tea.Msg {
 		return processStoppedMsg{dialog: dialog, view: msg.view, id: msg.id, err: procs.Stop(msg.id)}

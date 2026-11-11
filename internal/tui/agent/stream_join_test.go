@@ -106,8 +106,8 @@ func TestHTTPStreamShowsThinkingBeforeResponseFinishes(t *testing.T) {
 	}
 	// Run the actual frame timer, independent of the spinner/idle heartbeat.
 	msg := m.pendingCommands[len(m.pendingCommands)-1]()
-	m.Update(msg)
-	if m.live != "" || !strings.Contains(m.View().Content, "checking parser") {
+	m.testUpdate(msg)
+	if m.live != "" || !strings.Contains(m.testView().Content, "checking parser") {
 		t.Fatal("thinking is hidden until response starts")
 	}
 	allowText()
@@ -115,7 +115,7 @@ func TestHTTPStreamShowsThinkingBeforeResponseFinishes(t *testing.T) {
 	if m.tokens != 1005 || m.tokensEst {
 		t.Fatalf("cached input/output counted incorrectly: %d estimated=%v", m.tokens, m.tokensEst)
 	}
-	m.Update(m.pendingCommands[len(m.pendingCommands)-1]())
+	m.testUpdate(m.pendingCommands[len(m.pendingCommands)-1]())
 	if m.live != "hello" || m.liveThink != "checking parser" || m.liveQueue != "" {
 		t.Fatalf("frame did not show complete chunks: %q / %q", m.liveThink, m.live)
 	}
@@ -193,7 +193,7 @@ func TestSessionDeltasReachTheLiveBuffer(t *testing.T) {
 			seen[ev.Name]++
 			// bubbletea Update is value semantics: the returned model is
 			// the one carrying the state, exactly as the real loop keeps it.
-			updated, _ := m.Update(eventMsg(ev))
+			updated, _ := m.testUpdate(eventMsg(ev))
 			if next, ok := updated.(*Model); ok {
 				m = next
 			}

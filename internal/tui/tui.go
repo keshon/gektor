@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/tui/agent"
+	"github.com/keshon/gektor/internal/tui/settings"
 )
 
 // AgentConfig configures the conversation screen and its execution services.
@@ -20,7 +21,7 @@ type Config struct {
 }
 
 // Application holds persisted launch settings and terminal preferences.
-type Application = agent.Application
+type Application = settings.Application
 
 // ModeChange carries settings and retained conversation state into a new launch.
 type ModeChange = agent.ModeChange
@@ -49,6 +50,9 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	app, ok := final.(*Model)
 	if !ok {
 		return "", fmt.Errorf("tui: unexpected final model")
+	}
+	if app.modeChange != nil {
+		return "", app.modeChange
 	}
 	return app.agent.Finish(app.quit)
 }

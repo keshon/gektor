@@ -62,7 +62,7 @@ func testApprovalInspection(t *testing.T, frame string) {
 	await()
 	m.hideSYS = true
 	m.refreshContent()
-	if !strings.Contains(ansi.Strip(m.View().Content), "Permission required") {
+	if !strings.Contains(ansi.Strip(m.testView().Content), "Permission required") {
 		t.Fatal("hiding SYSTEM history hid the pending approval")
 	}
 	export := func(name string) {
@@ -70,7 +70,7 @@ func testApprovalInspection(t *testing.T, frame string) {
 			if err := os.MkdirAll(dir, 0700); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(filepath.Join(dir, "refinement-"+frame+"-"+name+".txt"), []byte(ansi.Strip(m.View().Content)), 0600); err != nil {
+			if err := os.WriteFile(filepath.Join(dir, "refinement-"+frame+"-"+name+".txt"), []byte(ansi.Strip(m.testView().Content)), 0600); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -80,27 +80,27 @@ func testApprovalInspection(t *testing.T, frame string) {
 		t.Fatal("wrong evidence boundary")
 	}
 	before := len(m.transcript.blocks)
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF4})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyF4})
 	if m.chrome.Dialog == nil || !m.hub.HasPending() || len(m.transcript.blocks) != before {
 		t.Fatal("inspection answered gate or changed context")
 	}
-	m.Update(tea.WindowSizeMsg{Width: 120, Height: 34})
+	m.testUpdate(tea.WindowSizeMsg{Width: 120, Height: 34})
 	export("proposal")
 	m.handleMouse(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
 	if m.chrome.Dialog.Offset == 0 {
 		t.Fatal("wheel ignored proposal")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyPgDown})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyPgDown})
 	if m.chrome.Dialog.Offset < 2 {
 		t.Fatal("page down ignored proposal")
 	}
 	for i := 0; i < 80; i++ {
-		m.handleKey(tea.KeyPressMsg{Code: tea.KeyDown})
+		m.testKey(tea.KeyPressMsg{Code: tea.KeyDown})
 	}
 	if m.chrome.Dialog.Offset == 0 {
 		t.Fatal("full proposal does not scroll")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if m.chrome.Dialog != nil || m.state != stPermission || !m.hub.HasPending() {
 		t.Fatal("closing inspection lost gate")
 	}

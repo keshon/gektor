@@ -2,7 +2,6 @@ package agent
 
 import (
 	"fmt"
-	"runtime"
 	"strconv"
 	"strings"
 
@@ -147,7 +146,7 @@ func (m *Model) confirmRestart(action func()) {
 		action()
 		return
 	}
-	m.openForm(
+	m.chrome.OpenForm(
 		"Restart agent",
 		"GEKTOR will restart to apply this. The conversation and draft are preserved.",
 		"Restart", nil,
@@ -158,7 +157,7 @@ func (m *Model) confirmRestart(action func()) {
 	)
 	m.chrome.Dialog.Form.Destructive = true
 	// Never open a destructive choice on the destructive one.
-	m.focusForm(1)
+	m.chrome.FocusForm(1)
 }
 
 func (m *Model) command(text string) (tea.Model, tea.Cmd) {
@@ -236,12 +235,12 @@ func (m *Model) command(text string) (tea.Model, tea.Cmd) {
 		return m.toggleThinking()
 	case "sys":
 		if err := m.changeAppearance(func(a *config.Appearance) { a.HideSystem = !a.HideSystem }); err != nil {
-			m.openDialog("Appearance", []string{err.Error()})
+			m.chrome.Open("Appearance", []string{err.Error()})
 		}
 		return m, nil
 	case "labels":
 		if err := m.changeAppearance(func(a *config.Appearance) { a.HideLabels = !a.HideLabels }); err != nil {
-			m.openDialog("Appearance", []string{err.Error()})
+			m.chrome.Open("Appearance", []string{err.Error()})
 			return m, nil
 		}
 		state := "shown"
@@ -256,7 +255,7 @@ func (m *Model) command(text string) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "stop":
 		if m.evaluation != nil {
-			m.closeDialog()
+			m.chrome.Close()
 			return m, nil
 		}
 		if m.state != stRunning {
@@ -286,7 +285,7 @@ func (m *Model) command(text string) (tea.Model, tea.Cmd) {
 		if m.streaming {
 			transport = "Streaming"
 		}
-		m.openDialog("Model", []string{
+		m.chrome.Open("Model", []string{
 			"Model: " + nonEmpty(m.modelName),
 			"Backend: " + nonEmpty(m.backendKind),
 			"Endpoint: " + nonEmpty(m.backendURL),
@@ -303,7 +302,7 @@ func (m *Model) command(text string) (tea.Model, tea.Cmd) {
 			rows = append(rows, "First token: "+formatElapsed(m.firstToken.Sub(m.started)))
 		}
 		rows = append(rows, fmt.Sprintf("Tools: %d   Files: %d", m.toolsUsed, len(m.filesTouched)))
-		m.openDialog("Run", rows)
+		m.chrome.Open("Run", rows)
 		return m, nil
 	case "activity":
 		rows := []string{"State: " + m.statusWord(), "Elapsed: " + formatElapsed(m.elapsed), m.stepLine()}
@@ -316,49 +315,14 @@ func (m *Model) command(text string) (tea.Model, tea.Cmd) {
 		if m.busy() {
 			rows = append(rows, "Use /stop to stop the run.")
 		}
-		m.openDialog("Activity", rows)
+		m.chrome.Open("Activity", rows)
 		return m, nil
 	case "about":
-		m.openDialog("GEKTOR", []string{
-			"Terminal coding agent written in Go.",
-			"",
-			m.styles.Gate.Render("Capabilities"),
-			"Read, search and edit files, run commands and tests, and resume saved sessions.",
-			"Plan before changes or work directly in Act mode; tool permissions stay visible.",
-			"",
-			m.styles.Gate.Render("Model backends"),
-			"llama.cpp · KoboldCPP · OpenAI-compatible APIs",
-			"Models and inference servers are supplied separately.",
-			"",
-			m.styles.Gate.Render("Repository"),
-			"https://github.com/keshon/gektor",
-			"Go " + strings.TrimPrefix(runtime.Version(), "go") + " · Bubble Tea · " + runtime.GOOS + "/" + runtime.GOARCH,
-		})
-		return m, nil
+		return m, m.request(screen.ApplicationCommand{Command: "about"})
 	case "theme":
-		arg = strings.ToLower(strings.TrimSpace(arg))
-		if arg == "" {
-			m.appendBlock(markerBlock("Themes: " + strings.Join(config.ThemeNames(), ", ") + ". Use /theme <name>."))
-			return m, nil
-		}
-		if !config.ValidTheme(arg) {
-			m.appendBlock(errorBlock("Unknown theme. Use /theme to list available themes."))
-			return m, nil
-		}
-		if err := m.persistTheme(arg); err != nil {
-			m.appendBlock(errorBlock(err.Error()))
-			return m, nil
-		}
-		m.applyTheme(arg)
-		m.appendBlock(markerBlock("Theme: " + arg))
-		return m, nil
+		return m, m.request(screen.ApplicationCommand{Command: "/theme " + arg})
 	case "settings":
-		if m.config == nil {
-			m.appendBlock(errorBlock("no settings available"))
-			return m, nil
-		}
-		m.editSettings("workspace")
-		return m, nil
+		return m, m.request(screen.ApplicationCommand{Command: "edit:workspace"})
 	case "mode":
 		return m.commandMode(arg)
 	case "retry":
@@ -516,6 +480,6 @@ func (m *Model) commandContext() (tea.Model, tea.Cmd) {
 		rows = append(rows, "Estimate excludes tool schemas and images.")
 	}
 	rows = append(rows, "/compact is available for coding task history.")
-	m.openDialog("Context usage", rows)
+	m.chrome.Open("Context usage", rows)
 	return m, nil
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/internal/tui/settings"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -62,7 +63,7 @@ func sizeModel(t *testing.T, m *Model) *Model {
 
 func sizeModelTo(t *testing.T, m *Model, width, height int) *Model {
 	t.Helper()
-	updated, _ := m.Update(tea.WindowSizeMsg{Width: width, Height: height})
+	updated, _ := m.testUpdate(tea.WindowSizeMsg{Width: width, Height: height})
 	mm, ok := updated.(*Model)
 	if !ok {
 		t.Fatal("Update did not return *Model")
@@ -72,7 +73,7 @@ func sizeModelTo(t *testing.T, m *Model, width, height int) *Model {
 
 func TestStepAppendsTranscript(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(events.Event{
+	updated, _ := m.testUpdate(eventMsg(events.Event{
 		Name:   "step",
 		Fields: map[string]any{"text": "hello", "step": 0},
 	}))
@@ -87,7 +88,7 @@ func TestStepAppendsTranscript(t *testing.T) {
 
 func TestStepReasoningRendersDim(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(events.Event{
+	updated, _ := m.testUpdate(eventMsg(events.Event{
 		Name:   "step",
 		Fields: map[string]any{"text": "done", "reasoning": "hmm, tricky"},
 	}))
@@ -108,7 +109,7 @@ func TestStepReasoningRendersDim(t *testing.T) {
 
 func TestToolCallAndResultRender(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(events.Event{
+	updated, _ := m.testUpdate(eventMsg(events.Event{
 		Name: "step",
 		Fields: map[string]any{
 			"tool_calls": []any{map[string]any{"name": "read_file", "args": `{"path":"a"}`}},
@@ -118,7 +119,7 @@ func TestToolCallAndResultRender(t *testing.T) {
 	if len(mm.transcript.blocks) != 1 || !strings.Contains(mm.transcript.blocks[0].text, "read_file") || mm.transcript.blocks[0].role != roleTool {
 		t.Fatalf("blocks = %+v", mm.transcript.blocks)
 	}
-	updated, _ = mm.Update(eventMsg(events.Event{
+	updated, _ = mm.testUpdate(eventMsg(events.Event{
 		Name:   "tool_result",
 		Fields: map[string]any{"call_id": "c1", "text": "-old\n+new"},
 	}))
@@ -130,7 +131,7 @@ func TestToolCallAndResultRender(t *testing.T) {
 
 func TestPermissionKeysAnswer(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(events.Event{
+	updated, _ := m.testUpdate(eventMsg(events.Event{
 		Name:   "awaiting_input",
 		Fields: map[string]any{"kind": "permission", "prompt": "allow?"},
 	}))
@@ -151,7 +152,7 @@ func TestPermissionKeysAnswer(t *testing.T) {
 	for !mm.hub.HasPending() && time.Now().Before(deadline) {
 		time.Sleep(5 * time.Millisecond)
 	}
-	updated, _ = mm.Update(tea.KeyPressMsg{Text: string([]rune{'y'})})
+	updated, _ = mm.testUpdate(tea.KeyPressMsg{Text: string([]rune{'y'})})
 	mm = updated.(*Model)
 	if mm.state != stRunning {
 		t.Fatalf("state = %v after y", mm.state)
@@ -168,7 +169,7 @@ func TestPermissionKeysAnswer(t *testing.T) {
 
 func TestAskEnterSubmits(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(events.Event{
+	updated, _ := m.testUpdate(eventMsg(events.Event{
 		Name:   "awaiting_input",
 		Fields: map[string]any{"kind": "ask_user", "prompt": "which?"},
 	}))
@@ -189,7 +190,7 @@ func TestAskEnterSubmits(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	mm.input.SetValue("assumed")
-	updated, _ = mm.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	updated, _ = mm.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm = updated.(*Model)
 	select {
 	case rep := <-answered:
@@ -206,13 +207,13 @@ func TestAskEnterSubmits(t *testing.T) {
 
 func TestDoneQuits(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(doneMsg{answer: "done"})
+	updated, _ := m.testUpdate(doneMsg{answer: "done"})
 	mm := updated.(*Model)
 	if mm.state != stDone || mm.answer != "done" {
 		t.Fatalf("state = %v answer = %q", mm.state, mm.answer)
 	}
 	// Empty follow-up quits; the program no longer exits on done.
-	updated, _ = mm.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	updated, _ = mm.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm = updated.(*Model)
 	if mm.quit {
 		t.Fatal("empty enter in done state must do nothing")
@@ -250,10 +251,10 @@ func TestFollowUpResumes(t *testing.T) {
 	seedHistory(t, stateFile)
 	m.stateFile = stateFile
 
-	updated, _ := m.Update(doneMsg{answer: "done"})
+	updated, _ := m.testUpdate(doneMsg{answer: "done"})
 	mm := updated.(*Model)
 	mm.input.SetValue("and then?")
-	updated, _ = mm.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	updated, _ = mm.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm = updated.(*Model)
 	if mm.state != stRunning {
 		t.Fatalf("state = %v, want running", mm.state)
@@ -290,7 +291,7 @@ func TestSeededContinuationKeepsHistoricalHeaderUntilResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
-	m.application = &Application{Temporary: true}
+	m.application = &settings.Application{Temporary: true}
 	m.stateFile = filepath.Join(dir, "state.json")
 	m.seedHistory = []llm.Message{{Role: llm.RoleSystem, Content: "old system"}, {Role: llm.RoleUser, Content: "previous task"}, {Role: llm.RoleAssistant, Content: "previous answer"}}
 	data, err := json.Marshal(usageSnapshot{Tokens: 1000, Model: "/old/model.gguf"})
@@ -325,7 +326,7 @@ func TestMeter_UsageAndUnknown(t *testing.T) {
 	if got := m.meter(); got != "ctx 0/131.1k (0%)" {
 		t.Fatalf("no measurement yet: %q", got)
 	}
-	updated, _ := m.Update(eventMsg(events.Event{
+	updated, _ := m.testUpdate(eventMsg(events.Event{
 		Name:   "usage",
 		Fields: map[string]any{"prompt": 12400},
 	}))
@@ -338,7 +339,7 @@ func TestMeter_UsageAndUnknown(t *testing.T) {
 func TestMeter_Estimated(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.limit = 131072
-	updated, _ := m.Update(eventMsg(events.Event{
+	updated, _ := m.testUpdate(eventMsg(events.Event{
 		Name:   "usage",
 		Fields: map[string]any{"prompt": 12400, "estimated": true},
 	}))
@@ -361,7 +362,7 @@ func TestCommand_HelpAndUnknown(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.input.SetValue("/help")
-	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
 	updated, _ = updated.(*Model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*Model)
 	if mm.quit || mm.state != stDone {
@@ -372,7 +373,7 @@ func TestCommand_HelpAndUnknown(t *testing.T) {
 	}
 	mm.chrome.Dialog.Page = 3
 	for _, want := range []string{"/help", "/sessions"} {
-		if !strings.Contains(mm.dialogView(), want) {
+		if !strings.Contains(mm.testControls().DialogView(), want) {
 			t.Fatalf("help missing %q", want)
 		}
 	}
@@ -390,9 +391,9 @@ func TestCommand_Quit(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.input.SetValue("/quit")
-	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
 	updated, _ = updated.(*Model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if mm := updated.(*Model); !mm.quit {
+	if mm := updated.(*Model); len(mm.TakeRequests()) != 1 {
 		t.Fatal("/quit must quit")
 	}
 }
@@ -429,7 +430,7 @@ func TestFollowUp_AttachesImages(t *testing.T) {
 	m.send = func(tea.Msg) { atomic.AddInt32(&sent, 1) }
 	m.state = stDone
 	m.input.SetValue("what is this @shot.png")
-	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*Model)
 	if gotTask != "what is this" || len(gotImages) != 1 {
 		t.Fatalf("task=%q images=%v", gotTask, gotImages)
@@ -474,7 +475,7 @@ func TestCommand_NewStartsFresh(t *testing.T) {
 	m.send = func(tea.Msg) { atomic.AddInt32(&sent, 1) }
 	m.state = stDone
 	m.input.SetValue("/new second")
-	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*Model)
 	if mm.state != stRunning {
 		t.Fatalf("state = %v, want running", mm.state)
@@ -576,13 +577,13 @@ func TestHistory_ExplicitRecallRestoresDraft(t *testing.T) {
 	m.input.Push("second")
 	m.input.SetValue("draft\nsecond line")
 	for _, want := range []string{"second", "first"} {
-		m.Update(tea.KeyPressMsg{Code: tea.KeyUp, Mod: tea.ModAlt})
+		m.testUpdate(tea.KeyPressMsg{Code: tea.KeyUp, Mod: tea.ModAlt})
 		if m.input.Value() != want {
 			t.Fatalf("recall %q, want %q", m.input.Value(), want)
 		}
 	}
 	for _, want := range []string{"second", "draft\nsecond line"} {
-		m.Update(tea.KeyPressMsg{Code: tea.KeyDown, Mod: tea.ModAlt})
+		m.testUpdate(tea.KeyPressMsg{Code: tea.KeyDown, Mod: tea.ModAlt})
 		if m.input.Value() != want {
 			t.Fatalf("recall %q, want %q", m.input.Value(), want)
 		}
@@ -595,15 +596,15 @@ func TestHistory_ArrowsNeverRecallAtEditorEdges(t *testing.T) {
 		m.state = state
 		m.input.Push("old")
 		m.input.SetValue("first line")
-		m.Update(tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
-		m.Update(keyRunes('x'))
+		m.testUpdate(tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
+		m.testUpdate(keyRunes('x'))
 		draft := m.input.Value()
 		if draft != "first line\nx" {
 			t.Fatalf("newline failed: %q", draft)
 		}
 		for _, direction := range []rune{tea.KeyUp, tea.KeyDown} {
 			for i := 0; i < 6; i++ {
-				m.Update(tea.KeyPressMsg{Code: direction})
+				m.testUpdate(tea.KeyPressMsg{Code: direction})
 			}
 			if m.input.Value() != draft || m.input.Height() < 2 {
 				t.Fatalf("state %d: arrows replaced multiline draft: %q", state, m.input.Value())
@@ -614,7 +615,7 @@ func TestHistory_ArrowsNeverRecallAtEditorEdges(t *testing.T) {
 	m.state = stDone
 	m.input.Push("old")
 	m.input.SetValue("single line")
-	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyDown})
 	if m.input.Value() != "single line" {
 		t.Fatal("down erased idle draft")
 	}
@@ -646,19 +647,19 @@ func TestNativeUnderlineCaretTracksComposerAndHidesOnHelp(t *testing.T) {
 	m.input.CursorEnd()
 	m.fitInput()
 	m.fitBottom()
-	v := m.View()
+	v := m.testView()
 	if v.Cursor == nil || v.Cursor.Shape != tea.CursorUnderline || v.Cursor.Y != m.termH-m.footerRows()-1 {
 		t.Fatalf("incorrect native composer cursor: %+v", v.Cursor)
 	}
 	if v.Cursor.X != 3+len("second") {
 		t.Fatalf("caret did not follow text: %+v", v.Cursor)
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF1})
-	if m.View().Cursor != nil {
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyF1})
+	if m.testView().Cursor != nil {
 		t.Fatal("help exposed background caret")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyF1})
-	if m.View().Cursor == nil || m.input.Value() != "first\nsecond" {
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyF1})
+	if m.testView().Cursor == nil || m.input.Value() != "first\nsecond" {
 		t.Fatal("closing help lost caret or draft")
 	}
 }
@@ -672,10 +673,10 @@ func TestTranscriptMeetsDividerWithoutReservedBlankRow(t *testing.T) {
 	}
 	m.appendBlock(answerBlock("last transcript line"))
 	m.transcript.Viewport.GotoBottom()
-	lines := strings.Split(m.View().Content, "\n")
+	lines := strings.Split(m.testView().Content, "\n")
 	div := paneTop + m.transcript.Viewport.Height()
 	if div < 1 {
-		t.Fatalf("no divider in view:\n%s", m.View().Content)
+		t.Fatalf("no divider in view:\n%s", m.testView().Content)
 	}
 	if !strings.Contains(ansi.Strip(lines[div-1]), "last transcript line") {
 		t.Fatalf("last transcript row lost above divider: %q", lines[div-1])
@@ -686,7 +687,7 @@ func TestNewlineKey(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.input.SetValue("a")
-	updated, _ := m.Update(tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
+	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
 	mm := updated.(*Model)
 	if !strings.Contains(mm.input.Value(), "\n") {
 		t.Fatalf("ctrl+o must insert newline, got %q", mm.input.Value())
@@ -700,15 +701,15 @@ func TestFollowUnfollowsOnScroll(t *testing.T) {
 	if !m.transcript.Follow {
 		t.Fatal("follow expected while at bottom")
 	}
-	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
+	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: tea.KeyPgUp})
 	mm := updated.(*Model)
 	if mm.transcript.Follow {
 		t.Fatal("pgup must unfollow")
 	}
-	if !strings.Contains(ansi.Strip(mm.View().Content), "CTRL+END Latest") {
+	if !strings.Contains(ansi.Strip(mm.testView().Content), "CTRL+END Latest") {
 		t.Fatal("unfollowed state must show jump hint")
 	}
-	updated, _ = mm.Update(tea.KeyPressMsg{Code: tea.KeyEnd, Mod: tea.ModCtrl})
+	updated, _ = mm.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnd, Mod: tea.ModCtrl})
 	mm = updated.(*Model)
 	if !mm.transcript.Follow {
 		t.Fatal("end must re-arm follow")
@@ -733,7 +734,7 @@ func TestQuitNeedsCtrlQ(t *testing.T) {
 	m.state = stDone
 	// Typing a q-word never quits, first letter or not.
 	for _, r := range "queen" {
-		updated, _ := m.Update(keyRunes(r))
+		updated, _ := m.testUpdate(keyRunes(r))
 		mm := updated.(*Model)
 		if mm.quit {
 			t.Fatalf("typing %q quit", r)
@@ -745,13 +746,13 @@ func TestQuitNeedsCtrlQ(t *testing.T) {
 	}
 	// A lone q on an empty box is still just typing.
 	m.input.SetValue("")
-	updated, _ := m.Update(keyRunes('q'))
+	updated, _ := m.testUpdate(keyRunes('q'))
 	if mm := updated.(*Model); mm.quit || mm.input.Value() != "q" {
 		t.Fatal("q must type, never quit")
 	}
 	// Quit lives on ctrl+q, with or without a draft.
-	updated, _ = m.Update(tea.KeyPressMsg{Code: 'q', Mod: tea.ModCtrl})
-	if mm := updated.(*Model); !mm.quit {
+	updated, _ = m.testUpdate(tea.KeyPressMsg{Code: 'q', Mod: tea.ModCtrl})
+	if mm := updated.(*Model); len(mm.TakeRequests()) != 1 {
 		t.Fatal("ctrl+q must quit")
 	}
 }
@@ -759,8 +760,8 @@ func TestQuitNeedsCtrlQ(t *testing.T) {
 func TestDialogQDoesNotClose(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	m.openDialog("help", helpText())
-	updated, _ := m.Update(keyRunes('q'))
+	m.testControls().Open("help", helpText())
+	updated, _ := m.testUpdate(keyRunes('q'))
 	if mm := updated.(*Model); mm.chrome.Dialog == nil {
 		t.Fatal("q must not close the dialog")
 	}
@@ -769,8 +770,8 @@ func TestDialogQDoesNotClose(t *testing.T) {
 func TestAskCtrlQStopsBeforeQuit(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stAsk
-	updated, _ := m.Update(tea.KeyPressMsg{Code: 'q', Mod: tea.ModCtrl})
-	if mm := updated.(*Model); mm.quit || mm.state != stStopping {
+	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: 'q', Mod: tea.ModCtrl})
+	if mm := updated.(*Model); mm.PrepareQuit() || mm.state != stStopping {
 		t.Fatal("ctrl+q must stop the active ask before quitting")
 	}
 }
@@ -778,7 +779,7 @@ func TestAskCtrlQStopsBeforeQuit(t *testing.T) {
 func TestQDraftsDuringRun(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.input.Focus()
-	updated, _ := m.Update(keyRunes('q'))
+	updated, _ := m.testUpdate(keyRunes('q'))
 	mm := updated.(*Model)
 	if mm.quit || mm.state != stRunning || mm.input.Value() != "q" {
 		t.Fatal("q must type a draft during inference")
@@ -795,7 +796,7 @@ func TestScrollRoutedInEveryState(t *testing.T) {
 			t.Fatalf("state %v: follow expected while at bottom", state)
 		}
 		m.state = state
-		updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
+		updated, _ := m.testUpdate(tea.KeyPressMsg{Code: tea.KeyPgUp})
 		if mm := updated.(*Model); mm.transcript.Follow {
 			t.Fatalf("state %v: pgup must unfollow", state)
 		}
@@ -807,7 +808,7 @@ func TestScrollRoutedInEveryState(t *testing.T) {
 	}
 	m.state = stDone
 	wheel := tea.MouseWheelMsg{Button: tea.MouseWheelUp}
-	updated, _ := m.Update(wheel)
+	updated, _ := m.testUpdate(wheel)
 	if mm := updated.(*Model); mm.transcript.Follow {
 		t.Fatal("wheel-up in done state must unfollow")
 	}
@@ -831,7 +832,7 @@ func TestActivityBadgeAnimatesOnlyWhileRunning(t *testing.T) {
 	if !strings.Contains(first, string(activityFrames[0])) {
 		t.Fatalf("no activity frame in badge: %q", first)
 	}
-	m.Update(tickMsg(time.Now()))
+	m.testUpdate(tickMsg(time.Now()))
 	if activity() == first {
 		t.Fatal("activity frame did not advance on tick")
 	}
@@ -880,7 +881,7 @@ func TestEmptyStart_SubmitBegins(t *testing.T) {
 	// No session, no state: first line starts fresh, like /new.
 	m.state = stDone
 	m.input.SetValue("hello?")
-	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*Model)
 	if mm.state != stRunning {
 		t.Fatalf("state = %v, want running", mm.state)
@@ -908,7 +909,7 @@ func TestEmptyStart_SubmitBegins(t *testing.T) {
 
 func TestRolesAssignedAcrossEvent(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(events.Event{
+	updated, _ := m.testUpdate(eventMsg(events.Event{
 		Name: "step",
 		Fields: map[string]any{
 			"text":      "answer",
@@ -991,11 +992,11 @@ func TestThinkToggleKey(t *testing.T) {
 	if !m.transcript.compact {
 		t.Fatal("history starts compact")
 	}
-	updated, _ := m.Update(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
+	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
 	if mm := updated.(*Model); mm.transcript.compact {
 		t.Fatal("ctrl+g must open full view")
 	} else {
-		updated, _ = mm.Update(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
+		updated, _ = mm.testUpdate(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
 		if mm := updated.(*Model); !mm.transcript.compact {
 			t.Fatal("ctrl+g again must compact")
 		}
@@ -1004,7 +1005,7 @@ func TestThinkToggleKey(t *testing.T) {
 	mm := sizeModel(t, testModel())
 	mm.state = stDone
 	mm.input.SetValue("ed")
-	updated, _ = mm.Update(tea.KeyPressMsg{Text: string([]rune{'t'})})
+	updated, _ = mm.testUpdate(tea.KeyPressMsg{Text: string([]rune{'t'})})
 	if mm := updated.(*Model); !mm.transcript.compact || mm.input.Value() != "edt" {
 		t.Fatalf("t must type, not toggle: compact=%v value=%q", mm.transcript.compact, mm.input.Value())
 	}
@@ -1025,11 +1026,11 @@ func TestHelpMentionsThinkKey(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.input.SetValue("/help")
-	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
 	updated, _ = updated.(*Model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*Model)
 	mm.chrome.Dialog.Page = 1
-	if !strings.Contains(mm.dialogView(), "Ctrl+G") {
+	if !strings.Contains(mm.testControls().DialogView(), "Ctrl+G") {
 		t.Fatal("help must document the think key")
 	}
 }
@@ -1039,7 +1040,7 @@ func TestHelpMentionsThinkKey(t *testing.T) {
 func openPermissionGate(t *testing.T) (*Model, chan agent.SuspendReply) {
 	t.Helper()
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(events.Event{
+	updated, _ := m.testUpdate(eventMsg(events.Event{
 		Name: "awaiting_input",
 		Fields: map[string]any{
 			"kind": "permission", "prompt": "allow?",
@@ -1094,7 +1095,7 @@ func keyRunes(r rune) tea.KeyPressMsg {
 func TestGateStages_AlwaysConfirm(t *testing.T) {
 	mm, answered := openPermissionGate(t)
 	// "a" escalates to confirm, answering nothing yet.
-	updated, _ := mm.Update(keyRunes('a'))
+	updated, _ := mm.testUpdate(keyRunes('a'))
 	mm = updated.(*Model)
 	if mm.gstage != gsAlways || mm.state != stPermission {
 		t.Fatalf("stage = %v state = %v, want confirm", mm.gstage, mm.state)
@@ -1106,15 +1107,15 @@ func TestGateStages_AlwaysConfirm(t *testing.T) {
 		t.Fatalf("confirm must name the gated call: %q", got)
 	}
 	// Esc backs out, still pending.
-	updated, _ = mm.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	updated, _ = mm.testUpdate(tea.KeyPressMsg{Code: tea.KeyEsc})
 	mm = updated.(*Model)
 	if mm.gstage != gsPermit || !mm.hub.HasPending() {
 		t.Fatal("esc must return to permit, still pending")
 	}
 	// Enter on confirm answers "a" and tears the overlay down.
-	updated, _ = mm.Update(keyRunes('a'))
+	updated, _ = mm.testUpdate(keyRunes('a'))
 	mm = updated.(*Model)
-	updated, _ = mm.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	updated, _ = mm.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm = updated.(*Model)
 	if rep := awaitReply(t, answered); rep.Answer != "a" {
 		t.Fatalf("reply = %+v", rep)
@@ -1127,7 +1128,7 @@ func TestGateStages_AlwaysConfirm(t *testing.T) {
 func TestGateStages_RejectNote(t *testing.T) {
 	mm, answered := openPermissionGate(t)
 	// "n" drops to the note stage, answering nothing yet.
-	updated, _ := mm.Update(keyRunes('n'))
+	updated, _ := mm.testUpdate(keyRunes('n'))
 	mm = updated.(*Model)
 	if mm.gstage != gsReject || !mm.hub.HasPending() {
 		t.Fatal("n must open the note stage, still pending")
@@ -1136,10 +1137,10 @@ func TestGateStages_RejectNote(t *testing.T) {
 		t.Fatal("note must take focus")
 	}
 	for _, r := range "use cat" {
-		updated, _ = mm.Update(keyRunes(r))
+		updated, _ = mm.testUpdate(keyRunes(r))
 		mm = updated.(*Model)
 	}
-	updated, _ = mm.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	updated, _ = mm.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm = updated.(*Model)
 	if rep := awaitReply(t, answered); rep.Answer != "n: use cat" {
 		t.Fatalf("reply = %+v", rep)
@@ -1160,9 +1161,9 @@ func TestGateStages_RejectNote(t *testing.T) {
 
 func TestGateRejectEmptyNoteDenies(t *testing.T) {
 	mm, answered := openPermissionGate(t)
-	updated, _ := mm.Update(keyRunes('n'))
+	updated, _ := mm.testUpdate(keyRunes('n'))
 	mm = updated.(*Model)
-	updated, _ = mm.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	updated, _ = mm.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm = updated.(*Model)
 	if len(mm.overlays) != 0 {
 		t.Fatal("deny must close the permission gate")
@@ -1364,7 +1365,7 @@ func TestLongStepFlowsUncut(t *testing.T) {
 		}
 	}
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(events.Event{Name: "step", Fields: fields}))
+	updated, _ := m.testUpdate(eventMsg(events.Event{Name: "step", Fields: fields}))
 	mm := updated.(*Model)
 	if len(mm.transcript.blocks) != 2 {
 		t.Fatalf("blocks = %d", len(mm.transcript.blocks))
@@ -1427,7 +1428,7 @@ func TestPreReadyBlocksRender(t *testing.T) {
 	m := testModel() // never sized: not ready
 	m.appendBlock(markerBlock("early"))
 	mm := sizeModel(t, m)
-	if view := mm.View().Content; !strings.Contains(view, "early") {
+	if view := mm.testView().Content; !strings.Contains(view, "early") {
 		t.Fatalf("pre-ready block missing: %q", view)
 	}
 }
@@ -1438,7 +1439,7 @@ func TestStatusPostsToHistory(t *testing.T) {
 	m.limit = 131072
 	m.tokens = 12400
 	m.input.SetValue("/status")
-	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
 	updated, _ = updated.(*Model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*Model)
 	if mm.chrome.Dialog != nil {
@@ -1481,10 +1482,10 @@ func TestStatusLinesPlainLanguage(t *testing.T) {
 
 func TestDialogFitsViewport(t *testing.T) {
 	m := sizeModel(t, testModel())
-	m.openDialog("status", m.statusLines())
+	m.testControls().Open("status", m.statusLines())
 	m.transcript.Viewport.SetWidth(26)
 	m.transcript.Viewport.SetHeight(8)
-	out := m.dialogView()
+	out := m.testControls().DialogView()
 	lines := strings.Split(out, "\n")
 	if len(lines) > 8 {
 		t.Fatalf("%d dialog lines past height 8", len(lines))
@@ -1499,7 +1500,7 @@ func TestDialogFitsViewport(t *testing.T) {
 func TestStartRunClosesDialog(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.send = func(tea.Msg) {}
-	m.openDialog("help", helpText())
+	m.testControls().Open("help", helpText())
 	if len(m.overlays) != 1 {
 		t.Fatal("setup: dialog must push")
 	}
@@ -1532,13 +1533,13 @@ func TestDividerExactWidth(t *testing.T) {
 func TestBottomZoneHeights(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	updated, _ := m.testUpdate(tea.WindowSizeMsg{Width: 80, Height: 24})
 	if mm := updated.(*Model); mm.transcript.Viewport.Height() != 15 {
 		t.Fatalf("done viewport height = %d, want 15", mm.transcript.Viewport.Height())
 	}
 	mm := updated.(*Model)
 	mm.state = stRunning
-	updated, _ = mm.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	updated, _ = mm.testUpdate(tea.WindowSizeMsg{Width: 80, Height: 24})
 	if mm := updated.(*Model); mm.transcript.Viewport.Height() != 16 {
 		t.Fatalf("running viewport height = %d, want 16", mm.transcript.Viewport.Height())
 	}
@@ -1546,12 +1547,12 @@ func TestBottomZoneHeights(t *testing.T) {
 	// layout never shifts while typing (user call: always visible).
 	mm.input.SetValue("typing")
 	mm.state = stDone
-	updated, _ = mm.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	updated, _ = mm.testUpdate(tea.WindowSizeMsg{Width: 80, Height: 24})
 	if mm = updated.(*Model); mm.transcript.Viewport.Height() != 15 {
 		t.Fatalf("composing viewport height = %d, want 15", mm.transcript.Viewport.Height())
 	}
 	// The frame uses every row, including the footer at the bottom edge.
-	if n := len(strings.Split(mm.View().Content, "\n")); n != 24 {
+	if n := len(strings.Split(mm.testView().Content, "\n")); n != 24 {
 		t.Fatalf("view is %d lines, want 24", n)
 	}
 }
@@ -1763,7 +1764,7 @@ func TestToolBranchClosesOnFinalFragment(t *testing.T) {
 
 func TestFailedRunKeepsErrorBlock(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(doneMsg{err: errors.New("boom")})
+	updated, _ := m.testUpdate(doneMsg{err: errors.New("boom")})
 	mm := updated.(*Model)
 	if mm.runErr == nil {
 		t.Fatal("runErr must survive a failed run")
@@ -1786,13 +1787,13 @@ func TestRetryRerunsLastTurn(t *testing.T) {
 	m.runErr = errors.New("boom")
 	m.state = stDone
 	m.input.SetValue("/retry")
-	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
 	updated, _ = updated.(*Model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*Model)
 	if mm.state != stRunning {
 		t.Fatalf("state = %v, want running", mm.state)
 	}
-	updated, _ = mm.Update(doneMsg{answer: "recovered"})
+	updated, _ = mm.testUpdate(doneMsg{answer: "recovered"})
 	mm = updated.(*Model)
 	if mm.runErr != nil || mm.answer != "recovered" {
 		t.Fatalf("runErr = %v answer = %q", mm.runErr, mm.answer)
@@ -1803,7 +1804,7 @@ func TestRetryRefusesWhenOk(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.input.SetValue("/retry")
-	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
 	updated, _ = updated.(*Model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm := updated.(*Model)
 	if mm.state != stDone {
@@ -1846,7 +1847,7 @@ func TestBlocksSeparateWithOneBlankRow(t *testing.T) {
 
 func TestToolCardAttachesResult(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(events.Event{
+	updated, _ := m.testUpdate(eventMsg(events.Event{
 		Name: "step",
 		Fields: map[string]any{
 			"tool_calls": []any{map[string]any{"id": "c1", "name": "read_file", "args": "{}"}},
@@ -1859,7 +1860,7 @@ func TestToolCardAttachesResult(t *testing.T) {
 	if view := mm.transcript.Viewport.View(); !strings.Contains(view, "read_file") || !strings.Contains(view, "…") {
 		t.Fatalf("open card missing call/pending: %q", view)
 	}
-	updated, _ = mm.Update(eventMsg(events.Event{
+	updated, _ = mm.testUpdate(eventMsg(events.Event{
 		Name:   "tool_result",
 		Fields: map[string]any{"call_id": "c1", "text": "ok"},
 	}))
@@ -1871,7 +1872,7 @@ func TestToolCardAttachesResult(t *testing.T) {
 		t.Fatalf("closed card missing result/check: %q", view)
 	}
 	// Unknown IDs never corrupt a card: standalone block instead.
-	updated, _ = mm.Update(eventMsg(events.Event{
+	updated, _ = mm.testUpdate(eventMsg(events.Event{
 		Name:   "tool_result",
 		Fields: map[string]any{"call_id": "zz", "text": "stray"},
 	}))
@@ -1901,14 +1902,14 @@ func TestToolContentVisibilityIsIndependentOfThinking(t *testing.T) {
 
 func TestToolCardFailedGlyph(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(events.Event{
+	updated, _ := m.testUpdate(eventMsg(events.Event{
 		Name: "step",
 		Fields: map[string]any{
 			"tool_calls": []any{map[string]any{"id": "c2", "name": "run_shell", "args": "{}"}},
 		},
 	}))
 	mm := updated.(*Model)
-	updated, _ = mm.Update(eventMsg(events.Event{
+	updated, _ = mm.testUpdate(eventMsg(events.Event{
 		Name:   "tool_result",
 		Fields: map[string]any{"call_id": "c2", "text": "error: boom"},
 	}))
@@ -1923,7 +1924,7 @@ func TestToolCardFailedGlyph(t *testing.T) {
 
 func TestFindingRendersWarning(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(events.Event{
+	updated, _ := m.testUpdate(eventMsg(events.Event{
 		Name: "finding",
 		Fields: map[string]any{
 			"scope": "per-edit", "rule": "secret-aws", "path": "a.go",
@@ -1938,7 +1939,7 @@ func TestFindingRendersWarning(t *testing.T) {
 		t.Fatalf("warning missing label/content: %q", view)
 	}
 	// Rule-less events append nothing, never a blank warning.
-	updated, _ = mm.Update(eventMsg(events.Event{Name: "finding", Fields: map[string]any{}}))
+	updated, _ = mm.testUpdate(eventMsg(events.Event{Name: "finding", Fields: map[string]any{}}))
 	if mm := updated.(*Model); len(mm.transcript.blocks) != 1 {
 		t.Fatal("malformed finding must not append")
 	}
@@ -1946,7 +1947,7 @@ func TestFindingRendersWarning(t *testing.T) {
 
 func TestNudgeRendersMarker(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(events.Event{
+	updated, _ := m.testUpdate(eventMsg(events.Event{
 		Name:   "nudge",
 		Fields: map[string]any{"kind": "verify", "text": "[harness] check your work"},
 	}))
@@ -1968,7 +1969,7 @@ func TestNudgeRendersMarker(t *testing.T) {
 		t.Fatalf("stored marker text mutated: %q", mm.transcript.blocks[0].text)
 	}
 	// Empty nudges append nothing.
-	updated, _ = mm.Update(eventMsg(events.Event{Name: "nudge", Fields: map[string]any{}}))
+	updated, _ = mm.testUpdate(eventMsg(events.Event{Name: "nudge", Fields: map[string]any{}}))
 	if mm := updated.(*Model); len(mm.transcript.blocks) != 1 {
 		t.Fatal("empty nudge must not append")
 	}
@@ -1986,7 +1987,7 @@ func advanceFrames(t *testing.T, m tea.Model) *Model {
 	// Both live buffers: a turn can be revealing deliberation when no
 	// answer text has arrived yet.
 	for i := 0; i < 8192 && (mm.liveQueue != "" || mm.liveThinkQueue != ""); i++ {
-		mm.Update(tickMsg(time.Now()))
+		mm.testUpdate(tickMsg(time.Now()))
 	}
 	return mm
 }
@@ -1994,18 +1995,18 @@ func advanceFrames(t *testing.T, m tea.Model) *Model {
 func TestLiveAccumulatesAndStepReplaces(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stRunning
-	updated, _ := m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "hel"}}))
+	updated, _ := m.testUpdate(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "hel"}}))
 	mm := updated.(*Model)
 	if mm.live != "" || mm.liveQueue != "hel" {
 		t.Fatalf("a delta must wait only for the next frame: live=%q queue=%q", mm.live, mm.liveQueue)
 	}
-	updated, _ = mm.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "lo"}}))
+	updated, _ = mm.testUpdate(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "lo"}}))
 	mm = advanceFrames(t, updated)
 	if mm.live != "hello" || mm.liveQueue != "" {
 		t.Fatalf("live = %q queue = %q", mm.live, mm.liveQueue)
 	}
 	// Step replaces without duplication.
-	updated, _ = mm.Update(eventMsg(events.Event{Name: "step", Fields: map[string]any{"text": "hello"}}))
+	updated, _ = mm.testUpdate(eventMsg(events.Event{Name: "step", Fields: map[string]any{"text": "hello"}}))
 	mm = updated.(*Model)
 	if mm.live != "" || mm.liveQueue != "" {
 		t.Fatal("step must clear the live buffer")
@@ -2022,12 +2023,12 @@ func TestLiveAccumulatesAndStepReplaces(t *testing.T) {
 func TestLiveQueuedTextIsAdoptedByStep(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stRunning
-	updated, _ := m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "unseen tail"}}))
+	updated, _ := m.testUpdate(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "unseen tail"}}))
 	mm := updated.(*Model)
 	if mm.liveQueue == "" {
 		t.Fatal("precondition: text should be awaiting its frame")
 	}
-	updated, _ = mm.Update(eventMsg(events.Event{Name: "step", Fields: map[string]any{}}))
+	updated, _ = mm.testUpdate(eventMsg(events.Event{Name: "step", Fields: map[string]any{}}))
 	mm = updated.(*Model)
 	if mm.live != "" || mm.liveQueue != "" {
 		t.Fatal("step must clear both buffers")
@@ -2045,9 +2046,9 @@ func TestLiveQueuedTextIsAdoptedByStep(t *testing.T) {
 
 func TestLiveAdoptedWhenStepOmits(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "visible"}}))
+	updated, _ := m.testUpdate(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "visible"}}))
 	mm := updated.(*Model)
-	updated, _ = mm.Update(eventMsg(events.Event{Name: "step", Fields: map[string]any{}}))
+	updated, _ = mm.testUpdate(eventMsg(events.Event{Name: "step", Fields: map[string]any{}}))
 	mm = updated.(*Model)
 	found := false
 	for _, b := range mm.transcript.blocks {
@@ -2062,9 +2063,9 @@ func TestLiveAdoptedWhenStepOmits(t *testing.T) {
 
 func TestLiveDiscardedOnDone(t *testing.T) {
 	m := sizeModel(t, testModel())
-	updated, _ := m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "partial"}}))
+	updated, _ := m.testUpdate(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "partial"}}))
 	mm := updated.(*Model)
-	updated, _ = mm.Update(doneMsg{answer: "done"})
+	updated, _ = mm.testUpdate(doneMsg{answer: "done"})
 	if mm := updated.(*Model); mm.live != "" {
 		t.Fatal("done must discard partial live text")
 	}
@@ -2075,14 +2076,14 @@ func TestLiveUnfollowedStability(t *testing.T) {
 	for i := 0; i < 40; i++ {
 		m.appendBlock(markerBlock("filler"))
 	}
-	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
+	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: tea.KeyPgUp})
 	mm := updated.(*Model)
 	if mm.transcript.Follow {
 		t.Fatal("setup: pgup must unfollow")
 	}
 	y0 := mm.transcript.Viewport.YOffset()
 	for _, chunk := range []string{"a", "b", "c", "d", "e"} {
-		updated, _ = mm.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": chunk}}))
+		updated, _ = mm.testUpdate(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": chunk}}))
 		mm = updated.(*Model)
 	}
 	mm = advanceFrames(t, mm)
@@ -2102,9 +2103,9 @@ func TestUnfollowedRevealSkipsTheAnimation(t *testing.T) {
 	for i := 0; i < 40; i++ {
 		m.appendBlock(markerBlock("filler"))
 	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyPgUp})
 	m.state = stRunning
-	updated, _ := m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": strings.Repeat("z", 400)}}))
+	updated, _ := m.testUpdate(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": strings.Repeat("z", 400)}}))
 	mm := updated.(*Model)
 	if mm.transcript.Follow {
 		t.Fatal("setup: must stay unfollowed")
@@ -2169,7 +2170,7 @@ func TestTickIntervalFollowsTheReveal(t *testing.T) {
 	m.lastSpin = time.Now()
 	before := m.spinnerFrame
 	m.liveQueue = "text to reveal"
-	m.Update(tickMsg(time.Now()))
+	m.testUpdate(tickMsg(time.Now()))
 	if m.spinnerFrame != before {
 		t.Fatalf("spinner advanced on a reveal frame: %d -> %d", before, m.spinnerFrame)
 	}
@@ -2186,8 +2187,8 @@ func TestRevealPaintsEveryFrame(t *testing.T) {
 	m.state = stRunning
 	previous := 0
 	for _, chunk := range []string{"al", "pha", "be", "ta"} {
-		m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": chunk}}))
-		next, _ := m.Update(tickMsg(time.Now()))
+		m.testUpdate(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": chunk}}))
+		next, _ := m.testUpdate(tickMsg(time.Now()))
 		mm := next.(*Model)
 		view := strings.TrimSpace(ansi.Strip(mm.transcript.Viewport.View()))
 		if !strings.HasSuffix(view, strings.TrimSpace(mm.live)) {
@@ -2203,7 +2204,7 @@ func TestRevealPaintsEveryFrame(t *testing.T) {
 func TestLiveCapped(t *testing.T) {
 	m := sizeModel(t, testModel())
 	big := strings.Repeat("z", liveMaxRunes+10)
-	updated, _ := m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": big}}))
+	updated, _ := m.testUpdate(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": big}}))
 	mm := updated.(*Model)
 	if n := len([]rune(mm.live)); n <= liveMaxRunes {
 		t.Fatalf("live = %d runes, want over cap with marker", n)
@@ -2212,7 +2213,7 @@ func TestLiveCapped(t *testing.T) {
 		t.Fatal("cap must mark once")
 	}
 	before := mm.live
-	updated, _ = mm.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "more"}}))
+	updated, _ = mm.testUpdate(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "more"}}))
 	if mm := updated.(*Model); mm.live != before {
 		t.Fatal("capped buffer must drop further chunks")
 	}
@@ -2221,15 +2222,15 @@ func TestLiveCapped(t *testing.T) {
 func TestHarnessReplyRendersNormally(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
-	updated, _ := m.Update(eventMsg(events.Event{
+	updated, _ := m.testUpdate(eventMsg(events.Event{
 		Name: "step", Fields: map[string]any{"text": "real answer"},
 	}))
 	mm := updated.(*Model)
-	updated, _ = mm.Update(eventMsg(events.Event{
+	updated, _ = mm.testUpdate(eventMsg(events.Event{
 		Name: "nudge", Fields: map[string]any{"kind": "verify", "text": "[harness] check"},
 	}))
 	mm = updated.(*Model)
-	updated, _ = mm.Update(eventMsg(events.Event{
+	updated, _ = mm.testUpdate(eventMsg(events.Event{
 		Name: "step", Fields: map[string]any{"text": "noted", "harness_reply": true},
 	}))
 	mm = updated.(*Model)
@@ -2270,14 +2271,14 @@ func TestToggleHoldsPosition(t *testing.T) {
 		m.appendBlock(markerBlock("filler"))
 	}
 	m.appendBlock(thinkBlock("reasoning " + strings.Repeat("y", 300)))
-	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
+	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: tea.KeyPgUp})
 	mm := updated.(*Model)
 	if mm.transcript.Follow {
 		t.Fatal("setup: pgup must unfollow")
 	}
 	y0 := mm.transcript.Viewport.YOffset()
 	first := strings.Split(mm.transcript.Viewport.View(), "\n")[0]
-	updated, _ = mm.Update(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
+	updated, _ = mm.testUpdate(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
 	mm = updated.(*Model)
 	if mm.transcript.Viewport.YOffset() != y0 {
 		t.Fatalf("growth below moved offset %d -> %d", y0, mm.transcript.Viewport.YOffset())
@@ -2357,7 +2358,7 @@ func TestHeaderDetailsShowStepBudget(t *testing.T) {
 	m.steps = 7
 	m.maxSteps = 40
 	m.chrome.Header.Menu = "run"
-	if joined := headerText(m.headerItems()); !strings.Contains(joined, "7/40") {
+	if joined := headerText(m.testControls().HeaderItems()); !strings.Contains(joined, "7/40") {
 		t.Fatalf("header details missing step budget: %q", joined)
 	}
 }
@@ -2369,16 +2370,16 @@ func TestHeaderDetailsShowFirstToken(t *testing.T) {
 	m.state = stRunning
 	m.started = time.Now().Add(-100 * time.Second)
 	m.chrome.Header.Menu = "run"
-	if got := headerText(m.headerItems()); strings.Contains(got, "First token") {
+	if got := headerText(m.testControls().HeaderItems()); strings.Contains(got, "First token") {
 		t.Fatalf("details show a first token before one arrived: %q", got)
 	}
 	m.firstToken = m.started.Add(7 * time.Second)
-	if got := headerText(m.headerItems()); !strings.Contains(got, "00:07") {
+	if got := headerText(m.testControls().HeaderItems()); !strings.Contains(got, "00:07") {
 		t.Fatalf("details missing first token: %q", got)
 	}
 }
 
-func headerText(items []menuItem) string {
+func headerText(items []screen.MenuItem) string {
 	var b strings.Builder
 	for _, item := range items {
 		b.WriteString(item.Text + "\n")
@@ -2398,7 +2399,7 @@ func TestEnvMaxSteps_DefaultAndOverride(t *testing.T) {
 func TestStepEventUpdatesStepBudget(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.maxSteps = 25
-	updated, _ := m.Update(eventMsg(events.Event{
+	updated, _ := m.testUpdate(eventMsg(events.Event{
 		Name:   "step",
 		Fields: map[string]any{"max_steps": 37, "text": "hi"},
 	}))
@@ -2430,7 +2431,7 @@ func TestStatusShowsModel(t *testing.T) {
 func TestFirstTokenStampedAndReset(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stRunning
-	updated, _ := m.Update(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "hel"}}))
+	updated, _ := m.testUpdate(eventMsg(events.Event{Name: "delta", Fields: map[string]any{"text": "hel"}}))
 	mm := updated.(*Model)
 	if mm.firstToken.IsZero() {
 		t.Fatal("first delta did not stamp firstToken")
@@ -2439,38 +2440,6 @@ func TestFirstTokenStampedAndReset(t *testing.T) {
 	mm.startRun(func(context.Context) (string, error) { return "", nil })
 	if !mm.firstToken.IsZero() {
 		t.Fatal("new turn did not reset firstToken")
-	}
-}
-
-// Brand + clock ride the header: animated letter while running,
-// solid amber word at rest.
-func TestMenuBrandAndHeaderWidth(t *testing.T) {
-	m := sizeModel(t, testModel())
-	m.state = stRunning
-	updated, _ := m.Update(tea.WindowSizeMsg{Width: 160, Height: 24})
-	mm := updated.(*Model)
-	var header string
-	for _, ln := range strings.Split(mm.View().Content, "\n") {
-		if strings.Contains(ln, "Settings") {
-			header = ln
-		}
-	}
-	if header == "" {
-		t.Fatal("header missing brand line")
-	}
-	if n := lipgloss.Width(header); n != 160 {
-		t.Fatalf("header width = %d, want 160 (clock at right edge)", n)
-	}
-	// Fixed two-line zone: the blocked input stays visible while
-	// running (empty transcript here, so "> " can only be the box).
-	if !strings.Contains(mm.View().Content, "> ") {
-		t.Fatal("running must keep the blocked input box")
-	}
-	mm.state = stDone
-	updated, _ = mm.Update(tea.WindowSizeMsg{Width: 160, Height: 24})
-	// Brand owns GEKTOR alone: exactly one occurrence on the row.
-	if view := strings.Split(updated.(*Model).View().Content, "\n")[0]; strings.Count(view, "GEKTOR") != 1 {
-		t.Fatalf("done header must show one brand: %q", view)
 	}
 }
 
@@ -2495,7 +2464,7 @@ func TestElapsedRunsInFlightFreezesWhenDone(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stRunning
 	m.started = time.Now().Add(-90 * time.Second)
-	updated, _ := m.Update(tickMsg(time.Now()))
+	updated, _ := m.testUpdate(tickMsg(time.Now()))
 	mm := updated.(*Model)
 	if mm.elapsed != 90*time.Second {
 		t.Fatalf("running elapsed = %v, want 1m30s", mm.elapsed)
@@ -2503,13 +2472,13 @@ func TestElapsedRunsInFlightFreezesWhenDone(t *testing.T) {
 	// Gates are still the run's wall clock.
 	mm.state = stAsk
 	mm.started = time.Now().Add(-5 * time.Second)
-	updated, _ = mm.Update(tickMsg(time.Now()))
+	updated, _ = mm.testUpdate(tickMsg(time.Now()))
 	if mm := updated.(*Model); mm.elapsed != 5*time.Second {
 		t.Fatalf("ask elapsed = %v, want 5s", mm.elapsed)
 	}
 	// Done freezes: idle reading time never accrues.
 	mm.state = stDone
-	updated, _ = mm.Update(tickMsg(time.Now()))
+	updated, _ = mm.testUpdate(tickMsg(time.Now()))
 	if mm := updated.(*Model); mm.elapsed != 5*time.Second {
 		t.Fatalf("done elapsed moved to %v", mm.elapsed)
 	}

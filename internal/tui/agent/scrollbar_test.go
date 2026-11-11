@@ -125,28 +125,28 @@ func TestScrollbarGrabUsesDrawnColumnWithAndWithoutSidebar(t *testing.T) {
 			m.transcript.Viewport.GotoTop()
 			// Select the actual rightmost content cell in the assembled frame,
 			// independently of scrollbarHit/scrollbarX's coordinate arithmetic.
-			row := []rune(strings.Split(ansi.Strip(m.View().Content), "\n")[paneTop])
+			row := []rune(strings.Split(ansi.Strip(m.testView().Content), "\n")[paneTop])
 			x := len(row) - 2
-			m.Update(tea.MouseClickMsg{X: x, Y: paneTop, Button: tea.MouseLeft})
+			m.testUpdate(tea.MouseClickMsg{X: x, Y: paneTop, Button: tea.MouseLeft})
 			if !m.scrollDrag.Active {
 				t.Fatalf("drawn bar at x=%d did not grab", x)
 			}
-			m.Update(tea.MouseMotionMsg{X: x - 3, Y: paneTop + 8, Button: tea.MouseLeft})
+			m.testUpdate(tea.MouseMotionMsg{X: x - 3, Y: paneTop + 8, Button: tea.MouseLeft})
 			if m.transcript.Viewport.YOffset() == 0 {
 				t.Fatal("horizontal drift stopped drag")
 			}
 			// Move across the sidebar and outside the pane vertically. Capture
 			// must keep ownership until release, without selecting a session.
 			m.savedSessions = []sessionEntry{{id: "a"}, {id: "b"}}
-			m.Update(tea.MouseMotionMsg{X: 3, Y: m.termH - 1, Button: tea.MouseLeft})
+			m.testUpdate(tea.MouseMotionMsg{X: 3, Y: m.termH - 1, Button: tea.MouseLeft})
 			if !m.transcript.Viewport.AtBottom() {
 				t.Fatal("drag was intercepted or failed to clamp below the pane")
 			}
-			m.Update(tea.MouseMotionMsg{X: x + 3, Y: paneTop - 2, Button: tea.MouseLeft})
+			m.testUpdate(tea.MouseMotionMsg{X: x + 3, Y: paneTop - 2, Button: tea.MouseLeft})
 			if m.transcript.Viewport.YOffset() != 0 {
 				t.Fatal("drag failed to clamp above the pane")
 			}
-			m.Update(tea.MouseReleaseMsg{X: 3, Y: paneTop + 1, Button: tea.MouseLeft})
+			m.testUpdate(tea.MouseReleaseMsg{X: 3, Y: paneTop + 1, Button: tea.MouseLeft})
 			if m.scrollDrag.Active {
 				t.Fatal("sidebar intercepted release")
 			}

@@ -13,10 +13,10 @@ import (
 func (m *Model) activateMenuAction(command string) (tea.Model, tea.Cmd) {
 	if strings.HasPrefix(command, "menu:") {
 		m.chrome.Header.Menu = strings.TrimPrefix(command, "menu:")
-		m.chrome.Header.Row = m.headerActionRow(0, 1)
+		m.chrome.Header.Row = m.chrome.HeaderActionRow(0, 1)
 		return m, nil
 	}
-	m.closeHeader()
+	m.chrome.CloseHeader()
 	switch command {
 	case "copy-session-id", "copy-session-path":
 		return m, m.copySession(command)
@@ -35,7 +35,7 @@ func (m *Model) activateMenuAction(command string) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case "appearance":
-		m.openAppearance()
+		m.request(screen.ApplicationCommand{Command: "appearance"})
 		return m, nil
 	case "compact-session":
 		m.confirmCompact()
@@ -47,7 +47,7 @@ func (m *Model) activateMenuAction(command string) (tea.Model, tea.Cmd) {
 	case "about":
 		return m.command("/about")
 	case "workspace":
-		m.openWorkspace()
+		m.request(screen.ApplicationCommand{Command: "workspace"})
 		return m, nil
 	case "prompt-info":
 		m.inspectAgentInstructions()
@@ -72,7 +72,7 @@ func (m *Model) activateMenuAction(command string) (tea.Model, tea.Cmd) {
 		return m.command("sys")
 	case "toggle-labels":
 		if err := m.changeAppearance(func(a *config.Appearance) { a.HideLabels = !m.hideLabels }); err != nil {
-			m.openDialog("Appearance", []string{err.Error()})
+			m.chrome.Open("Appearance", []string{err.Error()})
 		}
 		return m, nil
 	case "toggle-names", "toggle-tools":
@@ -85,14 +85,14 @@ func (m *Model) activateMenuAction(command string) (tea.Model, tea.Cmd) {
 			}
 		})
 		if err != nil {
-			m.openDialog("Appearance", []string{err.Error()})
+			m.chrome.Open("Appearance", []string{err.Error()})
 		}
 		return m, nil
 	case "latest":
 		return m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnd, Mod: tea.ModCtrl})
 	}
 	if strings.HasPrefix(command, "edit:") {
-		m.editSettings(strings.TrimPrefix(command, "edit:"))
+		m.request(screen.ApplicationCommand{Command: command})
 		return m, nil
 	}
 	if command == "stop" {

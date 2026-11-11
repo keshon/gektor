@@ -144,7 +144,7 @@ func TestCompletionPanelKeepsEvidenceAndFits(t *testing.T) {
 				m.attachResult("c", "skill list")
 				m.handleEvent(events.Event{Name: "outcome", Fields: map[string]any{"outcome": "completed", "resume": filepath.Join("sessions", "47003e38", "state.json")}})
 				before := m.transcript.blocks[len(m.transcript.blocks)-1].text
-				view := m.View().Content
+				view := m.testView().Content
 				for _, line := range strings.Split(view, "\n") {
 					if lipgloss.Width(line) > width {
 						t.Fatal("panel overflow", theme, frame, width, line)

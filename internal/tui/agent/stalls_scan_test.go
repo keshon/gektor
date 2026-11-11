@@ -47,7 +47,7 @@ func TestFinishingATurnStillRescansTheSessionStore(t *testing.T) {
 	m.takeCommands()
 	before := m.sessionRevision
 
-	updated, _ := m.Update(doneMsg{})
+	updated, _ := m.testUpdate(doneMsg{})
 	m = updated.(*Model)
 	if m.sessionRevision == before {
 		t.Fatal("finishing a turn did not refresh the session index")

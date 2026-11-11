@@ -15,40 +15,12 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/form"
 )
 
-func TestFormsShareRightAlignedActionRowAndDivider(t *testing.T) {
-	for _, width := range []int{40, 80, 120} {
-		for _, workspace := range []bool{false, true} {
-			m := settingsModel(t)
-			m.width(tea.WindowSizeMsg{Width: width, Height: 24})
-			if workspace {
-				m.editSettings("generation")
-			} else {
-				m.openForm("Delete Identity", "Removes the saved Identity.", "Delete", nil, func(map[string]string) error { return nil })
-			}
-			rows, hits, _, _ := m.formRows()
-			buttons := hits[len(hits)-2:]
-			if buttons[0].Y0 != buttons[1].Y0 || buttons[0].X1 >= buttons[1].X0 {
-				t.Fatal("buttons not on one row", buttons)
-			}
-			y := buttons[0].Y0
-			line := ansi.Strip(rows[y])
-			// Settings include the category rail; action coordinates exclude it.
-			if !strings.HasSuffix(line, "[ Cancel ]") {
-				t.Fatal("actions not right aligned", line)
-			}
-			if y < 2 || !strings.Contains(ansi.Strip(rows[y-2]), "────") || y != len(rows)-1 {
-				t.Fatal("actions must sit in the footer beneath its divider")
-			}
-		}
-	}
-}
-
 func TestCompactDialogMouseAndHorizontalKeys(t *testing.T) {
 	m := settingsModel(t)
 	calls := 0
-	m.openForm("Confirm", "", "Delete", nil, func(map[string]string) error { calls++; return nil })
+	m.testControls().OpenForm("Confirm", "", "Delete", nil, func(map[string]string) error { calls++; return nil })
 	m.chrome.Dialog.Form.Destructive = true
-	m.focusForm(1)
+	m.testControls().FocusForm(1)
 	m.formKey(tea.KeyPressMsg{Code: tea.KeyLeft})
 	if m.chrome.Dialog.Form.Index != 0 {
 		t.Fatal("left did not select primary")
@@ -108,11 +80,11 @@ func TestPopupTitlePaddingKeepsPopupBackground(t *testing.T) {
 	for _, theme := range []string{"dark", "light"} {
 		setTheme(theme)
 		m := settingsModel(t)
-		m.openForm("Delete Identity", "Permanently removes this saved Identity.", "Delete", nil, func(map[string]string) error { return nil })
+		m.testControls().OpenForm("Delete Identity", "Permanently removes this saved Identity.", "Delete", nil, func(map[string]string) error { return nil })
 		r, g, b, _ := lipgloss.Color(themeColor(colorPopupBackground)).RGBA()
 		want := fmt.Sprintf("%d;%d;%d", r>>8, g>>8, b>>8)
 		found := false
-		for _, line := range strings.Split(m.View().Content, "\n") {
+		for _, line := range strings.Split(m.testView().Content, "\n") {
 			plain := ansi.Strip(line)
 			at := strings.Index(plain, "Delete Identity")
 			if at < 0 {
@@ -132,7 +104,7 @@ func TestPopupTitlePaddingKeepsPopupBackground(t *testing.T) {
 
 func TestActionRowsFitNarrowWidths(t *testing.T) {
 	m := settingsModel(t)
-	m.openForm("Confirm", "", "A very long primary action", nil, func(map[string]string) error { return nil })
+	m.testControls().OpenForm("Confirm", "", "A very long primary action", nil, func(map[string]string) error { return nil })
 	for _, width := range []int{12, 18, 24, 72} {
 		row, hits := m.chrome.Dialog.Form.Actions(width, 0, m.chrome.Dialog.Form.ApplyLabel, true, false, form.Styles{})
 		if ansi.StringWidth(row) != width || hits[1].X1 != width {

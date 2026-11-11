@@ -22,7 +22,7 @@ func TestSessionModalScrollbarAndClose(t *testing.T) {
 			m.sessions.entries = append(m.sessions.entries, sessionEntry{title: fmt.Sprintf("Session %d", i), preview: "Review changes and verify the implementation", msgs: 24})
 		}
 		g := m.searchGeometry()
-		rows := strings.Split(ansi.Strip(m.View().Content), "\n")
+		rows := strings.Split(ansi.Strip(m.testView().Content), "\n")
 		x, y := g.x+g.width-3, g.y+4
 		if []rune(rows[y])[x] != '█' {
 			t.Fatal("scrollbar does not match hit area", rows[y])
@@ -34,7 +34,7 @@ func TestSessionModalScrollbarAndClose(t *testing.T) {
 			t.Fatal("thumb did not reach bottom or release", m.sessions.Offset)
 		}
 		if dir := os.Getenv("GEKTOR_TUI_PREVIEW_DIR"); dir != "" {
-			if err := os.WriteFile(filepath.Join(dir, "sessions-"+theme+".ansi"), []byte(m.View().Content), 0600); err != nil {
+			if err := os.WriteFile(filepath.Join(dir, "sessions-"+theme+".ansi"), []byte(m.testView().Content), 0600); err != nil {
 				t.Fatal(err)
 			}
 		}

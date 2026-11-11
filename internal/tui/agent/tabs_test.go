@@ -19,9 +19,9 @@ func TestHelpTabsClickWrappedRowsAndPreserveDraft(t *testing.T) {
 			m.input.SetValue("unfinished draft")
 			m.openHelp()
 			for tab := range m.dialogHelpSections() {
-				layout := m.layoutDialog()
-				rows, w, h := m.dialogRows()
-				left, top, _, _ := m.settingsArea()
+				layout := m.testControls().LayoutDialog()
+				rows, w, h := m.testControls().DialogRows()
+				left, top, _, _ := m.dialogArea()
 				x := left + max((w-popup.ModalWidth(w))/2, 0) + 2
 				y := top + max((h-len(rows)-2)/2, 0) + 1
 				hit := layout.Tabs.Hits[tab]
@@ -30,12 +30,12 @@ func TestHelpTabsClickWrappedRowsAndPreserveDraft(t *testing.T) {
 				if m.chrome.Dialog == nil || m.chrome.Dialog.Page != tab || m.chrome.Dialog.Offset != 0 {
 					t.Fatalf("%s/%d: Help tab %d click missed", theme, width, tab)
 				}
-				layout = m.layoutDialog()
+				layout = m.testControls().LayoutDialog()
 				if layout.Rows[len(layout.Rows)-1] != "" || !strings.Contains(strings.Join(layout.Tabs.Rows, "\n"), "["+m.dialogHelpSections()[tab].title+"]") {
 					t.Fatal("tab lost active marker or space below strip")
 				}
 			}
-			m.handleKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+			m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 			if m.input.Value() != "unfinished draft" || !m.input.Focused() {
 				t.Fatal("Help tabs lost the conversation draft or focus")
 			}

@@ -22,7 +22,7 @@ func TestScreenUsesCurrentSurfaceAndSharedDialogs(t *testing.T) {
 	surface := screen.Surface{Area: pane.Rect{Y: 1, Width: 120, Height: 28}, Inset: 1, SplitWidth: 100}
 	var title string
 	host := screen.Host{OpenDialog: func(d screen.Dialog) { title = d.Title }}
-	child, err := workflow.NewScreen(context.Background(), workflow.Config{WS: ws, Policy: permission.Default()}, host, func() screen.Surface { return surface })
+	child, err := workflow.New(context.Background(), workflow.Config{WS: ws, Policy: permission.Default()}, host, func() screen.Surface { return surface })
 	if err != nil {
 		t.Fatal(err)
 	}

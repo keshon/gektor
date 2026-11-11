@@ -23,7 +23,7 @@ func (m *Model) statusLine() string {
 			if m.chrome.Dialog.Table.List {
 				return m.controlHints(popup.Shortcut{Key: "↑↓", Action: "select"}, popup.Shortcut{Key: "Esc", Action: "close"})
 			}
-			if m.chrome.Dialog.Table.Model.Layout(m.tableProps()).Capacity == 0 {
+			if m.chrome.Dialog.Table.Model.Layout(m.chrome.TableProps()).Capacity == 0 {
 				return m.controlHints(popup.Shortcut{Key: "Esc", Action: "close"})
 			}
 			if m.chrome.Dialog.Table.Model.MoreOpen {

@@ -44,7 +44,7 @@ func TestSessionTitlePersistsWithoutChangingHistory(t *testing.T) {
 		t.Fatal("title request not scheduled")
 	}
 	msg := cmd().(sessionTitleMsg)
-	m.Update(msg)
+	m.testUpdate(msg)
 	if m.sessionTitle != "Message queue bug" || conversation.ReadSessionTitle(filepath.Dir(m.stateFile)) != m.sessionTitle {
 		t.Fatal(m.sessionTitle)
 	}
@@ -141,7 +141,7 @@ func TestTitleGenerationStartsOnlyAfterAnswer(t *testing.T) {
 	if calls != 0 {
 		t.Fatal("title request started before answer")
 	}
-	_, cmd := m.Update(doneMsg{answer: "Here is the fix"})
+	_, cmd := m.testUpdate(doneMsg{answer: "Here is the fix"})
 	result := cmd()
 	for {
 		batch, ok := result.(tea.BatchMsg)
@@ -154,7 +154,7 @@ func TestTitleGenerationStartsOnlyAfterAnswer(t *testing.T) {
 	if !ok {
 		t.Fatal("answer did not schedule title generation")
 	}
-	m.Update(msg)
+	m.testUpdate(msg)
 	if calls != 1 || m.sessionTitle != "Message queue bug" {
 		t.Fatal(calls, m.sessionTitle)
 	}
@@ -212,7 +212,7 @@ func TestTitleGenerationSkipsFailedInterruptedAndActiveTurns(t *testing.T) {
 				}
 				return
 			}
-			m.Update(msg)
+			m.testUpdate(msg)
 			if m.titleJob == nil || m.titleJob.cancel != nil {
 				t.Fatal("title generation started without a successful answer")
 			}
@@ -278,7 +278,7 @@ func TestFreshSessionSchedulesTitleButForkKeepsItsName(t *testing.T) {
 			if m.titleJob == nil {
 				t.Fatal("new session missed automatic naming")
 			}
-			_, cmd := m.Update(done)
+			_, cmd := m.testUpdate(done)
 			result := cmd()
 			for {
 				batch, ok := result.(tea.BatchMsg)
@@ -291,7 +291,7 @@ func TestFreshSessionSchedulesTitleButForkKeepsItsName(t *testing.T) {
 			if !ok {
 				t.Fatal("first answer missed title generation")
 			}
-			m.Update(title)
+			m.testUpdate(title)
 			if m.sessionTitle != "Workflow canvas dragging delay" {
 				t.Fatal(m.sessionTitle)
 			}

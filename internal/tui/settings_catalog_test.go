@@ -1,4 +1,4 @@
-package agent
+package tui
 
 import (
 	"os"
@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/tui/settings"
 )
 
 func focusSetting(m *Model, key string) {
@@ -27,21 +28,21 @@ func TestLoadedProfileStagedUntilApply(t *testing.T) {
 	m := settingsModel(t)
 	m.application.Preferences.ProfilePath = "old.json"
 	root := t.TempDir()
-	p := m.config.Profile.Clone()
+	p := m.profile.Profile.Clone()
 	p.Identity.UserName = "Alex"
 	p.Generation.Temperature = .8
 	path := filepath.Join(root, "custom.json")
 	if err := config.SaveCopy(p, path); err != nil {
 		t.Fatal(err)
 	}
-	id := m.stateFile
+	id := stateFileOf(m)
 	m.editSettings("profiles")
 	focusSetting(m, "load-profile")
 	m.chrome.Dialog.Form.OpenPicker(m.settingsProps())
 	picker := m.chrome.Dialog.Form.Picker
-	m.acceptSettingsScan(settingsScanMsg{ID: picker.ID, Items: []string{path}})
+	m.Update(settings.ScanMsg{ID: picker.ID, Items: []string{path}})
 	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m.settingsProps())
-	if m.config.Profile.Identity.UserName != "User" {
+	if m.profile.Profile.Identity.UserName != "User" {
 		t.Fatal("load applied without Apply")
 	}
 	m.editSettings("generation")
@@ -52,7 +53,7 @@ func TestLoadedProfileStagedUntilApply(t *testing.T) {
 	if m.chrome.Dialog != nil {
 		t.Fatalf("apply refused: %q", m.chrome.Dialog.Form.Error)
 	}
-	if m.modeChange == nil || m.stateFile != id {
+	if m.modeChange == nil || stateFileOf(m) != id {
 		t.Fatal("profile load lost the session")
 	}
 	if got := m.modeChange.Preferences.Profile.Identity.UserName; got != "Alex" {
@@ -62,6 +63,7 @@ func TestLoadedProfileStagedUntilApply(t *testing.T) {
 		t.Fatalf("loaded source was not carried: %q", m.modeChange.Preferences.ProfilePath)
 	}
 }
+
 func TestSettingsLibrariesPreview(t *testing.T) {
 	dir := os.Getenv("GEKTOR_TUI_PREVIEW_DIR")
 	if dir == "" {
@@ -69,7 +71,7 @@ func TestSettingsLibrariesPreview(t *testing.T) {
 	}
 	os.MkdirAll(dir, 0700)
 	m := settingsModel(t)
-	m.width(tea.WindowSizeMsg{Width: 120, Height: 34})
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 34})
 	write := func(name string) {
 		t.Helper()
 		if err := os.WriteFile(filepath.Join(dir, name+".txt"), []byte(ansi.Strip(m.View().Content)), 0600); err != nil {
@@ -80,7 +82,7 @@ func TestSettingsLibrariesPreview(t *testing.T) {
 	focusSetting(m, "load-profile")
 	m.chrome.Dialog.Form.OpenPicker(m.settingsProps())
 	p := m.chrome.Dialog.Form.Picker
-	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{filepath.Join(dir, "custom.json")}})
+	m.Update(settings.ScanMsg{ID: p.ID, Items: []string{filepath.Join(dir, "custom.json")}})
 	write("profile-picker")
 	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEscape}, m.settingsProps())
 	m.editSettings("prompts")
@@ -93,13 +95,13 @@ func TestSettingsLibrariesPreview(t *testing.T) {
 func TestApplyAutomaticallySavesReusableCustomProfile(t *testing.T) {
 	m := settingsModel(t)
 	root := t.TempDir()
-	original := m.config.Profile.Clone()
+	original := m.profile.Profile.Clone()
 	builtin := filepath.Join(root, "profiles", "builtin.json")
 	if err := config.SaveCopy(original, builtin); err != nil {
 		t.Fatal(err)
 	}
 	before, _ := os.ReadFile(builtin)
-	m.application = &Application{PreferencePath: filepath.Join(root, "var", "application.json"), Preferences: config.Preferences{Version: 1, ProfilePath: builtin, Profile: &original}}
+	*m.application = Application{PreferencePath: filepath.Join(root, "var", "application.json"), Preferences: config.Preferences{Version: 1, ProfilePath: builtin, Profile: &original}}
 	m.editSettings("you")
 	m.chrome.Dialog.Form.Editor.SetValue("Alex")
 	m.applyForm()

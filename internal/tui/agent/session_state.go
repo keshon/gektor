@@ -1,11 +1,12 @@
 package agent
 
 import (
-	"github.com/keshon/gektor/internal/tui/components/composer"
-	"github.com/keshon/gektor/internal/tui/components/popup"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/keshon/gektor/internal/tui/components/composer"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
 // Drafts are local UI state, separate from submitted model history.

@@ -18,7 +18,6 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		if m.actionBarVisible() && msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) && msg.Mouse().Y == m.termH-1 {
 			return m.toolbarClick(msg.Mouse().X)
 		}
-		m.syncControls()
 		return m, m.chrome.DialogMouse(msg)
 	}
 	if m.inspectorVisible() && m.chrome.Header.Menu == "" && m.inspector.drag.Active && m.inspectorScrollbarMouse(msg) {
@@ -81,7 +80,6 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) dialogScrollbarMouse(msg tea.MouseMsg) bool {
-	m.syncControls()
 	return m.chrome.DialogScrollbarMouse(msg)
 }
 

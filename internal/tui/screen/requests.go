@@ -63,3 +63,6 @@ type Navigate struct{ Screen, Action string }
 
 // QuitRequest asks the application to apply its complete quit policy.
 type QuitRequest struct{}
+
+// ApplicationCommand requests a global setting or theme operation from the shell.
+type ApplicationCommand struct{ Command string }

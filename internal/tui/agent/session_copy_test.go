@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 func TestSessionCopyNavigation(t *testing.T) {
@@ -17,7 +19,7 @@ func TestSessionCopyNavigation(t *testing.T) {
 	if m.chrome.Header.Focused || m.chrome.Header.Menu != "" {
 		t.Fatal("session label opened a menu")
 	}
-	m.chrome.Header = headerState{Focused: true, Global: true, Menu: "session"}
+	m.chrome.Header = screen.MenuState{Focused: true, Global: true, Menu: "session"}
 	items := m.sessionCopyItems()
 	for _, item := range items {
 		if !item.Enabled {

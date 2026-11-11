@@ -100,7 +100,7 @@ func runningModel(t *testing.T) *Model {
 }
 
 func (m *Model) handleEnter() {
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 }
 
 func TestRunningInputSubmitsSeveralMessagesWithoutWaitingForCompletion(t *testing.T) {
@@ -108,7 +108,7 @@ func TestRunningInputSubmitsSeveralMessagesWithoutWaitingForCompletion(t *testin
 	m.sess = &harness.Session{}
 	for _, text := range []string{"first update", "second update"} {
 		m.input.SetValue(text)
-		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+		m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 		if m.input.Value() != "" || m.queued != "" {
 			t.Fatal("message remained in the completion queue")
 		}
@@ -116,7 +116,7 @@ func TestRunningInputSubmitsSeveralMessagesWithoutWaitingForCompletion(t *testin
 	if m.pendingInputCount() != 2 {
 		t.Fatalf("pending=%d", m.pendingInputCount())
 	}
-	if !strings.Contains(m.View().Content, "Queued 2") || !strings.Contains(m.View().Content, "second update") || !strings.Contains(m.View().Content, "ALT+Q") {
+	if !strings.Contains(m.testView().Content, "Queued 2") || !strings.Contains(m.testView().Content, "second update") || !strings.Contains(m.testView().Content, "ALT+Q") {
 		t.Fatal("pending messages have no visible feedback")
 	}
 }
@@ -131,16 +131,16 @@ func TestPendingInputRecallPreservesDraftAndImages(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.input.SetValue("keep draft")
-	m.handleKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	m.testKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
 	if m.pendingInputCount() != 2 || m.input.Value() != "keep draft" {
 		t.Fatal("recall clobbered draft")
 	}
 	m.input.SetValue("")
-	m.handleKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	m.testKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
 	if m.pendingInputCount() != 1 || m.input.Value() != "latest\nline" || len(m.draftImages) != 1 || m.draftImages[0] != "shot.png" {
 		t.Fatal("recall lost pending input or attachment")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: 'x', Mod: tea.ModCtrl})
+	m.testKey(tea.KeyPressMsg{Code: 'x', Mod: tea.ModCtrl})
 	if m.pendingInputCount() != 0 || m.input.Value() != "latest\nline" || len(m.draftImages) != 1 {
 		t.Fatal("cancel changed draft")
 	}

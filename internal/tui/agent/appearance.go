@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/llm"
@@ -32,16 +32,8 @@ func (m *Model) currentAppearance() config.Appearance {
 func (m *Model) changeAppearance(change func(*config.Appearance)) error {
 	a := m.currentAppearance()
 	change(&a)
-	if m.application != nil {
-		p, err := config.LoadPreferences(m.application.PreferencePath)
-		if err != nil {
-			return err
-		}
-		p.Appearance = a
-		if err := config.SavePreferences(m.application.PreferencePath, p); err != nil {
-			return err
-		}
-		m.application.Preferences.Appearance = a
+	if err := m.application.SaveAppearance(a); err != nil {
+		return err
 	}
 	m.applyAppearance(a)
 	return nil
@@ -49,7 +41,7 @@ func (m *Model) changeAppearance(change func(*config.Appearance)) error {
 
 func (m *Model) toggleThinking() (tea.Model, tea.Cmd) {
 	if err := m.changeAppearance(func(a *config.Appearance) { a.ExpandThinking = !a.ExpandThinking }); err != nil {
-		m.openDialog("Appearance", []string{err.Error()})
+		m.chrome.Open("Appearance", []string{err.Error()})
 	}
 	return m, nil
 }
@@ -108,37 +100,4 @@ func prefillText(p llm.Progress, st styles, width int) string {
 	}
 	bar := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorMode))).Render(strings.Repeat("━", filled)) + st.Dim.Render(strings.Repeat("─", width-filled))
 	return st.Dim.Render(cellLine(label, width)) + "\n" + bar
-}
-
-// openAppearance stages presentation choices and saves them together on Apply.
-func (m *Model) openAppearance() {
-	m.openForm("Appearance", "Apply saves these choices for future launches.", "Apply", []formField{
-		{Key: "theme", Label: "Theme", Value: currentPalette().Name},
-		{Key: "frame", Label: "Panel frame", Value: m.currentAppearance().Frame},
-	}, func(values map[string]string) error {
-		theme, frame := values["theme"], values["frame"]
-		if !config.ValidTheme(theme) {
-			return fmt.Errorf("choose a theme from the list")
-		}
-		if frame != "outlined" && frame != "minimal" {
-			return fmt.Errorf("choose an outlined or minimal frame")
-		}
-		appearance := m.currentAppearance()
-		appearance.Frame = frame
-		if m.application != nil {
-			preferences, err := config.LoadPreferences(m.application.PreferencePath)
-			if err != nil {
-				return err
-			}
-			preferences.Theme, preferences.Appearance = theme, appearance
-			if err := config.SavePreferences(m.application.PreferencePath, preferences); err != nil {
-				return err
-			}
-			m.application.Preferences.Theme, m.application.Preferences.Appearance = theme, appearance
-		}
-		m.applyAppearance(appearance)
-		m.applyTheme(theme)
-		return nil
-	})
-	m.chrome.Dialog.Form.Choices = map[string][]string{"theme": config.ThemeNames(), "frame": {"outlined", "minimal"}}
 }

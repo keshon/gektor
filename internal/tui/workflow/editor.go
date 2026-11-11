@@ -1,6 +1,6 @@
 // Package workflow owns the workflow editor, graph, execution, and run inspection.
-// Shared terminal controls are supplied through screen.Host; NewScreen is the
-// stateful entry point, while New constructs a standalone recipe Editor.
+// Shared terminal controls are supplied through screen.Host; New is the
+// stateful entry point, while NewEditor constructs a standalone recipe Editor.
 package workflow
 
 import (
@@ -19,7 +19,8 @@ type Editor struct {
 	undo, redo []string
 }
 
-func New() *Editor {
+// NewEditor creates an empty recipe with a clean undo history.
+func NewEditor() *Editor {
 	e := &Editor{Definition: workflow.Definition{Version: 3, Name: "Untitled workflow", Steps: []workflow.Step{}}}
 	e.Saved = e.Source()
 	return e

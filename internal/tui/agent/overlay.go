@@ -91,6 +91,11 @@ func (m *Model) activeInputOwner() focusOwner {
 }
 
 func (m *Model) syncFocus() {
+	if m.hidden {
+		m.input.Blur()
+		m.note.Blur()
+		return
+	}
 	owner := m.activeInputOwner()
 	if m.chrome.Dialog != nil && m.chrome.Dialog.Table != nil {
 		m.chrome.Dialog.Table.Model.SyncFocus(owner == focusDialog)

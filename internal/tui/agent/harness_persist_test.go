@@ -6,8 +6,10 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/roles"
+	"github.com/keshon/gektor/internal/tui/settings"
 )
 
 // These three used to be flags and live model fields, so a step budget or a
@@ -23,7 +25,7 @@ func harnessModel(t *testing.T) (*Model, string) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	m.application = &Application{
+	m.application = &settings.Application{
 		PreferencePath: path,
 		Preferences:    config.Preferences{Version: 1},
 	}
@@ -130,7 +132,7 @@ func TestFailedGlobalModeSaveKeepsExecutingSessionAndMetadata(t *testing.T) {
 	if err := os.WriteFile(path, []byte("invalid json"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	m.application = &Application{Temporary: true, PreferencePath: path, Preferences: config.Preferences{Version: 1, Mode: "plan"}}
+	m.application = &settings.Application{Temporary: true, PreferencePath: path, Preferences: config.Preferences{Version: 1, Mode: "plan"}}
 	previous := m.sess
 	m.command("/mode act")
 	if !m.plan || m.sess != previous || readSavedMode(dir) != "Plan" {

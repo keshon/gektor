@@ -58,13 +58,13 @@ func TestCompletionMouseSelectsWithoutRunningAndClosePreservesDraft(t *testing.T
 	if m.suggestions.Selected != selected || m.transcript.Viewport.YOffset() != offset {
 		t.Fatal("completion footer wheel reached list or transcript")
 	}
-	m.handleKey(tea.KeyPressMsg{Code: tea.KeyPgDown})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyPgDown})
 	if m.suggestions.Selected != min(selected+l.BodyHeight, len(m.suggestions.Items)-1) || m.transcript.Viewport.YOffset() != offset {
 		t.Fatal("paging escaped completion input ownership")
 	}
 	l, x, y = m.suggestionLayout()
 	m.handleMouse(tea.MouseClickMsg{X: x + l.Width - 4, Y: y + 1, Button: tea.MouseLeft})
-	m.Update(tickMsg{})
+	m.testUpdate(tickMsg{})
 	if m.suggestions.Pending() || m.input.Value() != "/" || !m.input.Focused() {
 		t.Fatal("closing completion lost the draft or reopened it")
 	}
@@ -95,14 +95,14 @@ func TestCompletionFitsAllThemesAndReportsTheCurrentRunAction(t *testing.T) {
 			m.applyTheme(theme)
 			m.input.SetValue("/compact")
 			m.syncSuggestions()
-			cursor := m.View().Cursor
+			cursor := m.testView().Cursor
 			for _, state := range []runState{stRunning, stDone} {
 				m.state = state
 				l, _, _ := m.suggestionLayout()
 				if len(l.Rows) > m.transcript.Viewport.Height() {
 					t.Fatal("completion exceeds transcript height", theme, size)
 				}
-				view := m.View()
+				view := m.testView()
 				lines := strings.Split(view.Content, "\n")
 				if len(lines) != m.termH || view.Cursor.Y != cursor.Y {
 					t.Fatal("completion moved composer or changed screen bounds", theme, size)

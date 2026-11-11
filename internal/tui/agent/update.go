@@ -74,15 +74,23 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	defer func() { cmd = tea.Batch(cmd, m.takeCommands()) }()
 	defer m.syncSuggestions()
 	defer m.syncFocus()
-	defer m.queueSettingsDetail()
 	defer m.syncComposerHeight()
+	if m.hidden {
+		switch msg.(type) {
+		case mcpDoneMsg:
+			m.mcpBusy = false
+			return m, nil
+		case sessionCopiedMsg, processListMsg, processStopMsg, processStoppedMsg, mcpActionMsg, inputQueueReturn, permissionTableMsg, clipboardMsg:
+			return m, nil
+		}
+	}
 	switch msg := msg.(type) {
 	case sessionCopiedMsg:
 		if m.chrome.Dialog == nil && m.sessions == nil && m.state != stAsk && m.state != stPermission {
 			if msg.err != nil {
-				m.openDialog("Cannot copy session", []string{msg.err.Error()})
+				m.chrome.Open("Cannot copy session", []string{msg.err.Error()})
 			} else {
-				m.openDialog(msg.label+" copied", []string{msg.text})
+				m.chrome.Open(msg.label+" copied", []string{msg.text})
 			}
 		} else if msg.err != nil {
 			m.appendBlock(errorBlock("Cannot copy session: " + msg.err.Error()))
@@ -98,7 +106,7 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	case processStoppedMsg:
 		if m.chrome.Dialog == msg.dialog {
 			if msg.err != nil {
-				m.openDialog("Cannot stop background process / "+msg.id, []string{msg.err.Error()})
+				m.chrome.Open("Cannot stop background process / "+msg.id, []string{msg.err.Error()})
 				m.chrome.Dialog.OnClose = func() { m.returnToProcesses(msg.view) }
 			} else {
 				m.openProcesses(msg.view)
@@ -120,7 +128,7 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	case mcpDoneMsg:
 		m.mcpBusy = false
 		if msg.err != nil {
-			m.openDialog("MCP / "+msg.id, []string{msg.err.Error()})
+			m.chrome.Open("MCP / "+msg.id, []string{msg.err.Error()})
 			m.chrome.Dialog.OnClose = func() { m.queueMCP("list", msg.id) }
 		} else {
 			m.openMCP()
@@ -133,12 +141,6 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		m.acceptClipboard(msg)
 		return m, nil
 	case tea.FocusMsg, tea.BlurMsg:
-		return m, nil
-	case settingsDetailMsg:
-		m.acceptSettingsDetail(msg)
-		return m, nil
-	case settingsScanMsg:
-		m.acceptSettingsScan(msg)
 		return m, nil
 	case sessionsLoadedMsg:
 		m.acceptSessions(msg)
@@ -248,7 +250,7 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	default:
 		switch m.activeInputOwner() {
 		case focusDialog:
-			return m, m.updateFormInput(msg)
+			return m, m.chrome.UpdateFormInput(msg)
 		case focusNote:
 			var cmd tea.Cmd
 			m.note, cmd = m.note.Update(msg)
@@ -295,8 +297,8 @@ func (m *Model) width(msg tea.WindowSizeMsg) {
 	// Height follows the terminal too: without a refit here a resize
 	// leaves a stale viewport height, clipping content by the delta.
 	m.fitBottom()
-	m.resizeFormEditor()
-	m.scrollDialog(0)
+	m.chrome.ResizeFormEditor()
+	m.chrome.ScrollDialog(0)
 	// Render (or re-render): blocks appended before the first resize
 	// never reached the viewport, and reflow follows later resizes.
 	m.refreshContent()
@@ -606,7 +608,7 @@ func (m *Model) acceptStepEvent(ev harness.Event) {
 }
 
 func (m *Model) acceptGateEvent(ev harness.Event) {
-	m.closeHeader()
+	m.chrome.CloseHeader()
 	kind, _ := ev.Fields["kind"].(string)
 	prompt, _ := ev.Fields["prompt"].(string)
 	m.gate = prompt
@@ -618,7 +620,7 @@ func (m *Model) acceptGateEvent(ev harness.Event) {
 		if m.chrome.Dialog.OnSuspend != nil {
 			m.chrome.Dialog.OnSuspend()
 		}
-		m.closeDialog()
+		m.chrome.Close()
 	}
 	// The prompt lives in the transcript, not the bottom bar: the
 	// bar has a fixed 1-line budget (2 with the answer box), so the

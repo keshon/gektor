@@ -13,6 +13,7 @@ import (
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/harness"
+	"github.com/keshon/gektor/internal/tui/settings"
 )
 
 func TestWorkspaceFilterKeepsGlobalEntries(t *testing.T) {
@@ -171,7 +172,7 @@ func TestOpenSessionRestoresWorkspaceOrReportsMissing(t *testing.T) {
 	if err := snapshot.Save(filepath.Join(dir, "state.json")); err != nil {
 		t.Fatal(err)
 	}
-	m.application = &Application{Preferences: config.Preferences{Workspace: m.wsRoot}}
+	m.application = &settings.Application{Preferences: config.Preferences{Workspace: m.wsRoot}}
 	m.sessions = &sessionsState{entries: []sessionEntry{{dir: dir, title: "saved"}}}
 	if cmd := m.openSelected(); cmd == nil {
 		t.Fatal("no workspace relaunch")

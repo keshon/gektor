@@ -12,7 +12,7 @@ import (
 func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	defer m.syncFocus()
 	if m.chrome.Dialog != nil && m.chrome.Dialog.Table != nil && msg.String() != "ctrl+c" && msg.String() != "ctrl+q" {
-		return m, m.tableInput(msg)
+		return m, m.chrome.TableInput(msg)
 	}
 	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil && msg.String() != "ctrl+c" && msg.String() != "ctrl+q" {
 		return m.formKey(msg)
@@ -161,7 +161,6 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func isMouseClick(msg tea.MouseMsg) bool { _, ok := msg.(tea.MouseClickMsg); return ok }
 
 func (m *Model) infoDialogKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	m.syncControls()
 	if msg.String() == "ctrl+c" {
 		m.quit = true
 		m.cancel()

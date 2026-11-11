@@ -42,27 +42,27 @@ func writeReference(t *testing.T, m *Model, name string, data []byte) {
 func TestCommandSuggestionsInsertWithoutSubmitting(t *testing.T) {
 	m := completionModel(t)
 	m.input.SetValue("/se")
-	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
 	if m.input.Value() != "/sessions " || m.sessions != nil {
 		t.Fatal("Tab must complete the command without running it or switching panes")
 	}
 	m.input.SetValue("/mode p")
-	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
 	if m.input.Value() != "/mode plan " {
 		t.Fatalf("mode suggestion = %q", m.input.Value())
 	}
 	m.input.SetValue("/")
 	m.syncSuggestions()
-	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyDown})
 	if m.suggestions.Selected != 1 {
 		t.Fatal("Down must select the next suggestion")
 	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	m.Update(tickMsg{})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m.testUpdate(tickMsg{})
 	if len(m.suggestions.Items) != 0 || m.input.Value() != "/" {
 		t.Fatal("Esc must dismiss without changing the draft; ticks must not reopen")
 	}
-	m.Update(tea.KeyPressMsg{Code: 'h', Text: "h"})
+	m.testUpdate(tea.KeyPressMsg{Code: 'h', Text: "h"})
 	if len(m.suggestions.Items) != 1 || m.suggestions.Items[0].Value != "/help" {
 		t.Fatal("typing after dismiss should refresh suggestions")
 	}
@@ -72,8 +72,8 @@ func TestEnterRunsSelectedCommand(t *testing.T) {
 	for _, prefix := range []string{"/", "/he", "/help"} {
 		m := completionModel(t)
 		m.input.SetValue(prefix)
-		m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-		m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+		m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
+		m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 		if m.chrome.Dialog == nil || !m.chrome.Dialog.Help || m.input.Value() != "" {
 			t.Fatalf("Enter on %q must execute selected help", prefix)
 		}
@@ -85,9 +85,9 @@ func TestEnterRunsSelectedCommand(t *testing.T) {
 	}
 	m := completionModel(t)
 	m.input.SetValue("/")
-	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
-	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyDown})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.sessions == nil || m.chrome.Dialog != nil {
 		t.Fatal("Enter must execute the highlighted Sessions command")
 	}
@@ -97,12 +97,12 @@ func TestEnterCompletesFileWithoutSubmittingAndRespectsTheRunDuringARun(t *testi
 	m := completionModel(t)
 	writeReference(t, m, "notes.txt", []byte("hello"))
 	m.input.SetValue("read @no")
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.input.Value() != "read @notes.txt " || m.state != stDone {
 		t.Fatal("Enter on a file suggestion must insert without submitting")
 	}
 	m.input.SetValue("/new review @no")
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.input.Value() != "/new review @notes.txt " || m.state != stDone {
 		t.Fatal("file completion inside /new must not execute the command")
 	}
@@ -115,8 +115,8 @@ func TestEnterCompletesFileWithoutSubmittingAndRespectsTheRunDuringARun(t *testi
 	// /new acts on the run, so completing it queues rather than starting a
 	// second task over the first.
 	m.input.SetValue("/ne")
-	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.queued != "/new" || m.chrome.Dialog != nil {
 		t.Fatalf("a run-affecting command must queue during a run: %q", m.queued)
 	}
@@ -126,8 +126,8 @@ func TestEnterCompletesFileWithoutSubmittingAndRespectsTheRunDuringARun(t *testi
 	// differs.
 	m.queued = ""
 	m.input.SetValue("/he")
-	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.queued != "" || m.chrome.Dialog == nil {
 		t.Fatalf("a view command must run during a run: queued %q, dialog %v",
 			m.queued, m.chrome.Dialog != nil)
@@ -137,7 +137,7 @@ func TestEnterCompletesFileWithoutSubmittingAndRespectsTheRunDuringARun(t *testi
 func TestSuggestionPopupHasBackgroundAndFits(t *testing.T) {
 	for _, width := range []int{40, 80, 140} {
 		m := completionModel(t)
-		m.Update(tea.WindowSizeMsg{Width: width, Height: 18})
+		m.testUpdate(tea.WindowSizeMsg{Width: width, Height: 18})
 		m.input.SetValue("/")
 		m.syncSuggestions()
 		body := m.suggestionView(m.transcript.Viewport.View())
@@ -159,11 +159,11 @@ func TestSuggestionPopupHasBackgroundAndFits(t *testing.T) {
 func TestPopupShowsTwelveSuggestionsAndMeetsDivider(t *testing.T) {
 	for _, width := range []int{80, 140} {
 		m := completionModel(t)
-		m.Update(tea.WindowSizeMsg{Width: width, Height: 30})
-		before := m.View().Cursor.Y
+		m.testUpdate(tea.WindowSizeMsg{Width: width, Height: 30})
+		before := m.testView().Cursor.Y
 		m.input.SetValue("/")
 		m.syncSuggestions()
-		view := m.View()
+		view := m.testView()
 		lines := strings.Split(view.Content, "\n")
 		layout, _, top := m.suggestionLayout()
 		bottom := top + len(layout.Rows) - 1
@@ -188,11 +188,11 @@ func TestFileSuggestionsBrowseDirectoriesAndQuoteSpaces(t *testing.T) {
 	m := completionModel(t)
 	writeReference(t, m, "source/my code.go", []byte("package sample"))
 	m.input.SetValue("inspect @so")
-	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
 	if m.input.Value() != "inspect @source/" {
 		t.Fatalf("directory = %q", m.input.Value())
 	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
 	if m.input.Value() != `inspect @"source/my code.go" ` || len(m.suggestions.Items) != 0 {
 		t.Fatalf("file completion = %q", m.input.Value())
 	}
@@ -207,7 +207,7 @@ func TestCompletionAtCursorPreservesSuffixAndUnicode(t *testing.T) {
 	writeReference(t, m, "файл.go", []byte("package sample"))
 	m.input.SetValue("first line\nread @ф then explain")
 	m.input.SetCursorColumn(len([]rune("read @ф")))
-	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
 	if m.input.Value() != "first line\nread @файл.go then explain" || m.input.Line() != 1 || m.input.Column() != len([]rune("read @файл.go ")) {
 		t.Fatalf("cursor completion lost context: %q, cursor %d:%d", m.input.Value(), m.input.Line(), m.input.Column())
 	}
@@ -222,7 +222,7 @@ func TestSuggestionsYieldToOverlaysAndPreserveFrame(t *testing.T) {
 	m := completionModel(t)
 	m.input.SetValue("/")
 	m.syncSuggestions()
-	view := m.View()
+	view := m.testView()
 	if lipgloss.Height(view.Content) != m.termH || view.Cursor == nil {
 		t.Fatal("suggestions must preserve screen height and input caret")
 	}
@@ -231,10 +231,10 @@ func TestSuggestionsYieldToOverlaysAndPreserveFrame(t *testing.T) {
 	if len(m.suggestions.Items) != 0 {
 		t.Fatal("help must hide suggestions")
 	}
-	m.closeDialog()
+	m.testControls().Close()
 	m.state = stRunning
 	m.input.SetValue("read @notes.txt")
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.queued != "read @notes.txt" {
 		t.Fatal("queue must retain original references for resolution when sent")
 	}

@@ -3,23 +3,9 @@ package workflow
 import (
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/screen"
-	"github.com/keshon/gektor/internal/workspace"
 )
-
-// Config supplies the services for one workflow screen. The screen owns Draft
-// after construction; a nil draft starts an empty editor.
-type Config struct {
-	WS                      *workspace.Workspace
-	Client                  llm.Client
-	Policy                  permission.Policy
-	MaxTokens, ContextLimit int
-	Temperature             float64
-	Draft                   *Editor
-}
 
 // State describes the retained screen without exposing its mutable editor or run.
 // Reading it must not serialize the recipe or perform I/O.
@@ -66,14 +52,34 @@ func (m *Model) Command(action string) tea.Cmd {
 	return m.command(action)
 }
 
-// Content renders panes within the supplied surface, without application chrome.
-func (m *Model) Content() string { return m.content() }
+// Presentation supplies local controls and overlay bounds for the active screen.
+func (m *Model) Presentation() screen.ControlProps {
+	surface := m.presentation()
+	_, height := m.canvasSize()
+	props := screen.ControlProps{
+		Ready:  true,
+		Styles: screen.DefaultStyles(),
+		Area: pane.Rect{
+			X:      surface.Inset,
+			Y:      surface.Area.Y + 3,
+			Width:  max(1, surface.Area.Width-2*surface.Inset),
+			Height: height,
+		},
+		Actions: m.footerActions(),
+	}
+	for _, group := range Menus() {
+		group.Items = m.MenuItems(group.ID, true)
+		for i := range group.Items {
+			_, group.Items[i].Checked = m.MenuToggle(group.Items[i].Command)
+			group.Items[i].Shortcut = MenuShortcut(group.Items[i].Command)
+		}
+		props.Menus = append(props.Menus, group)
+	}
+	return props
+}
 
 // CanvasSize returns the usable canvas dimensions in terminal cells.
 func (m *Model) CanvasSize() (int, int) { return m.canvasSize() }
-
-// Actions supplies the shortcuts for the shared application toolbar.
-func (m *Model) Actions() []screen.Action { return m.footerActions() }
 
 // TakeCommands transfers queued effects to the shell exactly once.
 func (m *Model) TakeCommands() []tea.Cmd {
@@ -85,12 +91,27 @@ func (m *Model) TakeCommands() []tea.Cmd {
 // Message identifies asynchronous workflow results without exposing their payloads.
 type Message interface{ workflowMessage() }
 
-func (workflowAction) workflowMessage()     {}
-func (workflowProposal) workflowMessage()   {}
+func (workflowAction) workflowMessage() {}
+
+func (workflowProposal) workflowMessage() {}
+
 func (workflowPermission) workflowMessage() {}
-func (workflowResult) workflowMessage()     {}
-func (workflowRunID) workflowMessage()      {}
-func (workflowPoll) workflowMessage()       {}
+
+func (workflowResult) workflowMessage() {}
+
+func (workflowRunID) workflowMessage() {}
+
+func (workflowPoll) workflowMessage() {}
 
 // Dirty reports whether the retained recipe has unsaved edits.
 func (m *Model) Dirty() bool { return m.editor.Dirty() }
+
+// Close cancels screen operations and releases its launch context.
+func (m *Model) Close() {
+	if m.cancel != nil {
+		m.cancel()
+	}
+	m.shutdown()
+}
+
+func (m *Model) Init() tea.Cmd { return nil }

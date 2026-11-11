@@ -12,14 +12,14 @@ func TestMultilinePasteWaitsForEnterInConversationStates(t *testing.T) {
 	for _, state := range []runState{stDone, stRunning, stAsk} {
 		m := sizeModel(t, testModel())
 		m.state = state
-		m.Update(tea.PasteStartMsg{})
-		m.Update(tea.PasteMsg{Content: text})
-		m.Update(tea.PasteEndMsg{})
+		m.testUpdate(tea.PasteStartMsg{})
+		m.testUpdate(tea.PasteMsg{Content: text})
+		m.testUpdate(tea.PasteEndMsg{})
 		if m.input.Value() != text || m.state != state || m.queued != "" || m.quit {
 			t.Fatalf("paste changed task in state %d: %q", state, m.input.Value())
 		}
 		if state == stRunning {
-			m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+			m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 			if m.input.Value() != "" || m.queued != strings.TrimSpace(text) {
 				t.Fatal("Enter did not submit pasted draft")
 			}

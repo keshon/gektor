@@ -12,7 +12,7 @@ func TestHelpPagesFitAndRemainReachable(t *testing.T) {
 	for _, width := range []int{40, 80, 140} {
 		for _, height := range []int{18, 30} {
 			m := testModel()
-			m.Update(tea.WindowSizeMsg{Width: width, Height: height})
+			m.testUpdate(tea.WindowSizeMsg{Width: width, Height: height})
 			m.input.SetValue("draft\nsecond line")
 			m.openHelp()
 			for page, section := range helpSections() {
@@ -21,7 +21,7 @@ func TestHelpPagesFitAndRemainReachable(t *testing.T) {
 				}
 				for _, offset := range []int{0, 1000} {
 					m.chrome.Dialog.Offset = offset
-					view := m.dialogView()
+					view := m.testControls().DialogView()
 					if lipgloss.Height(view) > m.transcript.Viewport.Height() {
 						t.Fatalf("%dx%d: help exceeds viewport height", width, height)
 					}
@@ -38,7 +38,7 @@ func TestHelpPagesFitAndRemainReachable(t *testing.T) {
 						}
 					}
 				}
-				m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+				m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab})
 				if m.chrome.Dialog.Offset != 0 {
 					t.Fatal("category change must reset scrolling")
 				}
@@ -46,11 +46,11 @@ func TestHelpPagesFitAndRemainReachable(t *testing.T) {
 			if m.chrome.Dialog.Page != 0 {
 				t.Fatal("categories must wrap")
 			}
-			m.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+			m.testUpdate(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
 			if m.chrome.Dialog.Page != len(helpSections())-1 {
 				t.Fatal("Shift+Tab must go backwards")
 			}
-			m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+			m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEscape})
 			if m.chrome.Dialog != nil || m.input.Value() != "draft\nsecond line" {
 				t.Fatal("help changed the draft")
 			}

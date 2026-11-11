@@ -4,7 +4,7 @@ import "github.com/keshon/gektor/internal/tui/screen"
 
 // Menus lists the workflow-specific command groups in navigation order.
 func Menus() []screen.Menu {
-	return []screen.Menu{{ID: "recipe", Label: "Recipe"}, {ID: "node", Label: "Node"}}
+	return []screen.Menu{{ID: "recipe", Label: "Recipe"}, {ID: "node", Label: "Node"}, {ID: "execution", Label: "Run"}, {ID: "view", Label: "View"}}
 }
 
 // MenuItems supplies recipe, node, execution, and view commands. applicationIdle
@@ -43,7 +43,6 @@ func (m *Model) MenuItems(menu string, applicationIdle bool) []screen.MenuItem {
 			{Text: "Set up schedule…", Command: "/workflows schedule", Enabled: edit},
 			{Text: "Refresh schedule status", Command: "/workflows schedule-refresh", Enabled: idle}, sep,
 			{Text: "Run with JSON inputs…", Command: "/workflows run-json", Enabled: edit}, sep,
-			{Text: "Background processes…", Command: "/processes", Enabled: true},
 		}
 	case "view":
 		return []screen.MenuItem{

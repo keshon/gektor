@@ -40,8 +40,8 @@ func TestRunFailureAppearsOnceAndDoesNotShrinkComposer(t *testing.T) {
 	m.input.SetValue("preserved draft")
 	m.fitBottom()
 	height := m.transcript.Viewport.Height()
-	m.Update(doneMsg{err: errors.New("checkpoint failed: summary limit reached")})
-	view := ansi.Strip(m.View().Content)
+	m.testUpdate(doneMsg{err: errors.New("checkpoint failed: summary limit reached")})
+	view := ansi.Strip(m.testView().Content)
 	if strings.Count(view, "summary limit reached") != 1 || !strings.Contains(view, "try the summary again") {
 		t.Fatal(view)
 	}

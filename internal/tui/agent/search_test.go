@@ -56,7 +56,7 @@ func TestSearchPopupGeometryAndDraftPreservation(t *testing.T) {
 		for i := 0; i < 9; i++ {
 			writeSessionState(t, sessionsRootFor(t, m.wsRoot), fmt.Sprint(i), userHistory(fmt.Sprintf("Session %d", i)))
 		}
-		m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+		m.testUpdate(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 		m.input.SetValue("draft\nsecond line")
 		m.fitBottom()
 		m.openSessions()
@@ -64,7 +64,7 @@ func TestSearchPopupGeometryAndDraftPreservation(t *testing.T) {
 		m.sessions.filter.SetValue("Session")
 		m.sessions.applyFilter()
 		g := m.searchGeometry()
-		view := m.View()
+		view := m.testView()
 		if strings.Contains(m.sessions.filter.View(), "…") {
 			t.Fatal("search field clipped its own padding")
 		}
@@ -126,7 +126,7 @@ func TestSearchHistoryMatchOpensAtMessage(t *testing.T) {
 	dir := writeSessionState(t, sessionsRootFor(t, m.wsRoot), "match", history)
 	assignSavedWorkspace(t, filepath.Join(dir, "state.json"), m.wsRoot)
 	m.newSession = func(string, string, []string) (*harness.Session, error) { return &harness.Session{}, nil }
-	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.testUpdate(tea.WindowSizeMsg{Width: 120, Height: 30})
 	m.openSessions()
 	finishSessionRefresh(t, m)
 	m.sessions.filter.SetValue("unique phrase")
@@ -142,7 +142,7 @@ func TestSessionRenameAndDeleteKeepModalOpen(t *testing.T) {
 	m.state = stDone
 	m.wsRoot = t.TempDir()
 	dir := writeSessionState(t, sessionsRootFor(t, m.wsRoot), "one", userHistory("Original title"))
-	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.testUpdate(tea.WindowSizeMsg{Width: 120, Height: 30})
 	m.refreshSessions()
 	finishSessionRefresh(t, m)
 	m.openSessions()

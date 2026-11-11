@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/internal/tui/settings"
 	"github.com/keshon/gektor/internal/tui/workflow"
 )
 
@@ -13,6 +14,8 @@ import (
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch value := msg.(type) {
+	case settings.DetailMsg, settings.ScanMsg:
+		m.acceptSettings(msg)
 	case workflow.Message:
 		if m.workflows != nil {
 			_, cmd = m.workflows.Update(value)
@@ -43,6 +46,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else if request.Screen == "agent" {
 				m.showAgent()
 			}
+		case screen.ApplicationCommand:
+			requests = append(requests, m.runAction(request.Command))
 		case screen.QuitRequest:
 			_, next := m.requestQuit()
 			requests = append(requests, next)
@@ -54,9 +59,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		requests = append(requests, next)
 	}
 	if m.workflowActive() && !m.workflows.State().Active {
-		m.active = agentScreen
+		m.showAgent()
 	}
 	m.syncPresentation()
+	if _, resized := msg.(tea.WindowSizeMsg); resized {
+		m.chrome.ScrollDialog(0)
+	}
 	return m, tea.Batch(cmd, tea.Batch(requests...), m.takeCommands())
 }
 func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -131,6 +139,9 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 func (m *Model) runAction(command string) tea.Cmd {
+	if m.applicationAction(command) {
+		return nil
+	}
 	switch command {
 	case "":
 		return nil

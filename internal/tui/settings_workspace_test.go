@@ -1,4 +1,4 @@
-package agent
+package tui
 
 import (
 	"net/http"
@@ -19,12 +19,12 @@ import (
 // together on Apply, and the saved task is left for the restart to replace.
 func TestSettingsAcrossCategoriesApplyTogether(t *testing.T) {
 	m := settingsModel(t)
-	path := m.stateFile
+	path := stateFileOf(m)
 	before, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	draft := m.input.Value()
+	draft := draftOf(m)
 	m.editSettings("generation")
 	m.chrome.Dialog.Form.Editor.SetValue("0.8")
 	m.editSettings("you")
@@ -45,10 +45,10 @@ func TestSettingsAcrossCategoriesApplyTogether(t *testing.T) {
 	if profile.Generation.Temperature != .8 || profile.Identity.UserName != "Alex" {
 		t.Fatalf("apply lost staged values: %+v", profile.Generation)
 	}
-	if m.input.Value() != draft {
+	if draftOf(m) != draft {
 		t.Fatal("apply lost the draft")
 	}
-	if m.stateFile != path {
+	if stateFileOf(m) != path {
 		t.Fatal("apply moved the session")
 	}
 	after, err := os.ReadFile(path)
@@ -59,21 +59,22 @@ func TestSettingsAcrossCategoriesApplyTogether(t *testing.T) {
 
 func TestSettingsCancelAllCategories(t *testing.T) {
 	m := settingsModel(t)
-	configured := m.config
-	profile := m.config.Profile
+	configured := m.profile
+	profile := m.profile.Profile
 	m.editSettings("generation")
 	m.chrome.Dialog.Form.Editor.SetValue("0.9")
 	m.editSettings("you")
 	m.focusForm(0)
 	m.chrome.Dialog.Form.Editor.SetValue("Changed")
 	m.closeDialog()
-	if m.config != configured || m.config.Profile.Identity.UserName != profile.Identity.UserName || m.config.Identity.Temperature != 0 {
+	if m.profile != configured || m.profile.Profile.Identity.UserName != profile.Identity.UserName || m.profile.Identity.Temperature != 0 {
 		t.Fatal("cancel applied staged values")
 	}
 	if m.modeChange != nil {
 		t.Fatal("cancel queued a restart")
 	}
 }
+
 func TestPickerSearchBackAndStaleScan(t *testing.T) {
 	m := settingsModel(t)
 	m.editSettings("profiles")
@@ -85,7 +86,7 @@ func TestPickerSearchBackAndStaleScan(t *testing.T) {
 	}
 	m.chrome.Dialog.Form.OpenPicker(m.settingsProps())
 	p := m.chrome.Dialog.Form.Picker
-	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{"C:/profiles/qwen.json", "C:/profiles/chronos.json"}})
+	m.Update(settings.ScanMsg{ID: p.ID, Items: []string{"C:/profiles/qwen.json", "C:/profiles/chronos.json"}})
 	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: 'c', Text: "c"}, m.settingsProps())
 	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: 'h', Text: "h"}, m.settingsProps())
 	if len(p.Filtered) != 1 || !strings.Contains(p.Filtered[0], "chronos") {
@@ -96,7 +97,7 @@ func TestPickerSearchBackAndStaleScan(t *testing.T) {
 	if m.chrome.Dialog.Form.Editor.Value() != previous || m.chrome.Dialog.Form.Picker != nil {
 		t.Fatal("picker cancel changed the field")
 	}
-	m.acceptSettingsScan(settingsScanMsg{ID: p.ID, Items: []string{"late.json"}})
+	m.Update(settings.ScanMsg{ID: p.ID, Items: []string{"late.json"}})
 	if m.chrome.Dialog.Form.Picker != nil {
 		t.Fatal("late scan reopened picker")
 	}
@@ -121,7 +122,7 @@ func TestSettingsPasteRespectsNestedFocus(t *testing.T) {
 	if p.Search.Value() != "open" || !reflect.DeepEqual(p.Filtered, []string{"openai"}) {
 		t.Fatal("picker paste did not update search and filtered options")
 	}
-	if f.Editor.Value() != before || f.Editor.Focused() || m.input.Focused() {
+	if f.Editor.Value() != before || f.Editor.Focused() || m.View().Cursor != nil {
 		t.Fatal("picker paste reached an inactive editor")
 	}
 	p.Search.SetValue("")
@@ -145,6 +146,7 @@ func TestSettingsPasteRespectsNestedFocus(t *testing.T) {
 		t.Fatal("pasting after a picker did not reach the field")
 	}
 }
+
 func TestSettingsWorkspacePreview(t *testing.T) {
 	dir := os.Getenv("GEKTOR_TUI_PREVIEW_DIR")
 	if dir == "" {
@@ -152,8 +154,8 @@ func TestSettingsWorkspacePreview(t *testing.T) {
 	}
 	os.MkdirAll(dir, 0700)
 	m := settingsModel(t)
-	m.config.Profile.Provider.URL = "http://127.0.0.1:8080"
-	m.width(tea.WindowSizeMsg{Width: 120, Height: 34})
+	m.profile.Profile.Provider.URL = "http://127.0.0.1:8080"
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 34})
 	m.editSettings("model")
 	write := func(name string) {
 		t.Helper()
@@ -164,7 +166,7 @@ func TestSettingsWorkspacePreview(t *testing.T) {
 	write("model-page")
 	m.editSettings("generation")
 	write("generation-workspace")
-	m.width(tea.WindowSizeMsg{Width: 80, Height: 24})
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	write("settings-narrow")
 }
 
@@ -197,8 +199,8 @@ func TestRemoteModelsDiscovery(t *testing.T) {
 // seed the new session from nothing.
 func TestUnreadableTaskStopsApplyBeforeWriting(t *testing.T) {
 	m := settingsModel(t)
-	configured := m.config
-	path := m.stateFile
+	configured := m.profile
+	path := stateFileOf(m)
 	// Replace the task file with a directory to force the read to fail.
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
@@ -215,7 +217,7 @@ func TestUnreadableTaskStopsApplyBeforeWriting(t *testing.T) {
 	if m.modeChange != nil {
 		t.Fatal("a failed read still queued a restart")
 	}
-	if m.config != configured || m.config.Identity.Temperature != 0 {
+	if m.profile != configured || m.profile.Identity.Temperature != 0 {
 		t.Fatal("failed persistence changed the active configuration")
 	}
 }
@@ -227,7 +229,7 @@ func TestUnreadableTaskStopsApplyBeforeWriting(t *testing.T) {
 // only one that did not look like the app.
 func TestSettingsIsDrawnInsideTheAppChrome(t *testing.T) {
 	m := settingsModel(t)
-	m.width(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	m.editSettings("generation")
 	view := m.View().Content
 	if !strings.Contains(view, "╭") || !strings.Contains(view, "╯") {
@@ -239,14 +241,20 @@ func TestSettingsIsDrawnInsideTheAppChrome(t *testing.T) {
 			t.Fatalf("settings dropped the %q header:\n%s", chrome, view)
 		}
 	}
-	// The conversation must not show through behind the panel.
-	for _, behind := range []string{"Base rules", "hello", "reply"} {
-		if strings.Contains(view, behind) {
-			t.Fatalf("settings showed the conversation behind it (%q)", behind)
+	// The shared panel must cover its own rectangle, with history retained outside.
+	x, y := m.chrome.Dialog.Form.Origin(m.settingsProps())
+	_, _, width, height := m.formRows()
+	lines := strings.Split(view, "\n")
+	for _, line := range lines[y:min(y+height, len(lines))] {
+		panel := ansi.Cut(line, x, x+width)
+		for _, behind := range []string{"Base rules", "hello", "reply"} {
+			if strings.Contains(panel, behind) {
+				t.Fatalf("conversation showed through form: %q", behind)
+			}
 		}
 	}
 	m.closeDialog()
-	if m.input.Value() != "unfinished draft" {
+	if draftOf(m) != "unfinished draft" {
 		t.Fatal("closing settings lost the composer draft")
 	}
 }
@@ -266,7 +274,7 @@ func TestPromptPresetIsStagedNotApplied(t *testing.T) {
 	}
 	m.chrome.Dialog.Form.Editor.SetValue("coding")
 	staged, err := m.stagedSettings()
-	if err != nil || staged.Identity.PromptPreset != "coding" || m.config.Profile.Identity.PromptPreset != "" {
+	if err != nil || staged.Identity.PromptPreset != "coding" || m.profile.Profile.Identity.PromptPreset != "" {
 		t.Fatal("preset not staged independently", staged, err)
 	}
 	m.closeDialog()

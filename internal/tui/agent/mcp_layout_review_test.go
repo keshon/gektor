@@ -43,17 +43,17 @@ func TestMCPReviewLayouts(t *testing.T) {
 			m.mcp, m.state = manager, stDone
 			m.applyTheme(theme)
 			m.openMCP()
-			p := m.tableProps()
+			p := m.testControls().TableProps()
 			layout := m.chrome.Dialog.Table.Model.Layout(p)
 			if len(layout.Rows)+2 > p.Height || layout.Capacity < 1 {
 				t.Fatal("MCP controls exceed available height", theme, size)
 			}
 			selected := m.chrome.Dialog.Table.Model.Selected()
-			m.handleKey(tea.KeyPressMsg{Code: 'm', Text: "m"})
+			m.testKey(tea.KeyPressMsg{Code: 'm', Text: "m"})
 			if !m.chrome.Dialog.Table.Model.MoreOpen {
 				t.Fatal("MCP More menu is unavailable", theme, size)
 			}
-			menu := m.chrome.Dialog.Table.Model.Layout(m.tableProps()).Menu
+			menu := m.chrome.Dialog.Table.Model.Layout(m.testControls().TableProps()).Menu
 			screen := uv.NewScreenBuffer(menu.Width, len(menu.Rows))
 			uv.NewStyledString(strings.Join(menu.Rows, "\n")).Draw(screen, uv.Rect(0, 0, menu.Width, len(menu.Rows)))
 			for row, text := range menu.Rows {
@@ -66,11 +66,11 @@ func TestMCPReviewLayouts(t *testing.T) {
 			}
 			if dir := os.Getenv("GEKTOR_TUI_PREVIEW_DIR"); dir != "" {
 				path := filepath.Join(dir, fmt.Sprintf("mcp-more-%s-%dx%d.ansi", theme, size[0], size[1]))
-				if err := os.WriteFile(path, []byte(m.View().Content), 0600); err != nil {
+				if err := os.WriteFile(path, []byte(m.testView().Content), 0600); err != nil {
 					t.Fatal(err)
 				}
 			}
-			m.handleKey(tea.KeyPressMsg{Code: tea.KeyEsc})
+			m.testKey(tea.KeyPressMsg{Code: tea.KeyEsc})
 			if m.chrome.Dialog == nil || m.chrome.Dialog.Table.Model.MoreOpen || m.chrome.Dialog.Table.Model.Selected() != selected {
 				t.Fatal("returning from More lost the server list")
 			}
@@ -84,7 +84,7 @@ func TestMCPReviewLayouts(t *testing.T) {
 					t.Fatal(err)
 				}
 				path := filepath.Join(dir, fmt.Sprintf("mcp-%s-%dx%d.ansi", theme, size[0], size[1]))
-				if err := os.WriteFile(path, []byte(m.View().Content), 0600); err != nil {
+				if err := os.WriteFile(path, []byte(m.testView().Content), 0600); err != nil {
 					t.Fatal(err)
 				}
 			}

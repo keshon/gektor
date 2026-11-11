@@ -8,7 +8,7 @@ import (
 )
 
 func connectedEditor() *Editor {
-	e := New()
+	e := NewEditor()
 	e.Definition.Steps = []workflow.Step{
 		{ID: "a", Tool: "test", Args: json.RawMessage(`{}`)},
 		{ID: "b", Tool: "test", DependsOn: []string{"a"}, Args: json.RawMessage(`{"input":[{"$step":"a","pointer":"/first"}],"exact":9007199254740993}`), When: json.RawMessage(`{"$step":"a","pointer":"/ready"}`), ForEach: json.RawMessage(`{"$step":"a","pointer":"/items"}`)},
@@ -91,7 +91,7 @@ func TestConnectionChangesRejectCyclesStaleLinksAndInvalidPointers(t *testing.T)
 }
 
 func TestRemovingRequiredArgumentDoesNotInventReplacement(t *testing.T) {
-	e := New()
+	e := NewEditor()
 	e.Definition.Steps = []workflow.Step{{ID: "a", Args: json.RawMessage(`{}`)}, {ID: "b", Args: json.RawMessage(`{"input":{"$step":"a"},"exact":9007199254740993}`)}}
 	c := e.Connections("b")[0]
 	if err := e.ChangeConnection(&c, nil); err != nil {

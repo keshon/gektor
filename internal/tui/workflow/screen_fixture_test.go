@@ -85,7 +85,7 @@ func workflowTestModel(t *testing.T) *model {
 			}
 		},
 	}
-	m.workflows, err = NewScreen(m.base, Config{WS: ws, Policy: m.baseEnv.Policy}, host, m.surface)
+	m.workflows, err = New(m.base, Config{WS: ws, Policy: m.baseEnv.Policy}, host, m.surface)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func (m *model) panelGeometry(width, footer int, close, conversation bool) pane.
 }
 func (m *model) workflowCommand(action string) tea.Cmd { return m.workflows.Command(action) }
 func (m *model) workflowScreen() string {
-	return strings.Repeat(" ", m.termW) + "\n" + m.workflows.Content() + "\n" + strings.Repeat(" ", m.termW)
+	return strings.Repeat(" ", m.termW) + "\n" + strings.TrimPrefix(m.workflows.View().Content, "\n") + "\n" + strings.Repeat(" ", m.termW)
 }
 func (m *model) screenContent() string {
 	if m.dialog == nil {

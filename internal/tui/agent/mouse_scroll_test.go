@@ -37,13 +37,13 @@ func TestWheelScrollsTheTranscriptInEveryStateThatShowsIt(t *testing.T) {
 
 			mid := m.transcript.Viewport.Total() / 2
 			m.transcript.Viewport.SetYOffset(mid)
-			_, _ = m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelUp, X: 60, Y: 10})
+			_, _ = m.testUpdate(tea.MouseWheelMsg{Button: tea.MouseWheelUp, X: 60, Y: 10})
 			if got := m.transcript.Viewport.YOffset(); got >= mid {
 				t.Fatalf("wheel up did not scroll: %d -> %d", mid, got)
 			}
 			up := m.transcript.Viewport.YOffset()
 
-			_, _ = m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown, X: 60, Y: 10})
+			_, _ = m.testUpdate(tea.MouseWheelMsg{Button: tea.MouseWheelDown, X: 60, Y: 10})
 			if got := m.transcript.Viewport.YOffset(); got <= up {
 				t.Fatalf("wheel down did not scroll: %d -> %d", up, got)
 			}
@@ -68,7 +68,7 @@ func TestWheelScrollsTheGatePreviewWhenItTakesThePane(t *testing.T) {
 		t.Fatal("a free-text question should not open an options popup")
 	}
 	before := m.transcript.Viewport.YOffset()
-	_, _ = m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown, X: 60, Y: 10})
+	_, _ = m.testUpdate(tea.MouseWheelMsg{Button: tea.MouseWheelDown, X: 60, Y: 10})
 	if got := m.transcript.Viewport.YOffset(); got != before {
 		t.Fatalf("the hidden transcript moved: %d -> %d", before, got)
 	}
@@ -94,12 +94,12 @@ func TestWheelScrollsTheDialogNotTheTranscript(t *testing.T) {
 	for i := range rows {
 		rows[i] = "dialog line"
 	}
-	m.openDialog("long", rows)
-	m.View() // the offset is clamped against the visible capacity at render
+	m.testControls().Open("long", rows)
+	m.testView() // the offset is clamped against the visible capacity at render
 	if m.chrome.Dialog.Offset != 0 {
 		t.Fatal("a dialog longer than the pane does not start at the top")
 	}
-	_, _ = m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown, X: 60, Y: 10})
+	_, _ = m.testUpdate(tea.MouseWheelMsg{Button: tea.MouseWheelDown, X: 60, Y: 10})
 	if m.chrome.Dialog.Offset != 1 {
 		t.Fatalf("the dialog did not scroll: offset=%d", m.chrome.Dialog.Offset)
 	}
@@ -112,7 +112,7 @@ func TestWheelOverHistoryWorksBesideSessionList(t *testing.T) {
 	m := scrollModel(t, 140, 30)
 	m.savedSessions = []sessionEntry{{id: "a"}, {id: "b"}}
 	m.input.Blur()
-	m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown, X: m.termW - 5, Y: paneTop + 3})
+	m.testUpdate(tea.MouseWheelMsg{Button: tea.MouseWheelDown, X: m.termW - 5, Y: paneTop + 3})
 	if m.transcript.Viewport.YOffset() == 0 {
 		t.Fatal("wheel over history failed or changed session selection")
 	}
@@ -124,23 +124,23 @@ func TestDialogOverscrollRespondsToTheFirstReverseStep(t *testing.T) {
 	for i := range rows {
 		rows[i] = fmt.Sprintf("dialog line %d", i)
 	}
-	m.openDialog("long", rows)
+	m.testControls().Open("long", rows)
 	for range 200 {
-		m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
+		m.testUpdate(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
 	}
-	before := m.View().Content
+	before := m.testView().Content
 	bottom := m.chrome.Dialog.Offset
-	m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
-	if m.chrome.Dialog.Offset != bottom-1 || m.View().Content == before {
+	m.testUpdate(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
+	if m.chrome.Dialog.Offset != bottom-1 || m.testView().Content == before {
 		t.Fatal("reverse wheel was swallowed by an invisible overscroll")
 	}
 	for range 200 {
-		m.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
+		m.testUpdate(tea.KeyPressMsg{Code: tea.KeyPgDown})
 	}
-	m.Update(tea.WindowSizeMsg{Width: 120, Height: 35})
-	before = m.View().Content
-	m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
-	if m.View().Content == before {
+	m.testUpdate(tea.WindowSizeMsg{Width: 120, Height: 35})
+	before = m.testView().Content
+	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyUp})
+	if m.testView().Content == before {
 		t.Fatal("resize left the dialog overscrolled")
 	}
 }
@@ -149,17 +149,17 @@ func TestHelpCategoriesStayWithinVisibleSections(t *testing.T) {
 	for _, title := range []string{"Help", "Commands", "Keyboard shortcuts"} {
 		t.Run(title, func(t *testing.T) {
 			m := sizeModel(t, testModel())
-			m.openDialog(title, nil)
+			m.testControls().Open(title, nil)
 			m.chrome.Dialog.Help = true
 			count := len(m.dialogHelpSections())
 			for _, key := range []rune{tea.KeyRight, tea.KeyLeft, tea.KeyTab} {
 				for range 12 {
-					m.Update(tea.KeyPressMsg{Code: key})
+					m.testUpdate(tea.KeyPressMsg{Code: key})
 					if m.chrome.Dialog.Page < 0 || m.chrome.Dialog.Page >= count {
 						t.Fatalf("category %d outside %d sections", m.chrome.Dialog.Page, count)
 					}
-					m.View()
-					m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+					m.testView()
+					m.testUpdate(tea.WindowSizeMsg{Width: 100, Height: 30})
 				}
 			}
 		})

@@ -93,7 +93,7 @@ func sizeModelTo(t *testing.T, m *Model, width, height int) *Model {
 }
 func setMinimal(t *testing.T, m *Model, minimal bool) {
 	t.Helper()
-	m.agent.Action("appearance")
+	m.runAction("appearance")
 	values := m.chrome.Dialog.Form.Values()
 	values["frame"] = "outlined"
 	if minimal {
@@ -165,5 +165,4 @@ func (m *Model) rawHeaderItems() []screen.MenuItem {
 	m.syncPresentation()
 	return m.chrome.RawHeaderItems()
 }
-func (m *Model) applyTheme(theme string)   { m.agent.Action("/theme " + theme); m.syncPresentation() }
 func (m *Model) graphStyles() graph.Styles { return screen.DefaultSurfaceStyles().Graph }

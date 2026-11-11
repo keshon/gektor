@@ -2,73 +2,41 @@ package agent
 
 import (
 	"github.com/keshon/gektor/internal/tui/screen"
-	"github.com/keshon/gektor/internal/tui/settings"
 )
 
-type menuItem = screen.MenuItem
-
-type menuDefinition = screen.Menu
-
-// menuDefinitions describes application navigation independently of header layout.
-func (m *Model) menuDefinitions() []menuDefinition {
-	menus := []menuDefinition{{ID: "app", Label: "GEKTOR"}}
-	menus = append(menus, menuDefinition{ID: "session", Label: "Session"})
-	return append(menus, menuDefinition{ID: "execution", Label: "Run"}, menuDefinition{ID: "view", Label: "View"}, menuDefinition{ID: "settings", Label: "Settings"}, menuDefinition{ID: "help", Label: "Help"})
+// menuDefinitions lists Agent-local command groups.
+func (m *Model) menuDefinitions() []screen.Menu {
+	return []screen.Menu{{ID: "session", Label: "Session"}, {ID: "execution", Label: "Run"}, {ID: "view", Label: "View"}}
 }
 
-// A narrow terminal keeps every menu reachable through More rather than clipping it.
-func (m *Model) visibleMenus() []menuDefinition {
-	m.syncMenus()
-	return m.chrome.VisibleMenus()
-}
-
-func (m *Model) menuItems(menu string) []menuItem {
+func (m *Model) menuItems(menu string) []screen.MenuItem {
 	idle := m.state == stDone
-	sep := menuItem{}
+	sep := screen.MenuItem{}
 	switch menu {
 	case "overflow":
 		visible := map[string]bool{}
-		for _, item := range m.visibleMenus() {
+		for _, item := range m.chrome.VisibleMenus() {
 			visible[item.ID] = true
 		}
-		var rows []menuItem
+		var rows []screen.MenuItem
 		for _, item := range m.menuDefinitions() {
 			if !visible[item.ID] {
-				rows = append(rows, menuItem{Text: item.Label, Command: "menu:" + item.ID, Enabled: true})
+				rows = append(rows, screen.MenuItem{Text: item.Label, Command: "menu:" + item.ID, Enabled: true})
 			}
 		}
 		return rows
-	case "app":
-		return []menuItem{{Text: "Agent", Command: "screen:agent", Enabled: idle}, {Text: "Workflows", Command: "screen:workflows", Enabled: idle}, sep,
-			{Text: "Change workspace…", Command: "workspace", Enabled: idle && m.application != nil}, sep, {Text: "Quit", Command: "quit", Enabled: true}}
 	case "session":
 		saved := idle && m.stateFile != ""
-		return append([]menuItem{{Text: "New session", Command: "/new", Enabled: idle}, {Text: "Open session…", Command: "/sessions", Enabled: true},
+		return append([]screen.MenuItem{{Text: "New session", Command: "/new", Enabled: idle}, {Text: "Open session…", Command: "/sessions", Enabled: true},
 			{Text: "Rename session…", Command: "rename-current", Enabled: saved}, {Text: "Delete session…", Command: "delete-current", Enabled: saved}, sep,
 			{Text: "Compact history…", Command: "compact-session", Enabled: saved}, sep}, m.sessionCopyItems()...)
 	case "execution":
-		return []menuItem{{Text: "Plan — read-only", Command: "/mode plan", Enabled: idle}, {Text: "Act — allow changes", Command: "/mode act", Enabled: idle}, sep,
+		return []screen.MenuItem{{Text: "Plan — read-only", Command: "/mode plan", Enabled: idle}, {Text: "Act — allow changes", Command: "/mode act", Enabled: idle}, sep,
 			{Text: "Stop run", Command: "stop", Enabled: m.state == stRunning}, {Text: "Retry failed turn", Command: "/retry", Enabled: idle && m.runErr != nil && m.retryRun != nil}, sep,
 			{Text: "Message queue…", Command: "message-queue", Enabled: true}, {Text: "Background processes…", Command: "/processes", Enabled: true}, {Text: "Apply new messages during run", Command: "toggle-steering", Enabled: true}}
 	case "view":
-		return []menuItem{{Text: "Thinking", Command: "toggle-details", Enabled: true}, {Text: "Tool calls", Command: "toggle-tools", Enabled: true}, {Text: "System messages", Command: "toggle-sys", Enabled: true},
+		return []screen.MenuItem{{Text: "Thinking", Command: "toggle-details", Enabled: true}, {Text: "Tool calls", Command: "toggle-tools", Enabled: true}, {Text: "System messages", Command: "toggle-sys", Enabled: true},
 			{Text: "Speaker names", Command: "toggle-names", Enabled: true}, {Text: "Message labels", Command: "toggle-labels", Enabled: true}, sep, {Text: "Jump to latest", Command: "latest", Enabled: true}}
-	case "settings":
-		editable := idle && m.config != nil
-		section := func(id string) menuItem {
-			return menuItem{Text: settings.SectionTitle(id) + "…", Command: "edit:" + id, Enabled: editable}
-		}
-		rows := []menuItem{section("model"), section("generation"), section("profiles")}
-		if m.config != nil {
-			rows = append(rows, sep, section("you"), section("prompts"))
-		}
-		return append(rows, sep, menuItem{Text: "Permissions…", Command: "permissions-info", Enabled: true}, menuItem{Text: "MCP servers…", Command: "/mcp", Enabled: true}, sep, menuItem{Text: "Appearance…", Command: "appearance", Enabled: true})
-	case "help":
-		rows := []menuItem{{Text: "Keyboard shortcuts", Command: "help-keys", Enabled: true}, {Text: "Commands", Command: "help-commands", Enabled: true}}
-		if m.config != nil {
-			rows = append(rows, menuItem{Text: "Inspect agent instructions…", Command: "prompt-info", Enabled: true})
-		}
-		return append(rows, sep, menuItem{Text: "About GEKTOR", Command: "about", Enabled: true})
 	}
 	return nil
 }
