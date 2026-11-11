@@ -54,4 +54,4 @@ an individual tool implementation. Live extension tests remain separate.
 
 From the repository root, run `go test ./internal/roles`; use
 `go test -race ./internal/roles` for observer, delegation, or lifetime changes.
-Follow the [Readable Go skill](../../.agents/skills/go-readable-keshon/SKILL.md).
+Follow the [Go style skill](../../.agents/skills/go-style/SKILL.md).

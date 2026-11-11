@@ -89,4 +89,4 @@ go test ./cmd/... ./internal/...
 
 Changes to public contracts also require checking roles, tools, harness, and
 frontend callers. Follow the
-[Readable Go skill](../../.agents/skills/go-readable-keshon/SKILL.md).
+[Go style skill](../../.agents/skills/go-style/SKILL.md).

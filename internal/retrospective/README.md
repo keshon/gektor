@@ -47,4 +47,4 @@ separate and require explicit opt-in.
 
 From the repository root, run `go test ./internal/retrospective`; use
 `go test -race ./internal/retrospective` for progress or cancellation changes.
-Follow the [Readable Go skill](../../.agents/skills/go-readable/SKILL.md).
+Follow the [Go architecture skill](../../.agents/skills/go-architecture/SKILL.md).

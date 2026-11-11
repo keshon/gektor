@@ -1,7 +1,7 @@
 # Working on the TUI
 
 The `tui` package coordinates two peer screens: Agent and Workflow.
-Use the [Readable Go skill](../../.agents/skills/go-readable-keshon/SKILL.md) when
+Use the [Go style skill](../../.agents/skills/go-style/SKILL.md) when
 changing their implementation or boundaries.
 
 ## Ownership

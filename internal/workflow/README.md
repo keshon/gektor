@@ -61,4 +61,4 @@ go test ./cmd/... ./internal/...
 ```
 
 For readability changes, follow the
-[Readable Go skill](../../.agents/skills/go-readable/SKILL.md).
+[Go architecture skill](../../.agents/skills/go-architecture/SKILL.md).

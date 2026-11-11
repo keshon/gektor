@@ -19,4 +19,4 @@ its exit; it does not promise to contain arbitrary descendant processes.
 
 Run `go test ./internal/subprocess` and `go test -race ./internal/subprocess`.
 Platform limit tests require that platform; cross-compilation only checks code.
-Follow the [Readable Go skill](../../.agents/skills/go-readable-keshon/SKILL.md).
+Follow the [Go style skill](../../.agents/skills/go-style/SKILL.md).

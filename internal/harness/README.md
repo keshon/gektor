@@ -32,4 +32,4 @@ Keep sensitive text and arguments out of the metadata log.
 
 Run `go test ./internal/harness` and use `-race` for delivery or lifetime changes.
 API changes also require CLI, TUI, RPC, roles, and event tests. Follow the updated
-[Readable Go skill](../../.agents/skills/go-readable-keshon/SKILL.md).
+[Go style skill](../../.agents/skills/go-style/SKILL.md).

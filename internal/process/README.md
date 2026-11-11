@@ -36,4 +36,4 @@ Retain readiness synchronization before testing cancellation.
 
 From the repository root, run `go test ./internal/process`; use
 `go test -race ./internal/process` when changing output or lifecycle handling.
-Follow the [Readable Go skill](../../.agents/skills/go-readable/SKILL.md).
+Follow the [Go architecture skill](../../.agents/skills/go-architecture/SKILL.md).

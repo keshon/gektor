@@ -11,4 +11,4 @@ that requires storage under an absolute home path must validate the result.
 Tests redirect the process home in `TestMain` and remove their temporary home
 before exiting. Run `go test ./internal/userdirs` from the repository root.
 
-Follow the [Readable Go skill](../../.agents/skills/go-readable-keshon/SKILL.md).
+Follow the [Go style skill](../../.agents/skills/go-style/SKILL.md).

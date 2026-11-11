@@ -32,4 +32,4 @@ Policy, pattern, and answer tests live in `permission_test.go` and `glob_test.go
 unchanged context/results. Keep caller integration tests with their frontends.
 
 From the repository root, run `go test ./internal/permission`.
-Follow the [Readable Go skill](../../.agents/skills/go-readable/SKILL.md).
+Follow the [Go architecture skill](../../.agents/skills/go-architecture/SKILL.md).

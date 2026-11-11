@@ -47,4 +47,4 @@ Symlink/junction tests must retain their platform-specific limitations.
 
 From the repository root, run `go test ./internal/workspace`; use
 `go test -race ./internal/workspace` when changing shared state or lifecycle.
-Apply the [Readable Go skill](../../.agents/skills/go-readable/SKILL.md).
+Apply the [Go architecture skill](../../.agents/skills/go-architecture/SKILL.md).

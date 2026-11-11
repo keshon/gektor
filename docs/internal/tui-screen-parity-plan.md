@@ -6,7 +6,7 @@ Baseline: `49f4a39` on `codex/tui-screen-split`.
 
 This document records the completed ownership cleanup and settings decisions.
 The broader terminal guide lives in [Terminal architecture](../development/tui.md).
-Apply the project's [Readable Go skill](../../.agents/skills/go-readable/SKILL.md)
+Apply the project's [Go architecture skill](../../.agents/skills/go-architecture/SKILL.md)
 when implementing this plan.
 
 ## Completed ownership and settings behavior

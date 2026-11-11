@@ -1,9 +1,9 @@
 ---
-name: go-readable
+name: go-style
 description: Rules for readable, explicit, well-structured Go. Use whenever writing, reviewing, or refactoring any Go (.go) code, designing packages, directory layout, or APIs, or when code feels like a wall of text, callback soup, or has unclear ownership. Apply even to small edits.
 ---
 
-# Readable Go
+# Go style
 
 Write plain, explicit, linear Go that a maintainer can follow after a month away.
 Match the existing codebase. Stay within the requested scope and keep existing behavior.
@@ -119,8 +119,10 @@ defer client.Close()
 Do not dump everything into one package with dozens of files. Do not create
 technical layers either (`models/`, `services/`, `utils/`, `helpers/`).
 
-- Group by feature or responsibility into directories. Each directory is a
-  package with one clear entry type and a small public surface; internals stay unexported.
+- Group by feature or responsibility into directories. Each package has a clear
+  purpose and a small public surface; internals stay unexported. Use an entry type
+  when it owns state, dependencies, or a lifecycle. Stateless operations can be
+  plain functions; do not invent a type just to provide a package entry point.
 - Use `internal/` for code that is not a public API.
 - Inside a package, name files by responsibility (`store.go`, `encode.go`,
   `client.go`), not one file per type and not one giant file.
@@ -146,7 +148,13 @@ internal/
 - Early returns. No `else` after `return`, `break`, `continue`, or `panic`.
 - At most 2-3 indentation levels. Flatten first; extract a helper only if its
   name describes a real operation.
-- One operation per line. No chained calls, no calls nested in arguments.
+- Prefer one meaningful operation per line. Give intermediate results descriptive
+  variables so the reader can remember the steps without mentally evaluating
+  nested calls. Prefer naming a value when its role deserves a name, even if used once.
+  Trivial expressions such as `len(items)` may stay inline when a variable would
+  only repeat the expression. Do not expand multi-step transformations into chains.
+  Preserve expressions required by language or API semantics, such as an unsafe
+  pointer conversion that must remain inside a syscall argument; comment why.
 - Never call a method on an inline struct literal: `(T{X: x}).Do()`.
   Assign it to a variable, use a constructor, or make it a plain function.
 - Name complex conditions: `canRetry := attempts < maxRetries && isTransient(err)`.

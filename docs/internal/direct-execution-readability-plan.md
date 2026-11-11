@@ -11,7 +11,7 @@ state ownership. Reduce callbacks that hide orchestration or pair operations
 that must stay together. Improve schema readability and behavioral consistency
 without another package reorganization.
 
-Use the updated [Readable Go skill](../../.agents/skills/go-readable-keshon/SKILL.md).
+Use the updated [Go style skill](../../.agents/skills/go-style/SKILL.md).
 Apply its preferences within each stage; completed stages and unrelated code do
 not need a full style retrofit.
 Rclone's useful reference is explicit contracts and reusable behavioral tests,
