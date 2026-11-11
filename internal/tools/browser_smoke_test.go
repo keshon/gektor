@@ -45,7 +45,7 @@ func TestBrowserMCPIntegration(t *testing.T) {
 	if channel == "" {
 		channel = "chrome"
 	}
-	browser := &Browser{Channel: channel, Dir: root, connect: func(ctx context.Context, note func(string)) ([]agent.Tool, *MCPClient, error) {
+	browser := &Browser{Channel: channel, Dir: root, connect: func(ctx context.Context, note func(string)) ([]agent.Tool, *mcpSession, error) {
 		if err := PrepareBrowser(ctx, channel, root, note); err != nil {
 			return nil, nil, err
 		}

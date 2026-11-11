@@ -21,11 +21,11 @@ type Browser struct {
 	Headless        bool
 	mu              sync.Mutex
 	tools           []agent.Tool
-	client          *MCPClient
+	client          *mcpSession
 	selected        *conversation.BrowserProfile
 	release         func()
 	// connect is replaced only by tests; production uses the pinned MCP setup.
-	connect func(context.Context, func(string)) ([]agent.Tool, *MCPClient, error)
+	connect func(context.Context, func(string)) ([]agent.Tool, *mcpSession, error)
 }
 
 func (b *Browser) load(ctx context.Context, note func(string)) ([]agent.Tool, error) {
@@ -38,7 +38,7 @@ func (b *Browser) load(ctx context.Context, note func(string)) ([]agent.Tool, er
 		return b.tools, nil
 	}
 	var list []agent.Tool
-	var client *MCPClient
+	var client *mcpSession
 	var err error
 	if b.connect != nil {
 		list, client, err = b.connect(ctx, note)

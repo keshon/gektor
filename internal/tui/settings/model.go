@@ -30,8 +30,6 @@ func (f *Model) FilePicker(key string) bool {
 func (f *Model) PickerControl(key string) bool { return f.FilePicker(key) || PickerControl(key) }
 
 type Model struct {
-	DiscoverModels    func(kind, endpoint, keyEnv string) ([]string, error)
-	DiscoverReasoning func(kind, endpoint, model string) (providers.ReasoningOptions, error)
 	form.Model
 	Error, Hint, ApplyLabel string
 	Destructive             bool

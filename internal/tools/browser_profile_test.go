@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -50,7 +51,7 @@ func TestBrowserProfileSelectionIsLazyAndRestoresSavedReference(t *testing.T) {
 func TestBrowserProfileSwitchClosesOldTransportAndReleasesLease(t *testing.T) {
 	b := &Browser{Channel: "chrome"}
 	closed, released := 0, 0
-	b.client = &MCPClient{close: func() { closed++ }}
+	b.client = &mcpSession{transport: &countedMCPConnection{closed: &closed}}
 	b.release = func() { released++ }
 	if err := b.SelectProfile(&conversation.BrowserProfile{Channel: "chrome", Profile: "work"}); err != nil {
 		t.Fatal(err)
@@ -132,3 +133,8 @@ func TestBrowserCatalogRestoresLazily(t *testing.T) {
 		t.Fatal(actions)
 	}
 }
+
+type countedMCPConnection struct{ closed *int }
+
+func (c *countedMCPConnection) Call(context.Context, string, any, any) error { return nil }
+func (c *countedMCPConnection) Close()                                       { *c.closed++ }

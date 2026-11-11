@@ -83,11 +83,11 @@ func prepareBrowserPackage(ctx context.Context, note func(string), run func(cont
 }
 
 // StartBrowser retains an isolated headless entry point for automated checks.
-func StartBrowser(ctx context.Context, channel, dir string) ([]agent.Tool, *MCPClient, error) {
+func StartBrowser(ctx context.Context, channel, dir string) ([]agent.Tool, *mcpSession, error) {
 	return startBrowser(ctx, channel, dir, "", true)
 }
 
-func startBrowser(ctx context.Context, channel, dir, profileDir string, headless bool) ([]agent.Tool, *MCPClient, error) {
+func startBrowser(ctx context.Context, channel, dir, profileDir string, headless bool) ([]agent.Tool, *mcpSession, error) {
 	if channel != "chrome" && channel != "msedge" {
 		return nil, nil, fmt.Errorf("browser must be chrome or msedge")
 	}

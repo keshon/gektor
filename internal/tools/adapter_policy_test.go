@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/mcp"
 )
 
 type deadlineCaller struct{ remaining time.Duration }
@@ -32,24 +32,22 @@ func (t *deadlineTransport) RoundTrip(req *http.Request) (*http.Response, error)
 }
 
 func TestHTTPMCPDoesNotShortenConfiguredDeadline(t *testing.T) {
-	fake := &fakeHTTPMCP{t: t, mode: "json"}
-	server := httptest.NewServer(fake.handler())
-	defer server.Close()
-	tools, client, err := StartMCPHTTP(t.Context(), "reader", server.URL)
+	transport := &deadlineTransport{}
+	client := &http.Client{Transport: transport}
+	protocol, _, err := mcp.NewHTTP(t.Context(), mcp.HTTPConfig{Server: "reader", URL: "http://127.0.0.1/mcp", Client: client})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer client.Close()
-	transport := &deadlineTransport{}
-	client.http.Transport = transport
-	tool := tools[0].(*MCPTool)
+	session := &mcpSession{transport: protocol}
+	defer session.Close()
+	tool := &MCPTool{client: session}
 	tool.timeout = 120 * time.Second
 	if _, err := tool.Run(t.Context(), json.RawMessage(`{}`)); err != nil || transport.remaining < 110*time.Second {
 		t.Fatalf("HTTP deadline=%v err=%v", transport.remaining, err)
 	}
 }
 
-func (c *deadlineCaller) call(ctx context.Context, _ string, _ any, out any) error {
+func (c *deadlineCaller) Call(ctx context.Context, _ string, _ any, out any) error {
 	deadline, _ := ctx.Deadline()
 	c.remaining = time.Until(deadline)
 	return json.Unmarshal([]byte(`{"content":[{"type":"text","text":"ok"}]}`), out)

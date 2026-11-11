@@ -14,37 +14,13 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/mcp"
 )
 
 type contractMCP func(context.Context, string, any, any) error
 
-func (f contractMCP) call(ctx context.Context, m string, p any, out any) error {
+func (f contractMCP) Call(ctx context.Context, m string, p any, out any) error {
 	return f(ctx, m, p, out)
-}
-
-func TestMCPCatalogReadsEveryPageAndRejectsCycles(t *testing.T) {
-	for _, cycle := range []bool{false, true} {
-		calls := 0
-		c := contractMCP(func(_ context.Context, m string, p any, out any) error {
-			calls++
-			result := `{"tools":[{"name":"one"}],"nextCursor":"next"}`
-			if calls > 1 && !cycle {
-				if p.(map[string]any)["cursor"] != "next" {
-					t.Fatal(p)
-				}
-				result = `{"tools":[{"name":"two"}]}`
-			}
-			return json.Unmarshal([]byte(result), out)
-		})
-		defs, err := listMCPTools(t.Context(), c)
-		if cycle {
-			if err == nil || calls != 2 {
-				t.Fatal("cursor cycle not bounded", calls, err)
-			}
-		} else if err != nil || len(defs) != 2 {
-			t.Fatal(defs, err)
-		}
-	}
 }
 
 func TestMCPReturnsStructuredTextAndValidatedImages(t *testing.T) {
@@ -55,7 +31,7 @@ func TestMCPReturnsStructuredTextAndValidatedImages(t *testing.T) {
 		data, _ := json.Marshal(map[string]any{"structuredContent": map[string]any{"answer": 42}, "content": []any{map[string]any{"type": "text", "text": "measured"}, map[string]any{"type": "image", "mimeType": "image/png", "data": encoded}}})
 		return json.Unmarshal(data, out)
 	})
-	tool := &MCPTool{client: c, server: "test", def: MCPToolDef{Name: "capture"}}
+	tool := &MCPTool{client: c, server: "test", def: mcp.ToolDefinition{Name: "capture"}}
 	args := json.RawMessage(`{}`)
 	text, err := tool.Run(VisionContext(t.Context(), false), args)
 	if err != nil || !strings.Contains(text, `"answer":42`) || !strings.Contains(text, "no vision") {

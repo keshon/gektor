@@ -68,7 +68,7 @@ func TestBrowserTaskObservationsLive(t *testing.T) {
 	}))
 	defer srv.Close()
 	root := t.TempDir()
-	b := &Browser{Channel: "chrome", Dir: root, Headless: true, connect: func(ctx context.Context, note func(string)) ([]agent.Tool, *MCPClient, error) {
+	b := &Browser{Channel: "chrome", Dir: root, Headless: true, connect: func(ctx context.Context, note func(string)) ([]agent.Tool, *mcpSession, error) {
 		if err := PrepareBrowser(ctx, "chrome", root, note); err != nil {
 			return nil, nil, err
 		}

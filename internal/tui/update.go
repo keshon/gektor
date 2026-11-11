@@ -14,6 +14,8 @@ import (
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch value := msg.(type) {
+	case settings.DiscoveryRequest:
+		cmd = m.discoverSettings(value)
 	case settings.DetailMsg, settings.ScanMsg:
 		m.acceptSettings(msg)
 	case workflow.Message:

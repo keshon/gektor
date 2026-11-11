@@ -282,6 +282,12 @@ JSON and MCP adapters. Environment details and skill metadata are queried throug
 system_info; load_skill reads guides and supporting resources from configured
 libraries or project skill directories. See [Extensions](docs/guide/extensions.md).
 
+`internal/mcp` owns MCP protocol sessions, stdio process lifetime and restart,
+HTTP session renewal, and bounded JSON-RPC/SSE decoding. The adapters in
+`internal/tools` own authorization, credentials and redaction, Agent tool names,
+and result adaptation. A disconnected tool call is never replayed automatically.
+See [MCP protocol sessions](internal/mcp/README.md) for lifetime contracts.
+
 ## Effects and verification
 
 The tracked/unignored workspace file set is inventoried at start and compared

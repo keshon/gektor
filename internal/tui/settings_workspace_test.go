@@ -163,9 +163,31 @@ func TestRemoteModelsDiscovery(t *testing.T) {
 	}))
 	defer server.Close()
 	for _, kind := range []string{"llama", "openai", "kobold"} {
-		models, err := remoteModelChoices(kind, server.URL, "GEKTOR_TEST_MODEL_KEY")
-		if err != nil || len(models) != 1 {
-			t.Fatalf("%s: %v %v", kind, models, err)
+		m := settingsModel(t)
+		m.editSettings("model")
+		form := m.chrome.Dialog.Form
+		modelIndex := 0
+		for i := range form.Fields {
+			field := &form.Fields[i]
+			switch field.Key {
+			case "kind":
+				field.Value = kind
+			case "endpoint":
+				field.Value = server.URL
+			case "key-env":
+				field.Value = "GEKTOR_TEST_MODEL_KEY"
+			case "model":
+				modelIndex = i
+			}
+		}
+		form.Focus(modelIndex, form.FieldVisible)
+		requestCommand := form.OpenPicker(m.chrome.SettingsProps())
+		request := requestCommand().(settings.DiscoveryRequest)
+		resultCommand := m.discoverSettings(request)
+		result := resultCommand().(settings.ScanMsg)
+		m.Update(result)
+		if result.Err != nil || len(form.Picker.Items) != 1 {
+			t.Fatalf("%s: %v %v", kind, form.Picker.Items, result.Err)
 		}
 	}
 }

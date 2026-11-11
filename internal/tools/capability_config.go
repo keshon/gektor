@@ -222,7 +222,7 @@ func BuildCapabilities(config CapabilityConfig, dir string) ([]*Capability, func
 			var tools []agent.Tool
 			var err error
 			if pack.URL != "" {
-				var client *httpMCPClient
+				var client *mcpSession
 				credentialDir := pack.CredentialDirectory
 				if credentialDir == "" {
 					credentialDir = userdirs.Sub("credentials")
@@ -240,7 +240,7 @@ func BuildCapabilities(config CapabilityConfig, dir string) ([]*Capability, func
 					conn.close = client.Close
 				}
 			} else {
-				var client *MCPClient
+				var client *mcpSession
 				tools, client, err = startMCP(ctx, pack.ID, dir, pack.EnvRefs, pack.Command[0], pack.Command[1:]...)
 				if err == nil {
 					conn.close = client.Close

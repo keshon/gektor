@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/mcp"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -32,7 +33,7 @@ func TestWorkflowDiscoveryMatchesNodeAndScheduleVocabulary(t *testing.T) {
 
 func TestMCPNamesUniqueAndBoundedForAdversarialCatalog(t *testing.T) {
 	prefix := strings.Repeat("a", 54)
-	defs := []MCPToolDef{{Name: prefix + "one"}, {Name: prefix + "two"}, {Name: prefix[:52] + "_2"}, {Name: "read"}, {Name: "read"}, {Name: "read_2"}, {Name: "a/b"}, {Name: "a_b"}}
+	defs := []mcp.ToolDefinition{{Name: prefix + "one"}, {Name: prefix + "two"}, {Name: prefix[:52] + "_2"}, {Name: "read"}, {Name: "read"}, {Name: "read_2"}, {Name: "a/b"}, {Name: "a_b"}}
 	for _, server := range []string{"srv", strings.Repeat("s", 70)} {
 		seen := map[string]bool{}
 		for _, name := range assignToolNames(server, defs) {
@@ -163,7 +164,7 @@ func TestCapabilityConfigValidation(t *testing.T) {
 func TestInvalidCapabilityCatalogClosesAdapter(t *testing.T) {
 	closed := 0
 	source := &Capability{ID: "invalid", Close: func() { closed++ }, Load: func(context.Context, func(string)) ([]agent.Tool, error) {
-		return []agent.Tool{&MCPTool{toolName: "mcp__invalid__read", def: MCPToolDef{Name: "read", InputSchema: json.RawMessage(`{"type":"invalid"}`)}}}, nil
+		return []agent.Tool{&MCPTool{toolName: "mcp__invalid__read", def: mcp.ToolDefinition{Name: "read", InputSchema: json.RawMessage(`{"type":"invalid"}`)}}}, nil
 	}}
 	catalog := &Capabilities{Sources: []*Capability{source}, Registry: agent.NewRegistry()}
 	for attempt := 1; attempt <= 2; attempt++ {

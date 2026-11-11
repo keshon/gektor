@@ -83,7 +83,7 @@ func TestStartMCPKeepsServerAliveAfterLauncherCancels(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	var out json.RawMessage
-	if err := client.call(ctx, "tools/call", map[string]any{
+	if err := client.Call(ctx, "tools/call", map[string]any{
 		"name":      "echo",
 		"arguments": map[string]string{"text": "ping"},
 	}, &out); err != nil {

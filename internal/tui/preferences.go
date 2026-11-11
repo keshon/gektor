@@ -1,13 +1,7 @@
 package tui
 
 import (
-	"context"
-	"fmt"
-	"time"
-
-	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/config"
-	"github.com/keshon/gektor/internal/providers"
 	"github.com/keshon/gektor/internal/tui/settings"
 )
 
@@ -64,27 +58,9 @@ func (m *Model) editSettings(section string) {
 	})
 	m.chrome.Dialog.Form.SaveCopy = m.saveSettingsCopy
 	m.chrome.Dialog.Form.EditSession = ws
-	m.chrome.Dialog.Form.DiscoverModels = remoteModelChoices
-	m.chrome.Dialog.Form.DiscoverReasoning = remoteReasoningChoices
 	saved := ws.Draft.Visit(section, fields)
 	m.chrome.Dialog.Form.Fields = saved
 	m.chrome.Dialog.Form.Index = len(saved)
 	m.chrome.FocusForm(0)
 	m.chrome.Dialog.Title = "Settings"
-}
-
-func remoteModelChoices(kind, endpoint, keyEnv string) ([]string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	items, err := app.DiscoverModels(ctx, app.BackendOptions{Kind: kind, URL: endpoint, APIKeyEnv: keyEnv})
-	if err != nil {
-		return nil, fmt.Errorf("%w; Esc returns to manual entry", err)
-	}
-	return items, nil
-}
-
-func remoteReasoningChoices(kind, endpoint, model string) (providers.ReasoningOptions, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	return app.DiscoverReasoning(ctx, app.BackendOptions{Kind: kind, URL: endpoint, Model: model})
 }

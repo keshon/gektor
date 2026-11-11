@@ -14,6 +14,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/mcp"
 )
 
 func browserArtifactFixture(t *testing.T, name, text string) string {
@@ -32,7 +33,7 @@ func browserArtifactFixture(t *testing.T, name, text string) string {
 func TestBrowserArtifactsDeliverCurrentBoundedSnapshot(t *testing.T) {
 	root := browserArtifactFixture(t, "page-current.yml", "- heading \"Article fact: 42\"\n"+strings.Repeat("я", 20000))
 	_ = os.WriteFile(filepath.Join(root, ".gektor", "browser", "page-old.yml"), []byte("stale unrelated content"), 0600)
-	tool := &MCPTool{browserWorkspace: root, def: MCPToolDef{Name: "browser_navigate"}, client: contractMCP(func(_ context.Context, _ string, _ any, out any) error {
+	tool := &MCPTool{browserWorkspace: root, def: mcp.ToolDefinition{Name: "browser_navigate"}, client: contractMCP(func(_ context.Context, _ string, _ any, out any) error {
 		data, _ := json.Marshal(map[string]any{"content": []any{map[string]string{"type": "text", "text": "### Page\n- Page URL: https://fixture.test\n### Snapshot\n- [Snapshot](.gektor\\browser\\page-current.yml)"}}})
 		return json.Unmarshal(data, out)
 	})}
@@ -85,7 +86,7 @@ func TestBrowserSavedScreenshotAttachesPixelsOnce(t *testing.T) {
 	var pixels bytes.Buffer
 	_ = png.Encode(&pixels, image.NewRGBA(image.Rect(0, 0, 2, 2)))
 	root := browserArtifactFixture(t, "capture.png", pixels.String())
-	tool := &MCPTool{browserWorkspace: root, def: MCPToolDef{Name: "browser_take_screenshot"}, client: contractMCP(func(_ context.Context, _ string, _ any, out any) error {
+	tool := &MCPTool{browserWorkspace: root, def: mcp.ToolDefinition{Name: "browser_take_screenshot"}, client: contractMCP(func(_ context.Context, _ string, _ any, out any) error {
 		return json.Unmarshal([]byte(`{"content":[{"type":"text","text":"### Result\n- [Screenshot of viewport](.gektor/browser/capture.png)"}]}`), out)
 	})}
 	args := json.RawMessage(`{}`)
@@ -110,7 +111,7 @@ func TestBrowserSavedScreenshotAttachesPixelsOnce(t *testing.T) {
 
 func TestBrowserObserveChecksActualResultNotWrapperOrCode(t *testing.T) {
 	var function string
-	remote := &MCPTool{toolName: "mcp__browser__browser_evaluate", def: MCPToolDef{Name: "browser_evaluate"}, client: contractMCP(func(_ context.Context, _ string, args any, out any) error {
+	remote := &MCPTool{toolName: "mcp__browser__browser_evaluate", def: mcp.ToolDefinition{Name: "browser_evaluate"}, client: contractMCP(func(_ context.Context, _ string, args any, out any) error {
 		function = args.(map[string]any)["arguments"].(map[string]any)["function"].(string)
 		page := map[string]any{"url": "https://fixture.test", "title": "Article", "scope": "article", "text": "Observed fact: 42", "offset": 0, "total_characters": 17, "expectation_met": false, "check": "literal_visible_body_text"}
 		encoded, _ := json.Marshal(page)

@@ -48,6 +48,18 @@ quit protection across active runs and retained Workflow drafts.
 sessions, preferences, and Agent execution. Agent emits navigation and quit
 intents to the parent; it does not import Workflow.
 
+Agent transcript code stays private to the screen: [transcript.go](../../internal/tui/agent/transcript.go) connects
+screen events to transcript state, [transcript_blocks.go](../../internal/tui/agent/transcript_blocks.go) normalizes entries,
+[transcript_block_view.go](../../internal/tui/agent/transcript_block_view.go) renders individual blocks, [transcript_render.go](../../internal/tui/agent/transcript_render.go)
+owns caching and tool hit regions, and [transcript_stream.go](../../internal/tui/agent/transcript_stream.go) handles live text.
+The renderer receives presentation values instead of the application model.
+
+Settings pickers emit `settings.DiscoveryRequest` values for remote model and
+reasoning catalogs. The parent executes discovery with the launch context and
+returns a `ScanMsg`. Opaque request IDs reject results from replaced pickers or
+forms. Directory and detail commands capture their own input snapshots; keyboard
+interaction, layout, and filesystem effects have separate files in `settings`.
+
 `internal/tui/workflow` owns its own model, recipe editor, graph, inspector,
 run state, menu commands and availability, message dispatch, permissions, and
 asynchronous operations. It receives execution services, shared dialog operations,

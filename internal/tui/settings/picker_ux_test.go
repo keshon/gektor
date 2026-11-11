@@ -9,8 +9,9 @@ import (
 	"testing"
 
 	"charm.land/bubbles/v2/textarea"
-	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/tui/components/cell"
 	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/components/popup"
@@ -276,7 +277,7 @@ func TestPickerSuccessClearsErrorAndStaleResultCannotReplaceIt(t *testing.T) {
 	f.OpenPicker(props)
 	id := f.Picker.ID
 	f.AcceptScan(ScanMsg{ID: id, Err: errors.New("discovery failed")})
-	f.AcceptScan(ScanMsg{ID: id - 1, Items: []string{"stale"}})
+	f.AcceptScan(ScanMsg{ID: RequestID{}, Items: []string{"stale"}})
 	if f.Picker.Err == "" || len(f.Picker.Filtered) != 0 {
 		t.Fatal("stale discovery replaced current failure")
 	}

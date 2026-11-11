@@ -12,6 +12,7 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/mcp"
 )
 
 type browserTestClient func(llm.ChatRequest) llm.ChatResponse
@@ -21,9 +22,9 @@ func (f browserTestClient) Chat(_ context.Context, req llm.ChatRequest) (llm.Cha
 }
 
 func fakeBrowser(connects, actions *int) *Browser {
-	return &Browser{connect: func(context.Context, func(string)) ([]agent.Tool, *MCPClient, error) {
+	return &Browser{connect: func(context.Context, func(string)) ([]agent.Tool, *mcpSession, error) {
 		*connects++
-		tool := &MCPTool{server: "browser", toolName: "mcp__browser__browser_navigate", def: MCPToolDef{Name: "browser_navigate", InputSchema: json.RawMessage(`{"type":"object","properties":{"url":{"type":"string"}},"required":["url"],"additionalProperties":false}`)}, client: contractMCP(func(_ context.Context, _ string, _ any, out any) error {
+		tool := &MCPTool{server: "browser", toolName: "mcp__browser__browser_navigate", def: mcp.ToolDefinition{Name: "browser_navigate", InputSchema: json.RawMessage(`{"type":"object","properties":{"url":{"type":"string"}},"required":["url"],"additionalProperties":false}`)}, client: contractMCP(func(_ context.Context, _ string, _ any, out any) error {
 			*actions++
 			return json.Unmarshal([]byte(`{"content":[{"type":"text","text":"page loaded"}]}`), out)
 		})}
@@ -123,7 +124,7 @@ func TestBrowserActivationFailuresDoNotEnableTools(t *testing.T) {
 	browser := fakeBrowser(&connects, &actions)
 	reg, _ := browserRegistry(browser)
 
-	browser.connect = func(context.Context, func(string)) ([]agent.Tool, *MCPClient, error) {
+	browser.connect = func(context.Context, func(string)) ([]agent.Tool, *mcpSession, error) {
 		return nil, nil, errors.New("Node missing")
 	}
 	if _, err := reg.Run(t.Context(), "enable_browser", json.RawMessage(`{}`)); err == nil || len(reg.Defs()) != 1 {
@@ -143,9 +144,9 @@ func TestBrowserCatalogCannotReplaceExistingTools(t *testing.T) {
 	connects, actions := 0, 0
 	browser := fakeBrowser(&connects, &actions)
 	original := browser.connect
-	browser.connect = func(ctx context.Context, note func(string)) ([]agent.Tool, *MCPClient, error) {
+	browser.connect = func(ctx context.Context, note func(string)) ([]agent.Tool, *mcpSession, error) {
 		list, client, err := original(ctx, note)
-		list = append(list, &MCPTool{server: "browser", toolName: "enable_browser", def: MCPToolDef{Name: "browser_bad"}})
+		list = append(list, &MCPTool{server: "browser", toolName: "enable_browser", def: mcp.ToolDefinition{Name: "browser_bad"}})
 		return list, client, err
 	}
 	reg, enable := browserRegistry(browser)
