@@ -423,7 +423,7 @@ func (m *Model) taskDirectory(taskID string) string {
 		}
 		return filepath.Join(m.sessionRoot(), taskID)
 	}
-	return filepath.Join(tasksRoot(), taskID)
+	return filepath.Join(m.sessionRoot(), taskID)
 }
 
 func (m *Model) startFreshPrompt(task, display string, images []string) error {

@@ -36,35 +36,43 @@ func (m *Model) Push(line string) {
 	if line == "" {
 		return
 	}
+
 	if len(m.history) == 0 || m.history[len(m.history)-1] != line {
 		m.history = append(m.history, line)
 		if len(m.history) > HistoryLimit {
 			m.history = m.history[len(m.history)-HistoryLimit:]
 		}
 	}
+
 	m.index = len(m.history)
 }
 func (m *Model) Recall(up bool) bool {
 	if len(m.history) == 0 {
 		return false
 	}
+
 	if up {
 		if m.index >= len(m.history) {
 			m.draft = m.Value()
 		}
+
 		m.index = max(m.index-1, 0)
 	} else {
 		if m.index >= len(m.history) {
 			return false
 		}
+
 		m.index++
 	}
+
 	if m.index == len(m.history) {
 		m.SetValue(m.draft)
 	} else {
 		m.SetValue(m.history[m.index])
 	}
+
 	m.CursorEnd()
+
 	return true
 }
 func (m Model) Snapshot() Snapshot {

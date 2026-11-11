@@ -22,18 +22,20 @@ import (
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/settings"
+	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
 func testModel() *Model {
 	m := &Model{
-		chrome:     &screen.Controls{},
-		events:     make(chan events.Event, 16),
-		hub:        harness.NewGateHub(nil),
-		cancel:     func() {},
-		started:    time.Now(),
-		styles:     defaultStyles(),
-		transcript: newTranscript(), maxSteps: agent.DefaultMaxSteps,
+		chrome:       &screen.Controls{},
+		sessionsRoot: userdirs.Sub("tasks"),
+		events:       make(chan events.Event, 16),
+		hub:          harness.NewGateHub(nil),
+		cancel:       func() {},
+		started:      time.Now(),
+		styles:       defaultStyles(),
+		transcript:   newTranscript(), maxSteps: agent.DefaultMaxSteps,
 		note:   newNote(),
 		always: map[[2]string]bool{},
 	}
@@ -244,6 +246,7 @@ func settingsModel(t *testing.T) *Model {
 		t.Fatal(err)
 	}
 	m.config = &app.PreparedProfile{Identity: id, Directory: sessions, Profile: profile}
+	m.sessionsRoot = sessions
 	m.application = &settings.Application{
 		Preferences:    config.Preferences{Version: 1, Workspace: workspaceDir},
 		PreferencePath: filepath.Join(t.TempDir(), "application.json"),

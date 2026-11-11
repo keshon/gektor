@@ -38,7 +38,7 @@ command or introducing a generic application framework.
 - RPC retains identity, temperature, backend facts and deterministic check rules.
   Act-mode writes emit findings through the configured frontend event sink.
 - The protocol server and its lifecycle tests moved from `cmd/gektor` to
-  [`internal/agentrpc`](../../internal/agentrpc/server.go). The command only
+  [`internal/agentrpc`](../../internal/agentrpc/agentrpc.go). The command only
   binds standard streams, task storage and the permission/audit transport.
 - CLI run, resume, fork continuation and workflow authoring now use
   [`internal/harness.Session`](../../internal/harness/harness.go). It owns role selection,

@@ -42,7 +42,8 @@ Paths below are relative to the repository root.
 7. At run end, verify if configured, observe workspace changes and persist the
    outcome. Cancellation follows the same finalization path after initialization.
 
-The entry point is `internal/agent/run.go`; setup and finalization live in
+Start at `internal/agent/agent.go` for the Agent API. Execution begins in
+`internal/agent/run.go`; setup and finalization live in
 `internal/agent/run_lifecycle.go`. The run package exposes execution to callers;
 the session package owns its saved data. They do not implement separate loops.
 

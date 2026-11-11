@@ -52,6 +52,7 @@ func (s *State) Current() Option {
 	if !s.Pending() {
 		return Option{}
 	}
+
 	return s.Options[max(0, min(s.Selected, len(s.Options)-1))]
 }
 
@@ -62,6 +63,7 @@ func (s *State) Move(delta int) {
 	if !s.Pending() {
 		return
 	}
+
 	n := len(s.Options)
 	s.Selected = ((s.Selected+delta)%n + n) % n
 }
@@ -72,6 +74,7 @@ func (s *State) Keypress(msg tea.KeyPressMsg) bool {
 	if !s.Pending() {
 		return false
 	}
+
 	switch msg.String() {
 	case "up":
 		s.Move(-1)
@@ -80,6 +83,7 @@ func (s *State) Keypress(msg tea.KeyPressMsg) bool {
 	default:
 		return false
 	}
+
 	return true
 }
 
@@ -97,6 +101,7 @@ func (s *State) View(width, height int, question []string, hint string, note boo
 	if !s.Pending() || width < 24 || height < 4 {
 		return nil
 	}
+
 	inner := max(width-4, 1)
 
 	// Spend the height explicitly. Overshooting is not a cosmetic bug: the
@@ -114,19 +119,23 @@ func (s *State) View(width, height int, question []string, hint string, note boo
 	if divided {
 		base++
 	}
+
 	if height < base {
 		return nil
 	}
+
 	free := height - base
 	noteShown := note && free > 0
 	if noteShown {
 		free--
 	}
+
 	count := min(min(maxVisible, 1+free), len(s.Options))
 	free -= count - 1
 
 	qrows := len(question)
 	more := ""
+
 	switch {
 	case qrows <= free:
 		// The whole question fits; nothing to report.
@@ -142,36 +151,45 @@ func (s *State) View(width, height int, question []string, hint string, note boo
 		more = popup.Row(styles.Normal,
 			fmt.Sprintf("  … %d more lines in the transcript above", len(question)-qrows), inner)
 	}
+
 	selected := max(0, min(s.Selected, len(s.Options)-1))
 	offset := min(max(selected-count+1, 0), len(s.Options)-count)
 
 	rows := make([]string, 0, height)
+
 	for _, q := range question[:qrows] {
 		rows = append(rows, popup.Row(styles.Normal, q, inner))
 	}
+
 	if more != "" {
 		rows = append(rows, more)
 	}
+
 	for i := offset; i < offset+count; i++ {
 		opt := s.Options[i]
 		mark, style := "  ", styles.Normal
 		if i == selected {
 			mark, style = "› ", styles.Selected
 		}
+
 		label := mark + cell.Line(opt.Label, labelWidth(s.Options, width))
 		if opt.Hint != "" {
 			label += "  " + opt.Hint
 		}
+
 		rows = append(rows, popup.Row(style, label, inner))
 	}
+
 	if noteShown {
 		rows = append(rows, popup.Row(styles.Normal, "  note> type and press Enter", inner))
 	}
+
 	if divided {
 		rows = append(rows, popup.Footer(inner, hint, styles.Normal)...)
 	} else {
 		rows = append(rows, popup.Row(styles.Normal, hint, inner))
 	}
+
 	return popup.TitledFrame(s.Title, rows, width, styles)
 }
 
@@ -182,11 +200,13 @@ const maxVisible = 8
 // half the popup so a long label cannot push every hint off the edge.
 func labelWidth(options []Option, width int) int {
 	w := 0
+
 	for _, opt := range options {
 		if n := cell.Width(opt.Label); n > w {
 			w = n
 		}
 	}
+
 	return min(max(w, 1), max((width-6)/2, 1))
 }
 

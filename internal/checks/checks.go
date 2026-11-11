@@ -23,11 +23,13 @@ type Rule interface {
 // nothing, so the caller passes all of them for every file.
 func Scan(rules []Rule, path string, src []byte) []Finding {
 	var out []Finding
+
 	for _, r := range rules {
 		if r != nil {
 			out = append(out, r.Check(path, src)...)
 		}
 	}
+
 	return out
 }
 
@@ -46,6 +48,7 @@ var secretPatterns = []*regexp.Regexp{
 
 func (secretRule) Check(path string, src []byte) []Finding {
 	var out []Finding
+
 	for i, line := range strings.Split(string(src), "\n") {
 		for j, re := range secretPatterns {
 			if re.MatchString(line) {
@@ -58,6 +61,7 @@ func (secretRule) Check(path string, src []byte) []Finding {
 			}
 		}
 	}
+
 	return out
 }
 

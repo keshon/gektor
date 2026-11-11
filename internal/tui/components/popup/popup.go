@@ -45,6 +45,7 @@ func Row(style lipgloss.Style, text string, width int) string {
 		"\x1b[0m", "\x1b[0m"+restore,
 		"\x1b[49m", "\x1b[49m"+restore,
 	).Replace(styled)
+
 	return restored + "\x1b[m"
 }
 
@@ -67,14 +68,18 @@ func Box(rows []string, s Styles) []string {
 	inner := max(width-4, 1)
 	framed := make([]string, 0, len(rows)+2)
 	framed = append(framed, s.Border.Render(topBorder("", width)))
+
 	for _, row := range rows {
 		if isDivider(row) {
 			framed = append(framed, s.Border.Render("├"+strings.Repeat("─", max(width-2, 0))+"┤"))
 			continue
 		}
+
 		framed = append(framed, s.Border.Render("│ ")+Row(s.Normal, row, inner)+s.Border.Render(" │"))
 	}
+
 	framed = append(framed, bottom(width, s))
+
 	return framed
 }
 
@@ -82,9 +87,11 @@ func Box(rows []string, s Styles) []string {
 func ModalBox(rows []string, areaW int, s Styles) []string {
 	width := ModalWidth(areaW)
 	styled := make([]string, len(rows))
+
 	for i, row := range rows {
 		styled[i] = Row(s.Normal, row, max(width-4, 1))
 	}
+
 	return Frame(styled, width, s)
 }
 
@@ -102,9 +109,11 @@ func FrameBox(rows []string, areaW, areaH int, s Styles) string {
 
 	indent := strings.Repeat(" ", left)
 	indented := make([]string, len(framed))
+
 	for i, line := range framed {
 		indented[i] = indent + line
 	}
+
 	return strings.Repeat("\n", top) + strings.Join(indented, "\n")
 }
 
@@ -133,27 +142,34 @@ func OverlayBox(background string, rows []string, areaW, areaH int, s Styles) st
 // background is already the full terminal height.
 func Overlay(background string, rows []string, x, y, width, termW int) string {
 	lines := strings.Split(background, "\n")
+
 	for i, row := range rows {
 		at := y + i
 		if at < 0 || at >= len(lines) {
 			continue
 		}
+
 		lines[at] = ansi.Cut(lines[at], 0, x) + row + ansi.Cut(lines[at], x+width, termW)
 	}
+
 	return strings.Join(lines, "\n")
 }
 
 func frame(rows []string, title string, width int, s Styles) []string {
 	framed := make([]string, 0, len(rows)+2)
 	framed = append(framed, s.Border.Render(topBorder(title, width)))
+
 	for _, row := range rows {
 		if isDivider(row) {
 			framed = append(framed, s.Border.Render("├"+strings.Repeat("─", max(width-2, 0))+"┤"))
 			continue
 		}
+
 		framed = append(framed, s.Border.Render("│ ")+row+s.Border.Render(" │"))
 	}
+
 	framed = append(framed, bottom(width, s))
+
 	return framed
 }
 
@@ -175,6 +191,7 @@ func Footer(width int, hint string, style lipgloss.Style, actions ...string) []s
 	if hint != "" {
 		rows = append(rows, style.Render(cell.Line(hint, width)))
 	}
+
 	return append(rows, actions...)
 }
 
@@ -192,6 +209,8 @@ func topBorder(title string, width int) string {
 	if title == "" {
 		return "╭" + strings.Repeat("─", edge) + "╮"
 	}
+
 	label := ansi.Truncate("─ "+title+" ", edge, "…")
+
 	return "╭" + label + strings.Repeat("─", max(edge-lipgloss.Width(label), 0)) + "╮"
 }

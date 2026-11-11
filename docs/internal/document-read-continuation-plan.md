@@ -113,7 +113,7 @@ item pagination normally.
 
 ### Reader implementation: four existing files, one small helper
 
-- `internal/capabilities/documents/service.go`
+- `internal/capabilities/documents/documents.go`
   - `Request`: add `TextOffset *int` to distinguish absence from explicit zero.
   - `validate`: apply continuation defaults and validate single-item requests.
   - `Service.Read`, `workerRequest`, `Serve`: existing JSON transport carries the
@@ -137,7 +137,7 @@ item pagination normally.
 
 ### Public contract and instructions: four existing files
 
-- `internal/capabilities/documents/contract/operation.go`
+- `internal/capabilities/documents/contract/contract.go`
   - `Operation.Schema`, `OutputSchema`, `Description`: describe the new optional
     input and item metadata, consistent across all three operations.
   - Keep the same operation names and permission resources.

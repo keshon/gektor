@@ -35,9 +35,11 @@ func (m Model) PartOffset(index int) int {
 	if index <= 0 {
 		return 0
 	}
+
 	if index < len(m.Viewport.starts) {
 		return m.Viewport.starts[index]
 	}
+
 	return m.Viewport.Total()
 }
 
@@ -56,6 +58,7 @@ func (m *Model) SetPartsWithGaps(parts []string, tail string, gaps []int) {
 	if m.lastTail == tail && slices.Equal(m.lastParts, parts) && slices.Equal(m.lastGaps, gaps) {
 		return
 	}
+
 	all := parts
 	if tail != "" {
 		all = make([]string, 0, len(parts)+1)
@@ -65,17 +68,21 @@ func (m *Model) SetPartsWithGaps(parts []string, tail string, gaps []int) {
 
 	starts := make([]int, len(all))
 	line := 0
+
 	for i, p := range all {
 		if i > 0 {
 			gap := 1
 			if i < len(gaps) {
 				gap = max(gaps[i], 0)
 			}
+
 			line += gap
 		}
+
 		starts[i] = line
 		line += strings.Count(p, "\n") + 1
 	}
+
 	total := line
 
 	previous := m.Viewport
@@ -89,17 +96,21 @@ func (m *Model) SetPartsWithGaps(parts []string, tail string, gaps []int) {
 			if within < 0 {
 				within = 0
 			}
+
 			m.Viewport.Set(all, starts, total)
 			m.Viewport.SetYOffset(starts[k] + within)
 			m.lastParts, m.lastTail, m.lastGaps = parts, tail, gaps
+
 			return
 		}
 	}
+
 	m.Viewport.Set(all, starts, total)
 	if m.Follow {
 		m.Viewport.GotoBottom()
 	} else if len(parts) == 0 {
 		m.Viewport.SetYOffset(0)
 	}
+
 	m.lastParts, m.lastTail, m.lastGaps = parts, tail, gaps
 }

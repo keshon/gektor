@@ -1,76 +1,113 @@
 ---
 name: go-architecture
-description: Review and refactor Go package boundaries, ownership, and test placement. Use for architecture and directory layout work; ordinary statement-level readability follows the project's coding style.
+description: Package boundaries, directory layout, file organization, and test placement for Go. Use when creating or splitting packages, reorganizing files, changing feature ownership, or when a package has grown into a flat pile of files. Not needed for ordinary code edits; statement-level style is in go-style.
 ---
 
 # Go architecture
 
-A maintainer should find a feature, follow its ordinary path, and change it
-without understanding the whole application. Stay within the requested scope.
+A maintainer should find a feature, follow its ordinary path, and change it without
+understanding the whole app. This skill owns package boundaries and file layout;
+code-level rules are in [go-style](../go-style/SKILL.md). For a refactor apply both.
+A small edit does not justify reorganizing its package. Stay within the requested scope.
 
-## Trace before splitting
+## 1. Group by feature, not flat, not layered
 
-- Read the entry points, direct callers, implementation, and relevant tests.
-  Follow one ordinary operation and its failure path.
-- Identify who owns decisions, mutable state, resources, and cancellation.
-  Before extracting a package, sketch its public operations, dependencies,
-  results, and cleanup. Trace the same operation across the proposed boundary.
-- Extract only when the boundary hides a coherent responsibility behind a
-  smaller API. If callers still need most internals, fix ownership first.
-  File counts, repeated prefixes, and large structs are clues, not split rules.
+- Group code by feature or responsibility into directories. Each directory is a
+  package with a clear entry point and a small public surface. The entry point is
+  a type when the package owns state, resources, or a lifetime, and plain functions
+  when it is stateless. Do not invent a type just to have one.
+- Do not pile dozens of files into one package. Repeated filename prefixes
+  (`sync_client.go`, `sync_store.go`, `sync_diff.go`) and two unrelated
+  responsibilities in one package suggest a missing directory.
+- File counts are review signals, not rules: around 8-10 files in a package is a
+  reason to look at it, not a reason to split it. Split only along a real
+  responsibility boundary (section 3). Never cut a cohesive package into pieces
+  just to get smaller directories.
+- Do not create technical layers (`models/`, `services/`, `utils/`, `common/`) or a
+  package per type. A package of one or two small files rarely earns its own directory.
+- Use `internal/` for everything that is not a public API.
+- No Repository/Service/Controller layers and no DI containers or "provider"
+  frameworks. Wire dependencies explicitly in `app/` (or `main`) with plain constructors.
+- Package names: short, lowercase, one word, no underscores, a noun for what the
+  package is. No `utils`, `common`, `helpers`, `base`. Do not repeat the package name
+  in its identifiers (`sync.Client`, not `sync.SyncClient`).
 
-## Keep responsibilities together
+```
+cmd/app/main.go
+internal/
+  app/              wiring and lifecycle only
+  library/          feature: documents
+    library.go      package doc, entry type, constructor
+    store.go
+    search.go
+  sync/             feature: remote sync
+    sync.go
+    client.go
+    diff.go
+```
 
-- Group by feature or responsibility. Keep related state, behavior, configuration,
-  errors, and tests together. Name files by responsibility.
-- Prefer a package-named starting file with the package introduction and main API.
-  Keep responsibility-specific types and behavior together in other files; do not
-  create a central file containing all logic or artificial entrypoint wrappers.
-- Use types for owned state, dependencies, or lifetimes; use plain functions for
-  stateless operations. Neither nesting nor one entry type per package is a goal.
-- Put coordination between peer features in their parent. Symmetry means
-  comparable ownership, not matching filenames or forced common interfaces.
-- Export operations and facts callers need. Do not expose mutable internals,
-  add forwarding types, or build large host interfaces merely to make a move compile.
-- Share behavior only when its semantics agree. Accept modest duplication when
-  sharing needs mode flags, callbacks, or unrelated configuration. Shared packages
-  should not switch on feature names or collect types solely to avoid import cycles.
-- Prefer concrete owners and direct calls. Avoid technical layers, universal
-  dependency bags, and many smaller bags that still travel together. Keep helpers
-  local unless a package boundary actually reduces what callers must understand.
+## 2. Start at `<package>.go`
 
-## Preserve lifecycle and behavior
+Every package has a file named after it: `agent.go` for `package agent`, `main.go`
+for `package main`. It holds the package introduction and the main public operations:
+the entry type and its constructor if the package owns state, or the primary
+functions if it is stateless. Keep large state and responsibility-specific behavior
+in companion files named by responsibility (`model.go`, `store.go`). The root file is
+where reading starts, not a container for everything.
 
-- Understand validation, permissions, ordering, synchronization, persistence,
-  cancellation, and resource limits before simplifying their implementation.
-  Preserve wire formats and user-visible behavior.
-- Trace startup, completion, cancellation, and cleanup together. Give mutable
-  state one owner, keep locks with guarded data, and wait for owned work to stop.
-  Preserve cleanup on construction failure and unblock receivers on cancellation.
-- In interactive code, distinguish background results from input. Hidden features
-  may receive completion but must not consume another feature's keys or paste.
-  Shared overlays need an explicit input owner; stale results must be rejected.
-- Keep comments that explain contracts or unavoidable constraints. Update them
-  when behavior changes. Avoid compatibility wrappers for internal renames unless
-  real callers or an explicit compatibility promise require them.
+Do not add an empty marker file or forwarding wrappers to satisfy the name; rename
+a real file instead. Respect generated files and build constraints. Do not impose
+this on unrelated packages during a local edit.
 
-## Keep tests with their subject
+## 3. Files or packages?
 
-- Feature tests belong with the feature; coordination and shared lifecycle tests
-  belong with the parent. A child feature's name in a test filename does not
-  establish ownership.
-- Exercise real constructors and message paths. Use fakes at dependency boundaries;
-  do not recreate production behavior in fixtures or export internals for tests.
-- Preserve assertions when moving tests. Cover boundaries likely to regress,
-  including retained state, hidden work, and completion after cancellation.
-  Wait for asynchronous work before releasing test resources.
+- Split a **file** when the package still owns the behavior but a reader must hold
+  too many responsibilities at once.
+- Extract a **package** only when it hides a coherent responsibility behind a
+  smaller API. Before extracting, sketch its public operations, dependencies,
+  results, and cleanup, then trace one ordinary call and its failure path across
+  the new boundary. If the caller still needs most of the old internals, fix
+  ownership first.
+- Moving tangled methods into several files, or inventing an interface, owner type,
+  or callback bundle just to make a layout possible, is not a fix.
 
-## Prove the change helped
+## 4. Ownership across boundaries
 
-- Inspect renames, literals, comments, imports, and assertions; compilation cannot
-  detect changed labels or weakened tests. Avoid unrelated formatting churn.
-- Format changed Go files and run affected tests and repository-required checks.
-  Add build, vet, and race checks as warranted by changed contracts and callers.
-- Explain what the reader now needs to understand and where they can stop.
-  Fewer simultaneous concepts matter more than fewer lines or files. If the
-  change only relocates complexity, revise it or report that limitation.
+- Each package owns its state, resources, and cancellation. Peer features do not
+  host each other; coordination between peers lives in their parent.
+- Export operations and facts callers need. Do not export mutable internals or add
+  forwarding types just to make a move compile or to keep old tests working.
+- Share behavior only when semantics truly agree. Accept modest duplication over
+  mode flags and callbacks. A shared package must not switch on feature names or
+  exist only to break an import cycle.
+- Prefer concrete owners and direct calls. No universal dependency bags.
+
+## 5. Preserve lifecycle and behavior
+
+Before simplifying, understand validation, permissions, ordering, synchronization,
+persistence, cancellation, and resource limits. Preserve wire formats and
+user-visible behavior. When moving an owner of goroutines or resources, trace
+startup, completion, cancellation, and cleanup together; keep cleanup on
+construction failure, and wait for owned work to stop. No compatibility wrappers
+for internal renames unless real callers require them.
+
+## 6. Tests
+
+- Feature tests live with the feature; parent tests cover coordination and shared
+  lifecycle. A child's name in a test filename does not decide ownership.
+- Use real constructors. Fakes only at real dependency boundaries; do not recreate
+  production behavior in fixtures or export internals for tests.
+- Keep assertions when moving tests. Wait for async work before releasing test
+  resources.
+
+## 7. Done check
+
+- Can a reader open `<package>.go` and find the public operations? Is there a type only where something is actually owned?
+- Do directory and file names show where a feature is changed?
+- Is every mutable value and resource owned explicitly?
+- Is the ordinary path easier to follow, with fewer concepts held at once (not just
+  fewer lines or files)?
+- Were behavior, assertions, and required checks preserved? (`gofmt`, `go vet`,
+  affected tests, `-race` if concurrency changed.)
+
+If the refactor only moved complexity around, say so and revise.

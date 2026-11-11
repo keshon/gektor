@@ -15,6 +15,7 @@ func TestBrowserSearchUsesWorkspace(t *testing.T) {
 	m.state = stDone
 	m.wsRoot = t.TempDir()
 	root := sessionsRootFor(t, m.wsRoot)
+	m.sessionsRoot = root
 	writeSessionState(t, root, "aaa", userHistory("repair login"))
 	writeSessionState(t, root, "bbb", userHistory("speed up search"))
 	m.testUpdate(tea.WindowSizeMsg{Width: 120, Height: 30})

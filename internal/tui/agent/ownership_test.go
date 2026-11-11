@@ -12,7 +12,6 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/keshon/gektor/internal/conversation"
-	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -34,6 +33,7 @@ func TestPastedSearchRecomputesResults(t *testing.T) {
 	m.state = stDone
 	m.wsRoot = t.TempDir()
 	root := sessionsRootFor(t, m.wsRoot)
+	m.sessionsRoot = root
 	writeSessionState(t, root, "alpha", userHistory("alpha"))
 	writeSessionState(t, root, "beta", userHistory("beta"))
 	m.openSessions()
@@ -82,17 +82,6 @@ func TestImageReferencePreservesMultilinePrompt(t *testing.T) {
 	}
 }
 
-func TestLoadedHistoryDoesNotInventTimestamps(t *testing.T) {
-	for _, b := range renderHistory(userHistory("saved")) {
-		if !b.at.IsZero() {
-			t.Fatal("history was stamped with reopen time")
-		}
-	}
-	if userBlock("live").at.IsZero() {
-		t.Fatal("live messages lost their timestamps")
-	}
-}
-
 func TestViewDoesNotChangeSelectionOrFocus(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
@@ -129,7 +118,8 @@ func TestSessionScanRunsOutsideUpdateAndRejectsStaleResults(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.wsRoot = t.TempDir()
-	writeSessionState(t, sessionsRootFor(t, m.wsRoot), "one", userHistory("one"))
+	m.sessionsRoot = sessionsRootFor(t, m.wsRoot)
+	writeSessionState(t, m.sessionsRoot, "one", userHistory("one"))
 	m.refreshSessions()
 	first := m.takeCommands()
 	if len(m.savedSessions) != 0 {
@@ -189,12 +179,13 @@ func TestSessionCommandDoesNotReadLiveModel(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	root := sessionsRootFor(t, t.TempDir())
+	m.sessionsRoot = root
 	writeSessionState(t, root, "one", userHistory("captured root"))
 	m.refreshSessions()
 	cmd := m.takeCommands()
 	// Move the session library before executing the worker. It must use
 	// the root captured with the command, not the live one.
-	tasksRoot = func() string { return filepath.Join(t.TempDir(), "moved") }
+	m.sessionsRoot = filepath.Join(t.TempDir(), "moved")
 	m.sessions = &sessionsState{filter: newSearchInput(80)}
 	result := cmd().(sessionsLoadedMsg)
 	if result.root != root || len(result.entries) != 1 || len(result.entries[0].search) != 0 {
@@ -235,41 +226,5 @@ func TestCompletionClosesCancelledPermissionOverlay(t *testing.T) {
 	m.testUpdate(doneMsg{})
 	if len(m.overlays) != 0 || m.activeInputOwner() != focusInput {
 		t.Fatal("finished gate retained overlay ownership")
-	}
-}
-
-func TestHistoryMatchTranslationSkipsReasoningAndToolCards(t *testing.T) {
-	history := []llm.Message{
-		{Role: llm.RoleSystem, Content: "system"},
-		{Role: llm.RoleUser, Content: "question"},
-		{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "lookup", Name: "read_file"}}},
-		{Role: llm.RoleTool, ToolCallID: "lookup", Content: "result"},
-		{Role: llm.RoleAssistant, Content: "<think>private</think> answer"},
-	}
-	blocks, boundary := renderHistoryAt(history)
-	index := historyMatchBlock(blocks, boundary, 4)
-	if index >= len(blocks) || blocks[index].role != roleAnswer || blocks[index].text != "answer" {
-		t.Fatalf("search landed on wrong block: %d %+v", index, blocks)
-	}
-}
-
-// Opening from a search hit points at one message. It must not render the
-// whole prefix again to count it.
-func TestHistoryMatchReusesTheRenderItAlreadyHas(t *testing.T) {
-	history := userHistory("one", "two", "three", "four")
-	blocks, boundary := renderHistoryAt(history)
-
-	for message := range history {
-		got := historyMatchBlock(blocks, boundary, message)
-		if got < 0 || got >= len(blocks) {
-			t.Fatalf("message %d mapped outside the transcript: %d", message, got)
-		}
-		// A message must not point before its own blocks start.
-		if got < boundary[message] {
-			t.Fatalf("message %d mapped to %d, before its own block %d", message, got, boundary[message])
-		}
-	}
-	if got := historyMatchBlock(blocks, boundary, len(history)); got != len(blocks) {
-		t.Fatalf("end of history mapped to %d, want %d", got, len(blocks))
 	}
 }

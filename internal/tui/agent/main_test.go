@@ -7,14 +7,7 @@ import (
 	"github.com/keshon/gektor/internal/workflow/script"
 )
 
-// Sessions and task directories live in the user's home directory. A test
-// that starts a run, creates a session or lists saved ones would otherwise
-// write real session dirs there -- which is not a failure the suite would
-// notice, just a developer's own library filling up with "hello?".
-//
-// Redirecting tasksRoot once here means no individual test can forget. The
-// helpers that need a specific tree (sessionsRootFor, chdirSessions) still
-// override it per test and restore on cleanup.
+// Isolate the default user directory for tests that do not supply a session root.
 func TestMain(m *testing.M) {
 	if len(os.Args) > 2 && os.Args[1] == "workflow" && os.Args[2] == "internal-script-worker" {
 		if err := script.Serve(os.Stdin, os.Stdout); err != nil {
@@ -26,7 +19,14 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	tasksRoot = func() string { return dir }
+	err = os.Setenv("USERPROFILE", dir)
+	if err != nil {
+		panic(err)
+	}
+	err = os.Setenv("HOME", dir)
+	if err != nil {
+		panic(err)
+	}
 	code := m.Run()
 	os.RemoveAll(dir)
 	os.Exit(code)

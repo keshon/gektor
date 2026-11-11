@@ -1,6 +1,3 @@
-// Package tools holds concrete agent.Tool implementations: filesystem
-// access, shell execution, and delegation to subagents. Each tool is a
-// small, self-contained type — no shared "dispatcher" indirection.
 package tools
 
 import (

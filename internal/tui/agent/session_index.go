@@ -22,7 +22,13 @@ func (m *Model) refreshSessions() {
 	revision, root, cache, search := m.sessionRevision, m.sessionRoot(), m.sessionIndex, m.sessions != nil
 	m.pendingCommands = append(m.pendingCommands, func() tea.Msg {
 		entries, index, err := scanSessions(root, cache, search)
-		return sessionsLoadedMsg{revision, root, entries, index, err}
+		return sessionsLoadedMsg{
+			revision: revision,
+			root:     root,
+			entries:  entries,
+			cache:    index,
+			err:      err,
+		}
 	})
 }
 func (m *Model) takeCommands() tea.Cmd {
@@ -63,3 +69,6 @@ func scanSessions(root string, previous map[string]cachedSession, search bool) (
 	}
 	return entries, cache, err
 }
+
+// sessionRoot is captured at construction and shared by scans and new sessions.
+func (m *Model) sessionRoot() string { return m.sessionsRoot }

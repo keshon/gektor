@@ -17,6 +17,7 @@ func main() {
 		if errors.Is(err, context.Canceled) {
 			os.Exit(130)
 		}
+
 		os.Exit(1)
 	}
 }

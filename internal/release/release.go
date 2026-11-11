@@ -36,11 +36,13 @@ func Build(ctx context.Context, options Options) ([]string, error) {
 	if log == nil {
 		log = io.Discard
 	}
+
 	versioned := options.Version != ""
 	src, err := readSource(ctx, options.Root, versioned)
 	if err != nil {
 		return nil, err
 	}
+
 	if src.dirty {
 		fmt.Fprintln(log, "Development distribution includes tracked working-tree changes; versioned releases require a clean checkout.")
 	}
@@ -50,21 +52,25 @@ func Build(ctx context.Context, options Options) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	info, err := os.Lstat(out)
 	if err != nil {
 		return nil, fmt.Errorf("dist must be a real directory")
 	}
+
 	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return nil, fmt.Errorf("dist must be a real directory")
 	}
 
 	var outputs, archives []string
+
 	for _, target := range targets {
 		files := runtimeFiles(src.tracked, target)
 		directory, stageErr := stage(ctx, src, target, files, log)
 		if stageErr != nil {
 			return nil, fmt.Errorf("stage %s: %w", target, stageErr)
 		}
+
 		outputs = append(outputs, directory)
 		if !versioned {
 			continue
@@ -76,11 +82,13 @@ func Build(ctx context.Context, options Options) ([]string, error) {
 		if strings.HasPrefix(target, "windows-") {
 			suffix = ".zip"
 		}
+
 		archive := filepath.Join(out, "gektor-"+options.Version+"-"+target+suffix)
 		err = writeArchive(archive, directory, files, src.timestamp)
 		if err != nil {
 			return nil, err
 		}
+
 		archives = append(archives, archive)
 		outputs = append(outputs, archive)
 	}
@@ -93,6 +101,7 @@ func Build(ctx context.Context, options Options) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	outputs = append(outputs, checksums)
 
 	return outputs, nil

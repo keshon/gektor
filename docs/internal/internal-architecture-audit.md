@@ -29,7 +29,7 @@ Small immediate repair: decode numeric fields consistently. Better local simplif
 
 ### B3 — P2: a streamed HTTP rate-limit response triggers an immediate unary retry
 
-The unary HTTP path reads `Retry-After` and `retry-after-ms` at `internal/llm/chatcompletions/client.go:376-383`. The streaming path at `internal/llm/chatcompletions/stream.go:31-34` constructs an `APIError` without those fields. More fundamentally, `internal/agent/run.go:367-379` falls straight from a retryable pre-output streaming HTTP failure into the first call of `ChatWithRetry`; that first unary call has no wait at all.
+The unary HTTP path reads `Retry-After` and `retry-after-ms` at `internal/llm/chatcompletions/chatcompletions.go:376-383`. The streaming path at `internal/llm/chatcompletions/stream.go:31-34` constructs an `APIError` without those fields. More fundamentally, `internal/agent/run.go:367-379` falls straight from a retryable pre-output streaming HTTP failure into the first call of `ChatWithRetry`; that first unary call has no wait at all.
 
 For a server returning HTTP 429 with a requested delay, enabling streaming therefore sends an additional generation request immediately. The deliberate rule permitting fallback before any output is sensible; the missing delay is a separate defect. Unary retries can subsequently respect their own response headers, but the first retry has already happened. This is source-traced, not timed against a live provider.
 
@@ -55,7 +55,7 @@ Current file/image services fail closed when their output callback is missing, s
 
 ### D4 — Medium design debt: duplicate transport preparation has already drifted
 
-`internal/llm/chatcompletions/client.go:296-368` and `internal/llm/chatcompletions/stream.go:71-134` independently build sampling/grammar/messages/tools/auth requests. Their non-200 error handling also differs (B3). These are genuinely parallel implementations of the same request contract; the protocol split between Chat Completions and Responses is not.
+`internal/llm/chatcompletions/chatcompletions.go:296-368` and `internal/llm/chatcompletions/stream.go:71-134` independently build sampling/grammar/messages/tools/auth requests. Their non-200 error handling also differs (B3). These are genuinely parallel implementations of the same request contract; the protocol split between Chat Completions and Responses is not.
 
 Extract one private request builder plus one HTTP-error decoder inside `chatcompletions`. Stream adds its SSE flags/headers and keeps its own accumulator; unary keeps its normal response decoder. Preserve wire payloads, explicit dialect sampling and image policy. Cost: small to medium; risk: request-field parity should be compared for every existing dialect. Do not combine the two different protocols into a universal wire model.
 

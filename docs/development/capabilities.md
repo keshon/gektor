@@ -151,10 +151,10 @@ request validation. A file named after one format should not own dispatch for
 every format. Keep operating-system suffixes on platform implementations.
 
 The file-operation package provides naming examples for a
-[service](../../internal/capabilities/files/service.go),
-[shared JSON contract](../../internal/capabilities/files/contract/operation.go),
+[service](../../internal/capabilities/files/files.go),
+[shared JSON contract](../../internal/capabilities/files/contract/contract.go),
 [tool wrapper](../../internal/tools/files_operation.go) and
-[workflow descriptors](../../internal/capabilities/nodes/files.go).
+[workflow descriptors](../../internal/capabilities/nodes/nodes.go).
 Use these roles when they exist. Split further only when a file has distinct
 responsibilities. Avoid unrelated names such as helpers or common.
 

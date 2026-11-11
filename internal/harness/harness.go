@@ -59,14 +59,18 @@ func New(cfg Config) (*Session, error) {
 	if cfg.Env.Client == nil {
 		return nil, fmt.Errorf("run: Env.Client is nil")
 	}
+
 	if cfg.Env.WS == nil {
 		return nil, fmt.Errorf("run: Env.WS is nil")
 	}
+
 	if cfg.WorkflowRecipe != "" && cfg.Plan {
 		return nil, fmt.Errorf("workflow authoring cannot use plan mode")
 	}
+
 	if cfg.Answer == nil {
 		cfg.Answer = agent.ClosedSuspender("run session without operator")
 	}
+
 	return &Session{cfg: cfg, askerBudget: agent.NewAsker(0)}, nil
 }

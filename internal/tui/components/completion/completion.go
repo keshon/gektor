@@ -49,10 +49,12 @@ func (s *State) SetKey(key string) bool {
 	if key == s.key {
 		return false
 	}
+
 	s.key, s.Selected, s.drag = key, 0, false
 	if s.dismissed != "" && s.dismissed != key {
 		s.dismissed = ""
 	}
+
 	return true
 }
 
@@ -63,6 +65,7 @@ func (s *State) Open(items []Item, key string) {
 		s.Items = nil
 		return
 	}
+
 	s.Items = items
 	s.Selected = min(max(s.Selected, 0), max(len(items)-1, 0))
 }
@@ -94,6 +97,7 @@ func (s *State) Keypress(msg tea.KeyPressMsg, page int) bool {
 	if !s.Pending() {
 		return false
 	}
+
 	switch msg.String() {
 	case "up":
 		s.Selected = (s.Selected + len(s.Items) - 1) % len(s.Items)
@@ -108,6 +112,7 @@ func (s *State) Keypress(msg tea.KeyPressMsg, page int) bool {
 	default:
 		return false
 	}
+
 	return true
 }
 
@@ -116,6 +121,7 @@ func (s *State) Current() Item {
 	if !s.Pending() {
 		return Item{}
 	}
+
 	return s.Items[min(max(s.Selected, 0), len(s.Items)-1)]
 }
 
@@ -140,11 +146,13 @@ func (s *State) Layout(p Props) Layout {
 	if !s.Pending() || p.Width < 24 || p.Height < 4 {
 		return l
 	}
+
 	reserved := 6
 	l.Close = true
 	if p.Height < 7 {
 		reserved, l.BodyTop, l.Close = 3, 1, false
 	}
+
 	count := min(maxVisible, p.Height-reserved, len(s.Items))
 	selected := min(max(s.Selected, 0), len(s.Items)-1)
 	l.Offset = min(max(selected-count+1, 0), len(s.Items)-count)
@@ -154,25 +162,30 @@ func (s *State) Layout(p Props) Layout {
 	if strings.HasPrefix(s.Items[0].Value, "/") {
 		title = "Commands"
 	}
+
 	rows := popup.Header(title, inner, p.Title.Inherit(p.Surface.Normal).Bold(true))
 	rows[0] = popup.Row(p.Surface.Normal, rows[0], inner)
 	body := []string{}
 	valueW := valueWidth(s.Items[l.Offset:l.Offset+count], p.Width)
+
 	for i := l.Offset; i < l.Offset+count; i++ {
 		item := s.Items[i]
 		mark, style := "  ", p.Surface.Normal
 		if i == selected {
 			mark, style = "› ", p.Surface.Selected
 		}
+
 		label := mark + cell.Line(item.Value, valueW) + "  " + item.Description
 		body = append(body, popup.Row(style, label, inner))
 	}
+
 	body = popup.ScrollRows(body, inner, l.Offset, len(s.Items), p.Surface.Normal)
 	rows = append(rows, body...)
 	action := "insert"
 	if p.Runnable != nil && p.Runnable(s.Current()) {
 		action = "run"
 	}
+
 	hint := popup.Shortcuts(inner, p.Shortcuts,
 		popup.Shortcut{Key: "Esc", Action: "close"}, popup.Shortcut{Key: "Enter", Action: action},
 		popup.Shortcut{Key: "Tab", Action: "insert"}, popup.Shortcut{Key: "↑↓", Action: "select"}, popup.Shortcut{Key: "PgUp/PgDn", Action: "page"})
@@ -184,6 +197,7 @@ func (s *State) Layout(p Props) Layout {
 		body = append(body, hint)
 		l.Rows = popup.TitledFrame(title, body, p.Width, p.Surface)
 	}
+
 	return l
 }
 
@@ -195,9 +209,11 @@ func (l Layout) Hit(x, y int) int {
 	if l.Scrollbar {
 		right -= 2
 	}
+
 	if x < 2 || x >= right || y < l.BodyTop || y >= l.BodyTop+l.BodyHeight {
 		return -1
 	}
+
 	return l.Offset + y - l.BodyTop
 }
 
@@ -210,6 +226,7 @@ func (s *State) Mouse(msg tea.MouseMsg, l Layout) bool {
 			s.drag = false
 			return true
 		}
+
 		switch msg.(type) {
 		case tea.MouseMotionMsg, tea.MouseReleaseMsg:
 			offset := popup.ScrollOffset(mouse.Y-l.BodyTop, l.BodyHeight, len(s.Items), s.grab)
@@ -217,12 +234,15 @@ func (s *State) Mouse(msg tea.MouseMsg, l Layout) bool {
 			if _, released := msg.(tea.MouseReleaseMsg); released {
 				s.drag = false
 			}
+
 			return true
 		}
 	}
+
 	if !l.Contains(mouse.X, mouse.Y) {
 		return false
 	}
+
 	if _, click := msg.(tea.MouseClickMsg); click && mouse.Button == tea.MouseLeft {
 		if l.Close && mouse.Y == 1 && mouse.X >= l.Width-5 && mouse.X < l.Width-2 {
 			s.Dismiss()
@@ -236,12 +256,14 @@ func (s *State) Mouse(msg tea.MouseMsg, l Layout) bool {
 				if row < top {
 					key = tea.KeyPgUp
 				}
+
 				s.Keypress(tea.KeyPressMsg{Code: key}, l.BodyHeight)
 			}
 		} else if i := l.Hit(mouse.X, mouse.Y); i >= 0 {
 			s.Selected = i
 		}
 	}
+
 	if l.Hit(mouse.X, mouse.Y) >= 0 {
 		switch mouse.Button {
 		case tea.MouseWheelUp:
@@ -250,6 +272,7 @@ func (s *State) Mouse(msg tea.MouseMsg, l Layout) bool {
 			s.Keypress(tea.KeyPressMsg{Code: tea.KeyDown}, 1)
 		}
 	}
+
 	return true
 }
 
@@ -262,10 +285,12 @@ const maxVisible = 12
 // popup so a long path cannot push every description off the edge.
 func valueWidth(items []Item, width int) int {
 	w := 0
+
 	for _, item := range items {
 		if n := lipgloss.Width(item.Value); n > w {
 			w = n
 		}
 	}
+
 	return min(w, max((width-6)/2, 1))
 }

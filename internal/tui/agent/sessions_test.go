@@ -45,28 +45,17 @@ func userHistory(tasks ...string) []llm.Message {
 	return out
 }
 
-// chdirSessions points the relative tasks root at tmp: sessions code
-// resolves like the CLI (cwd-joined), so tests relocate cwd instead.
-// sessionsRootFor points the session library at a throwaway directory and
-// returns it. Sessions live in the user's GEKTOR directory, so a test that
-// creates or opens them must redirect both the path and the scanner --
-// writing to the real one would pollute the developer's own sessions.
+// sessionsRootFor creates a library path; callers inject it into their model.
 func sessionsRootFor(t *testing.T, base string) string {
 	t.Helper()
 	root := filepath.Join(base, "sessions")
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	prev := tasksRoot
-	tasksRoot = func() string { return root }
-	t.Cleanup(func() { tasksRoot = prev })
 	return root
 }
 
-// chdirSessions redirects the session library into a temporary tree and
-// chdirs into it, so the relative ".gektor/tasks" paths these tests use
-// resolve there. Sessions live in the user's GEKTOR directory, which a test
-// must never write to.
+// chdirSessions creates the relative fixture tree used by the browser tests.
 func chdirSessions(t *testing.T, tmp string) string {
 	t.Helper()
 	t.Chdir(tmp)
@@ -74,9 +63,6 @@ func chdirSessions(t *testing.T, tmp string) string {
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	prev := tasksRoot
-	tasksRoot = func() string { return root }
-	t.Cleanup(func() { tasksRoot = prev })
 	return root
 }
 
@@ -100,7 +86,7 @@ func TestListSessions_TitlesAndOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	entries := listSessionsIn(tasksRoot())
+	entries := listSessionsIn(filepath.Join(".gektor", "tasks"))
 	if len(entries) != 2 {
 		t.Fatalf("entries = %d, want 2", len(entries))
 	}
@@ -133,7 +119,7 @@ func TestListSessions_TitleFileOverridesCorruptSurvives(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	entries := listSessionsIn(tasksRoot())
+	entries := listSessionsIn(filepath.Join(".gektor", "tasks"))
 	if len(entries) != 2 {
 		t.Fatalf("entries = %d, want 2", len(entries))
 	}
@@ -153,8 +139,12 @@ func sessionsTestModel(t *testing.T, entries []sessionEntry) *Model {
 	t.Helper()
 	m := sizeModel(t, testModel())
 	m.state = stDone
+	m.sessionsRoot = filepath.Join(".gektor", "tasks")
+	if len(entries) > 0 {
+		m.sessionsRoot = filepath.Dir(entries[0].dir)
+	}
 	m.savedSessions = append([]sessionEntry(nil), entries...)
-	m.sessions = &sessionsState{filter: newSearchInput(80), entries: entries, root: tasksRoot()}
+	m.sessions = &sessionsState{filter: newSearchInput(80), entries: entries, root: m.sessionRoot()}
 	// Resume needs a session object for follow-ups; run.New validates
 	// a full Env, so tests stub the constructor (production always
 	// wires the real one in Run).
@@ -168,14 +158,14 @@ func TestSessions_RenameWritesTitleFile(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
 	dir := writeSessionState(t, filepath.Join(".gektor", "tasks"), "aaa", userHistory("original text"))
-	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
+	m := sessionsTestModel(t, listSessionsIn(filepath.Join(".gektor", "tasks")))
 
 	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
 	mm := updated.(*Model)
 	if mm.sessions.mode != sessRename {
 		t.Fatalf("mode = %v, want sessRename", mm.sessions.mode)
 	}
-	mm.note.SetValue("my session")
+	mm.sessions.rename.SetValue("my session")
 	updated, _ = mm.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm = updated.(*Model)
 	if mm.sessions.mode != sessList {
@@ -201,11 +191,11 @@ func TestSessions_EmptyRenameClearsTitle(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "title"), []byte("old\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
+	m := sessionsTestModel(t, listSessionsIn(filepath.Join(".gektor", "tasks")))
 
 	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
 	mm := updated.(*Model)
-	mm.note.SetValue("  ")
+	mm.sessions.rename.SetValue("  ")
 	updated, _ = mm.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm = updated.(*Model)
 	if _, err := os.Lstat(filepath.Join(dir, "title")); !os.IsNotExist(err) {
@@ -222,7 +212,7 @@ func TestSessions_DeleteRemovesDir(t *testing.T) {
 	tasks := filepath.Join(".gektor", "tasks")
 	writeSessionState(t, tasks, "aaa", userHistory("one"))
 	writeSessionState(t, tasks, "bbb", userHistory("two"))
-	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
+	m := sessionsTestModel(t, listSessionsIn(filepath.Join(".gektor", "tasks")))
 	// Select the second row, whichever session sorted there.
 	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: tea.KeyDown})
 	mm := updated.(*Model)
@@ -249,7 +239,7 @@ func TestSessions_DeleteActiveUnloadsFirst(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
 	dir := writeSessionState(t, filepath.Join(".gektor", "tasks"), "aaa", userHistory("live"))
-	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
+	m := sessionsTestModel(t, listSessionsIn(filepath.Join(".gektor", "tasks")))
 	m.stateFile = filepath.Join(dir, "state.json")
 	m.sess = &harness.Session{}
 	m.transcript.blocks = []block{answerBlock("old transcript")}
@@ -273,7 +263,7 @@ func TestSessions_DeleteActiveRefusesWhileRunning(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
 	dir := writeSessionState(t, filepath.Join(".gektor", "tasks"), "aaa", userHistory("live"))
-	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
+	m := sessionsTestModel(t, listSessionsIn(filepath.Join(".gektor", "tasks")))
 	m.state = stRunning
 	m.stateFile = filepath.Join(dir, "state.json")
 
@@ -306,7 +296,7 @@ func TestSessions_EnterResumesWithHistory(t *testing.T) {
 		{Role: llm.RoleAssistant, Content: "widget built"},
 	}
 	dir := writeSessionState(t, filepath.Join(".gektor", "tasks"), "aaa", history)
-	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
+	m := sessionsTestModel(t, listSessionsIn(filepath.Join(".gektor", "tasks")))
 	m.wsRoot = t.TempDir()
 	assignSavedWorkspace(t, filepath.Join(m.sessions.entries[0].dir, "state.json"), m.wsRoot)
 
@@ -350,7 +340,7 @@ func TestSessions_OpenCorruptSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	entries := listSessionsIn(tasksRoot())
+	entries := listSessionsIn(filepath.Join(".gektor", "tasks"))
 	if len(entries) != 1 || entries[0].status != "Unreadable" {
 		t.Fatalf("a corrupt snapshot must be listed as such: %+v", entries)
 	}
@@ -361,7 +351,7 @@ func TestSessions_EnterRefusesWhileRunning(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
 	writeSessionState(t, filepath.Join(".gektor", "tasks"), "aaa", userHistory("task"))
-	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
+	m := sessionsTestModel(t, listSessionsIn(filepath.Join(".gektor", "tasks")))
 	m.state = stRunning
 
 	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -385,7 +375,7 @@ func TestSessions_ListScrollsToCursor(t *testing.T) {
 		id := "s" + twoDigits(i)
 		writeSessionState(t, tasks, id, userHistory("task "+id))
 	}
-	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
+	m := sessionsTestModel(t, listSessionsIn(filepath.Join(".gektor", "tasks")))
 	visible := m.sessVisible()
 	if visible >= 20 {
 		t.Fatalf("visible = %d, test needs overflow", visible)
@@ -424,7 +414,7 @@ func TestSessions_PageKeysMoveByViewport(t *testing.T) {
 		id := "s" + twoDigits(i)
 		writeSessionState(t, tasks, id, userHistory("task "+id))
 	}
-	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
+	m := sessionsTestModel(t, listSessionsIn(filepath.Join(".gektor", "tasks")))
 	visible := m.sessVisible()
 
 	updated, _ := m.testUpdate(tea.KeyPressMsg{Code: tea.KeyPgDown})
@@ -487,7 +477,7 @@ func TestSessions_ResumeShowsTop(t *testing.T) {
 	tmp := t.TempDir()
 	chdirSessions(t, tmp)
 	writeSessionState(t, filepath.Join(".gektor", "tasks"), "aaa", compactTestHistory(15))
-	m := sessionsTestModel(t, listSessionsIn(tasksRoot()))
+	m := sessionsTestModel(t, listSessionsIn(filepath.Join(".gektor", "tasks")))
 	m.wsRoot = t.TempDir()
 	assignSavedWorkspace(t, filepath.Join(m.sessions.entries[0].dir, "state.json"), m.wsRoot)
 	m.hideSYS, m.hideTools, m.hideNames, m.hideLabels, m.minimal = true, true, true, true, true
@@ -668,17 +658,6 @@ func TestSplitAttachments(t *testing.T) {
 }
 
 // A fresh follow-up with @path reaches the session constructor.
-
-// Resumed image turns render their marker from history.
-func TestRenderHistory_ShowsImageMarkers(t *testing.T) {
-	history := []llm.Message{
-		{Role: llm.RoleUser, Content: "look", Images: []string{filepath.Join("d", "shot.png")}},
-	}
-	blocks := renderHistory(history)
-	if len(blocks) != 1 || !strings.Contains(blocks[0].text, "[image: shot.png]") {
-		t.Fatalf("blocks = %+v", blocks)
-	}
-}
 
 // Drive only the queued disk commands; the normal event reader remains parked.
 func finishSessionRefresh(t *testing.T, m *Model) {

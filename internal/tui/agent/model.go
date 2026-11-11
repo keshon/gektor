@@ -199,6 +199,7 @@ type Model struct {
 	// press-and-release without motion still counts as a click.
 	scrollDrag      scrollDrag
 	sessions        *sessionsState
+	sessionsRoot    string
 	savedSessions   []sessionEntry
 	sessionsLoading bool
 	// View-menu display filters. They hide transcript rows, never model

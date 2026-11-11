@@ -45,7 +45,9 @@ decides whether that saves settings, opens a session or starts a connection.
 active screen, routes input and results, constructs both screens, and coordinates
 quit protection across active runs and retained Workflow drafts.
 `internal/tui/agent` owns its conversation, transcript, composer, inspector,
-sessions, preferences, and Agent execution. Agent emits navigation and quit
+sessions, preferences, and Agent execution. Start at
+[agent.go](../../internal/tui/agent/agent.go) for the package contract, launch
+configuration, and constructor. Agent emits navigation and quit
 intents to the parent; it does not import Workflow.
 
 Agent transcript code stays private to the screen: [transcript.go](../../internal/tui/agent/transcript.go) connects
@@ -54,11 +56,26 @@ screen events to transcript state, [transcript_blocks.go](../../internal/tui/age
 owns caching and tool hit regions, and [transcript_stream.go](../../internal/tui/agent/transcript_stream.go) handles live text.
 The renderer receives presentation values instead of the application model.
 
+The Agent session browser keeps selection, search, and its rename input in
+[sessions.go](../../internal/tui/agent/sessions.go); keyboard and mouse routing
+live in [sessions_input.go](../../internal/tui/agent/sessions_input.go).
+[sessions_actions.go](../../internal/tui/agent/sessions_actions.go) coordinates
+rename, delete, and workspace assignment, while
+[session_store.go](../../internal/tui/agent/session_store.go) handles their disk rules.
+[session_open.go](../../internal/tui/agent/session_open.go) owns active-session
+replacement; [transcript_history.go](../../internal/tui/agent/transcript_history.go)
+rebuilds saved messages into transcript blocks. The session library root is
+captured when the Agent model is constructed and shared by scanning and creation.
+
 Settings pickers emit `settings.DiscoveryRequest` values for remote model and
 reasoning catalogs. The parent executes discovery with the launch context and
 returns a `ScanMsg`. Opaque request IDs reject results from replaced pickers or
 forms. Directory and detail commands capture their own input snapshots; keyboard
 interaction, layout, and filesystem effects have separate files in `settings`.
+
+Start at [screen.go](../../internal/tui/screen/screen.go) for shared controls,
+[settings.go](../../internal/tui/settings/settings.go) for settings interaction,
+and [workflow.go](../../internal/tui/workflow/workflow.go) for Workflow construction.
 
 `internal/tui/workflow` owns its own model, recipe editor, graph, inspector,
 run state, menu commands and availability, message dispatch, permissions, and
@@ -455,7 +472,7 @@ clear and it has a real consumer.
 | [composer](../../internal/tui/components/composer/composer.go), [completion](../../internal/tui/components/completion/completion.go), [gate](../../internal/tui/components/gate/gate.go) | Use common styles and geometry while keeping their specific input contracts |
 | [transcript](../../internal/tui/components/transcript/transcript.go) | History rendering and viewport behavior |
 | [graph](../../internal/tui/components/graph/graph.go) | Node/canvas presentation and graph interactions, independent of workflow execution |
-| [settings](../../internal/tui/settings/model.go) | Settings values, discovery and intents; move reusable presentation into the components it uses |
+| [settings](../../internal/tui/settings/settings.go) | Settings values, discovery and intents; move reusable presentation into the components it uses |
 | [styles.go](../../internal/tui/screen/styles.go) | Semantic styles and theme mappings, supplied to components |
 
 The Bubble Tea loop remains the state owner. Components own their local

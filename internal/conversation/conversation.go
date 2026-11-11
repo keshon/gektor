@@ -57,8 +57,15 @@ func (s Snapshot) Context() []llm.Message {
 	if s.ContextStart == 0 {
 		return append([]llm.Message(nil), s.History...)
 	}
+
 	out := append([]llm.Message(nil), s.History[:2]...)
-	out = append(out, llm.Message{Role: llm.RoleUser, Content: s.Summary, Harness: "compact", Request: s.SummaryRequest})
+	out = append(out, llm.Message{
+		Role:    llm.RoleUser,
+		Content: s.Summary,
+		Harness: "compact",
+		Request: s.SummaryRequest,
+	})
+
 	return append(out, s.History[s.ContextStart:]...)
 }
 

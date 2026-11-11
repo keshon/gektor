@@ -1,3 +1,4 @@
+// Package daemon serves a workspace workflow queue with operator-supplied policy.
 package daemon
 
 import (
@@ -16,7 +17,9 @@ func Serve(ctx context.Context, s *store.Store, svc service.Service) (resultErr 
 	if err != nil {
 		return fmt.Errorf("workflow service already active or unavailable: %w", err)
 	}
+
 	defer lease.Close()
+
 	if err := s.RecoverJobs(ctx); err != nil {
 		return err
 	}
@@ -26,16 +29,19 @@ func Serve(ctx context.Context, s *store.Store, svc service.Service) (resultErr 
 	go func() {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
+
 		for {
 			err := s.ReconcileRuns(ctx)
 			if err == nil {
 				err = s.Tick(ctx, time.Now())
 			}
+
 			if err != nil {
 				tickDone <- err
 				stop()
 				return
 			}
+
 			select {
 			case <-ctx.Done():
 				tickDone <- nil
@@ -50,22 +56,27 @@ func Serve(ctx context.Context, s *store.Store, svc service.Service) (resultErr 
 			resultErr = errors.Join(resultErr, err)
 		}
 	}()
+
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+
 		job, ok, err := s.Claim(ctx)
 		if err != nil {
 			return err
 		}
+
 		if !ok {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
 			case <-time.After(500 * time.Millisecond):
 			}
+
 			continue
 		}
+
 		if err := svc.ExecuteJob(ctx, s, job); err != nil {
 			return err
 		}

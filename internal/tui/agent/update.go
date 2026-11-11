@@ -255,6 +255,10 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 			var cmd tea.Cmd
 			m.note, cmd = m.note.Update(msg)
 			return m, cmd
+		case focusSessionRename:
+			var cmd tea.Cmd
+			m.sessions.rename, cmd = m.sessions.rename.Update(msg)
+			return m, cmd
 		case focusSearch:
 			return m.updateSearchInput(msg)
 		case focusInput:
@@ -352,7 +356,7 @@ func (m *Model) fitBottom() {
 		width := m.searchGeometry().width - 4
 		m.sessions.filter.SetWidth(max(width-lipgloss.Width(m.sessions.filter.Prompt)-1, 1))
 		if m.sessions.mode == sessRename {
-			m.note.SetWidth(max(width-lipgloss.Width(m.note.Prompt)-1, 1))
+			m.sessions.rename.SetWidth(max(width-lipgloss.Width(m.sessions.rename.Prompt)-1, 1))
 		}
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	tea "charm.land/bubbletea/v2"
-
 	"github.com/keshon/gektor/internal/tui/agent"
 	"github.com/keshon/gektor/internal/tui/settings"
 )
@@ -33,26 +32,34 @@ type Drafts = agent.Drafts
 func Run(ctx context.Context, cfg Config) (string, error) {
 	uiCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
 	options, restore, err := consoleInput(uiCtx)
 	if err != nil {
 		return "", err
 	}
+
 	defer restore()
+
 	model, err := newModel(uiCtx, cfg)
 	if err != nil {
 		return "", err
 	}
+
 	defer model.Close()
+
 	final, err := tea.NewProgram(model, append(options, tea.WithContext(uiCtx))...).Run()
 	if err != nil {
 		return "", err
 	}
+
 	app, ok := final.(*Model)
 	if !ok {
 		return "", fmt.Errorf("tui: unexpected final model")
 	}
+
 	if app.modeChange != nil {
 		return "", app.modeChange
 	}
+
 	return app.agent.Finish(app.quit)
 }

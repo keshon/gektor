@@ -29,14 +29,17 @@ func Digest() string {
 	if err != nil {
 		panic(err)
 	}
+
 	for _, entry := range entries {
 		data, err := files.ReadFile("text/" + entry.Name())
 		if err != nil {
 			panic(err)
 		}
+
 		fmt.Fprintf(h, "%s\x00%d\x00", entry.Name(), len(data))
 		h.Write(data)
 	}
+
 	return hex.EncodeToString(h.Sum(nil))
 }
 
@@ -48,6 +51,7 @@ func read(name string) string {
 		// condition any caller can meaningfully recover from.
 		panic("prompts: missing embedded file " + name + ": " + err.Error())
 	}
+
 	return strings.TrimRight(string(data), "\r\n")
 }
 
@@ -78,6 +82,7 @@ func WithRole(role string) string {
 	if role == "" {
 		return System
 	}
+
 	return System + "\n\n" + fmt.Sprintf(RoleAddendum, role)
 }
 
@@ -93,6 +98,7 @@ func PlatformLine(shell string) string {
 			"Invoke quoted executable paths with &. $LASTEXITCODE is a native exit code; $? is a success boolean. " +
 			"Use run_program for native executables and file tools for listings, edits and moves."
 	}
+
 	return "You run on " + runtime.GOOS + " with /bin/sh syntax. Do not assume additional utilities are installed."
 }
 
@@ -118,10 +124,12 @@ func ResponsePreset(id string) (Preset, error) {
 	if id == "" {
 		id = "custom"
 	}
+
 	for _, preset := range responsePresets {
 		if preset.ID == id {
 			return preset, nil
 		}
 	}
+
 	return Preset{}, fmt.Errorf("unknown prompt preset %q", id)
 }

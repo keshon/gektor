@@ -128,7 +128,7 @@ func (m *Model) searchView() string {
 	}
 	switch s.mode {
 	case sessRename:
-		rows = append(rows, line(styles.Normal, "Rename session · ENTER save · ESC back"), line(styles.Normal, m.note.View()))
+		rows = append(rows, line(styles.Normal, "Rename session · ENTER save · ESC back"), line(styles.Normal, s.rename.View()))
 	case sessReassign:
 		destination := m.wsRoot
 		if s.reassign != nil {

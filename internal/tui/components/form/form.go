@@ -29,7 +29,11 @@ type Model struct {
 }
 
 func New(fields []Field, editor textarea.Model) Model {
-	return Model{Fields: append([]Field(nil), fields...), Index: len(fields), Editor: editor}
+	return Model{
+		Fields: append([]Field(nil), fields...),
+		Index:  len(fields),
+		Editor: editor,
+	}
 }
 func (m *Model) Sync() {
 	if m.Index >= 0 && m.Index < len(m.Fields) && !m.Fields[m.Index].ReadOnly {
@@ -39,9 +43,11 @@ func (m *Model) Sync() {
 func (m *Model) Values() map[string]string {
 	m.Sync()
 	values := make(map[string]string, len(m.Fields))
+
 	for _, f := range m.Fields {
 		values[f.Key] = f.Value
 	}
+
 	return values
 }
 func (m *Model) Focus(index int, visible func(int) bool) {
@@ -51,11 +57,14 @@ func (m *Model) Focus(index int, visible func(int) bool) {
 	if index < m.Index {
 		step = -1
 	}
+
 	m.Index = (index%count + count) % count
+
 	// Action buttons are always reachable, even if every field is hidden.
 	for m.Index < len(m.Fields) && visible != nil && !visible(m.Index) {
 		m.Index = (m.Index + step + count) % count
 	}
+
 	m.Editor.Blur()
 	if m.Index < len(m.Fields) {
 		m.Editor.SetValue(m.Fields[m.Index].Value)
@@ -74,14 +83,17 @@ func (m *Model) Update(msg tea.Msg, visible func(int) bool, choice bool, destruc
 			if !destructive {
 				return Apply, nil
 			}
+
 			return None, nil
 		case "space":
 			if choice {
 				return Pick, nil
 			}
+
 			if m.Index == len(m.Fields) {
 				return Apply, nil
 			}
+
 			if m.Index == len(m.Fields)+1 {
 				return Cancel, nil
 			}
@@ -91,7 +103,9 @@ func (m *Model) Update(msg tea.Msg, visible func(int) bool, choice bool, destruc
 				if key.String() == "left" {
 					step = -1
 				}
+
 				m.Focus(len(m.Fields)+(m.Index-len(m.Fields)+step+2)%2, visible)
+
 				return None, nil
 			}
 		case "up", "down":
@@ -100,7 +114,9 @@ func (m *Model) Update(msg tea.Msg, visible func(int) bool, choice bool, destruc
 				if key.String() == "up" {
 					step = -1
 				}
+
 				m.Focus(m.Index+step, visible)
+
 				return None, nil
 			}
 		case "ctrl+up", "shift+tab":
@@ -113,34 +129,44 @@ func (m *Model) Update(msg tea.Msg, visible func(int) bool, choice bool, destruc
 			if choice {
 				return Pick, nil
 			}
+
 			if m.Index == len(m.Fields) {
 				return Apply, nil
 			}
+
 			if m.Index == len(m.Fields)+1 {
 				return Cancel, nil
 			}
+
 			if m.Fields[m.Index].Multiline && !m.Fields[m.Index].ReadOnly {
 				break
 			}
+
 			m.Focus(m.Index+1, visible)
+
 			return None, nil
 		}
 	}
+
 	if m.Index < len(m.Fields) {
 		if m.Fields[m.Index].ReadOnly {
 			key, ok := msg.(tea.KeyPressMsg)
 			if !ok {
 				return None, nil
 			}
+
 			switch key.String() {
 			case "up", "down", "left", "right", "home", "end", "pgup", "pgdown":
 			default:
 				return None, nil
 			}
 		}
+
 		var cmd tea.Cmd
 		m.Editor, cmd = m.Editor.Update(msg)
+
 		return None, cmd
 	}
+
 	return None, nil
 }

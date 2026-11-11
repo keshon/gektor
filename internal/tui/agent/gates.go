@@ -335,3 +335,9 @@ func (m *Model) refreshGate() {
 	}
 	m.gateVP.SetContent(strings.Join(rows, "\n"))
 }
+
+// resetNote clears the permission input when its gate finishes.
+func (m *Model) resetNote() {
+	m.note.Blur()
+	m.note.SetValue("")
+}

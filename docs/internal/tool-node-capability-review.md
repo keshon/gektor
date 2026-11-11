@@ -39,7 +39,7 @@ validation.
 
 Documents, files, images, media and social provide 21 shared operations under
 `internal/capabilities`. Application records add two operations shared in
-[`workflow/records`](../../internal/workflow/records/operation.go). Records
+[`workflow/records`](../../internal/workflow/records/records.go). Records
 belong to the workflow user store, so this package uses that existing storage
 boundary directly. Its location is deliberate, not a migration stage toward a
 new persistence abstraction.
@@ -47,7 +47,7 @@ new persistence abstraction.
 Evidence: [development pattern](../development/capabilities.md),
 [Agent contract](../../internal/agent/tool.go),
 [node descriptor](../../internal/workflow/node.go),
-[Agent composition](../../internal/tools/packages.go),
+[Agent composition](../../internal/tools/tools.go),
 [workflow composition](../../internal/app/workflow.go).
 
 ## Resolved findings
@@ -61,7 +61,7 @@ already diverged around `allow_missing`.
 The shared operation now owns names, descriptions, input/output schemas,
 read-only and retry declarations, execution and resource derivation. Both
 [Agent](../../internal/workflow/agenttools/records.go) and
-[node](../../internal/workflow/nodes/record/definitions.go) adapters delegate to
+[node](../../internal/workflow/nodes/record/record.go) adapters delegate to
 it. Permission routing calls the same resource helper. The former implementation
 and test files were moved out of the node package; no aliases remain there.
 

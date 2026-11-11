@@ -53,8 +53,9 @@ func TestSearchPopupGeometryAndDraftPreservation(t *testing.T) {
 		m := testModel()
 		m.state = stDone
 		m.wsRoot = t.TempDir()
+		m.sessionsRoot = sessionsRootFor(t, m.wsRoot)
 		for i := 0; i < 9; i++ {
-			writeSessionState(t, sessionsRootFor(t, m.wsRoot), fmt.Sprint(i), userHistory(fmt.Sprintf("Session %d", i)))
+			writeSessionState(t, m.sessionsRoot, fmt.Sprint(i), userHistory(fmt.Sprintf("Session %d", i)))
 		}
 		m.testUpdate(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 		m.input.SetValue("draft\nsecond line")
@@ -115,6 +116,7 @@ func TestSearchHistoryMatchOpensAtMessage(t *testing.T) {
 	m := testModel()
 	m.state = stDone
 	m.wsRoot = t.TempDir()
+	m.sessionsRoot = sessionsRootFor(t, m.wsRoot)
 	history := userHistory("Unrelated title")
 	for i := 0; i < 30; i++ {
 		history = append(history, llm.Message{Role: llm.RoleAssistant, Content: fmt.Sprintf("Earlier message %d", i)})
@@ -123,7 +125,7 @@ func TestSearchHistoryMatchOpensAtMessage(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		history = append(history, llm.Message{Role: llm.RoleAssistant, Content: fmt.Sprintf("Later message %d", i)})
 	}
-	dir := writeSessionState(t, sessionsRootFor(t, m.wsRoot), "match", history)
+	dir := writeSessionState(t, m.sessionsRoot, "match", history)
 	assignSavedWorkspace(t, filepath.Join(dir, "state.json"), m.wsRoot)
 	m.newSession = func(string, string, []string) (*harness.Session, error) { return &harness.Session{}, nil }
 	m.testUpdate(tea.WindowSizeMsg{Width: 120, Height: 30})
@@ -141,7 +143,8 @@ func TestSessionRenameAndDeleteKeepModalOpen(t *testing.T) {
 	m := testModel()
 	m.state = stDone
 	m.wsRoot = t.TempDir()
-	dir := writeSessionState(t, sessionsRootFor(t, m.wsRoot), "one", userHistory("Original title"))
+	m.sessionsRoot = sessionsRootFor(t, m.wsRoot)
+	dir := writeSessionState(t, m.sessionsRoot, "one", userHistory("Original title"))
 	m.testUpdate(tea.WindowSizeMsg{Width: 120, Height: 30})
 	m.refreshSessions()
 	finishSessionRefresh(t, m)
@@ -152,7 +155,7 @@ func TestSessionRenameAndDeleteKeepModalOpen(t *testing.T) {
 	if m.sessions == nil || m.sessions.mode != sessRename {
 		t.Fatal("pane rename shortcut missing")
 	}
-	m.note.SetValue("Renamed")
+	m.sessions.rename.SetValue("Renamed")
 	m.sessionsKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.sessions == nil || m.sessions.mode != sessList || conversation.ReadSessionTitle(dir) != "Renamed" {
 		t.Fatal("rename did not return to pane")

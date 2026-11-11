@@ -11,9 +11,11 @@ func (m *Model) Clamp(count, capacity int) {
 	if m.Offset > m.Cursor {
 		m.Offset = m.Cursor
 	}
+
 	if m.Cursor >= m.Offset+capacity {
 		m.Offset = m.Cursor - capacity + 1
 	}
+
 	m.Offset = min(max(m.Offset, 0), max(count-capacity, 0))
 }
 func (m *Model) Move(delta, count, capacity int) { m.Cursor += delta; m.Clamp(count, capacity) }
@@ -27,6 +29,7 @@ func (m *Model) Update(msg tea.Msg, count, capacity int) bool {
 	if !ok {
 		return false
 	}
+
 	switch key.String() {
 	case "up":
 		m.Move(-1, count, capacity)
@@ -39,5 +42,6 @@ func (m *Model) Update(msg tea.Msg, count, capacity int) bool {
 	default:
 		return false
 	}
+
 	return true
 }

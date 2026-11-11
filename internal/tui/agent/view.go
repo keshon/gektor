@@ -50,15 +50,15 @@ func (m *Model) View() tea.View {
 	if !m.ready || owner == focusDialog || owner == focusHeader {
 		return v
 	}
-	if m.sessions != nil {
+	if m.sessions != nil && (owner == focusSearch || owner == focusSessionRename) {
 		g := m.searchGeometry()
-		if m.sessions.mode == sessRename {
-			v.Cursor = m.note.Cursor()
+		if owner == focusSessionRename {
+			v.Cursor = m.sessions.rename.Cursor()
 			if v.Cursor != nil {
 				v.Cursor.X += g.x + 2
 				v.Cursor.Y += g.noteRow
 			}
-		} else if m.sessions.mode == sessList {
+		} else if owner == focusSearch {
 			v.Cursor = m.sessions.filter.Cursor()
 			if v.Cursor != nil {
 				v.Cursor.X += g.x + 2

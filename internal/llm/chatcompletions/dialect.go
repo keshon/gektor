@@ -1,10 +1,5 @@
 package chatcompletions
 
-import (
-	"fmt"
-	"strings"
-)
-
 // dialect changes only Chat Completions request formatting.
 type dialect interface {
 	name() string
@@ -30,15 +25,4 @@ func Kinds() []string {
 		out = append(out, k.kind)
 	}
 	return out
-}
-
-// ClientFor builds a wire client using the selected request dialect.
-func ClientFor(kind, baseURL, model string) (*Client, error) {
-	for _, k := range kinds {
-		if k.kind == kind {
-			return newClient(baseURL, model, k.dialect), nil
-		}
-	}
-	return nil, fmt.Errorf("unknown backend kind %q, want one of %s",
-		kind, strings.Join(Kinds(), " or "))
 }

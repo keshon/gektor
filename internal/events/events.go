@@ -42,25 +42,38 @@ func (e *Emitter) Emit(kind string, fields map[string]any) {
 	if e == nil || e.w == nil && e.sink == nil {
 		return
 	}
+
 	e.mu.Lock()
 	defer e.mu.Unlock()
+
 	e.seq++
 	if e.sink != nil {
 		payload := make(map[string]any, len(fields))
+
 		for key, value := range fields {
 			payload[key] = value
 		}
-		e.sink.Handle(Event{Name: kind, Seq: e.seq, Fields: payload})
+
+		e.sink.Handle(Event{
+			Name:   kind,
+			Seq:    e.seq,
+			Fields: payload,
+		})
+
 		return
 	}
+
 	rec := map[string]any{"seq": e.seq, "event": kind}
+
 	for k, v := range fields {
 		rec[k] = v
 	}
+
 	data, err := json.Marshal(rec)
 	if err != nil {
 		return
 	}
+
 	fmt.Fprintf(e.w, "%s\n", data)
 	if f, ok := e.w.(interface{ Sync() error }); ok {
 		_ = f.Sync()

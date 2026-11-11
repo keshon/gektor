@@ -11,6 +11,7 @@ const (
 	focusInput
 	focusNote
 	focusSearch
+	focusSessionRename
 	focusHeader
 	focusDialog
 	focusInspector
@@ -72,7 +73,7 @@ func (m *Model) activeInputOwner() focusOwner {
 	if m.sessions != nil {
 		switch m.sessions.mode {
 		case sessRename:
-			return focusNote
+			return focusSessionRename
 		case sessList:
 			return focusSearch
 		}
@@ -94,6 +95,10 @@ func (m *Model) syncFocus() {
 	if m.hidden {
 		m.input.Blur()
 		m.note.Blur()
+		if m.sessions != nil {
+			m.sessions.filter.Blur()
+			m.sessions.rename.Blur()
+		}
 		return
 	}
 	owner := m.activeInputOwner()
@@ -114,6 +119,11 @@ func (m *Model) syncFocus() {
 		m.note.Focus()
 	}
 	if m.sessions != nil {
+		if owner != focusSessionRename {
+			m.sessions.rename.Blur()
+		} else if !m.sessions.rename.Focused() {
+			m.sessions.rename.Focus()
+		}
 		if owner != focusSearch {
 			m.sessions.filter.Blur()
 		} else if !m.sessions.filter.Focused() {

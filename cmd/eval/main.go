@@ -198,16 +198,24 @@ func (c *countingClient) Chat(ctx context.Context, req llm.ChatRequest) (llm.Cha
 		if p.CompletionTokens > 0 {
 			first.CompareAndSwap(0, time.Since(started).Nanoseconds())
 		}
+
 		if progress != nil {
 			progress(p)
 		}
 	}
 	atomic.AddInt64(&c.calls, 1)
 	resp, err := c.inner.Chat(ctx, req)
-	timing := requestTiming{Seconds: time.Since(started).Seconds(), FirstTokenSeconds: time.Duration(first.Load()).Seconds(), FinishReason: resp.FinishReason, PromptTokens: resp.Usage.PromptTokens, CompletionTokens: resp.Usage.CompletionTokens}
+	timing := requestTiming{
+		Seconds:           time.Since(started).Seconds(),
+		FirstTokenSeconds: time.Duration(first.Load()).Seconds(),
+		FinishReason:      resp.FinishReason,
+		PromptTokens:      resp.Usage.PromptTokens,
+		CompletionTokens:  resp.Usage.CompletionTokens,
+	}
 	if err != nil {
 		timing.Error = firstLine(err.Error())
 	}
+
 	c.mu.Lock()
 	c.timings = append(c.timings, timing)
 	c.mu.Unlock()
@@ -215,18 +223,21 @@ func (c *countingClient) Chat(ctx context.Context, req llm.ChatRequest) (llm.Cha
 	atomic.AddInt64(&c.cachedTokens, int64(resp.Usage.CachedTokens))
 	atomic.AddInt64(&c.completionTokens, int64(resp.Usage.CompletionTokens))
 	got := int64(resp.Usage.PromptTokens)
+
 	for {
 		peak := atomic.LoadInt64(&c.peakPrompt)
 		if got <= peak || atomic.CompareAndSwapInt64(&c.peakPrompt, peak, got) {
 			break
 		}
 	}
+
 	for got > 0 {
 		floor := atomic.LoadInt64(&c.floorPrompt)
 		if (floor != 0 && got >= floor) || atomic.CompareAndSwapInt64(&c.floorPrompt, floor, got) {
 			break
 		}
 	}
+
 	return resp, err
 }
 
@@ -244,11 +255,13 @@ type overflowInjector struct {
 func (o *overflowInjector) Chat(ctx context.Context, req llm.ChatRequest) (llm.ChatResponse, error) {
 	if atomic.CompareAndSwapInt64(&o.fired, 0, 1) {
 		return llm.ChatResponse{}, &llm.APIError{
-			Status: 400, StatusText: "bad request",
-			Body:     "exceeds the context window",
-			Overflow: true,
+			Status:     400,
+			StatusText: "bad request",
+			Body:       "exceeds the context window",
+			Overflow:   true,
 		}
 	}
+
 	return o.inner.Chat(ctx, req)
 }
 
@@ -266,6 +279,7 @@ func gitInit(dir string) error {
 			return fmt.Errorf("git %s: %w: %s", a[0], err, strings.TrimSpace(string(out)))
 		}
 	}
+
 	return nil
 }
 
@@ -342,14 +356,18 @@ func main() {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
+
 		return
 	}
+
 	if len(os.Args) > 2 && os.Args[1] == "workflow" && os.Args[2] == "internal-script-worker" {
 		if err := script.Serve(os.Stdin, os.Stdout); err != nil {
 			log.Fatal(err)
 		}
+
 		return
 	}
+
 	provider := config.DefaultProfile().Provider
 	backend := flag.String("backend", provider.URL, "backend base URL: bare origin for a local "+
 		"server or API root for a hosted OpenAI-compatible provider")
@@ -390,6 +408,7 @@ func main() {
 	if budgetErr != nil {
 		log.Fatal(budgetErr)
 	}
+
 	delegateBudget.DelegateSteps, delegateBudget.DelegateMaxSteps = steps, maximum
 	if *runs < 1 || *jobsN < 1 {
 		log.Fatal("-runs and -jobs must be positive")
@@ -402,18 +421,23 @@ func main() {
 		if err != nil {
 			log.Fatalf("load probes: %v", err)
 		}
+
 		validated := len(probes)
 		probes, err = selectSuite(probes, *suite)
 		if err != nil {
 			log.Fatal(err)
 		}
+
 		selected := keepTier(probes, *tier)
+
 		for _, p := range selected {
 			mode := "agent"
 			fmt.Printf("  %-22s %-7s %-7s %d verify, %d trace, %d answer, JSON schema=%t\n",
 				p.Name, p.Tier, mode, len(p.Verify), len(p.Trace), len(p.Answer), len(p.AnswerSchema) > 0)
 		}
+
 		fmt.Printf("%d probes OK; %d selected\n", validated, len(selected))
+
 		return
 	}
 
@@ -421,19 +445,24 @@ func main() {
 	if err != nil {
 		log.Fatalf("load probes: %v", err)
 	}
+
 	probes, err = selectSuite(probes, *suite)
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	if *only != "" {
 		selected := []Probe{}
+
 		for _, p := range probes {
 			if strings.Contains(p.Name, *only) {
 				selected = append(selected, p)
 			}
 		}
+
 		probes = selected
 	}
+
 	probes = keepTier(probes, *tier)
 	if len(probes) == 0 {
 		log.Fatalf("no probes matched in %s", *dir)
@@ -443,17 +472,20 @@ func main() {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
+
 	defer release()
 
 	runDir := filepath.Join(*outDir, time.Now().Format("20060102-150405"))
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		log.Fatalf("create results dir: %v", err)
 	}
+
 	resultsPath := filepath.Join(runDir, "results.jsonl")
 	results, err := os.Create(resultsPath)
 	if err != nil {
 		log.Fatalf("create results file: %v", err)
 	}
+
 	defer results.Close()
 
 	// A pass rate without the model that produced it is worse than no
@@ -465,10 +497,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	contextLimit, backendModel := facts.ContextLimit, facts.Model
 	if !facts.ModelKnown {
 		backendModel = "(unknown)"
 	}
+
 	// Live on 2026-09-05: koboldcpp was restarted and came back holding
 	// different weights, so a 4/8 looked like a refactor regression next
 	// to the previous day's 8/8. Nothing in the run said otherwise until
@@ -477,15 +511,22 @@ func main() {
 		log.Fatalf("backend is serving %q, which does not contain %q — "+
 			"load the intended model or drop -require-model", backendModel, *requireModel)
 	}
+
 	fmt.Printf("backend %s (%s)\nmodel   %s\ncontext %d\n%d probes x %d runs\n\n",
 		*backend, probe.Backend(), backendModel, contextLimit, len(probes), *runs)
 	if err := writeMeta(runDir, evalMetadata{
-		BackendKind: probe.Backend(), Backend: *backend, Model: backendModel,
-		ContextLimit: contextLimit, Jobs: *jobsN, MaxTokens: *maxTokens,
-		Runs: *runs, DrySampler: *dry_,
-		DeadlineAware: *deadlineAware,
-		Suite:         *suite,
-		DelegateSteps: steps, DelegateMaxSteps: maximum,
+		BackendKind:      probe.Backend(),
+		Backend:          *backend,
+		Model:            backendModel,
+		ContextLimit:     contextLimit,
+		Jobs:             *jobsN,
+		MaxTokens:        *maxTokens,
+		Runs:             *runs,
+		DrySampler:       *dry_,
+		DeadlineAware:    *deadlineAware,
+		Suite:            *suite,
+		DelegateSteps:    steps,
+		DelegateMaxSteps: maximum,
 	}, probes); err != nil {
 		log.Fatalf("record experiment metadata: %v", err)
 	}
@@ -502,6 +543,7 @@ func main() {
 	record := func(r Result) {
 		mu.Lock()
 		defer mu.Unlock()
+
 		all = append(all, r)
 
 		writeProbeResult(results, r)
@@ -524,6 +566,7 @@ func main() {
 		if all[i].Probe != all[k].Probe {
 			return all[i].Probe < all[k].Probe
 		}
+
 		return all[i].Run < all[k].Run
 	})
 
@@ -531,6 +574,7 @@ func main() {
 	if err := writeSummary(runDir, all); err != nil {
 		log.Fatalf("write summary: %v", err)
 	}
+
 	stats := aggregateRuns(all)
 	fmt.Printf("median %.1fs / %.1f steps; tool failures %d; tokens prompt=%d cached=%d completion=%d\nsummary: %s\n", stats.MedianSeconds, stats.MedianSteps, stats.ToolFailures, stats.PromptTokens, stats.CachedTokens, stats.CompletionTokens, filepath.Join(runDir, "summary.json"))
 }
@@ -543,10 +587,17 @@ func main() {
 // silently defaulting: a run against the wrong backend is the same class
 // of wasted measurement as a run against the wrong model.
 func newBackend(kind, baseURL, model, apiKey, apiKeyEnv string) *app.Backend {
-	c, err := app.NewBackend(context.Background(), app.BackendOptions{Kind: kind, URL: baseURL, Model: model, APIKey: apiKey, APIKeyEnv: apiKeyEnv})
+	c, err := app.NewBackend(context.Background(), app.BackendOptions{
+		Kind:      kind,
+		URL:       baseURL,
+		Model:     model,
+		APIKey:    apiKey,
+		APIKeyEnv: apiKeyEnv,
+	})
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
+
 	return c
 }
 
@@ -554,12 +605,15 @@ func keepTier(probes []Probe, tier string) []Probe {
 	if tier == "" {
 		return probes
 	}
+
 	kept := make([]Probe, 0, len(probes))
+
 	for _, p := range probes {
 		if p.Tier == tier {
 			kept = append(kept, p)
 		}
 	}
+
 	return kept
 }
 
@@ -569,13 +623,18 @@ func osSkipReason(oses []string) (bool, string) {
 	if len(oses) > 0 && !slices.Contains(oses, runtime.GOOS) {
 		return true, fmt.Sprintf("probe needs %s, host is %s", strings.Join(oses, "/"), runtime.GOOS)
 	}
+
 	return false, ""
 }
 
 func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend, model string,
 	contextLimit, maxTokens int, drySampler bool, apiKey, apiKeyEnv string, deadlineAware bool, budgets ...config.Harness) (res Result) {
 
-	res = Result{Probe: p.Name, Run: run, Errored: true}
+	res = Result{
+		Probe:   p.Name,
+		Run:     run,
+		Errored: true,
+	}
 	started := time.Now()
 	defer func() { res.Seconds = time.Since(started).Seconds() }()
 
@@ -585,6 +644,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 		res.Skipped = true
 		res.Errored = false
 		res.RunError = reason
+
 		return res
 	}
 
@@ -595,21 +655,26 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 		res.RunError = "mkdir temp: " + err.Error()
 		return res
 	}
+
 	defer os.RemoveAll(tempRoot)
+
 	work := filepath.Join(tempRoot, "workspace")
 	if err := os.Mkdir(work, 0700); err != nil {
 		res.RunError = "mkdir workspace: " + err.Error()
 		return res
 	}
+
 	if err := seedProbeWorkspace(p, work); err != nil {
 		res.RunError = err.Error()
 		return res
 	}
+
 	ws, err := workspace.New(work)
 	if err != nil {
 		res.RunError = "workspace: " + err.Error()
 		return res
 	}
+
 	defer ws.Close()
 
 	kobold := newBackend(backendKind, backend, model, apiKey, apiKeyEnv)
@@ -622,8 +687,10 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 			res.Skipped = true
 			res.Errored = false
 			res.RunError = "probe requires confirmed image support"
+
 			return res
 		}
+
 		images, err = prepareProbeAttachments(p, work, tempRoot)
 		if err != nil {
 			res.RunError = err.Error()
@@ -637,6 +704,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 	tracePath := filepath.Join(runDir, fmt.Sprintf("%s-run%d.log", p.Name, run))
 	if tf, err := os.Create(tracePath); err == nil {
 		defer tf.Close()
+
 		kobold.SetDebug(tf)
 		res.Trace = tracePath
 	}
@@ -663,6 +731,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 	if timeout <= 0 {
 		timeout = defaultTimeout
 	}
+
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -677,8 +746,13 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 		if step+1 > res.Steps {
 			res.Steps = step + 1
 		}
+
 		for _, tc := range msg.ToolCalls {
-			calls = append(calls, call{id: tc.ID, tool: tc.Name, args: string(tc.Arguments)})
+			calls = append(calls, call{
+				id:   tc.ID,
+				tool: tc.Name,
+				args: string(tc.Arguments),
+			})
 		}
 	}
 
@@ -690,11 +764,13 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 	if len(budgets) > 0 {
 		env.DelegateSteps, env.DelegateMaxSteps = budgets[0].DelegateSteps, budgets[0].DelegateMaxSteps
 	}
+
 	env.Vision = len(images) > 0
 	env = observeProbeResults(env, &res, &calls, started)
 	if deadlineAware {
 		env.RunTimeout = timeout
 	}
+
 	answer = executeProbeAgent(runCtx, p, env, images, &res)
 	res.Requests = counter.timings
 	res.Errored = !counter.reached() && !p.InjectOverflowOnce
@@ -728,7 +804,9 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 		res.Failures = append(res.Failures,
 			fmt.Sprintf("took %d steps, probe allows %d", res.Steps, p.MaxSteps))
 	}
+
 	res.Passed = len(res.Failures) == 0
+
 	return res
 }
 
@@ -756,11 +834,13 @@ func evalEnv(client llm.Client, ws *workspace.Workspace, procs *tools.Background
 
 func checkWorkspace(ctx context.Context, p Probe, ws *workspace.Workspace) []string {
 	var out []string
+
 	for _, c := range p.Verify {
 		if msg, ok := RunCheck(ctx, c, ws); !ok {
 			out = append(out, firstLine(msg))
 		}
 	}
+
 	return out
 }
 
@@ -772,6 +852,7 @@ func recordToolResult(calls []call, result agent.ToolResult) {
 			ok := !result.Failed
 			calls[i].success = &ok
 			calls[i].output = result.Output
+
 			return
 		}
 	}
@@ -779,6 +860,7 @@ func recordToolResult(calls []call, result agent.ToolResult) {
 
 func checkTrace(p Probe, calls []call) []string {
 	var out []string
+
 	for _, tc := range p.Trace {
 		var resultRE *regexp.Regexp
 		if tc.OutputRegex != "" {
@@ -789,6 +871,7 @@ func checkTrace(p Probe, calls []call) []string {
 				continue
 			}
 		}
+
 		var re *regexp.Regexp
 		if tc.ArgsRegex != "" {
 			var err error
@@ -797,26 +880,34 @@ func checkTrace(p Probe, calls []call) []string {
 				continue
 			}
 		}
+
 		matched := 0
+
 		for _, c := range calls {
 			if ok, _ := pathmatch.Match(tc.Tool, c.tool); !ok {
 				continue
 			}
+
 			if tc.Success != nil && (c.success == nil || *c.success != *tc.Success) {
 				continue
 			}
+
 			if resultRE != nil && !resultRE.MatchString(c.output) {
 				continue
 			}
+
 			if re != nil && !re.MatchString(c.args) {
 				continue
 			}
+
 			matched++
 		}
+
 		if tc.MaxCalls > 0 && matched > tc.MaxCalls {
 			out = append(out, describe(tc,
 				fmt.Sprintf("called %dx, probe allows %d", matched, tc.MaxCalls)))
 		}
+
 		switch tc.Mode {
 		case "required":
 			if matched == 0 {
@@ -832,6 +923,7 @@ func checkTrace(p Probe, calls []call) []string {
 			out = append(out, fmt.Sprintf("probe %s: unknown trace mode %q", p.Name, tc.Mode))
 		}
 	}
+
 	return out
 }
 
@@ -844,6 +936,7 @@ func checkAnswer(p Probe, answer string) []string {
 			out = append(out, "answer schema: "+err.Error())
 		}
 	}
+
 	for _, ac := range p.Answer {
 		// Case-insensitive by default: these assert on prose a model
 		// wrote, and "150000 Bytes" is the same answer as "150000 bytes".
@@ -852,7 +945,9 @@ func checkAnswer(p Probe, answer string) []string {
 			out = append(out, fmt.Sprintf("bad answer regex %q: %v", ac.Regex, err))
 			continue
 		}
+
 		hit := re.MatchString(answer)
+
 		switch {
 		case ac.Mode == "required" && !hit:
 			out = append(out, explain("answer does not match "+ac.Regex, ac.Why))
@@ -862,6 +957,7 @@ func checkAnswer(p Probe, answer string) []string {
 			out = append(out, fmt.Sprintf("probe %s: unknown answer mode %q", p.Name, ac.Mode))
 		}
 	}
+
 	return out
 }
 
@@ -869,6 +965,7 @@ func explain(what, why string) string {
 	if why != "" {
 		return what + " — " + why
 	}
+
 	return what
 }
 
@@ -877,9 +974,11 @@ func describe(tc TraceCheck, what string) string {
 	if tc.ArgsRegex != "" {
 		label += " matching " + tc.ArgsRegex
 	}
+
 	if tc.Why != "" {
 		return fmt.Sprintf("%s %s — %s", label, what, tc.Why)
 	}
+
 	return fmt.Sprintf("%s %s", label, what)
 }
 
@@ -894,6 +993,7 @@ func summarize(all []Result) string {
 
 	errored := 0
 	skipped := 0
+
 	for _, r := range all {
 		// A run that never reached the model is not evidence either way.
 		// Counting it as a failure would mean a stopped backend silently
@@ -902,17 +1002,20 @@ func summarize(all []Result) string {
 			errored++
 			continue
 		}
+
 		// A skipped OS-gated probe was never attempted: same exclusion.
 		if r.Skipped {
 			skipped++
 			continue
 		}
+
 		t, seen := byProbe[r.Probe]
 		if !seen {
 			t = &tally{}
 			byProbe[r.Probe] = t
 			names = append(names, r.Probe)
 		}
+
 		t.total++
 		overall.total++
 		if r.Passed {
@@ -920,6 +1023,7 @@ func summarize(all []Result) string {
 			overall.pass++
 		}
 	}
+
 	sort.Strings(names)
 
 	if overall.total == 0 {
@@ -930,25 +1034,30 @@ func summarize(all []Result) string {
 
 	var b strings.Builder
 	b.WriteString("=== pass rate ===\n")
+
 	for _, n := range names {
 		t := byProbe[n]
 		fmt.Fprintf(&b, "  %-22s %d/%d  %3.0f%%\n", n, t.pass, t.total,
 			100*float64(t.pass)/float64(t.total))
 	}
+
 	fmt.Fprintf(&b, "  %-22s %d/%d  %3.0f%%", "TOTAL", overall.pass, overall.total,
 		100*float64(overall.pass)/float64(overall.total))
 	if errored > 0 {
 		fmt.Fprintf(&b, "\n\n  %d run(s) never reached the model and are excluded — "+
 			"this rate covers %d of %d attempted.", errored, overall.total, overall.total+errored)
 	}
+
 	if skipped > 0 {
 		fmt.Fprintf(&b, "\n\n  %d run(s) skipped (host OS outside the probe's oses) and are excluded.",
 			skipped)
 	}
+
 	if line := summarizeNudges(all); line != "" {
 		b.WriteString("\n\n")
 		b.WriteString(line)
 	}
+
 	return b.String()
 }
 
@@ -969,17 +1078,21 @@ func summarizeNudges(all []Result) string {
 	type stat struct{ total, onPass, onFail int }
 	kinds := map[string]*stat{}
 	scored := 0
+
 	for _, r := range all {
 		if r.Errored || r.Skipped {
 			continue
 		}
+
 		scored++
+
 		for _, k := range r.Nudges {
 			s, ok := kinds[k]
 			if !ok {
 				s = &stat{}
 				kinds[k] = s
 			}
+
 			s.total++
 			if r.Passed {
 				s.onPass++
@@ -988,22 +1101,28 @@ func summarizeNudges(all []Result) string {
 			}
 		}
 	}
+
 	if len(kinds) == 0 {
 		return ""
 	}
+
 	names := make([]string, 0, len(kinds))
+
 	for k := range kinds {
 		names = append(names, k)
 	}
+
 	sort.Slice(names, func(i, j int) bool { return kinds[names[i]].total > kinds[names[j]].total })
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "=== harness nudges (%d scored run(s)) ===\n", scored)
 	fmt.Fprintf(&b, "  %-18s %6s %8s %8s\n", "kind", "heard", "passed", "failed")
+
 	for _, k := range names {
 		s := kinds[k]
 		fmt.Fprintf(&b, "  %-18s %6d %8d %8d\n", k, s.total, s.onPass, s.onFail)
 	}
+
 	return b.String()
 }
 
@@ -1012,42 +1131,52 @@ func loadProbes(dir, only string) ([]Probe, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	var out []Probe
+
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
 		}
+
 		name := strings.TrimSuffix(e.Name(), ".json")
 		if only != "" && !strings.Contains(name, only) {
 			continue
 		}
+
 		path := filepath.Join(dir, e.Name())
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", path, err)
 		}
+
 		var p Probe
 		if err := json.Unmarshal(data, &p); err != nil {
 			return nil, fmt.Errorf("%s: %w", path, err)
 		}
+
 		if strings.TrimSpace(p.Task) == "" {
 			return nil, fmt.Errorf("%s: task is empty", path)
 		}
+
 		for _, message := range p.Continuation {
 			if message.Role != llm.RoleAssistant && message.Role != llm.RoleTool {
 				return nil, fmt.Errorf("%s: continuation accepts assistant and tool messages only", path)
 			}
 		}
+
 		// A probe with nothing to assert passes unconditionally, which is
 		// worse than not having the probe at all.
 		if len(p.Verify) == 0 && len(p.Trace) == 0 && len(p.Answer) == 0 && len(p.AnswerSchema) == 0 && p.MaxSteps == 0 {
 			return nil, fmt.Errorf("%s: nothing asserted — it would score itself", path)
 		}
+
 		switch p.Tier {
 		case "smoke", "signal":
 		default:
 			return nil, fmt.Errorf("%s: tier is %q, want smoke or signal", path, p.Tier)
 		}
+
 		for _, goos := range p.Oses {
 			switch goos {
 			case "windows", "linux", "darwin":
@@ -1055,6 +1184,7 @@ func loadProbes(dir, only string) ([]Probe, error) {
 				return nil, fmt.Errorf("%s: oses has %q, want windows, linux or darwin (runtime.GOOS)", path, goos)
 			}
 		}
+
 		// Selftest before spend: unknown check types, missing check
 		// fields, and uncompilable regexes fail here, dry, instead of
 		// mid-run after model calls.
@@ -1063,56 +1193,70 @@ func loadProbes(dir, only string) ([]Probe, error) {
 				return nil, fmt.Errorf("%s: answer_schema: %w", path, err)
 			}
 		}
+
 		if p.Generated != "" {
 			if _, err := generatedFixture(p.Generated); err != nil {
 				return nil, fmt.Errorf("%s: %w", path, err)
 			}
 		}
+
 		if len(p.Attachments) > 0 {
 			files, err := generatedFixture(p.Generated)
 			if err != nil {
 				return nil, err
 			}
+
 			seen := map[string]bool{}
+
 			for _, name := range p.Attachments {
 				if _, ok := files[name]; !ok || seen[name] {
 					return nil, fmt.Errorf("%s: unknown or duplicate generated attachment %q", path, name)
 				}
+
 				seen[name] = true
 			}
 		}
+
 		for i, c := range p.Verify {
 			if err := ValidateCheck(c); err != nil {
 				return nil, fmt.Errorf("%s: verify[%d]: %w", path, i, err)
 			}
 		}
+
 		for _, tc := range p.Trace {
 			if tc.OutputRegex != "" {
 				if _, err := regexp.Compile(tc.OutputRegex); err != nil {
 					return nil, fmt.Errorf("%s: bad output_regex: %w", path, err)
 				}
 			}
+
 			if tc.Tool == "" {
 				return nil, fmt.Errorf("%s: trace tool is empty", path)
 			}
+
 			if _, err := pathmatch.Match(tc.Tool, ""); err != nil {
 				return nil, fmt.Errorf("%s: bad tool pattern: %w", path, err)
 			}
+
 			if tc.ArgsRegex != "" {
 				if _, err := regexp.Compile(tc.ArgsRegex); err != nil {
 					return nil, fmt.Errorf("%s: trace %q: bad args_regex %q: %v", path, tc.Tool, tc.ArgsRegex, err)
 				}
 			}
 		}
+
 		for _, ac := range p.Answer {
 			if _, err := regexp.Compile("(?i)" + ac.Regex); err != nil {
 				return nil, fmt.Errorf("%s: bad answer regex %q: %v", path, ac.Regex, err)
 			}
 		}
+
 		p.Name = name
 		out = append(out, p)
 	}
+
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+
 	return out, nil
 }
 
@@ -1121,32 +1265,42 @@ func copyTree(src, dst string) error {
 	if _, err := os.Stat(src); os.IsNotExist(err) {
 		return fmt.Errorf("seed %s does not exist", src)
 	}
+
 	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
+
 		rel, err := filepath.Rel(src, path)
 		if err != nil {
 			return err
 		}
+
 		target := filepath.Join(dst, rel)
 		if d.IsDir() {
 			return os.MkdirAll(target, 0o755)
 		}
+
 		in, err := os.Open(path)
 		if err != nil {
 			return err
 		}
+
 		defer in.Close()
+
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 			return err
 		}
+
 		out, err := os.Create(target)
 		if err != nil {
 			return err
 		}
+
 		defer out.Close()
+
 		_, err = io.Copy(out, in)
+
 		return err
 	})
 }
@@ -1155,6 +1309,7 @@ func firstLine(s string) string {
 	if i := strings.IndexByte(s, '\n'); i >= 0 {
 		s = s[:i]
 	}
+
 	return strings.TrimSpace(s)
 }
 
@@ -1164,21 +1319,25 @@ func seedProbeWorkspace(p Probe, work string) error {
 			return fmt.Errorf("seed workspace: %w", err)
 		}
 	}
+
 	if p.Generated != "" {
 		files, err := generatedFixture(p.Generated)
 		if err != nil {
 			return err
 		}
+
 		for path, data := range files {
 			target := filepath.Join(work, filepath.FromSlash(path))
 			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
 				return err
 			}
+
 			if err := os.WriteFile(target, data, 0600); err != nil {
 				return err
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -1192,8 +1351,10 @@ func recordProbeUsage(res *Result, counter *countingClient, contextLimit int, ca
 	if contextLimit > 0 {
 		res.PeakContextPct = res.PeakPromptTokens * 100 / contextLimit
 	}
+
 	if len(calls) > 0 {
 		res.Tools = map[string]int{}
+
 		for _, c := range calls {
 			res.Tools[c.tool]++
 		}
@@ -1205,6 +1366,7 @@ func writeProbeResult(results io.Writer, r Result) {
 	fmt.Fprintln(results, string(line))
 
 	status := "PASS"
+
 	switch {
 	case r.Skipped:
 		status = "SKIP"
@@ -1213,6 +1375,7 @@ func writeProbeResult(results io.Writer, r Result) {
 	case !r.Passed:
 		status = "FAIL"
 	}
+
 	fmt.Printf("  %s  %-22s run %d  %6.1fs  %2d steps  ctx %2d%%",
 		status, r.Probe, r.Run, r.Seconds, r.Steps, r.PeakContextPct)
 	if len(r.Failures) > 0 {
@@ -1220,6 +1383,7 @@ func writeProbeResult(results io.Writer, r Result) {
 	} else if r.RunError != "" {
 		fmt.Printf("  (%s)", r.RunError)
 	}
+
 	fmt.Println()
 }
 
@@ -1234,6 +1398,7 @@ func runProbeJobs(probes []Probe, runs, workers int, run func(evalJob)) {
 	// hoisting them to the front just scrambles the reading order.
 	concurrent := max(workers, 1) > 1
 	var jobs, exclusive []evalJob
+
 	for _, p := range probes {
 		for run := 1; run <= runs; run++ {
 			if p.Exclusive && concurrent {
@@ -1252,19 +1417,24 @@ func runProbeJobs(probes []Probe, runs, workers int, run func(evalJob)) {
 
 	sem := make(chan struct{}, max(workers, 1))
 	var wg sync.WaitGroup
+
 	for _, j := range jobs {
 		if !concurrent {
 			run(j)
 			continue
 		}
+
 		wg.Add(1)
 		go func(j evalJob) {
 			defer wg.Done()
+
 			sem <- struct{}{}
 			defer func() { <-sem }()
+
 			run(j)
 		}(j)
 	}
+
 	wg.Wait()
 
 }

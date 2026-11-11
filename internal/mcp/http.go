@@ -7,41 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 )
-
-// HTTPConfig supplies an authorized endpoint and a client with the caller's
-// network policy. NewHTTP copies Headers and retains Client; calls need deadlines.
-type HTTPConfig struct {
-	Server  string
-	URL     string
-	Client  *http.Client
-	Headers map[string]string
-}
-
-// NewHTTP initializes a session and discovers its catalog. The caller must Close
-// the returned session. Failed discovery closes any server-side session.
-func NewHTTP(ctx context.Context, cfg HTTPConfig) (*HTTP, []ToolDefinition, error) {
-	c := &HTTP{
-		server:  cfg.Server,
-		url:     cfg.URL,
-		http:    cfg.Client,
-		headers: maps.Clone(cfg.Headers),
-	}
-	if c.http == nil {
-		return nil, nil, fmt.Errorf("HTTP client is required")
-	}
-	defs, err := initialize(ctx, c)
-	if err != nil {
-		c.Close()
-		return nil, nil, fmt.Errorf("mcp %s: %w", cfg.Server, err)
-	}
-	return c, defs, nil
-}
 
 // HTTP speaks JSON-RPC 2.0 to one MCP server over Streamable
 // HTTP: each call is a POST; the answer is a single JSON object or an
@@ -62,13 +32,16 @@ type HTTP struct {
 func (c *HTTP) nextID() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	c.seq++
+
 	return c.seq
 }
 
 func (c *HTTP) sessionID() string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	return c.session
 }
 
@@ -76,8 +49,10 @@ func (c *HTTP) setSession(id string) {
 	if id == "" {
 		return
 	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	if c.session == "" {
 		c.session = id
 	}
@@ -88,22 +63,27 @@ func (c *HTTP) setSession(id string) {
 func (c *HTTP) Close() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
 	session := c.sessionID()
 	if session == "" {
 		return
 	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.url, nil)
 	if err != nil {
 		return
 	}
+
 	for name, value := range c.headers {
 		req.Header.Set(name, value)
 	}
+
 	req.Header.Set("Mcp-Session-Id", session)
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return
 	}
+
 	// Close is best-effort; DELETE is unsupported by some MCP servers.
 	resp.Body.Close()
 }
@@ -122,6 +102,7 @@ func (c *HTTP) Call(ctx context.Context, method string, params any, out any) err
 	if err != nil {
 		return err
 	}
+
 	raw, session, err := c.post(ctx, body, true, id)
 	if errors.Is(err, errSessionExpired) && method != "initialize" {
 		c.renew.Lock()
@@ -134,18 +115,23 @@ func (c *HTTP) Call(ctx context.Context, method string, params any, out any) err
 		} else {
 			err = nil
 		}
+
 		c.renew.Unlock()
 		if err != nil {
 			return fmt.Errorf("renew MCP session: %w", err)
 		}
+
 		if method == "tools/call" {
 			return fmt.Errorf("MCP session expired and was reinitialized; original tool call was not replayed. Inspect its effects before explicitly retrying")
 		}
+
 		raw, session, err = c.post(ctx, body, false, id)
 	}
+
 	if err != nil {
 		return err
 	}
+
 	c.setSession(session)
 	if out != nil {
 		decodeErr := json.Unmarshal(raw, out)
@@ -153,6 +139,7 @@ func (c *HTTP) Call(ctx context.Context, method string, params any, out any) err
 			return fmt.Errorf("decode %s result: %w", method, decodeErr)
 		}
 	}
+
 	return nil
 }
 
@@ -165,61 +152,77 @@ func (c *HTTP) post(ctx context.Context, body []byte, allowRenew bool, expectedI
 	if err != nil {
 		return nil, "", err
 	}
+
 	for name, value := range c.headers {
 		req.Header.Set(name, value)
 	}
+
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
 	if session := c.sessionID(); session != "" {
 		req.Header.Set("Mcp-Session-Id", session)
 	}
+
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return nil, "", err
 	}
+
 	// The response body must be released even when protocol decoding fails.
 	defer resp.Body.Close()
+
 	if resp.StatusCode == http.StatusNotFound && allowRenew {
 		c.mu.Lock()
 		c.session = ""
 		c.mu.Unlock()
+
 		return nil, "", errSessionExpired
 	}
+
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 		return nil, "", fmt.Errorf("mcp %s: HTTP %s: %s", c.server, resp.Status, strings.TrimSpace(string(raw)))
 	}
+
 	session := resp.Header.Get("Mcp-Session-Id")
 	if resp.StatusCode == http.StatusAccepted || resp.StatusCode == http.StatusNoContent {
 		return nil, session, nil
 	}
+
 	if ct := resp.Header.Get("Content-Type"); strings.Contains(ct, "text/event-stream") {
 		raw, err := scanSSE(resp.Body, expectedID)
 		if err != nil {
 			return nil, "", err
 		}
+
 		var rpc rpcResponse
 		decodeErr := json.Unmarshal(raw, &rpc)
 		if decodeErr != nil {
 			return nil, "", fmt.Errorf("decode SSE response: %w", decodeErr)
 		}
+
 		if rpc.Error != nil {
 			return nil, "", fmt.Errorf("%s", rpc.Error.Message)
 		}
+
 		return rpc.Result, session, nil
 	}
+
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, wireMax))
 	if err != nil {
 		return nil, "", err
 	}
+
 	var rpc rpcResponse
 	decodeErr := json.Unmarshal(raw, &rpc)
 	if decodeErr != nil {
 		return nil, "", fmt.Errorf("decode response: %w", decodeErr)
 	}
+
 	if rpc.Error != nil {
 		return nil, "", fmt.Errorf("%s", rpc.Error.Message)
 	}
+
 	return rpc.Result, session, nil
 }
 
@@ -230,8 +233,11 @@ func (c *HTTP) notify(ctx context.Context, msg map[string]any) error {
 	if err != nil {
 		return err
 	}
+
 	notificationCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+
 	_, _, err = c.post(notificationCtx, body, false, 0)
+
 	return err
 }

@@ -29,6 +29,7 @@ func Line(text string, width int) string {
 func Frame(text string, width, height int) string {
 	lines := strings.Split(text, "\n")
 	out := make([]string, max(height, 0))
+
 	for i := range out {
 		if i < len(lines) {
 			out[i] = Line(lines[i], width)
@@ -36,17 +37,20 @@ func Frame(text string, width, height int) string {
 			out[i] = strings.Repeat(" ", max(width, 0))
 		}
 	}
+
 	return strings.Join(out, "\n")
 }
 
 // Width is the rendered cell width of the widest line in a block.
 func Width(text string) int {
 	w := 0
+
 	for _, line := range strings.Split(text, "\n") {
 		if n := lipgloss.Width(line); n > w {
 			w = n
 		}
 	}
+
 	return w
 }
 

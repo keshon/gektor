@@ -1,8 +1,9 @@
 # MCP protocol sessions
 
 This package owns JSON-RPC dispatch, bounded catalog discovery, stdio server
-lifetime and restart, HTTP session renewal, and SSE response matching. Start with
-[mcp.go](mcp.go), then [StartStdio](process.go) or [NewHTTP](http.go).
+lifetime and restart, HTTP session renewal, and SSE response matching.
+[mcp.go](mcp.go) exposes `StartStdio` and `NewHTTP`; process ownership lives in
+[process.go](process.go), and HTTP session behavior in [http.go](http.go).
 
 Callers authorize commands and endpoints, resolve credentials, and supply the
 HTTP network policy. The adapters in `internal/tools` redact credentials,

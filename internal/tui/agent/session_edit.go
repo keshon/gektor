@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -34,14 +33,14 @@ func (m *Model) renameActive() {
 }
 
 func (m *Model) deleteActive() {
-	target, err := filepath.Abs(filepath.Dir(m.stateFile))
-	root, rootErr := filepath.Abs(m.sessionRoot())
-	if err != nil || rootErr != nil || !strings.EqualFold(filepath.Dir(target), root) {
+	target, valid := sessionDeleteTarget(m.sessionRoot(), filepath.Dir(m.stateFile))
+	if !valid {
 		m.chrome.Open("Cannot delete", []string{"Session is outside the configured session store."})
 		return
 	}
 	m.chrome.OpenForm("Delete session", "Permanently removes this saved session.", "Delete", nil, func(map[string]string) error {
-		if err := os.RemoveAll(target); err != nil {
+		err := os.RemoveAll(target)
+		if err != nil {
 			return err
 		}
 		m.newTask()

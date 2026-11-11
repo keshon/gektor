@@ -7,6 +7,9 @@ func (m *Model) RefreshTheme() {
 	m.note.SetStyles(textInputStyles(m.note.Styles()))
 	if m.sessions != nil {
 		m.sessions.filter.SetStyles(textInputStyles(m.sessions.filter.Styles()))
+		if m.sessions.mode == sessRename {
+			m.sessions.rename.SetStyles(textInputStyles(m.sessions.rename.Styles()))
+		}
 	}
 	m.transcript.render.cache = nil
 	m.refreshContent()

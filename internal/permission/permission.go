@@ -66,17 +66,43 @@ var destructiveShell = []string{
 // restrictions opt in, and later user rules (--allow/--deny) win.
 func Default() Policy {
 	rules := []Rule{
-		{Tool: "*", Pattern: "*", Effect: Allow},
-		{Tool: "read_file", Pattern: "*.env", Effect: Ask},
-		{Tool: "read_file", Pattern: "*.env.*", Effect: Ask},
-		{Tool: "read_file", Pattern: "*credentials*", Effect: Ask},
-		{Tool: "read_file", Pattern: "*secret*", Effect: Ask},
+		{
+			Tool:    "*",
+			Pattern: "*",
+			Effect:  Allow,
+		},
+		{
+			Tool:    "read_file",
+			Pattern: "*.env",
+			Effect:  Ask,
+		},
+		{
+			Tool:    "read_file",
+			Pattern: "*.env.*",
+			Effect:  Ask,
+		},
+		{
+			Tool:    "read_file",
+			Pattern: "*credentials*",
+			Effect:  Ask,
+		},
+		{
+			Tool:    "read_file",
+			Pattern: "*secret*",
+			Effect:  Ask,
+		},
 	}
+
 	for _, tool := range []string{"run_shell", "run_program", "start_background", "start_program"} {
 		for _, pat := range destructiveShell {
-			rules = append(rules, Rule{Tool: tool, Pattern: pat, Effect: Ask})
+			rules = append(rules, Rule{
+				Tool:    tool,
+				Pattern: pat,
+				Effect:  Ask,
+			})
 		}
 	}
+
 	return Policy{Rules: rules}
 }
 
@@ -84,15 +110,19 @@ func Default() Policy {
 // No match means Allow: the default is open, restrictions opt in.
 func (p Policy) Evaluate(tool, resource string) Effect {
 	eff := Allow
+
 	for _, r := range p.Rules {
 		if !toolMatch(r.Tool, tool) {
 			continue
 		}
+
 		if !resourceMatch(r.Pattern, resource) {
 			continue
 		}
+
 		eff = r.Effect
 	}
+
 	return eff
 }
 
@@ -113,12 +143,14 @@ func (p Policy) Validate() error {
 		if _, err := path.Match(rule.Tool, ""); err != nil {
 			return fmt.Errorf("invalid tool permission pattern %q: %w", rule.Tool, err)
 		}
+
 		if strings.ContainsAny(rule.Pattern, "*?[") {
 			if _, err := path.Match(rule.Pattern, ""); err != nil {
 				return fmt.Errorf("invalid resource permission pattern %q: %w", rule.Pattern, err)
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -126,24 +158,29 @@ func resourceMatch(pattern, resource string) bool {
 	if pattern == "*" || pattern == "" {
 		return true
 	}
+
 	// Exact or case-insensitive exact first.
 	if strings.EqualFold(pattern, resource) {
 		return true
 	}
+
 	// Glob on basename and full string (covers *.env).
 	for _, s := range []string{resource, baseName(resource)} {
 		if ok, _ := path.Match(pattern, s); ok {
 			return true
 		}
+
 		// Also try case-insensitive via lowercasing both.
 		if ok, _ := path.Match(strings.ToLower(pattern), strings.ToLower(s)); ok {
 			return true
 		}
 	}
+
 	// Substring fallback for plain tokens without wildcards.
 	if !strings.ContainsAny(pattern, "*?[") {
 		return strings.Contains(strings.ToLower(resource), strings.ToLower(pattern))
 	}
+
 	return false
 }
 
@@ -152,6 +189,7 @@ func baseName(s string) string {
 	if i := strings.LastIndex(s, "/"); i >= 0 {
 		return s[i+1:]
 	}
+
 	return s
 }
 
@@ -167,9 +205,11 @@ func Authorize(ctx context.Context, p Policy, gate Gate, tool, resource string, 
 	if err := p.Validate(); err != nil {
 		return err
 	}
+
 	if tool == "" {
 		return nil
 	}
+
 	effect := p.Evaluate(tool, resource)
 	if effect == Ask {
 		if gate == nil {
@@ -179,12 +219,15 @@ func Authorize(ctx context.Context, p Policy, gate Gate, tool, resource string, 
 			if err != nil {
 				return fmt.Errorf("%s on %s: %w", tool, resource, err)
 			}
+
 			effect = resolved
 		}
 	}
+
 	if effect != Allow {
 		return fmt.Errorf("blocked by policy (%s on %s)", tool, resource)
 	}
+
 	return nil
 }
 
@@ -205,9 +248,11 @@ func Decide(answer string) (Effect, error) {
 			if note := strings.TrimSpace(tail); note != "" {
 				return Deny, fmt.Errorf("blocked by operator: %s", note)
 			}
+
 			return Deny, fmt.Errorf("blocked by operator")
 		}
 	}
+
 	switch strings.ToLower(text) {
 	case "y", "yes", "a", "always":
 		return Allow, nil
@@ -220,10 +265,12 @@ func Decide(answer string) (Effect, error) {
 // files; reading one explicitly routes through the normal permission gate.
 func SensitivePath(path string) bool {
 	path = strings.ToLower(strings.ReplaceAll(path, "\\", "/"))
+
 	for _, pattern := range []string{"*.env", "*.env.*", "*credentials*", "*secret*"} {
 		if resourceMatch(pattern, path) {
 			return true
 		}
 	}
+
 	return false
 }

@@ -25,6 +25,7 @@ func titleModel(t *testing.T) *Model {
 		t.Fatal(err)
 	}
 	m := sizeModel(t, testModel())
+	m.sessionsRoot = root
 	m.state, m.stateFile, m.sessionTitle = stDone, filepath.Join(dir, "state.json"), "Please fix the queue bug"
 	m.baseEnv.Client = scriptClient(func(context.Context, llm.ChatRequest) (llm.ChatResponse, error) {
 		return llm.ChatResponse{Message: llm.Message{Content: "Message queue bug"}}, nil
@@ -238,13 +239,14 @@ func TestOldTitleResultCannotReplaceNewJob(t *testing.T) {
 func TestFreshSessionSchedulesTitleButForkKeepsItsName(t *testing.T) {
 	for _, fork := range []bool{false, true} {
 		t.Run(map[bool]string{false: "fresh", true: "fork"}[fork], func(t *testing.T) {
-			sessionsRootFor(t, t.TempDir())
+			root := sessionsRootFor(t, t.TempDir())
 			ws, err := workspace.NewWithSkillRoots(t.TempDir(), nil)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer ws.Close()
 			m := sizeModel(t, testModel())
+			m.sessionsRoot = root
 			m.state = stDone
 			m.baseEnv = roles.Env{WS: ws, Client: scriptClient(func(_ context.Context, r llm.ChatRequest) (llm.ChatResponse, error) {
 				if r.Messages[0].Content == prompts.SessionTitle {
