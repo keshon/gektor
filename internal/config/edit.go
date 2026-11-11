@@ -9,9 +9,7 @@ import (
 	"github.com/keshon/gektor/internal/providers"
 )
 
-// Sections are the editor's pages. They are named here rather than derived
-// from the field keys, so a section this function does not recognise is a
-// typo to report rather than a silent no-op that still mutated the profile.
+// Editor section identifiers are independent of persisted JSON field names.
 const (
 	SectionYou        = "you"
 	SectionGeneration = "generation"
@@ -26,75 +24,83 @@ func Sections() []string {
 
 // ApplySection applies editor values to a staged profile. Callers should clone the
 // active profile first; validation failures can leave the staged copy partly edited.
-//
-// An unknown section is an error and nothing is written. It used to return
-// success after having already materialised an Identity block, so a typo'd
-// section name was accepted and the profile came back changed.
+// An unknown section leaves the profile unchanged.
 func ApplySection(profile *Profile, section string, values map[string]string) error {
-	// Identity is legitimately absent from a profile - Validate permits it,
-	// and the bundled agent profile carries no identity block - so a section
-	// that supplies one has to be able to create it. Only those sections
-	// touch it: creating one while changing the model wrote a block nobody
-	// asked for, which then persisted into the profile file.
-	identity := func() *Identity {
-		if profile.Identity == nil {
-			profile.Identity = &Identity{UserName: DefaultUserName}
-		}
-		return profile.Identity
-	}
-
 	switch section {
 	case SectionYou:
-		id := identity()
-		id.UserName = strings.TrimSpace(values["user"])
-		id.UserPersona = values["persona"]
+		identity := editableIdentity(profile)
+		identity.UserName = strings.TrimSpace(values["user"])
+		identity.UserPersona = values["persona"]
 	case SectionGeneration:
-		if value, ok := values["reasoning-effort"]; ok {
-			profile.Generation.ReasoningEffort = providers.NormalizeReasoningEffort(value)
-		}
-		if value, ok := values["reasoning-summary"]; ok {
-			enabled, err := strconv.ParseBool(value)
-			if err != nil {
-				return fmt.Errorf("reasoning summary must be true or false")
-			}
-			profile.Generation.ReasoningSummary = enabled
-		}
-		var err error
-		profile.Generation.Temperature, err = ParseTemperature(values["temperature"])
-		if err != nil {
-			return fmt.Errorf("temperature must be a number, or \"default\"")
-		}
-		profile.Generation.MaxTokens, err = strconv.Atoi(values["max"])
-		if err != nil {
-			return fmt.Errorf("response budget must be an integer")
-		}
-		if value, ok := values["context"]; ok {
-			profile.Generation.ContextLimit, err = strconv.Atoi(value)
-			if err != nil {
-				return fmt.Errorf("context window must be an integer")
-			}
-		}
+		return applyGeneration(&profile.Generation, values)
 	case SectionPrompts:
-		id := identity()
+		identity := editableIdentity(profile)
 		if value, ok := values["prompt-preset"]; ok {
-			if _, err := prompts.ResponsePreset(value); err != nil {
+			_, err := prompts.ResponsePreset(value)
+			if err != nil {
 				return err
 			}
-			id.PromptPreset = value
+			identity.PromptPreset = value
 		}
-		id.SystemPrompt = values["system"]
-		id.PostHistory = values["post"]
+		identity.SystemPrompt = values["system"]
+		identity.PostHistory = values["post"]
 	case SectionModel:
 		profile.Provider.Kind = strings.TrimSpace(values["kind"])
 		profile.Provider.URL = strings.TrimSpace(values["endpoint"])
 		profile.Provider.Model = strings.TrimSpace(values["model"])
 		profile.Provider.APIKeyEnv = strings.TrimSpace(values["key-env"])
-		if d, err := providers.Lookup(profile.Provider.Kind); err == nil && !d.Reasoning {
+		descriptor, err := providers.Lookup(profile.Provider.Kind)
+		// Unknown providers remain staged for Profile.Validate to reject.
+		if err == nil && !descriptor.Reasoning {
 			profile.Generation.ReasoningEffort = ""
 			profile.Generation.ReasoningSummary = false
 		}
 	default:
 		return fmt.Errorf("unknown settings section %q", section)
 	}
+
+	return nil
+}
+
+// editableIdentity creates a block only for sections that actually edit identity.
+func editableIdentity(profile *Profile) *Identity {
+	if profile.Identity == nil {
+		profile.Identity = &Identity{UserName: DefaultUserName}
+	}
+
+	return profile.Identity
+}
+
+func applyGeneration(generation *Generation, values map[string]string) error {
+	if value, ok := values["reasoning-effort"]; ok {
+		generation.ReasoningEffort = providers.NormalizeReasoningEffort(value)
+	}
+
+	if value, ok := values["reasoning-summary"]; ok {
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("reasoning summary must be true or false")
+		}
+		generation.ReasoningSummary = enabled
+	}
+
+	var err error
+	generation.Temperature, err = ParseTemperature(values["temperature"])
+	if err != nil {
+		return fmt.Errorf("temperature must be a number, or \"default\"")
+	}
+
+	generation.MaxTokens, err = strconv.Atoi(values["max"])
+	if err != nil {
+		return fmt.Errorf("response budget must be an integer")
+	}
+
+	if value, ok := values["context"]; ok {
+		generation.ContextLimit, err = strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("context window must be an integer")
+		}
+	}
+
 	return nil
 }

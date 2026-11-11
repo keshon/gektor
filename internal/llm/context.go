@@ -86,3 +86,31 @@ func AnalyzeContext(req ChatRequest, sections []PromptSection) ContextReport {
 	r.Sections = append(r.Sections, ContextCost{Name: "framing_and_rounding", EstimatedTokens: r.EstimatedTokens - used})
 	return r
 }
+
+// EstimatePromptTokens is a fallback, not a tokenizer. Count the replayed
+// content, tool schemas and images; out-of-band Reasoning is never replayed.
+func EstimatePromptTokens(req ChatRequest) int {
+	chars, tokens := 0, 0
+	if req.UserRequest != "" {
+		for _, message := range req.Messages {
+			if message.Role == RoleAssistant {
+				chars += min(utf8.RuneCountInString(req.UserRequest), 2048) + utf8.RuneCountInString(req.RunDirective) + 300
+				break
+			}
+		}
+	}
+	for _, m := range req.Messages {
+		if m.ProviderState.Matches(m) {
+			tokens += m.ProviderState.AdditionalTokens
+		}
+		chars += utf8.RuneCountInString(m.Content) + len(m.ToolCallID)
+		tokens += 4 + len(m.Images)*ImageEstimateTokens
+		for _, call := range m.ToolCalls {
+			chars += len(call.Name) + len(call.ID) + len(call.Arguments)
+		}
+	}
+	if data, err := json.Marshal(req.Tools); err == nil && len(req.Tools) > 0 {
+		chars += utf8.RuneCount(data)
+	}
+	return max(1, tokens+(chars+3)/4)
+}

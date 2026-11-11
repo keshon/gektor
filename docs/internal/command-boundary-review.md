@@ -41,7 +41,7 @@ command or introducing a generic application framework.
   [`internal/agentrpc`](../../internal/agentrpc/server.go). The command only
   binds standard streams, task storage and the permission/audit transport.
 - CLI run, resume, fork continuation and workflow authoring now use
-  [`internal/harness.Session`](../../internal/harness/session.go). It owns role selection,
+  [`internal/harness.Session`](../../internal/harness/harness.go). It owns role selection,
   saved-question handling, budget continuation, mutation sweeps and reporting.
 - Interrupted-run recovery uses `Session.Resume`, which answers a saved question.
   Forks and new user turns use `Session.Continue`, which closes outstanding calls
@@ -81,7 +81,7 @@ belong in internal packages. There is no file-count target.
 ## Packaging
 
 [`cmd/release`](../../cmd/release/main.go) adapts arguments to
-[`internal/release`](../../internal/release/build.go). Go owns manifest selection,
+[`internal/release`](../../internal/release/release.go). Go owns manifest selection,
 staging, archives and checksums. The Python packager and its tests were removed.
 `build.cmd dist` stages Windows; `build.cmd release vX.Y.Z` builds both platforms
 from a clean checkout. Packaging does not publish a GitHub release.

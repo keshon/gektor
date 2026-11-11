@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/keshon/gektor/internal/llm"
 )
 
 // SessionTitleFile stores a session's display title inside its own
@@ -48,4 +50,20 @@ func ReadSessionTitle(dir string) string {
 		return ""
 	}
 	return TitleLine(string(raw))
+}
+
+// TitleFor derives the default display title: the first user message,
+// first line, trimmed, capped at 60 runes. Loop nudges ([harness]
+// provenance) are history, not conversation, and never title.
+func TitleFor(history []llm.Message) string {
+	for _, msg := range history {
+		if msg.Role != llm.RoleUser || strings.TrimSpace(msg.Content) == "" {
+			continue
+		}
+		if strings.HasPrefix(msg.Content, "[harness] ") {
+			continue
+		}
+		return TitleLine(msg.Content)
+	}
+	return ""
 }

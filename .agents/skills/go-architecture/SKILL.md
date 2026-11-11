@@ -23,6 +23,9 @@ without understanding the whole application. Stay within the requested scope.
 
 - Group by feature or responsibility. Keep related state, behavior, configuration,
   errors, and tests together. Name files by responsibility.
+- Prefer a package-named starting file with the package introduction and main API.
+  Keep responsibility-specific types and behavior together in other files; do not
+  create a central file containing all logic or artificial entrypoint wrappers.
 - Use types for owned state, dependencies, or lifetimes; use plain functions for
   stateless operations. Neither nesting nor one entry type per package is a goal.
 - Put coordination between peer features in their parent. Symmetry means

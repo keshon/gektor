@@ -6,7 +6,8 @@ and subprocesses. The caller owns the progress writer and published output paths
 
 ## Reading path
 
-- `build.go`: validate targets, stage each distribution, archive it, then write checksums.
+- `release.go`: public options and build orchestration; start here.
+- `build.go`: target selection, executable naming, and checksum generation.
 - `source.go`: inspect repository identity, cleanliness, revision, timestamp, and tracked files.
 - `manifest.go`: select runtime payloads and rewrite links to omitted source files.
   Skill bytes remain frozen. Manifest lists and compiled patterns are local to each call.

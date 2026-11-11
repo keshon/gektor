@@ -6,8 +6,9 @@ The terminal editor is a separate consumer in `internal/tui/workflow`.
 ## Ownership and reading path
 
 - The root `workflow` package defines recipes, runs, nodes, registry contracts,
-  schemas, and shared values. Start with `definition.go`, `node.go`, and
-  `registry.go` to understand the executable contract.
+  schemas, and shared values. Start with `workflow.go` for recipe definitions and
+  the handler contract, then `node.go` and `registry.go` for executable nodes.
+  `run.go` defines execution records and attempts.
 - `service` coordinates authorized workspace reads, frozen recipe composition,
   validation/execution, queue execution, and reviews. CLI, API, Agent tools, and
   TUI call it; it does not construct application clients or operator gates.

@@ -124,8 +124,13 @@ technical layers either (`models/`, `services/`, `utils/`, `helpers/`).
   when it owns state, dependencies, or a lifecycle. Stateless operations can be
   plain functions; do not invent a type just to provide a package entry point.
 - Use `internal/` for code that is not a public API.
-- Inside a package, name files by responsibility (`store.go`, `encode.go`,
-  `client.go`), not one file per type and not one giant file.
+- Prefer a package-named file (`config.go`, `library.go`) as the reader's starting
+  point: package documentation, main API types, and construction or orchestration
+  when relevant. This is a reading convention, not a special Go entrypoint.
+- Name the remaining files by responsibility (`store.go`, `encode.go`, `client.go`).
+  Keep related data and behavior together; do not collect every method in the
+  package-named file or make all other files data-only. Tiny packages may fit in
+  one file. Do not invent scaffolding, an entry type, or wrappers to fill it.
 - Keep a feature's types, config, errors, and tests together in its directory.
 - Check a split by tracing one ordinary call across the new boundary. If the
   caller still needs most of the old internals, the boundary is wrong.

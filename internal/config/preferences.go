@@ -1,138 +1,31 @@
 package config
 
-import (
-	"encoding/json"
-	"fmt"
-	"io"
-	"os"
-	"path/filepath"
-)
+import "fmt"
 
-type Preferences struct {
-	Mode        string     `json:"mode,omitempty"`
-	Theme       string     `json:"theme,omitempty"`
-	Appearance  Appearance `json:"appearance,omitempty"`
-	Version     int        `json:"version"`
-	Workspace   string     `json:"workspace,omitempty"`
-	ProfilePath string     `json:"profile_path,omitempty"`
-	Profile     *Profile   `json:"profile,omitempty"`
-	Harness     Harness    `json:"harness,omitempty"`
-}
-
-// UnlimitedSteps is the persisted ceiling used for an unlimited direct run.
-const UnlimitedSteps = 999999
-
-// Harness stores operator preferences for execution, independently of the model.
-type Harness struct {
-	MaxSteps         int  `json:"max_steps,omitempty"`
-	Steering         bool `json:"steering,omitempty"`
-	DelegateSteps    int  `json:"delegate_steps,omitempty"`
-	DelegateMaxSteps int  `json:"delegate_max_steps,omitempty"`
-}
-
-// Keep the existing allowance until model evals support a different default.
-const DefaultDelegateSteps = 12
-
-func (h Harness) DelegateBudget() (steps, maximum int, err error) {
-	if h.DelegateSteps < 0 || h.DelegateMaxSteps < 0 {
-		return 0, 0, fmt.Errorf("delegate step limits must be positive; omit them to use defaults")
-	}
-	steps, maximum = h.DelegateSteps, h.DelegateMaxSteps
-	if steps == 0 {
-		steps = DefaultDelegateSteps
-	}
-	if maximum == 0 {
-		maximum = steps
-	}
-	if steps > maximum {
-		return 0, 0, fmt.Errorf("delegate_steps (%d) exceeds delegate_max_steps (%d)", steps, maximum)
-	}
-	return steps, maximum, nil
-}
-
-// ThemeNames lists the persisted theme identifiers in picker order.
-func ThemeNames() []string {
-	return []string{"dark", "light", "one-half-dark", "one-half-light", "solarized-dark", "solarized-light"}
-}
-
-func ValidTheme(name string) bool {
-	for _, theme := range ThemeNames() {
-		if name == theme {
-			return true
-		}
-	}
-	return false
-}
-
+// Validate checks application choices without changing them. The optional
+// embedded profile is validated separately when selected for a run.
 func (p Preferences) Validate() error {
-	if _, _, err := p.Harness.DelegateBudget(); err != nil {
+	_, _, err := p.Harness.DelegateBudget()
+	if err != nil {
 		return err
 	}
-	if err := p.Appearance.Validate(); err != nil {
+
+	err = p.Appearance.Validate()
+	if err != nil {
 		return err
 	}
+
 	if p.Mode != "" && p.Mode != "plan" && p.Mode != "act" {
 		return fmt.Errorf("unknown workflow mode %q", p.Mode)
 	}
+
 	if p.Theme != "" && !ValidTheme(p.Theme) {
 		return fmt.Errorf("unknown theme %q", p.Theme)
 	}
+
 	if p.Version != 1 {
 		return fmt.Errorf("invalid application preferences")
 	}
+
 	return nil
-}
-func LoadPreferences(path string) (Preferences, error) {
-	p := Preferences{Version: 1}
-	f, err := os.Open(path)
-	if os.IsNotExist(err) {
-		return p, nil
-	}
-	if err != nil {
-		return p, err
-	}
-	defer f.Close()
-	// Reject unknown keys, as Profile.Load does. Plain Unmarshal silently
-	// drops them, so a renamed field would quietly reset every user who had
-	// set it - which is the same "it reset anyway" symptom the preferences
-	// file is supposed to prevent.
-	d := json.NewDecoder(io.LimitReader(f, 1<<20))
-	d.DisallowUnknownFields()
-	if err := d.Decode(&p); err != nil {
-		return p, fmt.Errorf("application preferences: %w", err)
-	}
-	var extra any
-	if err := d.Decode(&extra); err != io.EOF {
-		return p, fmt.Errorf("application preferences: expected one JSON document")
-	}
-	return p, p.Validate()
-}
-func SavePreferences(path string, p Preferences) error {
-	if err := p.Validate(); err != nil {
-		return err
-	}
-	data, err := json.MarshalIndent(p, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err = os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		return err
-	}
-	f, err := os.CreateTemp(filepath.Dir(path), ".application-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(f.Name())
-	if _, err = f.Write(append(data, '\n')); err != nil {
-		f.Close()
-		return err
-	}
-	if err = f.Sync(); err != nil {
-		f.Close()
-		return err
-	}
-	if err = f.Close(); err != nil {
-		return err
-	}
-	return os.Rename(f.Name(), path)
 }

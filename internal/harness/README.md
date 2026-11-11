@@ -6,8 +6,9 @@ and operator transport.
 
 ## Reading path
 
-- `session.go`: validate a launch, select a role, run or resume, then report the
-  measured outcome. `Session` owns its inbox and question budget.
+- `harness.go`: public configuration, `Session`, and construction; start here.
+  Each session owns its inbox and question budget.
+- `session.go`: select a role, run or resume, then report the measured outcome.
 - `observer.go`: translate low-level Agent observations into existing events,
   attribute nudge replies, and invoke launch observers after event delivery.
 - `diagnostics.go`: open a metadata-only run log, coalesce progress, rotate it,
