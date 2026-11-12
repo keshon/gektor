@@ -398,3 +398,18 @@ Relative paths use the caller's current directory, even when the launcher is
 installed elsewhere. Keep flags before task text or the recipe path. Launchers
 do not choose a backend or grant permissions. Agent CLI uses normal flag/profile
 defaults; workflows use the profiles named by their model nodes.
+
+## SSH connection management
+
+```powershell
+.\gektor.exe ssh list
+.\gektor.exe ssh save staging staging-profile.json
+.\gektor.exe ssh check staging
+.\gektor.exe ssh delete staging
+```
+
+`save` reads one reference-only profile JSON object and adds or replaces the named
+connection, preserving other entries. `check` verifies host key and authentication
+with a 30-second limit; it does not run a command or test SFTP. These commands need
+no model backend. Restart existing Agent and Workflow services after edits.
+See [SSH setup and credentials](operations.md#supplying-credentials-in-the-cli-and-tui).

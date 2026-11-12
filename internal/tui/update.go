@@ -15,11 +15,16 @@ import (
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch value := msg.(type) {
+	case toolsui.SSHCheckResult:
+		if m.tools.AcceptSSH(value) && m.toolsDialog != nil && m.toolsPage == toolSSH {
+			m.chrome.PresentDialog(value.Dialog())
+			m.toolsDialog, m.toolsPage = m.chrome.Dialog, toolSSHDetails
+		}
 	case toolsui.CheckResult:
-		if m.tools.Accept(value) && m.toolsDialog != nil && m.toolsPage == "media" {
+		if m.tools.Accept(value) && m.toolsDialog != nil && m.toolsPage == toolMedia {
 			m.chrome.PresentDialog(value.Dialog())
 			m.toolsDialog = m.chrome.Dialog
-			m.toolsPage = "media-detail"
+			m.toolsPage = toolMediaDetails
 		}
 	case settings.DiscoveryRequest:
 		cmd = m.discoverSettings(value)

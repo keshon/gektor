@@ -30,8 +30,10 @@ type Model struct {
 	tools          *toolsui.Model
 	toolsets       []app.Toolset
 	toolsDialog    *screen.DialogState
-	toolsPage      string
+	toolsPage      toolPage
 	mediaSelection string
+	sshSelection   string
+	toolSelection  string
 	form           pendingForm
 
 	profile           *app.PreparedProfile

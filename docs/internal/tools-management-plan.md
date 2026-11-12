@@ -2,8 +2,8 @@
 
 Date: 2026-11-12
 Status: Approved; phase zero package boundaries are implemented. Existing SSH work and this plan
-were committed as `caa586c`. Tools inventory and Media executable preferences are implemented; SSH and the
-remaining management phases below are still planned.
+were committed as `caa586c`. Tools inventory, Media executable preferences, and reference-only SSH profile
+management are implemented. Protected secret storage and the remaining phases are planned.
 
 Current migration: the first package extraction was committed as `2f4bb47`.
 The follow-up, committed as `0f77869`, groups related operations under one feature owner: files, git, run,
@@ -172,8 +172,8 @@ an unknown host key implicitly. It must use the same SSH connection code and
 credential resolution as execution. Check SFTP/hard-link support separately and
 label it separately; authentication success does not establish transfer support.
 
-The [current manual setup](../reference/operations.md#supplying-credentials-in-the-cli-and-tui)
-remains accurate until this UI and the matching CLI management commands ship.
+The [credential setup guide](../reference/operations.md#supplying-credentials-in-the-cli-and-tui)
+covers both reference-only UI/CLI management and manual profile editing.
 
 ## Configuration, activation and application lifetime
 
@@ -476,8 +476,8 @@ Check errors are scoped to the selected item, not fatal to the whole Tools scree
 2. **Tools list + Media.** Implemented: shared navigation and read-only inventory,
    then PATH/override forms and explicit executable checks. Reuse the resolver
    and verify that the selected override reaches Agent and Workflow operations.
-3. **SSH profile management.** Add validated atomic profile updates and bounded
-   authentication checks; expose the same operations to the CLI. First support
+3. **SSH profile management.** Implemented: validated profile updates, confirmed
+   TUI deletion and bounded authentication checks, with matching CLI management. Supports
    existing environment references and key files, without inventing raw-secret
    CLI flags. Profile edits apply at the same idle/relaunch boundary.
 4. **Protected secret input.** Extract the existing protection mechanism without

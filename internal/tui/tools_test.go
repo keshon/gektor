@@ -257,3 +257,115 @@ func TestToolsMouseActionsUseSharedControls(t *testing.T) {
 		}
 	}
 }
+
+func TestSSHSettingsCancelApplyAndDeleteAcrossScreens(t *testing.T) {
+	for _, mode := range []string{"screen:agent", "screen:workflows"} {
+		m := toolSettingsModel(t)
+		m.tools.SSHProfiles.Path = filepath.Join(t.TempDir(), "ssh.json")
+		m.runAction(mode)
+		m.runAction("tools")
+		chooseTool(t, m, "native_ssh", "details")
+		if m.chrome.Dialog.Title != "SSH connections" {
+			t.Fatal("SSH list missing")
+		}
+		m.chrome.TableAction("add")
+		m.settleControls()
+		if m.chrome.Dialog.Form == nil {
+			t.Fatal("Add unavailable on an empty list")
+		}
+		m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+		_, err := os.Stat(m.tools.SSHProfiles.Path)
+		if !os.IsNotExist(err) {
+			t.Fatal("Cancel wrote SSH preferences", err)
+		}
+		m.chrome.TableAction("add")
+		m.settleControls()
+		values := map[string]string{"name": "dev", "host": "example.com", "port": "22", "user": "tester", "known_hosts": filepath.Join(t.TempDir(), "known_hosts"), "auth": "password environment", "password_env": "SSH_PASSWORD"}
+		for i := range m.chrome.Dialog.Form.Fields {
+			field := &m.chrome.Dialog.Form.Fields[i]
+			field.Value = values[field.Key]
+		}
+		m.chrome.Dialog.Form.Editor.SetValue("dev")
+		m.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+		if m.modeChange == nil {
+			t.Fatal("SSH form did not request restart")
+		}
+		profiles, err := m.tools.SSHProfiles.Load()
+		if err != nil || profiles["dev"].PasswordEnv != "SSH_PASSWORD" {
+			t.Fatal(profiles, err)
+		}
+
+		m.modeChange = nil
+		m.openSSHTools()
+		chooseTool(t, m, "dev", "delete")
+		if m.chrome.Dialog.Form == nil || !m.chrome.Dialog.Form.Destructive {
+			t.Fatal("missing delete confirmation")
+		}
+		err = m.deleteSSHPreference("dev", "wrong")
+		if err == nil || m.modeChange != nil {
+			t.Fatal("unconfirmed deletion requested restart")
+		}
+		err = m.deleteSSHPreference("dev", "dev")
+		if err != nil || m.modeChange == nil {
+			t.Fatal("confirmed deletion failed", err)
+		}
+	}
+}
+
+func TestSSHApplyProtectsDirtyWorkflow(t *testing.T) {
+	m := toolSettingsModel(t)
+	m.tools.SSHProfiles.Path = filepath.Join(t.TempDir(), "ssh.json")
+	seedWorkflow(t, m, workflowRecipe())
+	m.runAction("screen:agent")
+	err := m.applySSHPreference("", map[string]string{"name": "dev"})
+	if err == nil || m.modeChange != nil {
+		t.Fatal("dirty workflow allowed restart", err)
+	}
+	_, err = os.Stat(m.tools.SSHProfiles.Path)
+	if !os.IsNotExist(err) {
+		t.Fatal("guard wrote SSH preferences", err)
+	}
+}
+
+func TestSSHViewsFitSharedTerminalLayouts(t *testing.T) {
+	t.Cleanup(func() { screen.SetTheme("dark") })
+	for _, theme := range []string{"dark", "light"} {
+		for _, size := range [][2]int{{120, 30}, {50, 18}} {
+			m := toolSettingsModel(t)
+			m.tools.SSHProfiles.Path = filepath.Join(t.TempDir(), "ssh.json")
+			m.applyTheme(theme)
+			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+			m.openSSHTools()
+			for _, title := range []string{"SSH connections", "Add SSH connection"} {
+				m.syncPresentation()
+				rendered := ansi.Strip(m.View().Content)
+				if !strings.Contains(rendered, title) {
+					t.Fatal(rendered)
+				}
+				for _, line := range strings.Split(rendered, "\n") {
+					if ansi.StringWidth(line) > size[0] {
+						t.Fatal("SSH view overflows", line)
+					}
+				}
+				t.Logf("%s %v\n%s", theme, size, rendered)
+				if title == "SSH connections" {
+					m.chrome.TableAction("add")
+					m.settleControls()
+				}
+			}
+		}
+	}
+}
+
+func TestSSHCheckCannotReplaceAnUnrelatedDialog(t *testing.T) {
+	m := toolSettingsModel(t)
+	m.tools.SSHProfiles.Path = filepath.Join(t.TempDir(), "ssh.json")
+	m.openSSHTools()
+	command := m.tools.CheckSSH(t.Context(), "missing")
+	m.chrome.PresentDialog(screen.Dialog{Title: "Another view"})
+	m.settleControls()
+	m.Update(command())
+	if m.chrome.Dialog.Title != "Another view" {
+		t.Fatal("late SSH check replaced another view")
+	}
+}

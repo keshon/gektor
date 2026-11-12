@@ -91,9 +91,11 @@ func (m *Model) dispatchControl(event screen.Event) []tea.Cmd {
 			m.tools.Close()
 			m.toolsDialog = nil
 			if event.Kind == screen.Closed && m.modeChange == nil {
-				if page == "edit" || page == "media-detail" {
+				if page == toolSSHEdit || page == toolSSHDetails {
+					m.openSSHTools()
+				} else if page == toolMediaEdit || page == toolMediaDetails {
 					m.openMediaTools()
-				} else if page == "media" || page == "detail" {
+				} else if page == toolMedia || page == toolSSH || page == toolDetails {
 					m.openTools()
 				}
 			}

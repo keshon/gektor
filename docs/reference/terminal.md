@@ -50,7 +50,20 @@ establish codec or remote-service compatibility. Native YouTube metadata,
 transcripts and single-stream downloads do not need these local applications.
 These preferences are shared by Agent and Workflow operations.
 
-SSH profiles remain configured through the [documented manual setup](operations.md#supplying-credentials-in-the-cli-and-tui).
+Open **SSH** for named connections. **Add** and **Edit** configure host, port,
+user, an absolute known_hosts file, and either a private-key file with an optional
+passphrase variable or a password variable. Enter environment variable names,
+never their secret values. Multiple connections may have independent or shared
+references. Cancel leaves `ssh.json` untouched; Apply saves and restarts at the
+same idle boundary. Delete requires typing the connection name.
+
+**Test connection** explicitly verifies the saved profile's host key and
+authentication, then closes. Its dated result does not establish SFTP or hard-link
+support. Closing the view cancels pending work. Unknown host keys are rejected.
+An independent workflow worker keeps its profile snapshot until restarted.
+Environment variables must be inherited by each GEKTOR process; see
+[credential setup](operations.md#supplying-credentials-in-the-cli-and-tui).
+Protected saved passwords and session-only secret prompts are not implemented.
 The existing MCP manager remains available through `/mcp`.
 
 ## Start and choose a workspace

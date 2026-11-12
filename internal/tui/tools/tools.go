@@ -15,11 +15,13 @@ import (
 
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/capabilities/media"
+	"github.com/keshon/gektor/internal/capabilities/ssh"
 	"github.com/keshon/gektor/internal/executables"
 	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/components/table"
 	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/settings"
+	"github.com/keshon/gektor/internal/userdirs"
 )
 
 type observation struct {
@@ -28,14 +30,15 @@ type observation struct {
 	at     time.Time
 }
 
-// Model owns explicit executable checks. Close cancels and joins its pending work.
+// Model owns tool preference views and explicit checks. Close cancels and joins pending work.
 type Model struct {
-	Resolver *executables.Resolver
-	checks   map[string]observation
-	cancel   context.CancelFunc
-	done     chan struct{}
-	epoch    uint64
-	checking string
+	Resolver    *executables.Resolver
+	SSHProfiles ssh.Profiles
+	checks      map[string]observation
+	cancel      context.CancelFunc
+	done        chan struct{}
+	epoch       uint64
+	checking    string
 }
 
 type CheckResult struct {
@@ -45,7 +48,7 @@ type CheckResult struct {
 }
 
 func New(resolver *executables.Resolver) *Model {
-	return &Model{Resolver: resolver, checks: map[string]observation{}}
+	return &Model{Resolver: resolver, SSHProfiles: ssh.Profiles{Path: userdirs.Sub("ssh.json")}, checks: map[string]observation{}}
 }
 
 func (m *Model) Close() {

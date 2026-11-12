@@ -204,3 +204,26 @@ func redact(text string, secrets []string) string {
 	}
 	return text
 }
+
+// Check authenticates and verifies the configured host key, then joins the connection.
+// It opens no session or SFTP channel and does not execute a remote command.
+func (s *Service) Check(ctx context.Context, name string) error {
+	profile, err := s.profile(name)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	_, closeConnection, _, err := connect(ctx, profile)
+	if ctx.Err() != nil {
+		if closeConnection != nil {
+			closeConnection()
+		}
+		return ctx.Err()
+	}
+	if err != nil {
+		return err
+	}
+	closeConnection()
+	return nil
+}

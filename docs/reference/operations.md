@@ -74,11 +74,12 @@ Existing HTTP credential registration and origin checks are unchanged.
 
 ### Supplying credentials in the CLI and TUI
 
-There is currently no SSH connection editor or password prompt in the TUI,
-and no dedicated SSH registration command or password/key CLI flag. Create
-`ssh.json` yourself. `ssh_exec`, `ssh_upload` and `ssh_download` are Agent tools
-and workflow operations, not CLI subcommands. GEKTOR does not load SSH secrets
-from `.env` automatically.
+Use **Settings > Tools > SSH** in Agent or Workflows to add, edit, delete and test
+named connections. The editor saves key paths and environment variable names;
+it does not accept or store secret values. Alternatively, edit `ssh.json` yourself
+or use the `ssh` management commands described below. `ssh_exec`, `ssh_upload`
+and `ssh_download` remain Agent tools and workflow operations, not CLI subcommands.
+GEKTOR does not load SSH secrets from `.env` automatically.
 
 For password authentication, a complete connection entry looks like this:
 
@@ -127,6 +128,27 @@ masked PowerShell prompt to set the variable named by `passphrase_env` before
 launching. The key path points to an existing private key file; do not paste
 key contents or secrets into chat. On other platforms, supply the referenced
 variable through your shell or process supervisor before starting GEKTOR.
+
+### Managing connections from the CLI
+
+These commands need no model backend:
+
+```powershell
+.\gektor.exe ssh list
+.\gektor.exe ssh save staging staging-profile.json
+.\gektor.exe ssh check staging
+.\gektor.exe ssh delete staging
+```
+
+The input to `ssh save` is one connection object (the value under `staging` in the
+examples above), not the whole named map. Save adds or replaces that name while
+preserving all other connections. `ssh list` shows reference-only configuration;
+there are no raw-password flags. CLI edits do not update already-running Agent or
+Workflow services; restart those processes after saving.
+
+`ssh check` has a 30-second limit and verifies the host key and authentication,
+then closes. It opens no remote session, runs no command and transfers no file.
+It does not test SFTP or hard-link support. Ctrl+C cancels it.
 
 ### Host verification and operation arguments
 

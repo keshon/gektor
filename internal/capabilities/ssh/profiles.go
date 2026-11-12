@@ -57,9 +57,14 @@ func loadProfiles(filename string) (map[string]Profile, error) {
 	if decoder.Decode(new(any)) != io.EOF {
 		return nil, fmt.Errorf("invalid SSH profiles trailing content")
 	}
+	err = validateProfiles(profiles)
+	return profiles, err
+}
+
+func validateProfiles(profiles map[string]Profile) error {
 	for name, profile := range profiles {
 		if !profileNames.MatchString(name) {
-			return nil, fmt.Errorf("invalid SSH profile name")
+			return fmt.Errorf("invalid SSH profile name")
 		}
 		if profile.Port == 0 {
 			profile.Port = 22
@@ -69,25 +74,25 @@ func loadProfiles(filename string) (map[string]Profile, error) {
 			invalidHost = true
 		}
 		if invalidHost || profile.Port < 1 || profile.Port > 65535 || profile.User == "" || strings.ContainsAny(profile.User, " /\\\t\r\n\x00@:") {
-			return nil, fmt.Errorf("invalid SSH endpoint for %s", name)
+			return fmt.Errorf("invalid SSH endpoint for %s", name)
 		}
 		if !filepath.IsAbs(profile.KnownHosts) {
-			return nil, fmt.Errorf("SSH profile %s requires an absolute known_hosts path", name)
+			return fmt.Errorf("SSH profile %s requires an absolute known_hosts path", name)
 		}
 		if (profile.PrivateKey == "") == (profile.PasswordEnv == "") {
-			return nil, fmt.Errorf("SSH profile %s requires either private_key or password_env", name)
+			return fmt.Errorf("SSH profile %s requires either private_key or password_env", name)
 		}
 		if profile.PrivateKey != "" && !filepath.IsAbs(profile.PrivateKey) {
-			return nil, fmt.Errorf("SSH profile %s requires an absolute private_key path", name)
+			return fmt.Errorf("SSH profile %s requires an absolute private_key path", name)
 		}
 		invalidPassword := profile.PasswordEnv != "" && !credentials.ValidEnvironment(profile.PasswordEnv)
 		invalidPassphrase := profile.PassphraseEnv != "" && (!credentials.ValidEnvironment(profile.PassphraseEnv) || profile.PrivateKey == "")
 		if invalidPassword || invalidPassphrase {
-			return nil, fmt.Errorf("invalid SSH credential reference for %s", name)
+			return fmt.Errorf("invalid SSH credential reference for %s", name)
 		}
 		profiles[name] = profile
 	}
-	return profiles, nil
+	return nil
 }
 
 func (p Profile) address() string { return net.JoinHostPort(p.Host, strconv.Itoa(p.Port)) }

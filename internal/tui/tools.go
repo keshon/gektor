@@ -8,8 +8,22 @@ import (
 	"github.com/keshon/gektor/internal/app"
 	toolcatalog "github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/tools/extension"
+	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/screen"
 	toolsui "github.com/keshon/gektor/internal/tui/tools"
+)
+
+type toolPage uint8
+
+const (
+	toolList toolPage = iota
+	toolMedia
+	toolMediaEdit
+	toolDetails
+	toolMediaDetails
+	toolSSH
+	toolSSHEdit
+	toolSSHDetails
 )
 
 func (m *Model) toolsIdle() bool {
@@ -34,9 +48,16 @@ func (m *Model) openTools() {
 		return
 	}
 	m.toolsets = sets
-	m.chrome.PresentDialog(toolsui.Inventory(sets))
+	view := toolsui.Inventory(sets)
+	for i, row := range view.Table.Model.Rows {
+		if row.ID == m.toolSelection {
+			view.Table.Model.Cursor = i
+			break
+		}
+	}
+	m.chrome.PresentDialog(view)
 	m.toolsDialog = m.chrome.Dialog
-	m.toolsPage = "list"
+	m.toolsPage = toolList
 }
 
 func (m *Model) openMediaTools() {
@@ -49,7 +70,7 @@ func (m *Model) openMediaTools() {
 	}
 	m.chrome.PresentDialog(view)
 	m.toolsDialog = m.chrome.Dialog
-	m.toolsPage = "media"
+	m.toolsPage = toolMedia
 }
 
 func (m *Model) toolsEditable() bool {
@@ -57,7 +78,10 @@ func (m *Model) toolsEditable() bool {
 }
 
 func (m *Model) toolAction(event screen.Event) tea.Cmd {
-	if m.toolsPage == "media" {
+	if m.toolsPage == toolSSH {
+		return m.sshToolAction(event)
+	}
+	if m.toolsPage == toolMedia {
 		m.mediaSelection = event.Row
 		if event.Action == "check" {
 			cmd := m.tools.Check(m.base, event.Row)
@@ -69,7 +93,7 @@ func (m *Model) toolAction(event screen.Event) tea.Cmd {
 				if set.ID == "native_media" {
 					m.chrome.PresentDialog(toolsui.Details(set))
 					m.toolsDialog = m.chrome.Dialog
-					m.toolsPage = "media-detail"
+					m.toolsPage = toolMediaDetails
 					break
 				}
 			}
@@ -80,18 +104,23 @@ func (m *Model) toolAction(event screen.Event) tea.Cmd {
 			if err != nil {
 				m.chrome.PresentDialog(screen.Dialog{Title: "Media preferences", Lines: []string{err.Error()}})
 				m.toolsDialog = m.chrome.Dialog
-				m.toolsPage = "detail"
+				m.toolsPage = toolDetails
 				return nil
 			}
 			m.openForm(preferences, func(values map[string]string) error { return m.applyExecutablePreference(event.Row, values) })
 			m.toolsDialog = m.chrome.Dialog
-			m.toolsPage = "edit"
+			m.toolsPage = toolMediaEdit
 		}
 		return nil
 	}
+	m.toolSelection = event.Row
 	for _, set := range m.toolsets {
 		if set.ID != event.Row {
 			continue
+		}
+		if set.ID == "native_ssh" {
+			m.openSSHTools()
+			return nil
 		}
 		if set.ID == "native_media" {
 			m.openMediaTools()
@@ -99,14 +128,14 @@ func (m *Model) toolAction(event screen.Event) tea.Cmd {
 		}
 		m.chrome.PresentDialog(toolsui.Details(set))
 		m.toolsDialog = m.chrome.Dialog
-		m.toolsPage = "detail"
+		m.toolsPage = toolDetails
 		return nil
 	}
 	return nil
 }
 
 func (m *Model) refreshMediaTools() {
-	if m.toolsDialog == nil || m.chrome.Dialog != m.toolsDialog || m.toolsPage != "media" {
+	if m.toolsDialog == nil || m.chrome.Dialog != m.toolsDialog || m.toolsPage != toolMedia {
 		return
 	}
 	view := m.tools.Media(m.toolsEditable())
@@ -115,18 +144,27 @@ func (m *Model) refreshMediaTools() {
 	m.chrome.Dialog.Table.Actions = view.Table.Actions
 }
 
-func (m *Model) applyExecutablePreference(name string, values map[string]string) error {
+func (m *Model) toolPreferencesRestart() (*ModeChange, error) {
 	if !m.toolsEditable() {
-		return fmt.Errorf("finish active work and save or discard the retained workflow before applying tool preferences")
+		return nil, fmt.Errorf("finish active work and save or discard the retained workflow before applying tool preferences")
 	}
 	snapshot, err := m.agent.Snapshot()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	preferences := m.application.Preferences
 	profile := m.profile.Profile.Clone()
 	preferences.Profile = &profile
 	err = preferences.Validate()
+	if err != nil {
+		return nil, err
+	}
+	snapshot.Preferences = preferences
+	return snapshot, nil
+}
+
+func (m *Model) applyExecutablePreference(name string, values map[string]string) error {
+	snapshot, err := m.toolPreferencesRestart()
 	if err != nil {
 		return err
 	}
@@ -134,7 +172,99 @@ func (m *Model) applyExecutablePreference(name string, values map[string]string)
 	if err != nil {
 		return err
 	}
-	snapshot.Preferences = preferences
+	m.modeChange = snapshot
+	m.commands = append(m.commands, tea.Quit)
+	return nil
+}
+
+func (m *Model) openSSHTools() {
+	view := m.tools.SSH(m.toolsEditable())
+	for i, row := range view.Table.Model.Rows {
+		if row.ID == m.sshSelection {
+			view.Table.Model.Cursor = i
+			break
+		}
+	}
+	m.chrome.PresentDialog(view)
+	m.toolsDialog, m.toolsPage = m.chrome.Dialog, toolSSH
+}
+
+func (m *Model) sshToolAction(event screen.Event) tea.Cmd {
+	if event.Action == "operations" {
+		for _, set := range m.toolsets {
+			if set.ID == "native_ssh" {
+				m.chrome.PresentDialog(toolsui.Details(set))
+				m.toolsDialog, m.toolsPage = m.chrome.Dialog, toolSSHDetails
+				break
+			}
+		}
+		return nil
+	}
+	m.sshSelection = event.Row
+	if event.Action == "test" {
+		cmd := m.tools.CheckSSH(m.base, event.Row)
+		view := m.tools.SSH(m.toolsEditable())
+		m.chrome.Dialog.Table.Description = view.Table.Description
+		m.chrome.Dialog.Table.Actions = view.Table.Actions
+		return cmd
+	}
+	if !m.toolsEditable() {
+		return nil
+	}
+	name := event.Row
+	if event.Action == "add" {
+		name = ""
+	}
+	if event.Action == "add" || event.Action == "edit" {
+		preferences, err := m.tools.SSHPreferences(name)
+		if err != nil {
+			m.chrome.PresentDialog(screen.Dialog{Title: "SSH preferences", Lines: []string{err.Error()}})
+			m.toolsDialog, m.toolsPage = m.chrome.Dialog, toolSSHDetails
+			return nil
+		}
+		m.openForm(preferences, func(values map[string]string) error { return m.applySSHPreference(name, values) })
+		m.toolsDialog, m.toolsPage = m.chrome.Dialog, toolSSHEdit
+	}
+	if event.Action == "delete" {
+		confirmation := screen.Form{
+			Title:         "Delete SSH connection",
+			Hint:          "Type the connection name to confirm. Saved workflows using it will need another connection. Apply restarts GEKTOR; restart independent workers separately.",
+			ApplyLabel:    "Delete and restart",
+			Destructive:   true,
+			StartOnCancel: true,
+			Fields:        []form.Field{{Key: "confirmation", Label: "Connection: " + name}},
+		}
+		m.openForm(confirmation, func(values map[string]string) error { return m.deleteSSHPreference(name, values["confirmation"]) })
+		m.toolsDialog, m.toolsPage = m.chrome.Dialog, toolSSHEdit
+	}
+	return nil
+}
+
+func (m *Model) applySSHPreference(name string, values map[string]string) error {
+	snapshot, err := m.toolPreferencesRestart()
+	if err != nil {
+		return err
+	}
+	err = m.tools.SaveSSH(name, values)
+	if err != nil {
+		return err
+	}
+	m.modeChange = snapshot
+	m.commands = append(m.commands, tea.Quit)
+	return nil
+}
+
+func (m *Model) deleteSSHPreference(name, confirmation string) error {
+	snapshot, err := m.toolPreferencesRestart()
+	if err != nil {
+		return err
+	}
+
+	err = m.tools.DeleteSSH(name, confirmation)
+	if err != nil {
+		return err
+	}
+
 	m.modeChange = snapshot
 	m.commands = append(m.commands, tea.Quit)
 	return nil

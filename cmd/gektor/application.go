@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"flag"
+	"os"
 	"path/filepath"
 
 	"github.com/keshon/gektor/internal/config"
@@ -27,6 +28,9 @@ type launchRequest struct {
 }
 
 func runApplication(args []string) error {
+	if len(args) > 0 && args[0] == "ssh" {
+		return runSSH(args[1:], os.Stdout)
+	}
 	if len(args) > 0 && args[0] == "mcp" {
 		return runMCP(args[1:])
 	}

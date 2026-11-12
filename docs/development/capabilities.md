@@ -50,7 +50,7 @@ are shared support owners under `internal/tools/command` and `internal/tools/out
 
 The proposed [Tools management plan](../internal/tools-management-plan.md)
 extends configuration UI across Agent and Workflows while retaining these
-execution boundaries. Tools inventory and Media executable preferences are implemented. SSH editing,
+execution boundaries. Tools inventory, Media executable preferences and reference-only SSH editing are implemented.
 protected secret entry and consolidated MCP management remain planned.
 
 A provider-only reader may expose a typed function instead of a service. Do not

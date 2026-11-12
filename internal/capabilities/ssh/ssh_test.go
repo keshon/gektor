@@ -26,10 +26,11 @@ import (
 )
 
 type testServer struct {
-	address string
-	signer  gossh.Signer
-	private ed25519.PrivateKey
-	calls   atomic.Int32
+	address  string
+	signer   gossh.Signer
+	private  ed25519.PrivateKey
+	calls    atomic.Int32
+	channels atomic.Int32
 }
 
 func serveSSH(t *testing.T) *testServer {
@@ -77,7 +78,7 @@ func serveSSH(t *testing.T) *testServer {
 			mu.Lock()
 			active = socket
 			mu.Unlock()
-			serveConnection(socket, config, handlers)
+			serveConnection(socket, config, handlers, &server.channels)
 		}
 	}()
 	t.Cleanup(func() {
@@ -92,7 +93,7 @@ func serveSSH(t *testing.T) *testServer {
 	return server
 }
 
-func serveConnection(socket net.Conn, config *gossh.ServerConfig, handlers sftp.Handlers) {
+func serveConnection(socket net.Conn, config *gossh.ServerConfig, handlers sftp.Handlers, opened *atomic.Int32) {
 	defer socket.Close()
 	connection, channels, requests, err := gossh.NewServerConn(socket, config)
 	if err != nil {
@@ -103,6 +104,7 @@ func serveConnection(socket net.Conn, config *gossh.ServerConfig, handlers sftp.
 	go func() { gossh.DiscardRequests(requests); close(requestsDone) }()
 	defer func() { connection.Close(); <-requestsDone }()
 	for incoming := range channels {
+		opened.Add(1)
 		channel, reqs, acceptErr := incoming.Accept()
 		if acceptErr != nil {
 			continue
@@ -398,4 +400,66 @@ func TestCancellationInterruptsHandshake(t *testing.T) {
 	if err == nil || ctx.Err() == nil || time.Since(started) > time.Second {
 		t.Fatal("handshake did not honor cancellation", err)
 	}
+}
+
+func TestConnectionCheckAuthenticatesWithoutOpeningChannels(t *testing.T) {
+	server := serveSSH(t)
+	service, _ := testService(t, server)
+	err := service.Check(t.Context(), "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if server.calls.Load() != 1 || server.channels.Load() != 0 {
+		t.Fatal("connection test opened a remote operation")
+	}
+
+	t.Setenv("GEKTOR_TEST_SSH_PASSWORD", "wrong-private-value")
+	err = service.Check(t.Context(), "test")
+	if err == nil || strings.Contains(err.Error(), "wrong-private-value") {
+		t.Fatal("authentication failure missing or leaked secret", err)
+	}
+	t.Setenv("GEKTOR_TEST_SSH_PASSWORD", "test-secret")
+	err = os.WriteFile(service.profiles["test"].KnownHosts, nil, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = service.Check(t.Context(), "test")
+	if err == nil {
+		t.Fatal("unknown host key accepted")
+	}
+	if server.channels.Load() != 0 {
+		t.Fatal("failed test opened a remote operation")
+	}
+}
+
+func TestConnectionCheckCancellationJoinsHandshake(t *testing.T) {
+	server := serveSSH(t)
+	service, _ := testService(t, server)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	host, portText, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := service.profiles["test"]
+	p.Host, p.Port = host, port
+	service.profiles["test"] = p
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+	err = service.Check(ctx, "test")
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("handshake did not preserve cancellation", err)
+	}
+	socket, err := listener.Accept()
+	if err != nil {
+		t.Fatal(err)
+	}
+	socket.Close()
 }
