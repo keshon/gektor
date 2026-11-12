@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/keshon/gektor/internal/llm"
+	toolimages "github.com/keshon/gektor/internal/tools/images"
 	"github.com/keshon/gektor/internal/userdirs"
 )
 
@@ -68,7 +69,7 @@ func browserArtifacts(ctx context.Context, workspace, tool, output string, pictu
 			continue
 		}
 		if image {
-			if enabled, _ := ctx.Value(visionContextKey{}).(bool); !enabled {
+			if !toolimages.HasVision(ctx) {
 				output += "\n[visual observation unavailable: model has no vision capability; screenshot was saved but its pixels were not delivered]"
 			} else if saved, saveErr := llm.SnapshotImageFile(file, path, userdirs.Sub("images")); saveErr != nil {
 				output += "\n[visual observation unavailable: screenshot could not be validated]"

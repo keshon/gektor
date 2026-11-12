@@ -1,0 +1,385 @@
+package files
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+	"testing"
+	"unicode/utf8"
+
+	"github.com/keshon/gektor/internal/workspace"
+)
+
+func TestReadFile_TruncatesLargeFiles(t *testing.T) {
+	dir := t.TempDir()
+	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
+	if err != nil {
+		t.Fatalf("workspace: %v", err)
+	}
+
+	large := strings.Repeat("x", 200*1024)
+	path := filepath.Join(dir, "big.txt")
+	if err := os.WriteFile(path, []byte(large), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	args, _ := json.Marshal(map[string]string{"path": "big.txt"})
+	out, err := Read{WS: ws}.Run(context.Background(), args)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !strings.Contains(out, "...(content truncated at ") {
+		t.Fatalf("expected truncation marker, got len %d", len(out))
+	}
+	if !strings.Contains(out, "FILE\n") || !strings.Contains(out, "truncated: true") || !strings.Contains(out, "size: ") {
+		t.Fatalf("expected structured FILE header, got: %q", out[:min(200, len(out))])
+	}
+	if len(out) >= len(large) {
+		t.Fatalf("output not truncated: len %d", len(out))
+	}
+}
+
+// Offset pages past truncation: a file larger than the cap reads in
+// windows, and the truncation note points at the next offset instead of
+// a dead end. Without this, bytes past the cap are unreachable —
+// max_bytes only shrinks the head and grep has no context lines.
+func TestReadFile_OffsetPagesLargeFile(t *testing.T) {
+	dir := t.TempDir()
+	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
+	if err != nil {
+		t.Fatalf("workspace: %v", err)
+	}
+
+	var b strings.Builder
+	for i := 1; i <= 6000; i++ {
+		fmt.Fprintf(&b, "line-%04d-padding-padding\n", i)
+	}
+	path := filepath.Join(dir, "big.txt")
+	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	read := func(args map[string]any) string {
+		raw, _ := json.Marshal(args)
+		out, err := Read{WS: ws}.Run(context.Background(), raw)
+		if err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+		return out
+	}
+
+	head := read(map[string]any{"path": "big.txt"})
+	if !strings.Contains(head, "lines: 6000") {
+		t.Fatalf("header must report total lines:\n%s", head[:400])
+	}
+	if !strings.Contains(head, "re-read with offset ") {
+		t.Fatalf("truncation note must point at paging:\n%s", head[len(head)-300:])
+	}
+	if strings.Contains(head, "line-5999") {
+		t.Fatal("head window must not reach the tail")
+	}
+	// The note's offset is 1-based and continues coverage: take the
+	// tail from a late offset and check both edges arrive.
+	tail := read(map[string]any{"path": "big.txt", "offset": 5900})
+	if !strings.Contains(tail, "window: lines 5900-6000 of 6000") {
+		t.Fatalf("tail window mislabeled:\n%s", tail[:400])
+	}
+	if !strings.Contains(tail, "line-5999") {
+		t.Fatalf("tail window missing late lines")
+	}
+	if strings.Contains(tail, "line-0001") {
+		t.Fatal("tail window must not repeat the head")
+	}
+
+	past := read(map[string]any{"path": "big.txt", "offset": 99999})
+	if !strings.Contains(past, "past end of file: 6000 lines") {
+		t.Fatalf("past-end offset must say so:\n%s", past)
+	}
+	if _, err := (Read{WS: ws}).Run(context.Background(), json.RawMessage(`{"path":"big.txt","offset":-1}`)); err == nil {
+		t.Fatal("negative offset must fail, not read")
+	}
+}
+
+func TestReadFile_SmallFileUnchanged(t *testing.T) {
+	dir := t.TempDir()
+	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
+	if err != nil {
+		t.Fatalf("workspace: %v", err)
+	}
+
+	content := "hello world"
+	if err := os.WriteFile(filepath.Join(dir, "small.txt"), []byte(content), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	args, _ := json.Marshal(map[string]string{"path": "small.txt"})
+	out, err := Read{WS: ws}.Run(context.Background(), args)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !strings.Contains(out, "FILE\n") || !strings.Contains(out, "truncated: false") {
+		t.Fatalf("expected structured FILE header, got: %q", out)
+	}
+	if !strings.Contains(out, "hello world") {
+		t.Fatalf("expected file content in output, got: %q", out)
+	}
+}
+
+func TestReadFile_MetadataOnly_NoBody(t *testing.T) {
+	dir := t.TempDir()
+	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
+	if err != nil {
+		t.Fatalf("workspace: %v", err)
+	}
+
+	large := strings.Repeat("x", 200*1024)
+	if err := os.WriteFile(filepath.Join(dir, "big.txt"), []byte(large), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	args, _ := json.Marshal(map[string]any{"path": "big.txt", "metadata_only": true})
+	out, err := Read{WS: ws}.Run(context.Background(), args)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if strings.Contains(out, "----") {
+		t.Fatalf("metadata_only should not include body separator, got len %d", len(out))
+	}
+	if !strings.Contains(out, "size: 204800") || !strings.Contains(out, "truncated: true") {
+		t.Fatalf("expected size/truncated facts in header, got: %q", out)
+	}
+	if len(out) > 200 {
+		t.Fatalf("metadata_only output too large: %d bytes", len(out))
+	}
+}
+
+// max_bytes=0 must mean "no explicit cap" — every model reads 0 as the
+// universal "unlimited" convention. The original 0-means-header-only
+// semantics sent a live Qwen run into an 18-repeat read loop: it kept
+// asking for content with max_bytes=0 and kept getting a contentless
+// header it couldn't understand.
+func TestReadFile_MaxBytesZero_ReturnsFullContent(t *testing.T) {
+	dir := t.TempDir()
+	ws, _ := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
+	os.WriteFile(filepath.Join(dir, "f.txt"), []byte("hello"), 0o644)
+
+	zero := 0
+	args, _ := json.Marshal(map[string]any{"path": "f.txt", "max_bytes": zero})
+	out, err := Read{WS: ws}.Run(context.Background(), args)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !strings.Contains(out, "hello") {
+		t.Fatalf("max_bytes=0 must return the full content, got: %q", out)
+	}
+}
+
+func TestReadFile_MaxBytesPositive_CapsContent(t *testing.T) {
+	dir := t.TempDir()
+	ws, _ := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
+	os.WriteFile(filepath.Join(dir, "f.txt"), []byte("hello world"), 0o644)
+
+	args, _ := json.Marshal(map[string]any{"path": "f.txt", "max_bytes": 5})
+	out, err := Read{WS: ws}.Run(context.Background(), args)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !strings.Contains(out, "hello") || strings.Contains(out, "world") {
+		t.Fatalf("max_bytes=5 should cap at 5 bytes, got: %q", out)
+	}
+}
+
+// A single tool result must not be able to consume most of a small
+// context window. Live (2026-09-05): reading a 205KB fixture returned
+// the then-current 128KB cap, which took the prompt from 3.4k to 57k
+// tokens — 87% of a 65k window — in one step, and the run timed out.
+func TestReadFile_CapIsSmallEnoughForASmallContext(t *testing.T) {
+	dir := t.TempDir()
+	big := strings.Repeat("abcdefgh", 40*1024) // 320KB
+	if err := os.WriteFile(filepath.Join(dir, "big.txt"), []byte(big), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
+	if err != nil {
+		t.Fatalf("workspace: %v", err)
+	}
+
+	args, _ := json.Marshal(map[string]string{"path": "big.txt"})
+	out, err := (Read{WS: ws}).Run(context.Background(), args)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if len(out) > readMaxBytes+1024 { // body plus the FILE header
+		t.Errorf("read returned %d bytes, cap is %d", len(out), readMaxBytes)
+	}
+	if !strings.Contains(out, "truncated: true") {
+		t.Error("a truncated read must say so")
+	}
+	if !strings.Contains(out, "size: 327680") {
+		t.Error("a truncated read must still report the file's real size")
+	}
+}
+
+// Live (probe 05): the agent rewrote a whole file to change one constant,
+// which the system prompt had always told it not to do. Rewriting drops
+// everything the model does not happen to reproduce, and nothing reports
+// it — the surrounding code is simply gone.
+func TestReadFilePaginationReconstructsNormalizedText(t *testing.T) {
+	for _, content := range []string{
+		"first long line\nsecond line\nlast",
+		"\r\nпривет 🌍\r\n" + strings.Repeat("я", 40) + "\r\nend\r\n",
+		strings.Repeat("x", 100) + "\nend",
+		"a\rb\r\nc\r",
+	} {
+		ws, dir := testWS(t)
+		writeTmp(t, dir, "file.txt", content)
+		cursor := 0
+		var reconstructed strings.Builder
+		for page := 0; ; page++ {
+			if page > len(content) {
+				t.Fatal("pagination stopped making progress")
+			}
+			args, _ := json.Marshal(map[string]any{"path": "file.txt", "max_bytes": 7, "byte_offset": cursor})
+			out, err := (Read{WS: ws}).Run(t.Context(), args)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, body, ok := strings.Cut(out, "----\n")
+			if !ok {
+				t.Fatalf("missing content: %s", out)
+			}
+			if strings.HasPrefix(body, "window:") {
+				_, body, _ = strings.Cut(body, "\n")
+			}
+			if strings.Contains(out, "truncated: false") {
+				reconstructed.WriteString(body)
+				break
+			}
+			chunk, _, found := strings.Cut(body, "\n...(content truncated at ")
+			if !found || !utf8.ValidString(chunk) || len(chunk) > 7 {
+				t.Fatalf("invalid page: %q", out)
+			}
+			reconstructed.WriteString(chunk)
+			match := regexp.MustCompile(`byte_offset (\d+)`).FindStringSubmatch(body)
+			if len(match) != 2 {
+				t.Fatalf("no continuation: %s", out)
+			}
+			next, _ := strconv.Atoi(match[1])
+			if next <= cursor {
+				t.Fatalf("cursor did not advance: %d -> %d", cursor, next)
+			}
+			cursor = next
+		}
+		if want := strings.ReplaceAll(content, "\r\n", "\n"); reconstructed.String() != want {
+			t.Fatalf("lost or repeated text: got %q, want %q", reconstructed.String(), want)
+		}
+	}
+}
+
+func TestReadFileContinuationValidation(t *testing.T) {
+	ws, dir := testWS(t)
+	writeTmp(t, dir, "file.txt", "язык\n")
+	for _, args := range []string{
+		`{"path":"file.txt","byte_offset":-1}`,
+		`{"path":"file.txt","byte_offset":1}`,
+		`{"path":"file.txt","byte_offset":999}`,
+		`{"path":"file.txt","offset":1,"byte_offset":0}`,
+		`{"path":"file.txt","max_bytes":1}`,
+	} {
+		if _, err := (Read{WS: ws}).Run(t.Context(), json.RawMessage(args)); err == nil {
+			t.Fatalf("accepted unusable continuation: %s", args)
+		}
+	}
+
+	// Decoded UTF-16 uses the same normalized cursor as a UTF-8 file.
+	if err := os.WriteFile(filepath.Join(dir, "utf16.txt"), utf16le("abcd\r\nef\r\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := (Read{WS: ws}).Run(t.Context(), json.RawMessage(`{"path":"utf16.txt","byte_offset":3,"max_bytes":4}`))
+	if err != nil || !strings.Contains(out, "d\n") || !strings.Contains(out, "byte_offset 5") {
+		t.Fatalf("decoded cursor is inconsistent: %v %s", err, out)
+	}
+}
+
+func TestReadFileLineLimit(t *testing.T) {
+	root := t.TempDir()
+	ws, err := workspace.New(root)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "lines.txt"), []byte("one\r\ntwo\r\nthree\r\nfour"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := (Read{WS: ws}).Run(t.Context(), json.RawMessage(`{"path":"lines.txt","offset":2,"limit":2}`))
+	if err != nil || !strings.Contains(out, "two\nthree\n") || strings.Contains(out, "four") || !strings.Contains(out, "offset 4") {
+		t.Fatal(out, err)
+	}
+	out, err = (Read{WS: ws}).Run(t.Context(), json.RawMessage(`{"path":"lines.txt","offset":4,"limit":2}`))
+	if err != nil || !strings.Contains(out, "four") || strings.Contains(out, "truncated: true") {
+		t.Fatal(out, err)
+	}
+}
+
+func TestReadFileSuggestsExistingNamesWithoutReadingThem(t *testing.T) {
+	root := t.TempDir()
+	ws, err := workspace.New(root)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"widget.ts", "widget.test.ts", "shot.webp"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("MUST NOT READ"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tool := Read{WS: ws}
+	for _, tc := range []struct{ path, want string }{{"widget", "widget.ts"}, {"widget.js", "widget.ts"}, {"shot.png", "shot.webp"}, {"absent.txt", "list_files"}, {"missing/absent.txt", "parent directory"}} {
+		args, _ := json.Marshal(map[string]string{"path": tc.path})
+		out, err := tool.Run(t.Context(), args)
+		if err == nil || !strings.Contains(err.Error(), tc.want) || !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("%s: %s %v", tc.path, out, err)
+		}
+		if strings.Contains(out+err.Error(), "MUST NOT READ") {
+			t.Fatal("suggestion read another file")
+		}
+	}
+}
+
+func utf16le(s string) []byte {
+	out := []byte{0xFF, 0xFE}
+	for _, r := range s {
+		out = append(out, byte(r), byte(r>>8))
+	}
+	return out
+}

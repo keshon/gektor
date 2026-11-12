@@ -10,24 +10,24 @@ package roles
 
 import (
 	"context"
-	commandrun "github.com/keshon/gektor/internal/tools/command"
-	tooloutput "github.com/keshon/gektor/internal/tools/output"
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/tools"
 	toolaskuser "github.com/keshon/gektor/internal/tools/askuser"
-
-	// Planner is the read-only conversation. It deliberately shares
-	// Interactive's system prompt and tool set: a narrower registry would change
-	// the prompt prefix, and a backend that caches prompts would re-read the
-	// whole conversation every time the operator switches modes. Capability is
-	// removed where it is used - the loop refuses every call outside
-	// tools.ReadOnly - rather than by asking the model to hold back, so nothing
-	// can write in this role whatever the model decides to try.
+	commandrun "github.com/keshon/gektor/internal/tools/command"
 	tooldelegate "github.com/keshon/gektor/internal/tools/delegate"
 	toolhistory "github.com/keshon/gektor/internal/tools/history"
+	tooloutput "github.com/keshon/gektor/internal/tools/output"
 )
+
+// Planner is the read-only conversation. It deliberately shares
+// Interactive's system prompt and tool set: a narrower registry would change
+// the prompt prefix, and a backend that caches prompts would re-read the
+// whole conversation every time the operator switches modes. Capability is
+// removed where it is used - the loop refuses every call outside
+// tools.ReadOnly - rather than by asking the model to hold back, so nothing
+// can write in this role whatever the model decides to try.
 
 func Planner(e Env, label, stateFile string, ask func(ctx context.Context, question string) (string, error)) (*agent.Agent, error) {
 	cfg, err := e.conversationConfig(label, stateFile, ask, nil)

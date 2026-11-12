@@ -18,21 +18,15 @@ import (
 	"github.com/keshon/gektor/internal/executables"
 	"github.com/keshon/gektor/internal/permission"
 	toolbackground "github.com/keshon/gektor/internal/tools/background"
-	toolcheckurl "github.com/keshon/gektor/internal/tools/checkurl"
 	toolcontext "github.com/keshon/gektor/internal/tools/context"
-	tooledit "github.com/keshon/gektor/internal/tools/edit"
+	toolfiles "github.com/keshon/gektor/internal/tools/files"
 	toolgit "github.com/keshon/gektor/internal/tools/git"
-	toolgitadd "github.com/keshon/gektor/internal/tools/gitadd"
-	toolgitcommit "github.com/keshon/gektor/internal/tools/gitcommit"
-	toolgrep "github.com/keshon/gektor/internal/tools/grep"
-	toollistfiles "github.com/keshon/gektor/internal/tools/listfiles"
-	toolmovefile "github.com/keshon/gektor/internal/tools/movefile"
-	toolprogram "github.com/keshon/gektor/internal/tools/program"
-	toolreadfile "github.com/keshon/gektor/internal/tools/readfile"
-	"github.com/keshon/gektor/internal/tools/readoutput"
-	toolshell "github.com/keshon/gektor/internal/tools/shell"
+	toolhost "github.com/keshon/gektor/internal/tools/host"
+	toolimages "github.com/keshon/gektor/internal/tools/images"
+	toolrun "github.com/keshon/gektor/internal/tools/run"
 	toolskill "github.com/keshon/gektor/internal/tools/skill"
 	tooltodo "github.com/keshon/gektor/internal/tools/todo"
+	toolweb "github.com/keshon/gektor/internal/tools/web"
 	"github.com/keshon/gektor/internal/userdirs"
 	workflowdefs "github.com/keshon/gektor/internal/workflow"
 	workflow "github.com/keshon/gektor/internal/workflow/agenttools"
@@ -85,12 +79,12 @@ func builtinPackages(d Dependencies) []packageDefinition {
 	validate.ValidateOnly = true
 	registry := run.Registry
 
-	info := SystemInfo{WS: d.WS, BrowserTools: BrowserToolNames(d.Extra)}
+	info := toolhost.Tool{WS: d.WS, BrowserTools: BrowserToolNames(d.Extra)}
 	for _, tool := range d.Extra {
-		if discovery, ok := tool.(DiscoverCapabilities); ok {
+		if discovery, ok := tool.(DiscoverCapabilities); ok && discovery.Catalog != nil {
 			info.Capabilities = discovery.Catalog
 		}
-		if browser, ok := tool.(*EnableBrowser); ok {
+		if browser, ok := tool.(*EnableBrowser); ok && browser != nil {
 			info.Browser = browser
 		}
 	}
@@ -113,7 +107,7 @@ func builtinPackages(d Dependencies) []packageDefinition {
 				{info, true},
 				{toolskill.Tool{WS: d.WS}, true},
 				{toolcontext.Tool{}, true},
-				{readoutput.Tool{}, true},
+				{ReadOutput{}, true},
 				{&tooltodo.Tool{}, false},
 			},
 		},
@@ -122,12 +116,12 @@ func builtinPackages(d Dependencies) []packageDefinition {
 			description: "Workspace files",
 			exposure:    Always,
 			entries: []toolEntry{
-				{toolreadfile.Tool{WS: d.WS, Vision: d.Vision}, true},
-				{Checked(tooledit.Write{WS: d.WS}, d.WS, d.Checks), false},
-				{Checked(tooledit.Patch{WS: d.WS}, d.WS, d.Checks), false},
-				{toollistfiles.Tool{WS: d.WS}, true},
-				{toolgrep.Tool{WS: d.WS}, true},
-				{toolmovefile.Tool{WS: d.WS}, false},
+				{toolfiles.Read{WS: d.WS, Vision: d.Vision}, true},
+				{Checked(toolfiles.Write{WS: d.WS}, d.WS, d.Checks), false},
+				{Checked(toolfiles.Patch{WS: d.WS}, d.WS, d.Checks), false},
+				{toolfiles.List{WS: d.WS}, true},
+				{toolfiles.Grep{WS: d.WS}, true},
+				{toolfiles.Move{WS: d.WS}, false},
 			},
 		},
 		{
@@ -135,8 +129,8 @@ func builtinPackages(d Dependencies) []packageDefinition {
 			description: "Run commands",
 			exposure:    Always,
 			entries: []toolEntry{
-				{toolshell.Tool{WS: d.WS}, false},
-				{toolprogram.Tool{WS: d.WS}, false},
+				{toolrun.Shell{WS: d.WS}, false},
+				{toolrun.Program{WS: d.WS}, false},
 			},
 		},
 		{
@@ -156,9 +150,9 @@ func builtinPackages(d Dependencies) []packageDefinition {
 			description: "Git operations",
 			exposure:    Always,
 			entries: []toolEntry{
-				{toolgit.Tool{WS: d.WS}, true},
-				{toolgitadd.Tool{WS: d.WS}, false},
-				{toolgitcommit.Tool{WS: d.WS}, false},
+				{toolgit.Inspect{WS: d.WS}, true},
+				{toolgit.Add{WS: d.WS}, false},
+				{toolgit.Commit{WS: d.WS}, false},
 			},
 		},
 		{
@@ -166,10 +160,10 @@ func builtinPackages(d Dependencies) []packageDefinition {
 			description: "Fetch URLs and search the web",
 			exposure:    Eager,
 			entries: []toolEntry{
-				{toolcheckurl.Tool{}, true},
-				{Webfetch{}, true},
-				{FetchRaw{}, true},
-				{SearchWeb{WS: d.WS}, true},
+				{toolweb.Check{}, true},
+				{toolweb.Fetch{}, true},
+				{toolweb.Raw{}, true},
+				{toolweb.Search{}, true},
 			},
 		},
 		{
@@ -178,11 +172,11 @@ func builtinPackages(d Dependencies) []packageDefinition {
 			exposure:     Lazy,
 			instructions: "Use image_attachments for session image IDs and image_view for pixels/crops. Load visual-investigation for identification or visual comparison. Pixelita is native; unsupported_metadata is a capability limitation, not a retry request.",
 			entries: append([]toolEntry{
-				{ImageAttachments{}, true},
-				{&ImageView{WS: d.WS, Vision: d.Vision}, true},
-				{&ImageDownload{Vision: d.Vision}, true},
+				{toolimages.Attachments{}, true},
+				{&toolimages.View{WS: d.WS, Vision: d.Vision}, true},
+				{&toolimages.Download{Vision: d.Vision}, true},
 			}, operationEntries(imagecontract.Names(), func(name string) agent.Tool {
-				tool := NewImageOperation(d.WS, name)
+				tool := toolimages.NewOperation(d.WS, name)
 				tool.AuthorizeOutput = authorizeOutput
 				return tool
 			}, func(name string) bool { return (imagecontract.Operation{Kind: name}).ReadOnly() })...),

@@ -15,7 +15,6 @@ import (
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/permission"
 	tooloutput "github.com/keshon/gektor/internal/tools/output"
-	"github.com/keshon/gektor/internal/tools/readoutput"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -155,7 +154,7 @@ func TestDocumentsContinuationAcrossAgentWorkflowAndOutputLimit(t *testing.T) {
 	var recovered strings.Builder
 	for offset := 0; ; {
 		args, _ := json.Marshal(map[string]any{"id": id, "offset": offset, "limit": 8192})
-		out, err := (readoutput.Tool{}).Run(ctx, args)
+		out, err := (ReadOutput{}).Run(ctx, args)
 		if err != nil {
 			t.Fatal(err)
 		}

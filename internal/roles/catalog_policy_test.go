@@ -16,8 +16,8 @@ import (
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tools"
 	toolaskuser "github.com/keshon/gektor/internal/tools/askuser"
-	toolcheckurl "github.com/keshon/gektor/internal/tools/checkurl"
 	tooldelegate "github.com/keshon/gektor/internal/tools/delegate"
+	toolweb "github.com/keshon/gektor/internal/tools/web"
 )
 
 func TestPlannerCanInspectZIPButCannotWriteFiles(t *testing.T) {
@@ -100,7 +100,7 @@ func TestFreshPlannerActivatesNativeWebOnly(t *testing.T) {
 		loads := 0
 		e.Capabilities = []*tools.Capability{{ID: "external", ReadOnly: true, Load: func(context.Context, func(string)) ([]agent.Tool, error) {
 			loads++
-			return []agent.Tool{toolcheckurl.Tool{}}, nil
+			return []agent.Tool{toolweb.Check{}}, nil
 		}}}
 		e.Policy = permission.Default()
 		if deny {

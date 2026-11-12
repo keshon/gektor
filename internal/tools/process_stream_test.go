@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	toolshell "github.com/keshon/gektor/internal/tools/shell"
+	toolrun "github.com/keshon/gektor/internal/tools/run"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -67,7 +67,7 @@ func TestShellOutputArrivesBeforeExitAndSurvivesFailureOrCancellation(t *testing
 			args, _ := json.Marshal(map[string]string{"command": command})
 			var live strings.Builder
 			var releaseErr error
-			result, err := (toolshell.Tool{WS: ws}).RunStreaming(ctx, args, func(text string) {
+			result, err := (toolrun.Shell{WS: ws}).RunStreaming(ctx, args, func(text string) {
 				live.WriteString(text)
 				if strings.Contains(live.String(), "first output") {
 					if mode == "cancel" {

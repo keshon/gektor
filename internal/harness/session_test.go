@@ -23,7 +23,7 @@ import (
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/roles"
 	toolbackground "github.com/keshon/gektor/internal/tools/background"
-	toolcheckurl "github.com/keshon/gektor/internal/tools/checkurl"
+	toolweb "github.com/keshon/gektor/internal/tools/web"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -480,7 +480,7 @@ func TestSessionSweepUsesTheEventReporter(t *testing.T) {
 	}
 }
 
-type sessionPreviewTool struct{ toolcheckurl.Tool }
+type sessionPreviewTool struct{ toolweb.Check }
 
 func (sessionPreviewTool) Name() string            { return "stream_test" }
 func (sessionPreviewTool) Schema() json.RawMessage { return json.RawMessage(`{"type":"object"}`) }

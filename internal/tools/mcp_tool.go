@@ -12,6 +12,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/mcp"
+	toolimages "github.com/keshon/gektor/internal/tools/images"
 	tooloutput "github.com/keshon/gektor/internal/tools/output"
 )
 
@@ -153,7 +154,7 @@ func (t *MCPTool) Run(ctx context.Context, args json.RawMessage) (output string,
 			b.WriteString(c.Text)
 			b.WriteString("\n")
 		} else if c.Type == "image" {
-			path, err := saveMCPImage(callCtx, c.Data, c.MimeType)
+			path, err := toolimages.SaveMCP(callCtx, c.Data, c.MimeType)
 			if err != nil {
 				fmt.Fprintf(&b, "[image unavailable: %s]\n", err)
 			} else {

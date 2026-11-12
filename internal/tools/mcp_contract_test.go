@@ -15,6 +15,7 @@ import (
 
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/mcp"
+	toolimages "github.com/keshon/gektor/internal/tools/images"
 )
 
 type contractMCP func(context.Context, string, any, any) error
@@ -33,7 +34,7 @@ func TestMCPReturnsStructuredTextAndValidatedImages(t *testing.T) {
 	})
 	tool := &MCPTool{client: c, server: "test", def: mcp.ToolDefinition{Name: "capture"}}
 	args := json.RawMessage(`{}`)
-	text, err := tool.Run(VisionContext(t.Context(), false), args)
+	text, err := tool.Run(toolimages.VisionContext(t.Context(), false), args)
 	if err != nil || !strings.Contains(text, `"answer":42`) || !strings.Contains(text, "no vision") {
 		t.Fatal(text, err)
 	}
@@ -41,7 +42,7 @@ func TestMCPReturnsStructuredTextAndValidatedImages(t *testing.T) {
 	if len(paths) != 0 {
 		t.Fatal("text model received images")
 	}
-	text, err = tool.Run(VisionContext(t.Context(), true), args)
+	text, err = tool.Run(toolimages.VisionContext(t.Context(), true), args)
 	if err != nil {
 		t.Fatal(err)
 	}

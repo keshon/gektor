@@ -9,6 +9,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
+	toolimages "github.com/keshon/gektor/internal/tools/images"
 )
 
 // BrowserObserve packages current observations, never a task-completion verdict.
@@ -86,7 +87,7 @@ func (t *BrowserObserve) Run(ctx context.Context, args json.RawMessage) (string,
 		return "", fmt.Errorf("browser is not connected")
 	}
 	if in.Mode == "visual" {
-		if enabled, _ := ctx.Value(visionContextKey{}).(bool); !enabled {
+		if !toolimages.HasVision(ctx) {
 			return "", fmt.Errorf("visual observation unavailable: model has no vision capability; use text or controls, or select a vision-capable backend")
 		}
 	}

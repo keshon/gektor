@@ -13,6 +13,7 @@ import (
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/tools"
 	toolbackground "github.com/keshon/gektor/internal/tools/background"
+	toolimages "github.com/keshon/gektor/internal/tools/images"
 	tooloutput "github.com/keshon/gektor/internal/tools/output"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -227,5 +228,5 @@ func (e Env) statePath(name string) string {
 
 // visionContext supplies the probed model capability to image-producing adapters.
 func (e Env) visionContext(ctx context.Context) context.Context {
-	return tools.VisionContext(ctx, e.Vision)
+	return toolimages.VisionContext(ctx, e.Vision)
 }

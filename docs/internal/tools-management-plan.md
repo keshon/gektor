@@ -4,14 +4,13 @@ Date: 2026-11-12
 Status: Approved; phase zero is in progress. Existing SSH work and this plan
 were committed as `caa586c`. The management UI described here is not implemented.
 
-Current migration: command execution and retained output now live under
-`internal/tools/command` and `internal/tools/output`. Independent packages are in
-place for askuser, delegate, history, skill, context, todo, listfiles, movefile,
-checkurl, git, gitadd, gitcommit, shell, program, background, readfile, grep and edit, plus readoutput.
-Remaining phase-zero work includes web fetching/search, browser,
-extensions, image adapters, workflow Agent tools and the archive/download split.
-The target tree below describes the completed phase, not every intermediate
-working-tree state.
+Current migration: the first package extraction was committed as `2f4bb47`.
+The follow-up groups related operations under one feature owner: files, git, run,
+background, web, images and host. Output and command remain shared resource
+owners; read_output is thin root adapter glue. Browser and extension/MCP
+extraction remain pending. Existing workflow Agent adapters and shared file
+capabilities retain their cohesive feature packages.
+The target tree below includes both completed and pending work.
 
 ## Decision
 
@@ -192,123 +191,88 @@ as part of settings management.
 
 ## Prerequisite: decide tools, nodes and capabilities together
 
-The current `internal/tools` root has 129 Go files, including 68 production files
-and approximately 8,500 production lines (inspection on 2026-11-12). It combines
-composition, browser setup/lifetime, process execution, filesystem operations,
-Git, extension transports, activation and session support. These responsibilities
-justify package boundaries before the management UI takes dependencies on them.
+Before migration, `internal/tools` had 129 Go files, including 68 production
+files and approximately 8,500 production lines (inspection on 2026-11-12).
+Composition, transports, filesystem operations, activation and resource lifetimes
+were mixed together. The migration separates those owners before the management
+UI takes dependencies on them.
 
-The initial seven broad tool-family buckets are superseded by this decision.
-Most substantive standalone tools get narrow packages. Keep operations together
-when they form one resource lifecycle or already share an entire execution path;
-sharing a workspace pointer or a small helper is not sufficient justification.
-Thin adapters remain compact. User-facing toolsets are independent of Go package
-boundaries, so an Agent pack may compose several packages.
+A package owns a cohesive feature, not one model-facing tool name. Keep related
+operations together even when their permissions, schemas or output formats differ.
+Split only for a substantial independent feature or resource lifetime. Preserve
+those distinctions inside ordinary concrete operations; do not add dispatch
+frameworks or split every operation into another directory.
 
-Target shape, with exact file allocation confirmed by tracing each operation's
-dependencies before its move:
+Target shape:
 
 ```text
 internal/tools/
-  tools.go, packages_builtin.go   explicit composition and exposure declarations
-  operations.go                  thin documents/files/media/social/SSH adapters
+  tools.go, packages_builtin.go   composition and exposure declarations
+  operations.go                  thin shared-capability and read_output adapters
   workspace_paths.go             cross-tool resource/instruction routing
-  readfile/                      read_file and its continuation/decoding behavior
-  listfiles/                     list_files
-  grep/                          grep_files and its scan implementation
-  edit/                          write_file, patch_file, locks and file-mutation evidence
-  movefile/                      move_file
-  shell/                         run_shell
-  program/                       run_program
-  background/                    start_background/start_program/check/wait/stop
-  git/                           git inspection
-  gitadd/                        git_add
-  gitcommit/                     git_commit
-  fetch/                         webfetch + fetch_raw, common bounded fetch path
-  checkurl/                      check_url
-  search/                        search_web
-  browser/                       enable_browser, browser_observe and browser lifetime
-  images/                        attachment listing/view/download + image adapters
-  extension/                     discovery, activation and extension adapter lifetime
-  askuser/                       ask_user
-  delegate/                      delegate_task
-  history/                       read_history
-  skill/                         load_skill
-  context/                       inspect_context
-  todo/                          todo and its checklist state
-  systeminfo/                    system_info and host discovery
-  command/                       shared Agent command execution and process cleanup
+  files/                         read/list/grep/write/patch/move and approval evidence
+  git/                           inspection, staging, commits and Git invocation rules
+  run/                           finite shell and native program tools
+  background/                    start/check/wait/stop and owned process lifetime
+  web/                           readable/raw fetch, URL checks and search
+  images/                        attachments/view/download and image Agent adapters
+  host/                          system_info, PATH/host/browser discovery and probes
+  browser/                       browser activation, observations, profiles and lifetime
+  extension/                     discovery, configuration, activation and adapters
+  askuser/                       clarification interaction
+  delegate/                      delegated-agent execution
+  history/                       saved conversation retrieval
+  skill/                         guide loading and completeness proof
+  context/                       model-request inspection
+  todo/                          checklist state
+  command/                       shared bounded command execution and process cleanup
   output/                        retained logs, bounded capture and paging
-  readoutput/                    read_output over the shared output store
 ```
 
-Keep the small shared-capability adapters together as composition glue, except
-image adapters which belong beside their real attachment-grant handling.
-File-mutation previews and stale-file evidence live together in edit, including
-rename proposals; movefile owns the actual rename operation. Their
-domain code and contracts remain under `internal/capabilities/<feature>`.
+Shared-capability adapters stay together in root glue, except image adapters which
+belong with attachment grants. Domain contracts remain under
+`internal/capabilities/<feature>`. read_output is a thin adapter over output.Store;
+it does not need a separate package.
 
-### Tool-by-tool decisions and evidence
+### Feature decisions and preserved boundaries
 
-- **read_file:** extract with its UTF-16 decoder, binary detection, continuation,
-  image attachment behavior and read tests from `fs.go`/`utf16.go`. It owns a
-  substantial read interaction independently of directory listing and editing.
-- **list_files:** extract the directory listing operation from `fs.go`; borrowing
-  the same workspace is not shared lifecycle with read_file.
-- **grep_files:** extract `grep.go`/`grep_scan.go` together; scanning, context and
-  bounds form one operation. Reading and grep may share a small text-sniffing
-  primitive with a concrete owner, or modest duplication; neither imports the
-  other's tool implementation for it.
-- **write_file + patch_file:** keep one edit package. Both use `withPathLock`
-  from `mutation.go`; patch matching, newline preservation, write guards and
-  approval previews/evidence must agree with actual mutations. Move the relevant
-  parts of `fs.go` and `mutation.go` together. Expose only the operation-level
-  proposal/preview behavior needed by actual approval consumers, not locks or
-  mutable buffers. Approval consumers call `edit.Preview` and `edit.Proposal`
-  directly. Their file-mutation evidence includes rename proposals; movefile does
-  not import edit, and the rename execution path remains independent.
-  Their shared mutation semantics justify this grouping, not the word file.
-- **move_file:** separate. It currently does not use the write/patch lock; do not
-  describe all filesystem tools as one synchronized owner. Cross-filesystem copy
-  behavior and existing destination behavior stay unchanged in a package move.
-- **run_shell / run_program:** separate adapters. Shell parsing and literal native
-  argument rules remain distinct. They consume the same foreground command runtime
-  rather than borrowing a tool from one another.
-- **start_background / start_program / check_background / wait_background /
-  stop_background:** keep one background owner. The shared `BackgroundProcesses`
-  map, notifications, cursors, stop/join and output handles must retain one lifetime.
-- **git / git_add / git_commit:** separate adapters. The current shared `runGit`
-  function is a small invocation helper, not mutable Git state owned by this package.
-  Reuse the command runtime; keep repository argument safeguards in each operation.
-  A few repeated Git prefix arguments do not warrant a new generic Git framework.
-- **webfetch + fetch_raw:** keep together. `fetch.go` owns their complete bounded
-  request/spill path, with explicit extraction and size differences. This is more
-  substantial than sharing an HTTP client and already prevents behavior drift.
-- **check_url / search_web:** separate from fetch and from each other. Their
-  reachability and search parsing/result semantics differ; reuse `httptransport`.
-- **enable_browser + browser_observe:** keep with browser setup, profiles, locks,
-  artifacts and connection shutdown. The same browser owner supplies the source
-  registered with extension activation; browser never imports root composition.
-- **image_attachments / image_view / image_download / image operation adapters:**
-  keep one Agent image integration package because grant resolution, returned
-  image attachments and vision admission are frontend-owned. The shared image
-  domain must remain independent of those session grants.
-- **discover_capabilities / enable_capability:** keep beside source configuration,
-  catalog snapshots, native-pack exposure and extension MCP/executable adaptation
-  in `extension`. Preserve the distinct launch-owned source and session-owned
-  catalog lifetimes. `internal/mcp` remains the protocol transport owner.
-  Do not create an independent package per remotely advertised tool.
-- **ask_user / delegate_task / read_history / load_skill / inspect_context / todo /
-  system_info:** give each its own narrow package. Inspection found no shared
-  session state that requires this collection to remain in a `session` bucket.
-  Checklist state belongs to todo; question suspension and delegation keep their
-  existing Agent/harness contracts and cancellation behavior.
-- **read_output:** separate the adapter from retained output storage, which is
-  also written by commands, background jobs, HTTP fetches and extensions.
-- **Shared capability adapters:** documents, archive/download, media, social and
-  SSH wrappers are currently roughly 10–16 lines each. Consolidate these wrappers
-  in root glue rather than adding a package for every forwarding type. Registration
-  still consumes their existing shared contracts; no generic execution dispatcher.
+- **Files:** one workspace file feature includes reads, directory listings, grep,
+  writes, patches and moves. Keep read paging, UTF-16 handling, binary detection,
+  scan budgets, mutation validation and approval evidence with their operations.
+  Write and patch share their existing path lock; listing, reading and moving do
+  not acquire that lock merely because they now share a package. Approval consumers
+  call files.Preview and files.Proposal. Preserve rename destination and fallback
+  behavior.
+- **Git:** Inspect, Add and Commit live together, with one private bounded Git
+  invocation path. Preserve literal pathspecs, revision validation, separate tool
+  names, read-only/mutation modes, attribution and message-file cleanup.
+- **Finite commands:** Shell and Program live together in run, using command's
+  existing runtime. Preserve shell source versus literal native argument shapes.
+- **Background commands:** one owner retains process IDs, notifications, cursors,
+  output handles and stop/join. Its lifetime outlives an individual tool call and
+  remains separate from finite execution.
+- **HTTP:** readable/raw fetching, reachability checks and search live in web.
+  Preserve their separate limits and URL policies: check_url permits local dev
+  servers; fetch/search do not gain loopback access. Keep search parsing and the
+  shared bounded fetch/spill path local without another tool-package dependency.
+- **Images:** attachment listing, viewing, downloads, MCP image publication and
+  image-operation adapters belong together. Preserve session grants, queues,
+  image validation and the distinction between Agent adaptation and shared image
+  transformations.
+- **Host:** system_info and executable probes belong with host/PATH discovery.
+  Read-only consumer interfaces expose catalog snapshots and browser tool names;
+  host does not import root composition. Keep discovery separate from installation
+  and preserve the existing probe verdict semantics.
+- **Browser:** setup, activation, observations, profiles and shutdown share one
+  browser owner. Trace MCP result/artifact adaptation before extracting it;
+  filesystem grants must not accidentally extend to arbitrary MCP servers.
+- **Extensions:** configuration, source identity, activation compatibility,
+  credentials, MCP and executable adaptation move together behind real operations.
+  Keep lifetime and resource ownership explicit; do not export private transport
+  fields just to make a move or its old tests compile.
+- **Independent interactions:** ask_user, delegation, history, skills, request
+  inspection and todo retain distinct owners. Their different session contracts
+  do not become one generic session-tool dispatcher.
 
 Concrete support owners needed before child packages can stop importing root:
 
@@ -358,8 +322,8 @@ Dependency rules:
   Update dependency checks to enforce the new boundaries.
 
 Perform the work in bounded slices: freeze the current registry/policy baselines;
-extract retained-output and command owners; move independent tools; move edit,
-background and browser owners; move extension configuration/catalog/adapter
+extract retained-output and command owners; move independent interactions; group files, run, web and Git;
+move background and browser owners; move extension configuration/catalog/adapter
 behavior; then consolidate thin glue and workflow adapters. Adjust the order for
 actual dependencies rather than introducing a temporary facade to force it.
 
@@ -372,19 +336,11 @@ configuration formats or management behavior.
 
 ### Workflow-facing collections
 
-Apply the same independence test to `internal/workflow/agenttools`, not only the
-root tools collection:
-
-- Extract schema inspection, recipe saving, run inspection and worker status into
-  narrow `schema`, `save`, `inspect` and `status` adapter packages respectively.
-- Keep workflow_run/workflow_validate together in `run`: they use the same
-  service/source validation and differ in whether execution is requested.
-- Keep workflow_schedule/workflow_schedules together in `schedule`: one schedule
-  identity, revision and snapshot contract owns both operations.
-- Keep record_read/record_write as compact adapters to `workflow/records`;
-  their shared store/optimistic-revision behavior already has a proper owner.
-  The root `workflow/agenttools` becomes small adapter glue, not another collection
-  that accumulates substantial operation implementations.
+Keep `internal/workflow/agenttools` together as the Agent adapter for one workflow
+service. Schema, save, run/validate, inspection, status, schedules and record
+operations retain separate concrete types and permission contracts within that
+package. Do not create a directory per operation. Keep execution and persistence
+in the existing service, engine and store owners; adapters should remain thin.
 
 For node packages, the inspected decisions are:
 
@@ -418,14 +374,10 @@ responsibility warrants it, using the same rule applied to tools.
 
 ### Domain capability decisions
 
-- **files: split download from archives.** The current Service combines HTTP
-  transport with archive parsing/publication, sharing mostly WS and a size bound.
-  Move download_file to `capabilities/download` with its own contract; move
-  archive_list/create/extract and ZIP/TAR/GZIP machinery to `capabilities/archive`
-  with its own contract. Preserve native_files as one exposure pack and existing
-  operation names. Small path/cancellation checks can be duplicated or use the
-  existing workspace API; no artificial shared files facade. All three archive
-  operations retain one format/entry validation and extraction-planning owner.
+- **files: keep.** Downloads and archive create/list/extract share the bounded
+  workspace-file service, path validation, publication and size limits. Keep their
+  distinct request and archive-entry validation paths in the same feature package.
+  Preserve the native_files exposure ID and the existing operation names/contract.
 - **documents: keep.** DOCX, XLSX and PDF share bounded workspace reading, isolated
   parser-worker dispatch and text continuation/output budgets. DOCX and XLSX also
   share Office archive guards. Keep format-specific implementation files, rather
@@ -455,13 +407,12 @@ responsibility warrants it, using the same rule applied to tools.
   directory symmetry would not improve ownership.
 - **contracts: retain one contract per real operation owner.** Agent and node
   adapters consume it. Tables may enumerate operations; they must not become
-  protocol handlers or a plugin framework. Split the files contract alongside
-  its domain split; keep the remaining cohesive contracts together.
+  protocol handlers or a plugin framework. Keep each cohesive feature's contracts
+  together, including downloads and archive operations.
 
-The archive/download split is an ownership change separate from mechanical tool
-moves, and Media request separation is a later internal API cleanup. Verify each
-slice independently. No runtime behavior changes are implied by this decision
-ledger, and the management UI must not be used to hide unresolved domain APIs.
+Media request separation is a later internal API cleanup within that feature.
+Verify it independently. This decision keeps existing cohesive feature packages
+and does not imply new runtime behavior or a generic capability framework.
 
 ## Management UI code homes and ownership
 

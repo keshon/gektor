@@ -14,7 +14,8 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
-	toolreadfile "github.com/keshon/gektor/internal/tools/readfile"
+	toolfiles "github.com/keshon/gektor/internal/tools/files"
+	toolimages "github.com/keshon/gektor/internal/tools/images"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -71,7 +72,7 @@ func TestBrowserMCPIntegration(t *testing.T) {
 		data, _ := json.Marshal(input)
 		for _, tool := range list {
 			if tool.Name() == "mcp__browser__"+name {
-				out, err := tool.Run(VisionContext(t.Context(), true), data)
+				out, err := tool.Run(toolimages.VisionContext(t.Context(), true), data)
 				if err != nil {
 					t.Fatalf("%s: %v\n%s", name, err, out)
 				}
@@ -182,7 +183,7 @@ func TestBrowserMCPIntegration(t *testing.T) {
 		}
 		rel, _ := filepath.Rel(root, screenshot)
 		args, _ := json.Marshal(map[string]any{"path": filepath.ToSlash(rel)})
-		reader := toolreadfile.Tool{WS: ws, Vision: true}
+		reader := toolfiles.Read{WS: ws, Vision: true}
 		if _, err := reader.Run(t.Context(), args); err != nil {
 			t.Fatal(err)
 		}

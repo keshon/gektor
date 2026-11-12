@@ -15,6 +15,7 @@ import (
 	mediacontract "github.com/keshon/gektor/internal/capabilities/media/contract"
 	socialcontract "github.com/keshon/gektor/internal/capabilities/social/contract"
 	"github.com/keshon/gektor/internal/llm"
+	toolimages "github.com/keshon/gektor/internal/tools/images"
 	workflow "github.com/keshon/gektor/internal/workflow/agenttools"
 	"github.com/keshon/gektor/internal/workflow/records"
 	"github.com/keshon/gektor/internal/workspace"
@@ -110,7 +111,7 @@ func (p WorkspacePaths) Resources(tool string, args json.RawMessage) ([]string, 
 		if !imageOperation {
 			return nil, nil
 		}
-		operation := NewImageOperation(ws, imageKind)
+		operation := toolimages.NewOperation(ws, imageKind)
 		var err error
 		paths, err = operation.Resources(args)
 		if err != nil {

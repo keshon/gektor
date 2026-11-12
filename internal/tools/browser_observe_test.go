@@ -15,6 +15,7 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/mcp"
+	toolimages "github.com/keshon/gektor/internal/tools/images"
 )
 
 func browserArtifactFixture(t *testing.T, name, text string) string {
@@ -90,12 +91,12 @@ func TestBrowserSavedScreenshotAttachesPixelsOnce(t *testing.T) {
 		return json.Unmarshal([]byte(`{"content":[{"type":"text","text":"### Result\n- [Screenshot of viewport](.gektor/browser/capture.png)"}]}`), out)
 	})}
 	args := json.RawMessage(`{}`)
-	out, err := tool.Run(VisionContext(t.Context(), false), args)
+	out, err := tool.Run(toolimages.VisionContext(t.Context(), false), args)
 	paths, _ := tool.Attach(args)
 	if err != nil || len(paths) != 0 || !strings.Contains(out, "pixels were not delivered") {
 		t.Fatal(out, paths, err)
 	}
-	out, err = tool.Run(VisionContext(t.Context(), true), args)
+	out, err = tool.Run(toolimages.VisionContext(t.Context(), true), args)
 	paths, _ = tool.Attach(args)
 	if err != nil || len(paths) != 1 {
 		t.Fatal(out, paths, err)

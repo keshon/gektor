@@ -11,7 +11,8 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/mcp"
-	toolcheckurl "github.com/keshon/gektor/internal/tools/checkurl"
+	toolhost "github.com/keshon/gektor/internal/tools/host"
+	toolweb "github.com/keshon/gektor/internal/tools/web"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -176,8 +177,8 @@ func TestRejectedCapabilityDiscoveryClosesOnlySuccessfulLoads(t *testing.T) {
 		closesPerAttempt int
 	}{
 		{name: "empty catalog", closesPerAttempt: 1},
-		{name: "duplicate tool", tools: []agent.Tool{toolcheckurl.Tool{}, toolcheckurl.Tool{}}, closesPerAttempt: 1},
-		{name: "unknown policy tool", tools: []agent.Tool{toolcheckurl.Tool{}}, policies: map[string]ToolPolicy{"missing": {}}, closesPerAttempt: 1},
+		{name: "duplicate tool", tools: []agent.Tool{toolweb.Check{}, toolweb.Check{}}, closesPerAttempt: 1},
+		{name: "unknown policy tool", tools: []agent.Tool{toolweb.Check{}}, policies: map[string]ToolPolicy{"missing": {}}, closesPerAttempt: 1},
 		{name: "invalid schema", tools: []agent.Tool{invalidSchema}, closesPerAttempt: 1},
 		{name: "loader error", loadErr: loaderFailure},
 	}
@@ -209,7 +210,7 @@ func TestRejectedCapabilityDiscoveryClosesOnlySuccessfulLoads(t *testing.T) {
 				}
 			}
 
-			list, discoveryErr = []agent.Tool{toolcheckurl.Tool{}}, nil
+			list, discoveryErr = []agent.Tool{toolweb.Check{}}, nil
 			source.ToolPolicies = nil
 			_, err := catalog.Enable(t.Context(), source.ID, nil)
 			if err != nil {
@@ -247,7 +248,7 @@ func TestSystemInfoReportsRestoredBrowserCatalogWithoutConnection(t *testing.T) 
 		t.Fatal(err)
 	}
 	defer ws.Close()
-	output, err := (SystemInfo{WS: ws, Capabilities: restored}).Run(t.Context(), json.RawMessage(`{"group":"browser"}`))
+	output, err := (toolhost.Tool{WS: ws, Capabilities: restored}).Run(t.Context(), json.RawMessage(`{"group":"browser"}`))
 	if err != nil || !strings.Contains(output, "mcp__browser__browser_navigate") || !strings.Contains(output, "first use verifies connection") || loads != 1 {
 		t.Fatal(output, err, loads)
 	}

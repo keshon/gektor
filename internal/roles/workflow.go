@@ -16,8 +16,8 @@ import (
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/tools"
 	toolbackground "github.com/keshon/gektor/internal/tools/background"
-	toollistfiles "github.com/keshon/gektor/internal/tools/listfiles"
-	toolreadfile "github.com/keshon/gektor/internal/tools/readfile"
+	toolfiles "github.com/keshon/gektor/internal/tools/files"
+	toolimages "github.com/keshon/gektor/internal/tools/images"
 	"github.com/keshon/gektor/internal/userdirs"
 	workflow "github.com/keshon/gektor/internal/workflow/agenttools"
 	"github.com/keshon/gektor/internal/workspace"
@@ -85,13 +85,13 @@ func WorkflowAuthor(e Env, recipePath, stateFile string) (*agent.Agent, error) {
 	cfg.Tools = agent.NewRegistry(
 		workflow.Schema{WS: e.WS, StoreDir: storeDir, Registry: registry}, save,
 		validation,
-		toolreadfile.Tool{WS: e.WS}, toollistfiles.Tool{WS: e.WS},
+		toolfiles.Read{WS: e.WS}, toolfiles.List{WS: e.WS},
 		tools.DocumentOperation{Operation: doccontract.Operation{Service: documents.Service{WS: e.WS}, Kind: "docx_read"}},
 		tools.DocumentOperation{Operation: doccontract.Operation{Service: documents.Service{WS: e.WS}, Kind: "xlsx_read"}},
 		tools.DocumentOperation{Operation: doccontract.Operation{Service: documents.Service{WS: e.WS}, Kind: "pdf_read"}},
 
 		tools.FileOperation{Operation: filecontract.Operation{Service: files.Service{WS: e.WS}, Kind: "archive_list"}},
-		tools.NewImageOperation(e.WS, "inspect"), tools.NewImageOperation(e.WS, "preview"),
+		toolimages.NewOperation(e.WS, "inspect"), toolimages.NewOperation(e.WS, "preview"),
 	)
 	cfg.MutatingTools = []string{"workflow_save"}
 	cfg.Verify = validation.verifySaved

@@ -13,7 +13,7 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/conversation"
 	toolaskuser "github.com/keshon/gektor/internal/tools/askuser"
-	toolcheckurl "github.com/keshon/gektor/internal/tools/checkurl"
+	toolweb "github.com/keshon/gektor/internal/tools/web"
 )
 
 func TestNativeEagerLazyAndResume(t *testing.T) {
@@ -92,7 +92,7 @@ func TestNativeEagerLazyAndResume(t *testing.T) {
 
 func TestNativeActivationFailureIsAtomic(t *testing.T) {
 	c := composed(t, Lazy)
-	if err := c.Registry.Add(toolcheckurl.Tool{}); err != nil {
+	if err := c.Registry.Add(toolweb.Check{}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := c.Enable(t.Context(), NativeWeb, nil); err == nil {
@@ -143,7 +143,7 @@ func TestAdapterCancellationAndCollisionDoNotCloseSharedSource(t *testing.T) {
 	source := &Capability{ID: "shared", Load: func(context.Context, func(string)) ([]agent.Tool, error) {
 		loads++
 		cancel()
-		return []agent.Tool{toolcheckurl.Tool{}}, nil
+		return []agent.Tool{toolweb.Check{}}, nil
 	}, Close: func() { closed++ }}
 	c := &Capabilities{Registry: agent.NewRegistry(), Sources: []*Capability{source}}
 	if _, err := c.Enable(ctx, "shared", nil); err == nil || len(c.Save()) != 0 {
@@ -152,7 +152,7 @@ func TestAdapterCancellationAndCollisionDoNotCloseSharedSource(t *testing.T) {
 	if _, err := c.Enable(t.Context(), "shared", nil); err != nil {
 		t.Fatal(err)
 	}
-	other := &Capabilities{Registry: agent.NewRegistry(toolcheckurl.Tool{}), Sources: []*Capability{source}}
+	other := &Capabilities{Registry: agent.NewRegistry(toolweb.Check{}), Sources: []*Capability{source}}
 	if _, err := other.Enable(t.Context(), "shared", nil); err == nil {
 		t.Fatal("collision accepted")
 	}
@@ -186,7 +186,7 @@ func TestMainOnlyCapabilityRestoreIsRoleChecked(t *testing.T) {
 	loads := 0
 	source := &Capability{ID: "main_pack", MainOnly: true, Load: func(context.Context, func(string)) ([]agent.Tool, error) {
 		loads++
-		return []agent.Tool{toolcheckurl.Tool{}}, nil
+		return []agent.Tool{toolweb.Check{}}, nil
 	}}
 	parent := &Capabilities{Registry: agent.NewRegistry(), Sources: []*Capability{source}}
 	if _, err := parent.Enable(t.Context(), source.ID, nil); err != nil {

@@ -1,3 +1,4 @@
+// Package git owns repository inspection, staging and commits.
 package git
 
 import (
@@ -5,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/keshon/gektor/internal/agent"
 	commandrun "github.com/keshon/gektor/internal/tools/command"
@@ -13,16 +15,16 @@ import (
 
 const gitMaxItems = 50
 
-// Tool inspects repositories. Mutations have separate names so Plan and
+// Inspect inspects repositories. Mutations have separate names so Plan and
 // read-only workers can exclude them before execution, independently of JSON.
-type Tool struct{ WS *workspace.Workspace }
+type Inspect struct{ WS *workspace.Workspace }
 
-func (Tool) Name() string         { return "git" }
-func (Tool) Mode() agent.ToolMode { return agent.Concurrent }
-func (Tool) Description() string {
+func (Inspect) Name() string         { return "git" }
+func (Inspect) Mode() agent.ToolMode { return agent.Concurrent }
+func (Inspect) Description() string {
 	return "Inspect Git status/log/diff/show/blame/ls-files. Paths are literal, workspace-relative; no globs/shell syntax. diff/show include patches; staged=true selects the index. log caps at 50 commits; output is bounded. Authorized mutations use git_add/git_commit."
 }
-func (Tool) Schema() json.RawMessage {
+func (Inspect) Schema() json.RawMessage {
 	return json.RawMessage(`{
         "type":"object",
         "properties":{
@@ -36,7 +38,7 @@ func (Tool) Schema() json.RawMessage {
     }`)
 }
 
-func (t Tool) Run(ctx context.Context, args json.RawMessage) (string, error) {
+func (t Inspect) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	var in struct {
 		Subcommand string `json:"subcommand"`
 		Path       string `json:"path"`
@@ -102,12 +104,22 @@ func (t Tool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	if in.Ref != "" {
 		// Resolve only commits: option-like strings and ref:path blob selectors
 		// must not become options or bypass the path scope of an inspection.
-		oid, err := commandrun.Git(ctx, t.WS.Root(), "rev-parse", "--verify", "--end-of-options", in.Ref+"^{commit}")
+		oid, err := run(ctx, t.WS.Root(), "rev-parse", "--verify", "--end-of-options", in.Ref+"^{commit}")
 		if err != nil {
 			return oid, err
 		}
 		parts = append(parts, strings.TrimSpace(oid))
 	}
 	parts = append(parts, "--", path)
-	return commandrun.Git(ctx, t.WS.Root(), parts...)
+	return run(ctx, t.WS.Root(), parts...)
+}
+
+func run(ctx context.Context, dir string, args ...string) (string, error) {
+	prefix := []string{"--no-pager", "--literal-pathspecs", "-c", "color.ui=false", "-c", "core.quotePath=false", "-c", "core.fsmonitor=false"}
+	out, err := commandrun.Program(ctx, "git", append(prefix, args...), dir, 60*time.Second)
+	out = strings.TrimRight(out, "\r\n")
+	if err != nil {
+		return out, fmt.Errorf("git failed: %w", err)
+	}
+	return out, nil
 }

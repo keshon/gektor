@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	tooloutput "github.com/keshon/gektor/internal/tools/output"
-	"github.com/keshon/gektor/internal/tools/readoutput"
 )
 
 func TestOutputCanBePagedOnlyByItsSession(t *testing.T) {
@@ -27,7 +26,7 @@ func TestOutputCanBePagedOnlyByItsSession(t *testing.T) {
 	var full strings.Builder
 	for {
 		args, _ := json.Marshal(map[string]any{"id": id, "offset": offset, "limit": 1001})
-		out, err := (readoutput.Tool{}).Run(ctx, args)
+		out, err := (ReadOutput{}).Run(ctx, args)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -50,7 +49,7 @@ func TestOutputCanBePagedOnlyByItsSession(t *testing.T) {
 	}
 	other := (tooloutput.New(t.TempDir())).Context(t.Context())
 	args, _ := json.Marshal(map[string]any{"id": id})
-	if _, err := (readoutput.Tool{}).Run(other, args); err == nil {
+	if _, err := (ReadOutput{}).Run(other, args); err == nil {
 		t.Fatal("cross-session read allowed")
 	}
 }

@@ -1,0 +1,435 @@
+package files
+
+import (
+	"bufio"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"unicode/utf8"
+
+	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/userdirs"
+	"github.com/keshon/gektor/internal/workspace"
+)
+
+// readMaxBytes caps one read_file result. Sized against real source
+// files rather than a round number: the largest file in this repo is
+// under 40KB, so 48KB reads any of them whole.
+//
+// The ceiling matters more than the headroom. Bytes are a poor proxy for
+// context cost — 128KB of source is roughly 32k tokens, the same 128KB of
+// base64 is 57k — and a local model often has 32-64k of context in total.
+// A single tool result that can consume most of the window defeats
+// everything else the loop does to protect it. Live: a read of a 205KB
+// fixture returned the old 128KB cap, took the prompt from 3.4k to 57k
+// tokens in one step, and the run hit its wall-clock limit at 900s.
+//
+// A truncated read still reports the file's true size, so the model can
+// see what it did not get.
+const readMaxBytes = 48 * 1024
+const readSniffBytes = 8000
+
+type Read struct {
+	WS *workspace.Workspace
+	// Vision enables picture reads: when the backend can process images,
+	// reading one marks it for attachment to the conversation instead of
+	// returning binary metadata. False keeps the text-only behaviour.
+	Vision bool
+}
+
+func (Read) Name() string { return "read_file" }
+func (Read) Description() string {
+	return "Read text with a FILE metadata header. Page by offset+limit (lines) or the returned normalized UTF-8 byte_offset; never combine offset with byte_offset. max_bytes caps bytes, not lines. metadata_only returns the header. Pictures attach only with image input enabled; paging does not apply."
+}
+func (Read) Mode() agent.ToolMode { return agent.Concurrent }
+
+// Attach is the agent.Attacher half of a picture read: after Run succeeds,
+// the loop asks for the pictures to put in front of the model. The file is
+// re-resolved and re-validated because Run and Attach are separate calls;
+// deleting or replacing the file in between must fail the tool, not abort
+// the next model request at the wire encoder.
+func (t Read) Attach(args json.RawMessage) ([]string, error) {
+	if !t.Vision {
+		return nil, nil
+	}
+	var in struct {
+		Path         string `json:"path"`
+		MetadataOnly bool   `json:"metadata_only"`
+	}
+	if err := json.Unmarshal(args, &in); err != nil {
+		return nil, fmt.Errorf("bad arguments: %w", err)
+	}
+	if in.MetadataOnly || strings.TrimSpace(in.Path) == "" {
+		return nil, nil
+	}
+	full, err := t.WS.Resolve(in.Path)
+	if err != nil {
+		return nil, err
+	}
+	if !llm.IsImagePath(full) {
+		return nil, nil
+	}
+	source, err := t.WS.Open(full)
+	if err != nil {
+		return nil, err
+	}
+	defer source.Close()
+	snapshot, err := llm.SnapshotImageFile(source, full, userdirs.Sub("images"))
+	if err != nil {
+		return nil, err
+	}
+	return []string{snapshot}, nil
+}
+
+func (Read) Schema() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"path": {"type": "string"},
+			"limit": {"type":"integer","minimum":1,"maximum":10000,"description":"Lines from offset; output capped at 48 KiB"},
+			"metadata_only": {
+				"type": "boolean",
+				"description": "Header only; omit content"
+			},
+			"max_bytes": {
+				"type": "integer",
+				"description": "Byte cap; omit or 0 for 48 KiB"
+			},
+			"byte_offset": {"type":"integer","minimum":0,"description":"Normalized UTF-8 continuation position returned by a truncated read"},
+			"offset": {
+				"type": "integer",
+				"description": "First line, 1-based; omit or 0 for start"
+			}
+		},
+		"required": ["path"]
+	}`)
+}
+
+func (t Read) Run(ctx context.Context, args json.RawMessage) (string, error) {
+	var in struct {
+		Path         string `json:"path"`
+		MetadataOnly bool   `json:"metadata_only"`
+		MaxBytes     *int   `json:"max_bytes"`
+		Offset       int    `json:"offset"`
+		ByteOffset   *int   `json:"byte_offset"`
+		Limit        *int   `json:"limit"`
+	}
+	if err := json.Unmarshal(args, &in); err != nil {
+		return "", fmt.Errorf("bad arguments: %w", err)
+	}
+	if err := agent.RejectUnknownFields(args, "path", "metadata_only", "max_bytes", "offset", "byte_offset", "limit"); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(in.Path) == "" {
+		return "", fmt.Errorf("path is required and must be non-empty")
+	}
+	if in.Offset < 0 {
+		return "", fmt.Errorf("offset must be >= 0")
+	}
+	lineLimit := 0
+	if in.Limit != nil {
+		if *in.Limit < 1 || *in.Limit > 10000 {
+			return "", fmt.Errorf("limit must be 1–10000 lines")
+		}
+		lineLimit = *in.Limit
+	}
+	byteOffset := 0
+	if in.ByteOffset != nil {
+		if *in.ByteOffset < 0 || in.Offset != 0 {
+			return "", fmt.Errorf("byte_offset must be >= 0 and cannot be combined with offset")
+		}
+		byteOffset = *in.ByteOffset
+	}
+	full, err := t.WS.Resolve(in.Path)
+	if err != nil {
+		return "", err
+	}
+	rel, _ := filepath.Rel(t.WS.Root(), full)
+	if llm.IsImagePath(full) {
+		return t.imageHeader(full, rel, in.MetadataOnly)
+	}
+	f, err := t.WS.Open(full)
+	if err != nil {
+		return "", fileReadError(t.WS, full, rel, err)
+	}
+	defer f.Close()
+
+	// max_bytes=0 (or omitted) means "no explicit cap", NOT metadata-only:
+	// every model tested reads 0 as the universal "unlimited" convention.
+	// The old 0-means-header-only semantics sent a weak model into a
+	// repeat loop — 18 identical header-only reads in one live run,
+	// because it kept asking for content with max_bytes=0 and kept
+	// getting four lines of metadata. Header-only is spelled
+	// metadata_only=true and nothing else.
+	maxBody := readMaxBytes
+	if in.MetadataOnly {
+		maxBody = 0
+	} else if in.MaxBytes != nil {
+		if *in.MaxBytes < 0 {
+			return "", fmt.Errorf("max_bytes must be >= 0")
+		}
+		if *in.MaxBytes > 0 {
+			maxBody = *in.MaxBytes
+		}
+	}
+	return streamReadFile(ctx, f, rel, maxBody, in.Offset, byteOffset, lineLimit)
+}
+
+// Suggest names only; never silently redirect a read to another file.
+func fileReadError(ws *workspace.Workspace, full, rel string, err error) error {
+	if !os.IsNotExist(err) {
+		return err
+	}
+	entries, listErr := ws.ReadDir(filepath.Dir(full))
+	if listErr != nil {
+		return fmt.Errorf("file %q not found; use list_files to locate its parent directory: %w", rel, err)
+	}
+	base := strings.ToLower(filepath.Base(rel))
+	stem := strings.TrimSuffix(base, filepath.Ext(base))
+	var candidates []string
+	for _, entry := range entries {
+		name := strings.ToLower(entry.Name())
+		if entry.IsDir() || !(strings.Contains(name, base) || strings.Contains(base, name) || (stem != "" && strings.TrimSuffix(name, filepath.Ext(name)) == stem)) {
+			continue
+		}
+		candidates = append(candidates, filepath.ToSlash(filepath.Join(filepath.Dir(rel), entry.Name())))
+		if len(candidates) == 3 {
+			break
+		}
+	}
+	if len(candidates) > 0 {
+		return fmt.Errorf("file %q not found; possible paths (not read): %s: %w", rel, strings.Join(candidates, ", "), err)
+	}
+	return fmt.Errorf("file %q not found; use list_files on %q: %w", rel, filepath.ToSlash(filepath.Dir(rel)), err)
+}
+
+// imageHeader reports a picture instead of streaming its bytes. On a
+// vision-capable backend the loop attaches the file after the tool result,
+// unless that step's picture budget is already spent; without vision the
+// header says plainly that the pixels are unavailable, so the model stops
+// asking rather than re-reading a file whose only content it can never
+// receive.
+func (t Read) imageHeader(full, rel string, metadataOnly bool) (string, error) {
+	info, err := t.WS.Stat(full)
+	if err != nil {
+		return "", fileReadError(t.WS, full, rel, err)
+	}
+	if info.IsDir() {
+		return "", fmt.Errorf("%s is a directory", rel)
+	}
+	source, err := t.WS.Open(full)
+	if err != nil {
+		return "", err
+	}
+	defer source.Close()
+	mime, err := llm.ImageMIME(source)
+	if err != nil {
+		return "", err
+	}
+	format := strings.TrimPrefix(llm.ImageExtension(mime), ".")
+	var b strings.Builder
+	fmt.Fprintf(&b, "FILE\npath: %s\nsize: %d\nimage: true\nformat: %s\n", rel, info.Size(), format)
+	if !t.Vision {
+		b.WriteString("attached: false\nbinary: true\n----\n")
+		b.WriteString("(this backend cannot process pictures, so the pixels are unavailable. Use a vision-capable backend for visual inspection; use browser DOM, console and functional checks for text-only verification.)")
+		return b.String(), nil
+	}
+	if err := llm.ValidateImageFile(source, full); err != nil {
+		return "", err
+	}
+	if metadataOnly {
+		b.WriteString("attached: false (metadata_only)\n")
+		return b.String(), nil
+	}
+	// The harness, not the tool, decides whether the picture is attached:
+	// a step that already hit its picture limit leaves this read out. So
+	// the header states only what Run knows for certain.
+	b.WriteString("----\n")
+	b.WriteString("(paging arguments do not apply to images)")
+	return b.String(), nil
+}
+
+// streamReadFile retains only the requested display window. Metadata reads
+// inspect a prefix; content reads count lines while streaming, including UTF-16.
+func streamReadFile(ctx context.Context, f *os.File, path string, limit, offset, byteOffset, lineLimit int) (string, error) {
+	info, err := f.Stat()
+	if err != nil {
+		return "", err
+	}
+	if info.IsDir() {
+		return "", fmt.Errorf("%s is a directory", path)
+	}
+	r := bufio.NewReader(f)
+	prefix, _ := r.Peek(2)
+	encoding := ""
+	var input io.Reader = r
+	if len(prefix) == 2 && prefix[0] == 0xff && prefix[1] == 0xfe {
+		encoding = "utf-16le"
+		r.Discard(2)
+		input = &utf16Reader{reader: r, little: true}
+	}
+	if len(prefix) == 2 && prefix[0] == 0xfe && prefix[1] == 0xff {
+		encoding = "utf-16be"
+		r.Discard(2)
+		input = &utf16Reader{reader: r}
+	}
+	sniff, _ := r.Peek(min(readSniffBytes, int(info.Size())))
+	binary := encoding == "" && looksBinaryBytes(sniff)
+	if limit > readMaxBytes {
+		limit = readMaxBytes
+	}
+	start := max(offset, 1)
+	line := 1
+	total := 0
+	windowBytes := 0
+	windowStart, windowLine := 0, start
+	last := byte(0)
+	var window strings.Builder
+	if limit != 0 {
+		pendingCR := false
+		buffer := make([]byte, 32*1024)
+		emit := func(c byte) {
+			index := total
+			total++
+			last = c
+			if line >= start && index >= byteOffset {
+				if windowBytes == 0 {
+					windowStart, windowLine = index, line
+				}
+				windowBytes++
+				if window.Len() < limit && (lineLimit == 0 || line-windowLine < lineLimit) {
+					window.WriteByte(c)
+				}
+			}
+			if c == '\n' {
+				line++
+			}
+		}
+		for {
+			if err := ctx.Err(); err != nil {
+				return "", err
+			}
+			n, readErr := input.Read(buffer)
+			for _, c := range buffer[:n] {
+				if pendingCR {
+					if c != '\n' {
+						emit('\r')
+					}
+					pendingCR = false
+				}
+				if c == '\r' {
+					pendingCR = true
+				} else {
+					emit(c)
+				}
+			}
+			if readErr == io.EOF {
+				break
+			}
+			if readErr != nil {
+				return "", readErr
+			}
+		}
+
+		if pendingCR {
+			emit('\r')
+		}
+	}
+	lines := line
+	if total == 0 {
+		lines = 0
+	} else if last == '\n' {
+		lines--
+	}
+	if limit > 0 && byteOffset > total {
+		return "", fmt.Errorf("byte_offset %d is past end of decoded file (%d bytes)", byteOffset, total)
+	}
+	shown := window.String()
+	if !binary && len(shown) > 0 && !utf8.RuneStart(shown[0]) {
+		return "", fmt.Errorf("byte_offset must point to a UTF-8 character boundary")
+	}
+	if !binary && windowBytes > len(shown) {
+		for len(shown) > 0 {
+			r, size := utf8.DecodeLastRuneInString(shown)
+			if r != utf8.RuneError || size != 1 || shown[len(shown)-1] < 0x80 {
+				break
+			}
+			shown = shown[:len(shown)-1]
+		}
+		if shown == "" {
+			return "", fmt.Errorf("max_bytes is too small for the next UTF-8 character; increase it to at least 4")
+		}
+	}
+	if windowBytes > len(shown) {
+		// Prefer complete lines. A single overlong line continues by bytes.
+		if end := strings.LastIndexByte(shown, '\n'); end >= 0 {
+			shown = shown[:end+1]
+		}
+	}
+	truncated := windowBytes > len(shown)
+	start = windowLine
+	var b strings.Builder
+	fmt.Fprintf(&b, "FILE\npath: %s\nsize: %d\n", path, info.Size())
+	if limit == 0 {
+		b.WriteString("lines: unknown (metadata only)\n")
+	} else {
+		fmt.Fprintf(&b, "lines: %d\n", lines)
+	}
+	if encoding != "" {
+		fmt.Fprintf(&b, "encoding: %s (decoded for display; patches are refused — convert to UTF-8 first)\n", encoding)
+	}
+	fmt.Fprintf(&b, "truncated: %t\n", truncated || (limit == 0 && info.Size() > readMaxBytes))
+	if binary {
+		b.WriteString("binary: true\n")
+	}
+	if limit == 0 {
+		return b.String(), nil
+	}
+	b.WriteString("----\n")
+	if start > lines && lines > 0 {
+		fmt.Fprintf(&b, "(offset %d past end of file: %d lines)", offset, lines)
+		return b.String(), nil
+	}
+	end := start + strings.Count(shown, "\n")
+	if strings.HasSuffix(shown, "\n") {
+		end--
+	}
+	if start > 1 || byteOffset > 0 {
+		fmt.Fprintf(&b, "window: lines %d-%d of %d\n", start, end, lines)
+	}
+	b.WriteString(shown)
+	if truncated {
+		next := fmt.Sprintf("byte_offset %d", windowStart+len(shown))
+		if strings.HasSuffix(shown, "\n") {
+			next = fmt.Sprintf("offset %d, or %s", end+1, next)
+		}
+		fmt.Fprintf(&b, "\n...(content truncated at %d of %d bytes, lines %d-%d of %d — re-read with %s to continue)", len(shown), windowBytes, start, end, lines, next)
+	}
+	return b.String(), nil
+}
+
+// maxBodyBytes: 0 = header only; otherwise cap body at min(maxBodyBytes, readMaxBytes).
+// offset is a 1-based first line; byte_offset continues a truncated line
+// without skipping its unseen suffix. Line windows make large files pageable: the header
+// always reports total lines (and the shown window when offset), and the
+// truncation note points at the next offset instead of a dead end —
+// without this, bytes past the cap are unreachable (max_bytes only
+// shrinks the head, grep has no context lines), and the loop's
+// duplicate-read refusal becomes a wall in front of nothing.
+func looksBinaryBytes(data []byte) bool {
+	limit := len(data)
+	if limit > readSniffBytes {
+		limit = readSniffBytes
+	}
+	for _, b := range data[:limit] {
+		if b == 0 {
+			return true
+		}
+	}
+	return false
+}

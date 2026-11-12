@@ -1,0 +1,165 @@
+package host
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"testing"
+
+	"github.com/keshon/gektor/internal/workspace"
+)
+
+func TestSystemInfoSearchesNestedSkillsAddedDuringSession(t *testing.T) {
+	root := t.TempDir()
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	for _, name := range []string{"first", "last"} {
+		dir := filepath.Join(root, "skills", "library", "marketing", name)
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("---\ndescription: Landing pages.\n---\nDO NOT LOAD THIS GUIDE"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tool := Tool{WS: ws}
+	for offset := 0; offset < 2; offset++ {
+		args, _ := json.Marshal(map[string]any{"group": "skills", "filter": "LANDING", "offset": offset, "limit": 1})
+		out, err := tool.Run(t.Context(), args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var page struct {
+			Skills     []workspace.Skill
+			Total      int
+			NextOffset int `json:"next_offset"`
+		}
+		if err := json.Unmarshal([]byte(out), &page); err != nil {
+			t.Fatal(err)
+		}
+		if page.Total != 2 || len(page.Skills) != 1 || strings.Contains(out, "DO NOT LOAD") {
+			t.Fatal(out)
+		}
+		if offset == 0 && page.NextOffset != 1 {
+			t.Fatal(out)
+		}
+		if offset == 1 && !strings.Contains(page.Skills[0].Path, "/last/") {
+			t.Fatal(out)
+		}
+	}
+}
+
+func TestSystemInfoReturnsValidSkillsAlongsideWarnings(t *testing.T) {
+	root := t.TempDir()
+	for name, description := range map[string]string{"good": "Valid", "bad": "invalid: YAML"} {
+		dir := filepath.Join(root, "skills", name)
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("---\nname: "+name+"\ndescription: "+description+"\n---\nGUIDE"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	text, err := (Tool{WS: ws}).Run(t.Context(), json.RawMessage(`{"group":"skills"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var page struct {
+		Skills   []workspace.Skill
+		Warnings []string
+	}
+	if err := json.Unmarshal([]byte(text), &page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Skills) != 3 || page.Skills[0].ID != "good" || len(page.Warnings) == 0 {
+		t.Fatal(text)
+	}
+}
+
+func TestSystemInfoDiscoveryAndPaging(t *testing.T) {
+	root := t.TempDir()
+	a, b := filepath.Join(root, "a"), filepath.Join(root, "b")
+	for _, dir := range []string{a, b} {
+		if err := os.Mkdir(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ext := ""
+	if runtime.GOOS == "windows" {
+		ext = ".EXE"
+		t.Setenv("PATHEXT", ".EXE;.CMD")
+	}
+	for _, path := range []string{filepath.Join(a, "unlisted-program"+ext), filepath.Join(b, "unlisted-program"+ext), filepath.Join(a, "other"+ext)} {
+		if err := os.WriteFile(path, []byte("must not execute"), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(a, "notes.txt"), []byte("data"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", strings.Join([]string{a, b, a, filepath.Join(root, "missing")}, string(os.PathListSeparator)))
+	t.Setenv("PRIVATE_TOKEN", "must-not-leak")
+	ws, err := workspace.New(root)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool := Tool{WS: ws}
+	out, err := tool.Run(t.Context(), json.RawMessage(`{"group":"tools","filter":"UNLISTED","limit":1}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var page struct {
+		Tools      []pathTool
+		Total      int
+		NextOffset int `json:"next_offset"`
+		Warnings   []string
+	}
+	if err := json.Unmarshal([]byte(out), &page); err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 2 || len(page.Tools) != 1 || page.NextOffset != 1 || len(page.Warnings) != 1 {
+		t.Fatal(out)
+	}
+	first := page.Tools[0].Path
+	out, err = tool.Run(t.Context(), json.RawMessage(`{"group":"tools","filter":"unlisted","offset":1,"limit":1}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(out), &page); err != nil {
+		t.Fatal(err)
+	}
+	if page.Tools[0].Path == first || strings.Contains(out, "next_offset") {
+		t.Fatal(out)
+	}
+	out, err = tool.Run(t.Context(), json.RawMessage(`{"group":"environment"}`))
+	if err != nil || strings.Contains(out, "must-not-leak") {
+		t.Fatal(out, err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := tool.Run(ctx, json.RawMessage(`{"group":"tools"}`)); err == nil {
+		t.Fatal("cancelled discovery succeeded")
+	}
+}
+
+func TestSystemInfoRejectsInvalidRequests(t *testing.T) {
+	for _, args := range []string{`{}`, `{"group":"unknown"}`, `{"group":"tools","offset":-1}`, `{"group":"tools","limit":0}`, `{"group":"tools","limit":101}`, `{"group":"os","filter":"go"}`} {
+		if _, err := (Tool{}).Run(t.Context(), json.RawMessage(args)); err == nil {
+			t.Fatal(args)
+		}
+	}
+}

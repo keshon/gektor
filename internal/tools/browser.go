@@ -10,6 +10,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	commandrun "github.com/keshon/gektor/internal/tools/command"
+	toolhost "github.com/keshon/gektor/internal/tools/host"
 )
 
 const browserPackage = "@playwright/mcp@0.0.83"
@@ -34,7 +35,7 @@ func PrepareBrowser(ctx context.Context, channel, dir string, note func(string))
 		return fmt.Errorf("browser requires working Node.js 20+; detected %q (%v); install Node.js LTS and reopen the terminal", strings.TrimSpace(string(version)), err)
 	}
 	found := false
-	for _, path := range installedBrowsers() {
+	for _, path := range toolhost.InstalledBrowsers() {
 		name := strings.ToLower(path)
 		if channel == "chrome" && strings.Contains(name, "chrome") || channel == "msedge" && (strings.Contains(name, "msedge") || strings.Contains(name, "microsoft edge") || strings.Contains(name, "microsoft-edge")) {
 			found = true

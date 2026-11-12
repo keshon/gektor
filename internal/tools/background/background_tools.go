@@ -23,8 +23,7 @@ import (
 // a blocking call's timeout fires.
 type StartShell struct {
 	WS *workspace.Workspace
-	// Procs must be the same *BackgroundProcesses pointer shared with
-	// CheckBackground and StopBackground.
+	// Procs is shared with Check, Wait and Stop.
 	Procs *Processes
 	// SettleTime is how long to wait before returning, so a command that
 	// fails immediately (port already in use, command not found) shows

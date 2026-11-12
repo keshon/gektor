@@ -18,6 +18,7 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
 	toolaskuser "github.com/keshon/gektor/internal/tools/askuser"
+	toolimages "github.com/keshon/gektor/internal/tools/images"
 )
 
 // A deterministic model driver checks what actually reaches the model through
@@ -93,7 +94,7 @@ func TestBrowserTaskObservationsLive(t *testing.T) {
 	}
 	run := func(t *testing.T, reg *agent.Registry, client browserTestClient, task string) string {
 		t.Helper()
-		a := agent.New(agent.Config{Client: client, Tools: reg, System: "Use browser observations and verify outcomes.", MaxSteps: 15, StateFile: filepath.Join(t.TempDir(), "state.json"), ToolContext: func(ctx context.Context) context.Context { return VisionContext(ctx, true) }})
+		a := agent.New(agent.Config{Client: client, Tools: reg, System: "Use browser observations and verify outcomes.", MaxSteps: 15, StateFile: filepath.Join(t.TempDir(), "state.json"), ToolContext: func(ctx context.Context) context.Context { return toolimages.VisionContext(ctx, true) }})
 		out, err := a.Run(ctx, task)
 		if err != nil {
 			t.Fatal(out, err)

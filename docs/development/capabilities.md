@@ -23,7 +23,7 @@ are separate facts.
 |---|---|---|
 | Root package | Typed requests, validation, execution, results and resource cleanup | Agent loops, workflow execution or UI |
 | `contract` | Operation names, descriptions, JSON contracts, argument decoding and permission resources | A second implementation of the operation |
-| `internal/tools/*_operation.go` | The Agent tool interface, attachment access and concurrency mode | Parsing, provider selection or file publication |
+| `internal/tools/operations.go` and `internal/tools/images` | The Agent tool interface, attachment access and concurrency mode | Parsing, provider selection or file publication |
 | `internal/capabilities/nodes` | Workflow descriptors, template validation, versions and retry declarations | Parsing, provider selection or file publication |
 
 Each feature keeps its typed service and shared `contract` together. The small
@@ -157,7 +157,7 @@ every format. Keep operating-system suffixes on platform implementations.
 The file-operation package provides naming examples for a
 [service](../../internal/capabilities/files/files.go),
 [shared JSON contract](../../internal/capabilities/files/contract/contract.go),
-[tool wrapper](../../internal/tools/files_operation.go) and
+[tool wrapper](../../internal/tools/operations.go) and
 [workflow descriptors](../../internal/capabilities/nodes/nodes.go).
 Use these roles when they exist. Split further only when a file has distinct
 responsibilities. Avoid unrelated names such as helpers or common.
