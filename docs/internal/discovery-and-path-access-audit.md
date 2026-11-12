@@ -282,3 +282,55 @@ Reproduction instructions are in the [eval guide](../../eval/README.md#discovery
 
 External attachments, additional file/folder scopes, remembered scopes and OS
 process isolation are not implemented in this delivery.
+
+## Unprompted SSH routing follow-up on 2026-11-12
+
+Session `3d40d67a` used the updated inventory but initially read local OpenSSH
+configuration through PowerShell. The names `vpn2` and `smv` came from that file;
+they were not invented, but they were not GEKTOR connection names. The agent
+searched the home directory until timeout, then tried a rejected external grep.
+Only afterwards did it discover and activate SSH, list `Koara` and run `df -h`.
+The run lasted 138.2 seconds over seven model requests and eight tool calls.
+Its disk figures were supported; its blanket claim of no disk concerns was not.
+
+The earlier guided inventory test did not establish reliable routing for this
+ordinary request. The production correction is limited to:
+
+- Put the general tools/capabilities-before-service-config rule ahead of skill
+  discovery in the core prompt.
+- Begin the SSH summary with `Registered SSH connections: list names`, so that
+  information survives the bounded startup description.
+
+`TestSSHRequestLive` sends the exact original request without tool-selection
+coaching. The isolated GEKTOR registry contains only `Koara`; a temporary
+OpenSSH config contains the two decoy aliases. A loopback server uses real SSH
+authentication and host-key verification and returns fixed disk usage. Wrong
+local-tool routes are denied and fail the test; the model receives no additional
+routing instructions beyond the shipping prompt. Direct execution against the
+requested registered name and inventory-first execution are both accepted.
+
+The final three live runs passed under the race detector. Each used capability
+discovery, activation, connection inventory and one SSH execution, followed by
+the answer. None attempted local configuration/PATH/skill setup or reported the
+decoy aliases. There were no tool errors in those three runs. These are bounded
+observations on Ornith 1.5 35B-A3B Q5_K_M, not a guarantee of all future choices.
+
+Fixture development exposed a false positive: accepting every command starting
+with `df` could conceal a malformed pipeline. The fixture now uses a syntax-only
+shell check and propagates syntax failures as nonzero SSH results. An independent
+race-tested regression rejects malformed source and proves submitted source is
+not executed. Corrected remote command errors are allowed; a successful SSH
+execution and the expected disk figures remain required. This tests routing,
+transport and shell syntax, not all command-option semantics or real capacity.
+Health claims and response verbosity are not scored by this routing check.
+
+Startup measurement with the same workspace and skill libraries: 5427 backend
+prompt tokens, up 16 from 5411 (about 0.3% for this follow-up); local estimate
+4990 and leading tool definitions still 31. No context or generation allowance
+was increased for this change.
+
+The existing three live discovery checks also passed after the routing change.
+Final `go test ./...`, `go vet ./...`, and `go build ./...` passed. The fixture's
+malformed-source/no-execution check passed with `-race` independently of model
+inference. The syntax checker requires POSIX `sh`, or Git Bash in its standard
+Windows installation path; tests report a skip if that dependency is absent.

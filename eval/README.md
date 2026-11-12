@@ -352,3 +352,21 @@ Remove-Item Env:GEKTOR_DISCOVERY_LIVE_URL
 Each run logs actual request token counts and tool calls. For a startup-token
 measurement using the local workspace and skill libraries, set
 `GEKTOR_CONTEXT_LIVE_URL` and run `TestStartupContextLive` in the same package.
+
+`TestSSHRequestLive` uses the original request from session `3d40d67a`, without
+instructions about which tools to choose. Its loopback SSH server returns fixed
+disk usage through the real SSH client. Commands are syntax-checked with `sh -n`
+(or Git Bash on Windows), but never executed locally. `TestDiskSSHFixture`
+checks malformed-source rejection and the no-execution behavior. The temporary OpenSSH config contains
+`vpn2` and `smv`; GEKTOR's registry contains only `Koara`. Local command execution
+is denied, and any attempt counts as a failed route. The check requires an SSH
+execution, the correct disk figures and no configuration/setup detours or decoy
+aliases in the answer. A remote command error may be corrected; a successful
+execution is still required. It allows using the requested connection directly after
+activation or listing names first.
+
+```powershell
+$env:GEKTOR_DISCOVERY_LIVE_URL = 'http://127.0.0.1:9931'
+go test ./internal/roles -run '^TestSSHRequestLive$' -v -count=3
+Remove-Item Env:GEKTOR_DISCOVERY_LIVE_URL
+```
