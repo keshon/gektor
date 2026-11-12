@@ -2,7 +2,8 @@
 
 Date: 2026-11-12
 Status: Approved; phase zero package boundaries are implemented. Existing SSH work and this plan
-were committed as `caa586c`. The management UI described here is not implemented.
+were committed as `caa586c`. Tools inventory and Media executable preferences are implemented; SSH and the
+remaining management phases below are still planned.
 
 Current migration: the first package extraction was committed as `2f4bb47`.
 The follow-up, committed as `0f77869`, groups related operations under one feature owner: files, git, run,
@@ -12,7 +13,7 @@ have dedicated owners as well, committed as `b71db5c`. Existing workflow Agent a
 capabilities retain their cohesive feature packages.
 All concrete tools, including thin shared-capability adapters and the write-check
 wrapper, now live in feature packages. Root retains three files: composition,
-builtin declarations and resource routing. The tool package tree below is implemented. The management UI remains future work.
+builtin declarations and resource routing. The tool package tree below is implemented. Tools inventory and Media preferences now use the existing shared controls.
 
 Test placement now follows those owners. Files, foreground execution, background
 processes and Windows command-runtime tests live with their implementations.
@@ -472,7 +473,7 @@ Check errors are scoped to the selected item, not fatal to the whole Tools scree
    shared files owner. Media request cleanup follows as its own internal API slice.
 1. **Current setup docs.** Already documented: manual SSH profiles, password/key environment
    references, masked terminal input, TUI/CLI launch and worker inheritance.
-2. **Tools list + Media.** Add the shared navigation and read-only inventory,
+2. **Tools list + Media.** Implemented: shared navigation and read-only inventory,
    then PATH/override forms and explicit executable checks. Reuse the resolver
    and verify that the selected override reaches Agent and Workflow operations.
 3. **SSH profile management.** Add validated atomic profile updates and bounded

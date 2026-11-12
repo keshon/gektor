@@ -21,7 +21,7 @@ func (s *Service) Status(ctx context.Context, refresh bool) (any, error) {
 	apps := []executables.Status{}
 	states := map[string]string{}
 
-	for _, name := range []string{"yt-dlp", "ffmpeg", "ffprobe", "deno", "node"} {
+	for _, name := range Applications() {
 		v, err := s.Apps.Probe(ctx, name, refresh)
 		if err != nil {
 			return nil, err
@@ -70,3 +70,6 @@ func (s *Service) Status(ctx context.Context, refresh bool) (any, error) {
 		Note         string               `json:"note"`
 	}{true, "native", apps, operations, "Local requirements only, not execution permission or a remote/codec compatibility test. yt-dlp's EJS component is bundled or separately installed; its presence is not verified here. No installation or hidden fallback."}, nil
 }
+
+// Applications lists local dependencies; native YouTube needs none for metadata or single streams.
+func Applications() []string { return []string{"yt-dlp", "ffmpeg", "ffprobe", "deno", "node"} }

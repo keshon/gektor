@@ -62,6 +62,7 @@ func (m *Model) applicationMenus(idle bool) []screen.Menu {
 	}
 	menu := screen.Menu{ID: "settings", Label: "Settings", Items: []screen.MenuItem{
 		{Text: "Appearance…", Command: "appearance", Enabled: true},
+		{Text: "Tools…", Command: "tools", Enabled: idle},
 		{},
 		section("model"), section("generation"), section("profiles"),
 		{},
@@ -81,6 +82,23 @@ func (m *Model) applicationMenus(idle bool) []screen.Menu {
 func (m *Model) dispatchControl(event screen.Event) []tea.Cmd {
 	var commands []tea.Cmd
 
+	if event.Dialog == m.toolsDialog {
+		if event.Kind == screen.TableAction {
+			commands = append(commands, m.toolAction(event))
+		}
+		if event.Kind == screen.Closed || event.Kind == screen.Replaced || event.Kind == screen.Suspended {
+			page := m.toolsPage
+			m.tools.Close()
+			m.toolsDialog = nil
+			if event.Kind == screen.Closed && m.modeChange == nil {
+				if page == "edit" || page == "media-detail" {
+					m.openMediaTools()
+				} else if page == "media" || page == "detail" {
+					m.openTools()
+				}
+			}
+		}
+	}
 	switch event.Kind {
 	case screen.Opened:
 		if event.First {

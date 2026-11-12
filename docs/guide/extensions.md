@@ -120,7 +120,9 @@ and limits. No document generation, OCR or external programs are included.
 `native_media` provides video metadata, captions and downloads, plus local media
 inspection, conversion, clips, frames and merging. YouTube prefers the bundled
 Go library; yt-dlp, FFmpeg and ffprobe are optional external applications.
-Use `media_status` after activation to see what is available. See
+Use **Settings > Tools… > Media** in either terminal mode to edit executable
+paths or explicitly check their versions. `media_status` reports local
+requirements during operation preparation. See
 [video and audio](../reference/operations.md#video-and-audio) for arguments,
 backend selection, executable paths and limits.
 

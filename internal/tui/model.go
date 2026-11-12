@@ -7,11 +7,14 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/executables"
 	agentui "github.com/keshon/gektor/internal/tui/agent"
 	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/settings"
+	toolsui "github.com/keshon/gektor/internal/tui/tools"
 	"github.com/keshon/gektor/internal/tui/workflow"
+	"github.com/keshon/gektor/internal/userdirs"
 )
 
 type activeScreen int
@@ -24,7 +27,12 @@ const (
 // Model owns application navigation, shared controls, and the lifetime of its
 // Agent and Workflow screens. It never reaches into either screen's private state.
 type Model struct {
-	form pendingForm
+	tools          *toolsui.Model
+	toolsets       []app.Toolset
+	toolsDialog    *screen.DialogState
+	toolsPage      string
+	mediaSelection string
+	form           pendingForm
 
 	profile           *app.PreparedProfile
 	application       *settings.Application
@@ -65,12 +73,19 @@ func newModel(ctx context.Context, cfg Config) (*Model, error) {
 		startWorkflows: cfg.StartScreen == "workflows",
 	}
 
+	if cfg.Executables == nil {
+		cfg.Executables = executables.New(userdirs.Sub("applications.json"))
+	}
+	m.tools = toolsui.New(cfg.Executables)
 	m.commands = append(m.commands, m.settleControls()...)
 	return m, nil
 }
 
 // Close releases both screens, including their background operations.
 func (m *Model) Close() {
+	if m.tools != nil {
+		m.tools.Close()
+	}
 	if m.workflows != nil {
 		m.workflows.Close()
 	}

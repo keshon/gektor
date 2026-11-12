@@ -4,6 +4,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"github.com/keshon/gektor/internal/executables"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/gektor/internal/tui/agent"
@@ -17,6 +18,7 @@ type AgentConfig = agent.Config
 type Config struct {
 	AgentConfig
 	StartScreen string
+	Executables *executables.Resolver
 }
 
 // Application holds persisted launch settings and terminal preferences.

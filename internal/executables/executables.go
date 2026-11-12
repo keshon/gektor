@@ -57,7 +57,9 @@ type Resolver struct {
 }
 
 func New(configPath string) *Resolver { return &Resolver{ConfigPath: configPath} }
-func (r *Resolver) settings() (Config, error) {
+
+// Load reads preferences without resolving or running executables.
+func (r *Resolver) Load() (Config, error) {
 	var c Config
 	if r.ConfigPath == "" {
 		return c, nil
@@ -113,7 +115,7 @@ func (r *Resolver) Probe(ctx context.Context, name string, refresh bool) (Status
 		return Status{}, err
 	}
 
-	c, err := r.settings()
+	c, err := r.Load()
 	if err != nil {
 		return Status{}, fmt.Errorf("application settings: %w", err)
 	}

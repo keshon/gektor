@@ -25,6 +25,10 @@ func (m *Model) syncPresentation() {
 	} else {
 		props = m.agent.Presentation()
 	}
+	if m.toolsDialog != nil && m.chrome.Dialog == m.toolsDialog {
+		// Application tool preferences use the full body, independent of the conversation composer.
+		props.Area = pane.Rect{Y: 1, Width: m.termW, Height: max(m.termH-2, 1)}
+	}
 	props.Width, props.Height = m.termW, m.termH
 	props.Menus = m.menus(props.Menus)
 	m.chrome.Props = props

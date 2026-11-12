@@ -28,6 +28,31 @@ limits carry across TUI relaunches and are saved with preferences.
 Direct API-key flags stay in memory across a restart and are never written
 to preferences.
 
+## Tools and Media preferences
+
+Open **Settings > Tools…** from Agent or Workflows, or type `/tools` in Agent.
+The searchable list shows built-in toolsets and configured extensions. Open a
+row for Agent operations, matching workflow nodes, configuration source and Agent
+exposure. Inspection does not activate toolsets, connect extensions or run checks.
+
+Open **Media** to inspect yt-dlp, FFmpeg, ffprobe, Deno and Node preferences.
+**Operations** lists the supported Agent tools and workflow nodes. **Preferences**
+edits the selected executable: leave its path blank to use PATH, select an
+absolute executable path to override it, or mark it Disabled. Cancel discards the
+draft. Apply validates and atomically saves `~/.gektor/applications.json`, then
+relaunches at an idle boundary with the conversation and unsent input retained.
+Save or discard an unsaved workflow before applying changes.
+
+**Check executable** (`C`) explicitly runs the selected saved executable's bounded
+version probe. Its result shows the path, version, failure reason and UTC check
+time. Closing Tools cancels and joins a pending check. A version check does not
+establish codec or remote-service compatibility. Native YouTube metadata,
+transcripts and single-stream downloads do not need these local applications.
+These preferences are shared by Agent and Workflow operations.
+
+SSH profiles remain configured through the [documented manual setup](operations.md#supplying-credentials-in-the-cli-and-tui).
+The existing MCP manager remains available through `/mcp`.
+
 ## Start and choose a workspace
 
 On Windows, run `start-gektor-agent.cmd`, or `start-gektor-workflows.cmd`

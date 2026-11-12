@@ -228,3 +228,10 @@ func (c *Capabilities) available(id string) bool {
 	}
 	return true
 }
+
+// PackageInfo is a read-only projection of a native composition declaration.
+type PackageInfo struct {
+	ID, Description string
+	Exposure        Exposure
+	Tools           []string
+}

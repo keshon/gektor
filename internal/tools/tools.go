@@ -159,3 +159,17 @@ func nativeTools(d Dependencies, readOnly bool) []agent.Tool {
 
 	return list
 }
+
+// Packages describes native toolsets without activating or executing their tools.
+func Packages() []toolextension.PackageInfo {
+	definitions := builtinPackages(Dependencies{})
+	packages := make([]toolextension.PackageInfo, 0, len(definitions))
+	for _, definition := range definitions {
+		p := toolextension.PackageInfo{ID: definition.id, Description: definition.description, Exposure: definition.exposure}
+		for _, entry := range definition.entries {
+			p.Tools = append(p.Tools, entry.tool.Name())
+		}
+		packages = append(packages, p)
+	}
+	return packages
+}

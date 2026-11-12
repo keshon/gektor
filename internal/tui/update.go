@@ -7,6 +7,7 @@ import (
 
 	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/settings"
+	toolsui "github.com/keshon/gektor/internal/tui/tools"
 	"github.com/keshon/gektor/internal/tui/workflow"
 )
 
@@ -14,6 +15,12 @@ import (
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch value := msg.(type) {
+	case toolsui.CheckResult:
+		if m.tools.Accept(value) && m.toolsDialog != nil && m.toolsPage == "media" {
+			m.chrome.PresentDialog(value.Dialog())
+			m.toolsDialog = m.chrome.Dialog
+			m.toolsPage = "media-detail"
+		}
 	case settings.DiscoveryRequest:
 		cmd = m.discoverSettings(value)
 	case settings.DetailMsg, settings.ScanMsg:
@@ -143,6 +150,11 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (next tea.Model, cmd tea.Cmd) {
 	return m, cmd
 }
 func (m *Model) runAction(command string) tea.Cmd {
+	if command == "tools" || command == "/tools" {
+		m.chrome.CloseHeader()
+		m.openTools()
+		return nil
+	}
 	if m.applicationAction(command) {
 		return nil
 	}

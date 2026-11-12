@@ -72,6 +72,7 @@ func commands() []command {
 		{name: "/learn", immediate: true, summary: "Learn from last run; N/session select, review reopens, undo disables"},
 		{name: "/theme", arg: "name", choices: config.ThemeNames(), immediate: true, summary: "Switch theme"},
 		{name: "/settings", immediate: true, summary: "Open settings"},
+		{name: "/tools", immediate: true, summary: "Inspect toolsets and executable preferences"},
 		{name: "/status", immediate: true, summary: "Show current run facts"},
 		{name: "/retry", summary: "Retry the last failed turn"},
 		{name: "/compact", summary: "Shrink this session's history"},
@@ -310,6 +311,8 @@ func (m *Model) command(text string) (tea.Model, tea.Cmd) {
 		return m, m.request(screen.ApplicationCommand{Command: "about"})
 	case "theme":
 		return m, m.request(screen.ApplicationCommand{Command: "/theme " + arg})
+	case "tools":
+		return m, m.request(screen.ApplicationCommand{Command: "tools"})
 	case "settings":
 		return m, m.request(screen.ApplicationCommand{Command: "settings"})
 	case "mode":
