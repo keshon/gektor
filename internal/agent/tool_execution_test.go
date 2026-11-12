@@ -3,6 +3,9 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -118,5 +121,74 @@ func TestAgent_MixedConcurrentAndExclusive_ExclusiveRunsAfterConcurrentBatch(t *
 	// The Exclusive tool must have actually run (both log entries present).
 	if len(log) != 2 || log[0] != "start:write" || log[1] != "end:write" {
 		t.Fatalf("expected exclusive tool to run cleanly, got log: %v", log)
+	}
+}
+
+func TestToolBatchKeepsMixedResultsPairedInModelOrder(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	release := make(chan struct{})
+	slow := steeringTool{"slow", Concurrent, func(toolContext context.Context) (string, error) {
+		select {
+		case <-release:
+			return "slow result", nil
+		case <-toolContext.Done():
+			return "", toolContext.Err()
+		}
+	}}
+	fast := steeringTool{"fast", Concurrent, func(context.Context) (string, error) {
+		return "partial fast result", errors.New("fast failure")
+	}}
+	client := &stubClient{responses: []llm.ChatResponse{
+		{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: steeringCalls("slow", "unknown", "fast")}},
+		{Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}},
+	}}
+
+	var finished []string
+	var results []ToolResult
+	a := New(Config{
+		Client: client,
+		Tools:  NewRegistry(slow, fast),
+		OnToolFinished: func(id string) {
+			finished = append(finished, id)
+			if id == "fast" {
+				close(release)
+			}
+		},
+		OnResult: func(result ToolResult) { results = append(results, result) },
+	})
+	_, err := a.Run(ctx, "inspect")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(finished, []string{"fast", "slow"}) {
+		t.Fatalf("completion order = %v", finished)
+	}
+	if len(results) != 3 {
+		t.Fatalf("results = %+v", results)
+	}
+	if results[0].CallID != "slow" || results[0].Output != "slow result" || results[0].Failed {
+		t.Fatalf("slow result = %+v", results[0])
+	}
+	if results[1].CallID != "unknown" || !results[1].Failed || results[1].Duration != 0 {
+		t.Fatalf("rejected result = %+v", results[1])
+	}
+	if results[2].CallID != "fast" || !results[2].Failed || !strings.Contains(results[2].Output, "partial fast result\nerror: fast failure") {
+		t.Fatalf("failed execution result = %+v", results[2])
+	}
+	if a.Report().ToolsExecuted != 2 {
+		t.Fatalf("executed = %d, want 2", a.Report().ToolsExecuted)
+	}
+
+	var recorded []string
+	for _, msg := range client.lastHistory {
+		if msg.Role == llm.RoleTool {
+			recorded = append(recorded, msg.ToolCallID)
+		}
+	}
+	if !reflect.DeepEqual(recorded, []string{"slow", "unknown", "fast"}) {
+		t.Fatalf("history order = %v", recorded)
 	}
 }

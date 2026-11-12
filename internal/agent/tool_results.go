@@ -11,34 +11,34 @@ import (
 )
 
 func (a *Agent) recordToolBatch(ctx context.Context, st *runState, batch *toolBatch, finishReason string, history []llm.Message, newInstructions []string) []llm.Message {
-	calls, results := batch.calls, batch.results
-	executed, withheld, yielded := batch.executed, batch.withheld, batch.yielded
 	mutatingBefore := st.mutatingSucceeded
 	var pictures []string
 	var signature strings.Builder
 	var diagnostics []string
-	for i, call := range calls {
-		if results[i].err == nil && !withheld[i] {
+	for i := range batch.entries {
+		entry := &batch.entries[i]
+		call := entry.call
+		if entry.err == nil && !entry.withheld {
 			if at := a.cfg.Tools.AttacherOf(call.Name); at != nil {
 				paths, err := at.Attach(call.Arguments)
 				switch {
 				case err != nil:
-					results[i].err = fmt.Errorf("attach picture: %w", err)
+					entry.err = fmt.Errorf("attach picture: %w", err)
 				case len(paths) > 0 && len(pictures)+len(paths) > maxToolImagesPerStep:
-					results[i].err = fmt.Errorf("at most %d pictures can be attached in one step; this picture was not attached — re-read it in a later step", maxToolImagesPerStep)
+					entry.err = fmt.Errorf("at most %d pictures can be attached in one step; this picture was not attached — re-read it in a later step", maxToolImagesPerStep)
 				default:
 					pictures = append(pictures, paths...)
 				}
-
 			}
 		}
-		content := results[i].content
-		if results[i].err != nil {
+
+		content := entry.content
+		if entry.err != nil {
 			if strings.TrimSpace(content) != "" {
 				content += "\n"
 			}
-			content += "error: " + results[i].err.Error()
-		} else if !withheld[i] {
+			content += "error: " + entry.err.Error()
+		} else if !entry.withheld {
 			if !st.observing {
 				// Embedders may omit the workspace observer.
 				if containsStr(a.cfg.MutatingTools, call.Name) {
@@ -47,38 +47,41 @@ func (a *Agent) recordToolBatch(ctx context.Context, st *runState, batch *toolBa
 				}
 			}
 		}
+
 		// A failed delegate may have changed files before it stopped.
-		if executed[i] && !withheld[i] && !st.observing && call.Name == "delegate_task" {
+		if entry.executed && !entry.withheld && !st.observing && call.Name == "delegate_task" {
 			mutations, paths := parseDelegateMutations(content)
 			st.mutatingSucceeded += mutations
 			st.addPaths(paths)
 		}
-		if withheld[i] {
+		if entry.withheld {
 			content = "Not executed because new user input arrived. Reconsider this action using the updated instructions."
 		}
 		if a.cfg.Outputs != nil {
-			content = a.cfg.Outputs.Limit(content, max(1, 48*1024/len(calls)))
+			content = a.cfg.Outputs.Limit(content, max(1, 48*1024/len(batch.entries)))
 		} else {
-			content = TruncateMiddle(content, max(1, 48*1024/len(calls)))
+			content = TruncateMiddle(content, max(1, 48*1024/len(batch.entries)))
 		}
-		failed := results[i].err != nil
-		if !withheld[i] && (a.cfg.Tools.ModeOf(call.Name) == Concurrent || failed) {
+
+		failed := entry.err != nil
+		if !entry.withheld && (a.cfg.Tools.ModeOf(call.Name) == Concurrent || failed) {
 			a.noteObservation(st, call.Name, call.Arguments, content)
 		}
 		fmt.Fprintf(&signature, "%s\x00%s\x00", callKey(call.Name, call.Arguments), content)
-		status := toolResultStatus(call, results[i], finishReason, executed[i], withheld[i])
-		if executed[i] && !withheld[i] {
+		status := toolResultStatus(*entry, finishReason)
+		if entry.executed && !entry.withheld {
 			a.report.ToolsExecuted++
 		}
 		a.report.RecentTools = append(a.report.RecentTools, ToolEvidence{CallID: call.ID, Name: call.Name, Status: status})
 		if len(a.report.RecentTools) > 24 {
 			a.report.RecentTools = a.report.RecentTools[len(a.report.RecentTools)-24:]
 		}
+
 		if !json.Valid(call.Arguments) || call.InputError != "" {
 			diagnostics = append(diagnostics, content)
 		} else {
 			message := llm.Message{Role: llm.RoleTool, ToolCallID: call.ID, Content: content, ToolFailed: &failed, ToolStatus: status}
-			if executed[i] && !failed && a.cfg.Catalog != nil && (call.Name == "enable_capability" || call.Name == "enable_browser") {
+			if entry.executed && !failed && a.cfg.Catalog != nil && (call.Name == "enable_capability" || call.Name == "enable_browser") {
 				for _, state := range a.cfg.Catalog.Save() {
 					if content == CapabilityCatalog(state) {
 						message.Harness = "capability_catalog:" + state.Fingerprint
@@ -89,16 +92,17 @@ func (a *Agent) recordToolBatch(ctx context.Context, st *runState, batch *toolBa
 		}
 
 		if a.cfg.OnResult != nil {
-			a.cfg.OnResult(ToolResult{CallID: call.ID, Output: content, Failed: failed, Status: status, Duration: results[i].duration})
+			a.cfg.OnResult(ToolResult{CallID: call.ID, Output: content, Failed: failed, Status: status, Duration: entry.duration})
 		}
 	}
+
 	for _, diagnostic := range diagnostics {
 		history = a.nudge(history, "tool_input", diagnostic)
 	}
 	for _, instructions := range newInstructions {
 		history = a.nudge(history, "instructions", instructions)
 	}
-	if !yielded {
+	if !batch.yielded {
 		st.trackSignature(signature.String())
 	}
 	if len(pictures) > 0 {
@@ -121,21 +125,22 @@ func (a *Agent) recordToolBatch(ctx context.Context, st *runState, batch *toolBa
 	return history
 }
 
-func toolResultStatus(call llm.ToolCall, result callResult, finishReason string, executed, withheld bool) string {
-	failed := result.err != nil
+func toolResultStatus(entry toolExecution, finishReason string) string {
+	call := entry.call
+	failed := entry.err != nil
 	status := "success"
-	if withheld {
+	if entry.withheld {
 		status = "skipped_for_input"
 	}
 	if failed {
 		status = "execution_error"
-		if !executed {
+		if !entry.executed {
 			status = "rejected"
 		}
-		if errors.Is(result.err, context.Canceled) || errors.Is(result.err, context.DeadlineExceeded) {
+		if errors.Is(entry.err, context.Canceled) || errors.Is(entry.err, context.DeadlineExceeded) {
 			status = "cancelled"
 		}
-		if strings.HasPrefix(result.err.Error(), "invalid_arguments:") {
+		if strings.HasPrefix(entry.err.Error(), "invalid_arguments:") {
 			status = "invalid_arguments"
 		}
 	}

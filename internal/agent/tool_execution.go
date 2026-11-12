@@ -9,11 +9,20 @@ import (
 	"github.com/keshon/gektor/internal/permission"
 )
 
+// Workers update separate entries; recording starts after every worker finishes.
+// The inbox mutex guards yielded while calls are being admitted.
 type toolBatch struct {
-	calls              []llm.ToolCall
-	results            []callResult
-	executed, withheld []bool
-	yielded            bool
+	entries []toolExecution
+	yielded bool
+}
+
+type toolExecution struct {
+	call     llm.ToolCall
+	content  string
+	err      error
+	duration time.Duration
+	executed bool
+	withheld bool
 }
 
 // executeToolCalls validates, executes and records one assistant tool group.
@@ -21,108 +30,114 @@ type toolBatch struct {
 func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, finishReason string, calls []llm.ToolCall, history []llm.Message) []llm.Message {
 	ctx = llm.WithAttachments(ctx, a.snapshot.History, history)
 	ctx = context.WithValue(ctx, contextInspectionKey{}, a.inspection)
-	resolved := append([]llm.ToolCall(nil), calls...)
-	results := make([]callResult, len(calls))
+	batch := toolBatch{entries: make([]toolExecution, len(calls))}
 	for i, call := range calls {
-		var err error
-		resolved[i], err = a.cfg.Tools.ResolveCall(call)
-		results[i].err = err
+		entry := &batch.entries[i]
+		entry.call, entry.err = a.cfg.Tools.ResolveCall(call)
 	}
-	batch := toolBatch{calls: resolved, results: results}
+
 	if a.cfg.OnProgress != nil {
 		a.cfg.OnProgress(llm.Progress{Phase: "tools", Detail: fmt.Sprintf("executing %d tool calls", len(calls))})
 	}
-	skipped, instructions := a.validateToolCalls(resolved, finishReason, history, batch.results)
-	a.runToolBatch(ctx, st, &batch, skipped)
+	instructions := a.validateToolCalls(batch.entries, finishReason, history)
+	a.runToolBatch(ctx, st, &batch)
 	return a.recordToolBatch(ctx, st, &batch, finishReason, history, instructions)
 }
 
-func (a *Agent) runToolBatch(ctx context.Context, st *runState, group *toolBatch, skipped []bool) {
-	calls, results := group.calls, group.results
-	executed := make([]bool, len(calls))
-	withheld := make([]bool, len(calls))
-	yielded := false
+func (a *Agent) runToolBatch(ctx context.Context, st *runState, batch *toolBatch) {
 	runOne := func(i int) {
-		call := calls[i]
-		if !a.cfg.Inbox.admit(&yielded) {
-			withheld[i] = true
+		entry := &batch.entries[i]
+		call := entry.call
+		if !a.cfg.Inbox.admit(&batch.yielded) {
+			entry.withheld = true
 			return
 		}
-		if err := ctx.Err(); err != nil {
-			results[i].err = err
+		err := ctx.Err()
+		if err != nil {
+			entry.err = err
 			return
 		}
+
 		resources, err := a.callResources(call)
 		if err != nil {
-			results[i].err = err
+			entry.err = err
 			return
 		}
+
 		for _, resource := range resources {
-			if !a.cfg.Inbox.admit(&yielded) {
-				withheld[i] = true
+			if !a.cfg.Inbox.admit(&batch.yielded) {
+				entry.withheld = true
 				return
 			}
-			if err := permission.Authorize(ctx, a.cfg.Policy, a.cfg.BeforeToolCall, call.Name, resource, call.Arguments); err != nil {
-				results[i].err = err
+			err = permission.Authorize(ctx, a.cfg.Policy, a.cfg.BeforeToolCall, call.Name, resource, call.Arguments)
+			if err != nil {
+				entry.err = err
 				return
 			}
 		}
-		if !a.cfg.Inbox.admit(&yielded) {
-			withheld[i] = true
+
+		if !a.cfg.Inbox.admit(&batch.yielded) {
+			entry.withheld = true
 			return
 		}
-		if err := ctx.Err(); err != nil {
-			results[i].err = err
+		err = ctx.Err()
+		if err != nil {
+			entry.err = err
 			return
 		}
-		executed[i] = true
+
+		entry.executed = true
 		started := time.Now()
-		defer func() { results[i].duration = time.Since(started) }()
+		defer func() { entry.duration = time.Since(started) }()
 		var onOutput func(string)
 		if a.cfg.OnToolOutput != nil {
 			onOutput = func(text string) { a.cfg.OnToolOutput(call.ID, text) }
 		}
-		results[i].content, results[i].err = a.cfg.Tools.RunStreaming(context.WithValue(ctx, toolCallIDKey{}, call.ID), call.Name, call.Arguments, onOutput)
+
+		callContext := context.WithValue(ctx, toolCallIDKey{}, call.ID)
+		entry.content, entry.err = a.cfg.Tools.RunStreaming(callContext, call.Name, call.Arguments, onOutput)
 	}
+
 	notifyFinished := func(i int) {
-		if executed[i] && a.cfg.OnToolFinished != nil {
-			a.cfg.OnToolFinished(calls[i].ID)
+		entry := &batch.entries[i]
+		if entry.executed && a.cfg.OnToolFinished != nil {
+			a.cfg.OnToolFinished(entry.call.ID)
 		}
 	}
+
 	runBatch := func(indices []int) {
 		done := make(chan int, len(indices))
 		for _, i := range indices {
-			go func(i int) { runOne(i); done <- i }(i)
+			go func(i int) {
+				runOne(i)
+				done <- i
+			}(i)
 		}
 		for range indices {
 			notifyFinished(<-done)
 		}
 	}
-	var batch []int
-	for i, call := range calls {
-		if skipped[i] {
+
+	var concurrent []int
+	for i := range batch.entries {
+		entry := &batch.entries[i]
+		if entry.err != nil {
 			continue
 		}
-		if a.cfg.Tools.ModeOf(call.Name) == Concurrent {
-			batch = append(batch, i)
-		} else {
-			runBatch(batch)
-			batch = nil
-			runOne(i)
-			notifyFinished(i)
-			// A failed command may still change files. Treat it as a mutation barrier.
-			if executed[i] {
-				st.noteMutation()
-			}
+		if a.cfg.Tools.ModeOf(entry.call.Name) == Concurrent {
+			concurrent = append(concurrent, i)
+			continue
+		}
+
+		runBatch(concurrent)
+		concurrent = nil
+		runOne(i)
+		notifyFinished(i)
+
+		// A failed command may still change files. Treat it as a mutation barrier.
+		if entry.executed {
+			st.noteMutation()
 		}
 	}
-	runBatch(batch)
-
-	group.executed, group.withheld, group.yielded = executed, withheld, yielded
-}
-
-type callResult struct {
-	duration time.Duration
-	content  string
-	err      error
+	runBatch(concurrent)
 }

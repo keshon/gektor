@@ -10,48 +10,55 @@ import (
 
 // validateToolCalls runs serially before any calls are admitted, so newly found
 // scoped instructions can withhold mutations before execution begins.
-func (a *Agent) validateToolCalls(calls []llm.ToolCall, finishReason string, history []llm.Message, results []callResult) ([]bool, []string) {
-	skipped := make([]bool, len(calls))
+func (a *Agent) validateToolCalls(entries []toolExecution, finishReason string, history []llm.Message) []string {
 	var newInstructions []string
-	for i, call := range calls {
-		if results[i].err != nil {
-			skipped[i] = true
+	for i := range entries {
+		entry := &entries[i]
+		call := entry.call
+		if entry.err != nil {
 			continue
 		}
+
 		// Truncated arguments (generation cut off mid-call) are stumps, not
 		// calls: executing them fails arg parsing here and 500s backends that
 		// parse server-side. Refuse with reissue-smaller guidance instead.
 		if !json.Valid(call.Arguments) || call.InputError != "" {
-			skipped[i] = true
 			kind := "invalid"
+			guidance := ""
 			if finishReason == "length" {
 				kind = "truncated"
+				guidance = " in smaller calls because the output limit was reached"
 			}
-			results[i].err = fmt.Errorf("%s JSON arguments; call %s (%s) was NOT executed. Arguments were supplied but could not be parsed, not omitted. finish_reason=%q. Reissue complete valid arguments%s. Original input excerpt (%d bytes):\n%s", kind, call.ID, call.Name, finishReason, map[bool]string{true: " in smaller calls because the output limit was reached", false: ""}[finishReason == "length"], len(call.Arguments), TruncateMiddle(string(call.Arguments), 1800))
+			excerpt := TruncateMiddle(string(call.Arguments), 1800)
+			entry.err = fmt.Errorf(
+				"%s JSON arguments; call %s (%s) was NOT executed. "+
+					"Arguments were supplied but could not be parsed, not omitted. "+
+					"finish_reason=%q. Reissue complete valid arguments%s. "+
+					"Original input excerpt (%d bytes):\n%s",
+				kind, call.ID, call.Name, finishReason, guidance, len(call.Arguments), excerpt)
 			continue
 		}
+
 		// A read-only role is offered the full tool set so a mode switch
 		// cannot rewrite the prompt prefix, so refusal has to be explicit:
 		// nothing runs, nothing changes, and the model is told what to do
 		// instead.
-		if err := a.cfg.Tools.ValidateCall(call.Name, call.Arguments); err != nil {
-			skipped[i] = true
-			results[i].err = err
+		err := a.cfg.Tools.ValidateCall(call.Name, call.Arguments)
+		if err != nil {
+			entry.err = err
 			continue
 		}
 		if !a.mayRunCall(call.Name, call.Arguments) {
-			skipped[i] = true
-			results[i].err = fmt.Errorf(
+			entry.err = fmt.Errorf(
 				"this run is read-only: %s is unavailable and nothing was changed - "+
 					"state the change as a step in the plan and let the operator apply it", call.Name)
 			continue
 		}
 
-		if a.cfg.Paths != nil && !skipped[i] {
-			text, err := a.cfg.Paths.Instructions(call.Arguments)
-			if err != nil {
-				skipped[i] = true
-				results[i].err = fmt.Errorf("load scoped instructions: %w", err)
+		if a.cfg.Paths != nil {
+			text, loadErr := a.cfg.Paths.Instructions(call.Arguments)
+			if loadErr != nil {
+				entry.err = fmt.Errorf("load scoped instructions: %w", loadErr)
 				continue
 			}
 			loaded := false
@@ -66,14 +73,13 @@ func (a *Agent) validateToolCalls(calls []llm.ToolCall, finishReason string, his
 					newInstructions = append(newInstructions, text)
 				}
 				if a.cfg.Tools.ModeOf(call.Name) == Exclusive {
-					skipped[i] = true
-					results[i].err = fmt.Errorf("new scoped instructions were discovered; nothing was executed. Read the following harness instructions and reconsider this call before retrying")
+					entry.err = fmt.Errorf("new scoped instructions were discovered; nothing was executed. Read the following harness instructions and reconsider this call before retrying")
 				}
 			}
 		}
 	}
 
-	return skipped, newInstructions
+	return newInstructions
 }
 
 // callResources prefers the tool's canonical resources, then the frontend

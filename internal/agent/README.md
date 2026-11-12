@@ -33,7 +33,9 @@ in `internal/retrospective`. Frontends coordinate sessions through these owners.
   recording, and persistence. A refused or malformed call still needs a paired,
   recordable tool result without executing its operation.
 - Concurrent read calls may overlap; exclusive calls separate those batches and
-  remain in model order. Results must retain their original call association.
+  remain in model order. Each batch entry keeps its resolved call, result, and
+  execution flags together. Workers update separate entries; completion previews
+  follow finish order, and recording waits for all workers and follows model order.
 - Working context may be shortened or compacted; the full execution archive
   remains evidence. Do not split tool calls from their results or lose standing
   user instructions, steering, images, or carried facts during continuation.
