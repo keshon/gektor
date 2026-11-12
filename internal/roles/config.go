@@ -10,44 +10,63 @@ import (
 	"github.com/keshon/gektor/internal/tools"
 )
 
-// Shared run invariants; each role chooses only its capabilities and budget.
-func (e Env) agentConfig(system, label, stateFile string) agent.Config {
+// Execution settings shared by all roles, without parent input or event routing.
+func (e Env) executionConfig(system, stateFile string) agent.Config {
 	store := e.Outputs
 	if store == nil {
 		store = tools.NewOutputStore(e.statePath(stateFile))
 	}
+
 	project, skills := e.WS.InstructionSections()
 	core := system + "\n\n" + prompts.Environment(e.WS.Root(), e.Vision) + e.browserContext()
+
 	return agent.Config{
+		System: core + project + skills + "\n\n" + e.Identity,
+		SystemSections: []llm.PromptSection{
+			{Name: "core_instructions", Text: core},
+			{Name: "project_instructions", Text: project},
+			{Name: "skill_metadata", Text: skills},
+			{Name: "identity", Text: "\n\n" + e.Identity},
+		},
+
+		Client:       e.Client,
+		MaxTokens:    e.MaxTokens,
+		Temperature:  e.Temperature,
+		ContextLimit: e.ContextLimit,
+		StateFile:    e.statePath(stateFile),
+		Workspace:    e.WS.Root(),
+
 		Changes:        e.WS.NewChangeObserver(),
-		Client:         e.Client,
-		Inbox:          e.Inbox,
-		OnInput:        e.OnInput,
-		System:         core + project + skills + "\n\n" + e.Identity,
-		SystemSections: []llm.PromptSection{{Name: "core_instructions", Text: core}, {Name: "project_instructions", Text: project}, {Name: "skill_metadata", Text: skills}, {Name: "identity", Text: "\n\n" + e.Identity}},
-		OnPrompt:       e.OnPrompt,
-		MaxTokens:      e.MaxTokens,
-		Temperature:    e.Temperature,
-		ContextLimit:   e.ContextLimit,
-		StateFile:      e.statePath(stateFile),
-		Workspace:      e.WS.Root(),
-		OnStep:         e.onStep(label),
-		OnResult:       e.OnResult,
-		OnToolOutput:   e.OnToolOutput,
-		OnToolFinished: e.OnToolFinished,
-		OnUsage:        e.OnUsage,
-		OnProgress:     e.OnProgress,
-		OnNudge:        e.OnNudge,
-		OnContext:      e.OnContext,
 		ToolContext:    e.visionContext,
 		Outputs:        store,
-		Notifications:  e.Procs,
 		Summarize:      true,
-		OnLocal:        e.OnLocal,
 		Paths:          tools.WorkspacePaths{WS: e.WS},
 		Policy:         e.policy(),
 		BeforeToolCall: e.Gate,
 	}
+}
+
+// Parent runs consume operator input and report directly to the frontend.
+// Children attach only their separate event route in observeSubagent.
+func (e Env) configureParent(cfg *agent.Config, label string) {
+	cfg.Inbox = e.Inbox
+	cfg.OnInput = e.OnInput
+	cfg.Notifications = e.Procs
+
+	cfg.OnStep = e.onStep(label)
+	cfg.OnResult = e.OnResult
+	cfg.OnToolOutput = e.OnToolOutput
+	cfg.OnToolFinished = e.OnToolFinished
+	cfg.OnUsage = e.OnUsage
+	cfg.OnProgress = e.OnProgress
+	cfg.OnPrompt = e.OnPrompt
+	cfg.OnNudge = e.OnNudge
+	cfg.OnContext = e.OnContext
+	cfg.OnLocal = e.OnLocal
+
+	cfg.Stream = e.Stream
+	cfg.OnDelta = e.OnDelta
+	cfg.OnReasoning = e.OnReasoning
 }
 
 func (e Env) statePath(name string) string {

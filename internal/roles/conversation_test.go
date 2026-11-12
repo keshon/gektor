@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/tools"
 )
@@ -153,5 +154,82 @@ func TestRolesDescribeTheSelectedShell(t *testing.T) {
 		if !strings.Contains(client.history[0].Content, prompts.PlatformLine(tools.ShellName())) {
 			t.Fatal("role does not describe the executor's shell")
 		}
+	}
+}
+
+func TestParentRolesKeepInputAndObservationRouting(t *testing.T) {
+	cases := []struct {
+		name    string
+		label   string
+		build   func(Env) (*agent.Agent, error)
+		unsaved bool
+	}{
+		{
+			name: "interactive", label: "conversation",
+			build: func(e Env) (*agent.Agent, error) { return Interactive(e, "conversation", "", nil, nil) },
+		},
+		{
+			name: "planner", label: "plan",
+			build: func(e Env) (*agent.Agent, error) { return Planner(e, "plan", "", nil) },
+		},
+		{
+			name: "workflow author", label: "workflow", unsaved: true,
+			build: func(e Env) (*agent.Agent, error) { return WorkflowAuthor(e, "recipe.json", "") },
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := testEnv(t)
+			e.Client = &seqStub{steps: []llm.ChatResponse{
+				missingRead("read"),
+				{Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}},
+			}}
+			e.Inbox = &agent.Inbox{}
+			err := e.Inbox.Send("operator steering")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			seen := make(map[string]int)
+			e.OnInput = func(msg llm.Message) {
+				seen["input"]++
+				if msg.Content != "operator steering" {
+					t.Errorf("unexpected input: %q", msg.Content)
+				}
+			}
+			e.OnStep = func(label string, _ int, _ llm.Message) {
+				seen["step"]++
+				if label != tc.label {
+					t.Errorf("label = %q, want %q", label, tc.label)
+				}
+			}
+			e.OnResult = func(agent.ToolResult) { seen["result"]++ }
+			e.OnToolFinished = func(string) { seen["tool finished"]++ }
+			e.OnUsage = func(int, llm.Usage) { seen["usage"]++ }
+			e.OnProgress = func(llm.Progress) { seen["progress"]++ }
+			e.OnPrompt = func(llm.ContextReport) { seen["prompt"]++ }
+
+			a, err := tc.build(e)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = a.Run(t.Context(), "inspect")
+			if tc.unsaved {
+				if err == nil || !strings.Contains(err.Error(), "did not save a recipe") {
+					t.Fatalf("expected unsaved-recipe verification error, got %v", err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+
+			for _, hook := range []string{"input", "step", "result", "tool finished", "usage", "progress", "prompt"} {
+				if seen[hook] == 0 {
+					t.Errorf("parent %s hook did not fire", hook)
+				}
+			}
+			if e.Inbox.Len() != 0 {
+				t.Fatal("parent left operator input unread")
+			}
+		})
 	}
 }

@@ -58,7 +58,8 @@ func WorkflowAuthor(e Env, recipePath, stateFile string) (*agent.Agent, error) {
 	if e.Procs == nil {
 		e.Procs = tools.NewBackgroundProcesses()
 	}
-	cfg := e.agentConfig(prompts.WorkflowAuthor, "workflow", stateFile)
+	cfg := e.executionConfig(prompts.WorkflowAuthor, stateFile)
+	e.configureParent(&cfg, "workflow")
 	project, _ := e.WS.InstructionSections()
 	core := prompts.WorkflowAuthor + "\n\n" + workspace.WorkflowGuide + "\n\n" + prompts.Environment(e.WS.Root(), false)
 	cfg.System = core + project + "\n\n" + e.Identity
@@ -89,7 +90,6 @@ func WorkflowAuthor(e Env, recipePath, stateFile string) (*agent.Agent, error) {
 		cfg.MaxSteps = 16
 	}
 	cfg.RunTimeout = e.RunTimeout
-	cfg.Stream, cfg.OnDelta, cfg.OnReasoning = e.Stream, e.OnDelta, e.OnReasoning
 	return agent.New(cfg), nil
 }
 

@@ -8,13 +8,14 @@ availability, instructions, permissions, and execution limits agree.
 
 - `env.go`: shared launch inputs, observer hooks, permission defaults, model-fact
   refresh, and the final changed-file sweep.
-- `config.go`: common Agent configuration, prompt sections, scoped instructions,
-  resource authorization, output handling, and transcript paths.
+- `config.go`: shared execution settings, explicit parent input/event routing, prompt
+  sections, scoped instructions, resource authorization, output handling, and
+  transcript paths.
   It constructs a Workspace change observer for the Agent; the loop starts and
   samples that observer through its small consumer contract. Workspace argument
   lookup lives in `tools.WorkspacePaths`; output retention and background polling
   use the existing OutputStore and BackgroundProcesses owners.
-- `conversation.go`: Interactive and Planner construction, questions, delegation,
+- `roles.go`: Interactive and Planner construction, questions, delegation,
   verification, and mode-specific directives.
 - `subagent.go` and `child.go`: delegated execution limits, parent-input isolation,
   child archives, and separately routed observer events.
@@ -34,6 +35,8 @@ availability, instructions, permissions, and execution limits agree.
   execution allowlist enforces read-only behavior; instructions alone do not.
 - Subagents cannot delegate or ask the parent's operator. Their budget and inbox
   are independent of the parent, and their activity is not parent evidence.
+  Shared execution settings exclude parent input and observation hooks; parent
+  constructors attach those explicitly, rather than children clearing them.
   `ChildEvents` receives child envelopes through `events.Sink`; `childObserver`
   binds the parent call ID without invoking parent stream/usage hooks. Child
   archives provide a separate evidence route.

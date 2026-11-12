@@ -88,8 +88,12 @@ func (e Env) conversationConfig(label, stateFile string,
 		extra = append(extra, tools.AskUser{AskFn: ask})
 	}
 
-	cfg := e.agentConfig(prompts.System+"\n\n"+prompts.PlatformLine(tools.ShellName()), label, stateFile)
-	if err := e.configureTools(&cfg, true, ask != nil, extra...); err != nil {
+	platform := prompts.PlatformLine(tools.ShellName())
+	system := prompts.System + "\n\n" + platform
+	cfg := e.executionConfig(system, stateFile)
+	e.configureParent(&cfg, label)
+	err := e.configureTools(&cfg, true, ask != nil, extra...)
+	if err != nil {
 		return agent.Config{}, err
 	}
 
@@ -100,7 +104,6 @@ func (e Env) conversationConfig(label, stateFile string,
 
 	cfg.RunTimeout = e.RunTimeout
 	cfg.Verify = verify
-	cfg.Stream, cfg.OnDelta, cfg.OnReasoning = e.Stream, e.OnDelta, e.OnReasoning
 
 	return cfg, nil
 }

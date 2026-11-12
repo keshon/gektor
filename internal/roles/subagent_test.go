@@ -41,6 +41,16 @@ func TestSubagent_ObserverHooksStaySilent(t *testing.T) {
 	e.OnResult = func(agent.ToolResult) { atomic.AddInt32(&toolResults, 1) }
 	e.OnUsage = func(int, llm.Usage) { atomic.AddInt32(&usages, 1) }
 	e.OnNudge = func(string, string) { atomic.AddInt32(&nudges, 1) }
+	e.OnStep = func(string, int, llm.Message) { t.Error("child step reached parent") }
+	e.OnToolFinished = func(string) { t.Error("child tool completion reached parent") }
+	e.OnToolOutput = func(string, string) { t.Error("child tool output reached parent") }
+	e.OnPrompt = func(llm.ContextReport) { t.Error("child prompt reached parent") }
+	e.OnProgress = func(llm.Progress) { t.Error("child progress reached parent") }
+	e.OnContext = func(llm.Message) { t.Error("child context reached parent") }
+	e.OnLocal = func(string) { t.Error("child notice reached parent") }
+	e.Stream = true
+	e.OnDelta = func(string) { t.Error("child text reached parent") }
+	e.OnReasoning = func(string) { t.Error("child reasoning reached parent") }
 	client := &seqStub{steps: []llm.ChatResponse{
 		missingRead("c1"),
 		missingRead("c2"),

@@ -27,27 +27,26 @@ const (
 func Subagent(e Env, role string) (*agent.Agent, error) { return inspectedSubagent(e, role, "", "") }
 
 func inspectedSubagent(e Env, role, callID, parentState string) (*agent.Agent, error) {
-	cfg := e.agentConfig(prompts.WithRole(role)+"\n\n"+prompts.SubagentScope+"\n\n"+prompts.PlatformLine(tools.ShellName()), "", "")
+	platform := prompts.PlatformLine(tools.ShellName())
+	system := prompts.WithRole(role) + "\n\n" + prompts.SubagentScope + "\n\n" + platform
+	cfg := e.executionConfig(system, "")
 	cfg.StateFile = conversation.ChildStatePath(parentState, callID)
 	extra := append([]agent.Tool{tools.ReadHistory{Path: cfg.StateFile}}, e.MCPTools...)
-	if err := e.configureTools(&cfg, false, false, extra...); err != nil {
+	err := e.configureTools(&cfg, false, false, extra...)
+	if err != nil {
 		return nil, err
 	}
+
 	steps := e.DelegateSteps
 	if steps <= 0 {
 		steps = subagentSteps
 	}
 	cfg.MaxSteps = steps
 	cfg.System += fmt.Sprintf("\n\nYour budget is %d model steps, including your final answer. Keep the subtask focused and report unfinished work honestly.", steps)
-	cfg.Inbox, cfg.OnInput = nil, nil
-	cfg.OnStep, cfg.OnResult, cfg.OnUsage, cfg.OnNudge = nil, nil, nil, nil
-	cfg.OnToolOutput = nil
-	cfg.OnToolFinished = nil
-	cfg.OnProgress = nil
-	cfg.OnPrompt = nil
-	cfg.OnContext, cfg.OnLocal, cfg.Notifications = nil, nil, nil
+
 	if callID != "" && e.ChildEvents != nil {
 		observeSubagent(&cfg, e, callID)
 	}
+
 	return agent.New(cfg), nil
 }
