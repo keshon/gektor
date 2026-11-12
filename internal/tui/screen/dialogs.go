@@ -18,6 +18,11 @@ func (m *Controls) PresentForm(f Form) *settings.Model {
 		draft.Choices[key] = slices.Clone(options)
 	}
 
+	draft.ShowWhen = maps.Clone(f.ShowWhen)
+	for key, conditions := range draft.ShowWhen {
+		draft.ShowWhen[key] = slices.Clone(conditions)
+	}
+
 	draft.FileFields = maps.Clone(f.FileFields)
 	for key, picker := range draft.FileFields {
 		picker.Extensions = slices.Clone(picker.Extensions)

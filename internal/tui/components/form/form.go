@@ -6,6 +6,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
+// Condition shows a field only while another field has the specified value.
+type Condition struct{ Key, Value string }
+
 type Field struct {
 	Key, Label, Value string
 	Multiline         bool

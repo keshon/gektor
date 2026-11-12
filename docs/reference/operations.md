@@ -132,11 +132,18 @@ variable through your shell or process supervisor before starting GEKTOR.
 
 ### Saved passwords and key passphrases
 
-On Windows, choose **saved password** in the SSH editor and leave **Saved password
-ID** blank. Apply opens a separate masked prompt. Ctrl+S explicitly saves with
-Windows DPAPI and restarts; Esc cancels without writing the credential or profile.
-For encrypted keys, choose **Key passphrase source > saved** instead. Enter no
-secret values in the ordinary reference fields.
+Choose **Authentication > Password** in the SSH editor. Saving a new connection
+opens a separate masked prompt. On Windows, Ctrl+S saves with account-bound DPAPI
+encryption and restarts; Esc cancels without writing the credential or profile.
+Choose **Private key** for a key-file picker and optional passphrase. Existing
+secrets have a **Saved — keep** state and an explicit **Change** action.
+
+**Advanced settings** contains environment-variable sources and **Another
+connection** for reusing a saved credential by connection name. The normal form
+shows neither environment-variable names nor saved credential IDs. The trusted
+hosts file and port are also under Advanced, defaulting to the user's
+`~/.ssh/known_hosts` and port 22. Editing or hiding Advanced preserves existing
+environment-based credentials unless the authentication choice is changed.
 
 The resulting profile uses `password_ref` instead of `password_env`, or
 `passphrase_ref` instead of `passphrase_env`. A profile must select exactly one
@@ -147,8 +154,8 @@ Saved password IDs cannot be used as key-passphrase IDs, or vice versa.
 
 Encrypted values live under `~/.gektor/credentials/ssh/`; `ssh.json` contains only
 opaque IDs. Multiple connections can use distinct IDs or share one of the same
-purpose. To replace a saved value, clear its ID in the editor and enter a new
-value at the masked prompt. Old values are retained because other connections or
+purpose. To replace a saved value, choose **Change password** or **Change passphrase**
+in the editor and enter the replacement at the masked prompt. Old values are retained because other connections or
 worker snapshots may still use them. No automatic credential deletion or
 session-only secret storage is provided.
 

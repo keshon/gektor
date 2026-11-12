@@ -35,6 +35,7 @@ type Model struct {
 	Error, Hint, ApplyLabel string
 	Destructive             bool
 	Choices                 map[string][]string
+	ShowWhen                map[string][]form.Condition
 	FileFields              map[string]FilePicker
 	EditSession             *EditSession
 	Picker                  *Picker
@@ -108,6 +109,21 @@ func (f *Model) SyncInputFocus(active bool) {
 }
 
 func (f *Model) FieldVisible(index int) bool {
+	if index >= 0 && index < len(f.Fields) {
+		for _, condition := range f.ShowWhen[f.Fields[index].Key] {
+			matches := false
+			for _, field := range f.Fields {
+				if field.Key == condition.Key && field.Value == condition.Value {
+					matches = true
+					break
+				}
+			}
+			if !matches {
+				return false
+			}
+		}
+	}
+
 	if index >= 0 && index < len(f.Fields) && f.EditSession != nil {
 		if d, err := providers.Lookup(f.providerKind()); err == nil {
 			switch f.Fields[index].Key {

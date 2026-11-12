@@ -14,6 +14,7 @@ type Form struct {
 	Title, Hint, ApplyLabel    string
 	Fields                     []form.Field
 	Choices                    map[string][]string
+	ShowWhen                   map[string][]form.Condition
 	FileFields                 map[string]settings.FilePicker
 	Destructive, StartOnCancel bool
 }

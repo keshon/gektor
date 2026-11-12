@@ -502,3 +502,11 @@ catalog restore checks and startup context budgets remain in force.
 Run the project-configured `build.cmd check` after implementation changes.
 Documentation-only work needs link/flag/source verification rather than runtime
 tests. Passing offline tests does not establish a remote server's compatibility.
+
+## SSH UX correction
+
+The default editor presents Password or Private key. New secrets are entered in
+the isolated masked prompt on Save; existing ones have keep/change states.
+Port, trusted hosts and environment sources live under Advanced. Shared saved
+credentials are selected by connection name rather than raw ID. Hidden fields
+retain their draft values; changing presentation does not change authentication.

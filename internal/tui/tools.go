@@ -7,7 +7,6 @@ import (
 
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/capabilities/ssh"
-	"github.com/keshon/gektor/internal/credentials"
 	toolcatalog "github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/tools/extension"
 	"github.com/keshon/gektor/internal/tui/components/form"
@@ -258,7 +257,7 @@ func (m *Model) applySSHPreference(name string, values map[string]string) error 
 		if settings.NewSecret == ssh.PassphraseSecret {
 			title = "SSH key passphrase: " + settings.Name
 		}
-		m.chrome.PresentSecret(title, credentials.Protection()+". Ctrl+S saves encrypted; Esc cancels. ssh.json stores only a reference.")
+		m.chrome.PresentSecret(title, "Encrypted for your Windows account. Save confirms this connection and restarts GEKTOR. Cancel leaves it unchanged.")
 		m.toolsDialog, m.toolsPage = m.chrome.Dialog, toolSSHSecret
 		return nil
 	}

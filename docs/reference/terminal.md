@@ -50,37 +50,38 @@ establish codec or remote-service compatibility. Native YouTube metadata,
 transcripts and single-stream downloads do not need these local applications.
 These preferences are shared by Agent and Workflow operations.
 
-Open **SSH** for named connections. **Add** and **Edit** configure host, port,
-user, an absolute known_hosts file, and either a private-key file with an optional
-passphrase variable or a password variable. Enter environment variable names,
-never their secret values. Multiple connections may have independent or shared
-references. Cancel leaves `ssh.json` untouched; Apply saves and restarts at the
-same idle boundary. Delete requires typing the connection name.
+Open **SSH** for named connections. **Add** and **Edit** start with a connection
+name, host, user and **Authentication: Password / Private key**. Key authentication
+shows a file chooser and an optional key passphrase. Saving a new password or
+passphrase opens a separate masked prompt, then saves and restarts GEKTOR.
 
-**Test connection** explicitly verifies the saved profile's host key and
-authentication, then closes. Its dated result does not establish SFTP or hard-link
-support. Closing the view cancels pending work. Unknown host keys are rejected.
-An independent workflow worker keeps its profile snapshot until restarted.
-Environment variables must be inherited by each GEKTOR process; see
-[credential setup](operations.md#supplying-credentials-in-the-cli-and-tui).
-On Windows, **Authentication > saved password** with a blank saved ID opens a
-separate masked prompt after Apply. For a private key, choose **Key passphrase
-source > saved** and leave its ID blank. The prompt states that storage uses
-Windows DPAPI for the current Windows account; Ctrl+S saves encrypted and
-restarts, Esc discards both the secret and the pending profile edit. Values never
-enter ordinary forms, conversation history or application preferences. Terminal
-paste is accepted; control characters and oversized input are rejected.
+Existing credentials show **Saved — keep password/passphrase** with a **Change**
+action. Keep leaves the credential untouched. **No passphrase** removes the
+passphrase from that connection. Cancel leaves both the connection and its
+credentials unchanged. There are no credential IDs to manage in the TUI.
 
-An existing saved ID reuses that credential. Clearing it while retaining the
-saved source requests a new one. Each connection can use independent credentials,
-and several connections can share an ID of the same purpose. Password and key
-passphrase IDs are distinct. See IDs in `ssh list`; they contain no secret value.
+**Advanced settings** contains the port (22 by default), trusted hosts file
+(`~/.ssh/known_hosts` by default), environment-based authentication and reuse of a
+saved credential from another connection. Reuse selects the connection by name;
+password and passphrase choices are kept separate. Existing environment-based
+connections open Advanced automatically. Hiding it preserves their authentication.
+
+**Test connection** verifies the saved profile's host key and authentication,
+then closes. Unknown host keys are rejected. Its dated result does not establish
+SFTP or hard-link support. Closing the view cancels pending work. Delete requires
+typing the connection name. An independent workflow worker keeps its profile
+snapshot until restarted.
+
+On Windows, the masked prompt encrypts values for the current Windows account.
+Ctrl+S saves; Esc discards the pending edit. Values never enter ordinary forms,
+conversation history or application preferences. Terminal paste is accepted;
+control characters and oversized input are rejected. Other platforms use key
+files or environment variables under Advanced; there is no plaintext fallback.
+Workers need the same account and credential directory for saved secrets, or must
+inherit the selected environment variable. See [credential setup](operations.md#supplying-credentials-in-the-cli-and-tui).
+
 Old credentials are retained when profiles change or are deleted, since other
-connections and already-running workers may still reference them.
-
-Saved SSH secrets are unavailable on platforms without encrypted storage; use
-key files and environment references there. Windows workers must run under the
-same Windows account and use the same credential directory. Session-only secret
+connections and worker snapshots may still reference them. Session-only secret
 storage is not implemented.
 The existing MCP manager remains available through `/mcp`.
 

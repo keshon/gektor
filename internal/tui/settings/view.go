@@ -148,7 +148,7 @@ func (f *Model) PlainRows(props Props) ([]string, []form.Hit, int, int) {
 	if f.Index < len(f.Fields) && len(f.Options(f.Fields[f.Index].Key)) > 0 {
 		choice = ChoiceLabel(f.Fields[f.Index].Key, f.Editor.Value())
 	}
-	rows, hits := f.Model.Rows(form.Props{Title: props.Title, Hint: f.Hint, Error: f.Error, PrimaryLabel: f.ApplyLabel, Width: w, Height: h, Destructive: f.Destructive, Choice: choice, Styles: props.formStyles(), Options: f.inlineOptions})
+	rows, hits := f.Model.Rows(form.Props{Title: props.Title, Hint: f.Hint, Error: f.Error, PrimaryLabel: f.ApplyLabel, Width: w, Height: h, Destructive: f.Destructive, Choice: choice, Styles: props.formStyles(), Options: f.inlineOptions, Visible: f.FieldVisible, Display: f.display})
 	return rows, hits, w, h
 }
 

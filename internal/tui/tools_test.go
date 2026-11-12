@@ -281,7 +281,7 @@ func TestSSHSettingsCancelApplyAndDeleteAcrossScreens(t *testing.T) {
 		}
 		m.chrome.TableAction("add")
 		m.settleControls()
-		values := map[string]string{"name": "dev", "host": "example.com", "port": "22", "user": "tester", "known_hosts": filepath.Join(t.TempDir(), "known_hosts"), "auth": "password environment", "password_env": "SSH_PASSWORD"}
+		values := map[string]string{"name": "dev", "host": "example.com", "port": "22", "user": "tester", "known_hosts": filepath.Join(t.TempDir(), "known_hosts"), "auth": "Password", "advanced": "Yes", "password_source": "Environment variable", "password_env": "SSH_PASSWORD"}
 		for i := range m.chrome.Dialog.Form.Fields {
 			field := &m.chrome.Dialog.Form.Fields[i]
 			field.Value = values[field.Key]
@@ -381,7 +381,7 @@ func TestSSHMaskedEntrySavesOnlyReferencesAcrossBothScreens(t *testing.T) {
 		m.tools.SSHProfiles.Path = filepath.Join(dir, "ssh.json")
 		m.tools.SSHProfiles.Credentials = credentials.Store{Directory: filepath.Join(dir, "secrets")}
 		m.runAction(mode)
-		values := map[string]string{"name": "saved", "host": "example.com", "user": "tester", "port": "22", "known_hosts": filepath.Join(dir, "known_hosts"), "auth": "saved password"}
+		values := map[string]string{"name": "saved", "host": "example.com", "user": "tester", "port": "22", "known_hosts": filepath.Join(dir, "known_hosts"), "auth": "Password", "password": "Enter password when saving"}
 		err := m.applySSHPreference("", values)
 		if err != nil || m.chrome.Dialog.Secret == nil || m.modeChange != nil {
 			t.Fatal("masked prompt was not opened before saving", err)
@@ -442,7 +442,7 @@ func TestSSHMaskedEntryFailureAndReplacementDiscardValues(t *testing.T) {
 	dir := t.TempDir()
 	m.tools.SSHProfiles.Path = filepath.Join(dir, "ssh.json")
 	m.tools.SSHProfiles.Credentials = credentials.Store{Directory: filepath.Join(dir, "secrets")}
-	values := map[string]string{"name": "saved", "host": "example.com", "user": "tester", "port": "22", "known_hosts": filepath.Join(dir, "known_hosts"), "auth": "saved password"}
+	values := map[string]string{"name": "saved", "host": "example.com", "user": "tester", "port": "22", "known_hosts": filepath.Join(dir, "known_hosts"), "auth": "Password", "password": "Enter password when saving"}
 	err := m.applySSHPreference("", values)
 	if err != nil {
 		t.Fatal(err)
@@ -473,7 +473,7 @@ func TestSSHSecretPromptFitsThemesAndSmallTerminals(t *testing.T) {
 			dir := t.TempDir()
 			m.tools.SSHProfiles.Path = filepath.Join(dir, "ssh.json")
 			m.tools.SSHProfiles.Credentials = credentials.Store{Directory: filepath.Join(dir, "secrets")}
-			values := map[string]string{"name": "saved", "host": "example.com", "user": "tester", "port": "22", "known_hosts": filepath.Join(dir, "known_hosts"), "auth": "saved password"}
+			values := map[string]string{"name": "saved", "host": "example.com", "user": "tester", "port": "22", "known_hosts": filepath.Join(dir, "known_hosts"), "auth": "Password", "password": "Enter password when saving"}
 			err := m.applySSHPreference("", values)
 			if err != nil {
 				t.Fatal(err)
@@ -487,6 +487,73 @@ func TestSSHSecretPromptFitsThemesAndSmallTerminals(t *testing.T) {
 			for _, line := range strings.Split(rendered, "\n") {
 				if ansi.StringWidth(line) > size[0] {
 					t.Fatal("secret prompt overflows", line)
+				}
+			}
+			t.Logf("%s %v\n%s", theme, size, rendered)
+		}
+	}
+}
+
+func TestSSHAuthenticationPickerUpdatesFieldsInBothScreens(t *testing.T) {
+	if !credentials.Encrypted() {
+		t.Skip("default password entry requires encrypted storage")
+	}
+	for _, mode := range []string{"screen:agent", "screen:workflows"} {
+		m := toolSettingsModel(t)
+		m.tools.SSHProfiles.Path = filepath.Join(t.TempDir(), "ssh.json")
+		m.runAction(mode)
+		m.runAction("tools")
+		chooseTool(t, m, "native_ssh", "details")
+		m.chrome.TableAction("add")
+		m.settleControls()
+		for i, field := range m.chrome.Dialog.Form.Fields {
+			if field.Key == "auth" {
+				m.focusForm(i)
+				break
+			}
+		}
+		if mode == "screen:workflows" {
+			m.syncPresentation()
+			clickVisible(t, m, "Private key")
+		} else {
+			m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+		}
+		for i, field := range m.chrome.Dialog.Form.Fields {
+			if field.Key == "private_key" && !m.chrome.Dialog.Form.FieldVisible(i) {
+				t.Fatal("key picker still hidden")
+			}
+			if field.Key == "password" && m.chrome.Dialog.Form.FieldVisible(i) {
+				t.Fatal("password row remains after selecting key")
+			}
+		}
+	}
+}
+
+func TestSSHBasicFormRenderDoesNotExposeCredentialInternals(t *testing.T) {
+	if !credentials.Encrypted() {
+		t.Skip("default password entry requires encrypted storage")
+	}
+	t.Cleanup(func() { screen.SetTheme("dark") })
+	for _, theme := range []string{"dark", "light"} {
+		for _, size := range [][2]int{{120, 30}, {50, 18}} {
+			m := toolSettingsModel(t)
+			m.applyTheme(theme)
+			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+			m.tools.SSHProfiles.Path = filepath.Join(t.TempDir(), "ssh.json")
+			m.runAction("tools")
+			chooseTool(t, m, "native_ssh", "details")
+			m.chrome.TableAction("add")
+			m.settleControls()
+			m.syncPresentation()
+			rendered := ansi.Strip(m.View().Content)
+			for _, internal := range []string{"variable", "reference", "password ID", "passphrase ID", "Private key file"} {
+				if strings.Contains(rendered, internal) {
+					t.Fatal("basic form exposes irrelevant detail", internal, rendered)
+				}
+			}
+			for _, line := range strings.Split(rendered, "\n") {
+				if ansi.StringWidth(line) > size[0] {
+					t.Fatal("SSH form overflows", line)
 				}
 			}
 			t.Logf("%s %v\n%s", theme, size, rendered)
