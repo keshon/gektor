@@ -233,8 +233,8 @@ func (m *Model) editLesson(r retrospective.Result) {
 	m.openForm(screen.Form{Title: "Edit repository lesson", Hint: "Save for this repository. Historical guidance; check current files before use.", ApplyLabel: "Save lesson", Fields: []form.Field{
 		{Key: "when", Label: "When to use", Value: memory.When},
 		{Key: "procedure", Label: "Procedure", Value: memory.Lesson, Multiline: true},
-	}}, editRepositoryLesson{
-		r: r,
+	}}, func(values map[string]string) error {
+		return m.saveLesson(r, values["when"], values["procedure"])
 	})
 }
 
@@ -255,12 +255,4 @@ func (m *Model) saveLesson(r retrospective.Result, when, procedure string) error
 		m.appendBlock(markerBlock("This lesson is already saved; no duplicate created."))
 	}
 	return nil
-}
-
-type editRepositoryLesson struct {
-	r retrospective.Result
-}
-
-func (edit editRepositoryLesson) apply(m *Model, values map[string]string) error {
-	return m.saveLesson(edit.r, values["when"], values["procedure"])
 }

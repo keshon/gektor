@@ -40,6 +40,7 @@ type inputQueueEdit struct {
 	session   *harness.Session
 	stateFile string
 	dialog    *screen.DialogState
+	form      pendingForm
 }
 
 func (m *Model) queueSummary() string {
@@ -74,11 +75,11 @@ func (m *Model) openInputQueue() {
 	if edit := m.suspendedInputEdit; edit != nil {
 		m.suspendedInputEdit = nil
 		if edit.session == m.sess && edit.stateFile == m.stateFile {
+			m.form = edit.form
 			m.chrome.Resume(edit.dialog)
 			m.fitBottom()
 			return
 		}
-		delete(m.formEdits, edit.dialog)
 		delete(m.returnDialogs, edit.dialog)
 	}
 	q := &inputQueue{session: m.sess, stateFile: m.stateFile, nextRunVersion: m.queuedVersion, view: m.chrome.NewTable(), entries: map[string]queueEntry{}}
@@ -136,16 +137,6 @@ func (m *Model) changeQueuedInput(q *inputQueue, id string, value *string) error
 }
 func (m *Model) returnToInputQueue(q *inputQueue) {
 	m.rememberReturn(dialogReturn{queue: q})
-}
-
-type editQueuedMessage struct {
-	id string
-	q  *inputQueue
-}
-
-func (edit editQueuedMessage) apply(m *Model, v map[string]string) error {
-	text := v["message"]
-	return m.changeQueuedInput(edit.q, edit.id, &text)
 }
 
 func (m *Model) refreshInputQueue(q *inputQueue) {
@@ -267,9 +258,9 @@ func (m *Model) inputQueueAction(q *inputQueue, action, id string) tea.Cmd {
 			Hint:       "Save keeps its place and images.",
 			ApplyLabel: "Save",
 			Fields:     fields,
-		}, editQueuedMessage{
-			id: id,
-			q:  q,
+		}, func(v map[string]string) error {
+			text := v["message"]
+			return m.changeQueuedInput(q, id, &text)
 		})
 		m.returnToInputQueue(q)
 

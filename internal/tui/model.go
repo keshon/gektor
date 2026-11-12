@@ -24,7 +24,7 @@ const (
 // Model owns application navigation, shared controls, and the lifetime of its
 // Agent and Workflow screens. It never reaches into either screen's private state.
 type Model struct {
-	formEdits map[*screen.DialogState]formEdit
+	form pendingForm
 
 	profile           *app.PreparedProfile
 	application       *settings.Application
@@ -148,7 +148,16 @@ func (m *Model) requestQuit() (tea.Model, tea.Cmd) {
 				Hint:       "Return to Workflows and save, or discard the draft.",
 				ApplyLabel: "Quit",
 				Fields:     []form.Field{{Key: "decision", Label: "Type discard to quit"}},
-			}, requestQuitForm)
+			}, func(values map[string]string) error {
+				if values["decision"] != "discard" {
+					return fmt.Errorf("type discard, or Esc to keep editing")
+				}
+				m.workflows.Close()
+				m.workflows = nil
+				m.active = agentScreen
+				m.pendingQuit = true
+				return nil
+			})
 			return m, nil
 		}
 	}
@@ -168,15 +177,4 @@ func (m *Model) takeCommands() tea.Cmd {
 		commands = append(commands, m.workflows.TakeCommands()...)
 	}
 	return tea.Batch(commands...)
-}
-
-func (m *Model) applyRequestQuit(values map[string]string) error {
-	if values["decision"] != "discard" {
-		return fmt.Errorf("type discard, or Esc to keep editing")
-	}
-	m.workflows.Close()
-	m.workflows = nil
-	m.active = agentScreen
-	m.pendingQuit = true
-	return nil
 }

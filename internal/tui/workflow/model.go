@@ -22,7 +22,7 @@ type Model struct {
 	proposalBefore                               string
 	proposalDraft                                workflow.Definition
 
-	formEdits map[*screen.DialogState]formEdit
+	form pendingForm
 
 	dialogs                  *screen.Controls
 	surface                  screen.Surface

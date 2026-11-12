@@ -96,13 +96,13 @@ func (m *Model) dispatchControl(event screen.Event) []tea.Cmd {
 		}
 
 	case screen.Apply:
-		if m.formEdits[event.Dialog] != nil && m.chrome.Dialog == event.Dialog {
+		if m.form.dialog == event.Dialog && m.chrome.Dialog == event.Dialog {
 			err := m.applySubmission(event.Dialog, event.Values)
 			m.chrome.CompleteForm(event.Dialog, err)
 		}
 
 	case screen.SaveCopy:
-		if m.formEdits[event.Dialog] != nil && m.chrome.Dialog == event.Dialog {
+		if m.form.dialog == event.Dialog && m.chrome.Dialog == event.Dialog {
 			m.saveSettingsCopy()
 		}
 	}
@@ -111,7 +111,28 @@ func (m *Model) dispatchControl(event screen.Event) []tea.Cmd {
 		commands = append(commands, m.workflows.HandleControl(event))
 	}
 	if event.Kind == screen.Closed || event.Kind == screen.Replaced || event.Kind == screen.Suspended {
-		delete(m.formEdits, event.Dialog)
+		if m.form.dialog == event.Dialog {
+			m.form = pendingForm{}
+		}
 	}
 	return commands
+}
+
+// pendingForm belongs to the feature, while shared controls own the editable draft.
+type pendingForm struct {
+	dialog *screen.DialogState
+	apply  func(map[string]string) error
+}
+
+func (m *Model) openForm(form screen.Form, apply func(map[string]string) error) *settings.Model {
+	draft := m.chrome.PresentForm(form)
+	m.form = pendingForm{dialog: m.chrome.Dialog, apply: apply}
+	return draft
+}
+
+func (m *Model) applySubmission(dialog *screen.DialogState, values map[string]string) error {
+	if m.form.dialog != dialog || m.chrome.Dialog != dialog {
+		return nil
+	}
+	return m.form.apply(values)
 }

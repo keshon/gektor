@@ -27,8 +27,13 @@ func (m *Model) recipeName() {
 		Hint:       "This name identifies the recipe in saved runs.",
 		ApplyLabel: "Apply",
 		Fields:     []formField{{Key: "name", Label: "Name", Value: m.editor.Definition.Name}},
-	}, renameRecipe{
-		draft: draft,
+	}, func(v map[string]string) error {
+		if strings.TrimSpace(v["name"]) == "" || len(v["name"]) > 120 {
+			return fmt.Errorf("name must contain 1–120 bytes")
+		}
+		d := m.editor.Clone()
+		d.Name = v["name"]
+		return m.replaceRecipe(d, draft)
 	})
 }
 
@@ -83,10 +88,26 @@ func (m *Model) parameters(kind string) {
 			{Key: "action", Label: "Action", Value: "Edit"},
 		},
 		Choices: map[string][]string{"entry": options, "action": {"Edit", "Remove"}},
-	}, chooseRecipeParameter{
-		draft:   draft,
-		kind:    kind,
-		mapping: mapping,
+	}, func(v map[string]string) error {
+		if m.editor.Source() != draft {
+			return fmt.Errorf("draft changed; reopen recipe settings")
+		}
+
+		name, exists := mapping[v["entry"]]
+		if v["entry"] != "Add new" && !exists {
+			return fmt.Errorf("choose an entry")
+		}
+		if v["action"] != "Edit" && v["action"] != "Remove" {
+			return fmt.Errorf("choose Edit or Remove")
+		}
+		if !exists && v["action"] == "Remove" {
+			return fmt.Errorf("choose an existing entry to remove")
+		}
+
+		change := workflowParameterEdit{Kind: kind, Name: name, Draft: draft, Remove: v["action"] == "Remove"}
+		b, _ := json.Marshal(change)
+		m.queueAction("parameter-edit", string(b))
+		return nil
 	})
 
 }
@@ -117,9 +138,13 @@ func (m *Model) parameterEdit(edit workflowParameterEdit) {
 			Fields:        []formField{{Key: "current", Label: "Current " + edit.Kind + " value", Value: cleanText(string(raw)), ReadOnly: true, Multiline: true}},
 			Destructive:   true,
 			StartOnCancel: true,
-		}, removeRecipeParameter{
-			d:      d,
-			change: edit,
+		}, func(_ map[string]string) error {
+			if edit.Kind == "inputs" {
+				delete(d.Inputs, edit.Name)
+			} else {
+				delete(d.Outputs, edit.Name)
+			}
+			return m.replaceRecipe(d, edit.Draft)
 		})
 		return
 	}
@@ -152,127 +177,60 @@ func (m *Model) parameterEdit(edit workflowParameterEdit) {
 		ApplyLabel: "Apply",
 		Fields:     fields,
 		Choices:    choices,
-	}, editRecipeParameter{
-		change:   edit,
-		original: original,
-		schema:   schema,
-	})
-}
-
-type renameRecipe struct {
-	draft string
-}
-
-func (edit renameRecipe) apply(m *Model, v map[string]string) error {
-	if strings.TrimSpace(v["name"]) == "" || len(v["name"]) > 120 {
-		return fmt.Errorf("name must contain 1–120 bytes")
-	}
-	d := m.editor.Clone()
-	d.Name = v["name"]
-	return m.replaceRecipe(d, edit.draft)
-}
-
-type chooseRecipeParameter struct {
-	draft   string
-	kind    string
-	mapping map[string]string
-}
-
-func (edit chooseRecipeParameter) apply(m *Model, v map[string]string) error {
-	if m.editor.Source() != edit.draft {
-		return fmt.Errorf("draft changed; reopen recipe settings")
-	}
-
-	name, exists := edit.mapping[v["entry"]]
-	if v["entry"] != "Add new" && !exists {
-		return fmt.Errorf("choose an entry")
-	}
-	if v["action"] != "Edit" && v["action"] != "Remove" {
-		return fmt.Errorf("choose Edit or Remove")
-	}
-	if !exists && v["action"] == "Remove" {
-		return fmt.Errorf("choose an existing entry to remove")
-	}
-
-	change := workflowParameterEdit{Kind: edit.kind, Name: name, Draft: edit.draft, Remove: v["action"] == "Remove"}
-	b, _ := json.Marshal(change)
-	m.queueAction("parameter-edit", string(b))
-	return nil
-}
-
-type removeRecipeParameter struct {
-	d      workflow.Definition
-	change workflowParameterEdit
-}
-
-func (edit removeRecipeParameter) apply(m *Model, _ map[string]string) error {
-	if edit.change.Kind == "inputs" {
-		delete(edit.d.Inputs, edit.change.Name)
-	} else {
-		delete(edit.d.Outputs, edit.change.Name)
-	}
-	return m.replaceRecipe(edit.d, edit.change.Draft)
-}
-
-type editRecipeParameter struct {
-	change   workflowParameterEdit
-	original json.RawMessage
-	schema   schemaform.Schema
-}
-
-func (edit editRecipeParameter) apply(m *Model, v map[string]string) error {
-	d := m.editor.Clone()
-	name := v["name"]
-	if edit.change.Name != "" {
-		name = edit.change.Name
-	}
-	if strings.TrimSpace(name) == "" || len(name) > 64 {
-		return fmt.Errorf("name must contain 1–64 bytes")
-	}
-	if edit.change.Kind == "inputs" {
-		if _, exists := d.Inputs[name]; exists && edit.change.Name == "" {
-			return fmt.Errorf("input name already exists")
+	}, func(v map[string]string) error {
+		d := m.editor.Clone()
+		name := v["name"]
+		if edit.Name != "" {
+			name = edit.Name
 		}
-		raw, err := edit.schema.Values(edit.original, v)
-		if err != nil {
-			return err
+		if strings.TrimSpace(name) == "" || len(name) > 64 {
+			return fmt.Errorf("name must contain 1–64 bytes")
 		}
-		validationErr := workflow.ValidateJSON(raw, json.RawMessage(workflowInputSchema))
-		if validationErr != nil {
-			return validationErr
-		}
-		var input workflow.Input
-		decodeErr := json.Unmarshal(raw, &input)
-		if decodeErr != nil {
-			return decodeErr
-		}
-		if input.Default != nil {
-			defaultErr := recipe.CheckInput(input.Default, input.Type)
-			if defaultErr != nil {
-				return fmt.Errorf("default: %w", defaultErr)
+		if edit.Kind == "inputs" {
+			if _, exists := d.Inputs[name]; exists && edit.Name == "" {
+				return fmt.Errorf("input name already exists")
 			}
+			raw, err := schema.Values(original, v)
+			if err != nil {
+				return err
+			}
+			validationErr := workflow.ValidateJSON(raw, json.RawMessage(workflowInputSchema))
+			if validationErr != nil {
+				return validationErr
+			}
+			var input workflow.Input
+			decodeErr := json.Unmarshal(raw, &input)
+			if decodeErr != nil {
+				return decodeErr
+			}
+			if input.Default != nil {
+				defaultErr := recipe.CheckInput(input.Default, input.Type)
+				if defaultErr != nil {
+					return fmt.Errorf("default: %w", defaultErr)
+				}
+			}
+			if d.Inputs == nil {
+				d.Inputs = map[string]workflow.Input{}
+			}
+			if edit.Name == "" && len(d.Inputs) >= 32 {
+				return fmt.Errorf("recipe permits at most 32 inputs")
+			}
+			d.Inputs[name] = input
+		} else {
+			if _, exists := d.Outputs[name]; exists && edit.Name == "" {
+				return fmt.Errorf("output name already exists")
+			}
+			if !json.Valid([]byte(v["value"])) {
+				return fmt.Errorf("output value must be valid JSON")
+			}
+			if d.Outputs == nil {
+				d.Outputs = map[string]json.RawMessage{}
+			}
+			if edit.Name == "" && len(d.Outputs) >= 32 {
+				return fmt.Errorf("recipe permits at most 32 outputs")
+			}
+			d.Outputs[name] = json.RawMessage(v["value"])
 		}
-		if d.Inputs == nil {
-			d.Inputs = map[string]workflow.Input{}
-		}
-		if edit.change.Name == "" && len(d.Inputs) >= 32 {
-			return fmt.Errorf("recipe permits at most 32 inputs")
-		}
-		d.Inputs[name] = input
-	} else {
-		if _, exists := d.Outputs[name]; exists && edit.change.Name == "" {
-			return fmt.Errorf("output name already exists")
-		}
-		if !json.Valid([]byte(v["value"])) {
-			return fmt.Errorf("output value must be valid JSON")
-		}
-		if d.Outputs == nil {
-			d.Outputs = map[string]json.RawMessage{}
-		}
-		if edit.change.Name == "" && len(d.Outputs) >= 32 {
-			return fmt.Errorf("recipe permits at most 32 outputs")
-		}
-		d.Outputs[name] = json.RawMessage(v["value"])
-	}
-	return m.replaceRecipe(d, edit.change.Draft)
+		return m.replaceRecipe(d, edit.Draft)
+	})
 }

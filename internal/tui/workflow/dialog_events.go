@@ -5,6 +5,7 @@ import (
 
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/internal/tui/settings"
 	"github.com/keshon/gektor/internal/workflow"
 )
 
@@ -13,7 +14,7 @@ func (m *Model) HandleControl(event screen.Event) tea.Cmd {
 	dialog := event.Dialog
 	switch event.Kind {
 	case screen.Apply:
-		if m.formEdits[dialog] == nil || m.dialogs.Dialog != dialog {
+		if m.form.dialog != dialog || m.dialogs.Dialog != dialog {
 			return nil
 		}
 		err := m.applySubmission(dialog, event.Values)
@@ -39,7 +40,9 @@ func (m *Model) HandleControl(event screen.Event) tea.Cmd {
 		}
 
 	case screen.Closed, screen.Replaced, screen.Suspended:
-		delete(m.formEdits, dialog)
+		if m.form.dialog == dialog {
+			m.form = pendingForm{}
+		}
 		m.denyPermission(dialog)
 		if m.runsDialog == dialog {
 			m.runsDialog = nil
@@ -72,4 +75,23 @@ func (m *Model) finishPermission() {
 		m.dialogs.Close()
 	}
 	m.denyPermission(m.permissionDialog)
+}
+
+// pendingForm belongs to the feature, while shared controls own the editable draft.
+type pendingForm struct {
+	dialog *screen.DialogState
+	apply  func(map[string]string) error
+}
+
+func (m *Model) openForm(form screen.Form, apply func(map[string]string) error) *settings.Model {
+	draft := m.dialogs.PresentForm(form)
+	m.form = pendingForm{dialog: m.dialogs.Dialog, apply: apply}
+	return draft
+}
+
+func (m *Model) applySubmission(dialog *screen.DialogState, values map[string]string) error {
+	if m.form.dialog != dialog || m.dialogs.Dialog != dialog {
+		return nil
+	}
+	return m.form.apply(values)
 }

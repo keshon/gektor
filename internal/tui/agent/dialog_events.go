@@ -6,6 +6,7 @@ import (
 	"github.com/keshon/gektor/internal/mcpmanager"
 	"github.com/keshon/gektor/internal/tui/components/table"
 	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/internal/tui/settings"
 )
 
 type dialogReturn struct {
@@ -28,7 +29,7 @@ func (m *Model) HandleControl(event screen.Event) tea.Cmd {
 	dialog := event.Dialog
 	switch event.Kind {
 	case screen.Apply:
-		if m.formEdits[dialog] == nil || m.chrome.Dialog != dialog {
+		if m.form.dialog != dialog || m.chrome.Dialog != dialog {
 			return nil
 		}
 		err := m.applySubmission(dialog, event.Values)
@@ -82,7 +83,9 @@ func (m *Model) HandleControl(event screen.Event) tea.Cmd {
 		if event.Kind == screen.Suspended && (m.chrome.Dialog == dialog || m.suspendedInputEdit != nil && m.suspendedInputEdit.dialog == dialog) {
 			return nil
 		}
-		delete(m.formEdits, dialog)
+		if m.form.dialog == dialog {
+			m.form = pendingForm{}
+		}
 		delete(m.queueDialogs, dialog)
 		delete(m.returnDialogs, dialog)
 		delete(m.lessonDialogs, dialog)
@@ -141,9 +144,31 @@ func (m *Model) PrepareControls() {
 
 func (m *Model) suspendDialog() {
 	dialog := m.chrome.Dialog
-	edit, ok := m.formEdits[dialog].(editQueuedMessage)
-	if ok {
-		m.suspendedInputEdit = &inputQueueEdit{session: edit.q.session, stateFile: edit.q.stateFile, dialog: dialog}
+	queue := m.returnDialogs[dialog].queue
+	if queue != nil && dialog.Form != nil && m.form.dialog == dialog {
+		m.suspendedInputEdit = &inputQueueEdit{
+			session: queue.session, stateFile: queue.stateFile, dialog: dialog, form: m.form,
+		}
+		m.form = pendingForm{}
 	}
 	m.chrome.Suspend()
+}
+
+// pendingForm belongs to the feature, while shared controls own the editable draft.
+type pendingForm struct {
+	dialog *screen.DialogState
+	apply  func(map[string]string) error
+}
+
+func (m *Model) openForm(form screen.Form, apply func(map[string]string) error) *settings.Model {
+	draft := m.chrome.PresentForm(form)
+	m.form = pendingForm{dialog: m.chrome.Dialog, apply: apply}
+	return draft
+}
+
+func (m *Model) applySubmission(dialog *screen.DialogState, values map[string]string) error {
+	if m.form.dialog != dialog || m.chrome.Dialog != dialog {
+		return nil
+	}
+	return m.form.apply(values)
 }

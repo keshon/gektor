@@ -28,7 +28,9 @@ func (m *Model) openWorkspace() {
 		Hint:       "Apply restarts GEKTOR in the selected workspace.",
 		ApplyLabel: "Apply",
 		Fields:     fields,
-	}, openWorkspaceForm)
+	}, func(_ map[string]string) error {
+		return m.requestProfileChange(m.profile.Profile.Clone())
+	})
 }
 
 // requestProfileChange replaces owned services without starting an Agent run.
@@ -110,8 +112,4 @@ func sameWorkspace(a, b string) bool {
 	}
 	right, e := filepath.Abs(b)
 	return e == nil && strings.EqualFold(left, right)
-}
-
-func (m *Model) applyOpenWorkspace(_ map[string]string) error {
-	return m.requestProfileChange(m.profile.Profile.Clone())
 }

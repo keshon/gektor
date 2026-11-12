@@ -91,9 +91,10 @@ func (m *Model) confirmStopProcess(id string, view *table.Model) {
 		Hint:       fmt.Sprintf("Stop this process and its children?\nPID: %d\nWorkspace: %s\n%s", p.PID, p.Directory, ansi.Strip(p.Command)),
 		ApplyLabel: "Stop",
 		Fields:     nil,
-	}, stopProcessConfirmation{
-		id:   id,
-		view: view,
+	}, func(_ map[string]string) error {
+		delete(m.returnDialogs, m.chrome.Dialog)
+		m.pendingCommands = append(m.pendingCommands, func() tea.Msg { return processStopMsg{id, view} })
+		return nil
 	})
 	m.rememberReturn(dialogReturn{processes: view})
 	m.chrome.Dialog.Form.Destructive = true
@@ -109,17 +110,6 @@ func (m *Model) stopProcess(msg processStopMsg) tea.Cmd {
 	return func() tea.Msg {
 		return processStoppedMsg{dialog: dialog, view: msg.view, id: msg.id, err: procs.Stop(msg.id)}
 	}
-}
-
-type stopProcessConfirmation struct {
-	id   string
-	view *table.Model
-}
-
-func (edit stopProcessConfirmation) apply(m *Model, _ map[string]string) error {
-	delete(m.returnDialogs, m.chrome.Dialog)
-	m.pendingCommands = append(m.pendingCommands, func() tea.Msg { return processStopMsg{edit.id, edit.view} })
-	return nil
 }
 
 func (m *Model) refreshProcesses(view *table.Model) {

@@ -135,9 +135,9 @@ func commandReference() [][2]string {
 	return out
 }
 
-func (m *Model) confirmRestart(edit formEdit) {
+func (m *Model) confirmRestart(apply func(map[string]string) error) {
 	if m.sess == nil {
-		err := edit.apply(m, nil)
+		err := apply(nil)
 		if err != nil {
 			m.appendBlock(errorBlock(err.Error()))
 		}
@@ -146,7 +146,7 @@ func (m *Model) confirmRestart(edit formEdit) {
 	m.openForm(screen.Form{
 		Title: "Restart agent", Hint: "GEKTOR will restart to apply this. The conversation and draft are preserved.",
 		ApplyLabel: "Restart", Destructive: true, StartOnCancel: true,
-	}, edit)
+	}, apply)
 }
 
 func (m *Model) command(text string) (tea.Model, tea.Cmd) {
@@ -339,7 +339,35 @@ func (m *Model) commandStepLimit(arg string) (tea.Model, tea.Cmd) {
 		m.appendBlock(errorBlock("Usage: /max-steps N (0 = no limit)"))
 		return m, nil
 	}
-	m.confirmRestart(changeStepLimit{limit: n})
+	m.confirmRestart(func(_ map[string]string) error {
+		previous := m.maxStepsOverride
+		previousSession := m.sess
+		if n == 0 {
+			n = noStepLimit
+		}
+
+		m.maxStepsOverride = n
+		if m.sess != nil {
+			sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
+			if err != nil {
+				m.maxStepsOverride = previous
+				m.appendBlock(errorBlock(err.Error()))
+				return nil
+			}
+			m.sess = sess
+		}
+		err := m.saveHarness()
+		if err != nil {
+			m.maxStepsOverride = previous
+			m.sess = previousSession
+			m.appendBlock(errorBlock(err.Error()))
+			return nil
+		}
+
+		m.appendBlock(markerBlock("Max steps: " + m.stepBudget()))
+
+		return nil
+	})
 	return m, nil
 }
 
@@ -367,9 +395,14 @@ func (m *Model) commandMode(arg string) (tea.Model, tea.Cmd) {
 	// switch is free and needs no confirmation; one that would replace a
 	// session mid-run keeps the existing destructive prompt.
 
-	edit := changeAgentMode{mode: mode}
 	if m.state == stRunning {
-		m.confirmRestart(edit)
+		m.confirmRestart(func(_ map[string]string) error {
+			err := m.applyMode(mode)
+			if err != nil {
+				m.appendBlock(errorBlock(err.Error()))
+			}
+			return nil
+		})
 		return m, nil
 	}
 	err := m.applyMode(mode)
@@ -419,38 +452,6 @@ func (m *Model) commandContext() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-type changeStepLimit struct{ limit int }
-
-func (edit changeStepLimit) apply(m *Model, _ map[string]string) error {
-	previous := m.maxStepsOverride
-	previousSession := m.sess
-	if edit.limit == 0 {
-		edit.limit = noStepLimit
-	}
-
-	m.maxStepsOverride = edit.limit
-	if m.sess != nil {
-		sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
-		if err != nil {
-			m.maxStepsOverride = previous
-			m.appendBlock(errorBlock(err.Error()))
-			return nil
-		}
-		m.sess = sess
-	}
-	err := m.saveHarness()
-	if err != nil {
-		m.maxStepsOverride = previous
-		m.sess = previousSession
-		m.appendBlock(errorBlock(err.Error()))
-		return nil
-	}
-
-	m.appendBlock(markerBlock("Max steps: " + m.stepBudget()))
-
-	return nil
-}
-
 func (m *Model) applyMode(mode string) error {
 	previous := m.plan
 	nextSession := m.sess
@@ -483,15 +484,5 @@ func (m *Model) applyMode(mode string) error {
 
 	m.sess = nextSession
 	m.appendBlock(markerBlock("Mode: " + m.modeName()))
-	return nil
-}
-
-type changeAgentMode struct{ mode string }
-
-func (edit changeAgentMode) apply(m *Model, _ map[string]string) error {
-	err := m.applyMode(edit.mode)
-	if err != nil {
-		m.appendBlock(errorBlock(err.Error()))
-	}
 	return nil
 }

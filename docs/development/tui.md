@@ -88,8 +88,12 @@ copy initial form choices and emit `screen.Event` values for submissions, table
 activation, and overlay lifetime changes. Events retain the producing dialog's
 identity; replaced dialogs cannot apply changes or close their replacements.
 The shell drains events on the update loop and coordinates overlay focus.
-Agent, Workflow, and the shell retain their own pending edits and apply them
-through direct owner methods. Shared controls retain no feature callbacks.
+Each owner retains one pending form: its dialog identity and a private submission
+function beside the form fields. Replacing a form replaces that pending value;
+late events cannot clear or submit the newer form. Agent's suspended queue editor
+retains its own pending form until it resumes or is discarded. Permission reply
+channels remain separate because multiple requests can await lifecycle delivery.
+Shared controls retain no feature callbacks.
 
 Feature owners prepare table rows and action availability on the update loop;
 rendering does not refresh domain state. Controls preserve search and selection

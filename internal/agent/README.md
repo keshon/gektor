@@ -7,7 +7,7 @@ in `internal/retrospective`. Frontends coordinate sessions through these owners.
 
 ## Reading path
 
-1. Start with `config.go` and `agent.go`: construction, `Run`, `Resume`, and
+1. Start with `agent.go`: configuration, construction, `Run`, `Resume`, and
    `ResumeWithAnswer`. `report.go` defines the observed outcome exposed to callers.
 2. Follow `run.go` for the ordinary model/tool cycle. `run_lifecycle.go` owns
    preparation/finalization and per-run state; `budget.go` handles deadlines.

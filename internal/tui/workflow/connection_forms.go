@@ -46,10 +46,23 @@ func (m *Model) connections() {
 			{Key: "action", Label: "Action", Value: "Edit"},
 		},
 		Choices: map[string][]string{"connection": choices, "action": {"Edit", "Remove"}},
-	}, chooseConnection{
-		choices: choices,
-		draft:   draft,
-		links:   links,
+	}, func(v map[string]string) error {
+		if m.editor.Source() != draft {
+			return fmt.Errorf("draft changed; reopen connections")
+		}
+
+		for i, label := range choices {
+			if v["connection"] != label {
+				continue
+			}
+			c := links[i]
+			if v["action"] != "Edit" && v["action"] != "Remove" {
+				return fmt.Errorf("choose Edit or Remove")
+			}
+			m.queueConnection(workflowConnectionEdit{From: c.From, To: c.To, Old: &c, Remove: v["action"] == "Remove", Draft: draft})
+			return nil
+		}
+		return fmt.Errorf("choose a connection")
 	})
 
 }
@@ -107,12 +120,28 @@ func (m *Model) connectionTarget(from, to string, old *Connection) {
 			{Key: "arg", Label: "Destination", Value: selected},
 		},
 		Choices: map[string][]string{"from": names, "arg": options},
-	}, chooseConnectionTarget{
-		draft: draft,
-		names: names,
-		old:   old,
-		paths: paths,
-		to:    to,
+	}, func(v map[string]string) error {
+		if m.editor.Source() != draft {
+			return fmt.Errorf("draft changed; reopen connections")
+		}
+
+		c, ok := paths[v["arg"]]
+		if !ok {
+			return fmt.Errorf("choose a destination argument")
+		}
+
+		found := false
+		for _, name := range names {
+			if name == v["from"] {
+				found = true
+			}
+		}
+		if !found || v["from"] == to {
+			return fmt.Errorf("choose a different source node")
+		}
+
+		m.queueConnection(workflowConnectionEdit{From: v["from"], To: to, Field: c.Field, Path: c.Path, Old: old, Draft: draft})
+		return nil
 	})
 
 }
@@ -212,9 +241,16 @@ func (m *Model) connectionEdit(edit workflowConnectionEdit) {
 			Fields:        []formField{{Key: "current", Label: "Current destination value", Value: cleanText(current), ReadOnly: true, Multiline: true}},
 			Destructive:   true,
 			StartOnCancel: true,
-		}, removeConnection{
-			c:      c,
-			change: edit,
+		}, func(_ map[string]string) error {
+			if m.editor.Source() != edit.Draft {
+				return fmt.Errorf("draft changed; reopen connections")
+			}
+			changeErr := m.editor.ChangeConnection(&c, nil)
+			if changeErr != nil {
+				return changeErr
+			}
+			m.connectionChanged()
+			return nil
 		})
 		return
 	}
@@ -254,10 +290,39 @@ func (m *Model) connectionEdit(edit workflowConnectionEdit) {
 		ApplyLabel: "Apply",
 		Fields:     fields,
 		Choices:    choices,
-	}, mapConnection{
-		c:       c,
-		choices: choices,
-		change:  edit,
+	}, func(v map[string]string) error {
+		if m.editor.Source() != edit.Draft {
+			return fmt.Errorf("draft changed; reopen connections")
+		}
+
+		c.Pointer = v["pointer"]
+		if edit.FixedSource {
+			c.Pointer = edit.Pointer
+		}
+		if hint := v["source_field"]; hint != "" && hint != "Manual JSON pointer" {
+			valid := false
+			for _, option := range choices["source_field"] {
+				if option == hint {
+					valid = true
+				}
+			}
+			if !valid {
+				return fmt.Errorf("choose a source field")
+			}
+			if hint == "Whole output" {
+				c.Pointer = ""
+			} else {
+				c.Pointer = hint
+			}
+		}
+
+		changeErr := m.editor.ChangeConnection(edit.Old, &c)
+		if changeErr != nil {
+			return changeErr
+		}
+
+		m.connectionChanged()
+		return nil
 	})
 
 }
@@ -284,119 +349,4 @@ func (m *Model) connectionChanged() {
 			return
 		}
 	}
-}
-
-type chooseConnection struct {
-	choices []string
-	draft   string
-	links   []Connection
-}
-
-func (edit chooseConnection) apply(m *Model, v map[string]string) error {
-	if m.editor.Source() != edit.draft {
-		return fmt.Errorf("draft changed; reopen connections")
-	}
-
-	for i, label := range edit.choices {
-		if v["connection"] != label {
-			continue
-		}
-		c := edit.links[i]
-		if v["action"] != "Edit" && v["action"] != "Remove" {
-			return fmt.Errorf("choose Edit or Remove")
-		}
-		m.queueConnection(workflowConnectionEdit{From: c.From, To: c.To, Old: &c, Remove: v["action"] == "Remove", Draft: edit.draft})
-		return nil
-	}
-	return fmt.Errorf("choose a connection")
-}
-
-type chooseConnectionTarget struct {
-	draft string
-	names []string
-	old   *Connection
-	paths map[string]Connection
-	to    string
-}
-
-func (edit chooseConnectionTarget) apply(m *Model, v map[string]string) error {
-	if m.editor.Source() != edit.draft {
-		return fmt.Errorf("draft changed; reopen connections")
-	}
-
-	c, ok := edit.paths[v["arg"]]
-	if !ok {
-		return fmt.Errorf("choose a destination argument")
-	}
-
-	found := false
-	for _, name := range edit.names {
-		if name == v["from"] {
-			found = true
-		}
-	}
-	if !found || v["from"] == edit.to {
-		return fmt.Errorf("choose a different source node")
-	}
-
-	m.queueConnection(workflowConnectionEdit{From: v["from"], To: edit.to, Field: c.Field, Path: c.Path, Old: edit.old, Draft: edit.draft})
-	return nil
-}
-
-type removeConnection struct {
-	c      Connection
-	change workflowConnectionEdit
-}
-
-func (edit removeConnection) apply(m *Model, _ map[string]string) error {
-	if m.editor.Source() != edit.change.Draft {
-		return fmt.Errorf("draft changed; reopen connections")
-	}
-	changeErr := m.editor.ChangeConnection(&edit.c, nil)
-	if changeErr != nil {
-		return changeErr
-	}
-	m.connectionChanged()
-	return nil
-}
-
-type mapConnection struct {
-	c       Connection
-	choices map[string][]string
-	change  workflowConnectionEdit
-}
-
-func (edit mapConnection) apply(m *Model, v map[string]string) error {
-	if m.editor.Source() != edit.change.Draft {
-		return fmt.Errorf("draft changed; reopen connections")
-	}
-
-	edit.c.Pointer = v["pointer"]
-	if edit.change.FixedSource {
-		edit.c.Pointer = edit.change.Pointer
-	}
-	if hint := v["source_field"]; hint != "" && hint != "Manual JSON pointer" {
-		valid := false
-		for _, option := range edit.choices["source_field"] {
-			if option == hint {
-				valid = true
-			}
-		}
-		if !valid {
-			return fmt.Errorf("choose a source field")
-		}
-		if hint == "Whole output" {
-			edit.c.Pointer = ""
-		} else {
-			edit.c.Pointer = hint
-		}
-	}
-
-	changeErr := m.editor.ChangeConnection(edit.change.Old, &edit.c)
-	if changeErr != nil {
-		return changeErr
-	}
-
-	m.connectionChanged()
-	return nil
 }

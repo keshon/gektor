@@ -48,21 +48,28 @@ internal/
 
 ## 2. Start at `<package>.go`
 
-Every package has a file named after it: `agent.go` for `package agent`, `main.go`
-for `package main`. It holds the package introduction and the main public operations:
+Prefer a substantive starting file named after the package: `agent.go` for
+`package agent`, `main.go` for `package main`. It holds the package introduction and the main public operations:
 the entry type and its constructor if the package owns state, or the primary
 functions if it is stateless. Keep large state and responsibility-specific behavior
 in companion files named by responsibility (`model.go`, `store.go`). The root file is
-where reading starts, not a container for everything.
+where reading starts. Keep declarations beside the behavior they explain when
+moving them to the root would make an ordinary change harder to follow.
 
 Do not add an empty marker file or forwarding wrappers to satisfy the name; rename
 a real file instead. Respect generated files and build constraints. Do not impose
-this on unrelated packages during a local edit.
+this on unrelated packages during a local edit. The filename is a navigation
+convention, not evidence that a package or split deserves to exist.
 
 ## 3. Files or packages?
 
 - Split a **file** when the package still owns the behavior but a reader must hold
-  too many responsibilities at once.
+  too many responsibilities at once. Keep the opening, validation, application,
+  and failure path of one interaction together. Several hundred lines can be fine
+  for a cohesive responsibility; there is no target file length.
+- Merge files that a maintainer repeatedly opens together for the same operation.
+  Do not separate declarations, dispatch, and implementation just because they
+  are different technical categories. Peer features do not need matching files.
 - Extract a **package** only when it hides a coherent responsibility behind a
   smaller API. Before extracting, sketch its public operations, dependencies,
   results, and cleanup, then trace one ordinary call and its failure path across
@@ -78,9 +85,15 @@ this on unrelated packages during a local edit.
 - Export operations and facts callers need. Do not export mutable internals or add
   forwarding types just to make a move compile or to keep old tests working.
 - Share behavior only when semantics truly agree. Accept modest duplication over
-  mode flags and callbacks. A shared package must not switch on feature names or
-  exist only to break an import cycle.
+  mode flags and callback bundles. A shared package must not switch on feature
+  names or exist only to break an import cycle.
 - Prefer concrete owners and direct calls. No universal dependency bags.
+- A feature may privately retain a small callback for its own local operation.
+  Shared packages report results or intent; they do not retain feature callbacks.
+  Preserve this boundary without inventing command hierarchies to avoid functions.
+- Model actual lifetimes. One active operation usually needs one pending value,
+  not a registry or map. Keep separate state for a suspended operation or multiple
+  outstanding requests only when those lifetimes really coexist.
 
 ## 5. Preserve lifecycle and behavior
 
@@ -103,7 +116,10 @@ for internal renames unless real callers require them.
 ## 7. Done check
 
 - Can a reader open `<package>.go` and find the public operations? Is there a type only where something is actually owned?
-- Do directory and file names show where a feature is changed?
+- Do directory and file names show where a feature is changed? Can an ordinary
+  operation be followed in one or two cohesive implementation files?
+- Did a split reduce the concepts and files a maintainer must consult? Update
+  affected reading guides when files move; do not require cosmetic symmetry.
 - Is every mutable value and resource owned explicitly?
 - Is the ordinary path easier to follow, with fewer concepts held at once (not just
   fewer lines or files)?

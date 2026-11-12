@@ -208,11 +208,52 @@ func (m *Model) scheduleForm(in workflowInvocation) {
 		ApplyLabel: "Save schedule",
 		Fields:     fields,
 		Choices:    map[string][]string{"timing": {"Every hour", "Daily", "Cron"}, "enabled": {"Yes", "No"}},
-	}, editSchedule{
-		expected: expected,
-		in:       in,
-		path:     path,
-		s:        s,
+	}, func(v map[string]string) error {
+		current, err := m.config.WS.Relative(m.editor.Path)
+		if err != nil || current != path || m.run != nil || m.busy || m.editor.Dirty() || m.editor.Source() != in.Draft {
+			return fmt.Errorf("recipe changed; reopen Schedule")
+		}
+
+		expression := strings.TrimSpace(v["cron"])
+		switch v["timing"] {
+		case "Every hour":
+			expression = "0 * * * *"
+		case "Daily":
+			clock, err := time.Parse("15:04", v["time"])
+			if err != nil {
+				return fmt.Errorf("enter a time such as 09:00")
+			}
+			expression = fmt.Sprintf("%d %d * * *", clock.Minute(), clock.Hour())
+		case "Cron":
+		default:
+			return fmt.Errorf("choose Every hour, Daily or Cron")
+		}
+
+		_, cronErr := cron.ParseStandard(expression)
+		if cronErr != nil {
+			return fmt.Errorf("cron: %w", cronErr)
+		}
+
+		zone := strings.TrimSpace(v["timezone"])
+		_, zoneErr := time.LoadLocation(zone)
+		if zoneErr != nil {
+			return fmt.Errorf("use a time zone such as Europe/Moscow or UTC")
+		}
+		if v["enabled"] != "Yes" && v["enabled"] != "No" {
+			return fmt.Errorf("choose Yes or No")
+		}
+
+		changed := s
+		changed.Cron, changed.Timezone, changed.Paused, changed.Source = expression, zone, v["enabled"] == "No", json.RawMessage(in.Draft)
+		changed.Inputs = nil
+		decodeErr := json.Unmarshal(in.Inputs, &changed.Inputs)
+		if decodeErr != nil {
+			return decodeErr
+		}
+
+		payload, _ := json.Marshal(workflowScheduleEdit{Draft: in.Draft, Schedule: changed, Expected: expected})
+		m.queueAction("schedule-save", string(payload))
+		return nil
 	})
 
 }
@@ -326,9 +367,13 @@ func (m *Model) deleteSchedule(s store.Schedule) {
 		ApplyLabel:  "Remove",
 		Fields:      []formField{{Key: "id", Label: "Type schedule ID to remove: " + s.ID}},
 		Destructive: true,
-	}, removeSchedule{
-		draft: draft,
-		s:     s,
+	}, func(v map[string]string) error {
+		if v["id"] != s.ID {
+			return fmt.Errorf("type %s", s.ID)
+		}
+		payload, _ := json.Marshal(workflowScheduleEdit{Draft: draft, Schedule: s, Expected: &s})
+		m.queueAction("schedule-delete", string(payload))
+		return nil
 	})
 
 }
@@ -422,73 +467,4 @@ func (m *Model) scheduleDetails(s store.Schedule) []string {
 		rows = append(rows, "", "Enter edits timing and input values.", "Delete removes this trigger.")
 	}
 	return rows
-}
-
-type editSchedule struct {
-	expected *store.Schedule
-	in       workflowInvocation
-	path     string
-	s        store.Schedule
-}
-
-func (edit editSchedule) apply(m *Model, v map[string]string) error {
-	current, err := m.config.WS.Relative(m.editor.Path)
-	if err != nil || current != edit.path || m.run != nil || m.busy || m.editor.Dirty() || m.editor.Source() != edit.in.Draft {
-		return fmt.Errorf("recipe changed; reopen Schedule")
-	}
-
-	expression := strings.TrimSpace(v["cron"])
-	switch v["timing"] {
-	case "Every hour":
-		expression = "0 * * * *"
-	case "Daily":
-		clock, err := time.Parse("15:04", v["time"])
-		if err != nil {
-			return fmt.Errorf("enter a time such as 09:00")
-		}
-		expression = fmt.Sprintf("%d %d * * *", clock.Minute(), clock.Hour())
-	case "Cron":
-	default:
-		return fmt.Errorf("choose Every hour, Daily or Cron")
-	}
-
-	_, cronErr := cron.ParseStandard(expression)
-	if cronErr != nil {
-		return fmt.Errorf("cron: %w", cronErr)
-	}
-
-	zone := strings.TrimSpace(v["timezone"])
-	_, zoneErr := time.LoadLocation(zone)
-	if zoneErr != nil {
-		return fmt.Errorf("use a time zone such as Europe/Moscow or UTC")
-	}
-	if v["enabled"] != "Yes" && v["enabled"] != "No" {
-		return fmt.Errorf("choose Yes or No")
-	}
-
-	changed := edit.s
-	changed.Cron, changed.Timezone, changed.Paused, changed.Source = expression, zone, v["enabled"] == "No", json.RawMessage(edit.in.Draft)
-	changed.Inputs = nil
-	decodeErr := json.Unmarshal(edit.in.Inputs, &changed.Inputs)
-	if decodeErr != nil {
-		return decodeErr
-	}
-
-	payload, _ := json.Marshal(workflowScheduleEdit{Draft: edit.in.Draft, Schedule: changed, Expected: edit.expected})
-	m.queueAction("schedule-save", string(payload))
-	return nil
-}
-
-type removeSchedule struct {
-	draft string
-	s     store.Schedule
-}
-
-func (edit removeSchedule) apply(m *Model, v map[string]string) error {
-	if v["id"] != edit.s.ID {
-		return fmt.Errorf("type %s", edit.s.ID)
-	}
-	payload, _ := json.Marshal(workflowScheduleEdit{Draft: edit.draft, Schedule: edit.s, Expected: &edit.s})
-	m.queueAction("schedule-delete", string(payload))
-	return nil
 }

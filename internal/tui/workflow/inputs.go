@@ -62,9 +62,16 @@ func (m *Model) inputForm(in workflowInvocation) {
 			Hint:       "Input values are checked before execution; omitted keys use recipe defaults.",
 			ApplyLabel: primary,
 			Fields:     []formField{{Key: "inputs", Label: "Input values (JSON object)", Value: "{}", Multiline: true}},
-		}, jsonRunInputs{
-			in:    in,
-			specs: specs,
+		}, func(v map[string]string) error {
+			var values map[string]json.RawMessage
+			decodeErr := json.Unmarshal([]byte(v["inputs"]), &values)
+			if decodeErr != nil {
+				return decodeErr
+			}
+			if values == nil {
+				return fmt.Errorf("inputs must be an object")
+			}
+			return m.submitInputs(in, specs, values)
 		})
 		return
 	}
@@ -149,11 +156,30 @@ func (m *Model) inputForm(in workflowInvocation) {
 		ApplyLabel: primary,
 		Fields:     fields,
 		Choices:    choices,
-	}, simpleRunInputs{
-		in:        in,
-		initial:   initial,
-		scheduled: scheduled,
-		specs:     specs,
+	}, func(v map[string]string) error {
+		values := map[string]json.RawMessage{}
+		for name, spec := range specs {
+			text := v["value:"+name]
+			if spec.Default != nil && text == initial[name] && in.Action != "schedule" {
+				continue
+			}
+			if spec.Default == nil && !spec.Required && text == "" && scheduled[name] == nil {
+				continue
+			}
+			value := json.RawMessage(text)
+			if spec.Type == "string" {
+				value, _ = json.Marshal(text)
+			}
+			if spec.Type == "array" && !strings.HasPrefix(strings.TrimSpace(text), "[") {
+				value = json.RawMessage("[" + text + "]")
+			}
+			inputErr := recipe.CheckInput(value, spec.Type)
+			if inputErr != nil {
+				return fmt.Errorf("%s: %w", name, inputErr)
+			}
+			values[name] = value
+		}
+		return m.submitInputs(in, specs, values)
 	})
 
 }
@@ -169,54 +195,4 @@ func (m *Model) submitInputs(in workflowInvocation, specs map[string]workflow.In
 	in.Inputs, _ = json.Marshal(values)
 	m.queueInvocation("invoke", in)
 	return nil
-}
-
-type jsonRunInputs struct {
-	in    workflowInvocation
-	specs map[string]workflow.Input
-}
-
-func (edit jsonRunInputs) apply(m *Model, v map[string]string) error {
-	var values map[string]json.RawMessage
-	decodeErr := json.Unmarshal([]byte(v["inputs"]), &values)
-	if decodeErr != nil {
-		return decodeErr
-	}
-	if values == nil {
-		return fmt.Errorf("inputs must be an object")
-	}
-	return m.submitInputs(edit.in, edit.specs, values)
-}
-
-type simpleRunInputs struct {
-	in        workflowInvocation
-	initial   map[string]string
-	scheduled map[string]json.RawMessage
-	specs     map[string]workflow.Input
-}
-
-func (edit simpleRunInputs) apply(m *Model, v map[string]string) error {
-	values := map[string]json.RawMessage{}
-	for name, spec := range edit.specs {
-		text := v["value:"+name]
-		if spec.Default != nil && text == edit.initial[name] && edit.in.Action != "schedule" {
-			continue
-		}
-		if spec.Default == nil && !spec.Required && text == "" && edit.scheduled[name] == nil {
-			continue
-		}
-		value := json.RawMessage(text)
-		if spec.Type == "string" {
-			value, _ = json.Marshal(text)
-		}
-		if spec.Type == "array" && !strings.HasPrefix(strings.TrimSpace(text), "[") {
-			value = json.RawMessage("[" + text + "]")
-		}
-		inputErr := recipe.CheckInput(value, spec.Type)
-		if inputErr != nil {
-			return fmt.Errorf("%s: %w", name, inputErr)
-		}
-		values[name] = value
-	}
-	return m.submitInputs(edit.in, edit.specs, values)
 }

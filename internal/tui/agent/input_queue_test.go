@@ -354,3 +354,28 @@ func TestQueueGateRetainsItsOwnFocusFrame(t *testing.T) {
 		t.Fatal("resolved gate retained an overlay or lost composer focus")
 	}
 }
+
+func TestSuspendedQueueEditRetainsSubmissionSeparately(t *testing.T) {
+	m := queuedModel(t)
+	m.openInputQueue()
+	m.testKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	original := m.chrome.Dialog
+	m.chrome.Dialog.Form.Editor.SetValue("keep this draft")
+	m.acceptGateEvent(harness.Event{Name: "gate", Fields: map[string]any{"kind": string(agent.SuspendPermission), "prompt": "Allow?"}})
+	m.syncControls()
+	if m.form.apply != nil || m.suspendedInputEdit == nil || m.suspendedInputEdit.form.dialog != original || m.suspendedInputEdit.form.apply == nil {
+		t.Fatal("suspended submission was lost or remained active")
+	}
+
+	m.resolveGate("n")
+	m.openInputQueue()
+	m.syncControls()
+	if m.form.dialog != original || m.form.apply == nil || m.suspendedInputEdit != nil {
+		t.Fatal("resume did not transfer the pending submission back")
+	}
+	m.chrome.Close()
+	m.syncControls()
+	if m.form.apply != nil || m.sess.PendingInputs()[0].Message.Content == "keep this draft" {
+		t.Fatal("dismissal retained or applied the suspended submission")
+	}
+}

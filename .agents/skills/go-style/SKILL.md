@@ -1,6 +1,6 @@
 ---
 name: go-style
-description: Write and review plain, human-looking Go - paragraphs, linear flow, no callbacks, explicit ownership, short useful comments, no AI boilerplate. Use for any Go (.go) code you write, edit, or review, however small. Package layout and file organization are covered by go-architecture.
+description: Write and review plain, human-looking Go - paragraphs, linear flow, explicit ownership, short useful comments, no AI boilerplate. Use for any Go (.go) code you write, edit, or review, however small. Package layout and file organization are covered by go-architecture.
 ---
 
 # Go style
@@ -110,34 +110,24 @@ if err != nil {
 - Name complex conditions: `canRetry := attempts < maxRetries && isTransient(err)`.
 - No naked returns. No shadowing of `err` or `ctx`.
 
-## 4. No callbacks
+## 4. Keep ownership visible
 
-Do not pass functions to wire our own components together (`OnDone func(...)`,
-`WithHandler(...)`, hook fields, closure bundles). They hide who calls what and when.
+Prefer return values and direct calls across component boundaries. Shared controls
+must report intent instead of retaining closures that execute feature behavior.
+Avoid hook bundles and functional options that conceal who mutates state, performs
+an effect, or owns cancellation.
 
-Use instead, in this order:
-1. Return values and direct calls.
-2. A concrete type with methods.
-3. A small consumer-side interface when two implementations really exist.
-4. A channel of results for truly asynchronous work, with a clear owner.
+A small callback retained privately by its owning feature is fine when it keeps an
+operation together. For example, a feature may keep its own form submission beside
+the form fields, while shared controls return submitted values. Capture a snapshot
+when later changes would make a retained value stale; keep replacement and cleanup
+rules explicit. Do not pass that callback into the shared controls.
 
-Callbacks are fine where the stdlib or a framework requires them (`http.HandlerFunc`,
-`slices.SortFunc`) or for a genuinely caller-supplied operation (a predicate).
-
-```go
-// BAD
-worker := NewWorker(WithOnDone(func(r Result) { ui.Show(r) }))
-
-// GOOD
-worker := NewWorker(cfg)
-
-result, err := worker.Run(ctx)
-if err != nil {
-	return fmt.Errorf("running worker: %w", err)
-}
-
-ui.Show(result)
-```
+Do not replace a clear local function with command types, empty structs, enums,
+interfaces, and dispatch methods merely to eliminate function values. Introduce a
+type when it owns meaningful state or behavior that is actually reused. Use a small
+consumer-side interface for real substitution, and a channel for asynchronous
+results when its lifetime has an owner. Framework and stdlib callbacks are fine.
 
 ## 5. Explicit ownership
 
@@ -211,8 +201,8 @@ string constant for schemas. Never build a deeply nested literal on one line.
   or universal `Env`/`Deps` types. No getters/setters; use exported fields.
 - Config is a named struct with keyed fields, one per line. No functional options.
   Several positional strings or bools in a signature is a smell.
-- Accept small duplication instead of sharing through flags, callbacks, or type
-  assertions. Generics and new dependencies only for a present, concrete need.
+- Accept small duplication instead of sharing through mode flags, callback
+  bundles, or type assertions. Generics and new dependencies only for a present, concrete need.
 - No Java-style patterns: no Factory/AbstractFactory types, Builder chains
   (`.WithA().WithB().Build()`), Singleton (`GetInstance`), or
   Strategy/Observer/Visitor hierarchies. In Go a plain function, a struct, or a small
@@ -267,6 +257,11 @@ Tells of generated code. Remove them:
   one-use type aliases, `util.go` / `helpers.go` / `common.go` dumping grounds.
 - Uniform symmetric structure when the cases differ.
 - Features, flags, or logging nobody asked for.
+
+Keep the setup, validation, action, and result of one operation close together.
+A longer cohesive function or file can be easier to read than a chain of tiny
+helpers. Extract when it hides a responsibility or avoids meaningful repetition,
+not to meet a line target. Compare the ordinary reading path before and after.
 
 Write only what the task needs. If a line has no job, delete it.
 

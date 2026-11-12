@@ -55,7 +55,7 @@ func TestRestartCommandOpensADestructiveConfirmation(t *testing.T) {
 func TestConfirmationEnterOnCancelDoesNotRestart(t *testing.T) {
 	m := restartModel(t)
 	ran := false
-	m.confirmRestart(restartProbe{ran: &ran})
+	m.confirmRestart(func(map[string]string) error { ran = true; return nil })
 
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if ran {
@@ -69,7 +69,7 @@ func TestConfirmationEnterOnCancelDoesNotRestart(t *testing.T) {
 func TestConfirmationSelectsThenConfirms(t *testing.T) {
 	m := restartModel(t)
 	ran := false
-	m.confirmRestart(restartProbe{ran: &ran})
+	m.confirmRestart(func(map[string]string) error { ran = true; return nil })
 
 	// Move from Cancel to Restart, then commit.
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyUp})
@@ -88,7 +88,7 @@ func TestConfirmationSelectsThenConfirms(t *testing.T) {
 func TestConfirmationEscapeCancelsWithoutRunning(t *testing.T) {
 	m := restartModel(t)
 	ran := false
-	m.confirmRestart(restartProbe{ran: &ran})
+	m.confirmRestart(func(map[string]string) error { ran = true; return nil })
 
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if ran {
@@ -107,7 +107,7 @@ func TestConfirmationEscapeCancelsWithoutRunning(t *testing.T) {
 func TestConfirmationSwallowsTyping(t *testing.T) {
 	m := restartModel(t)
 	ran := false
-	m.confirmRestart(restartProbe{ran: &ran})
+	m.confirmRestart(func(map[string]string) error { ran = true; return nil })
 
 	m.testKey(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	if ran {
@@ -126,7 +126,7 @@ func TestConfirmationSwallowsTyping(t *testing.T) {
 // reads as an empty box floating beside the real one.
 func TestConfirmationRendersAsOneAlignedFrame(t *testing.T) {
 	m := restartModel(t)
-	m.confirmRestart(restartProbe{ran: new(bool)})
+	m.confirmRestart(func(map[string]string) error { return nil })
 
 	lines := strings.Split(m.testControls().DialogView(), "\n")
 	var box []string
@@ -159,7 +159,7 @@ func TestNoSessionRunsWithoutPrompting(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	ran := false
-	m.confirmRestart(restartProbe{ran: &ran})
+	m.confirmRestart(func(map[string]string) error { ran = true; return nil })
 
 	if !ran {
 		t.Fatal("action did not run")
@@ -168,7 +168,3 @@ func TestNoSessionRunsWithoutPrompting(t *testing.T) {
 		t.Fatal("a prompt was shown with no session to restart")
 	}
 }
-
-type restartProbe struct{ ran *bool }
-
-func (probe restartProbe) apply(_ *Model, _ map[string]string) error { *probe.ran = true; return nil }

@@ -19,7 +19,18 @@ func (m *Model) openTheme() {
 		Hint:       "Applies immediately to both modes and is remembered for future launches.",
 		ApplyLabel: "Apply",
 		Fields:     []form.Field{{Key: "theme", Label: "Theme", Value: screen.CurrentPalette().Name, Multiline: false}},
-	}, openThemeForm)
+	}, func(v map[string]string) error {
+		name := v["theme"]
+		if !config.ValidTheme(name) {
+			return fmt.Errorf("choose a theme from the list")
+		}
+		saveErr := m.persistTheme(name)
+		if saveErr != nil {
+			return saveErr
+		}
+		m.applyTheme(name)
+		return nil
+	})
 	m.chrome.Dialog.Form.Choices = map[string][]string{"theme": config.ThemeNames()}
 }
 
@@ -28,7 +39,27 @@ func (m *Model) openAppearance() {
 	m.openForm(screen.Form{Title: "Appearance", Hint: "Applies immediately to both modes and is remembered for future launches.", ApplyLabel: "Apply", Fields: []form.Field{
 		{Key: "theme", Label: "Theme", Value: screen.CurrentPalette().Name},
 		{Key: "frame", Label: "Panel frame", Value: m.agent.Appearance().Frame},
-	}}, openAppearanceForm)
+	}}, func(values map[string]string) error {
+		theme, frame := values["theme"], values["frame"]
+		if !config.ValidTheme(theme) {
+			return fmt.Errorf("choose a theme from the list")
+		}
+		if frame != "outlined" && frame != "minimal" {
+			return fmt.Errorf("choose an outlined or minimal frame")
+		}
+
+		appearance := m.agent.Appearance()
+		appearance.Frame = frame
+		saveErr := m.application.SaveThemeAppearance(theme, appearance)
+		if saveErr != nil {
+			return saveErr
+		}
+
+		m.outlined = frame == "outlined"
+		m.agent.ApplyAppearance(appearance)
+		m.applyTheme(theme)
+		return nil
+	})
 	m.chrome.Dialog.Form.Choices = map[string][]string{"theme": config.ThemeNames(), "frame": {"outlined", "minimal"}}
 }
 
@@ -79,39 +110,4 @@ func (m *Model) applicationAction(command string) bool {
 		return true
 	}
 	return false
-}
-
-func (m *Model) applyOpenTheme(v map[string]string) error {
-	name := v["theme"]
-	if !config.ValidTheme(name) {
-		return fmt.Errorf("choose a theme from the list")
-	}
-	saveErr := m.persistTheme(name)
-	if saveErr != nil {
-		return saveErr
-	}
-	m.applyTheme(name)
-	return nil
-}
-
-func (m *Model) applyOpenAppearance(values map[string]string) error {
-	theme, frame := values["theme"], values["frame"]
-	if !config.ValidTheme(theme) {
-		return fmt.Errorf("choose a theme from the list")
-	}
-	if frame != "outlined" && frame != "minimal" {
-		return fmt.Errorf("choose an outlined or minimal frame")
-	}
-
-	appearance := m.agent.Appearance()
-	appearance.Frame = frame
-	saveErr := m.application.SaveThemeAppearance(theme, appearance)
-	if saveErr != nil {
-		return saveErr
-	}
-
-	m.outlined = frame == "outlined"
-	m.agent.ApplyAppearance(appearance)
-	m.applyTheme(theme)
-	return nil
 }

@@ -19,7 +19,7 @@ import (
 func TestCompactDialogMouseAndHorizontalKeys(t *testing.T) {
 	m := settingsModel(t)
 	calls := 0
-	m.openForm(screen.Form{Title: "Confirm", ApplyLabel: "Delete"}, formProbe{calls: &calls})
+	m.openForm(screen.Form{Title: "Confirm", ApplyLabel: "Delete"}, func(map[string]string) error { calls++; return nil })
 	m.chrome.Dialog.Form.Destructive = true
 	m.testControls().FocusForm(1)
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyLeft})
@@ -113,7 +113,3 @@ func TestActionRowsFitNarrowWidths(t *testing.T) {
 		}
 	}
 }
-
-type formProbe struct{ calls *int }
-
-func (probe formProbe) apply(_ *Model, _ map[string]string) error { *probe.calls++; return nil }

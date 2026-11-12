@@ -189,8 +189,19 @@ func (m *Model) recipePath(action string) *settings.Model {
 		ApplyLabel: "Continue",
 		Fields:     fields,
 		FileFields: fileFields,
-	}, chooseRecipePath{
-		action: action,
+	}, func(v map[string]string) error {
+		if m.editor.Dirty() && v["discard"] != "discard" {
+			return fmt.Errorf("save first, or type discard")
+		}
+		if strings.TrimSpace(v["path"]) == "" {
+			return fmt.Errorf("enter a recipe path")
+		}
+		_, pathErr := m.config.WS.Relative(v["path"])
+		if pathErr != nil {
+			return pathErr
+		}
+		m.queueAction(action+"-path", v["path"])
+		return nil
 	})
 }
 
@@ -200,7 +211,13 @@ func (m *Model) saveForm() {
 		Hint:       "Writes the recipe; canvas positions stay in your user settings.",
 		ApplyLabel: "Save",
 		Fields:     []formField{{Key: "path", Label: "Recipe path", Value: m.editor.Path}},
-	}, saveRecipeForm)
+	}, func(v map[string]string) error {
+		if strings.TrimSpace(v["path"]) == "" {
+			return fmt.Errorf("enter a path")
+		}
+		m.queueAction("save-path", v["path"])
+		return nil
+	})
 }
 
 func (m *Model) addOperation(name string) {
@@ -218,9 +235,29 @@ func (m *Model) addOperation(name string) {
 		Hint:       name,
 		ApplyLabel: "Add",
 		Fields:     []formField{{Key: "id", Label: "Unique node ID", Value: fmt.Sprintf("step_%d", len(m.editor.Definition.Steps)+1)}},
-	}, addRecipeNode{
-		draft: draft,
-		n:     n,
+	}, func(v map[string]string) error {
+		if m.busy || m.run != nil || m.editor.Source() != draft {
+			return fmt.Errorf("draft changed; add the node again")
+		}
+
+		id := strings.TrimSpace(v["id"])
+		if id == "" || strings.HasPrefix(id, "@") || strings.Contains(id, "/") {
+			return fmt.Errorf("enter a node ID without / or a leading @")
+		}
+
+		d := m.editor.Clone()
+		for _, s := range d.Steps {
+			if s.ID == id {
+				return fmt.Errorf("node ID already exists")
+			}
+		}
+
+		d.Steps = append(d.Steps, workflow.Step{ID: id, Tool: n.Name, NodeVersion: n.Version, Args: json.RawMessage(`{}`)})
+		m.editor.Replace(d)
+		m.graph.Selected = id
+		m.graph = m.buildGraph(m.graph)
+		m.queueAction("edit", "")
+		return nil
 	})
 }
 
@@ -256,11 +293,19 @@ func (m *Model) edit() {
 		ApplyLabel: "Apply",
 		Fields:     schema.Fields(s.Args),
 		Choices:    schema.Choices(),
-	}, editNodeArguments{
-		draft:  draft,
-		idx:    idx,
-		s:      s,
-		schema: schema,
+	}, func(v map[string]string) error {
+		if m.run != nil || m.busy || m.editor.Source() != draft {
+			return fmt.Errorf("draft changed; reopen node arguments")
+		}
+		args, err := schema.Values(s.Args, v)
+		if err != nil {
+			return err
+		}
+		d := m.editor.Clone()
+		d.Steps[idx].Args = args
+		m.editor.Replace(d)
+		m.graph = m.buildGraph(m.graph)
+		return nil
 	})
 
 }
@@ -302,83 +347,4 @@ func (m *Model) footerActions() []screen.Action {
 		return []screen.Action{actions[0], actions[1], actions[5], actions[7]}
 	}
 	return actions
-}
-
-type chooseRecipePath struct {
-	action string
-}
-
-func (edit chooseRecipePath) apply(m *Model, v map[string]string) error {
-	if m.editor.Dirty() && v["discard"] != "discard" {
-		return fmt.Errorf("save first, or type discard")
-	}
-	if strings.TrimSpace(v["path"]) == "" {
-		return fmt.Errorf("enter a recipe path")
-	}
-	_, pathErr := m.config.WS.Relative(v["path"])
-	if pathErr != nil {
-		return pathErr
-	}
-	m.queueAction(edit.action+"-path", v["path"])
-	return nil
-}
-
-func (m *Model) applyRecipePath(v map[string]string) error {
-	if strings.TrimSpace(v["path"]) == "" {
-		return fmt.Errorf("enter a path")
-	}
-	m.queueAction("save-path", v["path"])
-	return nil
-}
-
-type addRecipeNode struct {
-	draft string
-	n     workflow.Node
-}
-
-func (edit addRecipeNode) apply(m *Model, v map[string]string) error {
-	if m.busy || m.run != nil || m.editor.Source() != edit.draft {
-		return fmt.Errorf("draft changed; add the node again")
-	}
-
-	id := strings.TrimSpace(v["id"])
-	if id == "" || strings.HasPrefix(id, "@") || strings.Contains(id, "/") {
-		return fmt.Errorf("enter a node ID without / or a leading @")
-	}
-
-	d := m.editor.Clone()
-	for _, s := range d.Steps {
-		if s.ID == id {
-			return fmt.Errorf("node ID already exists")
-		}
-	}
-
-	d.Steps = append(d.Steps, workflow.Step{ID: id, Tool: edit.n.Name, NodeVersion: edit.n.Version, Args: json.RawMessage(`{}`)})
-	m.editor.Replace(d)
-	m.graph.Selected = id
-	m.graph = m.buildGraph(m.graph)
-	m.queueAction("edit", "")
-	return nil
-}
-
-type editNodeArguments struct {
-	draft  string
-	idx    int
-	s      workflow.Step
-	schema schemaform.Schema
-}
-
-func (edit editNodeArguments) apply(m *Model, v map[string]string) error {
-	if m.run != nil || m.busy || m.editor.Source() != edit.draft {
-		return fmt.Errorf("draft changed; reopen node arguments")
-	}
-	args, err := edit.schema.Values(edit.s.Args, v)
-	if err != nil {
-		return err
-	}
-	d := m.editor.Clone()
-	d.Steps[edit.idx].Args = args
-	m.editor.Replace(d)
-	m.graph = m.buildGraph(m.graph)
-	return nil
 }

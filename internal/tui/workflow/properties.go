@@ -311,35 +311,25 @@ func (m *Model) editCode() {
 		Hint:       "Edits the draft script. Run and validation remain separate actions.",
 		ApplyLabel: "Apply",
 		Fields:     []formField{{Key: "code", Label: "JavaScript", Value: code, Multiline: true}},
-	}, editNodeCode{
-		draft: draft,
-		step:  step,
-	})
-}
-
-type editNodeCode struct {
-	draft string
-	step  workflow.Step
-}
-
-func (edit editNodeCode) apply(m *Model, v map[string]string) error {
-	if m.run != nil || m.busy || m.editor.Source() != edit.draft {
-		return fmt.Errorf("draft changed; reopen the script")
-	}
-
-	d := m.editor.Clone()
-	for i := range d.Steps {
-		if d.Steps[i].ID == edit.step.ID {
-			var args map[string]json.RawMessage
-			if err := json.Unmarshal(d.Steps[i].Args, &args); err != nil {
-				return err
-			}
-			args["code"], _ = json.Marshal(v["code"])
-			d.Steps[i].Args, _ = json.Marshal(args)
-			m.editor.Replace(d)
-			m.graph = m.buildGraph(m.graph)
-			return nil
+	}, func(v map[string]string) error {
+		if m.run != nil || m.busy || m.editor.Source() != draft {
+			return fmt.Errorf("draft changed; reopen the script")
 		}
-	}
-	return fmt.Errorf("node no longer exists")
+
+		d := m.editor.Clone()
+		for i := range d.Steps {
+			if d.Steps[i].ID == step.ID {
+				var args map[string]json.RawMessage
+				if err := json.Unmarshal(d.Steps[i].Args, &args); err != nil {
+					return err
+				}
+				args["code"], _ = json.Marshal(v["code"])
+				d.Steps[i].Args, _ = json.Marshal(args)
+				m.editor.Replace(d)
+				m.graph = m.buildGraph(m.graph)
+				return nil
+			}
+		}
+		return fmt.Errorf("node no longer exists")
+	})
 }

@@ -206,7 +206,7 @@ func finishAgentTurn(t *testing.T, m *Model) {
 }
 
 func (m *Model) applyValues(values map[string]string) error {
-	if m.formEdits[m.chrome.Dialog] != nil {
+	if m.form.dialog == m.chrome.Dialog && m.form.apply != nil {
 		return m.applySubmission(m.chrome.Dialog, values)
 	}
 	dialog := m.chrome.Dialog

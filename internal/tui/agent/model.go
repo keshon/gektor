@@ -63,7 +63,7 @@ type Model struct {
 	processDialog, permissionDialog, mcpDialog *screen.DialogState
 	lessonDialogs                              map[*screen.DialogState]retrospective.Result
 
-	formEdits map[*screen.DialogState]formEdit
+	form pendingForm
 
 	hidden           bool
 	shutdown         context.CancelFunc

@@ -34,7 +34,7 @@ func TestDialogScrollbarMatchesDrawnTrack(t *testing.T) {
 func TestModalCloseButtonCancelsWithoutApplying(t *testing.T) {
 	m := settingsModel(t)
 	applied := false
-	m.openForm(screen.Form{Title: "Edit", ApplyLabel: "Apply", Fields: []form.Field{{Key: "value", Label: "Value", Value: "old"}}}, restartProbe{ran: &applied})
+	m.openForm(screen.Form{Title: "Edit", ApplyLabel: "Apply", Fields: []form.Field{{Key: "value", Label: "Value", Value: "old"}}}, func(map[string]string) error { applied = true; return nil })
 	m.testControls().FocusForm(0)
 	m.chrome.Dialog.Form.Editor.SetValue("unsaved")
 	clickVisible(t, m, "×")

@@ -23,7 +23,15 @@ func (m *Model) setupForm() tea.Cmd {
 		ApplyLabel: "Open",
 		Fields:     []formField{{Key: "section", Label: "Section", Value: "Selected step arguments"}},
 		Choices:    map[string][]string{"section": {"Selected step arguments", "AI change", "Name", "Inputs", "Outputs", "Complete JSON"}},
-	}, chooseSettingsForm)
+	}, func(v map[string]string) error {
+		actions := map[string]string{"Selected step arguments": "edit", "AI change": "ai", "Name": "name", "Inputs": "inputs", "Outputs": "outputs", "Complete JSON": "recipe"}
+		action, ok := actions[v["section"]]
+		if !ok {
+			return fmt.Errorf("choose a section")
+		}
+		m.queueAction(action, "")
+		return nil
+	})
 
 	return nil
 }
@@ -36,7 +44,18 @@ func (m *Model) addNodeForm() tea.Cmd {
 		ApplyLabel: "Next",
 		Fields:     []formField{{Key: "type", Label: "Node type", Value: names[0]}},
 		Choices:    map[string][]string{"type": names},
-	}, chooseNodeForm)
+	}, func(v map[string]string) error {
+		if v["type"] == "Schedule trigger" {
+			m.queueAction("schedule-add", "")
+			return nil
+		}
+		_, nodeErr := m.registry.Node(v["type"])
+		if nodeErr != nil {
+			return nodeErr
+		}
+		m.queueAction("add-operation", v["type"])
+		return nil
+	})
 
 	return nil
 }
@@ -48,17 +67,41 @@ func (m *Model) behaviorForm() tea.Cmd {
 		}
 		original, _ := json.Marshal(step)
 		schema := schemaform.Parse(json.RawMessage(`{"properties":{"review":{"type":"boolean","enum":[true,false]},"depends_on":{"type":"array"},"when":{},"for_each":{},"merge":{"type":"string","enum":["all","any"]},"retry":{"type":"object"}}}`))
+		draft := m.editor.Source()
+		id := step.ID
 		m.openForm(screen.Form{
 			Title:      step.ID + " / behavior",
 			Hint:       "Conditions and references use JSON. Retries require a retry-safe operation.",
 			ApplyLabel: "Apply",
 			Fields:     schema.Fields(original),
 			Choices:    schema.Choices(),
-		}, editNodeBehavior{
-			id:       step.ID,
-			draft:    m.editor.Source(),
-			original: original,
-			schema:   schema,
+		}, func(v map[string]string) error {
+			if m.busy || m.run != nil || m.editor.Source() != draft {
+				return fmt.Errorf("draft changed; reopen node behavior")
+			}
+
+			raw, err := schema.Values(original, v)
+			if err != nil {
+				return err
+			}
+
+			var changed workflow.Step
+			decodeErr := json.Unmarshal(raw, &changed)
+			if decodeErr != nil {
+				return decodeErr
+			}
+
+			d := m.editor.Clone()
+			for i, step := range d.Steps {
+				if step.ID == id {
+					d.Steps[i] = changed
+					break
+				}
+			}
+
+			m.editor.Replace(d)
+			m.graph = m.buildGraph(m.graph)
+			return nil
 		})
 
 		break
@@ -72,17 +115,36 @@ func (m *Model) proposalForm() tea.Cmd {
 		Hint:       "The model proposes recipe edits only. You review before applying.",
 		ApplyLabel: "Propose",
 		Fields:     []formField{{Key: "prompt", Label: "Describe the change", Multiline: true}},
-	}, proposeChangeForm)
+	}, func(v map[string]string) error {
+		if strings.TrimSpace(v["prompt"]) == "" {
+			return fmt.Errorf("describe a change")
+		}
+		m.queueAction("ai-prompt", v["prompt"])
+		return nil
+	})
 	return nil
 }
 
 func (m *Model) sourceForm() tea.Cmd {
+	draft := m.editor.Source()
 	m.openForm(screen.Form{
 		Title:      "Recipe JSON",
 		Hint:       "Inputs, outputs, conditions, iteration and retry are preserved here.",
 		ApplyLabel: "Apply",
 		Fields:     []formField{{Key: "source", Label: "Recipe", Value: m.editor.Source(), Multiline: true}},
-	}, recipeSource{draft: m.editor.Source()})
+	}, func(v map[string]string) error {
+		if m.busy || m.run != nil || m.editor.Source() != draft {
+			return fmt.Errorf("draft changed; reopen recipe JSON")
+		}
+
+		d, err := Decode([]byte(v["source"]))
+		if err != nil {
+			return err
+		}
+		m.editor.Replace(d)
+		m.graph = m.buildGraph(m.graph)
+		return nil
+	})
 	return nil
 }
 
@@ -108,7 +170,14 @@ func (m *Model) connectForm() tea.Cmd {
 			{Key: "to", Label: "Destination node", Value: destination},
 		},
 		Choices: map[string][]string{"from": names, "to": names},
-	}, connectNodesForm)
+	}, func(v map[string]string) error {
+		if v["from"] == v["to"] {
+			return fmt.Errorf("choose different nodes")
+		}
+		payload, _ := json.Marshal([]string{v["from"], v["to"]})
+		m.queueAction("link-target", string(payload))
+		return nil
+	})
 
 	return nil
 }
@@ -119,15 +188,34 @@ func (m *Model) deleteNodeForm() tea.Cmd {
 		return nil
 	}
 	id := m.graph.Selected
+	draft := m.editor.Source()
 	m.openForm(screen.Form{
 		Title:       "Delete node",
 		Hint:        "References to this node must be repaired before validation succeeds.",
 		ApplyLabel:  "Delete",
 		Fields:      []formField{{Key: "id", Label: "Type node ID to delete: " + id}},
 		Destructive: true,
-	}, deleteRecipeNode{
-		id:    id,
-		draft: m.editor.Source(),
+	}, func(v map[string]string) error {
+		if m.busy || m.run != nil || m.editor.Source() != draft {
+			return fmt.Errorf("draft changed; reopen node deletion")
+		}
+
+		if id == "" || v["id"] != id {
+			return fmt.Errorf("type %s", id)
+		}
+
+		d := m.editor.Clone()
+		for i, s := range d.Steps {
+			if s.ID == id {
+				d.Steps = append(d.Steps[:i], d.Steps[i+1:]...)
+				break
+			}
+		}
+
+		m.editor.Replace(d)
+		m.graph.Selected = ""
+		m.graph = m.buildGraph(m.graph)
+		return nil
 	})
 
 	return nil
@@ -165,130 +253,10 @@ func (m *Model) reviewForm() tea.Cmd {
 			{Key: "decision", Label: "Decision", Value: "Reject"},
 		},
 		Choices: map[string][]string{"decision": {"Reject", "Approve"}},
-	}, reviewOperationForm)
-
-	return nil
-}
-
-func (m *Model) applySettingsChoice(v map[string]string) error {
-	actions := map[string]string{"Selected step arguments": "edit", "AI change": "ai", "Name": "name", "Inputs": "inputs", "Outputs": "outputs", "Complete JSON": "recipe"}
-	action, ok := actions[v["section"]]
-	if !ok {
-		return fmt.Errorf("choose a section")
-	}
-	m.queueAction(action, "")
-	return nil
-}
-
-func (m *Model) applyNodeChoice(v map[string]string) error {
-	if v["type"] == "Schedule trigger" {
-		m.queueAction("schedule-add", "")
+	}, func(v map[string]string) error {
+		m.queueAction("review-"+strings.ToLower(v["decision"]), v["step"])
 		return nil
-	}
-	_, nodeErr := m.registry.Node(v["type"])
-	if nodeErr != nil {
-		return nodeErr
-	}
-	m.queueAction("add-operation", v["type"])
-	return nil
-}
+	})
 
-type editNodeBehavior struct {
-	id, draft string
-	original  []byte
-	schema    schemaform.Schema
-}
-
-func (edit editNodeBehavior) apply(m *Model, v map[string]string) error {
-	if m.busy || m.run != nil || m.editor.Source() != edit.draft {
-		return fmt.Errorf("draft changed; reopen node behavior")
-	}
-
-	raw, err := edit.schema.Values(edit.original, v)
-	if err != nil {
-		return err
-	}
-
-	var changed workflow.Step
-	decodeErr := json.Unmarshal(raw, &changed)
-	if decodeErr != nil {
-		return decodeErr
-	}
-
-	d := m.editor.Clone()
-	for i, step := range d.Steps {
-		if step.ID == edit.id {
-			d.Steps[i] = changed
-			break
-		}
-	}
-
-	m.editor.Replace(d)
-	m.graph = m.buildGraph(m.graph)
-	return nil
-}
-
-func (m *Model) applyChangePrompt(v map[string]string) error {
-	if strings.TrimSpace(v["prompt"]) == "" {
-		return fmt.Errorf("describe a change")
-	}
-	m.queueAction("ai-prompt", v["prompt"])
-	return nil
-}
-
-type recipeSource struct{ draft string }
-
-func (edit recipeSource) apply(m *Model, v map[string]string) error {
-	if m.busy || m.run != nil || m.editor.Source() != edit.draft {
-		return fmt.Errorf("draft changed; reopen recipe JSON")
-	}
-
-	d, err := Decode([]byte(v["source"]))
-	if err != nil {
-		return err
-	}
-	m.editor.Replace(d)
-	m.graph = m.buildGraph(m.graph)
-	return nil
-}
-
-func (m *Model) applyNodeConnection(v map[string]string) error {
-	if v["from"] == v["to"] {
-		return fmt.Errorf("choose different nodes")
-	}
-	payload, _ := json.Marshal([]string{v["from"], v["to"]})
-	m.queueAction("link-target", string(payload))
-	return nil
-}
-
-type deleteRecipeNode struct {
-	id, draft string
-}
-
-func (edit deleteRecipeNode) apply(m *Model, v map[string]string) error {
-	if m.busy || m.run != nil || m.editor.Source() != edit.draft {
-		return fmt.Errorf("draft changed; reopen node deletion")
-	}
-
-	if edit.id == "" || v["id"] != edit.id {
-		return fmt.Errorf("type %s", edit.id)
-	}
-
-	d := m.editor.Clone()
-	for i, s := range d.Steps {
-		if s.ID == edit.id {
-			d.Steps = append(d.Steps[:i], d.Steps[i+1:]...)
-			break
-		}
-	}
-
-	m.editor.Replace(d)
-	m.graph.Selected = ""
-	m.graph = m.buildGraph(m.graph)
-	return nil
-}
-
-func (m *Model) applyOperationReview(v map[string]string) error {
-	m.queueAction("review-"+strings.ToLower(v["decision"]), v["step"])
 	return nil
 }

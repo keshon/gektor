@@ -5,8 +5,10 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/gektor/internal/tui/screen"
 
 	"github.com/keshon/gektor/internal/config"
 )
@@ -116,7 +118,26 @@ func TestReplacedSharedFormCannotApplyPendingValues(t *testing.T) {
 	if m.chrome.Dialog != replacement || m.agent.Appearance().Frame != before {
 		t.Fatal("a replaced form applied its pending submission")
 	}
-	if m.formEdits[first] != nil {
+	if m.form.dialog == first {
 		t.Fatal("replaced form retained its operation")
+	}
+}
+
+func TestPendingFormKeepsReplacementAndReleasesOnClose(t *testing.T) {
+	m := settingsModel(t)
+	firstCalls, secondCalls := 0, 0
+	m.openForm(screen.Form{Title: "First"}, func(map[string]string) error { firstCalls++; return nil })
+	m.chrome.ApplyForm()
+	m.openForm(screen.Form{Title: "Second"}, func(map[string]string) error { secondCalls++; return nil })
+	replacement := m.chrome.Dialog
+	m.Update(nil)
+	if firstCalls != 0 || secondCalls != 0 || m.form.dialog != replacement || m.form.apply == nil {
+		t.Fatal("late events lost or submitted the replacement")
+	}
+
+	m.chrome.ApplyForm()
+	m.Update(nil)
+	if firstCalls != 0 || secondCalls != 1 || m.chrome.Dialog != nil || m.form.dialog != nil || m.form.apply != nil {
+		t.Fatal("current submission did not apply exactly once and release its callback")
 	}
 }

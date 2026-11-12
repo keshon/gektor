@@ -124,9 +124,38 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 				{Key: "enabled", Label: "Enabled", Value: enabled},
 				{Key: "loading", Label: "Loading", Value: loading},
 			},
-		}, editMCPServer{
-			a: a,
-			s: s,
+		}, func(v map[string]string) error {
+			if a.action == "edit" && v["id"] != s.ID {
+				return fmt.Errorf("server IDs cannot be renamed; add a new server")
+			}
+			if a.action == "add" {
+				_, lookupErr := m.mcp.Get(v["id"])
+				if lookupErr == nil {
+					return fmt.Errorf("server already exists")
+				}
+			}
+
+			next := s
+			next.ID = v["id"]
+			next.Description = v["description"]
+			next.URL = v["url"]
+			next.Enabled = v["enabled"] == "on"
+			next.Startup = v["loading"] == "at startup"
+			if json.Unmarshal([]byte(v["command"]), &next.Command) != nil {
+				return fmt.Errorf("command must be a JSON array")
+			}
+			if json.Unmarshal([]byte(v["envrefs"]), &next.EnvRefs) != nil {
+				return fmt.Errorf("environment references must be a JSON object")
+			}
+			if next.URL != s.URL && len(s.HeaderRefs) > 0 {
+				return fmt.Errorf("authenticated endpoint changes require importing a new server")
+			}
+
+			saveErr := m.mcp.Save(next)
+			if saveErr != nil {
+				return saveErr
+			}
+			return nil
 		})
 		m.chrome.Dialog.Form.Choices = map[string][]string{"enabled": {"on", "off"}, "loading": {"on demand", "at startup"}}
 	case "import", "import-json":
@@ -146,8 +175,20 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 				field,
 				{Key: "replace", Label: "Replace existing servers", Value: "off"},
 			},
-		}, importMCPServers{
-			a: a,
+		}, func(v map[string]string) error {
+			raw := []byte(v["json"])
+			if a.action == "import" {
+				var e error
+				raw, e = os.ReadFile(strings.Trim(v["path"], "\""))
+				if e != nil {
+					return e
+				}
+			}
+			_, importErr := m.mcp.Import(raw, v["replace"] == "on")
+			if importErr != nil {
+				return importErr
+			}
+			return nil
 		})
 		m.chrome.Dialog.Form.Choices = map[string][]string{"replace": {"off", "on"}}
 	case "delete":
@@ -156,8 +197,12 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 			Hint:       "Remove this saved server and disconnect it.",
 			ApplyLabel: "Delete",
 			Fields:     nil,
-		}, deleteMCPServer{
-			a: a,
+		}, func(_ map[string]string) error {
+			deleteErr := m.mcp.Delete(a.id)
+			if deleteErr != nil {
+				return deleteErr
+			}
+			return nil
 		})
 		m.chrome.Dialog.Form.Destructive = true
 		m.chrome.FocusForm(1)
@@ -222,77 +267,6 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 	}
 	if a.action != "list" && m.chrome.Dialog != nil && m.chrome.Dialog.Table == nil && !m.mcpBusy {
 		m.rememberReturn(dialogReturn{mcp: true, id: a.id})
-	}
-	return nil
-}
-
-type editMCPServer struct {
-	a mcpActionMsg
-	s mcpmanager.Server
-}
-
-func (edit editMCPServer) apply(m *Model, v map[string]string) error {
-	if edit.a.action == "edit" && v["id"] != edit.s.ID {
-		return fmt.Errorf("server IDs cannot be renamed; add a new server")
-	}
-	if edit.a.action == "add" {
-		_, lookupErr := m.mcp.Get(v["id"])
-		if lookupErr == nil {
-			return fmt.Errorf("server already exists")
-		}
-	}
-
-	next := edit.s
-	next.ID = v["id"]
-	next.Description = v["description"]
-	next.URL = v["url"]
-	next.Enabled = v["enabled"] == "on"
-	next.Startup = v["loading"] == "at startup"
-	if json.Unmarshal([]byte(v["command"]), &next.Command) != nil {
-		return fmt.Errorf("command must be a JSON array")
-	}
-	if json.Unmarshal([]byte(v["envrefs"]), &next.EnvRefs) != nil {
-		return fmt.Errorf("environment references must be a JSON object")
-	}
-	if next.URL != edit.s.URL && len(edit.s.HeaderRefs) > 0 {
-		return fmt.Errorf("authenticated endpoint changes require importing a new server")
-	}
-
-	saveErr := m.mcp.Save(next)
-	if saveErr != nil {
-		return saveErr
-	}
-	return nil
-}
-
-type importMCPServers struct {
-	a mcpActionMsg
-}
-
-func (edit importMCPServers) apply(m *Model, v map[string]string) error {
-	raw := []byte(v["json"])
-	if edit.a.action == "import" {
-		var e error
-		raw, e = os.ReadFile(strings.Trim(v["path"], "\""))
-		if e != nil {
-			return e
-		}
-	}
-	_, importErr := m.mcp.Import(raw, v["replace"] == "on")
-	if importErr != nil {
-		return importErr
-	}
-	return nil
-}
-
-type deleteMCPServer struct {
-	a mcpActionMsg
-}
-
-func (edit deleteMCPServer) apply(m *Model, _ map[string]string) error {
-	deleteErr := m.mcp.Delete(edit.a.id)
-	if deleteErr != nil {
-		return deleteErr
 	}
 	return nil
 }

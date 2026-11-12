@@ -218,8 +218,17 @@ func (m *Model) acceptPermission(p workflowPermission) tea.Cmd {
 			{Key: "args", Label: "Resolved arguments", Value: prettyToolArguments(string(p.args)), Multiline: true, ReadOnly: true},
 		},
 		Choices: map[string][]string{"decision": {"Deny", "Allow once"}},
-	}, permissionDecision{
-		p: p,
+	}, func(v map[string]string) error {
+		eff := permission.Deny
+		if v["decision"] == "Allow once" {
+			eff = permission.Allow
+		}
+		select {
+		case p.reply <- eff:
+		default:
+		}
+		delete(m.permissionRequests, m.dialogs.Dialog)
+		return nil
 	})
 
 	m.permissionDialog = m.dialogs.Dialog
@@ -431,23 +440,6 @@ func (m *Model) persistLayout() {
 
 func (m *Model) service(gate permission.Gate) (service.Service, error) {
 	return app.NewWorkflow(m.config.WS, userdirs.Sub("workflows"), m.config.Policy, gate)
-}
-
-type permissionDecision struct {
-	p workflowPermission
-}
-
-func (edit permissionDecision) apply(m *Model, v map[string]string) error {
-	eff := permission.Deny
-	if v["decision"] == "Allow once" {
-		eff = permission.Allow
-	}
-	select {
-	case edit.p.reply <- eff:
-	default:
-	}
-	delete(m.permissionRequests, m.dialogs.Dialog)
-	return nil
 }
 
 func (m *Model) refreshRunActions() {

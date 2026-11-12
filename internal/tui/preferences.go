@@ -50,8 +50,17 @@ func (m *Model) editSettings(section string) {
 		Hint:       settings.Hint(section),
 		ApplyLabel: "Apply",
 		Fields:     fields,
-	}, editSettingsSubmission{
-		ws: ws,
+	}, func(_ map[string]string) error {
+		m.chrome.Dialog.Form.StorePage()
+		profile, err := ws.Draft.Resolve()
+		if err != nil {
+			return err
+		}
+
+		// Applying settings restarts the launch so the new profile is composed
+		// into fresh services. Nothing is applied in place: the session that
+		// reads the old one must not keep running against the new.
+		return m.requestProfileChange(profile)
 	})
 	m.chrome.Dialog.Form.SaveCopy = true
 	m.chrome.Dialog.Form.EditSession = ws
@@ -60,21 +69,4 @@ func (m *Model) editSettings(section string) {
 	m.chrome.Dialog.Form.Index = len(saved)
 	m.chrome.FocusForm(0)
 	m.chrome.Dialog.Title = "Settings"
-}
-
-type editSettingsSubmission struct {
-	ws *settings.EditSession
-}
-
-func (edit editSettingsSubmission) apply(m *Model, _ map[string]string) error {
-	m.chrome.Dialog.Form.StorePage()
-	profile, err := edit.ws.Draft.Resolve()
-	if err != nil {
-		return err
-	}
-
-	// Applying settings restarts the launch so the new profile is composed
-	// into fresh services. Nothing is applied in place: the session that
-	// reads the old one must not keep running against the new.
-	return m.requestProfileChange(profile)
 }
