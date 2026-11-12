@@ -20,7 +20,7 @@ func testStyles() popup.Styles {
 func threeOptions() []Option {
 	return []Option{
 		{Value: "y", Label: "Allow once", Hint: "Y"},
-		{Value: "a", Label: "Allow this run", Hint: "A"},
+		{Value: "a", Label: "Allow for this session", Hint: "A"},
 		{Value: "n", Label: "Deny with note", Hint: "N"},
 	}
 }
@@ -56,7 +56,7 @@ func TestOptionsSurviveWhenThereIsRoom(t *testing.T) {
 	s.Open("Permission required", threeOptions())
 	rows := s.View(60, 12, []string{"a", "b", "c", "d", "e", "f", "g", "h"}, "hint", false, testStyles())
 	joined := strip(rows)
-	for _, want := range []string{"Allow once", "Allow this run", "Deny with note"} {
+	for _, want := range []string{"Allow once", "Allow for this session", "Deny with note"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("lost %q:\n%s", want, joined)
 		}
@@ -89,7 +89,7 @@ func TestTinyHeightKeepsTheAnswersAndFits(t *testing.T) {
 		t.Fatalf("drew %d rows into 6", len(rows))
 	}
 	joined := strip(rows)
-	for _, want := range []string{"Allow once", "Allow this run", "Deny with note"} {
+	for _, want := range []string{"Allow once", "Allow for this session", "Deny with note"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("lost %q at height 6:\n%s", want, joined)
 		}

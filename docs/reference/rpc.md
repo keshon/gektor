@@ -58,7 +58,7 @@ For permission requests:
 | Answer | Effect |
 |---|---|
 | `y` or `yes` | Allow the pending call |
-| `a` or `always` | Allow the pending call and the same tool/resource pair for the rest of this run |
+| `a` or `always` | Allow the pending call and the same tool and target for this session (one RPC `run`); SSH commands share their endpoint, other resources stay exact |
 | `n: <note>` | Deny and attach the operator's redirect note to the refusal the model sees |
 | Other text | Deny |
 

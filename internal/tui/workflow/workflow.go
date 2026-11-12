@@ -22,14 +22,15 @@ import (
 )
 
 // Model owns one workflow screen and its background operations.
-// All mutable screen state is confined to the Bubble Tea update loop.
+// Screen state is confined to the Bubble Tea update loop; approvals also serve workers.
 type Model struct {
 	permissionDialog, runsDialog, proposalDialog *screen.DialogState
 	permissionRequests                           map[*screen.DialogState]chan permission.Effect
 	proposalBefore                               string
 	proposalDraft                                workflow.Definition
 
-	form pendingForm
+	approvals permission.Approvals
+	form      pendingForm
 
 	dialogs                  *screen.Controls
 	surface                  screen.Surface

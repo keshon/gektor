@@ -37,6 +37,9 @@ func (m *Model) MenuItems(menu string, applicationIdle bool) []screen.MenuItem {
 			{Text: "Validate recipe…", Command: "/workflows validate", Enabled: edit},
 			{Text: "Run recipe…", Command: "/workflows run", Enabled: edit},
 			{Text: "Stop run", Command: "/workflows stop", Enabled: m.busy}, sep,
+			{Text: "Ask permission", Command: "/workflows access-ask", Enabled: idle},
+			{Text: "Full access", Command: "/workflows access-full", Enabled: idle},
+			sep,
 			{Text: "Run history…", Command: "/workflows runs", Enabled: idle},
 			{Text: "Review run…", Command: "/workflows review", Enabled: idle && m.run != nil},
 			{Text: "Return to recipe", Command: "/workflows draft", Enabled: idle && m.run != nil}, sep,
@@ -58,6 +61,10 @@ func (m *Model) MenuItems(menu string, applicationIdle bool) []screen.MenuItem {
 // MenuToggle reports whether a workflow command is checkable and currently on.
 func (m *Model) MenuToggle(command string) (toggle, on bool) {
 	switch command {
+	case "/workflows access-ask":
+		return true, !m.approvals.FullAccess()
+	case "/workflows access-full":
+		return true, m.approvals.FullAccess()
 	case "/workflows raw-details":
 		return true, m.rawDetails
 	case "/workflows lock-positions":

@@ -90,6 +90,7 @@ func (m *Model) activateSavedSession(cur sessionEntry, snapshot conversation.Sna
 
 	m.saveDraft()
 	m.cancelSessionTitle()
+	m.approvals.Reset()
 	m.sess = sess
 	m.stateFile = stateFile
 	m.sessionTitle = cur.title

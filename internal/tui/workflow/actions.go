@@ -21,6 +21,12 @@ func (m *Model) command(action string) tea.Cmd {
 	if !m.active {
 		return nil
 	}
+	if action == "access-ask" || action == "access-full" {
+		if !m.busy {
+			m.approvals.SetFullAccess(action == "access-full")
+		}
+		return nil
+	}
 	if action == "inspector" {
 		m.inspectorOpen = !m.inspectorOpen
 		m.inspect = m.inspectorOpen

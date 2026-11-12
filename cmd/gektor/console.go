@@ -19,20 +19,16 @@ import (
 )
 
 func permissionGateContext(autoDeny bool, suspend agent.Suspender, ws *workspace.Workspace) func(context.Context, string, string, json.RawMessage) (permission.Effect, error) {
-	var mu sync.Mutex
-	always := map[[2]string]bool{}
+	var approvals permission.Approvals
 	return func(ctx context.Context, tool, resource string, args json.RawMessage) (permission.Effect, error) {
-		key := [2]string{tool, resource}
-		mu.Lock()
-		allowed := always[key]
-		mu.Unlock()
-		if allowed {
+		if approvals.Allows(tool, resource) {
 			return permission.Allow, nil
 		}
 		if autoDeny {
 			return permission.Deny, nil
 		}
-		prompt := fmt.Sprintf("\n[permission] %s on %q - allow? [y]es once / [a]lways / [n]o", tool, resource)
+		target := permission.Target(tool, resource)
+		prompt := fmt.Sprintf("\n[permission] %s on %q\n[y] Allow once / [a] Allow for this session on %q / [n] Deny", tool, resource, target)
 		if preview := toolfiles.Preview(ws, tool, args); preview != "" {
 			prompt += "\n" + preview
 		}
@@ -45,16 +41,19 @@ func permissionGateContext(autoDeny bool, suspend agent.Suspender, ws *workspace
 		if err != nil {
 			return permission.Deny, err
 		}
-		if eff, derr := permission.Decide(rep.Answer); derr != nil {
+		eff, derr := permission.Decide(rep.Answer)
+		if derr != nil {
 			return permission.Deny, fmt.Errorf("blocked by operator (%s on %s)", tool, resource)
-		} else {
-			if strings.EqualFold(strings.TrimSpace(rep.Answer), "a") || strings.EqualFold(strings.TrimSpace(rep.Answer), "always") {
-				mu.Lock()
-				always[key] = true
-				mu.Unlock()
-			}
-			return eff, nil
 		}
+
+		err = ctx.Err()
+		if err != nil {
+			return permission.Deny, err
+		}
+		if permission.SessionAnswer(rep.Answer) {
+			approvals.Remember(tool, resource)
+		}
+		return eff, nil
 	}
 }
 

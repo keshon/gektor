@@ -6,8 +6,7 @@ container or VM.
 
 GEKTOR treats the local user account and files writable by that account as
 inside the same trust boundary as the agent process. Deny rules are terminal;
-Ask rules fail closed when no approval handler exists. Approvals marked
-Always last only for the current run.
+Ask rules fail closed when no approval handler exists. Session approvals stay in memory only while that session is open.
 
 `internal/workspace`
 confines built-in file reads, writes, patches, moves, search and previews
@@ -73,8 +72,19 @@ The default policy asks for sensitive reads and known destructive shell or
 background command shapes. Explicit Deny cannot be approved away. CLI/RPC
 `-yes` denies permission Ask requests;
 it does not authorize every tool. TUI permission requests remain interactive.
-All frontends remember an Always approval for the exact tool/resource pair
-for the current run only. These grants are not saved with the session.
+Agent and Workflow TUI, CLI and RPC remember a session approval for the same tool and target.
+SSH command targets are canonical connection endpoints (user, host and port), so
+different commands on the same endpoint share approval. Other resources stay exact:
+file paths, transfer paths, URLs and local command strings. Every resource of a
+multi-target call must still pass policy. Grants survive follow-up turns, but are
+not saved: leaving the session or restarting revokes them. Each RPC `run` creates
+a separate session. Workflow grants last for the open recipe and reset when
+creating or opening a recipe; scheduled jobs do not inherit interactive grants.
+
+Agent TUI Run menu offers Ask permission and Full access for the open session.
+Full access automatically approves Ask decisions; explicit Deny rules and Plan
+mode restrictions still apply. Returning to Ask permission revokes remembered
+grants. New or reopened sessions start in Ask permission.
 
 ## Network probes
 

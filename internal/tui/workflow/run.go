@@ -77,6 +77,7 @@ func (m *Model) action(a workflowAction) tea.Cmd {
 	case "ai-prompt":
 		return m.propose(a.value)
 	case "new-path":
+		m.approvals.Reset()
 		m.runID = ""
 		m.editor = NewEditor()
 		m.editor.Path = a.value
@@ -101,6 +102,9 @@ func (m *Model) action(a workflowAction) tea.Cmd {
 	runID := m.runID
 	return m.startOperation(func(ctx context.Context) tea.Msg {
 		gate := func(ctx context.Context, tool, resource string, args json.RawMessage) (permission.Effect, error) {
+			if m.approvals.Allows(tool, resource) {
+				return permission.Allow, nil
+			}
 			reply := make(chan permission.Effect, 1)
 			select {
 			case events <- workflowPermission{tool, resource, args, reply}:
@@ -189,17 +193,20 @@ func (m *Model) openRuns(runs []store.RunSummary) {
 func (m *Model) acceptPermission(p workflowPermission) tea.Cmd {
 	m.openForm(screen.Form{
 		Title:      "Allow operation?",
-		Hint:       p.tool + " on " + p.resource,
+		Hint:       p.tool + " on " + p.resource + "\nSession target: " + permission.Target(p.tool, p.resource),
 		ApplyLabel: "Decide",
 		Fields: []formField{
 			{Key: "decision", Label: "Permission", Value: "Deny"},
 			{Key: "args", Label: "Resolved arguments", Value: prettyToolArguments(string(p.args)), Multiline: true, ReadOnly: true},
 		},
-		Choices: map[string][]string{"decision": {"Deny", "Allow once"}},
+		Choices: map[string][]string{"decision": {"Deny", "Allow once", "Allow for this session"}},
 	}, func(v map[string]string) error {
 		eff := permission.Deny
-		if v["decision"] == "Allow once" {
+		if v["decision"] == "Allow once" || v["decision"] == "Allow for this session" {
 			eff = permission.Allow
+		}
+		if v["decision"] == "Allow for this session" {
+			m.approvals.Remember(p.tool, p.resource)
 		}
 		select {
 		case p.reply <- eff:
@@ -266,6 +273,9 @@ func (m *Model) acceptResult(r workflowResult) tea.Cmd {
 		if err != nil {
 			m.setNotice(pane.NoticeError, err.Error())
 			return nil
+		}
+		if r.action == "open-path" {
+			m.approvals.Reset()
 		}
 		m.runID = ""
 		m.editor = &Editor{Definition: d, Path: r.path}

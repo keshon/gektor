@@ -117,9 +117,7 @@ func testApprovalInspection(t *testing.T, frame string) {
 		t.Fatal("stale proposal authorized execution")
 	default:
 	}
-	m.alwaysMu.Lock()
-	allowed := m.always[[2]string{"write_file", "new.txt"}]
-	m.alwaysMu.Unlock()
+	allowed := m.approvals.Allows("write_file", "new.txt")
 	if allowed {
 		t.Fatal("stale approval saved always scope")
 	}

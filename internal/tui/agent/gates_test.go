@@ -341,3 +341,63 @@ func TestGateEventForwardsFields(t *testing.T) {
 		t.Fatalf("fields = %v", ev.Fields)
 	}
 }
+
+func TestSessionApprovalsSurviveTurnAndRevokeOnNew(t *testing.T) {
+	m := sizeModel(t, testModel())
+	m.state = stDone
+	m.approvals.Remember("read_file", "notes.txt")
+	m.testUpdate(doneMsg{answer: "done"})
+	if !m.approvals.Allows("read_file", "notes.txt") {
+		t.Fatal("turn completion revoked session approval")
+	}
+
+	finished := make(chan struct{})
+	m.send = func(tea.Msg) { close(finished) }
+	m.startRun(func(ctx context.Context) (string, error) { return "", nil })
+	<-finished
+	if !m.approvals.Allows("read_file", "notes.txt") {
+		t.Fatal("follow-up revoked session approval")
+	}
+	m.testUpdate(doneMsg{})
+	m.approvals.SetFullAccess(true)
+	m.newTask()
+	if m.approvals.Count() != 0 || m.approvals.FullAccess() {
+		t.Fatal("new session inherited access")
+	}
+}
+
+func TestAccessMenuAndSessionConfirmation(t *testing.T) {
+	m := sizeModel(t, testModel())
+	m.state = stDone
+	m.activateMenuAction("access-full")
+	if !m.approvals.FullAccess() || !strings.Contains(m.badgeLine(), "FULL ACCESS") {
+		t.Fatal("full access missing or invisible")
+	}
+	gate := m.contextGate(m.hub, nil)
+	effect, err := gate(t.Context(), "ssh_exec", "ssh://root@host:22 df -h", nil)
+	if err != nil || effect != permission.Allow || m.hub.HasPending() {
+		t.Fatalf("full access prompted: %v, %v", effect, err)
+	}
+	m.state = stRunning
+	m.activateMenuAction("access-ask")
+	if !m.approvals.FullAccess() {
+		t.Fatal("mode changed during run")
+	}
+	m.state = stDone
+	m.activateMenuAction("access-ask")
+	if m.approvals.FullAccess() {
+		t.Fatal("Ask did not restore prompts")
+	}
+
+	m.state = stPermission
+	m.gstage = gsAlways
+	m.gateTool = "ssh_exec"
+	m.gateResource = "ssh://root@host:22 df -h"
+	m.gate = "old prompt df -h"
+	m.openGatePopup()
+	body := strings.Repeat("history\n", 20)
+	confirmation := m.gateView(body)
+	if !strings.Contains(confirmation, "ssh://root@host:22") || strings.Contains(confirmation, "df -h") {
+		t.Fatalf("confirmation does not show session target: %s", confirmation)
+	}
+}

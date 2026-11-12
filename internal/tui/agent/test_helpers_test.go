@@ -36,8 +36,7 @@ func testModel() *Model {
 		started:      time.Now(),
 		styles:       defaultStyles(),
 		transcript:   newTranscript(), maxSteps: agent.DefaultMaxSteps,
-		note:   newNote(),
-		always: map[[2]string]bool{},
+		note: newNote(),
 	}
 	m.input = newInput()
 	m.input.Prompt = "> "

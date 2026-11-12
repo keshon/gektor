@@ -27,7 +27,7 @@ const (
 	// gsPermit answers inline: allow once, escalate to always-confirm,
 	// or drop to reject-with-note.
 	gsPermit gateStage = iota
-	// gsAlways confirms the run-local always scope before answering.
+	// gsAlways confirms the session approval scope before answering.
 	gsAlways
 	// gsReject takes a redirect note; empty means plain deny.
 	gsReject
@@ -183,7 +183,7 @@ func (m *Model) openGatePopup() {
 	case stPermission:
 		m.gatePopup.Open("Permission required", []gate.Option{
 			{Value: "y", Label: "Allow once", Hint: "Y"},
-			{Value: "a", Label: "Allow this run", Hint: "A"},
+			{Value: "a", Label: "Allow for this session", Hint: "A"},
 			{Value: "n", Label: "Deny with note", Hint: "N"},
 		})
 	case stAsk:
@@ -229,7 +229,12 @@ func (m *Model) gateView(body string) string {
 	width := min(m.transcript.Viewport.Width(), 78)
 	lines := strings.Split(body, "\n")
 	height := max(len(lines)-gateTranscriptRows, 6)
-	question := gate.Wrap(m.gate, max(width-4, 1))
+	questionText := m.gate
+	if m.state == stPermission && m.gstage == gsAlways {
+		target := permission.Target(m.gateTool, m.gateResource)
+		questionText = fmt.Sprintf("Allow %s on %q for this session?", m.gateTool, target)
+	}
+	question := gate.Wrap(questionText, max(width-4, 1))
 	rows := m.gatePopup.View(width, height, question, m.gateHint(max(width-4, 1)),
 		m.gstage == gsReject, popupSurface())
 	if len(rows) == 0 {
@@ -250,24 +255,22 @@ const gateTranscriptRows = 4
 func (m *Model) gateBar() string {
 	switch m.gstage {
 	case gsAlways:
-		return m.controlHints(popup.Shortcut{Key: "Esc", Action: "back"}, popup.Shortcut{Key: "Enter", Action: "confirm"}) + "  " + m.styles.Gate.Render(fmt.Sprintf(
-			"Allow %s on %q for this run", m.gateTool, truncate(m.gateResource, 80)))
+		target := permission.Target(m.gateTool, m.gateResource)
+		scope := fmt.Sprintf("Allow %s on %q for this session", m.gateTool, target)
+		hints := m.controlHints(popup.Shortcut{Key: "Esc", Action: "back"}, popup.Shortcut{Key: "Enter", Action: "confirm"})
+		return hints + "  " + m.styles.Gate.Render(scope)
 	case gsReject:
 		return m.controlHints(popup.Shortcut{Key: "Esc", Action: "back"}, popup.Shortcut{Key: "Enter", Action: "deny"}) +
 			"\n" + m.note.View()
 	default:
 		return m.controlHints(popup.Shortcut{Key: "Esc", Action: "deny"}, popup.Shortcut{Key: "Y", Action: "allow once"},
-			popup.Shortcut{Key: "N", Action: "deny with note"}, popup.Shortcut{Key: "A", Action: "allow this run"})
+			popup.Shortcut{Key: "N", Action: "deny with note"}, popup.Shortcut{Key: "A", Action: "allow for this session"})
 	}
 }
 
 func (m *Model) contextGate(hub *harness.GateHub, ws *workspace.Workspace) func(context.Context, string, string, json.RawMessage) (permission.Effect, error) {
 	return func(runCtx context.Context, tool, resource string, args json.RawMessage) (permission.Effect, error) {
-		key := [2]string{tool, resource}
-		m.alwaysMu.Lock()
-		allowed := m.always[key]
-		m.alwaysMu.Unlock()
-		if allowed {
+		if m.approvals.Allows(tool, resource) {
 			return permission.Allow, nil
 		}
 		stale := false
@@ -303,26 +306,18 @@ func (m *Model) contextGate(hub *harness.GateHub, ws *workspace.Workspace) func(
 				stale = true
 				continue
 			}
-			if isAlwaysAnswer(rep.Answer) {
-				m.alwaysMu.Lock()
-				m.always[key] = true
-				m.alwaysMu.Unlock()
+			err = runCtx.Err()
+			if err != nil {
+				return permission.Deny, err
+			}
+			if permission.SessionAnswer(rep.Answer) {
+				m.approvals.Remember(tool, resource)
 			}
 			return eff, nil
 		}
 	}
 }
 
-// isAlwaysAnswer reports whether the reply asks for run-long allow.
-// Mirrors permission.Decide's allow list; kept beside the memory that
-// depends on it.
-func isAlwaysAnswer(answer string) bool {
-	switch strings.ToLower(strings.TrimSpace(answer)) {
-	case "a", "always":
-		return true
-	}
-	return false
-}
 func (m *Model) refreshGate() {
 	title := "Permission required"
 	switch {

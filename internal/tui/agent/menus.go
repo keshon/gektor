@@ -32,9 +32,11 @@ func (m *Model) menuItems(menu string) []screen.MenuItem {
 			{Text: "Compact history…", Command: "compact-session", Enabled: saved}, sep}, m.sessionCopyItems()...)
 	case "execution":
 		return []screen.MenuItem{{Text: "Plan — read-only", Command: "/mode plan", Enabled: idle}, {Text: "Act — allow changes", Command: "/mode act", Enabled: idle}, sep,
+			{Text: "Ask permission", Command: "access-ask", Enabled: idle}, {Text: "Full access", Command: "access-full", Enabled: idle},
+			sep,
 			{Text: "Stop run", Command: "stop", Enabled: m.state == stRunning}, {Text: "Retry failed turn", Command: "/retry", Enabled: idle && m.runErr != nil && m.retryRun != nil}, sep,
 			{Text: "Permissions…", Command: "permissions-info", Enabled: true}, {Text: "MCP servers…", Command: "/mcp", Enabled: true}, sep,
-			{Text: "Message queue…", Command: "message-queue", Enabled: true}, {Text: "Background processes…", Command: "/processes", Enabled: true}, {Text: "Apply new messages during run", Command: "toggle-steering", Enabled: true}}
+			{Text: "Message queue…", Command: "message-queue", Enabled: true}, {Text: "Background processes…", Command: "/processes", Enabled: true}, {Text: "Live steering", Command: "toggle-steering", Enabled: true}}
 	case "view":
 		return []screen.MenuItem{{Text: "Thinking", Command: "toggle-details", Enabled: true}, {Text: "Tool calls", Command: "toggle-tools", Enabled: true}, {Text: "System messages", Command: "toggle-sys", Enabled: true},
 			{Text: "Speaker names", Command: "toggle-names", Enabled: true}, {Text: "Message labels", Command: "toggle-labels", Enabled: true}, sep, {Text: "Jump to latest", Command: "latest", Enabled: true}}
@@ -54,6 +56,10 @@ func (m *Model) menuItems(menu string) []screen.MenuItem {
 // mark on "System messages" means scaffolding history is visible.
 func (m *Model) menuToggle(command string) (toggle, on bool) {
 	switch command {
+	case "access-ask":
+		return true, !m.approvals.FullAccess()
+	case "access-full":
+		return true, m.approvals.FullAccess()
 	case "toggle-steering":
 		return true, m.steering
 	case "toggle-details":

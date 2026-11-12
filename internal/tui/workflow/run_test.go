@@ -285,3 +285,39 @@ func TestWorkflowShutdownDeniesPendingPermission(t *testing.T) {
 		t.Fatal("shutdown left permission pending")
 	}
 }
+
+func TestWorkflowSessionApprovalAndAccessReset(t *testing.T) {
+	m := workflowTestModel(t)
+	w := m.workflows
+	reply := make(chan permission.Effect, 1)
+	w.acceptPermission(workflowPermission{tool: "ssh_exec", resource: "ssh://root@host:22 df -h", reply: reply})
+	m.syncControls()
+	err := m.applyValues(map[string]string{"decision": "Allow for this session"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.closeDialog()
+	if <-reply != permission.Allow || !w.approvals.Allows("ssh_exec", "ssh://root@host:22 ls /opt") {
+		t.Fatal("session approval did not cover the same target")
+	}
+
+	w.command("access-full")
+	if !w.approvals.FullAccess() || !strings.Contains(m.workflowScreen(), "FULL ACCESS") {
+		t.Fatal("full access missing or invisible")
+	}
+	w.busy = true
+	w.command("access-ask")
+	if !w.approvals.FullAccess() {
+		t.Fatal("access changed during operation")
+	}
+	w.busy = false
+	w.command("access-ask")
+	if w.approvals.FullAccess() || w.approvals.Count() != 0 {
+		t.Fatal("Ask kept grants")
+	}
+	w.command("access-full")
+	w.action(workflowAction{"new-path", "new.json"})
+	if w.approvals.FullAccess() {
+		t.Fatal("new recipe inherited full access")
+	}
+}

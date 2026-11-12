@@ -18,6 +18,12 @@ func (m *Model) activateMenuAction(command string) (tea.Model, tea.Cmd) {
 	}
 	m.chrome.CloseHeader()
 	switch command {
+	case "access-ask", "access-full":
+		if m.state != stDone {
+			return m, nil
+		}
+		m.approvals.SetFullAccess(command == "access-full")
+		return m, nil
 	case "copy-session-id", "copy-session-path":
 		return m, m.copySession(command)
 	case "message-queue":

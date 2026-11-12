@@ -204,10 +204,11 @@ func TestCommonMenusHaveNoRedirects(t *testing.T) {
 	m.chrome.Header.Focused = true
 	m.chrome.Header.Menu = "execution"
 	m.chrome.Header.Row = 0
-	// While a run is in flight, Plan and Act are disabled, so the first
-	// row the arrow key can land on is "Stop run" at index 3.
+	// Mode and access choices are disabled while a run is in flight.
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyDown})
-	if m.chrome.Header.Row != 3 {
+	items := m.headerItems()
+	selected := items[m.chrome.Header.Row]
+	if selected.Command != "stop" || !selected.Enabled {
 		t.Fatal("keyboard did not skip disabled actions")
 	}
 	finishAgentTurn(t, m)

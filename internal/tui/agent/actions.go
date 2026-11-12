@@ -26,7 +26,7 @@ func (m *Model) footerActions() []screen.Action {
 	}
 
 	if m.state == stPermission && m.chrome.Dialog == nil && m.gstage == gsPermit {
-		actions := []screen.Action{{Key: 'y', Mod: 0, Name: "Y", Label: "Allow once", Short: "Allow", Enabled: true}, {Key: 'n', Mod: 0, Name: "N", Label: "Deny", Short: "Deny", Enabled: true}, {Key: 'a', Mod: 0, Name: "A", Label: "This run", Short: "Run", Enabled: true}}
+		actions := []screen.Action{{Key: 'y', Mod: 0, Name: "Y", Label: "Allow once", Short: "Allow", Enabled: true}, {Key: 'n', Mod: 0, Name: "N", Label: "Deny", Short: "Deny", Enabled: true}, {Key: 'a', Mod: 0, Name: "A", Label: "This session", Short: "Session", Enabled: true}}
 		if m.gatePreview != "" {
 			actions = append(actions, screen.Action{Key: tea.KeyF4, Mod: 0, Name: "F4", Label: "Proposal", Short: "View", Enabled: true})
 		}

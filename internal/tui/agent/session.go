@@ -277,9 +277,6 @@ func (m *Model) startRun(run func(ctx context.Context) (string, error)) {
 	// is never replayed from the original turn closure.
 	// runErr clears: a new turn has no result yet, and /retry gates on it.
 	// Live state clears too: a new turn starts with no partial text.
-	m.alwaysMu.Lock()
-	m.always = map[[2]string]bool{}
-	m.alwaysMu.Unlock()
 	m.retryRun = func() {
 		if m.sess == nil || m.stateFile == "" {
 			m.startRun(run)
@@ -359,6 +356,7 @@ func (m *Model) newTask() {
 	m.cancelSessionTitle()
 	m.attachmentEpoch++
 	m.seedHistory = nil
+	m.approvals.Reset()
 	if m.stateFile == "" && m.sess == nil {
 		return
 	}

@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"charm.land/bubbles/v2/textinput"
@@ -205,8 +204,7 @@ type Model struct {
 	gateResource string
 	gatePreview  string
 	note         textinput.Model
-	alwaysMu     sync.Mutex
-	always       map[[2]string]bool
+	approvals    permission.Approvals
 	lastLesson   retrospective.Lesson
 	lessonRoot   string
 	// scrollDrag tracks a scrollbar thumb grab: active while the pointer
@@ -450,7 +448,6 @@ func newModel(uiCtx context.Context, cfg Config) *Model {
 
 		stateFile: cfg.StateFile,
 		note:      newNote(),
-		always:    map[[2]string]bool{},
 		// Status facts come from cfg once: the TUI never re-reads Env.
 		backendKind:  cfg.Env.BackendKind,
 		accountLabel: cfg.AccountLabel,

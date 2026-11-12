@@ -139,6 +139,9 @@ func (m *Model) content() string {
 		title = m.run.Definition.Name + " / " + m.run.Status
 	}
 	mode := "Workflow"
+	if m.approvals.FullAccess() {
+		mode += " / FULL ACCESS"
+	}
 	if m.positionsLocked {
 		mode += " [positions locked]"
 	}

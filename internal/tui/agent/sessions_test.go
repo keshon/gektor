@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -709,5 +710,34 @@ func TestSplitAttachmentsThroughWorkspaceAlias(t *testing.T) {
 	text, _, err := splitAttachments(ws, "read @notes.txt")
 	if err != nil || !strings.Contains(text, "Workspace file \"notes.txt\"") || !strings.Contains(text, "aliased file") {
 		t.Fatalf("invalid reference through alias: %q %v", text, err)
+	}
+}
+
+func TestOpeningSessionRevokesApprovalsOnlyAfterSuccess(t *testing.T) {
+	m := sessionsTestModel(t, nil)
+	m.approvals.Remember("write_file", "notes.txt")
+	m.approvals.SetFullAccess(true)
+	m.newSession = func(task, stateFile string, images []string) (*harness.Session, error) {
+		return nil, errors.New("cannot open")
+	}
+	entry := sessionEntry{dir: t.TempDir(), title: "Other"}
+	snapshot := conversation.Snapshot{History: userHistory("other")}
+	_, err := m.activateSavedSession(entry, snapshot)
+	if err == nil {
+		t.Fatal("expected construction error")
+	}
+	if !m.approvals.FullAccess() || m.approvals.Count() != 1 {
+		t.Fatal("failed open changed current access")
+	}
+
+	m.newSession = func(task, stateFile string, images []string) (*harness.Session, error) {
+		return &harness.Session{}, nil
+	}
+	_, err = m.activateSavedSession(entry, snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.approvals.FullAccess() || m.approvals.Count() != 0 {
+		t.Fatal("opened session inherited access")
 	}
 }

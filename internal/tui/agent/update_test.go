@@ -491,7 +491,7 @@ func TestStatusLinesPlainLanguage(t *testing.T) {
 			t.Fatalf("status keeps harness jargon %q:\n%s", banned, out)
 		}
 	}
-	for _, want := range []string{"thinking", "Ctrl+G", "permissions", "Y allow once", "always allowed", "none"} {
+	for _, want := range []string{"thinking", "Ctrl+G", "permissions", "Y allow once", "session approvals", "none"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("status missing %q:\n%s", want, out)
 		}

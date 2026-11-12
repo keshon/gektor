@@ -186,9 +186,6 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 				m.appendBlock(errorBlock(msg.err.Error() + "\n" + recoveryHint(msg.err)))
 			}
 		}
-		m.alwaysMu.Lock()
-		m.always = map[[2]string]bool{}
-		m.alwaysMu.Unlock()
 		if m.gateDraft != "" {
 			m.input.SetValue(m.gateDraft)
 			m.gateDraft = ""

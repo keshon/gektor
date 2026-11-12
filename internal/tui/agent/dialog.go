@@ -83,7 +83,7 @@ func helpSections() []helpSection {
 			{"F5", "Switch Plan / Act mode when idle"},
 			{"Esc", "Stop the current run; keep the session open"},
 			{"Y", "Allow the requested tool once"},
-			{"A", "Allow for this run, after confirmation"},
+			{"A", "Allow for this session, after confirmation"},
 			{"N", "Reject a tool; optionally add a redirect note"},
 			{"Ctrl+Q / F10", "Quit when idle; stop an active run first"},
 			{"Ctrl+C", "Abort and quit, including during a run"},
@@ -109,16 +109,15 @@ func (m *Model) statusLines() []string {
 	if !m.transcript.compact {
 		details = "full (Ctrl+G)"
 	}
-	// Run-local scope matters: these grants die with the process.
+	// Session grants are kept only while this session is open.
 	allowed := "none"
-	m.alwaysMu.Lock()
-	n := len(m.always)
-	m.alwaysMu.Unlock()
+	n := m.approvals.Count()
 	if n > 0 {
-		allowed = strconv.Itoa(n) + " (this run only)"
+		allowed = strconv.Itoa(n) + " (this session only)"
 	}
 	return kvRows([]string{
 		"mode: " + m.modeName(),
+		"full access: " + strconv.FormatBool(m.approvals.FullAccess()),
 		"identity: " + m.speakerName(),
 		"user: " + m.userName(),
 		"profile file: " + m.profileSource(),
@@ -129,8 +128,8 @@ func (m *Model) statusLines() []string {
 		"context: " + m.meter(),
 		"run: " + strconv.Itoa(m.steps) + " steps  " + m.statusWord() + "  " + formatElapsed(m.elapsed),
 		"thinking: " + details,
-		"permissions: Y allow once  A always allow  N deny with note",
-		"always allowed: " + allowed,
+		"permissions: Y allow once  A allow for session  N deny with note",
+		"session approvals: " + allowed,
 		"tools: " + strconv.Itoa(m.mcpCount) + " mcp  " + strconv.Itoa(m.policyRules) + " policy rules",
 	})
 }

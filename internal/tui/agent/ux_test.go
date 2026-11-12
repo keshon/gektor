@@ -29,7 +29,7 @@ func TestPermissionDecisionAlwaysHasVisibleContext(t *testing.T) {
 	view := m.testView().Content
 	// The popup pins the question head with the options; the full
 	// prompt lives in the transcript behind it.
-	for _, want := range []string{"TARGET_SCOPE", "Permission required", "Allow once", "Allow this run", "Deny with note"} {
+	for _, want := range []string{"TARGET_SCOPE", "Permission required", "Allow once", "Allow for this session", "Deny with note"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("gate popup missing %q:\n%s", want, view)
 		}

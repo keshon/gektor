@@ -410,3 +410,15 @@ func TestKeyboardNavigationSkipsViewSeparator(t *testing.T) {
 		m.chrome.Header.Row = m.testControls().HeaderActionRow(m.chrome.Header.Row+1, 1)
 	}
 }
+
+func TestFullAccessVisibleInNarrowHeader(t *testing.T) {
+	for _, width := range []int{24, 40, 80, 120} {
+		m := sizeModelTo(t, testModel(), width, 24)
+		m.approvals.SetFullAccess(true)
+		m.tokens, m.limit = 123000, 128000
+		line := ansi.Strip(m.badgeLine())
+		if !strings.Contains(line, "FULL ACCESS") || lipgloss.Width(line) != m.transcript.Viewport.Width() {
+			t.Fatalf("width %d: access hidden or header overflowed: %q", width, line)
+		}
+	}
+}

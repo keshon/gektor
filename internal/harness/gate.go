@@ -33,7 +33,7 @@ func (h *GateHub) event(name string, req agent.SuspendRequest) {
 		return
 	}
 	// Tool/resource ride along so permission UIs can name the gated
-	// call (and confirm always-scopes) without keeping gate state.
+	// call (and confirm session scopes) without keeping gate state.
 	// Ask gates leave them empty. Additive: old consumers ignore them.
 	h.emit(name, map[string]any{
 		"kind":     string(req.Kind),
