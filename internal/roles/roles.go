@@ -10,19 +10,25 @@ package roles
 
 import (
 	"context"
+	commandrun "github.com/keshon/gektor/internal/tools/command"
+	tooloutput "github.com/keshon/gektor/internal/tools/output"
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/tools"
+	toolaskuser "github.com/keshon/gektor/internal/tools/askuser"
+
+	// Planner is the read-only conversation. It deliberately shares
+	// Interactive's system prompt and tool set: a narrower registry would change
+	// the prompt prefix, and a backend that caches prompts would re-read the
+	// whole conversation every time the operator switches modes. Capability is
+	// removed where it is used - the loop refuses every call outside
+	// tools.ReadOnly - rather than by asking the model to hold back, so nothing
+	// can write in this role whatever the model decides to try.
+	tooldelegate "github.com/keshon/gektor/internal/tools/delegate"
+	toolhistory "github.com/keshon/gektor/internal/tools/history"
 )
 
-// Planner is the read-only conversation. It deliberately shares
-// Interactive's system prompt and tool set: a narrower registry would change
-// the prompt prefix, and a backend that caches prompts would re-read the
-// whole conversation every time the operator switches modes. Capability is
-// removed where it is used - the loop refuses every call outside
-// tools.ReadOnly - rather than by asking the model to hold back, so nothing
-// can write in this role whatever the model decides to try.
 func Planner(e Env, label, stateFile string, ask func(ctx context.Context, question string) (string, error)) (*agent.Agent, error) {
 	cfg, err := e.conversationConfig(label, stateFile, ask, nil)
 	if err != nil {
@@ -70,10 +76,10 @@ func (e Env) conversationConfig(label, stateFile string,
 	ask func(ctx context.Context, question string) (string, error),
 	verify func(ctx context.Context) (string, error)) (agent.Config, error) {
 	if e.Outputs == nil {
-		e.Outputs = tools.NewOutputStore(e.statePath(stateFile))
+		e.Outputs = tooloutput.New(e.statePath(stateFile))
 	}
 
-	extra := []agent.Tool{&tools.Delegate{
+	extra := []agent.Tool{&tooldelegate.Tool{
 		DefaultSteps: e.DelegateSteps,
 		MaxSteps:     e.DelegateMaxSteps,
 		Spawn: func(ctx context.Context, role string, steps int) (*agent.Agent, error) {
@@ -83,12 +89,12 @@ func (e Env) conversationConfig(label, stateFile string,
 		},
 	}}
 	extra = append(extra, e.MCPTools...)
-	extra = append(extra, tools.ReadHistory{Path: e.statePath(stateFile)})
+	extra = append(extra, toolhistory.Tool{Path: e.statePath(stateFile)})
 	if ask != nil {
-		extra = append(extra, tools.AskUser{AskFn: ask})
+		extra = append(extra, toolaskuser.Tool{AskFn: ask})
 	}
 
-	platform := prompts.PlatformLine(tools.ShellName())
+	platform := prompts.PlatformLine(commandrun.ShellName())
 	system := prompts.System + "\n\n" + platform
 	cfg := e.executionConfig(system, stateFile)
 	e.configureParent(&cfg, label)

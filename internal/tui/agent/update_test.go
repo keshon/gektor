@@ -21,7 +21,7 @@ import (
 	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/tools"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
 	"github.com/keshon/gektor/internal/tui/settings"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -70,7 +70,7 @@ func TestFollowUpResumes(t *testing.T) {
 		Env: roles.Env{
 			Client: stubDone{},
 			WS:     ws,
-			Procs:  tools.NewBackgroundProcesses(),
+			Procs:  toolbackground.New(),
 		},
 	})
 	if err != nil {
@@ -218,7 +218,7 @@ func TestFollowUp_AttachesImages(t *testing.T) {
 			Env: roles.Env{
 				Client: stubDone{},
 				WS:     ws,
-				Procs:  tools.NewBackgroundProcesses(),
+				Procs:  toolbackground.New(),
 			},
 		})
 	}
@@ -346,7 +346,7 @@ func TestEmptyStart_SubmitBegins(t *testing.T) {
 			Env: roles.Env{
 				Client: stubDone{},
 				WS:     ws,
-				Procs:  tools.NewBackgroundProcesses(),
+				Procs:  toolbackground.New(),
 			},
 		})
 	}
@@ -400,7 +400,7 @@ func TestInitialTaskEchoedAsUser(t *testing.T) {
 			Env: roles.Env{
 				Client: stubDone{},
 				WS:     ws,
-				Procs:  tools.NewBackgroundProcesses(),
+				Procs:  toolbackground.New(),
 			},
 		})
 	}

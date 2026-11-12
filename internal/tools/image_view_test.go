@@ -16,6 +16,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
+	toolreadfile "github.com/keshon/gektor/internal/tools/readfile"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -109,7 +110,7 @@ func TestReadFileMisnamedImageReportsActualFormat(t *testing.T) {
 	if err := ws.WriteFile("reference.jpg", data, 0600); err != nil {
 		t.Fatal(err)
 	}
-	reader := ReadFile{WS: ws, Vision: true}
+	reader := toolreadfile.Tool{WS: ws, Vision: true}
 	args := json.RawMessage(`{"path":"reference.jpg"}`)
 	out, err := reader.Run(t.Context(), args)
 	if err != nil || !strings.Contains(out, "format: png") {

@@ -22,7 +22,8 @@ import (
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/tools"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
+	toolcheckurl "github.com/keshon/gektor/internal/tools/checkurl"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -36,7 +37,7 @@ func testEnv(t *testing.T, client llm.Client, record func(string, int, llm.Messa
 		t.Fatal(err)
 	}
 	return roles.Env{
-		Client: client, WS: ws, Procs: tools.NewBackgroundProcesses(),
+		Client: client, WS: ws, Procs: toolbackground.New(),
 		OnStep: record,
 	}
 }
@@ -479,7 +480,7 @@ func TestSessionSweepUsesTheEventReporter(t *testing.T) {
 	}
 }
 
-type sessionPreviewTool struct{ tools.CheckURL }
+type sessionPreviewTool struct{ toolcheckurl.Tool }
 
 func (sessionPreviewTool) Name() string            { return "stream_test" }
 func (sessionPreviewTool) Schema() json.RawMessage { return json.RawMessage(`{"type":"object"}`) }

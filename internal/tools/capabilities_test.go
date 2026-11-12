@@ -11,6 +11,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/mcp"
+	toolcheckurl "github.com/keshon/gektor/internal/tools/checkurl"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -175,8 +176,8 @@ func TestRejectedCapabilityDiscoveryClosesOnlySuccessfulLoads(t *testing.T) {
 		closesPerAttempt int
 	}{
 		{name: "empty catalog", closesPerAttempt: 1},
-		{name: "duplicate tool", tools: []agent.Tool{CheckURL{}, CheckURL{}}, closesPerAttempt: 1},
-		{name: "unknown policy tool", tools: []agent.Tool{CheckURL{}}, policies: map[string]ToolPolicy{"missing": {}}, closesPerAttempt: 1},
+		{name: "duplicate tool", tools: []agent.Tool{toolcheckurl.Tool{}, toolcheckurl.Tool{}}, closesPerAttempt: 1},
+		{name: "unknown policy tool", tools: []agent.Tool{toolcheckurl.Tool{}}, policies: map[string]ToolPolicy{"missing": {}}, closesPerAttempt: 1},
 		{name: "invalid schema", tools: []agent.Tool{invalidSchema}, closesPerAttempt: 1},
 		{name: "loader error", loadErr: loaderFailure},
 	}
@@ -208,7 +209,7 @@ func TestRejectedCapabilityDiscoveryClosesOnlySuccessfulLoads(t *testing.T) {
 				}
 			}
 
-			list, discoveryErr = []agent.Tool{CheckURL{}}, nil
+			list, discoveryErr = []agent.Tool{toolcheckurl.Tool{}}, nil
 			source.ToolPolicies = nil
 			_, err := catalog.Enable(t.Context(), source.ID, nil)
 			if err != nil {

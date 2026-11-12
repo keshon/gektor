@@ -10,6 +10,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
+	commandrun "github.com/keshon/gektor/internal/tools/command"
 )
 
 // Reviewed native schemas and modes. Update individual entries only for an
@@ -30,10 +31,10 @@ func TestNativePackageBaseline(t *testing.T) {
 		expected := want[name]
 		for i := range expected.Definitions {
 			d := &expected.Definitions[i]
-			d.Description = strings.ReplaceAll(d.Description, "pwsh.exe", ShellName())
+			d.Description = strings.ReplaceAll(d.Description, "pwsh.exe", commandrun.ShellName())
 			if runtime.GOOS != "windows" {
 				d.Description = strings.ReplaceAll(d.Description, "PowerShell syntax/scripts", "POSIX sh syntax/scripts")
-				d.Description = strings.ReplaceAll(d.Description, "PowerShell source using "+ShellName()+". For", "POSIX sh source for")
+				d.Description = strings.ReplaceAll(d.Description, "PowerShell source using "+commandrun.ShellName()+". For", "POSIX sh source for")
 			}
 		}
 		a, _ := json.Marshal(expected.Definitions)

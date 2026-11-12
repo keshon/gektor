@@ -14,6 +14,8 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/permission"
+	tooloutput "github.com/keshon/gektor/internal/tools/output"
+	"github.com/keshon/gektor/internal/tools/readoutput"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -139,13 +141,13 @@ func TestDocumentsContinuationAcrossAgentWorkflowAndOutputLimit(t *testing.T) {
 		t.Fatal(first, err)
 	}
 	// The 48 KiB batch budget gives each of two concurrent calls 24 KiB.
-	store := &OutputStore{dir: t.TempDir()}
+	store := tooloutput.New(t.TempDir())
 	ctx := store.Context(t.Context())
-	preview := LimitOutput(ctx, first, 24*1024)
+	preview := tooloutput.Limit(ctx, first, 24*1024)
 	if !strings.Contains(preview, "read_output") || len(preview) > 24*1024 {
 		t.Fatal("missing bounded recovery reference")
 	}
-	entries, err := os.ReadDir(store.dir)
+	entries, err := os.ReadDir(store.Scope())
 	if err != nil || len(entries) != 1 {
 		t.Fatal(entries, err)
 	}
@@ -153,7 +155,7 @@ func TestDocumentsContinuationAcrossAgentWorkflowAndOutputLimit(t *testing.T) {
 	var recovered strings.Builder
 	for offset := 0; ; {
 		args, _ := json.Marshal(map[string]any{"id": id, "offset": offset, "limit": 8192})
-		out, err := (ReadOutput{}).Run(ctx, args)
+		out, err := (readoutput.Tool{}).Run(ctx, args)
 		if err != nil {
 			t.Fatal(err)
 		}

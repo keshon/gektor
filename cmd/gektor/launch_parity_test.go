@@ -16,7 +16,7 @@ import (
 	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/tools"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -71,7 +71,7 @@ func TestLaunchConfigurationAndBehaviorMatchAcrossFrontends(t *testing.T) {
 					t.Fatal(err)
 				}
 				client := &parityClient{}
-				procs := tools.NewBackgroundProcesses()
+				procs := toolbackground.New()
 				defer procs.StopAll()
 				cfg, err := launchRunConfiguration(o, roles.Env{Client: client, WS: ws, Procs: procs, ContextLimit: 65536, Model: "test-model", VisionKnown: true}, func(string, ...any) {})
 				if err != nil {

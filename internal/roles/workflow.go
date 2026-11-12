@@ -15,6 +15,9 @@ import (
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/tools"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
+	toollistfiles "github.com/keshon/gektor/internal/tools/listfiles"
+	toolreadfile "github.com/keshon/gektor/internal/tools/readfile"
 	"github.com/keshon/gektor/internal/userdirs"
 	workflow "github.com/keshon/gektor/internal/workflow/agenttools"
 	"github.com/keshon/gektor/internal/workspace"
@@ -57,7 +60,7 @@ func WorkflowAuthor(e Env, recipePath, stateFile string) (*agent.Agent, error) {
 		return nil, fmt.Errorf("recipe path must name a file")
 	}
 	if e.Procs == nil {
-		e.Procs = tools.NewBackgroundProcesses()
+		e.Procs = toolbackground.New()
 	}
 	cfg := e.executionConfig(prompts.WorkflowAuthor, stateFile)
 	e.configureParent(&cfg, "workflow")
@@ -82,7 +85,7 @@ func WorkflowAuthor(e Env, recipePath, stateFile string) (*agent.Agent, error) {
 	cfg.Tools = agent.NewRegistry(
 		workflow.Schema{WS: e.WS, StoreDir: storeDir, Registry: registry}, save,
 		validation,
-		tools.ReadFile{WS: e.WS}, tools.ListFiles{WS: e.WS},
+		toolreadfile.Tool{WS: e.WS}, toollistfiles.Tool{WS: e.WS},
 		tools.DocumentOperation{Operation: doccontract.Operation{Service: documents.Service{WS: e.WS}, Kind: "docx_read"}},
 		tools.DocumentOperation{Operation: doccontract.Operation{Service: documents.Service{WS: e.WS}, Kind: "xlsx_read"}},
 		tools.DocumentOperation{Operation: doccontract.Operation{Service: documents.Service{WS: e.WS}, Kind: "pdf_read"}},

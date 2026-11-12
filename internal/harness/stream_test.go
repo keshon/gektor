@@ -8,7 +8,7 @@ import (
 
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/tools"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -57,7 +57,7 @@ func TestSession_StreamsWhenConfigured(t *testing.T) {
 		Env: roles.Env{
 			Client: client,
 			WS:     ws,
-			Procs:  tools.NewBackgroundProcesses(),
+			Procs:  toolbackground.New(),
 			Stream: true,
 		},
 		Events: eventVisitor(func(ev Event) {
@@ -99,7 +99,7 @@ func TestSession_UnaryWhenNotConfiguredToStream(t *testing.T) {
 		Env: roles.Env{
 			Client: client,
 			WS:     ws,
-			Procs:  tools.NewBackgroundProcesses(),
+			Procs:  toolbackground.New(),
 		},
 		Events: eventVisitor(func(ev Event) {
 			if ev.Name == "delta" {

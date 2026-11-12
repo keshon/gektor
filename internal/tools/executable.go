@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/process"
+	tooloutput "github.com/keshon/gektor/internal/tools/output"
 )
 
 // ExecutableTool exchanges one JSON request/response with a native process.
@@ -54,21 +56,21 @@ func (t *ExecutableTool) Run(ctx context.Context, args json.RawMessage) (result 
 	stdout := &jsonOutput{limit: 1 << 20, cancel: cancel}
 	stderr := &jsonOutput{limit: 8192}
 	cmd.Stdout, cmd.Stderr = stdout, stderr
-	cmd.WaitDelay = stopGrace
-	group := newProcessGroup()
-	defer group.release()
-	group.beforeStart(cmd)
-	cmd.Cancel = func() error { return group.kill(cmd) }
+	cmd.WaitDelay = 3 * time.Second
+	group := process.NewGroup()
+	defer group.Release()
+	group.BeforeStart(cmd)
+	cmd.Cancel = func() error { return group.Kill(cmd) }
 	if err := cmd.Start(); err != nil {
 		return "", fmt.Errorf("start executable %s: %w", t.Pack.ID, err)
 	}
-	if err := group.afterStart(cmd); err != nil {
-		_ = group.kill(cmd)
+	if err := group.AfterStart(cmd); err != nil {
+		_ = group.Kill(cmd)
 		_ = cmd.Wait()
 		return "", err
 	}
 	err = cmd.Wait()
-	_ = group.kill(cmd)
+	_ = group.Kill(cmd)
 	if stdout.overflow {
 		return "", fmt.Errorf("executable %s response exceeds 1 MiB", t.Pack.ID)
 	}
@@ -95,7 +97,7 @@ func (t *ExecutableTool) Run(ctx context.Context, args json.RawMessage) (result 
 	if bytes.HasPrefix(bytes.TrimSpace(response.Output), []byte(`"`)) && json.Unmarshal(response.Output, &text) == nil {
 		output = text
 	}
-	output = LimitOutput(ctx, output, 48*1024)
+	output = tooloutput.Limit(ctx, output, 48*1024)
 	if response.Error != "" {
 		return output, fmt.Errorf("executable %s: %s", t.Pack.ID, response.Error)
 	}

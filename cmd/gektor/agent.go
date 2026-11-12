@@ -22,6 +22,8 @@ import (
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/tools"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
+	commandrun "github.com/keshon/gektor/internal/tools/command"
 	"github.com/keshon/gektor/internal/tui"
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workspace"
@@ -140,7 +142,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	// the parent's check_background/stop_background see the same
 	// processes — a process started by one half of the conversation
 	// should be checkable/stoppable from the other.
-	bgProcs := tools.NewBackgroundProcesses()
+	bgProcs := toolbackground.New()
 	defer bgProcs.StopAll()
 
 	mcpTools, mcpClients := discoverMCP(ctx, o.mcp, ws.Root())
@@ -244,7 +246,7 @@ func verificationCommand(command, directory string) func(context.Context) (strin
 		return nil
 	}
 	return func(ctx context.Context) (string, error) {
-		out, err := tools.RunCommand(ctx, command, directory, 120*time.Second)
+		out, err := commandrun.Run(ctx, command, directory, 120*time.Second)
 		status := "PASSED"
 		if err != nil {
 			status = "FAILED"

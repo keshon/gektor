@@ -12,7 +12,8 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/tools"
+
+	tooledit "github.com/keshon/gektor/internal/tools/edit"
 	"github.com/keshon/gektor/internal/tui/components/gate"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/workspace"
@@ -272,7 +273,7 @@ func (m *Model) contextGate(hub *harness.GateHub, ws *workspace.Workspace) func(
 		}
 		stale := false
 		for {
-			evidence := tools.FullApproval(ws, tool, args)
+			evidence := tooledit.Proposal(ws, tool, args)
 			// This private UI event bypasses the run/archive event publisher.
 			select {
 			case m.events <- harness.Event{Name: "_permission_preview", Fields: map[string]any{"text": evidence.Text}}:
@@ -283,7 +284,7 @@ func (m *Model) contextGate(hub *harness.GateHub, ws *workspace.Workspace) func(
 			if stale {
 				prompt += "\nSource changed during approval. Review the refreshed proposal and approve again."
 			}
-			if preview := tools.PreviewArgs(ws, tool, args); preview != "" {
+			if preview := tooledit.Preview(ws, tool, args); preview != "" {
 				prompt += "\n" + preview
 			}
 			rep, err := hub.Suspender()(runCtx, agent.SuspendRequest{

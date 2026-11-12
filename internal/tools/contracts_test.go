@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	tooledit "github.com/keshon/gektor/internal/tools/edit"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -47,7 +48,7 @@ func TestPatchPreservesCRLFReplacement(t *testing.T) {
 	}
 	path := filepath.Join(dir, "x.txt")
 	os.WriteFile(path, []byte("alpha\r\nbeta\r\n"), 0600)
-	_, err := (PatchFile{WS: ws}).Run(context.Background(), json.RawMessage(`{"path":"x.txt","old_content":"beta","new_content":"new\r\nline"}`))
+	_, err := (tooledit.Patch{WS: ws}).Run(context.Background(), json.RawMessage(`{"path":"x.txt","old_content":"beta","new_content":"new\r\nline"}`))
 	body, _ := os.ReadFile(path)
 	if err != nil || strings.Contains(string(body), "\r\r\n") || string(body) != "alpha\r\nnew\r\nline\r\n" {
 		t.Fatalf("repro failed %q %v", body, err)

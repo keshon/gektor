@@ -17,6 +17,10 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/mcp"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
+	toolcheckurl "github.com/keshon/gektor/internal/tools/checkurl"
+	toolprogram "github.com/keshon/gektor/internal/tools/program"
+	toolshell "github.com/keshon/gektor/internal/tools/shell"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -71,7 +75,7 @@ func TestExecutionReportsExitAndLaunchFacts(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			args, _ := json.Marshal(map[string]any{"program": tc.program, "args": tc.args})
-			out, err := (RunProgram{WS: ws}).Run(t.Context(), args)
+			out, err := (toolprogram.Tool{WS: ws}).Run(t.Context(), args)
 			if (err != nil) != tc.failed || !strings.Contains(out+fmt.Sprint(err), tc.want) {
 				t.Fatalf("out=%q err=%v", out, err)
 			}
@@ -89,7 +93,7 @@ func TestExecutionReportsExitAndLaunchFacts(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	args, _ := json.Marshal(map[string]any{"program": os.Args[0], "args": []string{"--quiet-success"}})
-	if out, err := (RunProgram{WS: ws}).Run(ctx, args); !errors.Is(err, context.Canceled) || strings.Contains(out, "exit_code:") {
+	if out, err := (toolprogram.Tool{WS: ws}).Run(ctx, args); !errors.Is(err, context.Canceled) || strings.Contains(out, "exit_code:") {
 		t.Fatalf("cancellation lost: %q %v", out, err)
 	}
 }
@@ -105,11 +109,11 @@ func testManagedNativeHTTPServerLifecycle(t *testing.T, arguments []string) {
 		t.Fatal(err)
 	}
 	defer ws.Close()
-	procs := NewBackgroundProcesses()
+	procs := toolbackground.New()
 	defer procs.StopAll()
 	t.Setenv("GEKTOR_EXEC_HELPER", "1")
 	args, _ := json.Marshal(map[string]any{"program": os.Args[0], "args": arguments})
-	out, err := (StartProgram{WS: ws, Procs: procs, SettleTime: 100 * time.Millisecond}).Run(t.Context(), args)
+	out, err := (toolbackground.StartProgram{WS: ws, Procs: procs, SettleTime: 100 * time.Millisecond}).Run(t.Context(), args)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +122,7 @@ func testManagedNativeHTTPServerLifecycle(t *testing.T, arguments []string) {
 	for i := 0; i < 50 && !strings.Contains(out, "url: http://"); i++ {
 		time.Sleep(50 * time.Millisecond)
 		query, _ := json.Marshal(map[string]any{"id": id, "cursor": 0})
-		out, err = (CheckBackground{Procs: procs}).Run(t.Context(), query)
+		out, err = (toolbackground.Check{Procs: procs}).Run(t.Context(), query)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -128,18 +132,18 @@ func testManagedNativeHTTPServerLifecycle(t *testing.T, arguments []string) {
 		t.Fatal(out)
 	}
 	urlArgs, _ := json.Marshal(map[string]any{"url": match[1]})
-	out, err = (CheckURL{}).Run(t.Context(), urlArgs)
+	out, err = (toolcheckurl.Tool{}).Run(t.Context(), urlArgs)
 	if err != nil || !strings.Contains(out, "managed server works") {
 		t.Fatal(out, err)
 	}
-	if _, err = (StopBackground{Procs: procs}).Run(t.Context(), json.RawMessage(`{"id":"invented"}`)); err == nil || !strings.Contains(err.Error(), "do not invent") {
+	if _, err = (toolbackground.Stop{Procs: procs}).Run(t.Context(), json.RawMessage(`{"id":"invented"}`)); err == nil || !strings.Contains(err.Error(), "do not invent") {
 		t.Fatal(err)
 	}
 	stopArgs, _ := json.Marshal(map[string]any{"id": id})
-	if _, err = (StopBackground{Procs: procs}).Run(t.Context(), stopArgs); err != nil {
+	if _, err = (toolbackground.Stop{Procs: procs}).Run(t.Context(), stopArgs); err != nil {
 		t.Fatal(err)
 	}
-	if out, err = (CheckURL{}).Run(t.Context(), urlArgs); err != nil || !strings.Contains(out, "\nerror:") {
+	if out, err = (toolcheckurl.Tool{}).Run(t.Context(), urlArgs); err != nil || !strings.Contains(out, "\nerror:") {
 		t.Fatal("server did not report a connection error after stop", out, err)
 	}
 }
@@ -166,9 +170,9 @@ func TestProgramToolsPreserveLiteralArguments(t *testing.T) {
 	values := []string{"", "spaces here", `a"b`, `C:\path with spaces\`, "& echo injected", "; false", "$HOME", "%PATH%", "текст"}
 	args := append([]string{"--literal-args"}, values...)
 	input, _ := json.Marshal(map[string]any{"program": program, "args": args, "workdir": "working dir"})
-	procs := NewBackgroundProcesses()
+	procs := toolbackground.New()
 	defer procs.StopAll()
-	for _, tool := range []agent.Tool{RunProgram{WS: ws}, StartProgram{WS: ws, Procs: procs, SettleTime: 100 * time.Millisecond}} {
+	for _, tool := range []agent.Tool{toolprogram.Tool{WS: ws}, toolbackground.StartProgram{WS: ws, Procs: procs, SettleTime: 100 * time.Millisecond}} {
 		t.Run(tool.Name(), func(t *testing.T) {
 			out, err := tool.Run(t.Context(), input)
 			if err != nil {
@@ -177,7 +181,7 @@ func TestProgramToolsPreserveLiteralArguments(t *testing.T) {
 			if tool.Name() == "start_program" {
 				id := strings.TrimPrefix(strings.Split(out, "\n")[0], "id: ")
 				wait, _ := json.Marshal(map[string]any{"id": id, "timeout_seconds": 10})
-				out, err = (WaitBackground{Procs: procs}).Run(t.Context(), wait)
+				out, err = (toolbackground.Wait{Procs: procs}).Run(t.Context(), wait)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -207,18 +211,18 @@ func TestProcessToolsRejectInvalidInputs(t *testing.T) {
 		tool  agent.Tool
 		input string
 	}{
-		{RunShell{}, `{}`},
-		{RunShell{}, `{"command":" "}`},
-		{RunShell{}, `{"command":"echo x","program":"node"}`},
-		{RunShell{}, `{"command":"echo x","args":["x"]}`},
-		{StartBackground{}, `{}`},
-		{StartBackground{}, `{"program":"node"}`},
-		{RunProgram{}, `{}`},
-		{RunProgram{}, `{"program":" "}`},
-		{RunProgram{}, `{"program":"node","command":"echo x"}`},
-		{RunProgram{}, `{"program":"node","unknown":true}`},
-		{StartProgram{}, `{}`},
-		{StartProgram{}, `{"program":"node","command":"echo x"}`},
+		{toolshell.Tool{}, `{}`},
+		{toolshell.Tool{}, `{"command":" "}`},
+		{toolshell.Tool{}, `{"command":"echo x","program":"node"}`},
+		{toolshell.Tool{}, `{"command":"echo x","args":["x"]}`},
+		{toolbackground.StartShell{}, `{}`},
+		{toolbackground.StartShell{}, `{"program":"node"}`},
+		{toolprogram.Tool{}, `{}`},
+		{toolprogram.Tool{}, `{"program":" "}`},
+		{toolprogram.Tool{}, `{"program":"node","command":"echo x"}`},
+		{toolprogram.Tool{}, `{"program":"node","unknown":true}`},
+		{toolbackground.StartProgram{}, `{}`},
+		{toolbackground.StartProgram{}, `{"program":"node","command":"echo x"}`},
 	}
 	for _, tc := range cases {
 		if out, err := tc.tool.Run(t.Context(), json.RawMessage(tc.input)); err == nil {
@@ -232,10 +236,10 @@ func TestProcessSchemasAreGrammarSafe(t *testing.T) {
 		tool     agent.Tool
 		required string
 	}{
-		{RunShell{}, "command"},
-		{StartBackground{}, "command"},
-		{RunProgram{}, "program"},
-		{StartProgram{}, "program"},
+		{toolshell.Tool{}, "command"},
+		{toolbackground.StartShell{}, "command"},
+		{toolprogram.Tool{}, "program"},
+		{toolbackground.StartProgram{}, "program"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.tool.Name(), func(t *testing.T) {

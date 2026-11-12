@@ -62,7 +62,7 @@ func canObserveBrowser(defs []llm.ToolDef) bool {
 }
 
 func (t *BrowserObserve) Run(ctx context.Context, args json.RawMessage) (string, error) {
-	if err := rejectUnknownFields(args, "mode", "offset", "expect_text"); err != nil {
+	if err := agent.RejectUnknownFields(args, "mode", "offset", "expect_text"); err != nil {
 		return "", err
 	}
 	var in struct {

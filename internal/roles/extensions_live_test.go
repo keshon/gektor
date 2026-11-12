@@ -17,6 +17,7 @@ import (
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tools"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -163,7 +164,7 @@ func TestLiveExtensionsAcrossTurns(t *testing.T) {
 				failures, lookups, skillReads, successfulLookups := 0, 0, 0, 0
 				callNames := map[string]string{}
 				sources, closeSources := tools.BuildCapabilities(config, ws.Root())
-				e := Env{WS: ws, Procs: tools.NewBackgroundProcesses(), Client: client, BackendKind: "llama", Capabilities: sources, MaxSteps: 10, MaxTokens: 4096, ContextLimit: 32768, Temperature: 0.2,
+				e := Env{WS: ws, Procs: toolbackground.New(), Client: client, BackendKind: "llama", Capabilities: sources, MaxSteps: 10, MaxTokens: 4096, ContextLimit: 32768, Temperature: 0.2,
 					Policy: permission.Default().WithExtra([]permission.Rule{{Tool: "run_*", Pattern: "*", Effect: permission.Deny}, {Tool: "start_*", Pattern: "*", Effect: permission.Deny}, {Tool: "delegate_task", Pattern: "*", Effect: permission.Deny}}),
 					OnStep: func(_ string, _ int, m llm.Message) {
 						_ = encoder.Encode(map[string]any{"event": "assistant", "message": m})

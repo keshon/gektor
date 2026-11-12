@@ -128,7 +128,7 @@ func (b *EnableBrowser) Run(ctx context.Context, args json.RawMessage) (string, 
 	return b.RunStreaming(ctx, args, nil)
 }
 func (b *EnableBrowser) RunStreaming(ctx context.Context, args json.RawMessage, output func(string)) (string, error) {
-	if err := rejectUnknownFields(args); err != nil {
+	if err := agent.RejectUnknownFields(args); err != nil {
 		return "", err
 	}
 	return b.enable(ctx, func(s string) {

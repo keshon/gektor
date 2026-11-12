@@ -14,6 +14,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
+	toolreadfile "github.com/keshon/gektor/internal/tools/readfile"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -181,7 +182,7 @@ func TestBrowserMCPIntegration(t *testing.T) {
 		}
 		rel, _ := filepath.Rel(root, screenshot)
 		args, _ := json.Marshal(map[string]any{"path": filepath.ToSlash(rel)})
-		reader := ReadFile{WS: ws, Vision: true}
+		reader := toolreadfile.Tool{WS: ws, Vision: true}
 		if _, err := reader.Run(t.Context(), args); err != nil {
 			t.Fatal(err)
 		}

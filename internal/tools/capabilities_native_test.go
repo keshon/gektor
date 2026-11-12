@@ -12,6 +12,8 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/conversation"
+	toolaskuser "github.com/keshon/gektor/internal/tools/askuser"
+	toolcheckurl "github.com/keshon/gektor/internal/tools/checkurl"
 )
 
 func TestNativeEagerLazyAndResume(t *testing.T) {
@@ -90,7 +92,7 @@ func TestNativeEagerLazyAndResume(t *testing.T) {
 
 func TestNativeActivationFailureIsAtomic(t *testing.T) {
 	c := composed(t, Lazy)
-	if err := c.Registry.Add(CheckURL{}); err != nil {
+	if err := c.Registry.Add(toolcheckurl.Tool{}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := c.Enable(t.Context(), NativeWeb, nil); err == nil {
@@ -114,11 +116,13 @@ func TestNativeActivationFailureIsAtomic(t *testing.T) {
 }
 
 func TestCapabilityRoleExclusionAndDiscoveryBudget(t *testing.T) {
-	c := &Capabilities{Registry: agent.NewRegistry(), ForbiddenTools: []string{"ask_user"}, Sources: []*Capability{{ID: "questions", Load: func(context.Context, func(string)) ([]agent.Tool, error) { return []agent.Tool{AskUser{}}, nil }}}}
+	c := &Capabilities{Registry: agent.NewRegistry(), ForbiddenTools: []string{"ask_user"}, Sources: []*Capability{{ID: "questions", Load: func(context.Context, func(string)) ([]agent.Tool, error) {
+		return []agent.Tool{toolaskuser.Tool{}}, nil
+	}}}}
 	if _, err := c.Enable(t.Context(), "questions", nil); err == nil || c.Registry.Has("ask_user") {
 		t.Fatal("role exclusion bypassed")
 	}
-	state := capabilityState(c.Sources[0], []agent.Tool{AskUser{}})
+	state := capabilityState(c.Sources[0], []agent.Tool{toolaskuser.Tool{}})
 	if err := c.Restore(t.Context(), []conversation.Capability{state}); err == nil {
 		t.Fatal("role exclusion bypassed by restore")
 	}
@@ -139,7 +143,7 @@ func TestAdapterCancellationAndCollisionDoNotCloseSharedSource(t *testing.T) {
 	source := &Capability{ID: "shared", Load: func(context.Context, func(string)) ([]agent.Tool, error) {
 		loads++
 		cancel()
-		return []agent.Tool{CheckURL{}}, nil
+		return []agent.Tool{toolcheckurl.Tool{}}, nil
 	}, Close: func() { closed++ }}
 	c := &Capabilities{Registry: agent.NewRegistry(), Sources: []*Capability{source}}
 	if _, err := c.Enable(ctx, "shared", nil); err == nil || len(c.Save()) != 0 {
@@ -148,7 +152,7 @@ func TestAdapterCancellationAndCollisionDoNotCloseSharedSource(t *testing.T) {
 	if _, err := c.Enable(t.Context(), "shared", nil); err != nil {
 		t.Fatal(err)
 	}
-	other := &Capabilities{Registry: agent.NewRegistry(CheckURL{}), Sources: []*Capability{source}}
+	other := &Capabilities{Registry: agent.NewRegistry(toolcheckurl.Tool{}), Sources: []*Capability{source}}
 	if _, err := other.Enable(t.Context(), "shared", nil); err == nil {
 		t.Fatal("collision accepted")
 	}
@@ -182,7 +186,7 @@ func TestMainOnlyCapabilityRestoreIsRoleChecked(t *testing.T) {
 	loads := 0
 	source := &Capability{ID: "main_pack", MainOnly: true, Load: func(context.Context, func(string)) ([]agent.Tool, error) {
 		loads++
-		return []agent.Tool{CheckURL{}}, nil
+		return []agent.Tool{toolcheckurl.Tool{}}, nil
 	}}
 	parent := &Capabilities{Registry: agent.NewRegistry(), Sources: []*Capability{source}}
 	if _, err := parent.Enable(t.Context(), source.ID, nil); err != nil {

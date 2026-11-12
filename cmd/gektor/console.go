@@ -14,7 +14,8 @@ import (
 	"github.com/keshon/gektor/internal/events"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/tools"
+
+	tooledit "github.com/keshon/gektor/internal/tools/edit"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -33,7 +34,7 @@ func permissionGateContext(autoDeny bool, suspend agent.Suspender, ws *workspace
 			return permission.Deny, nil
 		}
 		prompt := fmt.Sprintf("\n[permission] %s on %q - allow? [y]es once / [a]lways / [n]o", tool, resource)
-		if preview := tools.PreviewArgs(ws, tool, args); preview != "" {
+		if preview := tooledit.Preview(ws, tool, args); preview != "" {
 			prompt += "\n" + preview
 		}
 		rep, err := suspend(ctx, agent.SuspendRequest{

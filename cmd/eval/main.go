@@ -28,7 +28,7 @@ import (
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/tools"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/script"
 	"github.com/keshon/gektor/internal/workspace"
@@ -735,7 +735,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	procs := tools.NewBackgroundProcesses()
+	procs := toolbackground.New()
 	// A probe that leaves a dev server running holds its temp workspace
 	// open, so the next run inherits a directory that won't delete and a
 	// port that's taken. Both look like model failures and are neither.
@@ -818,7 +818,7 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 // is measurement, not control: the count is what tells us whether a
 // nudge earns the step it costs, per model, instead of us guessing which
 // ones to keep.
-func evalEnv(client llm.Client, ws *workspace.Workspace, procs *tools.BackgroundProcesses,
+func evalEnv(client llm.Client, ws *workspace.Workspace, procs *toolbackground.Processes,
 	contextLimit, maxTokens int, record func(int, llm.Message), nudge func(kind string)) roles.Env {
 
 	return roles.Env{

@@ -338,7 +338,7 @@ func (t DiscoverCapabilities) Run(ctx context.Context, args json.RawMessage) (st
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	if err := rejectUnknownFields(args, "query"); err != nil {
+	if err := agent.RejectUnknownFields(args, "query"); err != nil {
 		return "", err
 	}
 	var in struct {
@@ -398,7 +398,7 @@ func (t EnableCapability) Run(ctx context.Context, args json.RawMessage) (string
 	return t.RunStreaming(ctx, args, nil)
 }
 func (t EnableCapability) RunStreaming(ctx context.Context, args json.RawMessage, output func(string)) (string, error) {
-	if err := rejectUnknownFields(args, "id"); err != nil {
+	if err := agent.RejectUnknownFields(args, "id"); err != nil {
 		return "", err
 	}
 	var in struct {

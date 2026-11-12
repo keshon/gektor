@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/agent"
+	commandrun "github.com/keshon/gektor/internal/tools/command"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -42,7 +43,7 @@ func (t SystemInfo) Run(ctx context.Context, args json.RawMessage) (string, erro
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", err
 	}
-	if err := rejectUnknownFields(args, "group", "filter", "offset", "limit"); err != nil {
+	if err := agent.RejectUnknownFields(args, "group", "filter", "offset", "limit"); err != nil {
 		return "", err
 	}
 	if err := ctx.Err(); err != nil {
@@ -81,7 +82,7 @@ func (t SystemInfo) Run(ctx context.Context, args json.RawMessage) (string, erro
 	case "browser":
 		result = t.browserInfo(ctx)
 	case "environment":
-		result = map[string]any{"workspace": t.WS.Root(), "shell": ShellName(), "temp_dir": os.TempDir(), "path": filepath.SplitList(os.Getenv("PATH")), "pathext": os.Getenv("PATHEXT")}
+		result = map[string]any{"workspace": t.WS.Root(), "shell": commandrun.ShellName(), "temp_dir": os.TempDir(), "path": filepath.SplitList(os.Getenv("PATH")), "pathext": os.Getenv("PATHEXT")}
 	case "tools":
 		entries, warnings, err := pathTools(ctx, t.WS.Root(), in.Filter)
 		if err != nil {
@@ -269,7 +270,7 @@ func hostInfo(ctx context.Context, group, root string) map[string]any {
 		result["details_unavailable"] = "no host probe for this OS"
 		return result
 	}
-	out, err := runProgram(ctx, program, args, root, 15*time.Second)
+	out, err := commandrun.Program(ctx, program, args, root, 15*time.Second)
 	if err != nil {
 		result["details_unavailable"] = err.Error()
 	}
@@ -283,7 +284,7 @@ func hostInfo(ctx context.Context, group, root string) map[string]any {
 	}
 	if group == "hardware" && ctx.Err() == nil {
 		if program, err := exec.LookPath("nvidia-smi"); err == nil {
-			gpu, probeErr := runProgram(ctx, program, []string{"--query-gpu=name,memory.total", "--format=csv,noheader"}, root, 5*time.Second)
+			gpu, probeErr := commandrun.Program(ctx, program, []string{"--query-gpu=name,memory.total", "--format=csv,noheader"}, root, 5*time.Second)
 			if probeErr == nil {
 				result["nvidia_gpu"] = strings.TrimSpace(gpu)
 				delete(result, "gpu_memory")

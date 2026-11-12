@@ -11,7 +11,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/keshon/gektor/internal/tools"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -32,10 +32,10 @@ func processModel(t *testing.T) (*Model, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { ws.Close() })
-	p := tools.NewBackgroundProcesses()
+	p := toolbackground.New()
 	t.Cleanup(p.StopAll)
 	args, _ := json.Marshal(map[string]any{"program": os.Args[0], "args": []string{"-test.run=^TestProcessManagerChild$"}})
-	out, err := (tools.StartProgram{WS: ws, Procs: p, SettleTime: 100 * time.Millisecond}).Run(context.Background(), args)
+	out, err := (toolbackground.StartProgram{WS: ws, Procs: p, SettleTime: 100 * time.Millisecond}).Run(context.Background(), args)
 	if err != nil {
 		t.Fatal(out, err)
 	}

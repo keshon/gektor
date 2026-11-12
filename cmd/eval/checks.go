@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/tools"
+	commandrun "github.com/keshon/gektor/internal/tools/command"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -198,5 +199,5 @@ func RunCheck(ctx context.Context, c Check, ws *workspace.Workspace) (output str
 
 // RunShellCommand uses the same bounded shell runner as the agent tools.
 func RunShellCommand(ctx context.Context, command, dir string) (string, error) {
-	return tools.RunCommand(ctx, command, dir, checkShellTimeout)
+	return commandrun.Run(ctx, command, dir, checkShellTimeout)
 }

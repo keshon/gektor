@@ -16,7 +16,7 @@ import (
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/llm/chatcompletions"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/tools"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -186,7 +186,7 @@ func TestSessionDeltasReachTheLiveBuffer(t *testing.T) {
 		Env: roles.Env{
 			Client: client,
 			WS:     ws,
-			Procs:  tools.NewBackgroundProcesses(),
+			Procs:  toolbackground.New(),
 			Stream: true,
 		},
 		Events: eventVisitor(func(ev events.Event) {

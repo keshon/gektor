@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/tools"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -27,7 +27,7 @@ func testEnv(t *testing.T) Env {
 	if err != nil {
 		t.Fatalf("workspace: %v", err)
 	}
-	return Env{Client: stubClient{}, WS: ws, Procs: tools.NewBackgroundProcesses()}
+	return Env{Client: stubClient{}, WS: ws, Procs: toolbackground.New()}
 }
 
 func hasTool(a interface{ ToolNames() []string }, name string) bool {

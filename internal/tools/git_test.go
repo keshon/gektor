@@ -9,12 +9,15 @@ import (
 	"strings"
 	"testing"
 
+	toolgit "github.com/keshon/gektor/internal/tools/git"
 	"github.com/keshon/gektor/internal/workspace"
+
+	// initGitRepo creates a temporary git repository inside dir and returns its
+	// root. It is skipped when git is not installed so the suite stays green on
+	// machines without a VCS.
+	toolgitadd "github.com/keshon/gektor/internal/tools/gitadd"
 )
 
-// initGitRepo creates a temporary git repository inside dir and returns its
-// root. It is skipped when git is not installed so the suite stays green on
-// machines without a VCS.
 func initGitRepo(t *testing.T, dir string) string {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
@@ -45,7 +48,7 @@ func initGitRepo(t *testing.T, dir string) string {
 	return dir
 }
 
-func newGitTool(t *testing.T, dir string) Git {
+func newGitTool(t *testing.T, dir string) toolgit.Tool {
 	t.Helper()
 	ws, err := workspace.New(dir)
 	if ws != nil {
@@ -54,7 +57,7 @@ func newGitTool(t *testing.T, dir string) Git {
 	if err != nil {
 		t.Fatalf("workspace.New: %v", err)
 	}
-	return Git{WS: ws}
+	return toolgit.Tool{WS: ws}
 }
 
 func TestGit_Log(t *testing.T) {
@@ -144,7 +147,7 @@ func TestGit_ShowAndLiteralArguments(t *testing.T) {
 	name := "file with spaces 100% & more.txt"
 	writeTmp(t, dir, name, "content\n")
 	args, _ := json.Marshal(map[string]string{"path": name})
-	if out, err := GitAdd(tool).Run(t.Context(), args); err != nil {
+	if out, err := toolgitadd.Tool(tool).Run(t.Context(), args); err != nil {
 		t.Fatalf("literal add: %v %s", err, out)
 	}
 	args, _ = json.Marshal(map[string]string{"subcommand": "ls-files", "path": name})
@@ -169,7 +172,7 @@ func TestGit_DiffReadsWorktreeAndIndexSeparately(t *testing.T) {
 	dir := initGitRepo(t, t.TempDir())
 	tool := newGitTool(t, dir)
 	writeTmp(t, dir, "hello.txt", "staged\n")
-	if _, err := GitAdd(tool).Run(t.Context(), json.RawMessage(`{"path":"hello.txt"}`)); err != nil {
+	if _, err := toolgitadd.Tool(tool).Run(t.Context(), json.RawMessage(`{"path":"hello.txt"}`)); err != nil {
 		t.Fatal(err)
 	}
 	writeTmp(t, dir, "hello.txt", "worktree\n")

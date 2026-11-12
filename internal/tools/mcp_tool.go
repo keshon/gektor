@@ -12,6 +12,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/mcp"
+	tooloutput "github.com/keshon/gektor/internal/tools/output"
 )
 
 const mcpMaxToolName = 64
@@ -192,7 +193,7 @@ func (t *MCPTool) Run(ctx context.Context, args json.RawMessage) (output string,
 		// Structured output reduces; prose truncates. A blind middle-cut
 		// through a JSON array leaves half an element to parse, so try
 		// the reducer first and fall back to truncation for non-JSON.
-		out = LimitOutput(callCtx, out, mcpResultMax)
+		out = tooloutput.Limit(callCtx, out, mcpResultMax)
 	}
 	if out == "" {
 		return "(empty result)", nil

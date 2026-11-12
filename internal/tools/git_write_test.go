@@ -7,7 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	toolgitadd "github.com/keshon/gektor/internal/tools/gitadd"
+	toolgitcommit "github.com/keshon/gektor/internal/tools/gitcommit"
 )
+
+const gitAttribution = "Co-authored-by: GEKTOR <no-reply@keshon.ru>"
 
 func TestGitCommitMessageCreditAndTemporaryFileLifetime(t *testing.T) {
 	dir := initGitRepo(t, t.TempDir())
@@ -26,11 +31,11 @@ func TestGitCommitMessageCreditAndTemporaryFileLifetime(t *testing.T) {
 		"Next change\n\n" + gitAttribution,
 	} {
 		writeTmp(t, dir, "hello.txt", message)
-		if _, err := GitAdd(tool).Run(t.Context(), json.RawMessage(`{"path":"hello.txt"}`)); err != nil {
+		if _, err := toolgitadd.Tool(tool).Run(t.Context(), json.RawMessage(`{"path":"hello.txt"}`)); err != nil {
 			t.Fatal(err)
 		}
 		args, _ := json.Marshal(map[string]string{"message": message})
-		if out, err := GitCommit(tool).Run(t.Context(), args); err != nil {
+		if out, err := toolgitcommit.Tool(tool).Run(t.Context(), args); err != nil {
 			t.Fatalf("commit %d failed: %v %s", i, err, out)
 		}
 		cmd := exec.Command("git", "show", "-s", "--format=%an <%ae>%n%B", "HEAD")
@@ -46,7 +51,7 @@ func TestGitCommitMessageCreditAndTemporaryFileLifetime(t *testing.T) {
 	}
 	// A failed commit must clean up synchronously too, without a timer.
 	args, _ := json.Marshal(map[string]string{"message": "Nothing staged"})
-	if _, err := GitCommit(tool).Run(t.Context(), args); err == nil {
+	if _, err := toolgitcommit.Tool(tool).Run(t.Context(), args); err == nil {
 		t.Fatal("empty index unexpectedly committed")
 	}
 	files, _ := filepath.Glob(filepath.Join(temp, "gektor-commit-*.txt"))
@@ -58,12 +63,12 @@ func TestGitCommitMessageCreditAndTemporaryFileLifetime(t *testing.T) {
 func TestGitWriteRefusesInvalidArguments(t *testing.T) {
 	ws, _ := testWS(t)
 	for _, args := range []string{`{}`, `{"path":""}`, `{"path":"../escape"}`, `{"path":"file","force":true}`} {
-		if _, err := (GitAdd{WS: ws}).Run(t.Context(), json.RawMessage(args)); err == nil {
+		if _, err := (toolgitadd.Tool{WS: ws}).Run(t.Context(), json.RawMessage(args)); err == nil {
 			t.Fatalf("add accepted %s", args)
 		}
 	}
 	for _, args := range []string{`{}`, `{"message":" "}`, `{"message":"x","amend":true}`} {
-		if _, err := (GitCommit{WS: ws}).Run(t.Context(), json.RawMessage(args)); err == nil {
+		if _, err := (toolgitcommit.Tool{WS: ws}).Run(t.Context(), json.RawMessage(args)); err == nil {
 			t.Fatalf("commit accepted %s", args)
 		}
 	}

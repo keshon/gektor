@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/agent"
+	commandrun "github.com/keshon/gektor/internal/tools/command"
 )
 
 const browserPackage = "@playwright/mcp@0.0.83"
@@ -52,7 +53,7 @@ func PrepareBrowser(ctx context.Context, channel, dir string, note func(string))
 		if runtime.GOOS == "windows" {
 			command = "npx.cmd"
 		}
-		return runCommand(ctx, command+" "+mode+" "+browserPackage+" --help", dir, 3*time.Minute, nil)
+		return commandrun.Streaming(ctx, command+" "+mode+" "+browserPackage+" --help", dir, 3*time.Minute, nil)
 	})
 }
 

@@ -24,7 +24,7 @@ import (
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/llm/chatcompletions"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/tools"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -167,7 +167,7 @@ func TestLiveLearnedImageSkill(t *testing.T) {
 				encoder := json.NewEncoder(trace)
 				res := learningTrial{Pair: pair + 1, Kind: kind, Arm: arm, Tools: map[string]int{}}
 				calls := map[string]llm.ToolCall{}
-				procs := tools.NewBackgroundProcesses()
+				procs := toolbackground.New()
 				defer procs.StopAll()
 				e := roles.Env{WS: ws, Procs: procs, Client: client, BackendKind: "llama", Vision: vision, MaxSteps: 12, MaxTokens: 8192, Temperature: 0.7, ContextLimit: 131072,
 					OnStep: func(_ string, _ int, m llm.Message) {

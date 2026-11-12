@@ -15,6 +15,9 @@ import (
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tools"
+	toolaskuser "github.com/keshon/gektor/internal/tools/askuser"
+	toolcheckurl "github.com/keshon/gektor/internal/tools/checkurl"
+	tooldelegate "github.com/keshon/gektor/internal/tools/delegate"
 )
 
 func TestPlannerCanInspectZIPButCannotWriteFiles(t *testing.T) {
@@ -97,7 +100,7 @@ func TestFreshPlannerActivatesNativeWebOnly(t *testing.T) {
 		loads := 0
 		e.Capabilities = []*tools.Capability{{ID: "external", ReadOnly: true, Load: func(context.Context, func(string)) ([]agent.Tool, error) {
 			loads++
-			return []agent.Tool{tools.CheckURL{}}, nil
+			return []agent.Tool{toolcheckurl.Tool{}}, nil
 		}}}
 		e.Policy = permission.Default()
 		if deny {
@@ -125,7 +128,7 @@ func TestFreshPlannerActivatesNativeWebOnly(t *testing.T) {
 }
 
 func TestRolePolicyRejectsForbiddenDirectExtras(t *testing.T) {
-	for _, tool := range []agent.Tool{tools.AskUser{}, &tools.Delegate{}} {
+	for _, tool := range []agent.Tool{toolaskuser.Tool{}, &tooldelegate.Tool{}} {
 		e := testEnv(t)
 		e.MCPTools = []agent.Tool{tool}
 		called := false
@@ -142,7 +145,7 @@ func TestMainOnlyPackIsAbsentFromChildCatalog(t *testing.T) {
 	loads := 0
 	e.Capabilities = []*tools.Capability{{ID: "questions", MainOnly: true, Description: "Questions", Load: func(context.Context, func(string)) ([]agent.Tool, error) {
 		loads++
-		return []agent.Tool{tools.AskUser{}}, nil
+		return []agent.Tool{toolaskuser.Tool{}}, nil
 	}}}
 	step := 0
 	e.Client = extensionInspectClient(func(req llm.ChatRequest) llm.ChatResponse {

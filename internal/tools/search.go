@@ -49,7 +49,7 @@ func (t SearchWeb) Run(ctx context.Context, args json.RawMessage) (string, error
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", fmt.Errorf("bad arguments: %w", err)
 	}
-	if err := rejectUnknownFields(args, "query", "engine"); err != nil {
+	if err := agent.RejectUnknownFields(args, "query", "engine"); err != nil {
 		return "", err
 	}
 

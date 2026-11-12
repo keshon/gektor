@@ -7,13 +7,15 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/keshon/gektor/internal/process"
 )
 
 var envIdentifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // Resolve only explicitly named credentials, at execution/connection time.
 func adapterEnv(refs map[string]string) ([]string, []string, error) {
-	env := scrubEnv(os.Environ())
+	env := process.ScrubEnv(os.Environ())
 	var secrets []string
 	// Remove sources and destinations before appending any resolved values.
 	// Otherwise overlapping references depend on map iteration order.

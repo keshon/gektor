@@ -10,7 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/keshon/gektor/internal/tools"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
 	"github.com/keshon/gektor/internal/tui/components/table"
 	"github.com/keshon/gektor/internal/tui/screen"
 )
@@ -27,7 +27,7 @@ type processStoppedMsg struct {
 	err    error
 }
 
-func processStatus(p tools.BackgroundProcess) string {
+func processStatus(p toolbackground.Process) string {
 	if p.Exited {
 		if p.Stopped {
 			return "Stopped"
@@ -113,7 +113,7 @@ func (m *Model) stopProcess(msg processStopMsg) tea.Cmd {
 }
 
 func (m *Model) refreshProcesses(view *table.Model) {
-	statuses := map[string]tools.BackgroundProcess{}
+	statuses := map[string]toolbackground.Process{}
 
 	rows := []table.Row{}
 	for _, p := range m.baseEnv.Procs.List() {
@@ -133,7 +133,7 @@ func (m *Model) refreshProcesses(view *table.Model) {
 	m.chrome.Dialog.Table.Actions = m.processActions(view, statuses)
 }
 
-func (m *Model) processActions(view *table.Model, statuses map[string]tools.BackgroundProcess) []table.Action {
+func (m *Model) processActions(view *table.Model, statuses map[string]toolbackground.Process) []table.Action {
 	p, exists := statuses[view.Selected()]
 	return []table.Action{
 		{ID: "details", Label: "Output", Key: "enter", Enabled: exists},

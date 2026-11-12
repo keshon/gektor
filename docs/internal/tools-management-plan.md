@@ -1,8 +1,17 @@
 # Tools management: configuration, exposure and ownership
 
 Date: 2026-11-12
-Status: Proposed implementation plan. Only the current SSH setup documentation
-has been changed; the management UI described here is not implemented.
+Status: Approved; phase zero is in progress. Existing SSH work and this plan
+were committed as `caa586c`. The management UI described here is not implemented.
+
+Current migration: command execution and retained output now live under
+`internal/tools/command` and `internal/tools/output`. Independent packages are in
+place for askuser, delegate, history, skill, context, todo, listfiles, movefile,
+checkurl, git, gitadd, gitcommit, shell, program, background, readfile, grep and edit, plus readoutput.
+Remaining phase-zero work includes web fetching/search, browser,
+extensions, image adapters, workflow Agent tools and the archive/download split.
+The target tree below describes the completed phase, not every intermediate
+working-tree state.
 
 ## Decision
 
@@ -207,7 +216,7 @@ internal/tools/
   readfile/                      read_file and its continuation/decoding behavior
   listfiles/                     list_files
   grep/                          grep_files and its scan implementation
-  edit/                          write_file and patch_file, locking and edit evidence
+  edit/                          write_file, patch_file, locks and file-mutation evidence
   movefile/                      move_file
   shell/                         run_shell
   program/                       run_program
@@ -228,11 +237,15 @@ internal/tools/
   context/                       inspect_context
   todo/                          todo and its checklist state
   systeminfo/                    system_info and host discovery
+  command/                       shared Agent command execution and process cleanup
+  output/                        retained logs, bounded capture and paging
   readoutput/                    read_output over the shared output store
 ```
 
 Keep the small shared-capability adapters together as composition glue, except
-image adapters which belong beside their real attachment-grant handling. Their
+image adapters which belong beside their real attachment-grant handling.
+File-mutation previews and stale-file evidence live together in edit, including
+rename proposals; movefile owns the actual rename operation. Their
 domain code and contracts remain under `internal/capabilities/<feature>`.
 
 ### Tool-by-tool decisions and evidence
@@ -251,9 +264,9 @@ domain code and contracts remain under `internal/capabilities/<feature>`.
   approval previews/evidence must agree with actual mutations. Move the relevant
   parts of `fs.go` and `mutation.go` together. Expose only the operation-level
   proposal/preview behavior needed by actual approval consumers, not locks or
-  mutable buffers. The cross-tool `PreviewArgs`/`FullApproval` routing and stale
-  evidence checks remain root glue initially because they also cover move_file;
-  move_file must not import the edit tool just to get an approval formatter.
+  mutable buffers. Approval consumers call `edit.Preview` and `edit.Proposal`
+  directly. Their file-mutation evidence includes rename proposals; movefile does
+  not import edit, and the rename execution path remains independent.
   Their shared mutation semantics justify this grouping, not the word file.
 - **move_file:** separate. It currently does not use the write/patch lock; do not
   describe all filesystem tools as one synchronized owner. Cross-filesystem copy
@@ -300,9 +313,9 @@ domain code and contracts remain under `internal/capabilities/<feature>`.
 Concrete support owners needed before child packages can stop importing root:
 
 - Extract `OutputStore`, its context grant, reservation limits, spill publication
-  and bounded output into `internal/tooloutput`. Producers and read_output consume
+  and bounded output into `internal/tools/output`. Producers and read_output consume
   this same owner; no copied stores or unguarded filesystem reads.
-- Extract the existing Agent command runtime into `internal/command`: shell
+- Extract the existing Agent command runtime into `internal/tools/command`: shell
   selection/building, native invocation, streamed combined output and spill/tree
   cleanup. Its API accepts concrete command inputs and returns output/errors, not
   Agent tool calls. Preserve its distinct output policy from `internal/process.Run`,
@@ -311,10 +324,12 @@ Concrete support owners needed before child packages can stop importing root:
 - Keep arbitrary executable probing with its actual caller or executable owner.
   `ProbeCommand` and `executables.Resolver` have different verdict semantics;
   relocating one does not authorize merging them or changing those verdicts.
-- Keep strict argument decoding local where small. `validate.go`, JSON reduction,
-  URL wrappers and formatting helpers must follow real consumers; do not move them
-  wholesale into a shared utilities package. Verify public callers before deleting
-  an apparently unused helper; CLI and live-test entry points count.
+- Keep operation-specific argument guards local. The existing top-level field
+  check belongs with Agent schema validation as `agent.RejectUnknownFields`, so
+  independent tools do not copy it or import root composition. JSON reduction,
+  URL wrappers and formatting helpers follow their real consumers; do not create
+  a shared utilities package. Verify public callers before deleting a helper;
+  CLI and live-test entry points count.
 
 Dependency rules:
 

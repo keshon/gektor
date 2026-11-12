@@ -9,6 +9,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/checks"
+	tooledit "github.com/keshon/gektor/internal/tools/edit"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -45,7 +46,7 @@ func TestChecked_FiresOnSecretWrite(t *testing.T) {
 	sink := func(_ checks.Scope, f checks.Finding) {
 		got = append(got, f.Rule+" "+f.Path)
 	}
-	tool := Checked(WriteFile{WS: ws}, ws, checks.NewReporter(checks.Secrets(), sink))
+	tool := Checked(tooledit.Write{WS: ws}, ws, checks.NewReporter(checks.Secrets(), sink))
 	out, err := tool.Run(context.Background(), json.RawMessage(`{"path":"a.go","content":"AKIAIOSFODNN7EXAMPLE\n"}`))
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -64,7 +65,7 @@ func TestCheckedDoesNotChooseLanguageChecks(t *testing.T) {
 	reporter := checks.NewReporter(checks.Secrets(), func(checks.Scope, checks.Finding) {
 		t.Fatal("language syntax produced a built-in finding")
 	})
-	tool := Checked(WriteFile{WS: ws}, ws, reporter)
+	tool := Checked(tooledit.Write{WS: ws}, ws, reporter)
 	for _, path := range []string{"broken.go", "broken.py", "broken.rs"} {
 		args, _ := json.Marshal(map[string]string{"path": path, "content": "invalid source {{{"})
 		out, err := tool.Run(t.Context(), args)
@@ -77,7 +78,7 @@ func TestCheckedDoesNotChooseLanguageChecks(t *testing.T) {
 func TestChecked_CleanIsSilent(t *testing.T) {
 	ws := checkedWS(t)
 	fired := false
-	tool := Checked(WriteFile{WS: ws}, ws, checks.NewReporter(checks.Secrets(), func(checks.Scope, checks.Finding) { fired = true }))
+	tool := Checked(tooledit.Write{WS: ws}, ws, checks.NewReporter(checks.Secrets(), func(checks.Scope, checks.Finding) { fired = true }))
 	if _, err := tool.Run(context.Background(), json.RawMessage(`{"path":"a.go","content":"package a\n"}`)); err != nil {
 		t.Fatalf("run: %v", err)
 	}

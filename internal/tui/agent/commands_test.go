@@ -10,7 +10,7 @@ import (
 
 	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/tools"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -75,7 +75,7 @@ func TestCommand_NewStartsFresh(t *testing.T) {
 			Env: roles.Env{
 				Client: stubDone{},
 				WS:     ws,
-				Procs:  tools.NewBackgroundProcesses(),
+				Procs:  toolbackground.New(),
 			},
 		})
 	}

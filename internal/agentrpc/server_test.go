@@ -14,7 +14,7 @@ import (
 	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/tools"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -81,7 +81,7 @@ func testServerConfig(t *testing.T, client llm.Client) Config {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return Config{Run: harness.Config{Env: roles.Env{Client: client, WS: ws, Procs: tools.NewBackgroundProcesses()}}, Directory: t.TempDir()}
+	return Config{Run: harness.Config{Env: roles.Env{Client: client, WS: ws, Procs: toolbackground.New()}}, Directory: t.TempDir()}
 }
 
 // outLines collects stdout lines from a Serve under test.

@@ -14,6 +14,7 @@ import (
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/llm/chatcompletions"
 	"github.com/keshon/gektor/internal/tools"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -106,7 +107,7 @@ func TestStartupContextLive(t *testing.T) {
 	}
 	defer ws.Close()
 	c := &recordingClient{}
-	e := Env{WS: ws, Procs: tools.NewBackgroundProcesses(), Client: c, Identity: "You are a helpful assistant."}
+	e := Env{WS: ws, Procs: toolbackground.New(), Client: c, Identity: "You are a helpful assistant."}
 	a, aErr := Interactive(e, "", "", func(context.Context, string) (string, error) { return "", nil }, nil)
 	if aErr != nil {
 		t.Fatal(aErr)

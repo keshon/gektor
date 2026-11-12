@@ -11,6 +11,7 @@ import (
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/roles"
 	"github.com/keshon/gektor/internal/tools"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -40,7 +41,7 @@ func inspectStartup(o resolvedLaunch, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	env := roles.Env{WS: ws, Procs: tools.NewBackgroundProcesses(), Identity: app.IdentityPrompt(identity), Capabilities: sources}
+	env := roles.Env{WS: ws, Procs: toolbackground.New(), Identity: app.IdentityPrompt(identity), Capabilities: sources}
 	if o.browser != "" {
 		env.Browser = &tools.Browser{Channel: o.browser, Dir: ws.Root(), Profile: o.browserProfile, ProfileExplicit: o.explicitFlags["browser-profile"], Headless: o.browserHeadless}
 	}

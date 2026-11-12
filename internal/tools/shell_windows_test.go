@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	commandrun "github.com/keshon/gektor/internal/tools/command"
 )
 
 func TestWindowsShellPreservesQuotes(t *testing.T) {
@@ -50,7 +52,7 @@ func TestWindowsShellPreservesQuotes(t *testing.T) {
 				`node -e "console.log('node ok')" > 'output file.txt'; Get-Content 'output file.txt'`,
 				`node -e "console.log('node ok')" | Select-String -SimpleMatch 'node ok' | ForEach-Object { $_.Line }`,
 			} {
-				out, err := runProcess(t.Context(), powerShellCommand(t.Context(), executable, command), root, nil)
+				out, err := commandrun.Execute(t.Context(), commandrun.PowerShell(t.Context(), executable, command), root, nil)
 				if err != nil || strings.TrimSpace(out) != "node ok" {
 					t.Fatalf("%s: %q %v", command, out, err)
 				}
@@ -95,7 +97,7 @@ func TestPowerShellSourceAndExitStatus(t *testing.T) {
 					}
 					ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 					defer cancel()
-					out, err := runProcess(ctx, powerShellCommand(ctx, shell, tc.source), t.TempDir(), nil)
+					out, err := commandrun.Execute(ctx, commandrun.PowerShell(ctx, shell, tc.source), t.TempDir(), nil)
 					code := 0
 					if err != nil {
 						var exit *exec.ExitError
@@ -115,7 +117,7 @@ func TestPowerShellSourceAndExitStatus(t *testing.T) {
 
 func TestProgramModeRejectsBatchScript(t *testing.T) {
 	for _, name := range []string{"script.cmd", "script.bat", "script.ps1"} {
-		_, err := (programInput{Program: name}).cmd(t.Context())
+		_, err := commandrun.Native(t.Context(), name, nil)
 		if err == nil || !strings.Contains(err.Error(), "use run_shell or start_background with PowerShell syntax") {
 			t.Fatal(err)
 		}

@@ -13,7 +13,7 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/tools"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -76,7 +76,7 @@ func budgetEnv(t *testing.T, client llm.Client) (roles.Env, string) {
 		t.Fatal(err)
 	}
 	return roles.Env{
-		Client: client, WS: ws, Procs: tools.NewBackgroundProcesses(),
+		Client: client, WS: ws, Procs: toolbackground.New(),
 	}, dir
 }
 

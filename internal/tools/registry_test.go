@@ -3,6 +3,7 @@ package tools
 import (
 	"testing"
 
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -14,7 +15,7 @@ func TestReadOnly_ContainsNoMutatingOrShellTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("workspace: %v", err)
 	}
-	reg := ReadOnly(ws, NewBackgroundProcesses(), false)
+	reg := ReadOnly(ws, toolbackground.New(), false)
 
 	forbidden := map[string]bool{
 		"write_file": true, "patch_file": true, "git_add": true, "git_commit": true,

@@ -11,7 +11,7 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/tools"
+	toolskill "github.com/keshon/gektor/internal/tools/skill"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -53,7 +53,7 @@ func TestSkillProjectionUsesOnlyCompleteDeliveredGuides(t *testing.T) {
 				client.calls = append(client.calls, llm.ToolCall{ID: id, Name: "load_skill", Arguments: json.RawMessage(`{"id":"release"}`)})
 			}
 			state := filepath.Join(t.TempDir(), "state.json")
-			cfg := agent.Config{Client: client, Tools: agent.NewRegistry(tools.LoadSkill{WS: ws}), System: "system", StateFile: state}
+			cfg := agent.Config{Client: client, Tools: agent.NewRegistry(toolskill.Tool{WS: ws}), System: "system", StateFile: state}
 			if variant == "offloaded" {
 				cfg.Outputs = offloadedSkillOutput{}
 			}

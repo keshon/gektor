@@ -10,35 +10,10 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"unicode/utf8"
 
+	toolshell "github.com/keshon/gektor/internal/tools/shell"
 	"github.com/keshon/gektor/internal/workspace"
 )
-
-func TestCommandOutputStreamsSplitUTF8AndBoundsPreview(t *testing.T) {
-	var chunks []string
-	out := &commandOutput{onOutput: func(text string) {
-		if !utf8.ValidString(text) {
-			t.Errorf("invalid UTF-8 chunk: %q", text)
-		}
-		chunks = append(chunks, text)
-	}}
-	for _, b := range []byte("привет 😀\n") {
-		out.Write([]byte{b})
-	}
-	if got := strings.Join(chunks, ""); got != "привет 😀\n" {
-		t.Fatalf("preview=%q", got)
-	}
-	out.Write([]byte(strings.Repeat("x", shellMaxBytes*3) + "last log line"))
-	out.flush()
-	preview := strings.Join(chunks, "")
-	if len(preview) > shellMaxBytes+200 || strings.Count(preview, "live preview limit reached") != 1 {
-		t.Fatalf("unbounded preview or repeated notice: %d bytes", len(preview))
-	}
-	if !strings.HasSuffix(out.String(), "last log line") {
-		t.Fatal("final result lost recent output")
-	}
-}
 
 // The child cannot finish until the parent observes its output. This proves
 // delivery during execution rather than replay after process exit.
@@ -92,7 +67,7 @@ func TestShellOutputArrivesBeforeExitAndSurvivesFailureOrCancellation(t *testing
 			args, _ := json.Marshal(map[string]string{"command": command})
 			var live strings.Builder
 			var releaseErr error
-			result, err := (RunShell{WS: ws}).RunStreaming(ctx, args, func(text string) {
+			result, err := (toolshell.Tool{WS: ws}).RunStreaming(ctx, args, func(text string) {
 				live.WriteString(text)
 				if strings.Contains(live.String(), "first output") {
 					if mode == "cancel" {

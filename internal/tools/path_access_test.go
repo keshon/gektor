@@ -11,6 +11,11 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/agent"
+	tooledit "github.com/keshon/gektor/internal/tools/edit"
+	toolgrep "github.com/keshon/gektor/internal/tools/grep"
+	toollistfiles "github.com/keshon/gektor/internal/tools/listfiles"
+	toolmovefile "github.com/keshon/gektor/internal/tools/movefile"
+	toolreadfile "github.com/keshon/gektor/internal/tools/readfile"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -44,14 +49,14 @@ func TestFileToolsRejectEscapingLinks(t *testing.T) {
 		tool agent.Tool
 		args string
 	}{
-		{"read", ReadFile{WS: ws}, `{"path":"external/secret.txt"}`},
-		{"write", WriteFile{WS: ws}, `{"path":"external/new.txt","content":"bad"}`},
-		{"patch", PatchFile{WS: ws}, `{"path":"external/secret.txt","old_content":"OUTSIDE_SECRET","new_content":"bad"}`},
-		{"move source", MoveFile{WS: ws}, `{"from":"external/secret.txt","to":"stolen.txt"}`},
-		{"move destination", MoveFile{WS: ws}, `{"from":"local.txt","to":"external/new.txt"}`},
-		{"list", ListFiles{WS: ws}, `{"path":"external"}`},
-		{"grep", GrepFiles{WS: ws}, `{"path":"external","pattern":"SECRET","include_ignored":true}`},
-		{"image", ReadFile{WS: ws, Vision: true}, `{"path":"external/shot.png"}`},
+		{"read", toolreadfile.Tool{WS: ws}, `{"path":"external/secret.txt"}`},
+		{"write", tooledit.Write{WS: ws}, `{"path":"external/new.txt","content":"bad"}`},
+		{"patch", tooledit.Patch{WS: ws}, `{"path":"external/secret.txt","old_content":"OUTSIDE_SECRET","new_content":"bad"}`},
+		{"move source", toolmovefile.Tool{WS: ws}, `{"from":"external/secret.txt","to":"stolen.txt"}`},
+		{"move destination", toolmovefile.Tool{WS: ws}, `{"from":"local.txt","to":"external/new.txt"}`},
+		{"list", toollistfiles.Tool{WS: ws}, `{"path":"external"}`},
+		{"grep", toolgrep.Tool{WS: ws}, `{"path":"external","pattern":"SECRET","include_ignored":true}`},
+		{"image", toolreadfile.Tool{WS: ws, Vision: true}, `{"path":"external/shot.png"}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			out, err := tc.tool.Run(t.Context(), json.RawMessage(tc.args))
@@ -69,7 +74,7 @@ func TestFileToolsRejectEscapingLinks(t *testing.T) {
 	if data, _ := os.ReadFile(filepath.Join(root, "local.txt")); string(data) != "local" {
 		t.Fatal("failed move removed its source")
 	}
-	if preview := previewPatch(ws, json.RawMessage(`{"path":"external/secret.txt","old_content":"OUTSIDE_SECRET","new_content":"bad"}`)); preview != "" {
+	if preview := tooledit.Preview(ws, "patch_file", json.RawMessage(`{"path":"external/secret.txt","old_content":"OUTSIDE_SECRET","new_content":"bad"}`)); preview != "" {
 		t.Fatal("preview read through a link", preview)
 	}
 }
@@ -83,7 +88,7 @@ func TestAbsoluteFilePathsShareRelativeAccessAndPermissions(t *testing.T) {
 	t.Cleanup(func() { ws.Close() })
 	path := filepath.Join(root, "calculator.html")
 	args, _ := json.Marshal(map[string]string{"path": path, "content": "calculator"})
-	if _, err := (WriteFile{WS: ws}).Run(t.Context(), args); err != nil {
+	if _, err := (tooledit.Write{WS: ws}).Run(t.Context(), args); err != nil {
 		t.Fatal(err)
 	}
 	if data, err := ws.ReadFile("calculator.html"); err != nil || string(data) != "calculator" {
@@ -99,7 +104,7 @@ func TestAbsoluteFilePathsShareRelativeAccessAndPermissions(t *testing.T) {
 		t.Fatal("move permissions omit a path", resources, err)
 	}
 	args, _ = json.Marshal(map[string]string{"path": filepath.Join(t.TempDir(), "outside.txt"), "content": "bad"})
-	if _, err := (WriteFile{WS: ws}).Run(t.Context(), args); err == nil {
+	if _, err := (tooledit.Write{WS: ws}).Run(t.Context(), args); err == nil {
 		t.Fatal("accepted external absolute write")
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	toolshell "github.com/keshon/gektor/internal/tools/shell"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -18,6 +19,8 @@ import (
 // the prompt whole — 3.4k to 57k tokens in one step. Capping the
 // sanctioned route while leaving the shell uncapped only moved the
 // traffic.
+const shellMaxBytes = 48 * 1024
+
 func TestRunShell_CapsHugeOutput(t *testing.T) {
 	dir := t.TempDir()
 	big := strings.Repeat("abcdefgh", 40*1024) // 320KB
@@ -37,7 +40,7 @@ func TestRunShell_CapsHugeOutput(t *testing.T) {
 		cmd = "type big.txt"
 	}
 	args, _ := json.Marshal(map[string]string{"command": cmd})
-	out, err := (RunShell{WS: ws}).Run(context.Background(), args)
+	out, err := (toolshell.Tool{WS: ws}).Run(context.Background(), args)
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -58,7 +61,7 @@ func TestRunShell_LeavesNormalOutputAlone(t *testing.T) {
 		t.Fatalf("workspace: %v", err)
 	}
 	args, _ := json.Marshal(map[string]string{"command": "echo hello"})
-	out, err := (RunShell{WS: ws}).Run(context.Background(), args)
+	out, err := (toolshell.Tool{WS: ws}).Run(context.Background(), args)
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -81,7 +84,7 @@ func TestRunShellUsesWorkspaceRelativeWorkdir(t *testing.T) {
 	}
 	for _, dir := range []string{"", "package with spaces"} {
 		args, _ := json.Marshal(map[string]any{"command": command, "workdir": dir})
-		out, err := (RunShell{WS: ws}).Run(t.Context(), args)
+		out, err := (toolshell.Tool{WS: ws}).Run(t.Context(), args)
 		want := "root marker"
 		if dir != "" {
 			want = "child marker"
@@ -99,7 +102,7 @@ func TestRunShellValidatesBoundsBeforeStarting(t *testing.T) {
 	} {
 		fields["command"] = "echo unexpected > should-not-run.txt"
 		args, _ := json.Marshal(fields)
-		if _, err := (RunShell{WS: ws}).Run(t.Context(), args); err == nil {
+		if _, err := (toolshell.Tool{WS: ws}).Run(t.Context(), args); err == nil {
 			t.Fatalf("invalid arguments executed: %s", args)
 		}
 	}
@@ -111,7 +114,7 @@ func TestRunShellValidatesBoundsBeforeStarting(t *testing.T) {
 func TestRunShellHonorsCommandDeadline(t *testing.T) {
 	ws, _ := testWS(t)
 	args, _ := json.Marshal(map[string]any{"command": longRunningCommand, "timeout_seconds": 1})
-	if _, err := (RunShell{WS: ws}).Run(t.Context(), args); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := (toolshell.Tool{WS: ws}).Run(t.Context(), args); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("command deadline was not enforced: %v", err)
 	}
 }

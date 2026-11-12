@@ -7,7 +7,8 @@ import (
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/prompts"
-	"github.com/keshon/gektor/internal/tools"
+	commandrun "github.com/keshon/gektor/internal/tools/command"
+	toolhistory "github.com/keshon/gektor/internal/tools/history"
 )
 
 const (
@@ -27,11 +28,11 @@ const (
 func Subagent(e Env, role string) (*agent.Agent, error) { return inspectedSubagent(e, role, "", "") }
 
 func inspectedSubagent(e Env, role, callID, parentState string) (*agent.Agent, error) {
-	platform := prompts.PlatformLine(tools.ShellName())
+	platform := prompts.PlatformLine(commandrun.ShellName())
 	system := prompts.WithRole(role) + "\n\n" + prompts.SubagentScope + "\n\n" + platform
 	cfg := e.executionConfig(system, "")
 	cfg.StateFile = conversation.ChildStatePath(parentState, callID)
-	extra := append([]agent.Tool{tools.ReadHistory{Path: cfg.StateFile}}, e.MCPTools...)
+	extra := append([]agent.Tool{toolhistory.Tool{Path: cfg.StateFile}}, e.MCPTools...)
 	err := e.configureTools(&cfg, false, false, extra...)
 	if err != nil {
 		return nil, err

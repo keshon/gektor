@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	tooloutput "github.com/keshon/gektor/internal/tools/output"
 )
 
 func TestStripHTML_Basic(t *testing.T) {
@@ -68,7 +70,7 @@ func TestWebfetch_TruncatesWithSpill(t *testing.T) {
 		return cannedResponse(r, "text/html", big)
 	})
 	defer func() { webfetchTransport = nil }()
-	store := &OutputStore{dir: t.TempDir()}
+	store := tooloutput.New(t.TempDir())
 	out, err := Webfetch{}.Run(store.Context(t.Context()), json.RawMessage(`{"url":"https://example.com/big"}`))
 	if err != nil {
 		t.Fatalf("run: %v", err)

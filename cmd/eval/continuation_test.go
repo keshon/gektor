@@ -8,6 +8,7 @@ import (
 
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/tools"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
 )
 
 type continuationClient struct{ t *testing.T }
@@ -35,7 +36,7 @@ func (c continuationClient) Chat(_ context.Context, req llm.ChatRequest) (llm.Ch
 
 func TestContinuationPreservesRolesWithoutNewUserTurn(t *testing.T) {
 	ws := checkWorkspaceForTest(t)
-	procs := tools.NewBackgroundProcesses()
+	procs := toolbackground.New()
 	defer procs.StopAll()
 	p := Probe{Task: "opening request", Continuation: []llm.Message{
 		{Role: llm.RoleAssistant, Content: "user-like assistant text", ToolCalls: []llm.ToolCall{{ID: "recorded", Name: "system_info", Arguments: json.RawMessage(`{"group":"tools"}`)}}},
@@ -50,7 +51,7 @@ func TestContinuationPreservesRolesWithoutNewUserTurn(t *testing.T) {
 
 func TestProbeRetainsConstructionFailure(t *testing.T) {
 	ws := checkWorkspaceForTest(t)
-	procs := tools.NewBackgroundProcesses()
+	procs := toolbackground.New()
 	defer procs.StopAll()
 	env := evalEnv(continuationClient{t}, ws, procs, 131072, 2048, func(int, llm.Message) {}, func(string) {})
 	env.NativeExposure = map[string]tools.Exposure{"unknown-package": tools.Eager}

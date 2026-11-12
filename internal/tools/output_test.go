@@ -5,17 +5,20 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	tooloutput "github.com/keshon/gektor/internal/tools/output"
+	"github.com/keshon/gektor/internal/tools/readoutput"
 )
 
 func TestOutputCanBePagedOnlyByItsSession(t *testing.T) {
-	store := &OutputStore{dir: t.TempDir()}
+	store := tooloutput.New(t.TempDir())
 	ctx := store.Context(t.Context())
 	original := strings.Repeat("head\n", 5000) + "UNIQUE MIDDLE\n" + strings.Repeat("tail\n", 5000)
-	preview := LimitOutput(ctx, original, 2048)
+	preview := tooloutput.Limit(ctx, original, 2048)
 	if !strings.Contains(preview, "read_output") || len(preview) > 2048 {
 		t.Fatal("missing bounded output handle", len(preview))
 	}
-	entries, _ := os.ReadDir(store.dir)
+	entries, _ := os.ReadDir(store.Scope())
 	if len(entries) != 1 {
 		t.Fatal(entries)
 	}
@@ -24,7 +27,7 @@ func TestOutputCanBePagedOnlyByItsSession(t *testing.T) {
 	var full strings.Builder
 	for {
 		args, _ := json.Marshal(map[string]any{"id": id, "offset": offset, "limit": 1001})
-		out, err := (ReadOutput{}).Run(ctx, args)
+		out, err := (readoutput.Tool{}).Run(ctx, args)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -45,25 +48,9 @@ func TestOutputCanBePagedOnlyByItsSession(t *testing.T) {
 	if full.String() != original {
 		t.Fatal("paged output lost data")
 	}
-	other := (&OutputStore{dir: t.TempDir()}).Context(t.Context())
+	other := (tooloutput.New(t.TempDir())).Context(t.Context())
 	args, _ := json.Marshal(map[string]any{"id": id})
-	if _, err := (ReadOutput{}).Run(other, args); err == nil {
+	if _, err := (readoutput.Tool{}).Run(other, args); err == nil {
 		t.Fatal("cross-session read allowed")
-	}
-}
-func TestOutputFileLimitIsExplicit(t *testing.T) {
-	store := &OutputStore{dir: t.TempDir()}
-	file, err := store.create()
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, _ = file.Write([]byte(strings.Repeat("x", outputFileLimit+100)))
-	note := file.close()
-	if !strings.Contains(note, "later bytes were not saved") {
-		t.Fatal(note)
-	}
-	info, err := os.Stat(file.file.Name())
-	if err != nil || info.Size() != outputFileLimit {
-		t.Fatal(info, err)
 	}
 }

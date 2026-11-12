@@ -8,6 +8,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/mcp"
+	tooloutput "github.com/keshon/gektor/internal/tools/output"
 )
 
 type mcpConnection interface {
@@ -45,7 +46,7 @@ func startMCP(ctx context.Context, server, dir string, refs map[string]string, c
 		return nil, nil, err
 	}
 
-	diagnostic := &syncBuffer{}
+	diagnostic := &tooloutput.Buffer{}
 	cfg := mcp.StdioConfig{
 		Server:    server,
 		Directory: dir,

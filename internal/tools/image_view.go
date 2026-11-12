@@ -35,7 +35,7 @@ func (ImageAttachments) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)
 }
 func (ImageAttachments) Run(ctx context.Context, args json.RawMessage) (string, error) {
-	if err := rejectUnknownFields(args); err != nil {
+	if err := agent.RejectUnknownFields(args); err != nil {
 		return "", err
 	}
 	type item struct {

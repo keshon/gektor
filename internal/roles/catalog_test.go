@@ -15,6 +15,7 @@ import (
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/tools"
+	toolaskuser "github.com/keshon/gektor/internal/tools/askuser"
 )
 
 func TestNativeWebActivationCompactResumeAndPlan(t *testing.T) {
@@ -100,7 +101,7 @@ func TestRolePackageCompositionAndExcludedActivation(t *testing.T) {
 		t.Fatal("child role changed")
 	}
 	e.Capabilities = []*tools.Capability{{ID: "questions", Description: "Ask", Load: func(context.Context, func(string)) ([]agent.Tool, error) {
-		return []agent.Tool{tools.AskUser{AskFn: ask}}, nil
+		return []agent.Tool{toolaskuser.Tool{AskFn: ask}}, nil
 	}}}
 	var got llm.ChatRequest
 	step := 0

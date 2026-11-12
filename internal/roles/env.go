@@ -12,6 +12,8 @@ import (
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/tools"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
+	tooloutput "github.com/keshon/gektor/internal/tools/output"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -27,8 +29,8 @@ type Env struct {
 	UserName          string
 	Client            llm.Client
 	WS                *workspace.Workspace
-	Procs             *tools.BackgroundProcesses
-	Outputs           *tools.OutputStore
+	Procs             *toolbackground.Processes
+	Outputs           *tooloutput.Store
 	MaxTokens         int
 	Temperature       float64
 	ContextLimit      int
@@ -152,7 +154,7 @@ func (e Env) Refreshed(ctx context.Context) Env {
 func (e Env) executionConfig(system, stateFile string) agent.Config {
 	store := e.Outputs
 	if store == nil {
-		store = tools.NewOutputStore(e.statePath(stateFile))
+		store = tooloutput.New(e.statePath(stateFile))
 	}
 
 	project, skills := e.WS.InstructionSections()

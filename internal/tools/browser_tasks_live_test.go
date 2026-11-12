@@ -17,6 +17,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
+	toolaskuser "github.com/keshon/gektor/internal/tools/askuser"
 )
 
 // A deterministic model driver checks what actually reaches the model through
@@ -194,7 +195,7 @@ func TestBrowserTaskObservationsLive(t *testing.T) {
 	t.Run("login handoff refreshes page before continuing", func(t *testing.T) {
 		reg, _ := browserRegistry(b)
 		asked := 0
-		if err := reg.Add(AskUser{AskFn: func(_ context.Context, question string) (string, error) {
+		if err := reg.Add(toolaskuser.Tool{AskFn: func(_ context.Context, question string) (string, error) {
 			asked++
 			if strings.Contains(strings.ToLower(question), "password") {
 				t.Fatal("requested credentials in chat")

@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/keshon/gektor/internal/agent"
+	tooloutput "github.com/keshon/gektor/internal/tools/output"
 )
 
 // webfetch and fetch_raw are the same request with a different cap and a
@@ -26,7 +29,7 @@ func decodeFetchArgs(args json.RawMessage) (fetchArgs, error) {
 	if err := json.Unmarshal(args, &in); err != nil {
 		return in, fmt.Errorf("bad arguments: %w", err)
 	}
-	if err := rejectUnknownFields(args, "url", "max_bytes"); err != nil {
+	if err := agent.RejectUnknownFields(args, "url", "max_bytes"); err != nil {
 		return in, err
 	}
 	return in, nil
@@ -101,7 +104,7 @@ func fetch(ctx context.Context, in fetchArgs, spec fetchSpec) (string, error) {
 	}
 	b.WriteString("----\n")
 	if len(text) > limit {
-		b.WriteString(LimitOutput(ctx, text, limit))
+		b.WriteString(tooloutput.Limit(ctx, text, limit))
 	} else {
 		b.WriteString(text)
 	}

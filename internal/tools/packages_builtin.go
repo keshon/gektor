@@ -17,6 +17,22 @@ import (
 	sshcontract "github.com/keshon/gektor/internal/capabilities/ssh/contract"
 	"github.com/keshon/gektor/internal/executables"
 	"github.com/keshon/gektor/internal/permission"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
+	toolcheckurl "github.com/keshon/gektor/internal/tools/checkurl"
+	toolcontext "github.com/keshon/gektor/internal/tools/context"
+	tooledit "github.com/keshon/gektor/internal/tools/edit"
+	toolgit "github.com/keshon/gektor/internal/tools/git"
+	toolgitadd "github.com/keshon/gektor/internal/tools/gitadd"
+	toolgitcommit "github.com/keshon/gektor/internal/tools/gitcommit"
+	toolgrep "github.com/keshon/gektor/internal/tools/grep"
+	toollistfiles "github.com/keshon/gektor/internal/tools/listfiles"
+	toolmovefile "github.com/keshon/gektor/internal/tools/movefile"
+	toolprogram "github.com/keshon/gektor/internal/tools/program"
+	toolreadfile "github.com/keshon/gektor/internal/tools/readfile"
+	"github.com/keshon/gektor/internal/tools/readoutput"
+	toolshell "github.com/keshon/gektor/internal/tools/shell"
+	toolskill "github.com/keshon/gektor/internal/tools/skill"
+	tooltodo "github.com/keshon/gektor/internal/tools/todo"
 	"github.com/keshon/gektor/internal/userdirs"
 	workflowdefs "github.com/keshon/gektor/internal/workflow"
 	workflow "github.com/keshon/gektor/internal/workflow/agenttools"
@@ -95,10 +111,10 @@ func builtinPackages(d Dependencies) []packageDefinition {
 			exposure:    Always,
 			entries: []toolEntry{
 				{info, true},
-				{LoadSkill{WS: d.WS}, true},
-				{InspectContext{}, true},
-				{ReadOutput{}, true},
-				{&Todo{}, false},
+				{toolskill.Tool{WS: d.WS}, true},
+				{toolcontext.Tool{}, true},
+				{readoutput.Tool{}, true},
+				{&tooltodo.Tool{}, false},
 			},
 		},
 		{
@@ -106,12 +122,12 @@ func builtinPackages(d Dependencies) []packageDefinition {
 			description: "Workspace files",
 			exposure:    Always,
 			entries: []toolEntry{
-				{ReadFile{WS: d.WS, Vision: d.Vision}, true},
-				{Checked(WriteFile{WS: d.WS}, d.WS, d.Checks), false},
-				{Checked(PatchFile{WS: d.WS}, d.WS, d.Checks), false},
-				{ListFiles{WS: d.WS}, true},
-				{GrepFiles{WS: d.WS}, true},
-				{MoveFile{WS: d.WS}, false},
+				{toolreadfile.Tool{WS: d.WS, Vision: d.Vision}, true},
+				{Checked(tooledit.Write{WS: d.WS}, d.WS, d.Checks), false},
+				{Checked(tooledit.Patch{WS: d.WS}, d.WS, d.Checks), false},
+				{toollistfiles.Tool{WS: d.WS}, true},
+				{toolgrep.Tool{WS: d.WS}, true},
+				{toolmovefile.Tool{WS: d.WS}, false},
 			},
 		},
 		{
@@ -119,8 +135,8 @@ func builtinPackages(d Dependencies) []packageDefinition {
 			description: "Run commands",
 			exposure:    Always,
 			entries: []toolEntry{
-				{RunShell{WS: d.WS}, false},
-				{RunProgram{WS: d.WS}, false},
+				{toolshell.Tool{WS: d.WS}, false},
+				{toolprogram.Tool{WS: d.WS}, false},
 			},
 		},
 		{
@@ -128,11 +144,11 @@ func builtinPackages(d Dependencies) []packageDefinition {
 			description: "Background processes",
 			exposure:    Always,
 			entries: []toolEntry{
-				{StartBackground{WS: d.WS, Procs: d.Procs}, false},
-				{StartProgram{WS: d.WS, Procs: d.Procs}, false},
-				{CheckBackground{Procs: d.Procs}, true},
-				{WaitBackground{Procs: d.Procs}, true},
-				{StopBackground{Procs: d.Procs}, false},
+				{toolbackground.StartShell{WS: d.WS, Procs: d.Procs}, false},
+				{toolbackground.StartProgram{WS: d.WS, Procs: d.Procs}, false},
+				{toolbackground.Check{Procs: d.Procs}, true},
+				{toolbackground.Wait{Procs: d.Procs}, true},
+				{toolbackground.Stop{Procs: d.Procs}, false},
 			},
 		},
 		{
@@ -140,9 +156,9 @@ func builtinPackages(d Dependencies) []packageDefinition {
 			description: "Git operations",
 			exposure:    Always,
 			entries: []toolEntry{
-				{Git{WS: d.WS}, true},
-				{GitAdd{WS: d.WS}, false},
-				{GitCommit{WS: d.WS}, false},
+				{toolgit.Tool{WS: d.WS}, true},
+				{toolgitadd.Tool{WS: d.WS}, false},
+				{toolgitcommit.Tool{WS: d.WS}, false},
 			},
 		},
 		{
@@ -150,7 +166,7 @@ func builtinPackages(d Dependencies) []packageDefinition {
 			description: "Fetch URLs and search the web",
 			exposure:    Eager,
 			entries: []toolEntry{
-				{CheckURL{}, true},
+				{toolcheckurl.Tool{}, true},
 				{Webfetch{}, true},
 				{FetchRaw{}, true},
 				{SearchWeb{WS: d.WS}, true},

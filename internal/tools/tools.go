@@ -11,6 +11,8 @@ import (
 	"github.com/keshon/gektor/internal/capabilities/media"
 	"github.com/keshon/gektor/internal/checks"
 	"github.com/keshon/gektor/internal/permission"
+	toolbackground "github.com/keshon/gektor/internal/tools/background"
+	toolhistory "github.com/keshon/gektor/internal/tools/history"
 	"github.com/keshon/gektor/internal/workflow/service"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -33,7 +35,7 @@ type Dependencies struct {
 	Policy   permission.Policy
 	Gate     permission.Gate
 	WS       *workspace.Workspace
-	Procs    *BackgroundProcesses
+	Procs    *toolbackground.Processes
 	Checks   *checks.Reporter
 	Vision   bool
 	Extra    []agent.Tool
@@ -123,7 +125,7 @@ func Compose(d Dependencies, catalog *Capabilities, overrides map[string]Exposur
 // through the supplied reporter; a nil reporter builds unwrapped.
 // vision enables reading pictures through read_file; it must come from a
 // backend capability probe, not a guess.
-func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report *checks.Reporter, vision bool, extra ...agent.Tool) *agent.Registry {
+func Base(ws *workspace.Workspace, procs *toolbackground.Processes, report *checks.Reporter, vision bool, extra ...agent.Tool) *agent.Registry {
 	return agent.NewRegistry(nativeTools(Dependencies{
 		WS:     ws,
 		Procs:  procs,
@@ -138,7 +140,7 @@ func Base(ws *workspace.Workspace, procs *BackgroundProcesses, report *checks.Re
 // control. For workers whose job is to look and report (codebase mapping,
 // final review): removing the mutating tools entirely beats prompting a
 // weak model not to use them.
-func ReadOnly(ws *workspace.Workspace, procs *BackgroundProcesses, vision bool) *agent.Registry {
+func ReadOnly(ws *workspace.Workspace, procs *toolbackground.Processes, vision bool) *agent.Registry {
 	return agent.NewRegistry(nativeTools(Dependencies{
 		WS:     ws,
 		Procs:  procs,
@@ -162,7 +164,7 @@ func nativeTools(d Dependencies, readOnly bool) []agent.Tool {
 	}
 
 	if readOnly {
-		list = append(list, ReadHistory{})
+		list = append(list, toolhistory.Tool{})
 	} else {
 		list = append(list, d.Extra...)
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/tools"
+	commandrun "github.com/keshon/gektor/internal/tools/command"
 )
 
 // Evaluations and frontends must construct the same Interactive tool contract.
@@ -151,7 +152,7 @@ func TestRolesDescribeTheSelectedShell(t *testing.T) {
 		if _, err := a.Run(t.Context(), "Describe the platform"); err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(client.history[0].Content, prompts.PlatformLine(tools.ShellName())) {
+		if !strings.Contains(client.history[0].Content, prompts.PlatformLine(commandrun.ShellName())) {
 			t.Fatal("role does not describe the executor's shell")
 		}
 	}
