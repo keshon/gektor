@@ -302,7 +302,7 @@ func TestWorkflowSessionApprovalAndAccessReset(t *testing.T) {
 	}
 
 	w.command("access-full")
-	if !w.approvals.FullAccess() || !strings.Contains(m.workflowScreen(), "FULL ACCESS") {
+	if !w.approvals.FullAccess() || !strings.Contains(m.workflowScreen(), "AUTO") {
 		t.Fatal("full access missing or invisible")
 	}
 	w.busy = true

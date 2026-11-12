@@ -58,12 +58,8 @@ func (m *Model) headerBadges() []screen.Badge {
 	candidates := []screen.Badge{{ID: "mode", Label: mode}, {ID: "activity", Label: activity + "  " + ctx}}
 	leftWidth := lipgloss.Width(mode) + lipgloss.Width(activity+"  "+ctx) + 4
 	if m.approvals.FullAccess() {
-		candidates = []screen.Badge{
-			{ID: "mode", Label: mode},
-			{ID: "access", Label: "FULL ACCESS"},
-			{ID: "activity", Label: activity + "  " + ctx},
-		}
-		leftWidth += 13
+		candidates = append(candidates, screen.Badge{ID: "access", Label: "AUTO"})
+		leftWidth += 6
 	}
 	if m.steering {
 		candidates = append(candidates, screen.Badge{ID: "steering", Label: "STEER"})

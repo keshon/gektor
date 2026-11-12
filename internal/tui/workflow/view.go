@@ -140,7 +140,7 @@ func (m *Model) content() string {
 	}
 	mode := "Workflow"
 	if m.approvals.FullAccess() {
-		mode += " / FULL ACCESS"
+		mode += " / AUTO"
 	}
 	if m.positionsLocked {
 		mode += " [positions locked]"

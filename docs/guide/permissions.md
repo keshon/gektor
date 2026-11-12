@@ -23,7 +23,7 @@ use the same scope; `a` and `always` remain accepted answers.
 
 In Agent’s top **Run** menu, choose **Ask permission** or **Full access** while
 idle. Full access approves policy Ask decisions automatically for the open
-session; a FULL ACCESS indicator stays visible. Explicit deny rules and Plan
+session; a AUTO indicator stays visible. Explicit deny rules and Plan
 mode restrictions still apply. Returning to Ask permission clears remembered
 approvals. New or reopened sessions start in Ask permission. Approvals are
 not saved to disk.

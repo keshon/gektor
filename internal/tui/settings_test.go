@@ -208,7 +208,7 @@ func TestCommonMenusHaveNoRedirects(t *testing.T) {
 	m.handleKey(tea.KeyPressMsg{Code: tea.KeyDown})
 	items := m.headerItems()
 	selected := items[m.chrome.Header.Row]
-	if selected.Command != "stop" || !selected.Enabled {
+	if selected.Command != "toggle-steering" || !selected.Enabled {
 		t.Fatal("keyboard did not skip disabled actions")
 	}
 	finishAgentTurn(t, m)

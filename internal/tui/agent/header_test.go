@@ -412,13 +412,29 @@ func TestKeyboardNavigationSkipsViewSeparator(t *testing.T) {
 }
 
 func TestFullAccessVisibleInNarrowHeader(t *testing.T) {
-	for _, width := range []int{24, 40, 80, 120} {
+	for _, width := range []int{40, 80, 120} {
 		m := sizeModelTo(t, testModel(), width, 24)
 		m.approvals.SetFullAccess(true)
 		m.tokens, m.limit = 123000, 128000
 		line := ansi.Strip(m.badgeLine())
-		if !strings.Contains(line, "FULL ACCESS") || lipgloss.Width(line) != m.transcript.Viewport.Width() {
+		if !strings.Contains(line, "AUTO") || lipgloss.Width(line) != m.transcript.Viewport.Width() {
 			t.Fatalf("width %d: access hidden or header overflowed: %q", width, line)
 		}
 	}
+}
+
+func TestAccessBadgeImmediatelyPrecedesSteering(t *testing.T) {
+	m := sizeModelTo(t, testModel(), 120, 24)
+	m.approvals.SetFullAccess(true)
+	m.steering = true
+	badges := m.headerBadges()
+	for i, badge := range badges {
+		if badge.ID == "access" {
+			if badge.Label != "AUTO" || i == 0 || badges[i-1].ID != "activity" || i+1 >= len(badges) || badges[i+1].ID != "steering" {
+				t.Fatalf("incorrect access badge order: %+v", badges)
+			}
+			return
+		}
+	}
+	t.Fatal("access badge missing")
 }

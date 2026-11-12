@@ -370,7 +370,7 @@ func TestAccessMenuAndSessionConfirmation(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.activateMenuAction("access-full")
-	if !m.approvals.FullAccess() || !strings.Contains(m.badgeLine(), "FULL ACCESS") {
+	if !m.approvals.FullAccess() || !strings.Contains(m.badgeLine(), "AUTO") {
 		t.Fatal("full access missing or invisible")
 	}
 	gate := m.contextGate(m.hub, nil)

@@ -31,12 +31,19 @@ func (m *Model) menuItems(menu string) []screen.MenuItem {
 			{Text: "Rename session…", Command: "rename-current", Enabled: saved}, {Text: "Delete session…", Command: "delete-current", Enabled: saved}, sep,
 			{Text: "Compact history…", Command: "compact-session", Enabled: saved}, sep}, m.sessionCopyItems()...)
 	case "execution":
-		return []screen.MenuItem{{Text: "Plan — read-only", Command: "/mode plan", Enabled: idle}, {Text: "Act — allow changes", Command: "/mode act", Enabled: idle}, sep,
-			{Text: "Ask permission", Command: "access-ask", Enabled: idle}, {Text: "Full access", Command: "access-full", Enabled: idle},
-			sep,
-			{Text: "Stop run", Command: "stop", Enabled: m.state == stRunning}, {Text: "Retry failed turn", Command: "/retry", Enabled: idle && m.runErr != nil && m.retryRun != nil}, sep,
-			{Text: "Permissions…", Command: "permissions-info", Enabled: true}, {Text: "MCP servers…", Command: "/mcp", Enabled: true}, sep,
-			{Text: "Message queue…", Command: "message-queue", Enabled: true}, {Text: "Background processes…", Command: "/processes", Enabled: true}, {Text: "Live steering", Command: "toggle-steering", Enabled: true}}
+		return []screen.MenuItem{
+			{Text: "Plan — read-only", Command: "/mode plan", Enabled: idle},
+			{Text: "Act — allow changes", Command: "/mode act", Enabled: idle}, sep,
+			{Text: "Ask permission", Command: "access-ask", Enabled: idle},
+			{Text: "Full access", Command: "access-full", Enabled: idle}, sep,
+			{Text: "Live steering", Command: "toggle-steering", Enabled: true},
+			{Text: "Message queue…", Command: "message-queue", Enabled: true},
+			{Text: "Background processes…", Command: "/processes", Enabled: true}, sep,
+			{Text: "Permissions…", Command: "permissions-info", Enabled: true},
+			{Text: "MCP servers…", Command: "/mcp", Enabled: true}, sep,
+			{Text: "Stop run", Command: "stop", Enabled: m.state == stRunning},
+			{Text: "Retry failed turn", Command: "/retry", Enabled: idle && m.runErr != nil && m.retryRun != nil},
+		}
 	case "view":
 		return []screen.MenuItem{{Text: "Thinking", Command: "toggle-details", Enabled: true}, {Text: "Tool calls", Command: "toggle-tools", Enabled: true}, {Text: "System messages", Command: "toggle-sys", Enabled: true},
 			{Text: "Speaker names", Command: "toggle-names", Enabled: true}, {Text: "Message labels", Command: "toggle-labels", Enabled: true}, sep, {Text: "Jump to latest", Command: "latest", Enabled: true}}
