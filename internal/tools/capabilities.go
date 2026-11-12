@@ -26,9 +26,10 @@ type Capability struct {
 	ResourceField                                  string
 	ToolPolicies                                   map[string]ToolPolicy
 	Load                                           func(context.Context, func(string)) ([]agent.Tool, error)
-	mu                                             sync.Mutex
-	tools                                          []agent.Tool
-	lastError                                      string
+
+	mu        sync.Mutex // guards tools and lastError; serializes adapter load and close
+	tools     []agent.Tool
+	lastError string
 }
 
 func (c *Capability) load(ctx context.Context, note func(string)) (result []agent.Tool, loadErr error) {
@@ -40,7 +41,9 @@ func (c *Capability) load(ctx context.Context, note func(string)) (result []agen
 			c.lastError = loadErr.Error()
 		}
 	}()
-	if err := ctx.Err(); err != nil {
+
+	err := ctx.Err()
+	if err != nil {
 		return nil, err
 	}
 	if c.tools != nil {
@@ -49,39 +52,42 @@ func (c *Capability) load(ctx context.Context, note func(string)) (result []agen
 	if c.Load == nil {
 		return nil, fmt.Errorf("capability %q is not configured; configure it and retry activation", c.ID)
 	}
+
 	list, err := c.Load(ctx, note)
 	if err != nil {
 		return nil, fmt.Errorf("capability %s: %w", c.ID, err)
 	}
-	if len(list) == 0 {
-		if c.Close != nil {
+
+	// Only successful discovery needs cleanup when the returned catalog is rejected.
+	defer func() {
+		if loadErr != nil && c.Close != nil {
 			c.Close()
 		}
+	}()
+
+	if len(list) == 0 {
 		return nil, fmt.Errorf("capability %s returned no tools", c.ID)
 	}
+
 	check := agent.NewRegistry(list...)
-	if err := check.Err(); err != nil {
-		if c.Close != nil {
-			c.Close()
-		}
+	err = check.Err()
+	if err != nil {
 		return nil, err
 	}
+
 	for name := range c.ToolPolicies {
 		if !check.Has(name) {
-			if c.Close != nil {
-				c.Close()
-			}
 			return nil, fmt.Errorf("capability %s policy names unknown tool %s", c.ID, name)
 		}
 	}
+
 	for _, tool := range list {
-		if err := agent.ValidateToolSchema(tool.Schema()); err != nil {
-			if c.Close != nil {
-				c.Close()
-			}
+		err = agent.ValidateToolSchema(tool.Schema())
+		if err != nil {
 			return nil, fmt.Errorf("capability %s tool %s schema: %w", c.ID, tool.Name(), err)
 		}
 	}
+
 	c.tools = list
 	return list, nil
 }

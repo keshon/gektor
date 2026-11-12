@@ -161,16 +161,72 @@ func TestCapabilityConfigValidation(t *testing.T) {
 	}
 }
 
-func TestInvalidCapabilityCatalogClosesAdapter(t *testing.T) {
-	closed := 0
-	source := &Capability{ID: "invalid", Close: func() { closed++ }, Load: func(context.Context, func(string)) ([]agent.Tool, error) {
-		return []agent.Tool{&MCPTool{toolName: "mcp__invalid__read", def: mcp.ToolDefinition{Name: "read", InputSchema: json.RawMessage(`{"type":"invalid"}`)}}}, nil
-	}}
-	catalog := &Capabilities{Sources: []*Capability{source}, Registry: agent.NewRegistry()}
-	for attempt := 1; attempt <= 2; attempt++ {
-		if _, err := catalog.Enable(t.Context(), "invalid", nil); err == nil || closed != attempt || len(catalog.Registry.Names()) != 0 {
-			t.Fatal("invalid catalog leaked transport or tools", err, closed)
-		}
+func TestRejectedCapabilityDiscoveryClosesOnlySuccessfulLoads(t *testing.T) {
+	loaderFailure := errors.New("adapter unavailable")
+	invalidSchema := &MCPTool{
+		toolName: "mcp__invalid__read",
+		def:      mcp.ToolDefinition{Name: "read", InputSchema: json.RawMessage(`{"type":"invalid"}`)},
+	}
+	cases := []struct {
+		name             string
+		tools            []agent.Tool
+		policies         map[string]ToolPolicy
+		loadErr          error
+		closesPerAttempt int
+	}{
+		{name: "empty catalog", closesPerAttempt: 1},
+		{name: "duplicate tool", tools: []agent.Tool{CheckURL{}, CheckURL{}}, closesPerAttempt: 1},
+		{name: "unknown policy tool", tools: []agent.Tool{CheckURL{}}, policies: map[string]ToolPolicy{"missing": {}}, closesPerAttempt: 1},
+		{name: "invalid schema", tools: []agent.Tool{invalidSchema}, closesPerAttempt: 1},
+		{name: "loader error", loadErr: loaderFailure},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			loads, closed := 0, 0
+			list, discoveryErr := tc.tools, tc.loadErr
+			source := &Capability{
+				ID:           "invalid",
+				ToolPolicies: tc.policies,
+				Close:        func() { closed++ },
+				Load: func(context.Context, func(string)) ([]agent.Tool, error) {
+					loads++
+					return list, discoveryErr
+				},
+			}
+			catalog := &Capabilities{Sources: []*Capability{source}, Registry: agent.NewRegistry()}
+			for attempt := 1; attempt <= 2; attempt++ {
+				_, err := catalog.Enable(t.Context(), source.ID, nil)
+				if err == nil || closed != attempt*tc.closesPerAttempt || loads != attempt || len(catalog.Registry.Names()) != 0 || len(catalog.Save()) != 0 {
+					t.Fatalf("rejected discovery leaked or cached: err=%v closes=%d loads=%d", err, closed, loads)
+				}
+				if tc.loadErr != nil && !errors.Is(err, tc.loadErr) {
+					t.Fatalf("loader error was lost: %v", err)
+				}
+				state, count, detail := source.ConnectionStatus()
+				if state != "failed" || count != 0 || detail == "" {
+					t.Fatalf("failure status = %s %d %q", state, count, detail)
+				}
+			}
+
+			list, discoveryErr = []agent.Tool{CheckURL{}}, nil
+			source.ToolPolicies = nil
+			_, err := catalog.Enable(t.Context(), source.ID, nil)
+			if err != nil {
+				t.Fatal("retry with valid catalog", err)
+			}
+			other := &Capabilities{Sources: []*Capability{source}, Registry: agent.NewRegistry()}
+			_, err = other.Enable(t.Context(), source.ID, nil)
+			if err != nil {
+				t.Fatal("reuse shared discovery", err)
+			}
+			if loads != 3 || closed != 2*tc.closesPerAttempt || !catalog.Registry.Has("check_url") || !other.Registry.Has("check_url") {
+				t.Fatalf("valid discovery was closed or reloaded: closes=%d loads=%d", closed, loads)
+			}
+			state, count, detail := source.ConnectionStatus()
+			if state != "connected" || count != 1 || detail != "" {
+				t.Fatalf("recovered status = %s %d %q", state, count, detail)
+			}
+		})
 	}
 }
 
