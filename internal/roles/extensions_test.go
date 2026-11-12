@@ -13,7 +13,7 @@ import (
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/tools"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 )
 
 type extensionLookup struct{ calls *int }
@@ -43,8 +43,8 @@ func (l extensionLookup) Run(_ context.Context, args json.RawMessage) (string, e
 	return map[string]string{"alpha": "alpha-714", "beta": "beta-928", "gamma": "gamma-563"}[in.Key], nil
 }
 
-func fixtureCapability(loads, calls *int, unavailable bool) *tools.Capability {
-	return &tools.Capability{ID: "fixture", Version: "1", Description: "Look up fixture values", Source: "fixture-v1", ReadOnly: true, Concurrent: true, ResourceField: "key", Instructions: "Use cap__fixture__lookup to retrieve values. Never guess.", Load: func(context.Context, func(string)) ([]agent.Tool, error) {
+func fixtureCapability(loads, calls *int, unavailable bool) *toolextension.Capability {
+	return &toolextension.Capability{ID: "fixture", Version: "1", Description: "Look up fixture values", Source: "fixture-v1", ReadOnly: true, Concurrent: true, ResourceField: "key", Instructions: "Use cap__fixture__lookup to retrieve values. Never guess.", Load: func(context.Context, func(string)) ([]agent.Tool, error) {
 		*loads++
 		if unavailable {
 			return nil, fmt.Errorf("fixture service unavailable")
@@ -63,7 +63,7 @@ func extensionAnswer() llm.ChatResponse {
 func TestExtensionResumeCompactionAndCurrentPermissions(t *testing.T) {
 	e := testEnv(t)
 	loads, calls := 0, 0
-	e.Capabilities = []*tools.Capability{fixtureCapability(&loads, &calls, false)}
+	e.Capabilities = []*toolextension.Capability{fixtureCapability(&loads, &calls, false)}
 	state := filepath.Join(t.TempDir(), "state.json")
 	e.Client = &seqStub{steps: []llm.ChatResponse{extensionCall("enable", "enable_capability", `{"id":"fixture"}`), extensionCall("lookup", "cap__fixture__lookup", `{"key":"alpha"}`), extensionAnswer()}}
 	interactiveAgent, interactiveAgentErr := Interactive(e, "", state, nil, nil)
@@ -85,7 +85,7 @@ func TestExtensionResumeCompactionAndCurrentPermissions(t *testing.T) {
 		t.Fatal(err)
 	}
 	// An unrelated resumed answer must not load an unavailable adapter.
-	e.Capabilities = []*tools.Capability{fixtureCapability(&loads, &calls, true)}
+	e.Capabilities = []*toolextension.Capability{fixtureCapability(&loads, &calls, true)}
 	e.Client = extensionInspectClient(func(req llm.ChatRequest) llm.ChatResponse {
 		found := false
 		for _, message := range req.Messages {
@@ -110,7 +110,7 @@ func TestExtensionResumeCompactionAndCurrentPermissions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		e.Capabilities = []*tools.Capability{fixtureCapability(&loads, &calls, false)}
+		e.Capabilities = []*toolextension.Capability{fixtureCapability(&loads, &calls, false)}
 		e.Policy = permission.Default()
 		if deny {
 			e.Policy = e.Policy.WithExtra([]permission.Rule{{Tool: "cap__fixture__*", Pattern: "beta", Effect: permission.Deny}})
@@ -138,7 +138,7 @@ func TestExtensionResumeCompactionAndCurrentPermissions(t *testing.T) {
 func TestTranscriptDoesNotRestoreUnpersistedCapabilities(t *testing.T) {
 	e := testEnv(t)
 	loads, calls := 0, 0
-	e.Capabilities = []*tools.Capability{fixtureCapability(&loads, &calls, true)}
+	e.Capabilities = []*toolextension.Capability{fixtureCapability(&loads, &calls, true)}
 	e.Client = &seqStub{steps: []llm.ChatResponse{extensionAnswer()}}
 	failed := false
 	history := []llm.Message{{Role: llm.RoleSystem, Content: "system"}, {Role: llm.RoleUser, Content: "task"}, extensionCall("enable", "enable_capability", `{"id":"fixture"}`).Message, {Role: llm.RoleTool, ToolCallID: "enable", Content: "enabled", ToolFailed: &failed}, extensionAnswer().Message}

@@ -5,11 +5,12 @@ import (
 
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/permission"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 	"github.com/keshon/gektor/internal/userdirs"
 )
 
 // Each permission scenario gets fresh tools constructed under that policy.
-func policyCatalog(t *testing.T, dependencies Dependencies) *Capabilities {
+func policyCatalog(t *testing.T, dependencies Dependencies) *toolextension.Capabilities {
 	t.Helper()
 	if dependencies.StoreDir == "" {
 		dependencies.StoreDir = userdirs.Sub("workflows")
@@ -22,7 +23,7 @@ func policyCatalog(t *testing.T, dependencies Dependencies) *Capabilities {
 		t.Fatal(err)
 	}
 	dependencies.Workflow = workflow
-	c := &Capabilities{}
+	c := &toolextension.Capabilities{}
 	r, err := Compose(dependencies, c, nil)
 	if err != nil {
 		t.Fatal(err)

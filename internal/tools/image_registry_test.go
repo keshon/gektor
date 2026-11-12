@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/agent"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 	toolimages "github.com/keshon/gektor/internal/tools/images"
 )
 
 func TestImageToolsStayLazy(t *testing.T) {
 	ws, _ := testWS(t)
-	catalog := &Capabilities{}
+	catalog := &toolextension.Capabilities{}
 	reg, err := Compose(Dependencies{WS: ws, Vision: true}, catalog, nil)
 	if err != nil {
 		t.Fatal(err)

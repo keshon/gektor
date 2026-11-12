@@ -1,6 +1,4 @@
-// Package tools holds concrete agent.Tool implementations: filesystem
-// access, shell execution, and delegation to subagents. Each tool is a
-// small, self-contained type — no shared "dispatcher" indirection.
+// Package tools composes feature-owned Agent tools and shared capability adapters.
 package tools
 
 import (
@@ -12,21 +10,11 @@ import (
 	"github.com/keshon/gektor/internal/checks"
 	"github.com/keshon/gektor/internal/permission"
 	toolbackground "github.com/keshon/gektor/internal/tools/background"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 	toolhistory "github.com/keshon/gektor/internal/tools/history"
 	"github.com/keshon/gektor/internal/workflow/service"
 	"github.com/keshon/gektor/internal/workspace"
 )
-
-// Exposure controls schemas, never execution permissions or transport lifetime.
-type Exposure uint8
-
-const (
-	Always Exposure = iota
-	Eager
-	Lazy
-)
-
-const NativeWeb = "native_web"
 
 // Dependencies supplies caller-owned services and tool-construction inputs.
 // Constructors fill optional defaults locally without changing the caller's value.
@@ -46,25 +34,25 @@ type Dependencies struct {
 // Compose constructs one agent's native instances. Optional native packages
 // are published during preparation, after saved activations have been restored.
 // Overrides are internal experiment inputs; shipping callers leave them nil.
-func Compose(d Dependencies, catalog *Capabilities, overrides map[string]Exposure) (*agent.Registry, error) {
+func Compose(d Dependencies, catalog *toolextension.Capabilities, overrides map[string]toolextension.Exposure) (*agent.Registry, error) {
 	definitions := builtinPackages(d)
 
 	for id, exposure := range overrides {
 		optional := false
 
 		for _, definition := range definitions {
-			if definition.id == id && definition.exposure != Always {
+			if definition.id == id && definition.exposure != toolextension.Always {
 				optional = true
 				break
 			}
 		}
 
-		if !optional || (exposure != Eager && exposure != Lazy) {
+		if !optional || (exposure != toolextension.Eager && exposure != toolextension.Lazy) {
 			return nil, fmt.Errorf("unsupported native exposure %q: %d", id, exposure)
 		}
 	}
 
-	if err := catalog.validateSources(); err != nil {
+	if err := catalog.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -83,7 +71,7 @@ func Compose(d Dependencies, catalog *Capabilities, overrides map[string]Exposur
 		}
 
 		all = append(all, list...)
-		if p.exposure == Always {
+		if p.exposure == toolextension.Always {
 			baseline = append(baseline, list...)
 			continue
 		}
@@ -93,7 +81,7 @@ func Compose(d Dependencies, catalog *Capabilities, overrides map[string]Exposur
 			exposure = value
 		}
 
-		catalog.Native = append(catalog.Native, &NativePackage{
+		catalog.Native = append(catalog.Native, &toolextension.NativePackage{
 			ID:           p.id,
 			Description:  p.description,
 			Instructions: p.instructions,
@@ -152,7 +140,7 @@ func nativeTools(d Dependencies, readOnly bool) []agent.Tool {
 	var list []agent.Tool
 
 	for _, p := range builtinPackages(d) {
-		if p.exposure == Lazy {
+		if p.exposure == toolextension.Lazy {
 			continue
 		}
 

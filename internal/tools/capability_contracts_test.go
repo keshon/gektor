@@ -14,6 +14,7 @@ import (
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/capabilities/ssh"
 	"github.com/keshon/gektor/internal/permission"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -44,7 +45,7 @@ func TestCapabilityToolsAndNodesShareContractsAndResources(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ws.Close()
-	c := &Capabilities{Sources: WithBuiltinCapabilities(nil)}
+	c := &toolextension.Capabilities{Sources: WithBuiltinCapabilities(nil)}
 	tool, err := app.NewWorkflow(ws, t.TempDir(), permission.Default(), nil)
 	if err != nil {
 		t.Fatal(err)

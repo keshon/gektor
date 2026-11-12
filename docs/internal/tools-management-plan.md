@@ -5,12 +5,12 @@ Status: Approved; phase zero is in progress. Existing SSH work and this plan
 were committed as `caa586c`. The management UI described here is not implemented.
 
 Current migration: the first package extraction was committed as `2f4bb47`.
-The follow-up groups related operations under one feature owner: files, git, run,
+The follow-up, committed as `0f77869`, groups related operations under one feature owner: files, git, run,
 background, web, images and host. Output and command remain shared resource
-owners; read_output is thin root adapter glue. Browser and extension/MCP
-extraction remain pending. Existing workflow Agent adapters and shared file
+owners; read_output is thin root adapter glue. Browser and extension/MCP now
+have dedicated owners as well. Existing workflow Agent adapters and shared file
 capabilities retain their cohesive feature packages.
-The target tree below includes both completed and pending work.
+The tool package tree below is implemented. The management UI remains future work.
 
 ## Decision
 
@@ -264,8 +264,9 @@ it does not need a separate package.
   host does not import root composition. Keep discovery separate from installation
   and preserve the existing probe verdict semantics.
 - **Browser:** setup, activation, observations, profiles and shutdown share one
-  browser owner. Trace MCP result/artifact adaptation before extracting it;
-  filesystem grants must not accidentally extend to arbitrary MCP servers.
+  browser owner. The extension adapter normalizes MCP browser responses and
+  resolves artifacts only after the built-in launcher grants workspace access;
+  configured MCP servers receive no such filesystem grant.
 - **Extensions:** configuration, source identity, activation compatibility,
   credentials, MCP and executable adaptation move together behind real operations.
   Keep lifetime and resource ownership explicit; do not export private transport

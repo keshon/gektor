@@ -10,8 +10,9 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/tools"
 	toolbackground "github.com/keshon/gektor/internal/tools/background"
+	toolbrowser "github.com/keshon/gektor/internal/tools/browser"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -19,13 +20,13 @@ func inspectStartup(o resolvedLaunch, out io.Writer) error {
 	if o.resume != "" || o.fork != "" {
 		return fmt.Errorf("-context-report previews a fresh run; resumed requests report their breakdown at runtime")
 	}
-	var config tools.CapabilityConfig
+	var config toolextension.CapabilityConfig
 	if o.capabilities != "" {
 		path, err := filepath.Abs(o.capabilities)
 		if err != nil {
 			return err
 		}
-		config, err = tools.LoadCapabilityConfig(path)
+		config, err = toolextension.LoadCapabilityConfig(path)
 		if err != nil {
 			return err
 		}
@@ -35,7 +36,7 @@ func inspectStartup(o resolvedLaunch, out io.Writer) error {
 		return err
 	}
 	defer ws.Close()
-	sources, close := tools.BuildCapabilities(config, ws.Root())
+	sources, close := toolextension.BuildCapabilities(config, ws.Root())
 	defer close()
 	identity, warnings, err := app.CompileIdentity(app.IdentityOptions{Preset: selectedProfilePreset(o.selectedProfile), Name: selectedProfileName(o.selectedProfile), Persona: selectedProfilePersona(o.selectedProfile), User: o.userName, System: o.systemPrompt, Post: o.postHistory, MaxTokens: o.maxTokens, ContextLimit: o.contextLimit, Temperature: o.temperature})
 	if err != nil {
@@ -43,7 +44,7 @@ func inspectStartup(o resolvedLaunch, out io.Writer) error {
 	}
 	env := roles.Env{WS: ws, Procs: toolbackground.New(), Identity: app.IdentityPrompt(identity), Capabilities: sources}
 	if o.browser != "" {
-		env.Browser = &tools.Browser{Channel: o.browser, Dir: ws.Root(), Profile: o.browserProfile, ProfileExplicit: o.explicitFlags["browser-profile"], Headless: o.browserHeadless}
+		env.Browser = &toolbrowser.Browser{Channel: o.browser, Dir: ws.Root(), Profile: o.browserProfile, ProfileExplicit: o.explicitFlags["browser-profile"], Headless: o.browserHeadless}
 	}
 	var a *agent.Agent
 	if o.plan {

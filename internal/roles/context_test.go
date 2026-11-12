@@ -13,8 +13,9 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/llm/chatcompletions"
-	"github.com/keshon/gektor/internal/tools"
 	toolbackground "github.com/keshon/gektor/internal/tools/background"
+	toolbrowser "github.com/keshon/gektor/internal/tools/browser"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -42,7 +43,7 @@ func TestStartupContextMatchesRequest(t *testing.T) {
 
 func TestBrowserEnabledStartupStaysWithinPromptBudget(t *testing.T) {
 	e := testEnv(t)
-	e.Browser = &tools.Browser{Channel: "chrome", Dir: e.WS.Root()}
+	e.Browser = &toolbrowser.Browser{Channel: "chrome", Dir: e.WS.Root()}
 	a, aErr := Interactive(e, "", "", func(context.Context, string) (string, error) { return "", nil }, nil)
 	if aErr != nil {
 		t.Fatal(aErr)
@@ -65,7 +66,7 @@ func TestInactiveCatalogMapHasBoundedStartupCost(t *testing.T) {
 	for _, count := range []int{1, 100} {
 		e.Capabilities = nil
 		for i := range count {
-			e.Capabilities = append(e.Capabilities, &tools.Capability{ID: fmt.Sprintf("optional-%d", i), Description: "Read optional content", Load: func(context.Context, func(string)) ([]agent.Tool, error) {
+			e.Capabilities = append(e.Capabilities, &toolextension.Capability{ID: fmt.Sprintf("optional-%d", i), Description: "Read optional content", Load: func(context.Context, func(string)) ([]agent.Tool, error) {
 				loads++
 				return nil, fmt.Errorf("must not run")
 			}})

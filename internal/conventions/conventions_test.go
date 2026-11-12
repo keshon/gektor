@@ -110,6 +110,8 @@ func checkPackageLayers(t *testing.T, r *repo) {
 	allowed["capabilities/media"] = []string{"workspace", "executables", "process", "httptransport"}
 	allowed["executables"] = []string{"process"}
 	allowed["process"] = nil
+	allowed["tools/command"] = []string{"process", "tools/output"}
+	allowed["tools/output"] = []string{"userdirs"}
 	for _, feature := range []string{"documents", "files", "images", "media", "social", "ssh"} {
 		base := "capabilities/" + feature
 		allowed[base+"/contract"] = []string{"workflow", base}
@@ -119,6 +121,13 @@ func checkPackageLayers(t *testing.T, r *repo) {
 
 	for _, f := range r.goFiles {
 		pkg := strings.TrimPrefix(filepath.ToSlash(filepath.Dir(r.rel(f))), "internal/")
+		if strings.HasPrefix(pkg, "tools/") && !strings.HasSuffix(f, "_test.go") {
+			for _, imp := range internalImports(r.read(t, f)) {
+				if imp == "tools" {
+					t.Errorf("%s imports root tool composition%s", r.rel(f), r.rule("package-layers"))
+				}
+			}
+		}
 		agentAdapter := pkg == "tools" || strings.HasPrefix(pkg, "tools/") ||
 			pkg == "workflow/agenttools" || strings.HasPrefix(pkg, "workflow/agenttools/") ||
 			strings.HasPrefix(pkg, "capabilities/") && strings.Contains("/"+pkg+"/", "/tools/")

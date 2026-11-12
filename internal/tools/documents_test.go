@@ -14,6 +14,7 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/permission"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 	tooloutput "github.com/keshon/gektor/internal/tools/output"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workspace"
@@ -25,7 +26,7 @@ func TestDocumentsLazyDiscoveryAgentWorkflowAndResources(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ws.Close()
-	c := &Capabilities{}
+	c := &toolextension.Capabilities{}
 	reg, err := Compose(Dependencies{WS: ws, Vision: false}, c, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -51,7 +52,7 @@ func TestDocumentsLazyDiscoveryAgentWorkflowAndResources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, tool := range c.native("native_documents").Tools {
+	for _, tool := range nativeFixture(c, "native_documents").Tools {
 		node, err := nodes.Node(tool.Name())
 		if err != nil {
 			t.Fatal(err)
@@ -116,7 +117,7 @@ func TestDocumentsContinuationAcrossAgentWorkflowAndOutputLimit(t *testing.T) {
 	if err := ws.WriteFile("long.docx", archive.Bytes(), 0600); err != nil {
 		t.Fatal(err)
 	}
-	c := &Capabilities{}
+	c := &toolextension.Capabilities{}
 	reg, err := Compose(Dependencies{WS: ws, Vision: false}, c, nil)
 	if err != nil {
 		t.Fatal(err)

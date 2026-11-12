@@ -14,6 +14,7 @@ import (
 	"github.com/keshon/gektor/internal/capabilities/media/contract"
 	"github.com/keshon/gektor/internal/executables"
 	"github.com/keshon/gektor/internal/permission"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -23,7 +24,7 @@ func TestMediaLazyToolsShareWorkflowContractsAndResources(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ws.Close()
-	c := &Capabilities{}
+	c := &toolextension.Capabilities{}
 	r, err := Compose(Dependencies{WS: ws, Vision: false}, c, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -32,7 +33,7 @@ func TestMediaLazyToolsShareWorkflowContractsAndResources(t *testing.T) {
 	if r.Has("video_info") || r.Has("media_convert") {
 		t.Fatal("media schemas loaded eagerly")
 	}
-	discovered, err := (DiscoverCapabilities{Catalog: c}).Run(t.Context(), json.RawMessage(`{"query":"YouTube"}`))
+	discovered, err := (toolextension.DiscoverCapabilities{Catalog: c}).Run(t.Context(), json.RawMessage(`{"query":"YouTube"}`))
 	if err != nil || !strings.Contains(discovered, "native_media") {
 		t.Fatal(discovered, err)
 	}
@@ -52,7 +53,7 @@ func TestMediaLazyToolsShareWorkflowContractsAndResources(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, entry := range c.native("native_media").Tools {
+		for _, entry := range nativeFixture(c, "native_media").Tools {
 			if entry.Name() == name {
 				var a, b any
 				_ = json.Unmarshal(entry.Schema(), &a)
@@ -122,7 +123,7 @@ func TestCompositionKeepsSuppliedMediaServiceWithoutProbing(t *testing.T) {
 	unavailable := errors.New("test applications unavailable")
 	apps := &unavailableApplications{err: unavailable}
 	service := media.New(nil, apps)
-	catalog := &Capabilities{}
+	catalog := &toolextension.Capabilities{}
 	registry, err := Compose(Dependencies{Media: service}, catalog, nil)
 	if err != nil {
 		t.Fatal(err)

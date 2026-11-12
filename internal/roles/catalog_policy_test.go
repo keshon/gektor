@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/keshon/gektor/internal/tools"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,9 +15,9 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/tools"
 	toolaskuser "github.com/keshon/gektor/internal/tools/askuser"
 	tooldelegate "github.com/keshon/gektor/internal/tools/delegate"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 	toolweb "github.com/keshon/gektor/internal/tools/web"
 )
 
@@ -96,9 +97,9 @@ func TestFreshPlannerActivatesNativeWebOnly(t *testing.T) {
 	args, _ := json.Marshal(map[string]string{"url": server.URL})
 	for _, deny := range []bool{false, true} {
 		e := testEnv(t)
-		e.NativeExposure = map[string]tools.Exposure{tools.NativeWeb: tools.Lazy}
+		e.NativeExposure = map[string]toolextension.Exposure{tools.NativeWeb: toolextension.Lazy}
 		loads := 0
-		e.Capabilities = []*tools.Capability{{ID: "external", ReadOnly: true, Load: func(context.Context, func(string)) ([]agent.Tool, error) {
+		e.Capabilities = []*toolextension.Capability{{ID: "external", ReadOnly: true, Load: func(context.Context, func(string)) ([]agent.Tool, error) {
 			loads++
 			return []agent.Tool{toolweb.Check{}}, nil
 		}}}
@@ -143,7 +144,7 @@ func TestRolePolicyRejectsForbiddenDirectExtras(t *testing.T) {
 func TestMainOnlyPackIsAbsentFromChildCatalog(t *testing.T) {
 	e := testEnv(t)
 	loads := 0
-	e.Capabilities = []*tools.Capability{{ID: "questions", MainOnly: true, Description: "Questions", Load: func(context.Context, func(string)) ([]agent.Tool, error) {
+	e.Capabilities = []*toolextension.Capability{{ID: "questions", MainOnly: true, Description: "Questions", Load: func(context.Context, func(string)) ([]agent.Tool, error) {
 		loads++
 		return []agent.Tool{toolaskuser.Tool{}}, nil
 	}}}
@@ -183,8 +184,8 @@ func TestRoleConstructionRejectsCompositionBeforeActivation(t *testing.T) {
 		t.Run(role, func(t *testing.T) {
 			e := testEnv(t)
 			loads := 0
-			e.Capabilities = []*tools.Capability{{ID: "external", Load: func(context.Context, func(string)) ([]agent.Tool, error) { loads++; return nil, nil }}}
-			e.NativeExposure = map[string]tools.Exposure{"unknown-package": tools.Eager}
+			e.Capabilities = []*toolextension.Capability{{ID: "external", Load: func(context.Context, func(string)) ([]agent.Tool, error) { loads++; return nil, nil }}}
+			e.NativeExposure = map[string]toolextension.Exposure{"unknown-package": toolextension.Eager}
 			called := false
 			e.Client = extensionInspectClient(func(llm.ChatRequest) llm.ChatResponse { called = true; return extensionAnswer() })
 			var a *agent.Agent

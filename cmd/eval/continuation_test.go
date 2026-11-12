@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/tools"
 	toolbackground "github.com/keshon/gektor/internal/tools/background"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 )
 
 type continuationClient struct{ t *testing.T }
@@ -54,7 +54,7 @@ func TestProbeRetainsConstructionFailure(t *testing.T) {
 	procs := toolbackground.New()
 	defer procs.StopAll()
 	env := evalEnv(continuationClient{t}, ws, procs, 131072, 2048, func(int, llm.Message) {}, func(string) {})
-	env.NativeExposure = map[string]tools.Exposure{"unknown-package": tools.Eager}
+	env.NativeExposure = map[string]toolextension.Exposure{"unknown-package": toolextension.Eager}
 	var result Result
 	answer := executeProbeAgent(t.Context(), Probe{Task: "inspect"}, env, nil, &result)
 	if answer != "" || !strings.Contains(result.RunError, "unsupported native exposure") {

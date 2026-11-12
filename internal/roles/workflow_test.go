@@ -11,7 +11,7 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/tools"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 )
 
 type authorClient struct {
@@ -84,7 +84,7 @@ func TestWorkflowAuthorCannotExecuteOrRedirectWrites(t *testing.T) {
 	client := &authorClient{}
 	e.Client = client
 	loads := 0
-	e.Capabilities = []*tools.Capability{{ID: "external", Load: func(context.Context, func(string)) ([]agent.Tool, error) { loads++; return nil, nil }}}
+	e.Capabilities = []*toolextension.Capability{{ID: "external", Load: func(context.Context, func(string)) ([]agent.Tool, error) { loads++; return nil, nil }}}
 	a, err := WorkflowAuthor(e, "recipe.json", "")
 	if err != nil {
 		t.Fatal(err)

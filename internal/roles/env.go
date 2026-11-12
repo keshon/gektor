@@ -13,6 +13,8 @@ import (
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/tools"
 	toolbackground "github.com/keshon/gektor/internal/tools/background"
+	toolbrowser "github.com/keshon/gektor/internal/tools/browser"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 	toolimages "github.com/keshon/gektor/internal/tools/images"
 	tooloutput "github.com/keshon/gektor/internal/tools/output"
 	"github.com/keshon/gektor/internal/workspace"
@@ -62,11 +64,11 @@ type Env struct {
 	// prompt matches Interactive's, but refuses to run them: a mode switch
 	// must not change the prompt prefix.
 	MCPTools          []agent.Tool
-	Browser           *tools.Browser
-	CapabilitySources func() []*tools.Capability
-	Capabilities      []*tools.Capability
+	Browser           *toolbrowser.Browser
+	CapabilitySources func() []*toolextension.Capability
+	Capabilities      []*toolextension.Capability
 	// NativeExposure is an internal eval override; nil preserves eager web tools.
-	NativeExposure map[string]tools.Exposure
+	NativeExposure map[string]toolextension.Exposure
 
 	// OnDelta receives streamed answer text for live display. OnReasoning
 	// receives streamed deliberation, which arrives first.

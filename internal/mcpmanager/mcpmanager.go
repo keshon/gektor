@@ -17,7 +17,8 @@ import (
 	"sync"
 
 	"github.com/keshon/gektor/internal/mcpmanager/credentials"
-	"github.com/keshon/gektor/internal/tools"
+
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 )
 
 type Server struct {
@@ -43,7 +44,7 @@ type Manager struct {
 	directory, workspace string
 	credentials          credentials.Store
 	servers              map[string]Server
-	sources              map[string]*tools.Capability
+	sources              map[string]*toolextension.Capability
 	errors               map[string]string
 	reserved             map[string]bool
 }
@@ -56,7 +57,7 @@ func New(directory, workspace, credentialDir string, reserved []string) (*Manage
 		workspace:   workspace,
 		credentials: credentials.Store{Directory: credentialDir},
 		servers:     map[string]Server{},
-		sources:     map[string]*tools.Capability{},
+		sources:     map[string]*toolextension.Capability{},
 		errors:      map[string]string{},
 		reserved:    map[string]bool{},
 	}
@@ -102,8 +103,8 @@ func New(directory, workspace, credentialDir string, reserved []string) (*Manage
 
 	return m, nil
 }
-func (s Server) Pack() tools.CapabilityPack {
-	return tools.CapabilityPack{
+func (s Server) Pack() toolextension.CapabilityPack {
+	return toolextension.CapabilityPack{
 		ID:          s.ID,
 		Version:     "1",
 		Description: s.Description,
@@ -129,7 +130,7 @@ func (m *Manager) validate(s Server) error {
 		return fmt.Errorf("description is required")
 	}
 
-	_, e := tools.ValidateCapabilityConfig(tools.CapabilityConfig{Version: 1, Packs: []tools.CapabilityPack{s.Pack()}}, m.workspace)
+	_, e := toolextension.ValidateCapabilityConfig(toolextension.CapabilityConfig{Version: 1, Packs: []toolextension.CapabilityPack{s.Pack()}}, m.workspace)
 
 	return e
 }
@@ -140,7 +141,7 @@ func (m *Manager) install(s Server) {
 
 	pack := s.Pack()
 	pack.CredentialDirectory = m.credentials.Directory
-	list, _ := tools.BuildCapabilities(tools.CapabilityConfig{Packs: []tools.CapabilityPack{pack}}, m.workspace)
+	list, _ := toolextension.BuildCapabilities(toolextension.CapabilityConfig{Packs: []toolextension.CapabilityPack{pack}}, m.workspace)
 	list[0].Eager = s.Startup
 	m.servers[s.ID] = s
 	m.sources[s.ID] = list[0]
@@ -257,7 +258,7 @@ func (m *Manager) Delete(id string) error {
 
 	return nil
 }
-func (m *Manager) Sources() []*tools.Capability {
+func (m *Manager) Sources() []*toolextension.Capability {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -270,7 +271,7 @@ func (m *Manager) Sources() []*tools.Capability {
 	}
 
 	sort.Strings(ids)
-	out := []*tools.Capability{}
+	out := []*toolextension.Capability{}
 
 	for _, id := range ids {
 		out = append(out, m.sources[id])

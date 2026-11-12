@@ -8,7 +8,7 @@ import (
 
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/providers"
-	"github.com/keshon/gektor/internal/tools"
+	toolbrowser "github.com/keshon/gektor/internal/tools/browser"
 )
 
 // launchOptions holds command-line values and records explicit overrides.
@@ -138,7 +138,7 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	if o.browser != "" && o.browser != "chrome" && o.browser != "msedge" {
 		return launchOptions{}, fmt.Errorf("-browser must be chrome or msedge")
 	}
-	if err := tools.ValidateBrowserProfile(o.browserProfile); err != nil {
+	if err := toolbrowser.ValidateBrowserProfile(o.browserProfile); err != nil {
 		return launchOptions{}, err
 	}
 	if o.runTimeout < 0 {

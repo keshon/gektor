@@ -10,6 +10,7 @@ import (
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tools"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -31,7 +32,7 @@ func TestDocumentEvalFixturesThroughAgentAndWorkflow(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	capabilities := &tools.Capabilities{}
+	capabilities := &toolextension.Capabilities{}
 	registry, err := tools.Compose(tools.Dependencies{WS: ws, Vision: false}, capabilities, nil)
 	if err != nil {
 		t.Fatal(err)

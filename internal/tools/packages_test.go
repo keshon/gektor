@@ -11,6 +11,7 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
 	commandrun "github.com/keshon/gektor/internal/tools/command"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 )
 
 // Reviewed native schemas and modes. Update individual entries only for an
@@ -50,10 +51,10 @@ func TestNativePackageBaseline(t *testing.T) {
 	}
 }
 
-func composed(t *testing.T, exposure Exposure) *Capabilities {
+func composed(t *testing.T, exposure toolextension.Exposure) *toolextension.Capabilities {
 	t.Helper()
-	c := &Capabilities{}
-	r, err := Compose(Dependencies{WS: nil, Vision: false}, c, map[string]Exposure{NativeWeb: exposure})
+	c := &toolextension.Capabilities{}
+	r, err := Compose(Dependencies{WS: nil, Vision: false}, c, map[string]toolextension.Exposure{NativeWeb: exposure})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +63,7 @@ func composed(t *testing.T, exposure Exposure) *Capabilities {
 }
 
 func TestCompositionKeepsNativeInterfacesAndSessionState(t *testing.T) {
-	a, b := composed(t, Eager), composed(t, Eager)
+	a, b := composed(t, toolextension.Eager), composed(t, toolextension.Eager)
 	if a.Registry.Checklist() == nil || a.Registry.Checklist() == b.Registry.Checklist() {
 		t.Fatal("checklists absent or shared")
 	}
@@ -98,4 +99,13 @@ func TestCompositionKeepsNativeInterfacesAndSessionState(t *testing.T) {
 	if b.Registry.Has("webfetch") || len(b.Save()) != 0 {
 		t.Fatal("activation leaked between agents")
 	}
+}
+
+func nativeFixture(c *toolextension.Capabilities, id string) *toolextension.NativePackage {
+	for _, p := range c.Native {
+		if p.ID == id {
+			return p
+		}
+	}
+	panic("missing native package: " + id)
 }

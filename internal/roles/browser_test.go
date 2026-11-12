@@ -5,12 +5,12 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/agent"
-	"github.com/keshon/gektor/internal/tools"
+	toolbrowser "github.com/keshon/gektor/internal/tools/browser"
 )
 
 func TestBrowserIsLazyAcrossRoles(t *testing.T) {
 	env := testEnv(t)
-	env.Browser = &tools.Browser{Channel: "chrome", Dir: env.WS.Root()}
+	env.Browser = &toolbrowser.Browser{Channel: "chrome", Dir: env.WS.Root()}
 	client := &subagentBudgetClient{}
 	env.Client = client
 	var system string
@@ -27,7 +27,7 @@ func TestBrowserIsLazyAcrossRoles(t *testing.T) {
 		t.Fatal(childAgentErr)
 	}
 	for _, a := range []*agent.Agent{interactiveAgent, plannerAgent, childAgent} {
-		if !hasTool(a, "enable_browser") || len(tools.BrowserToolNames(env.MCPTools)) != 0 {
+		if !hasTool(a, "enable_browser") || len(toolbrowser.BrowserToolNames(env.MCPTools)) != 0 {
 			t.Fatal("browser entry point missing")
 		}
 		if _, err := a.Run(t.Context(), "hello"); err != nil {

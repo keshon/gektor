@@ -36,6 +36,16 @@ Shared support lives in `internal/httptransport`, `internal/process` and
 filename. The capability package names are documents, files, images, media,
 social and ssh. Provider names stay inside their implementations.
 
+Agent composition lives in `internal/tools`. Concrete native operations belong to
+feature packages such as `internal/tools/files`, `internal/tools/git` and
+`internal/tools/web`; related operations share their owner. Browser setup,
+profiles and connection lifetime live in `internal/tools/browser`.
+`internal/tools/extension` owns discovery, activation, executable adapters and
+MCP response adaptation. Only the built-in browser launcher grants its MCP
+adapter access to browser artifacts in the workspace. Child packages do not
+import root composition. Command execution and retained output are shared support
+owners under `internal/tools/command` and `internal/tools/output`.
+
 The proposed [Tools management plan](../internal/tools-management-plan.md)
 extends configuration UI across Agent and Workflows while retaining these
 execution boundaries. It is a plan, not an implemented management interface.

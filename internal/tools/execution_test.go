@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/agent"
-	"github.com/keshon/gektor/internal/mcp"
 	toolbackground "github.com/keshon/gektor/internal/tools/background"
 	toolrun "github.com/keshon/gektor/internal/tools/run"
 	toolweb "github.com/keshon/gektor/internal/tools/web"
@@ -265,15 +264,5 @@ func TestProcessSchemasAreGrammarSafe(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestBrowserAvailabilityMatchesRegisteredTools(t *testing.T) {
-	if !strings.Contains(BrowserContext(nil), "unavailable") {
-		t.Fatal(BrowserContext(nil))
-	}
-	list := []agent.Tool{&MCPTool{server: "browser", def: mcp.ToolDefinition{Name: "browser_navigate"}}}
-	if len(BrowserToolNames(list)) != 1 || !strings.Contains(BrowserContext(list), "connected over MCP") {
-		t.Fatal(BrowserContext(list))
 	}
 }

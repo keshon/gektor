@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/permission"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 	"github.com/keshon/gektor/internal/workflow/store"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -21,7 +22,7 @@ func TestWorkflowCannotBypassNestedToolDeny(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ws.Close()
-	c := &Capabilities{}
+	c := &toolextension.Capabilities{}
 	r, err := Compose(Dependencies{WS: ws, Vision: false}, c, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -56,7 +57,7 @@ func TestScheduleDiscoveryAndRecipeReadPermissions(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ws.Close()
-	c := &Capabilities{}
+	c := &toolextension.Capabilities{}
 	r, err := Compose(Dependencies{WS: ws, Vision: false}, c, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -96,7 +97,7 @@ func TestGeneratedOutputFilenameCannotBypassPermission(t *testing.T) {
 	if err := ws.WriteFile("input.png", data.Bytes(), 0600); err != nil {
 		t.Fatal(err)
 	}
-	c := &Capabilities{}
+	c := &toolextension.Capabilities{}
 	r, err := Compose(Dependencies{WS: ws, Vision: false}, c, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -130,7 +131,7 @@ func TestScheduleStatusSourceComparisonNeverOpensApprovalGate(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ws.Close()
-	c := &Capabilities{}
+	c := &toolextension.Capabilities{}
 	r, err := Compose(Dependencies{WS: ws, Vision: false}, c, nil)
 	if err != nil {
 		t.Fatal(err)

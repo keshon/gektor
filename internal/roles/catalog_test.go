@@ -3,6 +3,7 @@ package roles
 import (
 	"context"
 	"encoding/json"
+	"github.com/keshon/gektor/internal/tools"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,13 +15,13 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/tools"
 	toolaskuser "github.com/keshon/gektor/internal/tools/askuser"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 )
 
 func TestNativeWebActivationCompactResumeAndPlan(t *testing.T) {
 	e := testEnv(t)
-	e.NativeExposure = map[string]tools.Exposure{tools.NativeWeb: tools.Lazy}
+	e.NativeExposure = map[string]toolextension.Exposure{tools.NativeWeb: toolextension.Lazy}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("native fixture")) }))
 	defer server.Close()
 	args, _ := json.Marshal(map[string]string{"url": server.URL})
@@ -69,7 +70,7 @@ func TestNativeWebActivationCompactResumeAndPlan(t *testing.T) {
 		t.Fatal("Plan wrote a file", err)
 	}
 	// A fresh child does not inherit the parent's lazy activation.
-	e.NativeExposure = map[string]tools.Exposure{tools.NativeWeb: tools.Lazy}
+	e.NativeExposure = map[string]toolextension.Exposure{tools.NativeWeb: toolextension.Lazy}
 	subagentAgent, subagentAgentErr := Subagent(e, "explore")
 	if subagentAgentErr != nil {
 		t.Fatal(subagentAgentErr)
@@ -100,7 +101,7 @@ func TestRolePackageCompositionAndExcludedActivation(t *testing.T) {
 	if hasTool(child, "ask_user") || hasTool(child, "delegate_task") || !hasTool(child, "todo") {
 		t.Fatal("child role changed")
 	}
-	e.Capabilities = []*tools.Capability{{ID: "questions", Description: "Ask", Load: func(context.Context, func(string)) ([]agent.Tool, error) {
+	e.Capabilities = []*toolextension.Capability{{ID: "questions", Description: "Ask", Load: func(context.Context, func(string)) ([]agent.Tool, error) {
 		return []agent.Tool{toolaskuser.Tool{AskFn: ask}}, nil
 	}}}
 	var got llm.ChatRequest

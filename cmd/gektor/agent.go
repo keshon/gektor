@@ -21,9 +21,10 @@ import (
 	"github.com/keshon/gektor/internal/mcpmanager"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/roles"
-	"github.com/keshon/gektor/internal/tools"
 	toolbackground "github.com/keshon/gektor/internal/tools/background"
+	toolbrowser "github.com/keshon/gektor/internal/tools/browser"
 	commandrun "github.com/keshon/gektor/internal/tools/command"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 	"github.com/keshon/gektor/internal/tui"
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workspace"
@@ -60,9 +61,9 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			return fmt.Errorf("recipe path must name a file")
 		}
 	}
-	capabilities, closeCapabilities := tools.BuildCapabilities(capabilityConfig, ws.Root())
+	capabilities, closeCapabilities := toolextension.BuildCapabilities(capabilityConfig, ws.Root())
 	defer closeCapabilities()
-	reserved, _, _, _ := tools.ParseMCPFlag(o.mcp)
+	reserved, _, _, _ := toolextension.ParseMCPFlag(o.mcp)
 	for _, p := range capabilityConfig.Packs {
 		reserved = append(reserved, p.ID)
 	}
@@ -151,15 +152,15 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			c.Close()
 		}
 	}()
-	var browser *tools.Browser
+	var browser *toolbrowser.Browser
 	if o.browser != "" {
-		if len(tools.BrowserToolNames(mcpTools)) > 0 {
+		if len(toolbrowser.BrowserToolNames(mcpTools)) > 0 {
 			return fmt.Errorf("use either -browser or browser tools configured through -mcp, not both")
 		}
-		browser = &tools.Browser{Channel: o.browser, Dir: ws.Root(), Profile: o.browserProfile, ProfileExplicit: o.explicitFlags["browser-profile"], Headless: o.browserHeadless}
+		browser = &toolbrowser.Browser{Channel: o.browser, Dir: ws.Root(), Profile: o.browserProfile, ProfileExplicit: o.explicitFlags["browser-profile"], Headless: o.browserHeadless}
 		defer browser.Close()
 		note("browser: %s available on request through enable_browser", o.browser)
-	} else if len(tools.BrowserToolNames(mcpTools)) == 0 {
+	} else if len(toolbrowser.BrowserToolNames(mcpTools)) == 0 {
 		note("browser: not connected (enable with -browser chrome or -browser msedge)")
 	}
 
@@ -293,27 +294,27 @@ func backendContext(ctx context.Context, client interface {
 	return app.ContextLimit(ctx, o.backendKind, o.backendURL, o.model, o.contextLimit, client)
 }
 
-func loadAgentCapabilities(o resolvedLaunch) (tools.CapabilityConfig, error) {
+func loadAgentCapabilities(o resolvedLaunch) (toolextension.CapabilityConfig, error) {
 	if err := buildPolicy(o.allow, o.deny).Validate(); err != nil {
-		return tools.CapabilityConfig{}, err
+		return toolextension.CapabilityConfig{}, err
 	}
-	if _, _, _, err := tools.ParseMCPFlag(o.mcp); err != nil {
-		return tools.CapabilityConfig{}, err
+	if _, _, _, err := toolextension.ParseMCPFlag(o.mcp); err != nil {
+		return toolextension.CapabilityConfig{}, err
 	}
-	var capabilityConfig tools.CapabilityConfig
+	var capabilityConfig toolextension.CapabilityConfig
 	if o.capabilities != "" {
 		configPath, err := filepath.Abs(o.capabilities)
 		if err != nil {
-			return tools.CapabilityConfig{}, err
+			return toolextension.CapabilityConfig{}, err
 		}
-		capabilityConfig, err = tools.LoadCapabilityConfig(configPath)
+		capabilityConfig, err = toolextension.LoadCapabilityConfig(configPath)
 		if err != nil {
-			return tools.CapabilityConfig{}, err
+			return toolextension.CapabilityConfig{}, err
 		}
 	}
 	for _, pack := range capabilityConfig.Packs {
 		if pack.ID == "browser" && o.browser != "" {
-			return tools.CapabilityConfig{}, fmt.Errorf("capability ID browser is reserved while -browser is enabled")
+			return toolextension.CapabilityConfig{}, fmt.Errorf("capability ID browser is reserved while -browser is enabled")
 		}
 	}
 	return capabilityConfig, nil

@@ -11,7 +11,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
-	"github.com/keshon/gektor/internal/tools"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 )
 
 func runConfigured(launch launchRequest) error {
@@ -46,7 +46,7 @@ func runResolved(launch launchRequest, o resolvedLaunch) error {
 // reported and skipped, and the run continues with the rest. Close every
 // client when the run ends so no server process outlives it.
 func discoverMCP(ctx context.Context, spec, dir string) ([]agent.Tool, []MCPCloser) {
-	names, commands, argss, parseErr := tools.ParseMCPFlag(spec)
+	names, commands, argss, parseErr := toolextension.ParseMCPFlag(spec)
 	if parseErr != nil {
 		fmt.Fprintf(os.Stderr, "mcp: %v (skipped)\n", parseErr)
 		return nil, nil
@@ -58,10 +58,10 @@ func discoverMCP(ctx context.Context, spec, dir string) ([]agent.Tool, []MCPClos
 		var mcpTools []agent.Tool
 		var mcpClient MCPCloser
 		var err error
-		if tools.IsMCPURL(commands[i]) {
-			mcpTools, mcpClient, err = tools.StartMCPHTTP(dctx, name, commands[i])
+		if toolextension.IsMCPURL(commands[i]) {
+			mcpTools, mcpClient, err = toolextension.StartMCPHTTP(dctx, name, commands[i])
 		} else {
-			mcpTools, mcpClient, err = tools.StartMCP(dctx, name, dir, commands[i], argss[i]...)
+			mcpTools, mcpClient, err = toolextension.StartMCP(dctx, name, dir, commands[i], argss[i]...)
 		}
 		cancel()
 		if err != nil {

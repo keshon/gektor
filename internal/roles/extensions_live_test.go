@@ -16,8 +16,8 @@ import (
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
-	"github.com/keshon/gektor/internal/tools"
 	toolbackground "github.com/keshon/gektor/internal/tools/background"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -119,13 +119,13 @@ func TestLiveExtensionsAcrossTurns(t *testing.T) {
 			}
 			defer ws.Close()
 			service := filepath.Join(dir, "service.available")
-			config := tools.CapabilityConfig{Version: 1, Packs: []tools.CapabilityPack{{ID: "fixture", Version: "1", Description: "Look up fixture values", Instructions: "Use lookup for fixture keys. Never guess values.", Type: "executable", Command: []string{os.Args[0], "-test.run=^TestLiveExtensionExecutableHelper$", "--", "--fixture-adapter", service}, ReadOnly: true, Concurrent: true, ResourceField: "key", Tools: []tools.ExecutableToolDef{{Name: "lookup", Description: "Retrieve a fixture value by key", InputSchema: extensionLookup{}.Schema()}}}}}
+			config := toolextension.CapabilityConfig{Version: 1, Packs: []toolextension.CapabilityPack{{ID: "fixture", Version: "1", Description: "Look up fixture values", Instructions: "Use lookup for fixture keys. Never guess values.", Type: "executable", Command: []string{os.Args[0], "-test.run=^TestLiveExtensionExecutableHelper$", "--", "--fixture-adapter", service}, ReadOnly: true, Concurrent: true, ResourceField: "key", Tools: []toolextension.ExecutableToolDef{{Name: "lookup", Description: "Retrieve a fixture value by key", InputSchema: extensionLookup{}.Schema()}}}}}
 			configFile := filepath.Join(dir, "extensions.json")
 			data, _ := json.MarshalIndent(config, "", "  ")
 			if err := os.WriteFile(configFile, data, 0600); err != nil {
 				t.Fatal(err)
 			}
-			config, err = tools.LoadCapabilityConfig(configFile)
+			config, err = toolextension.LoadCapabilityConfig(configFile)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -163,7 +163,7 @@ func TestLiveExtensionsAcrossTurns(t *testing.T) {
 				encoder := json.NewEncoder(trace)
 				failures, lookups, skillReads, successfulLookups := 0, 0, 0, 0
 				callNames := map[string]string{}
-				sources, closeSources := tools.BuildCapabilities(config, ws.Root())
+				sources, closeSources := toolextension.BuildCapabilities(config, ws.Root())
 				e := Env{WS: ws, Procs: toolbackground.New(), Client: client, BackendKind: "llama", Capabilities: sources, MaxSteps: 10, MaxTokens: 4096, ContextLimit: 32768, Temperature: 0.2,
 					Policy: permission.Default().WithExtra([]permission.Rule{{Tool: "run_*", Pattern: "*", Effect: permission.Deny}, {Tool: "start_*", Pattern: "*", Effect: permission.Deny}, {Tool: "delegate_task", Pattern: "*", Effect: permission.Deny}}),
 					OnStep: func(_ string, _ int, m llm.Message) {

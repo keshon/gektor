@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/keshon/gektor/internal/tools"
+	"github.com/keshon/gektor/internal/httptransport"
 	commandrun "github.com/keshon/gektor/internal/tools/command"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -181,7 +181,7 @@ func RunCheck(ctx context.Context, c Check, ws *workspace.Workspace) (output str
 		if err != nil {
 			return fmt.Sprintf("bad check URL: %v", err), false
 		}
-		client := tools.NetworkClient(true)
+		client := httptransport.Client(true, nil)
 		resp, err := client.Do(req)
 		if err != nil {
 			return fmt.Sprintf("GET %s failed: %v", c.URL, err), false

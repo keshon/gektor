@@ -4,20 +4,22 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/tools"
+	toolbrowser "github.com/keshon/gektor/internal/tools/browser"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 )
 
 func (e Env) browserContext() string {
 	if e.Browser != nil {
 		return "\nBrowser automation: available on request through enable_browser. Call it when browser work is needed. If browser tools are already present, use them directly."
 	}
-	if len(e.Capabilities) > 0 && len(tools.BrowserToolNames(e.MCPTools)) == 0 {
+	if len(e.Capabilities) > 0 && len(toolbrowser.BrowserToolNames(e.MCPTools)) == 0 {
 		return "\nBrowser automation: search discover_capabilities for a configured browser integration when needed. Use browser tools only after activation succeeds; if none are configured, report browser checks as unverified."
 	}
-	return tools.BrowserContext(e.MCPTools)
+	return toolbrowser.BrowserContext(e.MCPTools)
 }
 
 func (e Env) configureTools(cfg *agent.Config, mainAgent, allowQuestions bool, extra ...agent.Tool) error {
-	configured := append([]*tools.Capability(nil), e.Capabilities...)
+	configured := append([]*toolextension.Capability(nil), e.Capabilities...)
 	if e.CapabilitySources != nil {
 		configured = append(configured, e.CapabilitySources()...)
 	}
@@ -25,20 +27,20 @@ func (e Env) configureTools(cfg *agent.Config, mainAgent, allowQuestions bool, e
 	if e.Browser != nil {
 		sources = append(sources, e.Browser.Capability())
 	}
-	catalog := &tools.Capabilities{Sources: sources, Subagent: !mainAgent}
+	catalog := &toolextension.Capabilities{Sources: sources, Subagent: !mainAgent}
 	if !mainAgent {
 		catalog.ForbiddenTools = append(catalog.ForbiddenTools, "delegate_task")
 	}
 	if !allowQuestions {
 		catalog.ForbiddenTools = append(catalog.ForbiddenTools, "ask_user")
 	}
-	var browser *tools.EnableBrowser
+	var browser *toolbrowser.EnableBrowser
 	if e.Browser != nil {
-		browser = &tools.EnableBrowser{Browser: e.Browser, Catalog: catalog}
+		browser = &toolbrowser.EnableBrowser{Browser: e.Browser, Catalog: catalog}
 		extra = append(extra, browser)
 	}
 	// Native optional packs exist even without external capability sources.
-	extra = append(extra, tools.DiscoverCapabilities{Catalog: catalog}, tools.EnableCapability{Catalog: catalog}, agent.InvokeTool{})
+	extra = append(extra, toolextension.DiscoverCapabilities{Catalog: catalog}, toolextension.EnableCapability{Catalog: catalog}, agent.InvokeTool{})
 	workflow, err := app.NewWorkflow(e.WS, e.WorkflowDir, e.policy(), e.Gate)
 	if err != nil {
 		return err

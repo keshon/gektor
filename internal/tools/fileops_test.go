@@ -13,18 +13,19 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/permission"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
-func fileCapability(t *testing.T) (*workspace.Workspace, *Capabilities) {
+func fileCapability(t *testing.T) (*workspace.Workspace, *toolextension.Capabilities) {
 	t.Helper()
 	ws, err := workspace.New(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = ws.Close() })
-	c := &Capabilities{}
+	c := &toolextension.Capabilities{}
 	r, err := Compose(Dependencies{WS: ws, Vision: false}, c, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -134,7 +135,7 @@ func TestFilePackAndWorkflowShareContractsAndResults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, tool := range c.native("native_files").Tools {
+	for _, tool := range nativeFixture(c, "native_files").Tools {
 		node, err := reg.Node(tool.Name())
 		if err != nil {
 			t.Fatal(err)
@@ -176,7 +177,7 @@ func TestFilePackAndWorkflowShareContractsAndResults(t *testing.T) {
 
 func TestFileOperationResourcesAreCanonicalAndWorkflowDenyApplies(t *testing.T) {
 	ws, c := fileCapability(t)
-	for _, tool := range c.native("native_files").Tools {
+	for _, tool := range nativeFixture(c, "native_files").Tools {
 		args := json.RawMessage(`{"path":"` + filepath.ToSlash(filepath.Join(ws.Root(), "blocked.zip")) + `"}`)
 		want := []string{"blocked.zip"}
 		if tool.Name() == "download_file" {

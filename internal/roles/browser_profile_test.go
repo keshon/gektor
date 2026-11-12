@@ -2,13 +2,14 @@ package roles
 
 import (
 	"context"
+	"github.com/keshon/gektor/internal/tools"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/tools"
+	toolbrowser "github.com/keshon/gektor/internal/tools/browser"
 )
 
 type browserProfileClient struct{}
@@ -20,7 +21,7 @@ func (browserProfileClient) Chat(context.Context, llm.ChatRequest) (llm.ChatResp
 func TestConversationRestoresBrowserReferenceWithoutStartingBrowser(t *testing.T) {
 	e := testEnv(t)
 	e.Client = browserProfileClient{}
-	e.Browser = &tools.Browser{Channel: "chrome", Profile: "work"}
+	e.Browser = &toolbrowser.Browser{Channel: "chrome", Profile: "work"}
 	path := filepath.Join(t.TempDir(), "state.json")
 	a, aErr := Interactive(e, "", path, nil, nil)
 	if aErr != nil {
@@ -41,7 +42,7 @@ func TestConversationRestoresBrowserReferenceWithoutStartingBrowser(t *testing.T
 	if err := saved.Save(path); err != nil {
 		t.Fatal(err)
 	}
-	e.Browser = &tools.Browser{Channel: "chrome"}
+	e.Browser = &toolbrowser.Browser{Channel: "chrome"}
 	a, aErr = Interactive(e, "", path, nil, nil)
 	if aErr != nil {
 		t.Fatal(aErr)

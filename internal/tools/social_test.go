@@ -14,6 +14,7 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/capabilities/social"
 	socialcontract "github.com/keshon/gektor/internal/capabilities/social/contract"
+	toolextension "github.com/keshon/gektor/internal/tools/extension"
 )
 
 func TestReaderNormalizesAccessAndProtocolResults(t *testing.T) {
@@ -57,11 +58,11 @@ func TestReaderNormalizesAccessAndProtocolResults(t *testing.T) {
 func TestBuiltinSocialLifecycleIsLazyAndRestorable(t *testing.T) {
 	sources := WithBuiltinCapabilities(nil)
 	registry := agent.NewRegistry()
-	catalog := &Capabilities{Sources: sources, Registry: registry}
-	if _, err := (DiscoverCapabilities{Catalog: catalog}).Run(t.Context(), json.RawMessage(`{"query":"Twitter"}`)); err != nil {
+	catalog := &toolextension.Capabilities{Sources: sources, Registry: registry}
+	if _, err := (toolextension.DiscoverCapabilities{Catalog: catalog}).Run(t.Context(), json.RawMessage(`{"query":"Twitter"}`)); err != nil {
 		t.Fatal(err)
 	}
-	if sources[0].tools != nil || registry.Has("cap__social__read_post") {
+	if connected, _ := sources[0].Connected(); connected || registry.Has("cap__social__read_post") {
 		t.Fatal("discovery activated social tools")
 	}
 	if _, err := catalog.Enable(t.Context(), "social", nil); err != nil {
@@ -71,19 +72,19 @@ func TestBuiltinSocialLifecycleIsLazyAndRestorable(t *testing.T) {
 		t.Fatal("activation did not save catalog")
 	}
 	resumedSources := WithBuiltinCapabilities(nil)
-	resumed := &Capabilities{Sources: resumedSources, Registry: agent.NewRegistry()}
+	resumed := &toolextension.Capabilities{Sources: resumedSources, Registry: agent.NewRegistry()}
 	if err := resumed.Restore(t.Context(), catalog.Save()); err != nil {
 		t.Fatal(err)
 	}
-	if resumedSources[0].tools != nil || !resumed.Registry.Has("cap__social__read_post") {
+	if connected, _ := resumedSources[0].Connected(); connected || !resumed.Registry.Has("cap__social__read_post") {
 		t.Fatal("resume eagerly loaded adapter")
 	}
 	output, err := resumed.Registry.Run(t.Context(), "cap__social__read_post", json.RawMessage(`{"url":"https://example.org/unsupported"}`))
 	if err == nil || !strings.Contains(output, "unsupported") {
 		t.Fatal(output, err)
 	}
-	custom := &Capability{ID: "social", Description: "custom provider"}
-	if configured := WithBuiltinCapabilities([]*Capability{custom}); len(configured) != 1 || configured[0] != custom {
+	custom := &toolextension.Capability{ID: "social", Description: "custom provider"}
+	if configured := WithBuiltinCapabilities([]*toolextension.Capability{custom}); len(configured) != 1 || configured[0] != custom {
 		t.Fatal("custom provider was shadowed")
 	}
 }

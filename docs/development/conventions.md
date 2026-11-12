@@ -68,6 +68,9 @@ arguments to the standard-library packager and the installed Go and Git tools.
 Every capability service and contract has an explicit import rule. Workflow
 adapters share `internal/capabilities/nodes`; agent adapters live in
 `internal/tools`. Adding an unregistered capability package fails the check.
+Tool feature packages do not import root tool composition. The shared
+`internal/tools/command` runtime imports only process support and
+`internal/tools/output`; retained output imports only user-directory support.
 Agent tool adapters do not import workflow node adapters. Application composition
 assembles both. Shared record operations live in `workflow/records`, which
 imports only workflow definitions, record storage and workspace access; the record
