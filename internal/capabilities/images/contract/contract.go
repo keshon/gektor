@@ -17,59 +17,141 @@ type Operation struct {
 	AuthorizeOutput OutputAuthorizer
 }
 
-func (o Operation) ReadOnly() bool { return o.Kind != "variants" }
-
-func (o Operation) Name() string { return "image_" + o.Kind }
-
-// RetrySafe declares whether a failed attempt may be repeated automatically.
-func (o Operation) RetrySafe() bool {
-	return o.Kind == "inspect" || o.Kind == "preview" || o.Kind == "compare"
+type operationSpec struct {
+	kind        string
+	description string
+	readOnly    bool
+	retrySafe   bool
+	input       string
+	output      string
 }
 
-func (o Operation) Description() string {
-	switch o.Kind {
-	case "inspect":
-		return "Inspect image files and report dimensions, format and metadata."
-	case "preview":
-		return "Preview image optimization or width variants without writing. Planned filenames are in items[].output."
-	case "variants":
-		return "Write image width variants to a new output directory; sources and existing files are preserved. Names: <stem>-<width>w.<ext>; items[].output contains saved paths. Preview shows names without writing."
-	default:
-		return "Pixel fidelity comparison (PSNR/SSIM), for aligned versions of an image. Cannot identify objects or establish semantic similarity."
+func operations() []operationSpec {
+	return []operationSpec{
+		{
+			kind:        "inspect",
+			description: "Inspect image files and report dimensions, format and metadata.",
+			readOnly:    true,
+			retrySafe:   true,
+			input: `{
+  "type": "object",
+  "properties": {
+    "paths": {"type":"array","items":{"type":"string","minLength":1},"minItems":1,"maxItems":16}
+  },
+  "required": ["paths"],
+  "additionalProperties": false
+}`,
+		},
+		{
+			kind:        "preview",
+			description: "Preview image optimization or width variants without writing. Planned filenames are in items[].output.",
+			readOnly:    true,
+			retrySafe:   true,
+			input: `{
+  "type": "object",
+  "properties": {
+    "paths": {"type":"array","items":{"type":"string","minLength":1},"minItems":1,"maxItems":16},
+    "widths": {"type":"array","items":{"type":"integer","minimum":1,"maximum":8192},"minItems":1,"maxItems":8,"uniqueItems":true},
+    "format": {"type":"string","enum":["keep","webp"]}
+  },
+  "required": ["paths"],
+  "additionalProperties": false
+}`,
+		},
+		{
+			kind:        "variants",
+			description: "Write image width variants to a new output directory; sources and existing files are preserved. Names: <stem>-<width>w.<ext>; items[].output contains saved paths. Preview shows names without writing.",
+			readOnly:    false,
+			retrySafe:   false,
+			input: `{
+  "type": "object",
+  "properties": {
+    "paths": {"type":"array","items":{"type":"string","minLength":1},"minItems":1,"maxItems":16},
+    "widths": {"type":"array","items":{"type":"integer","minimum":1,"maximum":8192},"minItems":1,"maxItems":8,"uniqueItems":true},
+    "format": {"type":"string","enum":["keep","webp"]},
+    "out_dir": {"type":"string","minLength":1}
+  },
+  "required": ["paths","widths","out_dir"],
+  "additionalProperties": false
+}`,
+		},
+		{
+			kind:        "compare",
+			description: "Pixel fidelity comparison (PSNR/SSIM), for aligned versions of an image. Cannot identify objects or establish semantic similarity.",
+			readOnly:    true,
+			retrySafe:   true,
+			input: `{
+  "type": "object",
+  "properties": {
+    "paths": {"type":"array","items":{"type":"string","minLength":1},"minItems":2,"maxItems":2}
+  },
+  "required": ["paths"],
+  "additionalProperties": false
+}`,
+		},
 	}
 }
-func (o Operation) Schema() json.RawMessage {
-	if o.Kind == "compare" {
-		return json.RawMessage(`{"type":"object","properties":{"paths":{"type":"array","items":{"type":"string","minLength":1},"minItems":2,"maxItems":2}},"required":["paths"],"additionalProperties":false}`)
-	}
 
-	properties := `"paths":{"type":"array","items":{"type":"string","minLength":1},"minItems":1,"maxItems":16}`
-	required := `"paths"`
-	if o.Kind != "inspect" {
-		properties += `,"widths":{"type":"array","items":{"type":"integer","minimum":1,"maximum":8192},"minItems":1,"maxItems":8,"uniqueItems":true},"format":{"type":"string","enum":["keep","webp"]}`
+func Names() []string {
+	specs := operations()
+	names := make([]string, 0, len(specs))
+	for _, spec := range specs {
+		names = append(names, spec.kind)
 	}
-
-	if o.Kind == "variants" {
-		properties += `,"out_dir":{"type":"string","minLength":1}`
-		required += `,"widths","out_dir"`
-	}
-
-	return json.RawMessage(`{"type":"object","properties":{` + properties + `},"required":[` + required + `],"additionalProperties":false}`)
+	return names
 }
+
+func (o Operation) spec() operationSpec {
+	for _, spec := range operations() {
+		if spec.kind == o.Kind {
+			return spec
+		}
+	}
+	return operationSpec{}
+}
+
+func (o Operation) Name() string            { return "image_" + o.Kind }
+func (o Operation) Description() string     { return o.spec().description }
+func (o Operation) ReadOnly() bool          { return o.spec().readOnly }
+func (o Operation) RetrySafe() bool         { return o.spec().retrySafe }
+func (o Operation) Schema() json.RawMessage { return json.RawMessage(o.spec().input) }
+
+const outputSchema = `{
+  "type": "object",
+  "properties": {
+    "schema": {"type":"string"},
+    "tool": {"type":"string"},
+    "summary": {"type":"object","additionalProperties":{"type":"integer"}},
+    "status": {"type":"string"},
+    "sources": {"type":["array","null"],"items":{"type":"object","properties":{"path":{"type":"string"},"sha256_before":{"type":"string"},"sha256_after":{"type":"string"},"unchanged":{"type":"boolean"},"error":{"type":"string"}},"required":["path","sha256_before"]}},
+    "items": {"type":["array","null"],"items":{"type":"object","properties":{"path":{"type":"string"},"output":{"type":"string","description":"Actual saved path for variants; planned basename for preview. Select the matching metrics.width."},"status":{"type":"string"},"written":{"type":"boolean"},"code":{"type":"string"},"reason":{"type":"string"},"bytesBefore":{"type":"integer"},"bytesAfter":{"type":"integer"},"metrics":{"type":"object","properties":{"width":{"type":"integer"},"height":{"type":"integer"}}}},"required":["path","status"]}},
+    "recovery": {"type":"string"},
+    "error": {"type":"string"},
+    "failure_stage": {"type":"string"}
+  },
+  "required": ["schema","tool","summary","status","sources"]
+}`
+
+func (Operation) OutputSchema() json.RawMessage { return json.RawMessage(outputSchema) }
 
 func (o Operation) parse(raw json.RawMessage) (images.Request, error) {
 	var in images.Request
-	if err := workflow.ValidateJSON(raw, o.Schema()); err != nil {
+	err := workflow.ValidateJSON(raw, o.Schema())
+	if err != nil {
 		return in, err
 	}
 
-	if err := json.Unmarshal(raw, &in); err != nil {
+	err = json.Unmarshal(raw, &in)
+	if err != nil {
 		return in, err
 	}
 
 	return o.Service.Validate(o.Kind, in)
 }
-func (o Operation) Validate(raw json.RawMessage) error { _, err := o.parse(raw); return err }
+func (o Operation) Validate(raw json.RawMessage) error {
+	_, err := o.parse(raw)
+	return err
+}
 func (o Operation) Resources(raw json.RawMessage) ([]string, error) {
 	in, err := o.parse(raw)
 	if err != nil {
@@ -96,11 +178,6 @@ func (o Operation) Run(ctx context.Context, raw json.RawMessage) (string, error)
 
 	return o.Service.Run(ctx, o.Kind, in, authorize)
 }
-func (o Operation) OutputSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"schema":{"type":"string"},"tool":{"type":"string"},"summary":{"type":"object","additionalProperties":{"type":"integer"}},"status":{"type":"string"},"sources":{"type":["array","null"],"items":{"type":"object","properties":{"path":{"type":"string"},"sha256_before":{"type":"string"},"sha256_after":{"type":"string"},"unchanged":{"type":"boolean"},"error":{"type":"string"}},"required":["path","sha256_before"]}},"items":{"type":["array","null"],"items":{"type":"object","properties":{"path":{"type":"string"},"output":{"type":"string","description":"Actual saved path for variants; planned basename for preview. Select the matching metrics.width."},"status":{"type":"string"},"written":{"type":"boolean"},"code":{"type":"string"},"reason":{"type":"string"},"bytesBefore":{"type":"integer"},"bytesAfter":{"type":"integer"},"metrics":{"type":"object","properties":{"width":{"type":"integer"},"height":{"type":"integer"}}}},"required":["path","status"]}},"recovery":{"type":"string"},"error":{"type":"string"},"failure_stage":{"type":"string"}},"required":["schema","tool","summary","status","sources"]}`)
-}
-
-func Names() []string { return []string{"inspect", "preview", "variants", "compare"} }
 
 func (o Operation) ValidateTemplate(raw json.RawMessage) error {
 	return workflow.ValidateLiteralPaths(raw, []string{"paths", "out_dir"}, func(path string) error {

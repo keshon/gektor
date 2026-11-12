@@ -19,7 +19,11 @@ func TestCapabilityToolsAndNodesShareContractsAndResources(t *testing.T) {
 	}
 	defer ws.Close()
 	c := &Capabilities{Sources: WithBuiltinCapabilities(nil)}
-	r, err := Compose(Dependencies{WS: ws, Vision: false}, c, nil)
+	tool, err := app.NewWorkflow(ws, t.TempDir(), permission.Default(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := Compose(Dependencies{WS: ws, Vision: false, Workflow: tool}, c, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

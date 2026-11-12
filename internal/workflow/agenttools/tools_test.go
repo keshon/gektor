@@ -65,7 +65,7 @@ func TestVersionTwoBindsInputsAndImageOutput(t *testing.T) {
 	source := []byte(`{"version":3,"name":"Reusable variants","inputs":{"source":{"type":"string","required":true},"destination":{"type":"string","default":"web"}},"steps":[{"id":"write","tool":"image_variants","args":{"paths":[{"$input":"source"}],"widths":[16],"out_dir":{"$input":"destination"}}},{"id":"compare","tool":"image_compare","args":{"paths":[{"$input":"source"},{"$step":"write","pointer":"/items/0/output"}]}}]}`)
 	recipeArgs(t, ws, source)
 	args := json.RawMessage(`{"recipe_path":"recipe.json","inputs":{"source":"input.png"}}`)
-	tool := Tool{WS: ws, StoreDir: t.TempDir(), ValidateOnly: true, Authorize: allow, AuthorizeOutput: allow, Registry: func() (*workflow.Registry, error) {
+	tool := Tool{WS: ws, StoreDir: t.TempDir(), ValidateOnly: true, Authorize: allow, Registry: func() (*workflow.Registry, error) {
 		return app.WorkflowRegistry(ws, t.TempDir(), allow, nil)
 	},
 	}
@@ -130,7 +130,7 @@ func TestOutputDerivedPathsAreAuthorizedAndValidated(t *testing.T) {
 			}
 			args := recipeArgs(t, ws, []byte(source))
 			dynamicAuthorized := false
-			tool := Tool{WS: ws, StoreDir: t.TempDir(), AuthorizeOutput: allow, Authorize: func(_ context.Context, name string, args json.RawMessage) error {
+			tool := Tool{WS: ws, StoreDir: t.TempDir(), Authorize: func(_ context.Context, name string, args json.RawMessage) error {
 				if name == "image_inspect" && strings.Contains(string(args), "web/input-16w.png") {
 					dynamicAuthorized = true
 					if mode == "deny" {
@@ -194,7 +194,7 @@ func TestManualImageRecipeCompletes(t *testing.T) {
 		t.Fatal("validation wrote state")
 	}
 	authorized := 0
-	out, err := (Tool{WS: ws, StoreDir: t.TempDir(), AuthorizeOutput: allow, Authorize: func(context.Context, string, json.RawMessage) error { authorized++; return nil }, Registry: func() (*workflow.Registry, error) {
+	out, err := (Tool{WS: ws, StoreDir: t.TempDir(), Authorize: func(context.Context, string, json.RawMessage) error { authorized++; return nil }, Registry: func() (*workflow.Registry, error) {
 		return app.WorkflowRegistry(ws, t.TempDir(), allow, nil)
 	},
 	}).Run(t.Context(), args)

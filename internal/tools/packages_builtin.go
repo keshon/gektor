@@ -3,9 +3,9 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 
 	"github.com/keshon/gektor/internal/agent"
-	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/capabilities/documents"
 	doccontract "github.com/keshon/gektor/internal/capabilities/documents/contract"
 	"github.com/keshon/gektor/internal/capabilities/files"
@@ -18,6 +18,7 @@ import (
 	"github.com/keshon/gektor/internal/userdirs"
 	workflowdefs "github.com/keshon/gektor/internal/workflow"
 	workflow "github.com/keshon/gektor/internal/workflow/agenttools"
+	"github.com/keshon/gektor/internal/workflow/service"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -75,19 +76,10 @@ func builtinPackages(d Dependencies) []packageDefinition {
 	authorizeResource := func(ctx context.Context, name, resource string, args json.RawMessage) error {
 		return permission.Authorize(ctx, d.Policy, d.Gate, name, resource, args)
 	}
-	registry := func() (*workflowdefs.Registry, error) {
-		return app.WorkflowRegistry(d.WS, d.StoreDir, authorizeOutput, authorizeResource)
-	}
-	run := workflow.Tool{
-		Registry:          registry,
-		WS:                d.WS,
-		StoreDir:          d.StoreDir,
-		Authorize:         authorize,
-		AuthorizeOutput:   authorizeOutput,
-		AuthorizeResource: authorizeResource,
-	}
-	validate := run
+	run := NewWorkflow(d.Workflow)
+	validate := *run
 	validate.ValidateOnly = true
+	registry := run.Registry
 
 	info := SystemInfo{WS: d.WS, BrowserTools: BrowserToolNames(d.Extra)}
 	for _, tool := range d.Extra {
@@ -158,7 +150,7 @@ func builtinPackages(d Dependencies) []packageDefinition {
 		{"native_workflows", "Create, validate and run workflow recipes and nodes; native cron/schedule triggers, run inspection and structured records. Enable, then call workflow_schema.", Lazy, []toolEntry{
 			{&workflow.Schema{Registry: registry, WS: d.WS, StoreDir: d.StoreDir}, true},
 			{&validate, true},
-			{&run, false},
+			{run, false},
 			{&workflow.Inspect{WS: d.WS, StoreDir: d.StoreDir}, true},
 			{&workflow.Schedule{Registry: registry, WS: d.WS, StoreDir: d.StoreDir, List: true, Authorize: authorize, CheckSource: checkSource}, true},
 			{&workflow.Schedule{Registry: registry, WS: d.WS, StoreDir: d.StoreDir, Authorize: authorize, CheckSource: checkSource}, false},
@@ -175,4 +167,44 @@ func operationEntries(names []string, build func(string) agent.Tool, readOnly fu
 		entries = append(entries, toolEntry{build(name), readOnly(name)})
 	}
 	return entries
+}
+
+// NewWorkflow adapts a caller-composed service without constructing dependencies.
+func NewWorkflow(s service.Service) *workflow.Tool {
+	tool := &workflow.Tool{
+		WS:                s.WS,
+		StoreDir:          s.StoreDir,
+		ValidateOnly:      s.ValidateOnly,
+		Authorize:         s.Authorize,
+		AuthorizeResource: s.AuthorizeResource,
+	}
+	if s.Registry != nil {
+		tool.Registry = func() (*workflowdefs.Registry, error) { return s.Registry, nil }
+	}
+	return tool
+}
+
+func workflowPolicy(ws *workspace.Workspace, policy permission.Policy, gate permission.Gate) (func(context.Context, string, json.RawMessage) error, imagecontract.OutputAuthorizer) {
+	output := func(ctx context.Context, path string, args json.RawMessage) error {
+		rel, err := ws.Relative(path)
+		if err != nil {
+			return err
+		}
+		return permission.Authorize(ctx, policy, gate, "image_variants", filepath.ToSlash(rel), args)
+	}
+	authorize := func(ctx context.Context, name string, args json.RawMessage) error {
+		workspacePaths := WorkspacePaths{WS: ws}
+		paths, err := workspacePaths.Resources(name, args)
+		if err != nil {
+			return err
+		}
+		for _, path := range paths {
+			err = permission.Authorize(ctx, policy, gate, name, path, args)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return authorize, output
 }

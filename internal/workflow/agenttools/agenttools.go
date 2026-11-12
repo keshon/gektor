@@ -9,7 +9,6 @@ import (
 	"io"
 
 	"github.com/keshon/gektor/internal/agent"
-	imagecontract "github.com/keshon/gektor/internal/capabilities/images/contract"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/service"
 	"github.com/keshon/gektor/internal/workspace"
@@ -22,7 +21,6 @@ type Tool struct {
 	ValidateOnly      bool
 	Authorize         func(context.Context, string, json.RawMessage) error
 	AuthorizeResource func(context.Context, string, string, json.RawMessage) error
-	AuthorizeOutput   imagecontract.OutputAuthorizer
 }
 
 func (t Tool) service() (service.Service, error) {

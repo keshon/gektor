@@ -11,6 +11,7 @@ import (
 	"github.com/keshon/gektor/internal/capabilities/media"
 	"github.com/keshon/gektor/internal/checks"
 	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/workflow/service"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -37,6 +38,7 @@ type Dependencies struct {
 	Vision   bool
 	Extra    []agent.Tool
 	Media    *media.Service
+	Workflow service.Service
 }
 
 // Compose constructs one agent's native instances. Optional native packages

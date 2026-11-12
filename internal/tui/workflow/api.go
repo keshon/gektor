@@ -80,7 +80,7 @@ func (workflowPoll) workflowMessage() {}
 // Dirty reports whether the retained recipe has unsaved edits.
 func (m *Model) Dirty() bool { return m.editor.Dirty() }
 
-// Close cancels screen operations and releases its launch context.
+// Close cancels screen operations and waits for worker cleanup and persistence.
 func (m *Model) Close() {
 	for dialog := range m.permissionRequests {
 		m.denyPermission(dialog)
@@ -89,6 +89,7 @@ func (m *Model) Close() {
 		m.cancel()
 	}
 	m.shutdown()
+	m.workers.Wait()
 }
 
 func (m *Model) Init() tea.Cmd { return nil }

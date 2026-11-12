@@ -198,9 +198,10 @@ task directory; it does not create a Git checkout.
 
 `internal/tools/packages_builtin.go` defines native package membership, per-agent
 instances and Plan eligibility. Base and ReadOnly select from those same entries.
-Composition fills defaults and wires permissions locally; `Dependencies` contains
-only caller inputs. Standalone Workflow construction wires its own permissions
-and recipe registry without setting up unrelated services.
+Composition fills defaults and wires native permissions locally. Roles supply
+the workflow service composed by `internal/app`; the tool catalog adapts that
+service without constructing its registry or model connections. Standalone
+workflow authoring uses the same application composition.
 Native tools enter the registry directly, retaining their streaming, image,
 checklist, question and context-reuse interfaces. Stateful tool instances belong
 to one agent; adapter connections keep their existing launch lifetime.

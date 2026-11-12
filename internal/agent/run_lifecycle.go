@@ -19,14 +19,18 @@ func (a *Agent) finalizeRun(ctx, workCtx context.Context, st *runState, history 
 			runErr = ctx.Err()
 		}
 	}
+
 	// Even when cancelled or failed, retain accepted steering for retry.
-	if pending := a.cfg.Inbox.stop(); len(pending) > 0 {
+	pending := a.cfg.Inbox.stop()
+	if len(pending) > 0 {
 		history = a.acceptInputs(a.snapshot.Context(), pending, st)
 	}
-	if ctxErr := ctx.Err(); ctxErr != nil && (runErr == nil || errors.Is(runErr, ErrMaxSteps)) {
+	ctxErr := ctx.Err()
+	if ctxErr != nil && (runErr == nil || errors.Is(runErr, ErrMaxSteps)) {
 		// Cancellation during the last tool call is not step exhaustion.
 		runErr = ctxErr
 	}
+
 	if runErr == nil && a.cfg.Verify != nil {
 		out, err := a.cfg.Verify(ctx)
 		a.report.Verification = TruncateMiddle(out, 8192)
@@ -36,15 +40,18 @@ func (a *Agent) finalizeRun(ctx, workCtx context.Context, st *runState, history 
 			// the preceding final answer. Persist it without requesting
 			// another model turn automatically.
 			if ctx.Err() == nil {
-				history = a.nudge(history, NudgeVerification, fmt.Sprintf("Verification failed: %v\n%s", err, a.report.Verification))
+				message := fmt.Sprintf("Verification failed: %v\n%s", err, a.report.Verification)
+				history = a.nudge(history, NudgeVerification, message)
 				a.saveState(history)
 			}
 		}
 	}
+
 	a.observeWorkspace(ctx, st)
 	if runErr == nil {
 		runErr = ctx.Err()
 	}
+
 	a.LastRunMutations = st.mutatingSucceeded
 	a.report.MutatedPaths = st.mutatedPaths
 	_, a.report.OpenTodos = a.cfg.Tools.TodoProgress()
@@ -55,6 +62,7 @@ func (a *Agent) finalizeRun(ctx, workCtx context.Context, st *runState, history 
 		answer = ""
 		runErr = fmt.Errorf("cannot verify workspace effects: %w", st.observationErr)
 	}
+
 	a.report.Outcome = "completed"
 	if runErr != nil {
 		answer = ""
@@ -67,33 +75,50 @@ func (a *Agent) finalizeRun(ctx, workCtx context.Context, st *runState, history 
 	if errors.Is(runErr, ErrRunBudget) {
 		a.report.Outcome = "incomplete"
 	}
+
 	if a.cfg.StateFile != "" {
-		a.snapshot.Runs = append(a.snapshot.Runs, conversation.Run{Start: runStart, End: len(a.snapshot.History), Outcome: a.report.Outcome, Steps: a.report.Steps, Verification: a.report.Verification, Error: conversation.FailureText(runErr)})
-		if err := a.snapshot.Save(a.cfg.StateFile); err != nil {
+		run := conversation.Run{
+			Start:        runStart,
+			End:          len(a.snapshot.History),
+			Outcome:      a.report.Outcome,
+			Steps:        a.report.Steps,
+			Verification: a.report.Verification,
+			Error:        conversation.FailureText(runErr),
+		}
+		a.snapshot.Runs = append(a.snapshot.Runs, run)
+		err := a.snapshot.Save(a.cfg.StateFile)
+		if err != nil {
 			a.report.Warnings = append(a.report.Warnings, "run boundary persistence failed: "+err.Error())
 		}
 	}
+
 	return answer, runErr
 }
 
 // restoreRun validates wiring and restores saved selections before opening a run.
 func (a *Agent) restoreRun(ctx context.Context) error {
-	if err := a.cfg.Tools.Err(); err != nil {
+	err := a.cfg.Tools.Err()
+	if err != nil {
 		return fmt.Errorf("tool registry: %w", err)
 	}
-	if err := a.cfg.Policy.Validate(); err != nil {
+	err = a.cfg.Policy.Validate()
+	if err != nil {
 		return err
 	}
+
 	if a.cfg.Browser != nil {
-		if err := a.cfg.Browser.SelectProfile(a.snapshot.Browser); err != nil {
+		err = a.cfg.Browser.SelectProfile(a.snapshot.Browser)
+		if err != nil {
 			return fmt.Errorf("restore browser profile: %w", err)
 		}
 	}
 	if a.cfg.Catalog != nil {
-		if err := a.cfg.Catalog.Restore(ctx, a.snapshot.Capabilities); err != nil {
+		err = a.cfg.Catalog.Restore(ctx, a.snapshot.Capabilities)
+		if err != nil {
 			return fmt.Errorf("restore capabilities: %w", err)
 		}
 	}
+
 	return nil
 }
 
@@ -103,6 +128,7 @@ func (a *Agent) startRun(history []llm.Message) ([]llm.Message, int) {
 	if runStart == 2 {
 		runStart = 1
 	}
+
 	hasRequest := false
 	for _, msg := range history[a.checkpointLen:] {
 		if msg.Role == llm.RoleUser {
@@ -110,39 +136,47 @@ func (a *Agent) startRun(history []llm.Message) ([]llm.Message, int) {
 			break
 		}
 	}
+
 	if !hasRequest {
 		runStart = 1
 		if len(a.snapshot.Runs) > 0 {
 			runStart = a.snapshot.Runs[len(a.snapshot.Runs)-1].Start
 		}
 	}
-	if n := len(a.snapshot.History); hasRequest && n > 0 && len(a.snapshot.History[n-1].ToolCalls) > 0 {
+	n := len(a.snapshot.History)
+	if hasRequest && n > 0 && len(a.snapshot.History[n-1].ToolCalls) > 0 {
 		runStart = n - 1
 	}
+
 	a.LastRunMutations = 0
 	a.report = RunReport{MaxSteps: a.cfg.MaxSteps, Archive: a.cfg.StateFile}
 	a.cfg.Inbox.start()
 	history = a.withDirective(history)
 	a.saveState(history)
+
 	return history, runStart
 }
 
 // prepareRun may fail after initialization; finalization still owns that exit.
 func (a *Agent) prepareRun(ctx, workCtx context.Context, st *runState, history []llm.Message) ([]llm.Message, error) {
 	if a.cfg.Changes != nil {
-		if err := a.cfg.Changes.Begin(workCtx); err != nil {
+		err := a.cfg.Changes.Begin(workCtx)
+		if err != nil {
 			return history, fmt.Errorf("observe workspace: %w", err)
 		}
 		st.observing = true
 	}
+
 	// Restore the task checklist when resuming a saved conversation.
 	a.rehydrateTodo(ctx, history)
 
 	if a.cfg.Catalog != nil {
-		if err := a.cfg.Catalog.Prepare(workCtx); err != nil {
+		err := a.cfg.Catalog.Prepare(workCtx)
+		if err != nil {
 			return history, fmt.Errorf("prepare tools: %w", err)
 		}
 	}
+
 	return history, nil
 }
 
@@ -181,11 +215,13 @@ func (a *Agent) observeWorkspace(ctx context.Context, st *runState) {
 	if !st.observing {
 		return
 	}
+
 	paths, err := a.cfg.Changes.Observe(ctx)
 	if err != nil {
 		st.observationErr = err
 		return
 	}
+
 	st.addPaths(paths)
 	st.mutatingSucceeded = len(paths)
 }

@@ -116,7 +116,9 @@ func (m *Model) action(a workflowAction) tea.Cmd {
 	events := m.events
 	screenCtx := m.ctx
 	runID := m.runID
+	m.workers.Add(1)
 	go func() {
+		defer m.workers.Done()
 		defer cancel()
 		gate := func(ctx context.Context, tool, resource string, args json.RawMessage) (permission.Effect, error) {
 			reply := make(chan permission.Effect, 1)

@@ -52,7 +52,7 @@ func TestWorkflowVerifierAcceptsRealRunsAndRejectsTampering(t *testing.T) {
 				}
 			}
 			allow := func(context.Context, string, json.RawMessage) error { return nil }
-			tool := workflowtools.Tool{WS: ws, StoreDir: workflowStoreDir(ws), ValidateOnly: kind == "workflow_invalid", Authorize: allow, AuthorizeOutput: allow, Registry: func() (*workflow.Registry, error) {
+			tool := workflowtools.Tool{WS: ws, StoreDir: workflowStoreDir(ws), ValidateOnly: kind == "workflow_invalid", Authorize: allow, Registry: func() (*workflow.Registry, error) {
 				return app.WorkflowRegistry(ws, workflowStoreDir(ws), allow, nil)
 			},
 			}
@@ -165,7 +165,7 @@ func TestWorkflowVerifierAcceptsParameterizedRecipeAndChecksCompiledRecord(t *te
 		t.Fatal(err)
 	}
 	allow := func(context.Context, string, json.RawMessage) error { return nil }
-	tool := workflowtools.Tool{WS: ws, StoreDir: workflowStoreDir(ws), Authorize: allow, AuthorizeOutput: allow, Registry: func() (*workflow.Registry, error) {
+	tool := workflowtools.Tool{WS: ws, StoreDir: workflowStoreDir(ws), Authorize: allow, Registry: func() (*workflow.Registry, error) {
 		return app.WorkflowRegistry(ws, workflowStoreDir(ws), allow, nil)
 	},
 	}

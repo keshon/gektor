@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"sync"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -29,6 +30,7 @@ type Model struct {
 	config                   Config
 	ctx                      context.Context
 	shutdown                 context.CancelFunc
+	workers                  sync.WaitGroup // joins explicit workers before launch resources close
 	commands                 []tea.Cmd
 	thumb                    scrollDrag
 	active, busy, inspect    bool

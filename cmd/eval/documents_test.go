@@ -62,8 +62,11 @@ func TestDocumentEvalFixturesThroughAgentAndWorkflow(t *testing.T) {
 	if err := ws.WriteFile("recipe.json", []byte(recipe), 0600); err != nil {
 		t.Fatal(err)
 	}
-	tool := tools.NewWorkflow(tools.Dependencies{WS: ws, Policy: permission.Default()}, false)
-	tool.StoreDir = t.TempDir()
+	service, err := app.NewWorkflow(ws, t.TempDir(), permission.Default(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool := tools.NewWorkflow(service)
 	out, err := tool.Run(t.Context(), json.RawMessage(`{"recipe_path":"recipe.json"}`))
 	if err != nil {
 		t.Fatal(out, err)

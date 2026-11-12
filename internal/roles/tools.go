@@ -2,6 +2,7 @@ package roles
 
 import (
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/tools"
 )
 
@@ -38,7 +39,11 @@ func (e Env) configureTools(cfg *agent.Config, mainAgent, allowQuestions bool, e
 	}
 	// Native optional packs exist even without external capability sources.
 	extra = append(extra, tools.DiscoverCapabilities{Catalog: catalog}, tools.EnableCapability{Catalog: catalog}, agent.InvokeTool{})
-	var err error
+	workflow, err := app.NewWorkflow(e.WS, e.WorkflowDir, e.policy(), e.Gate)
+	if err != nil {
+		return err
+	}
+
 	cfg.Tools, err = tools.Compose(tools.Dependencies{
 		WS:       e.WS,
 		Procs:    e.Procs,
@@ -48,6 +53,7 @@ func (e Env) configureTools(cfg *agent.Config, mainAgent, allowQuestions bool, e
 		StoreDir: e.WorkflowDir,
 		Policy:   e.policy(),
 		Gate:     e.Gate,
+		Workflow: workflow,
 	}, catalog, e.NativeExposure)
 	if err != nil {
 		return err

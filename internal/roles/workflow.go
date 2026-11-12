@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/capabilities/documents"
 	doccontract "github.com/keshon/gektor/internal/capabilities/documents/contract"
 	"github.com/keshon/gektor/internal/capabilities/files"
@@ -68,7 +69,13 @@ func WorkflowAuthor(e Env, recipePath, stateFile string) (*agent.Agent, error) {
 	if storeDir == "" {
 		storeDir = userdirs.Sub("workflows")
 	}
-	validation := &authorValidation{Tool: tools.NewWorkflow(tools.Dependencies{WS: e.WS, Policy: e.policy(), Gate: e.Gate, StoreDir: storeDir}, true)}
+	service, err := app.NewWorkflow(e.WS, storeDir, e.policy(), e.Gate)
+	if err != nil {
+		return nil, err
+	}
+	tool := tools.NewWorkflow(service)
+	tool.ValidateOnly = true
+	validation := &authorValidation{Tool: tool}
 	registry := validation.Registry
 	save := &workflow.Save{WS: e.WS, Path: path, Registry: registry}
 	validation.save = save
