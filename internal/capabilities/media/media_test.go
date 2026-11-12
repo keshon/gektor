@@ -67,7 +67,7 @@ func TestNativePreferredAndYouTubeRoundTrip(t *testing.T) {
 		t.Fatal("native auto invoked an external backend")
 		return process.Result{}, nil
 	}
-	value, err := s.Run(t.Context(), "video_info", Request{URL: "https://youtu.be/abcdefghijk"})
+	value, err := s.RunVideo(t.Context(), "video_info", VideoRequest{URL: "https://youtu.be/abcdefghijk"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestNativePreferredAndYouTubeRoundTrip(t *testing.T) {
 	if !strings.Contains(string(raw), `"backend":"native"`) || !strings.Contains(string(raw), "Fixture talk") {
 		t.Fatal(string(raw))
 	}
-	value, err = s.Run(t.Context(), "video_transcript", Request{URL: "https://youtu.be/abcdefghijk", Limit: 1})
+	value, err = s.RunVideo(t.Context(), "video_transcript", VideoRequest{URL: "https://youtu.be/abcdefghijk", Limit: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestNativePreferredAndYouTubeRoundTrip(t *testing.T) {
 	if !strings.Contains(string(raw), `"more":true`) || !strings.Contains(string(raw), `"next_offset":1`) {
 		t.Fatal(string(raw))
 	}
-	value, err = s.Run(t.Context(), "video_download", Request{URL: "https://youtu.be/abcdefghijk", Path: "saved.mp4"})
+	value, err = s.RunVideo(t.Context(), "video_download", VideoRequest{URL: "https://youtu.be/abcdefghijk", Path: "saved.mp4"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,19 +97,19 @@ func TestNativePreferredAndYouTubeRoundTrip(t *testing.T) {
 		t.Fatal(string(data))
 	}
 	before := calls
-	if _, err = s.Run(t.Context(), "video_download", Request{URL: "https://youtu.be/abcdefghijk", Path: "saved.mp4"}); err == nil {
+	if _, err = s.RunVideo(t.Context(), "video_download", VideoRequest{URL: "https://youtu.be/abcdefghijk", Path: "saved.mp4"}); err == nil {
 		t.Fatal("overwrote output")
 	}
 	if calls != before {
 		t.Log("existing-output check occurred after metadata retrieval")
 	}
 	for _, raw := range []string{"https://youtu.be/abcdefghijk", "https://www.youtube.com/watch?v=abcdefghijk"} {
-		in, _ := s.Validate("video_info", Request{URL: raw})
+		in, _ := s.ValidateVideo("video_info", VideoRequest{URL: raw})
 		if backend(in) != "native" {
 			t.Fatal(in)
 		}
 	}
-	in, _ := s.Validate("video_info", Request{URL: "https://vimeo.com/123"})
+	in, _ := s.ValidateVideo("video_info", VideoRequest{URL: "https://vimeo.com/123"})
 	if backend(in) != "yt-dlp" {
 		t.Fatal(in)
 	}
@@ -121,22 +121,22 @@ func TestNativeFailureDoesNotFallbackAndPathsAreBounded(t *testing.T) {
 		t.Fatal("hidden backend fallback")
 		return process.Result{}, nil
 	}
-	if _, err := s.Run(t.Context(), "video_info", Request{URL: "https://youtu.be/abcdefghijk"}); err == nil {
+	if _, err := s.RunVideo(t.Context(), "video_info", VideoRequest{URL: "https://youtu.be/abcdefghijk"}); err == nil {
 		t.Fatal("native outage hidden")
 	}
-	for _, in := range []Request{{URL: "http://127.0.0.1/video"}, {URL: "https://example.com/video", Backend: "native"}, {URL: "https://youtu.be/abcdefghijk", Path: "../outside"}} {
-		if _, err := s.Validate("video_download", in); err == nil {
+	for _, in := range []VideoRequest{{URL: "http://127.0.0.1/video"}, {URL: "https://example.com/video", Backend: "native"}, {URL: "https://youtu.be/abcdefghijk", Path: "../outside"}} {
+		if _, err := s.ValidateVideo("video_download", in); err == nil {
 			t.Fatal("invalid request accepted", in)
 		}
 	}
 	f := youtube.FormatList{{Height: 1080, AudioChannels: 0, ContentLength: 100}, {Height: 360, AudioChannels: 2, ContentLength: 10}, {Height: 0, AudioChannels: 2, ContentLength: 3}}
-	if got, err := nativeFormat(f, Request{Mode: "combined", MaxBytes: 200}); err != nil || got.Height != 360 {
+	if got, err := nativeFormat(f, VideoRequest{Mode: "combined", MaxBytes: 200}); err != nil || got.Height != 360 {
 		t.Fatal(got, err)
 	}
-	if got, err := nativeFormat(f, Request{Mode: "audio", MaxBytes: 200}); err != nil || got.Height != 0 {
+	if got, err := nativeFormat(f, VideoRequest{Mode: "audio", MaxBytes: 200}); err != nil || got.Height != 0 {
 		t.Fatal(got, err)
 	}
-	if _, err := nativeFormat(f, Request{Mode: "combined", MaxBytes: 2}); err == nil {
+	if _, err := nativeFormat(f, VideoRequest{Mode: "combined", MaxBytes: 2}); err == nil {
 		t.Fatal("oversized stream selected")
 	}
 }
@@ -169,7 +169,7 @@ func TestExternalTypedArgumentsAndFailedOutputCleanup(t *testing.T) {
 		}
 		return process.Result{}, nil
 	}
-	out, err := s.Run(t.Context(), "video_download", Request{URL: "https://vimeo.com/123", Path: "out.mp4"})
+	out, err := s.RunVideo(t.Context(), "video_download", VideoRequest{URL: "https://vimeo.com/123", Path: "out.mp4"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func TestExternalTypedArgumentsAndFailedOutputCleanup(t *testing.T) {
 		}
 		return process.Result{}, fmt.Errorf("fixture failure")
 	}
-	if _, err := s.Run(t.Context(), "video_download", Request{URL: "https://vimeo.com/123", Path: "failed.mp4"}); err == nil {
+	if _, err := s.RunVideo(t.Context(), "video_download", VideoRequest{URL: "https://vimeo.com/123", Path: "failed.mp4"}); err == nil {
 		t.Fatal("failure ignored")
 	}
 	if _, err := s.WS.Stat("failed.mp4"); !os.IsNotExist(err) {
@@ -206,7 +206,7 @@ func TestLocalProcessingStagesInputsAndReportsBackend(t *testing.T) {
 		}
 		return process.Result{}, nil
 	}
-	out, err := s.Run(t.Context(), "media_convert", Request{Inputs: []string{"in.wav"}, Path: "out.flac", Format: "flac"})
+	out, err := s.RunLocal(t.Context(), "media_convert", LocalRequest{Inputs: []string{"in.wav"}, Path: "out.flac", Format: "flac"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +214,51 @@ func TestLocalProcessingStagesInputsAndReportsBackend(t *testing.T) {
 	if !strings.Contains(string(raw), `"backend":"ffmpeg"`) {
 		t.Fatal(string(raw))
 	}
-	if _, err := s.Run(t.Context(), "media_convert", Request{Inputs: []string{"../outside"}, Path: "bad.flac", Format: "flac"}); err == nil {
+	if _, err := s.RunLocal(t.Context(), "media_convert", LocalRequest{Inputs: []string{"../outside"}, Path: "bad.flac", Format: "flac"}); err == nil {
 		t.Fatal("outside input accepted")
+	}
+}
+
+func TestVideoAndLocalValidationKeepSeparateInputs(t *testing.T) {
+	s := testService(t)
+	video, err := s.ValidateVideo("video_info", VideoRequest{URL: "https://youtu.be/abcdefghijk#chapter"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if video.URL != "https://youtu.be/abcdefghijk" || video.Backend != "auto" || video.Mode != "combined" || video.Limit != 50 || video.MaxBytes != MaxBytes || video.TimeoutSeconds != 120 {
+		t.Fatalf("video defaults changed: %+v", video)
+	}
+
+	inputs := []string{filepath.Join(s.WS.Root(), "source.wav")}
+	local, err := s.ValidateLocal("media_convert", LocalRequest{Inputs: inputs, Path: "converted.flac", Format: "flac"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if local.Inputs[0] != "source.wav" || local.Path != "converted.flac" || local.MaxBytes != MaxBytes || local.TimeoutSeconds != 120 {
+		t.Fatalf("local defaults changed: %+v", local)
+	}
+	if inputs[0] != filepath.Join(s.WS.Root(), "source.wav") {
+		t.Fatal("validation mutated caller inputs")
+	}
+	local.Inputs[0] = "changed.wav"
+	if inputs[0] == "changed.wav" {
+		t.Fatal("normalized request shares input storage")
+	}
+}
+
+func TestMediaFamilyDispatchRejectsWrongOperationsBeforeExecution(t *testing.T) {
+	// No workspace, resolver or transport: a wrong family must stop before effects.
+	s := &Service{}
+	for _, name := range []string{"media_status", "media_convert", "video_unknown"} {
+		_, err := s.RunVideo(t.Context(), name, VideoRequest{URL: "https://youtu.be/abcdefghijk"})
+		if err == nil || !strings.Contains(err.Error(), "unknown video operation") {
+			t.Fatal(name, err)
+		}
+	}
+	for _, name := range []string{"media_status", "video_download", "media_unknown"} {
+		_, err := s.RunLocal(t.Context(), name, LocalRequest{})
+		if err == nil || !strings.Contains(err.Error(), "unknown local media operation") {
+			t.Fatal(name, err)
+		}
 	}
 }

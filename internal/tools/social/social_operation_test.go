@@ -1,4 +1,4 @@
-package tools
+package social
 
 import (
 	"context"
@@ -11,10 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/capabilities/social"
 	socialcontract "github.com/keshon/gektor/internal/capabilities/social/contract"
-	toolextension "github.com/keshon/gektor/internal/tools/extension"
 )
 
 func TestReaderNormalizesAccessAndProtocolResults(t *testing.T) {
@@ -39,7 +37,7 @@ func TestReaderNormalizesAccessAndProtocolResults(t *testing.T) {
 				fmt.Fprint(w, tc.body)
 			}))
 			defer server.Close()
-			tool := SocialOperation{Operation: socialcontract.Operation{Service: social.Service{Client: server.Client(), Endpoint: server.URL}}}
+			tool := Operation{Operation: socialcontract.Operation{Service: social.Service{Client: server.Client(), Endpoint: server.URL}}}
 			out, err := tool.Run(t.Context(), json.RawMessage(`{"url":"https://x.com/test/status/20"}`))
 			var result social.Post
 			if json.Unmarshal([]byte(out), &result) != nil || result.Status != tc.want {
@@ -55,47 +53,13 @@ func TestReaderNormalizesAccessAndProtocolResults(t *testing.T) {
 	}
 }
 
-func TestBuiltinSocialLifecycleIsLazyAndRestorable(t *testing.T) {
-	sources := WithBuiltinCapabilities(nil)
-	registry := agent.NewRegistry()
-	catalog := &toolextension.Capabilities{Sources: sources, Registry: registry}
-	if _, err := (toolextension.DiscoverCapabilities{Catalog: catalog}).Run(t.Context(), json.RawMessage(`{"query":"Twitter"}`)); err != nil {
-		t.Fatal(err)
-	}
-	if connected, _ := sources[0].Connected(); connected || registry.Has("cap__social__read_post") {
-		t.Fatal("discovery activated social tools")
-	}
-	if _, err := catalog.Enable(t.Context(), "social", nil); err != nil {
-		t.Fatal(err)
-	}
-	if !registry.Has("cap__social__read_post") || len(catalog.Save()) != 1 {
-		t.Fatal("activation did not save catalog")
-	}
-	resumedSources := WithBuiltinCapabilities(nil)
-	resumed := &toolextension.Capabilities{Sources: resumedSources, Registry: agent.NewRegistry()}
-	if err := resumed.Restore(t.Context(), catalog.Save()); err != nil {
-		t.Fatal(err)
-	}
-	if connected, _ := resumedSources[0].Connected(); connected || !resumed.Registry.Has("cap__social__read_post") {
-		t.Fatal("resume eagerly loaded adapter")
-	}
-	output, err := resumed.Registry.Run(t.Context(), "cap__social__read_post", json.RawMessage(`{"url":"https://example.org/unsupported"}`))
-	if err == nil || !strings.Contains(output, "unsupported") {
-		t.Fatal(output, err)
-	}
-	custom := &toolextension.Capability{ID: "social", Description: "custom provider"}
-	if configured := WithBuiltinCapabilities([]*toolextension.Capability{custom}); len(configured) != 1 || configured[0] != custom {
-		t.Fatal("custom provider was shadowed")
-	}
-}
-
 func TestNativeSocialLive(t *testing.T) {
 	if os.Getenv("GEKTOR_SOCIAL_LIVE") != "1" {
 		t.Skip("set GEKTOR_SOCIAL_LIVE=1 for one public FxTwitter request")
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
 	defer cancel()
-	output, err := (SocialOperation{Operation: socialcontract.Operation{Service: social.New()}}).Run(ctx, json.RawMessage(`{"url":"https://x.com/jack/status/20"}`))
+	output, err := (Operation{Operation: socialcontract.Operation{Service: social.New()}}).Run(ctx, json.RawMessage(`{"url":"https://x.com/jack/status/20"}`))
 	if err != nil {
 		t.Fatal(output, err)
 	}

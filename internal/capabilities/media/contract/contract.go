@@ -287,58 +287,86 @@ func (o Operation) RetrySafe() bool               { return o.spec().retrySafe }
 func (o Operation) Schema() json.RawMessage       { return json.RawMessage(o.spec().input) }
 func (o Operation) OutputSchema() json.RawMessage { return json.RawMessage(o.spec().output) }
 
-func (o Operation) parse(raw json.RawMessage) (media.Request, error) {
-	var in media.Request
+type arguments struct {
+	video  media.VideoRequest
+	local  media.LocalRequest
+	status struct {
+		Refresh bool `json:"refresh,omitempty"`
+	}
+}
+
+func (o Operation) parse(raw json.RawMessage) (arguments, error) {
+	var in arguments
 	if o.spec().kind == "" {
 		return in, fmt.Errorf("unknown media operation %q", o.Kind)
 	}
-
 	err := workflow.ValidateJSON(raw, o.Schema())
 	if err != nil {
 		return in, err
 	}
 
-	err = json.Unmarshal(raw, &in)
-	if err != nil {
-		return in, err
+	switch o.Kind {
+	case "media_status":
+		err = json.Unmarshal(raw, &in.status)
+	case "video_info", "video_transcript", "video_download":
+		err = json.Unmarshal(raw, &in.video)
+		if err != nil {
+			return in, err
+		}
+		in.video, err = o.Service.ValidateVideo(o.Kind, in.video)
+	default:
+		err = json.Unmarshal(raw, &in.local)
+		if err != nil {
+			return in, err
+		}
+		in.local, err = o.Service.ValidateLocal(o.Kind, in.local)
 	}
-
-	return o.Service.Validate(o.Kind, in)
+	return in, err
 }
+
 func (o Operation) Validate(raw json.RawMessage) error {
 	_, err := o.parse(raw)
 	return err
 }
+
 func (o Operation) Resources(raw json.RawMessage) ([]string, error) {
 	in, err := o.parse(raw)
 	if err != nil {
 		return nil, err
 	}
 
-	paths := append([]string{}, in.Inputs...)
-	if in.URL != "" {
-		paths = append(paths, in.URL)
+	paths := append([]string{}, in.local.Inputs...)
+	if in.video.URL != "" {
+		paths = append(paths, in.video.URL)
 	}
-
-	if in.Path != "" {
-		paths = append(paths, in.Path)
+	if in.video.Path != "" {
+		paths = append(paths, in.video.Path)
 	}
-
+	if in.local.Path != "" {
+		paths = append(paths, in.local.Path)
+	}
 	return paths, nil
 }
+
 func (o Operation) Run(ctx context.Context, raw json.RawMessage) (string, error) {
 	in, err := o.parse(raw)
 	if err != nil {
 		return "", err
 	}
 
-	result, err := o.Service.Run(ctx, o.Kind, in)
+	var result any
+	switch o.Kind {
+	case "media_status":
+		result, err = o.Service.Status(ctx, in.status.Refresh)
+	case "video_info", "video_transcript", "video_download":
+		result, err = o.Service.RunVideo(ctx, o.Kind, in.video)
+	default:
+		result, err = o.Service.RunLocal(ctx, o.Kind, in.local)
+	}
 	if err != nil {
 		return "", err
 	}
-
 	data, err := json.Marshal(result)
-
 	return string(data), err
 }
 

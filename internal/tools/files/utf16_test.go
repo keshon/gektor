@@ -1,4 +1,4 @@
-package tools
+package files
 
 import (
 	"context"
@@ -8,19 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	toolfiles "github.com/keshon/gektor/internal/tools/files"
 	"github.com/keshon/gektor/internal/workspace"
 )
-
-// utf16le encodes s as BOM-prefixed UTF-16LE with CRLF line endings —
-// the shape PowerShell 5's Out-File and many older Windows editors write.
-func utf16le(s string) []byte {
-	out := []byte{0xFF, 0xFE}
-	for _, r := range s {
-		out = append(out, byte(r), byte(r>>8))
-	}
-	return out
-}
 
 // Decoding goes through the streaming reader on the read path, so this
 // exercises the real thing rather than a helper.
@@ -33,7 +22,7 @@ func TestReadFile_UTF16ReadableWithEncodingHeader(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "b.txt"), utf16le("world\r\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	out, err := toolfiles.Read{WS: ws}.Run(context.Background(), json.RawMessage(`{"path":"b.txt"}`))
+	out, err := Read{WS: ws}.Run(context.Background(), json.RawMessage(`{"path":"b.txt"}`))
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -54,7 +43,7 @@ func TestPatchFile_RefusesUTF16WithReason(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "b.txt"), utf16le("world\r\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, err := toolfiles.Patch{WS: ws}.Run(context.Background(),
+	_, err := Patch{WS: ws}.Run(context.Background(),
 		json.RawMessage(`{"path":"b.txt","old_content":"world","new_content":"WORLD"}`))
 	if err == nil {
 		t.Fatal("expected refusal")

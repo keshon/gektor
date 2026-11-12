@@ -1,4 +1,4 @@
-package tools
+package readoutput
 
 import (
 	"encoding/json"
@@ -26,7 +26,7 @@ func TestOutputCanBePagedOnlyByItsSession(t *testing.T) {
 	var full strings.Builder
 	for {
 		args, _ := json.Marshal(map[string]any{"id": id, "offset": offset, "limit": 1001})
-		out, err := (ReadOutput{}).Run(ctx, args)
+		out, err := (Tool{}).Run(ctx, args)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -49,7 +49,7 @@ func TestOutputCanBePagedOnlyByItsSession(t *testing.T) {
 	}
 	other := (tooloutput.New(t.TempDir())).Context(t.Context())
 	args, _ := json.Marshal(map[string]any{"id": id})
-	if _, err := (ReadOutput{}).Run(other, args); err == nil {
+	if _, err := (Tool{}).Run(other, args); err == nil {
 		t.Fatal("cross-session read allowed")
 	}
 }

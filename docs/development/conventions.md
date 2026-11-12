@@ -68,6 +68,12 @@ arguments to the standard-library packager and the installed Go and Git tools.
 Every capability service and contract has an explicit import rule. Workflow
 adapters share `internal/capabilities/nodes`; agent adapters live in
 `internal/tools`. Adding an unregistered capability package fails the check.
+All concrete Agent tools, including thin capability adapters and wrappers, live
+in feature packages. Root tool composition does not declare tool Mode methods.
+Feature behavior tests live beside their implementations. Root tool tests cover
+composition, permission/resource routing and Agent/Workflow integration. Test
+helpers stay local to those owners; subprocess fixtures and temporary homes
+belong to the test binary that uses them.
 Tool feature packages do not import root tool composition. The shared
 `internal/tools/command` runtime imports only process support and
 `internal/tools/output`; retained output imports only user-directory support.

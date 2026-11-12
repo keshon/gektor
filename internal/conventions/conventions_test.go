@@ -121,6 +121,9 @@ func checkPackageLayers(t *testing.T, r *repo) {
 
 	for _, f := range r.goFiles {
 		pkg := strings.TrimPrefix(filepath.ToSlash(filepath.Dir(r.rel(f))), "internal/")
+		if pkg == "tools" && !strings.HasSuffix(f, "_test.go") && toolModeMethod.MatchString(r.read(t, f)) {
+			t.Errorf("%s declares a concrete tool in root composition%s", r.rel(f), r.rule("package-layers"))
+		}
 		if strings.HasPrefix(pkg, "tools/") && !strings.HasSuffix(f, "_test.go") {
 			for _, imp := range internalImports(r.read(t, f)) {
 				if imp == "tools" {
@@ -403,6 +406,8 @@ func goFiles(t *testing.T, root string) []string {
 	sort.Strings(out)
 	return out
 }
+
+var toolModeMethod = regexp.MustCompile(`(?m)^func\s+\([^\n)]*\)\s+Mode\(`)
 
 var importLine = regexp.MustCompile(`"github\.com/keshon/gektor/internal/([a-z/]+)"`)
 

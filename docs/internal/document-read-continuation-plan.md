@@ -156,7 +156,7 @@ item pagination normally.
 - `internal/capabilities/documents/documents_test.go`
   - Add reconstruction regressions for all three formats and revise the old
     test that specifically assumes 4 KiB body clipping.
-- `internal/tools/documents_test.go`
+- `internal/tools/documents_integration_test.go`
   - Extend the existing agent/workflow parity test with a long-item continuation,
     schema validation, and permission-denial coverage for a continuation call.
 

@@ -11,12 +11,7 @@ import (
 	"strings"
 )
 
-func (s *Service) external(ctx context.Context, name string, in Request) (any, error) {
-	if name == "video_download" {
-		if err := s.preflightOutput(in.Path); err != nil {
-			return nil, err
-		}
-	}
+func (s *Service) external(ctx context.Context, name string, in VideoRequest) (any, error) {
 	dir, err := s.work()
 	if err != nil {
 		return nil, err
@@ -165,7 +160,7 @@ func (s *Service) external(ctx context.Context, name string, in Request) (any, e
 	if in.Mode == "merged" {
 		provider = "yt-dlp+ffmpeg"
 	}
-	return s.publish(ctx, in, files[0], provider)
+	return s.publish(ctx, outputTarget{Path: in.Path, MaxBytes: in.MaxBytes}, files[0], provider)
 }
 func externalInfo(raw []byte) (any, error) {
 	var source struct {

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	toolfiles "github.com/keshon/gektor/internal/tools/files"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -116,5 +117,44 @@ func TestWorkspaceResourcesRejectInvalidArgumentsAndOutsideDestinations(t *testi
 		if err == nil {
 			t.Errorf("%s accepted an outside destination", name)
 		}
+	}
+}
+
+func TestAbsoluteFilePathsShareRelativeAccessAndPermissions(t *testing.T) {
+	root := t.TempDir()
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ws.Close() })
+	path := filepath.Join(root, "calculator.html")
+	args, _ := json.Marshal(map[string]string{"path": path, "content": "calculator"})
+	if _, err := (toolfiles.Write{WS: ws}).Run(t.Context(), args); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := ws.ReadFile("calculator.html"); err != nil || string(data) != "calculator" {
+		t.Fatal("absolute write did not use the workspace", err)
+	}
+	resources, err := (WorkspacePaths{WS: ws}).Resources("write_file", args)
+	if err != nil || !reflect.DeepEqual(resources, []string{"calculator.html"}) {
+		t.Fatal("absolute path bypasses relative permission rules", resources, err)
+	}
+	args, _ = json.Marshal(map[string]string{"from": path, "to": filepath.Join(root, "private", "target.html")})
+	resources, err = (WorkspacePaths{WS: ws}).Resources("move_file", args)
+	if err != nil || !reflect.DeepEqual(resources, []string{"calculator.html", "private/target.html"}) {
+		t.Fatal("move permissions omit a path", resources, err)
+	}
+	args, _ = json.Marshal(map[string]string{"path": filepath.Join(t.TempDir(), "outside.txt"), "content": "bad"})
+	if _, err := (toolfiles.Write{WS: ws}).Run(t.Context(), args); err == nil {
+		t.Fatal("accepted external absolute write")
+	}
+}
+
+func TestImageWorkspaceResources(t *testing.T) {
+	ws, _ := testWS(t)
+	args := json.RawMessage(`{"path":"attachment:1","crop":{"x":10,"y":0,"width":10,"height":10},"width":40}`)
+	resources, err := (WorkspacePaths{WS: ws}).Resources("image_view", args)
+	if err != nil || len(resources) != 1 || resources[0] != "attachment:1" {
+		t.Fatal(resources, err)
 	}
 }

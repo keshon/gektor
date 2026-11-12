@@ -1,25 +1,15 @@
-package tools
+package background
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
 
-	toolbackground "github.com/keshon/gektor/internal/tools/background"
 	"github.com/keshon/gektor/internal/workspace"
 )
-
-// longRunningCommand uses the selected platform shell.
-var longRunningCommand = func() string {
-	if runtime.GOOS == "windows" {
-		return "Start-Sleep -Seconds 5"
-	}
-	return "sleep 5"
-}()
 
 func TestBackgroundStartupFailureIsNotSuccessfulToolResult(t *testing.T) {
 	ws, err := workspace.New(t.TempDir())
@@ -27,9 +17,9 @@ func TestBackgroundStartupFailureIsNotSuccessfulToolResult(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ws.Close()
-	procs := toolbackground.New()
+	procs := New()
 	defer procs.StopAll()
-	out, err := (toolbackground.StartShell{WS: ws, Procs: procs, SettleTime: 3 * time.Second}).Run(t.Context(), json.RawMessage(`{"command":"exit 7"}`))
+	out, err := (StartShell{WS: ws, Procs: procs, SettleTime: 3 * time.Second}).Run(t.Context(), json.RawMessage(`{"command":"exit 7"}`))
 	if err == nil || !strings.Contains(out, "already exited") || !strings.Contains(err.Error(), "failed") {
 		t.Fatal(out, err)
 	}
@@ -41,9 +31,10 @@ func TestBackgroundProcesses_StartCheckStop(t *testing.T) {
 	if ws != nil {
 		t.Cleanup(func() { ws.Close() })
 	}
-	procs := toolbackground.New()
+	procs := New()
+	defer procs.StopAll()
 
-	start := toolbackground.StartShell{WS: ws, Procs: procs, SettleTime: 100 * time.Millisecond}
+	start := StartShell{WS: ws, Procs: procs, SettleTime: 100 * time.Millisecond}
 	args, _ := json.Marshal(map[string]string{"command": longRunningCommand})
 	out, err := start.Run(context.Background(), args)
 	if err != nil {
@@ -66,7 +57,7 @@ func TestBackgroundProcesses_StartCheckStop(t *testing.T) {
 		t.Fatal("lost original shell command", info, err)
 	}
 
-	check := toolbackground.Check{Procs: procs}
+	check := Check{Procs: procs}
 	cArgs, _ := json.Marshal(map[string]any{"id": id, "cursor": 0})
 	checkOut, err := check.Run(context.Background(), cArgs)
 	if err != nil {
@@ -76,12 +67,12 @@ func TestBackgroundProcesses_StartCheckStop(t *testing.T) {
 		t.Fatalf("expected still running, got: %q", checkOut)
 	}
 
-	stop := toolbackground.Stop{Procs: procs}
+	stop := Stop{Procs: procs}
 	if _, err := stop.Run(context.Background(), json.RawMessage(`{"id":"`+id+`"}`)); err != nil {
 		t.Fatalf("stop: %v", err)
 	}
 
-	time.Sleep(200 * time.Millisecond) // let toolbackground.Wait() observe the kill
+	time.Sleep(200 * time.Millisecond) // let Wait() observe the kill
 	checkOut2, err := check.Run(context.Background(), cArgs)
 	if err != nil {
 		t.Fatalf("check after stop: %v", err)
@@ -97,9 +88,10 @@ func TestBackgroundProcesses_CapturesOutput(t *testing.T) {
 	if ws != nil {
 		t.Cleanup(func() { ws.Close() })
 	}
-	procs := toolbackground.New()
+	procs := New()
+	defer procs.StopAll()
 
-	start := toolbackground.StartShell{WS: ws, Procs: procs, SettleTime: 300 * time.Millisecond}
+	start := StartShell{WS: ws, Procs: procs, SettleTime: 300 * time.Millisecond}
 	args, _ := json.Marshal(map[string]string{"command": "echo hello-from-bg"})
 	out, err := start.Run(context.Background(), args)
 	if err != nil {
@@ -108,7 +100,7 @@ func TestBackgroundProcesses_CapturesOutput(t *testing.T) {
 	deadline := time.Now().Add(3 * time.Second)
 	for !strings.Contains(out, "hello-from-bg") && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
-		out, err = (toolbackground.Check{Procs: procs}).Run(context.Background(), json.RawMessage(`{"id":"bg1","cursor":0}`))
+		out, err = (Check{Procs: procs}).Run(context.Background(), json.RawMessage(`{"id":"bg1","cursor":0}`))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -123,14 +115,14 @@ func TestBackgroundProcesses_CapturesOutput(t *testing.T) {
 		}
 	}
 	args, _ = json.Marshal(map[string]any{"id": "bg1", "cursor": cursor})
-	out, err = (toolbackground.Check{Procs: procs}).Run(t.Context(), args)
+	out, err = (Check{Procs: procs}).Run(t.Context(), args)
 	if err != nil || cursor == 0 || strings.Contains(out, "hello-from-bg") {
 		t.Fatalf("cursor repeated the startup output: %v %s", err, out)
 	}
 }
 
 func TestCheckBackground_UnknownID(t *testing.T) {
-	check := toolbackground.Check{Procs: toolbackground.New()}
+	check := Check{Procs: New()}
 	args, _ := json.Marshal(map[string]any{"id": "bg999", "cursor": 0})
 	if _, err := check.Run(context.Background(), args); err == nil {
 		t.Fatal("expected error for unknown id")

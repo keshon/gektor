@@ -67,7 +67,12 @@ func (r *contextReader) Read(p []byte) (int, error) {
 	return r.r.Read(p)
 }
 
-func (s *Service) publishEncoded(ctx context.Context, in Request, file, provider string) (any, error) {
+type outputTarget struct {
+	Path     string
+	MaxBytes int64
+}
+
+func (s *Service) publishEncoded(ctx context.Context, in outputTarget, file, provider string) (any, error) {
 	info, err := os.Stat(file)
 	if err != nil {
 		return nil, err
@@ -80,7 +85,7 @@ func (s *Service) publishEncoded(ctx context.Context, in Request, file, provider
 	return s.publish(ctx, in, file, provider)
 }
 
-func (s *Service) publish(ctx context.Context, in Request, file, provider string) (result any, err error) {
+func (s *Service) publish(ctx context.Context, in outputTarget, file, provider string) (result any, err error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

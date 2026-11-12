@@ -83,7 +83,7 @@ Every shared capability contract declares `RetrySafe` independently of
 a successful commit followed by a lost response cannot be safely repeated with
 the same expected revision.
 
-[Contract parity tests](../../internal/tools/capability_contracts_test.go) now
+[Contract parity tests](../../internal/tools/capabilities_integration_test.go) now
 cover all 23 shared operations and compare descriptions, input schemas and
 permission resources. They check expected concurrency, read-only and retry values
 separately. The policies of the existing operations have not changed.

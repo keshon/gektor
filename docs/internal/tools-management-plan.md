@@ -1,16 +1,24 @@
 # Tools management: configuration, exposure and ownership
 
 Date: 2026-11-12
-Status: Approved; phase zero is in progress. Existing SSH work and this plan
+Status: Approved; phase zero package boundaries are implemented. Existing SSH work and this plan
 were committed as `caa586c`. The management UI described here is not implemented.
 
 Current migration: the first package extraction was committed as `2f4bb47`.
 The follow-up, committed as `0f77869`, groups related operations under one feature owner: files, git, run,
 background, web, images and host. Output and command remain shared resource
-owners; read_output is thin root adapter glue. Browser and extension/MCP now
-have dedicated owners as well. Existing workflow Agent adapters and shared file
+owners; read_output lives in its own tool adapter package. Browser and extension/MCP now
+have dedicated owners as well, committed as `b71db5c`. Existing workflow Agent adapters and shared file
 capabilities retain their cohesive feature packages.
-The tool package tree below is implemented. The management UI remains future work.
+All concrete tools, including thin shared-capability adapters and the write-check
+wrapper, now live in feature packages. Root retains three files: composition,
+builtin declarations and resource routing. The tool package tree below is implemented. The management UI remains future work.
+
+Test placement now follows those owners. Files, foreground execution, background
+processes and Windows command-runtime tests live with their implementations.
+Root retains eight test files for composition, permission/resource routing,
+Agent/Workflow integration and their local fixtures. Subprocess fixtures and
+isolated test homes are owned by the feature test binaries that use them.
 
 ## Decision
 
@@ -208,9 +216,13 @@ Target shape:
 ```text
 internal/tools/
   tools.go, packages_builtin.go   composition and exposure declarations
-  operations.go                  thin shared-capability and read_output adapters
   workspace_paths.go             cross-tool resource/instruction routing
-  files/                         read/list/grep/write/patch/move and approval evidence
+  documents/                     document tool adapters
+  media/                         media tool adapters
+  social/                        public-post tool adapter
+  ssh/                           SSH tool adapters
+  readoutput/                    retained-output paging adapter
+  files/                         file tools, archive/download adapters and write checks
   git/                           inspection, staging, commits and Git invocation rules
   run/                           finite shell and native program tools
   background/                    start/check/wait/stop and owned process lifetime
@@ -229,10 +241,11 @@ internal/tools/
   output/                        retained logs, bounded capture and paging
 ```
 
-Shared-capability adapters stay together in root glue, except image adapters which
-belong with attachment grants. Domain contracts remain under
-`internal/capabilities/<feature>`. read_output is a thin adapter over output.Store;
-it does not need a separate package.
+Shared-capability Agent adapters live in their matching tool feature packages;
+image adapters remain with attachment grants. Domain contracts stay under
+`internal/capabilities/<feature>`. The read_output tool lives in
+`internal/tools/readoutput`, using the neutral output.Store. The files owner also
+contains archive/download adapters and post-write check observation.
 
 ### Feature decisions and preserved boundaries
 
@@ -389,10 +402,9 @@ responsibility warrants it, using the same rule applied to tools.
 - **media: keep the package, separate request paths.** Video backends and local
   FFmpeg work actually reuse temporary directories, input staging, output
   preflight/publication and bounded child-process work-directory monitoring.
-  The weakness is the wide Request plus validation of unrelated fields in
-  `validation.go`, not lack of directories. Follow package moves with a separate
-  internal API change for video versus local-processing requests/validation,
-  retaining the wire schemas, limits and backend decisions. Do not split by
+  The wide request previously mixed unrelated validation fields in
+  `validation.go`. Video and local-processing requests/validation are now
+  separate, retaining the wire schemas, limits and backend decisions. Do not split by
   executable name or make the status operation a second registry. Dependency
   requirements must remain available to both status and management UI from the
   same feature-owned facts.
@@ -411,9 +423,12 @@ responsibility warrants it, using the same rule applied to tools.
   protocol handlers or a plugin framework. Keep each cohesive feature's contracts
   together, including downloads and archive operations.
 
-Media request separation is a later internal API cleanup within that feature.
-Verify it independently. This decision keeps existing cohesive feature packages
-and does not imply new runtime behavior or a generic capability framework.
+Media request separation is implemented within the existing feature package:
+`VideoRequest` and `RunVideo` own video work; `LocalRequest` and `RunLocal` own
+workspace processing; `Status` owns dependency inspection. Validation follows
+those same request families. Both publication paths share only a destination and
+byte cap. The wire schemas, backend selection and execution limits are preserved.
+No generic capability framework or additional media packages are introduced.
 
 ## Management UI code homes and ownership
 
@@ -431,7 +446,7 @@ internal/executables/   executable config, atomic saves, resolution and probing
 internal/capabilities/ssh/  profile validation/store and bounded connection check
 internal/credentials/      environment references and reusable secret protection
 internal/mcpmanager/       MCP definitions, protocol checks and connection lifetime
-internal/tools/            Agent composition and thin capability adapters
+internal/tools/            Agent composition and cross-tool resource routing
 internal/tools/<feature>/  independent Agent tools and justified lifecycle groups
 internal/capabilities/nodes/ workflow descriptors
 ```
@@ -453,8 +468,8 @@ Check errors are scoped to the selected item, not fatal to the whole Tools scree
 0. **Tool/node/capability boundaries.** Complete the prerequisite above before adding
    management UI dependencies. Preserve behavior, move feature tests with their
    owners, update callers and enforce import direction. Apply the node and
-   capability decisions explicitly, including splitting downloads from archives.
-   Keep Media request cleanup in its own subsequent slice.
+   capability decisions explicitly, retaining downloads and archives in their
+   shared files owner. Media request cleanup follows as its own internal API slice.
 1. **Current setup docs.** Already documented: manual SSH profiles, password/key environment
    references, masked terminal input, TUI/CLI launch and worker inheritance.
 2. **Tools list + Media.** Add the shared navigation and read-only inventory,

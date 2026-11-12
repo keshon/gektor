@@ -13,7 +13,7 @@ func ffmpegBase() []string { return []string{"-hide_banner", "-nostdin", "-logle
 func mediaInput(path string) []string {
 	return []string{"-protocol_whitelist", "file,pipe", "-format_whitelist", "mov,matroska,webm,mp3,wav,ogg,flac,aac,avi,flv,mpeg,mpegts", "-i", path}
 }
-func (s *Service) local(ctx context.Context, name string, in Request) (any, error) {
+func (s *Service) local(ctx context.Context, name string, in LocalRequest) (any, error) {
 	if name != "media_inspect" {
 		if err := s.preflightOutput(in.Path); err != nil {
 			return nil, err
@@ -120,5 +120,5 @@ func (s *Service) local(ctx context.Context, name string, in Request) (any, erro
 	if _, err := s.command(ctx, "ffmpeg", args, dir, 3*MaxBytes); err != nil {
 		return nil, err
 	}
-	return s.publishEncoded(ctx, in, out, "ffmpeg")
+	return s.publishEncoded(ctx, outputTarget{Path: in.Path, MaxBytes: in.MaxBytes}, out, "ffmpeg")
 }

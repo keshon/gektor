@@ -3,7 +3,6 @@ package media
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -18,22 +17,31 @@ const MaxBytes int64 = 256 << 20
 
 const MaxText = 32 << 10
 
-type Request struct {
-	URL             string   `json:"url,omitempty"`
-	Backend         string   `json:"backend,omitempty"`
+const defaultTimeoutSeconds = 120
+
+type VideoRequest struct {
+	URL             string  `json:"url,omitempty"`
+	Backend         string  `json:"backend,omitempty"`
+	Path            string  `json:"path,omitempty"`
+	Mode            string  `json:"mode,omitempty"`
+	Language        string  `json:"language,omitempty"`
+	Offset          int     `json:"offset,omitempty"`
+	Limit           int     `json:"limit,omitempty"`
+	StartSeconds    float64 `json:"start_seconds,omitempty"`
+	DurationSeconds float64 `json:"duration_seconds,omitempty"`
+	MaxHeight       int     `json:"max_height,omitempty"`
+	MaxBytes        int64   `json:"max_bytes,omitempty"`
+	TimeoutSeconds  int     `json:"timeout_seconds,omitempty"`
+}
+
+type LocalRequest struct {
 	Path            string   `json:"path,omitempty"`
 	Inputs          []string `json:"inputs,omitempty"`
 	Format          string   `json:"format,omitempty"`
-	Mode            string   `json:"mode,omitempty"`
-	Language        string   `json:"language,omitempty"`
-	Offset          int      `json:"offset,omitempty"`
-	Limit           int      `json:"limit,omitempty"`
 	StartSeconds    float64  `json:"start_seconds,omitempty"`
 	DurationSeconds float64  `json:"duration_seconds,omitempty"`
-	MaxHeight       int      `json:"max_height,omitempty"`
 	MaxBytes        int64    `json:"max_bytes,omitempty"`
 	TimeoutSeconds  int      `json:"timeout_seconds,omitempty"`
-	Refresh         bool     `json:"refresh,omitempty"`
 	Copy            bool     `json:"copy,omitempty"`
 }
 
@@ -55,8 +63,9 @@ func New(ws *workspace.Workspace, apps ApplicationResolver) *Service {
 	return &Service{WS: ws, Apps: apps}
 }
 
-func (s *Service) Run(ctx context.Context, name string, in Request) (any, error) {
-	in, err := s.Validate(name, in)
+// RunVideo reads video metadata/captions or downloads to a new workspace file.
+func (s *Service) RunVideo(ctx context.Context, name string, in VideoRequest) (any, error) {
+	in, err := s.ValidateVideo(name, in)
 	if err != nil {
 		return nil, err
 	}
@@ -64,26 +73,28 @@ func (s *Service) Run(ctx context.Context, name string, in Request) (any, error)
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(in.TimeoutSeconds)*time.Second)
 	defer cancel()
 
-	switch name {
-	case "media_status":
-		return s.Status(ctx, in.Refresh)
-	case "video_info", "video_transcript", "video_download":
-		if name == "video_download" {
-			if err := s.preflightOutput(in.Path); err != nil {
-				return nil, err
-			}
+	if name == "video_download" {
+		err = s.preflightOutput(in.Path)
+		if err != nil {
+			return nil, err
 		}
+	}
+	if backend(in) == "native" {
+		return s.native(ctx, name, in)
+	}
+	return s.external(ctx, name, in)
+}
 
-		if backend(in) == "native" {
-			return s.native(ctx, name, in)
-		}
-
-		return s.external(ctx, name, in)
-	case "media_inspect", "media_convert", "media_clip", "media_frame", "media_merge":
-		return s.local(ctx, name, in)
+// RunLocal processes workspace files with FFmpeg or ffprobe.
+func (s *Service) RunLocal(ctx context.Context, name string, in LocalRequest) (any, error) {
+	in, err := s.ValidateLocal(name, in)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, fmt.Errorf("unknown media operation %q", name)
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(in.TimeoutSeconds)*time.Second)
+	defer cancel()
+	return s.local(ctx, name, in)
 }
 
 func isYouTube(raw string) bool {
@@ -100,7 +111,7 @@ func isYouTube(raw string) bool {
 	return false
 }
 
-func backend(in Request) string {
+func backend(in VideoRequest) string {
 	if in.Backend == "auto" {
 		if isYouTube(in.URL) {
 			return "native"

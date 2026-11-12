@@ -2,6 +2,7 @@ package media
 
 import (
 	"context"
+	"time"
 
 	"github.com/keshon/gektor/internal/executables"
 )
@@ -14,6 +15,9 @@ type OperationStatus struct {
 }
 
 func (s *Service) Status(ctx context.Context, refresh bool) (any, error) {
+	ctx, cancel := context.WithTimeout(ctx, defaultTimeoutSeconds*time.Second)
+	defer cancel()
+
 	apps := []executables.Status{}
 	states := map[string]string{}
 

@@ -9,8 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/keshon/gektor/internal/process"
 	"github.com/kkdai/youtube/v2"
+
+	"github.com/keshon/gektor/internal/process"
 )
 
 func TestExternalMergedContainerFollowsRequestedPath(t *testing.T) {
@@ -25,7 +26,7 @@ func TestExternalMergedContainerFollowsRequestedPath(t *testing.T) {
 				}
 				return process.Result{}, os.WriteFile(filepath.Join(req.Directory, "download."+format), []byte("fixture"), 0600)
 			}
-			out, err := s.Run(t.Context(), "video_download", Request{URL: "https://vimeo.com/123", Path: "out." + format, Mode: "merged"})
+			out, err := s.RunVideo(t.Context(), "video_download", VideoRequest{URL: "https://vimeo.com/123", Path: "out." + format, Mode: "merged"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -43,7 +44,7 @@ func TestUnexpectedContainerIsNeverPublished(t *testing.T) {
 	s.run = func(_ context.Context, req process.Request) (process.Result, error) {
 		return process.Result{}, os.WriteFile(filepath.Join(req.Directory, "download.mkv"), []byte("fixture"), 0600)
 	}
-	_, err := s.Run(t.Context(), "video_download", Request{URL: "https://vimeo.com/123", Path: "out.mp4", Mode: "merged"})
+	_, err := s.RunVideo(t.Context(), "video_download", VideoRequest{URL: "https://vimeo.com/123", Path: "out.mp4", Mode: "merged"})
 	if err == nil || !strings.Contains(err.Error(), "output container") {
 		t.Fatal(err)
 	}
@@ -57,11 +58,11 @@ func TestNativeStreamSelectionHonorsContainer(t *testing.T) {
 		{MimeType: `video/webm; codecs="vp9"`, Height: 720, AudioChannels: 2, ContentLength: 10},
 		{MimeType: `video/mp4; codecs="avc1"`, Height: 360, AudioChannels: 2, ContentLength: 10},
 	}
-	got, err := nativeFormat(formats, Request{Path: "out.mp4", Mode: "combined", MaxBytes: 100})
+	got, err := nativeFormat(formats, VideoRequest{Path: "out.mp4", Mode: "combined", MaxBytes: 100})
 	if err != nil || got.Height != 360 {
 		t.Fatal(got, err)
 	}
-	if _, err := nativeFormat(formats[:1], Request{Path: "out.mp4", Mode: "combined", MaxBytes: 100}); err == nil {
+	if _, err := nativeFormat(formats[:1], VideoRequest{Path: "out.mp4", Mode: "combined", MaxBytes: 100}); err == nil {
 		t.Fatal("selected WebM for an MP4 path")
 	}
 }
@@ -79,14 +80,14 @@ func TestConvertCopyRemuxesWithoutEncoding(t *testing.T) {
 		}
 		return process.Result{}, os.WriteFile(req.Args[len(req.Args)-1], []byte("fixture"), 0600)
 	}
-	if _, err := s.Run(t.Context(), "media_convert", Request{Inputs: []string{"source.mkv"}, Path: "out.mp4", Format: "mp4", Copy: true}); err != nil {
+	if _, err := s.RunLocal(t.Context(), "media_convert", LocalRequest{Inputs: []string{"source.mkv"}, Path: "out.mp4", Format: "mp4", Copy: true}); err != nil {
 		t.Fatal(err)
 	}
-	for _, in := range []Request{
+	for _, in := range []LocalRequest{
 		{Path: "wrong.mp4", Format: "flac"},
 		{Path: "out.flac", Format: "flac", Copy: true},
 	} {
-		if _, err := s.Validate("media_convert", in); err == nil {
+		if _, err := s.ValidateLocal("media_convert", in); err == nil {
 			t.Fatal("invalid conversion accepted", in)
 		}
 	}

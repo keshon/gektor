@@ -10,7 +10,7 @@ import (
 	"github.com/keshon/gektor/internal/capabilities/nodes"
 	"github.com/keshon/gektor/internal/capabilities/social"
 	"github.com/keshon/gektor/internal/capabilities/social/contract"
-	"github.com/keshon/gektor/internal/tools"
+	toolsocial "github.com/keshon/gektor/internal/tools/social"
 	"github.com/keshon/gektor/internal/workflow"
 )
 
@@ -26,7 +26,7 @@ func TestPublicPostNodeAndToolExecuteTheSameReader(t *testing.T) {
 	defer server.Close()
 	svc := social.Service{Client: server.Client(), Endpoint: server.URL}
 	node := nodes.SocialDefinitions(svc)[0]
-	tool := tools.SocialOperation{Operation: contract.Operation{Service: svc}}
+	tool := toolsocial.Operation{Operation: contract.Operation{Service: svc}}
 	args := json.RawMessage(`{"url":"https://x.com/test/status/20"}`)
 	for _, execute := range []func() (string, error){func() (string, error) { return tool.Run(t.Context(), args) }, func() (string, error) { return node.Execute(t.Context(), args) }} {
 		out, err := execute()

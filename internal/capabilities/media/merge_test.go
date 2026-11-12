@@ -41,7 +41,7 @@ func TestNativeMergedDownloadRejectsPossiblyTruncatedOutput(t *testing.T) {
 				// must reject that outcome even though the output fits the byte bound.
 				return process.Result{}, os.WriteFile(req.Args[len(req.Args)-1], []byte(strings.Repeat("x", 32)), 0600)
 			}
-			_, err := s.Run(t.Context(), "video_download", Request{URL: "https://youtu.be/abcdefghijk", Path: "out." + format, Mode: "merged", MaxBytes: 32})
+			_, err := s.RunVideo(t.Context(), "video_download", VideoRequest{URL: "https://youtu.be/abcdefghijk", Path: "out." + format, Mode: "merged", MaxBytes: 32})
 			if err == nil || !strings.Contains(err.Error(), "possibly truncated") {
 				t.Fatal(err)
 			}

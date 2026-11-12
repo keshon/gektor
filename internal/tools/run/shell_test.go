@@ -1,4 +1,4 @@
-package tools
+package run
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	toolrun "github.com/keshon/gektor/internal/tools/run"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -40,7 +39,7 @@ func TestRunShell_CapsHugeOutput(t *testing.T) {
 		cmd = "type big.txt"
 	}
 	args, _ := json.Marshal(map[string]string{"command": cmd})
-	out, err := (toolrun.Shell{WS: ws}).Run(context.Background(), args)
+	out, err := (Shell{WS: ws}).Run(context.Background(), args)
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -61,7 +60,7 @@ func TestRunShell_LeavesNormalOutputAlone(t *testing.T) {
 		t.Fatalf("workspace: %v", err)
 	}
 	args, _ := json.Marshal(map[string]string{"command": "echo hello"})
-	out, err := (toolrun.Shell{WS: ws}).Run(context.Background(), args)
+	out, err := (Shell{WS: ws}).Run(context.Background(), args)
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -84,7 +83,7 @@ func TestRunShellUsesWorkspaceRelativeWorkdir(t *testing.T) {
 	}
 	for _, dir := range []string{"", "package with spaces"} {
 		args, _ := json.Marshal(map[string]any{"command": command, "workdir": dir})
-		out, err := (toolrun.Shell{WS: ws}).Run(t.Context(), args)
+		out, err := (Shell{WS: ws}).Run(t.Context(), args)
 		want := "root marker"
 		if dir != "" {
 			want = "child marker"
@@ -102,7 +101,7 @@ func TestRunShellValidatesBoundsBeforeStarting(t *testing.T) {
 	} {
 		fields["command"] = "echo unexpected > should-not-run.txt"
 		args, _ := json.Marshal(fields)
-		if _, err := (toolrun.Shell{WS: ws}).Run(t.Context(), args); err == nil {
+		if _, err := (Shell{WS: ws}).Run(t.Context(), args); err == nil {
 			t.Fatalf("invalid arguments executed: %s", args)
 		}
 	}
@@ -113,8 +112,35 @@ func TestRunShellValidatesBoundsBeforeStarting(t *testing.T) {
 
 func TestRunShellHonorsCommandDeadline(t *testing.T) {
 	ws, _ := testWS(t)
-	args, _ := json.Marshal(map[string]any{"command": longRunningCommand, "timeout_seconds": 1})
-	if _, err := (toolrun.Shell{WS: ws}).Run(t.Context(), args); !errors.Is(err, context.DeadlineExceeded) {
+	args, _ := json.Marshal(map[string]any{"command": longRunningCommand(), "timeout_seconds": 1})
+	if _, err := (Shell{WS: ws}).Run(t.Context(), args); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("command deadline was not enforced: %v", err)
 	}
+}
+
+func testWS(t *testing.T) (*workspace.Workspace, string) {
+	t.Helper()
+	dir := t.TempDir()
+	ws, err := workspace.New(dir)
+	if ws != nil {
+		t.Cleanup(func() { ws.Close() })
+	}
+	if err != nil {
+		t.Fatalf("workspace: %v", err)
+	}
+	return ws, dir
+}
+
+func writeTmp(t *testing.T, dir, name, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func longRunningCommand() string {
+	if runtime.GOOS == "windows" {
+		return "Start-Sleep -Seconds 5"
+	}
+	return "sleep 5"
 }

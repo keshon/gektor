@@ -59,13 +59,13 @@ func TestLiveMedia(t *testing.T) {
 		}
 		for _, call := range []struct {
 			name string
-			in   Request
+			in   LocalRequest
 		}{
-			{"media_inspect", Request{Inputs: []string{"tone.wav"}}},
-			{"media_convert", Request{Inputs: []string{"tone.wav"}, Path: "tone.flac", Format: "flac"}},
-			{"media_clip", Request{Inputs: []string{"tone.wav"}, Path: "clip.wav", Format: "wav", DurationSeconds: 0.05}},
+			{"media_inspect", LocalRequest{Inputs: []string{"tone.wav"}}},
+			{"media_convert", LocalRequest{Inputs: []string{"tone.wav"}, Path: "tone.flac", Format: "flac"}},
+			{"media_clip", LocalRequest{Inputs: []string{"tone.wav"}, Path: "clip.wav", Format: "wav", DurationSeconds: 0.05}},
 		} {
-			out, err := s.Run(t.Context(), call.name, call.in)
+			out, err := s.RunLocal(t.Context(), call.name, call.in)
 			if err != nil {
 				t.Fatal(call.name, err)
 			}
@@ -82,14 +82,14 @@ func TestLiveMedia(t *testing.T) {
 		}
 		for _, call := range []struct {
 			name string
-			in   Request
+			in   LocalRequest
 		}{
-			{"media_convert", Request{Inputs: []string{"video.mp4"}, Path: "remux.mp4", Format: "mp4", Copy: true}},
-			{"media_inspect", Request{Inputs: []string{"remux.mp4"}}},
-			{"media_frame", Request{Inputs: []string{"video.mp4"}, Path: "frame.png", Format: "png"}},
-			{"media_merge", Request{Inputs: []string{"video.mp4", "tone.wav"}, Path: "merged.mkv", Format: "mkv"}},
+			{"media_convert", LocalRequest{Inputs: []string{"video.mp4"}, Path: "remux.mp4", Format: "mp4", Copy: true}},
+			{"media_inspect", LocalRequest{Inputs: []string{"remux.mp4"}}},
+			{"media_frame", LocalRequest{Inputs: []string{"video.mp4"}, Path: "frame.png", Format: "png"}},
+			{"media_merge", LocalRequest{Inputs: []string{"video.mp4", "tone.wav"}, Path: "merged.mkv", Format: "mkv"}},
 		} {
-			out, err := s.Run(t.Context(), call.name, call.in)
+			out, err := s.RunLocal(t.Context(), call.name, call.in)
 			if err != nil {
 				t.Fatal(call.name, err)
 			}
@@ -106,7 +106,7 @@ func TestLiveMedia(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 40*time.Second)
 			defer cancel()
 			for _, name := range []string{"video_info", "video_transcript"} {
-				out, err := s.Run(ctx, name, Request{URL: "https://www.youtube.com/watch?v=rFejpH_tAHM", Backend: provider, Limit: 2, TimeoutSeconds: 30})
+				out, err := s.RunVideo(ctx, name, VideoRequest{URL: "https://www.youtube.com/watch?v=rFejpH_tAHM", Backend: provider, Limit: 2, TimeoutSeconds: 30})
 				if err != nil {
 					t.Errorf("compatibility failure (%s/%s): %v", provider, name, err)
 					continue
@@ -130,7 +130,7 @@ func TestLiveDownload(t *testing.T) {
 	s.Apps = executables.New(userdirs.Sub("applications.json"))
 	for _, backend := range []string{"native", "yt-dlp"} {
 		t.Run(backend, func(t *testing.T) {
-			out, err := s.Run(t.Context(), "video_download", Request{URL: "https://www.youtube.com/watch?v=rFejpH_tAHM", Backend: backend, Mode: "audio", Path: backend + ".webm", MaxBytes: 16 << 20, TimeoutSeconds: 60})
+			out, err := s.RunVideo(t.Context(), "video_download", VideoRequest{URL: "https://www.youtube.com/watch?v=rFejpH_tAHM", Backend: backend, Mode: "audio", Path: backend + ".webm", MaxBytes: 16 << 20, TimeoutSeconds: 60})
 			if err != nil {
 				t.Fatal(err)
 			}

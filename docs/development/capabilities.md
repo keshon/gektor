@@ -23,12 +23,13 @@ are separate facts.
 |---|---|---|
 | Root package | Typed requests, validation, execution, results and resource cleanup | Agent loops, workflow execution or UI |
 | `contract` | Operation names, descriptions, JSON contracts, argument decoding and permission resources | A second implementation of the operation |
-| `internal/tools/operations.go` and `internal/tools/images` | The Agent tool interface, attachment access and concurrency mode | Parsing, provider selection or file publication |
+| Feature packages under `internal/tools` | The Agent tool interface, attachment access and concurrency mode | Parsing, provider selection or file publication |
 | `internal/capabilities/nodes` | Workflow descriptors, template validation, versions and retry declarations | Parsing, provider selection or file publication |
 
-Each feature keeps its typed service and shared `contract` together. The small
-frontend adapters share the locations above; they do not create another package
-for each feature/frontend pair. Composition supplies store and authorization
+Each feature keeps its typed service and shared `contract` together. Agent
+adapters live with their feature tool packages; related operations share one
+owner. Workflow descriptors use the common node assembly above. Do not add a
+subpackage for each operation. Composition supplies store and authorization
 dependencies before any tool is registered, including derived output paths.
 
 Shared support lives in `internal/httptransport`, `internal/process` and
@@ -42,9 +43,10 @@ feature packages such as `internal/tools/files`, `internal/tools/git` and
 profiles and connection lifetime live in `internal/tools/browser`.
 `internal/tools/extension` owns discovery, activation, executable adapters and
 MCP response adaptation. Only the built-in browser launcher grants its MCP
-adapter access to browser artifacts in the workspace. Child packages do not
-import root composition. Command execution and retained output are shared support
-owners under `internal/tools/command` and `internal/tools/output`.
+adapter access to browser artifacts in the workspace. Every concrete tool,
+including shared-capability adapters, lives in a child package. Root contains composition and cross-tool resource routing. Child
+packages do not import root composition. Command execution and retained output
+are shared support owners under `internal/tools/command` and `internal/tools/output`.
 
 The proposed [Tools management plan](../internal/tools-management-plan.md)
 extends configuration UI across Agent and Workflows while retaining these
@@ -167,7 +169,7 @@ every format. Keep operating-system suffixes on platform implementations.
 The file-operation package provides naming examples for a
 [service](../../internal/capabilities/files/files.go),
 [shared JSON contract](../../internal/capabilities/files/contract/contract.go),
-[tool wrapper](../../internal/tools/operations.go) and
+[tool wrapper](../../internal/tools/documents/documents.go) and
 [workflow descriptors](../../internal/capabilities/nodes/nodes.go).
 Use these roles when they exist. Split further only when a file has distinct
 responsibilities. Avoid unrelated names such as helpers or common.
