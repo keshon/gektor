@@ -34,7 +34,10 @@ responsibilities have matching file names, without requiring identical APIs.
 2. Follow [`update.go`](update.go) for message and input routing, then
    [`controls.go`](controls.go) and [`presentation.go`](presentation.go) for
    shared controls and final composition.
-3. In either screen, start with `config.go`, `model.go`, and `api.go`.
+3. Start each screen at [`agent/agent.go`](agent/agent.go) or
+   [`workflow/workflow.go`](workflow/workflow.go). Both keep `Model`, `Config`,
+   construction, `Init`, and `Close` together. `api.go` exposes the screen's
+   operations to the application shell.
    Follow `update.go`, `keys.go`, or `mouse.go` for the interaction being changed.
    `presentation.go` supplies shared-control data; `view.go` renders local content.
    Continue into the feature file that owns the operation.

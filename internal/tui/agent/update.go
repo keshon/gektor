@@ -16,35 +16,6 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/transcript"
 )
 
-func (m *Model) Init() tea.Cmd {
-	// The terminal owns the native caret's blink and shape.
-	return tea.Batch(waitEvents(m), tick(false, m.busy()), m.takeCommands())
-}
-func waitEvents(m *Model) tea.Cmd {
-	return func() tea.Msg {
-		var stopped <-chan struct{}
-		if m.base != nil {
-			stopped = m.base.Done()
-		}
-		var ev harness.Event
-		select {
-		case value, ok := <-m.events:
-			if !ok {
-				return nil
-			}
-			ev = value
-		case <-stopped:
-			return nil
-		}
-		if ev.Name == "_done" {
-			answer, _ := ev.Fields["answer"].(string)
-			err, _ := ev.Fields["error"].(error)
-			return doneMsg{answer: answer, err: err}
-		}
-		return eventMsg(ev)
-	}
-}
-
 // Frame pacing. Revealing a reply needs frames; a running spinner needs
 // a tenth of a second; an idle session needs one tick to keep the clock
 // honest. They are separate because the spinner must not spin up when

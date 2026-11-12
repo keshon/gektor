@@ -259,17 +259,16 @@ func (m *Model) scheduleForm(in workflowInvocation) {
 }
 
 func (m *Model) scheduleRefresh() tea.Cmd {
+	if m.ctx.Err() != nil || m.busy {
+		return nil
+	}
 	if m.run != nil {
 		m.setNotice(pane.NoticeWarning, "Return to the draft before refreshing schedules")
 		return nil
 	}
-	m.busy = true
-	ctx, cancel := context.WithCancel(m.ctx)
-	m.cancel = cancel
 	root, base := m.config.WS.Root(), userdirs.Sub("workflows")
 	svc, serviceErr := m.service(nil)
-	return func() tea.Msg {
-		defer cancel()
+	return m.startOperation(func(ctx context.Context) tea.Msg {
 		if serviceErr != nil {
 			return workflowResult{action: "schedule-refresh", err: serviceErr}
 		}
@@ -280,12 +279,16 @@ func (m *Model) scheduleRefresh() tea.Cmd {
 			loadScheduleInspection(ctx, s, svc, &result)
 		}
 		return result
-	}
+	})
 }
 
 func (m *Model) scheduleChange(action, payload string) tea.Cmd {
+	if m.ctx.Err() != nil || m.busy {
+		return nil
+	}
 	var edit workflowScheduleEdit
-	if err := json.Unmarshal([]byte(payload), &edit); err != nil || m.run != nil || m.editor.Dirty() || edit.Draft != m.editor.Source() {
+	err := json.Unmarshal([]byte(payload), &edit)
+	if err != nil || m.run != nil || m.editor.Dirty() || edit.Draft != m.editor.Source() {
 		m.setNotice(pane.NoticeWarning, "Recipe changed; reopen Schedule")
 		return nil
 	}
@@ -294,13 +297,9 @@ func (m *Model) scheduleChange(action, payload string) tea.Cmd {
 		m.setNotice(pane.NoticeWarning, "Recipe path changed; reopen Schedule")
 		return nil
 	}
-	m.busy = true
-	ctx, cancel := context.WithCancel(m.ctx)
-	m.cancel = cancel
 	root, base := m.config.WS.Root(), userdirs.Sub("workflows")
 	svc, serviceErr := m.service(nil)
-	return func() tea.Msg {
-		defer cancel()
+	return m.startOperation(func(ctx context.Context) tea.Msg {
 		result := workflowResult{action: action, err: serviceErr, scheduleID: edit.Schedule.ID}
 		if result.err != nil {
 			return result
@@ -338,7 +337,7 @@ func (m *Model) scheduleChange(action, payload string) tea.Cmd {
 			loadScheduleInspection(ctx, s, svc, &result)
 		}
 		return result
-	}
+	})
 }
 
 // Called by commands, never during rendering; source reads use no approval gate.

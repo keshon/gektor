@@ -47,7 +47,7 @@ quit protection across active runs and retained Workflow drafts.
 `internal/tui/agent` owns its conversation, transcript, composer, inspector,
 sessions, preferences, and Agent execution. Start at
 [agent.go](../../internal/tui/agent/agent.go) for the package contract, launch
-configuration, and constructor. Agent emits navigation and quit
+configuration, model state, constructor, and lifecycle. Agent emits navigation and quit
 intents to the parent; it does not import Workflow.
 
 Agent transcript code stays private to the screen: [transcript.go](../../internal/tui/agent/transcript.go) connects
@@ -76,6 +76,10 @@ interaction, layout, and filesystem effects have separate files in `settings`.
 Start at [screen.go](../../internal/tui/screen/screen.go) for shared controls,
 [settings.go](../../internal/tui/settings/settings.go) for settings interaction,
 and [workflow.go](../../internal/tui/workflow/workflow.go) for Workflow construction.
+Both screen entry files keep `Model`, `Config`, `New`, `Init`, and `Close` together.
+Their `internal/tui/*/api.go`, `internal/tui/*/update.go`, and
+`internal/tui/*/view.go` files own shell operations, message routing, and rendering
+respectively; feature behavior remains beside its state.
 
 `internal/tui/workflow` owns its own model, recipe editor, graph, inspector,
 run state, menu commands and availability, message dispatch, permissions, and

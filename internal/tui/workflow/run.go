@@ -25,17 +25,6 @@ import (
 	"github.com/keshon/gektor/internal/workflow/store"
 )
 
-func (m *Model) wait() tea.Cmd {
-	ctx, events := m.ctx, m.events
-	return func() tea.Msg {
-		select {
-		case msg := <-events:
-			return msg
-		case <-ctx.Done():
-			return nil
-		}
-	}
-}
 func (m *Model) action(a workflowAction) tea.Cmd {
 	if m.ctx.Err() != nil {
 		return nil
@@ -101,25 +90,16 @@ func (m *Model) action(a workflowAction) tea.Cmd {
 	default:
 		return m.command(a.action)
 	}
-	if m.busy {
-		return nil
-	}
-	m.busy = true
 	m.setNotice(pane.NoticeInfo, "Working…")
 	source, path := m.editor.Source(), m.editor.Path
 	ws, policy := m.config.WS, m.config.Policy
 	if path == "" {
 		path = "recipe.json"
 	}
-	ctx, cancel := context.WithCancel(m.ctx)
-	m.cancel = cancel
 	events := m.events
 	screenCtx := m.ctx
 	runID := m.runID
-	m.workers.Add(1)
-	go func() {
-		defer m.workers.Done()
-		defer cancel()
+	return m.startOperation(func(ctx context.Context) tea.Msg {
 		gate := func(ctx context.Context, tool, resource string, args json.RawMessage) (permission.Effect, error) {
 			reply := make(chan permission.Effect, 1)
 			select {
@@ -174,12 +154,8 @@ func (m *Model) action(a workflowAction) tea.Cmd {
 			}
 		}
 		result.err = err
-		select {
-		case events <- result:
-		case <-screenCtx.Done():
-		}
-	}()
-	return m.wait()
+		return result
+	})
 }
 
 func (m *Model) openRuns(runs []store.RunSummary) {

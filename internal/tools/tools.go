@@ -94,7 +94,7 @@ func Compose(d Dependencies, catalog *Capabilities, overrides map[string]Exposur
 		catalog.Native = append(catalog.Native, &NativePackage{
 			ID:           p.id,
 			Description:  p.description,
-			Instructions: nativeInstructions(p.id),
+			Instructions: p.instructions,
 			Version:      "1",
 			Exposure:     exposure,
 			Tools:        list,

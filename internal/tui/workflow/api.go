@@ -80,19 +80,5 @@ func (workflowPoll) workflowMessage() {}
 // Dirty reports whether the retained recipe has unsaved edits.
 func (m *Model) Dirty() bool { return m.editor.Dirty() }
 
-// Close cancels screen operations and waits for worker cleanup and persistence.
-func (m *Model) Close() {
-	for dialog := range m.permissionRequests {
-		m.denyPermission(dialog)
-	}
-	if m.cancel != nil {
-		m.cancel()
-	}
-	m.shutdown()
-	m.workers.Wait()
-}
-
-func (m *Model) Init() tea.Cmd { return nil }
-
 // SetSurface receives a geometry snapshot from the shell before input or rendering.
 func (m *Model) SetSurface(surface screen.Surface) { m.surface = surface }

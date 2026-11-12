@@ -31,7 +31,7 @@ type workflowProposal struct {
 }
 
 func (m *Model) propose(prompt string) tea.Cmd {
-	if m.busy {
+	if m.ctx.Err() != nil || m.busy {
 		return nil
 	}
 	client := m.config.Client
@@ -45,40 +45,51 @@ func (m *Model) propose(prompt string) tea.Cmd {
 		return nil
 	}
 	schema := string(s.DefinitionSchema())
-	contracts, _ := json.Marshal(m.registry.Contracts())
+	contracts, err := json.Marshal(m.registry.Contracts())
+	if err != nil {
+		m.setNotice(pane.NoticeError, err.Error())
+		return nil
+	}
 	before := m.editor.Source()
-	m.busy = true
 	m.setNotice(pane.NoticeInfo, "AI drafting a proposal · Esc cancels")
-	ctx, cancel := context.WithTimeout(m.ctx, 2*time.Minute)
-	m.cancel = cancel
 	output := 8192
 	if m.config.MaxTokens > 0 {
 		output = min(output, m.config.MaxTokens)
 	}
-	request := llm.ChatRequest{MaxTokens: output, Temperature: m.config.Temperature, Messages: []llm.Message{{Role: llm.RoleSystem, Content: prompts.WorkflowEdit + "\n\n" + workspace.WorkflowGuide}, {Role: llm.RoleUser, Content: "Definition schema:\n" + schema + "\nOperation contracts:\n" + string(contracts) + "\nCurrent draft:\n" + before + "\nRequested change:\n" + prompt}}, JSONSchema: workflowProposalSchema, Grammar: workflowProposalGrammar}
+	request := llm.ChatRequest{
+		MaxTokens:   output,
+		Temperature: m.config.Temperature,
+		Messages: []llm.Message{
+			{Role: llm.RoleSystem, Content: prompts.WorkflowEdit + "\n\n" + workspace.WorkflowGuide},
+			{Role: llm.RoleUser, Content: "Definition schema:\n" + schema + "\nOperation contracts:\n" + string(contracts) + "\nCurrent draft:\n" + before + "\nRequested change:\n" + prompt},
+		},
+		JSONSchema: workflowProposalSchema,
+		Grammar:    workflowProposalGrammar,
+	}
 	limit := m.config.ContextLimit
-	return func() tea.Msg {
+	return m.startOperation(func(operationCtx context.Context) tea.Msg {
+		ctx, cancel := context.WithTimeout(operationCtx, 2*time.Minute)
 		defer cancel()
+
 		if limit > 0 && llm.EstimatePromptTokens(request)+output > limit {
 			return workflowProposal{before: before, err: fmt.Errorf("proposal exceeds the model context limit")}
 		}
-		response, err := client.Chat(ctx, request)
+		response, requestErr := client.Chat(ctx, request)
 		var envelope struct {
 			Recipe string `json:"recipe_json"`
 			Note   string `json:"note"`
 		}
-		if err == nil {
-			err = json.Unmarshal([]byte(response.Message.Content), &envelope)
+		if requestErr == nil {
+			requestErr = json.Unmarshal([]byte(response.Message.Content), &envelope)
 		}
-		if err == nil && (response.FinishReason == "length" || len(response.Message.ToolCalls) > 0) {
-			err = fmt.Errorf("model returned incomplete output or an unexpected tool call")
+		if requestErr == nil && (response.FinishReason == "length" || len(response.Message.ToolCalls) > 0) {
+			requestErr = fmt.Errorf("model returned incomplete output or an unexpected tool call")
 		}
 		if len(envelope.Recipe) > 64<<10 || len(envelope.Note) > 4096 {
-			err = fmt.Errorf("proposal exceeds 64 KiB")
+			requestErr = fmt.Errorf("proposal exceeds 64 KiB")
 		}
-		return workflowProposal{before: before, source: envelope.Recipe, note: envelope.Note, err: err}
-	}
-
+		return workflowProposal{before: before, source: envelope.Recipe, note: envelope.Note, err: requestErr}
+	})
 }
 func (m *Model) acceptProposal(p workflowProposal) {
 	m.busy = false

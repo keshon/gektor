@@ -63,6 +63,7 @@ at http://127.0.0.1:9931. The eval runner uses the same provider defaults.
 internal/app prepares validated profiles and compiled identity as PreparedProfile.
 Runtime clients remain in the composed Backend and role environment.
 internal/roles builds Planner, Interactive and Subagent from Env.
+Role inputs and shared agent configuration are kept together in `internal/roles/env.go`.
 
 Subagents
 share the workspace and permission policy and cannot delegate again or ask the
@@ -89,6 +90,9 @@ The application model in internal/tui owns screen selection, shared controls,
 terminal input, and the lifetime and quit policy of its peer screens.
 internal/tui/agent owns the Agent conversation, composer, inspector, sessions,
 and Agent execution. It reports navigation and quit intents to the parent.
+Both screen packages start at their namesake file, `internal/tui/agent/agent.go`
+or `internal/tui/workflow/workflow.go`, with model state, configuration,
+construction, `Init`, and `Close` together.
 internal/tui/workflow owns recipe editing, graph interaction, run inspection,
 message dispatch, queued commands and asynchronous workflow execution. Its
 public API exposes navigation state and operations; the host does not reach into
@@ -97,6 +101,10 @@ availability rules, toggles, and shortcuts. screen.Host supplies shared dialogs 
 screen.Surface supplies current geometry and styles. The shared screen package
 also owns menu and overlay state, rendering, interaction, and theme mappings. Workflow receives execution
 services and owns its cancellation; it has no access to Agent or transcript state.
+`internal/tui/workflow/workflow.go` keeps screen state, construction and action
+lifetime together. Runs, proposals and schedule actions snapshot their inputs
+before starting through one owned worker path; closing the screen cancels and
+joins those actions before launch resources are released.
 
 The model server is external. GEKTOR does not install or supervise it.
 API-compatible providers share the Chat Completions transport; local dialects handle
@@ -197,7 +205,8 @@ task directory; it does not create a Git checkout.
 ## Tool composition
 
 `internal/tools/packages_builtin.go` defines native package membership, per-agent
-instances and Plan eligibility. Base and ReadOnly select from those same entries.
+instances, activation instructions and Plan eligibility. Base and ReadOnly select
+from those same entries.
 Composition fills defaults and wires native permissions locally. Roles supply
 the workflow service composed by `internal/app`; the tool catalog adapts that
 service without constructing its registry or model connections. Standalone
