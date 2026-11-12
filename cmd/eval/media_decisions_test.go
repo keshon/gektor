@@ -122,3 +122,39 @@ func TestAnswerSchemaDryValidationAndSchemaOnlyProbe(t *testing.T) {
 		t.Fatal("invalid schema accepted before inference")
 	}
 }
+
+func TestMediaTrackDefaultsCriteria(t *testing.T) {
+	root, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(root)
+	probes, err := loadProbes("eval/probes", "49-media-track-defaults")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(probes) != 1 {
+		t.Fatalf("expected one track defaults probe, got %d", len(probes))
+	}
+
+	answer := `{"download_path":"track.m4a","download_mode":"audio","operations":["video_download","media_inspect"],"verified_official":false,"reason":"Keep the source audio and inspect it; the uploader is not verified as the artist."}`
+	failures := checkAnswer(probes[0], answer)
+	if len(failures) != 0 {
+		t.Fatal("valid source-audio plan rejected", failures)
+	}
+
+	invalid := []string{
+		strings.Replace(answer, "track.m4a", "track.mp3", 1),
+		strings.Replace(answer, `"audio"`, `"merged"`, 1),
+		strings.Replace(answer, `"video_download","media_inspect"`, `"video_download","media_convert","media_inspect"`, 1),
+		strings.Replace(answer, `"video_download","media_inspect"`, `"video_download"`, 1),
+		strings.Replace(answer, `"verified_official":false`, `"verified_official":true`, 1),
+		"Here is the plan: " + answer,
+	}
+	for _, text := range invalid {
+		failures = checkAnswer(probes[0], text)
+		if len(failures) == 0 {
+			t.Fatalf("invalid source-audio plan accepted: %s", text)
+		}
+	}
+}

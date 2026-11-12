@@ -12,7 +12,7 @@ Look up native operation names, arguments, results and limits. Agent enables opt
 | Ask a model for text or structured data | `model_generate` |
 | Make an HTTP request | `http_request` |
 | Download a file or work with archives | `download_file`, `archive_list`, `archive_create`, `archive_extract` |
-| Read video metadata, captions or download media | `video_info`, `video_transcript`, `video_download` |
+| List YouTube playlists, read video metadata/captions or download media | `video_playlist`, `video_info`, `video_transcript`, `video_download` |
 | Inspect and process local audio/video | `media_inspect`, `media_convert`, `media_clip`, `media_frame`, `media_merge` |
 | Check media applications and requirements | `media_status` |
 | Read DOCX, XLSX or PDF files | `docx_read`, `xlsx_read`, `pdf_read` |
@@ -572,6 +572,7 @@ Native merged downloads use FFmpeg after fetching the separate streams.
 | `media_status` | Optional `refresh` | Application paths, versions, local readiness and operation requirements |
 | `video_info` | `url`, optional `backend` | Title, author, duration, languages and up to 64 formats |
 | `video_transcript` | `url`, optional `backend`, `language`, `offset`, `limit`, `start_seconds`, `duration_seconds` | Timestamped caption segments, `next_offset`, `more` |
+| `video_playlist` | YouTube `url` with `list=`, optional `offset`, `limit` | Ordered entries, source URLs, durations and continuation offset; native backend |
 | `video_download` | `url`, `path`, optional `backend`, `mode`, `max_height`, `max_bytes` | New file, actual container, size, SHA-256 and backend |
 | `media_inspect` | `inputs: ["file"]` | ffprobe stream and container metadata |
 | `media_convert` | `inputs: ["file"]`, `path`, `format` | New re-encoded file; optional `copy: true` remuxes MP4/MKV/WebM |
@@ -640,8 +641,21 @@ Execution rechecks required programs in the process that runs the operation,
 including a workflow worker. yt-dlp merging currently requires FFmpeg and ffprobe
 in the same directory. Ordinary downloads disable FFmpeg post-processing.
 User yt-dlp configuration, plugins and remote component downloads are disabled.
-No arbitrary CLI arguments, installation, automatic updates, cookies, playlist
-batches or live recording are exposed.
+`video_playlist` lists YouTube playlist entries through native kkdai, with zero-based
+`offset`, `limit` (default 50, maximum 100), `next_offset` and `more`. Entry indexes
+are one-based and retain playlist order. Listing downloads nothing. The library
+fetches the playlist before paging the returned entries; each page request refetches
+it, so changes to the remote playlist can shift offsets. The operation deadline and
+per-response HTTP size limit still apply. Inspect selected entries with `video_info`
+and download each requested track with `video_download`; each file keeps its own
+permission, size limit and output path. yt-dlp downloads remain single-video.
+
+For a track, use `mode: "audio"` and a supported source extension such as `.m4a`.
+Keep that format unless another format is requested. Reuse returned workspace paths
+verbatim. Metadata titles and uploader names do not verify official ownership.
+
+No arbitrary CLI arguments, installation, automatic updates, cookies, implicit
+playlist batches or live recording are exposed.
 
 Recipes keep operation names and backend choices; machine-specific executable
 locations stay in user settings. Permissions use each operation's own name and

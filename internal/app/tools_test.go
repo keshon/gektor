@@ -24,7 +24,7 @@ func TestToolsetInspectionPreservesCatalogAndNeverLoadsSources(t *testing.T) {
 	for _, set := range sets {
 		if set.ID == "native_media" {
 			foundMedia = true
-			if len(set.Agent) != 9 || len(set.Workflow) != 9 || set.Exposure != "On demand" {
+			if len(set.Agent) != 10 || len(set.Workflow) != 10 || set.Exposure != "On demand" {
 				t.Fatal(set)
 			}
 		}

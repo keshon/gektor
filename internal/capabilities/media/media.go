@@ -73,6 +73,10 @@ func (s *Service) RunVideo(ctx context.Context, name string, in VideoRequest) (a
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(in.TimeoutSeconds)*time.Second)
 	defer cancel()
 
+	if name == "video_playlist" {
+		return s.playlist(ctx, in)
+	}
+
 	if name == "video_download" {
 		err = s.preflightOutput(in.Path)
 		if err != nil {

@@ -67,6 +67,19 @@ func TestMediaLazyToolsShareWorkflowContractsAndResources(t *testing.T) {
 			}
 		}
 	}
+	playlist := contract.Operation{Service: media.New(ws, nil), Kind: "video_playlist"}
+	playlistArgs := json.RawMessage(`{"url":"https://www.youtube.com/playlist?list=PL1234567890123","limit":2}`)
+	playlistResources, err := playlist.Resources(playlistArgs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !playlist.ReadOnly() || !playlist.RetrySafe() || len(playlistResources) != 1 || playlistResources[0] != "https://www.youtube.com/playlist?list=PL1234567890123" {
+		t.Fatalf("playlist policy contract: %+v", playlistResources)
+	}
+	if !r.Has("video_playlist") {
+		t.Fatal("activated media lacks playlist tool")
+	}
+
 	paths, err := (WorkspacePaths{WS: ws}).Resources("video_download", json.RawMessage(`{"url":"https://youtu.be/abcdefghijk","path":"saved.mp4"}`))
 	if err != nil || len(paths) != 2 || paths[1] != "saved.mp4" {
 		t.Fatal(paths, err)

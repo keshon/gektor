@@ -10,7 +10,7 @@ import (
 
 func (s *Service) ValidateVideo(name string, in VideoRequest) (VideoRequest, error) {
 	switch name {
-	case "video_info", "video_transcript", "video_download":
+	case "video_info", "video_transcript", "video_download", "video_playlist":
 	default:
 		return in, fmt.Errorf("unknown video operation %q", name)
 	}
@@ -59,6 +59,12 @@ func (s *Service) ValidateVideo(name string, in VideoRequest) (VideoRequest, err
 		return in, fmt.Errorf("native backend supports YouTube URLs only")
 	}
 
+	if name == "video_playlist" {
+		if !isYouTube(in.URL) || in.Backend == "yt-dlp" || u.Query().Get("list") == "" {
+			return in, fmt.Errorf("video_playlist requires a YouTube playlist URL and backend auto or native")
+		}
+	}
+
 	if in.Mode == "" {
 		in.Mode = "combined"
 	}
@@ -89,7 +95,7 @@ func (s *Service) ValidateVideo(name string, in VideoRequest) (VideoRequest, err
 		}
 
 		if in.Mode == "merged" && ext != "mp4" && ext != "mkv" && ext != "webm" {
-			return in, fmt.Errorf("merged download path must end in .mp4, .mkv or .webm")
+			return in, fmt.Errorf("merged combines video and audio into .mp4, .mkv or .webm; for a track use mode=audio with a source extension such as .m4a, then media_convert only if another format is requested")
 		}
 	}
 

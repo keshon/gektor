@@ -22,6 +22,12 @@ Commands, network requests, media execution and file changes fail trace checks.
   manually for contradictory prose; schema validation cannot establish the truth
   of unrestricted explanations.
 
+`49-media-track-defaults` covers a generic track request with no format specified.
+It checks audio mode, a relative M4A/WebM source path, final inspection without
+conversion, and no claim of verified official ownership for a third-party uploader.
+Run it with `-only 49-media-track-defaults`; it is included in `media`, while the
+original three-probe `media-decisions` subset stays fixed for comparisons.
+
 These are constrained decision tests, not proof that the Agent executes a
 download/conversion correctly, authenticates a channel or handles arbitrary
 search results. The existing media suite retains live metadata/download probes
@@ -55,3 +61,14 @@ This is a calibration of the time allowance, not a model-quality improvement.
 The original runs remain saved. Isolating fixtures also removes unrelated search
 metadata that earlier source-selection explanations incorrectly cited. Changed
 fixture/budget fingerprints distinguish this experiment from the earlier batches.
+
+On 2026-11-12, Ornith-1.5-35B-Q5_K_M was checked with probe 49 against the
+shipping capability instructions. Both runs failed the strict whole-answer JSON
+check because the model added introductory prose. In `20261112-222925`, the plan
+kept M4A and rejected verified ownership but omitted required final inspection.
+After clarifying inspection and uploader attribution, `20261112-223213` included
+`video_download` then `media_inspect`, kept M4A, and described the third-party
+uploader without claiming official ownership. This is one observed correct plan,
+not a passing probe or proof that the original open-ended task is fixed. Results
+and traces are in the local `eval/results/` directories with those names. No
+pre-change baseline was recorded for this new probe.

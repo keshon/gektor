@@ -16,7 +16,7 @@ with `scripts\eval-run.cmd`.
 | `documents` | Native DOCX, XLSX and PDF reading, recipe use and long-item continuation | No |
 | `visual` | Pasted image discovery, a detail crop, misleading suffix and limits on identification | Yes |
 | `delegation` | One focused child review and one small Go repair, with separate child measurements | No |
-| `media` | Lazy discovery, native YouTube captions, a merged download, a real FFmpeg workflow and offline media decisions | No |
+| `media` | Lazy discovery, native YouTube captions, a merged download, a real FFmpeg workflow and offline media decisions (including unspecified audio format) | No |
 | `media-decisions` | Offline source selection, audio conversion planning and evidence-qualified recommendation claims | No |
 | `memory` | Session archive search, prompt evidence and assistant/user attribution | No |
 

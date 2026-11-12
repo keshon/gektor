@@ -62,6 +62,8 @@ func (s *Service) Status(ctx context.Context, refresh bool) (any, error) {
 		operations[2].Missing = []string{"deno or node for full YouTube support"}
 	}
 
+	add("video_playlist", "native")
+
 	return struct {
 		Native       bool                 `json:"native_youtube"`
 		Preferred    string               `json:"youtube_preferred_backend"`

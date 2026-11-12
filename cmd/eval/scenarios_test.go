@@ -120,7 +120,7 @@ func TestVisualFixtureAndProbeInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for suite, count := range map[string]int{"workflows": 5, "visual": 1, "pipelines": 2, "documents": 3, "delegation": 2, "memory": 3, "media": 7, "media-decisions": 3} {
+	for suite, count := range map[string]int{"workflows": 5, "visual": 1, "pipelines": 2, "documents": 3, "delegation": 2, "memory": 3, "media": 8, "media-decisions": 3} {
 		selected, err := selectSuite(probes, suite)
 		if err != nil || len(selected) != count {
 			t.Fatal(suite, selected, err)

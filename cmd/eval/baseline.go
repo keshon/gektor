@@ -32,7 +32,7 @@ func selectSuite(probes []Probe, name string) ([]Probe, error) {
 	} else if name == "delegation" {
 		names = []string{"35-delegate-review", "36-delegate-repair"}
 	} else if name == "media" {
-		names = []string{"40-media-status", "41-media-transcript", "42-media-workflow", "44-media-download", "46-media-source-selection", "47-media-audio-format", "48-media-claim-evidence"}
+		names = []string{"40-media-status", "41-media-transcript", "42-media-workflow", "44-media-download", "46-media-source-selection", "47-media-audio-format", "48-media-claim-evidence", "49-media-track-defaults"}
 	} else if name == "media-decisions" {
 		names = []string{"46-media-source-selection", "47-media-audio-format", "48-media-claim-evidence"}
 	} else if name == "memory" {
