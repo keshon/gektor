@@ -8,9 +8,9 @@ provider connection, workspace, cache, or background work.
 
 - `config.go`: package introduction, `Profile`, `Preferences`, and ownership contracts.
 - `profile.go`: profile-specific types, first-run defaults, cloning, and validation.
-- `profile_io.go`: profile loading and decoding.
-- `profile_save.go`: exclusive profile exports and managed custom-profile saves.
-- `preferences.go` and `preferences_io.go`: application-choice validation and persistence.
+- `profile_io.go`: profile loading, decoding, exclusive exports, and managed
+  custom-profile saves.
+- `preferences.go`: application-choice validation, loading, and atomic saves.
 - `appearance.go` and `harness.go`: rendering choices and execution allowances.
 - `edit.go`: editor sections and conversion into a staged profile.
 - `json.go`: shared strict, bounded JSON decoding.
