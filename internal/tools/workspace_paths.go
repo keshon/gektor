@@ -10,6 +10,7 @@ import (
 	doccontract "github.com/keshon/gektor/internal/capabilities/documents/contract"
 	"github.com/keshon/gektor/internal/capabilities/files"
 	filecontract "github.com/keshon/gektor/internal/capabilities/files/contract"
+	imagecontract "github.com/keshon/gektor/internal/capabilities/images/contract"
 	"github.com/keshon/gektor/internal/capabilities/media"
 	mediacontract "github.com/keshon/gektor/internal/capabilities/media/contract"
 	socialcontract "github.com/keshon/gektor/internal/capabilities/social/contract"
@@ -30,23 +31,34 @@ func (p WorkspacePaths) Resources(tool string, args json.RawMessage) ([]string, 
 	if ws == nil {
 		return nil, nil
 	}
+
+	// Capability contracts own both membership and canonical resource extraction.
+	switch {
+	case tool == socialcontract.AgentName:
+		operation := socialcontract.Operation{}
+		return operation.Resources(args)
+	case slices.Contains(mediacontract.Names(), tool):
+		operation := mediacontract.Operation{Service: &media.Service{WS: ws}, Kind: tool}
+		return operation.Resources(args)
+	case slices.Contains(doccontract.Names(), tool):
+		operation := doccontract.Operation{Service: documents.Service{WS: ws}, Kind: tool}
+		return operation.Resources(args)
+	case slices.Contains(filecontract.Names(), tool):
+		operation := filecontract.Operation{Service: files.Service{WS: ws}, Kind: tool}
+		return operation.Resources(args)
+	}
+
+	imageKind, hasImagePrefix := strings.CutPrefix(tool, "image_")
+	imageOperation := hasImagePrefix && slices.Contains(imagecontract.Names(), imageKind)
 	var in struct{ Path, From, To string }
 	var paths []string
 	switch tool {
-	case socialcontract.AgentName:
-		return (socialcontract.Operation{}).Resources(args)
-	case "media_status", "video_info", "video_transcript", "video_download", "media_inspect", "media_convert", "media_clip", "media_frame", "media_merge":
-		return (mediacontract.Operation{Service: &media.Service{WS: ws}, Kind: tool}).Resources(args)
-
-	case "docx_read", "xlsx_read", "pdf_read":
-		return (doccontract.Operation{Service: documents.Service{WS: ws}, Kind: tool}).Resources(args)
-	case "download_file", "archive_list", "archive_create", "archive_extract":
-		return (filecontract.Operation{Service: files.Service{WS: ws}, Kind: tool}).Resources(args)
 	case "workflow_schema":
 		var in struct {
 			Kind string `json:"record_kind"`
 		}
-		if err := json.Unmarshal(args, &in); err != nil {
+		err := json.Unmarshal(args, &in)
+		if err != nil {
 			return nil, err
 		}
 		return []string{in.Kind}, nil
@@ -56,34 +68,32 @@ func (p WorkspacePaths) Resources(tool string, args json.RawMessage) ([]string, 
 		var in struct {
 			ID string `json:"run_id"`
 		}
-		if err := json.Unmarshal(args, &in); err != nil {
+		err := json.Unmarshal(args, &in)
+		if err != nil {
 			return nil, err
 		}
 		return []string{in.ID}, nil
 	case "read_file", "write_file", "patch_file", "list_files", "grep_files", "git", "git_add":
-		if err := json.Unmarshal(args, &in); err != nil {
+		err := json.Unmarshal(args, &in)
+		if err != nil {
 			return nil, err
 		}
 		paths = []string{in.Path}
 	case "move_file":
-		if err := json.Unmarshal(args, &in); err != nil {
+		err := json.Unmarshal(args, &in)
+		if err != nil {
 			return nil, err
 		}
 		paths = []string{in.From, in.To}
 	case "image_view":
-		if err := json.Unmarshal(args, &in); err != nil {
+		err := json.Unmarshal(args, &in)
+		if err != nil {
 			return nil, err
 		}
 		if llm.IsAttachment(in.Path) {
 			return []string{in.Path}, nil
 		}
 		paths = []string{in.Path}
-	case "image_inspect", "image_preview", "image_variants", "image_compare":
-		var err error
-		paths, err = NewImageOperation(ws, strings.TrimPrefix(tool, "image_")).Resources(args)
-		if err != nil {
-			return nil, err
-		}
 	case "workflow_schedule":
 		var err error
 		paths, err = workflow.ScheduleResources(args)
@@ -97,10 +107,19 @@ func (p WorkspacePaths) Resources(tool string, args json.RawMessage) ([]string, 
 			return nil, err
 		}
 	default:
-		return nil, nil
+		if !imageOperation {
+			return nil, nil
+		}
+		operation := NewImageOperation(ws, imageKind)
+		var err error
+		paths, err = operation.Resources(args)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	for i, path := range paths {
-		if llm.IsAttachment(path) && (tool == "image_inspect" || tool == "image_preview" || tool == "image_compare" || tool == "image_variants") {
+		if imageOperation && llm.IsAttachment(path) {
 			continue
 		}
 		rel, err := ws.Relative(path)
