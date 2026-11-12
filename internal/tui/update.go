@@ -39,7 +39,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	default:
 		_, cmd = m.agent.Update(msg)
 	}
-	var requests []tea.Cmd
+	requests := m.settleControls()
 	for _, request := range m.agent.TakeRequests() {
 		switch request := request.(type) {
 		case screen.Navigate:
@@ -63,13 +63,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.workflowActive() && !m.workflows.State().Active {
 		m.showAgent()
 	}
-	m.syncPresentation()
+	requests = append(requests, m.settleControls()...)
 	if _, resized := msg.(tea.WindowSizeMsg); resized {
 		m.chrome.ScrollDialog(0)
 	}
 	return m, tea.Batch(cmd, tea.Batch(requests...), m.takeCommands())
 }
-func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleKey(msg tea.KeyPressMsg) (next tea.Model, cmd tea.Cmd) {
+	defer func() { cmd = tea.Batch(cmd, tea.Batch(m.settleControls()...)) }()
 	switch msg.String() {
 	case "ctrl+c":
 		m.quit = true
@@ -107,10 +108,11 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		_, cmd := m.workflows.Update(msg)
 		return m, cmd
 	}
-	_, cmd := m.agent.Update(msg)
+	_, cmd = m.agent.Update(msg)
 	return m, cmd
 }
-func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleMouse(msg tea.MouseMsg) (next tea.Model, cmd tea.Cmd) {
+	defer func() { cmd = tea.Batch(cmd, tea.Batch(m.settleControls()...)) }()
 	if m.chrome.Dialog != nil && !m.agent.Status().Gated {
 		mouse := msg.Mouse()
 		if m.chrome.ActionBarVisible() && mouse.Y == m.termH-1 && mouse.Button == tea.MouseLeft && screen.IsMouseClick(msg) {
@@ -137,7 +139,7 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if handled, command := m.chrome.HeaderMouse(msg); handled {
 		return m, m.runAction(command)
 	}
-	_, cmd := m.workflows.Update(msg)
+	_, cmd = m.workflows.Update(msg)
 	return m, cmd
 }
 func (m *Model) runAction(command string) tea.Cmd {

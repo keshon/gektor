@@ -10,6 +10,9 @@ import (
 )
 
 func (m *Model) syncPresentation() {
+	if m.workflows != nil {
+		m.workflows.SetSurface(m.workflowSurface())
+	}
 	var props screen.ControlProps
 	if m.workflowActive() {
 		props = m.workflows.Presentation()

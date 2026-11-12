@@ -129,12 +129,12 @@ func TestConnectionPreviewFitsResizedForms(t *testing.T) {
 	d.Steps = append(d.Steps, second)
 	seedWorkflow(t, m, d)
 	m.workflowCommand("link")
-	if err := m.chrome.Dialog.Form.Apply(map[string]string{"from": "transform", "to": "second"}); err != nil {
+	if err := m.applyValues(map[string]string{"from": "transform", "to": "second"}); err != nil {
 		t.Fatal(err)
 	}
 	m.closeDialog()
 	driveWorkflow(t, m)
-	if err := m.chrome.Dialog.Form.Apply(map[string]string{"from": "transform", "arg": "Argument: input"}); err != nil {
+	if err := m.applyValues(map[string]string{"from": "transform", "arg": "Argument: input"}); err != nil {
 		t.Fatal(err)
 	}
 	m.closeDialog()

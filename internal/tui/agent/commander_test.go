@@ -72,7 +72,7 @@ func TestCommanderPreview(t *testing.T) {
 	}
 	preview := settingsModel(t)
 	preview.width(tea.WindowSizeMsg{Width: 120, Height: 34})
-	preview.testControls().OpenForm("Model", "Choose the thinking model.", "Apply", []form.Field{{Key: "kind", Label: "Protocol", Value: "llama", Multiline: false}, {Key: "endpoint", Label: "Backend URL", Value: "http://127.0.0.1:8080", Multiline: false}, {Key: "model", Label: "Model identifier", Value: "qwen3-1.7b", Multiline: false}}, func(map[string]string) error { return nil })
+	preview.testControls().OpenForm("Model", "Choose the thinking model.", "Apply", []form.Field{{Key: "kind", Label: "Protocol", Value: "llama", Multiline: false}, {Key: "endpoint", Label: "Backend URL", Value: "http://127.0.0.1:8080", Multiline: false}, {Key: "model", Label: "Model identifier", Value: "qwen3-1.7b", Multiline: false}})
 	if err := os.WriteFile(filepath.Join(dir, "model-form.txt"), []byte(ansi.Strip(preview.testView().Content)), 0600); err != nil {
 		t.Fatal(err)
 	}

@@ -23,7 +23,7 @@ func TestTaskModalsKeepHistoryBehindTheirFrame(t *testing.T) {
 			case "settings":
 				m.editSettings("generation")
 			default:
-				m.openForm(kind+" session", "Confirm the change.", "Apply", nil, func(map[string]string) error { return nil })
+				m.chrome.OpenForm(kind+" session", "Confirm the change.", "Apply", nil)
 			}
 			view := ansi.Strip(m.View().Content)
 			if !strings.Contains(view, "VISIBLE HISTORY") || !strings.Contains(view, "╭") {

@@ -1,5 +1,5 @@
 // Package workflow owns the workflow editor, graph, execution, and run inspection.
-// Shared terminal controls are supplied through screen.Host; New is the
+// Shared terminal controls are supplied through *screen.Controls; New is the
 // stateful entry point, while NewEditor constructs a standalone recipe Editor.
 package workflow
 

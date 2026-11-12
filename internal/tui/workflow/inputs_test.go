@@ -38,7 +38,6 @@ func TestDeclaredRunInputsPreserveTypesDefaultsAndOmissions(t *testing.T) {
 	w.editor.Replace(d)
 	before := w.editor.Source()
 	m.workflowCommand("run")
-	f := m.chrome.Dialog.Form
 	values := map[string]string{
 		"value:count": "9007199254740993",
 		"value:text":  `{"$step":"literal string"}`,
@@ -46,7 +45,7 @@ func TestDeclaredRunInputsPreserveTypesDefaultsAndOmissions(t *testing.T) {
 		"value:flag":  "false", "value:data": `{"count":9007199254740993}`,
 		"value:skip": "",
 	}
-	if err := f.Apply(values); err != nil {
+	if err := m.applyValues(values); err != nil {
 		t.Fatal(err)
 	}
 	in := queuedInvocation(t, m)
@@ -62,7 +61,7 @@ func TestDeclaredRunInputsPreserveTypesDefaultsAndOmissions(t *testing.T) {
 		t.Fatal("string interpreted as reference")
 	}
 	values["value:count"] = "9007199254740995"
-	if err := f.Apply(values); err != nil {
+	if err := m.applyValues(values); err != nil {
 		t.Fatal(err)
 	}
 	in = queuedInvocation(t, m)
@@ -70,7 +69,7 @@ func TestDeclaredRunInputsPreserveTypesDefaultsAndOmissions(t *testing.T) {
 		t.Fatal(string(in.Inputs))
 	}
 	values["value:count"] = "1.5"
-	if err := f.Apply(values); err == nil {
+	if err := m.applyValues(values); err == nil {
 		t.Fatal("fraction accepted")
 	}
 	if w.editor.Source() != before {
@@ -91,13 +90,12 @@ func TestJSONRunInputsValidateBeforeSubmission(t *testing.T) {
 	d.Inputs = map[string]workflow.Input{"count": {Type: "integer", Required: true}}
 	w.editor.Replace(d)
 	m.workflows.inputForm(workflowInvocation{Action: "validate", Draft: w.editor.Source(), Mode: "JSON"})
-	f := m.chrome.Dialog.Form
 	for _, raw := range []string{`null`, `{} {}`, `{"count":"wrong"}`, `{"unknown":1}`, `{}`} {
-		if err := f.Apply(map[string]string{"inputs": raw}); err == nil {
+		if err := m.applyValues(map[string]string{"inputs": raw}); err == nil {
 			t.Fatal("accepted", raw)
 		}
 	}
-	if err := f.Apply(map[string]string{"inputs": `{"count":9007199254740993}`}); err != nil {
+	if err := m.applyValues(map[string]string{"inputs": `{"count":9007199254740993}`}); err != nil {
 		t.Fatal(err)
 	}
 	in := queuedInvocation(t, m)
@@ -168,7 +166,7 @@ func TestGeneratedInputInvocationExecutesBoundRecipe(t *testing.T) {
 	d.Steps[0].Args = json.RawMessage(`{"code":"return input + 1;","input":{"$input":"number"}}`)
 	w.editor.Replace(d)
 	m.workflows.inputForm(workflowInvocation{Action: "run", Mode: "Fields", Draft: w.editor.Source()})
-	if err := m.chrome.Dialog.Form.Apply(map[string]string{"value:number": "7"}); err != nil {
+	if err := m.applyValues(map[string]string{"value:number": "7"}); err != nil {
 		t.Fatal(err)
 	}
 	action := m.workflows.commands[len(m.workflows.commands)-1]().(workflowAction)

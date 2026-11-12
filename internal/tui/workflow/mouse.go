@@ -12,7 +12,7 @@ import (
 
 func (m *Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	mouse := msg.Mouse()
-	view := m.presentation()
+	view := m.surface
 
 	cw, ch := m.canvasSize()
 	regions := view.Panes(m.inspectorOpen)

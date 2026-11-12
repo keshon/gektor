@@ -2,6 +2,7 @@ package tui
 
 import (
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/settings"
 )
 
@@ -44,23 +45,36 @@ func (m *Model) editSettings(section string) {
 	if m.chrome.Dialog != nil {
 		m.chrome.Close()
 	}
-	m.chrome.OpenForm(title, settings.Hint(section), "Apply", fields, func(_ map[string]string) error {
-		m.chrome.Dialog.Form.StorePage()
-		profile, err := ws.Draft.Resolve()
-		if err != nil {
-			return err
-		}
-
-		// Applying settings restarts the launch so the new profile is composed
-		// into fresh services. Nothing is applied in place: the session that
-		// reads the old one must not keep running against the new.
-		return m.requestProfileChange(profile)
+	m.openForm(screen.Form{
+		Title:      title,
+		Hint:       settings.Hint(section),
+		ApplyLabel: "Apply",
+		Fields:     fields,
+	}, editSettingsSubmission{
+		ws: ws,
 	})
-	m.chrome.Dialog.Form.SaveCopy = m.saveSettingsCopy
+	m.chrome.Dialog.Form.SaveCopy = true
 	m.chrome.Dialog.Form.EditSession = ws
 	saved := ws.Draft.Visit(section, fields)
 	m.chrome.Dialog.Form.Fields = saved
 	m.chrome.Dialog.Form.Index = len(saved)
 	m.chrome.FocusForm(0)
 	m.chrome.Dialog.Title = "Settings"
+}
+
+type editSettingsSubmission struct {
+	ws *settings.EditSession
+}
+
+func (edit editSettingsSubmission) apply(m *Model, _ map[string]string) error {
+	m.chrome.Dialog.Form.StorePage()
+	profile, err := edit.ws.Draft.Resolve()
+	if err != nil {
+		return err
+	}
+
+	// Applying settings restarts the launch so the new profile is composed
+	// into fresh services. Nothing is applied in place: the session that
+	// reads the old one must not keep running against the new.
+	return m.requestProfileChange(profile)
 }

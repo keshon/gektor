@@ -74,152 +74,31 @@ func (m *Model) openInputQueue() {
 	if edit := m.suspendedInputEdit; edit != nil {
 		m.suspendedInputEdit = nil
 		if edit.session == m.sess && edit.stateFile == m.stateFile {
-			m.chrome.Open("Edit queued message", nil)
-			m.chrome.Dialog = edit.dialog
-			m.chrome.ResizeFormEditor()
+			m.chrome.Resume(edit.dialog)
 			m.fitBottom()
 			return
 		}
+		delete(m.formEdits, edit.dialog)
+		delete(m.returnDialogs, edit.dialog)
 	}
 	q := &inputQueue{session: m.sess, stateFile: m.stateFile, nextRunVersion: m.queuedVersion, view: m.chrome.NewTable(), entries: map[string]queueEntry{}}
 	m.showInputQueue(q)
 }
 func (m *Model) showInputQueue(q *inputQueue) {
 	m.chrome.Open("Message queue", nil)
-	d := &screen.TableState{Model: q.view, List: true, EmptyMessage: "No messages waiting", Columns: []table.Column{{Label: "Message"}}}
-	d.Refresh = func() {
-		active := map[string]queueEntry{}
-		ids := []string{}
-		if m.sess == q.session && m.stateFile == q.stateFile && q.session != nil {
-			for _, input := range q.session.PendingInputs() {
-				id := strconv.FormatUint(input.ID, 10)
-				active[id] = queueEntry{QueuedInput: input}
-				ids = append(ids, id)
-			}
-		}
-		if m.sess == q.session && m.stateFile == q.stateFile && m.queuedVersion == q.nextRunVersion && m.hasQueued() {
-			active["next"] = queueEntry{QueuedInput: agent.QueuedInput{Message: llm.Message{Content: m.queued, Images: append([]string(nil), m.queuedImages...)}}}
-		}
-		for _, id := range q.order {
-			input := q.entries[id]
-			input.missing = true
-			q.entries[id] = input
-		}
-		// Snapshot order follows send order, never map iteration order.
-		if _, ok := active["next"]; ok {
-			ids = append(ids, "next")
-		}
-		for _, id := range ids {
-			if _, exists := q.entries[id]; !exists {
-				q.order = append(q.order, id)
-			}
-			q.entries[id] = active[id]
-		}
-		queued, received, missing := 0, 0, 0
-		rows := []table.Row{}
-		for n, id := range q.order {
-			input := q.entries[id]
-			status := "Queued"
-			if id == "next" {
-				status = "Next run"
-			}
-			if input.Received {
-				status = "Received by agent · read only"
-				received++
-			} else if input.missing {
-				status = "No longer queued · read only"
-				missing++
-			} else {
-				queued++
-			}
-			if len(input.Message.Images) > 0 {
-				status += fmt.Sprintf(" · %d image", len(input.Message.Images))
-				if len(input.Message.Images) > 1 {
-					status += "s"
-				}
-			}
-			text := cleanText(input.Message.Content)
-			if strings.TrimSpace(text) == "" {
-				text = "Image message"
-			}
-			rows = append(rows, table.Row{ID: id, Cells: []string{fmt.Sprintf("%d  %s", n+1, text)}, Detail: status})
-		}
-		d.Description = fmt.Sprintf("%d queued · oldest first", queued)
-		if queued == 0 && received+missing > 0 {
-			d.Description = "No messages waiting. These rows are read only."
-		}
-		if received > 0 && queued > 0 {
-			d.Description += fmt.Sprintf(" · %d received", received)
-		}
-		q.view.SetRows(rows)
+	d := &screen.TableState{
+		Model:        q.view,
+		List:         true,
+		EmptyMessage: "No messages waiting",
+		Columns:      []table.Column{{Label: "Message"}},
 	}
-	d.Actions = func() []table.Action {
-		input, ok := q.entries[q.view.Selected()]
-		return []table.Action{{ID: "details", Label: "Read", Key: "enter", Enabled: ok}, {ID: "edit", Label: "Edit", Key: "ctrl+e", Enabled: ok && !input.readOnly()}, {ID: "remove", Label: "Remove", Key: "delete", Enabled: ok && !input.readOnly(), Destructive: true}, {ID: "close", Label: "Close", Key: "esc", Enabled: true}}
-	}
-	d.Activate = func(action, id string) tea.Cmd {
-		input, ok := q.entries[id]
-		if !ok {
-			return nil
-		}
-		switch action {
-		case "details":
-			lines := []string{input.Message.Content}
-			if len(input.Message.Images) > 0 {
-				lines = append(lines, "", "Images")
-				for _, image := range input.Message.Images {
-					lines = append(lines, filepath.Base(image))
-				}
-			}
-			m.chrome.Open("Queued message", lines)
-			if input.Received {
-				m.chrome.Dialog.Title = "Received message"
-			} else if input.missing {
-				m.chrome.Dialog.Title = "Message no longer queued"
-			}
-			m.returnToInputQueue(q)
-		case "edit":
-			if input.readOnly() {
-				return nil
-			}
-			fields := []form.Field{{Key: "message", Label: "Message", Value: input.Message.Content, Multiline: true}}
-			if len(input.Message.Images) > 0 {
-				names := make([]string, len(input.Message.Images))
-				for n, image := range input.Message.Images {
-					names[n] = filepath.Base(image)
-				}
-				fields = append(fields, form.Field{Key: "images", Label: "Images", Value: strings.Join(names, "\n"), Multiline: true, ReadOnly: true})
-			}
-			m.chrome.OpenForm("Edit queued message", "Save keeps its place and images.", "Save", fields, func(v map[string]string) error {
-				text := v["message"]
-				return m.changeQueuedInput(q, id, &text)
-			})
-			m.returnToInputQueue(q)
-			editor := m.chrome.Dialog
-			editor.OnSuspend = func() {
-				editor.Form.Sync()
-				m.suspendedInputEdit = &inputQueueEdit{session: q.session, stateFile: m.stateFile, dialog: editor}
-			}
-		case "remove":
-			if err := m.changeQueuedInput(q, id, nil); err != nil {
-				m.chrome.Open("Cannot remove message", []string{err.Error()})
-				m.returnToInputQueue(q)
-				return nil
-			}
-			delete(q.entries, id)
-			for n, key := range q.order {
-				if key == id {
-					q.order = append(q.order[:n], q.order[n+1:]...)
-					break
-				}
-			}
-			d.Refresh()
-			m.fitBottom()
-		}
-		return nil
+
+	if m.queueDialogs == nil {
+		m.queueDialogs = make(map[*screen.DialogState]*inputQueue)
 	}
 	m.chrome.Dialog.Table = d
-	d.Refresh()
+	m.queueDialogs[m.chrome.Dialog] = q
+	m.refreshInputQueue(q)
 	m.fitBottom()
 }
 
@@ -256,5 +135,159 @@ func (m *Model) changeQueuedInput(q *inputQueue, id string, value *string) error
 	return nil
 }
 func (m *Model) returnToInputQueue(q *inputQueue) {
-	m.chrome.Dialog.OnClose = func() { m.pendingCommands = append(m.pendingCommands, func() tea.Msg { return inputQueueReturn{q} }) }
+	m.rememberReturn(dialogReturn{queue: q})
+}
+
+type editQueuedMessage struct {
+	id string
+	q  *inputQueue
+}
+
+func (edit editQueuedMessage) apply(m *Model, v map[string]string) error {
+	text := v["message"]
+	return m.changeQueuedInput(edit.q, edit.id, &text)
+}
+
+func (m *Model) refreshInputQueue(q *inputQueue) {
+	d := m.chrome.Dialog.Table
+
+	active := map[string]queueEntry{}
+	ids := []string{}
+	if m.sess == q.session && m.stateFile == q.stateFile && q.session != nil {
+		for _, input := range q.session.PendingInputs() {
+			id := strconv.FormatUint(input.ID, 10)
+			active[id] = queueEntry{QueuedInput: input}
+			ids = append(ids, id)
+		}
+	}
+	if m.sess == q.session && m.stateFile == q.stateFile && m.queuedVersion == q.nextRunVersion && m.hasQueued() {
+		active["next"] = queueEntry{QueuedInput: agent.QueuedInput{Message: llm.Message{Content: m.queued, Images: append([]string(nil), m.queuedImages...)}}}
+	}
+	for _, id := range q.order {
+		input := q.entries[id]
+		input.missing = true
+		q.entries[id] = input
+	}
+	// Snapshot order follows send order, never map iteration order.
+	if _, ok := active["next"]; ok {
+		ids = append(ids, "next")
+	}
+	for _, id := range ids {
+		if _, exists := q.entries[id]; !exists {
+			q.order = append(q.order, id)
+		}
+		q.entries[id] = active[id]
+	}
+	queued, received, missing := 0, 0, 0
+	rows := []table.Row{}
+	for n, id := range q.order {
+		input := q.entries[id]
+		status := "Queued"
+		if id == "next" {
+			status = "Next run"
+		}
+		if input.Received {
+			status = "Received by agent · read only"
+			received++
+		} else if input.missing {
+			status = "No longer queued · read only"
+			missing++
+		} else {
+			queued++
+		}
+		if len(input.Message.Images) > 0 {
+			status += fmt.Sprintf(" · %d image", len(input.Message.Images))
+			if len(input.Message.Images) > 1 {
+				status += "s"
+			}
+		}
+		text := cleanText(input.Message.Content)
+		if strings.TrimSpace(text) == "" {
+			text = "Image message"
+		}
+		rows = append(rows, table.Row{ID: id, Cells: []string{fmt.Sprintf("%d  %s", n+1, text)}, Detail: status})
+	}
+	d.Description = fmt.Sprintf("%d queued · oldest first", queued)
+	if queued == 0 && received+missing > 0 {
+		d.Description = "No messages waiting. These rows are read only."
+	}
+	if received > 0 && queued > 0 {
+		d.Description += fmt.Sprintf(" · %d received", received)
+	}
+	m.chrome.RefreshTable(rows)
+
+	d.Actions = m.inputQueueActions(q)
+}
+
+func (m *Model) inputQueueActions(q *inputQueue) []table.Action {
+	input, ok := q.entries[q.view.Selected()]
+	return []table.Action{
+		{ID: "details", Label: "Read", Key: "enter", Enabled: ok},
+		{ID: "edit", Label: "Edit", Key: "ctrl+e", Enabled: ok && !input.readOnly()},
+		{ID: "remove", Label: "Remove", Key: "delete", Enabled: ok && !input.readOnly(), Destructive: true},
+		{ID: "close", Label: "Close", Key: "esc", Enabled: true},
+	}
+}
+
+func (m *Model) inputQueueAction(q *inputQueue, action, id string) tea.Cmd {
+	input, ok := q.entries[id]
+	if !ok {
+		return nil
+	}
+	switch action {
+	case "details":
+		lines := []string{input.Message.Content}
+		if len(input.Message.Images) > 0 {
+			lines = append(lines, "", "Images")
+			for _, image := range input.Message.Images {
+				lines = append(lines, filepath.Base(image))
+			}
+		}
+		m.chrome.Open("Queued message", lines)
+		if input.Received {
+			m.chrome.Dialog.Title = "Received message"
+		} else if input.missing {
+			m.chrome.Dialog.Title = "Message no longer queued"
+		}
+		m.returnToInputQueue(q)
+	case "edit":
+		if input.readOnly() {
+			return nil
+		}
+		fields := []form.Field{{Key: "message", Label: "Message", Value: input.Message.Content, Multiline: true}}
+		if len(input.Message.Images) > 0 {
+			names := make([]string, len(input.Message.Images))
+			for n, image := range input.Message.Images {
+				names[n] = filepath.Base(image)
+			}
+			fields = append(fields, form.Field{Key: "images", Label: "Images", Value: strings.Join(names, "\n"), Multiline: true, ReadOnly: true})
+		}
+		m.openForm(screen.Form{
+			Title:      "Edit queued message",
+			Hint:       "Save keeps its place and images.",
+			ApplyLabel: "Save",
+			Fields:     fields,
+		}, editQueuedMessage{
+			id: id,
+			q:  q,
+		})
+		m.returnToInputQueue(q)
+
+	case "remove":
+		if err := m.changeQueuedInput(q, id, nil); err != nil {
+			m.chrome.Open("Cannot remove message", []string{err.Error()})
+			m.returnToInputQueue(q)
+			return nil
+		}
+		delete(q.entries, id)
+		for n, key := range q.order {
+			if key == id {
+				q.order = append(q.order[:n], q.order[n+1:]...)
+				break
+			}
+		}
+		m.refreshInputQueue(q)
+		m.fitBottom()
+	}
+	return nil
 }

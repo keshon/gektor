@@ -240,7 +240,7 @@ func TestWorkflowAppearanceUpdatesBothScreensWithoutRelaunch(t *testing.T) {
 	m.runAction("appearance")
 	values := m.chrome.Dialog.Form.Values()
 	values["theme"], values["frame"] = "light", "outlined"
-	if err := m.chrome.Dialog.Form.Apply(values); err != nil {
+	if err := m.applyValues(values); err != nil {
 		t.Fatal(err)
 	}
 	m.closeDialog()

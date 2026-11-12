@@ -54,7 +54,7 @@ func TestAddScheduleCreatesSecondTriggerAndSelectsIt(t *testing.T) {
 		if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil {
 			t.Fatal("missing schedule form")
 		}
-		if err := m.chrome.Dialog.Form.Apply(scheduleFormValues(m)); err != nil {
+		if err := m.applyValues(scheduleFormValues(m)); err != nil {
 			t.Fatal(err)
 		}
 		applyScheduleAction(t, m)
@@ -88,13 +88,13 @@ func TestScheduleTriggerRunsSavedInputsAndCanPauseAndRemove(t *testing.T) {
 	}
 	values := scheduleFormValues(m)
 	values["value:count"] = "7"
-	if err := m.chrome.Dialog.Form.Apply(values); err != nil {
+	if err := m.applyValues(values); err != nil {
 		t.Fatal(err)
 	}
 	m.workflows.action(m.workflows.commands[len(m.workflows.commands)-1]().(workflowAction))
 	values = scheduleFormValues(m)
 	values["timing"], values["time"], values["timezone"] = "Daily", "07:15", "Europe/Moscow"
-	if err := m.chrome.Dialog.Form.Apply(values); err != nil {
+	if err := m.applyValues(values); err != nil {
 		t.Fatal(err)
 	}
 	applyScheduleAction(t, m)
@@ -159,13 +159,13 @@ func TestScheduleTriggerRunsSavedInputsAndCanPauseAndRemove(t *testing.T) {
 		t.Fatal("schedule inputs were not restored", values)
 	}
 	values["value:count"] = "8"
-	if err := m.chrome.Dialog.Form.Apply(values); err != nil {
+	if err := m.applyValues(values); err != nil {
 		t.Fatal(err)
 	}
 	m.workflows.action(m.workflows.commands[len(m.workflows.commands)-1]().(workflowAction))
 	values = scheduleFormValues(m)
 	values["enabled"] = "No"
-	if err := m.chrome.Dialog.Form.Apply(values); err != nil {
+	if err := m.applyValues(values); err != nil {
 		t.Fatal(err)
 	}
 	if string(w.schedules[0].Inputs["count"]) != "7" {
@@ -183,7 +183,7 @@ func TestScheduleTriggerRunsSavedInputsAndCanPauseAndRemove(t *testing.T) {
 		t.Fatal("paused schedule queued another run")
 	}
 	m.workflowCommand("delete")
-	if err := m.chrome.Dialog.Form.Apply(map[string]string{"id": scheduled.ID}); err != nil {
+	if err := m.applyValues(map[string]string{"id": scheduled.ID}); err != nil {
 		t.Fatal(err)
 	}
 	applyScheduleAction(t, m)
@@ -216,11 +216,11 @@ func TestScheduleTriggerGuardsAndTimingValidation(t *testing.T) {
 		if pair[0] == "time" {
 			bad["timing"] = "Daily"
 		}
-		if err := m.chrome.Dialog.Form.Apply(bad); err == nil {
+		if err := m.applyValues(bad); err == nil {
 			t.Fatal("invalid setting accepted", pair)
 		}
 	}
-	if err := m.chrome.Dialog.Form.Apply(values); err != nil {
+	if err := m.applyValues(values); err != nil {
 		t.Fatal(err)
 	}
 	w.editor.Definition.Name = "changed while form open"
@@ -288,7 +288,7 @@ func TestScheduleFreezesCalledRecipe(t *testing.T) {
 	m.workflowCommand("schedule")
 	values := scheduleFormValues(m)
 	values["enabled"] = "No"
-	if err := m.chrome.Dialog.Form.Apply(values); err != nil {
+	if err := m.applyValues(values); err != nil {
 		t.Fatal(err)
 	}
 	applyScheduleAction(t, m)

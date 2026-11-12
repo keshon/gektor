@@ -58,6 +58,13 @@ type liveFlushMsg struct{}
 // Model owns the conversation, composer, inspector, and Agent execution.
 // Shared menu and overlay models are supplied by the application shell.
 type Model struct {
+	returnDialogs                              map[*screen.DialogState]dialogReturn
+	queueDialogs                               map[*screen.DialogState]*inputQueue
+	processDialog, permissionDialog, mcpDialog *screen.DialogState
+	lessonDialogs                              map[*screen.DialogState]retrospective.Result
+
+	formEdits map[*screen.DialogState]formEdit
+
 	hidden           bool
 	shutdown         context.CancelFunc
 	requests         []tea.Msg

@@ -163,7 +163,7 @@ func seedWorkflow(t *testing.T, m *Model, d workflow.Definition) *workflowui.Edi
 	draft := workflowui.NewEditor()
 	draft.Replace(d)
 	var err error
-	m.workflows, err = workflowui.New(m.base, workflowui.Config{WS: m.launch.Env.WS, Policy: m.launch.Env.Policy, Draft: draft}, m.chrome.Host(), m.workflowSurface)
+	m.workflows, err = workflowui.New(m.base, workflowui.Config{WS: m.launch.Env.WS, Policy: m.launch.Env.Policy, Draft: draft}, m.chrome, m.workflowSurface())
 	if err != nil {
 		t.Fatal(err)
 	}

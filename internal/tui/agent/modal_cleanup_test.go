@@ -9,6 +9,7 @@ import (
 
 	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/components/popup"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 func TestDialogScrollbarMatchesDrawnTrack(t *testing.T) {
@@ -33,7 +34,7 @@ func TestDialogScrollbarMatchesDrawnTrack(t *testing.T) {
 func TestModalCloseButtonCancelsWithoutApplying(t *testing.T) {
 	m := settingsModel(t)
 	applied := false
-	m.testControls().OpenForm("Edit", "", "Apply", []form.Field{{Key: "value", Label: "Value", Value: "old"}}, func(map[string]string) error { applied = true; return nil })
+	m.openForm(screen.Form{Title: "Edit", ApplyLabel: "Apply", Fields: []form.Field{{Key: "value", Label: "Value", Value: "old"}}}, restartProbe{ran: &applied})
 	m.testControls().FocusForm(0)
 	m.chrome.Dialog.Form.Editor.SetValue("unsaved")
 	clickVisible(t, m, "×")

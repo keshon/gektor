@@ -96,7 +96,7 @@ func (m *Model) acceptProposal(p workflowProposal) {
 		}
 	}
 	if err != nil {
-		m.dialogs.OpenDialog(screen.Dialog{Title: "Invalid AI proposal", Lines: []string{err.Error(), p.source}})
+		m.dialogs.PresentDialog(screen.Dialog{Title: "Invalid AI proposal", Lines: []string{err.Error(), p.source}})
 		return
 	}
 	lines := []string{"Proposal only · no files saved or operations executed.", ""}
@@ -124,17 +124,25 @@ func (m *Model) acceptProposal(p workflowProposal) {
 	}
 	lines = append(lines, "", "Complete proposed recipe (including inputs/outputs):", p.source)
 	// Split multiline sections so the shared scrollbar measures actual rows.
-	m.dialogs.OpenDialog(screen.Dialog{Title: "Review AI proposal", Lines: strings.Split(strings.Join(lines, "\n"), "\n"),
+	m.dialogs.PresentDialog(screen.Dialog{Title: "Review AI proposal", Lines: strings.Split(strings.Join(lines, "\n"), "\n"),
 		Shortcuts: []popup.Shortcut{{Key: "Esc/Enter", Action: "discard"}, {Key: "S", Action: "apply to draft"}, {Key: "↑↓", Action: "scroll"}},
-		Save: func() error {
-			if m.editor.Source() != p.before {
-				return fmt.Errorf("draft changed since the request; ask for a fresh proposal")
-			}
-			m.editor.Replace(d)
-			m.graph = m.buildGraph(m.graph)
-			m.setNotice(pane.NoticeSuccess, "Proposal applied to draft · Ctrl+S saves")
-			return nil
-		},
-	})
 
+		Save: true,
+	})
+	m.proposalDialog = m.dialogs.Dialog
+	m.proposalDraft = d
+	m.proposalBefore = p.before
+
+}
+
+func (m *Model) applyProposal() error {
+	d := m.proposalDraft
+
+	if m.busy || m.run != nil || m.editor.Source() != m.proposalBefore {
+		return fmt.Errorf("draft changed since the request; ask for a fresh proposal")
+	}
+	m.editor.Replace(d)
+	m.graph = m.buildGraph(m.graph)
+	m.setNotice(pane.NoticeSuccess, "Proposal applied to draft · Ctrl+S saves")
+	return nil
 }

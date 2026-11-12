@@ -144,11 +144,11 @@ func TestWorkflowAIProposalCannotApplyToChangedDraft(t *testing.T) {
 	w.editor.Definition = workflowRecipe()
 	before := w.editor.Source()
 	m.workflows.acceptProposal(workflowProposal{before: before, source: before})
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Save == nil {
+	if m.chrome.Dialog == nil || !m.chrome.Dialog.Save {
 		t.Fatal("missing proposal review")
 	}
 	w.editor.Definition.Name = "Changed elsewhere"
-	if err := m.chrome.Dialog.Save(); err == nil {
+	if err := m.workflows.applyProposal(); err == nil {
 		t.Fatal("stale proposal applied")
 	}
 }
@@ -205,20 +205,20 @@ func TestWorkflowConnectionUsesDestinationSchema(t *testing.T) {
 		t.Fatal(f.Choices)
 	}
 	before := m.workflows.editor.Source()
-	if err := f.Apply(map[string]string{"arg": "Argument: nonexistent"}); err == nil {
+	if err := m.applyValues(map[string]string{"arg": "Argument: nonexistent"}); err == nil {
 		t.Fatal("accepted unknown argument")
 	}
 	if m.workflows.editor.Source() != before {
 		t.Fatal("invalid mapping changed draft")
 	}
-	if err := f.Apply(map[string]string{"from": "transform", "arg": "Argument: input"}); err != nil {
+	if err := m.applyValues(map[string]string{"from": "transform", "arg": "Argument: input"}); err != nil {
 		t.Fatal(err)
 	}
 	m.chrome.Dialog = nil
 	action := m.workflows.commands[len(m.workflows.commands)-1]()
 	m.workflows.action(action.(workflowAction))
 	f = m.chrome.Dialog.Form
-	if err := f.Apply(map[string]string{"pointer": "/result"}); err != nil {
+	if err := m.applyValues(map[string]string{"pointer": "/result"}); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(m.workflows.editor.Definition.Steps[1].Args), `"$step":"transform"`) {
@@ -227,5 +227,61 @@ func TestWorkflowConnectionUsesDestinationSchema(t *testing.T) {
 	m.workflows.editor.Undo()
 	if m.workflows.editor.Source() != before {
 		t.Fatal("mapping not undoable")
+	}
+}
+
+func TestWorkflowReplacementDeniesOnlyTheReplacedPermission(t *testing.T) {
+	m := workflowTestModel(t)
+	first := make(chan permission.Effect, 1)
+	second := make(chan permission.Effect, 1)
+	m.workflows.acceptPermission(workflowPermission{tool: "first", reply: first})
+	m.workflows.acceptPermission(workflowPermission{tool: "second", reply: second})
+	m.syncControls()
+	select {
+	case effect := <-first:
+		if effect != permission.Deny {
+			t.Fatal(effect)
+		}
+	default:
+		t.Fatal("replacement lost the old reply")
+	}
+	select {
+	case <-second:
+		t.Fatal("replacement answered the new request")
+	default:
+	}
+
+	err := m.applyValues(map[string]string{"decision": "Allow once"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.closeDialog()
+	select {
+	case effect := <-second:
+		if effect != permission.Allow {
+			t.Fatal(effect)
+		}
+	default:
+		t.Fatal("approval lost its reply")
+	}
+	select {
+	case <-second:
+		t.Fatal("closing an answered request sent another reply")
+	default:
+	}
+}
+
+func TestWorkflowShutdownDeniesPendingPermission(t *testing.T) {
+	m := workflowTestModel(t)
+	reply := make(chan permission.Effect, 1)
+	m.workflows.acceptPermission(workflowPermission{tool: "run_program", reply: reply})
+	m.workflows.Close()
+	select {
+	case effect := <-reply:
+		if effect != permission.Deny {
+			t.Fatal(effect)
+		}
+	default:
+		t.Fatal("shutdown left permission pending")
 	}
 }

@@ -107,7 +107,7 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		if m.chrome.Dialog == msg.dialog {
 			if msg.err != nil {
 				m.chrome.Open("Cannot stop background process / "+msg.id, []string{msg.err.Error()})
-				m.chrome.Dialog.OnClose = func() { m.returnToProcesses(msg.view) }
+				m.rememberReturn(dialogReturn{processes: msg.view})
 			} else {
 				m.openProcesses(msg.view)
 			}
@@ -129,7 +129,7 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		m.mcpBusy = false
 		if msg.err != nil {
 			m.chrome.Open("MCP / "+msg.id, []string{msg.err.Error()})
-			m.chrome.Dialog.OnClose = func() { m.queueMCP("list", msg.id) }
+			m.rememberReturn(dialogReturn{mcp: true, id: msg.id})
 		} else {
 			m.openMCP()
 		}
@@ -621,10 +621,7 @@ func (m *Model) acceptGateEvent(ev harness.Event) {
 		m.closeSessions()
 	}
 	if m.chrome.Dialog != nil {
-		if m.chrome.Dialog.OnSuspend != nil {
-			m.chrome.Dialog.OnSuspend()
-		}
-		m.chrome.Close()
+		m.suspendDialog()
 	}
 	// The prompt lives in the transcript, not the bottom bar: the
 	// bar has a fixed 1-line budget (2 with the answer box), so the

@@ -32,7 +32,7 @@ func TestConnectionFormsCreateEditRemoveAndUndo(t *testing.T) {
 	w.graph.Selected = "second"
 	before := w.editor.Source()
 	m.workflows.linkTarget(`["transform","second"]`)
-	if err := m.chrome.Dialog.Form.Apply(map[string]string{"from": "transform", "arg": "Argument: input"}); err != nil {
+	if err := m.applyValues(map[string]string{"from": "transform", "arg": "Argument: input"}); err != nil {
 		t.Fatal(err)
 	}
 	nextConnectionForm(t, m)
@@ -40,7 +40,7 @@ func TestConnectionFormsCreateEditRemoveAndUndo(t *testing.T) {
 	if !current.ReadOnly || current.Value != "2" {
 		t.Fatal("replacement value hidden", current)
 	}
-	if err := m.chrome.Dialog.Form.Apply(map[string]string{"pointer": "/first"}); err != nil {
+	if err := m.applyValues(map[string]string{"pointer": "/first"}); err != nil {
 		t.Fatal(err)
 	}
 	created := w.editor.Source()
@@ -50,15 +50,15 @@ func TestConnectionFormsCreateEditRemoveAndUndo(t *testing.T) {
 	if !strings.Contains(label, "args/input") || !strings.Contains(label, "/first") {
 		t.Fatal(label)
 	}
-	if err := f.Apply(map[string]string{"connection": label, "action": "Edit"}); err != nil {
+	if err := m.applyValues(map[string]string{"connection": label, "action": "Edit"}); err != nil {
 		t.Fatal(err)
 	}
 	nextConnectionForm(t, m)
-	if err := m.chrome.Dialog.Form.Apply(map[string]string{"from": "transform", "arg": "Argument: input"}); err != nil {
+	if err := m.applyValues(map[string]string{"from": "transform", "arg": "Argument: input"}); err != nil {
 		t.Fatal(err)
 	}
 	nextConnectionForm(t, m)
-	if err := m.chrome.Dialog.Form.Apply(map[string]string{"pointer": "/second"}); err != nil {
+	if err := m.applyValues(map[string]string{"pointer": "/second"}); err != nil {
 		t.Fatal(err)
 	}
 	edited := w.editor.Source()
@@ -70,14 +70,14 @@ func TestConnectionFormsCreateEditRemoveAndUndo(t *testing.T) {
 	m.workflowCommand("connections")
 	f = m.chrome.Dialog.Form
 	label = f.Choices["connection"][0]
-	if err := f.Apply(map[string]string{"connection": label, "action": "Remove"}); err != nil {
+	if err := m.applyValues(map[string]string{"connection": label, "action": "Remove"}); err != nil {
 		t.Fatal(err)
 	}
 	nextConnectionForm(t, m)
 	if f := m.chrome.Dialog.Form; !f.Destructive || f.Index != len(f.Fields)+1 {
 		t.Fatal("connection removal does not start on Cancel")
 	}
-	if err := m.chrome.Dialog.Form.Apply(nil); err != nil {
+	if err := m.applyValues(nil); err != nil {
 		t.Fatal(err)
 	}
 	if len(w.editor.Connections("second")) != 0 || !strings.Contains(w.notice, "second:") || !strings.Contains(w.notice, "input") {

@@ -47,7 +47,7 @@ func TestMCPPasteImportFromEmptyManager(t *testing.T) {
 	defer manager.Close()
 	m.mcp, m.state = manager, stDone
 	m.openMCP()
-	m.testControls().TableInput(tea.KeyPressMsg{Code: 'p', Text: "p"})
+	m.testKey(tea.KeyPressMsg{Code: 'p', Text: "p"})
 	if !m.chrome.Dialog.Form.Fields[0].Multiline {
 		t.Fatal("JSON field does not accept multiple lines")
 	}
@@ -56,7 +56,7 @@ func TestMCPPasteImportFromEmptyManager(t *testing.T) {
 	if m.chrome.Dialog.Form.Values()["json"] != raw {
 		t.Fatal("paste changed the configuration")
 	}
-	m.testControls().ApplyForm()
+	m.applyTestForm()
 	if m.chrome.Dialog != nil {
 		t.Fatal("import failed:", m.chrome.Dialog.Form.Error)
 	}
@@ -90,7 +90,7 @@ func TestMCPImportValidationAndExplicitReplacement(t *testing.T) {
 			defer manager.Close()
 			m.mcp, m.state = manager, stDone
 			m.handleMCPAction(mcpActionMsg{action, ""})
-			apply := m.chrome.Dialog.Form.Apply
+			apply := func(values map[string]string) error { return m.applySubmission(m.chrome.Dialog, values) }
 			values := map[string]string{"json": "{", "replace": "off"}
 			if action == "import" {
 				values["path"] = filepath.Join(root, "config.json")
@@ -185,7 +185,8 @@ func TestMCPTableKeepsSelectionAndGuardsDirectActions(t *testing.T) {
 	if m.chrome.Dialog.Table != nil || !strings.Contains(strings.Join(m.chrome.Dialog.Lines, "\n"), "Server: reference") {
 		t.Fatal("Details did not open for the selected server")
 	}
-	m.testControls().Close()
+	m.chrome.Close()
+	m.syncControls()
 	m.testUpdate(m.pendingCommands[len(m.pendingCommands)-1]())
 	if m.chrome.Dialog.Table == nil || m.chrome.Dialog.Table.Model.Search.Value() != "reference" {
 		t.Fatal("Details lost the parent filter")

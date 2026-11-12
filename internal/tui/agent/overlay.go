@@ -18,7 +18,8 @@ const (
 )
 
 type overlayFrame struct {
-	focus focusOwner
+	focus    focusOwner
+	controls bool
 }
 
 // pushOverlay records the current focus owner and opens an overlay.

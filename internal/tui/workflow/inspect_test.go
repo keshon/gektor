@@ -54,7 +54,7 @@ func TestInspectorPropertiesUseCardPortNamesAndSeparateCode(t *testing.T) {
 			t.Fatal("properties editor exposed code")
 		}
 	}
-	if err := m.chrome.Dialog.Form.Apply(map[string]string{"input": `{"label":"changed","values":[]}`}); err != nil {
+	if err := m.applyValues(map[string]string{"input": `{"label":"changed","values":[]}`}); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(w.editor.Definition.Steps[1].Args), `"code":"return input"`) {
@@ -120,7 +120,7 @@ func TestCodeEditorPreservesArgumentsRejectsStaleAndFrozenEdits(t *testing.T) {
 	if len(f.Fields) != 1 || f.Fields[0].Key != "code" {
 		t.Fatal("not a dedicated code editor")
 	}
-	if err := f.Apply(map[string]string{"code": "return input + 9;"}); err != nil {
+	if err := m.applyValues(map[string]string{"code": "return input + 9;"}); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(w.editor.Definition.Steps[0].Args), `"input":2`) {
@@ -136,7 +136,7 @@ func TestCodeEditorPreservesArgumentsRejectsStaleAndFrozenEdits(t *testing.T) {
 	d := w.editor.Clone()
 	d.Name = "Changed"
 	w.editor.Replace(d)
-	if err := f.Apply(map[string]string{"code": "stale"}); err == nil {
+	if err := m.applyValues(map[string]string{"code": "stale"}); err == nil {
 		t.Fatal("accepted stale script")
 	}
 	m.chrome.Dialog = nil
@@ -216,7 +216,7 @@ func TestRunUsesOnePrefilledFormAndSimpleLists(t *testing.T) {
 	if values["value:label"] != "agent-smoke" || values["value:numbers"] != "2, 3, 5" {
 		t.Fatal(values)
 	}
-	if err := f.Apply(values); err != nil {
+	if err := m.applyValues(values); err != nil {
 		t.Fatal(err)
 	}
 	if string(queuedInvocation(t, m).Inputs) != "{}" {
@@ -224,7 +224,7 @@ func TestRunUsesOnePrefilledFormAndSimpleLists(t *testing.T) {
 	}
 	values["value:numbers"] = "4, 6, 8"
 	values["value:label"] = ""
-	if err := f.Apply(values); err != nil {
+	if err := m.applyValues(values); err != nil {
 		t.Fatal(err)
 	}
 	var inputs map[string]json.RawMessage
@@ -233,7 +233,7 @@ func TestRunUsesOnePrefilledFormAndSimpleLists(t *testing.T) {
 		t.Fatal(string(queuedInvocation(t, m).Inputs))
 	}
 	values["value:numbers"] = "not a list"
-	if err := f.Apply(values); err == nil {
+	if err := m.applyValues(values); err == nil {
 		t.Fatal("accepted invalid list")
 	}
 	m.chrome.Dialog = nil

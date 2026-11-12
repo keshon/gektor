@@ -24,25 +24,27 @@ func (m *Model) openPermissionTable(view *table.Model) {
 	m.chrome.Dialog.Table = &screen.TableState{Model: view,
 		Columns:     []table.Column{{Label: "Order", Width: 5}, {Label: "Decision", Width: 8}, {Label: "Tool", Width: 18}, {Label: "Pattern"}},
 		Description: "Later matching rules take precedence. Plan uses read-only tools. Act follows rules and approval prompts. This view does not change permissions.",
-		Actions: func() []table.Action {
-			return []table.Action{{ID: "details", Label: "Details", Key: "enter", Enabled: view.Selected() != ""}, {ID: "close", Label: "Close", Key: "esc", Enabled: true}}
+		Actions: []table.Action{
+			{ID: "details", Label: "Details", Key: "enter", Enabled: view.Selected() != ""},
+			{ID: "close", Label: "Close", Key: "esc", Enabled: true},
 		},
-		Activate: func(action, id string) tea.Cmd {
-			if action != "details" {
-				return nil
-			}
-			i, err := strconv.Atoi(id)
-			if err != nil || i < 0 || i >= len(m.policyDetails) {
-				return nil
-			}
-			rule := m.policyDetails[i]
-			m.chrome.Close()
-			m.chrome.Open("Permission rule "+strconv.Itoa(i+1), []string{"Decision: " + rule.Effect.String(), "Tool: " + rule.Tool, "Pattern: " + rule.Pattern, "", "Later matching rules take precedence."})
-			m.chrome.Dialog.OnClose = func() {
-				m.pendingCommands = append(m.pendingCommands, func() tea.Msg { return permissionTableMsg{view} })
-			}
-			return nil
-		}}
+	}
+	m.permissionDialog = m.chrome.Dialog
 }
 
 type permissionTableMsg struct{ view *table.Model }
+
+func (m *Model) permissionAction(view *table.Model, action, id string) tea.Cmd {
+	if action != "details" {
+		return nil
+	}
+	i, err := strconv.Atoi(id)
+	if err != nil || i < 0 || i >= len(m.policyDetails) {
+		return nil
+	}
+	rule := m.policyDetails[i]
+	m.chrome.Close()
+	m.chrome.Open("Permission rule "+strconv.Itoa(i+1), []string{"Decision: " + rule.Effect.String(), "Tool: " + rule.Tool, "Pattern: " + rule.Pattern, "", "Later matching rules take precedence."})
+	m.rememberReturn(dialogReturn{permissions: view})
+	return nil
+}

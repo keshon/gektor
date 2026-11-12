@@ -61,7 +61,7 @@ func settingsModelWithHistory(t *testing.T, preferences *config.Preferences, ext
 func snapshotOf(m *Model) *ModeChange                             { snapshot, _ := m.agent.Snapshot(); return snapshot }
 func stateFileOf(m *Model) string                                 { return filepath.Join(snapshotOf(m).Directory, "state.json") }
 func draftOf(m *Model) string                                     { return snapshotOf(m).Draft }
-func (m *Model) applyForm()                                       { m.chrome.ApplyForm(); m.syncPresentation() }
+func (m *Model) applyForm()                                       { m.chrome.ApplyForm(); m.settleControls() }
 func (m *Model) focusForm(i int)                                  { m.chrome.FocusForm(i) }
 func (m *Model) formKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) { return m.Update(key) }
 func (m *Model) headerKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -81,9 +81,6 @@ func (m *Model) command(command string) (tea.Model, tea.Cmd) {
 	cmd := m.runAction(command)
 	_, next := m.Update(nil)
 	return m, tea.Batch(cmd, next)
-}
-func (m *Model) openForm(title, hint, label string, fields []form.Field, apply func(map[string]string) error) {
-	m.chrome.OpenForm(title, hint, label, fields, apply)
 }
 
 type scriptClient func(context.Context, llm.ChatRequest) (llm.ChatResponse, error)

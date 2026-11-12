@@ -8,6 +8,7 @@ import (
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/schemaform"
 	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/recipe"
 )
 
@@ -44,17 +45,7 @@ func (m *Model) inputForm(in workflowInvocation) {
 		return
 	}
 	specs := m.editor.Clone().Inputs
-	submit := func(values map[string]json.RawMessage) error {
-		if m.busy || m.run != nil || m.editor.Source() != in.Draft {
-			return fmt.Errorf("draft changed; reopen run inputs")
-		}
-		if _, err := recipe.BindInputs(specs, values); err != nil {
-			return err
-		}
-		in.Inputs, _ = json.Marshal(values)
-		m.queueInvocation("invoke", in)
-		return nil
-	}
+
 	title := "Run workflow"
 	primary := "Run"
 	if in.Action == "validate" {
@@ -66,21 +57,14 @@ func (m *Model) inputForm(in workflowInvocation) {
 		primary = "Next"
 	}
 	if in.Mode == "JSON" {
-		m.dialogs.OpenForm(screen.Form{
+		m.openForm(screen.Form{
 			Title:      title + " / JSON",
 			Hint:       "Input values are checked before execution; omitted keys use recipe defaults.",
 			ApplyLabel: primary,
 			Fields:     []formField{{Key: "inputs", Label: "Input values (JSON object)", Value: "{}", Multiline: true}},
-			Apply: func(v map[string]string) error {
-				var values map[string]json.RawMessage
-				if err := json.Unmarshal([]byte(v["inputs"]), &values); err != nil {
-					return err
-				}
-				if values == nil {
-					return fmt.Errorf("inputs must be an object")
-				}
-				return submit(values)
-			},
+		}, jsonRunInputs{
+			in:    in,
+			specs: specs,
 		})
 		return
 	}
@@ -159,36 +143,80 @@ func (m *Model) inputForm(in workflowInvocation) {
 	if in.Action == "schedule" {
 		hint = "These values will be saved with the schedule and used for each scheduled run."
 	}
-	m.dialogs.OpenForm(screen.Form{
+	m.openForm(screen.Form{
 		Title:      title,
 		Hint:       hint,
 		ApplyLabel: primary,
 		Fields:     fields,
-		Apply: func(v map[string]string) error {
-			values := map[string]json.RawMessage{}
-			for name, spec := range specs {
-				text := v["value:"+name]
-				if spec.Default != nil && text == initial[name] && in.Action != "schedule" {
-					continue
-				}
-				if spec.Default == nil && !spec.Required && text == "" && scheduled[name] == nil {
-					continue
-				}
-				value := json.RawMessage(text)
-				if spec.Type == "string" {
-					value, _ = json.Marshal(text)
-				}
-				if spec.Type == "array" && !strings.HasPrefix(strings.TrimSpace(text), "[") {
-					value = json.RawMessage("[" + text + "]")
-				}
-				if err := recipe.CheckInput(value, spec.Type); err != nil {
-					return fmt.Errorf("%s: %w", name, err)
-				}
-				values[name] = value
-			}
-			return submit(values)
-		},
-		Choices: choices,
+		Choices:    choices,
+	}, simpleRunInputs{
+		in:        in,
+		initial:   initial,
+		scheduled: scheduled,
+		specs:     specs,
 	})
 
+}
+
+func (m *Model) submitInputs(in workflowInvocation, specs map[string]workflow.Input, values map[string]json.RawMessage) error {
+	if m.busy || m.run != nil || m.editor.Source() != in.Draft {
+		return fmt.Errorf("draft changed; reopen run inputs")
+	}
+	_, bindingErr := recipe.BindInputs(specs, values)
+	if bindingErr != nil {
+		return bindingErr
+	}
+	in.Inputs, _ = json.Marshal(values)
+	m.queueInvocation("invoke", in)
+	return nil
+}
+
+type jsonRunInputs struct {
+	in    workflowInvocation
+	specs map[string]workflow.Input
+}
+
+func (edit jsonRunInputs) apply(m *Model, v map[string]string) error {
+	var values map[string]json.RawMessage
+	decodeErr := json.Unmarshal([]byte(v["inputs"]), &values)
+	if decodeErr != nil {
+		return decodeErr
+	}
+	if values == nil {
+		return fmt.Errorf("inputs must be an object")
+	}
+	return m.submitInputs(edit.in, edit.specs, values)
+}
+
+type simpleRunInputs struct {
+	in        workflowInvocation
+	initial   map[string]string
+	scheduled map[string]json.RawMessage
+	specs     map[string]workflow.Input
+}
+
+func (edit simpleRunInputs) apply(m *Model, v map[string]string) error {
+	values := map[string]json.RawMessage{}
+	for name, spec := range edit.specs {
+		text := v["value:"+name]
+		if spec.Default != nil && text == edit.initial[name] && edit.in.Action != "schedule" {
+			continue
+		}
+		if spec.Default == nil && !spec.Required && text == "" && edit.scheduled[name] == nil {
+			continue
+		}
+		value := json.RawMessage(text)
+		if spec.Type == "string" {
+			value, _ = json.Marshal(text)
+		}
+		if spec.Type == "array" && !strings.HasPrefix(strings.TrimSpace(text), "[") {
+			value = json.RawMessage("[" + text + "]")
+		}
+		inputErr := recipe.CheckInput(value, spec.Type)
+		if inputErr != nil {
+			return fmt.Errorf("%s: %w", name, inputErr)
+		}
+		values[name] = value
+	}
+	return m.submitInputs(edit.in, edit.specs, values)
 }

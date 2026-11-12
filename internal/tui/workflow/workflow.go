@@ -6,6 +6,7 @@ import (
 	"context"
 
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/permission"
@@ -27,7 +28,7 @@ type Config struct {
 
 // New constructs an inactive screen and takes ownership of cfg.Draft.
 // Call Close when the terminal launch ends to cancel its operations.
-func New(ctx context.Context, cfg Config, dialogs screen.Host, presentation func() screen.Surface) (*Model, error) {
+func New(ctx context.Context, cfg Config, dialogs *screen.Controls, surface screen.Surface) (*Model, error) {
 	r, err := app.WorkflowRegistry(cfg.WS, userdirs.Sub("workflows"), nil, nil)
 	if err != nil {
 		return nil, err
@@ -41,13 +42,13 @@ func New(ctx context.Context, cfg Config, dialogs screen.Host, presentation func
 	ctx, cancel := context.WithCancel(ctx)
 
 	return &Model{
-		dialogs:      dialogs,
-		presentation: presentation,
-		config:       cfg,
-		ctx:          ctx,
-		shutdown:     cancel,
-		editor:       draft,
-		registry:     r,
-		events:       make(chan tea.Msg, 16),
+		dialogs:  dialogs,
+		surface:  surface,
+		config:   cfg,
+		ctx:      ctx,
+		shutdown: cancel,
+		editor:   draft,
+		registry: r,
+		events:   make(chan tea.Msg, 16),
 	}, nil
 }

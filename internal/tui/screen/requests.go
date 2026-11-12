@@ -1,5 +1,3 @@
-// Package screen defines shared presentation data and overlay requests for
-// terminal screens and their application host.
 package screen
 
 import (
@@ -11,24 +9,13 @@ import (
 	"github.com/keshon/gektor/internal/tui/settings"
 )
 
-// Host presents overlays. Returned form models belong to that newly opened overlay;
-// a screen may use the handle to report validation errors without inspecting the shell.
-type Host struct {
-	OpenForm        func(Form) *settings.Model
-	OpenDialog      func(Dialog)
-	CloseDialog     func()
-	FinishOperation func()
-}
-
-// Form describes an editable overlay and its completion contract.
+// Form supplies initial draft values. Controls copy its fields and choice lists.
 type Form struct {
 	Title, Hint, ApplyLabel    string
 	Fields                     []form.Field
 	Choices                    map[string][]string
 	FileFields                 map[string]settings.FilePicker
 	Destructive, StartOnCancel bool
-	Apply                      func(map[string]string) error
-	OnClose                    func()
 }
 
 // Dialog describes an informational overlay, optionally with a save action or table.
@@ -36,18 +23,17 @@ type Dialog struct {
 	Title     string
 	Lines     []string
 	Shortcuts []popup.Shortcut
-	Save      func() error
-	OnClose   func()
+	Save      bool
 	Table     *Table
 }
 
-// Table supplies rows through its model and resolves actions by stable row ID.
+// Table transfers its model to controls while the overlay is open. The feature
+// may retain it for later navigation but must not update it during presentation.
 type Table struct {
 	Model       *table.Model
 	Columns     []table.Column
 	Description string
-	Actions     func() []table.Action
-	Activate    func(action, id string) tea.Cmd
+	Actions     []table.Action
 }
 
 // Action describes a screen shortcut rendered and dispatched by the shell.

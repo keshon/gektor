@@ -89,15 +89,32 @@ func (m *Model) ApplyAppearance(appearance config.Appearance) { m.applyAppearanc
 
 // OverlayOpened releases local input while application controls own focus.
 func (m *Model) OverlayOpened(first bool) {
-	m.cancelEvaluation()
 	if first {
 		m.pushOverlay()
+		m.overlays[len(m.overlays)-1].controls = true
 	}
 	m.input.Blur()
 }
 
 // OverlayClosed restores the conversation focus saved on opening an overlay.
-func (m *Model) OverlayClosed() { m.cancelEvaluation(); m.popOverlay() }
+func (m *Model) OverlayClosed() {
+	for i := len(m.overlays) - 1; i >= 0; i-- {
+		frame := m.overlays[i]
+		if !frame.controls {
+			continue
+		}
+
+		// A gate may have taken focus before the shell consumes this close event.
+		// Remove the controls frame without popping the gate's own frame.
+		if i+1 < len(m.overlays) {
+			m.overlays[i+1].focus = frame.focus
+		} else {
+			m.applyFocus(frame.focus)
+		}
+		m.overlays = append(m.overlays[:i], m.overlays[i+1:]...)
+		return
+	}
+}
 
 // ControlsChanged reconciles the conversation with shared control geometry.
 func (m *Model) ControlsChanged() { m.fitBottom(); m.syncFocus() }

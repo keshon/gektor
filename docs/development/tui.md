@@ -79,16 +79,26 @@ and [workflow.go](../../internal/tui/workflow/workflow.go) for Workflow construc
 
 `internal/tui/workflow` owns its own model, recipe editor, graph, inspector,
 run state, menu commands and availability, message dispatch, permissions, and
-asynchronous operations. It receives execution services, shared dialog operations,
-and a function supplying the current
-`screen.Surface`. That snapshot gives rendering and hit testing the same geometry
-and styles without exposing Agent or transcript state. `screen.Host` carries
-named form and dialog requests. The shared `screen` package owns menu selection, overlays, shared control
-interaction and rendering, theme mappings, and layout/style values. The parent
-owns one `screen.Controls` instance, supplied to both screens. Each feature
-opens forms and tables with callbacks for its own operations; execution state
-stays in that feature. Feature-specific state,
-configuration, and message types stay in their feature package.
+asynchronous operations. The parent supplies execution services, its concrete
+`screen.Controls`, and a `screen.Surface` value. It updates the surface snapshot
+before input and presentation so rendering and hit testing use the same geometry.
+
+Shared controls own draft editing, table navigation, and presentation state. They
+copy initial form choices and emit `screen.Event` values for submissions, table
+activation, and overlay lifetime changes. Events retain the producing dialog's
+identity; replaced dialogs cannot apply changes or close their replacements.
+The shell drains events on the update loop and coordinates overlay focus.
+Agent, Workflow, and the shell retain their own pending edits and apply them
+through direct owner methods. Shared controls retain no feature callbacks.
+
+Feature owners prepare table rows and action availability on the update loop;
+rendering does not refresh domain state. Controls preserve search and selection
+when rows change. A retained table model returns to controls when its details
+close. Replacement discards the old return action; dismissal runs it once.
+Workflow denies unresolved permission requests on dismissal, replacement, or
+shutdown. Agent can suspend a queued-message draft for a permission prompt and
+resume it only in the same session.
+
 The generic graph component renders supplied labels and tones; workflow status
 names and presentation belong to Workflow.
 

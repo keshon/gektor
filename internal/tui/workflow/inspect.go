@@ -28,7 +28,7 @@ func (m *Model) inspectorTabs() pane.TabLayout {
 	if m.rawDetails {
 		active = -1
 	}
-	view := m.presentation()
+	view := m.surface
 	width := view.Layout(view.Panes(true).Side.Width, true).Body.Width
 	return pane.Tabs(labels, active, width, m.inspect && !view.HeaderFocused,
 		pane.TabStyles{Normal: view.Styles.Muted, Active: view.Styles.Panels.Title, Focus: view.Styles.Panels.Focus})

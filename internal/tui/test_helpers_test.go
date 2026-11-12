@@ -98,7 +98,7 @@ func setMinimal(t *testing.T, m *Model, minimal bool) {
 	if minimal {
 		values["frame"] = "minimal"
 	}
-	if err := m.chrome.Dialog.Form.Apply(values); err != nil {
+	if err := m.applyValues(values); err != nil {
 		t.Fatal(err)
 	}
 	m.chrome.Close()
@@ -203,4 +203,16 @@ func finishAgentTurn(t *testing.T, m *Model) {
 			t.Fatal("run completion did not reach the application")
 		}
 	}
+}
+
+func (m *Model) applyValues(values map[string]string) error {
+	if m.formEdits[m.chrome.Dialog] != nil {
+		return m.applySubmission(m.chrome.Dialog, values)
+	}
+	dialog := m.chrome.Dialog
+	m.workflows.HandleControl(screen.Event{Kind: screen.Apply, Dialog: dialog, Values: values})
+	if dialog.Form.Error != "" {
+		return fmt.Errorf("%s", dialog.Form.Error)
+	}
+	return nil
 }

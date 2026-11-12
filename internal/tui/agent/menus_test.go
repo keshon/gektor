@@ -96,7 +96,7 @@ func TestCompactMenuRequiresExplicitConfirmation(t *testing.T) {
 	if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil || m.chrome.Dialog.Form.Index != 1 {
 		t.Fatal("compaction did not start on Cancel")
 	}
-	m.formKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if m.chrome.Dialog != nil {
 		t.Fatal("compaction could not be cancelled")
 	}

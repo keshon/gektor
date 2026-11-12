@@ -14,43 +14,21 @@ import (
 func (m *Model) persistTheme(name string) error { return m.application.SaveTheme(name) }
 
 func (m *Model) openTheme() {
-	m.chrome.OpenForm("Theme", "Applies immediately to both modes and is remembered for future launches.", "Apply", []form.Field{{Key: "theme", Label: "Theme", Value: screen.CurrentPalette().Name, Multiline: false}}, func(v map[string]string) error {
-		name := v["theme"]
-		if !config.ValidTheme(name) {
-			return fmt.Errorf("choose a theme from the list")
-		}
-		if err := m.persistTheme(name); err != nil {
-			return err
-		}
-		m.applyTheme(name)
-		return nil
-	})
+	m.openForm(screen.Form{
+		Title:      "Theme",
+		Hint:       "Applies immediately to both modes and is remembered for future launches.",
+		ApplyLabel: "Apply",
+		Fields:     []form.Field{{Key: "theme", Label: "Theme", Value: screen.CurrentPalette().Name, Multiline: false}},
+	}, openThemeForm)
 	m.chrome.Dialog.Form.Choices = map[string][]string{"theme": config.ThemeNames()}
 }
 
 // openAppearance stages presentation choices and saves them together on Apply.
 func (m *Model) openAppearance() {
-	m.chrome.OpenForm("Appearance", "Applies immediately to both modes and is remembered for future launches.", "Apply", []form.Field{
+	m.openForm(screen.Form{Title: "Appearance", Hint: "Applies immediately to both modes and is remembered for future launches.", ApplyLabel: "Apply", Fields: []form.Field{
 		{Key: "theme", Label: "Theme", Value: screen.CurrentPalette().Name},
 		{Key: "frame", Label: "Panel frame", Value: m.agent.Appearance().Frame},
-	}, func(values map[string]string) error {
-		theme, frame := values["theme"], values["frame"]
-		if !config.ValidTheme(theme) {
-			return fmt.Errorf("choose a theme from the list")
-		}
-		if frame != "outlined" && frame != "minimal" {
-			return fmt.Errorf("choose an outlined or minimal frame")
-		}
-		appearance := m.agent.Appearance()
-		appearance.Frame = frame
-		if err := m.application.SaveThemeAppearance(theme, appearance); err != nil {
-			return err
-		}
-		m.outlined = frame == "outlined"
-		m.agent.ApplyAppearance(appearance)
-		m.applyTheme(theme)
-		return nil
-	})
+	}}, openAppearanceForm)
 	m.chrome.Dialog.Form.Choices = map[string][]string{"theme": config.ThemeNames(), "frame": {"outlined", "minimal"}}
 }
 
@@ -92,12 +70,48 @@ func (m *Model) applicationAction(command string) bool {
 			m.chrome.Open("Theme", []string{"Choose a theme from the list."})
 			return true
 		}
-		if err := m.persistTheme(name); err != nil {
-			m.chrome.Open("Theme", []string{err.Error()})
+		saveErr := m.persistTheme(name)
+		if saveErr != nil {
+			m.chrome.Open("Theme", []string{saveErr.Error()})
 			return true
 		}
 		m.applyTheme(name)
 		return true
 	}
 	return false
+}
+
+func (m *Model) applyOpenTheme(v map[string]string) error {
+	name := v["theme"]
+	if !config.ValidTheme(name) {
+		return fmt.Errorf("choose a theme from the list")
+	}
+	saveErr := m.persistTheme(name)
+	if saveErr != nil {
+		return saveErr
+	}
+	m.applyTheme(name)
+	return nil
+}
+
+func (m *Model) applyOpenAppearance(values map[string]string) error {
+	theme, frame := values["theme"], values["frame"]
+	if !config.ValidTheme(theme) {
+		return fmt.Errorf("choose a theme from the list")
+	}
+	if frame != "outlined" && frame != "minimal" {
+		return fmt.Errorf("choose an outlined or minimal frame")
+	}
+
+	appearance := m.agent.Appearance()
+	appearance.Frame = frame
+	saveErr := m.application.SaveThemeAppearance(theme, appearance)
+	if saveErr != nil {
+		return saveErr
+	}
+
+	m.outlined = frame == "outlined"
+	m.agent.ApplyAppearance(appearance)
+	m.applyTheme(theme)
+	return nil
 }

@@ -57,7 +57,7 @@ func TestNamedPortClicksPreserveExactSourceAndDestination(t *testing.T) {
 			t.Fatal("named mapping lost its source selection")
 		}
 	}
-	if err := m.chrome.Dialog.Form.Apply(map[string]string{}); err != nil {
+	if err := m.applyValues(map[string]string{}); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(w.editor.Definition.Steps[1].Args), `"label":{"$step":"source","pointer":"/label"}`) {
@@ -77,7 +77,7 @@ func TestNamedPortClicksPreserveExactSourceAndDestination(t *testing.T) {
 	if m.chrome.Dialog == nil {
 		t.Fatal("ordering ports did not map")
 	}
-	if err := m.chrome.Dialog.Form.Apply(map[string]string{}); err != nil {
+	if err := m.applyValues(map[string]string{}); err != nil {
 		t.Fatal(err)
 	}
 	if len(w.editor.Definition.Steps[1].DependsOn) != 1 || w.editor.Definition.Steps[1].DependsOn[0] != "source" {

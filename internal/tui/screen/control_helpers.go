@@ -13,31 +13,6 @@ import (
 	"github.com/keshon/gektor/internal/tui/settings"
 )
 
-// Open replaces the overlay and notifies its focus owner before showing it.
-func (m *Controls) Open(title string, lines []string) {
-	if m.Opening != nil {
-		m.Opening(m.Dialog == nil)
-	}
-	m.Dialog = &DialogState{Title: title, Lines: lines}
-	if m.Changed != nil {
-		m.Changed()
-	}
-}
-
-// Close runs the overlay cleanup and restores the underlying focus owner.
-func (m *Controls) Close() {
-	if m.Dialog != nil && m.Dialog.OnClose != nil {
-		m.Dialog.OnClose()
-	}
-	m.Dialog = nil
-	if m.Closed != nil {
-		m.Closed()
-	}
-	if m.Changed != nil {
-		m.Changed()
-	}
-}
-
 // Area returns the absolute terminal rectangle available to overlays.
 func (m *Controls) Area() (int, int, int, int) { a := m.Props.Area; return a.X, a.Y, a.Width, a.Height }
 

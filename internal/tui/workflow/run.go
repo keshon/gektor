@@ -197,51 +197,36 @@ func (m *Model) openRuns(runs []store.RunSummary) {
 		rows = append(rows, table.Row{ID: run.ID, Cells: []string{cleanText(nonEmpty(run.Name)), cleanText(run.Status), started, run.ID, cleanText(run.RecipePath)}})
 	}
 	view.SetRows(rows)
-	m.dialogs.OpenDialog(screen.Dialog{Title: "Workflow runs", Lines: nil,
+	m.dialogs.PresentDialog(screen.Dialog{Title: "Workflow runs", Lines: nil,
 		Table: &screen.Table{
 			Model:       view,
 			Columns:     []table.Column{{Label: "Recipe", Width: 14}, {Label: "Status", Width: 12}, {Label: "Started"}},
 			Description: "Saved runs in this workspace, newest first. Search by recipe, status, date or run ID. Open inspects a saved record; it does not run the recipe.",
-			Actions: func() []table.Action {
-				return []table.Action{{ID: "details", Label: "Open run", Key: "enter", Enabled: view.Selected() != "" && m.ctx.Err() == nil && !m.busy}, {ID: "close", Label: "Close", Key: "esc", Enabled: true}}
-			},
-			Activate: func(action, id string) tea.Cmd {
-				if action == "details" && id != "" && m.ctx.Err() == nil && !m.busy {
-					m.dialogs.CloseDialog()
-					m.queueAction("inspect-run", id)
-				}
-				return nil
-			},
 		},
 	})
 
+	m.runsDialog = m.dialogs.Dialog
+	m.refreshRunActions()
 }
 func (m *Model) acceptPermission(p workflowPermission) tea.Cmd {
-	m.dialogs.OpenForm(screen.Form{
+	m.openForm(screen.Form{
 		Title:      "Allow operation?",
 		Hint:       p.tool + " on " + p.resource,
 		ApplyLabel: "Decide",
-		Fields:     []formField{{Key: "decision", Label: "Permission", Value: "Deny"}, {Key: "args", Label: "Resolved arguments", Value: prettyToolArguments(string(p.args)), Multiline: true, ReadOnly: true}},
-		Apply: func(v map[string]string) error {
-			eff := permission.Deny
-			if v["decision"] == "Allow once" {
-				eff = permission.Allow
-			}
-			select {
-			case p.reply <- eff:
-			default:
-			}
-			return nil
+		Fields: []formField{
+			{Key: "decision", Label: "Permission", Value: "Deny"},
+			{Key: "args", Label: "Resolved arguments", Value: prettyToolArguments(string(p.args)), Multiline: true, ReadOnly: true},
 		},
 		Choices: map[string][]string{"decision": {"Deny", "Allow once"}},
-		OnClose: func() {
-			select {
-			case p.reply <- permission.Deny:
-			default:
-			}
-		},
+	}, permissionDecision{
+		p: p,
 	})
 
+	m.permissionDialog = m.dialogs.Dialog
+	if m.permissionRequests == nil {
+		m.permissionRequests = make(map[*screen.DialogState]chan permission.Effect)
+	}
+	m.permissionRequests[m.dialogs.Dialog] = p.reply
 	return m.wait()
 }
 func (m *Model) acceptResult(r workflowResult) tea.Cmd {
@@ -250,7 +235,7 @@ func (m *Model) acceptResult(r workflowResult) tea.Cmd {
 	}
 	m.busy = false
 	m.cancel = nil
-	m.dialogs.FinishOperation()
+	m.finishPermission()
 	if r.err != nil {
 		if r.action == "open-path" {
 			m.setNotice(pane.NoticeWarning, "Recipe was not opened · Ctrl+O choose a file")
@@ -270,7 +255,7 @@ func (m *Model) acceptResult(r workflowResult) tea.Cmd {
 		if r.text != "" {
 			rows = append(rows, r.text)
 		}
-		m.dialogs.OpenDialog(screen.Dialog{Title: "Workflow failed", Lines: rows})
+		m.dialogs.PresentDialog(screen.Dialog{Title: "Workflow failed", Lines: rows})
 		return nil
 	}
 	if r.action == "schedule-save" || r.action == "schedule-delete" || r.action == "schedule-refresh" {
@@ -427,7 +412,6 @@ func (m *Model) loadLayout() {
 	}
 	for i, n := range m.graph.Nodes {
 		if p, ok := layout.Positions[n.ID]; ok && p.X >= 0 && p.Y >= 0 && p.X < 10000 && p.Y < 10000 {
-
 			m.graph.Nodes[i].Point = p
 			if !hasTrigger && len(m.recipeSchedules()) > 0 && !strings.HasPrefix(n.ID, workflowSchedulePrefix) {
 				m.graph.Nodes[i].X += graph.NodeWidth + 10
@@ -447,4 +431,33 @@ func (m *Model) persistLayout() {
 
 func (m *Model) service(gate permission.Gate) (service.Service, error) {
 	return app.NewWorkflow(m.config.WS, userdirs.Sub("workflows"), m.config.Policy, gate)
+}
+
+type permissionDecision struct {
+	p workflowPermission
+}
+
+func (edit permissionDecision) apply(m *Model, v map[string]string) error {
+	eff := permission.Deny
+	if v["decision"] == "Allow once" {
+		eff = permission.Allow
+	}
+	select {
+	case edit.p.reply <- eff:
+	default:
+	}
+	delete(m.permissionRequests, m.dialogs.Dialog)
+	return nil
+}
+
+func (m *Model) refreshRunActions() {
+	dialog := m.dialogs.Dialog
+	if dialog != m.runsDialog || dialog == nil {
+		return
+	}
+	selected := dialog.Table.Model.Selected()
+	dialog.Table.Actions = []table.Action{
+		{ID: "details", Label: "Open run", Key: "enter", Enabled: selected != "" && m.ctx.Err() == nil && !m.busy},
+		{ID: "close", Label: "Close", Key: "esc", Enabled: true},
+	}
 }

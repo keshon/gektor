@@ -142,7 +142,8 @@ func TestNestedComposerCompletesFilesAndCommands(t *testing.T) {
 	if m.chrome.Dialog == nil || !m.chrome.Dialog.Help || m.input.Value() != "" {
 		t.Fatal("command completion did not open help")
 	}
-	m.testControls().Close()
+	m.chrome.Close()
+	m.syncControls()
 	m.state = stPermission
 	m.gstage = gsReject
 	m.input.Blur()

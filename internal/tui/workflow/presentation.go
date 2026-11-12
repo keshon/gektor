@@ -7,7 +7,7 @@ import (
 
 // Presentation supplies local controls and overlay bounds for the active screen.
 func (m *Model) Presentation() screen.ControlProps {
-	surface := m.presentation()
+	surface := m.surface
 	_, height := m.canvasSize()
 	props := screen.ControlProps{
 		Ready:  true,

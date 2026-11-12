@@ -63,7 +63,7 @@ func (m *Model) command(action string) tea.Cmd {
 		return nil
 	}
 	fail := func(err error) {
-		m.dialogs.OpenDialog(screen.Dialog{Title: "Workflow", Lines: []string{err.Error()}})
+		m.dialogs.PresentDialog(screen.Dialog{Title: "Workflow", Lines: []string{err.Error()}})
 	}
 	switch action {
 	case "schedule":
@@ -183,42 +183,24 @@ func (m *Model) recipePath(action string) *settings.Model {
 	if m.editor.Dirty() {
 		fields = append(fields, formField{Key: "discard", Label: "Unsaved changes: type discard to replace"})
 	}
-	return m.dialogs.OpenForm(screen.Form{
+	return m.openForm(screen.Form{
 		Title:      "Workflow / " + action,
 		Hint:       "Workspace: " + m.config.WS.Root(),
 		ApplyLabel: "Continue",
 		Fields:     fields,
 		FileFields: fileFields,
-		Apply: func(v map[string]string) error {
-			if m.editor.Dirty() && v["discard"] != "discard" {
-				return fmt.Errorf("save first, or type discard")
-			}
-			if strings.TrimSpace(v["path"]) == "" {
-				return fmt.Errorf("enter a recipe path")
-			}
-			if _, err := m.config.WS.Relative(v["path"]); err != nil {
-				return err
-			}
-			m.queueAction(action+"-path", v["path"])
-			return nil
-		},
+	}, chooseRecipePath{
+		action: action,
 	})
 }
 
 func (m *Model) saveForm() {
-	m.dialogs.OpenForm(screen.Form{
+	m.openForm(screen.Form{
 		Title:      "Save workflow",
 		Hint:       "Writes the recipe; canvas positions stay in your user settings.",
 		ApplyLabel: "Save",
 		Fields:     []formField{{Key: "path", Label: "Recipe path", Value: m.editor.Path}},
-		Apply: func(v map[string]string) error {
-			if strings.TrimSpace(v["path"]) == "" {
-				return fmt.Errorf("enter a path")
-			}
-			m.queueAction("save-path", v["path"])
-			return nil
-		},
-	})
+	}, saveRecipeForm)
 }
 
 func (m *Model) addOperation(name string) {
@@ -231,32 +213,14 @@ func (m *Model) addOperation(name string) {
 		return
 	}
 	draft := m.editor.Source()
-	m.dialogs.OpenForm(screen.Form{
+	m.openForm(screen.Form{
 		Title:      "Add operation",
 		Hint:       name,
 		ApplyLabel: "Add",
 		Fields:     []formField{{Key: "id", Label: "Unique node ID", Value: fmt.Sprintf("step_%d", len(m.editor.Definition.Steps)+1)}},
-		Apply: func(v map[string]string) error {
-			if m.busy || m.run != nil || m.editor.Source() != draft {
-				return fmt.Errorf("draft changed; add the node again")
-			}
-			id := strings.TrimSpace(v["id"])
-			if id == "" || strings.HasPrefix(id, "@") || strings.Contains(id, "/") {
-				return fmt.Errorf("enter a node ID without / or a leading @")
-			}
-			d := m.editor.Clone()
-			for _, s := range d.Steps {
-				if s.ID == id {
-					return fmt.Errorf("node ID already exists")
-				}
-			}
-			d.Steps = append(d.Steps, workflow.Step{ID: id, Tool: n.Name, NodeVersion: n.Version, Args: json.RawMessage(`{}`)})
-			m.editor.Replace(d)
-			m.graph.Selected = id
-			m.graph = m.buildGraph(m.graph)
-			m.queueAction("edit", "")
-			return nil
-		},
+	}, addRecipeNode{
+		draft: draft,
+		n:     n,
 	})
 }
 
@@ -278,7 +242,7 @@ func (m *Model) edit() {
 	s := m.editor.Definition.Steps[idx]
 	n, err := m.registry.Node(s.Tool)
 	if err != nil {
-		m.dialogs.OpenDialog(screen.Dialog{Title: "Node", Lines: []string{err.Error()}})
+		m.dialogs.PresentDialog(screen.Dialog{Title: "Node", Lines: []string{err.Error()}})
 		return
 	}
 	schema := schemaform.Parse(n.InputSchema)
@@ -286,26 +250,17 @@ func (m *Model) edit() {
 		delete(schema.Properties, "code")
 	}
 	draft := m.editor.Source()
-	m.dialogs.OpenForm(screen.Form{
+	m.openForm(screen.Form{
 		Title:      s.ID + " / " + s.Tool,
 		Hint:       n.Description + " · * required. Use JSON objects for references.",
 		ApplyLabel: "Apply",
 		Fields:     schema.Fields(s.Args),
-		Apply: func(v map[string]string) error {
-			if m.run != nil || m.busy || m.editor.Source() != draft {
-				return fmt.Errorf("draft changed; reopen node arguments")
-			}
-			args, err := schema.Values(s.Args, v)
-			if err != nil {
-				return err
-			}
-			d := m.editor.Clone()
-			d.Steps[idx].Args = args
-			m.editor.Replace(d)
-			m.graph = m.buildGraph(m.graph)
-			return nil
-		},
-		Choices: schema.Choices(),
+		Choices:    schema.Choices(),
+	}, editNodeArguments{
+		draft:  draft,
+		idx:    idx,
+		s:      s,
+		schema: schema,
 	})
 
 }
@@ -343,8 +298,87 @@ func (m *Model) footerActions() []screen.Action {
 		{Key: 's', Mod: tea.ModCtrl, Name: "Ctrl+S", Label: "Save", Short: "Save", Enabled: edit},
 		{Key: tea.KeyEscape, Name: "Esc", Label: back, Short: back, Enabled: true},
 	}
-	if m.presentation().Area.Width < 80 {
+	if m.surface.Area.Width < 80 {
 		return []screen.Action{actions[0], actions[1], actions[5], actions[7]}
 	}
 	return actions
+}
+
+type chooseRecipePath struct {
+	action string
+}
+
+func (edit chooseRecipePath) apply(m *Model, v map[string]string) error {
+	if m.editor.Dirty() && v["discard"] != "discard" {
+		return fmt.Errorf("save first, or type discard")
+	}
+	if strings.TrimSpace(v["path"]) == "" {
+		return fmt.Errorf("enter a recipe path")
+	}
+	_, pathErr := m.config.WS.Relative(v["path"])
+	if pathErr != nil {
+		return pathErr
+	}
+	m.queueAction(edit.action+"-path", v["path"])
+	return nil
+}
+
+func (m *Model) applyRecipePath(v map[string]string) error {
+	if strings.TrimSpace(v["path"]) == "" {
+		return fmt.Errorf("enter a path")
+	}
+	m.queueAction("save-path", v["path"])
+	return nil
+}
+
+type addRecipeNode struct {
+	draft string
+	n     workflow.Node
+}
+
+func (edit addRecipeNode) apply(m *Model, v map[string]string) error {
+	if m.busy || m.run != nil || m.editor.Source() != edit.draft {
+		return fmt.Errorf("draft changed; add the node again")
+	}
+
+	id := strings.TrimSpace(v["id"])
+	if id == "" || strings.HasPrefix(id, "@") || strings.Contains(id, "/") {
+		return fmt.Errorf("enter a node ID without / or a leading @")
+	}
+
+	d := m.editor.Clone()
+	for _, s := range d.Steps {
+		if s.ID == id {
+			return fmt.Errorf("node ID already exists")
+		}
+	}
+
+	d.Steps = append(d.Steps, workflow.Step{ID: id, Tool: edit.n.Name, NodeVersion: edit.n.Version, Args: json.RawMessage(`{}`)})
+	m.editor.Replace(d)
+	m.graph.Selected = id
+	m.graph = m.buildGraph(m.graph)
+	m.queueAction("edit", "")
+	return nil
+}
+
+type editNodeArguments struct {
+	draft  string
+	idx    int
+	s      workflow.Step
+	schema schemaform.Schema
+}
+
+func (edit editNodeArguments) apply(m *Model, v map[string]string) error {
+	if m.run != nil || m.busy || m.editor.Source() != edit.draft {
+		return fmt.Errorf("draft changed; reopen node arguments")
+	}
+	args, err := edit.schema.Values(edit.s.Args, v)
+	if err != nil {
+		return err
+	}
+	d := m.editor.Clone()
+	d.Steps[edit.idx].Args = args
+	m.editor.Replace(d)
+	m.graph = m.buildGraph(m.graph)
+	return nil
 }

@@ -106,14 +106,14 @@ func (m *Model) page(key string) {
 }
 
 func (m *Model) canvasSize() (int, int) {
-	view := m.presentation()
+	view := m.surface
 	area := view.Panes(m.inspectorOpen).Main
 	layout := view.Layout(area.Width, false)
 	return max(layout.Body.Width, 1), max(layout.Body.Height, 1)
 }
 
 func (m *Model) content() string {
-	view := m.presentation()
+	view := m.surface
 	cw, ch := m.canvasSize()
 	m.ensureSelection()
 	if m.run == nil {
@@ -230,7 +230,7 @@ func CardDetail(status string) (string, graph.Tone) {
 func (m *Model) View() tea.View { return tea.NewView("\n" + m.content()) }
 
 func (m *Model) inspectorContent() []string {
-	view := m.presentation()
+	view := m.surface
 	width := view.Layout(view.Panes(true).Side.Width, true).Body.Width
 	var out []string
 	for _, line := range m.detailRows()[1:] {

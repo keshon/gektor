@@ -4,6 +4,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/tui/components/pane"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 // State describes the retained screen without exposing its mutable editor or run.
@@ -81,6 +82,9 @@ func (m *Model) Dirty() bool { return m.editor.Dirty() }
 
 // Close cancels screen operations and releases its launch context.
 func (m *Model) Close() {
+	for dialog := range m.permissionRequests {
+		m.denyPermission(dialog)
+	}
 	if m.cancel != nil {
 		m.cancel()
 	}
@@ -88,3 +92,6 @@ func (m *Model) Close() {
 }
 
 func (m *Model) Init() tea.Cmd { return nil }
+
+// SetSurface receives a geometry snapshot from the shell before input or rendering.
+func (m *Model) SetSurface(surface screen.Surface) { m.surface = surface }

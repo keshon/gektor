@@ -67,35 +67,10 @@ func (m *Model) openMCP() {
 		Columns:     []table.Column{{Label: "Server", Width: 14}, {Label: "Status", Width: 15}, {Label: "Tools", Width: 5, HideNarrow: true}, {Label: "Description", HideNarrow: true}},
 		Description: "More: Add, Paste JSON, Import file, Enable/Disable, Delete.",
 	}
-	d.Actions = func() []table.Action {
-		selected := view.Selected()
-		status, exists := statuses[selected]
-		idle := m.state == stDone && m.evaluation == nil && !m.mcpBusy
-		connection, label := "connect", "Connect"
-		if status.Connected {
-			connection, label = "disconnect", "Disconnect"
-		}
-		toggle, toggleLabel := "enable", "Enable"
-		if status.Enabled {
-			toggle, toggleLabel = "disable", "Disable"
-		}
-		return []table.Action{
-			{ID: "details", Label: "Details", Key: "enter", Enabled: exists},
-			{ID: connection, Label: label, Key: "c", Enabled: exists && idle && (status.Enabled || status.Connected)},
-			{ID: "edit", Label: "Edit", Key: "e", Enabled: exists && idle},
-			{ID: toggle, Label: toggleLabel, Key: "t", Enabled: exists && idle, Overflow: true},
-			{ID: "delete", Label: "Delete", Key: "delete", Enabled: exists && idle, Destructive: true, Overflow: true},
-			{ID: "add", Label: "Add", Key: "a", Enabled: idle, Overflow: true},
-			{ID: "import-json", Label: "Paste JSON", Key: "p", Enabled: idle, Overflow: true},
-			{ID: "import", Label: "Import file", Key: "i", Enabled: idle, Overflow: true},
-			{ID: "close", Label: "Close", Key: "esc", Enabled: true},
-		}
-	}
-	d.Activate = func(action, id string) tea.Cmd {
-		m.chrome.Close()
-		return m.handleMCPAction(mcpActionMsg{action, id})
-	}
+
 	m.chrome.Dialog.Table, m.mcpTable = d, d
+	m.mcpDialog = m.chrome.Dialog
+	m.chrome.Dialog.Table.Actions = m.mcpActions(view, statuses)
 }
 
 func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
@@ -136,34 +111,22 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 		if s.Startup {
 			loading = "at startup"
 		}
-		m.chrome.OpenForm("MCP / "+a.action, "Use a URL or a command array. Import JSON to add HTTP credentials.", "Save", []form.Field{{Key: "id", Label: "ID", Value: s.ID}, {Key: "description", Label: "Description", Value: s.Description}, {Key: "url", Label: "HTTP endpoint", Value: s.URL}, {Key: "command", Label: "Command and arguments (JSON array)", Value: string(command)}, {Key: "envrefs", Label: "Environment references (JSON object)", Value: string(refs)}, {Key: "enabled", Label: "Enabled", Value: enabled}, {Key: "loading", Label: "Loading", Value: loading}}, func(v map[string]string) error {
-			if a.action == "edit" && v["id"] != s.ID {
-				return fmt.Errorf("server IDs cannot be renamed; add a new server")
-			}
-			if a.action == "add" {
-				if _, e := m.mcp.Get(v["id"]); e == nil {
-					return fmt.Errorf("server already exists")
-				}
-			}
-			next := s
-			next.ID = v["id"]
-			next.Description = v["description"]
-			next.URL = v["url"]
-			next.Enabled = v["enabled"] == "on"
-			next.Startup = v["loading"] == "at startup"
-			if json.Unmarshal([]byte(v["command"]), &next.Command) != nil {
-				return fmt.Errorf("command must be a JSON array")
-			}
-			if json.Unmarshal([]byte(v["envrefs"]), &next.EnvRefs) != nil {
-				return fmt.Errorf("environment references must be a JSON object")
-			}
-			if next.URL != s.URL && len(s.HeaderRefs) > 0 {
-				return fmt.Errorf("authenticated endpoint changes require importing a new server")
-			}
-			if e := m.mcp.Save(next); e != nil {
-				return e
-			}
-			return nil
+		m.openForm(screen.Form{
+			Title:      "MCP / " + a.action,
+			Hint:       "Use a URL or a command array. Import JSON to add HTTP credentials.",
+			ApplyLabel: "Save",
+			Fields: []form.Field{
+				{Key: "id", Label: "ID", Value: s.ID},
+				{Key: "description", Label: "Description", Value: s.Description},
+				{Key: "url", Label: "HTTP endpoint", Value: s.URL},
+				{Key: "command", Label: "Command and arguments (JSON array)", Value: string(command)},
+				{Key: "envrefs", Label: "Environment references (JSON object)", Value: string(refs)},
+				{Key: "enabled", Label: "Enabled", Value: enabled},
+				{Key: "loading", Label: "Loading", Value: loading},
+			},
+		}, editMCPServer{
+			a: a,
+			s: s,
 		})
 		m.chrome.Dialog.Form.Choices = map[string][]string{"enabled": {"on", "off"}, "loading": {"on demand", "at startup"}}
 	case "import", "import-json":
@@ -175,27 +138,26 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 			hint = "Paste the JSON object containing mcpServers. Credentials are stored separately."
 			field = form.Field{Key: "json", Label: "JSON configuration", Multiline: true}
 		}
-		m.chrome.OpenForm(title, hint, "Import", []form.Field{field, {Key: "replace", Label: "Replace existing servers", Value: "off"}}, func(v map[string]string) error {
-			raw := []byte(v["json"])
-			if a.action == "import" {
-				var e error
-				raw, e = os.ReadFile(strings.Trim(v["path"], "\""))
-				if e != nil {
-					return e
-				}
-			}
-			if _, e := m.mcp.Import(raw, v["replace"] == "on"); e != nil {
-				return e
-			}
-			return nil
+		m.openForm(screen.Form{
+			Title:      title,
+			Hint:       hint,
+			ApplyLabel: "Import",
+			Fields: []form.Field{
+				field,
+				{Key: "replace", Label: "Replace existing servers", Value: "off"},
+			},
+		}, importMCPServers{
+			a: a,
 		})
 		m.chrome.Dialog.Form.Choices = map[string][]string{"replace": {"off", "on"}}
 	case "delete":
-		m.chrome.OpenForm("Delete MCP / "+a.id, "Remove this saved server and disconnect it.", "Delete", nil, func(map[string]string) error {
-			if e := m.mcp.Delete(a.id); e != nil {
-				return e
-			}
-			return nil
+		m.openForm(screen.Form{
+			Title:      "Delete MCP / " + a.id,
+			Hint:       "Remove this saved server and disconnect it.",
+			ApplyLabel: "Delete",
+			Fields:     nil,
+		}, deleteMCPServer{
+			a: a,
 		})
 		m.chrome.Dialog.Form.Destructive = true
 		m.chrome.FocusForm(1)
@@ -259,7 +221,103 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 		fail(fmt.Errorf("unknown MCP action %q", a.action))
 	}
 	if a.action != "list" && m.chrome.Dialog != nil && m.chrome.Dialog.Table == nil && !m.mcpBusy {
-		m.chrome.Dialog.OnClose = func() { m.queueMCP("list", a.id) }
+		m.rememberReturn(dialogReturn{mcp: true, id: a.id})
 	}
 	return nil
+}
+
+type editMCPServer struct {
+	a mcpActionMsg
+	s mcpmanager.Server
+}
+
+func (edit editMCPServer) apply(m *Model, v map[string]string) error {
+	if edit.a.action == "edit" && v["id"] != edit.s.ID {
+		return fmt.Errorf("server IDs cannot be renamed; add a new server")
+	}
+	if edit.a.action == "add" {
+		_, lookupErr := m.mcp.Get(v["id"])
+		if lookupErr == nil {
+			return fmt.Errorf("server already exists")
+		}
+	}
+
+	next := edit.s
+	next.ID = v["id"]
+	next.Description = v["description"]
+	next.URL = v["url"]
+	next.Enabled = v["enabled"] == "on"
+	next.Startup = v["loading"] == "at startup"
+	if json.Unmarshal([]byte(v["command"]), &next.Command) != nil {
+		return fmt.Errorf("command must be a JSON array")
+	}
+	if json.Unmarshal([]byte(v["envrefs"]), &next.EnvRefs) != nil {
+		return fmt.Errorf("environment references must be a JSON object")
+	}
+	if next.URL != edit.s.URL && len(edit.s.HeaderRefs) > 0 {
+		return fmt.Errorf("authenticated endpoint changes require importing a new server")
+	}
+
+	saveErr := m.mcp.Save(next)
+	if saveErr != nil {
+		return saveErr
+	}
+	return nil
+}
+
+type importMCPServers struct {
+	a mcpActionMsg
+}
+
+func (edit importMCPServers) apply(m *Model, v map[string]string) error {
+	raw := []byte(v["json"])
+	if edit.a.action == "import" {
+		var e error
+		raw, e = os.ReadFile(strings.Trim(v["path"], "\""))
+		if e != nil {
+			return e
+		}
+	}
+	_, importErr := m.mcp.Import(raw, v["replace"] == "on")
+	if importErr != nil {
+		return importErr
+	}
+	return nil
+}
+
+type deleteMCPServer struct {
+	a mcpActionMsg
+}
+
+func (edit deleteMCPServer) apply(m *Model, _ map[string]string) error {
+	deleteErr := m.mcp.Delete(edit.a.id)
+	if deleteErr != nil {
+		return deleteErr
+	}
+	return nil
+}
+
+func (m *Model) mcpActions(view *table.Model, statuses map[string]mcpmanager.Status) []table.Action {
+	selected := view.Selected()
+	status, exists := statuses[selected]
+	idle := m.state == stDone && m.evaluation == nil && !m.mcpBusy
+	connection, label := "connect", "Connect"
+	if status.Connected {
+		connection, label = "disconnect", "Disconnect"
+	}
+	toggle, toggleLabel := "enable", "Enable"
+	if status.Enabled {
+		toggle, toggleLabel = "disable", "Disable"
+	}
+	return []table.Action{
+		{ID: "details", Label: "Details", Key: "enter", Enabled: exists},
+		{ID: connection, Label: label, Key: "c", Enabled: exists && idle && (status.Enabled || status.Connected)},
+		{ID: "edit", Label: "Edit", Key: "e", Enabled: exists && idle},
+		{ID: toggle, Label: toggleLabel, Key: "t", Enabled: exists && idle, Overflow: true},
+		{ID: "delete", Label: "Delete", Key: "delete", Enabled: exists && idle, Destructive: true, Overflow: true},
+		{ID: "add", Label: "Add", Key: "a", Enabled: idle, Overflow: true},
+		{ID: "import-json", Label: "Paste JSON", Key: "p", Enabled: idle, Overflow: true},
+		{ID: "import", Label: "Import file", Key: "i", Enabled: idle, Overflow: true},
+		{ID: "close", Label: "Close", Key: "esc", Enabled: true},
+	}
 }

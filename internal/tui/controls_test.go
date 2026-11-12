@@ -19,7 +19,7 @@ func TestFormsShareRightAlignedActionRowAndDivider(t *testing.T) {
 			if workspace {
 				m.editSettings("generation")
 			} else {
-				m.openForm("Delete Identity", "Removes the saved Identity.", "Delete", nil, func(map[string]string) error { return nil })
+				m.chrome.OpenForm("Delete Identity", "Removes the saved Identity.", "Delete", nil)
 			}
 			rows, hits, _, _ := m.formRows()
 			buttons := hits[len(hits)-2:]
@@ -94,5 +94,29 @@ func TestFormFooterMatchesActionsAndViewIsPure(t *testing.T) {
 	}
 	if m.chrome.Dialog != nil {
 		t.Fatal("footer cancel click failed")
+	}
+}
+
+func TestReplacedSharedFormCannotApplyPendingValues(t *testing.T) {
+	m := settingsModel(t)
+	before := m.agent.Appearance().Frame
+	target := "minimal"
+	if before == target {
+		target = "outlined"
+	}
+	m.openAppearance()
+	first := m.chrome.Dialog
+	m.chrome.Dialog.Form.Fields[1].Value = target
+	m.chrome.FocusForm(1)
+	m.chrome.Dialog.Form.Editor.SetValue(target)
+	m.chrome.ApplyForm()
+	m.openTheme()
+	replacement := m.chrome.Dialog
+	m.Update(nil)
+	if m.chrome.Dialog != replacement || m.agent.Appearance().Frame != before {
+		t.Fatal("a replaced form applied its pending submission")
+	}
+	if m.formEdits[first] != nil {
+		t.Fatal("replaced form retained its operation")
 	}
 }

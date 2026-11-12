@@ -58,3 +58,25 @@ func TestWorkflowJSONInputsNameTheirActualAction(t *testing.T) {
 		m.closeDialog()
 	}
 }
+
+func TestDraftFormsRejectChangedTargets(t *testing.T) {
+	for _, action := range []string{"behavior", "recipe", "delete"} {
+		t.Run(action, func(t *testing.T) {
+			m := workflowTestModel(t)
+			w := m.workflows
+			w.editor.Replace(workflowRecipe())
+			w.graph.Selected = "transform"
+			m.workflowCommand(action)
+			values := m.chrome.Dialog.Form.Values()
+			changed := w.editor.Clone()
+			changed.Steps = nil
+			w.editor.Replace(changed)
+			before := w.editor.Source()
+
+			err := m.applyValues(values)
+			if err == nil || !strings.Contains(err.Error(), "draft changed") || w.editor.Source() != before {
+				t.Fatal("stale form changed a different draft", err)
+			}
+		})
+	}
+}

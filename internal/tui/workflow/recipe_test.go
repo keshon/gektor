@@ -14,7 +14,7 @@ func TestRecipeSetupFormsPreserveDataAndUndo(t *testing.T) {
 	w.editor.Replace(workflowRecipe())
 	initial := w.editor.Source()
 	m.workflowCommand("name")
-	if err := m.chrome.Dialog.Form.Apply(map[string]string{"name": "Report"}); err != nil {
+	if err := m.applyValues(map[string]string{"name": "Report"}); err != nil {
 		t.Fatal(err)
 	}
 	if w.editor.Definition.Name != "Report" {
@@ -22,11 +22,11 @@ func TestRecipeSetupFormsPreserveDataAndUndo(t *testing.T) {
 	}
 	afterName := w.editor.Source()
 	m.workflowCommand("inputs")
-	if err := m.chrome.Dialog.Form.Apply(map[string]string{"entry": "Add new", "action": "Edit"}); err != nil {
+	if err := m.applyValues(map[string]string{"entry": "Add new", "action": "Edit"}); err != nil {
 		t.Fatal(err)
 	}
 	nextConnectionForm(t, m)
-	if err := m.chrome.Dialog.Form.Apply(map[string]string{"name": "count", "type": "integer", "required": "true", "default": "9007199254740993"}); err != nil {
+	if err := m.applyValues(map[string]string{"name": "count", "type": "integer", "required": "true", "default": "9007199254740993"}); err != nil {
 		t.Fatal(err)
 	}
 	input := w.editor.Definition.Inputs["count"]
@@ -35,11 +35,11 @@ func TestRecipeSetupFormsPreserveDataAndUndo(t *testing.T) {
 	}
 	afterInput := w.editor.Source()
 	m.workflowCommand("outputs")
-	if err := m.chrome.Dialog.Form.Apply(map[string]string{"entry": "Add new", "action": "Edit"}); err != nil {
+	if err := m.applyValues(map[string]string{"entry": "Add new", "action": "Edit"}); err != nil {
 		t.Fatal(err)
 	}
 	nextConnectionForm(t, m)
-	if err := m.chrome.Dialog.Form.Apply(map[string]string{"name": "result", "value": `{"$step":"transform"}`}); err != nil {
+	if err := m.applyValues(map[string]string{"name": "result", "value": `{"$step":"transform"}`}); err != nil {
 		t.Fatal(err)
 	}
 	if string(w.editor.Definition.Outputs["result"]) != `{"$step":"transform"}` {
@@ -61,12 +61,12 @@ func TestRecipeSetupFormsPreserveDataAndUndo(t *testing.T) {
 	w.editor.Redo()
 	w.editor.Redo()
 	m.workflowCommand("inputs")
-	if err := m.chrome.Dialog.Form.Apply(map[string]string{"entry": "Named: count", "action": "Remove"}); err != nil {
+	if err := m.applyValues(map[string]string{"entry": "Named: count", "action": "Remove"}); err != nil {
 		t.Fatal(err)
 	}
 	nextConnectionForm(t, m)
 	beforeRemoval := w.editor.Source()
-	if err := m.chrome.Dialog.Form.Apply(nil); err != nil {
+	if err := m.applyValues(nil); err != nil {
 		t.Fatal(err)
 	}
 	if len(w.editor.Definition.Inputs) != 0 || len(w.editor.Definition.Outputs) != 1 {
@@ -84,14 +84,13 @@ func TestRecipeSetupRejectsInvalidValuesAndStaleForms(t *testing.T) {
 	w.editor.Replace(workflowRecipe())
 	before := w.editor.Source()
 	m.workflows.parameterEdit(workflowParameterEdit{Kind: "inputs", Draft: before})
-	f := m.chrome.Dialog.Form
 	for _, v := range []map[string]string{
 		{"name": "wrong", "type": "integer", "default": "1.5"},
 		{"name": "wrong", "type": "boolean", "default": "null"},
 		{"name": "wrong", "type": "unsupported"},
 		{"name": "wrong", "type": "object", "default": `{"$input":"inject"}`},
 	} {
-		if err := f.Apply(v); err == nil {
+		if err := m.applyValues(v); err == nil {
 			t.Fatal("accepted invalid input", v)
 		}
 		if w.editor.Source() != before {
@@ -99,15 +98,14 @@ func TestRecipeSetupRejectsInvalidValuesAndStaleForms(t *testing.T) {
 		}
 	}
 	m.workflows.parameterEdit(workflowParameterEdit{Kind: "outputs", Draft: before})
-	if err := m.chrome.Dialog.Form.Apply(map[string]string{"name": "out", "value": "{} {}"}); err == nil {
+	if err := m.applyValues(map[string]string{"name": "out", "value": "{} {}"}); err == nil {
 		t.Fatal("accepted trailing JSON")
 	}
 	m.workflowCommand("name")
-	f = m.chrome.Dialog.Form
 	d := w.editor.Clone()
 	d.Name = "Newer"
 	w.editor.Replace(d)
-	if err := f.Apply(map[string]string{"name": "Old"}); err == nil || !strings.Contains(err.Error(), "draft changed") {
+	if err := m.applyValues(map[string]string{"name": "Old"}); err == nil || !strings.Contains(err.Error(), "draft changed") {
 		t.Fatal("stale overwrite", err)
 	}
 	w.run = &workflow.Run{}
@@ -127,7 +125,7 @@ func TestRecipeSetupEditsCanClearDefaults(t *testing.T) {
 	d.Inputs = map[string]workflow.Input{"text": {Type: "string", Default: json.RawMessage(`"old"`)}}
 	w.editor.Replace(d)
 	m.workflows.parameterEdit(workflowParameterEdit{Kind: "inputs", Name: "text", Draft: w.editor.Source()})
-	if err := m.chrome.Dialog.Form.Apply(map[string]string{"type": "string", "required": "false", "default": ""}); err != nil {
+	if err := m.applyValues(map[string]string{"type": "string", "required": "false", "default": ""}); err != nil {
 		t.Fatal(err)
 	}
 	if w.editor.Definition.Inputs["text"].Default != nil {

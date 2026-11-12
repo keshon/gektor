@@ -71,7 +71,7 @@ func TestProcessManagerConfirmationAndAsynchronousStop(t *testing.T) {
 	if !m.chrome.Dialog.Form.Destructive || m.chrome.Dialog.Form.Index != 1 {
 		t.Fatal("stop confirmation must default to Cancel")
 	}
-	m.formKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if p, _, _ := m.baseEnv.Procs.Inspect(id); p.Exited {
 		t.Fatal("Cancel stopped process")
 	}
@@ -79,7 +79,7 @@ func TestProcessManagerConfirmationAndAsynchronousStop(t *testing.T) {
 	m.openProcesses(view)
 	m.confirmStopProcess(id, view)
 	m.testControls().FocusForm(0)
-	m.testControls().ApplyForm()
+	m.applyTestForm()
 	if m.chrome.Dialog != nil {
 		t.Fatal("confirmation did not close")
 	}
@@ -100,7 +100,7 @@ func TestProcessManagerConfirmationAndAsynchronousStop(t *testing.T) {
 	if m.chrome.Dialog.Table == nil || processStatus(m.baseEnv.Procs.List()[0]) != "Stopped" {
 		t.Fatal("manager did not return after stop")
 	}
-	for _, a := range m.chrome.Dialog.Table.Actions() {
+	for _, a := range m.chrome.Dialog.Table.Actions {
 		if a.ID == "stop" && a.Enabled {
 			t.Fatal("stopped process remains stoppable")
 		}
@@ -115,14 +115,16 @@ func TestProcessManagerOutputReturnAndLateCompletion(t *testing.T) {
 	if text := strings.Join(m.chrome.Dialog.Lines, "\n"); !strings.Contains(text, "Workspace:") || !strings.Contains(text, "managed output marker") {
 		t.Fatal(m.chrome.Dialog.Lines)
 	}
-	m.testControls().Close()
+	m.chrome.Close()
+	m.syncControls()
 	m.testUpdate(processListMsg{view})
 	if m.chrome.Dialog.Table == nil || m.chrome.Dialog.Table.Model.Selected() != id {
 		t.Fatal("return lost process selection")
 	}
 	m.chrome.Dialog = nil
 	cmd := m.stopProcess(processStopMsg{id, view})
-	m.testControls().Close()
+	m.chrome.Close()
+	m.syncControls()
 	m.testControls().Open("Another dialog", []string{"keep this"})
 	other := m.chrome.Dialog
 	m.testUpdate(cmd())

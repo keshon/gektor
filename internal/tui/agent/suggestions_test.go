@@ -231,7 +231,8 @@ func TestSuggestionsYieldToOverlaysAndPreserveFrame(t *testing.T) {
 	if len(m.suggestions.Items) != 0 {
 		t.Fatal("help must hide suggestions")
 	}
-	m.testControls().Close()
+	m.chrome.Close()
+	m.syncControls()
 	m.state = stRunning
 	m.input.SetValue("read @notes.txt")
 	m.testUpdate(tea.KeyPressMsg{Code: tea.KeyEnter})

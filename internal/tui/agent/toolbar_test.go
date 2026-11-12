@@ -26,7 +26,7 @@ func TestSessionToolbarClickReturnsToExistingDraft(t *testing.T) {
 
 func TestFormToolbarUsesTheFormsPrimaryAction(t *testing.T) {
 	m := sizeModel(t, testModel())
-	m.testControls().OpenForm("Open recipe", "", "Open", nil, func(map[string]string) error { return nil })
+	m.testControls().OpenForm("Open recipe", "", "Open", nil)
 	for _, action := range m.footerActions() {
 		if action.Key == 's' {
 			if action.Label != "Open" || !action.Enabled {

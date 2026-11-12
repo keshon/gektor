@@ -30,10 +30,12 @@ func TestModalsShareFrameAndPreserveFullWidthDraft(t *testing.T) {
 			}
 			m.testControls().Open("About", []string{"GEKTOR"})
 			checkModalWidth(t, m.testControls().DialogView(), popup.ModalWidth(width-2))
-			m.testControls().Close()
-			m.testControls().OpenForm("Rename session", "Change the title.", "Rename", []form.Field{{Key: "title", Label: "Title", Value: "Task"}}, func(map[string]string) error { return nil })
+			m.chrome.Close()
+			m.syncControls()
+			m.testControls().OpenForm("Rename session", "Change the title.", "Rename", []form.Field{{Key: "title", Label: "Title", Value: "Task"}})
 			checkModalWidth(t, m.testControls().FormView(), popup.ModalWidth(width-2))
-			m.testControls().Close()
+			m.chrome.Close()
+			m.syncControls()
 			m.openSessions()
 			m.sessions.entries = []sessionEntry{{title: "Repair startup", updated: time.Now().Add(-49 * time.Hour), msgs: 12, preview: "Check cancellation and process ownership"}, {title: "Review changes", updated: time.Now(), msgs: 3}}
 			m.fitBottom()

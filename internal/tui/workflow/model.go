@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/screen"
@@ -16,8 +17,15 @@ import (
 // Model owns one workflow screen and its background operations.
 // All mutable screen state is confined to the Bubble Tea update loop.
 type Model struct {
-	dialogs                  screen.Host
-	presentation             func() screen.Surface
+	permissionDialog, runsDialog, proposalDialog *screen.DialogState
+	permissionRequests                           map[*screen.DialogState]chan permission.Effect
+	proposalBefore                               string
+	proposalDraft                                workflow.Definition
+
+	formEdits map[*screen.DialogState]formEdit
+
+	dialogs                  *screen.Controls
+	surface                  screen.Surface
 	config                   Config
 	ctx                      context.Context
 	shutdown                 context.CancelFunc

@@ -10,6 +10,7 @@ import (
 
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/tui/components/form"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 func (m *Model) openWorkspace() {
@@ -22,9 +23,12 @@ func (m *Model) openWorkspace() {
 	fields := []form.Field{{
 		Key: "app-workspace", Label: "Workspace", Value: m.application.Preferences.Workspace,
 	}}
-	m.chrome.OpenForm("Workspace", "Apply restarts GEKTOR in the selected workspace.", "Apply", fields, func(map[string]string) error {
-		return m.requestProfileChange(m.profile.Profile.Clone())
-	})
+	m.openForm(screen.Form{
+		Title:      "Workspace",
+		Hint:       "Apply restarts GEKTOR in the selected workspace.",
+		ApplyLabel: "Apply",
+		Fields:     fields,
+	}, openWorkspaceForm)
 }
 
 // requestProfileChange replaces owned services without starting an Agent run.
@@ -106,4 +110,8 @@ func sameWorkspace(a, b string) bool {
 	}
 	right, e := filepath.Abs(b)
 	return e == nil && strings.EqualFold(left, right)
+}
+
+func (m *Model) applyOpenWorkspace(_ map[string]string) error {
+	return m.requestProfileChange(m.profile.Profile.Clone())
 }

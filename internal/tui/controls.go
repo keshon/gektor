@@ -7,26 +7,30 @@ import (
 	"github.com/keshon/gektor/internal/tui/settings"
 )
 
-func (m *Model) bindControls() {
-	m.chrome.Opening = func(first bool) {
-		if first {
-			m.overlayScreen = m.active
+func (m *Model) settleControls() []tea.Cmd {
+	var commands []tea.Cmd
+	changed := false
+	for {
+		events := m.chrome.TakeEvents()
+		if len(events) == 0 {
+			break
 		}
-		if m.overlayScreen == agentScreen {
-			m.agent.OverlayOpened(first)
+		for _, event := range events {
+			commands = append(commands, m.dispatchControl(event)...)
+			if event.Kind == screen.Opened || event.Kind == screen.Closed || event.Kind == screen.Suspended {
+				changed = true
+			}
 		}
 	}
-	m.chrome.Closed = func() {
-		if m.overlayScreen == agentScreen {
-			m.agent.OverlayClosed()
-		}
+
+	m.agent.PrepareControls()
+	m.chrome.Prepare()
+	if changed && m.active == agentScreen {
+		m.agent.ControlsChanged()
 	}
-	m.chrome.Changed = func() {
-		if m.active == agentScreen {
-			m.agent.ControlsChanged()
-		}
-		m.syncPresentation()
-	}
+
+	m.syncPresentation()
+	return commands
 }
 
 func (m *Model) settingsCommands() []tea.Cmd {
@@ -72,4 +76,42 @@ func (m *Model) applicationMenus(idle bool) []screen.Menu {
 	}
 	help.Items = append(help.Items, screen.MenuItem{}, screen.MenuItem{Text: "About GEKTOR", Command: "about", Enabled: true})
 	return []screen.Menu{menu, help}
+}
+
+func (m *Model) dispatchControl(event screen.Event) []tea.Cmd {
+	var commands []tea.Cmd
+
+	switch event.Kind {
+	case screen.Opened:
+		if event.First {
+			m.overlayScreen = m.active
+		}
+		if m.overlayScreen == agentScreen {
+			m.agent.OverlayOpened(event.First)
+		}
+
+	case screen.Closed, screen.Suspended:
+		if m.overlayScreen == agentScreen {
+			m.agent.OverlayClosed()
+		}
+
+	case screen.Apply:
+		if m.formEdits[event.Dialog] != nil && m.chrome.Dialog == event.Dialog {
+			err := m.applySubmission(event.Dialog, event.Values)
+			m.chrome.CompleteForm(event.Dialog, err)
+		}
+
+	case screen.SaveCopy:
+		if m.formEdits[event.Dialog] != nil && m.chrome.Dialog == event.Dialog {
+			m.saveSettingsCopy()
+		}
+	}
+	commands = append(commands, m.agent.HandleControl(event))
+	if m.workflows != nil {
+		commands = append(commands, m.workflows.HandleControl(event))
+	}
+	if event.Kind == screen.Closed || event.Kind == screen.Replaced || event.Kind == screen.Suspended {
+		delete(m.formEdits, event.Dialog)
+	}
+	return commands
 }

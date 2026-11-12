@@ -36,13 +36,15 @@ func TestPermissionsFilterKeepsRuleOrderAndFullDetails(t *testing.T) {
 	if m.chrome.Dialog.Table != nil || !strings.Contains(strings.Join(m.chrome.Dialog.Lines, "\n"), "*.env · keep this full pattern") {
 		t.Fatal("Details lost the full rule")
 	}
-	m.testControls().Close()
+	m.chrome.Close()
+	m.syncControls()
 	msg := m.pendingCommands[len(m.pendingCommands)-1]()
 	m.testUpdate(msg)
 	if m.chrome.Dialog.Table == nil || m.chrome.Dialog.Table.Model.Search.Value() != "read_file" || m.chrome.Dialog.Table.Model.Selected() != "1" {
 		t.Fatal("returning from Details lost table state")
 	}
-	m.testControls().Close()
+	m.chrome.Close()
+	m.syncControls()
 	if m.input.Value() != "unfinished draft" || len(m.overlays) != 0 {
 		t.Fatal("table navigation lost conversation draft or leaked overlays")
 	}
@@ -117,7 +119,8 @@ func TestReplacingDialogReusesOverlayFrame(t *testing.T) {
 	if len(m.overlays) != 1 {
 		t.Fatal("replacing a modal stacked an invisible overlay")
 	}
-	m.testControls().Close()
+	m.chrome.Close()
+	m.syncControls()
 	if len(m.overlays) != 0 {
 		t.Fatal("close did not release overlay")
 	}
@@ -129,7 +132,8 @@ func TestReturningToTableDoesNotReplaceAnotherDialog(t *testing.T) {
 	m.policyDetails = []permission.Rule{{Tool: "*", Pattern: "*", Effect: permission.Allow}}
 	m.openPermissions()
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
-	m.testControls().Close()
+	m.chrome.Close()
+	m.syncControls()
 	msg := m.pendingCommands[len(m.pendingCommands)-1]()
 	m.testControls().Open("Another dialog", nil)
 	m.testUpdate(msg)

@@ -23,7 +23,7 @@ func TestPickerFootersFitAcrossThemesAndTerminalSizes(t *testing.T) {
 			for _, field := range []string{"run", "app-workspace"} {
 				m := sizeModelTo(t, testModel(), size[0], size[1])
 				m.applyTheme(theme)
-				m.testControls().OpenForm("Choose", "", "Apply", []form.Field{{Key: field, Value: root}}, func(map[string]string) error { return nil })
+				m.testControls().OpenForm("Choose", "", "Apply", []form.Field{{Key: field, Value: root}})
 				f, props := m.chrome.Dialog.Form, m.testControls().SettingsProps()
 				f.Choices = map[string][]string{"run": {"first", "second"}}
 				f.Focus(0, nil)
@@ -65,7 +65,7 @@ func TestPickerFootersFitAcrossThemesAndTerminalSizes(t *testing.T) {
 
 func TestPickerToolbarEnterMatchesFocusedCancel(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 120, 30)
-	m.testControls().OpenForm("Choose run", "", "Apply", []form.Field{{Key: "run", Value: "old"}}, func(map[string]string) error { return nil })
+	m.testControls().OpenForm("Choose run", "", "Apply", []form.Field{{Key: "run", Value: "old"}})
 	f := m.chrome.Dialog.Form
 	f.Choices = map[string][]string{"run": {"old", "new"}}
 	f.Focus(0, nil)

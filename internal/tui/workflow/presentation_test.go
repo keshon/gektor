@@ -20,9 +20,8 @@ func TestScreenUsesCurrentSurfaceAndSharedDialogs(t *testing.T) {
 	}
 	defer ws.Close()
 	surface := screen.Surface{Area: pane.Rect{Y: 1, Width: 120, Height: 28}, Inset: 1, SplitWidth: 100}
-	var title string
-	host := screen.Host{OpenDialog: func(d screen.Dialog) { title = d.Title }}
-	child, err := workflow.New(context.Background(), workflow.Config{WS: ws, Policy: permission.Default()}, host, func() screen.Surface { return surface })
+	controls := &screen.Controls{}
+	child, err := workflow.New(context.Background(), workflow.Config{WS: ws, Policy: permission.Default()}, controls, surface)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,11 +31,12 @@ func TestScreenUsesCurrentSurfaceAndSharedDialogs(t *testing.T) {
 	}
 	child.Activate()
 	child.Command("help")
-	if title != "Workflow keys" {
-		t.Fatal("shared dialog host was not connected", title)
+	if controls.Dialog.Title != "Workflow keys" {
+		t.Fatal("shared dialog host was not connected", controls.Dialog.Title)
 	}
 	width, height := child.CanvasSize()
 	surface.Area.Width, surface.Area.Height = 60, 18
+	child.SetSurface(surface)
 	narrow, short := child.CanvasSize()
 	if narrow >= width || short >= height {
 		t.Fatalf("screen retained stale geometry: %dx%d -> %dx%d", width, height, narrow, short)

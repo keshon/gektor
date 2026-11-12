@@ -80,10 +80,10 @@ func (m *Controls) LayoutDialog() DialogLayout {
 		lines = append(lines, strings.Split(ansi.Wrap(cleanText(line), max(inner-1, 1), ""), "\n")...)
 	}
 	shortcuts := []popup.Shortcut{{Key: "Esc/Enter", Action: "close"}}
-	if d.Review != nil {
+	if d.Review {
 		shortcuts = []popup.Shortcut{{Key: "Esc/Enter", Action: "skip"}, {Key: "R", Action: "review lesson"}}
 	}
-	if d.Save != nil {
+	if d.Save {
 		shortcuts = []popup.Shortcut{{Key: "Esc/Enter", Action: "skip"}, {Key: "S", Action: "save lesson"}, {Key: "E", Action: "edit"}}
 	}
 	if m.Props.Evaluating {
@@ -148,10 +148,10 @@ func (m *Controls) FocusForm(index int) {
 	m.ResizeFormEditor()
 }
 
-// OpenForm opens a draft editor; apply runs on confirmation and may reject its values.
-func (m *Controls) OpenForm(title, hint, applyLabel string, fields []form.Field, apply func(map[string]string) error) {
+// OpenForm initializes draft editing; confirmation emits an Apply event.
+func (m *Controls) OpenForm(title, hint, applyLabel string, fields []form.Field) {
 	m.Open(title, nil)
-	f := &FormState{Model: settings.NewModel(fields, m.NewEditor()), Apply: apply}
+	f := &FormState{Model: settings.NewModel(fields, m.NewEditor())}
 	f.Hint, f.ApplyLabel = hint, applyLabel
 	f.HasApplication = m.Props.HasApplication
 	f.Editor.SetVirtualCursor(true)
@@ -163,8 +163,8 @@ func (m *Controls) OpenForm(title, hint, applyLabel string, fields []form.Field,
 }
 
 // OpenRemoval opens a destructive confirmation with Cancel initially selected.
-func (m *Controls) OpenRemoval(title, hint, label string, fields []form.Field, apply func(map[string]string) error) {
-	m.OpenForm(title, hint, label, fields, apply)
+func (m *Controls) OpenRemoval(title, hint, label string, fields []form.Field) {
+	m.OpenForm(title, hint, label, fields)
 	m.Dialog.Form.Destructive = true
 	m.FocusForm(len(fields) + 1)
 }
@@ -175,12 +175,7 @@ func (m *Controls) ApplyForm() {
 	if f.EditSession != nil && !m.Dialog.Form.Dirty() {
 		return
 	}
-	values := f.Values()
-	if err := f.Apply(values); err != nil {
-		f.Error = err.Error()
-		return
-	}
-	m.Close()
+	m.events = append(m.events, Event{Kind: Apply, Dialog: m.Dialog, Values: f.Values()})
 }
 
 // FormKey interprets a key in the open form and applies any resulting intent.
@@ -198,8 +193,8 @@ func (m *Controls) HandleIntent(intent settings.Intent) tea.Cmd {
 	case settings.Cancel:
 		m.Close()
 	case settings.SaveCopy:
-		if m.Dialog.Form.SaveCopy != nil {
-			m.Dialog.Form.SaveCopy()
+		if m.Dialog.Form.SaveCopy {
+			m.events = append(m.events, Event{Kind: SaveCopy, Dialog: m.Dialog})
 		}
 	}
 	return nil
@@ -234,27 +229,27 @@ func (m *Controls) FormRows() ([]string, []form.Hit, int, int) {
 	return m.Dialog.Form.Rows(m.SettingsProps())
 }
 
-// TableProps refreshes the table snapshot and supplies its current actions and bounds.
+// TableProps reads the prepared table snapshot and shared bounds.
 func (m *Controls) TableProps() table.Props {
 	d := m.Dialog.Table
-	if d.Refresh != nil {
-		d.Refresh()
-	}
-	d.Model.Search.SetStyles(TextInputStyles(d.Model.Search.Styles()))
 	_, _, width, height := m.Area()
 	return table.Props{Title: m.Dialog.Title, Description: d.Description, EmptyMessage: d.EmptyMessage, Width: width, Height: height, DefaultAction: "details", List: d.List,
-		Columns: d.Columns, Actions: d.Actions(), Surface: PopupSurface(),
+		Columns: d.Columns, Actions: d.Actions, Surface: PopupSurface(),
 		Styles: form.Styles{Normal: PopupSurface().Normal, Title: m.Props.Styles.Title, Muted: m.Props.Styles.Dim,
 			Focus: m.Props.Styles.Focus, Disabled: m.Props.Styles.Disabled, Error: m.Props.Styles.Err}}
 }
 
 // TableInput handles table navigation, filtering, and stable-ID activation.
 func (m *Controls) TableInput(msg tea.Msg) tea.Cmd {
-	action, cmd := m.Dialog.Table.Model.Update(msg, m.TableProps())
+	model := m.Dialog.Table.Model
+	model.Search.SetStyles(TextInputStyles(model.Search.Styles()))
+	props := m.TableProps()
+	action, cmd := model.Update(msg, props)
+	m.events = append(m.events, Event{Kind: TableChanged, Dialog: m.Dialog})
 	return tea.Batch(cmd, m.TableAction(action))
 }
 
-// TableAction closes the overlay or invokes its owner with the selected row ID.
+// TableAction records an activation with the selected stable row ID.
 func (m *Controls) TableAction(action string) tea.Cmd {
 	if action == "" {
 		return nil
@@ -265,7 +260,8 @@ func (m *Controls) TableAction(action string) tea.Cmd {
 	}
 	d := m.Dialog.Table
 	id := d.Model.Selected()
-	return d.Activate(action, id)
+	m.events = append(m.events, Event{Kind: TableAction, Dialog: m.Dialog, Action: action, Row: id})
+	return nil
 }
 
 // NewTable creates a table with the shared search editor styles.
@@ -313,17 +309,12 @@ func (m *Controls) DialogScrollbarMouse(msg tea.MouseMsg) bool {
 
 // InfoKey consumes keys for the open information overlay; the shell handles application quit policy.
 func (m *Controls) InfoKey(msg tea.KeyPressMsg) tea.Cmd {
-	if (msg.String() == "s" || msg.String() == "S") && m.Dialog.Save != nil {
-		if err := m.Dialog.Save(); err != nil {
-			m.Dialog.Lines = append(m.Dialog.Lines, "", "Could not save: "+err.Error())
-			m.Dialog.Offset = 0
-		} else {
-			m.Close()
-		}
+	if (msg.String() == "s" || msg.String() == "S") && m.Dialog.Save {
+		m.events = append(m.events, Event{Kind: Save, Dialog: m.Dialog})
 		return nil
 	}
-	if (msg.String() == "r" || msg.String() == "R" || msg.String() == "e" || msg.String() == "E") && m.Dialog.Review != nil {
-		m.Dialog.Review()
+	if (msg.String() == "r" || msg.String() == "R" || msg.String() == "e" || msg.String() == "E") && m.Dialog.Review {
+		m.events = append(m.events, Event{Kind: Review, Dialog: m.Dialog})
 		return nil
 	}
 	// Takeover: the dialog eats every key but close and quit so

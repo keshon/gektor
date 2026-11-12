@@ -25,7 +25,7 @@ func TestEvaluationProgressIsIsolatedAndSafeDuringTicks(t *testing.T) {
 	m := settingsModel(t)
 	m.steps, m.tokens = 7, 1234
 	m.testControls().Open("Session evaluation", nil)
-	job := &evaluationJob{cancel: func() {}, started: time.Now().Add(-3 * time.Second)}
+	job := &evaluationJob{dialog: m.chrome.Dialog, cancel: func() {}, started: time.Now().Add(-3 * time.Second)}
 	m.evaluation = job
 	var worker sync.WaitGroup
 	worker.Go(func() {
@@ -45,7 +45,8 @@ func TestEvaluationProgressIsIsolatedAndSafeDuringTicks(t *testing.T) {
 	if m.steps != 7 || m.tokens != 1234 || m.input.Value() != "unfinished draft" {
 		t.Fatal("evaluation progress changed original task")
 	}
-	m.testControls().Close()
+	m.chrome.Close()
+	m.syncControls()
 	m.testControls().Open("Other dialog", []string{"keep"})
 	job.update(retrospective.Progress{Stage: "stale update"})
 	m.refreshEvaluation()
@@ -82,7 +83,7 @@ func TestLearnReviewSaveSkipEditAndUndo(t *testing.T) {
 			job := &evaluationJob{learn: true, cancel: func() {}}
 			m.evaluation = job
 			m.acceptEvaluation(evaluationDoneMsg{job: job, result: r})
-			if m.chrome.Dialog == nil || m.chrome.Dialog.Save == nil || !strings.Contains(strings.Join(m.chrome.Dialog.Lines, "\n"), "PASS module tests") {
+			if m.chrome.Dialog == nil || !m.chrome.Dialog.Save || !strings.Contains(strings.Join(m.chrome.Dialog.Lines, "\n"), "PASS module tests") {
 				t.Fatal("proposal lacks reviewable evidence or save action")
 			}
 			entries, _ := m.ws.Skills()
@@ -101,7 +102,7 @@ func TestLearnReviewSaveSkipEditAndUndo(t *testing.T) {
 				}
 				m.testControls().FocusForm(1)
 				m.chrome.Dialog.Form.Editor.SetValue("Run the focused API tests first.")
-				m.testControls().ApplyForm()
+				m.applyTestForm()
 			}
 			if m.chrome.Dialog != nil {
 				t.Fatal("action did not close dialog")
@@ -167,7 +168,7 @@ func TestLearnWithoutCandidateNeedsNoApproval(t *testing.T) {
 	job := &evaluationJob{learn: true, cancel: func() {}}
 	m.evaluation = job
 	m.acceptEvaluation(evaluationDoneMsg{job: job, result: retrospective.Result{Summary: "Routine task."}})
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "No lesson to save" || m.chrome.Dialog.Save != nil {
+	if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "No lesson to save" || m.chrome.Dialog.Save {
 		t.Fatal("empty review offered approval")
 	}
 }
@@ -186,7 +187,7 @@ func TestLearnReopensProposalWithoutInference(t *testing.T) {
 		return llm.ChatResponse{}, nil
 	})
 	_, cmd := m.learn("review")
-	if cmd != nil || m.chrome.Dialog == nil || m.chrome.Dialog.Save == nil {
+	if cmd != nil || m.chrome.Dialog == nil || !m.chrome.Dialog.Save {
 		t.Fatal("saved proposal not reopened locally")
 	}
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -239,7 +240,8 @@ func TestEvaluationDoesNotReplaceTaskAndClosesOnEscape(t *testing.T) {
 		t.Fatal("evaluation did not open a cancellable dialog")
 	}
 	job := m.evaluation
-	m.testControls().Close()
+	m.chrome.Close()
+	m.syncControls()
 	if m.evaluation != nil {
 		t.Fatal("closing dialog left evaluation running")
 	}
@@ -291,5 +293,31 @@ func TestEvaluationCompletionPreservesRunCounters(t *testing.T) {
 	m.acceptEvaluation(evaluationDoneMsg{job: job, result: retrospective.Result{Scope: "run 1", Start: 2, End: 5, Read: 4, Summary: "Historical assessment."}})
 	if m.evaluation != nil || m.chrome.Dialog == nil || m.steps != 9 || m.tokens != 4321 || m.input.Value() != "unfinished draft" {
 		t.Fatal("review completion replaced task facts")
+	}
+}
+
+func TestEvaluationKeepsItsOwnDialogLifetime(t *testing.T) {
+	for _, replace := range []bool{false, true} {
+		m := settingsModel(t)
+		m.ws = m.baseEnv.WS
+		_, cmd := m.evaluate("")
+		job := m.evaluation
+		if cmd == nil || job == nil {
+			t.Fatal("evaluation did not start")
+		}
+		m.syncControls()
+		if m.evaluation != job {
+			t.Fatal("opening the evaluation cancelled the new job")
+		}
+
+		if replace {
+			m.chrome.Open("Replacement", []string{"keep"})
+		} else {
+			m.chrome.Close()
+		}
+		m.syncControls()
+		if m.evaluation != nil {
+			t.Fatal("closing or replacing its dialog retained the evaluation")
+		}
 	}
 }

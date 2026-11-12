@@ -236,7 +236,7 @@ func TestPromptSwitchCanToggleWithoutTypingBoolean(t *testing.T) {
 
 func TestFormArrowNavigationPreservesValues(t *testing.T) {
 	m := settingsModel(t)
-	m.openForm("Settings", "", "Apply", []form.Field{{Key: "one", Label: "First", Value: "one", Multiline: false}, {Key: "two", Label: "Second", Value: "two", Multiline: false}}, func(map[string]string) error { return nil })
+	m.chrome.OpenForm("Settings", "", "Apply", []form.Field{{Key: "one", Label: "First", Value: "one", Multiline: false}, {Key: "two", Label: "Second", Value: "two", Multiline: false}})
 	m.chrome.Dialog.Form.Editor.SetValue("edited")
 	m.formKey(tea.KeyPressMsg{Code: tea.KeyDown})
 	if m.chrome.Dialog.Form.Index != 1 || m.chrome.Dialog.Form.Fields[0].Value != "edited" {
@@ -263,7 +263,7 @@ func TestProtocolSwitchSuggestsOnlyLocalDefaults(t *testing.T) {
 		}
 	}
 	m := settingsModel(t)
-	m.openForm("Connection", "", "Apply", []form.Field{{Key: "kind", Label: "Protocol", Value: "llama", Multiline: false}, {Key: "endpoint", Label: "URL", Value: "http://127.0.0.1:9931", Multiline: false}}, func(map[string]string) error { return nil })
+	m.chrome.OpenForm("Connection", "", "Apply", []form.Field{{Key: "kind", Label: "Protocol", Value: "llama", Multiline: false}, {Key: "endpoint", Label: "URL", Value: "http://127.0.0.1:9931", Multiline: false}})
 	m.chrome.Dialog.Form.CycleChoice()
 	m.focusForm(1)
 	if m.chrome.Dialog.Form.Editor.Value() != "http://127.0.0.1:5001" {

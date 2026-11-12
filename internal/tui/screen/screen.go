@@ -3,7 +3,6 @@
 package screen
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/tui/components/table"
@@ -12,15 +11,32 @@ import (
 
 // Controls holds application-owned menu and overlay state. A shell supplies the
 // same controls to its screens; each screen retains its own execution state.
-// Callbacks run on the update loop. Opening receives true for the first overlay;
-// Closed restores its focus owner, and Changed refits the underlying screen.
+// The shell drains events after input and coordinates focus with their owners.
 type Controls struct {
-	Props   ControlProps
-	Opening func(first bool)
-	Closed  func()
-	Changed func()
-	Header  MenuState
-	Dialog  *DialogState
+	Props  ControlProps
+	events []Event
+	Header MenuState
+	Dialog *DialogState
+}
+
+// Open copies the content and replaces the current overlay. Replacement does not
+// restore underlying focus; the shell observes one continuous overlay lifetime.
+func (m *Controls) Open(title string, lines []string) {
+	first := m.Dialog == nil
+	if m.Dialog != nil {
+		m.events = append(m.events, Event{Kind: Replaced, Dialog: m.Dialog})
+	}
+	m.Dialog = &DialogState{Title: title, Lines: append([]string(nil), lines...)}
+	m.events = append(m.events, Event{Kind: Opened, Dialog: m.Dialog, First: first})
+}
+
+func (m *Controls) Close() {
+	if m.Dialog == nil {
+		return
+	}
+	dialog := m.Dialog
+	m.Dialog = nil
+	m.events = append(m.events, Event{Kind: Closed, Dialog: dialog})
 }
 
 // MenuState tracks focus and selection in the application menu or a badge popup.
@@ -38,38 +54,35 @@ type Drag struct {
 	Moved  bool
 }
 
-// DialogState is an informational, form, or table overlay. Callbacks belong to
-// the feature that opened it and run on the terminal update loop.
+// DialogState holds controls-owned presentation state. Its identity is retained
+// in events so owners can discard results from replaced overlays.
 type DialogState struct {
-	Table              *TableState
-	Shortcuts          []popup.Shortcut
-	OnClose, OnSuspend func()
-	Drag               Drag
-	Review             func()
-	Save               func() error
-	Form               *FormState
-	Title              string
-	Lines              []string
-	Help               bool
-	Page, Offset       int
+	Table     *TableState
+	Shortcuts []popup.Shortcut
+
+	Drag         Drag
+	Review       bool
+	Save         bool
+	Form         *FormState
+	Title        string
+	Lines        []string
+	Help         bool
+	Page, Offset int
 }
 
-// FormState combines a reusable editor with the operation its owner supplies.
+// FormState holds the draft only; the opening feature owns its submission.
 type FormState struct {
 	settings.Model
-	Apply    func(map[string]string) error
-	SaveCopy func()
+	SaveCopy bool
 }
 
 // TableState keeps presentation and stable-ID actions together for an overlay.
 type TableState struct {
 	Model                     *table.Model
 	List                      bool
-	Refresh                   func()
 	Columns                   []table.Column
 	Description, EmptyMessage string
-	Actions                   func() []table.Action
-	Activate                  func(action, id string) tea.Cmd
+	Actions                   []table.Action
 }
 
 // HelpSection supplies content for a tabbed help overlay.

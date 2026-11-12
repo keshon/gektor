@@ -40,17 +40,30 @@ func workflowTestModel(t *testing.T) *model {
 	t.Cleanup(func() { ws.Close() })
 	m := &model{base: t.Context(), chrome: &screen.Controls{}, wsRoot: ws.Root(), termW: 120, termH: 30}
 	m.baseEnv.WS, m.baseEnv.Policy = ws, permission.Default()
-	m.workflows, err = New(m.base, Config{WS: ws, Policy: m.baseEnv.Policy}, m.chrome.Host(), m.surface)
+	m.workflows, err = New(m.base, Config{WS: ws, Policy: m.baseEnv.Policy}, m.chrome, m.surface())
 	if err != nil {
 		t.Fatal(err)
 	}
 	m.workflows.Activate()
-	m.chrome.Changed = m.syncControls
+
 	m.syncControls()
 	t.Cleanup(m.workflows.Close)
 	return m
 }
 func (m *model) syncControls() {
+	for {
+		events := m.chrome.TakeEvents()
+		if len(events) == 0 {
+			break
+		}
+		for _, event := range events {
+			cmd := m.workflows.HandleControl(event)
+			if cmd != nil {
+				m.workflows.commands = append(m.workflows.commands, cmd)
+			}
+		}
+	}
+	m.workflows.SetSurface(m.surface())
 	props := m.workflows.Presentation()
 	props.Width, props.Height = m.termW, m.termH
 	m.chrome.Props = props
@@ -59,6 +72,7 @@ func (m *model) syncControls() {
 	}
 }
 func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	defer m.syncControls()
 	m.syncControls()
 	if m.chrome.Dialog != nil {
 		if m.chrome.Dialog.Form != nil {
@@ -71,7 +85,7 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	return m.workflows.Update(msg)
 }
-func (m *model) closeDialog() { m.chrome.Close() }
+func (m *model) closeDialog() { m.chrome.Close(); m.syncControls() }
 func (m *model) surface() screen.Surface {
 	return screen.Surface{Area: pane.Rect{Y: 1, Width: m.termW, Height: max(m.termH-2, 1)}, Inset: 1, SplitWidth: 100, Outlined: !m.minimal, BottomEdge: true}
 }
@@ -89,6 +103,7 @@ func (m *model) workflowScreen() string {
 }
 func (m *model) screenContent() string { return m.workflowScreen() }
 func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	defer m.syncControls()
 	m.syncControls()
 	if m.chrome.Dialog != nil {
 		return m.workflows, m.chrome.DialogMouse(msg)
@@ -100,4 +115,8 @@ func sizeModelTo(t *testing.T, m *model, width, height int) *model {
 	m.termW, m.termH = width, height
 	m.syncControls()
 	return m
+}
+
+func (m *model) applyValues(values map[string]string) error {
+	return m.workflows.applySubmission(m.chrome.Dialog, values)
 }

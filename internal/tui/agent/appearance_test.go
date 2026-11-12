@@ -125,7 +125,8 @@ func TestBothFramesAndMeasuredPrefillFit(t *testing.T) {
 			if m.prefillActive() {
 				t.Fatal("progress behind dialog")
 			}
-			m.testControls().Close()
+			m.chrome.Close()
+			m.syncControls()
 			m.testUpdate(tea.WindowSizeMsg{Width: 80, Height: 24})
 		}
 	}

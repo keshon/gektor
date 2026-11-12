@@ -13,19 +13,20 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/tui/components/form"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 func TestCompactDialogMouseAndHorizontalKeys(t *testing.T) {
 	m := settingsModel(t)
 	calls := 0
-	m.testControls().OpenForm("Confirm", "", "Delete", nil, func(map[string]string) error { calls++; return nil })
+	m.openForm(screen.Form{Title: "Confirm", ApplyLabel: "Delete"}, formProbe{calls: &calls})
 	m.chrome.Dialog.Form.Destructive = true
 	m.testControls().FocusForm(1)
-	m.formKey(tea.KeyPressMsg{Code: tea.KeyLeft})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyLeft})
 	if m.chrome.Dialog.Form.Index != 0 {
 		t.Fatal("left did not select primary")
 	}
-	m.formKey(tea.KeyPressMsg{Code: tea.KeyRight})
+	m.testKey(tea.KeyPressMsg{Code: tea.KeyRight})
 	if m.chrome.Dialog.Form.Index != 1 {
 		t.Fatal("right did not select cancel")
 	}
@@ -80,7 +81,7 @@ func TestPopupTitlePaddingKeepsPopupBackground(t *testing.T) {
 	for _, theme := range []string{"dark", "light"} {
 		setTheme(theme)
 		m := settingsModel(t)
-		m.testControls().OpenForm("Delete Identity", "Permanently removes this saved Identity.", "Delete", nil, func(map[string]string) error { return nil })
+		m.testControls().OpenForm("Delete Identity", "Permanently removes this saved Identity.", "Delete", nil)
 		r, g, b, _ := lipgloss.Color(themeColor(colorPopupBackground)).RGBA()
 		want := fmt.Sprintf("%d;%d;%d", r>>8, g>>8, b>>8)
 		found := false
@@ -104,7 +105,7 @@ func TestPopupTitlePaddingKeepsPopupBackground(t *testing.T) {
 
 func TestActionRowsFitNarrowWidths(t *testing.T) {
 	m := settingsModel(t)
-	m.testControls().OpenForm("Confirm", "", "A very long primary action", nil, func(map[string]string) error { return nil })
+	m.testControls().OpenForm("Confirm", "", "A very long primary action", nil)
 	for _, width := range []int{12, 18, 24, 72} {
 		row, hits := m.chrome.Dialog.Form.Actions(width, 0, m.chrome.Dialog.Form.ApplyLabel, true, false, form.Styles{})
 		if ansi.StringWidth(row) != width || hits[1].X1 != width {
@@ -112,3 +113,7 @@ func TestActionRowsFitNarrowWidths(t *testing.T) {
 		}
 	}
 }
+
+type formProbe struct{ calls *int }
+
+func (probe formProbe) apply(_ *Model, _ map[string]string) error { *probe.calls++; return nil }

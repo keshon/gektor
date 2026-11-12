@@ -285,6 +285,7 @@ func TestDialogQDoesNotClose(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.state = stDone
 	m.testControls().Open("help", helpText())
+	m.syncControls()
 	updated, _ := m.testUpdate(keyRunes('q'))
 	if mm := updated.(*Model); mm.chrome.Dialog == nil {
 		t.Fatal("q must not close the dialog")
@@ -500,6 +501,7 @@ func TestStatusLinesPlainLanguage(t *testing.T) {
 func TestDialogFitsViewport(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.testControls().Open("status", m.statusLines())
+	m.syncControls()
 	m.transcript.Viewport.SetWidth(26)
 	m.transcript.Viewport.SetHeight(8)
 	out := m.testControls().DialogView()
@@ -518,10 +520,12 @@ func TestStartRunClosesDialog(t *testing.T) {
 	m := sizeModel(t, testModel())
 	m.send = func(tea.Msg) {}
 	m.testControls().Open("help", helpText())
+	m.syncControls()
 	if len(m.overlays) != 1 {
 		t.Fatal("setup: dialog must push")
 	}
 	m.startRun(func(ctx context.Context) (string, error) { return "done", nil })
+	m.syncControls()
 	if m.chrome.Dialog != nil || len(m.overlays) != 0 {
 		t.Fatal("run start must close the dialog")
 	}
@@ -842,6 +846,7 @@ func TestStartRunResetsClock(t *testing.T) {
 	m.tokens = 42
 	before := time.Now()
 	m.startRun(func(ctx context.Context) (string, error) { return "done", nil })
+	m.syncControls()
 	if m.started.Before(before) {
 		t.Fatal("startRun must reset the clock")
 	}

@@ -135,29 +135,18 @@ func commandReference() [][2]string {
 	return out
 }
 
-// confirmRestart asks before restarting a running session. It uses the same
-// destructive form as deleting a session: nothing to type, the choice lands
-// on Cancel, and Enter only acts on whatever is selected.
-//
-// If no session is running the action runs immediately: there is nothing to
-// lose, and a prompt the user cannot act on is worse than no prompt.
-func (m *Model) confirmRestart(action func()) {
+func (m *Model) confirmRestart(edit formEdit) {
 	if m.sess == nil {
-		action()
+		err := edit.apply(m, nil)
+		if err != nil {
+			m.appendBlock(errorBlock(err.Error()))
+		}
 		return
 	}
-	m.chrome.OpenForm(
-		"Restart agent",
-		"GEKTOR will restart to apply this. The conversation and draft are preserved.",
-		"Restart", nil,
-		func(map[string]string) error {
-			action()
-			return nil
-		},
-	)
-	m.chrome.Dialog.Form.Destructive = true
-	// Never open a destructive choice on the destructive one.
-	m.chrome.FocusForm(1)
+	m.openForm(screen.Form{
+		Title: "Restart agent", Hint: "GEKTOR will restart to apply this. The conversation and draft are preserved.",
+		ApplyLabel: "Restart", Destructive: true, StartOnCancel: true,
+	}, edit)
 }
 
 func (m *Model) command(text string) (tea.Model, tea.Cmd) {
@@ -350,30 +339,7 @@ func (m *Model) commandStepLimit(arg string) (tea.Model, tea.Cmd) {
 		m.appendBlock(errorBlock("Usage: /max-steps N (0 = no limit)"))
 		return m, nil
 	}
-	m.confirmRestart(func() {
-		previous := m.maxStepsOverride
-		previousSession := m.sess
-		if n == 0 {
-			n = noStepLimit
-		}
-		m.maxStepsOverride = n
-		if m.sess != nil {
-			sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
-			if err != nil {
-				m.maxStepsOverride = previous
-				m.appendBlock(errorBlock(err.Error()))
-				return
-			}
-			m.sess = sess
-		}
-		if err := m.saveHarness(); err != nil {
-			m.maxStepsOverride = previous
-			m.sess = previousSession
-			m.appendBlock(errorBlock(err.Error()))
-			return
-		}
-		m.appendBlock(markerBlock("Max steps: " + m.stepBudget()))
-	})
+	m.confirmRestart(changeStepLimit{limit: n})
 	return m, nil
 }
 
@@ -400,45 +366,14 @@ func (m *Model) commandMode(arg string) (tea.Model, tea.Cmd) {
 	// rebuild below cannot cost the backend its cached prefix. An idle
 	// switch is free and needs no confirmation; one that would replace a
 	// session mid-run keeps the existing destructive prompt.
-	apply := func() error {
-		previous := m.plan
-		nextSession := m.sess
-		m.plan = mode == "plan"
-		if m.sess != nil {
-			sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
-			if err != nil {
-				m.plan = previous
-				return err
-			}
-			if err := m.saveMode(); err != nil {
-				m.plan = previous
-				return err
-			}
-			nextSession = sess
-		} else if err := m.saveMode(); err != nil {
-			m.plan = previous
-			return err
-		}
-		if err := m.saveDefaultMode(); err != nil {
-			m.plan = previous
-			if m.stateFile != "" {
-				_ = writeSavedMode(m.stateFile, previous)
-			}
-			return err
-		}
-		m.sess = nextSession
-		m.appendBlock(markerBlock("Mode: " + m.modeName()))
-		return nil
-	}
+
+	edit := changeAgentMode{mode: mode}
 	if m.state == stRunning {
-		m.confirmRestart(func() {
-			if err := apply(); err != nil {
-				m.appendBlock(errorBlock(err.Error()))
-			}
-		})
+		m.confirmRestart(edit)
 		return m, nil
 	}
-	if err := apply(); err != nil {
+	err := m.applyMode(mode)
+	if err != nil {
 		m.appendBlock(errorBlock(err.Error()))
 	}
 	return m, nil
@@ -482,4 +417,81 @@ func (m *Model) commandContext() (tea.Model, tea.Cmd) {
 	rows = append(rows, "/compact is available for coding task history.")
 	m.chrome.Open("Context usage", rows)
 	return m, nil
+}
+
+type changeStepLimit struct{ limit int }
+
+func (edit changeStepLimit) apply(m *Model, _ map[string]string) error {
+	previous := m.maxStepsOverride
+	previousSession := m.sess
+	if edit.limit == 0 {
+		edit.limit = noStepLimit
+	}
+
+	m.maxStepsOverride = edit.limit
+	if m.sess != nil {
+		sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
+		if err != nil {
+			m.maxStepsOverride = previous
+			m.appendBlock(errorBlock(err.Error()))
+			return nil
+		}
+		m.sess = sess
+	}
+	err := m.saveHarness()
+	if err != nil {
+		m.maxStepsOverride = previous
+		m.sess = previousSession
+		m.appendBlock(errorBlock(err.Error()))
+		return nil
+	}
+
+	m.appendBlock(markerBlock("Max steps: " + m.stepBudget()))
+
+	return nil
+}
+
+func (m *Model) applyMode(mode string) error {
+	previous := m.plan
+	nextSession := m.sess
+	m.plan = mode == "plan"
+
+	if m.sess != nil {
+		sess, err := m.newSession(m.activeSessionTitle(), m.stateFile, nil)
+		if err != nil {
+			m.plan = previous
+			return err
+		}
+		nextSession = sess
+	}
+
+	err := m.saveMode()
+	if err != nil {
+		m.plan = previous
+		return err
+	}
+
+	err = m.saveDefaultMode()
+	if err != nil {
+		m.plan = previous
+		if m.stateFile != "" {
+			// Keep the original persistence error; restoring the previous mode is best effort.
+			_ = writeSavedMode(m.stateFile, previous)
+		}
+		return err
+	}
+
+	m.sess = nextSession
+	m.appendBlock(markerBlock("Mode: " + m.modeName()))
+	return nil
+}
+
+type changeAgentMode struct{ mode string }
+
+func (edit changeAgentMode) apply(m *Model, _ map[string]string) error {
+	err := m.applyMode(edit.mode)
+	if err != nil {
+		m.appendBlock(errorBlock(err.Error()))
+	}
+	return nil
 }

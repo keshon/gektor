@@ -51,7 +51,7 @@ func TestQueueEditKeepsDraftAttachmentsAndOrder(t *testing.T) {
 		t.Fatal("editor has no attachment evidence")
 	}
 	m.chrome.Dialog.Form.Editor.SetValue("edited middle")
-	m.testControls().ApplyForm()
+	m.applyTestForm()
 	after := m.sess.PendingInputs()
 	if len(after) != 3 || after[0].ID != before[0].ID || after[1].ID != before[1].ID || after[1].Message.Content != "edited middle" || after[1].Message.Images[0] != "shot.png" || after[2].ID != before[2].ID {
 		t.Fatalf("wrong edited queue: %+v", after)
@@ -100,7 +100,7 @@ func TestQueueStaleEditorKeepsTextAndCannotChangeAnotherMessage(t *testing.T) {
 	m.chrome.Dialog.Form.Editor.SetValue("keep this edit")
 	m.sess.RecallInput()
 	m.sess.Submit("replacement")
-	m.testControls().ApplyForm()
+	m.applyTestForm()
 	if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil || m.chrome.Dialog.Form.Editor.Value() != "keep this edit" || m.chrome.Dialog.Form.Error == "" {
 		t.Fatal("failed save lost edit or explanation")
 	}
@@ -108,7 +108,7 @@ func TestQueueStaleEditorKeepsTextAndCannotChangeAnotherMessage(t *testing.T) {
 		t.Fatal("stale save changed replacement")
 	}
 	m.sess = &harness.Session{}
-	m.testControls().ApplyForm()
+	m.applyTestForm()
 	if !strings.Contains(m.chrome.Dialog.Form.Error, "session has changed") {
 		t.Fatal("editor crossed sessions")
 	}
@@ -126,7 +126,8 @@ func TestQueueRemoveOnlySelectedAndLegacyIdentity(t *testing.T) {
 	if m.input.Value() != "unfinished draft" {
 		t.Fatal("remove changed draft")
 	}
-	m.testControls().Close()
+	m.chrome.Close()
+	m.syncControls()
 	m.queued = "next run"
 	m.queuedVersion++
 	m.openInputQueue()
@@ -135,7 +136,7 @@ func TestQueueRemoveOnlySelectedAndLegacyIdentity(t *testing.T) {
 	m.chrome.Dialog.Form.Editor.SetValue("stale")
 	m.queued = "replacement"
 	m.queuedVersion++
-	m.testControls().ApplyForm()
+	m.applyTestForm()
 	if m.queued != "replacement" || m.chrome.Dialog.Form.Error == "" {
 		t.Fatal("stale fallback save succeeded")
 	}
@@ -223,7 +224,7 @@ func TestQueueEditorSurvivesAgentGate(t *testing.T) {
 	if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil || m.chrome.Dialog.Form.Editor.Value() != "unsaved edit" {
 		t.Fatal("editor was not restored")
 	}
-	m.testControls().ApplyForm()
+	m.applyTestForm()
 	if m.sess.PendingInputs()[0].Message.Content != "unsaved edit" {
 		t.Fatal("restored editor could not save")
 	}
@@ -333,5 +334,23 @@ func TestQueueRetainsKnownReceiptWithoutAllowingEdits(t *testing.T) {
 	p := m.testControls().TableProps()
 	if p.Actions[1].Enabled || p.Actions[2].Enabled || !strings.Contains(q.view.Rows[0].Detail, "Received by agent") {
 		t.Fatal("known receipt was lost or became editable")
+	}
+}
+
+func TestQueueGateRetainsItsOwnFocusFrame(t *testing.T) {
+	m := queuedModel(t)
+	m.openInputQueue()
+	m.testKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	if len(m.overlays) != 1 || !m.overlays[0].controls {
+		t.Fatal("queue editor has no controls focus frame")
+	}
+	m.acceptGateEvent(harness.Event{Name: "gate", Fields: map[string]any{"kind": string(agent.SuspendPermission), "prompt": "Allow?"}})
+	m.syncControls()
+	if len(m.overlays) != 1 || m.overlays[0].controls {
+		t.Fatal("dialog teardown removed the gate's focus frame")
+	}
+	m.resolveGate("n")
+	if len(m.overlays) != 0 || !m.input.Focused() {
+		t.Fatal("resolved gate retained an overlay or lost composer focus")
 	}
 }

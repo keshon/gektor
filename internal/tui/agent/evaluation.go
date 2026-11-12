@@ -14,11 +14,13 @@ import (
 
 	"github.com/keshon/gektor/internal/retrospective"
 	"github.com/keshon/gektor/internal/tui/components/form"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 // A review owns only its dialog and context. It cannot replace the task's
 // session, retry closure, history, token meter, or step counter.
 type evaluationJob struct {
+	dialog   *screen.DialogState
 	learn    bool
 	cancel   context.CancelFunc
 	started  time.Time
@@ -34,7 +36,7 @@ func (j *evaluationJob) update(progress retrospective.Progress) {
 
 func (m *Model) refreshEvaluation() {
 	j := m.evaluation
-	if j == nil || m.chrome.Dialog == nil {
+	if j == nil || m.chrome.Dialog != j.dialog {
 		return
 	}
 	j.mu.Lock()
@@ -76,6 +78,7 @@ func (m *Model) evaluate(arg string) (tea.Model, tea.Cmd) {
 	job := &evaluationJob{cancel: cancel, started: time.Now(), progress: retrospective.Progress{Stage: "Loading saved archive", Steps: 12}}
 	config := retrospective.Config{Client: m.baseEnv.Client, Workspace: m.ws, StateFile: m.stateFile, Scope: selection, Focus: strings.TrimSpace(focus), ContextLimit: m.limit, MaxTokens: m.baseEnv.MaxTokens}
 	m.chrome.Open("Session evaluation", []string{"Reviewing the saved archive in a separate context…", "", "Keep this window open until the evaluation finishes.", "Closing it cancels the evaluation. The original task remains unchanged."})
+	job.dialog = m.chrome.Dialog
 	m.evaluation = job
 	config.OnProgress = job.update
 	m.refreshEvaluation()
@@ -134,7 +137,11 @@ func (m *Model) acceptEvaluation(msg evaluationDoneMsg) {
 	}
 	m.chrome.Open("Session evaluation", rows)
 	if len(r.Memory) == 1 {
-		m.chrome.Dialog.Review = func() { m.reviewLesson(r) }
+		m.chrome.Dialog.Review = true
+		if m.lessonDialogs == nil {
+			m.lessonDialogs = make(map[*screen.DialogState]retrospective.Result)
+		}
+		m.lessonDialogs[m.chrome.Dialog] = r
 	}
 }
 
@@ -210,8 +217,12 @@ func (m *Model) reviewLesson(r retrospective.Result) {
 		rows = append(rows, "Some archive messages were only partially read.")
 	}
 	m.chrome.Open("Remember a repository lesson", rows)
-	m.chrome.Dialog.Save = func() error { return m.saveLesson(r, memory.When, memory.Lesson) }
-	m.chrome.Dialog.Review = func() { m.editLesson(r) }
+	m.chrome.Dialog.Save = true
+	m.chrome.Dialog.Review = true
+	if m.lessonDialogs == nil {
+		m.lessonDialogs = make(map[*screen.DialogState]retrospective.Result)
+	}
+	m.lessonDialogs[m.chrome.Dialog] = r
 }
 
 func (m *Model) editLesson(r retrospective.Result) {
@@ -219,11 +230,11 @@ func (m *Model) editLesson(r retrospective.Result) {
 		m.chrome.Close()
 	}
 	memory := r.Memory[0]
-	m.chrome.OpenForm("Edit repository lesson", "Save for this repository. Historical guidance; check current files before use.", "Save lesson", []form.Field{
+	m.openForm(screen.Form{Title: "Edit repository lesson", Hint: "Save for this repository. Historical guidance; check current files before use.", ApplyLabel: "Save lesson", Fields: []form.Field{
 		{Key: "when", Label: "When to use", Value: memory.When},
 		{Key: "procedure", Label: "Procedure", Value: memory.Lesson, Multiline: true},
-	}, func(values map[string]string) error {
-		return m.saveLesson(r, values["when"], values["procedure"])
+	}}, editRepositoryLesson{
+		r: r,
 	})
 }
 
@@ -244,4 +255,12 @@ func (m *Model) saveLesson(r retrospective.Result, when, procedure string) error
 		m.appendBlock(markerBlock("This lesson is already saved; no duplicate created."))
 	}
 	return nil
+}
+
+type editRepositoryLesson struct {
+	r retrospective.Result
+}
+
+func (edit editRepositoryLesson) apply(m *Model, values map[string]string) error {
+	return m.saveLesson(edit.r, values["when"], values["procedure"])
 }
