@@ -14,7 +14,7 @@ in `internal/retrospective`. Frontends coordinate sessions through these owners.
 3. For tools, read the contracts in `tool.go`, then `registry.go` for registration,
    schemas, and invocation. `tool_policy.go`, `tool_validation.go`,
    `tool_execution.go`, and `tool_results.go` cover admission, execution ordering,
-   and recording. `dispatch.go` handles calls through the capability dispatcher.
+   and recording. Enabled capability tools use the same registry and call path.
 4. For model context, read `context.go`, `context_reuse.go`, and `capabilities.go`.
    `compact.go` decides when to compact and bounds response tokens;
    `compact_history.go` selects complete history groups; `compact_facts.go`
@@ -33,7 +33,7 @@ in `internal/retrospective`. Frontends coordinate sessions through these owners.
   recording, and persistence. A refused or malformed call still needs a paired,
   recordable tool result without executing its operation.
 - Concurrent read calls may overlap; exclusive calls separate those batches and
-  remain in model order. Each batch entry keeps its resolved call, result, and
+  remain in model order. Each batch entry keeps its call, result, and
   execution flags together. Workers update separate entries; completion previews
   follow finish order, and recording waits for all workers and follows model order.
 - Working context may be shortened or compacted; the full execution archive

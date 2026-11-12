@@ -33,7 +33,7 @@ func (a *Agent) executeToolCalls(ctx context.Context, st *runState, step int, fi
 	batch := toolBatch{entries: make([]toolExecution, len(calls))}
 	for i, call := range calls {
 		entry := &batch.entries[i]
-		entry.call, entry.err = a.cfg.Tools.ResolveCall(call)
+		entry.call = call
 	}
 
 	if a.cfg.OnProgress != nil {

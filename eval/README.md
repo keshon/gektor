@@ -370,3 +370,23 @@ $env:GEKTOR_DISCOVERY_LIVE_URL = 'http://127.0.0.1:9931'
 go test ./internal/roles -run '^TestSSHRequestLive$' -v -count=3
 Remove-Item Env:GEKTOR_DISCOVERY_LIVE_URL
 ```
+
+`TestSSHArgumentsReplayLive` resumes inference at the argument failure in
+`cdfa1926` (the first 26 archived messages), retaining the original history while
+offering the saved SSH schemas directly. It uses the shipping streaming client
+and validates required SSH arguments. It never dispatches the generated calls,
+connects to SSH, reads credentials or executes commands. The archive is a local
+input, not a committed fixture. An optional debug file contains the request and
+received SSE frames, including archive content; keep it local.
+
+```powershell
+$env:GEKTOR_DISCOVERY_LIVE_URL = 'http://127.0.0.1:9931'
+$env:GEKTOR_ARGUMENTS_REPLAY = 'C:/Users/keshon/.gektor/sessions/cdfa1926/state.json'
+$env:GEKTOR_ARGUMENTS_LIVE_OUT = 'D:/Temp/gektor-args-shipping-replay.log'
+go test ./internal/roles -run '^TestSSHArgumentsReplayLive$' -count=3 -v
+Remove-Item Env:GEKTOR_DISCOVERY_LIVE_URL, Env:GEKTOR_ARGUMENTS_REPLAY, Env:GEKTOR_ARGUMENTS_LIVE_OUT
+```
+
+The replay checks argument generation, not remote command semantics or VPN health.
+`TestStreamRetainsMalformedNestedArgumentsAndDebugFrames` separately checks that
+backend arguments pass through unchanged and debug logging retains received frames.

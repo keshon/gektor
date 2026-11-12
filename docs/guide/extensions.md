@@ -92,12 +92,16 @@ failures are reported and leave the server available for a later retry.
 
 The agent searches `discover_capabilities` by ID or description, then calls
 `enable_capability` with the selected ID. Discovery returns metadata only.
-Activation installs the tools and returns their schemas and instructions.
-The agent calls optional tools through `invoke_tool` with the tool name and
-arguments. This keeps the leading tool list stable; permission checks still
-use the actual tool and its resources.
-It does not execute a requested tool action. Executable activation starts no
-process; MCP activation connects to discover the remote catalog.
+Activation adds the enabled tools and their schemas to the model tool list.
+The reply lists tool names and operational instructions without copying the
+schemas into history. Tools are called directly; validation and permission
+checks use each tool and its resources. Activation does not execute a requested
+tool action. Executable activation starts no process; MCP activation connects
+to discover the remote catalog.
+
+Enabling a pack changes the prompt prefix and can require fresh model processing
+of existing context. Later calls reuse the cache until another activation
+changes the definitions. Inactive packs add no tool schemas to startup.
 
 Executable tools are named `cap__<pack>__<tool>`. MCP tools use
 `mcp__<server>__<tool>`. The existing `-mcp` flag still connects eagerly.

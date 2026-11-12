@@ -334,3 +334,95 @@ Final `go test ./...`, `go vet ./...`, and `go build ./...` passed. The fixture'
 malformed-source/no-execution check passed with `-race` independently of model
 inference. The syntax checker requires POSIX `sh`, or Git Bash in its standard
 Windows installation path; tests report a skip if that dependency is absent.
+
+
+## SSH argument failures: cdfa1926 (2026-11-12)
+
+The request was to check VPN logs on Koara. Discovery, activation, connection
+inventory and SSH transport worked. The model identified the container and read
+its logs, then repeatedly emitted incomplete commands without `connection`.
+The archive contains 22 tool results: 5 successes, 12 argument rejections
+(including one invalid `system_info` group), and 5 nonzero SSH results. The
+identical-call guard eventually forced an answer after 22 model requests.
+All tool-producing model responses finished with `tool_calls`, not `length`.
+
+The model's claim that braces broke GEKTOR parsing was unsupported. An actual
+command with Docker's `{{...}}` templates had already executed. Another command
+used `grep -iE tun|awg|wg` without quoting the alternatives; its `awg: not found`
+message did not establish that VPN binaries were absent. Container restart count
+zero and a running process did not prove VPN health. This change addresses
+argument generation, not those diagnostic reasoning errors.
+
+### Controlled inference replay
+
+Replayed the first 26 archived messages against local Ornith-1.5-35B-Q5_K_M,
+without dispatching any returned tool calls. Raw HTTP SSE responses were retained
+locally. Each condition used temperature 0.2 and seeds 41, 42 and 43. Only SSH
+catalog tools were offered; this is a controlled argument-generation check, not
+a complete reconstruction of the original leading tool list.
+
+| Offered tools, with original history unchanged | Valid SSH arguments | Prompt tokens |
+|---|---:|---:|
+| Generic invocation envelope | 0/3 | 16108 |
+| Envelope plus direct SSH schemas | 0/3 | 16810 |
+| Direct SSH schemas only | 3/3 | 16728 |
+
+The malformed arguments were already present in the backend's HTTP response,
+before GEKTOR normalization or dispatch. This locates the failure upstream of
+GEKTOR's argument parser, but does not distinguish model generation from
+llama-server's internal tool parsing. The direct-only requests generated complete
+commands and the required connection. Merely adding schemas did not help while
+the failing envelope remained offered.
+
+An earlier comparison also rewrote historical calls into direct calls. It was
+not used to choose the implementation because it changed two variables. Its
+545-token difference is not the unchanged-history comparison; that difference
+is 620 tokens. These small samples demonstrate this failure mode, not general
+model reliability.
+
+### Implementation
+
+Removed the dispatcher, separate optional registry bookkeeping, target-resolution
+step and observer rewriting. Activated tools expose their schemas through the
+ordinary registry. Activation replies contain names and instructions, avoiding
+a second schema copy in new history. Inactive schemas remain deferred.
+Operational instructions still restore from trusted host metadata after
+compaction. No compatibility invocation path remains.
+
+The existing streaming client's opt-in Debug writer now records received SSE
+frames, so future argument failures can be compared with backend output.
+Default logging and argument validation are unchanged. No quoting repair,
+invented parameters or automatic command retry was added.
+
+### Cache and context cost
+
+Direct schema activation changes the tool-definition prefix. In the live SSH
+inventory check, the post-activation request used 6368 prompt tokens with zero
+cache reuse; the following request reused 6244 of 6425 tokens. Activation can
+therefore require processing the existing context again. Later requests reuse
+the new prefix. This cost grows with context length and activated catalog size;
+it is not only the number of newly added schema tokens.
+
+The same-workspace startup measurement was 5345 backend prompt tokens, estimated
+4918, with 30 leading definitions. The preceding measurement was 5427 backend
+tokens and 31 definitions. Removing the envelope reduced startup context; no
+context or output limit was increased.
+
+### Validation
+
+The shipping streaming-client replay repaired required SSH arguments in 3/3
+runs. It retains original historical calls and never dispatches them. Its local
+archive input and optional debug output are documented in `eval/README.md`.
+The three discovery scenarios and natural-request loopback SSH check passed
+with the race detector. The loopback check verifies routing, transport, shell
+syntax and fixed disk figures; it never executes submitted source. Unit coverage
+also checks direct-call permission/Plan/schema rejection, inactive tools,
+concurrency, mutation tracking, attachments, archive identity and restoration
+of capability instructions. A streaming regression preserves malformed backend
+arguments unchanged and verifies debug frame capture.
+
+Final verification after dispatcher removal: `go test ./...`, `go vet ./...`
+and `go build ./...` passed. Agent, streaming-client and capability tests passed
+with `-race`. The streaming replay and natural-request loopback SSH check also
+passed again with `-race` after removal. The current replay is still an argument
+check; none of these tests connected to the real VPN server.

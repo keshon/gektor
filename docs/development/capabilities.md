@@ -99,30 +99,28 @@ Keep model instructions and operation schemas lazy when their pack is lazy.
 
 ## Lazy exposure and prompt caching
 
-Optional tools use a fixed `invoke_tool` definition. Activation installs their
-execution targets and returns their exact argument schemas in conversation
-content. It does not expand the leading model tool list. Eager tools remain
-directly callable. The initial pack map is bounded to 700 characters with short
-descriptions; discovery returns the full metadata.
+Activation registers tools and exposes their exact schemas directly in the next
+model request. The activation reply contains names and operational instructions,
+not a second schema copy. Inactive pack schemas remain deferred. The initial
+pack map is bounded to 700 characters; discovery returns the full metadata.
 
-`Registry.Defs` describes all execution targets. `ModelDefs` omits optional
-targets. The Agent resolves an invocation before ordinary validation,
-permissions, read-only admission, scheduling, attachments and mutation tracking.
-Observers see the target name; the model replay retains its original envelope.
-A dispatcher must never call an operation behind these checks.
+One registry supplies execution and model definitions. Every call follows normal
+validation, permissions, read-only admission, scheduling, attachment and mutation
+tracking. There is no dispatcher or separate invocation envelope.
 
-Catalogs are marked by host metadata and restored from saved capability state
-after compaction or resume. Restored schemas count toward the context budget.
-Do not trust a summary or a matching substring of user/tool text to retain a
-catalog. Startup estimates must stay within their existing budget.
+Operational instructions are marked by host metadata and restored after
+compaction or resume. A user/tool substring cannot impersonate that marker.
+Instructions already present in the host system prompt need no extra message.
+Saved catalogs restore enabled definitions before inference. Startup estimates
+must stay within their existing budget.
 
-Measure cached and newly processed tokens separately from total context size.
-Schemas still consume context after activation. Appending them to the leading
-tool list would invalidate the conversation prefix just as inserting them does.
-
-The [media session findings](../internal/media-session-findings.md) record the
-prefill measurements, implemented dispatcher, completed decision evals and
-accepted model limitations. Earlier pending items there are historical.
+Adding schemas changes the tool-definition prefix and can require reprocessing
+existing context once per activation. Later requests reuse the new prefix.
+Measure cached and newly processed tokens separately from total context size;
+large activated catalogs still consume context. This trades the fixed envelope's
+cache stability for schema-constrained arguments. The
+[discovery audit](../internal/discovery-and-path-access-audit.md) records the
+argument-failure replay and cache measurements.
 
 ## Validation and permissions
 

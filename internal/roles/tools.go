@@ -40,7 +40,7 @@ func (e Env) configureTools(cfg *agent.Config, mainAgent, allowQuestions bool, e
 		extra = append(extra, browser)
 	}
 	// Native optional packs exist even without external capability sources.
-	extra = append(extra, toolextension.DiscoverCapabilities{Catalog: catalog}, toolextension.EnableCapability{Catalog: catalog}, agent.InvokeTool{})
+	extra = append(extra, toolextension.DiscoverCapabilities{Catalog: catalog}, toolextension.EnableCapability{Catalog: catalog})
 	workflow, err := app.NewWorkflow(e.WS, e.WorkflowDir, e.policy(), e.Gate)
 	if err != nil {
 		return err

@@ -29,7 +29,7 @@ func TestRecordsDenySameResourceInAgentAndWorkflow(t *testing.T) {
 	args := `{"kind":"notes","id":"state","expected_revision":0,"data":{}}`
 	e.Client = &seqStub{steps: []llm.ChatResponse{
 		extensionCall("enable", "enable_capability", `{"id":"native_workflows"}`),
-		extensionCall("write", "invoke_tool", `{"name":"record_write","arguments":`+args+`}`),
+		extensionCall("write", "record_write", args),
 		extensionAnswer(),
 	}}
 	blocked := false

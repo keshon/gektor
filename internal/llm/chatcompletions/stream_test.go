@@ -375,3 +375,36 @@ func TestStreamKoboldGrammarPrecedence(t *testing.T) {
 		})
 	}
 }
+
+func TestStreamRetainsMalformedNestedArgumentsAndDebugFrames(t *testing.T) {
+	const arguments = `{"name":"ssh_exec","arguments":{"command":"docker exec 3x-ui sh -c 'echo "}}`
+	encoded, err := json.Marshal(arguments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	frame := fmt.Sprintf(`{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"broken","function":{"name":"invoke_tool","arguments":%s}}]},"finish_reason":"tool_calls"}]}`, encoded)
+	wire := "data: " + frame + "\n\ndata: [DONE]\n\n"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, writeErr := fmt.Fprint(w, wire)
+		if writeErr != nil {
+			t.Error(writeErr)
+		}
+	}))
+	defer server.Close()
+
+	var debug strings.Builder
+	client := NewLlamaClient(server.URL, "test")
+	client.Debug = &debug
+	response, err := client.Stream(t.Context(), llm.ChatRequest{}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := response.Message.ToolCalls
+	if len(calls) != 1 || string(calls[0].Arguments) != arguments {
+		t.Fatal("parser changed backend arguments", calls)
+	}
+	if !strings.Contains(debug.String(), strings.TrimSpace(wire)) {
+		t.Fatal("debug log omitted original SSE frames")
+	}
+}

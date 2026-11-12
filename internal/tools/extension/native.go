@@ -78,11 +78,8 @@ func (c *Capabilities) publish(ctx context.Context, state conversation.Capabilit
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	add := c.Registry.AddOptional
-	if p := c.native(state.ID); (p != nil && p.Exposure == Eager) || (p == nil && c.source(state.ID).Eager) || !c.Registry.Has("invoke_tool") {
-		add = c.Registry.Add
-	}
-	if err := add(list...); err != nil {
+	err := c.Registry.Add(list...)
+	if err != nil {
 		return err
 	}
 	if c.active == nil {
@@ -166,7 +163,7 @@ func (c *Capabilities) Validate() error {
 func (c *Capabilities) PreviewDefs() []llm.ToolDef {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	defs := c.Registry.ModelDefs()
+	defs := c.Registry.Defs()
 	for _, p := range c.Native {
 		if _, active := c.active[p.ID]; !active && p.Exposure == Eager {
 			defs = append(defs, p.state().Tools...)

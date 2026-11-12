@@ -12,6 +12,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/capabilities/ssh"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/llm/chatcompletions"
 	"github.com/keshon/gektor/internal/permission"
@@ -147,5 +148,70 @@ func TestDiscoveryLive(t *testing.T) {
 				t.Fatal("tool failures", a.Report())
 			}
 		})
+	}
+}
+
+// Replays only model inference. No returned tool call is dispatched or executed.
+func TestSSHArgumentsReplayLive(t *testing.T) {
+	url := os.Getenv("GEKTOR_DISCOVERY_LIVE_URL")
+	archive := os.Getenv("GEKTOR_ARGUMENTS_REPLAY")
+	if url == "" || archive == "" {
+		t.Skip("set GEKTOR_DISCOVERY_LIVE_URL and GEKTOR_ARGUMENTS_REPLAY")
+	}
+	snapshot, err := conversation.Load(archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const end = 26 // cdfa1926: immediately after the first malformed retry.
+	if len(snapshot.History) < end {
+		t.Fatal("replay archive is too short")
+	}
+	var defs []llm.ToolDef
+	for _, capability := range snapshot.Capabilities {
+		if capability.ID == "native_ssh" {
+			defs = append(defs, capability.Tools...)
+		}
+	}
+	if len(defs) == 0 {
+		t.Fatal("replay archive lacks the SSH catalog")
+	}
+	client := chatcompletions.NewLlamaClient(url, "local")
+	output := os.Getenv("GEKTOR_ARGUMENTS_LIVE_OUT")
+	if output != "" {
+		file, openErr := os.OpenFile(output, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
+		if openErr != nil {
+			t.Fatal(openErr)
+		}
+		defer file.Close()
+		client.Debug = file
+	}
+	req := llm.ChatRequest{Messages: llm.ModelMessages(snapshot.History[:end]), Tools: defs, MaxTokens: 2048}
+	ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
+	defer cancel()
+	response, err := client.Stream(ctx, req, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("finish=%s prompt=%d cached=%d completion=%d", response.FinishReason, response.Usage.PromptTokens, response.Usage.CachedTokens, response.Usage.CompletionTokens)
+	if response.FinishReason == "length" {
+		t.Fatal("replay hit the output limit")
+	}
+	found := false
+	for _, call := range response.Message.ToolCalls {
+		if call.Name != "ssh_exec" {
+			t.Fatal("replay did not use the direct SSH schema", call.Name)
+		}
+		var arguments ssh.ExecRequest
+		err = json.Unmarshal(call.Arguments, &arguments)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if arguments.Connection != "Koara" || strings.TrimSpace(arguments.Command) == "" {
+			t.Fatal("replay did not repair required arguments")
+		}
+		found = true
+	}
+	if !found {
+		t.Fatal("replay returned no SSH call")
 	}
 }

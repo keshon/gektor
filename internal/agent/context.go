@@ -17,7 +17,7 @@ func (a *Agent) previewTools() []llm.ToolDef {
 	if a.cfg.Catalog != nil {
 		return a.cfg.Catalog.PreviewDefs()
 	}
-	return a.cfg.Tools.ModelDefs()
+	return a.cfg.Tools.Defs()
 }
 
 // Identity is derived from the saved archive, so compaction cannot substitute
@@ -38,7 +38,7 @@ func (a *Agent) requestIdentity(req *llm.ChatRequest) {
 
 func (a *Agent) modelRequest(history []llm.Message) llm.ChatRequest {
 	history = a.withCapabilityInstructions(history)
-	req := llm.ChatRequest{Messages: a.reuseContext(history), Tools: a.cfg.Tools.ModelDefs()}
+	req := llm.ChatRequest{Messages: a.reuseContext(history), Tools: a.cfg.Tools.Defs()}
 	a.requestIdentity(&req)
 	return req
 }

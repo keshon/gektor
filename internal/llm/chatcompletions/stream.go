@@ -30,10 +30,17 @@ func (c *Client) Stream(ctx context.Context, req llm.ChatRequest, onReasoning, o
 		return llm.ChatResponse{}, responseError(resp)
 	}
 
+	if c.Debug != nil {
+		c.logDebug("[%s] --- response stream (status %s) ---\n", time.Now().Format(time.RFC3339), resp.Status)
+	}
+
 	state := streamAccumulator{calls: map[int]*deltaCall{}, progress: llm.Progress{Phase: "waiting", PromptTokens: llm.EstimatePromptTokens(req), Estimated: true}, generationKnown: true}
 	sc := bufio.NewScanner(resp.Body)
 	sc.Buffer(make([]byte, 1024*1024), 16*1024*1024)
 	for sc.Scan() {
+		if c.Debug != nil {
+			c.logDebug("%s\n", sc.Text())
+		}
 		line := strings.TrimSpace(sc.Text())
 		if line == "" || strings.HasPrefix(line, ":") || !strings.HasPrefix(line, "data:") {
 			continue

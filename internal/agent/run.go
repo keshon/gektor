@@ -75,7 +75,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 				resp.Message.FinishReason = resp.FinishReason
 				message := recordableMessage(resp.Message)
 				if a.cfg.OnStep != nil {
-					a.cfg.OnStep(step, a.cfg.Tools.ObservedMessage(message))
+					a.cfg.OnStep(step, message)
 				}
 				history = append(history, message)
 				if len(resp.Message.ToolCalls) > 0 {
@@ -96,7 +96,7 @@ func (a *Agent) run(ctx context.Context, history []llm.Message) (answer string, 
 		resp.Message.FinishReason = resp.FinishReason
 		message := recordableMessage(resp.Message)
 		if a.cfg.OnStep != nil {
-			a.cfg.OnStep(step, a.cfg.Tools.ObservedMessage(message))
+			a.cfg.OnStep(step, message)
 		}
 		if a.cfg.OnUsage != nil {
 			a.cfg.OnUsage(step, resp.Usage)
