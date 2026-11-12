@@ -723,7 +723,8 @@ func TestToggleHoldsPosition(t *testing.T) {
 	if got := strings.Split(mm2.transcript.Viewport.View(), "\n")[0]; got != first2 {
 		t.Fatalf("growth above moved first line:\nwas  %q\nnow  %q", first2, got)
 	}
-	// Collapse back: byte-identical view returns.
+	// Cycle through hidden thinking back to short: the original view returns.
+	mm2.Update(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
 	updated, _ = mm2.Update(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
 	if got := updated.(*Model).transcript.Viewport.View(); got != before {
 		t.Fatal("collapse must restore the exact view")

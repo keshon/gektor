@@ -219,11 +219,13 @@ type Model struct {
 	// View-menu display filters. They hide transcript rows, never model
 	// history: a hidden block is still sent, stored and re-rendered the
 	// moment the filter is turned off. All choices are global preferences.
-	hideSYS    bool
-	hideLabels bool
-	hideNames  bool
-	minimal    bool
-	hideTools  bool
+	hideSYS       bool
+	hideLabels    bool
+	hideNames     bool
+	minimal       bool
+	hideTools     bool
+	hideThinking  bool
+	toolNamesOnly bool
 
 	sessionIndex    map[string]cachedSession
 	sessionRevision uint64

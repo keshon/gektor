@@ -39,16 +39,16 @@ Scrolling up lets you read without following new messages.
 
 The **View** menu controls how history looks:
 
-| Option | When checked |
+| Option | Display |
 |---|---|
-| Thinking | Show full thinking; otherwise show a one-line summary |
-| Tool calls | Show tool details; otherwise show compact rows |
+| Thinking | Full text, short summary or hidden; click to cycle |
+| Tool calls | Expanded details, one tool per line or name badges packed into wrapped lines; click to cycle |
 | System messages | Show system notices |
 | Speaker names | Show participant names |
 | Message labels | Show tags such as THINKING and RESPONSE |
 
-`Ctrl+G` toggles full thinking. It does not shorten the normal reply.
-View choices and the theme are saved. Hidden content remains in saved history.
+`Ctrl+G` cycles short, full and hidden thinking. It does not shorten the normal reply.
+Tool names remain clickable in every mode. View choices and the theme are saved. Hidden content remains in saved history.
 
 Settings > Appearance offers Dark, Light, One Half Dark, One Half Light, Solarized
 Dark and Solarized Light. Choose a theme and press Apply to save it.

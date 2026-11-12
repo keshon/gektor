@@ -55,7 +55,7 @@ func commands() []command {
 		{name: "/mode", arg: "plan|act", choices: []string{"plan", "act"}, summary: "Preview changes or execute them"},
 		{name: "/max-steps", arg: "N", summary: "Step budget (0 = no limit)"},
 		{name: "/steering", arg: "on|off", choices: []string{"on", "off"}, immediate: true, summary: "Let new input withhold unstarted tools"},
-		{name: "/details", immediate: true, summary: "Toggle full agent thinking"},
+		{name: "/details", immediate: true, summary: "Cycle short, full and hidden thinking"},
 		{name: "/sys", immediate: true, summary: "Toggle SYS messages"},
 		{name: "/labels", immediate: true, summary: "Toggle labels"},
 		{name: "/latest", immediate: true, summary: "Jump to latest"},

@@ -45,7 +45,7 @@ func (m *Model) menuItems(menu string) []screen.MenuItem {
 			{Text: "Retry failed turn", Command: "/retry", Enabled: idle && m.runErr != nil && m.retryRun != nil},
 		}
 	case "view":
-		return []screen.MenuItem{{Text: "Thinking", Command: "toggle-details", Enabled: true}, {Text: "Tool calls", Command: "toggle-tools", Enabled: true}, {Text: "System messages", Command: "toggle-sys", Enabled: true},
+		return []screen.MenuItem{{Text: "Thinking: " + m.thinkingLabel(), Command: "toggle-details", Enabled: true}, {Text: "Tool calls: " + m.toolsLabel(), Command: "toggle-tools", Enabled: true}, sep, {Text: "System messages", Command: "toggle-sys", Enabled: true}, sep,
 			{Text: "Speaker names", Command: "toggle-names", Enabled: true}, {Text: "Message labels", Command: "toggle-labels", Enabled: true}, sep, {Text: "Jump to latest", Command: "latest", Enabled: true}}
 	}
 	return nil
@@ -70,7 +70,7 @@ func (m *Model) menuToggle(command string) (toggle, on bool) {
 	case "toggle-steering":
 		return true, m.steering
 	case "toggle-details":
-		return true, !m.transcript.compact
+		return false, false
 	case "toggle-sys":
 		return true, !m.hideSYS
 	case "toggle-labels":
@@ -78,7 +78,7 @@ func (m *Model) menuToggle(command string) (toggle, on bool) {
 	case "toggle-names":
 		return true, !m.hideNames
 	case "toggle-tools":
-		return true, !m.hideTools
+		return false, false
 	case "screen:agent":
 		return true, true
 	case "screen:workflows":

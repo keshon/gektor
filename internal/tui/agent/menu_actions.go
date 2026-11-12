@@ -87,7 +87,14 @@ func (m *Model) activateMenuAction(command string) (tea.Model, tea.Cmd) {
 			case "toggle-names":
 				a.HideNames = !m.hideNames
 			case "toggle-tools":
-				a.HideTools = !m.hideTools
+				switch {
+				case a.ToolNamesOnly:
+					a.ToolNamesOnly, a.HideTools = false, false
+				case a.HideTools:
+					a.ToolNamesOnly = true
+				default:
+					a.HideTools = true
+				}
 			}
 		})
 		if err != nil {

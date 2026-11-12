@@ -310,6 +310,13 @@ func (m *Model) selectTool(direction int) {
 	}
 	m.inspector.selected = indices[position]
 	m.refreshContent()
+	for _, hit := range m.transcript.render.inlineTools {
+		if hit.block == m.inspector.selected {
+			m.transcript.Viewport.SetYOffset(m.transcript.PartOffset(hit.part) + hit.row)
+			m.transcript.Follow = false
+			return
+		}
+	}
 	for part, index := range m.transcript.render.partBlocks {
 		if index == m.inspector.selected {
 			m.transcript.Viewport.SetYOffset(m.transcript.PartOffset(part))
@@ -356,6 +363,12 @@ func (m *Model) inspectorMouse(msg tea.MouseMsg) (bool, tea.Cmd) {
 		return false, nil
 	}
 	row := mouse.Y - paneTop + m.transcript.Viewport.YOffset()
+	x := mouse.X - m.promptOffset()
+	for _, hit := range m.transcript.render.inlineTools {
+		if row == m.transcript.PartOffset(hit.part)+hit.row && x >= hit.start && x < hit.end && mouse.X != m.scrollbarX() {
+			return true, m.openInspector(hit.block)
+		}
+	}
 	for part, index := range m.transcript.render.partBlocks {
 		hit, ok := m.transcript.render.toolHits[part]
 		x := mouse.X - m.promptOffset()

@@ -155,3 +155,113 @@ func TestOutcomeReceiptPreservesMeasuredStates(t *testing.T) {
 		t.Fatal("unverified completion became verified")
 	}
 }
+
+func TestThinkingModesHideHistoryAndStreamingWithoutChangingBlocks(t *testing.T) {
+	m := sizeModelTo(t, testModel(), 100, 30)
+	m.appendBlock(thinkBlock("SECRET_REASONING"))
+	m.appendBlock(answerBlock("ANSWER_TEXT"))
+	m.liveThink = "SECRET_STREAM"
+	m.live = "<think>SECRET_INLINE</think>LIVE_ANSWER"
+	before := append([]block(nil), m.transcript.blocks...)
+	for _, want := range []string{"Full", "Hidden", "Short"} {
+		m.toggleThinking()
+		if m.thinkingLabel() != want {
+			t.Fatalf("thinking mode = %s, want %s", m.thinkingLabel(), want)
+		}
+		text := ansi.Strip(m.transcript.View())
+		if want == "Hidden" && (strings.Contains(text, "SECRET_") || strings.Contains(text, "[THINKING]")) {
+			t.Fatal("hidden thinking leaked: " + text)
+		}
+		if !strings.Contains(text, "ANSWER_TEXT") || !strings.Contains(text, "LIVE_ANSWER") {
+			t.Fatal("thinking filter hid answers")
+		}
+	}
+	if !reflect.DeepEqual(before, m.transcript.blocks) {
+		t.Fatal("display changed stored blocks")
+	}
+}
+
+func TestPackedToolNamesWrapAndRemainInspectable(t *testing.T) {
+	for _, width := range []int{20, 40, 80, 120} {
+		m := sizeModelTo(t, testModel(), width, 80)
+		m.toolNamesOnly = true
+		for i, name := range []string{"read_file", "write_file", "git_status", strings.Repeat("long_tool_", 12)} {
+			id := fmt.Sprint(i)
+			m.appendBlock(toolCardBlock(id, name+` {"path":"PRIVATE_ARGS"}`))
+			m.attachResult(id, "PRIVATE_OUTPUT", i == 2)
+		}
+		text := ansi.Strip(m.transcript.View())
+		if strings.Contains(text, "PRIVATE_") || strings.Contains(text, "[TOOL") {
+			t.Fatal("names mode exposed details")
+		}
+		for _, line := range strings.Split(text, "\n") {
+			if ansi.StringWidth(line) > m.transcript.Viewport.ContentWidth() {
+				t.Fatal("packed names overflowed", width, line)
+			}
+		}
+		hits := m.transcript.render.inlineTools
+		if len(hits) < 4 {
+			t.Fatal("missing inspectable names")
+		}
+		if width >= 80 && hits[0].row != hits[1].row {
+			t.Fatal("short tool names did not share a line")
+		}
+		second := hits[1]
+		y := paneTop + m.transcript.PartOffset(second.part) + second.row - m.transcript.Viewport.YOffset()
+		m.handleMouse(tea.MouseClickMsg{X: m.promptOffset() + second.start, Y: y, Button: tea.MouseLeft})
+		if m.inspector.callID != "1" {
+			t.Fatal("packed name opened the wrong call", width, m.inspector.callID)
+		}
+		m.closeInspector()
+		m.selectTool(0)
+		if m.inspector.selected != 3 {
+			t.Fatal("keyboard selection lost packed tool")
+		}
+	}
+}
+
+func TestNewDisplayModesPersistAndCycleTools(t *testing.T) {
+	m := sizeModel(t, testModel())
+	m.application = &settings.Application{PreferencePath: filepath.Join(t.TempDir(), "application.json"), Preferences: config.Preferences{Version: 1}, Temporary: true}
+	for _, want := range []string{"Per line", "Badges", "Expanded"} {
+		m.activateMenuAction("toggle-tools")
+		if m.toolsLabel() != want {
+			t.Fatalf("tools = %s, want %s", m.toolsLabel(), want)
+		}
+	}
+	err := m.changeAppearance(func(a *config.Appearance) {
+		a.HideThinking = true
+		a.ToolNamesOnly = true
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	prefs, err := config.LoadPreferences(m.application.PreferencePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := sizeModel(t, testModel())
+	next.applyAppearance(prefs.Appearance)
+	if next.thinkingLabel() != "Hidden" || next.toolsLabel() != "Badges" {
+		t.Fatal("new display modes did not survive restart")
+	}
+}
+
+func TestToolBadgesFormOneChainAcrossHiddenBlocks(t *testing.T) {
+	m := sizeModelTo(t, testModel(), 120, 30)
+	m.toolNamesOnly, m.hideThinking, m.hideSYS = true, true, true
+	m.appendBlock(toolCardBlock("first", `discover_capabilities {}`))
+	m.attachResult("first", "found")
+	m.appendBlock(thinkBlock("hidden reasoning"))
+	m.appendBlock(markerBlock("hidden notice"))
+	m.appendBlock(toolCardBlock("second", `system_info {}`))
+	m.attachResult("second", "error: unavailable", true)
+	hits := m.transcript.render.inlineTools
+	if len(hits) != 2 || hits[0].part != hits[1].part || hits[0].row != hits[1].row {
+		t.Fatal("hidden blocks broke the badge chain", hits)
+	}
+	text := ansi.Strip(m.transcript.View())
+	if !strings.Contains(text, "✓discover_capabilities ×system_info") || strings.Contains(text, "[") || strings.Contains(text, "]") {
+		t.Fatal("missing tool badge chain: " + text)
+	}
+}

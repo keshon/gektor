@@ -26,10 +26,11 @@ type transcriptProps struct {
 	// hideSYS drops all scaffolding history from the rendered transcript, and
 	// labels drops the [TAG] rows. Both are display-only: the blocks stay
 	// in m.transcript.blocks and come back unchanged when a filter lifts.
-	hideSYS, labels      bool
-	hideNames, hideTools bool
-	prefill              *llm.Progress
-	progressFrame        int
+	hideSYS, labels             bool
+	hideNames, hideTools        bool
+	hideThinking, toolNamesOnly bool
+	prefill                     *llm.Progress
+	progressFrame               int
 }
 
 func newTranscript() transcriptState {
@@ -87,15 +88,17 @@ func (m *Model) refreshContent() {
 		return
 	}
 	props := transcriptProps{
-		speaker:   m.speakerName(),
-		user:      m.userName(),
-		styles:    m.styles,
-		live:      m.live,
-		liveThink: m.liveThink,
-		hideSYS:   m.hideSYS,
-		labels:    !m.hideLabels,
-		hideNames: m.hideNames,
-		hideTools: m.hideTools,
+		speaker:       m.speakerName(),
+		user:          m.userName(),
+		styles:        m.styles,
+		live:          m.live,
+		liveThink:     m.liveThink,
+		hideSYS:       m.hideSYS,
+		labels:        !m.hideLabels,
+		hideNames:     m.hideNames,
+		hideTools:     m.hideTools,
+		hideThinking:  m.hideThinking,
+		toolNamesOnly: m.toolNamesOnly,
 	}
 	if m.inspector.selecting && m.inspector.selected >= 0 && m.inspector.selected < len(m.transcript.blocks) {
 		props.selectedCall = m.transcript.blocks[m.inspector.selected].callID

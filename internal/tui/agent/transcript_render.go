@@ -5,14 +5,16 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/keshon/gektor/internal/tui/components/transcript"
 )
 
 type transcriptRenderState struct {
-	partBlocks []int
-	toolHits   map[int]toolNameHit
-	cache      []renderedBlock
-	batch      int
-	dirty      bool
+	partBlocks  []int
+	toolHits    map[int]toolNameHit
+	inlineTools []inlineToolHit
+	cache       []renderedBlock
+	batch       int
+	dirty       bool
 }
 
 // Cached text belongs to the update loop; View only reads the viewport.
@@ -28,6 +30,11 @@ type renderedBlock struct {
 // toolNameHit is relative to a rendered transcript part.
 type toolNameHit struct{ row, start, end int }
 
+type inlineToolHit struct {
+	part, block int
+	toolNameHit
+}
+
 // refresh renders every block and assembles the parts. The name row opens a
 // run of blocks by one participant, and only its first block carries it —
 // emitted here because it depends on the previous block, which a per-block
@@ -35,14 +42,27 @@ type toolNameHit struct{ row, start, end int }
 func (t *transcriptState) refresh(props transcriptProps) {
 	t.Viewport.SetScrollbarStyle(props.styles.Dim, props.styles.Dim)
 	width := t.Viewport.ContentWidth()
+	// Filtering and packing change part counts; anchor to the original block.
+	anchor, within := -1, 0
+	previousParts := len(t.render.partBlocks)
+	if !t.Follow {
+		for part, index := range t.render.partBlocks {
+			offset := t.PartOffset(part)
+			if offset > t.Viewport.YOffset() {
+				break
+			}
+			anchor, within = index, t.Viewport.YOffset()-offset
+		}
+	}
 	opts := renderOpts{
 		expand:    !t.compact,
 		labels:    props.labels,
-		hideTools: props.hideTools,
+		hideTools: props.hideTools || props.toolNamesOnly,
 	}
 	parts := make([]string, 0, len(t.blocks))
 	t.render.partBlocks = nil
 	t.render.toolHits = make(map[int]toolNameHit)
+	t.render.inlineTools = nil
 	gaps := make([]int, 0, len(t.blocks))
 	cache := make([]renderedBlock, len(t.blocks))
 	prevSpeaker := ""
@@ -53,12 +73,25 @@ func (t *transcriptState) refresh(props transcriptProps) {
 		if b.role == roleUser {
 			b.speaker = props.user
 		}
-		if props.hideSYS && systemBlock(b.role) {
-			previousTool = false
+		if (props.hideSYS && systemBlock(b.role)) || (props.hideThinking && b.role == roleThink) {
 			// A filtered block must not satisfy a later lookup: the zero
 			// renderedBlock equals an empty roleAnswer, so a filter that
 			// was lifted would reuse it and render nothing.
 			cache[i] = renderedBlock{block: b, width: -1}
+			continue
+		}
+
+		if props.toolNamesOnly && b.role == roleTool {
+			first := !previousTool
+			partIndex := len(parts) - 1
+			if first {
+				partIndex = len(parts)
+				parts = append(parts, "")
+				gaps = append(gaps, 1)
+				t.render.partBlocks = append(t.render.partBlocks, i)
+			}
+			t.appendToolName(&parts[partIndex], partIndex, i, b, props, width)
+			previousTool = true
 			continue
 		}
 
@@ -113,6 +146,14 @@ func (t *transcriptState) refresh(props transcriptProps) {
 		tail += progress
 	}
 	t.SetPartsWithGaps(parts, tail, gaps)
+	if !t.Follow && previousParts != len(t.render.partBlocks) && anchor >= 0 {
+		for part, index := range t.render.partBlocks {
+			if index == anchor {
+				t.Viewport.SetYOffset(t.PartOffset(part) + within)
+				break
+			}
+		}
+	}
 	if t.Viewport.ContentWidth() != width {
 		// Reflow once if this content added or removed the scrollbar column.
 		t.refresh(props)
@@ -166,5 +207,54 @@ func (r *transcriptRenderState) recordToolHit(partIndex int, b block, part strin
 		width := min(actionWidth, available)
 		r.toolHits[partIndex] = toolNameHit{row: row, start: 2, end: 2 + width}
 		return
+	}
+}
+
+// Each packed name retains its own hit range and original block for inspection.
+func (t *transcriptState) appendToolName(part *string, partIndex, index int, b block, props transcriptProps, width int) {
+	name, _, _ := toolSummary(b.text)
+	background := lipgloss.Color(themeColor(colorPopupBackground))
+	glyphStyles := toolActionStyles(props.styles)
+	glyphStyles.Secondary = glyphStyles.Secondary.Background(background)
+	glyphStyles.Success = glyphStyles.Success.Background(background)
+	glyphStyles.Warning = glyphStyles.Warning.Background(background)
+	glyphStyles.Error = glyphStyles.Error.Background(background)
+	state := toolState(b)
+	glyph := transcript.ActionGlyph(state, glyphStyles)
+	plainGlyph := ansi.Strip(glyph)
+	text := plainGlyph + name
+	fragments := reflow(text, max(width, 1))
+	badgeStyle := lipgloss.NewStyle().Background(background)
+	if b.callID == props.selectedCall && b.callID != "" {
+		badgeStyle = badgeStyle.Bold(true)
+	}
+	for fragmentIndex, fragment := range fragments {
+		rows := strings.Split(*part, "\n")
+		row := len(rows) - 1
+		column := ansi.StringWidth(rows[row])
+		separator := ""
+		if column > 0 {
+			separator = " "
+			if column+1+ansi.StringWidth(fragment) > width {
+				separator = "\n"
+				row++
+				column = 0
+			} else {
+				column++
+			}
+		}
+		if fragmentIndex == 0 {
+			nameFragment := strings.TrimPrefix(fragment, plainGlyph)
+			fragment = glyph + badgeStyle.Render(nameFragment)
+		} else {
+			fragment = badgeStyle.Render(fragment)
+		}
+		*part += separator + fragment
+		if b.callID != "" {
+			t.render.inlineTools = append(t.render.inlineTools, inlineToolHit{
+				part: partIndex, block: index,
+				toolNameHit: toolNameHit{row: row, start: column, end: column + ansi.StringWidth(fragment)},
+			})
+		}
 	}
 }

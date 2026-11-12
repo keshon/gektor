@@ -63,7 +63,7 @@ func renderLive(props transcriptProps, width int, opts renderOpts) []string {
 	// Streamed deliberation renders first and stays put, so the turn reads
 	// as THINK then RESPONSE. Wrapping in <think> lets assistantBlocks
 	// build the same block a completed turn uses.
-	if strings.TrimSpace(props.liveThink) != "" {
+	if !props.hideThinking && strings.TrimSpace(props.liveThink) != "" {
 		for _, b := range assistantBlocks("<think>"+props.liveThink+"</think>", "") {
 			b.at = time.Time{}
 			b.speaker = props.speaker
@@ -75,6 +75,9 @@ func renderLive(props transcriptProps, width int, opts renderOpts) []string {
 		}
 	}
 	for _, b := range assistantBlocks(liveContent(props.live), "") {
+		if props.hideThinking && b.role == roleThink {
+			continue
+		}
 		b.at = time.Time{}
 		b.speaker = props.speaker
 		part := renderBlock(b, props.styles, opts, width)

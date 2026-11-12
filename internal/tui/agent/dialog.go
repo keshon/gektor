@@ -71,7 +71,7 @@ func helpSections() []helpSection {
 		{"Navigate", [][2]string{
 			{"F1", "Open or close help"},
 			{"F2 / Ctrl+P", "Search session names and history"},
-			{"F3 / Ctrl+G", "Show full thinking or a one-line summary"},
+			{"F3 / Ctrl+G", "Cycle short, full and hidden thinking"},
 			{"Ctrl+R / Ctrl+D", "Rename / delete the selected session in Open session"},
 			{"PgUp / PgDn", "Scroll the transcript; mouse wheel also works"},
 			{"F7 / Ctrl+End", "Jump to the latest message"},
@@ -105,10 +105,7 @@ func (m *Model) statusLines() []string {
 	// The toggle's own name comes from the bottom bar ("Ctrl+G
 	// details"), not the history internals: compact here describes the
 	// transcript view, never context compaction.
-	details := "collapsed (Ctrl+G)"
-	if !m.transcript.compact {
-		details = "full (Ctrl+G)"
-	}
+	details := m.thinkingLabel() + " (Ctrl+G)"
 	// Session grants are kept only while this session is open.
 	allowed := "none"
 	n := m.approvals.Count()

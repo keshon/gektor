@@ -228,7 +228,7 @@ func TestViewMenuZonesAndItems(t *testing.T) {
 	m := sizeModelTo(t, testModel(), 80, 30)
 	m.chrome.Header.Menu = "view"
 	items := m.testControls().HeaderItems()
-	want := []string{"Thinking", "Tool calls", "System messages", "Speaker names", "Message labels", "", "Jump to latest"}
+	want := []string{"Thinking: Short", "Tool calls: Expanded", "", "System messages", "", "Speaker names", "Message labels", "", "Jump to latest"}
 	if len(items) != len(want) {
 		t.Fatalf("view menu has %d rows, want %d: %+v", len(items), len(want), items)
 	}
@@ -237,17 +237,17 @@ func TestViewMenuZonesAndItems(t *testing.T) {
 			t.Fatalf("row %d = %q, want %q", i, items[i].Text, w)
 		}
 	}
-	// Exactly one separator, between the toggles and the commands.
+	// Each display group is separated from the next.
 	sep := -1
 	for i, item := range items {
 		if item.Text == "" && item.Command == "" {
 			sep = i
 		}
 	}
-	if sep != 5 {
-		t.Fatalf("separator at row %d, want 5", sep)
+	if sep != 7 {
+		t.Fatalf("separator at row %d, want 7", sep)
 	}
-	cmds := []string{"toggle-details", "toggle-tools", "toggle-sys", "toggle-names", "toggle-labels", "", "latest"}
+	cmds := []string{"toggle-details", "toggle-tools", "", "toggle-sys", "", "toggle-names", "toggle-labels", "", "latest"}
 	for i, c := range cmds {
 		if items[i].Command != c {
 			t.Fatalf("row %d command = %q, want %q", i, items[i].Command, c)

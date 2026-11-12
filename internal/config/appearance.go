@@ -9,6 +9,8 @@ type Appearance struct {
 	HideLabels     bool   `json:"hide_labels,omitempty"`
 	HideSystem     bool   `json:"hide_system,omitempty"`
 	HideTools      bool   `json:"hide_tools,omitempty"`
+	HideThinking   bool   `json:"hide_thinking,omitempty"`
+	ToolNamesOnly  bool   `json:"tool_names_only,omitempty"`
 	ExpandThinking bool   `json:"expand_thinking,omitempty"`
 }
 

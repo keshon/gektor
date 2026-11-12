@@ -29,7 +29,7 @@ func TestPreferenceRestartHelper(t *testing.T) {
 	phase := os.Getenv("GEKTOR_TEST_PREF_PHASE")
 	if phase == "verify" || phase == "verify-reset" {
 		on := phase == "verify"
-		if m.agent.Appearance().ExpandThinking != on || m.agent.Appearance().HideTools != on || m.agent.Appearance().HideSystem != on || m.agent.Appearance().HideNames != on || m.agent.Appearance().HideLabels != on || (m.agent.Appearance().Frame != "outlined") == on {
+		if m.agent.Appearance().HideThinking || m.agent.Appearance().ToolNamesOnly || m.agent.Appearance().ExpandThinking != on || m.agent.Appearance().HideTools != on || m.agent.Appearance().HideSystem != on || m.agent.Appearance().HideNames != on || m.agent.Appearance().HideLabels != on || (m.agent.Appearance().Frame != "outlined") == on {
 			t.Fatal("View choices lost on restart", p.Appearance)
 		}
 		wantTheme := "light"
@@ -62,6 +62,11 @@ func TestPreferenceRestartHelper(t *testing.T) {
 		m.chrome.Header = screen.MenuState{Global: true, Focused: true, Menu: "view"}
 		m.chrome.Header.Row = headerRowFor(m, command)
 		m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+		if phase == "reset" && (command == "toggle-details" || command == "toggle-tools") {
+			m.chrome.Header = screen.MenuState{Global: true, Focused: true, Menu: "view"}
+			m.chrome.Header.Row = headerRowFor(m, command)
+			m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+		}
 		if m.chrome.Dialog != nil {
 			t.Fatal("View save failed", m.chrome.Dialog.Lines)
 		}

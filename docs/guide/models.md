@@ -80,7 +80,7 @@ Use `-reasoning-effort high` to select an effort level, or leave it unset for
 the model default. Settings > Response settings lists levels from the selected
 account's model catalog. Unsupported levels fail before inference.
 Enable `-reasoning-summary` to request a visible thinking summary; Ctrl+G
-expands the THINK block. This is a provider summary, not raw hidden reasoning.
+cycles short, full and hidden thinking. This is a provider summary, not raw hidden reasoning.
 Both controls are saved in profiles and currently apply only to ChatGPT.
 
 Temperature and response-limit controls are hidden in Settings; `-max-tokens`

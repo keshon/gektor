@@ -16,13 +16,23 @@ func (m *Model) applyAppearance(a config.Appearance) {
 	m.hideNames, m.hideLabels = a.HideNames, a.HideLabels
 	m.hideSYS, m.hideTools = a.HideSystem, a.HideTools
 	m.transcript.compact = !a.ExpandThinking
+	m.hideThinking, m.toolNamesOnly = a.HideThinking, a.ToolNamesOnly
 	m.transcript.render.cache = nil
 	m.fitBottom()
 	m.refreshContent()
 }
 
 func (m *Model) currentAppearance() config.Appearance {
-	a := config.Appearance{Frame: "outlined", HideNames: m.hideNames, HideLabels: m.hideLabels, HideSystem: m.hideSYS, HideTools: m.hideTools, ExpandThinking: !m.transcript.compact}
+	a := config.Appearance{
+		Frame:          "outlined",
+		HideNames:      m.hideNames,
+		HideLabels:     m.hideLabels,
+		HideSystem:     m.hideSYS,
+		HideTools:      m.hideTools,
+		ExpandThinking: !m.transcript.compact,
+		HideThinking:   m.hideThinking,
+		ToolNamesOnly:  m.toolNamesOnly,
+	}
 	if m.minimal {
 		a.Frame = "minimal"
 	}
@@ -32,7 +42,8 @@ func (m *Model) currentAppearance() config.Appearance {
 func (m *Model) changeAppearance(change func(*config.Appearance)) error {
 	a := m.currentAppearance()
 	change(&a)
-	if err := m.application.SaveAppearance(a); err != nil {
+	err := m.application.SaveAppearance(a)
+	if err != nil {
 		return err
 	}
 	m.applyAppearance(a)
@@ -40,7 +51,17 @@ func (m *Model) changeAppearance(change func(*config.Appearance)) error {
 }
 
 func (m *Model) toggleThinking() (tea.Model, tea.Cmd) {
-	if err := m.changeAppearance(func(a *config.Appearance) { a.ExpandThinking = !a.ExpandThinking }); err != nil {
+	err := m.changeAppearance(func(a *config.Appearance) {
+		switch {
+		case a.HideThinking:
+			a.HideThinking, a.ExpandThinking = false, false
+		case a.ExpandThinking:
+			a.HideThinking, a.ExpandThinking = true, false
+		default:
+			a.ExpandThinking = true
+		}
+	})
+	if err != nil {
 		m.chrome.Open("Appearance", []string{err.Error()})
 	}
 	return m, nil
@@ -100,4 +121,24 @@ func prefillText(p llm.Progress, st styles, width int) string {
 	}
 	bar := lipgloss.NewStyle().Foreground(lipgloss.Color(themeColor(colorMode))).Render(strings.Repeat("━", filled)) + st.Dim.Render(strings.Repeat("─", width-filled))
 	return st.Dim.Render(cellLine(label, width)) + "\n" + bar
+}
+
+func (m *Model) thinkingLabel() string {
+	if m.hideThinking {
+		return "Hidden"
+	}
+	if m.transcript.compact {
+		return "Short"
+	}
+	return "Full"
+}
+
+func (m *Model) toolsLabel() string {
+	if m.toolNamesOnly {
+		return "Badges"
+	}
+	if m.hideTools {
+		return "Per line"
+	}
+	return "Expanded"
 }

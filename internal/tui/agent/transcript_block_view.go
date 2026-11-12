@@ -144,7 +144,7 @@ func renderBlock(b block, st styles, opts renderOpts, width int) string {
 	default:
 		body = renderRaw(b, raw, st, width)
 	}
-	if !opts.labels {
+	if !opts.labels || (b.role == roleTool && opts.hideTools) {
 		return strings.Join(body, "\n")
 	}
 	return strings.Join(append([]string{labelRow(roleLabel(b.role), b.at, st, width)}, body...), "\n")
