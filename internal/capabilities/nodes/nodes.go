@@ -13,9 +13,32 @@ import (
 	mediacontract "github.com/keshon/gektor/internal/capabilities/media/contract"
 	"github.com/keshon/gektor/internal/capabilities/social"
 	socialcontract "github.com/keshon/gektor/internal/capabilities/social/contract"
+	"github.com/keshon/gektor/internal/capabilities/ssh"
+	sshcontract "github.com/keshon/gektor/internal/capabilities/ssh/contract"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workspace"
 )
+
+func SSHDefinitions(service *ssh.Service, authorize ssh.FileAuthorizer) []workflow.Node {
+	var nodes []workflow.Node
+	for _, name := range sshcontract.Names() {
+		op := sshcontract.Operation{Service: service, Kind: name, AuthorizeFile: authorize}
+		nodes = append(nodes, workflow.Node{
+			Name:             op.Name(),
+			Version:          1,
+			Description:      op.Description(),
+			InputSchema:      op.Schema(),
+			OutputSchema:     op.OutputSchema(),
+			ReadOnly:         op.ReadOnly(),
+			RetrySafe:        op.RetrySafe(),
+			Resources:        op.Resources,
+			Validate:         op.Validate,
+			ValidateTemplate: op.ValidateTemplate,
+			Execute:          op.Run,
+		})
+	}
+	return nodes
+}
 
 func DocumentDefinitions(ws *workspace.Workspace) []workflow.Node {
 	var result []workflow.Node

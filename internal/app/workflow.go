@@ -12,6 +12,7 @@ import (
 	"github.com/keshon/gektor/internal/capabilities/media"
 	capnodes "github.com/keshon/gektor/internal/capabilities/nodes"
 	"github.com/keshon/gektor/internal/capabilities/social"
+	"github.com/keshon/gektor/internal/capabilities/ssh"
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/executables"
 	"github.com/keshon/gektor/internal/permission"
@@ -43,6 +44,20 @@ func WorkflowRegistry(ws *workspace.Workspace, store string, output imagecontrac
 	nodes = append(nodes, capnodes.FileDefinitions(ws, fileOutput)...)
 	nodes = append(nodes, capnodes.MediaDefinitions(mediaService)...)
 	nodes = append(nodes, capnodes.DocumentDefinitions(ws)...)
+	sshService := ssh.New(ssh.Config{Workspace: ws, ProfilesPath: userdirs.Sub("ssh.json")})
+	var authorizeSSHFile ssh.FileAuthorizer
+	if fileOutput != nil {
+		authorizeSSHFile = func(ctx context.Context, action, path string) error {
+			args, err := json.Marshal(struct {
+				Path string `json:"path"`
+			}{Path: path})
+			if err != nil {
+				return err
+			}
+			return fileOutput(ctx, action, path, args)
+		}
+	}
+	nodes = append(nodes, capnodes.SSHDefinitions(sshService, authorizeSSHFile)...)
 	nodes = append(nodes, record.Definitions(ws, store)...)
 	nodes = append(nodes, artifactnodes.Definitions(ws)...)
 	nodes = append(nodes, processnode.Definition(ws))

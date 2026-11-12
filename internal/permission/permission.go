@@ -103,6 +103,9 @@ func Default() Policy {
 		}
 	}
 
+	for _, tool := range []string{"ssh_exec", "ssh_upload", "ssh_download"} {
+		rules = append(rules, Rule{Tool: tool, Pattern: "*", Effect: Ask})
+	}
 	return Policy{Rules: rules}
 }
 

@@ -18,6 +18,7 @@ Look up native operation names, arguments, results and limits. Agent enables opt
 | Read DOCX, XLSX or PDF files | `docx_read`, `xlsx_read`, `pdf_read` |
 | Keep files or text with a run | `artifact_import`, `artifact_write`, `artifact_read_text` |
 | Run a local program | `run_program` |
+| Run remote commands or transfer files over SSH | `ssh_exec`, `ssh_upload`, `ssh_download` |
 | Call another recipe | `workflow_call` |
 
 Conditions, iteration, review and retry are [step settings](recipes.md#graphs-iteration-and-reviews).
@@ -43,6 +44,143 @@ has its own quoting, pipeline and error semantics (notably native stderr
 redirection in 5.1); the harness does not rewrite scripts or enable global
 fail-fast behavior. Shell success describes the final statement, not every
 earlier command. Use explicit conditions when one command depends on another.
+
+## SSH commands and file transfers
+
+Agent enables `native_ssh`; workflows use the same `ssh_exec`, `ssh_upload`
+and `ssh_download` names. Connections are registered by the operator in
+`%USERPROFILE%\.gektor\ssh.json` on Windows or `~/.gektor/ssh.json` elsewhere:
+
+```json
+{
+  "staging": {
+    "host": "staging.example.com",
+    "port": 22,
+    "user": "deploy",
+    "known_hosts": "C:/Users/alice/.ssh/known_hosts",
+    "private_key": "C:/Users/alice/.ssh/id_ed25519",
+    "passphrase_env": "STAGING_KEY_PASSPHRASE"
+  }
+}
+```
+
+Use absolute filesystem paths; `~` and environment placeholders in paths are
+not expanded. Omit `passphrase_env` for an unencrypted key. Password authentication
+uses `password_env` instead of `private_key` and `passphrase_env`. These fields
+name environment variables; never put their values in this file, recipes or
+tool arguments. Environment variables must be available to the GEKTOR process.
+SSH and HTTP share environment lookup, while their connection settings stay separate.
+Existing HTTP credential registration and origin checks are unchanged.
+
+### Supplying credentials in the CLI and TUI
+
+There is currently no SSH connection editor or password prompt in the TUI,
+and no dedicated SSH registration command or password/key CLI flag. Create
+`ssh.json` yourself. `ssh_exec`, `ssh_upload` and `ssh_download` are Agent tools
+and workflow operations, not CLI subcommands. GEKTOR does not load SSH secrets
+from `.env` automatically.
+
+For password authentication, a complete connection entry looks like this:
+
+```json
+{
+  "staging": {
+    "host": "staging.example.com",
+    "user": "deploy",
+    "known_hosts": "C:/Users/alice/.ssh/known_hosts",
+    "password_env": "GEKTOR_SSH_PASSWORD"
+  }
+}
+```
+
+In PowerShell, capture the password without putting its value in command history:
+
+```powershell
+$env:GEKTOR_SSH_PASSWORD = [System.Net.NetworkCredential]::new(
+    '',
+    (Read-Host 'SSH password' -AsSecureString)
+).Password
+```
+
+Launch GEKTOR from that same terminal so it inherits the variable. Use your
+normal model/profile flags alongside these commands:
+
+```powershell
+.\gektor.exe -tui
+# Or run one Agent task:
+.\gektor.exe "Use SSH connection staging to run uname -a"
+```
+
+In the TUI, ask Agent to use connection `staging`; it can enable `native_ssh`
+when needed. In a recipe, supply `"connection":"staging"` to an SSH operation.
+Workflow workers must inherit the variable in their own process; setting it in
+a TUI launch does not update a separately running worker. After GEKTOR exits,
+remove the variable from the terminal if it is no longer needed:
+
+```powershell
+Remove-Item Env:GEKTOR_SSH_PASSWORD
+```
+
+For key authentication, use the `private_key` example above. Omit
+`passphrase_env` for an unencrypted key. For an encrypted key, use the same
+masked PowerShell prompt to set the variable named by `passphrase_env` before
+launching. The key path points to an existing private key file; do not paste
+key contents or secrets into chat. On other platforms, supply the referenced
+variable through your shell or process supervisor before starting GEKTOR.
+
+### Host verification and operation arguments
+
+Populate `known_hosts` with host keys verified through a trusted channel before
+connecting. Unknown or changed host keys fail; there is no trust-on-first-use or
+verification bypass. SSH agent forwarding and interactive authentication are
+not supported. Profiles are snapshotted when an Agent/Workflow service is built;
+restart it after editing connection settings. Secrets and host keys are read
+when connecting. A missing/invalid optional SSH config affects SSH calls only.
+
+Command arguments:
+
+```json
+{"connection":"staging","command":"uname -a","timeout_seconds":30}
+```
+
+The remote account's shell interprets `command`. Each call opens and closes a
+fresh connection, so `cd`, shell variables and terminal state do not survive.
+Use a single command such as `cd /srv/app && ./status` when needed. There is no
+interactive terminal or stdin. Results contain `connection`, `stdout`, `stderr`
+and `exit_code`. A nonzero exit is an operation error with captured output.
+Each output stream is limited to 64 KiB; exceeding it closes the connection
+and discards both captured streams to avoid exposing a truncated secret.
+
+Transfer arguments (the same shape for upload and download):
+
+```json
+{"connection":"staging","local_path":"dist/app.zip","remote_path":"/srv/releases/app.zip","max_bytes":16777216,"timeout_seconds":60}
+```
+
+Transfers use SFTP, accept one regular file up to 16 MiB, and return paths,
+size and SHA-256 of transferred bytes. `local_path` stays inside the workspace;
+`remote_path` must be an absolute POSIX path. Remote links follow the server's
+filesystem semantics. Parent directories must already exist. Existing destinations,
+including links, are refused. Local downloads publish complete content using
+a hard link, so the destination filesystem must support hard links.
+Uploads use `hardlink@openssh.com` for the same guarantee and fail explicitly
+when the server does not support it. A broken connection may leave a remote
+`.gektor-*` temporary file in the destination folder; remove it after checking
+the transfer outcome. No permissions or timestamps are copied.
+
+All three operations ask for approval under the default policy and are unavailable
+in Plan/read-only execution. Remote permission resources include the configured
+user, host and port (`ssh://deploy@staging.example.com:22/...`); command resources
+also include the command. Transfers authorize both remote and local resources.
+Additionally, uploads check the existing `read_file` policy for the local source,
+and downloads check `write_file` for the destination before connecting. Sensitive
+file restrictions therefore apply even when an SSH operation itself is allowed.
+
+`timeout_seconds` defaults to 30 and accepts 1–600. There are no automatic retries;
+workflow retry settings are rejected for SSH nodes. Closing an SSH connection
+does not guarantee a remote command stopped or a completed upload was rolled back.
+After timeout/disconnection, verify remote state before repeating an operation.
+Treat remote output as untrusted content.
 
 ## Editing and Git tools
 

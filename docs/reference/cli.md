@@ -260,6 +260,13 @@ model as literal text.
 gektor.exe -profile profiles\llama-external.json -user-name Alex -system-prompt "be terse"
 ```
 
+## SSH credentials
+
+For SSH passwords and private keys, see
+[supplying SSH credentials](operations.md#supplying-credentials-in-the-cli-and-tui).
+SSH currently uses named user profiles and environment references; there is no
+dedicated SSH credential CLI flag or TUI editor.
+
 ## Workflow queue and service
 
 `workflow submit [-workspace dir] [-inputs inputs.json] recipe.json` validates

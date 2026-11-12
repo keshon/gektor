@@ -1,18 +1,44 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/capabilities/ssh"
 	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
 func TestCapabilityToolsAndNodesShareContractsAndResources(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	err := os.MkdirAll(userdirs.Sub(), 0700)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, err := json.Marshal(map[string]ssh.Profile{"test": {
+		Host:        "example.com",
+		User:        "tester",
+		KnownHosts:  filepath.Join(home, "known_hosts"),
+		PasswordEnv: "SSH_PASSWORD",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(userdirs.Sub("ssh.json"), profile, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
 	ws, err := workspace.New(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -30,7 +56,7 @@ func TestCapabilityToolsAndNodesShareContractsAndResources(t *testing.T) {
 	c.Registry = r
 	toolSchemas := map[string]json.RawMessage{}
 	descriptions := map[string]string{}
-	for _, id := range []string{"native_documents", "native_files", "native_images", "native_media", "social", "native_workflows"} {
+	for _, id := range []string{"native_documents", "native_files", "native_images", "native_media", "native_ssh", "social", "native_workflows"} {
 		if _, err := c.Enable(t.Context(), id, nil); err != nil {
 			t.Fatal(id, err)
 		}
@@ -47,6 +73,9 @@ func TestCapabilityToolsAndNodesShareContractsAndResources(t *testing.T) {
 		name, args                      string
 		readOnly, concurrent, retrySafe bool
 	}{
+		{"ssh_exec", `{"connection":"test","command":"uname -a"}`, false, false, false},
+		{"ssh_upload", `{"connection":"test","local_path":"input.txt","remote_path":"/tmp/input.txt"}`, false, false, false},
+		{"ssh_download", `{"connection":"test","local_path":"saved.txt","remote_path":"/tmp/input.txt"}`, false, false, false},
 		{"docx_read", `{"path":"input.docx"}`, true, true, true},
 		{"xlsx_read", `{"path":"input.xlsx"}`, true, true, true},
 		{"pdf_read", `{"path":"input.pdf"}`, true, true, true},
@@ -98,12 +127,51 @@ func TestCapabilityToolsAndNodesShareContractsAndResources(t *testing.T) {
 			}
 			raw := json.RawMessage(tc.args)
 			direct, err := (WorkspacePaths{WS: ws}).Resources(toolName, raw)
+			for _, pack := range c.Native {
+				for _, native := range pack.Tools {
+					if native.Name() != toolName {
+						continue
+					}
+					if scoped, ok := native.(interface {
+						Resources(json.RawMessage) ([]string, error)
+					}); ok {
+						direct, err = scoped.Resources(raw)
+					}
+				}
+			}
 			if err != nil {
 				t.Fatal(err)
 			}
 			nested, err := node.Resources(raw)
 			if err != nil || !reflect.DeepEqual(direct, nested) {
 				t.Fatalf("resource mismatch: direct=%v node=%v error=%v", direct, nested, err)
+			}
+		})
+	}
+
+	for _, tc := range []struct{ operation, action string }{
+		{"ssh_upload", "read_file"},
+		{"ssh_download", "write_file"},
+	} {
+		t.Run(tc.operation+"_local_policy", func(t *testing.T) {
+			policy := permission.Policy{Rules: []permission.Rule{{Tool: tc.action, Pattern: "*", Effect: permission.Deny}}}
+			catalog := policyCatalog(t, Dependencies{WS: ws, Policy: policy, StoreDir: t.TempDir()})
+			args := json.RawMessage(`{"connection":"test","local_path":"sensitive.env","remote_path":"/tmp/test"}`)
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			defer cancel()
+			_, err := catalog.Registry.Run(ctx, tc.operation, args)
+			if err == nil || !strings.Contains(err.Error(), "blocked by policy ("+tc.action) {
+				t.Fatal("Agent bypassed local file policy", err)
+			}
+
+			svc, err := app.NewWorkflow(ws, t.TempDir(), policy, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			source := []byte(`{"version":3,"name":"SSH","steps":[{"id":"transfer","tool":"` + tc.operation + `","args":` + string(args) + `}]}`)
+			_, err = svc.RunSource(ctx, source, "ssh.json", nil)
+			if err == nil || !strings.Contains(err.Error(), "blocked by policy ("+tc.action) {
+				t.Fatal("Workflow bypassed local file policy", err)
 			}
 		})
 	}

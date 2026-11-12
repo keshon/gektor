@@ -84,7 +84,7 @@ func (c *Capabilities) publish(ctx context.Context, state conversation.Capabilit
 }
 
 // Prepare publishes eager native packages after archive restoration. Native
-// construction performs no IO; adapter sources remain lazy.
+// construction opens no network connections; adapter sources remain lazy.
 func (c *Capabilities) Prepare(ctx context.Context) error {
 	if err := c.validateSources(); err != nil {
 		return err

@@ -58,12 +58,19 @@ On Windows, `~` means your user folder, usually `C:\Users\<name>`.
 |---|---|---|
 | TUI preferences | `~/.gektor/application.json` | Workspace and display preferences |
 | Custom profiles | `~/.gektor/profiles/custom/` | Saved model and identity settings |
+| SSH connections | `~/.gektor/ssh.json` | Named endpoints, verified-host file and key/environment references; no literal secrets |
+| External applications | `~/.gektor/applications.json` | Executable path overrides and disabled applications; omitted paths use PATH |
 | Agent sessions | `~/.gektor/sessions/` | TUI conversation history and saved context |
 | CLI tasks | `~/.gektor/tasks/` | Standalone CLI session history |
 | Workflow recipes | Files you choose inside the workspace | Editable instructions; can be tracked in Git |
 | Workflow run records | `~/.gektor/workflows/<workspace-hash>/runs/<run-id>/run.json` | Captured recipe, inputs, results and status |
 | Workflow records | `~/.gektor/workflows/<workspace-hash>/records/` | Structured data used by record operations |
 | Canvas layouts | `~/.gektor/workflow-layouts/` | Card positions and position locks, separate from recipes |
+
+SSH currently uses manual configuration in both CLI and TUI; see
+[password and key setup](operations.md#supplying-credentials-in-the-cli-and-tui).
+The environment must belong to the process doing the work, including a separate
+workflow worker. Model profiles and SSH connection profiles are different files.
 
 Workflow history belongs to a workspace path. Moving the workspace gives it a
 different history location. Existing records remain under the old workspace key.

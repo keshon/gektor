@@ -33,8 +33,12 @@ dependencies before any tool is registered, including derived output paths.
 
 Shared support lives in `internal/httptransport`, `internal/process` and
 `internal/executables`. Program configuration keeps its existing applications.json
-filename. The capability package names are documents, files, images, media and
-social. Provider names stay inside their implementations.
+filename. The capability package names are documents, files, images, media,
+social and ssh. Provider names stay inside their implementations.
+
+The proposed [Tools management plan](../internal/tools-management-plan.md)
+extends configuration UI across Agent and Workflows while retaining these
+execution boundaries. It is a plan, not an implemented management interface.
 
 A provider-only reader may expose a typed function instead of a service. Do not
 add empty adapter packages for a frontend that does not use it. When another

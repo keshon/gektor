@@ -102,12 +102,15 @@ func checkPackageLayers(t *testing.T, r *repo) {
 		"subprocess":               {},
 		"capabilities/documents":   {"subprocess", "workspace"},
 		"capabilities/files":       {"workspace", "httptransport"},
+		"credentials":              {},
+		"workflow/credentials":     {"credentials"},
+		"capabilities/ssh":         {"workspace", "credentials"},
 	}
 	allowed["capabilities/images"] = []string{"workspace"}
 	allowed["capabilities/media"] = []string{"workspace", "executables", "process", "httptransport"}
 	allowed["executables"] = []string{"process"}
 	allowed["process"] = nil
-	for _, feature := range []string{"documents", "files", "images", "media", "social"} {
+	for _, feature := range []string{"documents", "files", "images", "media", "social", "ssh"} {
 		base := "capabilities/" + feature
 		allowed[base+"/contract"] = []string{"workflow", base}
 		allowed["capabilities/nodes"] = append(allowed["capabilities/nodes"], base, base+"/contract")

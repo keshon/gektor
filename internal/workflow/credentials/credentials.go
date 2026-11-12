@@ -9,10 +9,11 @@ import (
 	"os"
 	"regexp"
 	"strings"
+
+	secrets "github.com/keshon/gektor/internal/credentials"
 )
 
 var names = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
-var environments = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 type Config struct {
 	Origin string `json:"origin"`
@@ -49,7 +50,7 @@ func validate(c Config) (Config, error) {
 	}
 
 	c.Origin = origin
-	if !environments.MatchString(c.Env) {
+	if !secrets.ValidEnvironment(c.Env) {
 		return c, fmt.Errorf("invalid credential environment name")
 	}
 
@@ -137,8 +138,8 @@ func (s Store) Resolve(name, origin string) (header, value, secret string, err e
 		return "", "", "", fmt.Errorf("credential origin mismatch")
 	}
 
-	secret, ok := os.LookupEnv(c.Env)
-	if !ok || secret == "" || len(secret) > 8192 || strings.ContainsAny(secret, "\r\n") {
+	secret, e = secrets.Environment(c.Env)
+	if e != nil || len(secret) > 8192 || strings.ContainsAny(secret, "\r\n") {
 		return "", "", "", fmt.Errorf("credential environment value missing or invalid")
 	}
 

@@ -376,8 +376,8 @@ func (EnableCapability) Resources(args json.RawMessage) ([]string, error) {
 	return []string{in.ID}, nil
 }
 
-// ReadOnlyCall admits only native activation in Plan. Native factories have
-// already run without IO; this only publishes schemas. Tool execution still
+// ReadOnlyCall admits only native activation in Plan. Native instances are
+// already constructed; this only publishes schemas. Tool execution still
 // passes through the normal Plan allowlist and permission gate.
 func (t EnableCapability) ReadOnlyCall(args json.RawMessage) bool {
 	var in struct {

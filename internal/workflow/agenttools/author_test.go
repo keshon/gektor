@@ -163,7 +163,12 @@ func TestWorkflowSchemaAdvertisesOnlySupportedOperations(t *testing.T) {
 			t.Fatal("missing media operation", name)
 		}
 	}
-	if len(result.Operations) != 31 || result.Operations["docx_read"] == nil || result.Operations["xlsx_read"] == nil || result.Operations["pdf_read"] == nil || result.Operations["archive_create"] == nil || result.Operations["archive_extract"] == nil || result.Operations["download_file"] == nil || result.Operations["archive_list"] == nil || result.Operations["workflow_call"] == nil || result.Operations["workflow_bind"] != nil || result.Operations["run_program"] == nil || result.Operations["artifact_import"] == nil || result.Operations["image_variants"] == nil || result.Operations["run_shell"] != nil || !strings.Contains(string(result.Recipe), `"inputs"`) {
+	for _, name := range []string{"ssh_exec", "ssh_upload", "ssh_download"} {
+		if result.Operations[name] == nil {
+			t.Fatal("missing SSH operation", name)
+		}
+	}
+	if len(result.Operations) != 34 || result.Operations["docx_read"] == nil || result.Operations["xlsx_read"] == nil || result.Operations["pdf_read"] == nil || result.Operations["archive_create"] == nil || result.Operations["archive_extract"] == nil || result.Operations["download_file"] == nil || result.Operations["archive_list"] == nil || result.Operations["workflow_call"] == nil || result.Operations["workflow_bind"] != nil || result.Operations["run_program"] == nil || result.Operations["artifact_import"] == nil || result.Operations["image_variants"] == nil || result.Operations["run_shell"] != nil || !strings.Contains(string(result.Recipe), `"inputs"`) {
 		t.Fatal(out)
 	}
 }

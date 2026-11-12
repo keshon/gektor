@@ -135,12 +135,15 @@ func (p WorkspacePaths) Resources(tool string, args json.RawMessage) ([]string, 
 // Attachment references have no workspace scope. Invalid arguments are left to
 // tool validation and contribute no guidance here.
 func (p WorkspacePaths) Instructions(args json.RawMessage) (string, error) {
-	var in struct{ Path, From, To string }
+	var in struct {
+		Path, From, To string
+		LocalPath      string `json:"local_path"`
+	}
 	if json.Unmarshal(args, &in) != nil || p.WS == nil {
 		return "", nil
 	}
 	var parts []string
-	for _, path := range []string{in.Path, in.From, in.To} {
+	for _, path := range []string{in.Path, in.From, in.To, in.LocalPath} {
 		if path == "" || llm.IsAttachment(path) {
 			continue
 		}

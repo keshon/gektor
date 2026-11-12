@@ -95,8 +95,16 @@ definitions are checked against the current build before a resumed run; a
 mismatch requires compatible code or a fresh session. Other always-present
 native tools are reconstructed normally and are not saved as capability packs.
 
-Built-in `native_images`, `native_files`, `native_documents`, `native_media` and
+Built-in `native_images`, `native_files`, `native_documents`, `native_media`, `native_ssh` and
 `native_workflows` load on demand.
+
+`native_ssh` provides `ssh_exec`, `ssh_upload` and `ssh_download`. The same
+operations are workflow nodes. Configure named connections in the user's
+`.gektor/ssh.json`; see [SSH operations](../reference/operations.md#ssh-commands-and-file-transfers).
+Credentials stay outside tool arguments and recipes.
+The current CLI/TUI setup uses a manually written profile and environment
+variables; [credential setup](../reference/operations.md#supplying-credentials-in-the-cli-and-tui)
+includes a masked PowerShell prompt and launch examples.
 `native_files` provides `download_file`, `archive_list`, `archive_create` and
 `archive_extract` as ordinary agent tools. The same operations are workflow
 nodes. ZIP, TAR, TAR.GZ and GZIP are supported. Listing is read-only; the other

@@ -15,9 +15,11 @@ require (
 	github.com/keshon/pixelita v0.1.1-0.20261105190032-fc8d65e54f70
 	github.com/kkdai/youtube/v2 v2.10.8
 	github.com/ledongthuc/pdf v0.0.0-20261020125853-5e46805f718e
+	github.com/pkg/sftp v1.13.12
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	go.yaml.in/yaml/v3 v3.0.6
+	golang.org/x/crypto v0.58.0
 	golang.org/x/image v0.45.0
 	golang.org/x/sys v0.49.0
 )
@@ -36,6 +38,7 @@ require (
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
 	github.com/google/pprof v0.0.0-20261103193413-97e8293de3c4 // indirect
 	github.com/google/uuid v1.1.1 // indirect
+	github.com/kr/fs v0.1.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/mattn/go-runewidth v0.0.31 // indirect
 	github.com/mayahiro/go-webp v0.3.0 // indirect
