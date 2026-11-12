@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/keshon/gektor/internal/credentials"
 	"github.com/keshon/gektor/internal/workspace"
 	gossh "golang.org/x/crypto/ssh"
 )
@@ -23,18 +24,20 @@ const MaxOutputBytes = 64 << 10
 type Config struct {
 	Workspace    *workspace.Workspace
 	ProfilesPath string
+	Credentials  credentials.Store
 }
 
 // Service borrows the workspace and retains an immutable profile snapshot.
 type Service struct {
-	WS       *workspace.Workspace
-	profiles map[string]Profile
-	loadErr  error
+	WS          *workspace.Workspace
+	credentials credentials.Store
+	profiles    map[string]Profile
+	loadErr     error
 }
 
 func New(cfg Config) *Service {
 	profiles, err := loadProfiles(cfg.ProfilesPath)
-	return &Service{WS: cfg.Workspace, profiles: profiles, loadErr: err}
+	return &Service{WS: cfg.Workspace, credentials: cfg.Credentials, profiles: profiles, loadErr: err}
 }
 
 type ExecRequest struct {
@@ -96,8 +99,8 @@ func (s *Service) Resource(connection, remotePath string) (string, error) {
 }
 
 // connect owns the socket and cancellation watcher. The caller must call close.
-func connect(ctx context.Context, profile Profile) (*gossh.Client, func(), []string, error) {
-	config, secrets, err := profile.clientConfig()
+func connect(ctx context.Context, profile Profile, store credentials.Store) (*gossh.Client, func(), []string, error) {
+	config, secrets, err := profile.clientConfig(store)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -144,7 +147,7 @@ func (s *Service) Exec(ctx context.Context, in ExecRequest) (ExecResult, error) 
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(in.TimeoutSeconds)*time.Second)
 	defer cancel()
 	profile := s.profiles[in.Connection]
-	client, closeConnection, secrets, err := connect(ctx, profile)
+	client, closeConnection, secrets, err := connect(ctx, profile, s.credentials)
 	if err != nil {
 		return result, err
 	}
@@ -214,7 +217,7 @@ func (s *Service) Check(ctx context.Context, name string) error {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	_, closeConnection, _, err := connect(ctx, profile)
+	_, closeConnection, _, err := connect(ctx, profile, s.credentials)
 	if ctx.Err() != nil {
 		if closeConnection != nil {
 			closeConnection()

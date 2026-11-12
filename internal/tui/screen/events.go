@@ -23,6 +23,7 @@ const (
 	Review
 	TableAction
 	TableChanged
+	SecretApply
 )
 
 func (m *Controls) TakeEvents() []Event {
@@ -48,6 +49,9 @@ func (m *Controls) Suspend() {
 		return
 	}
 	dialog := m.Dialog
+	if dialog.Secret != nil {
+		dialog.Secret.Clear()
+	}
 	if dialog.Form != nil {
 		dialog.Form.Sync()
 	}
@@ -71,15 +75,26 @@ func (m *Controls) CompleteSave(dialog *DialogState, err error) {
 func (m *Controls) Resume(dialog *DialogState) {
 	first := m.Dialog == nil
 	if m.Dialog != nil {
+		if m.Dialog.Secret != nil {
+			m.Dialog.Secret.Clear()
+		}
 		m.events = append(m.events, Event{Kind: Replaced, Dialog: m.Dialog})
 	}
 	m.Dialog = dialog
+	// A suspended secret always resumes empty.
+	if dialog.Secret != nil {
+		_ = dialog.Secret.editor.Focus()
+	}
 	m.events = append(m.events, Event{Kind: Opened, Dialog: dialog, First: first})
 	m.ResizeFormEditor()
 }
 
 // Prepare updates editor styles on the update loop, before presentation reads.
 func (m *Controls) Prepare() {
+	if m.Dialog != nil && m.Dialog.Secret != nil {
+		m.Dialog.Secret.editor.SetStyles(TextInputStyles(m.Dialog.Secret.editor.Styles()))
+		m.refreshSecret()
+	}
 	if m.Dialog != nil && m.Dialog.Table != nil {
 		search := &m.Dialog.Table.Model.Search
 		search.SetStyles(TextInputStyles(search.Styles()))

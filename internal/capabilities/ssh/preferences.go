@@ -7,10 +7,15 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+
+	"github.com/keshon/gektor/internal/credentials"
 )
 
 // Profiles owns the reference-only ssh.json file. Loading never connects or resolves credentials.
-type Profiles struct{ Path string }
+type Profiles struct {
+	Path        string
+	Credentials credentials.Store
+}
 
 func (s Profiles) Load() (map[string]Profile, error) {
 	profiles, err := loadProfiles(s.Path)

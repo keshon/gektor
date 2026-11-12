@@ -9,6 +9,7 @@ import (
 	"os/signal"
 
 	"github.com/keshon/gektor/internal/capabilities/ssh"
+	"github.com/keshon/gektor/internal/credentials"
 	"github.com/keshon/gektor/internal/userdirs"
 )
 
@@ -25,7 +26,10 @@ func runSSH(args []string, output io.Writer) error {
 		}
 		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 		defer cancel()
-		service := ssh.New(ssh.Config{ProfilesPath: store.Path})
+		service := ssh.New(ssh.Config{
+			ProfilesPath: store.Path,
+			Credentials:  credentials.Store{Directory: userdirs.Sub("credentials", "ssh")},
+		})
 		err := service.Check(ctx, args[1])
 		if err != nil {
 			return err

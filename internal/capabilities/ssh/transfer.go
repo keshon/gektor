@@ -94,7 +94,7 @@ func (s *Service) Transfer(ctx context.Context, in TransferRequest, direction Di
 	}
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(in.TimeoutSeconds)*time.Second)
 	defer cancel()
-	client, closeConnection, secrets, err := connect(ctx, s.profiles[in.Connection])
+	client, closeConnection, secrets, err := connect(ctx, s.profiles[in.Connection], s.credentials)
 	if err != nil {
 		return result, err
 	}

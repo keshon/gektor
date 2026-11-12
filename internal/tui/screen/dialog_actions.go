@@ -5,6 +5,9 @@ import tea "charm.land/bubbletea/v2"
 // DialogActions supplies shortcuts for the shared form or table currently open.
 // Information overlays retain the active screen's normal navigation shortcuts.
 func (m *Controls) DialogActions() []Action {
+	if m.Dialog != nil && m.Dialog.Secret != nil {
+		return []Action{{Key: 's', Mod: tea.ModCtrl, Name: "Ctrl+S", Label: "Save encrypted", Short: "Save", Enabled: true}, {Key: tea.KeyEscape, Name: "Esc", Label: "Cancel", Short: "Cancel", Enabled: true}}
+	}
 	if m.Dialog != nil && m.Dialog.Table != nil {
 		props := m.TableProps()
 

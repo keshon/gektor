@@ -19,6 +19,9 @@ func (m *Model) statusLine() string {
 		return m.styles.Status.Render("Search names and saved session text")
 	}
 	if m.chrome.Dialog != nil {
+		if m.chrome.Dialog.Secret != nil {
+			return m.controlHints(popup.Shortcut{Key: "Ctrl+S", Action: "save encrypted"}, popup.Shortcut{Key: "Esc", Action: "cancel"})
+		}
 		if m.chrome.Dialog.Table != nil {
 			if m.chrome.Dialog.Table.List {
 				return m.controlHints(popup.Shortcut{Key: "↑↓", Action: "select"}, popup.Shortcut{Key: "Esc", Action: "close"})

@@ -17,6 +17,7 @@ import (
 	socialcontract "github.com/keshon/gektor/internal/capabilities/social/contract"
 	"github.com/keshon/gektor/internal/capabilities/ssh"
 	sshcontract "github.com/keshon/gektor/internal/capabilities/ssh/contract"
+	"github.com/keshon/gektor/internal/credentials"
 	"github.com/keshon/gektor/internal/executables"
 	"github.com/keshon/gektor/internal/permission"
 	toolbackground "github.com/keshon/gektor/internal/tools/background"
@@ -73,7 +74,11 @@ func builtinPackages(d Dependencies) []packageDefinition {
 	authorizeResource := func(ctx context.Context, name, resource string, args json.RawMessage) error {
 		return permission.Authorize(ctx, d.Policy, d.Gate, name, resource, args)
 	}
-	sshService := ssh.New(ssh.Config{Workspace: d.WS, ProfilesPath: userdirs.Sub("ssh.json")})
+	sshService := ssh.New(ssh.Config{
+		Workspace:    d.WS,
+		ProfilesPath: userdirs.Sub("ssh.json"),
+		Credentials:  credentials.Store{Directory: userdirs.Sub("credentials", "ssh")},
+	})
 	authorizeSSHFile := func(ctx context.Context, action, path string) error {
 		args, err := json.Marshal(struct {
 			Path string `json:"path"`

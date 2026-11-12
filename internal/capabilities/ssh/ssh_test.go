@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/keshon/gektor/internal/credentials"
 	"github.com/keshon/gektor/internal/workspace"
 	"github.com/pkg/sftp"
 	gossh "golang.org/x/crypto/ssh"
@@ -315,7 +316,7 @@ func TestHostKeyRejectionProfileSnapshotAndKeyAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 	profile.PasswordEnv, profile.PrivateKey = "", keyPath
-	_, _, err = profile.clientConfig()
+	_, _, err = profile.clientConfig(credentials.Store{})
 	if err != nil {
 		t.Fatal("private key parsing", err)
 	}

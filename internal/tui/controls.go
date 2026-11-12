@@ -82,16 +82,22 @@ func (m *Model) applicationMenus(idle bool) []screen.Menu {
 func (m *Model) dispatchControl(event screen.Event) []tea.Cmd {
 	var commands []tea.Cmd
 
-	if event.Dialog == m.toolsDialog {
+	if event.Dialog == m.toolsDialog && m.toolsDialog != nil {
+		if event.Kind == screen.SecretApply && m.chrome.Dialog == event.Dialog && m.sshSecret != nil {
+			m.applySSHSecret(event.Dialog)
+		}
 		if event.Kind == screen.TableAction {
 			commands = append(commands, m.toolAction(event))
 		}
 		if event.Kind == screen.Closed || event.Kind == screen.Replaced || event.Kind == screen.Suspended {
 			page := m.toolsPage
+			if page == toolSSHSecret {
+				m.sshSecret = nil
+			}
 			m.tools.Close()
 			m.toolsDialog = nil
 			if event.Kind == screen.Closed && m.modeChange == nil {
-				if page == toolSSHEdit || page == toolSSHDetails {
+				if page == toolSSHEdit || page == toolSSHDetails || page == toolSSHSecret {
 					m.openSSHTools()
 				} else if page == toolMediaEdit || page == toolMediaDetails {
 					m.openMediaTools()

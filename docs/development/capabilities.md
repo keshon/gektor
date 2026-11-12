@@ -51,7 +51,7 @@ are shared support owners under `internal/tools/command` and `internal/tools/out
 The proposed [Tools management plan](../internal/tools-management-plan.md)
 extends configuration UI across Agent and Workflows while retaining these
 execution boundaries. Tools inventory, Media executable preferences and reference-only SSH editing are implemented.
-protected secret entry and consolidated MCP management remain planned.
+Windows protected SSH secret entry is implemented; consolidated MCP management remains planned.
 
 A provider-only reader may expose a typed function instead of a service. Do not
 add empty adapter packages for a frontend that does not use it. When another
@@ -229,3 +229,10 @@ an extension rule, not missing implementation in the current feature set.
 Extract the shared operation before exposing that frontend; preserve permissions,
 credentials and output bounds. Do not implement a second version behind a
 matching name.
+
+SSH's service receives the same `credentials.Store` from `internal/credentials` through Agent,
+Workflow, CLI check and TUI check composition. SSH owns password/passphrase purpose
+validation and reference exclusivity. The neutral store owns file IDs and platform
+protection; MCP retains HTTPS origin/header binding and its existing file format.
+Masked entry is separate from ordinary form fields and submission maps. It clears
+on consumption, Cancel, replacement, suspension and application shutdown.

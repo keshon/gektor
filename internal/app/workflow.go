@@ -14,11 +14,12 @@ import (
 	"github.com/keshon/gektor/internal/capabilities/social"
 	"github.com/keshon/gektor/internal/capabilities/ssh"
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/credentials"
 	"github.com/keshon/gektor/internal/executables"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workflow"
-	"github.com/keshon/gektor/internal/workflow/credentials"
+	workflowcredentials "github.com/keshon/gektor/internal/workflow/credentials"
 	artifactnodes "github.com/keshon/gektor/internal/workflow/nodes/artifact"
 	httpnode "github.com/keshon/gektor/internal/workflow/nodes/http"
 	modelnode "github.com/keshon/gektor/internal/workflow/nodes/model"
@@ -36,7 +37,7 @@ func WorkflowRegistry(ws *workspace.Workspace, store string, output imagecontrac
 	applicationPath := userdirs.Sub("applications.json")
 	applications := executables.New(applicationPath)
 	mediaService := media.New(ws, applications)
-	credentialStore := credentials.Store{Directory: userdirs.Sub("credentials")}
+	credentialStore := workflowcredentials.Store{Directory: userdirs.Sub("credentials")}
 	model := workflowModelNode(ws)
 
 	nodes := capnodes.ImageDefinitions(ws, output)
@@ -44,7 +45,11 @@ func WorkflowRegistry(ws *workspace.Workspace, store string, output imagecontrac
 	nodes = append(nodes, capnodes.FileDefinitions(ws, fileOutput)...)
 	nodes = append(nodes, capnodes.MediaDefinitions(mediaService)...)
 	nodes = append(nodes, capnodes.DocumentDefinitions(ws)...)
-	sshService := ssh.New(ssh.Config{Workspace: ws, ProfilesPath: userdirs.Sub("ssh.json")})
+	sshService := ssh.New(ssh.Config{
+		Workspace:    ws,
+		ProfilesPath: userdirs.Sub("ssh.json"),
+		Credentials:  credentials.Store{Directory: userdirs.Sub("credentials", "ssh")},
+	})
 	var authorizeSSHFile ssh.FileAuthorizer
 	if fileOutput != nil {
 		authorizeSSHFile = func(ctx context.Context, action, path string) error {

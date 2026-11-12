@@ -131,6 +131,9 @@ func (m *Controls) FormView() string {
 
 // UpdateFormInput routes paste and editor messages to the open form or table; other overlays ignore them.
 func (m *Controls) UpdateFormInput(msg tea.Msg) tea.Cmd {
+	if m.Dialog != nil && m.Dialog.Secret != nil {
+		return m.SecretInput(msg)
+	}
 	if m.Dialog != nil && m.Dialog.Table != nil {
 		return m.TableInput(msg)
 	}
@@ -309,6 +312,9 @@ func (m *Controls) DialogScrollbarMouse(msg tea.MouseMsg) bool {
 
 // InfoKey consumes keys for the open information overlay; the shell handles application quit policy.
 func (m *Controls) InfoKey(msg tea.KeyPressMsg) tea.Cmd {
+	if m.Dialog.Secret != nil {
+		return m.SecretInput(msg)
+	}
 	if (msg.String() == "s" || msg.String() == "S") && m.Dialog.Save {
 		m.events = append(m.events, Event{Kind: Save, Dialog: m.Dialog})
 		return nil

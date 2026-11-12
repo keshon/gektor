@@ -413,3 +413,8 @@ connection, preserving other entries. `check` verifies host key and authenticati
 with a 30-second limit; it does not run a command or test SFTP. These commands need
 no model backend. Restart existing Agent and Workflow services after edits.
 See [SSH setup and credentials](operations.md#supplying-credentials-in-the-cli-and-tui).
+
+SSH profiles may use `password_ref` or `passphrase_ref` IDs created through the
+Windows TUI's masked prompt. They are alternatives to the corresponding `_env`
+fields. `ssh list` shows IDs, never the saved values. There are no raw-secret CLI
+flags. See [saved credential storage](operations.md#saved-passwords-and-key-passphrases).

@@ -3,6 +3,8 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -13,6 +15,7 @@ import (
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/capabilities/ssh"
+	"github.com/keshon/gektor/internal/credentials"
 	"github.com/keshon/gektor/internal/permission"
 	toolextension "github.com/keshon/gektor/internal/tools/extension"
 	"github.com/keshon/gektor/internal/userdirs"
@@ -192,5 +195,63 @@ func TestSocialNodeHonorsExistingAgentPermissionName(t *testing.T) {
 	source := []byte(`{"version":3,"name":"Post","steps":[{"id":"post","tool":"social_read_post","args":{"url":"https://x.com/test/status/20"}}]}`)
 	if _, err := svc.RunSource(t.Context(), source, "post.json", nil); err == nil || !strings.Contains(err.Error(), "blocked by policy") {
 		t.Fatal("node bypassed the Agent permission identity", err)
+	}
+}
+
+func TestSavedSSHCredentialsReachAgentAndWorkflowComposition(t *testing.T) {
+	if !credentials.Encrypted() {
+		t.Skip("requires encrypted storage")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	endpoint := listener.Addr().(*net.TCPAddr)
+	err = listener.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	known := filepath.Join(home, "known_hosts")
+	err = os.WriteFile(known, nil, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profiles := ssh.Profiles{Path: userdirs.Sub("ssh.json"), Credentials: credentials.Store{Directory: userdirs.Sub("credentials", "ssh")}}
+	p := ssh.Profile{Host: "127.0.0.1", Port: endpoint.Port, User: "tester", KnownHosts: known}
+	err = profiles.SaveWithSecret("saved", p, ssh.PasswordSecret, "saved-credential-sentinel")
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog := &toolextension.Capabilities{}
+	tools, err := Compose(Dependencies{}, catalog, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog.Registry = tools
+	_, err = catalog.Enable(t.Context(), "native_ssh", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := app.WorkflowRegistry(nil, t.TempDir(), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, err := nodes.Node("ssh_exec")
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := json.RawMessage(`{"connection":"saved","command":"never-run","timeout_seconds":1}`)
+	_, agentErr := tools.Run(t.Context(), "ssh_exec", args)
+	_, nodeErr := node.Execute(t.Context(), args)
+	// A refused dial proves credential configuration succeeded before networking.
+	// Domain tests cover successful host-key verification and authentication.
+	for _, failure := range []error{agentErr, nodeErr} {
+		var dial *net.OpError
+		if !errors.As(failure, &dial) || dial.Op != "dial" {
+			t.Fatal("composition did not resolve saved credential", failure)
+		}
 	}
 }

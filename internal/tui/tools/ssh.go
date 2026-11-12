@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/capabilities/ssh"
+	"github.com/keshon/gektor/internal/credentials"
 	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/components/table"
 	"github.com/keshon/gektor/internal/tui/screen"
@@ -29,13 +30,16 @@ func (m *Model) SSH(editable bool) screen.Dialog {
 	for _, name := range names {
 		p := profiles[name]
 		auth := "Key file"
+		if p.PasswordRef != "" {
+			auth = "Saved password"
+		}
 		if p.PasswordEnv != "" {
 			auth = "Password environment"
 		}
 		rows = append(rows, table.Row{ID: name, Cells: []string{clean(name), clean(p.User + "@" + p.Host + ":" + strconv.Itoa(p.Port)), auth}})
 	}
 
-	description := "Key files and environment references only; enter variable names, never passwords. Test verifies host key and authentication, then closes. Save and restart rebuilds both runtimes; restart independent workflow workers separately."
+	description := "Key files, environment references or saved credential IDs. Secret entry uses a separate masked prompt. Test verifies host key and authentication, then closes. Save and restart rebuilds both runtimes; restart independent workflow workers separately."
 	if len(rows) == 0 {
 		description = "No SSH connections. Add one to configure commands and file transfers. " + description
 	}
@@ -66,11 +70,22 @@ func (m *Model) SSHPreferences(name string) (screen.Form, error) {
 
 	p := profiles[name]
 	auth := "key file"
+	if p.PasswordRef != "" {
+		auth = "saved password"
+	}
 	if p.PasswordEnv != "" {
 		auth = "password environment"
 	}
 	if p.Port == 0 {
 		p.Port = 22
+	}
+
+	passphrase := "none"
+	if p.PassphraseEnv != "" {
+		passphrase = "environment"
+	}
+	if p.PassphraseRef != "" {
+		passphrase = "saved"
 	}
 
 	fields := []form.Field{}
@@ -84,38 +99,53 @@ func (m *Model) SSHPreferences(name string) (screen.Form, error) {
 		form.Field{Key: "known_hosts", Label: "Known hosts file", Value: p.KnownHosts},
 		form.Field{Key: "auth", Label: "Authentication", Value: auth},
 		form.Field{Key: "private_key", Label: "Private key file", Value: p.PrivateKey},
+		form.Field{Key: "key_passphrase", Label: "Key passphrase source", Value: passphrase},
 		form.Field{Key: "passphrase_env", Label: "Key passphrase variable", Value: p.PassphraseEnv},
 		form.Field{Key: "password_env", Label: "Password variable", Value: p.PasswordEnv},
+		form.Field{Key: "password_ref", Label: "Saved password ID", Value: p.PasswordRef},
+		form.Field{Key: "passphrase_ref", Label: "Saved passphrase ID", Value: p.PassphraseRef},
 	)
 
 	title := "Add SSH connection"
 	if name != "" {
 		title = "Edit SSH " + name
 	}
-	return screen.Form{Title: title, Hint: "Variable names only, never secret values. Files require absolute paths. Authentication selects which references are saved. Apply restarts GEKTOR; restart independent workers separately.", ApplyLabel: "Apply and restart", Fields: fields,
-		Choices:    map[string][]string{"auth": {"key file", "password environment"}},
+	authChoices := []string{"key file", "password environment"}
+	passphraseChoices := []string{"none", "environment"}
+	if credentials.Encrypted() {
+		authChoices = append(authChoices, "saved password")
+		passphraseChoices = append(passphraseChoices, "saved")
+	}
+	return screen.Form{Title: title, Hint: "References only here, never secret values. Saved password/passphrase with a blank ID opens masked entry after Apply. Storage: " + credentials.Protection() + ". Apply restarts GEKTOR; restart independent workers separately.", ApplyLabel: "Apply and restart", Fields: fields,
+		Choices:    map[string][]string{"auth": authChoices, "key_passphrase": passphraseChoices},
 		FileFields: map[string]settings.FilePicker{"known_hosts": {}, "private_key": {}},
 	}, nil
 }
 
-func (m *Model) SaveSSH(name string, values map[string]string) error {
+type SSHSettings struct {
+	Name      string
+	Profile   ssh.Profile
+	NewSecret ssh.SecretKind
+}
+
+func (m *Model) SSHSettings(name string, values map[string]string) (SSHSettings, error) {
 	profiles, err := m.SSHProfiles.Load()
 	if err != nil {
-		return err
+		return SSHSettings{}, err
 	}
 
 	if name == "" {
 		name = strings.TrimSpace(values["name"])
 		if _, exists := profiles[name]; exists {
-			return fmt.Errorf("SSH connection already exists")
+			return SSHSettings{}, fmt.Errorf("SSH connection already exists")
 		}
 	} else if _, exists := profiles[name]; !exists {
-		return fmt.Errorf("SSH connection no longer exists")
+		return SSHSettings{}, fmt.Errorf("SSH connection no longer exists")
 	}
 
 	port, err := strconv.Atoi(strings.TrimSpace(values["port"]))
 	if err != nil || port < 1 || port > 65535 {
-		return fmt.Errorf("port must be a number from 1 to 65535")
+		return SSHSettings{}, fmt.Errorf("port must be a number from 1 to 65535")
 	}
 
 	p := ssh.Profile{
@@ -128,13 +158,48 @@ func (m *Model) SaveSSH(name string, values map[string]string) error {
 	case "key file":
 		p.PrivateKey = strings.TrimSpace(values["private_key"])
 		p.PassphraseEnv = strings.TrimSpace(values["passphrase_env"])
+		p.PassphraseRef = strings.TrimSpace(values["passphrase_ref"])
+		switch values["key_passphrase"] {
+		case "none":
+			p.PassphraseEnv, p.PassphraseRef = "", ""
+		case "environment":
+			p.PassphraseRef = ""
+		case "saved":
+			p.PassphraseEnv = ""
+		default:
+			return SSHSettings{}, fmt.Errorf("choose a key passphrase source")
+		}
+	case "saved password":
+		p.PasswordRef = strings.TrimSpace(values["password_ref"])
 	case "password environment":
 		p.PasswordEnv = strings.TrimSpace(values["password_env"])
 	default:
-		return fmt.Errorf("choose an authentication method")
+		return SSHSettings{}, fmt.Errorf("choose an authentication method")
 	}
 
-	profiles[name] = p
+	settings := SSHSettings{Name: name, Profile: p}
+	candidate := p
+	if values["auth"] == "saved password" && p.PasswordRef == "" {
+		settings.NewSecret = ssh.PasswordSecret
+		candidate.PasswordRef = strings.Repeat("0", 32)
+	}
+	if values["auth"] == "key file" && values["key_passphrase"] == "saved" && p.PassphraseRef == "" {
+		settings.NewSecret = ssh.PassphraseSecret
+		candidate.PassphraseRef = strings.Repeat("0", 32)
+	}
+	if settings.NewSecret != "" && !credentials.Encrypted() {
+		return SSHSettings{}, fmt.Errorf("encrypted storage is unavailable; use environment references or a key file")
+	}
+	err = ssh.ValidateProfile(name, candidate)
+	return settings, err
+}
+
+func (m *Model) SaveSSH(settings SSHSettings) error {
+	profiles, err := m.SSHProfiles.Load()
+	if err != nil {
+		return err
+	}
+	profiles[settings.Name] = settings.Profile
 	return m.SSHProfiles.Save(profiles)
 }
 
@@ -165,7 +230,10 @@ func (m *Model) CheckSSH(ctx context.Context, name string) tea.Cmd {
 	ctx, cancel := context.WithCancel(ctx)
 	m.cancel, m.done, m.checking = cancel, make(chan struct{}), name
 	id, done := m.epoch, m.done
-	service := ssh.New(ssh.Config{ProfilesPath: m.SSHProfiles.Path})
+	service := ssh.New(ssh.Config{
+		ProfilesPath: m.SSHProfiles.Path,
+		Credentials:  m.SSHProfiles.Credentials,
+	})
 	results := make(chan SSHCheckResult, 1)
 	go func() {
 		defer close(done)

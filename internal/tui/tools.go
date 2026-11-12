@@ -6,6 +6,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/capabilities/ssh"
+	"github.com/keshon/gektor/internal/credentials"
 	toolcatalog "github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/tools/extension"
 	"github.com/keshon/gektor/internal/tui/components/form"
@@ -24,6 +26,7 @@ const (
 	toolSSH
 	toolSSHEdit
 	toolSSHDetails
+	toolSSHSecret
 )
 
 func (m *Model) toolsIdle() bool {
@@ -245,7 +248,21 @@ func (m *Model) applySSHPreference(name string, values map[string]string) error 
 	if err != nil {
 		return err
 	}
-	err = m.tools.SaveSSH(name, values)
+	settings, err := m.tools.SSHSettings(name, values)
+	if err != nil {
+		return err
+	}
+	if settings.NewSecret != "" {
+		m.sshSecret = &settings
+		title := "SSH password: " + settings.Name
+		if settings.NewSecret == ssh.PassphraseSecret {
+			title = "SSH key passphrase: " + settings.Name
+		}
+		m.chrome.PresentSecret(title, credentials.Protection()+". Ctrl+S saves encrypted; Esc cancels. ssh.json stores only a reference.")
+		m.toolsDialog, m.toolsPage = m.chrome.Dialog, toolSSHSecret
+		return nil
+	}
+	err = m.tools.SaveSSH(settings)
 	if err != nil {
 		return err
 	}
@@ -268,4 +285,22 @@ func (m *Model) deleteSSHPreference(name, confirmation string) error {
 	m.modeChange = snapshot
 	m.commands = append(m.commands, tea.Quit)
 	return nil
+}
+
+func (m *Model) applySSHSecret(dialog *screen.DialogState) {
+	value := dialog.Secret.Take()
+	snapshot, err := m.toolPreferencesRestart()
+	if err == nil {
+		settings := m.sshSecret
+		err = m.tools.SSHProfiles.SaveWithSecret(settings.Name, settings.Profile, settings.NewSecret, value)
+	}
+	value = ""
+	if err != nil {
+		dialog.Secret.Error = err.Error()
+		return
+	}
+	m.sshSecret = nil
+	m.modeChange = snapshot
+	m.commands = append(m.commands, tea.Quit)
+	m.chrome.Close()
 }

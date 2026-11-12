@@ -28,6 +28,8 @@ type Profile struct {
 	PrivateKey    string `json:"private_key,omitempty"`
 	PasswordEnv   string `json:"password_env,omitempty"`
 	PassphraseEnv string `json:"passphrase_env,omitempty"`
+	PasswordRef   string `json:"password_ref,omitempty"`
+	PassphraseRef string `json:"passphrase_ref,omitempty"`
 }
 
 func loadProfiles(filename string) (map[string]Profile, error) {
@@ -79,15 +81,18 @@ func validateProfiles(profiles map[string]Profile) error {
 		if !filepath.IsAbs(profile.KnownHosts) {
 			return fmt.Errorf("SSH profile %s requires an absolute known_hosts path", name)
 		}
-		if (profile.PrivateKey == "") == (profile.PasswordEnv == "") {
-			return fmt.Errorf("SSH profile %s requires either private_key or password_env", name)
+		hasPassword := profile.PasswordEnv != "" || profile.PasswordRef != ""
+		if (profile.PrivateKey != "") == hasPassword {
+			return fmt.Errorf("SSH profile %s requires either private_key or one password reference", name)
 		}
 		if profile.PrivateKey != "" && !filepath.IsAbs(profile.PrivateKey) {
 			return fmt.Errorf("SSH profile %s requires an absolute private_key path", name)
 		}
 		invalidPassword := profile.PasswordEnv != "" && !credentials.ValidEnvironment(profile.PasswordEnv)
 		invalidPassphrase := profile.PassphraseEnv != "" && (!credentials.ValidEnvironment(profile.PassphraseEnv) || profile.PrivateKey == "")
-		if invalidPassword || invalidPassphrase {
+		invalidPasswordRef := profile.PasswordRef != "" && (!credentials.ValidReference(profile.PasswordRef) || profile.PasswordEnv != "")
+		invalidPassphraseRef := profile.PassphraseRef != "" && (!credentials.ValidReference(profile.PassphraseRef) || profile.PassphraseEnv != "" || profile.PrivateKey == "")
+		if invalidPassword || invalidPassphrase || invalidPasswordRef || invalidPassphraseRef {
 			return fmt.Errorf("invalid SSH credential reference for %s", name)
 		}
 		profiles[name] = profile
@@ -97,15 +102,15 @@ func validateProfiles(profiles map[string]Profile) error {
 
 func (p Profile) address() string { return net.JoinHostPort(p.Host, strconv.Itoa(p.Port)) }
 
-func (p Profile) clientConfig() (*ssh.ClientConfig, []string, error) {
+func (p Profile) clientConfig(store credentials.Store) (*ssh.ClientConfig, []string, error) {
 	verify, err := knownhosts.New(p.KnownHosts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load SSH known_hosts: %w", err)
 	}
 	var auth ssh.AuthMethod
 	var secrets []string
-	if p.PasswordEnv != "" {
-		password, resolveErr := credentials.Environment(p.PasswordEnv)
+	if p.PasswordEnv != "" || p.PasswordRef != "" {
+		password, resolveErr := resolveSecret(store, p.PasswordEnv, p.PasswordRef, PasswordSecret)
 		if resolveErr != nil {
 			return nil, nil, resolveErr
 		}
@@ -117,8 +122,8 @@ func (p Profile) clientConfig() (*ssh.ClientConfig, []string, error) {
 			return nil, nil, fmt.Errorf("read SSH private key: %w", readErr)
 		}
 		var signer ssh.Signer
-		if p.PassphraseEnv != "" {
-			passphrase, resolveErr := credentials.Environment(p.PassphraseEnv)
+		if p.PassphraseEnv != "" || p.PassphraseRef != "" {
+			passphrase, resolveErr := resolveSecret(store, p.PassphraseEnv, p.PassphraseRef, PassphraseSecret)
 			if resolveErr != nil {
 				return nil, nil, resolveErr
 			}

@@ -32,7 +32,7 @@ func (m *Model) syncPresentation() {
 	props.Width, props.Height = m.termW, m.termH
 	props.Menus = m.menus(props.Menus)
 	m.chrome.Props = props
-	if m.chrome.Dialog != nil && (m.chrome.Dialog.Form != nil || m.chrome.Dialog.Table != nil) {
+	if m.chrome.Dialog != nil && (m.chrome.Dialog.Form != nil || m.chrome.Dialog.Table != nil || m.chrome.Dialog.Secret != nil) {
 		m.chrome.Props.Actions = m.chrome.DialogActions()
 	}
 }

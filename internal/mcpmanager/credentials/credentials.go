@@ -4,21 +4,16 @@
 package credentials
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"os"
-	"path/filepath"
-	"regexp"
 	"strings"
+
+	secrets "github.com/keshon/gektor/internal/credentials"
 )
 
 type Store struct{ Directory string }
 type entry struct{ Origin, Header, Value string }
-
-var validID = regexp.MustCompile(`^[a-f0-9]{32}$`)
 
 func Origin(raw string) (string, error) {
 	u, e := url.Parse(raw)
@@ -51,45 +46,11 @@ func (s Store) Put(endpoint, header, value string) (string, error) {
 		return "", e
 	}
 
-	raw, e = protect(raw)
-	if e != nil {
-		return "", e
-	}
-
-	if e = os.MkdirAll(s.Directory, 0700); e != nil {
-		return "", e
-	}
-
-	var id [16]byte
-	if _, e = rand.Read(id[:]); e != nil {
-		return "", e
-	}
-
-	name := hex.EncodeToString(id[:])
-	f, e := os.OpenFile(filepath.Join(s.Directory, name), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
-	if e != nil {
-		return "", e
-	}
-
-	_, e = f.Write(raw)
-	if e == nil {
-		e = f.Sync()
-	}
-
-	ce := f.Close()
-	if e == nil {
-		e = ce
-	}
-
-	if e != nil {
-		os.Remove(filepath.Join(s.Directory, name))
-		return "", e
-	}
-
-	return name, nil
+	store := secrets.Store{Directory: s.Directory}
+	return store.Put(raw)
 }
 func (s Store) Resolve(id, endpoint, header string) (string, error) {
-	if !validID.MatchString(id) {
+	if !secrets.ValidReference(id) {
 		return "", fmt.Errorf("invalid credential reference")
 	}
 
@@ -98,14 +59,10 @@ func (s Store) Resolve(id, endpoint, header string) (string, error) {
 		return "", e
 	}
 
-	raw, e := os.ReadFile(filepath.Join(s.Directory, id))
+	store := secrets.Store{Directory: s.Directory}
+	raw, e := store.Resolve(id)
 	if e != nil {
-		return "", fmt.Errorf("credential unavailable")
-	}
-
-	raw, e = unprotect(raw)
-	if e != nil {
-		return "", fmt.Errorf("cannot unlock credential")
+		return "", e
 	}
 
 	var v entry
@@ -116,14 +73,6 @@ func (s Store) Resolve(id, endpoint, header string) (string, error) {
 	return v.Value, nil
 }
 func (s Store) Delete(id string) error {
-	if !validID.MatchString(id) {
-		return fmt.Errorf("invalid credential reference")
-	}
-
-	e := os.Remove(filepath.Join(s.Directory, id))
-	if os.IsNotExist(e) {
-		return nil
-	}
-
-	return e
+	store := secrets.Store{Directory: s.Directory}
+	return store.Delete(id)
 }

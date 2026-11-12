@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/credentials"
 	"github.com/keshon/gektor/internal/executables"
 	toolcatalog "github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/tools/extension"
@@ -367,5 +368,128 @@ func TestSSHCheckCannotReplaceAnUnrelatedDialog(t *testing.T) {
 	m.Update(command())
 	if m.chrome.Dialog.Title != "Another view" {
 		t.Fatal("late SSH check replaced another view")
+	}
+}
+
+func TestSSHMaskedEntrySavesOnlyReferencesAcrossBothScreens(t *testing.T) {
+	if !credentials.Encrypted() {
+		t.Skip("requires encrypted storage")
+	}
+	for _, mode := range []string{"screen:agent", "screen:workflows"} {
+		m := toolSettingsModel(t)
+		dir := t.TempDir()
+		m.tools.SSHProfiles.Path = filepath.Join(dir, "ssh.json")
+		m.tools.SSHProfiles.Credentials = credentials.Store{Directory: filepath.Join(dir, "secrets")}
+		m.runAction(mode)
+		values := map[string]string{"name": "saved", "host": "example.com", "user": "tester", "port": "22", "known_hosts": filepath.Join(dir, "known_hosts"), "auth": "saved password"}
+		err := m.applySSHPreference("", values)
+		if err != nil || m.chrome.Dialog.Secret == nil || m.modeChange != nil {
+			t.Fatal("masked prompt was not opened before saving", err)
+		}
+		m.Update(tea.PasteMsg{Content: "private-secret-sentinel"})
+		previous := m.chrome.Dialog
+		if strings.Contains(ansi.Strip(m.View().Content), "private-secret-sentinel") {
+			t.Fatal("plaintext rendered")
+		}
+		m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+		if previous.Secret.Take() != "" || m.sshSecret != nil {
+			t.Fatal("Cancel retained secret state")
+		}
+		_, err = os.Stat(m.tools.SSHProfiles.Path)
+		if !os.IsNotExist(err) {
+			t.Fatal("Cancel wrote profile", err)
+		}
+		_, err = os.Stat(m.tools.SSHProfiles.Credentials.Directory)
+		if !os.IsNotExist(err) {
+			t.Fatal("Cancel wrote credential", err)
+		}
+
+		err = m.applySSHPreference("", values)
+		if err != nil {
+			t.Fatal(err)
+		}
+		m.Update(tea.PasteMsg{Content: "private-secret-sentinel"})
+		previous = m.chrome.Dialog
+		if mode == "screen:workflows" {
+			m.syncPresentation()
+			clickVisible(t, m, "Save encrypted")
+		} else {
+			m.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+		}
+		if m.modeChange == nil || m.sshSecret != nil || previous.Secret.Take() != "" {
+			t.Fatal("saved secret was retained or restart missing")
+		}
+		raw, err := os.ReadFile(m.tools.SSHProfiles.Path)
+		if err != nil || strings.Contains(string(raw), "private-secret-sentinel") {
+			t.Fatal("secret in profile", err)
+		}
+		snapshot, err := json.Marshal(m.modeChange)
+		if err != nil || strings.Contains(string(snapshot), "private-secret-sentinel") {
+			t.Fatal("secret in relaunch state", err)
+		}
+		profiles, err := m.tools.SSHProfiles.Load()
+		if err != nil || !credentials.ValidReference(profiles["saved"].PasswordRef) {
+			t.Fatal("saved reference missing", err)
+		}
+	}
+}
+
+func TestSSHMaskedEntryFailureAndReplacementDiscardValues(t *testing.T) {
+	if !credentials.Encrypted() {
+		t.Skip("requires encrypted storage")
+	}
+	m := toolSettingsModel(t)
+	dir := t.TempDir()
+	m.tools.SSHProfiles.Path = filepath.Join(dir, "ssh.json")
+	m.tools.SSHProfiles.Credentials = credentials.Store{Directory: filepath.Join(dir, "secrets")}
+	values := map[string]string{"name": "saved", "host": "example.com", "user": "tester", "port": "22", "known_hosts": filepath.Join(dir, "known_hosts"), "auth": "saved password"}
+	err := m.applySSHPreference("", values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	if m.modeChange != nil || m.chrome.Dialog.Secret.Error == "" {
+		t.Fatal("empty secret accepted")
+	}
+	m.Update(tea.PasteMsg{Content: "private-secret-sentinel"})
+	previous := m.chrome.Dialog
+	m.chrome.PresentDialog(screen.Dialog{Title: "Other"})
+	m.settleControls()
+	if previous.Secret.Take() != "" || m.sshSecret != nil {
+		t.Fatal("replacement retained secret")
+	}
+}
+
+func TestSSHSecretPromptFitsThemesAndSmallTerminals(t *testing.T) {
+	if !credentials.Encrypted() {
+		t.Skip("requires encrypted storage")
+	}
+	t.Cleanup(func() { screen.SetTheme("dark") })
+	for _, theme := range []string{"dark", "light"} {
+		for _, size := range [][2]int{{120, 30}, {50, 18}} {
+			m := toolSettingsModel(t)
+			m.applyTheme(theme)
+			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+			dir := t.TempDir()
+			m.tools.SSHProfiles.Path = filepath.Join(dir, "ssh.json")
+			m.tools.SSHProfiles.Credentials = credentials.Store{Directory: filepath.Join(dir, "secrets")}
+			values := map[string]string{"name": "saved", "host": "example.com", "user": "tester", "port": "22", "known_hosts": filepath.Join(dir, "known_hosts"), "auth": "saved password"}
+			err := m.applySSHPreference("", values)
+			if err != nil {
+				t.Fatal(err)
+			}
+			m.Update(tea.PasteMsg{Content: "private-secret-sentinel"})
+			m.syncPresentation()
+			rendered := ansi.Strip(m.View().Content)
+			if !strings.Contains(rendered, "Secret:") || strings.Contains(rendered, "private-secret-sentinel") || strings.Contains(rendered, "↑↓ scroll") {
+				t.Fatal(rendered)
+			}
+			for _, line := range strings.Split(rendered, "\n") {
+				if ansi.StringWidth(line) > size[0] {
+					t.Fatal("secret prompt overflows", line)
+				}
+			}
+			t.Logf("%s %v\n%s", theme, size, rendered)
+		}
 	}
 }

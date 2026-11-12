@@ -26,3 +26,8 @@ func crypt(raw []byte, decrypt bool) ([]byte, error) {
 	defer windows.LocalFree(windows.Handle(unsafe.Pointer(output.Data)))
 	return append([]byte(nil), unsafe.Slice(output.Data, output.Size)...), nil
 }
+
+// Encrypted reports whether persisted values are encrypted for the current account.
+func Encrypted() bool { return true }
+
+func Protection() string { return "Windows DPAPI, current Windows account" }

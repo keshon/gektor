@@ -26,16 +26,24 @@ func TestSSHPreferencesPreserveReferencesWithoutResolvingSecrets(t *testing.T) {
 		t.Fatal("opening editor saved a file", err)
 	}
 
-	err = model.SaveSSH("", values)
+	settings, parseErr := model.SSHSettings("", values)
+	if parseErr != nil {
+		t.Fatal(parseErr)
+	}
+	err = model.SaveSSH(settings)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = model.SaveSSH("", values)
+	_, err = model.SSHSettings("", values)
 	if err == nil {
 		t.Fatal("duplicate profile replaced")
 	}
+	values["key_passphrase"] = "environment"
 	values["auth"], values["private_key"], values["passphrase_env"] = "key file", filepath.Join(t.TempDir(), "id_ed25519"), "SSH_KEY_PASSPHRASE"
-	err = model.SaveSSH("dev", values)
+	settings, err = model.SSHSettings("dev", values)
+	if err == nil {
+		err = model.SaveSSH(settings)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +87,7 @@ func TestSSHMalformedConfigurationCannotBeOverwritten(t *testing.T) {
 			t.Fatal("malformed configuration allowed action", action)
 		}
 	}
-	err = model.SaveSSH("", map[string]string{"name": "replacement"})
+	_, err = model.SSHSettings("", map[string]string{"name": "replacement"})
 	if err == nil {
 		t.Fatal("malformed configuration overwritten")
 	}

@@ -35,6 +35,11 @@ and `internal/providers/openai` account package import no other internal package
 Provider inspection packages (`llamacpp`, `koboldcpp`, `openaicompat`) import only
 `internal/providers/internal/probe`, whose HTTP helpers import no internal package.
 
+`internal/credentials` imports no other internal package and owns environment lookup
+and opaque platform-protected storage. `internal/mcpmanager/credentials` imports
+only that owner; MCP retains origin/header binding and its existing payload format.
+SSH owns password/passphrase purpose checks and rejects unencrypted persistence.
+
 Request dialects format inference requests; inspection belongs to providers.
 
 `internal/conversation` imports only `internal/llm`.

@@ -34,6 +34,7 @@ type Model struct {
 	mediaSelection string
 	sshSelection   string
 	toolSelection  string
+	sshSecret      *toolsui.SSHSettings
 	form           pendingForm
 
 	profile           *app.PreparedProfile
@@ -85,6 +86,8 @@ func newModel(ctx context.Context, cfg Config) (*Model, error) {
 
 // Close releases both screens, including their background operations.
 func (m *Model) Close() {
+	m.sshSecret = nil
+	m.chrome.Close()
 	if m.tools != nil {
 		m.tools.Close()
 	}

@@ -1,4 +1,4 @@
-// Package credentials resolves environment references without protocol settings.
+// Package credentials resolves environment references and protects opaque stored credentials.
 package credentials
 
 import (

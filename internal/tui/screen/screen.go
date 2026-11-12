@@ -24,6 +24,9 @@ type Controls struct {
 func (m *Controls) Open(title string, lines []string) {
 	first := m.Dialog == nil
 	if m.Dialog != nil {
+		if m.Dialog.Secret != nil {
+			m.Dialog.Secret.Clear()
+		}
 		m.events = append(m.events, Event{Kind: Replaced, Dialog: m.Dialog})
 	}
 	m.Dialog = &DialogState{Title: title, Lines: append([]string(nil), lines...)}
@@ -35,6 +38,9 @@ func (m *Controls) Close() {
 		return
 	}
 	dialog := m.Dialog
+	if dialog.Secret != nil {
+		dialog.Secret.Clear()
+	}
 	m.Dialog = nil
 	m.events = append(m.events, Event{Kind: Closed, Dialog: dialog})
 }
@@ -58,6 +64,7 @@ type Drag struct {
 // in events so owners can discard results from replaced overlays.
 type DialogState struct {
 	Table     *TableState
+	Secret    *SecretState
 	Shortcuts []popup.Shortcut
 
 	Drag         Drag

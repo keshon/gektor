@@ -3,7 +3,8 @@
 Date: 2026-11-12
 Status: Approved; phase zero package boundaries are implemented. Existing SSH work and this plan
 were committed as `caa586c`. Tools inventory, Media executable preferences, and reference-only SSH profile
-management are implemented. Protected secret storage and the remaining phases are planned.
+management and Windows protected SSH secret input are implemented. Consolidated MCP
+presentation remains planned; Unix encrypted SSH storage is a separate future feature.
 
 Current migration: the first package extraction was committed as `2f4bb47`.
 The follow-up, committed as `0f77869`, groups related operations under one feature owner: files, git, run,
@@ -145,7 +146,7 @@ under a neutral credential owner; keep MCP origin/header checks, HTTP origin
 binding and SSH authentication validation in their protocol-specific owners.
 Do not pretend the current environment lookup already supplies protected storage.
 
-Before offering saved SSH passwords:
+Implemented boundaries for saved SSH passwords:
 
 1. Extract only reusable secret storage/protection into `internal/credentials`;
    retain existing MCP credential IDs, files and origin validation.
@@ -480,9 +481,11 @@ Check errors are scoped to the selected item, not fatal to the whole Tools scree
    TUI deletion and bounded authentication checks, with matching CLI management. Supports
    existing environment references and key files, without inventing raw-secret
    CLI flags. Profile edits apply at the same idle/relaunch boundary.
-4. **Protected secret input.** Extract the existing protection mechanism without
-   weakening MCP binding, then add masked SSH password/passphrase entry and
-   secret-reference persistence. Make platform support and storage explicit.
+4. **Protected secret input.** Implemented: shared opaque storage/protection under
+   `internal/credentials`, with existing MCP binding and file compatibility retained.
+   SSH has distinct saved password/passphrase references and a separate masked
+   prompt. Windows uses account-bound DPAPI; SSH saved-secret writes are refused
+   without encryption. Environment references and key files remain portable.
 5. **MCP and extension presentation.** Reuse the current MCP manager under Tools.
    Keep older navigation/CLI entry points as routes to the same owner. Show
    explicitly selected executable extension definitions and their provenance;

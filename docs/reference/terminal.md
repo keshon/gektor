@@ -63,7 +63,25 @@ support. Closing the view cancels pending work. Unknown host keys are rejected.
 An independent workflow worker keeps its profile snapshot until restarted.
 Environment variables must be inherited by each GEKTOR process; see
 [credential setup](operations.md#supplying-credentials-in-the-cli-and-tui).
-Protected saved passwords and session-only secret prompts are not implemented.
+On Windows, **Authentication > saved password** with a blank saved ID opens a
+separate masked prompt after Apply. For a private key, choose **Key passphrase
+source > saved** and leave its ID blank. The prompt states that storage uses
+Windows DPAPI for the current Windows account; Ctrl+S saves encrypted and
+restarts, Esc discards both the secret and the pending profile edit. Values never
+enter ordinary forms, conversation history or application preferences. Terminal
+paste is accepted; control characters and oversized input are rejected.
+
+An existing saved ID reuses that credential. Clearing it while retaining the
+saved source requests a new one. Each connection can use independent credentials,
+and several connections can share an ID of the same purpose. Password and key
+passphrase IDs are distinct. See IDs in `ssh list`; they contain no secret value.
+Old credentials are retained when profiles change or are deleted, since other
+connections and already-running workers may still reference them.
+
+Saved SSH secrets are unavailable on platforms without encrypted storage; use
+key files and environment references there. Windows workers must run under the
+same Windows account and use the same credential directory. Session-only secret
+storage is not implemented.
 The existing MCP manager remains available through `/mcp`.
 
 ## Start and choose a workspace

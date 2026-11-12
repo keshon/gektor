@@ -65,7 +65,7 @@ and `ssh_download` names. Connections are registered by the operator in
 ```
 
 Use absolute filesystem paths; `~` and environment placeholders in paths are
-not expanded. Omit `passphrase_env` for an unencrypted key. Password authentication
+not expanded. Omit `passphrase_env` for an unencrypted key. Environment-backed password authentication
 uses `password_env` instead of `private_key` and `passphrase_env`. These fields
 name environment variables; never put their values in this file, recipes or
 tool arguments. Environment variables must be available to the GEKTOR process.
@@ -75,8 +75,9 @@ Existing HTTP credential registration and origin checks are unchanged.
 ### Supplying credentials in the CLI and TUI
 
 Use **Settings > Tools > SSH** in Agent or Workflows to add, edit, delete and test
-named connections. The editor saves key paths and environment variable names;
-it does not accept or store secret values. Alternatively, edit `ssh.json` yourself
+named connections. The ordinary editor saves key paths and credential references. On Windows,
+a separate masked prompt can save passwords and key passphrases with account-bound
+DPAPI encryption; it never writes their values into `ssh.json`. Alternatively, edit `ssh.json` yourself
 or use the `ssh` management commands described below. `ssh_exec`, `ssh_upload`
 and `ssh_download` remain Agent tools and workflow operations, not CLI subcommands.
 GEKTOR does not load SSH secrets from `.env` automatically.
@@ -128,6 +129,34 @@ masked PowerShell prompt to set the variable named by `passphrase_env` before
 launching. The key path points to an existing private key file; do not paste
 key contents or secrets into chat. On other platforms, supply the referenced
 variable through your shell or process supervisor before starting GEKTOR.
+
+### Saved passwords and key passphrases
+
+On Windows, choose **saved password** in the SSH editor and leave **Saved password
+ID** blank. Apply opens a separate masked prompt. Ctrl+S explicitly saves with
+Windows DPAPI and restarts; Esc cancels without writing the credential or profile.
+For encrypted keys, choose **Key passphrase source > saved** instead. Enter no
+secret values in the ordinary reference fields.
+
+The resulting profile uses `password_ref` instead of `password_env`, or
+`passphrase_ref` instead of `passphrase_env`. A profile must select exactly one
+password source or a private key, and at most one passphrase source for that key.
+An environment reference is always an environment reference; it is never
+reinterpreted as a saved ID. Missing/deleted credentials fail when connecting.
+Saved password IDs cannot be used as key-passphrase IDs, or vice versa.
+
+Encrypted values live under `~/.gektor/credentials/ssh/`; `ssh.json` contains only
+opaque IDs. Multiple connections can use distinct IDs or share one of the same
+purpose. To replace a saved value, clear its ID in the editor and enter a new
+value at the masked prompt. Old values are retained because other connections or
+worker snapshots may still use them. No automatic credential deletion or
+session-only secret storage is provided.
+
+This saved-secret feature requires Windows DPAPI. Other platforms retain key
+files and environment references; no plaintext fallback is offered for SSH.
+Workers resolve saved credentials under the same Windows account and credential
+directory. Existing MCP credential IDs, files, HTTPS-origin and header binding
+remain unchanged; its Unix owner-only storage is not encryption.
 
 ### Managing connections from the CLI
 

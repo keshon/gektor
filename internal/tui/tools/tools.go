@@ -16,6 +16,7 @@ import (
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/capabilities/media"
 	"github.com/keshon/gektor/internal/capabilities/ssh"
+	"github.com/keshon/gektor/internal/credentials"
 	"github.com/keshon/gektor/internal/executables"
 	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/components/table"
@@ -48,7 +49,15 @@ type CheckResult struct {
 }
 
 func New(resolver *executables.Resolver) *Model {
-	return &Model{Resolver: resolver, SSHProfiles: ssh.Profiles{Path: userdirs.Sub("ssh.json")}, checks: map[string]observation{}}
+	profiles := ssh.Profiles{
+		Path:        userdirs.Sub("ssh.json"),
+		Credentials: credentials.Store{Directory: userdirs.Sub("credentials", "ssh")},
+	}
+	return &Model{
+		Resolver:    resolver,
+		SSHProfiles: profiles,
+		checks:      map[string]observation{},
+	}
 }
 
 func (m *Model) Close() {
