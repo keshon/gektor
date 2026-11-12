@@ -56,7 +56,25 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 	inner := max(popup.ModalWidth(w)-4, 1)
 	height := f.Editor.Height()
 	rows := popup.Header(props.Title, inner, props.Styles.Title)
-	rows = append(rows, props.Styles.Muted.Render(cell.Line(props.Hint, inner)), "")
+	var feedback []string
+	if props.Error != "" {
+		for _, line := range cell.Wrap(props.Error, inner) {
+			feedback = append(feedback, props.Styles.Error.Render(cell.Line(line, inner)))
+		}
+	} else if props.Note != "" {
+		feedback = cell.Wrap(props.Note, inner)
+	}
+
+	// Keep a field, its position, the actions and frame reachable on short screens.
+	reserved := len(rows) + 10
+	feedback = feedback[:min(len(feedback), max(h-reserved-1, 1))]
+	hint := cell.Wrap(props.Hint, inner)
+	hint = hint[:min(len(hint), max(h-reserved-len(feedback), 1))]
+	for _, line := range hint {
+		rows = append(rows, props.Styles.Muted.Render(cell.Line(line, inner)))
+	}
+	rows = append(rows, "")
+	fieldsTop := len(rows)
 
 	// Window over the fields that are actually showing, not over all of
 	// them: a hidden field must not take a row or a scroll step.
@@ -73,7 +91,7 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 		}
 	}
 	rowHeight := 3
-	choiceMaxRows := max(h-13, 1)
+	choiceMaxRows := max(h-9-fieldsTop-len(feedback), 1)
 	if props.Options != nil {
 		for _, i := range indexes {
 			if options := props.Options(f.Fields[i]); len(options) > 0 {
@@ -82,7 +100,7 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 			}
 		}
 	}
-	capacity := max((h-10-height)/rowHeight, 1)
+	capacity := max((h-6-fieldsTop-height-len(feedback))/rowHeight, 1)
 	start := max(min(position-capacity/2, len(indexes)-capacity), 0)
 	end := min(start+capacity, len(indexes))
 
@@ -135,12 +153,12 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 		rows = append(rows, "")
 	}
 	if len(indexes) > capacity {
-		fieldRows := rows[4:]
-		rows = append(rows[:4], popup.ScrollRows(fieldRows, inner, start*3, len(indexes)*3+height-1, props.Styles.Scrollbar)...)
+		fieldRows := rows[fieldsTop:]
+		rows = append(rows[:fieldsTop], popup.ScrollRows(fieldRows, inner, start*3, len(indexes)*3+height-1, props.Styles.Scrollbar)...)
 		trackHits := make([]Hit, 0, len(fieldRows))
 		for row := range fieldRows {
 			index := indexes[min(row*len(indexes)/max(len(fieldRows), 1), len(indexes)-1)]
-			trackHits = append(trackHits, Hit{Index: index, Y0: 4 + row, Y1: 5 + row, X0: inner - 1, X1: inner})
+			trackHits = append(trackHits, Hit{Index: index, Y0: fieldsTop + row, Y1: fieldsTop + row + 1, X0: inner - 1, X1: inner})
 		}
 		hits = append(trackHits, hits...)
 		// Capped like every other row here. It was not, so a form with
@@ -148,11 +166,7 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 		// clipped its own right-hand border.
 		rows = append(rows, props.Styles.Muted.Render(cell.Line(fmt.Sprintf("Fields %d–%d / %d · Tab moves through all fields", start+1, end, len(indexes)), inner)))
 	}
-	if props.Error != "" {
-		rows = append(rows, props.Styles.Error.Render(cell.Line(props.Error, inner)))
-	} else if props.Note != "" {
-		rows = append(rows, cell.Line(props.Note, inner))
-	}
+	rows = append(rows, feedback...)
 	shortcuts := props.Shortcuts
 	if len(shortcuts) == 0 {
 		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "cancel"}, {Key: "Ctrl+S", Action: "apply"}, {Key: "Tab", Action: "fields"}}

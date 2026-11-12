@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -208,5 +209,18 @@ func TestSSHCollapsingAdvancedPreservesExistingEnvironmentAuthentication(t *test
 	change, err = model.SSHSettings("key", values)
 	if err != nil || change.Profile.PassphraseEnv != "" || change.Profile.PassphraseRef != "" {
 		t.Fatal("explicit passphrase removal failed", err)
+	}
+}
+
+func TestSSHCheckShowsResultAndOnlyIncludesErrorsOnFailure(t *testing.T) {
+	result := SSHCheckResult{name: "dev"}
+	dialog := result.Dialog()
+	if len(dialog.Lines) != 1 || dialog.Lines[0] != "Connection OK." {
+		t.Fatal("unexpected success text", dialog.Lines)
+	}
+	result.err = errors.New("authentication failed")
+	dialog = result.Dialog()
+	if len(dialog.Lines) != 3 || dialog.Lines[0] != "Connection failed." || dialog.Lines[2] != "authentication failed" {
+		t.Fatal("failure lost its reason", dialog.Lines)
 	}
 }

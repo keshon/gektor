@@ -148,3 +148,17 @@ func TestListCardsUseMeasuredRowsAndWrapActions(t *testing.T) {
 		t.Fatal("Tab focused hidden search")
 	}
 }
+
+func TestTableDescriptionCanWrapBeyondThreeLines(t *testing.T) {
+	m, p := fixture()
+	p.Width, p.Height = 40, 36
+	p.Description = strings.Repeat("Connection details and instructions. ", 5) + "Description ends here."
+	layout := m.Layout(p)
+	text := ansi.Strip(strings.Join(layout.Rows, "\n"))
+	if !strings.Contains(strings.Join(strings.Fields(text), " "), "Description ends here.") {
+		t.Fatal("description was capped at three lines", text)
+	}
+	if layout.Capacity < 3 || len(layout.Rows)+2 > p.Height {
+		t.Fatalf("wrapped description displaced the table: capacity=%d height=%d", layout.Capacity, len(layout.Rows)+2)
+	}
+}

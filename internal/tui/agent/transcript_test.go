@@ -182,7 +182,7 @@ func TestReflow(t *testing.T) {
 		{"abcdefghij", 8, []string{"abcdefgh", "ij"}},
 		{"a\tb", 80, []string{"a    b"}},
 		{"", 80, []string{""}},
-		{"short", 2, []string{"short"}},
+		{"short", 2, []string{"sh", "or", "t"}},
 	} {
 		got := reflow(tc.in, tc.width)
 		if len(got) != len(tc.want) {

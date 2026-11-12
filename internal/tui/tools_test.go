@@ -247,7 +247,7 @@ func TestToolsMouseActionsUseSharedControls(t *testing.T) {
 		}
 		m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 		m.syncPresentation()
-		clickVisible(t, m, "Preferences")
+		clickVisible(t, m, "[ Preferences ]")
 		if m.chrome.Dialog.Form == nil {
 			t.Fatal("mouse missed preferences")
 		}

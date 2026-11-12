@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // Width is measured in terminal cells, not runes: a CJK ideograph and an
@@ -114,5 +115,30 @@ func TestTruncateUsesTerminalCells(t *testing.T) {
 	}
 	if got := Truncate("abc", 0); got != "" {
 		t.Fatalf("Truncate at zero width = %q", got)
+	}
+}
+
+func TestWrapPreservesWordsParagraphsAndTerminalWidth(t *testing.T) {
+	rows := Wrap("alpha beta gamma\n\nlast line", 10)
+	if strings.Join(rows, "\n") != "alpha beta\ngamma\n\nlast line" {
+		t.Fatalf("wrapped paragraphs = %q", rows)
+	}
+	for _, text := range []string{"日本語 alpha beta", "👍 hello world", "\x1b[31malpha beta gamma\x1b[0m", "averylongwordwithoutspaces"} {
+		for _, width := range []int{4, 10, 20} {
+			rows = Wrap(text, width)
+			for _, row := range rows {
+				if Width(row) > width || strings.Contains(row, "…") {
+					t.Fatalf("wrapped row exceeds %d or lost text: %q", width, row)
+				}
+			}
+			got := strings.ReplaceAll(ansi.Strip(strings.Join(rows, "")), " ", "")
+			want := strings.ReplaceAll(ansi.Strip(text), " ", "")
+			if got != want {
+				t.Fatalf("wrapping changed text: %q != %q", got, want)
+			}
+		}
+	}
+	if strings.Join(Wrap("abc", 0), "") != "abc" {
+		t.Fatal("zero width lost text")
 	}
 }

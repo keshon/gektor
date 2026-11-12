@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -41,12 +40,12 @@ func (m *Model) SSH(editable bool) screen.Dialog {
 		rows = append(rows, table.Row{ID: name, Cells: []string{clean(name), clean(p.User + "@" + p.Host + ":" + strconv.Itoa(p.Port)), auth}})
 	}
 
-	description := "Run commands and transfer files using a password or private key. Passwords are entered in a secure prompt. Test verifies host key and authentication, then closes. Save and restart rebuilds both runtimes; restart independent workflow workers separately."
+	description := ""
 	if len(rows) == 0 {
-		description = "No SSH connections. Add one to configure commands and file transfers. " + description
+		description = "Add your first connection."
 	}
 	if m.checking != "" {
-		description = "Testing " + clean(m.checking) + "… Close to cancel. " + description
+		description = "Testing " + clean(m.checking) + "… Close to cancel."
 	}
 	if err != nil {
 		description = "Configuration error: " + clean(err.Error())
@@ -177,7 +176,7 @@ func (m *Model) SSHPreferences(name string) (screen.Form, error) {
 	}
 	return screen.Form{
 		Title:      title,
-		Hint:       "New passwords are entered after Save. Key files open a file picker. Advanced settings are optional.",
+		Hint:       "Save prompts for new passwords.",
 		ApplyLabel: "Save and restart",
 		Fields:     fields,
 		Choices: map[string][]string{
@@ -332,7 +331,6 @@ type SSHCheckResult struct {
 	id   uint64
 	name string
 	err  error
-	at   time.Time
 }
 
 func (m *Model) CheckSSH(ctx context.Context, name string) tea.Cmd {
@@ -348,7 +346,7 @@ func (m *Model) CheckSSH(ctx context.Context, name string) tea.Cmd {
 	go func() {
 		defer close(done)
 		err := service.Check(ctx, name)
-		results <- SSHCheckResult{id: id, name: name, err: err, at: time.Now()}
+		results <- SSHCheckResult{id: id, name: name, err: err}
 	}()
 	return func() tea.Msg { return <-results }
 }
@@ -364,9 +362,9 @@ func (m *Model) AcceptSSH(result SSHCheckResult) bool {
 }
 
 func (result SSHCheckResult) Dialog() screen.Dialog {
-	status := "Host key and authentication verified."
+	lines := []string{"Connection OK."}
 	if result.err != nil {
-		status = "Connection test failed: " + clean(result.err.Error())
+		lines = []string{"Connection failed.", "", clean(result.err.Error())}
 	}
-	return screen.Dialog{Title: "SSH " + clean(result.name), Lines: []string{status, "Checked: " + result.at.UTC().Format(time.RFC3339), "", "Connection closed. No command or file transfer was attempted.", "SFTP and hard-link support were not tested."}}
+	return screen.Dialog{Title: "SSH " + clean(result.name), Lines: lines}
 }

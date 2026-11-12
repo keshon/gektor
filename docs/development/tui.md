@@ -196,6 +196,11 @@ Disabled controls cannot be activated through mouse clicks or shortcuts.
 When the reason matters, explain it near the control. Removing unavailable
 actions from a menu can be clearer than presenting a long disabled list.
 
+Explanatory text uses `cell.Wrap` to wrap at word boundaries in terminal cells.
+Long words can break to fit. Forms measure wrapped hints and feedback before
+allocating field rows; tables reserve room for entries and actions. Titles,
+columns and editable single-line values retain their compact layouts.
+
 Errors retain the user's input. Field validation appears next to the affected
 field; a form-level error appears above the footer. Errors wrap instead of
 being cut into an unreadable fragment. Clearing an error does not move focus.

@@ -3,7 +3,6 @@ package table
 import (
 	"strings"
 
-	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/tui/components/cell"
 	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/components/popup"
@@ -38,12 +37,10 @@ func (m *Model) Layout(p Props) Layout {
 		Action: "close",
 	})
 	if p.Description != "" {
-		lines := strings.Split(ansi.Wrap(p.Description, inner, ""), "\n")
+		lines := cell.Wrap(p.Description, inner)
+		// Leave room for several entries below the description.
 		free := max(p.Height-9-len(buttonRows), 0)
-		count := min(1, free)
-		if p.Height >= 22 {
-			count = min(3, free)
-		}
+		count := min(len(lines), max(free-2, min(free, 1)))
 
 		for _, line := range lines[:min(len(lines), count)] {
 			l.Rows = append(l.Rows, p.Styles.Muted.Render(cell.Line(line, inner)))

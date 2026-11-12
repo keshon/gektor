@@ -59,3 +59,9 @@ func Width(text string) int {
 func Truncate(text string, n int) string {
 	return ansi.Truncate(text, max(n, 0), "…")
 }
+
+// Wrap keeps paragraphs and ANSI styles, breaking long words only when needed.
+// Width is measured in terminal cells; a zero width still makes progress.
+func Wrap(text string, width int) []string {
+	return strings.Split(ansi.Wrap(text, max(width, 1), ""), "\n")
+}

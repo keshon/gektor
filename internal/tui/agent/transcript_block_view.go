@@ -8,6 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/keshon/gektor/internal/tui/components/cell"
 	"github.com/keshon/gektor/internal/tui/components/transcript"
 )
 
@@ -341,20 +342,13 @@ func resultLineStyle(origLine, frag string, st styles) string {
 	}
 }
 
-// minWrapWidth guards absurdly narrow viewports: below it, lines pass
-// through rather than shredding into slivers.
-const minWrapWidth = 8
-
 // reflow word-wraps one logical line to width columns. Leading
 // whitespace survives on the first fragment; long words hard-cut
 // rune-safe; tabs expand to 4. ANSI-free input only: callers wrap raw
 // text before styling.
 func reflow(line string, width int) []string {
-	if width < minWrapWidth {
-		return []string{line}
-	}
 	line = strings.ReplaceAll(line, "\t", "    ")
-	return strings.Split(ansi.Wrap(line, width, ""), "\n")
+	return cell.Wrap(line, width)
 }
 
 func systemBlock(r role) bool {

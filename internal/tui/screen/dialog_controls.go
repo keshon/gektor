@@ -2,12 +2,10 @@ package screen
 
 import (
 	"strconv"
-	"strings"
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/tui/components/cell"
 	"github.com/keshon/gektor/internal/tui/components/form"
@@ -77,7 +75,7 @@ func (m *Controls) LayoutDialog() DialogLayout {
 	rows := popup.Header(cell.Truncate(d.Title, inner), inner, m.Props.Styles.Title)
 	lines := []string{}
 	for _, line := range d.Lines {
-		lines = append(lines, strings.Split(ansi.Wrap(cleanText(line), max(inner-1, 1), ""), "\n")...)
+		lines = append(lines, cell.Wrap(cleanText(line), inner-1)...)
 	}
 	shortcuts := []popup.Shortcut{{Key: "Esc/Enter", Action: "close"}}
 	if d.Review {

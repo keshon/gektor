@@ -110,3 +110,31 @@ func TestMultilineEnterEditsAndSpaceActivatesActions(t *testing.T) {
 		t.Fatal("Space did not activate the focused action or editing lost the newline")
 	}
 }
+
+func TestFormWrapsProseAndKeepsActionsInsideItsHeight(t *testing.T) {
+	fields := []Field{{Key: "first", Label: "First"}, {Key: "second", Label: "Second"}, {Key: "third", Label: "Third"}}
+	m := New(fields, textarea.New())
+	hint := "Choose a connection and enter the address. The rest of this hint must wrap onto additional lines. Hint ends here."
+	for _, height := range []int{18, 40} {
+		props := Props{Title: "Connection", Hint: hint, Error: "The address could not be reached. Check the hostname and port before trying again.", PrimaryLabel: "Save", Width: 40, Height: height}
+		rows, hits := m.Rows(props)
+		if len(rows)+2 > height {
+			t.Fatalf("form exceeds height %d: %d rows", height, len(rows)+2)
+		}
+		for _, row := range rows {
+			if lipgloss.Width(row) > 34 {
+				t.Fatalf("form row exceeds width: %q", row)
+			}
+		}
+		cancel := hits[len(hits)-1]
+		if cancel.Y0 >= len(rows) || !strings.Contains(ansi.Strip(rows[cancel.Y0]), "[ Cancel ]") {
+			t.Fatalf("cancel button and hit disagree: %+v", cancel)
+		}
+		if height == 40 {
+			text := ansi.Strip(strings.Join(rows, "\n"))
+			if !strings.Contains(text, "Hint ends here.") || !strings.Contains(text, "trying again.") {
+				t.Fatal("wrapped hint or error was cut off", text)
+			}
+		}
+	}
+}

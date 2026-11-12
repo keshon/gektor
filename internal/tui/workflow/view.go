@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 
+	"github.com/keshon/gektor/internal/tui/components/cell"
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/popup"
@@ -234,7 +234,7 @@ func (m *Model) inspectorContent() []string {
 	width := view.Layout(view.Panes(true).Side.Width, true).Body.Width
 	var out []string
 	for _, line := range m.detailRows()[1:] {
-		out = append(out, strings.Split(ansi.Hardwrap(line, max(1, width-1), true), "\n")...)
+		out = append(out, cell.Wrap(line, width-1)...)
 	}
 	return out
 }

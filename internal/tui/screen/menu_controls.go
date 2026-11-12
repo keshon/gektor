@@ -5,7 +5,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	cellui "github.com/keshon/gektor/internal/tui/components/cell"
 	"github.com/keshon/gektor/internal/tui/components/pane"
@@ -30,7 +29,7 @@ func (m *Controls) HeaderItems() []MenuItem {
 			rows = append(rows, item)
 			continue
 		}
-		for _, text := range strings.Split(ansi.Wrap(item.Text, max(min(58, m.Props.Width)-4, 1), ""), "\n") {
+		for _, text := range cellui.Wrap(item.Text, min(58, m.Props.Width)-4) {
 			rows = append(rows, MenuItem{Text: text})
 		}
 	}

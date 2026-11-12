@@ -9,10 +9,8 @@ package gate
 
 import (
 	"fmt"
-	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 	"github.com/keshon/gektor/internal/tui/components/cell"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 )
@@ -212,5 +210,5 @@ func labelWidth(options []Option, width int) int {
 
 // Wrap splits prompt text to the popup width.
 func Wrap(prompt string, width int) []string {
-	return strings.Split(ansi.Hardwrap(prompt, max(width, 1), true), "\n")
+	return cell.Wrap(prompt, width)
 }
