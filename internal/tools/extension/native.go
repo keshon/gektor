@@ -179,19 +179,53 @@ func (c *Capabilities) PreviewDefs() []llm.ToolDef {
 type capabilityEntry struct {
 	ID          string `json:"id"`
 	Description string `json:"description"`
+	State       string `json:"state"`
+	names       []string
+	eager       bool
 }
 
 func (c *Capabilities) entries() []capabilityEntry {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	out := []capabilityEntry{}
+	seen := map[string]bool{}
 	for _, source := range c.Sources {
-		if c.available(source.ID) {
-			out = append(out, capabilityEntry{source.ID, source.Description})
+		if !c.available(source.ID) {
+			continue
 		}
+		names := slices.Clone(source.searchNames)
+		names = append(names, source.ToolNames()...)
+		entry := capabilityEntry{ID: source.ID, Description: source.Description, State: "configured", names: names}
+		if state, active := c.active[source.ID]; active {
+			entry.State = "active"
+			for _, def := range state.Tools {
+				entry.names = append(entry.names, def.Name)
+			}
+		}
+		out = append(out, entry)
+		seen[source.ID] = true
 	}
 	for _, p := range c.Native {
-		if p.Exposure == Lazy {
-			out = append(out, capabilityEntry{p.ID, p.Description})
+		entry := capabilityEntry{ID: p.ID, Description: p.Description, State: "configured", eager: p.Exposure == Eager}
+		if _, active := c.active[p.ID]; active {
+			entry.State = "active"
 		}
+		for _, tool := range p.Tools {
+			entry.names = append(entry.names, tool.Name())
+		}
+		out = append(out, entry)
+		seen[p.ID] = true
+	}
+	for id, state := range c.active {
+		if seen[id] {
+			continue
+		}
+		entry := capabilityEntry{ID: id, Description: "Saved catalog; source is no longer configured", State: "unavailable"}
+		for _, def := range state.Tools {
+			entry.names = append(entry.names, def.Name)
+		}
+		out = append(out, entry)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out
@@ -205,6 +239,9 @@ func (c *Capabilities) Map() string {
 	}
 	text := "\nOptional capabilities:"
 	for _, entry := range entries {
+		if entry.eager {
+			continue
+		}
 		description := []rune(strings.Join(strings.Fields(entry.Description), " "))
 		if len(description) > 48 {
 			description = append(description[:45], []rune("...")...)

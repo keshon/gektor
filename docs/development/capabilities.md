@@ -17,6 +17,15 @@ package when several providers serve the same task. Name support packages by
 the resource they manage. Availability, authorization and successful execution
 are separate facts.
 
+## Native composition
+
+`internal/tools/packages_builtin.go` keeps native pack declarations together.
+`prepareBuiltin` supplies defaults on a copy of the caller's inputs. Feature
+entry functions construct services and permission callbacks beside their tools;
+`operationEntries` collects those entries without duplicating operation policy.
+The native and skill discovery adapters share metadata ranking in
+`internal/discovery`. Ranking reads metadata only and does not activate packs.
+
 ## Capability layout
 
 | Part | Owns | Does not own |

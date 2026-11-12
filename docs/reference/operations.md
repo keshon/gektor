@@ -114,7 +114,10 @@ normal model/profile flags alongside these commands:
 ```
 
 In the TUI, ask Agent to use connection `staging`; it can enable `native_ssh`
-when needed. In a recipe, supply `"connection":"staging"` to an SSH operation.
+when needed. Agent can call `ssh_connections` to list registered names and
+endpoints without connecting or resolving credentials. It uses the same profile
+snapshot as SSH execution and does not expose credential references or key paths.
+In a recipe, supply `"connection":"staging"` to an SSH operation.
 Workflow workers must inherit the variable in their own process; setting it in
 a TUI launch does not update a separately running worker. After GEKTOR exits,
 remove the variable from the terminal if it is no longer needed:

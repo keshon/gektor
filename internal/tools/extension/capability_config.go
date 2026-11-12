@@ -204,6 +204,10 @@ func BuildCapabilities(config CapabilityConfig, dir string) ([]*Capability, func
 		encoded, _ := json.Marshal(pack)
 		source := &Capability{MainOnly: pack.MainOnly, ID: pack.ID, Version: pack.Version, Description: pack.Description, Instructions: pack.Instructions, Source: string(encoded), ReadOnly: pack.ReadOnly, Concurrent: pack.Concurrent, ResourceField: pack.ResourceField}
 		source.ToolPolicies = pack.ToolPolicies
+		for _, def := range pack.Tools {
+			tool := &ExecutableTool{Pack: pack, Def: def, Dir: dir}
+			source.searchNames = append(source.searchNames, def.Name, tool.Name(), def.Description)
+		}
 		conn := &connection{source: source}
 		source.Close = func() {
 			if conn.close != nil {

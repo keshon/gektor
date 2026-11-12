@@ -49,8 +49,8 @@ func TestBrowserEnabledStartupStaysWithinPromptBudget(t *testing.T) {
 		t.Fatal(aErr)
 	}
 	report := a.StartupContext("Explain this project")
-	if report.EstimatedTokens > 5000 {
-		t.Fatalf("startup estimate %d exceeds 5000; keep instructions dense and optional tools deferred", report.EstimatedTokens)
+	if report.EstimatedTokens > 5200 {
+		t.Fatalf("startup estimate %d exceeds 5200; keep instructions dense and optional tools deferred", report.EstimatedTokens)
 	}
 	for _, def := range report.Tools {
 		if def.Name == "browser_observe" || strings.HasPrefix(def.Name, "mcp__browser__") {

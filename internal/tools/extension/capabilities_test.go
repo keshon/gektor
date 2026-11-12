@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -159,5 +160,109 @@ func TestRejectedCapabilityDiscoveryClosesOnlySuccessfulLoads(t *testing.T) {
 				t.Fatalf("recovered status = %s %d %q", state, count, detail)
 			}
 		})
+	}
+}
+
+func TestDiscoveryRanksKnownNamesAndPagesWithoutLoading(t *testing.T) {
+	loads := 0
+	catalog := &Capabilities{Registry: agent.NewRegistry(), Sources: []*Capability{
+		{ID: "other", Description: "Guide mentioning check_url"},
+		{ID: "reader", Description: "Read URLs", Load: func(context.Context, func(string)) ([]agent.Tool, error) {
+			loads++
+			return []agent.Tool{toolweb.Check{}}, nil
+		}},
+	}}
+	tool := DiscoverCapabilities{Catalog: catalog}
+	query := func(args string) string {
+		t.Helper()
+		out, err := tool.Run(t.Context(), json.RawMessage(args))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	before := query(`{"limit":1}`)
+	if !strings.Contains(before, `"next_offset":1`) || loads != 0 {
+		t.Fatal(before, loads)
+	}
+	second := query(`{"offset":1,"limit":1}`)
+	if !strings.Contains(second, `"id":"reader"`) || strings.Contains(second, "next_offset") {
+		t.Fatal(second)
+	}
+	empty := query(`{"query":"unrelated"}`)
+	if !strings.Contains(empty, `"capabilities":[]`) || !strings.Contains(empty, `"hint"`) {
+		t.Fatal(empty)
+	}
+
+	_, err := catalog.Enable(t.Context(), "reader", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after := query(`{"query":"check_url","limit":1}`)
+	if !strings.Contains(after, `"id":"reader"`) || !strings.Contains(after, `"state":"active"`) || loads != 1 {
+		t.Fatal(after, loads)
+	}
+	for _, args := range []string{`{"offset":-1}`, `{"limit":0}`, `{"limit":101}`, `{"extra":1}`} {
+		_, err = tool.Run(t.Context(), json.RawMessage(args))
+		if err == nil {
+			t.Fatal("invalid discovery request accepted", args)
+		}
+	}
+
+	restored := &Capabilities{Registry: agent.NewRegistry()}
+	err = restored.Restore(t.Context(), catalog.Save())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool = DiscoverCapabilities{Catalog: restored}
+	out := query(`{"query":"check_url"}`)
+	if !strings.Contains(out, `"state":"unavailable"`) {
+		t.Fatal(out)
+	}
+}
+
+func TestDiscoverySearchesExecutableDefinitionsBeforeActivation(t *testing.T) {
+	config := CapabilityConfig{Version: 1, Packs: []CapabilityPack{{
+		ID: "opaque", Type: "executable", Command: []string{"not-installed"},
+		Tools: []ExecutableToolDef{{Name: "widget_read", Description: "Read widget inventory", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+	}}}
+	sources, close := BuildCapabilities(config, t.TempDir())
+	defer close()
+	catalog := &Capabilities{Registry: agent.NewRegistry(), Sources: sources}
+	tool := DiscoverCapabilities{Catalog: catalog}
+	out, err := tool.Run(t.Context(), json.RawMessage(`{"query":"widget_read"}`))
+	if err != nil || !strings.Contains(out, `"id":"opaque"`) {
+		t.Fatal(out, err)
+	}
+	if len(catalog.Save()) != 0 {
+		t.Fatal("metadata search activated pack")
+	}
+}
+
+func TestDiscoveryBoundsLargeInventories(t *testing.T) {
+	catalog := &Capabilities{Registry: agent.NewRegistry()}
+	for i := range 200 {
+		catalog.Sources = append(catalog.Sources, &Capability{ID: fmt.Sprintf("pack-%03d", i), Description: "Read reference material"})
+	}
+	tool := DiscoverCapabilities{Catalog: catalog}
+	out, err := tool.Run(t.Context(), json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var page struct {
+		Capabilities []capabilityEntry `json:"capabilities"`
+		Total        int               `json:"total"`
+		NextOffset   int               `json:"next_offset"`
+		More         bool              `json:"more"`
+	}
+	err = json.Unmarshal([]byte(out), &page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Capabilities) != 50 || page.Total != 200 || page.NextOffset != 50 || !page.More {
+		t.Fatal(out)
+	}
+	if len(out) > 8192 {
+		t.Fatal("small inventory page grew beyond 8 KiB", len(out))
 	}
 }

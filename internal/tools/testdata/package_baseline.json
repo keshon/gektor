@@ -496,7 +496,7 @@
       },
       {
         "Name": "system_info",
-        "Description": "Inspect OS, hardware, environment, PATH tools, skills or browser setup. tools/skills support filter/offset/limit. Browser setup does not prove launch succeeds. Installs nothing.",
+        "Description": "Inspect OS, hardware, environment, PATH executables, skills or browser setup. group=tools lists executables; use discover_capabilities for Agent tools. tools/skills support filter/offset/limit. Browser setup does not prove launch succeeds. Installs nothing.",
         "Parameters": {
           "type": "object",
           "properties": {
@@ -513,7 +513,7 @@
             },
             "filter": {
               "type": "string",
-              "description": "Case-insensitive substring in tool filename or skill path/description"
+              "description": "Skill query words match in any order, best matches first. PATH tool filenames use a case-insensitive substring."
             },
             "offset": {
               "type": "integer",
@@ -985,7 +985,7 @@
       },
       {
         "Name": "system_info",
-        "Description": "Inspect OS, hardware, environment, PATH tools, skills or browser setup. tools/skills support filter/offset/limit. Browser setup does not prove launch succeeds. Installs nothing.",
+        "Description": "Inspect OS, hardware, environment, PATH executables, skills or browser setup. group=tools lists executables; use discover_capabilities for Agent tools. tools/skills support filter/offset/limit. Browser setup does not prove launch succeeds. Installs nothing.",
         "Parameters": {
           "type": "object",
           "properties": {
@@ -1002,7 +1002,7 @@
             },
             "filter": {
               "type": "string",
-              "description": "Case-insensitive substring in tool filename or skill path/description"
+              "description": "Skill query words match in any order, best matches first. PATH tool filenames use a case-insensitive substring."
             },
             "offset": {
               "type": "integer",

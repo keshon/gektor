@@ -163,3 +163,32 @@ func TestSystemInfoRejectsInvalidRequests(t *testing.T) {
 		}
 	}
 }
+
+func TestSkillSearchMatchesWordsInAnyOrder(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "skills", "go-review")
+	err := os.MkdirAll(dir, 0700)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("---\nname: go-review\ndescription: Review readable Go packages.\n---\nPrivate guide body"), 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	tool := Tool{WS: ws}
+	for _, filter := range []string{"review go", "go review", "GO readable"} {
+		args, err := json.Marshal(map[string]string{"group": "skills", "filter": filter})
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, err := tool.Run(t.Context(), args)
+		if err != nil || !strings.Contains(out, `"id":"go-review"`) || strings.Contains(out, "Private guide body") {
+			t.Fatal(filter, out, err)
+		}
+	}
+}

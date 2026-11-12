@@ -349,3 +349,32 @@ func TestImageToolsStayLazy(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestNativeDiscoveryUsesActivityAndToolNames(t *testing.T) {
+	catalog := composed(t, toolextension.Eager)
+	tool := toolextension.DiscoverCapabilities{Catalog: catalog}
+	for query, id := range map[string]string{
+		"ssh connect host": "native_ssh", "sftp upload": "native_ssh", "image_view": "native_images", "png crop": "native_images", "workflow cron": "native_workflows",
+	} {
+		args, err := json.Marshal(map[string]string{"query": query})
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, err := tool.Run(t.Context(), args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var page struct {
+			Capabilities []struct {
+				ID string `json:"id"`
+			} `json:"capabilities"`
+		}
+		err = json.Unmarshal([]byte(out), &page)
+		if err != nil || len(page.Capabilities) == 0 || page.Capabilities[0].ID != id {
+			t.Fatal(query, out, err)
+		}
+	}
+	if len(catalog.Save()) != 0 {
+		t.Fatal("search activated native tools")
+	}
+}

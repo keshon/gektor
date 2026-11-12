@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -53,6 +54,28 @@ type ExecResult struct {
 	ExitCode   int    `json:"exit_code"`
 }
 
+// Connection identifies a configured endpoint without exposing credential references.
+type Connection struct {
+	Name string `json:"name"`
+	Host string `json:"host"`
+	Port int    `json:"port"`
+	User string `json:"user"`
+}
+
+// Connections reads the same snapshot used by commands; it makes no network calls.
+func (s *Service) Connections() ([]Connection, error) {
+	if s.loadErr != nil {
+		return nil, s.loadErr
+	}
+
+	connections := make([]Connection, 0, len(s.profiles))
+	for name, profile := range s.profiles {
+		connections = append(connections, Connection{Name: name, Host: profile.Host, Port: profile.Port, User: profile.User})
+	}
+	sort.Slice(connections, func(i, j int) bool { return connections[i].Name < connections[j].Name })
+	return connections, nil
+}
+
 func (s *Service) profile(name string) (Profile, error) {
 	if s == nil {
 		return Profile{}, fmt.Errorf("SSH unavailable")
@@ -62,7 +85,7 @@ func (s *Service) profile(name string) (Profile, error) {
 	}
 	profile, ok := s.profiles[name]
 	if !ok {
-		return Profile{}, fmt.Errorf("SSH connection %q is not registered", name)
+		return Profile{}, fmt.Errorf("SSH connection %q is not registered; use ssh_connections to list names", name)
 	}
 	return profile, nil
 }

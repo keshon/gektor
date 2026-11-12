@@ -15,6 +15,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/conversation"
+	"github.com/keshon/gektor/internal/discovery"
 	commandrun "github.com/keshon/gektor/internal/tools/command"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -34,10 +35,10 @@ type Tool struct {
 func (Tool) Name() string         { return "system_info" }
 func (Tool) Mode() agent.ToolMode { return agent.Concurrent }
 func (Tool) Description() string {
-	return "Inspect OS, hardware, environment, PATH tools, skills or browser setup. tools/skills support filter/offset/limit. Browser setup does not prove launch succeeds. Installs nothing."
+	return "Inspect OS, hardware, environment, PATH executables, skills or browser setup. group=tools lists executables; use discover_capabilities for Agent tools. tools/skills support filter/offset/limit. Browser setup does not prove launch succeeds. Installs nothing."
 }
 func (Tool) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"group":{"type":"string","enum":["os","hardware","environment","tools","skills","browser"]},"filter":{"type":"string","description":"Case-insensitive substring in tool filename or skill path/description"},"offset":{"type":"integer","minimum":0},"limit":{"type":"integer","minimum":1,"maximum":100,"default":50}},"required":["group"],"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"group":{"type":"string","enum":["os","hardware","environment","tools","skills","browser"]},"filter":{"type":"string","description":"Skill query words match in any order, best matches first. PATH tool filenames use a case-insensitive substring."},"offset":{"type":"integer","minimum":0},"limit":{"type":"integer","minimum":1,"maximum":100,"default":50}},"required":["group"],"additionalProperties":false}`)
 }
 func (t Tool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	var in struct {
@@ -70,14 +71,22 @@ func (t Tool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	case "skills":
 		entries, discoveryErr := t.WS.Skills()
 		matches := []workspace.Skill{}
+		scores := map[string]int{}
 		for _, skill := range entries {
-			if strings.Contains(strings.ToLower(skill.ID+" "+skill.Path+" "+skill.Description), strings.ToLower(in.Filter)) {
+			score := discovery.Score(in.Filter, skill.ID, skill.Path, skill.Description)
+			if score > 0 {
 				matches = append(matches, skill)
+				scores[skill.ID] = score
 			}
 		}
+
+		sort.SliceStable(matches, func(i, j int) bool { return scores[matches[i].ID] > scores[matches[j].ID] })
 		start := min(in.Offset, len(matches))
 		end := start + min(limit, len(matches)-start)
-		page := map[string]any{"skills": matches[start:end], "total": len(matches)}
+		page := map[string]any{"skills": matches[start:end], "total": len(matches), "more": end < len(matches)}
+		if len(matches) == 0 {
+			page["hint"] = "Try fewer words, or omit filter to list skills."
+		}
 		if discoveryErr != nil {
 			page["warnings"] = strings.Split(discoveryErr.Error(), "\n")
 		}
@@ -96,7 +105,7 @@ func (t Tool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 		}
 		start := min(in.Offset, len(entries))
 		end := start + min(limit, len(entries)-start)
-		page := map[string]any{"tools": entries[start:end], "total": len(entries), "warnings": warnings}
+		page := map[string]any{"tools": entries[start:end], "total": len(entries), "more": end < len(entries), "warnings": warnings}
 		if end < len(entries) {
 			page["next_offset"] = end
 		}
@@ -149,7 +158,7 @@ func (t Tool) browserInfo(ctx context.Context) map[string]any {
 	names := t.BrowserTools
 	setup := "Restart GEKTOR with -browser chrome or -browser msedge; see docs/browser.md. Do not improvise browser shell commands when MCP is unavailable."
 	if t.Capabilities != nil {
-		status = "no active browser tools; search discover_capabilities for a configured browser integration"
+		status = "no active browser tools; discover_capabilities can check whether a browser integration is configured"
 		setup = "Discover and enable a configured browser capability, or restart with -browser chrome/-browser msedge."
 		for _, state := range t.Capabilities.Save() {
 			for _, def := range state.Tools {

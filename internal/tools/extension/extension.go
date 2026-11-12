@@ -11,6 +11,7 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/conversation"
+	"github.com/keshon/gektor/internal/discovery"
 	"github.com/keshon/gektor/internal/llm"
 )
 
@@ -27,9 +28,10 @@ type Capability struct {
 	ToolPolicies                                   map[string]ToolPolicy
 	Load                                           func(context.Context, func(string)) ([]agent.Tool, error)
 
-	mu        sync.Mutex // guards tools and lastError; serializes adapter load and close
-	tools     []agent.Tool
-	lastError string
+	mu          sync.Mutex // guards tools and lastError; serializes adapter load and close
+	searchNames []string
+	tools       []agent.Tool
+	lastError   string
 }
 
 func (c *Capability) load(ctx context.Context, note func(string)) (result []agent.Tool, loadErr error) {
@@ -329,36 +331,65 @@ func (DiscoverCapabilities) ReadOnly() bool { return true }
 func (DiscoverCapabilities) Name() string         { return "discover_capabilities" }
 func (DiscoverCapabilities) Mode() agent.ToolMode { return agent.Concurrent }
 func (DiscoverCapabilities) Description() string {
-	return "Find optional capability packs by ID or description. Returns metadata only; enable a matching ID with enable_capability. Empty query lists all packs. Does not start adapters."
+	return "Find capability packs by ID, activity or known tool name. Query words match in any order; best matches first. Returns metadata and activation state, not proof of readiness. Empty query lists all; follow next_offset. Does not start adapters."
 }
 func (DiscoverCapabilities) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"},"offset":{"type":"integer","minimum":0,"description":"Use next_offset from the previous page."},"limit":{"type":"integer","minimum":1,"maximum":100,"default":50,"description":"Maximum entries per page."}},"additionalProperties":false}`)
 }
 func (t DiscoverCapabilities) Run(ctx context.Context, args json.RawMessage) (string, error) {
-	if err := ctx.Err(); err != nil {
+	err := ctx.Err()
+	if err != nil {
 		return "", err
 	}
-	if err := agent.RejectUnknownFields(args, "query"); err != nil {
+	err = agent.RejectUnknownFields(args, "query", "offset", "limit")
+	if err != nil {
 		return "", err
 	}
+
 	var in struct {
-		Query string `json:"query"`
+		Query  string `json:"query"`
+		Offset int    `json:"offset"`
+		Limit  *int   `json:"limit"`
 	}
-	if err := json.Unmarshal(args, &in); err != nil {
+	err = json.Unmarshal(args, &in)
+	if err != nil {
 		return "", err
 	}
-	result := []capabilityEntry{}
-	for _, entry := range t.Catalog.entries() {
-		match := true
-		for _, term := range strings.Fields(strings.ToLower(in.Query)) {
-			if !strings.Contains(strings.ToLower(entry.ID+" "+entry.Description), term) {
-				match = false
-				break
-			}
+	limit := 50
+	if in.Limit != nil {
+		limit = *in.Limit
+	}
+	if in.Offset < 0 || limit < 1 || limit > 100 {
+		return "", fmt.Errorf("offset must be >= 0; limit must be 1–100")
+	}
+
+	entries := t.Catalog.entries()
+	matches := []capabilityEntry{}
+	scores := map[string]int{}
+	for _, entry := range entries {
+		fields := append([]string{entry.ID, entry.Description}, entry.names...)
+		score := discovery.Score(in.Query, fields...)
+		if score > 0 {
+			matches = append(matches, entry)
+			scores[entry.ID] = score
 		}
-		if match {
-			result = append(result, entry)
-		}
+	}
+
+	sort.SliceStable(matches, func(i, j int) bool { return scores[matches[i].ID] > scores[matches[j].ID] })
+	start := min(in.Offset, len(matches))
+	end := start + min(limit, len(matches)-start)
+	result := struct {
+		Capabilities []capabilityEntry `json:"capabilities"`
+		Total        int               `json:"total"`
+		More         bool              `json:"more"`
+		NextOffset   *int              `json:"next_offset,omitempty"`
+		Hint         string            `json:"hint,omitempty"`
+	}{Capabilities: matches[start:end], Total: len(matches), More: end < len(matches)}
+	if end < len(matches) {
+		result.NextOffset = &end
+	}
+	if len(matches) == 0 {
+		result.Hint = "Try fewer words, or omit query to list configured packs."
 	}
 	data, err := json.Marshal(result)
 	return string(data), err

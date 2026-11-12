@@ -2,6 +2,23 @@
 
 Use MCP servers to add tools and skill libraries to add instructions. Neither grants extra permissions. Start with a server you trust and connect it from Settings.
 
+## Agent discovery
+
+`discover_capabilities` searches pack IDs, descriptions and known tool names.
+Query words match in any order; exact names rank first. Results contain
+`capabilities`, `total`, `more`, and `next_offset` when another page exists. Pass that
+value as `offset`; `limit` defaults to 50 and accepts 1-100.
+
+The state is `configured`, `active`, or `unavailable` for a saved catalog whose
+source is missing. Activation does not establish readiness or grant permission.
+Discovery never connects adapters. Native and configured executable tool names
+are searchable immediately; remote MCP names become known after connection.
+An empty search suggests a shorter query or an unfiltered inventory.
+
+Skills use the same word matching through `system_info` with `group=skills`.
+Its `filter`, `offset`, `limit`, `total` and `next_offset` support the same search
+and paging flow. `group=tools` lists PATH executables, not Agent tools.
+
 ## Saved MCP servers
 
 Open **MCP servers** in Settings, or use `/mcp`, to list, add, edit, delete, import,
@@ -10,7 +27,8 @@ file-based extensions. Changes are allowed between agent turns.
 
 Servers are saved under `~/.gektor/mcp/`. Enabled servers are available to the
 agent on demand. **Connect** discovers tools and makes them available on the
-next turn; it does not call those tools. **At startup** connects at launch.
+next turn; it does not call those tools. Give imported servers a description
+that names their purpose so the agent can find them before connecting. **At startup** connects at launch.
 **Disconnect** closes the connection; an enabled server can reconnect on demand.
 Disable it to remove it from discovery. Existing session catalogs retain their
 original definitions; changed definitions may require a fresh session.

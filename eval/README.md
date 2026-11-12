@@ -335,3 +335,20 @@ SKIP. Prefer portable checks over shell commands.
 Run media checks with `go run ./cmd/eval -suite media -runs 3 -jobs 1 -backend-kind llama -backend http://127.0.0.1:9931 -require-model Ornith`. See [media criteria](prompts/media.md) for application and network requirements.
 
 A probe may supply `continuation`, an array of recorded assistant/tool messages after its opening task and initial Act notice. The harness resumes that conversation without adding a user message. This supports role-boundary regressions; fixture turns are included in the input fingerprint and are not counted as executed tools.
+
+## Discovery integration checks
+
+The opt-in Go checks use the shipping Interactive role against llama.cpp with
+isolated connection metadata and skills. They cover SSH connection inventory,
+exact tool-name discovery, pagination and multiword skill search. They do not
+connect to an SSH host or read personal configuration.
+
+```powershell
+$env:GEKTOR_DISCOVERY_LIVE_URL = 'http://127.0.0.1:9931'
+go test ./internal/roles -run '^TestDiscoveryLive$' -v -count=2
+Remove-Item Env:GEKTOR_DISCOVERY_LIVE_URL
+```
+
+Each run logs actual request token counts and tool calls. For a startup-token
+measurement using the local workspace and skill libraries, set
+`GEKTOR_CONTEXT_LIVE_URL` and run `TestStartupContextLive` in the same package.

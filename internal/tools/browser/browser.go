@@ -154,11 +154,7 @@ func (b *EnableBrowser) enable(ctx context.Context, note func(string)) (string, 
 	if b.Catalog == nil {
 		b.Catalog = &toolextension.Capabilities{Registry: b.Registry, Sources: []*toolextension.Capability{b.Browser.Capability()}}
 	}
-	if _, err := b.Catalog.Enable(ctx, "browser", note); err != nil {
-		return "", err
-	}
-	ref := b.Browser.Reference()
-	return fmt.Sprintf("%s\nBrowser profile: %s/%s; headless=%t.", browserInstructions, ref.Channel, ref.Profile, b.Browser.Headless), nil
+	return b.Catalog.Enable(ctx, "browser", note)
 }
 
 func (b *EnableBrowser) Names() []string {
