@@ -1,16 +1,36 @@
 package tools
 
 import (
+	"context"
+	"encoding/json"
+
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/capabilities/documents"
 	doccontract "github.com/keshon/gektor/internal/capabilities/documents/contract"
 	"github.com/keshon/gektor/internal/capabilities/files"
 	filecontract "github.com/keshon/gektor/internal/capabilities/files/contract"
 	imagecontract "github.com/keshon/gektor/internal/capabilities/images/contract"
+	"github.com/keshon/gektor/internal/capabilities/media"
 	mediacontract "github.com/keshon/gektor/internal/capabilities/media/contract"
+	"github.com/keshon/gektor/internal/executables"
+	"github.com/keshon/gektor/internal/permission"
+	"github.com/keshon/gektor/internal/userdirs"
+	workflowdefs "github.com/keshon/gektor/internal/workflow"
 	workflow "github.com/keshon/gektor/internal/workflow/agenttools"
 	"github.com/keshon/gektor/internal/workspace"
 )
+
+type toolEntry struct {
+	tool     agent.Tool
+	readOnly bool
+}
+
+type packageDefinition struct {
+	id, description string
+	exposure        Exposure
+	entries         []toolEntry
+}
 
 func nativeInstructions(id string) string {
 	if id == "native_media" {
@@ -37,105 +57,122 @@ func nativeInstructions(id string) string {
 	return ""
 }
 
-// Factories construct fresh native tools; no entry captures session state.
-func builtinPackages() []packageDefinition {
+// Each composition gets fresh tool instances; activation only publishes them.
+func builtinPackages(d Dependencies) []packageDefinition {
+	if d.StoreDir == "" {
+		d.StoreDir = userdirs.Sub("workflows")
+	}
+	if len(d.Policy.Rules) == 0 {
+		d.Policy = permission.Default()
+	}
+	if d.Media == nil {
+		apps := executables.New(userdirs.Sub("applications.json"))
+		d.Media = media.New(d.WS, apps)
+	}
+
+	authorize, authorizeOutput := workflowPolicy(d.WS, d.Policy, d.Gate)
+	checkSource, _ := workflowPolicy(d.WS, d.Policy, nil)
+	authorizeResource := func(ctx context.Context, name, resource string, args json.RawMessage) error {
+		return permission.Authorize(ctx, d.Policy, d.Gate, name, resource, args)
+	}
+	registry := func() (*workflowdefs.Registry, error) {
+		return app.WorkflowRegistry(d.WS, d.StoreDir, authorizeOutput, authorizeResource)
+	}
+	run := workflow.Tool{
+		Registry:          registry,
+		WS:                d.WS,
+		StoreDir:          d.StoreDir,
+		Authorize:         authorize,
+		AuthorizeOutput:   authorizeOutput,
+		AuthorizeResource: authorizeResource,
+	}
+	validate := run
+	validate.ValidateOnly = true
+
+	info := SystemInfo{WS: d.WS, BrowserTools: BrowserToolNames(d.Extra)}
+	for _, tool := range d.Extra {
+		if discovery, ok := tool.(DiscoverCapabilities); ok {
+			info.Capabilities = discovery.Catalog
+		}
+		if browser, ok := tool.(*EnableBrowser); ok {
+			info.Browser = browser
+		}
+	}
+
 	return []packageDefinition{
 		{"core", "Session support", Always, []toolEntry{
-			{func(d Dependencies) agent.Tool {
-				info := SystemInfo{WS: d.WS, BrowserTools: BrowserToolNames(d.Extra)}
-				for _, t := range d.Extra {
-					if v, ok := t.(DiscoverCapabilities); ok {
-						info.Capabilities = v.Catalog
-					}
-					if v, ok := t.(*EnableBrowser); ok {
-						info.Browser = v
-					}
-				}
-				return info
-			}, true},
-			{func(d Dependencies) agent.Tool { return LoadSkill{WS: d.WS} }, true},
-			{func(d Dependencies) agent.Tool { return InspectContext{} }, true},
-			{func(d Dependencies) agent.Tool { return ReadOutput{} }, true},
-			{func(d Dependencies) agent.Tool { return &Todo{} }, false},
+			{info, true},
+			{LoadSkill{WS: d.WS}, true},
+			{InspectContext{}, true},
+			{ReadOutput{}, true},
+			{&Todo{}, false},
 		}},
 		{"workspace", "Workspace files", Always, []toolEntry{
-			{func(d Dependencies) agent.Tool { return ReadFile{WS: d.WS, Vision: d.Vision} }, true},
-			{func(d Dependencies) agent.Tool { return Checked(WriteFile{WS: d.WS}, d.WS, d.Checks) }, false},
-			{func(d Dependencies) agent.Tool { return Checked(PatchFile{WS: d.WS}, d.WS, d.Checks) }, false},
-			{func(d Dependencies) agent.Tool { return ListFiles{WS: d.WS} }, true},
-			{func(d Dependencies) agent.Tool { return GrepFiles{WS: d.WS} }, true},
-			{func(d Dependencies) agent.Tool { return MoveFile{WS: d.WS} }, false},
+			{ReadFile{WS: d.WS, Vision: d.Vision}, true},
+			{Checked(WriteFile{WS: d.WS}, d.WS, d.Checks), false},
+			{Checked(PatchFile{WS: d.WS}, d.WS, d.Checks), false},
+			{ListFiles{WS: d.WS}, true},
+			{GrepFiles{WS: d.WS}, true},
+			{MoveFile{WS: d.WS}, false},
 		}},
 		{"execution", "Run commands", Always, []toolEntry{
-			{func(d Dependencies) agent.Tool { return RunShell{WS: d.WS} }, false},
-			{func(d Dependencies) agent.Tool { return RunProgram{WS: d.WS} }, false},
+			{RunShell{WS: d.WS}, false},
+			{RunProgram{WS: d.WS}, false},
 		}},
 		{"processes", "Background processes", Always, []toolEntry{
-			{func(d Dependencies) agent.Tool { return StartBackground{WS: d.WS, Procs: d.Procs} }, false},
-			{func(d Dependencies) agent.Tool { return StartProgram{WS: d.WS, Procs: d.Procs} }, false},
-			{func(d Dependencies) agent.Tool { return CheckBackground{Procs: d.Procs} }, true},
-			{func(d Dependencies) agent.Tool { return WaitBackground{Procs: d.Procs} }, true},
-			{func(d Dependencies) agent.Tool { return StopBackground{Procs: d.Procs} }, false},
+			{StartBackground{WS: d.WS, Procs: d.Procs}, false},
+			{StartProgram{WS: d.WS, Procs: d.Procs}, false},
+			{CheckBackground{Procs: d.Procs}, true},
+			{WaitBackground{Procs: d.Procs}, true},
+			{StopBackground{Procs: d.Procs}, false},
 		}},
 		{"git", "Git operations", Always, []toolEntry{
-			{func(d Dependencies) agent.Tool { return Git{WS: d.WS} }, true},
-			{func(d Dependencies) agent.Tool { return GitAdd{WS: d.WS} }, false},
-			{func(d Dependencies) agent.Tool { return GitCommit{WS: d.WS} }, false},
+			{Git{WS: d.WS}, true},
+			{GitAdd{WS: d.WS}, false},
+			{GitCommit{WS: d.WS}, false},
 		}},
 		{NativeWeb, "Fetch URLs and search the web", Eager, []toolEntry{
-			{func(d Dependencies) agent.Tool { return CheckURL{} }, true},
-			{func(d Dependencies) agent.Tool { return Webfetch{} }, true},
-			{func(d Dependencies) agent.Tool { return FetchRaw{} }, true},
-			{func(d Dependencies) agent.Tool { return SearchWeb{WS: d.WS} }, true},
+			{CheckURL{}, true},
+			{Webfetch{}, true},
+			{FetchRaw{}, true},
+			{SearchWeb{WS: d.WS}, true},
 		}},
 		{"native_images", "View, crop, download and inspect images or session attachments; compare pixel fidelity and write separate variants", Lazy, append([]toolEntry{
-			{func(d Dependencies) agent.Tool { return ImageAttachments{} }, true},
-			{func(d Dependencies) agent.Tool { return &ImageView{WS: d.WS, Vision: d.Vision} }, true},
-			{func(d Dependencies) agent.Tool { return &ImageDownload{Vision: d.Vision} }, true},
-		}, operationEntries(imagecontract.Names(), func(d Dependencies, name string) agent.Tool {
+			{ImageAttachments{}, true},
+			{&ImageView{WS: d.WS, Vision: d.Vision}, true},
+			{&ImageDownload{Vision: d.Vision}, true},
+		}, operationEntries(imagecontract.Names(), func(name string) agent.Tool {
 			tool := NewImageOperation(d.WS, name)
-			tool.AuthorizeOutput = d.authorizeOutput
+			tool.AuthorizeOutput = authorizeOutput
 			return tool
 		}, func(name string) bool { return (imagecontract.Operation{Kind: name}).ReadOnly() })...)},
-		{"native_files", "Download files with SHA-256; list, create and extract ZIP, TAR, TAR.GZ and GZIP archives. Bounded Go-native workspace operations.", Lazy, operationEntries(filecontract.Names(), func(d Dependencies, name string) agent.Tool {
-			return &FileOperation{Operation: filecontract.Operation{Service: files.Service{WS: d.WS}, Kind: name, AuthorizeOutput: d.authorizeResource}}
+		{"native_files", "Download files with SHA-256; list, create and extract ZIP, TAR, TAR.GZ and GZIP archives. Bounded Go-native workspace operations.", Lazy, operationEntries(filecontract.Names(), func(name string) agent.Tool {
+			return &FileOperation{Operation: filecontract.Operation{Service: files.Service{WS: d.WS}, Kind: name, AuthorizeOutput: authorizeResource}}
 		}, func(name string) bool { return (filecontract.Operation{Kind: name}).ReadOnly() })},
-		{"native_media", "YouTube info, captions and downloads; FFmpeg media processing; optional yt-dlp for other sites.", Lazy, operationEntries(mediacontract.Names(), func(d Dependencies, name string) agent.Tool {
+		{"native_media", "YouTube info, captions and downloads; FFmpeg media processing; optional yt-dlp for other sites.", Lazy, operationEntries(mediacontract.Names(), func(name string) agent.Tool {
 			return &MediaOperation{Operation: mediacontract.Operation{Service: d.Media, Kind: name}}
 		}, func(name string) bool { return (mediacontract.Operation{Kind: name}).ReadOnly() })},
-		{"native_documents", "Read DOCX text and tables, XLSX sheets and cells, PDF text and metadata. Go native; no OCR or document generation.", Lazy, operationEntries(doccontract.Names(), func(d Dependencies, name string) agent.Tool {
+		{"native_documents", "Read DOCX text and tables, XLSX sheets and cells, PDF text and metadata. Go native; no OCR or document generation.", Lazy, operationEntries(doccontract.Names(), func(name string) agent.Tool {
 			return &DocumentOperation{Operation: doccontract.Operation{Service: documents.Service{WS: d.WS}, Kind: name}}
 		}, func(name string) bool { return (doccontract.Operation{Kind: name}).ReadOnly() })},
 		{"native_workflows", "Create, validate and run workflow recipes and nodes; native cron/schedule triggers, run inspection and structured records. Enable, then call workflow_schema.", Lazy, []toolEntry{
-			{func(d Dependencies) agent.Tool {
-				return &workflow.Schema{Registry: d.registry, WS: d.WS, StoreDir: d.StoreDir}
-			}, true},
-			{func(d Dependencies) agent.Tool { return d.workflowTool(true) }, true},
-			{func(d Dependencies) agent.Tool { return d.workflowTool(false) }, false},
-			{func(d Dependencies) agent.Tool { return &workflow.Inspect{WS: d.WS, StoreDir: d.StoreDir} }, true},
-			{func(d Dependencies) agent.Tool {
-				return &workflow.Schedule{Registry: d.registry, WS: d.WS, StoreDir: d.StoreDir, List: true, Authorize: d.authorize, CheckSource: d.checkSource}
-			}, true},
-			{func(d Dependencies) agent.Tool {
-				return &workflow.Schedule{Registry: d.registry, WS: d.WS, StoreDir: d.StoreDir, Authorize: d.authorize, CheckSource: d.checkSource}
-			}, false},
-			{func(d Dependencies) agent.Tool {
-				return &workflow.Status{WS: d.WS, StoreDir: d.StoreDir, CheckSource: d.checkSource}
-			}, true},
-			{func(d Dependencies) agent.Tool { return &workflow.Data{WS: d.WS, StoreDir: d.StoreDir} }, true},
-			{func(d Dependencies) agent.Tool { return &workflow.Data{WS: d.WS, StoreDir: d.StoreDir, Write: true} }, false},
+			{&workflow.Schema{Registry: registry, WS: d.WS, StoreDir: d.StoreDir}, true},
+			{&validate, true},
+			{&run, false},
+			{&workflow.Inspect{WS: d.WS, StoreDir: d.StoreDir}, true},
+			{&workflow.Schedule{Registry: registry, WS: d.WS, StoreDir: d.StoreDir, List: true, Authorize: authorize, CheckSource: checkSource}, true},
+			{&workflow.Schedule{Registry: registry, WS: d.WS, StoreDir: d.StoreDir, Authorize: authorize, CheckSource: checkSource}, false},
+			{&workflow.Status{WS: d.WS, StoreDir: d.StoreDir, CheckSource: checkSource}, true},
+			{&workflow.Data{WS: d.WS, StoreDir: d.StoreDir}, true},
+			{&workflow.Data{WS: d.WS, StoreDir: d.StoreDir, Write: true}, false},
 		}},
 	}
 }
 
-func operationEntries(names []string, build func(Dependencies, string) agent.Tool, readOnly func(string) bool) []toolEntry {
+func operationEntries(names []string, build func(string) agent.Tool, readOnly func(string) bool) []toolEntry {
 	entries := make([]toolEntry, 0, len(names))
 	for _, name := range names {
-		entries = append(entries, toolEntry{func(d Dependencies) agent.Tool { return build(d, name) }, readOnly(name)})
+		entries = append(entries, toolEntry{build(name), readOnly(name)})
 	}
 	return entries
-}
-
-func (d Dependencies) workflowTool(validate bool) *workflow.Tool {
-	return &workflow.Tool{Registry: d.registry, WS: d.WS, StoreDir: d.StoreDir, ValidateOnly: validate, Authorize: d.authorize, AuthorizeOutput: d.authorizeOutput, AuthorizeResource: d.authorizeResource}
 }

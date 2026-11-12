@@ -73,9 +73,9 @@ func TestCompositionKeepsNativeInterfacesAndSessionState(t *testing.T) {
 		t.Fatal("child inherited checklist state")
 	}
 	// The package publishes concrete instances; optional interfaces are intact.
-	for _, p := range builtinPackages() {
+	for _, p := range builtinPackages(Dependencies{}) {
 		for _, entry := range p.entries {
-			tool := entry.build(Dependencies{})
+			tool := entry.tool
 			if tool.Name() == "load_skill" {
 				if _, ok := tool.(agent.ContextReuser); !ok {
 					t.Fatal("skill reuse lost")

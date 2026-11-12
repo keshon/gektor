@@ -16,7 +16,7 @@ import (
 
 func TestWorkflowDiscoveryMatchesNodeAndScheduleVocabulary(t *testing.T) {
 	var description string
-	for _, p := range builtinPackages() {
+	for _, p := range builtinPackages(Dependencies{}) {
 		if p.id == "native_workflows" {
 			description = p.description
 		}

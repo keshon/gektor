@@ -4,13 +4,10 @@
 package tools
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"slices"
 
 	"github.com/keshon/gektor/internal/agent"
-	imagecontract "github.com/keshon/gektor/internal/capabilities/images/contract"
 	"github.com/keshon/gektor/internal/capabilities/media"
 	"github.com/keshon/gektor/internal/checks"
 	"github.com/keshon/gektor/internal/permission"
@@ -28,29 +25,25 @@ const (
 
 const NativeWeb = "native_web"
 
-// Dependencies are the services and policy required to build complete tools.
+// Dependencies supplies caller-owned services and tool-construction inputs.
+// Constructors fill optional defaults locally without changing the caller's value.
 type Dependencies struct {
-	StoreDir          string
-	Policy            permission.Policy
-	Gate              permission.Gate
-	authorize         func(context.Context, string, json.RawMessage) error
-	authorizeOutput   imagecontract.OutputAuthorizer
-	authorizeResource func(context.Context, string, string, json.RawMessage) error
-	checkSource       func(context.Context, string, json.RawMessage) error
-	WS                *workspace.Workspace
-	Procs             *BackgroundProcesses
-	Checks            *checks.Reporter
-	Vision            bool
-	Extra             []agent.Tool
-	Media             *media.Service
+	StoreDir string
+	Policy   permission.Policy
+	Gate     permission.Gate
+	WS       *workspace.Workspace
+	Procs    *BackgroundProcesses
+	Checks   *checks.Reporter
+	Vision   bool
+	Extra    []agent.Tool
+	Media    *media.Service
 }
 
 // Compose constructs one agent's native instances. Optional native packages
 // are published during preparation, after saved activations have been restored.
 // Overrides are internal experiment inputs; shipping callers leave them nil.
 func Compose(d Dependencies, catalog *Capabilities, overrides map[string]Exposure) (*agent.Registry, error) {
-	d = d.prepared()
-	definitions := builtinPackages()
+	definitions := builtinPackages(d)
 
 	for id, exposure := range overrides {
 		optional := false
@@ -78,7 +71,7 @@ func Compose(d Dependencies, catalog *Capabilities, overrides map[string]Exposur
 		var readOnly []string
 
 		for _, entry := range p.entries {
-			t := entry.build(d)
+			t := entry.tool
 			list = append(list, t)
 			if entry.readOnly {
 				readOnly = append(readOnly, t.Name())
@@ -149,4 +142,28 @@ func ReadOnly(ws *workspace.Workspace, procs *BackgroundProcesses, vision bool) 
 		Procs:  procs,
 		Vision: vision,
 	}, true)...)
+}
+
+func nativeTools(d Dependencies, readOnly bool) []agent.Tool {
+	var list []agent.Tool
+
+	for _, p := range builtinPackages(d) {
+		if p.exposure == Lazy {
+			continue
+		}
+
+		for _, entry := range p.entries {
+			if !readOnly || entry.readOnly {
+				list = append(list, entry.tool)
+			}
+		}
+	}
+
+	if readOnly {
+		list = append(list, ReadHistory{})
+	} else {
+		list = append(list, d.Extra...)
+	}
+
+	return list
 }

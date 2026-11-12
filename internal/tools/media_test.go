@@ -3,13 +3,16 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/capabilities/media"
 	"github.com/keshon/gektor/internal/capabilities/media/contract"
+	"github.com/keshon/gektor/internal/executables"
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -97,5 +100,45 @@ func TestMediaWorkflowValidationDoesNotProbeAndExecutionHonorsDeny(t *testing.T)
 	svc.AuthorizeResource = func(context.Context, string, string, json.RawMessage) error { return nil }
 	if _, err := svc.RunSource(t.Context(), []byte(`{"version":3,"name":"Media template","inputs":{"source":{"type":"string","default":"../outside.wav"}},"steps":[{"id":"convert","tool":"media_convert","args":{"inputs":[{"$input":"source"}],"path":"out.flac","format":"flac"}}]}`), "media.json", nil); err == nil {
 		t.Fatal("resolved path escaped workspace")
+	}
+}
+
+type unavailableApplications struct {
+	calls int
+	err   error
+}
+
+func (a *unavailableApplications) Probe(context.Context, string, bool) (executables.Status, error) {
+	a.calls++
+	return executables.Status{}, a.err
+}
+
+func (a *unavailableApplications) Require(context.Context, string) (executables.Status, error) {
+	a.calls++
+	return executables.Status{}, a.err
+}
+
+func TestCompositionKeepsSuppliedMediaServiceWithoutProbing(t *testing.T) {
+	unavailable := errors.New("test applications unavailable")
+	apps := &unavailableApplications{err: unavailable}
+	service := media.New(nil, apps)
+	catalog := &Capabilities{}
+	registry, err := Compose(Dependencies{Media: service}, catalog, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog.Registry = registry
+
+	_, err = catalog.Enable(t.Context(), "native_media", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if apps.calls != 0 {
+		t.Fatal("composition or activation probed applications")
+	}
+
+	_, err = registry.Run(t.Context(), "media_status", json.RawMessage(`{}`))
+	if !errors.Is(err, unavailable) || apps.calls != 1 {
+		t.Fatalf("supplied service was not used: calls=%d err=%v", apps.calls, err)
 	}
 }
