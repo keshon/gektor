@@ -1,9 +1,11 @@
 package store
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -92,7 +94,8 @@ func (a artifactAccess) Put(ctx context.Context, name string, source io.Reader) 
 	if name == "" || len(name) > 255 || strings.ContainsAny(name, "/\\\x00\r\n") || name == "." || name == ".." {
 		return zero, fmt.Errorf("artifact name must be a filename of at most 255 bytes")
 	}
-	if err := ctx.Err(); err != nil {
+	err := ctx.Err()
+	if err != nil {
 		return zero, err
 	}
 	entries, err := w.ListArtifacts()
@@ -106,27 +109,38 @@ func (a artifactAccess) Put(ctx context.Context, name string, source io.Reader) 
 	for _, entry := range entries {
 		used += entry.Size
 	}
-	if err := w.store.root.MkdirAll(w.artifactDirectory(), 0700); err != nil {
+	if used > MaxRunArtifactBytes {
+		return zero, fmt.Errorf("run artifact bytes exceed %d", MaxRunArtifactBytes)
+	}
+	err = w.store.root.MkdirAll(w.artifactDirectory(), 0700)
+	if err != nil {
 		return zero, err
 	}
 	id := rand.Text()
 	tmp := filepath.Join(w.artifactDirectory(), ".tmp-"+id)
-	if err := w.store.root.Mkdir(tmp, 0700); err != nil {
+	err = w.store.root.Mkdir(tmp, 0700)
+	if err != nil {
 		return zero, err
 	}
 	defer w.store.root.RemoveAll(tmp)
+
+	reader := bufio.NewReader(contextReader{ctx, source})
+	prefix, err := reader.Peek(512)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return zero, err
+	}
+	mediaType := http.DetectContentType(prefix)
 	f, err := w.store.root.OpenFile(filepath.Join(tmp, "data"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
 		return zero, err
 	}
+
+	// Read one byte beyond the remaining quota so an exact fit still succeeds.
+	limit := min(int64(MaxArtifactBytes), int64(MaxRunArtifactBytes)-used)
 	hash := sha256.New()
-	// Bounded buffering also lets us detect a useful media type without trusting a suffix.
-	data, err := io.ReadAll(io.LimitReader(contextReader{ctx, source}, MaxArtifactBytes+1))
-	if err == nil && (len(data) > MaxArtifactBytes || used+int64(len(data)) > MaxRunArtifactBytes) {
+	size, err := io.Copy(io.MultiWriter(f, hash), io.LimitReader(reader, limit+1))
+	if err == nil && size > limit {
 		err = fmt.Errorf("artifact exceeds 16 MiB or run exceeds 256 MiB")
-	}
-	if err == nil {
-		_, err = io.MultiWriter(f, hash).Write(data)
 	}
 	if err == nil {
 		err = f.Sync()
@@ -138,14 +152,26 @@ func (a artifactAccess) Put(ctx context.Context, name string, source io.Reader) 
 	if closeErr != nil {
 		return zero, closeErr
 	}
-	meta := workflow.Artifact{ID: id, RunID: w.id, StepID: a.step, Name: name, MediaType: http.DetectContentType(data), Size: int64(len(data)), SHA256: fmt.Sprintf("%x", hash.Sum(nil)), Created: time.Now().UTC()}
-	if err := w.store.write(filepath.Join(tmp, "metadata.json"), meta); err != nil {
+	meta := workflow.Artifact{
+		ID:        id,
+		RunID:     w.id,
+		StepID:    a.step,
+		Name:      name,
+		MediaType: mediaType,
+		Size:      size,
+		SHA256:    fmt.Sprintf("%x", hash.Sum(nil)),
+		Created:   time.Now().UTC(),
+	}
+	err = w.store.write(filepath.Join(tmp, "metadata.json"), meta)
+	if err != nil {
 		return zero, err
 	}
-	if err := ctx.Err(); err != nil {
+	err = ctx.Err()
+	if err != nil {
 		return zero, err
 	}
-	if err := w.store.root.Rename(tmp, filepath.Join(w.artifactDirectory(), id)); err != nil {
+	err = w.store.root.Rename(tmp, filepath.Join(w.artifactDirectory(), id))
+	if err != nil {
 		return zero, err
 	}
 	return meta, nil

@@ -101,7 +101,14 @@ checks. No deployment, live credential use, commit or push is implied.
   Unclassified errors, secondary authorization and storage failures remain
   terminal. Artifact publication is serialized per run until transactional
   reservations replace the current quota scan.
-- Invocation persistence and later stages: pending.
+- Invocation persistence: started with streaming artifact publication. Payloads
+  are copied through bounded buffers while hashing; MIME detection retains only
+  the prefix. Failed or cancelled publication removes its temporary directory.
+  Quota scans and the run publication lock remain until transactional
+  reservations replace them. SQLite run/invocation/attempt storage, incremental
+  checkpoints and queue transactions are still pending. Changing the database
+  alone would leave whole-run checkpoint serialization quadratic for maps.
+- Later stages: pending.
 
 Verified the model-free collection example through the CLI service: two
 successes, one retained failure and ordered values `[4, 6]`. Deterministic
@@ -115,3 +122,8 @@ documentation links and `git diff --check`. The unrestricted `go test ./...`
 also discovers archived source under `eval/results` with obsolete imports;
 those evidence files were not changed. A parallel source test run encountered
 a temporary Git fixture access-denied error; the complete serial run passed.
+
+The streaming artifact slice passed workflow package tests, store race tests,
+store vet, documentation links and diff checks. New cases cover exact empty and
+16 MiB payloads, one-byte overflow, bounded read buffers, byte/hash/MIME integrity,
+source interruption, cancellation and temporary-file cleanup.

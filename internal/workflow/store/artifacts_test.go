@@ -3,6 +3,10 @@ package store
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -132,6 +136,121 @@ func TestConcurrentArtifactPublicationHonorsRunQuota(t *testing.T) {
 type ioZeros struct{}
 
 func (ioZeros) Read(p []byte) (int, error) { clear(p); return len(p), nil }
+
+func TestArtifactStreamingPreservesBytesAndMetadata(t *testing.T) {
+	s, _, _ := testStore(t)
+	w, err := s.NewRun()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+
+	payload := bytes.Repeat([]byte("plain text payload\n"), 65536)
+	source := boundedArtifactReader{Reader: bytes.NewReader(payload)}
+	meta, err := w.Artifacts("stream").Put(t.Context(), "payload.txt", source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantHash := fmt.Sprintf("%x", sha256.Sum256(payload))
+	if meta.Size != int64(len(payload)) || meta.SHA256 != wantHash || meta.MediaType != "text/plain; charset=utf-8" {
+		t.Fatal(meta)
+	}
+	_, actual, err := w.Artifacts("read").Read(t.Context(), meta.ID)
+	if err != nil || !bytes.Equal(payload, actual) {
+		t.Fatal("streamed bytes differ", err)
+	}
+}
+
+func TestArtifactStreamingSizeBoundaries(t *testing.T) {
+	s, _, _ := testStore(t)
+	w, err := s.NewRun()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+
+	for _, size := range []int64{0, MaxArtifactBytes} {
+		source := io.LimitReader(ioZeros{}, size)
+		meta, err := w.Artifacts("boundary").Put(t.Context(), "bytes.bin", source)
+		if err != nil || meta.Size != size {
+			t.Fatal("exact size rejected", size, meta.Size, err)
+		}
+	}
+	_, err = w.Artifacts("boundary").Put(t.Context(), "too-large.bin", io.LimitReader(ioZeros{}, MaxArtifactBytes+1))
+	if err == nil {
+		t.Fatal("one byte beyond the size limit accepted")
+	}
+	items, err := w.ListArtifacts()
+	if err != nil || len(items) != 2 {
+		t.Fatal("failed publication changed artifacts", items, err)
+	}
+}
+
+// Reject growing read buffers: publication must use bounded scratch space.
+type boundedArtifactReader struct {
+	io.Reader
+}
+
+func (r boundedArtifactReader) Read(p []byte) (int, error) {
+	if len(p) > 32<<10 {
+		return 0, fmt.Errorf("read buffer grew to %d bytes", len(p))
+	}
+	return r.Reader.Read(p)
+}
+
+func TestArtifactFailedStreamIsNeverPublished(t *testing.T) {
+	for _, cancel := range []bool{false, true} {
+		t.Run(fmt.Sprintf("cancel=%v", cancel), func(t *testing.T) {
+			s, _, _ := testStore(t)
+			w, err := s.NewRun()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer w.Close()
+
+			ctx, stop := context.WithCancel(t.Context())
+			defer stop()
+			failure := errors.New("source interrupted")
+			source := &interruptedArtifactReader{failure: failure}
+			if cancel {
+				source.stop = stop
+				failure = context.Canceled
+			}
+			_, err = w.Artifacts("stream").Put(ctx, "partial.txt", source)
+			if !errors.Is(err, failure) {
+				t.Fatalf("wanted %v, got %v", failure, err)
+			}
+			dir, err := s.root.Open(w.artifactDirectory())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer dir.Close()
+			entries, err := dir.ReadDir(-1)
+			if err != nil || len(entries) != 0 {
+				t.Fatal("partial publication remains", entries, err)
+			}
+		})
+	}
+}
+
+type interruptedArtifactReader struct {
+	reads   int
+	failure error
+	stop    context.CancelFunc
+}
+
+func (r *interruptedArtifactReader) Read(p []byte) (int, error) {
+	r.reads++
+	if r.reads == 3 {
+		if r.stop != nil {
+			r.stop()
+			return 0, nil
+		}
+		return 0, r.failure
+	}
+	clear(p)
+	return len(p), nil
+}
 
 func TestArtifactRetentionPreservesReviewAndActiveRuns(t *testing.T) {
 	s, _, _ := testStore(t)
