@@ -196,8 +196,12 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 		var out string
 		if err == nil {
 			if s.Child != nil {
-				out, err = executeChild(ctx, operation, h, &r, i, save, scope)
-				if err == nil && r.Steps[i].Child.Status == "waiting_review" {
+				if len(s.ForEach) > 0 {
+					out, err = executeChildIterations(ctx, operation, h, &r, i, save, scope)
+				} else {
+					out, err = executeChild(ctx, operation, h, &r, i, save, scope)
+				}
+				if err == nil && r.Status == "waiting_review" {
 					return r, nil
 				}
 			} else if len(s.ForEach) > 0 {

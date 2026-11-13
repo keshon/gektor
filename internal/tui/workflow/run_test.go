@@ -36,6 +36,21 @@ func TestReviewFormSelectsChildOperation(t *testing.T) {
 	}
 }
 
+func TestReviewFormSelectsMappedChildOperation(t *testing.T) {
+	m := workflowTestModel(t)
+	child := workflow.Run{Definition: workflow.Definition{Steps: []workflow.Step{{ID: "save", Review: true}}}, Steps: []workflow.StepResult{{ID: "save", Status: "waiting_review", Args: json.RawMessage(`{"text":"mapped input"}`)}}}
+	m.workflows.run = &workflow.Run{
+		Approved:   map[string]bool{"batch": true},
+		Definition: workflow.Definition{Steps: []workflow.Step{{ID: "batch", Tool: "workflow_call", Review: true, Child: &workflow.Definition{}}}},
+		Steps:      []workflow.StepResult{{ID: "batch", Status: "waiting_review", Iterations: []workflow.StepResult{{ID: "batch[0]", Status: "waiting_review", Child: &child}}}},
+	}
+	m.workflows.reviewForm()
+	dialog := m.chrome.Dialog
+	if dialog == nil || dialog.Form.Fields[0].Value != "batch[0]/save" || !strings.Contains(dialog.Form.Fields[1].Value, "mapped input") {
+		t.Fatal("review selected the mapped container", dialog)
+	}
+}
+
 func TestWorkflowExecutionReviewAndSave(t *testing.T) {
 	m := workflowTestModel(t)
 	w := m.workflows

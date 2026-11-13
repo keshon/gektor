@@ -1,0 +1,23 @@
+{
+  "version": 4,
+  "name": "Map a reusable workflow",
+  "inputs": {"numbers": {"type": "array", "default": [-1, 2, 2, 3]}},
+  "steps": [
+    {
+      "id": "prepare", "tool": "script_transform",
+      "args": {"input": {"$input": "numbers"}, "code": "return input.map(value => ({value}));"}
+    },
+    {
+      "id": "batch", "tool": "workflow_call", "args": {"recipe_path": "double.json"},
+      "for_each": {"$step": "prepare"}, "on_error": "collect"
+    },
+    {
+      "id": "report", "tool": "script_transform",
+      "args": {
+        "input": {"$step": "batch", "pointer": "/items"},
+        "code": "return {completed: input.filter(item => item.status === 'completed').length, failed: input.filter(item => item.status === 'failed').length, values: input.filter(item => item.status === 'completed').map(item => item.output.doubled)};"
+      }
+    }
+  ],
+  "outputs": {"report": {"$step": "report"}}
+}

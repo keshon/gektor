@@ -13,7 +13,7 @@ func Definitions() []workflow.Node {
 		{
 			Name:        "workflow_call",
 			Version:     1,
-			Description: "Invoke a frozen workspace recipe with explicit typed inputs. Declared child outputs become this step's output. Child scopes share this run's permissions, reviews, artifacts and invocation budget. Path must be literal; calls cannot use for_each or retry.",
+			Description: "Invoke a frozen workspace recipe with explicit typed inputs. Declared child outputs become this step's output. For mapped calls, args contains only literal recipe_path and for_each contains child input objects; calls execute serially and retain ordered item outcomes. Child scopes share permissions, reviews, artifacts and invocation budget. Calls cannot retry.",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"recipe_path":{"type":"string","minLength":1},"inputs":{"type":"object","maxProperties":32}},"required":["recipe_path"],"additionalProperties":false}`),
 			Resources: func(raw json.RawMessage) ([]string, error) {
 				var in workflow.CallInput

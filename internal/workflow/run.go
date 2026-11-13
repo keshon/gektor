@@ -62,6 +62,16 @@ func ScopedSteps(r Run) []ScopedStep {
 			if step.Child != nil {
 				visit(*step.Child, id+"/")
 			}
+			if definitions[step.ID].Child != nil {
+				definition := definitions[step.ID]
+				definition.ForEach, definition.Concurrency, definition.OnError, definition.Review = nil, 0, "", false
+				for _, item := range step.Iterations {
+					out = append(out, ScopedStep{ID: item.ID, Definition: definition, Result: item})
+					if item.Child != nil {
+						visit(*item.Child, item.ID+"/")
+					}
+				}
+			}
 		}
 	}
 	visit(r, "")

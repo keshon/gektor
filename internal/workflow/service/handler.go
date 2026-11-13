@@ -50,10 +50,12 @@ func (h *handler) Validate(s workflow.Step) error {
 	if version != n.Version {
 		return fmt.Errorf("node %s version %d unavailable (registered %d)", s.Tool, version, n.Version)
 	}
- if s.Tool == "workflow_call" {
-  err = h.validateCall(s)
-  if err != nil { return err }
- }
+	if s.Tool == "workflow_call" && len(s.ForEach) == 0 {
+		err = h.validateCall(s)
+		if err != nil {
+			return err
+		}
+	}
 
 	if s.Concurrency < 0 || s.Concurrency > workflow.MaxConcurrency {
 		return fmt.Errorf("concurrency must be between 1 and %d when supplied", workflow.MaxConcurrency)
@@ -79,9 +81,28 @@ func (h *handler) Validate(s workflow.Step) error {
 	}
 
 	if len(s.ForEach) > 0 {
-		var base map[string]json.RawMessage
-		if err := json.Unmarshal(s.Args, &base); err != nil || len(base) != 0 {
-			return fmt.Errorf("for_each requires empty args; each item is a complete argument object")
+		if s.Tool == "workflow_call" {
+			if s.Child == nil || s.Retry != nil {
+				return fmt.Errorf("mapped call requires a frozen child and cannot retry")
+			}
+			err = workflow.ValidateJSON(s.Args, n.InputSchema)
+			if err != nil {
+				return err
+			}
+			var base workflow.CallInput
+			err = decode(s.Args, &base)
+			if err != nil {
+				return err
+			}
+			if len(base.Inputs) != 0 {
+				return fmt.Errorf("mapped calls require inputs in for_each, not args")
+			}
+		} else {
+			var base map[string]json.RawMessage
+			err = json.Unmarshal(s.Args, &base)
+			if err != nil || len(base) != 0 {
+				return fmt.Errorf("for_each requires empty args; each item is a complete argument object")
+			}
 		}
 
 		if h.templates && recipe.HasOutputReferences(s.ForEach) {
@@ -98,8 +119,17 @@ func (h *handler) Validate(s workflow.Step) error {
 		s.OnError = ""
 
 		for _, item := range items {
-			s.Args = item
-			if err := h.Validate(s); err != nil {
+			child := s
+			if s.Tool == "workflow_call" {
+				child, err = recipe.CallIteration(s, item)
+			} else {
+				child.Args = item
+			}
+			if err != nil {
+				return err
+			}
+			err = h.Validate(child)
+			if err != nil {
 				return err
 			}
 		}

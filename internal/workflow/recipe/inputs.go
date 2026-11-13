@@ -75,6 +75,31 @@ func MapReferences(raw json.RawMessage, lookup func(map[string]any) (any, error)
 	return bind(raw, lookup)
 }
 
+// CallIteration combines a fixed destination with one item's child input object.
+func CallIteration(s workflow.Step, inputs json.RawMessage) (workflow.Step, error) {
+	var in workflow.CallInput
+	err := json.Unmarshal(s.Args, &in)
+	if err != nil {
+		return s, err
+	}
+	if len(in.Inputs) != 0 {
+		return s, fmt.Errorf("mapped calls require inputs in for_each, not args")
+	}
+	err = json.Unmarshal(inputs, &in.Inputs)
+	if err != nil || in.Inputs == nil {
+		return s, fmt.Errorf("mapped call item must be an input object")
+	}
+	s.Args, err = json.Marshal(in)
+	if err != nil {
+		return s, err
+	}
+	if len(s.Args) > MaxArguments {
+		return s, fmt.Errorf("mapped call arguments exceed 64 KiB")
+	}
+	s.ForEach, s.Concurrency, s.OnError, s.Review = nil, 0, "", false
+	return s, nil
+}
+
 func bind(raw json.RawMessage, lookup func(map[string]any) (any, error)) (json.RawMessage, error) {
 	v, err := jsonValue(raw, MaxArguments)
 	if err != nil {

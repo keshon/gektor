@@ -155,6 +155,7 @@ still fails; merges do not invent missing values. The run stops on failure.
 
 `for_each` accepts up to 10,000 complete argument objects, or a reference resolving
 to that array. The ordinary 64 KiB argument limit also applies. Set `args` to `{}`.
+For `workflow_call`, use the child input mapping described under reusable subworkflows.
 Every item is validated and authorized separately. `concurrency` defaults to 1
 and accepts 1–32. Values greater than 1 require the operation's explicit
 `concurrent` contract; this is independent of read-only and retry-safe status.
@@ -252,9 +253,30 @@ Step IDs cannot contain `/` or begin with `@`; those namespaces belong to compos
 Each local step ID has a 64-byte limit; qualified inspection IDs include its
 enclosing call path.
 
-A call cannot use `for_each` or `retry`;
-ordinary nodes inside a child retain their iteration and retry rules. Declare each
-call explicitly when invoking the same recipe more than once.
+A call can use `for_each` to invoke the same frozen recipe for each child input
+object. Keep the literal destination in `args` and put inputs in the array:
+
+```json
+{"id":"batch","tool":"workflow_call","args":{"recipe_path":"child.json"},"for_each":[{"text":"first"},{"text":"second"}],"on_error":"collect"}
+```
+
+Mapped calls reserve all item slots before starting and instantiate each child
+scope when its turn arrives. Child steps consume the same remaining invocation
+budget; exhaustion stops execution and preserves earlier effects. Duplicate input
+objects have separate identities. Outcomes use the ordinary ordered `items`
+envelope. Inspection and artifact ownership use IDs such as `batch[0]/save`.
+
+Calls accept concurrency 1. Each child finishes or pauses before another starts;
+leaf collections inside it retain their own concurrency limit. A map's `review`
+gates the whole array once. Reviews inside a child pause that item and preserve
+earlier completed or collected-failure items. Approval rechecks permissions and
+continues the saved child. Rejection cancels pending items and paused scopes.
+Calls cannot use `retry`; ordinary nodes inside a child retain their retry rules.
+`on_error: "collect"` retains only explicitly classified execution failures;
+permission, validation, output-contract, budget and persistence errors remain terminal.
+
+The [mapped subworkflow example](../../examples/workflows/mapped-subworkflow/README.md)
+runs mixed outcomes and duplicate inputs without a model.
 
 Every declared output
 must resolve; an output referring to a skipped step fails collection.

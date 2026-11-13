@@ -30,7 +30,7 @@ func (s Service) DefinitionSchema() json.RawMessage {
 			"tool":         map[string]any{"type": "string", "enum": s.Registry.Names()},
 			"args":         map[string]any{"type": "object"},
 			"review":       map[string]any{"type": "boolean"},
-			"for_each":     map[string]any{},
+			"for_each":     map[string]any{"description": "Array or reference resolving to an array. Ordinary nodes require args={} and complete argument objects per item. workflow_call keeps a literal recipe_path in args and uses child input objects per item."},
 			"concurrency":  map[string]any{"type": "integer", "minimum": 1, "maximum": 32},
 			"on_error":     map[string]any{"type": "string", "enum": []string{"stop", "collect"}},
 			"node_version": map[string]any{"type": "integer", "minimum": 1},

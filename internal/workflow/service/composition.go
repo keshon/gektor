@@ -201,8 +201,8 @@ func (c *recipeCompiler) compile(raw json.RawMessage, path string, depth int, st
 		if step.Tool != "workflow_call" {
 			continue
 		}
-		if len(step.ForEach) > 0 || step.Retry != nil {
-			return d, fmt.Errorf("workflow_call %s does not support for_each or retry", step.ID)
+		if step.Retry != nil {
+			return d, fmt.Errorf("workflow_call %s does not support retry", step.ID)
 		}
 		var in workflow.CallInput
 		err = decode(step.Args, &in)
@@ -257,8 +257,8 @@ func (h *handler) validateCall(s workflow.Step) error {
 	if s.Child == nil {
 		return fmt.Errorf("workflow_call requires a frozen child definition")
 	}
-	if len(s.ForEach) > 0 || s.Retry != nil {
-		return fmt.Errorf("workflow_call does not support for_each or retry")
+	if s.Retry != nil {
+		return fmt.Errorf("workflow_call does not support retry")
 	}
 	var in workflow.CallInput
 	err := decode(s.Args, &in)

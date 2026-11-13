@@ -1,0 +1,12 @@
+{
+  "version": 4,
+  "name": "Double one value",
+  "inputs": {"value": {"type": "integer", "required": true}},
+  "steps": [
+    {
+      "id": "double", "tool": "script_transform",
+      "args": {"input": {"$input": "value"}, "code": "if (input < 0) throw new Error('negative input'); return input * 2;"}
+    }
+  ],
+  "outputs": {"doubled": {"$step": "double"}}
+}

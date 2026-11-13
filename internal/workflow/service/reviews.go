@@ -89,8 +89,12 @@ func (s Service) Review(ctx context.Context, id, step string, approve bool) (str
 
 func cancelReview(r *workflow.Run, now time.Time) {
 	r.Status, r.Finished = "cancelled", &now
-	for i := range r.Steps {
-		step := &r.Steps[i]
+	cancelReviewSteps(r.Steps, now)
+}
+
+func cancelReviewSteps(steps []workflow.StepResult, now time.Time) {
+	for i := range steps {
+		step := &steps[i]
 		if step.Status != "waiting_review" && step.Status != "pending" {
 			continue
 		}
@@ -98,5 +102,6 @@ func cancelReview(r *workflow.Run, now time.Time) {
 		if step.Child != nil {
 			cancelReview(step.Child, now)
 		}
+		cancelReviewSteps(step.Iterations, now)
 	}
 }

@@ -73,6 +73,22 @@ implementation choice, not evidence of performance superiority.
    administration, broad connector coverage and a browser editor are separate
    product milestones, not prerequisites for a useful local runtime.
 
+## Reference checklist from the supplied n8n screenshots
+
+Use the screenshots as a capability inventory, not an execution specification.
+The remaining work must define item identity, ordering, missing/null values,
+branch readiness, merge keys and restart behavior before exposing palette entries.
+
+- Flow controls: filter, if/switch, batches/repeat, merge, child workflows,
+  stop/error and durable wait. Child mapping is now available; bounded repeats,
+  waits, richer routing and data joins remain in the delivery sequence.
+- Data operations: set/rename fields, limit, deduplicate, split, aggregate,
+  summarize, compare datasets and sort. Add small deterministic nodes with explicit
+  schemas and size limits; scripts remain available for custom transformations.
+- Formats/utilities: date/time, compression, file conversion/extraction, crypto,
+  images, HTML, Markdown and XML. Reuse existing operation owners where present;
+  prioritize workflow semantics and connections before broad converter coverage.
+
 ## Acceptance recipes
 
 - Profile scan: 500 site rules, mixed outcomes, bounded concurrency and a report
@@ -134,8 +150,8 @@ checks. No deployment, live credential use, commit or push is implied.
   Accounting comes from the persisted invocation tree, so review continuation
   retains earlier reservations, including failed/skipped items. Retries reuse
   their invocation slot and retain the separate attempt limit. This closes the
-  per-run multiplication of per-collection limits; it does not yet provide
-  nested scopes or a workspace-wide concurrency budget.
+  per-run multiplication of per-collection limits. Nested scopes consume the
+  same bound; workspace-wide concurrency remains a separate milestone.
 - Runtime composition: ordinary calls now instantiate frozen child scopes during
   execution. Local input/result namespaces stay intact, and runtime qualification
   supplies permission/artifact/inspection IDs. Static graph flattening, binding
@@ -146,8 +162,14 @@ checks. No deployment, live credential use, commit or push is implied.
   call's permission. Rejecting review cancels paused scopes. Skipped calls do not
   instantiate children. Child scopes share the run invocation budget. Calls remain
   serial, so nested leaf collections cannot multiply worker pools.
-- Mapped child calls, bounded repeats and later stages: pending. Concurrent child
-  calls require a shared scheduler rather than independent worker pools per call.
+- Mapped child calls: implemented with one fixed destination and an array of child
+  input objects. The coordinator executes calls serially, retains ordered outcomes
+  and shares invocation/artifact budgets. A child review pauses its item; approval
+  preserves completed and collected-failure items, and rejection cancels remaining
+  items and scopes. Only typed operation failures are collectable. Boundaries use
+  IDs such as `batch[0]/save`, including through nested maps. Calls do not retry.
+- Bounded repeats and later stages: pending. Concurrent child calls require a
+  shared scheduler rather than independent worker pools per call.
 
 Verified the model-free collection example through the CLI service: two
 successes, one retained failure and ordered values `[4, 6]`. Deterministic
@@ -227,3 +249,26 @@ Scope verification passed source-scoped tests and vet, workflow/editor and CLI
 race tests, the 45-probe eval dry-run and diff checks. Store tests and the source
 build passed with `CGO_ENABLED=0`; nested checkpoint/process-exit tests also passed
 in that configuration.
+
+## Handoff after mapped child calls
+
+Mapped calls now use `args.recipe_path` as a fixed destination and `for_each`
+as child input objects. The serial coordinator preserves indexed identity,
+ordered outcomes and the shared invocation budget. It checkpoints child scopes
+inside item records, resumes pending reviews without replaying completed items,
+and cancels pending items on rejection or terminal failure. Only typed operation
+failures may be collected. Concurrent child calls and call retries are rejected.
+
+The runnable example is `examples/workflows/mapped-subworkflow/recipe.json`.
+It returns three successes, one retained failure and `[4, 4, 6]`. Tests cover
+500 child scopes, nested mapped reviews, frozen dependencies, duplicate inputs,
+rejection, array admission, exhaustion after earlier effects, cancellation,
+checkpoint faults, output bounds and terminal permission/validation failures.
+The terminal review form and inspection use qualified IDs such as
+`batch[0]/inner[0]/save`.
+
+Next implementation: bounded repeat state for pagination/polling, followed by
+durable waits and recovery/control-flow work. Concurrent child calls still need
+a shared scheduler. Named connections/credentials remain a separate planned
+milestone. The screenshot checklist above records the broader flow, data and
+format capabilities; those entries are not claims of implemented parity.
