@@ -2,7 +2,9 @@
 
 GEKTOR is a terminal app for working on code with an AI agent and running saved
 workflows. Agent can read and edit project files, run commands, and use a browser
-when configured. Workflows run steps you define and keep a record of their results.
+when configured. Built-in tools also cover named SSH connections, document
+reading, image processing and audio/video downloads. Workflows run steps you
+define and keep a record of their results.
 
 Connect a local model server, an OpenAI-compatible API, or an eligible ChatGPT
 account. Workflows without model steps need no connection.
@@ -21,6 +23,7 @@ Agent task, or try a saved workflow without a model.
 - [Work with Agent](docs/guide/agent.md): plan, edit, inspect results and retry.
 - [Run a workflow](docs/guide/workflows.md): open a recipe and review its results.
 - [Connect a model](docs/guide/models.md): local servers, APIs and ChatGPT.
+- [Files, images and media](docs/guide/files-and-images.md): attachments, document reading and media downloads.
 - [Workflow examples](examples/workflows/README.md): recipes with requirements and run instructions.
 - [Documentation](docs/README.md): guides, reference and contributor material.
 

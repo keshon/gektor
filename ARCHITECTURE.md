@@ -158,9 +158,11 @@ approve one 25-step continuation. Step exhaustion does not request an extra
 closing model call. The separate run-time limit can reserve a tool-free closing
 request; see [runtime limits](docs/reference/cli.md#backend).
 
-Repeat detection compares tool calls and their results. Three consecutive
-identical step signatures trigger one answer turn without tools. Potentially
-mutating calls reset repeat tracking; the step limit still bounds such runs.
+Repeat detection compares tool names and canonical arguments across steps.
+Three consecutive identical step signatures trigger one answer turn without
+tools. Potentially mutating calls reset repeat tracking; the step limit still
+bounds such runs. Repeated call/result observations produce a separate
+diagnostic warning. They do not themselves stop execution.
 
 Recovery handles incomplete generations, malformed leaked calls, empty
 responses and context overflow. Well-formed leaked calls use the normal
@@ -233,14 +235,26 @@ saved operator messages and current run mode. It is not a new archived user turn
 
 ### Capabilities and workflow tools
 
-Built-in `native_images`, `native_workflows`, `native_files`, `native_documents`
-and `native_media` packages load on demand. The
+Built-in `native_images`, `native_workflows`, `native_files`, `native_documents`,
+`native_media` and `native_ssh` packages load on demand. The
 [capability development pattern](docs/development/capabilities.md) defines the
 service and adapter boundaries for additions and changes.
-`capabilities/images` stages rooted inputs for the external Pixelita Go library;
+`capabilities/images` stages rooted inputs for the bundled Pixelita Go library;
 `workflow/agenttools` adapts manual recipes to `internal/workflow`. The runner has
 no model dependency and dispatches registered node descriptors. Model access is
 an explicit node with its own bounded context.
+
+SSH operations live in `internal/capabilities/ssh`. Agent tools and workflow
+nodes share its contract. Services snapshot named profiles at construction and
+resolve credential references for a connection; the TUI owns connection editing
+and masked credential entry. See [SSH operations](docs/reference/operations.md#ssh-commands-and-file-transfers).
+
+Media operations share `internal/capabilities/media` across Agent and Workflows.
+Auto routes YouTube through kkdai and retries eligible source failures with
+yt-dlp within the same deadline; other sites use yt-dlp directly. Explicit
+backends do not switch. Local processing and publication failures, policy
+rejections, cancellation and exhausted limits stop the operation. Results name
+the backend used. See [media contracts](docs/reference/operations.md#video-and-audio).
 
 Native file operations live in `internal/capabilities/files`. Their agent and
 workflow adapters share operations, schemas and limits. ZIP and stream archives

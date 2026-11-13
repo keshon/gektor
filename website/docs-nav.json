@@ -47,7 +47,7 @@
     "title": "Read documents and attach files",
     "section": "Guides",
     "route": "/docs/guides/files-and-images/",
-    "description": "Attach text files and images to GEKTOR or read DOCX, XLSX and PDF documents with native tools. Check attachment limits, vision requirements and text continuation.",
+    "description": "Attach files and images, read DOCX, XLSX and PDF documents, or download audio/video with GEKTOR. Check attachment limits, vision requirements and media dependencies.",
     "seoTitle": "Read documents and attach files or images in GEKTOR"
   },
   {

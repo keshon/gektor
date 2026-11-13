@@ -4,7 +4,7 @@ Read the requested action and target before approving. Act mode enables changes 
 
 ## Permissions
 
-Open Permissions in Settings, or use `/permissions`, to read policy rules.
+In Agent, open **Run > Permissions…**, or use `/permissions`, to read policy rules.
 Use `/` to filter by decision, tool or pattern. Order numbers stay unchanged
 when filtering: later matching rules take precedence. Details shows the full
 pattern. This screen does not change rules or grant permission.
@@ -23,9 +23,9 @@ use the same scope; `a` and `always` remain accepted answers.
 
 In Agent’s top **Run** menu, choose **Ask permission** or **Full access** while
 idle. Full access approves policy Ask decisions automatically for the open
-session; a AUTO indicator stays visible. Explicit deny rules and Plan
-mode restrictions still apply. Returning to Ask permission clears remembered
-approvals. New or reopened sessions start in Ask permission. Approvals are
+session; an `AUTO` indicator stays visible. When steering is enabled, `AUTO`
+appears before `STEER`. Explicit deny rules and Plan restrictions still apply.
+Returning to Ask permission clears remembered approvals. New or reopened sessions start in Ask permission. Approvals are
 not saved to disk.
 
 Workflow’s Run menu has the same choices for the open recipe. Its permission

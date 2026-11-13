@@ -11,7 +11,9 @@ Describe a task, inspect the proposed approach in Plan, then switch to Act when 
 5. Review the result. Send a follow-up in the same conversation if needed.
 
 Plan uses read-only tools. Act allows changes under the current permissions.
-Switching between them keeps the conversation.
+Switching between them keeps the conversation. **Run > Ask permission / Full
+access** controls approval of policy Ask decisions for the open session. Plan
+restrictions and explicit deny rules still apply; see [permissions](permissions.md).
 
 For example, start with:
 
@@ -88,7 +90,8 @@ The latest-message shortcuts still work in the composer: `Ctrl+E` brings the
 latest queued message back to an empty draft; `Ctrl+X` removes it.
 A follow-up marked **Next run** will start after the current turn ends.
 
-**Apply new messages during run** in Run, or `/steering on|off`, controls delivery.
+**Live steering** in Run, or `/steering on|off`, controls delivery. The header
+shows `STEER` while it is enabled.
 With steering enabled, new input can withhold tools that have not started.
 With it disabled, the current tool batch finishes first.
 A new message never grants permission.
@@ -109,6 +112,11 @@ consume the Agent's output cursor or completion notifications. `R` refreshes the
 list. `S` asks to stop the selected process and its children; confirmation starts
 on Cancel. Stopping runs asynchronously. Exited entries remain available for
 inspection, with Stop disabled.
+
+Completion notifications show the process ID and completed/failed status. Open
+its details for captured output and failure information. The Agent can retrieve
+logs with `check_background`; notifications do not copy command output into the
+conversation.
 
 Background processes can outlive an Agent turn. Closing GEKTOR or restarting it
 to apply settings stops the processes owned by that launch. A saved workflow

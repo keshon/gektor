@@ -1,6 +1,8 @@
 # Connect tools and skill libraries
 
-Use MCP servers to add tools and skill libraries to add instructions. Neither grants extra permissions. Start with a server you trust and connect it from Settings.
+Use MCP servers to add tools and skill libraries to add instructions. Neither
+grants extra permissions. Start with a server you trust; in Agent, connect it
+from **Run > MCP servers…** or `/mcp`.
 
 ## Agent discovery
 
@@ -21,7 +23,7 @@ and paging flow. `group=tools` lists PATH executables, not Agent tools.
 
 ## Saved MCP servers
 
-Open **MCP servers** in Settings, or use `/mcp`, to list, add, edit, delete, import,
+In Agent, open **Run > MCP servers…**, or use `/mcp`, to list, add, edit, delete, import,
 enable, and connect servers. The manager uses the same capability catalog as
 file-based extensions. Changes are allowed between agent turns.
 
@@ -124,9 +126,11 @@ Built-in `native_images`, `native_files`, `native_documents`, `native_media`, `n
 operations are workflow nodes. Configure named connections in the user's
 `.gektor/ssh.json`; see [SSH operations](../reference/operations.md#ssh-commands-and-file-transfers).
 Credentials stay outside tool arguments and recipes.
-The current CLI/TUI setup uses a manually written profile and environment
-variables; [credential setup](../reference/operations.md#supplying-credentials-in-the-cli-and-tui)
-includes a masked PowerShell prompt and launch examples.
+Use **Settings > Tools… > SSH** to add or edit connections, select password or
+key authentication, and test a saved connection. Windows offers protected
+password/passphrase entry in a separate masked prompt. CLI profiles and
+environment-variable setup are described in
+[credential setup](../reference/operations.md#supplying-credentials-in-the-cli-and-tui).
 `native_files` provides `download_file`, `archive_list`, `archive_create` and
 `archive_extract` as ordinary agent tools. The same operations are workflow
 nodes. ZIP, TAR, TAR.GZ and GZIP are supported. Listing is read-only; the other
@@ -139,9 +143,11 @@ text, table, cell and metadata reading. The same read-only operations are
 workflow nodes. See [document readers](../reference/operations.md#reading-documents) for paging
 and limits. No document generation, OCR or external programs are included.
 
-`native_media` provides video metadata, captions and downloads, plus local media
-inspection, conversion, clips, frames and merging. YouTube prefers the bundled
-Go library; yt-dlp, FFmpeg and ffprobe are optional external applications.
+`native_media` provides YouTube playlist listing, video metadata, captions and
+downloads, plus local media inspection, conversion, clips, frames and merging.
+With `backend=auto`, YouTube tries kkdai first and retries source failures with
+yt-dlp; other sites use yt-dlp directly. Explicit backend selection disables
+fallback. FFmpeg handles conversion and merging; ffprobe inspects local files.
 Use **Settings > Tools… > Media** in either terminal mode to edit executable
 paths or explicitly check their versions. `media_status` reports local
 requirements during operation preparation. See

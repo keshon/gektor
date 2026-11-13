@@ -578,7 +578,7 @@ Native merged downloads use FFmpeg after fetching the separate streams.
 | `media_status` | Optional `refresh` | Application paths, versions, local readiness and operation requirements |
 | `video_info` | `url`, optional `backend` | Title, author, duration, languages and up to 64 formats |
 | `video_transcript` | `url`, optional `backend`, `language`, `offset`, `limit`, `start_seconds`, `duration_seconds` | Timestamped caption segments, `next_offset`, `more` |
-| `video_playlist` | YouTube `url` with `list=`, optional `offset`, `limit` | Ordered entries, source URLs, durations and continuation offset and actual backend |
+| `video_playlist` | YouTube `url` with `list=`, optional `offset`, `limit` | Ordered entries, source URLs, durations, continuation offset and actual backend |
 | `video_download` | `url`, `path`, optional `backend`, `mode`, `max_height`, `max_bytes` | New file, actual container, size, SHA-256 and backend |
 | `media_inspect` | `inputs: ["file"]` | ffprobe stream and container metadata |
 | `media_convert` | `inputs: ["file"]`, `path`, `format` | New re-encoded file; optional `copy: true` remuxes MP4/MKV/WebM |
@@ -653,8 +653,8 @@ are one-based and retain playlist order. Listing downloads nothing. The library
 fetches the playlist before paging the returned entries; each page request refetches
 it, so changes to the remote playlist can shift offsets. Auto fallback and explicit
 backend selection also apply to playlist listing. yt-dlp lists without downloading
-individual entries using `--flat-playlist`. The operation deadline still applies; native HTTP responses and external-process
-output retain their size limits. Inspect selected entries with `video_info`
+individual entries using `--flat-playlist`. The operation deadline still applies;
+native HTTP responses and external-process output retain their size limits. Inspect selected entries with `video_info`
 and download each requested track with `video_download`; each file keeps its own
 permission, size limit and output path. yt-dlp downloads remain single-video.
 

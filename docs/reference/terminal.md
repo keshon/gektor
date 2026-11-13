@@ -12,7 +12,7 @@ GEKTOR does not install model weights or manage the server.
 
 Run > Plan or Act selects execution mode; Act enables tool calls under the
 existing permission gates. GEKTOR > Change workspace chooses the workspace.
-Settings > Setup profiles loads or saves setups; Settings > Model connection
+Settings > Launch profiles loads or saves setups; Settings > Model connection
 selects the connection and model. GEKTOR also switches between Agent and Workflows.
 Enter opens shared pickers.
 
@@ -51,7 +51,8 @@ transcripts and single-stream downloads do not need these local applications.
 These preferences are shared by Agent and Workflow operations.
 
 Open **SSH** for named connections. **Add** and **Edit** start with a connection
-name, host, user and **Authentication: Password / Private key**. Key authentication
+name, host, port, user and **Authentication: Password / Private key**. Port defaults
+to 22 and stays visible in the basic form. Key authentication
 shows a file chooser and an optional key passphrase. Saving a new password or
 passphrase opens a separate masked prompt, then saves and restarts GEKTOR.
 
@@ -60,8 +61,8 @@ action. Keep leaves the credential untouched. **No passphrase** removes the
 passphrase from that connection. Cancel leaves both the connection and its
 credentials unchanged. There are no credential IDs to manage in the TUI.
 
-**Advanced settings** contains the port (22 by default), trusted hosts file
-(`~/.ssh/known_hosts` by default), environment-based authentication and reuse of a
+**Advanced settings** contains the trusted hosts file (`~/.ssh/known_hosts` by
+default), environment-based authentication and reuse of a
 saved credential from another connection. Reuse selects the connection by name;
 password and passphrase choices are kept separate. Existing environment-based
 connections open Advanced automatically. Hiding it preserves their authentication.
@@ -83,7 +84,7 @@ inherit the selected environment variable. See [credential setup](operations.md#
 Old credentials are retained when profiles change or are deleted, since other
 connections and worker snapshots may still reference them. Session-only secret
 storage is not implemented.
-The existing MCP manager remains available through `/mcp`.
+In Agent, the MCP manager is also available through `/mcp`.
 
 ## Start and choose a workspace
 
@@ -138,16 +139,18 @@ and quits the application. A checkmark shows the active mode.
 |---|---|---|
 | Session / Recipe | New, open, rename and delete sessions; compact saved history | New, open and save recipes; edit recipe settings |
 | Node | | Add, edit, connect and delete nodes; add schedule triggers |
-| Run | Plan or Act, stop, retry and message steering | Validate, run, stop, inspect run history and set up schedules |
+| Run | Plan or Act; Ask permission or Full access; Live steering, message queue and background processes; permissions, MCP, stop and retry | Validate, run and stop; Ask permission or Full access; inspect run history and set up schedules |
 | View | Show transcript details and jump to the latest message | Show the inspector and arrange the canvas |
-| Settings | Model connection, response settings, setup profiles, your details, agent instructions, permissions, MCP and appearance | The same shared settings |
-| Help | Keyboard shortcuts, commands, agent instruction preview and About | Keyboard shortcuts for Workflows, commands, agent instruction preview and About |
+| Settings | Appearance, Tools, model connection, response settings, launch profiles, identity and persona, agent instructions | The same shared settings |
+| Help | Keyboard shortcuts, commands, agent instruction preview and About | Keyboard shortcuts for Workflows and About |
 
 At narrow widths, More opens the menus that do not fit on the top row.
 Keyboard and mouse reach the same actions. Disabled actions cannot run.
 
 Appearance groups theme and panel frame choices. Apply saves them together;
-Cancel discards the draft. The View toggles control which details are visible.
+Cancel discards the draft. The View menu cycles thinking and tool-call display
+modes and toggles system messages, speaker names and message labels. See
+[history display](../guide/agent.md#read-history-and-tool-results).
 The agent instruction preview shows identity instructions, not the full model
 request or its tool definitions.
 
@@ -160,8 +163,8 @@ history. The `/compact` command remains a direct action.
 |---|---|
 | Model connection | Connection and model selection |
 | Response settings | Response limits and sampling settings supported by that connection |
-| Setup profiles | Load or save a group of settings |
-| Your details | Your displayed name and persona |
+| Launch profiles | Load or save a group of settings |
+| Identity and persona | Your displayed name and persona |
 | Agent instructions | Response style and base instructions |
 
 Loading a profile stages its values; choose Apply to use them.
@@ -170,7 +173,7 @@ See [profiles](cli.md#profiles) for the file format and command-line use.
 
 ### MCP servers
 
-Open **Settings > MCP servers**, or use `/mcp`. The table shows each server's
+In Agent, open **Run > MCP servers…**, or use `/mcp`. The table shows each server's
 status and tool count. Use `/` to filter, arrows to select a row, and Tab to
 reach its action buttons. Enter opens Details. Esc leaves the filter first,
 then closes the table.
@@ -199,12 +202,13 @@ For example, `Ctrl+O` inserts a new line in Agent but opens a recipe in Workflow
 | Open sessions | Ctrl+P |
 | Switch Plan / Act | F5 while idle, or the Run menu |
 | Inspect tools | Ctrl+T |
-| Show full thinking | Ctrl+G |
+| Cycle short, full and hidden thinking | Ctrl+G |
 | Latest message | Ctrl+End |
 | Help / menus | F1 / F9 |
 | Retry failed turn | /retry |
 | Compact context | /compact |
 | Show current run facts | /status |
+| Message queue | Alt+Q |
 | Background processes | /processes |
 | Quit | Ctrl+Q |
 

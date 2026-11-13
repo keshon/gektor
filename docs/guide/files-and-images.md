@@ -63,3 +63,29 @@ Image understanding needs a vision-capable model and backend.
 ChatGPT accepts PNG, JPEG, WebP and non-animated GIF; convert BMP to PNG first.
 llama.cpp vision also needs its vision projector.
 GEKTOR's KoboldCPP connection currently rejects image attachments.
+
+## Download audio or video
+
+Give Agent a media URL and say what to save, where in the workspace to put it,
+and whether you need a particular format. For a YouTube playlist, specify all
+entries or a selection. For example:
+
+> List this YouTube playlist. Download the first three available tracks as MP3 into music/.
+
+Playlist listing downloads nothing. Downloads operate on individual entries;
+conversion is a separate step when the source format differs from the requested
+format. Existing output files are preserved. Inspect the returned files and any
+failed entries before asking Agent to retry.
+
+With the default Auto backend, YouTube tries the built-in downloader first,
+then retries source failures with an installed yt-dlp. Other supported sites
+use yt-dlp directly. Local conversion
+uses FFmpeg, and inspection uses ffprobe. Configure or check these applications
+in **Settings > Tools… > Media**. Native YouTube listing and source-stream downloads
+can run without them, but conversion and fallback need their respective programs.
+
+Titles and uploader names are source metadata; they do not establish official
+channel ownership.
+
+See [video and audio operations](../reference/operations.md#video-and-audio) for
+backend selection, formats, limits and final-file inspection.

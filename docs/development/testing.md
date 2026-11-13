@@ -97,10 +97,16 @@ These tests exercise state and layout, not native terminal input.
 
 ## Lazy calls and request attribution
 
-`invoke_tool` must preserve target validation, permissions, concurrency,
-attachments and mutation evidence. Test malformed nested arguments, inactive
-and recursive targets, Plan-mode writes, catalog restoration and wire-prefix
-stability. The leading definitions must not change after activation.
+Activated tools expose their schemas directly and use the ordinary registry
+validation, permissions, concurrency, attachment and mutation paths. Test
+malformed arguments, inactive tools, Plan-mode writes, catalog restoration and
+request attribution.
+
+Activation changes the leading tool definitions and can require a new prefill of
+existing context. Later requests can reuse that prefix until another activation
+changes it. Check outgoing definitions and reported cached tokens separately;
+context reuse does not imply a cache hit. See the
+[capability contract](capabilities.md#lazy-exposure-and-prompt-caching).
 
 For llama-server, a transient request footer repeats at most 2048 characters of
 the latest real user message, the host's user-message count and the current run

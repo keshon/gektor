@@ -10,6 +10,7 @@ or a workflow that needs no model. Choose the path that fits your task.
 - [Check an app in a browser](guide/browser.md)
 - [Connect tools and skill libraries](guide/extensions.md)
 - [Read documents and attach files](guide/files-and-images.md)
+- [Download audio or video](guide/files-and-images.md#download-audio-or-video)
 - [Connect a model](guide/models.md)
 - [Review permissions and changes](guide/permissions.md)
 - [Reopen a conversation and manage context](guide/sessions.md)
