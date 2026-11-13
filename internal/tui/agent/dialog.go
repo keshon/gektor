@@ -52,7 +52,7 @@ func helpSections() []helpSection {
 	return []helpSection{
 		{"Input", [][2]string{
 			{"Enter", "Send a message; queue a follow-up while running"},
-			{"Ctrl+O / Shift+Enter", "Insert a new line"},
+			{"Ctrl+O", "Insert a new line"},
 			{"Ctrl+V", "Paste text or an image when forwarded by the terminal"},
 			{"Ctrl+T / click tool", "Select tools; Enter opens the inspector"},
 			{"Tab / Esc in inspector", "Switch to parent / close inspector"},
