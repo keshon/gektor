@@ -12,23 +12,45 @@ import (
 	"github.com/keshon/gektor/internal/workflow"
 )
 
-// Save checkpoints the whole run when path is empty. A one-element path selects
-// a step; a second element selects an iteration. The engine owns these indexes.
+// Save checkpoints the whole run when path is empty. Indexes select steps or
+// iterations; ChildScope enters a call's child steps. The engine owns this path.
 // The writer's process lease excludes other writers for this run.
 func (w *RunWriter) Save(r workflow.Run, path ...int) error {
 	_, err := w.lease.Stat()
 	if err != nil {
 		return fmt.Errorf("run writer closed: %w", err)
 	}
-	if len(path) > 2 {
-		return fmt.Errorf("invalid checkpoint path")
-	}
 	steps := r.Steps
-	for _, index := range path {
+	parent, position := "", ""
+	var selected workflow.StepResult
+	statuses := map[string]string{}
+	var scopes []struct {
+		position string
+		run      *workflow.Run
+	}
+	for offset, index := range path {
+		if index == workflow.ChildScope && offset > 0 && offset < len(path)-1 && path[offset-1] != workflow.ChildScope {
+			if selected.Child == nil {
+				return fmt.Errorf("checkpoint child scope missing")
+			}
+			parent = position + "/call"
+			steps = selected.Child.Steps
+			scopes = append(scopes, struct {
+				position string
+				run      *workflow.Run
+			}{parent, selected.Child})
+			continue
+		}
 		if index < 0 || index >= len(steps) {
 			return fmt.Errorf("checkpoint index out of range")
 		}
-		steps = steps[index].Iterations
+		selected = steps[index]
+		position = invocationPosition(parent, index)
+		if offset < len(path)-1 {
+			statuses[position] = selected.Status
+		}
+		parent = position
+		steps = selected.Iterations
 	}
 
 	finished, err := json.Marshal(r.Finished)
@@ -42,6 +64,7 @@ func (w *RunWriter) Save(r workflow.Run, path ...int) error {
 	defer tx.Rollback()
 
 	if len(path) == 0 {
+		rSteps := r.Steps
 		r.RunID, r.Workspace = w.id, w.store.workspace
 		r.Steps = nil
 		record, encodeErr := json.Marshal(r)
@@ -57,7 +80,11 @@ ON CONFLICT(id) DO UPDATE SET status=excluded.status, finished=excluded.finished
 		if err != nil {
 			return err
 		}
-		for index, step := range steps {
+		_, err = tx.Exec("DELETE FROM scopes WHERE run_id = ?", w.id)
+		if err != nil {
+			return err
+		}
+		for index, step := range rSteps {
 			err = saveInvocation(tx, w.id, "", index, step)
 			if err != nil {
 				return err
@@ -70,28 +97,44 @@ ON CONFLICT(id) DO UPDATE SET status=excluded.status, finished=excluded.finished
 	if err != nil {
 		return err
 	}
-	parent := ""
-	step := r.Steps[path[0]]
-	ordinal := path[0]
-	if len(path) == 2 {
-		parent = strconv.Itoa(path[0])
-		ordinal = path[1]
-		step = step.Iterations[ordinal]
-	}
-	position := invocationPosition(parent, ordinal)
-	_, err = tx.Exec("DELETE FROM invocations WHERE run_id = ? AND position = ?", w.id, position)
-	if err != nil {
-		return err
-	}
-	if len(path) == 1 {
-		// Numeric positions contain no wildcard characters. This byte range
-		// covers descendants and uses the primary key instead of scanning a map.
-		_, err = tx.Exec("DELETE FROM invocations WHERE run_id = ? AND position >= ? AND position < ?", w.id, position+"/", position+"0")
+	for _, scope := range scopes {
+		var finish []byte
+		finish, err = json.Marshal(scope.run.Finished)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec("UPDATE scopes SET status = ?, finished = ? WHERE run_id = ? AND position = ?", scope.run.Status, finish, w.id, scope.position)
 		if err != nil {
 			return err
 		}
 	}
-	err = saveInvocation(tx, w.id, parent, ordinal, step)
+	for position, status := range statuses {
+		_, err = tx.Exec(`UPDATE invocations SET record = json_set(record, '$.status', ?)
+WHERE run_id = ? AND position = ? AND json_extract(record, '$.status') != ?`, status, w.id, position, status)
+		if err != nil {
+			return err
+		}
+	}
+	parent = ""
+	separator := strings.LastIndexByte(position, '/')
+	if separator >= 0 {
+		parent = position[:separator]
+	}
+	_, err = tx.Exec("DELETE FROM invocations WHERE run_id = ? AND position = ?", w.id, position)
+	if err != nil {
+		return err
+	}
+	// The position prefix covers only this invocation's descendants and uses the
+	// primary key. Scope headers and invocation changes commit together.
+	_, err = tx.Exec("DELETE FROM invocations WHERE run_id = ? AND position >= ? AND position < ?", w.id, position+"/", position+"0")
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec("DELETE FROM scopes WHERE run_id = ? AND position >= ? AND position < ?", w.id, position+"/", position+"0")
+	if err != nil {
+		return err
+	}
+	err = saveInvocation(tx, w.id, parent, path[len(path)-1], selected)
 	if err != nil {
 		return err
 	}
@@ -107,8 +150,8 @@ func invocationPosition(parent string, ordinal int) string {
 }
 
 func saveInvocation(tx *sql.Tx, id, parent string, ordinal int, step workflow.StepResult) error {
-	children, attempts := step.Iterations, step.Attempts
-	step.Iterations, step.Attempts = nil, nil
+	children, attempts, childScope := step.Iterations, step.Attempts, step.Child
+	step.Iterations, step.Attempts, step.Child = nil, nil, nil
 	record, err := json.Marshal(step)
 	if err != nil {
 		return err
@@ -134,6 +177,31 @@ func saveInvocation(tx *sql.Tx, id, parent string, ordinal int, step workflow.St
 			return err
 		}
 	}
+	if childScope != nil {
+		header := *childScope
+		header.Steps = nil
+		record, err = json.Marshal(header)
+		if err != nil {
+			return err
+		}
+		var finished []byte
+		finished, err = json.Marshal(childScope.Finished)
+		if err != nil {
+			return err
+		}
+		scopePosition := position + "/call"
+		_, err = tx.Exec("INSERT INTO scopes VALUES (?, ?, ?, ?, ?)", id, scopePosition, childScope.Status, finished, record)
+		if err != nil {
+			return err
+		}
+		for index, step := range childScope.Steps {
+			err = saveInvocation(tx, id, scopePosition, index, step)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -224,6 +292,39 @@ func loadRun(db *sql.Tx, id string) (workflow.Run, error) {
 		return r, err
 	}
 
+	rows, err = db.Query("SELECT position, status, finished, record FROM scopes WHERE run_id = ?", id)
+	if err != nil {
+		return r, err
+	}
+	for rows.Next() {
+		var position, status string
+		var record, finished []byte
+		err = rows.Scan(&position, &status, &finished, &record)
+		if err != nil {
+			break
+		}
+		child := new(workflow.Run)
+		err = json.Unmarshal(record, child)
+		if err != nil {
+			break
+		}
+		child.Status = status
+		err = json.Unmarshal(finished, &child.Finished)
+		if err != nil {
+			break
+		}
+		owner := steps[strings.TrimSuffix(position, "/call")]
+		if owner == nil || !strings.HasSuffix(position, "/call") {
+			err = fmt.Errorf("missing child scope owner %q", position)
+			break
+		}
+		owner.Child = child
+	}
+	err = errors.Join(err, rows.Err(), rows.Close())
+	if err != nil {
+		return r, err
+	}
+
 	// Children are assembled before parents, preserving input order regardless
 	// of the order in which workers checkpointed their outcomes.
 	for _, position := range positions {
@@ -238,11 +339,18 @@ func loadRun(db *sql.Tx, id string) (workflow.Run, error) {
 		}
 		target := &r.Steps
 		if parent != "" {
-			owner := steps[parent]
+			ownerPosition := strings.TrimSuffix(parent, "/call")
+			owner := steps[ownerPosition]
 			if owner == nil {
 				return r, fmt.Errorf("missing invocation parent %q", parent)
 			}
 			target = &owner.Iterations
+			if ownerPosition != parent {
+				if owner.Child == nil {
+					return r, fmt.Errorf("missing child scope %q", parent)
+				}
+				target = &owner.Child.Steps
+			}
 		}
 		for len(*target) <= index {
 			*target = append(*target, workflow.StepResult{})

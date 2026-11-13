@@ -214,14 +214,23 @@ values become the call step's output. Internal step outputs stay private to the
 child's namespace. A top-level recipe may also declare `outputs`, returned in the
 completed CLI summary.
 
-Calls expand into one execution graph before execution. Child IDs are qualified
-(`daily/save`), artifacts belong to the parent run, and every child operation keeps
-its own permission check. Calling the recipe also checks `workflow_call` against
-its normalized path; reading its source checks `read_file`. Allowing a call does
-not override denials on its operations. A call's `review: true` gates entry at
-`daily/@inputs`; reviews inside the child use their qualified step IDs. Inspection
-shows input-binding and output-collection steps as well as the child operations.
-Rejecting any pending review cancels the whole run.
+Calls instantiate separate execution scopes at runtime from their frozen
+definitions. A skipped call creates no child scope. References inside the child
+resolve against its own inputs and results. Inspection and artifact ownership use
+qualified IDs (`daily/save`); artifacts belong to the parent run. Each child
+operation keeps its own permission check. Calling the recipe checks
+`workflow_call` against its normalized path, including when continuing a review;
+reading its source checks `read_file`. Allowing a call does not override denials
+on its operations. A call's `review: true` gates entry at `daily`; reviews inside
+the child use their qualified step IDs. Inspection includes call containers,
+child operations and output collectors. Rejecting a pending review cancels the
+whole run and its paused scopes. Completed child work is preserved on approval.
+
+Scope metadata, invocation state and attempts have separate SQLite rows.
+A nested item checkpoint updates that item and enclosing execution statuses
+without rewriting frozen scope definitions or unrelated items. All scopes share
+the run's 100,000 invocation slots. Calls execute serially; leaf collections inside
+the active scope retain their 1–32 worker limit.
 
 Queue submission and scheduling freeze the root recipe and its dependency closure.
 Manual runs freeze them at startup. The run hash covers that bundle; the compiled
@@ -235,12 +244,13 @@ Call limits:
 
 - Four nested calls.
 - 16 authored steps per recipe.
-- 128 expanded steps, including call boundaries.
+- 128 authored step occurrences across the root and called recipes.
 - A 64 KiB serialized recipe bundle.
 - No recursive calls.
 
 Step IDs cannot contain `/` or begin with `@`; those namespaces belong to composition.
-Qualified IDs still have the 64-byte limit.
+Each local step ID has a 64-byte limit; qualified inspection IDs include its
+enclosing call path.
 
 A call cannot use `for_each` or `retry`;
 ordinary nodes inside a child retain their iteration and retry rules. Declare each

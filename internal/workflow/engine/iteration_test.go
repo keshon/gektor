@@ -66,10 +66,11 @@ func TestCollectionReservesRunBudgetBeforeWorkers(t *testing.T) {
 				return `true`, nil
 			}}
 			saves := 0
+			remaining := workflow.MaxInvocations - invocationCount(r)
 			_, err := executeIterations(t.Context(), d.Steps[0], h, &r, 10, func(workflow.Run, ...int) error {
 				saves++
 				return nil
-			})
+			}, &remaining)
 			if tc.count <= tc.available {
 				if err != nil || int(calls.Load()) != tc.count || len(r.Steps[10].Iterations) != tc.count || saves == 0 {
 					t.Fatalf("exact fit: calls=%d saves=%d err=%v", calls.Load(), saves, err)
@@ -95,7 +96,8 @@ func TestCollectionRetryReusesInvocationSlot(t *testing.T) {
 		}
 		return `true`, nil
 	}}
-	_, err := executeIterations(t.Context(), d.Steps[0], h, &r, 10, func(workflow.Run, ...int) error { return nil })
+	remaining := workflow.MaxInvocations - invocationCount(r)
+	_, err := executeIterations(t.Context(), d.Steps[0], h, &r, 10, func(workflow.Run, ...int) error { return nil }, &remaining)
 	if err != nil || calls != 2 || len(r.Steps[10].Iterations[0].Attempts) != 2 {
 		t.Fatalf("retry at budget: calls=%d err=%v", calls, err)
 	}

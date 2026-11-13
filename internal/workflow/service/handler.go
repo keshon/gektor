@@ -50,6 +50,10 @@ func (h *handler) Validate(s workflow.Step) error {
 	if version != n.Version {
 		return fmt.Errorf("node %s version %d unavailable (registered %d)", s.Tool, version, n.Version)
 	}
+ if s.Tool == "workflow_call" {
+  err = h.validateCall(s)
+  if err != nil { return err }
+ }
 
 	if s.Concurrency < 0 || s.Concurrency > workflow.MaxConcurrency {
 		return fmt.Errorf("concurrency must be between 1 and %d when supplied", workflow.MaxConcurrency)

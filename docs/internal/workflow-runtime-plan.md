@@ -136,7 +136,18 @@ checks. No deployment, live credential use, commit or push is implied.
   their invocation slot and retain the separate attempt limit. This closes the
   per-run multiplication of per-collection limits; it does not yet provide
   nested scopes or a workspace-wide concurrency budget.
-- Runtime child scopes, bounded repeats and later stages: pending.
+- Runtime composition: ordinary calls now instantiate frozen child scopes during
+  execution. Local input/result namespaces stay intact, and runtime qualification
+  supplies permission/artifact/inspection IDs. Static graph flattening, binding
+  nodes and compiler gates were removed. SQLite stores scope headers separately
+  from invocations; nested checkpoints update one target and ancestor statuses
+  atomically without rewriting frozen scope snapshots. Reviews find the actual
+  child operation; continuation retains completed work and rechecks each entered
+  call's permission. Rejecting review cancels paused scopes. Skipped calls do not
+  instantiate children. Child scopes share the run invocation budget. Calls remain
+  serial, so nested leaf collections cannot multiply worker pools.
+- Mapped child calls, bounded repeats and later stages: pending. Concurrent child
+  calls require a shared scheduler rather than independent worker pools per call.
 
 Verified the model-free collection example through the CLI service: two
 successes, one retained failure and ordered values `[4, 6]`. Deterministic
@@ -199,3 +210,20 @@ The run-budget checks cover exact fit, exhaustion before worker dispatch,
 an empty collection at the limit, retained failed/skipped slots, retry reuse,
 and review continuation from a serialized checkpoint. Source-scoped tests and
 vet, engine race tests, the 45-probe eval dry-run and diff checks passed.
+
+Runtime scope checks cover frozen nested input/output namespaces, call-entry and
+child reviews, rejection, revoked call permissions, and completed artifacts that
+are not replayed. The terminal review form skips approved enclosing boundaries;
+agent step inspection selects qualified child IDs. A child invocation of the
+model-free collection report retains duplicate inputs and returns three successes,
+one collected failure and values `[4, 4, 6]`. Engine tests check shared invocation
+capacity, checkpoint failure before child effects and joined workers on cancellation.
+SQLite triggers establish that a nested item checkpoint inserts one invocation
+without rewriting frozen run/scope headers; injected failures roll back ancestor
+statuses and the target together. Numeric argument text survives status updates.
+The process-exit lease test covers both root and nested acknowledged items.
+
+Scope verification passed source-scoped tests and vet, workflow/editor and CLI
+race tests, the 45-probe eval dry-run and diff checks. Store tests and the source
+build passed with `CGO_ENABLED=0`; nested checkpoint/process-exit tests also passed
+in that configuration.

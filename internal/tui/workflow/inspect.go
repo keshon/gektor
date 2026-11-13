@@ -118,29 +118,10 @@ func workflowValues(raw json.RawMessage) []string {
 }
 
 func workflowStepStatus(run *workflow.Run, id string) string {
-	var statuses []string
-	for _, s := range run.Steps {
-		if s.ID == id {
-			return s.Status
-		}
-		if strings.HasPrefix(s.ID, id+"/") {
-			statuses = append(statuses, s.Status)
+	for _, step := range workflow.ScopedSteps(*run) {
+		if step.ID == id {
+			return step.Result.Status
 		}
 	}
-	if len(statuses) == 0 {
-		return "not reached"
-	}
-	for _, priority := range []string{"failed", "interrupted", "waiting_review", "running", "cancelled", "pending"} {
-		for _, status := range statuses {
-			if status == priority {
-				return status
-			}
-		}
-	}
-	for _, status := range statuses {
-		if status != "skipped" {
-			return "completed"
-		}
-	}
-	return "skipped"
+	return "not reached"
 }

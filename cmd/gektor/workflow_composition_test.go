@@ -115,11 +115,14 @@ func TestSubworkflowReviewsOutputsAndFrozenRecipes(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	w, _, err := db.EditRun(run.ID)
+	w, record, err := db.EditRun(run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer w.Close()
+	if len(record.Steps) != 3 || record.Steps[0].Child == nil || record.Steps[1].Child == nil || len(record.Steps[0].Child.Steps) != 2 || record.Steps[0].Child.Steps[0].ID != "save" {
+		t.Fatal("child calls were flattened instead of retaining scopes", record)
+	}
 	items, err := w.ListArtifacts()
 	if err != nil || len(items) != 2 {
 		t.Fatal("completed child replayed", items, err)
@@ -254,7 +257,7 @@ func TestSubworkflowPermissionAndNestingBounds(t *testing.T) {
 
 func TestNestedSubworkflowInputAndOutputScopes(t *testing.T) {
 	dir, home := compositionFiles(t)
-	leaf := strings.Replace(compositionChild, `"review":true,`, "", 1)
+	leaf := compositionChild
 	middle := `{"version":4,"name":"Middle","inputs":{"text":{"type":"string","required":true}},"steps":[{"id":"inner","tool":"workflow_call","args":{"recipe_path":"leaf.json","inputs":{"text":{"$input":"text"}}}}],"outputs":{"artifact":{"$step":"inner","pointer":"/artifact"}}}`
 	os.WriteFile(filepath.Join(dir, "child.json"), []byte(middle), 0600)
 	os.WriteFile(filepath.Join(dir, "leaf.json"), []byte(leaf), 0600)
@@ -263,11 +266,178 @@ func TestNestedSubworkflowInputAndOutputScopes(t *testing.T) {
 	if err != nil {
 		t.Fatal(out.String(), err)
 	}
+	var run struct {
+		ID string `json:"run_id"`
+	}
+	err = json.Unmarshal(out.Bytes(), &run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, step := range []string{"first/inner/save", "second/inner/save"} {
+		out.Reset()
+		err = workflowQueue(t.Context(), []string{"review", "-workspace", dir, "-decision", "approve", run.ID, step}, &out, home)
+		if err != nil {
+			t.Fatal(step, out.String(), err)
+		}
+	}
 	var result struct {
 		Status  string                       `json:"status"`
 		Outputs map[string]workflow.Artifact `json:"outputs"`
 	}
 	if err := json.Unmarshal(out.Bytes(), &result); err != nil || result.Status != "completed" || result.Outputs["first"].StepID != "first/inner/save" || result.Outputs["second"].StepID != "second/inner/save" {
 		t.Fatal(out.String(), err)
+	}
+}
+
+func TestCallEntryReviewAndNestedRejection(t *testing.T) {
+	dir, home := compositionFiles(t)
+	root := strings.Replace(compositionRoot, `"id":"first"`, `"id":"first","review":true`, 1)
+	err := os.WriteFile(filepath.Join(dir, "root.json"), []byte(root), 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	err = executeWorkflow(t.Context(), workflowOptions{workspace: dir, recipe: "root.json", storeDir: home}, &out, permissionGateContext(true, nil, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var run struct {
+		ID string `json:"run_id"`
+	}
+	err = json.Unmarshal(out.Bytes(), &run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.OpenStore(home, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	state, err := db.Run(run.ID)
+	if err != nil || state.Record.Steps[0].Status != "waiting_review" || state.Record.Steps[0].Child != nil {
+		t.Fatal("entry review instantiated the child", state, err)
+	}
+	out.Reset()
+	err = workflowQueue(t.Context(), []string{"review", "-workspace", dir, "-decision", "approve", run.ID, "first"}, &out, home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err = db.Run(run.ID)
+	if err != nil || state.Record.Steps[0].Child == nil || state.Record.Steps[0].Child.Status != "waiting_review" || state.Record.Steps[0].Status != "waiting_review" {
+		t.Fatal("child review did not pause the call", state, err)
+	}
+	out.Reset()
+	err = workflowQueue(t.Context(), []string{"review", "-workspace", dir, "-decision", "approve", run.ID, "first"}, &out, home)
+	if err == nil {
+		t.Fatal("offered an already approved call entry instead of its child review")
+	}
+	out.Reset()
+	err = workflowQueue(t.Context(), []string{"review", "-workspace", dir, "-decision", "reject", run.ID, "first/save"}, &out, home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err = db.Run(run.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	child := state.Record.Steps[0].Child
+	if state.Record.Status != "cancelled" || state.Record.Steps[0].Status != "skipped" || child.Status != "cancelled" || child.Finished == nil || child.Steps[0].Status != "skipped" || state.Record.Steps[1].Status != "skipped" {
+		t.Fatal("rejection left an active child scope", state)
+	}
+}
+
+func TestChildContinuationRechecksCallPermission(t *testing.T) {
+	dir, home := compositionFiles(t)
+	var out bytes.Buffer
+	err := executeWorkflow(t.Context(), workflowOptions{workspace: dir, recipe: "root.json", storeDir: home}, &out, permissionGateContext(true, nil, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var run struct {
+		ID string `json:"run_id"`
+	}
+	err = json.Unmarshal(out.Bytes(), &run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws, err := workspace.New(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	svc, err := app.NewWorkflow(ws, home, buildPolicy("", "workflow_call=child.json"), permissionGateContext(true, nil, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = svc.Review(t.Context(), run.ID, "first/save", true)
+	if err == nil || !strings.Contains(err.Error(), "blocked by policy") {
+		t.Fatal("continued through revoked call permission", err)
+	}
+	db, err := store.OpenStore(home, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	w, _, err := db.EditRun(run.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	artifacts, err := w.ListArtifacts()
+	if err != nil || len(artifacts) != 0 {
+		t.Fatal("child effect escaped revoked permission", artifacts, err)
+	}
+}
+
+func TestChildScopeRunsCollectionReportWithoutModel(t *testing.T) {
+	dir, home := compositionFiles(t)
+	child, err := os.ReadFile(filepath.Join("..", "..", "examples", "workflows", "collection-report", "recipe.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(filepath.Join(dir, "child.json"), child, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := `{"version":4,"name":"Caller","steps":[{"id":"call","tool":"workflow_call","args":{"recipe_path":"child.json","inputs":{"numbers":[-1,2,2,3]}}}],"outputs":{"report":{"$step":"call","pointer":"/report"}}}`
+	err = os.WriteFile(filepath.Join(dir, "root.json"), []byte(root), 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	err = executeWorkflow(t.Context(), workflowOptions{workspace: dir, recipe: "root.json", storeDir: home}, &out, permissionGateContext(true, nil, nil))
+	if err != nil {
+		t.Fatal(out.String(), err)
+	}
+	var result struct {
+		ID      string `json:"run_id"`
+		Status  string
+		Outputs struct {
+			Report struct {
+				Completed, Failed int
+				Values            []int
+			}
+		}
+	}
+	err = json.Unmarshal(out.Bytes(), &result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	report := result.Outputs.Report
+	if result.Status != "completed" || report.Completed != 3 || report.Failed != 1 || fmt.Sprint(report.Values) != "[4 4 6]" {
+		t.Fatal("child collection lost outcomes or duplicate inputs", out.String())
+	}
+	db, err := store.OpenStore(home, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	state, err := db.Run(result.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := state.Record.Steps[0].Child.Steps[1].Iterations
+	if len(items) != 4 || items[0].Status != "failed" || items[1].Output != "4" || items[2].Output != "4" || items[3].Output != "6" || items[0].ID != "call/double[0]" {
+		t.Fatal("child item checkpoints lost namespace or ordering", items)
 	}
 }

@@ -52,6 +52,14 @@ CREATE TABLE IF NOT EXISTS attempts (
 	PRIMARY KEY (run_id, position, number),
 	FOREIGN KEY (run_id, position) REFERENCES invocations(run_id, position) ON DELETE CASCADE
 );
+CREATE TABLE IF NOT EXISTS scopes (
+	run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+	position TEXT NOT NULL,
+	status TEXT NOT NULL,
+	finished BLOB NOT NULL,
+	record BLOB NOT NULL,
+	PRIMARY KEY (run_id, position)
+);
 CREATE TABLE IF NOT EXISTS artifacts (
 	run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
 	id TEXT NOT NULL,

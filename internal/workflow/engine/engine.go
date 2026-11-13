@@ -28,7 +28,8 @@ func Run(ctx context.Context, d workflow.Definition, h workflow.Handler, save fu
 }
 
 func RunWithInputs(ctx context.Context, d workflow.Definition, inputs map[string]json.RawMessage, h workflow.Handler, save func(workflow.Run, ...int) error) (workflow.Run, error) {
-	return run(ctx, d, inputs, h, save, nil)
+	remaining := workflow.MaxInvocations
+	return run(ctx, d, inputs, h, save, nil, executionScope{remaining: &remaining})
 }
 
 // Resume only continues an explicit review boundary; uncertain effects are never replayed.
@@ -37,14 +38,16 @@ func Resume(ctx context.Context, previous workflow.Run, h workflow.Handler, save
 		return previous, fmt.Errorf("run is not waiting for review")
 	}
 
-	r, err := run(ctx, previous.Definition, previous.Inputs, h, save, &previous)
+	remaining := workflow.MaxInvocations - invocationCount(previous)
+	scope := executionScope{remaining: &remaining, approved: previous.Approved}
+	r, err := run(ctx, previous.Definition, previous.Inputs, h, save, &previous, scope)
 	if err != nil && r.Status == "" {
 		return previous, err
 	}
 
 	return r, err
 }
-func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawMessage, h workflow.Handler, save func(workflow.Run, ...int) error, previous *workflow.Run) (workflow.Run, error) {
+func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawMessage, h workflow.Handler, save func(workflow.Run, ...int) error, previous *workflow.Run, scope executionScope) (workflow.Run, error) {
 
 	data, err := json.Marshal(d)
 	if err != nil {
@@ -92,6 +95,12 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 		r.Finished = nil
 	}
 
+	if previous == nil {
+		if len(r.Steps) > *scope.remaining {
+			return r, fmt.Errorf("child scope exceeds run invocation budget")
+		}
+		*scope.remaining -= len(r.Steps)
+	}
 	err = save(r)
 	if err != nil {
 		return r, fmt.Errorf("save initial run: %w", err)
@@ -115,10 +124,6 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 		dependencies := 0
 
 		for _, dep := range s.DependsOn {
-			if dep == s.Gate {
-				continue
-			}
-
 			dependencies++
 			if status[dep] == "completed" {
 				completed++
@@ -133,10 +138,6 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 
 		if s.CollectOutputs {
 			skip = false
-		}
-
-		if s.Gate != "" && status[s.Gate] != "completed" {
-			skip = true
 		}
 
 		if !skip && err == nil && len(s.When) > 0 {
@@ -175,7 +176,7 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 			err = h.Validate(s)
 		}
 
-		if err == nil && s.Review && !r.Approved[s.ID] {
+		if err == nil && s.Review && !scope.approved[scope.prefix+s.ID] {
 			r.Status = "waiting_review"
 			r.Steps[i].Status = "waiting_review"
 			if err := save(r, i); err != nil {
@@ -190,12 +191,19 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 			return r, fmt.Errorf("save before step: %w", err)
 		}
 
+		operation := s
+		operation.ID = scope.prefix + s.ID
 		var out string
 		if err == nil {
-			if len(s.ForEach) > 0 {
-				out, err = executeIterations(ctx, s, h, &r, i, save)
+			if s.Child != nil {
+				out, err = executeChild(ctx, operation, h, &r, i, save, scope)
+				if err == nil && r.Steps[i].Child.Status == "waiting_review" {
+					return r, nil
+				}
+			} else if len(s.ForEach) > 0 {
+				out, err = executeIterations(ctx, operation, h, &r, i, save, scope.remaining)
 			} else {
-				out, err = executeAttempts(ctx, s, h, &r, i, save)
+				out, err = executeAttempts(ctx, operation, h, &r, i, save)
 			}
 		}
 

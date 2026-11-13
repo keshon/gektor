@@ -29,7 +29,7 @@ type iterationOutcome struct {
 
 // The coordinator alone updates the run. Workers wait for checkpoint acknowledgement
 // before effects, and every started worker is joined even after persistence fails.
-func executeIterations(ctx context.Context, s workflow.Step, h workflow.Handler, r *workflow.Run, index int, save func(workflow.Run, ...int) error) (string, error) {
+func executeIterations(ctx context.Context, s workflow.Step, h workflow.Handler, r *workflow.Run, index int, save func(workflow.Run, ...int) error, remaining *int) (string, error) {
 	var items []json.RawMessage
 	err := json.Unmarshal(s.ForEach, &items)
 	if err != nil || string(s.ForEach) == "null" || len(items) > workflow.MaxIterations {
@@ -40,16 +40,11 @@ func executeIterations(ctx context.Context, s workflow.Step, h workflow.Handler,
 		return "", fmt.Errorf("concurrency exceeds %d", workflow.MaxConcurrency)
 	}
 
-	// Reserve the entire collection before allocating records or starting effects.
-	// Existing slots remain charged across review continuation, including failures
-	// and items skipped after cancellation. The coordinator alone owns this tree.
-	invocations := len(r.Steps)
-	for _, step := range r.Steps {
-		invocations += len(step.Iterations)
+	// The coordinator reserves the array against the budget shared by all scopes.
+	if len(items) > *remaining {
+		return "", fmt.Errorf("collection needs %d invocation slots; run has %d of %d available", len(items), max(0, *remaining), workflow.MaxInvocations)
 	}
-	if len(items) > workflow.MaxInvocations-invocations {
-		return "", fmt.Errorf("collection needs %d invocation slots; run has %d of %d available", len(items), max(0, workflow.MaxInvocations-invocations), workflow.MaxInvocations)
-	}
+	*remaining -= len(items)
 
 	collect := s.OnError == "collect"
 	s.ForEach, s.Concurrency, s.OnError = nil, 0, ""

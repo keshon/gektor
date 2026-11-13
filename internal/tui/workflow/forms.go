@@ -227,8 +227,8 @@ func (m *Model) reviewForm() tea.Cmd {
 		return nil
 	}
 	pending := []string{}
-	for _, s := range m.run.Steps {
-		if s.Status == "waiting_review" {
+	for _, s := range workflow.ScopedSteps(*m.run) {
+		if s.Result.Status == "waiting_review" && s.Definition.Review && !m.run.Approved[s.ID] {
 			pending = append(pending, s.ID)
 		}
 	}
@@ -237,9 +237,9 @@ func (m *Model) reviewForm() tea.Cmd {
 		return nil
 	}
 	resolved := ""
-	for _, step := range m.run.Steps {
+	for _, step := range workflow.ScopedSteps(*m.run) {
 		if step.ID == pending[0] {
-			resolved = prettyToolArguments(string(step.Args))
+			resolved = prettyToolArguments(string(step.Result.Args))
 			break
 		}
 	}

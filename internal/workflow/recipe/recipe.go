@@ -12,6 +12,56 @@ const MaxArguments = 64 << 10
 
 const MaxOutput = 1 << 20
 
+// ValidateTemplate checks a scope before its invocation inputs are available.
+// Input references become unknown outputs only in this temporary validation graph.
+func ValidateTemplate(d workflow.Definition, h workflow.Handler) error {
+	specs := make(map[string]workflow.Input, len(d.Inputs))
+	for name, spec := range d.Inputs {
+		spec.Required = false
+		specs[name] = spec
+	}
+	_, err := BindInputs(specs, nil)
+	if err != nil {
+		return err
+	}
+	if len(d.Inputs) == 0 {
+		_, _, err = Prepare(d, nil, h)
+		return err
+	}
+	steps := make([]workflow.Step, 0, len(d.Steps)+1)
+	steps = append(steps, workflow.Step{ID: "@inputs", Tool: "workflow_value", Args: json.RawMessage(`{}`)})
+	for _, s := range d.Steps {
+		convert := func(ref map[string]any) (any, error) {
+			name, input := ref["$input"]
+			if !input {
+				return ref, nil
+			}
+			key, ok := name.(string)
+			if !ok || len(ref) != 1 {
+				return nil, fmt.Errorf("invalid input reference")
+			}
+			if _, ok = d.Inputs[key]; !ok {
+				return nil, fmt.Errorf("unknown input %q", key)
+			}
+			return map[string]any{"$step": "@inputs"}, nil
+		}
+		s.Args, err = MapReferences(s.Args, convert)
+		if err == nil && len(s.ForEach) > 0 {
+			s.ForEach, err = MapReferences(s.ForEach, convert)
+		}
+		if err == nil && len(s.When) > 0 {
+			s.When, err = MapReferences(s.When, convert)
+		}
+		if err != nil {
+			return err
+		}
+		steps = append(steps, s)
+	}
+	d.Steps, d.Inputs = steps, nil
+	_, _, err = Prepare(d, nil, h)
+	return err
+}
+
 // Prepare binds inputs and checks references before any effects. Output values
 // are unavailable here; handlers validate their argument templates separately.
 func Prepare(d workflow.Definition, values map[string]json.RawMessage, h workflow.Handler) (workflow.Definition, map[string]json.RawMessage, error) {
@@ -26,7 +76,7 @@ func Prepare(d workflow.Definition, values map[string]json.RawMessage, h workflo
 
 	d.Steps = ordered
 	if len(d.Name) == 0 || len(d.Name) > 120 || len(d.Steps) == 0 || len(d.Steps) > 128 {
-		return d, nil, fmt.Errorf("workflow requires a 1–120 byte name and 1–128 expanded steps")
+		return d, nil, fmt.Errorf("workflow requires a 1–120 byte name and 1–128 scope steps")
 	}
 
 	bound, err := BindInputs(d.Inputs, values)

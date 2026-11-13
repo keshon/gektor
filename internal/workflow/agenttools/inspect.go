@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/recipe"
 	"github.com/keshon/gektor/internal/workflow/service"
 	"github.com/keshon/gektor/internal/workflow/store"
@@ -84,10 +85,11 @@ func (t Inspect) Run(ctx context.Context, args json.RawMessage) (string, error) 
 			Steps  []service.StepInspection `json:"steps"`
 		}{r.Record.RunID, r.Status, service.InspectSteps(r.Record)}
 	case "step":
-		for i, step := range r.Record.Steps {
-			if step.ID != in.Step {
+		for _, scoped := range workflow.ScopedSteps(r.Record) {
+			if scoped.ID != in.Step {
 				continue
 			}
+			step := scoped.Result
 			output, err := selectValue([]byte(step.Output))
 			if err != nil {
 				return "", err
@@ -99,7 +101,7 @@ func (t Inspect) Run(ctx context.Context, args json.RawMessage) (string, error) 
 				Output     service.InspectionValue `json:"output"`
 				Attempts   int                     `json:"attempt_count"`
 				Iterations int                     `json:"iteration_count"`
-			}{r.Record.RunID, service.InspectSteps(r.Record)[i], service.InspectValue(step.Args), output, len(step.Attempts), len(step.Iterations)}
+			}{r.Record.RunID, service.StepInspection{ID: scoped.ID, Operation: scoped.Definition.Tool, Status: step.Status, Error: step.Error}, service.InspectValue(step.Args), output, len(step.Attempts), len(step.Iterations)}
 			break
 		}
 		if result == nil {

@@ -53,13 +53,9 @@ type StepInspection struct {
 }
 
 func InspectSteps(r workflow.Run) []StepInspection {
-	ops := make(map[string]string, len(r.Definition.Steps))
-	for _, s := range r.Definition.Steps {
-		ops[s.ID] = s.Tool
-	}
 	out := make([]StepInspection, 0, len(r.Steps))
-	for _, s := range r.Steps {
-		out = append(out, StepInspection{ID: s.ID, Operation: ops[s.ID], Status: s.Status, Error: s.Error})
+	for _, s := range workflow.ScopedSteps(r) {
+		out = append(out, StepInspection{ID: s.ID, Operation: s.Definition.Tool, Status: s.Result.Status, Error: s.Result.Error})
 	}
 	return out
 }

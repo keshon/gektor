@@ -81,43 +81,59 @@ func TestRunLeaseProcessExit(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		r := collectionRun(2)
+		leaf := collectionRun(2)
+		r := leaf
+		path := []int{0, 1}
+		if os.Getenv("GEKTOR_TEST_LEASE_NESTED") == "1" {
+			r = workflow.Run{Status: "running", Steps: []workflow.StepResult{{ID: "call", Status: "running", Child: &leaf}}}
+			path = []int{0, workflow.ChildScope, 0, 1}
+		}
 		err = w.Save(r)
 		if err != nil {
 			t.Fatal(err)
 		}
-		r.Steps[0].Iterations[1].Status = "completed"
-		r.Steps[0].Iterations[1].Output = `{"acknowledged":true}`
-		err = w.Save(r, 0, 1)
+		leaf.Steps[0].Iterations[1].Status = "completed"
+		leaf.Steps[0].Iterations[1].Output = `{"acknowledged":true}`
+		err = w.Save(r, path...)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(base, "id"), []byte(w.ID()), 0600); err != nil {
+		err = os.WriteFile(filepath.Join(base, "id"), []byte(w.ID()), 0600)
+		if err != nil {
 			t.Fatal(err)
 		}
 		// Simulate abrupt exit: no deferred Close calls run.
 		os.Exit(0)
 	}
-	s, base, work := testStore(t)
-	exe, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
-	c := exec.Command(exe, "-test.run=^TestRunLeaseProcessExit$")
-	c.Env = append(os.Environ(), "GEKTOR_TEST_LEASE_BASE="+base, "GEKTOR_TEST_LEASE_WORK="+work)
-	if output, err := c.CombinedOutput(); err != nil {
-		t.Fatal(err, string(output))
-	}
-	id, err := os.ReadFile(filepath.Join(base, "id"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	r, err := s.Run(string(id))
-	if err != nil || r.Status != "interrupted" {
-		t.Fatal(r, err)
-	}
-	if r.Record.Steps[0].Iterations[1].Output != `{"acknowledged":true}` || r.Record.Steps[0].Iterations[0].Status != "pending" {
-		t.Fatal("acknowledged invocation lost after process exit", r)
+	for _, nested := range []string{"0", "1"} {
+		t.Run("nested"+nested, func(t *testing.T) {
+			s, base, work := testStore(t)
+			exe, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			c := exec.Command(exe, "-test.run=^TestRunLeaseProcessExit$")
+			c.Env = append(os.Environ(), "GEKTOR_TEST_LEASE_BASE="+base, "GEKTOR_TEST_LEASE_WORK="+work, "GEKTOR_TEST_LEASE_NESTED="+nested)
+			output, err := c.CombinedOutput()
+			if err != nil {
+				t.Fatal(err, string(output))
+			}
+			id, err := os.ReadFile(filepath.Join(base, "id"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			r, err := s.Run(string(id))
+			if err != nil || r.Status != "interrupted" {
+				t.Fatal(r, err)
+			}
+			items := r.Record.Steps[0].Iterations
+			if nested == "1" {
+				items = r.Record.Steps[0].Child.Steps[0].Iterations
+			}
+			if items[1].Output != `{"acknowledged":true}` || items[0].Status != "pending" {
+				t.Fatal("acknowledged invocation lost after process exit", r)
+			}
+		})
 	}
 }
 

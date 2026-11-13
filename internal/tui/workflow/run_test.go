@@ -18,6 +18,24 @@ func workflowRecipe() workflow.Definition {
 	return workflow.Definition{Version: 4, Name: "Test", Steps: []workflow.Step{{ID: "transform", Tool: "script_transform", NodeVersion: 1, Args: json.RawMessage(`{"code":"return input + 1;","input":2}`)}}}
 }
 
+func TestReviewFormSelectsChildOperation(t *testing.T) {
+	m := workflowTestModel(t)
+	child := workflow.Run{
+		Definition: workflow.Definition{Steps: []workflow.Step{{ID: "save", Review: true}}},
+		Steps:      []workflow.StepResult{{ID: "save", Status: "waiting_review", Args: json.RawMessage(`{"text":"child resolved input"}`)}},
+	}
+	m.workflows.run = &workflow.Run{
+		Approved:   map[string]bool{"call": true},
+		Definition: workflow.Definition{Steps: []workflow.Step{{ID: "call", Tool: "workflow_call", Review: true}}},
+		Steps:      []workflow.StepResult{{ID: "call", Status: "waiting_review", Child: &child}},
+	}
+	m.workflows.reviewForm()
+	dialog := m.chrome.Dialog
+	if dialog == nil || dialog.Form.Fields[0].Value != "call/save" || !strings.Contains(dialog.Form.Fields[1].Value, "child resolved input") {
+		t.Fatal("review selected a scope container instead of its operation", dialog)
+	}
+}
+
 func TestWorkflowExecutionReviewAndSave(t *testing.T) {
 	m := workflowTestModel(t)
 	w := m.workflows

@@ -14,6 +14,14 @@ const MaxConcurrency = 32
 // Retry attempts reuse their invocation's slot.
 const MaxInvocations = 100000
 
+// ChildScope selects a call's child steps in a checkpoint path.
+const ChildScope = -1
+
+type CallInput struct {
+	Path   string                     `json:"recipe_path"`
+	Inputs map[string]json.RawMessage `json:"inputs,omitempty"`
+}
+
 // Definition is a saved recipe. Its maps and slices are caller-owned.
 type Definition struct {
 	Outputs map[string]json.RawMessage `json:"outputs,omitempty"`
@@ -25,23 +33,23 @@ type Definition struct {
 
 // Step describes one recipe operation and its dependencies.
 type Step struct {
+	// Child is a compiler-owned frozen definition, never loaded during execution.
+	Child *Definition `json:"child,omitempty"`
 	// CollectOutputs is compiler-owned: dependencies order collection but skipped
 	// branches do not suppress it. Missing referenced outputs still fail resolution.
-	CollectOutputs bool `json:"collect_outputs,omitempty"`
-	// Gate is compiler-owned; it must complete regardless of merge semantics.
-	Gate        string          `json:"gate,omitempty"`
-	Review      bool            `json:"review,omitempty"`
-	ForEach     json.RawMessage `json:"for_each,omitempty"`
-	Concurrency int             `json:"concurrency,omitempty"`
-	OnError     string          `json:"on_error,omitempty"`
-	NodeVersion int             `json:"node_version,omitempty"`
-	Retry       *RetryPolicy    `json:"retry,omitempty"`
-	ID          string          `json:"id"`
-	Tool        string          `json:"tool"`
-	Args        json.RawMessage `json:"args"`
-	DependsOn   []string        `json:"depends_on,omitempty"`
-	When        json.RawMessage `json:"when,omitempty"`
-	Merge       string          `json:"merge,omitempty"`
+	CollectOutputs bool            `json:"collect_outputs,omitempty"`
+	Review         bool            `json:"review,omitempty"`
+	ForEach        json.RawMessage `json:"for_each,omitempty"`
+	Concurrency    int             `json:"concurrency,omitempty"`
+	OnError        string          `json:"on_error,omitempty"`
+	NodeVersion    int             `json:"node_version,omitempty"`
+	Retry          *RetryPolicy    `json:"retry,omitempty"`
+	ID             string          `json:"id"`
+	Tool           string          `json:"tool"`
+	Args           json.RawMessage `json:"args"`
+	DependsOn      []string        `json:"depends_on,omitempty"`
+	When           json.RawMessage `json:"when,omitempty"`
+	Merge          string          `json:"merge,omitempty"`
 }
 type RetryPolicy struct {
 	MaxAttempts int `json:"max_attempts"`

@@ -109,3 +109,37 @@ func TestInspectViewsKeepLargePayloadsOutOfDefaultContext(t *testing.T) {
 		t.Fatal(out, err)
 	}
 }
+
+func TestInspectFindsScopedChildStep(t *testing.T) {
+	ws, err := workspace.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Close()
+	base := t.TempDir()
+	db, err := store.OpenStore(base, ws.Root())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	w, err := db.NewRun()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	child := workflow.Run{Status: "completed", Definition: workflow.Definition{Steps: []workflow.Step{{ID: "fetch", Tool: "http_request"}}}, Steps: []workflow.StepResult{{ID: "fetch", Status: "completed", Output: `{"answer":42}`}}}
+	r := workflow.Run{Status: "completed", Definition: workflow.Definition{Steps: []workflow.Step{{ID: "call", Tool: "workflow_call"}}}, Steps: []workflow.StepResult{{ID: "call", Status: "completed", Child: &child}}}
+	err = w.Save(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool := Inspect{WS: ws, StoreDir: base}
+	args, err := json.Marshal(map[string]string{"run_id": w.ID(), "view": "step", "step_id": "call/fetch", "pointer": "/answer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := tool.Run(t.Context(), args)
+	if err != nil || !strings.Contains(out, `"id":"call/fetch"`) || !strings.Contains(out, `"operation":"http_request"`) || !strings.Contains(out, `"value":42`) {
+		t.Fatal("nested step inspection lost scope", out, err)
+	}
+}

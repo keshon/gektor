@@ -163,6 +163,87 @@ WHEN NEW.position = '0/1' BEGIN SELECT RAISE(ABORT, 'storage fault'); END;`)
 	}
 }
 
+func TestNestedCheckpointPreservesScopeSnapshotsAndRollsBack(t *testing.T) {
+	s, _, _ := testStore(t)
+	w, err := s.NewRun()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	leaf := collectionRun(1000)
+	middle := workflow.Run{Status: "running", Definition: workflow.Definition{Version: 4, Name: "middle"}, Steps: []workflow.StepResult{{ID: "inner", Status: "running", Child: &leaf}}}
+	args := json.RawMessage(`{"exact":9007199254740993,"decimal":1.2345678901234567890123456789}`)
+	r := workflow.Run{Status: "running", Steps: []workflow.StepResult{{ID: "outer", Status: "running", Args: args, Child: &middle}}}
+	err = w.Save(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.db.Exec(`
+CREATE TABLE checkpoint_writes (position TEXT);
+CREATE TRIGGER audit_checkpoint AFTER INSERT ON invocations BEGIN
+ INSERT INTO checkpoint_writes VALUES (NEW.position);
+END;
+CREATE TRIGGER forbid_run_snapshot BEFORE UPDATE OF record ON runs BEGIN
+ SELECT RAISE(ABORT, 'rewrote run snapshot');
+END;
+CREATE TRIGGER forbid_scope_snapshot BEFORE UPDATE OF record ON scopes BEGIN
+ SELECT RAISE(ABORT, 'rewrote scope snapshot');
+END;`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Status, r.Steps[0].Status = "waiting_review", "waiting_review"
+	middle.Status, middle.Steps[0].Status = "waiting_review", "waiting_review"
+	leaf.Status = "waiting_review"
+	leaf.Steps[0].Iterations[7].Status = "completed"
+	leaf.Steps[0].Iterations[7].Output = `7`
+	path := []int{0, workflow.ChildScope, 0, workflow.ChildScope, 0, 7}
+	err = w.Save(r, path...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	var position string
+	err = s.db.QueryRow("SELECT count(*), min(position) FROM checkpoint_writes").Scan(&count, &position)
+	if err != nil || count != 1 || position != "0/call/0/call/0/7" {
+		t.Fatal("rewrote unrelated invocations", count, position, err)
+	}
+	state, err := s.Run(w.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	outer := state.Record.Steps[0]
+	if string(outer.Args) != string(args) {
+		t.Fatal("ancestor status update changed numeric arguments", string(outer.Args))
+	}
+	inner := outer.Child.Steps[0]
+	loaded := inner.Child
+	if state.Record.Status != "waiting_review" || outer.Status != "waiting_review" || outer.Child.Status != "waiting_review" || inner.Status != "waiting_review" || loaded.Status != "waiting_review" || loaded.Definition.Name != leaf.Definition.Name || loaded.Steps[0].Iterations[7].Output != "7" || loaded.Steps[0].Iterations[8].Status != "pending" {
+		t.Fatal("nested checkpoint lost scope state", state)
+	}
+	_, err = s.db.Exec(`CREATE TRIGGER reject_nested BEFORE INSERT ON invocations
+WHEN NEW.position = '0/call/0/call/0/7' BEGIN SELECT RAISE(ABORT, 'nested storage fault'); END;`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Status, middle.Status, leaf.Status = "completed", "completed", "completed"
+	r.Steps[0].Status, middle.Steps[0].Status = "completed", "completed"
+	leaf.Steps[0].Iterations[7].Output = `999`
+	err = w.Save(r, path...)
+	if err == nil {
+		t.Fatal("nested fault was ignored")
+	}
+	state, err = s.Run(w.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	outer = state.Record.Steps[0]
+	inner = outer.Child.Steps[0]
+	if state.Record.Status != "waiting_review" || outer.Status != "waiting_review" || outer.Child.Status != "waiting_review" || inner.Status != "waiting_review" || inner.Child.Status != "waiting_review" || inner.Child.Steps[0].Iterations[7].Output != "7" {
+		t.Fatal("nested transaction partially committed", state)
+	}
+}
+
 func BenchmarkInvocationCheckpoint(b *testing.B) {
 	for _, count := range []int{100, 1000, 10000} {
 		b.Run(fmt.Sprint(count), func(b *testing.B) {

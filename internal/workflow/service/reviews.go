@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/engine"
 	"github.com/keshon/gektor/internal/workflow/store"
 )
@@ -30,8 +31,8 @@ func (s Service) Review(ctx context.Context, id, step string, approve bool) (str
 		return "", fmt.Errorf("recipe snapshot hash mismatch")
 	}
 	found := false
-	for _, v := range r.Steps {
-		if v.ID == step && v.Status == "waiting_review" {
+	for _, v := range workflow.ScopedSteps(r) {
+		if v.ID == step && v.Result.Status == "waiting_review" && v.Definition.Review && !r.Approved[v.ID] {
 			found = true
 		}
 	}
@@ -69,14 +70,8 @@ func (s Service) Review(ctx context.Context, id, step string, approve bool) (str
 			h.artifacts = w.Artifacts
 			r, runErr = engine.Resume(ctx, r, h, w.Save)
 		} else {
-			r.Status = "cancelled"
 			now := time.Now().UTC()
-			r.Finished = &now
-			for i := range r.Steps {
-				if r.Steps[i].Status == "waiting_review" || r.Steps[i].Status == "pending" {
-					r.Steps[i].Status = "skipped"
-				}
-			}
+			cancelReview(&r, now)
 			runErr = w.Save(r)
 		}
 		summary := map[string]any{"run_id": id, "status": r.Status}
@@ -90,4 +85,18 @@ func (s Service) Review(ctx context.Context, id, step string, approve bool) (str
 		return withJob(ctx, db, *linked, execute)
 	}
 	return execute(ctx)
+}
+
+func cancelReview(r *workflow.Run, now time.Time) {
+	r.Status, r.Finished = "cancelled", &now
+	for i := range r.Steps {
+		step := &r.Steps[i]
+		if step.Status != "waiting_review" && step.Status != "pending" {
+			continue
+		}
+		step.Status = "skipped"
+		if step.Child != nil {
+			cancelReview(step.Child, now)
+		}
+	}
 }
