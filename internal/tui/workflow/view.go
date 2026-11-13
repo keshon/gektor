@@ -215,6 +215,9 @@ func CardDetail(status string) (string, graph.Tone) {
 		tone = graph.ToneDisabled
 	case "pending":
 		status = "○ Pending"
+	case "waiting":
+		status = "○ Waiting"
+		tone = graph.ToneWarning
 	case "waiting_review", "Review before running":
 		status = "? Awaiting approval"
 		tone = graph.ToneWarning

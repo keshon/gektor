@@ -126,7 +126,19 @@ func (s *Store) Claim(ctx context.Context) (Job, bool, error) {
 	return chosen, chosen.ID != "", err
 }
 func (s *Store) CancelJob(ctx context.Context, id string) error {
-	return s.UpdateJob(ctx, id, func(j *Job) error {
+	return s.control(ctx, func(c *control) error {
+		job, ok := c.Jobs[id]
+		if !ok {
+			return fmt.Errorf("unknown job %s", id)
+		}
+		j := &job
+		if j.Status == "waiting" {
+			_, err := c.tx.ExecContext(ctx, "UPDATE wakeups SET due = ? WHERE run_id = ?", time.Now().UnixMilli(), j.RunID)
+			if err != nil {
+				return err
+			}
+			j.Cancel = true
+		}
 		if j.Status == "waiting_review" {
 			return fmt.Errorf("job awaits operator review; reject its pending run step")
 		}
@@ -136,6 +148,7 @@ func (s *Store) CancelJob(ctx context.Context, id string) error {
 		if j.Status == "running" {
 			j.Cancel = true
 		}
+		c.Jobs[id] = job
 		return nil
 	})
 }
@@ -150,7 +163,7 @@ func (s *Store) ReconcileRuns(ctx context.Context) error { return s.recoverJobs(
 func (s *Store) recoverJobs(ctx context.Context, includeUnlinked bool) error {
 	return s.control(ctx, func(c *control) error {
 		for id, j := range c.Jobs {
-			if j.Status != "running" && j.Status != "waiting_review" {
+			if j.Status != "running" && j.Status != "waiting_review" && j.Status != "waiting" {
 				continue
 			}
 			if j.RunID != "" {
@@ -173,7 +186,7 @@ func (s *Store) recoverJobs(ctx context.Context, includeUnlinked bool) error {
 					return fmt.Errorf("run identity mismatch")
 				}
 				switch run.Status {
-				case "completed", "failed", "cancelled", "waiting_review":
+				case "completed", "failed", "cancelled", "waiting_review", "waiting":
 					j.Status = run.Status
 				default:
 					j.Status = "interrupted"
@@ -183,6 +196,13 @@ func (s *Store) recoverJobs(ctx context.Context, includeUnlinked bool) error {
 					continue
 				}
 				j.Status = "interrupted"
+			}
+			if j.Status == "waiting" && j.Cancel {
+				// Cancellation may arrive while execution is committing its wait.
+				_, err := c.tx.ExecContext(ctx, "UPDATE wakeups SET due = ? WHERE run_id = ?", time.Now().UnixMilli(), j.RunID)
+				if err != nil {
+					return err
+				}
 			}
 			if j.Status == "interrupted" {
 				j.Error = "execution stopped; inspect effects before submitting again"
@@ -215,7 +235,7 @@ func makeJobRoom(c *control) error {
 	}
 	var oldest Job
 	for _, j := range c.Jobs {
-		if j.Status != "queued" && j.Status != "running" && j.Status != "waiting_review" && (oldest.ID == "" || j.Created.Before(oldest.Created)) {
+		if j.Status != "queued" && j.Status != "running" && j.Status != "waiting_review" && j.Status != "waiting" && (oldest.ID == "" || j.Created.Before(oldest.Created)) {
 			oldest = j
 		}
 	}

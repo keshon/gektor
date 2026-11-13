@@ -42,7 +42,7 @@ func withJob(ctx context.Context, db *store.Store, job store.Job, execute func(c
 	started := time.Now()
 	cancelRequested := false
 	if err := db.UpdateJob(ctx, job.ID, func(j *store.Job) error {
-		if j.Status != "running" && j.Status != "waiting_review" {
+		if j.Status != "running" && j.Status != "waiting_review" && j.Status != "waiting" {
 			return fmt.Errorf("job is not executable: %s", j.Status)
 		}
 		cancelRequested = j.Cancel
@@ -98,7 +98,7 @@ func withJob(ctx context.Context, db *store.Store, job store.Job, execute func(c
 		var summary struct{ Status string }
 		_ = json.Unmarshal([]byte(result), &summary)
 		switch summary.Status {
-		case "completed", "waiting_review", "failed", "cancelled":
+		case "completed", "waiting_review", "waiting", "failed", "cancelled":
 			j.Status = summary.Status
 		default:
 			j.Status = "failed"

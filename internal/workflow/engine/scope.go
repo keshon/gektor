@@ -56,8 +56,9 @@ func executeChild(ctx context.Context, s workflow.Step, h workflow.Handler, r *w
 	scope.prefix = s.ID + "/"
 	persist := func(child workflow.Run, path ...int) error {
 		r.Steps[index].Child = &child
-		if child.Status == "waiting_review" {
-			r.Status, r.Steps[index].Status = "waiting_review", "waiting_review"
+		if child.Paused() {
+			r.Status, r.Steps[index].Status = child.Status, child.Status
+			r.WakeAt = child.WakeAt
 		} else {
 			r.Steps[index].Status = "running"
 		}
@@ -72,7 +73,7 @@ func executeChild(ctx context.Context, s workflow.Step, h workflow.Handler, r *w
 	if err != nil {
 		return "", err
 	}
-	if child.Status == "waiting_review" {
+	if child.Paused() {
 		return "", nil
 	}
 	for _, step := range child.Steps {

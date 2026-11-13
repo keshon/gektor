@@ -25,6 +25,7 @@ func TestWorkflowNodeStateColorsDoNotReplaceSelection(t *testing.T) {
 			{"running", "Running", screen.ColorWarning},
 			{"failed", "Failed", screen.ColorError},
 			{"waiting_review", "Awaiting approval", screen.ColorWarning},
+			{"waiting", "Waiting", screen.ColorWarning},
 			{"cancelled", "Cancelled", screen.ColorWarning},
 			{"interrupted", "Interrupted", screen.ColorWarning},
 			{"skipped", "Skipped", screen.ColorDisabledText},

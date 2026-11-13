@@ -4,12 +4,37 @@ package workflow
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/keshon/gektor/internal/workflow"
 )
 
 func Definitions() []workflow.Node {
 	return []workflow.Node{
+		{
+			Name: "workflow_wait", Version: 1, ReadOnly: true,
+			Description:  "Persist a deadline and release execution until the workspace worker resumes this run. Delay is 0–604800000 ms (seven days). Works inside child calls and repeats; no maps or retries.",
+			InputSchema:  json.RawMessage(`{"type":"object","properties":{"delay_ms":{"type":"integer","minimum":0,"maximum":604800000}},"required":["delay_ms"],"additionalProperties":false}`),
+			OutputSchema: json.RawMessage(`{"type":"object","properties":{"resume_at":{"type":"string"}},"required":["resume_at"],"additionalProperties":false}`),
+			Resources:    func(json.RawMessage) ([]string, error) { return nil, nil },
+			Execute: func(_ context.Context, raw json.RawMessage) (string, error) {
+				var in struct {
+					DelayMS int `json:"delay_ms"`
+				}
+				err := json.Unmarshal(raw, &in)
+				if err != nil {
+					return "", err
+				}
+
+				deadline := time.Now().UTC().Add(time.Duration(in.DelayMS) * time.Millisecond)
+				rounded := deadline.Truncate(time.Millisecond)
+				if rounded.Before(deadline) {
+					rounded = rounded.Add(time.Millisecond)
+				}
+				out, err := json.Marshal(workflow.WaitState{ResumeAt: rounded})
+				return string(out), err
+			},
+		},
 		{
 			Name:        "workflow_call",
 			Version:     1,

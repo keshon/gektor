@@ -81,7 +81,7 @@ branch readiness, merge keys and restart behavior before exposing palette entrie
 
 - Flow controls: filter, if/switch, batches/repeat, merge, child workflows,
   stop/error and durable wait. Child mapping and bounded repeats are available;
-  durable waits, richer routing and data joins remain in the delivery sequence.
+  callback waits, richer routing and data joins remain in the delivery sequence.
 - Data operations: set/rename fields, limit, deduplicate, split, aggregate,
   summarize, compare datasets and sort. Add small deterministic nodes with explicit
   schemas and size limits; scripts remain available for custom transformations.
@@ -171,7 +171,7 @@ checks. No deployment, live credential use, commit or push is implied.
 - Bounded repeats: implemented for serial frozen workflow calls. Each iteration
   persists a child scope, reads an explicit boolean completion pointer and uses
   an explicit next-input object. Limit exhaustion is terminal. Short delays are
-  cancellable but occupy the active slot; durable waits remain pending. Concurrent
+  cancellable but occupy the active slot; deadline waits are implemented separately. Concurrent
   child calls require a shared scheduler rather than independent worker pools.
 
 Verified the model-free collection example through the CLI service: two
@@ -317,3 +317,44 @@ The shipped example passed through the CLI service with counts three and five;
 SQLite-backed review approval/rejection retained the expected artifact counts
 and frozen child definitions. No model-backed authoring eval or physical
 power-loss test was performed for this slice.
+
+
+## Handoff after durable deadline waits
+
+`workflow_wait` records a bounded relative deadline once and releases execution.
+The run/step use `waiting`, and inspection/summaries expose `resume_at`. Waits
+propagate through ordinary, mapped and repeated child scopes. Review boundaries
+remain distinct. Deadline waits do not use per-run sleeping goroutines.
+
+SQLite stores one indexed wake-up per waiting run, in the same transaction as
+its checkpoint; a failed write rolls both back. The existing run lease excludes
+simultaneous claims. Resumption under the worker's current policy clears the
+wake-up before active execution. A committed waiting run survives process exit;
+a run interrupted after continuation begins is not replayed automatically.
+The worker checks due waits after queued jobs. Manual waits are discovered too,
+without creating a second job for the run. At most 1,000 runs may wait per store.
+
+Queue cancellation makes a waiting job due immediately and records cancellation
+without downstream effects. Waiting jobs are not evicted or ignored by schedule
+overlap checks. Artifacts survive waiting. The wait itself rejects maps/retries;
+put it inside a child recipe for collection processing. CLI guidance and terminal
+cards distinguish timed waiting from operator review.
+
+The runnable fixture is `examples/workflows/durable-wait/recipe.json`.
+Next: authenticated callback waits and duplicate-event handling, explicit recovery
+of interrupted effects, typed error routes/finalization and selective retry policy.
+Current deadlines are not a callback mechanism or an exactly-once guarantee for
+remote effects. Concurrent jobs and shared child scheduling remain later work.
+
+
+Deadline-wait verification passed the source-scoped suite, vet and CGO-free build,
+plus workflow engine/service/store/daemon/editor/CLI race checks. The 45-probe
+eval dry-run and documentation/diff checks passed. Tests cover root, child, mapped
+and repeated waits; review-to-wait continuation; frozen completed work; changed
+permissions; cancellation including the running-to-waiting race; two-claim
+exclusion; early/duplicate continuation; failed wait publication and SQLite
+rollback. A helper process exits without cleanup in waiting and running states:
+only the committed wait is claimable afterward. Worker restart tests preserve
+prior effects and allow other queued work while a run waits. The shipped CLI
+fixture retains exactly one artifact before and one after the deadline. These
+are deterministic runtime checks, not model-backed authoring or power-loss tests.

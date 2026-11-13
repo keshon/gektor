@@ -69,6 +69,11 @@ CREATE TABLE IF NOT EXISTS artifacts (
 	PRIMARY KEY (run_id, id)
 );
 CREATE INDEX IF NOT EXISTS artifacts_pending ON artifacts(run_id) WHERE status != 'published';
+CREATE TABLE IF NOT EXISTS wakeups (
+	run_id TEXT PRIMARY KEY REFERENCES runs(id) ON DELETE CASCADE,
+	due INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS wakeups_due ON wakeups(due);
 CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, record BLOB NOT NULL);
 CREATE TABLE IF NOT EXISTS schedules (id TEXT PRIMARY KEY, record BLOB NOT NULL);
 CREATE TABLE IF NOT EXISTS control (id INTEGER PRIMARY KEY CHECK (id = 1), schedule_revision INTEGER NOT NULL);

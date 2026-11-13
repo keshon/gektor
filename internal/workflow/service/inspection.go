@@ -31,6 +31,7 @@ func InspectValue(raw []byte) InspectionValue {
 }
 
 type RunInspection struct {
+	ResumeAt     *time.Time       `json:"resume_at,omitempty"`
 	ID           string           `json:"run_id"`
 	Name         string           `json:"name"`
 	RecipePath   string           `json:"recipe_path"`
@@ -64,7 +65,7 @@ func InspectSteps(r workflow.Run) []StepInspection {
 // recorded engine status after a process exits unexpectedly.
 func InspectRun(state store.RunState) RunInspection {
 	r := state.Record
-	out := RunInspection{ID: r.RunID, Name: r.Definition.Name, RecipePath: r.RecipePath, Status: state.Status,
+	out := RunInspection{ResumeAt: r.WakeAt, ID: r.RunID, Name: r.Definition.Name, RecipePath: r.RecipePath, Status: state.Status,
 		Started: r.Started, Finished: r.Finished, ScheduleID: r.ScheduleID, ScheduledFor: r.ScheduledFor,
 		Outputs: InspectValue(DeclaredOutputs(r)), StepCounts: map[string]int{}}
 	if r.Finished != nil && !r.Started.IsZero() {

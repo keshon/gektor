@@ -71,7 +71,7 @@ func (s Service) Review(ctx context.Context, id, step string, approve bool) (str
 			r, runErr = engine.Resume(ctx, r, h, w.Save)
 		} else {
 			now := time.Now().UTC()
-			cancelReview(&r, now)
+			cancelPaused(&r, now)
 			runErr = w.Save(r)
 		}
 		summary := map[string]any{"run_id": id, "status": r.Status}
@@ -87,21 +87,21 @@ func (s Service) Review(ctx context.Context, id, step string, approve bool) (str
 	return execute(ctx)
 }
 
-func cancelReview(r *workflow.Run, now time.Time) {
-	r.Status, r.Finished = "cancelled", &now
-	cancelReviewSteps(r.Steps, now)
+func cancelPaused(r *workflow.Run, now time.Time) {
+	r.Status, r.Finished, r.WakeAt = "cancelled", &now, nil
+	cancelPausedSteps(r.Steps, now)
 }
 
-func cancelReviewSteps(steps []workflow.StepResult, now time.Time) {
+func cancelPausedSteps(steps []workflow.StepResult, now time.Time) {
 	for i := range steps {
 		step := &steps[i]
-		if step.Status != "waiting_review" && step.Status != "pending" {
+		if step.Status != "waiting_review" && step.Status != "waiting" && step.Status != "pending" {
 			continue
 		}
 		step.Status = "skipped"
 		if step.Child != nil {
-			cancelReview(step.Child, now)
+			cancelPaused(step.Child, now)
 		}
-		cancelReviewSteps(step.Iterations, now)
+		cancelPausedSteps(step.Iterations, now)
 	}
 }

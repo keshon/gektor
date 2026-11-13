@@ -118,5 +118,16 @@ input object). True ends the loop and returns the final child output; false at
 the iteration limit fails. Missing/null control values fail. Use artifacts or
 inspection for earlier pages. Each iteration has its own scope and permissions.
 Do not combine repeat with for_each, concurrency, on_error or retry. An optional
-`delay_ms` (0–10000) waits between iterations in the active process; durable waits
-and automatic recovery from interrupted effects are not available.
+`delay_ms` (0–10000) waits between iterations in the active process. For a
+durable pause, put workflow_wait inside the child. Interrupted effects are not
+automatically replayed.
+
+`workflow_wait` with `args:{"delay_ms":60000}` records a durable deadline and
+returns `waiting`; it does not hold a worker slot. Delay is an integer from zero
+to 604800000 ms (seven days). Keep the workspace workflow service running to
+resume due waits under its current permissions. Completed work and frozen child
+recipes are retained. Waits may appear inside child calls/maps/repeats, but the
+wait node itself cannot use for_each or retry. Do not poll or rerun a waiting
+recipe to continue it. Inspect its existing run ID. A process stopped during
+active work remains interrupted, not automatically replayed. Callback waits are
+not implemented.

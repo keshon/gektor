@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/store"
@@ -20,7 +21,7 @@ func workflowGuidance(note io.Writer, result, directory, workspace, allow, deny 
 		ID     string `json:"run_id"`
 		Status string `json:"status"`
 	}
-	if json.Unmarshal([]byte(result), &summary) != nil || summary.Status != "waiting_review" {
+	if json.Unmarshal([]byte(result), &summary) != nil || (summary.Status != "waiting_review" && summary.Status != "waiting") {
 		return
 	}
 	db, err := store.OpenStore(directory, workspace)
@@ -30,6 +31,11 @@ func workflowGuidance(note io.Writer, result, directory, workspace, allow, deny 
 	defer db.Close()
 	run, err := db.Run(summary.ID)
 	if err != nil {
+		return
+	}
+	if summary.Status == "waiting" {
+		deadline := run.Record.WakeAt.Format(time.RFC3339)
+		fmt.Fprintf(note, "Run %s waits until %s. Keep the workspace workflow service running to continue.\n", summary.ID, deadline)
 		return
 	}
 	for _, step := range workflow.ScopedSteps(run.Record) {

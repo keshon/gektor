@@ -11,7 +11,12 @@ type Attempt struct {
 	Finished *time.Time `json:"finished,omitempty"`
 	Error    string     `json:"error,omitempty"`
 }
+type WaitState struct {
+	ResumeAt time.Time `json:"resume_at"`
+}
+
 type StepResult struct {
+	Wait       *WaitState      `json:"wait,omitempty"`
 	Child      *Run            `json:"child,omitempty"`
 	ForEach    json.RawMessage `json:"for_each,omitempty"`
 	Iterations []StepResult    `json:"iterations,omitempty"`
@@ -24,6 +29,7 @@ type StepResult struct {
 	Error  string          `json:"error,omitempty"`
 }
 type Run struct {
+	WakeAt       *time.Time                 `json:"wake_at,omitempty"`
 	ScheduleID   string                     `json:"schedule_id,omitempty"`
 	ScheduledFor *time.Time                 `json:"scheduled_for,omitempty"`
 	Approved     map[string]bool            `json:"approved,omitempty"`
@@ -39,6 +45,10 @@ type Run struct {
 	Started      time.Time                  `json:"started"`
 	Finished     *time.Time                 `json:"finished,omitempty"`
 	Steps        []StepResult               `json:"steps"`
+}
+
+func (r Run) Paused() bool {
+	return r.Status == "waiting_review" || r.Status == "waiting"
 }
 
 // ScopedStep borrows its definition and result from the run. Treat them as read-only.

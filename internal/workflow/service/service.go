@@ -220,13 +220,22 @@ func (t Service) RunSource(ctx context.Context, source []byte, path string, inpu
 	}
 
 	data, marshalErr := json.Marshal(struct {
-		Outputs json.RawMessage `json:"outputs,omitempty"`
-		ID      string          `json:"run_id"`
-		Path    string          `json:"database_path"`
-		Status  string          `json:"status"`
-		SHA256  string          `json:"recipe_sha256"`
-		Steps   []stepSummary   `json:"steps"`
-	}{DeclaredOutputs(r), w.ID(), filepath.ToSlash(w.DatabasePath()), r.Status, digest, steps})
+		Outputs  json.RawMessage `json:"outputs,omitempty"`
+		ID       string          `json:"run_id"`
+		Path     string          `json:"database_path"`
+		Status   string          `json:"status"`
+		SHA256   string          `json:"recipe_sha256"`
+		Steps    []stepSummary   `json:"steps"`
+		ResumeAt *time.Time      `json:"resume_at,omitempty"`
+	}{
+		Outputs:  DeclaredOutputs(r),
+		ID:       w.ID(),
+		Path:     filepath.ToSlash(w.DatabasePath()),
+		Status:   r.Status,
+		SHA256:   digest,
+		Steps:    steps,
+		ResumeAt: r.WakeAt,
+	})
 	if marshalErr != nil {
 		return "", marshalErr
 	}

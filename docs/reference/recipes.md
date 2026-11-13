@@ -206,6 +206,48 @@ infer whether an external effect happened.
 `node_version` defaults to 1. A recipe requesting another version fails unless
 that exact version is registered. This is separate from the recipe format version.
 
+## Durable deadline waits
+
+`workflow_wait` persists a deadline and returns control to its caller:
+
+```json
+{"id":"delay","tool":"workflow_wait","args":{"delay_ms":60000}}
+```
+
+`delay_ms` is required and accepts integer values from zero to 604,800,000
+(seven days). The deadline is recorded once with millisecond precision. The run
+and step become `waiting`; summaries and inspection expose `resume_at`. No worker
+or run lease is retained while waiting. Even a zero delay yields through the
+persisted wait state rather than sleeping inside the operation.
+
+Keep `gektor workflow serve -workspace <workspace>` running to continue due waits.
+This applies to manual runs as well as queued or scheduled jobs. The worker
+prioritizes queued jobs and checks due waits when that queue is empty; a deadline
+is eligibility to resume, not a precise delivery-time guarantee. Without the
+worker, the run stays waiting until a worker starts. The worker's current policy
+must permit `workflow_run` and the remaining operations. Continuation rechecks
+those permissions and uses the frozen recipe; completed operations are preserved.
+
+The wait and its deadline commit in one SQLite transaction. Claiming a due run
+holds its existing execution lease. Starting continuation consumes the wake-up
+before further effects. A process exiting while waiting leaves it resumable;
+exiting after execution starts leaves an interrupted run requiring inspection.
+No unknown external effect is automatically replayed. The CLI run timeout governs
+that active CLI invocation; it is not a stored wall-clock deadline for later
+worker continuations.
+
+Waits work inside ordinary child calls, serial child maps and repeated child
+workflows. `workflow_wait` cannot use `for_each` or `retry`; place the wait inside
+a child recipe instead. A review may precede a wait or occur after it. Cancelling
+a waiting queued job makes it claimable immediately so the worker can persist
+cancellation without executing remaining operations. Waiting jobs remain active
+for queue retention and schedule-overlap rules. At most 1,000 runs may wait in a
+workspace store. Waiting-run artifacts are retained.
+
+Only deadline waits are implemented. Callback waits, authenticated wake-up events
+and explicit operator recovery of interrupted effects remain separate work.
+See the [durable wait example](../../examples/workflows/durable-wait/README.md).
+
 ## Reusable subworkflows
 
 `workflow_call` invokes a saved recipe using a literal workspace-relative

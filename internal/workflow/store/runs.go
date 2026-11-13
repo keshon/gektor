@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/keshon/gektor/internal/workflow"
 )
@@ -90,6 +91,10 @@ ON CONFLICT(id) DO UPDATE SET status=excluded.status, finished=excluded.finished
 				return err
 			}
 		}
+		err = saveWakeup(tx, w.id, r)
+		if err != nil {
+			return err
+		}
 		return tx.Commit()
 	}
 
@@ -135,6 +140,10 @@ WHERE run_id = ? AND position = ? AND json_extract(record, '$.status') != ?`, st
 		return err
 	}
 	err = saveInvocation(tx, w.id, parent, path[len(path)-1], selected)
+	if err != nil {
+		return err
+	}
+	err = saveWakeup(tx, w.id, r)
 	if err != nil {
 		return err
 	}
@@ -229,6 +238,16 @@ func runMetadata(db *sql.Tx, id string) (workflow.Run, error) {
 		return r, err
 	}
 
+	r.WakeAt = nil
+	if r.Status == "waiting" {
+		var due int64
+		err = db.QueryRow("SELECT due FROM wakeups WHERE run_id = ?", id).Scan(&due)
+		if err != nil {
+			return r, fmt.Errorf("reading wait deadline: %w", err)
+		}
+		deadline := time.UnixMilli(due).UTC()
+		r.WakeAt = &deadline
+	}
 	return r, nil
 }
 

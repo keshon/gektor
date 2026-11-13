@@ -156,7 +156,7 @@ func (s *Store) Tick(ctx context.Context, now time.Time) error {
 			}
 			overlap := false
 			for _, j := range c.Jobs {
-				if j.Schedule == id && (j.Status == "queued" || j.Status == "running" || j.Status == "waiting_review") {
+				if j.Schedule == id && (j.Status == "queued" || j.Status == "running" || j.Status == "waiting_review" || j.Status == "waiting") {
 					overlap = true
 					break
 				}

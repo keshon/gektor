@@ -1,0 +1,10 @@
+{
+  "version": 4,
+  "name": "Retain work across a durable wait",
+  "steps": [
+    {"id": "before", "tool": "artifact_write", "args": {"name": "before.txt", "text": "Before the wait"}},
+    {"id": "delay", "tool": "workflow_wait", "args": {"delay_ms": 1000}},
+    {"id": "after", "tool": "artifact_write", "depends_on": ["delay"], "args": {"name": "after.txt", "text": "After the wait"}}
+  ],
+  "outputs": {"before": {"$step": "before"}, "after": {"$step": "after"}}
+}

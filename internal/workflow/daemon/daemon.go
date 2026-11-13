@@ -75,6 +75,13 @@ func Serve(ctx context.Context, s *store.Store, svc service.Service) (resultErr 
 		}
 
 		if !ok {
+			resumed, resumeErr := resumeWait(ctx, s, svc)
+			if resumeErr != nil {
+				return resumeErr
+			}
+			if resumed {
+				continue
+			}
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -88,4 +95,15 @@ func Serve(ctx context.Context, s *store.Store, svc service.Service) (resultErr 
 			return err
 		}
 	}
+}
+
+func resumeWait(ctx context.Context, db *store.Store, svc service.Service) (bool, error) {
+	writer, r, ok, err := db.ClaimWait(ctx, time.Now())
+	if err != nil || !ok {
+		return false, err
+	}
+
+	err = svc.ContinueWait(ctx, db, writer, r)
+	closeErr := writer.Close()
+	return true, errors.Join(err, closeErr)
 }

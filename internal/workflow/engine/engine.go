@@ -32,10 +32,13 @@ func RunWithInputs(ctx context.Context, d workflow.Definition, inputs map[string
 	return run(ctx, d, inputs, h, save, nil, executionScope{remaining: &remaining})
 }
 
-// Resume only continues an explicit review boundary; uncertain effects are never replayed.
+// Resume continues reviews or due deadlines; uncertain effects are never replayed.
 func Resume(ctx context.Context, previous workflow.Run, h workflow.Handler, save func(workflow.Run, ...int) error) (workflow.Run, error) {
-	if previous.Status != "waiting_review" {
-		return previous, fmt.Errorf("run is not waiting for review")
+	if !previous.Paused() {
+		return previous, fmt.Errorf("run is not paused")
+	}
+	if previous.Status == "waiting" && (previous.WakeAt == nil || time.Now().Before(*previous.WakeAt)) {
+		return previous, fmt.Errorf("wait deadline has not arrived")
 	}
 
 	remaining := workflow.MaxInvocations - invocationCount(previous)
@@ -92,7 +95,7 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 
 		r = *previous
 		r.Status = "running"
-		r.Finished = nil
+		r.Finished, r.WakeAt = nil, nil
 	}
 
 	if previous == nil {
@@ -119,6 +122,19 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 		}
 
 		err := ctx.Err()
+		resumingWait := previous != nil && s.Tool == "workflow_wait" && r.Steps[i].Status == "waiting" && r.Steps[i].Wait != nil
+		if err == nil && resumingWait {
+			if time.Now().Before(r.Steps[i].Wait.ResumeAt) {
+				return r, fmt.Errorf("wait deadline has not arrived")
+			}
+			r.Steps[i].Status = "completed"
+			status[s.ID], outputs[s.ID] = "completed", r.Steps[i].Output
+			err = save(r, i)
+			if err != nil {
+				return r, err
+			}
+			continue
+		}
 		skip := false
 		completed := 0
 		dependencies := 0
@@ -203,7 +219,7 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 				} else {
 					out, err = executeChild(ctx, operation, h, &r, i, save, scope)
 				}
-				if err == nil && r.Status == "waiting_review" {
+				if err == nil && r.Paused() {
 					return r, nil
 				}
 			} else if len(s.ForEach) > 0 {
@@ -225,6 +241,22 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 			err = ctx.Err()
 		}
 
+		if err == nil && s.Tool == "workflow_wait" {
+			var wait workflow.WaitState
+			err = json.Unmarshal([]byte(out), &wait)
+			if err == nil && wait.ResumeAt.IsZero() {
+				err = fmt.Errorf("wait returned no deadline")
+			}
+			if err == nil {
+				r.Steps[i].Wait, r.Steps[i].Status = &wait, "waiting"
+				r.Status, r.WakeAt = "waiting", &wait.ResumeAt
+				err = save(r, i)
+				if err == nil {
+					return r, nil
+				}
+				r.WakeAt = nil
+			}
+		}
 		if err != nil {
 			r.Steps[i].Status = "failed"
 			r.Steps[i].Error = err.Error()

@@ -75,8 +75,9 @@ func executeChildIterations(ctx context.Context, s workflow.Step, h workflow.Han
 			itemRun := workflow.Run{Status: "running", Steps: []workflow.StepResult{item}}
 			persist := func(child workflow.Run, path ...int) error {
 				r.Steps[index].Iterations[n] = child.Steps[0]
-				if child.Status == "waiting_review" {
-					r.Status, r.Steps[index].Status = "waiting_review", "waiting_review"
+				if child.Paused() {
+					r.Status, r.Steps[index].Status = child.Status, child.Status
+					r.WakeAt = child.WakeAt
 				}
 				parentPath := []int{index, n}
 				if len(path) > 0 {
@@ -86,7 +87,7 @@ func executeChildIterations(ctx context.Context, s workflow.Step, h workflow.Han
 			}
 			var output string
 			output, err = executeChild(ctx, call, h, &itemRun, 0, persist, scope)
-			if err == nil && itemRun.Status == "waiting_review" {
+			if err == nil && itemRun.Paused() {
 				paused = true
 				return "", nil
 			}
