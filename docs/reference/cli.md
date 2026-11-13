@@ -376,28 +376,38 @@ permissions. Stdout remains JSON. Use the run ID, not a step name, for `inspect`
 
 ## Windows launchers
 
-`start-gektor-agent.cmd` opens Agent; `start-gektor-workflows.cmd` opens Workflows.
+`start-tui-agent.cmd` opens Agent; `start-tui-workflows.cmd` opens Workflows.
 Both restore saved settings. Browser access is optional with `-browser chrome`.
 In a source checkout it rebuilds the binary first; release archives use the
 included executable without requiring Go.
 
-The root also has `run-gektor-agent.cmd`, `run-gektor-workflow.cmd` and
-`serve-gektor-workflows.cmd` for CLI use. Relative paths use the caller's folder.
+The root also has `run-cli-agent.cmd`, `run-cli-workflow.cmd` and
+`serve-workflows.cmd` for CLI use. Relative paths use the caller's folder.
 See [launchers and helpers](../../scripts/README.md) and [demos](../../examples/demos/README.md).
 No backend launchers are included.
 
 | Launcher | Purpose |
 |---|---|
-| `start-gektor-agent.cmd` | Open Agent with saved settings |
-| `start-gektor-workflows.cmd` | Open Workflows with saved settings |
-| `run-gektor-agent.cmd [flags] "task"` | Run one Agent task |
-| `run-gektor-workflow.cmd [flags] recipe.json` | Run one saved recipe |
-| `serve-gektor-workflows.cmd [flags]` | Run the workflow worker until stopped |
+| `start-tui-agent.cmd` | Open Agent with saved settings |
+| `start-tui-workflows.cmd` | Open Workflows with saved settings |
+| `run-cli-agent.cmd [flags] "task"` | Run one Agent task |
+| `run-cli-workflow.cmd [flags] recipe.json` | Run one saved recipe |
+| `serve-workflows.cmd [flags]` | Run the workflow worker until stopped |
 
 Relative paths use the caller's current directory, even when the launcher is
 installed elsewhere. Keep flags before task text or the recipe path. Launchers
 do not choose a backend or grant permissions. Agent CLI uses normal flag/profile
 defaults; workflows use the profiles named by their model nodes.
+
+### Git Bash and Linux
+
+Each application launcher above has a `.sh` counterpart beside it. In Git Bash
+on Windows, run `bash ./start-tui-agent.sh`; on Linux, run
+`./start-tui-agent.sh`. Use `./run-cli-agent.sh [flags] "task"`,
+`./run-cli-workflow.sh [flags] recipe.json`, or `./serve-workflows.sh [flags]`
+for CLI use. Arguments and exit codes pass through unchanged; relative paths
+use the caller's directory. Source checkouts build first; extracted releases use
+the included binary. Bash launchers return immediately on failure without a pause.
 
 ## SSH connection management
 

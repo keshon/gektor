@@ -11,9 +11,10 @@ import (
 
 func windowsFiles() []string {
 	return []string{
-		"start-gektor-agent.cmd", "start-gektor-workflows.cmd",
-		"run-gektor-agent.cmd", "run-gektor-workflow.cmd", "serve-gektor-workflows.cmd",
+		"start-tui-agent.cmd", "start-tui-workflows.cmd",
+		"run-cli-agent.cmd", "run-cli-workflow.cmd", "serve-workflows.cmd",
 		"scripts/run-task.cmd", "scripts/run-plan.cmd", "scripts/run-resume.cmd", "scripts/ensure-build.cmd",
+		"examples/demos/agent-task.sh", "examples/demos/workflow-draft.sh", "examples/demos/workflow-review.sh",
 		"examples/demos/agent-task.cmd", "examples/demos/workflow-draft.cmd", "examples/demos/workflow-review.cmd", "examples/demos/demo.ps1",
 	}
 }
@@ -22,6 +23,10 @@ func runtimeFiles(tracked []string, target string) []string {
 	selected := map[string]bool{}
 	for _, name := range tracked {
 		switch name {
+		case "start-tui-agent.sh", "start-tui-workflows.sh", "run-cli-agent.sh",
+			"run-cli-workflow.sh", "serve-workflows.sh", "scripts/ensure-build.sh",
+			"scripts/run-task.sh", "scripts/run-plan.sh", "scripts/run-resume.sh":
+			selected[name] = true
 		case "README.md", "LICENSE", "SECURITY.md", "ARCHITECTURE.md", ".env.example",
 			"eval/README.md", "examples/README.md", "examples/demos/README.md", "scripts/README.md", "internal/workspace/builtin/workflows/SKILL.md":
 			selected[name] = true

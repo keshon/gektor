@@ -14,7 +14,7 @@ import (
 )
 
 func payloadMode(name string) fs.FileMode {
-	if name == "gektor" || name == "gektor.exe" {
+	if name == "gektor" || name == "gektor.exe" || strings.HasSuffix(name, ".sh") {
 		return 0755
 	}
 

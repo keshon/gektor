@@ -1,7 +1,7 @@
 @echo off
 setlocal
 if "%~1"=="" (
-    echo Usage: run-gektor-workflow.cmd [flags] recipe.json
+    echo Usage: run-cli-workflow.cmd [flags] recipe.json
     echo Relative paths use your current directory. Put flags before the task or recipe.
     exit /b 1
 )

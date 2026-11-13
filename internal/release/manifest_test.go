@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -103,6 +104,21 @@ func TestBuildRejectsInvalidVersionAndTargetBeforeWriting(t *testing.T) {
 		_, err := Build(t.Context(), options)
 		if err == nil {
 			t.Fatal("accepted invalid options", options)
+		}
+	}
+}
+
+func TestBashLaunchersAreExecutableRuntimeFiles(t *testing.T) {
+	launchers := []string{"start-tui-agent.sh", "start-tui-workflows.sh", "run-cli-agent.sh", "run-cli-workflow.sh", "serve-workflows.sh", "scripts/ensure-build.sh", "scripts/run-task.sh", "scripts/run-plan.sh", "scripts/run-resume.sh"}
+	for _, target := range []string{"windows-amd64", "linux-amd64"} {
+		files := runtimeFiles(launchers, target)
+		for _, name := range launchers {
+			if !slices.Contains(files, name) {
+				t.Fatalf("%s missing from %s", name, target)
+			}
+			if payloadMode(name) != 0755 {
+				t.Fatalf("%s is not executable", name)
+			}
 		}
 	}
 }

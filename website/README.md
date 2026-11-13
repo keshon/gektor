@@ -145,3 +145,5 @@ checks before publication. Internal plans, prompts and skills remain excluded.
 
 `llms.txt` is an optional entry point for tools that support it. It is not a
 search-crawler permission file and does not promise better search rankings.
+
+From Git Bash, run `bash website/start.sh` to install missing dependencies and open the dev server.

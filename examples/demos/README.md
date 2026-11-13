@@ -38,9 +38,13 @@ It never publishes, comments or votes. An API error may produce a completed
 run with no draft; the demo reports that status.
 
 The workflow examples are also available for manual editing in the TUI.
-Open Workflows with `start-gektor-workflows.cmd`, select a demo workspace in
+Open Workflows with `start-tui-workflows.cmd`, select a demo workspace in
 Settings, and open its `recipe.json`.
 The workflow demos print their run ID so you can reopen their saved results.
 
 See [launchers](../../scripts/README.md) for general commands and
 [the terminal guide](../../docs/reference/terminal.md) for using Agent and Workflows.
+
+In Git Bash on Windows, use the matching `.sh` launchers, for example
+`bash examples/demos/workflow-review.sh`. They call the same PowerShell demo
+runner and return its exit code without pausing.

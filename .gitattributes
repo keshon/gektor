@@ -8,3 +8,6 @@
 *.pdf binary
 *.docx binary
 *.xlsx binary
+
+# Bash must remain runnable in Git Bash even with core.autocrlf enabled.
+*.sh text eol=lf

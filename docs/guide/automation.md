@@ -23,7 +23,7 @@ latest run and declared outputs. Worker ownership does not prove health or succe
 Keep the workflow service running for this workspace:
 
 ```powershell
-.\serve-gektor-workflows.cmd -workspace "D:\path\to\project"
+.\serve-workflows.cmd -workspace "D:\path\to\project"
 ```
 
 The service uses its own permission rules. Start it outside GEKTOR if it must

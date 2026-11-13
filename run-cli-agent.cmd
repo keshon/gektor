@@ -1,7 +1,7 @@
 @echo off
 setlocal
 if "%~1"=="" (
-    echo Usage: run-gektor-agent.cmd [flags] "task"
+    echo Usage: run-cli-agent.cmd [flags] "task"
     echo Relative paths use your current directory. Put flags before the task or recipe.
     exit /b 1
 )

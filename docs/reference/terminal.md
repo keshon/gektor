@@ -93,7 +93,7 @@ In Agent, the MCP manager is also available through `/mcp`.
 
 ## Start and choose a workspace
 
-On Windows, run `start-gektor-agent.cmd`, or `start-gektor-workflows.cmd`
+On Windows, run `start-tui-agent.cmd`, or `start-tui-workflows.cmd`
 to open Workflows directly. On other systems, run `gektor -tui`;
 add `-tui-screen workflows` to open Workflows.
 Source checkouts rebuild through the Windows launcher; release archives use

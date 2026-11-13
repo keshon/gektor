@@ -14,7 +14,8 @@ account. Workflows without model steps need no connection.
 ## Get started
 
 Download and extract a [Windows or Linux release](https://github.com/keshon/gektor/releases).
-On Windows, run `start-gektor-agent.cmd`. On Linux, run `./gektor -tui`.
+On Windows, run `start-tui-agent.cmd`, or `bash ./start-tui-agent.sh` in Git Bash.
+On Linux, run `./start-tui-agent.sh`.
 Release binaries need no Go installation.
 
 Follow [Get started](docs/start.md) to select a workspace and run your first

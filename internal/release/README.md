@@ -30,3 +30,7 @@ timestamps, file modes, byte verification, and checksum names during refactors.
 Run `go test ./internal/release`, adding `-race` for ownership changes. Tests build
 small fixture repositories for both targets; they do not publish a GitHub release.
 Follow the [Go style skill](../../.agents/skills/go-style/SKILL.md).
+
+Application Bash launchers and their build/task helpers ship on both platforms;
+Windows packages also include the PowerShell demo launchers. Bash payloads retain
+executable permissions in release archives.

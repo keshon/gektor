@@ -6,11 +6,9 @@ See [CLI launchers](../docs/reference/cli.md#windows-launchers) for application
 entry points and syntax. Releases use the included binary; source checkouts
 build first. Relative paths use the caller's current directory.
 
-## Existing names
+## Task helpers
 
-The older CLI helpers still work:
-
-- `scripts/run-task.cmd` forwards to `run-gektor-agent.cmd`.
+- `scripts/run-task.cmd` forwards to `run-cli-agent.cmd`.
 - `scripts/run-plan.cmd` runs an Agent task with `-plan`.
 - `scripts/run-resume.cmd [id or path]` lists saved CLI tasks or resumes one.
 
@@ -44,7 +42,9 @@ These require a source checkout:
   `SHA256SUMS.txt`. It packages files; publishing to GitHub is a separate action.
 - `go test ./internal/release` checks payload selection, offline links and archives.
 
-Invoke helpers under `scripts/` as `scripts/NAME.cmd`.
-`ensure-build.cmd` builds in the application folder without changing the caller's
+Invoke helpers under `scripts/` as `scripts/NAME.cmd`, or `bash scripts/NAME.sh` in Git Bash.
+The application launchers, task helpers, and eval helpers have Bash counterparts.
+Build and benchmark helpers remain Windows scripts.
+`ensure-build.cmd` and `ensure-build.sh` build in the application folder without changing the caller's
 working directory. `set-env.ps1` supports custom dotenv launchers;
 GEKTOR itself does not load `.env`.

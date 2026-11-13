@@ -13,7 +13,7 @@ workflow to try saved steps without a model connection.
 1. Start a model server with a tool-calling model and wait for it to load.
    GEKTOR defaults to llama.cpp at `http://127.0.0.1:9931`.
    For another server, an API or ChatGPT, follow [Connect a model](guide/models.md).
-2. On Windows, open `start-gektor-agent.cmd`. On Linux, run `./gektor -tui`.
+2. On Windows, open `start-tui-agent.cmd`. On Linux, run `./gektor -tui`.
 3. Choose **Change workspace…** in **GEKTOR** and select a project folder.
    In the folder browser, **Select folder** selects the folder currently displayed.
 4. Check **Settings > Model connection**. Set the protocol, address and model,
@@ -40,7 +40,7 @@ Press `Esc` to stop a turn. Completed changes remain. See
 The bundled transform-and-review example doubles a list of numbers and pauses
 for your approval. It needs no model, browser, network or additional runtime.
 
-1. On Windows, open `start-gektor-workflows.cmd`. On Linux, run
+1. On Windows, open `start-tui-workflows.cmd`. On Linux, run
    `./gektor -tui -tui-screen workflows`.
 2. Choose **GEKTOR > Change workspace…** and select
    `examples/workflows/transform-and-review` inside the extracted application folder.
