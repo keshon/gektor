@@ -211,6 +211,10 @@ interactive terminal or stdin. Results contain `connection`, `stdout`, `stderr`
 and `exit_code`. A nonzero exit is an operation error with captured output.
 Each output stream is limited to 64 KiB; exceeding it closes the connection
 and discards both captured streams to avoid exposing a truncated secret.
+Cancellation or an interrupted command also discards both streams; a normal
+nonzero exit retains redacted output. Credential matching includes substrings
+and JSON-escaped values, so text containing a credential is masked even inside
+a larger word or URL.
 
 Transfer arguments (the same shape for upload and download):
 

@@ -75,6 +75,83 @@ func TestAutoRetriesSourceFailureWithinOriginalDeadline(t *testing.T) {
 	}
 }
 
+func TestAutoRetriesChangedPlayerResponses(t *testing.T) {
+	for _, body := range []string{
+		`{"playabilityStatus":{"status":"ERROR","reason":"Unsupported player"}}`,
+		`{"streamingData":`,
+	} {
+		t.Run(body, func(t *testing.T) {
+			s := testService(t)
+			s.Apps = availableApps{}
+			s.transport = roundTrip(func(*http.Request) (*http.Response, error) {
+				return response(200, body), nil
+			})
+			calls := 0
+			s.run = func(context.Context, process.Request) (process.Result, error) {
+				calls++
+				return process.Result{Stdout: []byte(`{"id":"abcdefghijk","title":"Fallback","formats":[]}`)}, nil
+			}
+
+			value, err := s.RunVideo(t.Context(), "video_info", VideoRequest{URL: "https://youtu.be/abcdefghijk"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, err := json.Marshal(value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if calls != 1 || !strings.Contains(string(raw), `"backend":"yt-dlp"`) {
+				t.Fatalf("calls=%d result=%s", calls, raw)
+			}
+		})
+	}
+}
+
+func TestAutoRetriesRejectedNativeStream(t *testing.T) {
+	s := testService(t)
+	s.Apps = availableApps{}
+	fixture := `{"playabilityStatus":{"status":"OK","playableInEmbed":true},"videoDetails":{"videoId":"abcdefghijk","title":"Fixture","author":"Uploader","lengthSeconds":"5"},"streamingData":{"adaptiveFormats":[{"itag":140,"url":"https://media.example.com/audio","mimeType":"audio/mp4","audioChannels":2,"contentLength":"5"}]}}`
+	streamCalls := 0
+	s.transport = roundTrip(func(req *http.Request) (*http.Response, error) {
+		switch {
+		case strings.Contains(req.URL.Path, "/embed/"):
+			return response(200, "/s/player/fixture/player_ias.vflset/en_US/base.js"), nil
+		case strings.HasSuffix(req.URL.Path, "base.js"):
+			return response(200, "// fixture player"), nil
+		case req.URL.Host == "media.example.com":
+			streamCalls++
+			return response(403, "player parameters rejected"), nil
+		case req.URL.Path == "/watch":
+			return response(200, "var ytInitialPlayerResponse = "+fixture+";"), nil
+		default:
+			return response(200, fixture), nil
+		}
+	})
+	fallbackCalls := 0
+	s.run = func(_ context.Context, req process.Request) (process.Result, error) {
+		fallbackCalls++
+		err := os.WriteFile(filepath.Join(req.Directory, "download.m4a"), []byte("audio"), 0600)
+		return process.Result{}, err
+	}
+
+	in := VideoRequest{URL: "https://youtu.be/abcdefghijk", Mode: "audio", Path: "track.m4a", MaxBytes: 32}
+	value, err := s.RunVideo(t.Context(), "video_download", in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if streamCalls == 0 || fallbackCalls != 1 || !strings.Contains(string(raw), `"backend":"yt-dlp"`) {
+		t.Fatalf("stream calls=%d fallback calls=%d result=%s", streamCalls, fallbackCalls, raw)
+	}
+	content, err := s.WS.ReadFile(in.Path)
+	if err != nil || string(content) != "audio" {
+		t.Fatalf("fallback output=%q err=%v", content, err)
+	}
+}
+
 func TestAutoStopsAtCancellationAndLocalFailures(t *testing.T) {
 	for _, scenario := range []string{"cancelled", "existing output", "invalid path", "transport rejection", "byte limit", "response limit"} {
 		t.Run(scenario, func(t *testing.T) {
