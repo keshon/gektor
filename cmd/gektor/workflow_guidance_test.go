@@ -21,7 +21,7 @@ func TestWorkflowReviewGuidance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := w.Save(workflow.Run{Status: "waiting_review", Steps: []workflow.StepResult{{ID: "save", Status: "waiting_review"}}}); err != nil {
+	if err := w.Save(workflow.Run{Status: "waiting_review", Definition: workflow.Definition{Steps: []workflow.Step{{ID: "save", Review: true}}}, Steps: []workflow.StepResult{{ID: "save", Status: "waiting_review"}}}); err != nil {
 		t.Fatal(err)
 	}
 	id := w.ID()

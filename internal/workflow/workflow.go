@@ -43,6 +43,7 @@ type Step struct {
 	Concurrency    int             `json:"concurrency,omitempty"`
 	OnError        string          `json:"on_error,omitempty"`
 	NodeVersion    int             `json:"node_version,omitempty"`
+	Repeat         *RepeatPolicy   `json:"repeat,omitempty"`
 	Retry          *RetryPolicy    `json:"retry,omitempty"`
 	ID             string          `json:"id"`
 	Tool           string          `json:"tool"`
@@ -51,6 +52,16 @@ type Step struct {
 	When           json.RawMessage `json:"when,omitempty"`
 	Merge          string          `json:"merge,omitempty"`
 }
+
+// RepeatPolicy reads control fields from each child output using JSON Pointers.
+// Each iteration is a distinct invocation, never a retry of an uncertain effect.
+type RepeatPolicy struct {
+	MaxIterations int    `json:"max_iterations"`
+	Until         string `json:"until"`
+	NextInputs    string `json:"next_inputs"`
+	DelayMS       int    `json:"delay_ms,omitempty"`
+}
+
 type RetryPolicy struct {
 	MaxAttempts int `json:"max_attempts"`
 	DelayMS     int `json:"delay_ms,omitempty"`

@@ -154,6 +154,8 @@ func (e *Editor) Graph(old graph.Model) graph.Model {
 			detail = "Review before running"
 		} else if string(step.When) == "false" {
 			detail = "Disabled / condition false"
+		} else if step.Repeat != nil {
+			detail = "Repeat child workflow"
 		} else if len(step.ForEach) > 0 {
 			detail = "For each item"
 		}

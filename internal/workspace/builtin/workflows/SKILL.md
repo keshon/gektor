@@ -110,3 +110,13 @@ is healthy or that a recipe succeeded. Do not substitute an OS scheduler.
 The dedicated recipe-author role and editor AI proposal are draft-only. They
 cannot execute recipes or register schedules. Prepare and validate the recipe,
 then explain the handoff to the normal Agent or the Schedule card in the TUI.
+
+For pagination or short polling, use `repeat` on a `workflow_call` with initial
+`args.inputs`. Supply `max_iterations` (1–10000), `until` (JSON Pointer selecting
+an output boolean) and `next_inputs` (pointer selecting the next complete child
+input object). True ends the loop and returns the final child output; false at
+the iteration limit fails. Missing/null control values fail. Use artifacts or
+inspection for earlier pages. Each iteration has its own scope and permissions.
+Do not combine repeat with for_each, concurrency, on_error or retry. An optional
+`delay_ms` (0–10000) waits between iterations in the active process; durable waits
+and automatic recovery from interrupted effects are not available.

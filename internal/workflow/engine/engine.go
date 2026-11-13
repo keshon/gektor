@@ -196,7 +196,9 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 		var out string
 		if err == nil {
 			if s.Child != nil {
-				if len(s.ForEach) > 0 {
+				if s.Repeat != nil {
+					out, err = executeRepeat(ctx, operation, h, &r, i, save, scope)
+				} else if len(s.ForEach) > 0 {
 					out, err = executeChildIterations(ctx, operation, h, &r, i, save, scope)
 				} else {
 					out, err = executeChild(ctx, operation, h, &r, i, save, scope)

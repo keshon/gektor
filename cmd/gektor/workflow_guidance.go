@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/store"
 )
 
@@ -31,8 +32,8 @@ func workflowGuidance(note io.Writer, result, directory, workspace, allow, deny 
 	if err != nil {
 		return
 	}
-	for _, step := range run.Record.Steps {
-		if step.Status != "waiting_review" {
+	for _, step := range workflow.ScopedSteps(run.Record) {
+		if step.Result.Status != "waiting_review" || !step.Definition.Review || run.Record.Approved[step.ID] {
 			continue
 		}
 		fmt.Fprintf(note, "Run %s is waiting for review of step %q. No need to rerun the recipe.\n", summary.ID, step.ID)

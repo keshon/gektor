@@ -50,6 +50,12 @@ func (h *handler) Validate(s workflow.Step) error {
 	if version != n.Version {
 		return fmt.Errorf("node %s version %d unavailable (registered %d)", s.Tool, version, n.Version)
 	}
+	if s.Repeat != nil {
+		err = recipe.ValidateRepeat(s)
+		if err != nil {
+			return err
+		}
+	}
 	if s.Tool == "workflow_call" && len(s.ForEach) == 0 {
 		err = h.validateCall(s)
 		if err != nil {

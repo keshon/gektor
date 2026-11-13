@@ -1,0 +1,28 @@
+{
+  "version": 4,
+  "name": "Produce one fixture page",
+  "inputs": {
+    "cursor": {"type": "integer", "required": true},
+    "count": {"type": "integer", "required": true}
+  },
+  "steps": [
+    {
+      "id": "fetch",
+      "tool": "script_transform",
+      "args": {
+        "input": {"cursor": {"$input": "cursor"}, "count": {"$input": "count"}},
+        "code": "if (input.count < 1 || input.count > 10) throw new Error('count must be 1–10'); return {done: input.cursor + 1 >= input.count, next: {cursor: input.cursor + 1, count: input.count}, text: 'Page ' + (input.cursor + 1)};"
+      }
+    },
+    {
+      "id": "save",
+      "tool": "artifact_write",
+      "args": {"name": "page.txt", "text": {"$step": "fetch", "pointer": "/text"}}
+    }
+  ],
+  "outputs": {
+    "done": {"$step": "fetch", "pointer": "/done"},
+    "next": {"$step": "fetch", "pointer": "/next"},
+    "artifact": {"$step": "save"}
+  }
+}

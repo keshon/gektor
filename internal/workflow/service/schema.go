@@ -23,6 +23,18 @@ func (s Service) DefinitionSchema() json.RawMessage {
 		"required":             []string{"max_attempts"},
 		"additionalProperties": false,
 	}
+	repeat := map[string]any{
+		"type":        "object",
+		"description": "Serial workflow_call loop. Until selects a boolean from child output; next_inputs selects the next child input object. The last child output is the step result. Limit exhaustion fails. Delays occupy the current execution slot, not a durable wait.",
+		"properties": map[string]any{
+			"max_iterations": map[string]any{"type": "integer", "minimum": 1, "maximum": 10000},
+			"until":          map[string]any{"type": "string"},
+			"next_inputs":    map[string]any{"type": "string"},
+			"delay_ms":       map[string]any{"type": "integer", "minimum": 0, "maximum": 10000},
+		},
+		"required":             []string{"max_iterations", "until", "next_inputs"},
+		"additionalProperties": false,
+	}
 	step := map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -35,6 +47,7 @@ func (s Service) DefinitionSchema() json.RawMessage {
 			"on_error":     map[string]any{"type": "string", "enum": []string{"stop", "collect"}},
 			"node_version": map[string]any{"type": "integer", "minimum": 1},
 			"retry":        retry,
+			"repeat":       repeat,
 			"depends_on":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "uniqueItems": true},
 			"when":         map[string]any{},
 			"merge":        map[string]any{"type": "string", "enum": []string{"all", "any"}},

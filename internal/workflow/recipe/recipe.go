@@ -88,6 +88,12 @@ func Prepare(d workflow.Definition, values map[string]json.RawMessage, h workflo
 	seen := map[string]bool{}
 
 	for i, s := range d.Steps {
+		if s.Repeat != nil {
+			err = ValidateRepeat(s)
+			if err != nil {
+				return d, nil, fmt.Errorf("step %s: %w", s.ID, err)
+			}
+		}
 		if s.ID == "" || len(s.ID) > 64 || seen[s.ID] {
 			return d, nil, fmt.Errorf("step IDs must be unique and contain 1–64 bytes")
 		}

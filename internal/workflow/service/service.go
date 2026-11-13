@@ -147,7 +147,7 @@ func (t Service) RunSource(ctx context.Context, source []byte, path string, inpu
 	// Authorize known arguments before effects. Output-dependent arguments are
 	// authorized in handler.Run after resolution, never with placeholder paths.
 	for _, s := range prepared.Steps {
-		if s.Review || len(s.ForEach) > 0 || recipe.HasOutputReferences(s.Args) || len(s.When) > 0 || len(s.DependsOn) > 0 {
+		if s.Review || s.Repeat != nil || len(s.ForEach) > 0 || recipe.HasOutputReferences(s.Args) || len(s.When) > 0 || len(s.DependsOn) > 0 {
 			continue
 		}
 

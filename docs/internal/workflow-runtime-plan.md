@@ -80,8 +80,8 @@ The remaining work must define item identity, ordering, missing/null values,
 branch readiness, merge keys and restart behavior before exposing palette entries.
 
 - Flow controls: filter, if/switch, batches/repeat, merge, child workflows,
-  stop/error and durable wait. Child mapping is now available; bounded repeats,
-  waits, richer routing and data joins remain in the delivery sequence.
+  stop/error and durable wait. Child mapping and bounded repeats are available;
+  durable waits, richer routing and data joins remain in the delivery sequence.
 - Data operations: set/rename fields, limit, deduplicate, split, aggregate,
   summarize, compare datasets and sort. Add small deterministic nodes with explicit
   schemas and size limits; scripts remain available for custom transformations.
@@ -168,8 +168,11 @@ checks. No deployment, live credential use, commit or push is implied.
   preserves completed and collected-failure items, and rejection cancels remaining
   items and scopes. Only typed operation failures are collectable. Boundaries use
   IDs such as `batch[0]/save`, including through nested maps. Calls do not retry.
-- Bounded repeats and later stages: pending. Concurrent child calls require a
-  shared scheduler rather than independent worker pools per call.
+- Bounded repeats: implemented for serial frozen workflow calls. Each iteration
+  persists a child scope, reads an explicit boolean completion pointer and uses
+  an explicit next-input object. Limit exhaustion is terminal. Short delays are
+  cancellable but occupy the active slot; durable waits remain pending. Concurrent
+  child calls require a shared scheduler rather than independent worker pools.
 
 Verified the model-free collection example through the CLI service: two
 successes, one retained failure and ordered values `[4, 6]`. Deterministic
@@ -267,8 +270,50 @@ checkpoint faults, output bounds and terminal permission/validation failures.
 The terminal review form and inspection use qualified IDs such as
 `batch[0]/inner[0]/save`.
 
-Next implementation: bounded repeat state for pagination/polling, followed by
+The bounded repeat slice below follows this checkpoint. Next implementation:
 durable waits and recovery/control-flow work. Concurrent child calls still need
 a shared scheduler. Named connections/credentials remain a separate planned
 milestone. The screenshot checklist above records the broader flow, data and
 format capabilities; those entries are not claims of implemented parity.
+
+
+## Handoff after bounded repeats
+
+`workflow_call` now supports `repeat` with required `max_iterations`, `until`
+and `next_inputs` fields, plus optional `delay_ms`. Completion must be a boolean;
+next inputs must be an object and replace, rather than merge with, prior inputs.
+True completion returns the final child output without reading next inputs.
+Missing/null control values fail. False completion at the iteration limit fails.
+Repeats cannot combine with maps, concurrency, failure collection or call retries.
+
+The coordinator checkpoints each new iteration before effects and each outcome
+before reading control fields. Stable indexed identities reuse the invocation,
+child-scope and artifact persistence contracts. Completed iterations are not
+replayed on review continuation. New calls reauthorize their destination and
+operations; next inputs are type-checked and cannot inject structured references.
+Short delays (at most ten seconds) are cancellable and occupy the current slot.
+They are not durable waits or restart recovery. Unknown external effects still
+require explicit intervention, never automatic replay.
+
+The runnable fixture is `examples/workflows/repeated-subworkflow/recipe.json`.
+It produces three artifacts and returns the third page. The editor preserves and
+edits repeat policy; graph details and inspection distinguish its child scopes.
+CLI approval guidance now selects the qualified pending review instead of an
+ancestor call marked waiting by its descendant.
+
+Next: durable waits, releasing worker capacity and defining deduplicated wake-up
+and recovery transitions. Concurrent child calls, keyed joins and broader error
+routing remain separate work. Do not reinterpret an interrupted operation as a
+safe retry when adding continuation.
+
+
+Bounded-repeat verification passed `go test -p 1 ./cmd/... ./internal/...`,
+source-scoped vet, engine/service/store/editor/CLI race tests and a source build
+with `CGO_ENABLED=0`. The eval dry-run selected 45 valid probes. Documentation
+links and diff checks passed. Deterministic cases cover 500 iterations, nested
+reviews, serialized continuation, revocation, invalid next inputs and reference
+injection, control-value errors, cancellation and budget/checkpoint failures.
+The shipped example passed through the CLI service with counts three and five;
+SQLite-backed review approval/rejection retained the expected artifact counts
+and frozen child definitions. No model-backed authoring eval or physical
+power-loss test was performed for this slice.

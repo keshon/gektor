@@ -201,6 +201,9 @@ func (m *Model) detailRows() []string {
 	if len(step.ForEach) > 0 {
 		repeats = "For each item"
 	}
+	if step.Repeat != nil {
+		repeats = fmt.Sprintf("Until %s, at most %d iterations", step.Repeat.Until, step.Repeat.MaxIterations)
+	}
 	valueRow("", "Repeats", repeats, false)
 	retry := "No automatic retry"
 	if step.Retry != nil {

@@ -1,0 +1,19 @@
+{
+  "version": 4,
+  "name": "Read bounded pages",
+  "inputs": {
+    "count": {"type": "integer", "default": 3}
+  },
+  "steps": [
+    {
+      "id": "pages",
+      "tool": "workflow_call",
+      "args": {
+        "recipe_path": "examples/workflows/repeated-subworkflow/page.json",
+        "inputs": {"cursor": 0, "count": {"$input": "count"}}
+      },
+      "repeat": {"max_iterations": 10, "until": "/done", "next_inputs": "/next"}
+    }
+  ],
+  "outputs": {"last": {"$step": "pages"}}
+}

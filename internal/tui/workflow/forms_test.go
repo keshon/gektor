@@ -104,3 +104,26 @@ func TestCollectionBehaviorFormPreservesOperationAndEditsPolicy(t *testing.T) {
 		t.Fatal("behavior edit lost operation or policy", step)
 	}
 }
+
+func TestRepeatBehaviorFormPreservesAndEditsPolicy(t *testing.T) {
+	m := workflowTestModel(t)
+	w := m.workflows
+	d := workflowRecipe()
+	d.Steps[0].Tool = "workflow_call"
+	d.Steps[0].Args = json.RawMessage(`{"recipe_path":"page.json","inputs":{"cursor":0}}`)
+	d.Steps[0].Repeat = &workflow.RepeatPolicy{MaxIterations: 3, Until: "/done", NextInputs: "/next"}
+	w.editor.Replace(d)
+	w.graph.Selected = d.Steps[0].ID
+	m.workflowCommand("behavior")
+	values := m.chrome.Dialog.Form.Values()
+	values["repeat"] = `{"max_iterations":5,"until":"/finished","next_inputs":"/cursor","delay_ms":100}`
+
+	err := m.applyValues(values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	step := w.editor.Definition.Steps[0]
+	if step.Tool != "workflow_call" || string(step.Args) != string(d.Steps[0].Args) || step.Repeat == nil || step.Repeat.MaxIterations != 5 || step.Repeat.Until != "/finished" || step.Repeat.NextInputs != "/cursor" || step.Repeat.DelayMS != 100 {
+		t.Fatal("behavior edit lost operation or repeat policy", step)
+	}
+}

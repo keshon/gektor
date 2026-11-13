@@ -275,6 +275,37 @@ Calls cannot use `retry`; ordinary nodes inside a child retain their retry rules
 `on_error: "collect"` retains only explicitly classified execution failures;
 permission, validation, output-contract, budget and persistence errors remain terminal.
 
+A call can instead use `repeat` for pagination or short polling:
+
+```json
+{"id":"pages","tool":"workflow_call","args":{"recipe_path":"page.json","inputs":{"cursor":0}},"repeat":{"max_iterations":100,"until":"/done","next_inputs":"/next","delay_ms":100}}
+```
+
+The first iteration uses `args.inputs`. After each child completes, `until`
+selects a boolean using a JSON Pointer into its declared output. `true` ends the
+repeat and returns that entire final child output. Otherwise, `next_inputs`
+selects a complete input object for the next call, replacing the previous inputs.
+Missing/null values and wrong types fail explicitly. The next-input pointer is
+not read after `until` becomes true. Reaching the limit while it is false fails;
+it is not a successful partial result.
+
+All three fields `max_iterations`, `until` and `next_inputs` are required.
+The iteration limit is 1–10,000, subject to the shared run invocation budget.
+`delay_ms` defaults to zero and accepts 0–10,000 ms between iterations. This delay
+occupies the execution slot and is cancelled with the run; it is not durable
+and does not provide restart recovery. Repeats cannot combine with `for_each`,
+`concurrency`, `on_error` or `retry`. Child operations retain their own retry rules.
+
+Each iteration has its own checkpoint, child scope, permissions and artifact
+ownership (`pages[0]/save`). A repeat's `review` gates entry once; child reviews
+pause the current iteration. Approval retains completed iterations and rejection
+cancels the paused scopes. Interrupted effects are never automatically replayed.
+Only the final child output becomes the repeat's output; inspect iteration history
+or publish artifacts when earlier pages must remain available.
+
+The [repeated subworkflow example](../../examples/workflows/repeated-subworkflow/README.md)
+uses deterministic local pages without a model or remote service.
+
 The [mapped subworkflow example](../../examples/workflows/mapped-subworkflow/README.md)
 runs mixed outcomes and duplicate inputs without a model.
 
