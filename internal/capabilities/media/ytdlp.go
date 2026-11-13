@@ -39,7 +39,8 @@ func (s *Service) external(ctx context.Context, name string, in VideoRequest) (a
 	}
 	switch name {
 	case "video_playlist":
-		args = append(args, "--flat-playlist", "--skip-download", "--dump-single-json")
+		selection := fmt.Sprintf("%d:%d", in.Offset+1, in.Offset+in.Limit+1)
+		args = append(args, "--flat-playlist", "--lazy-playlist", "--playlist-items", selection, "--skip-download", "--dump-single-json")
 	case "video_info":
 		args = append(args, "--skip-download", "--dump-single-json")
 	case "video_transcript":

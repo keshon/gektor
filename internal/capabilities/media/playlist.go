@@ -24,7 +24,7 @@ type playlistPage struct {
 	Entries    []playlistEntry `json:"entries"`
 	NextOffset int             `json:"next_offset"`
 	More       bool            `json:"more"`
-	Total      int             `json:"total"`
+	Total      *int            `json:"total,omitempty"`
 }
 
 func (s *Service) playlist(ctx context.Context, in VideoRequest) (playlistPage, error) {
@@ -49,7 +49,7 @@ func pagePlaylist(list *youtube.Playlist, in VideoRequest) (playlistPage, error)
 		Author:     brief([]byte(list.Author), 256),
 		Entries:    []playlistEntry{},
 		NextOffset: in.Offset,
-		Total:      len(list.Videos),
+		Total:      new(len(list.Videos)),
 	}
 
 	end := min(in.Offset+in.Limit, len(list.Videos))
@@ -65,7 +65,7 @@ func pagePlaylist(list *youtube.Playlist, in VideoRequest) (playlistPage, error)
 		page.Entries = append(page.Entries, entry)
 		page.NextOffset = i + 1
 	}
-	page.More = page.NextOffset < page.Total
+	page.More = page.NextOffset < *page.Total
 
 	return page, nil
 }
@@ -73,17 +73,16 @@ func pagePlaylist(list *youtube.Playlist, in VideoRequest) (playlistPage, error)
 func externalPlaylist(raw []byte, in VideoRequest) (playlistPage, error) {
 	var source struct {
 		ID, Title, Uploader string
-		Entries             []struct {
+		Total               *int `json:"playlist_count"`
+		Entries             []*struct {
 			ID, Title, Uploader string
 			Duration            float64
+			Index               int `json:"playlist_index"`
 		}
 	}
 	err := json.Unmarshal(raw, &source)
 	if err != nil {
 		return playlistPage{}, err
-	}
-	if in.Offset > len(source.Entries) {
-		return playlistPage{}, fmt.Errorf("playlist offset exceeds %d entries", len(source.Entries))
 	}
 
 	page := playlistPage{
@@ -93,22 +92,36 @@ func externalPlaylist(raw []byte, in VideoRequest) (playlistPage, error) {
 		Author:     brief([]byte(source.Uploader), 256),
 		Entries:    []playlistEntry{},
 		NextOffset: in.Offset,
-		Total:      len(source.Entries),
+		Total:      source.Total,
 	}
-	end := min(in.Offset+in.Limit, page.Total)
-	for i := in.Offset; i < end; i++ {
-		video := source.Entries[i]
+	end := in.Offset + in.Limit
+	for i, video := range source.Entries {
+		index := in.Offset + i + 1
+		if video != nil && video.Index > 0 {
+			index = video.Index
+		}
+		if index > end {
+			page.More = true
+			break
+		}
+		page.NextOffset = index
+		if video == nil {
+			continue
+		}
 		entry := playlistEntry{
-			Index:           i + 1,
-			URL:             "https://www.youtube.com/watch?v=" + video.ID,
+			Index:           index,
 			Title:           brief([]byte(video.Title), 128),
 			Author:          brief([]byte(video.Uploader), 64),
 			DurationSeconds: video.Duration,
 		}
+		if video.ID != "" {
+			entry.URL = "https://www.youtube.com/watch?v=" + video.ID
+		}
 		page.Entries = append(page.Entries, entry)
-		page.NextOffset = i + 1
 	}
-	page.More = page.NextOffset < page.Total
+	if page.More {
+		page.NextOffset = end
+	}
 
 	return page, nil
 }

@@ -60,6 +60,9 @@ func (s *Service) ValidateVideo(name string, in VideoRequest) (VideoRequest, err
 	}
 
 	if name == "video_playlist" {
+		if in.Offset > int(^uint(0)>>1)-in.Limit-1 {
+			return in, fmt.Errorf("playlist range exceeds maximum offset")
+		}
 		if !isYouTube(in.URL) || u.Query().Get("list") == "" {
 			return in, fmt.Errorf("video_playlist requires a YouTube playlist URL")
 		}
