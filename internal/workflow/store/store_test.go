@@ -81,6 +81,17 @@ func TestRunLeaseProcessExit(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		r := collectionRun(2)
+		err = w.Save(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.Steps[0].Iterations[1].Status = "completed"
+		r.Steps[0].Iterations[1].Output = `{"acknowledged":true}`
+		err = w.Save(r, 0, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if err := os.WriteFile(filepath.Join(base, "id"), []byte(w.ID()), 0600); err != nil {
 			t.Fatal(err)
 		}
@@ -105,25 +116,28 @@ func TestRunLeaseProcessExit(t *testing.T) {
 	if err != nil || r.Status != "interrupted" {
 		t.Fatal(r, err)
 	}
+	if r.Record.Steps[0].Iterations[1].Output != `{"acknowledged":true}` || r.Record.Steps[0].Iterations[0].Status != "pending" {
+		t.Fatal("acknowledged invocation lost after process exit", r)
+	}
 }
 
-func TestIncompleteAndCorruptRunsRemainVisible(t *testing.T) {
+func TestCorruptRunsRemainVisible(t *testing.T) {
 	s, _, _ := testStore(t)
-	if err := s.root.MkdirAll("runs/reserved", 0700); err != nil {
+	healthy, err := s.NewRun()
+	if err != nil {
 		t.Fatal(err)
 	}
-	state, err := s.Run("reserved")
-	if err != nil || state.Status != "interrupted" || state.Record.Status != "" {
-		t.Fatal(state, err)
-	}
+	defer healthy.Close()
 	w, err := s.NewRun()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := w.Close(); err != nil {
+	err = w.Close()
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(w.Path(), []byte("broken JSON"), 0600); err != nil {
+	_, err = s.db.Exec("UPDATE runs SET record = ? WHERE id = ?", []byte("broken JSON"), w.ID())
+	if err != nil {
 		t.Fatal(err)
 	}
 	runs, err := s.Runs()

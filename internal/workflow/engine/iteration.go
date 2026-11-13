@@ -29,7 +29,7 @@ type iterationOutcome struct {
 
 // The coordinator alone updates the run. Workers wait for checkpoint acknowledgement
 // before effects, and every started worker is joined even after persistence fails.
-func executeIterations(ctx context.Context, s workflow.Step, h workflow.Handler, r *workflow.Run, index int, save func(workflow.Run) error) (string, error) {
+func executeIterations(ctx context.Context, s workflow.Step, h workflow.Handler, r *workflow.Run, index int, save func(workflow.Run, ...int) error) (string, error) {
 	var items []json.RawMessage
 	err := json.Unmarshal(s.ForEach, &items)
 	if err != nil || string(s.ForEach) == "null" || len(items) > workflow.MaxIterations {
@@ -47,7 +47,7 @@ func executeIterations(ctx context.Context, s workflow.Step, h workflow.Handler,
 			ID: fmt.Sprintf("%s[%d]", s.ID, n), Status: "pending", Args: args,
 		}
 	}
-	err = save(*r)
+	err = save(*r, index)
 	if err != nil {
 		return "", err
 	}
@@ -108,7 +108,7 @@ func executeIterations(ctx context.Context, s workflow.Step, h workflow.Handler,
 
 		// Drain and record owned workers after an operation failure. Storage
 		// failures stop dispatch and are never converted into item failures.
-		saveErr := save(*r)
+		saveErr := save(*r, index, update.index)
 		if saveErr != nil {
 			failure = errors.Join(failure, saveErr)
 		}
@@ -135,7 +135,7 @@ func executeIterations(ctx context.Context, s workflow.Step, h workflow.Handler,
 
 func runIteration(ctx context.Context, s workflow.Step, h workflow.Handler, index int, updates chan<- iterationUpdate) {
 	nested := workflow.Run{Steps: []workflow.StepResult{{ID: s.ID, Status: "running", Args: s.Args}}}
-	persist := func(r workflow.Run) error {
+	persist := func(r workflow.Run, _ ...int) error {
 		step := r.Steps[0]
 		step.Attempts = append([]workflow.Attempt(nil), step.Attempts...)
 		ack := make(chan error, 1)

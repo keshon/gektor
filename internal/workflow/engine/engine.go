@@ -21,17 +21,18 @@ func Validate(d workflow.Definition, h workflow.Handler) error {
 
 // Run validates step templates before any effects. Save is called before each
 // operation; a process crash leaves a running record, never a false success.
+// Save receives the changed step/item indexes; an empty path saves the whole run.
 // There is deliberately no automatic retry of a step with possible effects.
-func Run(ctx context.Context, d workflow.Definition, h workflow.Handler, save func(workflow.Run) error) (workflow.Run, error) {
+func Run(ctx context.Context, d workflow.Definition, h workflow.Handler, save func(workflow.Run, ...int) error) (workflow.Run, error) {
 	return RunWithInputs(ctx, d, nil, h, save)
 }
 
-func RunWithInputs(ctx context.Context, d workflow.Definition, inputs map[string]json.RawMessage, h workflow.Handler, save func(workflow.Run) error) (workflow.Run, error) {
+func RunWithInputs(ctx context.Context, d workflow.Definition, inputs map[string]json.RawMessage, h workflow.Handler, save func(workflow.Run, ...int) error) (workflow.Run, error) {
 	return run(ctx, d, inputs, h, save, nil)
 }
 
 // Resume only continues an explicit review boundary; uncertain effects are never replayed.
-func Resume(ctx context.Context, previous workflow.Run, h workflow.Handler, save func(workflow.Run) error) (workflow.Run, error) {
+func Resume(ctx context.Context, previous workflow.Run, h workflow.Handler, save func(workflow.Run, ...int) error) (workflow.Run, error) {
 	if previous.Status != "waiting_review" {
 		return previous, fmt.Errorf("run is not waiting for review")
 	}
@@ -43,7 +44,7 @@ func Resume(ctx context.Context, previous workflow.Run, h workflow.Handler, save
 
 	return r, err
 }
-func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawMessage, h workflow.Handler, save func(workflow.Run) error, previous *workflow.Run) (workflow.Run, error) {
+func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawMessage, h workflow.Handler, save func(workflow.Run, ...int) error, previous *workflow.Run) (workflow.Run, error) {
 
 	data, err := json.Marshal(d)
 	if err != nil {
@@ -89,6 +90,11 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 		r = *previous
 		r.Status = "running"
 		r.Finished = nil
+	}
+
+	err = save(r)
+	if err != nil {
+		return r, fmt.Errorf("save initial run: %w", err)
 	}
 
 	status := map[string]string{}
@@ -149,7 +155,7 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 		if skip && err == nil {
 			r.Steps[i].Status = "skipped"
 			status[s.ID] = "skipped"
-			if err := save(r); err != nil {
+			if err := save(r, i); err != nil {
 				return r, err
 			}
 
@@ -172,7 +178,7 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 		if err == nil && s.Review && !r.Approved[s.ID] {
 			r.Status = "waiting_review"
 			r.Steps[i].Status = "waiting_review"
-			if err := save(r); err != nil {
+			if err := save(r, i); err != nil {
 				return r, err
 			}
 
@@ -180,7 +186,7 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 		}
 
 		r.Steps[i].Status = "running"
-		if err := save(r); err != nil {
+		if err := save(r, i); err != nil {
 			return r, fmt.Errorf("save before step: %w", err)
 		}
 
@@ -232,7 +238,7 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 		outputs[s.ID] = out
 		// Commit the outcome before preparing the next operation. A crash or
 		// validation failure must not hide an already completed effect.
-		if err := save(r); err != nil {
+		if err := save(r, i); err != nil {
 			return r, fmt.Errorf("save step %s result: %w", s.ID, err)
 		}
 	}

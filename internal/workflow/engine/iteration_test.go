@@ -77,7 +77,7 @@ func TestCollectionOverlapsWorkersAndRetainsInputOrder(t *testing.T) {
 		}
 		return string(s.Args), nil
 	}}
-	r, err := Run(ctx, collectionDefinition(t, 6, 3), h, func(r workflow.Run) error {
+	r, err := Run(ctx, collectionDefinition(t, 6, 3), h, func(r workflow.Run, _ ...int) error {
 		items := r.Steps[0].Iterations
 		if len(items) == 6 && items[2].Status == "completed" {
 			release.Do(func() { close(thirdSaved) })
@@ -113,7 +113,7 @@ func TestCollectionAccountsForFiveHundredMixedResults(t *testing.T) {
 		}
 		return string(s.Args), nil
 	}}
-	r, err := Run(t.Context(), collectionDefinition(t, 500, 8), h, func(workflow.Run) error { return nil })
+	r, err := Run(t.Context(), collectionDefinition(t, 500, 8), h, func(workflow.Run, ...int) error { return nil })
 	if err != nil || r.Status != "completed" || calls.Load() != 500 {
 		t.Fatalf("scan: status=%s calls=%d err=%v", r.Status, calls.Load(), err)
 	}
@@ -147,7 +147,7 @@ func TestCollectionDoesNotCollectControlFailures(t *testing.T) {
 				}
 				return "not JSON", nil
 			}}
-			r, err := Run(t.Context(), collectionDefinition(t, 3, 1), h, func(workflow.Run) error { return nil })
+			r, err := Run(t.Context(), collectionDefinition(t, 3, 1), h, func(workflow.Run, ...int) error { return nil })
 			if err == nil || r.Status != "failed" || calls != 1 || r.Steps[0].Iterations[1].Status != "skipped" {
 				t.Fatal("control failure collected", r, calls, err)
 			}
@@ -162,7 +162,7 @@ func TestCollectionPersistenceFailureStopsBeforeEffects(t *testing.T) {
 		calls.Add(1)
 		return `{}`, nil
 	}}
-	_, err := Run(t.Context(), collectionDefinition(t, 8, 4), h, func(r workflow.Run) error {
+	_, err := Run(t.Context(), collectionDefinition(t, 8, 4), h, func(r workflow.Run, _ ...int) error {
 		for _, item := range r.Steps[0].Iterations {
 			if len(item.Attempts) != 0 {
 				return disk
@@ -184,7 +184,7 @@ func TestCollectionOutcomeCheckpointFailurePreventsRetryAndDispatch(t *testing.T
 	}}
 	d := collectionDefinition(t, 4, 1)
 	d.Steps[0].Retry = &workflow.RetryPolicy{MaxAttempts: 3}
-	r, err := Run(t.Context(), d, h, func(r workflow.Run) error {
+	r, err := Run(t.Context(), d, h, func(r workflow.Run, _ ...int) error {
 		for _, item := range r.Steps[0].Iterations {
 			if len(item.Attempts) > 0 && item.Attempts[0].Finished != nil {
 				return disk
@@ -205,7 +205,7 @@ func TestCollectionStopsOnUncollectedOperationFailure(t *testing.T) {
 	}}
 	d := collectionDefinition(t, 4, 1)
 	d.Steps[0].OnError = ""
-	r, err := Run(t.Context(), d, h, func(workflow.Run) error { return nil })
+	r, err := Run(t.Context(), d, h, func(workflow.Run, ...int) error { return nil })
 	if err == nil || calls != 1 || r.Status != "failed" || r.Steps[0].Iterations[1].Status != "skipped" {
 		t.Fatal("unrequested failure collection", calls, r, err)
 	}
@@ -227,7 +227,7 @@ func TestCollectionCancellationJoinsStartedWorkers(t *testing.T) {
 	d := collectionDefinition(t, 20, 4)
 	done := make(chan workflow.Run, 1)
 	go func() {
-		r, _ := Run(ctx, d, h, func(workflow.Run) error { return nil })
+		r, _ := Run(ctx, d, h, func(workflow.Run, ...int) error { return nil })
 		done <- r
 	}()
 	for range 4 {
@@ -258,7 +258,7 @@ func TestEmptyCollectionProducesEmptyItems(t *testing.T) {
 		t.Error("empty map executed an item")
 		return `{}`, nil
 	}}
-	r, err := Run(t.Context(), collectionDefinition(t, 0, 4), h, func(workflow.Run) error { return nil })
+	r, err := Run(t.Context(), collectionDefinition(t, 0, 4), h, func(workflow.Run, ...int) error { return nil })
 	if err != nil || r.Steps[0].Output != `{"items":[]}` {
 		t.Fatal(r, err)
 	}
@@ -278,7 +278,7 @@ func TestCollectionRetriesOnlyOperationFailures(t *testing.T) {
 			}}
 			d := collectionDefinition(t, 1, 1)
 			d.Steps[0].Retry = &workflow.RetryPolicy{MaxAttempts: 3}
-			r, err := Run(t.Context(), d, h, func(workflow.Run) error { return nil })
+			r, err := Run(t.Context(), d, h, func(workflow.Run, ...int) error { return nil })
 			if operation {
 				if err != nil || calls != 3 || len(r.Steps[0].Iterations[0].Attempts) != 3 {
 					t.Fatal("operation retry lost", calls, err)

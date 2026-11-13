@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 // Store keeps workflow state separate from workspace files. It is not a
 // security boundary against programs running with the operator's account.
 type Store struct {
+	db        *sql.DB
 	root      *os.Root
 	path      string
 	workspace string
@@ -86,14 +88,16 @@ func OpenStore(base, workspace string) (*Store, error) {
 		return nil, err
 	}
 
-	return &Store{
-		root:      root,
-		path:      filepath.Join(resolved, key),
-		workspace: canonical,
-	}, nil
+	statePath := filepath.Join(resolved, key)
+	db, err := openDatabase(filepath.Join(statePath, "workflow.sqlite"))
+	if err != nil {
+		root.Close()
+		return nil, err
+	}
+	return &Store{db: db, root: root, path: statePath, workspace: canonical}, nil
 }
 
-func (s *Store) Close() error { return s.root.Close() }
+func (s *Store) Close() error { return errors.Join(s.db.Close(), s.root.Close()) }
 
 // RunWriter holds a process lease until Close. A process exit releases it;
 // the persistent lock file itself is never removed.
@@ -133,17 +137,9 @@ func (s *Store) NewRun() (*RunWriter, error) {
 	return w, nil
 }
 
-func (w *RunWriter) ID() string   { return w.id }
-func (w *RunWriter) Path() string { return filepath.Join(w.store.path, "runs", w.id, "run.json") }
-func (w *RunWriter) Close() error { return w.lease.Close() }
-func (w *RunWriter) Save(r workflow.Run) error {
-	if _, err := w.lease.Stat(); err != nil {
-		return fmt.Errorf("run writer closed: %w", err)
-	}
-
-	r.RunID, r.Workspace = w.id, w.store.workspace
-	return w.store.write(filepath.Join("runs", w.id, "run.json"), r)
-}
+func (w *RunWriter) ID() string           { return w.id }
+func (w *RunWriter) DatabasePath() string { return filepath.Join(w.store.path, "workflow.sqlite") }
+func (w *RunWriter) Close() error         { return w.lease.Close() }
 
 type RunState struct {
 	Status string       `json:"status"`
@@ -170,21 +166,11 @@ func (s *Store) Run(id string) (RunState, error) {
 		defer lease.Close()
 	}
 
-	var r workflow.Run
-	if err := s.read(filepath.Join(dir, "run.json"), 128<<20, &r); os.IsNotExist(err) {
-		// The process may have died between reserving its directory and its
-		// first snapshot. Keep that run visible without inventing evidence.
-		status := "interrupted"
-		if active {
-			status = "running"
-		}
-
-		return RunState{Status: status, Record: workflow.Run{RunID: id, Workspace: s.workspace}}, nil
-	} else if err != nil {
+	r, err := s.readRun(id)
+	if err != nil {
 		return RunState{}, err
 	}
-
-	if r.RunID != id || r.Workspace != s.workspace {
+	if r.Workspace != s.workspace {
 		return RunState{}, fmt.Errorf("run identity mismatch")
 	}
 
@@ -206,33 +192,32 @@ type RunSummary struct {
 }
 
 func (s *Store) Runs() ([]RunSummary, error) {
-	f, err := s.root.Open("runs")
-	if os.IsNotExist(err) {
-		return []RunSummary{}, nil
-	}
-
+	rows, err := s.db.Query("SELECT id FROM runs ORDER BY id")
 	if err != nil {
 		return nil, err
 	}
-
-	defer f.Close()
-
-	entries, err := f.ReadDir(-1)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make([]RunSummary, 0, len(entries))
-
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
+	var ids []string
+	for rows.Next() {
+		var id string
+		err = rows.Scan(&id)
+		if err != nil {
+			rows.Close()
+			return nil, err
 		}
+		ids = append(ids, id)
+	}
+	err = errors.Join(rows.Err(), rows.Close())
+	if err != nil {
+		return nil, err
+	}
 
-		r, err := s.Run(e.Name())
+	out := make([]RunSummary, 0, len(ids))
+
+	for _, id := range ids {
+		r, err := s.Run(id)
 		if err != nil {
 			out = append(out, RunSummary{
-				ID:     e.Name(),
+				ID:     id,
 				Status: "unreadable",
 				Error:  err.Error(),
 			})
@@ -240,7 +225,7 @@ func (s *Store) Runs() ([]RunSummary, error) {
 		}
 
 		out = append(out, RunSummary{
-			ID:         e.Name(),
+			ID:         id,
 			Name:       r.Record.Definition.Name,
 			Status:     r.Status,
 			RecipePath: r.Record.RecipePath,
@@ -357,8 +342,8 @@ func (s *Store) EditRun(id string) (*RunWriter, workflow.Run, error) {
 		return nil, workflow.Run{}, err
 	}
 
-	var r workflow.Run
-	if err := s.read(filepath.Join("runs", id, "run.json"), 128<<20, &r); err != nil {
+	r, err := s.readRun(id)
+	if err != nil {
 		lease.Close()
 		return nil, r, err
 	}

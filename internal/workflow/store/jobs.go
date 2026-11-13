@@ -1,9 +1,9 @@
 package store
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,8 +11,6 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
-
-	"github.com/keshon/gektor/internal/workflow"
 )
 
 type Job struct {
@@ -44,58 +42,12 @@ type Schedule struct {
 	Overlap    string                     `json:"overlap"`
 }
 type control struct {
-	ScheduleRevision uint64              `json:"schedule_revision,omitempty"`
-	Jobs             map[string]Job      `json:"jobs"`
-	Schedules        map[string]Schedule `json:"schedules"`
+	tx               *sql.Tx
+	ScheduleRevision uint64
+	Jobs             map[string]Job
+	Schedules        map[string]Schedule
 }
 
-func (s *Store) control(ctx context.Context, fn func(*control) error) error {
-	var lease *os.File
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		var err error
-		lease, err = s.lock("control.lock")
-		if err == nil {
-			break
-		}
-		if !errors.Is(err, errLocked) {
-			return err
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(25 * time.Millisecond):
-		}
-	}
-	defer lease.Close()
-	c := control{Jobs: map[string]Job{}, Schedules: map[string]Schedule{}}
-	if err := s.read("control.json", 256<<20, &c); err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	if c.Jobs == nil {
-		c.Jobs = map[string]Job{}
-	}
-	if c.Schedules == nil {
-		c.Schedules = map[string]Schedule{}
-	}
-	before, err := json.Marshal(c)
-	if err != nil {
-		return err
-	}
-	if err := fn(&c); err != nil {
-		return err
-	}
-	after, err := json.Marshal(c)
-	if err != nil {
-		return err
-	}
-	if bytes.Equal(before, after) {
-		return nil
-	}
-	return s.write("control.json", c)
-}
 func (s *Store) Enqueue(ctx context.Context, path string, source json.RawMessage, inputs map[string]json.RawMessage) (Job, error) {
 	return s.EnqueueOnce(ctx, path, source, inputs, "", "")
 }
@@ -212,8 +164,7 @@ func (s *Store) recoverJobs(ctx context.Context, includeUnlinked bool) error {
 				if err != nil {
 					return err
 				}
-				var run workflow.Run
-				err = s.read(filepath.Join("runs", j.RunID, "run.json"), 128<<20, &run)
+				run, err := runMetadata(c.tx, j.RunID)
 				lease.Close()
 				if err != nil {
 					return err

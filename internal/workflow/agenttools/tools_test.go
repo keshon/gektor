@@ -9,11 +9,13 @@ import (
 	"image"
 	"image/png"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/internal/workflow/store"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -80,22 +82,9 @@ func TestVersionTwoBindsInputsAndImageOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v %s", err, out)
 	}
-	var result struct {
-		Path string `json:"record_path"`
-	}
-	if err := json.Unmarshal([]byte(out), &result); err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(result.Path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var record workflow.Run
-	if err := json.Unmarshal(data, &record); err != nil {
-		t.Fatal(err)
-	}
+	record := storedWorkflowRun(t, ws, out)
 	if record.Status != "completed" || string(record.Inputs["destination"]) != `"web"` || strings.Contains(string(record.Steps[1].Args), "$step") || !strings.Contains(string(record.Steps[1].Args), "web/input-16w.png") {
-		t.Fatalf("wrong binding/evidence: %s", data)
+		t.Fatalf("wrong binding/evidence: %+v", record)
 	}
 	if record.RecipeSource != string(source) {
 		t.Fatal("source recipe changed")
@@ -201,28 +190,12 @@ func TestManualImageRecipeCompletes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v %s", err, out)
 	}
-	var result struct {
-		Path   string       `json:"record_path"`
-		Record workflow.Run `json:"record"`
-	}
-	if err := json.Unmarshal([]byte(out), &result); err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(result.Path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(data, &result.Record); err != nil {
-		t.Fatal(err)
-	}
+	result := struct{ Record workflow.Run }{storedWorkflowRun(t, ws, out)}
 	if result.Record.RecipeSource != string(source) || result.Record.RecipeSHA256 != fmt.Sprintf("%x", sha256.Sum256(source)) {
 		t.Fatal("recipe source or digest mismatch")
 	}
 	if authorized != 5 || result.Record.Status != "completed" || result.Record.Finished == nil {
 		t.Fatalf("bad completion: %s", out)
-	}
-	if _, err := os.ReadFile(result.Path); err != nil {
-		t.Fatal(err)
 	}
 	if _, err := ws.Stat("web/input-16w.png"); err != nil {
 		t.Fatal(err)
@@ -272,23 +245,9 @@ func TestManualRunRecordsFailureAndRejectsHiddenCommands(t *testing.T) {
 	if err == nil {
 		t.Fatal("missing image succeeded")
 	}
-	var result struct {
-		Path   string       `json:"record_path"`
-		Record workflow.Run `json:"record"`
-	}
-	if err := json.Unmarshal([]byte(out), &result); err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(result.Path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var saved workflow.Run
-	if err := json.Unmarshal(data, &saved); err != nil {
-		t.Fatal(err)
-	}
+	saved := storedWorkflowRun(t, ws, out)
 	if saved.Status != "failed" || saved.Steps[0].Status != "failed" || saved.Steps[1].Status != "skipped" {
-		t.Fatalf("wrong record: %s", data)
+		t.Fatalf("wrong record: %+v", saved)
 	}
 }
 
@@ -331,4 +290,27 @@ func TestRunRevalidatesSavedFile(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "denied") {
 		t.Fatal("read permission bypassed")
 	}
+}
+
+func storedWorkflowRun(t *testing.T, ws *workspace.Workspace, output string) workflow.Run {
+	t.Helper()
+	var summary struct {
+		ID       string `json:"run_id"`
+		Database string `json:"database_path"`
+	}
+	err := json.Unmarshal([]byte(output), &summary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := filepath.Dir(filepath.Dir(summary.Database))
+	db, err := store.OpenStore(base, ws.Root())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	state, err := db.Run(summary.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return state.Record
 }

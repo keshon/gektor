@@ -42,11 +42,15 @@ Ask GEKTOR:
 }
 ```
 
-Each run saves its definition, digest, resolved arguments, per-step outputs and
-status under `~/.gektor/workflows/<workspace-hash>/runs/<run-id>/run.json`.
+Runs, invocations, attempts, queued jobs and schedules are stored transactionally
+in `~/.gektor/workflows/<workspace-hash>/workflow.sqlite`.
 The workspace hash uses its absolute, symlink-resolved path (case-folded on
 Windows). Moving a workspace starts a separate history. The store must be outside
-the workspace. `record_path` is absolute; `run_id` is the inspection handle.
+the workspace. `database_path` is absolute; `run_id` is the inspection handle.
+The SQLite driver is pure Go and builds with `CGO_ENABLED=0`. Collection
+checkpoints update the changed invocation rather than rewriting the full run.
+Artifact payloads remain in per-run files. Existing JSON run histories and queue
+files are not read or imported.
 
 Use `gektor workflow runs -workspace .` to list runs, and
 `gektor workflow inspect -workspace . <run-id>` for the full record. The model

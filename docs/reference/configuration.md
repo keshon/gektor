@@ -64,7 +64,7 @@ On Windows, `~` means your user folder, usually `C:\Users\<name>`.
 | Agent sessions | `~/.gektor/sessions/` | TUI conversation history and saved context |
 | CLI tasks | `~/.gektor/tasks/` | Standalone CLI session history |
 | Workflow recipes | Files you choose inside the workspace | Editable instructions; can be tracked in Git |
-| Workflow run records | `~/.gektor/workflows/<workspace-hash>/runs/<run-id>/run.json` | Captured recipe, inputs, results and status |
+| Workflow run records | `~/.gektor/workflows/<workspace-hash>/workflow.sqlite` | Captured recipe, inputs, results and status |
 | Workflow records | `~/.gektor/workflows/<workspace-hash>/records/` | Structured data used by record operations |
 | Canvas layouts | `~/.gektor/workflow-layouts/` | Card positions and position locks, separate from recipes |
 

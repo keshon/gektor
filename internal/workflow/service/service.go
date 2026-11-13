@@ -182,13 +182,13 @@ func (t Service) RunSource(ctx context.Context, source []byte, path string, inpu
 		}
 	}
 
-	save := func(r workflow.Run) error {
+	save := func(r workflow.Run, indexes ...int) error {
 		r.ScheduleID, r.ScheduledFor = t.ScheduleID, t.ScheduledFor
 		r.RecipePath = path
 		r.RecipeSHA256 = digest
 		r.RecipeSource = string(source)
 
-		return w.Save(r)
+		return w.Save(r, indexes...)
 	}
 	h.artifacts = w.Artifacts
 	r, err := engine.RunWithInputs(ctx, d, inputs, h, save)
@@ -218,11 +218,11 @@ func (t Service) RunSource(ctx context.Context, source []byte, path string, inpu
 	data, marshalErr := json.Marshal(struct {
 		Outputs json.RawMessage `json:"outputs,omitempty"`
 		ID      string          `json:"run_id"`
-		Path    string          `json:"record_path"`
+		Path    string          `json:"database_path"`
 		Status  string          `json:"status"`
 		SHA256  string          `json:"recipe_sha256"`
 		Steps   []stepSummary   `json:"steps"`
-	}{DeclaredOutputs(r), w.ID(), filepath.ToSlash(w.Path()), r.Status, digest, steps})
+	}{DeclaredOutputs(r), w.ID(), filepath.ToSlash(w.DatabasePath()), r.Status, digest, steps})
 	if marshalErr != nil {
 		return "", marshalErr
 	}

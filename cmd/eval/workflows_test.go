@@ -13,6 +13,7 @@ import (
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/workflow"
 	workflowtools "github.com/keshon/gektor/internal/workflow/agenttools"
+	"github.com/keshon/gektor/internal/workflow/store"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -69,20 +70,7 @@ func TestWorkflowVerifierAcceptsRealRunsAndRejectsTampering(t *testing.T) {
 					t.Fatal(err)
 				}
 				if kind == "workflow_success" {
-					var result struct {
-						Path string `json:"record_path"`
-					}
-					if err := json.Unmarshal([]byte(output), &result); err != nil {
-						t.Fatal(err)
-					}
-					data, err := os.ReadFile(result.Path)
-					if err != nil {
-						t.Fatal(err)
-					}
-					var r workflow.Run
-					if err := json.Unmarshal(data, &r); err != nil {
-						t.Fatal(err)
-					}
+					writer, r := editStoredWorkflow(t, ws, output)
 					r.Definition.Name = "forged name"
 					source, err := json.Marshal(r.Definition)
 					if err != nil {
@@ -94,13 +82,10 @@ func TestWorkflowVerifierAcceptsRealRunsAndRejectsTampering(t *testing.T) {
 					if err := ws.WriteFile("recipe.json", source, 0600); err != nil {
 						t.Fatal(err)
 					}
-					data, err = json.Marshal(r)
-					if err != nil {
+					if err := writer.Save(r); err != nil {
 						t.Fatal(err)
 					}
-					if err := os.WriteFile(result.Path, data, 0600); err != nil {
-						t.Fatal(err)
-					}
+					writer.Close()
 					if err := checkWorkflow(kind, ws); err != nil {
 						t.Fatalf("forged disk evidence should be internally consistent: %v", err)
 					}
@@ -176,29 +161,36 @@ func TestWorkflowVerifierAcceptsParameterizedRecipeAndChecksCompiledRecord(t *te
 	if err := checkWorkflow("workflow_success", ws); err != nil {
 		t.Fatal("valid parameterized recipe rejected", err)
 	}
-	var result struct {
-		Path string `json:"record_path"`
-	}
-	if err := json.Unmarshal([]byte(out), &result); err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(result.Path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var record workflow.Run
-	if err := json.Unmarshal(data, &record); err != nil {
-		t.Fatal(err)
-	}
+	writer, record := editStoredWorkflow(t, ws, out)
 	record.Definition.Steps[2].Args = json.RawMessage(`{"paths":["image.png"],"widths":[320,800],"out_dir":"elsewhere"}`)
-	data, err = json.Marshal(record)
+	err = writer.Save(record)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(result.Path, data, 0600); err != nil {
-		t.Fatal(err)
-	}
+	writer.Close()
 	if err := checkWorkflow("workflow_success", ws); err == nil {
 		t.Fatal("tampered execution definition accepted")
 	}
+}
+
+func editStoredWorkflow(t *testing.T, ws *workspace.Workspace, output string) (*store.RunWriter, workflow.Run) {
+	t.Helper()
+	var summary struct {
+		ID string `json:"run_id"`
+	}
+	err := json.Unmarshal([]byte(output), &summary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.OpenStore(workflowStoreDir(ws), ws.Root())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	writer, record, err := db.EditRun(summary.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { writer.Close() })
+	return writer, record
 }

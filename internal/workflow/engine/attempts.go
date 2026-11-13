@@ -9,7 +9,7 @@ import (
 	"github.com/keshon/gektor/internal/workflow"
 )
 
-func executeAttempts(ctx context.Context, s workflow.Step, h workflow.Handler, r *workflow.Run, index int, save func(workflow.Run) error) (string, error) {
+func executeAttempts(ctx context.Context, s workflow.Step, h workflow.Handler, r *workflow.Run, index int, save func(workflow.Run, ...int) error) (string, error) {
 	limit, delay := 1, 0
 	if s.Retry != nil {
 		limit = s.Retry.MaxAttempts
@@ -23,7 +23,7 @@ func executeAttempts(ctx context.Context, s workflow.Step, h workflow.Handler, r
 		}
 		step := &r.Steps[index]
 		step.Attempts = append(step.Attempts, workflow.Attempt{Number: number, Started: time.Now().UTC()})
-		if err := save(*r); err != nil {
+		if err := save(*r, index); err != nil {
 			return out, fmt.Errorf("save attempt: %w", err)
 		}
 		err = ctx.Err()
@@ -36,7 +36,7 @@ func executeAttempts(ctx context.Context, s workflow.Step, h workflow.Handler, r
 		if err != nil {
 			attempt.Error = err.Error()
 		}
-		if e := save(*r); e != nil {
+		if e := save(*r, index); e != nil {
 			return out, fmt.Errorf("save attempt outcome: %w", e)
 		}
 		var execution *workflow.ExecutionError

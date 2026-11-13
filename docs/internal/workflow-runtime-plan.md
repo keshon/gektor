@@ -101,13 +101,24 @@ checks. No deployment, live credential use, commit or push is implied.
   Unclassified errors, secondary authorization and storage failures remain
   terminal. Artifact publication is serialized per run until transactional
   reservations replace the current quota scan.
-- Invocation persistence: started with streaming artifact publication. Payloads
-  are copied through bounded buffers while hashing; MIME detection retains only
-  the prefix. Failed or cancelled publication removes its temporary directory.
-  Quota scans and the run publication lock remain until transactional
-  reservations replace them. SQLite run/invocation/attempt storage, incremental
-  checkpoints and queue transactions are still pending. Changing the database
-  alone would leave whole-run checkpoint serialization quadratic for maps.
+- Invocation persistence: runs, invocations and attempts now occupy separate
+  SQLite rows through `modernc.org/sqlite`, with WAL mode, full synchronization,
+  foreign keys, a bounded busy timeout and one pooled connection per store
+  handle. Queue and schedule mutations share an immediate transaction and write
+  only changed rows. They still inspect bounded in-memory collections (1,000
+  jobs and 100 schedules); indexed queue queries remain a throughput improvement.
+  Collection checkpoints identify the changed step/item. Static recipe metadata
+  and unrelated invocations are not serialized for each item. Initialization,
+  finalization and explicit review snapshots can save the complete record.
+  Inspection uses `database_path` plus `run_id`; JSON run/queue files are not
+  read or imported. Process leases continue to distinguish active effects from
+  interrupted work, without automatic replay.
+- Artifact persistence: payloads stream through bounded buffers while hashing;
+  MIME detection retains only the prefix. Failed or cancelled publication removes
+  its temporary directory. Artifact metadata, quota scans and the publication
+  lock remain file-based; transactional reservations and abandoned-file
+  reconciliation are the remaining persistence work. Durable wakeups belong to
+  the later control-flow stage rather than unused database tables.
 - Later stages: pending.
 
 Verified the model-free collection example through the CLI service: two
@@ -127,3 +138,27 @@ The streaming artifact slice passed workflow package tests, store race tests,
 store vet, documentation links and diff checks. New cases cover exact empty and
 16 MiB payloads, one-byte overflow, bounded read buffers, byte/hash/MIME integrity,
 source interruption, cancellation and temporary-file cleanup.
+
+SQLite checks cover a 1,000-item run whose item checkpoint inserts exactly one
+invocation, with a trigger rejecting static snapshot rewrites. An injected SQL
+failure verifies rollback of run status and invocation changes together. A child
+process exits without closing SQLite or releasing its run lease; inspection
+retains the acknowledged item and reports the run as interrupted.
+
+The persistence benchmark (`BenchmarkInvocationCheckpoint`, one iteration each)
+measured approximately 98.5 ms for 100 items, 946.8 ms for 1,000 and 18.26 s for
+10,000 on Go 1.26.11, Windows/amd64, Intel i5-9600KF. Each case saves initialization, one
+completed checkpoint per item and finalization. The race suite ran concurrently;
+these are development observations, not isolated throughput measurements or a
+comparison with datastore. The SQL trigger test establishes checkpoint scope;
+timings do not establish linear wall-clock scaling.
+
+SQLite verification passed: source-scoped tests and vet, workflow/editor race
+tests, eval dry-run (45 probes), documentation links and diff checks. A build of
+`./cmd/... ./internal/...` and store tests also passed with `CGO_ENABLED=0`.
+Read transactions preserve a snapshot while another handle checkpoints; the
+connection configuration test checks WAL, full synchronization and foreign keys.
+Unrestricted module tidying encounters the same obsolete imports in archived
+eval snapshots as the unrestricted tests. `go mod tidy -e` updated dependency
+metadata while reporting those unresolved archive imports; archives were not
+changed.

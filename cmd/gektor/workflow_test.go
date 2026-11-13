@@ -97,7 +97,7 @@ func TestWorkflowCLIValidatesAndRunsWithoutBackend(t *testing.T) {
 			ID     string `json:"run_id"`
 			Valid  bool   `json:"valid"`
 			Status string `json:"status"`
-			Path   string `json:"record_path"`
+			Path   string `json:"database_path"`
 		}
 		if err := json.Unmarshal(out.Bytes(), &result); err != nil {
 			t.Fatal(err)

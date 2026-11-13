@@ -128,7 +128,8 @@ func TestControlReadAndEmptyClaimDoNotRewrite(t *testing.T) {
 	if err := s.CancelJob(ctx, j.ID); err != nil {
 		t.Fatal(err)
 	}
-	before, err := s.root.Stat("control.json")
+	var before, after int64
+	err = s.db.QueryRow("SELECT total_changes()").Scan(&before)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,11 +142,11 @@ func TestControlReadAndEmptyClaimDoNotRewrite(t *testing.T) {
 	if err := s.Tick(ctx, time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	after, err := s.root.Stat("control.json")
+	err = s.db.QueryRow("SELECT total_changes()").Scan(&after)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !before.ModTime().Equal(after.ModTime()) {
+	if before != after {
 		t.Fatal("read rewrote durable state")
 	}
 }

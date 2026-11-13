@@ -15,7 +15,7 @@ func TestSkippedBranchesAndAnyMerge(t *testing.T) {
 		{ID: "join", Args: json.RawMessage(`{}`), DependsOn: []string{"no", "yes"}, Merge: "any"},
 	}}
 	h := &fakeHandler{}
-	r, err := Run(t.Context(), d, h, func(workflow.Run) error { return nil })
+	r, err := Run(t.Context(), d, h, func(workflow.Run, ...int) error { return nil })
 	if err != nil || h.calls != 2 || r.Status != "completed" || r.Steps[1].Status != "skipped" || r.Steps[3].Status != "completed" {
 		t.Fatal(r, err, h.calls)
 	}

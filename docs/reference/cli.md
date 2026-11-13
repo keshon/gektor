@@ -69,7 +69,7 @@ it does not grant permission. Cancellation is cooperative during image encoding.
 Model flags, profiles, browser and external adapters do not apply to execution.
 
 Runs are stored outside the workspace under `~/.gektor/workflows`, scoped to
-the workspace's canonical path. Inspect by run ID; `record_path` is absolute.
+the workspace's canonical path. Inspect by run ID; `database_path` is absolute.
 
 `runs`, `inspect` and `record` support `-workspace`. `record <kind> <id>`
 reads a stored entry, including its revision and schema hash, without a model.

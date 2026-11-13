@@ -48,7 +48,7 @@ func TestInputsAndOutputsAreBoundAndRecorded(t *testing.T) {
 	d.Inputs["source"] = workflow.Input{Type: "string", Default: json.RawMessage(`"input.png"`)}
 	h := &pipelineHandler{}
 	var saved workflow.Run
-	r, err := engine.RunWithInputs(t.Context(), d, nil, h, func(r workflow.Run) error {
+	r, err := engine.RunWithInputs(t.Context(), d, nil, h, func(r workflow.Run, _ ...int) error {
 		data, err := json.Marshal(r)
 		if err != nil {
 			return err
@@ -114,7 +114,7 @@ func TestInvalidInputsAndReferencesHaveNoEffects(t *testing.T) {
 			tc.change(&d)
 			h := &pipelineHandler{}
 			saves := 0
-			_, err := engine.RunWithInputs(t.Context(), d, tc.values, h, func(workflow.Run) error { saves++; return nil })
+			_, err := engine.RunWithInputs(t.Context(), d, tc.values, h, func(workflow.Run, ...int) error { saves++; return nil })
 			if err == nil || len(h.calls) != 0 || saves != 0 {
 				t.Fatalf("invalid definition had effects: %v calls=%d saves=%d", err, len(h.calls), saves)
 			}
@@ -127,7 +127,7 @@ func TestBadOutputStopsBeforeDependentOperation(t *testing.T) {
 		d := pipelineDefinition()
 		d.Steps = append(d.Steps, workflow.Step{ID: "later", Tool: "test", Args: json.RawMessage(`{"value":"later"}`)})
 		h := &pipelineHandler{output: output}
-		r, err := engine.RunWithInputs(t.Context(), d, map[string]json.RawMessage{"source": json.RawMessage(`"input.png"`)}, h, func(workflow.Run) error { return nil })
+		r, err := engine.RunWithInputs(t.Context(), d, map[string]json.RawMessage{"source": json.RawMessage(`"input.png"`)}, h, func(workflow.Run, ...int) error { return nil })
 		if err == nil || len(h.calls) != 1 || r.Status != "failed" || r.Steps[2].Status != "skipped" {
 			t.Fatalf("bad output executed dependent step: %v %+v", err, r)
 		}
