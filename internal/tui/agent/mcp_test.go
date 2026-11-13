@@ -52,7 +52,7 @@ func TestMCPPasteImportFromEmptyManager(t *testing.T) {
 	if !m.chrome.Dialog.Form.Fields[0].Multiline {
 		t.Fatal("JSON field does not accept multiple lines")
 	}
-	raw := "{\n  \"mcpServers\": {\n    \"reference\": {\"url\": \"https://example.com/mcp\"}\n  }\n}"
+	raw := "{\n  \"mcpServers\": {\n    \"reference\": {\"type\": \"http\", \"url\": \"https://example.com/mcp\"}\n  }\n}"
 	m.testUpdate(tea.PasteMsg{Content: raw})
 	if m.chrome.Dialog.Form.Values()["json"] != raw {
 		t.Fatal("paste changed the configuration")

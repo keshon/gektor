@@ -49,7 +49,9 @@ a fresh conversation. Give imported servers a description naming their purpose
 so the agent can find them before connecting.
 
 The importer accepts `{"mcpServers": {...}}` objects with `url` and `headers`, or `command`
-and `args`. Import rejects existing IDs unless replacement is explicitly selected.
+and `args`. An optional `type` accepts `http` or `streamable-http` for URL servers,
+and `stdio` for commands. A mismatched or unsupported type fails before saving.
+Import rejects existing IDs unless replacement is explicitly selected.
 In the MCP servers form, choose **Paste JSON** to paste the configuration into
 a multiline field, or **Import file** to read it from a file. Choose **Import**
 to save the servers. This does not connect them or call their tools.

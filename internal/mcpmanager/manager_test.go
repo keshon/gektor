@@ -18,7 +18,7 @@ func TestImportPersistsReferencesAndLifecycle(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	raw := []byte(`{"mcpServers":{"service":{"url":"https://example.com/mcp","headers":{"Authorization":"Bearer fixture-secret"}}}}`)
+	raw := []byte(`{"mcpServers":{"service":{"type":"http","url":"https://example.com/mcp","headers":{"Authorization":"Bearer fixture-secret"}}}}`)
 	ids, e := m.Import(raw)
 	if e != nil || len(ids) != 1 {
 		t.Fatal(ids, e)
@@ -84,5 +84,45 @@ func TestImportValidationBeforeSaving(t *testing.T) {
 		if len(m.List()) != 0 {
 			t.Fatal("partial invalid import")
 		}
+	}
+}
+
+func TestImportCommonTransportTypesAndDecodeErrors(t *testing.T) {
+	for _, entry := range []string{
+		`{"type":"http","url":"https://example.com/mcp"}`,
+		`{"type":"streamable-http","url":"https://example.com/mcp"}`,
+		`{"type":"stdio","command":"fixture-command","args":["--stdio"]}`,
+	} {
+		root := t.TempDir()
+		m, err := New(filepath.Join(root, "mcp"), root, filepath.Join(root, "credentials"), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw := []byte(`{"mcpServers":{"n8n-mcp":` + entry + `}}`)
+		ids, err := m.Import(raw)
+		if err != nil || len(ids) != 1 || ids[0] != "n8n-mcp" {
+			t.Fatal(ids, err)
+		}
+		if len(m.Sources()) != 1 {
+			t.Fatal("import lost its transport")
+		}
+		m.Close()
+	}
+	for _, entry := range []string{
+		`{"type":"sse","url":"https://example.com/sse"}`,
+		`{"type":"stdio","url":"https://example.com/mcp"}`,
+		`{"type":"http","command":"fixture-command"}`,
+		`{"unknown":true,"url":"https://example.com/mcp"}`,
+	} {
+		root := t.TempDir()
+		m, err := New(filepath.Join(root, "mcp"), root, filepath.Join(root, "credentials"), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = m.Import([]byte(`{"mcpServers":{"n8n-mcp":` + entry + `}}`))
+		if err == nil || strings.Contains(err.Error(), "expected an mcpServers object") || len(m.List()) != 0 {
+			t.Fatal("invalid transport or hidden decode error", err)
+		}
+		m.Close()
 	}
 }

@@ -389,6 +389,7 @@ func (m *Manager) Import(raw []byte, replace ...bool) ([]string, error) {
 
 	var doc struct {
 		Servers map[string]struct {
+			Type    string            `json:"type"`
 			URL     string            `json:"url"`
 			Command string            `json:"command"`
 			Args    []string          `json:"args"`
@@ -396,7 +397,11 @@ func (m *Manager) Import(raw []byte, replace ...bool) ([]string, error) {
 			Env     map[string]string `json:"env"`
 		} `json:"mcpServers"`
 	}
-	if decode(raw, &doc) != nil || len(doc.Servers) == 0 {
+	err := decode(raw, &doc)
+	if err != nil {
+		return nil, fmt.Errorf("invalid MCP configuration: %w", err)
+	}
+	if len(doc.Servers) == 0 {
 		return nil, fmt.Errorf("expected an mcpServers object")
 	}
 
@@ -404,6 +409,19 @@ func (m *Manager) Import(raw []byte, replace ...bool) ([]string, error) {
 	seen := map[string]bool{}
 
 	for id, v := range doc.Servers {
+		switch v.Type {
+		case "": // Infer transport from url or command.
+		case "http", "streamable-http":
+			if v.URL == "" || v.Command != "" {
+				return nil, fmt.Errorf("MCP server %s: HTTP transport requires url without command", id)
+			}
+		case "stdio":
+			if v.Command == "" || v.URL != "" {
+				return nil, fmt.Errorf("MCP server %s: stdio transport requires command without url", id)
+			}
+		default:
+			return nil, fmt.Errorf("MCP server %s: transport type must be http, streamable-http or stdio", id)
+		}
 		folded := strings.ToLower(id)
 		if seen[folded] {
 			return nil, fmt.Errorf("MCP IDs must differ ignoring case")
