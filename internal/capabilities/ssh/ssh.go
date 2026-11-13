@@ -194,11 +194,14 @@ func (s *Service) Exec(ctx context.Context, in ExecRequest) (ExecResult, error) 
 		result.Stdout, result.Stderr = "", ""
 		return result, fmt.Errorf("SSH output exceeds 64 KiB per stream; output discarded; remote outcome may be incomplete")
 	case ctx.Err() != nil:
+		// Interrupted streams can end inside a credential, just like bounded output.
+		result.Stdout, result.Stderr = "", ""
 		return result, fmt.Errorf("SSH interrupted; remote command may still be running: %w", ctx.Err())
 	case errors.As(err, &exit):
 		result.ExitCode = exit.ExitStatus()
 		return result, fmt.Errorf("SSH command exited with status %d", result.ExitCode)
 	case err != nil:
+		result.Stdout, result.Stderr = "", ""
 		return result, fmt.Errorf("SSH command interrupted; remote outcome unknown")
 	}
 	result.ExitCode = 0
@@ -222,6 +225,7 @@ func (b *boundedOutput) Write(p []byte) (int, error) {
 	return b.buffer.Write(p)
 }
 
+// Credentials can appear inside URLs or other tokens; word boundaries would leak them.
 func redact(text string, secrets []string) string {
 	for _, secret := range secrets {
 		encoded, _ := json.Marshal(secret) // Encoding a string cannot fail.

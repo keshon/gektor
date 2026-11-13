@@ -105,7 +105,13 @@ func (s *Service) native(ctx context.Context, name string, in VideoRequest) (any
 		return s.playlist(ctx, in)
 	}
 
-	client := youtube.Client{HTTPClient: s.youtubeHTTP(ctx), MaxRoutines: 1, PlayerParams: "2AMB"}
+	// The Android client can list formats without this value but reject stream requests.
+	// Keep it local to this client; auto mode retries source failures through yt-dlp.
+	client := youtube.Client{
+		HTTPClient:   s.youtubeHTTP(ctx),
+		MaxRoutines:  1,
+		PlayerParams: "2AMB",
+	}
 	video, err := client.GetVideoContext(ctx, in.URL)
 	if err != nil {
 		return nil, sourceFailure(err)
@@ -264,7 +270,9 @@ func (s *Service) downloadStream(ctx context.Context, client *youtube.Client, vi
 	size, err := copyBounded(ctx, out, stream, limit)
 	if err != nil {
 		var network net.Error
-		if errors.As(err, &network) || errors.Is(err, io.ErrUnexpectedEOF) {
+		var status youtube.ErrUnexpectedStatusCode
+		// The library reports chunk HTTP failures while reading, after GetStreamContext succeeds.
+		if errors.As(err, &network) || errors.As(err, &status) || errors.Is(err, io.ErrUnexpectedEOF) {
 			return "", sourceFailure(err)
 		}
 		return "", streamError(err)

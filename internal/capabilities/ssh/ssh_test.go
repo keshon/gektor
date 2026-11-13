@@ -143,11 +143,19 @@ func serveChannel(channel gossh.Channel, requests <-chan *gossh.Request, handler
 			case "fail":
 				io.WriteString(channel.Stderr(), "problem test-secret")
 				status = 7
+			case "exact_limit":
+				io.WriteString(channel, strings.Repeat("x", MaxOutputBytes))
 			case "flood":
 				io.WriteString(channel, strings.Repeat("x", MaxOutputBytes-4)+"test-secret")
 			case "flood_stderr":
 				io.WriteString(channel.Stderr(), strings.Repeat("x", MaxOutputBytes-4)+"test-secret")
+			case "interrupt":
+				io.WriteString(channel, "prefix test-")
+				io.WriteString(channel.Stderr(), "problem test-")
+				return
 			case "wait":
+				io.WriteString(channel, "prefix test-")
+				io.WriteString(channel.Stderr(), "problem test-")
 				for range requests {
 				}
 				return
@@ -200,7 +208,7 @@ func testService(t *testing.T, server *testServer) (*Service, string) {
 func TestExecFreshConnectionsExitStatusAndLimits(t *testing.T) {
 	server := serveSSH(t)
 	service, _ := testService(t, server)
-	for _, command := range []string{"ok", "fail", "flood", "flood_stderr", "wait"} {
+	for _, command := range []string{"ok", "fail", "flood", "flood_stderr", "wait", "interrupt", "exact_limit"} {
 		t.Run(command, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 			defer cancel()
@@ -218,18 +226,29 @@ func TestExecFreshConnectionsExitStatusAndLimits(t *testing.T) {
 				if err == nil || out.ExitCode != 7 || out.Stderr != "problem [REDACTED]" {
 					t.Fatal(out, err)
 				}
+			case "exact_limit":
+				if err != nil || out.ExitCode != 0 || out.Stdout != strings.Repeat("x", MaxOutputBytes) {
+					t.Fatal("output at the limit was rejected", err)
+				}
 			case "flood", "flood_stderr":
 				if err == nil || out.Stdout != "" || out.Stderr != "" {
 					t.Fatal("overflow exposed partial output", out, err)
 				}
+			case "interrupt":
+				if err == nil || out.Stdout != "" || out.Stderr != "" {
+					t.Fatal("interruption exposed partial output", out, err)
+				}
 			case "wait":
+				if out.Stdout != "" || out.Stderr != "" {
+					t.Fatal("cancellation exposed partial output", out, err)
+				}
 				if !errors.Is(err, context.DeadlineExceeded) {
 					t.Fatal(out, err)
 				}
 			}
 		})
 	}
-	if server.calls.Load() != 5 {
+	if server.calls.Load() != 7 {
 		t.Fatal("connections were reused", server.calls.Load())
 	}
 }
@@ -463,4 +482,19 @@ func TestConnectionCheckCancellationJoinsHandshake(t *testing.T) {
 		t.Fatal(err)
 	}
 	socket.Close()
+}
+
+func TestRedactCredentialsInsideText(t *testing.T) {
+	secret := "pass\"word"
+	encoded, err := json.Marshal(secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	escaped := string(encoded[1 : len(encoded)-1])
+	text := "prefix" + secret + "suffix " + escaped + " untouched"
+	got := redact(text, []string{secret})
+	want := "prefix[REDACTED]suffix [REDACTED] untouched"
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
 }
