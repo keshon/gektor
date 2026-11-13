@@ -8,7 +8,7 @@ import (
 )
 
 func TestSkippedBranchesAndAnyMerge(t *testing.T) {
-	d := workflow.Definition{Version: 3, Name: "branches", Steps: []workflow.Step{
+	d := workflow.Definition{Version: 4, Name: "branches", Steps: []workflow.Step{
 		{ID: "no", Args: json.RawMessage(`{}`), When: json.RawMessage(`false`)},
 		{ID: "child", Args: json.RawMessage(`{}`), DependsOn: []string{"no"}},
 		{ID: "yes", Args: json.RawMessage(`{}`)},

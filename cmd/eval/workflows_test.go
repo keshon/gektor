@@ -43,7 +43,7 @@ func TestWorkflowVerifierAcceptsRealRunsAndRejectsTampering(t *testing.T) {
 			}
 			defer ws.Close()
 			if kind == "workflow_success" || kind == "workflow_icc" {
-				source := `{"version":3,"name":"Image workflow","steps":[{"id":"inspect","tool":"image_inspect","args":{"paths":["image.png"]}},{"id":"preview","tool":"image_preview","args":{"paths":["image.png"],"widths":[320,800]}},{"id":"write","tool":"image_variants","args":{"paths":["image.png"],"widths":[320,800],"out_dir":"output"}}]}`
+				source := `{"version":4,"name":"Image workflow","steps":[{"id":"inspect","tool":"image_inspect","args":{"paths":["image.png"]}},{"id":"preview","tool":"image_preview","args":{"paths":["image.png"],"widths":[320,800]}},{"id":"write","tool":"image_variants","args":{"paths":["image.png"],"widths":[320,800],"out_dir":"output"}}]}`
 				if kind == "workflow_success" {
 					source = source[:len(source)-2] + `,{"id":"compare","tool":"image_compare","args":{"paths":["image.png","output/image-800w.png"]}}]}`
 				}
@@ -160,7 +160,7 @@ func TestWorkflowVerifierAcceptsParameterizedRecipeAndChecksCompiledRecord(t *te
 	if err := ws.WriteFile("image.png", files["image.png"], 0600); err != nil {
 		t.Fatal(err)
 	}
-	source := []byte(`{"version":3,"name":"Reusable images","inputs":{"source":{"type":"string","default":"image.png"}},"steps":[{"id":"inspect","tool":"image_inspect","args":{"paths":[{"$input":"source"}]}},{"id":"preview","tool":"image_preview","args":{"paths":[{"$input":"source"}],"widths":[320,800]}},{"id":"write","tool":"image_variants","args":{"paths":[{"$input":"source"}],"widths":[320,800],"out_dir":"output"}},{"id":"compare","tool":"image_compare","args":{"paths":[{"$input":"source"},{"$step":"write","pointer":"/items/1/output"}]}}],"outputs":{"variants":{"$step":"write"}}}`)
+	source := []byte(`{"version":4,"name":"Reusable images","inputs":{"source":{"type":"string","default":"image.png"}},"steps":[{"id":"inspect","tool":"image_inspect","args":{"paths":[{"$input":"source"}]}},{"id":"preview","tool":"image_preview","args":{"paths":[{"$input":"source"}],"widths":[320,800]}},{"id":"write","tool":"image_variants","args":{"paths":[{"$input":"source"}],"widths":[320,800],"out_dir":"output"}},{"id":"compare","tool":"image_compare","args":{"paths":[{"$input":"source"},{"$step":"write","pointer":"/items/1/output"}]}}],"outputs":{"variants":{"$step":"write"}}}`)
 	if err := ws.WriteFile("recipe.json", source, 0600); err != nil {
 		t.Fatal(err)
 	}

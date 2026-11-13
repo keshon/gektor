@@ -15,8 +15,8 @@ import (
 	"github.com/keshon/gektor/internal/workspace"
 )
 
-const compositionChild = `{"version":3,"name":"Reusable writer","inputs":{"text":{"type":"string","required":true}},"steps":[{"id":"save","tool":"artifact_write","review":true,"args":{"name":"note.txt","text":{"$input":"text"}}}],"outputs":{"artifact":{"$step":"save"}}}`
-const compositionRoot = `{"version":3,"name":"Parent","steps":[{"id":"first","tool":"workflow_call","args":{"recipe_path":"child.json","inputs":{"text":"first text"}}},{"id":"second","tool":"workflow_call","args":{"recipe_path":"child.json","inputs":{"text":{"$step":"first","pointer":"/artifact/name"}}}}],"outputs":{"first":{"$step":"first","pointer":"/artifact"},"second":{"$step":"second","pointer":"/artifact"}}}`
+const compositionChild = `{"version":4,"name":"Reusable writer","inputs":{"text":{"type":"string","required":true}},"steps":[{"id":"save","tool":"artifact_write","review":true,"args":{"name":"note.txt","text":{"$input":"text"}}}],"outputs":{"artifact":{"$step":"save"}}}`
+const compositionRoot = `{"version":4,"name":"Parent","steps":[{"id":"first","tool":"workflow_call","args":{"recipe_path":"child.json","inputs":{"text":"first text"}}},{"id":"second","tool":"workflow_call","args":{"recipe_path":"child.json","inputs":{"text":{"$step":"first","pointer":"/artifact/name"}}}}],"outputs":{"first":{"$step":"first","pointer":"/artifact"},"second":{"$step":"second","pointer":"/artifact"}}}`
 
 func TestCompositionCollectsOutputsWhenAllEffectsSkipped(t *testing.T) {
 	for _, child := range []bool{false, true} {
@@ -27,14 +27,14 @@ func TestCompositionCollectsOutputsWhenAllEffectsSkipped(t *testing.T) {
 				if missing {
 					outputs = `{"missing":{"$step":"save"}}`
 				}
-				source := `{"version":3,"name":"Skipped effects","inputs":{"text":{"type":"string","default":"echo"}},"steps":[{"id":"save","tool":"artifact_write","when":false,"args":{"name":"note.txt","text":"never"}}],"outputs":` + outputs + `}`
+				source := `{"version":4,"name":"Skipped effects","inputs":{"text":{"type":"string","default":"echo"}},"steps":[{"id":"save","tool":"artifact_write","when":false,"args":{"name":"note.txt","text":"never"}}],"outputs":` + outputs + `}`
 				if err := os.WriteFile(filepath.Join(dir, "child.json"), []byte(source), 0600); err != nil {
 					t.Fatal(err)
 				}
 				path := "child.json"
 				if child {
 					path = "root.json"
-					root := `{"version":3,"name":"Caller","steps":[{"id":"call","tool":"workflow_call","args":{"recipe_path":"child.json"}}],"outputs":{"result":{"$step":"call"}}}`
+					root := `{"version":4,"name":"Caller","steps":[{"id":"call","tool":"workflow_call","args":{"recipe_path":"child.json"}}],"outputs":{"result":{"$step":"call"}}}`
 					if err := os.WriteFile(filepath.Join(dir, path), []byte(root), 0600); err != nil {
 						t.Fatal(err)
 					}
@@ -181,7 +181,7 @@ func TestSubworkflowRejectsCycleTypesAndForbiddenCalls(t *testing.T) {
 		{"cycle", compositionRoot, strings.Replace(compositionRoot, "child.json", "root.json", -1), "cycle"},
 		{"type", strings.Replace(compositionRoot, `"text":"first text"`, `"text":42`, 1), compositionChild, "string"},
 		{"foreach", strings.Replace(compositionRoot, `"id":"first"`, `"id":"first","for_each":[]`, 1), compositionChild, "for_each"},
-		{"outputs", compositionRoot, `{"version":3,"name":"No outputs","steps":[{"id":"save","tool":"artifact_write","args":{"name":"x","text":"x"}}]}`, "declare outputs"},
+		{"outputs", compositionRoot, `{"version":4,"name":"No outputs","steps":[{"id":"save","tool":"artifact_write","args":{"name":"x","text":"x"}}]}`, "declare outputs"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir, home := compositionFiles(t)
@@ -200,8 +200,8 @@ func TestSubworkflowBranchGatesAndMergeAny(t *testing.T) {
 	for _, enabled := range []bool{true, false} {
 		t.Run(fmt.Sprint(enabled), func(t *testing.T) {
 			dir, home := compositionFiles(t)
-			child := `{"version":3,"name":"Branches","inputs":{"text":{"type":"string","default":"never written"}},"steps":[{"id":"skip","tool":"artifact_write","when":false,"args":{"name":"skip","text":"skip"}},{"id":"merge","tool":"artifact_write","merge":"any","depends_on":["skip"],"args":{"name":"merge","text":{"$input":"text"}}}],"outputs":{"done":true}}`
-			root := fmt.Sprintf(`{"version":3,"name":"Gate","steps":[{"id":"call","tool":"workflow_call","when":%t,"args":{"recipe_path":"child.json"}}]}`, enabled)
+			child := `{"version":4,"name":"Branches","inputs":{"text":{"type":"string","default":"never written"}},"steps":[{"id":"skip","tool":"artifact_write","when":false,"args":{"name":"skip","text":"skip"}},{"id":"merge","tool":"artifact_write","merge":"any","depends_on":["skip"],"args":{"name":"merge","text":{"$input":"text"}}}],"outputs":{"done":true}}`
+			root := fmt.Sprintf(`{"version":4,"name":"Gate","steps":[{"id":"call","tool":"workflow_call","when":%t,"args":{"recipe_path":"child.json"}}]}`, enabled)
 			os.WriteFile(filepath.Join(dir, "child.json"), []byte(child), 0600)
 			os.WriteFile(filepath.Join(dir, "root.json"), []byte(root), 0600)
 			var out bytes.Buffer
@@ -239,7 +239,7 @@ func TestSubworkflowPermissionAndNestingBounds(t *testing.T) {
 		t.Fatal(out.String(), err)
 	}
 	for i := 0; i < 6; i++ {
-		source := fmt.Sprintf(`{"version":3,"name":"Nested","steps":[{"id":"call","tool":"workflow_call","args":{"recipe_path":"level%d.json"}}],"outputs":{"value":{"$step":"call"}}}`, i+1)
+		source := fmt.Sprintf(`{"version":4,"name":"Nested","steps":[{"id":"call","tool":"workflow_call","args":{"recipe_path":"level%d.json"}}],"outputs":{"value":{"$step":"call"}}}`, i+1)
 		if i == 5 {
 			source = strings.ReplaceAll(compositionChild, `"review":true,`, "")
 		}
@@ -255,7 +255,7 @@ func TestSubworkflowPermissionAndNestingBounds(t *testing.T) {
 func TestNestedSubworkflowInputAndOutputScopes(t *testing.T) {
 	dir, home := compositionFiles(t)
 	leaf := strings.Replace(compositionChild, `"review":true,`, "", 1)
-	middle := `{"version":3,"name":"Middle","inputs":{"text":{"type":"string","required":true}},"steps":[{"id":"inner","tool":"workflow_call","args":{"recipe_path":"leaf.json","inputs":{"text":{"$input":"text"}}}}],"outputs":{"artifact":{"$step":"inner","pointer":"/artifact"}}}`
+	middle := `{"version":4,"name":"Middle","inputs":{"text":{"type":"string","required":true}},"steps":[{"id":"inner","tool":"workflow_call","args":{"recipe_path":"leaf.json","inputs":{"text":{"$input":"text"}}}}],"outputs":{"artifact":{"$step":"inner","pointer":"/artifact"}}}`
 	os.WriteFile(filepath.Join(dir, "child.json"), []byte(middle), 0600)
 	os.WriteFile(filepath.Join(dir, "leaf.json"), []byte(leaf), 0600)
 	var out bytes.Buffer

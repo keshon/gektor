@@ -20,6 +20,15 @@ import (
 // that runs a real agent flow writes real task directories there, and the
 // next run lists them as the user's own sessions. Redirect the home.
 func TestMain(m *testing.M) {
+	if len(os.Args) > 2 && os.Args[1] == "workflow" && (os.Args[2] == "internal-script-worker" || os.Args[2] == "internal-document-worker") {
+		err := runWorkflow(os.Args[2:])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
 	home, err := os.MkdirTemp("", "gektor-home")
 	if err != nil {
 		panic(err)

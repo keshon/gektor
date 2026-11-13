@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "name": "Two reports from one subworkflow",
   "steps": [
     {"id":"daily","tool":"workflow_call","args":{"recipe_path":"report.json","inputs":{

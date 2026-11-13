@@ -61,9 +61,9 @@ func workflowFixture(kind string) (map[string][]byte, error) {
 	}
 	files := map[string][]byte{"image.png": data}
 	if kind == "workflow_invalid" || kind == "workflow_existing" {
-		recipe := `{"version":3,"name":"Image variants","steps":[{"id":"write","tool":"image_variants","args":{"paths":["image.png"],"widths":[320,800],"out_dir":"output"}}]}`
+		recipe := `{"version":4,"name":"Image variants","steps":[{"id":"write","tool":"image_variants","args":{"paths":["image.png"],"widths":[320,800],"out_dir":"output"}}]}`
 		if kind == "workflow_invalid" {
-			recipe = strings.Replace(recipe, `"version":3`, `"version":3,"input":"image.png"`, 1)
+			recipe = strings.Replace(recipe, `"version":4`, `"version":4,"input":"image.png"`, 1)
 		}
 		files["recipe.json"] = []byte(recipe + "\n")
 	}

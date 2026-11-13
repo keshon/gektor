@@ -9,7 +9,7 @@ import (
 func TestUpdateScheduleKeepsQueuedSnapshotAndRejectsStaleEdits(t *testing.T) {
 	s, _, _ := testStore(t)
 	ctx := t.Context()
-	v := Schedule{ID: "daily", RecipePath: "recipe.json", Source: json.RawMessage(`{"version":3}`), Cron: "0 9 * * *", Timezone: "Europe/Moscow"}
+	v := Schedule{ID: "daily", RecipePath: "recipe.json", Source: json.RawMessage(`{"version":4}`), Cron: "0 9 * * *", Timezone: "Europe/Moscow"}
 	if err := s.PutSchedule(ctx, v); err != nil {
 		t.Fatal(err)
 	}
@@ -23,7 +23,7 @@ func TestUpdateScheduleKeepsQueuedSnapshotAndRejectsStaleEdits(t *testing.T) {
 	}
 	changed := before
 	changed.Cron, changed.Paused = "30 10 * * *", true
-	changed.Source = json.RawMessage(`{"version":3,"name":"new"}`)
+	changed.Source = json.RawMessage(`{"version":4,"name":"new"}`)
 	// Passing through a UI message compacts embedded JSON; it is still the same snapshot.
 	b, _ := json.Marshal(before)
 	var expected Schedule

@@ -80,3 +80,27 @@ func TestDraftFormsRejectChangedTargets(t *testing.T) {
 		})
 	}
 }
+
+func TestCollectionBehaviorFormPreservesOperationAndEditsPolicy(t *testing.T) {
+	m := workflowTestModel(t)
+	w := m.workflows
+	d := workflowRecipe()
+	d.Steps[0].Args = json.RawMessage(`{}`)
+	d.Steps[0].ForEach = json.RawMessage(`[{"code":"return input;","input":1}]`)
+	d.Steps[0].Concurrency = 2
+	d.Steps[0].OnError = "stop"
+	w.editor.Replace(d)
+	w.graph.Selected = d.Steps[0].ID
+	m.workflowCommand("behavior")
+	values := m.chrome.Dialog.Form.Values()
+	values["concurrency"] = "3"
+	values["on_error"] = "collect"
+	err := m.applyValues(values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	step := w.editor.Definition.Steps[0]
+	if step.ID != d.Steps[0].ID || step.Tool != d.Steps[0].Tool || step.Concurrency != 3 || step.OnError != "collect" {
+		t.Fatal("behavior edit lost operation or policy", step)
+	}
+}

@@ -62,7 +62,7 @@ func TestVersionTwoBindsInputsAndImageOutput(t *testing.T) {
 	if err := ws.WriteFile("input.png", imageBytes.Bytes(), 0600); err != nil {
 		t.Fatal(err)
 	}
-	source := []byte(`{"version":3,"name":"Reusable variants","inputs":{"source":{"type":"string","required":true},"destination":{"type":"string","default":"web"}},"steps":[{"id":"write","tool":"image_variants","args":{"paths":[{"$input":"source"}],"widths":[16],"out_dir":{"$input":"destination"}}},{"id":"compare","tool":"image_compare","args":{"paths":[{"$input":"source"},{"$step":"write","pointer":"/items/0/output"}]}}]}`)
+	source := []byte(`{"version":4,"name":"Reusable variants","inputs":{"source":{"type":"string","required":true},"destination":{"type":"string","default":"web"}},"steps":[{"id":"write","tool":"image_variants","args":{"paths":[{"$input":"source"}],"widths":[16],"out_dir":{"$input":"destination"}}},{"id":"compare","tool":"image_compare","args":{"paths":[{"$input":"source"},{"$step":"write","pointer":"/items/0/output"}]}}]}`)
 	recipeArgs(t, ws, source)
 	args := json.RawMessage(`{"recipe_path":"recipe.json","inputs":{"source":"input.png"}}`)
 	tool := Tool{WS: ws, StoreDir: t.TempDir(), ValidateOnly: true, Authorize: allow, Registry: func() (*workflow.Registry, error) {
@@ -117,7 +117,7 @@ func TestOutputDerivedPathsAreAuthorizedAndValidated(t *testing.T) {
 			if err := ws.WriteFile("input.png", imageBytes.Bytes(), 0600); err != nil {
 				t.Fatal(err)
 			}
-			source := `{"version":3,"name":"Dynamic paths","steps":[{"id":"write","tool":"image_variants","args":{"paths":["input.png"],"widths":[16],"out_dir":"web"}},{"id":"read","tool":"image_inspect","args":{"paths":[{"$step":"write","pointer":"/items/0/output"}]}}]}`
+			source := `{"version":4,"name":"Dynamic paths","steps":[{"id":"write","tool":"image_variants","args":{"paths":["input.png"],"widths":[16],"out_dir":"web"}},{"id":"read","tool":"image_inspect","args":{"paths":[{"$step":"write","pointer":"/items/0/output"}]}}]}`
 			switch mode {
 			case "string-interpolation":
 				source = strings.Replace(source, `"input.png"`, `"{$input:source}"`, 1)
@@ -181,7 +181,7 @@ func TestManualImageRecipeCompletes(t *testing.T) {
 	if err := ws.WriteFile("input.png", b.Bytes(), 0600); err != nil {
 		t.Fatal(err)
 	}
-	args := json.RawMessage(`{"version":3,"name":"web images","steps":[{"id":"inspect","tool":"image_inspect","args":{"paths":["input.png"]}},{"id":"preview","tool":"image_preview","args":{"paths":["input.png"],"widths":[16]}},{"id":"write","tool":"image_variants","args":{"paths":["input.png"],"widths":[16],"out_dir":"web"}},{"id":"compare","tool":"image_compare","args":{"paths":["input.png","web/input-16w.png"]}}]}`)
+	args := json.RawMessage(`{"version":4,"name":"web images","steps":[{"id":"inspect","tool":"image_inspect","args":{"paths":["input.png"]}},{"id":"preview","tool":"image_preview","args":{"paths":["input.png"],"widths":[16]}},{"id":"write","tool":"image_variants","args":{"paths":["input.png"],"widths":[16],"out_dir":"web"}},{"id":"compare","tool":"image_compare","args":{"paths":["input.png","web/input-16w.png"]}}]}`)
 	source := append([]byte(nil), args...)
 	args = recipeArgs(t, ws, source)
 	if _, err := (Tool{WS: ws, StoreDir: t.TempDir(), ValidateOnly: true, Authorize: allow, Registry: func() (*workflow.Registry, error) {
@@ -258,8 +258,8 @@ func TestManualRunRecordsFailureAndRejectsHiddenCommands(t *testing.T) {
 	},
 	}
 	for _, args := range []string{
-		`{"version":3,"name":"bad","steps":[{"id":"one","tool":"image_inspect","args":{"paths":["a.png"]}},{"id":"two","tool":"run_shell","args":{"command":"echo nope"}}]}`,
-		`{"version":3,"name":"bad","steps":[{"id":"one","tool":"image_variants","args":{"paths":["a.png"],"widths":[8],"out_dir":"../escape"}}]}`,
+		`{"version":4,"name":"bad","steps":[{"id":"one","tool":"image_inspect","args":{"paths":["a.png"]}},{"id":"two","tool":"run_shell","args":{"command":"echo nope"}}]}`,
+		`{"version":4,"name":"bad","steps":[{"id":"one","tool":"image_variants","args":{"paths":["a.png"],"widths":[8],"out_dir":"../escape"}}]}`,
 	} {
 		if _, err := tool.Run(t.Context(), recipeArgs(t, ws, []byte(args))); err == nil {
 			t.Fatal("accepted invalid workflow")
@@ -268,7 +268,7 @@ func TestManualRunRecordsFailureAndRejectsHiddenCommands(t *testing.T) {
 	if _, err := ws.Stat(".gektor/workflow-runs"); !os.IsNotExist(err) {
 		t.Fatal("invalid workflow created records")
 	}
-	out, err := tool.Run(t.Context(), recipeArgs(t, ws, []byte(`{"version":3,"name":"missing image","steps":[{"id":"read","tool":"image_inspect","args":{"paths":["missing.png"]}},{"id":"later","tool":"image_inspect","args":{"paths":["missing.png"]}}]}`)))
+	out, err := tool.Run(t.Context(), recipeArgs(t, ws, []byte(`{"version":4,"name":"missing image","steps":[{"id":"read","tool":"image_inspect","args":{"paths":["missing.png"]}},{"id":"later","tool":"image_inspect","args":{"paths":["missing.png"]}}]}`)))
 	if err == nil {
 		t.Fatal("missing image succeeded")
 	}
@@ -298,7 +298,7 @@ func TestRunRevalidatesSavedFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ws.Close()
-	source := `{"version":3,"name":"test","steps":[{"id":"read","tool":"image_inspect","args":{"paths":["input.png"]}}]}`
+	source := `{"version":4,"name":"test","steps":[{"id":"read","tool":"image_inspect","args":{"paths":["input.png"]}}]}`
 	args := recipeArgs(t, ws, []byte(source))
 	if _, err := (Tool{WS: ws, StoreDir: t.TempDir(), ValidateOnly: true, Authorize: allow, Registry: func() (*workflow.Registry, error) {
 		return app.WorkflowRegistry(ws, t.TempDir(), nil, nil)
@@ -306,7 +306,7 @@ func TestRunRevalidatesSavedFile(t *testing.T) {
 	}).Run(t.Context(), args); err != nil {
 		t.Fatal(err)
 	}
-	recipeArgs(t, ws, []byte(strings.Replace(source, `"version":3`, `"version":3,"input":"bad"`, 1)))
+	recipeArgs(t, ws, []byte(strings.Replace(source, `"version":4`, `"version":4,"input":"bad"`, 1)))
 	for _, validate := range []bool{true, false} {
 		_, err := (Tool{WS: ws, StoreDir: t.TempDir(), ValidateOnly: validate, Authorize: allow, Registry: func() (*workflow.Registry, error) {
 			return app.WorkflowRegistry(ws, t.TempDir(), nil, nil)

@@ -32,7 +32,7 @@ Ask GEKTOR:
 
 ```json
 {
-  "version": 3,
+  "version": 4,
   "name": "Prepare web images",
   "steps": [
     {"id": "inspect", "tool": "image_inspect", "args": {"paths": ["input.png"]}},
@@ -86,12 +86,12 @@ when an update changes tool schemas: old saved activations may be incompatible.
 
 ## Inputs and data flow
 
-Version 3 supports typed inputs and references to dependency outputs. Earlier
-unreleased recipe formats are not supported. For example:
+Version 4 is the current recipe format. Other formats are not supported.
+Recipes support typed inputs and references to dependency outputs. For example:
 
 ```json
 {
-  "version": 3,
+  "version": 4,
   "name": "Resize and compare",
   "inputs": {
     "source": {"type": "string", "required": true},
@@ -149,11 +149,34 @@ False skips that node. `merge: "all"` (default) requires all dependencies to
 complete; `merge: "any"` requires at least one. A reference to a skipped output
 still fails; merges do not invent missing values. The run stops on failure.
 
-`for_each` accepts up to 100 complete argument objects, or a reference resolving
-to that array. Set `args` to `{}`. Items execute sequentially using the selected
-node; every item is validated and authorized separately. The result is
-`{"items": [...]}`. Each iteration is saved before the next starts, so partial
-progress remains inspectable. Total iteration output is bounded to 1 MiB.
+`for_each` accepts up to 10,000 complete argument objects, or a reference resolving
+to that array. The ordinary 64 KiB argument limit also applies. Set `args` to `{}`.
+Every item is validated and authorized separately. `concurrency` defaults to 1
+and accepts 1–32. Values greater than 1 require the operation's explicit
+`concurrent` contract; this is independent of read-only and retry-safe status.
+The bundled script and HTTP operations support concurrent invocations.
+
+Results retain input order, even when items finish out of order. Each item has
+`index`, `status`, optional `output` and optional `error`. For example:
+
+```json
+{"items":[{"index":0,"status":"completed","output":4},{"index":1,"status":"failed","error":"site unavailable"}]}
+```
+
+`on_error` defaults to `stop`, which cancels and joins in-flight work after the
+first observed failure. `on_error: "collect"` retains operation failures and
+continues other items so a report can inspect both successes and failures.
+Operations classify their own collectable failures. The bundled script and HTTP
+nodes do this; unclassified errors from other operations remain terminal.
+Permission, validation, malformed-output and checkpoint failures still stop the
+run. Cancellation is never collected as success. A completed map can contain
+failed items; inspect their statuses. Total collection output is bounded to 1 MiB.
+Checkpoints precede effects and preserve partial outcomes. All started workers
+are joined before execution returns. Cancellation cannot undo effects already
+performed. `concurrency` and `on_error` apply only to `for_each` steps.
+
+The [collection report example](../../examples/workflows/collection-report/README.md)
+runs this behavior without a model or network.
 
 `review: true` pauses before an operation, after resolving its arguments.
 Use `workflow inspect` to examine it, then `workflow review -decision approve
@@ -163,7 +186,8 @@ again when continuing. The agent cannot approve its own run.
 
 `retry: {"max_attempts": 2, "delay_ms": 250}` is allowed only for nodes explicitly
 declared retry-safe. There are at most three attempts and a ten-second delay.
-Every attempt is recorded. Record writes and model calls are not automatically
+Every attempt is recorded. Permission and output-contract failures are not
+retried. Record writes and model calls are not automatically
 retried. A crash during an operation remains interrupted; the service does not
 infer whether an external effect happened.
 

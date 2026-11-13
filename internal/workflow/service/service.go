@@ -123,7 +123,7 @@ func (t Service) RunSource(ctx context.Context, source []byte, path string, inpu
 	}
 
 	digest := fmt.Sprintf("%x", sha256.Sum256(source))
-	h := handler{
+	h := &handler{
 		registry:   t.Registry,
 		authorize:  t.authorizeNode,
 		authorized: map[authorization]bool{},

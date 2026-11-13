@@ -12,7 +12,7 @@ import (
 
 func TestWorkflowQueueSnapshotsAndCommands(t *testing.T) {
 	dir, home := t.TempDir(), t.TempDir()
-	source := []byte(`{"version":3,"name":"snapshot","steps":[{"id":"js","tool":"script_transform","args":{"code":"return input;","input":42}}]}`)
+	source := []byte(`{"version":4,"name":"snapshot","steps":[{"id":"js","tool":"script_transform","args":{"code":"return input;","input":42}}]}`)
 	if err := os.WriteFile(filepath.Join(dir, "recipe.json"), source, 0600); err != nil {
 		t.Fatal(err)
 	}

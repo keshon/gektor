@@ -40,7 +40,7 @@ func TestConnectionsUndoAndGeometry(t *testing.T) {
 	}
 }
 func TestDecodeRejectsUnknownAndTrailingData(t *testing.T) {
-	for _, s := range []string{`{"version":3,"mystery":1}`, `{"version":3} {}`, `{"version":2}`} {
+	for _, s := range []string{`{"version":4,"mystery":1}`, `{"version":4} {}`, `{"version":2}`, `{"version":3}`} {
 		if _, err := Decode([]byte(s)); err == nil {
 			t.Fatal(s)
 		}

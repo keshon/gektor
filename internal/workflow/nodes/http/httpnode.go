@@ -53,6 +53,7 @@ func definition(resolve Resolver, transport http.RoundTripper) workflow.Node {
 	}
 	return workflow.Node{
 		Name:         "http_request",
+		Concurrent:   true,
 		Version:      1,
 		Description:  "One public HTTP request with explicit method, JSON body and optional origin-bound credential reference. No redirects or automatic retries. Returns status_code, selected response headers, body and parsed JSON data. status_as_data returns non-2xx responses without failing; network and response-read errors still fail.",
 		InputSchema:  schema,
@@ -124,18 +125,18 @@ func definition(resolve Resolver, transport http.RoundTripper) workflow.Node {
 			client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 			response, err := client.Do(req)
 			if err != nil {
-				return "", fmt.Errorf("HTTP request: %s", redact(err.Error()))
+				return "", &workflow.ExecutionError{Err: fmt.Errorf("HTTP request: %s", redact(err.Error()))}
 			}
 
 			defer response.Body.Close()
 
 			body, err := io.ReadAll(io.LimitReader(response.Body, (256<<10)+1))
 			if err != nil {
-				return "", fmt.Errorf("HTTP response read failed: %s", redact(err.Error()))
+				return "", &workflow.ExecutionError{Err: fmt.Errorf("HTTP response read failed: %s", redact(err.Error()))}
 			}
 
 			if len(body) > 256<<10 {
-				return "", fmt.Errorf("HTTP response exceeds 256 KiB")
+				return "", &workflow.ExecutionError{Err: fmt.Errorf("HTTP response exceeds 256 KiB")}
 			}
 
 			safe := redact(string(body))
@@ -166,7 +167,7 @@ func definition(resolve Resolver, transport http.RoundTripper) workflow.Node {
 			}
 
 			if !in.StatusAsData && (response.StatusCode < 200 || response.StatusCode >= 300) {
-				return string(out), fmt.Errorf("HTTP status %d; request was not retried", response.StatusCode)
+				return string(out), &workflow.ExecutionError{Err: fmt.Errorf("HTTP status %d; request was not retried", response.StatusCode)}
 			}
 
 			return string(out), nil

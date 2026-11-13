@@ -46,6 +46,11 @@ remain available independently of any adapter.
   An operation failure recorded on a job differs from failure to persist it.
 - Store records retain full execution evidence. Compact caller summaries must
   not replace those records or discard declared outputs.
+- Collection workers never mutate the run. The coordinator acknowledges durable
+  checkpoints and joins all workers before returning. Concurrency requires the
+  operation's explicit declaration; read-only and retry safety do not imply it.
+- Only `ExecutionError` is collectable/retryable operation failure. Permission,
+  validation, output-contract and persistence errors remain terminal.
 
 ## Tests and verification
 

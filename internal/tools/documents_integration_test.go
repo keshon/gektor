@@ -85,7 +85,7 @@ func TestDocumentsLazyDiscoveryAgentWorkflowAndResources(t *testing.T) {
 	if _, err := c.Enable(t.Context(), "native_workflows", nil); err != nil {
 		t.Fatal(err)
 	}
-	recipe := `{"version":3,"name":"Read document","steps":[{"id":"read","tool":"docx_read","args":{"path":"input.docx"}}],"outputs":{"document":{"$step":"read"}}}`
+	recipe := `{"version":4,"name":"Read document","steps":[{"id":"read","tool":"docx_read","args":{"path":"input.docx"}}],"outputs":{"document":{"$step":"read"}}}`
 	if err := ws.WriteFile("recipe.json", []byte(recipe), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +213,7 @@ func TestDocumentsContinuationAcrossAgentWorkflowAndOutputLimit(t *testing.T) {
 	if _, err := c.Enable(ctx, "native_workflows", nil); err != nil {
 		t.Fatal(err)
 	}
-	recipe := `{"version":3,"name":"Continue document","steps":[{"id":"first","tool":"docx_read","args":{"path":"long.docx"}},{"id":"tail","tool":"docx_read","args":{"path":"long.docx","offset":0,"text_offset":{"$step":"first","pointer":"/blocks/0/next_text_offset"}}}],"outputs":{"tail":{"$step":"tail"}}}`
+	recipe := `{"version":4,"name":"Continue document","steps":[{"id":"first","tool":"docx_read","args":{"path":"long.docx"}},{"id":"tail","tool":"docx_read","args":{"path":"long.docx","offset":0,"text_offset":{"$step":"first","pointer":"/blocks/0/next_text_offset"}}}],"outputs":{"tail":{"$step":"tail"}}}`
 	if err := ws.WriteFile("recipe.json", []byte(recipe), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func TestDocumentsContinuationAcrossAgentWorkflowAndOutputLimit(t *testing.T) {
 		t.Fatal(out, err)
 	}
 	// A recipe beginning directly at a continuation must still authorize its source.
-	recipe = fmt.Sprintf(`{"version":3,"name":"Denied continuation","steps":[{"id":"tail","tool":"docx_read","args":%s}]}`, args)
+	recipe = fmt.Sprintf(`{"version":4,"name":"Denied continuation","steps":[{"id":"tail","tool":"docx_read","args":%s}]}`, args)
 	if err := ws.WriteFile("denied.json", []byte(recipe), 0600); err != nil {
 		t.Fatal(err)
 	}

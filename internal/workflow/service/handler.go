@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/recipe"
@@ -27,6 +28,7 @@ func authorizationFor(s workflow.Step) authorization {
 }
 
 type handler struct {
+	permission sync.Mutex // serializes interactive authorization across map workers
 	artifacts  func(string) workflow.ArtifactAccess
 	registry   *workflow.Registry
 	authorize  func(context.Context, string, json.RawMessage) error
@@ -34,7 +36,7 @@ type handler struct {
 	templates  bool
 }
 
-func (h handler) Validate(s workflow.Step) error {
+func (h *handler) Validate(s workflow.Step) error {
 	n, err := h.registry.Node(s.Tool)
 	if err != nil {
 		return err
@@ -47,6 +49,19 @@ func (h handler) Validate(s workflow.Step) error {
 
 	if version != n.Version {
 		return fmt.Errorf("node %s version %d unavailable (registered %d)", s.Tool, version, n.Version)
+	}
+
+	if s.Concurrency < 0 || s.Concurrency > workflow.MaxConcurrency {
+		return fmt.Errorf("concurrency must be between 1 and %d when supplied", workflow.MaxConcurrency)
+	}
+	if s.OnError != "" && s.OnError != "stop" && s.OnError != "collect" {
+		return fmt.Errorf("on_error must be stop or collect")
+	}
+	if len(s.ForEach) == 0 && (s.Concurrency != 0 || s.OnError != "") {
+		return fmt.Errorf("concurrency and on_error require for_each")
+	}
+	if s.Concurrency > 1 && !n.Concurrent {
+		return fmt.Errorf("node %s does not permit concurrent invocations", s.Tool)
 	}
 
 	if s.Retry != nil {
@@ -70,11 +85,13 @@ func (h handler) Validate(s workflow.Step) error {
 		}
 
 		var items []json.RawMessage
-		if err := json.Unmarshal(s.ForEach, &items); err != nil || string(s.ForEach) == "null" || len(items) > 100 {
-			return fmt.Errorf("for_each must be an array of at most 100 argument objects")
+		if err := json.Unmarshal(s.ForEach, &items); err != nil || string(s.ForEach) == "null" || len(items) > workflow.MaxIterations {
+			return fmt.Errorf("for_each must be an array of at most %d argument objects", workflow.MaxIterations)
 		}
 
 		s.ForEach = nil
+		s.Concurrency = 0
+		s.OnError = ""
 
 		for _, item := range items {
 			s.Args = item
@@ -109,14 +126,15 @@ func (h handler) Validate(s workflow.Step) error {
 	return nil
 }
 
-func (h handler) Run(ctx context.Context, s workflow.Step) (string, error) {
+func (h *handler) Run(ctx context.Context, s workflow.Step) (string, error) {
 	n, err := h.registry.Node(s.Tool)
 	if err != nil {
 		return "", err
 	}
 
 	if !h.authorized[authorizationFor(s)] {
-		if err := h.authorize(ctx, s.Tool, s.Args); err != nil {
+		err = h.authorizeCall(ctx, s)
+		if err != nil {
 			return "", err
 		}
 	}
@@ -126,11 +144,25 @@ func (h handler) Run(ctx context.Context, s workflow.Step) (string, error) {
 	}
 
 	out, err := n.Execute(ctx, s.Args)
-	if err == nil && len(n.OutputSchema) > 0 {
+	if err != nil {
+		return out, err
+	}
+	if len(n.OutputSchema) > 0 {
 		err = workflow.ValidateJSON(json.RawMessage(out), n.OutputSchema)
 	}
 
 	return out, err
+}
+
+func (h *handler) authorizeCall(ctx context.Context, s workflow.Step) error {
+	h.permission.Lock()
+	defer h.permission.Unlock()
+
+	err := ctx.Err()
+	if err != nil {
+		return err
+	}
+	return h.authorize(ctx, s.Tool, s.Args)
 }
 
 func (t Service) authorizeNode(ctx context.Context, name string, args json.RawMessage) error {

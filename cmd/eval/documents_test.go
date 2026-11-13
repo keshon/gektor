@@ -59,7 +59,7 @@ func TestDocumentEvalFixturesThroughAgentAndWorkflow(t *testing.T) {
 			t.Fatal(call.tool, err)
 		}
 	}
-	recipe := `{"version":3,"name":"Read fixture documents","steps":[{"id":"brief","tool":"docx_read","args":{"path":"brief.docx"}},{"id":"sales","tool":"xlsx_read","args":{"path":"sales.xlsx","sheet":"Sales"}},{"id":"approval","tool":"pdf_read","args":{"path":"approval.pdf"}}],"outputs":{"brief":{"$step":"brief"},"sales":{"$step":"sales"},"approval":{"$step":"approval"}}}`
+	recipe := `{"version":4,"name":"Read fixture documents","steps":[{"id":"brief","tool":"docx_read","args":{"path":"brief.docx"}},{"id":"sales","tool":"xlsx_read","args":{"path":"sales.xlsx","sheet":"Sales"}},{"id":"approval","tool":"pdf_read","args":{"path":"approval.pdf"}}],"outputs":{"brief":{"$step":"brief"},"sales":{"$step":"sales"},"approval":{"$step":"approval"}}}`
 	if err := ws.WriteFile("recipe.json", []byte(recipe), 0600); err != nil {
 		t.Fatal(err)
 	}

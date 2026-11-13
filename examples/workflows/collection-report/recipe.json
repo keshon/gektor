@@ -1,0 +1,27 @@
+{
+  "version": 4,
+  "name": "Collect item outcomes",
+  "inputs": {"numbers": {"type": "array", "default": [-1, 2, 3]}},
+  "steps": [
+    {
+      "id": "prepare", "tool": "script_transform",
+      "args": {
+        "input": {"$input": "numbers"},
+        "code": "return input.map(value => ({input: value, code: 'if (input < 0) throw new Error(\"negative input\"); return input * 2;'}));"
+      }
+    },
+    {
+      "id": "double", "tool": "script_transform", "args": {},
+      "for_each": {"$step": "prepare"},
+      "concurrency": 3, "on_error": "collect"
+    },
+    {
+      "id": "report", "tool": "script_transform",
+      "args": {
+        "input": {"$step": "double", "pointer": "/items"},
+        "code": "return {completed: input.filter(item => item.status === 'completed').length, failed: input.filter(item => item.status === 'failed').length, values: input.filter(item => item.status === 'completed').map(item => item.output)};"
+      }
+    }
+  ],
+  "outputs": {"report": {"$step": "report"}}
+}

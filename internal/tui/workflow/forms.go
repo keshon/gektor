@@ -66,12 +66,12 @@ func (m *Model) behaviorForm() tea.Cmd {
 			continue
 		}
 		original, _ := json.Marshal(step)
-		schema := schemaform.Parse(json.RawMessage(`{"properties":{"review":{"type":"boolean","enum":[true,false]},"depends_on":{"type":"array"},"when":{},"for_each":{},"merge":{"type":"string","enum":["all","any"]},"retry":{"type":"object"}}}`))
+		schema := schemaform.Parse(json.RawMessage(`{"properties":{"review":{"type":"boolean","enum":[true,false]},"depends_on":{"type":"array"},"when":{},"for_each":{},"concurrency":{"type":"integer","minimum":1,"maximum":32},"on_error":{"type":"string","enum":["stop","collect"]},"merge":{"type":"string","enum":["all","any"]},"retry":{"type":"object"}}}`))
 		draft := m.editor.Source()
 		id := step.ID
 		m.openForm(screen.Form{
 			Title:      step.ID + " / behavior",
-			Hint:       "Conditions and references use JSON. Retries require a retry-safe operation.",
+			Hint:       "Map concurrency requires a concurrent operation. Collect retains operation failures; permission and storage failures stop the run.",
 			ApplyLabel: "Apply",
 			Fields:     schema.Fields(original),
 			Choices:    schema.Choices(),

@@ -31,6 +31,8 @@ func (s Service) DefinitionSchema() json.RawMessage {
 			"args":         map[string]any{"type": "object"},
 			"review":       map[string]any{"type": "boolean"},
 			"for_each":     map[string]any{},
+			"concurrency":  map[string]any{"type": "integer", "minimum": 1, "maximum": 32},
+			"on_error":     map[string]any{"type": "string", "enum": []string{"stop", "collect"}},
 			"node_version": map[string]any{"type": "integer", "minimum": 1},
 			"retry":        retry,
 			"depends_on":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "uniqueItems": true},
@@ -43,7 +45,7 @@ func (s Service) DefinitionSchema() json.RawMessage {
 	schema := map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"version": map[string]any{"type": "integer", "const": 3},
+			"version": map[string]any{"type": "integer", "const": 4},
 			"name":    map[string]any{"type": "string", "minLength": 1, "maxLength": 120},
 			"inputs":  map[string]any{"type": "object", "maxProperties": 32, "additionalProperties": input},
 			"steps":   map[string]any{"type": "array", "minItems": 1, "maxItems": 16, "items": step},

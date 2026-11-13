@@ -103,7 +103,7 @@ func TestRecordWorkflowReferencesRevisionsAndInspection(t *testing.T) {
 	if _, err := s.RegisterSchema(t.Context(), "assets", []byte(`{"type":"object","required":["width"],"properties":{"width":{"type":"integer"}},"additionalProperties":false}`)); err != nil {
 		t.Fatal(err)
 	}
-	args := recipeArgs(t, ws, []byte(`{"version":3,"name":"Record revisions","steps":[{"id":"create","tool":"record_write","args":{"kind":"assets","id":"image","expected_revision":0,"data":{"width":8}}},{"id":"read","tool":"record_read","args":{"kind":"assets","id":{"$step":"create","pointer":"/id"}}},{"id":"update","tool":"record_write","args":{"kind":"assets","id":"image","expected_revision":{"$step":"read","pointer":"/revision"},"data":{"width":16}}}]}`))
+	args := recipeArgs(t, ws, []byte(`{"version":4,"name":"Record revisions","steps":[{"id":"create","tool":"record_write","args":{"kind":"assets","id":"image","expected_revision":0,"data":{"width":8}}},{"id":"read","tool":"record_read","args":{"kind":"assets","id":{"$step":"create","pointer":"/id"}}},{"id":"update","tool":"record_write","args":{"kind":"assets","id":"image","expected_revision":{"$step":"read","pointer":"/revision"},"data":{"width":16}}}]}`))
 	tool := Tool{WS: ws, StoreDir: base, Authorize: allow, Registry: func() (*workflow.Registry, error) {
 		return app.WorkflowRegistry(ws, base, nil, nil)
 	},
@@ -160,7 +160,7 @@ func TestRecordWorkflowChecksResolvedPermissions(t *testing.T) {
 	if _, err := s.RegisterSchema(t.Context(), "notes", []byte(`{"type":"object"}`)); err != nil {
 		t.Fatal(err)
 	}
-	args := recipeArgs(t, ws, []byte(`{"version":3,"name":"Dynamic permission","steps":[{"id":"write","tool":"record_write","args":{"kind":"notes","id":"one","expected_revision":0,"data":{}}},{"id":"read","tool":"record_read","args":{"kind":"notes","id":{"$step":"write","pointer":"/id"}}}]}`))
+	args := recipeArgs(t, ws, []byte(`{"version":4,"name":"Dynamic permission","steps":[{"id":"write","tool":"record_write","args":{"kind":"notes","id":"one","expected_revision":0,"data":{}}},{"id":"read","tool":"record_read","args":{"kind":"notes","id":{"$step":"write","pointer":"/id"}}}]}`))
 	checked := false
 	tool := Tool{WS: ws, StoreDir: base, Authorize: func(_ context.Context, name string, args json.RawMessage) error {
 		if name == "record_read" {

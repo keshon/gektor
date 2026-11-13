@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "name": "Transform and review",
   "inputs": {"numbers": {"type": "array", "default": [2, 3, 5]}},
   "steps": [

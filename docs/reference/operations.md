@@ -375,7 +375,7 @@ conversion support. Do not remove profiles merely to make a recipe succeed.
 
 Enable `native_workflows` for schema lookup, validation, execution, run inspection
 and structured records. `workflow_validate` and `workflow_run` accept
-`{"recipe_path":"recipe.json"}` with an optional typed `inputs` object. Only recipe version 3 is supported.
+`{"recipe_path":"recipe.json"}` with an optional typed `inputs` object. Only recipe version 4 is supported.
 They read that saved workspace file, up to
 64 KiB, and reject unknown fields.
 

@@ -52,7 +52,7 @@ func TestRecordsDenySameResourceInAgentAndWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	recipe := []byte(`{"version":3,"name":"Denied record","steps":[{"id":"write","tool":"record_write","args":` + args + `}]}`)
+	recipe := []byte(`{"version":4,"name":"Denied record","steps":[{"id":"write","tool":"record_write","args":` + args + `}]}`)
 	if _, err := svc.RunSource(t.Context(), recipe, "denied.json", nil); err == nil || !strings.Contains(err.Error(), "blocked by policy") {
 		t.Fatal("workflow did not deny record_write on notes/state", err)
 	}

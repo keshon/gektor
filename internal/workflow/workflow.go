@@ -7,6 +7,9 @@ import (
 	"encoding/json"
 )
 
+const MaxIterations = 10000
+const MaxConcurrency = 32
+
 // Definition is a saved recipe. Its maps and slices are caller-owned.
 type Definition struct {
 	Outputs map[string]json.RawMessage `json:"outputs,omitempty"`
@@ -25,6 +28,8 @@ type Step struct {
 	Gate        string          `json:"gate,omitempty"`
 	Review      bool            `json:"review,omitempty"`
 	ForEach     json.RawMessage `json:"for_each,omitempty"`
+	Concurrency int             `json:"concurrency,omitempty"`
+	OnError     string          `json:"on_error,omitempty"`
 	NodeVersion int             `json:"node_version,omitempty"`
 	Retry       *RetryPolicy    `json:"retry,omitempty"`
 	ID          string          `json:"id"`

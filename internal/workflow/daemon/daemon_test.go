@@ -34,7 +34,7 @@ func TestServiceCancellationAndRunLink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := s.Enqueue(t.Context(), "recipe.json", json.RawMessage(`{"version":3,"name":"cancel","steps":[{"id":"wait","tool":"wait","args":{}}]}`), nil)
+	job, err := s.Enqueue(t.Context(), "recipe.json", json.RawMessage(`{"version":4,"name":"cancel","steps":[{"id":"wait","tool":"wait","args":{}}]}`), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

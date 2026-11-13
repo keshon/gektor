@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/keshon/gektor/internal/workflow"
@@ -97,9 +98,10 @@ func (s *Store) Close() error { return s.root.Close() }
 // RunWriter holds a process lease until Close. A process exit releases it;
 // the persistent lock file itself is never removed.
 type RunWriter struct {
-	store *Store
-	id    string
-	lease *os.File
+	artifactMu sync.Mutex // serializes quota checks and artifact publication
+	store      *Store
+	id         string
+	lease      *os.File
 }
 
 func (s *Store) NewRun() (*RunWriter, error) {

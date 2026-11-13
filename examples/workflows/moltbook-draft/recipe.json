@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "name": "Read Moltbook and save a draft",
   "inputs": {
     "feed_url": {

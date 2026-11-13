@@ -8,14 +8,25 @@ description: Create, validate, run and inspect GEKTOR recipes; connect node outp
 In normal Agent mode, enable `native_workflows`, then read `workflow_schema`.
 Draft-only roles use their available schema tool or supplied contracts instead.
 The operation contracts
-describe inputs, outputs, execution effects and retry safety. Use those contracts;
+describe inputs, outputs, execution effects, concurrency and retry safety. Use those contracts;
 do not search for an external runtime. `script_transform` runs JavaScript in a
 bundled interpreter, with JSON `input` and a JSON return value. It has no file,
 network, environment or module access. Python and Node.js are not needed.
 
-Use recipe version 3. A recipe has `version`, `name`, `steps`, and optional
+Use recipe version 4. A recipe has `version`, `name`, `steps`, and optional
 `inputs` and `outputs`. Steps use `id`, `tool`, `args` and documented behavior
 fields. Steps do not have an `outputs` field.
+
+For a collection, supply `args: {}` and `for_each` as an array of complete
+argument objects or a reference to one. Set `concurrency` to 1–32 only when the
+operation contract declares `concurrent: true`; omission runs one item at a time.
+Use `on_error: "collect"` when operation failures must become reportable results.
+The output is `{items: [{index, status, output?, error?}]}` in input order.
+Select `/items/0/output` for the first item's value when it succeeded. A completed map
+can contain failed items; inspect statuses before claiming all checks succeeded.
+Permissions, validation, malformed outputs, persistence and cancellation still
+stop the run. These fields cannot be used outside `for_each`. A map accepts at
+most 10,000 items subject to the ordinary argument and output byte limits.
 
 `inputs` declares types and defaults. `outputs` contains returned VALUES or
 references, not type declarations. `{"type":"integer"}` in outputs returns
@@ -25,7 +36,7 @@ This complete recipe returns `{"doubled":6}` with its default input:
 
 ```json
 {
-  "version": 3,
+  "version": 4,
   "name": "Double count",
   "inputs": {"count": {"type": "integer", "default": 3}},
   "steps": [{

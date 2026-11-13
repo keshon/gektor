@@ -27,7 +27,7 @@ func workflowWorkspace(t *testing.T) string {
 	files := map[string][]byte{
 		"image.png":   b.Bytes(),
 		"inputs.json": []byte(`{"source":"image.png"}`),
-		"recipe.json": []byte(`{"version":3,"name":"CLI workflow","inputs":{"source":{"type":"string","required":true}},"steps":[{"id":"write","tool":"image_variants","args":{"paths":[{"$input":"source"}],"widths":[8],"out_dir":"output"}},{"id":"compare","tool":"image_compare","args":{"paths":[{"$input":"source"},{"$step":"write","pointer":"/items/0/output"}]}}]}`),
+		"recipe.json": []byte(`{"version":4,"name":"CLI workflow","inputs":{"source":{"type":"string","required":true}},"steps":[{"id":"write","tool":"image_variants","args":{"paths":[{"$input":"source"}],"widths":[8],"out_dir":"output"}},{"id":"compare","tool":"image_compare","args":{"paths":[{"$input":"source"},{"$step":"write","pointer":"/items/0/output"}]}}]}`),
 	}
 	for name, data := range files {
 		if err := os.WriteFile(filepath.Join(dir, name), data, 0600); err != nil {
@@ -35,6 +35,46 @@ func workflowWorkspace(t *testing.T) string {
 		}
 	}
 	return dir
+}
+
+func TestCollectionReportExampleRunsWithoutBackend(t *testing.T) {
+	source, err := os.ReadFile(filepath.Join("..", "..", "examples", "workflows", "collection-report", "recipe.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	err = os.WriteFile(filepath.Join(dir, "recipe.json"), source, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	o, err := parseWorkflowOptions([]string{"run", "-workspace", dir, "-yes", "-allow", "workflow_run=*,script_transform=*", "recipe.json"}, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	o.storeDir = t.TempDir()
+	var out bytes.Buffer
+	err = executeWorkflow(t.Context(), o, &out, nil)
+	if err != nil {
+		t.Fatal(out.String(), err)
+	}
+	var summary struct {
+		Status  string
+		Outputs struct {
+			Report struct {
+				Completed int
+				Failed    int
+				Values    []int
+			}
+		}
+	}
+	err = json.Unmarshal(out.Bytes(), &summary)
+	if err != nil || summary.Status != "completed" || summary.Outputs.Report.Completed != 2 || summary.Outputs.Report.Failed != 1 {
+		t.Fatal("incomplete report", out.String(), err)
+	}
+	values := summary.Outputs.Report.Values
+	if len(values) != 2 || values[0] != 4 || values[1] != 6 {
+		t.Fatal("wrong result ordering", values)
+	}
 }
 
 func TestWorkflowCLIValidatesAndRunsWithoutBackend(t *testing.T) {
@@ -220,7 +260,7 @@ func TestWorkflowCLIRecordsAcrossRuns(t *testing.T) {
 	if err := workflowRegisterSchema(t.Context(), []string{"-workspace", dir, "notes", "schema.json"}, io.Discard, base); err != nil {
 		t.Fatal(err)
 	}
-	recipe := `{"version":3,"name":"Store a note","steps":[{"id":"create","tool":"record_write","args":{"kind":"notes","id":"first","expected_revision":0,"data":{"value":42}}},{"id":"read","tool":"record_read","args":{"kind":"notes","id":{"$step":"create","pointer":"/id"}}}]}`
+	recipe := `{"version":4,"name":"Store a note","steps":[{"id":"create","tool":"record_write","args":{"kind":"notes","id":"first","expected_revision":0,"data":{"value":42}}},{"id":"read","tool":"record_read","args":{"kind":"notes","id":{"$step":"create","pointer":"/id"}}}]}`
 	if err := os.WriteFile(filepath.Join(dir, "recipe.json"), []byte(recipe), 0600); err != nil {
 		t.Fatal(err)
 	}

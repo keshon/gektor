@@ -27,7 +27,7 @@ import (
 
 const operator = "operator-test-token-01234567890123456789"
 const hook = "webhook-test-token-01234567890123456789"
-const recipe = `{"version":3,"name":"Webhook note","inputs":{"text":{"type":"string","required":true}},"steps":[{"id":"save","tool":"artifact_write","args":{"name":"note.txt","text":{"$input":"text"}}}]}`
+const recipe = `{"version":4,"name":"Webhook note","inputs":{"text":{"type":"string","required":true}},"steps":[{"id":"save","tool":"artifact_write","args":{"name":"note.txt","text":{"$input":"text"}}}]}`
 
 func TestDiagnosticsCorrelateWithoutLoggingRequestData(t *testing.T) {
 	_, db, svc, _ := setup(t)

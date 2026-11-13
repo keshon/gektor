@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -25,7 +26,10 @@ func executeAttempts(ctx context.Context, s workflow.Step, h workflow.Handler, r
 		if err := save(*r); err != nil {
 			return out, fmt.Errorf("save attempt: %w", err)
 		}
-		out, err = h.Run(ctx, s)
+		err = ctx.Err()
+		if err == nil {
+			out, err = h.Run(ctx, s)
+		}
 		now := time.Now().UTC()
 		attempt := &step.Attempts[len(step.Attempts)-1]
 		attempt.Finished = &now
@@ -35,7 +39,8 @@ func executeAttempts(ctx context.Context, s workflow.Step, h workflow.Handler, r
 		if e := save(*r); e != nil {
 			return out, fmt.Errorf("save attempt outcome: %w", e)
 		}
-		if err == nil || number == limit {
+		var execution *workflow.ExecutionError
+		if err == nil || number == limit || !errors.As(err, &execution) || ctx.Err() != nil {
 			return out, err
 		}
 		timer := time.NewTimer(time.Duration(delay) * time.Millisecond)

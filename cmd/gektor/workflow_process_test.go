@@ -10,7 +10,7 @@ import (
 
 func TestWorkflowProgramHonorsDenyAndRejectsRetry(t *testing.T) {
 	dir, home := t.TempDir(), t.TempDir()
-	source := `{"version":3,"name":"Process policy","steps":[{"id":"version","tool":"run_program","args":{"program":"go","args":["version"]}}]}`
+	source := `{"version":4,"name":"Process policy","steps":[{"id":"version","tool":"run_program","args":{"program":"go","args":["version"]}}]}`
 	path := filepath.Join(dir, "recipe.json")
 	if err := os.WriteFile(path, []byte(source), 0600); err != nil {
 		t.Fatal(err)

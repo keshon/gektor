@@ -67,7 +67,7 @@ func TestPipelineCriteriaRejectEmptyAndAcceptRealOperations(t *testing.T) {
 					t.Fatal(err)
 				}
 			} else {
-				parent := `{"version":3,"name":"Two calls","steps":[{"id":"a","tool":"workflow_call","args":{"recipe_path":"double.json","inputs":{"n":3}}},{"id":"b","tool":"workflow_call","args":{"recipe_path":"double.json","inputs":{"n":5}}}],"outputs":{"six":{"$step":"a","pointer":"/value"},"ten":{"$step":"b","pointer":"/value"}}}`
+				parent := `{"version":4,"name":"Two calls","steps":[{"id":"a","tool":"workflow_call","args":{"recipe_path":"double.json","inputs":{"n":3}}},{"id":"b","tool":"workflow_call","args":{"recipe_path":"double.json","inputs":{"n":5}}}],"outputs":{"six":{"$step":"a","pointer":"/value"},"ten":{"$step":"b","pointer":"/value"}}}`
 				if err := ws.WriteFile("recipe.json", []byte(parent), 0600); err != nil {
 					t.Fatal(err)
 				}

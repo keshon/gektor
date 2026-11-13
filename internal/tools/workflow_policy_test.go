@@ -36,7 +36,7 @@ func TestWorkflowCannotBypassNestedToolDeny(t *testing.T) {
 	if _, err := c.Enable(t.Context(), "native_workflows", nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := ws.WriteFile("recipe.json", []byte(`{"version":3,"name":"denied","steps":[{"id":"read","tool":"image_inspect","args":{"paths":["input.png"]}}]}`), 0600); err != nil {
+	if err := ws.WriteFile("recipe.json", []byte(`{"version":4,"name":"denied","steps":[{"id":"read","tool":"image_inspect","args":{"paths":["input.png"]}}]}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := r.Run(t.Context(), "workflow_run", json.RawMessage(`{"recipe_path":"recipe.json"}`)); err == nil {
@@ -71,7 +71,7 @@ func TestScheduleDiscoveryAndRecipeReadPermissions(t *testing.T) {
 	if !r.Has("workflow_schedule") || !r.Has("workflow_schedules") {
 		t.Fatal("schedule tools not discovered")
 	}
-	if err := ws.WriteFile("recipe.json", []byte(`{"version":3,"name":"Denied","steps":[{"id":"calc","tool":"script_transform","args":{"code":"return 1;"}}]}`), 0600); err != nil {
+	if err := ws.WriteFile("recipe.json", []byte(`{"version":4,"name":"Denied","steps":[{"id":"calc","tool":"script_transform","args":{"code":"return 1;"}}]}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	args := json.RawMessage(`{"action":"create","id":"minute","recipe_path":"recipe.json","cron":"* * * * *"}`)
@@ -114,7 +114,7 @@ func TestGeneratedOutputFilenameCannotBypassPermission(t *testing.T) {
 	if _, err := r.Run(t.Context(), "image_variants", args); err == nil {
 		t.Fatal("direct call bypassed filename deny")
 	}
-	if err := ws.WriteFile("recipe.json", []byte(`{"version":3,"name":"denied output","steps":[{"id":"write","tool":"image_variants","args":{"paths":["input.png"],"widths":[8],"out_dir":"out"}}]}`), 0600); err != nil {
+	if err := ws.WriteFile("recipe.json", []byte(`{"version":4,"name":"denied output","steps":[{"id":"write","tool":"image_variants","args":{"paths":["input.png"],"widths":[8],"out_dir":"out"}}]}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := r.Run(t.Context(), "workflow_run", json.RawMessage(`{"recipe_path":"recipe.json"}`)); err == nil {
@@ -143,7 +143,7 @@ func TestScheduleStatusSourceComparisonNeverOpensApprovalGate(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	source := json.RawMessage(`{"version":3,"name":"Saved","steps":[]}`)
+	source := json.RawMessage(`{"version":4,"name":"Saved","steps":[]}`)
 	if err := ws.WriteFile("recipe.json", source, 0600); err != nil {
 		t.Fatal(err)
 	}

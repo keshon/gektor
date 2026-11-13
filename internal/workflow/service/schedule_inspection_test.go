@@ -20,8 +20,8 @@ func TestSnapshotInspectionIncludesChildrenAndDoesNotRefresh(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ws.Close()
-	root := json.RawMessage(`{"version":3,"name":"Parent","steps":[]}`)
-	child := json.RawMessage(`{"version":3,"name":"Child","steps":[]}`)
+	root := json.RawMessage(`{"version":4,"name":"Parent","steps":[]}`)
+	child := json.RawMessage(`{"version":4,"name":"Child","steps":[]}`)
 	bundle, _ := json.Marshal(recipeBundle{Root: root, Recipes: map[string]json.RawMessage{"child.json": child}})
 	saved := store.Schedule{RecipePath: "parent.json", Source: bundle}
 	if err := ws.WriteFile("parent.json", root, 0600); err != nil {
@@ -35,7 +35,7 @@ func TestSnapshotInspectionIncludesChildrenAndDoesNotRefresh(t *testing.T) {
 		t.Fatal(got)
 	}
 	// Formatting and object key order do not create a false drift warning.
-	if err := ws.WriteFile("child.json", []byte("{\n \"steps\": [], \"name\": \"Child\", \"version\": 3}"), 0600); err != nil {
+	if err := ws.WriteFile("child.json", []byte("{\n \"steps\": [], \"name\": \"Child\", \"version\": 4}"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if got := svc.InspectSnapshot(t.Context(), saved); got.State != "unchanged" {
@@ -83,7 +83,7 @@ func TestScheduledTimeSurvivesExecutionAndReview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := json.RawMessage(`{"version":3,"name":"Monitor","steps":[{"id":"check","tool":"echo","review":true,"args":{}}],"outputs":{"result":{"$step":"check"}}}`)
+	source := json.RawMessage(`{"version":4,"name":"Monitor","steps":[{"id":"check","tool":"echo","review":true,"args":{}}],"outputs":{"result":{"$step":"check"}}}`)
 	trigger := store.Schedule{ID: "minute", RecipePath: "monitor.json", Source: source, Cron: "* * * * *", Timezone: "UTC", Missed: "once"}
 	if err := db.PutSchedule(t.Context(), trigger); err != nil {
 		t.Fatal(err)

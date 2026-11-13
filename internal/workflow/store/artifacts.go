@@ -85,6 +85,9 @@ func (w *RunWriter) artifactMetadata(id string) (workflow.Artifact, error) {
 
 func (a artifactAccess) Put(ctx context.Context, name string, source io.Reader) (workflow.Artifact, error) {
 	w := a.writer
+	w.artifactMu.Lock()
+	defer w.artifactMu.Unlock()
+
 	var zero workflow.Artifact
 	if name == "" || len(name) > 255 || strings.ContainsAny(name, "/\\\x00\r\n") || name == "." || name == ".." {
 		return zero, fmt.Errorf("artifact name must be a filename of at most 255 bytes")

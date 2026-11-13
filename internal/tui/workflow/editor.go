@@ -21,7 +21,7 @@ type Editor struct {
 
 // NewEditor creates an empty recipe with a clean undo history.
 func NewEditor() *Editor {
-	e := &Editor{Definition: workflow.Definition{Version: 3, Name: "Untitled workflow", Steps: []workflow.Step{}}}
+	e := &Editor{Definition: workflow.Definition{Version: 4, Name: "Untitled workflow", Steps: []workflow.Step{}}}
 	e.Saved = e.Source()
 	return e
 }
@@ -36,8 +36,8 @@ func Decode(source []byte) (workflow.Definition, error) {
 	if dec.Decode(new(any)) != io.EOF {
 		return d, fmt.Errorf("expected one recipe")
 	}
-	if d.Version != 3 {
-		return d, fmt.Errorf("recipe version must be 3")
+	if d.Version != 4 {
+		return d, fmt.Errorf("recipe version must be 4")
 	}
 	return d, nil
 }

@@ -34,7 +34,7 @@ func TestIterationCannotBorrowStepAuthorization(t *testing.T) {
 		}
 		return nil
 	}}
-	_, e = svc.RunSource(t.Context(), []byte(`{"version":3,"name":"collision","steps":[{"id":"loop[0]","tool":"echo","args":{"path":"allowed"}},{"id":"loop","tool":"echo","args":{},"for_each":[{"path":"denied"}]}]}`), "r.json", nil)
+	_, e = svc.RunSource(t.Context(), []byte(`{"version":4,"name":"collision","steps":[{"id":"loop[0]","tool":"echo","args":{"path":"allowed"}},{"id":"loop","tool":"echo","args":{},"for_each":[{"path":"denied"}]}]}`), "r.json", nil)
 	if e == nil || calls != 1 {
 		t.Fatalf("permission bypass: %v calls=%d", e, calls)
 	}
@@ -57,7 +57,7 @@ func pendingJob(t *testing.T, execute func(context.Context, json.RawMessage) (st
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	j, err := db.Enqueue(t.Context(), "r.json", json.RawMessage(`{"version":3,"name":"review","steps":[{"id":"review","tool":"echo","review":true,"args":{}}]}`), nil)
+	j, err := db.Enqueue(t.Context(), "r.json", json.RawMessage(`{"version":4,"name":"review","steps":[{"id":"review","tool":"echo","review":true,"args":{}}]}`), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

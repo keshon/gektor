@@ -72,6 +72,7 @@ type Contract struct {
 	OutputSchema json.RawMessage `json:"output_schema"`
 	ReadOnly     bool            `json:"read_only"`
 	RetrySafe    bool            `json:"retry_safe"`
+	Concurrent   bool            `json:"concurrent"`
 }
 
 func (r *Registry) Contracts() map[string]Contract {
@@ -82,7 +83,11 @@ func (r *Registry) Contracts() map[string]Contract {
 		if len(output) == 0 {
 			output = json.RawMessage(`true`)
 		}
-		out[name] = Contract{n.Version, n.Description, n.InputSchema, output, n.ReadOnly, n.RetrySafe}
+		out[name] = Contract{
+			Version: n.Version, Description: n.Description,
+			InputSchema: n.InputSchema, OutputSchema: output,
+			ReadOnly: n.ReadOnly, RetrySafe: n.RetrySafe, Concurrent: n.Concurrent,
+		}
 	}
 	return out
 }

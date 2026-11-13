@@ -273,7 +273,7 @@ func TestScheduleCardsFollowRecipeAndDoNotAccumulateOnRedraw(t *testing.T) {
 func TestScheduleFreezesCalledRecipe(t *testing.T) {
 	m := workflowTestModel(t)
 	w := m.workflows
-	child := `{"version":3,"name":"child-original","steps":[{"id":"calc","tool":"script_transform","args":{"code":"return 1;","input":1}}],"outputs":{"value":{"$step":"calc"}}}`
+	child := `{"version":4,"name":"child-original","steps":[{"id":"calc","tool":"script_transform","args":{"code":"return 1;","input":1}}],"outputs":{"value":{"$step":"calc"}}}`
 	if err := m.baseEnv.WS.WriteFile("child.json", []byte(child), 0600); err != nil {
 		t.Fatal(err)
 	}

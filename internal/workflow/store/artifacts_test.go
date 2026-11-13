@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -96,6 +98,34 @@ func TestArtifactsBoundsAndCancelledPublication(t *testing.T) {
 	w.Close()
 	if _, err := a.Put(t.Context(), "closed", strings.NewReader("x")); err == nil {
 		t.Fatal("closed lease accepted")
+	}
+}
+
+func TestConcurrentArtifactPublicationHonorsRunQuota(t *testing.T) {
+	s, _, _ := testStore(t)
+	w, err := s.NewRun()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	var workers sync.WaitGroup
+	var published atomic.Int32
+	for worker := range 8 {
+		workers.Go(func() {
+			for n := worker; n < MaxRunArtifacts+8; n += 8 {
+				_, err := w.Artifacts("parallel").Put(t.Context(), "item.txt", strings.NewReader("item"))
+				if err == nil {
+					published.Add(1)
+				} else if !strings.Contains(err.Error(), "artifact count") {
+					t.Error(err)
+				}
+			}
+		})
+	}
+	workers.Wait()
+	items, err := w.ListArtifacts()
+	if err != nil || published.Load() != MaxRunArtifacts || len(items) != MaxRunArtifacts {
+		t.Fatal("quota exceeded or publication lost", published.Load(), len(items), err)
 	}
 }
 

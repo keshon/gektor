@@ -66,7 +66,7 @@ func TestArchiveCreateAndExtractThroughAgentAndWorkflow(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	recipe := `{"version":3,"name":"ZIP roundtrip","steps":[{"id":"pack","tool":"archive_create","args":{"paths":["source.bin"],"path":"workflow.zip"}},{"id":"unpack","tool":"archive_extract","args":{"path":{"$step":"pack","pointer":"/path"},"out_dir":"workflow"}}],"outputs":{"result":{"$step":"unpack"}}}`
+	recipe := `{"version":4,"name":"ZIP roundtrip","steps":[{"id":"pack","tool":"archive_create","args":{"paths":["source.bin"],"path":"workflow.zip"}},{"id":"unpack","tool":"archive_extract","args":{"path":{"$step":"pack","pointer":"/path"},"out_dir":"workflow"}}],"outputs":{"result":{"$step":"unpack"}}}`
 	if err := ws.WriteFile("recipe.json", []byte(recipe), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestArchiveGeneratedOutputDenyAppliesBeforeAnyWrite(t *testing.T) {
 				if _, err := c.Enable(t.Context(), "native_workflows", nil); err != nil {
 					t.Fatal(err)
 				}
-				if err := ws.WriteFile("recipe.json", []byte(`{"version":3,"name":"Denied ZIP","steps":[{"id":"unpack","tool":"archive_extract","args":{"path":"input.zip","out_dir":"out"}}]}`), 0600); err != nil {
+				if err := ws.WriteFile("recipe.json", []byte(`{"version":4,"name":"Denied ZIP","steps":[{"id":"unpack","tool":"archive_extract","args":{"path":"input.zip","out_dir":"out"}}]}`), 0600); err != nil {
 					t.Fatal(err)
 				}
 				_, err = c.Registry.Run(t.Context(), "workflow_run", json.RawMessage(`{"recipe_path":"recipe.json"}`))
@@ -166,7 +166,7 @@ func TestFilePackAndWorkflowShareContractsAndResults(t *testing.T) {
 	if _, err := c.Enable(t.Context(), "native_workflows", nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := ws.WriteFile("recipe.json", []byte(`{"version":3,"name":"List ZIP","steps":[{"id":"list","tool":"archive_list","args":{"path":"input.zip"}}],"outputs":{"listing":{"$step":"list"}}}`), 0600); err != nil {
+	if err := ws.WriteFile("recipe.json", []byte(`{"version":4,"name":"List ZIP","steps":[{"id":"list","tool":"archive_list","args":{"path":"input.zip"}}],"outputs":{"listing":{"$step":"list"}}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	output, err := c.Registry.Run(t.Context(), "workflow_run", json.RawMessage(`{"recipe_path":"recipe.json"}`))
@@ -207,7 +207,7 @@ func TestFileOperationResourcesAreCanonicalAndWorkflowDenyApplies(t *testing.T) 
 	if _, err := c.Enable(t.Context(), "native_workflows", nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := ws.WriteFile("recipe.json", []byte(`{"version":3,"name":"Denied download","steps":[{"id":"get","tool":"download_file","args":{"url":"https://example.com/file","path":"blocked.zip"}}]}`), 0600); err != nil {
+	if err := ws.WriteFile("recipe.json", []byte(`{"version":4,"name":"Denied download","steps":[{"id":"get","tool":"download_file","args":{"url":"https://example.com/file","path":"blocked.zip"}}]}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	_, err := c.Registry.Run(t.Context(), "workflow_run", json.RawMessage(`{"recipe_path":"recipe.json"}`))

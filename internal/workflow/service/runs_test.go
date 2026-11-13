@@ -52,7 +52,7 @@ func TestCustomNodeNeedsNoCentralDispatchChanges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := `{"version":3,"name":"Extensible","steps":[{"id":"first","tool":"custom.echo","args":{"value":"allowed"}},{"id":"second","tool":"custom.echo","args":{"value":{"$step":"first","pointer":"/value"}}}]}`
+	source := `{"version":4,"name":"Extensible","steps":[{"id":"first","tool":"custom.echo","args":{"value":"allowed"}},{"id":"second","tool":"custom.echo","args":{"value":{"$step":"first","pointer":"/value"}}}]}`
 	if err := ws.WriteFile("recipe.json", []byte(source), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestIterationPermissionsRetryAndVersions(t *testing.T) {
 	node := workflow.Node{Name: "echo", Version: 1, RetrySafe: true, InputSchema: json.RawMessage(`{"type":"object","properties":{"value":{"type":"integer"}},"required":["value"],"additionalProperties":false}`), Resources: func(raw json.RawMessage) ([]string, error) { return []string{string(raw)}, nil }, Execute: func(_ context.Context, raw json.RawMessage) (string, error) {
 		calls++
 		if calls == 1 {
-			return "", fmt.Errorf("temporary")
+			return "", &workflow.ExecutionError{Err: fmt.Errorf("temporary")}
 		}
 		return string(raw), nil
 	}}
@@ -101,7 +101,7 @@ func TestIterationPermissionsRetryAndVersions(t *testing.T) {
 		permissions = append(permissions, resource)
 		return nil
 	}}
-	source := []byte(`{"version":3,"name":"loop","steps":[{"id":"loop","tool":"echo","args":{},"for_each":[{"value":1},{"value":2}],"retry":{"max_attempts":2}}]}`)
+	source := []byte(`{"version":4,"name":"loop","steps":[{"id":"loop","tool":"echo","args":{},"for_each":[{"value":1},{"value":2}],"retry":{"max_attempts":2}}]}`)
 	out, err := svc.RunSource(t.Context(), source, "loop.json", nil)
 	if err != nil || calls != 3 || len(permissions) != 3 {
 		t.Fatal(out, err, calls, permissions)
@@ -138,7 +138,7 @@ func TestReviewContinuesSnapshotWithoutRepeatingEffects(t *testing.T) {
 		t.Fatal(err)
 	}
 	svc := Service{WS: ws, StoreDir: t.TempDir(), Registry: registry, AuthorizeResource: func(context.Context, string, string, json.RawMessage) error { return nil }}
-	raw := []byte(`{"version":3,"name":"review","steps":[{"id":"first","tool":"echo","args":{}},{"id":"publish","tool":"echo","depends_on":["first"],"review":true,"args":{"value":{"$step":"first","pointer":"/value"}}}]}`)
+	raw := []byte(`{"version":4,"name":"review","steps":[{"id":"first","tool":"echo","args":{}},{"id":"publish","tool":"echo","depends_on":["first"],"review":true,"args":{"value":{"$step":"first","pointer":"/value"}}}]}`)
 	out, err := svc.RunSource(t.Context(), raw, "recipe.json", nil)
 	if err != nil || calls != 1 {
 		t.Fatal(out, err, calls)

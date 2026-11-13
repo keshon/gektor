@@ -172,7 +172,7 @@ func TestCapabilityToolsAndNodesShareContractsAndResources(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			source := []byte(`{"version":3,"name":"SSH","steps":[{"id":"transfer","tool":"` + tc.operation + `","args":` + string(args) + `}]}`)
+			source := []byte(`{"version":4,"name":"SSH","steps":[{"id":"transfer","tool":"` + tc.operation + `","args":` + string(args) + `}]}`)
 			_, err = svc.RunSource(ctx, source, "ssh.json", nil)
 			if err == nil || !strings.Contains(err.Error(), "blocked by policy ("+tc.action) {
 				t.Fatal("Workflow bypassed local file policy", err)
@@ -192,7 +192,7 @@ func TestSocialNodeHonorsExistingAgentPermissionName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := []byte(`{"version":3,"name":"Post","steps":[{"id":"post","tool":"social_read_post","args":{"url":"https://x.com/test/status/20"}}]}`)
+	source := []byte(`{"version":4,"name":"Post","steps":[{"id":"post","tool":"social_read_post","args":{"url":"https://x.com/test/status/20"}}]}`)
 	if _, err := svc.RunSource(t.Context(), source, "post.json", nil); err == nil || !strings.Contains(err.Error(), "blocked by policy") {
 		t.Fatal("node bypassed the Agent permission identity", err)
 	}

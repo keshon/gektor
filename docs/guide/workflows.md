@@ -210,7 +210,7 @@ Save this recipe as `note.json`:
 
 ```json
 {
-  "version": 3,
+  "version": 4,
   "name": "Save and read a note",
   "inputs": {"text": {"type": "string", "default": "First workflow"}},
   "steps": [
@@ -243,4 +243,4 @@ replace the saved note. To update it, use its current revision in
 
 ## TUI editor
 
-The [workflow workspace](workflows.md#recipes-and-runs) opens from `/workflows` or GEKTOR, Workflows. It edits the same version 3 recipes used by the CLI and uses the same execution, permission and review services. Canvas layout is user-local metadata, not part of the executable recipe.
+The [workflow workspace](workflows.md#recipes-and-runs) opens from `/workflows` or GEKTOR, Workflows. It edits the same version 4 recipes used by the CLI and uses the same execution, permission and review services. Canvas layout is user-local metadata, not part of the executable recipe.

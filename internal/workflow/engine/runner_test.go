@@ -28,7 +28,7 @@ func (h *fakeHandler) Run(_ context.Context, s workflow.Step) (string, error) {
 	return "ok", nil
 }
 func TestValidateAllBeforeEffectsAndStopOnFailure(t *testing.T) {
-	d := workflow.Definition{Version: 3, Name: "test", Steps: []workflow.Step{{ID: "one", Args: json.RawMessage(`{}`)}, {ID: "two", Args: json.RawMessage(`{}`)}, {ID: "three", Args: json.RawMessage(`{}`)}}}
+	d := workflow.Definition{Version: 4, Name: "test", Steps: []workflow.Step{{ID: "one", Args: json.RawMessage(`{}`)}, {ID: "two", Args: json.RawMessage(`{}`)}, {ID: "three", Args: json.RawMessage(`{}`)}}}
 	h := &fakeHandler{invalid: "two"}
 	saves := 0
 	save := func(workflow.Run) error { saves++; return nil }
@@ -48,7 +48,7 @@ func TestValidateAllBeforeEffectsAndStopOnFailure(t *testing.T) {
 }
 
 func TestCompletedStepIsDurableBeforeContinuing(t *testing.T) {
-	d := workflow.Definition{Version: 3, Name: "durability", Steps: []workflow.Step{{ID: "one", Args: json.RawMessage(`{}`)}, {ID: "two", Args: json.RawMessage(`{}`)}}}
+	d := workflow.Definition{Version: 4, Name: "durability", Steps: []workflow.Step{{ID: "one", Args: json.RawMessage(`{}`)}, {ID: "two", Args: json.RawMessage(`{}`)}}}
 	h := &fakeHandler{}
 	var stored workflow.Run
 	_, err := Run(t.Context(), d, h, func(r workflow.Run) error {

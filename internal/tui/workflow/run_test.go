@@ -15,7 +15,7 @@ import (
 )
 
 func workflowRecipe() workflow.Definition {
-	return workflow.Definition{Version: 3, Name: "Test", Steps: []workflow.Step{{ID: "transform", Tool: "script_transform", NodeVersion: 1, Args: json.RawMessage(`{"code":"return input + 1;","input":2}`)}}}
+	return workflow.Definition{Version: 4, Name: "Test", Steps: []workflow.Step{{ID: "transform", Tool: "script_transform", NodeVersion: 1, Args: json.RawMessage(`{"code":"return input + 1;","input":2}`)}}}
 }
 
 func TestWorkflowExecutionReviewAndSave(t *testing.T) {

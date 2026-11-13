@@ -65,7 +65,7 @@ func (s Service) Review(ctx context.Context, id, step string, approve bool) (str
 				r.Approved = map[string]bool{}
 			}
 			r.Approved[step] = true
-			h := handler{registry: s.Registry, authorize: s.authorizeNode, authorized: map[authorization]bool{}, templates: true}
+			h := &handler{registry: s.Registry, authorize: s.authorizeNode, authorized: map[authorization]bool{}, templates: true}
 			h.artifacts = w.Artifacts
 			r, runErr = engine.Resume(ctx, r, h, w.Save)
 		} else {

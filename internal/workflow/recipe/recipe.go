@@ -15,8 +15,8 @@ const MaxOutput = 1 << 20
 // Prepare binds inputs and checks references before any effects. Output values
 // are unavailable here; handlers validate their argument templates separately.
 func Prepare(d workflow.Definition, values map[string]json.RawMessage, h workflow.Handler) (workflow.Definition, map[string]json.RawMessage, error) {
-	if d.Version != 3 {
-		return d, nil, fmt.Errorf("workflow version must be 3")
+	if d.Version != 4 {
+		return d, nil, fmt.Errorf("workflow version must be 4")
 	}
 
 	ordered, err := Order(d.Steps)

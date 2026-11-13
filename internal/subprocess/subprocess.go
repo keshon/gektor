@@ -6,11 +6,19 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"time"
 )
+
+// WorkerError reports an executed worker's failure, including its deadline.
+// Startup and output-protocol errors remain separate infrastructure failures.
+type WorkerError struct{ Err error }
+
+func (e *WorkerError) Error() string { return e.Err.Error() }
+func (e *WorkerError) Unwrap() error { return e.Err }
 
 // Run starts this executable with "workflow <mode>" and sends data on stdin.
 // The executable must dispatch that mode to a worker that writes one JSON value
@@ -40,12 +48,17 @@ func Run(ctx context.Context, mode string, data []byte, timeout time.Duration, m
 	if err != nil {
 		contextErr := workerCtx.Err()
 		if contextErr != nil {
-			return "", fmt.Errorf("%s: %w", mode, contextErr)
+			return "", &WorkerError{Err: fmt.Errorf("%s: %w", mode, contextErr)}
 		}
 
 		diagnostics := diagnostic.buffer.String()
 
-		return "", fmt.Errorf("%s: %w: %s", mode, err, diagnostics)
+		failure := fmt.Errorf("%s: %w: %s", mode, err, diagnostics)
+		var exit *exec.ExitError
+		if errors.As(err, &exit) {
+			return "", &WorkerError{Err: failure}
+		}
+		return "", failure
 	}
 
 	result := output.buffer.Bytes()

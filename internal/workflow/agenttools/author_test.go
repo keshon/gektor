@@ -34,7 +34,7 @@ func TestWorkflowContractsAndRunnableExample(t *testing.T) {
 		t.Fatal(err)
 	}
 	script := catalog.Contracts["script_transform"]
-	if !strings.Contains(script.Description, "JavaScript") || !script.ReadOnly || !script.RetrySafe || string(script.OutputSchema) != "true" {
+	if !strings.Contains(script.Description, "JavaScript") || !script.ReadOnly || !script.RetrySafe || !script.Concurrent || string(script.OutputSchema) != "true" {
 		t.Fatal(script)
 	}
 	for _, name := range []string{"artifact_write", "artifact_read_text", "http_request", "model_generate", "record_read", "run_program", "image_inspect"} {
@@ -58,7 +58,7 @@ func TestWorkflowContractsAndRunnableExample(t *testing.T) {
 	}
 }
 
-const draftRecipe = `{"version":3,"name":"Draft","inputs":{"exact":{"type":"integer","default":9007199254740993}},"steps":[{"id":"inspect","tool":"image_inspect","args":{"paths":["image.png"]}}]}`
+const draftRecipe = `{"version":4,"name":"Draft","inputs":{"exact":{"type":"integer","default":9007199254740993}},"steps":[{"id":"inspect","tool":"image_inspect","args":{"paths":["image.png"]}}]}`
 
 func TestSaveRecipeIsScopedAndPreservesNumbers(t *testing.T) {
 	dir := t.TempDir()

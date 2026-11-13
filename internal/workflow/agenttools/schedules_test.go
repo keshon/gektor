@@ -19,7 +19,7 @@ func TestAgentScheduleCreatesFrozenTriggerWithoutExecutingRecipe(t *testing.T) {
 	}
 	defer ws.Close()
 	base := t.TempDir()
-	source := `{"version":3,"name":"Scheduled","inputs":{"n":{"type":"integer","required":true}},"steps":[{"id":"calc","tool":"script_transform","args":{"code":"return input;","input":{"$input":"n"}}}]}`
+	source := `{"version":4,"name":"Scheduled","inputs":{"n":{"type":"integer","required":true}},"steps":[{"id":"calc","tool":"script_transform","args":{"code":"return input;","input":{"$input":"n"}}}]}`
 	if err := ws.WriteFile("recipe.json", []byte(source), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestScheduleUpdatePreservesSnapshotAndRejectsStaleRevision(t *testing.T) {
 	}
 	defer ws.Close()
 	base := t.TempDir()
-	source := `{"version":3,"name":"Original","inputs":{"n":{"type":"integer","default":3}},"steps":[{"id":"calc","tool":"script_transform","args":{"code":"return input;","input":{"$input":"n"}}}]}`
+	source := `{"version":4,"name":"Original","inputs":{"n":{"type":"integer","default":3}},"steps":[{"id":"calc","tool":"script_transform","args":{"code":"return input;","input":{"$input":"n"}}}]}`
 	if err := ws.WriteFile("recipe.json", []byte(source), 0600); err != nil {
 		t.Fatal(err)
 	}

@@ -37,7 +37,7 @@ func (h *pipelineHandler) Run(_ context.Context, s workflow.Step) (string, error
 }
 
 func pipelineDefinition() workflow.Definition {
-	return workflow.Definition{Version: 3, Name: "pipeline", Inputs: map[string]workflow.Input{"source": {Type: "string", Required: true}}, Steps: []workflow.Step{
+	return workflow.Definition{Version: 4, Name: "pipeline", Inputs: map[string]workflow.Input{"source": {Type: "string", Required: true}}, Steps: []workflow.Step{
 		{ID: "first", Tool: "test", Args: json.RawMessage(`{"value":{"$input":"source"}}`)},
 		{ID: "second", Tool: "test", Args: json.RawMessage(`{"value":{"$step":"first","pointer":"/items/0/output"}}`)},
 	}}
@@ -102,6 +102,7 @@ func TestInvalidInputsAndReferencesHaveNoEffects(t *testing.T) {
 			d.Inputs["source"] = workflow.Input{Type: "object", Default: json.RawMessage(`{"$step":"first"}`)}
 		}, nil},
 		{"v1 inputs", func(d *workflow.Definition) { d.Version = 1 }, nil},
+		{"unsupported format", func(d *workflow.Definition) { d.Version = 3 }, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

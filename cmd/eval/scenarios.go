@@ -44,7 +44,7 @@ func generatedFixture(kind string) (map[string][]byte, error) {
 	}
 }
 
-const doubleRecipe = `{"version":3,"name":"Double a number","inputs":{"n":{"type":"integer","required":true}},"steps":[{"id":"calc","tool":"script_transform","args":{"input":{"$input":"n"},"code":"return input * 2;"}}],"outputs":{"value":{"$step":"calc"}}}`
+const doubleRecipe = `{"version":4,"name":"Double a number","inputs":{"n":{"type":"integer","required":true}},"steps":[{"id":"calc","tool":"script_transform","args":{"input":{"$input":"n"},"code":"return input * 2;"}}],"outputs":{"value":{"$step":"calc"}}}`
 
 func checkPipeline(ctx context.Context, kind string, ws *workspace.Workspace) error {
 	data, err := ws.ReadFile("double.json")

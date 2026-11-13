@@ -102,7 +102,7 @@ func TestMediaWorkflowValidationDoesNotProbeAndExecutionHonorsDeny(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := []byte(`{"version":3,"name":"Media validation","steps":[{"id":"convert","tool":"media_convert","args":{"inputs":["missing.wav"],"path":"out.flac","format":"flac"}}]}`)
+	source := []byte(`{"version":4,"name":"Media validation","steps":[{"id":"convert","tool":"media_convert","args":{"inputs":["missing.wav"],"path":"out.flac","format":"flac"}}]}`)
 	svc.ValidateOnly = true
 	if _, err := svc.RunSource(t.Context(), source, "media.json", nil); err != nil {
 		t.Fatal("validation depended on installed programs or existing input", err)
@@ -112,7 +112,7 @@ func TestMediaWorkflowValidationDoesNotProbeAndExecutionHonorsDeny(t *testing.T)
 		t.Fatal("media deny bypassed", err)
 	}
 	svc.AuthorizeResource = func(context.Context, string, string, json.RawMessage) error { return nil }
-	if _, err := svc.RunSource(t.Context(), []byte(`{"version":3,"name":"Media template","inputs":{"source":{"type":"string","default":"../outside.wav"}},"steps":[{"id":"convert","tool":"media_convert","args":{"inputs":[{"$input":"source"}],"path":"out.flac","format":"flac"}}]}`), "media.json", nil); err == nil {
+	if _, err := svc.RunSource(t.Context(), []byte(`{"version":4,"name":"Media template","inputs":{"source":{"type":"string","default":"../outside.wav"}},"steps":[{"id":"convert","tool":"media_convert","args":{"inputs":[{"$input":"source"}],"path":"out.flac","format":"flac"}}]}`), "media.json", nil); err == nil {
 		t.Fatal("resolved path escaped workspace")
 	}
 }

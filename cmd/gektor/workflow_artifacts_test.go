@@ -16,7 +16,7 @@ import (
 
 func TestWorkflowArtifactsAcrossReviewAndExport(t *testing.T) {
 	dir, home := t.TempDir(), t.TempDir()
-	source := `{"version":3,"name":"Artifacts","steps":[{"id":"import","tool":"artifact_import","args":{"path":"source.txt"}},{"id":"read","tool":"artifact_read_text","review":true,"args":{"id":{"$step":"import","pointer":"/id"}}},{"id":"save","tool":"artifact_write","args":{"name":"report.txt","text":{"$step":"read","pointer":"/text"}}}]}`
+	source := `{"version":4,"name":"Artifacts","steps":[{"id":"import","tool":"artifact_import","args":{"path":"source.txt"}},{"id":"read","tool":"artifact_read_text","review":true,"args":{"id":{"$step":"import","pointer":"/id"}}},{"id":"save","tool":"artifact_write","args":{"name":"report.txt","text":{"$step":"read","pointer":"/text"}}}]}`
 	for name, text := range map[string]string{"recipe.json": source, "source.txt": "persistent evidence"} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(text), 0600); err != nil {
 			t.Fatal(err)
@@ -82,7 +82,7 @@ func TestWorkflowArtifactsAcrossReviewAndExport(t *testing.T) {
 
 func TestArtifactImportDeniedBeforeRun(t *testing.T) {
 	dir, home := t.TempDir(), t.TempDir()
-	source := `{"version":3,"name":"Denied","steps":[{"id":"import","tool":"artifact_import","args":{"path":"secret.txt"}}]}`
+	source := `{"version":4,"name":"Denied","steps":[{"id":"import","tool":"artifact_import","args":{"path":"secret.txt"}}]}`
 	if err := os.WriteFile(filepath.Join(dir, "recipe.json"), []byte(source), 0600); err != nil {
 		t.Fatal(err)
 	}
