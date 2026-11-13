@@ -101,11 +101,14 @@ func (s *Store) Close() error { return errors.Join(s.db.Close(), s.root.Close())
 
 // RunWriter holds a process lease until Close. A process exit releases it;
 // the persistent lock file itself is never removed.
+// Close only after callers have joined all operations using the writer.
 type RunWriter struct {
-	artifactMu sync.Mutex // serializes quota checks and artifact publication
-	store      *Store
-	id         string
-	lease      *os.File
+	artifactMu   sync.Mutex // guards quota notifications and cleanup failure
+	artifactWake chan struct{}
+	artifactErr  error
+	store        *Store
+	id           string
+	lease        *os.File
 }
 
 func (s *Store) NewRun() (*RunWriter, error) {
@@ -353,9 +356,15 @@ func (s *Store) EditRun(id string) (*RunWriter, workflow.Run, error) {
 		return nil, r, fmt.Errorf("run identity mismatch")
 	}
 
-	return &RunWriter{
+	w := &RunWriter{
 		store: s,
 		id:    id,
 		lease: lease,
-	}, r, nil
+	}
+	err = w.reconcileArtifacts()
+	if err != nil {
+		lease.Close()
+		return nil, r, err
+	}
+	return w, r, nil
 }

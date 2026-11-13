@@ -168,6 +168,10 @@ func (t Service) RunSource(ctx context.Context, source []byte, path string, inpu
 	}
 
 	defer store.Close()
+	err = store.ReconcileArtifacts(ctx)
+	if err != nil {
+		return "", err
+	}
 
 	w, err := store.NewRun()
 	if err != nil {

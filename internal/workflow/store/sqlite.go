@@ -52,6 +52,15 @@ CREATE TABLE IF NOT EXISTS attempts (
 	PRIMARY KEY (run_id, position, number),
 	FOREIGN KEY (run_id, position) REFERENCES invocations(run_id, position) ON DELETE CASCADE
 );
+CREATE TABLE IF NOT EXISTS artifacts (
+	run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+	id TEXT NOT NULL,
+	status TEXT NOT NULL CHECK (status IN ('writing', 'published', 'deleting')),
+	bytes INTEGER NOT NULL CHECK (bytes >= 0 AND bytes <= 16777216),
+	record BLOB,
+	PRIMARY KEY (run_id, id)
+);
+CREATE INDEX IF NOT EXISTS artifacts_pending ON artifacts(run_id) WHERE status != 'published';
 CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, record BLOB NOT NULL);
 CREATE TABLE IF NOT EXISTS schedules (id TEXT PRIMARY KEY, record BLOB NOT NULL);
 CREATE TABLE IF NOT EXISTS control (id INTEGER PRIMARY KEY CHECK (id = 1), schedule_revision INTEGER NOT NULL);

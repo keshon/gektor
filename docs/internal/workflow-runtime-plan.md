@@ -99,8 +99,8 @@ checks. No deployment, live credential use, commit or push is implied.
   concurrency and failure collection in the editor and operation catalog.
   Script and HTTP nodes explicitly classify collectable operation failures.
   Unclassified errors, secondary authorization and storage failures remain
-  terminal. Artifact publication is serialized per run until transactional
-  reservations replace the current quota scan.
+  terminal. Artifact writers share transactional reservations rather than a
+  lock covering the whole stream.
 - Invocation persistence: runs, invocations and attempts now occupy separate
   SQLite rows through `modernc.org/sqlite`, with WAL mode, full synchronization,
   foreign keys, a bounded busy timeout and one pooled connection per store
@@ -113,12 +113,21 @@ checks. No deployment, live credential use, commit or push is implied.
   Inspection uses `database_path` plus `run_id`; JSON run/queue files are not
   read or imported. Process leases continue to distinguish active effects from
   interrupted work, without automatic replay.
-- Artifact persistence: payloads stream through bounded buffers while hashing;
-  MIME detection retains only the prefix. Failed or cancelled publication removes
-  its temporary directory. Artifact metadata, quota scans and the publication
-  lock remain file-based; transactional reservations and abandoned-file
-  reconciliation are the remaining persistence work. Durable wakeups belong to
-  the later control-flow stage rather than unused database tables.
+- Artifact persistence: complete for the current runtime. Metadata and count/byte
+  reservations live in SQLite. A producer reserves up to 16 MiB before streaming,
+  syncs and closes its payload file, then publishes metadata and actual size in
+  one update. Unused bytes are released at publication. Waiters use cancellable
+  notifications when in-flight reservations temporarily consume capacity.
+  Payloads stream concurrently through bounded buffers; the full-size reservation
+  policy can admit at most 16 such streams under the 256 MiB run budget.
+  Only published rows appear in reads/listings. Cleanup checks committed state
+  before removing bytes, preserving an artifact if a failed call actually
+  committed. Cleanup failures stop new writes on that writer until recovery.
+  Starting execution and the daemon reconcile unfinished publications under each
+  run lease; active producers are skipped. Retention records deletion intent
+  before removing files, allowing restart to finish the operation. Existing
+  file-based metadata is not imported or used as a fallback. Durable workflow
+  wakeups belong to the later control-flow stage rather than unused tables.
 - Later stages: pending.
 
 Verified the model-free collection example through the CLI service: two
@@ -162,3 +171,18 @@ Unrestricted module tidying encounters the same obsolete imports in archived
 eval snapshots as the unrestricted tests. `go mod tidy -e` updated dependency
 metadata while reporting those unresolved archive imports; archives were not
 changed.
+
+Artifact publication tests cover simultaneous producers, visibility before
+publication, count and byte limits, exact fit and zero-byte payloads, cancelled
+quota waits, ignored/failed SQL publication, failed cleanup and recovery, and
+preservation of committed publications. Helper processes exit without cleanup
+after reservation, during streaming, after file sync, after publication, after
+retention intent and after payload deletion. Recovery reclaims unfinished
+files/reservations and preserves
+published bytes. These checks exercise process termination, not physical power
+loss. Payload files are synced before SQLite publication; directory metadata
+durability on Windows has not been independently established by this suite.
+
+This slice passed the source-scoped suite and vet, workflow/editor race checks,
+store tests and the source build with `CGO_ENABLED=0`, the 45-probe eval dry-run,
+documentation links and diff checks.

@@ -5,13 +5,14 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -34,95 +35,88 @@ func (w *RunWriter) Artifacts(step string) workflow.ArtifactAccess {
 func (w *RunWriter) artifactDirectory() string { return filepath.Join("runs", w.id, "artifacts") }
 
 func (w *RunWriter) ListArtifacts() ([]workflow.Artifact, error) {
-	if _, err := w.lease.Stat(); err != nil {
+	_, err := w.lease.Stat()
+	if err != nil {
 		return nil, fmt.Errorf("run writer closed: %w", err)
 	}
-	f, err := w.store.root.Open(w.artifactDirectory())
-	if os.IsNotExist(err) {
-		return []workflow.Artifact{}, nil
-	}
+	rows, err := w.store.db.Query("SELECT id, record FROM artifacts WHERE run_id = ? AND status = 'published' ORDER BY id", w.id)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
-	entries, err := f.ReadDir(-1)
-	if err != nil {
-		return nil, err
-	}
+	defer rows.Close()
 	out := []workflow.Artifact{}
-	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), ".tmp-") {
-			continue
-		}
-		if !e.IsDir() || !validKey(e.Name()) {
-			return nil, fmt.Errorf("invalid artifact entry")
-		}
-		a, err := w.artifactMetadata(e.Name())
+	for rows.Next() {
+		var id string
+		var raw []byte
+		err = rows.Scan(&id, &raw)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, a)
+		var meta workflow.Artifact
+		err = json.Unmarshal(raw, &meta)
+		if err != nil {
+			return nil, err
+		}
+		if !validKey(id) || meta.ID != id || meta.RunID != w.id || meta.Size < 0 || meta.Size > MaxArtifactBytes {
+			return nil, fmt.Errorf("artifact identity or size mismatch")
+		}
+		out = append(out, meta)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
-	return out, nil
+	return out, rows.Err()
 }
 
 func (w *RunWriter) artifactMetadata(id string) (workflow.Artifact, error) {
-	var a workflow.Artifact
+	var meta workflow.Artifact
 	if !validKey(id) {
-		return a, fmt.Errorf("invalid artifact ID")
+		return meta, fmt.Errorf("invalid artifact ID")
 	}
-	err := w.store.read(filepath.Join(w.artifactDirectory(), id, "metadata.json"), 8192, &a)
-	if os.IsNotExist(err) {
-		return a, fmt.Errorf("artifact %q not found in run %s (it may have been pruned)", id, w.id)
+	var raw []byte
+	err := w.store.db.QueryRow("SELECT record FROM artifacts WHERE run_id = ? AND id = ? AND status = 'published'", w.id, id).Scan(&raw)
+	if errors.Is(err, sql.ErrNoRows) {
+		return meta, fmt.Errorf("artifact %q not found in run %s (it may have been pruned)", id, w.id)
 	}
 	if err != nil {
-		return a, err
+		return meta, err
 	}
-	if a.ID != id || a.RunID != w.id || a.Size < 0 || a.Size > MaxArtifactBytes {
-		return a, fmt.Errorf("artifact identity or size mismatch")
+	err = json.Unmarshal(raw, &meta)
+	if err != nil {
+		return meta, err
 	}
-	return a, nil
+	if meta.ID != id || meta.RunID != w.id || meta.Size < 0 || meta.Size > MaxArtifactBytes {
+		return meta, fmt.Errorf("artifact identity or size mismatch")
+	}
+	return meta, nil
 }
 
-func (a artifactAccess) Put(ctx context.Context, name string, source io.Reader) (workflow.Artifact, error) {
+func (a artifactAccess) Put(ctx context.Context, name string, source io.Reader) (artifact workflow.Artifact, err error) {
 	w := a.writer
-	w.artifactMu.Lock()
-	defer w.artifactMu.Unlock()
 
 	var zero workflow.Artifact
 	if name == "" || len(name) > 255 || strings.ContainsAny(name, "/\\\x00\r\n") || name == "." || name == ".." {
 		return zero, fmt.Errorf("artifact name must be a filename of at most 255 bytes")
 	}
-	err := ctx.Err()
-	if err != nil {
-		return zero, err
-	}
-	entries, err := w.ListArtifacts()
-	if err != nil {
-		return zero, err
-	}
-	if len(entries) >= MaxRunArtifacts {
-		return zero, fmt.Errorf("run artifact count exceeds %d", MaxRunArtifacts)
-	}
-	var used int64
-	for _, entry := range entries {
-		used += entry.Size
-	}
-	if used > MaxRunArtifactBytes {
-		return zero, fmt.Errorf("run artifact bytes exceed %d", MaxRunArtifactBytes)
-	}
-	err = w.store.root.MkdirAll(w.artifactDirectory(), 0700)
+	err = ctx.Err()
 	if err != nil {
 		return zero, err
 	}
 	id := rand.Text()
-	tmp := filepath.Join(w.artifactDirectory(), ".tmp-"+id)
-	err = w.store.root.Mkdir(tmp, 0700)
+	defer func() {
+		var cleanupErr error
+		if err != nil {
+			cleanupErr = w.discardArtifact(id)
+		}
+		w.artifactsChanged(cleanupErr)
+		err = errors.Join(err, cleanupErr)
+	}()
+	limit, err := w.reserveArtifact(ctx, id)
 	if err != nil {
 		return zero, err
 	}
-	defer w.store.root.RemoveAll(tmp)
+
+	err = w.store.root.MkdirAll(filepath.Join(w.artifactDirectory(), id), 0700)
+	if err != nil {
+		return zero, err
+	}
 
 	reader := bufio.NewReader(contextReader{ctx, source})
 	prefix, err := reader.Peek(512)
@@ -130,17 +124,22 @@ func (a artifactAccess) Put(ctx context.Context, name string, source io.Reader) 
 		return zero, err
 	}
 	mediaType := http.DetectContentType(prefix)
-	f, err := w.store.root.OpenFile(filepath.Join(tmp, "data"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	f, err := w.store.root.OpenFile(filepath.Join(w.artifactDirectory(), id, "data"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
 		return zero, err
 	}
 
-	// Read one byte beyond the remaining quota so an exact fit still succeeds.
-	limit := min(int64(MaxArtifactBytes), int64(MaxRunArtifactBytes)-used)
 	hash := sha256.New()
-	size, err := io.Copy(io.MultiWriter(f, hash), io.LimitReader(reader, limit+1))
-	if err == nil && size > limit {
-		err = fmt.Errorf("artifact exceeds 16 MiB or run exceeds 256 MiB")
+	size, err := io.Copy(io.MultiWriter(f, hash), io.LimitReader(reader, limit))
+	if err == nil {
+		// Probe past the limit without writing beyond the reserved bytes.
+		var extra [1]byte
+		n, readErr := io.ReadFull(reader, extra[:])
+		if n > 0 {
+			err = fmt.Errorf("artifact exceeds 16 MiB or run exceeds 256 MiB")
+		} else if readErr != nil && !errors.Is(readErr, io.EOF) {
+			err = readErr
+		}
 	}
 	if err == nil {
 		err = f.Sync()
@@ -162,17 +161,28 @@ func (a artifactAccess) Put(ctx context.Context, name string, source io.Reader) 
 		SHA256:    fmt.Sprintf("%x", hash.Sum(nil)),
 		Created:   time.Now().UTC(),
 	}
-	err = w.store.write(filepath.Join(tmp, "metadata.json"), meta)
-	if err != nil {
-		return zero, err
-	}
 	err = ctx.Err()
 	if err != nil {
 		return zero, err
 	}
-	err = w.store.root.Rename(tmp, filepath.Join(w.artifactDirectory(), id))
+	_, err = w.lease.Stat()
 	if err != nil {
 		return zero, err
+	}
+	raw, err := json.Marshal(meta)
+	if err != nil {
+		return zero, err
+	}
+	result, err := w.store.db.ExecContext(ctx, "UPDATE artifacts SET status = 'published', bytes = ?, record = ? WHERE run_id = ? AND id = ? AND status = 'writing' AND bytes >= ?", size, raw, w.id, id, size)
+	if err != nil {
+		return zero, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return zero, err
+	}
+	if affected != 1 {
+		return zero, fmt.Errorf("artifact reservation lost before publication")
 	}
 	return meta, nil
 }
@@ -250,12 +260,29 @@ func (s *Store) PruneArtifacts(ctx context.Context, before time.Time) ([]string,
 			if record.Finished == nil || !record.Finished.Before(before) {
 				return nil
 			}
-			if _, err := s.root.Stat(w.artifactDirectory()); os.IsNotExist(err) {
-				return nil
-			} else if err != nil {
+			_, err = s.root.Stat(w.artifactDirectory())
+			missing := os.IsNotExist(err)
+			if err != nil && !missing {
 				return err
 			}
-			if err := s.root.RemoveAll(w.artifactDirectory()); err != nil {
+			var count int
+			err = s.db.QueryRowContext(ctx, "SELECT count(*) FROM artifacts WHERE run_id = ?", w.id).Scan(&count)
+			if err != nil {
+				return err
+			}
+			if missing && count == 0 {
+				return nil
+			}
+			_, err = s.db.ExecContext(ctx, "UPDATE artifacts SET status = 'deleting' WHERE run_id = ?", w.id)
+			if err != nil {
+				return err
+			}
+			err = s.root.RemoveAll(w.artifactDirectory())
+			if err != nil {
+				return err
+			}
+			_, err = s.db.ExecContext(ctx, "DELETE FROM artifacts WHERE run_id = ?", w.id)
+			if err != nil {
 				return err
 			}
 			removed = append(removed, run.ID)

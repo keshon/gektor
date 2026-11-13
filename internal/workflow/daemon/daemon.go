@@ -20,6 +20,10 @@ func Serve(ctx context.Context, s *store.Store, svc service.Service) (resultErr 
 
 	defer lease.Close()
 
+	err = s.ReconcileArtifacts(ctx)
+	if err != nil {
+		return err
+	}
 	if err := s.RecoverJobs(ctx); err != nil {
 		return err
 	}
@@ -31,7 +35,10 @@ func Serve(ctx context.Context, s *store.Store, svc service.Service) (resultErr 
 		defer ticker.Stop()
 
 		for {
-			err := s.ReconcileRuns(ctx)
+			err := s.ReconcileArtifacts(ctx)
+			if err == nil {
+				err = s.ReconcileRuns(ctx)
+			}
 			if err == nil {
 				err = s.Tick(ctx, time.Now())
 			}

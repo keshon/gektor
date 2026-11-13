@@ -805,7 +805,10 @@ files can be captured and exported, but `artifact_read_text` is not a binary dec
 Image nodes accept workspace paths rather than artifact IDs.
 
 Each artifact is limited to 16 MiB; a run may retain 256 artifacts and 256 MiB total.
-Writes publish complete data and metadata together. Reads and exports verify size
+Parallel writers reserve capacity before streaming and wait, with cancellation,
+when other producers temporarily hold the quota. Metadata and reservations live
+in SQLite; payload bytes remain in per-run files. Only complete publications are
+visible. Reads and exports verify size
 and checksum. Import and write nodes do not permit automatic retries, because another
 attempt could create a second artifact. Completed artifacts survive review pauses
 and service restarts. Failed steps may leave published artifacts as execution evidence.
@@ -815,6 +818,9 @@ Use `workflow artifacts` and `workflow export-artifact` to retrieve files. Expli
 finished more than seven days ago. It preserves run history and excludes active,
 interrupted and waiting-review runs. References in old run history remain as evidence
 after pruning; their payloads are no longer available.
+Unfinished publications are reclaimed before new execution and by the service;
+live run leases protect active producers. Interrupted pruning resumes from its
+recorded deletion intent.
 
 See [the log report example](../../examples/workflows/log-report/README.md) for a complete
 AI-free file pipeline with review and export.
