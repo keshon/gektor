@@ -162,7 +162,7 @@ func TestSSHNormalEditingPreservesAndChangesSavedCredentialsWithoutIDs(t *testin
 	for _, field := range request.Fields {
 		values[field.Key] = field.Value
 	}
-	if values["password"] != sshKeepPassword || values["advanced"] != "No" {
+	if values["auth"] != sshPassword || values["password"] != sshKeepPassword || values["advanced"] != "No" {
 		t.Fatal("saved credential has no plain keep state")
 	}
 	if _, exists := values["password_ref"]; exists {

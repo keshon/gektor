@@ -85,8 +85,9 @@ func (m *Model) SSHPreferences(name string) (screen.Form, error) {
 		return screen.Form{}, err
 	}
 	p := profiles[name]
+	hasPassword := p.PasswordRef != "" || p.PasswordEnv != ""
 	auth := sshPassword
-	if p.PrivateKey != "" || !credentials.Encrypted() {
+	if p.PrivateKey != "" || (!credentials.Encrypted() && !hasPassword) {
 		auth = sshPrivateKey
 	}
 	password := sshEnterPassword
