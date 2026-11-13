@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -35,6 +36,113 @@ func collectionDefinition(t *testing.T, count, concurrency int) workflow.Definit
 	return workflow.Definition{Version: 4, Name: "Collection", Steps: []workflow.Step{
 		{ID: "scan", Args: json.RawMessage(`{}`), ForEach: raw, Concurrency: concurrency, OnError: "collect"},
 	}}
+}
+
+func budgetCheckpoint(available int) workflow.Run {
+	r := workflow.Run{Steps: make([]workflow.StepResult, 11)}
+	remaining := workflow.MaxInvocations - len(r.Steps) - available
+	for i := range 10 {
+		count := min(remaining, workflow.MaxIterations)
+		r.Steps[i] = workflow.StepResult{
+			ID: fmt.Sprintf("prior%d", i), Status: "completed",
+			Iterations: make([]workflow.StepResult, count),
+		}
+		remaining -= count
+	}
+	r.Steps[10] = workflow.StepResult{ID: "scan", Status: "running"}
+	return r
+}
+
+func TestCollectionReservesRunBudgetBeforeWorkers(t *testing.T) {
+	for _, tc := range []struct{ available, count int }{{0, 0}, {0, 3}, {2, 3}, {3, 3}} {
+		t.Run(fmt.Sprintf("available%d_items%d", tc.available, tc.count), func(t *testing.T) {
+			r := budgetCheckpoint(tc.available)
+			r.Steps[0].Iterations[0].Status = "failed"
+			r.Steps[0].Iterations[1].Status = "skipped"
+			d := collectionDefinition(t, tc.count, 3)
+			var calls atomic.Int32
+			h := collectionHandler{execute: func(context.Context, workflow.Step) (string, error) {
+				calls.Add(1)
+				return `true`, nil
+			}}
+			saves := 0
+			_, err := executeIterations(t.Context(), d.Steps[0], h, &r, 10, func(workflow.Run, ...int) error {
+				saves++
+				return nil
+			})
+			if tc.count <= tc.available {
+				if err != nil || int(calls.Load()) != tc.count || len(r.Steps[10].Iterations) != tc.count || saves == 0 {
+					t.Fatalf("exact fit: calls=%d saves=%d err=%v", calls.Load(), saves, err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), "invocation slots") || calls.Load() != 0 || saves != 0 || len(r.Steps[10].Iterations) != 0 {
+				t.Fatalf("budget overrun: calls=%d saves=%d err=%v", calls.Load(), saves, err)
+			}
+		})
+	}
+}
+
+func TestCollectionRetryReusesInvocationSlot(t *testing.T) {
+	r := budgetCheckpoint(1)
+	d := collectionDefinition(t, 1, 1)
+	d.Steps[0].Retry = &workflow.RetryPolicy{MaxAttempts: 2}
+	calls := 0
+	h := collectionHandler{execute: func(context.Context, workflow.Step) (string, error) {
+		calls++
+		if calls == 1 {
+			return "", &workflow.ExecutionError{Err: errors.New("temporary")}
+		}
+		return `true`, nil
+	}}
+	_, err := executeIterations(t.Context(), d.Steps[0], h, &r, 10, func(workflow.Run, ...int) error { return nil })
+	if err != nil || calls != 2 || len(r.Steps[10].Iterations[0].Attempts) != 2 {
+		t.Fatalf("retry at budget: calls=%d err=%v", calls, err)
+	}
+}
+
+func TestReviewContinuationRetainsCollectionBudget(t *testing.T) {
+	d := collectionDefinition(t, 3, 2)
+	d.Steps[0].Review = true
+	checkpoint := budgetCheckpoint(2)
+	for i := range 10 {
+		count := len(checkpoint.Steps[i].Iterations)
+		args := "[" + strings.TrimSuffix(strings.Repeat("{},", count), ",") + "]"
+		d.Steps = append(d.Steps, workflow.Step{
+			ID: checkpoint.Steps[i].ID, Args: json.RawMessage(`{}`), ForEach: json.RawMessage(args),
+			Review: true,
+		})
+	}
+	// The authored order determines checkpoint order. Prior collections stand for
+	// work completed before the review, with the same frozen definition digest.
+	d.Steps = append(d.Steps[1:], d.Steps[0])
+	calls := 0
+	h := collectionHandler{execute: func(context.Context, workflow.Step) (string, error) {
+		calls++
+		return `true`, nil
+	}}
+	r, err := Run(t.Context(), d, h, func(workflow.Run, ...int) error { return nil })
+	if err != nil || r.Status != "waiting_review" || calls != 0 {
+		t.Fatal("review boundary", r.Status, calls, err)
+	}
+	for i := range 10 {
+		r.Steps[i] = checkpoint.Steps[i]
+	}
+	r.Steps[10].Status = "waiting_review"
+	r.Approved = map[string]bool{"scan": true}
+	encoded, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var restored workflow.Run
+	err = json.Unmarshal(encoded, &restored)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err = Resume(t.Context(), restored, h, func(workflow.Run, ...int) error { return nil })
+	if err == nil || !strings.Contains(err.Error(), "invocation slots") || calls != 0 || r.Status != "failed" || r.Steps[10].Status != "failed" {
+		t.Fatalf("review reset budget: status=%s calls=%d err=%v", r.Status, calls, err)
+	}
 }
 
 func TestCollectionOverlapsWorkersAndRetainsInputOrder(t *testing.T) {

@@ -39,6 +39,18 @@ func executeIterations(ctx context.Context, s workflow.Step, h workflow.Handler,
 	if concurrency > workflow.MaxConcurrency {
 		return "", fmt.Errorf("concurrency exceeds %d", workflow.MaxConcurrency)
 	}
+
+	// Reserve the entire collection before allocating records or starting effects.
+	// Existing slots remain charged across review continuation, including failures
+	// and items skipped after cancellation. The coordinator alone owns this tree.
+	invocations := len(r.Steps)
+	for _, step := range r.Steps {
+		invocations += len(step.Iterations)
+	}
+	if len(items) > workflow.MaxInvocations-invocations {
+		return "", fmt.Errorf("collection needs %d invocation slots; run has %d of %d available", len(items), max(0, workflow.MaxInvocations-invocations), workflow.MaxInvocations)
+	}
+
 	collect := s.OnError == "collect"
 	s.ForEach, s.Concurrency, s.OnError = nil, 0, ""
 	r.Steps[index].Iterations = make([]workflow.StepResult, len(items))

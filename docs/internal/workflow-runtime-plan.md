@@ -128,7 +128,15 @@ checks. No deployment, live credential use, commit or push is implied.
   before removing files, allowing restart to finish the operation. Existing
   file-based metadata is not imported or used as a fallback. Durable workflow
   wakeups belong to the later control-flow stage rather than unused tables.
-- Later stages: pending.
+- Generated-work bound: the current executor now reserves at most 100,000
+  invocation slots across recipe steps and collection items. Admission checks
+  the complete next array before allocating its records or starting workers.
+  Accounting comes from the persisted invocation tree, so review continuation
+  retains earlier reservations, including failed/skipped items. Retries reuse
+  their invocation slot and retain the separate attempt limit. This closes the
+  per-run multiplication of per-collection limits; it does not yet provide
+  nested scopes or a workspace-wide concurrency budget.
+- Runtime child scopes, bounded repeats and later stages: pending.
 
 Verified the model-free collection example through the CLI service: two
 successes, one retained failure and ordered values `[4, 6]`. Deterministic
@@ -186,3 +194,8 @@ durability on Windows has not been independently established by this suite.
 This slice passed the source-scoped suite and vet, workflow/editor race checks,
 store tests and the source build with `CGO_ENABLED=0`, the 45-probe eval dry-run,
 documentation links and diff checks.
+
+The run-budget checks cover exact fit, exhaustion before worker dispatch,
+an empty collection at the limit, retained failed/skipped slots, retry reuse,
+and review continuation from a serialized checkpoint. Source-scoped tests and
+vet, engine race tests, the 45-probe eval dry-run and diff checks passed.

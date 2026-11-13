@@ -10,6 +10,10 @@ import (
 const MaxIterations = 10000
 const MaxConcurrency = 32
 
+// MaxInvocations bounds persisted step and collection-item slots per run.
+// Retry attempts reuse their invocation's slot.
+const MaxInvocations = 100000
+
 // Definition is a saved recipe. Its maps and slices are caller-owned.
 type Definition struct {
 	Outputs map[string]json.RawMessage `json:"outputs,omitempty"`

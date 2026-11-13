@@ -160,6 +160,13 @@ and accepts 1–32. Values greater than 1 require the operation's explicit
 `concurrent` contract; this is independent of read-only and retry-safe status.
 The bundled script and HTTP operations support concurrent invocations.
 
+A run has at most 100,000 invocation slots, counting recipe steps and all
+collection items. A collection reserves its entire array before any of its
+items execute. If it does not fit, that step fails even with `on_error: "collect"`;
+earlier effects remain recorded. Failed and skipped items retain their slots,
+and review continuation retains the same budget. Retries reuse an item's slot
+and remain subject to the separate attempt limit.
+
 Results retain input order, even when items finish out of order. Each item has
 `index`, `status`, optional `output` and optional `error`. For example:
 
