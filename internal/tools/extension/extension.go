@@ -32,6 +32,7 @@ type Capability struct {
 	searchNames []string
 	tools       []agent.Tool
 	lastError   string
+	unavailable bool
 }
 
 func (c *Capability) load(ctx context.Context, note func(string)) (result []agent.Tool, loadErr error) {
@@ -47,6 +48,9 @@ func (c *Capability) load(ctx context.Context, note func(string)) (result []agen
 	err := ctx.Err()
 	if err != nil {
 		return nil, err
+	}
+	if c.unavailable {
+		return nil, fmt.Errorf("capability %s is disabled or replaced; enable it or start a new session", c.ID)
 	}
 	if c.tools != nil {
 		return c.tools, nil
@@ -144,7 +148,7 @@ func (c *Capabilities) Enable(ctx context.Context, id string, note func(string))
 	if !c.available(id) {
 		return "", fmt.Errorf("capability %s is unavailable to this role", id)
 	}
-	if state, ok := c.active[id]; ok {
+	if state, ok := c.active[id]; ok && !state.Unloaded {
 		return activationText(state), nil
 	}
 	if p := c.native(id); p != nil {
@@ -170,6 +174,39 @@ func (c *Capabilities) Enable(ctx context.Context, id string, note func(string))
 		return "", err
 	}
 	return activationText(state), nil
+}
+
+// Unload withdraws one conversation's tools; the launch-owned adapter stays connected.
+func (c *Capabilities) Unload(id string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.available(id) {
+		return fmt.Errorf("toolset %s is unavailable to this role", id)
+	}
+	if c.native(id) == nil && c.source(id).Load == nil {
+		return fmt.Errorf("toolset %s is always loaded or unavailable", id)
+	}
+	state, exists := c.active[id]
+	if !exists {
+		state = conversation.Capability{ID: id, Fingerprint: "unloaded:" + id}
+	}
+	names := make([]string, 0, len(state.Tools))
+	for _, tool := range state.Tools {
+		names = append(names, tool.Name)
+	}
+	c.Registry.Remove(names)
+	state.Unloaded = true
+	if c.active == nil {
+		c.active = map[string]conversation.Capability{}
+	}
+	c.active[id] = state
+	return nil
+}
+
+func (c *Capabilities) unloaded(id string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.active[id].Unloaded
 }
 
 func activationText(state conversation.Capability) string {
@@ -216,6 +253,13 @@ func (c *Capabilities) Restore(ctx context.Context, states []conversation.Capabi
 		}
 		if err := validateCapabilityID(state.ID); err != nil {
 			return err
+		}
+		if state.Unloaded {
+			if c.active == nil {
+				c.active = map[string]conversation.Capability{}
+			}
+			c.active[state.ID] = state
+			continue
 		}
 		if len(state.Tools) == 0 || len(state.Tools) > 4096 {
 			return fmt.Errorf("invalid saved capability %s catalog", state.ID)
@@ -455,6 +499,21 @@ func (c *Capability) Disconnect() {
 	c.tools = nil
 	c.lastError = ""
 }
+
+// SetAvailable also invalidates cached adapters when a managed source is disabled.
+func (c *Capability) SetAvailable(available bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.unavailable = !available
+	if !available {
+		if c.Close != nil {
+			c.Close()
+		}
+		c.tools = nil
+		c.lastError = ""
+	}
+}
+
 func (c *Capability) Connected() (bool, int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

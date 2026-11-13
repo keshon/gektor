@@ -2,8 +2,10 @@ package tui
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -11,6 +13,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/credentials"
 	"github.com/keshon/gektor/internal/executables"
 	toolcatalog "github.com/keshon/gektor/internal/tools"
@@ -54,7 +57,7 @@ func TestToolsNavigationAndCancelAreSharedByAgentAndWorkflow(t *testing.T) {
 		if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "Tools" {
 			t.Fatal("no Tools in", mode)
 		}
-		chooseTool(t, m, "native_media", "details")
+		chooseTool(t, m, "native_media", "settings")
 		if m.chrome.Dialog.Title != "Media executables" {
 			t.Fatal(m.chrome.Dialog.Title)
 		}
@@ -86,7 +89,7 @@ func TestMediaApplyUsesRelaunchAndPreservesOtherSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.runAction("tools")
-	chooseTool(t, m, "native_media", "details")
+	chooseTool(t, m, "native_media", "settings")
 	chooseTool(t, m, "ffmpeg", "details")
 	err = m.applyExecutablePreference("ffmpeg", map[string]string{"path": "relative.exe", "disabled": "false"})
 	if err == nil || m.modeChange != nil {
@@ -116,7 +119,7 @@ func TestToolsRenderedViewsFitBothThemesAndTerminalSizes(t *testing.T) {
 			}
 			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 			m.runAction("tools")
-			chooseTool(t, m, "native_media", "details")
+			chooseTool(t, m, "native_media", "settings")
 			m.syncPresentation()
 			rendered := ansi.Strip(m.View().Content)
 			if !strings.Contains(rendered, "Media executables") || !strings.Contains(rendered, "ffmpeg") {
@@ -137,7 +140,7 @@ func TestMediaFormApplyAndToolsOperationNavigation(t *testing.T) {
 	m := toolSettingsModel(t)
 	m.runAction("screen:workflows")
 	m.runAction("tools")
-	chooseTool(t, m, "native_media", "details")
+	chooseTool(t, m, "native_media", "settings")
 	m.chrome.TableAction("operations")
 	m.settleControls()
 	if m.chrome.Dialog.Title != "Media" || !strings.Contains(strings.Join(m.chrome.Dialog.Lines, "\n"), "video_transcript") {
@@ -239,7 +242,7 @@ func TestToolsMouseActionsUseSharedControls(t *testing.T) {
 		m := toolSettingsModel(t)
 		m.runAction(mode)
 		m.runAction("tools")
-		chooseTool(t, m, "native_media", "details")
+		chooseTool(t, m, "native_media", "settings")
 		m.syncPresentation()
 		clickVisible(t, m, "Operations")
 		if m.chrome.Dialog.Title != "Media" {
@@ -265,7 +268,7 @@ func TestSSHSettingsCancelApplyAndDeleteAcrossScreens(t *testing.T) {
 		m.tools.SSHProfiles.Path = filepath.Join(t.TempDir(), "ssh.json")
 		m.runAction(mode)
 		m.runAction("tools")
-		chooseTool(t, m, "native_ssh", "details")
+		chooseTool(t, m, "native_ssh", "settings")
 		if m.chrome.Dialog.Title != "SSH connections" {
 			t.Fatal("SSH list missing")
 		}
@@ -503,7 +506,7 @@ func TestSSHAuthenticationPickerUpdatesFieldsInBothScreens(t *testing.T) {
 		m.tools.SSHProfiles.Path = filepath.Join(t.TempDir(), "ssh.json")
 		m.runAction(mode)
 		m.runAction("tools")
-		chooseTool(t, m, "native_ssh", "details")
+		chooseTool(t, m, "native_ssh", "settings")
 		m.chrome.TableAction("add")
 		m.settleControls()
 		for i, field := range m.chrome.Dialog.Form.Fields {
@@ -541,7 +544,7 @@ func TestSSHBasicFormRenderDoesNotExposeCredentialInternals(t *testing.T) {
 			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 			m.tools.SSHProfiles.Path = filepath.Join(t.TempDir(), "ssh.json")
 			m.runAction("tools")
-			chooseTool(t, m, "native_ssh", "details")
+			chooseTool(t, m, "native_ssh", "settings")
 			m.chrome.TableAction("add")
 			m.settleControls()
 			m.syncPresentation()
@@ -557,6 +560,134 @@ func TestSSHBasicFormRenderDoesNotExposeCredentialInternals(t *testing.T) {
 				}
 			}
 			t.Logf("%s %v\n%s", theme, size, rendered)
+		}
+	}
+}
+
+func TestSessionToolControlsPersistAndKeepConversationHistory(t *testing.T) {
+	m := toolSettingsModel(t)
+	path := stateFileOf(m)
+	before, err := conversation.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft := draftOf(m)
+	m.openTools()
+	for _, action := range m.chrome.Dialog.Table.Actions {
+		if action.ID == "unload" && action.Enabled {
+			t.Fatal("Always toolset can be unloaded")
+		}
+	}
+	change := func(action string) {
+		t.Helper()
+		cmd := m.toolAction(screen.Event{Row: "native_web", Action: action})
+		if cmd == nil || m.toolLoadCancel == nil {
+			t.Fatal("session change did not start")
+		}
+		m.Update(cmd())
+		if m.toolLoadCancel != nil || m.chrome.Dialog.Table == nil {
+			t.Fatal("change did not return to inventory")
+		}
+	}
+	m.chrome.Dialog.Table.Model.Search.SetValue("Web")
+	change("load")
+	var found bool
+	for _, set := range m.toolsets {
+		if set.ID == "native_web" {
+			found = set.Status == "Loaded"
+		}
+	}
+	if !found {
+		t.Fatal("load status missing")
+	}
+	if m.chrome.Dialog.Table.Model.Search.Value() != "Web" {
+		t.Fatal("loading lost filter")
+	}
+	change("unload")
+	saved, err := conversation.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unloaded := false
+	for _, state := range saved.Capabilities {
+		if state.ID == "native_web" {
+			unloaded = state.Unloaded
+		}
+	}
+	if !unloaded {
+		t.Fatal("on-load suppression was not saved")
+	}
+	if !reflect.DeepEqual(before.History, saved.History) || draftOf(m) != draft {
+		t.Fatal("tool change modified history or draft")
+	}
+}
+
+func TestToolsRunMenuAndNoSessionGuards(t *testing.T) {
+	m := toolSettingsModel(t)
+	menus := m.menus(m.agent.Presentation().Menus)
+	inRun, inSettings := false, false
+	for _, menu := range menus {
+		for _, item := range menu.Items {
+			if item.Command == "tools" {
+				inRun = inRun || menu.Label == "Run"
+				inSettings = inSettings || menu.Label == "Settings"
+			}
+		}
+	}
+	if !inRun || inSettings {
+		t.Fatal("Tools is not exclusively in Run")
+	}
+	m.runAction("screen:workflows")
+	m.openTools()
+	if m.toolSessionAttached {
+		t.Fatal("workflow selected a conversation")
+	}
+	for _, action := range m.chrome.Dialog.Table.Actions {
+		if (action.ID == "load" || action.ID == "unload") && action.Enabled {
+			t.Fatal("session action enabled in workflow")
+		}
+	}
+}
+
+func TestToolsInventoryPreview(t *testing.T) {
+	t.Cleanup(func() { screen.SetTheme("dark") })
+	dir := os.Getenv("GEKTOR_TUI_PREVIEW_DIR")
+	for _, theme := range []string{"dark", "light"} {
+		for _, size := range [][2]int{{120, 32}, {80, 26}, {40, 20}} {
+			m := toolSettingsModel(t)
+			m.applyTheme(theme)
+			m.launch.Env.Capabilities = []*extension.Capability{{ID: "browser", Source: "browser:chrome", Description: "Browser automation"}, {ID: "yougile", Description: "Project tasks"}}
+			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+			m.openTools()
+			for i, row := range m.chrome.Dialog.Table.Model.Rows {
+				if row.ID == "native_web" {
+					m.chrome.Dialog.Table.Model.Cursor = i
+				}
+			}
+			cmd := m.toolAction(screen.Event{Row: "native_web", Action: "load"})
+			if cmd == nil {
+				t.Fatal("load unavailable")
+			}
+			m.Update(cmd())
+			m.syncPresentation()
+			text := ansi.Strip(m.View().Content)
+			if !strings.Contains(text, "Loaded") || !strings.Contains(text, "Not loaded") || !strings.Contains(text, "Unload") {
+				t.Fatal(text)
+			}
+			for _, line := range strings.Split(text, "\n") {
+				if ansi.StringWidth(line) > size[0] {
+					t.Fatal("inventory overflows", theme, size, line)
+				}
+			}
+			if dir != "" {
+				if err := os.MkdirAll(dir, 0700); err != nil {
+					t.Fatal(err)
+				}
+				path := filepath.Join(dir, fmt.Sprintf("tools-%s-%dx%d.ansi", theme, size[0], size[1]))
+				if err := os.WriteFile(path, []byte(m.View().Content), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
 		}
 	}
 }

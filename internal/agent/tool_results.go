@@ -81,7 +81,7 @@ func (a *Agent) recordToolBatch(ctx context.Context, st *runState, batch *toolBa
 			diagnostics = append(diagnostics, content)
 		} else {
 			message := llm.Message{Role: llm.RoleTool, ToolCallID: call.ID, Content: content, ToolFailed: &failed, ToolStatus: status}
-			if entry.executed && !failed && a.cfg.Catalog != nil && (call.Name == "enable_capability" || call.Name == "enable_browser") {
+			if entry.executed && !failed && a.cfg.Catalog != nil && call.Name == "enable_capability" {
 				for _, state := range a.cfg.Catalog.Save() {
 					if content == CapabilityCatalog(state) {
 						message.Harness = "capability_catalog:" + state.Fingerprint

@@ -114,7 +114,7 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	flags.BoolVar(&o.stream, "stream", false, "stream response tokens live (openai, llama and koboldcpp)")
 	flags.StringVar(&o.mcp, "mcp", "", "MCP servers: \"name=cmd args...;name2=https://host/mcp\" (stdio JSON-RPC or Streamable HTTP, tools appear as mcp__name__tool)")
 	flags.StringVar(&o.capabilities, "capabilities", "", "path to a versioned JSON capability configuration (lazy MCP packs, JSON executables and extra skill roots; see docs/guide/extensions.md)")
-	flags.StringVar(&o.browser, "browser", "", "make visible chrome or msedge available through enable_browser; load Playwright MCP only when needed (see docs/guide/browser.md)")
+	flags.StringVar(&o.browser, "browser", "chrome", "select chrome or msedge for the bundled on-demand browser integration (see docs/guide/browser.md)")
 	flags.StringVar(&o.browserProfile, "browser-profile", "default", "named persistent GEKTOR browser profile; explicit selection overrides the session's saved profile")
 	flags.BoolVar(&o.browserHeadless, "browser-headless", false, "hide the browser window for unattended checks")
 	flags.StringVar(&o.fork, "fork", "", "history file to branch from: loads its transcript but writes to a fresh task id")
@@ -135,7 +135,7 @@ func parseLaunchOptions(args []string) (launchOptions, error) {
 	if err := flags.Parse(args); err != nil {
 		return launchOptions{}, err
 	}
-	if o.browser != "" && o.browser != "chrome" && o.browser != "msedge" {
+	if o.browser != "chrome" && o.browser != "msedge" {
 		return launchOptions{}, fmt.Errorf("-browser must be chrome or msedge")
 	}
 	if err := toolbrowser.ValidateBrowserProfile(o.browserProfile); err != nil {

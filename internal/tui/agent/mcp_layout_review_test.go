@@ -13,6 +13,7 @@ import (
 
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/mcpmanager"
+	"github.com/keshon/gektor/internal/tools/extension"
 )
 
 func TestMCPReviewLayouts(t *testing.T) {
@@ -30,12 +31,15 @@ func TestMCPReviewLayouts(t *testing.T) {
 	defer manager.Close()
 	for _, server := range []mcpmanager.Server{
 		{ID: "yougile", Description: "Project tasks", URL: "https://example.com/tasks", Enabled: true},
-		{ID: "browser", Description: "Browser tools", URL: "https://example.com/browser", Enabled: true, Startup: true},
+		{ID: "browser", Description: "Browser tools", URL: "https://example.com/browser", Enabled: true, OnLoad: true},
 		{ID: "notes", Description: "Local notes", URL: "https://example.com/notes"},
 	} {
 		if err := manager.Save(server); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if err := manager.RegisterBundled(&extension.Capability{ID: "playwright", Description: "Bundled browser tools"}); err != nil {
+		t.Fatal(err)
 	}
 	for _, theme := range config.ThemeNames() {
 		for _, size := range [][2]int{{40, 20}, {80, 24}, {120, 40}} {

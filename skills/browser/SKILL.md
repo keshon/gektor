@@ -5,7 +5,7 @@ description: Read pages, exercise web UI, inspect errors and verify visual layou
 
 # Browser
 
-1. Use connected tools and their schemas. Call enable_browser when available;
+1. Use connected tools and their schemas. Activate the browser capability through enable_capability with id=browser when available;
    query system_info group=browser if uncertain. Missing tools mean unverified
    browser checks: request -browser chrome/msedge, not improvised shell launches
    or silent installation. Operator setup: docs/browser.md in the GEKTOR repo.

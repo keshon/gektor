@@ -127,8 +127,6 @@ func toolSummary(text string) (name, action, target string) {
 	case "webfetch", "fetch_raw", "check_url", "cap__social__read_post":
 		action = map[string]string{"webfetch": "Read page", "fetch_raw": "Fetch raw", "check_url": "Check URL", "cap__social__read_post": "Read post"}[name]
 		target = value("url")
-	case "enable_browser":
-		action, target = "Enable browser", ""
 	case "browser_observe":
 		action, target = "Observe browser", value("mode")
 		if target == "" {

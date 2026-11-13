@@ -1,7 +1,8 @@
 # MCP and browser management unification
 
 Date: 2026-11-13
-Status: Draft for review; implementation has not started.
+Status: Implemented locally and verified on 2026-11-13. Compatibility aliases were
+excluded by the owner; experimental conversations may be discarded.
 
 ## Decision
 
@@ -28,7 +29,7 @@ one response such as `{"output":{"customer_id":"123"}}` from stdout.
 The explicitly selected capability configuration supplies tool names and schemas.
 This is an illustrative integration, not a shipped CRM tool.
 
-## Current implementation
+## Starting implementation (before this change)
 
 [Role composition](../../internal/roles/tools.go) already adds browser and
 configured MCP sources to the same capability catalog. The separate
@@ -49,7 +50,7 @@ catalog fingerprint.
 
 [The MCP manager](../../internal/mcpmanager/mcpmanager.go) owns saved definitions
 and launch connections. Connect currently sets Eager=true; Disconnect sets
-Eager=false. Saved Startup also controls initial eagerness. Connection actions
+Eager=false. The old saved Startup field also controlled initial eagerness. Connection actions
 and exposure policy are therefore coupled today.
 
 [Browser profile restoration](../../internal/tools/browser/browser_profile.go)
@@ -127,9 +128,10 @@ channel/profile compatibility checks. A reconnect uses the selected profile and
 reacquires its lock. Do not introduce a lock-order cycle between source loading
 and profile selection.
 
-Keep browser flags as explicit launch overrides. Initially register the bundled
-integration only when the existing browser configuration enables it. Do not make
-browser access available in every launch as a side effect of this migration.
+Keep browser flags as optional launch preferences. Register the bundled
+integration in every launch, on demand by default, with Chrome as its default
+channel. Registration performs no preparation, process launch or schema loading.
+The owner removed the flag prerequisite on 2026-11-13 after testing management.
 Keep existing user-added MCP settings storage. No new browser settings file is
 required; permanent browser configuration retains its existing flag path.
 
@@ -160,8 +162,9 @@ prove Chrome launched, website authentication succeeded or a page action worked.
 ### 1. Separate connection from exposure
 
 Remove Eager mutation from manager Connect/Disconnect. Derive exposure only from
-configured policy. Preserve Startup as the saved storage format; the UI can show
-On load / On demand without rewriting existing definitions.
+configured policy. Store the preference as on_load (default false). Remove the
+old startup field without a fallback or automatic migration. Definitions using
+that field must be saved again; this experimental application has one consumer.
 
 Document the intentional behavior change: Connect no longer automatically exposes
 tools in subsequent conversations. Add coverage for both policies, connection
@@ -183,9 +186,9 @@ that reconnects itself after replacement.
 
 ### 3. Unify activation and management
 
-Advertise discover_capabilities and enable_capability as the common path. Keep
-enable_browser as a compatibility alias for existing histories and prompts; it
-delegates to the same source/catalog without duplicate registration.
+Advertise discover_capabilities and enable_capability as the only path. Remove
+enable_browser and all special activation handling. Existing experimental
+conversations that depend on the removed entry point require a fresh conversation.
 
 Show Playwright and YouGile in the same management list with the same connection
 actions. Show origin, availability, exposure, connection and current-conversation
@@ -198,8 +201,7 @@ reject generic actions that do not apply to bundled entries.
 ### 4. Documentation and verification
 
 Update browser/extensions guides, affected configuration/CLI references, role
-instructions and offline evals. Retire the alias only in a later deliberate
-compatibility change.
+instructions and offline evals. Add no compatibility aliases or migration layers.
 
 ## Acceptance checks
 
@@ -215,7 +217,8 @@ compatibility change.
   disconnect and exit release resources exactly once.
 - Profile restore, explicit override and channel mismatch preserve current rules;
   a profile change cannot return tools from the previous cache.
-- Existing YouGile definitions and credential references require no migration.
+- YouGile definitions use the current schema; credential references remain intact.
+  No compatibility reader or automatic migration is introduced.
 - Collisions fail before side effects; imports cannot replace bundled sources.
 - Generic MCP servers cannot acquire browser artifact access by choosing an ID.
 - On-demand sources keep initial model context small.
@@ -237,3 +240,22 @@ No arbitrary browser-provider framework, generic plugin SDK, new workflow browse
 nodes, per-conversation MCP processes, automatic browser installation or redesign
 of executable packs. The implementation changes management and activation while
 preserving browser-specific behavior.
+
+
+## Verification result (2026-11-13)
+
+- Source-tree tests passed with race detection: go test -race ./cmd/... ./internal/...
+- Source-tree vet passed: go vet ./cmd/... ./internal/...
+- Offline eval validation passed: 45 probes.
+- Real Chrome fixtures passed through generic capability activation, including
+  bundled manager registration, navigation/actions, observations, screenshots,
+  failed-save detection, simulated login handoff and persistent profile reuse.
+- MCP table/form tests and layout checks passed across themes and terminal sizes;
+  wide and narrow rendered terminal captures were inspected.
+- Changed Go files are formatted; diff whitespace and documentation links pass.
+
+The repository-wide ./... checks include historical copied Go files under
+eval/results/20261110-123946/inputs with imports of moved packages and fail setup.
+Those archived files were left untouched; the actual cmd and internal source
+trees passed. Live YouGile requests were not made. Executable packs retain their
+existing implementation.

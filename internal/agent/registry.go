@@ -107,6 +107,15 @@ func (r *Registry) Add(tools ...Tool) error {
 	return nil
 }
 
+// Remove withdraws a toolset's schemas between turns without closing its resources.
+func (r *Registry) Remove(names []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, name := range names {
+		delete(r.tools, name)
+	}
+}
+
 func (r *Registry) lookup(name string) (Tool, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

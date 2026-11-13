@@ -1,6 +1,8 @@
 package app
 
 import (
+	"cmp"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -11,8 +13,8 @@ import (
 
 // Toolset is display metadata, not an executable registry or activation policy.
 type Toolset struct {
-	ID, Name, Description, Group, Exposure, Source, Connection string
-	Agent, Workflow                                            []string
+	ID, Name, Description, Group, Loading, Source, Connection, Status string
+	Agent, Workflow                                                   []string
 }
 
 // Toolsets projects existing composition metadata without connecting optional adapters.
@@ -38,7 +40,7 @@ func Toolsets(packages []extension.PackageInfo, sources []*extension.Capability,
 		if label == "Ssh" {
 			label = "SSH"
 		}
-		set := Toolset{ID: p.ID, Name: label, Description: p.Description, Group: "Built-in", Exposure: exposureLabel(exposure), Source: "Built-in", Agent: p.Tools}
+		set := Toolset{ID: p.ID, Name: label, Description: p.Description, Group: "Built-in", Loading: exposureLabel(exposure), Source: "Built-in", Agent: p.Tools}
 		for _, name := range p.Tools {
 			if supported[name] {
 				set.Workflow = append(set.Workflow, name)
@@ -54,7 +56,11 @@ func Toolsets(packages []extension.PackageInfo, sources []*extension.Capability,
 		if source.Eager {
 			exposure = extension.Eager
 		}
-		set := Toolset{ID: "source:" + source.ID, Name: source.ID, Description: source.Description, Group: "Extension", Exposure: exposureLabel(exposure), Source: source.Source, Agent: source.ToolNames()}
+		name := source.ID
+		if source.ID == "browser" || strings.HasPrefix(source.Source, "builtin:") {
+			name = strings.ToUpper(name[:1]) + name[1:]
+		}
+		set := Toolset{ID: "source:" + source.ID, Name: name, Description: source.Description, Group: "External", Loading: exposureLabel(exposure), Source: source.Source, Agent: source.ToolNames()}
 		state, _, detail := source.ConnectionStatus()
 		set.Connection = state
 		if detail != "" {
@@ -80,13 +86,32 @@ func Toolsets(packages []extension.PackageInfo, sources []*extension.Capability,
 		sets = append(sets, set)
 	}
 	if len(attached) > 0 {
-		set := Toolset{ID: "launch_mcp", Name: "Launch MCP", Group: "Extension", Exposure: "Startup", Source: "-mcp launch argument", Description: "MCP tools connected for this launch. Connection management remains in the existing MCP view."}
+		set := Toolset{ID: "launch_mcp", Name: "Launch MCP", Group: "External", Loading: "Always", Source: "-mcp launch argument", Description: "MCP tools connected for this launch. Connection management remains in the existing MCP view."}
 		for _, tool := range attached {
 			set.Agent = append(set.Agent, tool.Name())
 		}
 		sets = append(sets, set)
 	}
 
+	order := []string{"core", "workspace", "native_files", "native_documents", "native_images", "native_web", "source:browser", "native_media", "git", "execution", "processes", "native_ssh", "native_workflows"}
+	ranks := make(map[string]int, len(order))
+	for i, id := range order {
+		ranks[id] = i
+	}
+	slices.SortStableFunc(sets, func(a, b Toolset) int {
+		aRank, aKnown := ranks[a.ID]
+		bRank, bKnown := ranks[b.ID]
+		if !aKnown {
+			aRank = len(order)
+		}
+		if !bKnown {
+			bRank = len(order)
+		}
+		if aRank != bRank {
+			return cmp.Compare(aRank, bRank)
+		}
+		return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
+	})
 	return sets, nil
 }
 
@@ -95,7 +120,7 @@ func exposureLabel(value extension.Exposure) string {
 	case extension.Always:
 		return "Always"
 	case extension.Eager:
-		return "Startup"
+		return "On load"
 	default:
 		return "On demand"
 	}

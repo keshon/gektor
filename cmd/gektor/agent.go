@@ -67,14 +67,16 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 	for _, p := range capabilityConfig.Packs {
 		reserved = append(reserved, p.ID)
 	}
-	if o.browser != "" {
-		reserved = append(reserved, "browser")
-	}
 	managedMCP, err := mcpmanager.New(userdirs.Sub("mcp"), ws.Root(), userdirs.Sub("credentials"), reserved)
 	if err != nil {
 		return err
 	}
 	defer managedMCP.Close()
+	browser := &toolbrowser.Browser{Channel: o.browser, Dir: ws.Root(), Profile: o.browserProfile, ProfileExplicit: o.explicitFlags["browser-profile"], Headless: o.browserHeadless}
+	err = managedMCP.RegisterBundled(browser.Capability())
+	if err != nil {
+		return err
+	}
 
 	// noteW is where human-readable chatter goes. In -mode json it is
 	// stderr, so stdout carries nothing but JSONL and a caller can pipe
@@ -108,13 +110,6 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	for _, server := range managedMCP.List() {
-		if server.Enabled && server.Startup {
-			if _, e := managedMCP.Connect(ctx, server.ID); e != nil {
-				fmt.Fprintf(os.Stderr, "mcp %s: %v\n", server.ID, e)
-			}
-		}
-	}
 	client, err := app.NewBackend(ctx, app.BackendOptions{Kind: o.backendKind, URL: o.backendURL, Model: o.model, APIKey: o.apiKey, APIKeyEnv: o.apiKeyEnv, NoGrammar: !o.grammar, ReasoningEffort: o.reasoningEffort, ReasoningSummary: o.reasoningSummary})
 	if err != nil {
 		return err
@@ -152,17 +147,7 @@ func runAgentLaunch(launch launchRequest, o resolvedLaunch) error {
 			c.Close()
 		}
 	}()
-	var browser *toolbrowser.Browser
-	if o.browser != "" {
-		if len(toolbrowser.BrowserToolNames(mcpTools)) > 0 {
-			return fmt.Errorf("use either -browser or browser tools configured through -mcp, not both")
-		}
-		browser = &toolbrowser.Browser{Channel: o.browser, Dir: ws.Root(), Profile: o.browserProfile, ProfileExplicit: o.explicitFlags["browser-profile"], Headless: o.browserHeadless}
-		defer browser.Close()
-		note("browser: %s available on request through enable_browser", o.browser)
-	} else if len(toolbrowser.BrowserToolNames(mcpTools)) == 0 {
-		note("browser: not connected (enable with -browser chrome or -browser msedge)")
-	}
+	note("browser: %s available on demand through enable_capability (browser)", o.browser)
 
 	base := roles.Env{
 		Client: client, RefreshModelFacts: client.RefreshModelFacts, WS: ws, Procs: bgProcs,
@@ -313,8 +298,8 @@ func loadAgentCapabilities(o resolvedLaunch) (toolextension.CapabilityConfig, er
 		}
 	}
 	for _, pack := range capabilityConfig.Packs {
-		if pack.ID == "browser" && o.browser != "" {
-			return toolextension.CapabilityConfig{}, fmt.Errorf("capability ID browser is reserved while -browser is enabled")
+		if pack.ID == "browser" {
+			return toolextension.CapabilityConfig{}, fmt.Errorf("capability ID browser is reserved for the bundled integration")
 		}
 	}
 	return capabilityConfig, nil

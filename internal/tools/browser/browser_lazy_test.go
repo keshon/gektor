@@ -32,12 +32,13 @@ func fakeBrowser(connects, actions *int) *Browser {
 	}}
 }
 
-func browserRegistry(browser *Browser) (*agent.Registry, *EnableBrowser) {
-	tool := &EnableBrowser{Browser: browser}
-	reg := agent.NewRegistry(tool)
-	tool.Registry = reg
-	tool.Catalog = &toolextension.Capabilities{Registry: reg, Sources: []*toolextension.Capability{browser.Capability()}}
-	return reg, tool
+func browserRegistry(browser *Browser) (*agent.Registry, *toolextension.Capabilities) {
+	reg := agent.NewRegistry()
+	catalog := &toolextension.Capabilities{Registry: reg, Sources: []*toolextension.Capability{browser.Capability()}}
+	if err := reg.Add(toolextension.EnableCapability{Catalog: catalog}); err != nil {
+		panic(err)
+	}
+	return reg, catalog
 }
 
 func TestBrowserLoadsOnceAndRestoresAfterCompaction(t *testing.T) {
@@ -53,7 +54,7 @@ func TestBrowserLoadsOnceAndRestoresAfterCompaction(t *testing.T) {
 			t.Fatal("activation rewrote system instructions")
 		}
 		step++
-		name, args := "enable_browser", `{}`
+		name, args := "enable_capability", `{"id":"browser"}`
 		switch step {
 		case 1:
 			if len(req.Tools) != 1 || connects != 0 {
@@ -75,11 +76,11 @@ func TestBrowserLoadsOnceAndRestoresAfterCompaction(t *testing.T) {
 		}
 		return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: name, Name: name, Arguments: json.RawMessage(args)}}}, FinishReason: "tool_calls"}
 	})
-	a := agent.New(agent.Config{Client: client, Tools: reg, Catalog: enable.Catalog, System: "stable system", StateFile: state})
+	a := agent.New(agent.Config{Client: client, Tools: reg, Catalog: enable, System: "stable system", StateFile: state})
 	if _, err := a.Run(t.Context(), "check page"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := reg.Run(t.Context(), "enable_browser", json.RawMessage(`{}`)); err != nil || connects != 1 {
+	if _, err := reg.Run(t.Context(), "enable_capability", json.RawMessage(`{"id":"browser"}`)); err != nil || connects != 1 {
 		t.Fatal("activation not idempotent", err, connects)
 	}
 
@@ -106,7 +107,7 @@ func TestBrowserLoadsOnceAndRestoresAfterCompaction(t *testing.T) {
 		}
 		return llm.ChatResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: "done"}}
 	})
-	a = agent.New(agent.Config{Client: resume, Tools: reopenedReg, Catalog: reopenedEnable.Catalog, System: "stable system", StateFile: state})
+	a = agent.New(agent.Config{Client: resume, Tools: reopenedReg, Catalog: reopenedEnable, System: "stable system", StateFile: state})
 	if _, err := a.Resume(t.Context(), saved.Context(), "continue"); err != nil {
 		t.Fatal(err)
 	}
@@ -127,15 +128,15 @@ func TestBrowserActivationFailuresDoNotEnableTools(t *testing.T) {
 	browser.connect = func(context.Context, func(string)) ([]agent.Tool, browserSession, error) {
 		return nil, nil, errors.New("Node missing")
 	}
-	if _, err := reg.Run(t.Context(), "enable_browser", json.RawMessage(`{}`)); err == nil || len(reg.Defs()) != 1 {
+	if _, err := reg.Run(t.Context(), "enable_capability", json.RawMessage(`{"id":"browser"}`)); err == nil || len(reg.Defs()) != 1 {
 		t.Fatal("failed setup enabled tools")
 	}
-	if _, err := reg.Run(t.Context(), "enable_browser", json.RawMessage(`{"url":"unexpected"}`)); err == nil {
+	if _, err := reg.Run(t.Context(), "enable_capability", json.RawMessage(`{"url":"unexpected"}`)); err == nil {
 		t.Fatal("unknown argument accepted")
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := reg.Run(ctx, "enable_browser", json.RawMessage(`{}`)); !errors.Is(err, context.Canceled) {
+	if _, err := reg.Run(ctx, "enable_capability", json.RawMessage(`{"id":"browser"}`)); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }
@@ -146,14 +147,14 @@ func TestBrowserCatalogCannotReplaceExistingTools(t *testing.T) {
 	original := browser.connect
 	browser.connect = func(ctx context.Context, note func(string)) ([]agent.Tool, browserSession, error) {
 		list, client, err := original(ctx, note)
-		list = append(list, &browserFixture{name: "enable_browser", remote: "browser_bad"})
+		list = append(list, &browserFixture{name: "enable_capability", remote: "browser_bad"})
 		return list, client, err
 	}
 	reg, enable := browserRegistry(browser)
-	if _, err := reg.Run(t.Context(), "enable_browser", json.RawMessage(`{}`)); err == nil {
+	if _, err := reg.Run(t.Context(), "enable_capability", json.RawMessage(`{"id":"browser"}`)); err == nil {
 		t.Fatal("catalog replaced an existing tool")
 	}
-	if len(reg.Defs()) != 1 || len(enable.Names()) != 0 {
+	if len(reg.Defs()) != 1 || len(enable.Save()) != 0 {
 		t.Fatal("part of the invalid catalog was installed")
 	}
 }

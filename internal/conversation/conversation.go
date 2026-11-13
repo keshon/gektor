@@ -28,9 +28,10 @@ type BrowserProfile struct {
 	Profile string `json:"profile"`
 }
 
-// Capability preserves the advertised catalog without reconnecting on resume.
+// Capability preserves the catalog or an explicit unloaded selection on resume.
 // Definitions are compared to the current adapter before any tool executes.
 type Capability struct {
+	Unloaded     bool          `json:"unloaded,omitempty"`
 	ID           string        `json:"id"`
 	Version      string        `json:"version"`
 	Fingerprint  string        `json:"fingerprint"`

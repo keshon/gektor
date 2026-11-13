@@ -26,6 +26,17 @@ entry functions construct services and permission callbacks beside their tools;
 The native and skill discovery adapters share metadata ranking in
 `internal/discovery`. Ranking reads metadata only and does not activate packs.
 
+## Conversation loading
+
+The capability catalog owns per-conversation Load/Unload. Always-loaded packages
+stay outside optional activation and cannot be unloaded. An explicit unloaded
+selection is saved in conversation capability metadata; preparation skips its
+on-load default until it is loaded again. Unload removes that conversation's
+registry definitions and active instructions without closing a launch-owned MCP
+connection. Archived messages remain intact; instruction changes affect the model
+projection. Manual loading reuses role composition without requesting a model
+response or running an operation.
+
 ## Capability layout
 
 | Part | Owns | Does not own |
@@ -60,7 +71,8 @@ are shared support owners under `internal/tools/command` and `internal/tools/out
 The proposed [Tools management plan](../internal/tools-management-plan.md)
 extends configuration UI across Agent and Workflows while retaining these
 execution boundaries. Tools inventory, Media executable preferences and reference-only SSH editing are implemented.
-Windows protected SSH secret entry is implemented; consolidated MCP management remains planned.
+Windows protected SSH secret entry is implemented. Run > Tools provides session
+loading controls; MCP management distinguishes connection from loaded tools.
 
 A provider-only reader may expose a typed function instead of a service. Do not
 add empty adapter packages for a frontend that does not use it. When another

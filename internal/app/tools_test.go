@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/keshon/gektor/internal/agent"
@@ -24,21 +25,36 @@ func TestToolsetInspectionPreservesCatalogAndNeverLoadsSources(t *testing.T) {
 	for _, set := range sets {
 		if set.ID == "native_media" {
 			foundMedia = true
-			if len(set.Agent) != 10 || len(set.Workflow) != 10 || set.Exposure != "On demand" {
+			if len(set.Agent) != 10 || len(set.Workflow) != 10 || set.Loading != "On demand" {
 				t.Fatal(set)
 			}
 		}
 		if set.ID == "source:remote" {
 			foundRemote = true
-			if len(set.Agent) != 0 || set.Group != "Extension" {
+			if len(set.Agent) != 0 || set.Group != "External" {
 				t.Fatal(set)
 			}
 		}
-		if set.ID == tools.NativeWeb && set.Exposure != "On demand" {
+		if set.ID == tools.NativeWeb && set.Loading != "On demand" {
 			t.Fatal("exposure override lost")
 		}
 	}
 	if !foundMedia || !foundRemote {
 		t.Fatal("missing toolsets")
+	}
+}
+
+func TestToolsetOrderGroupsTasksAndAlphabetizesOtherIntegrations(t *testing.T) {
+	sets, err := app.Toolsets(tools.Packages(), []*extension.Capability{{ID: "zebra"}, {ID: "browser"}, {ID: "alpha"}}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := make([]string, len(sets))
+	for i, set := range sets {
+		ids[i] = set.ID
+	}
+	want := []string{"core", "workspace", "native_files", "native_documents", "native_images", "native_web", "source:browser", "native_media", "git", "execution", "processes", "native_ssh", "native_workflows", "source:alpha", "source:zebra"}
+	if !slices.Equal(ids, want) {
+		t.Fatal("unstable task order", ids)
 	}
 }

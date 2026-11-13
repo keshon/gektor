@@ -14,6 +14,8 @@ import (
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/llm"
+	"github.com/keshon/gektor/internal/mcpmanager"
+	"github.com/keshon/gektor/internal/tools/extension"
 	toolfiles "github.com/keshon/gektor/internal/tools/files"
 	toolimages "github.com/keshon/gektor/internal/tools/images"
 	"github.com/keshon/gektor/internal/workspace"
@@ -53,14 +55,29 @@ func TestBrowserMCPIntegration(t *testing.T) {
 		}
 		return StartBrowser(ctx, channel, root)
 	}}
-	defer browser.Close()
-	registry, enable := browserRegistry(browser)
+	manager, err := mcpmanager.New(filepath.Join(root, "mcp"), root, filepath.Join(root, "credentials"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Close()
+	if err = manager.RegisterBundled(browser.Capability()); err != nil {
+		t.Fatal(err)
+	}
+	registry := agent.NewRegistry()
+	catalog := &extension.Capabilities{Registry: registry, Sources: manager.Sources()}
+	if err = registry.Add(extension.EnableCapability{Catalog: catalog}); err != nil {
+		t.Fatal(err)
+	}
 	if len(registry.Defs()) != 1 {
 		t.Fatal("browser eagerly advertised")
 	}
-	_, err := enable.RunStreaming(t.Context(), json.RawMessage(`{}`), func(message string) { t.Log(message) })
+	_, err = registry.RunStreaming(t.Context(), "enable_capability", json.RawMessage(`{"id":"browser"}`), func(message string) { t.Log(message) })
 	if err != nil {
 		t.Fatal(err)
+	}
+	status := manager.List()[0]
+	if !status.Bundled || !status.Connected || status.OnLoad {
+		t.Fatal("browser management disagrees with activation", status)
 	}
 	list := browser.tools
 	if len(registry.Defs()) != len(list)+1 {

@@ -9,10 +9,7 @@ import (
 )
 
 func (e Env) browserContext() string {
-	if e.Browser != nil {
-		return "\nBrowser automation: available on request through enable_browser. Call it when browser work is needed. If browser tools are already present, use them directly."
-	}
-	if len(e.Capabilities) > 0 && len(toolbrowser.BrowserToolNames(e.MCPTools)) == 0 {
+	if (len(e.Capabilities) > 0 || e.CapabilitySources != nil) && len(toolbrowser.BrowserToolNames(e.MCPTools)) == 0 {
 		return "\nBrowser automation: search discover_capabilities for a configured browser integration when needed. Use browser tools only after activation succeeds; if none are configured, report browser checks as unverified."
 	}
 	return toolbrowser.BrowserContext(e.MCPTools)
@@ -24,20 +21,12 @@ func (e Env) configureTools(cfg *agent.Config, mainAgent, allowQuestions bool, e
 		configured = append(configured, e.CapabilitySources()...)
 	}
 	sources := tools.WithBuiltinCapabilities(configured)
-	if e.Browser != nil {
-		sources = append(sources, e.Browser.Capability())
-	}
 	catalog := &toolextension.Capabilities{Sources: sources, Subagent: !mainAgent}
 	if !mainAgent {
 		catalog.ForbiddenTools = append(catalog.ForbiddenTools, "delegate_task")
 	}
 	if !allowQuestions {
 		catalog.ForbiddenTools = append(catalog.ForbiddenTools, "ask_user")
-	}
-	var browser *toolbrowser.EnableBrowser
-	if e.Browser != nil {
-		browser = &toolbrowser.EnableBrowser{Browser: e.Browser, Catalog: catalog}
-		extra = append(extra, browser)
 	}
 	// Native optional packs exist even without external capability sources.
 	extra = append(extra, toolextension.DiscoverCapabilities{Catalog: catalog}, toolextension.EnableCapability{Catalog: catalog})
@@ -63,8 +52,5 @@ func (e Env) configureTools(cfg *agent.Config, mainAgent, allowQuestions bool, e
 	catalog.Registry = cfg.Tools
 	cfg.Catalog = catalog
 	cfg.System += catalog.Map()
-	if browser != nil {
-		browser.Registry = cfg.Tools
-	}
 	return nil
 }

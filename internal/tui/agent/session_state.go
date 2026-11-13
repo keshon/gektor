@@ -5,19 +5,21 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/tui/components/composer"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
 // Drafts are local UI state, separate from submitted model history.
 type draft struct {
+	tools                conversation.Snapshot
 	text, queued         string
 	images, queuedImages []string
 	recall               composer.Snapshot
 }
 
 // Drafts carries unsent UI state across a workspace or backend relaunch.
-// It is never submitted as conversation history or written into a session.
+// Tool selections are saved when the first message creates the conversation.
 type Drafts map[string]draft
 
 func (m *Model) relaunchDrafts() Drafts {
@@ -29,7 +31,8 @@ func (m *Model) saveDraft() {
 	if m.drafts == nil {
 		m.drafts = make(map[string]draft)
 	}
-	m.drafts[m.stateFile] = draft{text: m.input.Value(), queued: m.queued, recall: m.input.Snapshot(), images: append([]string(nil), m.draftImages...), queuedImages: append([]string(nil), m.queuedImages...)}
+	tools := m.drafts[m.stateFile].tools
+	m.drafts[m.stateFile] = draft{tools: tools, text: m.input.Value(), queued: m.queued, recall: m.input.Snapshot(), images: append([]string(nil), m.draftImages...), queuedImages: append([]string(nil), m.queuedImages...)}
 }
 func (m *Model) restoreDraft() {
 	m.inspector = toolInspector{}

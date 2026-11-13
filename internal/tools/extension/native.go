@@ -90,21 +90,28 @@ func (c *Capabilities) publish(ctx context.Context, state conversation.Capabilit
 }
 
 // Prepare publishes eager native packages after archive restoration. Native
-// construction opens no network connections; adapter sources remain lazy.
+// construction opens no network connections. Failed external sources stay retryable.
 func (c *Capabilities) Prepare(ctx context.Context) error {
 	if err := c.Validate(); err != nil {
 		return err
 	}
 
 	for _, source := range c.Sources {
-		if source.Eager && (!c.Subagent || !source.MainOnly) {
-			if _, err := c.Enable(ctx, source.ID, nil); err != nil {
-				return err
+		if source.Eager && !c.unloaded(source.ID) && (!c.Subagent || !source.MainOnly) {
+			_, err := c.Enable(ctx, source.ID, nil)
+			if err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				state, _, _ := source.ConnectionStatus()
+				if state != "failed" {
+					return err
+				}
 			}
 		}
 	}
 	for _, p := range c.Native {
-		if p.Exposure == Eager {
+		if p.Exposure == Eager && !c.unloaded(p.ID) {
 			if _, err := c.Enable(ctx, p.ID, nil); err != nil {
 				return err
 			}
@@ -165,7 +172,7 @@ func (c *Capabilities) PreviewDefs() []llm.ToolDef {
 	defer c.mu.Unlock()
 	defs := c.Registry.Defs()
 	for _, p := range c.Native {
-		if _, active := c.active[p.ID]; !active && p.Exposure == Eager {
+		if _, active := c.active[p.ID]; !active && !c.active[p.ID].Unloaded && p.Exposure == Eager {
 			defs = append(defs, p.state().Tools...)
 		}
 	}
@@ -194,7 +201,11 @@ func (c *Capabilities) entries() []capabilityEntry {
 		names := slices.Clone(source.searchNames)
 		names = append(names, source.ToolNames()...)
 		entry := capabilityEntry{ID: source.ID, Description: source.Description, State: "configured", names: names}
-		if state, active := c.active[source.ID]; active {
+		status, _, _ := source.ConnectionStatus()
+		if status == "failed" {
+			entry.State = "failed"
+		}
+		if state, active := c.active[source.ID]; active && !state.Unloaded {
 			entry.State = "active"
 			for _, def := range state.Tools {
 				entry.names = append(entry.names, def.Name)
@@ -205,7 +216,7 @@ func (c *Capabilities) entries() []capabilityEntry {
 	}
 	for _, p := range c.Native {
 		entry := capabilityEntry{ID: p.ID, Description: p.Description, State: "configured", eager: p.Exposure == Eager}
-		if _, active := c.active[p.ID]; active {
+		if state, active := c.active[p.ID]; active && !state.Unloaded {
 			entry.State = "active"
 		}
 		for _, tool := range p.Tools {

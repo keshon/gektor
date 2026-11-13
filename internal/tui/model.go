@@ -10,6 +10,7 @@ import (
 	"github.com/keshon/gektor/internal/executables"
 	agentui "github.com/keshon/gektor/internal/tui/agent"
 	"github.com/keshon/gektor/internal/tui/components/form"
+	"github.com/keshon/gektor/internal/tui/components/table"
 	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/settings"
 	toolsui "github.com/keshon/gektor/internal/tui/tools"
@@ -27,15 +28,18 @@ const (
 // Model owns application navigation, shared controls, and the lifetime of its
 // Agent and Workflow screens. It never reaches into either screen's private state.
 type Model struct {
-	tools          *toolsui.Model
-	toolsets       []app.Toolset
-	toolsDialog    *screen.DialogState
-	toolsPage      toolPage
-	mediaSelection string
-	sshSelection   string
-	toolSelection  string
-	sshSecret      *toolsui.SSHSettings
-	form           pendingForm
+	tools               *toolsui.Model
+	toolsets            []app.Toolset
+	toolsTable          *table.Model
+	toolsDialog         *screen.DialogState
+	toolsPage           toolPage
+	mediaSelection      string
+	sshSelection        string
+	toolSessionAttached bool
+	toolLoadCancel      context.CancelFunc
+	toolLoadDone        chan struct{}
+	sshSecret           *toolsui.SSHSettings
+	form                pendingForm
 
 	profile           *app.PreparedProfile
 	application       *settings.Application
@@ -86,6 +90,11 @@ func newModel(ctx context.Context, cfg Config) (*Model, error) {
 
 // Close releases both screens, including their background operations.
 func (m *Model) Close() {
+	if m.toolLoadCancel != nil {
+		m.toolLoadCancel()
+		<-m.toolLoadDone
+		m.toolLoadCancel = nil
+	}
 	m.sshSecret = nil
 	m.chrome.Close()
 	if m.tools != nil {

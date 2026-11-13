@@ -11,26 +11,31 @@ and network checks work with text-only models. Visual judgment requires a
 vision-capable backend. Built-in browser screenshots attach automatically;
 custom MCP integrations may require reading the saved image with `read_file`.
 
-Install Node.js 20+ with npm and Chrome or Edge. On activation, GEKTOR checks these prerequisites
-and reports a specific fix if they are missing. Windows, Linux and macOS use
-the same option:
+The bundled browser integration is always discoverable and defaults to **On demand**.
+Starting GEKTOR or opening MCP management does not check Node.js, download
+Playwright, start a browser or load browser tool schemas. Node.js 20+ with npm
+and Chrome or Edge are required only when the integration is activated.
 
-On Windows, run `start-gektor-agent.cmd -browser chrome`, or use
-`-browser msedge` for Edge. The launcher does not enable browser access by default.
-The flag makes browser automation available on request; it does not start MCP
-or put all its schemas into the opening model request.
+On Windows, run `start-tui-agent.cmd`. Chrome is the default channel; optional
+`-browser msedge` selects Edge.
 
 ```text
-gektor -tui -workspace /path/to/project -browser chrome
+gektor -tui -workspace /path/to/project
 ```
 
-For installed Edge, use `-browser msedge`. The agent first calls `enable_browser`
+The bundled integration appears alongside user-added servers in **Run > MCP servers…**
+or `/mcp`. Connect, Disconnect, Enable/Disable and loading follow the same rules
+as other MCP servers. Edit changes availability and On load / On demand for this
+launch; browser flags retain channel/profile selection. See [MCP management](extensions.md#saved-mcp-servers).
+
+For installed Edge, use `-browser msedge`. The agent calls `enable_capability` with `id=browser`
 when its task needs browser interaction. Activation checks the pinned Playwright
 MCP package in npm's cache. If unavailable, GEKTOR announces preparation and
 downloads `@playwright/mcp@0.0.83` into that cache with a three-minute limit,
 separate from the MCP handshake timeout. This needs internet on first use;
 later activations reuse the cache. Node.js and browsers are not installed by GEKTOR.
-Setup errors include the npm diagnostic and `-browser=` escape hatch.
+Setup errors include the npm diagnostic. Disable the integration in MCP management
+if you do not want browser access.
 
 GEKTOR opens a visible Chrome or Edge window with a dedicated persistent profile.
 It does not use your personal browser profile. Successful activation returns browser
@@ -38,8 +43,8 @@ instructions and exposes the MCP tools for the rest of that session. A connectio
 failure is a failed tool result with the server's diagnostic; ordinary coding
 tasks can still run without a working browser installation.
 First navigation checks that the browser itself can launch. The selected
-browser must already be installed. Without `-browser` or a custom browser MCP,
-the model is explicitly told browser automation is unavailable.
+browser must already be installed. A disabled integration cannot be activated
+or used by existing tool wrappers.
 
 ## Page observations
 
@@ -107,7 +112,7 @@ Advanced configuration through the existing MCP option is still available.
 Explicit custom MCP servers connect at startup and advertise their tools immediately:
 
 ```sh
-./gektor -tui -workspace /path/to/project -mcp 'browser=npx -y @playwright/mcp@0.0.83 --browser chrome --headless --isolated --image-responses omit --output-dir .gektor/browser'
+./gektor -tui -workspace /path/to/project -mcp 'custom_browser=npx -y @playwright/mcp@0.0.83 --browser chrome --headless --isolated --image-responses omit --output-dir .gektor/browser'
 ```
 
 For a custom MCP command, use `--browser msedge` for installed Edge. Omit `--headless` to see the

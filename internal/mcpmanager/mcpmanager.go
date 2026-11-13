@@ -29,10 +29,11 @@ type Server struct {
 	HeaderRefs  map[string]string `json:"header_refs,omitempty"`
 	EnvRefs     map[string]string `json:"env_refs,omitempty"`
 	Enabled     bool              `json:"enabled"`
-	Startup     bool              `json:"startup,omitempty"`
+	OnLoad      bool              `json:"on_load,omitempty"`
 }
 type Status struct {
 	Server
+	Bundled   bool     `json:"bundled"`
 	State     string   `json:"state"`
 	ToolNames []string `json:"tool_names,omitempty"`
 	Connected bool     `json:"connected"`
@@ -45,8 +46,8 @@ type Manager struct {
 	credentials          credentials.Store
 	servers              map[string]Server
 	sources              map[string]*toolextension.Capability
-	errors               map[string]string
 	reserved             map[string]bool
+	bundled              map[string]bool
 }
 
 var validID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,32}$`)
@@ -58,8 +59,8 @@ func New(directory, workspace, credentialDir string, reserved []string) (*Manage
 		credentials: credentials.Store{Directory: credentialDir},
 		servers:     map[string]Server{},
 		sources:     map[string]*toolextension.Capability{},
-		errors:      map[string]string{},
 		reserved:    map[string]bool{},
+		bundled:     map[string]bool{},
 	}
 
 	for _, id := range reserved {
@@ -116,13 +117,18 @@ func (s Server) Pack() toolextension.CapabilityPack {
 	}
 }
 func (m *Manager) validate(s Server) error {
+	for id := range m.reserved {
+		if strings.EqualFold(id, s.ID) {
+			return fmt.Errorf("already configured MCP ID %q", s.ID)
+		}
+	}
 	for id := range m.servers {
 		if id != s.ID && strings.EqualFold(id, s.ID) {
 			return fmt.Errorf("MCP IDs must differ ignoring case")
 		}
 	}
 
-	if !validID.MatchString(s.ID) || strings.HasPrefix(s.ID, "native_") || m.reserved[s.ID] {
+	if !validID.MatchString(s.ID) || strings.HasPrefix(s.ID, "native_") || m.reserved[s.ID] || m.bundled[s.ID] {
 		return fmt.Errorf("invalid or already configured MCP ID %q", s.ID)
 	}
 
@@ -135,18 +141,74 @@ func (m *Manager) validate(s Server) error {
 	return e
 }
 func (m *Manager) install(s Server) {
-	if old := m.sources[s.ID]; old != nil {
-		old.Disconnect()
+	old := m.sources[s.ID]
+	previous := m.servers[s.ID]
+	sameAdapter := old != nil && previous.Description == s.Description &&
+		previous.URL == s.URL && slices.Equal(previous.Command, s.Command) &&
+		maps.Equal(previous.HeaderRefs, s.HeaderRefs) && maps.Equal(previous.EnvRefs, s.EnvRefs)
+	if sameAdapter {
+		old.SetAvailable(s.Enabled)
+		old.Eager = s.OnLoad
+		m.servers[s.ID] = s
+		return
+	}
+	if old != nil {
+		old.SetAvailable(false)
 	}
 
 	pack := s.Pack()
 	pack.CredentialDirectory = m.credentials.Directory
 	list, _ := toolextension.BuildCapabilities(toolextension.CapabilityConfig{Packs: []toolextension.CapabilityPack{pack}}, m.workspace)
-	list[0].Eager = s.Startup
+	list[0].Eager = s.OnLoad
+	list[0].SetAvailable(s.Enabled)
 	m.servers[s.ID] = s
 	m.sources[s.ID] = list[0]
-	delete(m.errors, s.ID)
 }
+
+// RegisterBundled adds an application-owned source without persisting a command.
+func (m *Manager) RegisterBundled(source *toolextension.Capability) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if source == nil || !validID.MatchString(source.ID) || strings.HasPrefix(source.ID, "native_") {
+		return fmt.Errorf("invalid bundled MCP source")
+	}
+	for id := range m.reserved {
+		if strings.EqualFold(id, source.ID) {
+			return fmt.Errorf("already configured MCP ID %q", source.ID)
+		}
+	}
+	for id := range m.servers {
+		if strings.EqualFold(id, source.ID) {
+			return fmt.Errorf("already configured MCP ID %q", source.ID)
+		}
+	}
+	m.servers[source.ID] = Server{ID: source.ID, Description: source.Description, Enabled: true, OnLoad: source.Eager}
+	m.sources[source.ID] = source
+	m.bundled[source.ID] = true
+	return nil
+}
+
+// Configure changes availability and exposure; bundled changes last for this launch.
+func (m *Manager) Configure(settings Server) error {
+	id := settings.ID
+	m.mu.Lock()
+	server, ok := m.servers[id]
+	if !ok {
+		m.mu.Unlock()
+		return fmt.Errorf("unknown MCP server")
+	}
+	server.Enabled, server.OnLoad = settings.Enabled, settings.OnLoad
+	if !m.bundled[id] {
+		m.mu.Unlock()
+		return m.Save(server)
+	}
+	m.servers[id] = server
+	m.sources[id].SetAvailable(settings.Enabled)
+	m.sources[id].Eager = settings.OnLoad
+	m.mu.Unlock()
+	return nil
+}
+
 func (m *Manager) Save(s Server) error {
 	s = s.clone()
 	m.mu.Lock()
@@ -208,12 +270,10 @@ func (m *Manager) List() []Status {
 
 	for id, s := range m.servers {
 		state, count, lastError := m.sources[id].ConnectionStatus()
-		if lastError == "" {
-			lastError = m.errors[id]
-		}
 
 		out = append(out, Status{
 			Server:    s.clone(),
+			Bundled:   m.bundled[id],
 			State:     state,
 			Connected: state == "connected",
 			Tools:     count,
@@ -245,16 +305,19 @@ func (m *Manager) Delete(id string) error {
 		return fmt.Errorf("unknown MCP server")
 	}
 
+	if m.bundled[id] {
+		return fmt.Errorf("bundled MCP integrations cannot be deleted")
+	}
+
 	if e := os.Remove(filepath.Join(m.directory, id+".json")); e != nil {
 		return e
 	}
 
-	m.sources[id].Disconnect()
+	m.sources[id].SetAvailable(false)
 	old := m.servers[id]
 	delete(m.sources, id)
 	delete(m.servers, id)
 	m.removeUnusedCredentials(old)
-	delete(m.errors, id)
 
 	return nil
 }
@@ -281,28 +344,20 @@ func (m *Manager) Sources() []*toolextension.Capability {
 }
 func (m *Manager) Connect(ctx context.Context, id string) (int, error) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	s, ok := m.servers[id]
+	server, ok := m.servers[id]
+	source := m.sources[id]
+	m.mu.Unlock()
 	if !ok {
 		return 0, fmt.Errorf("unknown MCP server")
 	}
-
-	if !s.Enabled {
+	if !server.Enabled {
 		return 0, fmt.Errorf("enable the server before connecting")
 	}
 
-	n, e := m.sources[id].Connect(ctx)
-	if e != nil {
-		m.errors[id] = e.Error()
-		m.sources[id].Eager = false
-	} else {
-		delete(m.errors, id)
-		m.sources[id].Eager = true
-	}
-
-	return n, e
+	// Preparation may take minutes; status and unrelated servers remain accessible.
+	return source.Connect(ctx)
 }
+
 func (m *Manager) Disconnect(id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -313,8 +368,6 @@ func (m *Manager) Disconnect(id string) error {
 	}
 
 	source.Disconnect()
-	source.Eager = false
-	delete(m.errors, id)
 
 	return nil
 }
@@ -323,7 +376,7 @@ func (m *Manager) Close() {
 	defer m.mu.Unlock()
 
 	for _, s := range m.sources {
-		s.Disconnect()
+		s.SetAvailable(false)
 	}
 }
 

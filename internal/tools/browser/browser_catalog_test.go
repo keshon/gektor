@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/conversation"
 	toolextension "github.com/keshon/gektor/internal/tools/extension"
 	toolhost "github.com/keshon/gektor/internal/tools/host"
 	"github.com/keshon/gektor/internal/workspace"
@@ -83,5 +84,32 @@ func TestSystemInfoReportsRestoredBrowserCatalogWithoutConnection(t *testing.T) 
 	output, err := (toolhost.Tool{WS: ws, Capabilities: restored}).Run(t.Context(), json.RawMessage(`{"group":"browser"}`))
 	if err != nil || !strings.Contains(output, "mcp__browser__browser_navigate") || !strings.Contains(output, "first use verifies connection") || loads != 1 {
 		t.Fatal(output, err, loads)
+	}
+}
+
+func TestProfileSwitchInvalidatesSharedSource(t *testing.T) {
+	connects, actions := 0, 0
+	b := fakeBrowser(&connects, &actions)
+	b.Channel = "chrome"
+	defer b.Close()
+	source := b.Capability()
+	if source != b.Capability() {
+		t.Fatal("browser created multiple sources")
+	}
+	catalog := &toolextension.Capabilities{Registry: agent.NewRegistry(), Sources: []*toolextension.Capability{source}}
+	if _, err := catalog.Enable(t.Context(), "browser", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.SelectProfile(&conversation.BrowserProfile{Channel: "chrome", Profile: "other"}); err != nil {
+		t.Fatal(err)
+	}
+	if state, _, _ := source.ConnectionStatus(); state != "disconnected" {
+		t.Fatal("profile left stale catalog", state)
+	}
+	if _, err := catalog.Registry.Run(t.Context(), "mcp__browser__browser_navigate", json.RawMessage(`{"url":"http://localhost"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if connects != 2 || actions != 1 {
+		t.Fatal("profile reused old adapter", connects, actions)
 	}
 }

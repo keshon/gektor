@@ -30,12 +30,17 @@ to preferences.
 
 ## Tools and Media preferences
 
-Open **Settings > Tools…** from Agent or Workflows, or type `/tools` in Agent.
-The searchable list shows built-in toolsets and configured extensions. Open a
-row for Agent operations, matching workflow nodes, configuration source and Agent
-exposure. Inspection does not activate toolsets, connect extensions or run checks.
+Open **Run > Tools…** from Agent or Workflows, or type `/tools` in Agent.
+Tools lists toolsets in a stable task order. Loading shows the default policy;
+Status shows the current conversation. Load/Unload changes only that conversation.
+Always-loaded toolsets cannot be unloaded. Unloading MCP tools keeps the server
+connected. Details lists operations; Settings opens SSH or Media preferences.
+Without an attached idle Agent conversation, session actions are disabled.
 
-Open **Media** to inspect yt-dlp, FFmpeg, ffprobe, Deno and Node preferences.
+The searchable list shows built-in toolsets and configured extensions. Open a
+row for Agent operations, matching workflow nodes, configuration source and loading policy. Inspection does not activate toolsets, connect extensions or run checks.
+
+Select **Media**, then **Settings**, to inspect yt-dlp, FFmpeg, ffprobe, Deno and Node preferences.
 **Operations** lists the supported Agent tools and workflow nodes. **Preferences**
 edits the selected executable: leave its path blank to use PATH, select an
 absolute executable path to override it, or mark it Disabled. Cancel discards the
@@ -141,7 +146,7 @@ and quits the application. A checkmark shows the active mode.
 | Node | | Add, edit, connect and delete nodes; add schedule triggers |
 | Run | Plan or Act; Ask permission or Full access; Live steering, message queue and background processes; permissions, MCP, stop and retry | Validate, run and stop; Ask permission or Full access; inspect run history and set up schedules |
 | View | Show transcript details and jump to the latest message | Show the inspector and arrange the canvas |
-| Settings | Appearance, Tools, model connection, response settings, launch profiles, identity and persona, agent instructions | The same shared settings |
+| Settings | Appearance, model connection, response settings, launch profiles, identity and persona, agent instructions | The same shared settings |
 | Help | Keyboard shortcuts, commands, agent instruction preview and About | Keyboard shortcuts for Workflows and About |
 
 At narrow widths, More opens the menus that do not fit on the top row.
@@ -216,3 +221,5 @@ Type `/` for local commands.
 Unknown commands show an error; they are not sent as model requests.
 Ctrl+Q stops an active run first; press again after stopping to quit.
 Ctrl+C aborts and quits immediately.
+
+Tools can also be loaded or unloaded before the first message. These choices stay with the new task draft and are saved when the conversation starts. Existing conversations keep their own selections.

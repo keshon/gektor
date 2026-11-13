@@ -510,3 +510,35 @@ the isolated masked prompt on Save; existing ones have keep/change states.
 Port, trusted hosts and environment sources live under Advanced. Shared saved
 credentials are selected by connection name rather than raw ID. Hidden fields
 retain their draft values; changing presentation does not change authentication.
+
+
+## Conversation tool controls (2026-11-13)
+
+Approved follow-up: move Tools to Run beside MCP servers. Use Toolset, Source,
+Loading and Status; provide Load/Unload, Details and feature settings. Preserve
+one stable task order and alphabetize remaining integrations. Always-loaded
+packages cannot be unloaded. Without an attached idle Agent conversation, session
+controls are disabled; workflow configuration remains separate.
+
+The capability catalog owns loading and unloading. Save an explicit unloaded
+selection in conversation capability metadata so on-load defaults do not undo it
+on the next turn. Unload removes registry definitions and active instructions,
+retains the immutable archive and does not close shared MCP connections. Existing
+role composition supplies native bindings and source adapters to manual loading;
+no model request or tool action is executed. The Agent screen owns selecting and
+saving its conversation; the parent Tools view routes user intent and displays
+status. Load runs as bounded background work and prevents concurrent turns.
+
+Verify loaded/unloaded state across resume, explicit reload, on-load suppression,
+MCP connection retention, Always guards, role/policy enforcement, no-session
+controls, stable ordering and narrow/wide terminal layouts.
+
+
+Implemented locally: Tools now lives under Run, with stable task ordering,
+Loading/Status columns, explicit Load/Unload, Details and feature Settings.
+Conversation metadata preserves unloaded selections across resume; shared MCP
+connections remain open. Filters, selection, history and unsent drafts survive
+changes. Source-tree race tests, vet, 45 dry eval probes and theme/size layout
+checks passed. Rendered wide and narrow inventory captures were inspected.
+
+Pre-session selections use the existing in-memory draft and the same capability metadata. The first message saves them into the initial conversation snapshot before constructing its session. Background loading returns metadata to the UI loop; it never mutates the draft from a worker.

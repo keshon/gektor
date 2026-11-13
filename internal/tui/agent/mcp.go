@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/mcpmanager"
 	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/components/table"
@@ -47,8 +48,8 @@ func (m *Model) openMCP() {
 		if server.Enabled {
 			state = "On demand"
 		}
-		if server.Enabled && server.Startup {
-			state = "At startup"
+		if server.Enabled && server.OnLoad {
+			state = "On load"
 		}
 		if server.Connected {
 			state = "Connected"
@@ -59,12 +60,16 @@ func (m *Model) openMCP() {
 		if server.Error != "" {
 			state = "Failed"
 		}
-		rows = append(rows, table.Row{ID: server.ID, Cells: []string{server.ID, state, fmt.Sprint(server.Tools), server.Description}})
+		origin := "User-added"
+		if server.Bundled {
+			origin = "Bundled"
+		}
+		rows = append(rows, table.Row{ID: server.ID, Cells: []string{server.ID, state, origin, fmt.Sprint(server.Tools), server.Description}})
 	}
 	view.SetRows(rows)
 	m.chrome.Open("MCP servers", nil)
 	d := &screen.TableState{Model: view,
-		Columns:     []table.Column{{Label: "Server", Width: 14}, {Label: "Status", Width: 15}, {Label: "Tools", Width: 5, HideNarrow: true}, {Label: "Description", HideNarrow: true}},
+		Columns:     []table.Column{{Label: "Server", Width: 14}, {Label: "Status", Width: 15}, {Label: "Origin", Width: 10, HideNarrow: true}, {Label: "Tools", Width: 5, HideNarrow: true}, {Label: "Description", HideNarrow: true}},
 		Description: "More: Add, Paste JSON, Import file, Enable/Disable, Delete.",
 	}
 
@@ -102,14 +107,41 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 				return nil
 			}
 		}
+		for _, status := range m.mcp.List() {
+			if status.ID == s.ID && status.Bundled {
+				enabled, loading := "off", "on demand"
+				if s.Enabled {
+					enabled = "on"
+				}
+				if s.OnLoad {
+					loading = "on load"
+				}
+				m.openForm(screen.Form{
+					Title:      "MCP / " + s.ID,
+					Hint:       "Bundled integration. Changes apply to this launch; browser flags select its profile and channel.",
+					ApplyLabel: "Apply",
+					Fields: []form.Field{
+						{Key: "enabled", Label: "Enabled", Value: enabled},
+						{Key: "loading", Label: "Loading", Value: loading},
+					},
+				}, func(v map[string]string) error {
+					s.Enabled = v["enabled"] == "on"
+					s.OnLoad = v["loading"] == "on load"
+					return m.mcp.Configure(s)
+				})
+				m.chrome.Dialog.Form.Choices = map[string][]string{"enabled": {"on", "off"}, "loading": {"on demand", "on load"}}
+				m.rememberReturn(dialogReturn{mcp: true, id: s.ID})
+				return nil
+			}
+		}
 		command, _ := json.Marshal(s.Command)
 		refs, _ := json.Marshal(s.EnvRefs)
 		enabled, loading := "on", "on demand"
 		if !s.Enabled {
 			enabled = "off"
 		}
-		if s.Startup {
-			loading = "at startup"
+		if s.OnLoad {
+			loading = "on load"
 		}
 		m.openForm(screen.Form{
 			Title:      "MCP / " + a.action,
@@ -140,7 +172,7 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 			next.Description = v["description"]
 			next.URL = v["url"]
 			next.Enabled = v["enabled"] == "on"
-			next.Startup = v["loading"] == "at startup"
+			next.OnLoad = v["loading"] == "on load"
 			if json.Unmarshal([]byte(v["command"]), &next.Command) != nil {
 				return fmt.Errorf("command must be a JSON array")
 			}
@@ -157,7 +189,7 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 			}
 			return nil
 		})
-		m.chrome.Dialog.Form.Choices = map[string][]string{"enabled": {"on", "off"}, "loading": {"on demand", "at startup"}}
+		m.chrome.Dialog.Form.Choices = map[string][]string{"enabled": {"on", "off"}, "loading": {"on demand", "on load"}}
 	case "import", "import-json":
 		title := "Import MCP file"
 		hint := "Select a JSON file containing mcpServers. Credentials are stored separately."
@@ -213,7 +245,7 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 			return nil
 		}
 		s.Enabled = a.action == "enable"
-		if e = m.mcp.Save(s); e != nil {
+		if e = m.mcp.Configure(s); e != nil {
 			fail(e)
 		} else {
 			m.openMCP()
@@ -235,7 +267,7 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 		m.chrome.Open("MCP / "+a.id, []string{"Connecting and discovering tools…"})
 		manager, base, id := m.mcp, m.base, a.id
 		return func() tea.Msg {
-			ctx, cancel := context.WithTimeout(base, 20*time.Second)
+			ctx, cancel := context.WithTimeout(base, 4*time.Minute)
 			defer cancel()
 			n, e := manager.Connect(ctx, id)
 			return mcpDoneMsg{id, n, e}
@@ -245,6 +277,27 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 			if s.ID == a.id {
 				lines := []string{"Server: " + s.ID, "Description: " + s.Description, "Connection: " + s.State,
 					fmt.Sprintf("Enabled: %t", s.Enabled), fmt.Sprintf("Tools: %d", s.Tools)}
+				origin, loading := "User-added", "On demand"
+				if s.Bundled {
+					origin = "Bundled"
+				}
+				if s.OnLoad {
+					loading = "On load"
+				}
+				activation := "No conversation attached"
+				snapshot, loadErr := conversation.Load(m.stateFile)
+				if loadErr == nil {
+					activation = "Not loaded in saved conversation"
+					for _, capability := range snapshot.Capabilities {
+						if capability.ID == s.ID && !capability.Unloaded {
+							activation = "Loaded in saved conversation"
+						}
+					}
+				}
+				lines = append(lines, "Origin: "+origin, "Loading: "+loading, "Tool status: "+activation)
+				if s.Bundled {
+					lines = append(lines, "Configuration: launch browser flags; connection and loading changes apply to this launch")
+				}
 				if s.URL != "" {
 					lines = append(lines, "Endpoint: "+s.URL)
 				}
@@ -288,7 +341,7 @@ func (m *Model) mcpActions(view *table.Model, statuses map[string]mcpmanager.Sta
 		{ID: connection, Label: label, Key: "c", Enabled: exists && idle && (status.Enabled || status.Connected)},
 		{ID: "edit", Label: "Edit", Key: "e", Enabled: exists && idle},
 		{ID: toggle, Label: toggleLabel, Key: "t", Enabled: exists && idle, Overflow: true},
-		{ID: "delete", Label: "Delete", Key: "delete", Enabled: exists && idle, Destructive: true, Overflow: true},
+		{ID: "delete", Label: "Delete", Key: "delete", Enabled: exists && idle && !status.Bundled, Destructive: true, Overflow: true},
 		{ID: "add", Label: "Add", Key: "a", Enabled: idle, Overflow: true},
 		{ID: "import-json", Label: "Paste JSON", Key: "p", Enabled: idle, Overflow: true},
 		{ID: "import", Label: "Import file", Key: "i", Enabled: idle, Overflow: true},

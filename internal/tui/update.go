@@ -15,6 +15,8 @@ import (
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch value := msg.(type) {
+	case toolsetChanged:
+		m.acceptToolsetChange(value)
 	case toolsui.SSHCheckResult:
 		if m.tools.AcceptSSH(value) && m.toolsDialog != nil && m.toolsPage == toolSSH {
 			m.chrome.PresentDialog(value.Dialog())
@@ -82,6 +84,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmd, tea.Batch(requests...), m.takeCommands())
 }
 func (m *Model) handleKey(msg tea.KeyPressMsg) (next tea.Model, cmd tea.Cmd) {
+	if m.toolLoadCancel != nil {
+		if msg.String() == "esc" {
+			m.toolLoadCancel()
+		}
+		if msg.String() == "ctrl+c" {
+			m.quit = true
+			m.Close()
+			return m, tea.Quit
+		}
+		return m, nil
+	}
 	defer func() { cmd = tea.Batch(cmd, tea.Batch(m.settleControls()...)) }()
 	switch msg.String() {
 	case "ctrl+c":
@@ -124,6 +137,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (next tea.Model, cmd tea.Cmd) {
 	return m, cmd
 }
 func (m *Model) handleMouse(msg tea.MouseMsg) (next tea.Model, cmd tea.Cmd) {
+	if m.toolLoadCancel != nil {
+		return m, nil
+	}
 	defer func() { cmd = tea.Batch(cmd, tea.Batch(m.settleControls()...)) }()
 	if m.chrome.Dialog != nil && !m.agent.Status().Gated {
 		mouse := msg.Mouse()
@@ -155,6 +171,9 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (next tea.Model, cmd tea.Cmd) {
 	return m, cmd
 }
 func (m *Model) runAction(command string) tea.Cmd {
+	if m.toolLoadCancel != nil {
+		return nil
+	}
 	if command == "tools" || command == "/tools" {
 		m.chrome.CloseHeader()
 		m.openTools()

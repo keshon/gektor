@@ -44,6 +44,7 @@ func TestStartupContextMatchesRequest(t *testing.T) {
 func TestBrowserEnabledStartupStaysWithinPromptBudget(t *testing.T) {
 	e := testEnv(t)
 	e.Browser = &toolbrowser.Browser{Channel: "chrome", Dir: e.WS.Root()}
+	e.Capabilities = append(e.Capabilities, e.Browser.Capability())
 	a, aErr := Interactive(e, "", "", func(context.Context, string) (string, error) { return "", nil }, nil)
 	if aErr != nil {
 		t.Fatal(aErr)

@@ -13,6 +13,7 @@ func (m *Model) syncPresentation() {
 	if m.workflows != nil {
 		m.workflows.SetSurface(m.workflowSurface())
 	}
+	m.syncToolActions()
 	var props screen.ControlProps
 	if m.workflowActive() {
 		props = m.workflows.Presentation()
@@ -37,7 +38,7 @@ func (m *Model) syncPresentation() {
 	}
 }
 func (m *Model) menus(localMenus []screen.Menu) []screen.Menu {
-	idle := m.agent.Status().Idle && (m.workflows == nil || !m.workflows.State().Busy)
+	idle := m.toolsIdle()
 	app := screen.Menu{ID: "app", Label: "GEKTOR", Items: []screen.MenuItem{
 		{Text: "Agent", Command: "screen:agent", Enabled: idle, Checked: !m.workflowActive()},
 		{Text: "Workflows", Command: "screen:workflows", Enabled: idle, Checked: m.workflowActive()}, {},
@@ -45,7 +46,21 @@ func (m *Model) menus(localMenus []screen.Menu) []screen.Menu {
 		{Text: "Quit", Command: "quit", Enabled: true, Shortcut: "Ctrl+Q"},
 	}}
 	groups := []screen.Menu{app}
-	groups = append(groups, localMenus...)
+	for _, menu := range localMenus {
+		if menu.Label == "Run" {
+			at := len(menu.Items)
+			for i, item := range menu.Items {
+				if item.Command == "/mcp" {
+					at = i
+					break
+				}
+			}
+			items := append([]screen.MenuItem(nil), menu.Items[:at]...)
+			items = append(items, screen.MenuItem{Text: "Tools…", Command: "tools", Enabled: idle})
+			menu.Items = append(items, menu.Items[at:]...)
+		}
+		groups = append(groups, menu)
+	}
 	return append(groups, m.applicationMenus(idle)...)
 }
 func (m *Model) workflowSurface() screen.Surface {

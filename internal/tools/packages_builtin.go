@@ -199,9 +199,6 @@ func hostTool(d Dependencies) toolhost.Tool {
 		if discovery, ok := tool.(toolextension.DiscoverCapabilities); ok && discovery.Catalog != nil {
 			info.Capabilities = discovery.Catalog
 		}
-		if browser, ok := tool.(*toolbrowser.EnableBrowser); ok && browser != nil {
-			info.Browser = browser
-		}
 	}
 
 	return info

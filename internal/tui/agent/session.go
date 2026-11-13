@@ -431,6 +431,15 @@ func (m *Model) startFreshPrompt(task, display string, images []string) error {
 	sum := sha1.Sum([]byte(task + time.Now().String()))
 	taskDir := m.taskDirectory(hex.EncodeToString(sum[:])[:8])
 	stateFile := filepath.Join(taskDir, "state.json")
+	if m.stateFile == "" && len(m.drafts[""].tools.Capabilities) > 0 {
+		snapshot := conversation.New(nil)
+		snapshot.Capabilities = m.drafts[""].tools.Capabilities
+		snapshot.Browser = m.drafts[""].tools.Browser
+		err := snapshot.Save(stateFile)
+		if err != nil {
+			return err
+		}
+	}
 	sess, err := m.newSession(task, stateFile, images)
 	if err != nil {
 		return err

@@ -23,13 +23,11 @@ import (
 type catalog interface {
 	Save() []conversation.Capability
 }
-type browser interface{ Names() []string }
 
 type Tool struct {
 	Capabilities catalog
 	WS           *workspace.Workspace
 	BrowserTools []string
-	Browser      browser
 }
 
 func (Tool) Name() string         { return "system_info" }
@@ -156,22 +154,20 @@ func (t Tool) browserInfo(ctx context.Context) map[string]any {
 	executables, warnings, _ := pathTools(ctx, t.WS.Root(), "playwright")
 	status := "not connected: no browser MCP tools discovered; do not assume npx means Playwright is installed"
 	names := t.BrowserTools
-	setup := "Restart GEKTOR with -browser chrome or -browser msedge; see docs/browser.md. Do not improvise browser shell commands when MCP is unavailable."
+	setup := "Discover the browser capability and enable it through enable_capability; see docs/guide/browser.md. Do not improvise browser shell commands when MCP is unavailable."
 	if t.Capabilities != nil {
 		status = "no active browser tools; discover_capabilities can check whether a browser integration is configured"
-		setup = "Discover and enable a configured browser capability, or restart with -browser chrome/-browser msedge."
+		setup = "Discover and enable a configured browser capability; check MCP management if it is disabled."
 		for _, state := range t.Capabilities.Save() {
+			if state.Unloaded {
+				continue
+			}
 			for _, def := range state.Tools {
 				if strings.HasPrefix(def.Name, "mcp__") && strings.Contains(def.Name, "__browser_") {
 					names = append(names, def.Name)
 				}
 			}
 		}
-	}
-	if t.Browser != nil {
-		names = t.Browser.Names()
-		status = "available on request: call enable_browser to check prerequisites and connect MCP"
-		setup = "Call enable_browser; it reports missing prerequisites and prepares the pinned MCP package if needed."
 	}
 	if len(names) > 0 {
 		status = "browser tools available for this session; first use verifies connection and browser launch"

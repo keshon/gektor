@@ -81,7 +81,7 @@ With the default Auto backend, YouTube tries the built-in downloader first,
 then retries source failures with an installed yt-dlp. Other supported sites
 use yt-dlp directly. Local conversion
 uses FFmpeg, and inspection uses ffprobe. Configure or check these applications
-in **Settings > Tools… > Media**. Native YouTube listing and source-stream downloads
+in **Run > Tools… > Media**. Native YouTube listing and source-stream downloads
 can run without them, but conversion and fallback need their respective programs.
 
 Titles and uploader names are source metadata; they do not establish official

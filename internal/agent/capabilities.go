@@ -14,6 +14,17 @@ func (a *Agent) withCapabilityInstructions(history []llm.Message) []llm.Message 
 		return history
 	}
 	for _, state := range a.cfg.Catalog.Save() {
+		if state.Unloaded {
+			projected := append([]llm.Message(nil), history...)
+			marker := "capability_catalog:" + state.Fingerprint
+			for i, message := range projected {
+				if message.Harness == marker {
+					projected[i].Content = "Toolset " + state.ID + " is not loaded in this conversation."
+				}
+			}
+			history = projected
+			continue
+		}
 		if strings.TrimSpace(state.Instructions) == "" || strings.Contains(a.cfg.System, state.Instructions) {
 			continue
 		}

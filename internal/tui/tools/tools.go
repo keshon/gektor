@@ -109,17 +109,17 @@ func newTable(rows []table.Row) *table.Model {
 func Inventory(sets []app.Toolset) screen.Dialog {
 	rows := make([]table.Row, 0, len(sets))
 	for _, set := range sets {
-		rows = append(rows, table.Row{ID: set.ID, Cells: []string{clean(set.Name), set.Group, set.Exposure}})
+		rows = append(rows, table.Row{ID: set.ID, Cells: []string{clean(set.Name), set.Group, set.Loading, set.Status}})
 	}
 	return screen.Dialog{Title: "Tools", Table: &screen.Table{
-		Model: newTable(rows), Columns: []table.Column{{Label: "Toolset", Width: 20}, {Label: "Source", Width: 12, HideNarrow: true}, {Label: "Agent exposure"}},
-		Description: "Toolsets available to Agent and Workflows. Details show operation support. Media contains executable preferences; opening Tools does not activate or connect anything.",
-		Actions:     []table.Action{{ID: "details", Label: "Open", Key: "enter", Enabled: true}},
+		Model: newTable(rows), Columns: []table.Column{{Label: "Toolset", Width: 18}, {Label: "Source", Width: 12, HideNarrow: true}, {Label: "Loading", Width: 12, HideNarrow: true}, {Label: "Status", Width: 12}},
+		Description: "Choose which tools this conversation can use.",
+		Actions:     []table.Action{{ID: "details", Label: "Details", Key: "enter", Enabled: true}},
 	}}
 }
 
 func Details(set app.Toolset) screen.Dialog {
-	lines := []string{clean(set.Description), "", "Source: " + clean(set.Source), "Agent exposure: " + set.Exposure, "Session activation: not attached to this view."}
+	lines := []string{clean(set.Description), "", "Source: " + clean(set.Source), "Loading: " + set.Loading, "Status: " + set.Status}
 	if set.Connection != "" {
 		lines = append(lines, "Connection: "+clean(set.Connection))
 	}

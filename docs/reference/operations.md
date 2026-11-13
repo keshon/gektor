@@ -74,7 +74,7 @@ Existing HTTP credential registration and origin checks are unchanged.
 
 ### Supplying credentials in the CLI and TUI
 
-Use **Settings > Tools > SSH** in Agent or Workflows to add, edit, delete and test
+Use **Run > Tools > SSH** in Agent or Workflows to add, edit, delete and test
 named connections. The ordinary editor saves key paths and credential references. On Windows,
 a separate masked prompt can save passwords and key passphrases with account-bound
 DPAPI encryption; it never writes their values into `ssh.json`. Alternatively, edit `ssh.json` yourself

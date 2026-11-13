@@ -68,7 +68,7 @@ On Windows, `~` means your user folder, usually `C:\Users\<name>`.
 | Workflow records | `~/.gektor/workflows/<workspace-hash>/records/` | Structured data used by record operations |
 | Canvas layouts | `~/.gektor/workflow-layouts/` | Card positions and position locks, separate from recipes |
 
-Manage SSH connections through **Settings > Tools… > SSH**. CLI configuration,
+Manage SSH connections through **Run > Tools… > SSH**. CLI configuration,
 protected credential entry and environment references are described in
 [password and key setup](operations.md#supplying-credentials-in-the-cli-and-tui).
 The environment must belong to the process doing the work, including a separate

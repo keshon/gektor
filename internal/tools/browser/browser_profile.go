@@ -75,9 +75,11 @@ func (b *Browser) SelectProfile(saved *conversation.BrowserProfile) error {
 	}
 	ref.Profile = strings.ToLower(ref.Profile)
 	current := b.referenceLocked()
-	if *current != ref {
-		b.closeLocked()
-	}
 	b.selected = &ref
+	if *current != ref {
+		b.mu.Unlock()
+		b.Capability().Disconnect()
+		b.mu.Lock()
+	}
 	return nil
 }

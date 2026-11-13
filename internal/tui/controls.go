@@ -62,7 +62,6 @@ func (m *Model) applicationMenus(idle bool) []screen.Menu {
 	}
 	menu := screen.Menu{ID: "settings", Label: "Settings", Items: []screen.MenuItem{
 		{Text: "Appearance…", Command: "appearance", Enabled: true},
-		{Text: "Tools…", Command: "tools", Enabled: idle},
 		{},
 		section("model"), section("generation"), section("profiles"),
 		{},

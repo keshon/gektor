@@ -39,7 +39,7 @@ func TestBrowserPackagePreparation(t *testing.T) {
 			if (err == nil) != (mode == "cached" || mode == "missing") {
 				t.Fatal(err)
 			}
-			if mode == "failed" && (!strings.Contains(err.Error(), "npm network unavailable") || !strings.Contains(err.Error(), "-browser=")) {
+			if mode == "failed" && (!strings.Contains(err.Error(), "npm network unavailable") || !strings.Contains(err.Error(), "MCP management")) {
 				t.Fatal(err)
 			}
 			if len(notes) == 0 {
@@ -52,7 +52,7 @@ func TestBrowserPackagePreparation(t *testing.T) {
 func TestMissingNodeHasActionableBrowserError(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	err := PrepareBrowser(t.Context(), "chrome", t.TempDir(), nil)
-	if err == nil || !strings.Contains(err.Error(), "Node.js") || !strings.Contains(err.Error(), "reopen") || !strings.Contains(err.Error(), "-browser=") {
+	if err == nil || !strings.Contains(err.Error(), "Node.js") || !strings.Contains(err.Error(), "reopen") {
 		t.Fatal(err)
 	}
 }

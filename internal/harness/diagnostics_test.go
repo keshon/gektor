@@ -55,7 +55,7 @@ func TestDiagnosticsPersistsBoundariesWithoutContent(t *testing.T) {
 	s := &Session{cfg: Config{StateFile: filepath.Join(dir, "state.json"), Events: eventVisitor(func(events.Event) { seen++ })}}
 	log := s.diagnostics()
 	s.cfg.Events.Handle(events.Event{Name: "progress", Fields: map[string]any{"phase": "waiting", "subphase": "headers", "request": 2, "detail": "SECRET"}})
-	s.cfg.Events.Handle(events.Event{Name: "step", Fields: map[string]any{"text": "SECRET", "tool_calls": []any{map[string]any{"id": "call1", "name": "enable_browser", "args": "SECRET"}}}})
+	s.cfg.Events.Handle(events.Event{Name: "step", Fields: map[string]any{"text": "SECRET", "tool_calls": []any{map[string]any{"id": "call1", "name": "enable_capability", "args": "SECRET"}}}})
 	s.cfg.Events.Handle(events.Event{Name: "tool_result", Fields: map[string]any{"call_id": "call1", "failed": false, "text": "SECRET"}})
 	log.Close()
 	raw, err := os.ReadFile(filepath.Join(dir, "diagnostics.jsonl"))
@@ -66,7 +66,7 @@ func TestDiagnosticsPersistsBoundariesWithoutContent(t *testing.T) {
 	if strings.Contains(text, "SECRET") || seen != 3 {
 		t.Fatal(text, seen)
 	}
-	for _, want := range []string{"run_start", "run_end", "elapsed_ms", "headers", "enable_browser", "call1", "failed"} {
+	for _, want := range []string{"run_start", "run_end", "elapsed_ms", "headers", "enable_capability", "call1", "failed"} {
 		if !strings.Contains(text, want) {
 			t.Fatal("missing", want, text)
 		}

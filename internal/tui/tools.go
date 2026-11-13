@@ -1,15 +1,21 @@
 package tui
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/capabilities/ssh"
+	"github.com/keshon/gektor/internal/conversation"
 	toolcatalog "github.com/keshon/gektor/internal/tools"
 	"github.com/keshon/gektor/internal/tools/extension"
 	"github.com/keshon/gektor/internal/tui/components/form"
+	"github.com/keshon/gektor/internal/tui/components/table"
 	"github.com/keshon/gektor/internal/tui/screen"
 	toolsui "github.com/keshon/gektor/internal/tui/tools"
 )
@@ -29,7 +35,7 @@ const (
 )
 
 func (m *Model) toolsIdle() bool {
-	return m.agent.Status().Idle && (m.workflows == nil || !m.workflows.State().Busy)
+	return m.toolLoadCancel == nil && m.agent.Status().Idle && (m.workflows == nil || !m.workflows.State().Busy)
 }
 
 func (m *Model) openTools() {
@@ -41,25 +47,53 @@ func (m *Model) openTools() {
 		sources = append(sources, m.launch.Env.CapabilitySources()...)
 	}
 	sources = toolcatalog.WithBuiltinCapabilities(sources)
-	if m.launch.Env.Browser != nil {
-		sources = append(sources, m.launch.Env.Browser.Capability())
-	}
 	sets, err := app.Toolsets(toolcatalog.Packages(), sources, m.launch.Env.NativeExposure, m.launch.Env.MCPTools)
 	if err != nil {
 		m.chrome.PresentDialog(screen.Dialog{Title: "Tools", Lines: []string{err.Error()}})
 		return
 	}
+	states, attached, stateErr := m.agent.ToolsetState()
+	if stateErr != nil {
+		m.chrome.PresentDialog(screen.Dialog{Title: "Tools", Lines: []string{stateErr.Error()}})
+		return
+	}
+	m.toolSessionAttached = attached && !m.workflowActive()
+	for i := range sets {
+		sets[i].Status = "No session"
+		if !m.toolSessionAttached {
+			continue
+		}
+		sets[i].Status = "Not loaded"
+		if strings.HasPrefix(sets[i].Connection, "failed") {
+			sets[i].Status = "Unavailable"
+		}
+		if sets[i].Loading == "Always" {
+			sets[i].Status = "Loaded"
+		}
+		for _, state := range states {
+			id := strings.TrimPrefix(sets[i].ID, "source:")
+			if state.ID == id && !state.Unloaded {
+				sets[i].Status = "Loaded"
+				if len(sets[i].Agent) == 0 {
+					for _, tool := range state.Tools {
+						sets[i].Agent = append(sets[i].Agent, tool.Name)
+					}
+				}
+			}
+		}
+	}
 	m.toolsets = sets
 	view := toolsui.Inventory(sets)
-	for i, row := range view.Table.Model.Rows {
-		if row.ID == m.toolSelection {
-			view.Table.Model.Cursor = i
-			break
-		}
+	if m.toolsTable != nil {
+		m.toolsTable.SetRows(view.Table.Model.Rows)
+		view.Table.Model = m.toolsTable
+	} else {
+		m.toolsTable = view.Table.Model
 	}
 	m.chrome.PresentDialog(view)
 	m.toolsDialog = m.chrome.Dialog
 	m.toolsPage = toolList
+	m.syncToolActions()
 }
 
 func (m *Model) openMediaTools() {
@@ -115,10 +149,40 @@ func (m *Model) toolAction(event screen.Event) tea.Cmd {
 		}
 		return nil
 	}
-	m.toolSelection = event.Row
 	for _, set := range m.toolsets {
 		if set.ID != event.Row {
 			continue
+		}
+		if event.Action == "load" || event.Action == "unload" {
+			if !m.toolsIdle() || !m.toolSessionAttached || set.Loading == "Always" {
+				return nil
+			}
+			change, err := m.agent.ToolsetChange(strings.TrimPrefix(set.ID, "source:"), event.Action == "load")
+			if err != nil {
+				m.chrome.PresentDialog(screen.Dialog{Title: "Tools", Lines: []string{err.Error()}})
+				return nil
+			}
+			ctx, cancel := context.WithTimeout(m.base, 4*time.Minute)
+			m.toolLoadCancel = cancel
+			m.toolLoadDone = make(chan struct{})
+			done := m.toolLoadDone
+			result := make(chan toolsetChanged, 1)
+			go func() {
+				defer close(done)
+				states, err := change.Apply(ctx)
+				result <- toolsetChanged{states: states, err: err}
+			}()
+			m.chrome.PresentDialog(screen.Dialog{Title: "Tools", Lines: []string{"Updating " + set.Name + "…", "Escape cancels."}})
+			return func() tea.Msg { return <-result }
+		}
+		if event.Action == "details" {
+			m.chrome.PresentDialog(toolsui.Details(set))
+			m.toolsDialog = m.chrome.Dialog
+			m.toolsPage = toolDetails
+			return nil
+		}
+		if event.Action != "settings" {
+			return nil
 		}
 		if set.ID == "native_ssh" {
 			m.openSSHTools()
@@ -302,4 +366,53 @@ func (m *Model) applySSHSecret(dialog *screen.DialogState) {
 	m.modeChange = snapshot
 	m.commands = append(m.commands, tea.Quit)
 	m.chrome.Close()
+}
+
+type toolsetChanged struct {
+	states conversation.Snapshot
+	err    error
+}
+
+func (m *Model) acceptToolsetChange(msg toolsetChanged) {
+	<-m.toolLoadDone
+	m.toolLoadCancel()
+	m.toolLoadCancel, m.toolLoadDone = nil, nil
+	if msg.err != nil && !errors.Is(msg.err, context.Canceled) {
+		m.chrome.PresentDialog(screen.Dialog{Title: "Tools", Lines: []string{msg.err.Error()}})
+		m.toolsDialog = m.chrome.Dialog
+		m.toolsPage = toolDetails
+		return
+	}
+	if msg.err == nil {
+		m.agent.AcceptToolsetState(msg.states)
+	}
+	m.openTools()
+}
+
+func (m *Model) syncToolActions() {
+	if m.toolsDialog == nil || m.chrome.Dialog != m.toolsDialog || m.toolsPage != toolList || m.chrome.Dialog.Table == nil {
+		return
+	}
+	selected := m.chrome.Dialog.Table.Model.Selected()
+	m.chrome.Dialog.Table.Actions = []table.Action{
+		{ID: "details", Label: "Details", Key: "enter", Enabled: false},
+		{ID: "close", Label: "Close", Key: "esc", Enabled: true},
+	}
+	for _, set := range m.toolsets {
+		if set.ID != selected {
+			continue
+		}
+		action, label := "load", "Load"
+		if set.Status == "Loaded" {
+			action, label = "unload", "Unload"
+		}
+		settings := set.ID == "native_media" || set.ID == "native_ssh"
+		m.chrome.Dialog.Table.Actions = []table.Action{
+			{ID: action, Label: label, Key: "l", Enabled: m.toolsIdle() && m.toolSessionAttached && set.Loading != "Always"},
+			{ID: "details", Label: "Details", Key: "enter", Enabled: true},
+			{ID: "settings", Label: "Settings", Key: "s", Enabled: settings && m.toolsIdle()},
+			{ID: "close", Label: "Close", Key: "esc", Enabled: true},
+		}
+		break
+	}
 }

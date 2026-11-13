@@ -109,7 +109,7 @@ func TestBrowserTaskObservationsLive(t *testing.T) {
 			step++
 			switch step {
 			case 1:
-				return call("enable_browser", map[string]any{})
+				return call("enable_capability", map[string]any{"id": "browser"})
 			case 2:
 				t.Logf("activated browser tools=%d; schema estimate=%d tokens; instructions=%d bytes", len(b.tools), llm.EstimatePromptTokens(llm.ChatRequest{Tools: agent.NewRegistry(b.tools...).Defs()}), len(browserInstructions))
 				return call("mcp__browser__browser_navigate", map[string]any{"url": srv.URL + "/article"})
@@ -151,7 +151,7 @@ func TestBrowserTaskObservationsLive(t *testing.T) {
 				step++
 				switch step {
 				case 1:
-					return call("enable_browser", map[string]any{})
+					return call("enable_capability", map[string]any{"id": "browser"})
 				case 2, 7:
 					return call("mcp__browser__browser_navigate", map[string]any{"url": srv.URL + path})
 				case 3, 5:
@@ -213,7 +213,7 @@ func TestBrowserTaskObservationsLive(t *testing.T) {
 			step++
 			switch step {
 			case 1:
-				return call("enable_browser", map[string]any{})
+				return call("enable_capability", map[string]any{"id": "browser"})
 			case 2:
 				return call("mcp__browser__browser_navigate", map[string]any{"url": srv.URL + "/account"})
 			case 3:
@@ -238,7 +238,7 @@ func TestBrowserTaskObservationsLive(t *testing.T) {
 			step++
 			switch step {
 			case 1:
-				return call("enable_browser", map[string]any{})
+				return call("enable_capability", map[string]any{"id": "browser"})
 			case 2:
 				return call("mcp__browser__browser_navigate", map[string]any{"url": srv.URL + "/chart"})
 			case 3:

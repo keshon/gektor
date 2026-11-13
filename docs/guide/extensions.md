@@ -11,7 +11,7 @@ Query words match in any order; exact names rank first. Results contain
 `capabilities`, `total`, `more`, and `next_offset` when another page exists. Pass that
 value as `offset`; `limit` defaults to 50 and accepts 1-100.
 
-The state is `configured`, `active`, or `unavailable` for a saved catalog whose
+The state is `configured`, `active`, `failed`, or `unavailable` for a saved catalog whose
 source is missing. Activation does not establish readiness or grant permission.
 Discovery never connects adapters. Native and configured executable tool names
 are searchable immediately; remote MCP names become known after connection.
@@ -27,13 +27,26 @@ In Agent, open **Run > MCP servers…**, or use `/mcp`, to list, add, edit, dele
 enable, and connect servers. The manager uses the same capability catalog as
 file-based extensions. Changes are allowed between agent turns.
 
-Servers are saved under `~/.gektor/mcp/`. Enabled servers are available to the
-agent on demand. **Connect** discovers tools and makes them available on the
-next turn; it does not call those tools. Give imported servers a description
-that names their purpose so the agent can find them before connecting. **At startup** connects at launch.
-**Disconnect** closes the connection; an enabled server can reconnect on demand.
-Disable it to remove it from discovery. Existing session catalogs retain their
-original definitions; changed definitions may require a fresh session.
+User-added servers are saved under `~/.gektor/mcp/`. The list also shows the
+bundled Playwright integration, available on demand by default. Origin is separate
+from loading and connection state. Bundled commands cannot be edited, deleted
+or replaced by import; their availability and loading settings can be changed
+for the current launch. Browser flags select its channel, profile and headless mode.
+
+**On demand** exposes tools only after `enable_capability` activates the server
+in a conversation. **On load** activates tools when a conversation is prepared.
+The saved `on_load` field retains this loading preference. **Connect** checks the
+handshake and discovers tools; it never changes loading or activates a conversation.
+**Disconnect** closes transport but retains activation; the next tool call can
+reconnect. **Disable** removes the server from new discovery and blocks calls
+through already activated tools. Re-enable to permit use again.
+
+Activations belong to each conversation; MCP connections are shared within one
+GEKTOR launch. This does not isolate server-side state between conversations.
+Reopening a saved conversation restores its activated schemas without connecting
+until use. Changed adapter definitions invalidate old wrappers and may require
+a fresh conversation. Give imported servers a description naming their purpose
+so the agent can find them before connecting.
 
 The importer accepts `{"mcpServers": {...}}` objects with `url` and `headers`, or `command`
 and `args`. Import rejects existing IDs unless replacement is explicitly selected.
@@ -80,12 +93,12 @@ CLI management works without an LLM backend:
 the CLI command exits. `save FILE` adds or updates a server definition;
 `import-replace FILE` explicitly replaces matching imported definitions.
 `import -` reads JSON from stdin. A saved definition uses `id`, `description`,
-`url` or a `command` array, `enabled`, optional `startup`, `header_refs`, and
+`url` or a `command` array, `enabled`, optional `on_load`, `header_refs`, and
 `env_refs`. Unknown or conflicting adapter IDs are rejected at launch.
 
 Server failures are visible in Details, including failures from agent-triggered
-activation. Tool calls retain normal permission checks. Startup connection
-failures are reported and leave the server available for a later retry.
+activation. Tool calls retain normal permission checks. On-load connection
+failures remain visible without blocking unrelated tools; retry activation when ready.
 
 
 
@@ -107,8 +120,9 @@ changes the definitions. Inactive packs add no tool schemas to startup.
 
 Executable tools are named `cap__<pack>__<tool>`. MCP tools use
 `mcp__<server>__<tool>`. The existing `-mcp` flag still connects eagerly.
-`-browser` uses the shared capability lifecycle and retains `enable_browser`.
-ID `browser` is reserved while `-browser` is enabled. IDs starting with
+Bundled Playwright is always registered and uses the shared capability lifecycle
+through `enable_capability` with `id=browser`. The optional `-browser` flag selects
+Chrome (the default) or Edge. ID `browser` is reserved for the bundled integration. IDs starting with
 `native_` are reserved for native tool packages. Rename any configured pack
 using that prefix before launching this version.
 
@@ -126,7 +140,7 @@ Built-in `native_images`, `native_files`, `native_documents`, `native_media`, `n
 operations are workflow nodes. Configure named connections in the user's
 `.gektor/ssh.json`; see [SSH operations](../reference/operations.md#ssh-commands-and-file-transfers).
 Credentials stay outside tool arguments and recipes.
-Use **Settings > Tools… > SSH** to add or edit connections, select password or
+Use **Run > Tools… > SSH** to add or edit connections, select password or
 key authentication, and test a saved connection. Windows offers protected
 password/passphrase entry in a separate masked prompt. CLI profiles and
 environment-variable setup are described in
@@ -148,7 +162,7 @@ downloads, plus local media inspection, conversion, clips, frames and merging.
 With `backend=auto`, YouTube tries kkdai first and retries source failures with
 yt-dlp; other sites use yt-dlp directly. Explicit backend selection disables
 fallback. FFmpeg handles conversion and merging; ffprobe inspects local files.
-Use **Settings > Tools… > Media** in either terminal mode to edit executable
+Use **Run > Tools… > Media** in either terminal mode to edit executable
 paths or explicitly check their versions. `media_status` reports local
 requirements during operation preparation. See
 [video and audio](../reference/operations.md#video-and-audio) for arguments,

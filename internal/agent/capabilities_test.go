@@ -213,3 +213,13 @@ func TestDirectOptionalSchemaAndAdmission(t *testing.T) {
 		})
 	}
 }
+
+func TestUnloadedInstructionsAreRemovedFromProjectionOnly(t *testing.T) {
+	state := conversation.Capability{ID: "fixture", Fingerprint: "catalog", Instructions: "Private operational instructions", Unloaded: true}
+	a := New(Config{Tools: NewRegistry(), Catalog: &savedCatalog{states: []conversation.Capability{state}}})
+	history := []llm.Message{{Role: llm.RoleTool, Harness: "capability_catalog:catalog", Content: "Private operational instructions"}}
+	projected := a.withCapabilityInstructions(history)
+	if projected[0].Content == history[0].Content || history[0].Content != "Private operational instructions" {
+		t.Fatal("unload retained active instructions or mutated the archive")
+	}
+}

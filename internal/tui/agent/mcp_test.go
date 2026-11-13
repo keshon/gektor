@@ -10,6 +10,7 @@ import (
 
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/mcpmanager"
+	"github.com/keshon/gektor/internal/tools/extension"
 )
 
 func TestMCPManagementUsesSharedFormsAndGuardsRunningTurns(t *testing.T) {
@@ -207,5 +208,49 @@ func TestMCPTableKeepsSelectionAndGuardsDirectActions(t *testing.T) {
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if _, err := manager.Get("reference"); err != nil {
 		t.Fatal("Cancel deleted the server")
+	}
+}
+
+func TestBundledMCPUsesSharedSettingsWithoutRawCommand(t *testing.T) {
+	m := sizeModelTo(t, testModel(), 100, 34)
+	root := t.TempDir()
+	manager, err := mcpmanager.New(filepath.Join(root, "mcp"), root, filepath.Join(root, "credentials"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Close()
+	source := &extension.Capability{ID: "browser", Description: "Playwright browser"}
+	if err = manager.RegisterBundled(source); err != nil {
+		t.Fatal(err)
+	}
+	m.mcp, m.state = manager, stDone
+	m.openMCP()
+	row := m.chrome.Dialog.Table.Model.Rows[0]
+	if row.Cells[2] != "Bundled" {
+		t.Fatal("bundled origin missing", row)
+	}
+	for _, action := range m.chrome.Dialog.Table.Actions {
+		if action.ID == "delete" && action.Enabled {
+			t.Fatal("bundle can be deleted")
+		}
+	}
+	m.handleMCPAction(mcpActionMsg{"edit", "browser"})
+	if m.chrome.Dialog.Form == nil || len(m.chrome.Dialog.Form.Fields) != 2 {
+		t.Fatal("bundle opened generic command editor")
+	}
+	if err = m.applySubmission(m.chrome.Dialog, map[string]string{"enabled": "on", "loading": "on load"}); err != nil {
+		t.Fatal(err)
+	}
+	if !source.Eager || manager.List()[0].Connected {
+		t.Fatal("settings failed or connected implicitly")
+	}
+	m.handleMCPAction(mcpActionMsg{"disable", "browser"})
+	if manager.List()[0].Enabled {
+		t.Fatal("bundle cannot be disabled")
+	}
+	m.handleMCPAction(mcpActionMsg{"details", "browser"})
+	text := strings.Join(m.chrome.Dialog.Lines, "\n")
+	if !strings.Contains(text, "Origin: Bundled") || !strings.Contains(text, "Loading: On load") {
+		t.Fatal(text)
 	}
 }

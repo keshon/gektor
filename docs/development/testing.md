@@ -21,7 +21,7 @@ protection. Native console decoding tests live beside the terminal runtime in
 
 ## Browser integration checks
 
-`GEKTOR_BROWSER_SMOKE=1 go test ./internal/tools -run
+`GEKTOR_BROWSER_SMOKE=1 go test ./internal/tools/browser -run
 TestBrowserMCPIntegration -v` runs an opt-in test against a local fixture:
 navigation, button click, result assertion, console, screenshot and cleanup.
 The test also measures mobile overflow, deliberately introduces overflow to
@@ -30,7 +30,7 @@ Set that environment variable using your shell's syntax.
 Add `GEKTOR_BROWSER_COLD=1` to use a fresh temporary npm cache and verify
 first-use download and browser checks together; this requires internet.
 
-`GEKTOR_BROWSER_SMOKE=1 go test ./internal/tools -run
+`GEKTOR_BROWSER_SMOKE=1 go test ./internal/tools/browser -run
 TestBrowserTaskObservationsLive -v` exercises article paging, live form controls,
 successful and deliberately dropped saves, simulated operator login handoff,
 and screenshot delivery through the agent loop. These use real Chrome with a

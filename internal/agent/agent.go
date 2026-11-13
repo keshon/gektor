@@ -176,7 +176,13 @@ func (a *Agent) Run(ctx context.Context, task string, images ...string) (string,
 			Images:  images,
 		},
 	}
-	a.snapshot, a.checkpointLen = conversation.New(history), len(history)
+	// A new conversation can already have tool and browser selections.
+	_, err := a.restoreHistory(nil)
+	if err != nil {
+		return "", err
+	}
+	a.snapshot.History = history
+	a.checkpointLen = len(history)
 	return a.run(ctx, history)
 }
 
