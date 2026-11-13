@@ -60,8 +60,8 @@ func (s *Service) ValidateVideo(name string, in VideoRequest) (VideoRequest, err
 	}
 
 	if name == "video_playlist" {
-		if !isYouTube(in.URL) || in.Backend == "yt-dlp" || u.Query().Get("list") == "" {
-			return in, fmt.Errorf("video_playlist requires a YouTube playlist URL and backend auto or native")
+		if !isYouTube(in.URL) || u.Query().Get("list") == "" {
+			return in, fmt.Errorf("video_playlist requires a YouTube playlist URL")
 		}
 	}
 

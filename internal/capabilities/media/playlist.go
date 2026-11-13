@@ -2,6 +2,7 @@ package media
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/kkdai/youtube/v2"
@@ -30,7 +31,7 @@ func (s *Service) playlist(ctx context.Context, in VideoRequest) (playlistPage, 
 	client := youtube.Client{HTTPClient: s.youtubeHTTP(ctx)}
 	list, err := client.GetPlaylistContext(ctx, in.URL)
 	if err != nil {
-		return playlistPage{}, fmt.Errorf("reading YouTube playlist: %w", err)
+		return playlistPage{}, sourceFailure(err)
 	}
 
 	return pagePlaylist(list, in)
@@ -60,6 +61,49 @@ func pagePlaylist(list *youtube.Playlist, in VideoRequest) (playlistPage, error)
 			Title:           brief([]byte(video.Title), 128),
 			Author:          brief([]byte(video.Author), 64),
 			DurationSeconds: video.Duration.Seconds(),
+		}
+		page.Entries = append(page.Entries, entry)
+		page.NextOffset = i + 1
+	}
+	page.More = page.NextOffset < page.Total
+
+	return page, nil
+}
+
+func externalPlaylist(raw []byte, in VideoRequest) (playlistPage, error) {
+	var source struct {
+		ID, Title, Uploader string
+		Entries             []struct {
+			ID, Title, Uploader string
+			Duration            float64
+		}
+	}
+	err := json.Unmarshal(raw, &source)
+	if err != nil {
+		return playlistPage{}, err
+	}
+	if in.Offset > len(source.Entries) {
+		return playlistPage{}, fmt.Errorf("playlist offset exceeds %d entries", len(source.Entries))
+	}
+
+	page := playlistPage{
+		Backend:    "yt-dlp",
+		ID:         source.ID,
+		Title:      brief([]byte(source.Title), 512),
+		Author:     brief([]byte(source.Uploader), 256),
+		Entries:    []playlistEntry{},
+		NextOffset: in.Offset,
+		Total:      len(source.Entries),
+	}
+	end := min(in.Offset+in.Limit, page.Total)
+	for i := in.Offset; i < end; i++ {
+		video := source.Entries[i]
+		entry := playlistEntry{
+			Index:           i + 1,
+			URL:             "https://www.youtube.com/watch?v=" + video.ID,
+			Title:           brief([]byte(video.Title), 128),
+			Author:          brief([]byte(video.Uploader), 64),
+			DurationSeconds: video.Duration,
 		}
 		page.Entries = append(page.Entries, entry)
 		page.NextOffset = i + 1

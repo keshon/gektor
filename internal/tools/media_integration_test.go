@@ -41,7 +41,7 @@ func TestMediaLazyToolsShareWorkflowContractsAndResources(t *testing.T) {
 		t.Fatal("activation instructions leaked into startup context")
 	}
 	activated, err := c.Enable(t.Context(), "native_media", nil)
-	if err != nil || !strings.Contains(activated, "native YouTube") {
+	if err != nil || !strings.Contains(activated, "YouTube tries native then yt-dlp") {
 		t.Fatal(activated, err)
 	}
 	registry, err := app.WorkflowRegistry(ws, t.TempDir(), nil, nil)

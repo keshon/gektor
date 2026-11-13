@@ -3,6 +3,8 @@ package media
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -73,20 +75,35 @@ func (s *Service) RunVideo(ctx context.Context, name string, in VideoRequest) (a
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(in.TimeoutSeconds)*time.Second)
 	defer cancel()
 
-	if name == "video_playlist" {
-		return s.playlist(ctx, in)
-	}
-
 	if name == "video_download" {
 		err = s.preflightOutput(in.Path)
 		if err != nil {
 			return nil, err
 		}
 	}
-	if backend(in) == "native" {
-		return s.native(ctx, name, in)
+	if backend(in) != "native" {
+		return s.external(ctx, name, in)
 	}
-	return s.external(ctx, name, in)
+
+	result, nativeErr := s.native(ctx, name, in)
+	if nativeErr == nil {
+		return result, nil
+	}
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	var unavailable *nativeUnavailable
+	if in.Backend != "auto" || !errors.As(nativeErr, &unavailable) {
+		return nil, nativeErr
+	}
+
+	result, err = s.external(ctx, name, in)
+	if err != nil {
+		nativeCause := nativeErr.Error()
+		nativeCause = brief([]byte(nativeCause), 1024)
+		return nil, fmt.Errorf("native: %s; yt-dlp: %w", nativeCause, err)
+	}
+	return result, nil
 }
 
 // RunLocal processes workspace files with FFmpeg or ffprobe.

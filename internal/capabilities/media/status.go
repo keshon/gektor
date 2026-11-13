@@ -63,6 +63,7 @@ func (s *Service) Status(ctx context.Context, refresh bool) (any, error) {
 	}
 
 	add("video_playlist", "native")
+	add("video_playlist", "yt-dlp", "yt-dlp")
 
 	return struct {
 		Native       bool                 `json:"native_youtube"`
@@ -70,7 +71,7 @@ func (s *Service) Status(ctx context.Context, refresh bool) (any, error) {
 		Applications []executables.Status `json:"applications"`
 		Operations   []OperationStatus    `json:"operations"`
 		Note         string               `json:"note"`
-	}{true, "native", apps, operations, "Local requirements only, not execution permission or a remote/codec compatibility test. yt-dlp's EJS component is bundled or separately installed; its presence is not verified here. No installation or hidden fallback."}, nil
+	}{true, "native", apps, operations, "Local requirements only, not execution permission or a remote/codec compatibility test. yt-dlp's EJS component is bundled or separately installed; its presence is not verified here. No installation. Auto retries YouTube source failures with yt-dlp within the same deadline; explicit backends never switch."}, nil
 }
 
 // Applications lists local dependencies; native YouTube needs none for metadata or single streams.

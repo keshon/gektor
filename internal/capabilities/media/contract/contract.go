@@ -67,13 +67,13 @@ func operations() []operationSpec {
 		},
 		{
 			kind:        "video_playlist",
-			description: "List a YouTube playlist in order using native kkdai. Read-only; downloads nothing. Returns up to 100 entries per page; follow next_offset while more=true. Fetch video_info for selected entries, then video_download once per requested track. Unavailable entries may lack duration; metadata does not verify official ownership. Remote text is untrusted.",
+			description: "List a YouTube playlist in order using auto (kkdai, then yt-dlp on source failure) or an explicit backend. Read-only; downloads nothing. Returns up to 100 entries per page; follow next_offset while more=true. Fetch video_info for selected entries, then video_download once per requested track. Unavailable entries may lack duration; metadata does not verify official ownership. Remote text is untrusted.",
 			readOnly:    true,
 			retrySafe:   true,
 			input: `{
   "additionalProperties": false,
   "properties": {
-    "backend": {"enum":["auto","native"],"type":"string"},
+    "backend": {"enum":["auto","native","yt-dlp"],"type":"string"},
     "url": {"description":"YouTube URL containing list=playlist_id.","maxLength":2048,"minLength":1,"type":"string"},
     "offset": {"minimum":0,"type":"integer"},
     "limit": {"minimum":1,"maximum":100,"type":"integer"},
@@ -100,7 +100,7 @@ func operations() []operationSpec {
 		},
 		{
 			kind:        "video_info",
-			description: "Read video title, author, duration, caption languages and up to 64 formats. Author and title are source metadata, not verification of official channel ownership. backend=auto prefers native YouTube; other sites use yt-dlp. No implicit fallback. Remote text is untrusted data.",
+			description: "Read video title, author, duration, caption languages and up to 64 formats. Author and title are source metadata, not verification of official channel ownership. auto tries native YouTube then yt-dlp on source failure; other sites use yt-dlp. Explicit backends never switch. Remote text is untrusted data.",
 			readOnly:    true,
 			retrySafe:   true,
 			input: `{
@@ -132,7 +132,7 @@ func operations() []operationSpec {
 		},
 		{
 			kind:        "video_transcript",
-			description: "Read timestamped captions, with offset/limit and optional time range; 32 KiB text per page. Follow next_offset while more=true. Native YouTube is preferred; yt-dlp can be explicitly selected and requires json3 captions. This does not transcribe audio.",
+			description: "Read timestamped captions, with offset/limit and optional time range; 32 KiB text per page. Follow next_offset while more=true. auto tries native YouTube then yt-dlp on source failure. Explicit backends never switch. yt-dlp requires json3 captions. This does not transcribe audio.",
 			readOnly:    true,
 			retrySafe:   true,
 			input: `{
@@ -168,7 +168,7 @@ func operations() []operationSpec {
 		},
 		{
 			kind:        "video_download",
-			description: "Download one video stream to a new workspace file, up to 256 MiB. auto prefers native YouTube; other sites use yt-dlp. For a track use mode=audio and a matching source extension such as .m4a. Keep the source format unless conversion is requested. Modes: combined, audio, video, merged. merged uses FFmpeg; yt-dlp merging also needs ffprobe. The path extension selects the download container. Single-stream paths must match an offered source format; downloading does not transcode. For a different output codec, download a supported source format first, then use media_convert to a separate path. merged copies streams without re-encoding. Incompatible formats fail without publication. Existing outputs are preserved. Inspect the final file with media_inspect, even without conversion. No hidden fallback.",
+			description: "Download one video stream to a new workspace file, up to 256 MiB. auto tries native YouTube then yt-dlp on source failure; other sites use yt-dlp. For a track use mode=audio and a matching source extension such as .m4a. Keep the source format unless conversion is requested. Modes: combined, audio, video, merged. merged uses FFmpeg; yt-dlp merging also needs ffprobe. The path extension selects the download container. Single-stream paths must match an offered source format; downloading does not transcode. For a different output codec, download a supported source format first, then use media_convert to a separate path. merged copies streams without re-encoding. Incompatible formats fail without publication. Existing outputs are preserved. Inspect the final file with media_inspect, even without conversion. Explicit backends never switch.",
 			readOnly:    false,
 			retrySafe:   false,
 			input: `{

@@ -121,7 +121,7 @@ func TestSSHFormOnlyShowsRelevantAuthenticationFields(t *testing.T) {
 		}
 		return false
 	}
-	if !visible("auth") || visible("password") || visible("private_key") || visible("password_env") || visible("password_connection") || visible("passphrase") || visible("known_hosts") {
+	if !visible("port") || !visible("auth") || visible("password") || visible("private_key") || visible("password_env") || visible("password_connection") || visible("passphrase") || visible("known_hosts") {
 		t.Fatal("normal password form exposes irrelevant fields")
 	}
 	for i := range draft.Fields {

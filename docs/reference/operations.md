@@ -143,9 +143,9 @@ secrets have a **Saved — keep** state and an explicit **Change** action.
 
 **Advanced settings** contains environment-variable sources and **Another
 connection** for reusing a saved credential by connection name. The normal form
-shows neither environment-variable names nor saved credential IDs. The trusted
-hosts file and port are also under Advanced, defaulting to the user's
-`~/.ssh/known_hosts` and port 22. Editing or hiding Advanced preserves existing
+shows neither environment-variable names nor saved credential IDs. Port is always
+visible and defaults to 22. The trusted hosts file is under Advanced and defaults
+to the user's `~/.ssh/known_hosts`. Editing or hiding Advanced preserves existing
 environment-based credentials unless the authentication choice is changed.
 
 The resulting profile uses `password_ref` instead of `password_env`, or
@@ -329,7 +329,9 @@ value rather than calculating it from rendered text. `cursor: 0` explicitly
 reads retained output from the beginning. Evicted bytes are reported, and
 incomplete UTF-8 characters are held until complete or the process exits.
 Cursors are owned by the caller, so two readers do not consume each other's
-output. `stop_background` still takes only the process id.
+output. `stop_background` still takes only the process id. Completion notifications
+contain the process ID and status. Retrieve logs and failure details with
+`check_background`; notifications do not replay command output.
 
 
 
@@ -564,7 +566,11 @@ bounded capability map. Detailed instructions and tool schemas appear after acti
 `backend: "auto"` is the default for video operations. It uses the bundled
 `kkdai/youtube` library for YouTube and yt-dlp for other public HTTP(S) sites.
 Choose `backend: "native"` or `backend: "yt-dlp"` explicitly when needed.
-Failures do not switch providers automatically. Results record the backend used.
+With `auto`, a YouTube extraction or stream-access failure retries once with
+yt-dlp. Explicit backends never switch. Both attempts share the operation deadline
+and retain the same output size limit. Cancellation, transport rejections, resource
+limits, local file errors and FFmpeg failures stop the call. Results record the
+backend that succeeded; if both extractors fail, the error includes both causes.
 Native merged downloads use FFmpeg after fetching the separate streams.
 
 | Operation | Main arguments | Result |
@@ -572,7 +578,7 @@ Native merged downloads use FFmpeg after fetching the separate streams.
 | `media_status` | Optional `refresh` | Application paths, versions, local readiness and operation requirements |
 | `video_info` | `url`, optional `backend` | Title, author, duration, languages and up to 64 formats |
 | `video_transcript` | `url`, optional `backend`, `language`, `offset`, `limit`, `start_seconds`, `duration_seconds` | Timestamped caption segments, `next_offset`, `more` |
-| `video_playlist` | YouTube `url` with `list=`, optional `offset`, `limit` | Ordered entries, source URLs, durations and continuation offset; native backend |
+| `video_playlist` | YouTube `url` with `list=`, optional `offset`, `limit` | Ordered entries, source URLs, durations and continuation offset and actual backend |
 | `video_download` | `url`, `path`, optional `backend`, `mode`, `max_height`, `max_bytes` | New file, actual container, size, SHA-256 and backend |
 | `media_inspect` | `inputs: ["file"]` | ffprobe stream and container metadata |
 | `media_convert` | `inputs: ["file"]`, `path`, `format` | New re-encoded file; optional `copy: true` remuxes MP4/MKV/WebM |
@@ -641,12 +647,14 @@ Execution rechecks required programs in the process that runs the operation,
 including a workflow worker. yt-dlp merging currently requires FFmpeg and ffprobe
 in the same directory. Ordinary downloads disable FFmpeg post-processing.
 User yt-dlp configuration, plugins and remote component downloads are disabled.
-`video_playlist` lists YouTube playlist entries through native kkdai, with zero-based
+`video_playlist` lists YouTube playlist entries through kkdai or yt-dlp, with zero-based
 `offset`, `limit` (default 50, maximum 100), `next_offset` and `more`. Entry indexes
 are one-based and retain playlist order. Listing downloads nothing. The library
 fetches the playlist before paging the returned entries; each page request refetches
-it, so changes to the remote playlist can shift offsets. The operation deadline and
-per-response HTTP size limit still apply. Inspect selected entries with `video_info`
+it, so changes to the remote playlist can shift offsets. Auto fallback and explicit
+backend selection also apply to playlist listing. yt-dlp lists without downloading
+individual entries using `--flat-playlist`. The operation deadline still applies; native HTTP responses and external-process
+output retain their size limits. Inspect selected entries with `video_info`
 and download each requested track with `video_download`; each file keeps its own
 permission, size limit and output path. yt-dlp downloads remain single-video.
 

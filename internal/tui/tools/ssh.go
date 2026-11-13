@@ -190,7 +190,6 @@ func (m *Model) SSHPreferences(name string) (screen.Form, error) {
 			"passphrase_connection": passphraseConnections,
 		},
 		ShowWhen: map[string][]form.Condition{
-			"port":                  {{Key: "advanced", Value: "Yes"}},
 			"password":              {{Key: "auth", Value: sshPassword}, {Key: "advanced", Value: "No"}},
 			"private_key":           {{Key: "auth", Value: sshPrivateKey}},
 			"passphrase":            {{Key: "auth", Value: sshPrivateKey}, {Key: "advanced", Value: "No"}},

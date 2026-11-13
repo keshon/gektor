@@ -114,14 +114,14 @@ func TestNativePreferredAndYouTubeRoundTrip(t *testing.T) {
 		t.Fatal(in)
 	}
 }
-func TestNativeFailureDoesNotFallbackAndPathsAreBounded(t *testing.T) {
+func TestExplicitNativeFailureDoesNotFallbackAndPathsAreBounded(t *testing.T) {
 	s := testService(t)
 	s.transport = roundTrip(func(*http.Request) (*http.Response, error) { return nil, fmt.Errorf("fixture outage") })
 	s.run = func(context.Context, process.Request) (process.Result, error) {
 		t.Fatal("hidden backend fallback")
 		return process.Result{}, nil
 	}
-	if _, err := s.RunVideo(t.Context(), "video_info", VideoRequest{URL: "https://youtu.be/abcdefghijk"}); err == nil {
+	if _, err := s.RunVideo(t.Context(), "video_info", VideoRequest{URL: "https://youtu.be/abcdefghijk", Backend: "native"}); err == nil {
 		t.Fatal("native outage hidden")
 	}
 	for _, in := range []VideoRequest{{URL: "http://127.0.0.1/video"}, {URL: "https://example.com/video", Backend: "native"}, {URL: "https://youtu.be/abcdefghijk", Path: "../outside"}} {

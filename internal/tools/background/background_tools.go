@@ -37,7 +37,7 @@ func (StartShell) Name() string { return "start_background" }
 // Starting an arbitrary command is a mutation barrier.
 func (StartShell) Mode() agent.ToolMode { return agent.Exclusive }
 func (StartShell) Description() string {
-	return "Start a server, watcher or background command using " + commandrun.ShellName() + " without blocking. command is complete shell source. Returns id and next_cursor for check_background. Use start_program for a native executable with literal arguments. Use wait_background for finite builds/tests instead of polling. Stop only your processes via stop_background with its returned id."
+	return "Start a server, watcher or background command using " + commandrun.ShellName() + " without blocking. command is complete shell source. Returns id and next_cursor for check_background. Use start_program for a native executable with literal arguments. Use wait_background for finite commands, including downloads, instead of polling. Stop only your processes via stop_background with its returned id."
 }
 func (StartShell) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{
@@ -160,7 +160,7 @@ type Wait struct{ Procs *Processes }
 func (Wait) Name() string         { return "wait_background" }
 func (Wait) Mode() agent.ToolMode { return agent.Concurrent }
 func (Wait) Description() string {
-	return "Wait for a background build/test and return status/output; timeout_seconds defaults to 30 (max 60). Does not stop servers. Completion after this run ends is reported on the next; it never starts a model run."
+	return "Wait for a finite background command (download, build or test) and return status/output; timeout_seconds defaults to 30 (max 60). Does not stop servers. Completion after this run ends is reported on the next; it never starts a model run."
 }
 func (Wait) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"},"timeout_seconds":{"type":"integer","minimum":1,"maximum":60}},"required":["id"],"additionalProperties":false}`)

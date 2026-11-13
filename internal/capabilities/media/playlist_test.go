@@ -41,7 +41,6 @@ func TestPlaylistValidationBeforeNetwork(t *testing.T) {
 	for _, in := range []VideoRequest{
 		{URL: "https://vimeo.com/123?list=PL1234567890123"},
 		{URL: "https://youtube.com/watch?v=abcdefghijk"},
-		{URL: "https://youtube.com/playlist?list=PL1234567890123", Backend: "yt-dlp"},
 		{URL: "https://youtube.com/playlist?list=PL1234567890123", Limit: 101},
 	} {
 		_, err := s.ValidateVideo("video_playlist", in)

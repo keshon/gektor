@@ -430,7 +430,7 @@
       },
       {
         "Name": "start_background",
-        "Description": "Start a server, watcher or background command using pwsh.exe without blocking. command is complete shell source. Returns id and next_cursor for check_background. Use start_program for a native executable with literal arguments. Use wait_background for finite builds/tests instead of polling. Stop only your processes via stop_background with its returned id.",
+        "Description": "Start a server, watcher or background command using pwsh.exe without blocking. command is complete shell source. Returns id and next_cursor for check_background. Use start_program for a native executable with literal arguments. Use wait_background for finite commands, including downloads, instead of polling. Stop only your processes via stop_background with its returned id.",
         "Parameters": {
           "type": "object",
           "properties": {
@@ -574,7 +574,7 @@
       },
       {
         "Name": "wait_background",
-        "Description": "Wait for a background build/test and return status/output; timeout_seconds defaults to 30 (max 60). Does not stop servers. Completion after this run ends is reported on the next; it never starts a model run.",
+        "Description": "Wait for a finite background command (download, build or test) and return status/output; timeout_seconds defaults to 30 (max 60). Does not stop servers. Completion after this run ends is reported on the next; it never starts a model run.",
         "Parameters": {
           "type": "object",
           "properties": {
@@ -1023,7 +1023,7 @@
       },
       {
         "Name": "wait_background",
-        "Description": "Wait for a background build/test and return status/output; timeout_seconds defaults to 30 (max 60). Does not stop servers. Completion after this run ends is reported on the next; it never starts a model run.",
+        "Description": "Wait for a finite background command (download, build or test) and return status/output; timeout_seconds defaults to 30 (max 60). Does not stop servers. Completion after this run ends is reported on the next; it never starts a model run.",
         "Parameters": {
           "type": "object",
           "properties": {

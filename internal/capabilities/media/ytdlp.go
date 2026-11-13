@@ -17,7 +17,11 @@ func (s *Service) external(ctx context.Context, name string, in VideoRequest) (a
 		return nil, err
 	}
 	defer os.RemoveAll(dir)
-	args := []string{"--ignore-config", "--no-plugin-dirs", "--no-remote-components", "--no-playlist", "--no-cache-dir", "--no-progress", "--no-warnings", "--socket-timeout", "20", "--retries", "0", "--fragment-retries", "0"}
+	playlistMode := "--no-playlist"
+	if name == "video_playlist" {
+		playlistMode = "--yes-playlist"
+	}
+	args := []string{"--ignore-config", "--no-plugin-dirs", "--no-remote-components", playlistMode, "--no-cache-dir", "--no-progress", "--no-warnings", "--socket-timeout", "20", "--retries", "0", "--fragment-retries", "0"}
 	// Explicit runtime selection makes local availability deterministic.
 	for _, runtime := range []string{"deno", "node"} {
 		status, err := s.Apps.Probe(ctx, runtime, false)
@@ -34,6 +38,8 @@ func (s *Service) external(ctx context.Context, name string, in VideoRequest) (a
 		args = append(args, "--ffmpeg-location", filepath.Join(dir, "ffmpeg-disabled"))
 	}
 	switch name {
+	case "video_playlist":
+		args = append(args, "--flat-playlist", "--skip-download", "--dump-single-json")
 	case "video_info":
 		args = append(args, "--skip-download", "--dump-single-json")
 	case "video_transcript":
@@ -95,6 +101,9 @@ func (s *Service) external(ctx context.Context, name string, in VideoRequest) (a
 	result, err := s.command(ctx, "yt-dlp", args, dir, 3*in.MaxBytes)
 	if err != nil {
 		return nil, err
+	}
+	if name == "video_playlist" {
+		return externalPlaylist(result.Stdout, in)
 	}
 	if name == "video_info" {
 		return externalInfo(result.Stdout)

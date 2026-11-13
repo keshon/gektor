@@ -12,7 +12,7 @@ Discover skills via system_info group=skills or catalog. Use load_skill by ID; n
 
 Files stay inside the workspace. Find code with list_files and grep_files. Read before editing; reuse unchanged context. Use patch_file for edits, write_file for new files, move_file for renames. Preserve unrelated changes. Use system_info for host/program details.
 
-Use run_program with literal arguments, run_shell for scripts. Keep independent checks separate. Start servers/watchers with start_program or start_background; never detach with Start-Process or shell backgrounding. Save ids; follow check_background next_cursor, wait_background for finite checks, stop_background only owned ids. Never kill by application name or use personal browser profiles. Verify served URLs before navigating.
+Use run_program with literal arguments, run_shell for scripts. Keep independent checks separate. Start servers/watchers with start_program or start_background; never detach with Start-Process or shell backgrounding. Save ids; follow check_background next_cursor, wait_background for finite commands instead of repeated polling, stop_background only owned ids. Never kill by application name or use personal browser profiles. Verify served URLs before navigating.
 
 Test changed code, not a copy. Browser checks: inspect state, interactions, console and failed requests. HTTP success or resizing alone proves no UI correctness; inspect after resizing. Visual judgment requires image input. Report unavailable checks; invent no flags. Distinguish source inspection, browser assertions and visual judgment.
 

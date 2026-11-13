@@ -125,11 +125,12 @@ func (p *Processes) Notifications(ctx context.Context) []string {
 			continue
 		}
 		proc.notified = true
-		status := "completed successfully"
+		status := "completed"
 		if proc.exitErr != nil {
-			status = "failed: " + proc.exitErr.Error()
+			status = "failed"
 		}
-		notes = append(notes, fmt.Sprintf("Background process %s %s. Historical command output:\n%s", id, status, proc.output.String()))
+		note := fmt.Sprintf("Background process %s %s. Read logs if needed: check_background {\"id\":%q,\"cursor\":0}.", id, status, id)
+		notes = append(notes, note)
 	}
 	return notes
 }
