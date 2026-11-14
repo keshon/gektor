@@ -12,7 +12,9 @@ go build -o gektor.exe ./cmd/gektor
 .\gektor.exe -tui
 ```
 
-On Linux, use `go build -o gektor ./cmd/gektor` and `./gektor -tui`.
+On Linux or in Git Bash, `bash build.sh` builds the root binary.
+Use `bash build.sh help` for all modes, including `test`, `check`, `fmt`,
+`vuln`, `dist` and `clean`. Start it with `./gektor -tui` on Linux.
 Start a model server separately for Agent work; workflow examples without model
 steps run without one.
 
@@ -35,22 +37,28 @@ Run the checks in [Testing](testing.md) before submitting a change. On Windows,
 `build.cmd check` runs the local suite. Browser smoke checks and model evals are
 opt-in and require their documented dependencies.
 
-`build.cmd dist` stages a runnable Windows distribution under `dist/windows-amd64/`.
-The cross-platform equivalent is `go run ./cmd/release dist`; choose another target
-with `go run ./cmd/release -target linux-amd64 dist`.
+`build.cmd dist` (or `bash build.sh dist`) builds the host platform's release
+folder under `dist/gektor-<os>-<arch>/`, a ZIP of that folder and a `.zip.sha256`
+checksum. It uses the current checkout and verifies archive contents before
+reporting completion. The underlying packager also stages `dist/<os>-<arch>/`.
+The current packager supports Windows/Linux amd64.
+`build.cmd run -- -tui` builds and starts the TUI. See [Scripts](../../scripts/README.md)
+for the shared command set. `dist` already creates the release artifacts; the
+unified helper has no separate `release` mode and does not publish anything.
 
-`build.cmd release vMAJOR.MINOR.PATCH` (or `go run ./cmd/release vMAJOR.MINOR.PATCH`)
-builds Windows and Linux archives plus `SHA256SUMS.txt` under `dist/`. Both archives
-are verified against the staged directories, including contents and executable
-permissions. Packaging does not publish a release. Versioned builds require a
-clean checkout and use committed payload bytes, independent of checkout line
-endings. Go and Git are the only build requirements. Packaging uses tracked files,
-so new documentation must be tracked before a release build.
+For a clean, versioned Windows/Linux release, the existing low-level command
+`go run ./cmd/release vMAJOR.MINOR.PATCH` still builds both archives and
+`SHA256SUMS.txt` under `dist/`. Those archives are verified against staged
+contents and executable permissions. Versioned builds require a clean checkout
+and use committed payload bytes, independent of checkout line endings. Go and
+Git are the build requirements. Packaging uses tracked files, so commit new
+runtime files and documentation before expecting them in a GEKTOR package.
 Internal work records and native design assets are excluded. Links to omitted
 contributor sources point to the packaged revision on GitHub; guides and reference
 links remain local. Frozen skill files are copied without rewriting.
 
 Development distributions permit tracked working-tree changes; untracked files
 are excluded. Commit new runtime files before expecting them in a package.
-Each build replaces only its owned `dist/windows-amd64` or `dist/linux-amd64`
-directory after staging succeeds. `build.cmd clean` still cleans root binaries only.
+The unified helper replaces only distribution directories marked as its own.
+Move unmarked output aside before rebuilding. Keep deployed user data outside
+these disposable build folders. `build.cmd clean` removes root app binaries only.

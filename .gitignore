@@ -51,3 +51,6 @@ run-serve.cmd
 /website/prototypes/
 /website/*.log
 /.VSCodeCounter
+
+/gektor
+/eval
