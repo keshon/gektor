@@ -25,8 +25,12 @@ import (
 // Config contains references to secrets, never secret values. Recipes and their
 // dependencies are frozen at startup; changing them requires a service restart.
 type Config struct {
-	TokenEnv string           `json:"token_env"`
-	Routes   map[string]Route `json:"routes"`
+	TokenEnv  string                   `json:"token_env"`
+	Routes    map[string]Route         `json:"routes"`
+	Callbacks map[string]CallbackRoute `json:"callbacks,omitempty"`
+}
+type CallbackRoute struct {
+	TokenEnv string `json:"token_env"`
 }
 type Route struct {
 	RecipePath string `json:"recipe_path"`
@@ -39,12 +43,13 @@ type prepared struct {
 	webhook bool
 }
 type Handler struct {
-	db       *store.Store
-	svc      service.Service
-	token    [32]byte
-	routes   map[string]prepared
-	requests chan struct{}
-	logger   *slog.Logger
+	db        *store.Store
+	svc       service.Service
+	token     [32]byte
+	routes    map[string]prepared
+	callbacks map[string][32]byte
+	requests  chan struct{}
+	logger    *slog.Logger
 }
 
 var routeName = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
@@ -59,17 +64,18 @@ func New(ctx context.Context, db *store.Store, svc service.Service, cfg Config, 
 		return nil, err
 	}
 
-	if len(cfg.Routes) == 0 || len(cfg.Routes) > 64 {
-		return nil, fmt.Errorf("API requires 1 to 64 named routes")
+	if len(cfg.Routes)+len(cfg.Callbacks) == 0 || len(cfg.Routes) > 64 || len(cfg.Callbacks) > 64 {
+		return nil, fmt.Errorf("API requires routes or callbacks, at most 64 of each")
 	}
 
 	h := &Handler{
-		db:       db,
-		svc:      svc,
-		token:    token,
-		routes:   map[string]prepared{},
-		requests: make(chan struct{}, 32),
-		logger:   logger,
+		db:        db,
+		svc:       svc,
+		token:     token,
+		routes:    map[string]prepared{},
+		callbacks: map[string][32]byte{},
+		requests:  make(chan struct{}, 32),
+		logger:    logger,
 	}
 	used := map[[32]byte]bool{token: true}
 
@@ -103,6 +109,20 @@ func New(ctx context.Context, db *store.Store, svc service.Service, cfg Config, 
 		}
 
 		h.routes[name] = p
+	}
+
+	for channel, route := range cfg.Callbacks {
+		if !routeName.MatchString(channel) {
+			return nil, fmt.Errorf("invalid callback channel %q", channel)
+		}
+		credential, secretErr := secret(route.TokenEnv)
+		if secretErr != nil {
+			return nil, secretErr
+		}
+		if used[credential] {
+			return nil, fmt.Errorf("callback %s must use a distinct token", channel)
+		}
+		used[credential], h.callbacks[channel] = true, credential
 	}
 
 	return h, nil
@@ -160,8 +180,19 @@ func (h *Handler) serveHTTP(w *response, r *http.Request) {
 	r = r.WithContext(ctx)
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
 	webhook := len(parts) == 2 && parts[0] == "hooks"
+	callback := len(parts) == 4 && parts[0] == "callbacks"
 	var p prepared
-	if webhook {
+	if callback {
+		credential, ok := h.callbacks[parts[1]]
+		w.endpoint = "callback"
+		if ok {
+			w.route = parts[1]
+		}
+		if !ok || !authenticated(r, credential) {
+			problem(w, 401, "unauthorized", "unauthorized")
+			return
+		}
+	} else if webhook {
 		var ok bool
 		p, ok = h.routes[parts[1]]
 		w.endpoint = "webhook"
@@ -183,6 +214,11 @@ func (h *Handler) serveHTTP(w *response, r *http.Request) {
 		defer func() { <-h.requests }()
 	default:
 		problem(w, 503, "request_limit", "too many active requests")
+		return
+	}
+
+	if callback {
+		h.acceptCallback(w, r, parts)
 		return
 	}
 

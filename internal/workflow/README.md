@@ -25,7 +25,9 @@ The terminal editor is a separate consumer in `internal/tui/workflow`.
 - `nodes` owns individual operation definitions. `script`, `records`, and
   `credentials` provide the corresponding execution/data support.
 - `agenttools` owns Agent tool names, descriptions, argument schemas, decoding,
-  and adaptation to the service. `api` owns HTTP transport and submission.
+  and adaptation to the service. `api` owns HTTP transport, submission and callback authentication.
+  Callback acceptance and deduplication live in `store/callbacks.go`; `service/waits.go`
+  resumes them through the same worker and engine used for deadline waits.
 
 Application wiring in `internal/app/workflow.go` assembles concrete nodes and
 authorization. Keep shared execution decisions out of the adapters, and keep

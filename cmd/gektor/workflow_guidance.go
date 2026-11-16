@@ -34,6 +34,11 @@ func workflowGuidance(note io.Writer, result, directory, workspace, allow, deny 
 		return
 	}
 	if summary.Status == "waiting" {
+		pending := workflow.PendingCallback(run.Record)
+		if pending != nil {
+			fmt.Fprintf(note, "Run %s waits for callback %s on channel %s until %s. Keep the workspace workflow service running.\n", summary.ID, pending.ID, pending.Channel, pending.ExpiresAt.Format(time.RFC3339))
+			return
+		}
 		deadline := run.Record.WakeAt.Format(time.RFC3339)
 		fmt.Fprintf(note, "Run %s waits until %s. Keep the workspace workflow service running to continue.\n", summary.ID, deadline)
 		return

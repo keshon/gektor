@@ -31,19 +31,20 @@ func InspectValue(raw []byte) InspectionValue {
 }
 
 type RunInspection struct {
-	ResumeAt     *time.Time       `json:"resume_at,omitempty"`
-	ID           string           `json:"run_id"`
-	Name         string           `json:"name"`
-	RecipePath   string           `json:"recipe_path"`
-	Status       string           `json:"status"`
-	Started      time.Time        `json:"started"`
-	Finished     *time.Time       `json:"finished,omitempty"`
-	DurationMS   *int64           `json:"duration_ms,omitempty"`
-	ScheduleID   string           `json:"schedule_id,omitempty"`
-	ScheduledFor *time.Time       `json:"scheduled_for,omitempty"`
-	Outputs      InspectionValue  `json:"outputs"`
-	StepCounts   map[string]int   `json:"step_counts"`
-	Errors       []StepInspection `json:"errors,omitempty"`
+	Callback     *workflow.CallbackState `json:"callback,omitempty"`
+	ResumeAt     *time.Time              `json:"resume_at,omitempty"`
+	ID           string                  `json:"run_id"`
+	Name         string                  `json:"name"`
+	RecipePath   string                  `json:"recipe_path"`
+	Status       string                  `json:"status"`
+	Started      time.Time               `json:"started"`
+	Finished     *time.Time              `json:"finished,omitempty"`
+	DurationMS   *int64                  `json:"duration_ms,omitempty"`
+	ScheduleID   string                  `json:"schedule_id,omitempty"`
+	ScheduledFor *time.Time              `json:"scheduled_for,omitempty"`
+	Outputs      InspectionValue         `json:"outputs"`
+	StepCounts   map[string]int          `json:"step_counts"`
+	Errors       []StepInspection        `json:"errors,omitempty"`
 }
 
 type StepInspection struct {
@@ -65,7 +66,7 @@ func InspectSteps(r workflow.Run) []StepInspection {
 // recorded engine status after a process exits unexpectedly.
 func InspectRun(state store.RunState) RunInspection {
 	r := state.Record
-	out := RunInspection{ResumeAt: r.WakeAt, ID: r.RunID, Name: r.Definition.Name, RecipePath: r.RecipePath, Status: state.Status,
+	out := RunInspection{Callback: workflow.PendingCallback(r), ResumeAt: r.WakeAt, ID: r.RunID, Name: r.Definition.Name, RecipePath: r.RecipePath, Status: state.Status,
 		Started: r.Started, Finished: r.Finished, ScheduleID: r.ScheduleID, ScheduledFor: r.ScheduledFor,
 		Outputs: InspectValue(DeclaredOutputs(r)), StepCounts: map[string]int{}}
 	if r.Finished != nil && !r.Started.IsZero() {

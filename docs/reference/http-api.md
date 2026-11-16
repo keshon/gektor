@@ -1,6 +1,6 @@
 # Workflow HTTP API
 
-Configure authenticated loopback submission and webhook routes alongside the workflow worker. This API is separate from the Agent [stdio RPC protocol](rpc.md).
+Configure authenticated loopback submission, webhook and callback routes alongside the workflow worker. This API is separate from the Agent [stdio RPC protocol](rpc.md).
 
 ## HTTP API and webhooks
 
@@ -74,3 +74,57 @@ this is not an exactly-once guarantee for external effects.
 
 See [the webhook example](../../examples/workflows/webhook-note/README.md) for a
 local PowerShell walkthrough without AI or external services.
+
+## Callback waits
+
+Configure callback channels separately from submission routes:
+
+```json
+{
+  "token_env": "GEKTOR_WORKFLOW_API_TOKEN",
+  "callbacks": {
+    "approval": {"token_env": "GEKTOR_APPROVAL_CALLBACK_TOKEN"}
+  }
+}
+```
+
+At least one submission route or callback channel is required, with at most 64
+of each. A channel name contains 1–64 ASCII letters, digits, underscores or
+hyphens. Each callback token must differ from the operator, webhook and other
+callback tokens. The operator token does not authorize callback delivery.
+
+A pending [`workflow_wait_callback`](recipes.md#callback-waits) exposes its
+`wait_id`, `step_id`, `channel` and `expires_at` through run inspection and the
+initial run summary. Deliver to `POST /callbacks/{channel}/{run_id}/{wait_id}`
+using the channel's bearer token and `Content-Type: application/json`:
+
+```json
+{"event_id":"approval-123","payload":{"approved":true}}
+```
+
+`event_id` is a nonempty opaque string of at most 128 bytes, without surrounding
+whitespace or control characters. `payload` is required; any JSON value,
+including null, is allowed. Its submitted and normalized JSON must fit 32 KiB;
+the entire request must fit 64 KiB. Accepted payloads are untrusted data, never
+recipe definitions or instructions. A run retains at most 1,000 callback receipts
+and 1 MiB of normalized callback payloads.
+
+HTTP 202 acknowledges durable storage, not successful continuation. The worker
+rechecks its current permissions and resumes the existing run. Repeating the
+same event ID and normalized payload returns 202 with `duplicate:true`, including
+after consumption, without scheduling another continuation. Object key order
+and insignificant whitespace are normalized; number spellings are preserved.
+Another event ID or payload for that wait returns 409. Deduplication lasts while
+the run is retained, independently of credential rotation.
+
+An unknown wait, wrong run/channel or delivery before the wait checkpoint returns
+404. A first delivery after expiry, cancellation or closure returns 410. An event
+already accepted before cancellation can still receive a duplicate acknowledgement;
+that acknowledgement does not undo cancellation. Invalid or oversized events
+return 400; storage failures return 503 without acknowledging acceptance.
+
+Events are not buffered before a wait exists. This slice does not register
+provider callbacks or supply provider-specific signatures. Use a trusted caller
+that can obtain the pending receipt. Keep the service running; queued jobs take
+priority over due callback continuations. A crash during resumed external work
+still requires operator inspection and never triggers automatic replay.

@@ -280,7 +280,7 @@ unattended use. Permissions belong to this process, not to queued recipes.
 Requests that need interactive approval are denied.
 
 Add `-listen 127.0.0.1:9841 -api-config api.json` to enable authenticated HTTP
-submission and webhook routes alongside the worker. Both flags are required
+submission, webhook and callback routes alongside the worker. Both flags are required
 together and are accepted only by `serve`: `-listen` selects the loopback address,
 and `-api-config` names a workspace-relative route configuration file.
 See [HTTP API and webhooks](http-api.md#http-api-and-webhooks).

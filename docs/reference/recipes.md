@@ -244,9 +244,36 @@ cancellation without executing remaining operations. Waiting jobs remain active
 for queue retention and schedule-overlap rules. At most 1,000 runs may wait in a
 workspace store. Waiting-run artifacts are retained.
 
-Only deadline waits are implemented. Callback waits, authenticated wake-up events
-and explicit operator recovery of interrupted effects remain separate work.
+Explicit operator recovery of interrupted effects remains separate work.
 See the [durable wait example](../../examples/workflows/durable-wait/README.md).
+
+## Callback waits
+
+```json
+{"id":"approval","tool":"workflow_wait_callback","args":{"channel":"approval","timeout_ms":60000}}
+```
+
+`channel` is an operator-configured HTTP callback channel; `timeout_ms` is a
+required integer from 1 to 604,800,000 (seven days). The run becomes `waiting`
+and releases execution. Inspection and run summaries expose a `callback` receipt
+with `wait_id`, qualified `step_id`, `channel` and `expires_at`. The wait ID is
+public routing identity; the channel bearer token grants delivery access.
+
+The worker resumes after an event is accepted, or fails the wait on expiry
+without an event. Completed output is `{"event_id":"…","payload":…}`. Bind a
+following step with `{"$step":"approval","pointer":"/payload/approved"}`.
+Treat payloads as untrusted JSON data. They cannot replace the frozen recipe.
+
+Child calls, serial maps, repeats and preceding reviews use the same continuation
+path as deadline waits. The wait node itself cannot use `for_each` or `retry`.
+Current worker permissions must allow the callback wait and remaining operations.
+The same waiting-run limits and job cancellation rules apply. `resume_at` is the
+next worker eligibility time: initially expiry, then immediate after acceptance.
+The receipt's `expires_at` remains the original delivery deadline.
+
+See [callback delivery](http-api.md#callback-waits) for authentication, limits,
+duplicate responses and the early-delivery restriction. No event is buffered
+before its wait checkpoint exists.
 
 ## Reusable subworkflows
 

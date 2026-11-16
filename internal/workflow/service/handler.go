@@ -50,8 +50,8 @@ func (h *handler) Validate(s workflow.Step) error {
 	if version != n.Version {
 		return fmt.Errorf("node %s version %d unavailable (registered %d)", s.Tool, version, n.Version)
 	}
-	if s.Tool == "workflow_wait" && (len(s.ForEach) > 0 || s.Retry != nil) {
-		return fmt.Errorf("workflow_wait cannot combine with for_each or retry")
+	if (s.Tool == "workflow_wait" || s.Tool == "workflow_wait_callback") && (len(s.ForEach) > 0 || s.Retry != nil) {
+		return fmt.Errorf("wait nodes cannot combine with for_each or retry")
 	}
 	if s.Repeat != nil {
 		err = recipe.ValidateRepeat(s)

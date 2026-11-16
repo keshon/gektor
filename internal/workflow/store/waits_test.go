@@ -68,11 +68,23 @@ func TestWaitProcessHelper(t *testing.T) {
 	}
 	deadline := time.Now().UTC().Add(-time.Second).Truncate(time.Millisecond)
 	r := workflow.Run{Status: "waiting", WakeAt: &deadline, Steps: []workflow.StepResult{{ID: "delay", Status: "waiting", Wait: &workflow.WaitState{ResumeAt: deadline}}}}
+	if strings.HasPrefix(mode, "callback") {
+		expires := time.Now().UTC().Add(time.Hour).Truncate(time.Millisecond)
+		r.WakeAt = &expires
+		r.Steps[0].Wait = nil
+		r.Steps[0].Callback = &workflow.CallbackState{ID: "wait", StepID: "delay", Channel: "approve", ExpiresAt: expires}
+	}
 	err = writer.Save(r)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mode == "running" {
+	if strings.HasPrefix(mode, "callback") {
+		_, err = db.AcceptCallback(t.Context(), CallbackDelivery{RunID: writer.ID(), WaitID: "wait", Channel: "approve", EventID: "accepted", Payload: json.RawMessage(`{"ok":true}`)})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if strings.HasSuffix(mode, "running") {
 		r.Status, r.WakeAt = "running", nil
 		err = writer.Save(r)
 		if err != nil {
@@ -88,7 +100,7 @@ func TestWaitProcessHelper(t *testing.T) {
 }
 
 func TestWaitSurvivesProcessExitWithoutReplayingRunningWork(t *testing.T) {
-	for _, mode := range []string{"waiting", "running"} {
+	for _, mode := range []string{"waiting", "running", "callback", "callback running"} {
 		t.Run(mode, func(t *testing.T) {
 			base, workspace := t.TempDir(), t.TempDir()
 			executable, err := os.Executable()
@@ -108,16 +120,19 @@ func TestWaitSurvivesProcessExitWithoutReplayingRunningWork(t *testing.T) {
 			}
 			defer db.Close()
 			writer, r, ok, err := db.ClaimWait(t.Context(), time.Now())
+			if mode == "callback" && (err != nil || !ok || r.Steps[0].Callback == nil || r.Steps[0].Callback.EventID != "accepted") {
+				t.Fatal("acknowledged event did not survive process exit", r, err)
+			}
 			if writer != nil {
 				defer writer.Close()
 			}
-			if err != nil || ok != (mode == "waiting") {
+			if err != nil || ok == strings.HasSuffix(mode, "running") {
 				t.Fatal("incorrect recovery", mode, ok, err)
 			}
 			if ok && (r.RunID != id || r.Status != "waiting") {
 				t.Fatal("wrong resumed run", r)
 			}
-			if mode == "running" {
+			if strings.HasSuffix(mode, "running") {
 				state, readErr := db.Run(id)
 				if readErr != nil || state.Status != "interrupted" {
 					t.Fatal("uncertain execution was made resumable", state, readErr)

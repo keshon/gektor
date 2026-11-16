@@ -32,7 +32,7 @@ func RunWithInputs(ctx context.Context, d workflow.Definition, inputs map[string
 	return run(ctx, d, inputs, h, save, nil, executionScope{remaining: &remaining})
 }
 
-// Resume continues reviews or due deadlines; uncertain effects are never replayed.
+// Resume continues reviews or due waits; uncertain effects are never replayed.
 func Resume(ctx context.Context, previous workflow.Run, h workflow.Handler, save func(workflow.Run, ...int) error) (workflow.Run, error) {
 	if !previous.Paused() {
 		return previous, fmt.Errorf("run is not paused")
@@ -224,6 +224,15 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 				}
 			} else if len(s.ForEach) > 0 {
 				out, err = executeIterations(ctx, operation, h, &r, i, save, scope.remaining)
+			} else if previous != nil && s.Tool == "workflow_wait_callback" && r.Steps[i].Callback != nil {
+				pending := r.Steps[i].Callback
+				if pending.EventID == "" {
+					err = fmt.Errorf("callback wait expired without an event")
+				} else {
+					var encoded []byte
+					encoded, err = json.Marshal(workflow.CallbackResult{EventID: pending.EventID, Payload: pending.Payload})
+					out = string(encoded)
+				}
 			} else {
 				out, err = executeAttempts(ctx, operation, h, &r, i, save)
 			}
@@ -250,6 +259,23 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 			if err == nil {
 				r.Steps[i].Wait, r.Steps[i].Status = &wait, "waiting"
 				r.Status, r.WakeAt = "waiting", &wait.ResumeAt
+				err = save(r, i)
+				if err == nil {
+					return r, nil
+				}
+				r.WakeAt = nil
+			}
+		}
+		if err == nil && s.Tool == "workflow_wait_callback" && r.Steps[i].Callback == nil {
+			var pending workflow.CallbackState
+			err = json.Unmarshal([]byte(out), &pending)
+			if err == nil && (pending.ID == "" || pending.Channel == "" || pending.ExpiresAt.IsZero()) {
+				err = fmt.Errorf("callback wait returned an invalid receipt")
+			}
+			if err == nil {
+				pending.StepID = operation.ID
+				r.Steps[i].Callback, r.Steps[i].Status, r.Steps[i].Output = &pending, "waiting", ""
+				r.Status, r.WakeAt = "waiting", &pending.ExpiresAt
 				err = save(r, i)
 				if err == nil {
 					return r, nil

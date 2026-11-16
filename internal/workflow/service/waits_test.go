@@ -15,8 +15,10 @@ import (
 )
 
 func TestDurableWaitsResumeRootChildMapAndRepeat(t *testing.T) {
-	for _, mode := range []string{"root", "child", "map", "repeat", "review", "run denied", "operation denied"} {
+	for _, mode := range []string{"root", "child", "map", "repeat", "review", "run denied", "operation denied", "callback root", "callback child", "callback map", "callback repeat", "callback review", "callback run denied", "callback operation denied", "callback wait denied", "callback expired"} {
 		t.Run(mode, func(t *testing.T) {
+			callback := strings.HasPrefix(mode, "callback ")
+			mode := strings.TrimPrefix(mode, "callback ")
 			ws, err := workspace.New(t.TempDir())
 			if err != nil {
 				t.Fatal(err)
@@ -46,7 +48,7 @@ func TestDurableWaitsResumeRootChildMapAndRepeat(t *testing.T) {
 			svc := Service{WS: ws, StoreDir: t.TempDir(), Registry: registry,
 				Authorize: func(context.Context, string, json.RawMessage) error { return nil },
 				AuthorizeResource: func(_ context.Context, name, _ string, raw json.RawMessage) error {
-					if resuming && ((mode == "run denied" && name == "workflow_run") || (mode == "operation denied" && name == "probe")) {
+					if resuming && ((mode == "run denied" && name == "workflow_run") || (mode == "operation denied" && name == "probe") || (mode == "wait denied" && name == "workflow_wait_callback")) {
 						return fmt.Errorf("permission revoked")
 					}
 					return nil
@@ -54,8 +56,15 @@ func TestDurableWaitsResumeRootChildMapAndRepeat(t *testing.T) {
 			}
 
 			body := `[{"id":"before","tool":"probe","args":{"label":"before"}},{"id":"delay","tool":"workflow_wait","args":{"delay_ms":0}},{"id":"after","tool":"probe","args":{"label":"after"},"depends_on":["delay"]}]`
+			if callback {
+				body = strings.ReplaceAll(body, `"tool":"workflow_wait","args":{"delay_ms":0}`, `"tool":"workflow_wait_callback","args":{"channel":"approval","timeout_ms":60000}`)
+				body = strings.ReplaceAll(body, `"args":{"label":"after"}`, `"args":{"label":{"$step":"delay","pointer":"/payload/label"}}`)
+			}
 			if mode == "review" {
 				body = strings.Replace(body, `"id":"delay"`, `"id":"delay","review":true`, 1)
+			}
+			if mode == "expired" {
+				body = strings.ReplaceAll(body, `"timeout_ms":60000`, `"timeout_ms":1`)
 			}
 			source := `{"version":4,"name":"Wait","steps":` + body + `}`
 			waits := 1
@@ -104,6 +113,20 @@ func TestDurableWaitsResumeRootChildMapAndRepeat(t *testing.T) {
 				if readErr != nil || state.Status != "waiting" || state.Record.WakeAt == nil || before != n+1 || after != n {
 					t.Fatalf("wait=%d before=%d after=%d status=%s err=%v", n, before, after, state.Status, readErr)
 				}
+				if callback && mode != "expired" {
+					receipt := workflow.PendingCallback(state.Record)
+					if receipt == nil {
+						t.Fatal("missing callback receipt")
+					}
+					duplicate, deliveryErr := db.AcceptCallback(t.Context(), store.CallbackDelivery{RunID: summary.ID, WaitID: receipt.ID, Channel: receipt.Channel, EventID: fmt.Sprintf("event-%d", n), Payload: json.RawMessage(`{"approved":true,"label":"after"}`)})
+					if deliveryErr != nil || duplicate {
+						t.Fatal(duplicate, deliveryErr)
+					}
+				}
+				if mode == "expired" {
+					timer := time.NewTimer(time.Until(*state.Record.WakeAt))
+					<-timer.C
+				}
 				writer, record, ok, claimErr := db.ClaimWait(t.Context(), time.Now())
 				if claimErr != nil || !ok {
 					t.Fatal("wait not claimable", claimErr)
@@ -126,7 +149,7 @@ func TestDurableWaitsResumeRootChildMapAndRepeat(t *testing.T) {
 
 			state, err := db.Run(summary.ID)
 			wantStatus, wantAfter := "completed", waits
-			if strings.Contains(mode, "denied") {
+			if strings.Contains(mode, "denied") || mode == "expired" {
 				wantStatus, wantAfter = "failed", 0
 			}
 			if err != nil || state.Status != wantStatus || after != wantAfter || before != waits || state.Record.WakeAt != nil {
@@ -150,6 +173,13 @@ func TestWaitRejectsInvalidLimitsMapsAndRetries(t *testing.T) {
 	}
 	h := handler{registry: registry, templates: true}
 	for _, raw := range []string{
+		`{"tool":"workflow_wait_callback","args":{"channel":"approval","timeout_ms":0}}`,
+		`{"tool":"workflow_wait_callback","args":{"channel":"approval","timeout_ms":604800001}}`,
+		`{"tool":"workflow_wait_callback","args":{"channel":"approval","timeout_ms":1.5}}`,
+		`{"tool":"workflow_wait_callback","args":{"channel":"approval"}}`,
+		`{"tool":"workflow_wait_callback","args":{"channel":"bad/channel","timeout_ms":1}}`,
+		`{"tool":"workflow_wait_callback","args":{},"for_each":[{"channel":"approval","timeout_ms":1}]}`,
+		`{"tool":"workflow_wait_callback","args":{"channel":"approval","timeout_ms":1},"retry":{"max_attempts":1}}`,
 		`{"tool":"workflow_wait","args":{"delay_ms":-1}}`,
 		`{"tool":"workflow_wait","args":{"delay_ms":604800001}}`,
 		`{"tool":"workflow_wait","args":{"delay_ms":1.5}}`,

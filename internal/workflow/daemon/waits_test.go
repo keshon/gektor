@@ -16,10 +16,12 @@ import (
 )
 
 func TestWaitReleasesWorkerAndSurvivesRestart(t *testing.T) {
-	for _, cancelWait := range []bool{false, true} {
-		name := "resume"
+	for _, mode := range []string{"resume", "cancel", "callback", "callback cancel"} {
+		callback := strings.HasPrefix(mode, "callback")
+		cancelWait := strings.Contains(mode, "cancel")
+		name := mode
 		if cancelWait {
-			name = "cancel"
+			name = mode
 		}
 		t.Run(name, func(t *testing.T) {
 			ws, err := workspace.New(t.TempDir())
@@ -59,6 +61,10 @@ func TestWaitReleasesWorkerAndSurvivesRestart(t *testing.T) {
 			source := `{"version":4,"name":"Wait","steps":[{"id":"before","tool":"probe","args":{"label":"before"}},{"id":"delay","tool":"workflow_wait","args":{"delay_ms":2000}},{"id":"after","tool":"probe","depends_on":["delay"],"args":{"label":"after"}}]}`
 			if cancelWait {
 				source = strings.Replace(source, `"delay_ms":2000`, `"delay_ms":604800000`, 1)
+			}
+			if callback {
+				source = strings.ReplaceAll(source, `"tool":"workflow_wait","args":{"delay_ms":2000}`, `"tool":"workflow_wait_callback","args":{"channel":"approval","timeout_ms":60000}`)
+				source = strings.ReplaceAll(source, `"tool":"workflow_wait","args":{"delay_ms":604800000}`, `"tool":"workflow_wait_callback","args":{"channel":"approval","timeout_ms":60000}`)
 			}
 			job, err := db.Enqueue(t.Context(), "wait.json", json.RawMessage(source), nil)
 			if err != nil {
@@ -116,6 +122,29 @@ func TestWaitReleasesWorkerAndSurvivesRestart(t *testing.T) {
 			running = false
 			if !errors.Is(workerErr, context.Canceled) {
 				t.Fatal(workerErr)
+			}
+			if callback {
+				jobs, readErr := db.Jobs(t.Context())
+				if readErr != nil {
+					t.Fatal(readErr)
+				}
+				for _, candidate := range jobs {
+					if candidate.ID != job.ID {
+						continue
+					}
+					state, stateErr := db.Run(candidate.RunID)
+					if stateErr != nil {
+						t.Fatal(stateErr)
+					}
+					receipt := workflow.PendingCallback(state.Record)
+					if receipt == nil {
+						t.Fatal("missing pending receipt")
+					}
+					_, deliveryErr := db.AcceptCallback(t.Context(), store.CallbackDelivery{RunID: candidate.RunID, WaitID: receipt.ID, Channel: receipt.Channel, EventID: "approval", Payload: json.RawMessage(`true`)})
+					if deliveryErr != nil {
+						t.Fatal(deliveryErr)
+					}
+				}
 			}
 			if cancelWait {
 				err = db.CancelJob(t.Context(), job.ID)

@@ -15,7 +15,38 @@ type WaitState struct {
 	ResumeAt time.Time `json:"resume_at"`
 }
 
+// CallbackState identifies one wait. The store hydrates event fields on pending
+// steps after acceptance; completed steps retain the event in their output.
+type CallbackState struct {
+	ID        string          `json:"wait_id"`
+	StepID    string          `json:"step_id"`
+	Channel   string          `json:"channel"`
+	ExpiresAt time.Time       `json:"expires_at"`
+	EventID   string          `json:"event_id,omitempty"`
+	Payload   json.RawMessage `json:"payload,omitempty"`
+}
+
+type CallbackResult struct {
+	EventID string          `json:"event_id"`
+	Payload json.RawMessage `json:"payload"`
+}
+
+func PendingCallback(r Run) *CallbackState {
+	if r.Status != "waiting" {
+		return nil
+	}
+	for _, step := range ScopedSteps(r) {
+		if step.Result.Status == "waiting" && step.Result.Callback != nil {
+			pending := *step.Result.Callback
+			pending.EventID, pending.Payload = "", nil
+			return &pending
+		}
+	}
+	return nil
+}
+
 type StepResult struct {
+	Callback   *CallbackState  `json:"callback,omitempty"`
 	Wait       *WaitState      `json:"wait,omitempty"`
 	Child      *Run            `json:"child,omitempty"`
 	ForEach    json.RawMessage `json:"for_each,omitempty"`

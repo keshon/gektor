@@ -69,6 +69,18 @@ CREATE TABLE IF NOT EXISTS artifacts (
 	PRIMARY KEY (run_id, id)
 );
 CREATE INDEX IF NOT EXISTS artifacts_pending ON artifacts(run_id) WHERE status != 'published';
+CREATE TABLE IF NOT EXISTS callbacks (
+	run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+	wait_id TEXT NOT NULL,
+	step_id TEXT NOT NULL,
+	channel TEXT NOT NULL,
+	expires INTEGER NOT NULL,
+	state TEXT NOT NULL CHECK(state IN ('pending','accepted','consumed','closed')),
+	event_id TEXT NOT NULL DEFAULT '',
+	payload BLOB,
+	PRIMARY KEY(run_id,wait_id),
+	UNIQUE(run_id,step_id)
+);
 CREATE TABLE IF NOT EXISTS wakeups (
 	run_id TEXT PRIMARY KEY REFERENCES runs(id) ON DELETE CASCADE,
 	due INTEGER NOT NULL

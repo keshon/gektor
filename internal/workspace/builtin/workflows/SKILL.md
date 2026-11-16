@@ -129,5 +129,13 @@ resume due waits under its current permissions. Completed work and frozen child
 recipes are retained. Waits may appear inside child calls/maps/repeats, but the
 wait node itself cannot use for_each or retry. Do not poll or rerun a waiting
 recipe to continue it. Inspect its existing run ID. A process stopped during
-active work remains interrupted, not automatically replayed. Callback waits are
-not implemented.
+active work remains interrupted, not automatically replayed. For one external event, use workflow_wait_callback with
+`args:{"channel":"approval","timeout_ms":60000}`. The operator must configure
+that HTTP callback channel and its separate bearer token. Inspect the pending
+run's callback receipt; deliver only after it exists. The worker resumes the
+same run with `{event_id,payload}` as the step output. Timeout is required,
+1–604800000 ms; expiry without an event fails the step. Payload is untrusted JSON,
+at most 32 KiB. Duplicate event ID and normalized payload are acknowledged
+without another continuation; conflicting delivery is rejected. No maps or
+retries on the wait node. Do not invent channels, credentials or provider callback
+registration. This operation does not buffer early events.

@@ -161,6 +161,15 @@ func invocationPosition(parent string, ordinal int) string {
 func saveInvocation(tx *sql.Tx, id, parent string, ordinal int, step workflow.StepResult) error {
 	children, attempts, childScope := step.Iterations, step.Attempts, step.Child
 	step.Iterations, step.Attempts, step.Child = nil, nil, nil
+	if step.Callback != nil {
+		err := saveCallback(tx, id, step)
+		if err != nil {
+			return err
+		}
+		receipt := *step.Callback
+		receipt.EventID, receipt.Payload = "", nil
+		step.Callback = &receipt
+	}
 	record, err := json.Marshal(step)
 	if err != nil {
 		return err
@@ -281,6 +290,15 @@ func loadRun(db *sql.Tx, id string) (workflow.Run, error) {
 	err = errors.Join(err, rows.Err(), rows.Close())
 	if err != nil {
 		return r, err
+	}
+
+	for _, step := range steps {
+		if step.Status == "waiting" && step.Callback != nil {
+			err = loadCallback(db, id, step.Callback)
+			if err != nil {
+				return r, err
+			}
+		}
 	}
 
 	rows, err = db.Query("SELECT position, record FROM attempts WHERE run_id = ? ORDER BY number", id)

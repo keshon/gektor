@@ -51,6 +51,14 @@ func (s Service) ContinueWait(ctx context.Context, db *store.Store, writer *stor
 			if runErr == nil {
 				runErr = s.AuthorizeResource(ctx, "workflow_run", r.RecipePath, args)
 			}
+			if runErr == nil {
+				for _, step := range workflow.ScopedSteps(r) {
+					if step.Result.Status == "waiting" && step.Result.Callback != nil {
+						runErr = s.authorizeNode(ctx, step.Definition.Tool, step.Result.Args)
+						break
+					}
+				}
+			}
 		}
 
 		if runErr != nil {
@@ -86,11 +94,12 @@ func (s Service) ContinueWait(ctx context.Context, db *store.Store, writer *stor
 			return "", &jobPersistenceError{errors.Join(runErr, persistence)}
 		}
 		out, encodeErr := json.Marshal(struct {
-			ID       string          `json:"run_id"`
-			Status   string          `json:"status"`
-			ResumeAt *time.Time      `json:"resume_at,omitempty"`
-			Outputs  json.RawMessage `json:"outputs,omitempty"`
-		}{ID: r.RunID, Status: r.Status, ResumeAt: r.WakeAt, Outputs: DeclaredOutputs(r)})
+			ID       string                  `json:"run_id"`
+			Status   string                  `json:"status"`
+			Callback *workflow.CallbackState `json:"callback,omitempty"`
+			ResumeAt *time.Time              `json:"resume_at,omitempty"`
+			Outputs  json.RawMessage         `json:"outputs,omitempty"`
+		}{ID: r.RunID, Status: r.Status, ResumeAt: r.WakeAt, Callback: workflow.PendingCallback(r), Outputs: DeclaredOutputs(r)})
 		return string(out), errors.Join(runErr, encodeErr)
 	}
 	if linked != nil {

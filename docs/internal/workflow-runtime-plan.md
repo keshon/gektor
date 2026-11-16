@@ -5,11 +5,10 @@ Branch: `codex/workflow-runtime-v4`.
 
 ## Start here: current handoff — 2026-11-16
 
-Continue on `codex/workflow-runtime-v4`. The implementation checkpoint is
-`177661b`; the latest revision before this documentation update is `ba931e1`.
-The working tree was clean when this handoff was prepared. No implementation
-is left half-applied. Older handoffs below describe earlier checkpoints; their
-"next" paragraphs are superseded by this section.
+Continue on `codex/workflow-runtime-v4`. The pushed handoff is `84617c4`.
+Authenticated callback waits are implemented on top of that revision and
+committed with this handoff. Older handoffs below describe earlier
+checkpoints; their "next" paragraphs are superseded by this section.
 
 ### Completed and pushed
 
@@ -30,33 +29,40 @@ is left half-applied. Older handoffs below describe earlier checkpoints; their
 - `ba931e1`: Windows and Bash build launchers now delegate to `cmd/build`.
   Preserve this later change when continuing; do not restore the old scripts.
 
-### Next implementation slice
+### Current implementation slice
 
-Implement authenticated callback waits and duplicate-event handling, extending
-stage 4 rather than restarting the runtime design. First specify the callback
-contract: who may deliver an event, how it identifies one pending invocation,
-how a bounded payload becomes an output, and what duplicate, stale, early,
-cancelled or already-consumed events return. These choices are not implemented
-or settled by the existing deadline-wait API.
+Authenticated callback waits now extend stage 4 through
+`workflow_wait_callback`. Required arguments are a named channel and timeout of
+1–604800000 ms. Inspection and run summaries expose a unique wait receipt with
+its qualified step ID, channel and expiry. API config has separate `callbacks`
+channels and distinct bearer credentials. Callback-only configuration is allowed.
 
-Keep HTTP authentication/ingress in the API owner, atomic event acceptance and
-consumption in the store, and permission checks/continuation in the service.
-Requests must not directly execute recipes. Reuse the execution lease and
-checkpoint boundaries; do not add a second executor or independently executing
-callback handler. Persist an accepted event before acknowledging it. Consumption
-must not allow two deliveries to start the same continuation.
+`POST /callbacks/{channel}/{run_id}/{wait_id}` accepts an event ID and a bounded
+JSON payload. API requests only persist; the existing worker claims due runs and
+rechecks permissions. Acceptance and wake-up commit together. Identical event ID
+and normalized JSON deduplicate while the run is retained, including after
+consumption. Different events conflict. Early/wrong-target delivery is unavailable;
+first delivery after cancellation, closure or expiry is rejected. No provider
+registration or early-event buffering is implemented.
 
-Use deterministic tests for unauthorized/wrong-target events, duplicate delivery,
-restart after acknowledgement, cancellation races and events arriving around the
-wait checkpoint. Check the boundary between consuming an event and starting
-external work: a crash during active effects must remain interrupted, never
-be treated as permission to repeat an unknown SSH/HTTP/write outcome.
+Receipts and accepted event identities live in `store/callbacks.go`, independently
+of invocation subtree replacement. Snapshots cannot overwrite acceptance or push
+its wake-up later. Limits: 32 KiB per normalized/submitted payload, 1 MiB retained
+payload per run, 1,000 receipts per run. Payloads remain untrusted data. Timeout
+without an accepted event fails before downstream work. HTTP acknowledgements do
+not promise execution success or exactly-once external effects.
 
-After callback waits: explicit operator recovery of interrupted effects, typed
-error routes/finalization and selective retry policy. Named connections and
-credentials are stage 5; richer HTTP operations are stage 6. Concurrent jobs,
-concurrent child calls and their shared scheduler remain later work. Keyed joins
-and the broader node inventory are also unfinished.
+Tests cover root/child/map/repeat continuation, preceding reviews, revoked run,
+wait and downstream permissions, expiry, cancellation before and after acceptance,
+concurrent duplicate delivery, transactional registration/acceptance rollback,
+stale snapshots, worker restart and accepted-event recovery after process exit.
+The native worker and run lease remain the only executor path.
+
+Next: explicit operator recovery of interrupted effects, typed error routes and
+finalization, then selective retry policy. Named connections and credentials are
+stage 5; richer HTTP operations are stage 6. Concurrent jobs, concurrent child
+calls and their shared scheduler remain later work. Keyed joins and the broader
+node inventory are also unfinished.
 
 ### Constraints to preserve
 
@@ -76,9 +82,9 @@ and the broader node inventory are also unfinished.
 - Manual waits are discovered by the worker without creating a queue job.
   Existing wait cancellation is job-based; do not assume every waiting run has
   a job ID. The CLI run timeout is not persisted across worker continuations.
-- Callback authentication, payload binding, event identity and replay protection
-  still need explicit design and tests. The current HTTP submission API is not
-  an implemented callback-resume endpoint.
+- Callback delivery is channel-scoped and targets one registered receipt. Tokens
+  are separate from submission/operator credentials. Do not add early buffering
+  or infer provider-specific registration from this endpoint.
 - n8n screenshots are useful for later node/editor coverage, not required for
   this runtime slice. The checklist below is an inventory, not a parity claim.
 
@@ -87,9 +93,9 @@ and the broader node inventory are also unfinished.
 | Responsibility | Files |
 | --- | --- |
 | Execution and pause/resume | [engine.go](../../internal/workflow/engine/engine.go), [scope.go](../../internal/workflow/engine/scope.go), [callmap.go](../../internal/workflow/engine/callmap.go), [repeat.go](../../internal/workflow/engine/repeat.go) |
-| Durable state and claims | [waits.go](../../internal/workflow/store/waits.go), [runs.go](../../internal/workflow/store/runs.go), [jobs.go](../../internal/workflow/store/jobs.go), [sqlite.go](../../internal/workflow/store/sqlite.go) |
+| Durable state and claims | [callbacks.go](../../internal/workflow/store/callbacks.go), [waits.go](../../internal/workflow/store/waits.go), [runs.go](../../internal/workflow/store/runs.go), [jobs.go](../../internal/workflow/store/jobs.go), [sqlite.go](../../internal/workflow/store/sqlite.go) |
 | Continuation and authorization | [waits.go](../../internal/workflow/service/waits.go), [reviews.go](../../internal/workflow/service/reviews.go), [jobs.go](../../internal/workflow/service/jobs.go) |
-| Worker and HTTP ingress | [daemon.go](../../internal/workflow/daemon/daemon.go), [api.go](../../internal/workflow/api/api.go), [server.go](../../internal/workflow/api/server.go) |
+| Worker and HTTP ingress | [daemon.go](../../internal/workflow/daemon/daemon.go), [api.go](../../internal/workflow/api/api.go), [callbacks.go](../../internal/workflow/api/callbacks.go), [server.go](../../internal/workflow/api/server.go) |
 | Wait operation contract | [workflow.go](../../internal/workflow/nodes/workflow/workflow.go), [run.go](../../internal/workflow/run.go), [handler.go](../../internal/workflow/service/handler.go) |
 
 The `waits_test.go` files beside engine/service/store/daemon cover deadline
@@ -102,12 +108,12 @@ and [durable waits](../../examples/workflows/durable-wait/README.md).
 
 ### Verification checkpoint and restart commands
 
-At the deadline-wait implementation checkpoint, source-scoped tests, affected
-race checks, vet, a CGO-free build, the 45-probe eval dry-run and documentation
-checks passed. These were deterministic runtime checks, not model-backed
-callback authoring or physical power-loss tests. The later build-helper commit
-was inspected for this handoff; its full checks were not rerun in this docs-only
-session. Recheck the baseline before implementing the next slice:
+For the callback slice, the full source-scoped test suite and affected
+store/service/API/worker/engine race checks passed, along with source-scoped vet,
+a CGO-free build, the 45-probe eval dry-run and documentation checks (67 files,
+35 published articles). These are deterministic runtime checks,
+not model-backed callback authoring, provider integration or physical power-loss
+tests. Resume verification with:
 
 ```text
 git status --short

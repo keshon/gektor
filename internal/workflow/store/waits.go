@@ -17,6 +17,12 @@ const maxWaitingRuns = 1000
 func saveWakeup(tx *sql.Tx, id string, r workflow.Run) error {
 	if r.Status != "waiting" {
 		_, err := tx.Exec("DELETE FROM wakeups WHERE run_id = ?", id)
+		if err != nil {
+			return err
+		}
+		if r.Status == "completed" || r.Status == "failed" || r.Status == "cancelled" {
+			_, err = tx.Exec("UPDATE callbacks SET state='closed' WHERE run_id=? AND state IN ('pending','accepted')", id)
+		}
 		return err
 	}
 	if r.WakeAt == nil || r.WakeAt.IsZero() {
@@ -31,7 +37,8 @@ func saveWakeup(tx *sql.Tx, id string, r workflow.Run) error {
 		return fmt.Errorf("waiting run limit reached (%d)", maxWaitingRuns)
 	}
 
-	_, err = tx.Exec("INSERT INTO wakeups VALUES (?, ?) ON CONFLICT(run_id) DO UPDATE SET due=excluded.due", id, r.WakeAt.UnixMilli())
+	// A stale checkpoint must preserve an earlier event or cancellation wake-up.
+	_, err = tx.Exec("INSERT INTO wakeups VALUES (?, ?) ON CONFLICT(run_id) DO UPDATE SET due=min(wakeups.due,excluded.due)", id, r.WakeAt.UnixMilli())
 	return err
 }
 
