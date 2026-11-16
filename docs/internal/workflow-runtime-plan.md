@@ -3,6 +3,127 @@
 Date: 2026-11-13. Starting revision: `6948888`.
 Branch: `codex/workflow-runtime-v4`.
 
+## Start here: current handoff — 2026-11-16
+
+Continue on `codex/workflow-runtime-v4`. The implementation checkpoint is
+`177661b`; the latest revision before this documentation update is `ba931e1`.
+The working tree was clean when this handoff was prepared. No implementation
+is left half-applied. Older handoffs below describe earlier checkpoints; their
+"next" paragraphs are superseded by this section.
+
+### Completed and pushed
+
+- Collections, SQLite invocation/attempt persistence, transactional streaming
+  artifacts and the shared 100,000-invocation budget.
+- Frozen runtime child scopes and serial mapped child calls, preserving reviews,
+  ordered results and artifact ownership across continuation.
+- `4efec98`: bounded child repeats. Explicit completion and next-input pointers,
+  stable iteration identities, limits and review continuation without replay.
+- `177661b`: durable deadline waits through `workflow_wait`. Waiting releases the
+  execution lease; the worker resumes due runs under its current permissions.
+  Root, child, mapped and repeated waits use the same persistence/claim path.
+- `d958dcf`: MCP import accepts explicit `http`, `streamable-http` and `stdio`
+  types. Unknown-field decode errors are no longer reported as a missing
+  `mcpServers` object. Credential handling and transport validation remain intact.
+- The branch includes the SSH interruption/redaction and native YouTube stream
+  fallback fixes from `d4e0f79`, merged in `ef430bc`.
+- `ba931e1`: Windows and Bash build launchers now delegate to `cmd/build`.
+  Preserve this later change when continuing; do not restore the old scripts.
+
+### Next implementation slice
+
+Implement authenticated callback waits and duplicate-event handling, extending
+stage 4 rather than restarting the runtime design. First specify the callback
+contract: who may deliver an event, how it identifies one pending invocation,
+how a bounded payload becomes an output, and what duplicate, stale, early,
+cancelled or already-consumed events return. These choices are not implemented
+or settled by the existing deadline-wait API.
+
+Keep HTTP authentication/ingress in the API owner, atomic event acceptance and
+consumption in the store, and permission checks/continuation in the service.
+Requests must not directly execute recipes. Reuse the execution lease and
+checkpoint boundaries; do not add a second executor or independently executing
+callback handler. Persist an accepted event before acknowledging it. Consumption
+must not allow two deliveries to start the same continuation.
+
+Use deterministic tests for unauthorized/wrong-target events, duplicate delivery,
+restart after acknowledgement, cancellation races and events arriving around the
+wait checkpoint. Check the boundary between consuming an event and starting
+external work: a crash during active effects must remain interrupted, never
+be treated as permission to repeat an unknown SSH/HTTP/write outcome.
+
+After callback waits: explicit operator recovery of interrupted effects, typed
+error routes/finalization and selective retry policy. Named connections and
+credentials are stage 5; richer HTTP operations are stage 6. Concurrent jobs,
+concurrent child calls and their shared scheduler remain later work. Keyed joins
+and the broader node inventory are also unfinished.
+
+### Constraints to preserve
+
+- Recipe format 4 and one current store/executor contract. No old-format loaders,
+  conversion machinery or compatibility aliases. Do not delete personal data.
+- Read `.agents/skills/go-style/SKILL.md` and
+  `.agents/skills/go-architecture/SKILL.md` before Go edits. Keep ownership explicit,
+  ordinary flow linear and logical paragraphs separated. Do not add a framework
+  or split cohesive code simply to reduce file length.
+- There is one active execution path per run. Child calls are serial; only leaf
+  collections have bounded parallel workers. Do not multiply worker pools.
+- `repeat.delay_ms` is a short in-process delay. `workflow_wait` is the durable
+  pause. Neither mechanism supplies automatic recovery for interrupted effects.
+- Deadline waits are limited to seven days and 1,000 waiting runs per store.
+  Queued jobs take priority over due waits. A deadline makes a run eligible;
+  it does not guarantee exact execution time.
+- Manual waits are discovered by the worker without creating a queue job.
+  Existing wait cancellation is job-based; do not assume every waiting run has
+  a job ID. The CLI run timeout is not persisted across worker continuations.
+- Callback authentication, payload binding, event identity and replay protection
+  still need explicit design and tests. The current HTTP submission API is not
+  an implemented callback-resume endpoint.
+- n8n screenshots are useful for later node/editor coverage, not required for
+  this runtime slice. The checklist below is an inventory, not a parity claim.
+
+### Where to continue reading
+
+| Responsibility | Files |
+| --- | --- |
+| Execution and pause/resume | [engine.go](../../internal/workflow/engine/engine.go), [scope.go](../../internal/workflow/engine/scope.go), [callmap.go](../../internal/workflow/engine/callmap.go), [repeat.go](../../internal/workflow/engine/repeat.go) |
+| Durable state and claims | [waits.go](../../internal/workflow/store/waits.go), [runs.go](../../internal/workflow/store/runs.go), [jobs.go](../../internal/workflow/store/jobs.go), [sqlite.go](../../internal/workflow/store/sqlite.go) |
+| Continuation and authorization | [waits.go](../../internal/workflow/service/waits.go), [reviews.go](../../internal/workflow/service/reviews.go), [jobs.go](../../internal/workflow/service/jobs.go) |
+| Worker and HTTP ingress | [daemon.go](../../internal/workflow/daemon/daemon.go), [api.go](../../internal/workflow/api/api.go), [server.go](../../internal/workflow/api/server.go) |
+| Wait operation contract | [workflow.go](../../internal/workflow/nodes/workflow/workflow.go), [run.go](../../internal/workflow/run.go), [handler.go](../../internal/workflow/service/handler.go) |
+
+The `waits_test.go` files beside engine/service/store/daemon cover deadline
+behavior, nested continuation, process exit, leases, rollback and cancellation.
+[workflow_wait_test.go](../../cmd/gektor/workflow_wait_test.go) runs the shipped
+fixture through the CLI and continuation service. The recipe contracts live in
+[the reference](../reference/recipes.md); runnable fixtures are
+[repeated child calls](../../examples/workflows/repeated-subworkflow/README.md)
+and [durable waits](../../examples/workflows/durable-wait/README.md).
+
+### Verification checkpoint and restart commands
+
+At the deadline-wait implementation checkpoint, source-scoped tests, affected
+race checks, vet, a CGO-free build, the 45-probe eval dry-run and documentation
+checks passed. These were deterministic runtime checks, not model-backed
+callback authoring or physical power-loss tests. The later build-helper commit
+was inspected for this handoff; its full checks were not rerun in this docs-only
+session. Recheck the baseline before implementing the next slice:
+
+```text
+git status --short
+go test -p 1 ./cmd/... ./internal/...
+go test -race ./internal/workflow/... ./internal/tui/workflow ./cmd/gektor
+go vet ./cmd/... ./internal/...
+go run ./cmd/eval -dry
+node website/scripts/check-docs.mjs
+git diff --check
+```
+
+`build.cmd help` or `bash build.sh help` describes the current shared build
+commands. Source scoping avoids archived Go evidence under `eval/results` with
+obsolete imports; do not rewrite or delete that evidence to make an unrestricted
+`go test ./...` pass. Keep model/network evals separate from deterministic tests.
+
 ## Scope and decisions
 
 Build a local workflow runtime with collection processing, reusable child
@@ -142,8 +263,8 @@ checks. No deployment, live credential use, commit or push is implied.
   Starting execution and the daemon reconcile unfinished publications under each
   run lease; active producers are skipped. Retention records deletion intent
   before removing files, allowing restart to finish the operation. Existing
-  file-based metadata is not imported or used as a fallback. Durable workflow
-  wakeups belong to the later control-flow stage rather than unused tables.
+  file-based metadata is not imported or used as a fallback. Deadline wake-ups
+  now have their own indexed table in the control-flow implementation below.
 - Generated-work bound: the current executor now reserves at most 100,000
   invocation slots across recipe steps and collection items. Admission checks
   the complete next array before allocating its records or starting workers.
@@ -171,8 +292,8 @@ checks. No deployment, live credential use, commit or push is implied.
 - Bounded repeats: implemented for serial frozen workflow calls. Each iteration
   persists a child scope, reads an explicit boolean completion pointer and uses
   an explicit next-input object. Limit exhaustion is terminal. Short delays are
-  cancellable but occupy the active slot; deadline waits are implemented separately. Concurrent
-  child calls require a shared scheduler rather than independent worker pools.
+  cancellable but occupy the active slot; deadline waits are implemented separately.
+  Concurrent child calls require a shared scheduler rather than independent pools.
 
 Verified the model-free collection example through the CLI service: two
 successes, one retained failure and ordered values `[4, 6]`. Deterministic
