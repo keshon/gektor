@@ -5,10 +5,10 @@ Branch: `codex/workflow-runtime-v4`.
 
 ## Start here: current handoff — 2026-11-16
 
-Continue on `codex/workflow-runtime-v4`. The pushed handoff is `84617c4`.
-Authenticated callback waits are implemented on top of that revision and
-committed with this handoff. Older handoffs below describe earlier
-checkpoints; their "next" paragraphs are superseded by this section.
+Continue on `codex/workflow-runtime-v4`. Callback waits are committed in
+`c385ce0` (not pushed in this session). Operator recovery is implemented on top of
+that revision and committed with this handoff.
+Older handoffs below describe earlier checkpoints; their "next" paragraphs are superseded by this section.
 
 ### Completed and pushed
 
@@ -29,7 +29,7 @@ checkpoints; their "next" paragraphs are superseded by this section.
 - `ba931e1`: Windows and Bash build launchers now delegate to `cmd/build`.
   Preserve this later change when continuing; do not restore the old scripts.
 
-### Current implementation slice
+### Callback checkpoint — c385ce0
 
 Authenticated callback waits now extend stage 4 through
 `workflow_wait_callback`. Required arguments are a named channel and timeout of
@@ -58,8 +58,45 @@ concurrent duplicate delivery, transactional registration/acceptance rollback,
 stale snapshots, worker restart and accepted-event recovery after process exit.
 The native worker and run lease remain the only executor path.
 
-Next: explicit operator recovery of interrupted effects, typed error routes and
-finalization, then selective retry policy. Named connections and credentials are
+### Current implementation slice: operator recovery
+
+`workflow recover -workspace <dir> -recovery recovery.json <run-id>` is an
+operator-only continuation path for interrupted runs. It is absent from Agent
+and HTTP adapters. The file supplies a nonblank note and exactly one `retry` or
+verified-output `complete` decision per uncertain leaf invocation. Inspection
+lists qualified uncertain IDs, including leaf collection items. Empty decisions
+are allowed only when no effect is uncertain (for example, a stop between steps).
+
+Recovery holds the existing run lease, validates frozen source/definition identity
+and current contracts, and retains completed effects, scopes, reviews, artifacts,
+reserved invocation slots and attempts. Decisions, timestamp, note and supplied
+output digests commit before dispatch. Full outputs stay on their invocation.
+Requests are at most 64 KiB; notes at most 2,000 bytes; histories at most 32 records.
+
+Leaf collection execution now retains prior item records and ordered results;
+it does not recreate all items on continuation. Only pending items dispatch, and
+attempt numbers continue across explicit retries. A failure during continuation
+must not mark an already completed later item skipped. Call binding and wait
+bookkeeping are pure control work; accepted callbacks hydrate across an
+interrupted consumption checkpoint and recheck permissions before recovery.
+
+Known terminal failures/cancellations, actively leased runs and linked jobs with
+pending cancellation are rejected. An unfinished scope containing a recorded
+failed/cancelled leaf is outside this slice, even when other leaves are uncertain.
+This is not general failure retry or automatic replay. Linked jobs retain the
+same run ID and use the existing joined cancellation monitor. A stale terminal
+job record can be reconciled from its exclusively leased interrupted run before
+operator continuation.
+
+Separate-process tests stop after an effect but before result commit, then prove
+root/child/map/repeat/leaf-collection recovery without replaying completed work.
+Engine tests cover mixed decisions for multiple uncertain items, atomic decision
+checkpoints, failed commits and a stop after decisions but before dispatch.
+Service tests cover current policy, invalid decisions/output schemas, active
+leases, linked jobs/cancellation and accepted callback consumption. The CLI test
+completes an interrupted artifact write from its verified existing output.
+
+Next: typed error routes and finalization, then selective retry policy. Named connections and credentials are
 stage 5; richer HTTP operations are stage 6. Concurrent jobs, concurrent child
 calls and their shared scheduler remain later work. Keyed joins and the broader
 node inventory are also unfinished.
@@ -92,9 +129,9 @@ node inventory are also unfinished.
 
 | Responsibility | Files |
 | --- | --- |
-| Execution and pause/resume | [engine.go](../../internal/workflow/engine/engine.go), [scope.go](../../internal/workflow/engine/scope.go), [callmap.go](../../internal/workflow/engine/callmap.go), [repeat.go](../../internal/workflow/engine/repeat.go) |
+| Execution and pause/resume | [engine.go](../../internal/workflow/engine/engine.go), [recovery.go](../../internal/workflow/engine/recovery.go), [scope.go](../../internal/workflow/engine/scope.go), [callmap.go](../../internal/workflow/engine/callmap.go), [repeat.go](../../internal/workflow/engine/repeat.go) |
 | Durable state and claims | [callbacks.go](../../internal/workflow/store/callbacks.go), [waits.go](../../internal/workflow/store/waits.go), [runs.go](../../internal/workflow/store/runs.go), [jobs.go](../../internal/workflow/store/jobs.go), [sqlite.go](../../internal/workflow/store/sqlite.go) |
-| Continuation and authorization | [waits.go](../../internal/workflow/service/waits.go), [reviews.go](../../internal/workflow/service/reviews.go), [jobs.go](../../internal/workflow/service/jobs.go) |
+| Continuation and authorization | [recovery.go](../../internal/workflow/service/recovery.go), [waits.go](../../internal/workflow/service/waits.go), [reviews.go](../../internal/workflow/service/reviews.go), [jobs.go](../../internal/workflow/service/jobs.go) |
 | Worker and HTTP ingress | [daemon.go](../../internal/workflow/daemon/daemon.go), [api.go](../../internal/workflow/api/api.go), [callbacks.go](../../internal/workflow/api/callbacks.go), [server.go](../../internal/workflow/api/server.go) |
 | Wait operation contract | [workflow.go](../../internal/workflow/nodes/workflow/workflow.go), [run.go](../../internal/workflow/run.go), [handler.go](../../internal/workflow/service/handler.go) |
 
@@ -107,6 +144,20 @@ fixture through the CLI and continuation service. The recipe contracts live in
 and [durable waits](../../examples/workflows/durable-wait/README.md).
 
 ### Verification checkpoint and restart commands
+
+For operator recovery, the full source-scoped suite, focused CLI recovery tests,
+source-scoped vet, CGO-free build, 45-probe eval dry-run and documentation checks
+passed. Runtime engine/service/store/worker race checks passed, as did the focused
+CLI recovery/deadline race run. The unrestricted CLI race suite is not green:
+`TestMappedSubworkflowExampleNeedsNoModel`,
+`TestChildScopeRunsCollectionReportWithoutModel` and
+`TestCollectionReportExampleRunsWithoutBackend` hit the Windows 256 MiB worker
+process memory cap in instrumented JavaScript subprocesses. Native tests of those
+fixtures pass; no sandbox limit was changed to make race checks pass. Review the
+worker/instrumentation budget separately before claiming the full CLI race suite.
+Separate-process recovery tests and injected SQLite checkpoint failures prove
+explicit decisions persist before effects and completed work is retained. They
+do not prove remote exactly-once execution or provider integrations.
 
 For the callback slice, the full source-scoped test suite and affected
 store/service/API/worker/engine race checks passed, along with source-scoped vet,

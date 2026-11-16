@@ -11,6 +11,7 @@ import (
 	"os"
 
 	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/api"
 	"github.com/keshon/gektor/internal/workflow/daemon"
 	"github.com/keshon/gektor/internal/workflow/store"
@@ -28,16 +29,20 @@ func workflowQueue(ctx context.Context, args []string, out io.Writer, directory 
 	zone := flags.String("timezone", "UTC", "IANA time zone")
 	missed := flags.String("missed", "skip", "missed triggers: skip or once")
 	decision := flags.String("decision", "", "review decision: approve or reject")
+	recovery := flags.String("recovery", "", "workspace-relative JSON recovery decisions file (operator only)")
 	overlap := flags.String("overlap", "skip", "active schedule: skip or queue")
 	listen := flags.String("listen", "", "optional loopback HTTP address, e.g. 127.0.0.1:9841")
 	apiConfig := flags.String("api-config", "", "workspace-relative API route and token-environment configuration")
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
-	counts := map[string]int{"review": 2, "serve": 0, "submit": 1, "jobs": 0, "job": 1, "cancel": 1, "schedules": 0, "schedule": 2, "pause": 1, "resume": 1, "unschedule": 1}
+	counts := map[string]int{"recover": 1, "review": 2, "serve": 0, "submit": 1, "jobs": 0, "job": 1, "cancel": 1, "schedules": 0, "schedule": 2, "pause": 1, "resume": 1, "unschedule": 1}
 	count, ok := counts[command]
 	if !ok || flags.NArg() != count {
 		return fmt.Errorf("workflow %s expects %d arguments (flags precede arguments)", command, count)
+	}
+	if *recovery != "" && command != "recover" {
+		return fmt.Errorf("-recovery requires workflow recover")
 	}
 	if (*listen != "" || *apiConfig != "") && (command != "serve" || *listen == "" || *apiConfig == "") {
 		return fmt.Errorf("-listen and -api-config must be used together with workflow serve")
@@ -98,6 +103,37 @@ func workflowQueue(ctx context.Context, args []string, out io.Writer, directory 
 	svc, err := app.NewWorkflow(ws, directory, policy, permissionGateContext(true, nil, nil))
 	if err != nil {
 		return err
+	}
+	if command == "recover" {
+		if *recovery == "" {
+			return fmt.Errorf("recover requires -recovery decisions.json")
+		}
+		data, readErr := svc.Snapshot(ctx, *recovery)
+		if readErr != nil {
+			return readErr
+		}
+
+		var request workflow.Recovery
+		decoder := json.NewDecoder(bytes.NewReader(data))
+		decoder.DisallowUnknownFields()
+		err = decoder.Decode(&request)
+		if err != nil {
+			return err
+		}
+		err = decoder.Decode(new(any))
+		if err != io.EOF {
+			return fmt.Errorf("recovery file must contain one JSON object")
+		}
+
+		result, recoverErr := svc.Recover(ctx, flags.Arg(0), request)
+		if result != "" {
+			_, writeErr := fmt.Fprintln(out, result)
+			if writeErr != nil {
+				return errors.Join(recoverErr, writeErr)
+			}
+			workflowGuidance(os.Stderr, result, directory, *dir, *allow, *deny)
+		}
+		return recoverErr
 	}
 	if command == "review" {
 		if *decision != "approve" && *decision != "reject" {

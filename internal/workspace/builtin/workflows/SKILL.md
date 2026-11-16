@@ -139,3 +139,11 @@ at most 32 KiB. Duplicate event ID and normalized payload are acknowledged
 without another continuation; conflicting delivery is rejected. No maps or
 retries on the wait node. Do not invent channels, credentials or provider callback
 registration. This operation does not buffer early events.
+
+
+Interrupted runs are not automatically replayed. Inspect `uncertain` invocation
+IDs and the external effects, then ask the operator to use `workflow recover`
+with explicit retry or verified-output decisions and a note. Recovery is an
+operator CLI action, not an Agent tool. Do not submit a duplicate recipe as a
+substitute for resolving an uncertain effect. Recorded failures and cancellations
+are not general recovery candidates.

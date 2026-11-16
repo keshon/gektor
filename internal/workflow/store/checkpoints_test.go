@@ -10,6 +10,46 @@ import (
 	"github.com/keshon/gektor/internal/workflow"
 )
 
+func TestRecoveryAuditAndResolvedInvocationCommitTogether(t *testing.T) {
+	s, _, _ := testStore(t)
+	w, err := s.NewRun()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	r := workflow.Run{Status: "running", Steps: []workflow.StepResult{{ID: "effect", Status: "running"}}}
+	err = w.Save(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Recoveries = []workflow.RecoveryRecord{{At: time.Now().UTC(), Note: "verified", Decisions: []workflow.RecoveryResolution{{StepID: "effect", Action: "complete"}}}}
+	r.Steps[0].Status, r.Steps[0].Output = "completed", `{}`
+	_, err = s.db.Exec(`CREATE TRIGGER reject_recovery BEFORE INSERT ON invocations BEGIN SELECT RAISE(ABORT,'checkpoint fault'); END;`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = w.Save(r)
+	if err == nil {
+		t.Fatal("partial recovery committed")
+	}
+	state, err := s.Run(w.ID())
+	if err != nil || len(state.Record.Recoveries) != 0 || state.Record.Steps[0].Status != "running" {
+		t.Fatal(state, err)
+	}
+	_, err = s.db.Exec("DROP TRIGGER reject_recovery")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = w.Save(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err = s.Run(w.ID())
+	if err != nil || len(state.Record.Recoveries) != 1 || state.Record.Steps[0].Status != "completed" {
+		t.Fatal(state, err)
+	}
+}
+
 func TestSQLiteConfigurationAndConcurrentReader(t *testing.T) {
 	s, base, work := testStore(t)
 	var journal string

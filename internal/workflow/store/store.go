@@ -145,8 +145,9 @@ func (w *RunWriter) DatabasePath() string { return filepath.Join(w.store.path, "
 func (w *RunWriter) Close() error         { return w.lease.Close() }
 
 type RunState struct {
-	Status string       `json:"status"`
-	Record workflow.Run `json:"record"`
+	Status    string       `json:"status"`
+	Record    workflow.Run `json:"record"`
+	Uncertain []string     `json:"uncertain,omitempty"`
 }
 
 func (s *Store) Run(id string) (RunState, error) {
@@ -182,7 +183,13 @@ func (s *Store) Run(id string) (RunState, error) {
 		status = "interrupted"
 	}
 
-	return RunState{Status: status, Record: r}, nil
+	state := RunState{Status: status, Record: r}
+	if status == "interrupted" {
+		for _, step := range workflow.UncertainSteps(r) {
+			state.Uncertain = append(state.Uncertain, step.ID)
+		}
+	}
+	return state, nil
 }
 
 type RunSummary struct {

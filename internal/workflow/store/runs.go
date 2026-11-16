@@ -293,7 +293,7 @@ func loadRun(db *sql.Tx, id string) (workflow.Run, error) {
 	}
 
 	for _, step := range steps {
-		if step.Status == "waiting" && step.Callback != nil {
+		if (step.Status == "waiting" || step.Status == "running") && step.Callback != nil {
 			err = loadCallback(db, id, step.Callback)
 			if err != nil {
 				return r, err

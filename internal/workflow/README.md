@@ -28,6 +28,9 @@ The terminal editor is a separate consumer in `internal/tui/workflow`.
   and adaptation to the service. `api` owns HTTP transport, submission and callback authentication.
   Callback acceptance and deduplication live in `store/callbacks.go`; `service/waits.go`
   resumes them through the same worker and engine used for deadline waits.
+  `service/recovery.go` owns operator recovery checks; `engine/recovery.go` saves
+  explicit decisions before continuing interrupted runs. Collection continuation
+  retains completed items rather than recreating their invocation records.
 
 Application wiring in `internal/app/workflow.go` assembles concrete nodes and
 authorization. Keep shared execution decisions out of the adapters, and keep

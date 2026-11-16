@@ -12,12 +12,11 @@ import (
 )
 
 type iterationUpdate struct {
-	index  int
-	step   workflow.StepResult
-	output string
-	err    error
-	done   bool
-	ack    chan error
+	index int
+	step  workflow.StepResult
+	err   error
+	done  bool
+	ack   chan error
 }
 
 type iterationOutcome struct {
@@ -41,22 +40,26 @@ func executeIterations(ctx context.Context, s workflow.Step, h workflow.Handler,
 	}
 
 	// The coordinator reserves the array against the budget shared by all scopes.
-	if len(items) > *remaining {
-		return "", fmt.Errorf("collection needs %d invocation slots; run has %d of %d available", len(items), max(0, *remaining), workflow.MaxInvocations)
-	}
-	*remaining -= len(items)
-
 	collect := s.OnError == "collect"
 	s.ForEach, s.Concurrency, s.OnError = nil, 0, ""
-	r.Steps[index].Iterations = make([]workflow.StepResult, len(items))
-	for n, args := range items {
-		r.Steps[index].Iterations[n] = workflow.StepResult{
-			ID: fmt.Sprintf("%s[%d]", s.ID, n), Status: "pending", Args: args,
+	if r.Steps[index].Iterations == nil {
+		if len(items) > *remaining {
+			return "", fmt.Errorf("collection needs %d invocation slots; run has %d of %d available", len(items), max(0, *remaining), workflow.MaxInvocations)
+		}
+		*remaining -= len(items)
+		r.Steps[index].Iterations = make([]workflow.StepResult, len(items))
+		for n, args := range items {
+			r.Steps[index].Iterations[n] = workflow.StepResult{
+				ID: fmt.Sprintf("%s[%d]", s.ID, n), Status: "pending", Args: args,
+			}
+		}
+		err = save(*r, index)
+		if err != nil {
+			return "", err
 		}
 	}
-	err = save(*r, index)
-	if err != nil {
-		return "", err
+	if len(r.Steps[index].Iterations) != len(items) {
+		return "", fmt.Errorf("collection checkpoint does not match inputs")
 	}
 
 	workctx, cancel := context.WithCancel(ctx)
@@ -69,6 +72,24 @@ func executeIterations(ctx context.Context, s workflow.Step, h workflow.Handler,
 
 	for next < len(items) || active > 0 {
 		for failure == nil && next < len(items) && active < concurrency {
+			item := r.Steps[index].Iterations[next]
+			if item.Status == "completed" || item.Status == "skipped" || (item.Status == "failed" && collect) {
+				outcome, encodedSize, outcomeErr := retainedOutcome(next, item)
+				if outcomeErr != nil || size+encodedSize > recipe.MaxOutput-1024 {
+					failure = fmt.Errorf("retained iteration output is invalid or exceeds 1 MiB")
+					cancel()
+					break
+				}
+				outcomes[next] = outcome
+				size += encodedSize
+				next++
+				continue
+			}
+			if item.Status != "pending" {
+				failure = fmt.Errorf("iteration %s cannot resume from %s", item.ID, item.Status)
+				cancel()
+				break
+			}
 			err = workctx.Err()
 			if err != nil {
 				failure = err
@@ -84,7 +105,8 @@ func executeIterations(ctx context.Context, s workflow.Step, h workflow.Handler,
 				break
 			}
 			n := next
-			workers.Go(func() { runIteration(workctx, child, h, n, updates) })
+			item.Attempts = append([]workflow.Attempt(nil), item.Attempts...)
+			workers.Go(func() { runIteration(workctx, child, item, h, n, updates) })
 			next++
 			active++
 		}
@@ -96,12 +118,8 @@ func executeIterations(ctx context.Context, s workflow.Step, h workflow.Handler,
 		r.Steps[index].Iterations[update.index] = update.step
 		if update.done {
 			active--
-			outcome := iterationOutcome{Index: update.index, Status: update.step.Status, Error: update.step.Error}
-			if json.Valid([]byte(update.output)) {
-				outcome.Output = json.RawMessage(update.output)
-			}
-			encoded, encodeErr := json.Marshal(outcome)
-			size += len(encoded) + 1
+			outcome, encodedSize, encodeErr := retainedOutcome(update.index, update.step)
+			size += encodedSize
 			if failure == nil && (encodeErr != nil || size > recipe.MaxOutput-1024) {
 				failure = fmt.Errorf("iteration output exceeds 1 MiB")
 			}
@@ -130,7 +148,9 @@ func executeIterations(ctx context.Context, s workflow.Step, h workflow.Handler,
 	workers.Wait()
 	if failure != nil {
 		for n := next; n < len(items); n++ {
-			r.Steps[index].Iterations[n].Status = "skipped"
+			if r.Steps[index].Iterations[n].Status == "pending" {
+				r.Steps[index].Iterations[n].Status = "skipped"
+			}
 		}
 		return "", failure
 	}
@@ -140,8 +160,9 @@ func executeIterations(ctx context.Context, s workflow.Step, h workflow.Handler,
 	return string(data), err
 }
 
-func runIteration(ctx context.Context, s workflow.Step, h workflow.Handler, index int, updates chan<- iterationUpdate) {
-	nested := workflow.Run{Steps: []workflow.StepResult{{ID: s.ID, Status: "running", Args: s.Args}}}
+func runIteration(ctx context.Context, s workflow.Step, previous workflow.StepResult, h workflow.Handler, index int, updates chan<- iterationUpdate) {
+	previous.Status = "running"
+	nested := workflow.Run{Steps: []workflow.StepResult{previous}}
 	persist := func(r workflow.Run, _ ...int) error {
 		step := r.Steps[0]
 		step.Attempts = append([]workflow.Attempt(nil), step.Attempts...)
@@ -165,5 +186,17 @@ func runIteration(ctx context.Context, s workflow.Step, h workflow.Handler, inde
 	if len(step.Output) > recipe.MaxOutput {
 		step.Output = step.Output[:recipe.MaxOutput]
 	}
-	updates <- iterationUpdate{index: index, step: step, output: output, err: err, done: true}
+	updates <- iterationUpdate{index: index, step: step, err: err, done: true}
+}
+
+func retainedOutcome(index int, step workflow.StepResult) (iterationOutcome, int, error) {
+	outcome := iterationOutcome{Index: index, Status: step.Status, Error: step.Error}
+	if step.Status == "completed" && !json.Valid([]byte(step.Output)) {
+		return outcome, 0, fmt.Errorf("completed iteration has invalid JSON output")
+	}
+	if json.Valid([]byte(step.Output)) {
+		outcome.Output = json.RawMessage(step.Output)
+	}
+	encoded, err := json.Marshal(outcome)
+	return outcome, len(encoded) + 1, err
 }

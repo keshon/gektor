@@ -244,7 +244,6 @@ cancellation without executing remaining operations. Waiting jobs remain active
 for queue retention and schedule-overlap rules. At most 1,000 runs may wait in a
 workspace store. Waiting-run artifacts are retained.
 
-Explicit operator recovery of interrupted effects remains separate work.
 See the [durable wait example](../../examples/workflows/durable-wait/README.md).
 
 ## Callback waits
@@ -274,6 +273,67 @@ The receipt's `expires_at` remains the original delivery deadline.
 See [callback delivery](http-api.md#callback-waits) for authentication, limits,
 duplicate responses and the early-delivery restriction. No event is buffered
 before its wait checkpoint exists.
+
+## Recovering interrupted execution
+
+A process that stops during active work leaves the run `interrupted`. GEKTOR
+cannot know whether an SSH command, request or write finished remotely. Inspect
+the run, artifacts and external target before choosing a recovery action.
+
+`workflow inspect <run-id>` lists uncertain invocation IDs in `uncertain`; child
+and collection IDs keep their full scope, for example `call/batch[1]`. Agent
+inspection also exposes uncertain operations and recovery history. Inspection
+never retries anything.
+
+Only the operator CLI can recover a run. Create a workspace-relative JSON file:
+
+```json
+{
+  "note": "Checked the target: the request completed successfully",
+  "decisions": [
+    {
+      "step_id": "send",
+      "action": "complete",
+      "output": {"accepted": true}
+    }
+  ]
+}
+```
+
+Then run:
+
+```text
+gektor workflow recover -workspace work -recovery recovery.json <run-id>
+```
+
+Each uncertain invocation needs exactly one decision:
+
+- `complete` records the verified JSON output without executing the operation.
+  The output must satisfy the registered node's output schema. This does not
+  create missing artifacts or verify remote success for you.
+- `retry` explicitly permits another execution, which may repeat an external
+  effect. Omit `output`. Current permissions still apply.
+
+Completed steps and collection items retain their outputs. Child scopes, maps,
+repeats, reserved invocation slots and attempt history are preserved. Pure call
+binding and wait bookkeeping resume through the existing executor. If a process
+stopped between effects and no invocation is uncertain, use an empty `decisions`
+array with a note to continue pending work.
+
+The entire decisions document is limited to 64 KiB. A nonblank note of at most
+2,000 bytes is required; a run supports at most 32 recovery records. The time,
+note, actions and supplied-output SHA-256 digests persist before resumed effects.
+Full outputs stay on their invocation, outside the audit history. If execution
+stops again, inspect the new checkpoint before making further decisions.
+
+Recovery takes the existing exclusive run lease and rechecks frozen recipe
+identity, current registry contracts and permissions. Completed, failed,
+cancelled, waiting and actively owned runs cannot be recovered this way. An
+unfinished scope containing a recorded failed/cancelled operation is also
+rejected; this command does not supply general failure retries. A linked job
+with pending cancellation cannot be recovered. Linked jobs retain their original
+run ID and cancellation monitor during continuation. A failed recovery commit
+prevents dispatch. Recovery is not available to Agent tools or HTTP callers.
 
 ## Reusable subworkflows
 

@@ -67,6 +67,16 @@ func TestCallbackAcceptanceSurvivesSnapshotsAndDeduplicates(t *testing.T) {
 		t.Fatal(err)
 	}
 	delivery.EventID = "event"
+	r.Status, r.WakeAt = "running", nil
+	r.Steps[0].Status = "running"
+	err = w.Save(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err = s.Run(w.ID())
+	if err != nil || state.Record.Steps[0].Callback.EventID != "event" {
+		t.Fatal("accepted callback lost before recovery", state, err)
+	}
 	r.Status, r.WakeAt = "completed", nil
 	r.Steps[0].Status = "completed"
 	err = w.Save(r)

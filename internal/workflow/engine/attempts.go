@@ -22,7 +22,7 @@ func executeAttempts(ctx context.Context, s workflow.Step, h workflow.Handler, r
 			return out, err
 		}
 		step := &r.Steps[index]
-		step.Attempts = append(step.Attempts, workflow.Attempt{Number: number, Started: time.Now().UTC()})
+		step.Attempts = append(step.Attempts, workflow.Attempt{Number: len(step.Attempts) + 1, Started: time.Now().UTC()})
 		if err := save(*r, index); err != nil {
 			return out, fmt.Errorf("save attempt: %w", err)
 		}

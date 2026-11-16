@@ -60,6 +60,7 @@ type StepResult struct {
 	Error  string          `json:"error,omitempty"`
 }
 type Run struct {
+	Recoveries   []RecoveryRecord           `json:"recoveries,omitempty"`
 	WakeAt       *time.Time                 `json:"wake_at,omitempty"`
 	ScheduleID   string                     `json:"schedule_id,omitempty"`
 	ScheduledFor *time.Time                 `json:"scheduled_for,omitempty"`
@@ -76,6 +77,43 @@ type Run struct {
 	Started      time.Time                  `json:"started"`
 	Finished     *time.Time                 `json:"finished,omitempty"`
 	Steps        []StepResult               `json:"steps"`
+}
+
+type Recovery struct {
+	Note      string             `json:"note"`
+	Decisions []RecoveryDecision `json:"decisions"`
+}
+
+type RecoveryDecision struct {
+	StepID string          `json:"step_id"`
+	Action string          `json:"action"`
+	Output json.RawMessage `json:"output,omitempty"`
+}
+
+// RecoveryRecord retains the operator's explanation and output digests. Outputs
+// themselves stay on the resolved invocation, rather than being copied into history.
+type RecoveryRecord struct {
+	At        time.Time            `json:"at"`
+	Note      string               `json:"note"`
+	Decisions []RecoveryResolution `json:"decisions"`
+}
+
+type RecoveryResolution struct {
+	StepID       string `json:"step_id"`
+	Action       string `json:"action"`
+	OutputSHA256 string `json:"output_sha256,omitempty"`
+}
+
+func UncertainSteps(r Run) []ScopedStep {
+	var uncertain []ScopedStep
+	for _, step := range ScopedSteps(r) {
+		container := step.Definition.Child != nil || len(step.Definition.ForEach) > 0
+		wait := step.Definition.Tool == "workflow_wait" || step.Definition.Tool == "workflow_wait_callback"
+		if step.Result.Status == "running" && !container && !wait {
+			uncertain = append(uncertain, step)
+		}
+	}
+	return uncertain
 }
 
 func (r Run) Paused() bool {
@@ -103,11 +141,12 @@ func ScopedSteps(r Run) []ScopedStep {
 			if step.Child != nil {
 				visit(*step.Child, id+"/")
 			}
-			if definitions[step.ID].Child != nil {
+			if step.Iterations != nil {
 				definition := definitions[step.ID]
 				definition.ForEach, definition.Concurrency, definition.OnError, definition.Review = nil, 0, "", false
 				definition.Repeat = nil
 				for _, item := range step.Iterations {
+					definition.Args = item.Args
 					out = append(out, ScopedStep{ID: item.ID, Definition: definition, Result: item})
 					if item.Child != nil {
 						visit(*item.Child, item.ID+"/")

@@ -205,7 +205,7 @@ func (s *Store) recoverJobs(ctx context.Context, includeUnlinked bool) error {
 				}
 			}
 			if j.Status == "interrupted" {
-				j.Error = "execution stopped; inspect effects before submitting again"
+				j.Error = "execution stopped; inspect effects before recovery"
 			}
 			c.Jobs[id] = j
 		}

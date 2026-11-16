@@ -285,6 +285,14 @@ together and are accepted only by `serve`: `-listen` selects the loopback addres
 and `-api-config` names a workspace-relative route configuration file.
 See [HTTP API and webhooks](http-api.md#http-api-and-webhooks).
 
+`workflow recover [-workspace dir] [-allow tool=pattern] [-deny tool=pattern]
+-recovery recovery.json <run-id>` applies operator decisions to interrupted
+execution and continues the same run. Flags precede the run ID. The decisions
+file supplied by `-recovery` is workspace-relative, strict JSON and at most 64 KiB. Every uncertain
+invocation needs `retry` or `complete` with verified output; a note is required.
+See [recovery decisions and limits](recipes.md#recovering-interrupted-execution).
+This command does not resume terminal failures or bypass permissions.
+
 `workflow schedule -cron "0 9 * * 1-5" -timezone Europe/Moscow -missed once
 -overlap skip daily recipe.json` saves a schedule and recipe snapshot.
 All flags must precede the schedule ID and recipe path. `-inputs` binds a saved
