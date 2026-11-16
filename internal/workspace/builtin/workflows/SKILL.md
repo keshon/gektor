@@ -147,3 +147,19 @@ with explicit retry or verified-output decisions and a note. Recovery is an
 operator CLI action, not an Agent tool. Do not submit a duplicate recipe as a
 substitute for resolving an uncertain effect. Recorded failures and cancellations
 are not general recovery candidates.
+
+
+For a typed operation error, add an error route with `on_failure:"source-id"`.
+Its args can read `{"$step":"source-id","pointer":"/error/code"}` or
+`/error/message`. Failed operation output remains separate in inspection.
+Ordinary work stops after failure; matching routes and `finally:true` operations
+may continue. Finalizers run last even when placed earlier in the saved file.
+Routes/finalizers preserve a failed run status and each needs its own permission.
+Use a child call for a multi-step error branch. Do not target another route or
+finalizer with on_failure, combine on_failure with finally, or make ordinary
+work depend on a finalizer. Reference only values available on the selected path.
+Reviews/waits preserve failure state; interrupted active effects need operator
+recovery. Permission, contract, cancellation and checkpoint errors stop execution
+without dispatching routes/finalizers. Only explicitly typed operation failures
+are routable; do not assume every tool error qualifies. HTTP, isolated script and
+callback-expiry failures have native codes. Error routes do not authorize retries.

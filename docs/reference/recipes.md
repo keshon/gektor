@@ -206,6 +206,85 @@ infer whether an external effect happened.
 `node_version` defaults to 1. A recipe requesting another version fails unless
 that exact version is registered. This is separate from the recipe format version.
 
+## Error routes and finalizers
+
+An error route names the ordinary step whose operation failure should trigger it:
+
+```json
+{
+  "id": "notify",
+  "tool": "artifact_write",
+  "on_failure": "fetch",
+  "args": {
+    "name": "failure.txt",
+    "text": {"$step": "fetch", "pointer": "/error/message"}
+  }
+}
+```
+
+`on_failure` adds an ordering dependency on `fetch`. The route runs only when
+that step has a typed operation failure; success or skipping leaves the route
+skipped. Additional dependencies still follow the normal `merge` rules. Routes
+may have conditions, reviews, waits, collections or child calls. A route targets
+an ordinary step, not another error route or finalizer. Several routes may
+observe the same source failure. For a multi-step error-handling graph, use a
+child recipe as the route's operation.
+
+A typed failure is recorded separately as `failure:{"code":"…","message":"…"}`.
+For references, the failed step exposes `{"error":{"code":"…","message":"…"}}`.
+The original partial operation output remains in the stored invocation's
+`output` for inspection; it is not returned as a successful `$step` value.
+Collection item records and outcome arrays also retain typed `failure` metadata.
+
+Current native codes are `http_status`, `http_request_failed`,
+`http_response_failed`, `http_response_too_large`, `script_failed` and
+`callback_expired`. Nodes without a specific code use `operation_failed` when
+explicitly marking an operation failure. Only explicitly typed failures are
+routable; other nodes' plain errors stop execution. This boundary prevents a
+permission, schema, path, artifact-store or checkpoint failure from silently
+becoming ordinary error-branch data. A typed failure does not establish whether
+an external effect happened and does not grant permission to retry it.
+
+After a typed operation failure, remaining ordinary work in that scope is
+skipped. Matching error routes may execute, followed by finalizers. Neither an
+error route nor successful finalization turns the run into success: the scope
+finishes `failed` and reports its first operation failure. Later route/finalizer
+failures remain inspectable without replacing that primary cause. Successful
+`on_error:"collect"` collections still return their item outcomes normally; they
+do not trigger an error route on the collection container.
+
+A finalizer is an ordinary operation marked `finally:true`:
+
+```json
+{"id":"finish","tool":"artifact_write","finally":true,"args":{"name":"finished.txt","text":"finished"}}
+```
+
+Finalizers run after ordinary steps and error routes settle, on success or typed
+operation failure. Their position in the saved file does not move them ahead of
+that work. Explicit dependencies and references can order finalizers relative to
+each other; ordinary work and error routes cannot depend on a finalizer. A step
+cannot combine `finally` and `on_failure`. `depends_on` on a finalizer orders
+settled work rather than requiring success. A reference still needs a value:
+referencing a skipped step or a nonexistent field is a contract error. Prefer
+static finalizer arguments or references known to exist on both paths.
+
+Each route and finalizer keeps its own permission and argument/output checks.
+Cancellation, permission denial, invalid contracts and checkpoint failures stop
+execution immediately; they do not dispatch more routes or finalizers. Such an
+immediate-stop error takes precedence in the returned error; earlier operation
+failures remain in inspection. Finalizers are not process-exit cleanup and do not run while a process is stopped.
+
+Reviews and durable waits retain the original failure until continuation.
+Completed routes/finalizers are not repeated. A process stopped during their
+active effects remains interrupted and needs explicit operator recovery. Known
+typed failures can be retained during that recovery while remaining uncertain
+operations still require decisions. Frozen child scopes use the same rules;
+an uncollected child failure reaches its caller as a typed operation failure.
+Declared output collection is skipped when the scope fails.
+
+See the [error-routing example](../../examples/workflows/error-routing/README.md)
+for a model-free recipe that writes failure and finalization artifacts.
+
 ## Durable deadline waits
 
 `workflow_wait` persists a deadline and returns control to its caller:
@@ -329,8 +408,9 @@ stops again, inspect the new checkpoint before making further decisions.
 Recovery takes the existing exclusive run lease and rechecks frozen recipe
 identity, current registry contracts and permissions. Completed, failed,
 cancelled, waiting and actively owned runs cannot be recovered this way. An
-unfinished scope containing a recorded failed/cancelled operation is also
-rejected; this command does not supply general failure retries. A linked job
+unfinished scope containing an untyped failed or cancelled operation is also
+rejected. Known typed failures remain settled so pending error routes and
+finalizers can continue; this command does not retry those failures. A linked job
 with pending cancellation cannot be recovered. Linked jobs retain their original
 run ID and cancellation monitor during continuation. A failed recovery commit
 prevents dispatch. Recovery is not available to Agent tools or HTTP callers.

@@ -60,6 +60,10 @@ func executeChildIterations(ctx context.Context, s workflow.Step, h workflow.Han
 	}()
 	for n := range inputs {
 		item := r.Steps[index].Iterations[n]
+		if item.Status == "failed" && item.Failure != nil && s.OnError != "collect" {
+			cause := errors.New(item.Failure.Message)
+			return "", &workflow.ExecutionError{Code: item.Failure.Code, Err: cause}
+		}
 		if item.Status != "completed" && item.Status != "failed" && item.Status != "skipped" {
 			err = ctx.Err()
 			if err != nil {
@@ -98,6 +102,9 @@ func executeChildIterations(ctx context.Context, s workflow.Step, h workflow.Han
 			item.Output, item.Status = output, "completed"
 			if err != nil {
 				item.Status, item.Error = "failed", err.Error()
+				if ctx.Err() == nil {
+					item.Failure = workflow.OperationFailure(err)
+				}
 			}
 			if err != nil && ctx.Err() != nil {
 				item.Status = "cancelled"
@@ -113,7 +120,7 @@ func executeChildIterations(ctx context.Context, s workflow.Step, h workflow.Han
 				return "", err
 			}
 		}
-		outcome := iterationOutcome{Index: n, Status: item.Status, Error: item.Error}
+		outcome := iterationOutcome{Index: n, Status: item.Status, Error: item.Error, Failure: item.Failure}
 		if json.Valid([]byte(item.Output)) {
 			outcome.Output = json.RawMessage(item.Output)
 		}

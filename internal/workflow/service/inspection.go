@@ -50,16 +50,17 @@ type RunInspection struct {
 }
 
 type StepInspection struct {
-	ID        string `json:"id"`
-	Operation string `json:"operation,omitempty"`
-	Status    string `json:"status"`
-	Error     string `json:"error,omitempty"`
+	Failure   *workflow.Failure `json:"failure,omitempty"`
+	ID        string            `json:"id"`
+	Operation string            `json:"operation,omitempty"`
+	Status    string            `json:"status"`
+	Error     string            `json:"error,omitempty"`
 }
 
 func InspectSteps(r workflow.Run) []StepInspection {
 	out := make([]StepInspection, 0, len(r.Steps))
 	for _, s := range workflow.ScopedSteps(r) {
-		out = append(out, StepInspection{ID: s.ID, Operation: s.Definition.Tool, Status: s.Result.Status, Error: s.Result.Error})
+		out = append(out, StepInspection{ID: s.ID, Operation: s.Definition.Tool, Status: s.Result.Status, Error: s.Result.Error, Failure: s.Result.Failure})
 	}
 	return out
 }

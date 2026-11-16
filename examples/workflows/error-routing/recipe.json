@@ -1,0 +1,32 @@
+{
+  "version": 4,
+  "name": "Failure report",
+  "steps": [
+    {
+      "id": "finish",
+      "tool": "artifact_write",
+      "finally": true,
+      "args": {"name": "finished.txt", "text": "finished"}
+    },
+    {
+      "id": "after",
+      "tool": "artifact_write",
+      "depends_on": ["transform"],
+      "args": {"name": "after.txt", "text": "must not run"}
+    },
+    {
+      "id": "report",
+      "tool": "artifact_write",
+      "on_failure": "transform",
+      "args": {
+        "name": "failure.txt",
+        "text": {"$step": "transform", "pointer": "/error/code"}
+      }
+    },
+    {
+      "id": "transform",
+      "tool": "script_transform",
+      "args": {"code": "throw new Error('fixture failure');", "input": {}}
+    }
+  ]
+}

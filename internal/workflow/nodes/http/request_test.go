@@ -67,6 +67,12 @@ func TestHTTPStatusAsDataAndSelectedHeaders(t *testing.T) {
 				if (err != nil) != (!asData && (status < 200 || status >= 300)) || calls != 1 {
 					t.Fatal(out, err, calls)
 				}
+				if err != nil {
+					failure := workflow.OperationFailure(err)
+					if failure == nil || failure.Code != "http_status" {
+						t.Fatal("HTTP status lost typed code", err)
+					}
+				}
 				var result struct {
 					Status  int               `json:"status_code"`
 					Headers map[string]string `json:"headers"`

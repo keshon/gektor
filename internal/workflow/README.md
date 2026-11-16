@@ -31,6 +31,9 @@ The terminal editor is a separate consumer in `internal/tui/workflow`.
   `service/recovery.go` owns operator recovery checks; `engine/recovery.go` saves
   explicit decisions before continuing interrupted runs. Collection continuation
   retains completed items rather than recreating their invocation records.
+  `recipe/graph.go` orders error routes and finalizers; the ordinary engine loop
+  checkpoints typed failures and runs those branches. Permission, contract,
+  cancellation and checkpoint errors remain immediate stops.
 
 Application wiring in `internal/app/workflow.go` assembles concrete nodes and
 authorization. Keep shared execution decisions out of the adapters, and keep

@@ -25,11 +25,28 @@ func Order(steps []workflow.Step) ([]workflow.Step, error) {
 	}
 
 	for _, s := range steps {
+		if s.OnFailure != "" {
+			source, ok := byID[s.OnFailure]
+			ordinary := ok && !source.Finally && source.OnFailure == "" && !source.CollectOutputs
+			if !ordinary || s.Finally || s.CollectOutputs {
+				return nil, fmt.Errorf("step %s: on_failure must name an ordinary step; routes and finalizers cannot target each other", s.ID)
+			}
+		}
 		if s.Merge != "" && s.Merge != "all" && s.Merge != "any" {
 			return nil, fmt.Errorf("step %s: merge must be all or any", s.ID)
 		}
 
 		deps := append([]string(nil), s.DependsOn...)
+		if s.OnFailure != "" {
+			deps = append(deps, s.OnFailure)
+		}
+		if s.Finally {
+			for _, ordinary := range steps {
+				if !ordinary.Finally && !ordinary.CollectOutputs {
+					deps = append(deps, ordinary.ID)
+				}
+			}
+		}
 
 		for _, raw := range []json.RawMessage{s.Args, s.When, s.ForEach} {
 			if len(raw) == 0 {
@@ -63,6 +80,9 @@ func Order(steps []workflow.Step) ([]workflow.Step, error) {
 
 			if _, ok := byID[id]; !ok {
 				return nil, fmt.Errorf("unknown dependency %s", id)
+			}
+			if byID[id].Finally && !s.Finally && !s.CollectOutputs {
+				return nil, fmt.Errorf("step %s: ordinary work and error routes cannot depend on finalizer %s", s.ID, id)
 			}
 
 			if !seen[id] {

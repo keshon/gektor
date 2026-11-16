@@ -20,10 +20,11 @@ type iterationUpdate struct {
 }
 
 type iterationOutcome struct {
-	Index  int             `json:"index"`
-	Status string          `json:"status"`
-	Output json.RawMessage `json:"output,omitempty"`
-	Error  string          `json:"error,omitempty"`
+	Failure *workflow.Failure `json:"failure,omitempty"`
+	Index   int               `json:"index"`
+	Status  string            `json:"status"`
+	Output  json.RawMessage   `json:"output,omitempty"`
+	Error   string            `json:"error,omitempty"`
 }
 
 // The coordinator alone updates the run. Workers wait for checkpoint acknowledgement
@@ -84,6 +85,12 @@ func executeIterations(ctx context.Context, s workflow.Step, h workflow.Handler,
 				size += encodedSize
 				next++
 				continue
+			}
+			if item.Status == "failed" && item.Failure != nil {
+				cause := errors.New(item.Failure.Message)
+				failure = &workflow.ExecutionError{Code: item.Failure.Code, Err: cause}
+				cancel()
+				break
 			}
 			if item.Status != "pending" {
 				failure = fmt.Errorf("iteration %s cannot resume from %s", item.ID, item.Status)
@@ -179,6 +186,9 @@ func runIteration(ctx context.Context, s workflow.Step, previous workflow.StepRe
 	}
 	if err != nil {
 		step.Status, step.Error = "failed", err.Error()
+		if ctx.Err() == nil {
+			step.Failure = workflow.OperationFailure(err)
+		}
 		if ctx.Err() != nil {
 			step.Status = "cancelled"
 		}
@@ -190,7 +200,7 @@ func runIteration(ctx context.Context, s workflow.Step, previous workflow.StepRe
 }
 
 func retainedOutcome(index int, step workflow.StepResult) (iterationOutcome, int, error) {
-	outcome := iterationOutcome{Index: index, Status: step.Status, Error: step.Error}
+	outcome := iterationOutcome{Index: index, Status: step.Status, Error: step.Error, Failure: step.Failure}
 	if step.Status == "completed" && !json.Valid([]byte(step.Output)) {
 		return outcome, 0, fmt.Errorf("completed iteration has invalid JSON output")
 	}

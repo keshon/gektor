@@ -46,6 +46,7 @@ func PendingCallback(r Run) *CallbackState {
 }
 
 type StepResult struct {
+	Failure    *Failure        `json:"failure,omitempty"`
 	Callback   *CallbackState  `json:"callback,omitempty"`
 	Wait       *WaitState      `json:"wait,omitempty"`
 	Child      *Run            `json:"child,omitempty"`
@@ -58,6 +59,18 @@ type StepResult struct {
 	Args   json.RawMessage `json:"args,omitempty"`
 	Output string          `json:"output,omitempty"`
 	Error  string          `json:"error,omitempty"`
+}
+
+const OperationFailed = "operation_failed"
+
+// Failure is data from a known operation failure, never a permission or checkpoint error.
+type Failure struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type FailureOutput struct {
+	Error Failure `json:"error"`
 }
 type Run struct {
 	Recoveries   []RecoveryRecord           `json:"recoveries,omitempty"`

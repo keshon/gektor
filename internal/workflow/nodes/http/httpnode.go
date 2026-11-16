@@ -125,18 +125,18 @@ func definition(resolve Resolver, transport http.RoundTripper) workflow.Node {
 			client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 			response, err := client.Do(req)
 			if err != nil {
-				return "", &workflow.ExecutionError{Err: fmt.Errorf("HTTP request: %s", redact(err.Error()))}
+				return "", &workflow.ExecutionError{Code: "http_request_failed", Err: fmt.Errorf("HTTP request: %s", redact(err.Error()))}
 			}
 
 			defer response.Body.Close()
 
 			body, err := io.ReadAll(io.LimitReader(response.Body, (256<<10)+1))
 			if err != nil {
-				return "", &workflow.ExecutionError{Err: fmt.Errorf("HTTP response read failed: %s", redact(err.Error()))}
+				return "", &workflow.ExecutionError{Code: "http_response_failed", Err: fmt.Errorf("HTTP response read failed: %s", redact(err.Error()))}
 			}
 
 			if len(body) > 256<<10 {
-				return "", &workflow.ExecutionError{Err: fmt.Errorf("HTTP response exceeds 256 KiB")}
+				return "", &workflow.ExecutionError{Code: "http_response_too_large", Err: fmt.Errorf("HTTP response exceeds 256 KiB")}
 			}
 
 			safe := redact(string(body))
@@ -167,7 +167,7 @@ func definition(resolve Resolver, transport http.RoundTripper) workflow.Node {
 			}
 
 			if !in.StatusAsData && (response.StatusCode < 200 || response.StatusCode >= 300) {
-				return string(out), &workflow.ExecutionError{Err: fmt.Errorf("HTTP status %d; request was not retried", response.StatusCode)}
+				return string(out), &workflow.ExecutionError{Code: "http_status", Err: fmt.Errorf("HTTP status %d; request was not retried", response.StatusCode)}
 			}
 
 			return string(out), nil

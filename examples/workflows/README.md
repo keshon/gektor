@@ -11,6 +11,7 @@ the recipe; exporting an artifact creates a file in the workspace.
 | [Collection report](collection-report/README.md) | Bounded parallel items and explicit failure collection | None |
 | [Log report](log-report/README.md) | Capture a file and save a report artifact | None |
 | [Durable wait](durable-wait/README.md) | Release execution and retain work across a deadline | Workflow worker |
+| [Error routes](error-routing/README.md) | Record a failure and finalize without hiding it | None |
 | [Repeated subworkflow](repeated-subworkflow/README.md) | Bounded pagination with per-page artifacts | None |
 | [Subworkflow](subworkflow/README.md) | Call a reusable recipe and return named outputs | None |
 | [Local program](process-report/README.md) | Feed captured data to a program and retain diagnostics | Python |

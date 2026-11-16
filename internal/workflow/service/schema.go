@@ -42,6 +42,8 @@ func (s Service) DefinitionSchema() json.RawMessage {
 			"tool":         map[string]any{"type": "string", "enum": s.Registry.Names()},
 			"args":         map[string]any{"type": "object"},
 			"review":       map[string]any{"type": "boolean"},
+			"on_failure":   map[string]any{"type": "string", "minLength": 1, "maxLength": 64, "pattern": `^[^@/][^/]*$`, "description": "Run only after the named ordinary step has a typed operation failure. Does not recover the run; ordinary work stops after failure."},
+			"finally":      map[string]any{"type": "boolean", "description": "Run after ordinary steps and error routes settle, on success or typed operation failure. Does not run after cancellation, permission, contract or checkpoint failure."},
 			"for_each":     map[string]any{"description": "Array or reference resolving to an array. Ordinary nodes require args={} and complete argument objects per item. workflow_call keeps a literal recipe_path in args and uses child input objects per item."},
 			"concurrency":  map[string]any{"type": "integer", "minimum": 1, "maximum": 32},
 			"on_error":     map[string]any{"type": "string", "enum": []string{"stop", "collect"}},

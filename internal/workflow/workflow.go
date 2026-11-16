@@ -39,6 +39,8 @@ type Step struct {
 	// branches do not suppress it. Missing referenced outputs still fail resolution.
 	CollectOutputs bool            `json:"collect_outputs,omitempty"`
 	Review         bool            `json:"review,omitempty"`
+	OnFailure      string          `json:"on_failure,omitempty"`
+	Finally        bool            `json:"finally,omitempty"`
 	ForEach        json.RawMessage `json:"for_each,omitempty"`
 	Concurrency    int             `json:"concurrency,omitempty"`
 	OnError        string          `json:"on_error,omitempty"`

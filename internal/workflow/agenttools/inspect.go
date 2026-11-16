@@ -101,7 +101,7 @@ func (t Inspect) Run(ctx context.Context, args json.RawMessage) (string, error) 
 				Output     service.InspectionValue `json:"output"`
 				Attempts   int                     `json:"attempt_count"`
 				Iterations int                     `json:"iteration_count"`
-			}{r.Record.RunID, service.StepInspection{ID: scoped.ID, Operation: scoped.Definition.Tool, Status: step.Status, Error: step.Error}, service.InspectValue(step.Args), output, len(step.Attempts), len(step.Iterations)}
+			}{r.Record.RunID, service.StepInspection{ID: scoped.ID, Operation: scoped.Definition.Tool, Status: step.Status, Error: step.Error, Failure: step.Failure}, service.InspectValue(step.Args), output, len(step.Attempts), len(step.Iterations)}
 			break
 		}
 		if result == nil {

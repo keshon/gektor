@@ -105,7 +105,7 @@ func Recover(ctx context.Context, previous workflow.Run, request workflow.Recove
 func resolveInterrupted(steps []workflow.StepResult, prefix string, decisions map[string]workflow.RecoveryDecision) error {
 	for i := range steps {
 		step := &steps[i]
-		if step.Status == "completed" || step.Status == "skipped" {
+		if step.Status == "completed" || step.Status == "skipped" || (step.Status == "failed" && step.Failure != nil) {
 			continue
 		}
 		if step.Status == "failed" || step.Status == "cancelled" {

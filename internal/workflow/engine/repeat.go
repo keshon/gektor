@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -60,6 +61,10 @@ func executeRepeat(ctx context.Context, s workflow.Step, h workflow.Handler, r *
 		}
 
 		item := r.Steps[index].Iterations[n]
+		if item.Status == "failed" && item.Failure != nil {
+			cause := errors.New(item.Failure.Message)
+			return "", &workflow.ExecutionError{Code: item.Failure.Code, Err: cause}
+		}
 		if item.Status != "completed" {
 			if item.Status != "pending" && item.Status != "waiting_review" && item.Status != "waiting" {
 				return "", fmt.Errorf("repeat item %s cannot resume from %s", item.ID, item.Status)
@@ -94,6 +99,9 @@ func executeRepeat(ctx context.Context, s workflow.Step, h workflow.Handler, r *
 			item.Output, item.Status = output, "completed"
 			if err != nil {
 				item.Status, item.Error = "failed", err.Error()
+				if ctx.Err() == nil {
+					item.Failure = workflow.OperationFailure(err)
+				}
 				if ctx.Err() != nil {
 					item.Status = "cancelled"
 				}

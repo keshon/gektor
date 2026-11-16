@@ -39,7 +39,7 @@ func Definition() workflow.Node {
 			output, err := runtime.Execute(ctx, r)
 			var failure *subprocess.WorkerError
 			if errors.As(err, &failure) {
-				return output, &workflow.ExecutionError{Err: err}
+				return output, &workflow.ExecutionError{Code: "script_failed", Err: err}
 			}
 			return output, err
 		},

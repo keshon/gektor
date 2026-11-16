@@ -5,10 +5,10 @@ Branch: `codex/workflow-runtime-v4`.
 
 ## Start here: current handoff — 2026-11-16
 
-Continue on `codex/workflow-runtime-v4`. Callback waits are committed in
-`c385ce0` (not pushed in this session). Operator recovery is implemented on top of
-that revision and committed with this handoff.
-Older handoffs below describe earlier checkpoints; their "next" paragraphs are superseded by this section.
+Continue on `codex/workflow-runtime-v4`. This handoff accompanies the committed
+error-route and finalization implementation. Callback waits (`c385ce0`),
+operator recovery (`92bae29`), and this implementation are pushed together.
+Older "next" paragraphs below are historical and superseded by this section.
 
 ### Completed and pushed
 
@@ -58,7 +58,7 @@ concurrent duplicate delivery, transactional registration/acceptance rollback,
 stale snapshots, worker restart and accepted-event recovery after process exit.
 The native worker and run lease remain the only executor path.
 
-### Current implementation slice: operator recovery
+### Recovery checkpoint — 92bae29
 
 `workflow recover -workspace <dir> -recovery recovery.json <run-id>` is an
 operator-only continuation path for interrupted runs. It is absent from Agent
@@ -81,8 +81,9 @@ bookkeeping are pure control work; accepted callbacks hydrate across an
 interrupted consumption checkpoint and recheck permissions before recovery.
 
 Known terminal failures/cancellations, actively leased runs and linked jobs with
-pending cancellation are rejected. An unfinished scope containing a recorded
-failed/cancelled leaf is outside this slice, even when other leaves are uncertain.
+pending cancellation are rejected. An unfinished scope containing an untyped
+failed or cancelled leaf is outside this slice. Known typed failures remain
+settled while pending error routes/finalizers continue; they are not retried.
 This is not general failure retry or automatic replay. Linked jobs retain the
 same run ID and use the existing joined cancellation monitor. A stale terminal
 job record can be reconciled from its exclusively leased interrupted run before
@@ -96,7 +97,46 @@ Service tests cover current policy, invalid decisions/output schemas, active
 leases, linked jobs/cancellation and accepted callback consumption. The CLI test
 completes an interrupted artifact write from its verified existing output.
 
-Next: typed error routes and finalization, then selective retry policy. Named connections and credentials are
+### Current implementation slice: typed error routes and finalization
+
+Recipes now accept `on_failure:"source-id"` on an error route and `finally:true`
+on a finalizer. Graph validation adds the source edge and orders finalizers after
+ordinary work/error routes. Routes target ordinary steps only; ordinary work
+cannot depend on a finalizer. No separate executor or reference syntax was added.
+
+Only explicit `ExecutionError` operation failures route. They persist typed
+`failure:{code,message}` metadata; references to a failed source receive
+`{error:{code,message}}`. The partial operation output remains separate in the
+stored invocation. HTTP/script/callback-expiry paths have native codes; untyped
+node errors still stop immediately. Collection item records and outcome arrays
+retain typed failure metadata as well.
+
+After a typed failure, remaining ordinary work is skipped; matching error routes
+and finalizers may execute. The scope remains failed and reports its first
+operation failure. Later failures remain inspectable. Output collection is
+skipped on failed scopes. Permissions/contracts remain checked for every effect.
+Cancellation, contract/permission errors and any checkpoint failure are immediate
+stops. A run-local checkpoint guard prevents a joined operation/storage error
+from being misclassified as routable. Finalizers are not process-exit cleanup.
+
+Known failures survive review, deadline/callback waits and explicit operator
+recovery. Restoring partial collections/calls/repeats aggregates retained typed
+item failures without replay or erasing the failure at the parent boundary.
+Existing exclusive leases, shared budgets and interrupted-effect decisions stay
+in place. Successful `on_error:"collect"` containers still return item data and
+do not activate a container failure route.
+
+Tests cover success/error ordering, first-failure preservation, nested calls,
+maps/repeats/collections, finalizer failure, denied routes/finalizers, output
+contract failure, cancellation, joined storage failures, reviews/waits,
+callback expiry and recovery between leaf and parent checkpoints. The shipped
+`examples/workflows/error-routing` fixture runs through the real CLI and isolated
+script worker, producing failure/finalization artifacts without a model.
+
+Next: selective retry policy for explicit operation codes, without automatically
+retrying uncertain effects or bypassing a node's RetrySafe contract. Broader
+native-node failure classification and authoring UI support remain explicit
+follow-ups, not implied by this slice. Named connections and credentials are
 stage 5; richer HTTP operations are stage 6. Concurrent jobs, concurrent child
 calls and their shared scheduler remain later work. Keyed joins and the broader
 node inventory are also unfinished.
@@ -141,9 +181,19 @@ behavior, nested continuation, process exit, leases, rollback and cancellation.
 fixture through the CLI and continuation service. The recipe contracts live in
 [the reference](../reference/recipes.md); runnable fixtures are
 [repeated child calls](../../examples/workflows/repeated-subworkflow/README.md)
-and [durable waits](../../examples/workflows/durable-wait/README.md).
+[durable waits](../../examples/workflows/durable-wait/README.md) and
+[error routes](../../examples/workflows/error-routing/README.md).
 
 ### Verification checkpoint and restart commands
+
+For error routes/finalization, the full source-scoped test suite, affected runtime
+race checks, source-scoped vet, a CGO-free build, the 45-probe eval dry-run and
+documentation checks passed. The real CLI executes the shipped error-routing
+fixture with the isolated JavaScript worker and no model. Review/wait/recovery,
+nested collections and joined operation/checkpoint failures have deterministic
+coverage. Documentation checks now cover 68 files and 35 published articles.
+No model-backed authoring or remote-provider reliability claim follows from these
+checks. The full CLI race-suite limitation described below remains separate.
 
 For operator recovery, the full source-scoped suite, focused CLI recovery tests,
 source-scoped vet, CGO-free build, 45-probe eval dry-run and documentation checks
