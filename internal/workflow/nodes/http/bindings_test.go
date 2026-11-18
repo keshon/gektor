@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -95,11 +93,7 @@ func TestReviewedHTTPBindingResolvesCurrentSecretsAndRejectsChanges(t *testing.T
 				err = bindings.Revoke("api")
 			case "rebind":
 				config.Prefix = "Changed "
-				data, encodeErr := json.Marshal(config)
-				if encodeErr != nil {
-					t.Fatal(encodeErr)
-				}
-				err = os.WriteFile(filepath.Join(bindings.Directory, "api.json"), data, 0600)
+				err = bindings.Update("api", binding.Revision, config)
 			}
 			if err != nil {
 				t.Fatal(err)

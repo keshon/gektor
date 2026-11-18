@@ -23,7 +23,7 @@ import (
 	"github.com/keshon/gektor/internal/workspace"
 )
 
-const workflowUsage = "usage: gektor workflow schema | register-credential|inspect-credential|revoke-credential [flags] <name> | artifacts|export-artifact|prune-artifacts [flags] [arguments] | submit|serve|jobs|job|cancel|schedule|schedules|pause|resume|unschedule|review|recover [flags] [arguments] | draft <recipe.json> [agent flags] <task> | validate|run [flags] <recipe.json> | runs [-workspace dir] | inspect [-workspace dir] <run-id> | record [-workspace dir] <kind> <id> | register-schema [-workspace dir] <kind> <schema.json>"
+const workflowUsage = "usage: gektor workflow schema | register-credential|update-credential|inspect-credential|revoke-credential [flags] <name> | artifacts|export-artifact|prune-artifacts [flags] [arguments] | submit|serve|jobs|job|cancel|schedule|schedules|pause|resume|unschedule|review|recover [flags] [arguments] | draft <recipe.json> [agent flags] <task> | validate|run [flags] <recipe.json> | runs [-workspace dir] | inspect [-workspace dir] <run-id> | record [-workspace dir] <kind> <id> | register-schema [-workspace dir] <kind> <schema.json>"
 
 func runWorkflow(args []string) error {
 	if len(args) == 0 {
@@ -36,7 +36,7 @@ func runWorkflow(args []string) error {
 		return script.Serve(os.Stdin, os.Stdout)
 	}
 	switch args[0] {
-	case "register-credential", "inspect-credential", "revoke-credential":
+	case "register-credential", "update-credential", "inspect-credential", "revoke-credential":
 		return workflowCredentials(args, os.Stdin, os.Stdout, userdirs.Sub("credentials"))
 	}
 

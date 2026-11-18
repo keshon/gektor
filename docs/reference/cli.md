@@ -334,7 +334,15 @@ name, origin, header, prefix, source, protection, revocation status and binding
 revision. They never return the environment name, opaque reference or secret.
 `workflow revoke-credential <name>` permanently disables the name. It is
 idempotent and does not delete the secret or cancel requests already resolved.
-Use a new name for a replacement binding; no update/unrevoke command exists.
+`workflow update-credential -revision <current-revision> -origin
+https://api.example.com -env REPLACEMENT_TOKEN -header Authorization -prefix
+"Bearer " example` replaces an existing binding. Inspect it first and supply the
+complete replacement configuration, using `-env` or `-secret-stdin` just as for
+registration. An update never creates a missing binding or restores a revoked name.
+`-revision` is required; stale revisions and competing updates are rejected.
+Successful updates return current metadata and the resulting revision; update and reauthorize affected recipes
+explicitly. Old stored values are retained because other bindings may share them.
+There is no unrevoke command.
 
 Recipes supply both `"credential":"example"` and `"credential_revision":"<revision>"`.
 The revision is a SHA-256 fingerprint of the validated binding metadata, including

@@ -9,8 +9,8 @@ Continue on `codex/workflow-runtime-v4`. Selective retries (`9622fe3`) and nativ
 failure classification (`399a177`) are committed and pushed. The first stage 5
 slice (pinned/revocable HTTP bindings) and shared SSH/MCP source/session
 lifecycle checks are committed as `339f5ef`. The SSH named-binding slice, saved
-MCP binding pins and integrated acceptance checkpoint are included in this
-checkpoint commit.
+MCP binding pins and integrated acceptance checkpoint are committed and pushed
+as `3aa7ce4`. Operator HTTP updates are included in this follow-on commit.
 Older "next" paragraphs below are historical and superseded by this section.
 
 ### Completed and pushed
@@ -330,12 +330,32 @@ callback deduplication, review continuation and current binding checks. Protocol
 owners still own resolution and revocation; no universal connection manager,
 implicit MCP workflow nodes or extra executor was introduced. Stage 5 is not
 fully complete: operator HTTP updates, connection/editor UI and OAuth are still
-separate follow-ups. Choose a concrete acceptance recipe before adding another
-infrastructure layer.
+separate follow-ups. Continue the delivery sequence before the broader audit.
 
-Next: continue covering the delivery plan, starting with operator HTTP binding
-updates. Run the broader audit and acceptance pass after the planned implementation.
-HTTP binding updates/connection UI and OAuth remain unfinished.
+### Operator HTTP binding updates — 2026-11-18
+
+`workflow update-credential` accepts a complete replacement configuration and the
+required `-revision` from inspection. Environment and protected-stdin sources
+share existing validation and dispatch semantics. A managed update takes an OS
+file lock, checks the current revision/revocation, writes and syncs a sibling
+temporary file, rechecks and atomically replaces the definition. Lock files are
+persistent metadata; closing the handle releases the OS lock. There is no stale
+lock marker to remove after a process exits.
+
+Missing names, stale revisions and revoked names cannot be updated. Failed stored
+updates remove their newly protected value, while successful updates retain old
+values that other bindings may reference. Reviewed HTTP execution now exercises
+the real update API rather than editing its JSON fixture directly.
+
+Verification: affected credential, CLI and reviewed HTTP tests pass, including
+competing writers, stale revisions, permanent revocation and failed-secret cleanup.
+Affected race checks, vet, CGO-free build, docs checks and CLI flag coverage pass.
+The Unix lock implementation is cross-compiled; execution checks ran on Windows.
+
+Next: stage 6 HTTP response/body modes, query parameters, bounded authorized
+redirects and artifact-backed bodies. Connection/editor UI remains in stage 7;
+OAuth refresh serialization is required when an OAuth integration is introduced.
+Run the broader audit and acceptance pass after planned implementation.
 Authoring UI support remains a separate follow-up. Named connections and
 credentials are stage 5; richer HTTP operations are stage 6. Concurrent jobs, concurrent child
 calls and their shared scheduler remain later work. Keyed joins and the broader

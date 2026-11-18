@@ -6,8 +6,147 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
+
+func TestUpdatesRequireCurrentRevisionAndKeepRevocation(t *testing.T) {
+	store := Store{Directory: t.TempDir()}
+	t.Setenv("GEKTOR_HTTP_UPDATE", "current-private-value")
+	config := Config{Origin: "https://api.example.com", Env: "GEKTOR_HTTP_UPDATE", Header: "Authorization", Prefix: "Bearer "}
+	err := store.Register("api", config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := store.Inspect("api")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	config.Prefix = "Token "
+	for _, revision := range []string{"", strings.Repeat("0", 64)} {
+		err = store.Update("api", revision, config)
+		if err == nil {
+			t.Fatal("uninspected update accepted")
+		}
+	}
+	err = store.Update("api", before.Revision, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := store.Inspect("api")
+	if err != nil || after.Revision == before.Revision {
+		t.Fatal(after, err)
+	}
+	_, _, _, err = store.Resolve("api", config.Origin, before.Revision)
+	if err == nil {
+		t.Fatal("old revision followed update")
+	}
+	_, header, _, err := store.Resolve("api", config.Origin, after.Revision)
+	if err != nil || header != "Token current-private-value" {
+		t.Fatal("updated binding did not resolve", err)
+	}
+	err = store.Update("api", before.Revision, config)
+	if err == nil {
+		t.Fatal("stale writer overwrote current binding")
+	}
+
+	err = store.Revoke("api")
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.Prefix = "Changed "
+	err = store.Update("api", after.Revision, config)
+	if err == nil {
+		t.Fatal("update revived revoked name")
+	}
+}
+
+func TestConcurrentUpdatesAcceptOnlyOneInspectedRevision(t *testing.T) {
+	store := Store{Directory: t.TempDir()}
+	config := Config{Origin: "https://api.example.com", Env: "GEKTOR_HTTP_UPDATE", Header: "Authorization"}
+	err := store.Register("api", config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := store.Inspect("api")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	start := make(chan struct{})
+	var workers sync.WaitGroup
+	failures := make([]error, 2)
+	for i, prefix := range []string{"first ", "second "} {
+		workers.Go(func() {
+			<-start
+			replacement := config
+			replacement.Prefix = prefix
+			independent := Store{Directory: store.Directory}
+			failures[i] = independent.Update("api", before.Revision, replacement)
+		})
+	}
+	close(start)
+	workers.Wait()
+
+	successes := 0
+	for _, failure := range failures {
+		if failure == nil {
+			successes++
+		}
+	}
+	if successes != 1 {
+		t.Fatal("concurrent writers accepted the same revision", failures)
+	}
+}
+
+func TestStoredUpdateCleansRejectedValueAndRetainsPreviousSource(t *testing.T) {
+	store := Store{Directory: t.TempDir()}
+	config := Config{Origin: "https://api.example.com", Header: "X-API-Key"}
+	err := store.RegisterStored("api", config, []byte("old-private-value"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := store.Inspect("api")
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, _, err := store.read("api")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = store.UpdateStored("api", before.Revision, config, []byte("new-private-value"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := store.Inspect("api")
+	if err != nil || after.Revision == before.Revision {
+		t.Fatal(after, err)
+	}
+	_, _, value, err := store.Resolve("api", config.Origin, after.Revision)
+	if err != nil || value != "new-private-value" {
+		t.Fatal("new stored value unavailable", err)
+	}
+	protected := secrets.Store{Directory: store.Directory}
+	_, err = protected.Resolve(old.Reference)
+	if err != nil {
+		t.Fatal("update deleted a potentially shared old source", err)
+	}
+
+	entries, err := os.ReadDir(store.Directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = store.UpdateStored("api", before.Revision, config, []byte("rejected-private-value"))
+	if err == nil {
+		t.Fatal("stale stored update accepted")
+	}
+	remaining, err := os.ReadDir(store.Directory)
+	if err != nil || len(remaining) != len(entries) {
+		t.Fatal("rejected update retained a protected value", err)
+	}
+}
 
 func TestOriginBoundEnvironmentReference(t *testing.T) {
 	s := Store{Directory: t.TempDir()}

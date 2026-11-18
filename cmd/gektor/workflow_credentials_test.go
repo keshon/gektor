@@ -9,6 +9,42 @@ import (
 	"github.com/keshon/gektor/internal/workflow/credentials"
 )
 
+func TestWorkflowCredentialUpdateRequiresRevisionAndReturnsNewPin(t *testing.T) {
+	directory := t.TempDir()
+	var output bytes.Buffer
+	err := workflowCredentials([]string{"register-credential", "-origin", "https://api.example.com", "-env", "UPDATE_SOURCE", "api"}, strings.NewReader(""), &output, directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var before credentials.Binding
+	err = json.Unmarshal(output.Bytes(), &before)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	args := []string{"update-credential", "-revision", before.Revision, "-origin", before.Origin, "-secret-stdin", "api"}
+	output.Reset()
+	err = workflowCredentials(args, strings.NewReader("replacement-private-value\n"), &output, directory)
+	if err != nil || strings.Contains(output.String(), "replacement-private-value") {
+		t.Fatal("update failed or leaked secret", err)
+	}
+	var after credentials.Binding
+	err = json.Unmarshal(output.Bytes(), &after)
+	if err != nil || after.Revision == before.Revision || after.Source != "stored" {
+		t.Fatal(after, err)
+	}
+
+	output.Reset()
+	err = workflowCredentials(args, strings.NewReader("rejected-private-value\n"), &output, directory)
+	if err == nil || output.Len() != 0 {
+		t.Fatal("stale revision accepted", err)
+	}
+	err = workflowCredentials([]string{"update-credential", "-origin", before.Origin, "-env", "UPDATE_SOURCE", "api"}, strings.NewReader(""), &output, directory)
+	if err == nil {
+		t.Fatal("update without revision accepted")
+	}
+}
+
 func TestWorkflowCredentialCommandsDoNotExposeSecrets(t *testing.T) {
 	directory := t.TempDir()
 	var output bytes.Buffer

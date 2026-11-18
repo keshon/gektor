@@ -179,7 +179,8 @@ secrets/environment values in recipes. A binding change requires selecting the
 new revision and authorizing its permission target again; revoked names stop.
 The current secret resolves at dispatch, including after reviews/waits. Stored
 secrets are DPAPI-protected on Windows and owner-only files on Unix. Credential
-registration, inspection and revocation are operator CLI actions, not agent tools.
+registration, revision-checked updates, inspection and revocation are operator CLI
+actions, not agent tools.
 
 SSH operations require `connection` and `connection_revision` from current
 `ssh_connections` metadata or operator `ssh inspect NAME`. Changed or revoked

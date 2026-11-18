@@ -15,12 +15,16 @@ func workflowCredentials(args []string, input io.Reader, out io.Writer, director
 	flags := flag.NewFlagSet("workflow "+command, flag.ContinueOnError)
 	var config credentials.Config
 	var stored bool
-	if command == "register-credential" {
+	var revision string
+	if command == "register-credential" || command == "update-credential" {
 		flags.StringVar(&config.Origin, "origin", "", "exact HTTPS origin permitted to receive this credential")
 		flags.StringVar(&config.Env, "env", "", "environment variable containing the secret")
 		flags.StringVar(&config.Header, "header", "Authorization", "Authorization or X-API-Key")
 		flags.StringVar(&config.Prefix, "prefix", "Bearer ", "header prefix; use an empty prefix for API keys")
 		flags.BoolVar(&stored, "secret-stdin", false, "read the secret from stdin and protect it for the current account")
+	}
+	if command == "update-credential" {
+		flags.StringVar(&revision, "revision", "", "current binding revision from inspect-credential")
 	}
 	err := flags.Parse(args[1:])
 	if err != nil {
@@ -33,7 +37,10 @@ func workflowCredentials(args []string, input io.Reader, out io.Writer, director
 	store := credentials.Store{Directory: directory}
 
 	switch command {
-	case "register-credential":
+	case "register-credential", "update-credential":
+		if command == "update-credential" && revision == "" {
+			return fmt.Errorf("update-credential requires revision from inspect-credential")
+		}
 		if stored {
 			if config.Env != "" {
 				return fmt.Errorf("secret-stdin cannot combine with env")
@@ -44,9 +51,17 @@ func workflowCredentials(args []string, input io.Reader, out io.Writer, director
 			}
 			raw = bytes.TrimSuffix(raw, []byte("\n"))
 			raw = bytes.TrimSuffix(raw, []byte("\r"))
-			err = store.RegisterStored(name, config, raw)
+			if command == "update-credential" {
+				err = store.UpdateStored(name, revision, config, raw)
+			} else {
+				err = store.RegisterStored(name, config, raw)
+			}
 		} else {
-			err = store.Register(name, config)
+			if command == "update-credential" {
+				err = store.Update(name, revision, config)
+			} else {
+				err = store.Register(name, config)
+			}
 		}
 	case "revoke-credential":
 		err = store.Revoke(name)

@@ -2,6 +2,7 @@
 package credentials
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -137,31 +138,120 @@ func (s Store) Register(name string, c Config) error {
 
 // RegisterStored keeps the secret out of the binding file and removes it on registration failure.
 func (s Store) RegisterStored(name string, c Config, value []byte) error {
-	if c.Env != "" || c.Reference != "" {
-		return fmt.Errorf("stored input cannot combine with a secret reference")
-	}
-	if len(value) == 0 || len(value) > 8192 || strings.ContainsAny(string(value), "\r\n") {
-		return fmt.Errorf("invalid HTTP credential value")
-	}
-
-	origin, err := Origin(c.Origin)
+	config, err := s.storeValue(c, value)
 	if err != nil {
 		return err
+	}
+	err = s.Register(name, config)
+	if err != nil {
+		protected := secrets.Store{Directory: s.Directory}
+		deleteErr := protected.Delete(config.Reference)
+		return errors.Join(err, deleteErr)
+	}
+	return nil
+}
+
+func (s Store) storeValue(c Config, value []byte) (Config, error) {
+	if c.Env != "" || c.Reference != "" {
+		return c, fmt.Errorf("stored input cannot combine with a secret reference")
+	}
+	if len(value) == 0 || len(value) > 8192 || strings.ContainsAny(string(value), "\r\n") {
+		return c, fmt.Errorf("invalid HTTP credential value")
+	}
+	origin, err := Origin(c.Origin)
+	if err != nil {
+		return c, err
 	}
 	entry := storedSecret{Kind: "http-header", Origin: origin, Header: c.Header, Value: string(value)}
 	raw, err := json.Marshal(entry)
 	if err != nil {
-		return err
+		return c, err
 	}
 	protected := secrets.Store{Directory: s.Directory}
-	reference, err := protected.Put(raw)
+	c.Reference, err = protected.Put(raw)
+	return c, err
+}
+
+// Update replaces one existing binding only at the revision the operator inspected.
+// The OS lock serializes managed updates across processes and releases on exit.
+func (s Store) Update(name, revision string, c Config) error {
+	if !names.MatchString(name) {
+		return fmt.Errorf("invalid credential name")
+	}
+	c, err := validate(c)
 	if err != nil {
 		return err
 	}
-	c.Reference = reference
-	err = s.Register(name, c)
+	raw, err := json.Marshal(c)
 	if err != nil {
-		deleteErr := protected.Delete(reference)
+		return err
+	}
+	if len(raw) > 8192 {
+		return fmt.Errorf("credential configuration exceeds 8 KiB")
+	}
+
+	root, err := os.OpenRoot(s.Directory)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	lease, err := root.OpenFile(name+".lock", os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return err
+	}
+	defer lease.Close() // Closing releases the OS lock, including after process termination.
+	err = lockBinding(lease)
+	if err != nil {
+		return fmt.Errorf("credential update is busy: %w", err)
+	}
+	current, err := s.Inspect(name)
+	if err != nil {
+		return err
+	}
+	if current.Revoked {
+		return fmt.Errorf("credential name is revoked")
+	}
+	if revision == "" || current.Revision != revision {
+		return fmt.Errorf("credential binding revision mismatch; inspect before updating")
+	}
+
+	temporary := "." + name + "-" + rand.Text() + ".tmp"
+	file, err := root.OpenFile(temporary, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	defer root.Remove(temporary) // Rename consumes the temporary file on success.
+	_, err = file.Write(raw)
+	if err == nil {
+		err = file.Sync()
+	}
+	closeErr := file.Close()
+	err = errors.Join(err, closeErr)
+	if err != nil {
+		return err
+	}
+
+	// Revocation is permanent and may have arrived while the replacement was written.
+	current, err = s.Inspect(name)
+	if err != nil {
+		return err
+	}
+	if current.Revoked || current.Revision != revision {
+		return fmt.Errorf("credential binding changed or revoked during update")
+	}
+	return root.Rename(temporary, name+".json")
+}
+
+// UpdateStored retains old protected values; other bindings may still reference them.
+func (s Store) UpdateStored(name, revision string, c Config, value []byte) error {
+	config, err := s.storeValue(c, value)
+	if err != nil {
+		return err
+	}
+	err = s.Update(name, revision, config)
+	if err != nil {
+		protected := secrets.Store{Directory: s.Directory}
+		deleteErr := protected.Delete(config.Reference)
 		return errors.Join(err, deleteErr)
 	}
 	return nil
