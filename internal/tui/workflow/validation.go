@@ -1,68 +1,20 @@
 package workflow
 
-import (
-	"errors"
-	"strconv"
-	"strings"
-
-	"github.com/santhosh-tekuri/jsonschema/v6"
-
-	"github.com/keshon/gektor/internal/workflow"
-)
-
-// Error messages are hints for navigation, never an authority to edit recipes.
-// Prefer structured schema locations; match only explicit step identifiers.
-func workflowErrorLocation(err error, d workflow.Definition) (string, string) {
-	var validation *jsonschema.ValidationError
-	var location []string
-	if errors.As(err, &validation) {
-		var visit func(*jsonschema.ValidationError)
-		visit = func(e *jsonschema.ValidationError) {
-			if len(e.InstanceLocation) > len(location) {
-				location = e.InstanceLocation
-			}
-			for _, cause := range e.Causes {
-				visit(cause)
-			}
-		}
-		visit(validation)
-	}
-	id := ""
-	for _, step := range d.Steps {
-		for _, suffix := range []string{":", " ", "/"} {
-			if strings.Contains(err.Error(), "step "+step.ID+suffix) && len(step.ID) > len(id) {
-				id = step.ID
-			}
-		}
-	}
-	if id != "" {
-		// A node argument can itself contain a field named steps. Its schema
-		// location is relative to that node, not the recipe's step array.
-		return id, workflowErrorPointer(location)
-	}
-	if len(location) >= 2 && location[0] == "steps" {
-		index, e := strconv.Atoi(location[1])
-		if e == nil && index >= 0 && index < len(d.Steps) {
-			return d.Steps[index].ID, workflowErrorPointer(location[2:])
-		}
-	}
-	return "", ""
-}
-
-func workflowErrorPointer(parts []string) string {
-	path := ""
-	for _, part := range parts {
-		path += "/" + strings.NewReplacer("~", "~0", "/", "~1").Replace(part)
-	}
-	return path
-}
+import "github.com/keshon/gektor/internal/workflow"
 
 func (m *Model) validationRows(err error) []string {
 	d := m.editor.Definition
 	if m.run != nil {
 		d = m.run.Definition
 	}
-	id, path := workflowErrorLocation(err, d)
+	diagnostics := workflow.Diagnose(err, d)
+	id, path := "", ""
+	for _, diagnostic := range diagnostics {
+		if diagnostic.StepID != "" && (id == "" || len(diagnostic.Pointer) > len(path)) {
+			id, path = diagnostic.StepID, diagnostic.Pointer
+		}
+	}
+
 	rows := []string{}
 	if id != "" {
 		if m.run == nil {

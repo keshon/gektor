@@ -125,11 +125,12 @@ func TestWorkflowValidationFocusesNodeAndArgument(t *testing.T) {
 	if w.editor.Source() != before {
 		t.Fatal("navigation mutated recipe")
 	}
-	id, _ := workflowErrorLocation(fmt.Errorf("step second/child: failed"), d)
+	diagnostic := workflow.Diagnose(fmt.Errorf("step second/child: failed"), d)[0]
+	id := diagnostic.StepID
 	if id != "second" {
 		t.Fatal(id)
 	}
-	id, _ = workflowErrorLocation(fmt.Errorf("unrelated error"), d)
+	id = workflow.Diagnose(fmt.Errorf("unrelated error"), d)[0].StepID
 	if id != "" {
 		t.Fatal("invented node", id)
 	}
@@ -148,11 +149,13 @@ func TestRecipeSchemaErrorLocationFindsIndexedNode(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected validation error")
 	}
-	id, path := workflowErrorLocation(err, d)
+	diagnostic := workflow.Diagnose(err, d)[0]
+	id, path := diagnostic.StepID, diagnostic.Pointer
 	if id != "second" || path != "/args/value" {
 		t.Fatal(id, path)
 	}
-	id, path = workflowErrorLocation(fmt.Errorf("step second: %w", err), d)
+	diagnostic = workflow.Diagnose(fmt.Errorf("step second: %w", err), d)[0]
+	id, path = diagnostic.StepID, diagnostic.Pointer
 	if id != "second" || path != "/steps/1/args/value" {
 		t.Fatal("node-relative path treated as recipe path", id, path)
 	}

@@ -299,3 +299,60 @@ func TestWorkflowCLIRecordsAcrossRuns(t *testing.T) {
 		}
 	}
 }
+
+func TestWorkflowValidationFailureReportsStructuredLocations(t *testing.T) {
+	cases := []struct {
+		name    string
+		recipe  string
+		pointer string
+		stepID  string
+	}{
+		{name: "arguments", recipe: `{"version":4,"name":"Invalid","steps":[{"id":"transform","tool":"script_transform","args":{"input":1,"code":3}}]}`, pointer: "/args/code", stepID: "transform"},
+		{name: "mapped arguments", recipe: `{"version":4,"name":"Invalid","steps":[{"id":"transform","tool":"script_transform","args":{},"for_each":[{"input":1,"code":"return input"},{"input":2,"code":3}]}]}`, pointer: "/for_each/1/code", stepID: "transform"},
+		{name: "recipe shape", recipe: `{"version":4,"name":"Invalid","steps":[{"id":"transform","tool":"script_transform","args":{},"unknown":true}]}`, pointer: "/steps/0"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			directory := t.TempDir()
+			err := os.WriteFile(filepath.Join(directory, "recipe.json"), []byte(tc.recipe), 0600)
+			if err != nil {
+				t.Fatal(err)
+			}
+			options, err := parseWorkflowOptions([]string{"validate", "-workspace", directory, "-yes", "recipe.json"}, io.Discard)
+			if err != nil {
+				t.Fatal(err)
+			}
+			options.storeDir = t.TempDir()
+			var output bytes.Buffer
+			err = executeWorkflow(t.Context(), options, &output, nil)
+			if err == nil {
+				t.Fatal("invalid recipe returned success")
+			}
+			var report struct {
+				Valid       bool                  `json:"valid"`
+				RecipePath  string                `json:"recipe_path"`
+				Diagnostics []workflow.Diagnostic `json:"diagnostics"`
+			}
+			decodeErr := json.Unmarshal(output.Bytes(), &report)
+			if decodeErr != nil {
+				t.Fatal(output.String(), decodeErr)
+			}
+			if report.Valid || report.RecipePath != "recipe.json" || len(report.Diagnostics) == 0 {
+				t.Fatal(report)
+			}
+			found := false
+			for _, diagnostic := range report.Diagnostics {
+				if diagnostic.StepID == tc.stepID && diagnostic.Pointer == tc.pointer {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatal(report.Diagnostics)
+			}
+			entries, readErr := os.ReadDir(options.storeDir)
+			if readErr != nil || len(entries) != 0 {
+				t.Fatal("validation created run storage", entries, readErr)
+			}
+		})
+	}
+}

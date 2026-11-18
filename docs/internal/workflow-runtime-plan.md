@@ -25,8 +25,26 @@ cover token preflight, deadlines, malformed envelopes, truncation, unexpected
 tool calls, cancellation errors and registered recipe shape validation. This
 is not a live-model quality evaluation or complete execution validation.
 
-Next: structured diagnostics shared by CLI and TUI, invocation/attempt inspection
-gaps, captured-input fixtures, then editor map/loop/error and named-binding
+Shared diagnostics now live in `internal/workflow/diagnostics.go`. Schema leaf
+locations are available to CLI and TUI, with typed `StepError` context for recipe
+preparation and argument-schema failures. Literal mapped items identify their
+`/for_each/<index>` locations. TUI navigation consumes this report and still
+never edits a recipe in response to an error. Older runtime messages retain
+best-effort navigation; not every runtime/graph error has typed node context.
+
+CLI `workflow validate` prints a JSON failure report when its service call
+fails and retains the original error/nonzero exit. Pre-service flag/input errors
+still use the existing stderr path. Reports do not claim that permission/read
+failures establish invalid recipe syntax. Validation creates no run storage.
+
+Verification: source-scoped `go test -p 1 ./cmd/... ./internal/...`, affected
+vet, executable build, documentation checks and diff checks pass. Concurrency
+and resource lifetimes did not change in this slice.
+
+Nested recipe filenames remain textual context, not separate diagnostic fields;
+finish that attribution before treating diagnostics as complete. Existing TUI
+fallback navigation still has that limitation. Then continue invocation/attempt
+inspection gaps, captured-input fixtures, and editor map/loop/error and named-binding
 controls. Stage 7 is not complete; keyed joins and stage 8 throughput also remain.
 
 Older "next" paragraphs below are historical and superseded by this section.

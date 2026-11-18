@@ -3,6 +3,7 @@ package recipe
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/keshon/gektor/internal/workflow"
@@ -91,7 +92,7 @@ func Prepare(d workflow.Definition, values map[string]json.RawMessage, h workflo
 		if s.Repeat != nil {
 			err = ValidateRepeat(s)
 			if err != nil {
-				return d, nil, fmt.Errorf("step %s: %w", s.ID, err)
+				return d, nil, &workflow.StepError{StepID: s.ID, Err: err}
 			}
 		}
 		if s.ID == "" || len(s.ID) > 64 || seen[s.ID] {
@@ -139,18 +140,23 @@ func Prepare(d workflow.Definition, values map[string]json.RawMessage, h workflo
 			}
 
 			if err != nil {
-				return d, nil, fmt.Errorf("step %s: %w", s.ID, err)
+				return d, nil, &workflow.StepError{StepID: s.ID, Err: err}
 			}
 		}
 		if len(s.When) > 0 && !HasOutputReferences(s.When) {
 			var value bool
 			if err := json.Unmarshal(s.When, &value); err != nil || string(s.When) == "null" {
-				return d, nil, fmt.Errorf("step %s condition must be boolean", s.ID)
+				return d, nil, &workflow.StepError{StepID: s.ID, Pointer: "/when", Err: fmt.Errorf("condition must be boolean")}
 			}
 		}
 
-		if err := h.Validate(s); err != nil {
-			return d, nil, fmt.Errorf("step %s: %w", s.ID, err)
+		err = h.Validate(s)
+		if err != nil {
+			var located *workflow.StepError
+			if errors.As(err, &located) {
+				return d, nil, err
+			}
+			return d, nil, &workflow.StepError{StepID: s.ID, Err: err}
 		}
 
 		seen[s.ID] = true

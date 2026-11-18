@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -139,7 +140,7 @@ func (h *handler) Validate(s workflow.Step) error {
 		s.Concurrency = 0
 		s.OnError = ""
 
-		for _, item := range items {
+		for index, item := range items {
 			child := s
 			if s.Tool == "workflow_call" {
 				child, err = recipe.CallIteration(s, item)
@@ -151,7 +152,14 @@ func (h *handler) Validate(s workflow.Step) error {
 			}
 			err = h.Validate(child)
 			if err != nil {
-				return err
+				// Each item replaces args; its schema location belongs to for_each.
+				var located *workflow.StepError
+				pointer := fmt.Sprintf("/for_each/%d", index)
+				if errors.As(err, &located) {
+					pointer += strings.TrimPrefix(located.Pointer, "/args")
+					err = located.Err
+				}
+				return &workflow.StepError{StepID: s.ID, Pointer: pointer, Err: err}
 			}
 		}
 
@@ -166,12 +174,17 @@ func (h *handler) Validate(s workflow.Step) error {
 		}
 
 		if recipe.HasOutputReferences(s.Args) {
-			return workflow.ValidateJSON(s.Args, workflow.TemplateSchema(n.InputSchema))
+			err = workflow.ValidateJSON(s.Args, workflow.TemplateSchema(n.InputSchema))
+			if err != nil {
+				return &workflow.StepError{StepID: s.ID, Pointer: "/args", Err: err}
+			}
+			return nil
 		}
 	}
 
-	if err := workflow.ValidateJSON(s.Args, n.InputSchema); err != nil {
-		return err
+	err = workflow.ValidateJSON(s.Args, n.InputSchema)
+	if err != nil {
+		return &workflow.StepError{StepID: s.ID, Pointer: "/args", Err: err}
 	}
 
 	if n.Validate != nil {

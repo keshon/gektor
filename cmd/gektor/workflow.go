@@ -292,6 +292,15 @@ func executeWorkflow(ctx context.Context, o workflowOptions, out io.Writer, gate
 		return err
 	}
 	result, runErr := t.Run(ctx, o.recipe, values)
+	if o.validateOnly && runErr != nil {
+		report := struct {
+			Valid       bool                      `json:"valid"`
+			RecipePath  string                    `json:"recipe_path"`
+			Diagnostics []workflowcore.Diagnostic `json:"diagnostics"`
+		}{RecipePath: o.recipe, Diagnostics: workflowcore.Diagnose(runErr, workflowcore.Definition{})}
+		writeErr := json.NewEncoder(out).Encode(report)
+		return errors.Join(runErr, writeErr)
+	}
 	if result != "" {
 		if _, err := fmt.Fprintln(out, result); err != nil {
 			return errors.Join(runErr, err)
