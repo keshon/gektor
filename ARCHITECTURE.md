@@ -460,3 +460,12 @@ outputs fail collection rather than silently disappearing from the result.
 Nested calls share the parent run lease, review decisions, cancellation and artifact
 store. No second worker or child-run lifecycle is created. Queues persist the source
 bundle; review continuation uses the saved compiled definition.
+
+Fixture tests use the same compiler and engine through `service.Test`, with an
+in-memory checkpoint and an explicit pure-operation allowlist. The application
+registry still owns node composition. `workflow/fixture` owns captured data,
+exact call matching and response consumption; it imports only workflow definitions.
+External executors are replaced by fixture responses, with no live fallback or
+new run/job storage. `workflow capture` exports saved inputs and operation results;
+`workflow test -fixture` checks the current recipe against those values. Fixture
+v1 rejects review and durable-wait controls because it has no continuation events.

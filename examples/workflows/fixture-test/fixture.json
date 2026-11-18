@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "inputs": {"url": "https://example.com/count"},
+  "calls": [
+    {
+      "step_id": "fetch",
+      "operation": "http_request",
+      "node_version": 1,
+      "args": {"url": "https://example.com/count", "response_format": "json"},
+      "responses": [{"output": {"status_code": 200, "headers": {}, "body": "{\"count\":3}", "data": {"count": 3}}}]
+    }
+  ],
+  "expect": {"status": "completed", "outputs": {"status": 200, "value": 6}}
+}

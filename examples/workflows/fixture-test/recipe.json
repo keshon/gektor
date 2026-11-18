@@ -1,0 +1,10 @@
+{
+  "version": 4,
+  "name": "Fixture test",
+  "inputs": {"url": {"type": "string", "required": true}},
+  "steps": [
+    {"id": "fetch", "tool": "http_request", "args": {"url": {"$input": "url"}, "response_format": "json"}},
+    {"id": "double", "tool": "script_transform", "args": {"input": {"$step": "fetch", "pointer": "/data/count"}, "code": "return input * 2;"}}
+  ],
+  "outputs": {"status": {"$step": "fetch", "pointer": "/status_code"}, "value": {"$step": "double"}}
+}

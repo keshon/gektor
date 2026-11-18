@@ -87,6 +87,14 @@ values or `view:"attempts"` for retry timing and failures. `view:"steps"` return
 the unpaged metadata list. `pointer` selects within declared outputs
 or a step output before the 8 KiB value limit; `view:"full"` returns the full record.
 Use `workflow_status` to find recent jobs and run IDs, then inspect failures.
+For regression checks, `gektor workflow capture -workspace <workspace> <run-id>`
+exports fixture JSON from a completed run. Write stdout directly to a UTF-8
+fixture file, then use
+`gektor workflow test -workspace <workspace> -fixture <fixture.json> <recipe.json>`.
+This executes real isolated scripts against recorded external-operation responses;
+a missing or changed call fails instead of invoking a live tool. Test mode creates
+no saved run or jobs. Fixture version 1 does not model reviews or durable waits.
+Use the JSON `mode` and `passed` fields when reporting fixture results.
 Do not repeat effectful steps merely to diagnose an error. Retries require
 the operation's retry-safe contract. Optional `retry.codes` selects exact typed
 failure codes; omitted or empty codes accepts any typed operation failure.

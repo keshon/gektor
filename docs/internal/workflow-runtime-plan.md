@@ -76,8 +76,35 @@ record values. Service, Agent tool, CLI, TUI, API, daemon and convention suites
 pass, along with affected vet, executable build, docs and diff checks. No new
 concurrency was introduced.
 
-Next: captured-input tests and explicit fixture mode, then editor map/loop/error
-and named-binding controls. Stage 7 is not complete; keyed joins and stage 8 throughput also remain.
+Captured-input fixture tests now have explicit CLI commands: `workflow capture`
+exports version 1 fixture JSON from a completed run, and `workflow test -fixture`
+uses those values against the current recipe. `workflow/fixture` owns strict
+call/response matching and consumed-attempt state. `service.Test` uses the existing
+compiler and engine with a separate handler; only allowlisted isolated-script and
+call/output builtins execute, while every external operation must match a
+fixture. External executors are never called and no durable run/jobs are created.
+The application registry supplies the explicit pure-operation allowlist; the
+service imports no concrete node adapters. Fixture matching imports only workflow
+definitions, enforced by the package-boundary check.
+Missing, changed, exhausted or unused calls and invalid outputs fail closed.
+Expected typed failures, retries and scoped mapped child calls use the normal engine.
+
+Fixture v1 intentionally rejects reviews and durable waits because it has no
+approval/continuation events; capture also rejects operator recovery and unfinished
+runs. It preserves inputs and typed retry failures without inventing per-attempt
+outputs. Fixture comparison preserves exact numeric literals and ignores object
+key ordering. The file limit is 4 MiB. `examples/workflows/fixture-test` demonstrates
+an HTTP fixture plus actual script logic. Ordinary execution paths remain live;
+fixture results explicitly carry `mode: fixture` and `passed`.
+
+Checks cover registered-executor traps, CLI capture-to-test regression detection,
+changed script outputs, typed failures and retries, mapped child IDs, strict
+mismatches, output schemas, read permissions, absence of workspace/store writes,
+concurrent response consumption and the shipped example with HTTP denied.
+Source-scoped `go test -p 1 ./cmd/... ./internal/...` passes, as do affected
+fixture/service race tests, vet, executable build, documentation and diff checks.
+
+Next: editor map/loop/error and named-binding controls. Stage 7 is not complete; keyed joins and stage 8 throughput also remain.
 
 Older "next" paragraphs below are historical and superseded by this section.
 

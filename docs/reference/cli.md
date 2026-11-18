@@ -96,6 +96,22 @@ Put these flags before the run ID. For example:
 .\gektor.exe workflow inspect -workspace . -view step -step-id 'call/fetch' -pointer /status_code <run-id>
 ```
 
+`workflow capture -workspace . <run-id>` exports a fixture JSON object to stdout
+from a completed run without operator recovery. The export contains recorded
+inputs, arguments and outputs. Save it as a UTF-8 file in the workspace.
+`workflow test -workspace . -fixture fixture.json recipe.json` tests the current
+recipe against that data; `-fixture` is required. Its JSON report identifies
+`mode: "fixture"`, `passed`, workflow `status` and declared `outputs`. A passing
+test exits zero, including a fixture that correctly expects a typed operation
+failure. Test errors exit nonzero.
+
+Test mode supports `-allow`, `-deny`, `-yes` and `-run-timeout` (default 5m).
+Read permissions apply to fixture and recipe files, including child recipes.
+It executes isolated scripts and pure call/output binding; external operations
+must match fixture entries. It creates no saved run or jobs. Reviews and durable
+waits require continuation events and are rejected by this fixture version.
+See [fixture tests](recipes.md#fixture-tests) for the format and limits.
+
 `runs`, `inspect` and `record` support `-workspace`. `record <kind> <id>`
 reads a stored entry, including its revision and schema hash, without a model.
 

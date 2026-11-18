@@ -106,6 +106,64 @@ The tool response contains step outcomes, item results and source hashes; full
 outputs and recipe source remain in the run record. Start a fresh GEKTOR session
 when an update changes tool schemas: old saved activations may be incompatible.
 
+## Fixture tests
+
+Use `workflow test -fixture fixture.json recipe.json` to check captured inputs,
+resolved operation arguments, routing and declared outputs with the normal
+workflow engine. `script_transform`, `workflow_call` input binding and internal
+output collection execute their registered pure implementations. Every other
+operation uses a fixture response; there is no fallback to real tool execution.
+Use an ordinary run to verify credentials, providers, files and external effects.
+
+`workflow capture -workspace . <run-id>` exports inputs and external operation
+responses from a completed saved run. Redirect its stdout to a UTF-8 fixture
+file, then test the current recipe. The export contains the saved input,
+argument and output values. Capture rejects unfinished runs, operator recovery,
+reviews and durable waits. Earlier retries need stored typed failure data;
+capture does not infer missing attempt outcomes or per-attempt outputs.
+
+A fixture is a separate version 1 JSON object, at most 4 MiB:
+
+```json
+{
+  "version": 1,
+  "inputs": {},
+  "calls": [
+    {
+      "step_id": "fetch",
+      "operation": "http_request",
+      "node_version": 1,
+      "args": {"url": "https://example.com/"},
+      "responses": [
+        {"output": {"status_code": 200, "headers": {}, "body": "ok"}}
+      ]
+    }
+  ],
+  "expect": {"status": "completed", "outputs": null}
+}
+```
+
+Each call uses an exact scoped invocation ID, operation name, node version and
+resolved JSON arguments. Supply 1–3 responses in attempt order. A response has
+exactly one `output` JSON value or a typed
+`failure: {"code":"http_status","message":"temporary"}`. The engine applies
+the recipe's retry and error-routing rules; fixture mismatches are terminal test
+errors. Missing, exhausted and unused entries all fail the test. Pure operations
+cannot be replaced by fixtures, so changed script logic is actually tested.
+Arguments and expected outputs ignore object property order and whitespace;
+array order and numeric literals are exact, preserving large integers.
+
+`expect.status` is `completed` or `failed`. Expected failures must be typed
+operation failures, with every supplied response consumed. An omitted or null
+`expect.outputs` expects no completed declared outputs. Output values are
+checked against current node schemas and the expected declared outputs.
+
+Tests run in memory, create no saved run or jobs, and do not approve reviews or
+continue durable waits. Those controls are rejected before executing test steps.
+Fixtures can exercise child calls, maps and repeats using their scoped IDs.
+The [fixture example](../../examples/workflows/fixture-test/README.md) combines
+a recorded HTTP response with an actual isolated script.
+
 ## Inputs and data flow
 
 Version 4 is the current recipe format. Other formats are not supported.

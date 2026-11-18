@@ -24,7 +24,7 @@ import (
 	"github.com/keshon/gektor/internal/workspace"
 )
 
-const workflowUsage = "usage: gektor workflow schema | register-credential|update-credential|inspect-credential|revoke-credential [flags] <name> | artifacts|export-artifact|prune-artifacts [flags] [arguments] | submit|serve|jobs|job|cancel|schedule|schedules|pause|resume|unschedule|review|recover [flags] [arguments] | draft <recipe.json> [agent flags] <task> | validate|run [flags] <recipe.json> | runs [-workspace dir] | inspect [-workspace dir] <run-id> | record [-workspace dir] <kind> <id> | register-schema [-workspace dir] <kind> <schema.json>"
+const workflowUsage = "usage: gektor workflow schema | register-credential|update-credential|inspect-credential|revoke-credential [flags] <name> | artifacts|export-artifact|prune-artifacts [flags] [arguments] | submit|serve|jobs|job|cancel|schedule|schedules|pause|resume|unschedule|review|recover [flags] [arguments] | draft <recipe.json> [agent flags] <task> | validate|run [flags] <recipe.json> | test -fixture <fixture.json> [flags] <recipe.json> | capture [-workspace dir] <run-id> | runs [-workspace dir] | inspect [-workspace dir] <run-id> | record [-workspace dir] <kind> <id> | register-schema [-workspace dir] <kind> <schema.json>"
 
 func runWorkflow(args []string) error {
 	if len(args) == 0 {
@@ -54,6 +54,11 @@ func runWorkflow(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	switch args[0] {
+	case "capture":
+		return workflowCapture(ctx, args[1:], os.Stdout, userdirs.Sub("workflows"))
+	case "test":
+		gate := permissionGateContext(false, stdioSuspender(os.Stderr, nil), nil)
+		return workflowFixtureTest(ctx, args[1:], os.Stdout, userdirs.Sub("workflows"), gate)
 	case "artifacts", "export-artifact", "prune-artifacts":
 		return workflowArtifacts(ctx, args, os.Stdout, userdirs.Sub("workflows"))
 	case "review", "recover", "serve", "submit", "jobs", "job", "cancel", "schedules", "schedule", "pause", "resume", "unschedule":

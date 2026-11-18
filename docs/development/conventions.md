@@ -94,8 +94,9 @@ Reusable TUI components may import other components, but no application packages
 
 Workflow definitions import no internal packages. Recipe preparation imports only
 workflow definitions; the engine imports definitions and recipe preparation;
-the store imports only definitions. The service coordinates these packages and
-workspace access. The daemon imports only the service and store. Node adapters
+the store imports only definitions. Fixture matching and capture import only
+workflow definitions. The service coordinates these packages and workspace
+access. The daemon imports only the service and store. Node adapters
 and frontends stay outside these core workflow packages.
 
 **[invariant]** `internal/agent` never learns which backend it is talking to.
