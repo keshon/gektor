@@ -12,6 +12,23 @@ lifecycle checks are committed as `339f5ef`. The SSH named-binding slice, saved
 MCP binding pins and integrated acceptance checkpoint are committed and pushed
 as `3aa7ce4`. Operator HTTP updates are committed and pushed as `b0a52d0`.
 The stage 6 HTTP/artifact slice below is included in this checkpoint commit.
+Stage 6 is committed and pushed as `dbd051a`. Stage 7 has started: the TUI
+now calls `internal/workflow/authoring` for bounded, tool-free model proposals
+and registry-backed draft shape validation. The screen retains cancellation,
+review, stale-draft checks, and application; proposals do not save or execute.
+Strict envelope validation rejects missing/unknown fields and wrong types.
+Existing CLI `workflow draft` remains the Agent-backed save flow, not a duplicate
+of the interactive proposal/review operation.
+
+Affected authoring/TUI tests and vet pass. Deterministic provider substitutes
+cover token preflight, deadlines, malformed envelopes, truncation, unexpected
+tool calls, cancellation errors and registered recipe shape validation. This
+is not a live-model quality evaluation or complete execution validation.
+
+Next: structured diagnostics shared by CLI and TUI, invocation/attempt inspection
+gaps, captured-input fixtures, then editor map/loop/error and named-binding
+controls. Stage 7 is not complete; keyed joins and stage 8 throughput also remain.
+
 Older "next" paragraphs below are historical and superseded by this section.
 
 ### Completed and pushed
