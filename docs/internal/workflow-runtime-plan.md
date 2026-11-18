@@ -37,15 +37,28 @@ fails and retains the original error/nonzero exit. Pre-service flag/input errors
 still use the existing stderr path. Reports do not claim that permission/read
 failures establish invalid recipe syntax. Validation creates no run storage.
 
-Verification: source-scoped `go test -p 1 ./cmd/... ./internal/...`, affected
-vet, executable build, documentation checks and diff checks pass. Concurrency
-and resource lifetimes did not change in this slice.
+The shared diagnostics checkpoint `c6e5e4c` passed source-scoped
+`go test -p 1 ./cmd/... ./internal/...`, affected vet, build, documentation and
+diff checks. Nested attribution is checked with the affected workflow, service,
+CLI and TUI suites, Agent tools, API, daemon, engine and convention suites,
+plus affected vet, build and documentation checks. Concurrency and resource
+lifetimes did not change.
 
-Nested recipe filenames remain textual context, not separate diagnostic fields;
-finish that attribution before treating diagnostics as complete. Existing TUI
-fallback navigation still has that limitation. Then continue invocation/attempt
-inspection gaps, captured-input fixtures, and editor map/loop/error and named-binding
-controls. Stage 7 is not complete; keyed joins and stage 8 throughput also remain.
+Nested source attribution is now typed through `workflow.RecipeError`. Each
+diagnostic can carry its failing `recipe_path`, distinct from the CLI report's
+requested root path. Freeze/read and frozen compilation retain the child source
+rather than relabelling its failure as the caller's. Original error identity
+remains available through `errors.Is`/`errors.As`. TUI navigation checks source
+identity before selecting a node; child errors with the same node ID or schema
+index no longer focus a root node. It displays the failing filename without
+changing the current draft.
+
+Deterministic checks cover three-level calls with child shape/argument/missing
+file failures, frozen child errors after saved-file changes, child permission
+denial identity, and root/child TUI navigation with colliding node IDs.
+
+Next: invocation/attempt inspection gaps, captured-input fixtures, then editor
+map/loop/error and named-binding controls. Stage 7 is not complete; keyed joins and stage 8 throughput also remain.
 
 Older "next" paragraphs below are historical and superseded by this section.
 

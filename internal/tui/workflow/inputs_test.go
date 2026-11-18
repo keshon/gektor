@@ -198,3 +198,30 @@ func TestGeneratedInputInvocationExecutesBoundRecipe(t *testing.T) {
 		}
 	}
 }
+
+func TestChildRecipeValidationDoesNotSelectRootNode(t *testing.T) {
+	m := workflowTestModel(t)
+	w := m.workflows
+	w.editor.Path = "root.json"
+	definition := workflowRecipe()
+	definition.Steps[0].ID = "shared"
+	w.editor.Replace(definition)
+	w.graph.Selected = "previous selection"
+	before := w.editor.Source()
+	schemaErr := workflow.ValidateJSON(json.RawMessage(`{"steps":[{"args":{"code":3}}]}`), json.RawMessage(`{"type":"object","properties":{"steps":{"type":"array","items":{"type":"object","properties":{"args":{"type":"object","properties":{"code":{"type":"string"}}}}}}}}`))
+	if schemaErr == nil {
+		t.Fatal("expected schema failure")
+	}
+	for _, cause := range []error{schemaErr, &workflow.StepError{StepID: "shared", Pointer: "/args", Err: fmt.Errorf("invalid child arguments")}} {
+		err := &workflow.RecipeError{Path: "nested/child.json", Err: cause}
+		rows := w.validationRows(err)
+		if w.graph.Selected != "previous selection" || w.editor.Source() != before || !strings.Contains(strings.Join(rows, "\n"), "Recipe: nested/child.json") {
+			t.Fatal(rows, w.graph.Selected)
+		}
+	}
+	rootErr := &workflow.RecipeError{Path: "root.json", Err: schemaErr}
+	w.validationRows(rootErr)
+	if w.graph.Selected != "shared" {
+		t.Fatal("root recipe error did not select its node", w.graph.Selected)
+	}
+}

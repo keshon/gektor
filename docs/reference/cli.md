@@ -50,10 +50,11 @@ print a JSON result to stdout, diagnostics and permission prompts to stderr,
 and exit nonzero on failure. A failed run can still print its saved record path.
 When the validation service returns an error, `workflow validate` also prints
 `{"valid":false,"recipe_path":"...","diagnostics":[...]}` to stdout. Each diagnostic
-has a `message` and, when known, `step_id` and `pointer`. A pointer is a JSON
-Pointer relative to the named step, or to the recipe being validated when no
-step is identified. For nested recipes, the filename remains in the error
-message; the report's `recipe_path` is the requested root recipe.
+has a `message` and, when known, `recipe_path`, `step_id` and `pointer`.
+The report's top-level `recipe_path` is the requested root recipe; each
+diagnostic's `recipe_path` identifies the file that failed, including nested
+recipes. A pointer is a JSON Pointer relative to the named step, or to that
+recipe when no step is identified.
 For example, `/args/code` locates a node argument and `/for_each/1/code` locates
 a field in the second mapped item. Unknown locations are omitted. Read or
 permission failures can also prevent validation; `valid:false` does not mean

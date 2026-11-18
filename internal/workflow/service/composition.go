@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -25,7 +26,7 @@ type recipeBundle struct {
 func (s Service) SnapshotRecipe(ctx context.Context, path string) ([]byte, error) {
 	raw, err := s.Snapshot(ctx, path)
 	if err != nil {
-		return nil, err
+		return nil, &workflow.RecipeError{Path: filepath.ToSlash(filepath.Clean(path)), Err: err}
 	}
 	return s.FreezeRecipe(ctx, raw, path)
 }
@@ -36,7 +37,14 @@ func (s Service) FreezeRecipe(ctx context.Context, raw []byte, path string) ([]b
 	total := len(raw)
 	visitedSteps := 0
 	var walk func([]byte, string, int, map[string]bool) error
-	walk = func(source []byte, path string, depth int, stack map[string]bool) error {
+	walk = func(source []byte, path string, depth int, stack map[string]bool) (walkErr error) {
+		defer func() {
+			var sourceError *workflow.RecipeError
+			if walkErr != nil && !errors.As(walkErr, &sourceError) {
+				walkErr = &workflow.RecipeError{Path: path, Err: walkErr}
+			}
+		}()
+
 		if depth > maxCompositionDepth {
 			return fmt.Errorf("subworkflow nesting exceeds %d", maxCompositionDepth)
 		}
@@ -45,13 +53,17 @@ func (s Service) FreezeRecipe(ctx context.Context, raw []byte, path string) ([]b
 		}
 		stack[path] = true
 		defer delete(stack, path)
-		if err := workflow.ValidateJSON(source, s.DefinitionSchema()); err != nil {
-			return fmt.Errorf("recipe %s: %w", path, err)
-		}
-		var d workflow.Definition
-		if err := json.Unmarshal(source, &d); err != nil {
+
+		err := workflow.ValidateJSON(source, s.DefinitionSchema())
+		if err != nil {
 			return err
 		}
+		var d workflow.Definition
+		err = json.Unmarshal(source, &d)
+		if err != nil {
+			return err
+		}
+
 		visitedSteps += len(d.Steps)
 		if visitedSteps > maxDefinitionSteps {
 			return fmt.Errorf("recipe closure exceeds %d steps", maxDefinitionSteps)
@@ -61,10 +73,12 @@ func (s Service) FreezeRecipe(ctx context.Context, raw []byte, path string) ([]b
 				continue
 			}
 			var in workflow.CallInput
-			if err := decode(step.Args, &in); err != nil {
+			err = decode(step.Args, &in)
+			if err != nil {
 				return fmt.Errorf("workflow_call requires a literal recipe_path: %w", err)
 			}
-			p, err := s.WS.Relative(in.Path)
+			var p string
+			p, err = s.WS.Relative(in.Path)
 			if err != nil {
 				return err
 			}
@@ -73,7 +87,7 @@ func (s Service) FreezeRecipe(ctx context.Context, raw []byte, path string) ([]b
 			if !ok {
 				child, err = s.Snapshot(ctx, p)
 				if err != nil {
-					return err
+					return &workflow.RecipeError{Path: p, Err: err}
 				}
 				total += len(child)
 				if total > 64<<10 {
@@ -81,7 +95,8 @@ func (s Service) FreezeRecipe(ctx context.Context, raw []byte, path string) ([]b
 				}
 				b.Recipes[p] = child
 			}
-			if err := walk(child, p, depth+1, stack); err != nil {
+			err = walk(child, p, depth+1, stack)
+			if err != nil {
 				return err
 			}
 		}
@@ -160,8 +175,9 @@ func (s Service) authorizeRecipeBundle(ctx context.Context, b recipeBundle) erro
 		if s.Authorize == nil {
 			return fmt.Errorf("recipe read authorization unavailable")
 		}
-		if err := s.Authorize(ctx, "read_file", args); err != nil {
-			return err
+		err = s.Authorize(ctx, "read_file", args)
+		if err != nil {
+			return &workflow.RecipeError{Path: p, Err: err}
 		}
 	}
 	return nil
@@ -173,14 +189,21 @@ type recipeCompiler struct {
 	steps   int
 }
 
-func (c *recipeCompiler) compile(raw json.RawMessage, path string, depth int, stack map[string]bool) (workflow.Definition, error) {
-	var d workflow.Definition
+func (c *recipeCompiler) compile(raw json.RawMessage, path string, depth int, stack map[string]bool) (d workflow.Definition, err error) {
+	defer func() {
+		var sourceError *workflow.RecipeError
+		if err != nil && !errors.As(err, &sourceError) {
+			err = &workflow.RecipeError{Path: filepath.ToSlash(filepath.Clean(path)), Err: err}
+		}
+	}()
+
 	if depth > maxCompositionDepth || stack[path] {
 		return d, fmt.Errorf("subworkflow cycle or nesting exceeds %d at %s", maxCompositionDepth, path)
 	}
 	stack[path] = true
 	defer delete(stack, path)
-	err := workflow.ValidateJSON(raw, c.service.DefinitionSchema())
+
+	err = workflow.ValidateJSON(raw, c.service.DefinitionSchema())
 	if err != nil {
 		return d, err
 	}
@@ -222,7 +245,7 @@ func (c *recipeCompiler) compile(raw json.RawMessage, path string, depth int, st
 		}
 		childSource, ok := c.recipes[childPath]
 		if !ok {
-			return d, fmt.Errorf("missing bundled recipe %s", childPath)
+			return d, &workflow.RecipeError{Path: childPath, Err: fmt.Errorf("missing bundled recipe %s", childPath)}
 		}
 		var child workflow.Definition
 		child, err = c.compile(childSource, childPath, depth+1, stack)
@@ -230,7 +253,7 @@ func (c *recipeCompiler) compile(raw json.RawMessage, path string, depth int, st
 			return d, err
 		}
 		if len(child.Outputs) == 0 {
-			return d, fmt.Errorf("called recipe %s must declare outputs", childPath)
+			return d, &workflow.RecipeError{Path: childPath, Err: fmt.Errorf("called recipe %s must declare outputs", childPath)}
 		}
 		step.Child = &child
 	}

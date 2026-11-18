@@ -15,6 +15,7 @@ import (
 
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/store"
+	"github.com/keshon/gektor/internal/workspace"
 )
 
 func workflowWorkspace(t *testing.T) string {
@@ -352,6 +353,74 @@ func TestWorkflowValidationFailureReportsStructuredLocations(t *testing.T) {
 			entries, readErr := os.ReadDir(options.storeDir)
 			if readErr != nil || len(entries) != 0 {
 				t.Fatal("validation created run storage", entries, readErr)
+			}
+		})
+	}
+}
+
+func TestNestedWorkflowValidationIdentifiesFailingRecipe(t *testing.T) {
+	for _, mode := range []string{"schema", "arguments", "missing"} {
+		t.Run(mode, func(t *testing.T) {
+			directory := t.TempDir()
+			ws, err := workspace.New(directory)
+			if err != nil {
+				t.Fatal(err)
+			}
+			root := `{"version":4,"name":"Root","steps":[{"id":"shared","tool":"workflow_call","args":{"recipe_path":"middle.json"}}]}`
+			middle := `{"version":4,"name":"Middle","steps":[{"id":"shared","tool":"workflow_call","args":{"recipe_path":"nested/child.json"}}],"outputs":{"value":{"$step":"shared"}}}`
+			child := `{"version":4,"name":"Child","steps":[{"id":"shared","tool":"script_transform","args":{"input":1,"code":3}}],"outputs":{"value":{"$step":"shared"}}}`
+			if mode == "schema" {
+				child = `{"version":4,"name":"Child","steps":[{"id":"shared","tool":"script_transform","args":{},"unknown":true}]}`
+			}
+			files := map[string]string{"root.json": root, "middle.json": middle}
+			if mode != "missing" {
+				files["nested/child.json"] = child
+			}
+			err = ws.MkdirAll("nested", 0700)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for path, source := range files {
+				err = ws.WriteFile(path, []byte(source), 0600)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			err = ws.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+			options, err := parseWorkflowOptions([]string{"validate", "-workspace", directory, "-yes", "root.json"}, io.Discard)
+			if err != nil {
+				t.Fatal(err)
+			}
+			options.storeDir = t.TempDir()
+			var output bytes.Buffer
+			err = executeWorkflow(t.Context(), options, &output, nil)
+			if err == nil {
+				t.Fatal("invalid nested recipe returned success")
+			}
+			var report struct {
+				RecipePath  string                `json:"recipe_path"`
+				Diagnostics []workflow.Diagnostic `json:"diagnostics"`
+			}
+			decodeErr := json.Unmarshal(output.Bytes(), &report)
+			if decodeErr != nil {
+				t.Fatal(output.String(), decodeErr)
+			}
+			if report.RecipePath != "root.json" || len(report.Diagnostics) == 0 {
+				t.Fatal(report)
+			}
+			for _, diagnostic := range report.Diagnostics {
+				if diagnostic.RecipePath != "nested/child.json" {
+					t.Fatal("error attributed to caller", diagnostic)
+				}
+				if mode == "arguments" && (diagnostic.StepID != "shared" || diagnostic.Pointer != "/args/code") {
+					t.Fatal(diagnostic)
+				}
+			}
+			if mode == "missing" && !errors.Is(err, os.ErrNotExist) {
+				t.Fatal("lost missing-file error identity", err)
 			}
 		})
 	}

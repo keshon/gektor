@@ -131,7 +131,7 @@ func (t Service) RunSource(ctx context.Context, source []byte, path string, inpu
 	}
 	prepared, _, err := recipe.Prepare(d, inputs, h)
 	if err != nil {
-		return "", err
+		return "", &workflow.RecipeError{Path: filepath.ToSlash(filepath.Clean(path)), Err: err}
 	}
 
 	if t.ValidateOnly {

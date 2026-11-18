@@ -55,3 +55,17 @@ func TestDiagnosticsLeaveUnknownLocationsBlank(t *testing.T) {
 		t.Fatal(diagnostics)
 	}
 }
+
+func TestRecipeDiagnosticsPreserveSourceAndErrorIdentity(t *testing.T) {
+	sentinel := errors.New("read denied")
+	err := &RecipeError{Path: "nested/child.json", Err: sentinel}
+	diagnostics := Diagnose(err, Definition{Steps: []Step{{ID: "child"}}})
+	if len(diagnostics) != 1 || diagnostics[0].RecipePath != "nested/child.json" || diagnostics[0].StepID != "" || !errors.Is(err, sentinel) {
+		t.Fatal(diagnostics, err)
+	}
+	err.Err = &StepError{StepID: "transform", Pointer: "/args", Err: sentinel}
+	diagnostics = Diagnose(err, Definition{})
+	if diagnostics[0].StepID != "transform" || diagnostics[0].Pointer != "/args" || diagnostics[0].RecipePath != err.Path || !errors.Is(err, sentinel) {
+		t.Fatal(diagnostics, err)
+	}
+}

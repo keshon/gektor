@@ -20,25 +20,42 @@ type StepError struct {
 func (e *StepError) Error() string { return fmt.Sprintf("step %s: %v", e.StepID, e.Err) }
 func (e *StepError) Unwrap() error { return e.Err }
 
+// RecipeError identifies the source file whose validation or read failed.
+// Callers keep the innermost recipe context when propagating child errors.
+type RecipeError struct {
+	Path string
+	Err  error
+}
+
+func (e *RecipeError) Error() string { return fmt.Sprintf("recipe %s: %v", e.Path, e.Err) }
+func (e *RecipeError) Unwrap() error { return e.Err }
+
 type Diagnostic struct {
-	StepID  string `json:"step_id,omitempty"`
-	Pointer string `json:"pointer,omitempty"`
-	Message string `json:"message"`
+	RecipePath string `json:"recipe_path,omitempty"`
+	StepID     string `json:"step_id,omitempty"`
+	Pointer    string `json:"pointer,omitempty"`
+	Message    string `json:"message"`
 }
 
 // Diagnose reports locations for navigation, never instructions to edit a recipe.
-// Schema pointers are recipe-relative unless a StepError supplies node context.
+// The supplied definition must belong to the failing recipe. Schema pointers
+// are recipe-relative unless a StepError supplies node context.
 // Older runtime errors retain best-effort step matching; unknown locations stay blank.
 func Diagnose(err error, definition Definition) []Diagnostic {
 	if err == nil {
 		return nil
+	}
+	var source *RecipeError
+	recipePath := ""
+	if errors.As(err, &source) {
+		recipePath = source.Path
 	}
 	var step *StepError
 	errors.As(err, &step)
 	id, prefix := "", ""
 	if step != nil {
 		id, prefix = step.StepID, step.Pointer
-	} else {
+	} else if source == nil {
 		for _, candidate := range definition.Steps {
 			for _, suffix := range []string{":", " ", "/"} {
 				if strings.Contains(err.Error(), "step "+candidate.ID+suffix) && len(candidate.ID) > len(id) {
@@ -50,7 +67,7 @@ func Diagnose(err error, definition Definition) []Diagnostic {
 
 	var schema *jsonschema.ValidationError
 	if !errors.As(err, &schema) {
-		return []Diagnostic{{StepID: id, Pointer: prefix, Message: err.Error()}}
+		return []Diagnostic{{RecipePath: recipePath, StepID: id, Pointer: prefix, Message: err.Error()}}
 	}
 	diagnostics := []Diagnostic{}
 	var visit func(*jsonschema.ValidationError)
@@ -74,7 +91,7 @@ func Diagnose(err error, definition Definition) []Diagnostic {
 		for _, part := range location {
 			pointer += "/" + strings.NewReplacer("~", "~0", "/", "~1").Replace(part)
 		}
-		diagnostics = append(diagnostics, Diagnostic{StepID: node, Pointer: pointer, Message: failure.Error()})
+		diagnostics = append(diagnostics, Diagnostic{RecipePath: recipePath, StepID: node, Pointer: pointer, Message: failure.Error()})
 	}
 	visit(schema)
 	return diagnostics

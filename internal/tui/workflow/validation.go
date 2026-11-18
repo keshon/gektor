@@ -1,21 +1,39 @@
 package workflow
 
-import "github.com/keshon/gektor/internal/workflow"
+import (
+	"errors"
+	"path/filepath"
+
+	"github.com/keshon/gektor/internal/workflow"
+)
 
 func (m *Model) validationRows(err error) []string {
-	d := m.editor.Definition
-	if m.run != nil {
-		d = m.run.Definition
+	d, sourcePath := m.editor.Definition, m.editor.Path
+	if sourcePath == "" {
+		sourcePath = "recipe.json"
 	}
+	if m.run != nil {
+		d, sourcePath = m.run.Definition, m.run.RecipePath
+	}
+
+	var sourceError *workflow.RecipeError
+	foreignRecipe := errors.As(err, &sourceError) && filepath.Clean(sourceError.Path) != filepath.Clean(sourcePath)
+	if foreignRecipe {
+		d = workflow.Definition{}
+	}
+
 	diagnostics := workflow.Diagnose(err, d)
 	id, path := "", ""
 	for _, diagnostic := range diagnostics {
-		if diagnostic.StepID != "" && (id == "" || len(diagnostic.Pointer) > len(path)) {
+		if !foreignRecipe && diagnostic.StepID != "" && (id == "" || len(diagnostic.Pointer) > len(path)) {
 			id, path = diagnostic.StepID, diagnostic.Pointer
 		}
 	}
 
 	rows := []string{}
+	if sourceError != nil {
+		rows = append(rows, "Recipe: "+sourceError.Path, "")
+	}
 	if id != "" {
 		if m.run == nil {
 			m.graph = m.buildGraph(m.graph)
