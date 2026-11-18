@@ -113,6 +113,13 @@ whole output. Apply changes only the draft. Press `V` to check operation support
 limits and policy combinations before running. Properties shows the saved
 execution policies, including error routes and finalizers.
 
+For HTTP and SSH nodes, **Saved connection…** in Node selects an existing
+connection and pins its inspected revision. It shows the HTTP origin or SSH
+endpoint and port. Changing a saved connection later requires selecting it again;
+revoked connections are unavailable. **No credential** removes HTTP authentication.
+The picker preserves other arguments and does not connect or test credentials.
+For mapped nodes, put connection fields in each item's complete arguments.
+
 In the focused inspector, `E` edits Properties or Code instead of node behavior.
 Code has a separate script editor. Complex values may still need JSON.
 `J` on the canvas opens the full recipe JSON.

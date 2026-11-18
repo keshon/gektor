@@ -10,6 +10,49 @@ import (
 	"testing"
 )
 
+func TestListReturnsOnlyBindingMetadataWithoutResolvingSecrets(t *testing.T) {
+	store := Store{Directory: filepath.Join(t.TempDir(), "credentials")}
+	bindings, err := store.List()
+	if err != nil || len(bindings) != 0 {
+		t.Fatal(bindings, err)
+	}
+	_, err = os.Stat(store.Directory)
+	if !os.IsNotExist(err) {
+		t.Fatal("listing created storage", err)
+	}
+	config := Config{Origin: "https://api.example.com", Env: "UNRESOLVED_HTTP_LIST_SECRET", Header: "Authorization"}
+	for _, name := range []string{"zeta", "alpha"} {
+		err = store.Register(name, config)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	err = store.Revoke("zeta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(filepath.Join(store.Directory, "opaque-secret-reference"), []byte("not a binding"), 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bindings, err = store.List()
+	if err != nil || len(bindings) != 2 || bindings[0].Name != "alpha" || bindings[1].Name != "zeta" || !bindings[1].Revoked {
+		t.Fatal("metadata order or revocation lost", bindings, err)
+	}
+	raw, err := json.Marshal(bindings)
+	if err != nil || strings.Contains(string(raw), config.Env) || strings.Contains(string(raw), "not a binding") {
+		t.Fatal("list exposed credential sources", string(raw), err)
+	}
+	err = os.WriteFile(filepath.Join(store.Directory, "broken.json"), []byte(`{`), 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bindings, err = store.List()
+	if err == nil || bindings != nil {
+		t.Fatal("malformed binding silently accepted", bindings, err)
+	}
+}
+
 func TestUpdatesRequireCurrentRevisionAndKeepRevocation(t *testing.T) {
 	store := Store{Directory: t.TempDir()}
 	t.Setenv("GEKTOR_HTTP_UPDATE", "current-private-value")

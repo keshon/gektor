@@ -23,11 +23,14 @@ func (m *Model) MenuItems(menu string, applicationIdle bool) []screen.MenuItem {
 			{Text: "Recipe settings…", Command: "/workflows setup", Enabled: edit},
 		}
 	case "node":
+		step := m.selectedStep()
+		bindingEnabled := edit && supportsSavedConnection(step.Tool) && m.selectedSchedule() == nil
 		return []screen.MenuItem{
 			{Text: "Add node…", Command: "/workflows add", Enabled: edit},
 			{Text: "Add schedule trigger…", Command: "/workflows schedule-add", Enabled: edit}, sep,
 			{Text: "Edit arguments…", Command: "/workflows edit", Enabled: edit},
 			{Text: "Behavior…", Command: "/workflows behavior", Enabled: edit},
+			{Text: "Saved connection…", Command: "/workflows binding", Enabled: bindingEnabled},
 			{Text: "Connections…", Command: "/workflows connections", Enabled: edit},
 			{Text: "Connect nodes…", Command: "/workflows link", Enabled: edit}, sep,
 			{Text: "Delete node…", Command: "/workflows delete", Enabled: edit},

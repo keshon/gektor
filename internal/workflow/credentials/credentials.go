@@ -326,6 +326,31 @@ func (s Store) Inspect(name string) (Binding, error) {
 	return describe(name, config, revoked)
 }
 
+// List reads binding metadata in name order without resolving secret values.
+func (s Store) List() ([]Binding, error) {
+	entries, err := os.ReadDir(s.Directory)
+	if errors.Is(err, os.ErrNotExist) {
+		return []Binding{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	bindings := []Binding{}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		name := strings.TrimSuffix(entry.Name(), ".json")
+		binding, inspectErr := s.Inspect(name)
+		if inspectErr != nil {
+			return nil, fmt.Errorf("inspecting HTTP binding %s: %w", name, inspectErr)
+		}
+		bindings = append(bindings, binding)
+	}
+	return bindings, nil
+}
+
 // Revoke is permanent for this name. Already-resolved requests can still finish.
 func (s Store) Revoke(name string) error {
 	_, _, err := s.read(name)

@@ -108,6 +108,8 @@ func (m *Model) command(action string) tea.Cmd {
 		m.edit()
 	case "behavior":
 		return m.behaviorForm()
+	case "binding":
+		m.savedConnectionForm()
 
 	case "ai":
 		return m.proposalForm()
@@ -170,7 +172,7 @@ func (m *Model) command(action string) tea.Cmd {
 // workflowRequiresDraft identifies actions unavailable while inspecting a frozen run.
 func workflowRequiresDraft(action string) bool {
 	switch action {
-	case "edit", "add", "link", "connections", "delete", "recipe", "name", "inputs", "outputs", "ai", "behavior", "undo", "redo", "save", "run", "validate":
+	case "edit", "add", "link", "connections", "delete", "recipe", "name", "inputs", "outputs", "ai", "behavior", "binding", "undo", "redo", "save", "run", "validate":
 		return true
 	default:
 		return false

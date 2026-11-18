@@ -117,8 +117,27 @@ affected vet, executable build, documentation and diff checks pass. No new
 concurrency was introduced. The fixture architecture reference now correctly
 names the service method rather than a nonexistent package function.
 
-Next: editor named-binding controls. Stage 7 is not complete; keyed joins and
-stage 8 throughput also remain.
+Named-binding editor controls now cover the existing HTTP request and SSH
+exec/upload/download nodes. Node / Saved connection reads metadata, displays the
+origin or endpoint/port, and pins the inspected name/revision. Apply rechecks
+selected metadata, rejects changes/revocation and mismatched literal HTTP origins,
+and preserves unrelated arguments through the existing draft undo path. HTTP
+credentials can be removed. Dynamic URL references retain runtime origin checks.
+Mapped nodes still require connection fields in each item's complete arguments;
+the picker does not write ineffective fields into the empty map base arguments.
+No connection, credential resolution, server start or remote command occurs here.
+MCP remains an explicitly separate Agent binding with its existing lifecycle;
+there is no implicit MCP workflow node or new adapter in this editor checkpoint.
+Tests cover metadata-only listing, selection/removal, explicit SSH destination
+choice, pin changes, revocation, origin mismatch, stale/frozen drafts, undo and
+preservation of other arguments. Affected TUI/workflow/SSH/application/CLI and
+convention tests, affected vet, executable build, documentation and diff checks
+pass. Concurrency and runtime credential resolution are unchanged.
+
+Stage 7 implementation is covered; the broader audit and acceptance tests remain
+scheduled after plan implementation. Next: specify and implement keyed joins from
+stage 3, then stage 8 bounded jobs, workspace budgets, retention and health/queue
+metrics. Do not treat this editor checkpoint as completion of the entire plan.
 
 Older "next" paragraphs below are historical and superseded by this section.
 
