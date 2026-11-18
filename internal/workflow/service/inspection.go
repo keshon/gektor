@@ -2,9 +2,11 @@ package service
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/internal/workflow/recipe"
 	"github.com/keshon/gektor/internal/workflow/store"
 )
 
@@ -50,17 +52,19 @@ type RunInspection struct {
 }
 
 type StepInspection struct {
-	Failure   *workflow.Failure `json:"failure,omitempty"`
-	ID        string            `json:"id"`
-	Operation string            `json:"operation,omitempty"`
-	Status    string            `json:"status"`
-	Error     string            `json:"error,omitempty"`
+	Attempts   int               `json:"attempt_count,omitempty"`
+	Iterations int               `json:"iteration_count,omitempty"`
+	Failure    *workflow.Failure `json:"failure,omitempty"`
+	ID         string            `json:"id"`
+	Operation  string            `json:"operation,omitempty"`
+	Status     string            `json:"status"`
+	Error      string            `json:"error,omitempty"`
 }
 
 func InspectSteps(r workflow.Run) []StepInspection {
 	out := make([]StepInspection, 0, len(r.Steps))
 	for _, s := range workflow.ScopedSteps(r) {
-		out = append(out, StepInspection{ID: s.ID, Operation: s.Definition.Tool, Status: s.Result.Status, Error: s.Result.Error, Failure: s.Result.Failure})
+		out = append(out, StepInspection{Attempts: len(s.Result.Attempts), Iterations: len(s.Result.Iterations), ID: s.ID, Operation: s.Definition.Tool, Status: s.Result.Status, Error: s.Result.Error, Failure: s.Result.Failure})
 	}
 	return out
 }
@@ -89,4 +93,127 @@ func InspectRun(state store.RunState) RunInspection {
 		}
 	}
 	return out
+}
+
+const defaultInvocationPage = 50
+const maxInvocationPage = 100
+
+// Inspection selects a read-only projection of a saved run. A nil Pointer
+// selects the whole output; a pointer to an empty string explicitly selects its root.
+type Inspection struct {
+	View    string
+	StepID  string
+	Pointer *string
+	Offset  int
+	Limit   int
+}
+
+type InvocationPage struct {
+	ID          string           `json:"run_id"`
+	Status      string           `json:"status"`
+	Invocations []StepInspection `json:"invocations"`
+	Offset      int              `json:"offset"`
+	Limit       int              `json:"limit"`
+	Total       int              `json:"total"`
+	NextOffset  int              `json:"next_offset,omitempty"`
+}
+
+type AttemptInspection struct {
+	ID       string             `json:"run_id"`
+	Step     StepInspection     `json:"step"`
+	Attempts []workflow.Attempt `json:"attempts"`
+}
+
+type StepDetail struct {
+	ID         string          `json:"run_id"`
+	Step       StepInspection  `json:"step"`
+	Args       InspectionValue `json:"args"`
+	Output     InspectionValue `json:"output"`
+	Attempts   int             `json:"attempt_count"`
+	Iterations int             `json:"iteration_count"`
+}
+
+// InspectRecord borrows the saved record and never resumes or changes it.
+// Invocation pages contain metadata only; use a scoped ID with step or attempts.
+func InspectRecord(state store.RunState, selection Inspection) (any, error) {
+	if selection.View == "" {
+		selection.View = "summary"
+	}
+	requiresStep := selection.View == "step" || selection.View == "attempts"
+	if requiresStep != (selection.StepID != "") {
+		return nil, fmt.Errorf("step_id is required only for step or attempts view")
+	}
+	if selection.Pointer != nil && selection.View != "summary" && selection.View != "step" {
+		return nil, fmt.Errorf("pointer requires summary or step view")
+	}
+	if selection.Offset < 0 || selection.Limit < 0 || selection.Limit > maxInvocationPage {
+		return nil, fmt.Errorf("offset must be nonnegative and limit must be between 1 and 100 when supplied")
+	}
+	if selection.View != "invocations" && (selection.Offset != 0 || selection.Limit != 0) {
+		return nil, fmt.Errorf("offset and limit require invocations view")
+	}
+	selectValue := func(raw []byte) (InspectionValue, error) {
+		if selection.Pointer == nil {
+			return InspectValue(raw), nil
+		}
+		value, err := recipe.OutputAt(raw, *selection.Pointer)
+		if err != nil {
+			return InspectionValue{}, err
+		}
+		return InspectValue(value), nil
+	}
+
+	switch selection.View {
+	case "full":
+		return state, nil
+	case "summary":
+		summary := InspectRun(state)
+		if selection.Pointer != nil {
+			output, err := selectValue(DeclaredOutputs(state.Record))
+			if err != nil {
+				return nil, err
+			}
+			summary.Outputs = output
+		}
+		return summary, nil
+	case "steps":
+		return struct {
+			ID     string           `json:"run_id"`
+			Status string           `json:"status"`
+			Steps  []StepInspection `json:"steps"`
+		}{ID: state.Record.RunID, Status: state.Status, Steps: InspectSteps(state.Record)}, nil
+	case "invocations":
+		limit := selection.Limit
+		if limit == 0 {
+			limit = defaultInvocationPage
+		}
+		steps := InspectSteps(state.Record)
+		start := min(selection.Offset, len(steps))
+		end := start + min(limit, len(steps)-start)
+		page := InvocationPage{ID: state.Record.RunID, Status: state.Status, Invocations: steps[start:end], Offset: selection.Offset, Limit: limit, Total: len(steps)}
+		if end < len(steps) {
+			page.NextOffset = end
+		}
+		return page, nil
+	case "step", "attempts":
+		for _, scoped := range workflow.ScopedSteps(state.Record) {
+			if scoped.ID != selection.StepID {
+				continue
+			}
+			step := scoped.Result
+			metadata := StepInspection{Attempts: len(step.Attempts), Iterations: len(step.Iterations), ID: scoped.ID, Operation: scoped.Definition.Tool, Status: step.Status, Error: step.Error, Failure: step.Failure}
+			if selection.View == "attempts" {
+				attempts := append([]workflow.Attempt{}, step.Attempts...)
+				return AttemptInspection{ID: state.Record.RunID, Step: metadata, Attempts: attempts}, nil
+			}
+			output, err := selectValue([]byte(step.Output))
+			if err != nil {
+				return nil, err
+			}
+			return StepDetail{ID: state.Record.RunID, Step: metadata, Args: InspectValue(step.Args), Output: output, Attempts: len(step.Attempts), Iterations: len(step.Iterations)}, nil
+		}
+		return nil, fmt.Errorf("unknown step_id %q", selection.StepID)
+	default:
+		return nil, fmt.Errorf("unknown inspection view %q", selection.View)
+	}
 }

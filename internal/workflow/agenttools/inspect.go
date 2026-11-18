@@ -6,8 +6,6 @@ import (
 	"fmt"
 
 	"github.com/keshon/gektor/internal/agent"
-	"github.com/keshon/gektor/internal/workflow"
-	"github.com/keshon/gektor/internal/workflow/recipe"
 	"github.com/keshon/gektor/internal/workflow/service"
 	"github.com/keshon/gektor/internal/workflow/store"
 	"github.com/keshon/gektor/internal/workspace"
@@ -20,12 +18,12 @@ type Inspect struct {
 
 func (Inspect) Name() string { return "workflow_inspect" }
 func (Inspect) Description() string {
-	return "Inspect a saved run. Default view=summary returns declared outputs, status, timing and failures. Use view=steps for a compact step list, view=step with step_id for arguments/output, or view=full for the complete stored record. Optional pointer selects a JSON Pointer inside declared outputs (summary) or step output (step). Values over 8 KiB are omitted with their size; narrow with pointer or request full. Inspection never resumes a run."
+	return "Inspect a saved run. Default view=summary returns declared outputs, status, timing and failures. Use view=steps for a compact step list, view=step with step_id for arguments/output, view=invocations for a paged metadata list (offset, limit 1–100), view=attempts with step_id for retry timing/failures, or view=full for the complete stored record. Optional pointer selects a JSON Pointer inside declared outputs (summary) or step output (step). Values over 8 KiB are omitted with their size; narrow with pointer or request full. Inspection never resumes a run."
 }
 func (Inspect) Mode() agent.ToolMode { return agent.Concurrent }
 func (Inspect) ReadOnly() bool       { return true }
 func (Inspect) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"run_id":{"type":"string","minLength":1,"maxLength":64},"view":{"type":"string","enum":["summary","steps","step","full"]},"step_id":{"type":"string","minLength":1},"pointer":{"type":"string"}},"required":["run_id"],"additionalProperties":false}`)
+	return json.RawMessage(`{"type":"object","properties":{"run_id":{"type":"string","minLength":1,"maxLength":64},"view":{"type":"string","enum":["summary","steps","step","full","invocations","attempts"]},"step_id":{"type":"string","minLength":1},"pointer":{"type":"string"},"offset":{"type":"integer","minimum":0},"limit":{"type":"integer","minimum":1,"maximum":100}},"required":["run_id"],"additionalProperties":false}`)
 }
 func (t Inspect) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	if err := ctx.Err(); err != nil {
@@ -42,6 +40,8 @@ func (t Inspect) Run(ctx context.Context, args json.RawMessage) (string, error) 
 		View    string  `json:"view"`
 		Step    string  `json:"step_id"`
 		Pointer *string `json:"pointer"`
+		Offset  int     `json:"offset"`
+		Limit   int     `json:"limit"`
 	}
 	if err := decode(args, &in); err != nil {
 		return "", err
@@ -55,68 +55,15 @@ func (t Inspect) Run(ctx context.Context, args json.RawMessage) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	if in.View == "" {
-		in.View = "summary"
-	}
-	if (in.View == "step") != (in.Step != "") {
-		return "", fmt.Errorf("step_id is required only for view=step")
-	}
-	if in.Pointer != nil && in.View != "summary" && in.View != "step" {
-		return "", fmt.Errorf("pointer requires summary or step view")
-	}
-	selectValue := func(raw []byte) (service.InspectionValue, error) {
-		if in.Pointer == nil {
-			return service.InspectValue(raw), nil
-		}
-		value, err := recipe.OutputAt(raw, *in.Pointer)
-		if err != nil {
-			return service.InspectionValue{}, err
-		}
-		return service.InspectValue(value), nil
-	}
-	var result any
-	switch in.View {
-	case "full":
-		result = r
-	case "steps":
-		result = struct {
-			ID     string                   `json:"run_id"`
-			Status string                   `json:"status"`
-			Steps  []service.StepInspection `json:"steps"`
-		}{r.Record.RunID, r.Status, service.InspectSteps(r.Record)}
-	case "step":
-		for _, scoped := range workflow.ScopedSteps(r.Record) {
-			if scoped.ID != in.Step {
-				continue
-			}
-			step := scoped.Result
-			output, err := selectValue([]byte(step.Output))
-			if err != nil {
-				return "", err
-			}
-			result = struct {
-				ID         string                  `json:"run_id"`
-				Step       service.StepInspection  `json:"step"`
-				Args       service.InspectionValue `json:"args"`
-				Output     service.InspectionValue `json:"output"`
-				Attempts   int                     `json:"attempt_count"`
-				Iterations int                     `json:"iteration_count"`
-			}{r.Record.RunID, service.StepInspection{ID: scoped.ID, Operation: scoped.Definition.Tool, Status: step.Status, Error: step.Error, Failure: step.Failure}, service.InspectValue(step.Args), output, len(step.Attempts), len(step.Iterations)}
-			break
-		}
-		if result == nil {
-			return "", fmt.Errorf("unknown step_id %q", in.Step)
-		}
-	default:
-		summary := service.InspectRun(r)
-		if in.Pointer != nil {
-			// Select before bounding, so a small field in a large output stays accessible.
-			summary.Outputs, err = selectValue(service.DeclaredOutputs(r.Record))
-			if err != nil {
-				return "", err
-			}
-		}
-		result = summary
+	result, err := service.InspectRecord(r, service.Inspection{
+		View:    in.View,
+		StepID:  in.Step,
+		Pointer: in.Pointer,
+		Offset:  in.Offset,
+		Limit:   in.Limit,
+	})
+	if err != nil {
+		return "", err
 	}
 	b, err := json.Marshal(result)
 	return string(b), err

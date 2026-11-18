@@ -83,6 +83,19 @@ Model flags, profiles, browser and external adapters do not apply to execution.
 Runs are stored outside the workspace under `~/.gektor/workflows`, scoped to
 the workspace's canonical path. Inspect by run ID; `database_path` is absolute.
 
+`inspect` defaults to the full stored record. Use `-view summary`, `-view steps`,
+`-view step -step-id <scoped-id>`, `-view invocations`, or
+`-view attempts -step-id <scoped-id>` for smaller projections. The `-step-id` flag accepts a scoped ID returned by invocation inspection.
+Invocation pages accept `-offset` and `-limit` (default 50, maximum 100). Summary and step output
+can be narrowed with `-pointer`; values over 8 KiB are omitted with their size.
+Put these flags before the run ID. For example:
+
+```powershell
+.\gektor.exe workflow inspect -workspace . -view invocations -limit 20 <run-id>
+.\gektor.exe workflow inspect -workspace . -view attempts -step-id 'batch[0]' <run-id>
+.\gektor.exe workflow inspect -workspace . -view step -step-id 'call/fetch' -pointer /status_code <run-id>
+```
+
 `runs`, `inspect` and `record` support `-workspace`. `record <kind> <id>`
 reads a stored entry, including its revision and schema hash, without a model.
 

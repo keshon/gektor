@@ -425,3 +425,56 @@ func TestNestedWorkflowValidationIdentifiesFailingRecipe(t *testing.T) {
 		})
 	}
 }
+
+func TestWorkflowCLIInspectionViewsUseSavedAttempts(t *testing.T) {
+	directory, base := t.TempDir(), t.TempDir()
+	db, err := store.OpenStore(base, directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	writer, err := db.NewRun()
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := workflow.Run{Status: "completed", Definition: workflow.Definition{Steps: []workflow.Step{{ID: "batch", Tool: "http_request"}}}, Steps: []workflow.StepResult{{ID: "batch", Status: "completed", Iterations: []workflow.StepResult{{ID: "batch[0]", Status: "completed", Output: `{"answer":42,"private":"large-payload-marker"}`, Attempts: []workflow.Attempt{{Number: 1, Error: "retry-marker"}, {Number: 2}}}}}}}
+	err = writer.Save(run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = writer.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, view := range []string{"invocations", "attempts", "step", "full"} {
+		args := []string{"inspect", "-workspace", directory, "-view", view}
+		if view == "attempts" || view == "step" {
+			args = append(args, "-step-id", "batch[0]")
+		}
+		if view == "step" {
+			args = append(args, "-pointer", "/answer")
+		}
+		if view == "invocations" {
+			args = append(args, "-offset", "1", "-limit", "1")
+		}
+		args = append(args, writer.ID())
+		var output bytes.Buffer
+		err = workflowHistory(t.Context(), args, &output, base)
+		if err != nil || !json.Valid(output.Bytes()) {
+			t.Fatal(view, output.String(), err)
+		}
+		text := output.String()
+		if view != "full" && strings.Contains(text, "large-payload-marker") {
+			t.Fatal("compact view copied full output", view, text)
+		}
+		if view == "invocations" && (!strings.Contains(text, `"id":"batch[0]"`) || !strings.Contains(text, `"attempt_count":2`)) {
+			t.Fatal(text)
+		}
+		if view == "attempts" && (!strings.Contains(text, `"number":2`) || !strings.Contains(text, "retry-marker")) {
+			t.Fatal(text)
+		}
+		if view == "step" && !strings.Contains(text, `"value":42`) {
+			t.Fatal(text)
+		}
+	}
+}

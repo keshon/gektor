@@ -127,7 +127,7 @@ func TestInspectFindsScopedChildStep(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer w.Close()
-	child := workflow.Run{Status: "completed", Definition: workflow.Definition{Steps: []workflow.Step{{ID: "fetch", Tool: "http_request"}}}, Steps: []workflow.StepResult{{ID: "fetch", Status: "completed", Output: `{"answer":42}`}}}
+	child := workflow.Run{Status: "completed", Definition: workflow.Definition{Steps: []workflow.Step{{ID: "fetch", Tool: "http_request"}}}, Steps: []workflow.StepResult{{ID: "fetch", Status: "completed", Output: `{"answer":42}`, Attempts: []workflow.Attempt{{Number: 1, Error: "retry-history-marker"}, {Number: 2}}}}}
 	r := workflow.Run{Status: "completed", Definition: workflow.Definition{Steps: []workflow.Step{{ID: "call", Tool: "workflow_call"}}}, Steps: []workflow.StepResult{{ID: "call", Status: "completed", Child: &child}}}
 	err = w.Save(r)
 	if err != nil {
@@ -141,5 +141,49 @@ func TestInspectFindsScopedChildStep(t *testing.T) {
 	out, err := tool.Run(t.Context(), args)
 	if err != nil || !strings.Contains(out, `"id":"call/fetch"`) || !strings.Contains(out, `"operation":"http_request"`) || !strings.Contains(out, `"value":42`) {
 		t.Fatal("nested step inspection lost scope", out, err)
+	}
+	for _, selection := range []string{
+		`{"view":"attempts","step_id":"call/fetch"}`,
+		`{"view":"invocations","offset":1,"limit":1}`,
+	} {
+		var query map[string]any
+		err = json.Unmarshal([]byte(selection), &query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		query["run_id"] = w.ID()
+		args, err = json.Marshal(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, err = tool.Run(t.Context(), args)
+		if err != nil || !strings.Contains(out, `"id":"call/fetch"`) || !strings.Contains(out, `"attempt_count":2`) {
+			t.Fatal(out, err)
+		}
+		if query["view"] == "attempts" && !strings.Contains(out, "retry-history-marker") {
+			t.Fatal("retry history missing", out)
+		}
+	}
+	for _, selection := range []string{
+		`{"view":"attempts"}`,
+		`{"view":"attempts","step_id":"call/fetch","pointer":""}`,
+		`{"view":"invocations","limit":101}`,
+		`{"view":"invocations","offset":-1}`,
+		`{"view":"summary","limit":10}`,
+	} {
+		var query map[string]any
+		err = json.Unmarshal([]byte(selection), &query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		query["run_id"] = w.ID()
+		args, err = json.Marshal(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = tool.Run(t.Context(), args)
+		if err == nil {
+			t.Fatal("invalid inspection accepted", selection)
+		}
 	}
 }

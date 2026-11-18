@@ -71,6 +71,24 @@ that step's output. For example:
 {"run_id":"...","pointer":"/summary/status"}
 ```
 
+Use `view: "invocations"` to page through invocation metadata without copying
+arguments or outputs. `offset` defaults to 0 and `limit` to 50 (maximum 100).
+The result includes `total` and, when more entries remain, `next_offset`.
+Entries include containers, child scopes and mapped/repeated items, with their
+scoped IDs, statuses and attempt/iteration counts. Use that exact ID with
+`view: "step"` for values or `view: "attempts"` for retry history. For example:
+
+```json
+{"run_id":"...","view":"attempts","step_id":"batch[0]"}
+```
+
+Attempt history contains attempt numbers, start/finish times, errors and typed
+failure codes, including failures before a later success. It does not contain
+separate argument/output snapshots for every attempt; step view shows the
+invocation's recorded values. An unfinished attempt stays unfinished in the
+record; inspection does not retry it. Pages reflect the current saved run;
+inspect a settled run for a stable list while paging.
+
 Inspection reports
 `interrupted` when a persisted running run no longer holds its OS process lock;
 the recorded status remains unchanged. A crash can leave partial step effects.

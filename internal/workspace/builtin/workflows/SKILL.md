@@ -80,8 +80,11 @@ fulfills the request. When execution is authorized, call `workflow_run`, inspect
 its actual declared outputs with `workflow_inspect`, and compare them with a
 known expected result. For this example test count 3 and a different count.
 When execution is forbidden, report that result correctness remains unverified.
-`workflow_inspect` defaults to a compact summary. Use `view:"steps"`, then
-`view:"step"` with `step_id` for details. `pointer` selects within declared outputs
+`workflow_inspect` defaults to a compact summary. Use `view:"invocations"`
+with `offset` and `limit` (default 50, maximum 100) for large runs; follow
+`next_offset` when present. Use a returned scoped ID with `view:"step"` for
+values or `view:"attempts"` for retry timing and failures. `view:"steps"` returns
+the unpaged metadata list. `pointer` selects within declared outputs
 or a step output before the 8 KiB value limit; `view:"full"` returns the full record.
 Use `workflow_status` to find recent jobs and run IDs, then inspect failures.
 Do not repeat effectful steps merely to diagnose an error. Retries require

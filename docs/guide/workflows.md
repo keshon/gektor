@@ -83,6 +83,9 @@ with mouse clicks or Tab and left/right to choose a category.
 
 Properties uses the same port names as the cards.
 Result needs a selected run; a draft alone has no recorded result.
+Recorded attempts show their number, start time, duration when finished, and
+failure details. Repeated items show their invocation IDs and attempt history
+for the first ten items; the full record remains available as raw data.
 `Ctrl+J` shows raw data when you need the full record.
 Close the inspector with its close button or focused `Esc`.
 

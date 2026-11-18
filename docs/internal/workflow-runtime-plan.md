@@ -57,8 +57,27 @@ Deterministic checks cover three-level calls with child shape/argument/missing
 file failures, frozen child errors after saved-file changes, child permission
 denial identity, and root/child TUI navigation with colliding node IDs.
 
-Next: invocation/attempt inspection gaps, captured-input fixtures, then editor
-map/loop/error and named-binding controls. Stage 7 is not complete; keyed joins and stage 8 throughput also remain.
+Invocation/attempt inspection now uses `service.InspectRecord` for both CLI
+and Agent adapters. `view=invocations` pages scoped IDs/statuses/counts without
+argument/output payloads (default 50, maximum 100), and `view=attempts` returns
+the selected invocation's stored retry timing/failures. Existing step/summary
+pointer narrowing and 8 KiB value omission remain. CLI keeps its full-record
+default; Agent tools keep summary. TUI Result shows direct and first-ten-item
+attempt histories, failure codes, timing and item IDs. Inspection never resumes
+or mutates a run. Attempts expose existing metadata, not invented per-attempt
+argument/output snapshots.
+
+Pagination is a projection of the hydrated saved run, not a new indexed store
+query or a pinned multi-request snapshot. Active runs can change between pages.
+Store-read throughput/budgets remain stage 8 work. Deterministic tests cover
+page bounds and large offsets, scoped item/child IDs, stored history across
+CLI and Agent adapters, malformed selections, TUI retry details and unchanged
+record values. Service, Agent tool, CLI, TUI, API, daemon and convention suites
+pass, along with affected vet, executable build, docs and diff checks. No new
+concurrency was introduced.
+
+Next: captured-input tests and explicit fixture mode, then editor map/loop/error
+and named-binding controls. Stage 7 is not complete; keyed joins and stage 8 throughput also remain.
 
 Older "next" paragraphs below are historical and superseded by this section.
 

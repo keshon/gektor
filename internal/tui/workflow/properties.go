@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
@@ -249,9 +250,12 @@ func (m *Model) resultRows(step workflow.Step) []string {
 		if len(r.Iterations) > 0 {
 			rows = append(rows, "", m.surface.Styles.Accent.Render("REPEATED ITEMS"))
 			for i, item := range r.Iterations {
-				rows = append(rows, fmt.Sprintf("%d  %s", i+1, item.Status))
+				rows = append(rows, fmt.Sprintf("%d  %s / %s", i+1, item.ID, item.Status))
 				if item.Error != "" {
 					rows = append(rows, "  "+cleanText(item.Error))
+				}
+				for _, line := range workflowAttemptRows(item.Attempts) {
+					rows = append(rows, "  "+line)
 				}
 				if i >= 9 {
 					rows = append(rows, "Ctrl+J shows all recorded items")
@@ -259,8 +263,41 @@ func (m *Model) resultRows(step workflow.Step) []string {
 				}
 			}
 		}
-		if len(r.Attempts) > 1 {
-			rows = append(rows, fmt.Sprintf("Attempts: %d", len(r.Attempts)))
+		rows = append(rows, workflowAttemptRows(r.Attempts)...)
+	}
+	return rows
+}
+
+func workflowAttemptRows(attempts []workflow.Attempt) []string {
+	if len(attempts) == 0 {
+		return nil
+	}
+	rows := []string{"", "ATTEMPTS"}
+	for _, attempt := range attempts {
+		status := "unfinished"
+		if attempt.Finished != nil {
+			status = "completed"
+			if attempt.Error != "" || attempt.Failure != nil {
+				status = "failed"
+			}
+		}
+		if attempt.Failure != nil {
+			status += " / " + cleanText(attempt.Failure.Code)
+		}
+
+		line := fmt.Sprintf("#%d %s · %s", attempt.Number, status, attempt.Started.UTC().Format(time.RFC3339))
+		if attempt.Finished != nil {
+			duration := attempt.Finished.Sub(attempt.Started)
+			line += fmt.Sprintf(" · %dms", duration.Milliseconds())
+		}
+		rows = append(rows, line)
+
+		message := attempt.Error
+		if message == "" && attempt.Failure != nil {
+			message = attempt.Failure.Message
+		}
+		if message != "" {
+			rows = append(rows, "  "+cleanText(message))
 		}
 	}
 	return rows

@@ -19,6 +19,7 @@ import (
 	workflowcore "github.com/keshon/gektor/internal/workflow"
 	workflow "github.com/keshon/gektor/internal/workflow/agenttools"
 	"github.com/keshon/gektor/internal/workflow/script"
+	"github.com/keshon/gektor/internal/workflow/service"
 	"github.com/keshon/gektor/internal/workflow/store"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -125,9 +126,23 @@ func workflowHistory(ctx context.Context, args []string, out io.Writer, storeDir
 	flags := flag.NewFlagSet("workflow "+args[0], flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	dir := flags.String("workspace", ".", "workspace whose runs to inspect")
+	selection := service.Inspection{View: "full"}
+	var pointer string
+	if args[0] == "inspect" {
+		flags.StringVar(&selection.View, "view", "full", "full, summary, steps, step, invocations or attempts")
+		flags.StringVar(&selection.StepID, "step-id", "", "scoped invocation ID for step or attempts view")
+		flags.StringVar(&pointer, "pointer", "", "JSON Pointer within summary or step output")
+		flags.IntVar(&selection.Offset, "offset", 0, "invocations page offset")
+		flags.IntVar(&selection.Limit, "limit", 0, "invocations page size (default 50, maximum 100)")
+	}
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "pointer" {
+			selection.Pointer = &pointer
+		}
+	})
 	if args[0] == "runs" && flags.NArg() != 0 || args[0] == "inspect" && flags.NArg() != 1 || args[0] == "record" && flags.NArg() != 2 {
 		return fmt.Errorf("%s", workflowUsage)
 	}
@@ -148,7 +163,11 @@ func workflowHistory(ctx context.Context, args []string, out io.Writer, storeDir
 			return fmt.Errorf("record %q/%q or its schema not found in this workspace; pending review writes do not exist until approved", flags.Arg(0), flags.Arg(1))
 		}
 	} else {
-		value, err = s.Run(flags.Arg(0))
+		var state store.RunState
+		state, err = s.Run(flags.Arg(0))
+		if err == nil {
+			value, err = service.InspectRecord(state, selection)
+		}
 	}
 	if err != nil {
 		return err

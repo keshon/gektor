@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -318,5 +319,22 @@ func TestWorkflowTabGapAndWheelDoNotChangePage(t *testing.T) {
 	m.handleMouse(tea.MouseClickMsg{X: x + tabs.Hits[0].Width, Y: y, Button: tea.MouseLeft})
 	if m.workflows.inspectorTab != 0 || m.workflows.offset != 3 {
 		t.Fatal("tab gap changed the page")
+	}
+}
+
+func TestResultShowsRetryHistoryAndInvocationIDs(t *testing.T) {
+	m := workflowTestModel(t)
+	w := m.workflows
+	definition := workflowRecipe()
+	step := definition.Steps[0]
+	started := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
+	finished := started.Add(250 * time.Millisecond)
+	attempts := []workflow.Attempt{{Number: 1, Started: started, Finished: &finished, Failure: &workflow.Failure{Code: "http_status", Message: "try again"}}, {Number: 2, Started: finished}}
+	w.run = &workflow.Run{Definition: definition, Steps: []workflow.StepResult{{ID: step.ID, Status: "running", Attempts: attempts, Iterations: []workflow.StepResult{{ID: step.ID + "[0]", Status: "running", Attempts: attempts}}}}}
+	text := ansi.Strip(strings.Join(w.resultRows(step), "\n"))
+	for _, part := range []string{"ATTEMPTS", "#1 failed / http_status", "250ms", "try again", "#2 unfinished", step.ID + "[0]"} {
+		if !strings.Contains(text, part) {
+			t.Fatal("missing retry detail", part, text)
+		}
 	}
 }
