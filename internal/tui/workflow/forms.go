@@ -8,7 +8,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/tui/components/pane"
-	"github.com/keshon/gektor/internal/tui/components/schemaform"
 	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow"
 )
@@ -57,55 +56,6 @@ func (m *Model) addNodeForm() tea.Cmd {
 		return nil
 	})
 
-	return nil
-}
-
-func (m *Model) behaviorForm() tea.Cmd {
-	for _, step := range m.editor.Definition.Steps {
-		if step.ID != m.graph.Selected {
-			continue
-		}
-		original, _ := json.Marshal(step)
-		schema := schemaform.Parse(json.RawMessage(`{"properties":{"review":{"type":"boolean","enum":[true,false]},"depends_on":{"type":"array"},"when":{},"for_each":{},"concurrency":{"type":"integer","minimum":1,"maximum":32},"on_error":{"type":"string","enum":["stop","collect"]},"merge":{"type":"string","enum":["all","any"]},"repeat":{"type":"object"},"retry":{"type":"object"}}}`))
-		draft := m.editor.Source()
-		id := step.ID
-		m.openForm(screen.Form{
-			Title:      step.ID + " / behavior",
-			Hint:       "Map concurrency requires a concurrent operation. Collect retains operation failures; permission and storage failures stop the run.",
-			ApplyLabel: "Apply",
-			Fields:     schema.Fields(original),
-			Choices:    schema.Choices(),
-		}, func(v map[string]string) error {
-			if m.busy || m.run != nil || m.editor.Source() != draft {
-				return fmt.Errorf("draft changed; reopen node behavior")
-			}
-
-			raw, err := schema.Values(original, v)
-			if err != nil {
-				return err
-			}
-
-			var changed workflow.Step
-			decodeErr := json.Unmarshal(raw, &changed)
-			if decodeErr != nil {
-				return decodeErr
-			}
-
-			d := m.editor.Clone()
-			for i, step := range d.Steps {
-				if step.ID == id {
-					d.Steps[i] = changed
-					break
-				}
-			}
-
-			m.editor.Replace(d)
-			m.graph = m.buildGraph(m.graph)
-			return nil
-		})
-
-		break
-	}
 	return nil
 }
 

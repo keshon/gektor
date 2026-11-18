@@ -59,6 +59,12 @@ func (m *Model) action(a workflowAction) tea.Cmd {
 			return nil
 		}
 		return m.action(workflowAction{in.Action + "-inputs", string(in.Inputs)})
+	case "behavior-edit":
+		var edit behaviorEdit
+		if json.Unmarshal([]byte(a.value), &edit) == nil {
+			m.editBehavior(edit)
+		}
+		return nil
 	case "parameter-edit":
 		var edit workflowParameterEdit
 		if json.Unmarshal([]byte(a.value), &edit) == nil {

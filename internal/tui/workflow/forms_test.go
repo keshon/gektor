@@ -2,11 +2,13 @@ package workflow
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/workflow"
 )
 
@@ -91,7 +93,7 @@ func TestCollectionBehaviorFormPreservesOperationAndEditsPolicy(t *testing.T) {
 	d.Steps[0].OnError = "stop"
 	w.editor.Replace(d)
 	w.graph.Selected = d.Steps[0].ID
-	m.workflowCommand("behavior")
+	w.editBehavior(behaviorEdit{StepID: w.graph.Selected, Section: "Map", Draft: w.editor.Source()})
 	values := m.chrome.Dialog.Form.Values()
 	values["concurrency"] = "3"
 	values["on_error"] = "collect"
@@ -114,9 +116,12 @@ func TestRepeatBehaviorFormPreservesAndEditsPolicy(t *testing.T) {
 	d.Steps[0].Repeat = &workflow.RepeatPolicy{MaxIterations: 3, Until: "/done", NextInputs: "/next"}
 	w.editor.Replace(d)
 	w.graph.Selected = d.Steps[0].ID
-	m.workflowCommand("behavior")
+	w.editBehavior(behaviorEdit{StepID: w.graph.Selected, Section: "Loop", Draft: w.editor.Source()})
 	values := m.chrome.Dialog.Form.Values()
-	values["repeat"] = `{"max_iterations":5,"until":"/finished","next_inputs":"/cursor","delay_ms":100}`
+	values["max_iterations"] = "5"
+	values["until"] = "/finished"
+	values["next_inputs"] = "/cursor"
+	values["delay_ms"] = "100"
 
 	err := m.applyValues(values)
 	if err != nil {
@@ -125,5 +130,155 @@ func TestRepeatBehaviorFormPreservesAndEditsPolicy(t *testing.T) {
 	step := w.editor.Definition.Steps[0]
 	if step.Tool != "workflow_call" || string(step.Args) != string(d.Steps[0].Args) || step.Repeat == nil || step.Repeat.MaxIterations != 5 || step.Repeat.Until != "/finished" || step.Repeat.NextInputs != "/cursor" || step.Repeat.DelayMS != 100 {
 		t.Fatal("behavior edit lost operation or repeat policy", step)
+	}
+}
+
+func TestBehaviorSectionOpensAfterChooserCloses(t *testing.T) {
+	m := workflowTestModel(t)
+	w := m.workflows
+	w.editor.Replace(workflowRecipe())
+	w.graph.Selected = "transform"
+	before := w.editor.Source()
+	m.workflowCommand("behavior")
+	chooser := m.chrome.Dialog
+	w.HandleControl(screen.Event{Kind: screen.Apply, Dialog: chooser, Values: map[string]string{"section": "Retry"}})
+	if m.chrome.Dialog != nil || w.editor.Source() != before || len(w.commands) == 0 {
+		t.Fatal("chooser changed the recipe or retained its dialog")
+	}
+	w.action(w.commands[len(w.commands)-1]().(workflowAction))
+	if m.chrome.Dialog == nil || m.chrome.Dialog == chooser || !strings.HasSuffix(m.chrome.Dialog.Title, "/ Retry") {
+		t.Fatal("queued section did not open independently")
+	}
+	f := m.chrome.Dialog.Form
+	for i, field := range f.Fields {
+		if field.Key != "enabled" && f.FieldVisible(i) {
+			t.Fatal("disabled retry exposed a policy field", field.Key)
+		}
+	}
+	values := f.Values()
+	values["enabled"] = "true"
+	values["codes"] = `["timeout","rate_limit"]`
+	values["max_attempts"] = "3"
+	values["delay_ms"] = "250"
+	err := m.applyValues(values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	step := w.editor.Definition.Steps[0]
+	if step.Retry == nil || step.Retry.MaxAttempts != 3 || step.Retry.DelayMS != 250 || strings.Join(step.Retry.Codes, ",") != "timeout,rate_limit" {
+		t.Fatal("retry fields were not saved", step.Retry)
+	}
+	w.editor.Undo()
+	if w.editor.Source() != before {
+		t.Fatal("policy edit lost undo")
+	}
+}
+
+func TestBehaviorFormsRemoveOptionalPoliciesAndKeepOtherSettings(t *testing.T) {
+	for _, section := range []string{"Loop", "Retry", "Map", "Execution"} {
+		t.Run(section, func(t *testing.T) {
+			m := workflowTestModel(t)
+			w := m.workflows
+			d := workflowRecipe()
+			step := &d.Steps[0]
+			step.Repeat = &workflow.RepeatPolicy{MaxIterations: 3, Until: "/done", NextInputs: "/next"}
+			step.Retry = &workflow.RetryPolicy{MaxAttempts: 2, DelayMS: 100}
+			step.ForEach = json.RawMessage(`[{}]`)
+			step.Concurrency = 2
+			step.OnError = "collect"
+			step.Review = true
+			step.When = json.RawMessage(`true`)
+			w.editor.Replace(d)
+			w.graph.Selected = step.ID
+			before := w.editor.Source()
+			w.editBehavior(behaviorEdit{StepID: step.ID, Section: section, Draft: before})
+			values := m.chrome.Dialog.Form.Values()
+			values["enabled"] = "false"
+			values["for_each"] = ""
+			values["when"] = ""
+			values["review"] = "false"
+			values["max_attempts"] = "invalid hidden value"
+			values["max_iterations"] = "invalid hidden value"
+
+			err := m.applyValues(values)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := w.editor.Definition.Steps[0]
+			want := *step
+			switch section {
+			case "Loop":
+				want.Repeat = nil
+			case "Retry":
+				want.Retry = nil
+			case "Map":
+				want.ForEach = nil
+				want.Concurrency = 0
+				want.OnError = ""
+			case "Execution":
+				want.Review = false
+				want.When = nil
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("changed unrelated settings:\ngot  %#v\nwant %#v", got, want)
+			}
+		})
+	}
+}
+
+func TestExecutionBehaviorEditsRoutesAndFinalizers(t *testing.T) {
+	m := workflowTestModel(t)
+	w := m.workflows
+	d := workflowRecipe()
+	target := d.Steps[0]
+	target.ID = "report"
+	d.Steps = append(d.Steps, target)
+	w.editor.Replace(d)
+	w.graph.Selected = d.Steps[0].ID
+	w.editBehavior(behaviorEdit{StepID: w.graph.Selected, Section: "Execution", Draft: w.editor.Source()})
+	values := m.chrome.Dialog.Form.Values()
+	values["on_failure"] = "report"
+	err := m.applyValues(values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.editor.Definition.Steps[0].OnFailure != "report" {
+		t.Fatal("missing error route")
+	}
+	rows := strings.Join(w.detailRows(), "\n")
+	if !strings.Contains(rows, "→ report") {
+		t.Fatal("inspector omitted error route", rows)
+	}
+
+	w.editBehavior(behaviorEdit{StepID: "report", Section: "Execution", Draft: w.editor.Source()})
+	values = m.chrome.Dialog.Form.Values()
+	values["finally"] = "true"
+	err = m.applyValues(values)
+	if err != nil || !w.editor.Definition.Steps[1].Finally {
+		t.Fatal("missing finalizer", err)
+	}
+}
+
+func TestBehaviorSectionRejectsStaleDraftAndFrozenRun(t *testing.T) {
+	for _, section := range []string{"Execution", "Map", "Loop", "Retry"} {
+		for _, frozen := range []bool{false, true} {
+			m := workflowTestModel(t)
+			w := m.workflows
+			w.editor.Replace(workflowRecipe())
+			w.editBehavior(behaviorEdit{StepID: "transform", Section: section, Draft: w.editor.Source()})
+			values := m.chrome.Dialog.Form.Values()
+			if frozen {
+				w.run = &workflow.Run{}
+			} else {
+				changed := w.editor.Clone()
+				changed.Steps = nil
+				w.editor.Replace(changed)
+			}
+			before := w.editor.Source()
+			err := m.applyValues(values)
+			if err == nil || !strings.Contains(err.Error(), "draft changed") || w.editor.Source() != before {
+				t.Fatal("section changed an unavailable draft", section, frozen, err)
+			}
+		}
 	}
 }

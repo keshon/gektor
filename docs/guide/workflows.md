@@ -95,14 +95,23 @@ Close the inspector with its close button or focused `Esc`.
 2. Press `Enter` on a draft node to edit its arguments.
 3. Click an output port, then an input port, to set their connection.
    Review the mapping in the form before applying.
-4. Choose **Behavior…** in Node (`E` on the canvas) for conditions,
-   repeat-for-each, ordering, review and retry settings.
+4. Choose **Behavior…** in Node (`E` on the canvas), then a section:
+   **Execution** for ordering, conditions, review, error routes and finalizers;
+   **Map** for items, concurrency and item failures; **Loop** for repeated child
+   calls; or **Retry** for attempts, failure codes and delays.
 5. Choose **Recipe settings…** in Recipe to change its name, inputs or outputs.
 6. Save with `Ctrl+S`.
 
 `B` opens connections for editing or removal. `C` opens a connection form.
 `Delete` removes a node. `Ctrl+Z` undoes a recipe change; `Ctrl+Y` redoes it.
 These controls do not undo an executed operation.
+
+Loop and Retry have an **Enabled** switch. Disabling one removes that policy.
+Clearing Map's items also removes its concurrency and item-failure settings.
+Loop pointers select fields in the child output; an empty pointer selects the
+whole output. Apply changes only the draft. Press `V` to check operation support,
+limits and policy combinations before running. Properties shows the saved
+execution policies, including error routes and finalizers.
 
 In the focused inspector, `E` edits Properties or Code instead of node behavior.
 Code has a separate script editor. Complex values may still need JSON.

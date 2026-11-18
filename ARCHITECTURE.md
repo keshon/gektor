@@ -461,8 +461,9 @@ Nested calls share the parent run lease, review decisions, cancellation and arti
 store. No second worker or child-run lifecycle is created. Queues persist the source
 bundle; review continuation uses the saved compiled definition.
 
-Fixture tests use the same compiler and engine through `service.Test`, with an
-in-memory checkpoint and an explicit pure-operation allowlist. The application
+Fixture tests use the same compiler and engine through the workflow service
+`Test` method, with an in-memory checkpoint and an explicit pure-operation
+allowlist. The application
 registry still owns node composition. `workflow/fixture` owns captured data,
 exact call matching and response consumption; it imports only workflow definitions.
 External executors are replaced by fixture responses, with no live fallback or

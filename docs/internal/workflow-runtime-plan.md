@@ -104,7 +104,21 @@ concurrent response consumption and the shipped example with HTTP denied.
 Source-scoped `go test -p 1 ./cmd/... ./internal/...` passes, as do affected
 fixture/service race tests, vet, executable build, documentation and diff checks.
 
-Next: editor map/loop/error and named-binding controls. Stage 7 is not complete; keyed joins and stage 8 throughput also remain.
+The editor's Behavior dialog now opens focused Execution, Map, Loop and Retry
+forms. Execution includes error routes and finalizers. Loop/retry policies expose
+individual controls and an enable switch; disabling removes the policy. Clearing
+map items clears its associated policy. Properties displays these execution
+settings. Forms preserve unrelated operation arguments/policies and draft-only
+ownership, reject stale/frozen targets, and use the existing undo path. Applying
+still does not validate, save or execute; V performs the shared validation.
+Tests cover chooser completion, structured policy edits/removal, preservation of
+unrelated settings, undo and stale/frozen submissions. Source-scoped tests,
+affected vet, executable build, documentation and diff checks pass. No new
+concurrency was introduced. The fixture architecture reference now correctly
+names the service method rather than a nonexistent package function.
+
+Next: editor named-binding controls. Stage 7 is not complete; keyed joins and
+stage 8 throughput also remain.
 
 Older "next" paragraphs below are historical and superseded by this section.
 

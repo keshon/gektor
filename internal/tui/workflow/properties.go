@@ -203,14 +203,40 @@ func (m *Model) detailRows() []string {
 		repeats = "For each item"
 	}
 	if step.Repeat != nil {
-		repeats = fmt.Sprintf("Until %s, at most %d iterations", step.Repeat.Until, step.Repeat.MaxIterations)
+		repeats = fmt.Sprintf("Until JSON Pointer %q, at most %d iterations", step.Repeat.Until, step.Repeat.MaxIterations)
 	}
 	valueRow("", "Repeats", repeats, false)
+	if len(step.ForEach) > 0 {
+		valueRow("", "Concurrency", fmt.Sprint(max(1, step.Concurrency)), false)
+		onError := step.OnError
+		if onError == "" {
+			onError = "stop"
+		}
+		valueRow("", "Item failure", onError, false)
+	}
+	if step.Repeat != nil {
+		valueRow("", "Next inputs", fmt.Sprintf("JSON Pointer %q", step.Repeat.NextInputs), false)
+		valueRow("", "Loop delay", fmt.Sprintf("%d ms", step.Repeat.DelayMS), false)
+	}
 	retry := "No automatic retry"
 	if step.Retry != nil {
 		retry = fmt.Sprintf("Up to %d attempts", step.Retry.MaxAttempts)
 	}
 	valueRow("", "Retry", retry, false)
+	if step.Retry != nil {
+		codes := "Any operation failure"
+		if len(step.Retry.Codes) > 0 {
+			codes = strings.Join(step.Retry.Codes, ", ")
+		}
+		valueRow("", "Retry codes", codes, false)
+		valueRow("", "Retry delay", fmt.Sprintf("%d ms", step.Retry.DelayMS), false)
+	}
+	errorRoute := "Stop"
+	if step.OnFailure != "" {
+		errorRoute = "→ " + step.OnFailure
+	}
+	valueRow("", "Error route", errorRoute, false)
+	valueRow("", "Finalizer", fmt.Sprint(step.Finally), false)
 	return rows
 }
 
