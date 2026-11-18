@@ -165,5 +165,9 @@ work depend on a finalizer. Reference only values available on the selected path
 Reviews/waits preserve failure state; interrupted active effects need operator
 recovery. Permission, contract, cancellation and checkpoint errors stop execution
 without dispatching routes/finalizers. Only explicitly typed operation failures
-are routable; do not assume every tool error qualifies. HTTP, isolated script and
-callback-expiry failures have native codes. Error routes do not authorize retries.
+are routable; do not assume every tool error qualifies. HTTP, isolated script,
+callback-expiry, known process exit/overflow and model provider/response failures
+have native codes. Process diagnostics must save successfully before routing.
+Model structured-output validation, profile resolution, HTTP destination denials,
+artifact/store errors and cancellation stop immediately. Process/model nodes still
+forbid automatic retries. Error routes do not authorize retries.

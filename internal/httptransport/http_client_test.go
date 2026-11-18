@@ -2,6 +2,7 @@ package httptransport
 
 import (
 	"context"
+	"errors"
 	"net"
 	"testing"
 )
@@ -10,7 +11,7 @@ func TestDialRejectsPrivateDNSBeforeConnecting(t *testing.T) {
 	for _, ip := range []string{"127.0.0.1", "10.0.0.1", "100.64.0.1", "198.18.0.1", "240.0.0.1", "::1"} {
 		called := false
 		_, err := dialPublic(context.Background(), "tcp", "example.com:80", false, func(context.Context, string) ([]net.IPAddr, error) { return []net.IPAddr{{IP: net.ParseIP(ip)}}, nil }, func(context.Context, string, string) (net.Conn, error) { called = true; return nil, nil })
-		if err == nil || called {
+		if !errors.Is(err, ErrDestinationDenied) || called {
 			t.Fatalf("private destination %s dialed", ip)
 		}
 	}

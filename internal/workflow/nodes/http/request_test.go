@@ -3,12 +3,14 @@ package httpnode
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
 
+	"github.com/keshon/gektor/internal/httptransport"
 	"github.com/keshon/gektor/internal/workflow"
 )
 
@@ -150,5 +152,57 @@ func TestHTTPPreservesJSONAndCancellation(t *testing.T) {
 	cancel()
 	if _, err := n.Execute(ctx, json.RawMessage(`{"url":"https://api.example.com"}`)); err == nil {
 		t.Fatal("ignored cancellation")
+	}
+}
+
+func TestHTTPFailureClassificationPreservesStopsAndRedaction(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		cause error
+		code  string
+	}{
+		{name: "network", cause: errors.New("fixture-secret disconnected"), code: "http_request_failed"},
+		{name: "destination denied", cause: fmt.Errorf("fixture-secret: %w", httptransport.ErrDestinationDenied)},
+		{name: "cancelled", cause: context.Canceled},
+		{name: "deadline", cause: context.DeadlineExceeded},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			node := definition(func(string, string) (string, string, string, error) {
+				return "Authorization", "Bearer fixture-secret", "fixture-secret", nil
+			}, transportFunc(func(*http.Request) (*http.Response, error) { return nil, tc.cause }))
+
+			_, err := node.Execute(t.Context(), json.RawMessage(`{"url":"https://api.example.com","credential":"api"}`))
+			if err == nil || strings.Contains(err.Error(), "fixture-secret") {
+				t.Fatal("missing or unredacted error", err)
+			}
+			failure := workflow.OperationFailure(err)
+			if tc.code == "" {
+				if failure != nil {
+					t.Fatalf("stop classified as operation failure: %+v", failure)
+				}
+			} else if failure == nil || failure.Code != tc.code {
+				t.Fatalf("failure=%+v want=%s", failure, tc.code)
+			}
+			if (tc.cause == context.Canceled || tc.cause == context.DeadlineExceeded) && !errors.Is(err, tc.cause) {
+				t.Fatal("lost cancellation identity", err)
+			}
+		})
+	}
+}
+
+type cancelledBody struct{ cause error }
+
+func (b cancelledBody) Read([]byte) (int, error) { return 0, b.cause }
+func (cancelledBody) Close() error               { return nil }
+
+func TestHTTPBodyCancellationIsNotRoutable(t *testing.T) {
+	for _, cause := range []error{context.Canceled, context.DeadlineExceeded} {
+		node := definition(nil, transportFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: 200, Header: http.Header{}, Body: cancelledBody{cause: cause}, Request: req}, nil
+		}))
+		_, err := node.Execute(t.Context(), json.RawMessage(`{"url":"https://api.example.com"}`))
+		if !errors.Is(err, cause) || workflow.OperationFailure(err) != nil {
+			t.Fatal("body cancellation became routable", err)
+		}
 	}
 }

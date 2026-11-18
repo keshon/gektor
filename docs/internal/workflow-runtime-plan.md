@@ -3,11 +3,11 @@
 Date: 2026-11-13. Starting revision: `6948888`.
 Branch: `codex/workflow-runtime-v4`.
 
-## Start here: current handoff — 2026-11-16
+## Start here: current handoff — 2026-11-18
 
-Continue on `codex/workflow-runtime-v4`. This handoff accompanies the committed
-error-route and finalization implementation. Callback waits (`c385ce0`),
-operator recovery (`92bae29`), and this implementation are pushed together.
+Continue on `codex/workflow-runtime-v4`. The last pushed checkpoint is `1152d75`
+(error routes and finalizers). Selective retries are committed locally as
+`9622fe3`. Native-node failure classification is implemented in the working tree.
 Older "next" paragraphs below are historical and superseded by this section.
 
 ### Completed and pushed
@@ -135,7 +135,7 @@ script worker, producing failure/finalization artifacts without a model.
 
 ### Selective retry checkpoint — 2026-11-18
 
-This commit adds optional `retry.codes` filters exact typed
+Committed as `9622fe3`: optional `retry.codes` filters exact typed
 operation failure codes. Omitted or empty codes preserves the existing policy.
 The handler validates at most 32 unique, nonblank codes of 1–64 bytes without
 surrounding whitespace. Unknown codes simply do not match. Existing RetrySafe,
@@ -156,11 +156,42 @@ Verification: the full source-scoped test suite, engine/service race tests,
 source-scoped vet, a CGO-free build, 45-probe eval dry-run and documentation
 checks pass. No model or remote-provider test was needed for this policy.
 
-Next: review native-node failure classification before extending provider behavior.
-Broader
-native-node failure classification and authoring UI support remain explicit
-follow-ups, not implied by this slice. Named connections and credentials are
-stage 5; richer HTTP operations are stage 6. Concurrent jobs, concurrent child
+### Native failure classification checkpoint - 2026-11-18
+
+Implemented in the working tree. Process nonzero exits and output overflow now
+carry `process_exit` / `process_output_too_large` only after both diagnostic
+artifacts save. Joined artifact/encoding errors remain plain immediate stops.
+Startup, supervision, local timeout and parent cancellation errors do not route.
+Process RetrySafe remains false.
+
+Model provider errors, incomplete generations/unexpected tool calls and oversized
+responses carry `model_request_failed`, `model_incomplete` and
+`model_response_too_large`. Profile resolution, request bounds and output schema
+failures stay plain. Context cancellation/deadline errors stay identifiable.
+Model RetrySafe remains false; no global queue/lifetime changes were made.
+
+HTTP redaction now retains cancellation/deadline identity. Shared HTTP transport
+exposes ErrDestinationDenied for URL/DNS policy rejections; the HTTP node returns
+that as a plain, redacted stop instead of wrapping it as a network failure.
+Oversized selected headers use the existing http_response_too_large code.
+Artifact and record nodes are deliberately unchanged: their errors include path,
+contract and store failures that must not be blanket-wrapped. Script and callback
+classification remains as implemented earlier.
+
+Tests cover process diagnostic persistence, artifact failure, overflow, cancellation
+and a real service/store run through an error route and finalizer. Model tests
+exercise provider/response failures against plain config/schema stops. HTTP tests
+cover policy rejection, redaction and cancellation identity; transport tests prove
+DNS denial occurs before a connection.
+
+Verification: the full source-scoped test suite passes. Affected native nodes and
+HTTP transport pass race checks; source-scoped vet, a CGO-free build, documentation
+checks and diff whitespace checks also pass. No remote provider was contacted.
+
+Next: stage 5 named connections and credentials; inspect existing credential
+ownership before extending it.
+Authoring UI support remains a separate follow-up. Named connections and
+credentials are stage 5; richer HTTP operations are stage 6. Concurrent jobs, concurrent child
 calls and their shared scheduler remain later work. Keyed joins and the broader
 node inventory are also unfinished.
 

@@ -4,6 +4,7 @@ package httpnode
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -83,10 +84,10 @@ func definition(resolve Resolver, transport http.RoundTripper) workflow.Node {
 				in.Timeout = 30
 			}
 
-			ctx, cancel := context.WithTimeout(ctx, time.Duration(in.Timeout)*time.Second)
+			requestCtx, cancel := context.WithTimeout(ctx, time.Duration(in.Timeout)*time.Second)
 			defer cancel()
 
-			req, err := http.NewRequestWithContext(ctx, in.Method, in.URL, strings.NewReader(string(in.Body)))
+			req, err := http.NewRequestWithContext(requestCtx, in.Method, in.URL, strings.NewReader(string(in.Body)))
 			if err != nil {
 				return "", err
 			}
@@ -125,6 +126,19 @@ func definition(resolve Resolver, transport http.RoundTripper) workflow.Node {
 			client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 			response, err := client.Do(req)
 			if err != nil {
+				contextErr := requestCtx.Err()
+				if contextErr != nil {
+					return "", contextErr
+				}
+				if errors.Is(err, context.Canceled) {
+					return "", context.Canceled
+				}
+				if errors.Is(err, context.DeadlineExceeded) {
+					return "", context.DeadlineExceeded
+				}
+				if errors.Is(err, httptransport.ErrDestinationDenied) {
+					return "", fmt.Errorf("%w: %s", httptransport.ErrDestinationDenied, redact(err.Error()))
+				}
 				return "", &workflow.ExecutionError{Code: "http_request_failed", Err: fmt.Errorf("HTTP request: %s", redact(err.Error()))}
 			}
 
@@ -132,6 +146,16 @@ func definition(resolve Resolver, transport http.RoundTripper) workflow.Node {
 
 			body, err := io.ReadAll(io.LimitReader(response.Body, (256<<10)+1))
 			if err != nil {
+				contextErr := requestCtx.Err()
+				if contextErr != nil {
+					return "", contextErr
+				}
+				if errors.Is(err, context.Canceled) {
+					return "", context.Canceled
+				}
+				if errors.Is(err, context.DeadlineExceeded) {
+					return "", context.DeadlineExceeded
+				}
 				return "", &workflow.ExecutionError{Code: "http_response_failed", Err: fmt.Errorf("HTTP response read failed: %s", redact(err.Error()))}
 			}
 
@@ -145,7 +169,7 @@ func definition(resolve Resolver, transport http.RoundTripper) workflow.Node {
 			for _, name := range []string{"Content-Type", "Retry-After", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"} {
 				if value := response.Header.Get(name); value != "" {
 					if len(value) > 4096 {
-						return "", fmt.Errorf("HTTP response header %s exceeds 4 KiB", name)
+						return "", &workflow.ExecutionError{Code: "http_response_too_large", Err: fmt.Errorf("HTTP response header %s exceeds 4 KiB", name)}
 					}
 
 					headers[strings.ToLower(name)] = redact(value)

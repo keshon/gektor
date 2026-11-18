@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -32,7 +33,8 @@ func Definition(ws *workspace.Workspace) workflow.Node {
 		OutputSchema: json.RawMessage(`{"type":"object","properties":{"exit_code":{"type":"integer"},"truncated":{"type":"boolean"},"stdout":{"type":"object","properties":{"id":{"type":"string"},"run_id":{"type":"string"},"step_id":{"type":"string"},"name":{"type":"string"},"media_type":{"type":"string"},"sha256":{"type":"string"},"created":{"type":"string"},"size":{"type":"integer"}},"required":["id","run_id","step_id","name","media_type","size","sha256","created"]},"stderr":{"type":"object","properties":{"id":{"type":"string"},"run_id":{"type":"string"},"step_id":{"type":"string"},"name":{"type":"string"},"media_type":{"type":"string"},"sha256":{"type":"string"},"created":{"type":"string"},"size":{"type":"integer"}},"required":["id","run_id","step_id","name","media_type","size","sha256","created"]},"error":{"type":"string"}},"required":["exit_code","truncated"]}`),
 		Resources: func(raw json.RawMessage) ([]string, error) {
 			var in input
-			if err := json.Unmarshal(raw, &in); err != nil {
+			err := json.Unmarshal(raw, &in)
+			if err != nil {
 				return nil, err
 			}
 
@@ -41,7 +43,8 @@ func Definition(ws *workspace.Workspace) workflow.Node {
 		},
 		Validate: func(raw json.RawMessage) error {
 			var in input
-			if err := json.Unmarshal(raw, &in); err != nil {
+			err := json.Unmarshal(raw, &in)
+			if err != nil {
 				return err
 			}
 
@@ -53,13 +56,14 @@ func Definition(ws *workspace.Workspace) workflow.Node {
 				return fmt.Errorf("workspace unavailable")
 			}
 
-			_, err := ws.Relative(in.Workdir)
+			_, err = ws.Relative(in.Workdir)
 
 			return err
 		},
 		Execute: func(ctx context.Context, raw json.RawMessage) (string, error) {
 			var in input
-			if err := json.Unmarshal(raw, &in); err != nil {
+			err := json.Unmarshal(raw, &in)
+			if err != nil {
 				return "", err
 			}
 
@@ -98,9 +102,9 @@ func Definition(ws *workspace.Workspace) workflow.Node {
 				Timeout:   time.Duration(timeout) * time.Second,
 			}
 			if in.Stdin != "" {
-				_, data, err := access.Read(ctx, in.Stdin)
-				if err != nil {
-					return "", err
+				_, data, readErr := access.Read(ctx, in.Stdin)
+				if readErr != nil {
+					return "", readErr
 				}
 
 				req.Stdin = bytes.NewReader(data)
@@ -129,7 +133,23 @@ func Definition(ws *workspace.Workspace) workflow.Node {
 
 			encoded, encodeErr := json.Marshal(out)
 
-			return string(encoded), errors.Join(runErr, outErr, errErr, encodeErr)
+			persistenceErr := errors.Join(outErr, errErr, encodeErr)
+			if persistenceErr != nil {
+				return string(encoded), errors.Join(runErr, persistenceErr)
+			}
+			contextErr := ctx.Err()
+			if contextErr != nil {
+				return string(encoded), contextErr
+			}
+
+			var exit *exec.ExitError
+			if result.Truncated {
+				runErr = &workflow.ExecutionError{Code: "process_output_too_large", Err: runErr}
+			} else if errors.As(runErr, &exit) {
+				runErr = &workflow.ExecutionError{Code: "process_exit", Err: runErr}
+			}
+
+			return string(encoded), runErr
 		},
 	}
 }

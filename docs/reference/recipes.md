@@ -247,14 +247,32 @@ The original partial operation output remains in the stored invocation's
 `output` for inspection; it is not returned as a successful `$step` value.
 Collection item records and outcome arrays also retain typed `failure` metadata.
 
-Current native codes are `http_status`, `http_request_failed`,
-`http_response_failed`, `http_response_too_large`, `script_failed` and
-`callback_expired`. Nodes without a specific code use `operation_failed` when
-explicitly marking an operation failure. Only explicitly typed failures are
-routable; other nodes' plain errors stop execution. This boundary prevents a
-permission, schema, path, artifact-store or checkpoint failure from silently
-becoming ordinary error-branch data. A typed failure does not establish whether
-an external effect happened and does not grant permission to retry it.
+Native operation failures use these codes:
+
+| Node | Codes |
+| --- | --- |
+| HTTP | `http_status`, `http_request_failed`, `http_response_failed`, `http_response_too_large` (body or selected header limit) |
+| Isolated script | `script_failed` |
+| Callback wait | `callback_expired` |
+| Native process | `process_exit`, `process_output_too_large` |
+| Model generation | `model_request_failed`, `model_incomplete`, `model_response_too_large` |
+
+Process exit/overflow failures are routable only after stdout/stderr artifacts
+are saved. Failed artifact writes remain immediate stops. Startup failures,
+process supervision errors and timeouts are not classified as operation failures.
+Model profile resolution, request limits and structured-output validation also
+remain immediate stops. A provider error, incomplete generation or oversized
+response is routable, but model/process nodes still forbid automatic retries.
+HTTP URL/DNS destination policy denials remain immediate stops. Context
+cancellation and deadline errors retain their identity through HTTP redaction.
+
+Nodes without a specific code use `operation_failed` when explicitly marking an
+operation failure. Only explicitly typed failures are routable; other nodes'
+plain errors stop execution. This boundary prevents a permission, schema, path,
+artifact-store or checkpoint failure from silently becoming ordinary error-branch
+data. Record/artifact nodes retain this conservative boundary; no blanket error
+wrapping is applied. A typed failure does not establish whether an external effect
+happened and does not grant permission to retry it.
 
 After a typed operation failure, remaining ordinary work in that scope is
 skipped. Matching error routes may execute, followed by finalizers. Neither an

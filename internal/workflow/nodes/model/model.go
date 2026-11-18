@@ -4,6 +4,7 @@ package model
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -42,7 +43,8 @@ func Definition(resolve Resolver) workflow.Node {
 				MaxTokens       int             `json:"max_tokens"`
 				Timeout         int             `json:"timeout_seconds"`
 			}
-			if err := json.Unmarshal(raw, &in); err != nil {
+			err := json.Unmarshal(raw, &in)
+			if err != nil {
 				return "", err
 			}
 
@@ -51,7 +53,8 @@ func Definition(resolve Resolver) workflow.Node {
 			}
 
 			if len(in.OutputSchema) > 0 {
-				if _, err := workflow.CompileSchema(in.OutputSchema); err != nil {
+				_, err = workflow.CompileSchema(in.OutputSchema)
+				if err != nil {
 					return "", err
 				}
 			}
@@ -60,17 +63,17 @@ func Definition(resolve Resolver) workflow.Node {
 				in.Timeout = 120
 			}
 
-			ctx, cancel := context.WithTimeout(ctx, time.Duration(in.Timeout)*time.Second)
+			requestCtx, cancel := context.WithTimeout(ctx, time.Duration(in.Timeout)*time.Second)
 			defer cancel()
 
 			select {
 			case slots <- struct{}{}:
 				defer func() { <-slots }()
-			case <-ctx.Done():
-				return "", ctx.Err()
+			case <-requestCtx.Done():
+				return "", requestCtx.Err()
 			}
 
-			conn, err := resolve(ctx, in.Profile)
+			conn, err := resolve(requestCtx, in.Profile)
 			if err != nil {
 				return "", err
 			}
@@ -99,17 +102,24 @@ func Definition(resolve Resolver) workflow.Node {
 				return "", fmt.Errorf("model request exceeds profile context limit")
 			}
 
-			response, err := conn.Client.Chat(ctx, request)
+			response, err := conn.Client.Chat(requestCtx, request)
 			if err != nil {
-				return "", err
+				contextErr := requestCtx.Err()
+				if contextErr != nil {
+					return "", contextErr
+				}
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+					return "", err
+				}
+				return "", &workflow.ExecutionError{Code: "model_request_failed", Err: err}
 			}
 
 			if response.FinishReason == "length" || len(response.Message.ToolCalls) > 0 {
-				return "", fmt.Errorf("model returned incomplete output or an unexpected tool call")
+				return "", &workflow.ExecutionError{Code: "model_incomplete", Err: fmt.Errorf("model returned incomplete output or an unexpected tool call")}
 			}
 
 			if len(response.Message.Content) > 1<<20 {
-				return "", fmt.Errorf("model output exceeds 1 MiB")
+				return "", &workflow.ExecutionError{Code: "model_response_too_large", Err: fmt.Errorf("model output exceeds 1 MiB")}
 			}
 
 			result := map[string]any{
@@ -119,7 +129,8 @@ func Definition(resolve Resolver) workflow.Node {
 			}
 			if len(in.OutputSchema) > 0 {
 				data := json.RawMessage(response.Message.Content)
-				if err := workflow.ValidateJSON(data, in.OutputSchema); err != nil {
+				err = workflow.ValidateJSON(data, in.OutputSchema)
+				if err != nil {
 					return "", fmt.Errorf("model output: %w", err)
 				}
 

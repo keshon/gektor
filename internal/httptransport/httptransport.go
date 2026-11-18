@@ -3,11 +3,15 @@ package httptransport
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"time"
 )
+
+// ErrDestinationDenied marks URL or resolved-address policy rejection.
+var ErrDestinationDenied = errors.New("HTTP destination denied")
 
 // networkClient enforces the destination at redirect and dial time. Proxy
 // environment variables are deliberately ignored: a proxy would bypass DNS
@@ -32,7 +36,10 @@ func Client(allowLoopback bool, override http.RoundTripper) *http.Client {
 			}
 
 			_, err := normalizeURL(req.URL.String(), allowLoopback)
-			return err
+			if err != nil {
+				return fmt.Errorf("%w: %v", ErrDestinationDenied, err)
+			}
+			return nil
 		},
 	}
 }
@@ -70,7 +77,7 @@ func dialPublic(ctx context.Context, network, address string, allowLoopback bool
 
 	for _, ip := range ips {
 		if !isPublicIP(ip.IP) && !(allowLoopback && ip.IP.IsLoopback()) {
-			return nil, fmt.Errorf("refused non-public address for %s", host)
+			return nil, fmt.Errorf("%w: refused non-public address for %s", ErrDestinationDenied, host)
 		}
 	}
 
@@ -93,8 +100,9 @@ type validatedTransport struct {
 }
 
 func (t *validatedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if _, err := normalizeURL(req.URL.String(), t.allowLoopback); err != nil {
-		return nil, err
+	_, err := normalizeURL(req.URL.String(), t.allowLoopback)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrDestinationDenied, err)
 	}
 
 	return t.inner.RoundTrip(req)
