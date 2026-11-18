@@ -13,13 +13,31 @@ import (
 	"github.com/keshon/gektor/internal/userdirs"
 )
 
-const sshUsage = "usage: gektor ssh list | save NAME PROFILE.json | delete NAME | check NAME"
+const sshUsage = "usage: gektor ssh list | save NAME PROFILE.json | delete NAME | check NAME | inspect NAME | revoke NAME"
 
 func runSSH(args []string, output io.Writer) error {
 	if len(args) == 0 {
 		return fmt.Errorf("%s", sshUsage)
 	}
 	store := ssh.Profiles{Path: userdirs.Sub("ssh.json")}
+	if args[0] == "inspect" || args[0] == "revoke" {
+		if len(args) != 2 {
+			return fmt.Errorf("%s", sshUsage)
+		}
+		if args[0] == "revoke" {
+			err := store.Revoke(args[1])
+			if err != nil {
+				return err
+			}
+		}
+		binding, err := store.Inspect(args[1])
+		if err != nil {
+			return err
+		}
+		encoder := json.NewEncoder(output)
+		return encoder.Encode(binding)
+	}
+
 	if args[0] == "check" {
 		if len(args) != 2 {
 			return fmt.Errorf("%s", sshUsage)

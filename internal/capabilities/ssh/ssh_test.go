@@ -205,6 +205,40 @@ func testService(t *testing.T, server *testServer) (*Service, string) {
 	return New(Config{Workspace: ws, ProfilesPath: filename}), filename
 }
 
+func testProfile(t *testing.T, service *Service, name string) Profile {
+	t.Helper()
+	store := Profiles{Path: service.profilesPath}
+	profiles, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return profiles[name]
+}
+
+func saveTestProfile(t *testing.T, service *Service, name string, profile Profile) {
+	t.Helper()
+	store := Profiles{Path: service.profilesPath}
+	profiles, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	profiles[name] = profile
+	err = store.Save(profiles)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testRevision(t *testing.T, service *Service, name string) string {
+	t.Helper()
+	store := Profiles{Path: service.profilesPath}
+	binding, err := store.Inspect(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return binding.Revision
+}
+
 func TestExecFreshConnectionsExitStatusAndLimits(t *testing.T) {
 	server := serveSSH(t)
 	service, _ := testService(t, server)
@@ -216,7 +250,7 @@ func TestExecFreshConnectionsExitStatusAndLimits(t *testing.T) {
 				ctx, cancel = context.WithTimeout(ctx, 100*time.Millisecond)
 				defer cancel()
 			}
-			out, err := service.Exec(ctx, ExecRequest{Connection: "test", Command: command})
+			out, err := service.Exec(ctx, ExecRequest{Connection: "test", ConnectionRevision: testRevision(t, service, "test"), Command: command})
 			switch command {
 			case "ok":
 				if err != nil || out.ExitCode != 0 || out.Stdout != "hello [REDACTED]" {
@@ -265,7 +299,7 @@ func TestTransferPermissionsIntegrityAndNoClobber(t *testing.T) {
 		actions = append(actions, action+":"+filename)
 		return nil
 	}
-	in := TransferRequest{Connection: "test", LocalPath: "source.txt", RemotePath: "/remote.txt"}
+	in := TransferRequest{Connection: "test", ConnectionRevision: testRevision(t, service, "test"), LocalPath: "source.txt", RemotePath: "/remote.txt"}
 	_, err = service.Transfer(t.Context(), in, Upload, func(context.Context, string, string) error { return fmt.Errorf("denied") })
 	if err == nil || server.calls.Load() != 0 {
 		t.Fatal("denial connected", err)
@@ -312,19 +346,21 @@ func TestTransferPermissionsIntegrityAndNoClobber(t *testing.T) {
 	}
 }
 
-func TestHostKeyRejectionProfileSnapshotAndKeyAuth(t *testing.T) {
+func TestHostKeyRejectionLiveProfilesAndKeyAuth(t *testing.T) {
 	server := serveSSH(t)
 	service, filename := testService(t, server)
+	profile := testProfile(t, service, "test")
+	revision := testRevision(t, service, "test")
 	err := os.WriteFile(filename, []byte(`{}`), 0600)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = service.Exec(t.Context(), ExecRequest{Connection: "test", Command: "ok"})
-	if err != nil {
-		t.Fatal("profile was not snapshotted", err)
+	_, err = service.Exec(t.Context(), ExecRequest{Connection: "test", ConnectionRevision: revision, Command: "ok"})
+	if err == nil || server.calls.Load() != 0 {
+		t.Fatal("removed binding connected", err)
 	}
+	saveTestProfile(t, service, "test", profile)
 
-	profile := service.profiles["test"]
 	block, err := gossh.MarshalPrivateKey(server.private, "test")
 	if err != nil {
 		t.Fatal(err)
@@ -339,8 +375,8 @@ func TestHostKeyRejectionProfileSnapshotAndKeyAuth(t *testing.T) {
 	if err != nil {
 		t.Fatal("private key parsing", err)
 	}
-	service.profiles["test"] = profile
-	_, err = service.Exec(t.Context(), ExecRequest{Connection: "test", Command: "ok"})
+	saveTestProfile(t, service, "test", profile)
+	_, err = service.Exec(t.Context(), ExecRequest{Connection: "test", ConnectionRevision: testRevision(t, service, "test"), Command: "ok"})
 	if err != nil {
 		t.Fatal("private key authentication", err)
 	}
@@ -355,8 +391,8 @@ func TestHostKeyRejectionProfileSnapshotAndKeyAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 	profile.PassphraseEnv = "GEKTOR_TEST_SSH_PASSPHRASE"
-	service.profiles["test"] = profile
-	_, err = service.Exec(t.Context(), ExecRequest{Connection: "test", Command: "ok"})
+	saveTestProfile(t, service, "test", profile)
+	_, err = service.Exec(t.Context(), ExecRequest{Connection: "test", ConnectionRevision: testRevision(t, service, "test"), Command: "ok"})
 	if err != nil {
 		t.Fatal("encrypted key authentication", err)
 	}
@@ -365,7 +401,7 @@ func TestHostKeyRejectionProfileSnapshotAndKeyAuth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = service.Exec(t.Context(), ExecRequest{Connection: "test", Command: "ok"})
+	_, err = service.Exec(t.Context(), ExecRequest{Connection: "test", ConnectionRevision: testRevision(t, service, "test"), Command: "ok"})
 	if err == nil || !strings.Contains(err.Error(), "knownhosts") {
 		t.Fatal("unknown host key accepted", err)
 	}
@@ -382,7 +418,7 @@ func TestHostKeyRejectionProfileSnapshotAndKeyAuth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = service.Exec(t.Context(), ExecRequest{Connection: "test", Command: "ok"})
+	_, err = service.Exec(t.Context(), ExecRequest{Connection: "test", ConnectionRevision: testRevision(t, service, "test"), Command: "ok"})
 	if err == nil || !strings.Contains(err.Error(), "key mismatch") {
 		t.Fatal("changed host key accepted", err)
 	}
@@ -409,14 +445,14 @@ func TestCancellationInterruptsHandshake(t *testing.T) {
 	}()
 	t.Cleanup(func() { listener.Close(); <-done })
 	address := listener.Addr().(*net.TCPAddr)
-	profile := service.profiles["test"]
+	profile := testProfile(t, service, "test")
 	profile.Host, profile.Port = address.IP.String(), address.Port
-	service.profiles["test"] = profile
+	saveTestProfile(t, service, "test", profile)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
 	started := time.Now()
-	_, err = service.Exec(ctx, ExecRequest{Connection: "test", Command: "ok"})
+	_, err = service.Exec(ctx, ExecRequest{Connection: "test", ConnectionRevision: testRevision(t, service, "test"), Command: "ok"})
 	if err == nil || ctx.Err() == nil || time.Since(started) > time.Second {
 		t.Fatal("handshake did not honor cancellation", err)
 	}
@@ -439,7 +475,7 @@ func TestConnectionCheckAuthenticatesWithoutOpeningChannels(t *testing.T) {
 		t.Fatal("authentication failure missing or leaked secret", err)
 	}
 	t.Setenv("GEKTOR_TEST_SSH_PASSWORD", "test-secret")
-	err = os.WriteFile(service.profiles["test"].KnownHosts, nil, 0600)
+	err = os.WriteFile(testProfile(t, service, "test").KnownHosts, nil, 0600)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -468,9 +504,9 @@ func TestConnectionCheckCancellationJoinsHandshake(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := service.profiles["test"]
+	p := testProfile(t, service, "test")
 	p.Host, p.Port = host, port
-	service.profiles["test"] = p
+	saveTestProfile(t, service, "test", p)
 	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
 	err = service.Check(ctx, "test")

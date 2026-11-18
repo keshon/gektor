@@ -340,14 +340,19 @@ func TestDiskSSHFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	service := ssh.New(ssh.Config{ProfilesPath: path})
+	store := ssh.Profiles{Path: path}
+	binding, err := store.Inspect("Koara")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	for _, command := range []string{"df -h", "df -hT -x tmpfs -x overlay", "df -h; exit 99"} {
-		result, execErr := service.Exec(t.Context(), ssh.ExecRequest{Connection: "Koara", Command: command})
+		result, execErr := service.Exec(t.Context(), ssh.ExecRequest{Connection: "Koara", ConnectionRevision: binding.Revision, Command: command})
 		if execErr != nil || result.Stdout != fixtureDiskUsage {
 			t.Fatal("fixture must return fixed data without executing source", command, result, execErr)
 		}
 	}
-	result, err := service.Exec(t.Context(), ssh.ExecRequest{Connection: "Koara", Command: "df -h | grep -vE 'tmpfs'}\""})
+	result, err := service.Exec(t.Context(), ssh.ExecRequest{Connection: "Koara", ConnectionRevision: binding.Revision, Command: "df -h | grep -vE 'tmpfs'}\""})
 	if err == nil || result.ExitCode != 2 || result.Stdout != "" {
 		t.Fatal("malformed shell source must not produce a successful disk result", result, err)
 	}

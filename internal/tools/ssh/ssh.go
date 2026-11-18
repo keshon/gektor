@@ -14,12 +14,12 @@ type Operation struct{ sshcontract.Operation }
 
 func (Operation) Mode() agent.ToolMode { return agent.Exclusive }
 
-// Connections shares the execution service's immutable profile snapshot.
+// Connections exposes current binding metadata without resolving secrets.
 type Connections struct{ Service *ssh.Service }
 
 func (Connections) Name() string { return "ssh_connections" }
 func (Connections) Description() string {
-	return "List registered SSH connection names and endpoints. No connection or credential read is attempted. Use a returned name with SSH tools."
+	return "List SSH names, endpoints, revisions and revocation status without connecting or resolving secrets. Use the returned name and revision with SSH tools; revoked connections cannot run."
 }
 func (Connections) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)

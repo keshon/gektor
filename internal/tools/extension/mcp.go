@@ -22,6 +22,7 @@ type mcpConnection interface {
 // Session applies credential redaction at the adapter boundary. The protocol
 // transport owns its connection; tools own permission and output adaptation.
 type Session struct {
+	binding   MCPBinding
 	transport mcpConnection
 	secrets   []string
 	// credentialCheck rejects stale credentials before transport calls.
@@ -32,6 +33,12 @@ func (s *Session) Call(ctx context.Context, method string, params any, out any) 
 	err := ctx.Err()
 	if err != nil {
 		return err
+	}
+	if s.binding != nil {
+		err = s.binding.Check()
+		if err != nil {
+			return err
+		}
 	}
 	if s.credentialCheck != nil {
 		err = s.credentialCheck()

@@ -99,7 +99,10 @@ func New(directory, workspace, credentialDir string, reserved []string) (*Manage
 			return nil, e
 		}
 
-		m.install(s)
+		e = m.install(s)
+		if e != nil {
+			return nil, e
+		}
 	}
 
 	return m, nil
@@ -140,7 +143,12 @@ func (m *Manager) validate(s Server) error {
 
 	return e
 }
-func (m *Manager) install(s Server) {
+func (m *Manager) install(s Server) error {
+	revision, err := serverRevision(s)
+	if err != nil {
+		return err
+	}
+	pin := savedBinding{path: filepath.Join(m.directory, s.ID+".json"), revision: revision}
 	old := m.sources[s.ID]
 	previous := m.servers[s.ID]
 	sameAdapter := old != nil && previous.Description == s.Description &&
@@ -150,7 +158,7 @@ func (m *Manager) install(s Server) {
 		old.SetAvailable(s.Enabled)
 		old.Eager = s.OnLoad
 		m.servers[s.ID] = s
-		return
+		return nil
 	}
 	if old != nil {
 		old.SetAvailable(false)
@@ -158,11 +166,13 @@ func (m *Manager) install(s Server) {
 
 	pack := s.Pack()
 	pack.CredentialDirectory = m.credentials.Directory
+	pack.Binding = pin
 	list, _ := toolextension.BuildCapabilities(toolextension.CapabilityConfig{Packs: []toolextension.CapabilityPack{pack}}, m.workspace)
 	list[0].Eager = s.OnLoad
 	list[0].SetAvailable(s.Enabled)
 	m.servers[s.ID] = s
 	m.sources[s.ID] = list[0]
+	return nil
 }
 
 // RegisterBundled adds an application-owned source without persisting a command.
@@ -257,7 +267,10 @@ func (m *Manager) Save(s Server) error {
 	}
 
 	old := m.servers[s.ID]
-	m.install(s)
+	e = m.install(s)
+	if e != nil {
+		return e
+	}
 	m.removeUnusedCredentials(old)
 
 	return nil

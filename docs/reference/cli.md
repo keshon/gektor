@@ -442,19 +442,32 @@ for CLI use. Arguments and exit codes pass through unchanged; relative paths
 use the caller's directory. Source checkouts build first; extracted releases use
 the included binary. Bash launchers return immediately on failure without a pause.
 
+## Saved MCP binding management
+
+`mcp inspect ID` prints non-secret current endpoint metadata, revision and
+revocation status without connecting. `mcp revoke ID` permanently disables the
+saved name, including retained sessions. `mcp disable ID` remains reversible.
+See [MCP management](../guide/extensions.md#saved-mcp-servers) for setup and
+other management commands.
+
 ## SSH connection management
 
 ```powershell
 .\gektor.exe ssh list
 .\gektor.exe ssh save staging staging-profile.json
 .\gektor.exe ssh check staging
+.\gektor.exe ssh inspect staging
+.\gektor.exe ssh revoke staging
 .\gektor.exe ssh delete staging
 ```
 
 `save` reads one reference-only profile JSON object and adds or replaces the named
 connection, preserving other entries. `check` verifies host key and authentication
 with a 30-second limit; it does not run a command or test SFTP. These commands need
-no model backend. Restart existing Agent and Workflow services after edits.
+no model backend. Services read current bindings on each call. `inspect` returns
+non-secret endpoint metadata, revision and revocation status. `revoke` permanently
+disables that name, including in running services; deleting and saving the name
+again does not restore access.
 See [SSH setup and credentials](operations.md#supplying-credentials-in-the-cli-and-tui).
 
 SSH profiles may use `password_ref` or `passphrase_ref` IDs created through the

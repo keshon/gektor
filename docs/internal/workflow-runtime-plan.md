@@ -8,7 +8,9 @@ Branch: `codex/workflow-runtime-v4`.
 Continue on `codex/workflow-runtime-v4`. Selective retries (`9622fe3`) and native
 failure classification (`399a177`) are committed and pushed. The first stage 5
 slice (pinned/revocable HTTP bindings) and shared SSH/MCP source/session
-lifecycle checks are in the working tree.
+lifecycle checks are committed as `339f5ef`. The SSH named-binding slice, saved
+MCP binding pins and integrated acceptance checkpoint are included in this
+checkpoint commit.
 Older "next" paragraphs below are historical and superseded by this section.
 
 ### Completed and pushed
@@ -264,9 +266,76 @@ credential and adapter race checks pass, including the final HTTP binding tests.
 Source-scoped vet, CGO-free build, Markdown and whitespace checks pass. All stores,
 SSH servers, TLS MCP endpoints and stdio children in tests are isolated fixtures.
 
-Next: continue stage 5 with named SSH/MCP binding revisions, revocation controls
-and execution-time pins. Current source revocation is not named-connection
-revocation. HTTP binding updates/connection UI and OAuth remain unfinished.
+### Stage 5 SSH named bindings — 2026-11-18
+
+SSH discovery and operator `ssh inspect NAME` expose a metadata revision and
+revocation status without resolving secrets. Commands and transfers require
+`connection_revision` in both Agent and workflow contracts. Current profile
+metadata is read during authorization and again before connecting; transfer
+local-file authorization cannot silently switch the binding. Session grants
+retain the revision. Profile changes require discovery and explicit recipe/pin
+updates; there is no unpinned execution path.
+
+`ssh revoke NAME` permanently disables the name through `ssh.json.revoked` markers,
+including in existing services and after profile deletion/recreation. Secrets,
+private keys and known_hosts contents are still read at connection time; their
+contents are not hashed into metadata revisions. Already-started operations may
+finish. Existing secret IDs and protected payload formats remain unchanged.
+
+Verification: source-scoped `go test -p 1 ./cmd/... ./internal/...` passes.
+Affected SSH, permission and tool race tests pass, including dispatch after
+resource review. CLI inspect/revoke, live discovery, permanent named revocation,
+changed metadata, authentication, transfers and cancellation are covered with
+isolated fixtures. Source vet, CGO-free build, docs links and whitespace pass.
+This SSH slice is included in the credential checkpoint commit.
+
+### Stage 5 MCP bindings and acceptance checkpoint — 2026-11-18
+
+Saved MCP adapters now retain an immutable revision of their reference-only
+server definition. The manager owns metadata reads and permanent named revocation;
+the adapter consumes a two-method binding interface for checks and permission
+targets. HTTP and stdio sessions check live metadata before tool dispatch. Initial
+connection checks run before and after catalog discovery. Revisions supplement
+existing argument/path permission resources; they do not replace them. Exposure
+switches keep the same revision, while transport/reference/description changes
+require configuration reload and a new permission target.
+
+Operator `mcp inspect ID` reports current endpoint/executable metadata, revision,
+enabled and revocation state without secrets or command arguments. `mcp revoke ID`
+writes a permanent marker under `mcp/revoked`, observed across manager instances
+and after delete/recreate. Bundled integrations, explicit capability files and
+`-mcp` launch arguments retain their existing launch-scoped ownership; this slice
+does not invent saved bindings for them or expose Agent MCP tools as workflow nodes.
+
+Acceptance checks added:
+- Real local HTTP and stdio MCP sessions reject changes, disable, deletion and
+  revocation from another manager before their next tool call.
+- A local TLS HTTP workflow executes, waits for a callback, deduplicates delivery,
+  reopens persisted state, reconstructs its registry and reaches operator review.
+  Rotated secrets resolve at resumed dispatch; revoked bindings send no request.
+- A real local SSH workflow executes once, pauses for review and reconstructs its
+  registry before continuation. Completed commands do not replay; changed/revoked
+  bindings block the next command. Neither workflow checkpoint contains secrets.
+- Local TLS fixture routing lives only in the test transport. Production public
+  URL validation and TLS verification remain enabled.
+
+Verification: full source-scoped tests (`go test -p 1 ./cmd/... ./internal/...`),
+affected race checks, source vet, CGO-free build, docs and whitespace checks pass.
+The built CLI also passes saved-MCP save/inspect/revoke checks with an isolated
+home. No personal bindings, remote MCP servers or model endpoints were used.
+SSH/MCP changes and this acceptance checkpoint are included in this commit.
+
+Assessment: this milestone now has integrated evidence for effect preservation,
+callback deduplication, review continuation and current binding checks. Protocol
+owners still own resolution and revocation; no universal connection manager,
+implicit MCP workflow nodes or extra executor was introduced. Stage 5 is not
+fully complete: operator HTTP updates, connection/editor UI and OAuth are still
+separate follow-ups. Choose a concrete acceptance recipe before adding another
+infrastructure layer.
+
+Next: continue covering the delivery plan, starting with operator HTTP binding
+updates. Run the broader audit and acceptance pass after the planned implementation.
+HTTP binding updates/connection UI and OAuth remain unfinished.
 Authoring UI support remains a separate follow-up. Named connections and
 credentials are stage 5; richer HTTP operations are stage 6. Concurrent jobs, concurrent child
 calls and their shared scheduler remain later work. Keyed joins and the broader

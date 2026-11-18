@@ -71,3 +71,39 @@ func TestSSHCommandsPreserveMultipleConnectionsAndRejectLiteralSecrets(t *testin
 		t.Fatal(profiles, err)
 	}
 }
+
+func TestSSHInspectAndRevokeExposeOnlyBindingMetadata(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	store := ssh.Profiles{Path: userdirs.Sub("ssh.json")}
+	profile := ssh.Profile{Host: "example.com", User: "tester", KnownHosts: filepath.Join(home, "known_hosts"), PasswordEnv: "PRIVATE_SOURCE_NAME"}
+	err := store.Save(map[string]ssh.Profile{"test": profile})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var output bytes.Buffer
+	err = runSSH([]string{"inspect", "test"}, &output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var before ssh.Connection
+	err = json.Unmarshal(output.Bytes(), &before)
+	if err != nil || len(before.Revision) != 64 || before.Revoked {
+		t.Fatal(before, err)
+	}
+	if bytes.Contains(output.Bytes(), []byte(profile.PasswordEnv)) || bytes.Contains(output.Bytes(), []byte(profile.KnownHosts)) {
+		t.Fatal("inspect exposed source or trust-file references")
+	}
+	output.Reset()
+	err = runSSH([]string{"revoke", "test"}, &output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var after ssh.Connection
+	err = json.Unmarshal(output.Bytes(), &after)
+	if err != nil || !after.Revoked || after.Revision != before.Revision {
+		t.Fatal(after, err)
+	}
+}

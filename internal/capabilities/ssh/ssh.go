@@ -1,5 +1,5 @@
 // Package ssh owns one authenticated connection per command or file transfer.
-// Profiles are snapshotted at construction; no sessions survive a call.
+// Bindings and secrets resolve per call; no sessions survive a call.
 package ssh
 
 import (
@@ -28,23 +28,22 @@ type Config struct {
 	Credentials  credentials.Store
 }
 
-// Service borrows the workspace and retains an immutable profile snapshot.
+// Service borrows the workspace; each call reads its binding and resolves current secrets.
 type Service struct {
-	WS          *workspace.Workspace
-	credentials credentials.Store
-	profiles    map[string]Profile
-	loadErr     error
+	WS           *workspace.Workspace
+	credentials  credentials.Store
+	profilesPath string
 }
 
 func New(cfg Config) *Service {
-	profiles, err := loadProfiles(cfg.ProfilesPath)
-	return &Service{WS: cfg.Workspace, credentials: cfg.Credentials, profiles: profiles, loadErr: err}
+	return &Service{WS: cfg.Workspace, credentials: cfg.Credentials, profilesPath: cfg.ProfilesPath}
 }
 
 type ExecRequest struct {
-	Connection     string `json:"connection"`
-	Command        string `json:"command"`
-	TimeoutSeconds int    `json:"timeout_seconds,omitempty"`
+	Connection         string `json:"connection"`
+	ConnectionRevision string `json:"connection_revision"`
+	Command            string `json:"command"`
+	TimeoutSeconds     int    `json:"timeout_seconds,omitempty"`
 }
 
 type ExecResult struct {
@@ -56,21 +55,28 @@ type ExecResult struct {
 
 // Connection identifies a configured endpoint without exposing credential references.
 type Connection struct {
-	Name string `json:"name"`
-	Host string `json:"host"`
-	Port int    `json:"port"`
-	User string `json:"user"`
+	Name     string `json:"name"`
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	User     string `json:"user"`
+	Revision string `json:"revision"`
+	Revoked  bool   `json:"revoked"`
 }
 
-// Connections reads the same snapshot used by commands; it makes no network calls.
+// Connections reads current metadata without resolving secrets or making network calls.
 func (s *Service) Connections() ([]Connection, error) {
-	if s.loadErr != nil {
-		return nil, s.loadErr
+	profiles, err := loadProfiles(s.profilesPath)
+	if err != nil {
+		return nil, err
 	}
 
-	connections := make([]Connection, 0, len(s.profiles))
-	for name, profile := range s.profiles {
-		connections = append(connections, Connection{Name: name, Host: profile.Host, Port: profile.Port, User: profile.User})
+	connections := make([]Connection, 0, len(profiles))
+	for name, profile := range profiles {
+		metadata, inspectErr := connectionMetadata(s.profilesPath, name, profile)
+		if inspectErr != nil {
+			return nil, inspectErr
+		}
+		connections = append(connections, metadata)
 	}
 	sort.Slice(connections, func(i, j int) bool { return connections[i].Name < connections[j].Name })
 	return connections, nil
@@ -80,12 +86,21 @@ func (s *Service) profile(name string) (Profile, error) {
 	if s == nil {
 		return Profile{}, fmt.Errorf("SSH unavailable")
 	}
-	if s.loadErr != nil {
-		return Profile{}, s.loadErr
+	profiles, err := loadProfiles(s.profilesPath)
+	if err != nil {
+		return Profile{}, err
 	}
-	profile, ok := s.profiles[name]
+	profile, ok := profiles[name]
 	if !ok {
 		return Profile{}, fmt.Errorf("SSH connection %q is not registered; use ssh_connections to list names", name)
+	}
+	revocations := credentials.Revocations{Directory: s.profilesPath + ".revoked"}
+	revoked, err := revocations.Revoked(name)
+	if err != nil {
+		return Profile{}, err
+	}
+	if revoked {
+		return Profile{}, fmt.Errorf("SSH connection is revoked")
 	}
 	return profile, nil
 }
@@ -101,7 +116,7 @@ func timeout(seconds int) (int, error) {
 }
 
 func (s *Service) ValidateExec(in ExecRequest) (ExecRequest, error) {
-	_, err := s.profile(in.Connection)
+	_, err := s.binding(in.Connection, in.ConnectionRevision)
 	if err != nil {
 		return in, err
 	}
@@ -112,12 +127,12 @@ func (s *Service) ValidateExec(in ExecRequest) (ExecRequest, error) {
 	return in, err
 }
 
-func (s *Service) Resource(connection, remotePath string) (string, error) {
-	profile, err := s.profile(connection)
+func (s *Service) Resource(connection, revision, remotePath string) (string, error) {
+	profile, err := s.binding(connection, revision)
 	if err != nil {
 		return "", err
 	}
-	resource := url.URL{Scheme: "ssh", Host: profile.address(), User: url.User(profile.User), Path: remotePath}
+	resource := url.URL{Scheme: "ssh", Host: profile.address(), User: url.User(profile.User), Path: remotePath, Fragment: revision}
 	return resource.String(), nil
 }
 
@@ -169,7 +184,10 @@ func (s *Service) Exec(ctx context.Context, in ExecRequest) (ExecResult, error) 
 	}
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(in.TimeoutSeconds)*time.Second)
 	defer cancel()
-	profile := s.profiles[in.Connection]
+	profile, err := s.binding(in.Connection, in.ConnectionRevision)
+	if err != nil {
+		return result, err
+	}
 	client, closeConnection, secrets, err := connect(ctx, profile, s.credentials)
 	if err != nil {
 		return result, err

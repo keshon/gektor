@@ -26,7 +26,15 @@ type CapabilityConfig struct {
 	Packs      []CapabilityPack `json:"packs"`
 }
 
+// MCPBinding is an immutable pin owned by the saved-server configuration.
+// Check reads current metadata; Target identifies the permission grant.
+type MCPBinding interface {
+	Check() error
+	Target() string
+}
+
 type CapabilityPack struct {
+	Binding             MCPBinding            `json:"-"`
 	CredentialDirectory string                `json:"-"`
 	HeaderRefs          map[string]string     `json:"header_refs,omitempty"`
 	MainOnly            bool                  `json:"main_only,omitempty"`
@@ -205,6 +213,10 @@ func BuildCapabilities(config CapabilityConfig, dir string) ([]*Capability, func
 		encoded, _ := json.Marshal(pack)
 		source := &Capability{MainOnly: pack.MainOnly, ID: pack.ID, Version: pack.Version, Description: pack.Description, Instructions: pack.Instructions, Source: string(encoded), ReadOnly: pack.ReadOnly, Concurrent: pack.Concurrent, ResourceField: pack.ResourceField}
 		source.ToolPolicies = pack.ToolPolicies
+		source.Binding = pack.Binding
+		if pack.Binding != nil {
+			source.Source += "\n" + pack.Binding.Target()
+		}
 		for _, def := range pack.Tools {
 			tool := &ExecutableTool{Pack: pack, Def: def, Dir: dir}
 			source.searchNames = append(source.searchNames, def.Name, tool.Name(), def.Description)
@@ -225,10 +237,16 @@ func BuildCapabilities(config CapabilityConfig, dir string) ([]*Capability, func
 				}
 				return tools, nil
 			}
+			if pack.Binding != nil {
+				bindingErr := pack.Binding.Check()
+				if bindingErr != nil {
+					return nil, bindingErr
+				}
+			}
+			var client *Session
 			var tools []agent.Tool
 			var err error
 			if pack.URL != "" {
-				var client *Session
 				credentialDir := pack.CredentialDirectory
 				if credentialDir == "" {
 					credentialDir = userdirs.Sub("credentials")
@@ -249,7 +267,6 @@ func BuildCapabilities(config CapabilityConfig, dir string) ([]*Capability, func
 					conn.close = client.Close
 				}
 			} else {
-				var client *Session
 				tools, client, err = startMCP(ctx, pack.ID, dir, pack.EnvRefs, pack.Command[0], pack.Command[1:]...)
 				if err == nil {
 					conn.close = client.Close
@@ -257,6 +274,15 @@ func BuildCapabilities(config CapabilityConfig, dir string) ([]*Capability, func
 			}
 			if err != nil {
 				return nil, err
+			}
+			if pack.Binding != nil {
+				err = pack.Binding.Check()
+				if err != nil {
+					client.Close()
+					conn.close = nil
+					return nil, err
+				}
+				client.binding = pack.Binding
 			}
 			if pack.TimeoutSeconds > 0 {
 				for _, tool := range tools {

@@ -43,6 +43,11 @@ func TestCapabilityToolsAndNodesShareContractsAndResources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	store := ssh.Profiles{Path: userdirs.Sub("ssh.json")}
+	binding, err := store.Inspect("test")
+	if err != nil {
+		t.Fatal(err)
+	}
 	ws, err := workspace.New(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -77,9 +82,9 @@ func TestCapabilityToolsAndNodesShareContractsAndResources(t *testing.T) {
 		name, args                      string
 		readOnly, concurrent, retrySafe bool
 	}{
-		{"ssh_exec", `{"connection":"test","command":"uname -a"}`, false, false, false},
-		{"ssh_upload", `{"connection":"test","local_path":"input.txt","remote_path":"/tmp/input.txt"}`, false, false, false},
-		{"ssh_download", `{"connection":"test","local_path":"saved.txt","remote_path":"/tmp/input.txt"}`, false, false, false},
+		{"ssh_exec", `{"connection":"test","connection_revision":"` + binding.Revision + `","command":"uname -a"}`, false, false, false},
+		{"ssh_upload", `{"connection":"test","connection_revision":"` + binding.Revision + `","local_path":"input.txt","remote_path":"/tmp/input.txt"}`, false, false, false},
+		{"ssh_download", `{"connection":"test","connection_revision":"` + binding.Revision + `","local_path":"saved.txt","remote_path":"/tmp/input.txt"}`, false, false, false},
 		{"docx_read", `{"path":"input.docx"}`, true, true, true},
 		{"xlsx_read", `{"path":"input.xlsx"}`, true, true, true},
 		{"pdf_read", `{"path":"input.pdf"}`, true, true, true},
@@ -160,7 +165,7 @@ func TestCapabilityToolsAndNodesShareContractsAndResources(t *testing.T) {
 		t.Run(tc.operation+"_local_policy", func(t *testing.T) {
 			policy := permission.Policy{Rules: []permission.Rule{{Tool: tc.action, Pattern: "*", Effect: permission.Deny}}}
 			catalog := policyCatalog(t, Dependencies{WS: ws, Policy: policy, StoreDir: t.TempDir()})
-			args := json.RawMessage(`{"connection":"test","local_path":"sensitive.env","remote_path":"/tmp/test"}`)
+			args := json.RawMessage(`{"connection":"test","connection_revision":"` + binding.Revision + `","local_path":"sensitive.env","remote_path":"/tmp/test"}`)
 			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 			defer cancel()
 			_, err := catalog.Registry.Run(ctx, tc.operation, args)
@@ -243,7 +248,11 @@ func TestSavedSSHCredentialsReachAgentAndWorkflowComposition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	args := json.RawMessage(`{"connection":"saved","command":"never-run","timeout_seconds":1}`)
+	binding, err := profiles.Inspect("saved")
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := json.RawMessage(`{"connection":"saved","connection_revision":"` + binding.Revision + `","command":"never-run","timeout_seconds":1}`)
 	_, agentErr := tools.Run(t.Context(), "ssh_exec", args)
 	_, nodeErr := node.Execute(t.Context(), args)
 	// A refused dial proves credential configuration succeeded before networking.
@@ -253,5 +262,65 @@ func TestSavedSSHCredentialsReachAgentAndWorkflowComposition(t *testing.T) {
 		if !errors.As(failure, &dial) || dial.Op != "dial" {
 			t.Fatal("composition did not resolve saved credential", failure)
 		}
+	}
+}
+
+func TestSSHCompositionRejectsBindingChangesAfterResourceReview(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	store := ssh.Profiles{Path: userdirs.Sub("ssh.json")}
+	profile := ssh.Profile{Host: "example.com", User: "tester", KnownHosts: filepath.Join(home, "known_hosts"), PasswordEnv: "SSH_PASSWORD"}
+	err := store.Save(map[string]ssh.Profile{"test": profile})
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding, err := store.Inspect("test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog := &toolextension.Capabilities{}
+	registry, err := Compose(Dependencies{}, catalog, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog.Registry = registry
+	_, err = catalog.Enable(t.Context(), "native_ssh", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := app.WorkflowRegistry(nil, t.TempDir(), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, err := nodes.Node("ssh_exec")
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := json.RawMessage(`{"connection":"test","connection_revision":"` + binding.Revision + `","command":"never-run"}`)
+	resources, err := node.Resources(args)
+	if err != nil || len(resources) != 1 || !strings.Contains(resources[0], "#"+binding.Revision+" ") {
+		t.Fatal("review resource lost revision", resources, err)
+	}
+
+	profile.User = "changed-after-review"
+	err = store.Save(map[string]ssh.Profile{"test": profile})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, agentErr := registry.Run(t.Context(), "ssh_exec", args)
+	_, nodeErr := node.Execute(t.Context(), args)
+	for _, failure := range []error{agentErr, nodeErr} {
+		if failure == nil || !strings.Contains(failure.Error(), "revision mismatch") {
+			t.Fatal("stale reviewed args reached execution", failure)
+		}
+	}
+	err = store.Revoke("test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = node.Resources(args)
+	if err == nil || !strings.Contains(err.Error(), "revoked") {
+		t.Fatal("review accepted revoked binding", err)
 	}
 }

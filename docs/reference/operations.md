@@ -115,9 +115,10 @@ normal model/profile flags alongside these commands:
 
 In the TUI, ask Agent to use connection `staging`; it can enable `native_ssh`
 when needed. Agent can call `ssh_connections` to list registered names and
-endpoints without connecting or resolving credentials. It uses the same profile
-snapshot as SSH execution and does not expose credential references or key paths.
-In a recipe, supply `"connection":"staging"` to an SSH operation.
+endpoints, revisions and revocation status without connecting or resolving
+credentials. It reads current metadata and does not expose credential references
+or key paths. Every SSH operation requires `connection` and `connection_revision`;
+copy the revision from discovery or `ssh inspect staging`.
 Workflow workers must inherit the variable in their own process; setting it in
 a TUI launch does not update a separately running worker. After GEKTOR exits,
 remove the variable from the terminal if it is no longer needed:
@@ -177,14 +178,18 @@ These commands need no model backend:
 .\gektor.exe ssh list
 .\gektor.exe ssh save staging staging-profile.json
 .\gektor.exe ssh check staging
+.\gektor.exe ssh inspect staging
+.\gektor.exe ssh revoke staging
 .\gektor.exe ssh delete staging
 ```
 
 The input to `ssh save` is one connection object (the value under `staging` in the
 examples above), not the whole named map. Save adds or replaces that name while
 preserving all other connections. `ssh list` shows reference-only configuration;
-there are no raw-password flags. CLI edits do not update already-running Agent or
-Workflow services; restart those processes after saving.
+there are no raw-password flags. `ssh inspect` returns non-secret endpoint metadata,
+a revision and revocation status. `ssh revoke` permanently disables that name,
+even if its profile is deleted and recreated. Running services observe these
+changes before their next connection; operations already started may finish.
 
 `ssh check` has a 30-second limit and verifies the host key and authentication,
 then closes. It opens no remote session, runs no command and transfers no file.
@@ -195,14 +200,17 @@ It does not test SFTP or hard-link support. Ctrl+C cancels it.
 Populate `known_hosts` with host keys verified through a trusted channel before
 connecting. Unknown or changed host keys fail; there is no trust-on-first-use or
 verification bypass. SSH agent forwarding and interactive authentication are
-not supported. Profiles are snapshotted when an Agent/Workflow service is built;
-restart it after editing connection settings. Secrets and host keys are read
-when connecting. A missing/invalid optional SSH config affects SSH calls only.
+not supported. Each command or transfer checks its pinned revision against current
+profile metadata before connecting. Changing the endpoint, user, key path, trust
+file path or credential reference invalidates the pin and its session approval.
+Secret values and key/trust file contents are read when connecting and are not
+part of the revision. Rotating a value at the same source keeps the pin unchanged.
+A missing/invalid optional SSH config affects SSH calls only.
 
 Command arguments:
 
 ```json
-{"connection":"staging","command":"uname -a","timeout_seconds":30}
+{"connection":"staging","connection_revision":"<revision from ssh inspect staging>","command":"uname -a","timeout_seconds":30}
 ```
 
 The remote account's shell interprets `command`. Each call opens and closes a
@@ -220,7 +228,7 @@ a larger word or URL.
 Transfer arguments (the same shape for upload and download):
 
 ```json
-{"connection":"staging","local_path":"dist/app.zip","remote_path":"/srv/releases/app.zip","max_bytes":16777216,"timeout_seconds":60}
+{"connection":"staging","connection_revision":"<revision from ssh inspect staging>","local_path":"dist/app.zip","remote_path":"/srv/releases/app.zip","max_bytes":16777216,"timeout_seconds":60}
 ```
 
 Transfers use SFTP, accept one regular file up to 16 MiB, and return paths,
@@ -236,7 +244,7 @@ the transfer outcome. No permissions or timestamps are copied.
 
 All three operations ask for approval under the default policy and are unavailable
 in Plan/read-only execution. Remote permission resources include the configured
-user, host and port (`ssh://deploy@staging.example.com:22/...`); command resources
+user, host, port and revision (`ssh://deploy@staging.example.com:22/...#revision`); command resources
 also include the command. Transfers authorize both remote and local resources.
 Additionally, uploads check the existing `read_file` policy for the local source,
 and downloads check `write_file` for the destination before connecting. Sensitive

@@ -18,7 +18,7 @@ func TestSavedSSHSecretsAuthenticateAndRemainIndependent(t *testing.T) {
 	server := serveSSH(t)
 	original, path := testService(t, server)
 	store := Profiles{Path: path, Credentials: credentials.Store{Directory: filepath.Join(t.TempDir(), "secrets")}}
-	p := original.profiles["test"]
+	p := testProfile(t, original, "test")
 	err := store.SaveWithSecret("password", p, PasswordSecret, "test-secret")
 	if err != nil {
 		t.Fatal(err)
@@ -40,7 +40,7 @@ func TestSavedSSHSecretsAuthenticateAndRemainIndependent(t *testing.T) {
 	if err != nil {
 		t.Fatal("saved password authentication", err)
 	}
-	execution, err := service.Exec(t.Context(), ExecRequest{Connection: "password", Command: "ok"})
+	execution, err := service.Exec(t.Context(), ExecRequest{Connection: "password", ConnectionRevision: testRevision(t, service, "password"), Command: "ok"})
 	if err != nil || strings.Contains(execution.Stdout, "test-secret") {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestRevokedSSHSecretStopsFreshCalls(t *testing.T) {
 	server := serveSSH(t)
 	original, path := testService(t, server)
 	store := Profiles{Path: path, Credentials: credentials.Store{Directory: t.TempDir()}}
-	err := store.SaveWithSecret("password", original.profiles["test"], PasswordSecret, "test-secret")
+	err := store.SaveWithSecret("password", testProfile(t, original, "test"), PasswordSecret, "test-secret")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestRevokedSSHSecretStopsFreshCalls(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = service.Exec(t.Context(), ExecRequest{Connection: "password", Command: "ok"})
+	_, err = service.Exec(t.Context(), ExecRequest{Connection: "password", ConnectionRevision: testRevision(t, service, "password"), Command: "ok"})
 	if err == nil || !strings.Contains(err.Error(), "revoked") || strings.Contains(err.Error(), "test-secret") {
 		t.Fatal("revoked SSH credential used or leaked", err)
 	}

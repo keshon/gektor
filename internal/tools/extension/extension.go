@@ -18,6 +18,7 @@ import (
 // Capability owns a launch's adapter. Activation belongs to each session.
 // Load may discover tools, but must never execute a requested tool action.
 type Capability struct {
+	Binding MCPBinding
 	// MainOnly excludes this source from child discovery, activation and restore.
 	Eager                                          bool
 	MainOnly                                       bool
@@ -51,6 +52,12 @@ func (c *Capability) load(ctx context.Context, note func(string)) (result []agen
 	}
 	if c.unavailable {
 		return nil, fmt.Errorf("capability %s is disabled or replaced; enable it or start a new session", c.ID)
+	}
+	if c.Binding != nil {
+		err = c.Binding.Check()
+		if err != nil {
+			return nil, err
+		}
 	}
 	if c.tools != nil {
 		return c.tools, nil
@@ -318,19 +325,34 @@ func (t *capabilityTool) Resources(args json.RawMessage) ([]string, error) {
 		return nil, nil
 	}
 	var in map[string]json.RawMessage
-	if err := json.Unmarshal(args, &in); err != nil {
+	err := json.Unmarshal(args, &in)
+	if err != nil {
 		return nil, err
 	}
 	resources := make([]string, 0, len(fields))
 	for _, field := range fields {
 		var value string
-		if err := json.Unmarshal(in[field], &value); err != nil || value == "" {
+		err = json.Unmarshal(in[field], &value)
+		if err != nil || value == "" {
 			return nil, fmt.Errorf("capability resource %q must be a nonempty string", field)
 		}
 		resources = append(resources, value)
 	}
 	return resources, nil
 }
+
+// BindingResource supplements argument resources; it never replaces their policy checks.
+func (t *capabilityTool) BindingResource() (string, error) {
+	if t.source.Binding == nil {
+		return "", nil
+	}
+	err := t.source.Binding.Check()
+	if err != nil {
+		return "", err
+	}
+	return t.source.Binding.Target(), nil
+}
+
 func (t *capabilityTool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	return t.RunStreaming(ctx, args, nil)
 }

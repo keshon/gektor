@@ -10,7 +10,7 @@ import (
 	sshservice "github.com/keshon/gektor/internal/capabilities/ssh"
 )
 
-func TestConnectionsUsesSnapshotWithoutCredentialsOrNetwork(t *testing.T) {
+func TestConnectionsUsesCurrentMetadataWithoutCredentialsOrNetwork(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ssh.json")
 	profile := sshservice.Profile{Host: "example.invalid", User: "tester", KnownHosts: filepath.Join(dir, "known_hosts"), PasswordEnv: "NEVER_RESOLVE_THIS"}
@@ -23,7 +23,9 @@ func TestConnectionsUsesSnapshotWithoutCredentialsOrNetwork(t *testing.T) {
 		t.Fatal(err)
 	}
 	service := sshservice.New(sshservice.Config{ProfilesPath: path})
-	err = os.Remove(path)
+	store := sshservice.Profiles{Path: path}
+	profile.Host = "updated.invalid"
+	err = store.Save(map[string]sshservice.Profile{"second": profile, "first": profile})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,12 +42,20 @@ func TestConnectionsUsesSnapshotWithoutCredentialsOrNetwork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(result.Connections) != 2 || result.Connections[0].Name != "first" || result.Connections[0].Port != 22 {
+	if len(result.Connections) != 2 || result.Connections[0].Name != "first" || result.Connections[0].Port != 22 || result.Connections[0].Host != "updated.invalid" || len(result.Connections[0].Revision) != 64 {
 		t.Fatal(out)
 	}
 	for _, secret := range []string{"NEVER_RESOLVE_THIS", "known_hosts", "password", "private_key"} {
 		if strings.Contains(out, secret) {
 			t.Fatal("connection metadata exposed credential configuration", out)
 		}
+	}
+	err = os.Remove(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = tool.Run(t.Context(), json.RawMessage(`{}`))
+	if err == nil {
+		t.Fatal("discovery retained deleted profiles")
 	}
 }

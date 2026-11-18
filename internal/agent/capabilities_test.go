@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 	"sync/atomic"
@@ -221,5 +222,40 @@ func TestUnloadedInstructionsAreRemovedFromProjectionOnly(t *testing.T) {
 	projected := a.withCapabilityInstructions(history)
 	if projected[0].Content == history[0].Content || history[0].Content != "Private operational instructions" {
 		t.Fatal("unload retained active instructions or mutated the archive")
+	}
+}
+
+type bindingTool struct {
+	Tool
+	target  string
+	revoked bool
+}
+
+func (t *bindingTool) BindingResource() (string, error) {
+	if t.revoked {
+		return "", fmt.Errorf("binding revoked")
+	}
+	return t.target, nil
+}
+
+func TestBindingPermissionPreservesArgumentAndPathResources(t *testing.T) {
+	ran := false
+	tool := &bindingTool{Tool: capabilityWrite{ran: &ran}, target: "mcp:fixture#revision"}
+	args := json.RawMessage(`{"path":"original.txt"}`)
+	a := New(Config{Tools: NewRegistry(tool)})
+	call := llm.ToolCall{Name: tool.Name(), Arguments: args}
+	resources, err := a.callResources(call)
+	if err != nil || !reflect.DeepEqual(resources, []string{"original.txt", tool.target}) {
+		t.Fatal(resources, err)
+	}
+	a = New(Config{Tools: NewRegistry(tool), Paths: fixedToolPaths{resources: []string{"authorized/path"}}})
+	resources, err = a.callResources(call)
+	if err != nil || !reflect.DeepEqual(resources, []string{"authorized/path", tool.target}) {
+		t.Fatal(resources, err)
+	}
+	tool.revoked = true
+	_, err = a.callResources(call)
+	if err == nil {
+		t.Fatal("revoked binding reached permission gate")
 	}
 }

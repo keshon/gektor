@@ -24,22 +24,24 @@ const execInput = `{
   "type": "object",
   "properties": {
     "connection": {"type":"string","minLength":1},
+    "connection_revision": {"type":"string","pattern":"^[a-f0-9]{64}$"},
     "command": {"type":"string","minLength":1,"maxLength":32768},
     "timeout_seconds": {"type":"integer","minimum":1,"maximum":600}
   },
-  "required": ["connection","command"],
+  "required": ["connection","connection_revision","command"],
   "additionalProperties": false
 }`
 const transferInput = `{
   "type": "object",
   "properties": {
     "connection": {"type":"string","minLength":1},
+    "connection_revision": {"type":"string","pattern":"^[a-f0-9]{64}$"},
     "local_path": {"type":"string","minLength":1},
     "remote_path": {"type":"string","minLength":1},
     "max_bytes": {"type":"integer","minimum":1,"maximum":16777216},
     "timeout_seconds": {"type":"integer","minimum":1,"maximum":600}
   },
-  "required": ["connection","local_path","remote_path"],
+  "required": ["connection","connection_revision","local_path","remote_path"],
   "additionalProperties": false
 }`
 const execOutput = `{
@@ -70,19 +72,19 @@ func specifications() []specification {
 	return []specification{
 		{
 			name:        "ssh_exec",
-			description: "Run a remote shell command using a registered SSH connection. Fresh verified connection per call; no interactive terminal, retained working directory or retries. Timeout defaults to 30 seconds (max 600). stdout/stderr are limited to 64 KiB each; overflow discards output. Cancellation cannot guarantee the remote command stopped; verify its outcome before retrying.",
+			description: "Run a remote shell command using a registered SSH connection and connection_revision from ssh_connections. Fresh verified connection per call; no interactive terminal, retained working directory or retries. Timeout defaults to 30 seconds (max 600). stdout/stderr are limited to 64 KiB each; overflow discards output. Cancellation cannot guarantee the remote command stopped; verify its outcome before retrying.",
 			input:       execInput,
 			output:      execOutput,
 		},
 		{
 			name:        "ssh_upload",
-			description: "Upload one regular workspace file to an absolute POSIX remote_path via SFTP. Registered SSH connection; local read_file permission applies independently. Up to 16 MiB; no overwrites, directory creation or retries. Parent directories must exist. Server must support hardlink@openssh.com for safe publication. Interrupted uploads may leave a remote .gektor-* temporary file.",
+			description: "Upload one regular workspace file to an absolute POSIX remote_path via SFTP. Registered SSH connection and connection_revision from ssh_connections; local read_file permission applies independently. Up to 16 MiB; no overwrites, directory creation or retries. Parent directories must exist. Server must support hardlink@openssh.com for safe publication. Interrupted uploads may leave a remote .gektor-* temporary file.",
 			input:       transferInput,
 			output:      transferOutput,
 		},
 		{
 			name:        "ssh_download",
-			description: "Download one regular remote file via SFTP to a new workspace local_path. Registered SSH connection; local write_file permission applies independently. Up to 16 MiB; no overwrites, directory creation or retries. Parent directories must exist. Publishes complete content; returns size and SHA-256.",
+			description: "Download one regular remote file via SFTP to a new workspace local_path. Registered SSH connection and connection_revision from ssh_connections; local write_file permission applies independently. Up to 16 MiB; no overwrites, directory creation or retries. Parent directories must exist. Publishes complete content; returns size and SHA-256.",
 			input:       transferInput,
 			output:      transferOutput,
 		},
@@ -147,11 +149,11 @@ func (o Operation) Resources(args json.RawMessage) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	connection, remotePath := transfer.Connection, transfer.RemotePath
+	connection, revision, remotePath := transfer.Connection, transfer.ConnectionRevision, transfer.RemotePath
 	if o.Kind == "ssh_exec" {
-		connection = command.Connection
+		connection, revision = command.Connection, command.ConnectionRevision
 	}
-	resource, err := o.Service.Resource(connection, remotePath)
+	resource, err := o.Service.Resource(connection, revision, remotePath)
 	if err != nil {
 		return nil, err
 	}

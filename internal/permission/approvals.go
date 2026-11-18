@@ -29,7 +29,7 @@ func Target(tool, resource string) string {
 	if err != nil {
 		return resource
 	}
-	if parsed.Scheme != "ssh" || parsed.Host == "" || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+	if parsed.Scheme != "ssh" || parsed.Host == "" || parsed.Path != "" || parsed.RawQuery != "" {
 		return resource
 	}
 

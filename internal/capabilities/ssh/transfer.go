@@ -17,11 +17,12 @@ import (
 )
 
 type TransferRequest struct {
-	Connection     string `json:"connection"`
-	LocalPath      string `json:"local_path"`
-	RemotePath     string `json:"remote_path"`
-	MaxBytes       int64  `json:"max_bytes,omitempty"`
-	TimeoutSeconds int    `json:"timeout_seconds,omitempty"`
+	Connection         string `json:"connection"`
+	ConnectionRevision string `json:"connection_revision"`
+	LocalPath          string `json:"local_path"`
+	RemotePath         string `json:"remote_path"`
+	MaxBytes           int64  `json:"max_bytes,omitempty"`
+	TimeoutSeconds     int    `json:"timeout_seconds,omitempty"`
 }
 
 type TransferResult struct {
@@ -43,7 +44,7 @@ const (
 )
 
 func (s *Service) ValidateTransfer(in TransferRequest) (TransferRequest, error) {
-	_, err := s.profile(in.Connection)
+	_, err := s.binding(in.Connection, in.ConnectionRevision)
 	if err != nil {
 		return in, err
 	}
@@ -94,7 +95,11 @@ func (s *Service) Transfer(ctx context.Context, in TransferRequest, direction Di
 	}
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(in.TimeoutSeconds)*time.Second)
 	defer cancel()
-	client, closeConnection, secrets, err := connect(ctx, s.profiles[in.Connection], s.credentials)
+	profile, err := s.binding(in.Connection, in.ConnectionRevision)
+	if err != nil {
+		return result, err
+	}
+	client, closeConnection, secrets, err := connect(ctx, profile, s.credentials)
 	if err != nil {
 		return result, err
 	}

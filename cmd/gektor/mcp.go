@@ -14,7 +14,7 @@ import (
 
 func runMCP(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: gektor mcp list|import FILE|save FILE|delete ID|enable ID|disable ID|connect ID")
+		return fmt.Errorf("usage: gektor mcp list|import FILE|save FILE|delete ID|enable ID|disable ID|connect ID|inspect ID|revoke ID")
 	}
 	workspace, e := os.Getwd()
 	if e != nil {
@@ -62,6 +62,18 @@ func runMCP(args []string) error {
 			return fmt.Errorf("invalid server definition")
 		}
 		return m.Save(s)
+	case "inspect", "revoke":
+		if args[0] == "revoke" {
+			err := m.Revoke(args[1])
+			if err != nil {
+				return err
+			}
+		}
+		binding, err := m.Inspect(args[1])
+		if err != nil {
+			return err
+		}
+		return write(binding)
 	case "delete":
 		return m.Delete(args[1])
 	case "enable", "disable":

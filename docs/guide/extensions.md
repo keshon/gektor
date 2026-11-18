@@ -86,6 +86,8 @@ CLI management works without an LLM backend:
 .\gektor.exe mcp list
 .\gektor.exe mcp import C:\path\to\mcp.json
 .\gektor.exe mcp connect yougile
+.\gektor.exe mcp inspect yougile
+.\gektor.exe mcp revoke yougile
 .\gektor.exe mcp disable yougile
 .\gektor.exe mcp enable yougile
 .\gektor.exe mcp delete yougile
@@ -97,6 +99,26 @@ the CLI command exits. `save FILE` adds or updates a server definition;
 `import -` reads JSON from stdin. A saved definition uses `id`, `description`,
 `url` or a `command` array, `enabled`, optional `on_load`, `header_refs`, and
 `env_refs`. Unknown or conflicting adapter IDs are rejected at launch.
+
+`inspect ID` reads current saved metadata: endpoint (or executable), transport,
+revision, enabled state and revocation status. It resolves no credentials, starts
+no process and omits credential references and command arguments. Each saved
+adapter retains its definition revision. It checks current metadata before
+connecting and before tool calls. An external change to its URL, command,
+credential references or description requires reloading the configuration and
+reviewing the new permission target. Argument URL/path checks still apply;
+the binding target is an additional permission resource.
+
+`revoke ID` permanently disables that saved name, including connected sessions.
+Markers live under `~/.gektor/mcp/revoked/`; deleting and importing the name again
+does not restore access. Disable/enable remains reversible. Calls already started
+may finish, and closing sessions remains possible. Existing credential checks also
+reject deleted/revoked sources and require reconnect after secret rotation.
+
+Named binding pins apply to saved MCP definitions. Bundled integrations, direct
+`-mcp` launch arguments and explicitly selected capability files retain their
+existing launch configuration; they do not acquire saved-name revocation controls.
+MCP activation exposes Agent tools, not implicit workflow nodes.
 
 Server failures are visible in Details, including failures from agent-triggered
 activation. Tool calls retain normal permission checks. On-load connection

@@ -86,7 +86,8 @@ func (a *Agent) validateToolCalls(entries []toolExecution, finishReason string, 
 // resolver, then the ordinary URL/command resource.
 func (a *Agent) callResources(call llm.ToolCall) ([]string, error) {
 	var resources []string
-	if tool, ok := a.cfg.Tools.lookup(call.Name); ok {
+	tool, known := a.cfg.Tools.lookup(call.Name)
+	if known {
 		if scoped, ok := tool.(interface {
 			Resources(json.RawMessage) ([]string, error)
 		}); ok {
@@ -106,6 +107,18 @@ func (a *Agent) callResources(call llm.ToolCall) ([]string, error) {
 	}
 	if len(resources) == 0 {
 		resources = []string{toolResource(call.Arguments)}
+	}
+
+	binding, bound := tool.(interface{ BindingResource() (string, error) })
+	if !bound {
+		return resources, nil
+	}
+	target, err := binding.BindingResource()
+	if err != nil {
+		return nil, err
+	}
+	if target != "" {
+		resources = append(resources, target)
 	}
 	return resources, nil
 }
