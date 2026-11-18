@@ -185,3 +185,13 @@ actions, not agent tools.
 SSH operations require `connection` and `connection_revision` from current
 `ssh_connections` metadata or operator `ssh inspect NAME`. Changed or revoked
 bindings stop execution; inspect and review the new binding before updating a recipe.
+
+HTTP uses explicit `body_format` (json, text, form or artifact) and
+`response_format` (auto, text, json or artifact). Query/form values are string
+arrays. Use `response_format: "artifact"` with `artifact_name` for binary or large
+bodies, then reference `/artifact/id` as `body_artifact` in later requests.
+Inline responses stay at most 256 KiB; artifacts at most 16 MiB. Redirects are off
+unless `max_redirects` is 1–5, with current policy checked per destination and
+credentials restricted to their original HTTPS origin. `status_as_data` changes
+HTTP-status handling only. Inspect application-level success fields explicitly;
+use workflow branches and waits for rate limits instead of hidden retry loops.

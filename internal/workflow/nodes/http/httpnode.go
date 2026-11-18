@@ -2,14 +2,12 @@
 package httpnode
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	"regexp"
-	"strings"
 	"time"
 
 	"github.com/keshon/gektor/internal/httptransport"
@@ -19,193 +17,190 @@ import (
 
 type Resolver func(name, origin, revision string) (header, value, secret string, err error)
 
-var revisions = regexp.MustCompile(`^[a-f0-9]{64}$`)
-
-type input struct {
-	URL                string            `json:"url"`
-	Method             string            `json:"method"`
-	Headers            map[string]string `json:"headers"`
-	Body               json.RawMessage   `json:"body"`
-	CredentialRevision string            `json:"credential_revision"`
-	Credential         string            `json:"credential"`
-	Timeout            int               `json:"timeout_seconds"`
-	StatusAsData       bool              `json:"status_as_data"`
-}
+const (
+	inlineLimit         = 256 << 10
+	inlineBodyLimit     = 64 << 10
+	artifactLimit       = 16 << 20
+	maxURLBytes         = 32 << 10
+	maxHeaderValueBytes = 4 << 10
+	maxHeaderTotalBytes = 32 << 10
+	maxOutputBytes      = 1 << 20
+)
 
 func Definition(resolve Resolver) workflow.Node { return definition(resolve, nil) }
+
 func definition(resolve Resolver, transport http.RoundTripper) workflow.Node {
-	schema := json.RawMessage(`{"type":"object","properties":{"url":{"type":"string","minLength":1},"method":{"type":"string","enum":["GET","POST","PUT","PATCH","DELETE","HEAD"]},"headers":{"type":"object","properties":{"Accept":{"type":"string"},"Content-Type":{"type":"string"}},"additionalProperties":false},"body":{},"credential":{"type":"string","pattern":"^[a-zA-Z0-9_-]{1,64}$"},"credential_revision":{"type":"string","pattern":"^[a-f0-9]{64}$"},"timeout_seconds":{"type":"integer","minimum":1,"maximum":120},"status_as_data":{"type":"boolean"}},"required":["url"],"dependentRequired":{"credential":["credential_revision"],"credential_revision":["credential"]},"additionalProperties":false}`)
-	parse := func(raw json.RawMessage) (input, error) {
-		var in input
-		if err := json.Unmarshal(raw, &in); err != nil {
-			return in, err
-		}
-
-		if in.Method == "" {
-			in.Method = "GET"
-		}
-
-		var err error
-		in.URL, err = httptransport.Normalize(in.URL, false)
-		if err != nil {
-			return in, err
-		}
-
-		if in.Credential == "" && in.CredentialRevision != "" {
-			return in, fmt.Errorf("credential_revision requires a credential")
-		}
-		if in.Credential != "" {
-			if !revisions.MatchString(in.CredentialRevision) {
-				return in, fmt.Errorf("credential requires a 64-character binding revision from inspect-credential")
-			}
-			_, err = credentials.Origin(in.URL)
-		}
-
-		return in, err
-	}
 	return workflow.Node{
 		Name:         "http_request",
-		Concurrent:   true,
 		Version:      1,
-		Description:  "One public HTTP request with explicit method, JSON body and optional origin-bound credential and credential_revision from inspect-credential. No redirects or automatic retries. Returns status_code, selected response headers, body and parsed JSON data. status_as_data returns non-2xx responses without failing; network and response-read errors still fail.",
-		InputSchema:  schema,
-		OutputSchema: json.RawMessage(`{"type":"object","properties":{"status_code":{"type":"integer"},"headers":{"type":"object","additionalProperties":{"type":"string"}},"body":{"type":"string"},"data":{}},"required":["status_code","headers","body"]}`),
+		Concurrent:   true,
+		Description:  "Public HTTP request with explicit query/body formats and auto, text, JSON or run-artifact responses. Optional pinned origin-bound credential. Redirects are off by default; max_redirects permits up to 5 separately authorized destinations. Credentials never cross origins. No automatic retries; status_as_data returns non-2xx status without hiding transport, body or policy errors.",
+		InputSchema:  json.RawMessage(inputSchema),
+		OutputSchema: json.RawMessage(outputSchema),
 		Validate:     func(raw json.RawMessage) error { _, err := parse(raw); return err },
-		Resources: func(raw json.RawMessage) ([]string, error) {
-			in, err := parse(raw)
-			if err != nil {
-				return nil, err
-			}
-
-			resources := []string{in.Method + " " + in.URL}
-			if in.Credential != "" {
-				origin, _ := credentials.Origin(in.URL)
-				resources = append(resources, "credential:"+in.Credential+"@"+origin+"#"+in.CredentialRevision)
-			}
-
-			return resources, nil
-		},
+		Resources:    resources,
 		Execute: func(ctx context.Context, raw json.RawMessage) (string, error) {
 			in, err := parse(raw)
 			if err != nil {
 				return "", err
 			}
-
-			if in.Timeout == 0 {
-				in.Timeout = 30
-			}
-
-			requestCtx, cancel := context.WithTimeout(ctx, time.Duration(in.Timeout)*time.Second)
-			defer cancel()
-
-			req, err := http.NewRequestWithContext(requestCtx, in.Method, in.URL, strings.NewReader(string(in.Body)))
-			if err != nil {
-				return "", err
-			}
-
-			if len(in.Body) > 0 {
-				req.Header.Set("Content-Type", "application/json")
-			}
-
-			for k, v := range in.Headers {
-				req.Header.Set(k, v)
-			}
-
-			secret := ""
-			if in.Credential != "" {
-				if resolve == nil {
-					return "", fmt.Errorf("credential resolver unavailable")
-				}
-
-				header, value, s, e := resolve(in.Credential, in.URL, in.CredentialRevision)
-				if e != nil {
-					return "", e
-				}
-
-				secret = s
-				req.Header.Set(header, value)
-			}
-
-			redact := func(value string) string {
-				if secret != "" {
-					return strings.ReplaceAll(value, secret, "[redacted]")
-				}
-
-				return value
-			}
-			client := httptransport.Client(false, transport)
-			client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-			response, err := client.Do(req)
-			if err != nil {
-				contextErr := requestCtx.Err()
-				if contextErr != nil {
-					return "", contextErr
-				}
-				if errors.Is(err, context.Canceled) {
-					return "", context.Canceled
-				}
-				if errors.Is(err, context.DeadlineExceeded) {
-					return "", context.DeadlineExceeded
-				}
-				if errors.Is(err, httptransport.ErrDestinationDenied) {
-					return "", fmt.Errorf("%w: %s", httptransport.ErrDestinationDenied, redact(err.Error()))
-				}
-				return "", &workflow.ExecutionError{Code: "http_request_failed", Err: fmt.Errorf("HTTP request: %s", redact(err.Error()))}
-			}
-
-			defer response.Body.Close()
-
-			body, err := io.ReadAll(io.LimitReader(response.Body, (256<<10)+1))
-			if err != nil {
-				contextErr := requestCtx.Err()
-				if contextErr != nil {
-					return "", contextErr
-				}
-				if errors.Is(err, context.Canceled) {
-					return "", context.Canceled
-				}
-				if errors.Is(err, context.DeadlineExceeded) {
-					return "", context.DeadlineExceeded
-				}
-				return "", &workflow.ExecutionError{Code: "http_response_failed", Err: fmt.Errorf("HTTP response read failed: %s", redact(err.Error()))}
-			}
-
-			if len(body) > 256<<10 {
-				return "", &workflow.ExecutionError{Code: "http_response_too_large", Err: fmt.Errorf("HTTP response exceeds 256 KiB")}
-			}
-
-			safe := redact(string(body))
-			headers := map[string]string{}
-
-			for _, name := range []string{"Content-Type", "Retry-After", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"} {
-				if value := response.Header.Get(name); value != "" {
-					if len(value) > 4096 {
-						return "", &workflow.ExecutionError{Code: "http_response_too_large", Err: fmt.Errorf("HTTP response header %s exceeds 4 KiB", name)}
-					}
-
-					headers[strings.ToLower(name)] = redact(value)
-				}
-			}
-
-			result := map[string]any{
-				"status_code": response.StatusCode,
-				"headers":     headers,
-				"body":        safe,
-			}
-			if json.Valid([]byte(safe)) {
-				result["data"] = json.RawMessage(safe)
-			}
-
-			out, err := json.Marshal(result)
-			if err != nil {
-				return "", err
-			}
-
-			if !in.StatusAsData && (response.StatusCode < 200 || response.StatusCode >= 300) {
-				return string(out), &workflow.ExecutionError{Code: "http_status", Err: fmt.Errorf("HTTP status %d; request was not retried", response.StatusCode)}
-			}
-
-			return string(out), nil
+			return execute(ctx, in, resolve, transport)
 		},
 	}
 }
+
+func resources(raw json.RawMessage) ([]string, error) {
+	in, err := parse(raw)
+	if err != nil {
+		return nil, err
+	}
+	targets := []string{in.Method + " " + in.URL}
+	if in.Credential != "" {
+		origin, originErr := credentials.Origin(in.URL)
+		if originErr != nil {
+			return nil, originErr
+		}
+		targets = append(targets, "credential:"+in.Credential+"@"+origin+"#"+in.CredentialRevision)
+	}
+	if in.BodyArtifact != "" {
+		targets = append(targets, in.BodyArtifact)
+	}
+	if in.ResponseFormat == responseArtifact {
+		targets = append(targets, in.ArtifactName)
+	}
+	return targets, nil
+}
+
+func execute(ctx context.Context, in input, resolve Resolver, transport http.RoundTripper) (string, error) {
+	requestCtx, cancel := context.WithTimeout(ctx, time.Duration(in.Timeout)*time.Second)
+	defer cancel()
+
+	var access workflow.ArtifactAccess
+	var err error
+	if in.BodyFormat == bodyArtifact || in.ResponseFormat == responseArtifact {
+		access, err = workflow.Artifacts(requestCtx)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	payload, contentType, err := requestBody(requestCtx, in, access)
+	if err != nil {
+		return "", err
+	}
+
+	client := httptransport.Client(false, transport)
+	client.Timeout = 0 // The request context covers the entire redirect chain.
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	var secrets redactor
+
+	for redirects := 0; ; redirects++ {
+		req, requestErr := http.NewRequestWithContext(requestCtx, in.Method, in.URL, bytes.NewReader(payload))
+		if requestErr != nil {
+			return "", requestErr
+		}
+		if len(in.Body) > 0 || in.BodyArtifact != "" || in.BodyFormat != bodyJSON {
+			req.Header.Set("Content-Type", contentType)
+		}
+		for name, value := range in.Headers {
+			req.Header.Set(name, value)
+		}
+		if in.Credential != "" {
+			if resolve == nil {
+				return "", fmt.Errorf("credential resolver unavailable")
+			}
+			header, value, secret, resolveErr := resolve(in.Credential, in.URL, in.CredentialRevision)
+			if resolveErr != nil {
+				return "", resolveErr
+			}
+			err = secrets.add(secret)
+			if err != nil {
+				return "", err
+			}
+			req.Header.Set(header, value)
+		}
+
+		response, requestErr := client.Do(req)
+		if requestErr != nil {
+			return "", requestFailure(requestCtx, requestErr, secrets, "http_request_failed")
+		}
+		redirect := isRedirect(response.StatusCode) && response.Header.Get("Location") != "" && in.MaxRedirects > 0
+		if !redirect {
+			return consumeResponse(requestCtx, response, in, secrets, access)
+		}
+		// Intermediate bodies are never published; Close releases the connection.
+		response.Body.Close()
+		if redirects >= in.MaxRedirects {
+			return "", &workflow.ExecutionError{Code: "http_redirect_limit", Err: fmt.Errorf("HTTP redirect limit reached")}
+		}
+		next, redirectErr := redirectInput(response, in)
+		if redirectErr != nil {
+			return "", fmt.Errorf("%w: %s", httptransport.ErrDestinationDenied, secrets.text(redirectErr.Error()))
+		}
+		if secrets.text(next.URL) != next.URL {
+			return "", fmt.Errorf("%w: redirect URL contains a source credential", httptransport.ErrDestinationDenied)
+		}
+		raw, encodeErr := json.Marshal(next)
+		if encodeErr != nil {
+			return "", encodeErr
+		}
+		err = workflow.AuthorizeCall(requestCtx, "http_request", raw)
+		if err != nil {
+			if requestCtx.Err() != nil {
+				return "", requestCtx.Err()
+			}
+			if errors.Is(err, context.Canceled) {
+				return "", context.Canceled
+			}
+			if errors.Is(err, context.DeadlineExceeded) {
+				return "", context.DeadlineExceeded
+			}
+			return "", fmt.Errorf("HTTP redirect authorization: %s", secrets.text(err.Error()))
+		}
+		if next.Method != in.Method {
+			payload = nil
+			contentType = ""
+		}
+		in = next
+	}
+}
+
+func requestFailure(ctx context.Context, err error, secrets redactor, code string) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if errors.Is(err, context.Canceled) {
+		return context.Canceled
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return context.DeadlineExceeded
+	}
+	if errors.Is(err, httptransport.ErrDestinationDenied) {
+		return fmt.Errorf("%w: %s", httptransport.ErrDestinationDenied, secrets.text(err.Error()))
+	}
+	action := "sending HTTP request"
+	if code == "http_response_failed" {
+		action = "reading HTTP response"
+	}
+	return &workflow.ExecutionError{Code: code, Err: fmt.Errorf("%s: %s", action, secrets.text(err.Error()))}
+}
+
+const outputSchema = `{
+ "type":"object",
+ "properties":{
+  "status_code":{"type":"integer"},
+  "headers":{"type":"object","additionalProperties":{"type":"string"}},
+  "body":{"type":"string"},
+  "data":{},
+  "artifact":{
+   "type":"object",
+   "properties":{
+    "id":{"type":"string"},"run_id":{"type":"string"},"step_id":{"type":"string"},
+    "name":{"type":"string"},"media_type":{"type":"string"},"size":{"type":"integer"},
+    "sha256":{"type":"string"},"created":{"type":"string"}
+   },
+   "required":["id","run_id","step_id","name","media_type","size","sha256","created"]
+  }
+ },
+ "required":["status_code","headers","body"]
+}`

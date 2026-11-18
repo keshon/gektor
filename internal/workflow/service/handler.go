@@ -188,7 +188,7 @@ func (h *handler) Run(ctx context.Context, s workflow.Step) (string, error) {
 	}
 
 	if !h.authorized[authorizationFor(s)] {
-		err = h.authorizeCall(ctx, s)
+		err = h.AuthorizeCall(ctx, s.Tool, s.Args)
 		if err != nil {
 			return "", err
 		}
@@ -198,6 +198,7 @@ func (h *handler) Run(ctx context.Context, s workflow.Step) (string, error) {
 		ctx = workflow.WithArtifacts(ctx, h.artifacts(s.ID))
 	}
 
+	ctx = workflow.WithCallAuthorizer(ctx, h)
 	out, err := n.Execute(ctx, s.Args)
 	if err != nil {
 		return out, err
@@ -209,7 +210,7 @@ func (h *handler) Run(ctx context.Context, s workflow.Step) (string, error) {
 	return out, err
 }
 
-func (h *handler) authorizeCall(ctx context.Context, s workflow.Step) error {
+func (h *handler) AuthorizeCall(ctx context.Context, name string, args json.RawMessage) error {
 	h.permission.Lock()
 	defer h.permission.Unlock()
 
@@ -217,7 +218,7 @@ func (h *handler) authorizeCall(ctx context.Context, s workflow.Step) error {
 	if err != nil {
 		return err
 	}
-	return h.authorize(ctx, s.Tool, s.Args)
+	return h.authorize(ctx, name, args)
 }
 
 func (t Service) authorizeNode(ctx context.Context, name string, args json.RawMessage) error {

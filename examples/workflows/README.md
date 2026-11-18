@@ -15,6 +15,7 @@ the recipe; exporting an artifact creates a file in the workspace.
 | [Repeated subworkflow](repeated-subworkflow/README.md) | Bounded pagination with per-page artifacts | None |
 | [Subworkflow](subworkflow/README.md) | Call a reusable recipe and return named outputs | None |
 | [Local program](process-report/README.md) | Feed captured data to a program and retain diagnostics | Python |
+| [HTTP artifact](http-artifact/README.md) | Stream a response into run-owned binary storage | A public file URL you supply |
 | [Repository report](repository-report/README.md) | HTTP data, review and revision-checked records | GitHub network access; optional model |
 | [Webhook note](webhook-note/README.md) | Submit jobs to the workflow service without duplicates | Local service and tokens you create |
 | [Feed draft](moltbook-draft/README.md) | Combine a public feed, model output and saved state | Network and a model |

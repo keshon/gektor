@@ -10,7 +10,8 @@ failure classification (`399a177`) are committed and pushed. The first stage 5
 slice (pinned/revocable HTTP bindings) and shared SSH/MCP source/session
 lifecycle checks are committed as `339f5ef`. The SSH named-binding slice, saved
 MCP binding pins and integrated acceptance checkpoint are committed and pushed
-as `3aa7ce4`. Operator HTTP updates are included in this follow-on commit.
+as `3aa7ce4`. Operator HTTP updates are committed and pushed as `b0a52d0`.
+The stage 6 HTTP/artifact slice below is included in this checkpoint commit.
 Older "next" paragraphs below are historical and superseded by this section.
 
 ### Completed and pushed
@@ -352,14 +353,48 @@ competing writers, stale revisions, permanent revocation and failed-secret clean
 Affected race checks, vet, CGO-free build, docs checks and CLI flag coverage pass.
 The Unix lock implementation is cross-compiled; execution checks ran on Windows.
 
-Next: stage 6 HTTP response/body modes, query parameters, bounded authorized
-redirects and artifact-backed bodies. Connection/editor UI remains in stage 7;
-OAuth refresh serialization is required when an OAuth integration is introduced.
-Run the broader audit and acceptance pass after planned implementation.
-Authoring UI support remains a separate follow-up. Named connections and
-credentials are stage 5; richer HTTP operations are stage 6. Concurrent jobs, concurrent child
-calls and their shared scheduler remain later work. Keyed joins and the broader
-node inventory are also unfinished.
+### Stage 6 HTTP and artifacts — 2026-11-18
+
+HTTP request bodies now support JSON, text, URL-encoded forms and current-run
+artifacts. Explicit query arrays merge into the URL before permission checks.
+Responses have auto/text/JSON/artifact modes, selected extra headers and bounded
+sizes. Binary/large responses stream through existing ArtifactAccess.Put; uploads
+use its existing verified Read operation (at most 16 MiB). No alternate artifact
+store or HTTP executor was added. Artifacts remain run-owned across review.
+
+Redirects stay disabled by default. max_redirects permits 1–5 hops, each resolved
+and public-URL checked before the workflow service authorizes the exact next
+request. A small execution-scoped authorizer sits beside the existing artifact
+access in context; the service retains policy and interactive serialization.
+Credentialed chains stay on one HTTPS origin and re-resolve the current pinned
+source per hop. POST 301/302 and non-HEAD 303 drop the body; 307/308 retain it.
+The single request context owns the whole chain's timeout, with no hidden retries.
+
+Inline responses redact source values (literal, JSON-escaped and URL-encoded).
+Binary publication rejects matching values across read boundaries and discards
+incomplete artifacts. Permission/credential/store errors remain terminal; HTTP
+status, transport, inline body/encoding/JSON/size and redirect-limit failures retain
+explicit operation codes. There is no business-error heuristic for a 2xx body.
+
+Focused checks cover query/form/text encoding, content-type overrides, soft 404
+bodies, 429 status handling, per-hop authorization, private/cross-origin targets,
+credential rotation, redirect budgets and 307 replay semantics. A real run store
+covers binary upload/download, streaming limits, secret/cancellation cleanup and
+an artifact handoff across operator review. The shipped http-artifact example and
+canonical HTTP reference describe the contract.
+
+Verification: full source-scoped tests pass. Final affected HTTP/service/authoring
+checks and affected race tests pass; source vet, CGO-free build and documentation
+checks pass. The built CLI validates the shipped example using an isolated home,
+without a model or public network request. This stage 6 slice is included in the
+checkpoint commit; it is not the deferred broader project audit.
+
+Next: stage 7 headless authoring/validation, structured diagnostics, inspection,
+captured-input fixtures and editor coverage. Concurrent jobs, child scheduling,
+workspace resource budgets and retention/health remain stage 8. Keyed joins and
+broader node inventory still need their explicit semantics. OAuth serialization
+is required when an OAuth integration is introduced. Continue implementation
+before the broader audit and acceptance pass.
 
 ### Constraints to preserve
 

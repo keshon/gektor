@@ -116,9 +116,10 @@ Structured HTTP, workspace editing and isolated transforms do not need another
 capability package merely for naming symmetry. When adding a second frontend,
 extract one shared contract and execution boundary first:
 
-- HTTP must retain origin-bound credentials, no redirects, response bounds,
-  status-as-data behavior and disabled automatic retries. Web fetching has
-  different redirect and presentation semantics.
+- HTTP must retain origin-bound credentials, redirects disabled by default,
+  per-destination authorization when enabled, response bounds, status-as-data
+  behavior and disabled automatic retries. Web fetching has different redirect
+  and presentation semantics.
 - Workspace editing must retain rooted access, encoding/newline handling,
   locking and permissions. Immutable workflow artifacts have different ownership.
 - Structured transforms must reuse the existing isolated

@@ -251,7 +251,7 @@ Native operation failures use these codes:
 
 | Node | Codes |
 | --- | --- |
-| HTTP | `http_status`, `http_request_failed`, `http_response_failed`, `http_response_too_large` (body or selected header limit) |
+| HTTP | `http_status`, `http_request_failed`, `http_response_failed`, `http_response_too_large`, `http_response_invalid_json`, `http_response_encoding`, `http_redirect_limit` |
 | Isolated script | `script_failed` |
 | Callback wait | `callback_expired` |
 | Native process | `process_exit`, `process_output_too_large` |
@@ -319,6 +319,69 @@ Declared output collection is skipped when the scope fails.
 
 See the [error-routing example](../../examples/workflows/error-routing/README.md)
 for a model-free recipe that writes failure and finalization artifacts.
+
+## HTTP requests
+
+`http_request` uses public HTTP(S) destinations. URL and DNS checks apply to every
+request. The default method is GET, timeout is 30 seconds (maximum 120), and
+redirects are disabled. The timeout covers the complete redirect chain.
+
+`query` is an object of string arrays, for example `{"tag":["go","tui"]}`.
+Its keys replace matching query keys in `url`; other keys remain. Values are URL
+encoded before authorization, so permissions check the URL that is sent.
+
+| `body_format` | Input | Content type |
+| --- | --- | --- |
+| `json` (default) | Any JSON value in `body`; omit it for no body | `application/json` |
+| `text` | A string in `body` | `text/plain; charset=utf-8` |
+| `form` | Object of string arrays in `body` | `application/x-www-form-urlencoded` |
+| `artifact` | `body_artifact` ID from this run, without `body` | Artifact's detected media type |
+
+Inline request bodies are limited to 64 KiB. Artifact uploads read and verify up
+to 16 MiB from the existing run store before sending. `headers` accepts `Accept`
+and `Content-Type`; an explicit content type overrides the format's default.
+Credentials still use named, revision-pinned bindings, never literal headers.
+
+| `response_format` | Output |
+| --- | --- |
+| `auto` (default) | UTF-8 `body`, plus `data` when the body is valid JSON |
+| `text` | UTF-8 `body`, without parsed `data` |
+| `json` | UTF-8 `body` and `data`; invalid JSON fails even on a 2xx status |
+| `artifact` | Stream into run storage; return `artifact` metadata and an empty `body` |
+
+Inline responses default to a 256 KiB limit. Artifact responses require an
+`artifact_name` filename and default to 16 MiB. `max_response_bytes` can lower
+either limit. Use artifact mode to preserve binary data; non-UTF-8 inline bodies
+are rejected. The existing artifact store
+owns publication, integrity, per-run quotas and cleanup; no workspace file is
+created. Reference `/artifact/id` in a later request's `body_artifact` to upload
+those bytes, including after review. See the [download example](../../examples/workflows/http-artifact/README.md).
+
+Results include `status_code` and selected `headers`. Defaults are Content-Type,
+Retry-After and X-RateLimit-Limit/Remaining/Reset. `response_headers` adds up to
+16 named headers; Cookie, Set-Cookie, Authorization and Proxy-Authorization are
+refused.
+Each selected value is limited to 4 KiB, with 32 KiB in total.
+
+`max_redirects` accepts 0–5. Each destination requires current workflow policy
+authorization before dispatch. Relative locations are resolved against the current
+URL; private destinations remain blocked. Credentialed redirects must stay on the
+same HTTPS origin and re-resolve the pinned source before each request. A redirect
+URL containing that source credential is rejected. HTTP 301/302 change POST to
+GET; 303 changes non-HEAD requests to GET; 307/308 retain method and body.
+
+Inline output redacts literal, JSON-escaped and URL-encoded source credentials.
+Artifact output preserves bytes, so a stream containing any of those values is
+rejected and its incomplete artifact discarded. Artifact/store errors, credential
+failures and redirect permission denials stop execution; they are not error-route
+data. Cancellation retains its identity. Only the typed HTTP failures listed
+above are routable.
+
+`status_as_data: true` returns non-2xx statuses without `http_status`; it does not
+hide transport errors, invalid JSON in JSON mode, limits or policy denials. A 2xx
+body containing a business error remains data: inspect the fields explicitly.
+There are no internal retries or rate-limit sleeps. Use visible workflow branches
+and waits for those decisions.
 
 ## Durable deadline waits
 

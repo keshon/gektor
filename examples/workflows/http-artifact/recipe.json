@@ -1,0 +1,23 @@
+{
+  "version": 4,
+  "name": "Download a run artifact",
+  "inputs": {
+    "url": {"type": "string"}
+  },
+  "steps": [
+    {
+      "id": "download",
+      "tool": "http_request",
+      "args": {
+        "url": {"$input": "url"},
+        "response_format": "artifact",
+        "artifact_name": "download.bin",
+        "max_response_bytes": 16777216,
+        "max_redirects": 3
+      }
+    }
+  ],
+  "outputs": {
+    "artifact": {"$step": "download", "pointer": "/artifact"}
+  }
+}
