@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/keshon/gektor/internal/credentials"
 	"github.com/keshon/gektor/internal/process"
 )
 
@@ -34,10 +35,12 @@ func adapterEnv(refs map[string]string) ([]string, []string, error) {
 	sort.Strings(keys)
 	for _, name := range keys {
 		ref := refs[name]
-		value, ok := os.LookupEnv(ref)
-		if !ok || value == "" {
-			return nil, nil, fmt.Errorf("adapter credential environment variable %s is not set", ref)
+		source := credentials.Source{Env: ref}
+		raw, err := source.Resolve(credentials.Store{})
+		if err != nil {
+			return nil, nil, fmt.Errorf("adapter credential environment variable %s is unavailable", ref)
 		}
+		value := string(raw)
 		env = append(env, name+"="+value)
 		secrets = append(secrets, value)
 	}

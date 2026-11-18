@@ -79,3 +79,25 @@ func TestStartMCPKeepsServerAliveAfterLauncherCancels(t *testing.T) {
 		t.Fatalf("unexpected reply: %s", out)
 	}
 }
+
+func TestConnectedStdioMCPRejectsChangedCredentialSource(t *testing.T) {
+	t.Setenv(mcpHelperEnv, "1")
+	t.Setenv("GEKTOR_MCP_SOURCE_TEST", "original-private-value")
+	refs := map[string]string{"MCP_AUTH": "GEKTOR_MCP_SOURCE_TEST"}
+	_, session, err := startMCP(t.Context(), "helper", t.TempDir(), refs, os.Args[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	refs["MCP_AUTH"] = "caller-mutation"
+	err = session.Call(t.Context(), "tools/call", map[string]any{"name": "echo", "arguments": map[string]string{"text": "ping"}}, nil)
+	if err != nil {
+		t.Fatal("valid session rejected", err)
+	}
+
+	t.Setenv("GEKTOR_MCP_SOURCE_TEST", "rotated-private-value")
+	err = session.Call(t.Context(), "tools/call", map[string]any{"name": "echo", "arguments": map[string]string{"text": "ping"}}, nil)
+	if err == nil || !strings.Contains(err.Error(), "reconnect") || strings.Contains(err.Error(), "private-value") {
+		t.Fatal("changed credential accepted or leaked", err)
+	}
+}

@@ -60,7 +60,8 @@ func (s Store) Resolve(id, endpoint, header string) (string, error) {
 	}
 
 	store := secrets.Store{Directory: s.Directory}
-	raw, e := store.Resolve(id)
+	source := secrets.Source{Reference: id}
+	raw, e := source.Resolve(store)
 	if e != nil {
 		return "", e
 	}
@@ -75,4 +76,9 @@ func (s Store) Resolve(id, endpoint, header string) (string, error) {
 func (s Store) Delete(id string) error {
 	store := secrets.Store{Directory: s.Directory}
 	return store.Delete(id)
+}
+
+func (s Store) Revoke(id string) error {
+	store := secrets.Store{Directory: s.Directory}
+	return store.Revoke(id)
 }

@@ -21,3 +21,38 @@ func Environment(name string) (string, error) {
 	}
 	return secret, nil
 }
+
+// Source selects one live environment value or protected stored value.
+type Source struct {
+	Env       string `json:"env,omitempty"`
+	Reference string `json:"reference,omitempty"`
+}
+
+func (s Source) Validate() error {
+	if (s.Env == "") == (s.Reference == "") {
+		return fmt.Errorf("credential requires exactly one environment or stored reference")
+	}
+	if s.Env != "" && !ValidEnvironment(s.Env) {
+		return fmt.Errorf("invalid credential environment name")
+	}
+	if s.Reference != "" && !ValidReference(s.Reference) {
+		return fmt.Errorf("invalid credential reference")
+	}
+	return nil
+}
+
+// Resolve returns caller-owned bytes; the source never retains a resolved value.
+func (s Source) Resolve(store Store) ([]byte, error) {
+	err := s.Validate()
+	if err != nil {
+		return nil, err
+	}
+	if s.Reference != "" {
+		return store.Resolve(s.Reference)
+	}
+	value, err := Environment(s.Env)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(value), nil
+}

@@ -39,6 +39,16 @@ func (s Store) Put(value []byte) (string, error) {
 		return "", err
 	}
 	name := hex.EncodeToString(id[:])
+
+	revocations := Revocations{Directory: filepath.Join(s.Directory, "revoked")}
+	revoked, err := revocations.Revoked(name)
+	if err != nil {
+		return "", err
+	}
+	if revoked {
+		return "", fmt.Errorf("credential reference is revoked")
+	}
+
 	path := filepath.Join(s.Directory, name)
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
@@ -64,6 +74,12 @@ func (s Store) Resolve(id string) ([]byte, error) {
 	if !ValidReference(id) {
 		return nil, fmt.Errorf("invalid credential reference")
 	}
+	revocations := Revocations{Directory: filepath.Join(s.Directory, "revoked")}
+	revoked, err := revocations.Revoked(id)
+	if err != nil || revoked {
+		return nil, fmt.Errorf("credential reference unavailable or revoked")
+	}
+
 	file, err := os.Open(filepath.Join(s.Directory, id))
 	if err != nil {
 		return nil, fmt.Errorf("credential unavailable")
@@ -77,6 +93,11 @@ func (s Store) Resolve(id string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot unlock credential")
 	}
+
+	revoked, err = revocations.Revoked(id)
+	if err != nil || revoked {
+		return nil, fmt.Errorf("credential reference unavailable or revoked")
+	}
 	return raw, nil
 }
 
@@ -89,4 +110,24 @@ func (s Store) Delete(id string) error {
 		return nil
 	}
 	return err
+}
+
+// Revoke disables future resolution; already-resolved credentials remain with their callers.
+func (s Store) Revoke(id string) error {
+	if !ValidReference(id) {
+		return fmt.Errorf("invalid credential reference")
+	}
+	revocations := Revocations{Directory: filepath.Join(s.Directory, "revoked")}
+	revoked, err := revocations.Revoked(id)
+	if err != nil {
+		return err
+	}
+	if revoked {
+		return nil
+	}
+	_, err = os.Stat(filepath.Join(s.Directory, id))
+	if err != nil {
+		return fmt.Errorf("credential unavailable")
+	}
+	return revocations.Revoke(id)
 }

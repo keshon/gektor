@@ -152,7 +152,8 @@ The resulting profile uses `password_ref` instead of `password_env`, or
 `passphrase_ref` instead of `passphrase_env`. A profile must select exactly one
 password source or a private key, and at most one passphrase source for that key.
 An environment reference is always an environment reference; it is never
-reinterpreted as a saved ID. Missing/deleted credentials fail when connecting.
+reinterpreted as a saved ID. Missing, deleted or revoked stored credentials fail
+when connecting.
 Saved password IDs cannot be used as key-passphrase IDs, or vice versa.
 
 Encrypted values live under `~/.gektor/credentials/ssh/`; `ssh.json` contains only
@@ -757,7 +758,8 @@ KoboldCpp supports a stringified schema in the grammar field from
 ## HTTP requests
 
 `http_request` accepts a public HTTP(S) URL, method (default GET), optional JSON
-body, `Accept`/`Content-Type` headers, a named credential and a 1–120 second
+body, `Accept`/`Content-Type` headers, a named credential with its required
+`credential_revision`, and a 1–120 second
 `timeout_seconds` (default 30). Redirects are not followed. Non-2xx statuses fail
 the step with a bounded response retained for inspection. Set
 `"status_as_data": true` to return those statuses as ordinary results so later
@@ -779,7 +781,9 @@ without publishing anything.
 It shares URL and DNS validation with native network tools: private destinations,
 loopback and environment proxies are excluded. Resolved addresses are checked
 before dialing. Each request requires permission for `METHOD URL`; credentials
-require a second permission for their name and origin. Secrets are loaded only
+require a second permission for their name, origin and binding revision. See
+[credential commands](cli.md#workflow-credential-references) for inspection and
+revocation. Secrets are loaded only
 after authorization and are redacted from response/error text when echoed
 verbatim. Never put secrets in recipe URLs, bodies or ordinary arguments.
 

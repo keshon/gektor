@@ -171,3 +171,12 @@ have native codes. Process diagnostics must save successfully before routing.
 Model structured-output validation, profile resolution, HTTP destination denials,
 artifact/store errors and cancellation stop immediately. Process/model nodes still
 forbid automatic retries. Error routes do not authorize retries.
+
+HTTP authentication uses a named `credential` plus its required
+`credential_revision`. Obtain the non-secret fingerprint from the operator's
+`workflow inspect-credential <name>` output. Do not invent a revision or put
+secrets/environment values in recipes. A binding change requires selecting the
+new revision and authorizing its permission target again; revoked names stop.
+The current secret resolves at dispatch, including after reviews/waits. Stored
+secrets are DPAPI-protected on Windows and owner-only files on Unix. Credential
+registration, inspection and revocation are operator CLI actions, not agent tools.

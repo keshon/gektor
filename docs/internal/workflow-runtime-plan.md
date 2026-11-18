@@ -5,9 +5,10 @@ Branch: `codex/workflow-runtime-v4`.
 
 ## Start here: current handoff — 2026-11-18
 
-Continue on `codex/workflow-runtime-v4`. The last pushed checkpoint is `1152d75`
-(error routes and finalizers). Selective retries are committed locally as
-`9622fe3`. Native-node failure classification is implemented in the working tree.
+Continue on `codex/workflow-runtime-v4`. Selective retries (`9622fe3`) and native
+failure classification (`399a177`) are committed and pushed. The first stage 5
+slice (pinned/revocable HTTP bindings) and shared SSH/MCP source/session
+lifecycle checks are in the working tree.
 Older "next" paragraphs below are historical and superseded by this section.
 
 ### Completed and pushed
@@ -158,7 +159,7 @@ checks pass. No model or remote-provider test was needed for this policy.
 
 ### Native failure classification checkpoint - 2026-11-18
 
-Implemented in the working tree. Process nonzero exits and output overflow now
+Committed as `399a177`. Process nonzero exits and output overflow now
 carry `process_exit` / `process_output_too_large` only after both diagnostic
 artifacts save. Joined artifact/encoding errors remain plain immediate stops.
 Startup, supervision, local timeout and parent cancellation errors do not route.
@@ -188,8 +189,84 @@ Verification: the full source-scoped test suite passes. Affected native nodes an
 HTTP transport pass race checks; source-scoped vet, a CGO-free build, documentation
 checks and diff whitespace checks also pass. No remote provider was contacted.
 
-Next: stage 5 named connections and credentials; inspect existing credential
-ownership before extending it.
+### Stage 5 first slice: pinned HTTP credential bindings - 2026-11-18
+
+Shared `internal/credentials.Source` selects exactly one environment or protected
+stored reference and resolves live bytes. HTTP bindings retain origin/header
+ownership in `internal/workflow/credentials`; SSH and MCP retain theirs. No
+universal connection registry, OAuth framework or duplicate secret store was added.
+
+HTTP metadata inspection returns a SHA-256 binding fingerprint, source kind,
+protection and revocation status, without secret/environment/reference values.
+Registration remains create-only. Protected stdin registration cleans the secret
+file if binding registration fails. Binding metadata is bounded and strictly
+decoded. Revoke creates a durable name tombstone; repeats are harmless, and the
+name cannot be reused through this API. Already-resolved requests can finish.
+
+HTTP args now require credential_revision whenever credential is present. The
+permission resource includes the fingerprint. Resolution checks the pinned
+binding, exact origin and revocation before reading the secret, then rechecks the
+binding before returning it. Environment value rotation does not change metadata;
+changing its source/origin/header/prefix does. Old unpinned authenticated recipes
+must add a revision; there is no alternate unpinned execution path.
+
+CLI operator actions are register-credential (-env or -secret-stdin),
+inspect-credential and revoke-credential. Unix protection is explicitly owner-only
+files, not encryption; Windows uses DPAPI. Recipes/checkpoints contain neither
+secret bytes nor raw opaque references. No new agent tool/schema count was added.
+
+Tests cover source selection, live rotation, stale/missing pins, immutable names,
+revocation, protected value cleanup, malformed metadata, safe CLI output and
+real service/store review continuation. The latter proves rotation succeeds,
+rebind/revoke sends no request, and credential errors dispatch no error branch or
+finalizer. Permission resources include the pinned revision.
+
+Verification: source-scoped package tests pass, with the CLI flag documentation
+convention rechecked after correcting its descriptions. Shared/HTTP credential
+and HTTP-node race checks, source-scoped vet, a CGO-free build, Markdown checks
+and diff whitespace checks pass. Tests use isolated stores and a local fake HTTP
+transport; no personal credential files or remote services were used.
+
+### Shared secret lifecycle checkpoint - 2026-11-18
+
+Implemented in the working tree alongside HTTP bindings. Environment/stored source
+selection now passes through internal/credentials.Source for HTTP, SSH, MCP stored
+headers and adapter environment references. Stored HTTP values also carry a
+purpose/origin/header envelope, checked by the HTTP owner after shared resolution;
+a reference swap cannot redirect that secret to another origin or header. Protocol owners still enforce SSH
+purpose/encryption and MCP origin/header checks. SSH still requires DPAPI for
+stored passwords/passphrases; this does not introduce a Unix plaintext fallback.
+
+A small shared Revocations store persists permanent markers in caller-selected
+namespaces. Opaque Store.Revoke disables future resolution and checks again after
+decryption; Delete does not remove revocation history. HTTP name tombstones now
+live in credentials/http-revoked; opaque reference markers live in each protected
+store's revoked subdirectory. No released data migration or credential deletion
+is performed. This API is store-level; there is no new SSH/MCP operator command.
+
+MCP sessions retain connection-time secrets, so per-call checks compare their live
+references against the captured values before transport dispatch. HTTP sessions
+reject revoked/deleted stored references; stdio sessions reject missing/changed
+environment sources. Changed values require an explicit reconnect, with no tool
+replay. Existing calls and session-close cleanup can finish. Header/reference maps
+are copied before retaining the check. There is one private check owned by each
+session; no common connection manager or extra worker pool was added.
+
+Tests exercise shared revocation across reopened stores, retained tombstones after
+delete, MCP purpose/origin checks, actual SSH authentication before source
+revocation, a connected TLS MCP session blocked before its next tool request, and
+a real stdio child requiring reconnect after environment rotation. They preserve
+current SSH immutable profile snapshots and protocol redaction. Existing SSH/MCP credential IDs and payload formats remain unchanged. The new,
+unreleased HTTP stored-secret format is purpose/origin/header-bound.
+
+Verification: full source-scoped tests pass. Affected shared/HTTP/SSH/MCP
+credential and adapter race checks pass, including the final HTTP binding tests.
+Source-scoped vet, CGO-free build, Markdown and whitespace checks pass. All stores,
+SSH servers, TLS MCP endpoints and stdio children in tests are isolated fixtures.
+
+Next: continue stage 5 with named SSH/MCP binding revisions, revocation controls
+and execution-time pins. Current source revocation is not named-connection
+revocation. HTTP binding updates/connection UI and OAuth remain unfinished.
 Authoring UI support remains a separate follow-up. Named connections and
 credentials are stage 5; richer HTTP operations are stage 6. Concurrent jobs, concurrent child
 calls and their shared scheduler remain later work. Keyed joins and the broader

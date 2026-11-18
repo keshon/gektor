@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -16,20 +17,24 @@ import (
 	"github.com/keshon/gektor/internal/workflow/credentials"
 )
 
-type Resolver func(name, origin string) (header, value, secret string, err error)
+type Resolver func(name, origin, revision string) (header, value, secret string, err error)
+
+var revisions = regexp.MustCompile(`^[a-f0-9]{64}$`)
+
 type input struct {
-	URL          string            `json:"url"`
-	Method       string            `json:"method"`
-	Headers      map[string]string `json:"headers"`
-	Body         json.RawMessage   `json:"body"`
-	Credential   string            `json:"credential"`
-	Timeout      int               `json:"timeout_seconds"`
-	StatusAsData bool              `json:"status_as_data"`
+	URL                string            `json:"url"`
+	Method             string            `json:"method"`
+	Headers            map[string]string `json:"headers"`
+	Body               json.RawMessage   `json:"body"`
+	CredentialRevision string            `json:"credential_revision"`
+	Credential         string            `json:"credential"`
+	Timeout            int               `json:"timeout_seconds"`
+	StatusAsData       bool              `json:"status_as_data"`
 }
 
 func Definition(resolve Resolver) workflow.Node { return definition(resolve, nil) }
 func definition(resolve Resolver, transport http.RoundTripper) workflow.Node {
-	schema := json.RawMessage(`{"type":"object","properties":{"url":{"type":"string","minLength":1},"method":{"type":"string","enum":["GET","POST","PUT","PATCH","DELETE","HEAD"]},"headers":{"type":"object","properties":{"Accept":{"type":"string"},"Content-Type":{"type":"string"}},"additionalProperties":false},"body":{},"credential":{"type":"string","pattern":"^[a-zA-Z0-9_-]{1,64}$"},"timeout_seconds":{"type":"integer","minimum":1,"maximum":120},"status_as_data":{"type":"boolean"}},"required":["url"],"additionalProperties":false}`)
+	schema := json.RawMessage(`{"type":"object","properties":{"url":{"type":"string","minLength":1},"method":{"type":"string","enum":["GET","POST","PUT","PATCH","DELETE","HEAD"]},"headers":{"type":"object","properties":{"Accept":{"type":"string"},"Content-Type":{"type":"string"}},"additionalProperties":false},"body":{},"credential":{"type":"string","pattern":"^[a-zA-Z0-9_-]{1,64}$"},"credential_revision":{"type":"string","pattern":"^[a-f0-9]{64}$"},"timeout_seconds":{"type":"integer","minimum":1,"maximum":120},"status_as_data":{"type":"boolean"}},"required":["url"],"dependentRequired":{"credential":["credential_revision"],"credential_revision":["credential"]},"additionalProperties":false}`)
 	parse := func(raw json.RawMessage) (input, error) {
 		var in input
 		if err := json.Unmarshal(raw, &in); err != nil {
@@ -46,7 +51,13 @@ func definition(resolve Resolver, transport http.RoundTripper) workflow.Node {
 			return in, err
 		}
 
+		if in.Credential == "" && in.CredentialRevision != "" {
+			return in, fmt.Errorf("credential_revision requires a credential")
+		}
 		if in.Credential != "" {
+			if !revisions.MatchString(in.CredentialRevision) {
+				return in, fmt.Errorf("credential requires a 64-character binding revision from inspect-credential")
+			}
 			_, err = credentials.Origin(in.URL)
 		}
 
@@ -56,7 +67,7 @@ func definition(resolve Resolver, transport http.RoundTripper) workflow.Node {
 		Name:         "http_request",
 		Concurrent:   true,
 		Version:      1,
-		Description:  "One public HTTP request with explicit method, JSON body and optional origin-bound credential reference. No redirects or automatic retries. Returns status_code, selected response headers, body and parsed JSON data. status_as_data returns non-2xx responses without failing; network and response-read errors still fail.",
+		Description:  "One public HTTP request with explicit method, JSON body and optional origin-bound credential and credential_revision from inspect-credential. No redirects or automatic retries. Returns status_code, selected response headers, body and parsed JSON data. status_as_data returns non-2xx responses without failing; network and response-read errors still fail.",
 		InputSchema:  schema,
 		OutputSchema: json.RawMessage(`{"type":"object","properties":{"status_code":{"type":"integer"},"headers":{"type":"object","additionalProperties":{"type":"string"}},"body":{"type":"string"},"data":{}},"required":["status_code","headers","body"]}`),
 		Validate:     func(raw json.RawMessage) error { _, err := parse(raw); return err },
@@ -69,7 +80,7 @@ func definition(resolve Resolver, transport http.RoundTripper) workflow.Node {
 			resources := []string{in.Method + " " + in.URL}
 			if in.Credential != "" {
 				origin, _ := credentials.Origin(in.URL)
-				resources = append(resources, "credential:"+in.Credential+"@"+origin)
+				resources = append(resources, "credential:"+in.Credential+"@"+origin+"#"+in.CredentialRevision)
 			}
 
 			return resources, nil
@@ -106,7 +117,7 @@ func definition(resolve Resolver, transport http.RoundTripper) workflow.Node {
 					return "", fmt.Errorf("credential resolver unavailable")
 				}
 
-				header, value, s, e := resolve(in.Credential, in.URL)
+				header, value, s, e := resolve(in.Credential, in.URL, in.CredentialRevision)
 				if e != nil {
 					return "", e
 				}

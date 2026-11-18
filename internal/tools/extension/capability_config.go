@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -233,8 +234,10 @@ func BuildCapabilities(config CapabilityConfig, dir string) ([]*Capability, func
 					credentialDir = userdirs.Sub("credentials")
 				}
 				headers := map[string]string{}
-				for name, ref := range pack.HeaderRefs {
-					value, e := (credentials.Store{Directory: credentialDir}).Resolve(ref, pack.URL, name)
+				refs := maps.Clone(pack.HeaderRefs)
+				store := credentials.Store{Directory: credentialDir}
+				for name, ref := range refs {
+					value, e := store.Resolve(ref, pack.URL, name)
 					if e != nil {
 						return nil, e
 					}
@@ -242,6 +245,7 @@ func BuildCapabilities(config CapabilityConfig, dir string) ([]*Capability, func
 				}
 				tools, client, err = StartMCPHTTPWithHeaders(ctx, pack.ID, pack.URL, headers)
 				if err == nil {
+					client.bindHeaders(store, pack.URL, refs, headers)
 					conn.close = client.Close
 				}
 			} else {

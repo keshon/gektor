@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/keshon/gektor/internal/agent"
 	"github.com/keshon/gektor/internal/mcp"
+	"github.com/keshon/gektor/internal/mcpmanager/credentials"
 	tooloutput "github.com/keshon/gektor/internal/tools/output"
 )
 
@@ -21,10 +24,22 @@ type mcpConnection interface {
 type Session struct {
 	transport mcpConnection
 	secrets   []string
+	// credentialCheck rejects stale credentials before transport calls.
+	credentialCheck func() error
 }
 
 func (s *Session) Call(ctx context.Context, method string, params any, out any) error {
-	err := s.transport.Call(ctx, method, params, out)
+	err := ctx.Err()
+	if err != nil {
+		return err
+	}
+	if s.credentialCheck != nil {
+		err = s.credentialCheck()
+		if err != nil {
+			return err
+		}
+	}
+	err = s.transport.Call(ctx, method, params, out)
 	return redactCredentialError(err, s.secrets)
 }
 
@@ -37,6 +52,7 @@ func StartMCP(ctx context.Context, server, dir, command string, args ...string) 
 }
 
 func startMCP(ctx context.Context, server, dir string, refs map[string]string, command string, args ...string) ([]agent.Tool, *Session, error) {
+	refs = maps.Clone(refs)
 	env, secrets, err := adapterEnv(refs)
 	if err != nil {
 		return nil, nil, err
@@ -65,6 +81,18 @@ func startMCP(ctx context.Context, server, dir string, refs map[string]string, c
 	}
 
 	session := &Session{transport: transport, secrets: secrets}
+	if len(refs) > 0 {
+		session.credentialCheck = func() error {
+			_, current, err := adapterEnv(refs)
+			if err != nil {
+				return fmt.Errorf("MCP credentials unavailable")
+			}
+			if !slices.Equal(current, secrets) {
+				return fmt.Errorf("MCP credentials changed; reconnect")
+			}
+			return nil
+		}
+	}
 	list := adaptMCPTools(server, session, defs, secrets)
 	return list, session, nil
 }
@@ -99,4 +127,25 @@ func StartBrowserMCP(ctx context.Context, dir, command string, args ...string) (
 		tool.(*MCPTool).browserWorkspace = dir
 	}
 	return list, session, nil
+}
+
+// bindHeaders snapshots the references and values before tools expose this session.
+func (s *Session) bindHeaders(store credentials.Store, origin string, refs, headers map[string]string) {
+	refs = maps.Clone(refs)
+	headers = maps.Clone(headers)
+	if len(refs) == 0 {
+		return
+	}
+	s.credentialCheck = func() error {
+		for name, ref := range refs {
+			current, err := store.Resolve(ref, origin, name)
+			if err != nil {
+				return fmt.Errorf("MCP credentials unavailable")
+			}
+			if current != headers[name] {
+				return fmt.Errorf("MCP credentials changed; reconnect")
+			}
+		}
+		return nil
+	}
 }

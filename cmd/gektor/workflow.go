@@ -18,13 +18,12 @@ import (
 	"github.com/keshon/gektor/internal/userdirs"
 	workflowcore "github.com/keshon/gektor/internal/workflow"
 	workflow "github.com/keshon/gektor/internal/workflow/agenttools"
-	"github.com/keshon/gektor/internal/workflow/credentials"
 	"github.com/keshon/gektor/internal/workflow/script"
 	"github.com/keshon/gektor/internal/workflow/store"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
-const workflowUsage = "usage: gektor workflow schema | artifacts|export-artifact|prune-artifacts [flags] [arguments] | submit|serve|jobs|job|cancel|schedule|schedules|pause|resume|unschedule|review|recover [flags] [arguments] | draft <recipe.json> [agent flags] <task> | validate|run [flags] <recipe.json> | runs [-workspace dir] | inspect [-workspace dir] <run-id> | record [-workspace dir] <kind> <id> | register-schema [-workspace dir] <kind> <schema.json>"
+const workflowUsage = "usage: gektor workflow schema | register-credential|inspect-credential|revoke-credential [flags] <name> | artifacts|export-artifact|prune-artifacts [flags] [arguments] | submit|serve|jobs|job|cancel|schedule|schedules|pause|resume|unschedule|review|recover [flags] [arguments] | draft <recipe.json> [agent flags] <task> | validate|run [flags] <recipe.json> | runs [-workspace dir] | inspect [-workspace dir] <run-id> | record [-workspace dir] <kind> <id> | register-schema [-workspace dir] <kind> <schema.json>"
 
 func runWorkflow(args []string) error {
 	if len(args) == 0 {
@@ -36,20 +35,11 @@ func runWorkflow(args []string) error {
 	if args[0] == "internal-script-worker" {
 		return script.Serve(os.Stdin, os.Stdout)
 	}
-	if args[0] == "register-credential" {
-		f := flag.NewFlagSet("workflow register-credential", flag.ContinueOnError)
-		origin := f.String("origin", "", "exact HTTPS origin permitted to receive this credential")
-		env := f.String("env", "", "environment variable containing the secret")
-		header := f.String("header", "Authorization", "Authorization or X-API-Key")
-		prefix := f.String("prefix", "Bearer ", "credential header prefix; use an empty prefix for API keys")
-		if err := f.Parse(args[1:]); err != nil {
-			return err
-		}
-		if f.NArg() != 1 {
-			return fmt.Errorf("register-credential requires one name")
-		}
-		return (credentials.Store{Directory: userdirs.Sub("credentials")}).Register(f.Arg(0), credentials.Config{Origin: *origin, Env: *env, Header: *header, Prefix: *prefix})
+	switch args[0] {
+	case "register-credential", "inspect-credential", "revoke-credential":
+		return workflowCredentials(args, os.Stdin, os.Stdout, userdirs.Sub("credentials"))
 	}
+
 	if args[0] == "draft" {
 		o, err := workflowDraftOptions(args[1:])
 		if errors.Is(err, flag.ErrHelp) {

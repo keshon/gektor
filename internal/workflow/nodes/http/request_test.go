@@ -14,12 +14,14 @@ import (
 	"github.com/keshon/gektor/internal/workflow"
 )
 
+const testRevision = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
 type transportFunc func(*http.Request) (*http.Response, error)
 
 func (f transportFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 func TestHTTPResourcesRedactionAndNoRedirect(t *testing.T) {
 	calls := 0
-	n := definition(func(name, origin string) (string, string, string, error) {
+	n := definition(func(name, origin, revision string) (string, string, string, error) {
 		if name != "api" || origin != "https://api.example.com/items" {
 			t.Fatal(name, origin)
 		}
@@ -31,9 +33,9 @@ func TestHTTPResourcesRedactionAndNoRedirect(t *testing.T) {
 		}
 		return &http.Response{StatusCode: 302, Header: http.Header{"Location": []string{"https://evil.example.com"}}, Body: io.NopCloser(strings.NewReader(`{"echo":"token-secret"}`)), Request: req}, nil
 	}))
-	args := json.RawMessage(`{"url":"https://api.example.com/items","credential":"api"}`)
+	args := json.RawMessage(`{"url":"https://api.example.com/items","credential":"api","credential_revision":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`)
 	resources, err := n.Resources(args)
-	if err != nil || len(resources) != 2 || resources[0] != "GET https://api.example.com/items" || resources[1] != "credential:api@https://api.example.com" {
+	if err != nil || len(resources) != 2 || resources[0] != "GET https://api.example.com/items" || resources[1] != "credential:api@https://api.example.com#"+testRevision {
 		t.Fatal(resources, err)
 	}
 	out, err := n.Execute(t.Context(), args)
@@ -47,7 +49,7 @@ func TestHTTPStatusAsDataAndSelectedHeaders(t *testing.T) {
 		for _, asData := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%d/as_data=%t", status, asData), func(t *testing.T) {
 				calls := 0
-				n := definition(func(string, string) (string, string, string, error) {
+				n := definition(func(string, string, string) (string, string, string, error) {
 					return "Authorization", "Bearer fixture-secret", "fixture-secret", nil
 				}, transportFunc(func(r *http.Request) (*http.Response, error) {
 					calls++
@@ -61,7 +63,7 @@ func TestHTTPStatusAsDataAndSelectedHeaders(t *testing.T) {
 					headers.Set("Location", "https://other.example.com")
 					return &http.Response{StatusCode: status, Header: headers, Body: io.NopCloser(strings.NewReader(`{"message":"fixture-secret"}`)), Request: r}, nil
 				}))
-				raw := json.RawMessage(fmt.Sprintf(`{"url":"https://api.example.com/items","credential":"api","status_as_data":%t}`, asData))
+				raw := json.RawMessage(fmt.Sprintf(`{"url":"https://api.example.com/items","credential":"api","credential_revision":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","status_as_data":%t}`, asData))
 				if err := workflow.ValidateJSON(raw, n.InputSchema); err != nil {
 					t.Fatal(err)
 				}
@@ -167,11 +169,11 @@ func TestHTTPFailureClassificationPreservesStopsAndRedaction(t *testing.T) {
 		{name: "deadline", cause: context.DeadlineExceeded},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			node := definition(func(string, string) (string, string, string, error) {
+			node := definition(func(string, string, string) (string, string, string, error) {
 				return "Authorization", "Bearer fixture-secret", "fixture-secret", nil
 			}, transportFunc(func(*http.Request) (*http.Response, error) { return nil, tc.cause }))
 
-			_, err := node.Execute(t.Context(), json.RawMessage(`{"url":"https://api.example.com","credential":"api"}`))
+			_, err := node.Execute(t.Context(), json.RawMessage(`{"url":"https://api.example.com","credential":"api","credential_revision":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`))
 			if err == nil || strings.Contains(err.Error(), "fixture-secret") {
 				t.Fatal("missing or unredacted error", err)
 			}

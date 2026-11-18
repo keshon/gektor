@@ -220,8 +220,11 @@ For subprocess credentials, use references rather than values:
 
 The destination variable is provided only to that adapter. References resolve
 when an executable runs or an MCP process connects; missing values fail that
-operation. MCP restarts reuse its connection's resolved environment. Restart
-the host to rotate credentials. HTTP MCP packs do not accept `env_refs`; use `header_refs` created by the
+operation. MCP restarts reuse their connection's resolved environment. Each tool
+call first checks that its credential references still resolve to the connection's
+values. A missing/revoked source stops the call; a changed value requires a
+reconnect (or host restart). A running call is not cancelled by later revocation.
+HTTP MCP packs do not accept `env_refs`; use `header_refs` created by the
 MCP manager for HTTP credentials. Executable and stdio MCP processes both use
 the native scrubbed environment plus explicit references. Known credential
 values are redacted from returned text and errors; adapters must still avoid

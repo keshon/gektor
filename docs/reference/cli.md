@@ -319,19 +319,44 @@ approve their own runs. Reject a waiting run through this command rather than `c
 ## Workflow credential references
 
 `workflow register-credential -origin https://api.example.com -env EXAMPLE_TOKEN
--header Authorization -prefix "Bearer " example` registers a named reference.
-`-origin` pins the exact HTTPS origin. `-env` names the environment variable read
-at execution time. `-header` accepts `Authorization` or `X-API-Key`; `-prefix`
-defaults to `Bearer ` (pass an empty string for an API key). The name is the final
-argument. Registration refuses to overwrite an existing entry.
+-header Authorization -prefix "Bearer " example` registers a named HTTP binding.
+The final argument is the name. `-origin` pins an exact HTTPS origin; `-header`
+accepts `Authorization` or `X-API-Key`. `-prefix` defaults to `Bearer ` (use an
+empty prefix for an API key). Registration refuses to overwrite an existing entry.
 
-Only metadata is saved in `~/.gektor/credentials/<name>.json`; the secret stays in
-the environment of the executing process. A running service must already have
-that variable. Recipes use `"credential":"example"`. Permission checks cover
-both `METHOD URL` and `credential:example@https://api.example.com` under the
-`http_request` tool name. An origin mismatch fails before sending the request.
+Use `-secret-stdin` instead of `-env` to store a secret in the shared protected
+store. Input is at most 8 KiB, with one optional trailing newline. Secrets cannot
+contain embedded CR/LF. Do not pass a secret as a command argument. Stored values
+use Windows DPAPI on Windows; Unix uses owner-only files, without encryption.
 
+Registration and `workflow inspect-credential <name>` return non-secret JSON:
+name, origin, header, prefix, source, protection, revocation status and binding
+revision. They never return the environment name, opaque reference or secret.
+`workflow revoke-credential <name>` permanently disables the name. It is
+idempotent and does not delete the secret or cancel requests already resolved.
+Use a new name for a replacement binding; no update/unrevoke command exists.
 
+Recipes supply both `"credential":"example"` and `"credential_revision":"<revision>"`.
+The revision is a SHA-256 fingerprint of the validated binding metadata, including
+its secret source reference. Whitespace/formatting changes do not change it.
+Changing the origin, header, prefix or source changes the revision. The secret
+value is not fingerprinted: environment rotation keeps the same binding, and
+the executing process resolves its current value immediately before the request.
+A running service must already have that environment variable.
+
+Permission checks cover both `METHOD URL` and
+`credential:example@https://api.example.com#<revision>` under `http_request`.
+A missing/stale revision, origin mismatch or revoked binding stops before network
+dispatch, including after a review or wait. Update and reauthorize the recipe
+when selecting a changed binding. Existing authenticated recipes need the revision
+field; unpinned credential references are rejected. Public requests need neither
+credential field.
+
+The HTTP binding metadata stays in `~/.gektor/credentials/<name>.json`. Stored
+secret bytes live separately behind opaque references, with an HTTP purpose,
+origin and header binding checked at resolution. Revocation uses a durable
+`http-revoked/<name>.revoked` marker. Local filesystem edits/removing markers are outside this
+operator API; the store does not defend against the owning OS account.
 
 ## Workflow artifacts
 

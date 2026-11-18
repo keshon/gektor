@@ -23,8 +23,10 @@ type storedSecret struct {
 }
 
 func resolveSecret(store credentials.Store, env, ref string, kind SecretKind) (string, error) {
+	source := credentials.Source{Env: env, Reference: ref}
 	if ref == "" {
-		return credentials.Environment(env)
+		raw, err := source.Resolve(store)
+		return string(raw), err
 	}
 	if !credentials.Encrypted() {
 		return "", fmt.Errorf("encrypted SSH credential storage is unavailable")
@@ -32,7 +34,7 @@ func resolveSecret(store credentials.Store, env, ref string, kind SecretKind) (s
 	if store.Directory == "" {
 		return "", fmt.Errorf("SSH credential store is unavailable")
 	}
-	raw, err := store.Resolve(ref)
+	raw, err := source.Resolve(store)
 	if err != nil {
 		return "", err
 	}

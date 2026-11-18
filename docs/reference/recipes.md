@@ -263,6 +263,12 @@ process supervision errors and timeouts are not classified as operation failures
 Model profile resolution, request limits and structured-output validation also
 remain immediate stops. A provider error, incomplete generation or oversized
 response is routable, but model/process nodes still forbid automatic retries.
+Authenticated HTTP requests require both `credential` and `credential_revision`.
+Use the non-secret revision from `workflow inspect-credential <name>`; it pins
+the origin/header/source binding while resolving the current secret at dispatch.
+Revocation or metadata drift stops before the request, even after review/waits.
+See [credential commands](cli.md#workflow-credential-references).
+
 HTTP URL/DNS destination policy denials remain immediate stops. Context
 cancellation and deadline errors retain their identity through HTTP redaction.
 
