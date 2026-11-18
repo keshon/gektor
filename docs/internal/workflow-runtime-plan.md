@@ -133,8 +133,31 @@ callback expiry and recovery between leaf and parent checkpoints. The shipped
 `examples/workflows/error-routing` fixture runs through the real CLI and isolated
 script worker, producing failure/finalization artifacts without a model.
 
-Next: selective retry policy for explicit operation codes, without automatically
-retrying uncertain effects or bypassing a node's RetrySafe contract. Broader
+### Selective retry checkpoint — 2026-11-18
+
+This commit adds optional `retry.codes` filters exact typed
+operation failure codes. Omitted or empty codes preserves the existing policy.
+The handler validates at most 32 unique, nonblank codes of 1–64 bytes without
+surrounding whitespace. Unknown codes simply do not match. Existing RetrySafe,
+attempt/delay limits and per-attempt permission/output checks remain in force.
+Calls and waits still cannot retry. No interrupted effect is automatically replayed.
+
+Attempts retain typed failure metadata, including failures before a later success.
+Context cancellation/deadline errors never qualify, even inside ExecutionError.
+Cancellation observed after the outcome checkpoint returns the context error;
+checkpoint failures stop before another attempt. Error routes see only the final
+settled failure, after exhaustion or a nonmatching code.
+
+Tests cover matching/nonmatching/default/omitted codes, persisted attempt metadata,
+unsafe nodes, invalid code lists, eventual success, cancellation and failed outcome
+checkpoints. The recipe reference and builtin authoring skill describe the policy.
+
+Verification: the full source-scoped test suite, engine/service race tests,
+source-scoped vet, a CGO-free build, 45-probe eval dry-run and documentation
+checks pass. No model or remote-provider test was needed for this policy.
+
+Next: review native-node failure classification before extending provider behavior.
+Broader
 native-node failure classification and authoring UI support remain explicit
 follow-ups, not implied by this slice. Named connections and credentials are
 stage 5; richer HTTP operations are stage 6. Concurrent jobs, concurrent child

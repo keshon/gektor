@@ -6,6 +6,7 @@ import (
 )
 
 type Attempt struct {
+	Failure  *Failure   `json:"failure,omitempty"`
 	Number   int        `json:"number"`
 	Started  time.Time  `json:"started"`
 	Finished *time.Time `json:"finished,omitempty"`

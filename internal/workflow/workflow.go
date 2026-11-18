@@ -65,8 +65,9 @@ type RepeatPolicy struct {
 }
 
 type RetryPolicy struct {
-	MaxAttempts int `json:"max_attempts"`
-	DelayMS     int `json:"delay_ms,omitempty"`
+	Codes       []string `json:"codes,omitempty"`
+	MaxAttempts int      `json:"max_attempts"`
+	DelayMS     int      `json:"delay_ms,omitempty"`
 }
 type Handler interface {
 	Validate(Step) error

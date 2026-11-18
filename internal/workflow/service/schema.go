@@ -17,6 +17,13 @@ func (s Service) DefinitionSchema() json.RawMessage {
 	retry := map[string]any{
 		"type": "object",
 		"properties": map[string]any{
+			"codes": map[string]any{
+				"type":        "array",
+				"maxItems":    32,
+				"uniqueItems": true,
+				"items":       map[string]any{"type": "string", "minLength": 1, "maxLength": 64},
+				"description": "Exact operation failure codes eligible for retry. Omit or leave empty to retry any typed operation failure. RetrySafe and attempt limits still apply.",
+			},
 			"max_attempts": map[string]any{"type": "integer", "minimum": 1, "maximum": 3},
 			"delay_ms":     map[string]any{"type": "integer", "minimum": 0, "maximum": 10000},
 		},

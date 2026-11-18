@@ -85,7 +85,11 @@ When execution is forbidden, report that result correctness remains unverified.
 or a step output before the 8 KiB value limit; `view:"full"` returns the full record.
 Use `workflow_status` to find recent jobs and run IDs, then inspect failures.
 Do not repeat effectful steps merely to diagnose an error. Retries require
-the operation's retry-safe contract.
+the operation's retry-safe contract. Optional `retry.codes` selects exact typed
+failure codes; omitted or empty codes accepts any typed operation failure.
+Use `operation_failed` for an operation without a native code. Codes do not
+make an unsafe operation retryable. Inspect attempt failures before changing
+policy; `http_status` does not distinguish individual HTTP status numbers.
 
 Schedules are native triggers stored outside recipe JSON. Do not put a cron
 operation in `steps`. `workflow_schedule` creates, updates, pauses, resumes and

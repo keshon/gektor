@@ -2,8 +2,8 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/keshon/gektor/internal/workflow"
@@ -17,32 +17,50 @@ func executeAttempts(ctx context.Context, s workflow.Step, h workflow.Handler, r
 	}
 	var out string
 	var err error
+
 	for number := 1; number <= limit; number++ {
-		if err := ctx.Err(); err != nil {
+		err = ctx.Err()
+		if err != nil {
 			return out, err
 		}
+
 		step := &r.Steps[index]
 		step.Attempts = append(step.Attempts, workflow.Attempt{Number: len(step.Attempts) + 1, Started: time.Now().UTC()})
-		if err := save(*r, index); err != nil {
+		err = save(*r, index)
+		if err != nil {
 			return out, fmt.Errorf("save attempt: %w", err)
 		}
+
 		err = ctx.Err()
 		if err == nil {
 			out, err = h.Run(ctx, s)
 		}
+
 		now := time.Now().UTC()
 		attempt := &step.Attempts[len(step.Attempts)-1]
 		attempt.Finished = &now
 		if err != nil {
 			attempt.Error = err.Error()
 		}
-		if e := save(*r, index); e != nil {
-			return out, fmt.Errorf("save attempt outcome: %w", e)
+		attempt.Failure = workflow.OperationFailure(err)
+		saveErr := save(*r, index)
+		if saveErr != nil {
+			return out, fmt.Errorf("save attempt outcome: %w", saveErr)
 		}
-		var execution *workflow.ExecutionError
-		if err == nil || number == limit || !errors.As(err, &execution) || ctx.Err() != nil {
+
+		contextErr := ctx.Err()
+		if contextErr != nil {
+			return out, contextErr
+		}
+
+		failure := attempt.Failure
+		if err == nil || number == limit || failure == nil {
 			return out, err
 		}
+		if len(s.Retry.Codes) > 0 && !slices.Contains(s.Retry.Codes, failure.Code) {
+			return out, err
+		}
+
 		timer := time.NewTimer(time.Duration(delay) * time.Millisecond)
 		select {
 		case <-ctx.Done():
@@ -51,5 +69,6 @@ func executeAttempts(ctx context.Context, s workflow.Step, h workflow.Handler, r
 		case <-timer.C:
 		}
 	}
+
 	return out, err
 }

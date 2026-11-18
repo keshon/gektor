@@ -198,7 +198,18 @@ again when continuing. The agent cannot approve its own run.
 
 `retry: {"max_attempts": 2, "delay_ms": 250}` is allowed only for nodes explicitly
 declared retry-safe. There are at most three attempts and a ten-second delay.
-Every attempt is recorded. Permission and output-contract failures are not
+Optional `codes` restricts retries to exact operation failure codes, for example
+`retry: {"max_attempts": 2, "delay_ms": 250, "codes": ["http_request_failed"]}`.
+Omitted or empty `codes` accepts any typed operation failure. Codes are
+case-sensitive, unique, at most 32 entries of 1–64 bytes, without surrounding
+whitespace. Unknown codes match nothing; they do not grant retry safety.
+An operation without a code uses `operation_failed`. `http_status` covers all
+unsuccessful HTTP statuses, so it does not distinguish a 404 from a 503.
+Every attempt records its error and typed failure code, including attempts before
+a later success. Error routes run only after retry exhaustion or a nonmatching
+failure; finalizers follow the settled result. Cancellation (including typed
+context cancellation/deadline errors) and checkpoint failures stop retries.
+Permission and output-contract failures are not
 retried. Record writes and model calls are not automatically
 retried. A crash during an operation remains interrupted; the service does not
 infer whether an external effect happened.

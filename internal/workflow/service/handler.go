@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/keshon/gektor/internal/workflow"
@@ -82,6 +83,17 @@ func (h *handler) Validate(s workflow.Step) error {
 	if s.Retry != nil {
 		if s.Retry.MaxAttempts < 1 || s.Retry.MaxAttempts > 3 || s.Retry.DelayMS < 0 || s.Retry.DelayMS > 10000 {
 			return fmt.Errorf("invalid retry limits")
+		}
+
+		if len(s.Retry.Codes) > 32 {
+			return fmt.Errorf("retry codes must contain at most 32 entries")
+		}
+		seen := make(map[string]bool, len(s.Retry.Codes))
+		for _, code := range s.Retry.Codes {
+			if code == "" || len(code) > 64 || strings.TrimSpace(code) != code || seen[code] {
+				return fmt.Errorf("retry codes must be unique nonblank strings of at most 64 bytes without surrounding whitespace")
+			}
+			seen[code] = true
 		}
 
 		if s.Retry.MaxAttempts > 1 && !n.RetrySafe {
