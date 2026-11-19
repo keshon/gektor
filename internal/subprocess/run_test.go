@@ -57,9 +57,9 @@ func TestWorkerDeadlineAndOutputLimits(t *testing.T) {
 	}
 }
 
-func TestLinuxAddressLimitAllowsRuntimeReservations(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("Linux RLIMIT_AS accounts for reserved mappings; Windows uses a separate job memory limit")
+func TestWorkerMemoryLimitAllowsRuntimeStartup(t *testing.T) {
+	if runtime.GOOS != "linux" && runtime.GOOS != "windows" {
+		t.Skip("worker memory limits are checked on Linux and Windows")
 	}
 	out, err := Run(t.Context(), "test-limited", nil, 10*time.Second, 1024)
 	if err != nil || out != `{"bytes":33554432,"last_page":1}` {

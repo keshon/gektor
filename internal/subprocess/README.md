@@ -5,8 +5,10 @@ and accepts one bounded JSON value on stdout. The executable must dispatch worke
 modes before entering normal application startup. `Run` owns cancellation, waiting,
 and process resources; callers own the input bytes and receive the result value.
 
-- `run.go`: command setup, deadlines, bounded stdout/stderr, and JSON validation.
+- `subprocess.go`: command setup, deadlines, bounded stdout/stderr, and JSON validation.
 - `limits_windows.go`: hidden worker windows and a 256 MiB process-memory job.
+  Race-instrumented builds use a bounded 2 GiB job to fit shadow memory;
+  ordinary builds retain the 256 MiB cap.
   Successful setup keeps the kernel handle open for the worker's lifetime; Windows
   releases it at process exit. Failed setup closes it immediately.
 - `limits_unix.go`: address-space limits. Linux allows existing runtime mappings

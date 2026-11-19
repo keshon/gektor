@@ -3,6 +3,7 @@ package subprocess
 import (
 	"fmt"
 	"os/exec"
+	"runtime/debug"
 	"syscall"
 	"unsafe"
 
@@ -18,6 +19,18 @@ func configure(cmd *exec.Cmd) {
 // On success the worker retains an open kernel job handle until process exit;
 // the OS releases it then. Failed setup closes the handle immediately.
 func Limit() error {
+	limit := uintptr(256 << 20)
+	// Race instrumentation commits shadow memory outside Go's heap target.
+	build, available := debug.ReadBuildInfo()
+	if available {
+		for _, setting := range build.Settings {
+			if setting.Key == "-race" && setting.Value == "true" {
+				limit = 2 << 30
+				break
+			}
+		}
+	}
+
 	job, err := windows.CreateJobObject(nil, nil)
 	if err != nil {
 		return err
@@ -25,7 +38,7 @@ func Limit() error {
 
 	limits := windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION{}
 	limits.BasicLimitInformation.LimitFlags = windows.JOB_OBJECT_LIMIT_PROCESS_MEMORY
-	limits.ProcessMemoryLimit = 256 << 20
+	limits.ProcessMemoryLimit = limit
 	size := uint32(unsafe.Sizeof(limits))
 	// Keep the unsafe conversion in the syscall argument, preserving pointer lifetime.
 	_, err = windows.SetInformationJobObject(job, windows.JobObjectExtendedLimitInformation, uintptr(unsafe.Pointer(&limits)), size)
