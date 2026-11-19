@@ -1,4 +1,5 @@
-// Package workflow defines durable waits, recipe-call input binding and output collection.
+// Package workflow defines durable waits, keyed joins, recipe-call input binding
+// and output collection.
 package workflow
 
 import (
@@ -12,6 +13,7 @@ import (
 
 func Definitions() []workflow.Node {
 	return []workflow.Node{
+		joinDefinition(),
 		{
 			Name:        "workflow_wait_callback",
 			Version:     1,

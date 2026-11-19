@@ -28,6 +28,11 @@ Permissions, validation, malformed outputs, persistence and cancellation still
 stop the run. These fields cannot be used outside `for_each`. A map accepts at
 most 10,000 items subject to the ordinary argument and output byte limits.
 
+Use `workflow_join` to match two arrays by JSON Pointer keys. Choose inner,
+left or full mode; outputs retain separate left/right values. Duplicate keys
+produce every matching pair. Use strings or integer literals for keys; missing
+or null keys fail. A skipped source is not an empty array.
+
 `inputs` declares types and defaults. `outputs` contains returned VALUES or
 references, not type declarations. `{"type":"integer"}` in outputs returns
 that literal object; it does not describe or select an integer result.
@@ -91,7 +96,7 @@ For regression checks, `gektor workflow capture -workspace <workspace> <run-id>`
 exports fixture JSON from a completed run. Write stdout directly to a UTF-8
 fixture file, then use
 `gektor workflow test -workspace <workspace> -fixture <fixture.json> <recipe.json>`.
-This executes real isolated scripts against recorded external-operation responses;
+This executes real isolated scripts and keyed joins against recorded external-operation responses;
 a missing or changed call fails instead of invoking a live tool. Test mode creates
 no saved run or jobs. Fixture version 1 does not model reviews or durable waits.
 Use the JSON `mode` and `passed` fields when reporting fixture results.

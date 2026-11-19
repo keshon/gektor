@@ -1,0 +1,40 @@
+{
+  "version": 4,
+  "name": "Users and roles",
+  "steps": [
+    {
+      "id": "join",
+      "tool": "workflow_join",
+      "args": {
+        "left": [
+          {
+            "id": 2,
+            "name": "Ada"
+          },
+          {
+            "id": 1,
+            "name": "Lin"
+          }
+        ],
+        "right": [
+          {
+            "user_id": 2,
+            "role": "editor"
+          },
+          {
+            "user_id": 3,
+            "role": "reader"
+          }
+        ],
+        "left_key": "/id",
+        "right_key": "/user_id",
+        "mode": "left"
+      }
+    }
+  ],
+  "outputs": {
+    "rows": {
+      "$step": "join"
+    }
+  }
+}

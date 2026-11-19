@@ -110,7 +110,7 @@ when an update changes tool schemas: old saved activations may be incompatible.
 
 Use `workflow test -fixture fixture.json recipe.json` to check captured inputs,
 resolved operation arguments, routing and declared outputs with the normal
-workflow engine. `script_transform`, `workflow_call` input binding and internal
+workflow engine. `script_transform`, `workflow_join`, `workflow_call` input binding and internal
 output collection execute their registered pure implementations. Every other
 operation uses a fixture response; there is no fallback to real tool execution.
 Use an ordinary run to verify credentials, providers, files and external effects.
@@ -293,6 +293,43 @@ infer whether an external effect happened.
 `node_version` defaults to 1. A recipe requesting another version fails unless
 that exact version is registered. This is separate from the recipe format version.
 
+## Keyed joins
+
+`workflow_join` joins two arrays using `left_key` and `right_key` JSON Pointers.
+An empty pointer selects the item itself. Supply `mode` as `inner`, `left` or `full`:
+
+- Inner returns matching pairs.
+- Left also retains unmatched left items with a null right side.
+- Full also appends unmatched right items with a null left side.
+
+Output is an array of `{"left": ..., "right": ...}` objects. Fields are kept on
+their own sides, so equal field names never overwrite each other. Matches follow
+left input order, then right input order for each left item. Duplicate keys produce
+all matching pairs; unmatched right items follow their input order.
+
+Keys must be strings or integer literals. Values are never coerced: `"1"` differs
+from `1`, and integers keep their precision. Decimal/exponent notation, booleans,
+objects, arrays, null and missing keys are rejected, even when the opposite input
+is empty. Integers compare by value, including negative zero. Encoded keys and
+pointers are limited to 1,024 bytes. Both arrays are validated before any output
+is returned; an empty join result is `[]`.
+
+Each side permits at most 10,000 items, subject to the existing combined 64 KiB
+resolved-argument limit. Duplicate expansion is bounded to 10,000 output pairs
+and 1 MiB; exceeding either limit fails instead of truncating. Runtime data/key
+and expansion errors use `join_failed` and can be handled by an error route.
+Schema, permission and cancellation failures retain their normal handling.
+
+The node uses ordinary data dependencies and checkpoints. With the default
+`merge: "all"`, a skipped source skips the join; it is not treated as an empty
+array. `merge: "any"` does not supply missing outputs either. Supply an explicit
+empty array or arrange an executed fallback source when that is what you mean.
+Completed joins are retained across continuation. The same operation is available
+in the editor and executes for real in fixture mode.
+
+The [keyed join example](../../examples/workflows/keyed-join/README.md) includes a
+left join and a fixture that detects changes to its result.
+
 ## Error routes and finalizers
 
 An error route names the ordinary step whose operation failure should trigger it:
@@ -329,6 +366,7 @@ Native operation failures use these codes:
 | --- | --- |
 | HTTP | `http_status`, `http_request_failed`, `http_response_failed`, `http_response_too_large`, `http_response_invalid_json`, `http_response_encoding`, `http_redirect_limit` |
 | Isolated script | `script_failed` |
+| Keyed join | `join_failed` |
 | Callback wait | `callback_expired` |
 | Native process | `process_exit`, `process_output_too_large` |
 | Model generation | `model_request_failed`, `model_incomplete`, `model_response_too_large` |

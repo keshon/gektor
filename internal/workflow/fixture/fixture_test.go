@@ -58,6 +58,7 @@ func TestFixtureRejectsMalformedOrUnusedResponses(t *testing.T) {
 		`null`, `{}`, sample + `{}`, strings.Replace(sample, `"version":1`, `"version":2`, 1),
 		strings.Replace(sample, `"inputs":{}`, `"inputs":{},"unknown":true`, 1),
 		strings.Replace(sample, `"operation":"http_request"`, `"operation":"script_transform"`, 1),
+		strings.Replace(sample, `"operation":"http_request"`, `"operation":"workflow_join"`, 1),
 		strings.Replace(sample, `"output":{"status_code":200}`, `"output":{},"failure":{"code":"x","message":"x"}`, 1),
 	} {
 		_, err := New([]byte(raw))

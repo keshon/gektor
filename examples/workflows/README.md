@@ -9,6 +9,7 @@ the recipe; exporting an artifact creates a file in the workspace.
 |---|---|---|
 | [Transform and review](transform-and-review/README.md) | Inputs, per-item work and human approval | None |
 | [Fixture test](fixture-test/README.md) | Captured responses and script regression tests | None |
+| [Keyed join](keyed-join/README.md) | Match two arrays, retain unmatched rows and test results | None |
 | [Collection report](collection-report/README.md) | Bounded parallel items and explicit failure collection | None |
 | [Log report](log-report/README.md) | Capture a file and save a report artifact | None |
 | [Durable wait](durable-wait/README.md) | Release execution and retain work across a deadline | Workflow worker |

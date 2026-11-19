@@ -3,7 +3,7 @@
 Date: 2026-11-13. Starting revision: `6948888`.
 Branch: `codex/workflow-runtime-v4`.
 
-## Start here: current handoff — 2026-11-18
+## Start here: current handoff — 2026-11-19
 
 Continue on `codex/workflow-runtime-v4`. Selective retries (`9622fe3`) and native
 failure classification (`399a177`) are committed and pushed. The first stage 5
@@ -80,7 +80,7 @@ Captured-input fixture tests now have explicit CLI commands: `workflow capture`
 exports version 1 fixture JSON from a completed run, and `workflow test -fixture`
 uses those values against the current recipe. `workflow/fixture` owns strict
 call/response matching and consumed-attempt state. `service.Test` uses the existing
-compiler and engine with a separate handler; only allowlisted isolated-script and
+compiler and engine with a separate handler; only allowlisted isolated-script, join and
 call/output builtins execute, while every external operation must match a
 fixture. External executors are never called and no durable run/jobs are created.
 The application registry supplies the explicit pure-operation allowlist; the
@@ -134,10 +134,26 @@ preservation of other arguments. Affected TUI/workflow/SSH/application/CLI and
 convention tests, affected vet, executable build, documentation and diff checks
 pass. Concurrency and runtime credential resolution are unchanged.
 
-Stage 7 implementation is covered; the broader audit and acceptance tests remain
-scheduled after plan implementation. Next: specify and implement keyed joins from
-stage 3, then stage 8 bounded jobs, workspace budgets, retention and health/queue
-metrics. Do not treat this editor checkpoint as completion of the entire plan.
+Stage 7 implementation is covered. Keyed joins now use a pure workflow_join node,
+with inner/left/full modes and JSON Pointer keys. Keys are exact strings or integer
+literals, never coerced; missing/null/decimal/exponent keys fail. Duplicate keys
+produce all matching pairs in deterministic left/right order, bounded to 10,000
+pairs and 1 MiB. Existing 64 KiB resolved arguments still apply. No scheduler state
+or implicit skipped-output fallback was added. Normal dependencies skip joins with
+skipped sources; completed joins survive review continuation without rerunning.
+Fixture mode executes joins for real and rejects substituted join responses.
+Runtime join data/expansion failures are typed join_failed errors; cancellation
+retains cancellation identity. The editor failure-source label was corrected:
+on_failure names the source whose failure this node handles, not a destination.
+Tests cover exact large integers, escaped/root pointers, duplicate ordering,
+empty/skipped inputs, key and byte/row bounds, concurrent execution, cancellation,
+failure routes, stored review continuation and fixture regression detection.
+Source-scoped tests, join/service race checks, affected vet, executable build,
+the shipped CLI fixture example, documentation and diff checks pass.
+
+Next: stage 8 bounded jobs, workspace budgets, retention and health/queue metrics.
+The broader audit and acceptance tests remain scheduled after plan implementation.
+Do not treat the keyed join checkpoint as completion of the entire plan.
 
 Older "next" paragraphs below are historical and superseded by this section.
 

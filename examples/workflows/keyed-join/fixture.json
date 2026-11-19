@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "inputs": {},
+  "calls": [],
+  "expect": {
+    "status": "completed",
+    "outputs": {
+      "rows": [
+        {
+          "left": {
+            "id": 2,
+            "name": "Ada"
+          },
+          "right": {
+            "user_id": 2,
+            "role": "editor"
+          }
+        },
+        {
+          "left": {
+            "id": 1,
+            "name": "Lin"
+          },
+          "right": null
+        }
+      ]
+    }
+  }
+}

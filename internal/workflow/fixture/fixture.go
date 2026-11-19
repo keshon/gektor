@@ -116,7 +116,7 @@ func New(raw []byte) (*Session, error) {
 
 // Pure identifies the fixed builtins the fixture runner executes for real.
 func Pure(operation string) bool {
-	return operation == "script_transform" || operation == "workflow_value" || operation == "workflow_call"
+	return operation == "script_transform" || operation == "workflow_value" || operation == "workflow_call" || operation == "workflow_join"
 }
 
 func (s *Session) Run(ctx context.Context, step workflow.Step) (string, error) {

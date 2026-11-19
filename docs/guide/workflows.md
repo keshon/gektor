@@ -111,7 +111,8 @@ Clearing Map's items also removes its concurrency and item-failure settings.
 Loop pointers select fields in the child output; an empty pointer selects the
 whole output. Apply changes only the draft. Press `V` to check operation support,
 limits and policy combinations before running. Properties shows the saved
-execution policies, including error routes and finalizers.
+execution policies, including error routes and finalizers. On an error handler,
+**Handle failure of node** selects the source whose failure activates this handler.
 
 For HTTP and SSH nodes, **Saved connection…** in Node selects an existing
 connection and pins its inspected revision. It shows the HTTP origin or SSH

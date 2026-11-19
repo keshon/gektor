@@ -246,7 +246,7 @@ func TestExecutionBehaviorEditsRoutesAndFinalizers(t *testing.T) {
 		t.Fatal("missing error route")
 	}
 	rows := strings.Join(w.detailRows(), "\n")
-	if !strings.Contains(rows, "→ report") {
+	if !strings.Contains(rows, "← report") {
 		t.Fatal("inspector omitted error route", rows)
 	}
 

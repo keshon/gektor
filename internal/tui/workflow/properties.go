@@ -231,11 +231,11 @@ func (m *Model) detailRows() []string {
 		valueRow("", "Retry codes", codes, false)
 		valueRow("", "Retry delay", fmt.Sprintf("%d ms", step.Retry.DelayMS), false)
 	}
-	errorRoute := "Stop"
+	errorRoute := "None"
 	if step.OnFailure != "" {
-		errorRoute = "→ " + step.OnFailure
+		errorRoute = "← " + step.OnFailure
 	}
-	valueRow("", "Error route", errorRoute, false)
+	valueRow("", "Handles failure", errorRoute, false)
 	valueRow("", "Finalizer", fmt.Sprint(step.Finally), false)
 	return rows
 }

@@ -144,10 +144,10 @@ func TestSaveReplacesLinkWithoutChangingOtherFile(t *testing.T) {
 }
 
 func TestWorkflowSchemaAdvertisesOnlySupportedOperations(t *testing.T) {
-	out, err := (Schema{Registry: func() (*workflow.Registry, error) {
+	schema := Schema{Registry: func() (*workflow.Registry, error) {
 		return app.WorkflowRegistry(nil, "", nil, nil)
-	},
-	}).Run(t.Context(), json.RawMessage(`{}`))
+	}}
+	out, err := schema.Run(t.Context(), json.RawMessage(`{}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,20 +155,33 @@ func TestWorkflowSchemaAdvertisesOnlySupportedOperations(t *testing.T) {
 		Recipe     json.RawMessage
 		Operations map[string]json.RawMessage
 	}
-	if err := json.Unmarshal([]byte(out), &result); err != nil {
+	err = json.Unmarshal([]byte(out), &result)
+	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"media_status", "video_info", "video_playlist", "video_transcript", "video_download", "media_inspect", "media_convert", "media_clip", "media_frame", "media_merge"} {
+
+	required := []string{
+		"media_status", "video_info", "video_playlist", "video_transcript", "video_download",
+		"media_inspect", "media_convert", "media_clip", "media_frame", "media_merge",
+		"ssh_exec", "ssh_upload", "ssh_download", "docx_read", "xlsx_read", "pdf_read",
+		"archive_create", "archive_extract", "download_file", "archive_list",
+		"workflow_call", "workflow_join", "workflow_wait", "workflow_wait_callback",
+		"run_program", "artifact_import", "image_variants",
+	}
+	for _, name := range required {
 		if result.Operations[name] == nil {
-			t.Fatal("missing media operation", name)
+			t.Error("missing operation", name)
 		}
 	}
-	for _, name := range []string{"ssh_exec", "ssh_upload", "ssh_download"} {
-		if result.Operations[name] == nil {
-			t.Fatal("missing SSH operation", name)
+	for _, name := range []string{"workflow_bind", "run_shell"} {
+		if result.Operations[name] != nil {
+			t.Error("unexpected operation", name)
 		}
 	}
-	if len(result.Operations) != 37 || result.Operations["docx_read"] == nil || result.Operations["xlsx_read"] == nil || result.Operations["pdf_read"] == nil || result.Operations["archive_create"] == nil || result.Operations["archive_extract"] == nil || result.Operations["download_file"] == nil || result.Operations["archive_list"] == nil || result.Operations["workflow_call"] == nil || result.Operations["workflow_wait"] == nil || result.Operations["workflow_wait_callback"] == nil || result.Operations["workflow_bind"] != nil || result.Operations["run_program"] == nil || result.Operations["artifact_import"] == nil || result.Operations["image_variants"] == nil || result.Operations["run_shell"] != nil || !strings.Contains(string(result.Recipe), `"inputs"`) {
-		t.Fatal(out)
+	if len(result.Operations) != 38 {
+		t.Error("unexpected operation count", len(result.Operations))
+	}
+	if !strings.Contains(string(result.Recipe), `"inputs"`) {
+		t.Error("recipe schema omitted inputs")
 	}
 }

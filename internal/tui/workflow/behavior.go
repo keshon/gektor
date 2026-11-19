@@ -75,13 +75,13 @@ func (m *Model) editBehavior(edit behaviorEdit) {
 			"when":{}, "review":{"type":"boolean","enum":[false,true]},
 			"on_failure":{"type":"string"}, "finally":{"type":"boolean","enum":[false,true]}
 		}}`
-		hint = "Error routes handle operation failures. Finalizers run after success or operation failure, never after cancellation or a permission denial."
+		hint = "This node can handle another node’s operation failure. Finalizers run after success or operation failure, never after cancellation or a permission denial."
 		labels = [][2]string{
 			{"depends_on", "After nodes (JSON array)"},
 			{"merge", "Wait for all / any"},
 			{"when", "Condition (JSON or reference)"},
 			{"review", "Require review"},
-			{"on_failure", "Error route node (blank: stop)"},
+			{"on_failure", "Handle failure of node (blank: none)"},
 			{"finally", "Finalizer"},
 		}
 	case "Map":
