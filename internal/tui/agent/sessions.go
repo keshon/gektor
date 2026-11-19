@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"charm.land/bubbles/v2/textinput"
+
 	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/tui/components/selection"
 )
@@ -110,7 +111,7 @@ func (m *Model) clampOffset() {
 // tears it down with focus restored. Balanced by construction: every
 // open pairs with esc/enter or run start.
 func (m *Model) openSessions() {
-	filter := newSearchInput(max(popup.ModalWidth(m.termW-2)-6, 1))
+	filter := newSearchInput(max(popup.ModalWidth(m.termW-2, 0)-6, 1))
 	filter.Focus()
 
 	m.sessions = &sessionsState{

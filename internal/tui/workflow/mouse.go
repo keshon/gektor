@@ -12,7 +12,7 @@ import (
 
 func (m *Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	mouse := msg.Mouse()
-	view := m.surface
+	view := m.viewSurface()
 
 	cw, ch := m.canvasSize()
 	regions := view.Panes(m.inspectorOpen)
@@ -21,16 +21,26 @@ func (m *Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	x, y := mouse.X-canvasLayout.Body.X, mouse.Y-regions.Main.Y-canvasLayout.Body.Y
 	inspectorHeader := len(m.inspectorTabs().Rows) + 1
 	inInspector := m.inspectorOpen && regions.Side.Contains(mouse.X, mouse.Y)
-	if inInspector && sideLayout.CloseHit.Contains(mouse.X-regions.Side.X, mouse.Y-regions.Side.Y) && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
-		m.inspectorOpen, m.inspect = false, false
-		m.thumb = scrollDrag{}
+	var track popup.ScrollTrack
+	trackPress := inInspector && mouse.Button == tea.MouseLeft && isMouseClick(msg) && mouse.X == regions.Side.X+sideLayout.Body.X+sideLayout.Body.Width-1
+	if m.inspectorOpen && (m.thumb.Active || trackPress) {
+		track = popup.ScrollTrack{
+			X:      regions.Side.X + sideLayout.Body.X + sideLayout.Body.Width - 1,
+			Y:      regions.Side.Y + sideLayout.Body.Y + inspectorHeader,
+			Height: max(1, ch-inspectorHeader),
+			Total:  len(m.inspectorContent()),
+			Offset: m.offset,
+		}
+	}
+	offset, handled := m.thumb.Mouse(msg, track)
+	if handled {
+		m.offset = offset
+		m.inspect = true
 		return m, nil
 	}
-	if m.thumb.active {
-		m.offset = popup.ScrollOffset(y-inspectorHeader, max(1, ch-inspectorHeader), len(m.inspectorContent()), m.thumb.grab)
-		if _, ok := msg.(tea.MouseReleaseMsg); ok {
-			m.thumb = scrollDrag{}
-		}
+	if inInspector && sideLayout.CloseHit.Contains(mouse.X-regions.Side.X, mouse.Y-regions.Side.Y) && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
+		m.inspectorOpen, m.inspect = false, false
+		m.thumb = popup.ScrollDrag{}
 		return m, nil
 	}
 	if inInspector && mouse.Button == tea.MouseLeft && isMouseClick(msg) {
@@ -85,15 +95,6 @@ func (m *Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if inInspector {
 		if mouse.Button == tea.MouseLeft && isMouseClick(msg) {
 			m.inspect = true
-			if y >= inspectorHeader && y < ch && mouse.X == regions.Side.X+sideLayout.Body.X+sideLayout.Body.Width-1 {
-				total := len(m.inspectorContent())
-				top, size := popup.ScrollThumb(max(1, ch-inspectorHeader), total, m.offset)
-				if y-inspectorHeader >= top && y-inspectorHeader < top+size {
-					m.thumb = scrollDrag{active: true, grab: y - inspectorHeader - top}
-				} else {
-					m.offset = popup.ScrollOffset(y-inspectorHeader, max(1, ch-inspectorHeader), total, 0)
-				}
-			}
 		}
 		return m, nil
 	}

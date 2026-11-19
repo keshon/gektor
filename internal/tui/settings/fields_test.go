@@ -11,7 +11,7 @@ import (
 // nothing specific about itself.
 func TestEveryCategoryHasAHint(t *testing.T) {
 	generic := "Changes apply to this session; history stays intact."
-	for _, c := range categories {
+	for _, c := range categories() {
 		if got := Hint(c.ID); got == "" || got == generic {
 			t.Fatalf("category %q has no hint of its own: %q", c.ID, got)
 		}

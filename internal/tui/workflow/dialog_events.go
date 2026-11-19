@@ -4,8 +4,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/permission"
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/screen"
-	"github.com/keshon/gektor/internal/tui/settings"
 	"github.com/keshon/gektor/internal/workflow"
 )
 
@@ -20,8 +20,8 @@ func (m *Model) HandleControl(event screen.Event) tea.Cmd {
 		err := m.applySubmission(dialog, event.Values)
 		m.dialogs.CompleteForm(dialog, err)
 
-	case screen.Save:
-		if dialog != m.proposalDialog || m.dialogs.Dialog != dialog {
+	case screen.DialogActionRequested:
+		if dialog != m.proposalDialog || m.dialogs.Dialog != dialog || event.Action != "apply-proposal" {
 			return nil
 		}
 		err := m.applyProposal()
@@ -83,7 +83,7 @@ type pendingForm struct {
 	apply  func(map[string]string) error
 }
 
-func (m *Model) openForm(form screen.Form, apply func(map[string]string) error) *settings.Model {
+func (m *Model) openForm(form screen.Form, apply func(map[string]string) error) *fieldform.Model {
 	draft := m.dialogs.PresentForm(form)
 	m.form = pendingForm{dialog: m.dialogs.Dialog, apply: apply}
 	return draft

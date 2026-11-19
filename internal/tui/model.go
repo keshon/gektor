@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 
 	"github.com/keshon/gektor/internal/app"
 	"github.com/keshon/gektor/internal/executables"
@@ -40,6 +41,9 @@ type Model struct {
 	toolLoadDone        chan struct{}
 	sshSecret           *toolsui.SSHSettings
 	form                pendingForm
+	preferences         *settings.Model
+	preferencesDialog   *screen.DialogState
+	actionsDialog       *screen.DialogState
 
 	profile           *app.PreparedProfile
 	application       *settings.Application
@@ -54,6 +58,7 @@ type Model struct {
 	base              context.Context
 	startWorkflows    bool
 	termW, termH      int
+	colorProfile      colorprofile.Profile
 	outlined          bool
 	quit, pendingQuit bool
 }

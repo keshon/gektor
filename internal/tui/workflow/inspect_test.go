@@ -108,6 +108,69 @@ func TestInspectorTabsArePinnedAndClickableAtEveryWidth(t *testing.T) {
 	}
 }
 
+func TestInspectorScrollbarDragAcrossLayouts(t *testing.T) {
+	for _, width := range []int{40, 80, 120} {
+		for _, expanded := range []bool{false, true} {
+			for _, minimal := range []bool{false, true} {
+				m := sizeModelTo(t, workflowTestModel(t), width, 28)
+				m.minimal = minimal
+				w := m.workflows
+				d := workflowRecipe()
+				args, err := json.Marshal(map[string]any{"code": strings.Repeat("readable line\n", 100), "input": 2})
+				if err != nil {
+					t.Fatal(err)
+				}
+				d.Steps[0].Args = args
+				w.editor.Replace(d)
+				m.workflowCommand("inspector")
+				w.setInspectorTab(2)
+				if expanded {
+					m.handleKey(tea.KeyPressMsg{Code: tea.KeyF11})
+				}
+				rows := strings.Split(ansi.Strip(m.workflowScreen()), "\n")
+				x, y := -1, -1
+				for row, line := range rows {
+					for col, glyph := range []rune(line) {
+						if glyph == '█' {
+							x, y = col, row
+							break
+						}
+					}
+					if x >= 0 {
+						break
+					}
+				}
+				if x < 0 {
+					t.Fatal("no drawn inspector thumb", width, expanded, minimal)
+				}
+				before := w.editor.Source()
+				m.handleMouse(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+				if !w.State().MouseCaptured {
+					t.Fatal("drawn inspector thumb did not capture", width, expanded, minimal)
+				}
+				m.handleMouse(tea.MouseMotionMsg{X: 0, Y: 100, Button: tea.MouseLeft})
+				_, height := w.canvasSize()
+				capacity := max(height-len(w.inspectorTabs().Rows)-1, 1)
+				if w.offset != len(w.inspectorContent())-capacity {
+					t.Fatal("drag did not reach inspector bottom", width, expanded, minimal, w.offset)
+				}
+				m.handleMouse(tea.MouseMotionMsg{X: 0, Y: -5, Button: tea.MouseLeft})
+				m.handleMouse(tea.MouseReleaseMsg{X: 0, Y: -5})
+				if w.State().MouseCaptured || w.offset != 0 || w.editor.Source() != before {
+					t.Fatal("drag stayed captured or changed workflow")
+				}
+
+				m.handleMouse(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+				sizeModelTo(t, m, width, 18)
+				m.handleMouse(tea.MouseMotionMsg{X: 0, Y: 100, Button: tea.MouseLeft})
+				if w.State().MouseCaptured || w.offset != 0 {
+					t.Fatal("resize retained old inspector grab")
+				}
+			}
+		}
+	}
+}
+
 func TestCodeEditorPreservesArgumentsRejectsStaleAndFrozenEdits(t *testing.T) {
 	m := workflowTestModel(t)
 	w := m.workflows

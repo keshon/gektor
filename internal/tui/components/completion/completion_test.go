@@ -94,6 +94,15 @@ func TestCompletionScrollbarCapturesDragOutsideFrame(t *testing.T) {
 	s.Mouse(tea.MouseClickMsg{X: l.Width - 3, Y: l.BodyTop, Button: tea.MouseLeft}, l)
 	// Restore overflow before testing a resize during an active drag.
 	s.Open(items, "items")
+	p.Height = 18
+	l = s.Layout(p)
+	s.Mouse(tea.MouseClickMsg{X: l.Width - 3, Y: l.BodyTop, Button: tea.MouseLeft}, l)
+	p.Height = 12
+	s.Mouse(tea.MouseMotionMsg{X: 100, Y: 100, Button: tea.MouseLeft}, s.Layout(p))
+	if s.Dragging() || s.Selected != 0 {
+		t.Fatal("resized track retained its old grab or moved the selection")
+	}
+	p.Height = 18
 	l = s.Layout(p)
 	s.Mouse(tea.MouseClickMsg{X: l.Width - 3, Y: l.BodyTop, Button: tea.MouseLeft}, l)
 	p.Height = 2

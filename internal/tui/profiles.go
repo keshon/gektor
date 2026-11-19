@@ -10,8 +10,8 @@ import (
 )
 
 func (m *Model) stagedSettings() (config.Profile, error) {
-	m.chrome.Dialog.Form.StorePage()
-	return m.chrome.Dialog.Form.EditSession.Draft.Resolve()
+	m.preferences.StorePage()
+	return m.preferences.EditSession.Draft.Resolve()
 }
 
 func (m *Model) saveSettingsCopy() {
@@ -52,7 +52,7 @@ func (m *Model) saveCustomSettings(profile config.Profile) error {
 	if err != nil {
 		return fmt.Errorf("save custom profile: %w", err)
 	}
-	ws := m.chrome.Dialog.Form.EditSession
+	ws := m.preferences.EditSession
 	ws.LoadedPath = path
 	return nil
 }
@@ -60,10 +60,10 @@ func (m *Model) saveCustomSettings(profile config.Profile) error {
 // customProfileTarget reports where a changed form should be saved: the
 // custom directory, and the currently loaded profile to reuse its name.
 func (m *Model) customProfileTarget() (dir, source string, ok bool) {
-	if m.application == nil || m.application.PreferencePath == "" || m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil || m.chrome.Dialog.Form.EditSession == nil {
+	if m.application == nil || m.application.PreferencePath == "" || m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil || (m.preferences == nil || m.preferences.EditSession == nil) {
 		return "", "", false
 	}
-	ws := m.chrome.Dialog.Form.EditSession
+	ws := m.preferences.EditSession
 	changed := ws.PersistCurrent
 	for _, section := range ws.Draft.ChangedSections() {
 		if section != "profiles" && section != "workspace" {

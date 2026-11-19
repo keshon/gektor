@@ -38,7 +38,7 @@ func clickVisible(t *testing.T, m *Model, label string) {
 func clickHit(t *testing.T, m *Model, index int) {
 	t.Helper()
 	_, hits, _, _ := m.testControls().FormRows()
-	x, y := m.chrome.Dialog.Form.Origin(m.testControls().SettingsProps())
+	x, y := m.chrome.Dialog.Form.Origin(m.testControls().FormProps())
 	for _, hit := range hits {
 		if hit.Index != index {
 			continue

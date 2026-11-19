@@ -228,6 +228,9 @@ func (v Viewport) DragOffset(row, height, grab int) int {
 	_, size := v.ThumbRange(height)
 	free := height - size
 	if free <= 0 {
+		if row > grab {
+			return v.maxOffset()
+		}
 		return 0
 	}
 	row -= grab

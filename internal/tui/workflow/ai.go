@@ -94,7 +94,7 @@ func (m *Model) acceptProposal(p workflowProposal) {
 	m.dialogs.PresentDialog(screen.Dialog{Title: "Review AI proposal", Lines: strings.Split(strings.Join(lines, "\n"), "\n"),
 		Shortcuts: []popup.Shortcut{{Key: "Esc/Enter", Action: "discard"}, {Key: "S", Action: "apply to draft"}, {Key: "↑↓", Action: "scroll"}},
 
-		Save: true,
+		Actions: []screen.DialogAction{{ID: "apply-proposal", Key: 's', Label: "apply to draft"}},
 	})
 	m.proposalDialog = m.dialogs.Dialog
 	m.proposalDraft = d

@@ -11,8 +11,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/config"
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/components/form"
-	"github.com/keshon/gektor/internal/tui/settings"
 )
 
 func TestPickerFootersFitAcrossThemesAndTerminalSizes(t *testing.T) {
@@ -24,7 +24,7 @@ func TestPickerFootersFitAcrossThemesAndTerminalSizes(t *testing.T) {
 				m := sizeModelTo(t, testModel(), size[0], size[1])
 				m.applyTheme(theme)
 				m.testControls().OpenForm("Choose", "", "Apply", []form.Field{{Key: field, Value: root}})
-				f, props := m.chrome.Dialog.Form, m.testControls().SettingsProps()
+				f, props := m.chrome.Dialog.Form, m.testControls().FormProps()
 				f.Choices = map[string][]string{"run": {"first", "second"}}
 				f.Focus(0, nil)
 				f.OpenPicker(props)
@@ -35,7 +35,7 @@ func TestPickerFootersFitAcrossThemesAndTerminalSizes(t *testing.T) {
 						items[i] = filepath.Join(root, items[i]) + string(os.PathSeparator)
 					}
 				}
-				f.AcceptScan(settings.ScanMsg{ID: f.Picker.ID, Items: items})
+				f.AcceptScan(fieldform.ScanMsg{ID: f.Picker.ID, Items: items})
 				rows, hits, _, _ := f.PickerRows(props)
 				if len(rows)+2 > props.Height {
 					t.Fatal("picker hid its footer below available area", theme, size, field, len(rows), props.Height)
@@ -69,7 +69,7 @@ func TestPickerToolbarEnterMatchesFocusedCancel(t *testing.T) {
 	f := m.chrome.Dialog.Form
 	f.Choices = map[string][]string{"run": {"old", "new"}}
 	f.Focus(0, nil)
-	f.OpenPicker(m.testControls().SettingsProps())
+	f.OpenPicker(m.testControls().FormProps())
 	f.Picker.Cursor, f.Picker.Control = 1, 2
 	for i, action := range m.footerActions() {
 		if action.Key == tea.KeyEnter {

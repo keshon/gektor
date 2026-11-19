@@ -177,7 +177,7 @@ func TestWorkflowAIProposalCannotApplyToChangedDraft(t *testing.T) {
 	w.editor.Definition = workflowRecipe()
 	before := w.editor.Source()
 	m.workflows.acceptProposal(workflowProposal{before: before, source: before})
-	if m.chrome.Dialog == nil || !m.chrome.Dialog.Save {
+	if m.chrome.Dialog == nil || len(m.chrome.Dialog.Actions) == 0 {
 		t.Fatal("missing proposal review")
 	}
 	w.editor.Definition.Name = "Changed elsewhere"

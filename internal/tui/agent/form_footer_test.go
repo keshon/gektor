@@ -39,6 +39,28 @@ func TestCompactDialogMouseAndHorizontalKeys(t *testing.T) {
 	}
 }
 
+func TestFormHintsDescribeTheFocusedInput(t *testing.T) {
+	m := settingsModel(t)
+	m.openForm(screen.Form{Title: "Fields", Fields: []form.Field{
+		{Key: "notes", Label: "Notes", Multiline: true},
+		{Key: "mode", Label: "Mode", Value: "one"},
+	}, Choices: map[string][]string{"mode": {"one", "two"}}}, func(map[string]string) error { return nil })
+	m.testControls().FocusForm(0)
+	if !strings.Contains(m.statusLine(), "newline") {
+		t.Fatal("multiline field has no newline hint")
+	}
+	m.testControls().FocusForm(1)
+	if strings.Contains(m.statusLine(), "newline") {
+		t.Fatal("choice advertises text editing")
+	}
+	m.chrome.Dialog.Form.Error = "A validation error"
+	m.testKey(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	hint := m.statusLine()
+	if !strings.Contains(hint, "back") || !strings.Contains(hint, "scroll") || strings.Contains(hint, "cancel") {
+		t.Fatal("feedback hints describe the hidden editor", hint)
+	}
+}
+
 // Track SGR background state at a rendered cell, including nested resets.
 func backgroundAt(line string, column int) string {
 	r, g, b, _ := lipgloss.Color(currentPalette().Background).RGBA()

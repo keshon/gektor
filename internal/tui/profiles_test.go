@@ -8,7 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/config"
-	"github.com/keshon/gektor/internal/tui/settings"
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 )
 
 // Loading a profile stages it; it does not apply. The running session
@@ -30,7 +30,7 @@ func TestLoadedProfileStagedUntilApply(t *testing.T) {
 	focusSetting(m, "load-profile")
 	m.chrome.Dialog.Form.OpenPicker(m.settingsProps())
 	picker := m.chrome.Dialog.Form.Picker
-	m.Update(settings.ScanMsg{ID: picker.ID, Items: []string{path}})
+	m.Update(fieldform.ScanMsg{ID: picker.ID, Items: []string{path}})
 	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m.settingsProps())
 	if m.profile.Profile.Identity.UserName != "User" {
 		t.Fatal("load applied without Apply")

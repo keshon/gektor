@@ -1,4 +1,4 @@
-package settings
+package fields
 
 import (
 	"fmt"
@@ -32,12 +32,11 @@ func (f *Model) ScanDirectory(root string) tea.Cmd {
 	p.Search.SetValue("")
 
 	scan := directoryScan{
-		ID:    p.ID,
-		Root:  root,
-		Field: p.Field,
+		ID:   p.ID,
+		Root: root,
 	}
 	if p.FileConfig != nil {
-		scan.Custom = true
+		scan.Folders = p.FileConfig.Directory
 		scan.Extensions = slices.Clone(p.FileConfig.Extensions)
 	}
 	return scan.run
@@ -60,9 +59,8 @@ func (f *Model) DetailCommand() tea.Cmd {
 	p.DetailPath = path
 	p.Detail = ""
 	scan := detailScan{
-		ID:    p.ID,
-		Path:  path,
-		Field: p.Field,
+		ID:   p.ID,
+		Path: path,
 	}
 	return scan.run
 }
@@ -87,14 +85,13 @@ func (f *Model) AcceptDetail(msg DetailMsg) {
 type directoryScan struct {
 	ID         RequestID
 	Root       string
-	Field      string
-	Custom     bool
+	Folders    bool
 	Extensions []string
 }
 
 func (s directoryScan) accepts(path string) bool {
-	if !s.Custom {
-		return PickerAccepts(s.Field, path)
+	if s.Folders {
+		return false
 	}
 	if len(s.Extensions) == 0 {
 		return true
@@ -129,13 +126,23 @@ func (s directoryScan) run() tea.Msg {
 }
 
 type catalogScan struct {
-	ID    RequestID
-	Root  string
-	Field string
+	ID         RequestID
+	Root       string
+	Extensions []string
 }
 
 func (s catalogScan) run() tea.Msg {
-	items, err := CatalogFiles(s.Root, s.Field)
+	items := []string{}
+	err := filepath.WalkDir(s.Root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		scan := directoryScan{Extensions: s.Extensions}
+		if !entry.IsDir() && scan.accepts(path) {
+			items = append(items, path)
+		}
+		return nil
+	})
 	return ScanMsg{ID: s.ID, Items: items, Err: err}
 }
 
@@ -154,18 +161,17 @@ func (s driveScan) run() tea.Msg {
 }
 
 type detailScan struct {
-	ID    RequestID
-	Path  string
-	Field string
+	ID   RequestID
+	Path string
 }
 
 func (s detailScan) run() tea.Msg {
-	text := CatalogDetail(s.Field, s.Path)
-	if s.Field == "model-file" {
-		info, err := os.Stat(s.Path)
-		if err == nil && !info.IsDir() {
-			text = fmt.Sprintf("%.2f GiB · %s", float64(info.Size())/(1<<30), text)
-		}
+	text := s.Path
+	info, err := os.Stat(s.Path)
+	if err != nil {
+		text = "Unavailable: " + err.Error()
+	} else if !info.IsDir() {
+		text = fmt.Sprintf("%.2f GiB · %s", float64(info.Size())/(1<<30), text)
 	}
 	return DetailMsg{ID: s.ID, Path: s.Path, Text: text}
 }

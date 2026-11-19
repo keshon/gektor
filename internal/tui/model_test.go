@@ -197,7 +197,7 @@ func TestSettingsMenusAreIdenticalAcrossModes(t *testing.T) {
 	}
 	for _, section := range []string{"model", "generation", "profiles", "you", "prompts"} {
 		m.runAction("edit:" + section)
-		if m.chrome.Dialog == nil || m.chrome.Dialog.Form.EditSession.Section != section {
+		if m.chrome.Dialog == nil || m.preferences.EditSession.Section != section {
 			t.Fatalf("settings %s unavailable in Workflow", section)
 		}
 		m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
@@ -221,7 +221,7 @@ func TestWorkflowWorkspacePickerHasNoAgentSettings(t *testing.T) {
 		t.Fatal("workspace picker did not open")
 	}
 	f := m.chrome.Dialog.Form
-	if f.EditSession != nil || len(f.Fields) != 1 || f.Fields[0].Key != "app-workspace" {
+	if m.preferences != nil || len(f.Fields) != 1 || f.Fields[0].Key != "app-workspace" {
 		t.Fatal("workspace picker exposed Agent settings")
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})

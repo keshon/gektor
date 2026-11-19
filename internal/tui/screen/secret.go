@@ -7,6 +7,7 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
@@ -31,7 +32,7 @@ func (s *SecretState) Take() string {
 func (m *Controls) PresentSecret(title, hint string) {
 	m.Open(title, nil)
 	editor := textinput.New()
-	editor.SetStyles(TextInputStyles(editor.Styles()))
+	editor.SetStyles(m.palette().TextInputStyles(editor.Styles()))
 	editor.EchoMode = textinput.EchoPassword
 	editor.EchoCharacter = '•'
 	editor.CharLimit = 0
@@ -77,7 +78,7 @@ func (m *Controls) SecretInput(msg tea.Msg) tea.Cmd {
 func (m *Controls) refreshSecret() {
 	s := m.Dialog.Secret
 	_, _, width, _ := m.Area()
-	s.editor.SetWidth(max(popup.ModalWidth(width)-14, 8))
+	s.editor.SetWidth(max(popup.ModalWidth(width, 0)-14, 8))
 	m.Dialog.Lines = []string{s.Hint, "", s.editor.View()}
 	if s.Error != "" {
 		m.Dialog.Lines = append(m.Dialog.Lines, "", s.Error)

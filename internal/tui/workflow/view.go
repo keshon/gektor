@@ -106,14 +106,14 @@ func (m *Model) page(key string) {
 }
 
 func (m *Model) canvasSize() (int, int) {
-	view := m.surface
+	view := m.viewSurface()
 	area := view.Panes(m.inspectorOpen).Main
 	layout := view.Layout(area.Width, false)
 	return max(layout.Body.Width, 1), max(layout.Body.Height, 1)
 }
 
 func (m *Model) content() string {
-	view := m.surface
+	view := m.viewSurface()
 	cw, ch := m.canvasSize()
 	m.ensureSelection()
 	if m.run == nil {
@@ -180,6 +180,16 @@ func (m *Model) content() string {
 		if m.inspect && m.run == nil && !m.busy && m.inspectorTab != 1 {
 			shortcuts = []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "Tab", Action: "parent"}, {Key: "E", Action: "edit"}, {Key: "1–3", Action: "tabs"}}
 		}
+		if regions.Covered {
+			visible := shortcuts[:0]
+			for _, shortcut := range shortcuts {
+				if shortcut.Key != "Tab" {
+					visible = append(visible, shortcut)
+				}
+			}
+			shortcuts = visible
+		}
+		shortcuts = append(shortcuts, popup.Shortcut{Key: "F11", Action: "expand"})
 		right := view.Render(screen.Panel{
 			Title: heading, Hint: view.Hints(width, shortcuts...), Body: body,
 			Width: width, Focused: m.inspect, Close: true,
@@ -236,7 +246,7 @@ func CardDetail(status string) (string, graph.Tone) {
 func (m *Model) View() tea.View { return tea.NewView("\n" + m.content()) }
 
 func (m *Model) inspectorContent() []string {
-	view := m.surface
+	view := m.viewSurface()
 	width := view.Layout(view.Panes(true).Side.Width, true).Body.Width
 	var out []string
 	for _, line := range m.detailRows()[1:] {

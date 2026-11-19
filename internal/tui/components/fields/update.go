@@ -1,9 +1,10 @@
-package settings
+package fields
 
 import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/tui/components/form"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
 type Action int
@@ -17,25 +18,23 @@ const (
 
 // Intent describes an application action; the component never applies services.
 type Intent struct {
-	Action  Action
-	Section string
+	Action Action
 }
 
 func (f *Model) UpdateKey(msg tea.KeyPressMsg, props Props) (Intent, tea.Cmd) {
+	f.scroll = popup.ScrollDrag{}
+	if f.FeedbackOpen {
+		f.feedbackKey(msg, props)
+		return Intent{}, nil
+	}
+	if msg.String() == "ctrl+e" && f.Picker == nil && f.HasFeedback() {
+		f.FeedbackOpen = true
+		f.FeedbackOffset = 0
+		f.Editor.Blur()
+		return Intent{}, nil
+	}
 	if f.Picker != nil {
 		return Intent{}, f.PickerKey(msg, props)
-	}
-	if ws := f.EditSession; ws != nil {
-		switch msg.String() {
-		case "ctrl+d":
-			if ws.Section == "profiles" {
-				return Intent{Action: SaveCopy}, nil
-			}
-		case "f4":
-			ws.Advanced = !ws.Advanced
-			f.Focus(f.FirstVisibleField(), f.FieldVisible)
-			return Intent{}, nil
-		}
 	}
 	if f.Index < len(f.Fields) && len(f.inlineOptions(f.Fields[f.Index])) > 0 {
 		switch msg.String() {
@@ -55,7 +54,7 @@ func (f *Model) UpdateKey(msg tea.KeyPressMsg, props Props) (Intent, tea.Cmd) {
 	intent, cmd := f.Model.Update(msg, f.FieldVisible, choice, f.Destructive)
 	switch intent {
 	case form.Apply:
-		if !f.Dirty() {
+		if f.DisablePrimary {
 			return Intent{}, cmd
 		}
 		return Intent{Action: Apply}, cmd

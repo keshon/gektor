@@ -3,10 +3,12 @@
 package screen
 
 import (
+	"github.com/charmbracelet/colorprofile"
+
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/tui/components/table"
-	"github.com/keshon/gektor/internal/tui/settings"
 )
 
 // Controls holds application-owned menu and overlay state. A shell supplies the
@@ -67,19 +69,20 @@ type DialogState struct {
 	Secret    *SecretState
 	Shortcuts []popup.Shortcut
 
-	Drag         Drag
-	Review       bool
-	Save         bool
-	Form         *FormState
-	Title        string
-	Lines        []string
-	Help         bool
-	Page, Offset int
+	Drag           popup.ScrollDrag
+	Actions        []DialogAction
+	Form           *FormState
+	Title          string
+	PreferredWidth int
+	Maximized      bool
+	Lines          []string
+	Help           bool
+	Page, Offset   int
 }
 
 // FormState holds the draft only; the opening feature owns its submission.
 type FormState struct {
-	settings.Model
+	fieldform.Model
 	SaveCopy bool
 }
 
@@ -101,16 +104,18 @@ type HelpSection struct {
 // ControlProps is the current application presentation, independent of either
 // screen's execution state. Area is the region available to shared dialogs.
 type ControlProps struct {
-	Width, Height                              int
-	Area                                       pane.Rect
-	Inset                                      int
-	Ready, Blocked, HasApplication, Evaluating bool
-	Identity                                   string
-	Styles                                     Styles
-	Menus, BadgeMenus                          []Menu
-	Badges                                     []Badge
-	Actions                                    []Action
-	Help                                       []HelpSection
+	Width, Height     int
+	Area              pane.Rect
+	Inset             int
+	Ready, Blocked    bool
+	Palette           *Palette
+	ColorProfile      colorprofile.Profile
+	Identity          string
+	Styles            Styles
+	Menus, BadgeMenus []Menu
+	Badges            []Badge
+	Actions           []Action
+	Help              []HelpSection
 }
 
 // DialogLayout is shared by overlay painting and pointer hit testing.

@@ -126,12 +126,12 @@ func (m *Controls) HeaderMenuLayout() popup.MenuLayout {
 			break
 		}
 	}
-	normal, border, selected := PopupStyles()
+	normal, border, selected := m.palette().PopupStyles()
 	return popup.Menu(m.HeaderMenuItems(), popup.MenuProps{X: x, Y: m.HeaderTop(), ScreenWidth: m.Props.Width,
 		ScreenHeight: m.Props.Height - m.ActionBarRows(), MinWidth: 24, MaxWidth: 58,
 		MaxRows: max(m.Props.Height-m.FooterRows()-5, 1), Selected: m.Header.Row},
 		popup.MenuStyles{Surface: popup.Styles{Normal: normal, Border: border, Selected: selected},
-			Disabled: normal.Foreground(lipgloss.Color(Color(ColorDisabledText)))})
+			Disabled: normal.Foreground(lipgloss.Color(m.palette().Color(ColorDisabledText)))})
 }
 
 // HeaderGeometry returns the attached menu bounds and visible row range.
@@ -239,13 +239,13 @@ func (m *Controls) HeaderNavigation() []Badge {
 
 // MenuLine fits application menus and screen identity onto one terminal row.
 func (m *Controls) MenuLine() string {
-	normal, _, selected := PopupStyles()
+	normal, _, selected := m.palette().PopupStyles()
 	line := ""
 	for i, cell := range m.MenuCells() {
 		line += normal.Render(strings.Repeat(" ", max(cell.Start-lipgloss.Width(line), 0)))
 		label := cellui.Line(" "+cell.Action.Label, cell.End-cell.Start)
 		if !cell.Action.Enabled {
-			label = normal.Foreground(lipgloss.Color(Color(ColorDisabledText))).Render(label)
+			label = normal.Foreground(lipgloss.Color(m.palette().Color(ColorDisabledText))).Render(label)
 		} else if m.Header.Focused && m.Header.Global && m.Header.Index == i {
 			label = selected.Render(label)
 		} else {
@@ -258,7 +258,7 @@ func (m *Controls) MenuLine() string {
 	if available >= 12 {
 		identity = strings.TrimSpace(cellui.Line(identity, available))
 		line += normal.Render(strings.Repeat(" ", max(m.Props.Width-lipgloss.Width(line)-lipgloss.Width(identity)-1, 0)))
-		line += normal.Foreground(lipgloss.Color(Color(ColorSecondaryText))).Render(identity)
+		line += normal.Foreground(lipgloss.Color(m.palette().Color(ColorSecondaryText))).Render(identity)
 	}
 	return line + normal.Render(strings.Repeat(" ", max(m.Props.Width-lipgloss.Width(line), 0)))
 }
@@ -335,14 +335,14 @@ func (m *Controls) ToolbarLayout() pane.ToolbarLayout {
 		items = append(items, pane.ToolAction{Key: action.Name, CompactKey: compactKey, Label: action.Label, CompactLabel: action.Short, Enabled: action.Enabled})
 	}
 	style := func(fg, bg string) lipgloss.Style {
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(Color(fg))).Background(lipgloss.Color(Color(bg)))
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette().Color(fg))).Background(lipgloss.Color(m.palette().Color(bg)))
 	}
 	return pane.Toolbar(m.Props.Width, items, pane.ToolbarStyles{
 		Key:           style(ColorNumberText, ColorNumberBackground).Bold(true),
 		Label:         style(ColorSelectedText, ColorActionBackground),
 		DisabledKey:   style(ColorDisabledText, ColorDisabledNumber),
 		DisabledLabel: style(ColorDisabledText, ColorDisabledLabel),
-		Gap:           lipgloss.NewStyle().Background(lipgloss.Color(CurrentPalette().Background)),
+		Gap:           lipgloss.NewStyle().Background(lipgloss.Color(m.palette().Background)),
 	})
 }
 

@@ -83,7 +83,7 @@ func TestLearnReviewSaveSkipEditAndUndo(t *testing.T) {
 			job := &evaluationJob{learn: true, cancel: func() {}}
 			m.evaluation = job
 			m.acceptEvaluation(evaluationDoneMsg{job: job, result: r})
-			if m.chrome.Dialog == nil || !m.chrome.Dialog.Save || !strings.Contains(strings.Join(m.chrome.Dialog.Lines, "\n"), "PASS module tests") {
+			if m.chrome.Dialog == nil || len(m.chrome.Dialog.Actions) == 0 || !strings.Contains(strings.Join(m.chrome.Dialog.Lines, "\n"), "PASS module tests") {
 				t.Fatal("proposal lacks reviewable evidence or save action")
 			}
 			entries, _ := m.ws.Skills()
@@ -168,7 +168,7 @@ func TestLearnWithoutCandidateNeedsNoApproval(t *testing.T) {
 	job := &evaluationJob{learn: true, cancel: func() {}}
 	m.evaluation = job
 	m.acceptEvaluation(evaluationDoneMsg{job: job, result: retrospective.Result{Summary: "Routine task."}})
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "No lesson to save" || m.chrome.Dialog.Save {
+	if m.chrome.Dialog == nil || m.chrome.Dialog.Title != "No lesson to save" || len(m.chrome.Dialog.Actions) != 0 {
 		t.Fatal("empty review offered approval")
 	}
 }
@@ -187,7 +187,7 @@ func TestLearnReopensProposalWithoutInference(t *testing.T) {
 		return llm.ChatResponse{}, nil
 	})
 	_, cmd := m.learn("review")
-	if cmd != nil || m.chrome.Dialog == nil || !m.chrome.Dialog.Save {
+	if cmd != nil || m.chrome.Dialog == nil || len(m.chrome.Dialog.Actions) == 0 {
 		t.Fatal("saved proposal not reopened locally")
 	}
 	m.testKey(tea.KeyPressMsg{Code: tea.KeyEnter})

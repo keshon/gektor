@@ -17,7 +17,7 @@ func TestDialogScrollbarMatchesDrawnTrack(t *testing.T) {
 	m.testControls().Open("Long content", []string{strings.Repeat("line\n", 100)})
 	l := m.testControls().LayoutDialog()
 	rows, _, _ := m.testControls().DialogRows()
-	x := m.promptOffset() + max((l.Width-popup.ModalWidth(l.Width))/2, 0) + 2 + l.Inner - 1
+	x := m.promptOffset() + max((l.Width-popup.ModalWidth(l.Width, 0))/2, 0) + 2 + l.Inner - 1
 	y := paneTop + max((l.Height-len(rows)-2)/2, 0) + 1 + len(l.Rows)
 	view := strings.Split(ansi.Strip(m.testView().Content), "\n")
 	if []rune(view[y])[x] != '█' {

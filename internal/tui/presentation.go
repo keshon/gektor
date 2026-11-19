@@ -10,6 +10,9 @@ import (
 )
 
 func (m *Model) syncPresentation() {
+	if m.preferences != nil && m.preferencesDialog == m.chrome.Dialog {
+		m.preferences.Prepare()
+	}
 	if m.workflows != nil {
 		m.workflows.SetSurface(m.workflowSurface())
 	}
@@ -31,10 +34,21 @@ func (m *Model) syncPresentation() {
 		props.Area = pane.Rect{Y: 1, Width: m.termW, Height: max(m.termH-2, 1)}
 	}
 	props.Width, props.Height = m.termW, m.termH
+	props.Palette = screen.CurrentPalette()
+	props.ColorProfile = m.colorProfile
 	props.Menus = m.menus(props.Menus)
 	m.chrome.Props = props
 	if m.chrome.Dialog != nil && (m.chrome.Dialog.Form != nil || m.chrome.Dialog.Table != nil || m.chrome.Dialog.Secret != nil) {
 		m.chrome.Props.Actions = m.chrome.DialogActions()
+		if m.preferences != nil && m.preferencesDialog == m.chrome.Dialog && m.chrome.Dialog.Form.Picker == nil && !m.chrome.Dialog.Form.FeedbackOpen {
+			ws := m.preferences.EditSession
+			if ws.Section == "model" {
+				m.chrome.Props.Actions = append(m.chrome.Props.Actions, screen.Action{Key: tea.KeyF4, Name: "F4", Label: "Advanced", Short: "Advanced", Enabled: true})
+			}
+			if ws.Section == "profiles" {
+				m.chrome.Props.Actions = append(m.chrome.Props.Actions, screen.Action{Key: 'd', Mod: tea.ModCtrl, Name: "Ctrl+D", Label: "Save copy", Short: "Copy", Enabled: true})
+			}
+		}
 	}
 }
 func (m *Model) menus(localMenus []screen.Menu) []screen.Menu {

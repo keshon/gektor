@@ -7,11 +7,12 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/tui/components/schemaform"
 	"github.com/keshon/gektor/internal/tui/screen"
-	"github.com/keshon/gektor/internal/tui/settings"
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/store"
@@ -30,7 +31,7 @@ func (m *Model) command(action string) tea.Cmd {
 	if action == "inspector" {
 		m.inspectorOpen = !m.inspectorOpen
 		m.inspect = m.inspectorOpen
-		m.thumb = scrollDrag{}
+		m.thumb = popup.ScrollDrag{}
 		return nil
 	}
 	if action == "lock-positions" {
@@ -179,11 +180,11 @@ func workflowRequiresDraft(action string) bool {
 	}
 }
 
-func (m *Model) recipePath(action string) *settings.Model {
+func (m *Model) recipePath(action string) *fieldform.Model {
 	fields := []formField{{Key: "path", Label: "Recipe path (relative to workspace)", Value: m.editor.Path}}
-	var fileFields map[string]settings.FilePicker
+	var fileFields map[string]fieldform.FilePicker
 	if action == "open" {
-		fileFields = map[string]settings.FilePicker{"path": {Root: m.config.WS.Root(), Extensions: []string{".json"}}}
+		fileFields = map[string]fieldform.FilePicker{"path": {Root: m.config.WS.Root(), Extensions: []string{".json"}}}
 	}
 	if action == "new" {
 		fields[0].Value = "recipe.json"
@@ -329,6 +330,8 @@ func (m *Model) linkTarget(value string) {
 
 func (m *Model) footerActions() []screen.Action {
 	edit := !m.busy && m.run == nil
+	hasNode := m.graph.Selected != ""
+	hasSteps := len(m.definition().Steps) > 0
 	label := "Edit"
 	if m.run != nil {
 		label = "Inspect"
@@ -344,10 +347,10 @@ func (m *Model) footerActions() []screen.Action {
 	actions := []screen.Action{
 		{Key: tea.KeyF1, Name: "F1", Label: "Help", Short: "Help", Enabled: true},
 		{Key: 'a', Name: "A", Label: "Add node", Short: "Add", Enabled: edit},
-		{Key: tea.KeyEnter, Name: "Enter", Label: label, Short: label, Enabled: !m.busy},
-		{Key: 'c', Name: "C", Label: "Connect", Short: "Link", Enabled: edit},
-		{Key: 'r', Name: "R", Label: "Run", Short: "Run", Enabled: edit},
-		{Key: 't', Mod: tea.ModCtrl, Name: "Ctrl+T", Label: "Inspector", Short: "Inspect", Enabled: true},
+		{Key: tea.KeyEnter, Name: "Enter", Label: label, Short: label, Enabled: !m.busy && hasNode},
+		{Key: 'c', Name: "C", Label: "Connect", Short: "Link", Enabled: edit && hasSteps && hasNode},
+		{Key: 'r', Name: "R", Label: "Run", Short: "Run", Enabled: edit && hasSteps},
+		{Key: 't', Mod: tea.ModCtrl, Name: "Ctrl+T", Label: "Inspector", Short: "Inspect", Enabled: hasNode},
 		{Key: 's', Mod: tea.ModCtrl, Name: "Ctrl+S", Label: "Save", Short: "Save", Enabled: edit},
 		{Key: tea.KeyEscape, Name: "Esc", Label: back, Short: back, Enabled: true},
 	}

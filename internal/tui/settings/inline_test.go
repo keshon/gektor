@@ -8,7 +8,9 @@ import (
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/config"
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/components/form"
 )
 
@@ -18,9 +20,9 @@ func TestInlineChoiceKeyboardMouseAndInputOwnership(t *testing.T) {
 		f.Choices = map[string][]string{"theme": config.ThemeNames()}
 		f.ApplyLabel = "Apply"
 		f.Focus(0, nil)
-		props := Props{Width: size[0], Height: size[1]}
+		props := fieldform.Props{Width: size[0], Height: size[1]}
 		f.SyncInputFocus(true)
-		if f.InputOwner() != NoInput || f.Editor.Focused() {
+		if f.InputOwner() != fieldform.NoInput || f.Editor.Focused() {
 			t.Fatal("radio group owns a text caret")
 		}
 		f.UpdateInput(tea.PasteMsg{Content: "invalid"})
@@ -59,7 +61,7 @@ func TestBooleanIsAnInlineCheckbox(t *testing.T) {
 	f := NewModel([]form.Field{{Key: "enabled", Label: "Enabled", Value: "false"}}, textarea.New())
 	f.Choices = map[string][]string{"enabled": {"true", "false"}}
 	f.Focus(0, nil)
-	props := Props{Width: 80, Height: 24}
+	props := fieldform.Props{Width: 80, Height: 24}
 	rows, _, _, _ := f.Rows(props)
 	if !strings.Contains(ansi.Strip(strings.Join(rows, "\n")), "[ ] Off") {
 		t.Fatal("boolean does not render as a checkbox")
@@ -73,7 +75,7 @@ func TestBooleanIsAnInlineCheckbox(t *testing.T) {
 func TestPickerPagingOutsideScrollAndCancel(t *testing.T) {
 	f := NewModel([]form.Field{{Key: "model", Value: "original"}}, textarea.New())
 	f.Focus(0, nil)
-	props := Props{Width: 100, Height: 24}
+	props := fieldform.Props{Width: 100, Height: 24}
 	f.OpenPicker(props)
 	f.Picker.Loading = false
 	for i := range 80 {
@@ -105,11 +107,11 @@ func TestPickerPagingOutsideScrollAndCancel(t *testing.T) {
 func TestPickerActionsOwnFocusAndCancelWithoutChangingDraft(t *testing.T) {
 	f := NewModel([]form.Field{{Key: "model", Value: "original"}}, textarea.New())
 	f.Focus(0, nil)
-	props := Props{Width: 100, Height: 24}
+	props := fieldform.Props{Width: 100, Height: 24}
 	f.OpenPicker(props)
 	f.PickerKey(tea.KeyPressMsg{Code: tea.KeyTab}, props)
 	f.SyncInputFocus(true)
-	if f.Picker.Control != 1 || f.InputOwner() != NoInput || f.Picker.Search.Focused() {
+	if f.Picker.Control != 1 || f.InputOwner() != fieldform.NoInput || f.Picker.Search.Focused() {
 		t.Fatal("Select button did not receive exclusive focus")
 	}
 	f.UpdateInput(tea.PasteMsg{Content: "unwanted"})

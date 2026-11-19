@@ -13,6 +13,7 @@ import (
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/tui/components/graph"
 	"github.com/keshon/gektor/internal/tui/components/pane"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workflow"
@@ -39,7 +40,7 @@ type Model struct {
 	shutdown                 context.CancelFunc
 	workers                  sync.WaitGroup // joins actions before launch resources close
 	commands                 []tea.Cmd
-	thumb                    scrollDrag
+	thumb                    popup.ScrollDrag
 	active, busy, inspect    bool
 	overview                 bool
 	rawDetails               bool
@@ -48,6 +49,7 @@ type Model struct {
 	portOutput, portSelected bool
 	positionsLocked          bool
 	inspectorOpen, panning   bool
+	inspectorExpanded        bool
 	connectFrom              string
 	connectPort              string
 	editor                   *Editor

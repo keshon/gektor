@@ -13,11 +13,18 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/tui/components/cell"
 )
 
 // ModalWidth is shared by task modals; anchored menus size to content.
-func ModalWidth(areaW int) int { return max(4, min(80, areaW-2)) }
+// A zero preferred width keeps the 80-cell default.
+func ModalWidth(areaW, preferred int) int {
+	if preferred <= 0 {
+		preferred = 80
+	}
+	return max(min(preferred, areaW-2), min(max(areaW, 0), 4))
+}
 
 // Styles are the palette values a popup draws with. The caller supplies them
 // so this package stays free of the application's theme.
@@ -84,8 +91,15 @@ func Box(rows []string, s Styles) []string {
 }
 
 // ModalBox uses the common task-modal width for both drawing and hit testing.
-func ModalBox(rows []string, areaW int, s Styles) []string {
-	width := ModalWidth(areaW)
+func ModalBox(rows []string, areaW, preferred int, s Styles) []string {
+	width := ModalWidth(areaW, preferred)
+	if width < 5 {
+		clipped := make([]string, len(rows))
+		for i, row := range rows {
+			clipped[i] = cell.Line(row, width)
+		}
+		return clipped
+	}
 	styled := make([]string, len(rows))
 
 	for i, row := range rows {
@@ -101,8 +115,8 @@ func ModalBox(rows []string, areaW int, s Styles) []string {
 // Every line is indented, not just the first: indenting only the first
 // shifts the top border away from the box it belongs to, which reads as two
 // overlapping frames rather than one misaligned one.
-func FrameBox(rows []string, areaW, areaH int, s Styles) string {
-	framed := ModalBox(rows, areaW, s)
+func FrameBox(rows []string, areaW, areaH, preferred int, s Styles) string {
+	framed := ModalBox(rows, areaW, preferred, s)
 	w := cell.Width(strings.Join(framed, "\n"))
 	left := max((areaW-w)/2, 0)
 	top := max((areaH-len(framed))/2, 0)
@@ -119,9 +133,9 @@ func FrameBox(rows []string, areaW, areaH int, s Styles) string {
 
 // OverlayBox shares the modal frame and centering with FrameBox while keeping
 // the underlying document visible outside the frame.
-func OverlayBox(background string, rows []string, areaW, areaH int, s Styles) string {
-	framed := ModalBox(rows, areaW, s)
-	width := ModalWidth(areaW)
+func OverlayBox(background string, rows []string, areaW, areaH, preferred int, s Styles) string {
+	framed := ModalBox(rows, areaW, preferred, s)
+	width := ModalWidth(areaW, preferred)
 	return Overlay(background, framed, max((areaW-width)/2, 0), max((areaH-len(framed))/2, 0), width, areaW)
 }
 

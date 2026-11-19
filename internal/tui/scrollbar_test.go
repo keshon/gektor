@@ -1,0 +1,91 @@
+package tui
+
+import (
+	"fmt"
+	"strings"
+	"testing"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/keshon/gektor/internal/tui/components/table"
+	"github.com/keshon/gektor/internal/tui/screen"
+)
+
+func TestAppearanceScrollbarDragThroughBothScreens(t *testing.T) {
+	for _, workflow := range []bool{false, true} {
+		for _, width := range []int{40, 80, 120} {
+			m := sizeModelTo(t, settingsModel(t), width, 25)
+			if workflow {
+				m.openWorkflows()
+			}
+			m.runAction("appearance")
+			m.settleControls()
+			dialog := m.chrome.Dialog
+			f := dialog.Form
+			values := f.Values()
+			rows := strings.Split(ansi.Strip(m.View().Content), "\n")
+			x, y := -1, -1
+			for row, line := range rows {
+				for col, glyph := range []rune(line) {
+					if glyph == '█' {
+						x, y = col, row
+						break
+					}
+				}
+				if x >= 0 {
+					break
+				}
+			}
+			if x < 0 {
+				// At a wide enough layout both fields fit, so there is no scrollbar.
+				if !strings.Contains(strings.Join(rows, "\n"), "Panel frame") {
+					t.Fatal("Appearance has neither second field nor scrollbar", workflow, width)
+				}
+				continue
+			}
+
+			m.Update(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+			m.Update(tea.MouseMotionMsg{X: 0, Y: m.termH + 10, Button: tea.MouseLeft})
+			m.Update(tea.MouseReleaseMsg{X: 0, Y: m.termH - 1})
+			if m.chrome.Dialog != dialog || f.Index != 1 || f.Values()["theme"] != values["theme"] || f.Values()["frame"] != values["frame"] {
+				t.Fatal("drag missed second field, changed a choice or activated toolbar", workflow, width, f.Index)
+			}
+			if !strings.Contains(ansi.Strip(m.View().Content), "Panel frame") {
+				t.Fatal("second field remained hidden after dragging")
+			}
+		}
+	}
+}
+
+func TestTableScrollbarMotionAndReleaseReachOffsetDialog(t *testing.T) {
+	m := sizeModelTo(t, settingsModel(t), 120, 30)
+	for _, workflow := range []bool{false, true} {
+		if workflow {
+			m.openWorkflows()
+		}
+		model := m.chrome.NewTable()
+		for i := range 80 {
+			model.Rows = append(model.Rows, table.Row{ID: fmt.Sprint(i), Cells: []string{fmt.Sprintf("row %02d", i)}})
+		}
+		m.chrome.PresentDialog(screen.Dialog{Title: "Rows", Table: &screen.Table{Model: model, Columns: []table.Column{{Label: "Name"}}}})
+		m.settleControls()
+		dialog := m.chrome.Dialog
+		p := m.chrome.TableProps()
+		l := model.Layout(p)
+		x := m.chrome.Props.Area.X + max((p.Width-l.Width)/2, 0) + 2 + l.Scroll.X
+		y := m.chrome.Props.Area.Y + max((p.Height-len(l.Rows)-2)/2, 0) + 1 + l.Scroll.Y
+		rows := strings.Split(ansi.Strip(m.View().Content), "\n")
+		if []rune(rows[y])[x] != '█' {
+			t.Fatal("table track origin differs from drawn thumb", workflow, rows[y])
+		}
+		m.Update(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+		m.Update(tea.MouseMotionMsg{X: 0, Y: m.termH + 10, Button: tea.MouseLeft})
+		m.Update(tea.MouseReleaseMsg{X: 0, Y: m.termH - 1})
+		if m.chrome.Dialog != dialog || model.Offset != len(model.Rows)-l.Capacity {
+			t.Fatal("shared modal discarded motion/release or activated footer", workflow, model.Offset)
+		}
+		m.chrome.Close()
+		m.settleControls()
+	}
+}

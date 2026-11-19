@@ -21,10 +21,11 @@ type Layout struct {
 	Actions                              []Action
 	Menu                                 popup.MenuLayout
 	MenuActions                          []Action
+	Scroll                               popup.ScrollTrack
 }
 
-func (m *Model) Layout(p Props) Layout {
-	width := popup.ModalWidth(p.Width)
+func (m Model) Layout(p Props) Layout {
+	width := popup.ModalWidth(p.Width, p.PreferredWidth)
 	inner := max(width-4, 1)
 	l := Layout{Width: width, Actions: p.Actions}
 	l.Actions, l.MenuActions = splitActions(p.Actions)
@@ -88,7 +89,6 @@ func (m *Model) Layout(p Props) Layout {
 		l.Capacity = 0
 		m.MoreOpen = false
 		m.Focus = 2
-		m.SyncFocus(true)
 		buttonRows, buttonHits = m.actionRows(l.Actions, inner, p)
 	} else {
 		l.BodyTop = len(l.Rows)
@@ -99,7 +99,10 @@ func (m *Model) Layout(p Props) Layout {
 		for i := m.Offset; i < min(m.Offset+l.Capacity, len(rows)); i++ {
 			style, mark := p.Surface.Normal, "  "
 			if i == m.Cursor {
-				style, mark = p.Surface.Selected, "› "
+				style, mark = p.Styles.Muted.Inherit(p.Surface.Normal), "· "
+				if m.Focus == 0 && !m.MoreOpen {
+					style, mark = p.Surface.Selected, "› "
+				}
 			}
 
 			l.Hits = append(l.Hits, Hit{
@@ -137,10 +140,11 @@ func (m *Model) Layout(p Props) Layout {
 		}
 
 		l.BodyHeight = len(body)
-		l.Rows = append(l.Rows, popup.ScrollRows(body, inner, m.Offset*rowHeight, max(len(rows)*rowHeight-trailingGap, 0), p.Surface.Normal)...)
+		l.Scroll = popup.ScrollTrack{X: inner - 1, Y: l.BodyTop, Height: len(body), Total: max(len(rows)*rowHeight-trailingGap, 0), Offset: m.Offset * rowHeight}
+		l.Rows = append(l.Rows, popup.ScrollRows(body, inner, l.Scroll.Offset, l.Scroll.Total, p.Surface.Normal)...)
 	}
 
-	shortcuts := []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "/", Action: "filter"}, {Key: "Tab", Action: "controls"}}
+	shortcuts := []popup.Shortcut{{Key: "Esc", Action: "close"}, {Key: "/", Action: "filter"}, {Key: "Tab", Action: "controls"}, {Key: "F11", Action: "expand"}}
 
 	for _, action := range p.Actions {
 		if action.ID == p.DefaultAction && action.Enabled {

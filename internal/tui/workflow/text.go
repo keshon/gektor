@@ -12,10 +12,6 @@ import (
 )
 
 type formField = form.Field
-type scrollDrag struct {
-	active bool
-	grab   int
-}
 
 func cellFrame(s string, width, height int) string { return cell.Frame(s, width, height) }
 func truncate(s string, n int) string              { return cell.Truncate(s, n) }

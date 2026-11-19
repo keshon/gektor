@@ -6,12 +6,19 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/tui/components/pane"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	m.thumb = popup.ScrollDrag{}
 	m.ensureSelection()
 	key := msg.String()
+	if key == "f11" && m.inspectorOpen {
+		m.inspectorExpanded = !m.inspectorExpanded
+		m.inspect = true
+		return m, nil
+	}
 	if m.inspectorOpen && (key == "1" || key == "2" || key == "3") {
 		m.setInspectorTab(int(key[0] - '1'))
 		m.inspect = true
@@ -45,7 +52,7 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		} else if m.inspectorOpen && m.inspect {
 			m.inspectorOpen = false
 			m.inspect = false
-			m.thumb = scrollDrag{}
+			m.thumb = popup.ScrollDrag{}
 		} else {
 			action = "chat"
 		}
@@ -109,7 +116,8 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		action = "redo"
 	case "tab":
 		if m.inspectorOpen {
-			m.inspect = !m.inspect
+			surface := m.viewSurface()
+			m.inspect = !m.inspect || surface.Panes(true).Covered
 		}
 	case "up", "down", "left", "right":
 		delta := 1

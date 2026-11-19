@@ -18,10 +18,10 @@ import (
 	"github.com/keshon/gektor/internal/capabilities/ssh"
 	"github.com/keshon/gektor/internal/credentials"
 	"github.com/keshon/gektor/internal/executables"
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/components/table"
 	"github.com/keshon/gektor/internal/tui/screen"
-	"github.com/keshon/gektor/internal/tui/settings"
 	"github.com/keshon/gektor/internal/userdirs"
 )
 
@@ -187,7 +187,7 @@ func (m *Model) Preferences(name string) (screen.Form, error) {
 	return screen.Form{Title: name + " preferences", Hint: "Blank path uses PATH. Choose an absolute executable to override it. Apply saves and relaunches GEKTOR at idle; both Agent and Workflows use this preference.", ApplyLabel: "Apply and restart", Fields: []form.Field{
 		{Key: "path", Label: "Executable path", Value: setting.Path},
 		{Key: "disabled", Label: "Disabled", Value: strconv.FormatBool(setting.Disabled)},
-	}, Choices: map[string][]string{"disabled": {"false", "true"}}, FileFields: map[string]settings.FilePicker{"path": {}}}, nil
+	}, Choices: map[string][]string{"disabled": {"false", "true"}}, FileFields: map[string]fieldform.FilePicker{"path": {}}}, nil
 }
 
 func (m *Model) Save(name string, values map[string]string) error {

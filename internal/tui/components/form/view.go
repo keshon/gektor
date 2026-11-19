@@ -6,6 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/tui/components/cell"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 )
@@ -15,6 +16,14 @@ type Hit struct {
 	// Option is a one-based choice index; zero means a field or action hit.
 	Option int
 }
+
+type Layout struct {
+	Rows     []string
+	Hits     []Hit
+	Scroll   popup.ScrollTrack
+	Fields   []int // Visible field indexes, in scroll order.
+	Capacity int
+}
 type Styles struct{ Normal, Title, Muted, Focus, Disabled, Error, Scrollbar lipgloss.Style }
 type Props struct {
 	Title, Hint, Error, PrimaryLabel, Choice string
@@ -22,6 +31,8 @@ type Props struct {
 	Destructive                              bool
 	Styles                                   Styles
 	Options                                  func(Field) []Option
+	FieldErrors                              map[string]string
+	FeedbackHint                             string
 
 	// Hooks for a form that needs more than plain fields. Every one is
 	// optional: a nil or zero value means the default, so a simple form
@@ -52,8 +63,13 @@ type Props struct {
 }
 
 func (f Model) Rows(props Props) ([]string, []Hit) {
+	l := f.Layout(props)
+	return l.Rows, l.Hits
+}
+
+func (f Model) Layout(props Props) Layout {
 	w, h := props.Width, props.Height
-	inner := max(popup.ModalWidth(w)-4, 1)
+	inner := max(popup.ModalWidth(w, 0)-4, 1)
 	height := f.Editor.Height()
 	rows := popup.Header(props.Title, inner, props.Styles.Title)
 	var feedback []string
@@ -68,6 +84,9 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 	// Keep a field, its position, the actions and frame reachable on short screens.
 	reserved := len(rows) + 10
 	feedback = feedback[:min(len(feedback), max(h-reserved-1, 1))]
+	if props.FeedbackHint != "" {
+		feedback = append(feedback, props.Styles.Muted.Render(cell.Line(props.FeedbackHint, inner)))
+	}
 	hint := cell.Wrap(props.Hint, inner)
 	hint = hint[:min(len(hint), max(h-reserved-len(feedback), 1))]
 	for _, line := range hint {
@@ -91,6 +110,9 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 		}
 	}
 	rowHeight := 3
+	if len(props.FieldErrors) > 0 {
+		rowHeight++
+	}
 	choiceMaxRows := max(h-9-fieldsTop-len(feedback), 1)
 	if props.Options != nil {
 		for _, i := range indexes {
@@ -150,17 +172,23 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 			rows = append(rows, cell.Line(value, inner))
 		}
 		hits = append(hits, Hit{Index: i, Y0: y, Y1: len(rows)})
+		if message := props.FieldErrors[field.Key]; message != "" {
+			rows = append(rows, props.Styles.Error.Render(cell.Line(message, inner)))
+		}
 		rows = append(rows, "")
 	}
+	var track popup.ScrollTrack
 	if len(indexes) > capacity {
 		fieldRows := rows[fieldsTop:]
-		rows = append(rows[:fieldsTop], popup.ScrollRows(fieldRows, inner, start*3, len(indexes)*3+height-1, props.Styles.Scrollbar)...)
-		trackHits := make([]Hit, 0, len(fieldRows))
-		for row := range fieldRows {
-			index := indexes[min(row*len(indexes)/max(len(fieldRows), 1), len(indexes)-1)]
-			trackHits = append(trackHits, Hit{Index: index, Y0: fieldsTop + row, Y1: fieldsTop + row + 1, X0: inner - 1, X1: inner})
+		// Keep the track stationary as focus moves between differently sized fields.
+		windowHeight := min(capacity*rowHeight+height-1, max(h-fieldsTop-len(feedback)-6, 1))
+		for len(fieldRows) < windowHeight {
+			fieldRows = append(fieldRows, "")
 		}
-		hits = append(trackHits, hits...)
+		total := len(fieldRows) * len(indexes) / capacity
+		offset := start * (total - len(fieldRows)) / (len(indexes) - capacity)
+		track = popup.ScrollTrack{X: inner - 1, Y: fieldsTop, Height: len(fieldRows), Total: total, Offset: offset}
+		rows = append(rows[:fieldsTop], popup.ScrollRows(fieldRows, inner, offset, total, props.Styles.Scrollbar)...)
 		// Capped like every other row here. It was not, so a form with
 		// more fields than fit pushed its own frame wider than the pane and
 		// clipped its own right-hand border.
@@ -208,7 +236,7 @@ func (f Model) Rows(props Props) ([]string, []Hit) {
 	action, actionHits := f.Actions(inner, len(rows), props.PrimaryLabel, !props.DisablePrimary, props.Destructive, props.Styles)
 	rows = append(rows, action)
 	hits = append(hits, actionHits...)
-	return rows, hits
+	return Layout{Rows: rows, Hits: hits, Scroll: track, Fields: indexes, Capacity: capacity}
 }
 func (f Model) Actions(width, y int, primary string, enabled, destructive bool, styles Styles) (string, []Hit) {
 	cancel := "[ Cancel ]"

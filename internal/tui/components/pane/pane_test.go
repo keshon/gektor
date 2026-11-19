@@ -5,13 +5,14 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/tui/components/cell"
 )
 
 func TestSplitKeepsOddWidthsAndCoversNarrowScreens(t *testing.T) {
 	for _, width := range []int{40, 99, 100, 121} {
 		area := Rect{Y: 1, Width: width, Height: 28}
-		l := Split(area, true, 100)
+		l := Split(area, true, SplitProps{MinimumWidth: 100})
 		if width < 100 {
 			if !l.Covered || l.Main != area || l.Side != area {
 				t.Fatal("narrow split squeezed the parent", l)
@@ -19,6 +20,20 @@ func TestSplitKeepsOddWidthsAndCoversNarrowScreens(t *testing.T) {
 		} else if l.Covered || l.Main.Width+l.Side.Width != width || l.Side.X != l.Main.Width {
 			t.Fatal("split lost columns", l)
 		}
+	}
+}
+
+func TestSplitHonorsRequestedInspectorWidth(t *testing.T) {
+	area := Rect{X: 2, Y: 1, Width: 120, Height: 28}
+	props := SplitProps{MinimumWidth: 100, SideWidth: 75}
+	l := Split(area, true, props)
+	if l.Covered || l.Main.Width != 45 || l.Side.Width != 75 || l.Side.X != 47 {
+		t.Fatal("requested side width lost geometry", l)
+	}
+	props.SideWidth = area.Width
+	l = Split(area, true, props)
+	if !l.Covered || l.Main != area || l.Side != area {
+		t.Fatal("expanded inspector did not cover the parent", l)
 	}
 }
 

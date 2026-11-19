@@ -25,7 +25,7 @@ func wsRootOf(ws *workspace.Workspace) string {
 // itself is components/popup, shared with the completion list, the session
 // search and the header menus so their chrome cannot drift.
 func renderBox(rows []string, availW, availH int) string {
-	return popup.FrameBox(rows, availW, availH, popupSurface())
+	return popup.FrameBox(rows, availW, availH, 0, popupSurface())
 }
 
 // popupSurface hands the popup component this palette's three surface

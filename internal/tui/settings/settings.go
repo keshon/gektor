@@ -1,113 +1,145 @@
-// Package settings owns settings drafts, field editing, and picker interaction.
-// Callers own persistence and execute discovery requests emitted by the model.
+// Package settings owns GEKTOR's staged preferences and their form presentation.
 package settings
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
+	"strconv"
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/providers"
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/components/form"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
 type EditSession struct {
-	Draft               *Draft
-	Section, LoadedPath string
-	Advanced            bool
-	// Explicit Apply may persist launch overrides even without field edits.
-	PersistCurrent bool
-	AccountLabel   string
-}
-type FilePicker struct {
-	Root       string
-	Extensions []string
+	Draft                    *Draft
+	Section, LoadedPath      string
+	Advanced, PersistCurrent bool
+	AccountLabel             string
 }
 
-func (f *Model) FilePicker(key string) bool {
-	_, ok := f.FileFields[key]
-	return ok || PickerFiles(key)
-}
-func (f *Model) PickerControl(key string) bool { return f.FilePicker(key) || PickerControl(key) }
-
+// Model adapts a controls-owned form to GEKTOR preferences on the update loop.
 type Model struct {
-	form.Model
-	Error, Hint, ApplyLabel string
-	Destructive             bool
-	Choices                 map[string][]string
-	ShowWhen                map[string][]form.Condition
-	FileFields              map[string]FilePicker
-	EditSession             *EditSession
-	Picker                  *Picker
-	HasApplication          bool
-}
-type Category struct{ ID, Label string }
-
-var categories = []Category{{"model", "Model connection"}, {"generation", "Response settings"}, {"profiles", "Launch profiles"}, {"workspace", "Workspace"}, {"you", "Identity and persona"}, {"prompts", "Agent instructions"}}
-
-func SectionTitle(id string) string {
-	for _, category := range categories {
-		if category.ID == id {
-			return category.Label
-		}
-	}
-
-	return "Settings"
+	*fieldform.Model
+	EditSession                   *EditSession
+	previousKind, selectedProfile string
+	loadError                     error
 }
 
-type InputOwner int
-
-const (
-	NoInput InputOwner = iota
-	FieldInput
-	PickerInput
-)
-
-func NewModel(fields []form.Field, editor textarea.Model) Model {
-	m := Model{Model: form.New(fields, editor)}
+func NewModel(initial []form.Field, editor textarea.Model) Model {
+	draft := fieldform.NewModel(initial, editor)
+	m := Model{Model: &draft}
+	m.Prepare()
 	return m
 }
 
-func (f *Model) InputOwner() InputOwner {
-	if f.Picker != nil {
-		if f.Picker.Field == "theme" || f.Picker.Control > 0 {
-			return NoInput
-		}
-
-		return PickerInput
+// Prepare supplies application choices and visibility without retaining effects
+// in the shared controls. The application calls it after input and before drawing.
+func (f *Model) Prepare() {
+	f.Sync()
+	f.FieldLabels = map[string]string{"kind": "Protocol", "endpoint": "Server address"}
+	if f.Choices == nil {
+		f.Choices = map[string][]string{}
 	}
-
-	if f.Index >= 0 && f.Index < len(f.Fields) {
-		if len(f.Options(f.Fields[f.Index].Key)) > 0 {
-			return NoInput
-		}
-
-		return FieldInput
+	if f.Labels == nil {
+		f.Labels = map[string]map[string]string{}
 	}
-
-	return NoInput
-}
-
-func (f *Model) SyncInputFocus(active bool) {
-	if active && f.InputOwner() == FieldInput {
-		if !f.Editor.Focused() {
-			f.Editor.Focus()
-		}
-	} else {
-		f.Editor.Blur()
+	if f.FileFields == nil {
+		f.FileFields = map[string]fieldform.FilePicker{}
 	}
-
-	if f.Picker != nil {
-		if active && f.InputOwner() == PickerInput {
-			if !f.Picker.Search.Focused() {
-				f.Picker.Search.Focus()
+	f.Hidden = map[string]bool{}
+	f.DiscoveryFields = map[string]string{"model": "model", "reasoning-effort": "reasoning"}
+	f.NoSearchFields = map[string]bool{"theme": true}
+	f.InlineChoices = map[string]int{"theme": 6}
+	for i, field := range f.Fields {
+		if len(f.Choices[field.Key]) == 0 {
+			f.Choices[field.Key] = Choices(field.Key)
+		}
+		labels := map[string]string{}
+		for _, value := range f.Choices[field.Key] {
+			labels[value] = ChoiceLabel(field.Key, value)
+		}
+		f.Labels[field.Key] = labels
+		f.Hidden[field.Key] = !f.FieldVisible(i)
+		if field.Key == "kind" {
+			if f.previousKind != "" && f.previousKind != field.Value {
+				for j := range f.Fields {
+					if f.Fields[j].Key == "endpoint" {
+						f.Fields[j].Value = SuggestedBackendURL(f.Fields[j].Value, f.previousKind, field.Value)
+					}
+				}
 			}
-		} else {
-			f.Picker.Search.Blur()
+			f.previousKind = field.Value
 		}
+		if field.Key == "app-workspace" {
+			f.FileFields[field.Key] = fieldform.FilePicker{Root: field.Value, Directory: true}
+		}
+		if field.Key == "load-profile" {
+			if _, ok := f.FileFields[field.Key]; !ok {
+				executable, err := os.Executable()
+				if err != nil {
+					f.Error = "Locating profiles: " + err.Error()
+					continue
+				}
+				f.FileFields[field.Key] = fieldform.FilePicker{Root: filepath.Join(filepath.Dir(executable), "profiles"), Extensions: []string{".json"}, Recursive: true}
+			}
+			if f.EditSession != nil && field.Value != "" && field.Value != f.selectedProfile {
+				f.stageProfile(field.Value)
+			}
+		}
+	}
+	if f.EditSession != nil {
+		f.Hint = Hint(f.EditSession.Section)
+		f.Note = f.note()
+		f.DisablePrimary = !f.Dirty() || f.loadError != nil
+		f.Shortcuts = []popup.Shortcut{{Key: "Esc", Action: "cancel"}, {Key: "Ctrl+S", Action: "apply"}, {Key: "Tab", Action: "controls"}}
 	}
 }
 
+func (f *Model) UpdateKey(msg tea.KeyPressMsg, props fieldform.Props) (fieldform.Intent, tea.Cmd) {
+	f.Prepare()
+	if f.FeedbackOpen {
+		return f.Model.UpdateKey(msg, props)
+	}
+	if f.EditSession != nil {
+		switch msg.String() {
+		case "f4":
+			f.EditSession.Advanced = !f.EditSession.Advanced
+			f.Prepare()
+			f.Focus(f.FirstVisibleField(), f.FieldVisible)
+			return fieldform.Intent{}, nil
+		case "ctrl+d":
+			if f.EditSession.Section == "profiles" {
+				return fieldform.Intent{Action: fieldform.SaveCopy}, nil
+			}
+		}
+	}
+	intent, cmd := f.Model.UpdateKey(msg, props)
+	f.Prepare()
+	return intent, cmd
+}
+
+func (f *Model) Mouse(msg tea.MouseMsg, props fieldform.Props) (fieldform.Intent, tea.Cmd) {
+	intent, cmd := f.Model.Mouse(msg, props)
+	f.Prepare()
+	return intent, cmd
+}
+
+func (f *Model) CycleChoice() {
+	f.Model.CycleChoice()
+	f.Prepare()
+}
+
+func (f *Model) Focus(index int, visible func(int) bool) {
+	f.Prepare()
+	f.Model.Focus(index, visible)
+}
 func (f *Model) FieldVisible(index int) bool {
 	if index >= 0 && index < len(f.Fields) {
 		for _, condition := range f.ShowWhen[f.Fields[index].Key] {
@@ -125,24 +157,25 @@ func (f *Model) FieldVisible(index int) bool {
 	}
 
 	if index >= 0 && index < len(f.Fields) && f.EditSession != nil {
-		if d, err := providers.Lookup(f.providerKind()); err == nil {
+		descriptor, lookupErr := providers.Lookup(f.providerKind())
+		if lookupErr == nil {
 			switch f.Fields[index].Key {
 			case "reasoning-effort", "reasoning-summary":
-				return d.Reasoning
+				return descriptor.Reasoning
 			case "temperature":
-				if !d.Sampling {
+				if !descriptor.Sampling {
 					return false
 				}
 			case "max":
-				if !d.OutputLimit {
+				if !descriptor.OutputLimit {
 					return false
 				}
 			case "key-env":
-				if d.Auth != providers.Bearer {
+				if descriptor.Auth != providers.Bearer {
 					return false
 				}
 			case "endpoint":
-				if d.FixedURL != "" {
+				if descriptor.FixedURL != "" {
 					return false
 				}
 			}
@@ -184,93 +217,11 @@ func (f *Model) providerKind() string {
 	return f.EditSession.Draft.Base().Provider.Kind
 }
 
-func (f *Model) FirstVisibleField() int {
-	for i := range f.Fields {
-		if f.FieldVisible(i) {
-			return i
-		}
-	}
-
-	return len(f.Fields)
+func (f *Model) StorePage() {
+	f.Sync()
+	f.EditSession.Draft.Store(f.EditSession.Section, f.Fields)
 }
 
-func (f *Model) Options(key string) []string {
-	if choices := f.Choices[key]; len(choices) > 0 {
-		return choices
-	}
-
-	return Choices(key)
-}
-func (f *Model) Focus(index int, visible func(int) bool) {
-	f.Model.Focus(index, visible)
-	if f.InputOwner() != FieldInput {
-		f.Editor.Blur()
-	}
-}
-func (f *Model) CycleChoice() {
-	f.cycleChoice(1)
-}
-
-func (f *Model) cycleChoice(step int) {
-	options := f.Options(f.Fields[f.Index].Key)
-	if len(options) == 0 {
-		return
-	}
-
-	previous := f.Editor.Value()
-	next := options[0]
-
-	for i, value := range options {
-		if value == previous {
-			next = options[(i+step+len(options))%len(options)]
-			break
-		}
-	}
-
-	f.setChoice(next)
-}
-
-func (f *Model) setChoice(next string) {
-	previous := f.Editor.Value()
-	if f.Fields[f.Index].Key == "kind" {
-		for i := range f.Fields {
-			if f.Fields[i].Key == "endpoint" {
-				f.Fields[i].Value = SuggestedBackendURL(f.Fields[i].Value, previous, next)
-			}
-		}
-	}
-
-	f.Editor.SetValue(next)
-	f.Fields[f.Index].Value = next
-}
-
-// Short, fixed choices stay in their form. Discovery and file lists keep their
-// searchable picker, regardless of how many results they currently contain.
-func (f *Model) inlineOptions(field form.Field) []form.Option {
-	if field.ReadOnly || f.PickerControl(field.Key) {
-		return nil
-	}
-
-	values := f.Options(field.Key)
-	if len(values) == 0 || (len(values) > 4 && field.Key != "theme") {
-		return nil
-	}
-
-	options := make([]form.Option, 0, len(values))
-
-	for _, value := range values {
-		label := ChoiceLabel(field.Key, value)
-		if len([]rune(label)) > 24 {
-			return nil
-		}
-
-		options = append(options, form.Option{Value: value, Label: label})
-	}
-
-	return options
-}
-
-func (f *Model) StorePage() { f.Sync(); f.EditSession.Draft.Store(f.EditSession.Section, f.Fields) }
 func (f *Model) Dirty() bool {
 	if f.EditSession == nil {
 		return true
@@ -283,20 +234,47 @@ func (f *Model) Dirty() bool {
 
 	return f.EditSession.PersistCurrent || f.EditSession.Draft.Dirty(f.EditSession.Section, fields)
 }
-func (f *Model) UpdateInput(msg tea.Msg) tea.Cmd {
-	switch f.InputOwner() {
-	case PickerInput:
-		return f.Picker.UpdateInput(msg)
-	case FieldInput:
-		if f.Fields[f.Index].ReadOnly {
-			return nil
+func (f *Model) note() string {
+	descriptor, lookupErr := providers.Lookup(f.providerKind())
+	if lookupErr == nil && descriptor.Auth == providers.ChatGPTAccount {
+		if f.EditSession.Section == "generation" {
+			return "Effort choices come from this model; thinking shows a summary when available"
 		}
+		if f.EditSession.Section == "model" {
+			if f.EditSession.AccountLabel != "" {
+				return "Account: " + f.EditSession.AccountLabel + " | gektor auth login/logout"
+			}
+			return "Connect: gektor auth login | Account: gektor auth status"
+		}
+	}
+	switch {
+	case f.Error != "":
+		return ""
+	case f.EditSession.Section == "generation":
+		return "Temperature: default uses " + strconv.FormatFloat(DefaultTemperature, 'g', -1, 64)
+	case f.EditSession.Section == "profiles":
+		return "Ctrl+D saves a copy · Apply selects this profile for subsequent requests and launches"
+	case f.EditSession.PersistCurrent:
+		return "Apply saves the current launch settings"
+	case f.Dirty():
+		return "Apply saves a custom profile"
+	default:
+		return ""
+	}
+}
 
-		var cmd tea.Cmd
-		f.Editor, cmd = f.Editor.Update(msg)
-
-		return cmd
+func (f *Model) stageProfile(path string) {
+	f.selectedProfile = path
+	loaded, err := config.Load(path)
+	f.loadError = err
+	if err != nil {
+		f.Error = err.Error()
+		f.FieldErrors = map[string]string{"load-profile": err.Error()}
+		return
 	}
 
-	return nil
+	f.FieldErrors = nil
+	f.EditSession.LoadedPath = path
+	f.EditSession.Draft.Load(loaded)
+	f.Error = "Profile loaded. Apply to use it."
 }

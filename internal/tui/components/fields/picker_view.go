@@ -1,4 +1,4 @@
-package settings
+package fields
 
 import (
 	"fmt"
@@ -18,6 +18,7 @@ type pickerLayout struct {
 	rows                     []string
 	hits                     []form.Hit
 	inner, listTop, capacity int
+	scroll                   popup.ScrollTrack
 }
 
 // PickerRows returns rendering and hit regions from the same measured layout.
@@ -27,21 +28,15 @@ func (f *Model) PickerRows(props Props) ([]string, []form.Hit, int, int) {
 }
 
 func (f *Model) layoutPicker(props Props) pickerLayout {
-	p := f.Picker
+	p := *f.Picker
 	w, h := props.Width, props.Height
-	inner := max(popup.ModalWidth(w)-4, 1)
+	inner := max(popup.ModalWidth(w, 0)-4, 1)
 	title := p.Field
 	for _, field := range f.Fields {
 		if field.Key == p.Field && field.Label != "" {
 			title = field.Label
 			break
 		}
-	}
-	if title == "load-profile" {
-		title = "Profile / saved setup"
-	}
-	if title == "app-workspace" {
-		title = "Workspace"
 	}
 	if p.Location {
 		title += " / Location"
@@ -62,7 +57,7 @@ func (f *Model) layoutPicker(props Props) pickerLayout {
 	}
 	if p.IsFiles() {
 		location := p.Directory
-		if p.Field == "app-workspace" {
+		if p.Folders() {
 			available := max(inner-cell.Width("Current folder: "), 1)
 			if extra := cell.Width(location) - available; extra > 0 {
 				location = ansi.TruncateLeft(location, extra+1, "…")
@@ -71,7 +66,7 @@ func (f *Model) layoutPicker(props Props) pickerLayout {
 		}
 		rows = append(rows, cell.Line(location, inner))
 	}
-	if p.Field == "app-workspace" {
+	if p.Folders() {
 		if h >= 18 {
 			rows = append(rows, "")
 		}
@@ -81,12 +76,12 @@ func (f *Model) layoutPicker(props Props) pickerLayout {
 		}
 	}
 	searchRow := -1
-	if p.Field != "theme" {
+	if !p.NoSearch {
 		p.Search.SetWidth(max(inner-cell.Width(p.Search.Prompt)-2, 1))
 		searchRow = len(rows)
 		rows = append(rows, cell.Line(p.Search.View(), inner))
 	}
-	if p.Field == "app-workspace" {
+	if p.Folders() {
 		if h >= 18 {
 			rows = append(rows, "")
 		}
@@ -144,11 +139,15 @@ func (f *Model) layoutPicker(props Props) pickerLayout {
 	}
 	hits = append(hits, actionHits...)
 	rows = append(rows, actions)
-	return pickerLayout{rows: rows, hits: hits, inner: inner, listTop: listTop, capacity: capacity}
+	track := popup.ScrollTrack{X: inner - 1, Y: listTop, Height: len(body), Total: len(p.Filtered), Offset: start}
+	return pickerLayout{rows: rows, hits: hits, inner: inner, listTop: listTop, capacity: capacity, scroll: track}
 }
 
 func (p *Picker) itemLabel(item string) string {
-	label := ChoiceLabel(p.Field, item)
+	label := item
+	if shown, ok := p.Labels[item]; ok {
+		label = shown
+	}
 	if !p.IsFiles() {
 		return label
 	}
@@ -169,7 +168,7 @@ func (p *Picker) detailText() string {
 	if p.Err != "" {
 		return p.Err
 	}
-	if p.Field == "app-workspace" {
+	if p.Folders() {
 		if len(p.Filtered) == 0 {
 			return "No matching folders"
 		}
@@ -208,7 +207,7 @@ func (p *Picker) actions() pickerActions {
 	if p.IsFiles() {
 		shortcuts = append(shortcuts, popup.Shortcut{Key: "Ctrl+L", Action: "path"}, popup.Shortcut{Key: "Ctrl+D", Action: "drives"})
 	}
-	if p.Field == "app-workspace" {
+	if p.Folders() {
 		primaryHit = -2
 		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "cancel"}, {Key: "Enter", Action: "open"}, {Key: "Ctrl+S", Action: "select folder"}, {Key: "Ctrl+L", Action: "path"}, {Key: "Ctrl+D", Action: "drives"}, {Key: "Tab", Action: "controls"}}
 	}

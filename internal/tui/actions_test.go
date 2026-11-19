@@ -1,0 +1,33 @@
+package tui
+
+import (
+	"testing"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/keshon/gektor/internal/tui/screen"
+)
+
+func TestActionsOpenAndDispatchThroughBothScreens(t *testing.T) {
+	m := settingsModel(t)
+	for _, workflow := range []bool{false, true} {
+		if workflow {
+			m.openWorkflows()
+		}
+		m.Update(tea.KeyPressMsg{Code: tea.KeyF12})
+		dialog := m.chrome.Dialog
+		if dialog == nil || dialog != m.actionsDialog || dialog.Table == nil {
+			t.Fatal("Actions did not open")
+		}
+		dialog.Table.Model.Search.SetValue("Appearance")
+		m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+		if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil || m.chrome.Dialog.Title != "Appearance" {
+			t.Fatal("selected action did not open Appearance")
+		}
+		m.dispatchControl(screen.Event{Kind: screen.TableAction, Dialog: dialog, Action: "details", Row: "quit"})
+		if m.quit || m.pendingQuit {
+			t.Fatal("stale Actions result reached the application")
+		}
+		m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	}
+}

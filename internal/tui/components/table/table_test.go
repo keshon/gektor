@@ -8,7 +8,9 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+
 	"github.com/keshon/gektor/internal/tui/components/cell"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
 func fixture() (*Model, Props) {
@@ -21,6 +23,71 @@ func fixture() (*Model, Props) {
 		Actions: []Action{{ID: "details", Label: "Details", Key: "enter", Enabled: true},
 			{ID: "delete", Label: "Delete", Key: "delete"}, {ID: "close", Label: "Close", Key: "esc", Enabled: true}}}
 	return m, p
+}
+
+func TestScrollbarDragUsesDrawnTrackAndNeverActivatesActions(t *testing.T) {
+	for _, list := range []bool{false, true} {
+		for _, width := range []int{40, 100, 140} {
+			m, p := fixture()
+			p.List, p.Width = list, width
+			l := m.Layout(p)
+			x := max((p.Width-l.Width)/2, 0) + 2 + l.Scroll.X
+			y := max((p.Height-len(l.Rows)-2)/2, 0) + 1 + l.Scroll.Y
+			if !strings.HasSuffix(ansi.Strip(l.Rows[l.BodyTop]), "█") {
+				t.Fatal("thumb does not match drawn column")
+			}
+			m.Mouse(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft}, p)
+			if !m.scroll.Active {
+				t.Fatal("thumb did not capture mouse", width, list)
+			}
+			m.Mouse(tea.MouseMotionMsg{X: 0, Y: p.Height + 10, Button: tea.MouseLeft}, p)
+			action := m.Mouse(tea.MouseReleaseMsg{X: 0, Y: p.Height + 10}, p)
+			if action != "" || m.scroll.Active || m.Offset != len(m.Rows)-l.Capacity {
+				t.Fatal("drag did not reach bottom and release", width, list, m.Offset)
+			}
+			l = m.Layout(p)
+			top, _ := popup.ScrollThumb(l.Scroll.Height, l.Scroll.Total, l.Scroll.Offset)
+			m.Mouse(tea.MouseClickMsg{X: x, Y: y + top, Button: tea.MouseLeft}, p)
+			m.Mouse(tea.MouseMotionMsg{X: 0, Y: -5, Button: tea.MouseLeft}, p)
+			m.Mouse(tea.MouseReleaseMsg{X: 0, Y: -5}, p)
+			if m.Offset != 0 || m.scroll.Active {
+				t.Fatal("drag did not clamp at top")
+			}
+
+			m.Mouse(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft}, p)
+			p.Height = 4
+			m.Mouse(tea.MouseMotionMsg{X: 0, Y: 100, Button: tea.MouseLeft}, p)
+			if m.scroll.Active || m.Offset != 0 {
+				t.Fatal("resize retained invisible drag or changed selection")
+			}
+		}
+	}
+}
+
+func TestLayoutPreservesFocusSelectionAndOpenMenuAcrossResize(t *testing.T) {
+	m, p := fixture()
+	m.Focus, m.Cursor, m.Offset, m.MoreOpen = 1, 23, 20, true
+	m.Search.SetValue("server")
+	m.Search.SetWidth(17)
+	before := *m
+
+	for _, height := range []int{24, 4, 24} {
+		p.Height = height
+		m.Layout(p)
+		if m.Focus != before.Focus || m.Cursor != before.Cursor || m.Offset != before.Offset || m.MoreOpen != before.MoreOpen || m.Search.Width() != before.Search.Width() {
+			t.Fatal("layout changed interaction state", height, m.Focus, m.Cursor, m.Offset, m.MoreOpen)
+		}
+	}
+}
+
+func TestRetainedRowSelectionDiffersFromKeyboardFocus(t *testing.T) {
+	m, p := fixture()
+	focused := m.Layout(p)
+	m.Focus = 1
+	filter := m.Layout(p)
+	if !strings.Contains(strings.Join(focused.Rows, "\n"), "› server-00") || !strings.Contains(strings.Join(filter.Rows, "\n"), "· server-00") {
+		t.Fatal("retained selection is indistinguishable from row focus")
+	}
 }
 
 func TestFilteringAndNavigationNeverActivateActions(t *testing.T) {

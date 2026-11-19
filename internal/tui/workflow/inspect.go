@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/tui/components/pane"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/workflow"
 )
 
@@ -16,7 +17,7 @@ func (m *Model) setInspectorTab(tab int) {
 	m.inspectorTab = max(0, min(2, tab))
 	m.rawDetails = false
 	m.offset = 0
-	m.thumb = scrollDrag{}
+	m.thumb = popup.ScrollDrag{}
 }
 
 func (m *Model) inspectorTabs() pane.TabLayout {
@@ -28,7 +29,7 @@ func (m *Model) inspectorTabs() pane.TabLayout {
 	if m.rawDetails {
 		active = -1
 	}
-	view := m.surface
+	view := m.viewSurface()
 	width := view.Layout(view.Panes(true).Side.Width, true).Body.Width
 	return pane.Tabs(labels, active, width, m.inspect && !view.HeaderFocused,
 		pane.TabStyles{Normal: view.Styles.Muted, Active: view.Styles.Panels.Title, Focus: view.Styles.Panels.Focus})

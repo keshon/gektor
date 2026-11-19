@@ -4,12 +4,12 @@ import (
 	"maps"
 	"slices"
 
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/components/table"
-	"github.com/keshon/gektor/internal/tui/settings"
 )
 
 // PresentForm copies its fields and choices into the controls-owned draft.
-func (m *Controls) PresentForm(f Form) *settings.Model {
+func (m *Controls) PresentForm(f Form) *fieldform.Model {
 	m.OpenForm(f.Title, f.Hint, f.ApplyLabel, f.Fields)
 	draft := m.Dialog.Form
 	draft.Destructive = f.Destructive
@@ -36,8 +36,9 @@ func (m *Controls) PresentForm(f Form) *settings.Model {
 
 func (m *Controls) PresentDialog(d Dialog) {
 	m.Open(d.Title, d.Lines)
+	m.Dialog.PreferredWidth = d.PreferredWidth
 	m.Dialog.Shortcuts = slices.Clone(d.Shortcuts)
-	m.Dialog.Save = d.Save
+	m.Dialog.Actions = slices.Clone(d.Actions)
 	if d.Table != nil {
 		m.Dialog.Table = &TableState{Model: d.Table.Model, Columns: slices.Clone(d.Table.Columns), Description: d.Table.Description, Actions: slices.Clone(d.Table.Actions)}
 	}

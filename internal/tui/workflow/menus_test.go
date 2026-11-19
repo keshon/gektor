@@ -22,6 +22,8 @@ func TestMenusRespectApplicationWorkAndFrozenRuns(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			m := workflowTestModel(t).workflows
+			m.editor.Definition.Steps = []workflowrun.Step{{ID: "first"}}
+			m.graph.Selected = "first"
 			m.busy = tc.busy
 			if tc.frozen {
 				m.run = &workflowrun.Run{}
@@ -75,5 +77,26 @@ func TestMenuTogglesTrackWorkflowCommands(t *testing.T) {
 	}
 	if m.MenuItems("settings", true) != nil {
 		t.Fatal("workflow claimed application settings")
+	}
+}
+
+func TestEmptyRecipeDoesNotOfferNodeActions(t *testing.T) {
+	m := workflowTestModel(t).workflows
+	for _, item := range m.MenuItems("node", true) {
+		switch item.Command {
+		case "/workflows edit", "/workflows behavior", "/workflows connections", "/workflows link", "/workflows delete":
+			if item.Enabled {
+				t.Fatal("empty recipe offered a node action", item.Command)
+			}
+		}
+	}
+	m.surface.Area.Width = 120
+	for _, action := range m.footerActions() {
+		switch action.Label {
+		case "Edit", "Connect", "Run", "Inspector":
+			if action.Enabled {
+				t.Fatal("empty recipe offered an unavailable footer action", action.Label)
+			}
+		}
 	}
 }

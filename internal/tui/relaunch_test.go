@@ -9,7 +9,7 @@ import (
 
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/llm"
-	"github.com/keshon/gektor/internal/tui/settings"
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 )
 
 type settingsClient struct {
@@ -67,7 +67,7 @@ func TestLoadedProfileIsCommittedOnApply(t *testing.T) {
 	focusSetting(m, "load-profile")
 	m.chrome.Dialog.Form.OpenPicker(m.settingsProps())
 	picker := m.chrome.Dialog.Form.Picker
-	m.Update(settings.ScanMsg{ID: picker.ID, Items: []string{path}})
+	m.Update(fieldform.ScanMsg{ID: picker.ID, Items: []string{path}})
 	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m.settingsProps())
 	m.editSettings("generation")
 	m.applyForm()
@@ -175,7 +175,7 @@ func TestSettingsApplyQueuesRestartWithContextAndDraft(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.editSettings("model")
-	if m.chrome.Dialog == nil || m.chrome.Dialog.Form.EditSession.Section != "model" {
+	if m.chrome.Dialog == nil || m.preferences.EditSession.Section != "model" {
 		t.Fatal("model editor unavailable")
 	}
 	focusSetting(m, "model")

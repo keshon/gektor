@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,9 +11,42 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/keshon/gektor/internal/config"
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/screen"
-	"github.com/keshon/gektor/internal/tui/settings"
 )
+
+func TestReuseInteractionPreview(t *testing.T) {
+	dir := os.Getenv("GEKTOR_TUI_PREVIEW_DIR")
+	if dir == "" {
+		t.Skip("optional rendered fixtures")
+	}
+	err := os.MkdirAll(dir, 0700)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer setTheme("dark")
+	for _, width := range []int{40, 80, 120} {
+		m := sizeModelTo(t, settingsModel(t), width, 24)
+		m.applyTheme("light")
+		m.Update(tea.KeyPressMsg{Code: tea.KeyF12})
+		path := filepath.Join(dir, fmt.Sprintf("actions-%d.ansi", width))
+		err = os.WriteFile(path, []byte(m.View().Content), 0600)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+		m.editSettings("generation")
+		m.chrome.Dialog.Form.Error = strings.Repeat("The response could not be saved. ", 30) + "Check the target directory permissions and try again."
+		m.Update(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+		m.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
+		path = filepath.Join(dir, fmt.Sprintf("error-details-%d.ansi", width))
+		err = os.WriteFile(path, []byte(m.View().Content), 0600)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
 
 func TestModalCleanupPreview(t *testing.T) {
 	dir := os.Getenv("GEKTOR_TUI_PREVIEW_DIR")
@@ -97,7 +131,7 @@ func TestSettingsLibrariesPreview(t *testing.T) {
 	focusSetting(m, "load-profile")
 	m.chrome.Dialog.Form.OpenPicker(m.settingsProps())
 	p := m.chrome.Dialog.Form.Picker
-	m.Update(settings.ScanMsg{ID: p.ID, Items: []string{filepath.Join(dir, "custom.json")}})
+	m.Update(fieldform.ScanMsg{ID: p.ID, Items: []string{filepath.Join(dir, "custom.json")}})
 	write("profile-picker")
 	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: tea.KeyEscape}, m.settingsProps())
 	m.editSettings("prompts")

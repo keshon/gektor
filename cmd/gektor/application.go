@@ -57,6 +57,10 @@ func runApplication(args []string) error {
 	}
 	request := initialTUILaunch(options, prefs, path)
 	for {
+		request, err = recoverTUIWorkspace(request)
+		if err != nil {
+			return err
+		}
 		o, err := resolveLaunch(request)
 		if err != nil {
 			return err
@@ -76,6 +80,34 @@ func runApplication(args []string) error {
 		next := relaunchOptions(o.launchOptions, prefs, change.KeepAct)
 		request = launchRequest{options: &next, preferences: prefs, preferencePath: path, profile: prefs.Profile, history: change.History, draft: change.Draft, images: change.Images, drafts: change.Drafts, directory: change.Directory, reassignWorkspace: change.ReassignWorkspace, common: true}
 	}
+}
+
+// A remembered folder can disappear between launches. Start fresh rather than
+// carrying a conversation and its tools into a different workspace.
+func recoverTUIWorkspace(request launchRequest) (launchRequest, error) {
+	options := *request.options
+	explicitSession := options.resume != "" || options.fork != ""
+	if options.explicitFlags["workspace"] || explicitSession || request.preferences.Workspace == "" {
+		return request, nil
+	}
+
+	info, err := os.Stat(request.preferences.Workspace)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return request, err
+	}
+	if err == nil && info.IsDir() {
+		return request, nil
+	}
+
+	preferences := request.preferences
+	preferences.Workspace = ""
+	err = config.SavePreferences(request.preferencePath, preferences)
+	if err != nil {
+		return request, err
+	}
+
+	options.workspace = "."
+	return initialTUILaunch(options, preferences, request.preferencePath), nil
 }
 
 // Keep execution policy in memory. Settings owns the profile and harness;

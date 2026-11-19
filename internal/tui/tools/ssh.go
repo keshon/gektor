@@ -13,10 +13,10 @@ import (
 
 	"github.com/keshon/gektor/internal/capabilities/ssh"
 	"github.com/keshon/gektor/internal/credentials"
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/components/table"
 	"github.com/keshon/gektor/internal/tui/screen"
-	"github.com/keshon/gektor/internal/tui/settings"
 )
 
 func (m *Model) SSH(editable bool) screen.Dialog {
@@ -202,7 +202,7 @@ func (m *Model) SSHPreferences(name string) (screen.Form, error) {
 			"passphrase_env":        {{Key: "auth", Value: sshPrivateKey}, {Key: "advanced", Value: "Yes"}, {Key: "passphrase_source", Value: sshEnvironment}},
 			"passphrase_connection": {{Key: "auth", Value: sshPrivateKey}, {Key: "advanced", Value: "Yes"}, {Key: "passphrase_source", Value: sshSharedCredential}},
 		},
-		FileFields: map[string]settings.FilePicker{"known_hosts": {}, "private_key": {}},
+		FileFields: map[string]fieldform.FilePicker{"known_hosts": {}, "private_key": {}},
 	}, nil
 }
 

@@ -3,10 +3,10 @@ package screen
 import (
 	tea "charm.land/bubbletea/v2"
 
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/tui/components/table"
-	"github.com/keshon/gektor/internal/tui/settings"
 )
 
 // Form supplies initial draft values. Controls copy its fields and choice lists.
@@ -15,17 +15,18 @@ type Form struct {
 	Fields                     []form.Field
 	Choices                    map[string][]string
 	ShowWhen                   map[string][]form.Condition
-	FileFields                 map[string]settings.FilePicker
+	FileFields                 map[string]fieldform.FilePicker
 	Destructive, StartOnCancel bool
 }
 
-// Dialog describes an informational overlay, optionally with a save action or table.
+// Dialog describes an informational overlay with owner-supplied actions or a table.
 type Dialog struct {
-	Title     string
-	Lines     []string
-	Shortcuts []popup.Shortcut
-	Save      bool
-	Table     *Table
+	Title          string
+	PreferredWidth int
+	Lines          []string
+	Shortcuts      []popup.Shortcut
+	Actions        []DialogAction
+	Table          *Table
 }
 
 // Table transfers its model to controls while the overlay is open. The feature
@@ -53,3 +54,10 @@ type QuitRequest struct{}
 
 // ApplicationCommand requests a global setting or theme operation from the shell.
 type ApplicationCommand struct{ Command string }
+
+// DialogAction binds a visible shortcut to an owner-defined intent.
+type DialogAction struct {
+	ID    string
+	Key   rune
+	Label string
+}

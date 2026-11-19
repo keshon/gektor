@@ -14,9 +14,9 @@ import (
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/roles"
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/screen"
-	"github.com/keshon/gektor/internal/tui/settings"
 	"github.com/keshon/gektor/internal/workspace"
 )
 
@@ -61,7 +61,7 @@ func settingsModelWithHistory(t *testing.T, preferences *config.Preferences, ext
 func snapshotOf(m *Model) *ModeChange                             { snapshot, _ := m.agent.Snapshot(); return snapshot }
 func stateFileOf(m *Model) string                                 { return filepath.Join(snapshotOf(m).Directory, "state.json") }
 func draftOf(m *Model) string                                     { return snapshotOf(m).Draft }
-func (m *Model) applyForm()                                       { m.chrome.ApplyForm(); m.settleControls() }
+func (m *Model) applyForm()                                       { m.syncPresentation(); m.chrome.ApplyForm(); m.settleControls() }
 func (m *Model) focusForm(i int)                                  { m.chrome.FocusForm(i) }
 func (m *Model) formKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) { return m.Update(key) }
 func (m *Model) headerKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -93,7 +93,10 @@ func (m *Model) formRows() ([]string, []form.Hit, int, int) {
 	m.syncPresentation()
 	return m.chrome.FormRows()
 }
-func (m *Model) settingsProps() settings.Props { m.syncPresentation(); return m.chrome.SettingsProps() }
+func (m *Model) settingsProps() fieldform.Props {
+	m.syncPresentation()
+	return m.chrome.FormProps()
+}
 
 // clickVisible clicks the first drawn occurrence of label.
 //

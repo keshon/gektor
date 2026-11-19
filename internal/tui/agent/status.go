@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
@@ -35,7 +36,15 @@ func (m *Model) statusLine() string {
 			return m.controlHints(popup.Shortcut{Key: "Esc", Action: "back"}, popup.Shortcut{Key: "/", Action: "filter"}, popup.Shortcut{Key: "Tab", Action: "controls"})
 		}
 		if m.chrome.Dialog.Form != nil {
-			return m.controlHints(popup.Shortcut{Key: "Esc", Action: "cancel"}, popup.Shortcut{Key: "Tab", Action: "controls"}, popup.Shortcut{Key: "Ctrl+O", Action: "newline"})
+			f := m.chrome.Dialog.Form
+			if f.FeedbackOpen {
+				return m.controlHints(popup.Shortcut{Key: "Esc", Action: "back"}, popup.Shortcut{Key: "↑↓", Action: "scroll"})
+			}
+			shortcuts := []popup.Shortcut{{Key: "Esc", Action: "cancel"}, {Key: "Tab", Action: "controls"}}
+			if f.InputOwner() == fieldform.FieldInput && f.Fields[f.Index].Multiline && !f.Fields[f.Index].ReadOnly {
+				shortcuts = append(shortcuts, popup.Shortcut{Key: "Ctrl+O", Action: "newline"})
+			}
+			return m.controlHints(shortcuts...)
 		}
 		return m.controlHints(popup.Shortcut{Key: "Esc", Action: "close"}, popup.Shortcut{Key: "↑↓", Action: "scroll"})
 	}

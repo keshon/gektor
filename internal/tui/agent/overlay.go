@@ -83,7 +83,7 @@ func (m *Model) activeInputOwner() focusOwner {
 	if m.chrome.Header.Focused {
 		return focusHeader
 	}
-	if m.inspectorVisible() && (m.inspector.focused || m.termW < inspectorSplitWidth) {
+	if m.inspectorVisible() && (m.inspector.focused || m.screenPanes(true).Covered) {
 		return focusInspector
 	}
 	if m.inspector.selecting {

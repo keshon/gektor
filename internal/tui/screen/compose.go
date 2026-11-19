@@ -29,7 +29,7 @@ func (m *Controls) Compose(view tea.View) tea.View {
 		content = m.OverlayHeader(content)
 		view.Cursor = nil
 	}
-	view.Content = Paint(content)
+	view.Content = m.palette().paint(content, m.Props.ColorProfile)
 	return view
 }
 

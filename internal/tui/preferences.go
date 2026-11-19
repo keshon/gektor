@@ -15,10 +15,11 @@ func (m *Model) editSettings(section string) {
 		return
 	}
 	var ws *settings.EditSession
-	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil {
-		ws = m.chrome.Dialog.Form.EditSession
+	if m.preferences != nil && m.preferencesDialog == m.chrome.Dialog && m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil {
+		ws = m.preferences.EditSession
 		if ws != nil {
-			m.chrome.Dialog.Form.StorePage()
+			m.preferences.Prepare()
+			m.preferences.StorePage()
 		}
 	}
 	if ws == nil {
@@ -51,7 +52,7 @@ func (m *Model) editSettings(section string) {
 		ApplyLabel: "Apply",
 		Fields:     fields,
 	}, func(_ map[string]string) error {
-		m.chrome.Dialog.Form.StorePage()
+		m.preferences.StorePage()
 		profile, err := ws.Draft.Resolve()
 		if err != nil {
 			return err
@@ -63,10 +64,13 @@ func (m *Model) editSettings(section string) {
 		return m.requestProfileChange(profile)
 	})
 	m.chrome.Dialog.Form.SaveCopy = true
-	m.chrome.Dialog.Form.EditSession = ws
+	m.preferences = &settings.Model{Model: &m.chrome.Dialog.Form.Model, EditSession: ws}
+	m.preferencesDialog = m.chrome.Dialog
+	m.preferences.Prepare()
 	saved := ws.Draft.Visit(section, fields)
 	m.chrome.Dialog.Form.Fields = saved
 	m.chrome.Dialog.Form.Index = len(saved)
 	m.chrome.FocusForm(0)
 	m.chrome.Dialog.Title = "Settings"
+	m.chrome.Dialog.Form.Title = "Settings / " + title
 }

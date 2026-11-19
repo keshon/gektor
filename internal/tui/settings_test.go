@@ -264,15 +264,16 @@ func TestProtocolSwitchSuggestsOnlyLocalDefaults(t *testing.T) {
 		}
 	}
 	m := settingsModel(t)
-	m.chrome.OpenForm("Connection", "", "Apply", []form.Field{{Key: "kind", Label: "Protocol", Value: "llama", Multiline: false}, {Key: "endpoint", Label: "URL", Value: "http://127.0.0.1:9931", Multiline: false}})
-	m.chrome.Dialog.Form.CycleChoice()
+	m.profile.Profile.Provider.URL = "http://127.0.0.1:9931"
+	m.editSettings("model")
+	m.preferences.CycleChoice()
 	m.focusForm(1)
 	if m.chrome.Dialog.Form.Editor.Value() != "http://127.0.0.1:5001" {
 		t.Fatal("suggested URL not visible in editor")
 	}
 	m.chrome.Dialog.Form.Editor.SetValue("http://localhost:9000")
 	m.focusForm(0)
-	m.chrome.Dialog.Form.CycleChoice()
+	m.preferences.CycleChoice()
 	m.focusForm(1)
 	if m.chrome.Dialog.Form.Editor.Value() != "http://localhost:9000" {
 		t.Fatal("custom URL overwritten")

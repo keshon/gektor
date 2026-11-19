@@ -14,6 +14,16 @@ var (
 	keyPgDown = tea.KeyPressMsg{Code: tea.KeyPgDown}
 )
 
+func TestOneRowViewportDragCanReachBothEnds(t *testing.T) {
+	m := New()
+	m.Viewport = NewViewport(20, 1)
+	m.SetParts([]string{strings.Repeat("line\n", 30)}, "")
+	bottom := m.Viewport.Total() - m.Viewport.Height()
+	if m.Viewport.DragOffset(5, 1, 0) != bottom || m.Viewport.DragOffset(-5, 1, 0) != 0 {
+		t.Fatal("single-row scrollbar cannot reach both ends")
+	}
+}
+
 // The window draws only the rows it is showing, in the full width, with a
 // scrollbar in the last column when the document is taller than it.
 func TestWindowIsExactlyItsSize(t *testing.T) {

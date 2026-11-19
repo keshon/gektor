@@ -22,7 +22,7 @@ func TestHelpTabsClickWrappedRowsAndPreserveDraft(t *testing.T) {
 				layout := m.testControls().LayoutDialog()
 				rows, w, h := m.testControls().DialogRows()
 				left, top, _, _ := m.dialogArea()
-				x := left + max((w-popup.ModalWidth(w))/2, 0) + 2
+				x := left + max((w-popup.ModalWidth(w, 0))/2, 0) + 2
 				y := top + max((h-len(rows)-2)/2, 0) + 1
 				hit := layout.Tabs.Hits[tab]
 				m.chrome.Dialog.Offset = 2

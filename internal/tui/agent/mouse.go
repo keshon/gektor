@@ -31,7 +31,7 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if handled, cmd := m.headerMouse(msg); handled {
 		return m, cmd
 	}
-	if m.inspectorVisible() && (m.termW < inspectorSplitWidth || msg.Mouse().X >= m.mainWidth()) && msg.Mouse().Y >= 1 && msg.Mouse().Y < m.termH-m.actionBarRows() {
+	if m.inspectorVisible() && (m.screenPanes(true).Covered || msg.Mouse().X >= m.mainWidth()) && msg.Mouse().Y >= 1 && msg.Mouse().Y < m.termH-m.actionBarRows() {
 		if handled, cmd := m.inspectorMouse(msg); handled {
 			return m, cmd
 		}
@@ -105,7 +105,7 @@ func viewportScrollbarMouse(v *transcript.Viewport, follow *bool, drag *scrollDr
 		if !drag.Active {
 			return false
 		}
-		row := min(max(mouse.Y-paneY, 0), v.Height()-1)
+		row := mouse.Y - paneY
 		drag.Moved = true
 		v.SetYOffset(v.DragOffset(row, v.Height(), drag.Grab))
 		*follow = v.AtBottom()

@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/settings"
 )
 
@@ -85,7 +86,7 @@ func TestPickerSearchBackAndStaleScan(t *testing.T) {
 	}
 	m.chrome.Dialog.Form.OpenPicker(m.settingsProps())
 	p := m.chrome.Dialog.Form.Picker
-	m.Update(settings.ScanMsg{ID: p.ID, Items: []string{"C:/profiles/qwen.json", "C:/profiles/chronos.json"}})
+	m.Update(fieldform.ScanMsg{ID: p.ID, Items: []string{"C:/profiles/qwen.json", "C:/profiles/chronos.json"}})
 	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: 'c', Text: "c"}, m.settingsProps())
 	m.chrome.Dialog.Form.PickerKey(tea.KeyPressMsg{Code: 'h', Text: "h"}, m.settingsProps())
 	if len(p.Filtered) != 1 || !strings.Contains(p.Filtered[0], "chronos") {
@@ -96,7 +97,7 @@ func TestPickerSearchBackAndStaleScan(t *testing.T) {
 	if m.chrome.Dialog.Form.Editor.Value() != previous || m.chrome.Dialog.Form.Picker != nil {
 		t.Fatal("picker cancel changed the field")
 	}
-	m.Update(settings.ScanMsg{ID: p.ID, Items: []string{"late.json"}})
+	m.Update(fieldform.ScanMsg{ID: p.ID, Items: []string{"late.json"}})
 	if m.chrome.Dialog.Form.Picker != nil {
 		t.Fatal("late scan reopened picker")
 	}
@@ -181,10 +182,10 @@ func TestRemoteModelsDiscovery(t *testing.T) {
 			}
 		}
 		form.Focus(modelIndex, form.FieldVisible)
-		requestCommand := form.OpenPicker(m.chrome.SettingsProps())
-		request := requestCommand().(settings.DiscoveryRequest)
+		requestCommand := form.OpenPicker(m.chrome.FormProps())
+		request := requestCommand().(fieldform.DiscoveryRequest)
 		resultCommand := m.discoverSettings(request)
-		result := resultCommand().(settings.ScanMsg)
+		result := resultCommand().(fieldform.ScanMsg)
 		m.Update(result)
 		if result.Err != nil || len(form.Picker.Items) != 1 {
 			t.Fatalf("%s: %v %v", kind, form.Picker.Items, result.Err)

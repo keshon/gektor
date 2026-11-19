@@ -1,4 +1,4 @@
-package settings
+package fields
 
 import (
 	"os"
@@ -6,8 +6,6 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-
-	"github.com/keshon/gektor/internal/config"
 )
 
 // PickerKey handles picker navigation without submitting the underlying form.
@@ -31,7 +29,7 @@ func (f *Model) PickerKey(msg tea.KeyPressMsg, props Props) tea.Cmd {
 			f.Picker = nil
 			return nil
 		}
-		if p.Field == "app-workspace" && !p.Location {
+		if p.Folders() && !p.Location {
 			return f.PickerKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl}, props)
 		}
 		msg = tea.KeyPressMsg{Code: tea.KeyEnter}
@@ -66,13 +64,13 @@ func (f *Model) PickerKey(msg tea.KeyPressMsg, props Props) tea.Cmd {
 		p.Move(page, len(p.Filtered), page)
 		return nil
 	case "home", "ctrl+home":
-		if p.Location || (msg.String() == "home" && p.Field != "theme") {
+		if p.Location || (msg.String() == "home" && !p.NoSearch) {
 			return p.UpdateInput(msg)
 		}
 		p.Cursor = 0
 		return nil
 	case "end", "ctrl+end":
-		if p.Location || (msg.String() == "end" && p.Field != "theme") {
+		if p.Location || (msg.String() == "end" && !p.NoSearch) {
 			return p.UpdateInput(msg)
 		}
 		p.Cursor = max(len(p.Filtered)-1, 0)
@@ -80,7 +78,7 @@ func (f *Model) PickerKey(msg tea.KeyPressMsg, props Props) tea.Cmd {
 	case "enter":
 		return f.acceptPicker()
 	case "ctrl+s":
-		if p.Field == "app-workspace" && !p.Location && !p.Loading && p.Err == "" && p.Directory != "" {
+		if p.Folders() && !p.Location && !p.Loading && p.Err == "" && p.Directory != "" {
 			f.Editor.SetValue(p.Directory)
 			f.Fields[f.Index].Value = p.Directory
 			f.Picker = nil
@@ -120,7 +118,7 @@ func (f *Model) PickerKey(msg tea.KeyPressMsg, props Props) tea.Cmd {
 		return scan.run
 
 	}
-	if p.Field == "theme" || p.Control > 0 {
+	if p.NoSearch || p.Control > 0 {
 		return nil
 	}
 	return p.UpdateInput(msg)
@@ -143,30 +141,12 @@ func (f *Model) acceptPicker() tea.Cmd {
 		return f.ScanDirectory(filepath.Clean(p.Filtered[p.Cursor]))
 	}
 	if len(p.Filtered) > 0 {
-		previous := f.Editor.Value()
 		value := p.Filtered[p.Cursor]
-		if p.Field == "app-workspace" {
+		if p.Folders() {
 			value = filepath.Clean(value)
-		}
-		if p.Field == "load-profile" {
-			loaded, err := config.Load(value)
-			if err != nil {
-				p.Err = err.Error()
-				return nil
-			}
-			f.EditSession.LoadedPath = value
-			f.EditSession.Draft.Load(loaded)
-			f.Error = "Setup loaded; Apply uses its model and identity selection"
 		}
 		f.Editor.SetValue(value)
 		f.Fields[f.Index].Value = value
-		if p.Field == "kind" {
-			for i := range f.Fields {
-				if f.Fields[i].Key == "endpoint" {
-					f.Fields[i].Value = SuggestedBackendURL(f.Fields[i].Value, previous, value)
-				}
-			}
-		}
 		f.Picker = nil
 	}
 	return nil
@@ -174,7 +154,7 @@ func (f *Model) acceptPicker() tea.Cmd {
 
 func (f *Model) refreshPicker(props Props) tea.Cmd {
 	p := f.Picker
-	if p.Field == "app-workspace" || p.FileConfig != nil {
+	if p.FileConfig != nil && !p.FileConfig.Recursive {
 		return f.ScanDirectory(p.Directory)
 	}
 	if p.IsFiles() {
@@ -184,15 +164,9 @@ func (f *Model) refreshPicker(props Props) tea.Cmd {
 		p.Loading = true
 		p.Search.SetValue("")
 		id := p.ID
-		scan := catalogScan{ID: id, Root: root, Field: key}
+		_ = key
+		scan := catalogScan{ID: id, Root: root, Extensions: p.FileConfig.Extensions}
 		return scan.run
-	}
-	if p.Browser {
-		for i := range f.Fields {
-			if f.Fields[i].Key == "model-root" {
-				f.Fields[i].Value = p.Directory
-			}
-		}
 	}
 	return f.OpenPicker(props)
 }

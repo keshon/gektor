@@ -3,6 +3,7 @@ package tui
 import (
 	tea "charm.land/bubbletea/v2"
 
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/tui/settings"
 )
@@ -23,6 +24,9 @@ func (m *Model) settleControls() []tea.Cmd {
 		}
 	}
 
+	if m.preferences != nil && m.chrome.Dialog == m.preferencesDialog {
+		m.preferences.Prepare()
+	}
 	m.agent.PrepareControls()
 	m.chrome.Prepare()
 	if changed && m.active == agentScreen {
@@ -37,7 +41,13 @@ func (m *Model) settingsCommands() []tea.Cmd {
 	if m.chrome.Dialog == nil || m.chrome.Dialog.Form == nil {
 		return nil
 	}
-	if cmd := m.chrome.Dialog.Form.DetailCommand(); cmd != nil {
+	var cmd tea.Cmd
+	if m.preferences != nil && m.preferencesDialog == m.chrome.Dialog {
+		cmd = m.preferences.DetailCommand()
+	} else {
+		cmd = m.chrome.Dialog.Form.DetailCommand()
+	}
+	if cmd != nil {
 		return []tea.Cmd{cmd}
 	}
 	return nil
@@ -48,9 +58,9 @@ func (m *Model) acceptSettings(msg tea.Msg) {
 		return
 	}
 	switch msg := msg.(type) {
-	case settings.DetailMsg:
+	case fieldform.DetailMsg:
 		m.chrome.Dialog.Form.AcceptDetail(msg)
-	case settings.ScanMsg:
+	case fieldform.ScanMsg:
 		m.chrome.Dialog.Form.AcceptScan(msg)
 	}
 }
@@ -67,7 +77,7 @@ func (m *Model) applicationMenus(idle bool) []screen.Menu {
 		{},
 		section("you"), section("prompts"),
 	}}
-	help := screen.Menu{ID: "help", Label: "Help", Items: []screen.MenuItem{{Text: "Keyboard shortcuts", Command: "help-keys", Enabled: true}}}
+	help := screen.Menu{ID: "help", Label: "Help", Items: []screen.MenuItem{{Text: "Actions…", Command: "actions", Shortcut: "F12", Enabled: true}, {Text: "Keyboard shortcuts", Command: "help-keys", Enabled: true}}}
 	if !m.workflowActive() {
 		help.Items = append(help.Items, screen.MenuItem{Text: "Commands", Command: "help-commands", Enabled: true})
 		if m.profile != nil {
@@ -107,6 +117,20 @@ func (m *Model) dispatchControl(event screen.Event) []tea.Cmd {
 		}
 	}
 	switch event.Kind {
+	case screen.TableAction:
+		if m.actionsDialog == event.Dialog && m.chrome.Dialog == event.Dialog && event.Action == "details" {
+			command := event.Row
+			m.chrome.Close()
+			m.syncPresentation()
+			for _, menu := range m.chrome.Props.Menus {
+				for _, item := range menu.Items {
+					if item.Command == command && item.Enabled {
+						commands = append(commands, m.runAction(command))
+						return commands
+					}
+				}
+			}
+		}
 	case screen.Opened:
 		if event.First {
 			m.overlayScreen = m.active
@@ -136,6 +160,13 @@ func (m *Model) dispatchControl(event screen.Event) []tea.Cmd {
 		commands = append(commands, m.workflows.HandleControl(event))
 	}
 	if event.Kind == screen.Closed || event.Kind == screen.Replaced || event.Kind == screen.Suspended {
+		if m.actionsDialog == event.Dialog {
+			m.actionsDialog = nil
+		}
+		if m.preferencesDialog == event.Dialog {
+			m.preferences = nil
+			m.preferencesDialog = nil
+		}
 		if m.form.dialog == event.Dialog {
 			m.form = pendingForm{}
 		}
@@ -149,7 +180,7 @@ type pendingForm struct {
 	apply  func(map[string]string) error
 }
 
-func (m *Model) openForm(form screen.Form, apply func(map[string]string) error) *settings.Model {
+func (m *Model) openForm(form screen.Form, apply func(map[string]string) error) *fieldform.Model {
 	draft := m.chrome.PresentForm(form)
 	m.form = pendingForm{dialog: m.chrome.Dialog, apply: apply}
 	return draft

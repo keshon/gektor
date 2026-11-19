@@ -21,7 +21,7 @@ func (m *Model) State() State {
 		Busy:          m.busy,
 		InspectingRun: m.run != nil,
 		InspectorOpen: m.inspectorOpen,
-		MouseCaptured: m.dragging || m.panning || m.thumb.active,
+		MouseCaptured: m.dragging || m.panning || m.thumb.Active,
 	}
 }
 

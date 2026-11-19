@@ -22,6 +22,10 @@ func (m *Controls) DialogMouse(msg tea.MouseMsg) tea.Cmd {
 			local = tea.MouseClickMsg(mouse)
 		case tea.MouseWheelMsg:
 			local = tea.MouseWheelMsg(mouse)
+		case tea.MouseMotionMsg:
+			local = tea.MouseMotionMsg(mouse)
+		case tea.MouseReleaseMsg:
+			local = tea.MouseReleaseMsg(mouse)
 		default:
 			return nil
 		}
@@ -33,8 +37,8 @@ func (m *Controls) DialogMouse(msg tea.MouseMsg) tea.Cmd {
 	mouse := msg.Mouse()
 	if mouse.Button == tea.MouseLeft && IsMouseClick(msg) {
 		rows, w, h := m.DialogRows()
-		inner := popup.ModalWidth(w) - 4
-		x := m.Props.Area.X + max((w-popup.ModalWidth(w))/2, 0) + 2
+		inner := m.dialogWidth(w) - 4
+		x := m.Props.Area.X + max((w-m.dialogWidth(w))/2, 0) + 2
 		y := m.Props.Area.Y + max((h-len(rows)-2)/2, 0) + 1
 		if mouse.Y == y && mouse.X >= x+inner-3 && mouse.X < x+inner {
 			m.Close()
@@ -45,7 +49,7 @@ func (m *Controls) DialogMouse(msg tea.MouseMsg) tea.Cmd {
 			if tab := layout.Tabs.Hit(mouse.X-x, mouse.Y-y-2); tab >= 0 {
 				m.Dialog.Page = tab
 				m.Dialog.Offset = 0
-				m.Dialog.Drag = Drag{}
+				m.Dialog.Drag = popup.ScrollDrag{}
 				return nil
 			}
 		}

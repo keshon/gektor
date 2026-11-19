@@ -22,12 +22,17 @@ func (m *Model) paneWidth() int {
 }
 
 func (m *Model) screenPanes(sideOpen bool) pane.SplitLayout {
-	return pane.Split(pane.Rect{Y: 1, Width: m.termW, Height: max(m.termH-1-m.actionBarRows(), 1)}, sideOpen, inspectorSplitWidth)
+	area := pane.Rect{Y: 1, Width: m.termW, Height: max(m.termH-1-m.actionBarRows(), 1)}
+	props := pane.SplitProps{MinimumWidth: inspectorSplitWidth}
+	if m.inspector.expanded {
+		props.SideWidth = area.Width
+	}
+	return pane.Split(area, sideOpen, props)
 }
 
 func (m *Model) panelGeometry(width, footerHeight int, close, conversation bool) pane.Layout {
 	right := m.promptOffset()
-	if conversation && m.minimal && m.inspectorVisible() && m.termW >= inspectorSplitWidth {
+	if conversation && m.minimal && m.inspectorVisible() && !m.screenPanes(true).Covered {
 		right = 0
 	}
 	return pane.Measure(pane.Props{Width: width, Height: max(m.termH-1-m.actionBarRows(), 1), FooterHeight: footerHeight,

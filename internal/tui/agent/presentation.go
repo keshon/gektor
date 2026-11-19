@@ -10,15 +10,13 @@ import (
 func (m *Model) controlProps() screen.ControlProps {
 	left, top, width, height := m.dialogArea()
 	props := screen.ControlProps{
-		Width:          m.termW,
-		Height:         m.termH,
-		Area:           pane.Rect{X: left, Y: top, Width: width, Height: height},
-		Inset:          m.promptOffset(),
-		Ready:          m.ready,
-		HasApplication: m.application != nil,
-		Evaluating:     m.evaluation != nil,
-		Styles:         m.styles,
-		Blocked:        m.sessions != nil || m.state == stAsk || m.state == stPermission,
+		Width:   m.termW,
+		Height:  m.termH,
+		Area:    pane.Rect{X: left, Y: top, Width: width, Height: height},
+		Inset:   m.promptOffset(),
+		Ready:   m.ready,
+		Styles:  m.styles,
+		Blocked: m.sessions != nil || m.state == stAsk || m.state == stPermission,
 	}
 	if m.chrome.Dialog != nil && m.chrome.Dialog.Help {
 		for _, section := range m.dialogHelpSections() {

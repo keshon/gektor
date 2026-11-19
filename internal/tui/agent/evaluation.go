@@ -14,6 +14,7 @@ import (
 
 	"github.com/keshon/gektor/internal/retrospective"
 	"github.com/keshon/gektor/internal/tui/components/form"
+	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/tui/screen"
 )
 
@@ -78,6 +79,7 @@ func (m *Model) evaluate(arg string) (tea.Model, tea.Cmd) {
 	job := &evaluationJob{cancel: cancel, started: time.Now(), progress: retrospective.Progress{Stage: "Loading saved archive", Steps: 12}}
 	config := retrospective.Config{Client: m.baseEnv.Client, Workspace: m.ws, StateFile: m.stateFile, Scope: selection, Focus: strings.TrimSpace(focus), ContextLimit: m.limit, MaxTokens: m.baseEnv.MaxTokens}
 	m.chrome.Open("Session evaluation", []string{"Reviewing the saved archive in a separate context…", "", "Keep this window open until the evaluation finishes.", "Closing it cancels the evaluation. The original task remains unchanged."})
+	m.chrome.Dialog.Shortcuts = []popup.Shortcut{{Key: "Esc/Enter", Action: "cancel evaluation"}}
 	job.dialog = m.chrome.Dialog
 	m.evaluation = job
 	config.OnProgress = job.update
@@ -137,7 +139,7 @@ func (m *Model) acceptEvaluation(msg evaluationDoneMsg) {
 	}
 	m.chrome.Open("Session evaluation", rows)
 	if len(r.Memory) == 1 {
-		m.chrome.Dialog.Review = true
+		m.chrome.Dialog.Actions = []screen.DialogAction{{ID: "review-lesson", Key: 'r', Label: "review lesson"}}
 		if m.lessonDialogs == nil {
 			m.lessonDialogs = make(map[*screen.DialogState]retrospective.Result)
 		}
@@ -217,8 +219,8 @@ func (m *Model) reviewLesson(r retrospective.Result) {
 		rows = append(rows, "Some archive messages were only partially read.")
 	}
 	m.chrome.Open("Remember a repository lesson", rows)
-	m.chrome.Dialog.Save = true
-	m.chrome.Dialog.Review = true
+	m.chrome.Dialog.Actions = []screen.DialogAction{{ID: "save-lesson", Key: 's', Label: "save lesson"}, {ID: "edit-lesson", Key: 'e', Label: "edit"}}
+	m.chrome.Dialog.Shortcuts = []popup.Shortcut{{Key: "Esc/Enter", Action: "skip"}, {Key: "S", Action: "save lesson"}, {Key: "E", Action: "edit"}}
 	if m.lessonDialogs == nil {
 		m.lessonDialogs = make(map[*screen.DialogState]retrospective.Result)
 	}

@@ -1,9 +1,9 @@
-package settings
+package fields
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/textinput"
@@ -25,6 +25,9 @@ type Picker struct {
 	Browser            bool
 	Directory          string
 	ID                 RequestID
+	Source             string
+	NoSearch           bool
+	Labels             map[string]string
 	Field              string
 	Items              []string
 	Filtered           []string
@@ -35,14 +38,14 @@ type Picker struct {
 }
 
 // IsFiles reports whether this picker browses filesystem paths.
-func (p *Picker) IsFiles() bool { return p.FileConfig != nil || PickerFiles(p.Field) }
+func (p *Picker) IsFiles() bool { return p.FileConfig != nil }
 
 // PrimaryAction returns the explicit selection button label and availability.
 func (p *Picker) PrimaryAction() (string, bool) {
 	if p.Location {
 		return "Open path", !p.Loading && strings.TrimSpace(p.Search.Value()) != ""
 	}
-	if p.Field == "app-workspace" {
+	if p.Folders() {
 		return "Select folder", !p.Loading && p.Err == "" && p.Directory != ""
 	}
 	label := "Select"
@@ -57,7 +60,7 @@ func (p *Picker) EnterAction() (string, bool) {
 	if p.Control == 2 {
 		return "Cancel", true
 	}
-	if p.Field == "app-workspace" && p.Control == 0 && !p.Location {
+	if p.Folders() && p.Control == 0 && !p.Location {
 		return "Open", !p.Loading && p.Err == "" && len(p.Filtered) > 0
 	}
 	return p.PrimaryAction()
@@ -79,19 +82,34 @@ func (f *Model) OpenPicker(props Props) tea.Cmd {
 	search.SetWidth(max(props.Width-14, 12))
 
 	p := &Picker{
-		ID:     newRequestID(),
-		Field:  key,
-		Search: search,
+		ID:       newRequestID(),
+		Field:    key,
+		Source:   f.DiscoveryFields[key],
+		NoSearch: f.NoSearchFields[key],
+		Labels:   f.Labels[key],
+		Search:   search,
 	}
 	f.Picker = p
 	f.Editor.Blur()
 
-	if key == "reasoning-effort" || key == "model" {
+	if p.Source != "" {
 		return f.discoverPicker(key)
 	}
 	if config, ok := f.FileFields[key]; ok {
+		config.Extensions = slices.Clone(config.Extensions)
 		p.FileConfig = &config
 		p.Browser = true
+		if config.Root == "" {
+			config.Root = filepath.Dir(f.Editor.Value())
+			p.FileConfig = &config
+		}
+		if config.Recursive {
+			p.Browser = false
+			p.Directory = config.Root
+			p.Loading = true
+			scan := catalogScan{ID: p.ID, Root: config.Root, Extensions: config.Extensions}
+			return scan.run
+		}
 		return f.ScanDirectory(config.Root)
 	}
 
@@ -107,20 +125,7 @@ func (f *Model) OpenPicker(props Props) tea.Cmd {
 		return nil
 	}
 
-	root, err := f.pickerRoot(key)
-	if err != nil {
-		p.Err = err.Error()
-		return nil
-	}
-	p.Browser = key == "app-workspace"
-	p.Directory = root
-	p.Loading = true
-	if key == "app-workspace" {
-		return f.ScanDirectory(root)
-	}
-	id := p.ID
-	scan := catalogScan{ID: id, Root: root, Field: key}
-	return scan.run
+	return nil
 }
 
 // Filter rebuilds visible choices and clamps the retained selection.
@@ -128,7 +133,7 @@ func (p *Picker) Filter() {
 	p.Filtered = nil
 	query := strings.ToLower(p.Search.Value())
 	for _, item := range p.Items {
-		if strings.Contains(strings.ToLower(item+" "+ChoiceLabel(p.Field, item)), query) {
+		if strings.Contains(strings.ToLower(item+" "+p.Labels[item]), query) {
 			p.Filtered = append(p.Filtered, item)
 		}
 	}
@@ -155,42 +160,4 @@ func (f *Model) AcceptScan(msg ScanMsg) {
 	p.Filter()
 }
 
-func (f *Model) pickerRoot(field string) (string, error) {
-	selected := f.Editor.Value()
-	if field == "app-workspace" {
-		if selected != "" {
-			return selected, nil
-		}
-		directory, err := os.Getwd()
-		if err != nil {
-			return "", fmt.Errorf("find current folder: %w", err)
-		}
-		return directory, nil
-	}
-	if field == "load-profile" {
-		executable, err := os.Executable()
-		if err != nil {
-			return "", fmt.Errorf("locate saved profiles: %w", err)
-		}
-		return filepath.Join(filepath.Dir(executable), "profiles"), nil
-	}
-
-	root := ""
-	for _, field := range f.Fields {
-		if field.Key == "model-root" {
-			root = field.Value
-		}
-	}
-	if root == "" {
-		root = filepath.Dir(selected)
-	}
-	if root != "" && root != "." {
-		return root, nil
-	}
-
-	executable, err := os.Executable()
-	if err != nil {
-		return "", fmt.Errorf("locate model directory: %w", err)
-	}
-	return filepath.Join(filepath.Dir(executable), "assets", "models", "thinking"), nil
-}
+func (p *Picker) Folders() bool { return p.FileConfig != nil && p.FileConfig.Directory }

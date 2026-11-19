@@ -52,30 +52,34 @@ type Styles struct {
 }
 
 // DefaultStyles builds semantic text styles for the currently selected palette.
-func DefaultStyles() Styles {
+func DefaultStyles() Styles { return CurrentPalette().Styles() }
+
+func (p *Palette) Styles() Styles {
 	return Styles{
-		Title:    lipgloss.NewStyle().Foreground(lipgloss.Color(Color(ColorWarning))).Bold(true),
-		Focus:    lipgloss.NewStyle().Foreground(lipgloss.Color(Color(ColorAccent))).Bold(true),
-		Disabled: lipgloss.NewStyle().Foreground(lipgloss.Color(Color(ColorDisabledText))),
-		Dim:      lipgloss.NewStyle().Foreground(lipgloss.Color(Color(ColorDim))),
-		Add:      lipgloss.NewStyle().Foreground(lipgloss.Color(Color(ColorSuccess))),
-		Del:      lipgloss.NewStyle().Foreground(lipgloss.Color(Color(ColorError))),
-		Hunk:     lipgloss.NewStyle().Foreground(lipgloss.Color(Color(ColorAccent))),
-		Gate:     lipgloss.NewStyle().Foreground(lipgloss.Color(Color(ColorWarning))).Bold(true),
-		Status:   lipgloss.NewStyle().Foreground(lipgloss.Color(Color(ColorDim))),
-		User:     lipgloss.NewStyle().Foreground(lipgloss.Color(Color(ColorUser))).Bold(true),
-		Think:    lipgloss.NewStyle().Foreground(lipgloss.Color(Color(ColorDim))).Italic(true),
-		Err:      lipgloss.NewStyle().Foreground(lipgloss.Color(Color(ColorError))).Bold(true),
-		Warn:     lipgloss.NewStyle().Foreground(lipgloss.Color(Color(ColorWarning))),
+		Title:    lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorWarning))).Bold(true),
+		Focus:    lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorAccent))).Bold(true),
+		Disabled: lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorDisabledText))),
+		Dim:      lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorDim))),
+		Add:      lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorSuccess))),
+		Del:      lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorError))),
+		Hunk:     lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorAccent))),
+		Gate:     lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorWarning))).Bold(true),
+		Status:   lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorDim))),
+		User:     lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorUser))).Bold(true),
+		Think:    lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorDim))).Italic(true),
+		Err:      lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorError))).Bold(true),
+		Warn:     lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorWarning))),
 	}
 }
 
 // PopupStyles returns normal, border, and selected styles for shared overlay surfaces.
-func PopupStyles() (normal, border, selected lipgloss.Style) {
-	normal = lipgloss.NewStyle().Foreground(lipgloss.Color(Color(ColorPopupText))).Background(lipgloss.Color(Color(ColorPopupBackground)))
-	border = normal.Foreground(lipgloss.Color(Color(ColorPopupBorder)))
-	selected = normal.Foreground(lipgloss.Color(Color(ColorSelectedText))).Background(lipgloss.Color(Color(ColorSelectedBackground))).Bold(true)
-	return
+func PopupStyles() (normal, border, selected lipgloss.Style) { return CurrentPalette().PopupStyles() }
+
+func (p *Palette) PopupStyles() (lipgloss.Style, lipgloss.Style, lipgloss.Style) {
+	normal := lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorPopupText))).Background(lipgloss.Color(p.Color(ColorPopupBackground)))
+	border := normal.Foreground(lipgloss.Color(p.Color(ColorPopupBorder)))
+	selected := normal.Foreground(lipgloss.Color(p.Color(ColorSelectedText))).Background(lipgloss.Color(p.Color(ColorSelectedBackground))).Bold(true)
+	return normal, border, selected
 }
 
 // Palette is an immutable theme snapshot shared by both screens.
@@ -154,9 +158,21 @@ func CurrentPalette() *Palette {
 func SetTheme(name string) { selectedPalette.Store(paletteFor(name)) }
 
 // Color resolves a semantic role and returns unrecognized color tokens unchanged.
-func Color(token string) string {
-	if c, ok := CurrentPalette().colors[token]; ok {
+func Color(token string) string { return CurrentPalette().Color(token) }
+
+func (p *Palette) Color(token string) string {
+	if c, ok := p.colors[token]; ok {
 		return c
 	}
 	return token
+}
+
+// NewPalette returns an independent theme snapshot. Callers must not modify it.
+func NewPalette(name string) *Palette { return paletteFor(name) }
+
+func (m *Controls) palette() *Palette {
+	if m.Props.Palette != nil {
+		return m.Props.Palette
+	}
+	return CurrentPalette()
 }

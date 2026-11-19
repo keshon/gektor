@@ -3,7 +3,7 @@ package tui
 import (
 	"testing"
 
-	"github.com/keshon/gektor/internal/tui/settings"
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 )
 
 func TestStaleDiscoveryRequestDoesNotStartBackendWork(t *testing.T) {
@@ -16,8 +16,8 @@ func TestStaleDiscoveryRequestDoesNotStartBackendWork(t *testing.T) {
 			break
 		}
 	}
-	command := f.OpenPicker(m.chrome.SettingsProps())
-	request := command().(settings.DiscoveryRequest)
+	command := f.OpenPicker(m.chrome.FormProps())
+	request := command().(fieldform.DiscoveryRequest)
 	m.chrome.Close()
 
 	if m.discoverSettings(request) != nil {
@@ -31,7 +31,7 @@ func TestStaleDiscoveryRequestDoesNotStartBackendWork(t *testing.T) {
 			break
 		}
 	}
-	f.OpenPicker(m.chrome.SettingsProps())
+	f.OpenPicker(m.chrome.FormProps())
 	if m.discoverSettings(request) != nil {
 		t.Fatal("old request started discovery for a new form")
 	}

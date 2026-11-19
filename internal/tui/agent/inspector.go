@@ -20,6 +20,7 @@ type toolInspector struct {
 	drag               scrollDrag
 	callID             string
 	focused, selecting bool
+	expanded           bool
 	selected           int
 	pane               transcriptState
 	children           map[string]*childTranscript
@@ -84,6 +85,7 @@ func (m *Model) openInspector(index int) tea.Cmd {
 func (m *Model) closeInspector() {
 	m.inspector.drag = scrollDrag{}
 	m.inspector.callID = ""
+	m.inspector.expanded = false
 	m.inspector.focused = false
 	m.inspector.selecting = false
 	m.fitColumns()
@@ -196,6 +198,7 @@ func (m *Model) composeInspector(content string) string {
 	if left == 0 {
 		shortcuts = []popup.Shortcut{{Key: "Esc", Action: "return to conversation"}, {Key: "↑↓", Action: "scroll"}}
 	}
+	shortcuts = append(shortcuts, popup.Shortcut{Key: "F11", Action: "expand"})
 	hint := m.inspectionHints(width, shortcuts...)
 	rows := m.inspectionRows(heading, hint, m.inspector.pane.View(), width, m.inspector.focused, true)
 	base := strings.Split(content, "\n")
@@ -255,11 +258,21 @@ func (m *Model) inspectorKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	if !m.inspectorVisible() {
 		return false, nil
 	}
-	if key == "tab" && m.termW >= inspectorSplitWidth {
+	if key == "f11" {
+		m.inspector.drag = scrollDrag{}
+		m.inspector.expanded = !m.inspector.expanded
+		m.inspector.focused = true
+		m.fitColumns()
+		m.fitBottom()
+		m.refreshContent()
+		m.refreshInspector()
+		return true, nil
+	}
+	if key == "tab" && !m.screenPanes(true).Covered {
 		m.inspector.focused = !m.inspector.focused
 		return true, nil
 	}
-	if !m.inspector.focused && m.termW >= inspectorSplitWidth {
+	if !m.inspector.focused && !m.screenPanes(true).Covered {
 		return false, nil
 	}
 	switch key {

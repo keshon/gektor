@@ -1,15 +1,23 @@
-package settings
+package fields
 
 import (
 	"os"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/keshon/gektor/internal/tui/components/cell"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 )
 
 func (f *Model) Mouse(msg tea.MouseMsg, props Props) (Intent, tea.Cmd) {
+	if f.scrollMouse(msg, props) {
+		return Intent{}, nil
+	}
+	if f.FeedbackOpen {
+		f.feedbackMouse(msg, props)
+		return Intent{}, nil
+	}
 	if msg.Mouse().Button == tea.MouseWheelUp || msg.Mouse().Button == tea.MouseWheelDown {
 		x, y := f.Origin(props)
 		box := f.box(props)
@@ -78,13 +86,6 @@ func (f *Model) Mouse(msg tea.MouseMsg, props Props) (Intent, tea.Cmd) {
 				return Intent{}, f.PickerKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl}, props)
 			}
 		}
-		l := f.layoutPicker(props)
-		row := mouse.Y - y - l.listTop
-		capacity := l.capacity
-		if mouse.X == x+l.inner-1 && row >= 0 && row < capacity && len(p.Filtered) > capacity {
-			p.Cursor = min(popup.ScrollOffset(row, capacity, len(p.Filtered), 0)+capacity/2, len(p.Filtered)-1)
-			return Intent{}, nil
-		}
 		return Intent{}, nil
 	}
 	if mouse.X < x-2 || mouse.X >= x-2+width {
@@ -108,7 +109,7 @@ func (f *Model) Mouse(msg tea.MouseMsg, props Props) (Intent, tea.Cmd) {
 				return Intent{}, f.OpenPicker(props)
 			}
 			if hit.Index == len(f.Fields) {
-				if !f.Dirty() {
+				if f.DisablePrimary {
 					return Intent{}, nil
 				}
 				return Intent{Action: Apply}, nil
@@ -119,6 +120,49 @@ func (f *Model) Mouse(msg tea.MouseMsg, props Props) (Intent, tea.Cmd) {
 		}
 	}
 	return Intent{}, nil
+}
+
+func (f *Model) scrollMouse(msg tea.MouseMsg, props Props) bool {
+	if !f.scroll.Active && (!isClick(msg) || msg.Mouse().Button != tea.MouseLeft) {
+		return false
+	}
+
+	x, y := f.Origin(props)
+	var track popup.ScrollTrack
+	var fields []int
+	capacity := 0
+	switch {
+	case f.FeedbackOpen:
+		l := f.layoutFeedback(props)
+		track = l.Scroll
+	case f.Picker != nil:
+		l := f.layoutPicker(props)
+		track, capacity = l.scroll, l.capacity
+	default:
+		l := f.plainLayout(props)
+		track, fields, capacity = l.Scroll, l.Fields, l.Capacity
+	}
+	track.X += x
+	track.Y += y
+	offset, handled := f.scroll.Mouse(msg, track)
+	if !handled || offset == track.Offset {
+		return handled
+	}
+
+	switch {
+	case f.FeedbackOpen:
+		f.FeedbackOffset = offset
+	case f.Picker != nil:
+		f.Picker.Cursor = min(offset+capacity/2, len(f.Picker.Filtered)-1)
+		f.Picker.Control = 0
+	default:
+		limit := len(fields) - capacity
+		start := (offset*limit + (track.Total-track.Height)/2) / max(track.Total-track.Height, 1)
+		index := min(start+capacity/2, len(fields)-1)
+		f.Focus(fields[index], f.FieldVisible)
+	}
+
+	return true
 }
 
 func isClick(msg tea.MouseMsg) bool { _, ok := msg.(tea.MouseClickMsg); return ok }

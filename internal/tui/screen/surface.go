@@ -11,11 +11,11 @@ import (
 // Surface supplies the current terminal geometry and theme for screen panes.
 // It is a value snapshot: rendering and hit testing need no application callbacks.
 type Surface struct {
-	Area                 pane.Rect
-	Inset, SplitWidth    int
-	Outlined, BottomEdge bool
-	HeaderFocused        bool
-	Styles               SurfaceStyles
+	Area                              pane.Rect
+	Inset, SplitWidth, InspectorWidth int
+	Outlined, BottomEdge              bool
+	HeaderFocused                     bool
+	Styles                            SurfaceStyles
 }
 
 // SurfaceStyles assigns presentation roles without consulting application state.
@@ -36,7 +36,7 @@ type Panel struct {
 
 // Panes places the inspector beside the canvas, or over it on narrow terminals.
 func (s Surface) Panes(inspectorOpen bool) pane.SplitLayout {
-	return pane.Split(s.Area, inspectorOpen, s.SplitWidth)
+	return pane.Split(s.Area, inspectorOpen, pane.SplitProps{MinimumWidth: s.SplitWidth, SideWidth: s.InspectorWidth})
 }
 
 // Layout is shared by rendering and hit testing. Coordinates are pane-local.
@@ -63,13 +63,16 @@ func (s Surface) Hints(width int, shortcuts ...popup.Shortcut) string {
 const SidePaneWidth = 100
 
 // DefaultSurfaceStyles supplies the shared theme's pane and graph roles.
-func DefaultSurfaceStyles() SurfaceStyles {
-	s := DefaultStyles()
-	surface := PopupSurface()
-	background := lipgloss.Color(CurrentPalette().Background)
+func DefaultSurfaceStyles() SurfaceStyles { return CurrentPalette().SurfaceStyles() }
+
+func (p *Palette) SurfaceStyles() SurfaceStyles {
+	s := p.Styles()
+	normal, border, selected := p.PopupStyles()
+	surface := popup.Styles{Normal: normal, Border: border, Selected: selected}
+	background := lipgloss.Color(p.Background)
 	return SurfaceStyles{
-		Panels:    pane.Styles{Border: lipgloss.NewStyle().Foreground(lipgloss.Color(Color(ColorPopupBorder))), Title: s.Title, Focus: s.Focus},
-		Shortcuts: popup.ShortcutStyles{Key: lipgloss.NewStyle().Foreground(lipgloss.Color(Color(ColorPopupText))).Bold(true), Action: s.Dim},
+		Panels:    pane.Styles{Border: lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorPopupBorder))), Title: s.Title, Focus: s.Focus},
+		Shortcuts: popup.ShortcutStyles{Key: lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorPopupText))).Bold(true), Action: s.Dim},
 		Graph:     graph.Styles{Normal: surface.Normal.Background(background), Title: surface.Selected, Focus: s.Focus.Background(background), Success: s.Add.Background(background), Warning: s.Warn.Background(background), Error: s.Err.Background(background), Disabled: s.Disabled.Background(background)},
 		Notice:    pane.NoticeStyles{Info: s.Dim, Success: s.Add, Warning: s.Warn, Error: s.Err},
 		Muted:     s.Dim, Accent: s.Hunk, Error: s.Err,

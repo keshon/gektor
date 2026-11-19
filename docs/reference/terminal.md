@@ -10,6 +10,10 @@ First use opens in Plan and connects to the default external server described
 in [Setup](../guide/models.md#model-server). Later launches reuse saved settings.
 GEKTOR does not install model weights or manage the server.
 
+If the remembered workspace was deleted, GEKTOR opens a fresh session in the
+directory it was launched from and clears the stale workspace setting. Saved
+conversations remain unchanged.
+
 Run > Plan or Act selects execution mode; Act enables tool calls under the
 existing permission gates. GEKTOR > Change workspace chooses the workspace.
 Settings > Launch profiles loads or saves setups; Settings > Model connection
@@ -134,6 +138,13 @@ extra flags are supplied; `-plan=false` explicitly starts in Act.
 
 Click the top menus, or press `F9` and use the arrow keys.
 The bottom row shows actions for the current screen. Press `F1` for help.
+Press `F12`, or open **Help > Actions…**, to search the enabled menu commands for
+the current screen. Type to filter and press Enter to run the selected action.
+
+Press `F11` in a table, information dialog or inspector to expand its reading
+area; press it again to restore the normal width. In a form, `Ctrl+E` opens the
+complete error details. Arrow keys and Page Up/Down scroll; Escape returns to the
+same draft and field.
 
 ### Menus
 
@@ -147,7 +158,7 @@ and quits the application. A checkmark shows the active mode.
 | Run | Plan or Act; Ask permission or Full access; Live steering, message queue and background processes; permissions, MCP, stop and retry | Validate, run and stop; Ask permission or Full access; inspect run history and set up schedules |
 | View | Show transcript details and jump to the latest message | Show the inspector and arrange the canvas |
 | Settings | Appearance, model connection, response settings, launch profiles, identity and persona, agent instructions | The same shared settings |
-| Help | Keyboard shortcuts, commands, agent instruction preview and About | Keyboard shortcuts for Workflows and About |
+| Help | Searchable actions, keyboard shortcuts, commands, agent instruction preview and About | Searchable actions, keyboard shortcuts for Workflows and About |
 
 At narrow widths, More opens the menus that do not fit on the top row.
 Keyboard and mouse reach the same actions. Disabled actions cannot run.

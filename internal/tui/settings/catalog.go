@@ -1,44 +1,10 @@
 package settings
 
 import (
-	"os"
-	"path/filepath"
-	"strings"
-
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/prompts"
 	"github.com/keshon/gektor/internal/providers"
 )
-
-func PickerFiles(key string) bool {
-	return key == "load-profile" || key == "app-workspace"
-}
-
-func PickerControl(key string) bool {
-	return PickerFiles(key) || key == "model" || key == "reasoning-effort"
-}
-
-func PickerAccepts(key, path string) bool {
-	switch key {
-	case "load-profile":
-		return strings.EqualFold(filepath.Ext(path), ".json")
-	}
-	return false
-}
-
-func CatalogFiles(root, key string) ([]string, error) {
-	files := []string{}
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !d.IsDir() && PickerAccepts(key, path) {
-			files = append(files, path)
-		}
-		return nil
-	})
-	return files, err
-}
 
 func CatalogDetail(key, path string) string {
 	if key == "prompt-preset" {
@@ -138,4 +104,18 @@ func Choices(key string) []string {
 // OpenAI denotes a compatible API, so its suggestion stays local.
 func SuggestedBackendURL(endpoint, previous, next string) string {
 	return providers.SuggestedURL(endpoint, previous, next)
+}
+
+type Category struct{ ID, Label string }
+
+func categories() []Category {
+	return []Category{{"model", "Model connection"}, {"generation", "Response settings"}, {"profiles", "Launch profiles"}, {"workspace", "Workspace"}, {"you", "Identity and persona"}, {"prompts", "Agent instructions"}}
+}
+func SectionTitle(id string) string {
+	for _, category := range categories() {
+		if category.ID == id {
+			return category.Label
+		}
+	}
+	return "Settings"
 }

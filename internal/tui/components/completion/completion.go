@@ -35,8 +35,7 @@ type State struct {
 
 	key       string
 	dismissed string
-	drag      bool
-	grab      int
+	drag      popup.ScrollDrag
 }
 
 // SetKey records the key and resets the selection, returning false when
@@ -50,7 +49,8 @@ func (s *State) SetKey(key string) bool {
 		return false
 	}
 
-	s.key, s.Selected, s.drag = key, 0, false
+	s.key, s.Selected = key, 0
+	s.drag = popup.ScrollDrag{}
 	if s.dismissed != "" && s.dismissed != key {
 		s.dismissed = ""
 	}
@@ -74,14 +74,14 @@ func (s *State) Open(items []Item, key string) {
 // simply stop matching: an overlay opened, a run started, the draft cleared.
 func (s *State) Close() {
 	s.Items, s.key, s.dismissed = nil, "", ""
-	s.drag = false
+	s.drag = popup.ScrollDrag{}
 }
 
 // Dismiss closes the picker and remembers the key, so the same text does not
 // reopen it under the caret.
 func (s *State) Dismiss() {
 	s.dismissed, s.Items = s.key, nil
-	s.drag = false
+	s.drag = popup.ScrollDrag{}
 }
 
 // Pending reports whether a command or path is waiting at the caret.
@@ -94,6 +94,7 @@ func (s *State) Bounds() (start, end int) { return s.Start, s.End }
 // Keypress moves the selection. It reports whether the picker consumed the
 // key, so the composer never sees the same Enter.
 func (s *State) Keypress(msg tea.KeyPressMsg, page int) bool {
+	s.drag = popup.ScrollDrag{}
 	if !s.Pending() {
 		return false
 	}
@@ -221,22 +222,16 @@ func (l Layout) Hit(x, y int) int {
 // The owning screen supplies coordinates relative to the rendered frame.
 func (s *State) Mouse(msg tea.MouseMsg, l Layout) bool {
 	mouse := msg.Mouse()
-	if s.drag {
-		if l.BodyHeight < 1 {
-			s.drag = false
-			return true
-		}
-
-		switch msg.(type) {
-		case tea.MouseMotionMsg, tea.MouseReleaseMsg:
-			offset := popup.ScrollOffset(mouse.Y-l.BodyTop, l.BodyHeight, len(s.Items), s.grab)
+	var track popup.ScrollTrack
+	if l.Scrollbar {
+		track = popup.ScrollTrack{X: l.Width - 3, Y: l.BodyTop, Height: l.BodyHeight, Total: len(s.Items), Offset: l.Offset}
+	}
+	offset, handled := s.drag.Mouse(msg, track)
+	if handled {
+		if offset != track.Offset {
 			s.Selected = min(offset+l.BodyHeight-1, len(s.Items)-1)
-			if _, released := msg.(tea.MouseReleaseMsg); released {
-				s.drag = false
-			}
-
-			return true
 		}
+		return true
 	}
 
 	if !l.Contains(mouse.X, mouse.Y) {
@@ -246,19 +241,6 @@ func (s *State) Mouse(msg tea.MouseMsg, l Layout) bool {
 	if _, click := msg.(tea.MouseClickMsg); click && mouse.Button == tea.MouseLeft {
 		if l.Close && mouse.Y == 1 && mouse.X >= l.Width-5 && mouse.X < l.Width-2 {
 			s.Dismiss()
-		} else if l.Scrollbar && mouse.X == l.Width-3 && mouse.Y >= l.BodyTop && mouse.Y < l.BodyTop+l.BodyHeight {
-			row := mouse.Y - l.BodyTop
-			top, size := popup.ScrollThumb(l.BodyHeight, len(s.Items), l.Offset)
-			if row >= top && row < top+size {
-				s.drag, s.grab = true, row-top
-			} else {
-				key := tea.KeyPgDown
-				if row < top {
-					key = tea.KeyPgUp
-				}
-
-				s.Keypress(tea.KeyPressMsg{Code: key}, l.BodyHeight)
-			}
 		} else if i := l.Hit(mouse.X, mouse.Y); i >= 0 {
 			s.Selected = i
 		}
@@ -276,7 +258,7 @@ func (s *State) Mouse(msg tea.MouseMsg, l Layout) bool {
 	return true
 }
 
-func (s *State) Dragging() bool { return s.Pending() && s.drag }
+func (s *State) Dragging() bool { return s.Pending() && s.drag.Active }
 
 // maxVisible keeps the list from swallowing the transcript it sits over.
 const maxVisible = 12

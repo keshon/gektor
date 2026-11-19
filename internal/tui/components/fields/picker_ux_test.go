@@ -1,4 +1,4 @@
-package settings
+package fields
 
 import (
 	"errors"
@@ -24,6 +24,7 @@ func TestWorkspacePickerNavigatesBeforeSelecting(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := NewModel([]form.Field{{Key: "app-workspace", Value: child}}, textarea.New())
+	f.FileFields = map[string]FilePicker{"app-workspace": {Root: child, Directory: true}}
 	f.Focus(0, nil)
 	props := Props{Width: 100, Height: 30}
 	f.AcceptScan(f.OpenPicker(props)().(ScanMsg))
@@ -60,6 +61,7 @@ func TestWorkspacePickerCancelKeepsWorkspace(t *testing.T) {
 	for _, width := range []int{100, 50} {
 		root := t.TempDir()
 		f := NewModel([]form.Field{{Key: "app-workspace", Value: root}}, textarea.New())
+		f.FileFields = map[string]FilePicker{"app-workspace": {Root: root, Directory: true}}
 		f.Focus(0, nil)
 		props := Props{Width: width, Height: 30}
 		f.AcceptScan(f.OpenPicker(props)().(ScanMsg))
@@ -84,6 +86,7 @@ func TestWorkspacePickerCancelKeepsWorkspace(t *testing.T) {
 func TestExplicitPickerUsesSharedWidthAndStartsAtCurrentValue(t *testing.T) {
 	f := NewModel([]form.Field{{Key: "theme", Value: "light"}}, textarea.New())
 	f.Choices = map[string][]string{"theme": {"dark", "light"}}
+	f.NoSearchFields = map[string]bool{"theme": true}
 	f.Focus(0, nil)
 	props := Props{Width: 140, Height: 45}
 	f.OpenPicker(props)
@@ -111,8 +114,8 @@ func TestLongChoicePickerUsesStandardModalWidthAndMouseOrigin(t *testing.T) {
 		f.Focus(0, nil)
 		props := Props{Width: width, Height: 30}
 		f.OpenPicker(props)
-		if actual := cell.Width(strings.Join(f.box(props), "\n")); actual != popup.ModalWidth(width) {
-			t.Fatalf("width %d: chooser %d, expected standard %d", width, actual, popup.ModalWidth(width))
+		if actual := cell.Width(strings.Join(f.box(props), "\n")); actual != popup.ModalWidth(width, 0) {
+			t.Fatalf("width %d: chooser %d, expected standard %d", width, actual, popup.ModalWidth(width, 0))
 		}
 		rows, _, _, _ := f.PickerRows(props)
 		if width >= 80 && !strings.Contains(ansi.Strip(strings.Join(rows, "\n")), "Agent workflow with a long name") {
@@ -240,6 +243,7 @@ func TestPickerLocationCancelRestoresFilterAndParentDraft(t *testing.T) {
 		}
 	}
 	f := NewModel([]form.Field{{Key: "app-workspace", Value: root}}, textarea.New())
+	f.FileFields = map[string]FilePicker{"app-workspace": {Root: root, Directory: true}}
 	f.Focus(0, nil)
 	props := Props{Width: 80, Height: 24}
 	f.AcceptScan(f.OpenPicker(props)().(ScanMsg))

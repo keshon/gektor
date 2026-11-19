@@ -66,9 +66,15 @@ func TestOverflowMouseUsesAttachedGeometryAndDoesNotClickThrough(t *testing.T) {
 	}
 	m.activate("more", p)
 	p.Height = 8
-	m.Layout(p)
-	if m.MoreOpen {
-		t.Fatal("resizing left an invisible menu active")
+	l = m.Layout(p)
+	action, _ := m.Update(tea.KeyPressMsg{Code: 'p', Text: "p"}, p)
+	if len(l.Menu.Rows) != 0 || action != "" {
+		t.Fatal("invisible menu accepted input")
+	}
+	p.Height = 24
+	l = m.Layout(p)
+	if !m.MoreOpen || len(l.Menu.Rows) == 0 {
+		t.Fatal("resize lost the retained menu")
 	}
 }
 

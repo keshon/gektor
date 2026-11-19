@@ -243,6 +243,11 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	return m, nil
 }
 func (m *Model) width(msg tea.WindowSizeMsg) {
+	m.scrollDrag = scrollDrag{}
+	m.inspector.drag = scrollDrag{}
+	if m.sessions != nil {
+		m.sessions.drag = scrollDrag{}
+	}
 	m.termW, m.termH = msg.Width, msg.Height
 	if !m.ready {
 		m.transcript.Viewport = transcript.NewViewport(msg.Width, msg.Height)

@@ -7,6 +7,8 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/keshon/gektor/internal/tui/components/cell"
 	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/components/popup"
 	"github.com/keshon/gektor/internal/tui/components/selection"
@@ -35,6 +37,7 @@ type Props struct {
 	EmptyMessage       string
 	DefaultAction      string
 	Width, Height      int
+	PreferredWidth     int
 	// List shows compact cards with a detail row and direct shortcut actions.
 	List    bool
 	Columns []Column
@@ -51,6 +54,7 @@ type Model struct {
 	Focus    int
 	MoreOpen bool
 	moreRow  int
+	scroll   popup.ScrollDrag
 }
 
 func New(styles textinput.Styles) *Model {
@@ -109,17 +113,24 @@ func (m *Model) SyncFocus(active bool) {
 
 // Update returns an action ID. Merely selecting or filtering never activates it.
 func (m *Model) Update(msg tea.Msg, p Props) (string, tea.Cmd) {
-	l := m.Layout(p)
-	if m.MoreOpen {
-		return m.menuKey(msg, l), nil
+	if _, key := msg.(tea.KeyPressMsg); key {
+		m.scroll = popup.ScrollDrag{}
 	}
-
+	l := m.Layout(p)
 	if l.Capacity == 0 {
+		m.Search.Blur()
 		if key, ok := msg.(tea.KeyPressMsg); ok && (key.String() == "esc" || key.String() == "enter" || key.String() == "space") {
 			return "close", nil
 		}
 
 		return "", nil
+	}
+
+	m.Search.SetWidth(max(l.Width-4-cell.Width(m.Search.Prompt)-2, 1))
+	m.Clamp(len(m.filtered()), l.Capacity)
+	m.SyncFocus(true)
+	if m.MoreOpen {
+		return m.menuKey(msg, l), nil
 	}
 
 	if key, ok := msg.(tea.KeyPressMsg); ok {
@@ -225,7 +236,27 @@ func (m *Model) Mouse(msg tea.MouseMsg, p Props) string {
 	x := max((p.Width-l.Width)/2, 0) + 2
 	y := max((p.Height-len(l.Rows)-2)/2, 0) + 1
 	mouse := msg.Mouse()
+	track := l.Scroll
+	track.X += x
+	track.Y += y
 	if m.MoreOpen {
+		track = popup.ScrollTrack{}
+	}
+	offset, handled := m.scroll.Mouse(msg, track)
+	if handled {
+		if offset != track.Offset {
+			rowHeight := 1
+			if p.List {
+				rowHeight = 3
+			}
+
+			m.Offset = (offset + rowHeight/2) / rowHeight
+			m.Cursor = min(max(m.Cursor, m.Offset), m.Offset+l.Capacity-1)
+			m.Clamp(len(m.filtered()), l.Capacity)
+		}
+		return ""
+	}
+	if m.MoreOpen && l.Capacity > 0 {
 		return m.menuMouse(msg, l, mouse.X-x, mouse.Y-y)
 	}
 
@@ -247,30 +278,6 @@ func (m *Model) Mouse(msg tea.MouseMsg, p Props) string {
 	}
 
 	if _, ok := msg.(tea.MouseClickMsg); !ok || mouse.Button != tea.MouseLeft {
-		return ""
-	}
-
-	row := mouse.Y - y - l.BodyTop
-	rowHeight := 1
-	if p.List {
-		rowHeight = 3
-	}
-
-	if l.Capacity > 0 && mouse.X == x+l.Width-5 && row >= 0 && row < l.BodyHeight && len(m.filtered()) > l.Capacity {
-		total := len(m.filtered()) * rowHeight
-		if p.List {
-			total--
-		}
-
-		top, size := popup.ScrollThumb(l.BodyHeight, total, m.Offset*rowHeight)
-		if row < top {
-			m.Move(-l.Capacity, len(m.filtered()), l.Capacity)
-		}
-
-		if row >= top+size {
-			m.Move(l.Capacity, len(m.filtered()), l.Capacity)
-		}
-
 		return ""
 	}
 

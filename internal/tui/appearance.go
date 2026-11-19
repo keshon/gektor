@@ -7,6 +7,7 @@ import (
 	"github.com/keshon/gektor/internal/config"
 	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/screen"
+	"github.com/keshon/gektor/internal/tui/settings"
 )
 
 // persistTheme records the choice in the application preferences, so the
@@ -32,6 +33,7 @@ func (m *Model) openTheme() {
 		return nil
 	})
 	m.chrome.Dialog.Form.Choices = map[string][]string{"theme": config.ThemeNames()}
+	m.prepareThemeChoice()
 }
 
 // openAppearance stages presentation choices and saves them together on Apply.
@@ -61,6 +63,7 @@ func (m *Model) openAppearance() {
 		return nil
 	})
 	m.chrome.Dialog.Form.Choices = map[string][]string{"theme": config.ThemeNames(), "frame": {"outlined", "minimal"}}
+	m.prepareThemeChoice()
 }
 
 func (m *Model) applyTheme(name string) {
@@ -110,4 +113,15 @@ func (m *Model) applicationAction(command string) bool {
 		return true
 	}
 	return false
+}
+
+func (m *Model) prepareThemeChoice() {
+	labels := map[string]string{}
+	for _, name := range config.ThemeNames() {
+		labels[name] = settings.ChoiceLabel("theme", name)
+	}
+	f := m.chrome.Dialog.Form
+	f.Labels = map[string]map[string]string{"theme": labels}
+	f.InlineChoices = map[string]int{"theme": len(labels)}
+	f.NoSearchFields = map[string]bool{"theme": true}
 }

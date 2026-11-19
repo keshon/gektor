@@ -2,16 +2,17 @@ package screen
 
 import (
 	"errors"
-	"github.com/keshon/gektor/internal/tui/components/form"
-	"github.com/keshon/gektor/internal/tui/settings"
 	"testing"
+
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
+	"github.com/keshon/gektor/internal/tui/components/form"
 )
 
 func TestFormCopiesInputsAndSubmissionSnapshot(t *testing.T) {
 	controls := &Controls{}
 	fields := []form.Field{{Key: "name", Value: "original"}}
 	choices := map[string][]string{"name": {"original", "other"}}
-	files := map[string]settings.FilePicker{"path": {Extensions: []string{".json"}}}
+	files := map[string]fieldform.FilePicker{"path": {Extensions: []string{".json"}}}
 	controls.PresentForm(Form{Title: "Draft", Fields: fields, Choices: choices, FileFields: files})
 	dialog := controls.Dialog
 	controls.TakeEvents()

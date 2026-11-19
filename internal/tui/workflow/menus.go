@@ -13,6 +13,8 @@ func Menus() []screen.Menu {
 func (m *Model) MenuItems(menu string, applicationIdle bool) []screen.MenuItem {
 	idle := applicationIdle && !m.busy
 	edit := idle && m.run == nil
+	hasNode := m.graph.Selected != ""
+	hasSteps := len(m.definition().Steps) > 0
 	sep := screen.MenuItem{}
 	switch menu {
 	case "recipe":
@@ -28,17 +30,17 @@ func (m *Model) MenuItems(menu string, applicationIdle bool) []screen.MenuItem {
 		return []screen.MenuItem{
 			{Text: "Add node…", Command: "/workflows add", Enabled: edit},
 			{Text: "Add schedule trigger…", Command: "/workflows schedule-add", Enabled: edit}, sep,
-			{Text: "Edit arguments…", Command: "/workflows edit", Enabled: edit},
-			{Text: "Behavior…", Command: "/workflows behavior", Enabled: edit},
+			{Text: "Edit arguments…", Command: "/workflows edit", Enabled: edit && hasNode},
+			{Text: "Behavior…", Command: "/workflows behavior", Enabled: edit && hasNode},
 			{Text: "Saved connection…", Command: "/workflows binding", Enabled: bindingEnabled},
-			{Text: "Connections…", Command: "/workflows connections", Enabled: edit},
-			{Text: "Connect nodes…", Command: "/workflows link", Enabled: edit}, sep,
-			{Text: "Delete node…", Command: "/workflows delete", Enabled: edit},
+			{Text: "Connections…", Command: "/workflows connections", Enabled: edit && hasNode},
+			{Text: "Connect nodes…", Command: "/workflows link", Enabled: edit && hasSteps && hasNode}, sep,
+			{Text: "Delete node…", Command: "/workflows delete", Enabled: edit && hasNode},
 		}
 	case "execution":
 		return []screen.MenuItem{
 			{Text: "Validate recipe…", Command: "/workflows validate", Enabled: edit},
-			{Text: "Run recipe…", Command: "/workflows run", Enabled: edit},
+			{Text: "Run recipe…", Command: "/workflows run", Enabled: edit && hasSteps},
 			{Text: "Stop run", Command: "/workflows stop", Enabled: m.busy}, sep,
 			{Text: "Ask permission", Command: "/workflows access-ask", Enabled: idle},
 			{Text: "Full access", Command: "/workflows access-full", Enabled: idle},
@@ -48,7 +50,7 @@ func (m *Model) MenuItems(menu string, applicationIdle bool) []screen.MenuItem {
 			{Text: "Return to recipe", Command: "/workflows draft", Enabled: idle && m.run != nil}, sep,
 			{Text: "Set up schedule…", Command: "/workflows schedule", Enabled: edit},
 			{Text: "Refresh schedule status", Command: "/workflows schedule-refresh", Enabled: idle}, sep,
-			{Text: "Run with JSON inputs…", Command: "/workflows run-json", Enabled: edit}, sep,
+			{Text: "Run with JSON inputs…", Command: "/workflows run-json", Enabled: edit && hasSteps}, sep,
 		}
 	case "view":
 		return []screen.MenuItem{

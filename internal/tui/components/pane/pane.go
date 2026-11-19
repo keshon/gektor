@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+
 	"github.com/keshon/gektor/internal/tui/components/cell"
 )
 
@@ -19,20 +20,29 @@ type SplitLayout struct {
 	Covered    bool
 }
 
+type SplitProps struct {
+	MinimumWidth int
+	SideWidth    int // Zero divides the area equally; the full area covers the main pane.
+}
+
 // Split covers the main pane when the side pane cannot fit beside it.
-func Split(area Rect, sideOpen bool, minimum int) SplitLayout {
+func Split(area Rect, sideOpen bool, props SplitProps) SplitLayout {
 	l := SplitLayout{Main: area}
 	if !sideOpen {
 		return l
 	}
 
 	l.Side = area
-	if area.Width < minimum {
+	if area.Width < props.MinimumWidth || props.SideWidth >= area.Width {
 		l.Covered = true
 		return l
 	}
 
-	l.Main.Width = area.Width / 2
+	sideWidth := props.SideWidth
+	if sideWidth <= 0 {
+		sideWidth = area.Width - area.Width/2
+	}
+	l.Main.Width = max(area.Width-sideWidth, 1)
 	l.Side.X += l.Main.Width
 	l.Side.Width -= l.Main.Width
 

@@ -19,8 +19,7 @@ const (
 	Suspended
 	Apply
 	SaveCopy
-	Save
-	Review
+	DialogActionRequested
 	TableAction
 	TableChanged
 	SecretApply
@@ -92,11 +91,11 @@ func (m *Controls) Resume(dialog *DialogState) {
 // Prepare updates editor styles on the update loop, before presentation reads.
 func (m *Controls) Prepare() {
 	if m.Dialog != nil && m.Dialog.Secret != nil {
-		m.Dialog.Secret.editor.SetStyles(TextInputStyles(m.Dialog.Secret.editor.Styles()))
+		m.Dialog.Secret.editor.SetStyles(m.palette().TextInputStyles(m.Dialog.Secret.editor.Styles()))
 		m.refreshSecret()
 	}
 	if m.Dialog != nil && m.Dialog.Table != nil {
 		search := &m.Dialog.Table.Model.Search
-		search.SetStyles(TextInputStyles(search.Styles()))
+		search.SetStyles(m.palette().TextInputStyles(search.Styles()))
 	}
 }

@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/config"
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/components/form"
 	"github.com/keshon/gektor/internal/tui/screen"
 )
@@ -31,6 +32,7 @@ func (m *Model) openWorkspace() {
 	}, func(_ map[string]string) error {
 		return m.requestProfileChange(m.profile.Profile.Clone())
 	})
+	m.chrome.Dialog.Form.FileFields = map[string]fieldform.FilePicker{"app-workspace": {Root: m.application.Preferences.Workspace, Directory: true}}
 }
 
 // requestProfileChange replaces owned services without starting an Agent run.
@@ -47,16 +49,16 @@ func (m *Model) requestProfileChange(profile config.Profile) error {
 
 	p := m.application.Preferences
 	p.Profile = &profile
-	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil && m.chrome.Dialog.Form.EditSession == nil {
+	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil && (m.preferences == nil || m.preferences.EditSession == nil) {
 		if workspace, ok := m.chrome.Dialog.Form.Values()["app-workspace"]; ok {
 			p.Workspace = strings.TrimSpace(workspace)
 		}
 	}
-	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil && m.chrome.Dialog.Form.EditSession != nil && m.chrome.Dialog.Form.EditSession.LoadedPath != "" {
-		p.ProfilePath = m.chrome.Dialog.Form.EditSession.LoadedPath
+	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil && m.preferences != nil && m.preferences.EditSession != nil && m.preferences.EditSession.LoadedPath != "" {
+		p.ProfilePath = m.preferences.EditSession.LoadedPath
 	}
-	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil && m.chrome.Dialog.Form.EditSession != nil {
-		fields, _ := m.chrome.Dialog.Form.EditSession.Draft.Fields("workspace")
+	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil && m.preferences != nil && m.preferences.EditSession != nil {
+		fields, _ := m.preferences.EditSession.Draft.Fields("workspace")
 		for _, field := range fields {
 			if field.Key == "app-workspace" {
 				p.Workspace = strings.TrimSpace(field.Value)
@@ -91,8 +93,8 @@ func (m *Model) requestProfileChange(profile config.Profile) error {
 	if err := m.saveCustomSettings(profile); err != nil {
 		return err
 	}
-	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil && m.chrome.Dialog.Form.EditSession != nil && m.chrome.Dialog.Form.EditSession.LoadedPath != "" {
-		p.ProfilePath = m.chrome.Dialog.Form.EditSession.LoadedPath
+	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil && m.preferences != nil && m.preferences.EditSession != nil && m.preferences.EditSession.LoadedPath != "" {
+		p.ProfilePath = m.preferences.EditSession.LoadedPath
 	}
 	workspaceRoot := ""
 	if m.launch.Env.WS != nil {

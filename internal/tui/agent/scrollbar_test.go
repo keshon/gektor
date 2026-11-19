@@ -116,6 +116,20 @@ func TestScrollbarDragEndsOffBar(t *testing.T) {
 	}
 }
 
+func TestScrollbarResizeCancelsGrab(t *testing.T) {
+	m := scrollModel(t, 100, 30)
+	x, y, _ := scrollbarPos(m)
+	m.testUpdate(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+	if !m.scrollDrag.Active {
+		t.Fatal("thumb did not capture mouse")
+	}
+	m.testUpdate(tea.WindowSizeMsg{Width: 80, Height: 22})
+	m.testUpdate(tea.MouseMotionMsg{X: 0, Y: 100, Button: tea.MouseLeft})
+	if m.scrollDrag.Active || m.transcript.Viewport.YOffset() != 0 {
+		t.Fatal("resize kept the old thumb grab")
+	}
+}
+
 func TestScrollbarGrabUsesDrawnColumnWithAndWithoutSidebar(t *testing.T) {
 	for _, width := range []int{80, 140} {
 		t.Run(fmt.Sprint("width=", width), func(t *testing.T) {

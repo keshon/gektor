@@ -5,12 +5,11 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/keshon/gektor/internal/tui/screen"
 
 	"github.com/keshon/gektor/internal/config"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 func TestFormsShareRightAlignedActionRowAndDivider(t *testing.T) {
@@ -47,8 +46,8 @@ func TestSettingsToolbarDisabledApplyIsVisibleAndCannotRun(t *testing.T) {
 		m := settingsModel(t)
 		m.applyTheme(theme)
 		m.editSettings("generation")
-		m.chrome.Dialog.Form.EditSession.PersistCurrent = false
-		if m.chrome.Dialog.Form.Dirty() {
+		m.preferences.EditSession.PersistCurrent = false
+		if m.preferences.Dirty() {
 			t.Fatal("unchanged settings fixture is dirty")
 		}
 		for i, action := range m.footerActions() {

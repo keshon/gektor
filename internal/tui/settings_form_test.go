@@ -95,7 +95,7 @@ func TestApplyIsGreyedUntilSomethingChanges(t *testing.T) {
 	m := settingsModel(t)
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	m.editSettings("generation")
-	if m.chrome.Dialog.Form.Dirty() {
+	if m.preferences.Dirty() {
 		t.Fatal("a freshly opened section is already dirty")
 	}
 	clean := focusApply(t, m)
@@ -103,7 +103,7 @@ func TestApplyIsGreyedUntilSomethingChanges(t *testing.T) {
 	// The first field is the temperature, focused on open.
 	m.chrome.Dialog.Form.Focus(0, m.chrome.Dialog.Form.FieldVisible)
 	m.chrome.Dialog.Form.Editor.SetValue("0.9")
-	if !m.chrome.Dialog.Form.Dirty() {
+	if !m.preferences.Dirty() {
 		t.Fatal("an edit did not make the form dirty")
 	}
 	dirty := focusApply(t, m)

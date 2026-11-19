@@ -9,8 +9,8 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/keshon/gektor/internal/tui/components/cell"
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/components/popup"
-	"github.com/keshon/gektor/internal/tui/settings"
 )
 
 // Area returns the absolute terminal rectangle available to overlays.
@@ -18,7 +18,7 @@ func (m *Controls) Area() (int, int, int, int) { a := m.Props.Area; return a.X, 
 
 // ShortcutStyles uses the active palette for shortcut keys and descriptions.
 func (m *Controls) ShortcutStyles() popup.ShortcutStyles {
-	return popup.ShortcutStyles{Key: lipgloss.NewStyle().Foreground(lipgloss.Color(Color(ColorPopupText))).Bold(true), Action: m.Props.Styles.Dim}
+	return popup.ShortcutStyles{Key: lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette().Color(ColorPopupText))).Bold(true), Action: m.Props.Styles.Dim}
 }
 
 // PopupSurface returns the current palette roles for overlay surfaces.
@@ -29,7 +29,7 @@ func PopupSurface() popup.Styles {
 
 // RenderBox centers a bordered overlay within the supplied cell bounds.
 func RenderBox(rows []string, width, height int) string {
-	return popup.FrameBox(rows, width, height, PopupSurface())
+	return popup.FrameBox(rows, width, height, 0, PopupSurface())
 }
 func cleanText(s string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\r", "\n")
@@ -40,7 +40,7 @@ func (m *Controls) NewEditor() textarea.Model {
 	editor := textarea.New()
 	editor.Prompt = "> "
 	editor.SetVirtualCursor(false)
-	style := InputStyles(editor.Styles())
+	style := m.palette().InputStyles(editor.Styles())
 	style.Cursor.Shape = tea.CursorUnderline
 	editor.SetStyles(style)
 	editor.MaxHeight = 6
@@ -52,12 +52,12 @@ func (m *Controls) NewEditor() textarea.Model {
 }
 
 // SettingsProps supplies the current dialog bounds and styles to its form.
-func (m *Controls) SettingsProps() settings.Props {
+func (m *Controls) FormProps() fieldform.Props {
 	a := m.Props.Area
 	s := m.Props.Styles
-	return settings.Props{Width: a.Width, Height: a.Height, Left: a.X, Top: a.Y, Title: m.Dialog.Title,
-		Styles:  settings.Styles{Title: s.Title, Disabled: s.Disabled, Muted: s.Dim, Focus: s.Focus, Error: s.Err, Selected: s.Hunk},
-		Surface: PopupSurface(), SearchStyles: TextInputStyles(textinput.New().Styles())}
+	return fieldform.Props{Width: a.Width, Height: a.Height, Left: a.X, Top: a.Y, Title: m.Dialog.Title,
+		Styles:  fieldform.Styles{Title: s.Title, Disabled: s.Disabled, Muted: s.Dim, Focus: s.Focus, Error: s.Err, Selected: s.Hunk},
+		Surface: m.popupSurface(), SearchStyles: m.palette().TextInputStyles(textinput.New().Styles())}
 }
 
 // IsMouseClick distinguishes a press from motion, wheel, and release messages.
@@ -86,4 +86,9 @@ func (m *Controls) HelpRows(section HelpSection, width int) []string {
 		rows = append(rows, "")
 	}
 	return rows[:max(len(rows)-1, 0)]
+}
+
+func (m *Controls) popupSurface() popup.Styles {
+	normal, border, selected := m.palette().PopupStyles()
+	return popup.Styles{Normal: normal, Border: border, Selected: selected}
 }

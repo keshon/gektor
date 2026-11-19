@@ -67,14 +67,22 @@ replacement; [transcript_history.go](../../internal/tui/agent/transcript_history
 rebuilds saved messages into transcript blocks. The session library root is
 captured when the Agent model is constructed and shared by scanning and creation.
 
-Settings pickers emit `settings.DiscoveryRequest` values for remote model and
-reasoning catalogs. The parent executes discovery with the launch context and
-returns a `ScanMsg`. Opaque request IDs reject results from replaced pickers or
-forms. Directory and detail commands capture their own input snapshots; keyboard
-interaction, layout, and filesystem effects have separate files in `settings`.
+`components/fields` owns generic form drafts, choices and filesystem pickers.
+Field names do not select behavior. Consumers explicitly configure choice labels,
+visibility, file filters and discovery sources. Remote catalogs emit
+`fields.DiscoveryRequest` snapshots; the parent executes discovery and returns a
+`fields.ScanMsg`. Opaque request IDs reject results from replaced pickers or forms.
+Directory and detail commands capture their inputs before leaving the update loop.
+`settings.Model` adapts those controls to GEKTOR's provider, profile and preference
+rules. The application retains that adapter beside its active dialog identity.
+
+Information dialogs accept owner-supplied `DialogAction` IDs, keys and labels.
+Shared controls emit the action and dialog identity; lesson review and Workflow
+proposal effects remain with their feature owners.
 
 Start at [screen.go](../../internal/tui/screen/screen.go) for shared controls,
-[settings.go](../../internal/tui/settings/settings.go) for settings interaction,
+[fields.go](../../internal/tui/components/fields/fields.go) for form and picker interaction,
+[settings.go](../../internal/tui/settings/settings.go) for GEKTOR preference rules,
 and [workflow.go](../../internal/tui/workflow/workflow.go) for Workflow construction.
 Both screen entry files keep `Model`, `Config`, `New`, `Init`, and `Close` together.
 Their `internal/tui/*/api.go`, `internal/tui/*/update.go`, and
@@ -585,3 +593,35 @@ Usability tasks:
 
 Observe where people hesitate, use the wrong control or cannot explain whether
 a change was saved. Fix those interactions before extending the component catalog.
+
+## Reuse and reading controls
+
+Table layout reads a value snapshot. Rendering, hit testing and action hints do
+not change the stored focus, selected row, open menu or editor width. A short
+terminal displays a fallback; restoring its size restores the retained context.
+The current row keeps a quiet marker when another control owns keyboard focus.
+
+Form-level errors and `FieldErrors` retain their complete text. Ctrl+E opens a
+scrollable details view; Escape returns to the same editor and draft. Callers
+supply field errors by stable field key when validation can identify the field.
+
+F11 expands information dialogs, tables and inspectors, and restores their normal
+width on a second press. Forms retain their existing width. `PreferredWidth` lets
+content-heavy dialogs and tables request a different starting width; pane split
+props accept a requested side width. Layout clamps these requests to the area.
+
+Help > Actions (F12) filters the active screen's enabled menu commands. Labels,
+shortcuts and availability come from the menus, and activation reports the menu
+command ID. The application rechecks availability before dispatch. Feature effects
+remain direct calls in their owners.
+
+A host can supply `ControlProps.Palette` and `ColorProfile` independently of other
+hosts. `NewPalette` supplies text, input, popup and pane styles from a snapshot.
+The GEKTOR application retains its saved shared theme. Its host also accepts the
+terminal color profile; final composition converts colors for ANSI, ANSI256 or
+color-free output. Existing global style functions serve the application's shared
+theme; reusable hosts should pass their own snapshot.
+
+Components and controls remain under `internal/`. Publishing a separate module
+requires a real second CLI consumer and an API review; the GEKTOR shell and its
+execution services are application code.

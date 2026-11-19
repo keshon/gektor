@@ -30,3 +30,11 @@ func (m *Model) Presentation() screen.ControlProps {
 	}
 	return props
 }
+
+func (m *Model) viewSurface() screen.Surface {
+	surface := m.surface
+	if m.inspectorExpanded {
+		surface.InspectorWidth = surface.Area.Width
+	}
+	return surface
+}

@@ -16,6 +16,20 @@ func testStyles() Styles {
 	}
 }
 
+func TestTinyModalStaysInsideItsArea(t *testing.T) {
+	for width := range 5 {
+		if got := ModalWidth(width, 0); got > width || got < 0 {
+			t.Fatalf("area %d produced modal width %d", width, got)
+		}
+		rows := ModalBox([]string{"A title and a very long value"}, width, 0, testStyles())
+		for _, row := range rows {
+			if lipgloss.Width(row) > width {
+				t.Fatalf("tiny modal exceeds %d cells: %q", width, row)
+			}
+		}
+	}
+}
+
 func TestFrameIsRectangular(t *testing.T) {
 	const width = 10
 	inner := width - 4
@@ -104,7 +118,7 @@ func TestBoxSizesItselfToItsWidestRow(t *testing.T) {
 
 func TestFrameBoxCentres(t *testing.T) {
 	const areaW, areaH = 40, 12
-	box := FrameBox([]string{"one", "two"}, areaW, areaH, testStyles())
+	box := FrameBox([]string{"one", "two"}, areaW, areaH, 0, testStyles())
 	lines := strings.Split(box, "\n")
 	if strings.TrimSpace(lines[0]) != "" {
 		t.Fatal("box is flush to the top; it should be centred")

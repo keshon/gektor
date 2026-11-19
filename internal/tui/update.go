@@ -5,8 +5,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/screen"
-	"github.com/keshon/gektor/internal/tui/settings"
 	toolsui "github.com/keshon/gektor/internal/tui/tools"
 	"github.com/keshon/gektor/internal/tui/workflow"
 )
@@ -28,14 +28,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.toolsDialog = m.chrome.Dialog
 			m.toolsPage = toolMediaDetails
 		}
-	case settings.DiscoveryRequest:
+	case fieldform.DiscoveryRequest:
 		cmd = m.discoverSettings(value)
-	case settings.DetailMsg, settings.ScanMsg:
+	case fieldform.DetailMsg, fieldform.ScanMsg:
 		m.acceptSettings(msg)
 	case workflow.Message:
 		if m.workflows != nil {
 			_, cmd = m.workflows.Update(value)
 		}
+	case tea.ColorProfileMsg:
+		m.colorProfile = value.Profile
 	case tea.WindowSizeMsg:
 		m.termW, m.termH = value.Width, value.Height
 		m.chrome.Props.Width, m.chrome.Props.Height = value.Width, value.Height
@@ -113,6 +115,11 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (next tea.Model, cmd tea.Cmd) {
 			return m, m.chrome.TableInput(msg)
 		}
 		if m.chrome.Dialog.Form != nil {
+			if m.preferences != nil && m.preferencesDialog == m.chrome.Dialog {
+				intent, cmd := m.preferences.UpdateKey(msg, m.chrome.FormProps())
+				m.chrome.ResizeFormEditor()
+				return m, tea.Batch(cmd, m.chrome.HandleIntent(intent))
+			}
 			return m, m.chrome.FormKey(msg)
 		}
 		return m, m.chrome.InfoKey(msg)
@@ -126,6 +133,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (next tea.Model, cmd tea.Cmd) {
 			m.chrome.Header = screen.MenuState{Focused: true, Global: true}
 		}
 		return m, nil
+	case "f12":
+		return m, m.runAction("actions")
 	case "f10":
 		return m.requestQuit()
 	}
@@ -183,6 +192,12 @@ func (m *Model) runAction(command string) tea.Cmd {
 		return nil
 	}
 	switch command {
+	case "actions":
+		m.chrome.CloseHeader()
+		m.syncPresentation()
+		m.chrome.OpenActions("actions")
+		m.actionsDialog = m.chrome.Dialog
+		return nil
 	case "":
 		return nil
 	case "quit":
