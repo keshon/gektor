@@ -40,13 +40,19 @@ export function publishMarkdown(sourcePath, source) {
   source = source.replaceAll('\r\n', '\n');
   const marked = new Marked();
   const edits = [];
-  let cursor = 0;
+  const document = { cursor: 0 };
+  const labels = new WeakMap();
   marked.walkTokens(marked.lexer(source), token => {
     if (!['link', 'image', 'code', 'codespan', 'html'].includes(token.type)) return;
-    const start = source.indexOf(token.raw, cursor);
+    const scope = labels.get(token) ?? document;
+    const start = source.indexOf(token.raw, scope.cursor);
     if (start < 0) throw new Error(`Cannot locate Markdown token in ${sourcePath}`);
-    cursor = start + token.raw.length;
+    const end = start + token.raw.length;
+    scope.cursor = end;
     if (token.type !== 'link' && token.type !== 'image') return;
+    // Label tokens occupy the parent's range, not the text after the link.
+    const label = { cursor: start };
+    marked.walkTokens(token.tokens ?? [], child => labels.set(child, label));
     const target = localTarget(sourcePath, token.href);
     if (!target) return;
     const published = bySource.get(target.file);
@@ -54,13 +60,14 @@ export function publishMarkdown(sourcePath, source) {
       ? site.origin + markdownRoute(published) + (target.fragment ? `#${encodeURIComponent(target.fragment)}` : '')
       : new URL(siteLink(sourcePath, token.href), site.origin).href;
     // Reference-style links are expanded, so their definitions need no rewriting.
-    const inlineEnd = token.raw.indexOf('](');
+    const inlineEnd = token.raw.lastIndexOf('](');
     const referenceEnd = token.raw.lastIndexOf('][');
     const labelEnd = inlineEnd >= 0 ? inlineEnd : referenceEnd >= 0 ? referenceEnd : token.raw.lastIndexOf(']');
     const title = token.title ? ` "${token.title.replaceAll('"', '&quot;')}"` : '';
-    edits.push({ start, end: cursor, text: `${token.raw.slice(0, labelEnd + 1)}(<${href}>${title})` });
+    edits.push({ start: start + labelEnd + 1, end, text: `(<${href}>${title})` });
   });
-  for (const edit of edits.reverse()) source = source.slice(0, edit.start) + edit.text + source.slice(edit.end);
+  edits.sort((a, b) => b.start - a.start);
+  for (const edit of edits) source = source.slice(0, edit.start) + edit.text + source.slice(edit.end);
   return source;
 }
 export function basePath(value = '/') {

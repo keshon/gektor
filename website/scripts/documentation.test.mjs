@@ -98,6 +98,17 @@ test('Markdown publication preserves article content and code while resolving de
   assert.equal([...markdown.matchAll(/https:\/\/gektor.keshon.ru\/docs\/guides\/agent\/index.md/g)].length, 2);
 });
 
+test('Markdown publication keeps nested code and image labels in their source ranges', () => {
+  const source = '[`workflow_wait`](reference/recipes.md)\n\n`workflow_wait`\n\n[![badge](images/gektor-demo.webp)](guide/agent.md)\n\n[`workflow_wait`][ref]\n\n[ref]: reference/recipes.md\n';
+  const markdown = publishMarkdown('docs/start.md', source);
+  const marked = new Marked();
+  const content = text => marked.parse(text).replace(/(?:href|src)="[^"]*"/g, 'destination=""');
+  assert.equal(content(markdown), content(source));
+  assert.ok(markdown.includes('[`workflow_wait`](<https://gektor.keshon.ru/docs/reference/recipes/index.md>)'));
+  assert.ok(markdown.includes('\n\n`workflow_wait`\n\n'));
+  assert.ok(markdown.includes('[![badge](<https://gektor.keshon.ru/doc-assets/docs/images/gektor-demo.webp>)](<https://gektor.keshon.ru/docs/guides/agent/index.md>)'));
+});
+
 test('agent index and HTML discovery use the existing publication boundary', () => {
   const index = renderLLMs();
   const links = [];

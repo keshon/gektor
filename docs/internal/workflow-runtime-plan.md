@@ -249,6 +249,15 @@ audit report: interrupted-job deduplication survives queue pressure, cleanup
 rejects ignored artifact deletes, and resumed retention reports cleaned runs.
 The full store race suite and store vet pass on those fixes.
 
+Paused at the user's request on 2026-11-19. Astra's fixes are committed as
+`11eef13`; the website Markdown publication failure is also fixed, with website
+checks and production build passing. Next: the combined API-import acceptance
+case (pagination, 429 wait, worker restart, deduplicated writes and report), then
+TUI authoring with the actual model. Neither new acceptance case ran or was added
+before the pause. The saved model endpoint refused connections. See the audit's
+paused-work section for the handoff. Leave this branch unmerged until that work
+and final checks are completed.
+
 Worker permits currently cover only work dispatched by this process; independent
 CLI runs and operator continuations are outside them. Do not claim process-local
 permits are persistent or cross-process workspace budgets.

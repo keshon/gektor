@@ -126,11 +126,26 @@ and temporary stores:
 Only temporary stores were pruned. Existing user history was not touched. These
 examples do not establish live SSH, HTTP-provider or model quality.
 
-The website's local path/anchor check passes. Its publication test suite has one
-failure: `publishMarkdown` cannot locate a token in `docs/reference/http-api.md`.
-The same failure reproduces using that file from the unchanged `8cae30e` baseline;
-the publisher and that source were not changed here. Seven other publication
-tests pass. The publication failure remains separate follow-up work.
+The website publication failure reproduced at the `8cae30e` baseline is fixed.
+The publisher now tracks nested label tokens within their parent link's range
+and edits destinations without replacing the label. Regression coverage includes
+inline code, reference links and linked images. `npm run check` passes all nine
+publication tests and the path/anchor check; `npm run build` verifies 36 HTML
+pages and 36 agent files.
+
+## Paused acceptance work
+
+The user deferred further testing on 2026-11-19. Astra's fixes are committed as
+`11eef13`. No combined API-import recipe or new acceptance test was added in this
+session. The branch remains unmerged.
+
+Resume with a deterministic paginated API import covering a simulated 429,
+durable wait, worker restart, deduplicated writes and a final report. Then try
+authoring and correcting that workflow through the TUI with the user's actual
+model. The saved endpoint `http://127.0.0.1:9931` refused connections during this
+session; no live proposal request ran. Record observed usability problems and
+fix them before the final branch checks and merge. Existing component/race checks
+do not substitute for this combined acceptance case or a live authoring trial.
 
 ## Limits and follow-up
 
