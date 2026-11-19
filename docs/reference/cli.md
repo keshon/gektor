@@ -315,10 +315,20 @@ and queues a snapshot. `workflow jobs` lists jobs; `workflow job <id>` shows one
 `workflow cancel <id>` cancels pending work or requests cancellation of a running job.
 These commands accept `-workspace`.
 
-`workflow serve [-workspace dir] [-allow tool=pattern] [-deny tool=pattern]`
-runs one local worker until Ctrl+C. Run it under your OS process supervisor for
+`workflow serve [-workspace dir] [-allow tool=pattern] [-deny tool=pattern]
+[-max-jobs 1] [-max-operations 32]` runs one local worker process until Ctrl+C. Run it under your OS process supervisor for
 unattended use. Permissions belong to this process, not to queued recipes.
 Requests that need interactive approval are denied.
+
+`-max-jobs` sets simultaneous queued jobs and due wait continuations (1–32,
+default 1). Waiting and review states release their slot. `-max-operations`
+limits active node executions shared by those jobs (1–32, default 32), including
+mapped items. Operations without a concurrent contract are serialized by name.
+Per-map concurrency remains a separate limit. Both flags are accepted only by
+`serve`; neither limit governs independent CLI runs or operator continuations.
+One workspace worker lease still excludes a second worker process. Shutdown
+cancels and joins all worker jobs before releasing that lease. Due continuations
+and queued jobs alternate when both backlogs are present.
 
 Add `-listen 127.0.0.1:9841 -api-config api.json` to enable authenticated HTTP
 submission, webhook and callback routes alongside the worker. Both flags are required

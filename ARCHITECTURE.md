@@ -461,6 +461,15 @@ Nested calls share the parent run lease, review decisions, cancellation and arti
 store. No second worker or child-run lifecycle is created. Queues persist the source
 bundle; review continuation uses the saved compiled definition.
 
+The daemon owns a bounded set of job loops plus one scheduler. Queued jobs and
+due continuations share those loops; waiting and review states release them.
+Its copied registry owns shared execution permits and serializes non-concurrent
+operations by name. These permits cover worker-owned jobs, not independent CLI
+processes. Shutdown joins every loop and its run cleanup before releasing the
+workspace worker lease. Cancellation polling reads a single job; claims read
+indexed queue metadata and only load the selected snapshot. Claim selection and
+status updates remain inside one immediate SQLite transaction.
+
 Fixture tests use the same compiler and engine through the workflow service
 `Test` method, with an in-memory checkpoint and an explicit pure-operation
 allowlist. The application

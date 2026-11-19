@@ -240,7 +240,7 @@ func TestHTTPWorkerLifecycle(t *testing.T) {
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		done <- api.Serve(ctx, listener, h, func(ctx context.Context) error { return daemon.Serve(ctx, db, svc) })
+		done <- api.Serve(ctx, listener, h, func(ctx context.Context) error { return daemon.Serve(ctx, db, svc, daemon.Config{}) })
 	}()
 	req, _ := http.NewRequest("POST", "http://"+listener.Addr().String()+"/hooks/note", strings.NewReader(`{"inputs":{"text":"live HTTP"}}`))
 	req.Header.Set("Authorization", "Bearer "+hook)

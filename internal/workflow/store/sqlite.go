@@ -87,6 +87,10 @@ CREATE TABLE IF NOT EXISTS wakeups (
 );
 CREATE INDEX IF NOT EXISTS wakeups_due ON wakeups(due);
 CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, record BLOB NOT NULL);
+CREATE INDEX IF NOT EXISTS jobs_queue ON jobs (
+	json_extract(CAST(record AS TEXT), '$.status'),
+	json_extract(CAST(record AS TEXT), '$.created'), id
+);
 CREATE TABLE IF NOT EXISTS schedules (id TEXT PRIMARY KEY, record BLOB NOT NULL);
 CREATE TABLE IF NOT EXISTS control (id INTEGER PRIMARY KEY CHECK (id = 1), schedule_revision INTEGER NOT NULL);
 INSERT OR IGNORE INTO control VALUES (1, 0);

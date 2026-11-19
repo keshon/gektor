@@ -42,7 +42,7 @@ func TestServiceCancellationAndRunLink(t *testing.T) {
 	defer stop()
 	done := make(chan error, 1)
 	go func() {
-		done <- Serve(ctx, s, service.Service{WS: ws, StoreDir: directory, Registry: registry, AuthorizeResource: func(context.Context, string, string, json.RawMessage) error { return nil }})
+		done <- Serve(ctx, s, service.Service{WS: ws, StoreDir: directory, Registry: registry, AuthorizeResource: func(context.Context, string, string, json.RawMessage) error { return nil }}, Config{})
 	}()
 	select {
 	case <-started:

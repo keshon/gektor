@@ -151,7 +151,33 @@ failure routes, stored review continuation and fixture regression detection.
 Source-scoped tests, join/service race checks, affected vet, executable build,
 the shipped CLI fixture example, documentation and diff checks pass.
 
-Next: stage 8 bounded jobs, workspace budgets, retention and health/queue metrics.
+Stage 8 now has bounded worker jobs and shared worker-operation permits. Serve
+owns N execution loops plus one scheduler under the existing workspace lease.
+CLI max-jobs defaults to 1 and max-operations to 32; both are bounded to 1–32.
+Due continuations and new queue jobs alternate per loop. Waiting/review states
+release their job slot. Non-concurrent nodes serialize by operation name across
+the worker's jobs, while maps also retain their per-map bound. A worker or
+scheduler failure cancels peers; Serve joins every loop before releasing its
+lease, then reconciles claims cancelled before run creation. Operation failures
+remain recorded per job and do not stop other jobs.
+The registry limit owns no goroutines and does not alter the original registry.
+
+Hot queue operations no longer hydrate every saved recipe: cancellation reads
+one job, updates touch one job transactionally, and claims inspect indexed
+status/creation metadata before loading only the chosen snapshot. Selection
+retains exact timestamp order, including nanoseconds, with stable ID ties.
+The SQLite index is additive; stored row shapes and snapshot values are unchanged.
+
+Source-scoped tests, registry/store/daemon race checks, affected vet, executable
+build, documentation and diff checks pass. Tests cover job/operation caps,
+non-concurrent node serialization, cancellation without leaked permits, joined
+shutdown before lease release, queue draining after a typed operation failure,
+exact snapshot values, transactional rollback and indexed claim ordering.
+
+Next: remaining stage 8 workspace-wide budgets, retention and health/queue metrics.
+Worker permits currently cover only work dispatched by this process; independent
+CLI runs and operator continuations are outside them. Do not claim process-local
+permits are persistent or cross-process workspace budgets.
 The broader audit and acceptance tests remain scheduled after plan implementation.
 Do not treat the keyed join checkpoint as completion of the entire plan.
 

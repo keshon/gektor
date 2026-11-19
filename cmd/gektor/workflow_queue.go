@@ -33,6 +33,14 @@ func workflowQueue(ctx context.Context, args []string, out io.Writer, directory 
 	overlap := flags.String("overlap", "skip", "active schedule: skip or queue")
 	listen := flags.String("listen", "", "optional loopback HTTP address, e.g. 127.0.0.1:9841")
 	apiConfig := flags.String("api-config", "", "workspace-relative API route and token-environment configuration")
+	workerConfig := daemon.Config{
+		MaxJobs:       1,
+		MaxOperations: workflow.MaxConcurrency,
+	}
+	if command == "serve" {
+		flags.IntVar(&workerConfig.MaxJobs, "max-jobs", 1, "maximum active jobs and wait continuations (1–32)")
+		flags.IntVar(&workerConfig.MaxOperations, "max-operations", workflow.MaxConcurrency, "maximum active operations shared by this worker (1–32)")
+	}
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
@@ -46,6 +54,11 @@ func workflowQueue(ctx context.Context, args []string, out io.Writer, directory 
 	}
 	if (*listen != "" || *apiConfig != "") && (command != "serve" || *listen == "" || *apiConfig == "") {
 		return fmt.Errorf("-listen and -api-config must be used together with workflow serve")
+	}
+	validJobs := workerConfig.MaxJobs >= 1 && workerConfig.MaxJobs <= daemon.MaxJobs
+	validOperations := workerConfig.MaxOperations >= 1 && workerConfig.MaxOperations <= workflow.MaxConcurrency
+	if command == "serve" && (!validJobs || !validOperations) {
+		return fmt.Errorf("-max-jobs and -max-operations must be between 1 and 32")
 	}
 	policy := buildPolicy(*allow, *deny)
 	if err := policy.Validate(); err != nil {
@@ -79,16 +92,7 @@ func workflowQueue(ctx context.Context, args []string, out io.Writer, directory 
 		}
 		return emit(summaries, nil)
 	case "job":
-		jobs, err := s.Jobs(ctx)
-		if err != nil {
-			return err
-		}
-		for _, j := range jobs {
-			if j.ID == flags.Arg(0) {
-				return emit(j, nil)
-			}
-		}
-		return fmt.Errorf("unknown job %s", flags.Arg(0))
+		return emit(s.Job(ctx, flags.Arg(0)))
 	case "cancel":
 		return s.CancelJob(ctx, flags.Arg(0))
 	case "schedules":
@@ -173,9 +177,12 @@ func workflowQueue(ctx context.Context, args []string, out io.Writer, directory 
 			}
 			defer listener.Close()
 			fmt.Fprintf(os.Stderr, "workflow API listening on http://%s\n", listener.Addr())
-			return api.Serve(ctx, listener, handler, func(workerCtx context.Context) error { return daemon.Serve(workerCtx, s, svc) })
+			worker := func(workerCtx context.Context) error {
+				return daemon.Serve(workerCtx, s, svc, workerConfig)
+			}
+			return api.Serve(ctx, listener, handler, worker)
 		}
-		return daemon.Serve(ctx, s, svc)
+		return daemon.Serve(ctx, s, svc, workerConfig)
 	}
 	path := flags.Arg(0)
 	if command == "schedule" {

@@ -3,10 +3,71 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 )
+
+func TestPointJobUpdatesAndIndexedClaimsPreserveSnapshotsAndNanosecondOrder(t *testing.T) {
+	db, _, _ := testStore(t)
+	source := json.RawMessage(`{"id":9007199254740993}`)
+	first, err := db.Enqueue(t.Context(), "first.json", source, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := db.Enqueue(t.Context(), "second.json", source, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	err = db.UpdateJob(t.Context(), first.ID, func(job *Job) error { job.Created = base.Add(200 * time.Nanosecond); return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = db.UpdateJob(t.Context(), second.ID, func(job *Job) error { job.Created = base.Add(100 * time.Nanosecond); return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	stop := errors.New("keep this update private")
+	err = db.UpdateJob(t.Context(), second.ID, func(job *Job) error { job.Status = "failed"; return stop })
+	if !errors.Is(err, stop) {
+		t.Fatal(err)
+	}
+	job, err := db.Job(t.Context(), second.ID)
+	if err != nil || job.Status != "queued" || string(job.Source) != string(source) {
+		t.Fatal("point update lost rollback or snapshot", job, err)
+	}
+	claimed, ok, err := db.Claim(t.Context())
+	if err != nil || !ok || claimed.ID != second.ID || string(claimed.Source) != string(source) {
+		t.Fatal("claim lost sub-millisecond ordering or exact snapshot", claimed, ok, err)
+	}
+	_, err = db.Job(t.Context(), "missing")
+	if err == nil {
+		t.Fatal("missing job returned a zero record")
+	}
+	rows, err := db.db.QueryContext(t.Context(), `EXPLAIN QUERY PLAN SELECT id, json_extract(CAST(record AS TEXT), '$.created')
+		FROM jobs WHERE json_extract(CAST(record AS TEXT), '$.status') = 'queued'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	indexed := false
+	for rows.Next() {
+		var id, parent, unused int
+		var detail string
+		err = rows.Scan(&id, &parent, &unused, &detail)
+		if err != nil {
+			t.Fatal(err)
+		}
+		indexed = indexed || strings.Contains(detail, "jobs_queue")
+	}
+	err = rows.Err()
+	if err != nil || !indexed {
+		t.Fatal("claims do not use the queue metadata index", indexed, err)
+	}
+}
 
 func TestQueueClaimRecoveryAndCancellation(t *testing.T) {
 	s, base, work := testStore(t)

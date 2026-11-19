@@ -14,7 +14,8 @@ type Node struct {
 	PermissionName string
 	// RetrySafe declares that repeating a failed execution cannot duplicate effects.
 	RetrySafe bool
-	// Concurrent permits overlapping invocations of this operation within a map.
+	// Concurrent permits overlapping invocations. Maps require it; bounded workers
+	// serialize operations without it by name across their jobs.
 	Concurrent       bool
 	Name             string
 	Version          int

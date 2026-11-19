@@ -96,34 +96,114 @@ func (s *Store) Jobs(ctx context.Context) ([]Job, error) {
 	sort.Slice(jobs, func(i, j int) bool { return jobs[i].Created.Before(jobs[j].Created) })
 	return jobs, err
 }
-func (s *Store) UpdateJob(ctx context.Context, id string, fn func(*Job) error) error {
-	return s.control(ctx, func(c *control) error {
-		j, ok := c.Jobs[id]
-		if !ok {
-			return fmt.Errorf("unknown job %s", id)
-		}
-		if err := fn(&j); err != nil {
-			return err
-		}
-		c.Jobs[id] = j
-		return nil
-	})
+
+// Job reads one saved job without loading schedules or unrelated recipe snapshots.
+func (s *Store) Job(ctx context.Context, id string) (Job, error) {
+	row := s.db.QueryRowContext(ctx, "SELECT record FROM jobs WHERE id = ?", id)
+	return readJob(row, id)
 }
+
+func readJob(row *sql.Row, id string) (Job, error) {
+	var raw []byte
+	err := row.Scan(&raw)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Job{}, fmt.Errorf("unknown job %s", id)
+	}
+	if err != nil {
+		return Job{}, err
+	}
+	var job Job
+	err = json.Unmarshal(raw, &job)
+	if err != nil {
+		return Job{}, err
+	}
+	if job.ID != id {
+		return Job{}, fmt.Errorf("job identity mismatch")
+	}
+	return job, nil
+}
+
+func (s *Store) UpdateJob(ctx context.Context, id string, fn func(*Job) error) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() // Commit ends the transaction; earlier returns leave the job unchanged.
+	row := tx.QueryRowContext(ctx, "SELECT record FROM jobs WHERE id = ?", id)
+	job, err := readJob(row, id)
+	if err != nil {
+		return err
+	}
+	err = fn(&job)
+	if err != nil {
+		return err
+	}
+	err = writeJob(ctx, tx, id, job)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func writeJob(ctx context.Context, tx *sql.Tx, id string, job Job) error {
+	if job.ID != id {
+		return fmt.Errorf("job identity mismatch")
+	}
+	raw, err := json.Marshal(job)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, "UPDATE jobs SET record = ? WHERE id = ?", raw, id)
+	return err
+}
+
 func (s *Store) Claim(ctx context.Context) (Job, bool, error) {
-	var chosen Job
-	err := s.control(ctx, func(c *control) error {
-		for _, j := range c.Jobs {
-			if j.Status == "queued" && (chosen.ID == "" || j.Created.Before(chosen.Created)) {
-				chosen = j
-			}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Job{}, false, err
+	}
+	defer tx.Rollback() // The immediate transaction owns selection through status update.
+	rows, err := tx.QueryContext(ctx, `SELECT id, json_extract(CAST(record AS TEXT), '$.created')
+		FROM jobs WHERE json_extract(CAST(record AS TEXT), '$.status') = 'queued'`)
+	if err != nil {
+		return Job{}, false, err
+	}
+	var chosenID string
+	var oldest time.Time
+	for rows.Next() {
+		var id, created string
+		err = rows.Scan(&id, &created)
+		if err != nil {
+			break
 		}
-		if chosen.ID != "" {
-			chosen.Status = "running"
-			c.Jobs[chosen.ID] = chosen
+		var timestamp time.Time
+		timestamp, err = time.Parse(time.RFC3339Nano, created)
+		if err != nil {
+			break
 		}
-		return nil
-	})
-	return chosen, chosen.ID != "", err
+		if chosenID == "" || timestamp.Before(oldest) || (timestamp.Equal(oldest) && id < chosenID) {
+			chosenID, oldest = id, timestamp
+		}
+	}
+	rowsErr := rows.Err()
+	closeErr := rows.Close()
+	err = errors.Join(err, rowsErr, closeErr)
+	if err != nil || chosenID == "" {
+		return Job{}, false, err
+	}
+
+	row := tx.QueryRowContext(ctx, "SELECT record FROM jobs WHERE id = ?", chosenID)
+	chosen, err := readJob(row, chosenID)
+	if err != nil {
+		return Job{}, false, err
+	}
+	chosen.Status = "running"
+	err = writeJob(ctx, tx, chosenID, chosen)
+	if err != nil {
+		return Job{}, false, err
+	}
+	err = tx.Commit()
+	return chosen, err == nil, err
 }
 func (s *Store) CancelJob(ctx context.Context, id string) error {
 	return s.control(ctx, func(c *control) error {

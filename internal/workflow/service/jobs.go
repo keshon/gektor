@@ -64,18 +64,16 @@ func withJob(ctx context.Context, db *store.Store, job store.Job, execute func(c
 		ticker := time.NewTicker(250 * time.Millisecond)
 		defer ticker.Stop()
 		for {
-			jobs, err := db.Jobs(runctx)
+			current, err := db.Job(runctx, job.ID)
 			if err != nil {
 				cancel()
 				polled <- err
 				return
 			}
-			for _, j := range jobs {
-				if j.ID == job.ID && j.Cancel {
-					cancel()
-					polled <- nil
-					return
-				}
+			if current.Cancel {
+				cancel()
+				polled <- nil
+				return
 			}
 			select {
 			case <-done:

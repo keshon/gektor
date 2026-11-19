@@ -11,88 +11,122 @@ import (
 	"github.com/keshon/gektor/internal/workflow/store"
 )
 
-// Serve owns one workspace queue. Policy is supplied by the operator, never jobs.
-func Serve(ctx context.Context, s *store.Store, svc service.Service) (resultErr error) {
+const MaxJobs = 32
+const defaultMaxOperations = 32
+
+// Config limits work owned by one worker process. Zero values use one job and
+// 32 active operations. Service dependencies must support concurrent use.
+type Config struct {
+	MaxJobs       int
+	MaxOperations int
+}
+
+// Serve holds the workspace lease until its scheduler and all jobs have stopped.
+// Jobs and due continuations share the same slots and operator-supplied policy.
+func Serve(ctx context.Context, s *store.Store, svc service.Service, cfg Config) (resultErr error) {
+	if cfg.MaxJobs == 0 {
+		cfg.MaxJobs = 1
+	}
+	if cfg.MaxOperations == 0 {
+		cfg.MaxOperations = defaultMaxOperations
+	}
+	if cfg.MaxJobs < 1 || cfg.MaxJobs > MaxJobs {
+		return fmt.Errorf("active jobs must be between 1 and %d", MaxJobs)
+	}
+	registry, err := svc.Registry.Bounded(cfg.MaxOperations)
+	if err != nil {
+		return err
+	}
+	svc.Registry = registry
+
 	lease, err := s.DaemonLease()
 	if err != nil {
 		return fmt.Errorf("workflow service already active or unavailable: %w", err)
 	}
-
-	defer lease.Close()
+	defer func() { resultErr = errors.Join(resultErr, lease.Close()) }()
 
 	err = s.ReconcileArtifacts(ctx)
 	if err != nil {
 		return err
 	}
-	if err := s.RecoverJobs(ctx); err != nil {
+	err = s.RecoverJobs(ctx)
+	if err != nil {
 		return err
 	}
 
-	ctx, stop := context.WithCancel(ctx)
-	tickDone := make(chan error, 1)
-	go func() {
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
+	workerCtx, stop := context.WithCancel(ctx)
+	defer stop()
+	done := make(chan error, cfg.MaxJobs+1)
+	go func() { done <- advanceSchedules(workerCtx, s) }()
+	for range cfg.MaxJobs {
+		go func() { done <- executeJobs(workerCtx, s, svc) }()
+	}
 
-		for {
-			err := s.ReconcileArtifacts(ctx)
-			if err == nil {
-				err = s.ReconcileRuns(ctx)
-			}
-			if err == nil {
-				err = s.Tick(ctx, time.Now())
-			}
-
-			if err != nil {
-				tickDone <- err
-				stop()
-				return
-			}
-
-			select {
-			case <-ctx.Done():
-				tickDone <- nil
-				return
-			case <-ticker.C:
-			}
-		}
-	}()
-	defer func() {
-		stop()
-		if err := <-tickDone; err != nil {
+	for range cfg.MaxJobs + 1 {
+		err = <-done
+		if err != nil && err != context.Canceled && err != context.DeadlineExceeded {
 			resultErr = errors.Join(resultErr, err)
 		}
-	}()
+		stop()
+	}
+	// A cancelled claim may not have created its run yet. No worker remains to own it.
+	persistCtx, finish := context.WithTimeout(context.Background(), 5*time.Second)
+	defer finish()
+	reconcileErr := s.RecoverJobs(persistCtx)
+	return errors.Join(resultErr, ctx.Err(), reconcileErr)
+}
 
+func advanceSchedules(ctx context.Context, s *store.Store) error {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
 	for {
-		if err := ctx.Err(); err != nil {
-			return err
+		err := s.ReconcileArtifacts(ctx)
+		if err == nil {
+			err = s.ReconcileRuns(ctx)
 		}
-
-		job, ok, err := s.Claim(ctx)
+		if err == nil {
+			err = s.Tick(ctx, time.Now())
+		}
 		if err != nil {
 			return err
 		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
 
-		if !ok {
-			resumed, resumeErr := resumeWait(ctx, s, svc)
-			if resumeErr != nil {
-				return resumeErr
+func executeJobs(ctx context.Context, s *store.Store, svc service.Service) error {
+	for {
+		err := ctx.Err()
+		if err != nil {
+			return err
+		}
+		// Alternate due continuations with queued work so neither backlog starves.
+		resumed, err := resumeWait(ctx, s, svc)
+		if err != nil {
+			return err
+		}
+		job, claimed, err := s.Claim(ctx)
+		if err != nil {
+			return err
+		}
+		if claimed {
+			err = svc.ExecuteJob(ctx, s, job)
+			if err != nil {
+				return err
 			}
-			if resumed {
-				continue
-			}
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(500 * time.Millisecond):
-			}
-
 			continue
 		}
-
-		if err := svc.ExecuteJob(ctx, s, job); err != nil {
-			return err
+		if resumed {
+			continue
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(500 * time.Millisecond):
 		}
 	}
 }

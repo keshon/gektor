@@ -78,7 +78,7 @@ func TestWaitReleasesWorkerAndSurvivesRestart(t *testing.T) {
 			ctx, stop := context.WithCancel(t.Context())
 			defer stop()
 			done := make(chan error, 1)
-			go func() { done <- Serve(ctx, db, svc) }()
+			go func() { done <- Serve(ctx, db, svc, Config{}) }()
 			running := true
 			defer func() {
 				if running {
@@ -157,7 +157,7 @@ func TestWaitReleasesWorkerAndSurvivesRestart(t *testing.T) {
 			ctx, stop = context.WithCancel(t.Context())
 			defer stop()
 			running = true
-			go func() { done <- Serve(ctx, db, svc) }()
+			go func() { done <- Serve(ctx, db, svc, Config{}) }()
 			deadline := time.After(10 * time.Second)
 			for {
 				jobs, readErr := db.Jobs(t.Context())
