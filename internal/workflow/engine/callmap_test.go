@@ -66,10 +66,12 @@ func TestMappedCallsCollectOnlyExecutionFailures(t *testing.T) {
 				return
 			}
 			wantCalls := 2
+			wantStatus := "failed"
 			if mode == "checkpoint" {
 				wantCalls = 1
+				wantStatus = "running"
 			}
-			if err == nil || r.Status != "failed" || calls != wantCalls || items[0].Status != "completed" || items[2].Status != "skipped" {
+			if err == nil || r.Status != wantStatus || calls != wantCalls || items[0].Status != "completed" || items[2].Status != "skipped" {
 				t.Fatalf("collected a control failure: status=%s calls=%d err=%v", r.Status, calls, err)
 			}
 		})

@@ -60,6 +60,13 @@ func (s Service) Review(ctx context.Context, id, step string, approve bool) (str
 		}
 	}
 	execute := func(ctx context.Context) (string, error) {
+		save := func(record workflow.Run, path ...int) error {
+			err := w.Save(record, path...)
+			if err != nil {
+				return &persistenceError{err}
+			}
+			return nil
+		}
 		var runErr error
 		if approve {
 			if r.Approved == nil {
@@ -68,11 +75,11 @@ func (s Service) Review(ctx context.Context, id, step string, approve bool) (str
 			r.Approved[step] = true
 			h := &handler{registry: s.Registry, authorize: s.authorizeNode, authorized: map[authorization]bool{}, templates: true}
 			h.artifacts = w.Artifacts
-			r, runErr = engine.Resume(ctx, r, h, w.Save)
+			r, runErr = engine.Resume(ctx, r, h, save)
 		} else {
 			now := time.Now().UTC()
 			cancelPaused(&r, now)
-			runErr = w.Save(r)
+			runErr = save(r)
 		}
 		summary := map[string]any{"run_id": id, "status": r.Status}
 		if outputs := DeclaredOutputs(r); outputs != nil {

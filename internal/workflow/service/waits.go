@@ -33,8 +33,14 @@ func (s Service) ContinueWait(ctx context.Context, db *store.Store, writer *stor
 	}
 
 	resume := func(ctx context.Context) (string, error) {
+		save := func(record workflow.Run, path ...int) error {
+			err := writer.Save(record, path...)
+			if err != nil {
+				return &persistenceError{err}
+			}
+			return nil
+		}
 		runErr := ctx.Err()
-		var persistence error
 		if runErr == nil {
 			args, encodeErr := json.Marshal(struct {
 				Path string `json:"recipe_path"`
@@ -76,22 +82,14 @@ func (s Service) ContinueWait(ctx context.Context, db *store.Store, writer *stor
 					r.Steps[boundary].Status, r.Steps[boundary].Error = "failed", runErr.Error()
 				}
 			}
-			persistence = writer.Save(r)
+			saveErr := save(r)
+			if saveErr != nil {
+				return "", errors.Join(runErr, saveErr)
+			}
 		} else {
 			h := &handler{registry: s.Registry, authorize: s.authorizeNode, authorized: map[authorization]bool{}, templates: true}
 			h.artifacts = writer.Artifacts
-			save := func(record workflow.Run, path ...int) error {
-				saveErr := writer.Save(record, path...)
-				if saveErr != nil {
-					persistence = saveErr
-				}
-				return saveErr
-			}
 			r, runErr = engine.Resume(ctx, r, h, save)
-		}
-
-		if persistence != nil {
-			return "", &jobPersistenceError{errors.Join(runErr, persistence)}
 		}
 		out, encodeErr := json.Marshal(struct {
 			ID       string                  `json:"run_id"`
@@ -108,7 +106,7 @@ func (s Service) ContinueWait(ctx context.Context, db *store.Store, writer *stor
 		_, err = resume(ctx)
 	}
 	// Terminal operation failures stay on the run/job. Broken checkpoints stop the worker.
-	var persistence *jobPersistenceError
+	var persistence *persistenceError
 	if errors.As(err, &persistence) {
 		return err
 	}

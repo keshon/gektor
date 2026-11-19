@@ -56,6 +56,9 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 	var checkpointErr error
 	checkpoint := save
 	save = func(record workflow.Run, path ...int) error {
+		if checkpointErr != nil {
+			return checkpointErr
+		}
 		err := checkpoint(record, path...)
 		if err != nil {
 			checkpointErr = err
@@ -235,6 +238,7 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 			r.Steps[i].Status = "waiting_review"
 			err = save(r, i)
 			if err != nil {
+				r.Status = "running"
 				return r, err
 			}
 
@@ -324,8 +328,14 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 				r.WakeAt = nil
 			}
 		}
+		if checkpointErr != nil {
+			// Owned map workers have joined. Keep the last durable record available
+			// for inspection instead of overwriting uncertain effects as failures.
+			r.Status, r.Finished, r.WakeAt = "running", nil, nil
+			return r, fmt.Errorf("checkpoint step %s: %w", s.ID, checkpointErr)
+		}
 		failure := workflow.OperationFailure(err)
-		if failure != nil && checkpointErr == nil && ctx.Err() == nil {
+		if failure != nil && ctx.Err() == nil {
 			encoded, encodeErr := json.Marshal(workflow.FailureOutput{Error: *failure})
 			if encodeErr != nil {
 				return r, encodeErr
@@ -359,6 +369,7 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 			r.Finished = &now
 			saveErr := save(r)
 			if saveErr != nil {
+				r.Status, r.Finished = "running", nil
 				return r, fmt.Errorf("step failed (%v); save result: %w", err, saveErr)
 			}
 
@@ -384,6 +395,7 @@ func run(ctx context.Context, d workflow.Definition, inputs map[string]json.RawM
 	r.Finished = &now
 	err = save(r)
 	if err != nil {
+		r.Status, r.Finished = "running", nil
 		return r, fmt.Errorf("save completion: %w", err)
 	}
 

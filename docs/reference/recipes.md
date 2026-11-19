@@ -94,8 +94,9 @@ Inspection reports
 the recorded status remains unchanged. A crash can leave partial step effects.
 Each completed step is saved before the next step is prepared. If saving fails,
 execution stops; an effect may have happened even when its result could not be
-persisted. Writes use a synced temporary file and rename; this is not a power-loss recovery
-or workspace rollback guarantee.
+persisted. Run checkpoints commit transactionally in SQLite. A failed checkpoint
+leaves the last committed record for inspection; it does not roll back workspace
+or remote effects.
 
 Steps run sequentially and stop on failure; remaining steps are marked skipped.
 Inspect outputs before deciding to rerun;
@@ -567,9 +568,11 @@ before its wait checkpoint exists.
 
 ## Recovering interrupted execution
 
-A process that stops during active work leaves the run `interrupted`. GEKTOR
-cannot know whether an SSH command, request or write finished remotely. Inspect
-the run, artifacts and external target before choosing a recovery action.
+A process that stops during active work, or a checkpoint that fails to save, can
+leave the run `interrupted`. GEKTOR cannot know whether an SSH command, request
+or write finished remotely. Inspect the run, artifacts and external target before
+choosing a recovery action. A failed completion checkpoint is not a completed run;
+recovery retains already committed effects without executing them again.
 
 `workflow inspect <run-id>` lists uncertain invocation IDs in `uncertain`; child
 and collection IDs keep their full scope, for example `call/batch[1]`. Agent

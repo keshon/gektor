@@ -228,12 +228,23 @@ cascades, repeat cleanup, quota reuse and expired deduplication windows. CLI age
 validation and existing artifact export/review behavior pass. Only temporary
 test stores were pruned; existing user history was not touched.
 
-Stage 8 implementation now covers bounded worker concurrency, workspace artifact
-budgets, explicit retention and status observations. Next: the broader architecture
-audit and acceptance tests across the completed plan. Check cancellation, leases,
-permission/credential revalidation, frozen sources, nested/map/repeat scopes,
-review/wait recovery, retries, fixtures and CLI/TUI paths before calling the plan
-accepted. No live-provider quality or full architecture audit is claimed yet.
+Stage 8 is committed and pushed as `8cae30e`. It covers bounded worker concurrency,
+workspace artifact budgets, explicit retention and status observations.
+
+The [architecture audit and local acceptance checks](workflow-runtime-audit-2026-11-19.md)
+cover the completed plan. They found a persistence failure that could report an
+unsaved completion as successful and continue queue dispatch. The engine now
+stops writes after the first checkpoint failure; the service preserves the storage
+error's identity and marks the job interrupted. The worker cancels and joins peers
+before releasing its lease. SQL fault tests cover attempt start, outcome and final
+completion, explicit recovery, review/wait continuation and nested scopes.
+
+Source-scoped tests, workflow/TUI race checks, affected vet, executable build and
+temporary-home CLI examples pass. The audit records remaining throughput limits
+and the boundaries of this local acceptance. No live-provider or model-quality
+evaluation was performed. There is no outstanding implementation slice in stages
+1–8; new work should address a concrete finding rather than extend the plan by
+default. An optional independent store/quota review has not been incorporated.
 
 Worker permits currently cover only work dispatched by this process; independent
 CLI runs and operator continuations are outside them. Do not claim process-local

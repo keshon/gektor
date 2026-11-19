@@ -99,7 +99,11 @@ func TestRepeatStopsAtInvalidControlAndExecutionFailures(t *testing.T) {
 			if mode == "checkpoint" {
 				want = 0
 			}
-			if err == nil || r.Status != "failed" || calls != want {
+			wantStatus := "failed"
+			if mode == "checkpoint" || mode == "checkpoint after effect" {
+				wantStatus = "running"
+			}
+			if err == nil || r.Status != wantStatus || calls != want {
 				t.Fatalf("calls=%d want=%d status=%s err=%v", calls, want, r.Status, err)
 			}
 			if mode == "limit" && !strings.Contains(err.Error(), "max_iterations") {

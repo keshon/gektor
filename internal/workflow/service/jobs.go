@@ -16,7 +16,11 @@ func (s Service) ExecuteJob(ctx context.Context, db *store.Store, job store.Job)
 	current := s
 	current.ScheduleID, current.ScheduledFor = job.Schedule, job.ScheduledFor
 	current.OnRun = func(id string) error {
-		return db.UpdateJob(ctx, job.ID, func(j *store.Job) error { j.RunID = id; return nil })
+		err := db.UpdateJob(ctx, job.ID, func(j *store.Job) error { j.RunID = id; return nil })
+		if err != nil {
+			return &persistenceError{err}
+		}
+		return nil
 	}
 	_, err := withJob(ctx, db, job, func(ctx context.Context) (string, error) {
 		if current.AuthorizeResource == nil {
@@ -29,14 +33,12 @@ func (s Service) ExecuteJob(ctx context.Context, db *store.Store, job store.Job)
 		return current.RunSource(ctx, job.Source, job.RecipePath, job.Inputs)
 	})
 	// Operation failures are recorded on the job; only persistence failures stop the worker.
-	var persistence *jobPersistenceError
+	var persistence *persistenceError
 	if errors.As(err, &persistence) {
 		return err
 	}
 	return nil
 }
-
-type jobPersistenceError struct{ error }
 
 func withJob(ctx context.Context, db *store.Store, job store.Job, execute func(context.Context) (string, error)) (string, error) {
 	started := time.Now()
@@ -50,7 +52,7 @@ func withJob(ctx context.Context, db *store.Store, job store.Job, execute func(c
 		return nil
 	}); err != nil {
 		slog.ErrorContext(ctx, "workflow job unavailable", "job_id", job.ID, "code", "job_start_failed")
-		return "", &jobPersistenceError{err}
+		return "", &persistenceError{err}
 	}
 	slog.InfoContext(ctx, "workflow job started", "job_id", job.ID)
 	runctx, cancel := context.WithCancel(ctx)
@@ -106,6 +108,10 @@ func withJob(ctx context.Context, db *store.Store, job store.Job, execute func(c
 				j.Status = "cancelled"
 			}
 		}
+		var persistence *persistenceError
+		if errors.As(runErr, &persistence) {
+			j.Status = "interrupted"
+		}
 		j.Error = ""
 		if runErr != nil {
 			j.Error = runErr.Error()
@@ -115,7 +121,7 @@ func withJob(ctx context.Context, db *store.Store, job store.Job, execute func(c
 	})
 	if err != nil {
 		slog.ErrorContext(persist, "workflow job persistence failed", "job_id", job.ID, "code", "job_persist_failed")
-		return result, errors.Join(runErr, &jobPersistenceError{err})
+		return result, errors.Join(runErr, &persistenceError{err})
 	}
 	level := slog.LevelInfo
 	if status == "failed" {
@@ -124,7 +130,7 @@ func withJob(ctx context.Context, db *store.Store, job store.Job, execute func(c
 	slog.Log(persist, level, "workflow job finished", "job_id", job.ID, "run_id", runID, "status", status, "duration_ms", time.Since(started).Milliseconds())
 	if pollErr != nil && ctx.Err() == nil && !errors.Is(pollErr, context.Canceled) {
 		slog.ErrorContext(persist, "workflow cancellation monitor failed", "job_id", job.ID, "code", "job_monitor_failed")
-		return result, errors.Join(runErr, &jobPersistenceError{pollErr})
+		return result, errors.Join(runErr, &persistenceError{pollErr})
 	}
 	return result, runErr
 }

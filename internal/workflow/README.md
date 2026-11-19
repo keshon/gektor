@@ -12,7 +12,7 @@ The terminal editor is a separate consumer in `internal/tui/workflow`.
 - `service` coordinates authorized workspace reads, frozen recipe composition,
   validation/execution, queue execution, and reviews. CLI, API, Agent tools, and
   TUI call it; it does not construct application clients or operator gates.
-  Follow `runs.go`, `composition.go`, then the service operation being changed.
+  Follow `service.go`, `composition.go`, then the service operation being changed.
   `service/schema.go` declares recipe fields and limits using named input,
   retry, step, and root schemas; registered node names supply the tool enum.
 - `recipe` prepares graphs, binds inputs, and resolves references.
@@ -48,10 +48,13 @@ remain available independently of any adapter.
   arguments before authorizing their actual resources; placeholders are not
   permission grants. Preserve node versions and exact argument binding.
 - Checkpoint before effects. Uncertain operations are not automatically replayed;
-  retries require the node's retry-safety contract. Resume is an explicit review
-  operation, not a general recovery shortcut.
+  retries require the node's retry-safety contract. Resume continues an approved
+  review or claimed durable wait; interrupted effects need explicit recovery.
 - Preserve cancellation, final persistence, and queue failure distinctions.
   An operation failure recorded on a job differs from failure to persist it.
+  After the first failed checkpoint, the engine makes no further checkpoint
+  writes. The service retains the storage error's identity; the worker cancels
+  and joins peers before releasing its lease. An unsaved completion is not success.
 - Store records retain full execution evidence. Compact caller summaries must
   not replace those records or discard declared outputs.
 - Collection workers never mutate the run. The coordinator acknowledges durable

@@ -34,6 +34,11 @@ type Service struct {
 	Authorize         func(context.Context, string, json.RawMessage) error
 }
 
+// Failed persistence stops queue dispatch and must retain the original cause.
+type persistenceError struct{ error }
+
+func (e *persistenceError) Unwrap() error { return e.error }
+
 // Run loads an authorized recipe and runs or validates it with typed inputs.
 func (t Service) Run(ctx context.Context, path string, inputs map[string]json.RawMessage) (string, error) {
 	if path == "" {
@@ -164,18 +169,18 @@ func (t Service) RunSource(ctx context.Context, source []byte, path string, inpu
 
 	store, err := store.OpenStore(t.StoreDir, t.WS.Root())
 	if err != nil {
-		return "", err
+		return "", &persistenceError{err}
 	}
 
 	defer store.Close()
 	err = store.ReconcileArtifacts(ctx)
 	if err != nil {
-		return "", err
+		return "", &persistenceError{err}
 	}
 
 	w, err := store.NewRun()
 	if err != nil {
-		return "", err
+		return "", &persistenceError{err}
 	}
 
 	defer w.Close()
@@ -192,7 +197,11 @@ func (t Service) RunSource(ctx context.Context, source []byte, path string, inpu
 		r.RecipeSHA256 = digest
 		r.RecipeSource = string(source)
 
-		return w.Save(r, indexes...)
+		err := w.Save(r, indexes...)
+		if err != nil {
+			return &persistenceError{err}
+		}
+		return nil
 	}
 	h.artifacts = w.Artifacts
 	r, err := engine.RunWithInputs(ctx, d, inputs, h, save)

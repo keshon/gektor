@@ -36,7 +36,7 @@ func TestChildCheckpointFailurePreventsEffects(t *testing.T) {
 		}
 		return nil
 	})
-	if err == nil || !strings.Contains(err.Error(), "child checkpoint fault") || effects != 0 || r.Status != "failed" {
+	if err == nil || !strings.Contains(err.Error(), "child checkpoint fault") || effects != 0 || r.Status != "running" {
 		t.Fatalf("effect without child checkpoint: status=%s effects=%d err=%v", r.Status, effects, err)
 	}
 }

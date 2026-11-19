@@ -69,7 +69,7 @@ func TestWaitCheckpointFailureDoesNotReportAWaitingRun(t *testing.T) {
 		persisted = record.Status
 		return nil
 	})
-	if err == nil || r.Status != "failed" || persisted != "failed" || r.WakeAt != nil {
+	if err == nil || r.Status != "running" || persisted != "running" || r.WakeAt != nil {
 		t.Fatal("uncommitted wait was reported as resumable", r, err)
 	}
 }

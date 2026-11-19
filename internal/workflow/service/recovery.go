@@ -109,8 +109,15 @@ func (s Service) Recover(ctx context.Context, id string, request workflow.Recove
 			templates:  true,
 			artifacts:  writer.Artifacts,
 		}
+		save := func(record workflow.Run, path ...int) error {
+			err := writer.Save(record, path...)
+			if err != nil {
+				return &persistenceError{err}
+			}
+			return nil
+		}
 		var runErr error
-		r, runErr = engine.Recover(runctx, r, request, h, writer.Save)
+		r, runErr = engine.Recover(runctx, r, request, h, save)
 		status := r.Status
 		if status == "running" {
 			status = "interrupted"

@@ -443,6 +443,12 @@ origin-bound environment references. The HTTP node has no dependency on agent
 tools. Queued starts and operator continuations share one service execution
 lifecycle for cancellation and final status persistence; recovery respects run leases.
 
+The engine stops checkpoint writes after the first storage failure, retaining the
+last durable evidence for explicit recovery. The service distinguishes persistence
+errors from recorded operation failures and preserves their original cause. A
+checkpoint failure interrupts the job and stops the worker pool; an in-memory
+completion does not establish a saved result.
+
 `process` owns shared process-group cleanup and environment scrubbing.
 Native agent tools and the automation `run_program` node use those primitives.
 The workflow node supplies its workspace directory and optional artifact stdin,
