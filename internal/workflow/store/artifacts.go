@@ -22,6 +22,8 @@ import (
 const MaxArtifactBytes = 16 << 20
 const MaxRunArtifactBytes = 256 << 20
 const MaxRunArtifacts = 256
+const MaxWorkspaceArtifactBytes = 1 << 30
+const MaxWorkspaceArtifacts = 4096
 
 type artifactAccess struct {
 	writer *RunWriter
@@ -136,7 +138,7 @@ func (a artifactAccess) Put(ctx context.Context, name string, source io.Reader) 
 		var extra [1]byte
 		n, readErr := io.ReadFull(reader, extra[:])
 		if n > 0 {
-			err = fmt.Errorf("artifact exceeds 16 MiB or run exceeds 256 MiB")
+			err = fmt.Errorf("artifact exceeds its byte limit (16 MiB per artifact, 256 MiB per run, 1 GiB per workspace)")
 		} else if readErr != nil && !errors.Is(readErr, io.EOF) {
 			err = readErr
 		}
@@ -260,33 +262,11 @@ func (s *Store) PruneArtifacts(ctx context.Context, before time.Time) ([]string,
 			if record.Finished == nil || !record.Finished.Before(before) {
 				return nil
 			}
-			_, err = s.root.Stat(w.artifactDirectory())
-			missing := os.IsNotExist(err)
-			if err != nil && !missing {
-				return err
+			changed, pruneErr := w.pruneArtifacts(ctx)
+			if changed {
+				removed = append(removed, run.ID)
 			}
-			var count int
-			err = s.db.QueryRowContext(ctx, "SELECT count(*) FROM artifacts WHERE run_id = ?", w.id).Scan(&count)
-			if err != nil {
-				return err
-			}
-			if missing && count == 0 {
-				return nil
-			}
-			_, err = s.db.ExecContext(ctx, "UPDATE artifacts SET status = 'deleting' WHERE run_id = ?", w.id)
-			if err != nil {
-				return err
-			}
-			err = s.root.RemoveAll(w.artifactDirectory())
-			if err != nil {
-				return err
-			}
-			_, err = s.db.ExecContext(ctx, "DELETE FROM artifacts WHERE run_id = ?", w.id)
-			if err != nil {
-				return err
-			}
-			removed = append(removed, run.ID)
-			return nil
+			return pruneErr
 		}()
 		if err != nil {
 			return removed, err

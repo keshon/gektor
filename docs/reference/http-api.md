@@ -80,6 +80,8 @@ job; changed inputs or recipe content return HTTP 409. This survives restarts.
 Keys stop deduplicating after terminal jobs are evicted from the 1,000-job queue
 history. A new key, rotated token or different endpoint creates a new submission;
 this is not an exactly-once guarantee for external effects.
+Explicit `workflow prune-runs` also removes linked terminal jobs and ends their
+submission deduplication window.
 
 See [the webhook example](../../examples/workflows/webhook-note/README.md) for a
 local PowerShell walkthrough without AI or external services.
@@ -125,6 +127,7 @@ after consumption, without scheduling another continuation. Object key order
 and insignificant whitespace are normalized; number spellings are preserved.
 Another event ID or payload for that wait returns 409. Deduplication lasts while
 the run is retained, independently of credential rotation.
+Pruning run history removes those receipts and ends callback deduplication.
 
 An unknown wait, wrong run/channel or delivery before the wait checkpoint returns
 404. A first delivery after expiry, cancellation or closure returns 410. An event

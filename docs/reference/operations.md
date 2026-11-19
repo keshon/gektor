@@ -821,6 +821,10 @@ files can be captured and exported, but `artifact_read_text` is not a binary dec
 Image nodes accept workspace paths rather than artifact IDs.
 
 Each artifact is limited to 16 MiB; a run may retain 256 artifacts and 256 MiB total.
+All runs in one workspace store share 4,096 artifacts and 1 GiB, including pending
+reservations and deletions. The SQLite reservation transaction enforces these
+limits across worker and CLI processes. These are artifact limits, not a quota
+for the entire database or workspace filesystem.
 Parallel writers reserve capacity before streaming and wait, with cancellation,
 when other producers temporarily hold the quota. Metadata and reservations live
 in SQLite; payload bytes remain in per-run files. Only complete publications are
@@ -834,6 +838,13 @@ Use `workflow artifacts` and `workflow export-artifact` to retrieve files. Expli
 finished more than seven days ago. It preserves run history and excludes active,
 interrupted and waiting-review runs. References in old run history remain as evidence
 after pruning; their payloads are no longer available.
+`workflow prune-runs -older-than 168h` also removes old terminal run/job history,
+including invocation attempts and callback receipts. Active leases, waiting,
+reviewable, interrupted and unfinished runs are preserved, as are recipes,
+schedules and structured records. Removing history ends its callback/submission
+deduplication window. Both retention commands are explicit; neither runs in the
+background. See [retention commands](cli.md#workflow-artifacts) for failure and
+storage behavior.
 Unfinished publications are reclaimed before new execution and by the service;
 live run leases protect active producers. Interrupted pruning resumes from its
 recorded deletion intent.

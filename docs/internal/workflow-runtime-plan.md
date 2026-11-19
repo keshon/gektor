@@ -194,12 +194,51 @@ artifact bytes, workspace isolation, cancelled reads, payload-free observations,
 operator-only HTTP access and storage-error responses. No broad acceptance audit
 or live-provider evaluation is claimed by these checks.
 
-Next: remaining stage 8 workspace-wide budgets and retention.
+The status checkpoint is committed and pushed as `72a35e7`.
+
+Stage 8 now includes shared workspace artifact budgets: 1 GiB and 4,096 artifacts
+per workspace in the same store. Byte/count admission shares the existing immediate
+SQLite reservation transaction with per-run limits. Published, writing and deleting
+rows all count; files are removed before quota is released. Quota waits retain
+local notifications and poll every 250 ms for changes from other runs/processes.
+Cancellation does not leak reservations. These budgets cover retained artifact
+payloads/reservations, not all database/workspace storage, CPU or memory.
+
+Explicit `workflow prune-runs -older-than <positive duration>` removes old terminal
+run history, artifacts and linked terminal jobs. It uses each run's lease and saved
+status/finish metadata rather than hydrating invocation trees. Leased, waiting,
+reviewable, interrupted, unfinished and linked non-terminal jobs/runs are retained.
+Artifact cleanup shares the existing deletion-intent path with prune-artifacts;
+history/job deletion commits together afterward. A history failure can leave
+artifacts already removed and history retained; repeating the command finishes.
+SQL deletion failures/ignored deletes roll back linked job removal. Callbacks,
+invocations, attempts, scopes and wakeups cascade with the run. Pruning history
+ends its callback/submission deduplication windows. Recipes, schedules, structured
+records and persistent lease files remain; SQLite pages are reused, not vacuumed.
+Retention remains explicit and disabled by default; no background age policy runs.
+
+Source-scoped `go test -p 1 ./cmd/... ./internal/...`, the full store race suite,
+focused quota/retention race checks, affected vet, executable build, documentation
+and diff checks pass. Boundary tests use metadata fixtures rather than writing a
+gigabyte. Two real subprocesses contend for the last reservation and reuse it
+after release; cancellation and pending-deletion accounting are also checked.
+Retention tests cover strict age boundaries, leased/recoverable/unfinished runs,
+linked active jobs, SQL aborts/ignored deletes, atomic run/job rollback, detail
+cascades, repeat cleanup, quota reuse and expired deduplication windows. CLI age
+validation and existing artifact export/review behavior pass. Only temporary
+test stores were pruned; existing user history was not touched.
+
+Stage 8 implementation now covers bounded worker concurrency, workspace artifact
+budgets, explicit retention and status observations. Next: the broader architecture
+audit and acceptance tests across the completed plan. Check cancellation, leases,
+permission/credential revalidation, frozen sources, nested/map/repeat scopes,
+review/wait recovery, retries, fixtures and CLI/TUI paths before calling the plan
+accepted. No live-provider quality or full architecture audit is claimed yet.
+
 Worker permits currently cover only work dispatched by this process; independent
 CLI runs and operator continuations are outside them. Do not claim process-local
 permits are persistent or cross-process workspace budgets.
-The broader audit and acceptance tests remain scheduled after plan implementation.
-Do not treat the keyed join checkpoint as completion of the entire plan.
+Keep this distinction from the SQLite artifact budgets, which do span processes.
 
 Older "next" paragraphs below are historical and superseded by this section.
 

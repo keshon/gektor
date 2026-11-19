@@ -476,6 +476,15 @@ its last successful tick; startup clears the preceding worker's tick. Worker
 lease ownership is sampled separately. These observations expose scheduler
 progress and backlog without claiming operation success or external-service health.
 
+Artifact reservations enforce both per-run and workspace-wide byte/count budgets
+in the same immediate SQLite transaction, including writing and deleting rows.
+Independent CLI processes share those limits. Local notifications and bounded
+polling wake quota waiters when other runs/processes release capacity. Explicit
+age-based retention takes the run lease, deletes artifact payloads before releasing
+quota, then removes terminal run and linked terminal job history transactionally.
+Recipes, schedules, structured records and recoverable runs remain. Run lease
+files remain persistent; SQLite free pages are reused without automatic vacuuming.
+
 Fixture tests use the same compiler and engine through the workflow service
 `Test` method, with an in-memory checkpoint and an explicit pure-operation
 allowlist. The application

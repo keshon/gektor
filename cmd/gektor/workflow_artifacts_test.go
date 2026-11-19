@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/keshon/gektor/internal/permission"
 	"github.com/keshon/gektor/internal/workflow"
@@ -99,5 +100,40 @@ func TestArtifactImportDeniedBeforeRun(t *testing.T) {
 	runs, err := db.Runs()
 	if err != nil || len(runs) != 0 {
 		t.Fatal(runs, err)
+	}
+}
+
+func TestWorkflowPruneRunsRequiresAgeAndRemovesOnlyOldHistory(t *testing.T) {
+	dir, home := t.TempDir(), t.TempDir()
+	db, err := store.OpenStore(home, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	writer, err := db.NewRun()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-48 * time.Hour)
+	err = writer.Save(workflow.Run{Status: "completed", Finished: &old})
+	closeErr := writer.Close()
+	if err != nil || closeErr != nil {
+		t.Fatal(err, closeErr)
+	}
+	for _, age := range []string{"0", "-1h"} {
+		var rejected bytes.Buffer
+		err = workflowArtifacts(t.Context(), []string{"prune-runs", "-workspace", dir, "-older-than", age}, &rejected, home)
+		if err == nil || !strings.Contains(err.Error(), "requires a positive -older-than") {
+			t.Fatal("accepted unbounded retention age", err)
+		}
+	}
+	var out bytes.Buffer
+	err = workflowArtifacts(t.Context(), []string{"prune-runs", "-workspace", dir, "-older-than", "24h"}, &out, home)
+	if err != nil || !strings.Contains(out.String(), writer.ID()) {
+		t.Fatal("CLI did not report deleted run", out.String(), err)
+	}
+	_, err = db.Run(writer.ID())
+	if err == nil {
+		t.Fatal("CLI retained expired history")
 	}
 }

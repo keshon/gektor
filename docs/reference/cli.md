@@ -443,8 +443,28 @@ run reports that it is in use. Paused and completed runs are available.
 `workflow prune-artifacts [-workspace dir] -older-than 168h` deletes artifacts of
 completed, failed or cancelled runs whose finish time is older than seven days.
 `-older-than` is required and must be positive. Active, interrupted and waiting-review
-runs are retained. Run records and structured records are never deleted. Retention
-is explicit; no background cleanup runs automatically.
+runs are retained. This command preserves run history and structured records.
+
+`workflow prune-runs [-workspace dir] -older-than 168h` removes old completed,
+failed or cancelled runs, their artifacts and linked terminal jobs. The finish
+time must be strictly older than the positive `-older-than` age. Live run leases,
+waiting/review/interrupted states, missing finish times and linked non-terminal
+jobs prevent removal. Recipes, schedules and structured records are preserved.
+Removing a run also removes its invocation/attempt history and callback receipts;
+removing a job ends its submission deduplication window. Both commands return
+`pruned_runs`. Retention is explicit; no background cleanup runs automatically.
+
+Artifact deletion finishes before quota is released. Run/job history deletion
+commits together afterward. If history deletion fails, artifacts may already be
+gone; retry the command to finish. Tiny persistent run lease files remain.
+Deleted SQLite pages can be reused; pruning does not shrink the database file.
+
+The shared artifact budget is 1 GiB and 4,096 artifacts per workspace in the same
+workflow store, across workers and independent CLI processes. Published bytes,
+writing reservations and pending deletions count toward it. Per-artifact 16 MiB
+and per-run 256 MiB/256-artifact limits still apply. Temporary reservations wait
+with cancellation; published capacity requires explicit pruning. These limits
+cover stored artifacts, not total filesystem usage, database size, CPU or memory.
 
 Reusable recipes use the `workflow_call` node and declare named `outputs`.
 Completed run/review summaries include those outputs. Nested reviews use qualified

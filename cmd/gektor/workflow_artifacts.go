@@ -18,18 +18,19 @@ func workflowArtifacts(ctx context.Context, args []string, out io.Writer, direct
 	f := flag.NewFlagSet("workflow "+command, flag.ContinueOnError)
 	dir := f.String("workspace", ".", "workspace owning these artifacts")
 	var age time.Duration
-	if command == "prune-artifacts" {
-		f.DurationVar(&age, "older-than", 0, "remove artifacts from terminal runs finished before this age; required and positive")
+	pruning := command == "prune-artifacts" || command == "prune-runs"
+	if pruning {
+		f.DurationVar(&age, "older-than", 0, "remove terminal run data finished before this age; required and positive")
 	}
 	if err := f.Parse(args[1:]); err != nil {
 		return err
 	}
-	counts := map[string]int{"artifacts": 1, "export-artifact": 3, "prune-artifacts": 0}
+	counts := map[string]int{"artifacts": 1, "export-artifact": 3, "prune-artifacts": 0, "prune-runs": 0}
 	if f.NArg() != counts[command] {
 		return fmt.Errorf("workflow %s expects %d arguments; artifacts: run-id; export-artifact: run-id artifact-id destination; flags precede arguments", command, counts[command])
 	}
-	if command == "prune-artifacts" && age <= 0 {
-		return fmt.Errorf("prune-artifacts requires a positive -older-than duration, for example 168h")
+	if pruning && age <= 0 {
+		return fmt.Errorf("%s requires a positive -older-than duration, for example 168h", command)
 	}
 	ws, err := workspace.New(*dir)
 	if err != nil {
@@ -41,12 +42,21 @@ func workflowArtifacts(ctx context.Context, args []string, out io.Writer, direct
 		return err
 	}
 	defer db.Close()
-	if command == "prune-artifacts" {
-		removed, err := db.PruneArtifacts(ctx, time.Now().Add(-age))
+	if pruning {
+		before := time.Now().Add(-age)
+		var removed []string
+		if command == "prune-runs" {
+			removed, err = db.PruneRuns(ctx, before)
+		} else {
+			removed, err = db.PruneArtifacts(ctx, before)
+		}
 		if err != nil {
 			return err
 		}
-		return json.NewEncoder(out).Encode(map[string]any{"pruned_runs": removed})
+		result := struct {
+			PrunedRuns []string `json:"pruned_runs"`
+		}{PrunedRuns: removed}
+		return json.NewEncoder(out).Encode(result)
 	}
 	w, _, err := db.EditRun(f.Arg(0))
 	if err != nil {

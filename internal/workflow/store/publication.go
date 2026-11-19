@@ -6,7 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"time"
 )
+
+const artifactQuotaPoll = 250 * time.Millisecond
 
 func (w *RunWriter) artifactNotification() (<-chan struct{}, error) {
 	w.artifactMu.Lock()
@@ -48,10 +51,15 @@ func (w *RunWriter) reserveArtifact(ctx context.Context, id string) (int64, erro
 		if err != nil || reserved {
 			return limit, err
 		}
+		// Another run or process cannot signal this writer's local notification.
+		timer := time.NewTimer(artifactQuotaPoll)
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			return 0, ctx.Err()
 		case <-changed:
+			timer.Stop()
+		case <-timer.C:
 		}
 	}
 }
@@ -64,8 +72,9 @@ func (w *RunWriter) tryReserveArtifact(ctx context.Context, id string) (int64, b
 	defer tx.Rollback()
 	var count, writing int
 	var used int64
-	err = tx.QueryRowContext(ctx, `SELECT count(*), coalesce(sum(bytes), 0),
-coalesce(sum(status = 'writing'), 0) FROM artifacts WHERE run_id = ?`, w.id).Scan(&count, &used, &writing)
+	row := tx.QueryRowContext(ctx, `SELECT count(*), coalesce(sum(bytes), 0),
+coalesce(sum(status = 'writing'), 0) FROM artifacts WHERE run_id = ?`, w.id)
+	err = row.Scan(&count, &used, &writing)
 	if err != nil {
 		return 0, false, err
 	}
@@ -82,7 +91,29 @@ coalesce(sum(status = 'writing'), 0) FROM artifacts WHERE run_id = ?`, w.id).Sca
 	if available < MaxArtifactBytes && writing > 0 {
 		return 0, false, nil
 	}
-	limit := min(int64(MaxArtifactBytes), available)
+
+	var workspaceCount, workspaceWriting int
+	var workspaceUsed int64
+	row = tx.QueryRowContext(ctx, `SELECT count(*), coalesce(sum(bytes), 0),
+coalesce(sum(status = 'writing'), 0) FROM artifacts`)
+	err = row.Scan(&workspaceCount, &workspaceUsed, &workspaceWriting)
+	if err != nil {
+		return 0, false, err
+	}
+	if workspaceCount >= MaxWorkspaceArtifacts {
+		if workspaceWriting > 0 {
+			return 0, false, nil
+		}
+		return 0, false, fmt.Errorf("workspace artifact count exceeds %d; prune retained artifacts or runs", MaxWorkspaceArtifacts)
+	}
+	workspaceAvailable := int64(MaxWorkspaceArtifactBytes) - workspaceUsed
+	if workspaceAvailable < 0 {
+		return 0, false, fmt.Errorf("workspace artifact bytes exceed %d; prune retained artifacts or runs", MaxWorkspaceArtifactBytes)
+	}
+	if workspaceAvailable < MaxArtifactBytes && workspaceWriting > 0 {
+		return 0, false, nil
+	}
+	limit := min(int64(MaxArtifactBytes), available, workspaceAvailable)
 	_, err = tx.ExecContext(ctx, "INSERT INTO artifacts (run_id, id, status, bytes) VALUES (?, ?, 'writing', ?)", w.id, id, limit)
 	if err != nil {
 		return 0, false, err
