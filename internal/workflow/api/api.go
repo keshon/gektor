@@ -222,6 +222,21 @@ func (h *Handler) serveHTTP(w *response, r *http.Request) {
 		return
 	}
 
+	if len(parts) == 2 && parts[0] == "v1" && parts[1] == "status" {
+		w.endpoint = "status"
+		if r.Method != http.MethodGet {
+			problem(w, 405, "method_not_allowed", "GET required")
+			return
+		}
+		status, err := h.db.Status(ctx)
+		if err != nil {
+			problem(w, 503, "status_unavailable", "status unavailable")
+			return
+		}
+		reply(w, 200, status)
+		return
+	}
+
 	if webhook || (len(parts) == 3 && parts[0] == "v1" && parts[1] == "submit") {
 		if !webhook {
 			w.endpoint = "submit"

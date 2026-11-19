@@ -45,6 +45,10 @@ func Serve(ctx context.Context, s *store.Store, svc service.Service, cfg Config)
 	}
 	defer func() { resultErr = errors.Join(resultErr, lease.Close()) }()
 
+	err = s.SaveWorkerTick(ctx, time.Time{})
+	if err != nil {
+		return err
+	}
 	err = s.ReconcileArtifacts(ctx)
 	if err != nil {
 		return err
@@ -86,6 +90,9 @@ func advanceSchedules(ctx context.Context, s *store.Store) error {
 		}
 		if err == nil {
 			err = s.Tick(ctx, time.Now())
+		}
+		if err == nil {
+			err = s.SaveWorkerTick(ctx, time.Now())
 		}
 		if err != nil {
 			return err

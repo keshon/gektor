@@ -94,6 +94,7 @@ CREATE INDEX IF NOT EXISTS jobs_queue ON jobs (
 CREATE TABLE IF NOT EXISTS schedules (id TEXT PRIMARY KEY, record BLOB NOT NULL);
 CREATE TABLE IF NOT EXISTS control (id INTEGER PRIMARY KEY CHECK (id = 1), schedule_revision INTEGER NOT NULL);
 INSERT OR IGNORE INTO control VALUES (1, 0);
+CREATE TABLE IF NOT EXISTS worker (id INTEGER PRIMARY KEY CHECK (id = 1), last_tick TEXT);
 `)
 	if err != nil {
 		db.Close()

@@ -315,6 +315,20 @@ and queues a snapshot. `workflow jobs` lists jobs; `workflow job <id>` shows one
 `workflow cancel <id>` cancels pending work or requests cancellation of a running job.
 These commands accept `-workspace`.
 
+`workflow status [-workspace dir]` returns retained job/run counts by saved status,
+the oldest queued timestamp, total/paused schedules, due waits and artifact counts
+and bytes by publication state. `writing` bytes are reservations; `deleting` bytes
+remain charged until cleanup finishes. Counts omit absent states and are not
+lifetime totals. Saved `running` records can belong to interrupted processes until
+reconciliation; they are not an active-execution count.
+
+The same response includes `worker_lease_held` and `last_worker_tick` (null before
+the first successful scheduler pass). Startup clears the previous worker's tick;
+shutdown retains its last tick. Lease ownership is sampled separately from the
+database snapshot at `observed_at`. A held lease and a recent tick show ownership
+and scheduler progress, not successful operations or external service health.
+Status does not execute, reconcile or cancel work.
+
 `workflow serve [-workspace dir] [-allow tool=pattern] [-deny tool=pattern]
 [-max-jobs 1] [-max-operations 32]` runs one local worker process until Ctrl+C. Run it under your OS process supervisor for
 unattended use. Permissions belong to this process, not to queued recipes.

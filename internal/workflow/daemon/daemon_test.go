@@ -75,3 +75,58 @@ func TestServiceCancellationAndRunLink(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestWorkerPublishesSchedulerProgressAndRetainsTickAfterShutdown(t *testing.T) {
+	node := workflow.Node{
+		Name: "probe", Version: 1,
+		InputSchema: json.RawMessage(`{"type":"object"}`),
+		Resources:   func(json.RawMessage) ([]string, error) { return nil, nil },
+		Execute:     func(context.Context, json.RawMessage) (string, error) { return `{}`, nil },
+	}
+	db, svc := poolService(t, node)
+	err := db.SaveWorkerTick(t.Context(), time.Now().Add(-time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	joined := false
+	t.Cleanup(func() {
+		cancel()
+		if !joined {
+			<-done
+		}
+	})
+	started := time.Now()
+	go func() { done <- Serve(ctx, db, svc, Config{}) }()
+	deadline := time.After(5 * time.Second)
+	var observed time.Time
+	for {
+		status, statusErr := db.Status(t.Context())
+		if statusErr != nil {
+			t.Fatal(statusErr)
+		}
+		if status.WorkerLeaseHeld && status.LastWorkerTick != nil && !status.LastWorkerTick.Before(started) {
+			observed = *status.LastWorkerTick
+			break
+		}
+		select {
+		case err = <-done:
+			joined = true
+			t.Fatal("worker stopped before its first successful tick", err)
+		case <-deadline:
+			t.Fatal("scheduler did not report progress", status)
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+	cancel()
+	err = <-done
+	joined = true
+	if !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	status, err := db.Status(t.Context())
+	if err != nil || status.WorkerLeaseHeld || status.LastWorkerTick == nil || status.LastWorkerTick.Before(observed) {
+		t.Fatal("shutdown lost the last observation or retained the lease", status, err)
+	}
+}

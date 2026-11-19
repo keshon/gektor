@@ -36,6 +36,9 @@ All requests use `Authorization: Bearer TOKEN`. Endpoints:
 - `POST /v1/submit/{route}`: operator submits a registered recipe.
 - `GET /v1/jobs`: operator lists retained job statuses.
 - `GET /v1/jobs/{id}`: operator reads one job status and its run ID.
+- `GET /v1/status`: operator reads the same metadata snapshot as
+  [`workflow status`](cli.md#workflow-queue-and-service), including worker lease
+  ownership, last successful scheduler tick and queue/run/artifact counts.
 - `POST /v1/jobs/{id}/cancel`: operator requests cancellation. Review-waiting
   jobs must instead be rejected through `workflow review`.
 - `POST /hooks/{route}`: the route's webhook token submits only that recipe.
@@ -45,6 +48,12 @@ Submission bodies must be `application/json`, at most 64 KiB, with the shape
 Recipe paths, policies and review approvals cannot be supplied by callers.
 Webhook credentials cannot read jobs or cancel them. No browser CORS access is
 enabled. The server bounds active authenticated requests to 32.
+
+Status is also restricted to the operator token and returns no recipe paths,
+inputs, outputs or artifact contents. HTTP 200 means the observation succeeded;
+it is not a readiness or task-success guarantee. A stopped worker or an old tick
+is reported in the response. Storage/lease observation failures return HTTP 503
+with `status_unavailable`; unsupported status methods return HTTP 405.
 
 An accepted submission returns HTTP 202 with `id`, `status`, `run_id`, `created`
 and `cancel_requested`. Acceptance is not execution success: the worker checks
@@ -125,6 +134,6 @@ return 400; storage failures return 503 without acknowledging acceptance.
 
 Events are not buffered before a wait exists. This slice does not register
 provider callbacks or supply provider-specific signatures. Use a trusted caller
-that can obtain the pending receipt. Keep the service running; queued jobs take
-priority over due callback continuations. A crash during resumed external work
+that can obtain the pending receipt. Keep the service running; queued jobs and
+due continuations alternate within each worker slot. A crash during resumed external work
 still requires operator inspection and never triggers automatic replay.

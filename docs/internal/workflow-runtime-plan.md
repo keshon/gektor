@@ -174,7 +174,27 @@ non-concurrent node serialization, cancellation without leaked permits, joined
 shutdown before lease release, queue draining after a typed operation failure,
 exact snapshot values, transactional rollback and indexed claim ordering.
 
-Next: remaining stage 8 workspace-wide budgets, retention and health/queue metrics.
+The bounded worker checkpoint is committed and pushed as `53cff32`.
+
+Stage 8 status observations now share `store.Status` between CLI `workflow status`
+and operator-only `GET /v1/status`. One database transaction reads retained
+job/run counts by saved status, oldest queued timestamp, schedule counts, due
+waits and artifact counts/bytes by publication state. It does not hydrate payloads,
+execute, reconcile or cancel work. Writing/deleting reservations remain visible.
+Saved running counts are not live-executor counts. A separate worker lease probe
+and persisted successful scheduler tick distinguish ownership from progress;
+startup clears the old tick and shutdown retains the last successful observation.
+HTTP 200 means observation succeeded, not readiness or successful remote effects.
+
+The status slice passes full store/daemon race suites, affected CLI/API and
+convention tests, affected vet, executable build, documentation and diff checks.
+Tests cover persisted ticks across store handles, startup reset, joined worker
+shutdown, retained counts, due deadlines, exact queue timestamp order, reserved
+artifact bytes, workspace isolation, cancelled reads, payload-free observations,
+operator-only HTTP access and storage-error responses. No broad acceptance audit
+or live-provider evaluation is claimed by these checks.
+
+Next: remaining stage 8 workspace-wide budgets and retention.
 Worker permits currently cover only work dispatched by this process; independent
 CLI runs and operator continuations are outside them. Do not claim process-local
 permits are persistent or cross-process workspace budgets.

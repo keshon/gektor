@@ -44,7 +44,7 @@ func workflowQueue(ctx context.Context, args []string, out io.Writer, directory 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
-	counts := map[string]int{"recover": 1, "review": 2, "serve": 0, "submit": 1, "jobs": 0, "job": 1, "cancel": 1, "schedules": 0, "schedule": 2, "pause": 1, "resume": 1, "unschedule": 1}
+	counts := map[string]int{"recover": 1, "review": 2, "serve": 0, "status": 0, "submit": 1, "jobs": 0, "job": 1, "cancel": 1, "schedules": 0, "schedule": 2, "pause": 1, "resume": 1, "unschedule": 1}
 	count, ok := counts[command]
 	if !ok || flags.NArg() != count {
 		return fmt.Errorf("workflow %s expects %d arguments (flags precede arguments)", command, count)
@@ -81,6 +81,8 @@ func workflowQueue(ctx context.Context, args []string, out io.Writer, directory 
 		return json.NewEncoder(out).Encode(value)
 	}
 	switch command {
+	case "status":
+		return emit(s.Status(ctx))
 	case "jobs":
 		jobs, err := s.Jobs(ctx)
 		if err != nil {

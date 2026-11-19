@@ -470,6 +470,12 @@ workspace worker lease. Cancellation polling reads a single job; claims read
 indexed queue metadata and only load the selected snapshot. Claim selection and
 status updates remain inside one immediate SQLite transaction.
 
+CLI and operator HTTP status share a metadata-only store snapshot of retained
+jobs, saved runs, schedules, due waits and artifact usage. The scheduler persists
+its last successful tick; startup clears the preceding worker's tick. Worker
+lease ownership is sampled separately. These observations expose scheduler
+progress and backlog without claiming operation success or external-service health.
+
 Fixture tests use the same compiler and engine through the workflow service
 `Test` method, with an in-memory checkpoint and an explicit pure-operation
 allowlist. The application
