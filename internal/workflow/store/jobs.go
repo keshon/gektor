@@ -315,7 +315,8 @@ func makeJobRoom(c *control) error {
 	}
 	var oldest Job
 	for _, j := range c.Jobs {
-		if j.Status != "queued" && j.Status != "running" && j.Status != "waiting_review" && j.Status != "waiting" && (oldest.ID == "" || j.Created.Before(oldest.Created)) {
+		terminal := j.Status == "completed" || j.Status == "failed" || j.Status == "cancelled"
+		if terminal && (oldest.ID == "" || j.Created.Before(oldest.Created)) {
 			oldest = j
 		}
 	}

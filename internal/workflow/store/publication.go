@@ -144,7 +144,18 @@ func (w *RunWriter) discardArtifact(id string) error {
 		return err
 	}
 	_, err = w.store.db.Exec("DELETE FROM artifacts WHERE run_id = ? AND id = ? AND status != 'published'", w.id, id)
-	return err
+	if err != nil {
+		return err
+	}
+	var remaining int
+	err = w.store.db.QueryRow("SELECT count(*) FROM artifacts WHERE run_id = ? AND id = ? AND status != 'published'", w.id, id).Scan(&remaining)
+	if err != nil {
+		return err
+	}
+	if remaining != 0 {
+		return fmt.Errorf("artifact cleanup was not recorded")
+	}
+	return nil
 }
 
 // The caller holds the exclusive run lease. No live producer can own these
@@ -181,7 +192,18 @@ func (w *RunWriter) reconcileArtifacts() error {
 				return err
 			}
 			_, err = w.store.db.Exec("DELETE FROM artifacts WHERE run_id = ? AND status != 'published'", w.id)
-			return err
+			if err != nil {
+				return err
+			}
+			var remaining int
+			err = w.store.db.QueryRow("SELECT count(*) FROM artifacts WHERE run_id = ? AND status != 'published'", w.id).Scan(&remaining)
+			if err != nil {
+				return err
+			}
+			if remaining != 0 {
+				return fmt.Errorf("artifact cleanup was not recorded")
+			}
+			return nil
 		}
 	}
 	for _, id := range ids {

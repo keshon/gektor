@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/keshon/gektor/internal/workflow"
 )
 
 func TestArtifactProcessExitRecovery(t *testing.T) {
@@ -40,8 +42,23 @@ func TestArtifactProcessExitRecovery(t *testing.T) {
 			}
 			id := string(raw)
 			state, err := s.Run(id)
-			if err != nil || state.Status != "interrupted" {
+			wantStatus := "interrupted"
+			retention := phase == "deleting" || phase == "deleted"
+			if retention {
+				wantStatus = "completed"
+			}
+			if err != nil || state.Status != wantStatus {
 				t.Fatal("process lease was not released", state, err)
+			}
+			if retention {
+				removed, pruneErr := s.PruneArtifacts(t.Context(), time.Now())
+				if pruneErr != nil || len(removed) != 1 || removed[0] != id {
+					t.Fatal("resumed retention was not reported", removed, pruneErr)
+				}
+				removed, pruneErr = s.PruneArtifacts(t.Context(), time.Now())
+				if pruneErr != nil || len(removed) != 0 {
+					t.Fatal("repeated retention was not idempotent", removed, pruneErr)
+				}
 			}
 			err = s.ReconcileArtifacts(t.Context())
 			if err != nil {
@@ -112,6 +129,11 @@ func artifactCrashChild(t *testing.T, base string) {
 			t.Fatal(err)
 		}
 		if phase != "published" {
+			old := time.Now().Add(-48 * time.Hour)
+			err = w.Save(workflow.Run{Status: "completed", Finished: &old})
+			if err != nil {
+				t.Fatal(err)
+			}
 			_, err = s.db.Exec("UPDATE artifacts SET status = 'deleting' WHERE run_id = ?", w.id)
 			if err != nil {
 				t.Fatal(err)

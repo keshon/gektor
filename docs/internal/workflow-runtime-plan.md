@@ -244,7 +244,10 @@ temporary-home CLI examples pass. The audit records remaining throughput limits
 and the boundaries of this local acceptance. No live-provider or model-quality
 evaluation was performed. There is no outstanding implementation slice in stages
 1–8; new work should address a concrete finding rather than extend the plan by
-default. An optional independent store/quota review has not been incorporated.
+default. The independent Astra store/quota review is now incorporated in the
+audit report: interrupted-job deduplication survives queue pressure, cleanup
+rejects ignored artifact deletes, and resumed retention reports cleaned runs.
+The full store race suite and store vet pass on those fixes.
 
 Worker permits currently cover only work dispatched by this process; independent
 CLI runs and operator continuations are outside them. Do not claim process-local

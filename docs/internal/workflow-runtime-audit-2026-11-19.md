@@ -24,7 +24,23 @@ existing SSH contract tests were included in the source-wide run.
 
 This was a targeted architecture review, not a line-by-line review of every node
 adapter. External providers, live-model proposal quality and production throughput
-were not evaluated. No independent Astra review results are included.
+were not evaluated. A subsequent independent Astra storage review found the
+three defects recorded below; its fixes passed the full store race suite and vet.
+
+## Independent storage review
+
+- Queue pressure could evict an interrupted job and its submission deduplication
+  key. Eviction now selects only completed, failed or cancelled jobs; a queue
+  full of recoverable jobs rejects admission. Regression coverage checks both
+  duplicate submission and a full interrupted queue.
+- Artifact cleanup could report success when SQLite ignored a delete, leaving
+  reservations charged. Cleanup now verifies that the affected rows are gone.
+  SQL fault tests retain the charge, reject further publication on the stranded
+  writer and prove recovery after the fault is removed.
+- Artifact retention used `EditRun`, whose reconciliation completed abandoned
+  deletions before retention could account for them. Retention now acquires the
+  run lease and owns cleanup directly. Process-exit tests cover both deletion
+  intent and missing payloads, including idempotent repeated cleanup.
 
 ## Finding: failed checkpoints could become successful jobs
 
@@ -135,5 +151,6 @@ tests pass. The publication failure remains separate follow-up work.
   or external providers.
 
 These limits do not require new abstractions now. Measure a slow retained-history
-path before adding queries or caches. A separate store/quota review may supply
-additional findings; none should be assumed fixed or absent from this report.
+path before adding queries or caches. The independent storage findings above are
+addressed; this review does not establish that every possible storage fault has
+been exercised.

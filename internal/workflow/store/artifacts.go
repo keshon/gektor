@@ -247,21 +247,30 @@ func (s *Store) PruneArtifacts(ctx context.Context, before time.Time) ([]string,
 		if run.Status != "completed" && run.Status != "failed" && run.Status != "cancelled" {
 			continue
 		}
-		w, record, err := s.EditRun(run.ID)
-		if err == errLocked {
+		lease, err := s.lock(filepath.Join("runs", run.ID, "lock"))
+		if errors.Is(err, errLocked) {
 			continue
 		}
 		if err != nil {
 			return removed, err
 		}
-		err = func() error {
-			defer w.Close()
+		err = func() (resultErr error) {
+			defer func() { resultErr = errors.Join(resultErr, lease.Close()) }()
+			record, readErr := s.readRun(run.ID)
+			if readErr != nil {
+				return readErr
+			}
+			if record.Workspace != s.workspace {
+				return fmt.Errorf("run identity mismatch")
+			}
 			if record.Status != "completed" && record.Status != "failed" && record.Status != "cancelled" {
 				return nil
 			}
 			if record.Finished == nil || !record.Finished.Before(before) {
 				return nil
 			}
+			// Retention owns cleanup so resumed deletions are included in its result.
+			w := &RunWriter{store: s, id: run.ID, lease: lease}
 			changed, pruneErr := w.pruneArtifacts(ctx)
 			if changed {
 				removed = append(removed, run.ID)

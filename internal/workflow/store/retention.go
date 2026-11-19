@@ -163,5 +163,15 @@ func (w *RunWriter) pruneArtifacts(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	_, err = s.db.ExecContext(ctx, "DELETE FROM artifacts WHERE run_id = ?", w.id)
-	return err == nil, err
+	if err != nil {
+		return false, err
+	}
+	err = s.db.QueryRowContext(ctx, "SELECT count(*) FROM artifacts WHERE run_id = ?", w.id).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	if count != 0 {
+		return false, fmt.Errorf("artifact cleanup was not recorded")
+	}
+	return true, nil
 }

@@ -328,3 +328,77 @@ func TestArtifactRetentionRemovesMetadataWhenPayloadIsMissing(t *testing.T) {
 		t.Fatal("repeated retention was not idempotent", removed, err)
 	}
 }
+
+func TestArtifactCleanupRejectsIgnoredDeletes(t *testing.T) {
+	for _, phase := range []string{"writing", "deleting", "retention"} {
+		t.Run(phase, func(t *testing.T) {
+			s, _, _ := testStore(t)
+			w, err := s.NewRun()
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { w.Close() })
+			_, err = s.db.Exec("CREATE TRIGGER ignore_cleanup BEFORE DELETE ON artifacts BEGIN SELECT RAISE(IGNORE); END")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if phase == "writing" {
+				_, err = w.Artifacts("fail").Put(t.Context(), "partial", &interruptedArtifactReader{failure: errors.New("source fault")})
+				if err == nil || !strings.Contains(err.Error(), "cleanup was not recorded") {
+					t.Fatal("ignored cleanup accepted", err)
+				}
+				_, err = w.Artifacts("blocked").Put(t.Context(), "next", strings.NewReader("next"))
+				if err == nil || !strings.Contains(err.Error(), "requires recovery") {
+					t.Fatal("writer accepted stranded reservation", err)
+				}
+			} else {
+				_, err = w.Artifacts("save").Put(t.Context(), "payload", strings.NewReader("data"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				old := time.Now().Add(-48 * time.Hour)
+				err = w.Save(workflow.Run{Status: "completed", Finished: &old})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if phase == "deleting" {
+					_, err = s.db.Exec("UPDATE artifacts SET status='deleting'")
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			err = w.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if phase == "retention" {
+				removed, pruneErr := s.PruneArtifacts(t.Context(), time.Now())
+				if pruneErr == nil || len(removed) != 0 {
+					t.Fatal("ignored retention accepted", removed, pruneErr)
+				}
+			}
+			err = s.ReconcileArtifacts(t.Context())
+			if err == nil || !strings.Contains(err.Error(), "cleanup was not recorded") {
+				t.Fatal("ignored recovery accepted", err)
+			}
+			var count int
+			err = s.db.QueryRow("SELECT count(*) FROM artifacts").Scan(&count)
+			if err != nil || count != 1 {
+				t.Fatal("quota charge lost", count, err)
+			}
+			_, err = s.db.Exec("DROP TRIGGER ignore_cleanup")
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = s.ReconcileArtifacts(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = s.db.QueryRow("SELECT count(*) FROM artifacts").Scan(&count)
+			if err != nil || count != 0 {
+				t.Fatal("recovery retained quota", count, err)
+			}
+		})
+	}
+}
