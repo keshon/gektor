@@ -284,26 +284,30 @@ func gitInit(dir string) error {
 }
 
 type Result struct {
-	Probe            string            `json:"probe"`
-	Run              int               `json:"run"`
-	Passed           bool              `json:"passed"`
-	Steps            int               `json:"steps"`
-	Seconds          float64           `json:"seconds"`
-	ModelCalls       int64             `json:"model_calls"`
-	PromptTokens     int64             `json:"prompt_tokens"`
-	CachedTokens     int64             `json:"cached_tokens"`
-	CompletionTokens int64             `json:"completion_tokens"`
-	FirstToolSeconds float64           `json:"first_tool_seconds,omitempty"`
-	RunSeconds       float64           `json:"run_seconds"`
-	CheckSeconds     float64           `json:"check_seconds"`
-	ArtifactPassed   *bool             `json:"artifact_passed,omitempty"`
-	ArtifactFailures []string          `json:"artifact_failures,omitempty"`
-	Requests         []requestTiming   `json:"requests,omitempty"`
-	Warnings         []string          `json:"warnings,omitempty"`
-	Summary          string            `json:"incomplete_summary,omitempty"`
-	StartupContext   llm.ContextReport `json:"startup_context"`
-	ToolSeconds      float64           `json:"tool_seconds"`
-	ToolFailures     map[string]int    `json:"tool_failures,omitempty"`
+	Probe              string            `json:"probe"`
+	Run                int               `json:"run"`
+	Passed             bool              `json:"passed"`
+	Steps              int               `json:"steps"`
+	Seconds            float64           `json:"seconds"`
+	ModelCalls         int64             `json:"model_calls"`
+	PromptTokens       int64             `json:"prompt_tokens"`
+	CachedTokens       int64             `json:"cached_tokens"`
+	CompletionTokens   int64             `json:"completion_tokens"`
+	FirstToolSeconds   float64           `json:"first_tool_seconds,omitempty"`
+	RunSeconds         float64           `json:"run_seconds"`
+	CheckSeconds       float64           `json:"check_seconds"`
+	ArtifactPassed     *bool             `json:"artifact_passed,omitempty"`
+	ArtifactFailures   []string          `json:"artifact_failures,omitempty"`
+	Checks             []CheckResult     `json:"checks,omitempty"`
+	TraceFailures      []string          `json:"trace_failures,omitempty"`
+	AnswerFailures     []string          `json:"answer_failures,omitempty"`
+	EfficiencyFailures []string          `json:"efficiency_failures,omitempty"`
+	Requests           []requestTiming   `json:"requests,omitempty"`
+	Warnings           []string          `json:"warnings,omitempty"`
+	Summary            string            `json:"incomplete_summary,omitempty"`
+	StartupContext     llm.ContextReport `json:"startup_context"`
+	ToolSeconds        float64           `json:"tool_seconds"`
+	ToolFailures       map[string]int    `json:"tool_failures,omitempty"`
 
 	// Errored means the run never reached the model — a dead backend, a
 	// bad seed path — so it says nothing about the agent and must not be
@@ -368,6 +372,11 @@ func main() {
 		return
 	}
 
+	os.Exit(runEvaluation())
+}
+
+// runEvaluation returns after result files and the run lock have been closed.
+func runEvaluation() int {
 	provider := config.DefaultProfile().Provider
 	backend := flag.String("backend", provider.URL, "backend base URL: bare origin for a local "+
 		"server or API root for a hosted OpenAI-compatible provider")
@@ -382,6 +391,7 @@ func main() {
 		"(where the information is). Empty runs every tier")
 	runs := flag.Int("runs", 1, "runs per probe — a weak model is stochastic, so one pass "+
 		"proves very little")
+	maxFailures := flag.Int("max-failures", -1, "maximum scored failures before exit 1; -1 disables the gate; enabled gates exit 2 for errors or no scored runs")
 	outDir := flag.String("out", "eval/results", "directory for results.jsonl and per-run traces")
 	maxTokens := flag.Int("max-tokens", 8192, "generation budget per response")
 	deadlineAware := flag.Bool("deadline-aware", false, "reserve part of each probe timeout for a tool-free incomplete-work report")
@@ -403,6 +413,9 @@ func main() {
 	apiKeyEnv := flag.String("api-key-env", "", "env var holding the bearer token")
 	contextLimitFlag := flag.Int("context-limit", 0, "context window override; remote backends default to a per-model estimate")
 	flag.Parse()
+	if *maxFailures < -1 {
+		log.Fatal("-max-failures must be -1 or nonnegative")
+	}
 	delegateBudget := config.Harness{DelegateSteps: *delegateSteps, DelegateMaxSteps: *delegateMaxSteps}
 	steps, maximum, budgetErr := delegateBudget.DelegateBudget()
 	if budgetErr != nil {
@@ -438,7 +451,7 @@ func main() {
 
 		fmt.Printf("%d probes OK; %d selected\n", validated, len(selected))
 
-		return
+		return 0
 	}
 
 	probes, err := loadProbes(*dir, "")
@@ -527,6 +540,7 @@ func main() {
 		Suite:            *suite,
 		DelegateSteps:    steps,
 		DelegateMaxSteps: maximum,
+		MaxFailures:      *maxFailures,
 	}, probes); err != nil {
 		log.Fatalf("record experiment metadata: %v", err)
 	}
@@ -537,8 +551,9 @@ func main() {
 	// at a time, which is what this loop used to do.
 
 	var (
-		mu  sync.Mutex
-		all []Result
+		mu        sync.Mutex
+		all       []Result
+		recordErr error
 	)
 	record := func(r Result) {
 		mu.Lock()
@@ -546,7 +561,10 @@ func main() {
 
 		all = append(all, r)
 
-		writeProbeResult(results, r)
+		writeErr := writeProbeResult(results, r)
+		if writeErr != nil && recordErr == nil {
+			recordErr = writeErr
+		}
 	}
 
 	// minutes, and printing only on completion means a working run looks
@@ -560,6 +578,15 @@ func main() {
 	}
 
 	runProbeJobs(probes, *runs, *jobsN, run1)
+	closeErr := results.Close()
+	if recordErr != nil {
+		fmt.Fprintf(os.Stderr, "write results: %v\n", recordErr)
+		return 2
+	}
+	if closeErr != nil {
+		fmt.Fprintf(os.Stderr, "close results: %v\n", closeErr)
+		return 2
+	}
 
 	// Concurrent completion order is not run order.
 	sort.Slice(all, func(i, k int) bool {
@@ -572,11 +599,13 @@ func main() {
 
 	fmt.Printf("\n%s\n\nresults: %s\n", summarize(all), resultsPath)
 	if err := writeSummary(runDir, all); err != nil {
-		log.Fatalf("write summary: %v", err)
+		fmt.Fprintf(os.Stderr, "write summary: %v\n", err)
+		return 2
 	}
 
 	stats := aggregateRuns(all)
 	fmt.Printf("median %.1fs / %.1f steps; tool failures %d; tokens prompt=%d cached=%d completion=%d\nsummary: %s\n", stats.MedianSeconds, stats.MedianSteps, stats.ToolFailures, stats.PromptTokens, stats.CachedTokens, stats.CompletionTokens, filepath.Join(runDir, "summary.json"))
+	return evaluationExitCode(all, *maxFailures)
 }
 
 // The return value is named so the deferred timing write lands in what
@@ -801,8 +830,9 @@ func runOnce(ctx context.Context, p Probe, run int, runDir, backendKind, backend
 
 	recordProbeUsage(&res, counter, contextLimit, calls)
 	if p.MaxSteps > 0 && res.Steps > p.MaxSteps {
-		res.Failures = append(res.Failures,
+		res.EfficiencyFailures = append(res.EfficiencyFailures,
 			fmt.Sprintf("took %d steps, probe allows %d", res.Steps, p.MaxSteps))
+		res.Failures = append(res.Failures, res.EfficiencyFailures...)
 	}
 
 	res.Passed = len(res.Failures) == 0
@@ -830,18 +860,6 @@ func evalEnv(client llm.Client, ws *workspace.Workspace, procs *toolbackground.P
 		OnStep:       func(_ string, step int, msg llm.Message) { record(step, msg) },
 		OnNudge:      func(kind, _ string) { nudge(kind) },
 	}
-}
-
-func checkWorkspace(ctx context.Context, p Probe, ws *workspace.Workspace) []string {
-	var out []string
-
-	for _, c := range p.Verify {
-		if msg, ok := RunCheck(ctx, c, ws); !ok {
-			out = append(out, firstLine(msg))
-		}
-	}
-
-	return out
 }
 
 // Providers can reuse tool IDs across turns. Match the newest pending
@@ -1361,9 +1379,15 @@ func recordProbeUsage(res *Result, counter *countingClient, contextLimit int, ca
 	}
 }
 
-func writeProbeResult(results io.Writer, r Result) {
-	line, _ := json.Marshal(r)
-	fmt.Fprintln(results, string(line))
+func writeProbeResult(results io.Writer, r Result) error {
+	line, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(results, string(line))
+	if err != nil {
+		return err
+	}
 
 	status := "PASS"
 
@@ -1385,6 +1409,7 @@ func writeProbeResult(results io.Writer, r Result) {
 	}
 
 	fmt.Println()
+	return nil
 }
 
 type evalJob struct {

@@ -157,10 +157,10 @@ func (m *Model) action(a workflowAction) tea.Cmd {
 					err = permission.Authorize(ctx, policy, gate, "workflow_run", path, json.RawMessage(source))
 				}
 				if err == nil {
-					result.text, err = s.RunSource(ctx, []byte(source), path, inputs)
+					result.outcome, err = s.RunSource(ctx, []byte(source), path, inputs)
 				}
 			case "review-approve", "review-reject":
-				result.text, err = s.Review(ctx, runID, a.value, a.action == "review-approve")
+				result.outcome, err = s.Review(ctx, runID, a.value, a.action == "review-approve")
 			}
 		}
 		result.err = err
@@ -255,6 +255,9 @@ func (m *Model) acceptResult(r workflowResult) tea.Cmd {
 		if r.text != "" {
 			rows = append(rows, r.text)
 		}
+		if r.outcome.RunID != "" {
+			rows = append(rows, "Run: "+r.outcome.RunID+" · "+r.outcome.Status)
+		}
 		m.dialogs.PresentDialog(screen.Dialog{Title: "Workflow failed", Lines: rows})
 		return nil
 	}
@@ -299,24 +302,21 @@ func (m *Model) acceptResult(r workflowResult) tea.Cmd {
 		}
 	}
 	m.setNotice(pane.NoticeInfo, "Ready")
-	if r.text != "" {
-		var summary struct {
-			Status string `json:"status"`
+	if r.outcome.Status != "" {
+		level := pane.NoticeInfo
+		switch r.outcome.Status {
+		case "completed":
+			level = pane.NoticeSuccess
+		case "failed":
+			level = pane.NoticeError
+		case "cancelled":
+			level = pane.NoticeWarning
 		}
-		if json.Unmarshal([]byte(r.text), &summary) == nil && summary.Status != "" {
-			level := pane.NoticeInfo
-			switch summary.Status {
-			case "completed":
-				level = pane.NoticeSuccess
-			case "failed":
-				level = pane.NoticeError
-			case "cancelled":
-				level = pane.NoticeWarning
-			}
-			m.setNotice(level, "Run: "+summary.Status+" / H opens saved runs")
-		} else {
-			m.setNotice(pane.NoticeInfo, r.text)
-		}
+		m.setNotice(level, "Run: "+r.outcome.Status+" / H opens saved runs")
+	} else if r.outcome.Valid {
+		m.setNotice(pane.NoticeSuccess, "Recipe valid · "+r.outcome.Scope)
+	} else if r.text != "" {
+		m.setNotice(pane.NoticeInfo, r.text)
 	}
 	if m.runID != "" {
 		return m.poll(m.runID, false)

@@ -217,7 +217,7 @@ func (Check) Schema() json.RawMessage {
 	}`)
 }
 
-func (t Check) Run(_ context.Context, args json.RawMessage) (string, error) {
+func (t Check) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	var in struct {
 		ID     string `json:"id"`
 		Cursor *int   `json:"cursor"`
@@ -231,6 +231,21 @@ func (t Check) Run(_ context.Context, args json.RawMessage) (string, error) {
 	if in.Cursor == nil {
 		return "", fmt.Errorf("cursor is required; use next_cursor from the previous result, or 0 to read from the beginning")
 	}
+	if t.Procs == nil {
+		return "", fmt.Errorf("no background processes")
+	}
+
+	t.Procs.mu.Lock()
+	proc := t.Procs.procs[in.ID]
+	t.Procs.mu.Unlock()
+	if proc == nil {
+		return "", fmt.Errorf("unknown background process id %q", in.ID)
+	}
+	store := tooloutput.FromContext(ctx)
+	if store != nil && proc.scope != store.Scope() {
+		return "", fmt.Errorf("background process belongs to another session")
+	}
+
 	output, next, exited, exitErr, err := t.Procs.status(in.ID, *in.Cursor)
 	if err != nil {
 		return "", err

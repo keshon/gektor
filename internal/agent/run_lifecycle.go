@@ -32,8 +32,7 @@ func (a *Agent) finalizeRun(ctx, workCtx context.Context, st *runState, history 
 	}
 
 	if runErr == nil && a.cfg.Verify != nil {
-		out, err := a.cfg.Verify(ctx)
-		a.report.Verification = TruncateMiddle(out, 8192)
+		err := a.verify(ctx)
 		if err != nil {
 			runErr = fmt.Errorf("verification failed: %w", err)
 			// A user-triggered retry needs the measured failure, not only
@@ -78,12 +77,13 @@ func (a *Agent) finalizeRun(ctx, workCtx context.Context, st *runState, history 
 
 	if a.cfg.StateFile != "" {
 		run := conversation.Run{
-			Start:        runStart,
-			End:          len(a.snapshot.History),
-			Outcome:      a.report.Outcome,
-			Steps:        a.report.Steps,
-			Verification: a.report.Verification,
-			Error:        conversation.FailureText(runErr),
+			Start:               runStart,
+			End:                 len(a.snapshot.History),
+			Outcome:             a.report.Outcome,
+			Steps:               a.report.Steps,
+			Verification:        a.report.Verification,
+			VerificationReceipt: a.report.VerificationReceipt,
+			Error:               conversation.FailureText(runErr),
 		}
 		a.snapshot.Runs = append(a.snapshot.Runs, run)
 		err := a.snapshot.Save(a.cfg.StateFile)
@@ -150,6 +150,11 @@ func (a *Agent) startRun(history []llm.Message) ([]llm.Message, int) {
 
 	a.LastRunMutations = 0
 	a.report = RunReport{MaxSteps: a.cfg.MaxSteps, Archive: a.cfg.StateFile}
+	a.report.VerificationReceipt = &conversation.VerificationReceipt{Disposition: conversation.VerificationNotRequested}
+	if a.cfg.Verify != nil {
+		a.report.VerificationReceipt.Disposition = conversation.VerificationNotRun
+		a.report.VerificationReceipt.Command = a.cfg.VerifyCommand
+	}
 	a.cfg.Inbox.start()
 	history = a.withDirective(history)
 	a.saveState(history)

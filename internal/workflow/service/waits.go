@@ -32,7 +32,7 @@ func (s Service) ContinueWait(ctx context.Context, db *store.Store, writer *stor
 		}
 	}
 
-	resume := func(ctx context.Context) (string, error) {
+	resume := func(ctx context.Context) (Result, error) {
 		save := func(record workflow.Run, path ...int) error {
 			err := writer.Save(record, path...)
 			if err != nil {
@@ -84,21 +84,20 @@ func (s Service) ContinueWait(ctx context.Context, db *store.Store, writer *stor
 			}
 			saveErr := save(r)
 			if saveErr != nil {
-				return "", errors.Join(runErr, saveErr)
+				return Result{}, errors.Join(runErr, saveErr)
 			}
 		} else {
 			h := &handler{registry: s.Registry, authorize: s.authorizeNode, authorized: map[authorization]bool{}, templates: true}
 			h.artifacts = writer.Artifacts
 			r, runErr = engine.Resume(ctx, r, h, save)
 		}
-		out, encodeErr := json.Marshal(struct {
-			ID       string                  `json:"run_id"`
-			Status   string                  `json:"status"`
-			Callback *workflow.CallbackState `json:"callback,omitempty"`
-			ResumeAt *time.Time              `json:"resume_at,omitempty"`
-			Outputs  json.RawMessage         `json:"outputs,omitempty"`
-		}{ID: r.RunID, Status: r.Status, ResumeAt: r.WakeAt, Callback: workflow.PendingCallback(r), Outputs: DeclaredOutputs(r)})
-		return string(out), errors.Join(runErr, encodeErr)
+		return Result{
+			RunID:    r.RunID,
+			Status:   r.Status,
+			ResumeAt: r.WakeAt,
+			Callback: workflow.PendingCallback(r),
+			Outputs:  DeclaredOutputs(r),
+		}, runErr
 	}
 	if linked != nil {
 		_, err = withJob(ctx, db, *linked, resume)

@@ -62,7 +62,7 @@ func launchRunConfiguration(o resolvedLaunch, base roles.Env, note func(string, 
 	env.BackendKind = o.backendKind
 	env.Stream = o.stream || o.tui
 	env.Rules = checks.Secrets()
-	return harness.Config{Env: env, Task: o.task, Plan: o.plan, WorkflowRecipe: o.workflowRecipe, Verify: verificationCommand(o.verifyCmd, o.workspace), ResumeAnswer: o.answer}, nil
+	return harness.Config{Env: env, Task: o.task, Plan: o.plan, WorkflowRecipe: o.workflowRecipe, Verify: verificationCommand(o.verifyCmd, o.workspace), VerifyCommand: o.verifyCmd, ResumeAnswer: o.answer}, nil
 }
 
 func tuiConfiguration(launch launchRequest, o resolvedLaunch, cfg harness.Config, history []llm.Message) tui.Config {
@@ -84,6 +84,7 @@ func tuiConfiguration(launch launchRequest, o resolvedLaunch, cfg harness.Config
 			Task:             cfg.Task,
 			StateFile:        cfg.StateFile,
 			Verify:           cfg.Verify,
+			VerifyCommand:    cfg.VerifyCommand,
 			Images:           cfg.Images,
 		},
 	}

@@ -1,0 +1,31 @@
+{
+  "results": "results.jsonl",
+  "overall": {
+    "scored": 1,
+    "passed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "median_seconds": 180.0782005,
+    "median_steps": 3,
+    "prompt_tokens": 17394,
+    "cached_tokens": 16188,
+    "completion_tokens": 2402,
+    "tool_failures": 0,
+    "clarification_calls": 0
+  },
+  "probes": {
+    "23-browser-unavailable": {
+      "scored": 1,
+      "passed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "median_seconds": 180.0782005,
+      "median_steps": 3,
+      "prompt_tokens": 17394,
+      "cached_tokens": 16188,
+      "completion_tokens": 2402,
+      "tool_failures": 0,
+      "clarification_calls": 0
+    }
+  }
+}

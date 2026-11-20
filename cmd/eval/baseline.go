@@ -72,6 +72,7 @@ type baselineStats struct {
 }
 
 type baselineReport struct {
+	Results string                   `json:"results"`
 	Overall baselineStats            `json:"overall"`
 	Probes  map[string]baselineStats `json:"probes"`
 }
@@ -124,7 +125,7 @@ func writeSummary(dir string, runs []Result) error {
 	for _, r := range runs {
 		byProbe[r.Probe] = append(byProbe[r.Probe], r)
 	}
-	report := baselineReport{Overall: aggregateRuns(runs), Probes: map[string]baselineStats{}}
+	report := baselineReport{Results: "results.jsonl", Overall: aggregateRuns(runs), Probes: map[string]baselineStats{}}
 	for name, rows := range byProbe {
 		report.Probes[name] = aggregateRuns(rows)
 	}

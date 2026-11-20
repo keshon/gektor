@@ -32,7 +32,7 @@ func (m *Model) pasteClipboard(imageOnly bool) tea.Cmd {
 	m.clipboardBusy = true
 	m.fitBottom()
 	session, revision := m.stateFile, m.attachmentEpoch
-	return func() tea.Msg {
+	return m.workerCommand(func() tea.Msg {
 		out := clipboardMsg{session: session, revision: revision}
 		data, err := imageclipboard.ReadImage()
 		if !imageOnly && errors.Is(err, imageclipboard.ErrUnsupported) {
@@ -72,7 +72,7 @@ func (m *Model) pasteClipboard(imageOnly bool) tea.Cmd {
 		out.path, out.err = llm.SnapshotImageFile(file, "screenshot.png", dir)
 
 		return out
-	}
+	})
 }
 func (m *Model) acceptClipboard(msg clipboardMsg) {
 	m.clipboardBusy = false
@@ -193,5 +193,5 @@ func (m *Model) pasteImagePath(text string) tea.Cmd {
 	m.clipboardBusy = true
 	m.fitBottom()
 	msg := clipboardMsg{text: text, session: m.stateFile, revision: m.attachmentEpoch}
-	return func() tea.Msg { return importPastedImage(msg) }
+	return m.workerCommand(func() tea.Msg { return importPastedImage(msg) })
 }

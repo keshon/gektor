@@ -60,7 +60,7 @@ func TestReceiptShowsRunnerWarningsAndRemainingWork(t *testing.T) {
 		"outcome": "incomplete", "warnings": []string{"boundary save failed"}, "open_todos": []string{"verify changes"}, "summary": "Budget expired after editing",
 	}})
 	b := m.transcript.blocks[len(m.transcript.blocks)-1]
-	text := ansi.Strip(strings.Join(receiptText(b.text, defaultStyles(), 80), "\n"))
+	text := ansi.Strip(strings.Join(receiptText(b, defaultStyles(), 80), "\n"))
 	for _, want := range []string{"boundary save failed", "verify changes", "Budget expired after editing"} {
 		if !strings.Contains(text, want) {
 			t.Fatal("receipt lost", want, text)

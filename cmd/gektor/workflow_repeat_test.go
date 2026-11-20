@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/keshon/gektor/internal/workflow/service"
 	"github.com/keshon/gektor/internal/workflow/store"
 )
 
@@ -43,7 +44,7 @@ func TestRepeatCallsPersistReviewsAndFrozenScopes(t *testing.T) {
 			}
 			for n := 0; n < 3; n++ {
 				var guidance bytes.Buffer
-				workflowGuidance(&guidance, out.String(), home, dir, "", "")
+				workflowGuidance(&guidance, service.Result{RunID: summary.ID, Status: summary.Status}, home, dir, "", "")
 				if !strings.Contains(guidance.String(), fmt.Sprintf(`"pages[%d]/save"`, n)) {
 					t.Fatal("guidance selected the enclosing call instead of its pending review", guidance.String())
 				}

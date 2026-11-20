@@ -38,7 +38,7 @@ func (m *Model) copySession(command string) tea.Cmd {
 	if text == "" {
 		return nil
 	}
-	return copySessionCommand(label, text, clipboard.WriteAll)
+	return m.workerCommand(copySessionCommand(label, text, clipboard.WriteAll))
 }
 
 func copySessionCommand(label, text string, write func(string) error) tea.Cmd {

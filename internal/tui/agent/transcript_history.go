@@ -97,6 +97,12 @@ func (m *Model) appendSavedRun(snapshot conversation.Snapshot) {
 	if last.Verification != "" {
 		text += "\nVerification: " + last.Verification
 	}
+	if last.VerificationReceipt != nil {
+		text += "\n" + verificationLabel(last.VerificationReceipt.Disposition)
+		for _, detail := range verificationDetails(last.VerificationReceipt) {
+			text += "\n" + detail
+		}
+	}
 
 	if last.Outcome != "completed" {
 		text += "\nReview the saved work, then send a follow-up to continue. Existing changes remain."

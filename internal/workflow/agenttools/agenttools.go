@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 
@@ -83,7 +84,12 @@ func (t Tool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 		return "", err
 	}
 
-	return s.Run(ctx, in.RecipePath, in.Inputs)
+	result, runErr := s.Run(ctx, in.RecipePath, in.Inputs)
+	if result.RunID == "" && !result.Valid {
+		return "", runErr
+	}
+	encoded, encodeErr := json.Marshal(result)
+	return string(encoded), errors.Join(runErr, encodeErr)
 }
 
 func Resources(args json.RawMessage) ([]string, error) {

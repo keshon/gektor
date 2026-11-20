@@ -68,7 +68,7 @@ func TestCustomNodeNeedsNoCentralDispatchChanges(t *testing.T) {
 		t.Fatal("schema omitted registered node")
 	}
 	out, err := svc.Run(t.Context(), "recipe.json", nil)
-	if err != nil || calls != 2 || checked != 2 || !strings.Contains(out, `"status":"completed"`) {
+	if err != nil || calls != 2 || checked != 2 || out.Status != "completed" {
 		t.Fatal(out, err, calls, checked)
 	}
 	calls = 0
@@ -143,13 +143,7 @@ func TestReviewContinuesSnapshotWithoutRepeatingEffects(t *testing.T) {
 	if err != nil || calls != 1 {
 		t.Fatal(out, err, calls)
 	}
-	var summary struct {
-		RunID  string `json:"run_id"`
-		Status string
-	}
-	if err := json.Unmarshal([]byte(out), &summary); err != nil {
-		t.Fatal(err)
-	}
+	summary := out
 	if summary.Status != "waiting_review" {
 		t.Fatal(out)
 	}
@@ -158,7 +152,7 @@ func TestReviewContinuesSnapshotWithoutRepeatingEffects(t *testing.T) {
 		t.Fatal("wrong review accepted")
 	}
 	out, err = svc.Review(t.Context(), summary.RunID, "publish", true)
-	if err != nil || calls != 2 || !strings.Contains(out, `"completed"`) {
+	if err != nil || calls != 2 || out.Status != "completed" {
 		t.Fatal(out, err, calls)
 	}
 	if _, err = svc.Review(t.Context(), summary.RunID, "publish", true); err == nil || calls != 2 {

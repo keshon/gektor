@@ -13,6 +13,8 @@ The terminal editor is a separate consumer in `internal/tui/workflow`.
   validation/execution, queue execution, and reviews. CLI, API, Agent tools, and
   TUI call it; it does not construct application clients or operator gates.
   Follow `service.go`, `composition.go`, then the service operation being changed.
+  Execution and continuation return `service.Result`; Go callers read its fields
+  directly, and CLI/Agent adapters encode it at their JSON boundary.
   `service/schema.go` declares recipe fields and limits using named input,
   retry, step, and root schemas; registered node names supply the tool enum.
 - `recipe` prepares graphs, binds inputs, and resolves references.

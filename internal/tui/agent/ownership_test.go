@@ -105,11 +105,11 @@ func TestViewDoesNotChangeSelectionOrFocus(t *testing.T) {
 }
 
 func TestMarkdownTablesAlignTerminalCells(t *testing.T) {
-	rows := renderTable([]string{"| 名称 | name |", "| --- | --- |", "| 中文 | x |", "| é | y |"})
-	width := lipgloss.Width(rows[0].text)
+	rows := renderMdBlock(block{role: roleAnswer}, "| 名称 | name |\n| --- | --- |\n| 中文 | x |\n| é | y |", defaultStyles(), 80)
+	width := lipgloss.Width(rows[0])
 	for _, row := range rows {
-		if lipgloss.Width(row.text) != width {
-			t.Fatalf("table cell widths differ: %q", row.text)
+		if lipgloss.Width(row) != width {
+			t.Fatalf("table cell widths differ: %q", row)
 		}
 	}
 }

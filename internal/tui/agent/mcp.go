@@ -266,12 +266,12 @@ func (m *Model) handleMCPAction(a mcpActionMsg) tea.Cmd {
 		m.mcpBusy = true
 		m.chrome.Open("MCP / "+a.id, []string{"Connecting and discovering tools…"})
 		manager, base, id := m.mcp, m.base, a.id
-		return func() tea.Msg {
+		return m.workerCommand(func() tea.Msg {
 			ctx, cancel := context.WithTimeout(base, 4*time.Minute)
 			defer cancel()
 			n, e := manager.Connect(ctx, id)
 			return mcpDoneMsg{id, n, e}
-		}
+		})
 	case "details":
 		for _, s := range m.mcp.List() {
 			if s.ID == a.id {

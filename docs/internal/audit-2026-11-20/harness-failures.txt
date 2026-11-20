@@ -1,0 +1,13 @@
+--- FAIL: TestAuditBudgetPreservesContext (0.80s)
+    audit_overlay_test.go:11: closing request lost context: []llm.Message{llm.Message{ProviderState:(*llm.ReplayState)(nil), Harness:"time_limit", Request:0, ToolFailed:(*bool)(nil), ToolStatus:"", FinishReason:"", Role:"user", Content:"[harness] Work time has ended. Tools are disabled. Briefly report completed work, verification actually observed, blockers and remaining work. The task is incomplete; do not claim success.", ToolCalls:[]llm.ToolCall(nil), ToolCallID:"", Images:[]string(nil), Reasoning:""}}
+    audit_overlay_test.go:12: archive root corrupted: llm.Message{ProviderState:(*llm.ReplayState)(nil), Harness:"time_limit", Request:0, ToolFailed:(*bool)(nil), ToolStatus:"", FinishReason:"", Role:"user", Content:"[harness] Work time has ended. Tools are disabled. Briefly report completed work, verification actually observed, blockers and remaining work. The task is incomplete; do not claim success.", ToolCalls:[]llm.ToolCall(nil), ToolCallID:"", Images:[]string(nil), Reasoning:""}
+FAIL
+FAIL	github.com/keshon/gektor/internal/agent	2.682s
+--- FAIL: TestAuditCheckRejectsOtherSession (0.01s)
+    audit_overlay_test.go:17: other session read process log: status: still running
+        next_cursor: 14
+        output:
+        private marker
+FAIL
+FAIL	github.com/keshon/gektor/internal/tools/background	2.092s
+FAIL

@@ -81,7 +81,7 @@ func TestReviewedHTTPBindingResolvesCurrentSecretsAndRejectsChanges(t *testing.T
 				},
 			}
 			out, err := svc.RunSource(t.Context(), source, "http.json", nil)
-			if err != nil || requests != 0 || !strings.Contains(out, "waiting_review") {
+			if err != nil || requests != 0 || out.Status != "waiting_review" {
 				t.Fatal(out, err, requests)
 			}
 			target := "credential:api@https://api.example.com#" + binding.Revision
@@ -222,21 +222,15 @@ func TestCallbackHTTPWorkflowRestartsAndChecksCurrentCredentials(t *testing.T) {
 			}
 			first := newService()
 			out, err := first.RunSource(t.Context(), raw, "callback-http.json", nil)
-			if err != nil || requests.Load() != 1 || !strings.Contains(out, `"waiting"`) {
+			if err != nil || requests.Load() != 1 || out.Status != "waiting" {
 				t.Fatal(out, err)
 			}
-			var summary struct {
-				ID string `json:"run_id"`
-			}
-			err = json.Unmarshal([]byte(out), &summary)
-			if err != nil {
-				t.Fatal(err)
-			}
+			summary := out
 			db, err := store.OpenStore(storeDir, ws.Root())
 			if err != nil {
 				t.Fatal(err)
 			}
-			state, err := db.Run(summary.ID)
+			state, err := db.Run(summary.RunID)
 			if err != nil {
 				db.Close()
 				t.Fatal(err)
@@ -246,7 +240,7 @@ func TestCallbackHTTPWorkflowRestartsAndChecksCurrentCredentials(t *testing.T) {
 				db.Close()
 				t.Fatal("missing receipt")
 			}
-			delivery := store.CallbackDelivery{RunID: summary.ID, WaitID: receipt.ID, Channel: receipt.Channel, EventID: "accepted-once", Payload: json.RawMessage(`{"approved":true}`)}
+			delivery := store.CallbackDelivery{RunID: summary.RunID, WaitID: receipt.ID, Channel: receipt.Channel, EventID: "accepted-once", Payload: json.RawMessage(`{"approved":true}`)}
 			duplicate, err := db.AcceptCallback(t.Context(), delivery)
 			if err != nil || duplicate {
 				db.Close()
@@ -278,7 +272,7 @@ func TestCallbackHTTPWorkflowRestartsAndChecksCurrentCredentials(t *testing.T) {
 			if err != nil || closeErr != nil {
 				t.Fatal(err, closeErr)
 			}
-			state, err = db.Run(summary.ID)
+			state, err = db.Run(summary.RunID)
 			if err != nil || state.Status != "waiting_review" || requests.Load() != 1 {
 				t.Fatal(state.Status, err)
 			}
@@ -291,7 +285,7 @@ func TestCallbackHTTPWorkflowRestartsAndChecksCurrentCredentials(t *testing.T) {
 				t.Fatal(err)
 			}
 			reviewed := newService()
-			out, err = reviewed.Review(t.Context(), summary.ID, "after", true)
+			out, err = reviewed.Review(t.Context(), summary.RunID, "after", true)
 			if (err == nil) == revoke {
 				t.Fatal(out, err)
 			}
@@ -302,7 +296,7 @@ func TestCallbackHTTPWorkflowRestartsAndChecksCurrentCredentials(t *testing.T) {
 			if requests.Load() != expectedCalls {
 				t.Fatal("replayed or unauthorized request", requests.Load())
 			}
-			state, err = db.Run(summary.ID)
+			state, err = db.Run(summary.RunID)
 			if err != nil {
 				t.Fatal(err)
 			}

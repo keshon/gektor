@@ -38,7 +38,11 @@ func (s *Session) build(ctx context.Context) (*agent.Agent, *events.Emitter, rol
 		emitter.Emit("plan_mode", map[string]any{"read_only": true})
 		a, err = roles.Planner(env, "plan", s.cfg.StateFile, askFn)
 	} else {
-		a, err = roles.Interactive(env, "", s.cfg.StateFile, askFn, s.cfg.Verify)
+		var verification *roles.Verification
+		if s.cfg.Verify != nil {
+			verification = &roles.Verification{Run: s.cfg.Verify, Command: s.cfg.VerifyCommand}
+		}
+		a, err = roles.Interactive(env, "", s.cfg.StateFile, askFn, verification)
 	}
 	if err != nil {
 		return nil, emitter, env, err
@@ -135,14 +139,15 @@ func (s *Session) finish(a *agent.Agent, e *events.Emitter, env roles.Env) {
 }
 
 // Report returns the measured outcome of the most recent run or continuation.
-func (s *Session) Report() agent.RunReport { return s.lastReport }
+func (s *Session) Report() agent.RunReport { return s.lastReport.Clone() }
 
 // EmitOutcome reports measured effects and check output in every frontend.
 func EmitOutcome(e *events.Emitter, r agent.RunReport, stateFile string) {
 	if e == nil {
 		return
 	}
-	e.Emit("outcome", map[string]any{"outcome": r.Outcome, "files": r.MutatedPaths, "verification": r.Verification, "warnings": r.Warnings, "resume": stateFile, "open_todos": r.OpenTodos, "summary": r.Summary})
+	r = r.Clone()
+	e.Emit("outcome", map[string]any{"outcome": r.Outcome, "files": r.MutatedPaths, "verification": r.Verification, "verification_receipt": r.VerificationReceipt, "warnings": r.Warnings, "resume": stateFile, "open_todos": r.OpenTodos, "summary": r.Summary})
 }
 
 // EmitStep writes one step for the CLI and session driver. harnessReply

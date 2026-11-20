@@ -68,15 +68,19 @@ type BackendOptions struct {
 // Probe and client closures are replaced together on every settings relaunch.
 type Backend struct {
 	usageClient
-	AccountLabel string
-	descriptor   providers.Descriptor
-	httpClient   *http.Client
-	model        string
-	backendName  string
-	inspector    modelInspector
-	visionProbe  func(context.Context) (bool, error)
-	setDebug     func(io.Writer)
-	setDRY       func(bool)
+	AccountLabel  string
+	descriptor    providers.Descriptor
+	httpClient    *http.Client
+	model         string
+	backendName   string
+	inspector     modelInspector
+	visionProbe   func(context.Context) (bool, error)
+	visionMu      sync.Mutex // guards cached account facts and the active probe
+	visionKnown   bool
+	vision        bool
+	visionLoading chan struct{}
+	setDebug      func(io.Writer)
+	setDRY        func(bool)
 }
 
 // NewBackend validates the provider route and composes its client and inspector.
@@ -129,12 +133,8 @@ func NewBackend(ctx context.Context, o BackendOptions) (*Backend, error) {
 		b.usageClient = c
 		b.AccountLabel = bound.Label
 		// Replayed image history must not fetch the account catalog on every step.
-		var once sync.Once
-		var vision bool
-		var visionErr error
 		b.visionProbe = func(ctx context.Context) (bool, error) {
-			once.Do(func() { vision, visionErr = bound.SupportsVision(ctx, o.Model) })
-			return vision, visionErr
+			return bound.SupportsVision(ctx, o.Model)
 		}
 	case providers.ChatCompletions:
 		c, err := chatcompletions.ClientFor(d.Dialect, o.URL, o.Model)

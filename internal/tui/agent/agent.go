@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"charm.land/bubbles/v2/textinput"
@@ -75,6 +76,9 @@ type Model struct {
 
 	hidden           bool
 	shutdown         context.CancelFunc
+	workerMu         sync.Mutex // serializes worker admission with Close
+	workers          sync.WaitGroup
+	closed           bool
 	requests         []tea.Msg
 	chrome           *screen.Controls
 	steering         bool
@@ -271,10 +275,11 @@ type Config struct {
 	Fork             bool // History seeds a new turn instead of recovering a paused run.
 	ResumeAnswer     string
 
-	Env       roles.Env
-	Task      string
-	StateFile string
-	Verify    func(ctx context.Context) (output string, err error)
+	Env           roles.Env
+	Task          string
+	StateFile     string
+	Verify        func(ctx context.Context) (output string, err error)
+	VerifyCommand string
 	// Images attaches pictures to the opening task (-image with
 	// -tui); follow-up turns attach their own @paths per turn.
 	Images []string
@@ -389,8 +394,14 @@ func (m *Model) Init() tea.Cmd {
 	return tea.Batch(waitEvents(m), tick(false, m.busy()), m.takeCommands())
 }
 
-// Close cancels screen operations, including title generation and evaluation.
+// Close cancels screen operations and joins their cleanup before borrowed
+// services may be released. It also rejects commands that have not started yet.
 func (m *Model) Close() {
+	m.workerMu.Lock()
+	m.closed = true
+	m.workerMu.Unlock()
+
+	// Event delivery must unblock before waiting for final outcome publication.
 	if m.shutdown != nil {
 		m.shutdown()
 	}
@@ -399,6 +410,29 @@ func (m *Model) Close() {
 	}
 	m.cancelSessionTitle()
 	m.cancelEvaluation()
+	m.workers.Wait()
+}
+
+func (m *Model) beginWork() bool {
+	m.workerMu.Lock()
+	defer m.workerMu.Unlock()
+	if m.closed {
+		return false
+	}
+	m.workers.Add(1)
+	return true
+}
+
+// Background commands may be discarded by Bubble Tea during shutdown. Admit
+// their work only when invoked, so Close never waits for an unstarted command.
+func (m *Model) workerCommand(work tea.Cmd) tea.Cmd {
+	return func() tea.Msg {
+		if !m.beginWork() {
+			return nil
+		}
+		defer m.workers.Done()
+		return work()
+	}
 }
 
 // Finish persists local preferences and returns the completed run or relaunch request.
@@ -493,15 +527,16 @@ func newModel(uiCtx context.Context, cfg Config) *Model {
 
 	m.newSession = func(task, stateFile string, images []string) (*harness.Session, error) {
 		return harness.New(harness.Config{
-			Env:          m.sessionEnv(),
-			Task:         task,
-			Plan:         m.plan,
-			StateFile:    stateFile,
-			Verify:       cfg.Verify,
-			Images:       images,
-			Answer:       hub.Suspender(),
-			ResumeAnswer: cfg.ResumeAnswer,
-			Events:       sessionEventQueue{ctx: uiCtx, queue: eventsCh},
+			Env:           m.sessionEnv(),
+			Task:          task,
+			Plan:          m.plan,
+			StateFile:     stateFile,
+			Verify:        cfg.Verify,
+			VerifyCommand: cfg.VerifyCommand,
+			Images:        images,
+			Answer:        hub.Suspender(),
+			ResumeAnswer:  cfg.ResumeAnswer,
+			Events:        sessionEventQueue{ctx: uiCtx, queue: eventsCh},
 		})
 	}
 

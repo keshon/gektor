@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 )
 
@@ -51,6 +52,14 @@ type block struct {
 	returned    bool
 	toolStatus  string
 	contextText string
+	// Receipt facts are copied on arrival and remain immutable for render caching.
+	verification *conversation.VerificationReceipt
+	receipt      runReceipt
+}
+
+type runReceipt struct {
+	outcome, files, checks, resume string
+	summary, warnings, remaining   string
 }
 
 // assistantBlocks normalizes both backend reasoning formats for display only.

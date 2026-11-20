@@ -107,9 +107,9 @@ func (m *Model) stopProcess(msg processStopMsg) tea.Cmd {
 	}
 	m.chrome.Open("Stopping background process / "+msg.id, []string{"Waiting for the process and its children to exit…"})
 	dialog, procs := m.chrome.Dialog, m.baseEnv.Procs
-	return func() tea.Msg {
+	return m.workerCommand(func() tea.Msg {
 		return processStoppedMsg{dialog: dialog, view: msg.view, id: msg.id, err: procs.Stop(msg.id)}
-	}
+	})
 }
 
 func (m *Model) refreshProcesses(view *table.Model) {

@@ -53,11 +53,11 @@ func Planner(e Env, label, stateFile string, ask func(ctx context.Context, quest
 // under test has the same tools as the one that ships and reaching for
 // ask_user stays visible in the trace.
 //
-// verify, if set, runs the final build/test command without another model turn.
+// verification, if set, runs the final check without another model turn.
 func Interactive(e Env, label, stateFile string,
 	ask func(ctx context.Context, question string) (string, error),
-	verify func(ctx context.Context) (string, error)) (*agent.Agent, error) {
-	cfg, err := e.conversationConfig(label, stateFile, ask, verify)
+	verification *Verification) (*agent.Agent, error) {
+	cfg, err := e.conversationConfig(label, stateFile, ask, verification)
 	if err != nil {
 		return nil, err
 	}
@@ -68,13 +68,20 @@ func Interactive(e Env, label, stateFile string,
 	return agent.New(cfg), nil
 }
 
+// Verification keeps a check's configured command with its execution callback.
+// Command is empty for non-shell validators.
+type Verification struct {
+	Run     func(context.Context) (string, error)
+	Command string
+}
+
 // conversationConfig is everything Interactive and Planner share, which is
 // everything except the stance. One builder keeps their prompt prefix
 // identical by construction: the tests assert it, because a divergence there
 // is invisible until the operator pays for a full re-read.
 func (e Env) conversationConfig(label, stateFile string,
 	ask func(ctx context.Context, question string) (string, error),
-	verify func(ctx context.Context) (string, error)) (agent.Config, error) {
+	verification *Verification) (agent.Config, error) {
 	if e.Outputs == nil {
 		e.Outputs = tooloutput.New(e.statePath(stateFile))
 	}
@@ -109,7 +116,10 @@ func (e Env) conversationConfig(label, stateFile string,
 	}
 
 	cfg.RunTimeout = e.RunTimeout
-	cfg.Verify = verify
+	if verification != nil {
+		cfg.Verify = verification.Run
+		cfg.VerifyCommand = verification.Command
+	}
 
 	return cfg, nil
 }

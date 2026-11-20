@@ -40,13 +40,13 @@ type persistenceError struct{ error }
 func (e *persistenceError) Unwrap() error { return e.error }
 
 // Run loads an authorized recipe and runs or validates it with typed inputs.
-func (t Service) Run(ctx context.Context, path string, inputs map[string]json.RawMessage) (string, error) {
+func (t Service) Run(ctx context.Context, path string, inputs map[string]json.RawMessage) (Result, error) {
 	if path == "" {
-		return "", fmt.Errorf("recipe_path must not be empty")
+		return Result{}, fmt.Errorf("recipe_path must not be empty")
 	}
 
 	if len(inputs) > 32 {
-		return "", fmt.Errorf("workflow inputs exceed 32 properties")
+		return Result{}, fmt.Errorf("workflow inputs exceed 32 properties")
 	}
 
 	request, err := json.Marshal(struct {
@@ -54,20 +54,20 @@ func (t Service) Run(ctx context.Context, path string, inputs map[string]json.Ra
 		Inputs     map[string]json.RawMessage `json:"inputs,omitempty"`
 	}{path, inputs})
 	if err != nil {
-		return "", err
+		return Result{}, err
 	}
 
 	if len(request) > 64<<10 {
-		return "", fmt.Errorf("workflow arguments exceed 64 KiB")
+		return Result{}, fmt.Errorf("workflow arguments exceed 64 KiB")
 	}
 
 	if t.WS == nil || t.Authorize == nil {
-		return "", fmt.Errorf("workflow authorization or workspace unavailable")
+		return Result{}, fmt.Errorf("workflow authorization or workspace unavailable")
 	}
 
 	source, err := t.SnapshotRecipe(ctx, path)
 	if err != nil {
-		return "", err
+		return Result{}, err
 	}
 
 	return t.RunSource(ctx, source, path, inputs)
@@ -113,18 +113,18 @@ func (t Service) Snapshot(ctx context.Context, path string) ([]byte, error) {
 }
 
 // RunSource executes the exact saved bytes, including queued snapshots.
-func (t Service) RunSource(ctx context.Context, source []byte, path string, inputs map[string]json.RawMessage) (string, error) {
+func (t Service) RunSource(ctx context.Context, source []byte, path string, inputs map[string]json.RawMessage) (Result, error) {
 	if t.WS == nil || t.Registry == nil {
-		return "", fmt.Errorf("workflow service unavailable")
+		return Result{}, fmt.Errorf("workflow service unavailable")
 	}
 
 	if len(source) > 64<<10 {
-		return "", fmt.Errorf("recipe exceeds 64 KiB")
+		return Result{}, fmt.Errorf("recipe exceeds 64 KiB")
 	}
 
 	d, source, err := t.Compile(ctx, source, path)
 	if err != nil {
-		return "", fmt.Errorf("recipe %s: %w; allowed root fields: version, name, steps, inputs, outputs; edit the saved file", path, err)
+		return Result{}, fmt.Errorf("recipe %s: %w; allowed root fields: version, name, steps, inputs, outputs; edit the saved file", path, err)
 	}
 
 	digest := fmt.Sprintf("%x", sha256.Sum256(source))
@@ -136,17 +136,16 @@ func (t Service) RunSource(ctx context.Context, source []byte, path string, inpu
 	}
 	prepared, _, err := recipe.Prepare(d, inputs, h)
 	if err != nil {
-		return "", &workflow.RecipeError{Path: filepath.ToSlash(filepath.Clean(path)), Err: err}
+		return Result{}, &workflow.RecipeError{Path: filepath.ToSlash(filepath.Clean(path)), Err: err}
 	}
 
 	if t.ValidateOnly {
-		data, _ := json.Marshal(struct {
-			Valid      bool   `json:"valid"`
-			RecipePath string `json:"recipe_path"`
-			SHA256     string `json:"recipe_sha256"`
-			Scope      string `json:"scope"`
-		}{true, path, digest, "structure, inputs and argument templates; output-dependent values, permissions, record schemas and image compatibility checked during execution"})
-		return string(data), nil
+		return Result{
+			Valid:        true,
+			RecipePath:   path,
+			RecipeSHA256: digest,
+			Scope:        "structure, inputs and argument templates; output-dependent values, permissions, record schemas and image compatibility checked during execution",
+		}, nil
 	}
 
 	// Authorize known arguments before effects. Output-dependent arguments are
@@ -157,37 +156,37 @@ func (t Service) RunSource(ctx context.Context, source []byte, path string, inpu
 		}
 
 		if err := t.authorizeNode(ctx, s.Tool, s.Args); err != nil {
-			return "", err
+			return Result{}, err
 		}
 
 		h.authorized[authorizationFor(s)] = true
 	}
 
 	if err := ctx.Err(); err != nil {
-		return "", err
+		return Result{}, err
 	}
 
 	store, err := store.OpenStore(t.StoreDir, t.WS.Root())
 	if err != nil {
-		return "", &persistenceError{err}
+		return Result{}, &persistenceError{err}
 	}
 
 	defer store.Close()
 	err = store.ReconcileArtifacts(ctx)
 	if err != nil {
-		return "", &persistenceError{err}
+		return Result{}, &persistenceError{err}
 	}
 
 	w, err := store.NewRun()
 	if err != nil {
-		return "", &persistenceError{err}
+		return Result{}, &persistenceError{err}
 	}
 
 	defer w.Close()
 
 	if t.OnRun != nil {
 		if err := t.OnRun(w.ID()); err != nil {
-			return "", err
+			return Result{}, err
 		}
 	}
 
@@ -207,7 +206,7 @@ func (t Service) RunSource(ctx context.Context, source []byte, path string, inpu
 	r, err := engine.RunWithInputs(ctx, d, inputs, h, save)
 	// The full definition and outputs stay in the record, rather than being
 	// repeated in model context after every run.
-	steps := make([]stepSummary, 0, len(r.Steps))
+	steps := make([]StepSummary, 0, len(r.Steps))
 
 	for _, s := range r.Steps {
 		var evidence struct {
@@ -217,7 +216,7 @@ func (t Service) RunSource(ctx context.Context, source []byte, path string, inpu
 			Recovery     string          `json:"recovery"`
 		}
 		_ = json.Unmarshal([]byte(s.Output), &evidence)
-		steps = append(steps, stepSummary{
+		steps = append(steps, StepSummary{
 			ID:           s.ID,
 			Status:       s.Status,
 			Error:        s.Error,
@@ -228,28 +227,14 @@ func (t Service) RunSource(ctx context.Context, source []byte, path string, inpu
 		})
 	}
 
-	data, marshalErr := json.Marshal(struct {
-		Outputs  json.RawMessage         `json:"outputs,omitempty"`
-		ID       string                  `json:"run_id"`
-		Path     string                  `json:"database_path"`
-		Status   string                  `json:"status"`
-		SHA256   string                  `json:"recipe_sha256"`
-		Steps    []stepSummary           `json:"steps"`
-		Callback *workflow.CallbackState `json:"callback,omitempty"`
-		ResumeAt *time.Time              `json:"resume_at,omitempty"`
-	}{
-		Outputs:  DeclaredOutputs(r),
-		ID:       w.ID(),
-		Path:     filepath.ToSlash(w.DatabasePath()),
-		Status:   r.Status,
-		SHA256:   digest,
-		Steps:    steps,
-		ResumeAt: r.WakeAt,
-		Callback: workflow.PendingCallback(r),
-	})
-	if marshalErr != nil {
-		return "", marshalErr
-	}
-
-	return string(data), err
+	return Result{
+		Outputs:      DeclaredOutputs(r),
+		RunID:        w.ID(),
+		DatabasePath: filepath.ToSlash(w.DatabasePath()),
+		Status:       r.Status,
+		RecipeSHA256: digest,
+		Steps:        steps,
+		ResumeAt:     r.WakeAt,
+		Callback:     workflow.PendingCallback(r),
+	}, err
 }

@@ -70,7 +70,7 @@ func speakerStyle(r role, st styles) lipgloss.Style {
 	case roleUser:
 		return st.User
 	case roleAnswer, roleThink, roleTool, roleResult:
-		return st.Gate
+		return st.Title
 	default:
 		return st.Dim
 	}
@@ -107,7 +107,7 @@ type renderOpts struct {
 // starts in column 0 because the label row already said what the block is —
 // a per-line gutter repeating it cost two cells of every row to say nothing.
 //
-// Answer, user and think roles run the markdown-lite path; tool args,
+// Answer, user and think roles run the Markdown path; tool args,
 // diffs, gates and markers stay raw so a glob `*.go` can never toggle bold.
 // Lines reflow to width, since the viewport never wraps and an unbroken
 // long line would vanish past the right edge.
@@ -134,7 +134,7 @@ func renderBlock(b block, st styles, opts renderOpts, width int) string {
 	case b.role == roleTool && opts.hideTools:
 		body = []string{compactTool(b, st, width)}
 	case b.role == roleReceipt:
-		body = receiptText(raw, st, width)
+		body = receiptText(b, st, width)
 	case b.role == roleResult && opts.hideTools:
 		body = []string{st.Dim.Render(cellLine(fmt.Sprintf("Tool result · %d bytes", len(b.text)), width))}
 	case b.role == roleTool:
@@ -230,61 +230,12 @@ func renderToolCard(b block, st styles, width int) []string {
 	return out
 }
 
-// isMdRole reports whether the role renders markdown-lite. Tool args
+// isMdRole reports whether the role renders Markdown. Tool args
 // (`*.go` globs), diffs and notices stay raw: a harness prompt, a path
 // or a diagnostic is literal text, and reformatting it would invent
 // structure its author never wrote.
 func isMdRole(r role) bool {
 	return r == roleAnswer || r == roleUser || r == roleThink
-}
-
-// renderMdBlock interprets fences/headers/spans, then reflows and
-// styles. Span state is fresh per logical line: a wrap-split span
-// survives fragments, a stray marker stains one line at most.
-func renderMdBlock(b block, raw string, st styles, width int) []string {
-	var rows []string
-	for _, line := range mdBlockLines(raw) {
-		span := &spanState{}
-		fragments := reflow(line.text, max(width, 1))
-		for _, fragment := range fragments {
-			rendered := line.renderFragment(fragment, b.role, st, span)
-			rows = append(rows, rendered)
-		}
-	}
-	return rows
-}
-
-func (line mdLine) renderFragment(fragment string, r role, st styles, span *spanState) string {
-	base := baseStyle(r, st)
-	if line.fence {
-		if r == roleThink {
-			return base.Render(fragment)
-		}
-		return st.Dim.Render(fragment)
-	}
-
-	if line.header {
-		base = base.Bold(true)
-	}
-	code := base.Foreground(lipgloss.Color(themeColor(colorAccent)))
-	if r == roleThink {
-		code = base
-	}
-	bold := base.Bold(true)
-	if !line.table {
-		return renderSpans(fragment, base, bold, code, span)
-	}
-
-	cells := strings.Split(fragment, "|")
-	for i, cell := range cells {
-		// Spans survive wraps within a cell, but cannot bleed into another cell.
-		if i > 0 {
-			*span = spanState{}
-		}
-		cells[i] = renderSpans(cell, base, bold, code, span)
-	}
-	separator := st.Dim.Render("|")
-	return strings.Join(cells, separator)
 }
 
 // stampWidth is the " [15:04]" suffix reserved on the label row.

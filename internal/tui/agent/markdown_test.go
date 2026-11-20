@@ -45,7 +45,7 @@ func TestMarkdownFence(t *testing.T) {
 
 func TestMarkdownBullets(t *testing.T) {
 	st := defaultStyles()
-	out := renderBlock(answerBlock("- item\n  * sub"), st, tagged(), 80)
+	out := ansi.Strip(renderBlock(answerBlock("- item\n  * sub"), st, tagged(), 80))
 	if !strings.Contains(out, "• item") || !strings.Contains(out, "• sub") {
 		t.Fatalf("bullets not prettified: %q", out)
 	}
@@ -73,37 +73,15 @@ func TestMarkdownGlobSafe(t *testing.T) {
 	}
 }
 
-func TestMarkdownTableGrid(t *testing.T) {
-	rows := renderTable([]string{
-		"| A | B |",
-		"| --- | --- |",
-		"| x | yy |",
-	})
-	want := []string{"| A | B  |", "| ─── | ─── |", "| x | yy |"}
-	if len(rows) != len(want) {
-		t.Fatalf("rows = %+v", rows)
-	}
-	for i := range want {
-		if rows[i].text != want[i] {
-			t.Fatalf("row %d = %q, want %q", i, rows[i].text, want[i])
+func TestMarkdownLiteralsSurviveConversationRoles(t *testing.T) {
+	for _, r := range []role{roleUser, roleAnswer, roleThink} {
+		for _, source := range []string{"inspect *.go", "2 * 3", "unclosed `code", "find **/*.go", "partial **bold"} {
+			b := block{role: r, text: source}
+			out := ansi.Strip(renderBlock(b, defaultStyles(), renderOpts{expand: true}, 80))
+			if out != source {
+				t.Errorf("role %v: %q became %q", r, source, out)
+			}
 		}
-	}
-	if !rows[0].header || !rows[1].fence || rows[2].header || rows[2].fence {
-		t.Fatalf("row kinds wrong: %+v", rows)
-	}
-}
-
-func TestMarkdownTableAlignRight(t *testing.T) {
-	rows := renderTable([]string{
-		"| Name | Number |",
-		"| --- | ---: |",
-		"| ab | 7 |",
-	})
-	if len(rows) != 3 {
-		t.Fatalf("rows = %+v", rows)
-	}
-	if !strings.Contains(rows[2].text, "|      7 |") {
-		t.Fatalf("right align missing: %q", rows[2].text)
 	}
 }
 
@@ -126,31 +104,6 @@ func TestMarkdownPipesLiteral(t *testing.T) {
 	out := renderBlock(answerBlock("echo a | grep b"), st, tagged(), 80)
 	if !strings.Contains(out, "echo a | grep b") {
 		t.Fatalf("pipe line altered: %q", out)
-	}
-}
-
-func TestMarkdownTableBordersAreDim(t *testing.T) {
-	st := defaultStyles()
-	in := "| Day | Conditions |\n| --- | --- |\n| **Saturday** | `Snow` |"
-	for _, width := range []int{80, 12} {
-		rows := renderMdBlock(block{role: roleAnswer}, in, st, width)
-		for _, row := range rows {
-			if strings.Contains(row, "─") {
-				continue
-			}
-			withoutBorders := strings.ReplaceAll(row, st.Dim.Render("|"), "")
-			if strings.Contains(ansi.Strip(withoutBorders), "|") {
-				t.Fatalf("width %d: bright table separator in %q", width, row)
-			}
-		}
-		if width == 80 {
-			if !strings.Contains(rows[0], baseStyle(roleAnswer, st).Bold(true).Render(" Day      ")) {
-				t.Fatalf("header lost bold style: %q", rows[0])
-			}
-			if strings.Contains(ansi.Strip(strings.Join(rows, "\n")), "**") {
-				t.Fatal("cell markup was not rendered")
-			}
-		}
 	}
 }
 

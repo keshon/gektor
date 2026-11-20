@@ -1,0 +1,6 @@
+=== RUN   TestAcceptanceAmounts
+    acceptance_test.go:27: accepted invalid amount "--1"
+--- FAIL: TestAcceptanceAmounts (0.00s)
+FAIL
+exit status 1
+FAIL	example.com/ledger	0.364s

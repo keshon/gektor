@@ -1,0 +1,22 @@
+package background
+
+import (
+	"encoding/json"
+	tooloutput "github.com/keshon/gektor/internal/tools/output"
+	"path/filepath"
+	"testing"
+)
+
+func TestAuditCheckRejectsOtherSession(t *testing.T) {
+	procs := New()
+	owner := tooloutput.New(filepath.Join(t.TempDir(), "owner.json"))
+	other := tooloutput.New(filepath.Join(t.TempDir(), "other.json"))
+	buf := &tooloutput.Buffer{}
+	_, _ = buf.Write([]byte("private marker"))
+	procs.procs["bg1"] = &bgProc{output: buf, scope: owner.Scope()}
+	check := Check{Procs: procs}
+	out, err := check.Run(other.Context(t.Context()), json.RawMessage(`{"id":"bg1","cursor":0}`))
+	if err == nil {
+		t.Fatalf("other session read process log: %s", out)
+	}
+}

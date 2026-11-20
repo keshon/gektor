@@ -60,7 +60,12 @@ func observeProbeResults(env roles.Env, res *Result, calls *[]call, started time
 
 func checkProbeOutcome(ctx context.Context, p Probe, ws *workspace.Workspace, images []string, calls []call, answer string, res *Result) {
 	checkStarted := time.Now()
-	res.ArtifactFailures = checkArtifacts(ctx, p, ws)
+	res.Checks = checkArtifacts(ctx, p, ws)
+	for _, check := range res.Checks {
+		if !check.Passed {
+			res.ArtifactFailures = append(res.ArtifactFailures, firstLine(check.Output))
+		}
+	}
 	if len(images) > 0 {
 		files, _ := generatedFixture(p.Generated)
 		for i, path := range images {
@@ -74,13 +79,15 @@ func checkProbeOutcome(ctx context.Context, p Probe, ws *workspace.Workspace, im
 	res.ArtifactPassed = &artifactPassed
 	res.CheckSeconds = time.Since(checkStarted).Seconds()
 	res.Failures = append(res.Failures, res.ArtifactFailures...)
-	res.Failures = append(res.Failures, checkTrace(p, calls)...)
+	res.TraceFailures = checkTrace(p, calls)
 	if p.Generated != "" {
 		if err := checkWorkflowTrace(calls, ws); err != nil {
-			res.Failures = append(res.Failures, err.Error())
+			res.TraceFailures = append(res.TraceFailures, err.Error())
 		}
 	}
-	res.Failures = append(res.Failures, checkAnswer(p, answer)...)
+	res.AnswerFailures = checkAnswer(p, answer)
+	res.Failures = append(res.Failures, res.TraceFailures...)
+	res.Failures = append(res.Failures, res.AnswerFailures...)
 }
 
 // roles.Interactive is what cmd/gektor builds too, so the probe

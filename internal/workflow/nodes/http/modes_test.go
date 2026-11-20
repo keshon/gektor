@@ -231,7 +231,7 @@ func TestRedirectsUseCurrentServicePolicyBeforeEveryDestination(t *testing.T) {
 			if len(authorized) < 2 || authorized[len(authorized)-1] != "GET https://api.example.com/next" {
 				t.Fatal(authorized)
 			}
-			if deny && !strings.Contains(out, `"failed"`) {
+			if deny && out.Status != "failed" {
 				t.Fatal("denial was hidden", out)
 			}
 		})
@@ -308,19 +308,13 @@ func TestHTTPWorkflowPassesBinaryArtifactAcrossReview(t *testing.T) {
 	svc := service.Service{WS: ws, StoreDir: t.TempDir(), Registry: registry, AuthorizeResource: func(context.Context, string, string, json.RawMessage) error { return nil }}
 	recipe := []byte(`{"version":4,"name":"binary transfer","steps":[{"id":"download","tool":"http_request","args":{"url":"https://api.example.com/file","response_format":"artifact","artifact_name":"source.bin"}},{"id":"upload","tool":"http_request","review":true,"depends_on":["download"],"args":{"url":"https://api.example.com/upload","method":"POST","body_format":"artifact","body_artifact":{"$step":"download","pointer":"/artifact/id"},"response_format":"json"}}]}`)
 	out, err := svc.RunSource(t.Context(), recipe, "binary.json", nil)
-	if err != nil || downloads != 1 || uploads != 0 || !strings.Contains(out, "waiting_review") {
+	if err != nil || downloads != 1 || uploads != 0 || out.Status != "waiting_review" {
 		t.Fatal(out, err, downloads, uploads)
 	}
-	var summary struct {
-		ID string `json:"run_id"`
-	}
-	err = json.Unmarshal([]byte(out), &summary)
-	if err != nil {
-		t.Fatal(err)
-	}
+	summary := out
 	restarted := service.Service{WS: ws, StoreDir: svc.StoreDir, Registry: registry, AuthorizeResource: svc.AuthorizeResource}
-	out, err = restarted.Review(t.Context(), summary.ID, "upload", true)
-	if err != nil || downloads != 1 || uploads != 1 || !strings.Contains(out, `"completed"`) {
+	out, err = restarted.Review(t.Context(), summary.RunID, "upload", true)
+	if err != nil || downloads != 1 || uploads != 1 || out.Status != "completed" {
 		t.Fatal(out, err, downloads, uploads)
 	}
 }

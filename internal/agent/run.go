@@ -189,7 +189,7 @@ func (a *Agent) acceptNotifications(ctx context.Context, history []llm.Message) 
 
 func (a *Agent) handleChatError(st *runState, step int, err error, history []llm.Message, contexts ...context.Context) ([]llm.Message, error) {
 	if !llm.IsOverflow(err) {
-		return nil, fmt.Errorf("step %d: chat: %w", step, err)
+		return history, fmt.Errorf("step %d: chat: %w", step, err)
 	}
 	shrunk := false
 	hasExchange := false
@@ -240,7 +240,7 @@ func (a *Agent) handleChatError(st *runState, step int, err error, history []llm
 		shrunk = true
 	}
 	if !shrunk || st.overflowRetried {
-		return nil, fmt.Errorf("step %d: context overflow persists after compaction — /compact the session, shorten the task, or use a larger-context model: %w", step, err)
+		return history, fmt.Errorf("step %d: context overflow persists after compaction — /compact the session, shorten the task, or use a larger-context model: %w", step, err)
 	}
 	st.overflowRetried = true
 	notice := prompts.OverflowRecovered

@@ -59,6 +59,7 @@ type Config struct {
 	// Verify performs configured verification once after the final answer.
 	// Its output is recorded without another model call.
 	Verify           func(context.Context) (output string, err error)
+	VerifyCommand    string
 	CompactKeepSteps int
 	CompactAtPercent int
 	Policy           permission.Policy

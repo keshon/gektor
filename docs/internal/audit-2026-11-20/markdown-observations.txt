@@ -1,0 +1,20 @@
+Captured stdout from command:
+go test ./internal/tui/agent -run '^TestAuditLiteralMarkdownProbe$' -count=1 -v
+
+Temporary source was internal/tui/agent/audit_render_probe_test.go and was removed after execution.
+The matching source is preserved in literal-markdown-probe-source.txt.
+The probe logs observable rendering; PASS means it ran, not that the rendering is correct.
+
+=== RUN   TestAuditLiteralMarkdownProbe
+    audit_render_probe_test.go:12: role=1 input="inspect *.go" output="inspect .go"
+    audit_render_probe_test.go:12: role=1 input="2 * 3" output="2  3"
+    audit_render_probe_test.go:12: role=1 input="an unmatched `backtick" output="an unmatched backtick"
+    audit_render_probe_test.go:12: role=0 input="inspect *.go" output="inspect .go"
+    audit_render_probe_test.go:12: role=0 input="2 * 3" output="2  3"
+    audit_render_probe_test.go:12: role=0 input="an unmatched `backtick" output="an unmatched backtick"
+--- PASS: TestAuditLiteralMarkdownProbe (0.00s)
+PASS
+ok  github.com/keshon/gektor/internal/tui/agent 0.331s
+
+role=1 is roleUser; role=0 is roleAnswer.
+No production source was changed.

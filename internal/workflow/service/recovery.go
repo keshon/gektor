@@ -4,9 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"time"
 
 	"github.com/keshon/gektor/internal/workflow"
 	"github.com/keshon/gektor/internal/workflow/engine"
@@ -14,45 +12,45 @@ import (
 )
 
 // Recover is an operator action, deliberately absent from Agent and HTTP adapters.
-func (s Service) Recover(ctx context.Context, id string, request workflow.Recovery) (string, error) {
+func (s Service) Recover(ctx context.Context, id string, request workflow.Recovery) (Result, error) {
 	db, err := store.OpenStore(s.StoreDir, s.WS.Root())
 	if err != nil {
-		return "", err
+		return Result{}, err
 	}
 	defer db.Close()
 
 	writer, r, err := db.EditRun(id)
 	if err != nil {
-		return "", err
+		return Result{}, err
 	}
 	defer writer.Close()
 
 	if r.Status != "running" {
-		return "", fmt.Errorf("run is not interrupted")
+		return Result{}, fmt.Errorf("run is not interrupted")
 	}
 	digest := sha256.Sum256([]byte(r.RecipeSource))
 	if fmt.Sprintf("%x", digest) != r.RecipeSHA256 {
-		return "", fmt.Errorf("recipe snapshot hash mismatch")
+		return Result{}, fmt.Errorf("recipe snapshot hash mismatch")
 	}
 
 	if s.AuthorizeResource == nil {
-		return "", fmt.Errorf("recovery authorization unavailable")
+		return Result{}, fmt.Errorf("recovery authorization unavailable")
 	}
 	args, err := json.Marshal(struct {
 		Path string `json:"recipe_path"`
 	}{Path: r.RecipePath})
 	if err != nil {
-		return "", err
+		return Result{}, err
 	}
 	err = s.AuthorizeResource(ctx, "workflow_run", r.RecipePath, args)
 	if err != nil {
-		return "", err
+		return Result{}, err
 	}
 	for _, step := range workflow.ScopedSteps(r) {
 		if step.Result.Callback != nil && (step.Result.Status == "running" || step.Result.Status == "waiting") {
 			err = s.authorizeNode(ctx, step.Definition.Tool, step.Result.Args)
 			if err != nil {
-				return "", err
+				return Result{}, err
 			}
 		}
 	}
@@ -64,36 +62,36 @@ func (s Service) Recover(ctx context.Context, id string, request workflow.Recove
 	for _, decision := range request.Decisions {
 		step, ok := candidates[decision.StepID]
 		if !ok {
-			return "", fmt.Errorf("invocation %q is not uncertain", decision.StepID)
+			return Result{}, fmt.Errorf("invocation %q is not uncertain", decision.StepID)
 		}
 		if decision.Action != "complete" {
 			continue
 		}
 		node, nodeErr := s.Registry.Node(step.Definition.Tool)
 		if nodeErr != nil {
-			return "", nodeErr
+			return Result{}, nodeErr
 		}
 		if len(node.OutputSchema) > 0 {
 			err = workflow.ValidateJSON(decision.Output, node.OutputSchema)
 			if err != nil {
-				return "", fmt.Errorf("recovery output for %s: %w", step.ID, err)
+				return Result{}, fmt.Errorf("recovery output for %s: %w", step.ID, err)
 			}
 		}
 		err = s.authorizeNode(ctx, step.Definition.Tool, step.Result.Args)
 		if err != nil {
-			return "", err
+			return Result{}, err
 		}
 	}
 
 	jobs, err := db.Jobs(ctx)
 	if err != nil {
-		return "", err
+		return Result{}, err
 	}
 	var linked *store.Job
 	for _, job := range jobs {
 		if job.RunID == id {
 			if job.Cancel {
-				return "", fmt.Errorf("job has a pending cancellation; recovery denied")
+				return Result{}, fmt.Errorf("job has a pending cancellation; recovery denied")
 			}
 			copy := job
 			linked = &copy
@@ -101,7 +99,7 @@ func (s Service) Recover(ctx context.Context, id string, request workflow.Recove
 		}
 	}
 
-	execute := func(runctx context.Context) (string, error) {
+	execute := func(runctx context.Context) (Result, error) {
 		h := &handler{
 			registry:   s.Registry,
 			authorize:  s.authorizeNode,
@@ -122,14 +120,13 @@ func (s Service) Recover(ctx context.Context, id string, request workflow.Recove
 		if status == "running" {
 			status = "interrupted"
 		}
-		encoded, encodeErr := json.Marshal(struct {
-			ID       string                  `json:"run_id"`
-			Status   string                  `json:"status"`
-			Outputs  json.RawMessage         `json:"outputs,omitempty"`
-			Callback *workflow.CallbackState `json:"callback,omitempty"`
-			ResumeAt *time.Time              `json:"resume_at,omitempty"`
-		}{ID: id, Status: status, Outputs: DeclaredOutputs(r), Callback: workflow.PendingCallback(r), ResumeAt: r.WakeAt})
-		return string(encoded), errors.Join(runErr, encodeErr)
+		return Result{
+			RunID:    id,
+			Status:   status,
+			Outputs:  DeclaredOutputs(r),
+			Callback: workflow.PendingCallback(r),
+			ResumeAt: r.WakeAt,
+		}, runErr
 	}
 	if linked != nil {
 		// A failed queue checkpoint may have left a terminal job beside an
@@ -142,7 +139,7 @@ func (s Service) Recover(ctx context.Context, id string, request workflow.Recove
 			return nil
 		})
 		if err != nil {
-			return "", err
+			return Result{}, err
 		}
 		return withJob(ctx, db, *linked, execute)
 	}

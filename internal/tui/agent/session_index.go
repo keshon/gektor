@@ -20,7 +20,7 @@ func (m *Model) refreshSessions() {
 		m.sessions.loading = true
 	}
 	revision, root, cache, search := m.sessionRevision, m.sessionRoot(), m.sessionIndex, m.sessions != nil
-	m.pendingCommands = append(m.pendingCommands, func() tea.Msg {
+	m.pendingCommands = append(m.pendingCommands, m.workerCommand(func() tea.Msg {
 		entries, index, err := scanSessions(root, cache, search)
 		return sessionsLoadedMsg{
 			revision: revision,
@@ -29,7 +29,7 @@ func (m *Model) refreshSessions() {
 			cache:    index,
 			err:      err,
 		}
-	})
+	}))
 }
 func (m *Model) takeCommands() tea.Cmd {
 	commands := m.pendingCommands

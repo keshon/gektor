@@ -1,0 +1,108 @@
+{
+  "overall": {
+    "scored": 7,
+    "passed": 5,
+    "errors": 0,
+    "skipped": 0,
+    "median_seconds": 36.4428865,
+    "median_steps": 5,
+    "prompt_tokens": 461172,
+    "cached_tokens": 427424,
+    "completion_tokens": 22778,
+    "tool_failures": 4,
+    "clarification_calls": 0
+  },
+  "probes": {
+    "05-patch-unique": {
+      "scored": 1,
+      "passed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "median_seconds": 35.9758954,
+      "median_steps": 4,
+      "prompt_tokens": 22606,
+      "cached_tokens": 16533,
+      "completion_tokens": 218,
+      "tool_failures": 0,
+      "clarification_calls": 0
+    },
+    "09-grep-then-edit": {
+      "scored": 1,
+      "passed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "median_seconds": 36.4428865,
+      "median_steps": 4,
+      "prompt_tokens": 22916,
+      "cached_tokens": 21638,
+      "completion_tokens": 299,
+      "tool_failures": 0,
+      "clarification_calls": 0
+    },
+    "13-dev-server-trap": {
+      "scored": 1,
+      "passed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "median_seconds": 141.7263817,
+      "median_steps": 5,
+      "prompt_tokens": 29346,
+      "cached_tokens": 27776,
+      "completion_tokens": 729,
+      "tool_failures": 0,
+      "clarification_calls": 0
+    },
+    "18-overflow-recovery": {
+      "scored": 1,
+      "passed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "median_seconds": 5.9575510000000005,
+      "median_steps": 3,
+      "prompt_tokens": 11114,
+      "cached_tokens": 10385,
+      "completion_tokens": 78,
+      "tool_failures": 0,
+      "clarification_calls": 0
+    },
+    "23-browser-unavailable": {
+      "scored": 1,
+      "passed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "median_seconds": 79.4571735,
+      "median_steps": 8,
+      "prompt_tokens": 51066,
+      "cached_tokens": 47801,
+      "completion_tokens": 2193,
+      "tool_failures": 0,
+      "clarification_calls": 0
+    },
+    "24-nested-skills": {
+      "scored": 1,
+      "passed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "median_seconds": 24.0735751,
+      "median_steps": 5,
+      "prompt_tokens": 30031,
+      "cached_tokens": 28230,
+      "completion_tokens": 586,
+      "tool_failures": 0,
+      "clarification_calls": 0
+    },
+    "25-ledger-repair": {
+      "scored": 1,
+      "passed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "median_seconds": 605.3919578,
+      "median_steps": 25,
+      "prompt_tokens": 294093,
+      "cached_tokens": 275061,
+      "completion_tokens": 18675,
+      "tool_failures": 4,
+      "clarification_calls": 0
+    }
+  }
+}

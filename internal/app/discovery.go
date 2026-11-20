@@ -46,20 +46,26 @@ func DiscoverModels(ctx context.Context, o BackendOptions) ([]string, error) {
 // its own environment copy; no running client's state is mutated.
 func (b *Backend) RefreshModelFacts(ctx context.Context) llm.ModelFacts {
 	facts := llm.ModelFacts{}
-	if b.descriptor.Discovery != providers.LocalProbe {
+	local := b.descriptor.Discovery == providers.LocalProbe
+	if !local && b.descriptor.Discovery != providers.AccountModels {
 		return facts
 	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	if n, err := b.MaxContextLength(ctx); err == nil && n > 0 {
-		facts.ContextLimit = n
-		facts.ContextKnown = true
+	if local {
+		limit, err := b.MaxContextLength(ctx)
+		if err == nil && limit > 0 {
+			facts.ContextLimit = limit
+			facts.ContextKnown = true
+		}
+		name, err := b.ModelName(ctx)
+		if err == nil && strings.TrimSpace(name) != "" {
+			facts.Model = name
+			facts.ModelKnown = true
+		}
 	}
-	if name, err := b.ModelName(ctx); err == nil && strings.TrimSpace(name) != "" {
-		facts.Model = name
-		facts.ModelKnown = true
-	}
-	if vision, err := b.SupportsVision(ctx); err == nil {
+	vision, err := b.SupportsVision(ctx)
+	if err == nil {
 		facts.Vision = vision
 		facts.VisionKnown = true
 	}

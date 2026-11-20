@@ -167,6 +167,7 @@ func TestTUILaunchPreservesPreparedRunConfiguration(t *testing.T) {
 		verified := false
 		cfg.Task, cfg.StateFile, cfg.Images = "new instruction", "new-state.json", []string{"new.png"}
 		cfg.Verify = func(context.Context) (string, error) { verified = true; return "checked", nil }
+		cfg.VerifyCommand = "go test ./..."
 		history := []llm.Message{{Role: llm.RoleUser, Content: "old instruction"}}
 		got := tuiConfiguration(launchRequest{}, o, cfg, history)
 		if got.Env.Client != client || got.Env.WS != ws || got.Env.Model != cfg.Env.Model || got.Env.Identity != cfg.Env.Identity || got.Env.Temperature != cfg.Env.Temperature || got.Env.ContextLimit != cfg.Env.ContextLimit || !got.Env.VisionKnown || !got.Env.Stream || len(got.Env.Rules) != len(cfg.Env.Rules) {
@@ -175,7 +176,7 @@ func TestTUILaunchPreservesPreparedRunConfiguration(t *testing.T) {
 		if got.Task != cfg.Task || got.StateFile != cfg.StateFile || got.Images[0] != cfg.Images[0] || got.Plan != cfg.Plan || got.ResumeAnswer != cfg.ResumeAnswer || got.Fork != fork || len(got.History) != 1 {
 			t.Fatal("TUI adapter lost turn settings")
 		}
-		if _, err := got.Verify(t.Context()); err != nil || !verified {
+		if _, err := got.Verify(t.Context()); err != nil || !verified || got.VerifyCommand != cfg.VerifyCommand {
 			t.Fatal("TUI adapter lost verification callback", err)
 		}
 	}

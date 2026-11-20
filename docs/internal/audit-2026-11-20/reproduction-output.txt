@@ -1,0 +1,30 @@
+Audit probes intentionally fail on the audited revision. Evidence: C:\Users\keshon\AppData\Local\Temp\gektor-audit-249328c15f32419bbeca41f1b2973bbc
+=== RUN   TestAuditBudgetPreservesContext
+    audit_budget_test.go:24: closing request lost context: []llm.Message{llm.Message{ProviderState:(*llm.ReplayState)(nil), Harness:"time_limit", Request:0, ToolFailed:(*bool)(nil), ToolStatus:"", FinishReason:"", Role:"user", Content:"[harness] Work time has ended. Tools are disabled. Briefly report completed work, verification actually observed, blockers and remaining work. The task is incomplete; do not claim success.", ToolCalls:[]llm.ToolCall(nil), ToolCallID:"", Images:[]string(nil), Reasoning:""}}
+    audit_budget_test.go:27: archive root corrupted: llm.Message{ProviderState:(*llm.ReplayState)(nil), Harness:"time_limit", Request:0, ToolFailed:(*bool)(nil), ToolStatus:"", FinishReason:"", Role:"user", Content:"[harness] Work time has ended. Tools are disabled. Briefly report completed work, verification actually observed, blockers and remaining work. The task is incomplete; do not claim success.", ToolCalls:[]llm.ToolCall(nil), ToolCallID:"", Images:[]string(nil), Reasoning:""}
+    audit_budget_test.go:35: persisted context lost its system message: []llm.Message{llm.Message{ProviderState:(*llm.ReplayState)(nil), Harness:"time_limit", Request:0, ToolFailed:(*bool)(nil), ToolStatus:"", FinishReason:"", Role:"user", Content:"[harness] Work time has ended. Tools are disabled. Briefly report completed work, verification actually observed, blockers and remaining work. The task is incomplete; do not claim success.", ToolCalls:[]llm.ToolCall(nil), ToolCallID:"", Images:[]string(nil), Reasoning:""}, llm.Message{ProviderState:(*llm.ReplayState)(nil), Harness:"", Request:0, ToolFailed:(*bool)(nil), ToolStatus:"", FinishReason:"", Role:"user", Content:"task sentinel", ToolCalls:[]llm.ToolCall(nil), ToolCallID:"", Images:[]string(nil), Reasoning:""}, llm.Message{ProviderState:(*llm.ReplayState)(nil), Harness:"", Request:0, ToolFailed:(*bool)(nil), ToolStatus:"", FinishReason:"", Role:"assistant", Content:"The requested browser check remains unverified.", ToolCalls:[]llm.ToolCall(nil), ToolCallID:"", Images:[]string(nil), Reasoning:""}}
+--- FAIL: TestAuditBudgetPreservesContext (0.82s)
+FAIL
+FAIL	github.com/keshon/gektor/internal/agent	1.822s
+=== RUN   TestAuditCheckRejectsOtherSession
+    audit_background_test.go:20: other session read process log: status: still running
+        next_cursor: 14
+        output:
+        private marker
+--- FAIL: TestAuditCheckRejectsOtherSession (0.00s)
+FAIL
+FAIL	github.com/keshon/gektor/internal/tools/background	1.173s
+=== RUN   TestAuditCloseJoinsActiveRun
+    audit_close_test.go:64: Close returned while cancelled run still owned its finalization phase
+--- FAIL: TestAuditCloseJoinsActiveRun (0.00s)
+=== RUN   TestAuditLiteralMarkdownProbe
+    audit_markdown_test.go:12: role=1 input="inspect *.go" output="inspect .go"
+    audit_markdown_test.go:12: role=1 input="2 * 3" output="2  3"
+    audit_markdown_test.go:12: role=1 input="an unmatched `backtick" output="an unmatched backtick"
+    audit_markdown_test.go:12: role=0 input="inspect *.go" output="inspect .go"
+    audit_markdown_test.go:12: role=0 input="2 * 3" output="2  3"
+    audit_markdown_test.go:12: role=0 input="an unmatched `backtick" output="an unmatched backtick"
+--- PASS: TestAuditLiteralMarkdownProbe (0.00s)
+FAIL
+FAIL	github.com/keshon/gektor/internal/tui/agent	0.149s
+FAIL

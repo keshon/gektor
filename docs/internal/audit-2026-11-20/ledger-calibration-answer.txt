@@ -1,0 +1,28 @@
+The task is complete. Here's a summary of what was fixed and verified.
+
+## Bugs found and fixed
+
+**`ledger.go` — `TotalCents` was fundamentally broken.** The original did `strconv.Atoi(strings.ReplaceAll(value, ".", ""))`, which silently stripped the dot and misinterpreted magnitudes (`"1"` → 1 not 100, `"1.2"` → 12 not 120), with zero validation. Rewrote it as an exact decimal→cents parser that:
+- Trims surrounding whitespace; allows a leading `+`/`-` (signed refunds).
+- Splits on `.`, multiplies the integer part by 100 and adds each fractional digit scaled (1 digit ×10, 2 digits ×10/×1).
+- Rejects empty amounts, non-numeric characters, exponent notation (`1e2`/`1E-3`), and >2 fractional digits.
+- Accepts `.5`→50 and `5.`→500 for robustness. **Kept the existing `func TotalCents(values []string) (int, error)` signature.**
+
+**`cmd/ledger/main.go`** passed `os.Args` (including the program name at index 0, which would always fail). Changed to `os.Args[1:]`.
+
+## Tests added (`ledger_test.go`)
+- `TestTotalCentsValid` — 16 cases covering exact conversions, sums, signs/refunds, whitespace, edge forms.
+- `TestTotalCentsInvalid` — 15 cases: empty, whitespace-only, non-numeric, mixed alpha, double dot, exponents (all variants), >2 fractional digits, comma decimals, hex.
+- `TestParseCentsErrorMessages` — confirms specific error text.
+
+## Verification (real project)
+- `go vet ./...` → clean.
+- `go test ./... -v` → all pass.
+- Built the binary and ran the CLI end-to-end:
+  - `1 2.5 0.03` → `353` (exit 0)
+  - `1.23` → `123` (exit 0)
+  - `10 -3.50` → `650` (exit 0)
+  - `"  1.23  " "  2.77"` → `400` (exit 0)
+  - `1e2`, `1.234`, `""`, `abc` → error message on stderr, **exit 1**.
+
+The CLI prints only the total cents to stdout and exits nonzero on invalid input, as required. The temporary build artifact was removed. No remaining work.

@@ -132,8 +132,8 @@ func workflowQueue(ctx context.Context, args []string, out io.Writer, directory 
 		}
 
 		result, recoverErr := svc.Recover(ctx, flags.Arg(0), request)
-		if result != "" {
-			_, writeErr := fmt.Fprintln(out, result)
+		if result.RunID != "" {
+			writeErr := json.NewEncoder(out).Encode(result)
 			if writeErr != nil {
 				return errors.Join(recoverErr, writeErr)
 			}
@@ -146,8 +146,9 @@ func workflowQueue(ctx context.Context, args []string, out io.Writer, directory 
 			return fmt.Errorf("review requires -decision approve|reject")
 		}
 		result, err := svc.Review(ctx, flags.Arg(0), flags.Arg(1), *decision == "approve")
-		if result != "" {
-			if _, writeErr := fmt.Fprintln(out, result); writeErr != nil {
+		if result.RunID != "" {
+			writeErr := json.NewEncoder(out).Encode(result)
+			if writeErr != nil {
 				return errors.Join(err, writeErr)
 			}
 			workflowGuidance(os.Stderr, result, directory, *dir, *allow, *deny)

@@ -70,7 +70,7 @@ func (b *Backend) SupportsVision(ctx context.Context) (bool, error) {
 	defer cancel()
 
 	if b.visionProbe != nil {
-		return b.visionProbe(ctx)
+		return b.accountVision(ctx)
 	}
 
 	if b.inspector == nil {
@@ -78,6 +78,47 @@ func (b *Backend) SupportsVision(ctx context.Context) (bool, error) {
 	}
 
 	return b.inspector.SupportsVision(ctx)
+}
+
+// Successful account facts remain stable for this bound backend. Failures leave
+// discovery retryable; concurrent callers wait without losing cancellation.
+func (b *Backend) accountVision(ctx context.Context) (bool, error) {
+	for {
+		err := ctx.Err()
+		if err != nil {
+			return false, err
+		}
+
+		b.visionMu.Lock()
+		if b.visionKnown {
+			vision := b.vision
+			b.visionMu.Unlock()
+			return vision, nil
+		}
+		if pending := b.visionLoading; pending != nil {
+			b.visionMu.Unlock()
+			select {
+			case <-pending:
+				continue
+			case <-ctx.Done():
+				return false, ctx.Err()
+			}
+		}
+
+		pending := make(chan struct{})
+		b.visionLoading = pending
+		b.visionMu.Unlock()
+
+		vision, err := b.visionProbe(ctx)
+		b.visionMu.Lock()
+		if err == nil {
+			b.vision, b.visionKnown = vision, true
+		}
+		b.visionLoading = nil
+		close(pending)
+		b.visionMu.Unlock()
+		return vision, err
+	}
 }
 
 func (b *Backend) checkImages(ctx context.Context, req llm.ChatRequest) error {

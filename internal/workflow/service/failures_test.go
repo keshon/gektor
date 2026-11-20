@@ -140,12 +140,8 @@ func TestFailureRoutingAcrossChildMapRepeatAndCollections(t *testing.T) {
 			if !errors.As(err, &execution) || execution.Code != "probe_failed" {
 				t.Fatal(out, err)
 			}
-			var summary struct {
-				ID     string `json:"run_id"`
-				Status string
-			}
-			err = json.Unmarshal([]byte(out), &summary)
-			if err != nil || summary.Status != "failed" {
+			summary := out
+			if summary.Status != "failed" {
 				t.Fatal(out, err)
 			}
 			db, err := store.OpenStore(svc.StoreDir, svc.WS.Root())
@@ -153,7 +149,7 @@ func TestFailureRoutingAcrossChildMapRepeatAndCollections(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer db.Close()
-			state, err := db.Run(summary.ID)
+			state, err := db.Run(summary.RunID)
 			if err != nil || state.Status != "failed" || state.Record.Finished == nil {
 				t.Fatal(state, err)
 			}
@@ -190,21 +186,14 @@ func TestFailureRoutesSurviveReviewWaitAndOperatorRecovery(t *testing.T) {
 			if err != nil {
 				t.Fatal(out, err)
 			}
-			var summary struct {
-				ID     string `json:"run_id"`
-				Status string
-			}
-			err = json.Unmarshal([]byte(out), &summary)
-			if err != nil {
-				t.Fatal(err)
-			}
+			summary := out
 			db, err := store.OpenStore(svc.StoreDir, svc.WS.Root())
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer db.Close()
 			if mode == "recovery" {
-				writer, r, editErr := db.EditRun(summary.ID)
+				writer, r, editErr := db.EditRun(summary.RunID)
 				if editErr != nil {
 					t.Fatal(editErr)
 				}
@@ -219,18 +208,18 @@ func TestFailureRoutesSurviveReviewWaitAndOperatorRecovery(t *testing.T) {
 				if err != nil || closeErr != nil {
 					t.Fatal(err, closeErr)
 				}
-				out, err = svc.Recover(t.Context(), summary.ID, workflow.Recovery{Note: "Stopped before error notification"})
+				out, err = svc.Recover(t.Context(), summary.RunID, workflow.Recovery{Note: "Stopped before error notification"})
 				if err != nil {
 					t.Fatal(out, err)
 				}
 			}
 			if mode == "review" || mode == "recovery" {
-				out, err = svc.Review(t.Context(), summary.ID, "notify", true)
+				out, err = svc.Review(t.Context(), summary.RunID, "notify", true)
 				if err == nil {
 					t.Fatal("review erased original failure", out)
 				}
 			} else {
-				state, readErr := db.Run(summary.ID)
+				state, readErr := db.Run(summary.RunID)
 				if readErr != nil {
 					t.Fatal(readErr)
 				}
@@ -246,7 +235,7 @@ func TestFailureRoutesSurviveReviewWaitAndOperatorRecovery(t *testing.T) {
 					t.Fatal(err, closeErr)
 				}
 			}
-			state, err := db.Run(summary.ID)
+			state, err := db.Run(summary.RunID)
 			if err != nil || state.Status != "failed" || state.Record.Steps[0].Failure == nil {
 				t.Fatal(state, err)
 			}

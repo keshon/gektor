@@ -6,6 +6,9 @@ projection. It is caller-owned data, not a background session service.
 
 - `storage.go`: load, decode, validate, and replace snapshots; read archive or context.
 - `context.go`: prompt revisions and request inspection metadata.
+- `verification.go`: measured verification disposition, command, exit code,
+  duration, and bounded output. Older runs without a receipt have an unknown
+  verification disposition; legacy text is preserved without inferring success.
 - `history.go`, `children.go`, and `failure.go`: archive browsing and recorded results.
 - `title.go`, `text.go`, and `workspace.go`: display titles, text, and workspace lookup.
 

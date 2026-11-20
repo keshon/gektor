@@ -2,11 +2,11 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/keshon/gektor/internal/workflow"
+	"github.com/keshon/gektor/internal/workflow/service"
 	"github.com/keshon/gektor/internal/workflow/store"
 )
 
@@ -26,21 +26,21 @@ func TestWorkflowReviewGuidance(t *testing.T) {
 	}
 	id := w.ID()
 	w.Close()
-	result, _ := json.Marshal(map[string]string{"run_id": id, "status": "waiting_review"})
+	result := service.Result{RunID: id, Status: "waiting_review"}
 	var note bytes.Buffer
-	workflowGuidance(&note, string(result), home, dir, "workflow_run=*,record_write=reports/*", "http_request=*DELETE*Copy")
+	workflowGuidance(&note, result, home, dir, "workflow_run=*,record_write=reports/*", "http_request=*DELETE*Copy")
 	for _, want := range []string{"workflow inspect", "-decision approve", "-decision reject", `-workspace "` + dir + `"`, `"` + id + `" "save"`, `-allow "workflow_run=*,record_write=reports/*"`, `-deny "http_request=*DELETE*Copy"`} {
 		if !strings.Contains(note.String(), want) {
 			t.Fatalf("missing %q in %s", want, &note)
 		}
 	}
 	note.Reset()
-	workflowGuidance(&note, string(result), home, dir, "workflow_run=$(unsafe)", "")
+	workflowGuidance(&note, result, home, dir, "workflow_run=$(unsafe)", "")
 	if strings.Contains(note.String(), "$(unsafe)") || strings.Contains(note.String(), "Approve:") {
 		t.Fatal("unsafe command emitted")
 	}
 	note.Reset()
-	workflowGuidance(&note, `{"status":"completed"}`, home, dir, "", "")
+	workflowGuidance(&note, service.Result{Status: "completed"}, home, dir, "", "")
 	if note.Len() != 0 {
 		t.Fatal("completed run emitted review guidance")
 	}

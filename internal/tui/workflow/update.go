@@ -40,6 +40,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 type workflowAction struct{ action, value string }
 
 type workflowResult struct {
+	outcome         service.Result
 	text            string
 	err             error
 	source, path    string

@@ -22,13 +22,13 @@ func (s Service) ExecuteJob(ctx context.Context, db *store.Store, job store.Job)
 		}
 		return nil
 	}
-	_, err := withJob(ctx, db, job, func(ctx context.Context) (string, error) {
+	_, err := withJob(ctx, db, job, func(ctx context.Context) (Result, error) {
 		if current.AuthorizeResource == nil {
-			return "", fmt.Errorf("queue authorization unavailable")
+			return Result{}, fmt.Errorf("queue authorization unavailable")
 		}
 		args, _ := json.Marshal(map[string]string{"recipe_path": job.RecipePath})
 		if err := current.AuthorizeResource(ctx, "workflow_run", job.RecipePath, args); err != nil {
-			return "", err
+			return Result{}, err
 		}
 		return current.RunSource(ctx, job.Source, job.RecipePath, job.Inputs)
 	})
@@ -40,7 +40,7 @@ func (s Service) ExecuteJob(ctx context.Context, db *store.Store, job store.Job)
 	return nil
 }
 
-func withJob(ctx context.Context, db *store.Store, job store.Job, execute func(context.Context) (string, error)) (string, error) {
+func withJob(ctx context.Context, db *store.Store, job store.Job, execute func(context.Context) (Result, error)) (Result, error) {
 	started := time.Now()
 	cancelRequested := false
 	if err := db.UpdateJob(ctx, job.ID, func(j *store.Job) error {
@@ -52,7 +52,7 @@ func withJob(ctx context.Context, db *store.Store, job store.Job, execute func(c
 		return nil
 	}); err != nil {
 		slog.ErrorContext(ctx, "workflow job unavailable", "job_id", job.ID, "code", "job_start_failed")
-		return "", &persistenceError{err}
+		return Result{}, &persistenceError{err}
 	}
 	slog.InfoContext(ctx, "workflow job started", "job_id", job.ID)
 	runctx, cancel := context.WithCancel(ctx)
@@ -95,13 +95,11 @@ func withJob(ctx context.Context, db *store.Store, job store.Job, execute func(c
 	defer stop()
 	var status, runID string
 	err := db.UpdateJob(persist, job.ID, func(j *store.Job) error {
-		var summary struct{ Status string }
-		_ = json.Unmarshal([]byte(result), &summary)
-		switch summary.Status {
+		switch result.Status {
 		case "running", "interrupted":
 			j.Status = "interrupted"
 		case "completed", "waiting_review", "waiting", "failed", "cancelled":
-			j.Status = summary.Status
+			j.Status = result.Status
 		default:
 			j.Status = "failed"
 			if runctx.Err() != nil {

@@ -177,7 +177,7 @@ func TestCompletionPanelKeepsEvidenceAndFits(t *testing.T) {
 			}
 		}
 	}
-	text := strings.Join(receiptText("outcome: failed\nfiles: main.go\nchecks: tests failed\nFAIL: assertion X", defaultStyles(), 80), "\n")
+	text := strings.Join(receiptText(block{receipt: runReceipt{outcome: "failed", files: "main.go", checks: "tests failed\nFAIL: assertion X"}}, defaultStyles(), 80), "\n")
 	if !strings.Contains(ansi.Strip(text), "FAIL: assertion X") {
 		t.Fatal("multiline verification lost", text)
 	}
@@ -187,7 +187,7 @@ func TestCompletionPanelKeepsEvidenceAndFits(t *testing.T) {
 		}
 	}
 	path := `C:\Users\user name\.gektor\sessions\12345678\state.json`
-	text = ansi.Strip(strings.Join(receiptText("outcome: completed\nresume: gektor -tui -resume "+path, defaultStyles(), 200), "\n"))
+	text = ansi.Strip(strings.Join(receiptText(block{receipt: runReceipt{outcome: "completed", resume: path}}, defaultStyles(), 200), "\n"))
 	if !strings.Contains(text, `Resume: gektor -tui -resume "`+path+`"`) {
 		t.Fatal("resume command changed Windows path or lost quoting", text)
 	}
@@ -198,7 +198,7 @@ func TestCompletionUsesPageBackground(t *testing.T) {
 	for _, theme := range []string{"dark", "light"} {
 		setTheme(theme)
 		st := defaultStyles()
-		body := strings.Join(receiptText("outcome: completed\nfiles: none observed\nchecks: no current command verdict", st, 78), "\n")
+		body := strings.Join(receiptText(block{receipt: runReceipt{outcome: "completed"}}, st, 78), "\n")
 		for _, line := range strings.Split(ansi.Strip(body), "\n") {
 			if strings.HasPrefix(line, " ") {
 				t.Fatal("completion details are indented past the title", line)

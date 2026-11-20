@@ -1,0 +1,105 @@
+package ledger
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
+
+// TotalCents adds decimal money amounts and returns their sum in integer cents.
+//
+// Each amount is parsed exactly into cents: "1" means 100 cents, "1.2" means
+// 120 cents, "1.23" means 123 cents. Surrounding whitespace is ignored and a
+// leading sign is allowed (negative for refunds).
+//
+// An error is returned for any value that is empty, non-numeric, uses
+// exponent notation, or has more than two fractional digits.
+func TotalCents(values []string) (int, error) {
+	total := 0
+	for _, raw := range values {
+		cents, err := parseCents(raw)
+		if err != nil {
+			return 0, err
+		}
+		total += cents
+	}
+	return total, nil
+}
+
+// parseCents converts a single decimal money string into an integer number of
+// cents. It trims surrounding whitespace, honors an optional leading sign, and
+// rejects empty input, non-numeric characters, exponent notation, and more than
+// two fractional digits.
+func parseCents(value string) (int, error) {
+	s := strings.TrimSpace(value)
+	if s == "" {
+		return 0, fmt.Errorf("ledger: empty amount %q", value)
+	}
+
+	negative := false
+	switch s[0] {
+	case '+':
+		s = s[1:]
+	case '-':
+		negative = true
+		s = s[1:]
+	}
+
+	if s == "" {
+		return 0, fmt.Errorf("ledger: empty amount %q", value)
+	}
+
+	// Reject exponent notation ("1e2", "1E-3", ...) before splitting on the dot,
+	// since strconv would otherwise accept it.
+	if strings.ContainsAny(s, "eE") {
+		return 0, fmt.Errorf("ledger: unsupported exponent notation %q", value)
+	}
+
+	intPart := s
+	frac := ""
+	if dot := strings.IndexByte(s, '.'); dot >= 0 {
+		intPart = s[:dot]
+		frac = s[dot+1:]
+	}
+
+	// Reject more than two fractional digits before touching the characters.
+	if len(frac) > 2 {
+		return 0, fmt.Errorf("ledger: too many fractional digits in %q", value)
+	}
+
+	// A lone "." has neither an integer nor a fractional part.
+	if intPart == "" && frac == "" {
+		return 0, fmt.Errorf("ledger: invalid amount %q", value)
+	}
+
+	whole := 0
+	if intPart != "" {
+		v, err := strconv.Atoi(intPart)
+		if err != nil {
+			return 0, fmt.Errorf("ledger: invalid number %q", value)
+		}
+		whole = v
+	}
+
+	cents := whole * 100
+	switch len(frac) {
+	case 1:
+		d := frac[0] - '0'
+		if d < 0 || d > 9 {
+			return 0, fmt.Errorf("ledger: invalid fractional digit in %q", value)
+		}
+		cents += int(d) * 10
+	case 2:
+		d0 := frac[0] - '0'
+		d1 := frac[1] - '0'
+		if d0 < 0 || d0 > 9 || d1 < 0 || d1 > 9 {
+			return 0, fmt.Errorf("ledger: invalid fractional digit in %q", value)
+		}
+		cents += int(d0)*10 + int(d1)
+	}
+
+	if negative {
+		cents = -cents
+	}
+	return cents, nil
+}

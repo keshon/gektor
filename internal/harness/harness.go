@@ -32,6 +32,7 @@ type Config struct {
 	Task           string
 	StateFile      string
 	Verify         func(ctx context.Context) (output string, err error)
+	VerifyCommand  string
 
 	// Images attaches pictures (absolute paths) to the opening user
 	// message for vision-capable backends. CLI -image and TUI @paths

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/keshon/gektor/internal/workflow"
 )
@@ -20,7 +21,25 @@ func DeclaredOutputs(r workflow.Run) json.RawMessage {
 	return nil
 }
 
-type stepSummary struct {
+// Result retains the available outcome even when execution returns an error.
+// Its zero value has no outcome. Valid describes validation-only calls. Steps is nil
+// for continuations, whose complete execution evidence remains in the saved run.
+type Result struct {
+	RunID        string                  `json:"run_id,omitempty"`
+	DatabasePath string                  `json:"database_path,omitempty"`
+	Status       string                  `json:"status,omitempty"`
+	RecipeSHA256 string                  `json:"recipe_sha256,omitempty"`
+	Steps        []StepSummary           `json:"steps,omitzero"`
+	Outputs      json.RawMessage         `json:"outputs,omitempty"`
+	Callback     *workflow.CallbackState `json:"callback,omitempty"`
+	ResumeAt     *time.Time              `json:"resume_at,omitempty"`
+	Valid        bool                    `json:"valid,omitempty"`
+	RecipePath   string                  `json:"recipe_path,omitempty"`
+	Scope        string                  `json:"scope,omitempty"`
+}
+
+// StepSummary carries compact execution evidence; the saved run owns full output.
+type StepSummary struct {
 	FailureStage string          `json:"failure_stage,omitempty"`
 	Recovery     string          `json:"recovery,omitempty"`
 	ID           string          `json:"id"`

@@ -74,13 +74,7 @@ func TestCollectionUsesRealAuthorizationAndOutputContracts(t *testing.T) {
 			if err != nil || calls.Load() != 3 {
 				t.Fatal(out, calls.Load(), err)
 			}
-			var summary struct {
-				RunID string `json:"run_id"`
-			}
-			err = json.Unmarshal([]byte(out), &summary)
-			if err != nil {
-				t.Fatal(err)
-			}
+			summary := out
 			db, err := store.OpenStore(svc.StoreDir, ws.Root())
 			if err != nil {
 				t.Fatal(err)

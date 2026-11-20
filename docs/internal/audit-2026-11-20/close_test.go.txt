@@ -1,0 +1,69 @@
+package agent
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+)
+
+// A run can observe cancellation and still own resources while finalizing.
+// Close must join that phase before its caller releases borrowed services.
+func TestAuditCloseJoinsActiveRun(t *testing.T) {
+	m := testModel()
+	entered := make(chan struct{})
+	cancelled := make(chan struct{})
+	releaseFinalization := make(chan struct{})
+	workerDone := make(chan struct{})
+	closeReturned := make(chan struct{})
+	m.send = func(tea.Msg) { close(workerDone) }
+
+	m.startRun(func(ctx context.Context) (string, error) {
+		close(entered)
+		<-ctx.Done()
+		close(cancelled)
+		<-releaseFinalization
+		return "", ctx.Err()
+	})
+
+	// Always release and drain the worker, including on an assertion failure.
+	t.Cleanup(func() {
+		m.cancel()
+		close(releaseFinalization)
+		select {
+		case <-workerDone:
+		case <-time.After(10 * time.Second):
+			t.Error("cleanup: run worker did not exit")
+		}
+		select {
+		case <-closeReturned:
+		case <-time.After(10 * time.Second):
+			t.Error("cleanup: Close did not return")
+		}
+	})
+
+	go func() {
+		<-entered
+		m.Close()
+		close(closeReturned)
+	}()
+
+	select {
+	case <-cancelled:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Close did not cancel active run")
+	}
+
+	select {
+	case <-closeReturned:
+		select {
+		case <-workerDone:
+			t.Fatal("fixture failed: worker exited despite finalization barrier")
+		default:
+			t.Error("Close returned while cancelled run still owned its finalization phase")
+		}
+	case <-time.After(250 * time.Millisecond):
+		// A joining Close correctly waits until cleanup releases finalization.
+	}
+}

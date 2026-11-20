@@ -42,12 +42,13 @@ type Capability struct {
 // Run identifies one execution in the full archive, independent of compaction.
 // Retries can overlap the preceding run so the original task stays in scope.
 type Run struct {
-	Start        int    `json:"start"`
-	End          int    `json:"end"`
-	Outcome      string `json:"outcome"`
-	Steps        int    `json:"steps"`
-	Verification string `json:"verification,omitempty"`
-	Error        string `json:"error,omitempty"`
+	Start               int                  `json:"start"`
+	End                 int                  `json:"end"`
+	Outcome             string               `json:"outcome"`
+	Steps               int                  `json:"steps"`
+	Verification        string               `json:"verification,omitempty"`
+	VerificationReceipt *VerificationReceipt `json:"verification_receipt,omitempty"`
+	Error               string               `json:"error,omitempty"`
 }
 
 func New(history []llm.Message) Snapshot {

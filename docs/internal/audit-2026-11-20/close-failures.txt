@@ -1,0 +1,13 @@
+=== RUN   TestAuditCloseJoinsActiveRun
+    launch_test.go:64: Close returned while cancelled run still owned its finalization phase
+--- FAIL: TestAuditCloseJoinsActiveRun (0.00s)
+=== RUN   TestAuditCloseJoinsActiveRun
+    launch_test.go:64: Close returned while cancelled run still owned its finalization phase
+--- FAIL: TestAuditCloseJoinsActiveRun (0.00s)
+=== RUN   TestAuditCloseJoinsActiveRun
+    launch_test.go:64: Close returned while cancelled run still owned its finalization phase
+--- FAIL: TestAuditCloseJoinsActiveRun (0.00s)
+FAIL
+FAIL	github.com/keshon/gektor/internal/tui/agent	0.138s
+FAIL
+GO_TEST_EXIT=1

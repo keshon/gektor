@@ -11,6 +11,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/harness"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/tui/components/transcript"
@@ -646,6 +647,7 @@ func (m *Model) acceptOutcomeEvent(ev harness.Event) {
 		fileList = "none observed"
 	}
 	text := fmt.Sprintf("outcome: %s\nfiles: %s\nchecks: %s", outcome, fileList, checks)
+	facts := runReceipt{outcome: outcome, files: fileList, checks: checks, resume: resume}
 	for _, field := range []string{"summary", "warnings", "open_todos"} {
 		var values []string
 		switch value := ev.Fields[field].(type) {
@@ -656,10 +658,27 @@ func (m *Model) acceptOutcomeEvent(ev harness.Event) {
 		}
 		if value := strings.Join(values, "\n"); value != "" {
 			text += "\n" + field + ": " + value
+			switch field {
+			case "summary":
+				facts.summary = value
+			case "warnings":
+				facts.warnings = value
+			case "open_todos":
+				facts.remaining = value
+			}
 		}
 	}
 	if resume != "" {
 		text += "\nresume: gektor -tui -resume " + resume
 	}
-	m.appendBlock(block{role: roleReceipt, text: text, at: time.Now()})
+	var verification *conversation.VerificationReceipt
+	if receipt, ok := ev.Fields["verification_receipt"].(*conversation.VerificationReceipt); ok && receipt != nil {
+		copy := *receipt
+		if receipt.ExitCode != nil {
+			code := *receipt.ExitCode
+			copy.ExitCode = &code
+		}
+		verification = &copy
+	}
+	m.appendBlock(block{role: roleReceipt, text: text, at: time.Now(), verification: verification, receipt: facts})
 }

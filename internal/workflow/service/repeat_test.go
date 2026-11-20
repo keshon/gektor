@@ -70,21 +70,15 @@ func TestRepeatReauthorizesEachCallAndValidatesNextInputs(t *testing.T) {
 				wantCalls, wantStatus = 1, "failed"
 			}
 			if calls != wantCalls || (runErr != nil) != (mode != "success") {
-				t.Fatalf("calls=%d output=%s err=%v", calls, out, runErr)
+				t.Fatalf("calls=%d output=%+v err=%v", calls, out, runErr)
 			}
 			db, err := store.OpenStore(svc.StoreDir, ws.Root())
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer db.Close()
-			var summary struct {
-				ID string `json:"run_id"`
-			}
-			err = json.Unmarshal([]byte(out), &summary)
-			if err != nil {
-				t.Fatal(out, err)
-			}
-			state, err := db.Run(summary.ID)
+			summary := out
+			state, err := db.Run(summary.RunID)
 			if err != nil || state.Record.Status != wantStatus || state.Record.Steps[0].Iterations[0].Status != "completed" {
 				t.Fatalf("status=%s err=%v", state.Record.Status, err)
 			}

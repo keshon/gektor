@@ -165,16 +165,10 @@ func TestSSHWorkflowReviewRestartsWithoutReplayingCompletedCommands(t *testing.T
 			}
 			first := newService()
 			out, err := first.RunSource(t.Context(), raw, "ssh.json", nil)
-			if err != nil || calls.Load() != 1 || !strings.Contains(out, "waiting_review") {
+			if err != nil || calls.Load() != 1 || out.Status != "waiting_review" {
 				t.Fatal(out, err, calls.Load())
 			}
-			var summary struct {
-				ID string `json:"run_id"`
-			}
-			err = json.Unmarshal([]byte(out), &summary)
-			if err != nil {
-				t.Fatal(err)
-			}
+			summary := out
 			switch mode {
 			case "rebind":
 				profile.User = "changed"
@@ -187,7 +181,7 @@ func TestSSHWorkflowReviewRestartsWithoutReplayingCompletedCommands(t *testing.T
 			}
 
 			restarted := newService()
-			out, err = restarted.Review(t.Context(), summary.ID, "after", true)
+			out, err = restarted.Review(t.Context(), summary.RunID, "after", true)
 			if (err == nil) != (mode == "continue") {
 				t.Fatal(out, err)
 			}
@@ -203,7 +197,7 @@ func TestSSHWorkflowReviewRestartsWithoutReplayingCompletedCommands(t *testing.T
 				t.Fatal(err)
 			}
 			defer db.Close()
-			state, err := db.Run(summary.ID)
+			state, err := db.Run(summary.RunID)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -70,25 +70,19 @@ func TestSelectiveRetries(t *testing.T) {
 			}
 			out, err := svc.Run(t.Context(), "recipe.json", nil)
 			if err == nil || calls != tc.calls {
-				t.Fatalf("calls=%d, want %d; result=%s err=%v", calls, tc.calls, out, err)
+				t.Fatalf("calls=%d, want %d; result=%+v err=%v", calls, tc.calls, out, err)
 			}
 			if !tc.safe {
 				return
 			}
 
-			var summary struct {
-				ID string `json:"run_id"`
-			}
-			err = json.Unmarshal([]byte(out), &summary)
-			if err != nil {
-				t.Fatal(err)
-			}
+			summary := out
 			db, err := store.OpenStore(svc.StoreDir, ws.Root())
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer db.Close()
-			state, err := db.Run(summary.ID)
+			state, err := db.Run(summary.RunID)
 			if err != nil {
 				t.Fatal(err)
 			}

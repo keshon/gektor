@@ -260,6 +260,9 @@ func imageSuffix(images []string) string {
 // fresh context: an interrupted run's cancelled context must never leak
 // into the next turn.
 func (m *Model) startRun(run func(ctx context.Context) (string, error)) {
+	if !m.beginWork() {
+		return
+	}
 	if m.titleJob != nil && m.titleJob.cancel != nil {
 		m.cancelSessionTitle()
 	}
@@ -322,9 +325,11 @@ func (m *Model) startRun(run func(ctx context.Context) (string, error)) {
 	m.progress = llm.Progress{Phase: "waiting"}
 	m.usage.thisRun = false
 	m.chrome.Header.Focused, m.chrome.Header.Menu = false, ""
+	send := m.send
 	go func() {
+		defer m.workers.Done()
 		answer, err := run(runCtx)
-		m.send(doneMsg{answer: answer, err: err})
+		send(doneMsg{answer: answer, err: err})
 	}()
 }
 

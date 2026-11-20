@@ -98,16 +98,16 @@ func TestWorkflowExecutionReviewAndSave(t *testing.T) {
 	if result.err != nil {
 		t.Fatal(result.err)
 	}
-	if !strings.Contains(result.text, "waiting_review") {
-		t.Fatal(result.text)
+	if result.outcome.Status != "waiting_review" {
+		t.Fatal(result.outcome)
 	}
 	m.workflows.acceptResult(result)
 	result = drain(m.workflows.action(workflowAction{"review-approve", "transform"}))
 	if result.err != nil {
 		t.Fatal(result.err)
 	}
-	if !strings.Contains(result.text, "completed") {
-		t.Fatal(result.text)
+	if result.outcome.Status != "completed" {
+		t.Fatal(result.outcome)
 	}
 }
 func TestWorkflowPermissionDismissalDenies(t *testing.T) {

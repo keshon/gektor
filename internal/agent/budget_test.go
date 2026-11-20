@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/llm/chatcompletions"
 )
@@ -36,7 +38,15 @@ func (c *budgetClient) Chat(ctx context.Context, req llm.ChatRequest) (llm.ChatR
 func TestRunBudgetClosesWithoutToolsAndRemainsIncomplete(t *testing.T) {
 	for _, fail := range []bool{false, true} {
 		client := &budgetClient{closeFails: fail}
-		a := New(Config{Client: client, Tools: NewRegistry(), MaxSteps: 4, RunTimeout: time.Second})
+		stateFile := filepath.Join(t.TempDir(), "state.json")
+		a := New(Config{
+			Client:     client,
+			Tools:      NewRegistry(),
+			System:     "Preserve the operator's workspace.",
+			StateFile:  stateFile,
+			MaxSteps:   4,
+			RunTimeout: time.Second,
+		})
 		answer, err := a.Run(t.Context(), "inspect")
 		if !errors.Is(err, ErrRunBudget) || answer != "" || a.Report().Final != "" || a.Report().Outcome != "incomplete" {
 			t.Fatalf("%q %v %+v", answer, err, a.Report())
@@ -46,6 +56,18 @@ func TestRunBudgetClosesWithoutToolsAndRemainsIncomplete(t *testing.T) {
 		}
 		if !fail && !strings.Contains(a.Report().Summary, "unverified") {
 			t.Fatal(a.Report().Summary)
+		}
+
+		closing := client.closing.Messages
+		if len(closing) < 3 || closing[0].Role != llm.RoleSystem || closing[0].Content != a.cfg.System || closing[1].Content != "inspect" {
+			t.Fatalf("budget closing lost the system instructions or task: %+v", closing)
+		}
+		saved, err := conversation.Load(stateFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(saved.History) < 3 || saved.History[0].Role != llm.RoleSystem || saved.History[0].Content != a.cfg.System || saved.History[1].Content != "inspect" {
+			t.Fatalf("budget closing corrupted the saved conversation: %+v", saved.History)
 		}
 	}
 }

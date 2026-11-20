@@ -77,10 +77,10 @@ func (m *Model) openInspector(index int) tea.Cmd {
 		m.refreshInspector()
 		return nil
 	}
-	return func() tea.Msg {
+	return m.workerCommand(func() tea.Msg {
 		snapshot, err := conversation.Load(path)
 		return childLoadedMsg{parent: parent, callID: id, revision: revision, snapshot: snapshot, err: err}
-	}
+	})
 }
 func (m *Model) closeInspector() {
 	m.inspector.drag = scrollDrag{}

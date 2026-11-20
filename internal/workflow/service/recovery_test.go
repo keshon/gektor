@@ -260,28 +260,22 @@ func TestRecoveryPreservesAcceptedCallbackBeforeConsumption(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var summary struct {
-		ID string `json:"run_id"`
-	}
-	err = json.Unmarshal([]byte(out), &summary)
-	if err != nil {
-		t.Fatal(err)
-	}
+	summary := out
 	db, err := store.OpenStore(svc.StoreDir, svc.WS.Root())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	state, err := db.Run(summary.ID)
+	state, err := db.Run(summary.RunID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	callback := workflow.PendingCallback(state.Record)
-	_, err = db.AcceptCallback(t.Context(), store.CallbackDelivery{RunID: summary.ID, WaitID: callback.ID, Channel: callback.Channel, EventID: "accepted", Payload: json.RawMessage(`{"ok":true}`)})
+	_, err = db.AcceptCallback(t.Context(), store.CallbackDelivery{RunID: summary.RunID, WaitID: callback.ID, Channel: callback.Channel, EventID: "accepted", Payload: json.RawMessage(`{"ok":true}`)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	w, r, err := db.EditRun(summary.ID)
+	w, r, err := db.EditRun(summary.RunID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -300,15 +294,15 @@ func TestRecoveryPreservesAcceptedCallbackBeforeConsumption(t *testing.T) {
 		}
 		return nil
 	}
-	_, err = blocked.Recover(t.Context(), summary.ID, request)
+	_, err = blocked.Recover(t.Context(), summary.RunID, request)
 	if err == nil {
 		t.Fatal("callback permission bypassed")
 	}
-	_, err = svc.Recover(t.Context(), summary.ID, request)
+	_, err = svc.Recover(t.Context(), summary.RunID, request)
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err = db.Run(summary.ID)
+	state, err = db.Run(summary.RunID)
 	if err != nil || state.Status != "completed" || !strings.Contains(state.Record.Steps[0].Output, `"event_id":"accepted"`) {
 		t.Fatal(state, err)
 	}

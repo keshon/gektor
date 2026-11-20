@@ -79,19 +79,13 @@ func TestUnlinkedWaitContinuationReturnsCheckpointFailures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var summary struct {
-		ID string `json:"run_id"`
-	}
-	err = json.Unmarshal([]byte(out), &summary)
-	if err != nil {
-		t.Fatal(err)
-	}
+	summary := out
 	db, err := store.OpenStore(base, directory)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	rejectCompletion(t, db, summary.ID)
+	rejectCompletion(t, db, summary.RunID)
 	writer, run, claimed, err := db.ClaimWait(t.Context(), time.Now())
 	if err != nil || !claimed {
 		t.Fatal("wait was not claimable", claimed, err)
@@ -106,7 +100,7 @@ func TestUnlinkedWaitContinuationReturnsCheckpointFailures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err := db.Run(summary.ID)
+	state, err := db.Run(summary.RunID)
 	if err != nil || state.Status != "interrupted" || state.Record.Status != "running" {
 		t.Fatal("wait lost its recovery state", state, err)
 	}

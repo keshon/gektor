@@ -151,30 +151,9 @@ func RunCheck(ctx context.Context, c Check, ws *workspace.Workspace) (output str
 		}
 		return fmt.Sprintf("file %s contains %q", c.Path, needle), true
 
-	case "shell":
-		out, err := RunShellCommand(ctx, c.Cmd, ws.Root())
-		if err != nil {
-			return fmt.Sprintf("command failed: %v\n%s", err, out), false
-		}
-		if out == "" {
-			out = "(no output)"
-		}
-		return out, true
-	case "go_acceptance":
-		body, err := os.ReadFile(c.Path)
-		if err != nil {
-			return err.Error(), false
-		}
-		target := "gektor_acceptance_" + rand.Text() + "_test.go"
-		if err := ws.WriteFile(target, body, 0600); err != nil {
-			return err.Error(), false
-		}
-		defer ws.Remove(target)
-		out, err := RunShellCommand(ctx, "go test ./...", ws.Root())
-		if err != nil {
-			return fmt.Sprintf("acceptance failed: %v\n%s", err, out), false
-		}
-		return out, true
+	case "shell", "go_acceptance":
+		out, err := runCommandCheck(ctx, c, ws)
+		return out, err == nil
 
 	case "http":
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.URL, nil)
@@ -195,6 +174,42 @@ func RunCheck(ctx context.Context, c Check, ws *workspace.Workspace) (output str
 	default:
 		return fmt.Sprintf("unknown check type %q", c.Type), false
 	}
+}
+
+func runCommandCheck(ctx context.Context, check Check, ws *workspace.Workspace) (output string, err error) {
+	command := check.Cmd
+	label := "command"
+	if check.Type == "go_acceptance" {
+		body, readErr := os.ReadFile(check.Path)
+		if readErr != nil {
+			return readErr.Error(), readErr
+		}
+		target := "gektor_acceptance_" + rand.Text() + "_test.go"
+		writeErr := ws.WriteFile(target, body, 0600)
+		if writeErr != nil {
+			return writeErr.Error(), writeErr
+		}
+		defer func() {
+			removeErr := ws.Remove(target)
+			if removeErr != nil {
+				output += "\nremove acceptance verifier: " + removeErr.Error()
+				if err == nil {
+					err = removeErr
+				}
+			}
+		}()
+		command = "go test ./..."
+		label = "acceptance"
+	}
+
+	output, err = RunShellCommand(ctx, command, ws.Root())
+	if err != nil {
+		return fmt.Sprintf("%s failed: %v\n%s", label, err, output), err
+	}
+	if output == "" {
+		output = "(no output)"
+	}
+	return output, nil
 }
 
 // RunShellCommand uses the same bounded shell runner as the agent tools.

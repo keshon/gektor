@@ -2,13 +2,38 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/keshon/gektor/internal/llm"
 )
+
+type unavailableResults struct{}
+
+func TestCheckExitCodeOmitsUnavailableStatus(t *testing.T) {
+	for _, err := range []error{&exec.ExitError{}, context.Canceled, errors.New("could not start")} {
+		if code := checkExitCode(err); code != nil {
+			t.Fatalf("unavailable process status became exit code %d", *code)
+		}
+	}
+	if code := checkExitCode(nil); code == nil || *code != 0 {
+		t.Fatal("successful command lost exit zero")
+	}
+}
+
+func (unavailableResults) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
+
+func TestResultWriteFailureIsReported(t *testing.T) {
+	err := writeProbeResult(unavailableResults{}, Result{Passed: true})
+	if !errors.Is(err, io.ErrClosedPipe) {
+		t.Fatalf("result write error = %v", err)
+	}
+}
 
 type timedClient struct{}
 
@@ -38,12 +63,14 @@ func TestArtifactChecksHaveIndependentBudgetAndRespectParentCancellation(t *test
 	defer cancel()
 	<-runCtx.Done()
 	p := Probe{Verify: []Check{{Type: "shell", Cmd: "echo artifact-check"}}}
-	if failures := checkArtifacts(parent, p, ws); len(failures) != 0 {
-		t.Fatal(failures)
+	checks := checkArtifacts(parent, p, ws)
+	if len(checks) != 1 || !checks[0].Passed {
+		t.Fatal(checks)
 	}
 	ctx, stop := context.WithCancel(parent)
 	stop()
-	if failures := checkArtifacts(ctx, p, ws); len(failures) == 0 {
+	checks = checkArtifacts(ctx, p, ws)
+	if len(checks) != 1 || checks[0].Passed {
 		t.Fatal("ignored parent cancellation")
 	}
 }
@@ -54,5 +81,41 @@ func TestFailedCommandDoesNotReportNeverCalled(t *testing.T) {
 	got := checkTrace(p, []call{{tool: "run_shell", success: &failed}})
 	if len(got) != 1 || strings.Contains(got[0], "never called") {
 		t.Fatal(got)
+	}
+}
+
+func TestCheckEvidenceSurvivesResultSerialization(t *testing.T) {
+	ws := checkWorkspaceForTest(t)
+	probe := Probe{
+		Verify: []Check{
+			{Type: "file_absent", Path: "absent.txt"},
+			{Type: "shell", Cmd: "echo first-line\necho assertion-detail\nexit 7"},
+		},
+		Trace:  []TraceCheck{{Tool: "read_file", Mode: "required"}},
+		Answer: []AnswerCheck{{Regex: "correct", Mode: "required"}},
+	}
+	var result Result
+	checkProbeOutcome(t.Context(), probe, ws, nil, nil, "wrong", &result)
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved Result
+	err = json.Unmarshal(encoded, &saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Checks) != 2 || !saved.Checks[0].Passed || saved.Checks[0].ExitCode != nil {
+		t.Fatal(saved.Checks)
+	}
+	failed := saved.Checks[1]
+	if failed.Index != 1 || failed.Check != probe.Verify[1] || failed.Passed || failed.ExitCode == nil || *failed.ExitCode != 7 || failed.Seconds <= 0 {
+		t.Fatal(failed)
+	}
+	if !strings.Contains(failed.Output, "first-line") || !strings.Contains(failed.Output, "assertion-detail") {
+		t.Fatal("lost multiline command evidence", failed.Output)
+	}
+	if len(saved.ArtifactFailures) != 1 || len(saved.TraceFailures) != 1 || len(saved.AnswerFailures) != 1 || len(saved.Failures) != 3 {
+		t.Fatal("outcome categories lost", saved)
 	}
 }

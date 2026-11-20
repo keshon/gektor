@@ -49,8 +49,12 @@ func TestLedgerAcceptanceRejectsSeedAndAcceptsRepair(t *testing.T) {
 	}
 	defer ws.Close()
 	check := Check{Type: "go_acceptance", Path: filepath.Join(root, "eval", "verifiers", "ledger.gotest")}
-	if out, ok := RunCheck(context.Background(), check, ws); ok {
-		t.Fatal("broken seed passed", out)
+	checks := checkArtifacts(t.Context(), Probe{Verify: []Check{check}}, ws)
+	if len(checks) != 1 || checks[0].Passed {
+		t.Fatal("broken seed passed", checks)
+	}
+	if checks[0].ExitCode == nil || *checks[0].ExitCode != 1 || !strings.Contains(checks[0].Output, "--- FAIL:") {
+		t.Fatal("acceptance assertion evidence missing", checks)
 	}
 	const fixed = `package ledger
 import("fmt";"strconv";"strings";"regexp")

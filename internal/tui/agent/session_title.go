@@ -56,11 +56,11 @@ func (m *Model) generateSessionTitle() tea.Cmd {
 	ctx, cancel := context.WithCancel(base)
 	j.cancel = cancel
 	client := m.baseEnv.Client
-	return func() tea.Msg {
+	return m.workerCommand(func() tea.Msg {
 		defer cancel()
 		title, _ := app.GenerateSessionTitle(ctx, client, j.request)
 		return sessionTitleMsg{job: j, title: title}
-	}
+	})
 }
 
 func (m *Model) acceptSessionTitle(msg sessionTitleMsg) {

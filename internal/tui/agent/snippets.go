@@ -3,13 +3,16 @@ package agent
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/tui/components/transcript"
 )
 
@@ -201,19 +204,9 @@ func compactTool(b block, st styles, width int) string {
 }
 
 // receiptText changes presentation only; the original evidence stays in the block.
-func receiptText(raw string, st styles, width int) []string {
-	fields := map[string]string{}
-	current := ""
-	for _, line := range strings.Split(raw, "\n") {
-		key, value, ok := strings.Cut(line, ": ")
-		if ok && (key == "outcome" || key == "files" || key == "checks" || key == "resume" || key == "summary" || key == "warnings" || key == "open_todos") {
-			fields[key] = value
-			current = key
-		} else if current != "" {
-			fields[current] += "\n" + line
-		}
-	}
-	outcome := fields["outcome"]
+func receiptText(b block, st styles, width int) []string {
+	facts := b.receipt
+	outcome := facts.outcome
 	title := outcome
 	if title != "" {
 		title = strings.ToUpper(title[:1]) + title[1:]
@@ -224,25 +217,37 @@ func receiptText(raw string, st styles, width int) []string {
 	} else if outcome == "cancelled" || outcome == "incomplete" {
 		style = st.Warn
 	}
-	checks := fields["checks"]
+	checks := facts.checks
 	meta := "Verification recorded"
 	if checks == "" || checks == "no current command verdict" {
 		meta = "No verification result"
 	}
-	rows := []string{snippetRow(style.Render(title), st.Dim.Render(meta), width), ""}
-	details := []string{}
-	for _, field := range []struct{ key, label string }{{"summary", "Progress"}, {"warnings", "Warning"}, {"open_todos", "Remaining"}} {
-		if value := fields[field.key]; value != "" {
-			details = append(details, field.label+": "+value)
+	if b.verification != nil {
+		meta = verificationLabel(b.verification.Disposition)
+	}
+	rows := []string{snippetRow(style.Render(title), st.Dim.Render(meta), width)}
+	if lipgloss.Width(meta)+3 >= width {
+		for _, line := range reflow(meta, max(width, 1)) {
+			rows = append(rows, st.Dim.Render(line))
 		}
 	}
-	if files := fields["files"]; files != "" && files != "none observed" {
+	rows = append(rows, "")
+	details := []string{}
+	if b.verification != nil {
+		details = append(details, verificationDetails(b.verification)...)
+	}
+	for _, field := range []struct{ value, label string }{{facts.summary, "Progress"}, {facts.warnings, "Warning"}, {facts.remaining, "Remaining"}} {
+		if field.value != "" {
+			details = append(details, field.label+": "+field.value)
+		}
+	}
+	if files := facts.files; files != "" && files != "none observed" {
 		details = append(details, "Observed changes: "+files)
 	}
 	if checks != "" && checks != "no current command verdict" {
 		details = append(details, "Checks: "+checks)
 	}
-	if resume := strings.TrimPrefix(fields["resume"], "gektor -tui -resume "); resume != "" {
+	if resume := facts.resume; resume != "" {
 		id := resume
 		if filepath.Base(resume) == "state.json" {
 			id = filepath.Base(filepath.Dir(resume))
@@ -256,6 +261,43 @@ func receiptText(raw string, st styles, width int) []string {
 				rows = append(rows, st.Dim.Render(fragment))
 			}
 		}
+	}
+	return rows
+}
+
+func verificationLabel(disposition conversation.VerificationDisposition) string {
+	switch disposition {
+	case conversation.VerificationNotRequested:
+		return "Verification not requested"
+	case conversation.VerificationNotRun:
+		return "Verification not run"
+	case conversation.VerificationPassed:
+		return "Verification passed"
+	case conversation.VerificationFailed:
+		return "Verification failed"
+	case conversation.VerificationCancelled:
+		return "Verification cancelled"
+	case conversation.VerificationError:
+		return "Verification error"
+	default:
+		return "Verification unknown"
+	}
+}
+
+func verificationDetails(receipt *conversation.VerificationReceipt) []string {
+	var rows []string
+	if receipt.Command != "" {
+		rows = append(rows, "Command: "+receipt.Command)
+	}
+	if receipt.ExitCode != nil {
+		duration := time.Duration(receipt.DurationMS) * time.Millisecond
+		rows = append(rows, fmt.Sprintf("Exit: %d · Duration: %s", *receipt.ExitCode, duration))
+	} else if receipt.DurationMS > 0 {
+		duration := time.Duration(receipt.DurationMS) * time.Millisecond
+		rows = append(rows, "Duration: "+duration.String())
+	}
+	if receipt.Error != "" {
+		rows = append(rows, "Check error: "+receipt.Error)
 	}
 	return rows
 }

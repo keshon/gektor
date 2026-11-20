@@ -390,6 +390,27 @@ keep the state word visible before optional technical names and long targets.
 Returned, skipped and failed calls must not look completed. Full arguments and
 output remain available in the detailed view.
 
+The packed-badge mode keeps adjacent calls on one row when they fit. Each badge
+retains its own call identity and inspection target after wrapping. Keep this
+mode alongside per-line summaries and expanded output.
+
+Conversation Markdown uses the shared renderer in `components/markdown`.
+Unmatched inline markers remain visible while streaming. Code fences preserve
+their source and use language-aware colors; diff prefixes remain literal.
+Links display their destination. Tables wrap within cells, or use labelled
+records when a grid cannot fit. Renderer styles are explicit values, independent
+of the application palette. This path never interprets tool arguments as prose.
+
+Run completion and configured verification are separate facts. New receipts
+show whether a check was requested, ran, passed, failed, was cancelled or could
+not start, with its command and available process evidence. Old sessions without
+structured facts retain unknown verification; completion alone is never a pass.
+
+When the available dialog area is shorter than 18 rows, the application host
+lends the composer and pane chrome to the overlay. The top application menu and
+bottom active-action strip remain visible. Painting and pointer input use the
+same expanded area; closing restores the underlying draft.
+
 Every list defines loading, empty, no-match and failed-load states. A failed
 request offers retry where useful and preserves the query. Loading does not
 replace the list with a successful-looking empty result. Async replies carry

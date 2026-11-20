@@ -181,8 +181,8 @@ func TestGeneratedInputInvocationExecutesBoundRecipe(t *testing.T) {
 	msg := cmd()
 	for {
 		if result, ok := msg.(workflowResult); ok {
-			if result.err != nil || !strings.Contains(result.text, `"status":"completed"`) {
-				t.Fatal(result.err, result.text)
+			if result.err != nil || result.outcome.Status != "completed" {
+				t.Fatal(result.err, result.outcome)
 			}
 			return
 		}

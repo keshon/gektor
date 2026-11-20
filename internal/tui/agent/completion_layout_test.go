@@ -24,7 +24,7 @@ func TestCompletionChromeKeepsSurfaceBackground(t *testing.T) {
 					l := s.Layout(completion.Props{Width: width, Height: height, Surface: popupSurface(), Title: m.styles.Title, Shortcuts: m.shortcutStyles()})
 					screen := uv.NewScreenBuffer(width, len(l.Rows))
 					uv.NewStyledString(paintScreen(strings.Join(l.Rows, "\n"))).Draw(screen, uv.Rect(0, 0, width, len(l.Rows)))
-					if l.Close && !sameColor(screen.CellAt(2, 1).Style.Fg, themeColor(colorWarning)) {
+					if l.Close && !sameColor(screen.CellAt(2, 1).Style.Fg, themeColor(colorPopupText)) {
 						t.Fatal("completion title does not use the shared title role", theme, width, height)
 					}
 					for y := 1; y < len(l.Rows)-1; y++ {

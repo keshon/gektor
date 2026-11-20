@@ -84,10 +84,11 @@ func (m *Model) evaluate(arg string) (tea.Model, tea.Cmd) {
 	m.evaluation = job
 	config.OnProgress = job.update
 	m.refreshEvaluation()
-	return m, func() tea.Msg {
+	return m, m.workerCommand(func() tea.Msg {
+		defer cancel()
 		result, err := retrospective.Evaluate(ctx, config)
 		return evaluationDoneMsg{job: job, result: result, err: err}
-	}
+	})
 }
 
 func (m *Model) cancelEvaluation() {

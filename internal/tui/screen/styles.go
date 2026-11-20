@@ -56,7 +56,7 @@ func DefaultStyles() Styles { return CurrentPalette().Styles() }
 
 func (p *Palette) Styles() Styles {
 	return Styles{
-		Title:    lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorWarning))).Bold(true),
+		Title:    lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorPopupText))).Bold(true),
 		Focus:    lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorAccent))).Bold(true),
 		Disabled: lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorDisabledText))),
 		Dim:      lipgloss.NewStyle().Foreground(lipgloss.Color(p.Color(ColorDim))),

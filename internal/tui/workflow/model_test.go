@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/keshon/gektor/internal/tui/components/pane"
+	"github.com/keshon/gektor/internal/workflow/service"
 )
 
 func TestWorkflowUpdatesReplaceNoticeSeverity(t *testing.T) {
@@ -24,7 +25,7 @@ func TestWorkflowUpdatesReplaceNoticeSeverity(t *testing.T) {
 		status string
 		level  pane.NoticeLevel
 	}{{"completed", pane.NoticeSuccess}, {"failed", pane.NoticeError}, {"cancelled", pane.NoticeWarning}, {"running", pane.NoticeInfo}} {
-		m.workflows.acceptResult(workflowResult{text: `{"status":"` + item.status + `"}`})
+		m.workflows.acceptResult(workflowResult{outcome: service.Result{Status: item.status}})
 		if w.noticeLevel != item.level || !strings.Contains(w.notice, item.status) {
 			t.Fatalf("run status %s has the wrong notice: %s (%d)", item.status, w.notice, w.noticeLevel)
 		}

@@ -409,6 +409,18 @@ func reportAgentRun(r agent.RunReport, stateFile string, o resolvedLaunch, note 
 		note("%s", r.Summary)
 	}
 	note("outcome: %s; changed files: %s", r.Outcome, strings.Join(r.MutatedPaths, ", "))
+	if receipt := r.VerificationReceipt; receipt != nil {
+		note("verification: %s; duration: %dms", receipt.Disposition, receipt.DurationMS)
+		if receipt.Command != "" {
+			note("verification command: %s", receipt.Command)
+		}
+		if receipt.ExitCode != nil {
+			note("verification exit code: %d", *receipt.ExitCode)
+		}
+		if receipt.Error != "" {
+			note("verification error: %s", receipt.Error)
+		}
+	}
 	if r.Verification != "" {
 		note("checks: %s", r.Verification)
 	} else {

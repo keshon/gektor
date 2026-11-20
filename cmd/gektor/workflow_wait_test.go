@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/keshon/gektor/internal/app"
+	"github.com/keshon/gektor/internal/workflow/service"
 	"github.com/keshon/gektor/internal/workflow/store"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -40,7 +41,7 @@ func TestDurableWaitExampleThroughCLIAndWorkerContinuation(t *testing.T) {
 		t.Fatal(out.String(), err)
 	}
 	var note bytes.Buffer
-	workflowGuidance(&note, out.String(), home, dir, "", "")
+	workflowGuidance(&note, service.Result{RunID: summary.ID, Status: summary.Status}, home, dir, "", "")
 	if !strings.Contains(note.String(), "workflow service") || strings.Contains(note.String(), "Approve:") {
 		t.Fatal(note.String())
 	}

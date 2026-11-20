@@ -1,13 +1,16 @@
 package agent
 
 import (
+	"slices"
+
+	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 )
 
 // MutatedPaths returns the workspace paths mutated by the last run,
 // for session-end sweeps. Empty when nothing mutated.
 func (a *Agent) MutatedPaths() []string {
-	return a.report.MutatedPaths
+	return slices.Clone(a.report.MutatedPaths)
 }
 
 // RunReport records the outcome, observed effects, and real check output.
@@ -19,10 +22,11 @@ type RunReport struct {
 	Archive       string
 	Prompt        llm.ContextReport
 	// Summary describes incomplete work; it never represents successful completion.
-	Summary      string
-	Outcome      string
-	Verification string
-	Warnings     []string
+	Summary             string
+	Outcome             string
+	Verification        string
+	VerificationReceipt *conversation.VerificationReceipt
+	Warnings            []string
 	// Steps is how many model round-trips the run performed.
 	Steps int
 
@@ -51,8 +55,28 @@ type ToolEvidence struct {
 	Status string
 }
 
-// Report returns measured facts about the most recent Run/Resume,
+// Report returns a snapshot of measured facts about the most recent Run/Resume,
 // including a partially filled report for a run that errored mid-way.
 func (a *Agent) Report() RunReport {
-	return a.report
+	return a.report.Clone()
+}
+
+// Clone returns an independent snapshot for callers and event observers.
+func (r RunReport) Clone() RunReport {
+	r.RecentTools = slices.Clone(r.RecentTools)
+	r.Warnings = slices.Clone(r.Warnings)
+	r.MutatedPaths = slices.Clone(r.MutatedPaths)
+	r.OpenTodos = slices.Clone(r.OpenTodos)
+	r.Prompt.Sections = slices.Clone(r.Prompt.Sections)
+	r.Prompt.Tools = slices.Clone(r.Prompt.Tools)
+	r.Prompt.Notes = slices.Clone(r.Prompt.Notes)
+	if r.VerificationReceipt != nil {
+		receipt := *r.VerificationReceipt
+		if receipt.ExitCode != nil {
+			code := *receipt.ExitCode
+			receipt.ExitCode = &code
+		}
+		r.VerificationReceipt = &receipt
+	}
+	return r
 }

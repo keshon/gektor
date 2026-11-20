@@ -122,21 +122,14 @@ func TestJoinPersistenceReviewSkipAndFailureRouting(t *testing.T) {
 			if err != nil && mode != "failure" {
 				t.Fatal(out, err)
 			}
-			var summary struct {
-				RunID  string `json:"run_id"`
-				Status string `json:"status"`
-			}
-			err = json.Unmarshal([]byte(out), &summary)
-			if err != nil {
-				t.Fatal(err)
-			}
+			summary := out
 			if mode == "review" {
 				if summary.Status != "waiting_review" || calls.Load() != 1 {
 					t.Fatal("join did not finish before review", out, calls.Load())
 				}
 				restarted := svc
 				out, err = restarted.Review(t.Context(), summary.RunID, "publish", true)
-				if err != nil || calls.Load() != 1 || !strings.Contains(out, `"completed"`) {
+				if err != nil || calls.Load() != 1 || out.Status != "completed" {
 					t.Fatal("continuation repeated a completed join", out, calls.Load(), err)
 				}
 			}

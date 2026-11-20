@@ -62,6 +62,9 @@ in `internal/retrospective`. Frontends coordinate sessions through these owners.
   limits the returned text and records it in history.
 - `Verify` is one supplied execution operation. Its measured result is recorded
   after the final answer, including failure output, without another model turn.
+  `VerifyCommand` identifies a shell check when configured. The report and saved
+  run retain its structured receipt alongside the legacy verification text.
+  A passed check describes that verifier's result, not task correctness.
   `ToolContext` remains a small adapter for context metadata such as probed vision.
   Neither operation needs a function-wrapping interface.
 - Role restrictions apply at execution, including dynamically activated tools.

@@ -1,0 +1,15 @@
+package agent
+
+import (
+	"github.com/charmbracelet/x/ansi"
+	"testing"
+)
+
+func TestAuditLiteralMarkdownProbe(t *testing.T) {
+	for _, r := range []role{roleUser, roleAnswer} {
+		for _, text := range []string{"inspect *.go", "2 * 3", "an unmatched `backtick"} {
+			out := ansi.Strip(renderBlock(block{role: r, text: text}, defaultStyles(), renderOpts{}, 80))
+			t.Logf("role=%v input=%q output=%q", r, text, out)
+		}
+	}
+}

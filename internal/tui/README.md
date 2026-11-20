@@ -20,6 +20,8 @@ changing their implementation or boundaries.
   persistence. Application decisions about applying settings stay in `tui`.
 - **`components`:** reusable terminal controls and layouts, with their own local
   state and interaction.
+  `components/markdown` parses Markdown and renders terminal rows with explicit
+  caller-owned styles. It has no application state, theme globals or I/O.
 - **`clipboard`:** desktop image acquisition and bounded PNG/DIB normalization
   for user-requested attachments, including platform-specific clipboard access.
 
@@ -63,6 +65,12 @@ responsibilities have matching file names, without requiring identical APIs.
   screen must release blocked publishers without closing a caller-owned queue.
 - Trace startup, completion, cancellation, and close together when changing
   execution or lifetime ownership.
+- Agent `Close` cancels event publication before joining its workers. Commands
+  admitted after shutdown do no work; commands discarded by Bubble Tea do not
+  leave pending worker counts.
+- Packed tool badges retain independent inspection targets. Per-line and
+  expanded tools remain separate presentation choices; rendering never changes
+  the recorded call or its output.
 
 ## Tests and verification
 
@@ -71,6 +79,9 @@ composition: navigation, shared controls, settings, relaunch, and lifecycle.
 `workflow_integration_test.go` belongs here because it tests the assembled parent.
 Use production constructors and controls in fixtures; finish asynchronous work
 before cleanup. Optional rendered previews live in `previews_test.go`.
+`agent/chat_preview_test.go` covers conversation, streaming, failure, diff,
+long-history and packed-badge views in light/dark themes at three terminal sizes.
+Set `GEKTOR_TUI_PREVIEW_DIR` to export their ANSI frames.
 
 Run from the repository root, choosing checks appropriate to the change:
 

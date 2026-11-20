@@ -325,9 +325,10 @@ func executeWorkflow(ctx context.Context, o workflowOptions, out io.Writer, gate
 		writeErr := json.NewEncoder(out).Encode(report)
 		return errors.Join(runErr, writeErr)
 	}
-	if result != "" {
-		if _, err := fmt.Fprintln(out, result); err != nil {
-			return errors.Join(runErr, err)
+	if result.RunID != "" || result.Valid {
+		writeErr := json.NewEncoder(out).Encode(result)
+		if writeErr != nil {
+			return errors.Join(runErr, writeErr)
 		}
 		directory := o.storeDir
 		if directory == "" {

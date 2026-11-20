@@ -69,6 +69,8 @@ overflow recovery, truthful reporting without browser capability, nested skills,
 and a small Go CLI repair. The last scenario uses trusted acceptance tests
 injected only after the model finishes; their contents enter the input digest.
 Browser absence is a deliberate capability test, not a completed UI task.
+Its structured answer distinguishes actual browser observations from source
+import-resolution facts; see [browser criteria](prompts/23-browser-unavailable.md).
 Connected-browser mechanics are separately checked by the opt-in browser test;
 this core suite does not measure visual design quality.
 
@@ -93,6 +95,24 @@ go run ./cmd/eval -require-model qwen           # refuse to start on other weigh
 Each invocation writes `eval/results/<timestamp>/` by default, containing `results.jsonl`, `meta.json`
 recording which model produced the numbers, and a full request/response trace
 per run.
+
+By default, scored failures do not change the process exit status: the runner
+remains an exploratory measurement tool. For a gate, build the binary and set
+`-max-failures 0` (or another nonnegative count). An enabled gate returns 0 when
+scored failures are within that allowance, 1 when they exceed it, and 2 when any
+run is an infrastructure error or no runs were scored. Skips are excluded, so a
+mixed pass/skip experiment can pass; an all-skipped experiment cannot. Metadata
+records the allowance, with -1 meaning the gate is disabled. `-dry` still only
+validates definitions and exits 0 on success. Invalid arguments and setup/write
+errors remain nonzero. `go run` wraps a child exit code, so use the built binary
+when a caller must distinguish exit 1 from exit 2.
+
+```text
+go build -o eval-runner ./cmd/eval
+./eval-runner -suite core -runs 3 -max-failures 0
+```
+
+On Windows, build `eval-runner.exe` and invoke `.\eval-runner.exe`.
 
 `meta.json` also records requested response budget, run count, sampler setting,
 concurrency and runtime platform. SHA-256 digests identify the running binary,
@@ -119,6 +139,17 @@ First-token timing appears only when incremental generation progress is reported
 backend-reported prompt/cached counts. Estimates do not include backend-specific
 chat-template/tokenizer differences; cached tokens still occupy context.
 `tool_seconds` sums tool execution durations; concurrent durations can overlap.
+
+`checks` retains every acceptance check's zero-based index, definition, verdict,
+duration and multiline output. Shell and Go acceptance checks include their exit
+code when the command exited; startup/cancellation errors and non-command checks
+omit it. Combined stdout/stderr retains up to 48 KiB of head/tail content, with an
+explicit truncation marker for larger output. `artifact_failures` and console
+rows stay concise; use `checks` for assertions after temporary workspaces are
+removed. `summary.json` links to `results.jsonl` through its `results` field.
+`trace_failures`, `answer_failures` and `efficiency_failures` keep tool use,
+answer criteria and step budgets distinguishable; `failures` combines them with
+artifact and run-completion failures for the overall verdict.
 
 For delegate budget comparisons, run `-suite delegation -delegate-steps N` with
 6, 12 and 24, at least three repeats each, and `-jobs 1`. Keep the same model,

@@ -88,16 +88,9 @@ func TestDurableWaitsResumeRootChildMapAndRepeat(t *testing.T) {
 			if err != nil {
 				t.Fatal(out, err)
 			}
-			var summary struct {
-				ID     string `json:"run_id"`
-				Status string `json:"status"`
-			}
-			err = json.Unmarshal([]byte(out), &summary)
-			if err != nil {
-				t.Fatal(err)
-			}
+			summary := out
 			if mode == "review" {
-				_, err = svc.Review(t.Context(), summary.ID, "delay", true)
+				_, err = svc.Review(t.Context(), summary.RunID, "delay", true)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -109,7 +102,7 @@ func TestDurableWaitsResumeRootChildMapAndRepeat(t *testing.T) {
 			}
 			defer db.Close()
 			for n := 0; n < waits; n++ {
-				state, readErr := db.Run(summary.ID)
+				state, readErr := db.Run(summary.RunID)
 				if readErr != nil || state.Status != "waiting" || state.Record.WakeAt == nil || before != n+1 || after != n {
 					t.Fatalf("wait=%d before=%d after=%d status=%s err=%v", n, before, after, state.Status, readErr)
 				}
@@ -118,7 +111,7 @@ func TestDurableWaitsResumeRootChildMapAndRepeat(t *testing.T) {
 					if receipt == nil {
 						t.Fatal("missing callback receipt")
 					}
-					duplicate, deliveryErr := db.AcceptCallback(t.Context(), store.CallbackDelivery{RunID: summary.ID, WaitID: receipt.ID, Channel: receipt.Channel, EventID: fmt.Sprintf("event-%d", n), Payload: json.RawMessage(`{"approved":true,"label":"after"}`)})
+					duplicate, deliveryErr := db.AcceptCallback(t.Context(), store.CallbackDelivery{RunID: summary.RunID, WaitID: receipt.ID, Channel: receipt.Channel, EventID: fmt.Sprintf("event-%d", n), Payload: json.RawMessage(`{"approved":true,"label":"after"}`)})
 					if deliveryErr != nil || duplicate {
 						t.Fatal(duplicate, deliveryErr)
 					}
@@ -147,7 +140,7 @@ func TestDurableWaitsResumeRootChildMapAndRepeat(t *testing.T) {
 				}
 			}
 
-			state, err := db.Run(summary.ID)
+			state, err := db.Run(summary.RunID)
 			wantStatus, wantAfter := "completed", waits
 			if strings.Contains(mode, "denied") || mode == "expired" {
 				wantStatus, wantAfter = "failed", 0
