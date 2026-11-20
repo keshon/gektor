@@ -61,7 +61,7 @@ func operations() []operationSpec {
 		},
 		{
 			kind:        "optimize",
-			description: "Optimize images at their original dimensions into a new output directory. format keep quantizes PNGs to a palette or optimizes JPEG Huffman coding; webp converts PNG/JPEG to WebP. The image tools enforce size/fidelity thresholds and may decline outputs. No resizing, overwriting or source deletion; preview first with image_preview and no widths. items[].output contains saved paths.",
+			description: "Optimize images at their original dimensions into a new output directory. format keep quantizes PNGs to a palette or optimizes JPEG Huffman coding; webp converts PNG/JPEG to WebP. The image tools (pixelita) enforce size/fidelity thresholds and may decline outputs. No resizing, overwriting or source deletion; preview first with image_preview and no widths. items[].output contains saved paths.",
 			readOnly:    false,
 			retrySafe:   false,
 			input: `{
