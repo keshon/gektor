@@ -94,6 +94,7 @@ func (m *Controls) AcceptFormScan(msg fieldform.ScanMsg) {
 
 func (m *Controls) PresentDialog(d Dialog) {
 	m.Open(d.Title, d.Lines)
+	m.Dialog.Help = d.Help
 	m.Dialog.PreferredWidth = d.PreferredWidth
 	m.Dialog.Shortcuts = slices.Clone(d.Shortcuts)
 	m.Dialog.Actions = slices.Clone(d.Actions)

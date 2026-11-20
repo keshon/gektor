@@ -26,6 +26,7 @@ type Form struct {
 
 // Dialog describes an informational overlay with owner-supplied actions or a table.
 type Dialog struct {
+	Help           bool
 	Title          string
 	PreferredWidth int
 	Lines          []string

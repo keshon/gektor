@@ -15,7 +15,7 @@ func (m *Model) editSettings(section string) {
 		return
 	}
 	var ws *settings.EditSession
-	if m.preferences != nil && m.preferencesDialog == m.chrome.DialogID() && m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil {
+	if m.preferences != nil && m.preferencesDialog == m.chrome.DialogID() && m.chrome.DialogInfo().Kind == screen.FormDialog {
 		ws = m.preferences.EditSession
 		if ws != nil {
 			m.preparePreferences()
@@ -43,7 +43,7 @@ func (m *Model) editSettings(section string) {
 	}
 	title, fields := settings.PageFields(profile, section, preferences)
 
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogInfo().Kind != screen.NoDialog {
 		m.chrome.Close()
 	}
 	saved := ws.Draft.Visit(section, fields)

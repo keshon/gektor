@@ -18,7 +18,7 @@ func (m *Model) controlProps() screen.ControlProps {
 		Styles:  m.styles,
 		Blocked: m.sessions != nil || m.state == stAsk || m.state == stPermission,
 	}
-	if m.chrome.Dialog != nil && m.chrome.Dialog.Help {
+	if m.chrome.DialogInfo().Kind != screen.NoDialog && m.chrome.DialogInfo().Help {
 		for _, section := range m.dialogHelpSections() {
 			props.Help = append(props.Help, screen.HelpSection{Title: section.title, Rows: section.rows})
 		}

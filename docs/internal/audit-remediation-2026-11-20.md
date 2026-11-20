@@ -282,3 +282,21 @@ Validation for this ownership continuation on Windows amd64:
 - An integrated vet attempt exposed an older copy of the shared control-state
   file; the intended ID-only events and private table model were restored before
   the passing checks. Native terminal acceptance remains unperformed.
+
+
+### Production dialog access
+
+After the table/settings ownership commit, production screens were migrated off
+direct `Controls.Dialog` access. They now read value-only `DialogInfo`, request
+controls-owned status shortcuts and use lifetime-checked form focus. Help mode
+and its title are supplied in the dialog request rather than mutated afterward.
+No production consumer outside `screen` retains or directly edits a dialog/form
+widget. Existing internal tests still inspect public control state; removing
+that exported surface and moving those fixtures onto supported operations remain
+part of any public extraction. This change does not establish native acceptance.
+
+
+Validation: the TUI/workbench normal and race suites passed, including help/menu
+fixtures and copied metadata/shortcut lifetime checks. `go vet ./...`, the
+executable build and documentation checks passed. Packed badge behavior and
+shipping model/tool defaults are unchanged.

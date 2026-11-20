@@ -8,11 +8,11 @@ import (
 
 func (m *Model) functionKeyActions() []screen.Action {
 	gated := m.state == stPermission || m.state == stAsk
-	free := !gated && m.chrome.Dialog == nil && m.sessions == nil && !m.chrome.Header.Focused
+	free := !gated && m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil && !m.chrome.Header.Focused
 	idle := free && m.state == stDone
 	return []screen.Action{
 		{Key: tea.KeyF1, Mod: 0, Name: "F1", Label: "Help", Short: "Help", Enabled: !gated && m.sessions == nil && !m.chrome.Header.Focused},
-		{Key: tea.KeyF2, Mod: 0, Name: "F2", Label: "Search", Short: "Search", Enabled: !gated && m.chrome.Dialog == nil && !m.chrome.Header.Focused},
+		{Key: tea.KeyF2, Mod: 0, Name: "F2", Label: "Search", Short: "Search", Enabled: !gated && m.chrome.DialogInfo().Kind == screen.NoDialog && !m.chrome.Header.Focused},
 		{Key: tea.KeyF3, Mod: 0, Name: "F3", Label: "Thinking", Short: "Think", Enabled: free},
 		{Key: tea.KeyF4, Mod: 0, Name: "F4", Label: "New", Short: "New", Enabled: idle},
 		{Key: tea.KeyF10, Mod: 0, Name: "F10", Label: "Quit", Short: "Quit", Enabled: true},
@@ -21,11 +21,11 @@ func (m *Model) functionKeyActions() []screen.Action {
 
 // Footer actions follow input ownership; the running composer keeps Queue visible.
 func (m *Model) footerActions() []screen.Action {
-	if m.chrome.Dialog != nil && (m.chrome.Dialog.Form != nil || m.chrome.Dialog.Table != nil) {
+	if m.chrome.DialogInfo().Kind == screen.FormDialog || m.chrome.DialogInfo().Kind == screen.TableDialog {
 		return m.chrome.DialogActions()
 	}
 
-	if m.state == stPermission && m.chrome.Dialog == nil && m.gstage == gsPermit {
+	if m.state == stPermission && m.chrome.DialogInfo().Kind == screen.NoDialog && m.gstage == gsPermit {
 		actions := []screen.Action{{Key: 'y', Mod: 0, Name: "Y", Label: "Allow once", Short: "Allow", Enabled: true}, {Key: 'n', Mod: 0, Name: "N", Label: "Deny", Short: "Deny", Enabled: true}, {Key: 'a', Mod: 0, Name: "A", Label: "This session", Short: "Session", Enabled: true}}
 		if m.gatePreview != "" {
 			actions = append(actions, screen.Action{Key: tea.KeyF4, Mod: 0, Name: "F4", Label: "Proposal", Short: "View", Enabled: true})
@@ -106,7 +106,7 @@ func (m *Model) footerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	switch msg.Code {
 	case tea.KeyF1:
-		if m.chrome.Dialog != nil {
+		if m.chrome.DialogInfo().Kind != screen.NoDialog {
 			m.chrome.Close()
 		} else {
 			m.openHelp()
@@ -124,7 +124,7 @@ func (m *Model) footerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.input.Focus()
 	case tea.KeyF5:
 		gated := m.state == stPermission || m.state == stAsk
-		free := !gated && m.chrome.Dialog == nil && m.sessions == nil && !m.chrome.Header.Focused
+		free := !gated && m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil && !m.chrome.Header.Focused
 		idle := free && m.state == stDone
 		if !idle {
 			return m, nil
@@ -136,7 +136,7 @@ func (m *Model) footerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.command("/mode " + mode)
 	case tea.KeyF7:
 		gated := m.state == stPermission || m.state == stAsk
-		free := !gated && m.chrome.Dialog == nil && m.sessions == nil && !m.chrome.Header.Focused
+		free := !gated && m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil && !m.chrome.Header.Focused
 		if !free {
 			return m, nil
 		}
@@ -144,7 +144,7 @@ func (m *Model) footerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.transcript.Follow = true
 	case tea.KeyF9:
 		gated := m.state == stPermission || m.state == stAsk
-		if !(!gated && m.chrome.Dialog == nil && m.sessions == nil) {
+		if !(!gated && m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil) {
 			return m, nil
 		}
 		m.chrome.Header.Focused = !m.chrome.Header.Focused

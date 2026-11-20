@@ -1,5 +1,7 @@
 package agent
 
+import "github.com/keshon/gektor/internal/tui/screen"
+
 // Overlay frames remember the underlying pane for teardown. Message routing
 // uses activeInputOwner rather than trusting a widget's cached focus flag.
 
@@ -68,7 +70,7 @@ func (m *Model) activeInputOwner() focusOwner {
 	if m.state == stAsk {
 		return focusInput
 	}
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogInfo().Kind != screen.NoDialog {
 		return focusDialog
 	}
 	if m.sessions != nil {
@@ -103,11 +105,11 @@ func (m *Model) syncFocus() {
 		return
 	}
 	owner := m.activeInputOwner()
-	if m.chrome.Dialog != nil && m.chrome.Dialog.Table != nil {
+	if m.chrome.DialogInfo().Kind == screen.TableDialog {
 		m.chrome.SyncTableFocus(m.chrome.DialogID(), owner == focusDialog)
 	}
-	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil {
-		m.chrome.Dialog.Form.SyncInputFocus(owner == focusDialog)
+	if m.chrome.DialogInfo().Kind == screen.FormDialog {
+		m.chrome.SyncFormFocus(m.chrome.DialogID(), owner == focusDialog)
 	}
 	if owner != focusInput {
 		m.input.Blur()

@@ -19,6 +19,7 @@ import (
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/llm"
 	"github.com/keshon/gektor/internal/tui/components/composer"
+	"github.com/keshon/gektor/internal/tui/screen"
 	"github.com/keshon/gektor/internal/userdirs"
 	"github.com/keshon/gektor/internal/workspace"
 )
@@ -270,7 +271,7 @@ func (m *Model) startRun(run func(ctx context.Context) (string, error)) {
 	m.cancel()
 	// A run takes over: an open dialog — or sessions screen — would
 	// shadow a transcript that is suddenly live again.
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogInfo().Kind != screen.NoDialog {
 		m.chrome.Close()
 	}
 	if m.sessions != nil {

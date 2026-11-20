@@ -23,14 +23,14 @@ func (m *Model) syncPresentation() {
 		if ws := m.launch.Env.WS; ws != nil {
 			props.Identity = filepath.Base(ws.Root())
 		}
-		if m.chrome.Dialog != nil || m.chrome.Header.Focused {
+		if m.chrome.DialogInfo().Kind != screen.NoDialog || m.chrome.Header.Focused {
 			props.Actions = nil
 		}
 	} else {
 		props = m.agent.Presentation()
 	}
 	const compactDialogHeight = 18
-	if m.chrome.Dialog != nil && (m.chrome.DialogID() == m.toolsDialog || props.Area.Height < compactDialogHeight) {
+	if m.chrome.DialogInfo().Kind != screen.NoDialog && (m.chrome.DialogID() == m.toolsDialog || props.Area.Height < compactDialogHeight) {
 		// Short screens lend the composer and pane chrome to the modal. Keep the
 		// application menu and active action hints outside its paint and hit area.
 		props.Area = pane.Rect{Y: 1, Width: m.termW, Height: max(m.termH-2, 1)}
@@ -40,7 +40,7 @@ func (m *Model) syncPresentation() {
 	props.ColorProfile = m.colorProfile
 	props.Menus = m.menus(props.Menus)
 	m.chrome.Props = props
-	if m.chrome.Dialog != nil && (m.chrome.Dialog.Form != nil || m.chrome.Dialog.Table != nil || m.chrome.Dialog.Secret != nil) {
+	if m.chrome.DialogInfo().Kind == screen.FormDialog || m.chrome.DialogInfo().Kind == screen.TableDialog || m.chrome.DialogInfo().Kind == screen.SecretDialog {
 		m.chrome.Props.Actions = m.chrome.DialogActions()
 		snapshot, formOpen := m.chrome.FormSnapshot(m.preferencesDialog)
 		if m.preferences != nil && formOpen && !snapshot.PickerOpen && !snapshot.FeedbackOpen {

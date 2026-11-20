@@ -34,11 +34,11 @@ func (m *Model) activateMenuAction(command string) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "help-keys", "help-commands":
 
-		m.openHelp()
-		m.chrome.Dialog.Title = "Keyboard shortcuts"
+		title := "Keyboard shortcuts"
 		if command == "help-commands" {
-			m.chrome.Dialog.Title = "Commands"
+			title = "Commands"
 		}
+		m.chrome.PresentDialog(screen.Dialog{Title: title, Help: true})
 		return m, nil
 	case "appearance":
 		m.request(screen.ApplicationCommand{Command: "appearance"})

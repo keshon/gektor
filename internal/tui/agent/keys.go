@@ -7,20 +7,21 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/keshon/gektor/internal/agent"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	defer m.syncFocus()
-	if m.chrome.Dialog != nil && m.chrome.Dialog.Table != nil && msg.String() != "ctrl+c" && msg.String() != "ctrl+q" {
+	if m.chrome.DialogInfo().Kind == screen.TableDialog && msg.String() != "ctrl+c" && msg.String() != "ctrl+q" {
 		return m, m.chrome.TableInput(msg)
 	}
-	if m.chrome.Dialog != nil && m.chrome.Dialog.Form != nil && msg.String() != "ctrl+c" && msg.String() != "ctrl+q" {
+	if m.chrome.DialogInfo().Kind == screen.FormDialog && msg.String() != "ctrl+c" && msg.String() != "ctrl+q" {
 		return m.formKey(msg)
 	}
 	if msg.String() == "ctrl+q" {
 		return m.requestQuit()
 	}
-	if m.state == stPermission && m.chrome.Dialog == nil && msg.String() == "f4" && m.gatePreview != "" {
+	if m.state == stPermission && m.chrome.DialogInfo().Kind == screen.NoDialog && msg.String() == "f4" && m.gatePreview != "" {
 		return m.gateKey(msg)
 	}
 	switch msg.String() {
@@ -44,7 +45,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.cancel()
 		return m, tea.Quit
 	}
-	if m.chrome.Dialog == nil && (m.state == stPermission || m.state == stAsk) {
+	if m.chrome.DialogInfo().Kind == screen.NoDialog && (m.state == stPermission || m.state == stAsk) {
 		if msg.String() == "pgup" || msg.String() == "pgdown" || msg.String() == "ctrl+end" {
 			var cmd tea.Cmd
 			if msg.String() == "ctrl+end" {
@@ -147,7 +148,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		// answers must never land in a list.
 		return m.sessionsKey(msg)
 	}
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogInfo().Kind != screen.NoDialog {
 		return m.infoDialogKey(msg)
 	}
 

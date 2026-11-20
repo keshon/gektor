@@ -14,7 +14,7 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if m.sessions != nil {
 		return m.browserMouse(msg)
 	}
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogInfo().Kind != screen.NoDialog {
 		if m.actionBarVisible() && msg.Mouse().Button == tea.MouseLeft && isMouseClick(msg) && msg.Mouse().Y == m.termH-1 {
 			return m.toolbarClick(msg.Mouse().X)
 		}
@@ -25,7 +25,7 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	}
 	// A grabbed thumb owns motion and release until the button is released,
 	// including over the footer and outside the scrollbar column.
-	if m.scrollDrag.Active && m.chrome.Dialog == nil && m.sessions == nil && m.chrome.Header.Menu == "" && m.scrollbarMouse(msg) {
+	if m.scrollDrag.Active && m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil && m.chrome.Header.Menu == "" && m.scrollbarMouse(msg) {
 		return m, nil
 	}
 	if handled, cmd := m.headerMouse(msg); handled {

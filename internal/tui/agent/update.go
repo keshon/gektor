@@ -59,7 +59,7 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	}
 	switch msg := msg.(type) {
 	case sessionCopiedMsg:
-		if m.chrome.Dialog == nil && m.sessions == nil && m.state != stAsk && m.state != stPermission {
+		if m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil && m.state != stAsk && m.state != stPermission {
 			if msg.err != nil {
 				m.chrome.Open("Cannot copy session", []string{msg.err.Error()})
 			} else {
@@ -70,7 +70,7 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 		}
 		return m, nil
 	case processListMsg:
-		if m.chrome.Dialog == nil && m.sessions == nil && m.state != stPermission && m.state != stAsk {
+		if m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil && m.state != stPermission && m.state != stAsk {
 			m.openProcesses(msg.view)
 		}
 		return m, nil
@@ -89,12 +89,12 @@ func (m *Model) Update(msg tea.Msg) (next tea.Model, cmd tea.Cmd) {
 	case mcpActionMsg:
 		return m, m.handleMCPAction(msg)
 	case inputQueueReturn:
-		if m.chrome.Dialog == nil && m.state != stPermission && m.state != stAsk && m.sess == msg.queue.session && m.stateFile == msg.queue.stateFile {
+		if m.chrome.DialogInfo().Kind == screen.NoDialog && m.state != stPermission && m.state != stAsk && m.sess == msg.queue.session && m.stateFile == msg.queue.stateFile {
 			m.showInputQueue(msg.queue)
 		}
 		return m, nil
 	case permissionTableMsg:
-		if m.chrome.Dialog == nil && m.state != stPermission && m.state != stAsk {
+		if m.chrome.DialogInfo().Kind == screen.NoDialog && m.state != stPermission && m.state != stAsk {
 			m.openPermissionTable(msg.view)
 		}
 		return m, nil
@@ -595,7 +595,7 @@ func (m *Model) acceptGateEvent(ev harness.Event) {
 	if m.sessions != nil {
 		m.closeSessions()
 	}
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogInfo().Kind != screen.NoDialog {
 		m.suspendDialog()
 	}
 	// The prompt lives in the transcript, not the bottom bar: the

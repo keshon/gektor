@@ -6,6 +6,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 // composerRows is shared by rendering, viewport measurement and hit testing.
@@ -17,7 +19,7 @@ func (m *Model) composerRows() []string {
 	if status != "" {
 		rows = append(rows, cellLine(status, width))
 	}
-	if m.chrome.Dialog != nil {
+	if m.chrome.DialogInfo().Kind != screen.NoDialog {
 		return append(rows, cellLine(m.styles.Dim.Render("Draft preserved"), width))
 	}
 	if m.state == stPermission {
@@ -43,7 +45,7 @@ func (m *Model) syncComposerHeight() {
 }
 
 func (m *Model) composerStatus() string {
-	if m.state == stRunning && m.chrome.Dialog == nil && m.sessions == nil && m.actionBarVisible() {
+	if m.state == stRunning && m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil && m.actionBarVisible() {
 		if m.progress.Detail != "" && (m.progress.Phase == "waiting" || m.progress.Phase == "retry") {
 			return m.styles.Dim.Render(m.progress.Detail + " · " + formatElapsed(time.Since(m.progressStarted)))
 		}
@@ -52,7 +54,7 @@ func (m *Model) composerStatus() string {
 	return m.statusLine()
 }
 func (m *Model) composerQueueMouse(msg tea.MouseMsg) bool {
-	if m.chrome.Dialog != nil || m.state == stPermission || m.state == stAsk || m.queueSummary() == "" || !isMouseClick(msg) || msg.Mouse().Button != tea.MouseLeft {
+	if m.chrome.DialogInfo().Kind != screen.NoDialog || m.state == stPermission || m.state == stAsk || m.queueSummary() == "" || !isMouseClick(msg) || msg.Mouse().Button != tea.MouseLeft {
 		return false
 	}
 	layout := m.panelGeometry(m.mainWidth(), len(m.composerRows()), false, true)

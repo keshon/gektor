@@ -47,7 +47,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseMsg:
 		_, cmd = m.handleMouse(value)
 	case tea.PasteMsg, tea.PasteStartMsg, tea.PasteEndMsg:
-		if m.chrome.Dialog != nil {
+		if m.chrome.DialogInfo().Kind != screen.NoDialog {
 			cmd = m.chrome.UpdateFormInput(msg)
 		} else if !m.workflowActive() {
 			_, cmd = m.agent.Update(msg)
@@ -110,11 +110,11 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (next tea.Model, cmd tea.Cmd) {
 		_, cmd := m.agent.Update(msg)
 		return m, cmd
 	}
-	if m.chrome.Dialog != nil {
-		if m.chrome.Dialog.Table != nil {
+	if m.chrome.DialogInfo().Kind != screen.NoDialog {
+		if m.chrome.DialogInfo().Kind == screen.TableDialog {
 			return m, m.chrome.TableInput(msg)
 		}
-		if m.chrome.Dialog.Form != nil {
+		if m.chrome.DialogInfo().Kind == screen.FormDialog {
 			if m.preferences != nil && m.preferencesDialog == m.chrome.DialogID() {
 				m.preparePreferences()
 				snapshot, _ := m.chrome.FormSnapshot(m.preferencesDialog)
@@ -159,7 +159,7 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (next tea.Model, cmd tea.Cmd) {
 		return m, nil
 	}
 	defer func() { cmd = tea.Batch(cmd, tea.Batch(m.settleControls()...)) }()
-	if m.chrome.Dialog != nil && !m.agent.Status().Gated {
+	if m.chrome.DialogInfo().Kind != screen.NoDialog && !m.agent.Status().Gated {
 		mouse := msg.Mouse()
 		if m.chrome.ActionBarVisible() && mouse.Y == m.termH-1 && mouse.Button == tea.MouseLeft && screen.IsMouseClick(msg) {
 			if key, ok := m.chrome.ToolbarKey(mouse.X); ok {
@@ -172,7 +172,7 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (next tea.Model, cmd tea.Cmd) {
 		_, cmd := m.agent.Update(msg)
 		return m, cmd
 	}
-	if m.chrome.Dialog == nil && m.workflows.State().MouseCaptured {
+	if m.chrome.DialogInfo().Kind == screen.NoDialog && m.workflows.State().MouseCaptured {
 		_, cmd := m.workflows.Update(msg)
 		return m, cmd
 	}

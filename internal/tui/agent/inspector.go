@@ -12,6 +12,7 @@ import (
 	"github.com/keshon/gektor/internal/conversation"
 	"github.com/keshon/gektor/internal/tui/components/pane"
 	"github.com/keshon/gektor/internal/tui/components/popup"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 const inspectorSplitWidth = 100
@@ -27,7 +28,7 @@ type toolInspector struct {
 }
 
 func (m *Model) inspectorVisible() bool {
-	return m.inspector.callID != "" && m.chrome.Dialog == nil && m.sessions == nil && m.state != stPermission && m.state != stAsk
+	return m.inspector.callID != "" && m.chrome.DialogInfo().Kind == screen.NoDialog && m.sessions == nil && m.state != stPermission && m.state != stAsk
 }
 func (m *Model) mainWidth() int {
 	return m.screenPanes(m.inspectorVisible()).Main.Width
@@ -228,7 +229,7 @@ func (m *Model) inspectionHints(width int, shortcuts ...popup.Shortcut) string {
 }
 
 func (m *Model) inspectorKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
-	if m.chrome.Dialog != nil || m.sessions != nil || m.chrome.Header.Menu != "" || m.chrome.Header.Focused || m.state == stPermission || m.state == stAsk {
+	if m.chrome.DialogInfo().Kind != screen.NoDialog || m.sessions != nil || m.chrome.Header.Menu != "" || m.chrome.Header.Focused || m.state == stPermission || m.state == stAsk {
 		return false, nil
 	}
 	key := msg.String()

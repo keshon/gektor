@@ -44,8 +44,7 @@ type helpSection struct {
 }
 
 func (m *Model) openHelp() {
-	m.chrome.Open("Help", nil)
-	m.chrome.Dialog.Help = true
+	m.chrome.PresentDialog(screen.Dialog{Title: "Help", Help: true})
 }
 
 func helpSections() []helpSection {
@@ -175,12 +174,12 @@ func kvRows(rows []string) []string {
 // dialogHelpSections is shared by category navigation and rendering.
 func (m *Model) dialogHelpSections() []helpSection {
 	sections := m.helpSections()
-	if m.chrome.Dialog.Title != "Keyboard shortcuts" && m.chrome.Dialog.Title != "Commands" {
+	if m.chrome.DialogInfo().Title != "Keyboard shortcuts" && m.chrome.DialogInfo().Title != "Commands" {
 		return sections
 	}
 	filtered := make([]helpSection, 0, len(sections))
 	for _, section := range sections {
-		if (section.title == "Commands") == (m.chrome.Dialog.Title == "Commands") {
+		if (section.title == "Commands") == (m.chrome.DialogInfo().Title == "Commands") {
 			filtered = append(filtered, section)
 		}
 	}

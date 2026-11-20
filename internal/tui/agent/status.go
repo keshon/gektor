@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	fieldform "github.com/keshon/gektor/internal/tui/components/fields"
 	"github.com/keshon/gektor/internal/tui/components/popup"
+	"github.com/keshon/gektor/internal/tui/screen"
 )
 
 // controlHints shares the whole-group shortcut renderer with modal footers.
@@ -19,36 +19,10 @@ func (m *Model) statusLine() string {
 	if m.sessions != nil {
 		return m.styles.Status.Render("Search names and saved session text")
 	}
-	if m.chrome.Dialog != nil {
-		if m.chrome.Dialog.Secret != nil {
-			return m.controlHints(popup.Shortcut{Key: "Ctrl+S", Action: "save encrypted"}, popup.Shortcut{Key: "Esc", Action: "cancel"})
-		}
-		if m.chrome.Dialog.Table != nil {
-			table := m.chrome.TableSnapshot(m.chrome.DialogID())
-			if m.chrome.Dialog.Table.List {
-				return m.controlHints(popup.Shortcut{Key: "↑↓", Action: "select"}, popup.Shortcut{Key: "Esc", Action: "close"})
-			}
-			if table.Layout.Capacity == 0 {
-				return m.controlHints(popup.Shortcut{Key: "Esc", Action: "close"})
-			}
-			if table.MoreOpen {
-				return m.controlHints(popup.Shortcut{Key: "Esc", Action: "back"})
-			}
-			return m.controlHints(popup.Shortcut{Key: "Esc", Action: "back"}, popup.Shortcut{Key: "/", Action: "filter"}, popup.Shortcut{Key: "Tab", Action: "controls"})
-		}
-		if m.chrome.Dialog.Form != nil {
-			f := m.chrome.Dialog.Form
-			if f.FeedbackOpen {
-				return m.controlHints(popup.Shortcut{Key: "Esc", Action: "back"}, popup.Shortcut{Key: "↑↓", Action: "scroll"})
-			}
-			shortcuts := []popup.Shortcut{{Key: "Esc", Action: "cancel"}, {Key: "Tab", Action: "controls"}}
-			if f.InputOwner() == fieldform.FieldInput && f.Fields[f.Index].Multiline && !f.Fields[f.Index].ReadOnly {
-				shortcuts = append(shortcuts, popup.Shortcut{Key: "Ctrl+O", Action: "newline"})
-			}
-			return m.controlHints(shortcuts...)
-		}
-		return m.controlHints(popup.Shortcut{Key: "Esc", Action: "close"}, popup.Shortcut{Key: "↑↓", Action: "scroll"})
+	if m.chrome.DialogInfo().Kind != screen.NoDialog {
+		return m.controlHints(m.chrome.DialogShortcuts()...)
 	}
+
 	hint := m.actionHint()
 	if m.state == stRunning && m.progress.Detail != "" && (m.progress.Phase == "waiting" || m.progress.Phase == "retry") {
 		hint = m.controlHints(popup.Shortcut{Key: "Esc", Action: "stop"}) + "  " + m.progress.Detail + " · " + formatElapsed(time.Since(m.progressStarted))
