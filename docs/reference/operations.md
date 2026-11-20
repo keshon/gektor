@@ -394,10 +394,17 @@ after-hash is reported as an error, not evidence of preservation. These checks
 describe the operation, not subsequent edits by other processes.
 Metrics do not establish visual quality.
 
-Unsupported metadata, including embedded ICC profiles on resize, returns a
-blocked tool result with the actual reason. A blocked preview stops the recipe
-before writing. `keep` means keep the file format; it does not add colour-profile
-conversion support. Do not remove profiles merely to make a recipe succeed.
+The default `color_profile: "preserve"` blocks conversion or resizing that would
+lose an ICC profile. For web output, preview with `color_profile: "srgb"`, then
+use the same option on `image_optimize` or `image_variants`. Pixelita converts
+supported RGB matrix/TRC ICC profiles before encoding or resizing. This changes
+the pixel values to sRGB; it does not simply discard the profile. Unsupported
+profiles and animation remain blocked, with the actual reason in the result.
+A blocked preview stops the recipe before writing.
+
+Same-size JPEG `format: "keep"` retains the original profile and pixels through
+lossless Huffman optimization. Use WebP or an explicit resize for sRGB conversion;
+JPEG Huffman optimization cannot transform colors. Profile stripping is not exposed.
 
 Enable `native_workflows` for schema lookup, validation, execution, run inspection
 and structured records. `workflow_validate` and `workflow_run` accept

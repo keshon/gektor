@@ -44,7 +44,7 @@ func operations() []operationSpec {
 		},
 		{
 			kind:        "preview",
-			description: "Preview image optimization or width variants without writing. Without widths, keep quantizes PNGs or optimizes JPEGs; webp converts PNG/JPEG. With widths, resize only (no PNG quantization). Planned filenames are in items[].output.",
+			description: "Preview image optimization or width variants without writing. Without widths, keep quantizes PNGs or optimizes JPEGs; webp converts PNG/JPEG. With widths, resize only (no PNG quantization). Use color_profile srgb for supported ICC-tagged RGB WebP conversion or resizing. Planned filenames are in items[].output.",
 			readOnly:    true,
 			retrySafe:   true,
 			input: `{
@@ -52,6 +52,7 @@ func operations() []operationSpec {
   "properties": {
     "paths": {"type":"array","items":{"type":"string","minLength":1},"minItems":1,"maxItems":16},
     "widths": {"type":"array","items":{"type":"integer","minimum":1,"maximum":8192},"minItems":1,"maxItems":8,"uniqueItems":true},
+    "color_profile": {"type":"string","enum":["preserve","srgb"],"description":"Default preserve blocks conversion/resizing that would lose ICC. srgb converts supported RGB matrix/TRC ICC profiles before WebP conversion or resizing; unsupported profiles remain blocked. Does not strip profiles without transforming pixels."},
     "format": {"type":"string","enum":["keep","webp"]}
   },
   "required": ["paths"],
@@ -67,6 +68,7 @@ func operations() []operationSpec {
   "type": "object",
   "properties": {
     "paths": {"type":"array","items":{"type":"string","minLength":1},"minItems":1,"maxItems":16},
+    "color_profile": {"type":"string","enum":["preserve","srgb"],"description":"Default preserve blocks conversion/resizing that would lose ICC. srgb converts supported RGB matrix/TRC ICC profiles before WebP conversion or resizing; unsupported profiles remain blocked. Does not strip profiles without transforming pixels."},
     "format": {"type":"string","enum":["keep","webp"]},
     "out_dir": {"type":"string","minLength":1}
   },
@@ -84,6 +86,7 @@ func operations() []operationSpec {
   "properties": {
     "paths": {"type":"array","items":{"type":"string","minLength":1},"minItems":1,"maxItems":16},
     "widths": {"type":"array","items":{"type":"integer","minimum":1,"maximum":8192},"minItems":1,"maxItems":8,"uniqueItems":true},
+    "color_profile": {"type":"string","enum":["preserve","srgb"],"description":"Default preserve blocks conversion/resizing that would lose ICC. srgb converts supported RGB matrix/TRC ICC profiles before WebP conversion or resizing; unsupported profiles remain blocked. Does not strip profiles without transforming pixels."},
     "format": {"type":"string","enum":["keep","webp"]},
     "out_dir": {"type":"string","minLength":1}
   },
@@ -140,7 +143,7 @@ const outputSchema = `{
     "summary": {"type":"object","additionalProperties":{"type":"integer"}},
     "status": {"type":"string"},
     "sources": {"type":["array","null"],"items":{"type":"object","properties":{"path":{"type":"string"},"sha256_before":{"type":"string"},"sha256_after":{"type":"string"},"unchanged":{"type":"boolean"},"error":{"type":"string"}},"required":["path","sha256_before"]}},
-    "items": {"type":["array","null"],"items":{"type":"object","properties":{"path":{"type":"string"},"output":{"type":"string","description":"Actual saved path for optimize/variants; planned basename for preview. For variants, select the matching metrics.width."},"status":{"type":"string"},"written":{"type":"boolean"},"code":{"type":"string"},"reason":{"type":"string"},"bytesBefore":{"type":"integer"},"bytesAfter":{"type":"integer"},"metrics":{"type":"object","properties":{"width":{"type":"integer"},"height":{"type":"integer"}}}},"required":["path","status"]}},
+    "items": {"type":["array","null"],"items":{"type":"object","properties":{"path":{"type":"string"},"output":{"type":"string","description":"Actual saved path for optimize/variants; planned basename for preview. For variants, select the matching metrics.width."},"status":{"type":"string"},"written":{"type":"boolean"},"code":{"type":"string"},"reason":{"type":"string"},"bytesBefore":{"type":"integer"},"bytesAfter":{"type":"integer"},"metrics":{"type":"object","properties":{"width":{"type":"integer"},"height":{"type":"integer"},"colorConversion":{"type":"object","properties":{"source":{"type":"string"},"target":{"type":"string"},"method":{"type":"string"}},"required":["source","target","method"]}}}},"required":["path","status"]}},
     "recovery": {"type":"string"},
     "error": {"type":"string"},
     "failure_stage": {"type":"string"}

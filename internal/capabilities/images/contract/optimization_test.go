@@ -18,6 +18,8 @@ func TestOptimizationContractRejectsResizeAndUnsafeOptions(t *testing.T) {
 	for _, valid := range []string{
 		`{"paths":["image.png"],"out_dir":"optimized"}`,
 		`{"paths":["image.png"],"format":"webp","out_dir":"optimized"}`,
+		`{"paths":["image.png"],"format":"webp","color_profile":"srgb","out_dir":"optimized"}`,
+		`{"paths":["image.png"],"color_profile":"preserve","out_dir":"optimized"}`,
 	} {
 		if err := op.Validate(json.RawMessage(valid)); err != nil {
 			t.Fatalf("%s: %v", valid, err)
@@ -29,6 +31,7 @@ func TestOptimizationContractRejectsResizeAndUnsafeOptions(t *testing.T) {
 		`{"paths":["image.png"],"format":"png","out_dir":"optimized"}`,
 		`{"paths":["image.png"],"overwrite":true,"out_dir":"optimized"}`,
 		`{"paths":["image.png"],"out_dir":"../outside"}`,
+		`{"paths":["image.png"],"color_profile":"strip","out_dir":"optimized"}`,
 	} {
 		if err := op.Validate(json.RawMessage(invalid)); err == nil {
 			t.Fatalf("accepted %s", invalid)

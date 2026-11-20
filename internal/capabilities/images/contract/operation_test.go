@@ -164,23 +164,30 @@ func TestUnsupportedProfileBlocksPreviewAndWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, op := range []string{"preview", "variants"} {
-		args := `{"paths":["profile.png"],"widths":[16]}`
-		if op == "variants" {
-			args = `{"paths":["profile.png"],"widths":[16],"out_dir":"out"}`
-		}
-		out, err := (Operation{Service: images.Service{WS: ws, Inputs: testInputs{ws}}, Kind: op, AuthorizeOutput: allowOutput}).Run(t.Context(), json.RawMessage(args))
-		if err == nil || !strings.Contains(err.Error(), "unsupported_metadata") || strings.Contains(err.Error(), "Temp") {
-			t.Fatalf("%s: %v %s", op, err, out)
-		}
-		var result struct {
-			Status  string                       `json:"status"`
-			Summary struct{ Files, Blocked int } `json:"summary"`
-		}
-		if e := json.Unmarshal([]byte(out), &result); e != nil {
-			t.Fatal(e)
-		}
-		if result.Status != "blocked" || result.Summary.Files != 1 || result.Summary.Blocked != 1 || strings.Contains(out, "--apply") {
-			t.Fatalf("misleading report: %s", out)
+		for _, policy := range []string{"preserve", "srgb"} {
+			args := `{"paths":["profile.png"],"widths":[16]}`
+			if op == "variants" {
+				args = `{"paths":["profile.png"],"widths":[16],"out_dir":"out"}`
+			}
+			args = strings.TrimSuffix(args, "}") + `,"color_profile":"` + policy + `"}`
+			out, err := (Operation{Service: images.Service{WS: ws, Inputs: testInputs{ws}}, Kind: op, AuthorizeOutput: allowOutput}).Run(t.Context(), json.RawMessage(args))
+			expectedCode := "unsupported_metadata"
+			if policy == "srgb" {
+				expectedCode = "unsupported_color_profile"
+			}
+			if err == nil || !strings.Contains(err.Error(), expectedCode) || strings.Contains(err.Error(), "Temp") {
+				t.Fatalf("%s: %v %s", op, err, out)
+			}
+			var result struct {
+				Status  string                       `json:"status"`
+				Summary struct{ Files, Blocked int } `json:"summary"`
+			}
+			if e := json.Unmarshal([]byte(out), &result); e != nil {
+				t.Fatal(e)
+			}
+			if result.Status != "blocked" || result.Summary.Files != 1 || result.Summary.Blocked != 1 || strings.Contains(out, "--apply") {
+				t.Fatalf("misleading report: %s", out)
+			}
 		}
 	}
 	if _, err := ws.Stat("out"); !os.IsNotExist(err) {

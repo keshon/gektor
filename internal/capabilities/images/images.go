@@ -42,10 +42,11 @@ func (s Service) openInput(ctx context.Context, path string) (*os.File, error) {
 func (t operation) Name() string { return "image_" + t.Kind }
 
 type Request struct {
-	Paths  []string `json:"paths"`
-	Widths []int    `json:"widths,omitempty"`
-	Format string   `json:"format,omitempty"`
-	OutDir string   `json:"out_dir,omitempty"`
+	Paths        []string `json:"paths"`
+	Widths       []int    `json:"widths,omitempty"`
+	Format       string   `json:"format,omitempty"`
+	OutDir       string   `json:"out_dir,omitempty"`
+	ColorProfile string   `json:"color_profile,omitempty"`
 }
 
 func (s Service) Validate(kind string, in Request) (Request, error) {
@@ -63,12 +64,16 @@ func (s Service) Validate(kind string, in Request) (Request, error) {
 		return in, fmt.Errorf("invalid image input count")
 	}
 
-	if (kind == "inspect" || kind == "compare") && (len(in.Widths) > 0 || in.Format != "" || in.OutDir != "") {
+	if (kind == "inspect" || kind == "compare") && (len(in.Widths) > 0 || in.Format != "" || in.OutDir != "" || in.ColorProfile != "") {
 		return in, fmt.Errorf("unexpected image options")
 	}
 
 	if in.Format != "" && in.Format != "keep" && in.Format != "webp" {
 		return in, fmt.Errorf("unsupported image format")
+	}
+
+	if in.ColorProfile != "" && in.ColorProfile != "preserve" && in.ColorProfile != "srgb" {
+		return in, fmt.Errorf("color_profile must be preserve or srgb")
 	}
 
 	if len(in.Widths) > 8 {
@@ -222,13 +227,14 @@ func (t operation) process(ctx context.Context, in Request, dir string, paths []
 		}
 	case "preview", "variants", "optimize":
 		rep, err = imagekit.Optimize(imagekit.OptimizeRequest{
-			Context: ctx,
-			Paths:   paths,
-			Widths:  in.Widths,
-			Format:  in.Format,
-			OutDir:  filepath.Join(dir, "output"),
-			Apply:   t.writesOutputs(),
-			Jobs:    1,
+			Context:      ctx,
+			Paths:        paths,
+			Widths:       in.Widths,
+			Format:       in.Format,
+			ColorProfile: in.ColorProfile,
+			OutDir:       filepath.Join(dir, "output"),
+			Apply:        t.writesOutputs(),
+			Jobs:         1,
 		})
 	default:
 		return nil, fmt.Errorf("unknown image operation")

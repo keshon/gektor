@@ -14,7 +14,7 @@ require (
 	github.com/charmbracelet/x/windows v0.2.2
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/dop251/goja v0.0.0-20261105002551-2413f2132ac8
-	github.com/keshon/pixelita v0.1.1-0.20261105190032-fc8d65e54f70
+	github.com/keshon/pixelita v0.1.1-0.20261120191608-cbc2fde15043
 	github.com/kkdai/youtube/v2 v2.10.8
 	github.com/ledongthuc/pdf v0.0.0-20261020125853-5e46805f718e
 	github.com/pkg/sftp v1.13.12

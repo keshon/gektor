@@ -64,6 +64,8 @@ github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUq
 github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSow5/V2vxeg=
 github.com/keshon/pixelita v0.1.1-0.20261105190032-fc8d65e54f70 h1:V32QXS27syA2/4VYfWyBilur5nMGW5MQO/0djT0lFkc=
 github.com/keshon/pixelita v0.1.1-0.20261105190032-fc8d65e54f70/go.mod h1:ddHV6un10Sp6XNwqdY9SExnZoDEP3ou8q0syq0ZqGi0=
+github.com/keshon/pixelita v0.1.1-0.20261120191608-cbc2fde15043 h1:dPhPqO1DgDLpu0dso88ZIvqQCRH40SzGLc9BoOhybiI=
+github.com/keshon/pixelita v0.1.1-0.20261120191608-cbc2fde15043/go.mod h1:ddHV6un10Sp6XNwqdY9SExnZoDEP3ou8q0syq0ZqGi0=
 github.com/kkdai/youtube/v2 v2.10.8 h1:pF9yLCwmY0uMBjZNNAV9GvMqOfRPQGfFWDSvT7rMI3o=
 github.com/kkdai/youtube/v2 v2.10.8/go.mod h1:oCozeeM0fFu3s9O60QlTo0poDYIcR+EZ/ZgQMz3fH/4=
 github.com/kr/fs v0.1.0 h1:Jskdu9ieNAYnjxsi0LbQp1ulIKZV1LAFgK1tWhpZgl8=

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	imagekit "github.com/keshon/pixelita"
 )
@@ -19,7 +20,7 @@ func (t operation) evaluateReport(in Request, rep *imagekit.Report, sourceErr er
 	failed := rep.Summary.Failed > 0
 	blocked := failed
 	for _, item := range rep.Items {
-		if item.Code == "unsupported_metadata" {
+		if item.Code == "unsupported_metadata" || item.Code == "unsupported_color_profile" {
 			blocked = true
 		}
 	}
@@ -101,8 +102,11 @@ func (t operation) formatReport(in Request, rep *imagekit.Report, staged stagedI
 	if outcome.blocked {
 		recovery = "Report the item restriction; do not retry unchanged arguments or invent unsupported recovery commands."
 		for _, item := range rep.Items {
-			if item.Code == "unsupported_metadata" {
-				recovery = "Capability limitation: no supported workaround is exposed for this metadata. keep/apply/retry do not help. Report the blocker; do not invent conversion commands or strip profiles automatically."
+			if item.Code == "unsupported_metadata" || item.Code == "unsupported_color_profile" {
+				recovery = "Unsupported metadata: report the item reason. Do not strip profiles or invent conversion commands."
+				if strings.Contains(item.Reason, "ICC") && (in.ColorProfile == "" || in.ColorProfile == "preserve") {
+					recovery = "For web conversion or resizing, preview with color_profile srgb to transform supported RGB ICC profiles to sRGB. Unsupported profiles remain blocked. For same-size JPEG optimization, preview format keep without widths to retain the profile and original pixels. Do not strip the profile or retry unchanged arguments."
+				}
 				break
 			}
 		}
@@ -137,7 +141,7 @@ func (t operation) formatReport(in Request, rep *imagekit.Report, staged stagedI
 			if t.Kind == "compare" {
 				it.Status = "compared"
 			}
-		case it.Code == "unsupported_metadata":
+		case it.Code == "unsupported_metadata", it.Code == "unsupported_color_profile":
 			it.Status = "blocked"
 		}
 		summary[string(it.Status)]++

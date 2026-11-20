@@ -438,3 +438,60 @@ Validation for these changes:
 - `go vet ./...`, native executable build and all 45 dry eval definitions: passed.
 - Repository documentation conventions, formatting and `git diff --check`: passed.
 - No live model comparison, native terminal review, release or publication was run.
+
+
+### ICC color conversion through Pixelita
+
+The failed Dreamcast image session (`0767a51d`) exposed an Adobe RGB (1998)
+profile in the source JPEG. The prior writer path could preserve that profile
+only through same-size JPEG Huffman optimization; resize and WebP encoding were
+blocked. The native skill also omitted image_optimize and cited recipe version 3.
+
+Pixelita now accepts explicit ColorProfile srgb in its typed optimization API,
+canonical CLI and applicable specialist wrappers. It transforms supported RGB
+matrix/TRC ICC v2/v4 input/display profiles to sRGB before encoding or resizing.
+The default remains preserve. LUT/CMYK profiles, malformed containers and animation
+remain rejected. Conversion uses relative colorimetry and channel clipping, with
+no black-point compensation. It is a bounded RGB ICC implementation, not general
+color management. JPEG Huffman optimization cannot transform colors; use explicit
+WebP conversion or a resize for that request. PNG outputs receive an sRGB tag;
+old source ICC data is removed only after applying the transform. Fidelity checks
+use the transformed reference, and reports include metrics.colorConversion.
+
+GEKTOR exposes color_profile preserve|srgb on image_preview, image_optimize and
+image_variants through the shared Agent/workflow schema. Unsupported profile
+results block both preview and publication. Recovery distinguishes supported
+sRGB normalization from unchanged retries or stripping. Skill guidance now includes
+image_optimize and recipe version 4. Original files and output permission rules
+remain intact.
+
+The actual session image converted at default thresholds from 2,470,609 to
+197,854 bytes (4540 by 2200 pixels, 91.99% gain). Pixelita measured PSNR 46.1479 dB
+and SSIM 0.985797 against the sRGB reference. A separate lossless normalized PNG
+was compared with Pillow/LittleCMS 2.19 using identical Go-decoded input pixels:
+mean absolute channel difference 0.0027252, maximum 1 on the 8-bit scale. This
+isolates the color transform from JPEG decoder differences. Source SHA-256 stayed
+`d42fe4bf514b7c7c9fc4fbefec0dff08fda1c97b114d97758dafd2d09065fb09`.
+These measurements describe this one image; no corpus-wide improvement is claimed.
+No blog asset was uploaded or replaced.
+
+GEKTOR pins published Pixelita commit cbc2fde15043 through
+`v0.1.1-0.20261120191608-cbc2fde15043`; no local replace or workspace is required.
+Pixelita remains on its existing codex/gektor-integration branch. The real-image
+GEKTOR contract probe also wrote the 197,854-byte output with exact-path
+image_optimize authorization and matching source hashes, using a temporary
+workspace rather than changing the blog image.
+
+Validation:
+
+- Pixelita: full normal and race tests, vet and all command builds passed.
+  A final byte-helper policy regression passed focused race tests as well.
+- GEKTOR: `go test -p 4 ./...` passed using the downloadable dependency.
+- GEKTOR image capabilities, tool catalog/policy, workflow tools and app race tests
+  passed with the final dependency pin.
+- GEKTOR vet, root/bin executable builds and all 45 dry eval definitions passed.
+- Documentation conventions, formatting and diff checks passed.
+- An earlier temporary Go workspace leaked into eval fixture subprocesses and
+  failed their module discovery. The final standalone run has no such override
+  and passes. A separate unquoted temporary replace argument failed before
+  mutation; no local replacement was retained.
