@@ -131,9 +131,9 @@ Both were corrected before the successful full run.
 
 ## Remaining gates
 
-1. Complete native terminal review of chat, streaming, tools, permissions, queues
-   and workflows in both theme families at 40×20, 80×24 and 120×40. The automated
-   96-frame matrix passes; native input, fonts and cross-platform parity remain open.
+1. Native terminal review was waived by the user on 2026-11-20. The automated
+   96-frame matrix passes; native input, fonts and cross-platform parity remain
+   unverified. No manual review is required for this continuation.
 2. Finish control-state encapsulation around dialog/form presentation and layout.
    Settings now use copied snapshots and presentation configuration; retained
    tables use opaque owner-bound handles. Both consumers preserve navigation,
@@ -197,7 +197,7 @@ context, long-context retrieval, cancellation/resume and unavailable-tool profil
 experiments remain unproved. At the user's direction, further Pi/OpenCode testing
 is outside the continuation scope; no three-product ranking is claimed.
 
-Native terminal review remains pending. Automated screen messages and ANSI
+Native terminal review was waived by the user on 2026-11-20. Automated screen messages and ANSI
 fixtures do not establish terminal font fallback, real mouse behavior or Linux
 parity. The available Windows computer-use workflow prohibits terminal-app
 automation, so no native review is claimed for this continuation.
@@ -209,13 +209,13 @@ marking a cell complete; resizing one inspected view does not accept the others.
 
 | Surface | Native acceptance action | Status |
 |---|---|---|
-| Chat | Read prose, literal globs, code, diff, table and long history; resize while scrolled | Pending |
-| Streaming | Observe partial Markdown, stop a response, then continue; retain all received text | Pending |
-| Tools | Keep packed badges; inspect each adjacent badge with keyboard and mouse; close and restore transcript position | Pending |
-| Permissions | Inspect requested action/resource; allow and deny separate harmless fixture requests; cancel and quit while pending | Pending |
-| Queue | Add two messages during a run; edit one, cancel its edit, remove the other; confirm draft and ordering | Pending |
-| Workflow | Open canvas and inspector, edit a draft, run a harmless fixture, deny a permission and cancel; inspect persisted status | Pending |
-| Workbench | Scroll detail, resize and switch palette; edit and cancel; replace a refresh and quit while it is pending | Pending |
+| Chat | Read prose, literal globs, code, diff, table and long history; resize while scrolled | Not run; waived |
+| Streaming | Observe partial Markdown, stop a response, then continue; retain all received text | Not run; waived |
+| Tools | Keep packed badges; inspect each adjacent badge with keyboard and mouse; close and restore transcript position | Not run; waived |
+| Permissions | Inspect requested action/resource; allow and deny separate harmless fixture requests; cancel and quit while pending | Not run; waived |
+| Queue | Add two messages during a run; edit one, cancel its edit, remove the other; confirm draft and ordering | Not run; waived |
+| Workflow | Open canvas and inspector, edit a draft, run a harmless fixture, deny a permission and cancel; inspect persisted status | Not run; waived |
+| Workbench | Scroll detail, resize and switch palette; edit and cancel; replace a refresh and quit while it is pending | Not run; waived |
 
 The isolated [scripted TUI smoke check](../development/testing.md#native-interaction-review-with-a-scripted-backend)
 provides a temporary home and deterministic streaming, adjacent tool calls,
@@ -223,8 +223,10 @@ harmless permission requests and a local workflow fixture. The documented
 manual checklist has not been executed. Automated backend tests and building
 the helper do not count as this native matrix passing.
 
-Public package extraction and distribution remain deferred until native review,
-both consumers' ownership checks and controlled comparisons pass. There is no
+Public package extraction and distribution remain deferred until the remaining
+public-state ownership work and a pinned external-consumer build pass. Native
+review was waived; further controlled model comparisons are outside the current
+TUI scope and are required only before changing model/tool defaults. There is no
 new public module, version promise or pinned external-consumer build in this
 continuation.
 
@@ -300,3 +302,27 @@ Validation: the TUI/workbench normal and race suites passed, including help/menu
 fixtures and copied metadata/shortcut lifetime checks. `go vet ./...`, the
 executable build and documentation checks passed. Packed badge behavior and
 shipping model/tool defaults are unchanged.
+
+
+### Native-review waiver and package preparation
+
+The user declined manual terminal testing and asked to skip it and move forward
+on 2026-11-20. This waives that acceptance gate for the continuation; it does not
+convert unperformed checks into passes. Earlier pending-native-review statements
+above describe the state before this decision. No manual test is requested.
+
+`scripts/check-tui-package.go` prepares an unpublished candidate in a temporary
+module and the workbench in a separate consumer module. It rejects imports of
+GEKTOR application packages, rewrites only the internal control import prefix,
+then tidies dependencies, tests, vets and builds both modules. The consumer uses a local
+replacement of the candidate; this proves a separate build without repository
+`internal` access, not compatibility with a published or pinned release. Source
+files are hashed before rewriting. The repository module and shipping imports
+are not changed, and no package is published.
+
+
+The isolated candidate and consumer checks passed on Windows amd64. Candidate
+source SHA-256 before import rewriting was
+`e8ea78ec71deb0c945e59d5a97447ceb7189dd2a527527425c535fb52aabea47`.
+The import-boundary guard tests, script vet and documentation checks also passed.
+Public-state cleanup and a real pinned release consumer remain outstanding.

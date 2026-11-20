@@ -189,3 +189,23 @@ uses a bounded context allowance; native provider replay is unchanged.
 Run `45-assistant-role` against the actual local model. Explicit role labels
 alone did not fix the Ornith failure. The footer passed two targeted runs;
 these are calibration results, not a guarantee across models and tasks.
+
+
+## Isolated controls package preparation
+
+Run from the repository root:
+
+```text
+go run scripts/check-tui-package.go
+```
+
+This copies control/component sources and their tests into a temporary candidate
+module, and the workbench into a separate consumer module. Application imports
+are rejected. The command tidies, tests, vets and builds both modules, then deletes the
+temporary workspace. Add `-keep` to inspect it. The printed source hash identifies
+the input bytes before import rewriting.
+
+The consumer uses a local replacement and a placeholder module name. This is
+package preparation, not a published-version compatibility check. It does not
+launch a terminal or contact a model server. Native terminal review for the
+2026-11-20 audit continuation was waived by the user and remains unverified.
